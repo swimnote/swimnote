@@ -93,7 +93,7 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
   );
 }
 
-function SectionHeader({ title, icon }: { title: string; icon: React.ComponentProps<typeof Feather>["name"] }) {
+function SectionHeader({ title, icon }: { title: string; icon: string }) {
   return (
     <View style={st.sectionHeader}>
       <LucideIcon name={icon} size={14} color={P} />

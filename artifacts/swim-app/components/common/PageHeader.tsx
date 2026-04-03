@@ -7,7 +7,7 @@ import Colors from "@/constants/colors";
 const C = Colors.light;
 
 interface ActionButton {
-  icon: React.ComponentProps<typeof Feather>["name"];
+  icon: string;
   label: string;
   onPress: () => void;
   color?: string;

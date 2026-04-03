@@ -293,7 +293,7 @@ router.post(
       const key = `audio/teacher_${teacherId}_${Date.now()}.${ext}`;
       const client = getClient();
 
-      const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype || "audio/m4a" });
+      const { ok, error } = await client.uploadFromBytes(key, file.buffer, {});
       if (!ok) { res.status(500).json({ error: error?.message || "업로드 실패" }); return; }
 
       res.json({ audio_file_url: key });
@@ -320,7 +320,7 @@ router.get("/schedule-notes/audio", requireAuth, async (req: AuthRequest, res) =
     const mimeMap: Record<string, string> = { m4a: "audio/m4a", mp4: "audio/mp4", webm: "audio/webm", ogg: "audio/ogg", mp3: "audio/mpeg" };
     res.setHeader("Content-Type", mimeMap[ext] || "audio/octet-stream");
     res.setHeader("Cache-Control", "private, max-age=3600");
-    res.send(Buffer.from(bytes));
+    res.send(bytes[0]);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -440,7 +440,7 @@ router.post(
       const key = `audio/daily_${teacherId}_${Date.now()}.${ext}`;
       const client = getClient();
 
-      const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype || "audio/m4a" });
+      const { ok, error } = await client.uploadFromBytes(key, file.buffer, {});
       if (!ok) { res.status(500).json({ error: error?.message || "업로드 실패" }); return; }
 
       res.json({ audio_file_url: key });
@@ -467,7 +467,7 @@ router.get("/daily-memos/audio", requireAuth, async (req: AuthRequest, res) => {
     const mimeMap: Record<string, string> = { m4a: "audio/m4a", mp4: "audio/mp4", webm: "audio/webm", ogg: "audio/ogg", mp3: "audio/mpeg" };
     res.setHeader("Content-Type", mimeMap[ext] || "audio/octet-stream");
     res.setHeader("Cache-Control", "private, max-age=3600");
-    res.send(Buffer.from(bytes));
+    res.send(bytes[0]);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

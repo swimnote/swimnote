@@ -211,10 +211,10 @@ router.post(
       const senderName = (userRow.rows[0] as any)?.name || "알 수 없음";
 
       const ext = file.originalname.split(".").pop() || "jpg";
-      const key = `${poolSlug}/messenger/${genFilename(ext)}`;
+      const key = `${poolSlug}/messenger/${genFilename(poolSlug, ext)}`;
 
       const client = getClient();
-      const { ok, error: uploadErr } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
+      const { ok, error: uploadErr } = await client.uploadFromBytes(key, file.buffer, {});
       if (!ok) throw new Error(uploadErr?.message || "사진 업로드 실패");
 
       const msgId = `wmsg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
@@ -577,10 +577,10 @@ router.post(
       const senderName = (userRow.rows[0] as any)?.name || "알 수 없음";
 
       const ext = file.originalname.split(".").pop() || "bin";
-      const key = `${poolSlug}/attachments/${genFilename(ext)}`;
+      const key = `${poolSlug}/attachments/${genFilename(poolSlug, ext)}`;
 
       const client = getClient();
-      const { ok, error: uploadErr } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype } as any);
+      const { ok, error: uploadErr } = await client.uploadFromBytes(key, file.buffer, {} as any);
       if (!ok) throw new Error(uploadErr?.message || "파일 업로드 실패");
 
       const domain = process.env.REPLIT_DEV_DOMAIN || "localhost";

@@ -20,7 +20,7 @@ const P = "#7C3AED";
 
 const TABS = ["전체", "운영자관리", "구독", "저장공간", "삭제", "정책", "결제", "보안", "기능플래그", "읽기전용 전환", "고객센터"];
 
-const CAT_CFG: Record<string, { color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"] }> = {
+const CAT_CFG: Record<string, { color: string; bg: string; icon: string }> = {
   운영자관리:      { color: "#D97706", bg: "#FFF1BF", icon: "shield" },
   구독:            { color: P,         bg: "#EEDDF5", icon: "credit-card" },
   저장공간:        { color: "#2EC4B6", bg: "#E6FFFA", icon: "hard-drive" },

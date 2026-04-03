@@ -236,7 +236,7 @@ function RootNav() {
 
   useEffect(() => {
     if (isLoading || !kind || !didRoute.current) return;
-    if (segments.length === 0 || !APP_ROOTS.includes(segments[0] as string)) {
+    if ((segments.length as number) === 0 || !APP_ROOTS.includes(segments[0] as string)) {
       router.replace("/org-role-select");
     }
   }, [segments]);

@@ -129,7 +129,7 @@ router.post("/diary/upload",
       const isVideo = ["mp4", "mov", "avi", "mkv", "webm", "m4v"].includes(ext);
       const key = `diary/${Date.now()}_${Math.random().toString(36).substr(2, 8)}.${ext}`;
       const client = getClient();
-      await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
+      await client.uploadFromBytes(key, file.buffer, {});
       return res.json({ key, type: isVideo ? "video" : "image" });
     } catch (e) { console.error(e); return apiErr(res, 500, "업로드 오류"); }
   }
@@ -943,7 +943,7 @@ router.post("/teacher/diary/:diaryId/messages",
         : await db.execute(sql`SELECT id FROM class_diaries WHERE id = ${req.params.diaryId}`);
       if (!diary.rows.length) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
 
-      const [user] = await superAdminDb.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, Number(userId))).limit(1);
+      const [user] = await superAdminDb.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, String(userId))).limit(1);
       const senderName = (user as any)?.name || "선생님";
 
       const result = await db.execute(sql`

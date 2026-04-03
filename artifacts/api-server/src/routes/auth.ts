@@ -83,7 +83,7 @@ router.post("/login", async (req, res) => {
 
     // platform_admin: permissions를 JWT에 포함
     let permissions;
-    if (user.role === "platform_admin") {
+    if ((user.role as string) === "platform_admin") {
       permissions = (user as any).permissions || { canViewPools: true, canEditPools: false, canApprovePools: false, canManageSubscriptions: false, canManagePlatformAdmins: false };
     }
 
@@ -201,8 +201,8 @@ router.post("/create-super-manager", requireAuth, async (req: AuthRequest, res) 
     const id = `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const [user] = await superAdminDb.insert(usersTable).values({
       id, email: email.trim().toLowerCase(), password_hash, name: name.trim(),
-      phone: null, role: "super_manager",
-    }).returning();
+      phone: null, role: "super_manager" as any,
+    } as any).returning();
     const { password_hash: _, ...safeUser } = user;
     res.status(201).json({ success: true, user: safeUser });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
@@ -1107,7 +1107,7 @@ router.post("/totp/verify-login", async (req, res) => {
 
     const cleanCode = otp_code.replace(/\D/g, "").trim();
     console.log(`[totp/verify-login] userId=***${payload.userId.slice(-4)} code_len=${cleanCode.length} totp_enabled=${user.totp_enabled} secret_len=${user.totp_secret?.length ?? 0}`);
-    const isValid = totpVerifySync({ token: cleanCode, secret: user.totp_secret, window: 1, strategy: "totp" });
+    const isValid = totpVerifySync({ token: cleanCode, secret: user.totp_secret, strategy: "totp" } as any);
     console.log(`[totp/verify-login] code_match=${isValid?.valid}`);
     if (!isValid?.valid) return err(res, 401, "OTP 코드가 올바르지 않거나 만료되었습니다.");
 
@@ -1140,7 +1140,7 @@ router.post("/totp/verify-action", requireAuth, async (req: AuthRequest, res) =>
     if (!user?.totp_enabled || !user?.totp_secret) {
       return err(res, 403, "OTP가 등록되지 않았습니다. 보안 설정에서 먼저 OTP를 등록해주세요.");
     }
-    const valid = totpVerifySync({ secret: user.totp_secret, token: String(otp_code), window: 1, strategy: "totp" });
+    const valid = totpVerifySync({ secret: user.totp_secret, token: String(otp_code), strategy: "totp" } as any);
     if (!valid?.valid) return err(res, 401, "OTP 코드가 올바르지 않습니다. 앱의 코드를 다시 확인해주세요.");
     res.json({ success: true });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
@@ -1621,7 +1621,7 @@ router.post("/kakao-link-account", async (req, res) => {
 // ════════════════════════════════════════════════════════════════
 // DELETE /auth/account — 계정 영구 탈퇴 (Apple 5.1.1(v) 필수 요건)
 // ════════════════════════════════════════════════════════════════
-router.delete("/account", requireAuth, async (req, res) => {
+router.delete("/account", requireAuth, async (req: AuthRequest, res) => {
   const userId = req.user!.userId;
   const role   = req.user!.role;
 

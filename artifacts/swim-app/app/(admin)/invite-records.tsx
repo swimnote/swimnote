@@ -168,8 +168,7 @@ export default function InviteRecordsScreen() {
   const teacherCount  = useMemo(() => operatorRecords.filter(r => r.targetType === "teacher").length,  [operatorRecords]);
 
   return (
-    <ScreenLayout>
-      <SubScreenHeader title="초대 안내 기록" />
+    <ScreenLayout header={<SubScreenHeader title="초대 안내 기록" />}>
 
       {/* 안내 배너 */}
       <View style={[s.infoBanner, { backgroundColor: "#E6FAF8" }]}>
@@ -202,7 +201,7 @@ export default function InviteRecordsScreen() {
       {/* 필터 */}
       <FilterChips<FilterKey>
         chips={FILTER_CHIPS}
-        value={filter}
+        active={filter}
         onChange={setFilter}
         style={{ paddingHorizontal: 16, marginBottom: 4 }}
       />
@@ -221,7 +220,7 @@ export default function InviteRecordsScreen() {
           <EmptyState
             icon="send"
             title="초대 안내 기록이 없습니다"
-            description="학생 목록에서 초대 문자를 보내면 여기에 기록됩니다."
+            subtitle="학생 목록에서 초대 문자를 보내면 여기에 기록됩니다."
           />
         }
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}

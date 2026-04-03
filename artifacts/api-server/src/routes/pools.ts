@@ -170,7 +170,7 @@ router.put("/settings", requireAuth, requireRole("pool_admin", "super_admin"),
         const client = getClient();
         const ext = (req.file.originalname.split(".").pop() || "jpg").toLowerCase();
         const key = `docs/business_reg/${Date.now()}_${Math.random().toString(36).substr(2, 6)}.${ext}`;
-        const { ok } = await client.uploadFromBuffer(req.file.buffer, key, { contentType: req.file.mimetype });
+        const { ok } = await client.uploadFromBytes(key, req.file.buffer);
         if (ok) imageKey = key;
       }
 

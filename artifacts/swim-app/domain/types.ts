@@ -34,6 +34,7 @@ export type SupportRole = 'operator' | 'teacher' | 'parent'
 
 export type SupportType =
   | 'payment'
+  | 'chargeback'
   | 'account'
   | 'data_delete'
   | 'upload_error'

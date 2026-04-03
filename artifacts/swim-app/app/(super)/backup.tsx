@@ -163,7 +163,7 @@ interface BackupStatusData {
   };
 }
 
-const DB_STATUS_CFG: Record<CardStatus, { color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"] }> = {
+const DB_STATUS_CFG: Record<CardStatus, { color: string; bg: string; icon: string }> = {
   normal:         { color: "#2EC4B6", bg: "#E6FFFA", icon: "check-circle" },
   warning:        { color: "#D97706", bg: "#FFF1BF", icon: "alert-circle" },
   error:          { color: "#D96C6C", bg: "#F9DEDA", icon: "alert-triangle" },
@@ -237,7 +237,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
     sub1?: string;
     sub2?: string;
     errorMsg?: string | null;
-    icon: React.ComponentProps<typeof Feather>["name"];
+    icon: string;
   }) {
     const cfg = DB_STATUS_CFG[st];
     return (

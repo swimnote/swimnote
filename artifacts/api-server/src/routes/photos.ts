@@ -269,7 +269,7 @@ router.post(
         if (pct >= 80) res.setHeader("X-Storage-Pct", `${pct}`);
       }
 
-      const poolSlug = await getPoolSlug(user.swimming_pool_id);
+      const poolSlug = await getPoolSlug(user.swimming_pool_id || "");
       const client = getClient();
       const inserted: any[] = [];
 
@@ -277,7 +277,7 @@ router.post(
         const ext = file.originalname.split(".").pop() || "jpg";
         const filename = genFilename(poolSlug, ext);
         const key = `photos/group/${class_id}/${filename}`;
-        const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
+        const { ok, error } = await client.uploadFromBytes(key, file.buffer, {});
         if (!ok) throw new Error(error?.message || "업로드 실패");
 
         const id = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
@@ -373,7 +373,7 @@ router.post(
         if (pct >= 80) res.setHeader("X-Storage-Pct", `${pct}`);
       }
 
-      const poolSlug = await getPoolSlug(user.swimming_pool_id);
+      const poolSlug = await getPoolSlug(user.swimming_pool_id || "");
       const client = getClient();
       const inserted: any[] = [];
 
@@ -381,7 +381,7 @@ router.post(
         const ext = file.originalname.split(".").pop() || "jpg";
         const filename = genFilename(poolSlug, ext);
         const key = `photos/private/${student_id}/${filename}`;
-        const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
+        const { ok, error } = await client.uploadFromBytes(key, file.buffer, {});
         if (!ok) throw new Error(error?.message || "업로드 실패");
 
         const id = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;

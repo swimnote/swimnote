@@ -36,7 +36,7 @@ const TEAL = "#2EC4B6";
 
 const TYPE_CFG: Record<string, {
   label: string; color: string; bg: string;
-  icon: React.ComponentProps<typeof Feather>["name"]; emergency?: boolean;
+  icon: string; emergency?: boolean;
 }> = {
   recovery:   { label: "복구",    color: RED,    bg: "#F9DEDA", icon: "alert-octagon", emergency: true },
   security:   { label: "보안",    color: "#991B1B", bg: "#F9DEDA", icon: "shield-off",  emergency: true },
@@ -74,7 +74,7 @@ const TICKET_TYPES = Object.keys(TYPE_CFG);
 
 type FilterKey = "all" | "urgent" | "sla" | "payment" | "security" | "refund";
 
-const FILTER_TABS: Array<{ key: FilterKey; label: string; color: string; icon: React.ComponentProps<typeof Feather>["name"] }> = [
+const FILTER_TABS: Array<{ key: FilterKey; label: string; color: string; icon: string }> = [
   { key: "all",      label: "전체",    color: "#0F172A",  icon: "list" },
   { key: "urgent",   label: "긴급",    color: RED,        icon: "alert-octagon" },
   { key: "sla",      label: "SLA 초과", color: "#D97706", icon: "clock" },

@@ -20,7 +20,7 @@ export interface FilterChipItem<T extends string> {
   count?: number;
   activeColor?: string;
   activeBg?: string;
-  icon?: React.ComponentProps<typeof Feather>["name"];
+  icon?: string;
 }
 
 interface FilterChipsProps<T extends string> {
@@ -29,6 +29,7 @@ interface FilterChipsProps<T extends string> {
   onChange: (key: T) => void;
   wrap?: boolean;
   wrapCols?: number;
+  style?: object;
 }
 
 /* ── 단일 칩 ─────────────────────────────────────────── */
@@ -78,7 +79,7 @@ function Chip<T extends string>({
 
 /* ── 메인 컴포넌트 ───────────────────────────────────── */
 export function FilterChips<T extends string>({
-  chips, active, onChange, wrap = false, wrapCols = 5,
+  chips, active, onChange, wrap = false, wrapCols = 5, style,
 }: FilterChipsProps<T>) {
   const { width: screenW } = useWindowDimensions();
 
@@ -109,7 +110,7 @@ export function FilterChips<T extends string>({
 
   /* ── 기본: 가로 스크롤 ─────────────────────────────── */
   return (
-    <View style={s.wrapper}>
+    <View style={[s.wrapper, style as any]}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}

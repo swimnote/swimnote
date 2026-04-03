@@ -73,7 +73,7 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
     for (const file of files) {
       const ext = file.originalname.split(".").pop() || "jpg";
       const key = `notices/${Date.now()}_${Math.random().toString(36).substr(2, 8)}.${ext}`;
-      const { ok, error } = await client.uploadFromBuffer(file.buffer, key, { contentType: file.mimetype });
+      const { ok, error } = await client.uploadFromBytes(key, file.buffer);
       if (!ok) throw new Error(error?.message || "업로드 실패");
       urls.push(key);
     }
@@ -99,7 +99,7 @@ router.get(/^\/(.+)$/, async (req: Request, res: Response) => {
     res.setHeader("Content-Type", mimeType);
     res.setHeader("Cache-Control", "public, max-age=86400");
     if (mimeType.startsWith("video/")) res.setHeader("Accept-Ranges", "bytes");
-    res.send(Buffer.from(value));
+    res.send(value[0]);
   } catch (err) { res.status(500).json({ error: "파일 조회 중 오류가 발생했습니다." }); }
 });
 

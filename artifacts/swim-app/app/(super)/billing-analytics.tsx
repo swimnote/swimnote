@@ -75,7 +75,7 @@ const FIXED_COSTS = {
 };
 
 // ─── 서브 컴포넌트 ─────────────────────────────────────────────────────────
-function SectionHeader({ icon, title }: { icon: React.ComponentProps<typeof Feather>["name"]; title: string }) {
+function SectionHeader({ icon, title }: { icon: string; title: string }) {
   return (
     <View style={s.sectionHdr}>
       <View style={s.sectionIconBox}><LucideIcon name={icon} size={14} color={P} /></View>

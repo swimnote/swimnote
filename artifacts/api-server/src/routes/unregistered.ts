@@ -32,9 +32,9 @@ function validatePhone(p: string): boolean {
 }
 
 // ── GET /admin/unregistered ─────────────────────────────────────
-router.get("/admin/unregistered", requireAuth, requireRole(["admin", "platform_admin"]), async (req: AuthRequest, res) => {
+router.get("/admin/unregistered", requireAuth, requireRole("admin", "platform_admin"), async (req: AuthRequest, res) => {
   try {
-    const poolId = await getPoolId(req.user!.id);
+    const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "수영장 정보 없음");
 
     const rows = await db
@@ -56,9 +56,9 @@ router.get("/admin/unregistered", requireAuth, requireRole(["admin", "platform_a
 
 // ── POST /admin/unregistered/bulk ───────────────────────────────
 // body: { students: [{ name: string, parent_phone: string }] }
-router.post("/admin/unregistered/bulk", requireAuth, requireRole(["admin", "platform_admin"]), async (req: AuthRequest, res) => {
+router.post("/admin/unregistered/bulk", requireAuth, requireRole("admin", "platform_admin"), async (req: AuthRequest, res) => {
   try {
-    const poolId = await getPoolId(req.user!.id);
+    const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "수영장 정보 없음");
 
     const { students } = req.body as { students: { name: string; parent_phone: string }[] };
@@ -141,9 +141,9 @@ router.post("/admin/unregistered/bulk", requireAuth, requireRole(["admin", "plat
 
 // ── POST /admin/unregistered/invite ─────────────────────────────
 // body: { ids: string[] }
-router.post("/admin/unregistered/invite", requireAuth, requireRole(["admin", "platform_admin"]), async (req: AuthRequest, res) => {
+router.post("/admin/unregistered/invite", requireAuth, requireRole("admin", "platform_admin"), async (req: AuthRequest, res) => {
   try {
-    const poolId = await getPoolId(req.user!.id);
+    const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "수영장 정보 없음");
 
     const { ids } = req.body as { ids: string[] };
@@ -168,9 +168,9 @@ router.post("/admin/unregistered/invite", requireAuth, requireRole(["admin", "pl
 });
 
 // ── DELETE /admin/unregistered/:id ──────────────────────────────
-router.delete("/admin/unregistered/:id", requireAuth, requireRole(["admin", "platform_admin"]), async (req: AuthRequest, res) => {
+router.delete("/admin/unregistered/:id", requireAuth, requireRole("admin", "platform_admin"), async (req: AuthRequest, res) => {
   try {
-    const poolId = await getPoolId(req.user!.id);
+    const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "수영장 정보 없음");
 
     await db
@@ -190,9 +190,9 @@ router.delete("/admin/unregistered/:id", requireAuth, requireRole(["admin", "pla
 });
 
 // ── GET /teacher/unregistered ─────────────────────────────────
-router.get("/teacher/unregistered", requireAuth, requireRole(["teacher", "admin", "platform_admin"]), async (req: AuthRequest, res) => {
+router.get("/teacher/unregistered", requireAuth, requireRole("teacher", "admin", "platform_admin"), async (req: AuthRequest, res) => {
   try {
-    const poolId = await getPoolId(req.user!.id);
+    const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "수영장 정보 없음");
 
     const rows = await db
@@ -215,9 +215,9 @@ router.get("/teacher/unregistered", requireAuth, requireRole(["teacher", "admin"
 // ── POST /teacher/unregistered/:id/assign ────────────────────────
 // body: { class_group_id: string }
 // 미등록회원 → 정상회원, 반 배정
-router.post("/teacher/unregistered/:id/assign", requireAuth, requireRole(["teacher", "admin", "platform_admin"]), async (req: AuthRequest, res) => {
+router.post("/teacher/unregistered/:id/assign", requireAuth, requireRole("teacher", "admin", "platform_admin"), async (req: AuthRequest, res) => {
   try {
-    const poolId = await getPoolId(req.user!.id);
+    const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "수영장 정보 없음");
 
     const { class_group_id } = req.body as { class_group_id: string };

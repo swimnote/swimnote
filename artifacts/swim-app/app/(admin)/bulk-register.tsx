@@ -16,7 +16,7 @@ import {
   FileSpreadsheet, FileText, Upload,
 } from "lucide-react-native";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as XLSX from "xlsx";
 import { router } from "expo-router";
@@ -399,7 +399,7 @@ export default function BulkRegisterScreen() {
     for (let i = 0; i < validRows.length; i += CHUNK_SIZE) {
       const chunk = validRows.slice(i, i + CHUNK_SIZE);
       try {
-        const apiRes = await apiRequest("/api/students/batch", {
+        const apiRes = await apiRequest(token, "/students/batch", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(chunk.map(r => ({
@@ -410,7 +410,7 @@ export default function BulkRegisterScreen() {
             weekly_count: r.weekly_count ?? 1,
             memo:         r.memo         ?? null,
           }))),
-        }, token ?? "");
+        });
 
         if (apiRes.ok) {
           const data = await apiRes.json();

@@ -99,7 +99,7 @@ export default function InviteQrScreen() {
               size={200}
               color="#0F172A"
               backgroundColor="#FFFFFF"
-              getRef={qrRef}
+              getRef={(ref) => { qrRef.current = ref; }}
             />
           </View>
 

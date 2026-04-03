@@ -5,7 +5,7 @@ interface NotifPayload {
   recipientId: string;
   recipientType: "parent_account" | "user";
   poolId: string;
-  type: "diary_upload" | "photo_upload" | "photo_comment" | "diary_comment";
+  type: "diary_upload" | "photo_upload" | "photo_comment" | "diary_comment" | "storage_warning";
   title: string;
   body: string;
   refId?: string;

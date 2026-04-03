@@ -35,7 +35,7 @@ function hoursLeftStr(hoursLeft: number | string | null | undefined): string {
 
 interface RiskGroupProps {
   title: string;
-  icon: React.ComponentProps<typeof Feather>["name"];
+  icon: string;
   color: string; bg: string;
   count: number;
   children: React.ReactNode;
@@ -81,10 +81,12 @@ export default function RiskCenterScreen() {
 
   const load = useCallback(async (isRefresh = false) => {
     try {
-      const [rcData, puData] = await Promise.all([
+      const [rcRes, puRes] = await Promise.all([
         apiRequest(token, "/super/risk-center"),
         apiRequest(token, "/super/operators?filter=policy_unsigned"),
       ]);
+      const rcData = await rcRes.json();
+      const puData = await puRes.json();
       setPaymentFailed(rcData.payment_failed ?? []);
       setStorageDanger(rcData.storage_danger ?? []);
       setDeletionPending(rcData.deletion_pending ?? []);

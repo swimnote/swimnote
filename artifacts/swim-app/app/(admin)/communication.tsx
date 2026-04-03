@@ -121,7 +121,6 @@ export default function CommunicationScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: TAB_BAR_H + 16 }}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={() => {
             if (tab === "공지사항") loadNotices();
-            if (tab === "학부모 요청") loadRequests();
             if (tab === "선생님 전달") loadDiaries();
           }} />}
           ListEmptyComponent={<View style={s.empty}><Text style={s.emptyTxt}>항목이 없습니다</Text></View>}

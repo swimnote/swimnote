@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { Audio } from "expo-av";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { Calendar, Check, ChevronRight, CirclePlus, CircleStop, FileText, Mic, Pencil, Plus, Trash2, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {

@@ -82,7 +82,7 @@ function fmtTime(iso: string | null): string {
 }
 
 // ── 공통 컴포넌트 ──────────────────────────────────────────────────
-function SectionTitle({ icon, title }: { icon: React.ComponentProps<typeof Feather>["name"]; title: string }) {
+function SectionTitle({ icon, title }: { icon: string; title: string }) {
   return (
     <View style={s.sectionTitle}>
       <LucideIcon name={icon} size={14} color={P} />
@@ -263,7 +263,7 @@ export default function DbStatusScreen() {
         onPress: async () => {
           setResending(id);
           try {
-            const r = await apiRequest(token!, `/super/db-status/dead-letters/${id}/resend`, "POST");
+            const r = await apiRequest(token!, `/super/db-status/dead-letters/${id}/resend`, { method: "POST" });
             if (r.ok) {
               Alert.alert("성공", "이벤트가 재전송되었습니다.");
               setDlq(prev => prev.filter(i => i.id !== id));
@@ -595,7 +595,7 @@ export default function DbStatusScreen() {
 
 // ── 보조 컴포넌트 ─────────────────────────────────────────────────
 function PoolStat({ icon, value, label, color }: {
-  icon: React.ComponentProps<typeof Feather>["name"];
+  icon: string;
   value: number; label: string; color: string;
 }) {
   return (

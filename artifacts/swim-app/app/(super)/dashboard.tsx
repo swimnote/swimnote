@@ -128,7 +128,7 @@ function TodoSection({
   title, count, color, bg, icon, items, renderItem, path, pathLabel,
 }: {
   title: string; count: number; color: string; bg: string;
-  icon: React.ComponentProps<typeof Feather>["name"];
+  icon: string;
   items: any[];
   renderItem: (item: any) => React.ReactNode;
   path: string;

@@ -117,13 +117,12 @@ export default function KillSwitchScreen() {
   function doCreateSnapshot() {
     if (!poolId) return;
     createSnapshot({
-      bucket: 'operator_snapshot',
       scope: 'operator',
       operatorId: poolId,
       operatorName: poolName,
-      includes: ['media', 'journals', 'billing', 'members'],
       note: `삭제 실행 전 강제 스냅샷 — ${new Date().toLocaleString('ko-KR')}`,
-      createdBy: actorName,
+      actorName,
+      snapshotType: 'before_delete',
     });
     createLog({ category: '백업', title: `삭제 전 스냅샷 생성: ${poolName}`, detail: '킬스위치 실행 전 강제 백업', actorName, impact: 'high', operatorId: poolId, operatorName: poolName });
     setSnapshotCreated(true);

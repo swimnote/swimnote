@@ -6,7 +6,7 @@ import Colors from "@/constants/colors";
 const C = Colors.light;
 
 interface EmptyStateProps {
-  icon?: React.ComponentProps<typeof Feather>["name"];
+  icon?: string;
   title: string;
   subtitle?: string;
 }

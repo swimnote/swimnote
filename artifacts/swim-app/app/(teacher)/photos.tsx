@@ -136,7 +136,7 @@ const MOCK_ITEMS: MediaItem[] = [];
 
 // ── 앨범 설정 ─────────────────────────────────────────────────────────────
 const MEDIA_CONFIG: Record<`${MediaType}_${AlbumScope}`, {
-  icon: React.ComponentProps<typeof Feather>["name"];
+  icon: string;
   title: string; sub: string; color: string; bg: string;
 }> = {
   photo_group:   { icon: "image",  title: "사진", sub: "반 전체 앨범", color: "#E4A93A", bg: "#FFF1BF" },

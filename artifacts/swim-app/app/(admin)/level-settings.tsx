@@ -180,8 +180,8 @@ export default function LevelSettingsScreen() {
         visible={confirmModal.visible}
         title="저장하지 않고 나가시겠습니까?"
         message="변경한 내용이 저장되지 않습니다."
-        confirmLabel="나가기"
-        cancelLabel="취소"
+        confirmText="나가기"
+        cancelText="취소"
         onConfirm={() => { confirmModal.action?.(); setConfirmModal({ visible: false, action: null }); }}
         onCancel={() => setConfirmModal({ visible: false, action: null })}
       />

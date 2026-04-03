@@ -9,7 +9,7 @@
  */
 import { Check, CloudDownload, Download, SquareCheck, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";

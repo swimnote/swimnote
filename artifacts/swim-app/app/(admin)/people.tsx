@@ -230,7 +230,7 @@ export default function PeopleHubScreen() {
 function HubCard({
   icon, title, color, bg, onPress, rows, badge, badgeColor,
 }: {
-  icon: React.ComponentProps<typeof Feather>["name"];
+  icon: string;
   title: string;
   color: string;
   bg: string;
@@ -277,7 +277,7 @@ function HubCard({
 function QuickBtn({
   icon, label, onPress, color, badge,
 }: {
-  icon: React.ComponentProps<typeof Feather>["name"];
+  icon: string;
   label: string;
   onPress: () => void;
   color: string;

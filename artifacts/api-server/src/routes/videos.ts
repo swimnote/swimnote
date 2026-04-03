@@ -247,13 +247,13 @@ router.post(
         }
       }
 
-      const poolSlug = await getPoolSlug(user.swimming_pool_id);
+      const poolSlug = await getPoolSlug(user.swimming_pool_id || "");
       const ext = file.originalname.split(".").pop() || "mp4";
       const filename = genFilename(poolSlug, ext);
       const key = `videos/group/${class_id}/${filename}`;
 
       const client = getClient();
-      const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
+      const { ok, error } = await client.uploadFromBytes(key, file.buffer, {});
       if (!ok) throw new Error(error?.message || "업로드 실패");
 
       const id = `video_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
@@ -325,13 +325,13 @@ router.post(
         }
       }
 
-      const poolSlug = await getPoolSlug(user.swimming_pool_id);
+      const poolSlug = await getPoolSlug(user.swimming_pool_id || "");
       const ext = file.originalname.split(".").pop() || "mp4";
       const filename = genFilename(poolSlug, ext);
       const key = `videos/private/${student_id}/${filename}`;
 
       const client = getClient();
-      const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
+      const { ok, error } = await client.uploadFromBytes(key, file.buffer, {});
       if (!ok) throw new Error(error?.message || "업로드 실패");
 
       const id = `video_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;

@@ -127,9 +127,7 @@ export async function runRealBackup(opts: {
     const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
     if (!bucketId) throw new Error("DEFAULT_OBJECT_STORAGE_BUCKET_ID 미설정");
     const storageClient = new ObjectStorageClient({ bucketId });
-    const uploadRes = await storageClient.uploadFromBytes(filePath, jsonBuf, {
-      contentType: "application/json",
-    });
+    const uploadRes = await storageClient.uploadFromBytes(filePath, jsonBuf);
     if (!uploadRes.ok) throw new Error(`업로드 실패: ${JSON.stringify(uploadRes.error)}`);
     storageType = "object_storage";
     console.log(`[backup] Object Storage 업로드 완료: ${filePath}`);

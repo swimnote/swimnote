@@ -311,7 +311,7 @@ router.post("/student-requests", requireAuth, requireParent, async (req: AuthReq
     const id = `srr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const [newReq] = await superAdminDb.insert(studentRegistrationRequestsTable).values({
       id, swimming_pool_id: pa.swimming_pool_id, parent_id: pa.id,
-      child_name, child_birth_date: child_birth_date || null, memo: memo || null, status: "pending",
+      child_names: [child_name], memo: memo || null, status: "pending",
     }).returning();
     res.status(201).json(newReq);
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }

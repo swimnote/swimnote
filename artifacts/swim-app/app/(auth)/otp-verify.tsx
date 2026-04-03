@@ -5,7 +5,7 @@
  */
 import { ArrowLeft, CircleAlert, Info, Shield, Smartphone } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useRef, useState, createRef } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
@@ -22,9 +22,7 @@ export default function OtpVerifyScreen() {
   const insets = useSafeAreaInsets();
 
   const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
-  const digitRefs = useRef<Array<React.RefObject<TextInput>>>(
-    Array.from({ length: 6 }, () => createRef<TextInput>())
-  );
+  const digitRefs = useRef<Array<TextInput | null>>(Array.from({ length: 6 }, () => null));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -44,7 +42,7 @@ export default function OtpVerifyScreen() {
       const e = err as Error;
       setError(e.message || "OTP 인증에 실패했습니다.");
       setDigits(["", "", "", "", "", ""]);
-      setTimeout(() => digitRefs.current[0].current?.focus(), 100);
+      setTimeout(() => digitRefs.current[0]?.focus(), 100);
     } finally {
       setLoading(false);
     }
@@ -57,10 +55,10 @@ export default function OtpVerifyScreen() {
     setDigits(next);
     setError("");
     if (digit && index < 5) {
-      digitRefs.current[index + 1].current?.focus();
+      digitRefs.current[index + 1]?.focus();
     }
     if (digit && index === 5) {
-      digitRefs.current[5].current?.blur();
+      digitRefs.current[5]?.blur();
     }
   }
 
@@ -69,7 +67,7 @@ export default function OtpVerifyScreen() {
       const next = [...digits];
       next[index - 1] = "";
       setDigits(next);
-      digitRefs.current[index - 1].current?.focus();
+      digitRefs.current[index - 1]?.focus();
     }
   }
 
@@ -118,7 +116,7 @@ export default function OtpVerifyScreen() {
             {digits.map((d, i) => (
               <TextInput
                 key={i}
-                ref={digitRefs.current[i]}
+                ref={(el) => { digitRefs.current[i] = el; }}
                 style={[
                   styles.otpBox,
                   {

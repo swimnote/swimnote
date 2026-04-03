@@ -23,7 +23,7 @@ export interface ApprovalCardMeta {
   requestedAt?: string;
   statusKey: StatusKey;
   accentColor?: string;
-  avatarIcon?: React.ComponentProps<typeof Feather>["name"];
+  avatarIcon?: string;
   avatarInitial?: string;
   rejectionReason?: string;
   /** 승인 버튼 노출 여부 (대기 상태일 때 true) */

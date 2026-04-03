@@ -653,7 +653,7 @@ export default function SecuritySettingsScreen() {
                 <Text style={m.fieldLabel}>현재 비밀번호 확인</Text>
                 <TextInput style={m.input} value={idVerifyPw} onChangeText={setIdVerifyPw}
                   placeholder="비밀번호를 입력하세요" secureTextEntry />
-                {!!idError && <Text style={m.errTxt}>{idError}</Text>}
+                {!!idError && <Text style={m.errorTxt}>{idError}</Text>}
                 <Pressable style={m.confirmBtn} onPress={handleIdChange}>
                   <Text style={m.confirmTxt}>ID 변경 확인</Text>
                 </Pressable>
@@ -1043,7 +1043,9 @@ const m = StyleSheet.create({
   cancelTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   confirmBtn: { flex: 1, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P, alignItems: "center" },
   confirmTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
-  sheetTitle: { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  sheetTitle:  { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  sheetSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2, marginBottom: 12 },
+  fieldLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 10, marginBottom: 4 },
   infoBox:    { flexDirection: "row", gap: 6, backgroundColor: "#E6FAF8", borderRadius: 8, padding: 10, alignItems: "flex-start" },
   infoTxt:    { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0284C7", lineHeight: 17 },
   successRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12 },

@@ -23,6 +23,7 @@ const DANGER = "#D96C6C";
 
 const ROLE_CFG: Record<SuperAdminRole, { label: string; color: string; bg: string }> = {
   super_admin:     { label: '슈퍼관리자', color: '#7C3AED', bg: '#EEDDF5' },
+  super_manager:   { label: '슈퍼관리자', color: '#7C3AED', bg: '#EEDDF5' },
   senior_admin:    { label: '시니어관리자', color: '#2EC4B6', bg: '#ECFEFF' },
   read_only_admin: { label: '읽기전용', color: '#6B7280', bg: '#F8FAFC' },
 };

@@ -28,7 +28,7 @@ const SCREEN_H = Dimensions.get("window").height;
 const DRAG_THRESHOLD = 80;
 
 export interface PopupItem {
-  icon: React.ComponentProps<typeof Feather>["name"];
+  icon: string;
   label: string;
   color: string;
   bg: string;

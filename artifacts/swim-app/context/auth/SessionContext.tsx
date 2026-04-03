@@ -23,7 +23,7 @@ export interface AdminUser {
   email: string;
   name: string;
   phone?: string | null;
-  role: "super_admin" | "pool_admin" | "teacher" | "sub_admin" | "platform_admin";
+  role: "super_admin" | "pool_admin" | "teacher" | "sub_admin" | "platform_admin" | "super_manager";
   swimming_pool_id?: string | null;
   roles: string[];
   is_activated?: boolean;

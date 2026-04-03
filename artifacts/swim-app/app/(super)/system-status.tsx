@@ -21,7 +21,7 @@ export interface ServiceItem {
   id: string;
   name: string;
   category: string;
-  icon: React.ComponentProps<typeof Feather>["name"];
+  icon: string;
   status: ServiceStatus;
   latencyMs: number | null;
   uptimePct: number;
@@ -43,7 +43,7 @@ const INITIAL_SERVICES: ServiceItem[] = [
   { id: "monitor",  name: "모니터링",         category: "내부",    icon: "activity",     status: "normal",  latencyMs: 5,    uptimePct: 100,   lastChecked: new Date().toISOString(), note: "Sentry/로그 수집 정상" },
 ];
 
-const STATUS_CFG: Record<ServiceStatus, { label: string; color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"] }> = {
+const STATUS_CFG: Record<ServiceStatus, { label: string; color: string; bg: string; icon: string }> = {
   normal:  { label: "정상",  color: "#2EC4B6", bg: "#E6FFFA", icon: "check-circle" },
   warning: { label: "주의",  color: "#D97706", bg: "#FFF1BF", icon: "alert-circle" },
   error:   { label: "장애",  color: "#D96C6C", bg: "#F9DEDA", icon: "alert-triangle" },

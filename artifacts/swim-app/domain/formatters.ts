@@ -100,6 +100,7 @@ export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
 
 export const SUPPORT_TYPE_LABEL: Record<SupportType, string> = {
   payment: '결제문제',
+  chargeback: '차지백',
   account: '계정문제',
   data_delete: '데이터삭제',
   upload_error: '업로드오류',

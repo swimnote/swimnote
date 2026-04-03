@@ -117,7 +117,7 @@ async function main() {
   const uploadResult = await storageClient.uploadFromBytes(
     filePath,
     Buffer.from(jsonStr, "utf8"),
-    { contentType: "application/json" }
+    {}
   );
   if (!uploadResult.ok) {
     throw new Error("Object Storage 업로드 실패: " + JSON.stringify(uploadResult.error));

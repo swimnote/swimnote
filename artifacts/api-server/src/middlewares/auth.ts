@@ -3,9 +3,14 @@ import { verifyToken, SUPER_ADMIN_PERMISSIONS, type PlatformPermissions } from "
 import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
-export interface AuthRequest extends Request {
+export interface AuthRequest extends Omit<Request, "params" | "query"> {
+  params: Record<string, string>;
+  query: Record<string, string | string[] | undefined>;
   user?: {
     userId: string;
+    id?: string;
+    name?: string;
+    email?: string;
     role: string;
     poolId?: string | null;
     permissions?: PlatformPermissions;
@@ -55,7 +60,7 @@ export function requirePermission(perm: keyof PlatformPermissions) {
       res.status(403).json({ success: false, message: "플랫폼 관리자만 접근 가능합니다.", error: "forbidden" });
       return;
     }
-    const perms = req.user.permissions || {};
+    const perms: Partial<PlatformPermissions> = req.user.permissions || {};
     if (!perms[perm]) {
       res.status(403).json({ success: false, message: `'${perm}' 권한이 없습니다.`, error: "permission_denied", required_permission: perm });
       return;

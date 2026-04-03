@@ -18,7 +18,7 @@ import Colors from "@/constants/colors";
 const C = Colors.light;
 const P = "#7C3AED";
 
-const STATUS_CFG: Record<AdStatus, { label: string; color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"] }> = {
+const STATUS_CFG: Record<AdStatus, { label: string; color: string; bg: string; icon: string }> = {
   active:    { label: "노출 중",   color: "#2EC4B6", bg: "#E6FFFA", icon: "eye" },
   scheduled: { label: "예약됨",   color: "#D97706", bg: "#FFF1BF", icon: "clock" },
   inactive:  { label: "비활성",   color: "#64748B", bg: "#FFFFFF", icon: "eye-off" },

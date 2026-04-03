@@ -42,7 +42,7 @@ async function api(method: string, path: string, body: object | null, token: str
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await r.json().catch(() => ({}));
+  const data = await r.json().catch(() => ({})) as any;
   return { ok: r.ok, status: r.status, data };
 }
 function check(name: string, pass: boolean, detail?: string) {
@@ -173,7 +173,7 @@ async function main() {
 
   // ── [검증 1] 헬스체크 ───────────────────────────────────────────────────
   console.log("── [검증 1] API 헬스체크 ──");
-  const health = await fetch(`${API}/health`).then(r => r.json()).catch(() => null);
+  const health = await fetch(`${API}/health`).then(r => r.json() as any).catch(() => null);
   check("API 헬스체크", health?.ok === true, `uptime=${health?.uptime}s`);
   console.log();
 

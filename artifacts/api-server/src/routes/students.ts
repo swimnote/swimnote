@@ -142,9 +142,9 @@ router.post("/teacher-request", requireAuth, requireRole("teacher", "pool_admin"
         NULL, NOW(), NOW()
       )
     `);
-    await logChange(req.user!.userId, "students", id, "insert", {
+    await logChange({ tenantId: req.user!.userId, tableName: "students", recordId: id, changeType: "create", payload: {
       name: name.trim(), status: "pending_approval", registration_path: "teacher_request",
-    });
+    } });
     return res.json({ success: true, id, name: name.trim(), status: "pending_approval" });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -176,7 +176,7 @@ router.post("/teacher-requests/:id/approve", requireAuth, requireRole("pool_admi
       RETURNING id, name
     `)).rows as any[];
     if (!row) return err(res, 404, "승인 대기 중인 요청을 찾을 수 없습니다.");
-    await logChange(req.user!.userId, "students", id, "update", { status: "active", action: "teacher_request_approved" });
+    await logChange({ tenantId: req.user!.userId, tableName: "students", recordId: id, changeType: "update", payload: { status: "active", action: "teacher_request_approved" } });
     return res.json({ success: true, id: row.id, name: row.name, invite_code });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });

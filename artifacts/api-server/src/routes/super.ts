@@ -1877,7 +1877,7 @@ router.get("/super/backups/:id/download", requireAuth, requireRole("super_admin"
         res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
         res.setHeader("Content-Type", "application/json");
         res.setHeader("Content-Length", String(dlRes.value.length));
-        res.send(Buffer.from(dlRes.value));
+        res.send(dlRes.value[0]);
         return;
       } catch (e: any) {
         console.error("[backup] Object Storage 다운로드 실패:", e.message);
