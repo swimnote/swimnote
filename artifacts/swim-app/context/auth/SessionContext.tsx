@@ -175,7 +175,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setKind("parent");
         setParentJoinStatus(storedJoinStatus || null);
         setParentJoinRequestId(storedJoinRequestId || null);
-        if (pa.swimming_pool_id) await fetchPool(storedToken);
+        await fetchPool(storedToken);
       }
     } catch (err) { console.error(err); }
     finally { setIsLoading(false); }
@@ -184,7 +184,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   async function fetchPool(authToken: string) {
     try {
       const res = await fetch(`${API_BASE}/pools/my`, { headers: { Authorization: `Bearer ${authToken}` } });
-      if (res.ok) setPool(await safeJson(res));
+      if (res.ok) { setPool(await safeJson(res)); return; }
+    } catch (err) { console.error(err); }
+    // parent 토큰은 /parent/pool-info 로 fallback (JWT poolId 기반)
+    try {
+      const res2 = await fetch(`${API_BASE}/parent/pool-info`, { headers: { Authorization: `Bearer ${authToken}` } });
+      if (res2.ok) {
+        const info = await safeJson(res2);
+        if (info?.pool_name) {
+          setPool({ id: info.pool_id || "", name: info.pool_name, address: info.address || "", phone: info.phone || "" } as any);
+        }
+      }
     } catch (err) { console.error(err); }
   }
 
@@ -245,6 +255,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       else await AsyncStorage.removeItem("parent_join_request_id");
       setParentJoinStatus(js);
       setParentJoinRequestId(jri);
+      await fetchPool(t);
     }
   }
 
@@ -344,7 +355,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setToken(data.token);
     setParentAccount(data.parent);
     setKind("parent");
-    if (data.parent?.swimming_pool_id) await fetchPool(data.token);
+    await fetchPool(data.token);
   }
 
   async function kakaoSocialLogin(accessToken: string) {
@@ -367,7 +378,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setParentAccount(data.parent);
     setKind("parent");
     setParentJoinStatus("approved");
-    if (data.parent?.swimming_pool_id) await fetchPool(data.token);
+    await fetchPool(data.token);
   }
 
   async function setParentSession(token: string, parent: ParentAccount) {
@@ -379,7 +390,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setParentAccount(parent);
     setKind("parent");
     setParentJoinStatus("approved");
-    if (parent.swimming_pool_id) await fetchPool(token);
+    await fetchPool(token);
   }
 
   async function setAdminSession(token: string, user: AdminUser) {

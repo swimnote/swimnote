@@ -261,10 +261,31 @@ router.post("/parent-login", async (req, res) => {
       if (valid) { matched = acc; break; }
     }
     if (!matched) return err(res, 401, "비밀번호가 올바르지 않습니다.");
+    // 수영장 이름 조회 (swimming_pool_id 없으면 join_request에서 poolId 추출)
+    let resolvedPoolId: string | null = matched.swimming_pool_id || null;
+    let poolDisplayName: string | null = null;
+    if (!resolvedPoolId) {
+      // student_registration_requests에서 마지막으로 요청한 pool 확인
+      const reqRow = await db.execute(sql`
+        SELECT swimming_pool_id FROM student_registration_requests
+        WHERE parent_id = ${matched.id} ORDER BY created_at DESC LIMIT 1
+      `);
+      if ((reqRow.rows as any[]).length > 0) resolvedPoolId = (reqRow.rows[0] as any).swimming_pool_id || null;
+    }
+    if (resolvedPoolId) {
+      const poolRow = await db.select({ name: swimmingPoolsTable.name })
+        .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, resolvedPoolId)).limit(1);
+      poolDisplayName = poolRow[0]?.name || null;
+      // swimming_pool_id가 null이었으면 backfill
+      if (!matched.swimming_pool_id) {
+        await db.execute(sql`UPDATE parent_accounts SET swimming_pool_id = ${resolvedPoolId} WHERE id = ${matched.id}`);
+        matched.swimming_pool_id = resolvedPoolId;
+      }
+    }
     const token = signToken({ userId: matched.id, role: "parent_account", poolId: matched.swimming_pool_id });
     res.json({
       success: true, token,
-      parent: { id: matched.id, name: matched.name, phone: matched.phone, swimming_pool_id: matched.swimming_pool_id, login_id: matched.login_id },
+      parent: { id: matched.id, name: matched.name, phone: matched.phone, swimming_pool_id: matched.swimming_pool_id, login_id: matched.login_id, pool_name: poolDisplayName },
     });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });

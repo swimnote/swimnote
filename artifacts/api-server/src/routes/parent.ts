@@ -1180,6 +1180,7 @@ router.get("/pool-info", requireAuth, requireParent, async (req: AuthRequest, re
     if (!pool) { res.status(404).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
 
     res.json({
+      pool_id: pool.id,
       pool_name: pool.name,
       address: pool.address,
       phone: pool.phone,
