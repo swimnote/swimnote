@@ -4,7 +4,7 @@
  * - 화면 진입 즉시 전화번호 기반 강제 자동연결 실행
  * - 연결된 자녀 목록만 표시
  */
-import { ChevronRight, Info, Phone, RefreshCw, UserX } from "lucide-react-native";
+import { ChevronRight, Info, Phone, RefreshCw, Search, UserX } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
@@ -110,6 +110,13 @@ export default function ChildrenScreen() {
                     <Text style={s.retryTxt}>다시 시도</Text>
                   </>
               }
+            </Pressable>
+            <Pressable
+              style={[s.retryBtn, { backgroundColor: "#6B7280" }]}
+              onPress={() => router.push("/(parent)/link-child" as any)}
+            >
+              <Search size={15} color="#fff" />
+              <Text style={s.retryTxt}>이름으로 직접 연결</Text>
             </Pressable>
           </View>
         ) : (
