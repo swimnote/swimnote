@@ -58,15 +58,11 @@ export default function LinkChildScreen() {
         }),
       });
       const d = await r.json();
-      if (!r.ok) { setError(d.message || "오류가 발생했습니다."); return; }
+      if (!r.ok || !d.success) { setError(d.message || "오류가 발생했습니다."); return; }
 
-      if (d.status === "auto_approved") {
-        setLinkedName(d.student?.name || childName.trim());
-        setStep("done");
-        await refresh();
-      } else {
-        setStep("pending");
-      }
+      setLinkedName(d.student?.name || childName.trim());
+      setStep("done");
+      await refresh();
     } catch { setError("네트워크 오류가 발생했습니다."); }
     finally { setSubmitting(false); }
   }

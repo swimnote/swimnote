@@ -276,14 +276,12 @@ export default function MyInfoScreen() {
         body: JSON.stringify({ swimming_pool_id: poolId, child_name: trimmed }),
       });
       const d = await r.json();
-      if (d.status === "auto_approved") {
+      if (d.success) {
         setAddChildResult({ ok: true, msg: `✓ ${d.student?.name ?? trimmed}이(가) 연결되었습니다!` });
         setAddChildName("");
         await refreshStudents?.();
-      } else if (d.status === "pending") {
-        setAddChildResult({ ok: false, msg: "일치하는 학생을 찾지 못했습니다. 관리자에게 이름 등록을 요청하세요." });
       } else {
-        setAddChildResult({ ok: false, msg: d.message || "연결에 실패했습니다." });
+        setAddChildResult({ ok: false, msg: d.message || "관리자 회원목록에 해당 학생이 없습니다. 관리자에게 이름 등록을 요청하세요." });
       }
     } catch { setAddChildResult({ ok: false, msg: "네트워크 오류가 발생했습니다." }); }
     finally { setAddingChild(false); }

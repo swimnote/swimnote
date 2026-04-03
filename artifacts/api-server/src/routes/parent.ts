@@ -1259,7 +1259,7 @@ router.get("/pool-info", requireAuth, requireParent, async (req: AuthRequest, re
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
-// ── POST /parent/link-child — 로그인 후 자녀 연결 ─────────────────────
+// ── POST /parent/link-child — 자녀 연결 (단순 버전) ─────────────────────
 router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, res) => {
   const parentId = req.user!.userId;
   const { swimming_pool_id, child_name, child_birth_year } = req.body;
@@ -1267,82 +1267,48 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
     res.status(400).json({ success: false, message: "수영장과 자녀 이름을 입력해주세요." }); return;
   }
   try {
-    const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, parentId)).limit(1);
-    if (!pa) { res.status(404).json({ success: false, message: "계정을 찾을 수 없습니다." }); return; }
-
-    // 수영장 유효성 확인
+    // 수영장 존재 확인
     const [pool] = await superAdminDb.select().from(swimmingPoolsTable)
       .where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);
     if (!pool) { res.status(400).json({ success: false, message: "존재하지 않는 수영장입니다." }); return; }
 
-    // 이름 정규화 매칭 (이미 이 학부모와 연결된 학생도 포함)
+    // 관리자 회원목록에서 이름으로 검색 — parent_user_id 조건 없음
     const normalName = child_name.trim().replace(/\s+/g, "").toLowerCase();
-    const matchResult = await db.execute(sql`
-      SELECT id, name, birth_year, status, parent_user_id FROM students
+    const found = await db.execute(sql`
+      SELECT id, name FROM students
       WHERE swimming_pool_id = ${swimming_pool_id}
         AND LOWER(REPLACE(name, ' ', '')) = ${normalName}
         AND status NOT IN ('deleted', 'withdrawn', 'archived')
-        AND (parent_user_id IS NULL OR parent_user_id = ${parentId})
         ${child_birth_year ? sql`AND (birth_year IS NULL OR birth_year = ${Number(child_birth_year)})` : sql``}
-      ORDER BY (parent_user_id = ${parentId}) DESC NULLS LAST
+      ORDER BY created_at ASC
       LIMIT 1
     `);
 
-    if (matchResult.rows.length === 0) {
-      // 학생 미발견 → pool_join_request 생성 후 대기
-      await db.execute(sql`
-        UPDATE parent_accounts SET swimming_pool_id = ${swimming_pool_id}, updated_at = NOW()
-        WHERE id = ${parentId}
-      `);
-      const reqId = `ppr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      await superAdminDb.execute(sql`
-        INSERT INTO parent_pool_requests
-          (id, swimming_pool_id, parent_account_id, parent_name, phone, child_name, request_status, requested_at)
-        VALUES (${reqId}, ${swimming_pool_id}, ${parentId}, ${pa.name}, ${pa.phone}, ${child_name.trim()}, 'pending', NOW())
-      `).catch(() => {});
-      res.json({ success: true, status: "pending", message: "등록된 학생을 찾지 못했습니다. 관리자에게 이름·전화번호 등록을 요청하세요." }); return;
+    if (found.rows.length === 0) {
+      res.json({ success: false, status: "not_found", message: "관리자 회원목록에 해당 학생이 없습니다. 관리자에게 이름 등록을 요청하세요." }); return;
     }
 
-    const student = matchResult.rows[0] as any;
+    const student = found.rows[0] as any;
 
-    // 이미 이 학부모와 연결된 경우 → 바로 성공 반환
-    if (student.parent_user_id === parentId) {
-      // parent_students 링크 보정
-      const linkId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      await db.execute(sql`
-        INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
-        VALUES (${linkId}, ${parentId}, ${student.id}, ${swimming_pool_id}, 'approved', NOW())
-        ON CONFLICT DO NOTHING
-      `);
-      res.json({ success: true, status: "auto_approved", message: "자녀가 연결되었습니다.", student: { id: student.id, name: student.name } }); return;
-    }
-
-    // 학생에 부모 연결
+    // students 테이블 연결
     await db.execute(sql`
       UPDATE students SET parent_user_id = ${parentId}, updated_at = NOW()
       WHERE id = ${student.id}
     `);
-    // parent_accounts 수영장 업데이트
+    // 학부모 계정 수영장 세팅
     await db.execute(sql`
       UPDATE parent_accounts SET swimming_pool_id = ${swimming_pool_id}, updated_at = NOW()
       WHERE id = ${parentId}
     `);
-    // parent_students 링크
+    // parent_students 링크 upsert
     const linkId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     await db.execute(sql`
       INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
       VALUES (${linkId}, ${parentId}, ${student.id}, ${swimming_pool_id}, 'approved', NOW())
       ON CONFLICT DO NOTHING
     `);
-    // pool_join_request 자동승인 기록
-    const reqId = `ppr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await superAdminDb.execute(sql`
-      INSERT INTO parent_pool_requests
-        (id, swimming_pool_id, parent_account_id, parent_name, phone, child_name, request_status, requested_at, processed_at)
-      VALUES (${reqId}, ${swimming_pool_id}, ${parentId}, ${pa.name}, ${pa.phone}, ${child_name.trim()}, 'auto_approved', NOW(), NOW())
-    `).catch(() => {});
 
-    res.json({ success: true, status: "auto_approved", message: "자녀가 연결되었습니다.", student: { id: student.id, name: student.name } });
+    res.json({ success: true, status: "linked", message: "자녀가 연결되었습니다.", student: { id: student.id, name: student.name } });
   } catch (e) { console.error(e); res.status(500).json({ success: false, message: "서버 오류가 발생했습니다." }); }
 });
 
