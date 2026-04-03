@@ -20,13 +20,18 @@ router.get("/me", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
     if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
-    let poolName: string | null = null;
+    let poolInfo: { name: string | null; address: string | null; phone: string | null } = { name: null, address: null, phone: null };
     if (pa.swimming_pool_id) {
-      const [pool] = await superAdminDb.select({ id: swimmingPoolsTable.id, name: swimmingPoolsTable.name })
+      const [pool] = await superAdminDb.select({ name: swimmingPoolsTable.name, address: swimmingPoolsTable.address, phone: swimmingPoolsTable.phone })
         .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, pa.swimming_pool_id)).limit(1);
-      poolName = pool?.name || null;
+      if (pool) poolInfo = { name: pool.name || null, address: (pool as any).address || null, phone: (pool as any).phone || null };
     }
-    res.json({ id: pa.id, name: pa.name, phone: pa.phone, swimming_pool_id: pa.swimming_pool_id, pool_name: poolName });
+    res.json({
+      id: pa.id, name: pa.name, phone: pa.phone,
+      swimming_pool_id: pa.swimming_pool_id,
+      pool_name: poolInfo.name, pool_address: poolInfo.address, pool_phone: poolInfo.phone,
+      created_at: (pa as any).created_at || null,
+    });
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 

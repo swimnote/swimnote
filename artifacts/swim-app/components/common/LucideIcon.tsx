@@ -2,7 +2,7 @@ import React from "react";
 import {
   Activity, CircleAlert, OctagonAlert, TriangleAlert, Anchor, Archive,
   ArrowLeft, ArrowRight, CircleArrowRight, CircleArrowUp, AtSign, Award,
-  ChartBar, Bell, BellOff, Book, Bookmark, BookOpen, Briefcase, Calendar,
+  Building2, ChartBar, Bell, BellOff, Book, Bookmark, BookOpen, Briefcase, Calendar,
   Camera, Check, CircleCheck, SquareCheck, ChevronDown, ChevronLeft,
   ChevronRight, Circle, Clipboard, Clock, Copy, CornerLeftUp, CreditCard,
   Database, DollarSign, Download, CloudDownload, Droplet, Pencil, PenLine,
@@ -36,6 +36,7 @@ const ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
   bell: Bell,
   "bell-off": BellOff,
   book: Book,
+  "building-2": Building2,
   bookmark: Bookmark,
   "book-open": BookOpen,
   briefcase: Briefcase,

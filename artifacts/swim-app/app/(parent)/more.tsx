@@ -78,9 +78,12 @@ export default function ParentMoreScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 40, gap: 8, paddingTop: 12 }}
       >
-        {/* 계정 요약 */}
+        {/* 계정 요약 — 탭 시 내 정보 화면 */}
         {parentAccount && (
-          <View style={[s.accountCard, { backgroundColor: C.card }]}>
+          <Pressable
+            style={({ pressed }) => [s.accountCard, { backgroundColor: C.card, opacity: pressed ? 0.85 : 1 }]}
+            onPress={() => router.push("/(parent)/my-info?backTo=more" as any)}
+          >
             <View style={[s.accountAvatar, { backgroundColor: C.tintLight }]}>
               <Text style={[s.accountAvatarTxt, { color: C.tint }]}>{parentAccount.name?.[0] ?? "P"}</Text>
             </View>
@@ -90,7 +93,8 @@ export default function ParentMoreScreen() {
                 {parentPoolName || (parentAccount as any)?.pool_name || pool?.name || "수영장"} · 자녀 {students.length}명
               </Text>
             </View>
-          </View>
+            <ChevronRight size={16} color={C.textMuted} />
+          </Pressable>
         )}
 
         {/* 메뉴 목록 */}
