@@ -39,7 +39,7 @@ export default function NoticesScreen() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ title: "", content: "", is_pinned: false });
-  const [pickedImages, setPickedImages] = useState<{ uri: string; key?: string }[]>([]);
+  const [pickedImages, setPickedImages] = useState<{ uri: string; key?: string; file?: File }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -86,6 +86,27 @@ export default function NoticesScreen() {
     if (pickedImages.length >= MAX_IMAGES) {
       Alert.alert("사진 제한", `최대 ${MAX_IMAGES}장까지 첨부 가능합니다.`); return;
     }
+    if (Platform.OS === "web") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.multiple = true;
+      input.onchange = (e: any) => {
+        const files = Array.from(e.target.files || []) as File[];
+        const remaining = MAX_IMAGES - pickedImages.length;
+        const selected = files.slice(0, remaining);
+        setPickedImages(prev => [
+          ...prev,
+          ...selected.map((f: File) => ({ uri: URL.createObjectURL(f), file: f })),
+        ]);
+      };
+      input.click();
+      return;
+    }
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("권한 필요", "사진 접근 권한이 필요합니다. 설정에서 허용해주세요."); return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
@@ -108,10 +129,14 @@ export default function NoticesScreen() {
     try {
       const formData = new FormData();
       for (const img of pickedImages) {
-        const filename = img.uri.split("/").pop() || "photo.jpg";
-        const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
-        const mimeType = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
-        formData.append("images", { uri: img.uri, name: filename, type: mimeType } as any);
+        if (img.file) {
+          formData.append("images", img.file, img.file.name);
+        } else {
+          const filename = img.uri.split("/").pop() || "photo.jpg";
+          const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
+          const mimeType = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
+          formData.append("images", { uri: img.uri, name: filename, type: mimeType } as any);
+        }
       }
       const res = await fetch(`${API_BASE}/uploads`, {
         method: "POST",

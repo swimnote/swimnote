@@ -24,7 +24,7 @@ export default function PhotoUploadScreen() {
   const [loadingStudents, setLoadingStudents] = useState(true);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [images, setImages] = useState<{ uri: string }[]>([]);
+  const [images, setImages] = useState<{ uri: string; file?: File }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [step, setStep] = useState<"students" | "photos">("students");
   const [infoMsg,    setInfoMsg]    = useState<{ title: string; msg: string } | null>(null);
@@ -50,6 +50,22 @@ export default function PhotoUploadScreen() {
   }
 
   async function pickImages() {
+    if (Platform.OS === "web") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.multiple = true;
+      input.onchange = (e: any) => {
+        const files = Array.from(e.target.files || []) as File[];
+        setImages(files.map((f: File) => ({ uri: URL.createObjectURL(f), file: f })));
+      };
+      input.click();
+      return;
+    }
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      setInfoMsg({ title: "권한 필요", msg: "사진 접근 권한이 필요합니다. 설정에서 허용해주세요." }); return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true, quality: 0.85, selectionLimit: 20,
@@ -65,9 +81,13 @@ export default function PhotoUploadScreen() {
       const fd = new FormData();
       fd.append("student_ids", JSON.stringify([...selected]));
       for (const img of images) {
-        const filename = img.uri.split("/").pop() || "photo.jpg";
-        const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
-        fd.append("photos", { uri: img.uri, name: filename, type: ext === "png" ? "image/png" : "image/jpeg" } as any);
+        if (img.file) {
+          fd.append("photos", img.file, img.file.name);
+        } else {
+          const filename = img.uri.split("/").pop() || "photo.jpg";
+          const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
+          fd.append("photos", { uri: img.uri, name: filename, type: ext === "png" ? "image/png" : "image/jpeg" } as any);
+        }
       }
       const res = await fetch(`${API_BASE}/photos/batch`, {
         method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd,

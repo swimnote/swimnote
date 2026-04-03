@@ -89,6 +89,25 @@ export default function SupportTicketDetailScreen() {
 
   async function pickReplyImage() {
     if (replyImgs.length >= 2) return;
+
+    if (Platform.OS === "web") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.onchange = (e: any) => {
+        const file: File = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const dataUrl = ev.target?.result as string;
+          if (dataUrl) setReplyImgs(prev => [...prev, dataUrl]);
+        };
+        reader.readAsDataURL(file);
+      };
+      input.click();
+      return;
+    }
+
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") return;
     const result = await ImagePicker.launchImageLibraryAsync({

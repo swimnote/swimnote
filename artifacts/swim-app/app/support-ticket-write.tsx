@@ -50,6 +50,25 @@ export default function SupportTicketWriteScreen() {
 
   async function pickImage() {
     if (images.length >= 2) { Alert.alert("최대 2장까지 첨부할 수 있습니다."); return; }
+
+    if (Platform.OS === "web") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.onchange = (e: any) => {
+        const file: File = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const dataUrl = ev.target?.result as string;
+          if (dataUrl) setImages(prev => [...prev, dataUrl]);
+        };
+        reader.readAsDataURL(file);
+      };
+      input.click();
+      return;
+    }
+
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") { Alert.alert("사진 접근 권한이 필요합니다."); return; }
 
