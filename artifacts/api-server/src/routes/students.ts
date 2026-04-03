@@ -248,7 +248,8 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
           const matched = await db.execute(sql`
             SELECT id FROM parent_accounts
             WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normPhone}
-              AND swimming_pool_id = ${poolId}
+              AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
+            ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
             LIMIT 1
           `);
           if ((matched.rows as any[]).length > 0)
@@ -258,7 +259,8 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
           const matched2 = await db.execute(sql`
             SELECT id FROM parent_accounts
             WHERE REPLACE(LOWER(COALESCE(name,'')),' ','') = ${normPName}
-              AND swimming_pool_id = ${poolId}
+              AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
+            ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
             LIMIT 1
           `);
           if ((matched2.rows as any[]).length > 0)
@@ -347,6 +349,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
     }
 
     // ── 학부모 전화번호/이름으로 기존 계정 찾기 (자동 연결용) ─────────
+    // 같은 수영장 우선, 없으면 수영장 미선택(NULL) 학부모도 매칭
     const normParentPhone = parent_phone ? parent_phone.replace(/[^0-9]/g, "") : null;
     const normParentName  = parent_name  ? parent_name.replace(/\s+/g, "").toLowerCase() : null;
 
@@ -355,7 +358,8 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       const matchedPa = await db.execute(sql`
         SELECT id FROM parent_accounts
         WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normParentPhone}
-          AND swimming_pool_id = ${poolId}
+          AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
+        ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
         LIMIT 1
       `);
       if ((matchedPa.rows as any[]).length > 0)
@@ -365,7 +369,8 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       const matchedPaByName = await db.execute(sql`
         SELECT id FROM parent_accounts
         WHERE REPLACE(LOWER(COALESCE(name,'')),' ','') = ${normParentName}
-          AND swimming_pool_id = ${poolId}
+          AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
+        ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
         LIMIT 1
       `);
       if ((matchedPaByName.rows as any[]).length > 0)
@@ -521,12 +526,50 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
   const { name, phone, birth_date, birth_year, parent_name, parent_phone, class_group_id, memo, weekly_count, status } = req.body;
   try {
     const poolId = await getPoolId(req.user!.userId);
-    const [existing] = await db.select({ swimming_pool_id: studentsTable.swimming_pool_id })
+    const [existing] = await db.select()
       .from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
     if (!existing) return err(res, 404, "학생을 찾을 수 없습니다.");
     if (req.user!.role !== "super_admin" && poolId && existing.swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
     }
+
+    // ── parent_phone/name 변경 시 자동 학부모 연결 ─────────────────
+    const normParentPhone = parent_phone != null
+      ? parent_phone.replace(/[^0-9]/g, "") || null
+      : (existing.parent_phone ? existing.parent_phone.replace(/[^0-9]/g, "") || null : null);
+    const normParentName = parent_name != null
+      ? parent_name.replace(/\s+/g, "").toLowerCase() || null
+      : (existing.parent_name ? existing.parent_name.replace(/\s+/g, "").toLowerCase() || null : null);
+    const effectivePoolId = existing.swimming_pool_id || poolId!;
+
+    let resolvedParentUserId = existing.parent_user_id || null;
+    // 학부모 계정이 아직 연결 안 된 경우에만 매칭 시도
+    if (!resolvedParentUserId && (parent_phone !== undefined || parent_name !== undefined)) {
+      if (normParentPhone) {
+        const [matched] = (await db.execute(sql`
+          SELECT id FROM parent_accounts
+          WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normParentPhone}
+            AND (swimming_pool_id = ${effectivePoolId} OR swimming_pool_id IS NULL)
+          ORDER BY (swimming_pool_id = ${effectivePoolId}) DESC NULLS LAST
+          LIMIT 1
+        `)).rows as any[];
+        if (matched) resolvedParentUserId = matched.id;
+      }
+      if (!resolvedParentUserId && normParentName) {
+        const [matched] = (await db.execute(sql`
+          SELECT id FROM parent_accounts
+          WHERE REPLACE(LOWER(COALESCE(name,'')),' ','') = ${normParentName}
+            AND (swimming_pool_id = ${effectivePoolId} OR swimming_pool_id IS NULL)
+          ORDER BY (swimming_pool_id = ${effectivePoolId}) DESC NULLS LAST
+          LIMIT 1
+        `)).rows as any[];
+        if (matched) resolvedParentUserId = matched.id;
+      }
+    }
+
+    const newStatus = (status !== undefined) ? status
+      : (!existing.parent_user_id && resolvedParentUserId) ? "active"
+      : undefined;
 
     const [student] = await db.update(studentsTable)
       .set({
@@ -535,21 +578,32 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
         ...(birth_date !== undefined && { birth_date }),
         ...(birth_year !== undefined && { birth_year }),
         ...(parent_name !== undefined && { parent_name }),
-        ...(parent_phone !== undefined && { parent_phone }),
+        ...(parent_phone !== undefined && { parent_phone: normParentPhone }),
         ...(class_group_id !== undefined && { class_group_id: class_group_id || null }),
         ...(memo !== undefined && { memo }),
         ...(weekly_count !== undefined && { weekly_count: Number(weekly_count) }),
-        ...(status !== undefined && { status }),
+        ...(newStatus !== undefined && { status: newStatus }),
+        ...(resolvedParentUserId && !existing.parent_user_id && { parent_user_id: resolvedParentUserId }),
         updated_at: new Date(),
       })
       .where(eq(studentsTable.id, req.params.id))
       .returning();
 
+    // ── parent_students 연결 레코드 생성 (신규 매칭 시) ─────────────
+    if (resolvedParentUserId && !existing.parent_user_id) {
+      const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await db.execute(sql`
+        INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
+        VALUES (${psId}, ${resolvedParentUserId}, ${req.params.id}, ${effectivePoolId}, 'approved', NOW())
+        ON CONFLICT DO NOTHING
+      `);
+    }
+
     const enriched = await enrichWithClasses(student);
-    await logChange({ tenantId: existing.swimming_pool_id, tableName: "students", recordId: student.id, changeType: "update", payload: { name: student.name, status: student.status, class_group_id: student.class_group_id } });
+    await logChange({ tenantId: existing.swimming_pool_id, tableName: "students", recordId: student.id, changeType: "update", payload: { name: student.name, status: student.status, class_group_id: student.class_group_id, auto_linked: !!resolvedParentUserId } });
     logPoolEvent({ pool_id: existing.swimming_pool_id, event_type: "member_update", entity_type: "student", entity_id: student.id, actor_id: req.user!.userId, payload: { name: student.name, status: student.status } }).catch(console.error);
-    res.json({ success: true, ...enriched });
-  } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
+    res.json({ success: true, ...enriched, parent_auto_linked: !existing.parent_user_id && !!resolvedParentUserId });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
 // 날짜 유틸

@@ -2401,6 +2401,77 @@ router.get("/parents", requireAuth, requireRole("super_admin","pool_admin"),
   }
 );
 
+// POST /admin/auto-link-parents — 미연결 학생 ↔ 학부모 소급 매칭
+// 수영장 내 parent_user_id가 null인 학생 중 parent_phone/name이 parent_accounts와 일치하는 경우 자동 연결
+router.post("/auto-link-parents", requireAuth, requireRole("super_admin","pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
+
+      // 미연결 학생들 (parent_phone 있고, parent_user_id 없음)
+      const unlinked = (await db.execute(sql`
+        SELECT id, name, parent_phone, parent_name
+        FROM students
+        WHERE swimming_pool_id = ${poolId}
+          AND parent_user_id IS NULL
+          AND parent_phone IS NOT NULL AND parent_phone != ''
+          AND deleted_at IS NULL AND status NOT IN ('archived','deleted')
+      `)).rows as any[];
+
+      let linked = 0;
+      for (const stu of unlinked) {
+        const normPhone = stu.parent_phone.replace(/[^0-9]/g, "");
+        const normName  = stu.parent_name ? stu.parent_name.replace(/\s+/g, "").toLowerCase() : null;
+
+        let paId: string | null = null;
+        // 1) 전화번호로 매칭
+        const [byPhone] = (await db.execute(sql`
+          SELECT id FROM parent_accounts
+          WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normPhone}
+            AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
+          ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
+          LIMIT 1
+        `)).rows as any[];
+        if (byPhone) paId = byPhone.id;
+
+        // 2) 이름으로 매칭 (fallback)
+        if (!paId && normName) {
+          const [byName] = (await db.execute(sql`
+            SELECT id FROM parent_accounts
+            WHERE REPLACE(LOWER(COALESCE(name,'')),' ','') = ${normName}
+              AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
+            ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
+            LIMIT 1
+          `)).rows as any[];
+          if (byName) paId = byName.id;
+        }
+
+        if (!paId) continue;
+
+        // parent_students + students 업데이트
+        const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await db.execute(sql`
+          INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
+          VALUES (${psId}, ${paId}, ${stu.id}, ${poolId}, 'approved', NOW())
+          ON CONFLICT DO NOTHING
+        `);
+        await db.execute(sql`
+          UPDATE students SET parent_user_id = ${paId}, status = 'active', updated_at = NOW()
+          WHERE id = ${stu.id} AND parent_user_id IS NULL
+        `);
+        await db.execute(sql`
+          UPDATE parent_accounts SET swimming_pool_id = ${poolId}, updated_at = NOW()
+          WHERE id = ${paId} AND swimming_pool_id IS NULL
+        `);
+        linked++;
+      }
+
+      res.json({ success: true, total_checked: unlinked.length, linked });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 // GET /admin/parents/:parentId — 학부모 상세 (학생 반 정보 포함)
 // source=app → parent_accounts 기반, source=guardian → students.parent_phone 기반
 router.get("/parents/:parentId", requireAuth, requireRole("super_admin","pool_admin"),
