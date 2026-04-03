@@ -2401,6 +2401,87 @@ router.get("/parents", requireAuth, requireRole("super_admin","pool_admin"),
   }
 );
 
+// GET /admin/parents/:parentId — 학부모 상세 (학생 반 정보 포함)
+// source=app → parent_accounts 기반, source=guardian → students.parent_phone 기반
+router.get("/parents/:parentId", requireAuth, requireRole("super_admin","pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
+      const { parentId } = req.params;
+      const source = (req.query.source as string) || "app";
+
+      if (source === "app") {
+        // 앱 가입 학부모
+        const [pa] = (await db.execute(sql`
+          SELECT id, name, phone, login_id, created_at, swimming_pool_id
+          FROM parent_accounts WHERE id = ${parentId} LIMIT 1
+        `)).rows as any[];
+        if (!pa) { res.status(404).json({ error: "학부모 없음" }); return; }
+
+        // 연결 학생 + 반 이름
+        const stuRows = (await db.execute(sql`
+          SELECT s.id, s.name, s.status,
+                 cg.name AS class_name,
+                 s.level AS level
+          FROM parent_students ps
+          JOIN students s ON s.id = ps.student_id
+          LEFT JOIN class_groups cg ON cg.id = s.class_group_id
+          WHERE ps.parent_id = ${parentId}
+            AND s.swimming_pool_id = ${poolId}
+            AND s.deleted_at IS NULL
+        `)).rows as any[];
+
+        // 가입 시 제출한 자녀 이름 (registration_requests)
+        const regRows = (await db.execute(sql`
+          SELECT child_names, status, created_at
+          FROM student_registration_requests
+          WHERE parent_id = ${parentId} AND swimming_pool_id = ${poolId}
+          ORDER BY created_at DESC LIMIT 1
+        `)).rows as any[];
+
+        res.json({
+          id: pa.id, name: pa.name, phone: pa.phone, login_id: pa.login_id,
+          created_at: pa.created_at, source: "app",
+          students: stuRows,
+          reg_request: regRows[0] || null,
+        });
+      } else {
+        // 보호자만 (학생 테이블의 parent_phone 기반)
+        // parentId = phone 또는 "nophone_<studentId>"
+        let stuRows: any[];
+        if (parentId.startsWith("nophone_")) {
+          const sid = parentId.replace("nophone_", "");
+          stuRows = (await db.execute(sql`
+            SELECT s.id, s.name, s.status, s.parent_name, s.parent_phone,
+                   cg.name AS class_name, s.level
+            FROM students s
+            LEFT JOIN class_groups cg ON cg.id = s.class_group_id
+            WHERE s.id = ${sid} AND s.swimming_pool_id = ${poolId} AND s.deleted_at IS NULL
+          `)).rows as any[];
+        } else {
+          stuRows = (await db.execute(sql`
+            SELECT s.id, s.name, s.status, s.parent_name, s.parent_phone,
+                   cg.name AS class_name, s.level
+            FROM students s
+            LEFT JOIN class_groups cg ON cg.id = s.class_group_id
+            WHERE REGEXP_REPLACE(COALESCE(s.parent_phone,''),'[^0-9]','','g')
+                  = REGEXP_REPLACE(${parentId},'[^0-9]','','g')
+              AND s.swimming_pool_id = ${poolId} AND s.deleted_at IS NULL
+          `)).rows as any[];
+        }
+        const first = stuRows[0] || {};
+        res.json({
+          id: parentId, name: first.parent_name || null, phone: first.parent_phone || null,
+          login_id: null, created_at: null, source: "guardian",
+          students: stuRows,
+          reg_request: null,
+        });
+      }
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 // GET /admin/dashboard-stats2 — 대시보드 V2 (보강 포함)
 router.get("/dashboard-stats2", requireAuth, requireRole("super_admin","pool_admin"),
   async (req: AuthRequest, res) => {
