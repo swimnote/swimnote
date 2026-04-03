@@ -330,7 +330,12 @@ export default function SignupScreen() {
           return;
         }
         if (data.token) {
-          await setParentSession(data.token, data.parent);
+          // 백엔드 응답에 pool_name이 없더라도 프론트에서 선택한 pool 정보로 보완
+          const parentWithPool = {
+            ...data.parent,
+            pool_name: data.parent?.pool_name || selectedPool?.name || null,
+          };
+          await setParentSession(data.token, parentWithPool);
           return;
         }
       }
