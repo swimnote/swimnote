@@ -345,7 +345,6 @@ router.post("/parents", requireAuth, requireRole("super_admin", "pool_admin"), a
 
 router.delete("/parents/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   const parentId = req.params.id;
-  console.log(`[ADMIN DELETE PARENT] 요청 수신: parentId=${parentId}, userId=${req.user?.userId}, role=${req.user?.role}`);
   try {
     // 삭제 전 학부모 login_id, phone 조회 (parent_pool_requests 정리에 사용)
     const paRows = await db.execute(sql`SELECT login_id, phone FROM parent_accounts WHERE id = ${parentId} LIMIT 1`);
@@ -376,7 +375,6 @@ router.delete("/parents/:id", requireAuth, requireRole("super_admin", "pool_admi
     }
     // 4. 학부모 계정 삭제 (강제탈퇴 — phone 포함 모든 정보 삭제)
     await db.execute(sql`DELETE FROM parent_accounts WHERE id = ${parentId}`);
-    console.log(`[ADMIN DELETE PARENT] 삭제 완료: parentId=${parentId}, loginId=${loginId}, phone=${phone}`);
     res.json({ success: true, message: "학부모 계정이 삭제되었습니다." });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
@@ -2382,7 +2380,6 @@ router.get("/parents", requireAuth, requireRole("super_admin","pool_admin"),
         ORDER BY MIN(st.created_at) DESC
       `)).rows as any[];
 
-      console.log(`[/admin/parents] poolId=${poolId} appRows=${appRows.length} guardianRows=${guardianRows.length}`);
 
       // ── 3. 앱 가입 학부모의 phone 목록 (중복 제거용) ─────────────────
       const appPhones = new Set(appRows.map((r: any) => (r.phone || "").replace(/[^0-9]/g, "")).filter(Boolean));

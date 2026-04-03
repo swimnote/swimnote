@@ -34,6 +34,8 @@ interface Summary {
   totalTeachers: number;
   pendingApprovals: number;
   unregisteredMembers: number;
+  totalParents: number;
+  appParents: number;
 }
 
 const DEFAULT_SUMMARY: Summary = {
@@ -45,6 +47,8 @@ const DEFAULT_SUMMARY: Summary = {
   totalTeachers: 0,
   pendingApprovals: 0,
   unregisteredMembers: 0,
+  totalParents: 0,
+  appParents: 0,
 };
 
 export default function PeopleHubScreen() {
@@ -59,19 +63,22 @@ export default function PeopleHubScreen() {
     if (!token) return;
     setLoading(true);
     try {
-      const [statsRes, studentsRes, unregRes] = await Promise.all([
+      const [statsRes, studentsRes, unregRes, parentsRes] = await Promise.all([
         apiRequest(token, "/admin/dashboard-stats"),
         apiRequest(token, "/students"),
         apiRequest(token, "/admin/unregistered"),
+        apiRequest(token, "/admin/parents").catch(() => null),
       ]);
 
       const stats = statsRes.ok ? await statsRes.json() : {};
       const students: any[] = studentsRes.ok ? await studentsRes.json() : [];
       const unreg: any[] = unregRes.ok ? await unregRes.json() : [];
+      const parents: any[] = parentsRes?.ok ? await parentsRes.json() : [];
 
       const activeMembers = students.filter((s: any) => s.status === "active").length;
       const inactiveMembers = students.filter((s: any) => s.status === "inactive").length;
       const withdrawnMembers = students.filter((s: any) => s.status === "withdrawn").length;
+      const appParents = parents.filter((p: any) => p.source === "app").length;
 
       setSummary({
         totalMembers: students.length,
@@ -82,6 +89,8 @@ export default function PeopleHubScreen() {
         totalTeachers: stats.total_teachers ?? 0,
         pendingApprovals: 0,
         unregisteredMembers: unreg.length,
+        totalParents: parents.length,
+        appParents,
       });
     } catch {
     } finally {
@@ -174,6 +183,19 @@ export default function PeopleHubScreen() {
                 ]}
                 badge={summary.unregisteredMembers > 0 ? `반 미배정 ${summary.unregisteredMembers}명` : undefined}
                 badgeColor="#D97706"
+              />
+
+              {/* 학부모명단 */}
+              <HubCard
+                icon="heart-handshake"
+                title="학부모명단"
+                color="#0EA5E9"
+                bg="#E0F2FE"
+                onPress={() => router.push("/(admin)/parents-list?backTo=people" as any)}
+                rows={[
+                  { label: "전체", value: summary.totalParents },
+                  { label: "앱가입", value: summary.appParents },
+                ]}
               />
 
             </View>
