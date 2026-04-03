@@ -2,7 +2,7 @@
  * invite-qr.tsx — 학부모 QR 초대 화면
  * QR 코드를 생성하여 출력하거나 카카오/링크로 공유
  */
-import { Download, QrCode, Share2, Printer } from "lucide-react-native";
+import { Share2, Printer } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";

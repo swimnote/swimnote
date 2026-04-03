@@ -189,7 +189,7 @@ export default function MembersScreen() {
     const count = ids.length;
     setBulkDeleting(true);
     try {
-      console.log(`[admin][deleteStudent] selectedCount=${count}`, ids);
+
       const results = await Promise.allSettled(
         ids.map(id => apiRequest(token, `/students/${id}`, { method: "DELETE" })
           .then(r => ({ id, ok: r.ok }))
@@ -201,7 +201,7 @@ export default function MembersScreen() {
       const failed = ids.length - succeeded.length;
       setStudents(prev => prev.filter(s => !succeeded.includes(s.id)));
       sel.exitSelectionMode();
-      console.log(`[admin][deleteStudent] student soft deleted: ${succeeded.join(", ")}`);
+
       if (failed > 0) setBulkDeleteFail(failed);
     } catch (e) {
       console.error(e);

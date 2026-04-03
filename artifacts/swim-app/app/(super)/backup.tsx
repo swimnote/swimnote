@@ -1315,10 +1315,8 @@ export default function BackupScreen() {
   const latestBackup = backups[0];
   const totalSize = backups.reduce((s, b) => {
     const n = Number(b.size_bytes ?? 0);
-    console.log("[backup] size_bytes raw:", b.size_bytes, "→ Number:", n);
     return s + (isNaN(n) ? 0 : n);
   }, 0);
-  console.log("[backup] totalSize (bytes):", totalSize);
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>

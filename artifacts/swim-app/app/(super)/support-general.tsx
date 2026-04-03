@@ -1,7 +1,7 @@
 /**
  * (super)/support-general.tsx — 슈퍼관리자: 일반 문의 목록
  */
-import { ChevronRight, MessageCircle, RefreshCw } from "lucide-react-native";
+import { ChevronRight, MessageCircle } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {

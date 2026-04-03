@@ -13,9 +13,7 @@ import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal }             from "@/components/common/ConfirmModal";
 import { MemberStatusChangeModal }  from "@/components/common/MemberStatusChangeModal";
-import {
-  WeeklyCount, getStudentConnectionStatus,
-} from "@/utils/studentUtils";
+import { WeeklyCount } from "@/utils/studentUtils";
 
 import { ClassPickerModal }           from "@/components/admin/member/ClassPickerModal";
 import { MemberInfoTab }              from "@/components/admin/member/MemberInfoTab";
@@ -236,7 +234,7 @@ export default function MemberDetailScreen() {
     );
   }
 
-  const connStatus    = getStudentConnectionStatus(data);
+  const connStatus    = data.parent_user_id ? "linked" : "none";
   const statusMeta    = STATUS_META[data.status] || STATUS_META.active;
   const assignedClasses = groups.filter(g => assignedIds.includes(g.id));
   const poolName      = (pool as any)?.name || "수영장";

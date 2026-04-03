@@ -3,7 +3,7 @@
  * 구독 플랜 관리 (Coach 30/50/100, Premier 200/300/500/1000)
  * API 연동: GET/POST/PUT/PATCH /super/plans
  */
-import { CirclePlus, Info, Lock, Package, PenLine, X } from "lucide-react-native";
+import { CirclePlus, Lock, Package, PenLine, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   Alert, FlatList, KeyboardAvoidingView, Modal, Platform,

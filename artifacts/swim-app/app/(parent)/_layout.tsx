@@ -3,7 +3,7 @@
  * 미승인 학부모(pending / rejected)는 홈 진입 차단 → 대기 화면 표시
  * join_status는 로그인 응답(unified-login)에서 받아 SessionContext에 저장
  */
-import { Home, Info } from "lucide-react-native";
+import { Info } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { Stack } from "expo-router";
 import React from "react";

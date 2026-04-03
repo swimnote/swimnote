@@ -17,9 +17,8 @@ export const storageAdapter = {
     return `${operatorId}/paid/${file.name}-hd.jpg`
   },
 
-  async deleteAsset(key: string): Promise<boolean> {
+  async deleteAsset(_key: string): Promise<boolean> {
     await delay(200)
-    console.log(`[mock] 삭제: ${key}`)
     return true
   },
 

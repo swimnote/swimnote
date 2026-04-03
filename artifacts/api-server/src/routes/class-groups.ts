@@ -271,7 +271,6 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin", "tea
     }
 
     const cgId = req.params.id;
-    console.log(`[deleteClass] clicked classId: ${cgId}`);
 
     // 1) 해당 반에 속한 active 학생 조회
     const affectedStudents = await db.execute(sql`
@@ -283,8 +282,6 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin", "tea
           OR assigned_class_ids @> to_jsonb(${cgId}::text)
         )
     `);
-    console.log(`[deleteClass] students to unassign count: ${affectedStudents.rows.length}`);
-
     // 2) 학생 미배정 처리: class_group_id null + assigned_class_ids에서 제거
     await db.execute(sql`
       UPDATE students
@@ -316,7 +313,6 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin", "tea
       .set({ is_deleted: true, deleted_at: new Date(), updated_at: new Date() })
       .where(eq(classGroupsTable.id, cgId));
 
-    console.log(`[deleteClass] class soft deleted: ${cgId}`);
     if (poolId) await logChange({ tenantId: poolId, tableName: "class_groups", recordId: cgId, changeType: "delete", payload: { pool_id: poolId } });
     if (poolId) logPoolEvent({ pool_id: poolId, event_type: "class_delete", entity_type: "class_group", entity_id: cgId, actor_id: req.user!.userId, payload: { pool_id: poolId } }).catch(console.error);
 

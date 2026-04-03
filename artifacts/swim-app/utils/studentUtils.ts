@@ -183,24 +183,6 @@ export function searchStudents(students: StudentMember[], query: string): Studen
   );
 }
 
-// ── 하위 호환 (기존 코드에서 직접 참조하는 함수들) ───────────────
-
-/** @deprecated getPrimaryStatus 사용 권장 */
-export function getStudentAssignmentStatus(s: StudentMember): "unassigned" | "mismatch" | "ok" {
-  const ids = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
-  const wc = s.weekly_count || 1;
-  if (ids.length === 0) return "unassigned";
-  if (ids.length !== wc) return "mismatch";
-  return "ok";
-}
-
-/** @deprecated parent_user_id 유무로 직접 판단 권장 */
-export function getStudentConnectionStatus(s: StudentMember): "linked" | "pending" | "none" {
-  if (s.parent_user_id) return "linked";
-  if (s.status === "pending_parent_link") return "pending";
-  return "none";
-}
-
 /** 수업 라벨 생성: "월4·목7" 형식 */
 export function toShortScheduleLabel(classes: AssignedClassInfo[]): string {
   return classes.map(c => {
