@@ -801,7 +801,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                     <DetailRow icon="layers" label="반" value={selectedCard.class_name || "미배정"} />
                     <DetailRow icon="calendar" label="수업일" value={selectedCard.schedule_days || "-"} />
                     <DetailRow icon="clock" label="수업시간" value={selectedCard.schedule_time || "-"} />
-                    <DetailRow icon="phone" label="보호자 연락처" value={selectedCard.parent_phone || "-"} />
+                    <DetailRow icon="phone" label="학부모 연락처" value={selectedCard.parent_phone || "-"} />
                     <DetailRow icon="user" label="담당 선생님" value={selectedCard.teacher_name || "-"} />
                   </View>
                 </View>

@@ -60,9 +60,9 @@ export function MemberInfoTab({
         <EditField label="이름" value={editName} onChangeText={v => { setEditName(v); setInfoChanged(true); }} />
         <EditField label="출생년도" value={editBirth} onChangeText={v => { setEditBirth(v); setInfoChanged(true); }} keyboardType="numeric" placeholder="예: 2015" />
         <EditField label="연락처" value={editPhone} onChangeText={v => { setEditPhone(v); setInfoChanged(true); }} keyboardType="phone-pad" />
-        <EditField label="보호자 이름" value={editParentName} onChangeText={v => { setEditParentName(v); setInfoChanged(true); }} />
-        <EditField label="보호자 연락처" value={editParentPhone} onChangeText={v => { setEditParentPhone(v); setInfoChanged(true); }} keyboardType="phone-pad" />
-        <EditField label="보호자 연락처2" value={editParentPhone2} onChangeText={v => { setEditParentPhone2(v); setInfoChanged(true); }} keyboardType="phone-pad" placeholder="선택 입력" />
+        <EditField label="학부모 이름" value={editParentName} onChangeText={v => { setEditParentName(v); setInfoChanged(true); }} />
+        <EditField label="학부모 연락처" value={editParentPhone} onChangeText={v => { setEditParentPhone(v); setInfoChanged(true); }} keyboardType="phone-pad" />
+        <EditField label="학부모 연락처2" value={editParentPhone2} onChangeText={v => { setEditParentPhone2(v); setInfoChanged(true); }} keyboardType="phone-pad" placeholder="선택 입력" />
 
         <Pressable
           style={[ms.saveBtn, { backgroundColor: infoChanged ? themeColor : "#64748B" }]}

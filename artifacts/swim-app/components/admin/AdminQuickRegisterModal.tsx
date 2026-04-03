@@ -42,7 +42,7 @@ export function AdminQuickRegisterModal({
   function validate(): string | null {
     if (!name.trim()) return "학생 이름을 입력해주세요.";
     if (birthYear && !isValidBirthYear(birthYear)) return "출생년도가 올바르지 않습니다. (예: 2015)";
-    if (parentPhone && !isValidPhone(parentPhone)) return "보호자 전화번호 형식이 올바르지 않습니다.";
+    if (parentPhone && !isValidPhone(parentPhone)) return "학부모 전화번호 형식이 올바르지 않습니다.";
     return null;
   }
 
@@ -111,11 +111,11 @@ export function AdminQuickRegisterModal({
                   <TextInput style={qr.input} value={birthYear} onChangeText={setBirthYear} placeholder="예: 2015" placeholderTextColor={C.textMuted} keyboardType="number-pad" maxLength={4} />
                 </View>
                 <View style={qr.field}>
-                  <Text style={qr.label}>보호자 이름</Text>
+                  <Text style={qr.label}>학부모 이름</Text>
                   <TextInput style={qr.input} value={parentName} onChangeText={setParentName} placeholder="김보호 (선택)" placeholderTextColor={C.textMuted} />
                 </View>
                 <View style={qr.field}>
-                  <Text style={qr.label}>보호자 전화번호</Text>
+                  <Text style={qr.label}>학부모 전화번호</Text>
                   <TextInput style={qr.input} value={parentPhone} onChangeText={setParentPhone} placeholder="010-1234-5678" placeholderTextColor={C.textMuted} keyboardType="phone-pad" />
                 </View>
                 <View style={qr.field}>
@@ -137,7 +137,7 @@ export function AdminQuickRegisterModal({
               </ScrollView>
               <View style={qr.notice}>
                 <Info size={13} color={C.textMuted} />
-                <Text style={qr.noticeTxt}>등록 후 초대코드가 생성됩니다. 보호자에게 전달하여 앱 연결을 유도할 수 있습니다.</Text>
+                <Text style={qr.noticeTxt}>등록 후 초대코드가 생성됩니다. 학부모에게 전달하여 앱 연결을 유도할 수 있습니다.</Text>
               </View>
               <Pressable style={[qr.saveBtn, { backgroundColor: "#2EC4B6", opacity: saving ? 0.7 : 1 }]} onPress={submit} disabled={saving}>
                 {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={qr.saveBtnTxt}>등록하기</Text>}

@@ -388,7 +388,7 @@ export default function MembersScreen() {
         <TextInput
           style={[ms.searchInput, { color: C.text }]}
           value={search} onChangeText={setSearch}
-          placeholder="이름·보호자·전화번호 검색"
+          placeholder="이름·학부모·전화번호 검색"
           placeholderTextColor={C.textMuted}
         />
         {search.length > 0 && (

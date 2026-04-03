@@ -34,7 +34,7 @@ export default function TeacherRegisterModal({
   function validate(): string | null {
     if (!name.trim()) return "학생 이름을 입력해주세요.";
     if (birthYear && !isValidBirthYear(birthYear)) return "출생년도 형식이 올바르지 않습니다. (예: 2015)";
-    if (parentPhone && !isValidPhone(parentPhone)) return "보호자 전화번호 형식이 올바르지 않습니다.";
+    if (parentPhone && !isValidPhone(parentPhone)) return "학부모 전화번호 형식이 올바르지 않습니다.";
     return null;
   }
   async function handleSubmit() {
@@ -103,11 +103,11 @@ export default function TeacherRegisterModal({
                   <TextInput style={treg.input} value={birthYear} onChangeText={setBirthYear} placeholder="예: 2015" placeholderTextColor={C.textMuted} keyboardType="number-pad" maxLength={4} />
                 </View>
                 <View style={treg.field}>
-                  <Text style={treg.label}>보호자 이름</Text>
+                  <Text style={treg.label}>학부모 이름</Text>
                   <TextInput style={treg.input} value={parentName} onChangeText={setParentName} placeholder="김보호 (선택)" placeholderTextColor={C.textMuted} />
                 </View>
                 <View style={treg.field}>
-                  <Text style={treg.label}>보호자 전화번호</Text>
+                  <Text style={treg.label}>학부모 전화번호</Text>
                   <TextInput style={treg.input} value={parentPhone} onChangeText={setParentPhone} placeholder="010-1234-5678" placeholderTextColor={C.textMuted} keyboardType="phone-pad" />
                 </View>
                 <View style={treg.field}>

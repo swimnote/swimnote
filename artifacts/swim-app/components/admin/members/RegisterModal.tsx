@@ -37,7 +37,7 @@ export function RegisterModal({ token, poolName, onSuccess, onClose }: RegisterM
   function validate(): string | null {
     if (!name.trim()) return "학생 이름을 입력해주세요.";
     if (birthYear && !isValidBirthYear(birthYear)) return "출생년도가 올바르지 않습니다. (예: 2015)";
-    if (parentPhone && !isValidPhone(parentPhone)) return "보호자 전화번호 형식이 올바르지 않습니다.";
+    if (parentPhone && !isValidPhone(parentPhone)) return "학부모 전화번호 형식이 올바르지 않습니다.";
     return null;
   }
 
@@ -127,7 +127,7 @@ export function RegisterModal({ token, poolName, onSuccess, onClose }: RegisterM
                 />
               </View>
               <View style={reg.field}>
-                <Text style={reg.label}>보호자 이름</Text>
+                <Text style={reg.label}>학부모 이름</Text>
                 <TextInput
                   style={reg.input}
                   value={parentName}
@@ -138,7 +138,7 @@ export function RegisterModal({ token, poolName, onSuccess, onClose }: RegisterM
                 />
               </View>
               <View style={reg.field}>
-                <Text style={reg.label}>보호자 전화번호 (초대 문자 발송용)</Text>
+                <Text style={reg.label}>학부모 전화번호 (초대 문자 발송용)</Text>
                 <TextInput
                   style={reg.input}
                   value={parentPhone}
@@ -168,7 +168,7 @@ export function RegisterModal({ token, poolName, onSuccess, onClose }: RegisterM
               </View>
               <View style={reg.notice}>
                 <Info size={13} color={C.textMuted} />
-                <Text style={reg.noticeText}>등록 후 초대코드가 생성됩니다. 보호자에게 전달하여 앱 연결을 유도할 수 있습니다.</Text>
+                <Text style={reg.noticeText}>등록 후 초대코드가 생성됩니다. 학부모에게 전달하여 앱 연결을 유도할 수 있습니다.</Text>
               </View>
               <Pressable style={[reg.saveBtn, { backgroundColor: C.tint }]} onPress={() => submit(false)} disabled={saving}>
                 {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={reg.saveBtnText}>등록하기</Text>}

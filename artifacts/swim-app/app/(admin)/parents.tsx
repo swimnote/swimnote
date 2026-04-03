@@ -68,7 +68,7 @@ export default function ParentsScreen() {
         <Search size={15} color={C.textMuted} />
         <TextInput
           style={[s.searchInput, { color: C.text }]}
-          placeholder="보호자 이름, 전화번호, 자녀이름 검색"
+          placeholder="학부모 이름, 전화번호, 자녀이름 검색"
           placeholderTextColor={C.textMuted}
           value={search}
           onChangeText={setSearch}
@@ -100,7 +100,7 @@ export default function ParentsScreen() {
             {guardianCount > 0 && (
               <>
                 <Text style={[s.statDot, { color: C.textMuted }]}>·</Text>
-                <Text style={[s.statText, { color: C.textSecondary }]}>보호자 정보 {guardianCount}명</Text>
+                <Text style={[s.statText, { color: C.textSecondary }]}>학부모 정보 {guardianCount}명</Text>
               </>
             )}
           </View>
@@ -115,7 +115,7 @@ export default function ParentsScreen() {
               </Text>
               {!search.trim() && (
                 <Text style={[s.emptySub, { color: C.textSecondary }]}>
-                  학생 등록 시 보호자 이름·연락처를 입력하거나{"\n"}학부모가 앱에서 가입하면 여기에 표시됩니다
+                  학생 등록 시 학부모 이름·연락처를 입력하거나{"\n"}학부모가 앱에서 가입하면 여기에 표시됩니다
                 </Text>
               )}
             </View>

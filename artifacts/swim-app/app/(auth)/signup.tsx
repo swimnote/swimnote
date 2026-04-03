@@ -548,7 +548,7 @@ export default function SignupScreen() {
         {/* 실명 */}
         <View style={styles.card}>
           <Text style={[styles.cardTitle, { color: C.text }]}>
-            {role === "admin" ? "운영자 정보" : role === "teacher" ? "선생님 정보" : "보호자 정보"}
+            {role === "admin" ? "운영자 정보" : role === "teacher" ? "선생님 정보" : "학부모 정보"}
           </Text>
           <InputField label="실명" icon="user">
             <TextInput

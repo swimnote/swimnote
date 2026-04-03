@@ -320,7 +320,7 @@ export default function StudentDetailScreen() {
                 value={student.gender === "male" ? "남" : student.gender === "female" ? "여" : student.gender} />
             )}
             {student.parent_name && (
-              <InfoRow icon="user" label="보호자" value={student.parent_name} />
+              <InfoRow icon="user" label="학부모" value={student.parent_name} />
             )}
             {student.parent_phone && (
               <View style={s.infoRow}>

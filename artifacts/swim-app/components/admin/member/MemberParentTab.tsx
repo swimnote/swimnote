@@ -49,7 +49,7 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
       </View>
 
       <View style={ms.section}>
-        <Text style={ms.sectionTitle}>보호자 정보</Text>
+        <Text style={ms.sectionTitle}>학부모 정보</Text>
         <View style={ms.infoRow}>
           <User size={13} color={C.textMuted} />
           <Text style={ms.infoLabel}>이름</Text>

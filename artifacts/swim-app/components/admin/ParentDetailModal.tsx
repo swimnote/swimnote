@@ -109,7 +109,7 @@ export function ParentDetailModal({
             </View>
 
             <View style={pd.section}>
-              <Text style={pd.sTitle}>보호자 정보</Text>
+              <Text style={pd.sTitle}>학부모 정보</Text>
               <PDRow      label="이름"   value={req.parentName} />
               <PDPhoneRow label="연락처" phone={req.parentPhone} />
               <PDRow      label="신청일" value={new Date(req.createdAt).toLocaleDateString("ko-KR")} />
