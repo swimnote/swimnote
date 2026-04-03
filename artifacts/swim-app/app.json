@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.swimnote.app",
-      "buildNumber": "49",
+      "buildNumber": "50",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "LSApplicationQueriesSchemes": [
@@ -35,7 +35,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.swimnote.app",
-      "versionCode": 77
+      "versionCode": 78
     },
     "web": {
       "favicon": "./assets/images/icon.png"
