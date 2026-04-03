@@ -269,6 +269,28 @@ router.get("/students/:id", requireAuth, requireParent, async (req: AuthRequest,
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
+// ─── 학부모 → 자녀 이름 수정 ─────────────────────────────────────────────
+router.patch("/students/:id/name", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !String(name).trim()) { return res.status(400).json({ error: "이름을 입력해주세요." }); }
+
+    const [link] = await db.select().from(parentStudentsTable)
+      .where(and(
+        eq(parentStudentsTable.parent_id, req.user!.userId),
+        eq(parentStudentsTable.student_id, req.params.id),
+        eq(parentStudentsTable.status, "approved")
+      )).limit(1);
+    if (!link) { return res.status(403).json({ error: "접근 권한이 없습니다." }); }
+
+    await db.execute(sql`
+      UPDATE students SET name = ${String(name).trim()}, updated_at = NOW()
+      WHERE id = ${req.params.id}
+    `);
+    res.json({ success: true, name: String(name).trim() });
+  } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
 // ─── 학부모 전체 출결 (연결된 모든 자녀의 출결 통합) ──────────────────────
 router.get("/attendance", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
