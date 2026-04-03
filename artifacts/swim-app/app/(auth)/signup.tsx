@@ -254,6 +254,11 @@ export default function SignupScreen() {
       if (!selectedPool) { setError("수영장을 선택해주세요."); return; }
     } else if (role === "parent") {
       if (!selectedPool) { setError("수영장을 선택해주세요."); return; }
+      const hasChildName =
+        parentSelected.length > 0 ||
+        childName.trim().length > 0 ||
+        parentStudentSearch.trim().length > 0;
+      if (!hasChildName) { setError("자녀 이름을 입력하거나 검색해서 선택해주세요."); return; }
     }
 
     setLoading(true);
@@ -674,9 +679,9 @@ export default function SignupScreen() {
                 {parentSearchResults !== null && (
                   parentSearchResults.length === 0 ? (
                     <View style={{ paddingVertical: 10 }}>
-                      <Text style={[styles.emptyTxt, { color: C.textMuted }]}>등록된 학생을 찾을 수 없습니다.</Text>
-                      <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", marginTop: 4 }}>
-                        수영장 담당자에게 등록 확인 후 다시 시도해주세요.
+                      <Text style={[styles.emptyTxt, { color: C.textMuted }]}>일치하는 학생을 찾을 수 없습니다.</Text>
+                      <Text style={{ fontSize: 12, color: "#2EC4B6", fontFamily: "Pretendard-Regular", marginTop: 4 }}>
+                        입력하신 이름({parentStudentSearch})으로 가입 후 자동 연결됩니다.
                       </Text>
                     </View>
                   ) : (
@@ -703,8 +708,8 @@ export default function SignupScreen() {
 
             {/* 안내 */}
             {parentSelected.length === 0 && (
-              <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", marginTop: 6 }}>
-                자녀를 선택하지 않아도 가입 후 전화번호·이름 기반으로 자동 연결됩니다.
+              <Text style={{ fontSize: 12, color: "#EF4444", fontFamily: "Pretendard-Regular", marginTop: 6 }}>
+                * 자녀 이름을 검색하거나 직접 입력해주세요 (필수)
               </Text>
             )}
           </View>

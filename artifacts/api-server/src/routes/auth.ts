@@ -412,67 +412,88 @@ router.post("/simple-parent-register", async (req, res) => {
     let matched: any[] = [];
     let resolvedPoolId: string | null = requestedPoolId;
 
-    // ── STEP 1: 학부모가 직접 선택한 학생 ID로 연결 (최우선) ──────────────
+    // ════════════════════════════════════════════════════════════════════
+    // 학생 매칭: 모든 단계를 병렬/누적으로 실행 (exclusive가 아닌 accumulate)
+    // 중복 제거 헬퍼
+    const addUnique = (arr: any[], items: any[]) => {
+      for (const it of items) {
+        if (!arr.some((m: any) => m.id === it.id)) arr.push(it);
+      }
+    };
+
+    // matchedByName: child_names 중 이미 DB 학생과 매칭된 이름 (placeholder 중복 방지)
+    const matchedByName = new Set<string>();
+    // 매칭 후 matched 학생 이름이 childNamesArr에 있으면 matchedByName에 추가
+    const markMatchedNames = (rows: any[]) => {
+      for (const r of rows) {
+        if (r.name && childNamesArr.includes(r.name)) matchedByName.add(r.name);
+      }
+    };
+
+    // ── STEP 1: 학부모가 직접 선택한 학생 ID (최우선) ─────────────────────
     if (childIdsArr.length > 0) {
       for (const cId of childIdsArr) {
         const r = await db.execute(sql`
-          SELECT id, swimming_pool_id FROM students
+          SELECT id, swimming_pool_id, name FROM students
           WHERE id = ${cId}
             AND swimming_pool_id = ${requestedPoolId}
             AND status NOT IN ('withdrawn', 'archived', 'deleted')
           LIMIT 1
         `);
-        matched.push(...(r.rows as any[]));
+        addUnique(matched, r.rows as any[]);
+        markMatchedNames(r.rows as any[]);
       }
     }
 
-    // ── STEP 2: 전화번호로 학생 매칭 (수영장 내, 포맷 정규화 비교) ──────────
-    if (matched.length === 0 && ph) {
+    // ── STEP 2: 전화번호로 학생 매칭 (항상 실행 — 전화번호가 있으면) ──────
+    if (ph) {
       const r = await db.execute(sql`
-        SELECT id, swimming_pool_id FROM students
+        SELECT id, swimming_pool_id, name FROM students
         WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${ph}
           AND swimming_pool_id = ${requestedPoolId}
           AND status NOT IN ('withdrawn', 'archived', 'deleted')
-        LIMIT 10
+        LIMIT 20
       `);
-      matched = r.rows as any[];
+      addUnique(matched, r.rows as any[]);
+      markMatchedNames(r.rows as any[]);
     }
 
-    // ── STEP 3: 이름으로 매칭 (전화번호 미입력된 학생 대상) ──────────────────
-    if (matched.length === 0 && childNamesArr.length > 0 && resolvedPoolId) {
+    // ── STEP 3: 자녀 이름으로 매칭 (항상 실행 — 이름이 있으면) ────────────
+    if (childNamesArr.length > 0 && resolvedPoolId) {
       for (const cName of childNamesArr) {
         const r = await db.execute(sql`
-          SELECT id, swimming_pool_id FROM students
+          SELECT id, swimming_pool_id, name FROM students
           WHERE name = ${cName}
             AND swimming_pool_id = ${resolvedPoolId}
             AND status NOT IN ('withdrawn', 'archived', 'deleted')
           LIMIT 5
         `);
-        matched.push(...(r.rows as any[]));
+        if ((r.rows as any[]).length > 0) {
+          matchedByName.add(cName);
+          addUnique(matched, r.rows as any[]);
+        }
       }
-      const seen = new Set<string>();
-      matched = matched.filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
     }
 
-    // ── STEP 3B: 학부모 이름으로 추가 매칭 (전화번호·이름 모두 없을 때 최후 수단) ─
-    if (matched.length === 0 && name && resolvedPoolId) {
+    // ── STEP 3B: 학부모 이름으로 추가 매칭 (항상 실행) ──────────────────
+    if (name && resolvedPoolId) {
       const normName = name.replace(/\s+/g, "").toLowerCase();
       const r = await db.execute(sql`
-        SELECT id, swimming_pool_id FROM students
+        SELECT id, swimming_pool_id, name FROM students
         WHERE REPLACE(LOWER(COALESCE(parent_name, '')), ' ', '') = ${normName}
           AND swimming_pool_id = ${resolvedPoolId}
           AND status NOT IN ('withdrawn', 'archived', 'deleted')
-        LIMIT 10
+        LIMIT 20
       `);
-      matched = r.rows as any[];
+      addUnique(matched, r.rows as any[]);
+      markMatchedNames(r.rows as any[]);
     }
+    // ════════════════════════════════════════════════════════════════════
 
-    // ── STEP 3: 매칭 결과 없어도 수영장 ID가 있으면 고아 계정으로 생성 ──────
-    // (관리자가 나중에 학생 등록 시 parent_phone 입력하면 자동 연결)
     if (!resolvedPoolId) {
       return res.status(404).json({
         success: false,
-        error: "수영장을 선택하거나 자녀 이름을 입력해주세요.\n수영장 목록에서 다니는 수영장을 선택해주세요.",
+        error: "수영장을 선택해주세요.",
         error_code: "no_pool_found",
       });
     }
@@ -499,35 +520,7 @@ router.post("/simple-parent-register", async (req, res) => {
       VALUES (${parentId}, ${resolvedPoolId}, ${ph}, ${pin_hash}, ${name}, ${lid}, true, now(), now())
     `);
 
-    // ── 계정 생성 후: 포괄적 자동 연결 (선택된 수영장 내 전화번호 + 이름 기준) ─
-    // Steps 1-3B 에서 이미 matched 된 것 외에 누락된 학생까지 잡기
-    const normParentName = name.replace(/\s+/g, "").toLowerCase();
-    if (ph) {
-      const extraByPhone = await db.execute(sql`
-        SELECT id, swimming_pool_id FROM students
-        WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${ph}
-          AND swimming_pool_id = ${resolvedPoolId}
-          AND status NOT IN ('withdrawn', 'archived', 'deleted')
-        LIMIT 20
-      `);
-      for (const s of extraByPhone.rows as any[]) {
-        if (!matched.some((m: any) => m.id === s.id)) matched.push(s);
-      }
-    }
-    if (normParentName) {
-      const extraByName = await db.execute(sql`
-        SELECT id, swimming_pool_id FROM students
-        WHERE REPLACE(LOWER(COALESCE(parent_name, '')), ' ', '') = ${normParentName}
-          AND swimming_pool_id = ${resolvedPoolId}
-          AND status NOT IN ('withdrawn', 'archived', 'deleted')
-        LIMIT 20
-      `);
-      for (const s of extraByName.rows as any[]) {
-        if (!matched.some((m: any) => m.id === s.id)) matched.push(s);
-      }
-    }
-
-    // 매칭된 학생들 자동 연결 (중복 없이)
+    // ── 매칭된 학생 전체 연결 (student.parent_user_id 세팅 + status 정상화) ─
     for (const student of matched) {
       const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       await db.execute(sql`
@@ -538,18 +531,23 @@ router.post("/simple-parent-register", async (req, res) => {
       await db.execute(sql`
         UPDATE students
         SET parent_user_id = ${parentId},
-            parent_name = COALESCE(NULLIF(parent_name, ''), ${name}),
-            parent_phone = COALESCE(NULLIF(parent_phone, ''), ${ph}),
-            status = CASE WHEN status IN ('unregistered', 'pending_approval') THEN 'active' ELSE status END,
+            parent_name    = COALESCE(NULLIF(parent_name, ''), ${name}),
+            parent_phone   = COALESCE(NULLIF(parent_phone, ''), ${ph}),
+            status         = CASE
+                               WHEN status IN ('unregistered', 'pending_approval') THEN 'active'
+                               ELSE status
+                             END,
             updated_at = NOW()
         WHERE id = ${student.id}
       `);
     }
 
-    // ── 매칭 학생 없고 자녀 이름 제공된 경우: placeholder 학생 생성 ──────────
-    // 관리자가 학생 등록 전에도 부모가 목록에 보이도록
-    if (matched.length === 0 && childNamesArr.length > 0 && resolvedPoolId) {
-      for (const cName of childNamesArr) {
+    // ── 자녀 이름을 제공했지만 이름 매칭이 안 된 경우 → placeholder 생성 ──
+    // (매칭 여부와 무관하게, 이름 미매칭 자녀는 placeholder로 관리자에게 노출)
+    const unmatchedNames = childNamesArr.filter(n => !matchedByName.has(n));
+    // 전체 매칭이 0명이어도 자녀 이름이 없으면 placeholder를 만들지 않음
+    if (unmatchedNames.length > 0 && resolvedPoolId) {
+      for (const cName of unmatchedNames) {
         const sId = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         await db.execute(sql`
           INSERT INTO students (id, swimming_pool_id, name, parent_name, parent_phone, parent_user_id,
@@ -566,7 +564,7 @@ router.post("/simple-parent-register", async (req, res) => {
         `);
         matched.push({ id: sId, swimming_pool_id: resolvedPoolId });
       }
-      console.log(`[simple-parent-register] placeholder 학생 ${childNamesArr.length}명 생성: ${childNamesArr.join(", ")}`);
+      console.log(`[simple-parent-register] placeholder ${unmatchedNames.length}명 생성: ${unmatchedNames.join(", ")}`);
     }
 
     console.log(`[simple-parent-register] 학부모 가입: poolId=${resolvedPoolId} matched=${matched.length}명`);
