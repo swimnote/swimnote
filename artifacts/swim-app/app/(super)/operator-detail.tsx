@@ -24,7 +24,7 @@ type Tab = typeof TABS[number];
 
 const PLAN_LABEL: Record<string, string> = {
   free_10:       "Free (10명)",
-  solo_30:       "Coach 30",
+  solo_30:       "Coach30",
   solo_50:       "Coach 50",
   solo_100:      "Coach 100",
   premier_200:   "Premier 200",
@@ -34,7 +34,7 @@ const PLAN_LABEL: Record<string, string> = {
   trial:         "무료 체험",
 };
 const TIER_LABEL: Record<string, string> = {
-  free: "Free", starter: "Coach 30", basic: "Coach 50",
+  free: "Free", starter: "Coach30", basic: "Coach 50",
   standard: "Coach 100", growth: "Premier 200", advance: "Premier 300",
   premium: "Premier 500", enterprise: "Premier 1000", trial: "무료 체험",
 };

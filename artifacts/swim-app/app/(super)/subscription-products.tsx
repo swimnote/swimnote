@@ -1,6 +1,6 @@
 /**
  * (super)/subscription-products.tsx — 구독 상품 설정
- * 구독 플랜 관리 (Coach 30/50/100, Premier 200/300/500/1000)
+ * 구독 플랜 관리 (Coach30/50/100, Premier 200/300/500/1000)
  * API 연동: GET/POST/PUT/PATCH /super/plans
  */
 import { CirclePlus, Lock, Package, PenLine, X } from "lucide-react-native";
@@ -248,7 +248,7 @@ function rowToSubscriptionPlan(row: ApiPlanRow): SubscriptionPlan {
 // ── 확정 플랜 정보 (DB 초기값 기준) ─────────────────────────────
 const PLAN_GUIDE = [
   { group: "Coach (개인 선생님)", color: P, plans: [
-    { name: "Coach 30",  price: "₩3,500", members: "30명",    storage: "3GB",   video: false },
+    { name: "Coach30",  price: "₩3,500", members: "30명",    storage: "3GB",   video: false },
     { name: "Coach 50",  price: "₩6,500", members: "50명",    storage: "5GB",   video: false },
     { name: "Coach 100", price: "₩9,500", members: "100명",   storage: "10GB",  video: false },
   ]},

@@ -28,7 +28,7 @@ const TABS = [
 
 const TIER_NAME: Record<string, string> = {
   free:        "무료",
-  starter:     "Coach 30",
+  starter:     "Coach30",
   basic:       "Coach 50",
   standard:    "Coach 100",
   center_200:  "Premier 200",
