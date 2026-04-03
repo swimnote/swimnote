@@ -95,9 +95,9 @@ export default function OpLogsScreen() {
     try {
       const cat = tab === "전체" ? "" : `&category=${encodeURIComponent(tab)}`;
       const res = await apiRequest(token, `/super/op-logs?limit=100${cat}`);
-      if (res?.ok === false) { setError("로그를 불러오지 못했습니다"); return; }
-      const data: OpLog[] = Array.isArray(res) ? res : [];
-      setLogs(data);
+      if (!res.ok) { setError("로그를 불러오지 못했습니다"); return; }
+      const data = await res.json();
+      setLogs(Array.isArray(data) ? data as OpLog[] : []);
       setError(null);
     } catch {
       setError("네트워크 오류가 발생했습니다");

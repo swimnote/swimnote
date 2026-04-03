@@ -82,7 +82,9 @@ export default function StorageScreen() {
     if (!token) return;
     try {
       const res = await apiRequest(token, "/super/storage-list");
-      if (Array.isArray(res)) setRows(res as StorageRow[]);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data)) setRows(data as StorageRow[]);
     } catch { /* silent */ }
   }, [token]);
 
@@ -126,7 +128,7 @@ export default function StorageScreen() {
         method: "PUT",
         body: JSON.stringify({ extra_storage_gb: Math.round(newExtra) }),
       });
-      if (res?.ok !== false) {
+      if (res.ok) {
         await fetchRows();
         setEditOp(null);
       }

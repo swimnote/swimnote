@@ -107,7 +107,9 @@ export default function FeatureFlagsScreen() {
     if (!token) return;
     try {
       const res = await apiRequest(token, "/super/feature-flags");
-      if (Array.isArray(res)) setFlags(res as ApiFlag[]);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data)) setFlags(data as ApiFlag[]);
     } catch { /* silent */ }
   }, [token]);
 
@@ -150,7 +152,7 @@ export default function FeatureFlagsScreen() {
         method: "PATCH",
         body: JSON.stringify({ global_enabled: newEnabled }),
       });
-      if (res?.ok !== false) {
+      if (res.ok) {
         setPrevStates(prev => ({ ...prev, [flag.key]: flag.global_enabled }));
         setFlags(prev => prev.map(f => f.key === flag.key ? { ...f, global_enabled: newEnabled } : f));
       }
@@ -172,7 +174,7 @@ export default function FeatureFlagsScreen() {
         method: "PATCH",
         body: JSON.stringify({ global_enabled: prevState }),
       });
-      if (res?.ok !== false) {
+      if (res.ok) {
         setFlags(prev => prev.map(f => f.key === rollbackModal.key ? { ...f, global_enabled: prevState } : f));
         setPrevStates(prev => { const n = { ...prev }; delete n[rollbackModal.key]; return n; });
       }
@@ -187,13 +189,15 @@ export default function FeatureFlagsScreen() {
     if (!selOp || !overridePanel || !opReason.trim() || !token || saving) return;
     setSaving(true);
     try {
-      await apiRequest(token, `/super/feature-flags/${overridePanel.key}/overrides`, {
+      const res = await apiRequest(token, `/super/feature-flags/${overridePanel.key}/overrides`, {
         method: "POST",
         body: JSON.stringify({ pool_id: selOp.id, enabled: opOverrideEnabled, reason: opReason }),
       });
-      setFlags(prev => prev.map(f =>
-        f.key === overridePanel.key ? { ...f, override_count: (f.override_count || 0) + 1 } : f
-      ));
+      if (res.ok) {
+        setFlags(prev => prev.map(f =>
+          f.key === overridePanel.key ? { ...f, override_count: (f.override_count || 0) + 1 } : f
+        ));
+      }
     } finally {
       setSaving(false);
       setSelOp(null); setOpReason(""); setOverridePanel(null);

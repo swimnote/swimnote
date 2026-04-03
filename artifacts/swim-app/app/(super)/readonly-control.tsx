@@ -195,8 +195,10 @@ export default function ReadonlyControlScreen() {
     if (!token) return;
     try {
       const res = await apiRequest(token, "/super/readonly-control");
-      if (res?.error) { setError(res.error); return; }
-      setData(res as ReadonlyData);
+      if (!res.ok) { setError("데이터를 불러오지 못했습니다"); return; }
+      const d = await res.json();
+      if (d?.error) { setError(d.error); return; }
+      setData(d as ReadonlyData);
       setError(null);
     } catch {
       setError("데이터를 불러오지 못했습니다");
@@ -217,15 +219,20 @@ export default function ReadonlyControlScreen() {
   async function togglePlatform(reason: string) {
     if (!token || !data) return;
     const newEnabled = !data.platform_readonly;
-    const res = await apiRequest(token, "/super/readonly-control", {
-      method: "POST",
-      body: JSON.stringify({ scope: "platform", enabled: newEnabled, reason }),
-    });
-    if (res?.ok) {
-      setData(prev => prev ? { ...prev, platform_readonly: newEnabled } : prev);
-      await fetchData();
-    } else {
-      Alert.alert("오류", res?.error ?? "변경에 실패했습니다");
+    try {
+      const res = await apiRequest(token, "/super/readonly-control", {
+        method: "POST",
+        body: JSON.stringify({ scope: "platform", enabled: newEnabled, reason }),
+      });
+      if (res.ok) {
+        setData(prev => prev ? { ...prev, platform_readonly: newEnabled } : prev);
+        await fetchData();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        Alert.alert("오류", d?.error ?? "변경에 실패했습니다");
+      }
+    } catch {
+      Alert.alert("오류", "네트워크 오류가 발생했습니다");
     }
   }
 
@@ -239,12 +246,19 @@ export default function ReadonlyControlScreen() {
           text: "해제",
           onPress: async () => {
             if (!token) return;
-            const res = await apiRequest(token, "/super/readonly-control", {
-              method: "POST",
-              body: JSON.stringify({ scope: "operator", target_id: op.id, enabled: false, reason: "수동 해제" }),
-            });
-            if (res?.ok) { await fetchData(); }
-            else { Alert.alert("오류", res?.error ?? "해제에 실패했습니다"); }
+            try {
+              const res = await apiRequest(token, "/super/readonly-control", {
+                method: "POST",
+                body: JSON.stringify({ scope: "operator", target_id: op.id, enabled: false, reason: "수동 해제" }),
+              });
+              if (res.ok) { await fetchData(); }
+              else {
+                const d = await res.json().catch(() => ({}));
+                Alert.alert("오류", d?.error ?? "해제에 실패했습니다");
+              }
+            } catch {
+              Alert.alert("오류", "네트워크 오류가 발생했습니다");
+            }
           },
         },
       ]
