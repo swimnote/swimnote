@@ -229,6 +229,7 @@ function RootNav() {
     "(admin)", "(super)", "(teacher)", "(parent)", "(auth)",
     "org-role-select", "pool-apply", "pool-select", "pending", "rejected", "subscription-expired",
     "class-assign", "parent-onboard-nickname",
+    "onboarding-admin", "onboarding-teacher", "onboarding-parent",
     "pool-join-request", "signup-role", "register", "teacher-activate", "teacher-invite-join",
     "terms", "privacy", "refund",
     "support-ticket-write", "support-ticket-list", "support-ticket-detail",
@@ -251,6 +252,24 @@ function RootNav() {
     }
 
     if (didRoute.current) return;
+
+    async function checkOnboarding(role: string, userId: string | undefined): Promise<string | null> {
+      if (!userId) return null;
+      const ADMIN_ROLES = ["pool_admin", "sub_admin"];
+      if (ADMIN_ROLES.includes(role)) {
+        const done = await AsyncStorage.getItem(`@swimnote:onboarded_${userId}_admin`).catch(() => "1");
+        return done ? null : "/(auth)/onboarding-admin";
+      }
+      if (role === "teacher") {
+        const done = await AsyncStorage.getItem(`@swimnote:onboarded_${userId}_teacher`).catch(() => "1");
+        return done ? null : "/(auth)/onboarding-teacher";
+      }
+      if (role === "parent" || role === "parent_account") {
+        const done = await AsyncStorage.getItem(`@swimnote:onboarded_${userId}_parent`).catch(() => "1");
+        return done ? null : "/(auth)/onboarding-parent";
+      }
+      return null;
+    }
 
     async function doRoute() {
       if (kind === "admin") {
@@ -295,7 +314,9 @@ function RootNav() {
           const homePath = ROLE_HOME_MAP[targetRole];
           if (homePath) {
             didRoute.current = true;
-            router.replace(homePath as any);
+            const uid = kind === "parent" ? parentAccount?.id : adminUser?.id;
+            const onboardPath = await checkOnboarding(targetRole, uid);
+            router.replace((onboardPath ?? homePath) as any);
             return;
           }
         }
@@ -308,7 +329,9 @@ function RootNav() {
         if (homePath) {
           didRoute.current = true;
           await setActiveRole(roleKey);
-          router.replace(homePath as any);
+          const uid = kind === "parent" ? parentAccount?.id : adminUser?.id;
+          const onboardPath = await checkOnboarding(roleKey, uid);
+          router.replace((onboardPath ?? homePath) as any);
           return;
         }
       }
@@ -325,7 +348,8 @@ function RootNav() {
         if (chosen) {
           didRoute.current = true;
           await setActiveRole(chosen);
-          router.replace(ROLE_HOME_MAP[chosen] as any);
+          const onboardPath = await checkOnboarding(chosen, adminUser?.id);
+          router.replace((onboardPath ?? ROLE_HOME_MAP[chosen]) as any);
           return;
         }
       }
