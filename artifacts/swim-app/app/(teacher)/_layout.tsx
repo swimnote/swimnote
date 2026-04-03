@@ -7,6 +7,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { emitTabReset } from "@/utils/tabReset";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FeedbackTemplateProvider } from "@/context/FeedbackTemplateContext";
 
 const SUPER_ROLES = new Set(["super_admin", "platform_admin", "super_manager"]);
@@ -15,6 +16,7 @@ const POOL_ADMIN_ROLES = new Set(["pool_admin", "sub_admin"]);
 export default function TeacherLayout() {
   const { themeColor } = useBrand();
   const { kind, isLoading, adminUser, token, pool } = useAuth();
+  const insets = useSafeAreaInsets();
 
   // M: 메신저 미읽음 배지
   const [messengerUnread, setMessengerUnread] = useState(false);
@@ -91,11 +93,11 @@ export default function TeacherLayout() {
         tabBarInactiveTintColor: C.text,
         headerShown: false,
         tabBarStyle: {
-          height: 72,
+          height: Platform.OS === "android" ? 60 + insets.bottom : 72,
           backgroundColor: "transparent",
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: "#E2E8F0",
-          paddingBottom: 12,
+          paddingBottom: Platform.OS === "android" ? Math.max(insets.bottom, 8) : 12,
           paddingTop: 8,
         },
         tabBarLabelStyle: { fontFamily: "Pretendard-Regular", fontSize: 10, marginTop: 2 },

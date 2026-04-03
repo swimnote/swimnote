@@ -1,16 +1,19 @@
 import { Briefcase, Home, Layers, Send, Settings } from "lucide-react-native";
 import { Tabs, router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Platform } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { emitTabReset } from "@/utils/tabReset";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const C = Colors.light;
 
 export default function AdminLayout() {
   const { themeColor } = useBrand();
   const { kind, isLoading, adminUser, token, pool } = useAuth();
+  const insets = useSafeAreaInsets();
 
   // K: 처리 필요 배지 — pending 카운트 폴링
   const [pendingBadge, setPendingBadge] = useState<number | undefined>(undefined);
@@ -93,8 +96,8 @@ export default function AdminLayout() {
           backgroundColor: "#fff",
           borderTopWidth: 1,
           borderTopColor: C.border,
-          height: 72,
-          paddingBottom: 12,
+          height: Platform.OS === "android" ? 60 + insets.bottom : 72,
+          paddingBottom: Platform.OS === "android" ? Math.max(insets.bottom, 8) : 12,
           paddingTop: 8,
         },
         tabBarLabelStyle: { fontSize: 10, fontFamily: "Pretendard-Regular", marginTop: 2 },
