@@ -55,7 +55,6 @@ const POOL_SETTINGS: MenuItem[] = [
 const MY_SETTINGS: MenuItem[] = [
   { label: "내 정보",            icon: "user",           color: N,         bg: NB, route: "/(admin)/my-info",                   desc: "프로필 및 계정 정보" },
   { label: "앱 사용 도움말",     icon: "life-buoy",      color: "#0EA5E9", bg: NB, route: "/(admin)/help",                      desc: "FAQ 및 기능 사용 가이드" },
-  { label: "문의하기",           icon: "message-circle", color: "#7C3AED", bg: "#EEDDF5", route: "/support-ticket-list",        desc: "스윔노트 고객센터 문의" },
 ];
 
 export default function SettingsScreen() {
@@ -252,6 +251,16 @@ export default function SettingsScreen() {
           <Text style={s.deleteBtnText}>회원 탈퇴</Text>
         </Pressable>
 
+        {/* 문의하기 — 설정 최하단 */}
+        <Pressable
+          style={({ pressed }) => [s.inquiryBtn, { opacity: pressed ? 0.8 : 1 }]}
+          onPress={() => router.push("/support-ticket-list?backTo=settings" as any)}
+        >
+          <LucideIcon name="message-circle" size={16} color="#7C3AED" />
+          <Text style={s.inquiryBtnText}>문의하기</Text>
+          <Text style={s.inquiryBtnDesc}>스윔노트 고객센터 문의</Text>
+        </Pressable>
+
       </ScrollView>
 
       <ConfirmModal
@@ -341,6 +350,9 @@ const s = StyleSheet.create({
   menuDesc:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
   deleteBtn:      { alignItems: "center", paddingVertical: 14 },
   deleteBtnText:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
+  inquiryBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16 },
+  inquiryBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
+  inquiryBtnDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
 });
 
 // I: 설정 완성도 스타일
