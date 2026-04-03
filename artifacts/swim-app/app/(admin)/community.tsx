@@ -63,7 +63,7 @@ export default function CommunityScreen() {
         rightSlot={
           <Pressable
             style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: C.button, alignItems: "center", justifyContent: "center" }}
-            onPress={() => router.push("/(admin)/notices")}
+            onPress={() => router.push("/(admin)/notices?backTo=community" as any)}
           >
             <Plus size={18} color="#fff" />
           </Pressable>
@@ -82,7 +82,7 @@ export default function CommunityScreen() {
             <View style={s.empty}>
               <BellOff size={40} color={C.textMuted} />
               <Text style={s.emptyText}>공지사항이 없습니다</Text>
-              <Pressable style={[s.emptyBtn, { backgroundColor: C.button }]} onPress={() => router.push("/(admin)/notices")}>
+              <Pressable style={[s.emptyBtn, { backgroundColor: C.button }]} onPress={() => router.push("/(admin)/notices?backTo=community" as any)}>
                 <Plus size={16} color="#fff" />
                 <Text style={s.emptyBtnText}>첫 공지 작성</Text>
               </Pressable>
@@ -93,7 +93,7 @@ export default function CommunityScreen() {
             return (
               <Pressable
                 style={[s.noticeCard, { backgroundColor: C.card }]}
-                onPress={() => router.push("/(admin)/notices")}
+                onPress={() => router.push("/(admin)/notices?backTo=community" as any)}
                 onLongPress={() => deleteNotice(n.id)}
               >
                 <View style={s.noticeHeader}>

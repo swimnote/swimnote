@@ -513,7 +513,7 @@ export default function TeacherAttendanceScreen() {
                 {/* 상세 화살표 */}
                 <Pressable
                   style={s.arrowBtn}
-                  onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id } } as any)}
+                  onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id, backTo: "attendance" } } as any)}
                 >
                   <ChevronRight size={18} color={C.textMuted} />
                 </Pressable>

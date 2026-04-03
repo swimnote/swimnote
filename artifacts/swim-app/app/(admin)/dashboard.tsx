@@ -213,7 +213,7 @@ export default function DashboardScreen() {
                 <Pressable
                   key={step.label}
                   style={[wz.step, idx < steps.length - 1 && wz.stepBorder]}
-                  onPress={() => router.push(step.route as any)}
+                  onPress={() => router.push((step.route + "?backTo=dashboard") as any)}
                 >
                   <View style={[wz.stepIcon, { backgroundColor: step.done ? "#D1FAE5" : "#F1F5F9" }]}>
                     {step.done

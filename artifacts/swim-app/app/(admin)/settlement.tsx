@@ -133,7 +133,7 @@ export default function SettlementScreen() {
           {!data.has_pricing && (
             <Pressable
               style={s.warningCard}
-              onPress={() => router.push("/(admin)/pool-settings" as any)}
+              onPress={() => router.push("/(admin)/pool-settings?backTo=settlement" as any)}
             >
               <TriangleAlert size={16} color="#D97706" />
               <Text style={s.warningTxt}>수업 단가가 설정되지 않았습니다. 수업 설정에서 단가표를 등록하세요.</Text>
@@ -228,7 +228,7 @@ export default function SettlementScreen() {
           {/* 단가 설정 바로가기 */}
           <Pressable
             style={[s.settingBtn, { borderColor: themeColor + "60" }]}
-            onPress={() => router.push("/(admin)/pool-settings" as any)}
+            onPress={() => router.push("/(admin)/pool-settings?backTo=settlement" as any)}
           >
             <Settings size={15} color={themeColor} />
             <Text style={[s.settingBtnTxt, { color: themeColor }]}>수업 단가표 설정하기</Text>

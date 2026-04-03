@@ -141,7 +141,7 @@ export default function DataDeleteScreen() {
           <View style={[s.card, { backgroundColor: C.card }]}>
             <Pressable
               style={({ pressed }) => [s.menuRow, { opacity: pressed ? 0.7 : 1 }]}
-              onPress={() => router.push("/(admin)/withdrawn-members")}
+              onPress={() => router.push("/(admin)/withdrawn-members?backTo=data-delete" as any)}
             >
               <View style={[s.menuIcon, { backgroundColor: "#E6FFFA" }]}>
                 <UserX size={20} color="#2EC4B6" />

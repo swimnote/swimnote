@@ -127,7 +127,7 @@ export default function DataManagementScreen() {
                     idx < section.items.length - 1 && s.rowBorder,
                     { opacity: pressed ? 0.7 : 1 },
                   ]}
-                  onPress={() => router.push(item.route as any)}
+                  onPress={() => router.push((item.route + "?backTo=data-management") as any)}
                 >
                   <View style={[s.iconWrap, { backgroundColor: item.bg }]}>
                     <LucideIcon name={item.icon as any} size={20} color={item.color} />

@@ -114,7 +114,7 @@ export default function TeacherHubScreen() {
         ListEmptyComponent={<View style={s.empty}><Text style={s.emptyTxt}>항목이 없습니다</Text></View>}
         renderItem={({ item }) => {
           if (tab === "담당 회원") return (
-            <Pressable style={s.card} onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.id } })}>
+            <Pressable style={s.card} onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.id, backTo: "teacher-hub" } })}>
               <View style={s.row}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.name}>{item.name}</Text>

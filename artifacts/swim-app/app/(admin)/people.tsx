@@ -140,7 +140,7 @@ export default function PeopleHubScreen() {
                 title="회원관리"
                 color="#2EC4B6"
                 bg="#E6FFFA"
-                onPress={() => router.push("/(admin)/members")}
+                onPress={() => router.push("/(admin)/members?backTo=people" as any)}
                 rows={[
                   { label: "전체", value: summary.totalMembers },
                   { label: "재원", value: summary.activeMembers },
@@ -156,7 +156,7 @@ export default function PeopleHubScreen() {
                 title="선생님관리"
                 color="#7C3AED"
                 bg="#EEDDF5"
-                onPress={() => router.push("/(admin)/people-teachers")}
+                onPress={() => router.push("/(admin)/people-teachers?backTo=people" as any)}
                 rows={[
                   { label: "전체", value: summary.totalTeachers },
                 ]}
@@ -168,7 +168,7 @@ export default function PeopleHubScreen() {
                 title="미배정회원"
                 color="#D97706"
                 bg="#FFFBEB"
-                onPress={() => router.push("/(admin)/people-pending")}
+                onPress={() => router.push("/(admin)/people-pending?backTo=people" as any)}
                 rows={[
                   { label: "미배정", value: summary.unregisteredMembers },
                 ]}
@@ -184,14 +184,14 @@ export default function PeopleHubScreen() {
               <QuickBtn
                 icon="user-x"
                 label="미배정회원 보기"
-                onPress={() => router.push("/(admin)/people-pending")}
+                onPress={() => router.push("/(admin)/people-pending?backTo=people" as any)}
                 color={themeColor}
                 badge={summary.unregisteredMembers > 0 ? summary.unregisteredMembers : undefined}
               />
               <QuickBtn
                 icon="upload"
                 label="회원 명단 업로드"
-                onPress={() => router.push("/(admin)/people-pending")}
+                onPress={() => router.push("/(admin)/bulk-register?backTo=people" as any)}
                 color={themeColor}
               />
             </View>

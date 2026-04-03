@@ -207,17 +207,17 @@ export default function AdminRevenueScreen() {
           {/* ── 바로가기 버튼 ── */}
           <View style={s.quickRow}>
             <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
-              onPress={() => router.push("/(admin)/makeups" as any)}>
+              onPress={() => router.push("/(admin)/makeups?backTo=admin-revenue" as any)}>
               <RotateCcw size={16} color="#0F172A" />
               <Text style={[s.quickLabel, { color: "#0F172A" }]}>보강 이월</Text>
             </Pressable>
             <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
-              onPress={() => router.push("/(admin)/pool-settings" as any)}>
+              onPress={() => router.push("/(admin)/pool-settings?backTo=admin-revenue" as any)}>
               <DollarSign size={16} color="#0F172A" />
               <Text style={[s.quickLabel, { color: "#0F172A" }]}>단가표</Text>
             </Pressable>
             <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
-              onPress={() => router.push("/(admin)/holidays" as any)}>
+              onPress={() => router.push("/(admin)/holidays?backTo=admin-revenue" as any)}>
               <List size={16} color="#0F172A" />
               <Text style={[s.quickLabel, { color: "#0F172A" }]}>휴무 목록</Text>
             </Pressable>

@@ -197,7 +197,7 @@ export default function MakeupsScreen() {
               onComplete={() => requestComplete(item)}
               onRevert={() => requestRevert(item)}
               onCancel={() => requestCancel(item)}
-              onMemberPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.student_id } })}
+              onMemberPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.student_id, backTo: "makeups" } })}
             />
           )}
         />

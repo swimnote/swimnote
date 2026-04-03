@@ -94,12 +94,12 @@ export default function PeopleTeachersScreen() {
     if (needsApprovalPage(t) && t.invite_id) {
       router.push({
         pathname: "/(admin)/teacher-pending-detail",
-        params: { inviteId: t.invite_id, teacherName: t.name },
+        params: { inviteId: t.invite_id, teacherName: t.name, backTo: "people-teachers" },
       } as any);
     } else {
       router.push({
         pathname: "/(admin)/teacher-hub",
-        params: { id: t.id, name: t.name },
+        params: { id: t.id, name: t.name, backTo: "people-teachers" },
       } as any);
     }
   }

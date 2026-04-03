@@ -509,7 +509,7 @@ export default function ClassesScreen() {
           </View>
           <View style={s.rightBtns}>
             <Pressable style={[s.iconBtn, { backgroundColor: "#EEDDF5" }]}
-              onPress={() => router.push("/(admin)/makeups" as any)}>
+              onPress={() => router.push("/(admin)/makeups?backTo=classes" as any)}>
               <RotateCcw size={13} color="#7C3AED" />
               <Text style={[s.iconBtnTxt, { color: "#7C3AED" }]}>보강</Text>
             </Pressable>
@@ -616,7 +616,7 @@ export default function ClassesScreen() {
           themeColor={themeColor}
           onClose={() => setSelectedDate(null)}
           onSelectClass={(g) => setDetailGroup(g)}
-          onOpenMakeup={() => navigateFromSheet(() => router.push("/(admin)/makeups" as any))}
+          onOpenMakeup={() => navigateFromSheet(() => router.push("/(admin)/makeups?backTo=classes" as any))}
         />
       )}
 

@@ -444,7 +444,7 @@ export default function MembersScreen() {
                 </Pressable>
                 <Pressable
                   style={{ flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderColor: themeColor, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 }}
-                  onPress={() => router.push("/(admin)/bulk-register" as any)}
+                  onPress={() => router.push("/(admin)/bulk-register?backTo=members" as any)}
                 >
                   <LucideIcon name="upload" size={16} color={themeColor} />
                   <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: themeColor }}>엑셀로 일괄 등록</Text>
@@ -463,7 +463,7 @@ export default function MembersScreen() {
               <MemberCard
                 student={item}
                 themeColor={themeColor}
-                onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.id } } as any)}
+                onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.id, backTo: "members" } } as any)}
                 showInvite={!item.parent_user_id}
                 onPressInvite={() => setInviteTarget(item)}
                 selectionMode={sel.selectionMode}
