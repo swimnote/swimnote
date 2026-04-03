@@ -1,6 +1,7 @@
 import app from "./app";
 import { startBackupJobs } from "./jobs/backup-batch.js";
 import { startParentLinkScheduler } from "./jobs/parent-link-scheduler.js";
+import { startAutoAttendanceScheduler } from "./jobs/auto-attendance-scheduler.js";
 import { initPoolDb } from "./migrations/pool-db-init.js";
 import { initSuperDb } from "./migrations/super-db-init.js";
 import { backfillPoolAdminRoles } from "./migrations/roles-backfill.js";
@@ -48,6 +49,8 @@ backfillPoolAdminRoles().catch((e) => console.error("[roles-backfill] 오류:", 
 startBackupJobs();
 // 학부모↔학생 실시간 자동 연결 (매 1분, 서버 시작 5초 후 즉시 1회 실행)
 startParentLinkScheduler();
+// 자동 출석 처리 (수업 시작 60분 후, 미기록 학생 → 자동 출석, 매 15분 실행)
+startAutoAttendanceScheduler();
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
