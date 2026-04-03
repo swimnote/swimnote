@@ -34,8 +34,8 @@ const TIER_NAME: Record<string, string> = {
   center_200:  "Premier200",
   advance:     "Premier300",
   center_300:  "Premier300",
-  pro:         "Premier 500",
-  center_500:  "Premier 500",
+  pro:         "Premier500",
+  center_500:  "Premier500",
   max:         "Premier 1000",
   center_1000: "Premier 1000",
 };

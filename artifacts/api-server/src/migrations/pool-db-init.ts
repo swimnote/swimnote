@@ -768,7 +768,7 @@ export async function initPoolDb(): Promise<void> {
       ('standard',   'solo_100',   'Coach100',    9500,  100,  10240,  '10GB'),
       ('center_200', 'center_200', 'Premier200',  69000, 200,  51200,  '50GB'),
       ('advance',    'center_300', 'Premier300',  99000, 300,  81920,  '80GB'),
-      ('pro',        'center_500', 'Premier 500',  149000,500, 133120,  '130GB'),
+      ('pro',        'center_500', 'Premier500',  149000,500, 133120,  '130GB'),
       ('max',        'center_1000','Premier 1000', 249000,1000,512000,  '500GB')
     ON CONFLICT (tier) DO UPDATE
       SET plan_id = EXCLUDED.plan_id, name = EXCLUDED.name,
