@@ -7,6 +7,7 @@
  */
 import { Info } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, ScrollView, StyleSheet, Switch, Text, View,
@@ -103,7 +104,7 @@ export default function AdminPushNotificationSettingsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="푸시 알림 설정" homePath="/(admin)/more" />
+      <SubScreenHeader title="푸시 알림 설정" onBack={() => router.replace("/(admin)/dashboard" as any)} />
 
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
