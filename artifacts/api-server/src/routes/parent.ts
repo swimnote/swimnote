@@ -65,88 +65,130 @@ router.put("/me", requireAuth, requireParent, async (req: AuthRequest, res) => {
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
-// ── 전화번호 기반 강제 자동 연결 (승인 없이 즉시 연결) ──────────────────────
-router.post("/auto-link-students", requireAuth, requireParent, async (req: AuthRequest, res) => {
-  try {
-    const parentId = req.user!.userId;
-    const [pa] = await db.select({
-      phone: parentAccountsTable.phone,
-      name: parentAccountsTable.name,
-      swimming_pool_id: parentAccountsTable.swimming_pool_id,
-    }).from(parentAccountsTable).where(eq(parentAccountsTable.id, parentId)).limit(1);
-    if (!pa?.phone) { res.json({ linked: 0 }); return; }
+// ══════════════════════════════════════════════════════════════════════
+// 통합 자동 연결 함수 — 모든 연결 로직이 이 함수를 통해 처리됨
+// parentId: 연결할 학부모 ID
+// poolId: 특정 수영장 한정 매칭 시 지정 (null이면 전체 DB 검색)
+// ══════════════════════════════════════════════════════════════════════
+async function autoLinkParentToStudents(parentId: string, poolId?: string | null): Promise<{ linked: number; studentIds: string[] }> {
+  const [pa] = await db.select({
+    phone: parentAccountsTable.phone,
+    name: parentAccountsTable.name,
+    swimming_pool_id: parentAccountsTable.swimming_pool_id,
+  }).from(parentAccountsTable).where(eq(parentAccountsTable.id, parentId)).limit(1);
 
-    const normPhone = pa.phone.replace(/[^0-9]/g, "");
-    if (!normPhone) { res.json({ linked: 0 }); return; }
-    const normParentName = (pa.name || "").replace(/\s+/g, "").toLowerCase();
+  if (!pa) return { linked: 0, studentIds: [] };
 
-    // ① parent_user_id IS NULL OR 이미 본인으로 설정된 학생 모두 포함
-    //    이름 폴백도 포함 (전화번호 없을 때)
-    const matchedStudents = await db.execute(sql`
-      SELECT id, swimming_pool_id FROM students
-      WHERE (
-        REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${normPhone}
-        OR (
-          ${normParentName} != ''
-          AND REPLACE(LOWER(COALESCE(parent_name, '')), ' ', '') = ${normParentName}
-        )
-      )
-        AND status NOT IN ('withdrawn', 'archived', 'deleted')
-      LIMIT 20
-    `);
+  const normPhone = (pa.phone || "").replace(/[^0-9]/g, "");
+  const normName  = (pa.name  || "").replace(/\s+/g, "").toLowerCase();
+  const effectivePoolId = poolId ?? pa.swimming_pool_id ?? null;
 
-    console.log(`[auto-link] parent=${parentId} phone=${normPhone} matched=${(matchedStudents.rows as any[]).length}명`);
-    let linked = 0;
-    for (const student of matchedStudents.rows as any[]) {
+  const phoneMask = normPhone.length > 6
+    ? normPhone.slice(0, 3) + "****" + normPhone.slice(-4) : "****";
+  console.log(`[auto-link] START parent=${parentId} phone=${phoneMask} pool=${effectivePoolId ?? "ALL"}`);
+
+  if (!normPhone && !normName) {
+    console.log(`[auto-link] SKIP — phone/name 없음`);
+    return { linked: 0, studentIds: [] };
+  }
+
+  // ① 전화번호 + 이름 매칭 (pool 지정 시 해당 pool 내만, 아니면 전체)
+  let matched: any[] = [];
+  if (normPhone) {
+    const rows = effectivePoolId
+      ? await db.execute(sql`
+          SELECT id, swimming_pool_id FROM students
+          WHERE REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
+            AND swimming_pool_id = ${effectivePoolId}
+            AND status NOT IN ('withdrawn','archived','deleted')
+          LIMIT 20`)
+      : await db.execute(sql`
+          SELECT id, swimming_pool_id FROM students
+          WHERE REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
+            AND status NOT IN ('withdrawn','archived','deleted')
+          LIMIT 20`);
+    matched.push(...(rows.rows as any[]));
+  }
+  // 이름 폴백 (전화번호 매칭 안 됐거나 추가 매칭용)
+  if (normName) {
+    const rows2 = effectivePoolId
+      ? await db.execute(sql`
+          SELECT id, swimming_pool_id FROM students
+          WHERE REPLACE(LOWER(COALESCE(parent_name,'')),' ','') = ${normName}
+            AND swimming_pool_id = ${effectivePoolId}
+            AND status NOT IN ('withdrawn','archived','deleted')
+          LIMIT 20`)
+      : await db.execute(sql`
+          SELECT id, swimming_pool_id FROM students
+          WHERE REPLACE(LOWER(COALESCE(parent_name,'')),' ','') = ${normName}
+            AND status NOT IN ('withdrawn','archived','deleted')
+          LIMIT 20`);
+    for (const r of rows2.rows as any[]) {
+      if (!matched.some((m: any) => m.id === r.id)) matched.push(r);
+    }
+  }
+
+  console.log(`[auto-link] 매칭 학생=${matched.length}명 ids=${matched.map((m:any)=>m.id).join(",")}`);
+
+  let linked = 0;
+  const studentIds: string[] = [];
+
+  for (const student of matched) {
+    if (!student.swimming_pool_id) {
+      console.log(`[auto-link] SKIP student=${student.id} — swimming_pool_id NULL`);
+      continue;
+    }
+    try {
       const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      // ② 기존 레코드 삭제 후 새로 approved INSERT (유니크 제약 여부 무관하게 동작)
+      // 기존 레코드 삭제 후 approved 상태로 재생성 (ON CONFLICT 완전 제거)
+      await db.execute(sql`DELETE FROM parent_students WHERE parent_id=${parentId} AND student_id=${student.id}`);
       await db.execute(sql`
-        DELETE FROM parent_students
-        WHERE parent_id = ${parentId} AND student_id = ${student.id}
+        INSERT INTO parent_students (id,parent_id,student_id,swimming_pool_id,status,approved_at,created_at)
+        VALUES (${psId},${parentId},${student.id},${student.swimming_pool_id},'approved',NOW(),NOW())
       `);
-      await db.execute(sql`
-        INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at, created_at)
-        VALUES (${psId}, ${parentId}, ${student.id}, ${student.swimming_pool_id}, 'approved', NOW(), NOW())
-      `);
-
-      // ③ students.parent_user_id 강제 업데이트 (이미 본인이어도 OK)
       await db.execute(sql`
         UPDATE students
         SET parent_user_id = ${parentId},
-            parent_phone = COALESCE(NULLIF(parent_phone, ''), ${normPhone}),
-            parent_name  = COALESCE(NULLIF(parent_name, ''), ${normParentName !== '' ? pa.name : null}),
-            status = CASE
-              WHEN status IN ('unregistered', 'pending_approval') THEN 'active'
-              ELSE status
-            END,
+            parent_phone = COALESCE(NULLIF(parent_phone,''), ${normPhone || null}),
+            parent_name  = COALESCE(NULLIF(parent_name,''),  ${normName ? pa.name : null}),
+            status = CASE WHEN status IN ('unregistered','pending_approval') THEN 'active' ELSE status END,
             updated_at = NOW()
         WHERE id = ${student.id}
       `);
       linked++;
+      studentIds.push(student.id);
+      console.log(`[auto-link] ✓ linked student=${student.id} pool=${student.swimming_pool_id}`);
+    } catch (err: any) {
+      console.error(`[auto-link] ✗ student=${student.id} error:`, err?.message);
     }
+  }
 
-    // ④ 기존에 pending 상태로 남아있는 parent_students 전부 approved 처리
-    await db.execute(sql`
-      UPDATE parent_students
-      SET status = 'approved', approved_at = NOW()
-      WHERE parent_id = ${parentId}
-        AND status != 'approved'
-    `);
+  // 기존 pending 레코드 → approved 승격
+  await db.execute(sql`
+    UPDATE parent_students SET status='approved', approved_at=NOW()
+    WHERE parent_id=${parentId} AND status != 'approved'
+  `);
 
-    // ⑤ 연결된 경우 수영장 자동 세팅
-    if (linked > 0 && !pa.swimming_pool_id) {
-      const firstMatch = (matchedStudents.rows as any[])[0];
-      if (firstMatch?.swimming_pool_id) {
-        await db.execute(sql`
-          UPDATE parent_accounts SET swimming_pool_id = ${firstMatch.swimming_pool_id}, updated_at = NOW()
-          WHERE id = ${parentId} AND swimming_pool_id IS NULL
-        `);
-      }
+  // 수영장 자동 세팅 (아직 미설정인 경우만)
+  if (!pa.swimming_pool_id && matched.length > 0) {
+    const firstPoolId = matched[0]?.swimming_pool_id;
+    if (firstPoolId) {
+      await db.execute(sql`
+        UPDATE parent_accounts SET swimming_pool_id=${firstPoolId}, updated_at=NOW()
+        WHERE id=${parentId} AND swimming_pool_id IS NULL
+      `);
+      console.log(`[auto-link] 수영장 자동 세팅: ${firstPoolId}`);
     }
+  }
 
-    console.log(`[auto-link] parent=${parentId} phone=${normPhone} linked=${linked}`);
-    res.json({ linked });
+  console.log(`[auto-link] DONE parent=${parentId} linked=${linked}`);
+  return { linked, studentIds };
+}
+
+router.post("/auto-link-students", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const { linked, studentIds } = await autoLinkParentToStudents(req.user!.userId);
+    res.json({ linked, studentIds });
   } catch (e) {
     console.error("auto-link-students error:", e);
     res.status(500).json({ error: "서버 오류" });
@@ -155,59 +197,9 @@ router.post("/auto-link-students", requireAuth, requireParent, async (req: AuthR
 
 router.get("/students", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
-    // ── 조회 전: 전화번호·이름 기반 자동 연결 (기존 미연결 계정 포함) ──────
+    // ── 조회 전: 통합 자동 연결 실행 (pool 필터 없이 전화번호/이름 전체 매칭) ──
     const parentId = req.user!.userId;
-    const [pa] = await db.select({ phone: parentAccountsTable.phone, name: parentAccountsTable.name, swimming_pool_id: parentAccountsTable.swimming_pool_id })
-      .from(parentAccountsTable).where(eq(parentAccountsTable.id, parentId)).limit(1);
-    if (pa?.phone || pa?.name) {
-      const normPhone = (pa.phone || "").replace(/[^0-9]/g, "");
-      const normName  = (pa.name  || "").replace(/\s+/g, "").toLowerCase();
-      const pid       = pa.swimming_pool_id ?? null;
-
-      // 전화번호 매칭
-      if (normPhone) {
-        const rows = pid
-          ? await db.execute(sql`
-              SELECT id, swimming_pool_id FROM students
-              WHERE REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
-                AND swimming_pool_id = ${pid}
-                AND status NOT IN ('withdrawn','archived','deleted')
-              LIMIT 20`)
-          : await db.execute(sql`
-              SELECT id, swimming_pool_id FROM students
-              WHERE REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
-                AND status NOT IN ('withdrawn','archived','deleted')
-              LIMIT 20`);
-        for (const s of rows.rows as any[]) {
-          const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          await db.execute(sql`DELETE FROM parent_students WHERE parent_id=${parentId} AND student_id=${s.id}`);
-          await db.execute(sql`INSERT INTO parent_students (id,parent_id,student_id,swimming_pool_id,status,approved_at) VALUES (${psId},${parentId},${s.id},${s.swimming_pool_id},'approved',NOW())`);
-          await db.execute(sql`UPDATE students SET parent_user_id=${parentId}, parent_phone=COALESCE(NULLIF(parent_phone,''),${normPhone}), status=CASE WHEN status IN ('unregistered','pending_approval') THEN 'active' ELSE status END, updated_at=NOW() WHERE id=${s.id}`);
-        }
-      }
-
-      // 이름 매칭
-      if (normName) {
-        const rows2 = pid
-          ? await db.execute(sql`
-              SELECT id, swimming_pool_id FROM students
-              WHERE REPLACE(LOWER(COALESCE(parent_name,'')),' ','') = ${normName}
-                AND swimming_pool_id = ${pid}
-                AND status NOT IN ('withdrawn','archived','deleted')
-              LIMIT 20`)
-          : await db.execute(sql`
-              SELECT id, swimming_pool_id FROM students
-              WHERE REPLACE(LOWER(COALESCE(parent_name,'')),' ','') = ${normName}
-                AND status NOT IN ('withdrawn','archived','deleted')
-              LIMIT 20`);
-        for (const s of rows2.rows as any[]) {
-          const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          await db.execute(sql`DELETE FROM parent_students WHERE parent_id=${parentId} AND student_id=${s.id}`);
-          await db.execute(sql`INSERT INTO parent_students (id,parent_id,student_id,swimming_pool_id,status,approved_at) VALUES (${psId},${parentId},${s.id},${s.swimming_pool_id},'approved',NOW())`);
-          await db.execute(sql`UPDATE students SET parent_user_id=${parentId}, status=CASE WHEN status IN ('unregistered','pending_approval') THEN 'active' ELSE status END, updated_at=NOW() WHERE id=${s.id}`);
-        }
-      }
-    }
+    await autoLinkParentToStudents(parentId, null);
     // ────────────────────────────────────────────────────────────────────────
 
     const links = await db.select().from(parentStudentsTable).where(
@@ -1139,71 +1131,22 @@ router.post("/onboard-pool", requireAuth, requireParent, async (req: AuthRequest
       .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);
     if (!pool) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
 
-    const myPhone = pa.phone;
-
-    // 이미 동일한 수영장이면 스킵 플래그
-    const samePool = pa.swimming_pool_id === swimming_pool_id;
-
-    // 해당 수영장에서 phone 일치하는 학생 검색
-    const matchRows = await db.execute(sql`
-      SELECT id, name FROM students
-      WHERE swimming_pool_id = ${swimming_pool_id}
-        AND (parent_phone = ${myPhone} OR parent_phone2 = ${myPhone})
-        AND deleted_at IS NULL
-    `);
-    const matchedStudents = matchRows.rows as Array<{ id: string; name: string }>;
-
-    // 이미 연결된 student 제외
-    const existingLinks = await db.execute(sql`
-      SELECT student_id FROM parent_students WHERE parent_id = ${pa.id}
-    `);
-    const linkedStudentIds = new Set((existingLinks.rows as any[]).map(r => r.student_id));
-
-    let autoApproved = false;
-    const linkedStudentNames: string[] = [];
-
-    if (matchedStudents.length > 0) {
-      // 자동 승인: 연결되지 않은 학생들 연결
-      for (const student of matchedStudents) {
-        if (linkedStudentIds.has(student.id)) continue;
-        const linkId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        await db.execute(sql`
-          INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at, created_at)
-          VALUES (${linkId}, ${pa.id}, ${student.id}, ${swimming_pool_id}, 'approved', now(), now())
-          ON CONFLICT DO NOTHING
-        `);
-        // students.parent_user_id 실시간 업데이트 — 어드민 미연결 해소
-        await db.execute(sql`
-          UPDATE students
-          SET parent_user_id = ${pa.id},
-              status = CASE WHEN status IN ('unregistered','pending_approval') THEN 'active' ELSE status END,
-              updated_at = now()
-          WHERE id = ${student.id}
-            AND (parent_user_id IS NULL OR parent_user_id = ${pa.id})
-        `);
-        linkedStudentNames.push(student.name);
-      }
-      autoApproved = true;
-    } else {
-      // 수동 승인 요청
-      const reqId = `srr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      await superAdminDb.execute(sql`
-        INSERT INTO student_registration_requests (id, swimming_pool_id, parent_id, child_names, status, created_at)
-        VALUES (${reqId}, ${swimming_pool_id}, ${pa.id}, ${"[]"}, 'pending', now())
-        ON CONFLICT DO NOTHING
-      `);
+    // 학부모 계정의 swimming_pool_id 업데이트 (항상 먼저 설정)
+    if (pa.swimming_pool_id !== swimming_pool_id) {
+      await db.execute(sql`UPDATE parent_accounts SET swimming_pool_id=${swimming_pool_id}, updated_at=NOW() WHERE id=${pa.id}`);
     }
 
-    // 학부모 계정의 swimming_pool_id 업데이트 (항상: 연결 또는 변경)
-    if (!samePool) {
-      await db.execute(sql`UPDATE parent_accounts SET swimming_pool_id = ${swimming_pool_id}, updated_at = now() WHERE id = ${pa.id}`);
-    }
+    // 통합 자동 연결 (해당 수영장 내 전화번호/이름 매칭)
+    const { linked, studentIds } = await autoLinkParentToStudents(pa.id, swimming_pool_id);
+    const autoApproved = linked > 0;
+
+    console.log(`[onboard-pool] parent=${pa.id} pool=${swimming_pool_id} linked=${linked}`);
 
     res.json({
       success: true,
       auto_approved: autoApproved,
       pool_name: pool.name,
-      linked_students: linkedStudentNames,
+      linked_students: studentIds,
     });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });

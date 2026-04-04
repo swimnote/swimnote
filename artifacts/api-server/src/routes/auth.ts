@@ -424,6 +424,9 @@ router.post("/simple-parent-register", async (req, res) => {
     ? child_ids.map((s: string) => s.trim()).filter(Boolean)
     : [];
 
+  const phoneMask = ph.length > 6 ? ph.slice(0,3)+"****"+ph.slice(-4) : "****";
+  console.log(`[simple-parent-register] 입력: name=${name} phone=${phoneMask} pool_id=${requestedPoolId ?? "미지정"} child_names=[${childNamesArr.join(",")}]`);
+
   if (!name || !ph || !pw) return err(res, 400, "학부모 이름, 전화번호, 비밀번호는 필수입니다.");
   if (pw.length < 4) return err(res, 400, "비밀번호는 4자리 이상이어야 합니다.");
   if (lid && lid.length < 3) return err(res, 400, "아이디는 3자 이상이어야 합니다.");
@@ -567,26 +570,32 @@ router.post("/simple-parent-register", async (req, res) => {
       VALUES (${parentId}, ${resolvedPoolId}, ${ph}, ${pin_hash}, ${name}, ${lid}, true, now(), now())
     `);
 
-    // ── 매칭된 학생 전체 연결 (student.parent_user_id 세팅 + status 정상화) ─
+    // ── 매칭된 학생 전체 연결 (DELETE+INSERT로 항상 approved 보장) ─────────
+    console.log(`[simple-parent-register] 연결 시작: parentId=${parentId} matched=${matched.length}명`);
     for (const student of matched) {
-      const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      await db.execute(sql`
-        INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
-        VALUES (${psId}, ${parentId}, ${student.id}, ${student.swimming_pool_id}, 'approved', NOW())
-        ON CONFLICT DO NOTHING
-      `);
-      await db.execute(sql`
-        UPDATE students
-        SET parent_user_id = ${parentId},
-            parent_name    = COALESCE(NULLIF(parent_name, ''), ${name}),
-            parent_phone   = COALESCE(NULLIF(parent_phone, ''), ${ph}),
-            status         = CASE
-                               WHEN status IN ('unregistered', 'pending_approval') THEN 'active'
-                               ELSE status
-                             END,
-            updated_at = NOW()
-        WHERE id = ${student.id}
-      `);
+      try {
+        const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await db.execute(sql`DELETE FROM parent_students WHERE parent_id=${parentId} AND student_id=${student.id}`);
+        await db.execute(sql`
+          INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at, created_at)
+          VALUES (${psId}, ${parentId}, ${student.id}, ${student.swimming_pool_id}, 'approved', NOW(), NOW())
+        `);
+        await db.execute(sql`
+          UPDATE students
+          SET parent_user_id = ${parentId},
+              parent_name    = COALESCE(NULLIF(parent_name, ''), ${name}),
+              parent_phone   = COALESCE(NULLIF(parent_phone, ''), ${ph}),
+              status         = CASE
+                                 WHEN status IN ('unregistered', 'pending_approval') THEN 'active'
+                                 ELSE status
+                               END,
+              updated_at = NOW()
+          WHERE id = ${student.id}
+        `);
+        console.log(`[simple-parent-register] ✓ linked student=${student.id} pool=${student.swimming_pool_id}`);
+      } catch (linkErr: any) {
+        console.error(`[simple-parent-register] ✗ student=${student.id} error:`, linkErr?.message);
+      }
     }
 
     // ── 자녀 이름을 제공했지만 이름 매칭이 안 된 경우 → placeholder 생성 ──
