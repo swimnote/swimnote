@@ -136,10 +136,10 @@ export default function SignupScreen() {
   }
 
   /* ──────────────────────────────────────────────── */
-  /*  Pool search (teacher only)                        */
+  /*  Pool search (teacher & parent)                    */
   /* ──────────────────────────────────────────────── */
   useEffect(() => {
-    if (step === 4 && role === "teacher" && !poolsLoaded) {
+    if (step === 4 && (role === "teacher" || role === "parent") && !poolsLoaded) {
       (async () => {
         try {
           const res = await fetch(`${API_BASE}/pools/public-search`);

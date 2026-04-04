@@ -87,6 +87,10 @@ function getRevenueCatApiKey(): string {
 }
 
 export function initializeRevenueCat() {
+  if (Platform.OS === "web") {
+    console.log("[RevenueCat] 웹 플랫폼 - 초기화 스킵");
+    return;
+  }
   const apiKey = getRevenueCatApiKey();
   Purchases.setLogLevel(__DEV__ ? Purchases.LOG_LEVEL.DEBUG : Purchases.LOG_LEVEL.ERROR);
   Purchases.configure({ apiKey });
