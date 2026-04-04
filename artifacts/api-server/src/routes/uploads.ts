@@ -24,10 +24,9 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
     const poolId = req.user?.poolId;
     if (poolId) {
       const [poolRow] = (await superAdminDb.execute(sql`
-        SELECT p.upload_blocked, sp.storage_gb, ps.extra_storage_gb
+        SELECT p.upload_blocked, p.extra_storage_gb, sp.storage_gb
         FROM swimming_pools p
         LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
-        LEFT JOIN pool_subscriptions ps ON ps.swimming_pool_id = p.id
         WHERE p.id = ${poolId} LIMIT 1
       `)).rows as any[];
 

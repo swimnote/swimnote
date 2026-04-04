@@ -40,10 +40,9 @@ async function getPoolSlug(poolId: string): Promise<string> {
 /** 저장공간 실시간 체크 — 100% 초과 시 upload_blocked 자동 설정 후 true 반환 */
 async function checkStorageLimit(poolId: string): Promise<{ blocked: boolean; pct: number }> {
   const [meta] = (await superAdminDb.execute(sql`
-    SELECT p.upload_blocked, sp.storage_gb, ps.extra_storage_gb
+    SELECT p.upload_blocked, p.extra_storage_gb, sp.storage_gb
     FROM swimming_pools p
     LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
-    LEFT JOIN pool_subscriptions ps ON ps.swimming_pool_id = p.id
     WHERE p.id = ${poolId} LIMIT 1
   `)).rows as any[];
   if (meta?.upload_blocked) return { blocked: true, pct: 100 };
@@ -243,6 +242,7 @@ router.post(
       if (!files?.length) { res.status(400).json({ error: "사진을 선택해주세요." }); return; }
 
       const { role, userId } = req.user!;
+      console.log(`[photos/group] 업로드 시작: userId=${userId} role=${role} class_id=${class_id} files=${files.length}`);
 
       // teacher는 담당 반만
       if (role === "teacher") {
@@ -250,9 +250,11 @@ router.post(
         if (!ok) { res.status(403).json({ error: "담당 반이 아닙니다." }); return; }
       }
 
+      console.log(`[photos/group] 사용자 정보 조회 중...`);
       const [user] = await superAdminDb.select({ name: usersTable.name, swimming_pool_id: usersTable.swimming_pool_id })
         .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
       if (!user) { res.status(403).json({ error: "사용자를 찾을 수 없습니다." }); return; }
+      console.log(`[photos/group] user 확인: pool_id=${user.swimming_pool_id}`);
 
       // pool_admin 권한: 자신의 풀 반만
       if (role === "pool_admin") {
@@ -262,6 +264,7 @@ router.post(
 
       // ── 저장공간 실시간 체크 ────────────────────────────────────────
       if (user.swimming_pool_id) {
+        console.log(`[photos/group] 저장공간 체크 중...`);
         const { blocked, pct } = await checkStorageLimit(user.swimming_pool_id);
         if (blocked) {
           res.status(403).json({ error: "저장공간이 가득 차 업로드가 제한됩니다.", code: "UPLOAD_BLOCKED", storage_pct: pct }); return;
@@ -270,6 +273,7 @@ router.post(
       }
 
       const poolSlug = await getPoolSlug(user.swimming_pool_id || "");
+      console.log(`[photos/group] 오브젝트 스토리지 업로드 시작 (${files.length}개)...`);
       const client = getClient();
       const inserted: any[] = [];
 
@@ -277,8 +281,13 @@ router.post(
         const ext = file.originalname.split(".").pop() || "jpg";
         const filename = genFilename(poolSlug, ext);
         const key = `photos/group/${class_id}/${filename}`;
+        console.log(`[photos/group] 파일 업로드: key=${key} size=${file.size}`);
         const { ok, error } = await client.uploadFromBytes(key, file.buffer, {});
-        if (!ok) throw new Error(error?.message || "업로드 실패");
+        if (!ok) {
+          console.error(`[photos/group] 스토리지 업로드 실패:`, error);
+          throw new Error(error?.message || "스토리지 업로드 실패");
+        }
+        console.log(`[photos/group] 스토리지 업로드 완료, DB INSERT 중...`);
 
         const id = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         // group 앨범: student_id는 NULL (반 전체 공유)
@@ -289,6 +298,7 @@ router.post(
             (${id}, NULL, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'group', ${class_id})
           RETURNING *
         `);
+        console.log(`[photos/group] DB INSERT 완료: id=${id}`);
         inserted.push({ ...rows.rows[0], file_url: `/api/photos/${id}/file` });
       }
 
