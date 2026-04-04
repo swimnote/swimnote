@@ -159,7 +159,7 @@ router.post("/register", async (req, res) => {
            invite_token, invite_status, invited_by, user_id,
            approved_at, approved_by, approved_role, created_at, requested_at)
         VALUES
-          (${inviteId}, ${poolId}, ${'관리자선생님'}, ${phone || null}, ${'관리자'},
+          (${inviteId}, ${poolId}, ${'관리자선생님'}, ${(phone || pool_phone || '').trim()}, ${'관리자'},
            ${inviteId}, ${'approved'}, ${userId}, ${userId},
            now(), ${userId}, ${'teacher'}, now(), now())
       `);

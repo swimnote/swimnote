@@ -256,7 +256,7 @@ export async function initPoolDb(): Promise<void> {
       id               text        PRIMARY KEY,
       swimming_pool_id text        NOT NULL,
       name             text        NOT NULL,
-      phone            text        NOT NULL DEFAULT '',
+      phone            text        DEFAULT '',
       position         text,
       invite_token     text        UNIQUE,
       invite_status    text        NOT NULL DEFAULT 'invited'
@@ -275,6 +275,8 @@ export async function initPoolDb(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_ti_pool ON teacher_invites (swimming_pool_id);
   `));
+  // phone 컬럼 NOT NULL 제약 제거 (기존 배포 DB 호환)
+  await db.execute(sql.raw(`ALTER TABLE teacher_invites ALTER COLUMN phone DROP NOT NULL`)).catch(() => {});
 
   // ─── 9. class_diaries + 관련 테이블 ─────────────────────────────────────
   await db.execute(sql.raw(`
