@@ -148,7 +148,7 @@ export default function ParentHomeScreen() {
   const [confirmedPool, setConfirmedPool] = useState<PoolResult | null>(null);
 
   // V2 상태 3단계 (no_pool / waiting / linked)
-  const [v2Status, setV2Status] = useState<"no_pool" | "waiting" | "linked" | null>(null);
+  const [v2Status, setV2Status] = useState<"no_pool" | "waiting" | "linked" | null>("no_pool");
   const [v2PendingChildName, setV2PendingChildName] = useState<string | null>(null);
   const [v2Retrying, setV2Retrying] = useState(false);
 
@@ -185,6 +185,8 @@ export default function ParentHomeScreen() {
       }
     } catch (e) {
       console.error("[v2-home] 상태 조회 오류:", e);
+      // 실패 시 no_pool(기존 방식)로 fallback
+      if (v2Status === null) setV2Status("no_pool");
     }
   }
 
@@ -306,7 +308,7 @@ export default function ParentHomeScreen() {
 
   const PT = insets.top + (Platform.OS === "web" ? 67 : 16);
 
-  if (ctxLoading || v2Status === null) {
+  if (ctxLoading) {
     return (
       <View style={[s.root, { justifyContent: "center", alignItems: "center", backgroundColor: C.background }]}>
         <ActivityIndicator color={C.tint} size="large" />
