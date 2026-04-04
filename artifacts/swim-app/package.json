@@ -7,7 +7,9 @@
     "dev": "EXPO_TOKEN=WeNuUChLeFVnqUjrsQgTMlAEX_czcxXPYHrRwdPP EXPO_PACKAGER_PROXY_URL=https://$REPLIT_EXPO_DEV_DOMAIN EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN EXPO_PUBLIC_REPL_ID=$REPL_ID REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN pnpm exec expo start --clear --localhost --port $PORT",
     "build": "node scripts/build.js",
     "serve": "node server/serve.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -70,6 +72,9 @@
     "react-native-purchases": "9.7.2",
     "react-native-qrcode-svg": "^6.3.21",
     "xlsx": "^0.18.5",
-    "zustand": "^5.0.12"
+    "zustand": "^5.0.12",
+    "expo": "~54.0.33",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
   }
 }
