@@ -719,12 +719,12 @@ export default function SignupScreen() {
             ))}
           </View>
 
-          {/* 첫 화면으로 돌아가기 버튼 */}
+          {/* 로그인 화면으로 이동 */}
           <Pressable
             style={({ pressed }) => ({ backgroundColor: C.tint, borderRadius: 14, height: 52, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.8 : 1 })}
             onPress={() => router.replace("/" as any)}
           >
-            <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" }}>첫 화면으로 돌아가기</Text>
+            <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" }}>로그인 화면으로 이동</Text>
           </Pressable>
         </ScrollView>
       </View>
