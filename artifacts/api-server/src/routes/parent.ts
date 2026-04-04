@@ -6,6 +6,7 @@ import { eq, and, ne, or } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword, comparePassword } from "../lib/auth.js";
 import { logChange } from "../utils/change-logger.js";
+import { getParentStatusV2, upsertParentV2Pending, normalizePhone as normPhoneV2, normalizeName as normNameV2 } from "../lib/auto-link-v2.js";
 
 const router = Router();
 
@@ -1247,6 +1248,64 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
 
     res.json({ success: true, status: "linked", message: "자녀가 연결되었습니다.", student: { id: student.id, name: student.name } });
   } catch (e) { console.error(e); res.status(500).json({ success: false, message: "서버 오류가 발생했습니다." }); }
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// V2 라우트
+// ══════════════════════════════════════════════════════════════════════
+
+// GET /parent/v2/status — 학부모 연결 상태 조회 + 재매칭 시도
+router.get("/v2/status", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const parentId = req.user!.userId;
+    const result = await getParentStatusV2(parentId);
+    res.json(result);
+  } catch (e) {
+    console.error("[v2-status] 오류:", e);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
+// POST /parent/v2/retry-link — "다시 확인" 버튼 (명시적 재시도)
+router.post("/v2/retry-link", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const parentId = req.user!.userId;
+    console.log(`[v2-retry] 명시적 재시도 요청: parent=${parentId}`);
+    const result = await getParentStatusV2(parentId);
+    res.json(result);
+  } catch (e) {
+    console.error("[v2-retry] 오류:", e);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
+// POST /parent/v2/update-pending — 대기 중 정보 수정 (이름/수영장 변경 시)
+router.post("/v2/update-pending", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const parentId = req.user!.userId;
+    const { pool_id, child_name } = req.body;
+    if (!pool_id || !child_name) return res.status(400).json({ error: "pool_id, child_name 필수" });
+
+    const [pa] = (await db.execute(sql`SELECT phone FROM parent_accounts WHERE id=${parentId} LIMIT 1`)).rows as any[];
+    if (!pa) return res.status(404).json({ error: "계정 없음" });
+
+    const phoneNorm = normPhoneV2(pa.phone);
+    const nameRaw   = child_name.trim();
+    const nameNorm  = normNameV2(nameRaw);
+
+    // 수영장 업데이트
+    await db.execute(sql`UPDATE parent_accounts SET swimming_pool_id=${pool_id}, updated_at=NOW() WHERE id=${parentId}`);
+
+    // pending UPSERT
+    await upsertParentV2Pending(parentId, pool_id, nameRaw, nameNorm, phoneNorm);
+
+    // 즉시 재매칭 시도
+    const result = await getParentStatusV2(parentId);
+    res.json(result);
+  } catch (e) {
+    console.error("[v2-update-pending] 오류:", e);
+    res.status(500).json({ error: "서버 오류" });
+  }
 });
 
 export default router;

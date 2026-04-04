@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, superAdminDb } from "@workspace/db";
 import { swimmingPoolsTable, usersTable, subscriptionsTable, membersTable, parentAccountsTable, parentStudentsTable, studentsTable, studentRegistrationRequestsTable, classGroupsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
+import { triggerAutoLinkOnStudentV2 } from "../lib/auto-link-v2.js";
 import { requireAuth, requireRole, requirePermission, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword, DEFAULT_PLATFORM_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
@@ -1286,6 +1287,17 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
           actorId: req.user!.userId, actorName, actorRole: req.user!.role,
         });
       }
+
+      // V2 자동연결 트리거 — 매칭 관련 필드 변경 시만 실행
+      const changedV2Fields: string[] = [];
+      if (name && name !== student.name) changedV2Fields.push("name");
+      if (parent_phone !== undefined && parent_phone !== student.parent_phone) changedV2Fields.push("parent_phone");
+      if (changedV2Fields.length > 0) {
+        triggerAutoLinkOnStudentV2(req.params.id, changedV2Fields).catch(e =>
+          console.error("[v2-admin-trigger] info patch 트리거 오류:", e?.message)
+        );
+      }
+
       res.json({ success: true, parent_user_id: newParentUserId, parent_account_name: parentAccountName });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }

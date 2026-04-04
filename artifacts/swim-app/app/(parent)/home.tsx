@@ -147,6 +147,11 @@ export default function ParentHomeScreen() {
   const [linking, setLinking] = useState(false);
   const [confirmedPool, setConfirmedPool] = useState<PoolResult | null>(null);
 
+  // V2 상태 3단계 (no_pool / waiting / linked)
+  const [v2Status, setV2Status] = useState<"no_pool" | "waiting" | "linked" | null>(null);
+  const [v2PendingChildName, setV2PendingChildName] = useState<string | null>(null);
+  const [v2Retrying, setV2Retrying] = useState(false);
+
   const noPool = !confirmedPool && !(parentAccount as any)?.swimming_pool_id && !pool;
 
   async function handlePoolSelect(selected: PoolResult) {
@@ -167,12 +172,47 @@ export default function ParentHomeScreen() {
     setLinking(false);
   }
 
+  // V2: 연결 상태 조회 (홈 진입 시 자동 실행)
+  async function loadV2Status() {
+    try {
+      const r = await apiRequest(token, "/parent/v2/status");
+      if (r.ok) {
+        const data = await r.json();
+        setV2Status(data.status);
+        setV2PendingChildName(data.pendingChildName || null);
+        console.log("[v2-home] 상태:", data.status, data.pendingChildName ? `대기 자녀="${data.pendingChildName}"` : "");
+        if (data.status === "linked") await refresh();
+      }
+    } catch (e) {
+      console.error("[v2-home] 상태 조회 오류:", e);
+    }
+  }
+
+  // V2: "다시 확인" 버튼 (명시적 재시도)
+  async function handleV2Retry() {
+    setV2Retrying(true);
+    try {
+      const r = await apiRequest(token, "/parent/v2/retry-link", { method: "POST" });
+      if (r.ok) {
+        const data = await r.json();
+        setV2Status(data.status);
+        setV2PendingChildName(data.pendingChildName || null);
+        if (data.status === "linked") await refresh();
+      }
+    } catch {}
+    setV2Retrying(false);
+  }
+
   useFocusEffect(useCallback(() => {
     if (Platform.OS !== "web") {
       const sub = BackHandler.addEventListener("hardwareBackPress", () => true);
       return () => sub.remove();
     }
   }, []));
+
+  // V2 상태 로드 (마운트 + 포커스)
+  useEffect(() => { loadV2Status(); }, []);
+  useFocusEffect(useCallback(() => { loadV2Status(); }, []));
 
   useEffect(() => {
     if (selectedStudent?.id) loadSummary(selectedStudent.id);
@@ -266,10 +306,71 @@ export default function ParentHomeScreen() {
 
   const PT = insets.top + (Platform.OS === "web" ? 67 : 16);
 
-  if (ctxLoading) {
+  if (ctxLoading || v2Status === null) {
     return (
       <View style={[s.root, { justifyContent: "center", alignItems: "center", backgroundColor: C.background }]}>
         <ActivityIndicator color={C.tint} size="large" />
+      </View>
+    );
+  }
+
+  // V2 waiting 상태 — 매칭 대기 중
+  if (v2Status === "waiting") {
+    const ORANGE = "#F97316";
+    return (
+      <View style={[s.root, { backgroundColor: C.background }]}>
+        <View style={[s.header, { paddingTop: PT }]}>
+          <Text style={[s.poolName, { color: C.textMuted }]}>SwimNote</Text>
+          <View style={s.headerBtns} />
+        </View>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 80 }}>
+          {/* 대기 아이콘 */}
+          <View style={{ alignItems: "center", marginBottom: 32 }}>
+            <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: "#FFF3E0", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+              <LucideIcon name="clock" size={44} color={ORANGE} />
+            </View>
+            <Text style={{ fontSize: 22, fontFamily: "Pretendard-Bold", color: C.text, textAlign: "center", marginBottom: 10 }}>연결 대기 중</Text>
+            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 }}>
+              수영장에서 자녀 등록을 완료하면{"\n"}자동으로 연결됩니다.
+            </Text>
+          </View>
+
+          {/* 대기 정보 카드 */}
+          <View style={{ backgroundColor: "#FFF3E0", borderRadius: 16, padding: 18, gap: 10, marginBottom: 24, borderWidth: 1, borderColor: "#FECFA2" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <LucideIcon name="user" size={16} color={ORANGE} />
+              <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.text }}>
+                등록 대기 자녀: <Text style={{ color: ORANGE }}>{v2PendingChildName || "정보 없음"}</Text>
+              </Text>
+            </View>
+            <Text style={{ fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", lineHeight: 18 }}>
+              수영장 담당자에게 아이 이름과 보호자 전화번호{"\n"}등록을 확인해주세요.
+            </Text>
+          </View>
+
+          {/* 다시 확인 버튼 */}
+          <Pressable
+            onPress={handleV2Retry}
+            disabled={v2Retrying}
+            style={({ pressed }) => ({
+              backgroundColor: pressed ? "#EA6A00" : ORANGE,
+              borderRadius: 14, paddingVertical: 16,
+              alignItems: "center", flexDirection: "row",
+              justifyContent: "center", gap: 10, marginBottom: 12,
+            })}
+          >
+            {v2Retrying
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <>
+                  <LucideIcon name="refresh-cw" size={18} color="#fff" />
+                  <Text style={{ fontSize: 16, fontFamily: "Pretendard-Bold", color: "#fff" }}>다시 확인하기</Text>
+                </>
+            }
+          </Pressable>
+          <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 18 }}>
+            수영장 등록 완료 후 버튼을 누르면{"\n"}즉시 연결됩니다.
+          </Text>
+        </ScrollView>
       </View>
     );
   }

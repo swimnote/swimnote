@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, superAdminDb } from "@workspace/db";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
+import { triggerAutoLinkOnStudentV2 } from "../lib/auto-link-v2.js";
 import {
   studentsTable, classGroupsTable, parentStudentsTable,
   parentAccountsTable, usersTable, attendanceTable,
@@ -145,6 +146,10 @@ router.post("/teacher-request", requireAuth, requireRole("teacher", "pool_admin"
     await logChange({ tenantId: req.user!.userId, tableName: "students", recordId: id, changeType: "create", payload: {
       name: name.trim(), status: "pending_approval", registration_path: "teacher_request",
     } });
+    // V2 자동연결 트리거 (신규 등록)
+    triggerAutoLinkOnStudentV2(id, ["name", "parent_phone", "swimming_pool_id"]).catch(e =>
+      console.error("[v2-admin-trigger] teacher-request 트리거 오류:", e?.message)
+    );
     return res.json({ success: true, id, name: name.trim(), status: "pending_approval" });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -177,6 +182,10 @@ router.post("/teacher-requests/:id/approve", requireAuth, requireRole("pool_admi
     `)).rows as any[];
     if (!row) return err(res, 404, "승인 대기 중인 요청을 찾을 수 없습니다.");
     await logChange({ tenantId: req.user!.userId, tableName: "students", recordId: id, changeType: "update", payload: { status: "active", action: "teacher_request_approved" } });
+    // V2 자동연결 트리거 (승인 완료)
+    triggerAutoLinkOnStudentV2(id, ["status", "name", "parent_phone"]).catch(e =>
+      console.error("[v2-admin-trigger] approve 트리거 오류:", e?.message)
+    );
     return res.json({ success: true, id: row.id, name: row.name, invite_code });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });

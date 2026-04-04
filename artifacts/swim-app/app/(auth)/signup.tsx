@@ -69,6 +69,7 @@ export default function SignupScreen() {
 
   /* ── Step 4 ── */
   const [name, setName]             = useState("");
+  const [childName, setChildName]   = useState("");   // V2: 학부모 자녀 이름
   const [poolSearch, setPoolSearch] = useState("");
   const [pools, setPools]           = useState<Pool[]>([]);
   const [allPools, setAllPools]     = useState<Pool[]>([]);
@@ -212,7 +213,9 @@ export default function SignupScreen() {
     } else if (role === "teacher") {
       if (!selectedPool) { setError("수영장을 선택해주세요."); return; }
     } else if (role === "parent") {
-      // 수영장/자녀 선택은 홈 온보딩에서 진행 — 여기서는 이름만 확인
+      // V2: 가입 시 수영장 + 자녀 이름 필수
+      if (!selectedPool) { setError("수영장을 선택해주세요."); return; }
+      if (!childName.trim()) { setError("우리 아이 이름을 입력해주세요."); return; }
     }
 
     setLoading(true);
@@ -260,14 +263,16 @@ export default function SignupScreen() {
         }
 
       } else if (role === "parent") {
-        res = await fetch(`${API_BASE}/auth/simple-parent-register`, {
+        // V2: pool_id + child_name 포함하여 가입 시 즉시 자동연결 시도
+        res = await fetch(`${API_BASE}/auth/v2/parent-register`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             parent_name: name.trim(),
             phone: cleaned,
             loginId: loginId.trim().toLowerCase() || undefined,
             password: pw,
-            // pool_id 미전송 — 홈 온보딩에서 수영장 선택
+            pool_id: selectedPool!.id,
+            child_name: childName.trim(),
           }),
         });
         data = await safeJson(res);
@@ -526,18 +531,80 @@ export default function SignupScreen() {
           </View>
         )}
 
-        {/* 학부모: 가입 후 홈에서 수영장 선택 안내 */}
+        {/* 학부모 V2: 수영장 선택 + 자녀 이름 입력 (가입 시 즉시 자동연결 시도) */}
         {role === "parent" && (
-          <View style={[styles.card, { backgroundColor: "#F0FAF9", borderWidth: 0 }]}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#D1FAF6", alignItems: "center", justifyContent: "center" }}>
-                <LucideIcon name="building-2" size={18} color={C.tint} />
+          <View style={styles.card}>
+            <Text style={[styles.cardTitle, { color: C.text }]}>수영장 선택</Text>
+            {selectedPool ? (
+              <View style={styles.selectedPool}>
+                <View style={[styles.poolIconSm, { backgroundColor: "#FFF3E0" }]}>
+                  <Check size={14} color="#E4A93A" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.poolNameSm, { color: C.text }]}>{selectedPool.name}</Text>
+                  {selectedPool.address ? <Text style={[styles.poolAddrSm, { color: C.textSecondary }]}>{selectedPool.address}</Text> : null}
+                </View>
+                <Pressable onPress={() => setSelectedPool(null)}>
+                  <CircleX size={18} color={C.textMuted} />
+                </Pressable>
               </View>
-              <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.text }}>수영장은 가입 후 선택해요</Text>
+            ) : (
+              <>
+                <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+                  <Search size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={[styles.input, { color: C.text }]}
+                    placeholder="수영장 이름 검색"
+                    placeholderTextColor={C.textMuted}
+                    value={poolSearch}
+                    onChangeText={setPoolSearch}
+                  />
+                </View>
+                {!poolsLoaded && (
+                  <ActivityIndicator size="small" color="#E4A93A" style={{ marginTop: 8 }} />
+                )}
+                {poolsLoaded && pools.length === 0 && (
+                  <Text style={[styles.emptyTxt, { color: C.textMuted }]}>검색 결과가 없습니다.</Text>
+                )}
+                {pools.slice(0, 6).map(p => (
+                  <Pressable
+                    key={p.id}
+                    style={({ pressed }) => [styles.poolItem, { backgroundColor: pressed ? "#FFF8F0" : C.background, borderColor: C.border }]}
+                    onPress={() => setSelectedPool(p)}
+                  >
+                    <View style={[styles.poolIconSm, { backgroundColor: "#FFF3E0" }]}>
+                      <MapPin size={13} color="#E4A93A" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.poolNameSm, { color: C.text }]}>{p.name}</Text>
+                      {p.address ? <Text style={[styles.poolAddrSm, { color: C.textSecondary }]}>{p.address}</Text> : null}
+                    </View>
+                  </Pressable>
+                ))}
+              </>
+            )}
+
+            {/* 자녀 이름 입력 */}
+            <View style={{ marginTop: 16 }}>
+              <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textSecondary, marginBottom: 8 }}>
+                우리 아이 이름 (수영장 등록명)
+              </Text>
+              <View style={[styles.inputBox, { borderColor: childName ? "#E4A93A" : C.border, backgroundColor: C.background }]}>
+                <LucideIcon name="user" size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+                <TextInput
+                  style={[styles.input, { color: C.text }]}
+                  placeholder="수영장에 등록된 자녀 이름"
+                  placeholderTextColor={C.textMuted}
+                  value={childName}
+                  onChangeText={setChildName}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
+              </View>
+              <Text style={{ fontSize: 11, color: C.textMuted, fontFamily: "Pretendard-Regular", marginTop: 6, lineHeight: 17 }}>
+                수영장에 등록된 이름과 정확히 일치해야 자동 연결됩니다.
+              </Text>
             </View>
-            <Text style={{ fontSize: 13, color: C.textSecondary, fontFamily: "Pretendard-Regular", lineHeight: 20 }}>
-              가입 완료 후 홈 화면에서 수영장을 선택하면{"\n"}자녀가 자동으로 연결됩니다.
-            </Text>
           </View>
         )}
 

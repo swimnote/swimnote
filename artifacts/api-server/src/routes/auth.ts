@@ -3,6 +3,13 @@ import { createHash, randomUUID } from "crypto";
 import { db, superAdminDb } from "@workspace/db";
 import { usersTable, parentAccountsTable, swimmingPoolsTable, studentRegistrationRequestsTable } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
+import {
+  normalizePhone as normPhoneV2,
+  normalizeName as normNameV2,
+  tryMatchStudentV2,
+  linkParentToStudentV2,
+  upsertParentV2Pending,
+} from "../lib/auto-link-v2.js";
 import { hashPassword, comparePassword, signToken, signTotpSession, verifyTotpSession } from "../lib/auth.js";
 import { requireAuth, requireDbRoleCheck, type AuthRequest } from "../middlewares/auth.js";
 import { generateSecret as totpGenerateSecret, verifySync as totpVerifySync, generateURI as totpGenerateURI } from "otplib";
@@ -1687,6 +1694,102 @@ router.delete("/account", requireAuth, async (req: AuthRequest, res) => {
     }
   } catch (e) {
     console.error("[DELETE /auth/account]", e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// V2 학부모 회원가입
+// POST /auth/v2/parent-register
+// ══════════════════════════════════════════════════════════════════════
+router.post("/v2/parent-register", async (req, res) => {
+  const { parent_name, phone, password, pool_id, child_name, loginId } = req.body;
+
+  const name     = (parent_name || "").trim();
+  const ph       = normPhoneV2(phone || "");
+  const pw       = (password || "").trim();
+  const poolId   = (pool_id || "").trim();
+  const childRaw = (child_name || "").trim();
+  const lid      = (loginId || "").trim() || null;
+
+  const phoneMaskLog = ph.length > 6 ? ph.slice(0, 3) + "****" + ph.slice(-4) : "****";
+  console.log(`[v2-register] 입력: name="${name}" phone=${phoneMaskLog} pool_id=${poolId} child_name="${childRaw}" loginId=${lid ?? "없음"}`);
+
+  // 필수값 검증
+  if (!name)    return err(res, 400, "학부모 이름을 입력해주세요.");
+  if (!ph)      return err(res, 400, "전화번호를 입력해주세요.");
+  if (!pw)      return err(res, 400, "비밀번호를 입력해주세요.");
+  if (pw.length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
+  if (!poolId)  return err(res, 400, "수영장을 선택해주세요.");
+  if (!childRaw) return err(res, 400, "우리 아이 이름을 입력해주세요.");
+
+  const childNorm = normNameV2(childRaw);
+
+  try {
+    // 중복 전화번호 확인
+    const [existingPhone] = (await db.execute(sql`
+      SELECT id FROM parent_accounts
+      WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph} LIMIT 1
+    `)).rows as any[];
+    if (existingPhone) return err(res, 409, "이미 가입된 전화번호입니다.");
+
+    // 중복 아이디 확인
+    if (lid) {
+      const [existingLid] = (await db.execute(sql`
+        SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1
+      `)).rows as any[];
+      if (existingLid) return err(res, 409, "이미 사용 중인 아이디입니다.");
+    }
+
+    // 수영장 존재 확인
+    const [pool] = (await superAdminDb.execute(sql`
+      SELECT id, name FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `)).rows as any[];
+    if (!pool) return err(res, 404, "수영장을 찾을 수 없습니다.");
+
+    // 계정 생성
+    const parentId = `pa_v2_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const pin_hash = await hashPassword(pw);
+
+    await db.execute(sql`
+      INSERT INTO parent_accounts
+        (id, swimming_pool_id, phone, pin_hash, name, login_id, is_active, created_at, updated_at)
+      VALUES
+        (${parentId}, ${poolId}, ${ph}, ${pin_hash}, ${name}, ${lid}, true, NOW(), NOW())
+    `);
+    console.log(`[v2-register] 계정 생성 완료: parentId=${parentId}`);
+
+    // V2 매칭 시도 (3개 조건: pool_id + phone + child_name)
+    const { matched, studentId, studentName } = await tryMatchStudentV2(parentId, poolId, ph, childNorm);
+
+    let status: "linked" | "waiting" = "waiting";
+
+    if (matched && studentId) {
+      const { success } = await linkParentToStudentV2(parentId, studentId, poolId);
+      if (success) {
+        status = "linked";
+        console.log(`[v2-register] ✓ 즉시 연결 성공: student="${studentName}"`);
+      }
+    }
+
+    if (status === "waiting") {
+      // 연결 실패 → pending 저장
+      await upsertParentV2Pending(parentId, poolId, childRaw, childNorm, ph);
+      console.log(`[v2-register] 대기 상태로 저장: child="${childRaw}" pool=${poolId}`);
+    }
+
+    const token = signToken({ userId: parentId, role: "parent_account", poolId });
+    console.log(`[v2-register] 완료: status=${status} parentId=${parentId}`);
+
+    return res.status(201).json({
+      token,
+      status,
+      pool_name: pool.name,
+      matched_student: matched ? { id: studentId, name: studentName } : null,
+      parent: { id: parentId, name, phone: ph, swimming_pool_id: poolId },
+    });
+  } catch (e: any) {
+    console.error("[v2-register] 오류:", e?.message, e);
     return err(res, 500, "서버 오류가 발생했습니다.");
   }
 });
