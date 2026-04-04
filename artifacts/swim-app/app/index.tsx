@@ -19,6 +19,7 @@ import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import { toAsciiOnly } from "@/utils/koreanToQwerty";
 import { login as kakaoLogin } from "@react-native-seoul/kakao-login";
+import * as AppleAuthentication from "expo-apple-authentication";
 
 const C = Colors.light;
 const BRAND   = "#F97316";
@@ -36,7 +37,7 @@ function KakaoIcon({ size = 22 }: { size?: number }) {
 }
 
 export default function LoginScreen() {
-  const { unifiedLogin, kakaoSocialLogin } = useAuth();
+  const { unifiedLogin, kakaoSocialLogin, appleSocialLogin } = useAuth();
   const insets = useSafeAreaInsets();
   const pwRef  = useRef<TextInput>(null);
 
@@ -45,6 +46,7 @@ export default function LoginScreen() {
   const [showPw,     setShowPw]           = useState(false);
   const [loading,    setLoading]          = useState(false);
   const [kakaoLoading, setKakaoLoading]   = useState(false);
+  const [appleLoading, setAppleLoading]   = useState(false);
   const [error,      setError]            = useState("");
   const [failCount,  setFailCount]        = useState(0);
   const [showNotFoundModal, setShowNotFoundModal] = useState(false);
@@ -96,6 +98,40 @@ export default function LoginScreen() {
       }
       setError(e.message || "아이디 또는 비밀번호를 확인해주세요.");
     } finally { setLoading(false); }
+  }
+
+  async function handleAppleLogin() {
+    if (Platform.OS !== "ios") { setError("Apple 로그인은 iOS에서만 사용 가능합니다."); return; }
+    setAppleLoading(true); setError("");
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      const fullName = credential.fullName
+        ? [credential.fullName.familyName, credential.fullName.givenName].filter(Boolean).join("")
+        : null;
+      await appleSocialLogin(credential.identityToken!, fullName);
+    } catch (err: unknown) {
+      const e = err as any;
+      if (e?.code === "ERR_REQUEST_CANCELED") return;
+      const code = e?.error_code;
+      if (code === "apple_no_account" && e?.apple_info) {
+        router.push({
+          pathname: "/(auth)/kakao-link",
+          params: {
+            kakaoId: e.apple_info.apple_id,
+            kakaoName: e.apple_info.name || "",
+            kakaoProfileImage: "",
+            loginType: "apple",
+          },
+        } as any);
+        return;
+      }
+      setError(e?.message || "Apple 로그인에 실패했습니다.");
+    } finally { setAppleLoading(false); }
   }
 
   async function handleKakaoLogin() {
@@ -223,34 +259,47 @@ export default function LoginScreen() {
           </Pressable>
         </View>
 
-        {/* ── 가입 버튼 2개 ── */}
-        <View style={s.signupRow}>
-          {/* 카카오 가입 */}
-          <Pressable
-            style={({ pressed }) => [s.socialBtn, s.kakaoBtn, { opacity: pressed || kakaoLoading ? 0.85 : 1 }]}
-            onPress={handleKakaoLogin}
-            disabled={kakaoLoading || loading}
-          >
-            {kakaoLoading
-              ? <ActivityIndicator color="#3C1E1E" size="small" />
-              : (
-                <>
-                  <KakaoIcon size={22} />
-                  <Text style={s.kakaoBtnText}>카카오 가입</Text>
-                </>
-              )
-            }
-          </Pressable>
+        {/* ── 소셜 / 가입 버튼 ── */}
+        <View style={s.signupCol}>
+          {/* Sign in with Apple (iOS 전용 공식 버튼) */}
+          {Platform.OS === "ios" && (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+              cornerRadius={14}
+              style={s.appleBtn}
+              onPress={handleAppleLogin}
+            />
+          )}
 
-          {/* 일반 가입 */}
-          <Pressable
-            style={({ pressed }) => [s.socialBtn, s.regularBtn, { opacity: pressed ? 0.85 : 1 }]}
-            onPress={() => router.push("/signup" as any)}
-            disabled={loading}
-          >
-            <LucideIcon name="user-plus" size={18} color="#475569" />
-            <Text style={s.regularBtnText}>일반 가입</Text>
-          </Pressable>
+          <View style={s.signupRow}>
+            {/* 카카오 가입 */}
+            <Pressable
+              style={({ pressed }) => [s.socialBtn, s.kakaoBtn, { opacity: pressed || kakaoLoading ? 0.85 : 1 }]}
+              onPress={handleKakaoLogin}
+              disabled={kakaoLoading || loading}
+            >
+              {kakaoLoading
+                ? <ActivityIndicator color="#3C1E1E" size="small" />
+                : (
+                  <>
+                    <KakaoIcon size={22} />
+                    <Text style={s.kakaoBtnText}>카카오 가입</Text>
+                  </>
+                )
+              }
+            </Pressable>
+
+            {/* 일반 가입 */}
+            <Pressable
+              style={({ pressed }) => [s.socialBtn, s.regularBtn, { opacity: pressed ? 0.85 : 1 }]}
+              onPress={() => router.push("/signup" as any)}
+              disabled={loading}
+            >
+              <LucideIcon name="user-plus" size={18} color="#475569" />
+              <Text style={s.regularBtnText}>일반 가입</Text>
+            </Pressable>
+          </View>
         </View>
         </View>{/* ── 하단 그룹 끝 ── */}
       </ScrollView>
@@ -357,7 +406,9 @@ const s = StyleSheet.create({
   dividerLine: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
   dividerLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
 
-  /* 가입 버튼 2개 */
+  /* 가입 버튼 영역 */
+  signupCol: { gap: 10 },
+  appleBtn:  { width: "100%", height: 52 },
   signupRow: { flexDirection: "row", gap: 12 },
   socialBtn: {
     flex: 1, height: 52, borderRadius: 14,

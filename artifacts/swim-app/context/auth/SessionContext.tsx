@@ -110,6 +110,7 @@ interface SessionContextType {
   adminLogin: (email: string, password: string) => Promise<void>;
   parentLogin: (identifier: string, password: string) => Promise<void>;
   kakaoSocialLogin: (accessToken: string) => Promise<void>;
+  appleSocialLogin: (identityToken: string, fullName?: string | null) => Promise<void>;
   setParentSession: (token: string, parent: ParentAccount) => Promise<void>;
   setAdminSession: (token: string, user: AdminUser) => Promise<void>;
   logout: () => Promise<void>;
@@ -409,6 +410,33 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await fetchPool(data.token);
   }
 
+  async function appleSocialLogin(identityToken: string, fullName?: string | null) {
+    const res = await fetch(`${API_BASE}/auth/apple-social-login`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identityToken, fullName }),
+    });
+    const data = await safeJson(res);
+    if (!res.ok) {
+      throw Object.assign(new Error(data.message || "Apple 로그인에 실패했습니다."), {
+        error_code: data.error_code || "unknown",
+        apple_info: data.apple_info || null,
+      });
+    }
+    await AsyncStorage.multiSet([
+      ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
+      ["parent_join_status", "approved"],
+    ]);
+    setToken(data.token);
+    setParentAccount(data.parent);
+    setKind("parent");
+    setParentJoinStatus("approved");
+    if (data.parent?.pool_name) {
+      setParentPoolName(data.parent.pool_name);
+      AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
+    }
+    await fetchPool(data.token);
+  }
+
   async function setParentSession(token: string, parent: ParentAccount) {
     const pname = (parent as any).pool_name || null;
     const multiSetItems: [string, string][] = [
@@ -500,7 +528,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     <SessionContext.Provider value={{
       kind, adminUser, parentAccount, token, pool, parentPoolName, isLoading,
       allAccounts, ownedPools, parentJoinStatus, parentJoinRequestId,
-      unifiedLogin, completeTotpLogin, adminLogin, parentLogin, kakaoSocialLogin, setParentSession, setAdminSession,
+      unifiedLogin, completeTotpLogin, adminLogin, parentLogin, kakaoSocialLogin, appleSocialLogin, setParentSession, setAdminSession,
       logout, refreshPool, loadOwnedPools, switchPool,
       activateAccount, updateParentNickname, updateParentProfile, updateAdminProfile, checkRolePermission, applyRoleSwitch,
     }}>

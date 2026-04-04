@@ -1,0 +1,79 @@
+Hello,
+
+Thank you for your resubmission. Upon further review, we identified additional issues that need your attention. See below for more information.
+
+If you have any questions, we are here to help. Reply to this message in App Store Connect and let us know.
+
+Review Environment
+Submission ID: 81501e10-9a58-4266-8517-732be0dcb096
+Review date: April 03, 2026
+Review Device: iPhone 17 Pro Max
+Version reviewed: 1.2.0
+
+Guideline 4.8 - Design - Login Services
+
+Issue Description
+
+The app uses a third-party login service, but does not appear to offer as an equivalent login option another login service with all of the following features:
+
+- The login option limits data collection to the user’s name and email address.
+- The login option allows users to keep their email address private from all parties as part of setting up their account.
+- The login option does not collect interactions with the app for advertising purposes without consent. 
+
+Next Steps
+
+Revise the app to offer as an equivalent login option another login service that meets all of the above requirements.
+
+If the app already includes another login service that meets all of the above requirements, reply to App Review in App Store Connect, identify which login service meets all of the requirements, and explain why it meets all of the requirements.
+
+Note that Sign in with Apple is a login service that meets all the requirements specified in guideline 4.8.
+
+
+Resources
+
+Learn about Sign in with Apple.
+Guideline 2.1(b) - Performance - App Completeness
+
+Issue Description
+
+The In-App Purchase products in the app exhibited one or more bugs which create a poor user experience. Specifically, we were unable to purchase the subscription. Review the details and resources below to troubleshoot this issue.
+
+Review device details: 
+
+- Device type: iPhone 17 Pro Max 
+- OS version: iOS 26.4
+
+Next Steps
+
+Apple reviews In-App Purchase products in the sandbox and the In-App Purchase products do not need prior approval to function in review. Review the product configurations, complete any missing information, and test them in the sandbox.
+
+To offer In-App Purchases in the app, the Account Holder must also accept the Paid Apps Agreement in the Business section of App Store Connect. Confirm you have a Paid Apps Agreement in effect.
+
+If you still need assistance after completing the steps and reviewing the resources, visit the Apple Developer Forums. If you can’t find an answer from an existing thread, start a new thread with your question to get guidance from Apple engineers and other developers.
+
+Resources
+
+Learn more about app completeness requirements in guideline 2.1(b).
+Guideline 2.1(b) - Performance - App Completeness
+
+Issue Description
+
+We are unable to complete the review of the app because one or more of the In-App Purchase products have not been submitted for review.
+
+Specifically, the app includes references to a subscription but the associated In-App Purchase products have not been submitted for review. 
+
+
+Next Steps
+
+To resolve this issue, please be sure to take action and submit your In-App Purchases and upload a new binary in App Store Connect so we can proceed with our review. 
+
+Note you must provide an App Review screenshot in App Store Connect in order to submit In-App Purchases for review. Learn more about required In-App Purchase metadata.
+
+Resources 
+
+- Learn more about how to offer In-App Purchases.
+- Learn more about submitting In-App Purchases and subscriptions to App Review.
+Support
+- Reply to this message in your preferred language if you need assistance. If you need additional support, use the Contact Us module.
+- Consult with fellow developers and Apple engineers on the Apple Developer Forums.
+- Provide feedback on this message and your review experience by completing a short survey.

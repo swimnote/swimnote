@@ -64,6 +64,7 @@ export function useAuth() {
     adminLogin: session.adminLogin,
     parentLogin: session.parentLogin,
     kakaoSocialLogin: session.kakaoSocialLogin,
+    appleSocialLogin: session.appleSocialLogin,
     setParentSession: session.setParentSession,
     setAdminSession: session.setAdminSession,
     logout: async () => {

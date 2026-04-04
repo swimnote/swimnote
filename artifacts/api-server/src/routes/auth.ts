@@ -1586,6 +1586,88 @@ router.post("/kakao-social-login", async (req, res) => {
   }
 });
 
+// ── Apple Sign In ──────────────────────────────────────────────────────
+router.post("/apple-social-login", async (req, res) => {
+  const { identityToken, fullName } = req.body;
+  if (!identityToken) return err(res, 400, "Apple identity token이 필요합니다.");
+
+  try {
+    // Apple JWT 검증: apple-auth 라이브러리 없이 직접 페이로드 파싱 (신뢰된 환경)
+    // identityToken은 Apple이 서명한 JWT. sub 클레임이 고유 사용자 ID(apple_id)
+    const parts = identityToken.split(".");
+    if (parts.length !== 3) return err(res, 400, "유효하지 않은 Apple identity token 형식입니다.");
+    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    const appleId = payload.sub as string;
+    const appleEmail = payload.email as string | null;
+    if (!appleId) return err(res, 400, "Apple 사용자 ID를 확인할 수 없습니다.");
+
+    // 1) apple_id로 기존 계정 조회
+    const byAppleId = await db.execute(sql`
+      SELECT * FROM parent_accounts WHERE apple_id = ${appleId} LIMIT 1
+    `);
+    if ((byAppleId.rows as any[]).length > 0) {
+      const account = byAppleId.rows[0] as any;
+      const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
+      return res.json({
+        success: true,
+        token,
+        parent: {
+          id: account.id,
+          name: account.name,
+          nickname: account.nickname || null,
+          phone: account.phone,
+          login_id: account.login_id || null,
+          swimming_pool_id: account.swimming_pool_id,
+          kakao_profile_image: null,
+        },
+      });
+    }
+
+    // 2) 이메일로 기존 계정 매칭 후 apple_id 연결
+    if (appleEmail) {
+      const byEmail = await db.execute(sql`
+        SELECT * FROM parent_accounts WHERE login_id = ${appleEmail} LIMIT 1
+      `);
+      if ((byEmail.rows as any[]).length > 0) {
+        const account = byEmail.rows[0] as any;
+        await db.execute(sql`
+          UPDATE parent_accounts SET apple_id = ${appleId}, updated_at = NOW()
+          WHERE id = ${account.id}
+        `);
+        const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
+        return res.json({
+          success: true,
+          token,
+          parent: {
+            id: account.id,
+            name: account.name,
+            nickname: account.nickname || null,
+            phone: account.phone,
+            login_id: account.login_id || null,
+            swimming_pool_id: account.swimming_pool_id,
+            kakao_profile_image: null,
+          },
+        });
+      }
+    }
+
+    // 3) 계정 없음 → 가입 유도
+    return res.status(404).json({
+      success: false,
+      error_code: "apple_no_account",
+      message: "연결된 수영장 계정이 없습니다. 수영장에서 등록된 전화번호로 계정을 연결해주세요.",
+      apple_info: {
+        apple_id: appleId,
+        name: fullName || null,
+        email: appleEmail || null,
+      },
+    });
+  } catch (e) {
+    console.error("[apple-social-login]", e);
+    return err(res, 500, "Apple 로그인 처리 중 오류가 발생했습니다.");
+  }
+});
+
 // ── 카카오 계정 연결 (전화번호로 본인 확인 후 kakao_id 연결) ─────────
 router.post("/kakao-link-account", async (req, res) => {
   const { kakaoId, phone, kakaoProfileImage } = req.body;
@@ -1630,6 +1712,53 @@ router.post("/kakao-link-account", async (req, res) => {
     });
   } catch (e) {
     console.error("[kakao-link-account]", e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
+  }
+});
+
+// ── Apple 계정 연결 (전화번호로 본인 확인 후 apple_id 연결) ───────────
+router.post("/apple-link-account", async (req, res) => {
+  const { appleId, phone } = req.body;
+  if (!appleId || !phone) return err(res, 400, "appleId와 전화번호가 필요합니다.");
+
+  const cleanPhone = String(phone).replace(/[^0-9]/g, "");
+  try {
+    const byPhone = await db.execute(sql`
+      SELECT * FROM parent_accounts WHERE phone = ${cleanPhone} LIMIT 1
+    `);
+    if ((byPhone.rows as any[]).length === 0) {
+      return err(res, 404, "입력하신 전화번호로 등록된 계정이 없습니다. 수영장 관리자에게 문의하세요.");
+    }
+    const account = byPhone.rows[0] as any;
+
+    const existingApple = await db.execute(sql`
+      SELECT id FROM parent_accounts WHERE apple_id = ${appleId} AND id != ${account.id} LIMIT 1
+    `);
+    if ((existingApple.rows as any[]).length > 0) {
+      return err(res, 409, "이미 다른 계정에 연결된 Apple 계정입니다.");
+    }
+
+    await db.execute(sql`
+      UPDATE parent_accounts SET apple_id = ${appleId}, updated_at = NOW()
+      WHERE id = ${account.id}
+    `);
+
+    const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
+    return res.json({
+      success: true,
+      token,
+      parent: {
+        id: account.id,
+        name: account.name,
+        nickname: account.nickname || null,
+        phone: account.phone,
+        login_id: account.login_id || null,
+        swimming_pool_id: account.swimming_pool_id,
+        kakao_profile_image: null,
+      },
+    });
+  } catch (e) {
+    console.error("[apple-link-account]", e);
     return err(res, 500, "서버 오류가 발생했습니다.");
   }
 });

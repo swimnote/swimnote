@@ -16,7 +16,8 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.swimnote.app",
-      "buildNumber": "54",
+      "buildNumber": "55",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "LSApplicationQueriesSchemes": [
@@ -35,7 +36,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.swimnote.app",
-      "versionCode": 82
+      "versionCode": 83
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -48,6 +49,7 @@
         }
       ],
       "expo-font",
+      "expo-apple-authentication",
       "expo-web-browser",
       [
         "expo-notifications",

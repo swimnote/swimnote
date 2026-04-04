@@ -19,12 +19,14 @@ const C = Colors.light;
 
 export default function KakaoLinkScreen() {
   const insets = useSafeAreaInsets();
-  const { kakaoId, kakaoProfileImage, kakaoName } = useLocalSearchParams<{
+  const { kakaoId, kakaoProfileImage, kakaoName, loginType } = useLocalSearchParams<{
     kakaoId: string;
     kakaoProfileImage?: string;
     kakaoName?: string;
+    loginType?: string;
   }>();
 
+  const isApple = loginType === "apple";
   const { setParentSession } = useAuth();
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
@@ -39,14 +41,14 @@ export default function KakaoLinkScreen() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/auth/kakao-link-account`, {
+      const endpoint = isApple ? "/auth/apple-link-account" : "/auth/kakao-link-account";
+      const body = isApple
+        ? { appleId: kakaoId, phone: cleanPhone }
+        : { kakaoId, phone: cleanPhone, kakaoProfileImage: kakaoProfileImage || null };
+      const res = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kakaoId,
-          phone: cleanPhone,
-          kakaoProfileImage: kakaoProfileImage || null,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -78,14 +80,15 @@ export default function KakaoLinkScreen() {
         </Pressable>
 
         <View style={styles.iconWrap}>
-          <View style={[styles.iconBg, { backgroundColor: "#FEE500" }]}>
-            <Link2 size={28} color="#3C1E1E" />
+          <View style={[styles.iconBg, { backgroundColor: isApple ? "#000" : "#FEE500" }]}>
+            <Link2 size={28} color={isApple ? "#fff" : "#3C1E1E"} />
           </View>
         </View>
 
         <Text style={[styles.title, { color: C.text }]}>계정 연결</Text>
         <Text style={[styles.desc, { color: C.textSecondary }]}>
-          {kakaoName ? `${kakaoName}님,` : ""} 카카오 계정과 수영장 계정을 연결합니다.{"\n"}
+          {kakaoName ? `${kakaoName}님, ` : ""}
+          {isApple ? "Apple 계정" : "카카오 계정"}과 수영장 계정을 연결합니다.{"\n"}
           수영장에 등록된 전화번호를 입력해주세요.
         </Text>
 
