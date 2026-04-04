@@ -222,12 +222,17 @@ export default function SuperMoreScreen() {
       ],
     },
     {
-      title: "⑧ 광고 관리",
+      title: "⑧ 광고·배너 관리",
       items: [
         {
-          icon: "image", label: "광고 관리",
-          sub: "광고 등록·수정·상태 관리 (노출 준비 중)",
+          icon: "layout", label: "카드 배너 관리",
+          sub: "학부모 홈 슬라이더 카드 배너 등록·수정",
           color: "orange", onPress: go("/(super)/ads"),
+        },
+        {
+          icon: "minus-square", label: "가로 배너 관리",
+          sub: "학부모 홈 상단 슬림 가로 배너 등록·수정",
+          color: "orange", onPress: go("/(super)/strip-banner"),
         },
       ],
     },

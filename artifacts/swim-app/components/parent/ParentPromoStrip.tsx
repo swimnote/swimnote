@@ -6,11 +6,18 @@
  * - 없으면 기본 스윔노트 안내 문구 표시
  */
 import React, { useEffect, useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { API_BASE } from "@/context/AuthContext";
 
-interface Banner { id: string; title: string; link_url?: string; color_theme: string; }
+interface Banner {
+  id: string;
+  title: string;
+  link_url?: string;
+  color_theme: string;
+  image_key?: string;
+  image_url?: string;
+}
 
 const THEME_MAP: Record<string, { bg: string; accent: string; text: string }> = {
   teal:   { bg: "#E6FAF8", accent: "#2EC4B6", text: "#065F46" },
@@ -38,7 +45,7 @@ export function ParentPromoStrip() {
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch(`${API_BASE}/platform/banners`);
+        const r = await fetch(`${API_BASE}/platform/banners?type=strip`);
         if (!r.ok) return;
         const data = await r.json();
         const first: Banner | undefined = data.banners?.[0];
@@ -51,8 +58,22 @@ export function ParentPromoStrip() {
 
   const src = banner ?? FALLBACK;
   const th = THEME_MAP[src.color_theme] ?? DEFAULT;
+  const imgUri = banner?.image_key
+    ? `${API_BASE}/uploads/${banner.image_key}`
+    : (banner?.image_url || "");
 
   if (!ready) return null;
+
+  if (imgUri) {
+    return (
+      <Pressable
+        style={s.stripImg}
+        onPress={() => { if (src.link_url) Linking.openURL(src.link_url).catch(() => {}); }}
+      >
+        <Image source={{ uri: imgUri }} style={s.imgFull} resizeMode="cover" />
+      </Pressable>
+    );
+  }
 
   return (
     <Pressable
@@ -84,6 +105,13 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     gap: 8,
   },
+  stripImg: {
+    marginHorizontal: 20,
+    borderRadius: 10,
+    height: 42,
+    overflow: "hidden",
+  },
+  imgFull: { width: "100%", height: 42 },
   iconWrap: {
     width: 26, height: 26, borderRadius: 13,
     alignItems: "center", justifyContent: "center",

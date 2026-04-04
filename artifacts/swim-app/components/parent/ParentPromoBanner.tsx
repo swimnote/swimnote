@@ -7,7 +7,7 @@
  */
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Dimensions, Linking, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Dimensions, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { API_BASE } from "@/context/AuthContext";
@@ -24,6 +24,14 @@ interface PlatformBanner {
   link_url?: string;
   link_label?: string;
   color_theme: string;
+  image_key?: string;
+  image_url?: string;
+}
+
+function bannerImageUrl(b: PlatformBanner): string {
+  if (b.image_key) return `${API_BASE}/uploads/${b.image_key}`;
+  if (b.image_url) return b.image_url;
+  return "";
 }
 
 const SWIM_TIPS = [
@@ -85,7 +93,7 @@ export function ParentPromoBanner({ }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch(`${API_BASE}/platform/banners`);
+        const r = await fetch(`${API_BASE}/platform/banners?type=slider`);
         if (!r.ok) return;
         const data = await r.json();
         if (!cancelled) setBanners(data.banners ?? []);
@@ -158,28 +166,35 @@ export function ParentPromoBanner({ }: Props) {
         {hasBanners
           ? banners.map(b => {
               const th = getTheme(b.color_theme);
+              const imgUri = bannerImageUrl(b);
               return (
                 <Pressable
                   key={b.id}
-                  style={({ pressed }) => [s.card, { backgroundColor: th.bg, opacity: pressed ? 0.88 : 1, width: CARD_W }]}
+                  style={({ pressed }) => [s.card, { backgroundColor: th.bg, opacity: pressed ? 0.88 : 1, width: CARD_W, overflow: "hidden" }]}
                   onPress={() => { if (b.link_url) Linking.openURL(b.link_url).catch(() => {}); }}
                 >
-                  <View style={[s.tag, { backgroundColor: th.tagColor + "22" }]}>
-                    <LucideIcon name="megaphone" size={11} color={th.tagColor} />
-                    <Text style={[s.tagTxt, { color: th.tagColor }]}>스윔노트</Text>
-                  </View>
-                  <Text style={[s.cardTitle, { color: th.titleColor }]} numberOfLines={2}>{b.title}</Text>
-                  {b.description ? (
-                    <Text style={s.cardDesc} numberOfLines={2}>{b.description}</Text>
-                  ) : null}
-                  {b.link_url ? (
-                    <View style={s.cardFooter}>
-                      <View style={[s.readMore, { backgroundColor: th.tagColor }]}>
-                        <Text style={s.readMoreTxt}>{b.link_label || "자세히 보기"}</Text>
-                        <LucideIcon name="chevron-right" size={10} color="#fff" />
+                  {imgUri ? (
+                    <Image source={{ uri: imgUri }} style={s.cardImgFull} resizeMode="cover" />
+                  ) : (
+                    <>
+                      <View style={[s.tag, { backgroundColor: th.tagColor + "22" }]}>
+                        <LucideIcon name="megaphone" size={11} color={th.tagColor} />
+                        <Text style={[s.tagTxt, { color: th.tagColor }]}>스윔노트</Text>
                       </View>
-                    </View>
-                  ) : null}
+                      <Text style={[s.cardTitle, { color: th.titleColor }]} numberOfLines={2}>{b.title}</Text>
+                      {b.description ? (
+                        <Text style={s.cardDesc} numberOfLines={2}>{b.description}</Text>
+                      ) : null}
+                      {b.link_url ? (
+                        <View style={s.cardFooter}>
+                          <View style={[s.readMore, { backgroundColor: th.tagColor }]}>
+                            <Text style={s.readMoreTxt}>{b.link_label || "자세히 보기"}</Text>
+                            <LucideIcon name="chevron-right" size={10} color="#fff" />
+                          </View>
+                        </View>
+                      ) : null}
+                    </>
+                  )}
                 </Pressable>
               );
             })
@@ -240,7 +255,8 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 2,
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
   },
-  readMoreTxt: { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  readMoreTxt:  { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  cardImgFull:  { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: CARD_H },
   dots: { flexDirection: "row", justifyContent: "center", gap: 6, marginTop: 10 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#DDD" },
   dotActive: { backgroundColor: "#2EC4B6", width: 18 },

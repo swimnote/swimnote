@@ -222,9 +222,11 @@ export async function initSuperDb(): Promise<void> {
     await db.execute(sql.raw(`
       CREATE TABLE IF NOT EXISTS platform_banners (
         id            text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        banner_type   text        NOT NULL DEFAULT 'slider',
         title         text        NOT NULL,
         description   text,
         image_url     text,
+        image_key     text,
         link_url      text,
         link_label    text,
         color_theme   text        NOT NULL DEFAULT 'teal',
@@ -238,8 +240,14 @@ export async function initSuperDb(): Promise<void> {
         updated_at    timestamptz NOT NULL DEFAULT now()
       )
     `));
+    // 컬럼 추가 (기존 테이블에 누락된 컬럼 보완)
+    await db.execute(sql.raw(`ALTER TABLE platform_banners ADD COLUMN IF NOT EXISTS banner_type text NOT NULL DEFAULT 'slider'`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE platform_banners ADD COLUMN IF NOT EXISTS image_key text`)).catch(() => {});
     await db.execute(sql.raw(`
       CREATE INDEX IF NOT EXISTS platform_banners_status_idx ON platform_banners (status, display_start, display_end);
+    `)).catch(() => {});
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS platform_banners_type_idx ON platform_banners (banner_type, status);
     `)).catch(() => {});
     console.log("[super-db-init] platform_banners 테이블 준비 완료");
   } catch (e: any) {

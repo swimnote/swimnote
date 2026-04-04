@@ -2,9 +2,11 @@ import { pgTable, text, timestamp, integer } from "drizzle-orm/pg-core";
 
 export const platformBannersTable = pgTable("platform_banners", {
   id:           text("id").primaryKey(),
+  banner_type:  text("banner_type").notNull().default("slider"),
   title:        text("title").notNull(),
   description:  text("description"),
   image_url:    text("image_url"),
+  image_key:    text("image_key"),
   link_url:     text("link_url"),
   link_label:   text("link_label"),
   color_theme:  text("color_theme").notNull().default("teal"),

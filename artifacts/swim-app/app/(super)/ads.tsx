@@ -3,12 +3,15 @@
  * 슈퍼관리자 전용. 학부모 화면에는 광고 슬롯 노출하지 않음.
  * 등록/수정/상태 변경/삭제. 상태: scheduled | active | inactive
  */
-import { Calendar, Image, Plus, X } from "lucide-react-native";
+import { Calendar, Camera, Image, Plus, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useMemo, useState } from "react";
+import * as ImagePicker from "expo-image-picker";
 import {
-  Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Alert, Image as RNImage, Modal, Pressable,
+  ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
+import { API_BASE } from "@/context/AuthContext";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useAdsStore, type Ad, type AdStatus } from "@/store/adsStore";
@@ -30,6 +33,22 @@ const TARGET_LABELS: Record<string, string> = {
 
 type Filter = "all" | AdStatus;
 
+function imageUrl(key: string) {
+  if (!key) return "";
+  if (key.startsWith("http")) return key;
+  return `${API_BASE}/uploads/${key}`;
+}
+
+const THEMES = ["teal","purple","orange","blue","green","red","pink"] as const;
+const THEME_COLORS: Record<string, string> = {
+  teal: "#2EC4B6", purple: "#7C3AED", orange: "#F97316",
+  blue: "#2563EB", green: "#059669", red: "#DC2626", pink: "#DB2777",
+};
+const THEME_BG: Record<string, string> = {
+  teal: "#E6FAF8", purple: "#EDE9FE", orange: "#FFF7ED",
+  blue: "#DBEAFE", green: "#D1FAE5", red: "#FEE2E2", pink: "#FCE7F3",
+};
+
 function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
   ad: Ad;
   onEdit: (ad: Ad) => void;
@@ -37,6 +56,7 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
   onDelete: (id: string) => void;
 }) {
   const cfg = STATUS_CFG[ad.status];
+  const img = ad.imageKey ? imageUrl(ad.imageKey) : (ad.imageUrl || "");
   return (
     <View style={ac.card}>
       <View style={ac.top}>
@@ -50,6 +70,7 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
           <Text style={[ac.badgeTxt, { color: cfg.color }]}>{cfg.label}</Text>
         </View>
       </View>
+      {img ? <RNImage source={{ uri: img }} style={ac.cardImg} resizeMode="cover" /> : null}
       {ad.description ? <Text style={ac.desc} numberOfLines={2}>{ad.description}</Text> : null}
       <View style={ac.dateRow}>
         <Calendar size={11} color="#64748B" />
@@ -93,19 +114,22 @@ const ac = StyleSheet.create({
   actions:    { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   btn:        { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   btnTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  cardImg:    { width: "100%", height: 120, borderRadius: 8, marginBottom: 8 },
 });
 
 interface FormState {
-  title: string; description: string; linkUrl: string;
+  title: string; description: string; linkUrl: string; linkLabel: string;
   displayStart: string; displayEnd: string;
   status: AdStatus; target: Ad["target"];
+  imageUri: string; imageKey: string; imageUrl: string; colorTheme: string;
 }
 
 const BLANK_FORM: FormState = {
-  title: "", description: "", linkUrl: "",
+  title: "", description: "", linkUrl: "", linkLabel: "",
   displayStart: new Date().toISOString().slice(0, 10),
   displayEnd: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
   status: "scheduled", target: "all",
+  imageUri: "", imageKey: "", imageUrl: "", colorTheme: "teal",
 };
 
 export default function AdsScreen() {
@@ -115,18 +139,21 @@ export default function AdsScreen() {
   const ads          = useAdsStore(s => s.ads);
   const loading      = useAdsStore(s => s.loading);
   const fetchBanners = useAdsStore(s => s.fetchBanners);
+  const uploadImage  = useAdsStore(s => s.uploadImage);
   const createAd     = useAdsStore(s => s.createAd);
   const updateAd     = useAdsStore(s => s.updateAd);
   const setStatus    = useAdsStore(s => s.setStatus);
   const deleteAd     = useAdsStore(s => s.deleteAd);
 
-  useEffect(() => { if (token) fetchBanners(token); }, [token]);
+  useEffect(() => { if (token) fetchBanners(token, "slider"); }, [token]);
 
   const [filter, setFilter] = useState<Filter>("all");
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(BLANK_FORM);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const filtered = useMemo(() => {
     if (filter === "all") return ads;
@@ -142,24 +169,63 @@ export default function AdsScreen() {
   function openEdit(ad: Ad) {
     setEditId(ad.id);
     setForm({
-      title: ad.title, description: ad.description, linkUrl: ad.linkUrl,
+      title: ad.title, description: ad.description,
+      linkUrl: ad.linkUrl, linkLabel: ad.linkLabel,
       displayStart: ad.displayStart.slice(0, 10),
       displayEnd: ad.displayEnd.slice(0, 10),
-      status: ad.status, target: ad.target,
+      status: ad.status, target: ad.target, colorTheme: ad.colorTheme,
+      imageUri: "", imageKey: ad.imageKey, imageUrl: ad.imageUrl,
     });
     setShowModal(true);
   }
 
+  async function handlePickImage() {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { Alert.alert("권한 필요", "사진 라이브러리 접근 권한이 필요합니다."); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      const asset = result.assets[0];
+      setForm(f => ({ ...f, imageUri: asset.uri, imageKey: "", imageUrl: "" }));
+    }
+  }
+
   async function handleSave() {
     if (!form.title.trim() || !token) return;
-    const startIso = new Date(form.displayStart).toISOString();
-    const endIso   = new Date(form.displayEnd).toISOString();
-    if (editId) {
-      await updateAd(token, editId, { ...form, displayStart: startIso, displayEnd: endIso });
-    } else {
-      await createAd(token, { ...form, displayStart: startIso, displayEnd: endIso });
+    setSaving(true);
+    try {
+      let finalKey = form.imageKey;
+      let finalUrl = form.imageUrl;
+      if (form.imageUri) {
+        setUploading(true);
+        const up = await uploadImage(token, form.imageUri, `slider_${Date.now()}.jpg`, "image/jpeg");
+        setUploading(false);
+        if (up) { finalKey = up.key; finalUrl = up.url; }
+      }
+      const startIso = new Date(form.displayStart).toISOString();
+      const endIso   = new Date(form.displayEnd).toISOString();
+      const params = {
+        bannerType: "slider" as const,
+        title: form.title, description: form.description,
+        linkUrl: form.linkUrl, linkLabel: form.linkLabel,
+        colorTheme: form.colorTheme, target: form.target, status: form.status,
+        displayStart: startIso, displayEnd: endIso,
+        imageKey: finalKey, imageUrl: finalUrl,
+      };
+      if (editId) {
+        await updateAd(token, editId, params);
+      } else {
+        await createAd(token, params);
+      }
+      setShowModal(false);
+    } finally {
+      setSaving(false);
+      setUploading(false);
     }
-    setShowModal(false);
   }
 
   async function handleDelete(id: string) {
@@ -246,18 +312,53 @@ export default function AdsScreen() {
                 <X size={20} color="#64748B" />
               </Pressable>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {/* 이미지 업로드 */}
+              <Text style={m.label}>배너 이미지 (선택)</Text>
+              {(() => {
+                const preview = form.imageUri || (form.imageKey ? imageUrl(form.imageKey) : form.imageUrl);
+                return (
+                  <>
+                    {preview ? (
+                      <RNImage source={{ uri: preview }} style={m.imgPreview} resizeMode="cover" />
+                    ) : null}
+                    <Pressable style={m.imgBtn} onPress={handlePickImage}>
+                      <Camera size={15} color="#7C3AED" />
+                      <Text style={m.imgBtnTxt}>{preview ? "이미지 변경" : "이미지 선택"}</Text>
+                    </Pressable>
+                    {preview ? (
+                      <Pressable onPress={() => setForm(f => ({ ...f, imageUri: "", imageKey: "", imageUrl: "" }))} style={m.removeImg}>
+                        <X size={11} color="#DC2626" />
+                        <Text style={m.removeImgTxt}>이미지 제거</Text>
+                      </Pressable>
+                    ) : null}
+                  </>
+                );
+              })()}
+
               <Text style={m.label}>제목 *</Text>
-              <TextInput style={m.input} value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))} placeholder="광고 제목" />
+              <TextInput style={m.input} value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))} placeholder="카드 배너 제목" />
               <Text style={m.label}>설명</Text>
               <TextInput style={[m.input, { height: 80, textAlignVertical: "top" }]} value={form.description}
-                onChangeText={v => setForm(f => ({ ...f, description: v }))} placeholder="광고 내용 설명" multiline />
+                onChangeText={v => setForm(f => ({ ...f, description: v }))} placeholder="카드 배너 내용 설명" multiline />
               <Text style={m.label}>링크 URL</Text>
               <TextInput style={m.input} value={form.linkUrl} onChangeText={v => setForm(f => ({ ...f, linkUrl: v }))} placeholder="https://..." />
+              <Text style={m.label}>링크 라벨</Text>
+              <TextInput style={m.input} value={form.linkLabel} onChangeText={v => setForm(f => ({ ...f, linkLabel: v }))} placeholder="자세히 보기" />
               <Text style={m.label}>노출 시작일 (YYYY-MM-DD)</Text>
               <TextInput style={m.input} value={form.displayStart} onChangeText={v => setForm(f => ({ ...f, displayStart: v }))} placeholder="2024-01-01" />
               <Text style={m.label}>노출 종료일 (YYYY-MM-DD)</Text>
               <TextInput style={m.input} value={form.displayEnd} onChangeText={v => setForm(f => ({ ...f, displayEnd: v }))} placeholder="2024-12-31" />
+              <Text style={m.label}>색상 테마</Text>
+              <View style={m.segRow}>
+                {THEMES.map(th => (
+                  <Pressable key={th} onPress={() => setForm(f => ({ ...f, colorTheme: th }))}
+                    style={[m.colorChip, { backgroundColor: THEME_BG[th], borderWidth: form.colorTheme === th ? 2 : 0, borderColor: THEME_COLORS[th] }]}>
+                    <View style={[m.colorDot, { backgroundColor: THEME_COLORS[th] }]} />
+                    <Text style={[m.colorLabel, { color: THEME_COLORS[th] }]}>{th}</Text>
+                  </Pressable>
+                ))}
+              </View>
               <Text style={m.label}>대상</Text>
               <View style={m.segRow}>
                 {(["all","parent","teacher","admin"] as const).map(t => (
@@ -274,16 +375,19 @@ export default function AdsScreen() {
                   </Pressable>
                 ))}
               </View>
+              <View style={m.footer}>
+                <Pressable style={m.cancelBtn} onPress={() => setShowModal(false)}>
+                  <Text style={m.cancelTxt}>취소</Text>
+                </Pressable>
+                <Pressable style={[m.saveBtn, (saving || !form.title.trim()) && { opacity: 0.4 }]}
+                  onPress={handleSave} disabled={saving || !form.title.trim()}>
+                  {saving || uploading
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={m.saveTxt}>{editId ? "저장" : "등록"}</Text>
+                  }
+                </Pressable>
+              </View>
             </ScrollView>
-            <View style={m.footer}>
-              <Pressable style={m.cancelBtn} onPress={() => setShowModal(false)}>
-                <Text style={m.cancelTxt}>취소</Text>
-              </Pressable>
-              <Pressable style={[m.saveBtn, !form.title.trim() && { opacity: 0.4 }]}
-                onPress={handleSave} disabled={!form.title.trim()}>
-                <Text style={m.saveTxt}>{editId ? "저장" : "등록"}</Text>
-              </Pressable>
-            </View>
           </View>
         </View>
       </Modal>
@@ -341,9 +445,18 @@ const m = StyleSheet.create({
   segActive:  { backgroundColor: P },
   segTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   segActiveTxt: { color: "#fff" },
-  footer:     { flexDirection: "row", gap: 8, marginTop: 20 },
-  cancelBtn:  { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center" },
-  cancelTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  saveBtn:    { flex: 2, padding: 13, borderRadius: 10, backgroundColor: P, alignItems: "center" },
-  saveTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
+  footer:       { flexDirection: "row", gap: 8, marginTop: 20, marginBottom: 12 },
+  cancelBtn:    { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center" },
+  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  saveBtn:      { flex: 2, padding: 13, borderRadius: 10, backgroundColor: P, alignItems: "center" },
+  saveTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
+  imgPreview:   { width: "100%", height: 120, borderRadius: 10, marginBottom: 8 },
+  imgBtn:       { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderColor: P, borderRadius: 10,
+                  padding: 10, marginBottom: 4, borderStyle: "dashed" },
+  imgBtnTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: P },
+  removeImg:    { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6 },
+  removeImgTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#DC2626" },
+  colorChip:    { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  colorDot:     { width: 10, height: 10, borderRadius: 5 },
+  colorLabel:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });
