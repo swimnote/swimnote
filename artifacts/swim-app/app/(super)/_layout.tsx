@@ -121,6 +121,7 @@ export default function SuperLayout() {
       <Tabs.Screen name="billing-analytics"        options={{ href: null }} />
       <Tabs.Screen name="system-status"            options={{ href: null }} />
       <Tabs.Screen name="ads"                      options={{ href: null }} />
+      <Tabs.Screen name="strip-banner"             options={{ href: null }} />
       <Tabs.Screen name="notices"                  options={{ href: null }} />
       <Tabs.Screen name="pool-notices"             options={{ href: null }} />
       <Tabs.Screen name="db-status"                options={{ href: null }} />
