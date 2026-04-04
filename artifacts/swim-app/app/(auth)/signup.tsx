@@ -8,6 +8,7 @@
 import { ArrowLeft, Check, CircleAlert, CircleCheck, CircleX, Hash, MapPin, Search, Smartphone, Terminal } from "lucide-react-native";
 import { toAsciiOnly } from "@/utils/koreanToQwerty";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -279,6 +280,10 @@ export default function SignupScreen() {
         if (!res.ok) {
           setError(data.error || data.message || "가입에 실패했습니다.");
           return;
+        }
+        // 자녀 이름을 호칭 화면에서 자동 불러오기 위해 임시 저장
+        if (childName.trim()) {
+          await AsyncStorage.setItem("@swimnote:pending_child_name", childName.trim()).catch(() => {});
         }
         if (data.token) {
           await setParentSession(data.token, data.parent);

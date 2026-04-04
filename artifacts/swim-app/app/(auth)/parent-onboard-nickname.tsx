@@ -1,6 +1,7 @@
 import { ArrowRight, Check } from "lucide-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
   StyleSheet, Text, TextInput, View,
@@ -21,6 +22,16 @@ export default function ParentOnboardNicknameScreen() {
   const [customSuffix, setCustomSuffix] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // 가입 시 입력한 자녀 이름 자동 불러오기
+  useEffect(() => {
+    AsyncStorage.getItem("@swimnote:pending_child_name").then(saved => {
+      if (saved) {
+        setPrefix(saved);
+        AsyncStorage.removeItem("@swimnote:pending_child_name").catch(() => {});
+      }
+    }).catch(() => {});
+  }, []);
 
   const finalNickname = `${prefix.trim()} ${(suffix === "직접입력" ? customSuffix : suffix).trim()}`.trim();
 
