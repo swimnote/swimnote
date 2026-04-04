@@ -189,7 +189,21 @@ router.post("/register", async (req, res) => {
       const { password_hash: _, ...safeUser } = user;
       res.status(201).json({ success: true, token, user: { ...safeUser, roles: [user.role] } });
     }
-  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+  } catch (e: any) {
+    console.error("[register] 오류:", e?.message, e);
+    // DB 제약 조건별 명확한 메시지 반환
+    const msg = e?.message || "";
+    const cause = e?.cause?.message || e?.cause?.detail || "";
+    if (msg.includes("unique") || cause.includes("unique") || e?.code === "23505" || e?.cause?.code === "23505") {
+      if (msg.includes("email") || cause.includes("email")) return err(res, 400, "이미 사용 중인 이메일입니다.");
+      if (msg.includes("name_en") || cause.includes("name_en")) return err(res, 400, "수영장 영문명이 이미 사용 중입니다. 수영장 이름을 변경해주세요.");
+      return err(res, 400, "이미 사용 중인 정보가 있습니다. 이메일을 확인해주세요.");
+    }
+    if (msg.includes("not-null") || cause.includes("not-null") || e?.code === "23502" || e?.cause?.code === "23502") {
+      return err(res, 400, "필수 정보가 누락되었습니다.");
+    }
+    return err(res, 500, "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+  }
 });
 
 // ── 슈퍼매니저 계정 생성 (super_admin 전용) ───────────────────────────
