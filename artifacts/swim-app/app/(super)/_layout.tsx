@@ -7,8 +7,10 @@
 import { Activity, Briefcase, HeadphonesIcon, MoreHorizontal, Shield } from "lucide-react-native";
 import { Tabs, router } from "expo-router";
 import React, { useEffect } from "react";
+import { Platform } from "react-native";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const C = Colors.light;
 const ACTIVE = "#7C3AED";
@@ -24,6 +26,7 @@ const ROLE_HOME_MAP: Record<string, string> = {
 
 export default function SuperLayout() {
   const { kind, isLoading, adminUser } = useAuth();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (isLoading || !kind) return;
@@ -52,8 +55,8 @@ export default function SuperLayout() {
           backgroundColor: "#fff",
           borderTopWidth: 1,
           borderTopColor: C.border,
-          height: 72,
-          paddingBottom: 12,
+          height: Platform.OS === "android" ? 60 + insets.bottom : 72,
+          paddingBottom: Platform.OS === "android" ? Math.max(insets.bottom, 8) : 12,
           paddingTop: 8,
         },
         tabBarLabelStyle: { fontSize: 10, fontFamily: "Pretendard-Regular", marginTop: 2 },
