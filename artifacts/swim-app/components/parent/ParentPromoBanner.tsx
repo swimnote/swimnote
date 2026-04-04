@@ -146,8 +146,8 @@ export function ParentPromoBanner({ }: Props) {
     <View style={s.wrap}>
       <View style={s.headerRow}>
         <View style={s.titleRow}>
-          <LucideIcon name={hasBanners ? "megaphone" : "lightbulb"} size={14} color={hasBanners ? "#F97316" : "#2EC4B6"} />
-          <Text style={s.sectionTitle}>{hasBanners ? "스윔노트 이벤트" : "오늘의 수영 팁"}</Text>
+          <LucideIcon name={hasBanners ? "sparkles" : "lightbulb"} size={14} color={hasBanners ? "#F97316" : "#2EC4B6"} />
+          <Text style={s.sectionTitle}>{hasBanners ? "오늘의 추천" : "수영 꿀팁"}</Text>
         </View>
       </View>
 
