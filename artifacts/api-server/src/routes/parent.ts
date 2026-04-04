@@ -518,8 +518,10 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
 
     // 공통 일지 조회 (삭제된 것 제외)
     const diaryRows = await db.execute(sql`
-      SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at
+      SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at,
+             cg.name AS class_group_name
       FROM class_diaries cd
+      LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
       WHERE cd.class_group_id = ${student.class_group_id}
         AND cd.is_deleted = false
         ${month ? sql`AND cd.lesson_date LIKE ${month + "%"}` : sql``}
@@ -540,6 +542,7 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
         lesson_date: diary.lesson_date,
         common_content: diary.common_content,
         teacher_name: diary.teacher_name,
+        class_group_name: diary.class_group_name || null,
         is_edited: diary.is_edited,
         created_at: diary.created_at,
         student_note: (noteRows.rows[0] as any) || null,

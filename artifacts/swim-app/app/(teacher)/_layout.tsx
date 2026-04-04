@@ -93,11 +93,11 @@ export default function TeacherLayout() {
         tabBarInactiveTintColor: C.text,
         headerShown: false,
         tabBarStyle: {
-          height: Platform.OS === "android" ? 60 + insets.bottom : 72,
+          height: Platform.OS === "android" ? 60 + Math.max(insets.bottom, 24) : 72,
           backgroundColor: "transparent",
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: "#E2E8F0",
-          paddingBottom: Platform.OS === "android" ? Math.max(insets.bottom, 8) : 12,
+          paddingBottom: Platform.OS === "android" ? Math.max(insets.bottom + 8, 24) : 12,
           paddingTop: 8,
         },
         tabBarLabelStyle: { fontFamily: "Pretendard-Regular", fontSize: 10, marginTop: 2 },

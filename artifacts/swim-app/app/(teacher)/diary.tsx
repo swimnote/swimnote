@@ -230,10 +230,14 @@ export default function TeacherDiaryScreen() {
       form.append("class_id", selectedGroup.id); form.append("caption", caption);
       const endpoint = kind === "video" ? "/videos/group" : "/photos/group";
       const res = await fetch(`${API_BASE}${endpoint}`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
-      if (!res.ok) throw new Error("업로드 실패");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({})) as any;
+        throw new Error(errData?.error || `업로드 실패 (${res.status})`);
+      }
       setGroupMedia(prev => prev.map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, uploaded: true } : m));
-    } catch {
-      setGroupMedia(prev => prev.map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, error: "실패" } : m));
+    } catch (e) {
+      console.error("[uploadGroupMedia] error:", e);
+      setGroupMedia(prev => prev.map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m));
     } finally { setMediaUploading(null); }
   }
 
@@ -257,10 +261,14 @@ export default function TeacherDiaryScreen() {
       form.append("student_id", student.id); form.append("caption", `${student.name} 개별 일지`);
       const endpoint = kind === "video" ? "/videos/private" : "/photos/private";
       const res = await fetch(`${API_BASE}${endpoint}`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
-      if (!res.ok) throw new Error("업로드 실패");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({})) as any;
+        throw new Error(errData?.error || `업로드 실패 (${res.status})`);
+      }
       setStudentMedia(prev => ({ ...prev, [student.id]: (prev[student.id] || []).map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, uploaded: true } : m) }));
-    } catch {
-      setStudentMedia(prev => ({ ...prev, [student.id]: (prev[student.id] || []).map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, error: "실패" } : m) }));
+    } catch (e) {
+      console.error("[uploadStudentMedia] error:", e);
+      setStudentMedia(prev => ({ ...prev, [student.id]: (prev[student.id] || []).map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m) }));
     } finally { setMediaUploading(null); }
   }
 

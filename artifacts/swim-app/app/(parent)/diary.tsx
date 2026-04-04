@@ -23,7 +23,8 @@ const C = Colors.light;
 interface StudentNote { id: string; note_content: string; is_edited: boolean; }
 interface DiaryEntry {
   id: string; lesson_date: string; common_content: string;
-  teacher_name: string; is_edited: boolean; created_at: string;
+  teacher_name: string; class_group_name?: string | null;
+  is_edited: boolean; created_at: string;
   student_note?: StudentNote | null;
   reactions?: string[];
 }
@@ -103,6 +104,11 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
         <View style={ds.cardMeta}>
           <View style={ds.metaRow}>
             <Text style={[ds.teacher, { color: C.text }]}>{entry.teacher_name} 선생님</Text>
+            {entry.class_group_name && (
+              <View style={[ds.badge, { backgroundColor: "#E6FFFA" }]}>
+                <Text style={[ds.badgeTxt, { color: "#2EC4B6" }]}>{entry.class_group_name}</Text>
+              </View>
+            )}
             {entry.student_note && (
               <View style={[ds.badge, { backgroundColor: "#EEDDF5" }]}>
                 <User size={9} color="#7C3AED" />
