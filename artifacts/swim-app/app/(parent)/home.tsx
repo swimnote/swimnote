@@ -36,6 +36,7 @@ import { ParentRecentPhotosCard } from "@/components/parent/ParentRecentPhotosCa
 import { ParentNoticeCard } from "@/components/parent/ParentNoticeCard";
 import { ParentGrowthCard } from "@/components/parent/ParentGrowthCard";
 import { ParentAttendanceCard } from "@/components/parent/ParentAttendanceCard";
+import { ParentPromoBanner } from "@/components/parent/ParentPromoBanner";
 
 const C = Colors.light;
 
@@ -502,6 +503,12 @@ export default function ParentHomeScreen() {
 
         {/* ─── D. 빠른 바로가기 ─── */}
         <ParentQuickActionGrid actions={quickActions} />
+
+        {/* ─── D2. 이벤트/프로모션 배너 ─── */}
+        <ParentPromoBanner
+          notices={summary.latest_notices}
+          onPressNotice={() => router.push("/(parent)/notices?backTo=home" as any)}
+        />
 
         {/* ─── E. 오늘 확인할 것 ─── */}
         <ParentTodoCard items={todoItems} />
