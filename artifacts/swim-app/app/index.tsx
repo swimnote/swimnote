@@ -175,7 +175,6 @@ export default function LoginScreen() {
               </View>
             </View>
           </View>
-          <Text style={s.wordmark}>SwimNote</Text>
           <Text style={s.tagline}>어린이 수영레슨 올인원 플랫폼</Text>
           <Text style={s.taglineSub}>수영장 · 선생님 · 학부모가 하나로</Text>
         </View>
