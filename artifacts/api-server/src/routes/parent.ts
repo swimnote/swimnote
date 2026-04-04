@@ -1292,12 +1292,14 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
       UPDATE parent_accounts SET swimming_pool_id = ${swimming_pool_id}, updated_at = NOW()
       WHERE id = ${parentId}
     `);
-    // parent_students 링크 upsert
+    // parent_students 링크 — 기존 레코드 삭제 후 approved 상태로 재생성
     const linkId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     await db.execute(sql`
-      INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
-      VALUES (${linkId}, ${parentId}, ${student.id}, ${swimming_pool_id}, 'approved', NOW())
-      ON CONFLICT DO NOTHING
+      DELETE FROM parent_students WHERE parent_id = ${parentId} AND student_id = ${student.id}
+    `);
+    await db.execute(sql`
+      INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at, created_at)
+      VALUES (${linkId}, ${parentId}, ${student.id}, ${swimming_pool_id}, 'approved', NOW(), NOW())
     `);
 
     res.json({ success: true, status: "linked", message: "자녀가 연결되었습니다.", student: { id: student.id, name: student.name } });
