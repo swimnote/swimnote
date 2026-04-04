@@ -28,7 +28,7 @@ const DEFAULT_LOGIN_MODE_KEY = "@swimnote:default_login_mode";
 type MenuItem = { label: string; icon: string; color: string; bg: string; route: string; desc?: string };
 
 const CLASS_SETTINGS: MenuItem[] = [
-  { label: "레벨 / 테스트 설정", icon: "award",         color: "#CA8A04", bg: NB, route: "/(admin)/level-settings",             desc: "수영 레벨 기준 및 테스트 관리" },
+  { label: "수영레벨/테스트기준설정", icon: "award",      color: "#CA8A04", bg: NB, route: "/(admin)/level-settings",             desc: "수영 레벨 기준 및 테스트 관리" },
   { label: "피드백 기본설정",    icon: "message-circle", color: "#7C3AED", bg: NB, route: "/(admin)/feedback-settings",          desc: "수업 일지 피드백 기본값" },
   { label: "권한 설정",          icon: "shield",         color: "#1D4ED8", bg: NB, route: "/(admin)/admin-grant",                desc: "관리자 / 선생님 권한" },
   { label: "보강 정책",          icon: "refresh-cw",     color: "#EA580C", bg: NB, route: "/(admin)/makeup-policy",             desc: "보강 가능 기간 및 규칙" },
