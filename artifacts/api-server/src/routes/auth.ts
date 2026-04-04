@@ -730,12 +730,11 @@ router.post("/unified-login", async (req, res) => {
     }
 
     // ── 2) parent_accounts 테이블 (login_id → phone) ──────────────
-    const parentByLoginId = await db.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${id} LIMIT 1`);
+    const parentByLoginId = await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${id} LIMIT 1`);
     let parentRow: any = parentByLoginId.rows[0] ?? null;
     if (!parentRow) {
-      const [byPhone] = await db.select().from(parentAccountsTable)
-        .where(eq(parentAccountsTable.phone, id)).limit(1);
-      parentRow = byPhone ?? null;
+      const byPhoneRaw = await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE phone = ${id} LIMIT 1`);
+      parentRow = byPhoneRaw.rows[0] ?? null;
     }
 
     if (parentRow) {
