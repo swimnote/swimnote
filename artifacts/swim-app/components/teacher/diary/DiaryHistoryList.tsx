@@ -1,4 +1,4 @@
-import { BookOpen, CircleAlert, PenLine, Trash2, User } from "lucide-react-native";
+import { BookOpen, CircleAlert, Clock, PenLine, Trash2, User } from "lucide-react-native";
 import React from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
@@ -6,6 +6,23 @@ import {
 } from "react-native";
 import Colors from "@/constants/colors";
 import { DiaryEntry } from "./types";
+
+const DAY_KO: Record<string, string> = {
+  Mon: "월", Tue: "화", Wed: "수", Thu: "목", Fri: "금", Sat: "토", Sun: "일",
+  월: "월", 화: "화", 수: "수", 목: "목", 금: "금", 토: "토", 일: "일",
+};
+
+function formatLessonDate(dateStr: string): string {
+  if (!dateStr || !dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return dateStr;
+  const d = new Date(dateStr + "T00:00:00");
+  const dow = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${dow})`;
+}
+
+function formatScheduleDays(days: string): string {
+  if (!days) return "";
+  return days.split(/[\s,]+/).map(d => DAY_KO[d] || d).filter(Boolean).join("·");
+}
 
 const C = Colors.light;
 
@@ -72,8 +89,16 @@ export default function DiaryHistoryList({
                   )}
                 </View>
                 <View style={s.diaryCardHeader}>
-                  <View>
-                    <Text style={[s.diaryCardDate, { color: C.text }]}>{item.lesson_date}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.diaryCardDate, { color: C.text }]}>{formatLessonDate(item.lesson_date)}</Text>
+                    {(item.schedule_days || item.schedule_time) && (
+                      <View style={s.scheduleRow}>
+                        <Clock size={11} color={C.textMuted} />
+                        <Text style={[s.scheduleText, { color: C.textMuted }]}>
+                          {[item.schedule_days ? formatScheduleDays(item.schedule_days) : null, item.schedule_time].filter(Boolean).join(" · ")}
+                        </Text>
+                      </View>
+                    )}
                     <Text style={[s.diaryTeacher, { color: C.textMuted }]}>{item.teacher_name} 선생님</Text>
                   </View>
                   {isMine && (
@@ -136,7 +161,9 @@ const s = StyleSheet.create({
   statusBadgeText: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   diaryCardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   diaryCardDate: { fontSize: 15, fontFamily: "Pretendard-Regular" },
-  diaryTeacher:  { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
+  scheduleRow:   { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 },
+  scheduleText:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  diaryTeacher:  { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 4 },
   diaryContent:  { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   iconBtn:       { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   emptyBox:      { alignItems: "center", paddingTop: 60, gap: 10 },

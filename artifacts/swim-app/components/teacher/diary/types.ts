@@ -16,7 +16,8 @@ export interface DiaryEntry {
   id: string; class_group_id: string; lesson_date: string;
   common_content: string; teacher_name: string; teacher_id?: string;
   is_edited: boolean; is_deleted: boolean;
-  note_count?: number; class_name?: string; schedule_time?: string;
+  note_count?: number; class_name?: string;
+  schedule_time?: string; schedule_days?: string;
   student_notes?: ExistingNote[];
 }
 export interface AuditLog {
