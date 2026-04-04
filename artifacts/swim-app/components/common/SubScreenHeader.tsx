@@ -79,15 +79,19 @@ export function SubScreenHeader({
     }
     // backTo 파라미터가 있으면 해당 화면으로 명시적 이동 (Tabs 내비게이터 back 오동작 방지)
     if (params.backTo) {
-      const isTeacher = kind === "admin" && adminUser?.role === "teacher";
-      if (isTeacher) {
-        router.navigate(("/(teacher)/" + params.backTo) as any);
+      const role = adminUser?.role ?? "";
+      const isSuper   = SUPER_ROLES.has(role);
+      const isTeacher = !isSuper && kind === "admin" && role === "teacher";
+      if (isSuper) {
+        router.replace(("/(super)/" + params.backTo) as any);
+      } else if (isTeacher) {
+        router.replace(("/(teacher)/" + params.backTo) as any);
       } else if (kind === "admin") {
-        router.navigate(("/(admin)/" + params.backTo) as any);
+        router.replace(("/(admin)/" + params.backTo) as any);
       } else if (kind === "parent") {
-        router.navigate(("/(parent)/" + params.backTo) as any);
+        router.replace(("/(parent)/" + params.backTo) as any);
       } else {
-        router.navigate(("/(super)/" + params.backTo) as any);
+        router.replace(("/(super)/" + params.backTo) as any);
       }
       return;
     }
