@@ -1,87 +1,103 @@
 /**
- * ParentPromoBanner — 학부모 홈 프로모션/이벤트 배너 슬라이더
+ * ParentPromoBanner — 학부모 홈 프로모션 배너 슬라이더
  *
- * - 수영장 공지가 있으면 이벤트 카드로 표시
- * - 없으면 기본 수영 팁 카드로 채움
+ * - /platform/banners API에서 활성 배너를 가져옴
+ * - 배너가 없으면 기본 수영 팁 카드로 채움
  * - 자동 스크롤 + 인디케이터 도트
  */
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Dimensions, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Dimensions, Linking, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
-import { router } from "expo-router";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { API_BASE } from "@/context/AuthContext";
 
 const { width: SW } = Dimensions.get("window");
 const CARD_W = SW - 48;
 const CARD_H = 130;
-const AUTO_SCROLL_MS = 4000;
+const AUTO_SCROLL_MS = 4200;
 
-interface Notice {
+interface PlatformBanner {
   id: string;
   title: string;
-  content?: string;
-  created_at?: string;
-}
-
-interface Props {
-  notices?: Notice[];
-  onPressNotice?: (id: string) => void;
+  description?: string;
+  link_url?: string;
+  link_label?: string;
+  color_theme: string;
 }
 
 const SWIM_TIPS = [
   {
-    id: "tip1",
-    tag: "수영 팁",
+    id: "tip1", tag: "수영 팁",
     title: "호흡 리듬이 실력을 결정해요",
     desc: "3번 스트로크에 1번 호흡하는 패턴을 꾸준히 연습해보세요.",
     bg: "#EDE9FE", tagColor: "#7C3AED", titleColor: "#4C1D95", icon: "wind",
   },
   {
-    id: "tip2",
-    tag: "성장 포인트",
+    id: "tip2", tag: "성장 포인트",
     title: "킥은 무릎이 아닌 고관절에서",
     desc: "킥은 무릎을 굽히지 않고 고관절에서 시작해야 효율이 높아집니다.",
     bg: "#DBEAFE", tagColor: "#2563EB", titleColor: "#1E40AF", icon: "zap",
   },
   {
-    id: "tip3",
-    tag: "건강 정보",
+    id: "tip3", tag: "건강 정보",
     title: "수영 후 스트레칭 5분의 기적",
     desc: "수영 후 어깨·허리 스트레칭으로 근육 회복과 유연성을 높여보세요.",
     bg: "#D1FAE5", tagColor: "#059669", titleColor: "#065F46", icon: "heart",
   },
   {
-    id: "tip4",
-    tag: "출결 관리",
+    id: "tip4", tag: "출결 관리",
     title: "꾸준함이 실력의 90%",
     desc: "주 3회 이상 꾸준한 출석이 실력 향상의 가장 빠른 지름길입니다.",
     bg: "#FEF9C3", tagColor: "#D97706", titleColor: "#92400E", icon: "calendar-check",
   },
 ];
 
-function formatDate(d?: string) {
-  if (!d) return "";
-  const dt = new Date(d);
-  return `${dt.getMonth() + 1}/${dt.getDate()}`;
+// 색상 테마 매핑
+const THEME_MAP: Record<string, { bg: string; tagColor: string; titleColor: string }> = {
+  teal:   { bg: "#E6FAF8", tagColor: "#2EC4B6", titleColor: "#0D6E68" },
+  purple: { bg: "#EDE9FE", tagColor: "#7C3AED", titleColor: "#4C1D95" },
+  orange: { bg: "#FFF7ED", tagColor: "#F97316", titleColor: "#9A3412" },
+  blue:   { bg: "#DBEAFE", tagColor: "#2563EB", titleColor: "#1E40AF" },
+  green:  { bg: "#D1FAE5", tagColor: "#059669", titleColor: "#065F46" },
+  red:    { bg: "#FEE2E2", tagColor: "#DC2626", titleColor: "#991B1B" },
+  pink:   { bg: "#FCE7F3", tagColor: "#DB2777", titleColor: "#831843" },
+};
+
+function getTheme(colorTheme: string) {
+  return THEME_MAP[colorTheme] ?? THEME_MAP.teal;
 }
 
-export function ParentPromoBanner({ notices = [], onPressNotice }: Props) {
+interface Props {
+  /** 하위 호환 — 기존 notice 기반 코드에서 전달 시 무시됨 */
+  notices?: any[];
+  onPressNotice?: (id: string) => void;
+}
+
+export function ParentPromoBanner({ }: Props) {
   const scrollRef = useRef<ScrollView>(null);
   const [activeIdx, setActiveIdx] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [banners, setBanners] = useState<PlatformBanner[]>([]);
+  const [fetched, setFetched] = useState(false);
 
-  const hasNotices = notices.length > 0;
-  const items = hasNotices ? notices.slice(0, 5) : SWIM_TIPS;
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE}/platform/banners`);
+        if (!r.ok) return;
+        const data = await r.json();
+        if (!cancelled) setBanners(data.banners ?? []);
+      } catch {}
+      finally { if (!cancelled) setFetched(true); }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const hasBanners = banners.length > 0;
+  const items: any[] = hasBanners ? banners : SWIM_TIPS;
   const total = items.length;
-
-  const PALETTE = [
-    { bg: "#E6FAF8", tagColor: "#2EC4B6", titleColor: "#0D6E68", accentBg: "#2EC4B6" },
-    { bg: "#EDE9FE", tagColor: "#7C3AED", titleColor: "#4C1D95", accentBg: "#7C3AED" },
-    { bg: "#FEF3C7", tagColor: "#D97706", titleColor: "#92400E", accentBg: "#D97706" },
-    { bg: "#DBEAFE", tagColor: "#2563EB", titleColor: "#1E40AF", accentBg: "#2563EB" },
-    { bg: "#FCE7F3", tagColor: "#DB2777", titleColor: "#831843", accentBg: "#DB2777" },
-  ];
 
   function scrollTo(idx: number) {
     scrollRef.current?.scrollTo({ x: idx * (CARD_W + 12), animated: true });
@@ -110,23 +126,21 @@ export function ParentPromoBanner({ notices = [], onPressNotice }: Props) {
     setActiveIdx(Math.max(0, Math.min(idx, total - 1)));
   }
 
+  if (!fetched) {
+    return (
+      <View style={[s.wrap, { alignItems: "center", justifyContent: "center", height: CARD_H + 40 }]}>
+        <ActivityIndicator size="small" color="#2EC4B6" />
+      </View>
+    );
+  }
+
   return (
     <View style={s.wrap}>
       <View style={s.headerRow}>
         <View style={s.titleRow}>
-          {hasNotices
-            ? <LucideIcon name="megaphone" size={14} color="#F97316" />
-            : <LucideIcon name="lightbulb" size={14} color="#2EC4B6" />
-          }
-          <Text style={s.sectionTitle}>
-            {hasNotices ? "수영장 이벤트" : "오늘의 수영 팁"}
-          </Text>
+          <LucideIcon name={hasBanners ? "megaphone" : "lightbulb"} size={14} color={hasBanners ? "#F97316" : "#2EC4B6"} />
+          <Text style={s.sectionTitle}>{hasBanners ? "스윔노트 이벤트" : "오늘의 수영 팁"}</Text>
         </View>
-        {hasNotices && (
-          <Pressable onPress={() => router.push("/(parent)/notices?backTo=home" as any)} hitSlop={8}>
-            <Text style={s.moreBtn}>전체보기</Text>
-          </Pressable>
-        )}
       </View>
 
       <ScrollView
@@ -141,39 +155,36 @@ export function ParentPromoBanner({ notices = [], onPressNotice }: Props) {
         onScrollBeginDrag={() => { if (timerRef.current) clearInterval(timerRef.current); }}
         onScrollEndDrag={() => { if (total > 1) startAutoScroll(); }}
       >
-        {hasNotices
-          ? notices.slice(0, 5).map((n, i) => {
-              const p = PALETTE[i % PALETTE.length];
+        {hasBanners
+          ? banners.map(b => {
+              const th = getTheme(b.color_theme);
               return (
                 <Pressable
-                  key={n.id}
-                  style={({ pressed }) => [s.card, { backgroundColor: p.bg, opacity: pressed ? 0.88 : 1, width: CARD_W }]}
-                  onPress={() => onPressNotice ? onPressNotice(n.id) : router.push("/(parent)/notices?backTo=home" as any)}
+                  key={b.id}
+                  style={({ pressed }) => [s.card, { backgroundColor: th.bg, opacity: pressed ? 0.88 : 1, width: CARD_W }]}
+                  onPress={() => { if (b.link_url) Linking.openURL(b.link_url).catch(() => {}); }}
                 >
-                  <View style={[s.tag, { backgroundColor: p.accentBg + "22" }]}>
-                    <LucideIcon name="megaphone" size={11} color={p.tagColor} />
-                    <Text style={[s.tagTxt, { color: p.tagColor }]}>수영장 공지</Text>
+                  <View style={[s.tag, { backgroundColor: th.tagColor + "22" }]}>
+                    <LucideIcon name="megaphone" size={11} color={th.tagColor} />
+                    <Text style={[s.tagTxt, { color: th.tagColor }]}>스윔노트</Text>
                   </View>
-                  <Text style={[s.cardTitle, { color: p.titleColor }]} numberOfLines={2}>{n.title}</Text>
-                  {n.content ? (
-                    <Text style={s.cardDesc} numberOfLines={2}>{n.content.replace(/<[^>]+>/g, "")}</Text>
+                  <Text style={[s.cardTitle, { color: th.titleColor }]} numberOfLines={2}>{b.title}</Text>
+                  {b.description ? (
+                    <Text style={s.cardDesc} numberOfLines={2}>{b.description}</Text>
                   ) : null}
-                  <View style={s.cardFooter}>
-                    <Text style={s.cardDate}>{formatDate(n.created_at)}</Text>
-                    <View style={[s.readMore, { backgroundColor: p.accentBg }]}>
-                      <Text style={s.readMoreTxt}>자세히 보기</Text>
-                      <LucideIcon name="chevron-right" size={10} color="#fff" />
+                  {b.link_url ? (
+                    <View style={s.cardFooter}>
+                      <View style={[s.readMore, { backgroundColor: th.tagColor }]}>
+                        <Text style={s.readMoreTxt}>{b.link_label || "자세히 보기"}</Text>
+                        <LucideIcon name="chevron-right" size={10} color="#fff" />
+                      </View>
                     </View>
-                  </View>
+                  ) : null}
                 </Pressable>
               );
             })
-          : SWIM_TIPS.map((tip) => (
-              <Pressable
-                key={tip.id}
-                style={[s.card, { backgroundColor: tip.bg, width: CARD_W }]}
-                onPress={() => {}}
-              >
+          : SWIM_TIPS.map(tip => (
+              <View key={tip.id} style={[s.card, { backgroundColor: tip.bg, width: CARD_W }]}>
                 <View style={[s.tag, { backgroundColor: tip.tagColor + "22" }]}>
                   <LucideIcon name={tip.icon as any} size={11} color={tip.tagColor} />
                   <Text style={[s.tagTxt, { color: tip.tagColor }]}>{tip.tag}</Text>
@@ -183,7 +194,7 @@ export function ParentPromoBanner({ notices = [], onPressNotice }: Props) {
                 <View style={s.cardFooter}>
                   <Text style={[s.cardDate, { color: tip.tagColor + "99" }]}>SwimNote</Text>
                 </View>
-              </Pressable>
+              </View>
             ))
         }
       </ScrollView>
@@ -209,7 +220,6 @@ const s = StyleSheet.create({
   },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   sectionTitle: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111" },
-  moreBtn: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
   card: {
     height: CARD_H, borderRadius: 16, padding: 16,
     justifyContent: "space-between", overflow: "hidden",
@@ -223,7 +233,7 @@ const s = StyleSheet.create({
   cardTitle: { fontSize: 15, fontFamily: "Pretendard-Bold", lineHeight: 21, flex: 1 },
   cardDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#555", lineHeight: 17, marginTop: 2 },
   cardFooter: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8,
+    flexDirection: "row", alignItems: "center", justifyContent: "flex-end", marginTop: 8,
   },
   cardDate: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#999" },
   readMore: {

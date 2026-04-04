@@ -3,9 +3,9 @@
  * 슈퍼관리자 전용. 학부모 화면에는 광고 슬롯 노출하지 않음.
  * 등록/수정/상태 변경/삭제. 상태: scheduled | active | inactive
  */
-import { Calendar, Image, Info, Plus, X } from "lucide-react-native";
+import { Calendar, Image, Plus, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
@@ -110,14 +110,17 @@ const BLANK_FORM: FormState = {
 
 export default function AdsScreen() {
   const insets = useSafeAreaInsets();
-  const { adminUser } = useAuth();
-  const actorName = adminUser?.name ?? "슈퍼관리자";
+  const { token } = useAuth();
 
-  const ads         = useAdsStore(s => s.ads);
-  const createAd    = useAdsStore(s => s.createAd);
-  const updateAd    = useAdsStore(s => s.updateAd);
-  const setStatus   = useAdsStore(s => s.setStatus);
-  const deleteAd    = useAdsStore(s => s.deleteAd);
+  const ads          = useAdsStore(s => s.ads);
+  const loading      = useAdsStore(s => s.loading);
+  const fetchBanners = useAdsStore(s => s.fetchBanners);
+  const createAd     = useAdsStore(s => s.createAd);
+  const updateAd     = useAdsStore(s => s.updateAd);
+  const setStatus    = useAdsStore(s => s.setStatus);
+  const deleteAd     = useAdsStore(s => s.deleteAd);
+
+  useEffect(() => { if (token) fetchBanners(token); }, [token]);
 
   const [filter, setFilter] = useState<Filter>("all");
   const [showModal, setShowModal] = useState(false);
@@ -147,20 +150,21 @@ export default function AdsScreen() {
     setShowModal(true);
   }
 
-  function handleSave() {
-    if (!form.title.trim()) return;
+  async function handleSave() {
+    if (!form.title.trim() || !token) return;
     const startIso = new Date(form.displayStart).toISOString();
     const endIso   = new Date(form.displayEnd).toISOString();
     if (editId) {
-      updateAd(editId, { ...form, displayStart: startIso, displayEnd: endIso, imageUrl: "" }, actorName);
+      await updateAd(token, editId, { ...form, displayStart: startIso, displayEnd: endIso });
     } else {
-      createAd({ ...form, displayStart: startIso, displayEnd: endIso, imageUrl: "", createdBy: actorName }, actorName);
+      await createAd(token, { ...form, displayStart: startIso, displayEnd: endIso });
     }
     setShowModal(false);
   }
 
-  function handleDelete(id: string) {
-    deleteAd(id);
+  async function handleDelete(id: string) {
+    if (!token) return;
+    await deleteAd(token, id);
     setDeleteConfirm(null);
   }
 
@@ -180,12 +184,6 @@ export default function AdsScreen() {
   return (
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="광고 관리" homePath="/(super)/more" />
-
-      {/* 안내 배너 */}
-      <View style={s.noticeBanner}>
-        <Info size={12} color="#D97706" />
-        <Text style={s.noticeTxt}>현재 학부모 화면에는 광고가 노출되지 않습니다. 관리 기능만 운영 중입니다.</Text>
-      </View>
 
       {/* 요약 */}
       <View style={s.summaryRow}>
@@ -231,7 +229,7 @@ export default function AdsScreen() {
           filtered.map(ad => (
             <AdCard key={ad.id} ad={ad}
               onEdit={openEdit}
-              onStatusChange={(id, status) => setStatus(id, status, actorName)}
+              onStatusChange={(id, status) => token && setStatus(token, id, status)}
               onDelete={(id) => setDeleteConfirm(id)}
             />
           ))
@@ -313,9 +311,6 @@ export default function AdsScreen() {
 
 const s = StyleSheet.create({
   safe:           { flex: 1, backgroundColor: "#F1F5F9" },
-  noticeBanner:   { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#FFF1BF",
-                    padding: 10, paddingHorizontal: 16 },
-  noticeTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706", flex: 1 },
   summaryRow:     { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#fff",
                     borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   summaryCard:    { flex: 1, borderRadius: 10, padding: 10, borderWidth: 1, alignItems: "center" },

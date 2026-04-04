@@ -17,3 +17,4 @@ export * from "./class-change-logs";
 export * from "./monitoring";
 export * from "./media-assets";
 export * from "./push-notifications";
+export * from "./platform-banners";

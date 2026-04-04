@@ -1,130 +1,163 @@
 /**
- * store/adsStore.ts — 광고 관리
- * 슈퍼관리자가 광고를 등록/수정/상태변경.
- * 지금은 슈퍼관리자 콘솔에서만 관리. 학부모 화면 노출 없음.
+ * store/adsStore.ts — 플랫폼 배너 관리 (API 연동)
+ * 슈퍼관리자가 배너를 등록/수정/상태변경/삭제.
+ * 학부모 화면에는 활성 배너가 실시간 노출됨.
  */
-import { create } from 'zustand'
-import { useAuditLogStore } from './auditLogStore'
+import { create } from "zustand";
+import { API_BASE } from "@/context/AuthContext";
 
-export type AdStatus = 'scheduled' | 'active' | 'inactive'
+export type AdStatus = "scheduled" | "active" | "inactive";
 
 export interface Ad {
-  id: string
-  title: string
-  description: string
-  imageUrl: string
-  linkUrl: string
-  displayStart: string
-  displayEnd: string
-  status: AdStatus
-  target: 'all' | 'parent' | 'teacher' | 'admin'
-  createdAt: string
-  createdBy: string
-  updatedAt: string
+  id: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  linkUrl: string;
+  linkLabel: string;
+  colorTheme: string;
+  displayStart: string;
+  displayEnd: string;
+  status: AdStatus;
+  target: "all" | "parent" | "teacher" | "admin";
+  sortOrder: number;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+}
+
+function mapBanner(raw: any): Ad {
+  return {
+    id:           raw.id,
+    title:        raw.title ?? "",
+    description:  raw.description ?? "",
+    imageUrl:     raw.image_url ?? "",
+    linkUrl:      raw.link_url ?? "",
+    linkLabel:    raw.link_label ?? "",
+    colorTheme:   raw.color_theme ?? "teal",
+    displayStart: raw.display_start ?? new Date().toISOString(),
+    displayEnd:   raw.display_end ?? new Date().toISOString(),
+    status:       (raw.status as AdStatus) ?? "inactive",
+    target:       raw.target ?? "all",
+    sortOrder:    raw.sort_order ?? 0,
+    createdAt:    raw.created_at ?? new Date().toISOString(),
+    createdBy:    raw.created_by ?? "",
+    updatedAt:    raw.updated_at ?? new Date().toISOString(),
+  };
+}
+
+function authHeaders(token: string) {
+  return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 }
 
 interface AdsState {
-  ads: Ad[]
+  ads: Ad[];
+  loading: boolean;
+  error: string | null;
 
-  // selectors
-  getActiveAds: () => Ad[]
-  getByStatus: (status: AdStatus) => Ad[]
+  getActiveAds: () => Ad[];
+  getByStatus: (status: AdStatus) => Ad[];
 
-  // actions
-  createAd: (params: Omit<Ad, 'id' | 'createdAt' | 'updatedAt'>, actorName?: string) => Ad
-  updateAd: (id: string, patch: Partial<Omit<Ad, 'id' | 'createdAt'>>, actorName?: string) => void
-  setStatus: (id: string, status: AdStatus, actorName?: string) => void
-  deleteAd: (id: string) => void
+  fetchBanners: (token: string) => Promise<void>;
+  createAd: (token: string, params: Omit<Ad, "id" | "createdAt" | "updatedAt" | "imageUrl" | "linkLabel" | "sortOrder" | "colorTheme"> & {
+    imageUrl?: string; linkLabel?: string; sortOrder?: number; colorTheme?: string;
+  }) => Promise<Ad | null>;
+  updateAd: (token: string, id: string, patch: Partial<Omit<Ad, "id" | "createdAt">>) => Promise<void>;
+  setStatus: (token: string, id: string, status: AdStatus) => Promise<void>;
+  deleteAd: (token: string, id: string) => Promise<void>;
 }
 
-let counter = 20
-
-const daysAgo = (d: number) => new Date(Date.now() - d * 86400000).toISOString()
-const daysLater = (d: number) => new Date(Date.now() + d * 86400000).toISOString()
-
-const SEED_ADS: Ad[] = [
-  {
-    id: 'ad-001',
-    title: '스윔노트 프리미엄 플랜',
-    description: '무제한 회원 관리 · 자동 출결 · 학부모 알림까지.\n지금 업그레이드하고 30일 무료 체험!',
-    imageUrl: '',
-    linkUrl: 'https://swimnote.app/premium',
-    displayStart: daysAgo(5),
-    displayEnd: daysLater(25),
-    status: 'active',
-    target: 'all',
-    createdAt: daysAgo(5),
-    createdBy: '슈퍼관리자',
-    updatedAt: daysAgo(5),
-  },
-  {
-    id: 'ad-002',
-    title: '여름방학 수영 집중반 모집',
-    description: '7월~8월 집중반 모집 중. 등록 마감 6월 30일.',
-    imageUrl: '',
-    linkUrl: '',
-    displayStart: daysLater(10),
-    displayEnd: daysLater(40),
-    status: 'scheduled',
-    target: 'parent',
-    createdAt: daysAgo(2),
-    createdBy: '슈퍼관리자',
-    updatedAt: daysAgo(2),
-  },
-  {
-    id: 'ad-003',
-    title: '구 이벤트 종료',
-    description: '2024 연말 이벤트 종료 광고.',
-    imageUrl: '',
-    linkUrl: '',
-    displayStart: daysAgo(90),
-    displayEnd: daysAgo(30),
-    status: 'inactive',
-    target: 'all',
-    createdAt: daysAgo(90),
-    createdBy: '슈퍼관리자',
-    updatedAt: daysAgo(30),
-  },
-]
-
 export const useAdsStore = create<AdsState>((set, get) => ({
-  ads: SEED_ADS,
+  ads: [],
+  loading: false,
+  error: null,
 
-  getActiveAds: () => get().ads.filter(a => a.status === 'active'),
-
+  getActiveAds: () => get().ads.filter(a => a.status === "active"),
   getByStatus: (status) => get().ads.filter(a => a.status === status),
 
-  createAd: (params, actorName = '슈퍼관리자') => {
-    const now = new Date().toISOString()
-    const ad: Ad = { ...params, id: `ad-${Date.now()}-${++counter}`, createdAt: now, updatedAt: now }
-    set(s => ({ ads: [ad, ...s.ads] }))
-    useAuditLogStore.getState().createLog({
-      category: '광고관리', title: `광고 등록: ${ad.title}`,
-      actorName, impact: 'medium', detail: `상태: ${ad.status}, 대상: ${ad.target}`,
-    })
-    return ad
+  fetchBanners: async (token) => {
+    set({ loading: true, error: null });
+    try {
+      const r = await fetch(`${API_BASE}/super/banners`, { headers: authHeaders(token) });
+      if (!r.ok) throw new Error("조회 실패");
+      const data = await r.json();
+      set({ ads: (data.banners ?? []).map(mapBanner) });
+    } catch (e: any) {
+      set({ error: e.message });
+    } finally {
+      set({ loading: false });
+    }
   },
 
-  updateAd: (id, patch, actorName = '슈퍼관리자') => {
-    const now = new Date().toISOString()
-    set(s => ({ ads: s.ads.map(a => a.id === id ? { ...a, ...patch, updatedAt: now } : a) }))
-    useAuditLogStore.getState().createLog({
-      category: '광고관리', title: `광고 수정: ${id}`,
-      actorName, impact: 'low', detail: JSON.stringify(patch),
-    })
+  createAd: async (token, params) => {
+    try {
+      const r = await fetch(`${API_BASE}/super/banners`, {
+        method: "POST",
+        headers: authHeaders(token),
+        body: JSON.stringify({
+          title:         params.title,
+          description:   params.description,
+          image_url:     params.imageUrl ?? "",
+          link_url:      params.linkUrl,
+          link_label:    params.linkLabel ?? "",
+          color_theme:   params.colorTheme ?? "teal",
+          target:        params.target,
+          status:        params.status,
+          display_start: params.displayStart,
+          display_end:   params.displayEnd,
+          sort_order:    params.sortOrder ?? 0,
+        }),
+      });
+      if (!r.ok) return null;
+      const data = await r.json();
+      const ad = mapBanner(data.banner);
+      set(s => ({ ads: [ad, ...s.ads] }));
+      return ad;
+    } catch {
+      return null;
+    }
   },
 
-  setStatus: (id, status, actorName = '슈퍼관리자') => {
-    const now = new Date().toISOString()
-    const ad = get().ads.find(a => a.id === id)
-    set(s => ({ ads: s.ads.map(a => a.id === id ? { ...a, status, updatedAt: now } : a) }))
-    useAuditLogStore.getState().createLog({
-      category: '광고관리', title: `광고 상태 변경: ${ad?.title ?? id} → ${status}`,
-      actorName, impact: 'medium', detail: `광고ID: ${id}`,
-    })
+  updateAd: async (token, id, patch) => {
+    try {
+      const body: any = {};
+      if (patch.title !== undefined)        body.title = patch.title;
+      if (patch.description !== undefined)  body.description = patch.description;
+      if (patch.imageUrl !== undefined)     body.image_url = patch.imageUrl;
+      if (patch.linkUrl !== undefined)      body.link_url = patch.linkUrl;
+      if (patch.linkLabel !== undefined)    body.link_label = patch.linkLabel;
+      if (patch.colorTheme !== undefined)   body.color_theme = patch.colorTheme;
+      if (patch.target !== undefined)       body.target = patch.target;
+      if (patch.status !== undefined)       body.status = patch.status;
+      if (patch.displayStart !== undefined) body.display_start = patch.displayStart;
+      if (patch.displayEnd !== undefined)   body.display_end = patch.displayEnd;
+      if (patch.sortOrder !== undefined)    body.sort_order = patch.sortOrder;
+
+      const r = await fetch(`${API_BASE}/super/banners/${id}`, {
+        method: "PUT", headers: authHeaders(token), body: JSON.stringify(body),
+      });
+      if (!r.ok) return;
+      const data = await r.json();
+      set(s => ({ ads: s.ads.map(a => a.id === id ? mapBanner(data.banner) : a) }));
+    } catch {}
   },
 
-  deleteAd: (id) => {
-    set(s => ({ ads: s.ads.filter(a => a.id !== id) }))
+  setStatus: async (token, id, status) => {
+    try {
+      const r = await fetch(`${API_BASE}/super/banners/${id}/status`, {
+        method: "PATCH", headers: authHeaders(token), body: JSON.stringify({ status }),
+      });
+      if (!r.ok) return;
+      set(s => ({ ads: s.ads.map(a => a.id === id ? { ...a, status } : a) }));
+    } catch {}
   },
-}))
+
+  deleteAd: async (token, id) => {
+    try {
+      await fetch(`${API_BASE}/super/banners/${id}`, {
+        method: "DELETE", headers: authHeaders(token),
+      });
+      set(s => ({ ads: s.ads.filter(a => a.id !== id) }));
+    } catch {}
+  },
+}));

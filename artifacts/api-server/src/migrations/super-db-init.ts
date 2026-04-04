@@ -217,5 +217,34 @@ export async function initSuperDb(): Promise<void> {
   await db.execute(sql.raw(`ALTER TABLE parent_accounts ALTER COLUMN swimming_pool_id DROP NOT NULL`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true`)).catch(() => {});
 
+  // platform_banners — 슈퍼관리자 전용 플랫폼 광고 배너
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS platform_banners (
+        id            text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        title         text        NOT NULL,
+        description   text,
+        image_url     text,
+        link_url      text,
+        link_label    text,
+        color_theme   text        NOT NULL DEFAULT 'teal',
+        target        text        NOT NULL DEFAULT 'all',
+        status        text        NOT NULL DEFAULT 'inactive',
+        display_start timestamptz NOT NULL DEFAULT now(),
+        display_end   timestamptz NOT NULL DEFAULT (now() + interval '30 days'),
+        sort_order    integer     NOT NULL DEFAULT 0,
+        created_by    text,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        updated_at    timestamptz NOT NULL DEFAULT now()
+      )
+    `));
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS platform_banners_status_idx ON platform_banners (status, display_start, display_end);
+    `)).catch(() => {});
+    console.log("[super-db-init] platform_banners 테이블 준비 완료");
+  } catch (e: any) {
+    console.warn("[super-db-init] platform_banners 오류:", e.message);
+  }
+
   console.log("[super-db-init] super DB 컬럼 보완 + backup_logs/restore_logs 초기화 완료");
 }
