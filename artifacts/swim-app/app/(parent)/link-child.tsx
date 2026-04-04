@@ -17,7 +17,7 @@ type Step = "pool" | "child" | "done" | "pending";
 
 export default function LinkChildScreen() {
   const insets = useSafeAreaInsets();
-  const { token } = useAuth();
+  const { token, updateParentProfile } = useAuth();
   const { refresh } = useParent();
 
   const [step, setStep]               = useState<Step>("pool");
@@ -62,6 +62,7 @@ export default function LinkChildScreen() {
 
       setLinkedName(d.student?.name || childName.trim());
       setStep("done");
+      updateParentProfile({ swimming_pool_id: selectedPool.id, pool_name: selectedPool.name });
       await refresh();
     } catch { setError("네트워크 오류가 발생했습니다."); }
     finally { setSubmitting(false); }
