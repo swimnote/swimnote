@@ -36,16 +36,16 @@ const CLASS_SETTINGS: MenuItem[] = [
 ];
 
 const OPS_SETTINGS: MenuItem[] = [
-  { label: "학부모 QR 초대",     icon: "qr-code",        color: "#0EA5E9", bg: NB, route: "/(admin)/invite-qr",                 desc: "QR 코드로 학부모·선생님 초대" },
+  { label: "공지사항",           icon: "file-text",      color: "#0369A1", bg: NB, route: "/(admin)/notices",                   desc: "학부모 / 선생님 공지 관리" },
   { label: "구독 관리",          icon: "credit-card",    color: "#7C3AED", bg: NB, route: "/(admin)/subscription",              desc: "현재 플랜 및 사용량 확인" },
+  { label: "휴무일 관리",        icon: "x-square",       color: N,         bg: NB, route: "/(admin)/holidays",                  desc: "수영장 휴무 / 공휴일 설정" },
+  { label: "푸시 발송 설정",     icon: "send",           color: N,         bg: NB, route: "/(admin)/push-message-settings",     desc: "단체 푸시 발송 규칙" },
+  { label: "학부모 QR 초대",     icon: "qr-code",        color: "#0EA5E9", bg: NB, route: "/(admin)/invite-qr",                 desc: "QR 코드로 학부모·선생님 초대" },
+  { label: "초대 기록",          icon: "send",           color: N,         bg: NB, route: "/(admin)/invite-records",            desc: "회원 초대 발송 내역" },
   { label: "데이터 관리",        icon: "hard-drive",     color: "#0369A1", bg: NB, route: "/(admin)/data-management",           desc: "저장공간 현황 및 정책" },
   { label: "브랜드 설정",        icon: "sliders",        color: N,         bg: NB, route: "/(admin)/branding",                  desc: "앱 이름 / 색상 / 로고" },
   { label: "화이트라벨",         icon: "tag",            color: "#DB2777", bg: NB, route: "/(admin)/white-label",               desc: "커스텀 브랜딩 옵션" },
-  { label: "공지사항",           icon: "file-text",      color: "#0369A1", bg: NB, route: "/(admin)/notices",                   desc: "학부모 / 선생님 공지 관리" },
   { label: "활동 로그",          icon: "activity",       color: "#16A34A", bg: NB, route: "/(admin)/data-event-logs",           desc: "관리자 / 선생님 활동 기록" },
-  { label: "초대 기록",          icon: "send",           color: N,         bg: NB, route: "/(admin)/invite-records",            desc: "회원 초대 발송 내역" },
-  { label: "휴무일 관리",        icon: "x-square",       color: N,         bg: NB, route: "/(admin)/holidays",                  desc: "수영장 휴무 / 공휴일 설정" },
-  { label: "푸시 발송 설정",     icon: "send",           color: N,         bg: NB, route: "/(admin)/push-message-settings",     desc: "단체 푸시 발송 규칙" },
 ];
 
 const POOL_SETTINGS: MenuItem[] = [
