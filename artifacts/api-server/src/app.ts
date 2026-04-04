@@ -42,7 +42,7 @@ app.use("/api", router);
 
 // 헬스체크 — /api/health 와 /health 모두 지원
 app.get(["/health", "/api/health"], (_req: Request, res: Response) => {
-  res.json({ ok: true, uptime: Math.floor(process.uptime()), timestamp: new Date().toISOString() });
+  res.json({ ok: true, uptime: Math.floor(process.uptime()), timestamp: new Date().toISOString(), version: "v2.1-2026-04-04" });
 });
 
 // 404 핸들러 — HTML 대신 JSON
