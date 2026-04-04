@@ -15,42 +15,6 @@ args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
 [workflows]
-runButton = "Project"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "EAS Android Build"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "EAS iOS Build"
-
-[[workflows.workflow]]
-name = "EAS Android Build"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd /home/runner/workspace/artifacts/swim-app && EXPO_TOKEN=WeNuUChLeFVnqUjrsQgTMlAEX_czcxXPYHrRwdPP EAS_BUILD_NO_EXPO_GO_WARNING=true npx eas build --platform android --profile production --non-interactive --no-wait"
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow]]
-name = "EAS iOS Build"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd /home/runner/workspace/artifacts/swim-app && EXPO_TOKEN=WeNuUChLeFVnqUjrsQgTMlAEX_czcxXPYHrRwdPP EAS_BUILD_NO_EXPO_GO_WARNING=true EXPO_APPLE_ID=swimnote.admin@gmail.com EXPO_APPLE_APP_SPECIFIC_PASSWORD=zxlg-ygbp-yums-bodl npx eas build --platform ios --profile production --non-interactive --no-wait --auto-submit"
 
 [agent]
 stack = "PNPM_WORKSPACE"
