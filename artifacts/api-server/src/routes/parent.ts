@@ -354,6 +354,105 @@ router.post("/student-requests", requireAuth, requireParent, async (req: AuthReq
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
+// ── 학부모: 형제/자매 추가 ──────────────────────────────────────────────────
+router.post("/add-child", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  const { child_name } = req.body;
+  if (!child_name?.trim()) {
+    res.status(400).json({ error: "자녀 이름을 입력해주세요." });
+    return;
+  }
+
+  try {
+    const [pa] = await db.select().from(parentAccountsTable)
+      .where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
+    if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
+    if (!pa.swimming_pool_id) {
+      res.status(400).json({ error: "소속 수영장 정보가 없습니다. 수영장 선택 후 이용해주세요." });
+      return;
+    }
+
+    const normPhone = (pa.phone || "").replace(/[^0-9]/g, "");
+    const normName = child_name.trim().replace(/\s+/g, "");
+
+    // 매칭: 같은 수영장 + 같은 전화번호 + 같은 이름 + active
+    const matchResult = await db.execute(sql`
+      SELECT id, name, swimming_pool_id FROM students
+      WHERE swimming_pool_id = ${pa.swimming_pool_id}
+        AND status = 'active'
+        AND REPLACE(name, ' ', '') = ${normName}
+        AND REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${normPhone}
+    `);
+    const matched = matchResult.rows as Array<{ id: string; name: string; swimming_pool_id: string }>;
+
+    if (matched.length === 1) {
+      const studentId = matched[0].id;
+
+      // 이미 연결된 자녀인지 확인
+      const [existingLink] = await db.select().from(parentStudentsTable)
+        .where(and(
+          eq(parentStudentsTable.parent_id, pa.id),
+          eq(parentStudentsTable.student_id, studentId)
+        )).limit(1);
+
+      if (existingLink) {
+        res.json({ status: "already_linked" });
+        return;
+      }
+
+      // parent_students INSERT (즉시 승인)
+      try {
+        const linkId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await db.insert(parentStudentsTable).values({
+          id: linkId,
+          parent_id: pa.id,
+          student_id: studentId,
+          swimming_pool_id: pa.swimming_pool_id,
+          status: "approved",
+          approved_at: new Date(),
+        });
+        res.json({ status: "linked", student: { id: studentId, name: matched[0].name } });
+      } catch (e: any) {
+        if (e?.code === "23505") {
+          res.json({ status: "already_linked" });
+        } else throw e;
+      }
+      return;
+    }
+
+    // 0명 또는 다중 매칭 → pending 요청 생성
+    const existingReqs = await superAdminDb.select()
+      .from(studentRegistrationRequestsTable)
+      .where(and(
+        eq(studentRegistrationRequestsTable.parent_id, pa.id),
+        eq(studentRegistrationRequestsTable.status, "pending")
+      ));
+
+    const alreadyPending = existingReqs.some(r => {
+      const names: string[] = Array.isArray(r.child_names) ? (r.child_names as string[]) : [];
+      return names.some(n => n.replace(/\s+/g, "") === normName);
+    });
+
+    if (alreadyPending) {
+      res.json({ status: "pending_already" });
+      return;
+    }
+
+    const reqId = `srr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    await superAdminDb.insert(studentRegistrationRequestsTable).values({
+      id: reqId,
+      swimming_pool_id: pa.swimming_pool_id,
+      parent_id: pa.id,
+      child_names: [child_name.trim()],
+      status: "pending",
+    });
+    res.json({ status: "pending_created" });
+
+  } catch (err) {
+    console.error("[add-child] error:", err);
+    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+  }
+});
+
 router.get("/notices", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);

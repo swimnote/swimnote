@@ -13,7 +13,7 @@
  *   I. 성장 카드
  *   J. 출석 카드
  */
-import { Bell, Settings } from "lucide-react-native";
+import { Bell, Plus, Settings } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -449,8 +449,8 @@ export default function ParentHomeScreen() {
         </View>
       </View>
 
-      {/* ─── B. 자녀 탭 (2명+) ─── */}
-      {students.length > 1 && (
+      {/* ─── B. 자녀 탭 + 추가 버튼 ─── */}
+      {students.length > 0 && (
         <ScrollView
           horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingBottom: 6 }}
@@ -470,6 +470,13 @@ export default function ParentHomeScreen() {
               </Pressable>
             );
           })}
+          <Pressable
+            style={[s.childTab, s.childTabAdd, { backgroundColor: C.card, borderColor: C.border }]}
+            onPress={() => router.push("/(parent)/add-child" as any)}
+          >
+            <Plus size={14} color={C.textSecondary} />
+            <Text style={[s.childTabTxt, { color: C.textSecondary, marginLeft: 2 }]}>추가</Text>
+          </Pressable>
         </ScrollView>
       )}
 
@@ -562,6 +569,9 @@ const s = StyleSheet.create({
   },
   childTab: {
     paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5,
+  },
+  childTabAdd: {
+    flexDirection: "row", alignItems: "center", paddingHorizontal: 12,
   },
   childTabTxt: { fontSize: 14, fontFamily: "Pretendard-Regular" },
 });
