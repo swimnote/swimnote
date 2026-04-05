@@ -165,12 +165,18 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
     } else if (role === "parent_account") {
       // 자녀가 해당 반에 속해야 함
       const childRows = await db.execute(sql`
-        SELECT s.id FROM students s
+        SELECT s.id, s.class_group_id FROM students s
         JOIN parent_students ps ON ps.student_id = s.id
         WHERE ps.parent_id = ${userId} AND ps.status = 'approved'
           AND s.class_group_id = ${classId}
       `);
-      console.log(`[photos] parent check: classId=${classId} found=${childRows.rows.length}`);
+      // 진단: approved 상태인 전체 자녀 목록도 로그
+      const allChildren = await db.execute(sql`
+        SELECT s.id, s.name, s.class_group_id FROM students s
+        JOIN parent_students ps ON ps.student_id = s.id
+        WHERE ps.parent_id = ${userId} AND ps.status = 'approved'
+      `);
+      console.log(`[photos/GET] parent=${userId} classId=${classId} matched=${childRows.rows.length} allChildren=${JSON.stringify(allChildren.rows.map((r:any)=>({id:r.id,cg:r.class_group_id})))}`);
       if (!childRows.rows.length) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
     } else if (role === "pool_admin") {
       const poolId = await getUserPoolId(userId);

@@ -97,7 +97,12 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate }: Pro
     );
   }
 
-  if (!photos.length) return null;
+  if (!photos.length) return (
+    <View style={s.emptyRow}>
+      <ImageIcon size={12} color="#CBD5E1" />
+      <Text style={s.emptyText}>등록된 수업 사진이 없습니다</Text>
+    </View>
+  );
 
   return (
     <View style={s.container}>
@@ -187,6 +192,11 @@ const s = StyleSheet.create({
     marginTop: 8, paddingLeft: 14,
   },
   loadingText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  emptyRow: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    marginTop: 8, paddingLeft: 14,
+  },
+  emptyText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#CBD5E1" },
   labelRow: {
     flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 14,
   },

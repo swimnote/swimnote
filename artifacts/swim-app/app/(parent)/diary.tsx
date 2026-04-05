@@ -51,7 +51,6 @@ function DiaryCard({ entry, studentId, studentName, classGroupId }: {
 }) {
   const { token } = useAuth();
   const effectiveClassGroupId = classGroupId ?? entry.class_group_id;
-  const [showPhotos, setShowPhotos] = useState(false);
   const [open, setOpen] = useState(false);
   const [myReactions, setMyReactions] = useState<Set<string>>(new Set(entry.reactions ?? []));
   const [toast, setToast] = useState("");
@@ -63,10 +62,6 @@ function DiaryCard({ entry, studentId, studentName, classGroupId }: {
       .then(d => { if (d?.myReactions) setMyReactions(new Set(d.myReactions)); })
       .catch(() => {});
   }, [entry.id]);
-
-  useEffect(() => {
-    if (open && effectiveClassGroupId) setShowPhotos(true);
-  }, [open, effectiveClassGroupId]);
 
   function showToast(msg: string) {
     setToast(msg); setToastVisible(true);
@@ -144,11 +139,11 @@ function DiaryCard({ entry, studentId, studentName, classGroupId }: {
           </View>
           <Text style={[ds.content, { color: C.text }]}>{entry.common_content}</Text>
 
-          {showPhotos && effectiveClassGroupId ? (
+          {effectiveClassGroupId ? (
             <DiaryPhotoStrip
               token={token}
               classGroupId={effectiveClassGroupId}
-              lessonDate={entry.lesson_date}
+              lessonDate={entry.lesson_date.slice(0, 10)}
             />
           ) : null}
 
