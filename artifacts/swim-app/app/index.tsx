@@ -169,12 +169,11 @@ export default function LoginScreen() {
         <View style={s.bottomSection}>
         <View style={s.logoArea}>
           <View style={s.logoWrap}>
-            <View style={s.logoBorder}>
-              <View style={s.logoImage}>
-                <SwimNoteLogo width={80} height={92} viewBox="160 44 185 210" />
-              </View>
+            <View style={s.logoImage}>
+              <SwimNoteLogo width={80} height={92} viewBox="160 44 185 210" />
             </View>
           </View>
+          <Text style={s.wordmark}>SwimNote</Text>
           <Text style={s.tagline}>어린이 수영레슨 올인원 플랫폼</Text>
           <Text style={s.taglineSub}>수영장 · 선생님 · 학부모가 하나로</Text>
         </View>

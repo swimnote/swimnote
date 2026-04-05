@@ -5,7 +5,8 @@ import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useRef, useState } from "react";
-import { Image, Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
+import SwimNoteLogoSvg from "../assets/images/swimnote-logo.svg";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -23,11 +24,7 @@ try {
 function AppLoadingScreen() {
   return (
     <View style={loadingStyles.container}>
-      <Image
-        source={require("../assets/images/swimnote-logo.png")}
-        style={loadingStyles.logo}
-        resizeMode="contain"
-      />
+      <SwimNoteLogoSvg width={280} height={224} viewBox="80 20 340 320" />
     </View>
   );
 }
@@ -38,11 +35,6 @@ const loadingStyles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
-  },
-  logo: {
-    width: 120,
-    height: 120,
   },
 });
 
