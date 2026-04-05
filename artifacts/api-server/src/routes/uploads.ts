@@ -1,18 +1,12 @@
 import { Router, Request, Response } from "express";
 import multer from "multer";
-import { Client } from "@replit/object-storage";
+import { uploadToR2, downloadFromR2 } from "../lib/objectStorage.js";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
-
-let _client: Client | null = null;
-function getClient() {
-  if (!_client) _client = new Client();
-  return _client;
-}
 
 router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest, res: Response) => {
   try {
@@ -30,7 +24,6 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
         WHERE p.id = ${poolId} LIMIT 1
       `)).rows as any[];
 
-      // upload_blocked 플래그 확인 (결제 실패 또는 100% 초과로 설정)
       if (poolRow?.upload_blocked) {
         res.status(403).json({
           error: "저장공간이 가득 차 업로드가 제한됩니다.",
@@ -40,7 +33,6 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
         return;
       }
 
-      // 실시간 저장공간 계산 (student_photos 기준)
       const [usageRow] = (await db.execute(sql`
         SELECT COALESCE(SUM(file_size_bytes), 0) AS used_bytes
         FROM student_photos WHERE swimming_pool_id = ${poolId}
@@ -49,7 +41,6 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
       const usedBytes  = Number(usageRow?.used_bytes ?? 0);
       const pct = quotaBytes > 0 ? Math.round((usedBytes / quotaBytes) * 100) : 0;
 
-      // 100% 이상: upload_blocked 자동 설정 + 차단
       if (pct >= 100) {
         await superAdminDb.execute(sql`
           UPDATE swimming_pools SET upload_blocked = true WHERE id = ${poolId}
@@ -63,17 +54,16 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
         return;
       }
 
-      // 경고 헤더 설정 (80% / 90%)
       if (pct >= 80) res.setHeader("X-Storage-Warning", `${pct}`);
       if (pct >= 80) res.setHeader("X-Storage-Pct", `${pct}`);
     }
-    const client = getClient();
+
     const urls: string[] = [];
     for (const file of files) {
       const ext = file.originalname.split(".").pop() || "jpg";
       const key = `notices/${Date.now()}_${Math.random().toString(36).substr(2, 8)}.${ext}`;
-      const { ok, error } = await client.uploadFromBytes(key, file.buffer);
-      if (!ok) throw new Error(error?.message || "업로드 실패");
+      const { ok, error } = await uploadToR2(key, file.buffer, file.mimetype || "image/jpeg", "photo");
+      if (!ok) throw new Error(error || "업로드 실패");
       urls.push(key);
     }
     res.json({ urls });
@@ -84,9 +74,8 @@ router.get(/^\/(.+)$/, async (req: Request, res: Response) => {
   try {
     const key = (req.params as any)[0];
     if (!key) { res.status(400).json({ error: "잘못된 요청입니다." }); return; }
-    const client = getClient();
-    const { ok, value } = await client.downloadAsBytes(key);
-    if (!ok || !value) { res.status(404).json({ error: "파일을 찾을 수 없습니다." }); return; }
+    const { ok, data } = await downloadFromR2(key, "photo");
+    if (!ok || !data) { res.status(404).json({ error: "파일을 찾을 수 없습니다." }); return; }
     const ext = key.split(".").pop()?.toLowerCase() || "jpg";
     const mime: Record<string, string> = {
       jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
@@ -98,7 +87,7 @@ router.get(/^\/(.+)$/, async (req: Request, res: Response) => {
     res.setHeader("Content-Type", mimeType);
     res.setHeader("Cache-Control", "public, max-age=86400");
     if (mimeType.startsWith("video/")) res.setHeader("Accept-Ranges", "bytes");
-    res.send(value[0]);
+    res.send(data);
   } catch (err) { res.status(500).json({ error: "파일 조회 중 오류가 발생했습니다." }); }
 });
 
