@@ -170,6 +170,7 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
         WHERE ps.parent_id = ${userId} AND ps.status = 'approved'
           AND s.class_group_id = ${classId}
       `);
+      console.log(`[photos] parent check: classId=${classId} found=${childRows.rows.length}`);
       if (!childRows.rows.length) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
     } else if (role === "pool_admin") {
       const poolId = await getUserPoolId(userId);

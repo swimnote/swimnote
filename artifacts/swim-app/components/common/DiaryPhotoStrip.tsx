@@ -40,11 +40,18 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate }: Pro
         token,
         `/photos/group/${classGroupId}?date=${lessonDate}`
       );
+      console.log(`[DiaryPhotoStrip] class=${classGroupId?.substr(0,12)} date=${lessonDate} status=${res.status}`);
       if (res.ok) {
         const data = await res.json();
+        console.log(`[DiaryPhotoStrip] photos=${Array.isArray(data) ? data.length : 'not-array'}`);
         setPhotos(Array.isArray(data) ? data : []);
+      } else {
+        const err = await res.text().catch(() => '');
+        console.error(`[DiaryPhotoStrip] error: ${err}`);
       }
-    } catch {}
+    } catch (e) {
+      console.error(`[DiaryPhotoStrip] catch:`, e);
+    }
     finally { setLoading(false); }
   }, [token, classGroupId, lessonDate]);
 

@@ -46,8 +46,11 @@ function Toast({ msg, visible }: { msg: string; visible: boolean }) {
   );
 }
 
-function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; studentId: string; studentName: string }) {
+function DiaryCard({ entry, studentId, studentName, classGroupId }: {
+  entry: DiaryEntry; studentId: string; studentName: string; classGroupId?: string | null;
+}) {
   const { token } = useAuth();
+  const effectiveClassGroupId = classGroupId ?? entry.class_group_id;
   const [showPhotos, setShowPhotos] = useState(false);
   const [open, setOpen] = useState(false);
   const [myReactions, setMyReactions] = useState<Set<string>>(new Set(entry.reactions ?? []));
@@ -62,8 +65,8 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
   }, [entry.id]);
 
   useEffect(() => {
-    if (open && entry.class_group_id) setShowPhotos(true);
-  }, [open, entry.class_group_id]);
+    if (open && effectiveClassGroupId) setShowPhotos(true);
+  }, [open, effectiveClassGroupId]);
 
   function showToast(msg: string) {
     setToast(msg); setToastVisible(true);
@@ -141,10 +144,10 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
           </View>
           <Text style={[ds.content, { color: C.text }]}>{entry.common_content}</Text>
 
-          {showPhotos && entry.class_group_id ? (
+          {showPhotos && effectiveClassGroupId ? (
             <DiaryPhotoStrip
               token={token}
-              classGroupId={entry.class_group_id}
+              classGroupId={effectiveClassGroupId}
               lessonDate={entry.lesson_date}
             />
           ) : null}
@@ -241,6 +244,7 @@ export default function ParentDiaryScreen() {
                 entry={e}
                 studentId={selectedStudent.id}
                 studentName={selectedStudent.name}
+                classGroupId={selectedStudent.class_group_id}
               />
             ))
           )}
