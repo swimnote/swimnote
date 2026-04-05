@@ -32,26 +32,32 @@ async function getPoolSlug(poolId: string): Promise<string> {
   return pool?.name_en || sanitizePoolName(pool?.name || "pool");
 }
 
-/** 저장공간 실시간 체크 — 100% 초과 시 upload_blocked 자동 설정 후 true 반환 */
+/** 저장공간 실시간 체크 — 100% 초과 시 upload_blocked 자동 설정, 여유 시 자동 해제 */
 async function checkStorageLimit(poolId: string): Promise<{ blocked: boolean; pct: number }> {
   const [meta] = (await superAdminDb.execute(sql`
-    SELECT p.upload_blocked, p.extra_storage_gb, sp.storage_gb
+    SELECT p.upload_blocked, p.is_readonly, p.extra_storage_gb,
+           COALESCE(sp.storage_gb, 0.5) AS storage_gb
     FROM swimming_pools p
-    LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
+    LEFT JOIN pool_subscriptions ps ON ps.swimming_pool_id = p.id AND ps.status = 'active'
+    LEFT JOIN subscription_plans sp ON sp.tier = COALESCE(ps.tier, 'free')
     WHERE p.id = ${poolId} LIMIT 1
   `)).rows as any[];
-  if (meta?.upload_blocked) return { blocked: true, pct: 100 };
 
   const [usage] = (await db.execute(sql`
     SELECT COALESCE(SUM(file_size), 0) AS used_bytes
     FROM photo_assets_meta WHERE pool_id = ${poolId}
   `)).rows as any[];
-  const quotaBytes = (Number(meta?.storage_gb ?? 0.1) + Number(meta?.extra_storage_gb ?? 0)) * 1024 ** 3;
+  const quotaBytes = (Number(meta?.storage_gb ?? 0.5) + Number(meta?.extra_storage_gb ?? 0)) * 1024 ** 3;
   const usedBytes  = Number(usage?.used_bytes ?? 0);
   const pct = quotaBytes > 0 ? Math.round((usedBytes / quotaBytes) * 100) : 0;
+
   if (pct >= 100) {
     await superAdminDb.execute(sql`UPDATE swimming_pools SET upload_blocked = true WHERE id = ${poolId}`);
     return { blocked: true, pct };
+  }
+  // 용량 여유 있으면 upload_blocked 자동 해제 (is_readonly 인 경우는 유지)
+  if (meta?.upload_blocked && !meta?.is_readonly) {
+    await superAdminDb.execute(sql`UPDATE swimming_pools SET upload_blocked = false WHERE id = ${poolId}`);
   }
   return { blocked: false, pct };
 }

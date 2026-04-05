@@ -32,7 +32,7 @@ router.get("/features", requireAuth, async (req: AuthRequest, res) => {
     let uploadBlocked = false;
     try {
       const [row] = (await db.execute(sql`
-        SELECT COALESCE(ps.tier, sp.subscription_tier, 'free') AS tier,
+        SELECT COALESCE(ps.tier, 'free') AS tier,
                sp.upload_blocked
         FROM swimming_pools sp
         LEFT JOIN pool_subscriptions ps ON ps.swimming_pool_id = sp.id AND ps.status = 'active'
@@ -530,15 +530,15 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       daysUntilDeletion = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86_400_000));
     }
 
-    const currentPlan = plans.find((p: any) => p.tier === (sub?.tier ?? poolRow?.subscription_tier));
+    const activeTier = sub?.tier ?? "free";
+    const currentPlan = plans.find((p: any) => p.tier === activeTier);
     const memberLimit = Number(currentPlan?.member_limit ?? 10);
-    const storageQuotaGb = Number(currentPlan?.storage_gb ?? 0.1);
+    const storageQuotaGb = Number(currentPlan?.storage_gb ?? 0.5);
     const storageUsedGb = +(usedBytes / (1024 ** 3)).toFixed(3);
     const storageUsedPct = storageQuotaGb > 0 ? Math.round((storageUsedGb / storageQuotaGb) * 100) : 0;
     const firstPaymentUsed = !!poolRow?.first_payment_used;
     const VIDEO_ALLOWED_TIERS = new Set(["center_200", "advance", "pro", "max"]);
-    const currentTier = currentPlan?.tier ?? poolRow?.subscription_tier ?? "free";
-    const videoUploadAllowed = VIDEO_ALLOWED_TIERS.has(currentTier);
+    const videoUploadAllowed = VIDEO_ALLOWED_TIERS.has(activeTier);
 
     res.json({
       subscription: sub ?? null,
@@ -559,8 +559,8 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       readonly_reason: poolRow?.readonly_reason ?? null,
       payment_failed_at: poolRow?.payment_failed_at ?? null,
       subscription_status: poolRow?.subscription_status ?? null,
-      subscription_tier: poolRow?.subscription_tier ?? null,
-      current_plan: currentPlan?.tier ?? poolRow?.subscription_tier ?? null,
+      subscription_tier: activeTier,
+      current_plan: activeTier,
       days_until_deletion: daysUntilDeletion,
     });
   } catch (err) {

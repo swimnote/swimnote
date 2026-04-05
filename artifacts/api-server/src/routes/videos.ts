@@ -73,14 +73,16 @@ async function checkVideoUploadAllowed(poolId: string): Promise<{
   limitMb: number;
 }> {
   const [meta] = (await superAdminDb.execute(sql`
-    SELECT p.subscription_tier, COALESCE(p.extra_storage_gb, 0) AS extra_gb,
+    SELECT COALESCE(ps.tier, 'free') AS tier,
+           COALESCE(p.extra_storage_gb, 0) AS extra_gb,
            COALESCE(sp.storage_gb, 0) AS plan_gb
     FROM swimming_pools p
-    LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
+    LEFT JOIN pool_subscriptions ps ON ps.swimming_pool_id = p.id AND ps.status = 'active'
+    LEFT JOIN subscription_plans sp ON sp.tier = COALESCE(ps.tier, 'free')
     WHERE p.id = ${poolId} LIMIT 1
   `)).rows as any[];
 
-  const tier = (meta?.subscription_tier ?? "free") as string;
+  const tier = (meta?.tier ?? "free") as string;
 
   if (!VIDEO_ALLOWED_TIERS.has(tier)) {
     return { tierBlocked: true, storageBlocked: false, tier, usedMb: 0, limitMb: 0 };
