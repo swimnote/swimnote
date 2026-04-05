@@ -529,6 +529,9 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
     const storageUsedGb = +(usedBytes / (1024 ** 3)).toFixed(3);
     const storageUsedPct = storageQuotaGb > 0 ? Math.round((storageUsedGb / storageQuotaGb) * 100) : 0;
     const firstPaymentUsed = !!poolRow?.first_payment_used;
+    const VIDEO_ALLOWED_TIERS = new Set(["center_200", "advance", "pro", "max"]);
+    const currentTier = currentPlan?.tier ?? poolRow?.subscription_tier ?? "free";
+    const videoUploadAllowed = VIDEO_ALLOWED_TIERS.has(currentTier);
 
     res.json({
       subscription: sub ?? null,
@@ -542,6 +545,7 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       extra_price_per_gb: Number(storagePolicyRow?.extra_price_per_gb ?? 500),
       payment_provider: getPaymentProvider().name,
       first_payment_used: firstPaymentUsed,
+      video_upload_allowed: videoUploadAllowed,
       // 결제 실패 / 읽기전용 상태
       is_readonly: !!poolRow?.is_readonly,
       upload_blocked: !!poolRow?.upload_blocked,
