@@ -170,7 +170,7 @@ export default function TeacherPhotosScreen() {
   const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
 
   type PlanFeatures = { video_enabled: boolean; storage_quota_gb: number; storage_used_gb: number; storage_used_pct: number; upload_blocked: boolean; tier: string };
-  const [planFeatures,       setPlanFeatures]       = useState<PlanFeatures | null>(null);
+  const [planFeatures, setPlanFeatures] = useState<PlanFeatures>({ video_enabled: false, storage_quota_gb: 0, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" });
   const [showVideoGateModal, setShowVideoGateModal] = useState(false);
   const [showStorageModal,   setShowStorageModal]   = useState(false);
 
@@ -333,8 +333,8 @@ export default function TeacherPhotosScreen() {
 
   async function pickAndUpload() {
     const isVideo = mediaType === "video";
-    if (isVideo && planFeatures && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
-    if (planFeatures && planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
+    if (isVideo && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
+    if (planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) { Alert.alert("권한 필요", "미디어 접근 권한이 필요합니다."); return; }

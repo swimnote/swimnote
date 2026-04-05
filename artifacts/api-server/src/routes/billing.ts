@@ -49,8 +49,13 @@ router.get("/features", requireAuth, async (req: AuthRequest, res) => {
 
     let usedBytes = 0;
     try {
-      const [r] = (await db.execute(sql`SELECT COALESCE(SUM(file_size_bytes),0) AS used_bytes FROM student_photos WHERE swimming_pool_id = ${poolId}`)).rows as any[];
-      usedBytes = Number(r?.used_bytes ?? 0);
+      const [r] = (await db.execute(sql`
+        SELECT COALESCE(SUM(file_size),0) AS used_bytes FROM photo_assets_meta WHERE pool_id = ${poolId}
+      `)).rows as any[];
+      const [rv] = (await db.execute(sql`
+        SELECT COALESCE(SUM(file_size),0) AS used_bytes FROM video_assets_meta WHERE pool_id = ${poolId}
+      `)).rows as any[];
+      usedBytes = Number(r?.used_bytes ?? 0) + Number(rv?.used_bytes ?? 0);
     } catch {}
 
     const storageUsedGb = +(usedBytes / (1024 ** 3)).toFixed(3);
@@ -496,12 +501,14 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
     } catch { /* subscription_plans 미존재 */ }
 
     try {
-      const storageResult = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes),0) AS used_bytes
-        FROM student_photos WHERE swimming_pool_id = ${poolId}
-      `);
-      usedBytes = Number((storageResult.rows[0] as any)?.used_bytes ?? 0);
-    } catch { /* student_photos 미존재 */ }
+      const [rp] = (await db.execute(sql`
+        SELECT COALESCE(SUM(file_size),0) AS used_bytes FROM photo_assets_meta WHERE pool_id = ${poolId}
+      `)).rows as any[];
+      const [rv] = (await db.execute(sql`
+        SELECT COALESCE(SUM(file_size),0) AS used_bytes FROM video_assets_meta WHERE pool_id = ${poolId}
+      `)).rows as any[];
+      usedBytes = Number(rp?.used_bytes ?? 0) + Number(rv?.used_bytes ?? 0);
+    } catch { /* 스토리지 조회 실패 */ }
 
     try {
       [storagePolicyRow] = (await db.execute(sql`

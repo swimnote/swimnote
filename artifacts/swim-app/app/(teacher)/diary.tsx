@@ -101,7 +101,7 @@ export default function TeacherDiaryScreen() {
   const [deleteError,   setDeleteError]   = useState<string | null>(null);
 
   type PlanFeatures = { video_enabled: boolean; storage_quota_gb: number; storage_used_gb: number; storage_used_pct: number; upload_blocked: boolean; tier: string };
-  const [planFeatures,       setPlanFeatures]       = useState<PlanFeatures | null>(null);
+  const [planFeatures, setPlanFeatures] = useState<PlanFeatures>({ video_enabled: false, storage_quota_gb: 0, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" });
   const [showVideoGateModal, setShowVideoGateModal] = useState(false);
   const [showStorageModal,   setShowStorageModal]   = useState(false);
 
@@ -211,8 +211,8 @@ export default function TeacherDiaryScreen() {
 
   async function uploadGroupMedia(kind: "photo" | "video") {
     if (!selectedGroup) return;
-    if (kind === "video" && planFeatures && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
-    if (planFeatures && planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
+    if (kind === "video" && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
+    if (planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) return;
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -242,8 +242,8 @@ export default function TeacherDiaryScreen() {
   }
 
   async function uploadStudentMedia(student: StudentOption, kind: "photo" | "video") {
-    if (kind === "video" && planFeatures && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
-    if (planFeatures && planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
+    if (kind === "video" && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
+    if (planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) return;
     const result = await ImagePicker.launchImageLibraryAsync({
