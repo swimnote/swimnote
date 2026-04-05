@@ -178,6 +178,7 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
     }
     // super_admin: 통과
 
+    const { date } = req.query;
     const rows = await db.execute(sql`
       SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.pool_id,
              sp.uploaded_by, sp.uploaded_by_name, sp.caption, sp.created_at, sp.file_size,
@@ -185,6 +186,7 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
       FROM photo_assets_meta sp
       LEFT JOIN students s ON s.id = sp.student_id
       WHERE sp.album_type = 'group' AND sp.class_id = ${classId}
+        ${date ? sql`AND DATE(sp.created_at AT TIME ZONE 'Asia/Seoul') = ${date}` : sql``}
       ORDER BY sp.created_at DESC
     `);
     const photos = (rows.rows as any[]).map(p => ({ ...p, file_url: `/api/photos/${p.id}/file` }));

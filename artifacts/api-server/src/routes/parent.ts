@@ -542,6 +542,7 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
         lesson_date: diary.lesson_date,
         common_content: diary.common_content,
         teacher_name: diary.teacher_name,
+        class_group_id: student.class_group_id,
         class_group_name: diary.class_group_name || null,
         is_edited: diary.is_edited,
         created_at: diary.created_at,

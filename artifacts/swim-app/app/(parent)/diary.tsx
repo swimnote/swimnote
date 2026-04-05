@@ -17,13 +17,14 @@ import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
+import DiaryPhotoStrip from "@/components/common/DiaryPhotoStrip";
 
 const C = Colors.light;
 
 interface StudentNote { id: string; note_content: string; is_edited: boolean; }
 interface DiaryEntry {
   id: string; lesson_date: string; common_content: string;
-  teacher_name: string; class_group_name?: string | null;
+  teacher_name: string; class_group_id?: string | null; class_group_name?: string | null;
   is_edited: boolean; created_at: string;
   student_note?: StudentNote | null;
   reactions?: string[];
@@ -47,6 +48,7 @@ function Toast({ msg, visible }: { msg: string; visible: boolean }) {
 
 function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; studentId: string; studentName: string }) {
   const { token } = useAuth();
+  const [showPhotos, setShowPhotos] = useState(false);
   const [open, setOpen] = useState(false);
   const [myReactions, setMyReactions] = useState<Set<string>>(new Set(entry.reactions ?? []));
   const [toast, setToast] = useState("");
@@ -58,6 +60,10 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
       .then(d => { if (d?.myReactions) setMyReactions(new Set(d.myReactions)); })
       .catch(() => {});
   }, [entry.id]);
+
+  useEffect(() => {
+    if (open && entry.class_group_id) setShowPhotos(true);
+  }, [open, entry.class_group_id]);
 
   function showToast(msg: string) {
     setToast(msg); setToastVisible(true);
@@ -134,6 +140,14 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
             <Text style={[ds.sectionLabel, { color: C.tint }]}>수업 내용</Text>
           </View>
           <Text style={[ds.content, { color: C.text }]}>{entry.common_content}</Text>
+
+          {showPhotos && entry.class_group_id ? (
+            <DiaryPhotoStrip
+              token={token}
+              classGroupId={entry.class_group_id}
+              lessonDate={entry.lesson_date}
+            />
+          ) : null}
 
           {entry.student_note?.note_content ? (
             <View style={[ds.noteBox, { backgroundColor: "#EEDDF5", borderColor: "#E6FAF8" }]}>

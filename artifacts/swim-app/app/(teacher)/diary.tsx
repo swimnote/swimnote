@@ -475,6 +475,8 @@ export default function TeacherDiaryScreen() {
             onDelete={(diary) => { setDeleteTarget(diary); setDeleteError(null); }}
             onDeleteConfirm={confirmDelete}
             onDeleteCancel={() => setDeleteTarget(null)}
+            token={token}
+            classGroupId={group.id}
           />
         )}
 

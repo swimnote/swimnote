@@ -6,6 +6,7 @@ import {
 } from "react-native";
 import Colors from "@/constants/colors";
 import { DiaryEntry } from "./types";
+import DiaryPhotoStrip from "@/components/common/DiaryPhotoStrip";
 
 const DAY_KO: Record<string, string> = {
   Mon: "월", Tue: "화", Wed: "수", Thu: "목", Fri: "금", Sat: "토", Sun: "일",
@@ -31,6 +32,7 @@ export default function DiaryHistoryList({
   userId, refreshing,
   deleteTarget, deleteLoading, deleteError,
   onRefresh, onOpenEdit, onDelete, onDeleteConfirm, onDeleteCancel,
+  token, classGroupId,
 }: {
   diaries: DiaryEntry[];
   diaryLoading: boolean;
@@ -45,6 +47,8 @@ export default function DiaryHistoryList({
   onDelete: (item: DiaryEntry) => void;
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
+  token?: string | null;
+  classGroupId?: string;
 }) {
   return (
     <>
@@ -111,6 +115,13 @@ export default function DiaryHistoryList({
                 <Text style={[s.diaryContent, { color: C.textSecondary }]} numberOfLines={3}>
                   {item.common_content}
                 </Text>
+                {token && classGroupId ? (
+                  <DiaryPhotoStrip
+                    token={token}
+                    classGroupId={classGroupId}
+                    lessonDate={item.lesson_date}
+                  />
+                ) : null}
               </Pressable>
             );
           }}
