@@ -5,7 +5,7 @@ import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, Platform, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -24,11 +24,10 @@ function AppLoadingScreen() {
   return (
     <View style={loadingStyles.container}>
       <Image
-        source={require("../assets/images/icon.png")}
+        source={require("../assets/images/swimnote-logo.png")}
         style={loadingStyles.logo}
         resizeMode="contain"
       />
-      <ActivityIndicator size="small" color="#2EC4B6" style={{ marginTop: 32 }} />
     </View>
   );
 }
