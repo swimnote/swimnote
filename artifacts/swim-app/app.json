@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.swimnote.app",
-      "buildNumber": "69",
+      "buildNumber": "70",
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.applesignin": [
@@ -41,7 +41,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.swimnote.app",
-      "versionCode": 97,
+      "versionCode": 98,
       "edgeToEdge": true
     },
     "web": {
