@@ -24,7 +24,7 @@ function AppLoadingScreen() {
   return (
     <View style={loadingStyles.container}>
       <Image
-        source={require("../assets/images/swimnote-logo.png")}
+        source={require("../assets/images/icon.png")}
         style={loadingStyles.logo}
         resizeMode="contain"
       />
@@ -36,7 +36,7 @@ function AppLoadingScreen() {
 const loadingStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
@@ -44,13 +44,6 @@ const loadingStyles = StyleSheet.create({
   logo: {
     width: 120,
     height: 120,
-  },
-  appName: {
-    fontSize: 26,
-    fontFamily: "Pretendard-Regular",
-    color: "#0F172A",
-    letterSpacing: 6,
-    marginTop: 8,
   },
 });
 
