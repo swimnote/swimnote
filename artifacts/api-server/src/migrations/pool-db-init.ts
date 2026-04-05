@@ -925,6 +925,10 @@ export async function initPoolDb(): Promise<void> {
     }
   }
 
+  // ── 사진/영상에 수업 날짜 컬럼 추가 (일지 연결용) ──────────────────────
+  await db.execute(sql.raw(`ALTER TABLE photo_assets_meta ADD COLUMN IF NOT EXISTS lesson_date text`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE video_assets_meta ADD COLUMN IF NOT EXISTS lesson_date text`)).catch(() => {});
+
   // ── 학부모 간편가입: swimming_pool_id nullable 허용 + is_active 컬럼 추가 ──
   await db.execute(sql.raw(`ALTER TABLE parent_accounts ALTER COLUMN swimming_pool_id DROP NOT NULL`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true`)).catch(() => {});

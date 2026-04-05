@@ -228,6 +228,7 @@ export default function TeacherDiaryScreen() {
       const form = new FormData();
       for (const asset of result.assets) { form.append(kind === "video" ? "video" : "photos", { uri: asset.uri, name: asset.fileName || (kind === "video" ? "video.mp4" : "photo.jpg"), type: asset.mimeType || (kind === "video" ? "video/mp4" : "image/jpeg") } as any); }
       form.append("class_id", selectedGroup.id); form.append("caption", caption);
+      form.append("lesson_date", targetDate);
       const endpoint = kind === "video" ? "/videos/group" : "/photos/group";
       const res = await fetch(`${API_BASE}${endpoint}`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
       if (!res.ok) {

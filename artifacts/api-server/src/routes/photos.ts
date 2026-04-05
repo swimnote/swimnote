@@ -181,12 +181,16 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
     const { date } = req.query;
     const rows = await db.execute(sql`
       SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.pool_id,
-             sp.uploaded_by, sp.uploaded_by_name, sp.caption, sp.created_at, sp.file_size,
+             sp.uploaded_by, sp.uploaded_by_name, sp.caption, sp.created_at,
+             sp.lesson_date, sp.file_size,
              s.name AS student_name
       FROM photo_assets_meta sp
       LEFT JOIN students s ON s.id = sp.student_id
       WHERE sp.album_type = 'group' AND sp.class_id = ${classId}
-        ${date ? sql`AND DATE(sp.created_at AT TIME ZONE 'Asia/Seoul') = ${date}` : sql``}
+        ${date ? sql`AND (
+          (sp.lesson_date IS NOT NULL AND sp.lesson_date = ${date as string})
+          OR (sp.lesson_date IS NULL AND DATE(sp.created_at AT TIME ZONE 'Asia/Seoul') = ${date as string})
+        )` : sql``}
       ORDER BY sp.created_at DESC
     `);
     const photos = (rows.rows as any[]).map(p => ({ ...p, file_url: `/api/photos/${p.id}/file` }));
@@ -236,7 +240,7 @@ router.post(
   upload.array("photos", 10),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { class_id } = req.body;
+      const { class_id, lesson_date } = req.body;
       if (!class_id) { res.status(400).json({ error: "반(class_id)을 선택해주세요." }); return; }
 
       const files = req.files as Express.Multer.File[];
@@ -293,9 +297,9 @@ router.post(
         // group 앨범: student_id는 NULL (반 전체 공유)
         const rows = await db.execute(sql`
           INSERT INTO photo_assets_meta
-            (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id)
+            (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id, lesson_date)
           VALUES
-            (${id}, NULL, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'group', ${class_id})
+            (${id}, NULL, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'group', ${class_id}, ${lesson_date || null})
           RETURNING *
         `);
         console.log(`[photos/group] DB INSERT 완료: id=${id}`);
