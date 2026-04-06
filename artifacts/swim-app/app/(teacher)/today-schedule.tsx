@@ -2,7 +2,7 @@
  * (teacher)/today-schedule.tsx — 오늘 스케줄 탭 (thin shell)
  * 컴포넌트: components/teacher/today-schedule/
  */
-import { ChevronRight, Layers, LogOut, Repeat, Sun, Trophy } from "lucide-react-native";
+import { ChevronRight, Layers, LogOut, Mail, Repeat, Sun, Trophy } from "lucide-react-native";
 import { router } from "expo-router";
 import { Platform, Pressable } from "react-native";
 import React, { useCallback, useEffect, useState } from "react";
@@ -247,6 +247,22 @@ export default function TodayScheduleScreen() {
           </View>
           <Text style={h.greeting} numberOfLines={1}>{adminUser?.name ?? "선생님"}선생님</Text>
         </View>
+        {/* 학부모 쪽지 확인 버튼 */}
+        <Pressable
+          onPress={() => setNotePopupVisible(true)}
+          style={[h.logoutBtn, { marginRight: 8 }]}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <View>
+            <Mail size={18} color={C.textMuted} />
+            {(overview?.unread_messages ?? 0) > 0 && (
+              <View style={{
+                position: "absolute", top: -3, right: -3,
+                width: 8, height: 8, borderRadius: 4, backgroundColor: "#D96C6C",
+              }} />
+            )}
+          </View>
+        </Pressable>
         <Pressable onPress={logout} style={h.logoutBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <LogOut size={18} color={C.textMuted} />
         </Pressable>

@@ -15,7 +15,7 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -90,7 +90,12 @@ export default function MessagesScreen() {
         setMessages(prev => [...prev, msg]);
         setInput("");
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert("전송 실패", err.error ?? "쪽지 전송에 실패했습니다. 다시 시도해주세요.");
       }
+    } catch {
+      Alert.alert("전송 실패", "네트워크 오류가 발생했습니다. 다시 시도해주세요.");
     } finally { setSending(false); }
   }
 
