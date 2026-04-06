@@ -316,7 +316,10 @@ export default function BillingScreen() {
             </View>
           ) : soloPackages.length === 0 ? (
             <View style={s.emptyOffering}>
-              <Text style={s.emptyOfferingText}>Coach 플랜을 불러올 수 없습니다.{"\n"}아래로 당겨서 새로고침하세요.</Text>
+              <Text style={[s.emptyOfferingText, { fontFamily: "Pretendard-SemiBold", marginBottom: 4 }]}>구독 플랜을 불러올 수 없습니다</Text>
+              <Text style={[s.emptyOfferingText, { fontSize: 12, color: "#94A3B8" }]}>
+                App Store에 인앱결제 상품이 등록·심사 완료된 후 이용 가능합니다.{"\n"}아래로 당겨서 새로고침하세요.
+              </Text>
             </View>
           ) : (
             <View style={{ gap: 14 }}>
@@ -394,7 +397,10 @@ export default function BillingScreen() {
             </View>
           ) : centerPackages.length === 0 ? (
             <View style={s.emptyOffering}>
-              <Text style={s.emptyOfferingText}>Premier 플랜을 불러올 수 없습니다.{"\n"}아래로 당겨서 새로고침하세요.</Text>
+              <Text style={[s.emptyOfferingText, { fontFamily: "Pretendard-SemiBold", marginBottom: 4 }]}>구독 플랜을 불러올 수 없습니다</Text>
+              <Text style={[s.emptyOfferingText, { fontSize: 12, color: "#94A3B8" }]}>
+                App Store에 인앱결제 상품이 등록·심사 완료된 후 이용 가능합니다.{"\n"}아래로 당겨서 새로고침하세요.
+              </Text>
             </View>
           ) : (
             <View style={{ gap: 14 }}>

@@ -10,7 +10,7 @@ import { router } from "expo-router";
 import Svg, { Ellipse, Path } from "react-native-svg";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Dimensions, Keyboard, Modal,
+  ActivityIndicator, Alert, Dimensions, Keyboard, Modal,
   Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -118,16 +118,26 @@ export default function LoginScreen() {
       const e = err as any;
       if (e?.code === "ERR_REQUEST_CANCELED") return;
       const code = e?.error_code;
-      if (code === "apple_no_account" && e?.apple_info) {
-        router.push({
-          pathname: "/(auth)/kakao-link",
-          params: {
-            kakaoId: e.apple_info.apple_id,
-            kakaoName: e.apple_info.name || "",
-            kakaoProfileImage: "",
-            loginType: "apple",
-          },
-        } as any);
+      if (code === "apple_no_account") {
+        Alert.alert(
+          "연결된 계정 없음",
+          "이 Apple 계정에 연결된 SwimNote 계정이 없습니다.\n\n수영장 관리자에게 문의하여 전화번호로 등록된 후 계정을 연결해 주세요.",
+          [
+            { text: "확인", style: "cancel" },
+            {
+              text: "계정 연결하기",
+              onPress: () => router.push({
+                pathname: "/(auth)/kakao-link",
+                params: {
+                  kakaoId: e.apple_info?.apple_id ?? "",
+                  kakaoName: e.apple_info?.name ?? "",
+                  kakaoProfileImage: "",
+                  loginType: "apple",
+                },
+              } as any),
+            },
+          ]
+        );
         return;
       }
       setError(e?.message || "Apple 로그인에 실패했습니다.");
@@ -157,16 +167,17 @@ export default function LoginScreen() {
     } finally { setKakaoLoading(false); }
   }
 
+  const isTablet = Dimensions.get("window").width >= 768;
+
   return (
     <View style={[s.root, { backgroundColor: "#fff" }]}>
       <ScrollView
-        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 }]}
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top + (isTablet ? 60 : 24), paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        scrollEnabled={false}
       >
         {/* ── 전체 콘텐츠 (로고 + 폼 + 가입 버튼) ── */}
-        <View style={s.bottomSection}>
+        <View style={[s.bottomSection, isTablet && s.bottomSectionTablet]}>
         <View style={s.logoArea}>
           <View style={s.logoWrap}>
             <View style={s.logoImage}>
@@ -364,12 +375,18 @@ export default function LoginScreen() {
   );
 }
 
+const SCREEN_W = Dimensions.get("window").width;
+
 const s = StyleSheet.create({
   root:    { flex: 1 },
   scroll:  { flexGrow: 1, paddingHorizontal: 24, justifyContent: "flex-end" },
 
+  /* iPad: 가운데 정렬 + 최대 폭 제한 */
+  bottomSection: { gap: 0 },
+  bottomSectionTablet: { maxWidth: 480, width: "100%", alignSelf: "center" },
+
   /* 로고 */
-  logoArea:  { alignItems: "center", marginBottom: 32 + Dimensions.get("window").height * 0.07 },
+  logoArea:  { alignItems: "center", marginBottom: Math.min(48, SCREEN_W * 0.07) },
   logoWrap:  { alignItems: "center", marginBottom: 10 },
   logoBorder: {
     borderRadius: 21, borderWidth: 2, borderColor: "#04111f",
@@ -406,8 +423,6 @@ const s = StyleSheet.create({
 
   forgotRow: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-end", paddingVertical: 2 },
   forgotText:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
-
-  bottomSection: { gap: 0 },
 
   /* or 구분선 */
   divider:   { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
