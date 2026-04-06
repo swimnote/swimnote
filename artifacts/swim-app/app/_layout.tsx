@@ -6,7 +6,7 @@ import * as SplashScreen from "expo-splash-screen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
-import Svg, { G, Rect, Path, Text as SvgText, Defs, LinearGradient, Stop } from "react-native-svg";
+import Svg, { G, Rect, Path, Defs, LinearGradient, Stop } from "react-native-svg";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -21,9 +21,9 @@ try {
   console.warn("[RevenueCat] 초기화 실패:", err?.message ?? "Unknown error");
 }
 
-function SwimNoteLogo() {
+function SwimNoteLoadingLogo() {
   return (
-    <Svg width={290} height={240} viewBox="0 0 580 480">
+    <Svg width={220} height={220} viewBox="170 60 240 240">
       <Defs>
         <LinearGradient id="g1" x1="0.5" y1="0" x2="0.5" y2="1" gradientUnits="objectBoundingBox">
           <Stop offset="0" stopColor="#154a6d" />
@@ -32,7 +32,6 @@ function SwimNoteLogo() {
       </Defs>
       <G transform="translate(130, 20)">
         <Rect x={40} y={40} width={240} height={240} rx={60} fill="url(#g1)" />
-        <Rect x={40} y={40} width={240} height={240} rx={60} stroke="#0a2540" strokeWidth={8} fill="none" />
         <Rect x={70} y={70} width={180} height={180} rx={16} fill="#6ef5ea" />
         <Rect x={70} y={70} width={180} height={180} rx={16} stroke="#0a2540" strokeWidth={7} fill="none" />
         <Rect x={95} y={105} width={60} height={10} rx={5} fill="#0a2540" />
@@ -44,7 +43,6 @@ function SwimNoteLogo() {
         <Path d="M70 200 Q 100 193, 125 200 T 180 200 T 235 200 L250 200" stroke="#0a2540" strokeWidth={7} fill="none" strokeLinecap="round" />
         <Path d="M70 220 Q 100 213, 125 220 T 180 220 T 235 220 L250 220" stroke="#0a2540" strokeWidth={7} fill="none" strokeLinecap="round" />
       </G>
-      <SvgText x={290} y={422} fontFamily="Arial Black, Arial, sans-serif" fontSize={80} fontWeight="900" fill="#0a2540" textAnchor="middle">SwimNote</SvgText>
     </Svg>
   );
 }
@@ -52,7 +50,8 @@ function SwimNoteLogo() {
 function AppLoadingScreen() {
   return (
     <View style={loadingStyles.container}>
-      <SwimNoteLogo />
+      <SwimNoteLoadingLogo />
+      <Text style={loadingStyles.logoText}>SwimNote</Text>
     </View>
   );
 }
@@ -63,6 +62,13 @@ const loadingStyles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
+  },
+  logoText: {
+    marginTop: 20,
+    fontSize: 40,
+    fontWeight: "900",
+    color: "#0a2540",
+    letterSpacing: -1,
   },
 });
 
