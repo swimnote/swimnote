@@ -184,7 +184,6 @@ export default function LoginScreen() {
               <SwimNoteLogo width={80} height={92} viewBox="160 44 185 210" />
             </View>
           </View>
-          <Text style={s.wordmark}>SwimNote</Text>
         </View>
 
         {/* ── 로그인 폼 ── */}
