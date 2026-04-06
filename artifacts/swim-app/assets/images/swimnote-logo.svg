@@ -5,6 +5,8 @@
       <stop offset="100%" stop-color="#0a2540"/>
     </linearGradient>
   </defs>
+  
+  <!-- Icon -->
   <g transform="translate(130, 20)">
     <rect x="40" y="40" width="240" height="240" rx="60" fill="url(#gradient1)"/>
     <rect x="40" y="40" width="240" height="240" rx="60" stroke="#0a2540" stroke-width="8"/>
@@ -19,5 +21,7 @@
     <path d="M70 200 Q 100 193, 125 200 T 180 200 T 235 200 L250 200" stroke="#0a2540" stroke-width="7" fill="none" stroke-linecap="round"/>
     <path d="M70 220 Q 100 213, 125 220 T 180 220 T 235 220 L250 220" stroke="#0a2540" stroke-width="7" fill="none" stroke-linecap="round"/>
   </g>
+  
+  <!-- Text -->
   <text x="290" y="422" font-family="'Avenir Next', 'Segoe UI', 'Helvetica Neue', Roboto, sans-serif" font-size="80" font-weight="700" fill="#0a2540" text-anchor="middle">SwimNote</text>
 </svg>
