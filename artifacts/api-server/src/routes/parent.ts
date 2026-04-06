@@ -688,29 +688,42 @@ router.post("/diary/:diaryId/reactions", requireAuth, requireParent, async (req:
 
 // ── 쪽지 (메시지) ─────────────────────────────────────────────────────────
 router.get("/diary/:diaryId/messages", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  console.log("[diary-msg] GET diaryId=%s userId=%s", req.params.diaryId, req.user?.userId);
   try {
     const rows = await db.execute(sql`
       SELECT id, sender_id, sender_name, sender_role, content, is_deleted, created_at
       FROM diary_messages WHERE diary_id = ${req.params.diaryId}
       ORDER BY created_at ASC
     `);
+    console.log("[diary-msg] GET 결과 count=%d", rows.rows.length);
     res.json(rows.rows);
-  } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+  } catch (err: any) {
+    console.error("[diary-msg] GET 오류:", err?.message, err?.code);
+    res.status(500).json({ error: "서버 오류: " + (err?.message ?? "알 수 없는 오류") });
+  }
 });
 
 router.post("/diary/:diaryId/messages", requireAuth, requireParent, async (req: AuthRequest, res) => {
   const { content } = req.body;
+  console.log("[diary-msg] POST diaryId=%s userId=%s", req.params.diaryId, req.user?.userId);
   if (!content?.trim()) { res.status(400).json({ error: "내용을 입력해주세요." }); return; }
   try {
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
-    if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
+    if (!pa) {
+      console.warn("[diary-msg] 학부모 계정 없음 userId=%s", req.user!.userId);
+      res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return;
+    }
     const result = await db.execute(sql`
       INSERT INTO diary_messages (diary_id, sender_id, sender_name, sender_role, content)
       VALUES (${req.params.diaryId}, ${req.user!.userId}, ${pa.name}, 'parent', ${content.trim()})
       RETURNING *
     `);
+    console.log("[diary-msg] 쪽지 저장 완료 id=%s", (result.rows[0] as any)?.id);
     res.status(201).json(result.rows[0]);
-  } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+  } catch (err: any) {
+    console.error("[diary-msg] POST 오류:", err?.message, err?.code);
+    res.status(500).json({ error: "서버 오류: " + (err?.message ?? "알 수 없는 오류") });
+  }
 });
 
 router.delete("/diary/:diaryId/messages/:msgId", requireAuth, requireParent, async (req: AuthRequest, res) => {

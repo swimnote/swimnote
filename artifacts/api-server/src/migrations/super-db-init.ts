@@ -254,5 +254,53 @@ export async function initSuperDb(): Promise<void> {
     console.warn("[super-db-init] platform_banners 오류:", e.message);
   }
 
+  // ── diary_messages — 학부모↔선생님 쪽지 ────────────────────────────────────
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS diary_messages (
+        id          text        PRIMARY KEY DEFAULT ('dm_' || gen_random_uuid()::text),
+        diary_id    text        NOT NULL,
+        sender_id   text        NOT NULL,
+        sender_name text        NOT NULL,
+        sender_role text        NOT NULL CHECK (sender_role IN ('parent', 'teacher', 'pool_admin')),
+        content     text        NOT NULL,
+        is_deleted  boolean     NOT NULL DEFAULT false,
+        deleted_at  timestamptz,
+        read_at     timestamptz,
+        created_at  timestamptz NOT NULL DEFAULT now()
+      )
+    `));
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS diary_messages_diary_idx ON diary_messages (diary_id, created_at ASC);
+      CREATE INDEX IF NOT EXISTS diary_messages_sender_idx ON diary_messages (sender_id, created_at DESC);
+    `)).catch(() => {});
+    // 기존 테이블에 누락 컬럼 보완
+    await db.execute(sql.raw(`ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS read_at timestamptz`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS deleted_at timestamptz`)).catch(() => {});
+    console.log("[super-db-init] diary_messages 테이블 준비 완료");
+  } catch (e: any) {
+    console.warn("[super-db-init] diary_messages 오류:", e.message);
+  }
+
+  // ── diary_reactions — 학부모 일지 반응(좋아요/감사) ─────────────────────────
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS diary_reactions (
+        id            text        PRIMARY KEY DEFAULT ('dr_' || gen_random_uuid()::text),
+        diary_id      text        NOT NULL,
+        parent_id     text        NOT NULL,
+        reaction_type text        NOT NULL CHECK (reaction_type IN ('like', 'thanks')),
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        UNIQUE (diary_id, parent_id, reaction_type)
+      )
+    `));
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS diary_reactions_diary_idx ON diary_reactions (diary_id);
+    `)).catch(() => {});
+    console.log("[super-db-init] diary_reactions 테이블 준비 완료");
+  } catch (e: any) {
+    console.warn("[super-db-init] diary_reactions 오류:", e.message);
+  }
+
   console.log("[super-db-init] super DB 컬럼 보완 + backup_logs/restore_logs 초기화 완료");
 }
