@@ -24,7 +24,7 @@ try {
 function AppLoadingScreen() {
   return (
     <View style={loadingStyles.container}>
-      <SwimNoteLogoSvg width={320} height={256} viewBox="0 0 500 400" />
+      <SwimNoteLogoSvg width={300} height={248} viewBox="0 0 580 480" />
     </View>
   );
 }
