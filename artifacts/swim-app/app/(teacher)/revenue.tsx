@@ -399,7 +399,7 @@ export default function RevenueScreen() {
             >
               {saving ? <ActivityIndicator color="#fff" /> : <>
                 <Save size={16} color="#fff" />
-                <Text style={rv.saveBtnText}>임시 저장</Text>
+                <Text style={rv.saveBtnText}>반영하기</Text>
               </>}
             </Pressable>
 
