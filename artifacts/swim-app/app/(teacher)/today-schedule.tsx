@@ -2,7 +2,7 @@
  * (teacher)/today-schedule.tsx — 오늘 스케줄 탭 (thin shell)
  * 컴포넌트: components/teacher/today-schedule/
  */
-import { BookOpen, ChevronRight, Layers, LogOut, Mail, Repeat, Settings2, Sun, Trophy } from "lucide-react-native";
+import { BookOpen, Calendar, ChevronRight, Layers, LogOut, Mail, Repeat, Settings2, Sun, Trophy } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Platform, Pressable } from "react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -382,9 +382,16 @@ export default function TodayScheduleScreen() {
               <Layers size={13} color={C.iconSchedule} />
             </View>
             <Text style={h.sectionTitle}>오늘 수업</Text>
-            {!loading && sortedItems.length > 0 && (
-              <Text style={[h.classCnt, { color: C.tint }]}>{sortedItems.length}개</Text>
-            )}
+            <View style={h.sectionHeaderRight}>
+              {!loading && sortedItems.length > 0 && (
+                <Text style={[h.classCnt, { color: C.tint }]}>{sortedItems.length}개</Text>
+              )}
+              <Pressable
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                onPress={() => router.push("/(teacher)/my-schedule?backTo=today-schedule" as any)}>
+                <Calendar size={16} color={C.textMuted} />
+              </Pressable>
+            </View>
           </View>
           <ScrollView
             style={{ flex: 1 }}
@@ -514,7 +521,8 @@ const h = StyleSheet.create({
   sectionIconBox: { width: 24, height: 24, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   sectionTitle:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
   sectionMore:    { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  classCnt:       { marginLeft: "auto", fontSize: 11, fontFamily: "Pretendard-Regular" },
+  classCnt:       { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  sectionHeaderRight: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 8 },
   badgeEmpty:     { alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 24 },
   emptyTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
   listRow:        { flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 4, gap: 6 },
