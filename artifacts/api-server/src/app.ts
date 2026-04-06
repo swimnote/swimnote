@@ -1,6 +1,8 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import path from "path";
+import fs from "fs";
+import multer from "multer";
 import { fileURLToPath } from "url";
 import router from "./routes";
 import { initPushTables } from "./lib/push-service.js";
@@ -38,6 +40,123 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api/store-assets", express.static(path.join(__dirname, "../public/store-assets")));
+
+// ── SVG 업로드 페이지 ─────────────────────────────────────────────────
+const SVG_DEST = path.resolve("/home/runner/workspace/artifacts/swim-app/assets/images");
+const svgUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, SVG_DEST),
+    filename: (_req, file, cb) => cb(null, file.originalname),
+  }),
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === "image/svg+xml" || file.originalname.endsWith(".svg")) cb(null, true);
+    else cb(new Error("SVG 파일만 업로드 가능합니다."));
+  },
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+app.get(["/svg-upload", "/api/svg-upload"], (_req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SVG 업로드</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .card { background: #fff; border-radius: 16px; padding: 40px; width: 100%; max-width: 480px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    h1 { font-size: 22px; font-weight: 700; color: #0a2540; margin-bottom: 8px; }
+    p { font-size: 14px; color: #666; margin-bottom: 28px; }
+    .drop-zone { border: 2px dashed #c8d6e5; border-radius: 12px; padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.2s; background: #f8fafc; }
+    .drop-zone:hover, .drop-zone.over { border-color: #0a2540; background: #eef4fb; }
+    .drop-zone input { display: none; }
+    .drop-zone-label { font-size: 15px; color: #555; }
+    .drop-zone-label strong { color: #0a2540; }
+    .file-name { margin-top: 14px; font-size: 13px; color: #0a2540; font-weight: 600; min-height: 20px; }
+    button { margin-top: 24px; width: 100%; padding: 14px; background: #0a2540; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
+    button:hover { background: #154a6d; }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+    .result { margin-top: 16px; padding: 12px 16px; border-radius: 8px; font-size: 14px; display: none; }
+    .result.ok { background: #e6f9f0; color: #1a7a4a; }
+    .result.err { background: #fff0f0; color: #c0392b; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>SVG 파일 업로드</h1>
+    <p>swim-app/assets/images/ 폴더에 저장됩니다.</p>
+    <div class="drop-zone" id="dropZone">
+      <label for="fileInput">
+        <div class="drop-zone-label">
+          파일을 여기에 <strong>드래그</strong>하거나<br>클릭해서 선택
+        </div>
+        <input type="file" id="fileInput" accept=".svg,image/svg+xml">
+      </label>
+      <div class="file-name" id="fileName"></div>
+    </div>
+    <button id="uploadBtn" disabled>업로드</button>
+    <div class="result" id="result"></div>
+  </div>
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileName = document.getElementById('fileName');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const result = document.getElementById('result');
+    let selectedFile = null;
+
+    fileInput.addEventListener('change', e => setFile(e.target.files[0]));
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+    dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('over'); setFile(e.dataTransfer.files[0]); });
+
+    function setFile(f) {
+      if (!f) return;
+      selectedFile = f;
+      fileName.textContent = f.name;
+      uploadBtn.disabled = false;
+    }
+
+    uploadBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = '업로드 중...';
+      result.style.display = 'none';
+      const fd = new FormData();
+      fd.append('svg', selectedFile);
+      try {
+        const res = await fetch('/api/svg-upload', { method: 'POST', body: fd });
+        const data = await res.json();
+        result.style.display = 'block';
+        if (res.ok) {
+          result.className = 'result ok';
+          result.textContent = '✓ ' + data.message;
+        } else {
+          result.className = 'result err';
+          result.textContent = '✗ ' + (data.message || '업로드 실패');
+        }
+      } catch(e) {
+        result.style.display = 'block';
+        result.className = 'result err';
+        result.textContent = '✗ 네트워크 오류';
+      }
+      uploadBtn.disabled = false;
+      uploadBtn.textContent = '업로드';
+    });
+  </script>
+</body>
+</html>`);
+});
+
+app.post(["/svg-upload", "/api/svg-upload"], svgUpload.single("svg"), (req: Request, res: Response) => {
+  if (!req.file) return res.status(400).json({ success: false, message: "파일이 없습니다." });
+  const savedPath = path.join(SVG_DEST, req.file.filename);
+  if (!fs.existsSync(savedPath)) return res.status(500).json({ success: false, message: "저장 실패" });
+  res.json({ success: true, message: `${req.file.filename} 저장 완료 (${SVG_DEST})` });
+});
+
 app.use("/api", router);
 
 // 헬스체크 — /api/health 와 /health 모두 지원
