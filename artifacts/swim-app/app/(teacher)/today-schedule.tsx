@@ -431,7 +431,8 @@ export default function TodayScheduleScreen() {
       <ScheduleMemoModal visible={showSchedMemo} token={token} themeColor={themeColor}
         onClose={() => setShowSchedMemo(false)} />
       <UnreadMessagesModal visible={notePopupVisible} token={token} themeColor={themeColor}
-        onClose={() => setNotePopupVisible(false)} onOpenDiary={handleOpenDiaryFromMsg} />
+        onClose={() => setNotePopupVisible(false)} onOpenDiary={handleOpenDiaryFromMsg}
+        onMessagesRead={() => setOverview(prev => prev ? { ...prev, unread_messages: 0 } : prev)} />
       <TeacherRegisterModal visible={showTeacherRegister} token={token} themeColor={themeColor}
         onClose={() => setShowTeacherRegister(false)} onSuccess={() => {}} />
 

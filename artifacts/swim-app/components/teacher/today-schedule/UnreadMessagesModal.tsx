@@ -13,10 +13,11 @@ interface UnreadMessage {
 }
 
 export default function UnreadMessagesModal({
-  visible, token, themeColor, onClose, onOpenDiary,
+  visible, token, themeColor, onClose, onOpenDiary, onMessagesRead,
 }: {
   visible: boolean; token: string | null; themeColor: string;
   onClose: () => void; onOpenDiary: (diaryId: string) => void;
+  onMessagesRead?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<UnreadMessage[]>([]);
@@ -27,7 +28,17 @@ export default function UnreadMessagesModal({
     setLoading(true);
     apiRequest(token, "/teacher/messages?unread=true")
       .then(r => r.ok ? r.json() : [])
-      .then(setMessages)
+      .then((msgs: UnreadMessage[]) => {
+        setMessages(msgs);
+        // 메시지가 있으면 전체 읽음 처리 (배지 제거)
+        if (msgs.length > 0) {
+          apiRequest(token, "/teacher/messages/read-all", { method: "POST" })
+            .then(() => onMessagesRead?.())
+            .catch(() => {});
+        } else {
+          onMessagesRead?.();
+        }
+      })
       .catch(() => setMessages([]))
       .finally(() => setLoading(false));
   }, [visible]);
@@ -65,7 +76,7 @@ export default function UnreadMessagesModal({
             {messages.map(msg => (
               <Pressable key={msg.id} style={[um.item, { borderBottomColor: C.border }]}
                 onPress={() => { onOpenDiary(msg.diary_id); onClose(); }}>
-                <View style={um.itemDot} />
+                <View style={[um.itemDot, { backgroundColor: themeColor }]} />
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={[um.itemName, { color: C.text }]}>{msg.sender_name}</Text>
                   <Text style={[um.itemContent, { color: C.textSecondary }]} numberOfLines={1}>{msg.content}</Text>
@@ -93,7 +104,7 @@ const um = StyleSheet.create({
   empty:      { alignItems: "center", gap: 10, paddingVertical: 40 },
   emptyTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular" },
   item:       { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1 },
-  itemDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: "#2EC4B6" },
+  itemDot:    { width: 8, height: 8, borderRadius: 4 },
   itemName:   { fontSize: 14, fontFamily: "Pretendard-Regular" },
   itemContent:{ fontSize: 13, fontFamily: "Pretendard-Regular" },
   itemMeta:   { fontSize: 12, fontFamily: "Pretendard-Regular" },

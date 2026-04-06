@@ -887,6 +887,34 @@ router.get("/teacher/messages",
   }
 );
 
+// POST /teacher/messages/read-all — 내 반 학부모 쪽지 전체 읽음 처리
+router.post("/teacher/messages/read-all",
+  requireAuth, requireRole("teacher", "pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId } = req.user!;
+      const poolId = await getUserPoolId(userId);
+      const myClasses = await db.execute(sql`
+        SELECT id FROM class_groups WHERE teacher_user_id = ${userId} AND swimming_pool_id = ${poolId}
+      `);
+      const classIds = (myClasses.rows as any[]).map(r => r.id);
+      if (classIds.length === 0) { res.json({ updated: 0 }); return; }
+      const classIdList = classIds.map(id => `'${id}'`).join(",");
+      const result = await db.execute(sql`
+        UPDATE diary_messages SET read_at = NOW()
+        WHERE read_at IS NULL
+          AND sender_role = 'parent'
+          AND is_deleted = false
+          AND diary_id IN (
+            SELECT id FROM class_diaries
+            WHERE class_group_id IN (${sql.raw(classIdList)})
+          )
+      `);
+      res.json({ updated: (result as any).rowCount ?? 0 });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
 // POST /teacher/messages/:msgId/read — 메시지 읽음 처리
 router.post("/teacher/messages/:msgId/read",
   requireAuth, requireRole("teacher", "pool_admin", "super_admin"),
