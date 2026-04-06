@@ -1,0 +1,64 @@
+Hello,
+
+Thank you for your resubmission. Upon further review, we identified additional issues that need your attention. See below for more information.
+
+If you have any questions, we are here to help. Reply to this message in App Store Connect and let us know.
+
+Review Environment
+Submission ID: 0931fdf5-32b1-47b4-afd3-9846e5a665f8
+Review date: April 06, 2026
+Review Device: iPad Air 11-inch (M3)
+Version reviewed: 1.2.0
+
+Guideline 2.1(a) - Performance - App Completeness
+Issue Description
+
+The app exhibited one or more bugs that would negatively impact users.
+
+Bug description:  We were unable to complete the Sign in with Apple process.
+
+Review device details:
+
+- Device type: iPad Air 11-inch (M3) 
+- OS version: iPadOS 26.4
+- Internet Connection: Active
+
+Next Steps
+
+Test the app on supported devices to identify and resolve bugs and stability issues before submitting for review.
+Guideline 5.1.1(ii) - Legal - Privacy - Data Collection and Storage
+Issue Description
+
+One or more purpose strings in the app do not sufficiently explain the use of protected resources. Purpose strings must clearly and completely describe the app's use of data and, in most cases, provide an example of how the data will be used.
+
+Next Steps
+
+Update the photo library purpose string to explain how the app will use the requested information and provide a specific example of how the data will be used. See the attached screenshot.
+
+Resources
+
+Purpose strings must clearly describe how an app uses the ability, data, or resource. The following are hypothetical examples of unclear purpose strings that would not pass review: 
+
+- "App would like to access your Contacts"
+- "App needs microphone access"
+
+See examples of helpful, informative purpose strings.
+Guideline 2.1 - Information Needed
+
+We need more information to continue the review.
+
+Next Steps
+
+Provide detailed answers to the following questions:
+
+Review note:
+"In-App Purchases:
+Subscription plans are available for swimming pool operators. Test purchases can be reviewed via the subscription plan selection screen after login. Sandbox environment is used for review."
+
+-How can we switch or login to swimming pool operators and access the subscription in the app? 
+
+
+Support
+- Reply to this message in your preferred language if you need assistance. If you need additional support, use the Contact Us module.
+- Consult with fellow developers and Apple engineers on the Apple Developer Forums.
+- Provide feedback on this message and your review experience by completing a short survey.

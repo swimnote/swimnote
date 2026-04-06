@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.swimnote.app",
-      "buildNumber": "72",
+      "buildNumber": "73",
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.applesignin": [
@@ -25,6 +25,9 @@
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "SwimNote accesses your photo library to attach photos to class lesson diaries and progress reports. For example, a teacher can attach a photo from the gallery to document a student's swimming technique during a lesson.",
+        "NSPhotoLibraryAddUsageDescription": "SwimNote saves photos to your photo library when you download lesson diary images or class photos shared by your swimming instructor.",
+        "NSCameraUsageDescription": "SwimNote uses the camera to take photos directly for lesson diaries and class progress documentation. For example, a teacher can photograph a student's swimming form to include in the lesson record.",
         "LSApplicationQueriesSchemes": [
           "kakaokompassauth",
           "storekvstore",
