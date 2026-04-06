@@ -182,7 +182,6 @@ export default function ParentHomeScreen() {
         const data = await r.json();
         setV2Status(data.status);
         setV2PendingChildName(data.pendingChildName || null);
-        console.log("[v2-home] 상태:", data.status, data.pendingChildName ? `대기 자녀="${data.pendingChildName}"` : "");
         if (data.status === "linked") await refresh();
       }
     } catch (e) {
