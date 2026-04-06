@@ -1976,7 +1976,7 @@ router.get("/class-settings", requireAuth, requireRole("super_admin","pool_admin
       const rows = (await superAdminDb.execute(sql`
         SELECT default_capacity FROM swimming_pools WHERE id = ${poolId} LIMIT 1
       `)).rows as any[];
-      res.json({ default_capacity: rows[0]?.default_capacity ?? 20 });
+      res.json({ default_capacity: rows[0]?.default_capacity ?? 5 });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );

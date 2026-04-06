@@ -29,7 +29,7 @@ export default function PoolSettingsScreen() {
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
-  const [defaultCapacity, setDefaultCapacity] = useState<string>("20");
+  const [defaultCapacity, setDefaultCapacity] = useState<string>("5");
   const [savingCapacity,  setSavingCapacity]  = useState(false);
   const [capacityMsg,     setCapacityMsg]     = useState("");
 
@@ -67,7 +67,7 @@ export default function PoolSettingsScreen() {
         }
         if (capRes.ok) {
           const capData = await capRes.json();
-          setDefaultCapacity(String(capData.default_capacity ?? 20));
+          setDefaultCapacity(String(capData.default_capacity ?? 5));
         }
         if (contentRes.ok) {
           const cd = await contentRes.json();
@@ -269,7 +269,7 @@ export default function PoolSettingsScreen() {
                 style={[styles.input, { color: C.text }]}
                 value={defaultCapacity}
                 onChangeText={setDefaultCapacity}
-                placeholder="20"
+                placeholder="5"
                 placeholderTextColor={C.textMuted}
                 keyboardType="number-pad"
                 maxLength={3}
