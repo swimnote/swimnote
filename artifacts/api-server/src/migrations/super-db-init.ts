@@ -277,6 +277,7 @@ export async function initSuperDb(): Promise<void> {
     // 기존 테이블에 누락 컬럼 보완
     await db.execute(sql.raw(`ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS read_at timestamptz`)).catch(() => {});
     await db.execute(sql.raw(`ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS deleted_at timestamptz`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS image_url text`)).catch(() => {});
     console.log("[super-db-init] diary_messages 테이블 준비 완료");
   } catch (e: any) {
     console.warn("[super-db-init] diary_messages 오류:", e.message);

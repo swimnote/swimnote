@@ -9,7 +9,7 @@
  *  5. 사진·영상 앨범 바로가기
  *  6. 기타
  */
-import { Bell, Camera, ChevronRight, CircleDollarSign, FileText, HardDrive, Pencil, UserCog } from "lucide-react-native";
+import { Bell, Camera, ChevronRight, CircleDollarSign, FileText, HardDrive, Mail, Pencil, UserCog } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
@@ -167,6 +167,16 @@ export default function TeacherSettingsScreen() {
         >
           <Pencil size={18} color="#0F172A" />
           <Text style={[s.actionBtnText, { color: "#0F172A" }]}>피드백 기본 설정</Text>
+          <ChevronRight size={16} color="#0F172A" />
+        </Pressable>
+
+        {/* ── 쪽지보관함 ── */}
+        <Pressable
+          style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
+          onPress={() => router.push("/(teacher)/messages-inbox" as any)}
+        >
+          <Mail size={18} color="#0F172A" />
+          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>쪽지보관함</Text>
           <ChevronRight size={16} color="#0F172A" />
         </Pressable>
 

@@ -2,6 +2,7 @@ import { ChevronRight, Mail, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router } from "expo-router";
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
 
@@ -75,7 +76,10 @@ export default function UnreadMessagesModal({
           <ScrollView showsVerticalScrollIndicator={false}>
             {messages.map(msg => (
               <Pressable key={msg.id} style={[um.item, { borderBottomColor: C.border }]}
-                onPress={() => { onOpenDiary(msg.diary_id); onClose(); }}>
+                onPress={() => {
+                  onClose();
+                  router.push(`/(teacher)/messages-inbox?diaryId=${msg.diary_id}` as any);
+                }}>
                 <View style={[um.itemDot, { backgroundColor: themeColor }]} />
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={[um.itemName, { color: C.text }]}>{msg.sender_name}</Text>

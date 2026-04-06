@@ -961,13 +961,13 @@ router.get("/teacher/diary/:diaryId/messages",
   }
 );
 
-// POST /teacher/diary/:diaryId/messages — 선생님 쪽지 발송
+// POST /teacher/diary/:diaryId/messages — 선생님 쪽지 발송 (이미지 첨부 지원)
 router.post("/teacher/diary/:diaryId/messages",
   requireAuth, requireRole("teacher", "pool_admin", "super_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const { content } = req.body;
-      if (!content?.trim()) { res.status(400).json({ error: "내용을 입력해주세요." }); return; }
+      const { content, image_url } = req.body;
+      if (!content?.trim() && !image_url) { res.status(400).json({ error: "내용을 입력해주세요." }); return; }
       const { userId, role } = req.user!;
 
       // 내 반 수업일지 확인 (선생님은 본인 반만, 관리자는 전체)
@@ -982,13 +982,60 @@ router.post("/teacher/diary/:diaryId/messages",
 
       const [user] = await superAdminDb.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, String(userId))).limit(1);
       const senderName = (user as any)?.name || "선생님";
+      const msgContent = content?.trim() || "";
 
       const result = await db.execute(sql`
-        INSERT INTO diary_messages (diary_id, sender_id, sender_name, sender_role, content)
-        VALUES (${req.params.diaryId}, ${userId}, ${senderName}, 'teacher', ${content.trim()})
+        INSERT INTO diary_messages (diary_id, sender_id, sender_name, sender_role, content, image_url)
+        VALUES (${req.params.diaryId}, ${userId}, ${senderName}, 'teacher', ${msgContent}, ${image_url || null})
         RETURNING *
       `);
       res.status(201).json(result.rows[0]);
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// GET /teacher/messages/threads — 쪽지 대화 목록 (일지별 그룹, 전체 보관함용)
+router.get("/teacher/messages/threads",
+  requireAuth, requireRole("teacher", "pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId } = req.user!;
+      const poolId = await getUserPoolId(userId);
+
+      const myClasses = await db.execute(sql`
+        SELECT id FROM class_groups WHERE teacher_user_id = ${userId} AND swimming_pool_id = ${poolId}
+      `);
+      const classIds = (myClasses.rows as any[]).map(r => r.id);
+      if (classIds.length === 0) { res.json([]); return; }
+
+      const classIdList = classIds.map(id => `'${id}'`).join(",");
+      const rows = await db.execute(sql`
+        SELECT
+          cd.id AS diary_id,
+          cd.lesson_date,
+          cg.name AS class_name,
+          COUNT(dm.id) FILTER (WHERE dm.sender_role = 'parent' AND dm.is_deleted = false) AS parent_msg_count,
+          COUNT(dm.id) FILTER (WHERE dm.sender_role = 'parent' AND dm.read_at IS NULL AND dm.is_deleted = false) AS unread_count,
+          MAX(dm.created_at) AS last_msg_at,
+          (SELECT dm2.content FROM diary_messages dm2
+           WHERE dm2.diary_id = cd.id AND dm2.is_deleted = false
+           ORDER BY dm2.created_at DESC LIMIT 1) AS last_content,
+          (SELECT dm2.sender_role FROM diary_messages dm2
+           WHERE dm2.diary_id = cd.id AND dm2.is_deleted = false
+           ORDER BY dm2.created_at DESC LIMIT 1) AS last_sender_role,
+          (SELECT dm2.sender_name FROM diary_messages dm2
+           WHERE dm2.diary_id = cd.id AND dm2.is_deleted = false
+           ORDER BY dm2.created_at DESC LIMIT 1) AS last_sender_name
+        FROM class_diaries cd
+        JOIN class_groups cg ON cg.id = cd.class_group_id
+        LEFT JOIN diary_messages dm ON dm.diary_id = cd.id
+        WHERE cd.class_group_id IN (${sql.raw(classIdList)})
+        GROUP BY cd.id, cd.lesson_date, cg.name
+        HAVING COUNT(dm.id) FILTER (WHERE dm.sender_role = 'parent' AND dm.is_deleted = false) > 0
+        ORDER BY last_msg_at DESC NULLS LAST
+        LIMIT 100
+      `);
+      res.json(rows.rows);
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
 );
