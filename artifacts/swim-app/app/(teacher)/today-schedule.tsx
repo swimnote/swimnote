@@ -2,7 +2,7 @@
  * (teacher)/today-schedule.tsx — 오늘 스케줄 탭 (thin shell)
  * 컴포넌트: components/teacher/today-schedule/
  */
-import { ChevronRight, Layers, LogOut, Mail, Repeat, Sun, Trophy } from "lucide-react-native";
+import { BookOpen, ChevronRight, Layers, LogOut, Mail, Repeat, Settings2, Sun, Trophy } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Platform, Pressable } from "react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -413,10 +413,15 @@ export default function TodayScheduleScreen() {
               const extra    = names.length - MAX;
               const nameStr  = shown.join(", ") + (extra > 0 ? ` 외 ${extra}명` : "");
               const isLast   = idx === sortedItems.length - 1;
+              const diaryDone = item.diary_done;
               return (
                 <Pressable key={item.id}
-                  style={[h.listRow, !isLast && h.listRowBorder]}
-                  onPress={() => handleChipPress(item)}>
+                  style={({ pressed }) => [h.listRow, !isLast && h.listRowBorder, pressed && { opacity: 0.85 }]}
+                  onPress={() => {
+                    haptic.light();
+                    router.push({ pathname: "/(teacher)/diary", params: { classGroupId: item.id, className: item.name, backTo: "today-schedule" } } as any);
+                  }}>
+                  <View style={[h.diaryStatusBar, { backgroundColor: diaryDone ? "#2EC4B6" : "#F59E0B" }]} />
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
                       <Text style={[h.listTime, { color: C.tint }]}>{item.schedule_time}</Text>
@@ -426,8 +431,19 @@ export default function TodayScheduleScreen() {
                     {nameStr.length > 0 && (
                       <Text style={h.listNames} numberOfLines={1}>{nameStr}</Text>
                     )}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+                      <BookOpen size={11} color={diaryDone ? "#2EC4B6" : "#F59E0B"} />
+                      <Text style={[h.diaryStatusTxt, { color: diaryDone ? "#2EC4B6" : "#F59E0B" }]}>
+                        {diaryDone ? "일지 완료" : "일지 미작성"}
+                      </Text>
+                    </View>
                   </View>
-                  <ChevronRight size={14} color={C.textMuted} />
+                  <Pressable
+                    style={h.detailBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 0 }}
+                    onPress={(e) => { e.stopPropagation(); haptic.light(); handleChipPress(item); }}>
+                    <Settings2 size={16} color={C.textMuted} />
+                  </Pressable>
                 </Pressable>
               );
             })}
@@ -507,6 +523,9 @@ const h = StyleSheet.create({
   listName:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, flex: 1 },
   listCount:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
   listNames:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.text, marginLeft: 50 },
+  diaryStatusBar: { width: 3, alignSelf: "stretch", borderRadius: 2, marginRight: 2 },
+  diaryStatusTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  detailBtn:      { padding: 8, marginLeft: 4 },
   feedbackBanner:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16 },
   feedbackBannerLeft: { flex: 1, gap: 2 },
   feedbackBannerTitle:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
