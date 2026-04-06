@@ -7,7 +7,7 @@
 import { CircleAlert, Key, Lock, User, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
-import Svg, { Ellipse, Path, G, Rect, Defs, LinearGradient, Stop } from "react-native-svg";
+import Svg, { Ellipse, Path } from "react-native-svg";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Dimensions, Keyboard, Modal,
@@ -31,32 +31,6 @@ function KakaoIcon({ size = 22 }: { size?: number }) {
         d="M12 3C6.48 3 2 6.58 2 11C2 13.8 3.68 16.27 6.24 17.76L5.1 21.5L9.3 19.04C10.16 19.22 11.07 19.32 12 19.32C17.52 19.32 22 15.74 22 11C22 6.58 17.52 3 12 3Z"
         fill="#3C1E1E"
       />
-    </Svg>
-  );
-}
-
-function SwimNoteIcon({ size = 80 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="170 60 240 240">
-      <Defs>
-        <LinearGradient id="iconGrad" x1="0.5" y1="0" x2="0.5" y2="1" gradientUnits="objectBoundingBox">
-          <Stop offset="0" stopColor="#154a6d" />
-          <Stop offset="1" stopColor="#0a2540" />
-        </LinearGradient>
-      </Defs>
-      <G transform="translate(130, 20)">
-        <Rect x={40} y={40} width={240} height={240} rx={60} fill="url(#iconGrad)" />
-        <Rect x={70} y={70} width={180} height={180} rx={16} fill="#6ef5ea" />
-        <Rect x={70} y={70} width={180} height={180} rx={16} stroke="#0a2540" strokeWidth={7} fill="none" />
-        <Rect x={95} y={105} width={60} height={10} rx={5} fill="#0a2540" />
-        <Rect x={95} y={130} width={80} height={10} rx={5} fill="#0a2540" />
-        <Path d="M200 85 L220 105 L250 75" stroke="#6ef5ea" strokeWidth={16} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <Path d="M200 85 L220 105 L250 75" stroke="#0a2540" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <Path d="M70 175 Q 100 168, 125 175 T 180 175 T 235 175 L250 175 L250 234 Q 250 250, 234 250 L86 250 Q 70 250, 70 234 Z" fill="#0ea5e9" />
-        <Path d="M70 175 Q 100 168, 125 175 T 180 175 T 235 175 L250 175" stroke="#0a2540" strokeWidth={7} fill="none" />
-        <Path d="M70 200 Q 100 193, 125 200 T 180 200 T 235 200 L250 200" stroke="#0a2540" strokeWidth={7} fill="none" strokeLinecap="round" />
-        <Path d="M70 220 Q 100 213, 125 220 T 180 220 T 235 220 L250 220" stroke="#0a2540" strokeWidth={7} fill="none" strokeLinecap="round" />
-      </G>
     </Svg>
   );
 }
@@ -203,14 +177,6 @@ export default function LoginScreen() {
       >
         {/* ── 전체 콘텐츠 (로고 + 폼 + 가입 버튼) ── */}
         <View style={[s.bottomSection, isTablet && s.bottomSectionTablet]}>
-        <View style={s.logoArea}>
-          <View style={s.logoWrap}>
-            <View style={s.logoImage}>
-              <SwimNoteIcon size={80} />
-            </View>
-          </View>
-        </View>
-
         {/* ── 로그인 폼 ── */}
         <View style={s.form}>
           {/* 아이디 */}
