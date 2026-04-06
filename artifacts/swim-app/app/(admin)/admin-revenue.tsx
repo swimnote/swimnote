@@ -213,7 +213,7 @@ export default function AdminRevenueScreen() {
               <Text style={[s.quickLabel, { color: "#0F172A" }]}>보강 이월</Text>
             </Pressable>
             <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
-              onPress={() => router.push("/(admin)/pool-settings?backTo=admin-revenue" as any)}>
+              onPress={() => router.push("/(admin)/unit-pricing" as any)}>
               <DollarSign size={16} color="#0F172A" />
               <Text style={[s.quickLabel, { color: "#0F172A" }]}>단가표</Text>
             </Pressable>
