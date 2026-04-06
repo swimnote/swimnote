@@ -7,7 +7,7 @@
 import { ChartBar, ChevronLeft, ChevronRight, CircleArrowRight, CircleCheck, CircleDollarSign, CircleMinus, CirclePlus, Pencil, Save } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, RefreshControl,
@@ -117,6 +117,9 @@ export default function RevenueScreen() {
   }, [token, poolId, month, userId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 화면 포커스(탭 전환·스택 복귀) 시 실시간 반영
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   // 같은 탭 재탭 시 → 현재 월로 초기화
   useEffect(() => {
