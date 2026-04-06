@@ -12,7 +12,7 @@
  */
 import { Send } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
@@ -64,6 +64,8 @@ export default function MessagesScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const myId = parentAccount?.id ?? "";
 
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const load = useCallback(async () => {
     if (!diaryId) return;
     setLoading(true);
@@ -73,7 +75,21 @@ export default function MessagesScreen() {
     } finally { setLoading(false); }
   }, [diaryId, token]);
 
+  // 메시지 목록 초기 로드
   useEffect(() => { load(); }, [load]);
+
+  // 화면 포커스 중 10초마다 폴링 (선생님 답장 실시간 반영)
+  useFocusEffect(useCallback(() => {
+    pollTimerRef.current = setInterval(async () => {
+      if (!diaryId || !token) return;
+      try {
+        const res = await apiRequest(token, `/parent/diary/${diaryId}/messages`);
+        if (res.ok) setMessages(await res.json());
+      } catch { /* 무시 */ }
+    }, 10_000);
+    return () => { if (pollTimerRef.current) clearInterval(pollTimerRef.current); };
+  }, [diaryId, token]));
+
   useEffect(() => {
     if (messages.length) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
   }, [messages.length]);

@@ -3,9 +3,9 @@
  * 컴포넌트: components/teacher/today-schedule/
  */
 import { ChevronRight, Layers, LogOut, Mail, Repeat, Sun, Trophy } from "lucide-react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Platform, Pressable } from "react-native";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
@@ -74,6 +74,16 @@ export default function TodayScheduleScreen() {
     finally { setSwitching(false); }
   }
 
+  const overviewTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const loadOverview = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await apiRequest(token, "/teacher/overview");
+      if (res.ok) setOverview(await res.json());
+    } catch { /* 무시 */ }
+  }, [token]);
+
   const load = useCallback(async () => {
     try {
       const [schedRes, ovRes] = await Promise.all([
@@ -87,6 +97,13 @@ export default function TodayScheduleScreen() {
   }, [token, today]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 화면 포커스 시 overview 즉시 갱신 + 60초 폴링 (쪽지 배지 실시간 반영)
+  useFocusEffect(useCallback(() => {
+    loadOverview();
+    overviewTimerRef.current = setInterval(loadOverview, 60_000);
+    return () => { if (overviewTimerRef.current) clearInterval(overviewTimerRef.current); };
+  }, [loadOverview]));
 
   useEffect(() => {
     if (!token || items.length === 0) return;
