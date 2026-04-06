@@ -57,6 +57,7 @@ interface TeacherReport {
   transfer_count?: number;
   postpone_count?: number;
   withdrawn_count?: number;
+  extra_manual_amount?: number;
 }
 
 function apiStatusToUI(raw: string | null | undefined): SettlementStatus {
@@ -223,112 +224,94 @@ export default function AdminRevenueScreen() {
             </Pressable>
           </View>
 
-          {/* ── 총 매출 요약 ── */}
-          {summary && (
-            <View style={[s.summaryCard, { borderColor: themeColor + "30" }]}>
-              <View style={s.summaryTop}>
-                <Text style={[s.summaryTitle, { color: C.textMuted }]}>이번 달 총 매출</Text>
-                <Text style={[s.summaryAmount, { color: themeColor }]}>{formatWon(summary.total_revenue)}</Text>
+          {/* ── 전체 합산 요약 (submitted 기준) ── */}
+          {(() => {
+            const submittedReports = reports.filter(r => r.status === "submitted" || r.status === "confirmed" || r.status === "draft");
+            const totalRevenue  = submittedReports.reduce((s, r) => s + (r.total_revenue || 0), 0);
+            const totalSessions = submittedReports.reduce((s, r) => s + (r.total_sessions || 0), 0);
+            const totalExtra    = submittedReports.reduce((s, r) => s + (r.extra_manual_amount || 0), 0);
+            const submitted     = reports.filter(r => r.status === "submitted" || r.status === "confirmed").length;
+            return (
+              <View style={[s.summaryCard, { borderColor: themeColor + "30" }]}>
+                <View style={s.summaryTopRow}>
+                  <Text style={[s.summaryLabel, { color: C.textMuted }]}>전체합산 수업금액</Text>
+                  <View style={s.submitBadge}>
+                    <Text style={[s.submitBadgeTxt, { color: themeColor }]}>제출 {submitted}/{teachers.length}명</Text>
+                  </View>
+                </View>
+                <Text style={[s.summaryTotal, { color: themeColor }]}>{formatWon(totalRevenue)}</Text>
+                <View style={s.summaryMetrics}>
+                  <View style={[s.metricBox, { backgroundColor: themeColor + "10" }]}>
+                    <Text style={[s.metricVal, { color: C.text }]}>{totalSessions}<Text style={s.metricUnit}>회</Text></Text>
+                    <Text style={[s.metricLabel, { color: C.textMuted }]}>전체수업시수</Text>
+                  </View>
+                  <View style={[s.metricBox, { backgroundColor: "#FFF7ED" }]}>
+                    <Text style={[s.metricVal, { color: "#C2410C" }]}>{formatWon(totalExtra)}</Text>
+                    <Text style={[s.metricLabel, { color: C.textMuted }]}>추가수업비용</Text>
+                  </View>
+                </View>
+                {totalSessions > 0 && totalRevenue > 0 && (
+                  <Text style={[s.formulaHint, { color: C.textMuted }]}>
+                    수업당 단가 ≈ {formatWon(Math.round((totalRevenue - totalExtra) / totalSessions))} / 회
+                  </Text>
+                )}
               </View>
-              <View style={s.summaryRow}>
-                <View style={s.summaryItem}>
-                  <Text style={[s.summaryItemLabel, { color: C.textMuted }]}>정규</Text>
-                  <Text style={[s.summaryItemVal, { color: C.text }]}>{summary.total_sessions}회</Text>
-                </View>
-                <View style={s.summaryItem}>
-                  <Text style={[s.summaryItemLabel, { color: C.textMuted }]}>보강</Text>
-                  <Text style={[s.summaryItemVal, { color: C.text }]}>{summary.total_makeup_sessions}회</Text>
-                </View>
-                <View style={s.summaryItem}>
-                  <Text style={[s.summaryItemLabel, { color: C.textMuted }]}>체험</Text>
-                  <Text style={[s.summaryItemVal, { color: C.text }]}>{summary.total_trial_sessions}회</Text>
-                </View>
-                <View style={s.summaryItem}>
-                  <Text style={[s.summaryItemLabel, { color: C.textMuted }]}>임시이동</Text>
-                  <Text style={[s.summaryItemVal, { color: C.text }]}>{summary.total_temp_transfer_sessions}회</Text>
-                </View>
-              </View>
+            );
+          })()}
+
+          {/* ── 선생님별 정산내역 (이름순) ── */}
+          <View style={s.teacherHeader}>
+            <Text style={[s.sectionTitle, { color: C.text }]}>선생님별 정산내역</Text>
+            <Text style={[s.teacherCount, { color: C.textMuted }]}>{teachers.length}명</Text>
+          </View>
+
+          {/* 컬럼 헤더 */}
+          {teachers.length > 0 && (
+            <View style={s.tableHeader}>
+              <Text style={[s.colHead, { flex: 2 }]}>이름</Text>
+              <Text style={[s.colHead, { flex: 2, textAlign: "right" }]}>매출</Text>
+              <Text style={[s.colHead, { flex: 1, textAlign: "center" }]}>수업시수</Text>
+              <Text style={[s.colHead, { flex: 2, textAlign: "right" }]}>추가수업비용</Text>
             </View>
           )}
 
-          {/* ── 선생님별 매출내역 ── */}
-          <View style={s.teacherHeader}>
-            <Text style={[s.sectionTitle, { color: C.text }]}>선생님별 매출내역</Text>
-            <Text style={[s.teacherCount, { color: C.textMuted }]}>{teachers.length}명</Text>
-          </View>
           {teachers.length === 0 ? (
             <View style={s.emptyBox}>
               <Users size={40} color={C.textMuted} />
               <Text style={[s.emptyTxt, { color: C.textMuted }]}>등록된 선생님이 없습니다</Text>
             </View>
           ) : (
-            teachers.map(t => {
-              const report = reports.find(r => r.teacher_id === t.id);
-              const status: SettlementStatus = apiStatusToUI(report?.status);
-              const statusStyle = STATUS_COLOR[status];
-              return (
-                <View key={t.id} style={[s.teacherCard, { backgroundColor: C.card }]}>
-                  <View style={s.teacherCardTop}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[s.teacherName, { color: C.text }]}>{t.name}</Text>
-                      {t.position ? <Text style={[s.teacherPos, { color: C.textMuted }]}>{t.position}</Text> : null}
+            [...teachers]
+              .sort((a, b) => a.name.localeCompare(b.name, "ko"))
+              .map((t, idx) => {
+                const report = reports.find(r => r.teacher_id === t.id);
+                const status: SettlementStatus = apiStatusToUI(report?.status);
+                const statusStyle = STATUS_COLOR[status];
+                const isLast = idx === teachers.length - 1;
+                return (
+                  <View key={t.id} style={[s.tableRow, !isLast && s.tableRowBorder]}>
+                    {/* 이름 + 상태 */}
+                    <View style={{ flex: 2, gap: 3 }}>
+                      <Text style={[s.rowName, { color: C.text }]}>{t.name}</Text>
+                      <View style={[s.statusPill, { backgroundColor: statusStyle.bg }]}>
+                        <Text style={[s.statusPillTxt, { color: statusStyle.text }]}>{status}</Text>
+                      </View>
                     </View>
-                    <View style={[s.statusBadge, { backgroundColor: statusStyle.bg }]}>
-                      <Text style={[s.statusTxt, { color: statusStyle.text }]}>{status}</Text>
-                    </View>
+                    {/* 매출 */}
+                    <Text style={[s.rowAmt, { flex: 2, color: report?.total_revenue != null ? themeColor : C.textMuted }]}>
+                      {report?.total_revenue != null ? formatWon(report.total_revenue) : "미제출"}
+                    </Text>
+                    {/* 수업시수 */}
+                    <Text style={[s.rowVal, { flex: 1 }]}>
+                      {report?.total_sessions != null ? `${report.total_sessions}회` : "—"}
+                    </Text>
+                    {/* 추가수업비용 */}
+                    <Text style={[s.rowExtra, { flex: 2, color: (report?.extra_manual_amount || 0) > 0 ? "#C2410C" : C.textMuted }]}>
+                      {(report?.extra_manual_amount || 0) > 0 ? formatWon(report!.extra_manual_amount!) : "—"}
+                    </Text>
                   </View>
-
-                  <Text style={[s.teacherAmt, { color: themeColor }]}>
-                    {report?.total_revenue != null ? formatWon(report.total_revenue) : "—"}
-                  </Text>
-
-                  <View style={s.statsGrid}>
-                    <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: C.text }]}>
-                        {report?.total_sessions ?? t.student_count ?? "—"}
-                      </Text>
-                      <Text style={[s.statBoxLabel, { color: C.textMuted }]}>수업시간</Text>
-                    </View>
-                    <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: C.text }]}>
-                        {report?.student_count ?? t.student_count ?? "—"}
-                      </Text>
-                      <Text style={[s.statBoxLabel, { color: C.textMuted }]}>수업인원</Text>
-                    </View>
-                    <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: "#0F172A" }]}>
-                        {report?.makeup_count ?? t.makeup_waiting ?? "—"}
-                      </Text>
-                      <Text style={[s.statBoxLabel, { color: C.textMuted }]}>보강</Text>
-                    </View>
-                    <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: "#0F172A" }]}>
-                        {report?.trial_count ?? "—"}
-                      </Text>
-                      <Text style={[s.statBoxLabel, { color: C.textMuted }]}>체험</Text>
-                    </View>
-                    <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: "#0F172A" }]}>
-                        {report?.transfer_count ?? "—"}
-                      </Text>
-                      <Text style={[s.statBoxLabel, { color: C.textMuted }]}>이동</Text>
-                    </View>
-                    <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: "#64748B" }]}>
-                        {report?.postpone_count ?? "—"}
-                      </Text>
-                      <Text style={[s.statBoxLabel, { color: C.textMuted }]}>연기</Text>
-                    </View>
-                    <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: "#D96C6C" }]}>
-                        {report?.withdrawn_count ?? "—"}
-                      </Text>
-                      <Text style={[s.statBoxLabel, { color: C.textMuted }]}>탈퇴</Text>
-                    </View>
-                  </View>
-                </View>
-              );
-            })
+                );
+              })
           )}
 
           {/* ── 기타 수기 정산 ── */}
@@ -439,14 +422,18 @@ const s = StyleSheet.create({
   quickBtn: { flex: 1, flexDirection: "column", alignItems: "center", justifyContent: "center", borderRadius: 12, paddingVertical: 12, gap: 4 },
   quickLabel: { fontSize: 12, fontFamily: "Pretendard-Regular" },
 
-  summaryCard: { borderRadius: 16, padding: 16, borderWidth: 1.5, backgroundColor: Colors.light.card, gap: 12 },
-  summaryTop: { gap: 2 },
-  summaryTitle: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  summaryAmount: { fontSize: 24, fontFamily: "Pretendard-Regular" },
-  summaryRow: { flexDirection: "row" },
-  summaryItem: { flex: 1, alignItems: "center", gap: 2 },
-  summaryItemLabel: { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  summaryItemVal: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  summaryCard:    { borderRadius: 16, padding: 16, borderWidth: 1.5, backgroundColor: Colors.light.card, gap: 8 },
+  summaryTopRow:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  summaryLabel:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  summaryTotal:   { fontSize: 26, fontFamily: "Pretendard-Regular" },
+  submitBadge:    { backgroundColor: "#F0FFF4", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
+  submitBadgeTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  summaryMetrics: { flexDirection: "row", gap: 10, marginTop: 4 },
+  metricBox:      { flex: 1, borderRadius: 12, padding: 12, gap: 4, alignItems: "center" },
+  metricVal:      { fontSize: 18, fontFamily: "Pretendard-Regular" },
+  metricUnit:     { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  metricLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  formulaHint:    { fontSize: 11, fontFamily: "Pretendard-Regular", textAlign: "right", marginTop: 2 },
 
   sectionTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", marginTop: 4 },
 
@@ -455,17 +442,23 @@ const s = StyleSheet.create({
 
   teacherHeader:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   teacherCount:   { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  teacherCard:    { borderRadius: 16, padding: 16, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  teacherCardTop: { flexDirection: "row", alignItems: "flex-start" },
-  teacherName:    { fontSize: 16, fontFamily: "Pretendard-Regular" },
-  teacherPos:     { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
-  teacherAmt:     { fontSize: 22, fontFamily: "Pretendard-Regular" },
+
+  tableHeader:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 8,
+                    backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: Colors.light.border },
+  colHead:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: Colors.light.textMuted },
+
+  tableRow:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 14,
+                    backgroundColor: Colors.light.card, marginTop: 1 },
+  tableRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.light.border },
+  rowName:        { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  statusPill:     { alignSelf: "flex-start", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, marginTop: 3 },
+  statusPillTxt:  { fontSize: 10, fontFamily: "Pretendard-Regular" },
+  rowAmt:         { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "right" },
+  rowVal:         { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", color: Colors.light.text },
+  rowExtra:       { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "right" },
+
   statusBadge:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   statusTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  statsGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
-  statBox:        { minWidth: "20%", flex: 1, backgroundColor: "#F5F5F5", borderRadius: 10, padding: 8, alignItems: "center", gap: 2 },
-  statBoxVal:     { fontSize: 16, fontFamily: "Pretendard-Regular" },
-  statBoxLabel:   { fontSize: 10, fontFamily: "Pretendard-Regular" },
 
   extraCard: { borderRadius: 14, padding: 14 },
   inputRow: { flexDirection: "row", gap: 8 },
