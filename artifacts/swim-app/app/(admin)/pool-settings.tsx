@@ -33,6 +33,12 @@ export default function PoolSettingsScreen() {
   const [savingCapacity,  setSavingCapacity]  = useState(false);
   const [capacityMsg,     setCapacityMsg]     = useState("");
 
+  // ── name_en 중복 체크 상태 ─────────────────────────────
+  type NameEnStatus = null | "checking" | "ok" | "changed";
+  const [nameEnStatus, setNameEnStatus] = useState<NameEnStatus>(null);
+  const [nameEnResolved, setNameEnResolved] = useState<string>("");
+  const nameEnTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // ── 단가표 관련 ───────────────────────────────────────
   interface PricingItem { id: string; type_key: string; type_name: string; monthly_fee: number; sessions_per_month: number; is_active: boolean; }
   const [pricing, setPricing] = useState<PricingItem[]>([]);
@@ -135,10 +141,29 @@ export default function PoolSettingsScreen() {
     finally { setSavingPricing(false); }
   }
 
+  async function checkNameEn(value: string) {
+    if (!value) { setNameEnStatus(null); setNameEnResolved(""); return; }
+    if (nameEnTimerRef.current) clearTimeout(nameEnTimerRef.current);
+    setNameEnStatus("checking");
+    nameEnTimerRef.current = setTimeout(async () => {
+      try {
+        const poolId = settings?.id ?? "";
+        const res = await apiRequest(token, `/pools/check-name-en?name=${encodeURIComponent(value)}&exclude_pool_id=${poolId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setNameEnResolved(data.resolved);
+          if (data.available) {
+            setNameEnStatus("ok");
+          } else {
+            setNameEnStatus("changed");
+            setForm(f => ({ ...f, name_en: data.resolved }));
+          }
+        }
+      } catch { setNameEnStatus(null); }
+    }, 500);
+  }
+
   async function handleSave() {
-    if (form.name_en && !/^[a-z0-9_]+$/.test(form.name_en)) {
-      setError("영문표시명은 소문자, 숫자, 언더스코어(_)만 사용할 수 있습니다."); return;
-    }
     setSaving(true); setError(""); setSaved(false);
     try {
       const res = await apiRequest(token, "/pools/settings", {
@@ -229,17 +254,34 @@ export default function PoolSettingsScreen() {
           <Text style={[styles.sectionTitle, { color: C.text }]}>파일명 설정</Text>
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>영문표시명</Text>
-            <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+            <View style={[styles.inputBox, {
+              borderColor: nameEnStatus === "changed" ? "#D97706" : nameEnStatus === "ok" ? "#16A34A" : C.border,
+              backgroundColor: C.background,
+            }]}>
               <Type size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.name_en}
-                onChangeText={v => setForm(f => ({ ...f, name_en: v.toLowerCase().replace(/[^a-z0-9_]/g, "") }))}
+                onChangeText={v => {
+                  const clean = v.toLowerCase().replace(/[^a-z0-9_]/g, "");
+                  setForm(f => ({ ...f, name_en: clean }));
+                  setNameEnStatus(null);
+                }}
+                onBlur={() => checkNameEn(form.name_en)}
                 placeholder="예: toykids_hwajeong" placeholderTextColor={C.textMuted}
                 autoCapitalize="none"
               />
+              {nameEnStatus === "checking" && <ActivityIndicator size="small" color={C.textMuted} style={{ marginRight: 8 }} />}
+              {nameEnStatus === "ok"       && <Text style={{ fontSize: 11, color: "#16A34A", marginRight: 6 }}>✓ 사용 가능</Text>}
+              {nameEnStatus === "changed"  && <Text style={{ fontSize: 11, color: "#D97706", marginRight: 6 }}>⚠ 변경됨</Text>}
             </View>
-            <Text style={[styles.hint, { color: C.textMuted }]}>소문자·숫자·_ 만 사용 가능</Text>
+            {nameEnStatus === "changed" ? (
+              <Text style={[styles.hint, { color: "#D97706" }]}>
+                중복으로 자동 변경됐습니다 → {nameEnResolved}
+              </Text>
+            ) : (
+              <Text style={[styles.hint, { color: C.textMuted }]}>소문자·숫자·_ 만 사용 가능 · 포커스 해제 시 중복 자동 확인</Text>
+            )}
           </View>
 
           {form.name_en ? (

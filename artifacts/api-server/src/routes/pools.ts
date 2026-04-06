@@ -18,6 +18,42 @@ function getClient() {
   return _client;
 }
 
+// ── name_en 중복 체크 + 자동 카운팅 해결 ─────────────────────────────────
+// GET /pools/check-name-en?name=toykids&exclude_pool_id=xxx
+//   → { available: true, resolved: "toykids" }
+//   → { available: false, resolved: "toykids_1" }
+async function resolveUniqueNameEn(base: string, excludePoolId?: string): Promise<{ available: boolean; resolved: string }> {
+  const clean = base.toLowerCase().replace(/[^a-z0-9_]/g, "");
+  if (!clean) return { available: true, resolved: "" };
+
+  // 현재 base 사용 중인지 확인
+  const existing = await db.execute(sql`
+    SELECT name_en FROM swimming_pools
+    WHERE name_en IS NOT NULL AND name_en != ''
+      ${excludePoolId ? sql`AND id != ${excludePoolId}` : sql``}
+  `);
+  const taken = new Set((existing.rows as any[]).map(r => r.name_en as string));
+
+  if (!taken.has(clean)) return { available: true, resolved: clean };
+
+  // 카운팅 순회: toykids_1, toykids_2, ...
+  for (let i = 1; i <= 999; i++) {
+    const candidate = `${clean}_${i}`;
+    if (!taken.has(candidate)) return { available: false, resolved: candidate };
+  }
+  return { available: false, resolved: `${clean}_${Date.now()}` };
+}
+
+router.get("/check-name-en", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  const name = (req.query.name as string || "").trim();
+  const excludePoolId = req.query.exclude_pool_id as string | undefined;
+  if (!name) { res.json({ available: true, resolved: "" }); return; }
+  try {
+    const result = await resolveUniqueNameEn(name, excludePoolId);
+    res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
 // ── 수영장 이름 검색 (공개 API — 학부모 가입 시 사용) ──────────────────
 router.get("/search", async (req, res) => {
   const q = (req.query.q as string || "").trim();
@@ -174,7 +210,12 @@ router.put("/settings", requireAuth, requireRole("pool_admin", "super_admin"),
         if (ok) imageKey = key;
       }
 
-      const cleanNameEn = name_en ? name_en.toLowerCase().replace(/[^a-z0-9_]/g, "") : null;
+      let cleanNameEn: string | null = name_en ? name_en.toLowerCase().replace(/[^a-z0-9_]/g, "") : null;
+      // 중복이면 자동 카운팅 (_1, _2, ...) 적용
+      if (cleanNameEn) {
+        const { resolved } = await resolveUniqueNameEn(cleanNameEn, user.swimming_pool_id);
+        cleanNameEn = resolved || cleanNameEn;
+      }
       const cleanBizNum = business_reg_number ? business_reg_number.replace(/[^0-9\-]/g, "").trim() : null;
 
       const rows = await superAdminDb.execute(sql`

@@ -686,6 +686,71 @@ router.post("/diary/:diaryId/reactions", requireAuth, requireParent, async (req:
   } catch (err) { res.status(500).json({ error: "서버 오류" }); }
 });
 
+// ── 학부모 쪽지 스레드 목록 ────────────────────────────────────────────────
+// GET /parent/messages — 내가 쪽지를 주고받은 일지 목록 (최신순)
+router.get("/messages", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const parentId = req.user!.userId!;
+    const rows = await db.execute(sql`
+      SELECT
+        cd.id              AS diary_id,
+        cd.lesson_date,
+        cd.teacher_name,
+        s.id               AS student_id,
+        s.name             AS student_name,
+        (
+          SELECT dm.content
+          FROM diary_messages dm
+          WHERE dm.diary_id = cd.id AND dm.is_deleted = false
+          ORDER BY dm.created_at DESC LIMIT 1
+        ) AS last_message,
+        (
+          SELECT dm.sender_role
+          FROM diary_messages dm
+          WHERE dm.diary_id = cd.id AND dm.is_deleted = false
+          ORDER BY dm.created_at DESC LIMIT 1
+        ) AS last_sender_role,
+        (
+          SELECT dm.sender_name
+          FROM diary_messages dm
+          WHERE dm.diary_id = cd.id AND dm.is_deleted = false
+          ORDER BY dm.created_at DESC LIMIT 1
+        ) AS last_sender_name,
+        (
+          SELECT dm.created_at
+          FROM diary_messages dm
+          WHERE dm.diary_id = cd.id AND dm.is_deleted = false
+          ORDER BY dm.created_at DESC LIMIT 1
+        ) AS last_message_at,
+        (
+          SELECT COUNT(*)::int
+          FROM diary_messages dm
+          WHERE dm.diary_id = cd.id AND dm.is_deleted = false
+            AND dm.sender_role != 'parent' AND dm.read_at IS NULL
+        ) AS unread_count,
+        (
+          SELECT COUNT(*)::int
+          FROM diary_messages dm
+          WHERE dm.diary_id = cd.id AND dm.is_deleted = false
+        ) AS message_count
+      FROM class_diaries cd
+      JOIN students s ON s.class_group_id = cd.class_group_id
+      JOIN parent_students ps ON ps.student_id = s.id
+      WHERE ps.parent_id = ${parentId} AND ps.status = 'approved'
+        AND cd.is_deleted = false
+        AND EXISTS (
+          SELECT 1 FROM diary_messages dm
+          WHERE dm.diary_id = cd.id AND dm.is_deleted = false
+        )
+      ORDER BY last_message_at DESC NULLS LAST
+    `);
+    res.json(rows.rows);
+  } catch (err: any) {
+    console.error("[parent/messages] 오류:", err?.message);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
 // ── 쪽지 (메시지) ─────────────────────────────────────────────────────────
 router.get("/diary/:diaryId/messages", requireAuth, requireParent, async (req: AuthRequest, res) => {
   console.log("[diary-msg] GET diaryId=%s userId=%s", req.params.diaryId, req.user?.userId);
