@@ -10,7 +10,7 @@ import { router } from "expo-router";
 import Svg, { Ellipse, Path } from "react-native-svg";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Dimensions, Keyboard, Modal,
+  ActivityIndicator, Alert, Dimensions, Image, Keyboard, Modal,
   Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -177,6 +177,12 @@ export default function LoginScreen() {
       >
         {/* ── 전체 콘텐츠 (로고 + 폼 + 가입 버튼) ── */}
         <View style={[s.bottomSection, isTablet && s.bottomSectionTablet]}>
+        {/* ── 로고 ── */}
+        <Image
+          source={require("../assets/images/swimnote-logo.png")}
+          style={[s.logoImg, isTablet && s.logoImgTablet]}
+          resizeMode="contain"
+        />
         {/* ── 로그인 폼 ── */}
         <View style={s.form}>
           {/* 아이디 */}
@@ -372,6 +378,8 @@ const s = StyleSheet.create({
   /* iPad: 가운데 정렬 + 최대 폭 제한 */
   bottomSection: { gap: 0 },
   bottomSectionTablet: { maxWidth: 480, width: "100%", alignSelf: "center" },
+  logoImg: { width: 260, height: 215, alignSelf: "center", marginBottom: 12, marginTop: 8 },
+  logoImgTablet: { width: 320, height: 265 },
 
   /* 로고 */
   logoArea:  { alignItems: "center", marginBottom: Math.min(48, SCREEN_W * 0.07) },
