@@ -302,5 +302,42 @@ export async function initSuperDb(): Promise<void> {
     console.warn("[super-db-init] diary_reactions 오류:", e.message);
   }
 
+  // ── monthly_settlements — 선생님 월별 정산 ────────────────────────────────
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS monthly_settlements (
+        id                          text        PRIMARY KEY,
+        pool_id                     text        NOT NULL,
+        teacher_user_id             text        NOT NULL,
+        teacher_name                text        NOT NULL DEFAULT '',
+        settlement_month            text        NOT NULL,
+        total_revenue               integer     NOT NULL DEFAULT 0,
+        total_sessions              integer     NOT NULL DEFAULT 0,
+        total_makeup_sessions       integer     NOT NULL DEFAULT 0,
+        total_trial_sessions        integer     NOT NULL DEFAULT 0,
+        total_temp_transfer_sessions integer   NOT NULL DEFAULT 0,
+        extra_manual_amount         integer     NOT NULL DEFAULT 0,
+        extra_manual_memo           text,
+        student_details             jsonb       NOT NULL DEFAULT '[]',
+        status                      text        NOT NULL DEFAULT 'draft',
+        withdrawn_count             integer     NOT NULL DEFAULT 0,
+        postpone_count              integer     NOT NULL DEFAULT 0,
+        updated_at                  timestamptz NOT NULL DEFAULT now(),
+        UNIQUE (pool_id, teacher_user_id, settlement_month)
+      )
+    `));
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS monthly_settlements_pool_idx ON monthly_settlements (pool_id, settlement_month DESC);
+    `)).catch(() => {});
+    // 기존 테이블에 누락 컬럼 보완
+    await db.execute(sql.raw(`ALTER TABLE monthly_settlements ADD COLUMN IF NOT EXISTS total_temp_transfer_sessions integer NOT NULL DEFAULT 0`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE monthly_settlements ADD COLUMN IF NOT EXISTS withdrawn_count integer NOT NULL DEFAULT 0`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE monthly_settlements ADD COLUMN IF NOT EXISTS postpone_count integer NOT NULL DEFAULT 0`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE monthly_settlements ADD COLUMN IF NOT EXISTS teacher_name text NOT NULL DEFAULT ''`)).catch(() => {});
+    console.log("[super-db-init] monthly_settlements 테이블 준비 완료");
+  } catch (e: any) {
+    console.warn("[super-db-init] monthly_settlements 오류:", e.message);
+  }
+
   console.log("[super-db-init] super DB 컬럼 보완 + backup_logs/restore_logs 초기화 완료");
 }
