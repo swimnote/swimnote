@@ -220,6 +220,90 @@ const mc = StyleSheet.create({
   holidayTag:     { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 2 },
 });
 
+// ─── 슬롯 상세 팝업 (compact 주간 뷰) ──────────────────────────
+const KO_DAY_FULL: Record<string, string> = { 월: "월요일", 화: "화요일", 수: "수요일", 목: "목요일", 금: "금요일", 토: "토요일", 일: "일요일" };
+function SlotSheet({ day, hour, classes, themeColor, onClose, onSelectClass }: {
+  day: string; hour: number; classes: TeacherClassGroup[];
+  themeColor: string;
+  onClose: () => void;
+  onSelectClass: (g: TeacherClassGroup) => void;
+}) {
+  const hour12 = hour > 12 ? hour - 12 : hour;
+  const ampm = hour >= 12 ? "오후" : "오전";
+  const title = `${KO_DAY_FULL[day] ?? day} ${ampm} ${hour12}시 수업 목록`;
+
+  const grouped = useMemo(() => {
+    const map: Record<string, TeacherClassGroup[]> = {};
+    classes.forEach(g => {
+      const key = g.instructor || "미지정";
+      if (!map[key]) map[key] = [];
+      map[key].push(g);
+    });
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b, "ko"));
+  }, [classes]);
+
+  return (
+    <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
+      <Pressable style={sl.backdrop} onPress={onClose}>
+        <Pressable style={sl.sheet} onPress={() => {}}>
+          <View style={sl.handle} />
+          <View style={sl.header}>
+            <View style={{ flex: 1 }}>
+              <Text style={sl.title}>{title}</Text>
+              <Text style={sl.sub}>총 {classes.length}개 반</Text>
+            </View>
+            <Pressable onPress={onClose} style={sl.closeBtn}><X size={20} color={C.textSecondary} /></Pressable>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 60, gap: 16 }}>
+            {grouped.map(([teacher, grps]) => (
+              <View key={teacher}>
+                <View style={sl.teacherRow}>
+                  <User size={13} color="#64748B" />
+                  <Text style={sl.teacherName}>{teacher}</Text>
+                  <View style={sl.teacherBadge}><Text style={sl.teacherBadgeTxt}>{grps.length}개 반</Text></View>
+                </View>
+                {grps.map(g => (
+                  <Pressable key={g.id} style={sl.classCard} onPress={() => { onClose(); setTimeout(() => onSelectClass(g), 250); }}>
+                    <View style={[sl.colorBar, { backgroundColor: classColor(g.id) }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={sl.className}>{g.name}</Text>
+                      <Text style={sl.classSub}>{g.student_count ?? 0}명 · {g.schedule_time}</Text>
+                    </View>
+                    <ChevronRight size={15} color={C.textSecondary} />
+                  </Pressable>
+                ))}
+              </View>
+            ))}
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+const sl = StyleSheet.create({
+  backdrop:     { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
+  sheet:        { position: "absolute", bottom: 0, left: 0, right: 0,
+                  backgroundColor: "#fff", borderTopLeftRadius: 22, borderTopRightRadius: 22,
+                  maxHeight: "80%", paddingBottom: 8 },
+  handle:       { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
+                  alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  header:       { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 16,
+                  paddingVertical: 10, gap: 8 },
+  title:        { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text },
+  sub:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  closeBtn:     { padding: 4 },
+  teacherRow:   { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  teacherName:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151", fontWeight: "600", flex: 1 },
+  teacherBadge: { backgroundColor: "#EFF6FF", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
+  teacherBadgeTxt:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#1D4ED8" },
+  classCard:    { flexDirection: "row", alignItems: "center", gap: 10,
+                  backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12,
+                  borderWidth: 1, borderColor: C.border, marginBottom: 6 },
+  colorBar:     { width: 3, height: 36, borderRadius: 2 },
+  className:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
+  classSub:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+});
+
 // ─── 날짜 상세 팝업 ─────────────────────────────────────────────
 function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass, onOpenMakeup }: {
   dateStr: string;
@@ -367,6 +451,9 @@ export default function ClassesScreen() {
 
   // 반 상세 시트
   const [detailGroup, setDetailGroup] = useState<TeacherClassGroup | null>(null);
+
+  // 주간 compact 슬롯 시트
+  const [selectedSlot, setSelectedSlot] = useState<{ day: string; hour: number; classes: TeacherClassGroup[] } | null>(null);
 
   // 주간 뷰용 학생 목록
   const [allStudents, setAllStudents] = useState<any[]>([]);
@@ -586,6 +673,8 @@ export default function ClassesScreen() {
             onNextWeek={() => setWeeklyViewStart(prev => addDaysStr(prev, 7))}
             statusMap={statusMap}
             students={allStudents}
+            compactMode={true}
+            onSelectSlot={(day, hour, cls) => setSelectedSlot({ day, hour, classes: cls })}
           />
         </View>
       )}
@@ -617,6 +706,18 @@ export default function ClassesScreen() {
           onClose={() => setSelectedDate(null)}
           onSelectClass={(g) => setDetailGroup(g)}
           onOpenMakeup={() => navigateFromSheet(() => router.push("/(admin)/makeups?backTo=classes" as any))}
+        />
+      )}
+
+      {/* ── 슬롯 시트 (주간 compact 탭) ── */}
+      {selectedSlot && (
+        <SlotSheet
+          day={selectedSlot.day}
+          hour={selectedSlot.hour}
+          classes={selectedSlot.classes}
+          themeColor={themeColor}
+          onClose={() => setSelectedSlot(null)}
+          onSelectClass={(g) => { setSelectedSlot(null); setTimeout(() => setDetailGroup(g), 300); }}
         />
       )}
 

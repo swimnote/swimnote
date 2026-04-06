@@ -25,23 +25,26 @@ const COL_W     = Math.floor((SCREEN_W - TIME_W) / 6);
 const FIXED_HOURS = Array.from({ length: 13 }, (_, i) => i + 9); // 9~21시 고정
 
 interface Props {
-  groups:        TeacherClassGroup[];
-  onSelectClass: (g: TeacherClassGroup) => void;
-  selectionMode: boolean;
-  selectedIds:   Set<string>;
-  toggleSelect:  (id: string) => void;
-  weekStart:     string;
-  changeLogs:    ChangeLogItem[];
-  onPrevWeek:    () => void;
-  onNextWeek:    () => void;
-  students?:     StudentItem[];
-  statusMap?:    Record<string, SlotStatus>;
+  groups:         TeacherClassGroup[];
+  onSelectClass:  (g: TeacherClassGroup) => void;
+  selectionMode:  boolean;
+  selectedIds:    Set<string>;
+  toggleSelect:   (id: string) => void;
+  weekStart:      string;
+  changeLogs:     ChangeLogItem[];
+  onPrevWeek:     () => void;
+  onNextWeek:     () => void;
+  students?:      StudentItem[];
+  statusMap?:     Record<string, SlotStatus>;
+  compactMode?:   boolean;
+  onSelectSlot?:  (day: string, hour: number, classes: TeacherClassGroup[]) => void;
 }
 
 export default function WeeklyTimetableV2({
   groups, onSelectClass, selectionMode, selectedIds, toggleSelect,
   weekStart, changeLogs, onPrevWeek, onNextWeek,
   students = [], statusMap = {},
+  compactMode = false, onSelectSlot,
 }: Props) {
   const today     = todayDateStr();
   const weekDates = useMemo(() => getWeekDates(weekStart), [weekStart]);
@@ -195,7 +198,21 @@ export default function WeeklyTimetableV2({
               const cls  = cellMap[`${day}-${h}`] ?? [];
               return (
                 <View key={day} style={[wt.cell, { width: COL_W, height: WT_ROW_H }]}>
-                  {cls.map(g => renderCard(g, info.isToday))}
+                  {compactMode && cls.length > 0 ? (
+                    <Pressable
+                      style={wt.compactChip}
+                      onPress={() => onSelectSlot?.(day, h, cls)}
+                    >
+                      <Text style={wt.compactLabel}>
+                        {`${day}${h > 12 ? h - 12 : h}`}
+                      </Text>
+                      <View style={wt.compactBadge}>
+                        <Text style={wt.compactBadgeTxt}>{cls.length}</Text>
+                      </View>
+                    </Pressable>
+                  ) : (
+                    cls.map(g => renderCard(g, info.isToday))
+                  )}
                 </View>
               );
             })}
@@ -268,4 +285,11 @@ const wt = StyleSheet.create({
   cardAtt:      { fontSize: 8, fontFamily: "Pretendard-Regular", lineHeight: 11 },
   attDone:      { color: "#059669" },
   attPend:      { color: "#D97706" },
+
+  compactChip:    { flex: 1, alignItems: "center", justifyContent: "center",
+                    backgroundColor: "#EFF6FF", borderRadius: 4, margin: 2, gap: 2 },
+  compactLabel:   { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#1D4ED8", fontWeight: "600" },
+  compactBadge:   { backgroundColor: "#1D4ED8", borderRadius: 8, paddingHorizontal: 5,
+                    paddingVertical: 1, minWidth: 16, alignItems: "center" },
+  compactBadgeTxt:{ fontSize: 9, fontFamily: "Pretendard-Regular", color: "#fff", fontWeight: "700" },
 });
