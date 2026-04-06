@@ -220,17 +220,20 @@ const mc = StyleSheet.create({
   holidayTag:     { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 2 },
 });
 
-// ─── 슬롯 상세 팝업 (compact 주간 뷰) ──────────────────────────
+// ─── 슬롯 상세 팝업 (compact 주간 뷰, 2단계) ──────────────────
 const KO_DAY_FULL: Record<string, string> = { 월: "월요일", 화: "화요일", 수: "수요일", 목: "목요일", 금: "금요일", 토: "토요일", 일: "일요일" };
+
 function SlotSheet({ day, hour, classes, themeColor, onClose, onSelectClass }: {
   day: string; hour: number; classes: TeacherClassGroup[];
   themeColor: string;
   onClose: () => void;
   onSelectClass: (g: TeacherClassGroup) => void;
 }) {
+  const [selectedTeacher, setSelectedTeacher] = useState<string | null>(null);
+
   const hour12 = hour > 12 ? hour - 12 : hour;
-  const ampm = hour >= 12 ? "오후" : "오전";
-  const title = `${KO_DAY_FULL[day] ?? day} ${ampm} ${hour12}시 수업 목록`;
+  const ampm   = hour >= 12 ? "오후" : "오전";
+  const slotLabel = `${KO_DAY_FULL[day] ?? day} ${ampm} ${hour12}시`;
 
   const grouped = useMemo(() => {
     const map: Record<string, TeacherClassGroup[]> = {};
@@ -242,28 +245,67 @@ function SlotSheet({ day, hour, classes, themeColor, onClose, onSelectClass }: {
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b, "ko"));
   }, [classes]);
 
+  const teacherClasses = selectedTeacher ? (grouped.find(([t]) => t === selectedTeacher)?.[1] ?? []) : [];
+
   return (
-    <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
-      <Pressable style={sl.backdrop} onPress={onClose}>
+    <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={() => {
+      if (selectedTeacher) setSelectedTeacher(null);
+      else onClose();
+    }}>
+      <Pressable style={sl.backdrop} onPress={() => {
+        if (selectedTeacher) setSelectedTeacher(null);
+        else onClose();
+      }}>
         <Pressable style={sl.sheet} onPress={() => {}}>
           <View style={sl.handle} />
-          <View style={sl.header}>
-            <View style={{ flex: 1 }}>
-              <Text style={sl.title}>{title}</Text>
-              <Text style={sl.sub}>총 {classes.length}개 반</Text>
-            </View>
-            <Pressable onPress={onClose} style={sl.closeBtn}><X size={20} color={C.textSecondary} /></Pressable>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 60, gap: 16 }}>
-            {grouped.map(([teacher, grps]) => (
-              <View key={teacher}>
-                <View style={sl.teacherRow}>
-                  <User size={13} color="#64748B" />
-                  <Text style={sl.teacherName}>{teacher}</Text>
-                  <View style={sl.teacherBadge}><Text style={sl.teacherBadgeTxt}>{grps.length}개 반</Text></View>
+
+          {/* ── 1단계: 선생님 목록 ── */}
+          {!selectedTeacher && (
+            <>
+              <View style={sl.header}>
+                <View style={{ flex: 1 }}>
+                  <Text style={sl.title}>{slotLabel} 수업</Text>
+                  <Text style={sl.sub}>담당 선생님 {grouped.length}명 · 총 {classes.length}개 반</Text>
                 </View>
-                {grps.map(g => (
-                  <Pressable key={g.id} style={sl.classCard} onPress={() => { onClose(); setTimeout(() => onSelectClass(g), 250); }}>
+                <Pressable onPress={onClose} style={sl.closeBtn}><X size={20} color={C.textSecondary} /></Pressable>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 60, gap: 8 }}>
+                {grouped.map(([teacher, grps]) => (
+                  <Pressable key={teacher} style={sl.teacherCard}
+                    onPress={() => setSelectedTeacher(teacher)}>
+                    <View style={sl.teacherIconWrap}>
+                      <User size={18} color="#1D4ED8" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={sl.teacherCardName}>{teacher}</Text>
+                      <Text style={sl.teacherCardSub}>수업 진행 중 {grps.length}개 반</Text>
+                    </View>
+                    <ChevronRight size={16} color={C.textSecondary} />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </>
+          )}
+
+          {/* ── 2단계: 선택된 선생님의 반 목록 ── */}
+          {selectedTeacher && (
+            <>
+              <View style={sl.header}>
+                <Pressable onPress={() => setSelectedTeacher(null)} style={sl.backBtn}>
+                  <ChevronLeft size={20} color={themeColor} />
+                </Pressable>
+                <View style={{ flex: 1 }}>
+                  <Text style={sl.title}>{selectedTeacher} 선생님</Text>
+                  <Text style={sl.sub}>{slotLabel} · {teacherClasses.length}개 반</Text>
+                </View>
+                <Pressable onPress={onClose} style={sl.closeBtn}><X size={20} color={C.textSecondary} /></Pressable>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 60, gap: 8 }}>
+                {teacherClasses.map(g => (
+                  <Pressable key={g.id} style={sl.classCard}
+                    onPress={() => { onClose(); setTimeout(() => onSelectClass(g), 250); }}>
                     <View style={[sl.colorBar, { backgroundColor: classColor(g.id) }]} />
                     <View style={{ flex: 1 }}>
                       <Text style={sl.className}>{g.name}</Text>
@@ -272,36 +314,42 @@ function SlotSheet({ day, hour, classes, themeColor, onClose, onSelectClass }: {
                     <ChevronRight size={15} color={C.textSecondary} />
                   </Pressable>
                 ))}
-              </View>
-            ))}
-          </ScrollView>
+              </ScrollView>
+            </>
+          )}
         </Pressable>
       </Pressable>
     </Modal>
   );
 }
 const sl = StyleSheet.create({
-  backdrop:     { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
-  sheet:        { position: "absolute", bottom: 0, left: 0, right: 0,
-                  backgroundColor: "#fff", borderTopLeftRadius: 22, borderTopRightRadius: 22,
-                  maxHeight: "80%", paddingBottom: 8 },
-  handle:       { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
-                  alignSelf: "center", marginTop: 10, marginBottom: 4 },
-  header:       { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 16,
-                  paddingVertical: 10, gap: 8 },
-  title:        { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text },
-  sub:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
-  closeBtn:     { padding: 4 },
-  teacherRow:   { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
-  teacherName:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151", fontWeight: "600", flex: 1 },
-  teacherBadge: { backgroundColor: "#EFF6FF", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
-  teacherBadgeTxt:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#1D4ED8" },
-  classCard:    { flexDirection: "row", alignItems: "center", gap: 10,
-                  backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12,
-                  borderWidth: 1, borderColor: C.border, marginBottom: 6 },
-  colorBar:     { width: 3, height: 36, borderRadius: 2 },
-  className:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
-  classSub:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  backdrop:        { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
+  sheet:           { position: "absolute", bottom: 0, left: 0, right: 0,
+                     backgroundColor: "#fff", borderTopLeftRadius: 22, borderTopRightRadius: 22,
+                     maxHeight: "80%", paddingBottom: 8 },
+  handle:          { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
+                     alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  header:          { flexDirection: "row", alignItems: "center", paddingHorizontal: 16,
+                     paddingVertical: 10, gap: 8 },
+  title:           { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text },
+  sub:             { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  closeBtn:        { padding: 4 },
+  backBtn:         { padding: 4, marginRight: 2 },
+
+  teacherCard:     { flexDirection: "row", alignItems: "center", gap: 12,
+                     backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14,
+                     borderWidth: 1, borderColor: C.border },
+  teacherIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#EFF6FF",
+                     alignItems: "center", justifyContent: "center" },
+  teacherCardName: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text, fontWeight: "600" },
+  teacherCardSub:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+
+  classCard:       { flexDirection: "row", alignItems: "center", gap: 10,
+                     backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12,
+                     borderWidth: 1, borderColor: C.border },
+  colorBar:        { width: 3, height: 36, borderRadius: 2 },
+  className:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
+  classSub:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
 });
 
 // ─── 날짜 상세 팝업 ─────────────────────────────────────────────
