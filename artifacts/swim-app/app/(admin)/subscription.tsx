@@ -127,11 +127,7 @@ export default function SubscriptionScreen() {
     const pkg = allPackages.find(p => p.identifier === plan.rcPackageId);
 
     if (!pkg) {
-      showConfirm(
-        "결제 서비스 연결 중",
-        `${plan.name} 플랜의 결제 정보를 불러오는 중입니다.\n\n잠시 후 다시 시도하거나, 아래 '구독 현황 관리'에서 구독할 수 있습니다.`,
-        () => {},
-      );
+      router.push("/(admin)/billing");
       return;
     }
 
