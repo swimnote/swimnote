@@ -83,10 +83,10 @@ export default function RiskCenterScreen() {
     try {
       const [rcRes, puRes] = await Promise.all([
         apiRequest(token, "/super/risk-center"),
-        apiRequest(token, "/super/operators?filter=policy_unsigned"),
+        apiRequest(token, "/super/pools-summary?filter=policy_unsigned"),
       ]);
       const rcData = await rcRes.json();
-      const puData = await puRes.json();
+      const puRaw: any[] = await puRes.json();
       setPaymentFailed(rcData.payment_failed ?? []);
       setStorageDanger(rcData.storage_danger ?? []);
       setDeletionPending(rcData.deletion_pending ?? []);
@@ -94,7 +94,13 @@ export default function RiskCenterScreen() {
       setSupport(rcData.support ?? { open_count: 0, overdue_count: 0 });
       setBackup(rcData.backup ?? { last_at: null });
       setExternalSvcs(rcData.external_services ?? []);
-      setPolicyUnsigned(Array.isArray(puData) ? puData : []);
+      const puMapped = Array.isArray(puRaw) ? puRaw.map((p: any) => ({
+        id:                  p.pool_id,
+        name:                p.pool_name,
+        owner_name:          p.admin?.name ?? "—",
+        subscription_status: p.subscription?.status ?? "trial",
+      })) : [];
+      setPolicyUnsigned(puMapped);
     } catch {
       // 네트워크 오류 시 기존 상태 유지
     } finally {

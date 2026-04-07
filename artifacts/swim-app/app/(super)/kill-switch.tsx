@@ -94,10 +94,16 @@ export default function KillSwitchScreen() {
     if (!token) return;
     setLoadingOps(true);
     try {
-      const res = await apiRequest(token, '/super/operators?filter=payment_failed');
+      const res = await apiRequest(token, '/super/pools-summary?filter=payment_failed');
       if (res.ok) {
-        const data = await res.json();
-        setOperators(Array.isArray(data) ? data : []);
+        const raw = await res.json();
+        const mapped: OperatorRow[] = Array.isArray(raw) ? raw.map((p: any) => ({
+          id:                  p.pool_id,
+          name:                p.pool_name,
+          subscription_status: p.subscription?.status ?? "expired",
+          next_billing_at:     p.subscription?.ends_at ?? null,
+        })) : [];
+        setOperators(mapped);
       }
     } catch (e) {
       console.error('fetchOperators error:', e);

@@ -1,6 +1,6 @@
 /**
  * (super)/subscriptions.tsx — 구독·결제 관리
- * 실 API 기반: GET /super/operators, GET /billing/revenue-logs
+ * 실 API 기반: GET /super/pools-summary, GET /billing/revenue-logs
  */
 import { Clock, CreditCard, Eye, Lock, OctagonAlert, TriangleAlert, User } from "lucide-react-native";
 import { router } from "expo-router";
@@ -59,12 +59,31 @@ interface PoolRow {
   approval_status: string;
   subscription_status: string;
   subscription_tier: string;
+  subscription_plan_name: string;
   credit_balance: number;
   active_member_count: number;
   usage_pct: number;
   is_readonly: boolean;
   deletion_pending: boolean;
   next_billing_at: string | null;
+}
+
+function mapSummaryToRow(p: any): PoolRow {
+  return {
+    id:                   p.pool_id,
+    name:                 p.pool_name,
+    owner_name:           p.admin?.name ?? "—",
+    approval_status:      p.approval_status ?? "pending",
+    subscription_status:  p.subscription?.status ?? "trial",
+    subscription_tier:    p.subscription?.tier ?? "free",
+    subscription_plan_name: p.subscription?.plan_name ?? "Free",
+    credit_balance:       p.credit_balance ?? 0,
+    active_member_count:  p.active_member_count ?? 0,
+    usage_pct:            p.usage_pct ?? 0,
+    is_readonly:          p.is_readonly ?? false,
+    deletion_pending:     p.deletion_pending ?? false,
+    next_billing_at:      p.subscription?.ends_at ?? null,
+  };
 }
 
 function displayStatus(row: PoolRow): string {
@@ -116,12 +135,12 @@ export default function SubscriptionsScreen() {
     if (!token) return;
     try {
       const [opsRes, revRes] = await Promise.all([
-        apiRequest(token, "/super/operators"),
+        apiRequest(token, "/super/pools-summary"),
         apiRequest(token, "/billing/revenue-logs?limit=500"),
       ]);
       if (opsRes.ok) {
-        const data: PoolRow[] = await opsRes.json();
-        setOperators(data);
+        const raw: any[] = await opsRes.json();
+        setOperators(Array.isArray(raw) ? raw.map(mapSummaryToRow) : []);
       }
       if (revRes.ok) {
         const revData = await revRes.json();
@@ -264,7 +283,7 @@ export default function SubscriptionsScreen() {
           <View style={s.rowMeta}>
             <Text style={s.metaTxt}>{item.owner_name}</Text>
             <Text style={s.metaDot}>·</Text>
-            <Text style={s.metaTxt}>플랜: {TIER_NAME[item.subscription_tier] ?? item.subscription_tier ?? "—"}</Text>
+            <Text style={s.metaTxt}>플랜: {item.subscription_plan_name ?? TIER_NAME[item.subscription_tier] ?? "—"}</Text>
             {(item.credit_balance ?? 0) > 0 && (
               <><Text style={s.metaDot}>·</Text>
                 <Text style={[s.metaTxt, { color: P }]}>크레딧 {item.credit_balance?.toLocaleString()}원</Text>

@@ -217,12 +217,16 @@ router.get(
         const q = (search as string).replace(/'/g, "''");
         conditions.push(`(p.name ILIKE '%${q}%' OR u.name ILIKE '%${q}%' OR u.phone ILIKE '%${q}%')`);
       }
-      if (filter === "pending")        conditions.push(`p.approval_status = 'pending'`);
-      if (filter === "payment_failed") conditions.push(`p.subscription_status IN ('expired','suspended','cancelled')`);
-      if (filter === "active")         conditions.push(`p.approval_status = 'approved' AND p.subscription_status IN ('active','trial')`);
-      if (filter === "storage95")      conditions.push(`p.used_storage_bytes IS NOT NULL AND p.storage_mb > 0 AND p.used_storage_bytes::float / (p.storage_mb::bigint * 1048576) >= 0.95`);
-      if (filter === "this_week")      conditions.push(`p.created_at >= NOW() - INTERVAL '7 days'`);
-      if (filter === "readonly")       conditions.push(`p.is_readonly = TRUE`);
+      if (filter === "pending")          conditions.push(`p.approval_status = 'pending'`);
+      if (filter === "payment_failed")   conditions.push(`p.subscription_status IN ('expired','suspended','cancelled')`);
+      if (filter === "active")           conditions.push(`p.approval_status = 'approved' AND p.subscription_status IN ('active','trial')`);
+      if (filter === "storage95")        conditions.push(`p.used_storage_bytes IS NOT NULL AND p.storage_mb > 0 AND p.used_storage_bytes::float / (p.storage_mb::bigint * 1048576) >= 0.95`);
+      if (filter === "this_week")        conditions.push(`p.created_at >= NOW() - INTERVAL '7 days'`);
+      if (filter === "readonly")         conditions.push(`p.is_readonly = TRUE`);
+      if (filter === "storage_alert")    conditions.push(`p.used_storage_bytes IS NOT NULL AND p.storage_mb > 0 AND p.used_storage_bytes::float / (p.storage_mb::bigint * 1048576) >= 0.80`);
+      if (filter === "deletion_pending") conditions.push(`p.subscription_end_at IS NOT NULL AND p.subscription_end_at > NOW() AND p.subscription_end_at <= NOW() + INTERVAL '24 hours'`);
+      if (filter === "policy_unsigned")  conditions.push(`p.approval_status = 'approved' AND NOT EXISTS (SELECT 1 FROM policy_consents pc WHERE pc.pool_id = p.id AND pc.policy_key = 'refund_policy')`);
+      if (filter === "upload_spike")     conditions.push(`p.upload_blocked = TRUE`);
       const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
       const rows = (await db.execute(sql.raw(`
