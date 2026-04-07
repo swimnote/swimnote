@@ -411,9 +411,24 @@ router.get(
       const teachers  = staffList.filter(u => u.role === 'teacher');
       const admins    = staffList.filter(u => u.role === 'pool_admin' || u.role === 'sub_admin');
 
+      // swimming_pools.member_limit이 null이면 구독 플랜에서 자동 조회
+      let effectiveMemberLimit = poolRow.member_limit as number | null;
+      if (effectiveMemberLimit == null && poolRow.subscription_tier) {
+        try {
+          const [planLimitRow] = (await superAdminDb.execute(sql`
+            SELECT member_limit FROM subscription_plans
+            WHERE tier = ${poolRow.subscription_tier} LIMIT 1
+          `)).rows as any[];
+          if (planLimitRow?.member_limit != null) {
+            effectiveMemberLimit = Number(planLimitRow.member_limit);
+          }
+        } catch {}
+      }
+
       res.json({
         pool: {
           ...poolRow,
+          member_limit:        effectiveMemberLimit,
           active_member_count: memberStats.active,
           total_member_count:  memberStats.total,
           total_class_count:   classCount,
