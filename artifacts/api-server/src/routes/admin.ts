@@ -600,6 +600,103 @@ router.put("/storage-policy/:tier", requireAuth, requireRole("super_admin"), asy
   }
 });
 
+// ── 저장공간 현황 조회 (pool_admin용) — 구독 플랜 기반 quota 반영 ───────
+router.get("/storage", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    // 현재 사용자의 pool_id 취득
+    const [meRow] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+      .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    const poolId = meRow?.swimming_pool_id ?? null;
+    if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+
+    // 현재 구독 티어 (슈퍼관리자 직접 변경 즉시 반영)
+    const [poolRow] = (await superAdminDb.execute(sql`
+      SELECT COALESCE(subscription_tier, 'free') AS tier
+      FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `)).rows as any[];
+    const activeTier = poolRow?.tier ?? "free";
+
+    // 구독 플랜에서 storage_gb 읽기
+    let quotaBytes = 0.5 * 1024 ** 3; // 기본 500MB
+    try {
+      const [planRow] = (await db.execute(sql`
+        SELECT storage_gb FROM subscription_plans WHERE tier = ${activeTier} LIMIT 1
+      `)).rows as any[];
+      if (planRow?.storage_gb) quotaBytes = Number(planRow.storage_gb) * 1024 ** 3;
+    } catch {}
+
+    // 사진·영상 사용량
+    let photoBytes = 0;
+    let videoBytes = 0;
+    try {
+      const [rp] = (await db.execute(sql`
+        SELECT COALESCE(SUM(file_size), 0) AS used FROM photo_assets_meta WHERE pool_id = ${poolId}
+      `)).rows as any[];
+      photoBytes = Number(rp?.used ?? 0);
+    } catch {}
+    try {
+      const [rv] = (await db.execute(sql`
+        SELECT COALESCE(SUM(file_size), 0) AS used FROM video_assets_meta WHERE pool_id = ${poolId}
+      `)).rows as any[];
+      videoBytes = Number(rv?.used ?? 0);
+    } catch {}
+
+    const totalBytes = photoBytes + videoBytes;
+
+    // 계정별 사용량 (staff) — 가능할 경우 per-uploader 집계
+    let staff: any[] = [];
+    try {
+      const staffRows = (await db.execute(sql`
+        SELECT u.id, u.name, u.role,
+               COALESCE(p.photo_bytes, 0) AS photo_bytes,
+               COALESCE(v.video_bytes, 0) AS video_bytes
+        FROM users u
+        LEFT JOIN (
+          SELECT uploaded_by, SUM(file_size) AS photo_bytes
+          FROM photo_assets_meta WHERE pool_id = ${poolId}
+          GROUP BY uploaded_by
+        ) p ON p.uploaded_by = u.id
+        LEFT JOIN (
+          SELECT uploaded_by, SUM(file_size) AS video_bytes
+          FROM video_assets_meta WHERE pool_id = ${poolId}
+          GROUP BY uploaded_by
+        ) v ON v.uploaded_by = u.id
+        WHERE u.swimming_pool_id = ${poolId}
+          AND u.role IN ('pool_admin', 'teacher')
+        ORDER BY (COALESCE(p.photo_bytes, 0) + COALESCE(v.video_bytes, 0)) DESC
+      `)).rows as any[];
+      staff = staffRows.map((r: any) => ({
+        id:               r.id,
+        name:             r.name,
+        role:             r.role,
+        photo_bytes:      Number(r.photo_bytes ?? 0),
+        video_bytes:      Number(r.video_bytes ?? 0),
+        messenger_bytes:  0,
+        diary_bytes:      0,
+        notice_bytes:     0,
+        system_bytes:     0,
+        total_bytes:      Number(r.photo_bytes ?? 0) + Number(r.video_bytes ?? 0),
+      }));
+    } catch {}
+
+    res.json({
+      total_bytes:      totalBytes,
+      quota_bytes:      quotaBytes,
+      photo_bytes:      photoBytes,
+      video_bytes:      videoBytes,
+      messenger_bytes:  0,
+      diary_bytes:      0,
+      notice_bytes:     0,
+      system_bytes:     0,
+      tier:             activeTier,
+      staff,
+    });
+  } catch (err) {
+    console.error("[admin/storage]", err);
+    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+  }
+});
+
 // ── 구독 상태 조회 (pool_admin용) ─────────────────────────────────────
 router.get("/subscription-status", requireAuth, requireRole("super_admin", "pool_admin"),
   async (req: AuthRequest, res) => {

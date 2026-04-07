@@ -101,7 +101,9 @@ export default function BillingScreen() {
     try {
       const r  = await apiRequest(token, "/billing/status");
       const sd = await r.json();
-      setSubInfo(sd.subscription ?? null);
+      // subscription_tier(swimming_pools 직접 값) 우선, 없으면 pool_subscriptions 폴백
+      const activeTier = sd.subscription_tier ?? sd.subscription?.tier ?? "free";
+      setSubInfo(sd.subscription ? { ...sd.subscription, tier: activeTier } : { tier: activeTier, status: sd.subscription_status ?? "free" });
       setBillingInfo({
         is_readonly:         sd.is_readonly ?? false,
         upload_blocked:      sd.upload_blocked ?? false,
