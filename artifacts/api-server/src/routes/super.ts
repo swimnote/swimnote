@@ -411,16 +411,24 @@ router.get(
       const teachers  = staffList.filter(u => u.role === 'teacher');
       const admins    = staffList.filter(u => u.role === 'pool_admin' || u.role === 'sub_admin');
 
-      // swimming_pools.member_limit이 null이면 구독 플랜에서 자동 조회
-      let effectiveMemberLimit = poolRow.member_limit as number | null;
-      if (effectiveMemberLimit == null && poolRow.subscription_tier) {
+      // swimming_pools의 member_limit·base_storage_gb가 없으면 구독 플랜에서 자동 조회
+      let effectiveMemberLimit = (poolRow.member_limit as number | null | undefined) ?? null;
+      let effectiveStorageGb   = (poolRow.base_storage_gb as number | null | undefined) ?? null;
+
+      if (poolRow.subscription_tier) {
         try {
-          const [planLimitRow] = (await superAdminDb.execute(sql`
-            SELECT member_limit FROM subscription_plans
+          const [planRow2] = (await superAdminDb.execute(sql`
+            SELECT member_limit, storage_gb FROM subscription_plans
             WHERE tier = ${poolRow.subscription_tier} LIMIT 1
           `)).rows as any[];
-          if (planLimitRow?.member_limit != null) {
-            effectiveMemberLimit = Number(planLimitRow.member_limit);
+          if (planRow2) {
+            if (effectiveMemberLimit == null && planRow2.member_limit != null) {
+              effectiveMemberLimit = Number(planRow2.member_limit);
+            }
+            // base_storage_gb는 항상 플랜 기준으로 덮어쓰기 (구독 변경 즉시 반영)
+            if (planRow2.storage_gb != null) {
+              effectiveStorageGb = Number(planRow2.storage_gb);
+            }
           }
         } catch {}
       }
@@ -429,6 +437,7 @@ router.get(
         pool: {
           ...poolRow,
           member_limit:        effectiveMemberLimit,
+          base_storage_gb:     effectiveStorageGb,
           active_member_count: memberStats.active,
           total_member_count:  memberStats.total,
           total_class_count:   classCount,
