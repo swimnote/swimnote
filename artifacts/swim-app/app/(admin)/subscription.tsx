@@ -3,6 +3,9 @@
  *
  * Coach (개인 선생님, 사진만): Free / Coach30 / Coach50 / Coach100
  * Premier (수영장, 사진+영상): Premier200 / Premier300 / Premier500 / Premier1000
+ *
+ * 플랜 탭 → RevenueCat 구매 플로우 직접 연동
+ * RevenueCat 패키지 미로드 시 → billing 화면으로 폴백
  */
 import React, { useEffect, useState } from "react";
 import {
@@ -14,7 +17,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Crown, Users, HardDrive, Check, Zap, Image as ImageIcon, Video } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useSubscription, REVENUECAT_SOLO_ENTITLEMENT } from "@/lib/revenuecat";
 
 const C = Colors.light;
 
@@ -26,21 +31,22 @@ interface PlanMeta {
   storage: string;
   storageMb: number;
   group: "solo" | "center";
+  rcPackageId: string | null;
   recommended?: boolean;
 }
 
 const SOLO_PLANS: PlanMeta[] = [
-  { tier: "free",     name: "Free",       price: 0,      limit: 10,   storage: "500MB", storageMb: 512,    group: "solo" },
-  { tier: "starter",  name: "Coach30",   price: 3500,   limit: 30,   storage: "3GB",   storageMb: 3072,   group: "solo" },
-  { tier: "basic",    name: "Coach50",   price: 6500,   limit: 50,   storage: "5GB",   storageMb: 5120,   group: "solo" },
-  { tier: "standard", name: "Coach100",  price: 9500,   limit: 100,  storage: "10GB",  storageMb: 10240,  group: "solo", recommended: true },
+  { tier: "free",     name: "Free",        price: 0,      limit: 10,   storage: "500MB", storageMb: 512,    group: "solo",   rcPackageId: null },
+  { tier: "starter",  name: "Coach30",     price: 3500,   limit: 30,   storage: "3GB",   storageMb: 3072,   group: "solo",   rcPackageId: "solo_30" },
+  { tier: "basic",    name: "Coach50",     price: 6500,   limit: 50,   storage: "5GB",   storageMb: 5120,   group: "solo",   rcPackageId: "solo_50" },
+  { tier: "standard", name: "Coach100",    price: 9500,   limit: 100,  storage: "10GB",  storageMb: 10240,  group: "solo",   rcPackageId: "solo_100", recommended: true },
 ];
 
 const CENTER_PLANS: PlanMeta[] = [
-  { tier: "center_200", name: "Premier200",  price: 69000,  limit: 200,  storage: "50GB",  storageMb: 51200,  group: "center" },
-  { tier: "advance",    name: "Premier300",  price: 99000,  limit: 300,  storage: "80GB",  storageMb: 81920,  group: "center" },
-  { tier: "pro",        name: "Premier500",  price: 149000, limit: 500,  storage: "130GB", storageMb: 133120, group: "center" },
-  { tier: "max",        name: "Premier1000", price: 249000, limit: 1000, storage: "500GB", storageMb: 512000, group: "center", recommended: true },
+  { tier: "center_200", name: "Premier200",  price: 69000,  limit: 200,  storage: "50GB",  storageMb: 51200,  group: "center", rcPackageId: "center_200" },
+  { tier: "advance",    name: "Premier300",  price: 99000,  limit: 300,  storage: "80GB",  storageMb: 81920,  group: "center", rcPackageId: "center_300" },
+  { tier: "pro",        name: "Premier500",  price: 149000, limit: 500,  storage: "130GB", storageMb: 133120, group: "center", rcPackageId: "center_500" },
+  { tier: "max",        name: "Premier1000", price: 249000, limit: 1000, storage: "500GB", storageMb: 512000, group: "center", rcPackageId: "center_1000", recommended: true },
 ];
 
 function fmt(price: number) {
@@ -49,9 +55,30 @@ function fmt(price: number) {
 
 export default function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
-  const { token } = useAuth();
+  const { token, refreshPool } = useAuth();
   const [currentTier, setCurrentTier] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]         = useState(true);
+
+  const {
+    soloOffering,
+    centerOffering,
+    isSubscribed,
+    purchase,
+    isPurchasing,
+    refetchCustomerInfo,
+  } = useSubscription();
+
+  const [confirmVisible, setConfirmVisible] = useState(false);
+  const [confirmTitle, setConfirmTitle]     = useState("");
+  const [confirmMessage, setConfirmMessage] = useState("");
+  const [confirmAction, setConfirmAction]   = useState<(() => void) | null>(null);
+
+  function showConfirm(title: string, msg: string, action: () => void) {
+    setConfirmTitle(title);
+    setConfirmMessage(msg);
+    setConfirmAction(() => action);
+    setConfirmVisible(true);
+  }
 
   useEffect(() => {
     (async () => {
@@ -65,6 +92,59 @@ export default function SubscriptionScreen() {
       finally { setLoading(false); }
     })();
   }, []);
+
+  async function syncRcToServer(info: any) {
+    try {
+      const entitlement = info?.entitlements?.active?.[REVENUECAT_SOLO_ENTITLEMENT];
+      if (!entitlement) return;
+      await apiRequest(token, "/billing/sync-rc-subscription", {
+        method: "POST",
+        body: JSON.stringify({
+          productId:     entitlement.productIdentifier,
+          entitlementId: REVENUECAT_SOLO_ENTITLEMENT,
+          expiresAt:     entitlement.expirationDate ? entitlement.expirationDate.slice(0, 10) : null,
+          isActive:      true,
+        }),
+      });
+    } catch (e) {
+      console.warn("[subscription] 서버 동기화 실패:", e);
+    }
+  }
+
+  function handlePlanSelect(plan: PlanMeta) {
+    if (plan.price === 0 || !plan.rcPackageId) return;
+
+    const allPackages = [
+      ...(soloOffering?.availablePackages ?? []),
+      ...(centerOffering?.availablePackages ?? []),
+    ];
+    const pkg = allPackages.find(p => p.identifier === plan.rcPackageId);
+
+    if (!pkg) {
+      router.push("/(admin)/billing");
+      return;
+    }
+
+    const store    = Platform.OS === "ios" ? "Apple" : "Google Play";
+    const priceStr = pkg.product.priceString;
+
+    showConfirm(
+      `${plan.name} 구독`,
+      `${priceStr}/월 · 최대 ${plan.limit.toLocaleString()}명 · ${plan.storage}\n\n${store}를 통해 결제됩니다.`,
+      async () => {
+        try {
+          const info = await purchase(pkg);
+          await syncRcToServer(info);
+          await refetchCustomerInfo();
+          await refreshPool();
+          showConfirm("구독 완료", "구독이 성공적으로 시작되었습니다!", () => {});
+        } catch (e: any) {
+          if (e?.userCancelled) return;
+          showConfirm("구독 실패", e?.message ?? "결제 중 오류가 발생했습니다.", () => {});
+        }
+      }
+    );
+  }
 
   const goToBilling = () => router.push("/(admin)/billing");
 
@@ -106,7 +186,8 @@ export default function SubscriptionScreen() {
               plan={plan}
               isCurrent={currentTier === plan.tier}
               accentColor="#7C3AED"
-              onSelect={plan.price === 0 ? undefined : goToBilling}
+              isPurchasing={isPurchasing}
+              onSelect={plan.price === 0 ? undefined : () => handlePlanSelect(plan)}
             />
           ))}
 
@@ -133,7 +214,8 @@ export default function SubscriptionScreen() {
               plan={plan}
               isCurrent={currentTier === plan.tier}
               accentColor="#F59E0B"
-              onSelect={goToBilling}
+              isPurchasing={isPurchasing}
+              onSelect={() => handlePlanSelect(plan)}
             />
           ))}
 
@@ -154,16 +236,25 @@ export default function SubscriptionScreen() {
           </Text>
         </ScrollView>
       )}
+
+      <ConfirmModal
+        visible={confirmVisible}
+        title={confirmTitle}
+        message={confirmMessage}
+        onConfirm={() => { setConfirmVisible(false); confirmAction?.(); }}
+        onCancel={() => setConfirmVisible(false)}
+      />
     </View>
   );
 }
 
 function PlanCard({
-  plan, isCurrent, accentColor, onSelect,
+  plan, isCurrent, accentColor, isPurchasing, onSelect,
 }: {
   plan: PlanMeta;
   isCurrent: boolean;
   accentColor: string;
+  isPurchasing?: boolean;
   onSelect?: () => void;
 }) {
   const isFree = plan.price === 0;
@@ -176,7 +267,7 @@ function PlanCard({
         { opacity: pressed && onSelect ? 0.92 : 1 },
       ]}
       onPress={onSelect}
-      disabled={!onSelect}
+      disabled={!onSelect || isPurchasing}
     >
       {plan.recommended && !isCurrent && (
         <View style={[s.badge, { backgroundColor: accentColor }]}>
