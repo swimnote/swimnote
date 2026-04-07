@@ -594,7 +594,8 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
     // resolver로 구독 상태 계산 (source, startsAt, endsAt, trialEndsAt 포함)
     const resolved = await resolveSubscription(poolId);
     const { memberLimit, storageGb: storageQuotaGb, videoEnabled, source,
-            startsAt, endsAt, trialEndsAt, effectiveReason } = resolved;
+            startsAt, endsAt, trialEndsAt, effectiveReason,
+            displayStorage, videoStorageLimitMb, storageMb } = resolved;
 
     const storageUsedGb = +(usedBytes / (1024 ** 3)).toFixed(3);
     const storageUsedPct = storageQuotaGb > 0 ? Math.round((storageUsedGb / storageQuotaGb) * 100) : 0;
@@ -631,6 +632,11 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       plan_name: resolved.planName,
       white_label_enabled: resolved.whiteLabelEnabled,
       price_per_month: resolved.pricePerMonth,
+      // 스토리지 표시·제한 통일 필드
+      display_storage:        displayStorage,
+      storage_mb:             storageMb,
+      base_storage_gb:        storageQuotaGb,
+      video_storage_limit_mb: videoStorageLimitMb,
     });
   } catch (err) {
     console.error(err);

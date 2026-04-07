@@ -49,8 +49,11 @@ export interface ResolvedSubscription {
   planName:         string;        // "Premier 1000"
   memberLimit:      number;
   storageGb:        number;
+  displayStorage:   string;        // "500MB", "130GB" 등
+  storageMb:        number;        // storage_mb 원본
   videoEnabled:     boolean;
   whiteLabelEnabled: boolean;
+  videoStorageLimitMb: number;     // 영상 허용: 1048576 (1TB), 불가: 0
   status:           SubscriptionStatus;
   startsAt:         string | null; // ISO
   endsAt:           string | null; // ISO
@@ -99,7 +102,8 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
   // 4. subscription_plans 조회 (storage_mb 기준 GB 환산)
   const [plan] = (await db.execute(sql`
     SELECT name, member_limit, price_per_month,
-           storage_mb, storage_mb::numeric / 1024.0 AS storage_gb
+           storage_mb, display_storage,
+           storage_mb::numeric / 1024.0 AS storage_gb
     FROM subscription_plans
     WHERE tier = ${effectiveTier}
     LIMIT 1
@@ -153,31 +157,37 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
     : Number(plan?.member_limit ?? 10);
 
   // 8. storage_gb — 항상 플랜 기준 (수동 변경 즉시 반영)
-  const storageGb = Number(plan?.storage_gb ?? 0.49);
+  const storageGb      = Number(plan?.storage_gb ?? 0.49);
+  const storageMb      = Number(plan?.storage_mb ?? 512);
+  const displayStorage = (plan?.display_storage as string) ?? "500MB";
 
   // 9. video / whitelabel — tier 기준
-  const videoEnabled      = VIDEO_TIERS.has(effectiveTier);
-  const whiteLabelEnabled = WHITELABEL_TIERS.has(effectiveTier);
+  const videoEnabled        = VIDEO_TIERS.has(effectiveTier);
+  const whiteLabelEnabled   = WHITELABEL_TIERS.has(effectiveTier);
+  const videoStorageLimitMb = videoEnabled ? 1024 * 1024 : 0; // 1TB or 0
 
   return {
     source,
-    planCode:          effectiveTier,
-    planName:          plan?.name ?? effectiveTier,
+    planCode:            effectiveTier,
+    planName:            plan?.name ?? effectiveTier,
     memberLimit,
     storageGb,
+    storageMb,
+    displayStorage,
     videoEnabled,
     whiteLabelEnabled,
-    status:            effectiveStatus,
-    startsAt:          pool?.subscription_start_at
-                         ? new Date(pool.subscription_start_at).toISOString() : null,
-    endsAt:            pool?.subscription_end_at
-                         ? new Date(pool.subscription_end_at).toISOString()   : null,
-    trialEndsAt:       pool?.trial_end_at
-                         ? new Date(pool.trial_end_at).toISOString()          : null,
+    videoStorageLimitMb,
+    status:              effectiveStatus,
+    startsAt:            pool?.subscription_start_at
+                           ? new Date(pool.subscription_start_at).toISOString() : null,
+    endsAt:              pool?.subscription_end_at
+                           ? new Date(pool.subscription_end_at).toISOString()   : null,
+    trialEndsAt:         pool?.trial_end_at
+                           ? new Date(pool.trial_end_at).toISOString()          : null,
     overrideActive,
     effectiveReason,
-    pricePerMonth:     Number(plan?.price_per_month ?? 0),
-    nextBillingAt:     rcSub?.next_billing_at ?? null,
+    pricePerMonth:       Number(plan?.price_per_month ?? 0),
+    nextBillingAt:       rcSub?.next_billing_at ?? null,
   };
 }
 

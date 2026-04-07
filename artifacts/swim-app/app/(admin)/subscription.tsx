@@ -7,12 +7,12 @@
  * 플랜 탭 → RevenueCat 구매 플로우 직접 연동
  * RevenueCat 패키지 미로드 시 → billing 화면으로 폴백
  */
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Linking, Platform, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Crown, Users, HardDrive, Check, Zap, Image as ImageIcon, Video, CreditCard } from "lucide-react-native";
 import Colors from "@/constants/colors";
@@ -87,29 +87,31 @@ export default function SubscriptionScreen() {
     setConfirmVisible(true);
   }
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [statusRes, plansRes] = await Promise.all([
-          apiRequest(token, "/billing/status"),
-          apiRequest(token, "/billing/plans"),
-        ]);
-        if (statusRes.ok) {
-          const d = await statusRes.json();
-          setCurrentTier(d.current_plan ?? d.plan_id ?? null);
+  const loadData = useCallback(async () => {
+    try {
+      const [statusRes, plansRes] = await Promise.all([
+        apiRequest(token, "/billing/status"),
+        apiRequest(token, "/billing/plans"),
+      ]);
+      if (statusRes.ok) {
+        const d = await statusRes.json();
+        setCurrentTier(d.current_plan ?? d.plan_id ?? null);
+      }
+      if (plansRes.ok) {
+        const d = await plansRes.json();
+        const map: typeof serverPlanMap = {};
+        for (const p of (d.plans ?? [])) {
+          map[p.tier] = { name: p.name, price: Number(p.price), member_limit: Number(p.member_limit), display_storage: p.display_storage ?? "" };
         }
-        if (plansRes.ok) {
-          const d = await plansRes.json();
-          const map: typeof serverPlanMap = {};
-          for (const p of (d.plans ?? [])) {
-            map[p.tier] = { name: p.name, price: Number(p.price), member_limit: Number(p.member_limit), display_storage: p.display_storage ?? "" };
-          }
-          setServerPlanMap(map);
-        }
-      } catch {}
-      finally { setLoading(false); }
-    })();
-  }, []);
+        setServerPlanMap(map);
+      }
+    } catch {}
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+  // 화면 포커스 복귀 시 재조회 (슈퍼관리자 변경 직후 즉시 반영)
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   async function syncRcToServer(info: any) {
     try {

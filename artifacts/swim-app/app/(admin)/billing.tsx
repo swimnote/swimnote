@@ -8,7 +8,7 @@ import {
   ActivityIndicator, Linking, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSubscription, PACKAGE_META, REVENUECAT_SOLO_ENTITLEMENT } from "@/lib/revenuecat";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
@@ -124,6 +124,8 @@ export default function BillingScreen() {
   }, [token]);
 
   useEffect(() => { loadBillingInfo(); }, [loadBillingInfo]);
+  // 화면 포커스 복귀 시 재조회 (슈퍼관리자 변경 직후 즉시 반영)
+  useFocusEffect(useCallback(() => { loadBillingInfo(); }, [loadBillingInfo]));
 
   async function syncRcSubscriptionToServer(info: any) {
     try {

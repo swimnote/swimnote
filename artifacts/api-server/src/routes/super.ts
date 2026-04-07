@@ -418,19 +418,22 @@ router.get(
       res.json({
         pool: {
           ...poolRow,
-          member_limit:           resolved?.memberLimit    ?? (poolRow.member_limit ?? 10),
-          base_storage_gb:        resolved?.storageGb      ?? (poolRow.base_storage_gb ?? 0.49),
-          video_enabled:          resolved?.videoEnabled   ?? false,
-          white_label_enabled:    resolved?.whiteLabelEnabled ?? false,
-          subscription_tier:      resolved?.planCode       ?? poolRow.subscription_tier,
-          subscription_status:    resolved?.status         ?? poolRow.subscription_status,
-          subscription_source:    resolved?.source         ?? null,
-          plan_name:              resolved?.planName        ?? null,
-          price_per_month:        resolved?.pricePerMonth  ?? 0,
-          subscription_starts_at: resolved?.startsAt       ?? null,
-          subscription_ends_at:   resolved?.endsAt         ?? null,
-          trial_ends_at:          resolved?.trialEndsAt    ?? null,
-          effective_reason:       resolved?.effectiveReason ?? null,
+          member_limit:            resolved?.memberLimit        ?? (poolRow.member_limit ?? 10),
+          base_storage_gb:         resolved?.storageGb          ?? (poolRow.base_storage_gb ?? 0.49),
+          storage_mb:              resolved?.storageMb           ?? 512,
+          display_storage:         resolved?.displayStorage      ?? "500MB",
+          video_enabled:           resolved?.videoEnabled        ?? false,
+          video_storage_limit_mb:  resolved?.videoStorageLimitMb ?? 0,
+          white_label_enabled:     resolved?.whiteLabelEnabled   ?? false,
+          subscription_tier:       resolved?.planCode            ?? poolRow.subscription_tier,
+          subscription_status:     resolved?.status              ?? poolRow.subscription_status,
+          subscription_source:     resolved?.source              ?? null,
+          plan_name:               resolved?.planName             ?? null,
+          price_per_month:         resolved?.pricePerMonth        ?? 0,
+          subscription_starts_at:  resolved?.startsAt             ?? null,
+          subscription_ends_at:    resolved?.endsAt               ?? null,
+          trial_ends_at:           resolved?.trialEndsAt          ?? null,
+          effective_reason:        resolved?.effectiveReason       ?? null,
           active_member_count:    memberStats.active,
           total_member_count:     memberStats.total,
           total_class_count:      classCount,
@@ -1331,7 +1334,14 @@ router.patch(
       // ── 티어 변경 (가장 중요 — 파생값 자동 계산 포함) ────────────────
       if (rawTier) {
         const tier = normalizeTier(rawTier);
+        // tier 변경 시 파생값(storage/video/whitelabel) 즉시 갱신
         await syncPoolSubscriptionFields({ poolId: id, tier, source: "manual" });
+        // tier 변경 시 subscription_status를 명시하지 않으면 자동 active 처리
+        // (free 티어도 active — 수동 override이므로 trial 아님)
+        if (!subscription_status) {
+          await syncPoolSubscriptionFields({ poolId: id, status: "active" });
+          updates.push("구독상태 → active (tier 변경 시 자동)");
+        }
         // pool_subscriptions 테이블 동기화
         await superAdminDb.execute(sql`
           INSERT INTO pool_subscriptions (swimming_pool_id, tier, status, current_period_start)
@@ -1412,7 +1422,7 @@ router.patch(
 
       if (updates.length === 0) { res.status(400).json({ error: "변경 항목이 없습니다." }); return; }
 
-      // 변경 후 최신 resolver 결과 반환
+      // 변경 후 최신 resolver 결과 반환 (응답 전 DB 반영 완료 보장)
       const resolved = await resolveSubscription(id).catch(() => null);
 
       const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
@@ -1422,7 +1432,24 @@ router.patch(
                 ${updates.join(" / ")}, '{}'::jsonb)
       `).catch(() => {});
 
-      res.json({ ok: true, updates, resolved });
+      // 명시적 snake_case 필드로 응답 (앱/프론트엔드 즉시 상태 갱신용)
+      res.json({
+        ok: true,
+        updates,
+        resolved,
+        // 앱이 즉시 읽을 수 있도록 최상위에 snake_case 필드 병렬 노출
+        subscription_tier:       resolved?.planCode       ?? null,
+        subscription_status:     resolved?.status         ?? null,
+        subscription_source:     resolved?.source         ?? null,
+        member_limit:            resolved?.memberLimit     ?? 10,
+        base_storage_gb:         resolved?.storageGb       ?? 0.5,
+        storage_mb:              resolved?.storageMb        ?? 512,
+        display_storage:         resolved?.displayStorage   ?? "500MB",
+        video_storage_limit_mb:  resolved?.videoStorageLimitMb ?? 0,
+        white_label_enabled:     resolved?.whiteLabelEnabled ?? false,
+        plan_name:               resolved?.planName         ?? null,
+        price_per_month:         resolved?.pricePerMonth    ?? 0,
+      });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
