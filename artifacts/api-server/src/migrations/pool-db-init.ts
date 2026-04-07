@@ -778,7 +778,32 @@ export async function initPoolDb(): Promise<void> {
           price_per_month = EXCLUDED.price_per_month, member_limit = EXCLUDED.member_limit,
           storage_mb = EXCLUDED.storage_mb, display_storage = EXCLUDED.display_storage
   `)).catch(() => {});
-  // storage_gb를 storage_mb 기준으로 항상 재계산 (default 5 덮어쓰기)
+  // member_limit / storage_mb 강제 교정 (INSERT ON CONFLICT 실패 방어)
+  await db.execute(sql.raw(`
+    UPDATE subscription_plans SET
+      member_limit = CASE tier
+        WHEN 'free'       THEN 10
+        WHEN 'starter'    THEN 30
+        WHEN 'basic'      THEN 50
+        WHEN 'standard'   THEN 100
+        WHEN 'center_200' THEN 200
+        WHEN 'advance'    THEN 300
+        WHEN 'pro'        THEN 500
+        WHEN 'max'        THEN 1000
+        ELSE member_limit END,
+      storage_mb = CASE tier
+        WHEN 'free'       THEN 512
+        WHEN 'starter'    THEN 3072
+        WHEN 'basic'      THEN 5120
+        WHEN 'standard'   THEN 10240
+        WHEN 'center_200' THEN 51200
+        WHEN 'advance'    THEN 81920
+        WHEN 'pro'        THEN 133120
+        WHEN 'max'        THEN 512000
+        ELSE storage_mb END
+    WHERE tier IN ('free','starter','basic','standard','center_200','advance','pro','max')
+  `)).catch(() => {});
+  // storage_gb도 storage_mb 기준으로 재계산
   await db.execute(sql.raw(`
     UPDATE subscription_plans SET storage_gb = storage_mb::numeric / 1024.0
     WHERE storage_mb > 0
