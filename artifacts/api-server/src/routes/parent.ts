@@ -761,6 +761,15 @@ router.get("/diary/:diaryId/messages", requireAuth, requireParent, async (req: A
       ORDER BY created_at ASC
     `);
     console.log("[diary-msg] GET 결과 count=%d", rows.rows.length);
+    // 부모가 읽었으므로 선생님/관리자 메시지 읽음 처리
+    db.execute(sql`
+      UPDATE diary_messages
+      SET read_at = NOW()
+      WHERE diary_id = ${req.params.diaryId}
+        AND sender_role != 'parent'
+        AND is_deleted = false
+        AND read_at IS NULL
+    `).catch(() => {/* 무시 */});
     res.json(rows.rows);
   } catch (err: any) {
     console.error("[diary-msg] GET 오류:", err?.message, err?.code);
@@ -943,13 +952,17 @@ router.get("/students/:id/unread-counts", requireAuth, requireParent, async (req
       unreadPhotos = Number((photoCount.rows[0] as any).cnt);
     }
 
-    // 안읽은 쪽지 수
+    // 안읽은 쪽지 수 (선생님/관리자가 보낸 diary_messages 중 read_at IS NULL)
     const msgCount = await db.execute(sql`
-      SELECT COUNT(*) AS cnt FROM messages m
-      JOIN message_threads mt ON mt.id = m.thread_id
-      WHERE (mt.participant_1_id = ${pa.id} OR mt.participant_2_id = ${pa.id})
-        AND m.sender_id != ${pa.id}
-        AND (m.read_at IS NULL)
+      SELECT COUNT(*) AS cnt
+      FROM diary_messages dm
+      JOIN class_diaries cd ON cd.id = dm.diary_id
+      JOIN students s ON s.class_group_id = cd.class_group_id
+      JOIN parent_students ps ON ps.student_id = s.id
+      WHERE ps.parent_id = ${pa.id} AND ps.status = 'approved'
+        AND dm.sender_role != 'parent'
+        AND dm.is_deleted = false
+        AND dm.read_at IS NULL
     `).catch(() => ({ rows: [{ cnt: 0 }] }));
     const unreadMessages = Number((msgCount.rows[0] as any).cnt ?? 0);
 
@@ -1026,9 +1039,17 @@ router.get("/students/:id/home-summary", requireAuth, requireParent, async (req:
       unreadPhotos = Number((pc.rows[0] as any).cnt);
     }
 
+    // 안읽은 쪽지 수 (선생님/관리자 diary_messages 중 read_at IS NULL)
     const msgCount = await db.execute(sql`
-      SELECT COUNT(*) AS cnt FROM messages m JOIN message_threads mt ON mt.id = m.thread_id
-      WHERE (mt.participant_1_id = ${pa.id} OR mt.participant_2_id = ${pa.id}) AND m.sender_id != ${pa.id} AND (m.read_at IS NULL)
+      SELECT COUNT(*) AS cnt
+      FROM diary_messages dm
+      JOIN class_diaries cd ON cd.id = dm.diary_id
+      JOIN students s ON s.class_group_id = cd.class_group_id
+      JOIN parent_students ps ON ps.student_id = s.id
+      WHERE ps.parent_id = ${pa.id} AND ps.status = 'approved'
+        AND dm.sender_role != 'parent'
+        AND dm.is_deleted = false
+        AND dm.read_at IS NULL
     `).catch(() => ({ rows: [{ cnt: 0 }] }));
     const unreadMessages = Number((msgCount.rows[0] as any).cnt ?? 0);
 

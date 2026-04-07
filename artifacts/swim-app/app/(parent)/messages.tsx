@@ -117,6 +117,11 @@ export default function MessagesScreen() {
     else loadThreads();
   }, [isChat, loadChat, loadThreads]);
 
+  /* 목록 화면 포커스 시 새로고침 (채팅 읽고 돌아오면 뱃지 즉시 갱신) */
+  useFocusEffect(useCallback(() => {
+    if (!isChat) { loadThreads(); }
+  }, [isChat, loadThreads]));
+
   /* 10초 폴링 — 채팅 모드에서만 */
   useFocusEffect(useCallback(() => {
     if (!isChat) return;
