@@ -255,30 +255,6 @@ export interface SubscriptionPlan {
   updatedAt: string
 }
 
-export interface ExtraStorageProduct {
-  id: string
-  code: string
-  name: string
-  additionalMb: number
-  monthlyPrice: number
-  isActive: boolean
-}
-
-export interface BillingRecord {
-  id: string
-  operatorId: string
-  operatorName: string
-  planId: string
-  planName: string
-  amount: number
-  status: PaymentStatus
-  billingStatus: BillingStatus
-  billedAt: string
-  nextBillingAt: string | null
-  failReason: string | null
-  creditUsed: number
-  memo: string
-}
 
 export interface AuditLog {
   id: string

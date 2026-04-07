@@ -4,7 +4,7 @@
  */
 import { ChevronRight, CircleCheck, CreditCard, FileText, HardDrive, Lock, Trash2, TriangleAlert } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, Modal, Pressable, RefreshControl,
@@ -173,6 +173,9 @@ export default function OperatorDetailScreen() {
   }, [id, token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 화면 포커스 복귀 시 자동 재조회 (구독 변경 등 다른 화면에서 돌아왔을 때 반영)
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   async function doAction(act: string) {
     setProcessing(true);

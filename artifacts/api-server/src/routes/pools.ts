@@ -8,6 +8,7 @@ import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { sanitizePoolName } from "../utils/filename.js";
 import { signToken } from "../lib/auth.js";
+import { resolveSubscription } from "../lib/subscriptionResolver.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -151,11 +152,8 @@ router.get("/my", requireAuth, async (req: AuthRequest, res) => {
     `)).rows as any[];
     const memberCount = Number(cntRow?.cnt ?? 0);
 
-    // 플랜 회원 한도 조회
-    const [planRow] = (await db.execute(sql`
-      SELECT member_limit, storage_gb FROM subscription_plans
-      WHERE tier = ${pool.subscription_tier ?? "free"} LIMIT 1
-    `)).rows as any[];
+    // resolver로 구독 상태 계산
+    const resolved = await resolveSubscription(poolId);
 
     // 삭제까지 남은 일수 계산
     let daysUntilDeletion: number | null = null;
@@ -168,10 +166,21 @@ router.get("/my", requireAuth, async (req: AuthRequest, res) => {
 
     res.json({
       ...pool,
-      member_count: memberCount,
-      member_limit: Number(planRow?.member_limit ?? 5),
-      base_storage_gb: Number(planRow?.storage_gb ?? 0.1),
-      days_until_deletion: daysUntilDeletion,
+      member_count:           memberCount,
+      member_limit:           resolved.memberLimit,
+      base_storage_gb:        resolved.storageGb,
+      video_enabled:          resolved.videoEnabled,
+      white_label_enabled:    resolved.whiteLabelEnabled,
+      subscription_tier:      resolved.planCode,
+      subscription_status:    resolved.status,
+      subscription_source:    resolved.source,
+      plan_name:              resolved.planName,
+      price_per_month:        resolved.pricePerMonth,
+      subscription_starts_at: resolved.startsAt,
+      subscription_ends_at:   resolved.endsAt,
+      trial_ends_at:          resolved.trialEndsAt,
+      effective_reason:       resolved.effectiveReason,
+      days_until_deletion:    daysUntilDeletion,
     });
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });

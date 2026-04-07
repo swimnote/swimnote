@@ -24,6 +24,7 @@ import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.
 import { logPoolEvent } from "../lib/pool-event-logger.js";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
 import { runRealBackup } from "../lib/backup.js";
+import { resolveSubscription, syncPoolSubscriptionFields, normalizeTier } from "../lib/subscriptionResolver.js";
 
 const router = Router();
 
@@ -411,38 +412,30 @@ router.get(
       const teachers  = staffList.filter(u => u.role === 'teacher');
       const admins    = staffList.filter(u => u.role === 'pool_admin' || u.role === 'sub_admin');
 
-      // swimming_pools의 member_limit·base_storage_gb가 없으면 구독 플랜에서 자동 조회
-      let effectiveMemberLimit = (poolRow.member_limit as number | null | undefined) ?? null;
-      let effectiveStorageGb   = (poolRow.base_storage_gb as number | null | undefined) ?? null;
-
-      if (poolRow.subscription_tier) {
-        try {
-          const [planRow2] = (await superAdminDb.execute(sql`
-            SELECT member_limit, storage_gb FROM subscription_plans
-            WHERE tier = ${poolRow.subscription_tier} LIMIT 1
-          `)).rows as any[];
-          if (planRow2) {
-            if (effectiveMemberLimit == null && planRow2.member_limit != null) {
-              effectiveMemberLimit = Number(planRow2.member_limit);
-            }
-            // base_storage_gb는 항상 플랜 기준으로 덮어쓰기 (구독 변경 즉시 반영)
-            if (planRow2.storage_gb != null) {
-              effectiveStorageGb = Number(planRow2.storage_gb);
-            }
-          }
-        } catch {}
-      }
+      // resolver로 구독 상태 완전 계산
+      const resolved = await resolveSubscription(id).catch(() => null);
 
       res.json({
         pool: {
           ...poolRow,
-          member_limit:        effectiveMemberLimit,
-          base_storage_gb:     effectiveStorageGb,
-          active_member_count: memberStats.active,
-          total_member_count:  memberStats.total,
-          total_class_count:   classCount,
-          teacher_count:       teachers.length,
-          staff_count:         staffList.length,
+          member_limit:           resolved?.memberLimit    ?? (poolRow.member_limit ?? 10),
+          base_storage_gb:        resolved?.storageGb      ?? (poolRow.base_storage_gb ?? 0.49),
+          video_enabled:          resolved?.videoEnabled   ?? false,
+          white_label_enabled:    resolved?.whiteLabelEnabled ?? false,
+          subscription_tier:      resolved?.planCode       ?? poolRow.subscription_tier,
+          subscription_status:    resolved?.status         ?? poolRow.subscription_status,
+          subscription_source:    resolved?.source         ?? null,
+          plan_name:              resolved?.planName        ?? null,
+          price_per_month:        resolved?.pricePerMonth  ?? 0,
+          subscription_starts_at: resolved?.startsAt       ?? null,
+          subscription_ends_at:   resolved?.endsAt         ?? null,
+          trial_ends_at:          resolved?.trialEndsAt    ?? null,
+          effective_reason:       resolved?.effectiveReason ?? null,
+          active_member_count:    memberStats.active,
+          total_member_count:     memberStats.total,
+          total_class_count:      classCount,
+          teacher_count:          teachers.length,
+          staff_count:            staffList.length,
         },
         staff:    staffList,
         teachers,
@@ -1304,8 +1297,13 @@ router.post(
 );
 
 // ════════════════════════════════════════════════════════════════
-// PATCH /super/operators/:id/subscription — 구독상태·크레딧·읽기전용·업로드차단·회원한도 수동 조정
-// Body: { subscription_status?, subscription_tier?, credit_amount?, is_readonly?, upload_blocked?, subscription_end_at?, member_limit? }
+// PATCH /super/operators/:id/subscription — 구독 전체 필드 수동 동기화
+// Body: {
+//   subscription_status?,   subscription_tier?,      credit_amount?,
+//   is_readonly?,           upload_blocked?,          subscription_end_at?,
+//   member_limit?,          trial_ends_at?,           subscription_started_at?,
+//   member_limit_reset?     (true이면 pool 개별 override 제거)
+// }
 // ════════════════════════════════════════════════════════════════
 router.patch(
   "/super/operators/:id/subscription",
@@ -1322,40 +1320,74 @@ router.patch(
         upload_blocked,
         subscription_end_at,
         member_limit,
+        member_limit_reset,
+        trial_ends_at,
+        subscription_started_at,
       } = req.body as any;
-      const TIER_NORMALIZE: Record<string, string> = {
-        growth: "center_200", premium: "pro", enterprise: "max",
-        center_300: "advance", center_500: "pro", center_1000: "max",
-      };
-      const subscription_tier = rawTier ? (TIER_NORMALIZE[rawTier] ?? rawTier) : rawTier;
+
       const actorName = req.user?.name ?? "슈퍼관리자";
       const updates: string[] = [];
 
-      if (subscription_status) {
+      // ── 티어 변경 (가장 중요 — 파생값 자동 계산 포함) ────────────────
+      if (rawTier) {
+        const tier = normalizeTier(rawTier);
+        await syncPoolSubscriptionFields({ poolId: id, tier, source: "manual" });
+        // pool_subscriptions 테이블 동기화
         await superAdminDb.execute(sql`
-          UPDATE swimming_pools SET subscription_status = ${subscription_status} WHERE id = ${id}
-        `);
-        // pool_subscriptions 상태도 동기화 (active/trial → active, 그 외 → inactive)
-        const psStatus = ['active', 'trial'].includes(subscription_status) ? 'active' : 'inactive';
+          INSERT INTO pool_subscriptions (swimming_pool_id, tier, status, current_period_start)
+          VALUES (${id}, ${tier}, 'active', now())
+          ON CONFLICT (swimming_pool_id) DO UPDATE
+            SET tier = ${tier}, status = 'active', updated_at = now()
+        `).catch(() => {});
+        updates.push(`구독티어 → ${tier} (base_storage/video/whitelabel 자동 동기화)`);
+      }
+
+      // ── 구독 상태 ──────────────────────────────────────────────────
+      if (subscription_status) {
+        await syncPoolSubscriptionFields({ poolId: id, status: subscription_status });
+        const psStatus = ["active", "trial"].includes(subscription_status) ? "active" : "inactive";
         await superAdminDb.execute(sql`
           UPDATE pool_subscriptions SET status = ${psStatus}, updated_at = now()
           WHERE swimming_pool_id = ${id}
         `).catch(() => {});
         updates.push(`구독상태 → ${subscription_status}`);
       }
-      if (subscription_tier) {
-        await superAdminDb.execute(sql`
-          UPDATE swimming_pools SET subscription_tier = ${subscription_tier} WHERE id = ${id}
-        `);
-        // pool_subscriptions 테이블도 동기화 (없으면 생성, 있으면 덮어쓰기)
-        await superAdminDb.execute(sql`
-          INSERT INTO pool_subscriptions (swimming_pool_id, tier, status, current_period_start)
-          VALUES (${id}, ${subscription_tier}, 'active', now())
-          ON CONFLICT (swimming_pool_id) DO UPDATE
-            SET tier = ${subscription_tier}, status = 'active', updated_at = now()
-        `).catch(() => {});
-        updates.push(`구독티어 → ${subscription_tier}`);
+
+      // ── 회원 한도 개별 override ────────────────────────────────────
+      if (member_limit_reset === true) {
+        // override 제거 → 플랜 기본값으로 복귀
+        await syncPoolSubscriptionFields({ poolId: id, memberLimitOverride: null });
+        updates.push("회원한도 override 해제 (플랜 기본값 복귀)");
+      } else if (member_limit != null && !isNaN(Number(member_limit))) {
+        const ml = Number(member_limit);
+        await syncPoolSubscriptionFields({ poolId: id, memberLimitOverride: ml });
+        updates.push(`회원한도 → ${ml}명 (개별 override)`);
       }
+
+      // ── 구독 만료일 ────────────────────────────────────────────────
+      if (subscription_end_at !== undefined) {
+        const endVal = subscription_end_at === null || subscription_end_at === "null"
+          ? null : subscription_end_at;
+        await syncPoolSubscriptionFields({ poolId: id, endsAt: endVal });
+        updates.push(endVal ? `구독만료일 → ${endVal}` : "구독만료일 제거");
+      }
+
+      // ── 체험 만료일 ────────────────────────────────────────────────
+      if (trial_ends_at !== undefined) {
+        const trialVal = trial_ends_at === null || trial_ends_at === "null" ? null : trial_ends_at;
+        await syncPoolSubscriptionFields({ poolId: id, trialEndsAt: trialVal });
+        updates.push(trialVal ? `체험만료일 → ${trialVal}` : "체험만료일 제거");
+      }
+
+      // ── 구독 시작일 ────────────────────────────────────────────────
+      if (subscription_started_at !== undefined) {
+        const startVal = subscription_started_at === null || subscription_started_at === "null"
+          ? null : subscription_started_at;
+        await syncPoolSubscriptionFields({ poolId: id, startsAt: startVal });
+        updates.push(startVal ? `구독시작일 → ${startVal}` : "구독시작일 제거");
+      }
+
+      // ── 크레딧 ────────────────────────────────────────────────────
       if (credit_amount != null && !isNaN(Number(credit_amount))) {
         const amt = Number(credit_amount);
         await superAdminDb.execute(sql`
@@ -1363,51 +1395,34 @@ router.patch(
         `);
         updates.push(`크레딧 → ${amt.toLocaleString()}원`);
       }
-      if (typeof is_readonly === 'boolean') {
+
+      // ── 읽기전용 / 업로드 차단 ────────────────────────────────────
+      if (typeof is_readonly === "boolean") {
         await superAdminDb.execute(sql`
           UPDATE swimming_pools SET is_readonly = ${is_readonly} WHERE id = ${id}
         `);
         updates.push(`읽기전용 → ${is_readonly}`);
       }
-      if (typeof upload_blocked === 'boolean') {
+      if (typeof upload_blocked === "boolean") {
         await superAdminDb.execute(sql`
           UPDATE swimming_pools SET upload_blocked = ${upload_blocked} WHERE id = ${id}
         `);
         updates.push(`업로드차단 → ${upload_blocked}`);
       }
-      if (subscription_end_at !== undefined) {
-        if (subscription_end_at === null || subscription_end_at === "null") {
-          await superAdminDb.execute(sql`
-            UPDATE swimming_pools SET subscription_end_at = NULL WHERE id = ${id}
-          `);
-          updates.push(`구독만료일 → NULL (삭제예약취소)`);
-        } else {
-          await superAdminDb.execute(sql`
-            UPDATE swimming_pools SET subscription_end_at = ${subscription_end_at}::timestamptz WHERE id = ${id}
-          `);
-          updates.push(`구독만료일 → ${subscription_end_at}`);
-        }
-      }
-      if (member_limit != null && !isNaN(Number(member_limit))) {
-        const ml = Number(member_limit);
-        await superAdminDb.execute(sql`
-          UPDATE swimming_pools SET member_limit = ${ml} WHERE id = ${id}
-        `).catch(async () => {
-          // member_limit 컬럼 없으면 생성 후 재시도
-          await superAdminDb.execute(sql`ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS member_limit integer`).catch(() => {});
-          await superAdminDb.execute(sql`UPDATE swimming_pools SET member_limit = ${ml} WHERE id = ${id}`);
-        });
-        updates.push(`회원한도 → ${ml}명`);
-      }
 
       if (updates.length === 0) { res.status(400).json({ error: "변경 항목이 없습니다." }); return; }
+
+      // 변경 후 최신 resolver 결과 반환
+      const resolved = await resolveSubscription(id).catch(() => null);
+
       const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
       await db.execute(sql`
         INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
         VALUES (${logId}, ${id}, '구독', ${req.user!.userId}, ${actorName}, ${id},
                 ${updates.join(" / ")}, '{}'::jsonb)
       `).catch(() => {});
-      res.json({ ok: true, updates });
+
+      res.json({ ok: true, updates, resolved });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );

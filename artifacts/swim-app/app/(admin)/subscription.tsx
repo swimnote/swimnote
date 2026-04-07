@@ -19,7 +19,7 @@ import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { apiRequest, useAuth } from "@/context/AuthContext";
-import { useSubscription, REVENUECAT_SOLO_ENTITLEMENT } from "@/lib/revenuecat";
+import { useSubscription, REVENUECAT_SOLO_ENTITLEMENT, REVENUECAT_CENTER_ENTITLEMENT } from "@/lib/revenuecat";
 
 const STORE_NAME    = Platform.OS === "ios" ? "App Store (Apple)" : "Google Play";
 const STORE_MANAGE  = Platform.OS === "ios"
@@ -101,13 +101,20 @@ export default function SubscriptionScreen() {
 
   async function syncRcToServer(info: any) {
     try {
-      const entitlement = info?.entitlements?.active?.[REVENUECAT_SOLO_ENTITLEMENT];
+      const active = info?.entitlements?.active ?? {};
+      // center 구독 우선, 없으면 solo
+      const centerEnt = active[REVENUECAT_CENTER_ENTITLEMENT] ?? null;
+      const soloEnt   = active[REVENUECAT_SOLO_ENTITLEMENT]   ?? null;
+      const entitlement = centerEnt ?? soloEnt;
       if (!entitlement) return;
+      const entitlementId = centerEnt
+        ? REVENUECAT_CENTER_ENTITLEMENT
+        : REVENUECAT_SOLO_ENTITLEMENT;
       await apiRequest(token, "/billing/sync-rc-subscription", {
         method: "POST",
         body: JSON.stringify({
           productId:     entitlement.productIdentifier,
-          entitlementId: REVENUECAT_SOLO_ENTITLEMENT,
+          entitlementId,
           expiresAt:     entitlement.expirationDate ? entitlement.expirationDate.slice(0, 10) : null,
           isActive:      true,
         }),

@@ -17,6 +17,7 @@ import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.
 import { getPaymentProvider } from "../payment/index.js";
 import { logEvent } from "../lib/event-logger.js";
 import { billingEnabled } from "../config/billing.js";
+import { resolveSubscription } from "../lib/subscriptionResolver.js";
 
 const router = Router();
 
@@ -105,10 +106,23 @@ const RC_PRODUCT_TIER_MAP: Record<string, string> = {
   // 단일 solo 월정액 (대시보드에서 직접 생성된 경우)
   "swimnote_solo_monthly":         "basic",
   "swimnote_solo_monthly:monthly": "basic",
-  // center 플랜
-  "swimnote_center_monthly":         "advance",
-  "swimnote_center_monthly:monthly": "advance",
-  "center_monthly":                  "advance",
+  // center 플랜 — 4단계 (패키지 ID는 plan_id 기준)
+  "center_200":                       "center_200",
+  "center_300":                       "advance",
+  "center_500":                       "pro",
+  "center_1000":                      "max",
+  "swimnote_center_200":              "center_200",
+  "swimnote_center_300":              "advance",
+  "swimnote_center_500":              "pro",
+  "swimnote_center_1000":             "max",
+  "swimnote_center_200:monthly":      "center_200",
+  "swimnote_center_300:monthly":      "advance",
+  "swimnote_center_500:monthly":      "pro",
+  "swimnote_center_1000:monthly":     "max",
+  // 구버전 단일 center 호환
+  "swimnote_center_monthly":         "center_200",
+  "swimnote_center_monthly:monthly": "center_200",
+  "center_monthly":                  "center_200",
   // 구버전 coach 명칭 호환
   "swimnote_coach_30":  "starter",
   "swimnote_coach_50":  "basic",
@@ -178,6 +192,7 @@ router.post("/revenuecat-webhook", async (req, res) => {
           UPDATE swimming_pools
           SET subscription_status = 'active',
               subscription_tier   = ${tier},
+              subscription_source = 'revenuecat',
               is_readonly         = false,
               upload_blocked      = false,
               readonly_reason     = null,
@@ -319,6 +334,7 @@ router.post("/sync-rc-subscription", requireAuth, requireRole("pool_admin", "sup
       UPDATE swimming_pools
       SET subscription_status = 'active',
           subscription_tier   = ${tier},
+          subscription_source = 'revenuecat',
           is_readonly         = false,
           upload_blocked      = false,
           readonly_reason     = null,
@@ -544,17 +560,14 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       daysUntilDeletion = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86_400_000));
     }
 
-    // swimming_pools.subscription_tier 우선 (슈퍼관리자 직접 변경 즉시 반영)
-    // pool_subscriptions.tier는 수동 설정이 없을 때만 fallback으로 사용
-    const activeTier = normalizeTier(poolRow?.subscription_tier ?? sub?.tier);
-    const currentPlan = plans.find((p: any) => p.tier === activeTier);
-    const memberLimit = Number(currentPlan?.member_limit ?? 10);
-    const storageQuotaGb = Number(currentPlan?.storage_gb ?? 0.5);
+    // resolver로 구독 상태 계산 (source, startsAt, endsAt, trialEndsAt 포함)
+    const resolved = await resolveSubscription(poolId);
+    const { memberLimit, storageGb: storageQuotaGb, videoEnabled, source,
+            startsAt, endsAt, trialEndsAt, effectiveReason } = resolved;
+
     const storageUsedGb = +(usedBytes / (1024 ** 3)).toFixed(3);
     const storageUsedPct = storageQuotaGb > 0 ? Math.round((storageUsedGb / storageQuotaGb) * 100) : 0;
     const firstPaymentUsed = !!poolRow?.first_payment_used;
-    const VIDEO_ALLOWED_TIERS = new Set(["center_200", "advance", "pro", "max"]);
-    const videoUploadAllowed = VIDEO_ALLOWED_TIERS.has(activeTier);
 
     res.json({
       subscription: sub ?? null,
@@ -568,16 +581,25 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       extra_price_per_gb: Number(storagePolicyRow?.extra_price_per_gb ?? 500),
       payment_provider: getPaymentProvider().name,
       first_payment_used: firstPaymentUsed,
-      video_upload_allowed: videoUploadAllowed,
+      video_upload_allowed: videoEnabled,
       // 결제 실패 / 읽기전용 상태
       is_readonly: !!poolRow?.is_readonly,
       upload_blocked: !!poolRow?.upload_blocked,
       readonly_reason: poolRow?.readonly_reason ?? null,
       payment_failed_at: poolRow?.payment_failed_at ?? null,
-      subscription_status: poolRow?.subscription_status ?? null,
-      subscription_tier: activeTier,
-      current_plan: activeTier,
+      subscription_status: resolved.status,
+      subscription_tier: resolved.planCode,
+      current_plan: resolved.planCode,
       days_until_deletion: daysUntilDeletion,
+      // resolver 확장 필드
+      subscription_source: source,
+      subscription_starts_at: startsAt,
+      subscription_ends_at: endsAt,
+      trial_ends_at: trialEndsAt,
+      effective_reason: effectiveReason,
+      plan_name: resolved.planName,
+      white_label_enabled: resolved.whiteLabelEnabled,
+      price_per_month: resolved.pricePerMonth,
     });
   } catch (err) {
     console.error(err);

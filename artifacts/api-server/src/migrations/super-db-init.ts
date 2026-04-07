@@ -20,6 +20,11 @@ export async function initSuperDb(): Promise<void> {
     ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS video_storage_limit_mb integer DEFAULT 0;
   `)).catch((e: any) => console.warn("[super-db-init] swimming_pools.video_storage_limit_mb 추가 건너뜀:", e.message));
 
+  // swimming_pools 테이블 — 구독 소스 (manual | revenuecat | free_default)
+  await db.execute(sql.raw(`
+    ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS subscription_source text;
+  `)).catch((e: any) => console.warn("[super-db-init] swimming_pools.subscription_source 추가 건너뜀:", e.message));
+
   // swimming_pools 테이블 — 수영정보 5개 콘텐츠 컬럼
   for (const col of ["introduction", "tuition_info", "level_test_info", "event_info", "equipment_info"]) {
     await db.execute(sql.raw(`ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS ${col} text;`))
