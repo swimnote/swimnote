@@ -262,7 +262,7 @@ router.get(
               AND (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) > 0
             THEN ROUND(
               sp.used_storage_bytes::numeric /
-              ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0))::bigint * 1073741824) * 100
+              ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0))::numeric * 1073741824) * 100
             )::int
             ELSE 0
           END AS usage_pct,

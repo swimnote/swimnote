@@ -20,7 +20,6 @@ import { billingEnabled } from "../config/billing.js";
 import {
   resolveSubscription,
   applySubscriptionState,
-  normalizeTier,
   RC_PRODUCT_TIER_MAP,
   isDowngradeTier,
   isUpgradeTier,
