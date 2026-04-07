@@ -126,12 +126,7 @@ export default function SubscriptionScreen() {
     ];
     const pkg = allPackages.find(p => p.identifier === plan.rcPackageId);
 
-    if (!pkg) {
-      router.push("/(admin)/billing");
-      return;
-    }
-
-    const priceStr    = pkg.product.priceString;
+    const priceStr    = pkg?.product.priceString ?? `₩${plan.price.toLocaleString("ko-KR")}`;
     const isChange    = isSubscribed;
     const actionLabel = isChange ? "플랜 변경" : "구독 시작";
     const confirmBody = isChange
@@ -142,6 +137,14 @@ export default function SubscriptionScreen() {
       `${plan.name} ${actionLabel}`,
       confirmBody,
       async () => {
+        if (!pkg) {
+          // RC 패키지 미로드 → App Store 앱 페이지 직접 이동
+          const storeUrl = Platform.OS === "ios"
+            ? "itms-apps://apps.apple.com/app/id6761360360"
+            : "https://play.google.com/store/apps/details?id=com.swimnote.app";
+          await Linking.openURL(storeUrl);
+          return;
+        }
         try {
           const info = await purchase(pkg);
           await syncRcToServer(info);
