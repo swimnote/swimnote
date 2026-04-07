@@ -17,7 +17,12 @@ import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.
 import { getPaymentProvider } from "../payment/index.js";
 import { logEvent } from "../lib/event-logger.js";
 import { billingEnabled } from "../config/billing.js";
-import { resolveSubscription, syncPoolSubscriptionFields } from "../lib/subscriptionResolver.js";
+import {
+  resolveSubscription,
+  applySubscriptionState,
+  normalizeTier,
+  RC_PRODUCT_TIER_MAP,
+} from "../lib/subscriptionService.js";
 
 const router = Router();
 
@@ -90,47 +95,7 @@ router.get("/features", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// ── RevenueCat 제품 ID → 구독 tier 매핑 ─────────────────────────────
-const RC_PRODUCT_TIER_MAP: Record<string, string> = {
-  // RevenueCat 패키지 식별자 (solo 3단계)
-  "solo_30":  "starter",
-  "solo_50":  "basic",
-  "solo_100": "standard",
-  // 앱스토어/플레이스토어 상품 ID — solo 3단계
-  "swimnote_solo_30":          "starter",
-  "swimnote_solo_50":          "basic",
-  "swimnote_solo_100":         "standard",
-  "swimnote_solo_30:monthly":  "starter",
-  "swimnote_solo_50:monthly":  "basic",
-  "swimnote_solo_100:monthly": "standard",
-  // 단일 solo 월정액 (대시보드에서 직접 생성된 경우)
-  "swimnote_solo_monthly":         "basic",
-  "swimnote_solo_monthly:monthly": "basic",
-  // center 플랜 — 4단계 (패키지 ID는 plan_id 기준)
-  "center_200":                       "center_200",
-  "center_300":                       "advance",
-  "center_500":                       "pro",
-  "center_1000":                      "max",
-  "swimnote_center_200":              "center_200",
-  "swimnote_center_300":              "advance",
-  "swimnote_center_500":              "pro",
-  "swimnote_center_1000":             "max",
-  "swimnote_center_200:monthly":      "center_200",
-  "swimnote_center_300:monthly":      "advance",
-  "swimnote_center_500:monthly":      "pro",
-  "swimnote_center_1000:monthly":     "max",
-  // 구버전 단일 center 호환
-  "swimnote_center_monthly":         "center_200",
-  "swimnote_center_monthly:monthly": "center_200",
-  "center_monthly":                  "center_200",
-  // 구버전 coach 명칭 호환
-  "swimnote_coach_30":  "starter",
-  "swimnote_coach_50":  "basic",
-  "swimnote_coach_100": "standard",
-  "coach_30":  "starter",
-  "coach_50":  "basic",
-  "coach_100": "standard",
-};
+// RC_PRODUCT_TIER_MAP은 subscriptionService에서 import
 
 // ── RevenueCat Webhook (인증 불필요, billingEnabled 무관) ─────────────
 router.post("/revenuecat-webhook", async (req, res) => {
@@ -177,56 +142,37 @@ router.post("/revenuecat-webhook", async (req, res) => {
       case "UNCANCELLATION": {
         if (!tier) { console.warn("[rc-webhook] 알 수 없는 제품:", productId); break; }
         const nextBilling = expiresAt ?? addOneMonth();
-        await db.execute(sql`
-          INSERT INTO pool_subscriptions
-            (swimming_pool_id, tier, status, current_period_start, next_billing_at)
-          VALUES (${poolId}, ${tier}, 'active', ${todayStr}, ${nextBilling})
-          ON CONFLICT (swimming_pool_id) DO UPDATE
-            SET tier = ${tier}, status = 'active',
-                current_period_start = ${todayStr},
-                next_billing_at      = ${nextBilling},
-                pending_tier = NULL, downgrade_at = NULL,
-                updated_at = now()
-        `);
-        await superAdminDb.execute(sql`
-          UPDATE swimming_pools
-          SET subscription_status = 'active',
-              subscription_tier   = ${tier},
-              subscription_source = 'revenuecat',
-              is_readonly         = false,
-              upload_blocked      = false,
-              readonly_reason     = null,
-              payment_failed_at   = null,
-              updated_at          = now()
-          WHERE id = ${poolId}
-        `);
-        // 파생값 자동 동기화: base_storage_gb, video_storage_limit_mb, white_label_enabled
-        await syncPoolSubscriptionFields({ poolId, tier, status: "active", source: "revenuecat" }).catch((e: Error) =>
-          console.error(`[rc-webhook] syncPoolSubscriptionFields 실패 pool=${poolId}:`, e.message)
-        );
-        const plan = (await db.execute(sql`SELECT name, price_per_month FROM subscription_plans WHERE tier = ${tier} LIMIT 1`)).rows[0] as any;
-        const poolInfo = (await superAdminDb.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0] as any;
+        await applySubscriptionState(poolId, tier, "revenuecat", "active", {
+          nextBillingAt: nextBilling, resetReadonly: true,
+        });
+        const resolved = await resolveSubscription(poolId).catch(() => null);
+        const poolInfo = (await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0] as any;
         if (eventType !== "UNCANCELLATION") {
           await recordPayment({
             poolId, poolName: poolInfo?.name,
-            amount: plan?.price_per_month ?? 0,
+            amount: resolved?.pricePerMonth ?? 0,
             status: "success",
             type: eventType === "RENEWAL" ? "renewal" : "new_subscription",
-            description: `${plan?.name ?? tier} ${eventType === "RENEWAL" ? "갱신" : "신규 구독"} (RevenueCat)`,
-            planId: tier, planName: plan?.name,
+            description: `${resolved?.planName ?? tier} ${eventType === "RENEWAL" ? "갱신" : "신규 구독"} (RevenueCat)`,
+            planId: tier, planName: resolved?.planName,
             eventType: eventType === "RENEWAL" ? "renewal" : "new_subscription",
           });
         }
         logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
-          description: `${eventType}: ${productId} → ${tier}`, metadata: { eventType, productId, tier } }).catch(console.error);
+          description: `${eventType}: ${productId} → ${tier} (${resolved?.planName})`,
+          metadata: { eventType, productId, tier } }).catch(console.error);
         break;
       }
 
       case "CANCELLATION": {
-        // 취소 예약 — 만료일까지 서비스 유지, 상태만 기록
-        await superAdminDb.execute(sql`
-          UPDATE swimming_pools SET subscription_status = 'active', updated_at = now() WHERE id = ${poolId}
-        `);
+        // 취소 예약 — 만료일까지 서비스 유지, 상태만 기록 (tier는 그대로)
+        const [curPool] = (await db.execute(sql`
+          SELECT subscription_tier FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+        `)).rows as any[];
+        const curTier = curPool?.subscription_tier ?? "free";
+        await applySubscriptionState(poolId, curTier, "revenuecat", "active", {
+          endsAt: expiresAt,
+        });
         logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
           description: `구독 취소 예약 (${expiresAt ?? "만료일 미상"} 이후 만료)`,
           metadata: { eventType, productId, expiresAt } }).catch(console.error);
@@ -234,39 +180,32 @@ router.post("/revenuecat-webhook", async (req, res) => {
       }
 
       case "EXPIRATION": {
-        // 구독 만료 → 무료 전환
+        // 구독 만료 → 무료 전환 + 읽기전용
+        await applySubscriptionState(poolId, "free", "free_default", "payment_failed", {
+          endsAt: null,
+        });
         await db.execute(sql`
-          INSERT INTO pool_subscriptions
-            (swimming_pool_id, tier, status, current_period_start, next_billing_at)
-          VALUES (${poolId}, 'free', 'inactive', ${todayStr}, NULL)
-          ON CONFLICT (swimming_pool_id) DO UPDATE
-            SET tier = 'free', status = 'inactive', next_billing_at = NULL, updated_at = now()
-        `);
-        await superAdminDb.execute(sql`
           UPDATE swimming_pools
-          SET subscription_status = 'payment_failed',
-              subscription_tier   = 'free',
-              is_readonly         = true,
-              upload_blocked      = true,
-              readonly_reason     = 'expired',
-              payment_failed_at   = now(),
-              updated_at          = now()
+          SET is_readonly = true, upload_blocked = true,
+              readonly_reason = 'expired', payment_failed_at = now(), updated_at = now()
           WHERE id = ${poolId}
         `);
         logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
-          description: `구독 만료: ${productId}`, metadata: { eventType, productId } }).catch(console.error);
+          description: `구독 만료 → free 전환: ${productId}`, metadata: { eventType, productId } }).catch(console.error);
         break;
       }
 
       case "BILLING_ISSUE": {
-        await superAdminDb.execute(sql`
+        // 결제 실패 — tier 유지, 상태 변경 + 읽기전용
+        const [curPool2] = (await db.execute(sql`
+          SELECT subscription_tier FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+        `)).rows as any[];
+        const curTier2 = curPool2?.subscription_tier ?? "free";
+        await applySubscriptionState(poolId, curTier2, "revenuecat", "payment_failed");
+        await db.execute(sql`
           UPDATE swimming_pools
-          SET subscription_status = 'payment_failed',
-              is_readonly         = true,
-              upload_blocked      = true,
-              readonly_reason     = 'payment_failed',
-              payment_failed_at   = now(),
-              updated_at          = now()
+          SET is_readonly = true, upload_blocked = true,
+              readonly_reason = 'payment_failed', payment_failed_at = now(), updated_at = now()
           WHERE id = ${poolId}
         `);
         logEvent({ pool_id: poolId, category: "결제", actor_id: "revenuecat", actor_name: "RevenueCat",
@@ -277,12 +216,9 @@ router.post("/revenuecat-webhook", async (req, res) => {
       case "PRODUCT_CHANGE": {
         const newTier = RC_PRODUCT_TIER_MAP[productId] ?? null;
         if (newTier) {
-          await db.execute(sql`
-            UPDATE pool_subscriptions SET tier = ${newTier}, updated_at = now() WHERE swimming_pool_id = ${poolId}
-          `);
-          await superAdminDb.execute(sql`
-            UPDATE swimming_pools SET subscription_tier = ${newTier}, updated_at = now() WHERE id = ${poolId}
-          `);
+          await applySubscriptionState(poolId, newTier, "revenuecat", "active", { resetReadonly: true });
+          logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
+            description: `플랜 변경: ${productId} → ${newTier}`, metadata: { eventType, productId, newTier } }).catch(console.error);
         }
         break;
       }
@@ -317,58 +253,29 @@ router.post("/sync-rc-subscription", requireAuth, requireRole("pool_admin", "sup
       res.json({ synced: false, reason: "active 구독 없음" }); return;
     }
 
-    const todayStr = new Date().toISOString().split("T")[0];
     const nextBilling = expiresAt ?? addOneMonth();
 
-    await db.execute(sql`
-      INSERT INTO pool_subscriptions
-        (swimming_pool_id, tier, status, current_period_start, next_billing_at)
-      VALUES (${poolId}, ${tier}, 'active', ${todayStr}, ${nextBilling})
-      ON CONFLICT (swimming_pool_id) DO UPDATE
-        SET tier                 = ${tier},
-            status               = 'active',
-            current_period_start = ${todayStr},
-            next_billing_at      = ${nextBilling},
-            pending_tier         = NULL,
-            downgrade_at         = NULL,
-            updated_at           = now()
-    `);
+    // applySubscriptionState → 단일 경로로 모든 파생값 동기화
+    const resolved = await applySubscriptionState(poolId, tier, "revenuecat", "active", {
+      nextBillingAt: nextBilling, resetReadonly: true,
+    });
 
-    await superAdminDb.execute(sql`
-      UPDATE swimming_pools
-      SET subscription_status = 'active',
-          subscription_tier   = ${tier},
-          subscription_source = 'revenuecat',
-          is_readonly         = false,
-          upload_blocked      = false,
-          readonly_reason     = null,
-          payment_failed_at   = null,
-          updated_at          = now()
-      WHERE id = ${poolId}
-    `);
-    // 파생값 자동 동기화: base_storage_gb, video_storage_limit_mb, white_label_enabled
-    await syncPoolSubscriptionFields({ poolId, tier, status: "active", source: "revenuecat" }).catch((e: Error) =>
-      console.error(`[sync-rc] syncPoolSubscriptionFields 실패 pool=${poolId}:`, e.message)
-    );
-
-    const plan = (await db.execute(sql`SELECT name, price_per_month FROM subscription_plans WHERE tier = ${tier} LIMIT 1`)).rows[0] as any;
-    const poolInfo = (await superAdminDb.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0] as any;
-
+    const poolInfo = (await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0] as any;
     await recordPayment({
       poolId, poolName: poolInfo?.name,
-      amount: plan?.price_per_month ?? 0,
+      amount: resolved.pricePerMonth,
       status: "success",
       type: "new_subscription",
-      description: `${plan?.name ?? tier} 구독 (RevenueCat 앱 내 구매)`,
-      planId: tier, planName: plan?.name,
+      description: `${resolved.planName} 구독 (RevenueCat 앱 내 구매)`,
+      planId: tier, planName: resolved.planName,
       eventType: "new_subscription",
     });
 
     logEvent({ pool_id: poolId, category: "구독", actor_id: req.user!.userId, actor_name: "관리자",
-      description: `RevenueCat 구독 동기화: ${productId} → ${tier}`,
+      description: `RevenueCat 구독 동기화: ${productId} → ${tier} (${resolved.planName})`,
       metadata: { productId, tier, expiresAt } }).catch(console.error);
 
-    res.json({ synced: true, tier, nextBilling });
+    res.json({ synced: true, tier, planName: resolved.planName, nextBilling });
   } catch (err: any) {
     console.error("[sync-rc-subscription]", err);
     res.status(500).json({ error: err?.message ?? "동기화 오류" });

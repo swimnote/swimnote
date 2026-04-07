@@ -32,15 +32,9 @@ interface BillingStatus {
   storage_used_gb: number;
   storage_quota_gb: number;
   storage_used_pct: number;
-}
-
-interface SubInfo {
-  tier: string;
-  status: string;
+  plan_name: string | null;
+  current_tier: string;
   next_billing_at?: string | null;
-  plan_name?: string;
-  price_per_month?: number;
-  member_limit?: number;
 }
 
 const TIER_COLOR: Record<string, string> = {
@@ -81,7 +75,6 @@ export default function BillingScreen() {
   } = useSubscription();
 
   const [billingInfo, setBillingInfo] = useState<BillingStatus | null>(null);
-  const [subInfo, setSubInfo]         = useState<SubInfo | null>(null);
   const [loading, setLoading]         = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
 
@@ -101,9 +94,7 @@ export default function BillingScreen() {
     try {
       const r  = await apiRequest(token, "/billing/status");
       const sd = await r.json();
-      // subscription_tier(swimming_pools 직접 값) 우선, 없으면 pool_subscriptions 폴백
-      const activeTier = sd.subscription_tier ?? sd.subscription?.tier ?? "free";
-      setSubInfo(sd.subscription ? { ...sd.subscription, tier: activeTier } : { tier: activeTier, status: sd.subscription_status ?? "free" });
+      const activeTier = sd.subscription_tier ?? sd.current_plan ?? sd.subscription?.tier ?? "free";
       setBillingInfo({
         is_readonly:         sd.is_readonly ?? false,
         upload_blocked:      sd.upload_blocked ?? false,
@@ -114,6 +105,9 @@ export default function BillingScreen() {
         storage_used_gb:     sd.storage_used_gb ?? 0,
         storage_quota_gb:    sd.storage_quota_gb ?? 0.1,
         storage_used_pct:    sd.storage_used_pct ?? 0,
+        plan_name:           sd.plan_name ?? null,
+        current_tier:        activeTier,
+        next_billing_at:     sd.subscription?.next_billing_at ?? null,
       });
     } catch (e) {
       console.error("billing status error:", e);
@@ -179,7 +173,7 @@ export default function BillingScreen() {
   const storagePct      = billingInfo?.storage_used_pct ?? 0;
   const storageColor    = storagePct >= 100 ? "#DC2626" : storagePct >= 90 ? "#D97706" : storagePct >= 80 ? "#F59E0B" : themeColor;
 
-  const currentTier  = subInfo?.tier ?? "free";
+  const currentTier  = billingInfo?.current_tier ?? "free";
   const tierColor    = TIER_COLOR[currentTier] ?? themeColor;
 
   const soloPackages   = soloOffering?.availablePackages   ?? [];
@@ -236,8 +230,8 @@ export default function BillingScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={s.planName}>
                   {isSubscribed
-                    ? (PACKAGE_META[activePackageId ?? ""]?.name ?? subInfo?.plan_name ?? "구독 중")
-                    : (subInfo?.plan_name ?? "무료 이용")}
+                    ? (PACKAGE_META[activePackageId ?? ""]?.name ?? billingInfo?.plan_name ?? "구독 중")
+                    : (billingInfo?.plan_name ?? "무료 이용")}
                 </Text>
                 <Text style={s.planMeta}>
                   최대 {billingInfo?.member_limit ?? 10}명

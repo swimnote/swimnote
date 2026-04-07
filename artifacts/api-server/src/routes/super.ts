@@ -24,7 +24,7 @@ import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.
 import { logPoolEvent } from "../lib/pool-event-logger.js";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
 import { runRealBackup } from "../lib/backup.js";
-import { resolveSubscription, syncPoolSubscriptionFields, normalizeTier } from "../lib/subscriptionResolver.js";
+import { resolveSubscription, applySubscriptionState, normalizeTier } from "../lib/subscriptionService.js";
 
 const router = Router();
 
@@ -877,8 +877,10 @@ async function ensureExtraTables() {
   for (const ddl of [
     `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS pool_type TEXT DEFAULT 'swimming_pool'`,
     `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS used_storage_bytes BIGINT DEFAULT 0`,
-    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS base_storage_gb INTEGER DEFAULT 5`,
-    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS extra_storage_gb INTEGER DEFAULT 0`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS base_storage_gb FLOAT8 DEFAULT 5`,
+    `ALTER TABLE swimming_pools ALTER COLUMN base_storage_gb TYPE FLOAT8 USING base_storage_gb::FLOAT8`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS extra_storage_gb FLOAT8 DEFAULT 0`,
+    `ALTER TABLE swimming_pools ALTER COLUMN extra_storage_gb TYPE FLOAT8 USING extra_storage_gb::FLOAT8`,
     `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS credit_balance INTEGER DEFAULT 0`,
     `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS is_readonly BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS upload_blocked BOOLEAN DEFAULT FALSE`,
@@ -1331,70 +1333,40 @@ router.patch(
       const actorName = req.user?.name ?? "슈퍼관리자";
       const updates: string[] = [];
 
-      // ── 티어 변경 (가장 중요 — 파생값 자동 계산 포함) ────────────────
-      if (rawTier) {
-        const tier = normalizeTier(rawTier);
-        // tier 변경 시 파생값(storage/video/whitelabel) 즉시 갱신
-        await syncPoolSubscriptionFields({ poolId: id, tier, source: "manual" });
-        // tier 변경 시 subscription_status를 명시하지 않으면 자동 active 처리
-        // (free 티어도 active — 수동 override이므로 trial 아님)
-        if (!subscription_status) {
-          await syncPoolSubscriptionFields({ poolId: id, status: "active" });
-          updates.push("구독상태 → active (tier 변경 시 자동)");
-        }
-        // pool_subscriptions 테이블 동기화
-        await superAdminDb.execute(sql`
-          INSERT INTO pool_subscriptions (swimming_pool_id, tier, status, current_period_start)
-          VALUES (${id}, ${tier}, 'active', now())
-          ON CONFLICT (swimming_pool_id) DO UPDATE
-            SET tier = ${tier}, status = 'active', updated_at = now()
-        `).catch(() => {});
-        updates.push(`구독티어 → ${tier} (base_storage/video/whitelabel 자동 동기화)`);
-      }
+      // ── 현재 tier / status 조회 (applySubscriptionState에 필요) ──────
+      const [curPool] = (await superAdminDb.execute(sql`
+        SELECT subscription_tier, subscription_status FROM swimming_pools WHERE id = ${id} LIMIT 1
+      `)).rows as any[];
 
-      // ── 구독 상태 ──────────────────────────────────────────────────
-      if (subscription_status) {
-        await syncPoolSubscriptionFields({ poolId: id, status: subscription_status });
-        const psStatus = ["active", "trial"].includes(subscription_status) ? "active" : "inactive";
-        await superAdminDb.execute(sql`
-          UPDATE pool_subscriptions SET status = ${psStatus}, updated_at = now()
-          WHERE swimming_pool_id = ${id}
-        `).catch(() => {});
-        updates.push(`구독상태 → ${subscription_status}`);
-      }
+      const effectiveTier   = rawTier ? normalizeTier(rawTier) : (curPool?.subscription_tier ?? "free");
+      const effectiveStatus = subscription_status ?? (rawTier ? "active" : (curPool?.subscription_status ?? "active"));
 
-      // ── 회원 한도 개별 override ────────────────────────────────────
-      if (member_limit_reset === true) {
-        // override 제거 → 플랜 기본값으로 복귀
-        await syncPoolSubscriptionFields({ poolId: id, memberLimitOverride: null });
-        updates.push("회원한도 override 해제 (플랜 기본값 복귀)");
-      } else if (member_limit != null && !isNaN(Number(member_limit))) {
-        const ml = Number(member_limit);
-        await syncPoolSubscriptionFields({ poolId: id, memberLimitOverride: ml });
-        updates.push(`회원한도 → ${ml}명 (개별 override)`);
-      }
+      const memberLimitOpt =
+        member_limit_reset === true ? null :
+        (member_limit != null && !isNaN(Number(member_limit)) ? Number(member_limit) : undefined);
 
-      // ── 구독 만료일 ────────────────────────────────────────────────
-      if (subscription_end_at !== undefined) {
-        const endVal = subscription_end_at === null || subscription_end_at === "null"
-          ? null : subscription_end_at;
-        await syncPoolSubscriptionFields({ poolId: id, endsAt: endVal });
-        updates.push(endVal ? `구독만료일 → ${endVal}` : "구독만료일 제거");
-      }
+      const endAtOpt   = subscription_end_at   !== undefined ? (subscription_end_at   === "null" ? null : subscription_end_at)   : undefined;
+      const trialAtOpt = trial_ends_at         !== undefined ? (trial_ends_at         === "null" ? null : trial_ends_at)         : undefined;
+      const startAtOpt = subscription_started_at !== undefined ? (subscription_started_at === "null" ? null : subscription_started_at) : undefined;
 
-      // ── 체험 만료일 ────────────────────────────────────────────────
-      if (trial_ends_at !== undefined) {
-        const trialVal = trial_ends_at === null || trial_ends_at === "null" ? null : trial_ends_at;
-        await syncPoolSubscriptionFields({ poolId: id, trialEndsAt: trialVal });
-        updates.push(trialVal ? `체험만료일 → ${trialVal}` : "체험만료일 제거");
-      }
-
-      // ── 구독 시작일 ────────────────────────────────────────────────
-      if (subscription_started_at !== undefined) {
-        const startVal = subscription_started_at === null || subscription_started_at === "null"
-          ? null : subscription_started_at;
-        await syncPoolSubscriptionFields({ poolId: id, startsAt: startVal });
-        updates.push(startVal ? `구독시작일 → ${startVal}` : "구독시작일 제거");
+      // ── 단일 applySubscriptionState 호출 ──────────────────────────
+      if (rawTier || subscription_status || subscription_end_at !== undefined ||
+          trial_ends_at !== undefined || subscription_started_at !== undefined ||
+          memberLimitOpt !== undefined) {
+        await applySubscriptionState(id, effectiveTier, "manual", effectiveStatus as any, {
+          endsAt:              endAtOpt,
+          trialEndsAt:         trialAtOpt,
+          startsAt:            startAtOpt,
+          memberLimitOverride: memberLimitOpt,
+          resetReadonly:       effectiveStatus === "active",
+        });
+        if (rawTier)             updates.push(`구독티어 → ${effectiveTier} (파생값 자동 동기화)`);
+        if (subscription_status) updates.push(`구독상태 → ${effectiveStatus}`);
+        if (endAtOpt !== undefined)   updates.push(endAtOpt   ? `구독만료일 → ${endAtOpt}`   : "구독만료일 제거");
+        if (trialAtOpt !== undefined) updates.push(trialAtOpt ? `체험만료일 → ${trialAtOpt}` : "체험만료일 제거");
+        if (startAtOpt !== undefined) updates.push(startAtOpt ? `구독시작일 → ${startAtOpt}` : "구독시작일 제거");
+        if (memberLimitOpt === null)        updates.push("회원한도 override 해제 (플랜 기본값 복귀)");
+        else if (memberLimitOpt !== undefined) updates.push(`회원한도 → ${memberLimitOpt}명 (개별 override)`);
       }
 
       // ── 크레딧 ────────────────────────────────────────────────────
