@@ -610,21 +610,28 @@ router.get("/storage", requireAuth, requireRole("super_admin", "pool_admin"), as
     const poolId = meRow?.swimming_pool_id ?? null;
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-    // 현재 구독 티어 (슈퍼관리자 직접 변경 즉시 반영)
+    // swimming_pools에서 직접 읽기 (applySubscriptionState가 항상 최신 값 기록)
     const [poolRow] = (await superAdminDb.execute(sql`
-      SELECT COALESCE(subscription_tier, 'free') AS tier
+      SELECT COALESCE(subscription_tier, 'free') AS tier,
+             storage_mb,
+             display_storage,
+             base_storage_gb,
+             COALESCE(extra_storage_gb, 0) AS extra_storage_gb
       FROM swimming_pools WHERE id = ${poolId} LIMIT 1
     `)).rows as any[];
-    const activeTier = poolRow?.tier ?? "free";
+    const activeTier    = poolRow?.tier ?? "free";
+    const displayStorage: string | null = poolRow?.display_storage ?? null;
 
-    // 구독 플랜에서 storage_gb 읽기
-    let quotaBytes = 0.5 * 1024 ** 3; // 기본 500MB
-    try {
-      const [planRow] = (await db.execute(sql`
-        SELECT storage_gb FROM subscription_plans WHERE tier = ${activeTier} LIMIT 1
-      `)).rows as any[];
-      if (planRow?.storage_gb) quotaBytes = Number(planRow.storage_gb) * 1024 ** 3;
-    } catch {}
+    // quota_bytes: storage_mb(플랜) + extra_storage_gb(추가 구매) → bytes
+    let quotaBytes: number;
+    if (poolRow?.storage_mb) {
+      const extraMb = Number(poolRow.extra_storage_gb ?? 0) * 1024;
+      quotaBytes = (Number(poolRow.storage_mb) + extraMb) * 1024 * 1024;
+    } else {
+      const baseGb  = Number(poolRow?.base_storage_gb ?? 0.5);
+      const extraGb = Number(poolRow?.extra_storage_gb ?? 0);
+      quotaBytes = (baseGb + extraGb) * 1024 ** 3;
+    }
 
     // 사진·영상 사용량
     let photoBytes = 0;
@@ -683,6 +690,7 @@ router.get("/storage", requireAuth, requireRole("super_admin", "pool_admin"), as
     res.json({
       total_bytes:      totalBytes,
       quota_bytes:      quotaBytes,
+      display_storage:  displayStorage,
       photo_bytes:      photoBytes,
       video_bytes:      videoBytes,
       messenger_bytes:  0,

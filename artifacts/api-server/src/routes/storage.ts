@@ -59,22 +59,27 @@ async function calcUserStorage(userId: string, poolId: string) {
   };
 }
 
-// ── 구독 쿼터 조회 헬퍼 (구독 데이터는 super DB) ─────────────
+// ── 구독 쿼터 조회 헬퍼
+// swimming_pools.storage_mb를 직접 읽음 (applySubscriptionState가 항상 최신 값 기록)
 async function getQuotaBytes(poolId: string): Promise<number> {
   try {
-    const [sub] = (await superAdminDb.execute(sql`
-      SELECT ps.tier,
-             COALESCE(ps.extra_storage_gb, 0) AS extra_gb,
-             sp.storage_gb
-      FROM pool_subscriptions ps
-      LEFT JOIN subscription_plans sp ON sp.tier = ps.tier
-      WHERE ps.swimming_pool_id = ${poolId} LIMIT 1
+    const [pool] = (await superAdminDb.execute(sql`
+      SELECT storage_mb, base_storage_gb, extra_storage_gb
+      FROM swimming_pools
+      WHERE id = ${poolId} LIMIT 1
     `)).rows as any[];
-    const baseGb  = Number(sub?.storage_gb  ?? 5);
-    const extraGb = Number(sub?.extra_gb    ?? 0);
+
+    const extraMb = Number(pool?.extra_storage_gb ?? 0) * 1024;
+    if (pool?.storage_mb) {
+      // storage_mb(플랜 기본) + extra_storage_gb(추가 구매) → bytes
+      return (Number(pool.storage_mb) + extraMb) * 1024 * 1024;
+    }
+    // storage_mb 미설정 시 base_storage_gb 사용
+    const baseGb  = Number(pool?.base_storage_gb ?? 0.5);
+    const extraGb = Number(pool?.extra_storage_gb ?? 0);
     return (baseGb + extraGb) * 1024 * 1024 * 1024;
   } catch {
-    return 5 * 1024 * 1024 * 1024; // 기본 5GB fallback
+    return 512 * 1024 * 1024; // 기본 500MB fallback
   }
 }
 

@@ -23,6 +23,7 @@ function fmtBytes(b: number) {
 
 interface AdminStorage {
   total_bytes: number; quota_bytes: number;
+  display_storage: string | null;
   photo_bytes: number; video_bytes: number;
   messenger_bytes: number; diary_bytes: number;
   notice_bytes: number; system_bytes: number;
@@ -47,10 +48,12 @@ export default function DataStorageOverviewScreen() {
   useEffect(() => { load(); }, [load]);
 
   const used  = storage?.total_bytes ?? 0;
-  const quota = storage?.quota_bytes ?? 5 * 1024 ** 3;
+  const quota = storage?.quota_bytes ?? 512 * 1024 * 1024; // fallback: 500MB
   const free  = Math.max(0, quota - used);
   const pct   = quota > 0 ? Math.min(100, (used / quota) * 100) : 0;
   const gaugeColor = pct >= 90 ? "#D96C6C" : pct >= 70 ? "#E4A93A" : themeColor;
+  // display_storage: 서버에서 내려오는 플랜 표시 용량 (예: "500MB", "5GB", "500GB")
+  const quotaLabel = storage?.display_storage ?? fmtBytes(quota);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
@@ -77,9 +80,9 @@ export default function DataStorageOverviewScreen() {
 
           {/* 수치 카드 3개 */}
           {[
-            { label: "사용량",    bytes: used,  icon: "hard-drive" as const, color: gaugeColor },
-            { label: "제공 용량", bytes: quota, icon: "server"     as const, color: "#64748B" },
-            { label: "남은 용량", bytes: free,  icon: "check-circle" as const, color: "#2EC4B6" },
+            { label: "사용량",    display: fmtBytes(used),   icon: "hard-drive"   as const, color: gaugeColor },
+            { label: "제공 용량", display: quotaLabel,        icon: "server"       as const, color: "#64748B" },
+            { label: "남은 용량", display: fmtBytes(free),   icon: "check-circle" as const, color: "#2EC4B6" },
           ].map(item => (
             <View key={item.label} style={[s.statCard, { backgroundColor: C.card }]}>
               <View style={[s.statIcon, { backgroundColor: item.color + "15" }]}>
@@ -87,7 +90,7 @@ export default function DataStorageOverviewScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.statLabel}>{item.label}</Text>
-                <Text style={[s.statValue, { color: item.color }]}>{fmtBytes(item.bytes)}</Text>
+                <Text style={[s.statValue, { color: item.color }]}>{item.display}</Text>
               </View>
             </View>
           ))}
