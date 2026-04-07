@@ -313,9 +313,16 @@ export const useOperatorsStore = create<OperatorsState>((set, get) => ({
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const rows: any[] = await res.json();
+      // 빈 배열 덮어쓰기 방지: 기존 데이터가 있고 응답이 빈 배열이면 유지
+      const prev = get().operators;
+      if (rows.length === 0 && prev.length > 0) {
+        console.warn('[operatorsStore] 빈 배열 응답 — 기존 데이터 유지');
+        return;
+      }
       set({ operators: rows.map(mapApiOperator) });
     } catch (e) {
       console.error('[operatorsStore] fetchOperators 오류:', e);
+      // 에러 시 기존 operators 유지 (덮어쓰기 안 함)
     } finally {
       set({ loading: false });
     }

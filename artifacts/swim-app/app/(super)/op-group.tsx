@@ -3,14 +3,13 @@
  */
 import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router } from "expo-router";
-import React, { useEffect } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useOperatorsStore } from "@/store/operatorsStore";
-import { useAuth } from "@/context/AuthContext";
-import { API_BASE } from "@/constants/api";
+import { useAuth, API_BASE } from "@/context/AuthContext";
 import Colors from "@/constants/colors";
 const C = Colors.light;
 
@@ -57,9 +56,12 @@ export default function OpGroupScreen() {
   const fetchOperators = useOperatorsStore(s => s.fetchOperators);
   const pendingCount = operators.filter(o => o.status === 'pending').length;
 
-  useEffect(() => {
-    if (token) fetchOperators(token, API_BASE);
-  }, [token]);
+  // 화면 진입·재진입 시 항상 최신 데이터 fetch (뒤로 갔다 돌아와도 갱신)
+  useFocusEffect(
+    useCallback(() => {
+      if (token) fetchOperators(token, API_BASE);
+    }, [token, fetchOperators])
+  );
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
