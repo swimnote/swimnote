@@ -447,7 +447,6 @@ router.get("/plans", requireAuth, requireRole("pool_admin", "super_admin"), asyn
              is_active
       FROM subscription_plans
       WHERE is_active = true
-        AND tier NOT IN ('enterprise_2000','enterprise_3000')
       ORDER BY price_per_month ASC
     `)).rows;
     res.json({ plans: rows });
