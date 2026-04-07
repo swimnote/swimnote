@@ -737,77 +737,89 @@ export async function initPoolDb(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_pool_subs_pool_id ON pool_subscriptions (swimming_pool_id);
   `));
 
-  // ─── subscription_plans ──────────────────────────────────────────────────
-  await db.execute(sql.raw(`
-    CREATE TABLE IF NOT EXISTS subscription_plans (
-      id                text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      plan_id           text        NOT NULL DEFAULT '',
-      tier              text        NOT NULL UNIQUE,
-      name              text        NOT NULL,
-      price_per_month   integer     NOT NULL DEFAULT 0,
-      max_students      integer,
-      max_teachers      integer,
-      storage_mb        integer     NOT NULL DEFAULT 0,
-      display_storage   text        NOT NULL DEFAULT '',
-      features          jsonb       DEFAULT '[]',
-      is_active         boolean     NOT NULL DEFAULT true,
-      created_at        timestamptz NOT NULL DEFAULT now()
-    )
-  `)).catch(() => {});
-  // subscription_plans 누락 컬럼 보완
-  await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS plan_id text NOT NULL DEFAULT ''`)).catch(() => {});
-  await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS member_limit integer NOT NULL DEFAULT 9999`)).catch(() => {});
-  await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS storage_mb integer NOT NULL DEFAULT 0`)).catch(() => {});
-  await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS storage_gb numeric NOT NULL DEFAULT 5`)).catch(() => {});
-  await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS display_storage text NOT NULL DEFAULT ''`)).catch(() => {});
-  await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true`)).catch(() => {});
-  // 기본 플랜 데이터 삽입 (Coach: 사진만 / Premier: 사진+영상) — 항상 최신값 유지
-  await db.execute(sql.raw(`
-    INSERT INTO subscription_plans (tier, plan_id, name, price_per_month, member_limit, storage_mb, display_storage)
-    VALUES
-      ('free',       'free_10',    'Free',         0,      10,    512,  '500MB'),
-      ('starter',    'solo_30',    'Coach 30',     3500,   30,   3072,  '3GB'),
-      ('basic',      'solo_50',    'Coach50',      6500,   50,   5120,  '5GB'),
-      ('standard',   'solo_100',   'Coach100',     9500,  100,  10240,  '10GB'),
-      ('center_200', 'center_200', 'Premier200',  69000, 200,  51200,  '50GB'),
-      ('advance',    'center_300', 'Premier300',  99000, 300,  81920,  '80GB'),
-      ('pro',        'center_500', 'Premier500',  149000, 500, 133120, '130GB'),
-      ('max',        'center_1000','Premier1000', 249000, 1000,512000, '500GB')
-    ON CONFLICT (tier) DO UPDATE
-      SET plan_id = EXCLUDED.plan_id, name = EXCLUDED.name,
-          price_per_month = EXCLUDED.price_per_month, member_limit = EXCLUDED.member_limit,
-          storage_mb = EXCLUDED.storage_mb, display_storage = EXCLUDED.display_storage
-  `)).catch(() => {});
-  // member_limit / storage_mb 강제 교정 (INSERT ON CONFLICT 실패 방어)
-  await db.execute(sql.raw(`
-    UPDATE subscription_plans SET
-      member_limit = CASE tier
-        WHEN 'free'       THEN 10
-        WHEN 'starter'    THEN 30
-        WHEN 'basic'      THEN 50
-        WHEN 'standard'   THEN 100
-        WHEN 'center_200' THEN 200
-        WHEN 'advance'    THEN 300
-        WHEN 'pro'        THEN 500
-        WHEN 'max'        THEN 1000
-        ELSE member_limit END,
-      storage_mb = CASE tier
-        WHEN 'free'       THEN 512
-        WHEN 'starter'    THEN 3072
-        WHEN 'basic'      THEN 5120
-        WHEN 'standard'   THEN 10240
-        WHEN 'center_200' THEN 51200
-        WHEN 'advance'    THEN 81920
-        WHEN 'pro'        THEN 133120
-        WHEN 'max'        THEN 512000
-        ELSE storage_mb END
-    WHERE tier IN ('free','starter','basic','standard','center_200','advance','pro','max')
-  `)).catch(() => {});
-  // storage_gb도 storage_mb 기준으로 재계산
-  await db.execute(sql.raw(`
-    UPDATE subscription_plans SET storage_gb = storage_mb::numeric / 1024.0
-    WHERE storage_mb > 0
-  `)).catch(() => {});
+  // ─── subscription_plans ─────────────────────────────────────────────────
+  // 단일 기준 스키마: tier TEXT PRIMARY KEY (super.ts ensurePlansTables와 통일)
+  // silent failure 금지 — 모든 에러 콘솔 출력
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS subscription_plans (
+        tier             text    PRIMARY KEY,
+        plan_id          text    NOT NULL DEFAULT '',
+        name             text    NOT NULL DEFAULT '',
+        price_per_month  integer NOT NULL DEFAULT 0,
+        member_limit     integer NOT NULL DEFAULT 9999,
+        storage_mb       integer NOT NULL DEFAULT 5120,
+        storage_gb       numeric NOT NULL DEFAULT 5,
+        display_storage  text    NOT NULL DEFAULT '',
+        is_active        boolean NOT NULL DEFAULT true
+      )
+    `));
+  } catch (e: any) {
+    // 이미 존재하면 정상 — 다른 에러만 출력
+    if (!e?.message?.includes('already exists')) {
+      console.error('[pool-db-init] subscription_plans CREATE TABLE 오류:', e?.message);
+    }
+  }
+  // 누락 컬럼 보완 (기존 테이블에 컬럼이 없을 경우만 추가)
+  const spAlters = [
+    `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS plan_id text NOT NULL DEFAULT ''`,
+    `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS member_limit integer NOT NULL DEFAULT 9999`,
+    `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS storage_mb integer NOT NULL DEFAULT 5120`,
+    `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS storage_gb numeric NOT NULL DEFAULT 5`,
+    `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS display_storage text NOT NULL DEFAULT ''`,
+    `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true`,
+  ];
+  for (const alter of spAlters) {
+    try { await db.execute(sql.raw(alter)); } catch (_) { /* IF NOT EXISTS — 무시 */ }
+  }
+
+  // ── 플랜 시드: 확정 기준값 (항상 최신값 유지) ───────────────────────────
+  // tier, plan_id, name, price, member_limit, storage_mb, storage_gb, display
+  const PLAN_ROWS = [
+    ['free',       'free_10',     'Free',        0,      10,   512,   0.5,   '500MB'],
+    ['starter',    'solo_30',     'Coach30',     3500,   30,   3072,  3,     '3GB'  ],
+    ['basic',      'solo_50',     'Coach50',     6500,   50,   5120,  5,     '5GB'  ],
+    ['standard',   'solo_100',    'Coach100',    9500,   100,  10240, 10,    '10GB' ],
+    ['center_200', 'center_200',  'Premier200',  69000,  200,  51200, 50,    '50GB' ],
+    ['advance',    'center_300',  'Premier300',  99000,  300,  81920, 80,    '80GB' ],
+    ['pro',        'center_500',  'Premier500',  149000, 500,  133120,130,   '130GB'],
+    ['max',        'center_1000', 'Premier1000', 249000, 1000, 512000,500,   '500GB'],
+  ] as const;
+
+  for (const [tier, plan_id, name, price, member_limit, storage_mb, storage_gb, display] of PLAN_ROWS) {
+    try {
+      await db.execute(sql.raw(`
+        INSERT INTO subscription_plans
+          (tier, plan_id, name, price_per_month, member_limit, storage_mb, storage_gb, display_storage)
+        VALUES
+          ('${tier}','${plan_id}','${name}',${price},${member_limit},${storage_mb},${storage_gb},'${display}')
+        ON CONFLICT (tier) DO UPDATE SET
+          plan_id         = EXCLUDED.plan_id,
+          name            = EXCLUDED.name,
+          price_per_month = EXCLUDED.price_per_month,
+          member_limit    = EXCLUDED.member_limit,
+          storage_mb      = EXCLUDED.storage_mb,
+          storage_gb      = EXCLUDED.storage_gb,
+          display_storage = EXCLUDED.display_storage
+      `));
+    } catch (e: any) {
+      console.error(`[pool-db-init] subscription_plans UPSERT 오류 (${tier}):`, e?.message);
+    }
+  }
+
+  // ── 실제 DB 값 확인 로그 (초기화 결과 검증) ─────────────────────────────
+  try {
+    const rows = (await db.execute(sql.raw(
+      `SELECT tier, name, member_limit, storage_mb, storage_gb FROM subscription_plans ORDER BY price_per_month`
+    ))).rows as any[];
+    console.log('[pool-db-init] ✅ subscription_plans 현재 값:');
+    for (const r of rows) {
+      const ok = r.member_limit < 9999 && r.storage_mb > 5120 || r.tier === 'free' || r.tier === 'starter' || r.tier === 'basic' || r.tier === 'standard';
+      console.log(`  ${r.tier}: member_limit=${r.member_limit}, storage_mb=${r.storage_mb}, storage_gb=${r.storage_gb}${ok ? '' : ' ⚠️ 값 이상'}`);
+    }
+  } catch (e: any) {
+    console.error('[pool-db-init] subscription_plans 검증 조회 오류:', e?.message);
+  }
 
   // ─── payment_logs ────────────────────────────────────────────────────────
   await db.execute(sql.raw(`

@@ -96,14 +96,17 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
   const rawTier      = pool?.subscription_tier ?? "free";
   const effectiveTier = normalizeTier(rawTier);
 
-  // 4. subscription_plans 조회 (storage_mb 기준 GB 환산 — storage_gb 컬럼 신뢰 불가)
+  // 4. subscription_plans 조회 (storage_mb 기준 GB 환산)
   const [plan] = (await db.execute(sql`
     SELECT name, member_limit, price_per_month,
-           storage_mb::numeric / 1024.0 AS storage_gb
+           storage_mb, storage_mb::numeric / 1024.0 AS storage_gb
     FROM subscription_plans
     WHERE tier = ${effectiveTier}
     LIMIT 1
   `)).rows as any[];
+  console.log(`[resolver] poolId=${poolId} tier=${effectiveTier} plan=`, plan
+    ? `${plan.name} member_limit=${plan.member_limit} storage_mb=${plan.storage_mb} storage_gb=${plan.storage_gb}`
+    : 'NOT FOUND');
 
   // 5. source 결정
   const sourceCol = pool?.subscription_source as string | null | undefined;

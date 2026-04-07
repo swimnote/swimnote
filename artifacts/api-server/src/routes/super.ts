@@ -1665,30 +1665,10 @@ async function ensurePlansTables() {
   await superAdminDb.execute(sql`
     UPDATE subscription_plans SET tier = 'advance', plan_id = 'swimnote_300'
     WHERE tier = 'growth'
-  `).catch(() => {});
+  `).catch(err => console.error('[super] growth→advance 마이그레이션 오류:', err?.message));
 
-  // 최종 확정 플랜 시드 (ON CONFLICT DO UPDATE로 항상 최신값 유지)
-  for (const plan of [
-    // ── Coach (개인 선생님, 사진만) ──────────────────────────────────────────
-    { tier: "free",       plan_id: "free_10",       name: "Free",         price: 0,      limit: 10,   storage_gb: 0.48828125, storage_mb: 500,    display: "500MB" },
-    { tier: "starter",    plan_id: "solo_30",        name: "Coach30",      price: 3500,   limit: 30,   storage_gb: 3,          storage_mb: 3072,   display: "3GB"   },
-    { tier: "basic",      plan_id: "solo_50",        name: "Coach50",     price: 6500,   limit: 50,   storage_gb: 5,          storage_mb: 5120,   display: "5GB"   },
-    { tier: "standard",   plan_id: "solo_100",       name: "Coach100",    price: 9500,   limit: 100,  storage_gb: 10,         storage_mb: 10240,  display: "10GB"  },
-    // ── Premier (수영장/센터, 사진+영상) ────────────────────────────────────
-    { tier: "center_200", plan_id: "center_200",     name: "Premier200",  price: 69000,  limit: 200,  storage_gb: 50,         storage_mb: 51200,  display: "50GB"  },
-    { tier: "advance",    plan_id: "center_300",     name: "Premier300",  price: 99000,  limit: 300,  storage_gb: 80,         storage_mb: 81920,  display: "80GB"  },
-    { tier: "pro",        plan_id: "center_500",     name: "Premier500",  price: 149000, limit: 500,  storage_gb: 130,        storage_mb: 133120, display: "130GB" },
-    { tier: "max",        plan_id: "center_1000",    name: "Premier1000", price: 249000, limit: 1000, storage_gb: 500,        storage_mb: 512000, display: "500GB" },
-  ]) {
-    await db.execute(sql`
-      INSERT INTO subscription_plans (tier, plan_id, name, price_per_month, member_limit, storage_gb, storage_mb, display_storage)
-      VALUES (${plan.tier}, ${plan.plan_id}, ${plan.name}, ${plan.price}, ${plan.limit}, ${plan.storage_gb}, ${plan.storage_mb}, ${plan.display})
-      ON CONFLICT (tier) DO UPDATE
-        SET plan_id = ${plan.plan_id}, name = ${plan.name}, price_per_month = ${plan.price},
-            member_limit = ${plan.limit}, storage_gb = ${plan.storage_gb},
-            storage_mb = ${plan.storage_mb}, display_storage = ${plan.display}
-    `).catch(() => {});
-  }
+  // ★ 플랜 시드는 pool-db-init.ts가 단일 관리 (서버 시작 시 자동 실행)
+  // 여기서는 스키마 DDL만 처리한다.
 
   // 백업 테이블
   await db.execute(sql`

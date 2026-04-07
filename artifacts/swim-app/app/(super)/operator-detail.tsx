@@ -424,7 +424,7 @@ export default function OperatorDetailScreen() {
             <View style={d.card}>
               <Text style={d.cardTitle}>현재 구독 정보</Text>
               <InfoRow label="구독 상태"   value={billingCfg.label} />
-              <InfoRow label="구독 플랜"   value={pool.plan_name ?? PLAN_LABEL[pool.subscription_plan_id ?? ""] ?? TIER_LABEL[pool.subscription_tier ?? "trial"] ?? "—"} />
+              <InfoRow label="구독 플랜"   value={pool.plan_name ?? "—"} />
               <InfoRow label="구독 티어"   value={pool.subscription_tier ?? "trial"} />
               <InfoRow label="회원 한도"   value={
                 (pool.member_limit != null && Number(pool.member_limit) < 9999)
