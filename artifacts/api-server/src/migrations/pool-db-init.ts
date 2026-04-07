@@ -825,6 +825,20 @@ export async function initPoolDb(): Promise<void> {
     }
   }
 
+  // ── 폐기 티어 강제 삭제 (Supabase 잔존 데이터 정리, 코드에 INSERT 없으므로 재생성 불가) ──
+  try {
+    const { rowCount } = await db.execute(sql.raw(
+      `DELETE FROM subscription_plans WHERE tier IN ('enterprise_2000','enterprise_3000')`
+    ));
+    if ((rowCount ?? 0) > 0) {
+      console.log(`[pool-db-init] 🗑️ 폐기 티어(enterprise_2000/3000) 삭제 완료 (${rowCount}건)`);
+    } else {
+      console.log('[pool-db-init] ✅ 폐기 티어 없음 (enterprise_2000/3000 미존재)');
+    }
+  } catch (e: any) {
+    console.error('[pool-db-init] 폐기 티어 삭제 오류:', e?.message);
+  }
+
   // ── 실제 DB 값 확인 로그 (초기화 결과 검증) ─────────────────────────────
   try {
     const rows = (await db.execute(sql.raw(
