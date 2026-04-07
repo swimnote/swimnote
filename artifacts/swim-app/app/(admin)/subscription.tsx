@@ -9,17 +9,22 @@
  */
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Platform, Pressable, ScrollView,
+  ActivityIndicator, Linking, Platform, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Crown, Users, HardDrive, Check, Zap, Image as ImageIcon, Video } from "lucide-react-native";
+import { Crown, Users, HardDrive, Check, Zap, Image as ImageIcon, Video, CreditCard } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useSubscription, REVENUECAT_SOLO_ENTITLEMENT } from "@/lib/revenuecat";
+
+const STORE_NAME    = Platform.OS === "ios" ? "App Store (Apple)" : "Google Play";
+const STORE_MANAGE  = Platform.OS === "ios"
+  ? "itms-apps://apps.apple.com/account/subscriptions"
+  : "https://play.google.com/store/account/subscriptions";
 
 const C = Colors.light;
 
@@ -63,6 +68,7 @@ export default function SubscriptionScreen() {
     soloOffering,
     centerOffering,
     isSubscribed,
+    activePackageId,
     purchase,
     isPurchasing,
     refetchCustomerInfo,
@@ -125,12 +131,16 @@ export default function SubscriptionScreen() {
       return;
     }
 
-    const store    = Platform.OS === "ios" ? "Apple" : "Google Play";
-    const priceStr = pkg.product.priceString;
+    const priceStr    = pkg.product.priceString;
+    const isChange    = isSubscribed;
+    const actionLabel = isChange ? "플랜 변경" : "구독 시작";
+    const confirmBody = isChange
+      ? `현재 구독을 ${plan.name}으로 변경합니다.\n${priceStr}/월 · 최대 ${plan.limit.toLocaleString()}명 · ${plan.storage}\n\n결제 수단: ${STORE_NAME}`
+      : `${priceStr}/월 · 최대 ${plan.limit.toLocaleString()}명 · ${plan.storage}\n\n결제 수단: ${STORE_NAME}`;
 
     showConfirm(
-      `${plan.name} 구독`,
-      `${priceStr}/월 · 최대 ${plan.limit.toLocaleString()}명 · ${plan.storage}\n\n${store}를 통해 결제됩니다.`,
+      `${plan.name} ${actionLabel}`,
+      confirmBody,
       async () => {
         try {
           const info = await purchase(pkg);
@@ -187,6 +197,7 @@ export default function SubscriptionScreen() {
               isCurrent={currentTier === plan.tier}
               accentColor="#7C3AED"
               isPurchasing={isPurchasing}
+              isUserSubscribed={isSubscribed}
               onSelect={plan.price === 0 ? undefined : () => handlePlanSelect(plan)}
             />
           ))}
@@ -215,17 +226,36 @@ export default function SubscriptionScreen() {
               isCurrent={currentTier === plan.tier}
               accentColor="#F59E0B"
               isPurchasing={isPurchasing}
+              isUserSubscribed={isSubscribed}
               onSelect={() => handlePlanSelect(plan)}
             />
           ))}
+
+          {/* ── 결제 수단 안내 ── */}
+          <View style={s.storePlatformBox}>
+            <CreditCard size={14} color="#64748B" />
+            <Text style={s.storePlatformText}>
+              이 기기 결제 수단: <Text style={s.storePlatformBold}>{STORE_NAME}</Text>
+            </Text>
+          </View>
+
+          {/* ── 구독 관리 / 해지 ── */}
+          {isSubscribed && (
+            <Pressable
+              style={({ pressed }) => [s.billingBtn, s.manageBtn, { opacity: pressed ? 0.7 : 1 }]}
+              onPress={() => Linking.openURL(STORE_MANAGE)}
+            >
+              <Text style={s.manageBtnText}>
+                {Platform.OS === "ios" ? "App Store에서 구독 관리·해지" : "Google Play에서 구독 관리·해지"}
+              </Text>
+            </Pressable>
+          )}
 
           <Pressable
             style={({ pressed }) => [s.billingBtn, { opacity: pressed ? 0.7 : 1 }]}
             onPress={goToBilling}
           >
-            <Text style={s.billingBtnText}>
-              {Platform.OS === "ios" ? "Apple 구독 관리" : "Google Play 구독 관리"}
-            </Text>
+            <Text style={s.billingBtnText}>구독 상세 관리</Text>
           </Pressable>
 
           <Text style={[s.disclaimer, { color: C.textMuted }]}>
@@ -249,15 +279,22 @@ export default function SubscriptionScreen() {
 }
 
 function PlanCard({
-  plan, isCurrent, accentColor, isPurchasing, onSelect,
+  plan, isCurrent, accentColor, isPurchasing, isUserSubscribed, onSelect,
 }: {
   plan: PlanMeta;
   isCurrent: boolean;
   accentColor: string;
   isPurchasing?: boolean;
+  isUserSubscribed?: boolean;
   onSelect?: () => void;
 }) {
   const isFree = plan.price === 0;
+  const actionLabel = isCurrent
+    ? "현재 플랜"
+    : isUserSubscribed
+      ? "플랜 변경하기"
+      : `구독하기`;
+
   return (
     <Pressable
       style={({ pressed }) => [
@@ -299,6 +336,17 @@ function PlanCard({
           <Text style={s.metaText}>{plan.storage}</Text>
         </View>
       </View>
+
+      {!isFree && (
+        <View style={[
+          s.cardAction,
+          { backgroundColor: isCurrent ? "#F1F5F9" : accentColor + "14", borderColor: isCurrent ? "#E2E8F0" : accentColor + "40" },
+        ]}>
+          <Text style={[s.cardActionText, { color: isCurrent ? "#94A3B8" : accentColor }]}>
+            {actionLabel}
+          </Text>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -328,7 +376,14 @@ const s = StyleSheet.create({
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   metaText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   divider: { height: 1, backgroundColor: "#E2E8F0", marginVertical: 6 },
-  billingBtn: { marginTop: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#2EC4B6", alignItems: "center" },
+  cardAction:     { marginTop: 10, paddingVertical: 9, borderRadius: 10, borderWidth: 1, alignItems: "center" },
+  cardActionText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  storePlatformBox: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", marginTop: 4 },
+  storePlatformText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
+  storePlatformBold: { fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  billingBtn:     { marginTop: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#2EC4B6", alignItems: "center" },
   billingBtnText: { color: "#2EC4B6", fontSize: 15, fontFamily: "Pretendard-Regular" },
+  manageBtn:      { borderColor: "#64748B" },
+  manageBtnText:  { color: "#64748B", fontSize: 14, fontFamily: "Pretendard-Regular" },
   disclaimer: { fontSize: 12, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 18 },
 });

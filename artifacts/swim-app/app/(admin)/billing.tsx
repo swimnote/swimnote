@@ -5,7 +5,7 @@
  */
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Platform, Pressable,
+  ActivityIndicator, Linking, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { router } from "expo-router";
@@ -15,7 +15,12 @@ import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { billingEnabled } from "@/config/billing";
-import { CircleAlert, CircleX, RotateCcw, TriangleAlert, Check, X } from "lucide-react-native";
+import { CircleAlert, CircleX, CreditCard, ExternalLink, RotateCcw, TriangleAlert, Check, X } from "lucide-react-native";
+
+const STORE_NAME   = Platform.OS === "ios" ? "App Store (Apple)" : "Google Play";
+const STORE_MANAGE = Platform.OS === "ios"
+  ? "itms-apps://apps.apple.com/account/subscriptions"
+  : "https://play.google.com/store/account/subscriptions";
 
 interface BillingStatus {
   is_readonly: boolean;
@@ -307,6 +312,23 @@ export default function BillingScreen() {
           </View>
         </Section>
 
+        {/* ── 결제 수단 안내 ── */}
+        <View style={s.platformBanner}>
+          <CreditCard size={14} color="#475569" />
+          <Text style={s.platformBannerText}>
+            이 기기 결제 수단: <Text style={s.platformBannerBold}>{STORE_NAME}</Text>
+          </Text>
+          {isSubscribed && (
+            <Pressable
+              style={s.platformManageBtn}
+              onPress={() => Linking.openURL(STORE_MANAGE)}
+            >
+              <ExternalLink size={12} color="#2EC4B6" />
+              <Text style={s.platformManageTxt}>구독 관리·해지</Text>
+            </Pressable>
+          )}
+        </View>
+
         {/* ── Coach 구독 플랜 ── */}
         <Section title="Coach 구독 플랜 (개인 선생님)">
           {rcLoading ? (
@@ -331,10 +353,13 @@ export default function BillingScreen() {
                 const memberLim = meta?.memberLimit ?? 0;
                 const storage   = meta?.storage ?? "";
                 const priceStr  = pkg.product.priceString;
-                const store     = Platform.OS === "ios" ? "Apple" : "Google Play";
-                const btnLabel  = isCurrent ? "현재 플랜" : `${store}로 구독`;
-                const btnColor  = isCurrent ? "#E5E7EB" : themeColor;
+                const isChanging   = isSubscribed && !isCurrent;
+                const btnLabel    = isCurrent ? "현재 플랜" : isChanging ? "플랜 변경하기" : `${STORE_NAME.split(" ")[0]}로 구독하기`;
+                const btnColor    = isCurrent ? "#E5E7EB" : themeColor;
                 const btnTxtColor = isCurrent ? "#9CA3AF" : "#fff";
+                const confirmMsg  = isChanging
+                  ? `현재 구독을 ${planName}으로 변경합니다.\n${priceStr}/월 · 최대 ${memberLim}명 · ${storage}\n\n결제 수단: ${STORE_NAME}`
+                  : `${priceStr}/월 · 최대 ${memberLim}명 · ${storage}\n\n결제 수단: ${STORE_NAME}`;
                 const featureRows: { label: string; ok: boolean }[] = [
                   { label: "사진 업로드",  ok: true },
                   { label: "출결 관리",    ok: true },
@@ -374,7 +399,7 @@ export default function BillingScreen() {
                     <Pressable
                       onPress={() => {
                         if (isCurrent) return;
-                        showConfirm(`${planName} 구독`, `${priceStr}/월 · 최대 ${memberLim}명 · ${storage}\n\n${store}를 통해 결제됩니다.`, () => handlePurchase(pkg));
+                        showConfirm(isChanging ? `${planName} 플랜 변경` : `${planName} 구독`, confirmMsg, () => handlePurchase(pkg));
                       }}
                       disabled={isCurrent || isPurchasing}
                       style={[s.subscribeBtn, { backgroundColor: btnColor, marginTop: 8 }]}
@@ -412,10 +437,13 @@ export default function BillingScreen() {
                 const memberLim = meta?.memberLimit ?? 0;
                 const storage   = meta?.storage ?? "";
                 const priceStr  = pkg.product.priceString;
-                const store     = Platform.OS === "ios" ? "Apple" : "Google Play";
-                const btnLabel  = isCurrent ? "현재 플랜" : `${store}로 구독`;
-                const btnColor  = isCurrent ? "#E5E7EB" : "#F59E0B";
+                const isChanging   = isSubscribed && !isCurrent;
+                const btnLabel    = isCurrent ? "현재 플랜" : isChanging ? "플랜 변경하기" : `${STORE_NAME.split(" ")[0]}로 구독하기`;
+                const btnColor    = isCurrent ? "#E5E7EB" : "#F59E0B";
                 const btnTxtColor = isCurrent ? "#9CA3AF" : "#fff";
+                const confirmMsg  = isChanging
+                  ? `현재 구독을 ${planName}으로 변경합니다.\n${priceStr}/월 · 최대 ${memberLim}명 · ${storage}\n영상 업로드 · 화이트라벨 포함\n\n결제 수단: ${STORE_NAME}`
+                  : `${priceStr}/월 · 최대 ${memberLim}명 · ${storage}\n영상 업로드 · 화이트라벨 포함\n\n결제 수단: ${STORE_NAME}`;
                 const featureRows: { label: string; ok: boolean }[] = [
                   { label: "사진 업로드",  ok: true },
                   { label: "영상 업로드",  ok: true },
@@ -454,7 +482,7 @@ export default function BillingScreen() {
                     <Pressable
                       onPress={() => {
                         if (isCurrent) return;
-                        showConfirm(`${planName} 구독`, `${priceStr}/월 · 최대 ${memberLim}명 · ${storage}\n영상 업로드 · 화이트라벨 포함\n\n${store}를 통해 결제됩니다.`, () => handlePurchase(pkg));
+                        showConfirm(isChanging ? `${planName} 플랜 변경` : `${planName} 구독`, confirmMsg, () => handlePurchase(pkg));
                       }}
                       disabled={isCurrent || isPurchasing}
                       style={[s.subscribeBtn, { backgroundColor: btnColor, marginTop: 8 }]}
@@ -537,6 +565,12 @@ const s = StyleSheet.create({
   storageBannerDesc: { fontSize: 12, color: "#64748B", marginTop: 2 },
   storageActionBtn:  { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1 },
   storageActionTxt:  { fontSize: 12, fontWeight: "600" },
+
+  platformBanner:    { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0" },
+  platformBannerText:{ fontSize: 13, color: "#475569", flex: 1, fontFamily: "Pretendard-Regular" },
+  platformBannerBold:{ color: "#0F172A", fontWeight: "600" },
+  platformManageBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F0FDFB", borderWidth: 1, borderColor: "#2EC4B6" },
+  platformManageTxt: { fontSize: 12, color: "#2EC4B6", fontWeight: "600" },
 
   emptyOffering:     { padding: 20, alignItems: "center" },
   emptyOfferingText: { color: "#9CA3AF", fontSize: 14 },
