@@ -368,8 +368,21 @@ export default function BillingScreen() {
                   { label: "영상 업로드",  ok: false },
                   { label: "화이트라벨",   ok: false },
                 ];
+                const triggerPurchase = () => {
+                  if (isCurrent || isPurchasing) return;
+                  showConfirm(isChanging ? `${planName} 플랜 변경` : `${planName} 구독`, confirmMsg, () => handlePurchase(pkg));
+                };
                 return (
-                  <View key={pkgId} style={[s.planCard, isCurrent && { borderColor: themeColor, borderWidth: 2 }]}>
+                  <Pressable
+                    key={pkgId}
+                    onPress={triggerPurchase}
+                    disabled={isCurrent || isPurchasing}
+                    style={({ pressed }) => [
+                      s.planCard,
+                      isCurrent && { borderColor: themeColor, borderWidth: 2 },
+                      pressed && !isCurrent && { opacity: 0.88 },
+                    ]}
+                  >
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                       <View style={{ gap: 2, flex: 1 }}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -396,17 +409,10 @@ export default function BillingScreen() {
                         </View>
                       ))}
                     </View>
-                    <Pressable
-                      onPress={() => {
-                        if (isCurrent) return;
-                        showConfirm(isChanging ? `${planName} 플랜 변경` : `${planName} 구독`, confirmMsg, () => handlePurchase(pkg));
-                      }}
-                      disabled={isCurrent || isPurchasing}
-                      style={[s.subscribeBtn, { backgroundColor: btnColor, marginTop: 8 }]}
-                    >
+                    <View style={[s.subscribeBtn, { backgroundColor: btnColor, marginTop: 8 }]}>
                       {isPurchasing ? <ActivityIndicator size="small" color="#fff" /> : <Text style={[s.subscribeBtnText, { color: btnTxtColor }]}>{btnLabel}</Text>}
-                    </Pressable>
-                  </View>
+                    </View>
+                  </Pressable>
                 );
               })}
             </View>
@@ -452,8 +458,22 @@ export default function BillingScreen() {
                   { label: "학부모 연동",  ok: true },
                   { label: "화이트라벨 (앱 이름·로고 커스텀)", ok: true },
                 ];
+                const triggerPurchase = () => {
+                  if (isCurrent || isPurchasing) return;
+                  showConfirm(isChanging ? `${planName} 플랜 변경` : `${planName} 구독`, confirmMsg, () => handlePurchase(pkg));
+                };
                 return (
-                  <View key={pkgId} style={[s.planCard, { borderColor: isCurrent ? "#F59E0B" : "#FEF3C7" }, isCurrent && { borderWidth: 2 }]}>
+                  <Pressable
+                    key={pkgId}
+                    onPress={triggerPurchase}
+                    disabled={isCurrent || isPurchasing}
+                    style={({ pressed }) => [
+                      s.planCard,
+                      { borderColor: isCurrent ? "#F59E0B" : "#FEF3C7" },
+                      isCurrent && { borderWidth: 2 },
+                      pressed && !isCurrent && { opacity: 0.88 },
+                    ]}
+                  >
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                       <View style={{ gap: 2, flex: 1 }}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -479,17 +499,10 @@ export default function BillingScreen() {
                         </View>
                       ))}
                     </View>
-                    <Pressable
-                      onPress={() => {
-                        if (isCurrent) return;
-                        showConfirm(isChanging ? `${planName} 플랜 변경` : `${planName} 구독`, confirmMsg, () => handlePurchase(pkg));
-                      }}
-                      disabled={isCurrent || isPurchasing}
-                      style={[s.subscribeBtn, { backgroundColor: btnColor, marginTop: 8 }]}
-                    >
+                    <View style={[s.subscribeBtn, { backgroundColor: btnColor, marginTop: 8 }]}>
                       {isPurchasing ? <ActivityIndicator size="small" color="#fff" /> : <Text style={[s.subscribeBtnText, { color: btnTxtColor }]}>{btnLabel}</Text>}
-                    </Pressable>
-                  </View>
+                    </View>
+                  </Pressable>
                 );
               })}
             </View>
