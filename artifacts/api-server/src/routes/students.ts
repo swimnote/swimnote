@@ -222,18 +222,23 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
     if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
 
     // 회원 수 한도 체크 (배치 전체)
+    // effective_member_limit = p.member_limit(개별 override) 우선, 없으면 sp.member_limit(플랜 기본값)
     const [planRow] = (await superAdminDb.execute(sql`
-      SELECT sp.member_limit FROM swimming_pools p
-      JOIN subscription_plans sp ON sp.tier = p.subscription_tier
+      SELECT COALESCE(p.member_limit, sp.member_limit) AS effective_member_limit,
+             p.member_limit AS pool_override,
+             sp.member_limit AS plan_default
+      FROM swimming_pools p
+      LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
       WHERE p.id = ${poolId} LIMIT 1
     `)).rows as any[];
     const [cntRow] = (await db.execute(sql`
       SELECT COUNT(*) AS cnt FROM students
       WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
     `)).rows as any[];
-    const limit   = Number(planRow?.member_limit ?? 5);
+    const limit   = Number(planRow?.effective_member_limit ?? 5);
     const current = Number(cntRow?.cnt ?? 0);
     const available = Math.max(0, limit - current);
+    console.log(`[members] poolId=${poolId} limit=${limit} (override=${planRow?.pool_override ?? 'none'}, plan=${planRow?.plan_default}) current=${current}`);
 
     const succeeded: string[] = [];
     const failed: Array<{ name: string; reason: string; code?: string }> = [];
@@ -334,25 +339,31 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
     if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
 
     // ── 회원 수 한도 체크 ─────────────────────────────────────────────
+    // effective_member_limit = p.member_limit(개별 override) 우선, 없으면 sp.member_limit(플랜 기본값)
     {
       const [planRow] = (await superAdminDb.execute(sql`
-        SELECT sp.member_limit FROM swimming_pools p
-        JOIN subscription_plans sp ON sp.tier = p.subscription_tier
+        SELECT COALESCE(p.member_limit, sp.member_limit) AS effective_member_limit,
+               p.member_limit AS pool_override,
+               sp.member_limit AS plan_default
+        FROM swimming_pools p
+        LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
         WHERE p.id = ${poolId} LIMIT 1
       `)).rows as any[];
       const [cntRow] = (await db.execute(sql`
         SELECT COUNT(*) AS cnt FROM students
         WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
       `)).rows as any[];
-      const limit = Number(planRow?.member_limit ?? 5);
+      const limit = Number(planRow?.effective_member_limit ?? 5);
       const current = Number(cntRow?.cnt ?? 0);
+      console.log(`[members] poolId=${poolId} limit=${limit} (override=${planRow?.pool_override ?? 'none'}, plan=${planRow?.plan_default}) current=${current}`);
       if (current >= limit) {
         return res.status(403).json({
           success: false,
-          error: `현재 플랜의 등록 가능 인원(${limit}명)을 초과했습니다. 플랜을 업그레이드해주세요.`,
+          error: `회원 수 제한 초과: 현재 ${current}명 / 최대 ${limit}명 (${planRow?.pool_override != null ? '개별 설정' : '플랜 기본값'})`,
           code: "MEMBER_LIMIT_EXCEEDED",
           current,
           limit,
+          override_active: planRow?.pool_override != null,
         });
       }
     }
