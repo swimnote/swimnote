@@ -140,7 +140,14 @@ export default function SubscriptionsScreen() {
       ]);
       if (opsRes.ok) {
         const raw: any[] = await opsRes.json();
-        setOperators(Array.isArray(raw) ? raw.map(mapSummaryToRow) : []);
+        const mapped = Array.isArray(raw) ? raw.map(mapSummaryToRow) : [];
+        console.log(`[subscriptions] pools-summary 응답: ${raw.length}개`);
+        raw.slice(0, 3).forEach((p: any, i: number) => {
+          console.log(`[subscriptions][${i}] pool_name=${p.pool_name} admin.name=${p.admin?.name} sub.plan_name=${p.subscription?.plan_name} sub.member_limit=${p.subscription?.member_limit} sub.status=${p.subscription?.status}`);
+        });
+        setOperators(mapped);
+      } else {
+        console.error(`[subscriptions] pools-summary 오류: ${opsRes.status}`);
       }
       if (revRes.ok) {
         const revData = await revRes.json();

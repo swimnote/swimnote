@@ -89,9 +89,12 @@ export function useAuth() {
   };
 }
 
-export function apiRequest(token: string | null, path: string, options: RequestInit = {}) {
-  return fetch(`${_API_BASE}${path}`, {
-    cache: "no-store",          // 클라이언트 캐시 완전 비활성화
+export async function apiRequest(token: string | null, path: string, options: RequestInit = {}) {
+  const url = `${_API_BASE}${path}`;
+  const method = (options.method ?? "GET").toUpperCase();
+  console.log(`[API→] ${method} ${url}`);
+  const res = await fetch(url, {
+    cache: "no-store",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -100,4 +103,6 @@ export function apiRequest(token: string | null, path: string, options: RequestI
       ...options.headers,
     },
   });
+  console.log(`[API←] ${res.status} ${url}`);
+  return res;
 }
