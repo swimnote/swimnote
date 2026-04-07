@@ -38,20 +38,36 @@ const CHUNK_SIZE = 30;
 // ── 컬럼 헤더 별칭 매핑 (최대한 관대하게) ─────────────────────────
 const COL_MAP: Record<string, string> = {
   "이름": "name",           "name": "name",           "성명": "name",
+  "성함": "name",           "회원명": "name",         "학생명": "name",
+  "회원이름": "name",       "학생이름": "name",       "자녀이름": "name",
   "출생년도": "birth_year", "birth_year": "birth_year", "생년": "birth_year",
-  "출생연도": "birth_year", "태어난해": "birth_year",
+  "출생연도": "birth_year", "태어난해": "birth_year", "출생일": "birth_year",
   "보호자이름": "parent_name", "parent_name": "parent_name", "보호자": "parent_name",
   "보호자성명": "parent_name", "학부모": "parent_name", "학부모이름": "parent_name",
-  "부모이름": "parent_name",
+  "부모이름": "parent_name", "부모": "parent_name",
   "보호자전화번호": "parent_phone", "parent_phone": "parent_phone",
   "보호자연락처": "parent_phone", "전화번호": "parent_phone",
   "연락처": "parent_phone", "학부모전화": "parent_phone",
   "학부모연락처": "parent_phone", "보호자휴대폰": "parent_phone",
+  "휴대폰": "parent_phone", "휴대폰번호": "parent_phone",
+  "핸드폰": "parent_phone", "핸드폰번호": "parent_phone",
+  "전화": "parent_phone",   "hp": "parent_phone",     "phone": "parent_phone",
+  "보호자 전화번호": "parent_phone", "보호자 연락처": "parent_phone",
   "주횟수": "weekly_count", "weekly_count": "weekly_count",
   "횟수": "weekly_count",  "주수업횟수": "weekly_count", "수업횟수": "weekly_count",
   "메모": "memo",           "memo": "memo",
   "비고": "memo",           "특이사항": "memo",        "참고": "memo",
 };
+
+// ── 이름 셀에 전화번호가 섞인 경우 자동 분리 ─────────────────────
+const PHONE_IN_TEXT_RE = /(?<![0-9])(0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4})(?![0-9])/;
+function splitNamePhone(raw: string): { name: string; phone?: string } {
+  const match = raw.match(PHONE_IN_TEXT_RE);
+  if (!match) return { name: raw };
+  const phone = match[1];
+  const name = raw.replace(match[0], "").replace(/[\s,/|]+/g, " ").trim();
+  return { name, phone };
+}
 
 interface ParsedRow {
   _idx: number;
@@ -146,13 +162,22 @@ function parseRows(raw: any[][], headerIdx: number): ParsedRow[] {
     });
     if (!Object.values(obj).some(Boolean)) continue; // 완전 빈 행
 
-    const rawPhone = obj.parent_phone ?? "";
+    // 이름 칸에 전화번호가 섞인 경우 자동 분리 (전화번호 열이 없을 때만)
+    let rawName = obj.name ?? "";
+    let rawPhone = obj.parent_phone ?? "";
+    if (rawName && !rawPhone) {
+      const split = splitNamePhone(rawName);
+      if (split.phone) {
+        rawName = split.name;
+        rawPhone = split.phone;
+      }
+    }
     const normPhone = rawPhone ? normalizePhone(rawPhone) : "";
     const byear = obj.birth_year?.replace(/[^0-9]/g, "") ?? "";
 
     const row: ParsedRow = {
       _idx: rows.length,
-      name: obj.name ?? "",
+      name: rawName,
       birth_year: byear || undefined,
       parent_name: obj.parent_name || undefined,
       parent_phone: normPhone || undefined,
