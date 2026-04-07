@@ -20,6 +20,20 @@ import { billingEnabled } from "../config/billing.js";
 
 const router = Router();
 
+// ── 구 티어명 → 현재 티어명 정규화 (DB에 저장된 구 값 호환) ──────────────
+const TIER_NORMALIZE: Record<string, string> = {
+  growth:     "center_200",
+  premium:    "pro",
+  enterprise: "max",
+  center_300: "advance",
+  center_500: "pro",
+  center_1000: "max",
+};
+function normalizeTier(tier: string | null | undefined): string {
+  if (!tier) return "free";
+  return TIER_NORMALIZE[tier] ?? tier;
+}
+
 // ── 플랜 기능 조회 (billingEnabled 무관, 전 역할 접근 가능) ──────────────
 const CENTER_TIERS = new Set(["center_200", "advance", "pro", "max"]);
 
@@ -38,7 +52,7 @@ router.get("/features", requireAuth, async (req: AuthRequest, res) => {
         LEFT JOIN pool_subscriptions ps ON ps.swimming_pool_id = sp.id AND ps.status = 'active'
         WHERE sp.id = ${poolId} LIMIT 1
       `)).rows as any[];
-      if (row) { tier = row.tier ?? "free"; uploadBlocked = !!row.upload_blocked; }
+      if (row) { tier = normalizeTier(row.tier); uploadBlocked = !!row.upload_blocked; }
     } catch {}
 
     let storageQuotaGb = 0.5;
@@ -530,7 +544,7 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       daysUntilDeletion = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86_400_000));
     }
 
-    const activeTier = sub?.tier ?? poolRow?.subscription_tier ?? "free";
+    const activeTier = normalizeTier(sub?.tier ?? poolRow?.subscription_tier);
     const currentPlan = plans.find((p: any) => p.tier === activeTier);
     const memberLimit = Number(currentPlan?.member_limit ?? 10);
     const storageQuotaGb = Number(currentPlan?.storage_gb ?? 0.5);

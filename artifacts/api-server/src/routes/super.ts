@@ -1292,13 +1292,18 @@ router.patch(
       const { id } = req.params;
       const {
         subscription_status,
-        subscription_tier,
+        subscription_tier: rawTier,
         credit_amount,
         is_readonly,
         upload_blocked,
         subscription_end_at,
         member_limit,
       } = req.body as any;
+      const TIER_NORMALIZE: Record<string, string> = {
+        growth: "center_200", premium: "pro", enterprise: "max",
+        center_300: "advance", center_500: "pro", center_1000: "max",
+      };
+      const subscription_tier = rawTier ? (TIER_NORMALIZE[rawTier] ?? rawTier) : rawTier;
       const actorName = req.user?.name ?? "슈퍼관리자";
       const updates: string[] = [];
 
