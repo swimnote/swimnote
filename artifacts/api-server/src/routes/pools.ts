@@ -8,7 +8,7 @@ import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { sanitizePoolName } from "../utils/filename.js";
 import { signToken } from "../lib/auth.js";
-import { resolveSubscription } from "../lib/subscriptionResolver.js";
+import { resolveSubscription } from "../lib/subscriptionService.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
