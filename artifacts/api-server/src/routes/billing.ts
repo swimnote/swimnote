@@ -46,7 +46,7 @@ router.get("/features", requireAuth, async (req: AuthRequest, res) => {
     let uploadBlocked = false;
     try {
       const [row] = (await db.execute(sql`
-        SELECT COALESCE(ps.tier, sp.subscription_tier, 'free') AS tier,
+        SELECT COALESCE(sp.subscription_tier, ps.tier, 'free') AS tier,
                sp.upload_blocked
         FROM swimming_pools sp
         LEFT JOIN pool_subscriptions ps ON ps.swimming_pool_id = sp.id AND ps.status = 'active'
@@ -544,7 +544,9 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       daysUntilDeletion = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86_400_000));
     }
 
-    const activeTier = normalizeTier(sub?.tier ?? poolRow?.subscription_tier);
+    // swimming_pools.subscription_tier 우선 (슈퍼관리자 직접 변경 즉시 반영)
+    // pool_subscriptions.tier는 수동 설정이 없을 때만 fallback으로 사용
+    const activeTier = normalizeTier(poolRow?.subscription_tier ?? sub?.tier);
     const currentPlan = plans.find((p: any) => p.tier === activeTier);
     const memberLimit = Number(currentPlan?.member_limit ?? 10);
     const storageQuotaGb = Number(currentPlan?.storage_gb ?? 0.5);
