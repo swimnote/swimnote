@@ -4,7 +4,7 @@
  * 메신저 외 7개 아이콘은 3열 그리드 팝업을 거쳐 페이지 이동
  * SearchModal, AdminQuickRegisterModal → components/admin/ 로 이동됨
  */
-import { Check, ChevronRight, CircleAlert, LogOut, Repeat, Search, TriangleAlert, UserPlus, UserX, X } from "lucide-react-native";
+import { Check, ChevronRight, CircleAlert, Crown, LogOut, Repeat, Search, TriangleAlert, UserPlus, UserX, X, Zap } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
@@ -59,6 +59,7 @@ export default function DashboardScreen() {
   const [videoStoragePct, setVideoStoragePct] = useState<number | null>(null);
   const [memberLimit, setMemberLimit] = useState<number>(10);
   const [makeupAssigned, setMakeupAssigned] = useState<number>(0);
+  const [subTier, setSubTier]               = useState<string>("free");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -98,11 +99,12 @@ export default function DashboardScreen() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const [statsRes, storageRes, stats2Res, poolRes] = await Promise.all([
+      const [statsRes, storageRes, stats2Res, poolRes, featRes] = await Promise.all([
         apiRequest(token, "/admin/dashboard-stats"),
         apiRequest(token, "/admin/storage").catch(() => null),
         apiRequest(token, "/admin/dashboard-stats2").catch(() => null),
         apiRequest(token, "/pools/").catch(() => null),
+        apiRequest(token, "/billing/features").catch(() => null),
       ]);
       if (statsRes.ok) setStats(await statsRes.json());
       if (storageRes?.ok) {
@@ -119,6 +121,10 @@ export default function DashboardScreen() {
         const p = await poolRes.json();
         setMemberLimit(p.member_limit ?? 10);
       }
+      if (featRes?.ok) {
+        const f = await featRes.json();
+        setSubTier(f.tier ?? "free");
+      }
     } finally { setLoading(false); setRefreshing(false); }
   }, [token]);
 
@@ -130,6 +136,17 @@ export default function DashboardScreen() {
 
   // pool_admin이면 항상 선생님 모드 전환 가능 (자동 생성 구조 — 신규·기존 계정 모두 지원)
   const canSwitchToTeacher = adminUser?.role === "pool_admin" || !!(adminUser?.roles?.includes("teacher"));
+
+  // 구독 등급 아이콘 설정
+  const PREMIER_TIERS = new Set(["center_200", "advance", "pro", "max"]);
+  const COACH_TIERS   = new Set(["starter", "basic", "standard"]);
+  const tierInfo = PREMIER_TIERS.has(subTier)
+    ? { Icon: Crown, color: "#F59E0B", bg: "#FEF3C7", label: "Premier" }
+    : COACH_TIERS.has(subTier)
+    ? { Icon: Zap,   color: "#7C3AED", bg: "#EDE9FE", label: "Coach" }
+    : { Icon: null,  color: "#94A3B8", bg: "#F1F5F9", label: "Free" };
+
+  const roleLabel = adminUser?.role === "pool_admin" ? "대표" : adminUser?.role === "sub_admin" ? "관리자" : "선생님";
 
   async function handleSwitchToTeacher() {
     if (switching) return;
@@ -170,8 +187,27 @@ export default function DashboardScreen() {
               </Pressable>
             )}
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
-            <Text style={s.greet}>{pool?.name ? `${pool.name} 관리자` : (adminUser?.name ?? "관리자")}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 }}>
+            {/* 구독 등급 아이콘 — 누르면 구독 옵션 화면으로 이동 */}
+            <Pressable
+              onPress={() => router.push("/(admin)/subscription")}
+              hitSlop={8}
+              style={({ pressed }) => [
+                s.tierBadge,
+                { backgroundColor: tierInfo.bg, opacity: pressed ? 0.75 : 1 },
+              ]}
+            >
+              {tierInfo.Icon
+                ? <tierInfo.Icon size={11} color={tierInfo.color} strokeWidth={2.5} />
+                : null
+              }
+              <Text style={[s.tierBadgeTxt, { color: tierInfo.color }]}>{tierInfo.label}</Text>
+            </Pressable>
+            {/* 관리자 자격 표시 */}
+            <Text style={s.greet}>{pool?.name ?? adminUser?.name ?? ""}</Text>
+            <View style={[s.roleChip]}>
+              <Text style={s.roleChipTxt}>{roleLabel}</Text>
+            </View>
           </View>
         </View>
         <Pressable onPress={() => setShowSearch(true)} style={s.headerBtn} hitSlop={8}>
@@ -531,6 +567,10 @@ const s = StyleSheet.create({
   subBadge:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
   subBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-Regular" },
   headerBtn:   { width: 36, height: 36, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
+  tierBadge:   { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
+  tierBadgeTxt:{ fontSize: 10, fontFamily: "Pretendard-SemiBold" },
+  roleChip:    { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: "#E0F2FE" },
+  roleChipTxt: { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#0369A1" },
 
   sectionLabel:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, marginBottom: 10 },
 
