@@ -25,6 +25,7 @@ import { logPoolEvent } from "../lib/pool-event-logger.js";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
 import { runRealBackup } from "../lib/backup.js";
 import { resolveSubscription, applySubscriptionState, normalizeTier } from "../lib/subscriptionService.js";
+import { getPoolOperators } from "../lib/poolOperatorService.js";
 
 const router = Router();
 
@@ -408,9 +409,15 @@ router.get(
         console.error(`[operator-detail] support query error:`, e?.message);
       }
 
-      // 스태프 분류
+      // 스태프 분류 — admins는 getPoolOperators 단일 소스 사용 (role='pool_admin' + is_activated=TRUE)
       const teachers  = staffList.filter(u => u.role === 'teacher');
-      const admins    = staffList.filter(u => u.role === 'pool_admin' || u.role === 'sub_admin');
+      let admins: any[] = [];
+      try {
+        admins = await getPoolOperators(id);
+      } catch (e: any) {
+        console.error(`[operator-detail] admins query error:`, e?.message);
+        admins = staffList.filter(u => u.role === 'pool_admin');
+      }
 
       // resolver로 구독 상태 완전 계산
       const resolved = await resolveSubscription(id).catch(() => null);

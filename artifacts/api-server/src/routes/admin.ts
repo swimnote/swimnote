@@ -7,6 +7,7 @@ import { requireAuth, requireRole, requirePermission, type AuthRequest } from ".
 import { hashPassword, DEFAULT_PLATFORM_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
+import { getPoolOperators, countPoolOperators } from "../lib/poolOperatorService.js";
 
 const router = Router();
 
@@ -878,6 +879,24 @@ async function writeActivityLog(opts: {
   } catch { /* member_activity_logs 테이블 미존재 시 무시 */ }
 }
 
+// ════════════════════════════════════════════════════════════════════════
+// GET /admin/operators — 풀 운영자(pool_admin) 목록
+// getPoolOperators() 단일 함수 기준 — 카운트·목록 동일 소스
+// ════════════════════════════════════════════════════════════════════════
+router.get("/operators", requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 정보가 없습니다." }); return; }
+      const operators = await getPoolOperators(poolId);
+      res.json({ success: true, data: operators, count: operators.length });
+    } catch (err) {
+      console.error("[admin/operators]", err);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
 router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_admin"),
   async (req: AuthRequest, res) => {
     try {
@@ -935,10 +954,13 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
         WHERE cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
       `)).rows as any[];
 
-      const [teacherRow] = (await superAdminDb.execute(sql`
-        SELECT COUNT(*)::int AS total_teachers
-        FROM users WHERE swimming_pool_id = ${poolId} AND role = 'teacher'
-      `)).rows as any[];
+      const [[teacherRow], totalOperators] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT COUNT(*)::int AS total_teachers
+          FROM users WHERE swimming_pool_id = ${poolId} AND role = 'teacher'
+        `).then(r => r.rows as any[]),
+        countPoolOperators(poolId),
+      ]);
 
       const [makeupRow] = (await db.execute(sql`
         SELECT COUNT(*)::int AS pending_makeups
@@ -986,8 +1008,9 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
         pending_requests: Number(pendingRow?.pending_requests ?? 0) + Number(parentPendingRow?.parent_pending ?? 0),
         total_classes:   diaryRow?.total_classes ?? 0,
         diary_done_today: diaryRow?.diary_done_today ?? 0,
-        total_teachers:  teacherRow?.total_teachers ?? 0,
-        total_parents:   parentCountRow?.total_parents ?? 0,
+        total_teachers:   teacherRow?.total_teachers ?? 0,
+        total_operators:  totalOperators,
+        total_parents:    parentCountRow?.total_parents ?? 0,
         pending_makeups:  makeupRow?.pending_makeups ?? 0,
         monthly_revenue:  Number(revenueRow?.monthly_revenue ?? 0),
         expiring_soon:    0,

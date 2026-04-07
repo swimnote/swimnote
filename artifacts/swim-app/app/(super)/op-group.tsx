@@ -9,7 +9,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useOperatorsStore } from "@/store/operatorsStore";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
 import { API_BASE } from "@/constants/api";
 import Colors from "@/constants/colors";
 const C = Colors.light;
