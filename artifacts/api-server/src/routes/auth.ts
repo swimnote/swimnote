@@ -714,12 +714,15 @@ router.post("/unified-login", async (req, res) => {
             res.status(403).json({ success: false, error: "계정이 아직 활성화되지 않았습니다.", error_code: "needs_activation", needs_activation: true, teacher_id: user.id }); return;
           }
         }
-        // TOTP 2단계 인증 체크
-        const totpRow = await superAdminDb.execute(sql`SELECT totp_enabled FROM users WHERE id = ${user.id} LIMIT 1`);
-        const totpEnabled = (totpRow.rows[0] as any)?.totp_enabled ?? false;
-        if (totpEnabled) {
-          const totpSession = signTotpSession(user.id);
-          res.json({ success: true, totp_required: true, totp_session: totpSession }); return;
+        // TOTP 2단계 인증 체크 (App Store 리뷰 데모 계정은 우회)
+        const isDemoAccount = user.email === "demo@swimnote.app";
+        if (!isDemoAccount) {
+          const totpRow = await superAdminDb.execute(sql`SELECT totp_enabled FROM users WHERE id = ${user.id} LIMIT 1`);
+          const totpEnabled = (totpRow.rows[0] as any)?.totp_enabled ?? false;
+          if (totpEnabled) {
+            const totpSession = signTotpSession(user.id);
+            res.json({ success: true, totp_required: true, totp_session: totpSession }); return;
+          }
         }
         const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
         const { password_hash: _, ...safeUser } = user;

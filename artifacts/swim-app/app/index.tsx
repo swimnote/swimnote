@@ -46,11 +46,20 @@ export default function LoginScreen() {
   const [loading,    setLoading]          = useState(false);
   const [kakaoLoading, setKakaoLoading]   = useState(false);
   const [appleLoading, setAppleLoading]   = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(false);
   const [error,      setError]            = useState("");
   const [failCount,  setFailCount]        = useState(0);
   const [showNotFoundModal, setShowNotFoundModal] = useState(false);
   const [keyboardHeight, setKeyboardHeight]       = useState(0);
   const [focusedField, setFocusedField]           = useState<"id" | "pw" | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS === "ios") {
+      AppleAuthentication.isAvailableAsync().then(available => {
+        setAppleAvailable(available);
+      }).catch(() => setAppleAvailable(false));
+    }
+  }, []);
 
   useEffect(() => {
     const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -100,7 +109,7 @@ export default function LoginScreen() {
   }
 
   async function handleAppleLogin() {
-    if (Platform.OS !== "ios") { setError("Apple 로그인은 iOS에서만 사용 가능합니다."); return; }
+    if (!appleAvailable) { setError("이 기기에서는 Apple 로그인을 사용할 수 없습니다."); return; }
     setAppleLoading(true); setError("");
     try {
       const credential = await AppleAuthentication.signInAsync({
@@ -264,8 +273,8 @@ export default function LoginScreen() {
 
         {/* ── 소셜 / 가입 버튼 ── */}
         <View style={s.signupCol}>
-          {/* Sign in with Apple (iOS 전용 공식 버튼) */}
-          {Platform.OS === "ios" && (
+          {/* Sign in with Apple (iOS/iPadOS — isAvailableAsync 체크) */}
+          {appleAvailable && (
             <AppleAuthentication.AppleAuthenticationButton
               buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
               buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
