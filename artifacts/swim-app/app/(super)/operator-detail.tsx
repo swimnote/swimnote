@@ -273,8 +273,10 @@ export default function OperatorDetailScreen() {
   const approvalCfg = APPROVAL_CFG[pool.approval_status] ?? APPROVAL_CFG.pending;
   const billingCfg  = STATUS_CFG[pool.subscription_status]  ?? STATUS_CFG.trial;
   const usedBytes   = pool.used_storage_bytes ?? 0;
-  const totalGb     = pool.total_storage_gb ?? (pool.base_storage_gb ?? 5);
-  const usagePct    = pool.usage_pct ?? 0;
+  const storageMb   = pool.storage_mb ?? 512;
+  const totalGb     = storageMb / 1024;
+  const usagePct    = pool.usage_pct ??
+    (usedBytes > 0 ? Math.min(Math.round(usedBytes / (storageMb * 1048576) * 100), 100) : 0);
   const storageAlert = usagePct >= 95;
   const storageWarn  = usagePct >= 80 && usagePct < 95;
   const isPaymentIssue = ["expired", "suspended", "payment_failed"].includes(pool.subscription_status ?? "");
@@ -419,7 +421,7 @@ export default function OperatorDetailScreen() {
                   ? `${pool.member_limit}명`
                   : "—"
               } />
-              <InfoRow label="스토리지"    value={pool.display_storage ?? (pool.base_storage_gb != null ? `${pool.base_storage_gb}GB` : "—")} />
+              <InfoRow label="스토리지"    value={pool.display_storage ?? "—"} />
               <InfoRow label="크레딧 잔액" value={`${(pool.credit_balance ?? 0).toLocaleString()}원`} />
               <InfoRow label="구독 시작일" value={fmtDate(pool.subscription_start_at ?? pool.created_at)} />
               <InfoRow label="구독 만료일" value={pool.subscription_end_at ? fmtDate(pool.subscription_end_at) : "—"} />
@@ -472,9 +474,8 @@ export default function OperatorDetailScreen() {
                 </View>
                 <View style={d.storageDetails}>
                   <InfoRow label="사용량"      value={fmtBytes(usedBytes)} />
-                  <InfoRow label="전체 용량"   value={`${totalGb} GB`} />
-                  <InfoRow label="기본 용량"   value={`${pool.base_storage_gb ?? 5} GB`} />
-                  <InfoRow label="추가 용량"   value={`${pool.extra_storage_gb ?? 0} GB`} />
+                  <InfoRow label="전체 용량"   value={pool.display_storage ?? `${totalGb.toFixed(1)} GB`} />
+                  <InfoRow label="사용률"      value={`${usagePct}%`} />
                   <InfoRow label="업로드 차단" value={pool.upload_blocked ? "차단됨" : "정상"} alert={!!pool.upload_blocked} />
                 </View>
               </View>

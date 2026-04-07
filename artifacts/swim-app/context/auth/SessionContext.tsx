@@ -64,8 +64,8 @@ export interface PoolInfo {
   member_count?: number;
   member_limit?: number;
   used_storage_bytes?: number;
-  base_storage_gb?: number;
-  extra_storage_gb?: number;
+  storage_mb?: number;
+  display_storage?: string;
   storage_used_pct?: number;
   days_until_deletion?: number | null;
   first_payment_used?: boolean;

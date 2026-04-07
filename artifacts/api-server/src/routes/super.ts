@@ -77,7 +77,7 @@ router.get(
             COUNT(*) FILTER (
               WHERE approval_status = 'approved'
                 AND COALESCE(used_storage_bytes,0)::float /
-                    NULLIF((COALESCE(base_storage_gb,5) + COALESCE(extra_storage_gb,0))::bigint * 1073741824, 0) >= 0.95
+                    NULLIF(COALESCE(storage_mb,512)::bigint * 1048576, 0) >= 0.95
             )::int AS storage_danger_count,
             COUNT(*) FILTER (
               WHERE subscription_end_at IS NOT NULL
@@ -104,18 +104,19 @@ router.get(
         `),
         // 저장공간 위험 (95% 이상)
         superAdminDb.execute(sql`
-          SELECT id, name, owner_name,
+          SELECT id, name, COALESCE(owner_name, '') AS owner_name,
                  COALESCE(used_storage_bytes,0) AS used_storage_bytes,
-                 (COALESCE(base_storage_gb,5) + COALESCE(extra_storage_gb,0)) AS total_gb,
+                 COALESCE(storage_mb,512) AS storage_mb,
+                 COALESCE(display_storage,'500MB') AS display_storage,
                  LEAST(ROUND(
                    COALESCE(used_storage_bytes,0)::numeric /
-                   NULLIF((COALESCE(base_storage_gb,5) + COALESCE(extra_storage_gb,0))::bigint * 1073741824, 0) * 100
+                   NULLIF(COALESCE(storage_mb,512)::bigint * 1048576, 0) * 100
                  )::int, 100) AS usage_pct,
                  'storage_danger' AS todo_type
           FROM swimming_pools
           WHERE approval_status = 'approved'
             AND COALESCE(used_storage_bytes,0)::float /
-                NULLIF((COALESCE(base_storage_gb,5) + COALESCE(extra_storage_gb,0))::bigint * 1073741824, 0) >= 0.95
+                NULLIF(COALESCE(storage_mb,512)::bigint * 1048576, 0) >= 0.95
           ORDER BY usage_pct DESC LIMIT 10
         `),
         // 자동삭제 예정 (24h)
@@ -760,16 +761,24 @@ router.get(
     try {
       const rows = (await superAdminDb.execute(sql`
         SELECT
-          sp.id, sp.name, sp.owner_name, sp.approval_status,
-          sp.base_storage_gb, sp.extra_storage_gb, sp.used_storage_bytes,
-          (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) AS total_storage_gb,
+          sp.id,
+          sp.name,
+          COALESCE(u.name, sp.owner_name, '') AS owner_name,
+          sp.approval_status,
+          COALESCE(sp.storage_mb, 512)         AS storage_mb,
+          COALESCE(sp.display_storage, '500MB') AS display_storage,
+          sp.used_storage_bytes,
           CASE
-            WHEN sp.used_storage_bytes IS NOT NULL AND (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) > 0
-            THEN ROUND(sp.used_storage_bytes::numeric / ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0))::bigint * 1073741824) * 100)::int
+            WHEN sp.used_storage_bytes IS NOT NULL AND COALESCE(sp.storage_mb, 512) > 0
+            THEN LEAST(ROUND(
+              sp.used_storage_bytes::numeric
+              / (COALESCE(sp.storage_mb, 512)::bigint * 1048576) * 100
+            )::int, 100)
             ELSE 0
           END AS usage_pct,
           COALESCE(sp.upload_blocked, false) AS upload_blocked
         FROM swimming_pools sp
+        LEFT JOIN users u ON u.id = sp.admin_user_id
         WHERE sp.approval_status = 'approved'
         ORDER BY usage_pct DESC, sp.name ASC
       `)).rows;
@@ -915,24 +924,28 @@ router.get(
     try {
       const { poolId } = req.params;
       const [pool] = (await superAdminDb.execute(sql`
-        SELECT id, name, base_storage_gb, extra_storage_gb, used_storage_bytes
+        SELECT id, name,
+          COALESCE(storage_mb, 512)         AS storage_mb,
+          COALESCE(display_storage, '500MB') AS display_storage,
+          used_storage_bytes,
+          upload_blocked
         FROM swimming_pools WHERE id = ${poolId}
       `)).rows as any[];
 
       if (!pool) { res.status(404).json({ error: "수영장 없음" }); return; }
 
-      const totalGb    = (pool.base_storage_gb || 5) + (pool.extra_storage_gb || 0);
+      const storageMb  = Number(pool.storage_mb || 512);
       const usedBytes  = Number(pool.used_storage_bytes || 0);
-      const totalBytes = totalGb * 1073741824;
-      const usagePct   = totalBytes > 0 ? Math.round((usedBytes / totalBytes) * 100) : 0;
+      const totalBytes = storageMb * 1048576;
+      const usagePct   = totalBytes > 0 ? Math.min(Math.round((usedBytes / totalBytes) * 100), 100) : 0;
 
-      res.json({ ...pool, total_storage_gb: totalGb, usage_pct: usagePct, is_near_limit: usagePct >= 95 });
+      res.json({ ...pool, usage_pct: usagePct, is_near_limit: usagePct >= 95 });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
 
 // ════════════════════════════════════════════════════════════════
-// PUT /super/storage/:poolId
+// PUT /super/storage/:poolId — storage_mb 기준으로 용량 부여
 // ════════════════════════════════════════════════════════════════
 router.put(
   "/super/storage/:poolId",
@@ -941,19 +954,34 @@ router.put(
   async (req: AuthRequest, res) => {
     try {
       const { poolId } = req.params;
-      const { extra_storage_gb } = req.body as { extra_storage_gb: number };
-      if (typeof extra_storage_gb !== "number" || extra_storage_gb < 0) {
-        res.status(400).json({ error: "잘못된 용량 값" }); return;
+      // add_mb: 추가할 MB (프론트에서 GB → MB 변환 후 전송)
+      const { add_mb } = req.body as { add_mb: number };
+      if (typeof add_mb !== "number" || add_mb < 0) {
+        res.status(400).json({ error: "잘못된 용량 값 (add_mb 필요)" }); return;
       }
-      await superAdminDb.execute(sql`UPDATE swimming_pools SET extra_storage_gb = ${extra_storage_gb} WHERE id = ${poolId}`);
+      // 현재 storage_mb 조회 후 더함
+      const cur = (await superAdminDb.execute(sql`
+        SELECT COALESCE(storage_mb, 512) AS storage_mb, display_storage
+        FROM swimming_pools WHERE id = ${poolId}
+      `)).rows[0] as any;
+      const newMb = (cur?.storage_mb ?? 512) + add_mb;
+      // display_storage 갱신: 1024 이상이면 GB 표기
+      const newDisplay = newMb >= 1024
+        ? `${(newMb / 1024).toFixed(1).replace(/\.0$/, "")}GB`
+        : `${newMb}MB`;
+      await superAdminDb.execute(sql`
+        UPDATE swimming_pools
+        SET storage_mb = ${newMb}, display_storage = ${newDisplay}
+        WHERE id = ${poolId}
+      `);
       const actorName = req.user?.name ?? "슈퍼관리자";
       const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
       await db.execute(sql`
         INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
         VALUES (${logId}, ${poolId}, '저장공간', ${req.user!.userId}, ${actorName}, ${poolId},
-                ${'추가 용량 변경: ' + extra_storage_gb + 'GB'}, '{}'::jsonb)
+                ${'저장용량 추가: +' + add_mb + 'MB → 총 ' + newMb + 'MB (' + newDisplay + ')'}, '{}'::jsonb)
       `).catch(() => {});
-      res.json({ ok: true });
+      res.json({ ok: true, storage_mb: newMb, display_storage: newDisplay });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
@@ -1087,16 +1115,18 @@ router.get(
           `),
           // 저장 95% 초과
           superAdminDb.execute(sql`
-            SELECT id, name, owner_name, used_storage_bytes,
-                   (base_storage_gb + COALESCE(extra_storage_gb,0)) AS total_gb,
-                   ROUND(used_storage_bytes::numeric /
-                     NULLIF((base_storage_gb + COALESCE(extra_storage_gb,0))::bigint * 1073741824, 0) * 100)::int AS usage_pct
+            SELECT id, name, COALESCE(owner_name,'') AS owner_name,
+                   COALESCE(used_storage_bytes,0) AS used_storage_bytes,
+                   COALESCE(storage_mb,512) AS storage_mb,
+                   COALESCE(display_storage,'500MB') AS display_storage,
+                   LEAST(ROUND(
+                     COALESCE(used_storage_bytes,0)::numeric /
+                     NULLIF(COALESCE(storage_mb,512)::bigint * 1048576, 0) * 100
+                   )::int, 100) AS usage_pct
             FROM swimming_pools
             WHERE approval_status = 'approved'
-              AND used_storage_bytes IS NOT NULL
-              AND (base_storage_gb + COALESCE(extra_storage_gb,0)) > 0
-              AND used_storage_bytes::float /
-                  ((base_storage_gb + COALESCE(extra_storage_gb,0))::bigint * 1073741824) >= 0.95
+              AND COALESCE(used_storage_bytes,0)::float /
+                  NULLIF(COALESCE(storage_mb,512)::bigint * 1048576, 0) >= 0.95
             ORDER BY usage_pct DESC LIMIT 20
           `),
           // 자동삭제 예정 (48h)
@@ -1503,7 +1533,6 @@ router.patch(
         subscription_status:     resolved?.status         ?? null,
         subscription_source:     resolved?.source         ?? null,
         member_limit:            resolved?.memberLimit     ?? 10,
-        base_storage_gb:         resolved?.storageGb       ?? 0.5,
         storage_mb:              resolved?.storageMb        ?? 512,
         display_storage:         resolved?.displayStorage   ?? "500MB",
         video_storage_limit_mb:  resolved?.videoStorageLimitMb ?? 0,
@@ -2195,7 +2224,7 @@ router.get("/super/risk-summary", requireAuth, requireRole("super_admin"), async
         SELECT COUNT(*)::int AS cnt FROM swimming_pools
         WHERE approval_status = 'approved'
           AND COALESCE(used_storage_bytes,0)::float /
-              NULLIF((COALESCE(base_storage_gb,5)+COALESCE(extra_storage_gb,0))::bigint*1073741824,0) >= 0.95
+              NULLIF(COALESCE(storage_mb,512)::bigint*1048576,0) >= 0.95
       `),
       superAdminDb.execute(sql`
         SELECT COUNT(*)::int AS cnt FROM swimming_pools

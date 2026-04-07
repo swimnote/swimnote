@@ -25,10 +25,9 @@ interface StorageRow {
   id: string;
   name: string;
   owner_name: string | null;
-  base_storage_gb: number;
-  extra_storage_gb: number;
+  storage_mb: number;
+  display_storage: string;
   used_storage_bytes: number;
-  total_storage_gb: number;
   usage_pct: number;
   upload_blocked: boolean;
 }
@@ -46,10 +45,6 @@ function fmtBytes(bytes: number): string {
   return `${(mb / 1073741824).toFixed(1)} GB`;
 }
 
-function fmtGb(gb: number): string {
-  if (!gb || gb === 0) return "0 GB";
-  return `${gb.toFixed(1)} GB`;
-}
 
 function estimateCost(extraGb: number): string {
   const cost = Math.ceil(extraGb / 10) * 9900;
@@ -124,10 +119,10 @@ export default function StorageScreen() {
     if (isNaN(addGb) || addGb < 0) return;
     setSaving(true);
     try {
-      const newExtra = (editOp.extra_storage_gb || 0) + addGb;
+      const addMb = Math.round(addGb * 1024);
       const res = await apiRequest(token, `/super/storage/${editOp.id}`, {
         method: "PUT",
-        body: JSON.stringify({ extra_storage_gb: Math.round(newExtra) }),
+        body: JSON.stringify({ add_mb: addMb }),
       });
       if (res.ok) {
         await fetchRows();
@@ -156,10 +151,10 @@ export default function StorageScreen() {
     if (!token) return;
     setActionLoading(r.id + "_override");
     try {
-      const newExtra = (r.extra_storage_gb || 0) + 1;
+      // 긴급 허용: +1 GB (1024 MB) 추가
       await apiRequest(token, `/super/storage/${r.id}`, {
         method: "PUT",
-        body: JSON.stringify({ extra_storage_gb: newExtra }),
+        body: JSON.stringify({ add_mb: 1024 }),
       });
       await fetchRows();
     } finally {
@@ -171,8 +166,7 @@ export default function StorageScreen() {
     const stage = getStage(r.usage_pct, r.upload_blocked);
     const barColor = stage === 'blocked100' ? DANGER : stage === 'danger95' ? DANGER : stage === 'warn80' ? WARN : GREEN;
     const usedMb   = r.used_storage_bytes / 1048576;
-    const totalMb  = r.total_storage_gb * 1024;
-    const extraNeededGb = Math.max(0, Math.ceil(((usedMb / 1024) - r.total_storage_gb * 0.9)));
+    const extraNeededGb = Math.max(0, Math.ceil(((usedMb / 1024) - (r.storage_mb / 1024) * 0.9)));
 
     return (
       <View style={[s.row,
@@ -200,7 +194,7 @@ export default function StorageScreen() {
           </View>
 
           <View style={s.rowMeta}>
-            <Text style={s.metaTxt}>{fmtBytes(r.used_storage_bytes)} / {fmtGb(r.total_storage_gb)}</Text>
+            <Text style={s.metaTxt}>{fmtBytes(r.used_storage_bytes)} / {r.display_storage}</Text>
           </View>
 
           {stage === 'danger95' && (
@@ -303,7 +297,7 @@ export default function StorageScreen() {
             <Pressable style={m.sheet} onPress={() => {}}>
               <View style={m.handle} />
               <Text style={m.title}>{editOp.name}</Text>
-              <Text style={m.sub}>현재 {editOp.usage_pct.toFixed(0)}% 사용 · {fmtBytes(editOp.used_storage_bytes)} / {fmtGb(editOp.total_storage_gb)}</Text>
+              <Text style={m.sub}>현재 {editOp.usage_pct.toFixed(0)}% 사용 · {fmtBytes(editOp.used_storage_bytes)} / {editOp.display_storage}</Text>
 
               <View style={m.infoBar}>
                 <View style={m.barBg}>

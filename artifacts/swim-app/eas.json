@@ -17,8 +17,8 @@
     "production": {
       "autoIncrement": false,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://swimnote-8.replit.app/api",
-        "EXPO_PUBLIC_DOMAIN": "swimnote-8.replit.app",
+        "EXPO_PUBLIC_API_URL": "https://d300c019-4f8f-4111-9bb4-3f0a71da5af8-00-2nokajaez9637.sisko.replit.dev/api",
+        "EXPO_PUBLIC_DOMAIN": "d300c019-4f8f-4111-9bb4-3f0a71da5af8-00-2nokajaez9637.sisko.replit.dev",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo",
         "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_iOSUEXOdIktvMemPmJEbTDelJXu"
       }
