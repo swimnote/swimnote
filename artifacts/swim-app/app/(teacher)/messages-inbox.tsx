@@ -243,6 +243,7 @@ export default function MessagesInboxScreen() {
   }
 
   const pendingCount = parentRequests.filter(r => r.status === "pending").length;
+  const unreadMsgCount = threads.reduce((sum, t) => sum + (t.unread_count ?? 0), 0);
 
   // ── 대화 화면 (thread view) ──
   if (view === "thread") {
@@ -355,6 +356,11 @@ export default function MessagesInboxScreen() {
           onPress={() => setActiveTab("messages")}>
           <MessageSquare size={16} color={activeTab === "messages" ? themeColor : C.textMuted} />
           <Text style={[s.tabTxt, { color: activeTab === "messages" ? themeColor : C.textMuted }]}>쪽지함</Text>
+          {unreadMsgCount > 0 && (
+            <View style={[s.tabBadge, { backgroundColor: C.error }]}>
+              <Text style={s.tabBadgeTxt}>{unreadMsgCount}</Text>
+            </View>
+          )}
         </Pressable>
         <Pressable style={[s.tab, activeTab === "requests" && { borderBottomColor: themeColor, borderBottomWidth: 2 }]}
           onPress={() => setActiveTab("requests")}>

@@ -841,11 +841,18 @@ router.get("/teacher/overview",
         WHERE original_class_group_id IN (${sql.raw(classIdList)}) AND status = 'waiting'
       `);
 
+      // 미처리 학부모 요청 수 (담당 선생님 기준)
+      const pendingRequests = await db.execute(sql`
+        SELECT COUNT(*) AS cnt FROM parent_student_requests
+        WHERE teacher_user_id = ${userId} AND status = 'pending'
+      `).catch(() => ({ rows: [{ cnt: 0 }] }));
+
       res.json({
         unread_messages: Number((unreadMsg.rows[0] as any)?.cnt ?? 0),
         pending_diaries_today: Number((pendingToday.rows[0] as any)?.cnt ?? 0),
         pending_diaries_past: pendingPastCount,
         makeup_count: Number((makeupCount.rows[0] as any)?.cnt ?? 0),
+        pending_parent_requests: Number((pendingRequests.rows[0] as any)?.cnt ?? 0),
       });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }

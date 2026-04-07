@@ -34,6 +34,7 @@ interface TeacherOverview {
   pending_diaries_today: number;
   pending_diaries_past: number;
   makeup_count: number;
+  pending_parent_requests: number;
 }
 export default function TodayScheduleScreen() {
   const { token, logout, adminUser, pool, switchRole, setLastUsedRole } = useAuth();
@@ -272,7 +273,7 @@ export default function TodayScheduleScreen() {
         >
           <View>
             <Mail size={18} color={C.textMuted} />
-            {(overview?.unread_messages ?? 0) > 0 && (
+            {((overview?.unread_messages ?? 0) > 0 || (overview?.pending_parent_requests ?? 0) > 0) && (
               <View style={{
                 position: "absolute", top: -3, right: -3,
                 width: 8, height: 8, borderRadius: 4, backgroundColor: "#D96C6C",
