@@ -1,5 +1,6 @@
 import { Check, Droplet, Info, Layers, LogIn, MapPin, Phone, Plus } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Linking, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
@@ -55,9 +56,8 @@ export default function PoolsScreen() {
     finally { if (mountedRef.current) setLoading(false); }
   }
 
-  useEffect(() => {
-    fetchPools();
-  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 화면 진입·재진입 시 수영장 목록 재조회 (풀 추가/전환 후 즉시 반영)
+  useFocusEffect(useCallback(() => { fetchPools(); }, [token]));
 
   async function handleSwitch(p: OwnedPool) {
     if (p.id === currentPool?.id) return;

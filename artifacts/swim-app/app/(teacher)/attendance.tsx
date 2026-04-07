@@ -261,9 +261,9 @@ export default function TeacherAttendanceScreen() {
         return { ...prev, [cgId]: checkedCount };
       });
 
-      // 결석 시 보강 목록 갱신
+      // 결석 시 보강 목록 갱신 — 출결 API가 완료되면 서버 makeup도 동기 생성됨
       if (status === "absent" && prevStatus !== "absent") {
-        setTimeout(() => loadMakeups(), 800);
+        loadMakeups(); // 타임아웃 없이 즉시 재조회
       }
       // 출석 전환 시 보강 즉시 제거
       if (status === "present" && prevStatus === "absent") {

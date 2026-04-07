@@ -4,7 +4,7 @@
  */
 import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -110,7 +110,8 @@ export default function AuditGroupScreen() {
     }
   }, [token]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  // 화면 진입·재진입 시 최신 감사 데이터 재조회
+  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>

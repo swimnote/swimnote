@@ -91,9 +91,11 @@ export function useAuth() {
 
 export function apiRequest(token: string | null, path: string, options: RequestInit = {}) {
   return fetch(`${_API_BASE}${path}`, {
+    cache: "no-store",          // 클라이언트 캐시 완전 비활성화
     ...options,
     headers: {
       "Content-Type": "application/json",
+      "Cache-Control": "no-cache",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },

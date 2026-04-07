@@ -6,6 +6,7 @@
  */
 import { Calendar, ChevronRight, Clock, Info, Layers, Users } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView,
@@ -99,7 +100,8 @@ export default function TeachersScreen() {
     } finally { setLoading(false); setRefreshing(false); }
   }, [token]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  // 화면 진입·재진입 시 최신 선생님 데이터 재조회
+  useFocusEffect(useCallback(() => { fetchAll(); }, [fetchAll]));
 
   async function fetchClassDetail(classId: string, date: string) {
     setDetailLoading(true); setDetailDate(date);

@@ -1,7 +1,7 @@
 import { BellOff, Camera, Check, Circle, CircleCheck, Image as ImageIcon, Pencil, Pin, SquareCheck, Trash2, Users, X } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
-import { useLocalSearchParams } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { useLocalSearchParams, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -56,7 +56,10 @@ export default function NoticesScreen() {
     } finally { setLoading(false); }
   }
 
-  useEffect(() => { fetchNotices(); }, []);
+  // 화면 진입·재진입 시 최신 공지 재조회 (다른 관리자가 등록한 공지 즉시 반영)
+  useFocusEffect(
+    useCallback(() => { fetchNotices(); }, [token])
+  );
 
   useEffect(() => {
     if (create === "true" && !autoOpenedRef.current) {

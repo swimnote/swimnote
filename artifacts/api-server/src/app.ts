@@ -39,6 +39,17 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ── 전역 no-cache 미들웨어 (/api JSON 응답) ─────────────────────────────
+// 미디어(사진·영상·업로드) 라우트는 개별 Cache-Control로 덮어씀
+app.use("/api", (_req: Request, res: Response, next: NextFunction) => {
+  // 스태틱 파일(.jpg .mp4 등) 제외
+  if (!/\.(jpg|jpeg|png|gif|webp|mp4|m4v|ts|m3u8|svg|pdf|zip)$/i.test(_req.path)) {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+  }
+  next();
+});
+
 app.use("/api/store-assets", express.static(path.join(__dirname, "../public/store-assets")));
 
 // ── SVG 업로드 페이지 ─────────────────────────────────────────────────

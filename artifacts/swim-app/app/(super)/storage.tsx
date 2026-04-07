@@ -4,7 +4,7 @@
  * /super/storage-list API 실데이터 연결
  */
 import { CircleAlert, CircleArrowUp, CirclePlus, Clock, DollarSign, HardDrive, Lock, Settings, TrendingUp } from "lucide-react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
@@ -88,10 +88,11 @@ export default function StorageScreen() {
     } catch { /* silent */ }
   }, [token]);
 
-  useEffect(() => {
+  // 화면 진입·재진입 시 저장공간 현황 재조회
+  useFocusEffect(useCallback(() => {
     setLoading(true);
     fetchRows().finally(() => setLoading(false));
-  }, [fetchRows]);
+  }, [fetchRows]));
 
   useEffect(() => {
     if (!paramOpId || rows.length === 0) return;
