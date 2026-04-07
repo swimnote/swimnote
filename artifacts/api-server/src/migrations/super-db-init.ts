@@ -25,6 +25,41 @@ export async function initSuperDb(): Promise<void> {
     ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS subscription_source text;
   `)).catch((e: any) => console.warn("[super-db-init] swimming_pools.subscription_source 추가 건너뜀:", e.message));
 
+  // swimming_pools 테이블 — 구독 구조 단순화 (구독 플랜명/용량/관리자 FK)
+  for (const stmt of [
+    // 구독 플랜 표시명/용량 필드
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS subscription_plan_name text`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS storage_mb integer NOT NULL DEFAULT 512`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS display_storage text NOT NULL DEFAULT '500MB'`,
+    // 관리자 사용자 ID (users.id FK) — pools-summary 직접 JOIN용
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS admin_user_id text`,
+  ]) {
+    await db.execute(sql.raw(stmt))
+      .catch((e: any) => console.warn(`[super-db-init] swimming_pools 컬럼 추가 건너뜀: ${e.message}`));
+  }
+
+  // admin_user_id 역방향 backfill — users.swimming_pool_id 기준으로 채우기
+  await db.execute(sql.raw(`
+    UPDATE swimming_pools p
+    SET admin_user_id = (
+      SELECT id FROM users u
+      WHERE u.swimming_pool_id = p.id AND u.role IN ('pool_admin','super_admin')
+      ORDER BY u.created_at ASC
+      LIMIT 1
+    )
+    WHERE p.admin_user_id IS NULL
+  `)).catch((e: any) => console.warn("[super-db-init] admin_user_id backfill 건너뜀:", e.message));
+  console.log("[super-db-init] swimming_pools 구독 플랜/관리자 FK 컬럼 보완 완료");
+
+  // super_admin 계정 확보 — username='1111' 계정을 super_admin으로 승격
+  // (해당 계정이 없으면 skip, 이미 super_admin이면 skip)
+  await db.execute(sql.raw(`
+    UPDATE users SET role = 'super_admin'
+    WHERE (username = '1111' OR phone = '1111')
+      AND role != 'super_admin'
+  `)).catch(() => {});
+  console.log("[super-db-init] super_admin 계정 확보 완료 (username=1111)");
+
   // swimming_pools 테이블 — 수영정보 5개 콘텐츠 컬럼
   for (const col of ["introduction", "tuition_info", "level_test_info", "event_info", "equipment_info"]) {
     await db.execute(sql.raw(`ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS ${col} text;`))

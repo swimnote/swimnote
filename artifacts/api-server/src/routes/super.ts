@@ -24,7 +24,7 @@ import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.
 import { logPoolEvent } from "../lib/pool-event-logger.js";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
 import { runRealBackup } from "../lib/backup.js";
-import { resolveSubscription, applySubscriptionState, normalizeTier } from "../lib/subscriptionService.js";
+import { resolveSubscription, applySubscriptionState, normalizeTier, backfillPoolSubscriptionFields } from "../lib/subscriptionService.js";
 import { getPoolOperators } from "../lib/poolOperatorService.js";
 
 const router = Router();
@@ -184,109 +184,183 @@ router.get(
 );
 
 // ════════════════════════════════════════════════════════════════
-// GET /super/operators  (필터 파라미터 지원)
-// ?filter=pending|storage_alert|payment_failed|deletion_pending|this_week
-// ?search=&sort=name|created_at|members|storage
+// GET /super/pools-summary
+// swimming_pools 기준 운영자+구독 통합 목록 (단일 소스, 중첩 응답)
+//
+// 응답 구조:
+// {
+//   pool_id, pool_name, pool_type, approval_status,
+//   is_readonly, upload_blocked, credit_balance,
+//   active_member_count, last_login_at, usage_pct,
+//   deletion_pending, created_at, updated_at,
+//   admin: { user_id, name, phone },
+//   subscription: {
+//     tier, plan_name, status, source,
+//     member_limit, storage_mb, display_storage,
+//     video_storage_limit_mb, white_label_enabled,
+//     starts_at, ends_at, trial_end_at
+//   }
+// }
+//
+// count = list.length (별도 count 쿼리 없음)
 // ════════════════════════════════════════════════════════════════
 router.get(
-  "/super/operators",
+  "/super/pools-summary",
   requireAuth,
   requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const { filter, search, sort = "created_at" } = req.query as any;
+      const { search, filter } = req.query as any;
 
       const conditions: string[] = [];
       if (search) {
-        const q = search.replace(/'/g, "''");
-        conditions.push(`(sp.name ILIKE '%${q}%' OR sp.owner_name ILIKE '%${q}%')`);
+        const q = (search as string).replace(/'/g, "''");
+        conditions.push(`(p.name ILIKE '%${q}%' OR u.name ILIKE '%${q}%' OR u.phone ILIKE '%${q}%')`);
       }
-      if (filter === "pending")          conditions.push(`sp.approval_status = 'pending'`);
-      if (filter === "payment_failed")   conditions.push(`sp.approval_status = 'approved' AND sp.subscription_status IN ('expired','suspended','cancelled')`);
-      if (filter === "storage_alert")    conditions.push(`sp.approval_status = 'approved' AND sp.used_storage_bytes IS NOT NULL AND (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) > 0 AND sp.used_storage_bytes::float / ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0))::bigint * 1073741824) >= 0.95`);
-      if (filter === "deletion_pending") conditions.push(`sp.subscription_end_at IS NOT NULL AND sp.subscription_end_at > NOW() AND sp.subscription_end_at <= NOW() + INTERVAL '24 hours'`);
-      if (filter === "this_week")        conditions.push(`sp.created_at >= NOW() - INTERVAL '7 days'`);
-      if (filter === "free_over30")      conditions.push(`sp.approval_status = 'approved' AND sp.subscription_status = 'trial'`);
-      // 운영 유형 필터
-      if (filter === "type_swimming")    conditions.push(`sp.pool_type = 'swimming_pool'`);
-      if (filter === "type_coach")       conditions.push(`sp.pool_type = 'solo_coach'`);
-      if (filter === "type_rental")      conditions.push(`sp.pool_type = 'rental_team'`);
-      if (filter === "type_franchise")   conditions.push(`sp.pool_type = 'franchise'`);
-      if (filter === "credit_balance")   conditions.push(`COALESCE(sp.credit_balance,0) > 0`);
-      if (filter === "upload_spike")     conditions.push(`sp.upload_blocked = TRUE`);
-      if (filter === "policy_unsigned")  conditions.push(`
-        sp.approval_status = 'approved' AND NOT EXISTS (
-          SELECT 1 FROM policy_consents pc WHERE pc.pool_id = sp.id AND pc.policy_key = 'refund_policy'
-        )
-      `);
-      if (filter === "repeat_refund")    conditions.push(`
-        (SELECT COUNT(*) FROM support_tickets st WHERE st.pool_id = sp.id AND st.ticket_type = 'refund') >= 2
-      `);
-
+      if (filter === "pending")        conditions.push(`p.approval_status = 'pending'`);
+      if (filter === "payment_failed") conditions.push(`p.subscription_status IN ('expired','suspended','cancelled')`);
+      if (filter === "active")         conditions.push(`p.approval_status = 'approved' AND p.subscription_status IN ('active','trial')`);
+      if (filter === "storage95")      conditions.push(`p.used_storage_bytes IS NOT NULL AND p.storage_mb > 0 AND p.used_storage_bytes::float / (p.storage_mb::bigint * 1048576) >= 0.95`);
+      if (filter === "this_week")      conditions.push(`p.created_at >= NOW() - INTERVAL '7 days'`);
+      if (filter === "readonly")       conditions.push(`p.is_readonly = TRUE`);
       const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-      const orderMap: Record<string, string> = {
-        created_at:   "sp.created_at DESC",
-        name:         "sp.name ASC",
-        members:      "active_member_count DESC",
-        storage:      "usage_pct DESC",
-        last_login:   "last_login_at DESC NULLS LAST",
-        payment_risk: "CASE WHEN sp.subscription_status IN ('expired','suspended','cancelled') THEN 0 ELSE 1 END ASC, sp.created_at DESC",
-      };
-      const orderClause = orderMap[sort] ?? "sp.created_at DESC";
 
       const rows = (await db.execute(sql.raw(`
         SELECT
-          sp.id,
-          sp.name,
-          sp.owner_name,
-          sp.approval_status,
-          sp.subscription_status,
-          sp.subscription_tier,
-          sp.credit_balance,
-          sp.base_storage_gb,
-          sp.extra_storage_gb,
-          sp.used_storage_bytes,
-          sp.created_at,
-          COALESCE(sp.pool_type, 'swimming_pool') AS pool_type,
-          COALESCE(sp.subscription_end_at, sp.trial_end_at) AS next_billing_at,
+          p.id                                  AS pool_id,
+          p.name                                AS pool_name,
+          COALESCE(p.pool_type,'swimming_pool') AS pool_type,
+          COALESCE(p.approval_status,'pending') AS approval_status,
+          COALESCE(p.is_readonly, FALSE)        AS is_readonly,
+          COALESCE(p.upload_blocked, FALSE)     AS upload_blocked,
+          COALESCE(p.credit_balance, 0)         AS credit_balance,
+          p.created_at,
+          p.updated_at,
+          -- 관리자 정보 (admin_user_id FK → users)
+          u.id                                  AS admin_user_id,
+          COALESCE(u.name, p.owner_name, '')    AS admin_name,
+          COALESCE(u.phone, '')                 AS admin_phone,
+          -- 구독 스냅샷 (swimming_pools 직접 저장값)
+          COALESCE(p.subscription_tier,  'free')            AS sub_tier,
+          COALESCE(p.subscription_plan_name, p.subscription_tier, 'Free') AS sub_plan_name,
+          COALESCE(p.subscription_status, 'trial')          AS sub_status,
+          COALESCE(p.subscription_source, 'free_default')   AS sub_source,
+          COALESCE(p.member_limit, 10)                      AS sub_member_limit,
+          COALESCE(p.storage_mb, 512)                       AS sub_storage_mb,
+          COALESCE(p.display_storage, '500MB')              AS sub_display_storage,
+          COALESCE(p.video_storage_limit_mb, 0)             AS sub_video_storage_limit_mb,
+          COALESCE(p.white_label_enabled, FALSE)            AS sub_white_label_enabled,
+          p.subscription_start_at                           AS sub_starts_at,
+          p.subscription_end_at                             AS sub_ends_at,
+          p.trial_end_at                                    AS sub_trial_end_at,
+          -- 부가 통계 (서브쿼리)
           (
             SELECT COUNT(*)::int FROM students st
-            WHERE st.swimming_pool_id = sp.id AND st.status IN ('active','suspended')
-          ) AS active_member_count,
+            WHERE st.swimming_pool_id = p.id
+              AND st.status IN ('active','suspended')
+          )                                     AS active_member_count,
           (
-            SELECT MAX(u.last_login_at) FROM users u
-            WHERE u.swimming_pool_id = sp.id AND u.role = 'pool_admin'
-          ) AS last_login_at,
+            SELECT MAX(u2.last_login_at) FROM users u2
+            WHERE u2.swimming_pool_id = p.id
+              AND u2.role IN ('pool_admin','super_admin')
+          )                                     AS last_login_at,
           CASE
-            WHEN sp.used_storage_bytes IS NOT NULL
-              AND (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) > 0
-            THEN ROUND(
-              sp.used_storage_bytes::numeric /
-              ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0))::numeric * 1073741824) * 100
-            )::int
+            WHEN p.used_storage_bytes IS NOT NULL AND COALESCE(p.storage_mb,0) > 0
+            THEN LEAST(ROUND(
+              p.used_storage_bytes::numeric
+              / (COALESCE(p.storage_mb,512)::bigint * 1048576) * 100
+            )::int, 100)
             ELSE 0
-          END AS usage_pct,
-          (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) AS total_storage_gb,
-          COALESCE(sp.is_readonly, FALSE) AS is_readonly,
-          COALESCE(sp.upload_blocked, FALSE) AS upload_blocked,
+          END                                   AS usage_pct,
+          p.used_storage_bytes,
           CASE
-            WHEN sp.subscription_end_at IS NOT NULL
-              AND sp.subscription_end_at > NOW()
-              AND sp.subscription_end_at <= NOW() + INTERVAL '24 hours'
-            THEN true
-            ELSE false
-          END AS deletion_pending
-        FROM swimming_pools sp
+            WHEN p.subscription_end_at IS NOT NULL
+              AND p.subscription_end_at > NOW()
+              AND p.subscription_end_at <= NOW() + INTERVAL '24 hours'
+            THEN true ELSE false
+          END                                   AS deletion_pending
+        FROM swimming_pools p
+        LEFT JOIN users u ON u.id = p.admin_user_id
         ${whereClause}
-        ORDER BY ${orderClause}
-        LIMIT 200
-      `))).rows;
+        ORDER BY p.created_at DESC
+        LIMIT 500
+      `))).rows as any[];
 
-      res.json(rows);
+      // 중첩 구조로 변환
+      const result = rows.map(r => ({
+        pool_id:             r.pool_id,
+        pool_name:           r.pool_name,
+        pool_type:           r.pool_type,
+        approval_status:     r.approval_status,
+        is_readonly:         r.is_readonly,
+        upload_blocked:      r.upload_blocked,
+        credit_balance:      Number(r.credit_balance),
+        active_member_count: Number(r.active_member_count ?? 0),
+        last_login_at:       r.last_login_at ?? null,
+        usage_pct:           Number(r.usage_pct ?? 0),
+        used_storage_bytes:  r.used_storage_bytes ? Number(r.used_storage_bytes) : 0,
+        deletion_pending:    r.deletion_pending ?? false,
+        created_at:          r.created_at,
+        updated_at:          r.updated_at,
+        admin: {
+          user_id: r.admin_user_id ?? null,
+          name:    r.admin_name,
+          phone:   r.admin_phone,
+        },
+        subscription: {
+          tier:                  r.sub_tier,
+          plan_name:             r.sub_plan_name,
+          status:                r.sub_status,
+          source:                r.sub_source,
+          member_limit:          Number(r.sub_member_limit),
+          storage_mb:            Number(r.sub_storage_mb),
+          display_storage:       r.sub_display_storage,
+          video_storage_limit_mb: Number(r.sub_video_storage_limit_mb ?? 0),
+          white_label_enabled:   r.sub_white_label_enabled,
+          starts_at:             r.sub_starts_at ?? null,
+          ends_at:               r.sub_ends_at ?? null,
+          trial_end_at:          r.sub_trial_end_at ?? null,
+        },
+      }));
+
+      res.json(result);
     } catch (err) {
-      console.error(err);
+      console.error("[pools-summary]", err);
       res.status(500).json({ error: "서버 오류" });
     }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// POST /super/billing/backfill-pools
+// 기존 수영장 구독 필드(plan_name/storage_mb/display_storage) 일괄 채우기
+// ════════════════════════════════════════════════════════════════
+router.post(
+  "/super/billing/backfill-pools",
+  requireAuth,
+  requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    try {
+      const result = await backfillPoolSubscriptionFields();
+      res.json({ ok: true, ...result });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// GET /super/operators — 비활성화 (→ /super/pools-summary 로 대체)
+// users 기반 운영자 목록 API 제거. swimming_pools 기준 API 사용.
+router.get(
+  "/super/operators",
+  requireAuth,
+  requireRole("super_admin"),
+  (_req: AuthRequest, res) => {
+    res.status(410).json({
+      error: "Deprecated",
+      message: "이 API는 비활성화되었습니다. GET /super/pools-summary 를 사용하세요.",
+      redirect: "/super/pools-summary",
+    });
   }
 );
 

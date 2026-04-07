@@ -6,7 +6,25 @@
 import { create } from 'zustand'
 import type { Operator, OperatorStatus, BillingStatus } from '../domain/types'
 
-/** API 응답 → Operator 도메인 타입 변환 */
+/**
+ * GET /super/pools-summary 응답 → Operator 도메인 타입 변환
+ *
+ * 응답 구조 (중첩):
+ *   { pool_id, pool_name, pool_type, approval_status,
+ *     is_readonly, upload_blocked, credit_balance,
+ *     active_member_count, last_login_at, usage_pct,
+ *     deletion_pending, created_at, updated_at,
+ *     admin: { user_id, name, phone },
+ *     subscription: { tier, plan_name, status, source,
+ *       member_limit, storage_mb, display_storage,
+ *       video_storage_limit_mb, white_label_enabled,
+ *       starts_at, ends_at, trial_end_at } }
+ *
+ * 화면 규칙:
+ *  - tier 직접 표시 금지 → plan_name만 사용
+ *  - storage 표시 → display_storage만 사용
+ *  - count = list.length (별도 count 쿼리 없음)
+ */
 function mapApiOperator(raw: any): Operator {
   const approvalToStatus = (s: string): OperatorStatus => {
     if (s === 'approved') return 'active';
@@ -21,18 +39,27 @@ function mapApiOperator(raw: any): Operator {
     if (s === 'cancelled') return 'cancelled';
     return 'trial';
   };
-  const totalStorageMb = (raw.total_storage_gb ?? 0) * 1024;
-  const usedStorageMb  = raw.used_storage_bytes ? Math.round(raw.used_storage_bytes / 1048576) : 0;
-  const usagePct       = raw.usage_pct ?? 0;
+
+  // 중첩 구조에서 admin/subscription 추출
+  const admin = raw.admin ?? {};
+  const sub   = raw.subscription ?? {};
+
+  const poolId    = raw.pool_id ?? '';
+  const usagePct  = Number(raw.usage_pct ?? 0);
+  const storageMb = Number(sub.storage_mb ?? 512);
+  const usedStorageMb = raw.used_storage_bytes
+    ? Math.round(Number(raw.used_storage_bytes) / 1048576)
+    : 0;
+
   return {
-    id:                   raw.id,
-    code:                 raw.id.slice(0, 10).toUpperCase(),
-    name:                 raw.name ?? '',
+    id:                   poolId,
+    code:                 poolId.slice(0, 10).toUpperCase(),
+    name:                 raw.pool_name ?? '',
     type:                 raw.pool_type ?? 'swimming_pool',
-    representativeName:   raw.owner_name ?? '',
-    phone:                raw.phone ?? '',
-    email:                raw.email ?? '',
-    address:              raw.address ?? '',
+    representativeName:   admin.name ?? '',
+    phone:                admin.phone ?? '',
+    email:                '',
+    address:              '',
     createdAt:            raw.created_at ?? new Date().toISOString(),
     updatedAt:            raw.updated_at ?? new Date().toISOString(),
     lastLoginAt:          raw.last_login_at ?? null,
@@ -41,29 +68,31 @@ function mapApiOperator(raw: any): Operator {
     isReadOnly:           raw.is_readonly ?? false,
     isUploadBlocked:      raw.upload_blocked ?? false,
     isDeletionDeferred:   false,
-    normalMemberCount:    raw.active_member_count ?? 0,
+    normalMemberCount:    Number(raw.active_member_count ?? 0),
     pausedMemberCount:    0,
     withdrawnMemberCount: 0,
-    activeMemberCount:    raw.active_member_count ?? 0,
-    currentPlanId:        raw.subscription_tier ?? 'free',
-    currentPlanName:      raw.subscription_tier ?? '무료',
-    billingStatus:        subToBilling(raw.subscription_status),
-    nextBillingAt:        raw.next_billing_at ?? null,
+    activeMemberCount:    Number(raw.active_member_count ?? 0),
+    currentPlanId:        sub.tier ?? 'free',
+    currentPlanName:      sub.plan_name ?? 'Free',
+    billingStatus:        subToBilling(sub.status),
+    nextBillingAt:        sub.ends_at ?? sub.trial_end_at ?? null,
     lastPaymentAt:        null,
     lastPaymentStatus:    'pending',
     paymentFailCount:     0,
-    creditBalance:        raw.credit_balance ?? 0,
+    creditBalance:        Number(raw.credit_balance ?? 0),
     hasChargeback:        false,
     hasRefundDispute:     false,
     refundRepeatFlag:     false,
     churnRepeatFlag:      false,
     storageUsedMb:        usedStorageMb,
-    storageTotalMb:       totalStorageMb,
+    storageTotalMb:       storageMb,
     storageWarning80:     usagePct >= 80,
     storageBlocked95:     usagePct >= 95,
     uploadGrowth7dMb:     0,
     uploadSpikeFlag:      raw.upload_blocked ?? false,
-    autoDeleteScheduledAt: raw.deletion_pending ? new Date(Date.now() + 86400000).toISOString() : null,
+    autoDeleteScheduledAt: raw.deletion_pending
+      ? new Date(Date.now() + 86400000).toISOString()
+      : null,
     policyRefundRead:     true,
     policyPrivacyRead:    true,
     policyTermsAgreed:    true,
@@ -308,21 +337,17 @@ export const useOperatorsStore = create<OperatorsState>((set, get) => ({
   fetchOperators: async (token, apiBase) => {
     set({ loading: true });
     try {
-      const res = await fetch(`${apiBase}/super/operators`, {
+      const res = await fetch(`${apiBase}/super/pools-summary`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const rows: any[] = await res.json();
-      // 빈 배열 덮어쓰기 방지: 기존 데이터가 있고 응답이 빈 배열이면 유지
-      const prev = get().operators;
-      if (rows.length === 0 && prev.length > 0) {
-        console.warn('[operatorsStore] 빈 배열 응답 — 기존 데이터 유지');
-        return;
+      if (!res.ok) {
+        console.error(`[operatorsStore] pools-summary HTTP ${res.status}`);
+        throw new Error(`HTTP ${res.status}`);
       }
+      const rows: any[] = await res.json();
       set({ operators: rows.map(mapApiOperator) });
     } catch (e) {
       console.error('[operatorsStore] fetchOperators 오류:', e);
-      // 에러 시 기존 operators 유지 (덮어쓰기 안 함)
     } finally {
       set({ loading: false });
     }

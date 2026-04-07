@@ -221,15 +221,27 @@ export async function applySubscriptionState(
   const whiteLabelEnabled = storageMb >= 51200;
   const videoLimitMb      = videoEnabled ? 1024 * 1024 : 0;
 
-  // ── swimming_pools 주 상태 업데이트 ──
+  // ── swimming_pools 주 상태 업데이트 (플랜 표시명/용량/회원한도 포함) ──
+  const planName        = plan?.name ?? effectiveTier;
+  const displayStorage  = String(plan?.display_storage ?? "500MB");
+  // memberLimitOverride 미지정 시 plan 기본값으로 기록 (swimming_pools가 항상 현재 상태 저장)
+  const effectiveMemberLimit =
+    memberLimitOverride !== undefined
+      ? memberLimitOverride        // 수동 override 우선
+      : Number(plan?.member_limit ?? 10); // plan 기본값
+
   await db.execute(sql`
     UPDATE swimming_pools SET
       subscription_tier          = ${effectiveTier},
+      subscription_plan_name     = ${planName},
       subscription_status        = ${status},
       subscription_source        = ${source},
+      storage_mb                 = ${storageMb},
+      display_storage            = ${displayStorage},
       base_storage_gb            = ${storageGb},
       video_storage_limit_mb     = ${videoLimitMb},
       white_label_enabled        = ${whiteLabelEnabled},
+      member_limit               = ${effectiveMemberLimit},
       updated_at                 = now()
     WHERE id = ${poolId}
   `);
@@ -249,13 +261,6 @@ export async function applySubscriptionState(
     trialEndsAt === null
       ? await db.execute(sql`UPDATE swimming_pools SET trial_end_at = NULL, updated_at = now() WHERE id = ${poolId}`)
       : await db.execute(sql`UPDATE swimming_pools SET trial_end_at = ${trialEndsAt}::timestamptz, updated_at = now() WHERE id = ${poolId}`);
-  }
-
-  // ── 회원 한도 override ──
-  if (memberLimitOverride !== undefined) {
-    memberLimitOverride === null
-      ? await db.execute(sql`UPDATE swimming_pools SET member_limit = NULL, updated_at = now() WHERE id = ${poolId}`)
-      : await db.execute(sql`UPDATE swimming_pools SET member_limit = ${memberLimitOverride}, updated_at = now() WHERE id = ${poolId}`);
   }
 
   // ── 읽기전용 해제 (구매/갱신 시) ──
@@ -295,4 +300,50 @@ export async function applySubscriptionState(
 
   // resolver 결과 반환 (DB 반영 완료 후)
   return resolveSubscription(poolId);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// backfillPoolSubscriptionFields
+//   기존 pools에 subscription_plan_name/storage_mb/display_storage 채우기
+//   서버 기동 시 한 번 실행하거나 /super/billing/backfill-pools 호출
+// ════════════════════════════════════════════════════════════════════
+export async function backfillPoolSubscriptionFields(): Promise<{ updated: number; errors: number }> {
+  const rows = (await db.execute(sql`
+    SELECT id, subscription_tier, subscription_status, subscription_source
+    FROM swimming_pools
+    WHERE subscription_plan_name IS NULL
+       OR storage_mb = 0
+       OR storage_mb IS NULL
+    LIMIT 500
+  `)).rows as any[];
+
+  let updated = 0, errors = 0;
+  for (const row of rows) {
+    try {
+      const tier = normalizeTier(row.subscription_tier ?? "free");
+      const plan = await fetchPlan(tier);
+      const storageMb     = Number(plan?.storage_mb ?? 512);
+      const storageGb     = Number(plan?.storage_gb ?? 0.5);
+      const displayStorage = String(plan?.display_storage ?? "500MB");
+      const planName      = String(plan?.name ?? tier);
+      const videoLimitMb  = storageMb >= 51200 ? 1024 * 1024 : 0;
+      const whiteLabelEn  = storageMb >= 51200;
+      await db.execute(sql`
+        UPDATE swimming_pools SET
+          subscription_plan_name = ${planName},
+          storage_mb             = ${storageMb},
+          display_storage        = ${displayStorage},
+          base_storage_gb        = ${storageGb},
+          video_storage_limit_mb = ${videoLimitMb},
+          white_label_enabled    = ${whiteLabelEn},
+          updated_at             = now()
+        WHERE id = ${row.id}
+      `);
+      updated++;
+    } catch {
+      errors++;
+    }
+  }
+  console.log(`[backfill] swimming_pools 구독 필드 보완: updated=${updated}, errors=${errors}`);
+  return { updated, errors };
 }

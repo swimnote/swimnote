@@ -6,6 +6,7 @@ import { initPoolDb } from "./migrations/pool-db-init.js";
 import { initSuperDb } from "./migrations/super-db-init.js";
 import { initV2PendingTable } from "./lib/auto-link-v2.js";
 import { backfillPoolAdminRoles } from "./migrations/roles-backfill.js";
+import { backfillPoolSubscriptionFields } from "./lib/subscriptionService.js";
 import { isDbSeparated, isProtectDbConfigured } from "@workspace/db";
 
 // ── DB 구성 안내 ─────────────────────────────────────────────────────────────
@@ -46,6 +47,10 @@ initSuperDb().catch((e) => console.error("[super-db-init] 초기화 오류:", e.
 initV2PendingTable().catch((e) => console.error("[v2-init] parent_v2_pending 테이블 초기화 오류:", e.message));
 // pool_admin 기존 계정 roles 자동 보완 (teacher 역할 미포함 시 추가 — 멱등)
 backfillPoolAdminRoles().catch((e) => console.error("[roles-backfill] 오류:", e.message));
+// 기존 수영장 구독 필드 보완 (subscription_plan_name/storage_mb/display_storage — 멱등)
+setTimeout(() => {
+  backfillPoolSubscriptionFields().catch((e) => console.error("[backfill-pools] 오류:", e.message));
+}, 3000); // initSuperDb 컬럼 추가 완료 후 실행
 
 // 새벽 배치 잡 시작 (앱이 켜져 있는 동안 스케줄 유지)
 startBackupJobs();
