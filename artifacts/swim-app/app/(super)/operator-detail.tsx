@@ -22,17 +22,6 @@ const P = "#7C3AED";
 const TABS = ["기본정보", "구독·결제", "저장공간", "정책·동의", "로그", "강제조치"] as const;
 type Tab = typeof TABS[number];
 
-const PLAN_LABEL: Record<string, string> = {
-  free_10:      "Free (10명)",
-  solo_30:      "Coach30",
-  solo_50:      "Coach50",
-  solo_100:     "Coach100",
-  center_200:   "Premier200",
-  center_300:   "Premier300",
-  center_500:   "Premier500",
-  center_1000:  "Premier1000",
-  trial:        "무료 체험",
-};
 const TIER_LABEL: Record<string, string> = {
   free:       "Free",
   starter:    "Coach30",
@@ -461,7 +450,7 @@ export default function OperatorDetailScreen() {
                 <Text style={d.cardTitle}>이용 가능한 플랜</Text>
                 {plans.map((p: any) => (
                   <View key={p.plan_id} style={d.infoRow}>
-                    <Text style={d.infoLabel}>{PLAN_LABEL[p.plan_id] ?? p.name}</Text>
+                    <Text style={d.infoLabel}>{p.name ?? p.plan_id}</Text>
                     <Text style={d.infoVal}>{p.price === 0 ? "무료" : `₩${p.price.toLocaleString()}/월`} · 회원 {p.member_limit}명</Text>
                   </View>
                 ))}

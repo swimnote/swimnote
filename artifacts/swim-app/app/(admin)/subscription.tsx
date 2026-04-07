@@ -63,6 +63,7 @@ export default function SubscriptionScreen() {
   const { token, refreshPool } = useAuth();
   const [currentTier, setCurrentTier] = useState<string | null>(null);
   const [loading, setLoading]         = useState(true);
+  const [serverPlanMap, setServerPlanMap] = useState<Record<string, { name: string; price: number; member_limit: number; display_storage: string }>>({});
 
   const {
     soloOffering,
@@ -89,10 +90,21 @@ export default function SubscriptionScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await apiRequest(token, "/billing/status");
-        if (res.ok) {
-          const d = await res.json();
+        const [statusRes, plansRes] = await Promise.all([
+          apiRequest(token, "/billing/status"),
+          apiRequest(token, "/billing/plans"),
+        ]);
+        if (statusRes.ok) {
+          const d = await statusRes.json();
           setCurrentTier(d.current_plan ?? d.plan_id ?? null);
+        }
+        if (plansRes.ok) {
+          const d = await plansRes.json();
+          const map: typeof serverPlanMap = {};
+          for (const p of (d.plans ?? [])) {
+            map[p.tier] = { name: p.name, price: Number(p.price), member_limit: Number(p.member_limit), display_storage: p.display_storage ?? "" };
+          }
+          setServerPlanMap(map);
         }
       } catch {}
       finally { setLoading(false); }
@@ -168,6 +180,20 @@ export default function SubscriptionScreen() {
 
   const goToBilling = () => router.push("/(admin)/billing");
 
+  // 서버 값 우선 적용: 이름·가격·회원한도·스토리지 표시는 서버 값, RC 패키지ID는 하드코딩 유지
+  function mergePlan(plan: PlanMeta): PlanMeta {
+    const srv = serverPlanMap[plan.tier];
+    if (!srv) return plan;
+    return {
+      ...plan,
+      name:      srv.name,
+      price:     srv.price,
+      limit:     srv.member_limit,
+      storage:   srv.display_storage || plan.storage,
+      storageMb: plan.storageMb,
+    };
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader title="구독 관리" />
@@ -200,7 +226,7 @@ export default function SubscriptionScreen() {
             </View>
           </View>
 
-          {SOLO_PLANS.map(plan => (
+          {SOLO_PLANS.map(raw => { const plan = mergePlan(raw); return (
             <PlanCard
               key={plan.tier}
               plan={plan}
@@ -210,7 +236,7 @@ export default function SubscriptionScreen() {
               isUserSubscribed={isSubscribed}
               onSelect={plan.price === 0 ? undefined : () => handlePlanSelect(plan)}
             />
-          ))}
+          ); })}
 
           <View style={s.divider} />
 
@@ -229,7 +255,7 @@ export default function SubscriptionScreen() {
             </View>
           </View>
 
-          {CENTER_PLANS.map(plan => (
+          {CENTER_PLANS.map(raw => { const plan = mergePlan(raw); return (
             <PlanCard
               key={plan.tier}
               plan={plan}
@@ -239,7 +265,7 @@ export default function SubscriptionScreen() {
               isUserSubscribed={isSubscribed}
               onSelect={() => handlePlanSelect(plan)}
             />
-          ))}
+          ); })}
 
           {/* ── 결제 수단 안내 ── */}
           <View style={s.storePlatformBox}>

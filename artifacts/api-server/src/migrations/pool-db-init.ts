@@ -807,6 +807,20 @@ export async function initPoolDb(): Promise<void> {
     }
   }
 
+  // ── enterprise_2000 / enterprise_3000 삭제 (폐기 확정 티어) ────────────
+  // swimming_pools.subscription_tier 는 TEXT(FK 없음) 이므로 안전하게 삭제 가능
+  // 해당 tier를 사용 중인 수영장은 subscriptionResolver가 free 로 fallback 처리
+  try {
+    const { rowCount } = await db.execute(sql.raw(
+      `DELETE FROM subscription_plans WHERE tier IN ('enterprise_2000','enterprise_3000')`
+    ));
+    if ((rowCount ?? 0) > 0) {
+      console.log(`[pool-db-init] 🗑️ enterprise_2000/enterprise_3000 삭제 완료 (${rowCount}건)`);
+    }
+  } catch (e: any) {
+    console.error('[pool-db-init] enterprise 삭제 오류:', e?.message);
+  }
+
   // ── 실제 DB 값 확인 로그 (초기화 결과 검증) ─────────────────────────────
   try {
     const rows = (await db.execute(sql.raw(

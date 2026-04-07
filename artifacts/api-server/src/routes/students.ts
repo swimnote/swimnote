@@ -23,6 +23,27 @@ async function getPoolId(userId: string): Promise<string | null> {
   return user?.swimming_pool_id || null;
 }
 
+// 회원 수 한도 체크 헬퍼
+// effective_member_limit = pool.member_limit(개별 override) 우선, 없으면 subscription_plans.member_limit
+async function getEffectiveMemberLimit(poolId: string): Promise<{ limit: number; current: number; overrideActive: boolean }> {
+  const [planRow] = (await superAdminDb.execute(sql`
+    SELECT COALESCE(p.member_limit, sp.member_limit) AS effective_member_limit,
+           p.member_limit AS pool_override
+    FROM swimming_pools p
+    LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
+    WHERE p.id = ${poolId} LIMIT 1
+  `)).rows as any[];
+  const [cntRow] = (await db.execute(sql`
+    SELECT COUNT(*) AS cnt FROM students
+    WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
+  `)).rows as any[];
+  const limit = Number(planRow?.effective_member_limit ?? 5);
+  const current = Number(cntRow?.cnt ?? 0);
+  const overrideActive = planRow?.pool_override != null;
+  console.log(`[member-limit] poolId=${poolId} limit=${limit} (override=${overrideActive ? planRow?.pool_override : 'none'}) current=${current}`);
+  return { limit, current, overrideActive };
+}
+
 function generateInviteCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
@@ -591,6 +612,22 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
       : (!existing.parent_user_id && resolvedParentUserId) ? "active"
       : undefined;
 
+    // active로 전환 시 회원 수 한도 체크 (이미 active이면 skip)
+    if (newStatus === "active" && (existing as any).status !== "active") {
+      const targetPoolId = existing.swimming_pool_id || poolId!;
+      const { limit, current, overrideActive } = await getEffectiveMemberLimit(targetPoolId);
+      if (current >= limit) {
+        return res.status(403).json({
+          success: false,
+          error: `회원 수 제한 초과: 현재 ${current}명 / 최대 ${limit}명 (${overrideActive ? '개별 설정' : '플랜 기본값'})`,
+          code: "MEMBER_LIMIT_EXCEEDED",
+          current,
+          limit,
+          override_active: overrideActive,
+        });
+      }
+    }
+
     const [student] = await db.update(studentsTable)
       .set({
         ...(name !== undefined && { name }),
@@ -903,6 +940,24 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
     }
 
     // 즉시 변경
+    // active/unassigned 전환 시 회원 수 한도 체크 (이미 active이면 skip)
+    if ((new_status === "active" || new_status === "unassigned") && (existing as any).status !== "active") {
+      const targetPoolId = existing.swimming_pool_id || poolId;
+      if (targetPoolId) {
+        const { limit, current, overrideActive } = await getEffectiveMemberLimit(targetPoolId);
+        if (current >= limit) {
+          return res.status(403).json({
+            success: false,
+            error: `회원 수 제한 초과: 현재 ${current}명 / 최대 ${limit}명 (${overrideActive ? '개별 설정' : '플랜 기본값'})`,
+            code: "MEMBER_LIMIT_EXCEEDED",
+            current,
+            limit,
+            override_active: overrideActive,
+          });
+        }
+      }
+    }
+
     const update: any = {
       pending_status_change: null,
       pending_effective_mode: null,

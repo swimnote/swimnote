@@ -140,6 +140,29 @@ async function autoLinkParentToStudents(parentId: string, poolId?: string | null
       continue;
     }
     try {
+      // 현재 상태 확인: unregistered/pending_approval → active 전환 예정인 경우 회원 수 한도 체크
+      const [stRow] = (await db.execute(sql`SELECT status FROM students WHERE id = ${student.id} LIMIT 1`)).rows as any[];
+      if (stRow && ["unregistered", "pending_approval"].includes(stRow.status)) {
+        const [planRow] = (await superAdminDb.execute(sql`
+          SELECT COALESCE(p.member_limit, sp.member_limit) AS effective_limit,
+                 p.member_limit AS pool_override
+          FROM swimming_pools p
+          LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
+          WHERE p.id = ${student.swimming_pool_id} LIMIT 1
+        `)).rows as any[];
+        const [cntRow] = (await db.execute(sql`
+          SELECT COUNT(*)::int AS cnt FROM students
+          WHERE swimming_pool_id = ${student.swimming_pool_id} AND status NOT IN ('archived','deleted','withdrawn')
+        `)).rows as any[];
+        const limit = Number(planRow?.effective_limit ?? 5);
+        const current = Number(cntRow?.cnt ?? 0);
+        console.log(`[auto-link] 한도 체크 student=${student.id} pool=${student.swimming_pool_id} limit=${limit} current=${current} override=${planRow?.pool_override ?? 'none'}`);
+        if (current >= limit) {
+          console.warn(`[auto-link] SKIP student=${student.id} — 회원 수 한도 초과 (${current}/${limit})`);
+          continue;
+        }
+      }
+
       const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       // 기존 레코드 삭제 후 approved 상태로 재생성 (ON CONFLICT 완전 제거)
       await db.execute(sql`DELETE FROM parent_students WHERE parent_id=${parentId} AND student_id=${student.id}`);

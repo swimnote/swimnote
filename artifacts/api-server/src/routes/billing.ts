@@ -17,7 +17,7 @@ import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.
 import { getPaymentProvider } from "../payment/index.js";
 import { logEvent } from "../lib/event-logger.js";
 import { billingEnabled } from "../config/billing.js";
-import { resolveSubscription } from "../lib/subscriptionResolver.js";
+import { resolveSubscription, syncPoolSubscriptionFields } from "../lib/subscriptionResolver.js";
 
 const router = Router();
 
@@ -200,6 +200,10 @@ router.post("/revenuecat-webhook", async (req, res) => {
               updated_at          = now()
           WHERE id = ${poolId}
         `);
+        // 파생값 자동 동기화: base_storage_gb, video_storage_limit_mb, white_label_enabled
+        await syncPoolSubscriptionFields({ poolId, tier, status: "active", source: "revenuecat" }).catch((e: Error) =>
+          console.error(`[rc-webhook] syncPoolSubscriptionFields 실패 pool=${poolId}:`, e.message)
+        );
         const plan = (await db.execute(sql`SELECT name, price_per_month FROM subscription_plans WHERE tier = ${tier} LIMIT 1`)).rows[0] as any;
         const poolInfo = (await superAdminDb.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0] as any;
         if (eventType !== "UNCANCELLATION") {
@@ -342,6 +346,10 @@ router.post("/sync-rc-subscription", requireAuth, requireRole("pool_admin", "sup
           updated_at          = now()
       WHERE id = ${poolId}
     `);
+    // 파생값 자동 동기화: base_storage_gb, video_storage_limit_mb, white_label_enabled
+    await syncPoolSubscriptionFields({ poolId, tier, status: "active", source: "revenuecat" }).catch((e: Error) =>
+      console.error(`[sync-rc] syncPoolSubscriptionFields 실패 pool=${poolId}:`, e.message)
+    );
 
     const plan = (await db.execute(sql`SELECT name, price_per_month FROM subscription_plans WHERE tier = ${tier} LIMIT 1`)).rows[0] as any;
     const poolInfo = (await superAdminDb.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0] as any;
@@ -424,6 +432,30 @@ async function ensureBillingTables() {
   await superAdminDb.execute(sql`ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS first_payment_used BOOLEAN NOT NULL DEFAULT FALSE`).catch(() => {});
 }
 ensureBillingTables().catch(console.error);
+
+// ── GET /billing/plans — 구독 플랜 목록 (pool_admin 접근 가능) ────────
+// subscription.tsx 화면에서 서버 값으로 플랜 목록 표시
+router.get("/plans", requireAuth, requireRole("pool_admin", "super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    const rows = (await db.execute(sql`
+      SELECT tier,
+             name,
+             member_limit,
+             storage_mb,
+             display_storage,
+             price_per_month AS price,
+             is_active
+      FROM subscription_plans
+      WHERE is_active = true
+        AND tier NOT IN ('enterprise_2000','enterprise_3000')
+      ORDER BY price_per_month ASC
+    `)).rows;
+    res.json({ plans: rows });
+  } catch (e) {
+    console.error("[billing/plans]", e);
+    res.status(500).json({ error: "플랜 목록 조회 오류" });
+  }
+});
 
 // ── 헬퍼 ──────────────────────────────────────────────────────────────
 
