@@ -96,9 +96,10 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
   const rawTier      = pool?.subscription_tier ?? "free";
   const effectiveTier = normalizeTier(rawTier);
 
-  // 4. subscription_plans 조회
+  // 4. subscription_plans 조회 (storage_gb 없으면 storage_mb → GB 자동 변환)
   const [plan] = (await db.execute(sql`
-    SELECT name, member_limit, storage_gb, price_per_month
+    SELECT name, member_limit, price_per_month,
+           COALESCE(storage_gb, storage_mb::numeric / 1024.0) AS storage_gb
     FROM subscription_plans
     WHERE tier = ${effectiveTier}
     LIMIT 1
@@ -196,7 +197,8 @@ export async function syncPoolSubscriptionFields(params: {
 
     // 플랜 기준값 조회
     const [plan] = (await db.execute(sql`
-      SELECT storage_gb, member_limit FROM subscription_plans
+      SELECT COALESCE(storage_gb, storage_mb::numeric / 1024.0) AS storage_gb,
+             member_limit FROM subscription_plans
       WHERE tier = ${effectiveTier} LIMIT 1
     `)).rows as any[];
 

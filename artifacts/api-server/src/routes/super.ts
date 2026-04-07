@@ -1623,6 +1623,7 @@ async function ensurePlansTables() {
   // 기존 테이블에 누락된 컬럼 추가 (안전)
   await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS plan_id TEXT NOT NULL DEFAULT ''`).catch(() => {});
   await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS storage_mb INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS storage_gb NUMERIC NOT NULL DEFAULT 5`).catch(() => {});
   await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS display_storage TEXT NOT NULL DEFAULT ''`).catch(() => {});
   await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`).catch(() => {});
 
