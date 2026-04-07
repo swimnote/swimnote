@@ -18,7 +18,7 @@ function getSubscriptionTier(approved: boolean, count: number): { tier: string; 
   if (count <= 300) return { tier: "paid_300", label: "유료 300명", isFree: false };
   if (count <= 500) return { tier: "paid_500", label: "유료 500명", isFree: false };
   if (count <= 1000) return { tier: "paid_1000", label: "유료 1000명", isFree: false };
-  return { tier: "paid_enterprise", label: "유료 엔터프라이즈", isFree: false };
+  return { tier: "paid_enterprise", label: "유료 1,001명+", isFree: false };
 }
 
 router.get("/pools", requireAuth, requirePermission("canViewPools"), async (req: AuthRequest, res) => {
@@ -632,7 +632,7 @@ router.get("/subscription-status", requireAuth, requireRole("super_admin", "pool
         paid_300: "300명 플랜",
         paid_500: "500명 플랜",
         paid_1000: "1,000명 플랜",
-        paid_enterprise: "엔터프라이즈 플랜",
+        paid_enterprise: "1,001명+ 플랜",
         unapproved: "미승인",
       };
 

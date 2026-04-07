@@ -32,10 +32,9 @@ const TIER_META: Record<string, { label: string; color: string; bg: string; memb
   paid_300:        { label: "300명 플랜",     color: "#2EC4B6", bg: "#ECFEFF", memberRange: "101 ~ 300명" },
   paid_500:        { label: "500명 플랜",     color: "#2EC4B6", bg: "#E6FFFA", memberRange: "301 ~ 500명" },
   paid_1000:       { label: "1,000명 플랜",  color: PURPLE,    bg: "#E6FAF8", memberRange: "501 ~ 1,000명" },
-  paid_enterprise: { label: "엔터프라이즈",   color: "#D96C6C", bg: "#FEF2F2", memberRange: "1,001명 이상" },
 };
 
-const TIER_ORDER = ["free", "paid_100", "paid_300", "paid_500", "paid_1000", "paid_enterprise"];
+const TIER_ORDER = ["free", "paid_100", "paid_300", "paid_500", "paid_1000"];
 
 const SEED_POLICIES: Policy[] = [
   { tier: "free",            quota_gb: 5,    per_member_mb: 100, extra_price_per_gb: 500,  description: "무료 플랜 기본 제공" },
@@ -43,7 +42,6 @@ const SEED_POLICIES: Policy[] = [
   { tier: "paid_300",        quota_gb: 80,   per_member_mb: 267, extra_price_per_gb: 350,  description: null },
   { tier: "paid_500",        quota_gb: 150,  per_member_mb: 300, extra_price_per_gb: 300,  description: null },
   { tier: "paid_1000",       quota_gb: 300,  per_member_mb: 300, extra_price_per_gb: 250,  description: null },
-  { tier: "paid_enterprise", quota_gb: 1000, per_member_mb: 500, extra_price_per_gb: 200,  description: "맞춤 용량 협의 가능" },
 ].sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
 
 export default function StoragePolicyScreen() {

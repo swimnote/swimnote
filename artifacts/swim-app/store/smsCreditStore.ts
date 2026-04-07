@@ -50,7 +50,7 @@ export const CREDIT_PACKAGES: SmsCreditPackage[] = [
   { id: 'pkg-100',  name: '기본 패키지',    creditCount: 100,  price: 990,   isActive: true },
   { id: 'pkg-500',  name: '스탠다드 패키지', creditCount: 500,  price: 4950,  isActive: true },
   { id: 'pkg-1000', name: '프리미엄 패키지', creditCount: 1000, price: 9900,  isActive: true },
-  { id: 'pkg-3000', name: '엔터프라이즈',    creditCount: 3000, price: 27000, isActive: true },
+  { id: 'pkg-3000', name: '대용량 패키지',    creditCount: 3000, price: 27000, isActive: true },
 ]
 
 const SEED_PURCHASE = (opId: string, opName: string, cnt: number, days: number): SmsCreditPurchase => ({

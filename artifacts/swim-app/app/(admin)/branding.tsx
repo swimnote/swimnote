@@ -281,7 +281,7 @@ export default function BrandingScreen() {
             <Info size={16} color="#2EC4B6" style={{ marginTop: 2 }} />
             <Text style={styles.infoText}>
               앱스토어·구글플레이에서 다운로드되는 앱 아이콘은 항상 스윔노트 기본 아이콘으로 표시됩니다.{"\n\n"}
-              수영장별 아이콘 변경은 별도의 화이트라벨 빌드가 필요하며, 엔터프라이즈 플랜에서 지원됩니다. 문의: support@swimnote.kr
+              수영장별 아이콘 변경은 별도의 화이트라벨 빌드가 필요합니다. 문의: support@swimnote.kr
             </Text>
           </View>
         </Section>

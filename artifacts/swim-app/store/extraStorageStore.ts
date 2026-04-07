@@ -81,7 +81,7 @@ const SEED_PRODUCTS: ExtraStorageProduct[] = [
     extraStorageMb: 102400,
     price: 69900,
     isActive: false,
-    note: '엔터프라이즈 전용 상품. 현재 비활성.',
+    note: '대규모 전용 상품. 현재 비활성.',
     createdAt: daysAgo(60),
     updatedAt: daysAgo(5),
   },
