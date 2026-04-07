@@ -11,7 +11,7 @@
  * API: /settlement/calculator, /settlement/save, /settlement/finalize
  *      /holidays (GET, POST, DELETE)
  */
-import { Calendar, ChevronLeft, ChevronRight, CircleAlert, CircleArrowRight, DollarSign, List, RotateCcw, Save, Users } from "lucide-react-native";
+import { Calendar, ChevronLeft, ChevronRight, CircleAlert, CircleArrowRight, List, RotateCcw, Save, Users } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -211,11 +211,6 @@ export default function AdminRevenueScreen() {
               onPress={() => router.push("/(admin)/makeups?backTo=admin-revenue" as any)}>
               <RotateCcw size={16} color="#0F172A" />
               <Text style={[s.quickLabel, { color: "#0F172A" }]}>보강 이월</Text>
-            </Pressable>
-            <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
-              onPress={() => router.push("/(admin)/unit-pricing" as any)}>
-              <DollarSign size={16} color="#0F172A" />
-              <Text style={[s.quickLabel, { color: "#0F172A" }]}>단가표</Text>
             </Pressable>
             <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
               onPress={() => router.push("/(admin)/holidays?backTo=admin-revenue" as any)}>
