@@ -103,7 +103,7 @@ export default function DashboardScreen() {
         apiRequest(token, "/admin/dashboard-stats"),
         apiRequest(token, "/admin/storage").catch(() => null),
         apiRequest(token, "/admin/dashboard-stats2").catch(() => null),
-        apiRequest(token, "/pools/").catch(() => null),
+        apiRequest(token, "/pools/my").catch(() => null),
         apiRequest(token, "/billing/features").catch(() => null),
       ]);
       if (statsRes.ok) setStats(await statsRes.json());

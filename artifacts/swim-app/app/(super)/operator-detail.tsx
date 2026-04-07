@@ -416,9 +416,9 @@ export default function OperatorDetailScreen() {
               <InfoRow label="구독 플랜"   value={pool.plan_name ?? "—"} />
               <InfoRow label="구독 티어"   value={pool.subscription_tier ?? "trial"} />
               <InfoRow label="회원 한도"   value={
-                (pool.member_limit != null && Number(pool.member_limit) < 9999)
+                pool.member_limit != null
                   ? `${pool.member_limit}명`
-                  : "제한 없음"
+                  : "—"
               } />
               <InfoRow label="스토리지"    value={pool.base_storage_gb != null ? `${pool.base_storage_gb}GB` : "—"} />
               <InfoRow label="크레딧 잔액" value={`${(pool.credit_balance ?? 0).toLocaleString()}원`} />

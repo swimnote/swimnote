@@ -145,9 +145,11 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
   }
 
   // 7. member_limit (pool 개별 override > plan 기본값)
-  const overrideActive = pool?.member_limit != null;
+  // 9999는 구 "무제한" 마커로 실질적인 override가 아님 → 플랜 기본값 사용
+  const rawMemberLimit = pool?.member_limit != null ? Number(pool.member_limit) : null;
+  const overrideActive = rawMemberLimit != null && rawMemberLimit < 9999;
   const memberLimit    = overrideActive
-    ? Number(pool.member_limit)
+    ? rawMemberLimit!
     : Number(plan?.member_limit ?? 10);
 
   // 8. storage_gb — 항상 플랜 기준 (수동 변경 즉시 반영)
