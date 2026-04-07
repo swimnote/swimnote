@@ -4,11 +4,13 @@
 import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useOperatorsStore } from "@/store/operatorsStore";
+import { useAuth } from "@/hooks/useAuth";
+import { API_BASE } from "@/constants/api";
 import Colors from "@/constants/colors";
 const C = Colors.light;
 
@@ -50,23 +52,35 @@ const MENUS = [
 ];
 
 export default function OpGroupScreen() {
+  const { token } = useAuth();
   const operators = useOperatorsStore(s => s.operators);
+  const fetchOperators = useOperatorsStore(s => s.fetchOperators);
   const pendingCount = operators.filter(o => o.status === 'pending').length;
+
+  useEffect(() => {
+    if (token) fetchOperators(token, API_BASE);
+  }, [token]);
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="운영 관리" homePath="/(super)/more" />
       <ScrollView contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 60 }}>
-        {/* 요약 */}
+        {/* 요약 — 탭하면 해당 목록으로 이동 */}
         <View style={s.summaryRow}>
-          <View style={s.summaryCard}>
+          <Pressable
+            style={s.summaryCard}
+            onPress={() => router.push("/(super)/pools?backTo=op-group" as any)}
+          >
             <Text style={s.summaryNum}>{operators.length}</Text>
             <Text style={s.summaryLabel}>전체 운영자</Text>
-          </View>
-          <View style={[s.summaryCard, pendingCount > 0 && s.summaryAlert]}>
+          </Pressable>
+          <Pressable
+            style={[s.summaryCard, pendingCount > 0 && s.summaryAlert]}
+            onPress={() => router.push("/(super)/pools?filter=pending&backTo=op-group" as any)}
+          >
             <Text style={[s.summaryNum, pendingCount > 0 && { color: "#D97706" }]}>{pendingCount}</Text>
             <Text style={s.summaryLabel}>승인 대기</Text>
-          </View>
+          </Pressable>
         </View>
 
         {MENUS.map(m => (
