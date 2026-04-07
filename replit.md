@@ -105,6 +105,27 @@ API design follows RESTful principles with consistent JSON formats and strong au
 - **흐름**: 카카오 로그인 → kakao_id 매칭 → 성공시 JWT / 미연결시 전화번호 입력 화면으로 이동
 - **참고**: EAS 빌드 재배포 필요 (네이티브 플러그인 변경됨)
 
+## 구독 정책 구현 (2026-04-07 완료)
+
+### 업그레이드 / 다운그레이드 정책
+- **업그레이드**: 즉시 적용 (applySubscriptionState → swimming_pools + pool_subscriptions 동기화)
+- **다운그레이드**: `pending_tier` + `downgrade_at` 컬럼에 예약 → next_billing_at에 크론이 자동 적용
+- **무료전환**: 동일 다운그레이드 경로 (next_billing_at까지 현재 플랜 유지)
+- **환불**: 스토어 정책 따름 (내부 계산 없음)
+
+### 관련 파일
+- `subscriptionService.ts`: `TIER_ORDER`, `isUpgradeTier`, `isDowngradeTier` + `ResolvedSubscription` pending 필드
+- `billing.ts` `sync-rc-subscription`: 업/다운그레이드 분기 처리
+- `billing.ts` webhook `PRODUCT_CHANGE`: 업/다운그레이드 분기 처리
+- `billing.ts` `/billing/status`: `pending_tier`, `pending_plan_name`, `downgrade_at`, `next_billing_at` 노출
+- `billing.ts` 크론: 만료된 예약 다운그레이드를 `applySubscriptionState` 경유 적용 (단일 경로)
+- `pools.ts` `/pools/my`: pending 필드 노출
+- `super.ts` `/super/operators/:id`: pending 필드 노출
+- `billing.tsx`: "다운그레이드 예약됨" 배너 (노란색, 날짜 + 플랜명 표시)
+
+### TIER_ORDER (낮은 숫자 = 하위 플랜)
+`free=0 < starter=1 < basic=2 < standard=3 < center_200=4 < advance=5 < pro=6 < max=7`
+
 ## External Dependencies
 - **PostgreSQL**: Primary database for all application data.
 - **Drizzle ORM**: Object-relational mapper for interacting with PostgreSQL.

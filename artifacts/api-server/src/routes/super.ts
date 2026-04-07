@@ -441,6 +441,10 @@ router.get(
           subscription_ends_at:    resolved?.endsAt               ?? null,
           trial_ends_at:           resolved?.trialEndsAt          ?? null,
           effective_reason:        resolved?.effectiveReason       ?? null,
+          next_billing_at:         resolved?.nextBillingAt         ?? null,
+          pending_tier:            resolved?.pendingTier           ?? null,
+          pending_plan_name:       resolved?.pendingPlanName       ?? null,
+          downgrade_at:            resolved?.downgradeAt           ?? null,
           active_member_count:    memberStats.active,
           total_member_count:     memberStats.total,
           total_class_count:      classCount,
@@ -1428,6 +1432,10 @@ router.patch(
         white_label_enabled:     resolved?.whiteLabelEnabled ?? false,
         plan_name:               resolved?.planName         ?? null,
         price_per_month:         resolved?.pricePerMonth    ?? 0,
+        next_billing_at:         resolved?.nextBillingAt    ?? null,
+        pending_tier:            resolved?.pendingTier      ?? null,
+        pending_plan_name:       resolved?.pendingPlanName  ?? null,
+        downgrade_at:            resolved?.downgradeAt      ?? null,
       });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }

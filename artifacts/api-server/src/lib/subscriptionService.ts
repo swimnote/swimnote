@@ -17,6 +17,21 @@ import { sql } from "drizzle-orm";
 
 const db = superAdminDb;
 
+// ── 티어 우선순위 (숫자가 클수록 상위 플랜) ──────────────────────────
+export const TIER_ORDER: Record<string, number> = {
+  free: 0, starter: 1, basic: 2, standard: 3,
+  center_200: 4, advance: 5, pro: 6, max: 7,
+};
+export function getTierRank(tier: string): number {
+  return TIER_ORDER[normalizeTier(tier)] ?? -1;
+}
+export function isUpgradeTier(currentTier: string, newTier: string): boolean {
+  return getTierRank(newTier) > getTierRank(currentTier);
+}
+export function isDowngradeTier(currentTier: string, newTier: string): boolean {
+  return getTierRank(newTier) < getTierRank(currentTier);
+}
+
 // ── RC 제품 ID → tier 매핑 (billing.ts에서 이관) ─────────────────────
 export const RC_PRODUCT_TIER_MAP: Record<string, string> = {
   "solo_30":  "starter", "solo_50":  "basic", "solo_100": "standard",
@@ -69,6 +84,10 @@ export interface ResolvedSubscription {
   effectiveReason:     string;
   pricePerMonth:       number;
   nextBillingAt:       string | null;
+  // 다운그레이드 예약
+  pendingTier:         string | null;   // 예약된 다운그레이드 tier
+  pendingPlanName:     string | null;   // 예약된 플랜 표시명
+  downgradeAt:         string | null;   // 다운그레이드 적용 예정일
 }
 
 export interface ApplyOptions {
@@ -102,7 +121,7 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
   `)).rows as any[];
 
   const [rcSub] = (await db.execute(sql`
-    SELECT tier, status, current_period_start, next_billing_at
+    SELECT tier, status, current_period_start, next_billing_at, pending_tier, downgrade_at
     FROM pool_subscriptions WHERE swimming_pool_id = ${poolId} LIMIT 1
   `)).rows as any[];
 
@@ -148,6 +167,14 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
   const whiteLabelEnabled   = storageMb >= 51200;
   const videoStorageLimitMb = videoEnabled ? 1024 * 1024 : 0;
 
+  // ── 다운그레이드 예약 정보 ──
+  const rawPendingTier = rcSub?.pending_tier ? normalizeTier(rcSub.pending_tier) : null;
+  let pendingPlanName: string | null = null;
+  if (rawPendingTier) {
+    const pendingPlan = await fetchPlan(rawPendingTier);
+    pendingPlanName = pendingPlan?.name ?? rawPendingTier;
+  }
+
   return {
     planCode:            effectiveTier,
     planName:            plan?.name ?? effectiveTier,
@@ -167,6 +194,9 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
     effectiveReason,
     pricePerMonth: Number(plan?.price_per_month ?? 0),
     nextBillingAt: rcSub?.next_billing_at ?? null,
+    pendingTier:     rawPendingTier,
+    pendingPlanName,
+    downgradeAt:     rcSub?.downgrade_at ? String(rcSub.downgrade_at).slice(0, 10) : null,
   };
 }
 

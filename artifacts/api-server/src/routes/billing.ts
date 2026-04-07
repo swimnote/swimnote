@@ -22,6 +22,8 @@ import {
   applySubscriptionState,
   normalizeTier,
   RC_PRODUCT_TIER_MAP,
+  isDowngradeTier,
+  isUpgradeTier,
 } from "../lib/subscriptionService.js";
 
 const router = Router();
@@ -214,11 +216,30 @@ router.post("/revenuecat-webhook", async (req, res) => {
       }
 
       case "PRODUCT_CHANGE": {
-        const newTier = RC_PRODUCT_TIER_MAP[productId] ?? null;
-        if (newTier) {
-          await applySubscriptionState(poolId, newTier, "revenuecat", "active", { resetReadonly: true });
-          logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
-            description: `플랜 변경: ${productId} → ${newTier}`, metadata: { eventType, productId, newTier } }).catch(console.error);
+        const changeTier = RC_PRODUCT_TIER_MAP[productId] ?? null;
+        if (changeTier) {
+          const [curSubWh] = (await db.execute(sql`
+            SELECT tier, next_billing_at FROM pool_subscriptions WHERE swimming_pool_id = ${poolId} LIMIT 1
+          `)).rows as any[];
+          const curTierWh = normalizeTier(curSubWh?.tier ?? "free");
+
+          if (isDowngradeTier(curTierWh, changeTier) && curSubWh?.next_billing_at) {
+            // 다운그레이드 → 예약
+            const applyAt = String(curSubWh.next_billing_at).slice(0, 10);
+            await db.execute(sql`
+              UPDATE pool_subscriptions
+              SET pending_tier = ${changeTier}, downgrade_at = ${applyAt}, updated_at = now()
+              WHERE swimming_pool_id = ${poolId}
+            `);
+            logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
+              description: `플랜 다운그레이드 예약 (RC webhook): ${curTierWh} → ${changeTier} (${applyAt} 적용)`,
+              metadata: { eventType, productId, from: curTierWh, to: changeTier, applies_at: applyAt } }).catch(console.error);
+          } else {
+            // 업그레이드 또는 동일 → 즉시 적용
+            await applySubscriptionState(poolId, changeTier, "revenuecat", "active", { resetReadonly: true });
+            logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
+              description: `플랜 변경 (RC webhook): ${productId} → ${changeTier}`, metadata: { eventType, productId, to: changeTier } }).catch(console.error);
+          }
         }
         break;
       }
@@ -235,6 +256,7 @@ router.post("/revenuecat-webhook", async (req, res) => {
 });
 
 // ── RevenueCat 구매 완료 후 서버 DB 동기화 (앱이 호출) ────────────────
+// 업그레이드: 즉시 적용  |  다운그레이드: next_billing_at까지 예약
 router.post("/sync-rc-subscription", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
   try {
     const poolId = await getPoolId(req.user!.userId);
@@ -247,35 +269,71 @@ router.post("/sync-rc-subscription", requireAuth, requireRole("pool_admin", "sup
       isActive: boolean;
     };
 
-    const tier = RC_PRODUCT_TIER_MAP[productId] ?? null;
+    const newTier = RC_PRODUCT_TIER_MAP[productId] ?? null;
 
-    if (!isActive || !tier) {
+    if (!isActive || !newTier) {
       res.json({ synced: false, reason: "active 구독 없음" }); return;
     }
 
     const nextBilling = expiresAt ?? addOneMonth();
 
-    // applySubscriptionState → 단일 경로로 모든 파생값 동기화
-    const resolved = await applySubscriptionState(poolId, tier, "revenuecat", "active", {
+    // ── 현재 tier 조회 (업/다운 판정) ──
+    const [curSub] = (await db.execute(sql`
+      SELECT tier, next_billing_at FROM pool_subscriptions WHERE swimming_pool_id = ${poolId} LIMIT 1
+    `)).rows as any[];
+    const currentTier = normalizeTier(curSub?.tier ?? "free");
+
+    // ── 다운그레이드: 현재 플랜 유지 + 만료일에 예약 ──────────────────────
+    if (isDowngradeTier(currentTier, newTier) && curSub?.next_billing_at) {
+      const applyAt = String(curSub.next_billing_at).slice(0, 10);
+      await db.execute(sql`
+        UPDATE pool_subscriptions
+        SET pending_tier = ${newTier}, downgrade_at = ${applyAt}, updated_at = now()
+        WHERE swimming_pool_id = ${poolId}
+      `);
+      const pendingPlanRow = (await db.execute(sql`
+        SELECT name FROM subscription_plans WHERE tier = ${newTier} LIMIT 1
+      `)).rows[0] as any;
+      logEvent({ pool_id: poolId, category: "구독", actor_id: req.user!.userId, actor_name: "관리자",
+        description: `플랜 다운그레이드 예약 (RC): ${currentTier} → ${newTier} (${applyAt} 적용)`,
+        metadata: { productId, from: currentTier, to: newTier, applies_at: applyAt } }).catch(console.error);
+      const resolved = await resolveSubscription(poolId);
+      res.json({
+        synced: true, change_type: "downgrade",
+        currentTier, currentPlanName: resolved.planName,
+        pendingTier: newTier, pendingPlanName: pendingPlanRow?.name ?? newTier,
+        appliesAt: applyAt,
+        nextBilling: curSub.next_billing_at,
+        message: `${applyAt}에 ${pendingPlanRow?.name ?? newTier} 플랜으로 전환됩니다. 그 전까지 현재 플랜이 유지됩니다.`,
+      });
+      return;
+    }
+
+    // ── 업그레이드 / 신규 / 동일 플랜 갱신: 즉시 적용 ───────────────────
+    const resolved = await applySubscriptionState(poolId, newTier, "revenuecat", "active", {
       nextBillingAt: nextBilling, resetReadonly: true,
     });
 
     const poolInfo = (await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0] as any;
+    const changeType = isUpgradeTier(currentTier, newTier) ? "upgrade" : "new_subscription";
     await recordPayment({
       poolId, poolName: poolInfo?.name,
       amount: resolved.pricePerMonth,
       status: "success",
-      type: "new_subscription",
-      description: `${resolved.planName} 구독 (RevenueCat 앱 내 구매)`,
-      planId: tier, planName: resolved.planName,
-      eventType: "new_subscription",
+      type: changeType === "upgrade" ? "renewal" : "new_subscription",
+      description: `${resolved.planName} ${changeType === "upgrade" ? "업그레이드" : "신규 구독"} (RevenueCat)`,
+      planId: newTier, planName: resolved.planName,
+      eventType: changeType === "upgrade" ? "renewal" : "new_subscription",
     });
 
     logEvent({ pool_id: poolId, category: "구독", actor_id: req.user!.userId, actor_name: "관리자",
-      description: `RevenueCat 구독 동기화: ${productId} → ${tier} (${resolved.planName})`,
-      metadata: { productId, tier, expiresAt } }).catch(console.error);
+      description: `RevenueCat 구독 동기화 (${changeType}): ${productId} → ${newTier} (${resolved.planName})`,
+      metadata: { productId, from: currentTier, to: newTier, expiresAt, changeType } }).catch(console.error);
 
-    res.json({ synced: true, tier, planName: resolved.planName, nextBilling });
+    res.json({
+      synced: true, change_type: changeType,
+      tier: newTier, planName: resolved.planName, nextBilling,
+    });
   } catch (err: any) {
     console.error("[sync-rc-subscription]", err);
     res.status(500).json({ error: err?.message ?? "동기화 오류" });
@@ -502,7 +560,8 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
     const resolved = await resolveSubscription(poolId);
     const { memberLimit, storageGb: storageQuotaGb, videoEnabled, source,
             startsAt, endsAt, trialEndsAt, effectiveReason,
-            displayStorage, videoStorageLimitMb, storageMb } = resolved;
+            displayStorage, videoStorageLimitMb, storageMb,
+            pendingTier, pendingPlanName, downgradeAt, nextBillingAt } = resolved;
 
     const storageUsedGb = +(usedBytes / (1024 ** 3)).toFixed(3);
     const storageUsedPct = storageQuotaGb > 0 ? Math.round((storageUsedGb / storageQuotaGb) * 100) : 0;
@@ -544,6 +603,11 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       storage_mb:             storageMb,
       base_storage_gb:        storageQuotaGb,
       video_storage_limit_mb: videoStorageLimitMb,
+      // 다운그레이드 예약 필드
+      next_billing_at:        nextBillingAt,
+      pending_tier:           pendingTier,
+      pending_plan_name:      pendingPlanName,
+      downgrade_at:           downgradeAt,
     });
   } catch (err) {
     console.error(err);
@@ -1141,21 +1205,21 @@ cron.schedule("0 * * * *", async () => {
     `)).rows as any[];
 
     for (const row of pendingDowngrades) {
-      const todayStr = new Date().toISOString().split("T")[0];
-      await db.execute(sql`
-        UPDATE pool_subscriptions
-        SET tier = ${row.pending_tier}, status = 'active',
-            pending_tier = NULL, downgrade_at = NULL,
-            current_period_start = ${todayStr},
-            next_billing_at = ${addOneMonth()},
-            updated_at = now()
-        WHERE swimming_pool_id = ${row.swimming_pool_id}
-      `);
-      await superAdminDb.execute(sql`
-        UPDATE swimming_pools SET subscription_tier = ${row.pending_tier}, updated_at = now()
-        WHERE id = ${row.swimming_pool_id}
-      `);
-      console.log(`[billing-cron] 다운그레이드 적용: ${row.swimming_pool_id} → ${row.pending_tier}`);
+      try {
+        // applySubscriptionState 경유 → swimming_pools, pool_subscriptions 모두 단일 경로 업데이트
+        await applySubscriptionState(row.swimming_pool_id, row.pending_tier, "revenuecat", "active", {
+          nextBillingAt: addOneMonth(), resetReadonly: true,
+        });
+        // pending 플래그 클리어 (applySubscriptionState가 자동 처리하지 않으므로 명시적 클리어)
+        await db.execute(sql`
+          UPDATE pool_subscriptions
+          SET pending_tier = NULL, downgrade_at = NULL, updated_at = now()
+          WHERE swimming_pool_id = ${row.swimming_pool_id}
+        `);
+        console.log(`[billing-cron] 다운그레이드 적용: ${row.swimming_pool_id} → ${row.pending_tier}`);
+      } catch (e: any) {
+        console.warn(`[billing-cron] 다운그레이드 처리 실패 (${row.swimming_pool_id}):`, e.message);
+      }
     }
 
     console.log("[billing-cron] 타임라인/다운그레이드 업데이트 완료");

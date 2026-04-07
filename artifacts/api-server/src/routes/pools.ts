@@ -184,6 +184,10 @@ router.get("/my", requireAuth, async (req: AuthRequest, res) => {
       trial_ends_at:           resolved.trialEndsAt,
       effective_reason:        resolved.effectiveReason,
       days_until_deletion:     daysUntilDeletion,
+      next_billing_at:         resolved.nextBillingAt,
+      pending_tier:            resolved.pendingTier,
+      pending_plan_name:       resolved.pendingPlanName,
+      downgrade_at:            resolved.downgradeAt,
     });
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });

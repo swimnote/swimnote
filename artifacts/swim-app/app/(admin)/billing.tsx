@@ -35,6 +35,10 @@ interface BillingStatus {
   plan_name: string | null;
   current_tier: string;
   next_billing_at?: string | null;
+  // 다운그레이드 예약 필드
+  pending_tier?: string | null;
+  pending_plan_name?: string | null;
+  downgrade_at?: string | null;
 }
 
 const TIER_COLOR: Record<string, string> = {
@@ -107,7 +111,10 @@ export default function BillingScreen() {
         storage_used_pct:    sd.storage_used_pct ?? 0,
         plan_name:           sd.plan_name ?? null,
         current_tier:        activeTier,
-        next_billing_at:     sd.subscription?.next_billing_at ?? null,
+        next_billing_at:     sd.next_billing_at ?? sd.subscription?.next_billing_at ?? null,
+        pending_tier:        sd.pending_tier ?? null,
+        pending_plan_name:   sd.pending_plan_name ?? null,
+        downgrade_at:        sd.downgrade_at ?? null,
       });
     } catch (e) {
       console.error("billing status error:", e);
@@ -258,7 +265,32 @@ export default function BillingScreen() {
                 </Text>
               </View>
             )}
+            {billingInfo?.next_billing_at && !billingInfo?.pending_tier && (
+              <View style={s.infoRow}>
+                <Text style={s.metaLabel}>다음 갱신일</Text>
+                <Text style={s.metaValue}>{billingInfo.next_billing_at.slice(0, 10)}</Text>
+              </View>
+            )}
           </View>
+
+          {/* ── 다운그레이드 예약 배너 ── */}
+          {billingInfo?.pending_tier && billingInfo?.downgrade_at && (
+            <View style={[s.storageBanner, { backgroundColor: "#FEF9C3", borderColor: "#CA8A04", marginTop: 10 }]}>
+              <TriangleAlert size={14} color="#CA8A04" />
+              <View style={{ flex: 1 }}>
+                <Text style={[s.storageBannerTitle, { color: "#92400E" }]}>
+                  다운그레이드 예약됨
+                </Text>
+                <Text style={[s.storageBannerDesc, { color: "#78350F" }]}>
+                  {billingInfo.downgrade_at.slice(0, 10)}에{" "}
+                  <Text style={{ fontFamily: "Pretendard-SemiBold" }}>
+                    {billingInfo.pending_plan_name ?? billingInfo.pending_tier}
+                  </Text>{" "}
+                  플랜으로 전환됩니다. 그 전까지 현재 플랜이 유지됩니다.
+                </Text>
+              </View>
+            </View>
+          )}
         </Section>
 
         {/* ── 저장공간 ── */}
