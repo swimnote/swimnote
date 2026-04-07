@@ -32,7 +32,7 @@ router.get("/features", requireAuth, async (req: AuthRequest, res) => {
     let uploadBlocked = false;
     try {
       const [row] = (await db.execute(sql`
-        SELECT COALESCE(ps.tier, 'free') AS tier,
+        SELECT COALESCE(ps.tier, sp.subscription_tier, 'free') AS tier,
                sp.upload_blocked
         FROM swimming_pools sp
         LEFT JOIN pool_subscriptions ps ON ps.swimming_pool_id = sp.id AND ps.status = 'active'
@@ -530,7 +530,7 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       daysUntilDeletion = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86_400_000));
     }
 
-    const activeTier = sub?.tier ?? "free";
+    const activeTier = sub?.tier ?? poolRow?.subscription_tier ?? "free";
     const currentPlan = plans.find((p: any) => p.tier === activeTier);
     const memberLimit = Number(currentPlan?.member_limit ?? 10);
     const storageQuotaGb = Number(currentPlan?.storage_gb ?? 0.5);

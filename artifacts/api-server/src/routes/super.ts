@@ -1306,12 +1306,25 @@ router.patch(
         await superAdminDb.execute(sql`
           UPDATE swimming_pools SET subscription_status = ${subscription_status} WHERE id = ${id}
         `);
+        // pool_subscriptions 상태도 동기화 (active/trial → active, 그 외 → inactive)
+        const psStatus = ['active', 'trial'].includes(subscription_status) ? 'active' : 'inactive';
+        await superAdminDb.execute(sql`
+          UPDATE pool_subscriptions SET status = ${psStatus}, updated_at = now()
+          WHERE swimming_pool_id = ${id}
+        `).catch(() => {});
         updates.push(`구독상태 → ${subscription_status}`);
       }
       if (subscription_tier) {
         await superAdminDb.execute(sql`
           UPDATE swimming_pools SET subscription_tier = ${subscription_tier} WHERE id = ${id}
         `);
+        // pool_subscriptions 테이블도 동기화 (없으면 생성, 있으면 덮어쓰기)
+        await superAdminDb.execute(sql`
+          INSERT INTO pool_subscriptions (swimming_pool_id, tier, status, current_period_start)
+          VALUES (${id}, ${subscription_tier}, 'active', now())
+          ON CONFLICT (swimming_pool_id) DO UPDATE
+            SET tier = ${subscription_tier}, status = 'active', updated_at = now()
+        `).catch(() => {});
         updates.push(`구독티어 → ${subscription_tier}`);
       }
       if (credit_amount != null && !isNaN(Number(credit_amount))) {
