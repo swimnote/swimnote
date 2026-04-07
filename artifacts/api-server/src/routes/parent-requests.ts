@@ -146,7 +146,7 @@ router.get("/parent-requests", requireAuth, requireRole("pool_admin", "sub_admin
 router.post("/parent/requests", requireAuth,
   async (req: AuthRequest, res) => {
     try {
-      if (req.user?.role !== "parent") {
+      if (req.user?.role !== "parent_account") {
         res.status(403).json({ success: false, message: "학부모만 이용 가능합니다." }); return;
       }
       const { student_id, request_type, request_date, content } = req.body;
@@ -169,12 +169,55 @@ router.post("/parent/requests", requireAuth,
       if (!pa) { res.status(403).json({ success: false, message: "해당 학생에 대한 권한이 없습니다." }); return; }
 
       const poolId = pa.swimming_pool_id;
+
+      // 학생 담당 선생님 조회
+      const teacherRow = await db.execute(sql`
+        SELECT cg.teacher_user_id, u.name AS teacher_name, s.name AS student_name, pa2.name AS parent_name
+        FROM students s
+        LEFT JOIN class_groups cg ON cg.id = s.class_group_id AND cg.is_deleted = false
+        LEFT JOIN users u ON u.id = cg.teacher_user_id
+        JOIN parent_accounts pa2 ON pa2.id = ${req.user!.userId}
+        WHERE s.id = ${student_id}
+        LIMIT 1
+      `);
+      const teacherInfo = teacherRow.rows[0] as any;
+      const teacherUserId = teacherInfo?.teacher_user_id || null;
+      const studentName = teacherInfo?.student_name || "학생";
+      const parentName = teacherInfo?.parent_name || "학부모";
+
+      const TYPE_LABELS: Record<string, string> = {
+        absence: "결석 신청", makeup: "보강 요청", postpone: "연기 신청",
+        withdrawal: "퇴원 신청", counseling: "상담 요청", inquiry: "문의",
+      };
+      const typeLabel = TYPE_LABELS[request_type] || request_type;
+
       const result = await db.execute(sql`
-        INSERT INTO parent_student_requests (swimming_pool_id, student_id, parent_id, request_type, request_date, content)
-        VALUES (${poolId}, ${student_id}, ${req.user!.userId}, ${request_type}, ${request_date || null}, ${content || null})
+        INSERT INTO parent_student_requests (swimming_pool_id, student_id, parent_id, teacher_user_id, request_type, request_date, content)
+        VALUES (${poolId}, ${student_id}, ${req.user!.userId}, ${teacherUserId}, ${request_type}, ${request_date || null}, ${content || null})
         RETURNING *
       `);
-      res.status(201).json({ success: true, data: result.rows[0] });
+      const newReq = result.rows[0] as any;
+
+      // 담당 선생님에게 푸시 알림
+      if (teacherUserId) {
+        try {
+          const { sendPushToUser } = await import("../lib/push-service.js");
+          const pushContent = content?.trim()
+            ? `${studentName} · ${content.trim().slice(0, 60)}`
+            : `${studentName}`;
+          await sendPushToUser(
+            teacherUserId, false, "parent_request",
+            `📋 ${parentName}님의 ${typeLabel}`,
+            pushContent,
+            { type: "parent_request", poolId, requestId: newReq.id },
+            `preq_${poolId}`
+          );
+        } catch (pushErr) {
+          console.error("[parent-requests push error]", pushErr);
+        }
+      }
+
+      res.status(201).json({ success: true, data: newReq });
     } catch (err) {
       console.error(err);
       res.status(500).json({ success: false, message: "서버 오류" });
@@ -187,16 +230,47 @@ router.post("/parent/requests", requireAuth,
 router.get("/parent/requests", requireAuth,
   async (req: AuthRequest, res) => {
     try {
-      if (req.user?.role !== "parent") {
+      if (req.user?.role !== "parent_account") {
         res.status(403).json({ success: false, message: "학부모만 이용 가능합니다." }); return;
       }
       const { student_id } = req.query;
-      let q = `SELECT * FROM parent_student_requests WHERE parent_id = '${req.user!.userId}'`;
-      if (student_id) q += ` AND student_id = '${student_id}'`;
-      q += ` ORDER BY created_at DESC LIMIT 50`;
+      let q = `SELECT psr.*, s.name AS student_name FROM parent_student_requests psr LEFT JOIN students s ON s.id = psr.student_id WHERE psr.parent_id = '${req.user!.userId}'`;
+      if (student_id) q += ` AND psr.student_id = '${String(student_id).replace(/'/g, "''")}'`;
+      q += ` ORDER BY psr.created_at DESC LIMIT 50`;
 
       const result = await db.execute(sql.raw(q));
       res.json({ success: true, data: result.rows });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
+// ─── 선생님: 내게 온 학부모 요청 목록 ───────────────────────────────────
+// GET /teacher/parent-requests
+router.get("/teacher/parent-requests", requireAuth, requireRole("teacher", "pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId } = req.user!;
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+      if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      const rows = await db.execute(sql`
+        SELECT
+          psr.*,
+          s.name AS student_name,
+          pa.name AS parent_name
+        FROM parent_student_requests psr
+        LEFT JOIN students s ON s.id = psr.student_id
+        LEFT JOIN parent_accounts pa ON pa.id = psr.parent_id
+        WHERE psr.swimming_pool_id = ${me.swimming_pool_id}
+          AND psr.teacher_user_id = ${userId}
+        ORDER BY psr.created_at DESC
+        LIMIT 50
+      `);
+      res.json({ success: true, data: rows.rows });
     } catch (err) {
       console.error(err);
       res.status(500).json({ success: false, message: "서버 오류" });
@@ -220,9 +294,6 @@ router.patch("/parent-requests/:id", requireAuth, requireRole("pool_admin", "sub
       await db.execute(sql`
         UPDATE parent_student_requests
         SET status = ${status},
-            admin_note = ${admin_note || null},
-            processed_by = ${req.user!.userId},
-            processed_at = NOW(),
             updated_at = NOW()
         WHERE id = ${req.params.id} AND swimming_pool_id = ${me.swimming_pool_id}
       `);
