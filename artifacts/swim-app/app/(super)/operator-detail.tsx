@@ -424,9 +424,14 @@ export default function OperatorDetailScreen() {
             <View style={d.card}>
               <Text style={d.cardTitle}>현재 구독 정보</Text>
               <InfoRow label="구독 상태"   value={billingCfg.label} />
-              <InfoRow label="구독 플랜"   value={PLAN_LABEL[pool.subscription_plan_id ?? ""] ?? TIER_LABEL[pool.subscription_tier ?? "trial"] ?? "—"} />
+              <InfoRow label="구독 플랜"   value={pool.plan_name ?? PLAN_LABEL[pool.subscription_plan_id ?? ""] ?? TIER_LABEL[pool.subscription_tier ?? "trial"] ?? "—"} />
               <InfoRow label="구독 티어"   value={pool.subscription_tier ?? "trial"} />
-              <InfoRow label="회원 한도"   value={pool.member_limit != null ? `${pool.member_limit}명` : "제한 없음"} />
+              <InfoRow label="회원 한도"   value={
+                (pool.member_limit != null && Number(pool.member_limit) < 9999)
+                  ? `${pool.member_limit}명`
+                  : "제한 없음"
+              } />
+              <InfoRow label="스토리지"    value={pool.base_storage_gb != null ? `${pool.base_storage_gb}GB` : "—"} />
               <InfoRow label="크레딧 잔액" value={`${(pool.credit_balance ?? 0).toLocaleString()}원`} />
               <InfoRow label="구독 시작일" value={fmtDate(pool.subscription_start_at ?? pool.created_at)} />
               <InfoRow label="구독 만료일" value={pool.subscription_end_at ? fmtDate(pool.subscription_end_at) : "—"} />
