@@ -737,6 +737,24 @@ export async function initPoolDb(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_pool_subs_pool_id ON pool_subscriptions (swimming_pool_id);
   `));
 
+  // ─── swimming_pools 누락 컬럼 보완 ──────────────────────────────────────
+  // member_limit: 풀별 회원 한도 override (NULL = 플랜 기본값 사용)
+  // subscription_source: 구독 출처 구분 ('manual' | 'revenuecat' | NULL)
+  const spoolAlters = [
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS member_limit integer`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS subscription_source text`,
+  ];
+  for (const alter of spoolAlters) {
+    try {
+      await db.execute(sql.raw(alter));
+    } catch (e: any) {
+      if (!e?.message?.includes('already exists') && !e?.message?.includes('IF NOT EXISTS')) {
+        console.error('[pool-db-init] swimming_pools 컬럼 추가 오류:', e?.message);
+      }
+    }
+  }
+  console.log('[pool-db-init] swimming_pools 누락 컬럼 보완 완료 (member_limit, subscription_source)');
+
   // ─── subscription_plans ─────────────────────────────────────────────────
   // 단일 기준 스키마: tier TEXT PRIMARY KEY (super.ts ensurePlansTables와 통일)
   // silent failure 금지 — 모든 에러 콘솔 출력
