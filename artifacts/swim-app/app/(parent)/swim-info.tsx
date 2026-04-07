@@ -16,7 +16,7 @@ import { Info, MapPin, Phone } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -177,10 +177,13 @@ export default function SwimInfoScreen() {
                     </View>
                   )}
                   {phone && (
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                    <Pressable
+                      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 5, opacity: pressed ? 0.7 : 1 })}
+                      onPress={() => Linking.openURL(`tel:${phone.replace(/[^0-9]/g, "")}`)}
+                    >
                       <Phone size={13} color="rgba(255,255,255,0.8)" />
-                      <Text style={s.poolMeta}>{phone}</Text>
-                    </View>
+                      <Text style={[s.poolMeta, { textDecorationLine: "underline" }]}>{phone}</Text>
+                    </Pressable>
                   )}
                 </View>
               </View>

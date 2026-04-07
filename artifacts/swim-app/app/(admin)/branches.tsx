@@ -1,7 +1,7 @@
 import { Check, Droplet, Info, Layers, LogIn, MapPin, Phone, Plus } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Pressable, ScrollView,
+  ActivityIndicator, Linking, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -258,10 +258,13 @@ export default function PoolsScreen() {
                       </View>
                     ) : null}
                     {p.phone ? (
-                      <View style={styles.infoRow}>
-                        <Phone size={12} color={C.textMuted} />
-                        <Text style={[styles.infoTxt2, { color: C.textSecondary }]}>{p.phone}</Text>
-                      </View>
+                      <Pressable
+                        style={({ pressed }) => [styles.infoRow, { opacity: pressed ? 0.6 : 1 }]}
+                        onPress={e => { e.stopPropagation?.(); Linking.openURL(`tel:${p.phone!.replace(/[^0-9]/g, "")}`); }}
+                      >
+                        <Phone size={12} color={TINT} />
+                        <Text style={[styles.infoTxt2, { color: TINT, textDecorationLine: "underline" }]}>{p.phone}</Text>
+                      </Pressable>
                     ) : null}
                   </View>
                 )}

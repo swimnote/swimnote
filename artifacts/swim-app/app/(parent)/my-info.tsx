@@ -7,7 +7,7 @@ import { Check, Pencil, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, Keyboard, KeyboardAvoidingView, Modal,
+  ActivityIndicator, Alert, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal,
   Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -60,16 +60,25 @@ function formatDate(dateStr: string | null) {
 }
 
 /* ─── 서브 컴포넌트 ─── */
-function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
-  return (
+function InfoRow({ icon, label, value, onPress }: { icon: string; label: string; value: string; onPress?: () => void }) {
+  const inner = (
     <View style={s.row}>
       <View style={s.rowIcon}><LucideIcon name={icon} size={16} color={TEAL} /></View>
       <View style={{ flex: 1 }}>
         <Text style={[s.rowLabel, { color: C.textMuted }]}>{label}</Text>
-        <Text style={[s.rowValue, { color: C.text }]}>{value}</Text>
+        <Text style={[s.rowValue, { color: onPress ? TEAL : C.text }]}>{value}</Text>
       </View>
+      {onPress && <LucideIcon name="phone-call" size={15} color={TEAL} />}
     </View>
   );
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} android_ripple={{ color: "#e0f7f7" }} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+        {inner}
+      </Pressable>
+    );
+  }
+  return inner;
 }
 
 function SectionCard({ title, icon, right, children }: {
@@ -505,7 +514,12 @@ export default function MyInfoScreen() {
                 <View style={s.divider} />
                 <InfoRow icon="map-pin" label="주소" value={poolAddress || "—"} />
                 <View style={s.divider} />
-                <InfoRow icon="phone" label="전화번호" value={formatPhone(poolPhone)} />
+                <InfoRow
+                  icon="phone"
+                  label="전화번호"
+                  value={formatPhone(poolPhone)}
+                  onPress={poolPhone ? () => Linking.openURL(`tel:${poolPhone.replace(/[^0-9]/g, "")}`) : undefined}
+                />
               </>
             ) : (
               <Pressable
