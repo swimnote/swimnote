@@ -1,0 +1,194 @@
+[스윔노트 구독 최종 운영 검증 및 실시간 반영 구조 점검 지시문]
+
+최종 완료 기준은 아래 2가지가 모두 실제 운영 수준으로 동작하는 것이다.
+
+1. 슈퍼관리자가 결제 없이 수영장 플랜을 직접 지정할 수 있어야 한다.
+2. 수영장관리자가 Apple/Google 인앱결제로 플랜을 구매할 수 있어야 한다.
+
+그리고 둘 다 변경 즉시 수영장관리자 화면에 실시간 반영되어야 한다.
+
+이번 작업은 단순 수정이 아니라 "최종 운영 검증"이다.
+반드시 코드/DB/API/RevenueCat/앱 화면까지 실제로 확인하고 보고하라.
+
+━━━━━━━━━━━━━━━━━━
+1. 최종 구조 목표
+━━━━━━━━━━━━━━━━━━
+
+아래 흐름이 모두 정상 동작해야 한다.
+
+A. 슈퍼관리자 수동 플랜 변경
+슈퍼관리자 변경
+→ subscription_tier / subscription_status / subscription_source 저장
+→ syncPoolSubscriptionFields 즉시 실행
+→ swimming_pools 파생값 갱신
+→ resolver 결과 갱신
+→ /pools/my, /billing/status, /super/operators/:id 재조회
+→ 수영장관리자 화면 즉시 반영
+
+B. 수영장관리자 유료 결제
+수영장관리자 플랜 선택
+→ RevenueCat offering/package/product 정확히 매핑
+→ Apple/Google 결제 페이지 정상 진입
+→ 구매 성공
+→ entitlement/customer info 반영
+→ 서버 동기화
+→ swimming_pools 파생값 갱신
+→ 수영장관리자 화면 즉시 반영
+
+━━━━━━━━━━━━━━━━━━
+2. RevenueCat 결제 진입 문제부터 우선 점검
+━━━━━━━━━━━━━━━━━━
+
+현재 "이상한 페이지로 연결"되는 문제가 있다고 하므로,
+결제 UI 진입 흐름을 먼저 전수 점검하라.
+
+반드시 확인:
+1. 수영장관리자 구독 버튼 onPress 경로
+2. 실제 호출하는 화면/라우트
+3. RevenueCat offerings 조회 성공 여부
+4. 플랜별 rcPackageId / productId / entitlement 매핑
+5. iOS / Android 각각 어떤 상품이 열리는지
+6. 무료/비활성/잘못된 플랜 클릭 시 fallback 페이지가 있는지
+7. 잘못된 웹페이지/임시 페이지/죽은 라우트 연결 제거
+
+결론으로 아래를 표로 제출:
+- 앱 플랜명
+- tier
+- RevenueCat package id
+- product id (iOS)
+- product id (Android)
+- entitlement
+- 표시 가격
+- 실제 결제 페이지 진입 성공 여부
+
+━━━━━━━━━━━━━━━━━━
+3. 슈퍼관리자 수동 부여 기능 최종 검증
+━━━━━━━━━━━━━━━━━━
+
+슈퍼관리자가 아래 작업을 할 수 있어야 한다.
+- free 지정
+- 유료 플랜 직접 지정
+- trial 부여
+- 필요 시 상태 변경
+- 변경 즉시 반영
+
+반드시 확인:
+1. 슈퍼관리자 API에서 변경 후 응답 전에 DB 반영 완료되는지
+2. subscription_tier만 바뀌고 파생값이 안 바뀌는 문제 없는지
+3. 변경 후 수영장관리자 / 슈퍼관리자 양쪽 화면이 즉시 같은 값을 보는지
+4. source가 manual로 저장되는지
+5. RevenueCat 활성 결제 상태와 충돌 시 우선순위가 무엇인지
+
+우선순위 규칙을 명확히 보고하라.
+권장:
+- manual override 우선
+- 그 외 RevenueCat active
+- 그 외 free/default
+
+━━━━━━━━━━━━━━━━━━
+4. 실시간 반영 검증
+━━━━━━━━━━━━━━━━━━
+
+아래 항목이 변경 즉시 반영되어야 한다.
+- plan_name
+- subscription_tier
+- subscription_status
+- subscription_source
+- member_limit
+- base_storage_gb / display_storage
+- video_storage_limit_mb
+- white_label_enabled
+
+반드시 측정:
+- 슈퍼관리자 변경 후 수영장관리자 화면 반영까지 걸린 시간
+- 결제 성공 후 수영장관리자 화면 반영까지 걸린 시간
+
+"실시간" 기준:
+- 저장 후 즉시 응답
+- 화면 재조회 시 최신값 즉시 반영
+- stale cache/fallback 없음
+
+━━━━━━━━━━━━━━━━━━
+5. API/화면 정합성 검증
+━━━━━━━━━━━━━━━━━━
+
+아래 API가 모두 같은 기준을 써야 한다.
+- /pools/my
+- /billing/status
+- /super/operators/:id
+- 구독 변경 API 응답
+
+검증 항목:
+1. 같은 수영장에 대해 3개 API가 같은 tier/plan/member_limit/storage를 반환하는지
+2. 앱 화면이 서버 응답만 사용하는지
+3. 하드코딩/fallback 문자열 남아 있는지
+4. useFocusEffect 또는 재조회 로직으로 stale state 제거됐는지
+
+━━━━━━━━━━━━━━━━━━
+6. 반드시 수행할 테스트 시나리오
+━━━━━━━━━━━━━━━━━━
+
+[수동 부여]
+1. free → pro 수동 변경
+2. 즉시 500명 / 130GB 반영 확인
+3. pro → max 수동 변경
+4. 즉시 1000명 / 500GB 반영 확인
+5. max → free 수동 변경
+6. 즉시 10명 / 500MB 반영 확인
+
+[유료 결제]
+7. 수영장관리자에서 pro 구매 시도
+8. Apple/Google 정상 결제 페이지 진입 확인
+9. 결제 성공 후 tier/status/source 반영 확인
+10. 수영장관리자 화면 즉시 변경 확인
+
+[복원/갱신/만료]
+11. restore purchases 동작 확인
+12. renewal 반영 확인
+13. expired/canceled/payment_failed 반영 확인
+14. 읽기전용/업로드차단 연계 확인
+
+[충돌]
+15. 수동 free 지정 상태에서 RevenueCat active가 있으면 어떤 값이 최종 적용되는지
+16. 수동 해제 후 RevenueCat 상태로 복귀하는지
+
+━━━━━━━━━━━━━━━━━━
+7. DB 검증 항목
+━━━━━━━━━━━━━━━━━━
+
+반드시 swimming_pools 실제 값을 확인하라.
+- subscription_tier
+- subscription_status
+- subscription_source
+- base_storage_gb
+- video_storage_limit_mb
+- white_label_enabled
+- updated_at
+
+그리고 subscription_plans 원천값과 비교해
+파생값이 즉시 일치하는지 확인하라.
+
+━━━━━━━━━━━━━━━━━━
+8. 최종 제출물
+━━━━━━━━━━━━━━━━━━
+
+반드시 아래를 제출하라.
+
+1. 슈퍼관리자 수동 변경 테스트 결과
+2. 수영장관리자 RevenueCat 결제 테스트 결과
+3. Apple/Google 플랜별 매핑표
+4. /pools/my 응답 JSON
+5. /billing/status 응답 JSON
+6. /super/operators/:id 응답 JSON
+7. swimming_pools 실제 DB 값
+8. 앱 화면 캡처
+9. 실시간 반영 시간
+10. 남은 문제/리스크
+
+중요:
+이번 작업의 완료 기준은 "결제 버튼이 있다"가 아니다.
+실제로
+- 슈퍼관리자가 수동 부여 가능
+- 수영장관리자가 유료 결제 가능
+- 둘 다 실시간 반영
+이 3개가 모두 증명되어야 완료다.
