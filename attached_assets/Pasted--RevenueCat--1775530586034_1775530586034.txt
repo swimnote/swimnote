@@ -1,0 +1,507 @@
+[스윔노트 운영체계 전면 정리 및 최종 코드 재구축 지시문]
+
+현재 스윔노트는
+슈퍼관리자 / 수영장관리자 / 구독 / 플랜 / 제한값 / RevenueCat / 수영장 연결 관리 구조가
+부분 수정과 임시 패치가 반복되면서 서로 꼬여 있는 상태다.
+
+이번 작업은 단순 버그 수정이 아니라
+“슈퍼관리자가 전체 수영장을 안정적으로 연결·관리할 수 있는 운영체계”를 기준으로
+구독, 플랜, 제한, 권한, 연결 구조를 한 번에 정리하는 최종 구조 정리 작업으로 진행한다.
+
+절대 기존 코드 위에 조건문만 덧붙이는 방식으로 처리하지 말고,
+필요하면 꼬인 코드는 제거하고 논리 순서에 맞게 다시 작성하라.
+
+최종 목표는 다음이다.
+
+━━━━━━━━━━━━━━━━━━
+0. 최종 목표
+━━━━━━━━━━━━━━━━━━
+
+1) 슈퍼관리자가 모든 수영장관리자를 안정적으로 생성, 연결, 조회, 수정, 관리할 수 있어야 한다.
+2) 각 수영장은 정확히 하나의 “현재 유효한 구독 상태”를 가져야 한다.
+3) 플랜 변경 시 회원 수 제한 / 저장 용량 / 영상 기능 / 화이트라벨 / 상태 배지가 자동 반영되어야 한다.
+4) RevenueCat 결제 기반 상태와 슈퍼관리자 수동 부여 상태가 충돌 없이 동작해야 한다.
+5) 모든 화면과 API는 동일한 구독 계산 결과만 사용해야 한다.
+6) 레거시 코드, 중복 로직, 화면별 임시 계산을 제거해 운영 가능한 구조로 정리해야 한다.
+7) 수정 후 실제 테스트와 보고서까지 제출해야 한다.
+
+이번 작업의 핵심은
+“어디서 무엇이 바뀌면 어디까지 자동 반영되는지 한 줄로 설명 가능한 구조”를 만드는 것이다.
+
+━━━━━━━━━━━━━━━━━━
+1. 절대 지켜야 할 원칙
+━━━━━━━━━━━━━━━━━━
+
+- 임시 하드코딩 금지
+- UI만 수정하고 끝내기 금지
+- 화면별 개별 계산 금지
+- 기존 코드에 덧붙이기만 하는 방식 금지
+- 구독 상태는 단일 계산 구조(single source of truth)로 통일
+- 슈퍼관리자 수동 변경과 RevenueCat 결제 상태의 우선순위를 명확히 정의
+- 실제 사용하지 않는 레거시 코드는 참조 제거 후 삭제
+- 구조가 꼬였으면 부분 수정하지 말고 재작성
+- 모든 수정은 실제 API/앱 동작 테스트까지 완료 후 보고
+
+━━━━━━━━━━━━━━━━━━
+2. 먼저 할 일: 현재 구조 전수 분석
+━━━━━━━━━━━━━━━━━━
+
+수정 전에 아래를 먼저 분석하고 1차 보고서를 제출하라.
+
+A. 권한 및 사용자 구조
+- super admin
+- swimming pool operator / pool admin
+- teacher
+- parent
+각 역할의 권한 범위와 구독 관련 접근 범위를 정리하라.
+
+B. 수영장 연결 구조
+- 슈퍼관리자가 수영장을 어떻게 생성/등록/연결하는지
+- 수영장관리자 계정이 어떤 수영장과 연결되는지
+- 1계정-1수영장인지, 다중 연결 가능성 있는지
+- 수영장 생성/연결/소유권/운영권 구조를 명확히 정리하라
+
+C. 구독 관련 데이터 구조
+아래 값이 실제 어디에 저장되고 어디서 읽히는지 전수 조사하라.
+- subscription_tier
+- subscription_status
+- subscription_source
+- plan_code
+- member_limit
+- base_storage_gb
+- video_storage_limit_mb
+- white_label_enabled
+- trial_ends_at
+- subscription_started_at
+- subscription_ends_at
+- RevenueCat entitlement/product/package 관련 값
+- subscriptions 테이블의 실제 사용 컬럼
+- swimming_pools 관련 구독 필드
+- 기타 legacy billing/subscription 관련 테이블 및 컬럼
+
+D. 코드 구조
+아래 키워드로 관련 파일 전체 검색 후 파일 목록 제출
+- subscription
+- billing
+- plan
+- revenuecat
+- entitlement
+- offering
+- package
+- premium
+- free
+- trial
+- operator
+- pool
+- member_limit
+- storage
+- white_label
+- video_storage
+- purchase
+- restore
+- policies
+- billingAdapter
+- subscriptionStore
+
+E. 실제 데이터 흐름
+아래 흐름을 코드 기준으로 추적하라.
+- 슈퍼관리자가 수영장 생성/관리자 연결
+- 수영장관리자가 구독 화면 진입
+- RevenueCat 결제 발생
+- sync-rc-subscription 동기화
+- 슈퍼관리자 수동 플랜 변경
+- operator-detail 진입 시 표시
+- pools/my 반환값
+- billing/status 반환값
+- 실제 회원 제한/용량 제한 적용
+
+이 단계에서
+“표시값”과 “실제 제한값”이 분리되어 있는지 반드시 확인하라.
+
+━━━━━━━━━━━━━━━━━━
+3. 최종 구조 재설계 원칙
+━━━━━━━━━━━━━━━━━━
+
+이번 정리는 아래 기준으로 재구성한다.
+
+[핵심 구조]
+
+1) 수영장 엔터티가 운영의 기준이다.
+- 모든 구독 상태는 최종적으로 수영장 단위로 귀결된다.
+- 슈퍼관리자는 수영장을 관리한다.
+- 수영장관리자는 자신에게 연결된 수영장의 현재 유효 상태를 본다.
+
+2) 구독 상태는 하나의 resolver에서만 계산한다.
+- effective subscription resolver 1개만 존재해야 한다.
+- 모든 API와 화면은 이 resolver의 결과만 사용한다.
+
+3) 플랜 정의는 한 군데에서만 관리한다.
+- FREE_10
+- PREMIUM_100
+- PREMIUM_300
+- PREMIUM_500
+- PREMIUM_1000
+- TRIAL
+- CUSTOM
+- WHITE_LABEL
+프로젝트 실제 명칭에 맞게 정리하되, 여러 파일에 흩어지지 않게 할 것.
+
+4) 수동 부여와 결제 상태는 공존하되 우선순위를 명확히 둔다.
+권장 우선순위:
+- manual override
+- RevenueCat active entitlement
+- free default
+
+5) 실제 제한 적용도 resolver 결과만 사용한다.
+- 회원 수 제한
+- 저장 용량 제한
+- 영상 기능 on/off
+- 화이트라벨 여부
+- 상태 배지
+- trial / expired 상태
+모두 resolver 결과 기준으로 적용
+
+━━━━━━━━━━━━━━━━━━
+4. 반드시 새로 만들거나 재정리해야 하는 핵심 서비스
+━━━━━━━━━━━━━━━━━━
+
+필요하면 새 파일로 분리해서 아래 서비스를 정리하라.
+
+1) subscriptionPlanDefinitions
+- 플랜 정의 단일화
+- 플랜별 memberLimit, storageGb, videoEnabled, whiteLabelEnabled 관리
+
+2) subscriptionResolver
+- 최종 유효 구독 상태 계산
+- manual override / RevenueCat / free default 반영
+- trial / expired / active 상태 계산
+- effectiveReason 반환
+
+3) adminSubscriptionOverrideService
+- 슈퍼관리자 수동 변경 처리
+- 변경 로그 저장
+- override on/off 관리
+
+4) revenuecatSyncService
+- entitlement / product / package 매핑
+- center entitlement 포함
+- DB 반영 및 동기화
+
+5) poolCapabilityService
+- 현재 수영장이 무엇을 할 수 있는지 계산
+- 회원 추가 가능 여부
+- 저장공간 업로드 가능 여부
+- 영상 기능 가능 여부
+
+6) subscriptionAuditLogService
+- 누가 언제 무엇을 바꿨는지 기록
+- super admin 수동 변경 / RevenueCat sync / fallback 적용 이력 기록
+
+━━━━━━━━━━━━━━━━━━
+5. subscriptionResolver 필수 반환값
+━━━━━━━━━━━━━━━━━━
+
+resolver는 최소 아래 구조를 반환하라.
+
+{
+  source,
+  planCode,
+  planName,
+  status,
+  memberLimit,
+  storageGb,
+  videoEnabled,
+  whiteLabelEnabled,
+  startsAt,
+  endsAt,
+  trialEndsAt,
+  overrideActive,
+  paymentPlatform,
+  effectiveReason,
+  isExpired,
+  isOverMemberLimit
+}
+
+중요:
+resolver는 단순 tier 조회기가 아니라
+최종 유효 구독 상태 계산기여야 한다.
+
+━━━━━━━━━━━━━━━━━━
+6. 슈퍼관리자 운영체계 정리
+━━━━━━━━━━━━━━━━━━
+
+슈퍼관리자가 전체 수영장을 안정적으로 관리할 수 있도록 아래를 정리하라.
+
+A. 슈퍼관리자 기능
+- 수영장 생성
+- 수영장 목록 조회
+- 수영장 상세 조회
+- 수영장관리자 계정 연결/변경
+- 현재 구독 상태 조회
+- 플랜 수동 부여
+- trial 시작/종료 관리
+- memberLimit/storage/video/whiteLabel 파생값 반영 확인
+- 변경 이력 조회
+
+B. 수영장관리자 연결 구조
+- 수영장관리자 계정이 어떤 수영장에 연결되어 있는지 명확히 식별 가능해야 함
+- 잘못된 중복 연결, orphan 계정, 연결 끊긴 계정 여부 점검
+- 필요하면 operator와 pool의 연결 구조를 재정리하라
+
+C. 수영장 상세 화면 기준값
+슈퍼관리자 상세 화면에서 보이는 값은 모두 resolver 결과를 기준으로 하라.
+개별 컬럼 표시용 임시 조합 금지.
+
+━━━━━━━━━━━━━━━━━━
+7. 수동 플랜 변경 로직 재작성
+━━━━━━━━━━━━━━━━━━
+
+슈퍼관리자가 수동으로 플랜을 변경할 때는
+단순히 subscription_tier만 바꾸지 말고,
+구독 상태 세트를 한 번에 동기화하라.
+
+필수 반영 대상:
+- subscription_tier
+- subscription_status
+- subscription_source
+- member_limit
+- base_storage_gb
+- video_storage_limit_mb
+- white_label_enabled
+- trial_ends_at
+- subscription_started_at
+- subscription_ends_at
+- updated_at
+
+필요 시:
+- custom plan 처리
+- manual override 활성 여부
+- override 메모
+- 변경자(super admin) 기록
+
+중요:
+“표시용 플랜명만 변경”되는 구조는 절대 허용하지 않는다.
+
+━━━━━━━━━━━━━━━━━━
+8. RevenueCat 구조 정리
+━━━━━━━━━━━━━━━━━━
+
+RevenueCat은 실제 운영 가능한 상태로 정리한다.
+
+반드시 점검 및 수정:
+- SDK 초기화
+- appUserID 일관성
+- offerings/packages/products 매핑
+- center entitlement 추가 및 검증
+- purchase / restore
+- active / expired / canceled 상태 반영
+- sync-rc-subscription의 DB 반영 로직
+- 수동 override와 충돌 시 우선순위
+- webhook 또는 동기화 포인트의 책임 범위 명확화
+
+RevenueCat 값은 화면 표시용이 아니라
+resolver가 참조할 수 있는 정규화된 상태로 서버에 반영되어야 한다.
+
+━━━━━━━━━━━━━━━━━━
+9. API 재정리
+━━━━━━━━━━━━━━━━━━
+
+아래 API는 모두 resolver 결과 기준으로 응답하도록 정리하라.
+
+- /pools/my
+- /billing/status
+- /super/operators/:id
+- /super/operators/:id/subscription PATCH
+- 필요 시 수영장 상세/목록 조회 관련 API
+
+주의:
+어떤 API는 swimming_pools 직접 읽고,
+어떤 API는 subscriptions 직접 읽고,
+어떤 API는 임시 fix를 쓰는 구조면 안 된다.
+
+모든 API는
+“현재 수영장의 유효 구독 상태는 resolver 결과 하나”
+라는 원칙을 따르라.
+
+━━━━━━━━━━━━━━━━━━
+10. 앱 화면 정리
+━━━━━━━━━━━━━━━━━━
+
+앱은 서버가 계산한 결과를 표시만 하도록 단순화하라.
+
+필수 정리:
+- operator-detail.tsx
+- subscription/billing 관련 화면
+- super admin 수영장 상세/구독 변경 화면
+- 수영장관리자 구독 진입 화면
+
+규칙:
+- 화면 내부에서 plan/member/storage 계산 금지
+- 서버 응답의 resolver 결과만 사용
+- 화면 stale 방지를 위한 재조회는 useFocusEffect 등으로 처리 가능
+- 단, 근본 계산은 서버에서만 한다
+
+━━━━━━━━━━━━━━━━━━
+11. 레거시 코드 정리 기준
+━━━━━━━━━━━━━━━━━━
+
+다음 조건에 해당하면 레거시로 보고 참조 제거 후 삭제하라.
+
+- subscriptionStore.ts
+- billingAdapter.ts
+- seed/subscriptions.ts
+- domain/policies.ts의 중복 플랜 정의
+- domain/types.ts의 미사용 billing/subscription 타입
+- 예전 화면용 임시 구독 계산 코드
+- 더 이상 사용하지 않는 subscription table/field helper
+- fake purchase/mock billing 코드
+- 임시 fix로 남겨둔 route/API
+
+단,
+삭제 전 반드시 아래 순서를 지켜라.
+1) 현재 참조처 확인
+2) 새 구조로 연결 이동
+3) 참조 0 확인
+4) 삭제
+5) 빌드 및 테스트 확인
+
+━━━━━━━━━━━━━━━━━━
+12. 실제 제한 적용 로직 점검
+━━━━━━━━━━━━━━━━━━
+
+반드시 확인하고 수정하라.
+
+A. 회원 수 제한
+- 실제 회원 추가 차단이 서버 기준인지 앱 기준인지 확인
+- 서버에서도 반드시 최종 검증하도록 수정
+- 한도 초과 상태 표시
+- 기존 회원 유지 / 신규 등록 차단 정책 명확화
+
+B. 저장 용량 제한
+- 실제 업로드 제한 기준이 무엇인지 확인
+- base_storage_gb / video_storage_limit_mb / 기타 사용량 계산 로직 정리
+- 업로드 차단 기준 단일화
+- 경고/차단 메시지 정리
+
+C. 영상 기능
+- 비활성 플랜은 영상 업로드/노출/구매 진입 모두 일관되게 처리
+- 활성 플랜은 저장공간 기준에 맞게 동작
+
+중요:
+실제 제한은 화면 문구가 아니라 서버 로직까지 일치해야 한다.
+
+━━━━━━━━━━━━━━━━━━
+13. 재작성 기준
+━━━━━━━━━━━━━━━━━━
+
+아래 경우에는 기존 코드를 고치지 말고 새로 재작성하라.
+
+- 파일 하나에 역할이 너무 많아 책임 분리가 불가능한 경우
+- 임시 조건문이 여러 겹 겹쳐 구조 파악이 어려운 경우
+- 같은 값을 여러 방식으로 계산하는 경우
+- 화면과 서버가 각각 따로 계산하는 경우
+- legacy 의존성이 강해 부분 수정 시 더 위험한 경우
+
+즉,
+“조금씩 고치기보다 새로 쓰는 것이 더 안전한 구간”은 과감히 재작성하라.
+
+━━━━━━━━━━━━━━━━━━
+14. 반드시 수행할 테스트
+━━━━━━━━━━━━━━━━━━
+
+수정 후 아래를 실제 테스트하라.
+
+[슈퍼관리자 운영]
+1. 슈퍼관리자가 수영장 목록 조회 가능
+2. 특정 수영장 상세 진입 가능
+3. 수영장관리자 연결 상태 확인 가능
+4. 수동 플랜 변경 가능
+5. trial 부여/변경 가능
+6. 변경 로그 저장 확인
+
+[구독 반영]
+7. free → Premium100 변경 시 memberLimit/storage/video/whiteLabel 반영
+8. Premium100 → Premium1000 변경 시 즉시 반영
+9. operator-detail 재진입 시 최신값 표시
+10. /pools/my 최신값 반영
+11. /billing/status 최신값 반영
+12. /super/operators/:id 최신값 반영
+
+[RevenueCat]
+13. center entitlement 구매 반영
+14. restore purchases 반영
+15. active / expired / canceled 반영
+16. manual override와 충돌 시 우선순위 정상 동작
+17. override 해제 시 RevenueCat 상태 복귀 확인
+
+[제한]
+18. 회원 한도 초과 시 신규 등록 차단
+19. 저장 용량 초과 시 업로드 차단/경고
+20. 영상 비활성 플랜에서 영상 기능 차단
+
+[안정성]
+21. 앱 재실행 후 상태 유지
+22. 다른 화면 진입 후 복귀해도 최신값 유지
+23. orphan operator / 잘못 연결된 operator 예외처리
+24. 잘못된 plan code 입력 방어
+25. 만료된 trial 상태 정확히 표시
+
+━━━━━━━━━━━━━━━━━━
+15. 최종 제출물
+━━━━━━━━━━━━━━━━━━
+
+작업 완료 후 아래 형식으로 보고서를 제출하라.
+
+1) 현재 문제 원인 요약
+- 왜 플랜은 바뀌는데 인원/용량이 안 바뀌었는지
+- 표시값과 실제 제한값이 어디서 분리되었는지
+- RevenueCat/수동변경/레거시 충돌 원인이 무엇이었는지
+- 슈퍼관리자 운영구조에서 어떤 부분이 불안정했는지
+
+2) 구조 개편 요약
+- 어떤 기준으로 재설계했는지
+- 단일 resolver 구조 설명
+- super admin ↔ pool ↔ operator 연결 구조 설명
+
+3) 수정 파일 목록
+- 신규 생성
+- 수정
+- 삭제
+
+4) 데이터 구조 정리
+- 최종 기준 테이블/컬럼
+- 유지 컬럼 / 폐기 컬럼
+- override 저장 구조
+- RevenueCat 동기화 구조
+
+5) 실제 테스트 결과
+- 1~25 테스트 통과 여부
+- 실패 항목과 원인
+
+6) 잔여 리스크
+- 아직 남은 주의사항
+- 추후 개선 포인트
+
+7) 최종 결론
+- 지금 운영 가능한 구조인지
+- 구독 상태가 어떤 순서로 계산되는지 한 문단으로 명확히 설명
+
+━━━━━━━━━━━━━━━━━━
+16. 작업 방식 제한
+━━━━━━━━━━━━━━━━━━
+
+- 수정 전에 1차 구조 분석 보고 먼저 제출
+- 승인 전 바로 마구 수정하지 말 것
+- 부분 패치로 덮지 말 것
+- 작동 안 하는 임시 fix 남기지 말 것
+- 사용하지 않는 중복 코드 방치 금지
+- 테스트 안 한 기능을 완료 처리 금지
+
+이번 작업은
+“슈퍼관리자가 모든 수영장을 안정적으로 연결·관리하고,
+각 수영장의 구독과 제한값이 오류 없이 자동 반영되는 운영 구조”
+를 만드는 최종 정리 작업이다.
+
+꼬인 코드는 정리하고,
+필요한 부분은 재작성해서,
+운영 가능한 수준으로 마무리하라.
