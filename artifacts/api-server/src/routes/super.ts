@@ -1442,6 +1442,51 @@ router.patch(
 );
 
 // ════════════════════════════════════════════════════════════════
+// POST /super/billing/apply-pending-downgrades
+// 만료된 다운그레이드 예약을 즉시 적용 (수동 크론 트리거)
+// ════════════════════════════════════════════════════════════════
+router.post(
+  "/super/billing/apply-pending-downgrades",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { pool_id } = req.body as any;
+      const condition = pool_id
+        ? sql`WHERE pending_tier IS NOT NULL AND downgrade_at IS NOT NULL AND swimming_pool_id = ${pool_id}`
+        : sql`WHERE pending_tier IS NOT NULL AND downgrade_at IS NOT NULL`;
+
+      const pending = (await db.execute(sql`
+        SELECT swimming_pool_id, pending_tier, downgrade_at FROM pool_subscriptions ${condition}
+      `)).rows as any[];
+
+      const results: any[] = [];
+      for (const row of pending) {
+        try {
+          await applySubscriptionState(row.swimming_pool_id, row.pending_tier, "revenuecat", "active", {
+            nextBillingAt: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
+            resetReadonly: true,
+          });
+          await db.execute(sql`
+            UPDATE pool_subscriptions
+            SET pending_tier = NULL, downgrade_at = NULL, updated_at = now()
+            WHERE swimming_pool_id = ${row.swimming_pool_id}
+          `);
+          const resolved = await resolveSubscription(row.swimming_pool_id).catch(() => null);
+          results.push({ pool_id: row.swimming_pool_id, applied: row.pending_tier, ok: true, resolved });
+          console.log(`[super/apply-pending] 다운그레이드 적용: ${row.swimming_pool_id} → ${row.pending_tier}`);
+        } catch (e: any) {
+          results.push({ pool_id: row.swimming_pool_id, ok: false, error: e.message });
+        }
+      }
+      res.json({ applied: results.length, results });
+    } catch (err: any) {
+      console.error("[super/apply-pending-downgrades]", err);
+      res.status(500).json({ error: err?.message ?? "서버 오류" });
+    }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
 // PATCH /super/operators/:id/readonly — 읽기전용 전환
 // ════════════════════════════════════════════════════════════════
 router.patch(

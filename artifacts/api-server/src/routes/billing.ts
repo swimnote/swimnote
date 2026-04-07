@@ -166,7 +166,7 @@ router.post("/revenuecat-webhook", async (req, res) => {
       }
 
       case "CANCELLATION": {
-        // 취소 예약 — 만료일까지 서비스 유지, 상태만 기록 (tier는 그대로)
+        // 취소 예약 — 만료일까지 현재 플랜 유지, pending_tier=free 예약
         const [curPool] = (await db.execute(sql`
           SELECT subscription_tier FROM swimming_pools WHERE id = ${poolId} LIMIT 1
         `)).rows as any[];
@@ -174,9 +174,18 @@ router.post("/revenuecat-webhook", async (req, res) => {
         await applySubscriptionState(poolId, curTier, "revenuecat", "active", {
           endsAt: expiresAt,
         });
+        // free 다운그레이드 예약: 만료일까지 현재 플랜 유지 후 free 전환
+        if (expiresAt && curTier !== "free") {
+          const applyAt = String(expiresAt).slice(0, 10);
+          await db.execute(sql`
+            UPDATE pool_subscriptions
+            SET pending_tier = 'free', downgrade_at = ${applyAt}, updated_at = now()
+            WHERE swimming_pool_id = ${poolId}
+          `);
+        }
         logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
-          description: `구독 취소 예약 (${expiresAt ?? "만료일 미상"} 이후 만료)`,
-          metadata: { eventType, productId, expiresAt } }).catch(console.error);
+          description: `구독 취소 예약 (${expiresAt ?? "만료일 미상"} 이후 free 전환)`,
+          metadata: { eventType, productId, expiresAt, pendingFree: curTier !== "free" } }).catch(console.error);
         break;
       }
 
