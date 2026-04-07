@@ -23,20 +23,26 @@ const TABS = ["기본정보", "구독·결제", "저장공간", "정책·동의"
 type Tab = typeof TABS[number];
 
 const PLAN_LABEL: Record<string, string> = {
-  free_10:       "Free (10명)",
-  solo_30:       "Coach30",
-  solo_50:       "Coach50",
-  solo_100:      "Coach100",
-  premier_200:   "Premier200",
-  premier_300:   "Premier300",
-  premier_500:   "Premier500",
-  premier_1000:  "Premier1000",
-  trial:         "무료 체험",
+  free_10:      "Free (10명)",
+  solo_30:      "Coach30",
+  solo_50:      "Coach50",
+  solo_100:     "Coach100",
+  center_200:   "Premier200",
+  center_300:   "Premier300",
+  center_500:   "Premier500",
+  center_1000:  "Premier1000",
+  trial:        "무료 체험",
 };
 const TIER_LABEL: Record<string, string> = {
-  free: "Free", starter: "Coach30", basic: "Coach50",
-  standard: "Coach100", growth: "Premier200", advance: "Premier300",
-  premium: "Premier500", enterprise: "Premier1000", trial: "무료 체험",
+  free:       "Free",
+  starter:    "Coach30",
+  basic:      "Coach50",
+  standard:   "Coach100",
+  center_200: "Premier200",
+  advance:    "Premier300",
+  pro:        "Premier500",
+  max:        "Premier1000",
+  trial:      "무료 체험",
 };
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
   trial:     { label: "체험 중",   color: P,         bg: "#EEDDF5" },
@@ -651,7 +657,7 @@ export default function OperatorDetailScreen() {
 
               <Text style={m.fieldLabel}>구독 티어</Text>
               <View style={m.pickerRow}>
-                {["free","starter","basic","standard","growth","advance","premium","enterprise","trial"].map(t => (
+                {["free","starter","basic","standard","center_200","advance","pro","max","trial"].map(t => (
                   <Pressable key={t} style={[m.chip, subTier === t && m.chipActive]}
                     onPress={() => setSubTier(subTier === t ? "" : t)}>
                     <Text style={[m.chipTxt, subTier === t && m.chipActiveTxt]}>
