@@ -1028,4 +1028,6 @@ export async function initPoolDb(): Promise<void> {
       updated_at       timestamptz NOT NULL DEFAULT now()
     );
   `)).catch(() => {});
+  // 담당 선생님 컬럼 (기존 테이블 보완)
+  await db.execute(sql.raw(`ALTER TABLE parent_student_requests ADD COLUMN IF NOT EXISTS teacher_user_id text`)).catch(() => {});
 }
