@@ -33,6 +33,8 @@ interface BillingStatus {
   storage_quota_gb: number;
   storage_used_pct: number;
   plan_name: string | null;
+  display_storage: string | null;
+  storage_mb: number | null;
   current_tier: string;
   next_billing_at?: string | null;
   // 다운그레이드 예약 필드
@@ -107,9 +109,11 @@ export default function BillingScreen() {
         member_count:        sd.member_count ?? 0,
         member_limit:        sd.member_limit ?? 10,
         storage_used_gb:     sd.storage_used_gb ?? 0,
-        storage_quota_gb:    sd.storage_quota_gb ?? 0.1,
+        storage_quota_gb:    sd.storage_quota_gb ?? 0.5,
         storage_used_pct:    sd.storage_used_pct ?? 0,
         plan_name:           sd.plan_name ?? null,
+        display_storage:     sd.display_storage ?? null,
+        storage_mb:          sd.storage_mb ?? null,
         current_tier:        activeTier,
         next_billing_at:     sd.next_billing_at ?? sd.subscription?.next_billing_at ?? null,
         pending_tier:        sd.pending_tier ?? null,
@@ -242,6 +246,7 @@ export default function BillingScreen() {
                 </Text>
                 <Text style={s.planMeta}>
                   최대 {billingInfo?.member_limit ?? 10}명
+                  {billingInfo?.display_storage ? ` · ${billingInfo.display_storage}` : ""}
                 </Text>
               </View>
               <View style={[s.statusBadge, isSubscribed ? s.badgeGreen : s.badgeGray]}>
@@ -299,7 +304,7 @@ export default function BillingScreen() {
             <View style={s.infoRow}>
               <Text style={s.metaLabel}>사용량</Text>
               <Text style={[s.metaValue, { color: storageColor }]}>
-                {(billingInfo?.storage_used_gb ?? 0).toFixed(2)}GB / {(billingInfo?.storage_quota_gb ?? 0.1).toFixed(1)}GB
+                {(billingInfo?.storage_used_gb ?? 0).toFixed(2)}GB / {billingInfo?.display_storage ?? `${(billingInfo?.storage_quota_gb ?? 0.5).toFixed(1)}GB`}
               </Text>
             </View>
             <View style={s.storageBar}>
