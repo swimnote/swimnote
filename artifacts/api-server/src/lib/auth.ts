@@ -35,7 +35,10 @@ export type JwtPayload = {
   role: string;
   poolId?: string | null;
   permissions?: PlatformPermissions;
+  tv?: number;
 };
+
+export const TOKEN_VERSION = 1;
 
 export type TotpSessionPayload = {
   userId: string;
@@ -61,7 +64,7 @@ export function comparePassword(password: string, hash: string): Promise<boolean
 }
 
 export function signToken(payload: JwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "30d" });
+  return jwt.sign({ ...payload, tv: TOKEN_VERSION }, JWT_SECRET, { expiresIn: "30d" });
 }
 
 export function verifyToken(token: string): JwtPayload {

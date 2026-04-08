@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { verifyToken, SUPER_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
+import { verifyToken, TOKEN_VERSION, SUPER_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
 import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
@@ -26,6 +26,10 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   const token = authHeader.slice(7);
   try {
     const payload = verifyToken(token);
+    if (payload.tv !== TOKEN_VERSION) {
+      res.status(401).json({ success: false, message: "세션이 만료되었습니다. 다시 로그인해주세요.", error: "token_version_mismatch" });
+      return;
+    }
     req.user = payload;
     next();
   } catch {

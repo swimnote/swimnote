@@ -166,6 +166,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
 
       if (!storedToken || !storedKind) return;
+
+      // 서버에서 토큰 유효성 검증 — 새로 설치 후 남아있는 구 토큰 제거
+      try {
+        const meRes = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${storedToken}` },
+          cache: "no-store",
+        });
+        if (meRes.status === 401) {
+          await AsyncStorage.multiRemove([
+            "auth_token", "auth_kind", "auth_admin", "auth_parent",
+            "auth_all_accounts", "last_used_role", "last_used_tenant", "last_selected_student",
+            "parent_selected_student_id", "brand_data",
+            "parent_join_status", "parent_join_request_id", "parent_pool_name",
+          ]);
+          return;
+        }
+      } catch {
+        // 네트워크 오류(오프라인) 시 기존 세션 유지
+      }
+
       setToken(storedToken);
       if (storedKind === "admin" && storedAdmin) {
         const user: AdminUser = JSON.parse(storedAdmin);
