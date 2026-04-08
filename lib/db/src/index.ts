@@ -56,8 +56,10 @@ function buildConfig(url: string | undefined, password: string | undefined) {
       database:          u.pathname.replace(/^\//, ""),
       ssl:               { rejectUnauthorized: false },
       max:               5,
-      idleTimeoutMillis: 15000,
-      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis:       30000,
+      connectionTimeoutMillis: 15000,
+      keepAlive:               true,
+      keepAliveInitialDelayMillis: 10000,
     };
   }
   return { connectionString: FALLBACK! };
