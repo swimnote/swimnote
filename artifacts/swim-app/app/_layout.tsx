@@ -376,12 +376,29 @@ export default function RootLayout() {
     "Pretendard-SemiBold": require("../assets/fonts/Pretendard-SemiBold.otf"),
     "Pretendard-Bold":     require("../assets/fonts/Pretendard-Bold.otf"),
   });
+  const [fontsReady, setFontsReady] = useState(false);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) SplashScreen.hideAsync();
+    if (fontsLoaded || fontError) {
+      setFontsReady(true);
+      SplashScreen.hideAsync();
+    }
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) return null;
+  // 안전 타임아웃: 10초 후 강제 렌더링 (웹/개발 환경에서 폰트 로딩이 지연되는 경우)
+  // 프로덕션 빌드(EAS)에서는 app.json expo-font 플러그인으로 네이티브 정적 번들링되어
+  // useFonts가 즉시 성공하므로 이 타임아웃은 실제로 발동하지 않음
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setFontsReady(prev => {
+        if (!prev) SplashScreen.hideAsync();
+        return true;
+      });
+    }, 10_000);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (!fontsReady) return null;
 
   return (
     <SafeAreaProvider>
