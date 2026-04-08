@@ -7,13 +7,9 @@ import { initSuperDb } from "./migrations/super-db-init.js";
 import { initV2PendingTable } from "./lib/auto-link-v2.js";
 import { backfillPoolAdminRoles } from "./migrations/roles-backfill.js";
 import { backfillPoolSubscriptionFields } from "./lib/subscriptionService.js";
-import { isDbSeparated, isProtectDbConfigured } from "@workspace/db";
+import { isDbSeparated, isProtectDbConfigured, pool } from "@workspace/db";
 
 // ── DB 구성 안내 ─────────────────────────────────────────────────────────────
-// 앱은 superAdminDb(SUPABASE_DATABASE_URL)만 운영 DB로 사용합니다.
-// pool 백업 DB(POOL_DATABASE_URL)와 보호백업 DB(SUPER_PROTECT_DATABASE_URL)는
-// 백업 전용으로, 미설정 시에는 백업 기능이 비활성화됩니다.
-
 if (!isDbSeparated) {
   console.warn("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.warn("⚠️  [백업 DB 미설정] POOL_DATABASE_URL이 설정되지 않았습니다.");
@@ -45,23 +41,60 @@ if (Number.isNaN(port) || port <= 0) {
 initPoolDb().catch((e) => console.error("[pool-db-init] 초기화 오류:", e.message));
 initSuperDb().catch((e) => console.error("[super-db-init] 초기화 오류:", e.message));
 initV2PendingTable().catch((e) => console.error("[v2-init] parent_v2_pending 테이블 초기화 오류:", e.message));
-// pool_admin 기존 계정 roles 자동 보완 (teacher 역할 미포함 시 추가 — 멱등)
 backfillPoolAdminRoles().catch((e) => console.error("[roles-backfill] 오류:", e.message));
-// 기존 수영장 구독 필드 보완 (subscription_plan_name/storage_mb/display_storage — 멱등)
 setTimeout(() => {
   backfillPoolSubscriptionFields().catch((e) => console.error("[backfill-pools] 오류:", e.message));
-}, 3000); // initSuperDb 컬럼 추가 완료 후 실행
+}, 3000);
 
-// 새벽 배치 잡 시작 (앱이 켜져 있는 동안 스케줄 유지)
+// 배치 잡 시작
 startBackupJobs();
-// 학부모↔학생 실시간 자동 연결 (매 1분, 서버 시작 5초 후 즉시 1회 실행)
 startParentLinkScheduler();
-// 자동 출석 처리 (수업 시작 60분 후, 미기록 학생 → 자동 출석, 매 15분 실행)
 startAutoAttendanceScheduler();
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
   console.log(`[DB] 운영 DB: superAdminDb (단일화 완료)`);
   console.log(`[DB] pool 백업: ${isDbSeparated ? "활성화" : "미설정 (비활성화)"}`);
   console.log(`[DB] 보호백업: ${isProtectDbConfigured ? "활성화" : "미설정 (비활성화)"}`);
+});
+
+// ── Graceful Shutdown ────────────────────────────────────────────────────────
+// SIGTERM/SIGINT 수신 시 기존 요청을 완료한 후 서버를 안전하게 종료.
+// 이렇게 해야 재시작 중에도 처리 중인 요청이 502가 되지 않음.
+let isShuttingDown = false;
+
+function gracefulShutdown(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`[shutdown] ${signal} 수신 — graceful shutdown 시작`);
+
+  // 새 연결 수락 중단, 기존 요청 완료 대기 (최대 15초)
+  server.close(async () => {
+    console.log("[shutdown] 모든 요청 완료 — DB 연결 종료 중");
+    try {
+      await pool.end();
+      console.log("[shutdown] DB 풀 종료 완료");
+    } catch (e) {
+      console.error("[shutdown] DB 풀 종료 오류:", e);
+    }
+    console.log("[shutdown] 서버 종료 완료");
+    process.exit(0);
+  });
+
+  // 15초 이내에 완료 안 되면 강제 종료
+  setTimeout(() => {
+    console.error("[shutdown] 15초 초과 — 강제 종료");
+    process.exit(1);
+  }, 15_000).unref();
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT",  () => gracefulShutdown("SIGINT"));
+
+// 처리되지 않은 예외가 서버를 죽이지 않도록 로깅만 처리
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
 });
