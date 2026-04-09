@@ -32,7 +32,7 @@ export const ms = StyleSheet.create({
   connCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14 },
   connStatus: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   inviteBox: { marginTop: 12, gap: 8 },
-  inviteCode: { fontSize: 22, fontFamily: "Pretendard-Regular", letterSpacing: 3 },
+  inviteCode: { fontSize: 22, fontFamily: "Pretendard-Regular" },
 
   logRow: { paddingVertical: 12 },
   logDot: { width: 28, height: 28, borderRadius: 10, alignItems: "center", justifyContent: "center", marginTop: 2 },

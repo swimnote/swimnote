@@ -832,7 +832,7 @@ const styles = StyleSheet.create({
   smsErrTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 2 },
   devCodeBox:  { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF3CD", borderRadius: 8, padding: 10 },
   devCodeLabel:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#856404" },
-  devCodeNum:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#856404", letterSpacing: 2 },
+  devCodeNum:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#856404" },
 
   roleCard:  { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, padding: 14, backgroundColor: "#fff" },
   roleIcon:  { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },

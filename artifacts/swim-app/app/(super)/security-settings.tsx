@@ -732,7 +732,7 @@ export default function SecuritySettingsScreen() {
                         <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" }}>
                           앱 → "설정 키 입력" 선택 후 아래 키 입력 (계정 유형: 시간 기반)
                         </Text>
-                        <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: P, letterSpacing: 2 }} selectable>
+                        <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: P }} selectable>
                           {otpSetupSecret}
                         </Text>
                       </>
@@ -757,7 +757,7 @@ export default function SecuritySettingsScreen() {
                       height: 52, borderRadius: 12, borderWidth: 2,
                       borderColor: otpSetupCode.length === 6 ? P : "#E5E7EB",
                       paddingHorizontal: 16, fontSize: 24, fontFamily: "Pretendard-Regular",
-                      letterSpacing: 8, textAlign: "center", color: P,
+                      textAlign: "center", color: P,
                     }}
                     placeholder="000000"
                     placeholderTextColor="#D1D5DB"
@@ -1001,7 +1001,7 @@ const s = StyleSheet.create({
   recoveryCodesGrid:  { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   recoveryCodeItem:   { backgroundColor: "#fff", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
                         borderWidth: 1, borderColor: "#E5E7EB" },
-  recoveryCode:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", letterSpacing: 1 },
+  recoveryCode:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   recoveryCodesHint:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   regenBtn:           { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8 },
   regenTxt:           { fontSize: 12, fontFamily: "Pretendard-Regular", color: DANGER },

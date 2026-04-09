@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
   secretToggleTxt: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular" },
   secretBox: { padding: 14, borderRadius: 12, borderWidth: 1, gap: 6 },
   secretLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
-  secretText: { fontSize: 14, fontFamily: "Pretendard-Regular", letterSpacing: 2 },
+  secretText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   secretHint: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   otpBoxRow: { flexDirection: "row", gap: 8, justifyContent: "center" },
   otpBox: {

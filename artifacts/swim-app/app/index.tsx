@@ -4,6 +4,7 @@
  * 중단: 아이디/비밀번호 입력 + 로그인 버튼 + 비밀번호 찾기
  * 하단: or 구분선 + 카카오 가입 / 일반 가입
  */
+console.log("[INDEX_SCREEN] login screen loaded");
 import { CircleAlert, Key, Lock, User, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";

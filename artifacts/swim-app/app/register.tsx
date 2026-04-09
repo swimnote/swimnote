@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
   devCodeBox:     { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6,
                     backgroundColor: "#FFF3CD", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },
   devCodeLabel:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#856404" },
-  devCodeNum:     { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#856404", letterSpacing: 2 },
+  devCodeNum:     { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#856404" },
   sectionDivider: { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 4 },
   sectionLine:    { flex: 1, height: 1 },
   sectionLabel:   { fontSize: 12, fontFamily: "Pretendard-Regular", paddingHorizontal: 4 },

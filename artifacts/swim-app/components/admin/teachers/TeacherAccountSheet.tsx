@@ -284,7 +284,7 @@ const ts = StyleSheet.create({
   codeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderTopWidth: 1 },
   codeBtnText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   codeBox: { padding: 16, alignItems: "center" },
-  codeText: { fontSize: 28, fontFamily: "Pretendard-Regular", letterSpacing: 6 },
+  codeText: { fontSize: 28, fontFamily: "Pretendard-Regular" },
   emptyBox: { alignItems: "center", paddingVertical: 48, gap: 10 },
   emptyText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
 });

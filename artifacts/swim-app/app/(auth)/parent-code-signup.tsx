@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 10,
     borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, height: 52,
   },
-  codeInput: { flex: 1, fontSize: 18, fontFamily: "Pretendard-Regular", letterSpacing: 3, textAlign: "center" },
+  codeInput: { flex: 1, fontSize: 18, fontFamily: "Pretendard-Regular", textAlign: "center" },
   input: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular" },
   infoBox: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
   infoRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 11 },

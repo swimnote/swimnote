@@ -488,7 +488,7 @@ const styles = StyleSheet.create({
   retryTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   devCodeBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF3CD", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },
   devCodeLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#856404" },
-  devCodeNum: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#856404", letterSpacing: 2 },
+  devCodeNum: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#856404" },
   errBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12 },
   errText: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
   submitBtn: { height: 54, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 2 },
