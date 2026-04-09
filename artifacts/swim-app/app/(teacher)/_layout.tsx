@@ -3,6 +3,7 @@ import { BlurView } from "expo-blur";
 import { Tabs, router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
+console.log("[TEACHER_LAYOUT_LOADED_v2] fontSize:1 color:transparent applied");
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
@@ -148,7 +149,7 @@ export default function TeacherLayout() {
         options={{
           title: "메신저",
           tabBarIcon: ({ color }) => <Send size={22} color={color} />,
-          tabBarBadge: messengerUnread ? " " : undefined,
+          tabBarBadge: undefined,
           tabBarBadgeStyle: { backgroundColor: "#D96C6C", minWidth: 8, height: 8, borderRadius: 4, fontSize: 1, color: "transparent" },
         }}
       />

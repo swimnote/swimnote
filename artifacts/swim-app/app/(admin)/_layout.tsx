@@ -2,6 +2,7 @@ import { Briefcase, Home, Layers, Send, Settings } from "lucide-react-native";
 import { Tabs, router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
+console.log("[ADMIN_LAYOUT_LOADED_v2] fontSize:1 color:transparent applied");
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
@@ -145,7 +146,7 @@ export default function AdminLayout() {
         options={{
           title: "메신저",
           tabBarIcon: ({ color }) => <Send size={22} color={color} />,
-          tabBarBadge: messengerUnread ? " " : undefined,
+          tabBarBadge: undefined,
           tabBarBadgeStyle: { backgroundColor: "#D96C6C", minWidth: 8, height: 8, borderRadius: 4, fontSize: 1, color: "transparent" },
         }}
       />
