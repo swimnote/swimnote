@@ -167,13 +167,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
       if (!storedToken || !storedKind) return;
 
-      // 서버에서 토큰 유효성 검증 — 새로 설치 후 남아있는 구 토큰 제거
+      // 서버에서 토큰 유효성 검증 — 구 토큰 / 서버 오류 시 세션 초기화
       try {
         const meRes = await fetch(`${API_BASE}/auth/me`, {
           headers: { Authorization: `Bearer ${storedToken}` },
           cache: "no-store",
         });
-        if (meRes.status === 401) {
+        // 401: 토큰 만료/버전 불일치, 5xx: 서버 오류 → 모두 세션 초기화 (자동로그인 방지)
+        if (meRes.status === 401 || meRes.status >= 500) {
           await AsyncStorage.multiRemove([
             "auth_token", "auth_kind", "auth_admin", "auth_parent",
             "auth_all_accounts", "last_used_role", "last_used_tenant", "last_selected_student",
@@ -183,7 +184,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           return;
         }
       } catch {
-        // 네트워크 오류(오프라인) 시 기존 세션 유지
+        // 순수 네트워크 오류(오프라인, DNS 실패)만 기존 세션 유지
       }
 
       setToken(storedToken);
