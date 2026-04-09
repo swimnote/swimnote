@@ -145,7 +145,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   async function loadStored() {
     try {
       // 앱 버전 변경 시 세션 강제 초기화 (업데이트 시 자동로그인 방지)
-      const APP_VERSION = "1.2.0-106";
+      const APP_VERSION = "1.2.0-106-b2";
       const storedAppVersion = await AsyncStorage.getItem("app_version");
       if (storedAppVersion !== APP_VERSION) {
         await AsyncStorage.multiRemove([
@@ -519,6 +519,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       "auth_all_accounts", "last_used_role", "last_used_tenant", "last_selected_student",
       "parent_selected_student_id", "brand_data",
       "parent_join_status", "parent_join_request_id", "parent_pool_name",
+      "app_version",
     ]);
     setToken(null);
     setKind(null);
