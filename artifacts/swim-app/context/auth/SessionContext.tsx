@@ -144,6 +144,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   async function loadStored() {
     try {
+      // 앱 버전 변경 시 세션 강제 초기화 (업데이트 시 자동로그인 방지)
+      const APP_VERSION = "1.2.0-106";
+      const storedAppVersion = await AsyncStorage.getItem("app_version");
+      if (storedAppVersion !== APP_VERSION) {
+        await AsyncStorage.multiRemove([
+          "auth_token", "auth_kind", "auth_admin", "auth_parent",
+          "auth_all_accounts", "last_used_role", "last_used_tenant", "last_selected_student",
+          "parent_selected_student_id", "brand_data",
+          "parent_join_status", "parent_join_request_id", "parent_pool_name",
+        ]);
+        await AsyncStorage.setItem("app_version", APP_VERSION);
+        return;
+      }
+
       const [
         storedToken, storedKind, storedAdmin, storedParent, storedAccounts,
         storedJoinStatus, storedJoinRequestId, storedPoolName,
@@ -319,11 +333,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }
 
   async function unifiedLogin(identifier: string, password: string): Promise<{ available_accounts: AccountEntry[] }> {
-    const res = await fetch(`${API_BASE}/auth/unified-login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifier, password }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/auth/unified-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier, password }),
+      });
+    } catch {
+      throw Object.assign(new Error("서버에 연결할 수 없습니다.\n잠시 후 다시 시도해주세요."), {
+        error_code: "network_error",
+      });
+    }
     const data = await safeJson(res);
     if (!res.ok) {
       if (data.needs_activation || data.error_code === "needs_activation") {

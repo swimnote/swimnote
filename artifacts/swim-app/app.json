@@ -45,7 +45,8 @@
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.swimnote.app",
       "versionCode": 106,
-      "edgeToEdge": true
+      "edgeToEdge": true,
+      "allowBackup": false
     },
     "web": {
       "favicon": "./assets/images/icon.png"
