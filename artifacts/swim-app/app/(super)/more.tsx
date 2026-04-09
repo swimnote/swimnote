@@ -324,7 +324,7 @@ const s = StyleSheet.create({
   securityBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6,
                       borderRadius: 10, backgroundColor: "rgba(255,255,255,0.2)" },
   securityBtnTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
-  sectionLabel:     { fontSize: 12, fontFamily: "Pretendard-Regular", letterSpacing: 0.5, textTransform: "uppercase",
+  sectionLabel:     { fontSize: 12, fontFamily: "Pretendard-Regular", textTransform: "uppercase",
                       marginTop: 12, marginBottom: 4, paddingLeft: 2 },
   menuItem:         { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 14, gap: 12, marginBottom: 6,
                       shadowColor: "#0000001A", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 4, elevation: 1 },

@@ -563,7 +563,7 @@ const md = StyleSheet.create({
   actionTxt: { fontSize: 14, fontWeight: "600" },
 
   section: { gap: 8 },
-  sectionTitle: { fontSize: 12, fontWeight: "700", color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 },
+  sectionTitle: { fontSize: 12, fontWeight: "700", color: C.textMuted, textTransform: "uppercase"},
 
   infoCard: {
     backgroundColor: "#fff", borderRadius: 12, padding: 14,

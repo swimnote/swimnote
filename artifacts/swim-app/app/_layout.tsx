@@ -379,13 +379,17 @@ export default function RootLayout() {
   const [fontsReady, setFontsReady] = useState(false);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    if (fontsLoaded) {
       setFontsReady(true);
       SplashScreen.hideAsync();
+    } else if (fontError) {
+      // 폰트 로딩 에러: 경고 로그만 출력하고 타임아웃 대기
+      // (즉시 렌더링하면 fontFamily 미적용 상태에서 letterSpacing 계산 에러 발생)
+      console.warn("[Fonts] 폰트 로딩 실패, 안전 타임아웃 대기 중...", fontError);
     }
   }, [fontsLoaded, fontError]);
 
-  // 안전 타임아웃: 10초 후 강제 렌더링 (웹/개발 환경에서 폰트 로딩이 지연되는 경우)
+  // 안전 타임아웃: 5초 후 강제 렌더링 (웹/개발 환경에서 폰트 로딩이 지연되는 경우)
   // 프로덕션 빌드(EAS)에서는 app.json expo-font 플러그인으로 네이티브 정적 번들링되어
   // useFonts가 즉시 성공하므로 이 타임아웃은 실제로 발동하지 않음
   useEffect(() => {
@@ -394,7 +398,7 @@ export default function RootLayout() {
         if (!prev) SplashScreen.hideAsync();
         return true;
       });
-    }, 10_000);
+    }, 5_000);
     return () => clearTimeout(t);
   }, []);
 

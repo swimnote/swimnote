@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
   content:         { padding: 16, gap: 8, paddingBottom: 100 },
 
   section:         { backgroundColor: "#fff", borderRadius: 12, padding: 16, marginBottom: 12, gap: 12 },
-  sectionTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", letterSpacing: 0.5, textTransform: "uppercase" },
+  sectionTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textTransform: "uppercase" },
   sectionDesc:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18 },
 
   // 미리보기

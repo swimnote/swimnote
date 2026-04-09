@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
   statNum: { fontSize: 20, fontFamily: "Pretendard-Regular" },
   statLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 2 },
   monthDivider: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12 },
-  monthText: { fontSize: 12, fontFamily: "Pretendard-Regular", textTransform: "uppercase", letterSpacing: 0.5 },
+  monthText: { fontSize: 12, fontFamily: "Pretendard-Regular", textTransform: "uppercase"},
   monthLine: { flex: 1, height: 1 },
   recordRow: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, padding: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
   recordIcon: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },

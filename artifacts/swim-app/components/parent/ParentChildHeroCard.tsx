@@ -108,8 +108,7 @@ const styles = StyleSheet.create({
   levelTxt: {
     fontSize: 14,
     fontFamily: "Pretendard-Regular",
-    color: C.tint,
-    letterSpacing: -0.3,
+    color: C.tint
   },
   name: { fontSize: 18, fontFamily: "Pretendard-Regular" },
   className: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },

@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   selectionText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },
   selectionBtn: { paddingHorizontal: 14, paddingVertical: 6, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 10 },
   selectionBtnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
-  sectionTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", textTransform: "uppercase", letterSpacing: 0.3 },
+  sectionTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", textTransform: "uppercase"},
   chip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8 },
   chipText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   pickBtn: { borderWidth: 2, borderStyle: "dashed", borderRadius: 16, paddingVertical: 36, alignItems: "center", gap: 10 },

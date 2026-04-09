@@ -186,7 +186,7 @@ const pd = StyleSheet.create({
   autoChipTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
   section:       { gap: 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.border, marginBottom: 12 },
   sTitle:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary,
-                   textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
+                   textTransform: "uppercase", marginBottom: 2 },
   infoRow:       { flexDirection: "row", justifyContent: "space-between", gap: 12 },
   infoLabel:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   infoValue:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "right", flex: 1 },

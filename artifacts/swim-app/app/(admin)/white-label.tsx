@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
   poolChipTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   poolChipName: { fontSize: 14, fontFamily: "Pretendard-Regular", flex: 1 },
   section: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
-  sectionTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", letterSpacing: 0.4, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, textTransform: "uppercase" },
+  sectionTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, textTransform: "uppercase" },
   divider: { height: 1, marginHorizontal: 16 },
   toggleRow: { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 16, paddingVertical: 14 },
   toggleDisabled: { opacity: 0.45 },

@@ -583,7 +583,7 @@ const s = StyleSheet.create({
   },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
   cardIconWrap: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  cardTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", letterSpacing: 0.2, flex: 1 },
+  cardTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
 
   changePoolBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: "#E6FAF8" },
   changePoolTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },

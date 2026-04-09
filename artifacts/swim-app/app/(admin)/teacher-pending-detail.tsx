@@ -469,7 +469,7 @@ const s = StyleSheet.create({
   statusBannerSub:   { fontSize: 12, fontFamily: "Pretendard-Regular", opacity: 0.85 },
 
   section:           { backgroundColor: C.card, borderRadius: 16, padding: 16, gap: 10 },
-  sectionTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 },
+  sectionTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textTransform: "uppercase"},
   sectionDesc:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
   required:          { color: "#D96C6C", fontFamily: "Pretendard-Regular" },
 

@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 26, fontFamily: "Pretendard-Regular" },
   message: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 24 },
   reasonCard: { width: "100%", borderRadius: 14, borderWidth: 1, padding: 16, gap: 8 },
-  reasonLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", textTransform: "uppercase", letterSpacing: 0.5 },
+  reasonLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", textTransform: "uppercase"},
   reasonText: { fontSize: 15, fontFamily: "Pretendard-Regular", lineHeight: 22 },
   reapplyBtn: { paddingVertical: 14, paddingHorizontal: 32, borderRadius: 14, alignItems: "center" },
   reapplyText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },

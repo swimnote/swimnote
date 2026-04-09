@@ -200,7 +200,7 @@ const dm = StyleSheet.create({
   infoLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   infoValue: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "right", flex: 1 },
   section: { gap: 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.border, marginBottom: 14 },
-  sectionTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
+  sectionTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, textTransform: "uppercase", marginBottom: 2 },
   actionArea: { paddingTop: 8 },
   actionBtn: { flex: 1, height: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14 },
   actionBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular" },

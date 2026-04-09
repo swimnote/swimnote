@@ -289,7 +289,7 @@ const sn = StyleSheet.create({
   sub:         { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#64748B",
                  textAlign: "center", lineHeight: 26 },
   previewBox:  { backgroundColor: "#E6FAF8", borderRadius: 20, padding: 24, alignItems: "center", gap: 6, width: "100%" },
-  previewLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: MINT, textTransform: "uppercase", letterSpacing: 1 },
+  previewLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: MINT, textTransform: "uppercase"},
   previewNickname: { fontSize: 28, fontFamily: "Pretendard-Regular", color: MINT },
   previewDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   btn:         { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: MINT,

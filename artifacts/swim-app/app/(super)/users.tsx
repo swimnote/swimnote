@@ -347,7 +347,7 @@ const ps = StyleSheet.create({
 const styles = StyleSheet.create({
   header:          { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
                      paddingHorizontal: 20, paddingBottom: 12 },
-  badge:           { fontSize: 12, fontFamily: "Pretendard-Regular", textTransform: "uppercase", letterSpacing: 0.5 },
+  badge:           { fontSize: 12, fontFamily: "Pretendard-Regular", textTransform: "uppercase"},
   title:           { fontSize: 22, fontFamily: "Pretendard-Regular" },
   subtitle:        { fontSize: 13, fontFamily: "Pretendard-Regular" },
   addBtn:          { flexDirection: "row", alignItems: "center", gap: 6,

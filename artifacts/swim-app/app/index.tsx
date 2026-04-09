@@ -399,7 +399,7 @@ const s = StyleSheet.create({
     shadowOpacity: 0.18, shadowRadius: 14, elevation: 8,
   },
   logoImage: { width: 80, height: 80, borderRadius: 19, overflow: "hidden", backgroundColor: "#0a2540" },
-  wordmark:  { fontSize: 32, fontWeight: "700", color: "#0a0909", letterSpacing: 0.5, marginBottom: 6 },
+  wordmark:  { fontSize: 32, fontWeight: "700", color: "#0a0909", marginBottom: 6 },
   tagline:   { fontSize: 16, color: "#334155", fontFamily: "Pretendard-Regular", textAlign: "center" },
   taglineSub:{ fontSize: 13, color: "#242222", fontFamily: "Pretendard-Regular", textAlign: "center", marginTop: 4 },
 

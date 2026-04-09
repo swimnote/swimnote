@@ -139,14 +139,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 15,
     fontFamily: "Pretendard-Regular",
-    color: "#0F172A",
-    letterSpacing: -0.3,
+    color: "#0F172A"
   },
   subtitle: {
     fontSize: 10,
     fontFamily: "Pretendard-Regular",
-    marginTop: 1,
-    letterSpacing: 0.2,
+    marginTop: 1
   },
   divider: {
     height: 1,

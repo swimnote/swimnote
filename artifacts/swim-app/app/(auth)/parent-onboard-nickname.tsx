@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontFamily: "Pretendard-Regular" },
   sub: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22 },
   previewCard: { borderRadius: 16, padding: 18, alignItems: "center", gap: 4 },
-  previewLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", textTransform: "uppercase", letterSpacing: 0.5 },
+  previewLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", textTransform: "uppercase"},
   previewNickname: { fontSize: 24, fontFamily: "Pretendard-Regular" },
   field: { gap: 8 },
   fieldLabel: { fontSize: 13, fontFamily: "Pretendard-Regular" },

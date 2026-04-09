@@ -586,7 +586,7 @@ export default function BillingScreen() {
 const s = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: "#fff" },
   section:       { gap: 10 },
-  sectionTitle:  { fontSize: 13, fontWeight: "600", color: "#374151", letterSpacing: 0.3 },
+  sectionTitle:  { fontSize: 13, fontWeight: "600", color: "#374151"},
 
   failBanner:        { borderRadius: 10, padding: 14, gap: 10, borderWidth: 1 },
   failBannerActive:  { backgroundColor: "#FEF2F2", borderColor: "#FECACA" },

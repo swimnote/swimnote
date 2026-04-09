@@ -203,7 +203,7 @@ const s = StyleSheet.create({
   section: { gap: 6 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  sectionLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", textTransform: "uppercase", letterSpacing: 0.5 },
+  sectionLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", textTransform: "uppercase"},
   sectionValue: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22, paddingLeft: 14 },
 
   noteBox: { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
