@@ -126,6 +126,13 @@ API design follows RESTful principles with consistent JSON formats and strong au
 ### TIER_ORDER (낮은 숫자 = 하위 플랜)
 `free=0 < starter=1 < basic=2 < standard=3 < center_200=4 < advance=5 < pro=6 < max=7`
 
+## 다음 업데이트 예정 목록 (v1.4.0+)
+
+| 항목 | 설명 | 우선순위 |
+|---|---|---|
+| 연결 대기 화면 로그아웃 버튼 | 학부모가 수영장 등록 대기 중일 때 로그인 화면으로 돌아갈 수 있는 버튼 추가 | 보통 |
+| 스플래시 화면 개선 | 로고 위치·테두리 정리 + Lottie 애니메이션 스플래시 적용 | 낮음 |
+
 ## External Dependencies
 - **PostgreSQL**: Primary database for all application data.
 - **Drizzle ORM**: Object-relational mapper for interacting with PostgreSQL.
