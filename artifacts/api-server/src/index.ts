@@ -51,13 +51,16 @@ startBackupJobs();
 startParentLinkScheduler();
 startAutoAttendanceScheduler();
 
-// ── Keep-Alive 자기 핑 (Autoscale 0 스케일다운 방지) ─────────────────────────
-// 프로덕션 환경에서 4분마다 자기 healthz에 HTTP 요청 → 서버가 꺼지지 않음
+// ── Keep-Alive 자기 핑 (슬립 방지) ──────────────────────────────────────────
+// Render Free 등 비활성 슬립 방지: 외부 URL로 4분마다 핑
+// RENDER_EXTERNAL_URL = Render가 자동 제공 (예: https://swimnote-api.onrender.com)
+// 없을 경우 localhost fallback (개발 환경)
 if (process.env["NODE_ENV"] === "production") {
   const PING_INTERVAL_MS = 4 * 60 * 1000; // 4분
+  const selfBase = process.env["RENDER_EXTERNAL_URL"] || `http://localhost:${port}`;
   setInterval(async () => {
     try {
-      const res = await fetch(`http://localhost:${port}/api/healthz`, {
+      const res = await fetch(`${selfBase}/api/healthz`, {
         signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) console.warn(`[keep-alive] ping 응답 이상: ${res.status}`);
@@ -65,7 +68,7 @@ if (process.env["NODE_ENV"] === "production") {
       console.warn(`[keep-alive] ping 실패:`, e?.message ?? e);
     }
   }, PING_INTERVAL_MS);
-  console.log("[keep-alive] 자기 핑 스케줄러 시작 (4분 간격)");
+  console.log(`[keep-alive] 자기 핑 스케줄러 시작 (4분 간격) target=${selfBase}`);
 }
 
 const server = app.listen(port, () => {
