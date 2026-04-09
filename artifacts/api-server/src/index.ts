@@ -54,11 +54,12 @@ startAutoAttendanceScheduler();
 // ── Keep-Alive 자기 핑 (Autoscale 0 스케일다운 방지) ─────────────────────────
 // 프로덕션 환경에서 4분마다 자기 healthz에 HTTP 요청 → 서버가 꺼지지 않음
 if (process.env["NODE_ENV"] === "production") {
-  const SELF_URL = "https://swimnote-8.pcrskm.replit.app/api/healthz";
   const PING_INTERVAL_MS = 4 * 60 * 1000; // 4분
   setInterval(async () => {
     try {
-      const res = await fetch(SELF_URL, { signal: AbortSignal.timeout(10_000) });
+      const res = await fetch(`http://localhost:${port}/api/healthz`, {
+        signal: AbortSignal.timeout(10_000),
+      });
       if (!res.ok) console.warn(`[keep-alive] ping 응답 이상: ${res.status}`);
     } catch (e: any) {
       console.warn(`[keep-alive] ping 실패:`, e?.message ?? e);
