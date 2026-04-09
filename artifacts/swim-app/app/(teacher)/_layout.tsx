@@ -147,9 +147,18 @@ export default function TeacherLayout() {
         })}
         options={{
           title: "메신저",
-          tabBarIcon: ({ color }) => <Send size={22} color={color} />,
-          tabBarBadge: messengerUnread ? " " : undefined,
-          tabBarBadgeStyle: { backgroundColor: "#D96C6C", minWidth: 8, height: 8, borderRadius: 4, fontSize: 1, color: "transparent" },
+          tabBarIcon: ({ color }) => (
+            <View>
+              <Send size={22} color={color} />
+              {messengerUnread && (
+                <View style={{
+                  position: "absolute", top: -2, right: -4,
+                  width: 8, height: 8, borderRadius: 4,
+                  backgroundColor: "#D96C6C",
+                }} />
+              )}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
