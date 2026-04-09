@@ -1,7 +1,6 @@
 import { useFonts } from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router, useSegments } from "expo-router";
-import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -17,6 +16,13 @@ import { initializeRevenueCat, loginRevenueCat, logoutRevenueCat, SubscriptionPr
 
 // Expo Go 환경 여부 — Expo Go SDK 53부터 Android 원격 알림 미지원
 const IS_EXPO_GO = Constants.appOwnership === "expo";
+
+// expo-notifications: 정적 import 시 Expo Go Android에서 에러 오버레이 발생
+// → Expo Go가 아닐 때만 동적 require로 로드
+type NotificationsModule = typeof import("expo-notifications");
+const Notifications: NotificationsModule | null = IS_EXPO_GO
+  ? null
+  : (() => { try { return require("expo-notifications") as NotificationsModule; } catch { return null; } })();
 
 try {
   initializeRevenueCat();
@@ -139,11 +145,11 @@ function PushTokenSync() {
   const registered = useRef(false);
 
   useEffect(() => {
-    // Expo Go SDK 53+: Android 원격 알림 미지원 → 스킵
-    if (!token || registered.current || Platform.OS === "web" || IS_EXPO_GO) return;
+    // Expo Go SDK 53+: Android 원격 알림 미지원 → 스킵 (Notifications는 null)
+    if (!token || registered.current || Platform.OS === "web" || !Notifications) return;
     async function registerToken() {
       try {
-        const { status: existing } = await Notifications.getPermissionsAsync();
+        const { status: existing } = await Notifications!.getPermissionsAsync();
         let finalStatus = existing;
         if (existing !== "granted") {
           const { status } = await Notifications.requestPermissionsAsync();
@@ -181,8 +187,8 @@ function PushNavSync() {
   const { kind, adminUser } = useAuth();
 
   useEffect(() => {
-    // Expo Go SDK 53+: Android 원격 알림 미지원 → 리스너 등록 스킵
-    if (IS_EXPO_GO || Platform.OS === "web") return;
+    // Expo Go SDK 53+: Android 원격 알림 미지원 → 리스너 등록 스킵 (Notifications는 null)
+    if (!Notifications || Platform.OS === "web") return;
 
     const sub = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data as Record<string, unknown> | null;
