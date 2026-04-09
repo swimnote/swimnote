@@ -25,6 +25,27 @@ const BUILD_TAG = "SwimNote-20260407-pools-summary-v3";
 console.log(`[BUILD_TAG] ${BUILD_TAG}`);
 console.log(`[BUILD_TAG] API_BASE=${process.env.EXPO_PUBLIC_API_URL || "https://" + (process.env.EXPO_PUBLIC_DOMAIN || "unknown") + "/api"}`);
 
+// ── 파일 진입 로그 ──────────────────────────────────────
+console.log("[LAYOUT] FILE_ENTRY");
+
+// ── 전역 에러 핸들러 (Android fatal crash 캡처) ──────────
+declare const ErrorUtils: any;
+try {
+  if (typeof ErrorUtils !== "undefined" && ErrorUtils.setGlobalHandler) {
+    const _prevErrHandler = ErrorUtils.getGlobalHandler();
+    ErrorUtils.setGlobalHandler((error: any, isFatal?: boolean) => {
+      console.error(`[GLOBAL_ERROR] isFatal=${isFatal} msg=${error?.message ?? "(no msg)"}`);
+      console.error(`[GLOBAL_ERROR_STACK] ${(error?.stack ?? "").substring(0, 800)}`);
+      if (typeof _prevErrHandler === "function") _prevErrHandler(error, isFatal);
+    });
+    console.log("[LAYOUT] global error handler installed");
+  } else {
+    console.log("[LAYOUT] ErrorUtils NOT available");
+  }
+} catch (handlerErr: any) {
+  console.warn("[LAYOUT] failed to install global error handler:", handlerErr?.message);
+}
+
 function AppLoadingScreen() {
   return <View style={{ flex: 1, backgroundColor: "#FFFFFF" }} />;
 }
@@ -193,10 +214,12 @@ function PushNavSync() {
  * 4. admin이 pool 없거나 pool 상태 이슈 → 적절한 화면
  */
 function RootNav() {
+  console.log("[ROOTNAV] RENDER_START");
   const {
     kind, isLoading, adminUser, parentAccount, pool,
     activeRole, activePoolId, lastUsedTenant, allAccounts, checkRolePermission, setActiveRole, token,
   } = useAuth();
+  console.log(`[ROOTNAV] state: isLoading=${isLoading} kind=${kind} role=${adminUser?.role ?? "none"} activeRole=${activeRole ?? "none"}`);
   const segments = useSegments();
   const didRoute = useRef(false);
 
@@ -221,6 +244,7 @@ function RootNav() {
     if (isLoading) return;
 
     if (!kind) {
+      console.log("[ROOTNAV] no session → router.replace('/')");
       didRoute.current = false;
       router.replace("/");
       return;
@@ -247,6 +271,7 @@ function RootNav() {
     }
 
     async function doRoute() {
+      console.log(`[ROOTNAV] doRoute start kind=${kind} role=${adminUser?.role ?? "none"} activeRole=${activeRole ?? "none"}`);
       if (kind === "admin") {
         const role = adminUser?.role;
 
@@ -370,30 +395,32 @@ function RootNav() {
 }
 
 export default function RootLayout() {
+  console.log("[LAYOUT] RootLayout RENDER_START");
   const [fontsLoaded, fontError] = useFonts({
     "Pretendard-Regular":  require("../assets/fonts/Pretendard-Regular.otf"),
     "Pretendard-Medium":   require("../assets/fonts/Pretendard-Medium.otf"),
     "Pretendard-SemiBold": require("../assets/fonts/Pretendard-SemiBold.otf"),
     "Pretendard-Bold":     require("../assets/fonts/Pretendard-Bold.otf"),
   });
+  console.log(`[FONT] useFonts result: loaded=${fontsLoaded} error=${fontError?.message ?? "none"}`);
   const [fontsReady, setFontsReady] = useState(false);
 
   useEffect(() => {
+    console.log(`[FONT] useEffect fired: loaded=${fontsLoaded} hasError=${!!fontError}`);
     if (fontsLoaded) {
+      console.log("[FONT] LOADED_OK → setFontsReady(true) + hideAsync");
       setFontsReady(true);
       SplashScreen.hideAsync();
     } else if (fontError) {
-      // 폰트 로딩 에러: 경고 로그만 출력하고 타임아웃 대기
-      // (즉시 렌더링하면 fontFamily 미적용 상태에서 letterSpacing 계산 에러 발생)
-      console.warn("[Fonts] 폰트 로딩 실패, 안전 타임아웃 대기 중...", fontError);
+      console.warn("[FONT] LOAD_FAILED → waiting for timeout", fontError?.message);
     }
   }, [fontsLoaded, fontError]);
 
-  // 안전 타임아웃: 5초 후 강제 렌더링 (웹/개발 환경에서 폰트 로딩이 지연되는 경우)
-  // 프로덕션 빌드(EAS)에서는 app.json expo-font 플러그인으로 네이티브 정적 번들링되어
-  // useFonts가 즉시 성공하므로 이 타임아웃은 실제로 발동하지 않음
+  // 안전 타임아웃: 5초 후 강제 렌더링
   useEffect(() => {
+    console.log("[FONT] timeout useEffect registered");
     const t = setTimeout(() => {
+      console.log("[FONT] TIMEOUT_FIRED → forcing fontsReady=true");
       setFontsReady(prev => {
         if (!prev) SplashScreen.hideAsync();
         return true;
@@ -402,7 +429,11 @@ export default function RootLayout() {
     return () => clearTimeout(t);
   }, []);
 
-  if (!fontsReady) return null;
+  if (!fontsReady) {
+    console.log("[LAYOUT] fontsReady=false → returning null (splash still visible)");
+    return null;
+  }
+  console.log("[LAYOUT] fontsReady=true → rendering root tree");
 
   return (
     <SafeAreaProvider>
