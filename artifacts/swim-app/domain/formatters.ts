@@ -1,5 +1,34 @@
 // domain/formatters.ts — 안전 유틸 (undefined/Invalid Date 절대 금지)
 
+/**
+ * parseDateSafe — 모든 날짜 파싱의 단일 진입점
+ *
+ * 처리 규칙:
+ *  1. null/undefined/빈 문자열 → null 반환
+ *  2. 숫자(Unix timestamp) → 초 단위면 *1000 처리 후 Date 생성
+ *  3. 문자열 → 공백 구분 PostgreSQL 형식("YYYY-MM-DD HH:MM:SS") 을
+ *     ISO 8601("YYYY-MM-DDTHH:MM:SS")로 변환 후 파싱
+ *     (Android new Date()는 공백 구분 타임스탬프를 Invalid Date로 처리함)
+ *  4. Invalid Date → null 반환
+ */
+export function parseDateSafe(value: string | number | null | undefined): Date | null {
+  if (value === null || value === undefined || value === '') return null
+
+  let d: Date
+
+  if (typeof value === 'number') {
+    // 초 단위 Unix timestamp 판별: 1e10 미만이면 초 → ms 변환
+    d = value < 1e10 ? new Date(value * 1000) : new Date(value)
+  } else {
+    // 공백 구분 PostgreSQL 타임스탬프 → T 로 치환 (Android 호환)
+    const normalized = value.replace(' ', 'T')
+    d = new Date(normalized)
+  }
+
+  if (Number.isNaN(d.getTime())) return null
+  return d
+}
+
 export function safeText(value: unknown, fallback = '-'): string {
   if (value === null || value === undefined) return fallback
   const str = String(value).trim()
@@ -7,9 +36,8 @@ export function safeText(value: unknown, fallback = '-'): string {
 }
 
 export function formatDateSafe(value?: string | null, fallback = '-'): string {
-  if (!value) return fallback
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return fallback
+  const d = parseDateSafe(value)
+  if (!d) return fallback
   return d.toLocaleString('ko-KR', {
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit',
@@ -17,16 +45,14 @@ export function formatDateSafe(value?: string | null, fallback = '-'): string {
 }
 
 export function formatDateOnly(value?: string | null, fallback = '-'): string {
-  if (!value) return fallback
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return fallback
+  const d = parseDateSafe(value)
+  if (!d) return fallback
   return d.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
 export function formatRelative(value?: string | null, fallback = '-'): string {
-  if (!value) return fallback
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return fallback
+  const d = parseDateSafe(value)
+  if (!d) return fallback
   const diff = Date.now() - d.getTime()
   const min = Math.floor(diff / 60000)
   if (min < 1) return '방금 전'

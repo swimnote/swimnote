@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { parseDateSafe } from "@/domain/formatters";
 
 const C = Colors.light;
 
@@ -44,27 +45,34 @@ interface DiaryMessage {
 }
 
 /* ── 유틸 ── */
-function parseLessonDate(d: string) {
-  const dt = new Date(d.includes("T") ? d : d + "T00:00:00");
-  const m = dt.getMonth() + 1;
-  const day = dt.getDate();
+/** "M월 D일 (X)" — 수업일 표시 (날짜 문자열 "YYYY-MM-DD" 또는 ISO) */
+function parseLessonDate(d: string): string {
+  const dt = parseDateSafe(d.includes("T") ? d : d + "T00:00:00");
+  if (!dt) return "-";
   const wd = ["일", "월", "화", "수", "목", "금", "토"][dt.getDay()];
-  return `${m}월 ${day}일 (${wd})`;
+  return `${dt.getMonth() + 1}월 ${dt.getDate()}일 (${wd})`;
 }
-function fmtTime(d: string) {
-  return new Date(d).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+
+/** "오전/오후 h:mm" — Invalid이면 "" */
+function fmtTime(raw: string | null | undefined): string {
+  const dt = parseDateSafe(raw);
+  if (!dt) return "";
+  return dt.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
 }
-function fmtRelative(d: string) {
-  const diff = Date.now() - new Date(d).getTime();
+
+/** 상대 시간 ("방금" / "N분 전" / "N시간 전" / "M/D") — Invalid이면 "" */
+function fmtRelative(raw: string | null | undefined): string {
+  const dt = parseDateSafe(raw);
+  if (!dt) return "";
+  const diff = Date.now() - dt.getTime();
   const min = Math.floor(diff / 60000);
-  if (min < 1)   return "방금";
-  if (min < 60)  return `${min}분 전`;
+  if (min < 1)  return "방금";
+  if (min < 60) return `${min}분 전`;
   const hr = Math.floor(min / 60);
-  if (hr < 24)   return `${hr}시간 전`;
+  if (hr < 24)  return `${hr}시간 전`;
   const day = Math.floor(hr / 24);
-  if (day < 7)   return `${day}일 전`;
-  const dt = new Date(d);
-  return `${dt.getMonth()+1}/${dt.getDate()}`;
+  if (day < 7)  return `${day}일 전`;
+  return `${dt.getMonth() + 1}/${dt.getDate()}`;
 }
 
 /* ══════════════════════════════════════════

@@ -17,6 +17,7 @@ import { ChevronLeft, ClipboardList, Image as ImageIcon, Mail, MessageSquare, Se
 import Colors from "@/constants/colors";
 import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { parseDateSafe } from "@/domain/formatters";
 
 const C = Colors.light;
 
@@ -227,19 +228,21 @@ export default function MessagesInboxScreen() {
     finally { setSending(false); }
   }
 
-  function fmtDate(s: string) {
-    if (!s) return "";
-    const d = new Date(s);
+  /** 스레드 목록 시간: 오늘이면 "HH:MM", 아니면 "M/D" — Invalid이면 "" */
+  function fmtDate(s: string | null | undefined): string {
+    const d = parseDateSafe(s);
+    if (!d) return "";
     const now = new Date();
     const isToday = d.toDateString() === now.toDateString();
-    if (isToday) return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
-    return `${d.getMonth()+1}/${d.getDate()}`;
+    if (isToday) return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    return `${d.getMonth() + 1}/${d.getDate()}`;
   }
 
-  function fmtFull(s: string) {
-    if (!s) return "";
-    const d = new Date(s);
-    return `${d.getMonth()+1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  /** 메시지 상세 시간: "M월 D일 HH:MM" — Invalid이면 "" */
+  function fmtFull(s: string | null | undefined): string {
+    const d = parseDateSafe(s);
+    if (!d) return "";
+    return `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   }
 
   const pendingCount = parentRequests.filter(r => r.status === "pending").length;

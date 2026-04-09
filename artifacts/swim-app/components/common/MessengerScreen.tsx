@@ -33,6 +33,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { parseDateSafe } from "@/domain/formatters";
 
 const C = Colors.light;
 const PRIMARY = C.tint;
@@ -92,19 +93,27 @@ interface Props {
   keyboardHeaderOffset?: number;
 }
 
-/* ─── 헬퍼 ──────────────────────────────────────────────── */
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  const days = ["일", "월", "화", "수", "목", "금", "토"];
-  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${days[d.getDay()]}요일`;
-}
-function fmtTime(iso: string): string {
-  const d = new Date(iso);
+/* ─── 날짜 헬퍼 (parseDateSafe 기반 — NaN 출력 불가) ──── */
+const WEEK_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+/** "오전/오후 h:mm" — 유효하지 않으면 "" */
+function fmtTime(raw: string | null | undefined): string {
+  const d = parseDateSafe(raw);
+  if (!d) return "";
   const h = d.getHours(), m = d.getMinutes();
   return `${h < 12 ? "오전" : "오후"} ${h % 12 || 12}:${String(m).padStart(2, "0")}`;
 }
+
+/** "YYYY년 M월 D일 X요일" — 유효하지 않으면 "" */
+function fmtDateFull(raw: string | null | undefined): string {
+  const d = parseDateSafe(raw);
+  if (!d) return "";
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${WEEK_DAYS[d.getDay()]}요일`;
+}
+
+/** 두 raw 문자열이 같은 날(YYYY-MM-DD)인지 */
 function sameDay(a: string, b: string): boolean {
-  return a.slice(0, 10) === b.slice(0, 10);
+  return !!a && !!b && a.slice(0, 10) === b.slice(0, 10);
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -816,9 +825,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
 
 /* ─── 서브 컴포넌트: 날짜 구분선 ──────────────────────────── */
 function DateLine({ iso }: { iso: string }) {
-  const d = new Date(iso);
-  const days = ["일", "월", "화", "수", "목", "금", "토"];
-  const label = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${days[d.getDay()]}요일`;
+  const label = fmtDateFull(iso);
   return (
     <View style={s.dateLine}>
       <View style={s.dateLineBar} />
