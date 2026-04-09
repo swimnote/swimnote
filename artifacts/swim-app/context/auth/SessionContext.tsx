@@ -10,6 +10,8 @@ export const API_BASE =
   process.env.EXPO_PUBLIC_API_URL ||
   (_DOMAIN ? `https://${_DOMAIN}/api` : "/api");
 
+const APP_VERSION = "1.2.0-106-b2";
+
 export async function safeJson(res: Response): Promise<any> {
   const text = await res.text();
   try { return JSON.parse(text); }
@@ -145,7 +147,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   async function loadStored() {
     try {
       // 앱 버전 변경 시 세션 강제 초기화 (업데이트 시 자동로그인 방지)
-      const APP_VERSION = "1.2.0-106-b2";
       const storedAppVersion = await AsyncStorage.getItem("app_version");
       if (storedAppVersion !== APP_VERSION) {
         await AsyncStorage.multiRemove([
@@ -320,6 +321,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       await fetchPool(t);
     }
+    await AsyncStorage.setItem("app_version", APP_VERSION);
   }
 
   async function applyRoleSwitch(newToken: string, updatedUser: AdminUser) {
@@ -405,6 +407,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const user: AdminUser = { ...data.user, roles: Array.isArray(data.user.roles) && data.user.roles.length > 0 ? data.user.roles : [data.user.role] };
     await AsyncStorage.multiSet([
       ["auth_token", data.token], ["auth_kind", "admin"], ["auth_admin", JSON.stringify(user)],
+      ["app_version", APP_VERSION],
     ]);
     setToken(data.token);
     setAdminUser(user);
@@ -421,6 +424,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (!res.ok) throw Object.assign(new Error(data.error || "로그인에 실패했습니다."), { error_code: data.error_code || "unknown" });
     await AsyncStorage.multiSet([
       ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
+      ["app_version", APP_VERSION],
     ]);
     setToken(data.token);
     setParentAccount(data.parent);
@@ -446,7 +450,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
     await AsyncStorage.multiSet([
       ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
-      ["parent_join_status", "approved"],
+      ["parent_join_status", "approved"], ["app_version", APP_VERSION],
     ]);
     setToken(data.token);
     setParentAccount(data.parent);
@@ -473,7 +477,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
     await AsyncStorage.multiSet([
       ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
-      ["parent_join_status", "approved"],
+      ["parent_join_status", "approved"], ["app_version", APP_VERSION],
     ]);
     setToken(data.token);
     setParentAccount(data.parent);
@@ -493,6 +497,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       ["parent_join_status", "approved"],
     ];
     if (pname) multiSetItems.push(["parent_pool_name", pname]);
+    multiSetItems.push(["app_version", APP_VERSION]);
     await AsyncStorage.multiSet(multiSetItems);
     setToken(token);
     setParentAccount(parent);
@@ -506,6 +511,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const userWithRoles = { ...user, roles: Array.isArray((user as any).roles) ? (user as any).roles : [user.role] };
     await AsyncStorage.multiSet([
       ["auth_token", token], ["auth_kind", "admin"], ["auth_admin", JSON.stringify(userWithRoles)],
+      ["app_version", APP_VERSION],
     ]);
     setToken(token);
     setAdminUser(userWithRoles);
