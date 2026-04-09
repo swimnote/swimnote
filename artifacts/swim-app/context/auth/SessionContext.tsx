@@ -184,7 +184,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           return;
         }
       } catch {
-        // 순수 네트워크 오류(오프라인, DNS 실패)만 기존 세션 유지
+        // 네트워크 오류(오프라인/DNS 실패) → 세션 초기화 (서버 불안정 시 자동로그인 방지)
+        await AsyncStorage.multiRemove([
+          "auth_token", "auth_kind", "auth_admin", "auth_parent",
+          "auth_all_accounts", "last_used_role", "last_used_tenant", "last_selected_student",
+          "parent_selected_student_id", "brand_data",
+          "parent_join_status", "parent_join_request_id", "parent_pool_name",
+        ]);
+        return;
       }
 
       setToken(storedToken);
