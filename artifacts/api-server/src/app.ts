@@ -14,8 +14,11 @@ const app: Express = express();
 
 // ── CORS ─────────────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = [
-  // Replit 운영 도메인
+  // Render production 서버 (신규)
+  /^https:\/\/.*\.onrender\.com$/,
+  // Replit 운영 도메인 (레거시 유지)
   "https://swimnote-7.replit.app",
+  "https://swimnote-8.pcrskm.replit.app",
   // EAS 빌드 / 개발 Expo
   /^https:\/\/.*\.expo\.dev$/,
   /^https:\/\/.*\.replit\.dev$/,

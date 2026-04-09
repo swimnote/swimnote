@@ -1,0 +1,51 @@
+services:
+  - type: web
+    name: swimnote-api
+    runtime: node
+    region: singapore
+    plan: starter
+    buildCommand: npm install -g pnpm@10 && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server run build
+    startCommand: node artifacts/api-server/dist/index.mjs
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CF_ACCOUNT_ID
+        value: 53dff4976d55c17ec94ebe6306d0cffc
+      - key: CF_R2_BUCKET_NAME
+        value: swimnotepicture
+      - key: CF_R2_VIDEO_BUCKET_NAME
+        value: swimnotevideo
+      - key: SMS_PROVIDER
+        value: sens
+      - key: SMS_DEV_EXPOSE_CODE
+        value: "false"
+      # ── 아래 secrets는 Render 대시보드에서 추가 ──
+      - key: SUPABASE_DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: POOL_DATABASE_URL
+        sync: false
+      - key: NAVER_SENS_ACCESS_KEY
+        sync: false
+      - key: NAVER_SENS_SECRET_KEY
+        sync: false
+      - key: NAVER_SENS_SENDER_PHONE
+        sync: false
+      - key: NAVER_SENS_SERVICE_ID
+        sync: false
+      - key: SUPER_ADMIN_PASSWORD
+        sync: false
+      - key: CF_R2_ACCESS_KEY_ID
+        sync: false
+      - key: CF_R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: CF_R2_VIDEO_ACCESS_KEY_ID
+        sync: false
+      - key: CF_R2_VIDEO_SECRET_ACCESS_KEY
+        sync: false
+      - key: REVENUECAT_WEBHOOK_SECRET
+        sync: false
