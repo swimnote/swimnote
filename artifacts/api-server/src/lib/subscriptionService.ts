@@ -34,19 +34,31 @@ export function isDowngradeTier(currentTier: string, newTier: string): boolean {
 
 // ── RC 제품 ID → tier 매핑 (billing.ts에서 이관) ─────────────────────
 export const RC_PRODUCT_TIER_MAP: Record<string, string> = {
+  // ── 기본 (앱 rcPackageId와 동일) ─────────────────────────────────────
   "solo_30":  "starter", "solo_50":  "basic", "solo_100": "standard",
+  "center_200": "center_200", "center_300": "advance", "center_500": "pro", "center_1000": "max",
+
+  // ── Android Google Play base plan 변형 (:monthly 접미사) ──────────────
+  "solo_30:monthly":    "starter",   "solo_50:monthly":    "basic",
+  "solo_100:monthly":   "standard",
+  "center_200:monthly": "center_200", "center_300:monthly": "advance",
+  "center_500:monthly": "pro",        "center_1000:monthly":"max",
+
+  // ── swimnote_ 접두사 변형 (App Store Connect 제품 ID) ─────────────────
   "swimnote_solo_30": "starter",  "swimnote_solo_50": "basic",  "swimnote_solo_100": "standard",
   "swimnote_solo_30:monthly": "starter", "swimnote_solo_50:monthly": "basic", "swimnote_solo_100:monthly": "standard",
   "swimnote_solo_monthly": "basic",  "swimnote_solo_monthly:monthly": "basic",
-  "center_200": "center_200", "center_300": "advance", "center_500": "pro", "center_1000": "max",
   "swimnote_center_200": "center_200", "swimnote_center_300": "advance",
   "swimnote_center_500": "pro",        "swimnote_center_1000": "max",
   "swimnote_center_200:monthly": "center_200", "swimnote_center_300:monthly": "advance",
   "swimnote_center_500:monthly": "pro",        "swimnote_center_1000:monthly": "max",
   "swimnote_center_monthly": "center_200", "swimnote_center_monthly:monthly": "center_200",
   "center_monthly": "center_200",
-  "swimnote_coach_30": "starter", "swimnote_coach_50": "basic", "swimnote_coach_100": "standard",
+
+  // ── coach_ 변형 ────────────────────────────────────────────────────────
   "coach_30": "starter", "coach_50": "basic", "coach_100": "standard",
+  "swimnote_coach_30": "starter", "swimnote_coach_50": "basic", "swimnote_coach_100": "standard",
+  "coach_30:monthly": "starter", "coach_50:monthly": "basic", "coach_100:monthly": "standard",
 };
 
 // ── 티어 정규화 (레거시 코드명 → 현행 코드명) ──────────────────────────
