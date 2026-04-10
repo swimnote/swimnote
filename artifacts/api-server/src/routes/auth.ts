@@ -1718,15 +1718,28 @@ router.post("/apple-social-login", async (req, res) => {
       }
     }
 
-    // 3) 계정 없음 → 가입 유도
-    return res.status(404).json({
-      success: false,
-      error_code: "apple_no_account",
-      message: "연결된 수영장 계정이 없습니다. 수영장에서 등록된 전화번호로 계정을 연결해주세요.",
-      apple_info: {
-        apple_id: appleId,
-        name: fullName || null,
-        email: appleEmail || null,
+    // 3) 계정 없음 → Apple ID로 신규 학부모 계정 자동 생성 (수영장 연결 대기)
+    const newParentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const displayName = fullName || (appleEmail ? appleEmail.split("@")[0] : "Apple 사용자");
+    const randomPinHash = await hashPassword(randomUUID()); // Apple로만 로그인하므로 실제 사용 안 됨
+    await db.execute(sql`
+      INSERT INTO parent_accounts
+        (id, swimming_pool_id, phone, pin_hash, name, login_id, apple_id, created_at, updated_at)
+      VALUES
+        (${newParentId}, NULL, NULL, ${randomPinHash}, ${displayName}, ${appleEmail || null}, ${appleId}, now(), now())
+    `);
+    const token = signToken({ userId: newParentId, role: "parent_account", poolId: null });
+    return res.json({
+      success: true,
+      token,
+      parent: {
+        id: newParentId,
+        name: displayName,
+        nickname: null,
+        phone: null,
+        login_id: appleEmail || null,
+        swimming_pool_id: null,
+        kakao_profile_image: null,
       },
     });
   } catch (e) {
