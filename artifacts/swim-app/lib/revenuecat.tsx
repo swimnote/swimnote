@@ -138,7 +138,8 @@ function useSubscriptionContext() {
       return { solo, center, current: all.current };
     },
     staleTime: 300_000,
-    retry: false,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
   });
 
   const purchaseMutation = useMutation({
@@ -166,19 +167,22 @@ function useSubscriptionContext() {
       : null;
 
   return {
-    customerInfo:       customerInfoQuery.data ?? null,
-    soloOffering:       offeringsQuery.data?.solo ?? null,
-    centerOffering:     offeringsQuery.data?.center ?? null,
+    customerInfo:        customerInfoQuery.data ?? null,
+    soloOffering:        offeringsQuery.data?.solo ?? null,
+    centerOffering:      offeringsQuery.data?.center ?? null,
     isSubscribed,
     isSoloSubscribed,
     isCenterSubscribed,
     activePackageId,
-    isLoading:          customerInfoQuery.isLoading || offeringsQuery.isLoading,
-    purchase:           purchaseMutation.mutateAsync,
-    restore:            restoreMutation.mutateAsync,
-    isPurchasing:       purchaseMutation.isPending,
-    isRestoring:        restoreMutation.isPending,
-    purchaseError:      purchaseMutation.error,
+    isLoading:           customerInfoQuery.isLoading || offeringsQuery.isLoading,
+    offeringsLoading:    offeringsQuery.isLoading || offeringsQuery.isFetching,
+    offeringsError:      offeringsQuery.isError,
+    refetchOfferings:    offeringsQuery.refetch,
+    purchase:            purchaseMutation.mutateAsync,
+    restore:             restoreMutation.mutateAsync,
+    isPurchasing:        purchaseMutation.isPending,
+    isRestoring:         restoreMutation.isPending,
+    purchaseError:       purchaseMutation.error,
     refetchCustomerInfo: customerInfoQuery.refetch,
   };
 }

@@ -73,6 +73,9 @@ export default function SubscriptionScreen() {
     purchase,
     isPurchasing,
     refetchCustomerInfo,
+    offeringsLoading,
+    offeringsError,
+    refetchOfferings,
   } = useSubscription();
 
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -141,6 +144,15 @@ export default function SubscriptionScreen() {
   function handlePlanSelect(plan: PlanMeta) {
     if (plan.price === 0 || !plan.rcPackageId) return;
 
+    if (offeringsLoading) {
+      showConfirm("구독 상품 로드 중", "구독 상품 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.", () => {});
+      return;
+    }
+    if (offeringsError) {
+      showConfirm("구독 상품 로드 실패", "구독 상품 정보를 불러오지 못했습니다. '확인'을 눌러 다시 시도합니다.", () => refetchOfferings());
+      return;
+    }
+
     const allPackages = [
       ...(soloOffering?.availablePackages ?? []),
       ...(centerOffering?.availablePackages ?? []),
@@ -154,18 +166,19 @@ export default function SubscriptionScreen() {
       ? `현재 구독을 ${plan.name}으로 변경합니다.\n${priceStr}/월 · 최대 ${plan.limit.toLocaleString()}명 · ${plan.storage}\n\n결제 수단: ${STORE_NAME}`
       : `${priceStr}/월 · 최대 ${plan.limit.toLocaleString()}명 · ${plan.storage}\n\n결제 수단: ${STORE_NAME}`;
 
+    if (!pkg) {
+      showConfirm(
+        "구독 상품 로드 중",
+        "구독 상품 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.",
+        () => refetchOfferings(),
+      );
+      return;
+    }
+
     showConfirm(
       `${plan.name} ${actionLabel}`,
       confirmBody,
       async () => {
-        if (!pkg) {
-          // RC 패키지 미로드 → App Store 앱 페이지 직접 이동
-          const storeUrl = Platform.OS === "ios"
-            ? "itms-apps://apps.apple.com/app/id6761360360"
-            : "https://play.google.com/store/apps/details?id=com.swimnote.app";
-          await Linking.openURL(storeUrl);
-          return;
-        }
         try {
           const info = await purchase(pkg);
           await syncRcToServer(info);
