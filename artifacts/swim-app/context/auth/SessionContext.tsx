@@ -337,15 +337,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   async function unifiedLogin(identifier: string, password: string): Promise<{ available_accounts: AccountEntry[] }> {
     let res: Response;
     try {
-      res = await fetch(`${API_BASE}/auth/unified-login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier, password }),
-        signal: AbortSignal.timeout(15000), // 15초 타임아웃 — 서버 슬립 시 무한 로딩 방지
-      });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000); // 15초 타임아웃
+      try {
+        res = await fetch(`${API_BASE}/auth/unified-login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ identifier, password }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
     } catch (fetchErr: any) {
-      // 타임아웃 또는 네트워크 오류
-      const isTimeout = fetchErr?.name === "TimeoutError" || fetchErr?.name === "AbortError";
+      const isTimeout = fetchErr?.name === "AbortError";
       throw Object.assign(
         new Error(isTimeout
           ? "서버 응답이 너무 늦습니다. 잠시 후 다시 시도해주세요."
