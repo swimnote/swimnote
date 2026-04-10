@@ -686,6 +686,41 @@ router.post("/unified-login", async (req, res) => {
   if (!identifier || !password) return err(res, 400, "아이디와 비밀번호를 입력해주세요.");
   const id = identifier.trim();
   console.log("[LOGIN_ROUTE] unified-login 요청 수신", { identifier: id });
+
+  // ── Apple 심사용 데모 계정 특별 처리 ────────────────────────────────
+  // DB 조회 없이 고정 자격증명으로 실제 pool_admin 계정 토큰 발급
+  const DEMO_ID = "demo@swimnote.app";
+  const DEMO_PW = "Demo2024!";
+  if (id === DEMO_ID && password === DEMO_PW) {
+    try {
+      // 승인된 수영장 중 첫 번째 pool_admin 계정 조회
+      const demoUser = await superAdminDb.execute(sql`
+        SELECT u.id, u.email, u.name, u.role, u.swimming_pool_id, u.roles
+        FROM users u
+        JOIN swimming_pools p ON p.id = u.swimming_pool_id
+        WHERE u.role = 'pool_admin'
+          AND p.approval_status = 'approved'
+        ORDER BY u.created_at ASC
+        LIMIT 1
+      `);
+      if ((demoUser.rows as any[]).length > 0) {
+        const user = demoUser.rows[0] as any;
+        const token = signToken({ userId: user.id, role: "pool_admin", poolId: user.swimming_pool_id });
+        const roles: string[] = user.roles ?? ["pool_admin"];
+        return res.json({
+          success: true,
+          available_accounts: [{ kind: "admin", token, user: { ...user, roles } }],
+          token, kind: "admin",
+          user: { ...user, roles },
+        });
+      }
+    } catch (e) {
+      console.error("[demo-login]", e);
+    }
+    return err(res, 503, "데모 계정을 사용할 수 있는 수영장이 없습니다. 잠시 후 다시 시도해주세요.");
+  }
+  // ─────────────────────────────────────────────────────────────────────
+
   try {
     const available_accounts: any[] = [];
     let wrongPwCount = 0;

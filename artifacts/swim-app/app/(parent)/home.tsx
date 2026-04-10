@@ -139,7 +139,7 @@ function PoolSelectModal({ visible, onClose, onSelect }: {
 export default function ParentHomeScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
-  const { token, parentAccount, pool, parentPoolName } = useAuth();
+  const { token, parentAccount, pool, parentPoolName, logout } = useAuth();
   const { students, selectedStudent, setSelectedStudentId, loading: ctxLoading, refresh } = useParent();
 
   const [summary, setSummary] = useState<HomeSummary>(EMPTY_SUMMARY);
@@ -373,6 +373,16 @@ export default function ParentHomeScreen() {
           <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 18 }}>
             수영장 등록 완료 후 버튼을 누르면{"\n"}즉시 연결됩니다.
           </Text>
+
+          {/* 로그아웃 버튼 */}
+          <Pressable
+            onPress={async () => { await logout(); router.replace("/"); }}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, marginTop: 8, paddingVertical: 10 })}
+          >
+            <Text style={{ fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center" }}>
+              로그아웃
+            </Text>
+          </Pressable>
         </ScrollView>
       </View>
     );

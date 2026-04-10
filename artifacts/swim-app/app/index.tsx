@@ -126,17 +126,23 @@ export default function LoginScreen() {
       const fullName = credential.fullName
         ? [credential.fullName.familyName, credential.fullName.givenName].filter(Boolean).join("")
         : null;
-      await appleSocialLogin(credential.identityToken!, fullName);
+      // identityToken이 null이면 Apple 인증 자체가 실패한 것
+      if (!credential.identityToken) {
+        setError("Apple 인증에 실패했습니다. 잠시 후 다시 시도해주세요.");
+        return;
+      }
+      await appleSocialLogin(credential.identityToken, fullName);
     } catch (err: unknown) {
       const e = err as any;
-      if (e?.code === "ERR_REQUEST_CANCELED") return;
+      // 사용자가 직접 취소한 경우 → 무시
+      if (e?.code === "ERR_REQUEST_CANCELED" || e?.code === "ERR_CANCELED") return;
       const code = e?.error_code;
       if (code === "apple_no_account") {
         Alert.alert(
           "연결된 계정 없음",
-          "이 Apple 계정에 연결된 SwimNote 계정이 없습니다.\n\n수영장 관리자에게 문의하여 전화번호로 등록된 후 계정을 연결해 주세요.",
+          "이 Apple ID에 연결된 SwimNote 계정이 없습니다.\n\n수영장 관리자에게 전화번호 등록을 요청한 후 '계정 연결하기'를 눌러주세요.",
           [
-            { text: "확인", style: "cancel" },
+            { text: "닫기", style: "cancel" },
             {
               text: "계정 연결하기",
               onPress: () => router.push({
@@ -153,7 +159,7 @@ export default function LoginScreen() {
         );
         return;
       }
-      setError(e?.message || "Apple 로그인에 실패했습니다.");
+      setError(e?.message || "Apple 로그인에 실패했습니다. 다시 시도해주세요.");
     } finally { setAppleLoading(false); }
   }
 

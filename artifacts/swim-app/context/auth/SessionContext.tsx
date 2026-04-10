@@ -341,11 +341,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identifier, password }),
+        signal: AbortSignal.timeout(15000), // 15초 타임아웃 — 서버 슬립 시 무한 로딩 방지
       });
-    } catch {
-      throw Object.assign(new Error("서버에 연결할 수 없습니다.\n잠시 후 다시 시도해주세요."), {
-        error_code: "network_error",
-      });
+    } catch (fetchErr: any) {
+      // 타임아웃 또는 네트워크 오류
+      const isTimeout = fetchErr?.name === "TimeoutError" || fetchErr?.name === "AbortError";
+      throw Object.assign(
+        new Error(isTimeout
+          ? "서버 응답이 너무 늦습니다. 잠시 후 다시 시도해주세요."
+          : "서버에 연결할 수 없습니다.\n잠시 후 다시 시도해주세요."
+        ),
+        { error_code: "network_error" }
+      );
     }
     const data = await safeJson(res);
     if (!res.ok) {
