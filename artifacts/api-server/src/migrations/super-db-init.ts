@@ -175,6 +175,24 @@ export async function initSuperDb(): Promise<void> {
     console.warn("[super-db-init] phone_verifications 보완 오류:", e.message);
   }
 
+  // ── parent_accounts — Apple/Kakao 소셜 로그인 컬럼 보완 ──────────────────
+  try {
+    // apple_id: Apple Sign In 고유 식별자
+    await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS apple_id VARCHAR;`)).catch(() => {});
+    // kakao_id / kakao_profile_image: 카카오 소셜 로그인
+    await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS kakao_id text;`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS kakao_profile_image text;`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS nickname text;`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS gender text;`)).catch(() => {});
+    // swimming_pool_id: Apple Sign In 신규 계정은 수영장 연결 대기 상태 (NULL 허용)
+    await db.execute(sql.raw(`ALTER TABLE parent_accounts ALTER COLUMN swimming_pool_id DROP NOT NULL;`)).catch(() => {});
+    // phone: Apple Sign In 신규 계정은 전화번호 없음 (NULL 허용)
+    await db.execute(sql.raw(`ALTER TABLE parent_accounts ALTER COLUMN phone DROP NOT NULL;`)).catch(() => {});
+    console.log("[super-db-init] parent_accounts 소셜 로그인 컬럼 보완 완료");
+  } catch (e: any) {
+    console.warn("[super-db-init] parent_accounts 보완 오류:", e.message);
+  }
+
   // ── payment_logs — 결제 내역 ───────────────────────────────────────────────
   try {
     await db.execute(sql.raw(`
