@@ -333,16 +333,6 @@ export default function LoginScreen() {
           </View>
         </View>
 
-        {/* ── 학부모 로그인 링크 ── */}
-        {(() => { console.log("[LOGIN] JSX:parent-link"); return null; })()}
-        <Pressable
-          style={({ pressed }) => [s.parentLoginRow, { opacity: pressed ? 0.6 : 1 }]}
-          onPress={() => router.push("/parent-login" as any)}
-        >
-          <Text style={s.parentLoginText}>학부모이신가요? </Text>
-          <Text style={s.parentLoginLink}>학부모 로그인</Text>
-        </Pressable>
-
         </View>{/* ── 하단 그룹 끝 ── */}
       </ScrollView>
 
@@ -490,11 +480,6 @@ const s = StyleSheet.create({
     fontSize: 16, fontFamily: "Pretendard-Regular",
     color: "#fff", flex: 1,
   },
-
-  /* 학부모 로그인 */
-  parentLoginRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 12 },
-  parentLoginText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
-  parentLoginLink: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#F97316", textDecorationLine: "underline" },
 
   /* 모달 */
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" },
