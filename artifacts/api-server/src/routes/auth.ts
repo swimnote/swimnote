@@ -1722,11 +1722,13 @@ router.post("/apple-social-login", async (req, res) => {
     const newParentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const displayName = fullName || (appleEmail ? appleEmail.split("@")[0] : "Apple 사용자");
     const randomPinHash = await hashPassword(randomUUID()); // Apple로만 로그인하므로 실제 사용 안 됨
+    // phone은 NOT NULL이므로 apple_id 기반 임시값 사용 (실제 전화번호 없음)
+    const tempPhone = `apple_${appleId.substring(0, 16)}`;
     await db.execute(sql`
       INSERT INTO parent_accounts
         (id, swimming_pool_id, phone, pin_hash, name, login_id, apple_id, created_at, updated_at)
       VALUES
-        (${newParentId}, NULL, NULL, ${randomPinHash}, ${displayName}, ${appleEmail || null}, ${appleId}, now(), now())
+        (${newParentId}, NULL, ${tempPhone}, ${randomPinHash}, ${displayName}, ${appleEmail || null}, ${appleId}, now(), now())
     `);
     const token = signToken({ userId: newParentId, role: "parent_account", poolId: null });
     return res.json({
