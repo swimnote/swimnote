@@ -277,9 +277,14 @@ router.post("/parent-login", async (req, res) => {
       return err(res, 401, "등록되지 않은 아이디 또는 전화번호입니다.");
     }
     let matched: any = null;
-    for (const acc of accounts) {
-      const valid = await comparePassword(pw, acc.pin_hash);
-      if (valid) { matched = acc; break; }
+    // Apple 심사용 데모 학부모 계정 (demo_parent / Demo2024!) — 비밀번호 검증 우회
+    if (accounts.length > 0 && accounts[0].login_id === "demo_parent" && pw === "Demo2024!") {
+      matched = accounts[0];
+    } else {
+      for (const acc of accounts) {
+        const valid = await comparePassword(pw, acc.pin_hash);
+        if (valid) { matched = acc; break; }
+      }
     }
     if (!matched) return err(res, 401, "비밀번호가 올바르지 않습니다.");
     // 수영장 이름 조회 (swimming_pool_id 없으면 join_request에서 poolId 추출)
