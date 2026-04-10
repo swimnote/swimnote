@@ -1,0 +1,55 @@
+Hello,
+
+The issues we previously identified still need your attention.
+
+If you have any questions, we are here to help. Reply to this message in App Store Connect and let us know.
+
+Review Environment
+Submission ID: ab3284a5-69d8-4318-ba53-8d82d5f149f3
+Review date: April 09, 2026
+Review Device: iPad Air 11-inch (M3)
+Version reviewed: 1.2.0
+
+Guideline 2.1(a) - Performance - App Completeness
+Issue Description
+
+The app exhibited one or more bugs that would negatively impact users.
+
+Bug description: 
+1. We were unable to complete Sign in with Apple. 
+2. When we tapped the login button after entering the demo account credentials, the app was loading the login page indefinitely 
+
+Review device details:
+
+- Device type: iPad Air 11-inch (M3) 
+- OS version: iPadOS 26.4
+- Internet Connection: Active
+
+Next Steps
+
+Test the app on supported devices to identify and resolve bugs and stability issues before submitting for review.
+
+Guideline 2.1(a) - Information Needed
+
+We have started the review of the app, but in addition to the demo account username and password you provided, we need an authentication code to complete the registration process.
+
+App Review conducts a full review of all apps submitted to the App Store, including content and services that require authentication codes to access.
+
+Next Steps
+
+In order for the review to continue, you will need to arrange for an Apple representative to call you to obtain the code. Follow this link to request a call using our online form.
+
+Before requesting a call, confirm the phone number listed in the App Review Information section of this app's Version Information page in App Store Connect is up to date.
+
+For the review to proceed without a call, we recommend either: 
+
+- Allowing the provided demo account to bypass code verification
+- Establishing a fixed authentication code for the demo account and providing the code in the Review Notes
+- Or including a demonstration mode that exhibits the app’s full features and functionality
+
+
+Support
+- Reply to this message in your preferred language if you need assistance. If you need additional support, use the Contact Us module.
+- Consult with fellow developers and Apple engineers on the Apple Developer Forums.
+- Request an App Review Appointment at Meet with Apple to discuss your app's review. Appointments subject to availability during your local business hours on Tuesdays and Thursdays.
+- Provide feedback on this message and your review experience by completing a short survey.
