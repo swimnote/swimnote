@@ -280,6 +280,17 @@ router.post("/parent-login", async (req, res) => {
     // Apple 심사용 데모 학부모 계정 (demo_parent / Demo2024!) — 비밀번호 검증 우회
     if (accounts.length > 0 && accounts[0].login_id === "demo_parent" && pw === "Demo2024!") {
       matched = accounts[0];
+      // swimming_pool_id가 없으면 승인된 첫 번째 수영장 자동 연결
+      if (!matched.swimming_pool_id) {
+        const poolRow = await db.execute(sql`
+          SELECT id FROM swimming_pools WHERE approval_status = 'approved' ORDER BY created_at ASC LIMIT 1
+        `);
+        if ((poolRow.rows as any[]).length > 0) {
+          const poolId = (poolRow.rows[0] as any).id;
+          await db.execute(sql`UPDATE parent_accounts SET swimming_pool_id = ${poolId} WHERE id = ${matched.id}`);
+          matched.swimming_pool_id = poolId;
+        }
+      }
     } else {
       for (const acc of accounts) {
         const valid = await comparePassword(pw, acc.pin_hash);
