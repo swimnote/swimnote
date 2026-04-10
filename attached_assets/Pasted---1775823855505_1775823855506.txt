@@ -1,0 +1,149 @@
+
+
+스윔노트 계정 아이콘
+수영노트
+
+
+수영 앱
+
+계정
+
+프로젝트
+
+개요
+
+인사이트
+
+용법
+
+개발하다
+
+워크플로
+
+개발 구축
+
+배포
+
+빌드
+
+제출물
+
+
+무선 업데이트
+
+호스팅
+
+푸시 알림
+
+엔티티
+
+지문
+
+프로젝트 설정
+
+일반적인
+
+신임장
+
+환경 변수
+
+깃허브
+
+
+사용자 메뉴
+수영노트
+
+제출물
+
+f27172a5
+
+iOS 앱 스토어 제출
+
+상태
+
+제작자:
+
+생성일:
+
+실패한
+
+스윔노트 계정 아이콘
+수영노트
+
+2026년 4월 10일 오후 9시 21분
+제출된 빌드
+빌드 보기
+
+윤곽
+
+
+환경
+
+SDK 버전
+
+버전
+
+지문
+
+저지르다
+
+제작자:
+
+생산
+
+생산
+
+54.0.0
+
+1.3.3 (84)
+
+999dab0
+
+1c2b242
+
+스윔노트 계정 아이콘
+수영노트
+
+로그
+
+제출 작업자 시작
+
+43초
+
+
+앱스토어에 제출하기
+
+10초
+
+
+Starting the submit process
+Downloading archive
+Preparing artifact
+Verifying archive
+Submitting iOS app to TestFlight...
+Submitting the app with fastlane pilot
+-------------------
+--- Step: pilot ---
+-------------------
+Ready to upload new build to TestFlight (App: 6761360360)...
+Fetching password for transporter from environment variable named `FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD`
+Going to upload updated app to App Store Connect
+This might take a few minutes. Please don't interrupt the script.
+[altool] 2026-04-10 05:22:18.928 *** Error: Unable to upload archive. Failed to get authorization for username 'swimnote.admin@gmail.com' and password. (
+[altool]     "Error Domain=ITunesConnectionOperationErrorDomain Code=-19000 \"Sign in with the app-specific password you generated. If you forgot the app-specific password or need to create a new one, go to appleid.apple.com\" UserInfo={NSLocalizedRecoverySuggestion=Sign in with the app-specific password you generated. If you forgot the app-specific password or need to create a new one, go to appleid.apple.com, NSLocalizedDescription=Sign in with the app-specific password you generated. If you forgot the app-specific password or need to create a new one, go to appleid.apple.com, NSLocalizedFailureReason=App Store operation failed.}"
+[altool] ) (-1011)
+[altool]  {
+[altool]     NSLocalizedDescription = "Unable to upload archive.";
+[altool]     NSLocalizedFailureReason = "Failed to get authorization for username 'swimnote.admin@gmail.com' and password. (\n    \"Error Domain=ITunesConnectionOperationErrorDomain Code=-19000 \\\"Sign in with the app-specific password you generated. If you forgot the app-specific password or need to create a new one, go to appleid.apple.com\\\" UserInfo={NSLocalizedRecoverySuggestion=Sign in with the app-specific password you generated. If you forgot the app-specific password or need to create a new one, go to appleid.apple.com, NSLocalizedDescription=Sign in with the app-specific password you generated. If you forgot the app-specific password or need to create a new one, go to appleid.apple.com, NSLocalizedFailureReason=App Store operation failed.}\"\n)";
+[altool] }
+Application Loader output above ^
+Error uploading '/var/folders/m1/8_w9962s3b79dqm00nnlm85m0000gn/T/81980438-9830-4027-a0f9-a8dccd7fa8c7.ipa'.
+Unable to upload archive. Failed to get authorization for username 'swimnote.admin@gmail.com' and password. (
+The call to the altool completed with a non-zero exit status: 1. This indicates a failure.
+Could not download/upload from App Store Connect!
+[!] Error uploading ipa file: 
+ [Application Loader Error Output]: Error uploading '/var/folders/m1/8_w9962s3b79dqm00nnlm85m0000gn/T/81980438-9830-4027-a0f9-a8dccd7fa8c7.ipa'.
+[Application Loader Error Output]: Unable to upload archive. Failed to get authorization for username 'swimnote.admin@gmail.com' and password. (
+[Application Loader Error Output]: The call to the altool completed with a non-zero exit status: 1. This indicates a failure.
+Failed to submit the app to the store
+제출물 — @swimnote/swim-app — 엑스포
