@@ -25,7 +25,7 @@ const NB = "#E6FAF8";
 
 const DEFAULT_LOGIN_MODE_KEY = "@swimnote:default_login_mode";
 
-type MenuItem = { label: string; icon: string; color: string; bg: string; route: string; desc?: string };
+type MenuItem = { label: string; icon: string; color: string; bg: string; route: string; desc?: string; badge?: string; badgeColor?: string };
 
 const CLASS_SETTINGS: MenuItem[] = [
   { label: "수영레벨/테스트기준설정", icon: "award",      color: "#CA8A04", bg: NB, route: "/(admin)/level-settings",             desc: "수영 레벨 기준 및 테스트 관리" },
@@ -39,6 +39,7 @@ const CLASS_SETTINGS: MenuItem[] = [
 const OPS_SETTINGS: MenuItem[] = [
   { label: "공지사항 발송",      icon: "file-text",      color: "#0369A1", bg: NB, route: "/(admin)/notices",                   desc: "학부모 / 선생님 공지 관리" },
   { label: "구독 관리",          icon: "credit-card",    color: "#7C3AED", bg: NB, route: "/(admin)/subscription",              desc: "플랜 선택 및 구독 결제" },
+  { label: "환불 정책 확인",     icon: "file-check",     color: "#7C3AED", bg: NB, route: "/(admin)/refund-policy",             desc: "플랫폼 환불 정책 동의" },
   { label: "휴무일 관리",        icon: "x-square",       color: N,         bg: NB, route: "/(admin)/holidays",                  desc: "수영장 휴무 / 공휴일 설정" },
   { label: "푸시 발송 설정",     icon: "send",           color: N,         bg: NB, route: "/(admin)/push-message-settings",     desc: "단체 푸시 발송 규칙" },
   { label: "학부모 QR 초대",     icon: "qr-code",        color: "#0EA5E9", bg: NB, route: "/(admin)/invite-qr",                 desc: "QR 코드로 학부모·선생님 초대" },
@@ -69,6 +70,7 @@ export default function SettingsScreen() {
   const [defaultTeacher, setDefaultTeacher] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [policyAgreed, setPolicyAgreed]   = useState<boolean | null>(null);
 
   async function handleDeleteAccount() {
     setDeleteLoading(true);
@@ -85,6 +87,10 @@ export default function SettingsScreen() {
     if (!token) return;
     apiRequest(token, "/admin/dashboard-stats").then(r => r.ok ? r.json() : null).then(d => {
       if (d) setSettingsStats({ total_members: d.total_members ?? 0, total_teachers: d.total_teachers ?? 0, total_parents: d.total_parents ?? 0 });
+    }).catch(() => {});
+    // 환불 정책 동의 여부 조회
+    apiRequest(token, "/admin/refund-policy").then(r => r.ok ? r.json() : null).then(d => {
+      if (d) setPolicyAgreed(!!d.agreed_at);
     }).catch(() => {});
   }, [token]);
 
@@ -117,26 +123,42 @@ export default function SettingsScreen() {
       <View style={s.section}>
         <Text style={s.sectionTitle}>{title}</Text>
         <View style={[s.sectionCard, { backgroundColor: C.card }]}>
-          {items.map((item, idx) => (
-            <Pressable
-              key={item.label}
-              style={({ pressed }) => [
-                s.menuRow,
-                idx < items.length - 1 && s.menuRowBorder,
-                { opacity: pressed ? 0.7 : 1 },
-              ]}
-              onPress={() => router.push((item.route + "?backTo=settings") as any)}
-            >
-              <View style={[s.menuIcon, { backgroundColor: item.bg }]}>
-                <LucideIcon name={item.icon as any} size={18} color={item.color} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.menuLabel}>{item.label}</Text>
-                {item.desc ? <Text style={s.menuDesc}>{item.desc}</Text> : null}
-              </View>
-              <ChevronRight size={16} color={C.textMuted} />
-            </Pressable>
-          ))}
+          {items.map((item, idx) => {
+            // 환불 정책 확인 — 미동의 시 "미확인" 배지 표시
+            const isPolicy = item.route.includes("refund-policy");
+            const showUnread = isPolicy && policyAgreed === false;
+            const showDone   = isPolicy && policyAgreed === true;
+            return (
+              <Pressable
+                key={item.label}
+                style={({ pressed }) => [
+                  s.menuRow,
+                  idx < items.length - 1 && s.menuRowBorder,
+                  { opacity: pressed ? 0.7 : 1 },
+                ]}
+                onPress={() => router.push((item.route + "?backTo=settings") as any)}
+              >
+                <View style={[s.menuIcon, { backgroundColor: item.bg }]}>
+                  <LucideIcon name={item.icon as any} size={18} color={item.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.menuLabel}>{item.label}</Text>
+                  {item.desc ? <Text style={s.menuDesc}>{item.desc}</Text> : null}
+                </View>
+                {showUnread && (
+                  <View style={{ backgroundColor: "#FEF2F2", borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, marginRight: 4 }}>
+                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D96C6C" }}>미확인</Text>
+                  </View>
+                )}
+                {showDone && (
+                  <View style={{ backgroundColor: "#F0FDF4", borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, marginRight: 4 }}>
+                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#16A34A" }}>동의 완료</Text>
+                  </View>
+                )}
+                <ChevronRight size={16} color={C.textMuted} />
+              </Pressable>
+            );
+          })}
         </View>
       </View>
     );

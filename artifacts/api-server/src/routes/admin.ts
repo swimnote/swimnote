@@ -3117,5 +3117,74 @@ router.get("/unlinked-students", requireAuth, requireRole("super_admin", "pool_a
   } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
+// ── GET /admin/refund-policy — 환불 정책 내용 + 이 수영장의 동의 여부 ──────────
+router.get("/refund-policy", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    let poolId: string | null = null;
+    if (req.user!.role === "pool_admin") {
+      const [u] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      poolId = u?.swimming_pool_id ?? null;
+    } else {
+      poolId = (req.query.pool_id as string) ?? null;
+    }
+    if (!poolId) { res.status(400).json({ error: "pool_id가 필요합니다." }); return; }
+
+    const DEFAULT_POLICY_CONTENT = `구독 변경은 즉시 적용됩니다.\n상위 플랜 변경 시 남은 기간 기준 차액이 즉시 결제됩니다.\n하위 플랜 변경 시 남은 기간 기준 차액은 환불되지 않고, 다음 결제 시 차감되는 크레딧으로 적립됩니다.\n구독 해지 시 유료 기능은 즉시 제한되며, 서비스는 읽기전용 상태로 전환됩니다.\n구독 해지 후 24시간이 경과하면 저장된 사진 및 영상 데이터는 자동 삭제되며 복구되지 않습니다.\n이미 결제된 이용요금은 원칙적으로 환불되지 않습니다.\n단, 다음 결제가 발생하지 않는 상태에서 남아 있는 크레딧은 환불될 수 있습니다.\n사용자는 구독 해지 전 데이터 삭제 정책을 충분히 확인해야 하며, 삭제된 데이터는 복구되지 않습니다.`;
+
+    // 최신 정책 버전 조회 (없으면 기본값)
+    const versionRes = await superAdminDb.execute(sql`
+      SELECT id, version, value FROM policy_versions
+      WHERE policy_key = 'refund_policy'
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    const latestVersion = (versionRes.rows[0] as any);
+    const version   = latestVersion?.version ?? "v1.0";
+    const content   = latestVersion?.value   ?? DEFAULT_POLICY_CONTENT;
+
+    // 이 수영장의 동의 여부 조회
+    const consentRes = await superAdminDb.execute(sql`
+      SELECT agreed_at FROM policy_consents
+      WHERE pool_id = ${poolId} AND policy_key = 'refund_policy'
+      ORDER BY agreed_at DESC LIMIT 1
+    `);
+    const agreedAt = (consentRes.rows[0] as any)?.agreed_at ?? null;
+
+    res.json({ success: true, version, content, agreed_at: agreedAt });
+  } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+// ── POST /admin/refund-policy/agree — 환불 정책 동의 처리 ─────────────────────
+router.post("/refund-policy/agree", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    let poolId: string | null = null;
+    if (req.user!.role === "pool_admin") {
+      const [u] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      poolId = u?.swimming_pool_id ?? null;
+    } else {
+      poolId = (req.body.pool_id as string) ?? null;
+    }
+    if (!poolId) { res.status(400).json({ error: "pool_id가 필요합니다." }); return; }
+
+    // 최신 정책 버전 조회
+    const versionRes = await superAdminDb.execute(sql`
+      SELECT version FROM policy_versions
+      WHERE policy_key = 'refund_policy'
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    const version = (versionRes.rows[0] as any)?.version ?? "v1.0";
+
+    const consentId = `pc_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    await superAdminDb.execute(sql`
+      INSERT INTO policy_consents (id, pool_id, policy_key, version, agreed_at)
+      VALUES (${consentId}, ${poolId}, 'refund_policy', ${version}, NOW())
+      ON CONFLICT (pool_id, policy_key, version) DO UPDATE SET agreed_at = NOW()
+    `);
+
+    res.json({ success: true, message: "환불 정책에 동의했습니다.", agreed_at: new Date().toISOString() });
+  } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
 export default router;
 
