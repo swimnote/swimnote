@@ -1,3 +1,4 @@
+import { validateName, validatePhone, normalizePhone } from "@/utils/validation";
 import { CircleAlert, DollarSign, File, Tag, Type, Users, BookOpen, CreditCard, Award, Gift, ShoppingBag } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
@@ -28,6 +29,7 @@ export default function PoolSettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({ name: "", phone: "" });
 
   const [defaultCapacity, setDefaultCapacity] = useState<string>("5");
   const [savingCapacity,  setSavingCapacity]  = useState(false);
@@ -164,11 +166,30 @@ export default function PoolSettingsScreen() {
   }
 
   async function handleSave() {
-    setSaving(true); setError(""); setSaved(false);
+    setError(""); setSaved(false);
+    const errs = { name: "", phone: "" };
+
+    if (!validateName(form.name)) {
+      errs.name = "수영장명을 입력해주세요";
+    }
+    if (form.phone && !validatePhone(form.phone)) {
+      errs.phone = "대표전화 형식이 올바르지 않습니다";
+    }
+
+    setFieldErrors(errs);
+    if (errs.name || errs.phone) return;
+
+    // UI 표시값(form.phone)과 서버 전송값(normalizedPhone) 분리
+    const formToSend = {
+      ...form,
+      phone: form.phone ? normalizePhone(form.phone) : form.phone,
+    };
+
+    setSaving(true);
     try {
       const res = await apiRequest(token, "/pools/settings", {
         method: "PUT",
-        body: JSON.stringify(form),
+        body: JSON.stringify(formToSend),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "저장 실패");
@@ -234,20 +255,30 @@ export default function PoolSettingsScreen() {
             { key: "phone", label: "대표 전화", icon: "phone", placeholder: "02-0000-0000" },
             { key: "owner_name", label: "대표자 이름", icon: "user", placeholder: "대표자명" },
             { key: "business_reg_number", label: "사업자등록번호", icon: "file-text", placeholder: "000-00-00000" },
-          ].map(({ key, label, icon, placeholder }) => (
-            <View key={key} style={styles.field}>
-              <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
-              <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-                <LucideIcon name={icon as any} size={16} color={C.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: C.text }]}
-                  value={form[key as keyof typeof form]}
-                  onChangeText={v => setForm(f => ({ ...f, [key]: v }))}
-                  placeholder={placeholder} placeholderTextColor={C.textMuted}
-                />
+          ].map(({ key, label, icon, placeholder }) => {
+            const fieldErr = (key === "name" && fieldErrors.name) || (key === "phone" && fieldErrors.phone) || "";
+            return (
+              <View key={key} style={styles.field}>
+                <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
+                <View style={[styles.inputBox, { borderColor: fieldErr ? C.error : C.border, backgroundColor: C.background }]}>
+                  <LucideIcon name={icon as any} size={16} color={C.textMuted} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: C.text }]}
+                    value={form[key as keyof typeof form]}
+                    onChangeText={v => {
+                      setForm(f => ({ ...f, [key]: v }));
+                      if (key === "name" || key === "phone") {
+                        setFieldErrors(e => ({ ...e, [key]: "" }));
+                      }
+                    }}
+                    placeholder={placeholder} placeholderTextColor={C.textMuted}
+                    keyboardType={key === "phone" ? "phone-pad" : "default"}
+                  />
+                </View>
+                {fieldErr ? <Text style={styles.fieldErr}>{fieldErr}</Text> : null}
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
 
         <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
@@ -505,4 +536,5 @@ const styles = StyleSheet.create({
   statusValue: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   badgeText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  fieldErr: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 2 },
 });

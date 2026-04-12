@@ -15,6 +15,7 @@ import Colors from "@/constants/colors";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { validateName, validatePhone, normalizePhone } from "@/utils/validation";
 
 const C = Colors.light;
 
@@ -49,6 +50,7 @@ export default function ParentProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [saveDone, setSaveDone] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({ name: "", phone: "", newPw: "", newPw2: "", currentPw: "" });
 
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -84,13 +86,33 @@ export default function ParentProfileScreen() {
 
   async function handleSave() {
     setError("");
-    if (!name.trim()) { setError("이름을 입력해주세요"); return; }
-    if (newPw && newPw !== newPw2) { setError("새 비밀번호가 일치하지 않습니다"); return; }
-    if (newPw && !currentPw) { setError("현재 비밀번호를 입력해주세요"); return; }
+    const errs = { name: "", phone: "", newPw: "", newPw2: "", currentPw: "" };
+
+    if (!validateName(name)) {
+      errs.name = "이름을 입력해주세요";
+    }
+    if (phone && !validatePhone(phone)) {
+      errs.phone = "전화번호 형식이 올바르지 않습니다";
+    }
+    if (newPw && newPw.length < 6) {
+      errs.newPw = "비밀번호는 6자 이상이어야 합니다";
+    }
+    if (newPw && !errs.newPw && newPw !== newPw2) {
+      errs.newPw2 = "비밀번호가 일치하지 않습니다";
+    }
+    if (newPw && !currentPw) {
+      errs.currentPw = "현재 비밀번호를 입력해주세요";
+    }
+
+    setFieldErrors(errs);
+    if (errs.name || errs.phone || errs.newPw || errs.newPw2 || errs.currentPw) return;
+
+    // UI 표시값(phone)과 서버 전송값(normalizedPhone) 분리
+    const normalizedPhone = phone ? normalizePhone(phone) : null;
 
     setSaving(true);
     try {
-      const body: any = { name: name.trim(), phone: phone.trim() || null };
+      const body: any = { name: name.trim(), phone: normalizedPhone };
       if (newPw) { body.current_password = currentPw; body.new_password = newPw; }
 
       const r = await apiRequest(token, "/parent/me", {
@@ -100,6 +122,7 @@ export default function ParentProfileScreen() {
         updateParentProfile({ name: name.trim(), phone: phone.trim() || undefined });
         setSaveDone(true);
         setCurrentPw(""); setNewPw(""); setNewPw2("");
+        setFieldErrors({ name: "", phone: "", newPw: "", newPw2: "", currentPw: "" });
       } else {
         const d = await r.json().catch(() => ({}));
         setError(d.error || "저장에 실패했습니다");
@@ -120,17 +143,51 @@ export default function ParentProfileScreen() {
           {/* 기본 정보 */}
           <View style={[s.section, { backgroundColor: C.card }]}>
             <Text style={[s.sectionTitle, { color: C.text }]}>기본 정보</Text>
-            <Field label="이름" value={name} onChangeText={setName} placeholder="이름 입력" />
-            <Field label="전화번호" value={phone} onChangeText={setPhone} placeholder="010-0000-0000" keyboardType="phone-pad" />
+            <Field
+              label="이름"
+              value={name}
+              onChangeText={(v: string) => { setName(v); setFieldErrors(e => ({ ...e, name: "" })); }}
+              placeholder="이름 입력"
+            />
+            {fieldErrors.name ? <Text style={s.fieldErr}>{fieldErrors.name}</Text> : null}
+            <Field
+              label="전화번호"
+              value={phone}
+              onChangeText={(v: string) => { setPhone(v); setFieldErrors(e => ({ ...e, phone: "" })); }}
+              placeholder="010-0000-0000"
+              keyboardType="phone-pad"
+            />
+            {fieldErrors.phone ? <Text style={s.fieldErr}>{fieldErrors.phone}</Text> : null}
           </View>
 
           {/* 비밀번호 변경 */}
           <View style={[s.section, { backgroundColor: C.card }]}>
             <Text style={[s.sectionTitle, { color: C.text }]}>비밀번호 변경</Text>
             <Text style={[s.sectionSub, { color: C.textMuted }]}>변경하지 않으려면 비워두세요</Text>
-            <Field label="현재 비밀번호" value={currentPw} onChangeText={setCurrentPw} placeholder="현재 비밀번호" secureEntry />
-            <Field label="새 비밀번호" value={newPw} onChangeText={setNewPw} placeholder="새 비밀번호 (4자 이상)" secureEntry />
-            <Field label="새 비밀번호 확인" value={newPw2} onChangeText={setNewPw2} placeholder="새 비밀번호 재입력" secureEntry />
+            <Field
+              label="현재 비밀번호"
+              value={currentPw}
+              onChangeText={(v: string) => { setCurrentPw(v); setFieldErrors(e => ({ ...e, currentPw: "" })); }}
+              placeholder="현재 비밀번호"
+              secureEntry
+            />
+            {fieldErrors.currentPw ? <Text style={s.fieldErr}>{fieldErrors.currentPw}</Text> : null}
+            <Field
+              label="새 비밀번호"
+              value={newPw}
+              onChangeText={(v: string) => { setNewPw(v); setFieldErrors(e => ({ ...e, newPw: "" })); }}
+              placeholder="새 비밀번호 (6자 이상)"
+              secureEntry
+            />
+            {fieldErrors.newPw ? <Text style={s.fieldErr}>{fieldErrors.newPw}</Text> : null}
+            <Field
+              label="새 비밀번호 확인"
+              value={newPw2}
+              onChangeText={(v: string) => { setNewPw2(v); setFieldErrors(e => ({ ...e, newPw2: "" })); }}
+              placeholder="새 비밀번호 재입력"
+              secureEntry
+            />
+            {fieldErrors.newPw2 ? <Text style={s.fieldErr}>{fieldErrors.newPw2}</Text> : null}
           </View>
 
           {error ? (
@@ -250,6 +307,7 @@ const s = StyleSheet.create({
   deleteInput: { borderWidth: 1.5, borderColor: "#D96C6C", borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Pretendard-Regular" },
   deleteCancelBtn: { flex: 1, borderWidth: 1.5, borderColor: "#CBD5E1", borderRadius: 12, paddingVertical: 13, alignItems: "center" },
   deleteConfirmBtn: { flex: 2, backgroundColor: "#D96C6C", borderRadius: 12, paddingVertical: 13, alignItems: "center" },
+  fieldErr: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: -4 },
 });
 
 const f = StyleSheet.create({
