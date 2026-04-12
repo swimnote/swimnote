@@ -124,6 +124,7 @@ router.post("/admin/unregistered/bulk", requireAuth, requireRole("admin", "platf
         id: crypto.randomUUID(),
         swimming_pool_id: poolId,
         name: item.name,
+        name_korean: item.name.replace(/[^가-힣]/g, ""),
         parent_phone: item.parent_phone,
         status: "unregistered",
         registration_path: "bulk_upload",

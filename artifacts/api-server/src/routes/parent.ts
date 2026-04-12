@@ -1446,26 +1446,44 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
     `);
     const parentPhone = ((paRows.rows[0] as any)?.phone || "").replace(/[^0-9]/g, "");
 
-    // 관리자 회원목록에서 한글 기준 이름 매칭
+    // 관리자 회원목록에서 한글 기준 이름 매칭 (name_korean 컬럼 우선, 없으면 REGEXP_REPLACE 폴백)
     const found = await db.execute(sql`
       SELECT id, name, status, parent_phone FROM students
       WHERE swimming_pool_id = ${swimming_pool_id}
-        AND REGEXP_REPLACE(name, '[^가-힣]', '', 'g') = ${normalName}
+        AND (
+          name_korean = ${normalName}
+          OR (name_korean IS NULL AND REGEXP_REPLACE(name, '[^가-힣]', '', 'g') = ${normalName})
+        )
       ORDER BY created_at ASC
-      LIMIT 1
     `);
 
     if (found.rows.length === 0) {
       res.json({ success: false, status: "not_found", message: "관리자 회원목록에 해당 학생이 없습니다. 관리자에게 이름 등록을 요청하세요." }); return;
     }
 
-    const student = found.rows[0] as any;
+    let student: any;
 
-    // 전화번호 일치 확인: 학부모 전화번호와 학생 등록 전화번호 모두 존재할 때만 비교
-    if (parentPhone) {
-      const studentPhone = (student.parent_phone || "").replace(/[^0-9]/g, "");
-      if (studentPhone && studentPhone !== parentPhone) {
-        res.json({ success: false, status: "phone_mismatch", message: "전화번호가 일치하지 않습니다. 수영장에 등록된 연락처를 확인해주세요." }); return;
+    if (found.rows.length >= 2) {
+      // 동명이인: 전화번호 필수 비교
+      if (!parentPhone) {
+        res.json({ success: false, status: "phone_required", message: "동일한 이름의 학생이 여러 명입니다. 수영장에 전화번호 등록 후 다시 시도해주세요." }); return;
+      }
+      const byPhone = (found.rows as any[]).filter(r => {
+        const sp = (r.parent_phone || "").replace(/[^0-9]/g, "");
+        return sp && sp === parentPhone;
+      });
+      if (byPhone.length === 0) {
+        res.json({ success: false, status: "phone_mismatch", message: "전화번호가 일치하는 학생을 찾을 수 없습니다. 수영장에 등록된 연락처를 확인해주세요." }); return;
+      }
+      student = byPhone[0];
+    } else {
+      student = found.rows[0] as any;
+      // 단일 매칭: 양쪽 전화번호가 모두 있을 때만 비교
+      if (parentPhone) {
+        const studentPhone = (student.parent_phone || "").replace(/[^0-9]/g, "");
+        if (studentPhone && studentPhone !== parentPhone) {
+          res.json({ success: false, status: "phone_mismatch", message: "전화번호가 일치하지 않습니다. 수영장에 등록된 연락처를 확인해주세요." }); return;
+        }
       }
     }
 

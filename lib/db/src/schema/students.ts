@@ -6,6 +6,7 @@ export const studentsTable = pgTable("students", {
   id: text("id").primaryKey(),
   swimming_pool_id: text("swimming_pool_id").notNull(),
   name: text("name").notNull(),
+  name_korean: text("name_korean"),
   phone: text("phone"),
   birth_date: text("birth_date"),
   birth_year: text("birth_year"),

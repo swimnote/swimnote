@@ -73,9 +73,8 @@ export function validateStudentBirthYear(year: string): boolean {
  *  - 한글(가-힣)만 남기고 숫자·영문·공백·기호 등 모두 제거
  *  - 학부모 화면에서 이름 표시 시 적용 (예: 서경민1 → 서경민)
  *  - 관리자·선생님 화면에는 적용하지 않음 (원본 이름 유지)
- *  - 정규화 결과가 빈 문자열인 경우 원본 반환 (안전 장치)
+ *  - 한글이 없으면 빈 문자열 반환 (학부모 연결 한글 강제 기준)
  */
 export function normalizeKoreanName(name: string): string {
-  const korean = (name || "").replace(/[^가-힣]/g, "");
-  return korean.length > 0 ? korean : (name || "");
+  return (name || "").replace(/[^가-힣]/g, "");
 }

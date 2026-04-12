@@ -89,7 +89,15 @@ export async function initPoolDb(): Promise<void> {
     );
     ALTER TABLE students ADD COLUMN IF NOT EXISTS current_level_order integer;
     ALTER TABLE students ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+    ALTER TABLE students ADD COLUMN IF NOT EXISTS name_korean text;
   `));
+
+  // name_korean 백필: NULL인 행만 채움 (멱등)
+  await db.execute(sql.raw(`
+    UPDATE students
+    SET name_korean = REGEXP_REPLACE(name, '[^가-힣]', '', 'g')
+    WHERE name_korean IS NULL
+  `)).catch((e: any) => console.warn("[pool-db-init] name_korean 백필 건너뜀:", e.message));
 
   // ─── 3. class_groups ─────────────────────────────────────────────────────
   await db.execute(sql.raw(`

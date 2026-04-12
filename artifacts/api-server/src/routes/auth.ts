@@ -643,9 +643,9 @@ router.post("/simple-parent-register", async (req, res) => {
       for (const cName of unmatchedNames) {
         const sId = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         await db.execute(sql`
-          INSERT INTO students (id, swimming_pool_id, name, parent_name, parent_phone, parent_user_id,
+          INSERT INTO students (id, swimming_pool_id, name, name_korean, parent_name, parent_phone, parent_user_id,
             status, registration_path, weekly_count, assigned_class_ids, created_at, updated_at)
-          VALUES (${sId}, ${resolvedPoolId}, ${cName}, ${name}, ${ph}, ${parentId},
+          VALUES (${sId}, ${resolvedPoolId}, ${cName}, ${cName.replace(/[^가-힣]/g, "")}, ${name}, ${ph}, ${parentId},
             'unregistered', 'parent_signup', 1, '[]'::jsonb, NOW(), NOW())
           ON CONFLICT DO NOTHING
         `);

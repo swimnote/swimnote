@@ -154,10 +154,10 @@ router.post("/teacher-request", requireAuth, requireRole("teacher", "pool_admin"
     const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     await db.execute(sql`
       INSERT INTO students (
-        id, swimming_pool_id, name, birth_year, parent_name, parent_phone,
+        id, swimming_pool_id, name, name_korean, birth_year, parent_name, parent_phone,
         weekly_count, status, registration_path, invite_code, created_at, updated_at
       ) VALUES (
-        ${id}, ${poolId}, ${name.trim()},
+        ${id}, ${poolId}, ${name.trim()}, ${name.trim().replace(/[^가-힣]/g, "")},
         ${birth_year || null}, ${parent_name || null},
         ${parent_phone ? parent_phone.replace(/[^0-9]/g, "") : null},
         ${weekly_count}, 'pending_approval', 'teacher_request',
@@ -388,6 +388,7 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
           id,
           swimming_pool_id: poolId,
           name:             s.name.trim(),
+          name_korean:      s.name.trim().replace(/[^가-힣]/g, ""),
           birth_year:       s.birth_year   || null,
           parent_name:      s.parent_name  || null,
           parent_phone:     normPhone,
@@ -566,6 +567,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       id,
       swimming_pool_id: poolId,
       name: name.trim(),
+      name_korean: name.trim().replace(/[^가-힣]/g, ""),
       phone: phone || null,
       birth_date: birth_date || null,
       birth_year: birth_year || null,
@@ -707,7 +709,7 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
 
     const [student] = await db.update(studentsTable)
       .set({
-        ...(name !== undefined && { name }),
+        ...(name !== undefined && { name, name_korean: String(name).replace(/[^가-힣]/g, "") }),
         ...(phone !== undefined && { phone }),
         ...(birth_date !== undefined && { birth_date }),
         ...(birth_year !== undefined && { birth_year }),
@@ -1459,6 +1461,7 @@ router.post("/:id/purge", requireAuth, requireRole("super_admin", "pool_admin"),
       UPDATE students
       SET
         name         = ${"탈퇴_" + date},
+        name_korean  = '',
         parent_name  = NULL,
         parent_phone = NULL,
         birth_year   = NULL,
@@ -1473,6 +1476,7 @@ router.post("/:id/purge", requireAuth, requireRole("super_admin", "pool_admin"),
       UPDATE students
       SET
         name         = ${"탈퇴_" + date},
+        name_korean  = '',
         parent_name  = NULL,
         parent_phone = NULL,
         birth_year   = NULL,
