@@ -1,9 +1,10 @@
 import { Flame, PenLine, RotateCcw, Save } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React from "react";
+import React, { useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 import { getMemberPendingBadge } from "@/utils/studentUtils";
+import { validateName, validatePhone, validateStudentBirthYear, normalizePhone } from "@/utils/validation";
 import { EditField } from "./EditField";
 import { ms } from "./memberDetailStyles";
 import type { DetailData } from "./memberDetailTypes";
@@ -39,6 +40,33 @@ export function MemberInfoTab({
 }: MemberInfoTabProps) {
   const isParentLinked = !!(data as any).parent_user_id;
   const parentAccountName = (data as any).parent_account_name || editParentName;
+
+  const [fieldErrors, setFieldErrors] = useState({ name: "", birth: "", parentName: "", parentPhone: "" });
+
+  function handleSave() {
+    const errors = { name: "", birth: "", parentName: "", parentPhone: "" };
+
+    if (!validateName(editName)) {
+      errors.name = "이름을 입력해주세요";
+    }
+    if (!validateStudentBirthYear(editBirth)) {
+      errors.birth = "출생년도 형식이 올바르지 않습니다";
+    }
+    if (editParentName && !validateName(editParentName)) {
+      errors.parentName = "학부모 이름을 확인해주세요";
+    }
+    if (editParentPhone && !validatePhone(editParentPhone)) {
+      errors.parentPhone = "전화번호 형식이 올바르지 않습니다";
+    }
+
+    setFieldErrors(errors);
+    if (errors.name || errors.birth || errors.parentName || errors.parentPhone) return;
+
+    if (editParentPhone) {
+      setEditParentPhone(normalizePhone(editParentPhone));
+    }
+    onSave();
+  }
 
   return (
     <ScrollView contentContainerStyle={ms.tabContent} showsVerticalScrollIndicator={false}>
@@ -84,20 +112,58 @@ export function MemberInfoTab({
             </View>
           )}
         </View>
-        <EditField label="이름" value={editName} onChangeText={v => { setEditName(v); setInfoChanged(true); }} />
-        <EditField label="출생년도" value={editBirth} onChangeText={v => { setEditBirth(v); setInfoChanged(true); }} keyboardType="numeric" placeholder="예: 2015" />
-        <EditField label="학부모 이름" value={editParentName} onChangeText={v => { setEditParentName(v); setInfoChanged(true); }} />
+
+        <EditField
+          label="이름"
+          value={editName}
+          onChangeText={v => { setEditName(v); setInfoChanged(true); setFieldErrors(e => ({ ...e, name: "" })); }}
+        />
+        {fieldErrors.name ? (
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.error, marginTop: -4, marginBottom: 4 }}>
+            {fieldErrors.name}
+          </Text>
+        ) : null}
+
+        <EditField
+          label="출생년도"
+          value={editBirth}
+          onChangeText={v => { setEditBirth(v); setInfoChanged(true); setFieldErrors(e => ({ ...e, birth: "" })); }}
+          keyboardType="numeric"
+          placeholder="예: 2015"
+        />
+        {fieldErrors.birth ? (
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.error, marginTop: -4, marginBottom: 4 }}>
+            {fieldErrors.birth}
+          </Text>
+        ) : null}
+
+        <EditField
+          label="학부모 이름"
+          value={editParentName}
+          onChangeText={v => { setEditParentName(v); setInfoChanged(true); setFieldErrors(e => ({ ...e, parentName: "" })); }}
+        />
+        {fieldErrors.parentName ? (
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.error, marginTop: -4, marginBottom: 4 }}>
+            {fieldErrors.parentName}
+          </Text>
+        ) : null}
+
         <EditField
           label="학부모 연락처"
           value={editParentPhone}
-          onChangeText={v => { setEditParentPhone(v); setInfoChanged(true); }}
+          onChangeText={v => { setEditParentPhone(v); setInfoChanged(true); setFieldErrors(e => ({ ...e, parentPhone: "" })); }}
           keyboardType="phone-pad"
           placeholder="010-0000-0000"
         />
+        {fieldErrors.parentPhone ? (
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.error, marginTop: -4, marginBottom: 4 }}>
+            {fieldErrors.parentPhone}
+          </Text>
+        ) : null}
 
         <Pressable
           style={[ms.saveBtn, { backgroundColor: infoChanged ? themeColor : "#64748B" }]}
-          onPress={onSave}
+          onPress={handleSave}
           disabled={saving || !infoChanged}
         >
           {saving ? <ActivityIndicator color="#fff" size="small" /> : (

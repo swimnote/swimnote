@@ -6,6 +6,7 @@ import {
 } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
+import { validateName, validatePhone, normalizePhone } from "@/utils/validation";
 
 const C = Colors.light;
 
@@ -37,6 +38,7 @@ export function TeacherAccountSheet({
   const [editPhone, setEditPhone]     = useState("");
   const [editPosition, setEditPosition] = useState("");
   const [editSaving, setEditSaving]   = useState(false);
+  const [editErrors, setEditErrors]   = useState({ name: "", phone: "" });
   const [deleteTarget, setDeleteTarget] = useState<Teacher | null>(null);
 
   function resetForm() { setForm({ name: "", email: "", phone: "", password: "", is_admin_self_teacher: false }); setAddError(""); }
@@ -66,15 +68,32 @@ export function TeacherAccountSheet({
   }
 
   function openTeacherEdit(t: Teacher) {
-    setSelectedDetail(t); setEditName(t.name); setEditPhone(t.phone || ""); setEditPosition(t.position || "");
+    setSelectedDetail(t);
+    setEditName(t.name);
+    setEditPhone(t.phone || "");
+    setEditPosition(t.position || "");
+    setEditErrors({ name: "", phone: "" });
   }
 
   async function handleSaveTeacher() {
     if (!selectedDetail) return;
+
+    const errors = { name: "", phone: "" };
+    if (!validateName(editName)) {
+      errors.name = "이름을 입력해주세요";
+    }
+    if (editPhone && !validatePhone(editPhone)) {
+      errors.phone = "전화번호 형식이 올바르지 않습니다";
+    }
+    setEditErrors(errors);
+    if (errors.name || errors.phone) return;
+
+    const normalizedPhone = editPhone ? normalizePhone(editPhone) : editPhone;
+
     setEditSaving(true);
     try {
       const res = await apiRequest(token, `/teachers/${selectedDetail.id}`, {
-        method: "PATCH", body: JSON.stringify({ name: editName, phone: editPhone, position: editPosition }),
+        method: "PATCH", body: JSON.stringify({ name: editName, phone: normalizedPhone, position: editPosition }),
       });
       if (res.ok) { onRefresh(); setSelectedDetail(null); }
     } finally { setEditSaving(false); }
@@ -208,12 +227,41 @@ export function TeacherAccountSheet({
               <Text style={[ts.sheetTitle, { color: C.text }]}>선생님 정보 수정</Text>
               <Pressable onPress={() => setSelectedDetail(null)}><X size={22} color={C.textSecondary} /></Pressable>
             </View>
-            <View style={ts.field}><Text style={[ts.label, { color: C.textSecondary }]}>이름</Text>
-              <TextInput style={[ts.input, { borderColor: C.border, color: C.text }]} value={editName} onChangeText={setEditName} placeholderTextColor={C.textMuted} /></View>
-            <View style={ts.field}><Text style={[ts.label, { color: C.textSecondary }]}>연락처</Text>
-              <TextInput style={[ts.input, { borderColor: C.border, color: C.text }]} value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" placeholderTextColor={C.textMuted} /></View>
-            <View style={ts.field}><Text style={[ts.label, { color: C.textSecondary }]}>직급</Text>
-              <TextInput style={[ts.input, { borderColor: C.border, color: C.text }]} value={editPosition} onChangeText={setEditPosition} placeholder="예: 수석코치" placeholderTextColor={C.textMuted} /></View>
+            <View style={ts.field}>
+              <Text style={[ts.label, { color: C.textSecondary }]}>이름</Text>
+              <TextInput
+                style={[ts.input, { borderColor: editErrors.name ? "#D96C6C" : C.border, color: C.text }]}
+                value={editName}
+                onChangeText={v => { setEditName(v); setEditErrors(e => ({ ...e, name: "" })); }}
+                placeholderTextColor={C.textMuted}
+              />
+              {editErrors.name ? (
+                <Text style={ts.fieldErr}>{editErrors.name}</Text>
+              ) : null}
+            </View>
+            <View style={ts.field}>
+              <Text style={[ts.label, { color: C.textSecondary }]}>연락처</Text>
+              <TextInput
+                style={[ts.input, { borderColor: editErrors.phone ? "#D96C6C" : C.border, color: C.text }]}
+                value={editPhone}
+                onChangeText={v => { setEditPhone(v); setEditErrors(e => ({ ...e, phone: "" })); }}
+                keyboardType="phone-pad"
+                placeholderTextColor={C.textMuted}
+              />
+              {editErrors.phone ? (
+                <Text style={ts.fieldErr}>{editErrors.phone}</Text>
+              ) : null}
+            </View>
+            <View style={ts.field}>
+              <Text style={[ts.label, { color: C.textSecondary }]}>직급</Text>
+              <TextInput
+                style={[ts.input, { borderColor: C.border, color: C.text }]}
+                value={editPosition}
+                onChangeText={setEditPosition}
+                placeholder="예: 수석코치"
+                placeholderTextColor={C.textMuted}
+              />
+            </View>
             <View style={[ts.field, { borderTopWidth: 1, borderTopColor: C.border, paddingTop: 10 }]}>
               <Text style={[ts.label, { color: C.textMuted }]}>이메일: {selectedDetail?.email}</Text>
             </View>
@@ -287,4 +335,5 @@ const ts = StyleSheet.create({
   codeText: { fontSize: 28, fontFamily: "Pretendard-Regular" },
   emptyBox: { alignItems: "center", paddingVertical: 48, gap: 10 },
   emptyText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  fieldErr: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 2 },
 });
