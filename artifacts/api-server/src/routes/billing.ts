@@ -162,6 +162,24 @@ router.post("/revenuecat-webhook", async (req, res) => {
         logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
           description: `${eventType}: ${productId} → ${tier} (${resolved?.planName})`,
           metadata: { eventType, productId, tier } }).catch(console.error);
+
+        // ── 슈퍼관리자 운영 알림: 유료 결제 ──────────────────────────────
+        if (eventType !== "UNCANCELLATION") {
+          const planLabel = resolved?.planName ?? tier ?? productId;
+          const alertMsg = eventType === "RENEWAL"
+            ? `${poolInfo?.name ?? poolId}이(가) ${planLabel} 플랜을 갱신했습니다`
+            : `${poolInfo?.name ?? poolId}이(가) ${planLabel} 플랜 결제를 완료했습니다`;
+          import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
+            createOpsAlert({
+              type: "paid_subscription",
+              title: eventType === "RENEWAL" ? "구독 갱신 완료" : "유료 결제 완료",
+              message: alertMsg,
+              severity: "success",
+              relatedPoolId: poolId,
+            }).catch(console.error);
+          }).catch(console.error);
+        }
+
         break;
       }
 

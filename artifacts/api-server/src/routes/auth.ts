@@ -165,6 +165,19 @@ router.post("/register", async (req, res) => {
       `);
 
       const token = signToken({ userId, role: "pool_admin", poolId });
+
+      // ── 슈퍼관리자 운영 알림: 수영장 관리자 신규 가입 ──────────────────
+      import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
+        createOpsAlert({
+          type: "new_pool_admin_signup",
+          title: "수영장 관리자 신규 가입",
+          message: `${pool_name.trim()} 관리자 계정이 새로 가입했습니다`,
+          severity: "info",
+          relatedPoolId: poolId,
+          relatedUserId: userId,
+        }).catch(console.error);
+      }).catch(console.error);
+
       res.status(201).json({
         success: true,
         token,

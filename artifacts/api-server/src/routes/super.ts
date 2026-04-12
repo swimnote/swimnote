@@ -2386,6 +2386,90 @@ router.get(
   }
 );
 
+// ── GET /super/scheduler-heartbeat — 스케줄러 상태 조회 ─────────────────────
+// 예상 주기 × 3 초과 시 warning, 기록 없으면 empty
+const JOB_EXPECTED_SECONDS: Record<string, number> = {
+  "push-minute":       60,
+  "parent-link":       60,
+  "auto-attendance":   15 * 60,
+  "push-makeup":       24 * 60 * 60,
+  "backup-auto":       60 * 60,
+  "backup-incremental": 24 * 60 * 60,
+};
+
+router.get(
+  "/super/scheduler-heartbeat",
+  requireAuth,
+  requireRole("super_admin", "platform_admin", "super_manager"),
+  async (_req, res) => {
+    try {
+      const rows = (await db.execute(sql`
+        SELECT job_name, last_run_at, result
+        FROM scheduler_heartbeat
+        ORDER BY last_run_at DESC
+      `)).rows as Array<{ job_name: string; last_run_at: string; result: any }>;
+
+      const now = Date.now();
+      const items = rows.map(r => {
+        const expectedSec = JOB_EXPECTED_SECONDS[r.job_name] ?? 300;
+        const lastMs = new Date(r.last_run_at).getTime();
+        const elapsed = (now - lastMs) / 1000;
+        const status: "ok" | "warning" = elapsed > expectedSec * 3 ? "warning" : "ok";
+        return {
+          job_name: r.job_name,
+          last_run_at: r.last_run_at,
+          elapsed_seconds: Math.round(elapsed),
+          expected_seconds: expectedSec,
+          result: r.result,
+          status,
+        };
+      });
+
+      // JOB_EXPECTED_SECONDS에 정의된 잡 중 기록 없는 것 추가 (empty)
+      const recordedNames = new Set(rows.map(r => r.job_name));
+      for (const jobName of Object.keys(JOB_EXPECTED_SECONDS)) {
+        if (!recordedNames.has(jobName)) {
+          items.push({
+            job_name: jobName,
+            last_run_at: "",
+            elapsed_seconds: -1,
+            expected_seconds: JOB_EXPECTED_SECONDS[jobName],
+            result: null,
+            status: "warning" as "ok" | "warning",
+          });
+        }
+      }
+
+      res.json({ items });
+    } catch (err) {
+      console.error("[super/scheduler-heartbeat]", err);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
+// ── GET /super/ops-alerts — 슈퍼관리자 운영 알림 피드 (최신 10개) ────────────
+router.get(
+  "/super/ops-alerts",
+  requireAuth,
+  requireRole("super_admin", "platform_admin", "super_manager"),
+  async (_req, res) => {
+    try {
+      const rows = (await db.execute(sql`
+        SELECT id, type, title, message, severity, related_pool_id, related_user_id, is_read, created_at
+        FROM ops_alerts
+        ORDER BY created_at DESC
+        LIMIT 10
+      `)).rows as any[];
+
+      res.json({ items: rows });
+    } catch (err) {
+      console.error("[super/ops-alerts]", err);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
 // 앱 시작 시 비동기로 테이블/컬럼 보장
 ensureExtraTables().catch(err => console.error("[super] ensureExtraTables 오류:", err));
 ensurePlansTables().catch(err => console.error("[super] ensurePlansTables 오류:", err));

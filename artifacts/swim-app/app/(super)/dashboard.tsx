@@ -43,6 +43,15 @@ interface AuditLogItem {
   id: string; category: string; description?: string;
   actor_name?: string; pool_name?: string; created_at: string;
 }
+interface HeartbeatItem {
+  job_name: string; last_run_at: string; elapsed_seconds: number;
+  expected_seconds: number; status: "ok" | "warning"; result: any;
+}
+interface OpsAlertItem {
+  id: string; type: string; title: string; message: string;
+  severity: "info" | "success" | "warning" | "error";
+  related_pool_id: string | null; is_read: boolean; created_at: string;
+}
 
 const MINT = "#2EC4B6"; const MINT_BG = "#E6FAF8";
 const ORNG = "#F97316"; const ORNG_BG = "#FFF1E8";
@@ -178,30 +187,38 @@ const ts = StyleSheet.create({
 export default function SuperDashboard() {
   const { logout, adminUser, token } = useAuth() as any;
 
-  const [stats,      setStats]      = useState<Stats | null>(null);
-  const [todo,       setTodo]       = useState<Todo | null>(null);
+  const [stats,       setStats]       = useState<Stats | null>(null);
+  const [todo,        setTodo]        = useState<Todo | null>(null);
   const [riskSummary, setRiskSummary] = useState<RiskSummary | null>(null);
-  const [recentLogs, setRecentLogs] = useState<AuditLogItem[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [recentLogs,  setRecentLogs]  = useState<AuditLogItem[]>([]);
+  const [heartbeat,   setHeartbeat]   = useState<HeartbeatItem[]>([]);
+  const [opsAlerts,   setOpsAlerts]   = useState<OpsAlertItem[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [refreshing,  setRefreshing]  = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     try {
-      const [dashRes, riskRes, logsRes] = await Promise.all([
+      const [dashRes, riskRes, logsRes, hbRes, alertsRes] = await Promise.all([
         apiRequest(token, "/super/dashboard-stats"),
         apiRequest(token, "/super/risk-summary"),
         apiRequest(token, "/super/recent-audit-logs?limit=5"),
+        apiRequest(token, "/super/scheduler-heartbeat"),
+        apiRequest(token, "/super/ops-alerts"),
       ]);
-      const [dashData, riskData, logsData] = await Promise.all([
+      const [dashData, riskData, logsData, hbData, alertsData] = await Promise.all([
         dashRes.json(),
         riskRes.json(),
         logsRes.json(),
+        hbRes.json(),
+        alertsRes.json(),
       ]);
       setStats(dashData.stats ?? null);
       setTodo(dashData.todo ?? null);
       setRiskSummary(riskData.risk ?? riskData ?? null);
       setRecentLogs(logsData.logs ?? []);
+      setHeartbeat(hbData.items ?? []);
+      setOpsAlerts(alertsData.items ?? []);
     } catch {
       // 네트워크 오류 시 기존 상태 유지
     } finally {
@@ -430,6 +447,87 @@ export default function SuperDashboard() {
                 </View>
               </View>
             )}
+
+            {/* ── 스케줄러 하트비트 ── */}
+            <View style={s.auditSection}>
+              <View style={[s.auditHeader, { marginBottom: 8 }]}>
+                <LucideIcon name="activity" size={15} color={P} />
+                <Text style={s.auditHeaderTxt}>스케줄러 상태</Text>
+                {heartbeat.some(j => j.status === "warning") && (
+                  <View style={[ts.badge, { backgroundColor: "#D97706", marginLeft: "auto" }]}>
+                    <Text style={ts.badgeTxt}>지연</Text>
+                  </View>
+                )}
+              </View>
+              {heartbeat.length === 0 ? (
+                <View style={s.auditEmpty}>
+                  <Text style={s.auditEmptyTxt}>스케줄러 기록이 없습니다</Text>
+                </View>
+              ) : (
+                heartbeat.map(job => {
+                  const isWarn = job.status === "warning";
+                  const isEmpty = job.elapsed_seconds < 0;
+                  const badgeColor = isEmpty ? "#94A3B8" : isWarn ? "#D97706" : "#16A34A";
+                  const badgeLabel = isEmpty ? "기록 없음" : isWarn ? "지연" : "정상";
+                  const elapsedLabel = isEmpty ? "—" : job.elapsed_seconds < 60
+                    ? `${job.elapsed_seconds}초 전`
+                    : job.elapsed_seconds < 3600
+                    ? `${Math.floor(job.elapsed_seconds / 60)}분 전`
+                    : `${Math.floor(job.elapsed_seconds / 3600)}시간 전`;
+                  return (
+                    <View key={job.job_name} style={s.auditRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.auditDesc}>{job.job_name}</Text>
+                        <Text style={s.auditMeta}>마지막 실행 {elapsedLabel}</Text>
+                      </View>
+                      <View style={[s.auditCatBadge, { backgroundColor: isEmpty ? "#F1F5F9" : isWarn ? "#FFF1BF" : "#F0FDF4" }]}>
+                        <Text style={[s.auditCatTxt, { color: badgeColor }]}>{badgeLabel}</Text>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+
+            {/* ── 최근 운영 알림 ── */}
+            <View style={s.auditSection}>
+              <View style={s.auditHeader}>
+                <LucideIcon name="bell" size={15} color="#F97316" />
+                <Text style={s.auditHeaderTxt}>최근 운영 알림</Text>
+              </View>
+              {opsAlerts.length === 0 ? (
+                <View style={s.auditEmpty}>
+                  <Text style={s.auditEmptyTxt}>최근 운영 알림이 없습니다</Text>
+                </View>
+              ) : (
+                opsAlerts.map(alert => {
+                  const sevColor = alert.severity === "success" ? "#16A34A"
+                    : alert.severity === "warning" ? "#D97706"
+                    : alert.severity === "error" ? "#D96C6C"
+                    : "#7C3AED";
+                  const sevBg = alert.severity === "success" ? "#F0FDF4"
+                    : alert.severity === "warning" ? "#FFF1BF"
+                    : alert.severity === "error" ? "#FEF2F2"
+                    : "#F5F3FF";
+                  const sevLabel = alert.severity === "success" ? "정상"
+                    : alert.severity === "warning" ? "경고"
+                    : alert.severity === "error" ? "오류"
+                    : "정보";
+                  return (
+                    <View key={alert.id} style={s.auditRow}>
+                      <View style={[s.auditCatBadge, { backgroundColor: sevBg }]}>
+                        <Text style={[s.auditCatTxt, { color: sevColor }]}>{sevLabel}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.auditDesc} numberOfLines={1}>{alert.title}</Text>
+                        <Text style={s.auditMeta} numberOfLines={2}>{alert.message}</Text>
+                        <Text style={[s.auditMeta, { color: "#94A3B8" }]}>{relStr(alert.created_at)}</Text>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
 
             {/* ── 최근 감사 로그 5개 ── */}
             <View style={s.auditSection}>

@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import router from "./routes";
 import { initPushTables } from "./lib/push-service.js";
 import { startPushScheduler } from "./jobs/push-scheduler.js";
+import { recordResponseTime } from "./lib/responseTracker.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -50,6 +51,19 @@ app.use("/api", (_req: Request, res: Response, next: NextFunction) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.setHeader("Pragma", "no-cache");
   }
+  next();
+});
+
+// ── 응답시간 추적 미들웨어 (슈퍼관리자 서버 느려짐 감지용) ─────────────────
+app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+  // 헬스체크·스태틱 제외
+  if (req.path === "/healthz" || /\.(jpg|jpeg|png|gif|webp|mp4|m4v|ts|m3u8|svg|pdf|zip)$/i.test(req.path)) {
+    return next();
+  }
+  const start = Date.now();
+  res.on("finish", () => {
+    recordResponseTime(Date.now() - start);
+  });
   next();
 });
 

@@ -425,6 +425,28 @@ export async function initSuperDb(): Promise<void> {
     console.warn("[super-db-init] scheduler_heartbeat 오류:", e.message);
   }
 
+  // ── ops_alerts — 슈퍼관리자 운영 알림 피드 ───────────────────────────────
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS ops_alerts (
+        id              text PRIMARY KEY,
+        type            text NOT NULL,
+        title           text NOT NULL,
+        message         text NOT NULL,
+        severity        text NOT NULL DEFAULT 'info',
+        related_pool_id text,
+        related_user_id text,
+        dedupe_key      text UNIQUE,
+        is_read         boolean NOT NULL DEFAULT false,
+        created_at      timestamptz NOT NULL DEFAULT NOW()
+      );
+    `));
+    await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_ops_alerts_created_at ON ops_alerts (created_at DESC);`)).catch(() => {});
+    console.log("[super-db-init] ops_alerts 테이블 준비 완료");
+  } catch (e: any) {
+    console.warn("[super-db-init] ops_alerts 오류:", e.message);
+  }
+
   // ── 수평 확장 대비 인덱스 보완 ────────────────────────────────────────────
   try {
     await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_users_swimming_pool_id ON users (swimming_pool_id);`)).catch(() => {});

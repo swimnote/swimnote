@@ -9,6 +9,8 @@ import { initV2PendingTable } from "./lib/auto-link-v2.js";
 import { backfillPoolAdminRoles } from "./migrations/roles-backfill.js";
 import { backfillPoolSubscriptionFields } from "./lib/subscriptionService.js";
 import { isDbSeparated, isProtectDbConfigured, pool } from "@workspace/db";
+import { getRecentAvgResponseMs } from "./lib/responseTracker.js";
+import { createOpsAlert } from "./lib/opsAlerts.js";
 
 const IS_WORKER = process.env.WORKER_MODE === "true";
 
@@ -61,6 +63,26 @@ if (IS_WORKER) {
   console.log("[worker] HTTP 서버 미실행 — DB 락으로 중복 실행 방지됨");
 } else {
   // ── API 서버 모드: HTTP 실행, 스케줄러 없음 ─────────────────────────────
+
+  // ── 서버 느려짐 감지 스케줄러 (5분마다) ────────────────────────────────────
+  const SLOW_CHECK_INTERVAL = 5 * 60 * 1000;
+  const SLOW_THRESHOLD_MS = 1500;
+  setInterval(async () => {
+    try {
+      const { avg, count } = getRecentAvgResponseMs();
+      if (count < 5 || avg < SLOW_THRESHOLD_MS) return;
+      const bucketKey = `server_slow:${new Date().toISOString().slice(0, 15)}0`; // 10분 버킷
+      await createOpsAlert({
+        type: "server_slow",
+        title: "서버 지연 경고",
+        message: `최근 5분 평균 응답시간이 ${avg}ms를 기록했습니다 (${count}개 요청)`,
+        severity: "warning",
+        dedupeKey: bucketKey,
+      });
+    } catch (e: any) {
+      console.error("[server-slow-check] 오류:", e?.message);
+    }
+  }, SLOW_CHECK_INTERVAL);
 
   // Keep-Alive 자기 핑 (슬립 방지)
   if (process.env["NODE_ENV"] === "production") {
