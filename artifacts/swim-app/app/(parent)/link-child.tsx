@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, API_BASE, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
+import { validateName, validateStudentBirthYear } from "@/utils/validation";
 
 const C = Colors.light;
 
@@ -31,6 +32,7 @@ export default function LinkChildScreen() {
   const [submitting, setSubmitting]   = useState(false);
   const [linkedName, setLinkedName]   = useState("");
   const [error, setError]             = useState("");
+  const [fieldErrors, setFieldErrors] = useState({ name: "", birthYear: "" });
 
   async function searchPools() {
     if (!query.trim()) return;
@@ -45,8 +47,19 @@ export default function LinkChildScreen() {
   }
 
   async function handleLink() {
-    if (!childName.trim()) { setError("자녀 이름을 입력해주세요."); return; }
     if (!selectedPool) return;
+    const errs = { name: "", birthYear: "" };
+
+    if (!validateName(childName)) {
+      errs.name = "이름을 입력해주세요";
+    }
+    if (birthYear && !validateStudentBirthYear(birthYear)) {
+      errs.birthYear = "출생년도 형식이 올바르지 않습니다";
+    }
+
+    setFieldErrors(errs);
+    if (errs.name || errs.birthYear) return;
+
     setSubmitting(true); setError("");
     try {
       const r = await apiRequest(token, "/parent/link-child", {
@@ -171,27 +184,31 @@ export default function LinkChildScreen() {
           <View style={{ gap: 14 }}>
             <View style={{ gap: 6 }}>
               <Text style={[st.label, { color: C.textSecondary }]}>자녀 이름 *</Text>
-              <View style={[st.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
+              <View style={[st.inputRow, { borderColor: fieldErrors.name ? C.error : C.border, backgroundColor: C.card }]}>
                 <User size={16} color={C.textMuted} />
                 <TextInput
                   style={[st.input, { color: C.text }]}
-                  value={childName} onChangeText={setChildName}
+                  value={childName}
+                  onChangeText={v => { setChildName(v); setFieldErrors(e => ({ ...e, name: "" })); }}
                   placeholder="홍길동" placeholderTextColor={C.textMuted}
                 />
               </View>
+              {fieldErrors.name ? <Text style={st.fieldErr}>{fieldErrors.name}</Text> : null}
             </View>
 
             <View style={{ gap: 6 }}>
               <Text style={[st.label, { color: C.textSecondary }]}>출생 연도 (선택)</Text>
-              <View style={[st.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
+              <View style={[st.inputRow, { borderColor: fieldErrors.birthYear ? C.error : C.border, backgroundColor: C.card }]}>
                 <Calendar size={16} color={C.textMuted} />
                 <TextInput
                   style={[st.input, { color: C.text }]}
-                  value={birthYear} onChangeText={setBirthYear}
+                  value={birthYear}
+                  onChangeText={v => { setBirthYear(v); setFieldErrors(e => ({ ...e, birthYear: "" })); }}
                   placeholder="예: 2015" placeholderTextColor={C.textMuted}
                   keyboardType="number-pad" maxLength={4}
                 />
               </View>
+              {fieldErrors.birthYear ? <Text style={st.fieldErr}>{fieldErrors.birthYear}</Text> : null}
             </View>
           </View>
 
@@ -279,4 +296,5 @@ const st = StyleSheet.create({
   resultIcon:       { width: 88, height: 88, borderRadius: 44, justifyContent: "center", alignItems: "center" },
   resultTitle:      { fontSize: 22, fontFamily: "Pretendard-Regular" },
   resultSub:        { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
+  fieldErr:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 2 },
 });

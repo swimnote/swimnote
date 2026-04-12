@@ -7,6 +7,7 @@
  */
 import { ArrowLeft, Check, CircleAlert, CircleCheck, CircleX, Hash, MapPin, Search, Smartphone, Terminal } from "lucide-react-native";
 import { toAsciiOnly } from "@/utils/koreanToQwerty";
+import { validateName, validatePhone } from "@/utils/validation";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
@@ -85,6 +86,7 @@ export default function SignupScreen() {
   const [error, setError]           = useState("");
   const [loading, setLoading]       = useState(false);
   const [isPendingTeacher, setIsPendingTeacher] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({ pw: "", pwc: "", name: "", poolName: "" });
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
@@ -167,11 +169,26 @@ export default function SignupScreen() {
     setStep((s) => (s - 1) as Step);
   }
 
-  function validateStep1(): string | null {
-    if (loginId.trim().length < 4) return "아이디는 4자 이상이어야 합니다.";
-    if (pw.length < 4)             return "비밀번호는 4자 이상이어야 합니다.";
-    if (pw !== pwc)                return "비밀번호가 일치하지 않습니다.";
-    return null;
+  function validateStep1(): boolean {
+    setError("");
+    const errs = { pw: "", pwc: "", name: "", poolName: "" };
+    let hasError = false;
+
+    if (loginId.trim().length < 4) {
+      setError("아이디는 4자 이상이어야 합니다.");
+      hasError = true;
+    }
+    if (pw.length < 6) {
+      errs.pw = "비밀번호는 6자 이상이어야 합니다";
+      hasError = true;
+    }
+    if (!errs.pw && pw !== pwc) {
+      errs.pwc = "비밀번호가 일치하지 않습니다";
+      hasError = true;
+    }
+
+    setFieldErrors(errs);
+    return !hasError;
   }
 
   function validateStep2(): string | null {
@@ -185,11 +202,11 @@ export default function SignupScreen() {
   }
 
   function nextStep() {
-    setError("");
     if (step === 1) {
-      const e = validateStep1(); if (e) { setError(e); return; }
+      if (!validateStep1()) return;
       setStep(2); return;
     }
+    setError("");
     if (step === 2) {
       const e = validateStep2(); if (e) { setError(e); return; }
       setStep(3); return;
@@ -205,11 +222,24 @@ export default function SignupScreen() {
   /* ──────────────────────────────────────────────── */
   async function handleSubmit() {
     setError("");
-    if (!name.trim()) { setError("실명을 입력해주세요."); return; }
+    const errs = { pw: "", pwc: "", name: "", poolName: "" };
+
+    if (!validateName(name)) {
+      errs.name = "이름을 입력해주세요";
+    }
 
     if (role === "admin") {
-      if (!poolName.trim())    { setError("수영장 이름을 입력해주세요."); return; }
+      if (!validateName(poolName)) {
+        errs.poolName = "수영장명을 입력해주세요";
+      }
+    }
+
+    setFieldErrors(errs);
+    if (errs.name || errs.poolName) return;
+
+    if (role === "admin") {
       if (!poolAddress.trim()) { setError("수영장 주소를 입력해주세요."); return; }
+      if (poolPhone && !validatePhone(poolPhone)) { setError("수영장 전화번호 형식이 올바르지 않습니다."); return; }
       if (!poolPhone.trim())   { setError("수영장 전화번호를 입력해주세요."); return; }
     } else if (role === "teacher") {
       if (!selectedPool) { setError("수영장을 선택해주세요."); return; }
@@ -346,13 +376,13 @@ export default function SignupScreen() {
           />
         </InputField>
 
-        <InputField label="비밀번호" icon="lock">
+        <InputField label="비밀번호" icon="lock" error={fieldErrors.pw}>
           <TextInput
             style={[styles.input, { color: C.text }]}
-            placeholder="4자 이상"
+            placeholder="6자 이상"
             placeholderTextColor={C.textMuted}
             value={pw}
-            onChangeText={v => setPw(toAsciiOnly(v))}
+            onChangeText={v => { setPw(toAsciiOnly(v)); setFieldErrors(e => ({ ...e, pw: "" })); }}
             secureTextEntry={!showPw}
             autoCapitalize="none"
             autoCorrect={false}
@@ -364,13 +394,13 @@ export default function SignupScreen() {
           </Pressable>
         </InputField>
 
-        <InputField label="비밀번호 확인" icon="lock">
+        <InputField label="비밀번호 확인" icon="lock" error={fieldErrors.pwc}>
           <TextInput
             style={[styles.input, { color: C.text }]}
             placeholder="비밀번호 재입력"
             placeholderTextColor={C.textMuted}
             value={pwc}
-            onChangeText={v => setPwc(toAsciiOnly(v))}
+            onChangeText={v => { setPwc(toAsciiOnly(v)); setFieldErrors(e => ({ ...e, pwc: "" })); }}
             secureTextEntry={!showPwc}
             autoCapitalize="none"
             autoCorrect={false}
@@ -506,13 +536,13 @@ export default function SignupScreen() {
           <Text style={[styles.cardTitle, { color: C.text }]}>
             {role === "admin" ? "운영자 정보" : role === "teacher" ? "선생님 정보" : "학부모 정보"}
           </Text>
-          <InputField label="실명" icon="user">
+          <InputField label="실명" icon="user" error={fieldErrors.name}>
             <TextInput
               style={[styles.input, { color: C.text }]}
               placeholder="실명을 입력해주세요 (한글)"
               placeholderTextColor={C.textMuted}
               value={name}
-              onChangeText={v => setName(v.replace(/[^가-힣ㄱ-ㅎㅏ-ㅣ\s]/g, ""))}
+              onChangeText={v => { setName(v.replace(/[^가-힣ㄱ-ㅎㅏ-ㅣ\s]/g, "")); setFieldErrors(e => ({ ...e, name: "" })); }}
               keyboardType="default"
               autoCorrect={false}
               autoCapitalize="none"
@@ -524,8 +554,8 @@ export default function SignupScreen() {
         {role === "admin" && (
           <View style={styles.card}>
             <Text style={[styles.cardTitle, { color: C.text }]}>수영장 정보</Text>
-            <InputField label="수영장 이름" icon="map-pin">
-              <TextInput style={[styles.input, { color: C.text }]} placeholder="예: 스윔노트 수영장" placeholderTextColor={C.textMuted} value={poolName} onChangeText={setPoolName} />
+            <InputField label="수영장 이름" icon="map-pin" error={fieldErrors.poolName}>
+              <TextInput style={[styles.input, { color: C.text }]} placeholder="예: 스윔노트 수영장" placeholderTextColor={C.textMuted} value={poolName} onChangeText={v => { setPoolName(v); setFieldErrors(e => ({ ...e, poolName: "" })); }} />
             </InputField>
             <InputField label="수영장 주소" icon="map">
               <TextInput style={[styles.input, { color: C.text }]} placeholder="도로명 주소" placeholderTextColor={C.textMuted} value={poolAddress} onChangeText={setPoolAddress} />
@@ -786,15 +816,16 @@ export default function SignupScreen() {
 }
 
 /* ── Sub-component ── */
-function InputField({ label, icon, children }: { label: string; icon: any; children: React.ReactNode }) {
+function InputField({ label, icon, children, error }: { label: string; icon: any; children: React.ReactNode; error?: string }) {
   const C = Colors.light;
   return (
     <View style={styles.field}>
       <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
-      <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+      <View style={[styles.inputBox, { borderColor: error ? "#D96C6C" : C.border, backgroundColor: C.background }]}>
         <LucideIcon name={icon} size={15} color={C.textMuted} style={{ marginRight: 8 }} />
         {children}
       </View>
+      {error ? <Text style={styles.fieldErrTxt}>{error}</Text> : null}
     </View>
   );
 }
@@ -855,4 +886,5 @@ const styles = StyleSheet.create({
   primaryBtnTxt: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
   loginLink:     { alignItems: "center", paddingVertical: 4 },
   loginLinkTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  fieldErrTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 2 },
 });
