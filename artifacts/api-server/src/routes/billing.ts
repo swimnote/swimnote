@@ -27,6 +27,25 @@ import {
 
 const router = Router();
 
+// ── 환불 정책 동의 여부 검증 (결제 차단 헬퍼) ────────────────────────────────
+async function isPolicyAgreed(poolId: string): Promise<boolean> {
+  try {
+    const activeRes = await db.execute(sql`
+      SELECT version FROM policy_versions
+      WHERE policy_key = 'refund_policy' AND is_active = TRUE
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    const activeVersion = (activeRes.rows[0] as any)?.version;
+    if (!activeVersion) return true; // 정책 미설정 → fail-open
+    const consentRes = await db.execute(sql`
+      SELECT id FROM policy_consents
+      WHERE pool_id = ${poolId} AND policy_key = 'refund_policy' AND version = ${activeVersion}
+      LIMIT 1
+    `);
+    return consentRes.rows.length > 0;
+  } catch { return true; } // 오류 → fail-open
+}
+
 // ── 구 티어명 → 현재 티어명 정규화 (DB에 저장된 구 값 호환) ──────────────
 const TIER_NORMALIZE: Record<string, string> = {
   growth:     "center_200",
@@ -299,6 +318,19 @@ router.post("/sync-rc-subscription", requireAuth, requireRole("pool_admin", "sup
 
     if (!isActive || !newTier) {
       res.json({ synced: false, reason: "active 구독 없음" }); return;
+    }
+
+    // 유료 구독 처리 전 환불 정책 동의 확인
+    if (newTier !== "free") {
+      const agreed = await isPolicyAgreed(poolId);
+      if (!agreed) {
+        res.status(403).json({
+          success: false,
+          code: "REFUND_POLICY_AGREEMENT_REQUIRED",
+          message: "유료 결제를 진행하려면 환불 정책 동의가 필요합니다.",
+        });
+        return;
+      }
     }
 
     const nextBilling = expiresAt ?? addOneMonth();
@@ -748,6 +780,19 @@ router.post("/subscribe", requireAuth, requireRole("pool_admin", "super_admin"),
     const [card] = (await db.execute(sql`
       SELECT * FROM payment_cards WHERE swimming_pool_id = ${poolId} AND is_default = true LIMIT 1
     `)).rows as any[];
+
+    // 유료 플랜 전환 전 환불 정책 동의 확인
+    if (newPrice > 0) {
+      const agreed = await isPolicyAgreed(poolId);
+      if (!agreed) {
+        res.status(403).json({
+          success: false,
+          code: "REFUND_POLICY_AGREEMENT_REQUIRED",
+          message: "유료 결제를 진행하려면 환불 정책 동의가 필요합니다.",
+        });
+        return;
+      }
+    }
 
     if (newPrice > 0 && !card) {
       res.status(400).json({ error: "결제 카드를 먼저 등록해주세요." }); return;

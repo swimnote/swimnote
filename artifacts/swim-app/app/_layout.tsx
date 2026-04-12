@@ -241,7 +241,7 @@ function RootNav() {
     "(admin)", "(super)", "(teacher)", "(parent)", "(auth)",
     "org-role-select", "pool-apply", "pool-select", "pending", "rejected", "subscription-expired",
     "class-assign", "parent-onboard-nickname",
-    "onboarding-admin", "onboarding-teacher", "onboarding-parent",
+    "onboarding-admin", "onboarding-teacher", "onboarding-parent", "policy-agreement",
     "pool-join-request", "signup-role", "register", "teacher-activate", "teacher-invite-join",
     "terms", "privacy", "refund",
     "support-ticket-write", "support-ticket-list", "support-ticket-detail",
@@ -271,7 +271,20 @@ function RootNav() {
       const ADMIN_ROLES = ["pool_admin", "sub_admin"];
       if (ADMIN_ROLES.includes(role)) {
         const done = await AsyncStorage.getItem(`@swimnote:onboarded_${userId}_admin`).catch(() => "1");
-        return done ? null : "/(auth)/onboarding-admin";
+        if (!done) return "/(auth)/onboarding-admin";
+        // pool_admin: 현재 활성 정책 동의 여부 확인 (강제 온보딩)
+        if (role === "pool_admin" && token) {
+          try {
+            const policyRes = await apiRequest(token, "/admin/refund-policy");
+            if (policyRes.ok) {
+              const policyData = await policyRes.json();
+              if (policyData.success && (!policyData.agreed || policyData.needs_reagree)) {
+                return "/(auth)/policy-agreement";
+              }
+            }
+          } catch {}
+        }
+        return null;
       }
       if (role === "teacher") {
         const done = await AsyncStorage.getItem(`@swimnote:onboarded_${userId}_teacher`).catch(() => "1");

@@ -78,6 +78,9 @@ export default function SubscriptionScreen() {
     refetchOfferings,
   } = useSubscription();
 
+  const [policyAgreed,  setPolicyAgreed]  = useState<boolean | null>(null);
+  const [policyVersion, setPolicyVersion] = useState<string>("v1.0");
+
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [confirmTitle, setConfirmTitle]     = useState("");
   const [confirmMessage, setConfirmMessage] = useState("");
@@ -92,9 +95,10 @@ export default function SubscriptionScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [statusRes, plansRes] = await Promise.all([
+      const [statusRes, plansRes, policyRes] = await Promise.all([
         apiRequest(token, "/billing/status"),
         apiRequest(token, "/billing/plans"),
+        apiRequest(token, "/admin/refund-policy").catch(() => null),
       ]);
       if (statusRes.ok) {
         const d = await statusRes.json();
@@ -107,6 +111,13 @@ export default function SubscriptionScreen() {
           map[p.tier] = { name: p.name, price: Number(p.price), member_limit: Number(p.member_limit), display_storage: p.display_storage ?? "" };
         }
         setServerPlanMap(map);
+      }
+      if (policyRes?.ok) {
+        const d = await policyRes.json();
+        if (d.success) {
+          setPolicyAgreed(d.agreed && !d.needs_reagree);
+          setPolicyVersion(d.version ?? "v1.0");
+        }
       }
     } catch {}
     finally { setLoading(false); }
@@ -143,6 +154,19 @@ export default function SubscriptionScreen() {
 
   function handlePlanSelect(plan: PlanMeta) {
     if (plan.price === 0 || !plan.rcPackageId) return;
+
+    // 정책 미동의 시 결제 진입 차단
+    if (policyAgreed === false) {
+      Alert.alert(
+        "환불 정책 동의 필요",
+        `유료 결제를 진행하려면 환불 정책 동의가 필요합니다.\n현재 버전: ${policyVersion}`,
+        [
+          { text: "취소", style: "cancel" },
+          { text: "환불 정책 확인하러 가기", onPress: () => router.push("/(admin)/refund-policy" as any) },
+        ]
+      );
+      return;
+    }
 
     if (offeringsLoading) {
       showConfirm("구독 상품 로드 중", "구독 상품 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.", () => {});
@@ -212,6 +236,20 @@ export default function SubscriptionScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader title="구독 관리" />
+
+      {/* 환불 정책 미동의 배너 */}
+      {policyAgreed === false && (
+        <Pressable
+          style={policyBannerStyle}
+          onPress={() => router.push("/(admin)/refund-policy" as any)}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={policyBannerTitle}>유료 결제를 진행하려면 환불 정책 확인이 필요합니다.</Text>
+            <Text style={policyBannerDesc}>현재 버전: {policyVersion} · 탭하여 확인하기</Text>
+          </View>
+          <CreditCard size={18} color="#D97706" />
+        </Pressable>
+      )}
 
       {loading ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
@@ -401,6 +439,19 @@ function PlanCard({
     </Pressable>
   );
 }
+
+const policyBannerStyle = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+  backgroundColor: "#FFFBEB",
+  borderBottomWidth: 1,
+  borderBottomColor: "#FDE68A",
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+};
+const policyBannerTitle = { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E" };
+const policyBannerDesc  = { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706", marginTop: 2 };
 
 const s = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 16, gap: 10 },

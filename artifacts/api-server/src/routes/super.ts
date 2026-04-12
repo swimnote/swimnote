@@ -130,14 +130,19 @@ router.get(
             AND subscription_end_at <= NOW() + INTERVAL '24 hours'
           ORDER BY subscription_end_at ASC LIMIT 10
         `),
-        // 정책 미확인 (refund_policy 미동의)
+        // 정책 미확인 (refund_policy 현재 활성 버전 미동의)
         superAdminDb.execute(sql`
           SELECT sp.id, sp.name, sp.owner_name, sp.created_at, 'policy_unsigned' AS todo_type
           FROM swimming_pools sp
           WHERE sp.approval_status = 'approved'
             AND NOT EXISTS (
               SELECT 1 FROM policy_consents pc
-              WHERE pc.pool_id = sp.id AND pc.policy_key = 'refund_policy'
+              WHERE pc.pool_id = sp.id
+                AND pc.policy_key = 'refund_policy'
+                AND pc.version = COALESCE(
+                  (SELECT version FROM policy_versions WHERE policy_key = 'refund_policy' AND is_active = TRUE ORDER BY created_at DESC LIMIT 1),
+                  'v1.0'
+                )
             )
           ORDER BY sp.created_at DESC LIMIT 10
         `).catch(() => ({ rows: [] })),
@@ -1035,10 +1040,24 @@ async function ensureExtraTables() {
       policy_key  TEXT NOT NULL,
       version     TEXT NOT NULL,
       value       TEXT NOT NULL,
+      is_active   BOOLEAN DEFAULT FALSE,
       created_at  TIMESTAMPTZ DEFAULT NOW(),
       created_by  TEXT
     )
   `);
+  // is_active 컬럼 마이그레이션 (기존 테이블 보완)
+  await db.execute(sql`ALTER TABLE policy_versions ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT FALSE`).catch(() => {});
+  // 각 policy_key 중 최신 버전을 is_active=TRUE로 설정
+  await db.execute(sql`
+    UPDATE policy_versions pv
+    SET is_active = TRUE
+    WHERE is_active = FALSE
+      AND id = (
+        SELECT id FROM policy_versions pv2
+        WHERE pv2.policy_key = pv.policy_key
+        ORDER BY created_at DESC LIMIT 1
+      )
+  `).catch(() => {});
   await superAdminDb.execute(sql`
     CREATE TABLE IF NOT EXISTS policy_consents (
       id          TEXT PRIMARY KEY,
@@ -1302,9 +1321,12 @@ router.post(
       if (!version || !value) { res.status(400).json({ error: "버전·내용을 입력해주세요." }); return; }
       const id = `pv_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
       const actorName = req.user?.name ?? "슈퍼관리자";
+      // 기존 활성 버전 비활성화
+      await db.execute(sql`UPDATE policy_versions SET is_active = FALSE WHERE policy_key = ${key}`);
+      // 새 버전 is_active=TRUE로 삽입
       await db.execute(sql`
-        INSERT INTO policy_versions (id, policy_key, version, value, created_by)
-        VALUES (${id}, ${key}, ${version}, ${value}, ${actorName})
+        INSERT INTO policy_versions (id, policy_key, version, value, is_active, created_by)
+        VALUES (${id}, ${key}, ${version}, ${value}, TRUE, ${actorName})
       `);
       res.json({ ok: true, id });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
@@ -2234,7 +2256,15 @@ router.get("/super/risk-summary", requireAuth, requireRole("super_admin"), async
       superAdminDb.execute(sql`
         SELECT COUNT(*)::int AS cnt FROM swimming_pools sp
         WHERE sp.approval_status = 'approved'
-          AND NOT EXISTS (SELECT 1 FROM policy_consents pc WHERE pc.pool_id = sp.id AND pc.policy_key = 'refund_policy')
+          AND NOT EXISTS (
+            SELECT 1 FROM policy_consents pc
+            WHERE pc.pool_id = sp.id
+              AND pc.policy_key = 'refund_policy'
+              AND pc.version = COALESCE(
+                (SELECT version FROM policy_versions WHERE policy_key = 'refund_policy' AND is_active = TRUE ORDER BY created_at DESC LIMIT 1),
+                'v1.0'
+              )
+          )
       `).catch(() => ({ rows: [{ cnt: 0 }] })),
       db.execute(sql`
         SELECT COUNT(*)::int AS cnt FROM support_tickets

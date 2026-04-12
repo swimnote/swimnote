@@ -70,7 +70,8 @@ export default function SettingsScreen() {
   const [defaultTeacher, setDefaultTeacher] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [policyAgreed, setPolicyAgreed]   = useState<boolean | null>(null);
+  const [policyAgreed,     setPolicyAgreed]     = useState<boolean | null>(null);
+  const [policyNeedsReagree, setPolicyNeedsReagree] = useState(false);
 
   async function handleDeleteAccount() {
     setDeleteLoading(true);
@@ -88,9 +89,12 @@ export default function SettingsScreen() {
     apiRequest(token, "/admin/dashboard-stats").then(r => r.ok ? r.json() : null).then(d => {
       if (d) setSettingsStats({ total_members: d.total_members ?? 0, total_teachers: d.total_teachers ?? 0, total_parents: d.total_parents ?? 0 });
     }).catch(() => {});
-    // 환불 정책 동의 여부 조회
+    // 환불 정책 동의 여부 조회 (현재 활성 버전 기준)
     apiRequest(token, "/admin/refund-policy").then(r => r.ok ? r.json() : null).then(d => {
-      if (d) setPolicyAgreed(!!d.agreed_at);
+      if (d?.success) {
+        setPolicyAgreed(d.agreed === true && d.needs_reagree === false);
+        setPolicyNeedsReagree(d.needs_reagree === true && d.agreed === true);
+      }
     }).catch(() => {});
   }, [token]);
 
@@ -124,10 +128,11 @@ export default function SettingsScreen() {
         <Text style={s.sectionTitle}>{title}</Text>
         <View style={[s.sectionCard, { backgroundColor: C.card }]}>
           {items.map((item, idx) => {
-            // 환불 정책 확인 — 미동의 시 "미확인" 배지 표시
-            const isPolicy = item.route.includes("refund-policy");
-            const showUnread = isPolicy && policyAgreed === false;
-            const showDone   = isPolicy && policyAgreed === true;
+            // 환불 정책 확인 — 상태별 배지
+            const isPolicy   = item.route.includes("refund-policy");
+            const showDone   = isPolicy && policyAgreed === true && !policyNeedsReagree;
+            const showReagree = isPolicy && policyNeedsReagree;
+            const showUnread = isPolicy && policyAgreed === false && !policyNeedsReagree;
             return (
               <Pressable
                 key={item.label}
@@ -148,6 +153,11 @@ export default function SettingsScreen() {
                 {showUnread && (
                   <View style={{ backgroundColor: "#FEF2F2", borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, marginRight: 4 }}>
                     <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D96C6C" }}>미확인</Text>
+                  </View>
+                )}
+                {showReagree && (
+                  <View style={{ backgroundColor: "#FFFBEB", borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, marginRight: 4 }}>
+                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D97706" }}>재동의 필요</Text>
                   </View>
                 )}
                 {showDone && (
