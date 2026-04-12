@@ -1047,6 +1047,12 @@ async function ensureExtraTables() {
   `);
   // is_active 컬럼 마이그레이션 (기존 테이블 보완)
   await db.execute(sql`ALTER TABLE policy_versions ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT FALSE`).catch(() => {});
+  // DB 레벨 제약: policy_key 당 is_active=TRUE 는 최대 1개 (Partial Unique Index)
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS uidx_policy_versions_active_key
+    ON policy_versions (policy_key)
+    WHERE is_active = TRUE
+  `).catch(() => {});
   // 각 policy_key 중 최신 버전을 is_active=TRUE로 설정
   await db.execute(sql`
     UPDATE policy_versions pv
