@@ -1,17 +1,15 @@
 /**
- * 학부모 홈 — 스타벅스식 콘텐츠 중심 UX
+ * 학부모 홈 — 정보 우선순위 중심 UX
  *
  * 구조:
  *   A. 상단 헤더 (수영장명 · 알림 · 설정)
- *   B. 자녀 탭 (2명+)
- *   C. 자녀 히어로 카드
- *   D. 빠른 바로가기 그리드 (상태 배지 포함)
- *   E. 오늘 확인할 것 카드
- *   F. 최근 수업일지 카드
- *   G. 최근 사진 카드
- *   H. 최근 공지 카드
- *   I. 성장 카드
- *   J. 출석 카드
+ *   B. 자녀 탭
+ *   C. 상단 요약 카드 (이름 / 반 / 출석 / 오늘 수업)
+ *   D. 새 소식 스트립 (unread_counts 합산)
+ *   1. 최근 수업일지 카드
+ *   2. 최근 사진 카드
+ *   3. 공지사항 카드
+ *   4. 현재 레벨 카드
  */
 import { Bell, Plus, Settings } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
@@ -29,15 +27,10 @@ import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
 import { ParentChildHeroCard } from "@/components/parent/ParentChildHeroCard";
-import { ParentQuickActionGrid } from "@/components/parent/ParentQuickActionGrid";
-import { ParentTodoCard } from "@/components/parent/ParentTodoCard";
 import { ParentLatestDiaryCard } from "@/components/parent/ParentLatestDiaryCard";
 import { ParentRecentPhotosCard } from "@/components/parent/ParentRecentPhotosCard";
 import { ParentNoticeCard } from "@/components/parent/ParentNoticeCard";
 import { ParentGrowthCard } from "@/components/parent/ParentGrowthCard";
-import { ParentAttendanceCard } from "@/components/parent/ParentAttendanceCard";
-import { ParentPromoBanner } from "@/components/parent/ParentPromoBanner";
-import { ParentPromoStrip } from "@/components/parent/ParentPromoStrip";
 
 const C = Colors.light;
 
@@ -149,7 +142,6 @@ export default function ParentHomeScreen() {
   const [linking, setLinking] = useState(false);
   const [confirmedPool, setConfirmedPool] = useState<PoolResult | null>(null);
 
-  // V2 상태 3단계 (no_pool / waiting / linked)
   const [v2Status, setV2Status] = useState<"no_pool" | "waiting" | "linked" | null>("no_pool");
   const [v2PendingChildName, setV2PendingChildName] = useState<string | null>(null);
   const [v2Retrying, setV2Retrying] = useState(false);
@@ -174,7 +166,6 @@ export default function ParentHomeScreen() {
     setLinking(false);
   }
 
-  // V2: 연결 상태 조회 (홈 진입 시 자동 실행)
   async function loadV2Status() {
     try {
       const r = await apiRequest(token, "/parent/v2/status");
@@ -186,12 +177,10 @@ export default function ParentHomeScreen() {
       }
     } catch (e) {
       console.error("[v2-home] 상태 조회 오류:", e);
-      // 실패 시 no_pool(기존 방식)로 fallback
       if (v2Status === null) setV2Status("no_pool");
     }
   }
 
-  // V2: "다시 확인" 버튼 (명시적 재시도)
   async function handleV2Retry() {
     setV2Retrying(true);
     try {
@@ -213,7 +202,6 @@ export default function ParentHomeScreen() {
     }
   }, []));
 
-  // V2 상태 로드 (마운트 + 포커스)
   useEffect(() => { loadV2Status(); }, []);
   useFocusEffect(useCallback(() => { loadV2Status(); }, []));
 
@@ -244,68 +232,14 @@ export default function ParentHomeScreen() {
 
   const { unread_counts } = summary;
 
-  // 빠른 바로가기 그리드 (순서: 수업일지 > 앨범 > 출결 / 공지 > 쪽지 > 수영정보)
-  const quickActions = [
-    {
-      icon: "book-open", label: "수업일지",
-      sub: unread_counts.diaries > 0 ? `새 ${unread_counts.diaries}건` : null,
-      badge: unread_counts.diaries, color: "#7C3AED", bg: "#EDE9FE",
-      onPress: () => router.push("/(parent)/diary?backTo=home" as any),
-    },
-    {
-      icon: "image", label: "앨범",
-      sub: unread_counts.photos > 0 ? `새 ${unread_counts.photos}장` : null,
-      badge: unread_counts.photos, color: "#EA580C", bg: "#FEF3C7",
-      onPress: () => router.push("/(parent)/photos?backTo=home" as any),
-    },
-    {
-      icon: "calendar-check", label: "출결",
-      sub: summary.attendance.total > 0 ? `${summary.attendance.attended}/${summary.attendance.total}회` : null,
-      badge: null, color: "#2563EB", bg: "#DBEAFE",
-      onPress: () => router.push("/(parent)/attendance-history?backTo=home" as any),
-    },
-    {
-      icon: "bell", label: "공지",
-      sub: unread_counts.notices > 0 ? `새 ${unread_counts.notices}건` : null,
-      badge: unread_counts.notices, color: "#D97706", bg: "#FEF9C3",
-      onPress: () => router.push("/(parent)/notices?backTo=home" as any),
-    },
-    {
-      icon: "mail", label: "쪽지",
-      sub: unread_counts.messages > 0 ? `읽지않음 ${unread_counts.messages}` : null,
-      badge: unread_counts.messages, color: "#0369A1", bg: IB,
-      onPress: () => router.push("/(parent)/messages?backTo=home" as any),
-    },
-    {
-      icon: "droplet", label: "수영정보",
-      sub: null, badge: null, color: "#2EC4B6", bg: IB,
-      onPress: () => router.push("/(parent)/swim-info?backTo=home" as any),
-    },
-  ];
-
-  // 오늘 확인할 것
-  const todoItems = [
-    unread_counts.diaries > 0 && {
-      icon: "book-open", color: "#7C3AED",
-      label: `수업일지 ${unread_counts.diaries}건`,
-      onPress: () => router.push("/(parent)/diary?backTo=home" as any),
-    },
-    unread_counts.photos > 0 && {
-      icon: "image", color: "#EA580C",
-      label: `새 사진 ${unread_counts.photos}장`,
-      onPress: () => router.push("/(parent)/photos?backTo=home" as any),
-    },
-    unread_counts.notices > 0 && {
-      icon: "bell", color: "#D97706",
-      label: `공지 ${unread_counts.notices}건`,
-      onPress: () => router.push("/(parent)/notices?backTo=home" as any),
-    },
-    unread_counts.messages > 0 && {
-      icon: "mail", color: "#0369A1",
-      label: `읽지 않은 쪽지 ${unread_counts.messages}개`,
-      onPress: () => router.push("/(parent)/messages?backTo=home" as any),
-    },
-  ].filter(Boolean) as any[];
+  // 새 소식 스트립 텍스트 생성 (최대 3개)
+  const newsItems = [
+    unread_counts.diaries > 0 && `새 일지 ${unread_counts.diaries}건`,
+    unread_counts.photos > 0 && `새 사진 ${unread_counts.photos}장`,
+    unread_counts.notices > 0 && `새 공지 ${unread_counts.notices}건`,
+    unread_counts.messages > 0 && `새 쪽지 ${unread_counts.messages}개`,
+  ].filter(Boolean).slice(0, 3) as string[];
+  const hasNews = newsItems.length > 0;
 
   const PT = insets.top + (Platform.OS === "web" ? 67 : 16);
 
@@ -327,7 +261,6 @@ export default function ParentHomeScreen() {
           <View style={s.headerBtns} />
         </View>
         <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 80 }}>
-          {/* 대기 아이콘 */}
           <View style={{ alignItems: "center", marginBottom: 32 }}>
             <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: "#FFF3E0", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
               <LucideIcon name="clock" size={44} color={ORANGE} />
@@ -338,7 +271,6 @@ export default function ParentHomeScreen() {
             </Text>
           </View>
 
-          {/* 대기 정보 카드 */}
           <View style={{ backgroundColor: "#FFF3E0", borderRadius: 16, padding: 18, gap: 10, marginBottom: 24, borderWidth: 1, borderColor: "#FECFA2" }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <LucideIcon name="user" size={16} color={ORANGE} />
@@ -351,7 +283,6 @@ export default function ParentHomeScreen() {
             </Text>
           </View>
 
-          {/* 다시 확인 버튼 */}
           <Pressable
             onPress={handleV2Retry}
             disabled={v2Retrying}
@@ -374,7 +305,6 @@ export default function ParentHomeScreen() {
             수영장 등록 완료 후 버튼을 누르면{"\n"}즉시 연결됩니다.
           </Text>
 
-          {/* 로그아웃 버튼 */}
           <Pressable
             onPress={async () => { await logout(); router.replace("/"); }}
             style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, marginTop: 8, paddingVertical: 10 })}
@@ -391,14 +321,12 @@ export default function ParentHomeScreen() {
   if (noPool) {
     return (
       <View style={[s.root, { backgroundColor: C.background }]}>
-        {/* 헤더 */}
         <View style={[s.header, { paddingTop: PT }]}>
           <Text style={[s.poolName, { color: C.textMuted }]}>SwimNote</Text>
           <View style={s.headerBtns} />
         </View>
 
         <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 80 }}>
-          {/* 온보딩 카드 */}
           <View style={{ alignItems: "center", marginBottom: 32 }}>
             <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
               <LucideIcon name="building-2" size={44} color={TEAL} />
@@ -442,6 +370,8 @@ export default function ParentHomeScreen() {
     );
   }
 
+  const isBlocked = !!(selectedStudent as any)?.access_blocked;
+
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
 
@@ -460,7 +390,7 @@ export default function ParentHomeScreen() {
         </View>
       </View>
 
-      {/* ─── B. 자녀 탭 + 추가 버튼 ─── */}
+      {/* ─── B. 자녀 탭 ─── */}
       {students.length > 0 && (
         <ScrollView
           horizontal showsHorizontalScrollIndicator={false}
@@ -491,20 +421,6 @@ export default function ParentHomeScreen() {
         </ScrollView>
       )}
 
-      {/* ─── B2. 이번 달 출석 요약 스트립 ─── */}
-      {selectedStudent && summary.attendance.total > 0 && (
-        <Pressable
-          onPress={() => router.push("/(parent)/attendance-history?backTo=home" as any)}
-          style={{ marginHorizontal: 20, marginBottom: 6, marginTop: 2, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: IB, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 }}
-        >
-          <LucideIcon name="calendar-check" size={14} color={TEAL} />
-          <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: TEAL, flex: 1 }}>
-            이번 달 출석 <Text style={{ fontFamily: "Pretendard-SemiBold" }}>{summary.attendance.attended}회</Text>
-          </Text>
-          <LucideIcon name="chevron-right" size={12} color={TEAL} />
-        </Pressable>
-      )}
-
       <ScrollView
         ref={scrollRef}
         style={{ flex: 1 }}
@@ -512,6 +428,7 @@ export default function ParentHomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />}
         contentContainerStyle={{ paddingBottom: insets.bottom + 60 }}
       >
+
         {/* ─── 자녀 없음 빈 화면 ─── */}
         {students.length === 0 && (
           <View style={{ flex: 1, alignItems: "center", paddingTop: 60, paddingHorizontal: 32, gap: 16 }}>
@@ -538,81 +455,78 @@ export default function ParentHomeScreen() {
           </View>
         )}
 
-        {/* ─── C. 자녀 히어로 카드 ─── */}
+        {/* ─── C. 상단 요약 카드 ─── */}
         {selectedStudent && (
           <ParentChildHeroCard
             student={selectedStudent}
-            unreadPhotos={unread_counts.photos}
-            unreadDiaries={unread_counts.diaries}
+            attended={summary.attendance.attended}
+            total={summary.attendance.total}
             todaySchedule={summary.today_schedule}
             currentLevel={summary.growth?.current_level ?? null}
             onPress={() => router.push({ pathname: "/(parent)/child-profile" as any, params: { id: selectedStudent.id, backTo: "home" } })}
-            onLevelPress={() => router.push("/(parent)/level?backTo=home" as any)}
           />
         )}
 
-        {/* ─── D. 빠른 바로가기 ─── */}
-        {students.length > 0 && <ParentQuickActionGrid actions={quickActions} />}
-
-        {students.length > 0 && <>
-          {/* ─── D2. 슬림 스트립 배너 ─── */}
-          <View style={{ marginTop: 12 }}>
-            <ParentPromoStrip />
+        {/* ─── D. 새 소식 스트립 ─── */}
+        {selectedStudent && hasNews && (
+          <View style={s.newsStrip}>
+            <LucideIcon name="bell" size={13} color={TEAL} />
+            <Text style={s.newsTxt} numberOfLines={1}>
+              {newsItems.join(" · ")}
+            </Text>
           </View>
+        )}
 
-          {/* ─── D3. 이벤트/프로모션 슬라이더 배너 ─── */}
-          <View style={{ marginTop: 10 }}>
-            <ParentPromoBanner />
-          </View>
-
-          {/* ─── E. 오늘 확인할 것 ─── */}
-          <ParentTodoCard items={todoItems} />
-
-          {/* ─── F. 최근 수업일지 ─── */}
-          <ParentLatestDiaryCard
-            diaries={summary.latest_diaries}
-            onPress={() => router.push("/(parent)/diary?backTo=home" as any)}
-          />
-
-          {/* ─── G. 최근 사진 ─── */}
-          <ParentRecentPhotosCard
-            photos={summary.latest_photos}
-            unreadCount={unread_counts.photos}
-            token={token}
-            onPress={() => router.push("/(parent)/photos?backTo=home" as any)}
-          />
-
-          {/* ─── H. 최근 공지 ─── */}
-          <ParentNoticeCard
-            notices={summary.latest_notices}
-            unreadCount={unread_counts.notices}
-            onPress={() => router.push("/(parent)/notices?backTo=home" as any)}
-            onViewAll={() => router.push("/(parent)/notices?backTo=home" as any)}
-          />
-
-          {/* ─── I. 성장 ─── */}
-          <ParentGrowthCard
-            studentId={selectedStudent?.id}
-            currentLevel={summary.growth?.current_level ?? null}
-            prevLevel={summary.growth?.prev_level ?? null}
-            achievedDate={summary.growth?.achieved_date}
-            note={summary.growth?.note}
-            teacherName={summary.growth?.teacher_name}
-          />
-
-          {/* ─── J. 출석 ─── */}
-          <ParentAttendanceCard
-            attended={summary.attendance.attended}
-            total={summary.attendance.total}
-            latestStatus={summary.attendance.latest_status}
-          />
-
-          {summaryLoading && (
-            <View style={{ paddingVertical: 20, alignItems: "center" }}>
-              <ActivityIndicator color={C.tint} size="small" />
+        {/* ─── access_blocked 제한 안내 ─── */}
+        {selectedStudent && isBlocked && (
+          <View style={s.blockedCard}>
+            <LucideIcon name="lock" size={20} color="#D97706" />
+            <View style={{ flex: 1 }}>
+              <Text style={[s.blockedTitle, { color: C.text }]}>정보 열람 제한</Text>
+              <Text style={[s.blockedSub, { color: C.textSecondary }]}>
+                현재 일부 정보 열람이 제한되어 있습니다.{"\n"}수영장 담당자에게 문의해주세요.
+              </Text>
             </View>
-          )}
-        </>}
+          </View>
+        )}
+
+        {/* ─── 메인 카드 4개 (access_blocked 아닐 때만) ─── */}
+        {students.length > 0 && !isBlocked && (
+          <>
+            {/* 1. 최근 수업일지 */}
+            <ParentLatestDiaryCard
+              diaries={summary.latest_diaries}
+              onPress={() => router.push("/(parent)/diary?backTo=home" as any)}
+            />
+
+            {/* 2. 최근 사진 */}
+            <ParentRecentPhotosCard
+              photos={summary.latest_photos}
+              unreadCount={unread_counts.photos}
+              token={token}
+              onPress={() => router.push("/(parent)/photos?backTo=home" as any)}
+            />
+
+            {/* 3. 공지사항 */}
+            <ParentNoticeCard
+              notices={summary.latest_notices}
+              unreadCount={unread_counts.notices}
+              onPress={() => router.push("/(parent)/notices?backTo=home" as any)}
+            />
+
+            {/* 4. 현재 레벨 */}
+            <ParentGrowthCard
+              growth={summary.growth}
+              onPress={() => router.push("/(parent)/level?backTo=home" as any)}
+            />
+
+            {summaryLoading && (
+              <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                <ActivityIndicator color={C.tint} size="small" />
+              </View>
+            )}
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -637,4 +551,22 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", paddingHorizontal: 12,
   },
   childTabTxt: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  newsStrip: {
+    marginHorizontal: 20, marginTop: 8,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: IB,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 10,
+  },
+  newsTxt: {
+    fontSize: 13, fontFamily: "Pretendard-Regular", color: TEAL, flex: 1,
+  },
+  blockedCard: {
+    marginHorizontal: 20, marginTop: 12,
+    flexDirection: "row", alignItems: "flex-start", gap: 12,
+    backgroundColor: "#FEF9C3", borderRadius: 16,
+    padding: 16, borderWidth: 1, borderColor: "#FDE68A",
+  },
+  blockedTitle: { fontSize: 14, fontFamily: "Pretendard-SemiBold", marginBottom: 4 },
+  blockedSub: { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
 });

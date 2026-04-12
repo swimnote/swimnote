@@ -1,6 +1,5 @@
 import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { type LevelDef } from "@/components/common/LevelBadge";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -12,74 +11,77 @@ interface Props {
     id: string;
     name: string;
     class_group?: { name?: string; schedule_days?: string; schedule_time?: string } | null;
+    access_blocked?: boolean;
   };
-  unreadPhotos: number;
-  unreadDiaries: number;
+  attended: number;
+  total: number;
   todaySchedule: string | null;
-  currentLevel: LevelDef | null;
+  currentLevel: string | number | null;
   onPress: () => void;
-  onLevelPress: () => void;
 }
 
-export function ParentChildHeroCard({ student, unreadPhotos, unreadDiaries, todaySchedule, currentLevel, onPress, onLevelPress }: Props) {
-  const hasUnread = unreadPhotos > 0 || unreadDiaries > 0;
+export function ParentChildHeroCard({ student, attended, total, todaySchedule, currentLevel, onPress }: Props) {
+  const cg = student.class_group;
+  const hasClass = !!cg?.name;
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, { opacity: pressed ? 0.9 : 1 }]}
+      style={({ pressed }) => [styles.card, { opacity: pressed ? 0.95 : 1 }]}
       onPress={onPress}
     >
+      {/* 상단: 이름 + 레벨 + 화살표 */}
       <View style={styles.topRow}>
-        {/* 아바타 → 레벨 뱃지 */}
-        <Pressable
-          style={({ pressed }) => [styles.avatarWrap, { opacity: pressed ? 0.75 : 1 }]}
-          onPress={(e) => { e.stopPropagation?.(); onLevelPress(); }}
-          hitSlop={8}
-        >
-          {currentLevel ? (
-            <Text style={styles.levelTxt}>
-              {"Lv." + currentLevel.level_order}
-            </Text>
-          ) : (
-            <LucideIcon name="award" size={22} color={C.tint} />
-          )}
-        </Pressable>
-
+        <View style={[styles.avatar, { backgroundColor: C.tintLight }]}>
+          {currentLevel
+            ? <Text style={styles.avatarTxt}>Lv</Text>
+            : <LucideIcon name="award" size={20} color={C.tint} />}
+        </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.name, { color: C.text }]}>{student.name}</Text>
-          <Text style={[styles.className, { color: C.textSecondary }]}>
-            {student.class_group?.name ?? "반 배정 전"}
-          </Text>
+          {hasClass ? (
+            <Text style={[styles.sub, { color: C.textSecondary }]}>
+              {cg!.name}{cg!.schedule_time ? ` · ${cg!.schedule_time}` : ""}
+            </Text>
+          ) : (
+            <Text style={[styles.sub, { color: C.textMuted }]}>반 정보가 아직 없습니다</Text>
+          )}
         </View>
-        <ChevronRight size={18} color={C.textMuted} />
+        <ChevronRight size={16} color={C.textMuted} />
       </View>
 
-      {(hasUnread || todaySchedule) && (
-        <View style={styles.badgeRow}>
-          {unreadDiaries > 0 && (
-            <View style={[styles.badge, { backgroundColor: C.tintLight }]}>
-              <LucideIcon name="book-open" size={11} color={C.tint} />
-              <Text style={[styles.badgeTxt, { color: C.tint }]}>새 일지 {unreadDiaries}건</Text>
-            </View>
-          )}
-          {unreadPhotos > 0 && (
-            <View style={[styles.badge, { backgroundColor: "#FEF3C7" }]}>
-              <LucideIcon name="image" size={11} color="#EA580C" />
-              <Text style={[styles.badgeTxt, { color: "#EA580C" }]}>새 사진 {unreadPhotos}장</Text>
-            </View>
-          )}
-          {todaySchedule && (
-            <View style={[styles.badge, { backgroundColor: C.iconBlueBg }]}>
-              <LucideIcon name="clock" size={11} color={C.iconBlue} />
-              <Text style={[styles.badgeTxt, { color: C.iconBlue }]}>오늘 {todaySchedule}</Text>
-            </View>
+      {/* 구분선 */}
+      <View style={[styles.hr, { backgroundColor: C.border }]} />
+
+      {/* 하단: 출석 + 오늘 수업 */}
+      <View style={styles.bottomRow}>
+        {/* 이번달 출석 */}
+        <View style={styles.chip}>
+          <LucideIcon name="calendar-check" size={13} color="#2563EB" />
+          {total > 0 ? (
+            <Text style={[styles.chipTxt, { color: C.textSecondary }]}>
+              이번달{" "}
+              <Text style={{ color: C.text, fontFamily: "Pretendard-SemiBold" }}>{attended}</Text>
+              /{total}회
+            </Text>
+          ) : (
+            <Text style={[styles.chipTxt, { color: C.textMuted }]}>이번달 출석 기록 없음</Text>
           )}
         </View>
-      )}
 
-      {!hasUnread && !todaySchedule && (
-        <Text style={[styles.allClear, { color: C.textMuted }]}>오늘 새 소식이 없습니다</Text>
-      )}
+        {/* 오늘 수업 */}
+        {todaySchedule ? (
+          <View style={[styles.todayChip, { backgroundColor: "#E6FAF8", borderColor: "#2EC4B6" }]}>
+            <LucideIcon name="clock" size={13} color="#2EC4B6" />
+            <Text style={[styles.chipTxt, { color: "#2EC4B6", fontFamily: "Pretendard-SemiBold" }]}>
+              오늘 {todaySchedule} 수업
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.todayChip, { backgroundColor: C.background, borderColor: C.border }]}>
+            <Text style={[styles.chipTxt, { color: C.textMuted }]}>오늘 수업 없음</Text>
+          </View>
+        )}
+      </View>
     </Pressable>
   );
 }
@@ -100,24 +102,20 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   topRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  avatarWrap: {
+  avatar: {
     width: 46, height: 46, borderRadius: 14,
-    backgroundColor: C.tintLight,
     alignItems: "center", justifyContent: "center",
   },
-  levelTxt: {
-    fontSize: 14,
-    fontFamily: "Pretendard-Regular",
-    color: C.tint
-  },
+  avatarTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.tint },
   name: { fontSize: 18, fontFamily: "Pretendard-Regular" },
-  className: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
-  badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  badge: {
-    flexDirection: "row", alignItems: "center", gap: 4,
+  sub: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
+  hr: { height: 1 },
+  bottomRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  chip: { flexDirection: "row", alignItems: "center", gap: 5 },
+  chipTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  todayChip: {
+    flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 20,
+    borderRadius: 20, borderWidth: 1,
   },
-  badgeTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  allClear: { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });
