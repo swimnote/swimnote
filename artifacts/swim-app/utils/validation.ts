@@ -5,10 +5,10 @@
  * 추후 각 화면의 검증 로직을 이쪽으로 단계적으로 이전하기 위한 준비 파일.
  *
  * ─ 이름 충돌 없음 ─
- *   studentUtils : normalizePhone  (하이픈 포함 포맷 반환)
- *   studentUtils : isValidPhone    (한국 모바일 패턴 정규식)
- *   studentUtils : isValidBirthYear (2000~현재, 어린이 기준)
- *   phoneUtils   : isValidPhone    (null|undefined 수용, 단순 10~11자리)
+ *   studentUtils : normalizePhone    (하이픈 포함 포맷 반환)
+ *   studentUtils : isValidPhone      (한국 모바일 패턴 정규식)
+ *   studentUtils : isValidBirthYear  (2000~현재, 어린이 기준)
+ *   phoneUtils   : isValidPhone      (null|undefined 수용, 단순 10~11자리)
  *   ↑ 위 함수들은 그대로 유지. 아래 함수는 독립적으로 동작.
  */
 
@@ -42,10 +42,10 @@ export function normalizePhone(phone: string): string {
   return digits;
 }
 
-/** 출생년도 유효성 검사
+/** 출생년도 유효성 검사 — 일반 범위 (성인 포함)
  *  - 빈 문자열은 허용 (선택 필드) → true 반환
  *  - 값이 있으면 4자리 숫자이고 1940 ~ 현재 연도 범위이어야 true
- *    (성인 회원도 등록 가능하도록 1940부터 허용)
+ *  - 사용처: 학부모 프로필, 선생님, 관리자 등 성인 포함 모든 사용자
  */
 export function validateBirthYear(year: string): boolean {
   if (year.trim() === "") return true;
@@ -53,4 +53,18 @@ export function validateBirthYear(year: string): boolean {
   const y = parseInt(year, 10);
   const current = new Date().getFullYear();
   return y >= 1940 && y <= current;
+}
+
+/** 출생년도 유효성 검사 — 학생 전용 범위
+ *  - 빈 문자열은 허용 (선택 필드) → true 반환
+ *  - 값이 있으면 4자리 숫자이고 2000 ~ 현재 연도 범위이어야 true
+ *  - studentUtils.isValidBirthYear 와 동일 범위(2000~현재)를 사용하여 충돌 없음
+ *  - 사용처: 학생 직접 등록(RegisterModal), 학생 정보 수정(MemberInfoTab) 등
+ */
+export function validateStudentBirthYear(year: string): boolean {
+  if (year.trim() === "") return true;
+  if (!/^\d{4}$/.test(year.trim())) return false;
+  const y = parseInt(year, 10);
+  const current = new Date().getFullYear();
+  return y >= 2000 && y <= current;
 }
