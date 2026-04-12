@@ -1,4 +1,4 @@
-import { Award, BookOpen, CircleArrowRight, Info } from "lucide-react-native";
+import { Award, BookOpen, CircleArrowRight, Info, UserRound } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, RefreshControl,
@@ -71,7 +71,7 @@ export default function ParentLevelScreen() {
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
       ) : !selectedStudent ? (
         <View style={s.empty}>
-          <Text style={s.emptyEmoji}>👶</Text>
+          <UserRound size={44} color={C.textMuted} />
           <Text style={[s.emptyTitle, { color: C.text }]}>자녀를 선택해주세요</Text>
         </View>
       ) : (
@@ -165,7 +165,7 @@ export default function ParentLevelScreen() {
             if (displayRecords.length === 0) {
               return (
                 <View style={s.empty}>
-                  <Text style={s.emptyEmoji}>🏅</Text>
+                  <Award size={44} color={C.textMuted} />
                   <Text style={[s.emptyTitle, { color: C.text }]}>아직 레벨 기록이 없습니다</Text>
                   <Text style={[s.emptySub, { color: C.textSecondary }]}>선생님이 레벨을 변경하면{"\n"}날짜와 함께 자동으로 기록됩니다</Text>
                 </View>
@@ -255,7 +255,6 @@ const s = StyleSheet.create({
   timelineTeacher: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   timelineNote: { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: 4, lineHeight: 18 },
   empty: { alignItems: "center", paddingTop: 60, gap: 12 },
-  emptyEmoji: { fontSize: 56 },
-  emptyTitle: { fontSize: 18, fontFamily: "Pretendard-Regular" },
+  emptyTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
   emptySub: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
 });

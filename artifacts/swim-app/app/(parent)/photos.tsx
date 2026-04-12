@@ -7,7 +7,7 @@
  * - 사진 탭 → 라이트박스 (이 사진 다운로드 / 전체 다운로드)
  * - 롱프레스 → 선택 모드 다중 다운로드
  */
-import { Check, CloudDownload, Download, SquareCheck, X } from "lucide-react-native";
+import { Check, CloudDownload, Download, ImageIcon, SquareCheck, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
@@ -240,10 +240,10 @@ export default function ParentPhotosScreen() {
           }
           ListEmptyComponent={
             <View style={st.empty}>
-              <Text style={st.emptyEmoji}>📸</Text>
+              <ImageIcon size={44} color={C.textMuted} />
               <Text style={[st.emptyTitle, { color: C.text }]}>사진이 없습니다</Text>
               <Text style={[st.emptySub, { color: C.textSecondary }]}>
-                선생님이 수업 사진을 올리면 여기에 표시됩니다.
+                선생님이 수업 사진을 올리면{"\n"}여기에 표시됩니다
               </Text>
             </View>
           }
@@ -365,7 +365,6 @@ const st = StyleSheet.create({
   checkCircle: { position: "absolute", top: 5, right: 5, width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#fff", backgroundColor: "rgba(255,255,255,0.3)", alignItems: "center", justifyContent: "center" },
 
   empty: { alignItems: "center", paddingTop: 80, gap: 10, paddingHorizontal: 28 },
-  emptyEmoji: { fontSize: 48 },
   emptyTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
   emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 19 },
 

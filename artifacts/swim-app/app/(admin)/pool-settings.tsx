@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { useToast } from "@/components/common/Toast";
 
 const C = Colors.light;
 
@@ -23,12 +24,12 @@ interface PoolSettings {
 export default function PoolSettingsScreen() {
   const { token, refreshPool } = useAuth();
   const insets = useSafeAreaInsets();
+  const { showToast, ToastComponent } = useToast();
   const [settings, setSettings] = useState<PoolSettings | null>(null);
   const [form, setForm] = useState({ name: "", name_en: "", address: "", phone: "", owner_name: "", business_reg_number: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({ name: "", phone: "" });
   const scrollRef = useRef<ScrollView>(null);
   const hasFieldErrors = fieldErrors.name || fieldErrors.phone;
@@ -168,7 +169,7 @@ export default function PoolSettingsScreen() {
   }
 
   async function handleSave() {
-    setError(""); setSaved(false);
+    setError("");
     const errs = { name: "", phone: "" };
 
     if (!validateName(form.name)) {
@@ -200,9 +201,8 @@ export default function PoolSettingsScreen() {
       if (!res.ok) throw new Error(data.error || "저장 실패");
       setSettings(data);
       await refreshPool?.();
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (err: any) { setError(err.message || "저장 중 오류"); }
+      showToast("수영장 정보가 저장되었습니다");
+    } catch (err: any) { setError(err.message || "저장 중 오류"); showToast(err.message || "저장에 실패했습니다", "error"); }
     finally { setSaving(false); }
   }
 
@@ -238,7 +238,7 @@ export default function PoolSettingsScreen() {
             onPress={handleSave}
             disabled={saving}
           >
-            {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>{saved ? "저장됨 ✓" : "저장"}</Text>}
+            {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>저장</Text>}
           </Pressable>
         }
       />
@@ -519,6 +519,7 @@ export default function PoolSettingsScreen() {
           </View>
         )}
       </ScrollView>
+      <ToastComponent />
     </KeyboardAvoidingView>
   );
 }

@@ -4,7 +4,7 @@
  * - 항목 클릭 시 펼치기/접기
  * - 쪽지달기 → messages.tsx 페이지로 이동 (Modal 제거)
  */
-import { CircleCheck, Mail, User } from "lucide-react-native";
+import { BookOpen, CircleCheck, Mail, User, UserRound } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -216,7 +216,7 @@ export default function ParentDiaryScreen() {
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
       ) : !selectedStudent ? (
         <View style={ds.empty}>
-          <Text style={ds.emptyEmoji}>👶</Text>
+          <UserRound size={44} color={C.textMuted} />
           <Text style={[ds.emptyTitle, { color: C.text }]}>자녀를 선택해주세요</Text>
           <Text style={[ds.emptySub, { color: C.textSecondary }]}>홈 화면에서 자녀를 선택하세요</Text>
         </View>
@@ -228,7 +228,7 @@ export default function ParentDiaryScreen() {
         >
           {entries.length === 0 ? (
             <View style={ds.empty}>
-              <Text style={ds.emptyEmoji}>📒</Text>
+              <BookOpen size={44} color={C.textMuted} />
               <Text style={[ds.emptyTitle, { color: C.text }]}>아직 수업 일지가 없습니다</Text>
               <Text style={[ds.emptySub, { color: C.textSecondary }]}>선생님이 수업 후 일지를 작성하면{"\n"}여기에서 확인하실 수 있습니다</Text>
             </View>
@@ -278,10 +278,9 @@ const ds = StyleSheet.create({
   reactionBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 10, gap: 3, flexDirection: "row", justifyContent: "center" },
   reactionEmoji: { fontSize: 16 },
   reactionLabel: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  empty: { alignItems: "center", justifyContent: "center", paddingTop: 100, gap: 12 },
-  emptyEmoji: { fontSize: 56 },
-  emptyTitle: { fontSize: 18, fontFamily: "Pretendard-Regular" },
-  emptySub: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
+  empty: { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 10 },
+  emptyTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
+  emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
 });
 
 const ts = StyleSheet.create({

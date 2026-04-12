@@ -4,7 +4,7 @@
  * 새 구조: lesson_date, common_content, teacher_name, is_edited
  *          student_note: { note_content, is_edited }
  */
-import { User } from "lucide-react-native";
+import { BookOpen, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -154,7 +154,7 @@ export default function SwimDiaryScreen() {
         >
           {entries.length === 0 ? (
             <View style={s.empty}>
-              <Text style={s.emptyEmoji}>📒</Text>
+              <BookOpen size={44} color={C.textMuted} />
               <Text style={[s.emptyTitle, { color: C.text }]}>아직 수업 일지가 없습니다</Text>
               <Text style={[s.emptySub, { color: C.textSecondary }]}>
                 선생님이 수업 후 일지를 작성하면{"\n"}여기에서 확인하실 수 있습니다
@@ -210,7 +210,6 @@ const s = StyleSheet.create({
   noteTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED", flex: 1 },
 
   empty: { alignItems: "center", justifyContent: "center", paddingTop: 100, gap: 12 },
-  emptyEmoji: { fontSize: 56 },
-  emptyTitle: { fontSize: 18, fontFamily: "Pretendard-Regular" },
+  emptyTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
   emptySub: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
 });

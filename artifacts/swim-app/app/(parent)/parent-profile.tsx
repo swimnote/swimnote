@@ -12,8 +12,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
+import { useToast } from "@/components/common/Toast";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { validateName, validatePhone, normalizePhone } from "@/utils/validation";
 
@@ -41,6 +41,7 @@ function Field({ label, value, onChangeText, placeholder, secureEntry = false, k
 export default function ParentProfileScreen() {
   const { token, parentAccount, updateParentProfile, logout } = useAuth();
   const insets = useSafeAreaInsets();
+  const { showToast, ToastComponent } = useToast();
 
   const [name, setName] = useState(parentAccount?.name ?? "");
   const [phone, setPhone] = useState("");
@@ -48,7 +49,6 @@ export default function ParentProfileScreen() {
   const [newPw, setNewPw] = useState("");
   const [newPw2, setNewPw2] = useState("");
   const [saving, setSaving] = useState(false);
-  const [saveDone, setSaveDone] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({ name: "", phone: "", newPw: "", newPw2: "", currentPw: "" });
   const scrollRef = useRef<ScrollView>(null);
@@ -125,14 +125,16 @@ export default function ParentProfileScreen() {
       });
       if (r.ok) {
         updateParentProfile({ name: name.trim(), phone: phone.trim() || undefined });
-        setSaveDone(true);
         setCurrentPw(""); setNewPw(""); setNewPw2("");
         setFieldErrors({ name: "", phone: "", newPw: "", newPw2: "", currentPw: "" });
+        showToast("정보가 저장되었습니다");
+        setTimeout(() => router.back(), 1800);
       } else {
         const d = await r.json().catch(() => ({}));
         setError(d.error || "저장에 실패했습니다");
+        showToast(d.error || "저장에 실패했습니다", "error");
       }
-    } catch { setError("저장 중 오류가 발생했습니다"); }
+    } catch { setError("저장 중 오류가 발생했습니다"); showToast("요청을 처리할 수 없습니다", "error"); }
     finally { setSaving(false); }
   }
 
@@ -287,14 +289,7 @@ export default function ParentProfileScreen() {
         </View>
       </Modal>
 
-      <ConfirmModal
-        visible={saveDone}
-        title="저장 완료"
-        message="정보가 저장되었습니다."
-        confirmText="확인"
-        onConfirm={() => { setSaveDone(false); router.back(); }}
-        onCancel={() => setSaveDone(false)}
-      />
+      <ToastComponent />
     </View>
   );
 }

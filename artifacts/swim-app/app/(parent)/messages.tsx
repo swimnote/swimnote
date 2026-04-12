@@ -4,7 +4,7 @@
  * diaryId 없이 진입 → 쪽지 스레드 목록 (내가 쪽지 달린 일지 + 주고받은 내역)
  * diaryId 있을 때 진입 → 해당 일지 대화 화면
  */
-import { ChevronLeft, ChevronRight, Send } from "lucide-react-native";
+import { ChevronLeft, ChevronRight, MailOpen, Send } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -211,7 +211,7 @@ export default function MessagesScreen() {
               <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
             ) : messages.length === 0 ? (
               <View style={s.emptyWrap}>
-                <Text style={s.emptyEmoji}>✉️</Text>
+                <MailOpen size={44} color={C.textMuted} />
                 <Text style={[s.emptyTitle, { color: C.text }]}>첫 쪽지를 보내보세요</Text>
                 <Text style={[s.emptySub, { color: C.textSecondary }]}>선생님이 확인 후 답변드립니다</Text>
               </View>
@@ -304,7 +304,7 @@ export default function MessagesScreen() {
         >
           {threads.length === 0 ? (
             <View style={s.emptyWrap}>
-              <Text style={s.emptyEmoji}>✉️</Text>
+              <MailOpen size={44} color={C.textMuted} />
               <Text style={[s.emptyTitle, { color: C.text }]}>주고받은 쪽지가 없습니다</Text>
               <Text style={[s.emptySub, { color: C.textSecondary }]}>
                 수업일지에서 쪽지달기 버튼을 눌러{"\n"}선생님께 쪽지를 보내보세요
@@ -419,7 +419,6 @@ const s = StyleSheet.create({
 
   /* 빈 상태 */
   emptyWrap:  { alignItems: "center", paddingTop: 80, gap: 10, paddingHorizontal: 32 },
-  emptyEmoji: { fontSize: 52 },
   emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Regular" },
   emptySub:   { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22, color: Colors.light.textSecondary },
   goBtn:      { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 8 },

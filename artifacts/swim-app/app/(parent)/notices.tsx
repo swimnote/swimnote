@@ -3,7 +3,7 @@
  * - 전체공지 / 우리반공지 태그 분리
  * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
-import { Bookmark } from "lucide-react-native";
+import { Bookmark, ClipboardList } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Pressable, RefreshControl,
@@ -111,8 +111,8 @@ export default function ParentNoticesScreen() {
         >
           {filtered.length === 0 ? (
             <View style={[s.emptyBox, { backgroundColor: C.card }]}>
-              <Text style={s.emptyEmoji}>📋</Text>
-              <Text style={[s.emptyTitle, { color: C.text }]}>공지사항이 없습니다</Text>
+              <ClipboardList size={40} color={C.textMuted} />
+              <Text style={[s.emptyTitle, { color: C.textMuted }]}>공지사항이 없습니다</Text>
             </View>
           ) : filtered.map(n => {
             const isExpanded = expanded === n.id;
@@ -172,7 +172,6 @@ const s = StyleSheet.create({
   cardBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 },
   meta: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   expandHint: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  emptyBox: { borderRadius: 16, padding: 40, alignItems: "center", gap: 8, marginTop: 20 },
-  emptyEmoji: { fontSize: 44 },
+  emptyBox: { borderRadius: 16, padding: 40, alignItems: "center", gap: 10, marginTop: 20 },
   emptyTitle: { fontSize: 15, fontFamily: "Pretendard-Regular" },
 });
