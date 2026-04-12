@@ -4,7 +4,7 @@
  */
 import { Activity, ChevronRight, CircleAlert, Clipboard, LogOut, MessageCircle, Save, Shield } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, Pressable, RefreshControl,
@@ -211,6 +211,7 @@ export default function SuperDashboard() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   async function doAction(action: string, id: string) {
     try {
