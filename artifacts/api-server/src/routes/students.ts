@@ -224,7 +224,7 @@ router.delete("/teacher-requests/:id/reject", requireAuth, requireRole("pool_adm
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
-// ── POST /batch — 학생 일괄 등록 ─────────────────────────────────
+// ── POST /batch — 학생 일괄 등록 (전체 거부 방식) ─────────────────
 router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   const items: Array<{
     name: string;
@@ -238,16 +238,22 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
   if (!Array.isArray(items) || items.length === 0)
     return err(res, 400, "등록할 학생 데이터가 없습니다.");
 
+  // ── 업로드 인원수 제한 (100명) ─────────────────────────────────
+  if (items.length > 100) {
+    return res.status(400).json({
+      success: false,
+      code: "LIMIT_EXCEEDED",
+      message: "한 번에 최대 100명까지 업로드할 수 있습니다.",
+    });
+  }
+
   try {
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
 
-    // 회원 수 한도 체크 (배치 전체)
-    // effective_member_limit = p.member_limit(개별 override) 우선, 없으면 sp.member_limit(플랜 기본값)
+    // ── 회원 수 한도 조회 ───────────────────────────────────────
     const [planRow] = (await superAdminDb.execute(sql`
-      SELECT COALESCE(p.member_limit, sp.member_limit) AS effective_member_limit,
-             p.member_limit AS pool_override,
-             sp.member_limit AS plan_default
+      SELECT COALESCE(p.member_limit, sp.member_limit) AS effective_member_limit
       FROM swimming_pools p
       LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
       WHERE p.id = ${poolId} LIMIT 1
@@ -256,42 +262,116 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
       SELECT COUNT(*) AS cnt FROM students
       WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
     `)).rows as any[];
-    const limit   = Number(planRow?.effective_member_limit ?? 5);
-    const current = Number(cntRow?.cnt ?? 0);
-    const available = Math.max(0, limit - current);
-    console.log(`[members] poolId=${poolId} limit=${limit} (override=${planRow?.pool_override ?? 'none'}, plan=${planRow?.plan_default}) current=${current}`);
+    const memberLimit   = Number(planRow?.effective_member_limit ?? 5);
+    const currentCount  = Number(cntRow?.cnt ?? 0);
+    const available     = Math.max(0, memberLimit - currentCount);
 
-    const succeeded: string[] = [];
-    const failed: Array<{ name: string; reason: string; code?: string }> = [];
+    // ── 1단계: 전체 유효성 검사 (INSERT 없음) ──────────────────
+    const errMissingName:  number[] = [];
+    const errMissingPhone: number[] = [];
+    const errInvalidPhone: number[] = [];
 
-    let registeredCount = 0;
-    for (const s of items) {
-      if (!s.name?.trim()) {
-        failed.push({ name: "(이름없음)", reason: "이름 누락" });
-        continue;
-      }
-      // 한도 초과 시 개별 실패 처리 (전체 차단 대신)
-      if (registeredCount >= available) {
-        failed.push({ name: s.name.trim(), reason: `회원 수 한도 초과 (플랜 최대 ${limit}명)`, code: "MEMBER_LIMIT_EXCEEDED" });
-        continue;
-      }
-      try {
-        const normPhone     = s.parent_phone ? s.parent_phone.replace(/[^0-9]/g, "") : null;
-        const normPName     = s.parent_name  ? s.parent_name.replace(/\s+/g, "").toLowerCase() : null;
-        let resolvedParentUserId: string | null = null;
-        if (normPhone) {
-          const matched = await db.execute(sql`
-            SELECT id FROM parent_accounts
-            WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normPhone}
-              AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
-            ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
-            LIMIT 1
-          `);
-          if ((matched.rows as any[]).length > 0)
-            resolvedParentUserId = (matched.rows[0] as any).id;
+    // 정규화 전화번호 → 행 번호(1-indexed) 목록
+    const phoneBatchMap = new Map<string, number[]>();
+
+    for (let i = 0; i < items.length; i++) {
+      const s   = items[i];
+      const row = i + 1; // 1-indexed (사람이 읽기 편하게)
+
+      if (!s.name?.trim())  errMissingName.push(row);
+
+      const rawPhone = s.parent_phone ?? "";
+      if (!rawPhone.trim()) {
+        errMissingPhone.push(row);
+      } else {
+        const normPhone = rawPhone.replace(/[^0-9]/g, "");
+        const phoneValid = /^(010|011|016|017|018|019)\d{7,8}$/.test(normPhone);
+        if (!phoneValid) {
+          errInvalidPhone.push(row);
+        } else {
+          const existing = phoneBatchMap.get(normPhone) ?? [];
+          existing.push(row);
+          phoneBatchMap.set(normPhone, existing);
         }
-        if (!resolvedParentUserId && normPName) {
-          const matched2 = await db.execute(sql`
+      }
+    }
+
+    // 파일 내 전화번호 중복 검사
+    const errDuplicatePhone: Array<{ phone: string; rows: number[] }> = [];
+    for (const [phone, rows] of phoneBatchMap) {
+      if (rows.length > 1) errDuplicatePhone.push({ phone, rows });
+    }
+
+    // DB 내 동일 수영장 전화번호 중복 검사
+    const errDbDuplicatePhone: Array<{ phone: string; rows: number[] }> = [];
+    const validPhonesArr = [...phoneBatchMap.keys()].filter(
+      p => !errDuplicatePhone.some(d => d.phone === p)
+    );
+    if (validPhonesArr.length > 0) {
+      const dbDupRows = (await db.execute(sql`
+        SELECT REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') AS phone
+        FROM students
+        WHERE swimming_pool_id = ${poolId}
+          AND status NOT IN ('archived','deleted')
+          AND REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ANY(${validPhonesArr}::text[])
+      `)).rows as any[];
+      for (const dbRow of dbDupRows) {
+        const phone    = dbRow.phone as string;
+        const batchRows = phoneBatchMap.get(phone) ?? [];
+        errDbDuplicatePhone.push({ phone, rows: batchRows });
+      }
+    }
+
+    // 회원 수 한도 초과 검사
+    const errMemberLimit = items.length > available
+      ? { available, limit: memberLimit, current: currentCount, requested: items.length }
+      : null;
+
+    // ── 2단계: 오류 존재 시 전체 거부 ──────────────────────────
+    const hasErrors =
+      errMissingName.length   > 0 ||
+      errMissingPhone.length  > 0 ||
+      errInvalidPhone.length  > 0 ||
+      errDuplicatePhone.length > 0 ||
+      errDbDuplicatePhone.length > 0 ||
+      errMemberLimit !== null;
+
+    if (hasErrors) {
+      return res.status(400).json({
+        success: false,
+        code: "BULK_UPLOAD_VALIDATION_FAILED",
+        message: "엑셀 업로드 실패: 오류를 수정 후 다시 업로드해주세요.",
+        errors: {
+          missing_name:       errMissingName.length   > 0 ? errMissingName   : undefined,
+          missing_phone:      errMissingPhone.length  > 0 ? errMissingPhone  : undefined,
+          invalid_phone:      errInvalidPhone.length  > 0 ? errInvalidPhone  : undefined,
+          duplicate_phone:    errDuplicatePhone.length > 0 ? errDuplicatePhone : undefined,
+          db_duplicate_phone: errDbDuplicatePhone.length > 0 ? errDbDuplicatePhone : undefined,
+          member_limit:       errMemberLimit ?? undefined,
+        },
+      });
+    }
+
+    // ── 3단계: 오류 없음 → 트랜잭션으로 전체 INSERT ────────────
+    let inserted = 0;
+    await db.transaction(async (tx) => {
+      for (const s of items) {
+        const normPhone = s.parent_phone!.replace(/[^0-9]/g, "");
+        const normPName = s.parent_name  ? s.parent_name.replace(/\s+/g, "").toLowerCase() : null;
+
+        // 학부모 계정 매칭 (전화번호 우선, 이름 폴백)
+        let resolvedParentUserId: string | null = null;
+        const matched = await tx.execute(sql`
+          SELECT id FROM parent_accounts
+          WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normPhone}
+            AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
+          ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
+          LIMIT 1
+        `);
+        if ((matched.rows as any[]).length > 0) {
+          resolvedParentUserId = (matched.rows[0] as any).id;
+        } else if (normPName) {
+          const matched2 = await tx.execute(sql`
             SELECT id FROM parent_accounts
             WHERE REPLACE(LOWER(COALESCE(name,'')),' ','') = ${normPName}
               AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
@@ -302,31 +382,31 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
             resolvedParentUserId = (matched2.rows[0] as any).id;
         }
 
-        const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const id          = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const invite_code = generateInviteCode();
-        await db.insert(studentsTable).values({
+        await tx.insert(studentsTable).values({
           id,
           swimming_pool_id: poolId,
-          name: s.name.trim(),
-          birth_year: s.birth_year || null,
-          parent_name: s.parent_name || null,
-          parent_phone: normPhone ? normPhone : null,
-          parent_user_id: resolvedParentUserId,
-          memo: s.memo || null,
-          status: resolvedParentUserId ? "active" : "unregistered",
+          name:             s.name.trim(),
+          birth_year:       s.birth_year   || null,
+          parent_name:      s.parent_name  || null,
+          parent_phone:     normPhone,
+          parent_user_id:   resolvedParentUserId,
+          memo:             s.memo         || null,
+          status:           resolvedParentUserId ? "active" : "unregistered",
           registration_path: "admin_created",
-          weekly_count: Number(s.weekly_count) > 0 ? Number(s.weekly_count) : 1,
+          weekly_count:     Number(s.weekly_count) > 0 ? Number(s.weekly_count) : 1,
           invite_code,
           assigned_class_ids: [],
-          schedule_labels: null,
-          class_group_id: null,
-          phone: null,
-          birth_date: null,
+          schedule_labels:  null,
+          class_group_id:   null,
+          phone:            null,
+          birth_date:       null,
         });
 
         if (resolvedParentUserId) {
           const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          await db.execute(sql`
+          await tx.execute(sql`
             INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
             VALUES (${psId}, ${resolvedParentUserId}, ${id}, ${poolId}, 'approved', NOW())
             ON CONFLICT DO NOTHING
@@ -334,14 +414,11 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
         }
 
         logPoolEvent({ pool_id: poolId, event_type: "student.create", entity_type: "student", entity_id: id, actor_id: req.user!.userId, payload: { name: s.name.trim() } }).catch(() => {});
-        succeeded.push(s.name.trim());
-        registeredCount++;
-      } catch (innerErr: any) {
-        failed.push({ name: s.name.trim(), reason: innerErr?.message ?? "오류" });
+        inserted++;
       }
-    }
+    });
 
-    return res.json({ success: true, succeeded: succeeded.length, failed, available, limit, current });
+    return res.json({ success: true, inserted });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 

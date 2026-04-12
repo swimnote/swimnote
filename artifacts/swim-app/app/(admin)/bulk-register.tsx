@@ -1,13 +1,13 @@
 /**
- * bulk-register — 명단 한번에 올리기 (명품 버전)
+ * bulk-register — 명단 한번에 올리기
  *
  * 지원 파일: Excel(.xlsx / .xls / .xlsm), CSV(UTF-8 / UTF-8 BOM / EUC-KR)
  * 기능:
  *   1. 양식 CSV 다운로드 (샘플 데이터 포함)
  *   2. 파일 파싱 (SheetJS — Excel/CSV 모두 처리)
- *   3. 미리보기: 등록 가능 / 경고 / 중복 / 오류 행 구분
- *   4. 진행률 표시 (30명씩 청크 처리)
- *   5. 한도 초과 개별 실패 처리
+ *   3. 미리보기: 등록 가능 / 오류 행 구분
+ *   4. 전체 거부 방식 — 오류가 1개라도 있으면 전체 업로드 차단
+ *   5. 서버 전체 유효성 검사 후 트랜잭션 INSERT
  *   6. 학부모 계정 자동 연결
  */
 import {
@@ -30,10 +30,9 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { ConfirmModal } from "@/components/common/ConfirmModal";
 
 const C = Colors.light;
-const CHUNK_SIZE = 30;
+const MAX_UPLOAD = 100; // 업로드 최대 인원
 
 // ── 컬럼 헤더 별칭 매핑 (최대한 관대하게) ─────────────────────────
 const COL_MAP: Record<string, string> = {
@@ -82,12 +81,20 @@ interface ParsedRow {
   _isDuplicate?: boolean;
 }
 
-interface BatchProgress {
-  total: number;
-  done: number;
-  succeeded: number;
-  failed: Array<{ name: string; reason: string; code?: string }>;
-  limitReached?: boolean;
+interface ServerErrors {
+  missing_name?:       number[];
+  missing_phone?:      number[];
+  invalid_phone?:      number[];
+  duplicate_phone?:    Array<{ phone: string; rows: number[] }>;
+  db_duplicate_phone?: Array<{ phone: string; rows: number[] }>;
+  member_limit?:       { available: number; limit: number; current: number; requested: number };
+}
+interface UploadResult {
+  success: boolean;
+  inserted?: number;
+  code?: string;
+  message?: string;
+  errors?: ServerErrors;
 }
 
 // ── 전화번호 정규화 ──────────────────────────────────────────────
@@ -185,25 +192,44 @@ function parseRows(raw: any[][], headerIdx: number): ParsedRow[] {
       memo: obj.memo || undefined,
     };
 
-    // 오류 (등록 불가)
-    if (!row.name) { row._rowError = "이름 없음"; }
+    // ── 오류 (업로드 차단) ──────────────────────────────────────
+    const errors: string[] = [];
+    if (!row.name) errors.push("이름 없음");
+    if (!normPhone) {
+      errors.push("전화번호 없음");
+    } else if (!isValidPhone(normPhone)) {
+      errors.push("전화번호 형식 오류");
+    }
 
-    // 경고 (등록은 가능하나 확인 필요)
+    // 경고 (업로드는 가능하나 확인 필요 — 출생년도만)
     const warns: string[] = [];
-    if (normPhone && !isValidPhone(normPhone)) warns.push("전화번호 형식 이상");
     if (byear) {
       const yr = Number(byear);
       if (isNaN(yr) || yr < 1990 || yr > 2025) warns.push("출생년도 확인 필요");
     }
-    if (warns.length) row._rowWarn = warns.join(" · ");
+    if (errors.length) row._rowError = errors.join(" · ");
+    if (warns.length)  row._rowWarn  = warns.join(" · ");
 
     rows.push(row);
   }
 
-  // 파일 내 중복 이름 표시
-  const cnt: Record<string, number> = {};
-  rows.forEach(r => { if (r.name) cnt[r.name] = (cnt[r.name] ?? 0) + 1; });
-  rows.forEach(r => { if (r.name && cnt[r.name] > 1) r._isDuplicate = true; });
+  // 파일 내 전화번호 중복 → 오류 처리
+  const phoneCnt: Record<string, number> = {};
+  rows.forEach(r => {
+    if (r.parent_phone) phoneCnt[r.parent_phone] = (phoneCnt[r.parent_phone] ?? 0) + 1;
+  });
+  rows.forEach(r => {
+    if (r.parent_phone && phoneCnt[r.parent_phone] > 1) {
+      const dupMsg = "파일 내 전화번호 중복";
+      r._rowError = r._rowError ? `${r._rowError} · ${dupMsg}` : dupMsg;
+      r._isDuplicate = true;
+    }
+  });
+
+  // 파일 내 이름 중복 표시 (오류는 아님, 시각적 구분만)
+  const nameCnt: Record<string, number> = {};
+  rows.forEach(r => { if (r.name) nameCnt[r.name] = (nameCnt[r.name] ?? 0) + 1; });
+  rows.forEach(r => { if (r.name && nameCnt[r.name] > 1 && !r._isDuplicate) r._isDuplicate = true; });
 
   return rows;
 }
@@ -272,17 +298,13 @@ export default function BulkRegisterScreen() {
   const [parseError, setParseError] = useState("");
   const [loadingFile, setLoadingFile] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
-  const [progress, setProgress] = useState<BatchProgress>({
-    total: 0, done: 0, succeeded: 0, failed: [],
-  });
-  const [showLimitWarning, setShowLimitWarning] = useState(false);
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
 
-  const validRows  = rows.filter(r => !r._rowError && r.name.trim());
-  const errorRows  = rows.filter(r => !!r._rowError);
-  const warnRows   = rows.filter(r => !r._rowError && !!r._rowWarn);
-  const dupRows    = rows.filter(r => r._isDuplicate && !r._rowError);
-  const progressPct = progress.total > 0
-    ? Math.round((progress.done / progress.total) * 100) : 0;
+  const validRows = rows.filter(r => !r._rowError);
+  const errorRows = rows.filter(r => !!r._rowError);
+  const warnRows  = rows.filter(r => !r._rowError && !!r._rowWarn);
+  const overLimit = rows.length > MAX_UPLOAD;
+  const canUpload = rows.length > 0 && errorRows.length === 0 && !overLimit;
 
   // ── 파일 선택 & 파싱 ────────────────────────────────────────
   const pickFile = useCallback(async () => {
@@ -381,112 +403,54 @@ export default function BulkRegisterScreen() {
     }
   }, []);
 
-  // ── 등록 실행 (청크 처리) ───────────────────────────────────
+  // ── 등록 실행 (전체 한 번에 전송, 전체 거부 방식) ──────────────
   const handleSubmit = useCallback(async () => {
-    if (!validRows.length) {
-      Alert.alert("오류", "등록할 수 있는 유효한 회원이 없습니다.");
-      return;
-    }
-
-    // 학생 수 한도 초과 사전 경고
-    const memberCount  = (pool as any)?.member_count ?? 0;
-    const memberLimit  = (pool as any)?.member_limit ?? 9999;
-    if (memberCount + validRows.length > memberLimit) {
-      setShowLimitWarning(true);
-      return;
-    }
-
-    // 중복 포함 시 확인
-    if (dupRows.length > 0) {
-      const ok = await new Promise<boolean>(resolve =>
+    if (!canUpload) {
+      if (overLimit) {
         Alert.alert(
-          "중복 이름 있음",
-          `파일 내에 같은 이름이 ${dupRows.length}명 포함되어 있습니다.\n모두 등록하시겠습니까?`,
-          [
-            { text: "취소", style: "cancel", onPress: () => resolve(false) },
-            { text: "모두 등록", onPress: () => resolve(true) },
-          ]
-        )
-      );
-      if (!ok) return;
+          "인원 초과",
+          `엑셀 업로드는 최대 ${MAX_UPLOAD}명까지 가능합니다.\n${MAX_UPLOAD}명을 초과할 경우 파일을 나누어 업로드해주세요.`
+        );
+      } else {
+        Alert.alert("오류 수정 필요", "빨간색 오류 항목을 모두 수정한 후 다시 업로드해주세요.");
+      }
+      return;
     }
 
-    const prog: BatchProgress = {
-      total: validRows.length, done: 0, succeeded: 0, failed: [],
-    };
-    setProgress(prog);
+    setUploadResult(null);
     setStep("processing");
 
-    let totalSucceeded = 0;
-    const totalFailed: typeof prog.failed = [];
-    let limitReached = false;
-
-    for (let i = 0; i < validRows.length; i += CHUNK_SIZE) {
-      const chunk = validRows.slice(i, i + CHUNK_SIZE);
-      try {
-        const apiRes = await apiRequest(token, "/students/batch", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(chunk.map(r => ({
-            name: r.name,
-            birth_year:   r.birth_year   ?? null,
-            parent_name:  r.parent_name  ?? null,
-            parent_phone: r.parent_phone ?? null,
-            weekly_count: r.weekly_count ?? 1,
-            memo:         r.memo         ?? null,
-          }))),
-        });
-
-        if (apiRes.ok) {
-          const data = await apiRes.json();
-          totalSucceeded += data.succeeded ?? 0;
-          const chunkFailed: typeof totalFailed = data.failed ?? [];
-          totalFailed.push(...chunkFailed);
-          if (chunkFailed.some((f: any) => f.code === "MEMBER_LIMIT_EXCEEDED")) {
-            limitReached = true;
-          }
-        } else {
-          const body = await apiRes.json().catch(() => ({}));
-          totalFailed.push(...chunk.map(r => ({
-            name: r.name,
-            reason: body?.error ?? "서버 오류",
-            code: body?.code,
-          })));
-          if (body?.code === "MEMBER_LIMIT_EXCEEDED") limitReached = true;
-        }
-      } catch (e: any) {
-        totalFailed.push(...chunk.map(r => ({
-          name: r.name,
-          reason: "네트워크 오류",
-        })));
-      }
-
-      const done = Math.min(i + CHUNK_SIZE, validRows.length);
-      setProgress({
-        total: validRows.length,
-        done,
-        succeeded: totalSucceeded,
-        failed: [...totalFailed],
-        limitReached,
+    try {
+      const apiRes = await apiRequest(token, "/students/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validRows.map(r => ({
+          name:         r.name,
+          birth_year:   r.birth_year   ?? null,
+          parent_name:  r.parent_name  ?? null,
+          parent_phone: r.parent_phone ?? null,
+          weekly_count: r.weekly_count ?? 1,
+          memo:         r.memo         ?? null,
+        }))),
       });
-    }
 
-    setProgress({
-      total: validRows.length,
-      done: validRows.length,
-      succeeded: totalSucceeded,
-      failed: totalFailed,
-      limitReached,
-    });
-    setStep("done");
-  }, [validRows, dupRows, token, pool]);
+      const data: UploadResult = await apiRes.json().catch(() => ({
+        success: false, message: "서버 응답을 파싱할 수 없습니다.",
+      }));
+      setUploadResult(data);
+      setStep("done");
+    } catch (e: any) {
+      setUploadResult({ success: false, message: "네트워크 오류가 발생했습니다." });
+      setStep("done");
+    }
+  }, [canUpload, overLimit, validRows, token]);
 
   const resetAll = () => {
     setStep("pick");
     setRows([]);
     setFileName("");
     setParseError("");
-    setProgress({ total: 0, done: 0, succeeded: 0, failed: [] });
+    setUploadResult(null);
   };
 
   // ══════════════════════════════════════════════════════════════
@@ -505,6 +469,23 @@ export default function BulkRegisterScreen() {
         {/* ═══ STEP 1: 파일 선택 ════════════════════════════════ */}
         {step === "pick" && (
           <>
+            {/* 업로드 전 필수 안내 */}
+            <View style={[s.noticeCard, { backgroundColor: "#FEF3C7", borderColor: "#F59E0B30" }]}>
+              <View style={[s.cardRow, { marginBottom: 6 }]}>
+                <AlertTriangle size={15} color="#D97706" />
+                <Text style={[s.cardTitle, { color: "#92400E" }]}>엑셀 업로드 전 반드시 확인하세요</Text>
+              </View>
+              {[
+                "한 학생당 전화번호는 1개만 입력 가능합니다",
+                "동일한 전화번호를 여러 학생에 입력할 수 없습니다",
+                "이름, 전화번호는 필수 입력입니다",
+                `${MAX_UPLOAD}명 초과 시 업로드가 불가능합니다`,
+                "오류가 1개라도 있으면 전체 업로드가 실패합니다",
+              ].map((txt, i) => (
+                <Text key={i} style={[s.noticeLine, { color: "#92400E" }]}>• {txt}</Text>
+              ))}
+            </View>
+
             {/* 양식 다운로드 */}
             <View style={[s.card, {
               backgroundColor: themeColor + "10",
@@ -636,6 +617,16 @@ export default function BulkRegisterScreen() {
               </Pressable>
             </View>
 
+            {/* 100명 초과 오류 */}
+            {overLimit && (
+              <View style={[s.alertBanner, { backgroundColor: "#FEE2E2" }]}>
+                <AlertCircle size={14} color="#DC2626" />
+                <Text style={[s.alertTxt, { color: "#DC2626" }]}>
+                  {rows.length}명 감지 — 최대 {MAX_UPLOAD}명까지 업로드 가능합니다. 파일을 나누어 업로드해주세요.
+                </Text>
+              </View>
+            )}
+
             {/* 요약 통계 */}
             <View style={[s.summaryRow, { backgroundColor: C.card }]}>
               <View style={s.summaryItem}>
@@ -648,34 +639,30 @@ export default function BulkRegisterScreen() {
                   <Text style={[s.summaryLabel, { color: C.textSecondary }]}>확인 필요</Text>
                 </View>
               )}
-              {dupRows.length > 0 && (
-                <View style={[s.summaryItem, s.summaryDivider]}>
-                  <Text style={[s.summaryNum, { color: "#7C3AED" }]}>{dupRows.length}</Text>
-                  <Text style={[s.summaryLabel, { color: C.textSecondary }]}>중복 이름</Text>
-                </View>
-              )}
               {errorRows.length > 0 && (
                 <View style={[s.summaryItem, s.summaryDivider]}>
                   <Text style={[s.summaryNum, { color: "#DC2626" }]}>{errorRows.length}</Text>
-                  <Text style={[s.summaryLabel, { color: C.textSecondary }]}>오류 제외</Text>
+                  <Text style={[s.summaryLabel, { color: C.textSecondary }]}>오류</Text>
                 </View>
               )}
             </View>
 
-            {/* 경고 배너들 */}
-            {dupRows.length > 0 && (
-              <View style={[s.alertBanner, { backgroundColor: "#FAF5FF" }]}>
-                <AlertTriangle size={14} color="#7C3AED" />
-                <Text style={[s.alertTxt, { color: "#7C3AED" }]}>
-                  파일 내 같은 이름 {dupRows.length}명 — 등록 시 확인 요청됩니다
+            {/* 오류 존재 시 전체 차단 배너 */}
+            {errorRows.length > 0 && !overLimit && (
+              <View style={[s.alertBanner, { backgroundColor: "#FEE2E2" }]}>
+                <AlertCircle size={14} color="#DC2626" />
+                <Text style={[s.alertTxt, { color: "#DC2626" }]}>
+                  오류 {errorRows.length}건이 있습니다. 빨간 항목을 수정 후 다시 업로드해주세요.{"\n"}오류가 1개라도 있으면 전체 업로드가 실패합니다.
                 </Text>
               </View>
             )}
+
+            {/* 출생년도 경고 */}
             {warnRows.length > 0 && (
               <View style={[s.alertBanner, { backgroundColor: "#FFFBEB" }]}>
                 <AlertTriangle size={14} color="#D97706" />
                 <Text style={[s.alertTxt, { color: "#D97706" }]}>
-                  전화번호 확인이 필요한 항목 {warnRows.length}명 (등록은 가능)
+                  출생년도 확인이 필요한 항목 {warnRows.length}명 (등록은 가능)
                 </Text>
               </View>
             )}
@@ -688,13 +675,9 @@ export default function BulkRegisterScreen() {
               </View>
 
               {rows.map((row, i) => {
-                const hasErr = !!row._rowError;
+                const hasErr  = !!row._rowError;
                 const hasWarn = !hasErr && !!row._rowWarn;
-                const isDup  = !hasErr && !!row._isDuplicate;
-                const bg = hasErr ? "#FEF2F2"
-                  : isDup ? "#FAF5FF"
-                  : hasWarn ? "#FFFBEB"
-                  : "transparent";
+                const bg = hasErr ? "#FEF2F2" : hasWarn ? "#FFFBEB" : "transparent";
 
                 return (
                   <View
@@ -708,7 +691,7 @@ export default function BulkRegisterScreen() {
                     <View style={{ flex: 2, justifyContent: "center", paddingLeft: 4 }}>
                       <Text
                         style={[s.tdTxt, {
-                          color: hasErr ? "#DC2626" : isDup ? "#7C3AED" : C.text,
+                          color: hasErr ? "#DC2626" : C.text,
                           textAlign: "left",
                         }]}
                         numberOfLines={1}
@@ -720,9 +703,6 @@ export default function BulkRegisterScreen() {
                       )}
                       {!hasErr && hasWarn && (
                         <Text style={[s.tdSub, { color: "#D97706" }]}>{row._rowWarn}</Text>
-                      )}
-                      {isDup && !hasErr && (
-                        <Text style={[s.tdSub, { color: "#7C3AED" }]}>중복</Text>
                       )}
                     </View>
                     <Text style={[s.tdTxt, { flex: 3, color: C.textSecondary }]} numberOfLines={1}>
@@ -737,20 +717,16 @@ export default function BulkRegisterScreen() {
             <Pressable
               style={[
                 s.uploadBtn,
-                { backgroundColor: validRows.length > 0 ? themeColor : C.border },
+                { backgroundColor: canUpload ? themeColor : C.border },
               ]}
               onPress={handleSubmit}
-              disabled={validRows.length === 0}
+              disabled={!canUpload}
             >
               <Upload size={16} color="#fff" />
-              <Text style={s.uploadBtnTxt}>{validRows.length}명 일괄 등록하기</Text>
-            </Pressable>
-
-            {errorRows.length > 0 && (
-              <Text style={[s.noteText, { color: C.textMuted, textAlign: "center" }]}>
-                오류 {errorRows.length}명은 건너뛰고 유효한 {validRows.length}명만 등록됩니다
+              <Text style={s.uploadBtnTxt}>
+                {canUpload ? `${validRows.length}명 일괄 등록하기` : "오류 수정 후 업로드 가능"}
               </Text>
-            )}
+            </Pressable>
           </>
         )}
 
@@ -762,119 +738,105 @@ export default function BulkRegisterScreen() {
             <ActivityIndicator size="large" color={themeColor} />
             <Text style={[s.processingTitle, { color: C.text }]}>등록 처리 중...</Text>
             <Text style={[s.processingCount, { color: C.textSecondary }]}>
-              {progress.done} / {progress.total}명
+              서버에서 전체 유효성 검사 후 일괄 등록합니다
             </Text>
-
-            {/* 진행률 바 */}
-            <View style={[s.progressTrack, { backgroundColor: C.border }]}>
-              <View
-                style={[
-                  s.progressFill,
-                  { width: `${progressPct}%` as any, backgroundColor: themeColor },
-                ]}
-              />
-            </View>
-            <Text style={[s.progressPct, { color: themeColor }]}>{progressPct}%</Text>
-
-            {progress.failed.length > 0 && (
-              <Text style={[s.noteText, { color: "#D97706", marginTop: 10 }]}>
-                처리 중 실패 {progress.failed.length}명 (계속 진행 중)
-              </Text>
-            )}
           </View>
         )}
 
         {/* ═══ STEP 4: 완료 ════════════════════════════════════ */}
-        {step === "done" && (
+        {step === "done" && uploadResult && (
           <View style={{ alignItems: "center", paddingTop: 8 }}>
-            {progress.succeeded > 0
+            {uploadResult.success
               ? <CheckCircle2 size={64} color="#16A34A" />
               : <AlertCircle size={64} color="#DC2626" />}
 
             <Text style={[s.doneTitle, { color: C.text }]}>
-              {progress.succeeded > 0
-                ? `${progress.succeeded}명 등록 완료!`
-                : "등록 실패"}
+              {uploadResult.success
+                ? `${uploadResult.inserted ?? 0}명 등록 완료!`
+                : "업로드 실패"}
             </Text>
 
-            {/* 결과 카드 */}
-            <View style={[s.doneCard, { backgroundColor: C.card, width: "100%" }]}>
-              <View style={s.doneRow}>
-                <Text style={[s.doneLabel, { color: C.textSecondary }]}>총 처리</Text>
-                <Text style={[s.doneVal, { color: C.text }]}>{progress.total}명</Text>
-              </View>
-              <View style={[s.doneRow, { borderTopWidth: 1, borderTopColor: C.border }]}>
-                <Text style={[s.doneLabel, { color: C.textSecondary }]}>✅ 성공</Text>
-                <Text style={[s.doneVal, { color: "#16A34A" }]}>{progress.succeeded}명</Text>
-              </View>
-              {progress.failed.length > 0 && (
-                <View style={[s.doneRow, { borderTopWidth: 1, borderTopColor: C.border }]}>
-                  <Text style={[s.doneLabel, { color: C.textSecondary }]}>❌ 실패</Text>
-                  <Text style={[s.doneVal, { color: "#DC2626" }]}>{progress.failed.length}명</Text>
+            {/* 성공 결과 카드 */}
+            {uploadResult.success && (
+              <View style={[s.doneCard, { backgroundColor: C.card, width: "100%" }]}>
+                <View style={s.doneRow}>
+                  <Text style={[s.doneLabel, { color: C.textSecondary }]}>등록 완료</Text>
+                  <Text style={[s.doneVal, { color: "#16A34A" }]}>{uploadResult.inserted}명</Text>
                 </View>
-              )}
-            </View>
+              </View>
+            )}
 
-            {/* 한도 초과 안내 */}
-            {progress.limitReached && (
-              <View style={[s.alertBanner, { backgroundColor: "#FEF3C7", width: "100%" }]}>
-                <AlertTriangle size={14} color="#D97706" />
-                <Text style={[s.alertTxt, { color: "#92400E" }]}>
-                  일부 회원이 플랜 한도 초과로 등록되지 않았습니다.
-                  구독을 업그레이드하면 더 많은 회원을 등록할 수 있습니다.
+            {/* 실패: 서버 오류 상세 */}
+            {!uploadResult.success && (
+              <View style={[s.failList, { width: "100%", backgroundColor: "#FEF2F2" }]}>
+                <Text style={s.failListTitle}>
+                  {uploadResult.message ?? "업로드에 실패했습니다. 아래 오류를 확인하세요."}
                 </Text>
-              </View>
-            )}
 
-            {/* 실패 목록 */}
-            {progress.failed.length > 0 && (
-              <View style={[s.failList, { width: "100%" }]}>
-                <Text style={s.failListTitle}>미등록 항목</Text>
-                {progress.failed.map((f, i) => (
-                  <View key={i} style={s.failItem}>
-                    <Text style={[s.failName, { color: "#DC2626" }]} numberOfLines={1}>
-                      {f.name}
-                    </Text>
-                    <Text style={[s.failReason, { color: C.textMuted }]} numberOfLines={1}>
-                      {f.reason}
-                    </Text>
-                  </View>
+                {uploadResult.errors?.missing_name && (
+                  <Text style={[s.failReason, { color: "#DC2626", marginBottom: 4 }]}>
+                    이름 없음 — {uploadResult.errors.missing_name.length}건 (행: {uploadResult.errors.missing_name.join(", ")})
+                  </Text>
+                )}
+                {uploadResult.errors?.missing_phone && (
+                  <Text style={[s.failReason, { color: "#DC2626", marginBottom: 4 }]}>
+                    전화번호 없음 — {uploadResult.errors.missing_phone.length}건 (행: {uploadResult.errors.missing_phone.join(", ")})
+                  </Text>
+                )}
+                {uploadResult.errors?.invalid_phone && (
+                  <Text style={[s.failReason, { color: "#DC2626", marginBottom: 4 }]}>
+                    전화번호 형식 오류 — {uploadResult.errors.invalid_phone.length}건 (행: {uploadResult.errors.invalid_phone.join(", ")})
+                  </Text>
+                )}
+                {uploadResult.errors?.duplicate_phone?.map((d, i) => (
+                  <Text key={i} style={[s.failReason, { color: "#DC2626", marginBottom: 4 }]}>
+                    파일 내 전화번호 중복: {formatPhone(d.phone)} (행: {d.rows.join(", ")})
+                  </Text>
                 ))}
+                {uploadResult.errors?.db_duplicate_phone?.map((d, i) => (
+                  <Text key={i} style={[s.failReason, { color: "#DC2626", marginBottom: 4 }]}>
+                    이미 등록된 전화번호: {formatPhone(d.phone)} (행: {d.rows.join(", ")})
+                  </Text>
+                ))}
+                {uploadResult.errors?.member_limit && (
+                  <Text style={[s.failReason, { color: "#DC2626", marginBottom: 4 }]}>
+                    회원 수 한도 초과 — 현재 {uploadResult.errors.member_limit.current}명 / 최대 {uploadResult.errors.member_limit.limit}명
+                    (등록 요청 {uploadResult.errors.member_limit.requested}명, 가능 {uploadResult.errors.member_limit.available}명)
+                  </Text>
+                )}
+                {!uploadResult.errors && uploadResult.message && (
+                  <Text style={[s.failReason, { color: "#DC2626" }]}>{uploadResult.message}</Text>
+                )}
               </View>
             )}
 
+            {uploadResult.success ? (
+              <Pressable
+                style={[s.uploadBtn, { backgroundColor: themeColor, width: "100%", marginTop: 8 }]}
+                onPress={() => router.push("/(admin)/members?backTo=ops-hub" as any)}
+              >
+                <Text style={s.uploadBtnTxt}>회원 목록 확인하기</Text>
+              </Pressable>
+            ) : null}
             <Pressable
-              style={[s.uploadBtn, { backgroundColor: themeColor, width: "100%", marginTop: 8 }]}
-              onPress={() => router.push("/(admin)/members?backTo=ops-hub" as any)}
-            >
-              <Text style={s.uploadBtnTxt}>회원 목록 확인하기</Text>
-            </Pressable>
-            <Pressable
-              style={[s.outlineBtn, { borderColor: C.border, width: "100%" }]}
+              style={[s.outlineBtn, { borderColor: C.border, width: "100%", marginTop: uploadResult.success ? 10 : 8 }]}
               onPress={resetAll}
             >
               <Text style={[s.outlineBtnTxt, { color: C.textSecondary }]}>
-                추가 파일 올리기
+                {uploadResult.success ? "추가 파일 올리기" : "파일 수정 후 다시 업로드"}
               </Text>
             </Pressable>
           </View>
         )}
       </ScrollView>
 
-      <ConfirmModal
-        visible={showLimitWarning}
-        title="등록 가능 인원 초과"
-        message={`현재 플랜 한도(${(pool as any)?.member_limit ?? "?"}명)를 초과합니다.\n(현재 ${(pool as any)?.member_count ?? 0}명 + 신규 ${validRows.length}명)\n상위 플랜으로 업그레이드해주세요.`}
-        confirmText="플랜 업그레이드"
-        cancelText="닫기"
-        onConfirm={() => { setShowLimitWarning(false); router.push("/(admin)/billing" as any); }}
-        onCancel={() => setShowLimitWarning(false)}
-      />
     </View>
   );
 }
 
 const s = StyleSheet.create({
+  noticeCard:     { borderRadius: 16, padding: 14, borderWidth: 1, marginBottom: 12 },
+  noticeLine:     { fontSize: 12, lineHeight: 20, marginLeft: 4 },
   card:           { borderRadius: 16, padding: 14 },
   cardRow:        { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 },
   cardTitle:      { fontSize: 14, fontFamily: "Pretendard-Regular" },
@@ -923,9 +885,6 @@ const s = StyleSheet.create({
   tdSub:          { fontSize: 10, fontFamily: "Pretendard-Regular", marginTop: 1 },
   processingTitle:{ fontSize: 18, fontFamily: "Pretendard-Regular", marginTop: 16 },
   processingCount:{ fontSize: 14, fontFamily: "Pretendard-Regular", marginTop: 6 },
-  progressTrack:  { width: "80%", height: 8, borderRadius: 4, marginTop: 16, overflow: "hidden" },
-  progressFill:   { height: "100%", borderRadius: 4 },
-  progressPct:    { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: 6 },
   doneTitle:      { fontSize: 22, fontFamily: "Pretendard-Regular", marginTop: 16, marginBottom: 20 },
   doneCard:       { borderRadius: 14, padding: 4, marginBottom: 14 },
   doneRow:        { flexDirection: "row", alignItems: "center",
