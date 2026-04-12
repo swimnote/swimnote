@@ -1434,13 +1434,23 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
       .where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);
     if (!pool) { res.status(400).json({ success: false, message: "존재하지 않는 수영장입니다." }); return; }
 
-    // 관리자 회원목록에서 이름으로 검색 — 상태/parent_user_id 조건 없이 순수 이름만 매칭
-    const normalName = child_name.trim().replace(/\s+/g, "").toLowerCase();
+    // 이름 정규화: 한글만 추출 (숫자·공백·기호 제거)
+    const normalName = child_name.replace(/[^가-힣]/g, "");
+    if (!normalName) {
+      res.status(400).json({ success: false, message: "이름에 한글을 포함해주세요." }); return;
+    }
 
+    // 학부모 전화번호 조회 (숫자만)
+    const paRows = await db.execute(sql`
+      SELECT phone FROM parent_accounts WHERE id = ${parentId} LIMIT 1
+    `);
+    const parentPhone = ((paRows.rows[0] as any)?.phone || "").replace(/[^0-9]/g, "");
+
+    // 관리자 회원목록에서 한글 기준 이름 매칭
     const found = await db.execute(sql`
-      SELECT id, name, status FROM students
+      SELECT id, name, status, parent_phone FROM students
       WHERE swimming_pool_id = ${swimming_pool_id}
-        AND LOWER(REPLACE(name, ' ', '')) = ${normalName}
+        AND REGEXP_REPLACE(name, '[^가-힣]', '', 'g') = ${normalName}
       ORDER BY created_at ASC
       LIMIT 1
     `);
@@ -1450,6 +1460,14 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
     }
 
     const student = found.rows[0] as any;
+
+    // 전화번호 일치 확인: 학부모 전화번호와 학생 등록 전화번호 모두 존재할 때만 비교
+    if (parentPhone) {
+      const studentPhone = (student.parent_phone || "").replace(/[^0-9]/g, "");
+      if (studentPhone && studentPhone !== parentPhone) {
+        res.json({ success: false, status: "phone_mismatch", message: "전화번호가 일치하지 않습니다. 수영장에 등록된 연락처를 확인해주세요." }); return;
+      }
+    }
 
     // students 테이블 연결
     await db.execute(sql`

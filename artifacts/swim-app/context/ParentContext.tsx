@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { apiRequest } from "@/context/AuthContext";
 import { useAuth } from "@/context/AuthContext";
+import { normalizeKoreanName } from "@/utils/validation";
 
 export interface ChildStudent {
   id: string;
@@ -48,8 +49,11 @@ export function ParentProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await apiRequest(token, "/parent/students");
       if (res.ok) {
-        const data: ChildStudent[] = await res.json();
-        setStudents(Array.isArray(data) ? data : []);
+        const raw: ChildStudent[] = await res.json();
+        const data = Array.isArray(raw)
+          ? raw.map(s => ({ ...s, name: normalizeKoreanName(s.name) }))
+          : [];
+        setStudents(data);
         const savedId = await AsyncStorage.getItem(STORAGE_KEY);
         const validId = savedId && data.find(s => s.id === savedId) ? savedId : (data[0]?.id ?? null);
         setSelectedId(validId);

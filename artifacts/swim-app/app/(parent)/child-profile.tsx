@@ -15,6 +15,7 @@ import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
+import { normalizeKoreanName } from "@/utils/validation";
 
 const C = Colors.light;
 const CHILD_COLORS = [C.tint, "#2EC4B6", "#7C3AED", "#D97706", "#0EA5E9"];
@@ -66,7 +67,10 @@ export default function ChildProfileScreen() {
     (async () => {
       try {
         const r = await apiRequest(token, `/parent/students/${id}`);
-        if (r.ok) setStudent(await r.json());
+        if (r.ok) {
+          const data = await r.json();
+          setStudent({ ...data, name: normalizeKoreanName(data.name) });
+        }
       } catch {}
       finally { setLoading(false); }
     })();
