@@ -55,7 +55,7 @@ function buildConfig(url: string | undefined, password: string | undefined) {
       password:          finalPassword,
       database:          u.pathname.replace(/^\//, ""),
       ssl:               { rejectUnauthorized: false },
-      max:               5,
+      max:               parseInt(process.env.DB_POOL_MAX ?? "5", 10),
       idleTimeoutMillis:       30000,
       connectionTimeoutMillis: 15000,
       keepAlive:               true,

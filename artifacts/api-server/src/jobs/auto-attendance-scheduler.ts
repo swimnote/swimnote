@@ -6,12 +6,15 @@
  *  - 결석(absent) 버튼을 눌러 이미 기록된 학생은 건드리지 않음 (보강 리스트 유지)
  *  - 매 15분마다 실행, 한국 표준시(KST = UTC+9) 기준
  *  - 모든 수영장·모든 수업반에 공통 적용
+ *  - DB 락으로 서버 여러 대에서 중복 실행 방지
  */
 import cron from "node-cron";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { acquireLock, releaseLock, recordHeartbeat } from "../lib/schedulerLock.js";
 
-let isRunning = false;
+const JOB_NAME = "auto-attendance";
+const TTL_SECONDS = 600; // 10분
 
 /** 현재 KST 날짜/시각/요일 반환 */
 function getKST() {
@@ -46,8 +49,9 @@ function timeToMinutes(t: string): number {
 }
 
 export async function runAutoAttendance(): Promise<{ processed: number; marked: number }> {
-  if (isRunning) return { processed: 0, marked: 0 };
-  isRunning = true;
+  const locked = await acquireLock(JOB_NAME, TTL_SECONDS);
+  if (!locked) return { processed: 0, marked: 0 };
+
   let processed = 0;
   let marked = 0;
 
@@ -148,7 +152,8 @@ export async function runAutoAttendance(): Promise<{ processed: number; marked: 
   } catch (e) {
     console.error("[auto-attendance] 실행 오류:", e);
   } finally {
-    isRunning = false;
+    await recordHeartbeat(JOB_NAME, { processed, marked });
+    await releaseLock(JOB_NAME);
   }
 
   if (marked > 0) {

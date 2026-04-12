@@ -398,5 +398,42 @@ export async function initSuperDb(): Promise<void> {
     console.warn("[super-db-init] monthly_settlements 오류:", e.message);
   }
 
+  // ── scheduler_locks — 분산 스케줄러 락 ────────────────────────────────────
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS scheduler_locks (
+        job_name   text PRIMARY KEY,
+        locked_at  timestamptz NOT NULL DEFAULT NOW()
+      );
+    `));
+    console.log("[super-db-init] scheduler_locks 테이블 준비 완료");
+  } catch (e: any) {
+    console.warn("[super-db-init] scheduler_locks 오류:", e.message);
+  }
+
+  // ── scheduler_heartbeat — 스케줄러 실행 기록 ─────────────────────────────
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS scheduler_heartbeat (
+        job_name    text PRIMARY KEY,
+        last_run_at timestamptz NOT NULL DEFAULT NOW(),
+        result      jsonb
+      );
+    `));
+    console.log("[super-db-init] scheduler_heartbeat 테이블 준비 완료");
+  } catch (e: any) {
+    console.warn("[super-db-init] scheduler_heartbeat 오류:", e.message);
+  }
+
+  // ── 수평 확장 대비 인덱스 보완 ────────────────────────────────────────────
+  try {
+    await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_users_swimming_pool_id ON users (swimming_pool_id);`)).catch(() => {});
+    await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_students_pool_status ON students (swimming_pool_id, status);`)).catch(() => {});
+    await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_parent_accounts_swimming_pool_id ON parent_accounts (swimming_pool_id);`)).catch(() => {});
+    console.log("[super-db-init] 수평 확장 인덱스 3개 준비 완료");
+  } catch (e: any) {
+    console.warn("[super-db-init] 인덱스 보완 오류:", e.message);
+  }
+
   console.log("[super-db-init] super DB 컬럼 보완 + backup_logs/restore_logs 초기화 완료");
 }

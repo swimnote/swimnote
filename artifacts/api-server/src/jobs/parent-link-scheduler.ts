@@ -11,12 +11,15 @@
 import cron from "node-cron";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { acquireLock, releaseLock, recordHeartbeat } from "../lib/schedulerLock.js";
 
-let isRunning = false;
+const JOB_NAME = "parent-link";
+const TTL_SECONDS = 120; // 2분
 
 export async function runParentAutoLink(): Promise<{ checked: number; linked: number }> {
-  if (isRunning) return { checked: 0, linked: 0 };
-  isRunning = true;
+  const locked = await acquireLock(JOB_NAME, TTL_SECONDS);
+  if (!locked) return { checked: 0, linked: 0 };
+
   let checked = 0;
   let linked = 0;
 
@@ -116,7 +119,8 @@ export async function runParentAutoLink(): Promise<{ checked: number; linked: nu
   } catch (e) {
     console.error("[parent-link] 오류:", e);
   } finally {
-    isRunning = false;
+    await recordHeartbeat(JOB_NAME, { checked, linked });
+    await releaseLock(JOB_NAME);
   }
 
   if (linked > 0) {

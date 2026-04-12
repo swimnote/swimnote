@@ -8,6 +8,7 @@ import cron from "node-cron";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { sendPushToClassParents, sendPushToUser, sendRawPush, checkPushEnabled } from "../lib/push-service.js";
+import { acquireLock, releaseLock, recordHeartbeat } from "../lib/schedulerLock.js";
 
 function getKSTNow(): Date {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
@@ -221,13 +222,28 @@ async function runMakeupDaySchedule(): Promise<void> {
 // ── 스케줄러 등록 ────────────────────────────────────────────────────
 export function startPushScheduler(): void {
   // 매 분 실행 (전날 알림 + 당일 알림 시간 체크)
+  // DB 락으로 서버 여러 대에서 중복 발송 방지
   cron.schedule("* * * * *", async () => {
-    await runPrevDaySchedule();
-    await runSameDaySchedule();
+    const locked = await acquireLock("push-minute", 90); // 1분30초 TTL
+    if (!locked) return;
+    try {
+      await runPrevDaySchedule();
+      await runSameDaySchedule();
+      await recordHeartbeat("push-minute", { ran: true, at: new Date().toISOString() });
+    } finally {
+      await releaseLock("push-minute");
+    }
   });
   // 매일 오전 8시 보강 당일 알림
   cron.schedule("0 8 * * *", async () => {
-    await runMakeupDaySchedule();
+    const locked = await acquireLock("push-makeup", 1800); // 30분 TTL
+    if (!locked) return;
+    try {
+      await runMakeupDaySchedule();
+      await recordHeartbeat("push-makeup", { ran: true, at: new Date().toISOString() });
+    } finally {
+      await releaseLock("push-makeup");
+    }
   }, { timezone: "Asia/Seoul" });
   console.log("[push-scheduler] 예약 푸시 스케줄러 시작");
 }

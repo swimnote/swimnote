@@ -16,6 +16,7 @@ import { dataChangeLogsTable, backupSnapshotsTable } from "@workspace/db/schema"
 import { eq, sql } from "drizzle-orm";
 import { runRealBackup, cleanupOldAutoBackups } from "../lib/backup.js";
 import { runBackupToTarget } from "../lib/backup-target.js";
+import { acquireLock, releaseLock, refreshLock, recordHeartbeat } from "../lib/schedulerLock.js";
 
 // ─── 증분 동기화 ───────────────────────────────────────────────────────────
 export async function runIncrementalSync(): Promise<{
@@ -24,6 +25,11 @@ export async function runIncrementalSync(): Promise<{
   errors: number;
   tenants: string[];
 }> {
+  const locked = await acquireLock("backup-incremental", 1800);
+  if (!locked) {
+    console.log("[backup-batch] 증분 동기화: 다른 서버가 실행 중 — 스킵");
+    return { total: 0, synced: 0, errors: 0, tenants: [] };
+  }
   console.log("[backup-batch] 증분 동기화 시작 →", new Date().toISOString());
   const now = new Date();
   let synced = 0, errors = 0;
@@ -67,10 +73,13 @@ export async function runIncrementalSync(): Promise<{
     });
 
     console.log(`[backup-batch] 증분 동기화 완료 — 수집: ${synced}, 오류: ${errors}`);
+    await recordHeartbeat("backup-incremental", { total: pending.length, synced, errors });
     return { total: pending.length, synced, errors, tenants: [...tenants] };
   } catch (err) {
     console.error("[backup-batch] 증분 동기화 치명적 오류:", err);
     return { total: 0, synced: 0, errors: 1, tenants: [] };
+  } finally {
+    await releaseLock("backup-incremental");
   }
 }
 
@@ -120,11 +129,23 @@ async function getBackupSettings(): Promise<{
 
 // ─── 자동 백업 실행 ───────────────────────────────────────────────────────
 export async function runAutoBackup(): Promise<void> {
+  const locked = await acquireLock("backup-auto", 7200); // 2시간 TTL
+  if (!locked) {
+    console.log("[auto-backup] 다른 서버가 백업 실행 중 — 스킵");
+    return;
+  }
+
   const settings = await getBackupSettings();
   if (!settings.auto_enabled) {
     console.log("[auto-backup] 자동 백업 비활성화됨 — 건너뜀");
+    await releaseLock("backup-auto");
     return;
   }
+
+  // 장시간 백업 중 TTL 만료 방지: 10분마다 락 갱신
+  const refreshInterval = setInterval(() => {
+    refreshLock("backup-auto", 7200).catch(() => {});
+  }, 10 * 60 * 1000);
 
   console.log("[auto-backup] 자동 백업 시작 →", new Date().toISOString());
   try {
@@ -160,8 +181,13 @@ export async function runAutoBackup(): Promise<void> {
     }
 
     await cleanupOldAutoBackups(settings.retention_days);
+    await recordHeartbeat("backup-auto", { schedule_type: settings.schedule_type, status: "success" });
   } catch (err) {
     console.error("[auto-backup] 실패:", err);
+    await recordHeartbeat("backup-auto", { status: "error", error: String(err) }).catch(() => {});
+  } finally {
+    clearInterval(refreshInterval);
+    await releaseLock("backup-auto");
   }
 }
 
