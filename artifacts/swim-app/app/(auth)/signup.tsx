@@ -87,6 +87,8 @@ export default function SignupScreen() {
   const [loading, setLoading]       = useState(false);
   const [isPendingTeacher, setIsPendingTeacher] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({ pw: "", pwc: "", name: "", poolName: "" });
+  const scrollRef = useRef<ScrollView>(null);
+  const hasFieldErrors = Object.values(fieldErrors).some(v => !!v);
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
@@ -203,7 +205,7 @@ export default function SignupScreen() {
 
   function nextStep() {
     if (step === 1) {
-      if (!validateStep1()) return;
+      if (!validateStep1()) { scrollRef.current?.scrollTo({ y: 0, animated: true }); return; }
       setStep(2); return;
     }
     setError("");
@@ -235,7 +237,10 @@ export default function SignupScreen() {
     }
 
     setFieldErrors(errs);
-    if (errs.name || errs.poolName) return;
+    if (errs.name || errs.poolName) {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
 
     if (role === "admin") {
       if (!poolAddress.trim()) { setError("수영장 주소를 입력해주세요."); return; }
@@ -764,11 +769,21 @@ export default function SignupScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView
+        ref={scrollRef}
         style={[styles.root, { backgroundColor: C.background }]}
         contentContainerStyle={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* 에러 요약 배너 (필드 오류 있을 때) */}
+        {hasFieldErrors && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", padding: 12, borderRadius: 10 }}>
+            <CircleAlert size={15} color="#DC2626" />
+            <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>
+              입력 오류가 있습니다. 아래 항목을 확인해주세요.
+            </Text>
+          </View>
+        )}
         {/* 헤더 */}
         <View style={styles.header}>
           <Pressable style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]} onPress={goBack}>

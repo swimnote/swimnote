@@ -5,7 +5,7 @@
  */
 import { CircleAlert, Trash2 } from "lucide-react-native";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
@@ -51,6 +51,8 @@ export default function ParentProfileScreen() {
   const [saveDone, setSaveDone] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({ name: "", phone: "", newPw: "", newPw2: "", currentPw: "" });
+  const scrollRef = useRef<ScrollView>(null);
+  const hasFieldErrors = Object.values(fieldErrors).some(v => !!v);
 
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -105,7 +107,10 @@ export default function ParentProfileScreen() {
     }
 
     setFieldErrors(errs);
-    if (errs.name || errs.phone || errs.newPw || errs.newPw2 || errs.currentPw) return;
+    if (errs.name || errs.phone || errs.newPw || errs.newPw2 || errs.currentPw) {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
 
     // UI 표시값(phone)과 서버 전송값(normalizedPhone) 분리
     const normalizedPhone = phone ? normalizePhone(phone) : null;
@@ -137,9 +142,19 @@ export default function ParentProfileScreen() {
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView
+          ref={scrollRef}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40, gap: 20 }}
         >
+          {hasFieldErrors && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", padding: 12, borderRadius: 10 }}>
+              <CircleAlert size={15} color="#DC2626" />
+              <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>
+                입력 오류가 있습니다. 아래 항목을 확인해주세요.
+              </Text>
+            </View>
+          )}
+
           {/* 기본 정보 */}
           <View style={[s.section, { backgroundColor: C.card }]}>
             <Text style={[s.sectionTitle, { color: C.text }]}>기본 정보</Text>

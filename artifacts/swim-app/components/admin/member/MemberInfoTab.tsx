@@ -1,6 +1,6 @@
-import { Flame, PenLine, RotateCcw, Save } from "lucide-react-native";
+import { CircleAlert, Flame, PenLine, RotateCcw, Save } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 import { getMemberPendingBadge } from "@/utils/studentUtils";
@@ -42,6 +42,8 @@ export function MemberInfoTab({
   const parentAccountName = (data as any).parent_account_name || editParentName;
 
   const [fieldErrors, setFieldErrors] = useState({ name: "", birth: "", parentName: "", parentPhone: "" });
+  const scrollRef = useRef<ScrollView>(null);
+  const hasFieldErrors = Object.values(fieldErrors).some(v => !!v);
 
   function handleSave() {
     const errors = { name: "", birth: "", parentName: "", parentPhone: "" };
@@ -60,7 +62,10 @@ export function MemberInfoTab({
     }
 
     setFieldErrors(errors);
-    if (errors.name || errors.birth || errors.parentName || errors.parentPhone) return;
+    if (errors.name || errors.birth || errors.parentName || errors.parentPhone) {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
 
     if (editParentPhone) {
       setEditParentPhone(normalizePhone(editParentPhone));
@@ -69,7 +74,7 @@ export function MemberInfoTab({
   }
 
   return (
-    <ScrollView contentContainerStyle={ms.tabContent} showsVerticalScrollIndicator={false}>
+    <ScrollView ref={scrollRef} contentContainerStyle={ms.tabContent} showsVerticalScrollIndicator={false}>
       {isArchived && (
         <Pressable style={ms.restoreBanner} onPress={onRestoreMember}>
           <RotateCcw size={16} color="#7C3AED" />
@@ -102,6 +107,15 @@ export function MemberInfoTab({
           )}
         </View>
       </View>
+
+      {hasFieldErrors && (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", marginHorizontal: 16, marginBottom: 4, padding: 12, borderRadius: 10 }}>
+          <CircleAlert size={15} color="#DC2626" />
+          <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>
+            입력 오류가 있습니다. 아래 항목을 확인해주세요.
+          </Text>
+        </View>
+      )}
 
       <View style={ms.section}>
         <View style={ms.sectionHeader}>

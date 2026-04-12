@@ -1,4 +1,4 @@
-import { CircleCheck, Eye, PenLine, Plus, User, Users, X } from "lucide-react-native";
+import { CircleAlert, CircleCheck, Eye, PenLine, Plus, User, Users, X } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
@@ -173,7 +173,12 @@ export function TeacherAccountSheet({
                 <Text style={[ts.sheetTitle, { color: C.text }]}>선생님 계정 추가</Text>
                 <Pressable onPress={() => { setShowAdd(false); resetForm(); }}><X size={22} color={C.textSecondary} /></Pressable>
               </View>
-              {addError ? <View style={[ts.errBox, { backgroundColor: "#F9DEDA" }]}><Text style={[ts.errText, { color: "#D96C6C" }]}>{addError}</Text></View> : null}
+              {addError ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", padding: 12, borderRadius: 10, marginBottom: 4 }}>
+                  <CircleAlert size={15} color="#DC2626" />
+                  <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>{addError}</Text>
+                </View>
+              ) : null}
               <View style={ts.field}><Text style={[ts.label, { color: C.textSecondary }]}>이름 *</Text>
                 <TextInput style={[ts.input, { borderColor: C.border, color: C.text }]} value={form.name} onChangeText={v => setForm(f => ({ ...f, name: v }))} placeholder="선생님 이름" placeholderTextColor={C.textMuted} /></View>
               <View style={ts.field}><Text style={[ts.label, { color: C.textSecondary }]}>이메일 *</Text>
@@ -227,6 +232,12 @@ export function TeacherAccountSheet({
               <Text style={[ts.sheetTitle, { color: C.text }]}>선생님 정보 수정</Text>
               <Pressable onPress={() => setSelectedDetail(null)}><X size={22} color={C.textSecondary} /></Pressable>
             </View>
+            {(editErrors.name || editErrors.phone) ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", padding: 12, borderRadius: 10, marginBottom: 4 }}>
+                <CircleAlert size={15} color="#DC2626" />
+                <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>입력 오류가 있습니다. 아래 항목을 확인해주세요.</Text>
+              </View>
+            ) : null}
             <View style={ts.field}>
               <Text style={[ts.label, { color: C.textSecondary }]}>이름</Text>
               <TextInput

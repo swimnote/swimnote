@@ -1,6 +1,6 @@
 import { ArrowLeft, Calendar, ChevronRight, CircleAlert, CircleCheck, Clock, Droplet, Search, User } from "lucide-react-native";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
@@ -15,6 +15,33 @@ const C = Colors.light;
 
 interface PoolResult { id: string; name: string; address: string | null; }
 type Step = "pool" | "child" | "done" | "pending";
+
+function DoneAutoRedirect({ linkedName, poolName }: { linkedName: string; poolName: string }) {
+  const [countdown, setCountdown] = useState(2);
+  useEffect(() => {
+    const t = setTimeout(() => router.replace("/(parent)/home" as any), 2000);
+    const c = setInterval(() => setCountdown(p => p - 1), 1000);
+    return () => { clearTimeout(t); clearInterval(c); };
+  }, []);
+  return (
+    <View style={st.resultBox}>
+      <View style={[st.resultIcon, { backgroundColor: "#E6FFFA" }]}>
+        <CircleCheck size={44} color="#2EC4B6" />
+      </View>
+      <Text style={[st.resultTitle, { color: C.text }]}>연결 완료!</Text>
+      <Text style={[st.resultSub, { color: C.textSecondary }]}>
+        {linkedName}이(가) {poolName}과{"\n"}성공적으로 연결되었습니다.{"\n\n"}이제 자녀의 수업 기록을 확인할 수 있습니다.
+      </Text>
+      <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted }}>{countdown}초 후 홈으로 이동합니다</Text>
+      <Pressable
+        style={[st.submitBtn, { backgroundColor: C.button, alignSelf: "stretch", marginHorizontal: 32 }]}
+        onPress={() => router.replace("/(parent)/home" as any)}
+      >
+        <Text style={st.submitTxt}>지금 홈으로 이동</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 export default function LinkChildScreen() {
   const insets = useSafeAreaInsets();
@@ -33,6 +60,9 @@ export default function LinkChildScreen() {
   const [linkedName, setLinkedName]   = useState("");
   const [error, setError]             = useState("");
   const [fieldErrors, setFieldErrors] = useState({ name: "", birthYear: "" });
+
+  const childScrollRef = useRef<ScrollView>(null);
+  const hasFieldErrors = fieldErrors.name || fieldErrors.birthYear;
 
   async function searchPools() {
     if (!query.trim()) return;
@@ -58,7 +88,10 @@ export default function LinkChildScreen() {
     }
 
     setFieldErrors(errs);
-    if (errs.name || errs.birthYear) return;
+    if (errs.name || errs.birthYear) {
+      childScrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
 
     setSubmitting(true); setError("");
     try {
@@ -157,9 +190,18 @@ export default function LinkChildScreen() {
       {/* ── 2단계: 자녀 정보 입력 ─────────────────────────────── */}
       {step === "child" && selectedPool && (
         <ScrollView
+          ref={childScrollRef}
           contentContainerStyle={[st.content, { paddingBottom: insets.bottom + 40 }]}
           keyboardShouldPersistTaps="handled"
         >
+          {/* 에러 요약 배너 */}
+          {!!hasFieldErrors && (
+            <View style={[st.errBox, { backgroundColor: "#FEE2E2" }]}>
+              <CircleAlert size={15} color="#DC2626" />
+              <Text style={[st.errTxt, { color: "#DC2626" }]}>입력 오류가 있습니다. 아래 항목을 확인해주세요.</Text>
+            </View>
+          )}
+
           {/* 선택된 수영장 */}
           <View style={[st.selectedPool, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
             <Droplet size={16} color={C.tint} />
@@ -227,21 +269,7 @@ export default function LinkChildScreen() {
 
       {/* ── 완료: 자동 연결 ───────────────────────────────────── */}
       {step === "done" && (
-        <View style={st.resultBox}>
-          <View style={[st.resultIcon, { backgroundColor: "#E6FFFA" }]}>
-            <CircleCheck size={44} color="#2EC4B6" />
-          </View>
-          <Text style={[st.resultTitle, { color: C.text }]}>연결 완료!</Text>
-          <Text style={[st.resultSub, { color: C.textSecondary }]}>
-            {linkedName}이(가) {selectedPool?.name}과{"\n"}성공적으로 연결되었습니다.
-          </Text>
-          <Pressable
-            style={[st.submitBtn, { backgroundColor: C.button, alignSelf: "stretch", marginHorizontal: 32 }]}
-            onPress={() => router.replace("/(parent)/home" as any)}
-          >
-            <Text style={st.submitTxt}>홈으로 이동</Text>
-          </Pressable>
-        </View>
+        <DoneAutoRedirect linkedName={linkedName} poolName={selectedPool?.name ?? ""} />
       )}
 
       {/* ── 미매칭: 학생 정보 없음 ──────────────────────────── */}

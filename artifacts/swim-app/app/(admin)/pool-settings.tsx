@@ -2,7 +2,7 @@ import { validateName, validatePhone, normalizePhone } from "@/utils/validation"
 import { CircleAlert, DollarSign, File, Tag, Type, Users, BookOpen, CreditCard, Award, Gift, ShoppingBag } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView,
   Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -30,6 +30,8 @@ export default function PoolSettingsScreen() {
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({ name: "", phone: "" });
+  const scrollRef = useRef<ScrollView>(null);
+  const hasFieldErrors = fieldErrors.name || fieldErrors.phone;
 
   const [defaultCapacity, setDefaultCapacity] = useState<string>("5");
   const [savingCapacity,  setSavingCapacity]  = useState(false);
@@ -177,7 +179,10 @@ export default function PoolSettingsScreen() {
     }
 
     setFieldErrors(errs);
-    if (errs.name || errs.phone) return;
+    if (errs.name || errs.phone) {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
 
     // UI 표시값(form.phone)과 서버 전송값(normalizedPhone) 분리
     const formToSend = {
@@ -238,7 +243,13 @@ export default function PoolSettingsScreen() {
         }
       />
 
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: insets.bottom + 60 }} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: insets.bottom + 60 }} showsVerticalScrollIndicator={false}>
+        {hasFieldErrors ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", padding: 12, borderRadius: 10 }}>
+            <CircleAlert size={15} color="#DC2626" />
+            <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>입력 오류가 있습니다. 아래 항목을 확인해주세요.</Text>
+          </View>
+        ) : null}
         {error ? (
           <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
             <CircleAlert size={14} color={C.error} />

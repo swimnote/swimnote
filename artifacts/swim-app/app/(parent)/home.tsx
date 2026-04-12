@@ -483,12 +483,26 @@ export default function ParentHomeScreen() {
           })}
           <Pressable
             style={[s.childTab, s.childTabAdd, { backgroundColor: C.card, borderColor: C.border }]}
-            onPress={() => router.push("/(parent)/add-child" as any)}
+            onPress={() => router.push("/(parent)/link-child" as any)}
           >
             <Plus size={14} color={C.textSecondary} />
             <Text style={[s.childTabTxt, { color: C.textSecondary, marginLeft: 2 }]}>추가</Text>
           </Pressable>
         </ScrollView>
+      )}
+
+      {/* ─── B2. 이번 달 출석 요약 스트립 ─── */}
+      {selectedStudent && summary.attendance.total > 0 && (
+        <Pressable
+          onPress={() => router.push("/(parent)/attendance-history?backTo=home" as any)}
+          style={{ marginHorizontal: 20, marginBottom: 6, marginTop: 2, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: IB, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 }}
+        >
+          <LucideIcon name="calendar-check" size={14} color={TEAL} />
+          <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: TEAL, flex: 1 }}>
+            이번 달 출석 <Text style={{ fontFamily: "Pretendard-SemiBold" }}>{summary.attendance.attended}회</Text>
+          </Text>
+          <LucideIcon name="chevron-right" size={12} color={TEAL} />
+        </Pressable>
       )}
 
       <ScrollView
@@ -498,6 +512,32 @@ export default function ParentHomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />}
         contentContainerStyle={{ paddingBottom: insets.bottom + 60 }}
       >
+        {/* ─── 자녀 없음 빈 화면 ─── */}
+        {students.length === 0 && (
+          <View style={{ flex: 1, alignItems: "center", paddingTop: 60, paddingHorizontal: 32, gap: 16 }}>
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: IB, alignItems: "center", justifyContent: "center" }}>
+              <LucideIcon name="user-plus" size={38} color={TEAL} />
+            </View>
+            <Text style={{ fontSize: 20, fontFamily: "Pretendard-SemiBold", color: C.text, textAlign: "center" }}>
+              아직 연결된 자녀가 없습니다
+            </Text>
+            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 }}>
+              자녀를 연결하면 수업 기록을{"\n"}확인할 수 있습니다
+            </Text>
+            <Pressable
+              onPress={() => router.push("/(parent)/link-child" as any)}
+              style={({ pressed }) => ({
+                marginTop: 8, backgroundColor: pressed ? "#27B8AC" : TEAL,
+                borderRadius: 14, paddingVertical: 14, paddingHorizontal: 32,
+                alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 10,
+              })}
+            >
+              <LucideIcon name="link" size={18} color="#fff" />
+              <Text style={{ fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#fff" }}>자녀 연결하기</Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* ─── C. 자녀 히어로 카드 ─── */}
         {selectedStudent && (
           <ParentChildHeroCard
@@ -512,65 +552,67 @@ export default function ParentHomeScreen() {
         )}
 
         {/* ─── D. 빠른 바로가기 ─── */}
-        <ParentQuickActionGrid actions={quickActions} />
+        {students.length > 0 && <ParentQuickActionGrid actions={quickActions} />}
 
-        {/* ─── D2. 슬림 스트립 배너 ─── */}
-        <View style={{ marginTop: 12 }}>
-          <ParentPromoStrip />
-        </View>
-
-        {/* ─── D3. 이벤트/프로모션 슬라이더 배너 ─── */}
-        <View style={{ marginTop: 10 }}>
-          <ParentPromoBanner />
-        </View>
-
-        {/* ─── E. 오늘 확인할 것 ─── */}
-        <ParentTodoCard items={todoItems} />
-
-        {/* ─── F. 최근 수업일지 ─── */}
-        <ParentLatestDiaryCard
-          diaries={summary.latest_diaries}
-          onPress={() => router.push("/(parent)/diary?backTo=home" as any)}
-        />
-
-        {/* ─── G. 최근 사진 ─── */}
-        <ParentRecentPhotosCard
-          photos={summary.latest_photos}
-          unreadCount={unread_counts.photos}
-          token={token}
-          onPress={() => router.push("/(parent)/photos?backTo=home" as any)}
-        />
-
-        {/* ─── H. 최근 공지 ─── */}
-        <ParentNoticeCard
-          notices={summary.latest_notices}
-          unreadCount={unread_counts.notices}
-          onPress={() => router.push("/(parent)/notices?backTo=home" as any)}
-          onViewAll={() => router.push("/(parent)/notices?backTo=home" as any)}
-        />
-
-        {/* ─── I. 성장 ─── */}
-        <ParentGrowthCard
-          studentId={selectedStudent?.id}
-          currentLevel={summary.growth?.current_level ?? null}
-          prevLevel={summary.growth?.prev_level ?? null}
-          achievedDate={summary.growth?.achieved_date}
-          note={summary.growth?.note}
-          teacherName={summary.growth?.teacher_name}
-        />
-
-        {/* ─── J. 출석 ─── */}
-        <ParentAttendanceCard
-          attended={summary.attendance.attended}
-          total={summary.attendance.total}
-          latestStatus={summary.attendance.latest_status}
-        />
-
-        {summaryLoading && (
-          <View style={{ paddingVertical: 20, alignItems: "center" }}>
-            <ActivityIndicator color={C.tint} size="small" />
+        {students.length > 0 && <>
+          {/* ─── D2. 슬림 스트립 배너 ─── */}
+          <View style={{ marginTop: 12 }}>
+            <ParentPromoStrip />
           </View>
-        )}
+
+          {/* ─── D3. 이벤트/프로모션 슬라이더 배너 ─── */}
+          <View style={{ marginTop: 10 }}>
+            <ParentPromoBanner />
+          </View>
+
+          {/* ─── E. 오늘 확인할 것 ─── */}
+          <ParentTodoCard items={todoItems} />
+
+          {/* ─── F. 최근 수업일지 ─── */}
+          <ParentLatestDiaryCard
+            diaries={summary.latest_diaries}
+            onPress={() => router.push("/(parent)/diary?backTo=home" as any)}
+          />
+
+          {/* ─── G. 최근 사진 ─── */}
+          <ParentRecentPhotosCard
+            photos={summary.latest_photos}
+            unreadCount={unread_counts.photos}
+            token={token}
+            onPress={() => router.push("/(parent)/photos?backTo=home" as any)}
+          />
+
+          {/* ─── H. 최근 공지 ─── */}
+          <ParentNoticeCard
+            notices={summary.latest_notices}
+            unreadCount={unread_counts.notices}
+            onPress={() => router.push("/(parent)/notices?backTo=home" as any)}
+            onViewAll={() => router.push("/(parent)/notices?backTo=home" as any)}
+          />
+
+          {/* ─── I. 성장 ─── */}
+          <ParentGrowthCard
+            studentId={selectedStudent?.id}
+            currentLevel={summary.growth?.current_level ?? null}
+            prevLevel={summary.growth?.prev_level ?? null}
+            achievedDate={summary.growth?.achieved_date}
+            note={summary.growth?.note}
+            teacherName={summary.growth?.teacher_name}
+          />
+
+          {/* ─── J. 출석 ─── */}
+          <ParentAttendanceCard
+            attended={summary.attendance.attended}
+            total={summary.attendance.total}
+            latestStatus={summary.attendance.latest_status}
+          />
+
+          {summaryLoading && (
+            <View style={{ paddingVertical: 20, alignItems: "center" }}>
+              <ActivityIndicator color={C.tint} size="small" />
+            </View>
+          )}
+        </>}
       </ScrollView>
     </View>
   );
