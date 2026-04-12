@@ -6,25 +6,27 @@
  */
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, Pressable, ScrollView,
+  ActivityIndicator, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FileCheck, ShieldCheck, ChevronRight } from "lucide-react-native";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 
-const PURPLE  = "#7C3AED";
-const MINT    = "#2EC4B6";
-const NAVY    = "#0F172A";
+const PURPLE = "#7C3AED";
+const NAVY   = "#0F172A";
 
 export default function PolicyAgreementScreen() {
   const { token } = useAuth() as any;
 
-  const [loading,  setLoading]  = useState(true);
-  const [agreeing, setAgreeing] = useState(false);
-  const [version,  setVersion]  = useState("v1.0");
-  const [content,  setContent]  = useState("");
+  const [loading,      setLoading]      = useState(true);
+  const [agreeing,     setAgreeing]     = useState(false);
+  const [version,      setVersion]      = useState("v1.0");
+  const [content,      setContent]      = useState("");
+  const [confirmVisible, setConfirmVisible] = useState(false);
+  const [errorMsg,     setErrorMsg]     = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,33 +43,22 @@ export default function PolicyAgreementScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleAgree() {
-    Alert.alert(
-      "환불 정책 동의 확인",
-      `위 내용을 모두 읽었으며 동의합니다.\n\n현재 버전: ${version}`,
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "동의하고 계속하기",
-          onPress: async () => {
-            setAgreeing(true);
-            try {
-              const res  = await apiRequest(token, "/admin/refund-policy/agree", { method: "POST" });
-              const data = await res.json();
-              if (data.success) {
-                router.replace("/(admin)/(tabs)/dashboard" as any);
-              } else {
-                Alert.alert("오류", data.error ?? "처리에 실패했습니다.");
-              }
-            } catch {
-              Alert.alert("오류", "서버 연결에 실패했습니다.");
-            } finally {
-              setAgreeing(false);
-            }
-          },
-        },
-      ]
-    );
+  async function doAgree() {
+    setAgreeing(true);
+    setConfirmVisible(false);
+    try {
+      const res  = await apiRequest(token, "/admin/refund-policy/agree", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        router.replace("/(admin)/(tabs)/dashboard" as any);
+      } else {
+        setErrorMsg(data.error ?? "처리에 실패했습니다.");
+      }
+    } catch {
+      setErrorMsg("서버 연결에 실패했습니다.");
+    } finally {
+      setAgreeing(false);
+    }
   }
 
   if (loading) {
@@ -80,7 +71,7 @@ export default function PolicyAgreementScreen() {
 
   return (
     <SafeAreaView style={s.root} edges={["top", "bottom"]}>
-      {/* 헤더 영역 */}
+      {/* 헤더 */}
       <View style={s.hero}>
         <View style={s.heroIcon}>
           <FileCheck size={36} color={PURPLE} />
@@ -94,6 +85,13 @@ export default function PolicyAgreementScreen() {
           <Text style={s.versionTxt}>현재 버전: {version}</Text>
         </View>
       </View>
+
+      {/* 오류 메시지 */}
+      {errorMsg && (
+        <View style={s.errorBox}>
+          <Text style={s.errorTxt}>{errorMsg}</Text>
+        </View>
+      )}
 
       {/* 정책 내용 */}
       <ScrollView
@@ -124,12 +122,10 @@ export default function PolicyAgreementScreen() {
 
       {/* 동의 버튼 */}
       <View style={s.footer}>
-        <Text style={s.footerHint}>
-          위 내용을 모두 읽었다면 동의 버튼을 눌러주세요
-        </Text>
+        <Text style={s.footerHint}>위 내용을 모두 읽었다면 동의 버튼을 눌러주세요</Text>
         <Pressable
           style={[s.agreeBtn, agreeing && { opacity: 0.6 }]}
-          onPress={handleAgree}
+          onPress={() => setConfirmVisible(true)}
           disabled={agreeing}
         >
           {agreeing
@@ -138,43 +134,57 @@ export default function PolicyAgreementScreen() {
           }
         </Pressable>
       </View>
+
+      {/* 동의 확인 모달 */}
+      <ConfirmModal
+        visible={confirmVisible}
+        title="환불 정책 동의"
+        message={`위 내용을 모두 읽었으며 동의합니다.\n\n현재 버전: ${version}`}
+        confirmText="동의하고 계속하기"
+        onConfirm={doAgree}
+        onCancel={() => setConfirmVisible(false)}
+      />
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: "#FAFAFA" },
-  center:      { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FAFAFA" },
+  root:         { flex: 1, backgroundColor: "#FAFAFA" },
+  center:       { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FAFAFA" },
 
-  hero:        { alignItems: "center", paddingHorizontal: 24, paddingTop: 28, paddingBottom: 20,
-                 backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  heroIcon:    { width: 72, height: 72, borderRadius: 20, backgroundColor: "#F5F3FF",
-                 alignItems: "center", justifyContent: "center", marginBottom: 12 },
-  heroTitle:   { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 6 },
-  heroSub:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B",
-                 textAlign: "center", lineHeight: 20, marginBottom: 10 },
-  versionBadge:{ backgroundColor: "#EDE9FE", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  versionTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: PURPLE },
+  hero:         { alignItems: "center", paddingHorizontal: 24, paddingTop: 28, paddingBottom: 20,
+                  backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  heroIcon:     { width: 72, height: 72, borderRadius: 20, backgroundColor: "#F5F3FF",
+                  alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  heroTitle:    { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 6 },
+  heroSub:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B",
+                  textAlign: "center", lineHeight: 20, marginBottom: 10 },
+  versionBadge: { backgroundColor: "#EDE9FE", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  versionTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: PURPLE },
 
-  scroll:      { padding: 16, gap: 12 },
+  errorBox:     { backgroundColor: "#FEF2F2", paddingHorizontal: 16, paddingVertical: 10,
+                  borderBottomWidth: 1, borderBottomColor: "#FECACA" },
+  errorTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#DC2626", textAlign: "center" },
 
-  policyBox:   { backgroundColor: "#fff", borderRadius: 14, padding: 16,
-                 borderWidth: 1, borderColor: "#E5E7EB", gap: 10 },
-  policyHeader:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 4 },
-  line:        { flexDirection: "row", gap: 8, alignItems: "flex-start" },
-  lineText:    { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular",
-                 color: "#374151", lineHeight: 20 },
+  scroll:       { padding: 16, gap: 12 },
 
-  noticeBox:   { flexDirection: "row", gap: 10, alignItems: "flex-start",
-                 backgroundColor: "#EFF6FF", borderRadius: 12, padding: 14,
-                 borderWidth: 1, borderColor: "#BFDBFE" },
-  noticeTxt:   { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular",
-                 color: "#0369A1", lineHeight: 20 },
+  policyBox:    { backgroundColor: "#fff", borderRadius: 14, padding: 16,
+                  borderWidth: 1, borderColor: "#E5E7EB", gap: 10 },
+  policyHeader: { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 4 },
+  line:         { flexDirection: "row", gap: 8, alignItems: "flex-start" },
+  lineText:     { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular",
+                  color: "#374151", lineHeight: 20 },
 
-  footer:      { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24, gap: 8,
-                 backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
-  footerHint:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
-  agreeBtn:    { backgroundColor: PURPLE, borderRadius: 14, paddingVertical: 15,
-                 alignItems: "center" },
-  agreeTxt:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
+  noticeBox:    { flexDirection: "row", gap: 10, alignItems: "flex-start",
+                  backgroundColor: "#EFF6FF", borderRadius: 12, padding: 14,
+                  borderWidth: 1, borderColor: "#BFDBFE" },
+  noticeTxt:    { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular",
+                  color: "#0369A1", lineHeight: 20 },
+
+  footer:       { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24, gap: 8,
+                  backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
+  footerHint:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
+  agreeBtn:     { backgroundColor: PURPLE, borderRadius: 14, paddingVertical: 15,
+                  alignItems: "center" },
+  agreeTxt:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

@@ -7,13 +7,14 @@
  */
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet,
+  ActivityIndicator, Pressable, ScrollView, StyleSheet,
   Text, View,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CheckCircle, FileText, ChevronLeft, AlertCircle } from "lucide-react-native";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
@@ -33,9 +34,10 @@ export default function RefundPolicyScreen() {
   const insets = useSafeAreaInsets();
   const { backTo } = useLocalSearchParams<{ backTo?: string }>();
 
-  const [loading,  setLoading]  = useState(true);
-  const [agreeing, setAgreeing] = useState(false);
-  const [data,     setData]     = useState<PolicyData>({
+  const [loading,        setLoading]        = useState(true);
+  const [agreeing,       setAgreeing]       = useState(false);
+  const [confirmVisible, setConfirmVisible] = useState(false);
+  const [data,           setData]           = useState<PolicyData>({
     version: "v1.0", content: "", agreed: false,
     agreed_at: null, agreed_version: null, needs_reagree: true,
   });
@@ -61,40 +63,23 @@ export default function RefundPolicyScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleAgree() {
-    Alert.alert(
-      "환불 정책 동의",
-      `위 내용을 모두 읽고 동의합니다.\n현재 버전: ${data.version}`,
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "동의",
-          onPress: async () => {
-            setAgreeing(true);
-            try {
-              const res  = await apiRequest(token, "/admin/refund-policy/agree", { method: "POST" });
-              const json = await res.json();
-              if (json.success) {
-                setData(prev => ({
-                  ...prev,
-                  agreed: true,
-                  agreed_at: json.agreed_at,
-                  agreed_version: json.agreed_version ?? prev.version,
-                  needs_reagree: false,
-                }));
-                Alert.alert("동의 완료", "환불 정책에 동의했습니다.");
-              } else {
-                Alert.alert("오류", json.error ?? "처리에 실패했습니다.");
-              }
-            } catch {
-              Alert.alert("오류", "서버 연결에 실패했습니다.");
-            } finally {
-              setAgreeing(false);
-            }
-          },
-        },
-      ]
-    );
+  async function doAgree() {
+    setConfirmVisible(false);
+    setAgreeing(true);
+    try {
+      const res  = await apiRequest(token, "/admin/refund-policy/agree", { method: "POST" });
+      const json = await res.json();
+      if (json.success) {
+        setData(prev => ({
+          ...prev,
+          agreed: true,
+          agreed_at: json.agreed_at,
+          agreed_version: json.agreed_version ?? prev.version,
+          needs_reagree: false,
+        }));
+      }
+    } catch {}
+    finally { setAgreeing(false); }
   }
 
   function handleBack() {
@@ -211,7 +196,7 @@ export default function RefundPolicyScreen() {
               </Text>
               <Pressable
                 style={[s.agreeBtn, agreeing && { opacity: 0.6 }]}
-                onPress={handleAgree}
+                onPress={() => setConfirmVisible(true)}
                 disabled={agreeing}
               >
                 {agreeing
@@ -225,6 +210,15 @@ export default function RefundPolicyScreen() {
           )}
         </>
       )}
+
+      <ConfirmModal
+        visible={confirmVisible}
+        title="환불 정책 동의"
+        message={`위 내용을 모두 읽었으며 동의합니다.\n\n현재 버전: ${data.version}`}
+        confirmText={data.agreed ? "재동의합니다" : "동의합니다"}
+        onConfirm={doAgree}
+        onCancel={() => setConfirmVisible(false)}
+      />
     </View>
   );
 }
