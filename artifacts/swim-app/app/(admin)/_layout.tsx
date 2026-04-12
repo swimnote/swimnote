@@ -215,6 +215,7 @@ export default function AdminLayout() {
       <Tabs.Screen name="invite-qr"               options={{ href: null }} />
       <Tabs.Screen name="subscription"            options={{ href: null }} />
       <Tabs.Screen name="parents-list"            options={{ href: null }} />
+      <Tabs.Screen name="refund-policy"           options={{ href: null }} />
     </Tabs>
   );
 }

@@ -39,6 +39,7 @@ const CLASS_SETTINGS: MenuItem[] = [
 const OPS_SETTINGS: MenuItem[] = [
   { label: "공지사항 발송",      icon: "file-text",      color: "#0369A1", bg: NB, route: "/(admin)/notices",                   desc: "학부모 / 선생님 공지 관리" },
   { label: "구독 관리",          icon: "credit-card",    color: "#7C3AED", bg: NB, route: "/(admin)/subscription",              desc: "플랜 선택 및 구독 결제" },
+  { label: "환불 정책 확인",     icon: "file-check",     color: "#059669", bg: NB, route: "/(admin)/refund-policy",             desc: "환불 정책 확인 및 동의" },
   { label: "휴무일 관리",        icon: "x-square",       color: N,         bg: NB, route: "/(admin)/holidays",                  desc: "수영장 휴무 / 공휴일 설정" },
   { label: "푸시 발송 설정",     icon: "send",           color: N,         bg: NB, route: "/(admin)/push-message-settings",     desc: "단체 푸시 발송 규칙" },
   { label: "학부모 QR 초대",     icon: "qr-code",        color: "#0EA5E9", bg: NB, route: "/(admin)/invite-qr",                 desc: "QR 코드로 학부모·선생님 초대" },
