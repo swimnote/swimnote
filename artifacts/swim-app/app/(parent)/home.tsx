@@ -12,6 +12,7 @@
  *   4. 현재 레벨 카드
  */
 import { Bell, Plus, Settings } from "lucide-react-native";
+import { ParentPromoBanner } from "@/components/parent/ParentPromoBanner";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -519,6 +520,9 @@ export default function ParentHomeScreen() {
               growth={summary.growth}
               onPress={() => router.push("/(parent)/level?backTo=home" as any)}
             />
+
+            {/* 5. 광고 배너 */}
+            <ParentPromoBanner />
 
             {summaryLoading && (
               <View style={{ paddingVertical: 20, alignItems: "center" }}>
