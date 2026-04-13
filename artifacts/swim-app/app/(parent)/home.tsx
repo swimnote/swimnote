@@ -523,7 +523,9 @@ export default function ParentHomeScreen() {
             />
 
             {/* 5. 광고 배너 — 얇은 스트립 + 큰 슬라이더 */}
-            <ParentPromoStrip />
+            <View style={{ marginTop: 8 }}>
+              <ParentPromoStrip />
+            </View>
             <ParentPromoBanner />
 
             {summaryLoading && (
