@@ -13,6 +13,7 @@
  */
 import { Bell, Plus, Settings } from "lucide-react-native";
 import { ParentPromoBanner } from "@/components/parent/ParentPromoBanner";
+import { ParentPromoStrip } from "@/components/parent/ParentPromoStrip";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -521,7 +522,8 @@ export default function ParentHomeScreen() {
               onPress={() => router.push("/(parent)/level?backTo=home" as any)}
             />
 
-            {/* 5. 광고 배너 */}
+            {/* 5. 광고 배너 — 얇은 스트립 + 큰 슬라이더 */}
+            <ParentPromoStrip />
             <ParentPromoBanner />
 
             {summaryLoading && (
