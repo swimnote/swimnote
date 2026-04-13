@@ -32,7 +32,7 @@ import { AtSign, Bell, BellOff, Calendar, CircleCheck, Layers, Lock, Paperclip, 
 import * as DocumentPicker from "expo-document-picker";
 import { useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { parseDateSafe } from "@/domain/formatters";
 
 const C = Colors.light;
@@ -302,9 +302,9 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
         type: asset.mimeType || "application/octet-stream",
       } as any);
 
-      const res = await apiRequest(token, "/messenger/send-attachment", {
+      const res = await fetch(`${API_BASE}/messenger/send-attachment`, {
         method: "POST",
-        headers: { "Content-Type": "multipart/form-data" },
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
       if (res.ok) {
