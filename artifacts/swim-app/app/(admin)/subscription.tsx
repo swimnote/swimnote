@@ -360,6 +360,16 @@ export default function SubscriptionScreen() {
               ? "결제는 App Store(Apple)를 통해 처리됩니다."
               : "결제는 Google Play를 통해 처리됩니다."}
           </Text>
+
+          <View style={s.legalRow}>
+            <Pressable onPress={() => router.push("/terms" as any)} style={({ pressed }) => [s.legalBtn, { opacity: pressed ? 0.6 : 1 }]}>
+              <Text style={[s.legalBtnText, { color: C.tint }]}>이용약관 (EULA)</Text>
+            </Pressable>
+            <Text style={[s.legalSep, { color: C.textMuted }]}>·</Text>
+            <Pressable onPress={() => router.push("/privacy" as any)} style={({ pressed }) => [s.legalBtn, { opacity: pressed ? 0.6 : 1 }]}>
+              <Text style={[s.legalBtnText, { color: C.tint }]}>개인정보처리방침</Text>
+            </Pressable>
+          </View>
         </ScrollView>
       )}
 
@@ -495,4 +505,8 @@ const s = StyleSheet.create({
   manageBtn:      { borderColor: "#64748B" },
   manageBtnText:  { color: "#64748B", fontSize: 14, fontFamily: "Pretendard-Regular" },
   disclaimer: { fontSize: 12, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 18 },
+  legalRow:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, marginBottom: 8 },
+  legalBtn:     { paddingVertical: 4, paddingHorizontal: 2 },
+  legalBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", textDecorationLine: "underline" },
+  legalSep:     { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });
