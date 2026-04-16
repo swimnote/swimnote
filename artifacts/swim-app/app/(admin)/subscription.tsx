@@ -7,7 +7,7 @@
  * 플랜 탭 → RevenueCat 구매 플로우 직접 연동
  * RevenueCat 패키지 미로드 시 → billing 화면으로 폴백
  */
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, Linking, Platform, Pressable, ScrollView,
   StyleSheet, Text, View,
@@ -78,6 +78,19 @@ export default function SubscriptionScreen() {
     offeringsErrorDetail,
     refetchOfferings,
   } = useSubscription();
+
+  // RevenueCat에서 로드된 실제 가격 맵 (rcPackageId → 실제 가격 문자열)
+  const rcPriceMap = useMemo(() => {
+    const all = [
+      ...(soloOffering?.availablePackages ?? []),
+      ...(centerOffering?.availablePackages ?? []),
+    ];
+    const map: Record<string, string> = {};
+    for (const pkg of all) {
+      if (pkg.product.priceString) map[pkg.identifier] = pkg.product.priceString;
+    }
+    return map;
+  }, [soloOffering, centerOffering]);
 
   const [policyAgreed,  setPolicyAgreed]  = useState<boolean | null>(null);
   const [policyVersion, setPolicyVersion] = useState<string>("v1.0");
@@ -295,6 +308,7 @@ export default function SubscriptionScreen() {
               isPurchasing={isPurchasing}
               isUserSubscribed={isSubscribed}
               onSelect={plan.price === 0 ? undefined : () => handlePlanSelect(plan)}
+              rcPriceString={plan.rcPackageId ? rcPriceMap[plan.rcPackageId] : undefined}
             />
           ); })}
 
@@ -324,6 +338,7 @@ export default function SubscriptionScreen() {
               isPurchasing={isPurchasing}
               isUserSubscribed={isSubscribed}
               onSelect={() => handlePlanSelect(plan)}
+              rcPriceString={plan.rcPackageId ? rcPriceMap[plan.rcPackageId] : undefined}
             />
           ); })}
 
@@ -385,7 +400,7 @@ export default function SubscriptionScreen() {
 }
 
 function PlanCard({
-  plan, isCurrent, accentColor, isPurchasing, isUserSubscribed, onSelect,
+  plan, isCurrent, accentColor, isPurchasing, isUserSubscribed, onSelect, rcPriceString,
 }: {
   plan: PlanMeta;
   isCurrent: boolean;
@@ -393,6 +408,7 @@ function PlanCard({
   isPurchasing?: boolean;
   isUserSubscribed?: boolean;
   onSelect?: () => void;
+  rcPriceString?: string;
 }) {
   const isFree = plan.price === 0;
   const actionLabel = isCurrent
@@ -427,7 +443,7 @@ function PlanCard({
       <View style={s.planRow}>
         <Text style={[s.planName, { color: isFree ? C.textSecondary : C.text }]}>{plan.name}</Text>
         <Text style={[s.planPrice, { color: isFree ? C.textMuted : accentColor }]}>
-          {fmt(plan.price)}
+          {isFree ? "무료" : (rcPriceString ?? fmt(plan.price))}
           {!isFree && <Text style={s.planPriceSub}>/월</Text>}
         </Text>
       </View>
