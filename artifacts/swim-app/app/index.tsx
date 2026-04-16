@@ -48,7 +48,10 @@ export default function LoginScreen() {
   const [loading,    setLoading]          = useState(false);
   const [kakaoLoading, setKakaoLoading]   = useState(false);
   const [appleLoading, setAppleLoading]   = useState(false);
-  const [appleAvailable, setAppleAvailable] = useState(false);
+  // iOS 실기기에서는 Sign In with Apple이 거의 항상 사용 가능하므로 초기값 true.
+  // isAvailableAsync()가 명시적으로 false를 반환할 때만 숨김.
+  // 이렇게 하면 isAvailableAsync 응답 지연이나 일시 실패로 버튼이 사라지는 상황을 방지.
+  const [appleAvailable, setAppleAvailable] = useState(Platform.OS === "ios");
   const [error,      setError]            = useState("");
   const [failCount,  setFailCount]        = useState(0);
   const [showNotFoundModal, setShowNotFoundModal] = useState(false);
@@ -60,8 +63,12 @@ export default function LoginScreen() {
     if (Platform.OS === "ios") {
       AppleAuthentication.isAvailableAsync().then(available => {
         console.log("[LOGIN] apple available=" + available);
-        setAppleAvailable(available);
-      }).catch((e: any) => { console.log("[LOGIN] apple check error=" + e?.message); setAppleAvailable(false); });
+        // false가 확실히 확인될 때만 버튼 숨김. true 응답은 현재 상태 유지.
+        if (!available) setAppleAvailable(false);
+      }).catch((e: any) => {
+        // 체크 에러는 버튼 숨김으로 처리하지 않음 — 실기기에서는 정상 동작하므로 유지
+        console.log("[LOGIN] apple check error (버튼 유지)=" + e?.message);
+      });
     }
   }, []);
 
