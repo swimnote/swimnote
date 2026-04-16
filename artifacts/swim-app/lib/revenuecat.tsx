@@ -176,6 +176,11 @@ function useSubscriptionContext() {
       ? (entitlements[REVENUECAT_SOLO_ENTITLEMENT]?.productIdentifier ?? null)
       : null;
 
+  const offeringsErrorObj = offeringsQuery.error as any;
+  const offeringsErrorDetail = offeringsErrorObj
+    ? `[${offeringsErrorObj?.code ?? offeringsErrorObj?.underlyingErrorMessage ?? "unknown"}] ${offeringsErrorObj?.message ?? String(offeringsErrorObj)}`
+    : null;
+
   return {
     customerInfo:        customerInfoQuery.data ?? null,
     soloOffering:        offeringsQuery.data?.solo ?? null,
@@ -187,6 +192,7 @@ function useSubscriptionContext() {
     isLoading:           customerInfoQuery.isLoading || offeringsQuery.isLoading,
     offeringsLoading:    offeringsQuery.isLoading || offeringsQuery.isFetching,
     offeringsError:      offeringsQuery.isError,
+    offeringsErrorDetail,
     refetchOfferings:    offeringsQuery.refetch,
     purchase:            purchaseMutation.mutateAsync,
     restore:             restoreMutation.mutateAsync,

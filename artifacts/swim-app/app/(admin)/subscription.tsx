@@ -75,6 +75,7 @@ export default function SubscriptionScreen() {
     refetchCustomerInfo,
     offeringsLoading,
     offeringsError,
+    offeringsErrorDetail,
     refetchOfferings,
   } = useSubscription();
 
@@ -173,7 +174,13 @@ export default function SubscriptionScreen() {
       return;
     }
     if (offeringsError) {
-      showConfirm("구독 상품 로드 실패", "구독 상품 정보를 불러오지 못했습니다. '확인'을 눌러 다시 시도합니다.", () => refetchOfferings());
+      const detail = offeringsErrorDetail ?? "알 수 없는 오류";
+      console.error("[IAP] offerings 로드 실패 — raw error:", offeringsErrorDetail);
+      showConfirm(
+        "구독 상품 로드 실패",
+        `구독 상품 정보를 불러오지 못했습니다.\n\n오류: ${detail}\n\n'확인'을 눌러 다시 시도합니다.`,
+        () => refetchOfferings()
+      );
       return;
     }
 
