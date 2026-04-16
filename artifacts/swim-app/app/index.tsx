@@ -114,47 +114,71 @@ export default function LoginScreen() {
   }
 
   async function handleAppleLogin() {
-    if (!appleAvailable) { setError("이 기기에서는 Apple 로그인을 사용할 수 없습니다."); return; }
+    if (!appleAvailable) {
+      console.warn("[AppleLogin][STEP0] appleAvailable=false — isAvailableAsync가 false 반환. Sign In with Apple 미지원 기기 또는 OS 미지원");
+      setError("이 기기에서는 Apple 로그인을 사용할 수 없습니다.");
+      return;
+    }
     setAppleLoading(true); setError("");
+
+    // ── STEP 1: Apple signInAsync() 호출 시작 ──────────────────────
+    console.log("[AppleLogin][STEP1] signInAsync 호출 시작 — Apple 시스템 시트 표시");
+    let credential: Awaited<ReturnType<typeof AppleAuthentication.signInAsync>>;
     try {
-      const credential = await AppleAuthentication.signInAsync({
+      credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
-      const fullName = credential.fullName
-        ? [credential.fullName.familyName, credential.fullName.givenName].filter(Boolean).join("")
-        : null;
-      // identityToken이 null이면 Apple 인증 자체가 실패한 것
-      if (!credential.identityToken) {
-        setError("Apple 인증에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    } catch (signInErr: unknown) {
+      const e = signInErr as any;
+
+      // ── STEP 2 실패: Apple 시스템 시트에서 에러 발생 (서버 미도달) ──
+      if (e?.code === "ERR_REQUEST_CANCELED" || e?.code === "ERR_CANCELED") {
+        console.log("[AppleLogin][STEP2] 사용자 취소 — 정상");
+        setAppleLoading(false);
         return;
       }
-      await appleSocialLogin(credential.identityToken, fullName);
-    } catch (err: unknown) {
-      const e = err as any;
-      // 사용자가 직접 취소한 경우 → 무시
-      if (e?.code === "ERR_REQUEST_CANCELED" || e?.code === "ERR_CANCELED") return;
-
-      // Apple 시스템 레벨 오류 — signInAsync() 단계에서 Apple이 직접 반환
+      console.error(`[AppleLogin][STEP2 FAIL] Apple signInAsync 실패 — code: ${e?.code}, message: ${e?.message}`);
+      console.error("[AppleLogin][STEP2 FAIL] 이 에러는 서버에 도달하기 전 Apple 시스템 레벨 실패");
       if (e?.code === "ERR_SIGNUP_NOT_COMPLETED") {
-        console.error("[AppleLogin] ERR_SIGNUP_NOT_COMPLETED — Apple 시스템 오류. Apple Developer Portal Sign In with Apple 설정 확인 필요");
-        setError("Apple 로그인에 실패했습니다.\n\n잠시 후 다시 시도하거나 카카오·일반 로그인을 이용해주세요.");
-        return;
-      }
-      if (e?.code === "ERR_REQUEST_FAILED") {
-        console.error("[AppleLogin] ERR_REQUEST_FAILED — 네트워크 또는 Apple 서버 오류");
+        console.error("[AppleLogin][STEP2 FAIL] ERR_SIGNUP_NOT_COMPLETED — Apple Developer Portal에서 Sign In with Apple capability 미활성화이거나 provisioning profile 문제");
+        setError("Apple 로그인에 실패했습니다.\n잠시 후 다시 시도하거나 카카오·일반 로그인을 이용해주세요.");
+      } else if (e?.code === "ERR_REQUEST_FAILED") {
+        console.error("[AppleLogin][STEP2 FAIL] ERR_REQUEST_FAILED — 네트워크 또는 Apple 서버 연결 오류");
         setError("Apple 서버 연결에 실패했습니다. 네트워크를 확인하고 다시 시도해주세요.");
-        return;
+      } else {
+        setError("Apple 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
       }
-      if (e?.code === "ERR_INVALID_RESPONSE") {
-        console.error("[AppleLogin] ERR_INVALID_RESPONSE — Apple 응답 오류");
-        setError("Apple 인증 응답이 올바르지 않습니다. 잠시 후 다시 시도해주세요.");
-        return;
-      }
+      setAppleLoading(false);
+      return;
+    }
 
-      // 서버 응답 오류 (appleSocialLogin 에서 throw된 경우)
+    // ── STEP 2 성공: Apple credential 수신 완료 ──────────────────
+    console.log(`[AppleLogin][STEP2 OK] credential 수신 — hasToken: ${!!credential.identityToken}, hasEmail: ${!!credential.email}, hasName: ${!!credential.fullName}`);
+
+    if (!credential.identityToken) {
+      console.error("[AppleLogin][STEP2 FAIL] identityToken null — Apple 인증은 됐으나 토큰 없음");
+      setError("Apple 인증에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      setAppleLoading(false);
+      return;
+    }
+
+    const fullName = credential.fullName
+      ? [credential.fullName.familyName, credential.fullName.givenName].filter(Boolean).join("")
+      : null;
+
+    // ── STEP 3: 서버 요청 시작 ──────────────────────────────────
+    console.log("[AppleLogin][STEP3] 서버 요청 시작 — /auth/apple-social-login");
+    try {
+      await appleSocialLogin(credential.identityToken, fullName);
+      // ── STEP 4 성공: 로그인 완료 ──────────────────────────────
+      console.log("[AppleLogin][STEP4 OK] 서버 응답 성공 — 로그인 완료");
+    } catch (serverErr: unknown) {
+      const e = serverErr as any;
+      // ── STEP 4 실패: 서버 응답 오류 ──────────────────────────
+      console.error(`[AppleLogin][STEP4 FAIL] 서버 오류 — error_code: ${e?.error_code}, message: ${e?.message}`);
       const serverCode = e?.error_code;
       if (serverCode === "apple_no_account") {
         Alert.alert(
@@ -176,12 +200,14 @@ export default function LoginScreen() {
             },
           ]
         );
-        return;
+      } else if (serverCode === "network_error") {
+        setError("서버에 연결할 수 없습니다. 네트워크를 확인해주세요.");
+      } else {
+        setError(e?.message || "Apple 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
       }
-
-      console.error("[AppleLogin] 오류:", e?.code, e?.message);
-      setError("Apple 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
-    } finally { setAppleLoading(false); }
+    } finally {
+      setAppleLoading(false);
+    }
   }
 
   async function handleKakaoLogin() {
