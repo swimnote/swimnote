@@ -476,13 +476,33 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }
 
   async function appleSocialLogin(identityToken: string, fullName?: string | null) {
-    const res = await fetch(`${API_BASE}/auth/apple-social-login`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identityToken, fullName }),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/auth/apple-social-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identityToken, fullName }),
+        signal: controller.signal,
+      });
+    } catch (fetchErr: any) {
+      const isTimeout = fetchErr?.name === "AbortError";
+      console.error("[appleSocialLogin] 서버 연결 실패:", isTimeout ? "타임아웃(20s)" : fetchErr?.message);
+      throw Object.assign(
+        new Error(isTimeout
+          ? "서버 응답이 너무 늦습니다. 잠시 후 다시 시도해주세요."
+          : "서버에 연결할 수 없습니다. 네트워크를 확인해주세요."
+        ),
+        { error_code: "network_error" }
+      );
+    } finally {
+      clearTimeout(timer);
+    }
     const data = await safeJson(res);
+    console.log("[appleSocialLogin] 서버 응답:", res.status, data?.success ? "success" : data?.error_code);
     if (!res.ok) {
-      throw Object.assign(new Error(data.message || "Apple 로그인에 실패했습니다."), {
+      throw Object.assign(new Error(data.message || data.error || "Apple 로그인에 실패했습니다."), {
         error_code: data.error_code || "unknown",
         apple_info: data.apple_info || null,
       });

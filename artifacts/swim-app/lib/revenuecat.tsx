@@ -132,10 +132,20 @@ function useSubscriptionContext() {
   const offeringsQuery = useQuery({
     queryKey: ["rc", "offerings"],
     queryFn:  async () => {
-      const all = await Purchases.getOfferings();
-      const solo   = all.all[SOLO_OFFERING_ID] ?? null;
-      const center = all.all["center_monthly"] ?? null;
-      return { solo, center, current: all.current };
+      try {
+        const all = await Purchases.getOfferings();
+        const allKeys = Object.keys(all.all);
+        console.log("[RevenueCat] offerings 로드 성공. 발견된 offering IDs:", allKeys);
+        const solo   = all.all[SOLO_OFFERING_ID] ?? null;
+        const center = all.all["center_monthly"] ?? null;
+        if (!solo) console.warn(`[RevenueCat] offering '${SOLO_OFFERING_ID}' 없음. App Store Connect에서 IAP 상품(solo_30, solo_50, solo_100) 생성 여부 확인 필요`);
+        if (!center) console.warn("[RevenueCat] offering 'center_monthly' 없음. App Store Connect에서 IAP 상품(center_200 등) 생성 여부 확인 필요");
+        return { solo, center, current: all.current };
+      } catch (e: any) {
+        console.error("[RevenueCat] offerings 로드 실패:", e?.message ?? e);
+        console.error("[RevenueCat] 원인 가능성: 1) App Store Connect IAP 상품 미생성/Draft 상태, 2) Paid Apps Agreement 미수락, 3) RevenueCat-ASC 연결 오류, 4) 네트워크 문제");
+        throw e;
+      }
     },
     staleTime: 300_000,
     retry: 3,

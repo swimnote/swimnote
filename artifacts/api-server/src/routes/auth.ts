@@ -1675,11 +1675,29 @@ router.post("/apple-social-login", async (req, res) => {
     // Apple JWT 검증: apple-auth 라이브러리 없이 직접 페이로드 파싱 (신뢰된 환경)
     // identityToken은 Apple이 서명한 JWT. sub 클레임이 고유 사용자 ID(apple_id)
     const parts = identityToken.split(".");
-    if (parts.length !== 3) return err(res, 400, "유효하지 않은 Apple identity token 형식입니다.");
-    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    if (parts.length !== 3) {
+      console.error("[apple-social-login] 잘못된 JWT 형식 (parts=" + parts.length + ")");
+      return err(res, 400, "유효하지 않은 Apple identity token 형식입니다.");
+    }
+    let payload: any;
+    try {
+      payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    } catch (parseErr) {
+      console.error("[apple-social-login] JWT 페이로드 파싱 실패:", parseErr);
+      return err(res, 400, "Apple identity token 페이로드를 파싱할 수 없습니다.");
+    }
     const appleId = payload.sub as string;
     const appleEmail = payload.email as string | null;
-    if (!appleId) return err(res, 400, "Apple 사용자 ID를 확인할 수 없습니다.");
+    const tokenIss = payload.iss as string | null;
+    const tokenAud = payload.aud as string | null;
+    console.log("[apple-social-login] 시작 — appleId:", appleId ? appleId.substring(0, 8) + "***" : "없음",
+      "| email:", appleEmail ? "있음" : "없음",
+      "| fullName:", fullName ? "있음" : "없음",
+      "| iss:", tokenIss, "| aud:", tokenAud);
+    if (!appleId) {
+      console.error("[apple-social-login] sub 클레임 없음. payload keys:", Object.keys(payload));
+      return err(res, 400, "Apple 사용자 ID를 확인할 수 없습니다.");
+    }
 
     // 1) apple_id로 기존 계정 조회
     const byAppleId = await db.execute(sql`
@@ -1687,6 +1705,7 @@ router.post("/apple-social-login", async (req, res) => {
     `);
     if ((byAppleId.rows as any[]).length > 0) {
       const account = byAppleId.rows[0] as any;
+      console.log("[apple-social-login] 기존 계정(apple_id) 로그인 성공:", account.id);
       const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
       return res.json({
         success: true,
@@ -1710,6 +1729,7 @@ router.post("/apple-social-login", async (req, res) => {
       `);
       if ((byEmail.rows as any[]).length > 0) {
         const account = byEmail.rows[0] as any;
+        console.log("[apple-social-login] 이메일 매칭 후 apple_id 연결:", account.id);
         await db.execute(sql`
           UPDATE parent_accounts SET apple_id = ${appleId}, updated_at = NOW()
           WHERE id = ${account.id}
@@ -1735,12 +1755,19 @@ router.post("/apple-social-login", async (req, res) => {
     const newParentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const displayName = fullName || (appleEmail ? appleEmail.split("@")[0] : "Apple 사용자");
     const randomPinHash = await hashPassword(randomUUID()); // Apple로만 로그인하므로 실제 사용 안 됨
-    await db.execute(sql`
-      INSERT INTO parent_accounts
-        (id, swimming_pool_id, phone, pin_hash, name, login_id, apple_id, created_at, updated_at)
-      VALUES
-        (${newParentId}, NULL, NULL, ${randomPinHash}, ${displayName}, ${appleEmail || null}, ${appleId}, now(), now())
-    `);
+    console.log("[apple-social-login] 신규 계정 생성 시도:", newParentId, "| name:", displayName, "| email:", appleEmail ? "있음" : "없음");
+    try {
+      await db.execute(sql`
+        INSERT INTO parent_accounts
+          (id, swimming_pool_id, phone, pin_hash, name, login_id, apple_id, created_at, updated_at)
+        VALUES
+          (${newParentId}, NULL, NULL, ${randomPinHash}, ${displayName}, ${appleEmail || null}, ${appleId}, now(), now())
+      `);
+    } catch (insertErr: any) {
+      console.error("[apple-social-login] INSERT 실패:", insertErr?.message ?? insertErr);
+      throw insertErr;
+    }
+    console.log("[apple-social-login] 신규 계정 생성 완료:", newParentId);
     const token = signToken({ userId: newParentId, role: "parent_account", poolId: null });
     return res.json({
       success: true,

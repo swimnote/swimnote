@@ -136,8 +136,27 @@ export default function LoginScreen() {
       const e = err as any;
       // 사용자가 직접 취소한 경우 → 무시
       if (e?.code === "ERR_REQUEST_CANCELED" || e?.code === "ERR_CANCELED") return;
-      const code = e?.error_code;
-      if (code === "apple_no_account") {
+
+      // Apple 시스템 레벨 오류 — signInAsync() 단계에서 Apple이 직접 반환
+      if (e?.code === "ERR_SIGNUP_NOT_COMPLETED") {
+        console.error("[AppleLogin] ERR_SIGNUP_NOT_COMPLETED — Apple 시스템 오류. Apple Developer Portal Sign In with Apple 설정 확인 필요");
+        setError("Apple 로그인에 실패했습니다.\n\n잠시 후 다시 시도하거나 카카오·일반 로그인을 이용해주세요.");
+        return;
+      }
+      if (e?.code === "ERR_REQUEST_FAILED") {
+        console.error("[AppleLogin] ERR_REQUEST_FAILED — 네트워크 또는 Apple 서버 오류");
+        setError("Apple 서버 연결에 실패했습니다. 네트워크를 확인하고 다시 시도해주세요.");
+        return;
+      }
+      if (e?.code === "ERR_INVALID_RESPONSE") {
+        console.error("[AppleLogin] ERR_INVALID_RESPONSE — Apple 응답 오류");
+        setError("Apple 인증 응답이 올바르지 않습니다. 잠시 후 다시 시도해주세요.");
+        return;
+      }
+
+      // 서버 응답 오류 (appleSocialLogin 에서 throw된 경우)
+      const serverCode = e?.error_code;
+      if (serverCode === "apple_no_account") {
         Alert.alert(
           "연결된 계정 없음",
           "이 Apple ID에 연결된 SwimNote 계정이 없습니다.\n\n수영장 관리자에게 전화번호 등록을 요청한 후 '계정 연결하기'를 눌러주세요.",
@@ -159,7 +178,9 @@ export default function LoginScreen() {
         );
         return;
       }
-      setError(e?.message || "Apple 로그인에 실패했습니다. 다시 시도해주세요.");
+
+      console.error("[AppleLogin] 오류:", e?.code, e?.message);
+      setError("Apple 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
     } finally { setAppleLoading(false); }
   }
 
