@@ -1,0 +1,72 @@
+Hello,
+
+Thank you for your efforts to follow our guidelines. There are still some issues that need your attention.
+
+If you have any questions, we are here to help. Reply to this message in App Store Connect and let us know. 
+
+Review Environment
+Submission ID: 57196ca5-e625-472b-a1f4-3e24a0e674df
+Review date: April 16, 2026
+Review Device: iPad Air 11-inch (M3)
+Version reviewed: 1.3.3
+
+Guideline 2.1(a) - Performance - App Completeness
+Issue Description
+
+The app still exhibited one or more bugs that would negatively impact users.
+
+Bug description: We were unable to complete Sign in with Apple. 
+
+Review device details:
+
+- Device type: iPad Air 11-inch (M3) and iPhone 17 Pro Max 
+- OS version: iPadOS 26.4.1 and iOS 26.4.1
+- Internet Connection: Active
+
+Next Steps
+
+Test the app on supported devices to identify and resolve bugs and stability issues before submitting for review.
+
+If the bug cannot be reproduced, try the following:
+
+- For new apps, uninstall all previous versions of the app from a device, then install and follow the steps to reproduce.
+- For app updates, install the new version as an update to the previous version, then follow the steps to reproduce.
+
+Note that users expect apps they download to function on all the devices where they are available. For example, apps that may be downloaded onto iPad devices should function as expected for iPad users.
+Guideline 2.1(b) - Performance - App Completeness
+
+Issue Description
+
+We are still unable to complete the review of the app because one or more of the In-App Purchase products have not been submitted for review.
+
+Specifically, the app includes references to subscription but the associated In-App Purchase products have not been submitted for review. 
+
+Next Steps
+
+To resolve this issue, please be sure to take action and submit your In-App Purchases and upload a new binary in App Store Connect so we can proceed with our review. 
+
+Note you must provide an App Review screenshot in App Store Connect in order to submit In-App Purchases for review. Learn more about required In-App Purchase metadata.
+Guideline 2.1(b) - Performance - App Completeness
+
+Issue Description
+
+The In-App Purchase products in the app still exhibited one or more bugs which create a poor user experience. Specifically, the app displayed an error message when we attempted to purchase the in-app purchase products. Review the details and resources below to troubleshoot this issue.
+
+Review device details: 
+
+- Device type: iPad Air 11-inch (M3) 
+- OS version: iPadOS 26.4.1
+
+Next Steps
+
+Apple reviews In-App Purchase products in the sandbox and the In-App Purchase products do not need prior approval to function in review. Review the product configurations, complete any missing information, and test them in the sandbox.
+
+To offer In-App Purchases in the app, the Account Holder must also accept the Paid Apps Agreement in the Business section of App Store Connect. Confirm you have a Paid Apps Agreement in effect.
+
+If you still need assistance after completing the steps and reviewing the resources, visit the Apple Developer Forums. If you can’t find an answer from an existing thread, start a new thread with your question to get guidance from Apple engineers and other developers.
+
+Support
+- Reply to this message in your preferred language if you need assistance. If you need additional support, use the Contact Us module.
+- Consult with fellow developers and Apple engineers on the Apple Developer Forums.
+- Request an App Review Appointment at Meet with Apple to discuss your app's review. Appointments subject to availability during your local business hours on Tuesdays and Thursdays.
+- Provide feedback on this message and your review experience by completing a short survey.

@@ -285,38 +285,64 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
   const handleFileAttach = useCallback(async () => {
     setShowAttachMenu(false);
     if (!token) return;
+
+    let result: DocumentPicker.DocumentPickerResult;
     try {
-      const result = await DocumentPicker.getDocumentAsync({
+      result = await DocumentPicker.getDocumentAsync({
         type: "*/*",
         copyToCacheDirectory: true,
+        multiple: false,
       });
-      if (result.canceled || !result.assets?.[0]) return;
-      const asset = result.assets[0];
+    } catch (pickerErr: any) {
+      console.error("[messenger] DocumentPicker error", pickerErr);
+      Alert.alert("파일 선택 오류", "파일을 선택할 수 없습니다. 다시 시도해주세요.");
+      return;
+    }
 
-      setSending(true);
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+
+    if (!asset.uri) {
+      Alert.alert("오류", "파일 경로를 읽을 수 없습니다.");
+      return;
+    }
+
+    setSending(true);
+    try {
       const formData = new FormData();
       formData.append("pool_id", poolId);
       formData.append("file", {
         uri: asset.uri,
-        name: asset.name,
+        name: asset.name ?? "attachment",
         type: asset.mimeType || "application/octet-stream",
       } as any);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
       const res = await fetch(`${API_BASE}/messenger/send-attachment`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
       if (res.ok) {
         const d = await res.json();
         if (d.message) setTalkMessages((prev) => [d.message, ...prev]);
       } else {
-        const d = await res.json();
-        Alert.alert("오류", d.message || "파일 전송에 실패했습니다.");
+        let errMsg = "파일 전송에 실패했습니다.";
+        try { const d = await res.json(); errMsg = d.message || errMsg; } catch {}
+        Alert.alert("오류", errMsg);
       }
     } catch (e: any) {
-      console.error("[messenger] fileAttach error", e);
-      Alert.alert("오류", "파일 전송 중 문제가 발생했습니다.");
+      console.error("[messenger] fileAttach upload error", e);
+      if (e?.name === "AbortError") {
+        Alert.alert("연결 시간 초과", "서버 응답이 없습니다. 잠시 후 다시 시도해주세요.");
+      } else {
+        Alert.alert("오류", "파일 전송 중 문제가 발생했습니다. 네트워크 상태를 확인해주세요.");
+      }
     } finally {
       setSending(false);
     }
