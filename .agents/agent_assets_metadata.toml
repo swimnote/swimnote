@@ -48,3 +48,21 @@ id = "jXlnmc-agVTy34Z4fgzjc"
 uri = "file://screenshots/screenshot2.jpg"
 type = "image"
 title = "스크린샷 2 - 학부모 화면"
+
+[[outputs]]
+id = "ZiAk_4zO8ZniyMgCcZcbh"
+uri = "file://attached_assets/KakaoTalk_20260417_111740413_1776392331681.jpg"
+type = "image"
+title = "회원가입 Step1 - 기본정보 입력"
+
+[[outputs]]
+id = "sYvEEaUP7YleLBAJ0IgBL"
+uri = "file://attached_assets/KakaoTalk_20260417_111740413_01_1776392331681.jpg"
+type = "image"
+title = "회원가입 Step2 - 휴대폰 인증"
+
+[[outputs]]
+id = "cGYypCsOOCeu9bkOgRRrg"
+uri = "file://attached_assets/IMG_1504_1776356970629.png"
+type = "image"
+title = "구독 관리 화면"
