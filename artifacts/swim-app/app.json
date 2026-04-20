@@ -44,7 +44,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.swimnote.app",
-      "versionCode": 117,
+      "versionCode": 118,
       "edgeToEdge": true,
       "allowBackup": false
     },
@@ -85,7 +85,23 @@
           "kotlinVersion": "2.0.21",
           "overrideKakaoSDKVersion": "2.22.0"
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SwimNote accesses your photo library to attach photos to lesson diaries.",
+          "cameraPermission": "SwimNote uses the camera to take photos for lesson diaries."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "SwimNote saves photos to your photo library.",
+          "savePhotosPermission": "SwimNote saves photos to your photo library.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      "./plugins/withRemoveMediaPermissions"
     ],
     "experiments": {
       "typedRoutes": true,
