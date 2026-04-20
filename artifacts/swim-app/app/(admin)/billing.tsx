@@ -9,13 +9,17 @@ import {
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
-import { useSubscription, PACKAGE_META, REVENUECAT_SOLO_ENTITLEMENT } from "@/lib/revenuecat";
+import { useSubscription, REVENUECAT_SOLO_ENTITLEMENT, REVENUECAT_CENTER_ENTITLEMENT } from "@/lib/revenuecat";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { billingEnabled } from "@/config/billing";
-import { CircleAlert, CircleX, CreditCard, ExternalLink, RotateCcw, TriangleAlert, Check, X } from "lucide-react-native";
+import {
+  CircleAlert, CircleX, CreditCard, ExternalLink,
+  RotateCcw, TriangleAlert, Check, X, ChevronRight,
+  Users, HardDrive, Image, Video, BookOpen, Baby, Palette, CalendarClock,
+} from "lucide-react-native";
 
 const STORE_NAME   = Platform.OS === "ios" ? "App Store (Apple)" : "Google Play";
 const STORE_MANAGE = Platform.OS === "ios"
@@ -37,20 +41,64 @@ interface BillingStatus {
   storage_mb: number | null;
   current_tier: string;
   next_billing_at?: string | null;
-  // 다운그레이드 예약 필드
   pending_tier?: string | null;
   pending_plan_name?: string | null;
   downgrade_at?: string | null;
 }
 
+const PAYMENT_FAILED_STATUSES = new Set(["payment_failed", "pending_deletion", "deleted"]);
+
+// 티어별 색상
 const TIER_COLOR: Record<string, string> = {
   free:     "#64748B",
   starter:  "#4EA7D8",
   basic:    "#2E9B6F",
   standard: "#2EC4B6",
+  center_200: "#F59E0B",
+  advance:  "#F59E0B",
+  pro:      "#F59E0B",
+  max:      "#F59E0B",
 };
 
-const PAYMENT_FAILED_STATUSES = new Set(["payment_failed", "pending_deletion", "deleted"]);
+// 티어별 플랜 상세 정보
+interface TierDetail {
+  label: string;
+  isCenter: boolean;
+  features: { icon: React.ReactNode; label: string; included: boolean; note?: string }[];
+}
+
+function getTierDetail(tier: string, memberLimit: number, displayStorage: string | null, themeColor: string): TierDetail {
+  const isFree    = tier === "free";
+  const isCenter  = ["center_200","advance","pro","max"].includes(tier);
+  const iconSize  = 15;
+  const checkColor = isCenter ? "#F59E0B" : themeColor;
+  const dimColor  = "#D1D5DB";
+
+  const features = [
+    { icon: <Image size={iconSize} color={checkColor} />,   label: "사진 업로드",        included: true },
+    { icon: <BookOpen size={iconSize} color={checkColor} />, label: "출결 관리",          included: true },
+    { icon: <BookOpen size={iconSize} color={checkColor} />, label: "수업 일지",          included: !isFree },
+    { icon: <Baby size={iconSize} color={!isFree ? checkColor : dimColor} />, label: "학부모 연동",  included: !isFree },
+    {
+      icon: <Video size={iconSize} color={isCenter ? checkColor : dimColor} />,
+      label: "영상 업로드",
+      included: isCenter,
+      note: isCenter ? undefined : "Premier 전용",
+    },
+    {
+      icon: <Palette size={iconSize} color={isCenter ? checkColor : dimColor} />,
+      label: "화이트라벨 (앱 이름·로고 커스텀)",
+      included: isCenter,
+      note: isCenter ? undefined : "Premier 전용",
+    },
+  ];
+
+  return {
+    label: isCenter ? "Premier (수영장/센터)" : isFree ? "무료" : "Coach (개인 선생님)",
+    isCenter,
+    features,
+  };
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -67,14 +115,9 @@ export default function BillingScreen() {
   const { token, refreshPool } = useAuth();
   const { themeColor } = useBrand();
   const {
-    soloOffering,
-    centerOffering,
     isSubscribed,
-    activePackageId,
     isLoading: rcLoading,
-    purchase,
     restore,
-    isPurchasing,
     isRestoring,
     customerInfo,
     refetchCustomerInfo,
@@ -129,44 +172,11 @@ export default function BillingScreen() {
   }, [token]);
 
   useEffect(() => { loadBillingInfo(); }, [loadBillingInfo]);
-  // 화면 포커스 복귀 시 재조회 (슈퍼관리자 변경 직후 즉시 반영)
   useFocusEffect(useCallback(() => { loadBillingInfo(); }, [loadBillingInfo]));
-
-  async function syncRcSubscriptionToServer(info: any) {
-    try {
-      const entitlement = info?.entitlements?.active?.[REVENUECAT_SOLO_ENTITLEMENT];
-      if (!entitlement) return;
-      await apiRequest(token, "/billing/sync-rc-subscription", {
-        method: "POST",
-        body: JSON.stringify({
-          productId:     entitlement.productIdentifier,
-          entitlementId: REVENUECAT_SOLO_ENTITLEMENT,
-          expiresAt:     entitlement.expirationDate ? entitlement.expirationDate.slice(0, 10) : null,
-          isActive:      true,
-        }),
-      });
-    } catch (e) {
-      console.warn("[billing] 서버 동기화 실패 (무시):", e);
-    }
-  }
-
-  async function handlePurchase(pkg: any) {
-    try {
-      const info = await purchase(pkg);
-      await syncRcSubscriptionToServer(info);
-      await loadBillingInfo();
-      await refreshPool();
-      showConfirm("구독 완료", "구독이 성공적으로 시작되었습니다!", () => {});
-    } catch (e: any) {
-      if (e?.userCancelled) return;
-      showConfirm("구독 실패", e?.message ?? "결제 중 오류가 발생했습니다.", () => {});
-    }
-  }
 
   async function handleRestore() {
     try {
       const info = await restore();
-      await syncRcSubscriptionToServer(info);
       await loadBillingInfo();
       await refreshPool();
       showConfirm("복원 완료", "이전 구독이 복원되었습니다.", () => {});
@@ -186,9 +196,21 @@ export default function BillingScreen() {
 
   const currentTier  = billingInfo?.current_tier ?? "free";
   const tierColor    = TIER_COLOR[currentTier] ?? themeColor;
+  const tierDetail   = getTierDetail(currentTier, billingInfo?.member_limit ?? 10, billingInfo?.display_storage ?? null, themeColor);
 
-  const soloPackages   = soloOffering?.availablePackages   ?? [];
-  const centerPackages = centerOffering?.availablePackages ?? [];
+  // 다운그레이드 예약 시 미래 플랜 상세
+  const pendingTierDetail = billingInfo?.pending_tier
+    ? getTierDetail(billingInfo.pending_tier, 0, null, themeColor)
+    : null;
+
+  // 갱신일: RC entitlement > 서버값
+  const centerEnt = customerInfo?.entitlements.active[REVENUECAT_CENTER_ENTITLEMENT];
+  const soloEnt   = customerInfo?.entitlements.active[REVENUECAT_SOLO_ENTITLEMENT];
+  const renewalDate =
+    centerEnt?.expirationDate?.slice(0, 10) ??
+    soloEnt?.expirationDate?.slice(0, 10) ??
+    billingInfo?.next_billing_at?.slice(0, 10) ??
+    null;
 
   return (
     <View style={s.safe}>
@@ -240,9 +262,7 @@ export default function BillingScreen() {
               <View style={[s.planDot, { backgroundColor: tierColor }]} />
               <View style={{ flex: 1 }}>
                 <Text style={s.planName}>
-                  {isSubscribed
-                    ? (PACKAGE_META[activePackageId ?? ""]?.name ?? billingInfo?.plan_name ?? "구독 중")
-                    : (billingInfo?.plan_name ?? "무료 이용")}
+                  {billingInfo?.plan_name ?? "무료 이용"}
                 </Text>
                 <Text style={s.planMeta}>
                   최대 {billingInfo?.member_limit ?? 10}명
@@ -262,37 +282,36 @@ export default function BillingScreen() {
                 {billingInfo?.member_count ?? 0}명 / {billingInfo?.member_limit ?? 10}명
               </Text>
             </View>
-            {isSubscribed && customerInfo?.entitlements.active[REVENUECAT_SOLO_ENTITLEMENT]?.expirationDate && (
+            {isSubscribed && renewalDate && !billingInfo?.pending_tier && (
               <View style={s.infoRow}>
                 <Text style={s.metaLabel}>다음 갱신일</Text>
-                <Text style={s.metaValue}>
-                  {customerInfo.entitlements.active[REVENUECAT_SOLO_ENTITLEMENT]?.expirationDate?.slice(0, 10) ?? "-"}
-                </Text>
-              </View>
-            )}
-            {billingInfo?.next_billing_at && !billingInfo?.pending_tier && (
-              <View style={s.infoRow}>
-                <Text style={s.metaLabel}>다음 갱신일</Text>
-                <Text style={s.metaValue}>{billingInfo.next_billing_at.slice(0, 10)}</Text>
+                <Text style={s.metaValue}>{renewalDate}</Text>
               </View>
             )}
           </View>
 
           {/* ── 다운그레이드 예약 배너 ── */}
           {billingInfo?.pending_tier && billingInfo?.downgrade_at && (
-            <View style={[s.storageBanner, { backgroundColor: "#FEF9C3", borderColor: "#CA8A04", marginTop: 10 }]}>
-              <TriangleAlert size={14} color="#CA8A04" />
-              <View style={{ flex: 1 }}>
-                <Text style={[s.storageBannerTitle, { color: "#92400E" }]}>
-                  다운그레이드 예약됨
-                </Text>
-                <Text style={[s.storageBannerDesc, { color: "#78350F" }]}>
-                  {billingInfo.downgrade_at.slice(0, 10)}에{" "}
-                  <Text style={{ fontFamily: "Pretendard-SemiBold" }}>
-                    {billingInfo.pending_plan_name ?? billingInfo.pending_tier}
-                  </Text>{" "}
-                  플랜으로 전환됩니다. 그 전까지 현재 플랜이 유지됩니다.
-                </Text>
+            <View style={[s.downgradeBanner]}>
+              <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+                <CalendarClock size={16} color="#92400E" style={{ marginTop: 1 }} />
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={s.downgradeTitle}>다운그레이드 예약됨</Text>
+                  <Text style={s.downgradeDesc}>
+                    현재 결제 주기가 끝나는{" "}
+                    <Text style={s.downgradeDateBold}>{billingInfo.downgrade_at.slice(0, 10)}</Text>
+                    {" "}이후{"\n"}
+                    <Text style={s.downgradeDateBold}>
+                      {billingInfo.pending_plan_name ?? billingInfo.pending_tier}
+                    </Text>
+                    {" "}플랜으로 자동 전환됩니다.
+                  </Text>
+                  <Text style={s.downgradeNote}>
+                    · 전환 전까지 현재 플랜 혜택이 그대로 유지됩니다{"\n"}
+                    · 전환 후 초과 회원은 새 플랜 한도로 제한됩니다{"\n"}
+                    · 플랜 유지를 원하면 구독 변경에서 재구독하세요
+                  </Text>
+                </View>
               </View>
             </View>
           )}
@@ -364,191 +383,85 @@ export default function BillingScreen() {
           )}
         </View>
 
-        {/* ── Coach 구독 플랜 ── */}
-        <Section title="Coach 구독 플랜 (개인 선생님)">
-          {rcLoading ? (
-            <View style={s.emptyOffering}>
-              <ActivityIndicator size="small" color={themeColor} />
-              <Text style={[s.emptyOfferingText, { marginTop: 8 }]}>플랜 불러오는 중...</Text>
+        {/* ── 현재 플랜 상세 ── */}
+        <Section title="현재 플랜 포함 기능">
+          <View style={[s.detailCard, { borderColor: tierColor + "40" }]}>
+            {/* 플랜 요약 헤더 */}
+            <View style={[s.detailHeader, { backgroundColor: tierColor + "12" }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.detailPlanName, { color: tierColor }]}>
+                  {billingInfo?.plan_name ?? "무료"}
+                </Text>
+                <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
+                  <View style={s.detailChip}>
+                    <Users size={11} color="#64748B" />
+                    <Text style={s.detailChipText}>최대 {billingInfo?.member_limit ?? 10}명</Text>
+                  </View>
+                  <View style={s.detailChip}>
+                    <HardDrive size={11} color="#64748B" />
+                    <Text style={s.detailChipText}>{billingInfo?.display_storage ?? "100MB"}</Text>
+                  </View>
+                </View>
+              </View>
             </View>
-          ) : soloPackages.length === 0 ? (
-            <View style={s.emptyOffering}>
-              <Text style={[s.emptyOfferingText, { fontFamily: "Pretendard-SemiBold", marginBottom: 4 }]}>구독 플랜을 불러올 수 없습니다</Text>
-              <Text style={[s.emptyOfferingText, { fontSize: 12, color: "#94A3B8" }]}>
-                App Store에 인앱결제 상품이 등록·심사 완료된 후 이용 가능합니다.{"\n"}아래로 당겨서 새로고침하세요.
-              </Text>
-            </View>
-          ) : (
-            <View style={{ gap: 14 }}>
-              {soloPackages.map((pkg) => {
-                const pkgId     = pkg.identifier;
-                const meta      = PACKAGE_META[pkgId];
-                const isCurrent = isSubscribed && activePackageId === pkg.product.identifier;
-                const planName  = meta?.name ?? pkg.product.title ?? pkgId;
-                const memberLim = meta?.memberLimit ?? 0;
-                const storage   = meta?.storage ?? "";
-                const priceStr  = pkg.product.priceString;
-                const isChanging   = isSubscribed && !isCurrent;
-                const btnLabel    = isCurrent ? "현재 플랜" : isChanging ? "플랜 변경하기" : `${STORE_NAME.split(" ")[0]}로 구독하기`;
-                const btnColor    = isCurrent ? "#E5E7EB" : themeColor;
-                const btnTxtColor = isCurrent ? "#9CA3AF" : "#fff";
-                const confirmMsg  = isChanging
-                  ? `현재 구독을 ${planName}으로 변경합니다.\n${priceStr}/월 · 최대 ${memberLim}명 · ${storage}\n\n결제 수단: ${STORE_NAME}`
-                  : `${priceStr}/월 · 최대 ${memberLim}명 · ${storage}\n\n결제 수단: ${STORE_NAME}`;
-                const featureRows: { label: string; ok: boolean }[] = [
-                  { label: "사진 업로드",  ok: true },
-                  { label: "출결 관리",    ok: true },
-                  { label: "수업 일지",    ok: true },
-                  { label: "학부모 연동",  ok: true },
-                  { label: "영상 업로드",  ok: false },
-                  { label: "화이트라벨",   ok: false },
-                ];
-                const triggerPurchase = () => {
-                  if (isCurrent || isPurchasing) return;
-                  showConfirm(isChanging ? `${planName} 플랜 변경` : `${planName} 구독`, confirmMsg, () => handlePurchase(pkg));
-                };
-                return (
-                  <Pressable
-                    key={pkgId}
-                    onPress={triggerPurchase}
-                    disabled={isCurrent || isPurchasing}
-                    style={({ pressed }) => [
-                      s.planCard,
-                      isCurrent && { borderColor: themeColor, borderWidth: 2 },
-                      pressed && !isCurrent && { opacity: 0.88 },
-                    ]}
-                  >
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <View style={{ gap: 2, flex: 1 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <Text style={[s.planCardName, { color: themeColor }]}>{planName}</Text>
-                          {isCurrent && (
-                            <View style={[s.currentTag, { backgroundColor: themeColor }]}>
-                              <Text style={s.currentTagText}>현재</Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text style={s.planCardPrice}>{priceStr}<Text style={s.planCardPriceSub}>/월</Text></Text>
-                      </View>
-                    </View>
-                    <View style={s.planCardInfoRow}>
-                      <View style={s.planCardInfoChip}><Text style={s.planCardInfoChipText}>최대 {memberLim}명</Text></View>
-                      <View style={s.planCardInfoChip}><Text style={s.planCardInfoChipText}>저장공간 {storage}</Text></View>
-                    </View>
-                    <View style={{ gap: 6, marginTop: 4 }}>
-                      {featureRows.map((f) => (
-                        <View key={f.label} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                          {f.ok ? <Check size={14} color="#16A34A" strokeWidth={2.5} /> : <X size={14} color="#D1D5DB" strokeWidth={2.5} />}
-                          <Text style={[s.featureText, !f.ok && { color: "#D1D5DB" }]}>{f.label}</Text>
-                          {!f.ok && <Text style={s.featureNote}>(Premier 전용)</Text>}
-                        </View>
-                      ))}
-                    </View>
-                    <View style={[s.subscribeBtn, { backgroundColor: btnColor, marginTop: 8 }]}>
-                      {isPurchasing ? <ActivityIndicator size="small" color="#fff" /> : <Text style={[s.subscribeBtnText, { color: btnTxtColor }]}>{btnLabel}</Text>}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-        </Section>
 
-        {/* ── Premier 구독 플랜 ── */}
-        <Section title="Premier 구독 플랜 (수영장/센터)">
-          {rcLoading ? (
-            <View style={s.emptyOffering}>
-              <ActivityIndicator size="small" color="#F59E0B" />
-              <Text style={[s.emptyOfferingText, { marginTop: 8 }]}>플랜 불러오는 중...</Text>
+            {/* 기능 목록 */}
+            <View style={{ gap: 10, padding: 14 }}>
+              {tierDetail.features.map((f, i) => (
+                <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <View style={[s.featureIconWrap, { backgroundColor: f.included ? tierColor + "15" : "#F3F4F6" }]}>
+                    {f.included
+                      ? <Check size={13} color={tierColor} strokeWidth={2.5} />
+                      : <X size={13} color="#CBD5E1" strokeWidth={2.5} />
+                    }
+                  </View>
+                  <Text style={[s.featureLabel, !f.included && { color: "#CBD5E1" }]}>{f.label}</Text>
+                  {f.note && <Text style={s.featureNote}>{f.note}</Text>}
+                </View>
+              ))}
             </View>
-          ) : centerPackages.length === 0 ? (
-            <View style={s.emptyOffering}>
-              <Text style={[s.emptyOfferingText, { fontFamily: "Pretendard-SemiBold", marginBottom: 4 }]}>구독 플랜을 불러올 수 없습니다</Text>
-              <Text style={[s.emptyOfferingText, { fontSize: 12, color: "#94A3B8" }]}>
-                App Store에 인앱결제 상품이 등록·심사 완료된 후 이용 가능합니다.{"\n"}아래로 당겨서 새로고침하세요.
-              </Text>
-            </View>
-          ) : (
-            <View style={{ gap: 14 }}>
-              {centerPackages.map((pkg) => {
-                const pkgId     = pkg.identifier;
-                const meta      = PACKAGE_META[pkgId];
-                const isCurrent = isSubscribed && activePackageId === pkg.product.identifier;
-                const planName  = meta?.name ?? pkg.product.title ?? pkgId;
-                const memberLim = meta?.memberLimit ?? 0;
-                const storage   = meta?.storage ?? "";
-                const priceStr  = pkg.product.priceString;
-                const isChanging   = isSubscribed && !isCurrent;
-                const btnLabel    = isCurrent ? "현재 플랜" : isChanging ? "플랜 변경하기" : `${STORE_NAME.split(" ")[0]}로 구독하기`;
-                const btnColor    = isCurrent ? "#E5E7EB" : "#F59E0B";
-                const btnTxtColor = isCurrent ? "#9CA3AF" : "#fff";
-                const confirmMsg  = isChanging
-                  ? `현재 구독을 ${planName}으로 변경합니다.\n${priceStr}/월 · 최대 ${memberLim}명 · ${storage}\n영상 업로드 · 화이트라벨 포함\n\n결제 수단: ${STORE_NAME}`
-                  : `${priceStr}/월 · 최대 ${memberLim}명 · ${storage}\n영상 업로드 · 화이트라벨 포함\n\n결제 수단: ${STORE_NAME}`;
-                const featureRows: { label: string; ok: boolean }[] = [
-                  { label: "사진 업로드",  ok: true },
-                  { label: "영상 업로드",  ok: true },
-                  { label: "출결 관리",    ok: true },
-                  { label: "수업 일지",    ok: true },
-                  { label: "학부모 연동",  ok: true },
-                  { label: "화이트라벨 (앱 이름·로고 커스텀)", ok: true },
-                ];
-                const triggerPurchase = () => {
-                  if (isCurrent || isPurchasing) return;
-                  showConfirm(isChanging ? `${planName} 플랜 변경` : `${planName} 구독`, confirmMsg, () => handlePurchase(pkg));
-                };
-                return (
-                  <Pressable
-                    key={pkgId}
-                    onPress={triggerPurchase}
-                    disabled={isCurrent || isPurchasing}
-                    style={({ pressed }) => [
-                      s.planCard,
-                      { borderColor: isCurrent ? "#F59E0B" : "#FEF3C7" },
-                      isCurrent && { borderWidth: 2 },
-                      pressed && !isCurrent && { opacity: 0.88 },
-                    ]}
-                  >
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <View style={{ gap: 2, flex: 1 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <Text style={[s.planCardName, { color: "#F59E0B" }]}>{planName}</Text>
-                          {isCurrent && (
-                            <View style={[s.currentTag, { backgroundColor: "#F59E0B" }]}>
-                              <Text style={s.currentTagText}>현재</Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text style={s.planCardPrice}>{priceStr}<Text style={s.planCardPriceSub}>/월</Text></Text>
-                      </View>
+
+            {/* 다운그레이드 예정 플랜 미리보기 */}
+            {billingInfo?.pending_tier && pendingTierDetail && (
+              <View style={s.pendingPlanPreview}>
+                <Text style={s.pendingPlanPreviewTitle}>
+                  전환 예정 플랜: {billingInfo.pending_plan_name ?? billingInfo.pending_tier}
+                </Text>
+                <Text style={s.pendingPlanPreviewDesc}>
+                  {billingInfo.downgrade_at?.slice(0, 10)} 이후 아래 기능으로 변경됩니다
+                </Text>
+                <View style={{ gap: 6, marginTop: 8 }}>
+                  {pendingTierDetail.features.map((f, i) => (
+                    <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      {f.included
+                        ? <Check size={12} color="#6B7280" strokeWidth={2.5} />
+                        : <X size={12} color="#D1D5DB" strokeWidth={2.5} />
+                      }
+                      <Text style={[{ fontSize: 12, color: f.included ? "#6B7280" : "#D1D5DB" }]}>{f.label}</Text>
                     </View>
-                    <View style={s.planCardInfoRow}>
-                      <View style={[s.planCardInfoChip, { backgroundColor: "#FEF3C7" }]}><Text style={[s.planCardInfoChipText, { color: "#92400E" }]}>최대 {memberLim}명</Text></View>
-                      <View style={[s.planCardInfoChip, { backgroundColor: "#FEF3C7" }]}><Text style={[s.planCardInfoChipText, { color: "#92400E" }]}>저장공간 {storage}</Text></View>
-                    </View>
-                    <View style={{ gap: 6, marginTop: 4 }}>
-                      {featureRows.map((f) => (
-                        <View key={f.label} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                          <Check size={14} color="#16A34A" strokeWidth={2.5} />
-                          <Text style={s.featureText}>{f.label}</Text>
-                        </View>
-                      ))}
-                    </View>
-                    <View style={[s.subscribeBtn, { backgroundColor: btnColor, marginTop: 8 }]}>
-                      {isPurchasing ? <ActivityIndicator size="small" color="#fff" /> : <Text style={[s.subscribeBtnText, { color: btnTxtColor }]}>{btnLabel}</Text>}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* 플랜 변경하기 버튼 */}
+          <Pressable
+            style={({ pressed }) => [s.changePlanBtn, { borderColor: tierColor, opacity: pressed ? 0.8 : 1 }]}
+            onPress={() => router.push("/(admin)/subscription" as any)}
+          >
+            <Text style={[s.changePlanBtnText, { color: tierColor }]}>플랜 변경하기</Text>
+            <ChevronRight size={16} color={tierColor} />
+          </Pressable>
         </Section>
 
         {/* IAP 안내 */}
         <Text style={s.iapNote}>
           {Platform.OS === "ios"
             ? "구독은 Apple을 통해 결제됩니다. 구독 관리·해지는 설정 → Apple ID → 구독에서 할 수 있습니다."
-            : "구독은 Google Play를 통해 결제됩니다. 구독 관리는 Google Play → 구독에서 할 수 있습니다."}</Text>
+            : "구독은 Google Play를 통해 결제됩니다. 구독 관리는 Google Play → 구독에서 할 수 있습니다."
+          }
+        </Text>
 
         {/* ── 구독 복원 ── */}
         <Section title="구독 복원">
@@ -586,7 +499,7 @@ export default function BillingScreen() {
 const s = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: "#fff" },
   section:       { gap: 10 },
-  sectionTitle:  { fontSize: 13, fontWeight: "600", color: "#374151"},
+  sectionTitle:  { fontSize: 13, fontWeight: "600", color: "#374151" },
 
   failBanner:        { borderRadius: 10, padding: 14, gap: 10, borderWidth: 1 },
   failBannerActive:  { backgroundColor: "#FEF2F2", borderColor: "#FECACA" },
@@ -606,6 +519,12 @@ const s = StyleSheet.create({
   metaLabel:  { fontSize: 13, color: "#64748B" },
   metaValue:  { fontSize: 13, fontWeight: "600", color: "#374151" },
 
+  downgradeBanner:     { backgroundColor: "#FFFBEB", borderColor: "#FCD34D", borderWidth: 1, borderRadius: 10, padding: 12, marginTop: 8 },
+  downgradeTitle:      { fontSize: 13, fontWeight: "700", color: "#92400E" },
+  downgradeDesc:       { fontSize: 13, color: "#78350F", lineHeight: 20 },
+  downgradeDateBold:   { fontWeight: "700" },
+  downgradeNote:       { fontSize: 12, color: "#A16207", lineHeight: 20, marginTop: 4 },
+
   storageBar:        { height: 6, backgroundColor: "#F1F5F9", borderRadius: 3, overflow: "hidden" },
   storageBarFill:    { height: 6, borderRadius: 3 },
   storageBanner:     { flexDirection: "row", gap: 8, padding: 10, borderRadius: 8, alignItems: "center", borderWidth: 1 },
@@ -620,26 +539,23 @@ const s = StyleSheet.create({
   platformManageBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F0FDFB", borderWidth: 1, borderColor: "#2EC4B6" },
   platformManageTxt: { fontSize: 12, color: "#2EC4B6", fontWeight: "600" },
 
-  emptyOffering:     { padding: 20, alignItems: "center" },
-  emptyOfferingText: { color: "#9CA3AF", fontSize: 14 },
+  detailCard:       { borderWidth: 1, borderRadius: 14, overflow: "hidden" },
+  detailHeader:     { padding: 14, paddingBottom: 12 },
+  detailPlanName:   { fontSize: 17, fontWeight: "700" },
+  detailChip:       { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#fff", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1, borderColor: "#E5E7EB" },
+  detailChipText:   { fontSize: 11, color: "#64748B", fontWeight: "500" },
+  featureIconWrap:  { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  featureLabel:     { fontSize: 13, color: "#374151", flex: 1 },
+  featureNote:      { fontSize: 11, color: "#9CA3AF" },
 
-  planCard:           { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 14, padding: 16, gap: 10,
-                        shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
-  planCardName:       { fontSize: 17, fontWeight: "700" },
-  planCardPrice:      { fontSize: 22, fontWeight: "700", color: "#111827" },
-  planCardPriceSub:   { fontSize: 13, fontWeight: "400", color: "#9CA3AF" },
-  planCardInfoRow:    { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  planCardInfoChip:   { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: "#F3F4F6" },
-  planCardInfoChipText:{ fontSize: 12, fontWeight: "500", color: "#374151" },
-  featureText:        { fontSize: 13, color: "#374151" },
-  featureNote:        { fontSize: 11, color: "#9CA3AF" },
-  currentTag:         { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
-  currentTagText:     { fontSize: 11, fontWeight: "600", color: "#fff" },
-  subscribeBtn:       { paddingVertical: 11, borderRadius: 10, alignItems: "center" },
-  subscribeBtnText:   { fontSize: 14, fontWeight: "600" },
+  pendingPlanPreview:      { margin: 14, marginTop: 0, padding: 12, backgroundColor: "#F9FAFB", borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB" },
+  pendingPlanPreviewTitle: { fontSize: 12, fontWeight: "700", color: "#374151" },
+  pendingPlanPreviewDesc:  { fontSize: 11, color: "#9CA3AF", marginTop: 2 },
+
+  changePlanBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, borderWidth: 1.5, borderRadius: 10, paddingVertical: 12, marginTop: 4 },
+  changePlanBtnText: { fontSize: 14, fontWeight: "700" },
 
   iapNote:    { fontSize: 11, color: "#9CA3AF", textAlign: "center", lineHeight: 16, marginTop: 4 },
-
   restoreDesc:    { fontSize: 13, color: "#64748B", lineHeight: 18 },
   restoreBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderRadius: 8, paddingVertical: 12, marginTop: 4 },
   restoreBtnText: { fontSize: 14, fontWeight: "600" },
