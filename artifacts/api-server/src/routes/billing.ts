@@ -17,6 +17,7 @@ import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.
 import { getPaymentProvider } from "../payment/index.js";
 import { logEvent } from "../lib/event-logger.js";
 import { billingEnabled } from "../config/billing.js";
+import { isFeatureEnabled } from "../lib/featureFlags.js";
 import {
   resolveSubscription,
   applySubscriptionState,
@@ -206,6 +207,43 @@ router.post("/revenuecat-webhook", async (req, res) => {
           description: `${eventType}: ${productId} → ${tier} (${resolved?.planName})`,
           metadata: { eventType, productId, tier } }).catch(console.error);
 
+        // ── 크레딧 자동 차감 (credit_auto_apply 플래그) ───────────────────
+        if (eventType === "RENEWAL" || eventType === "INITIAL_PURCHASE") {
+          isFeatureEnabled("credit_auto_apply", poolId).then(async (creditEnabled) => {
+            if (!creditEnabled) return;
+            try {
+              await db.execute(sql`
+                CREATE TABLE IF NOT EXISTS pool_credits (
+                  pool_id    TEXT PRIMARY KEY,
+                  balance    INTEGER NOT NULL DEFAULT 0,
+                  updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+              `).catch(() => {});
+              const [creditRow] = (await db.execute(sql`
+                SELECT balance FROM pool_credits WHERE pool_id = ${poolId} LIMIT 1
+              `)).rows as any[];
+              const balance = Number(creditRow?.balance ?? 0);
+              if (balance > 0) {
+                const applied = Math.min(balance, resolved?.pricePerMonth ?? 0);
+                await db.execute(sql`
+                  UPDATE pool_credits SET balance = balance - ${applied}, updated_at = NOW()
+                  WHERE pool_id = ${poolId} AND balance > 0
+                `);
+                logEvent({
+                  pool_id:    poolId,
+                  category:   "크레딧",
+                  actor_name: "시스템",
+                  description: `크레딧 자동 차감: ${applied.toLocaleString()}원 (잔액: ${(balance - applied).toLocaleString()}원)`,
+                  metadata:   { applied_won: applied, prev_balance: balance, event_type: eventType },
+                }).catch(console.error);
+                console.log(`[credit-auto] pool ${poolId}: ${applied}원 크레딧 차감`);
+              }
+            } catch (e: any) {
+              console.error("[credit-auto] 크레딧 차감 오류:", e.message);
+            }
+          }).catch(() => {});
+        }
+
         // ── 슈퍼관리자 운영 알림: 유료 결제 ──────────────────────────────
         if (eventType !== "UNCANCELLATION") {
           const planLabel = resolved?.planName ?? tier ?? productId;
@@ -251,8 +289,10 @@ router.post("/revenuecat-webhook", async (req, res) => {
       }
 
       case "EXPIRATION": {
-        // 구독 만료 → 비활성화 + 90일 유예 (탈퇴 처리, 데이터 보존)
-        const deletionDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+        // new_subscription_policy 플래그: ON → 90일 유예 (v2), OFF → 즉시 비활성화 (v1)
+        const useV2Policy = await isFeatureEnabled("new_subscription_policy", poolId).catch(() => true);
+        const graceDays = useV2Policy ? 90 : 7; // v1은 7일 유예
+        const deletionDate = new Date(Date.now() + graceDays * 24 * 60 * 60 * 1000).toISOString();
         await applySubscriptionState(poolId, "free", "free_default", "cancelled", {
           endsAt: null,
         });
@@ -267,8 +307,8 @@ router.post("/revenuecat-webhook", async (req, res) => {
           WHERE id = ${poolId}
         `);
         logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
-          description: `구독 만료 → 비활성화 처리 (90일 후 ${deletionDate.slice(0,10)} 영구삭제 예약)`,
-          metadata: { eventType, productId, deletion_scheduled_at: deletionDate } }).catch(console.error);
+          description: `구독 만료 → 비활성화 처리 (${graceDays}일 후 ${deletionDate.slice(0,10)} 영구삭제 예약, 정책: v${useV2Policy ? 2 : 1})`,
+          metadata: { eventType, productId, deletion_scheduled_at: deletionDate, grace_days: graceDays } }).catch(console.error);
 
         import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
           createOpsAlert({

@@ -22,6 +22,7 @@ const db = superAdminDb;
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
+import { logEvent } from "../lib/event-logger.js";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
 import { runRealBackup } from "../lib/backup.js";
 import { resolveSubscription, applySubscriptionState, normalizeTier, backfillPoolSubscriptionFields } from "../lib/subscriptionService.js";
@@ -1084,9 +1085,13 @@ async function ensureExtraTables() {
       category    TEXT DEFAULT 'general',
       global_enabled BOOLEAN DEFAULT FALSE,
       updated_at  TIMESTAMPTZ DEFAULT NOW(),
-      updated_by  TEXT
+      updated_by  TEXT,
+      reason      TEXT
     )
   `);
+  await superAdminDb.execute(sql`
+    ALTER TABLE feature_flags ADD COLUMN IF NOT EXISTS reason TEXT
+  `).catch(() => {});
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS feature_flag_overrides (
       id          TEXT PRIMARY KEY,
@@ -1747,19 +1752,27 @@ router.patch(
     try {
       await ensureExtraTables();
       const { key } = req.params;
-      const { global_enabled } = req.body as any;
+      const { global_enabled, reason } = req.body as any;
       const actorName = req.user?.name ?? "슈퍼관리자";
       await superAdminDb.execute(sql`
         UPDATE feature_flags SET global_enabled = ${!!global_enabled},
-          updated_at = NOW(), updated_by = ${actorName}
+          updated_at = NOW(), updated_by = ${actorName},
+          reason = ${reason ?? null}
         WHERE key = ${key}
       `);
-      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-      await db.execute(sql`
-        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
-        VALUES (${logId}, NULL, '기능 플래그', ${req.user!.userId}, ${actorName},
-                ${key}, ${`기능 플래그 ${global_enabled ? "활성화" : "비활성화"}: ${key}`}, '{}'::jsonb)
-      `).catch(() => {});
+      const { invalidateFlagCache } = await import("../lib/featureFlags.js");
+      invalidateFlagCache(key);
+
+      await logEvent({
+        pool_id:    "system",
+        category:   "기능 플래그",
+        actor_id:   req.user?.userId,
+        actor_name: actorName,
+        target:     key,
+        description: `기능 플래그 ${global_enabled ? "활성화" : "비활성화"}: ${key}${reason ? ` — ${reason}` : ""}`,
+        metadata:   { flag_key: key, enabled: !!global_enabled, reason: reason ?? null },
+      }).catch(() => {});
+
       res.json({ ok: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
@@ -2546,6 +2559,73 @@ router.get(
     }
   }
 );
+
+// ════════════════════════════════════════════════════════════════
+// GET  /super/pools/:id/credits — 수영장 크레딧 잔액 조회
+// POST /super/pools/:id/credits — 크레딧 추가/설정 (슈퍼관리자)
+// ════════════════════════════════════════════════════════════════
+async function ensureCreditTable() {
+  await superAdminDb.execute(sql`
+    CREATE TABLE IF NOT EXISTS pool_credits (
+      pool_id    TEXT PRIMARY KEY,
+      balance    INTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(() => {});
+}
+
+router.get("/super/pools/:id/credits", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensureCreditTable();
+    const [row] = (await superAdminDb.execute(sql`
+      SELECT pc.balance, pc.updated_at, sp.name AS pool_name
+      FROM pool_credits pc
+      LEFT JOIN swimming_pools sp ON sp.id = pc.pool_id
+      WHERE pc.pool_id = ${req.params.id}
+      LIMIT 1
+    `)).rows as any[];
+    res.json({ pool_id: req.params.id, balance: row?.balance ?? 0, updated_at: row?.updated_at ?? null, pool_name: row?.pool_name ?? null });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+router.post("/super/pools/:id/credits", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensureCreditTable();
+    const { amount, reason, mode } = req.body as { amount: number; reason?: string; mode?: "add" | "set" };
+    if (typeof amount !== "number") { res.status(400).json({ error: "amount 필요" }); return; }
+
+    const actorName = req.user?.name ?? "슈퍼관리자";
+
+    if (mode === "set") {
+      await superAdminDb.execute(sql`
+        INSERT INTO pool_credits (pool_id, balance, updated_at)
+        VALUES (${req.params.id}, ${amount}, NOW())
+        ON CONFLICT (pool_id) DO UPDATE SET balance = ${amount}, updated_at = NOW()
+      `);
+    } else {
+      await superAdminDb.execute(sql`
+        INSERT INTO pool_credits (pool_id, balance, updated_at)
+        VALUES (${req.params.id}, ${amount}, NOW())
+        ON CONFLICT (pool_id) DO UPDATE
+          SET balance = pool_credits.balance + ${amount}, updated_at = NOW()
+      `);
+    }
+
+    const [updated] = (await superAdminDb.execute(sql`
+      SELECT balance FROM pool_credits WHERE pool_id = ${req.params.id}
+    `)).rows as any[];
+
+    await logEvent({
+      pool_id:    req.params.id,
+      category:   "크레딧",
+      actor_name: actorName,
+      description: `크레딧 ${mode === "set" ? "설정" : "추가"}: ${amount.toLocaleString()}원${reason ? ` (${reason})` : ""} (잔액: ${updated?.balance ?? 0}원)`,
+      metadata:   { amount, mode: mode ?? "add", reason: reason ?? null, new_balance: updated?.balance ?? 0 },
+    }).catch(() => {});
+
+    res.json({ ok: true, balance: updated?.balance ?? 0 });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
 
 // 앱 시작 시 비동기로 테이블/컬럼 보장
 ensureExtraTables().catch(err => console.error("[super] ensureExtraTables 오류:", err));

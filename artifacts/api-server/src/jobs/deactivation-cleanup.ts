@@ -9,10 +9,18 @@ import { superAdminDb, db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { createOpsAlert } from "../lib/opsAlerts.js";
 import { acquireLock, releaseLock } from "../lib/schedulerLock.js";
+import { isFeatureEnabled } from "../lib/featureFlags.js";
 
 const LOCK_KEY = "deactivation-cleanup";
 
 async function runDeactivationCleanup(): Promise<void> {
+  // 기능 플래그 체크: auto_deletion_policy가 꺼져 있으면 실행 중단
+  const flagEnabled = await isFeatureEnabled("auto_deletion_policy").catch(() => true);
+  if (!flagEnabled) {
+    console.log("[deactivation-cleanup] auto_deletion_policy 플래그 비활성화 — 건너뜀");
+    return;
+  }
+
   const acquired = await acquireLock(LOCK_KEY, 60).catch(() => false);
   if (!acquired) {
     console.log("[deactivation-cleanup] 다른 인스턴스가 실행 중, 건너뜀");
