@@ -22,16 +22,20 @@ type SmsState = "idle" | "sending" | "sent" | "verifying" | "verified" | "error"
 
 export default function RegisterScreen() {
   const { unifiedLogin } = useAuth();
-  const { id: prefillId } = useLocalSearchParams<{ id?: string }>();
+  const { id: prefillId, phone: prefillPhone, kakaoId, appleId } = useLocalSearchParams<{
+    id?: string; phone?: string; kakaoId?: string; appleId?: string;
+  }>();
   const insets = useSafeAreaInsets();
   const C = Colors.light;
+
+  const hasSocialPhone = !!(prefillPhone && (kakaoId || appleId));
 
   const [form, setForm] = useState({
     email:           prefillId || "",
     password:        "",
     passwordConfirm: "",
     name:            "",
-    phone:           "",
+    phone:           prefillPhone || "",
     pool_name:       "",
     pool_address:    "",
     pool_phone:      "",
@@ -40,7 +44,7 @@ export default function RegisterScreen() {
   const [loading,       setLoading]       = useState(false);
   const [error,         setError]         = useState("");
 
-  const [smsState,      setSmsState]      = useState<SmsState>("idle");
+  const [smsState,      setSmsState]      = useState<SmsState>(hasSocialPhone ? "verified" : "idle");
   const [smsCode,       setSmsCode]       = useState("");
   const [smsError,      setSmsError]      = useState("");
   const [timer,         setTimer]         = useState(0);
@@ -151,6 +155,8 @@ export default function RegisterScreen() {
           pool_address:    form.pool_address.trim(),
           pool_phone:      form.pool_phone.trim(),
           pool_owner_name: form.pool_owner_name.trim(),
+          ...(kakaoId ? { kakao_id: kakaoId } : {}),
+          ...(appleId ? { apple_id: appleId } : {}),
         }),
       });
       const data = await safeJson(res);

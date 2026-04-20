@@ -103,7 +103,8 @@ router.post("/login", async (req, res) => {
 // ── 관리자 계정 가입 ──────────────────────────────────────────────────
 router.post("/register", async (req, res) => {
   const { email, password, name, phone, role,
-          pool_name, pool_address, pool_phone, pool_owner_name, pool_name_en } = req.body;
+          pool_name, pool_address, pool_phone, pool_owner_name, pool_name_en,
+          kakao_id, apple_id } = req.body;
   if (!email || !password || !name) return err(res, 400, "필수 정보를 입력해주세요.");
   if (password.length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
   const isPoolAdmin = role === "pool_admin";
@@ -143,12 +144,13 @@ router.post("/register", async (req, res) => {
         INSERT INTO users
           (id, email, password_hash, name, phone, role,
            swimming_pool_id, is_activated, is_admin_self_teacher,
-           phone_verified, roles, created_at, updated_at)
+           phone_verified, roles, kakao_id, apple_id, created_at, updated_at)
         VALUES
           (${userId}, ${email.trim().toLowerCase()}, ${password_hash}, ${name.trim()},
            ${phone || null}, 'pool_admin'::user_role,
            ${poolId}, true, true,
-           true, '{"pool_admin","teacher"}'::TEXT[], now(), now())
+           true, '{"pool_admin","teacher"}'::TEXT[],
+           ${kakao_id || null}, ${apple_id || null}, now(), now())
       `);
 
       // ── 3) 선생님 엔티티 자동 생성 (teacher_invites — approved 상태) ─
