@@ -11,6 +11,7 @@ import { backfillPoolSubscriptionFields } from "./lib/subscriptionService.js";
 import { isDbSeparated, isProtectDbConfigured, pool } from "@workspace/db";
 import { getRecentAvgResponseMs } from "./lib/responseTracker.js";
 import { createOpsAlert } from "./lib/opsAlerts.js";
+import { sendPushToSuperAdmins } from "./lib/push-service.js";
 
 const IS_WORKER = process.env.WORKER_MODE === "true";
 
@@ -64,38 +65,80 @@ if (IS_WORKER) {
 } else {
   // ── API 서버 모드: HTTP 실행, 스케줄러 없음 ─────────────────────────────
 
-  // ── 서버 느려짐 감지 스케줄러 (5분마다) ────────────────────────────────────
+  // ── 서버 성능 감시 + 푸시 알림 (5분마다) ───────────────────────────────────
   const SLOW_CHECK_INTERVAL = 5 * 60 * 1000;
-  const SLOW_THRESHOLD_MS = 1500;
+  const WARN_THRESHOLD_MS   = 1500; // 경고: 평균 1.5초
+  const CRIT_THRESHOLD_MS   = 3000; // 위험: 평균 3초
+
   setInterval(async () => {
     try {
       const { avg, count } = getRecentAvgResponseMs();
-      if (count < 5 || avg < SLOW_THRESHOLD_MS) return;
-      const bucketKey = `server_slow:${new Date().toISOString().slice(0, 15)}0`; // 10분 버킷
+      if (count < 5 || avg < WARN_THRESHOLD_MS) return;
+
+      const isCritical = avg >= CRIT_THRESHOLD_MS;
+      const severity   = isCritical ? "error" : "warning";
+      const emoji      = isCritical ? "🔴" : "🟡";
+      const label      = isCritical ? "위험" : "경고";
+      const bucketKey  = `server_slow:${new Date().toISOString().slice(0, 15)}0`; // 10분 버킷
+
       await createOpsAlert({
         type: "server_slow",
-        title: "서버 지연 경고",
-        message: `최근 5분 평균 응답시간이 ${avg}ms를 기록했습니다 (${count}개 요청)`,
-        severity: "warning",
+        title: `서버 지연 ${label}`,
+        message: `최근 5분 평균 응답시간 ${avg}ms (${count}개 요청)`,
+        severity,
         dedupeKey: bucketKey,
       });
+
+      // 슈퍼관리자에게 푸시 알림
+      await sendPushToSuperAdmins(
+        `${emoji} 서버 응답 지연 ${label}`,
+        `최근 5분 평균 ${avg}ms · ${count}개 요청\n빠른 확인이 필요합니다.`,
+        { type: "server_perf", avg, count }
+      );
+      console.log(`[perf-monitor] 슬로우 감지 avg=${avg}ms count=${count} → 푸시 발송`);
     } catch (e: any) {
-      console.error("[server-slow-check] 오류:", e?.message);
+      console.error("[perf-monitor] 오류:", e?.message);
     }
   }, SLOW_CHECK_INTERVAL);
 
-  // Keep-Alive 자기 핑 (슬립 방지)
+  // ── Keep-Alive 자기 핑 (슬립 방지 + 다운 감지) ──────────────────────────
   if (process.env["NODE_ENV"] === "production") {
     const PING_INTERVAL_MS = 4 * 60 * 1000;
     const selfBase = process.env["RENDER_EXTERNAL_URL"] || `http://localhost:${port}`;
+    let pingFailCount = 0;
+
     setInterval(async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10_000);
       try {
-        const res = await fetch(`${selfBase}/api/healthz`, {
-          signal: AbortSignal.timeout(10_000),
-        });
-        if (!res.ok) console.warn(`[keep-alive] ping 응답 이상: ${res.status}`);
+        const pingStart = Date.now();
+        const res = await fetch(`${selfBase}/api/healthz`, { signal: controller.signal });
+        clearTimeout(timer);
+        const pingMs = Date.now() - pingStart;
+        pingFailCount = 0;
+
+        if (!res.ok) {
+          console.warn(`[keep-alive] ping 응답 이상: ${res.status}`);
+          await sendPushToSuperAdmins(
+            "🔴 서버 헬스체크 실패",
+            `HTTP ${res.status} 응답 — 서버 상태를 확인해 주세요.`,
+            { type: "server_health", status: res.status }
+          );
+        } else if (pingMs > CRIT_THRESHOLD_MS) {
+          console.warn(`[keep-alive] ping 응답 느림: ${pingMs}ms`);
+        }
       } catch (e: any) {
-        console.warn(`[keep-alive] ping 실패:`, e?.message ?? e);
+        clearTimeout(timer);
+        pingFailCount++;
+        console.warn(`[keep-alive] ping 실패 (${pingFailCount}회):`, e?.message ?? e);
+        // 2회 연속 실패시 푸시 (일시적 오류 제외)
+        if (pingFailCount >= 2) {
+          await sendPushToSuperAdmins(
+            "🚨 서버 응답 없음",
+            `헬스체크 ${pingFailCount}회 연속 실패\n서버가 다운됐을 수 있습니다.`,
+            { type: "server_down", failCount: pingFailCount }
+          ).catch(() => {});
+        }
       }
     }, PING_INTERVAL_MS);
     console.log(`[keep-alive] 자기 핑 스케줄러 시작 (4분 간격) target=${selfBase}`);

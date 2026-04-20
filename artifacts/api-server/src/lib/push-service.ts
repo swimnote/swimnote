@@ -347,6 +347,40 @@ export async function sendPushToAllUsers(
   }
 }
 
+// ── 슈퍼관리자 푸시 ──────────────────────────────────────────────────
+
+/**
+ * 슈퍼관리자 전원에게 푸시 발송 (운영 알림용)
+ * superAdminDb에서 super_admin 역할 유저 ID 조회 → pool DB에서 토큰 조회 → 발송
+ */
+export async function sendPushToSuperAdmins(
+  title: string,
+  body: string,
+  data: Record<string, unknown> = {}
+): Promise<void> {
+  try {
+    const superRows = await superAdminDb.execute(sql`
+      SELECT id FROM users
+      WHERE role IN ('super_admin', 'platform_admin')
+    `);
+    const superIds = (superRows.rows as any[]).map(r => r.id).filter(Boolean);
+    if (!superIds.length) return;
+
+    const tokens: string[] = [];
+    for (const uid of superIds) {
+      const rows = await db.execute(sql`
+        SELECT DISTINCT token FROM push_tokens
+        WHERE user_id = ${uid} AND token IS NOT NULL AND token != ''
+      `);
+      tokens.push(...(rows.rows as any[]).map(r => r.token));
+    }
+    if (!tokens.length) return;
+    await sendRawPush(tokens, title, body, data);
+  } catch (e) {
+    console.error("[push-service] sendPushToSuperAdmins 오류:", e);
+  }
+}
+
 // ── DB 테이블 자동 생성 ───────────────────────────────────────────────
 
 export async function initPushTables(): Promise<void> {

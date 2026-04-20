@@ -9,8 +9,10 @@ import { Tabs, router } from "expo-router";
 import React, { useEffect } from "react";
 import { Platform } from "react-native";
 import Colors from "@/constants/colors";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, apiRequest } from "@/context/AuthContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 
 const C = Colors.light;
 const ACTIVE = "#7C3AED";
@@ -24,9 +26,32 @@ const ROLE_HOME_MAP: Record<string, string> = {
   parent:     "/(parent)/home",
 };
 
+async function registerSuperPushToken(token: string): Promise<void> {
+  try {
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== "granted") return;
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    if (!projectId) return;
+    const expoPushToken = await Notifications.getExpoPushTokenAsync({ projectId });
+    if (!expoPushToken?.data) return;
+    await apiRequest(token, "/push-token", {
+      method: "POST",
+      body: JSON.stringify({ token: expoPushToken.data }),
+    });
+  } catch (e) {
+    console.warn("[super-layout] 푸시 토큰 등록 실패:", e);
+  }
+}
+
 export default function SuperLayout() {
-  const { kind, isLoading, adminUser } = useAuth();
+  const { kind, isLoading, adminUser, token } = useAuth();
   const insets = useSafeAreaInsets();
+
+  // 슈퍼관리자 푸시 토큰 등록 (서버 성능 알림 수신용)
+  useEffect(() => {
+    if (!token || Platform.OS === "web") return;
+    registerSuperPushToken(token);
+  }, [token]);
 
   useEffect(() => {
     if (isLoading || !kind) return;
