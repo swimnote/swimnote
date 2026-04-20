@@ -52,9 +52,7 @@ export default function SignupRoleScreen() {
         "선생님·학부모 초대 및 전체 관리",
         "수업 운영, 출결, 수업일지 통합 관리",
       ],
-      onPress: () => isSocial
-        ? router.push({ pathname: "/register", params: socialParams } as any)
-        : router.push("/(auth)/signup" as any),
+      onPress: () => router.push({ pathname: "/register", params: isSocial ? socialParams : {} } as any),
     },
     {
       key: "teacher",
@@ -69,9 +67,7 @@ export default function SignupRoleScreen() {
         "소속 수영장을 검색해 가입 요청을 보냅니다",
         "수영장 관리자 승인 후 수업을 시작할 수 있어요",
       ],
-      onPress: () => isSocial
-        ? router.push({ pathname: "/(auth)/teacher-signup", params: socialParams } as any)
-        : router.push("/teacher-invite-join" as any),
+      onPress: () => router.push({ pathname: "/(auth)/teacher-signup", params: isSocial ? socialParams : {} } as any),
     },
     {
       key: "parent",
@@ -87,9 +83,7 @@ export default function SignupRoleScreen() {
         "수영장에서 자녀 회원등록을 먼저 마쳐야 가입 가능",
         "가입 후 수업일지·사진·출결을 실시간으로 확인",
       ],
-      onPress: () => isSocial
-        ? router.push({ pathname: "/pool-join-request", params: socialParams } as any)
-        : router.push("/parent-invite-info" as any),
+      onPress: () => router.push({ pathname: "/pool-join-request", params: isSocial ? socialParams : {} } as any),
     },
   ];
 

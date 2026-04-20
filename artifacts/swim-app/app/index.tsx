@@ -389,7 +389,7 @@ export default function LoginScreen() {
             {/* 일반 가입 */}
             <Pressable
               style={({ pressed }) => [s.socialBtn, s.regularBtn, { opacity: pressed ? 0.85 : 1 }]}
-              onPress={() => router.push("/signup" as any)}
+              onPress={() => router.push("/signup-role" as any)}
               disabled={loading}
             >
               <LucideIcon name="user-plus" size={18} color="#475569" />
