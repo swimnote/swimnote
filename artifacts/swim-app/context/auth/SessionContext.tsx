@@ -458,6 +458,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       throw Object.assign(new Error(data.message || "카카오 로그인에 실패했습니다."), {
         error_code: data.error_code || "unknown",
         kakao_info: data.kakao_info || null,
+        needs_activation: data.needs_activation || false,
+        teacher_id: data.teacher_id || null,
       });
     }
     if (data.kind === "admin" && data.user) {

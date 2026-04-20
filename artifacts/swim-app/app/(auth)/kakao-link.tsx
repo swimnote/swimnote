@@ -65,6 +65,10 @@ export default function KakaoLinkScreen() {
       });
       const data = await res.json();
       if (!res.ok) {
+        if (data.needs_activation && data.teacher_id) {
+          router.replace({ pathname: "/teacher-activate", params: { teacher_id: data.teacher_id } } as any);
+          return;
+        }
         setError(data.message || data.error || "연결에 실패했습니다.");
         return;
       }

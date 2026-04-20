@@ -1654,6 +1654,15 @@ router.post("/kakao-social-login", async (req, res) => {
     `);
     if ((byKakaoIdTeacher.rows as any[]).length > 0) {
       const u = byKakaoIdTeacher.rows[0] as any;
+      if (!u.is_activated) {
+        return res.status(403).json({
+          success: false,
+          error_code: "needs_activation",
+          needs_activation: true,
+          teacher_id: u.id,
+          message: "계정이 아직 활성화되지 않았습니다. 관리자의 승인을 기다려주세요.",
+        });
+      }
       const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
       return res.json({
         success: true,
@@ -1685,6 +1694,15 @@ router.post("/kakao-social-login", async (req, res) => {
           SET kakao_id = ${kakaoId}, kakao_profile_image = ${kakaoProfileImage}, updated_at = NOW()
           WHERE id = ${u.id}
         `);
+        if (!u.is_activated) {
+          return res.status(403).json({
+            success: false,
+            error_code: "needs_activation",
+            needs_activation: true,
+            teacher_id: u.id,
+            message: "계정이 아직 활성화되지 않았습니다. 관리자의 승인을 기다려주세요.",
+          });
+        }
         const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
         return res.json({
           success: true,
@@ -1750,6 +1768,16 @@ router.post("/kakao-link-teacher", async (req, res) => {
       SET kakao_id = ${kakaoId}, kakao_profile_image = ${kakaoProfileImage || null}, updated_at = NOW()
       WHERE id = ${u.id}
     `);
+
+    if (!u.is_activated) {
+      return res.status(403).json({
+        success: false,
+        error_code: "needs_activation",
+        needs_activation: true,
+        teacher_id: u.id,
+        message: "계정이 아직 활성화되지 않았습니다. 관리자의 승인을 기다려주세요.",
+      });
+    }
 
     const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
     return res.json({

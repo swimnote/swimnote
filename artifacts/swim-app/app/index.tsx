@@ -228,12 +228,15 @@ export default function LoginScreen() {
       const result = await kakaoLogin();
       await kakaoSocialLogin(result.accessToken);
     } catch (err: unknown) {
-      const e = err as Error & { error_code?: string; kakao_info?: any };
+      const e = err as Error & { error_code?: string; kakao_info?: any; needs_activation?: boolean; teacher_id?: string };
       if (e.error_code === "kakao_no_account" && e.kakao_info) {
         router.push({
           pathname: "/(auth)/kakao-link",
           params: { kakaoId: e.kakao_info.kakao_id, kakaoProfileImage: e.kakao_info.profile_image || "", kakaoName: e.kakao_info.name || "" },
         } as any); return;
+      }
+      if (e.needs_activation && e.teacher_id) {
+        router.push({ pathname: "/teacher-activate", params: { teacher_id: e.teacher_id } } as any); return;
       }
       if ((err as any)?.code === "E_CANCELLED_OPERATION" || (e as any)?.message?.includes("cancel")) return;
       setError(e.message || "카카오 로그인에 실패했습니다.");
