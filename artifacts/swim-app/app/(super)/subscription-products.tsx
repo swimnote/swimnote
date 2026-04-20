@@ -160,7 +160,7 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={fm.header}>
-          <Pressable onPress={onClose} style={fm.close}><X size={20} color="#64748B" /></Pressable>
+          <Pressable onPress={onClose} style={fm.close} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}><X size={22} color="#64748B" /></Pressable>
           <Text style={fm.title}>{isEdit ? "구독 플랜 수정" : "구독 플랜 생성"}</Text>
           <View style={{ width: 28 }} />
         </View>
@@ -208,7 +208,7 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
 
 const fm = StyleSheet.create({
   header:        { flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  close:         { padding: 4 },
+  close:         { padding: 10 },
   title:         { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   saveTxt:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
   label:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 6 },
