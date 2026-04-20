@@ -3,7 +3,7 @@
  * 14개 실데이터 · 13개 필터칩 · 다중선택 · 일괄처리
  */
 import { Check, Inbox, Search, SquareCheck, X } from "lucide-react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import {
   FlatList, Modal, Pressable, RefreshControl,
@@ -111,13 +111,17 @@ export default function SuperPoolsScreen() {
 
   const { token } = useAuth();
 
-  // API에서 실데이터 로드
+  // API에서 실데이터 로드 (화면 포커스 복귀 시 재조회)
   const loadOperators = useCallback(async () => {
     if (!token) return;
     await fetchOperators(token, API_BASE);
   }, [token, fetchOperators]);
 
   useEffect(() => { loadOperators(); }, [loadOperators]);
+
+  useFocusEffect(useCallback(() => {
+    loadOperators();
+  }, [loadOperators]));
 
   // sync local filter to store
   useEffect(() => {

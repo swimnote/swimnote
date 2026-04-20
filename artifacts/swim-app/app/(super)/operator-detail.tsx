@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
+import { useOperatorsStore } from "@/store/operatorsStore";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
 import Colors from "@/constants/colors";
@@ -99,6 +100,7 @@ function StatBox({ label, value, color }: { label: string; value: string | numbe
 export default function OperatorDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth() as any;
+  const removeOperator = useOperatorsStore(s => s.removeOperator);
 
   const [pool,     setPool]     = useState<any>(null);
   const [teachers, setTeachers] = useState<any[]>([]);
@@ -233,6 +235,7 @@ export default function OperatorDetailScreen() {
       const res  = await apiRequest(token, `/super/operators/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (res.ok) {
+        removeOperator(id);
         setDeleteModal(false);
         Alert.alert("삭제 완료", data.message ?? "수영장이 삭제되었습니다.", [
           { text: "확인", onPress: () => router.replace("/(super)/pools" as any) },
