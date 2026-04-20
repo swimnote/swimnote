@@ -25,11 +25,17 @@ interface RoleCard {
 
 export default function SignupRoleScreen() {
   const insets = useSafeAreaInsets();
-  const { appleId, appleEmail, appleName, kakaoId } = useLocalSearchParams<{
-    appleId?: string; appleEmail?: string; appleName?: string; kakaoId?: string;
+  const { appleId, appleEmail, appleName, kakaoId, kakaoPhone } = useLocalSearchParams<{
+    appleId?: string; appleEmail?: string; appleName?: string; kakaoId?: string; kakaoPhone?: string;
   }>();
 
   const isSocial = !!(appleId || kakaoId);
+
+  const socialParams = {
+    ...(appleId ? { appleId } : {}),
+    ...(kakaoId ? { kakaoId } : {}),
+    ...(kakaoPhone ? { phone: kakaoPhone } : {}),
+  };
 
   const ROLES: RoleCard[] = [
     {
@@ -47,7 +53,7 @@ export default function SignupRoleScreen() {
         "수업 운영, 출결, 수업일지 통합 관리",
       ],
       onPress: () => isSocial
-        ? router.push({ pathname: "/register", params: { ...(appleId ? { appleId } : {}), ...(kakaoId ? { kakaoId } : {}) } } as any)
+        ? router.push({ pathname: "/register", params: socialParams } as any)
         : router.push("/(auth)/signup" as any),
     },
     {
@@ -64,7 +70,7 @@ export default function SignupRoleScreen() {
         "수영장 관리자 승인 후 수업을 시작할 수 있어요",
       ],
       onPress: () => isSocial
-        ? router.push({ pathname: "/(auth)/teacher-signup", params: { ...(appleId ? { appleId } : {}), ...(kakaoId ? { kakaoId } : {}) } } as any)
+        ? router.push({ pathname: "/(auth)/teacher-signup", params: socialParams } as any)
         : router.push("/teacher-invite-join" as any),
     },
     {
@@ -82,7 +88,7 @@ export default function SignupRoleScreen() {
         "가입 후 수업일지·사진·출결을 실시간으로 확인",
       ],
       onPress: () => isSocial
-        ? router.push({ pathname: "/pool-join-request", params: { ...(appleId ? { appleId } : {}), ...(kakaoId ? { kakaoId } : {}) } } as any)
+        ? router.push({ pathname: "/pool-join-request", params: socialParams } as any)
         : router.push("/parent-invite-info" as any),
     },
   ];

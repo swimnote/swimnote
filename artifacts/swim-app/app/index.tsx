@@ -235,8 +235,12 @@ export default function LoginScreen() {
       const e = err as Error & { error_code?: string; kakao_info?: any; needs_activation?: boolean; teacher_id?: string };
       if (e.error_code === "kakao_no_account" && e.kakao_info) {
         router.push({
-          pathname: "/(auth)/kakao-link",
-          params: { kakaoId: e.kakao_info.kakao_id, kakaoProfileImage: e.kakao_info.profile_image || "", kakaoName: e.kakao_info.name || "" },
+          pathname: "/signup-role",
+          params: {
+            kakaoId: e.kakao_info.kakao_id ?? "",
+            kakaoPhone: e.kakao_info.phone ?? "",
+            kakaoName: e.kakao_info.name ?? "",
+          },
         } as any); return;
       }
       if (e.needs_activation && e.teacher_id) {

@@ -1843,8 +1843,8 @@ router.post("/apple-social-login", async (req, res) => {
     `);
     if ((byAppleId.rows as any[]).length > 0) {
       const account = byAppleId.rows[0] as any;
-      // 이전 코드가 자동 생성한 고아 계정 감지: swimming_pool_id, phone, login_id 모두 없는 경우
-      const isOrphan = !account.swimming_pool_id && !account.phone && !account.login_id;
+      // 이전 코드가 자동 생성한 고아 계정 감지: 수영장도 없고 전화번호도 없으면 미완성 계정
+      const isOrphan = !account.swimming_pool_id && !account.phone;
       if (isOrphan) {
         console.log("[apple-social-login] 고아 계정 감지 → 재가입 유도:", account.id);
         // 고아 계정 삭제 후 apple_no_account 반환
