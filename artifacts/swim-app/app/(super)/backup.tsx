@@ -160,6 +160,21 @@ interface BackupStatusData {
       pool_configured: boolean;
       protect_configured: boolean;
     };
+    hot_standby: {
+      label: string;
+      configured: boolean;
+      connected: boolean;
+      latency_ms: number | null;
+      status: CardStatus;
+      status_label: string;
+      last_sync_at: string | null;
+      last_sync_status: string | null;
+      lag_minutes: number | null;
+      lag_label: string | null;
+      error: string | null;
+      sync_schedule: string;
+      tables_synced: number;
+    };
   };
 }
 
@@ -228,7 +243,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
     );
   }
 
-  const { operational_db, pool_backup, protect_backup, summary } = status.cards;
+  const { operational_db, pool_backup, protect_backup, summary, hot_standby } = status.cards;
 
   function DbCard({ label, status: st, statusLabel, sub1, sub2, errorMsg, icon }: {
     label: string;
@@ -321,6 +336,35 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
         sub1={`24시간 내 실패: ${summary.failure_count_24h}건`}
         sub2={`pool ${summary.pool_configured ? "✓" : "✗"}  보호백업 ${summary.protect_configured ? "✓" : "✗"}`}
       />
+
+      {/* 카드 5: 핫 스탠바이 DB */}
+      {hot_standby && (
+        <DbCard
+          label="핫 스탠바이 DB"
+          status={hot_standby.status}
+          statusLabel={hot_standby.status_label}
+          icon="radio"
+          sub1={
+            !hot_standby.configured
+              ? "POOL_DATABASE_URL 미설정"
+              : !hot_standby.connected
+              ? `연결 실패${hot_standby.error ? ` — ${hot_standby.error.slice(0, 40)}` : ""}`
+              : hot_standby.lag_label
+              ? `${hot_standby.lag_label}${hot_standby.latency_ms !== null ? ` · ${hot_standby.latency_ms}ms` : ""}`
+              : "싱크 기록 없음"
+          }
+          sub2={
+            hot_standby.configured
+              ? `5분 헬스체크 · 30분 핫싱크 · 6시간 풀싱크 · ${hot_standby.tables_synced}개 테이블`
+              : undefined
+          }
+          errorMsg={
+            hot_standby.status === "error" && hot_standby.error
+              ? hot_standby.error.slice(0, 80)
+              : null
+          }
+        />
+      )}
 
       {/* 수동 백업 버튼 */}
       <View style={dc.btnRow}>

@@ -5,6 +5,7 @@ import { startAutoAttendanceScheduler } from "./jobs/auto-attendance-scheduler.j
 import { startPushScheduler } from "./jobs/push-scheduler.js";
 import { startDeactivationCleanupScheduler } from "./jobs/deactivation-cleanup.js";
 import { startReadonlyTriggerScheduler } from "./jobs/readonly-trigger.js";
+import { startStandbySyncJobs } from "./jobs/standby-sync.js";
 import { initPoolDb } from "./migrations/pool-db-init.js";
 import { initSuperDb } from "./migrations/super-db-init.js";
 import { initV2PendingTable } from "./lib/auto-link-v2.js";
@@ -64,12 +65,14 @@ if (IS_WORKER) {
   startPushScheduler();
   startDeactivationCleanupScheduler();
   startReadonlyTriggerScheduler();
-  console.log("[worker] 스케줄러 5개 등록 완료 (backup / parent-link / auto-attendance / push / readonly-trigger)");
+  startStandbySyncJobs();
+  console.log("[worker] 스케줄러 6개 등록 완료 (backup / parent-link / auto-attendance / push / readonly-trigger / standby-sync)");
   console.log("[worker] HTTP 서버 미실행 — DB 락으로 중복 실행 방지됨");
 } else {
   // ── API 서버 모드: HTTP 실행 + 비활성화 정리 스케줄러 ───────────────────
   startDeactivationCleanupScheduler();
   startReadonlyTriggerScheduler();
+  startStandbySyncJobs();
 
   // ── 서버 성능 감시 + 푸시 알림 (5분마다) ───────────────────────────────────
   const SLOW_CHECK_INTERVAL = 5 * 60 * 1000;
