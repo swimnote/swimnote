@@ -63,7 +63,7 @@ export default function SubscriptionScreen() {
   const { token, refreshPool } = useAuth();
   const [currentTier, setCurrentTier] = useState<string | null>(null);
   const [loading, setLoading]         = useState(true);
-  const [serverPlanMap, setServerPlanMap] = useState<Record<string, { name: string; price: number; member_limit: number; display_storage: string }>>({});
+
 
   const {
     soloOffering,
@@ -109,22 +109,13 @@ export default function SubscriptionScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [statusRes, plansRes, policyRes] = await Promise.all([
+      const [statusRes, policyRes] = await Promise.all([
         apiRequest(token, "/billing/status"),
-        apiRequest(token, "/billing/plans"),
         apiRequest(token, "/admin/refund-policy").catch(() => null),
       ]);
       if (statusRes.ok) {
         const d = await statusRes.json();
         setCurrentTier(d.current_plan ?? d.plan_id ?? null);
-      }
-      if (plansRes.ok) {
-        const d = await plansRes.json();
-        const map: typeof serverPlanMap = {};
-        for (const p of (d.plans ?? [])) {
-          map[p.tier] = { name: p.name, price: Number(p.price), member_limit: Number(p.member_limit), display_storage: p.display_storage ?? "" };
-        }
-        setServerPlanMap(map);
       }
       if (policyRes?.ok) {
         const d = await policyRes.json();
@@ -239,18 +230,9 @@ export default function SubscriptionScreen() {
 
   const goToBilling = () => router.push("/(admin)/billing");
 
-  // 서버 값 우선 적용: 이름·가격·회원한도·스토리지 표시는 서버 값, RC 패키지ID는 하드코딩 유지
+  // 가격·이름·스토리지는 클라이언트 하드코딩 값 고정 사용 (서버 값 무시)
   function mergePlan(plan: PlanMeta): PlanMeta {
-    const srv = serverPlanMap[plan.tier];
-    if (!srv) return plan;
-    return {
-      ...plan,
-      name:      srv.name,
-      price:     srv.price,
-      limit:     srv.member_limit,
-      storage:   srv.display_storage || plan.storage,
-      storageMb: plan.storageMb,
-    };
+    return plan;
   }
 
   return (
