@@ -1018,9 +1018,10 @@ export async function initPoolDb(): Promise<void> {
   await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS kakao_id text`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS kakao_profile_image text`)).catch(() => {});
 
-  // ── 선생님/코치 카카오 로그인 지원 ──────────────────────────────────
+  // ── 선생님/코치 카카오·애플 로그인 지원 ─────────────────────────────
   await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS kakao_id text`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS kakao_profile_image text`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_id text`)).catch(() => {});
 
   // ── 학부모 수업 요청 테이블 (결석/보강/연기/퇴원/상담/문의) ──────────────
   await db.execute(sql.raw(`

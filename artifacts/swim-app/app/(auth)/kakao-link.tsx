@@ -1,7 +1,7 @@
 /**
  * (auth)/kakao-link.tsx
- * 카카오 로그인 후 기존 계정(전화번호)을 연결하는 화면
- * 학부모 / 선생님·코치 역할 선택 후 연결
+ * 카카오/Apple 로그인 후 계정 연결 화면
+ * 역할 선택(관리자 / 선생님·코치 / 학부모) → 전화번호 입력 → 연결
  */
 import { ArrowLeft, Phone, Link2 } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
@@ -17,7 +17,13 @@ import { API_BASE } from "@/context/AuthContext";
 
 const C = Colors.light;
 
-type Role = "parent" | "teacher";
+type Role = "admin" | "teacher" | "parent";
+
+const ROLES: { key: Role; label: string }[] = [
+  { key: "admin",   label: "관리자" },
+  { key: "teacher", label: "선생님·코치" },
+  { key: "parent",  label: "학부모" },
+];
 
 export default function KakaoLinkScreen() {
   const insets = useSafeAreaInsets();
@@ -34,6 +40,7 @@ export default function KakaoLinkScreen() {
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [pendingMsg, setPendingMsg] = useState("");
 
   async function handleLink() {
     const cleanPhone = phone.replace(/[^0-9]/g, "");
@@ -43,18 +50,18 @@ export default function KakaoLinkScreen() {
     }
     setLoading(true);
     setError("");
+    setPendingMsg("");
     try {
       let endpoint: string;
       let body: Record<string, any>;
 
+      const isTeacherRole = role === "admin" || role === "teacher";
+
       if (isApple) {
-        endpoint = "/auth/apple-link-account";
+        endpoint = isTeacherRole ? "/auth/apple-link-teacher" : "/auth/apple-link-account";
         body = { appleId: kakaoId, phone: cleanPhone };
-      } else if (role === "teacher") {
-        endpoint = "/auth/kakao-link-teacher";
-        body = { kakaoId, phone: cleanPhone, kakaoProfileImage: kakaoProfileImage || null };
       } else {
-        endpoint = "/auth/kakao-link-account";
+        endpoint = isTeacherRole ? "/auth/kakao-link-teacher" : "/auth/kakao-link-account";
         body = { kakaoId, phone: cleanPhone, kakaoProfileImage: kakaoProfileImage || null };
       }
 
@@ -64,9 +71,14 @@ export default function KakaoLinkScreen() {
         body: JSON.stringify(body),
       });
       const data = await res.json();
+
       if (!res.ok) {
         if (data.needs_activation && data.teacher_id) {
           router.replace({ pathname: "/teacher-activate", params: { teacher_id: data.teacher_id } } as any);
+          return;
+        }
+        if (data.error_code === "phone_not_registered" || res.status === 404) {
+          setPendingMsg("입력하신 전화번호가 등록되어 있지 않습니다.\n관리자가 등록 확인 후 메인화면으로 연결됩니다.");
           return;
         }
         setError(data.message || data.error || "연결에 실패했습니다.");
@@ -111,47 +123,43 @@ export default function KakaoLinkScreen() {
         <Text style={[styles.desc, { color: C.textSecondary }]}>
           {kakaoName ? `${kakaoName}님, ` : ""}
           {isApple ? "Apple 계정" : "카카오 계정"}과 수영장 계정을 연결합니다.{"\n"}
-          수영장에 등록된 전화번호를 입력해주세요.
+          역할을 선택하고 등록된 전화번호를 입력해주세요.
         </Text>
 
         <View style={[styles.card, { backgroundColor: C.card }]}>
           {!!error && (
-            <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
+            <View style={[styles.msgBox, { backgroundColor: "#F9DEDA" }]}>
+              <Text style={[styles.msgText, { color: C.error }]}>{error}</Text>
+            </View>
+          )}
+          {!!pendingMsg && (
+            <View style={[styles.msgBox, { backgroundColor: "#EEF4FF" }]}>
+              <Text style={[styles.msgText, { color: "#1A5CFF" }]}>{pendingMsg}</Text>
             </View>
           )}
 
-          {!isApple && (
-            <View style={styles.roleWrap}>
-              <Text style={[styles.label, { color: C.textSecondary }]}>역할 선택</Text>
-              <View style={styles.roleRow}>
+          <View style={styles.roleWrap}>
+            <Text style={[styles.label, { color: C.textSecondary }]}>역할 선택</Text>
+            <View style={styles.roleRow}>
+              {ROLES.map(({ key, label }) => (
                 <Pressable
+                  key={key}
                   style={[
                     styles.roleBtn,
-                    { borderColor: role === "parent" ? C.primary : C.border,
-                      backgroundColor: role === "parent" ? C.primary + "15" : C.background },
+                    {
+                      borderColor: role === key ? C.primary : C.border,
+                      backgroundColor: role === key ? C.primary + "15" : C.background,
+                    },
                   ]}
-                  onPress={() => { setRole("parent"); setError(""); }}
+                  onPress={() => { setRole(key); setError(""); setPendingMsg(""); }}
                 >
-                  <Text style={[styles.roleBtnText, { color: role === "parent" ? C.primary : C.textSecondary }]}>
-                    학부모
+                  <Text style={[styles.roleBtnText, { color: role === key ? C.primary : C.textSecondary }]}>
+                    {label}
                   </Text>
                 </Pressable>
-                <Pressable
-                  style={[
-                    styles.roleBtn,
-                    { borderColor: role === "teacher" ? C.primary : C.border,
-                      backgroundColor: role === "teacher" ? C.primary + "15" : C.background },
-                  ]}
-                  onPress={() => { setRole("teacher"); setError(""); }}
-                >
-                  <Text style={[styles.roleBtnText, { color: role === "teacher" ? C.primary : C.textSecondary }]}>
-                    선생님·코치
-                  </Text>
-                </Pressable>
-              </View>
+              ))}
             </View>
-          )}
+          </View>
 
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>전화번호</Text>
@@ -160,7 +168,7 @@ export default function KakaoLinkScreen() {
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={phone}
-                onChangeText={v => { setPhone(v); setError(""); }}
+                onChangeText={v => { setPhone(v); setError(""); setPendingMsg(""); }}
                 placeholder="010-0000-0000"
                 placeholderTextColor={C.textMuted}
                 keyboardType="phone-pad"
@@ -174,14 +182,14 @@ export default function KakaoLinkScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.btn,
-              { backgroundColor: "#FEE500", opacity: pressed ? 0.85 : 1 },
+              { backgroundColor: isApple ? "#000" : "#FEE500", opacity: pressed ? 0.85 : 1 },
             ]}
             onPress={handleLink}
             disabled={loading}
           >
             {loading
-              ? <ActivityIndicator color="#3C1E1E" size="small" />
-              : <Text style={styles.btnText}>계정 연결하기</Text>
+              ? <ActivityIndicator color={isApple ? "#fff" : "#3C1E1E"} size="small" />
+              : <Text style={[styles.btnText, { color: isApple ? "#fff" : "#3C1E1E" }]}>계정 연결하기</Text>
             }
           </Pressable>
         </View>
@@ -211,15 +219,15 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06, shadowRadius: 12, elevation: 3,
   },
-  errBox: { padding: 12, borderRadius: 10 },
-  errText: { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
+  msgBox: { padding: 12, borderRadius: 10 },
+  msgText: { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   roleWrap: { gap: 8 },
-  roleRow: { flexDirection: "row", gap: 10 },
+  roleRow: { flexDirection: "row", gap: 8 },
   roleBtn: {
     flex: 1, height: 44, borderRadius: 12, borderWidth: 1.5,
     alignItems: "center", justifyContent: "center",
   },
-  roleBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  roleBtnText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   field: { gap: 8 },
   label: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   inputRow: {
@@ -228,6 +236,6 @@ const styles = StyleSheet.create({
   },
   input: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular" },
   btn: { height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  btnText: { color: "#3C1E1E", fontSize: 16, fontFamily: "Pretendard-Regular" },
+  btnText: { fontSize: 16, fontFamily: "Pretendard-Regular" },
   hint: { fontSize: 12, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20 },
 });

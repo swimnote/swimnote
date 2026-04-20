@@ -2017,7 +2017,72 @@ router.post("/apple-link-account", async (req, res) => {
     console.error("[apple-link-account]", e);
     return err(res, 500, "서버 오류가 발생했습니다.");
   }
+
 });
+
+// ── Apple 선생님/관리자 계정 연결 ────────────────────────────────────────
+router.post("/apple-link-teacher", async (req, res) => {
+  const { appleId, phone } = req.body;
+  if (!appleId || !phone) return err(res, 400, "appleId와 전화번호가 필요합니다.");
+
+  const cleanPhone = String(phone).replace(/[^0-9]/g, "");
+  try {
+    const byPhone = await db.execute(sql`
+      SELECT * FROM users WHERE phone = ${cleanPhone} AND role IN ('teacher', 'pool_admin') LIMIT 1
+    `);
+    if ((byPhone.rows as any[]).length === 0) {
+      return res.status(404).json({
+        success: false,
+        error_code: "phone_not_registered",
+        message: "입력하신 전화번호로 등록된 계정이 없습니다.",
+      });
+    }
+    const u = byPhone.rows[0] as any;
+
+    const existing = await db.execute(sql`
+      SELECT id FROM users WHERE apple_id = ${appleId} AND id != ${u.id} LIMIT 1
+    `);
+    if ((existing.rows as any[]).length > 0) {
+      return err(res, 409, "이미 다른 계정에 연결된 Apple 계정입니다.");
+    }
+
+    await db.execute(sql`
+      UPDATE users SET apple_id = ${appleId}, updated_at = NOW() WHERE id = ${u.id}
+    `);
+
+    if (!u.is_activated) {
+      return res.status(403).json({
+        success: false,
+        error_code: "needs_activation",
+        needs_activation: true,
+        teacher_id: u.id,
+        message: "계정이 아직 활성화되지 않았습니다. 관리자의 승인을 기다려주세요.",
+      });
+    }
+
+    const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
+    return res.json({
+      success: true,
+      kind: "admin",
+      token,
+      user: {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        phone: u.phone,
+        role: u.role,
+        roles: u.roles || [u.role],
+        swimming_pool_id: u.swimming_pool_id,
+        is_activated: u.is_activated,
+      },
+    });
+  } catch (e) {
+    console.error("[apple-link-teacher]", e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
+  }
+});
+
+// ── users 테이블에 apple_id 컬럼 추가 (마이그레이션에서 처리되지만 안전장치) ──
 
 // ════════════════════════════════════════════════════════════════
 // DELETE /auth/account — 계정 영구 탈퇴 (Apple 5.1.1(v) 필수 요건)
