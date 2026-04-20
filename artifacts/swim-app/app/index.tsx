@@ -131,6 +131,17 @@ export default function LoginScreen() {
     // ── STEP 1: Apple signInAsync() 호출 시작 ──────────────────────
     console.log("[AppleLogin][STEP1] signInAsync 호출 시작 — Apple 시스템 시트 표시");
     let credential: Awaited<ReturnType<typeof AppleAuthentication.signInAsync>>;
+
+    // signInAsync가 무응답으로 hang할 경우 20초 후 강제 해제
+    let signInDone = false;
+    const hangGuard = setTimeout(() => {
+      if (!signInDone) {
+        console.error("[AppleLogin][HANG] signInAsync 20초 무응답 — 강제 해제 (provisioning profile 또는 Apple ID 미설정 의심)");
+        setAppleLoading(false);
+        setError("Apple 로그인에 응답이 없습니다.\n기기의 Apple ID 설정을 확인하거나 카카오 로그인을 이용해주세요.");
+      }
+    }, 20000);
+
     try {
       credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
@@ -138,7 +149,11 @@ export default function LoginScreen() {
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
+      signInDone = true;
+      clearTimeout(hangGuard);
     } catch (signInErr: unknown) {
+      signInDone = true;
+      clearTimeout(hangGuard);
       const e = signInErr as any;
 
       // ── STEP 2 실패: Apple 시스템 시트에서 에러 발생 (서버 미도달) ──
