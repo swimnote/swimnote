@@ -2402,9 +2402,9 @@ router.get(
       const subRes = await db.execute(sql`
         SELECT COUNT(*)::int AS active_subs
         FROM swimming_pools
-        WHERE plan_id IS NOT NULL
-          AND plan_id != 'free'
-          AND subscription_status NOT IN ('deleted','cancelled')
+        WHERE subscription_tier IS NOT NULL
+          AND subscription_tier != 'free'
+          AND subscription_status NOT IN ('deleted','cancelled','expired')
       `);
       const activeSubs = Number(subRes.rows[0]?.active_subs ?? 0);
 
