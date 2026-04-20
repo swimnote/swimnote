@@ -1648,7 +1648,64 @@ router.post("/kakao-social-login", async (req, res) => {
       }
     }
 
-    // 3) 계정 없음 → 신규 가입 유도 (kakao_id + 정보 반환)
+    // 3) users 테이블(선생님/코치) kakao_id로 조회
+    const byKakaoIdTeacher = await db.execute(sql`
+      SELECT * FROM users WHERE kakao_id = ${kakaoId} AND role IN ('teacher', 'pool_admin') LIMIT 1
+    `);
+    if ((byKakaoIdTeacher.rows as any[]).length > 0) {
+      const u = byKakaoIdTeacher.rows[0] as any;
+      const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
+      return res.json({
+        success: true,
+        kind: "admin",
+        token,
+        user: {
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          phone: u.phone,
+          role: u.role,
+          roles: u.roles || [u.role],
+          swimming_pool_id: u.swimming_pool_id,
+          is_activated: u.is_activated,
+          kakao_profile_image: u.kakao_profile_image || null,
+        },
+      });
+    }
+
+    // 4) users 테이블(선생님/코치) 전화번호로 조회 후 kakao_id 연결
+    if (kakaoPhone) {
+      const byPhoneTeacher = await db.execute(sql`
+        SELECT * FROM users WHERE phone = ${kakaoPhone} AND role IN ('teacher', 'pool_admin') LIMIT 1
+      `);
+      if ((byPhoneTeacher.rows as any[]).length > 0) {
+        const u = byPhoneTeacher.rows[0] as any;
+        await db.execute(sql`
+          UPDATE users
+          SET kakao_id = ${kakaoId}, kakao_profile_image = ${kakaoProfileImage}, updated_at = NOW()
+          WHERE id = ${u.id}
+        `);
+        const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
+        return res.json({
+          success: true,
+          kind: "admin",
+          token,
+          user: {
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            phone: u.phone,
+            role: u.role,
+            roles: u.roles || [u.role],
+            swimming_pool_id: u.swimming_pool_id,
+            is_activated: u.is_activated,
+            kakao_profile_image: kakaoProfileImage || null,
+          },
+        });
+      }
+    }
+
+    // 5) 계정 없음 → 신규 가입 유도 (kakao_id + 정보 반환)
     return res.status(404).json({
       success: false,
       error_code: "kakao_no_account",
@@ -1663,6 +1720,57 @@ router.post("/kakao-social-login", async (req, res) => {
   } catch (e) {
     console.error("[kakao-social-login]", e);
     return err(res, 500, "카카오 로그인 처리 중 오류가 발생했습니다.");
+  }
+});
+
+// ── 카카오 선생님/코치 계정 연결 (전화번호로 본인 확인 후 kakao_id 연결) ──
+router.post("/kakao-link-teacher", async (req, res) => {
+  const { kakaoId, phone, kakaoProfileImage } = req.body;
+  if (!kakaoId || !phone) return err(res, 400, "kakaoId와 전화번호가 필요합니다.");
+
+  const cleanPhone = String(phone).replace(/[^0-9]/g, "");
+  try {
+    const byPhone = await db.execute(sql`
+      SELECT * FROM users WHERE phone = ${cleanPhone} AND role IN ('teacher', 'pool_admin') LIMIT 1
+    `);
+    if ((byPhone.rows as any[]).length === 0) {
+      return err(res, 404, "입력하신 전화번호로 등록된 선생님/코치 계정이 없습니다. 수영장 관리자에게 문의하세요.");
+    }
+    const u = byPhone.rows[0] as any;
+
+    const existing = await db.execute(sql`
+      SELECT id FROM users WHERE kakao_id = ${kakaoId} AND id != ${u.id} LIMIT 1
+    `);
+    if ((existing.rows as any[]).length > 0) {
+      return err(res, 409, "이미 다른 계정에 연결된 카카오 계정입니다.");
+    }
+
+    await db.execute(sql`
+      UPDATE users
+      SET kakao_id = ${kakaoId}, kakao_profile_image = ${kakaoProfileImage || null}, updated_at = NOW()
+      WHERE id = ${u.id}
+    `);
+
+    const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
+    return res.json({
+      success: true,
+      kind: "admin",
+      token,
+      user: {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        phone: u.phone,
+        role: u.role,
+        roles: u.roles || [u.role],
+        swimming_pool_id: u.swimming_pool_id,
+        is_activated: u.is_activated,
+        kakao_profile_image: kakaoProfileImage || null,
+      },
+    });
+  } catch (e) {
+    console.error("[kakao-link-teacher]", e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
   }
 });
 

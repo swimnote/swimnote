@@ -1,7 +1,7 @@
 /**
  * (auth)/kakao-link.tsx
  * 카카오 로그인 후 기존 계정(전화번호)을 연결하는 화면
- * 카카오 계정 정보는 있으나 parent_accounts에 매핑이 없는 경우
+ * 학부모 / 선생님·코치 역할 선택 후 연결
  */
 import { ArrowLeft, Phone, Link2 } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
@@ -17,6 +17,8 @@ import { API_BASE } from "@/context/AuthContext";
 
 const C = Colors.light;
 
+type Role = "parent" | "teacher";
+
 export default function KakaoLinkScreen() {
   const insets = useSafeAreaInsets();
   const { kakaoId, kakaoProfileImage, kakaoName, loginType } = useLocalSearchParams<{
@@ -27,7 +29,8 @@ export default function KakaoLinkScreen() {
   }>();
 
   const isApple = loginType === "apple";
-  const { setParentSession } = useAuth();
+  const { setParentSession, setAdminSession } = useAuth();
+  const [role, setRole] = useState<Role>("parent");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -41,10 +44,20 @@ export default function KakaoLinkScreen() {
     setLoading(true);
     setError("");
     try {
-      const endpoint = isApple ? "/auth/apple-link-account" : "/auth/kakao-link-account";
-      const body = isApple
-        ? { appleId: kakaoId, phone: cleanPhone }
-        : { kakaoId, phone: cleanPhone, kakaoProfileImage: kakaoProfileImage || null };
+      let endpoint: string;
+      let body: Record<string, any>;
+
+      if (isApple) {
+        endpoint = "/auth/apple-link-account";
+        body = { appleId: kakaoId, phone: cleanPhone };
+      } else if (role === "teacher") {
+        endpoint = "/auth/kakao-link-teacher";
+        body = { kakaoId, phone: cleanPhone, kakaoProfileImage: kakaoProfileImage || null };
+      } else {
+        endpoint = "/auth/kakao-link-account";
+        body = { kakaoId, phone: cleanPhone, kakaoProfileImage: kakaoProfileImage || null };
+      }
+
       const res = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -55,7 +68,12 @@ export default function KakaoLinkScreen() {
         setError(data.message || data.error || "연결에 실패했습니다.");
         return;
       }
-      await setParentSession(data.token, data.parent);
+
+      if (data.kind === "admin" && data.user) {
+        await setAdminSession(data.token, data.user);
+      } else {
+        await setParentSession(data.token, data.parent);
+      }
     } catch {
       setError("네트워크 오류가 발생했습니다.");
     } finally {
@@ -96,6 +114,38 @@ export default function KakaoLinkScreen() {
           {!!error && (
             <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
               <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
+            </View>
+          )}
+
+          {!isApple && (
+            <View style={styles.roleWrap}>
+              <Text style={[styles.label, { color: C.textSecondary }]}>역할 선택</Text>
+              <View style={styles.roleRow}>
+                <Pressable
+                  style={[
+                    styles.roleBtn,
+                    { borderColor: role === "parent" ? C.primary : C.border,
+                      backgroundColor: role === "parent" ? C.primary + "15" : C.background },
+                  ]}
+                  onPress={() => { setRole("parent"); setError(""); }}
+                >
+                  <Text style={[styles.roleBtnText, { color: role === "parent" ? C.primary : C.textSecondary }]}>
+                    학부모
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.roleBtn,
+                    { borderColor: role === "teacher" ? C.primary : C.border,
+                      backgroundColor: role === "teacher" ? C.primary + "15" : C.background },
+                  ]}
+                  onPress={() => { setRole("teacher"); setError(""); }}
+                >
+                  <Text style={[styles.roleBtnText, { color: role === "teacher" ? C.primary : C.textSecondary }]}>
+                    선생님·코치
+                  </Text>
+                </Pressable>
+              </View>
             </View>
           )}
 
@@ -159,6 +209,13 @@ const styles = StyleSheet.create({
   },
   errBox: { padding: 12, borderRadius: 10 },
   errText: { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
+  roleWrap: { gap: 8 },
+  roleRow: { flexDirection: "row", gap: 10 },
+  roleBtn: {
+    flex: 1, height: 44, borderRadius: 12, borderWidth: 1.5,
+    alignItems: "center", justifyContent: "center",
+  },
+  roleBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   field: { gap: 8 },
   label: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   inputRow: {

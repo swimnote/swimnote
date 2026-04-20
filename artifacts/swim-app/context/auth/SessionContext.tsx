@@ -460,19 +460,31 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         kakao_info: data.kakao_info || null,
       });
     }
-    await AsyncStorage.multiSet([
-      ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
-      ["parent_join_status", "approved"], ["app_version", APP_VERSION],
-    ]);
-    setToken(data.token);
-    setParentAccount(data.parent);
-    setKind("parent");
-    setParentJoinStatus("approved");
-    if (data.parent?.pool_name) {
-      setParentPoolName(data.parent.pool_name);
-      AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
+    if (data.kind === "admin" && data.user) {
+      const u = { ...data.user, roles: data.user.roles?.length ? data.user.roles : [data.user.role] };
+      await AsyncStorage.multiSet([
+        ["auth_token", data.token], ["auth_kind", "admin"], ["auth_admin", JSON.stringify(u)],
+        ["app_version", APP_VERSION],
+      ]);
+      setToken(data.token);
+      setAdminUser(u);
+      setKind("admin");
+      if (u.swimming_pool_id) await fetchPool(data.token);
+    } else {
+      await AsyncStorage.multiSet([
+        ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
+        ["parent_join_status", "approved"], ["app_version", APP_VERSION],
+      ]);
+      setToken(data.token);
+      setParentAccount(data.parent);
+      setKind("parent");
+      setParentJoinStatus("approved");
+      if (data.parent?.pool_name) {
+        setParentPoolName(data.parent.pool_name);
+        AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
+      }
+      await fetchPool(data.token);
     }
-    await fetchPool(data.token);
   }
 
   async function appleSocialLogin(identityToken: string, fullName?: string | null) {
