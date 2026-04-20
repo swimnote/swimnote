@@ -1,6 +1,6 @@
 import { ArrowLeft, ChevronRight, UserPlus } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React from "react";
 import {
   Pressable, ScrollView, StyleSheet, Text, View,
@@ -23,59 +23,70 @@ interface RoleCard {
   onPress: () => void;
 }
 
-const ROLES: RoleCard[] = [
-  {
-    key: "admin",
-    icon: "briefcase",
-    iconColor: "#4F6EF7",
-    iconBg: "#EFF4FF",
-    label: "수영장 대표",
-    tag: "원장님 · 원감님",
-    tagColor: "#4F6EF7",
-    tagBg: "#EFF4FF",
-    bullets: [
-      "수영장을 직접 운영하는 대표자",
-      "선생님·학부모 초대 및 전체 관리",
-      "수업 운영, 출결, 수업일지 통합 관리",
-    ],
-    onPress: () => router.push("/(auth)/signup" as any),
-  },
-  {
-    key: "teacher",
-    icon: "award",
-    iconColor: "#2E9B6F",
-    iconBg: "#DFF3EC",
-    label: "선생님",
-    tag: "초대받은 선생님 전용",
-    tagColor: "#2E9B6F",
-    tagBg: "#DFF3EC",
-    bullets: [
-      "수영장 대표(관리자)로부터 초대코드를 받은 선생님만 가입 가능",
-      "초대코드가 없다면 소속 수영장 관리자에게 문의하세요",
-    ],
-    onPress: () => router.push("/teacher-invite-join" as any),
-  },
-  {
-    key: "parent",
-    icon: "heart",
-    iconColor: "#E4A93A",
-    iconBg: "#FFFBEB",
-    label: "학부모",
-    tag: "회원등록 완료 후 가입",
-    tagColor: "#D97706",
-    tagBg: "#FFF8E1",
-    bullets: [
-      "아이가 등록한 수영장이 없는 경우 가입이 불가합니다",
-      "수영장에서 자녀 회원등록을 먼저 마쳐야 가입 가능",
-      "관리자가 발급한 QR코드 · 초대링크로 가입",
-      "가입 후 수업일지·사진·출결을 실시간으로 확인",
-    ],
-    onPress: () => router.push("/parent-invite-info" as any),
-  },
-];
-
 export default function SignupRoleScreen() {
   const insets = useSafeAreaInsets();
+  const { appleId, appleEmail, appleName, kakaoId } = useLocalSearchParams<{
+    appleId?: string; appleEmail?: string; appleName?: string; kakaoId?: string;
+  }>();
+
+  const isSocial = !!(appleId || kakaoId);
+
+  const ROLES: RoleCard[] = [
+    {
+      key: "admin",
+      icon: "briefcase",
+      iconColor: "#4F6EF7",
+      iconBg: "#EFF4FF",
+      label: "수영장 대표",
+      tag: "원장님 · 원감님",
+      tagColor: "#4F6EF7",
+      tagBg: "#EFF4FF",
+      bullets: [
+        "수영장을 직접 운영하는 대표자",
+        "선생님·학부모 초대 및 전체 관리",
+        "수업 운영, 출결, 수업일지 통합 관리",
+      ],
+      onPress: () => isSocial
+        ? router.push({ pathname: "/register", params: { ...(appleId ? { appleId } : {}), ...(kakaoId ? { kakaoId } : {}) } } as any)
+        : router.push("/(auth)/signup" as any),
+    },
+    {
+      key: "teacher",
+      icon: "award",
+      iconColor: "#2E9B6F",
+      iconBg: "#DFF3EC",
+      label: "선생님",
+      tag: "선생님·코치",
+      tagColor: "#2E9B6F",
+      tagBg: "#DFF3EC",
+      bullets: [
+        "소속 수영장을 검색해 가입 요청을 보냅니다",
+        "수영장 관리자 승인 후 수업을 시작할 수 있어요",
+      ],
+      onPress: () => isSocial
+        ? router.push({ pathname: "/(auth)/teacher-signup", params: { ...(appleId ? { appleId } : {}), ...(kakaoId ? { kakaoId } : {}) } } as any)
+        : router.push("/teacher-invite-join" as any),
+    },
+    {
+      key: "parent",
+      icon: "heart",
+      iconColor: "#E4A93A",
+      iconBg: "#FFFBEB",
+      label: "학부모",
+      tag: "학부모",
+      tagColor: "#D97706",
+      tagBg: "#FFF8E1",
+      bullets: [
+        "아이가 등록한 수영장이 없는 경우 가입이 불가합니다",
+        "수영장에서 자녀 회원등록을 먼저 마쳐야 가입 가능",
+        "가입 후 수업일지·사진·출결을 실시간으로 확인",
+      ],
+      onPress: () => isSocial
+        ? router.push({ pathname: "/pool-join-request", params: { ...(appleId ? { appleId } : {}), ...(kakaoId ? { kakaoId } : {}) } } as any)
+        : router.push("/parent-invite-info" as any),
+    },
+  ];
+
   return (
     <ScrollView
       style={[styles.root, { backgroundColor: C.background }]}
@@ -89,12 +100,16 @@ export default function SignupRoleScreen() {
       </View>
 
       <View style={styles.titleArea}>
-        <View style={[styles.logoBox, { backgroundColor: C.tint }]}>
+        <View style={[styles.logoBox, { backgroundColor: appleId ? "#000" : C.tint }]}>
           <UserPlus size={28} color="#fff" />
         </View>
         <Text style={[styles.title, { color: C.text }]}>회원가입</Text>
         <Text style={[styles.subtitle, { color: C.textSecondary }]}>
-          어떤 역할로 가입하시겠어요?
+          {appleId
+            ? "Apple 인증이 완료됐습니다.\n어떤 역할로 가입하시겠어요?"
+            : kakaoId
+            ? "카카오 인증이 완료됐습니다.\n어떤 역할로 가입하시겠어요?"
+            : "어떤 역할로 가입하시겠어요?"}
         </Text>
       </View>
 

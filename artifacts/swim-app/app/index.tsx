@@ -188,25 +188,14 @@ export default function LoginScreen() {
       console.error(`[AppleLogin][STEP4 FAIL] 서버 오류 — error_code: ${e?.error_code}, message: ${e?.message}`);
       const serverCode = e?.error_code;
       if (serverCode === "apple_no_account") {
-        Alert.alert(
-          "연결된 계정 없음",
-          "이 Apple ID에 연결된 SwimNote 계정이 없습니다.\n\n수영장 관리자에게 전화번호 등록을 요청한 후 '계정 연결하기'를 눌러주세요.",
-          [
-            { text: "닫기", style: "cancel" },
-            {
-              text: "계정 연결하기",
-              onPress: () => router.push({
-                pathname: "/(auth)/kakao-link",
-                params: {
-                  kakaoId: e.apple_info?.apple_id ?? "",
-                  kakaoName: e.apple_info?.name ?? "",
-                  kakaoProfileImage: "",
-                  loginType: "apple",
-                },
-              } as any),
-            },
-          ]
-        );
+        router.push({
+          pathname: "/signup-role",
+          params: {
+            appleId: e.apple_info?.apple_id ?? "",
+            appleEmail: e.apple_info?.email ?? "",
+            appleName: e.apple_info?.name ?? "",
+          },
+        } as any);
       } else if (serverCode === "network_error") {
         setError("서버에 연결할 수 없습니다. 네트워크를 확인해주세요.");
       } else {

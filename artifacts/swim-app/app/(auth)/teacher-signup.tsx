@@ -26,15 +26,16 @@ export default function TeacherSignupScreen() {
     phone?: string; kakaoId?: string; appleId?: string;
   }>();
 
-  const isSocialSignup = !!(prefillPhone && (kakaoId || appleId));
+  const hasSocialId   = !!(appleId || kakaoId);
+  const isSocialPhone = !!(prefillPhone && hasSocialId);
 
   const loginIdRef = useRef<TextInput>(null);
   const pwRef       = useRef<TextInput>(null);
   const phoneRef    = useRef<TextInput>(null);
   const wsRef       = useRef<TextInput>(null);
 
-  const [signupType, setSignupType] = useState<SignupType | null>(isSocialSignup ? "affiliated" : null);
-  const [step, setStep] = useState<Step>(isSocialSignup ? "pool" : "type");
+  const [signupType, setSignupType] = useState<SignupType | null>(hasSocialId ? "affiliated" : null);
+  const [step, setStep] = useState<Step>(hasSocialId ? "pool" : "type");
 
   /* 수영장 검색 (소속) */
   const [query, setQuery]             = useState("");
@@ -411,10 +412,10 @@ export default function TeacherSignupScreen() {
             {/* 전화번호 */}
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>
-                전화번호 {isSocialSignup ? "" : <Text style={{ color: C.textMuted }}>(선택)</Text>}
+                전화번호 {isSocialPhone ? "" : <Text style={{ color: C.textMuted }}>(선택)</Text>}
               </Text>
-              <View style={[styles.inputRow, { borderColor: isSocialSignup ? "#2EC4B6" : (phone ? C.tint : C.border), backgroundColor: C.background }]}>
-                <Phone size={15} color={isSocialSignup ? "#2EC4B6" : (phone ? C.tint : C.textMuted)} />
+              <View style={[styles.inputRow, { borderColor: isSocialPhone ? "#2EC4B6" : (phone ? C.tint : C.border), backgroundColor: C.background }]}>
+                <Phone size={15} color={isSocialPhone ? "#2EC4B6" : (phone ? C.tint : C.textMuted)} />
                 <TextInput
                   ref={phoneRef}
                   style={[styles.input, { color: C.text }]}
@@ -425,10 +426,10 @@ export default function TeacherSignupScreen() {
                   keyboardType="phone-pad"
                   returnKeyType="done"
                   onSubmitEditing={handleSubmit}
-                  editable={!isSocialSignup}
+                  editable={!isSocialPhone}
                 />
               </View>
-              {isSocialSignup && (
+              {isSocialPhone && (
                 <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" }}>
                   ✓ 휴대폰 인증이 완료되었습니다.
                 </Text>
