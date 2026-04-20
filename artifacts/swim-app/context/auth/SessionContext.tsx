@@ -514,13 +514,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       clearTimeout(timer);
     }
     const data = await safeJson(res);
-    console.log("[appleSocialLogin] 서버 응답:", res.status, data?.success ? "success" : data?.error_code);
+    console.log("[appleSocialLogin] 서버 응답:", res.status, data?.success ? "success" : data?.error_code,
+      "| type:", data?.user ? "admin/teacher" : data?.parent ? "parent" : "unknown");
     if (!res.ok) {
       throw Object.assign(new Error(data.message || data.error || "Apple 로그인에 실패했습니다."), {
         error_code: data.error_code || "unknown",
         apple_info: data.apple_info || null,
       });
     }
+
+    // 관리자·선생님 계정 (users 테이블) → data.user 반환
+    if (data.user) {
+      console.log("[appleSocialLogin] admin/teacher 계정 로그인 — role:", data.user.role);
+      await setAdminSession(data.token, data.user);
+      return;
+    }
+
+    // 학부모 계정 (parent_accounts 테이블) → data.parent 반환
     await AsyncStorage.multiSet([
       ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
       ["parent_join_status", "approved"], ["app_version", APP_VERSION],
