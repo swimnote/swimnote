@@ -203,7 +203,7 @@ export default function SubscriptionScreen() {
     ];
     const pkg = allPackages.find(p => p.identifier === plan.rcPackageId);
 
-    const priceStr    = pkg?.product.priceString ?? `₩${plan.price.toLocaleString("ko-KR")}`;
+    const priceStr    = `₩${plan.price.toLocaleString("ko-KR")}`;
     const isChange    = isSubscribed;
     const actionLabel = isChange ? "플랜 변경" : "구독 시작";
     const confirmBody = isChange
@@ -443,7 +443,7 @@ function PlanCard({
       <View style={s.planRow}>
         <Text style={[s.planName, { color: isFree ? C.textSecondary : C.text }]}>{plan.name}</Text>
         <Text style={[s.planPrice, { color: isFree ? C.textMuted : accentColor }]}>
-          {isFree ? "무료" : (rcPriceString ?? fmt(plan.price))}
+          {isFree ? "무료" : fmt(plan.price)}
           {!isFree && <Text style={s.planPriceSub}>/월</Text>}
         </Text>
       </View>
