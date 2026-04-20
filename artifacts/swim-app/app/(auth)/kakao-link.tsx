@@ -78,6 +78,10 @@ export default function KakaoLinkScreen() {
           return;
         }
         if (data.error_code === "phone_not_registered" || res.status === 404) {
+          if (role === "admin") {
+            router.replace({ pathname: "/register", params: isApple ? { appleId: kakaoId } : { kakaoId } } as any);
+            return;
+          }
           setPendingMsg("입력하신 전화번호가 등록되어 있지 않습니다.\n관리자가 등록 확인 후 메인화면으로 연결됩니다.");
           return;
         }
