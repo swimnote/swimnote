@@ -1,16 +1,15 @@
 /**
- * signup.tsx — 통합 회원가입 (4단계)
- * Step 1: 아이디 + 비밀번호
- * Step 2: 휴대폰 SMS 인증
- * Step 3: 역할 선택
- * Step 4: 역할별 추가정보 → 가입 → 자동 로그인
+ * signup.tsx — 통합 회원가입 (최대 4단계)
+ * 일반: Step1(기본정보) → Step2(휴대폰) → Step3(역할선택) → Step4(추가정보)
+ * 소셜(카카오 전화있음): Step3(역할선택) → Step4(추가정보)
+ * 소셜(애플·전화없음): Step2(휴대폰) → Step3(역할선택) → Step4(추가정보)
  */
 import { ArrowLeft, Check, CircleAlert, CircleCheck, CircleX, Hash, MapPin, Search, Smartphone, Terminal } from "lucide-react-native";
 import { toAsciiOnly } from "@/utils/koreanToQwerty";
 import { validateName, validatePhone } from "@/utils/validation";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -44,11 +43,35 @@ const ROLE_CARDS: Array<{ role: Role; label: string; desc: string; icon: any; bg
   { role: "parent",  label: "학부모",       desc: "수영장에 회원 등록이 완료된\n학부모님만 가입 가능합니다",                    icon: "heart",     bg: "#FFF3E0", color: "#E4A93A" },
 ];
 
+function genRandomPassword() {
+  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + "Aa1!";
+}
+
 export default function SignupScreen() {
   const insets = useSafeAreaInsets();
   const { unifiedLogin, setParentSession, setAdminSession } = useAuth();
 
-  const [step, setStep] = useState<Step>(1);
+  // 소셜 가입 파라미터 (Apple 또는 카카오 인증 후 전달됨)
+  const params = useLocalSearchParams<{
+    appleId?: string; appleEmail?: string; appleName?: string;
+    kakaoId?: string; kakaoPhone?: string; kakaoName?: string;
+  }>();
+  const appleId    = params.appleId    || "";
+  const appleEmail = params.appleEmail || "";
+  const appleName  = params.appleName  || "";
+  const kakaoId    = params.kakaoId    || "";
+  const kakaoPhone = params.kakaoPhone || "";
+  const kakaoName  = params.kakaoName  || "";
+
+  const isSocial       = !!(appleId || kakaoId);
+  const socialPhone    = kakaoPhone || "";              // 카카오는 전화번호 제공, 애플은 없음
+  const hasSocialPhone = isSocial && !!socialPhone;    // 전화 이미 알면 Step2 건너뜀
+  const socialName     = appleName || kakaoName || "";  // 이름 미리채움용
+
+  // 소셜: 전화있으면 Step3, 전화없으면 Step2, 일반은 Step1
+  const initialStep: Step = isSocial ? (hasSocialPhone ? 3 : 2) : 1;
+
+  const [step, setStep] = useState<Step>(initialStep);
 
   /* ── Step 1 ── */
   const [loginId, setLoginId] = useState("");
@@ -58,8 +81,8 @@ export default function SignupScreen() {
   const [showPwc, setShowPwc] = useState(false);
 
   /* ── Step 2 ── */
-  const [phone, setPhone]       = useState("");
-  const [smsState, setSmsState] = useState<SmsState>("idle");
+  const [phone, setPhone]       = useState(socialPhone);  // 카카오 전화번호 미리 채움
+  const [smsState, setSmsState] = useState<SmsState>(hasSocialPhone ? "verified" : "idle");
   const [smsCode, setSmsCode]   = useState("");
   const [smsError, setSmsError] = useState("");
   const [timer, setTimer]       = useState(0);
@@ -70,7 +93,7 @@ export default function SignupScreen() {
   const [role, setRole] = useState<Role | null>(null);
 
   /* ── Step 4 ── */
-  const [name, setName]             = useState("");
+  const [name, setName]             = useState(socialName);  // 소셜 이름 미리채움
   const [childName, setChildName]   = useState("");   // V2: 학부모 자녀 이름
   const [poolSearch, setPoolSearch] = useState("");
   const [pools, setPools]           = useState<Pool[]>([]);
@@ -166,7 +189,7 @@ export default function SignupScreen() {
   /*  Step navigation                                  */
   /* ──────────────────────────────────────────────── */
   function goBack() {
-    if (step === 1) { router.back(); return; }
+    if (step === initialStep) { router.back(); return; }
     setError("");
     setStep((s) => (s - 1) as Step);
   }
@@ -204,11 +227,11 @@ export default function SignupScreen() {
   }
 
   function nextStep() {
+    setError("");
     if (step === 1) {
       if (!validateStep1()) { scrollRef.current?.scrollTo({ y: 0, animated: true }); return; }
       setStep(2); return;
     }
-    setError("");
     if (step === 2) {
       const e = validateStep2(); if (e) { setError(e); return; }
       setStep(3); return;
@@ -257,6 +280,16 @@ export default function SignupScreen() {
     setLoading(true);
     try {
       const cleaned = phone.replace(/[-\s]/g, "");
+
+      // 소셜 가입 시 loginId/password 자동 생성
+      const effectiveLoginId = isSocial
+        ? (appleEmail || `user_${Date.now().toString(36)}`)
+        : loginId.trim().toLowerCase();
+      const effectivePw = isSocial ? genRandomPassword() : pw;
+
+      // 소셜 ID 파라미터
+      const socialBody = appleId ? { apple_id: appleId } : kakaoId ? { kakao_id: kakaoId } : {};
+
       let res: Response;
       let data: any;
 
@@ -264,8 +297,8 @@ export default function SignupScreen() {
         res = await fetch(`${API_BASE}/auth/register`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            email: loginId.trim().toLowerCase(),
-            password: pw,
+            email: effectiveLoginId,
+            password: effectivePw,
             name: name.trim(),
             phone: cleaned,
             role: "pool_admin",
@@ -273,6 +306,7 @@ export default function SignupScreen() {
             pool_address: poolAddress.trim(),
             pool_phone: poolPhone.trim(),
             pool_owner_name: name.trim(),
+            ...socialBody,
           }),
         });
         data = await safeJson(res);
@@ -283,10 +317,11 @@ export default function SignupScreen() {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: name.trim(),
-            loginId: loginId.trim().toLowerCase(),
-            password: pw,
+            loginId: effectiveLoginId,
+            password: effectivePw,
             phone: cleaned,
             pool_id: selectedPool!.id,
+            ...socialBody,
           }),
         });
         data = await safeJson(res);
@@ -305,10 +340,11 @@ export default function SignupScreen() {
           body: JSON.stringify({
             parent_name: name.trim(),
             phone: cleaned,
-            loginId: loginId.trim().toLowerCase() || undefined,
-            password: pw,
+            loginId: isSocial ? undefined : (loginId.trim().toLowerCase() || undefined),
+            password: effectivePw,
             pool_id: selectedPool!.id,
             child_name: childName.trim(),
+            ...socialBody,
           }),
         });
         data = await safeJson(res);
@@ -326,7 +362,12 @@ export default function SignupScreen() {
         }
       }
 
-      await unifiedLogin(loginId.trim().toLowerCase(), pw);
+      // 서버가 token을 바로 반환하면 바로 세션 설정, 아니면 일반 로그인
+      if (data?.token && data?.user) {
+        await setAdminSession(data.token, data.user);
+      } else {
+        await unifiedLogin(effectiveLoginId, effectivePw);
+      }
     } catch (e: any) {
       setError(e.message || "서버 오류가 발생했습니다.");
     } finally {
@@ -338,10 +379,18 @@ export default function SignupScreen() {
   /*  Render helpers                                   */
   /* ──────────────────────────────────────────────── */
   function StepDots() {
+    // 소셜: 보여줄 스텝만 필터링
+    const visibleSteps: Array<{ n: Step; label: string }> = isSocial
+      ? hasSocialPhone
+        ? [{ n: 3, label: "역할선택" }, { n: 4, label: "추가정보" }]
+        : [{ n: 2, label: "휴대폰" }, { n: 3, label: "역할선택" }, { n: 4, label: "추가정보" }]
+      : [
+          { n: 1, label: "기본정보" }, { n: 2, label: "휴대폰" },
+          { n: 3, label: "역할선택" }, { n: 4, label: "추가정보" },
+        ];
     return (
       <View style={styles.stepRow}>
-        {STEP_LABELS.map((label, i) => {
-          const n = (i + 1) as Step;
+        {visibleSteps.map(({ n, label }) => {
           const active = n === step;
           const done   = n < step;
           return (
@@ -349,7 +398,7 @@ export default function SignupScreen() {
               <View style={[styles.stepDot, { backgroundColor: done ? C.tint : active ? C.tint : C.border }]}>
                 {done
                   ? <Check size={12} color="#fff" />
-                  : <Text style={[styles.stepNum, { color: active ? "#fff" : C.textMuted }]}>{n}</Text>}
+                  : <Text style={[styles.stepNum, { color: active ? "#fff" : C.textMuted }]}>{visibleSteps.findIndex(s => s.n === n) + 1}</Text>}
               </View>
               <Text style={[styles.stepLabel, { color: active ? C.tint : C.textMuted }]}>{label}</Text>
             </View>

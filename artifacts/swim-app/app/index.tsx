@@ -204,11 +204,11 @@ export default function LoginScreen() {
       const serverCode = e?.error_code;
       if (serverCode === "apple_no_account") {
         router.push({
-          pathname: "/signup-role",
+          pathname: "/(auth)/signup",
           params: {
-            appleId: e.apple_info?.apple_id ?? "",
-            appleEmail: e.apple_info?.email ?? "",
-            appleName: e.apple_info?.name ?? "",
+            appleId:    e.apple_info?.apple_id ?? "",
+            appleEmail: e.apple_info?.email    ?? "",
+            appleName:  e.apple_info?.name     ?? "",
           },
         } as any);
       } else if (serverCode === "network_error") {
@@ -235,11 +235,11 @@ export default function LoginScreen() {
       const e = err as Error & { error_code?: string; kakao_info?: any; needs_activation?: boolean; teacher_id?: string };
       if (e.error_code === "kakao_no_account" && e.kakao_info) {
         router.push({
-          pathname: "/signup-role",
+          pathname: "/(auth)/signup",
           params: {
-            kakaoId: e.kakao_info.kakao_id ?? "",
-            kakaoPhone: e.kakao_info.phone ?? "",
-            kakaoName: e.kakao_info.name ?? "",
+            kakaoId:    e.kakao_info.kakao_id ?? "",
+            kakaoPhone: e.kakao_info.phone    ?? "",
+            kakaoName:  e.kakao_info.name     ?? "",
           },
         } as any); return;
       }
@@ -389,7 +389,7 @@ export default function LoginScreen() {
             {/* 일반 가입 */}
             <Pressable
               style={({ pressed }) => [s.socialBtn, s.regularBtn, { opacity: pressed ? 0.85 : 1 }]}
-              onPress={() => router.push("/signup-role" as any)}
+              onPress={() => router.push("/(auth)/signup" as any)}
               disabled={loading}
             >
               <LucideIcon name="user-plus" size={18} color="#475569" />
@@ -428,7 +428,7 @@ export default function LoginScreen() {
               </Pressable>
               <Pressable
                 style={[s.modalBtn, { backgroundColor: BRAND }]}
-                onPress={() => { setShowNotFoundModal(false); router.push("/signup-role" as any); }}
+                onPress={() => { setShowNotFoundModal(false); router.push("/(auth)/signup" as any); }}
               >
                 <Text style={s.modalBtnText}>회원가입</Text>
               </Pressable>
