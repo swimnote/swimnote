@@ -1,6 +1,6 @@
-import { ArrowLeft, AtSign, Check, ChevronRight, CircleAlert, Info, Lock, Phone, User } from "lucide-react-native";
+import { ArrowLeft, AtSign, Check, ChevronRight, CircleAlert, CircleCheck, Info, Lock, Phone, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
@@ -15,9 +15,14 @@ const C = Colors.light;
 export default function ParentRegisterScreen() {
   const insets = useSafeAreaInsets();
   const { setParentSession } = useAuth();
+  const { phone: prefillPhone, kakaoId, appleId } = useLocalSearchParams<{
+    phone?: string; kakaoId?: string; appleId?: string;
+  }>();
+
+  const isSocialSignup = !!(prefillPhone && (kakaoId || appleId));
 
   const [parentName, setParentName]           = useState("");
-  const [phone, setPhone]                     = useState("");
+  const [phone, setPhone]                     = useState(prefillPhone || "");
   const [loginId, setLoginId]                 = useState("");
   const [password, setPassword]               = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
@@ -51,6 +56,8 @@ export default function ParentRegisterScreen() {
           phone: phone.trim(),
           loginId: loginId.trim(),
           password,
+          ...(kakaoId ? { kakao_id: kakaoId } : {}),
+          ...(appleId ? { apple_id: appleId } : {}),
         }),
       });
       const data = await res.json();
@@ -115,15 +122,22 @@ export default function ParentRegisterScreen() {
           {/* 전화번호 */}
           <View style={{ gap: 6 }}>
             <Text style={[styles.label, { color: C.textSecondary }]}>전화번호 *</Text>
-            <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
-              <Phone size={16} color={C.textMuted} />
+            <View style={[styles.inputRow, { borderColor: isSocialSignup ? "#2EC4B6" : C.border, backgroundColor: C.card }]}>
+              <Phone size={16} color={isSocialSignup ? "#2EC4B6" : C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={phone} onChangeText={setPhone}
                 placeholder="010-0000-0000" placeholderTextColor={C.textMuted}
                 keyboardType="phone-pad"
+                editable={!isSocialSignup}
               />
+              {isSocialSignup && <CircleCheck size={16} color="#2EC4B6" />}
             </View>
+            {isSocialSignup && (
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" }}>
+                ✓ 휴대폰 인증이 완료되었습니다.
+              </Text>
+            )}
           </View>
 
           {/* 아이디 */}

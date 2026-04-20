@@ -463,7 +463,7 @@ router.post("/simple-parent-register", async (req, res) => {
   // child_names: string[] — 자녀 이름 배열 (선택한 수영장 내에서 이름 매칭에 사용)
   // child_ids: string[]   — 직접 선택한 학생 ID 배열 (검색 후 확인한 경우 우선 사용)
   // pool_id: string       — 학부모가 선택한 수영장 ID
-  const { parent_name, phone, loginId, password, child_names, child_ids, pool_id } = req.body;
+  const { parent_name, phone, loginId, password, child_names, child_ids, pool_id, kakao_id, apple_id } = req.body;
   const name      = (parent_name || "").trim();
   const ph        = (phone || "").trim().replace(/[^0-9]/g, "");
   const lid       = (loginId || "").trim() || null;
@@ -618,8 +618,8 @@ router.post("/simple-parent-register", async (req, res) => {
     const parentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     await db.execute(sql`
-      INSERT INTO parent_accounts (id, swimming_pool_id, phone, pin_hash, name, login_id, is_active, created_at, updated_at)
-      VALUES (${parentId}, ${resolvedPoolId}, ${ph}, ${pin_hash}, ${name}, ${lid}, true, now(), now())
+      INSERT INTO parent_accounts (id, swimming_pool_id, phone, pin_hash, name, login_id, is_active, kakao_id, apple_id, created_at, updated_at)
+      VALUES (${parentId}, ${resolvedPoolId}, ${ph}, ${pin_hash}, ${name}, ${lid}, true, ${kakao_id || null}, ${apple_id || null}, now(), now())
     `);
 
     // ── 매칭된 학생 전체 연결 (DELETE+INSERT로 항상 approved 보장) ─────────
@@ -1012,7 +1012,7 @@ router.post("/change-password", requireAuth, async (req: AuthRequest, res) => {
 
 // ── 선생님 자체 회원가입 (풀 검색 후 등록, PENDING 상태) ───────────────
 router.post("/teacher-self-signup", async (req, res) => {
-  const { name, email, loginId, password, phone, pool_id } = req.body;
+  const { name, email, loginId, password, phone, pool_id, kakao_id, apple_id } = req.body;
   // loginId = 실제 로그인 식별자 (email 컬럼에 저장), email = 연락용 (현재 저장 안 함)
   const identifier = (loginId?.trim() || email?.trim() || "").toLowerCase();
   if (!name?.trim() || !identifier || !password || !pool_id) {
@@ -1055,9 +1055,9 @@ router.post("/teacher-self-signup", async (req, res) => {
 
     // 유저 생성 (자동승인이면 is_activated=true)
     await superAdminDb.execute(sql`
-      INSERT INTO users (id, email, password_hash, name, phone, role, swimming_pool_id, is_activated, created_at, updated_at)
+      INSERT INTO users (id, email, password_hash, name, phone, role, swimming_pool_id, is_activated, kakao_id, apple_id, created_at, updated_at)
       VALUES (${userId}, ${identifier}, ${hash}, ${name.trim()}, ${cleanedPhone || null},
-              'teacher', ${pool_id}, ${autoApproved}, now(), now())
+              'teacher', ${pool_id}, ${autoApproved}, ${kakao_id || null}, ${apple_id || null}, now(), now())
     `);
 
     if (autoApproved && matchedInviteId) {

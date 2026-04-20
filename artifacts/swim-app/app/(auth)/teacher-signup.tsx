@@ -3,7 +3,7 @@ import {
   Lock, MapPin, Phone, Search, User, Users,
 } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView,
@@ -22,14 +22,19 @@ type Step = "type" | "pool" | "workspace" | "info";
 export default function TeacherSignupScreen() {
   const insets = useSafeAreaInsets();
   const { setAdminSession } = useAuth();
+  const { phone: prefillPhone, kakaoId, appleId } = useLocalSearchParams<{
+    phone?: string; kakaoId?: string; appleId?: string;
+  }>();
+
+  const isSocialSignup = !!(prefillPhone && (kakaoId || appleId));
 
   const loginIdRef = useRef<TextInput>(null);
   const pwRef       = useRef<TextInput>(null);
   const phoneRef    = useRef<TextInput>(null);
   const wsRef       = useRef<TextInput>(null);
 
-  const [signupType, setSignupType] = useState<SignupType | null>(null);
-  const [step, setStep] = useState<Step>("type");
+  const [signupType, setSignupType] = useState<SignupType | null>(isSocialSignup ? "affiliated" : null);
+  const [step, setStep] = useState<Step>(isSocialSignup ? "pool" : "type");
 
   /* 수영장 검색 (소속) */
   const [query, setQuery]             = useState("");
@@ -44,7 +49,7 @@ export default function TeacherSignupScreen() {
   const [name,    setName]    = useState("");
   const [loginId, setLoginId] = useState("");
   const [pw,      setPw]      = useState("");
-  const [phone,   setPhone]   = useState("");
+  const [phone,   setPhone]   = useState(prefillPhone || "");
   const [showPw,  setShowPw]  = useState(false);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState("");
@@ -117,6 +122,8 @@ export default function TeacherSignupScreen() {
             name: name.trim(), loginId: loginId.trim().toLowerCase(),
             password: pw, phone: phone.trim() || undefined,
             pool_id: selectedPool!.id,
+            ...(kakaoId ? { kakao_id: kakaoId } : {}),
+            ...(appleId ? { apple_id: appleId } : {}),
           }),
         });
         const data = await res.json();
@@ -401,13 +408,13 @@ export default function TeacherSignupScreen() {
               </View>
             </View>
 
-            {/* 전화번호 (선택) */}
+            {/* 전화번호 */}
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>
-                전화번호 <Text style={{ color: C.textMuted }}>(선택)</Text>
+                전화번호 {isSocialSignup ? "" : <Text style={{ color: C.textMuted }}>(선택)</Text>}
               </Text>
-              <View style={[styles.inputRow, { borderColor: phone ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Phone size={15} color={phone ? C.tint : C.textMuted} />
+              <View style={[styles.inputRow, { borderColor: isSocialSignup ? "#2EC4B6" : (phone ? C.tint : C.border), backgroundColor: C.background }]}>
+                <Phone size={15} color={isSocialSignup ? "#2EC4B6" : (phone ? C.tint : C.textMuted)} />
                 <TextInput
                   ref={phoneRef}
                   style={[styles.input, { color: C.text }]}
@@ -418,8 +425,14 @@ export default function TeacherSignupScreen() {
                   keyboardType="phone-pad"
                   returnKeyType="done"
                   onSubmitEditing={handleSubmit}
+                  editable={!isSocialSignup}
                 />
               </View>
+              {isSocialSignup && (
+                <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" }}>
+                  ✓ 휴대폰 인증이 완료되었습니다.
+                </Text>
+              )}
             </View>
 
             {!!error && (

@@ -87,7 +87,22 @@ export default function KakaoLinkScreen() {
             } as any);
             return;
           }
-          setPendingMsg("입력하신 전화번호가 등록되어 있지 않습니다.\n관리자가 등록 확인 후 메인화면으로 연결됩니다.");
+          if (role === "teacher") {
+            router.replace({
+              pathname: "/(auth)/teacher-signup",
+              params: isApple
+                ? { appleId: kakaoId, phone: cleanPhone }
+                : { kakaoId, phone: cleanPhone },
+            } as any);
+            return;
+          }
+          // parent
+          router.replace({
+            pathname: "/pool-join-request",
+            params: isApple
+              ? { appleId: kakaoId, phone: cleanPhone }
+              : { kakaoId, phone: cleanPhone },
+          } as any);
           return;
         }
         setError(data.message || data.error || "연결에 실패했습니다.");
