@@ -76,33 +76,30 @@ export default function AuditGroupScreen() {
     setLoading(true);
     try {
       const [logsRes, riskRes] = await Promise.all([
-        apiRequest(token, '/super/recent-audit-logs?limit=10'),
+        apiRequest(token, '/super/recent-audit-logs?limit=5'),
         apiRequest(token, '/super/risk-summary'),
       ]);
 
-      let logs: RecentLog[] = [];
+      let total = 0, criticalCount = 0, todayCount = 0;
       if (logsRes.ok) {
         const d = await logsRes.json();
-        logs = Array.isArray(d?.logs) ? d.logs : [];
+        const logs: RecentLog[] = Array.isArray(d?.logs) ? d.logs : [];
         setRecentLogs(logs);
+        total         = d?.total          ?? logs.length;
+        criticalCount = d?.critical_count ?? 0;
+        todayCount    = d?.today_count    ?? 0;
       }
 
-      if (riskRes.ok) {
-        const r = await riskRes.json();
-        const today = new Date();
-        const todayCount = logs.filter(l => {
-          const d = new Date(l.created_at);
-          return d.getFullYear() === today.getFullYear() &&
-                 d.getMonth()    === today.getMonth()    &&
-                 d.getDate()     === today.getDate();
-        }).length;
-        setSummary({
-          totalLogs:      logs.length,
-          todayLogs:      todayCount,
-          criticalLogs:   0,
-          securityEvents: r?.security_events ?? 0,
-        });
-      }
+      const securityEvents = riskRes.ok
+        ? ((await riskRes.json())?.security_events ?? 0)
+        : 0;
+
+      setSummary({
+        totalLogs:      total,
+        todayLogs:      todayCount,
+        criticalLogs:   criticalCount,
+        securityEvents,
+      });
     } catch (e) {
       console.error('AuditGroup fetchData error:', e);
     } finally {

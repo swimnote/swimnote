@@ -21,6 +21,7 @@ import {
   isSmsConfigured,
   getSmsConfigError,
 } from "../lib/sms/sendSms.js";
+import { logEvent } from "../lib/event-logger.js";
 
 const router = Router();
 
@@ -32,12 +33,19 @@ function err(res: any, status: number, message: string) {
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return err(res, 400, "이메일과 비밀번호를 입력해주세요.");
+  const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket?.remoteAddress ?? "unknown";
   try {
     const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
-    if (!user) return err(res, 401, "이메일 또는 비밀번호가 올바르지 않습니다.");
+    if (!user) {
+      logEvent({ pool_id: "system", category: "보안", actor_name: "미인증", description: `로그인 실패 — 존재하지 않는 계정: ${email}`, metadata: { ip: clientIp } }).catch(() => {});
+      return err(res, 401, "이메일 또는 비밀번호가 올바르지 않습니다.");
+    }
 
     const valid = await comparePassword(password, user.password_hash);
-    if (!valid) return err(res, 401, "이메일 또는 비밀번호가 올바르지 않습니다.");
+    if (!valid) {
+      logEvent({ pool_id: user.swimming_pool_id ?? "system", category: "보안", actor_id: user.id, actor_name: user.name ?? email, description: `로그인 실패 — 비밀번호 불일치: ${email}`, metadata: { ip: clientIp, role: user.role } }).catch(() => {});
+      return err(res, 401, "이메일 또는 비밀번호가 올바르지 않습니다.");
+    }
 
     // pool_admin 역할은 수영장 상태 확인
     if (user.role === "pool_admin" && user.swimming_pool_id) {
@@ -137,6 +145,17 @@ router.post("/login", async (req, res) => {
 
     const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id, permissions });
     const { password_hash: _, ...safeUser } = user;
+
+    // 로그인 성공 기록
+    logEvent({
+      pool_id:    user.swimming_pool_id ?? "system",
+      category:   "로그인",
+      actor_id:   user.id,
+      actor_name: user.name ?? user.email,
+      description: `로그인 성공 — ${user.role}: ${user.email}`,
+      metadata:   { ip: clientIp, role: user.role },
+    }).catch(() => {});
+
     res.json({ success: true, token, user: safeUser });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });

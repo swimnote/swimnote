@@ -12,7 +12,13 @@ export type EventCategory =
   | "권한"
   | "선생님"
   | "저장공간"
-  | "휴무일";
+  | "휴무일"
+  | "보안"
+  | "로그인"
+  | "백업"
+  | "킬스위치"
+  | "플랜"
+  | "시스템";
 
 export interface EventLogParams {
   pool_id:     string;

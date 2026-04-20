@@ -1116,6 +1116,30 @@ async function ensureExtraTables() {
       ON CONFLICT (key) DO NOTHING
     `).catch(() => {});
   }
+  // event_logs — 운영 감사 로그 (로그인·보안·결제·권한 등 모든 이벤트)
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS event_logs (
+      id          TEXT PRIMARY KEY,
+      pool_id     TEXT,
+      category    TEXT NOT NULL DEFAULT '시스템',
+      actor_id    TEXT,
+      actor_name  TEXT,
+      target      TEXT,
+      description TEXT NOT NULL DEFAULT '',
+      metadata    JSONB NOT NULL DEFAULT '{}',
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_event_logs_created_at  ON event_logs (created_at DESC)
+  `).catch(() => {});
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_event_logs_category    ON event_logs (category)
+  `).catch(() => {});
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_event_logs_pool_id     ON event_logs (pool_id)
+  `).catch(() => {});
+
   _ensureDone = true;
 }
 
@@ -2303,16 +2327,33 @@ router.get("/super/risk-summary", requireAuth, requireRole("super_admin"), async
 
 router.get("/super/recent-audit-logs", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
   try {
+    await ensureExtraTables();
     const limit = Math.min(parseInt((req.query.limit as string) ?? "10", 10), 50);
-    const rows = (await superAdminDb.execute(sql`
-      SELECT el.id, el.category, el.description, el.actor_name, el.pool_id, el.target,
-             el.created_at, sp.name AS pool_name
-      FROM event_logs el
-      LEFT JOIN swimming_pools sp ON sp.id = el.pool_id
-      ORDER BY el.created_at DESC
-      LIMIT ${limit}
-    `)).rows;
-    res.json({ logs: rows });
+    const [rows, countRow, criticalRow, todayRow] = await Promise.all([
+      superAdminDb.execute(sql`
+        SELECT el.id, el.category, el.description, el.actor_name, el.pool_id, el.target,
+               el.created_at, sp.name AS pool_name
+        FROM event_logs el
+        LEFT JOIN swimming_pools sp ON sp.id = el.pool_id
+        ORDER BY el.created_at DESC
+        LIMIT ${limit}
+      `),
+      superAdminDb.execute(sql`SELECT COUNT(*)::int AS total FROM event_logs`),
+      superAdminDb.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM event_logs
+        WHERE category IN ('보안', '삭제', '해지', '킬스위치')
+      `),
+      superAdminDb.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM event_logs
+        WHERE created_at >= CURRENT_DATE
+      `),
+    ]);
+    res.json({
+      logs:           rows.rows,
+      total:          Number((countRow.rows[0] as any)?.total ?? 0),
+      critical_count: Number((criticalRow.rows[0] as any)?.cnt ?? 0),
+      today_count:    Number((todayRow.rows[0] as any)?.cnt ?? 0),
+    });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
