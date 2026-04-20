@@ -1462,4 +1462,31 @@ router.get("/revenue-by-pool", requireAuth, requireRole("super_admin"), async (_
   }
 });
 
+// GET /billing/revenue-logs/test-count — 테스트 기록 건수 조회 (슈퍼관리자 전용)
+router.get("/revenue-logs/test-count", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    await ensureBillingTables();
+    const row = (await superAdminDb.execute(sql`
+      SELECT COUNT(*)::int AS cnt FROM revenue_logs WHERE occurred_at IS NULL
+    `)).rows[0] as any;
+    res.json({ count: Number(row?.cnt ?? 0) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /billing/revenue-logs/cleanup-test — occurred_at NULL 테스트 기록 삭제 (슈퍼관리자 전용)
+router.delete("/revenue-logs/cleanup-test", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    await ensureBillingTables();
+    const result = await superAdminDb.execute(sql`
+      DELETE FROM revenue_logs WHERE occurred_at IS NULL RETURNING id
+    `);
+    const deleted = result.rows.length;
+    res.json({ ok: true, deleted, message: `테스트 기록 ${deleted}건 삭제 완료` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

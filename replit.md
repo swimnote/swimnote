@@ -132,6 +132,7 @@ API design follows RESTful principles with consistent JSON formats and strong au
 |---|---|
 | 시스템 상태 화면 실데이터 연결 | `system-status.tsx`의 하드코딩 더미 데이터 → 실제 `ops_alerts` DB 테이블 연결. 서버 이상 이력(느려짐/다운/헬스체크 실패) 앱에서 조회 가능 |
 | 수영장 삭제 후 목록 미갱신 버그 수정 | `doDelete()` 성공 시 Zustand 스토어에서 즉시 제거(`removeOperator`) + `pools.tsx` useFocusEffect로 포커스 복귀 시 재조회 |
+| 매출·비용 분석 계산 정확화 | Invalid Date 수정, revenue_logs 실데이터 수수료 연동, 손익 단계별 계산, 테스트 데이터 정리 버튼 추가 |
 
 ## 다음 업데이트 예정 목록 (v1.4.0+)
 
