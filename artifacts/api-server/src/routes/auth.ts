@@ -1837,13 +1837,13 @@ router.post("/apple-social-login", async (req, res) => {
       return err(res, 400, "Apple 사용자 ID를 확인할 수 없습니다.");
     }
 
-    // 1) apple_id로 기존 계정 조회
+    // 1) parent_accounts에서 apple_id로 기존 계정 조회
     const byAppleId = await db.execute(sql`
       SELECT * FROM parent_accounts WHERE apple_id = ${appleId} LIMIT 1
     `);
     if ((byAppleId.rows as any[]).length > 0) {
       const account = byAppleId.rows[0] as any;
-      console.log("[apple-social-login] 기존 계정(apple_id) 로그인 성공:", account.id);
+      console.log("[apple-social-login] 기존 계정(parent apple_id) 로그인 성공:", account.id);
       const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
       return res.json({
         success: true,
@@ -1860,14 +1860,25 @@ router.post("/apple-social-login", async (req, res) => {
       });
     }
 
-    // 2) 이메일로 기존 계정 매칭 후 apple_id 연결
+    // 2) users(관리자/선생님)에서 apple_id로 기존 계정 조회
+    const byAppleIdUser = await db.execute(sql`
+      SELECT * FROM users WHERE apple_id = ${appleId} LIMIT 1
+    `);
+    if ((byAppleIdUser.rows as any[]).length > 0) {
+      const u = byAppleIdUser.rows[0] as any;
+      console.log("[apple-social-login] 기존 users 계정(apple_id) 로그인 성공:", u.id, "role:", u.role);
+      const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
+      return res.json({ success: true, token, user: { id: u.id, name: u.name, role: u.role, swimming_pool_id: u.swimming_pool_id } });
+    }
+
+    // 3) 이메일로 parent_accounts 매칭 후 apple_id 연결
     if (appleEmail) {
       const byEmail = await db.execute(sql`
         SELECT * FROM parent_accounts WHERE login_id = ${appleEmail} LIMIT 1
       `);
       if ((byEmail.rows as any[]).length > 0) {
         const account = byEmail.rows[0] as any;
-        console.log("[apple-social-login] 이메일 매칭 후 apple_id 연결:", account.id);
+        console.log("[apple-social-login] 이메일 매칭 후 parent apple_id 연결:", account.id);
         await db.execute(sql`
           UPDATE parent_accounts SET apple_id = ${appleId}, updated_at = NOW()
           WHERE id = ${account.id}
@@ -1887,37 +1898,32 @@ router.post("/apple-social-login", async (req, res) => {
           },
         });
       }
+
+      // 4) 이메일로 users 매칭 후 apple_id 연결
+      const byEmailUser = await db.execute(sql`
+        SELECT * FROM users WHERE email = ${appleEmail} LIMIT 1
+      `);
+      if ((byEmailUser.rows as any[]).length > 0) {
+        const u = byEmailUser.rows[0] as any;
+        console.log("[apple-social-login] 이메일 매칭 후 users apple_id 연결:", u.id, "role:", u.role);
+        await db.execute(sql`
+          UPDATE users SET apple_id = ${appleId}, updated_at = NOW() WHERE id = ${u.id}
+        `);
+        const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
+        return res.json({ success: true, token, user: { id: u.id, name: u.name, role: u.role, swimming_pool_id: u.swimming_pool_id } });
+      }
     }
 
-    // 3) 계정 없음 → Apple ID로 신규 학부모 계정 자동 생성 (수영장 연결 대기)
-    const newParentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const displayName = fullName || (appleEmail ? appleEmail.split("@")[0] : "Apple 사용자");
-    const randomPinHash = await hashPassword(randomUUID()); // Apple로만 로그인하므로 실제 사용 안 됨
-    console.log("[apple-social-login] 신규 계정 생성 시도:", newParentId, "| name:", displayName, "| email:", appleEmail ? "있음" : "없음");
-    try {
-      await db.execute(sql`
-        INSERT INTO parent_accounts
-          (id, swimming_pool_id, phone, pin_hash, name, login_id, apple_id, created_at, updated_at)
-        VALUES
-          (${newParentId}, NULL, NULL, ${randomPinHash}, ${displayName}, ${appleEmail || null}, ${appleId}, now(), now())
-      `);
-    } catch (insertErr: any) {
-      console.error("[apple-social-login] INSERT 실패:", insertErr?.message ?? insertErr);
-      throw insertErr;
-    }
-    console.log("[apple-social-login] 신규 계정 생성 완료:", newParentId);
-    const token = signToken({ userId: newParentId, role: "parent_account", poolId: null });
-    return res.json({
-      success: true,
-      token,
-      parent: {
-        id: newParentId,
-        name: displayName,
-        nickname: null,
-        phone: null,
-        login_id: appleEmail || null,
-        swimming_pool_id: null,
-        kakao_profile_image: null,
+    // 5) 계정 없음 → 프론트에서 역할 선택 후 가입하도록 에러 반환
+    console.log("[apple-social-login] 계정 없음 → apple_no_account 반환 appleId:", appleId?.substring(0, 8) + "***");
+    return res.status(400).json({
+      success: false,
+      error_code: "apple_no_account",
+      message: "Apple 계정으로 가입된 정보가 없습니다. 역할을 선택하고 가입해주세요.",
+      apple_info: {
+        apple_id: appleId,
+        email: appleEmail || null,
+        name: fullName || null,
       },
     });
   } catch (e) {
