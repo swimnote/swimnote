@@ -1,5 +1,5 @@
 /**
- * (admin)/refund-policy.tsx — 환불 정책 확인 및 동의 화면
+ * (admin)/refund-policy.tsx — 환불 정책 확인 및 동의 화면 (관리자)
  */
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -8,61 +8,95 @@ import {
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CheckCircle, FileText, ChevronLeft, AlertCircle } from "lucide-react-native";
+import { CheckCircle, FileText, ChevronLeft, AlertCircle, AlertTriangle } from "lucide-react-native";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
 const PURPLE = "#7C3AED";
 
-// 화면에 하드코딩된 정책 내용 (API 실패 시에도 보여줌)
+const CORE_POLICIES = [
+  {
+    label: "구독 취소 = 일할 계산 환불 + 자동 회원 탈퇴",
+    desc: "구독 취소 시 잔여 기간을 일할 계산하여 환불하며, 즉시 자동 탈퇴 처리됩니다. 모든 데이터가 삭제되며 복구 불가합니다.",
+    color: "#7C2D12",
+    bg: "#FFF7ED",
+    border: "#FED7AA",
+  },
+  {
+    label: "무료 플랜 전환 없음 — 환불 후 탈퇴만 가능",
+    desc: "유료 구독 취소 시 무료 플랜으로 전환되지 않습니다. 취소는 곧 탈퇴이며, 재이용 시 새로 가입·구독해야 합니다.",
+    color: "#1E3A5F",
+    bg: "#EFF6FF",
+    border: "#BFDBFE",
+  },
+  {
+    label: "다운그레이드 = 다음 결제일 적용 + 회원 수 조건 충족 필수",
+    desc: "현재 등록 회원 수가 새 플랜 한도 이하일 때만 다운그레이드 신청이 가능합니다. 다운그레이드는 다음 결제일부터 적용됩니다.",
+    color: "#14532D",
+    bg: "#F0FDF4",
+    border: "#BBF7D0",
+  },
+];
+
 const POLICY_SECTIONS = [
   {
-    title: "1. 구독 취소 및 환불 (핵심 정책)",
+    title: "1. 구독 취소 및 일할 계산 환불",
     items: [
       "구독을 취소하면 취소 요청일 기준으로 잔여 기간을 일할 계산하여 환불됩니다.",
       "예: 30일 이용권 구독 후 10일 사용 → 남은 20일분 환불",
-      "환불금은 App Store(Apple) 또는 Google Play(구글) 결제 수단으로 처리됩니다.",
-      "구독 취소 시 서비스는 즉시 중단되며, 자동으로 회원 탈퇴 처리됩니다.",
-      "탈퇴 후에는 수영장 운영 데이터(회원, 수업일지, 사진, 영상 등)가 즉시 삭제됩니다.",
-      "삭제된 데이터는 복구가 불가능하오니 신중하게 결정해 주세요.",
+      "환불금은 App Store(Apple) 또는 Google Play(구글) 원 결제 수단으로 처리됩니다.",
+      "스토어 정책에 따라 환불 처리 기간 및 절차가 달라질 수 있습니다.",
     ],
   },
   {
-    title: "2. 플랜 다운그레이드 (핵심 정책)",
+    title: "2. 구독 취소 시 자동 회원 탈퇴",
     items: [
-      "상위 플랜 → 하위 플랜으로의 다운그레이드는 현재 구독 기간 종료 후 다음 결제일부터 적용됩니다.",
-      "다운그레이드 신청 후에도 현재 결제 기간이 끝날 때까지 기존 플랜의 모든 기능을 그대로 이용할 수 있습니다.",
+      "구독 취소는 서비스 이용 종료를 의미하며, 즉시 자동 회원 탈퇴 처리됩니다.",
+      "탈퇴 즉시 수영장 운영 데이터(등록 회원, 수업일지, 사진, 영상 등)가 모두 삭제됩니다.",
+      "삭제된 데이터는 어떠한 경우에도 복구가 불가능합니다.",
+      "서비스를 다시 이용하려면 신규 가입 및 구독이 필요합니다.",
+    ],
+  },
+  {
+    title: "3. 무료 플랜 전환 없음",
+    items: [
+      "SwimNote는 유료 구독 취소 시 무료 플랜으로 자동 전환되지 않습니다.",
+      "구독 취소는 곧 탈퇴 처리를 의미하며, 무료로 계속 이용할 수 없습니다.",
+      "서비스를 계속 유지하려면 구독을 반드시 유지해야 합니다.",
+    ],
+  },
+  {
+    title: "4. 플랜 다운그레이드 조건 및 규칙",
+    items: [
+      "다운그레이드 신청은 현재 등록 회원 수가 새 플랜의 최대 회원 한도 이하일 때만 가능합니다.",
+      "예: 100명 플랜에 70명 등록 중 → 50명 플랜 신청 불가 (초과 인원 20명 정리 후 신청 가능)",
+      "예: 100명 플랜에 45명 등록 중 → 50명 플랜 신청 가능 (한도 이하)",
+      "한도를 초과한 상태에서 다운그레이드를 강제 진행할 경우, 초과된 회원의 서비스 이용이 제한될 수 있습니다.",
+      "다운그레이드는 현재 구독 기간이 끝나는 다음 결제일부터 적용됩니다.",
+      "다운그레이드 신청 후에도 현재 결제 기간이 끝날 때까지 기존 플랜 기능을 정상 이용할 수 있습니다.",
       "다운그레이드로 인한 잔여 기간의 차액은 환불되지 않습니다.",
     ],
   },
   {
-    title: "3. 플랜 업그레이드",
+    title: "5. 플랜 업그레이드",
     items: [
-      "하위 플랜 → 상위 플랜으로의 업그레이드는 즉시 적용됩니다.",
+      "하위 플랜 → 상위 플랜 업그레이드는 즉시 적용됩니다.",
       "업그레이드 시 남은 기간에 대한 차액이 즉시 결제됩니다.",
     ],
   },
   {
-    title: "4. 무료 플랜 전환 불가",
-    items: [
-      "SwimNote는 구독 취소 시 무료 플랜으로 자동 전환되지 않습니다.",
-      "구독 취소는 서비스 이용 종료 및 자동 회원 탈퇴를 의미합니다.",
-      "서비스를 유지하려면 구독을 계속 유지하셔야 합니다.",
-    ],
-  },
-  {
-    title: "5. 스토어 환불 정책",
+    title: "6. App Store / Google Play 환불 정책",
     items: [
       "App Store(Apple) 결제는 Apple의 환불 정책이 우선 적용됩니다.",
       "Google Play(구글) 결제는 Google의 환불 정책이 우선 적용됩니다.",
-      "스토어 정책에 따라 환불 처리 기간 및 방식이 달라질 수 있습니다.",
+      "스토어 환불 정책과 SwimNote 정책이 상충할 경우 스토어 정책이 우선합니다.",
     ],
   },
   {
-    title: "6. 환불 문의",
+    title: "7. 환불 문의",
     items: [
-      "환불 및 구독 관련 문의는 앱 내 고객센터 또는 이메일로 연락해 주세요.",
+      "환불 및 구독 관련 문의는 앱 내 고객센터 또는 아래 이메일로 연락해 주세요.",
       "이메일: support@swimnote.app",
     ],
   },
@@ -124,7 +158,7 @@ export default function RefundPolicyScreen() {
           agreed_version: json.agreed_version ?? prev.version,
           needs_reagree:  false,
         }));
-        Alert.alert("동의 완료", "환불 정책에 동의하셨습니다.");
+        Alert.alert("동의 완료", "환불 정책에 동의하셨습니다.\n구독 및 결제 기능을 이용할 수 있습니다.");
       } else {
         Alert.alert("오류", json.error ?? "동의 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
       }
@@ -139,7 +173,15 @@ export default function RefundPolicyScreen() {
   function handleAgreePress() {
     Alert.alert(
       "환불 정책 동의",
-      `위 환불 정책(${data.version})을 모두 읽었으며,\n구독 취소 시 일할 계산 환불 및 자동 회원 탈퇴,\n다운그레이드는 다음 결제일 적용 등의 내용에 동의합니다.`,
+      [
+        `[${data.version}] 환불 정책의 주요 내용을 확인하셨습니까?`,
+        "",
+        "• 구독 취소 시 일할 계산 환불 + 자동 탈퇴 처리",
+        "• 무료 플랜 전환 없음 (재이용 시 재가입 필요)",
+        "• 다운그레이드는 회원 수 조건 충족 후 다음 결제일 적용",
+        "",
+        "위 내용에 동의하시겠습니까?",
+      ].join("\n"),
       [
         { text: "취소", style: "cancel" },
         { text: data.agreed ? "재동의합니다" : "동의합니다", onPress: doAgree },
@@ -196,13 +238,13 @@ export default function RefundPolicyScreen() {
             contentContainerStyle={s.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {/* 정책 버전 카드 */}
+            {/* 버전 카드 */}
             <View style={s.infoCard}>
               <View style={s.infoRow}>
                 <FileText size={15} color={PURPLE} />
-                <Text style={s.infoTitle}>SwimNote 환불 정책</Text>
+                <Text style={s.infoTitle}>SwimNote 환불 정책 (관리자용)</Text>
               </View>
-              <Text style={s.infoVersion}>현재 버전: {data.version} · 시행일: 2025년 1월 1일</Text>
+              <Text style={s.infoVersion}>버전: {data.version} · 시행일: 2025년 1월 1일</Text>
               {agreedDate && !data.needs_reagree && (
                 <Text style={s.infoAgreed}>✓ 동의일: {agreedDate}</Text>
               )}
@@ -213,32 +255,27 @@ export default function RefundPolicyScreen() {
               <View style={s.reagreeBox}>
                 <AlertCircle size={18} color="#D97706" />
                 <View style={{ flex: 1 }}>
-                  <Text style={s.reagreeTitle}>환불 정책이 변경되어 재동의가 필요합니다.</Text>
+                  <Text style={s.reagreeTitle}>정책이 변경되어 재동의가 필요합니다.</Text>
                   <Text style={s.reagreeDesc}>현재 버전: {data.version}</Text>
                 </View>
               </View>
             )}
 
-            {/* 핵심 요약 배너 */}
-            <View style={s.corePolicyBanner}>
-              <Text style={s.corePolicyTitle}>⚠️ 핵심 정책 요약</Text>
-              <View style={s.corePolicyRow}>
-                <Text style={s.corePolicyBullet}>•</Text>
-                <Text style={s.corePolicyText}>
-                  <Text style={{ fontFamily: "Pretendard-Regular" }}>구독 취소</Text>
-                  {" "}→ 일할 계산 환불 + 자동 회원 탈퇴 (데이터 즉시 삭제)
-                </Text>
+            {/* 3대 핵심 정책 */}
+            <View style={s.coreSection}>
+              <View style={s.coreSectionHeader}>
+                <AlertTriangle size={16} color="#9A3412" />
+                <Text style={s.coreSectionTitle}>3대 핵심 정책 — 반드시 확인하세요</Text>
               </View>
-              <View style={s.corePolicyRow}>
-                <Text style={s.corePolicyBullet}>•</Text>
-                <Text style={s.corePolicyText}>
-                  <Text style={{ fontFamily: "Pretendard-Regular" }}>다운그레이드</Text>
-                  {" "}→ 현재 구독 종료 후 다음 결제일부터 적용
-                </Text>
-              </View>
+              {CORE_POLICIES.map((p, i) => (
+                <View key={i} style={[s.corePolicyCard, { backgroundColor: p.bg, borderColor: p.border }]}>
+                  <Text style={[s.corePolicyLabel, { color: p.color }]}>{p.label}</Text>
+                  <Text style={[s.corePolicyDesc, { color: p.color }]}>{p.desc}</Text>
+                </View>
+              ))}
             </View>
 
-            {/* 정책 섹션들 */}
+            {/* 섹션별 상세 정책 */}
             {POLICY_SECTIONS.map((section, si) => (
               <View key={si} style={s.sectionBox}>
                 <Text style={s.sectionTitle}>{section.title}</Text>
@@ -294,67 +331,68 @@ export default function RefundPolicyScreen() {
 }
 
 const s = StyleSheet.create({
-  root:            { flex: 1, backgroundColor: C.background },
-  header:          { flexDirection: "row", alignItems: "center", gap: 8,
-                     paddingHorizontal: 16, paddingVertical: 12,
-                     borderBottomWidth: 1, borderBottomColor: "#E5E7EB",
-                     backgroundColor: C.card },
-  backBtn:         { padding: 4 },
-  headerTitle:     { flex: 1, fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
-  agreedBadge:     { flexDirection: "row", alignItems: "center", gap: 4,
-                     backgroundColor: "#F0FDF4", borderRadius: 10,
-                     paddingHorizontal: 8, paddingVertical: 4 },
-  agreedBadgeTxt:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#16A34A" },
-  reagreeBadge:    { flexDirection: "row", alignItems: "center", gap: 4,
-                     backgroundColor: "#FFFBEB", borderRadius: 10,
-                     paddingHorizontal: 8, paddingVertical: 4 },
-  reagreeBadgeTxt: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706" },
-  unreadBadge:     { backgroundColor: "#FEF2F2", borderRadius: 10,
-                     paddingHorizontal: 8, paddingVertical: 4 },
-  unreadBadgeTxt:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
+  root:             { flex: 1, backgroundColor: C.background },
+  header:           { flexDirection: "row", alignItems: "center", gap: 8,
+                      paddingHorizontal: 16, paddingVertical: 12,
+                      borderBottomWidth: 1, borderBottomColor: "#E5E7EB",
+                      backgroundColor: C.card },
+  backBtn:          { padding: 4 },
+  headerTitle:      { flex: 1, fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
+  agreedBadge:      { flexDirection: "row", alignItems: "center", gap: 4,
+                      backgroundColor: "#F0FDF4", borderRadius: 10,
+                      paddingHorizontal: 8, paddingVertical: 4 },
+  agreedBadgeTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#16A34A" },
+  reagreeBadge:     { flexDirection: "row", alignItems: "center", gap: 4,
+                      backgroundColor: "#FFFBEB", borderRadius: 10,
+                      paddingHorizontal: 8, paddingVertical: 4 },
+  reagreeBadgeTxt:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706" },
+  unreadBadge:      { backgroundColor: "#FEF2F2", borderRadius: 10,
+                      paddingHorizontal: 8, paddingVertical: 4 },
+  unreadBadgeTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
 
-  scrollContent:   { padding: 16, gap: 12 },
+  scrollContent:    { padding: 16, gap: 12 },
 
-  infoCard:        { backgroundColor: "#F5F3FF", borderRadius: 12, padding: 14,
-                     borderWidth: 1, borderColor: "#DDD6FE" },
-  infoRow:         { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
-  infoTitle:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: PURPLE },
-  infoVersion:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  infoAgreed:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#16A34A", marginTop: 2 },
+  infoCard:         { backgroundColor: "#F5F3FF", borderRadius: 12, padding: 14,
+                      borderWidth: 1, borderColor: "#DDD6FE" },
+  infoRow:          { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
+  infoTitle:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: PURPLE },
+  infoVersion:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  infoAgreed:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#16A34A", marginTop: 2 },
 
-  reagreeBox:      { flexDirection: "row", alignItems: "flex-start", gap: 10,
-                     backgroundColor: "#FFFBEB", borderRadius: 12, padding: 14,
-                     borderWidth: 1, borderColor: "#FDE68A" },
-  reagreeTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E" },
-  reagreeDesc:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706", marginTop: 2 },
+  reagreeBox:       { flexDirection: "row", alignItems: "flex-start", gap: 10,
+                      backgroundColor: "#FFFBEB", borderRadius: 12, padding: 14,
+                      borderWidth: 1, borderColor: "#FDE68A" },
+  reagreeTitle:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E" },
+  reagreeDesc:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706", marginTop: 2 },
 
-  corePolicyBanner:{ backgroundColor: "#FFF7ED", borderRadius: 12, padding: 14,
-                     borderWidth: 1, borderColor: "#FED7AA", gap: 8 },
-  corePolicyTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#9A3412" },
-  corePolicyRow:   { flexDirection: "row", gap: 8, alignItems: "flex-start" },
-  corePolicyBullet:{ fontSize: 14, color: "#EA580C", marginTop: 1 },
-  corePolicyText:  { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular",
-                     color: "#7C2D12", lineHeight: 20 },
+  coreSection:      { backgroundColor: "#FAFAFA", borderRadius: 12, padding: 14,
+                      borderWidth: 1, borderColor: "#E5E7EB", gap: 10 },
+  coreSectionHeader:{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
+  coreSectionTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#9A3412" },
+  corePolicyCard:   { borderRadius: 10, padding: 12, borderWidth: 1, gap: 4 },
+  corePolicyLabel:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  corePolicyDesc:   { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
 
-  sectionBox:      { backgroundColor: C.card, borderRadius: 12, padding: 14,
-                     borderWidth: 1, borderColor: "#E5E7EB", gap: 6 },
-  sectionTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: PURPLE, marginBottom: 4 },
-  policyLine:      { flexDirection: "row", gap: 10, alignItems: "flex-start" },
-  bullet:          { width: 5, height: 5, borderRadius: 3, backgroundColor: PURPLE, marginTop: 7, flexShrink: 0 },
-  policyText:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular",
-                     color: C.text, lineHeight: 20 },
+  sectionBox:       { backgroundColor: C.card, borderRadius: 12, padding: 14,
+                      borderWidth: 1, borderColor: "#E5E7EB", gap: 6 },
+  sectionTitle:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: PURPLE, marginBottom: 4 },
+  policyLine:       { flexDirection: "row", gap: 10, alignItems: "flex-start" },
+  bullet:           { width: 5, height: 5, borderRadius: 3, backgroundColor: PURPLE,
+                      marginTop: 7, flexShrink: 0 },
+  policyText:       { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular",
+                      color: C.text, lineHeight: 20 },
 
-  alreadyAgreed:   { flexDirection: "row", alignItems: "center", gap: 10,
-                     backgroundColor: "#F0FDF4", borderRadius: 12, padding: 14,
-                     borderWidth: 1, borderColor: "#BBF7D0" },
-  alreadyAgreedTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#16A34A", lineHeight: 20 },
+  alreadyAgreed:    { flexDirection: "row", alignItems: "center", gap: 10,
+                      backgroundColor: "#F0FDF4", borderRadius: 12, padding: 14,
+                      borderWidth: 1, borderColor: "#BBF7D0" },
+  alreadyAgreedTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#16A34A", lineHeight: 20 },
 
-  footer:          { paddingHorizontal: 16, paddingTop: 12, gap: 8,
-                     backgroundColor: C.card,
-                     borderTopWidth: 1, borderTopColor: "#E5E7EB" },
-  footerHint:      { fontSize: 11, fontFamily: "Pretendard-Regular",
-                     color: "#64748B", textAlign: "center" },
-  agreeBtn:        { backgroundColor: PURPLE, borderRadius: 12, paddingVertical: 14,
-                     alignItems: "center" },
-  agreeBtnTxt:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
+  footer:           { paddingHorizontal: 16, paddingTop: 12, gap: 8,
+                      backgroundColor: C.card,
+                      borderTopWidth: 1, borderTopColor: "#E5E7EB" },
+  footerHint:       { fontSize: 11, fontFamily: "Pretendard-Regular",
+                      color: "#64748B", textAlign: "center" },
+  agreeBtn:         { backgroundColor: PURPLE, borderRadius: 12, paddingVertical: 14,
+                      alignItems: "center" },
+  agreeBtnTxt:      { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
 });
