@@ -37,7 +37,7 @@ async function getEffectiveMemberLimit(poolId: string): Promise<{ limit: number;
     SELECT COUNT(*) AS cnt FROM students
     WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
   `)).rows as any[];
-  const limit = Number(planRow?.effective_member_limit ?? 5);
+  const limit = Number(planRow?.effective_member_limit ?? 10);
   const current = Number(cntRow?.cnt ?? 0);
   const overrideActive = planRow?.pool_override != null;
   console.log(`[member-limit] poolId=${poolId} limit=${limit} (override=${overrideActive ? planRow?.pool_override : 'none'}) current=${current}`);
@@ -262,7 +262,7 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
       SELECT COUNT(*) AS cnt FROM students
       WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
     `)).rows as any[];
-    const memberLimit   = Number(planRow?.effective_member_limit ?? 5);
+    const memberLimit   = Number(planRow?.effective_member_limit ?? 10);
     const currentCount  = Number(cntRow?.cnt ?? 0);
     const available     = Math.max(0, memberLimit - currentCount);
 
@@ -452,7 +452,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
         SELECT COUNT(*) AS cnt FROM students
         WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
       `)).rows as any[];
-      const limit = Number(planRow?.effective_member_limit ?? 5);
+      const limit = Number(planRow?.effective_member_limit ?? 10);
       const current = Number(cntRow?.cnt ?? 0);
       console.log(`[members] poolId=${poolId} limit=${limit} (override=${planRow?.pool_override ?? 'none'}, plan=${planRow?.plan_default}) current=${current}`);
       if (current >= limit) {

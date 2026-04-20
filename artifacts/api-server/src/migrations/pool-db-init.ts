@@ -763,6 +763,20 @@ export async function initPoolDb(): Promise<void> {
   }
   console.log('[pool-db-init] swimming_pools 누락 컬럼 보완 완료 (member_limit, subscription_source)');
 
+  // member_limit = 5 는 과거 하드코딩 기본값 잔재 — NULL로 초기화하여 플랜 기본값(10) 사용
+  try {
+    const { rowCount } = await db.execute(sql`
+      UPDATE swimming_pools
+      SET member_limit = NULL
+      WHERE member_limit = 5
+    `);
+    if ((rowCount ?? 0) > 0) {
+      console.log(`[pool-db-init] member_limit=5 잔재 ${rowCount}개 → NULL 초기화 완료`);
+    }
+  } catch (e: any) {
+    console.error('[pool-db-init] member_limit 초기화 오류:', e?.message);
+  }
+
   // ─── subscription_plans ─────────────────────────────────────────────────
   // 단일 기준 스키마: tier TEXT PRIMARY KEY (super.ts ensurePlansTables와 통일)
   // silent failure 금지 — 모든 에러 콘솔 출력
