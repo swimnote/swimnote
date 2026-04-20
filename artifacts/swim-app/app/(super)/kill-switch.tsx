@@ -116,10 +116,10 @@ export default function KillSwitchScreen() {
     if (!token) return;
     setLoadingLogs(true);
     try {
-      const res = await apiRequest(token, '/super/op-logs?category=%EC%82%AD%EC%A0%9C&limit=50');
+      const res = await apiRequest(token, '/super/kill-switch-logs');
       if (res.ok) {
         const data = await res.json();
-        setDeleteLogs(Array.isArray(data?.logs) ? data.logs : []);
+        setDeleteLogs(Array.isArray(data) ? data : []);
       }
     } catch (e) {
       console.error('fetchDeleteLogs error:', e);
@@ -201,13 +201,28 @@ export default function KillSwitchScreen() {
     if (!poolId || !canExecute || !token) return;
     setDeleting(true);
     try {
-      await apiRequest(token, `/super/operators/${poolId}/subscription`, {
-        method: 'PATCH',
+      const res = await apiRequest(token, `/super/operators/${poolId}/purge`, {
+        method: 'POST',
         body: JSON.stringify({
-          subscription_status: 'cancelled',
-          subscription_end_at: new Date().toISOString(),
+          mode: deleteMode,
+          fromDate: fromDate || undefined,
+          toDate: toDate || undefined,
+          items: selectedItems.length > 0 ? selectedItems : undefined,
+          deletionReason,
+          reasonDetail: reason,
+          password: adminPassword,
         }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        Alert.alert('삭제 실패', data.error ?? '오류가 발생했습니다.');
+        return;
+      }
+      const total = data.total_deleted ?? 0;
+      Alert.alert(
+        '영구 삭제 완료',
+        `${poolName}: 총 ${total}건 영구 삭제되었습니다.`,
+      );
       await Promise.all([fetchOperators(), fetchDeleteLogs()]);
       setConfirmModal(false);
       setDeleteMode(null); setPoolId(""); setPoolName(""); setReason("");
@@ -215,6 +230,7 @@ export default function KillSwitchScreen() {
       setDeletionReason(null);
     } catch (e) {
       console.error('executeDelete error:', e);
+      Alert.alert('오류', '네트워크 오류가 발생했습니다.');
     } finally {
       setDeleting(false);
     }
@@ -227,7 +243,7 @@ export default function KillSwitchScreen() {
     (deleteMode === "full" || (deleteMode === "period" && fromDate && toDate) ||
      (deleteMode === "item" && selectedItems.length > 0));
 
-  const canExecute = confirmText === "영구삭제" && adminPassword === "admin1234" &&
+  const canExecute = confirmText === "영구삭제" && adminPassword.length >= 6 &&
     check1 && check2 && snapshotCreated;
 
   return (
@@ -499,8 +515,7 @@ export default function KillSwitchScreen() {
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>C. 관리자 비밀번호 재입력</Text>
                   <TextInput style={m.pwInput} value={adminPassword} onChangeText={setAdminPassword}
-                    secureTextEntry placeholder="비밀번호 입력" placeholderTextColor="#64748B" />
-                  <Text style={m.pwHint}>* 테스트 환경: 'admin1234'</Text>
+                    secureTextEntry placeholder="로그인 비밀번호 입력" placeholderTextColor="#64748B" />
                 </View>
 
                 <View style={m.safeSection}>

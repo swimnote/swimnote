@@ -1478,6 +1478,253 @@ router.post(
 );
 
 // ════════════════════════════════════════════════════════════════
+// POST /super/operators/:id/purge — 운영자 데이터 영구 삭제 (슈퍼관리자 전용)
+// Body: {
+//   mode: "full" | "period" | "item",
+//   fromDate?: string,  // YYYY-MM-DD (period 모드)
+//   toDate?: string,    // YYYY-MM-DD (period 모드)
+//   items?: string[],   // ["수업 영상","사진","일지","출석 기록","결제 기록"] (item 모드)
+//   deletionReason: "operator_terminated"|"manual_by_admin"|"policy_violation",
+//   reasonDetail: string,
+//   password: string,
+// }
+// ════════════════════════════════════════════════════════════════
+router.post(
+  "/super/operators/:id/purge",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { id: poolId } = req.params;
+      const {
+        mode, fromDate, toDate, items = [],
+        deletionReason, reasonDetail, password,
+      } = req.body as {
+        mode: "full" | "period" | "item";
+        fromDate?: string; toDate?: string; items?: string[];
+        deletionReason: string; reasonDetail: string; password: string;
+      };
+
+      if (!mode || !["full","period","item"].includes(mode)) {
+        res.status(400).json({ error: "삭제 방식을 선택해주세요." }); return;
+      }
+      if (!deletionReason) {
+        res.status(400).json({ error: "삭제 사유를 선택해주세요." }); return;
+      }
+      if (!reasonDetail || reasonDetail.trim().length < 5) {
+        res.status(400).json({ error: "상세 사유를 5자 이상 입력해주세요." }); return;
+      }
+      if (!password) {
+        res.status(400).json({ error: "비밀번호를 입력해주세요." }); return;
+      }
+      if (mode === "period" && (!fromDate || !toDate)) {
+        res.status(400).json({ error: "기간 지정 삭제는 시작일/종료일이 필요합니다." }); return;
+      }
+      if (mode === "item" && items.length === 0) {
+        res.status(400).json({ error: "항목별 삭제는 최소 1개 항목을 선택해야 합니다." }); return;
+      }
+
+      const userId = req.user!.userId;
+
+      // ── 슈퍼관리자 비밀번호 검증 ────────────────────────────
+      const [userRow] = (await superAdminDb.execute(sql`
+        SELECT password_hash, name FROM users WHERE id = ${userId} LIMIT 1
+      `)).rows as any[];
+      if (!userRow) { res.status(403).json({ error: "사용자 정보 없음" }); return; }
+
+      const { comparePassword: cmpPwd } = await import("../lib/auth.js");
+      const valid = await cmpPwd(password, userRow.password_hash);
+      if (!valid) {
+        res.status(401).json({ error: "비밀번호가 일치하지 않습니다." }); return;
+      }
+
+      const actorName = userRow.name || "슈퍼관리자";
+
+      // ── 수영장 존재 확인 ─────────────────────────────────────
+      const [poolRow] = (await superAdminDb.execute(sql`
+        SELECT id, name FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+      `)).rows as any[];
+      if (!poolRow) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
+
+      const deleted = {
+        videos: 0, photos: 0, class_records: 0,
+        attendance: 0, payment_logs: 0, members: 0,
+      };
+
+      // ── 날짜 범위 조건 결정 ──────────────────────────────────
+      let dateCondition = "";
+      if (mode === "period" && fromDate && toDate) {
+        dateCondition = `AND created_at >= '${fromDate}'::date AND created_at < ('${toDate}'::date + INTERVAL '1 day')`;
+      }
+
+      const shouldDelete = (itemLabel: string) =>
+        mode === "full" ||
+        mode === "period" ||
+        (mode === "item" && items.includes(itemLabel));
+
+      // ── 영상 삭제 ────────────────────────────────────────────
+      if (shouldDelete("수업 영상")) {
+        const [r] = (await db.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM student_videos
+          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `))).rows as any[];
+        await db.execute(sql.raw(`
+          DELETE FROM student_videos
+          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `));
+        deleted.videos = Number(r?.cnt ?? 0);
+      }
+
+      // ── 사진 삭제 ────────────────────────────────────────────
+      if (shouldDelete("사진")) {
+        const [r] = (await db.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM student_photos
+          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `))).rows as any[];
+        await db.execute(sql.raw(`
+          DELETE FROM student_photos
+          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `));
+        deleted.photos = Number(r?.cnt ?? 0);
+      }
+
+      // ── 수업기록/일지 삭제 ──────────────────────────────────
+      if (shouldDelete("일지")) {
+        const [cd] = (await db.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM class_diaries
+          WHERE swimming_pool_id = '${poolId}' AND is_deleted = false ${dateCondition}
+        `))).rows as any[];
+        const diaries = (await db.execute(sql.raw(`
+          SELECT id FROM class_diaries
+          WHERE swimming_pool_id = '${poolId}' AND is_deleted = false ${dateCondition}
+        `))).rows as any[];
+        if (diaries.length > 0) {
+          const ids = diaries.map((d: any) => `'${d.id}'`).join(",");
+          await db.execute(sql.raw(`DELETE FROM class_diary_student_notes WHERE diary_id IN (${ids})`));
+          await db.execute(sql.raw(`DELETE FROM class_diaries WHERE id IN (${ids})`));
+        }
+        const [sd] = (await db.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM swim_diary
+          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `))).rows as any[];
+        await db.execute(sql.raw(`
+          DELETE FROM swim_diary WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `));
+        const [tm] = (await db.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM teacher_daily_memos
+          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `))).rows as any[];
+        await db.execute(sql.raw(`
+          DELETE FROM teacher_daily_memos WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `));
+        deleted.class_records = Number(cd?.cnt ?? 0) + Number(sd?.cnt ?? 0) + Number(tm?.cnt ?? 0);
+      }
+
+      // ── 출석 기록 삭제 ──────────────────────────────────────
+      if (shouldDelete("출석 기록")) {
+        const [r] = (await db.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM attendances
+          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `))).rows as any[];
+        await db.execute(sql.raw(`
+          DELETE FROM attendances WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `));
+        deleted.attendance = Number(r?.cnt ?? 0);
+      }
+
+      // ── 결제 기록 삭제 ──────────────────────────────────────
+      if (shouldDelete("결제 기록")) {
+        const [r] = (await superAdminDb.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM payment_logs
+          WHERE pool_id = '${poolId}' ${dateCondition.replace(/created_at/g, 'paid_at')}
+        `))).rows as any[];
+        await superAdminDb.execute(sql.raw(`
+          DELETE FROM payment_logs WHERE pool_id = '${poolId}'
+          ${dateCondition.replace(/created_at/g, 'paid_at')}
+        `));
+        deleted.payment_logs = Number(r?.cnt ?? 0);
+      }
+
+      // ── 전체 삭제 전용: 회원 정보, 일정, 기타 ──────────────
+      if (mode === "full") {
+        const [mr] = (await db.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM students
+          WHERE swimming_pool_id = '${poolId}'
+        `))).rows as any[];
+        // 회원 연관 데이터 순서대로 삭제
+        await db.execute(sql.raw(`
+          DELETE FROM student_tag_assignments WHERE swimming_pool_id = '${poolId}'
+        `)).catch(() => {});
+        await db.execute(sql.raw(`
+          DELETE FROM student_lesson_count WHERE student_id IN (
+            SELECT id FROM students WHERE swimming_pool_id = '${poolId}'
+          )
+        `)).catch(() => {});
+        await db.execute(sql.raw(`
+          DELETE FROM students WHERE swimming_pool_id = '${poolId}'
+        `)).catch(() => {});
+        deleted.members = Number(mr?.cnt ?? 0);
+
+        // 수영장 자체 상태 업데이트
+        await superAdminDb.execute(sql.raw(`
+          UPDATE swimming_pools
+          SET subscription_status = 'cancelled',
+              subscription_end_at = NOW(),
+              is_readonly = true,
+              upload_blocked = true,
+              used_storage_bytes = 0
+          WHERE id = '${poolId}'
+        `));
+      }
+
+      const totalDeleted =
+        deleted.videos + deleted.photos + deleted.class_records +
+        deleted.attendance + deleted.payment_logs + deleted.members;
+
+      const modeLabel = mode === "full" ? "전체 삭제" :
+                        mode === "period" ? `기간 삭제 (${fromDate}~${toDate})` :
+                        `항목별 삭제 (${items.join(", ")})`;
+
+      const reasonLabel = deletionReason === "operator_terminated" ? "운영자 해지 확정" :
+                          deletionReason === "manual_by_admin" ? "슈퍼관리자 수동 삭제" : "정책 위반";
+
+      // ── 감사 이벤트 로그 ────────────────────────────────────
+      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      await superAdminDb.execute(sql.raw(`
+        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+        VALUES (
+          '${logId}',
+          '${poolId}',
+          '삭제',
+          '${userId}',
+          '${actorName}',
+          '${poolRow.name.replace(/'/g, "''")}',
+          '[킬스위치] ${modeLabel} — ${reasonLabel} — 총 ${totalDeleted}건 영구삭제',
+          '${JSON.stringify({
+            mode, deletionReason, reasonDetail,
+            fromDate: fromDate ?? null, toDate: toDate ?? null, items,
+            deleted, poolName: poolRow.name,
+          }).replace(/'/g, "''")}'::jsonb
+        )
+      `)).catch(() => {});
+
+      res.json({
+        ok: true,
+        pool_id: poolId,
+        pool_name: poolRow.name,
+        mode,
+        deleted,
+        total_deleted: totalDeleted,
+        message: `${poolRow.name} — ${totalDeleted}건 영구 삭제 완료`,
+      });
+    } catch (err) {
+      console.error("[purge]", err);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
 // PATCH /super/operators/:id/subscription — 구독 전체 필드 수동 동기화
 // Body: {
 //   subscription_status?,   subscription_tier?,      credit_amount?,
