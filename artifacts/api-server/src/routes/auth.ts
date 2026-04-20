@@ -1843,6 +1843,19 @@ router.post("/apple-social-login", async (req, res) => {
     `);
     if ((byAppleId.rows as any[]).length > 0) {
       const account = byAppleId.rows[0] as any;
+      // 이전 코드가 자동 생성한 고아 계정 감지: swimming_pool_id, phone, login_id 모두 없는 경우
+      const isOrphan = !account.swimming_pool_id && !account.phone && !account.login_id;
+      if (isOrphan) {
+        console.log("[apple-social-login] 고아 계정 감지 → 재가입 유도:", account.id);
+        // 고아 계정 삭제 후 apple_no_account 반환
+        await db.execute(sql`DELETE FROM parent_accounts WHERE id = ${account.id}`).catch(() => {});
+        return res.status(400).json({
+          success: false,
+          error_code: "apple_no_account",
+          message: "Apple 계정으로 가입된 정보가 없습니다. 역할을 선택하고 가입해주세요.",
+          apple_info: { apple_id: appleId, email: appleEmail || null, name: fullName || null },
+        });
+      }
       console.log("[apple-social-login] 기존 계정(parent apple_id) 로그인 성공:", account.id);
       const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
       return res.json({
