@@ -132,28 +132,45 @@ export default function SubscriptionScreen() {
   // 화면 포커스 복귀 시 재조회 (슈퍼관리자 변경 직후 즉시 반영)
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
-  async function syncRcToServer(info: any) {
-    try {
+  async function syncRcToServer(info: any, purchasedProductId?: string) {
+    // 방금 구매한 productId를 우선 사용 (entitlement 즉시 반영 안 될 수 있으므로)
+    let productId = purchasedProductId ?? null;
+    let entitlementId: string | null = null;
+    let expiresAt: string | null = null;
+
+    if (!productId) {
+      // fallback: entitlement에서 읽기
       const active = info?.entitlements?.active ?? {};
-      // center 구독 우선, 없으면 solo
       const centerEnt = active[REVENUECAT_CENTER_ENTITLEMENT] ?? null;
       const soloEnt   = active[REVENUECAT_SOLO_ENTITLEMENT]   ?? null;
       const entitlement = centerEnt ?? soloEnt;
       if (!entitlement) return;
-      const entitlementId = centerEnt
+      productId     = entitlement.productIdentifier;
+      entitlementId = centerEnt ? REVENUECAT_CENTER_ENTITLEMENT : REVENUECAT_SOLO_ENTITLEMENT;
+      expiresAt     = entitlement.expirationDate ? entitlement.expirationDate.slice(0, 10) : null;
+    } else {
+      // 구매한 플랜 ID로 entitlement 결정
+      const centerIds = ["center_200","center_300","center_500","center_1000"];
+      entitlementId = centerIds.includes(productId)
         ? REVENUECAT_CENTER_ENTITLEMENT
         : REVENUECAT_SOLO_ENTITLEMENT;
-      await apiRequest(token, "/billing/sync-rc-subscription", {
-        method: "POST",
-        body: JSON.stringify({
-          productId:     entitlement.productIdentifier,
-          entitlementId,
-          expiresAt:     entitlement.expirationDate ? entitlement.expirationDate.slice(0, 10) : null,
-          isActive:      true,
-        }),
-      });
-    } catch (e) {
-      console.warn("[subscription] 서버 동기화 실패:", e);
+      // info에서 만료일 읽기
+      const active = info?.entitlements?.active ?? {};
+      const ent = active[entitlementId] ?? null;
+      expiresAt = ent?.expirationDate ? ent.expirationDate.slice(0, 10) : null;
+    }
+
+    const res = await apiRequest(token, "/billing/sync-rc-subscription", {
+      method: "POST",
+      body: JSON.stringify({ productId, entitlementId, expiresAt, isActive: true }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      console.error("[subscription] 서버 동기화 실패:", data);
+      if (data?.code === "REFUND_POLICY_AGREEMENT_REQUIRED") {
+        throw new Error("환불 정책 동의 후 구독이 가능합니다.\n설정 > 환불 정책에서 동의해 주세요.");
+      }
+      throw new Error(data?.message ?? "서버 동기화에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     }
   }
 
@@ -216,7 +233,7 @@ export default function SubscriptionScreen() {
       async () => {
         try {
           const info = await purchase(pkg);
-          await syncRcToServer(info);
+          await syncRcToServer(info, plan.rcPackageId ?? undefined);
           await refetchCustomerInfo();
           await refreshPool();
           showConfirm("구독 완료", "구독이 성공적으로 시작되었습니다!", () => {});
