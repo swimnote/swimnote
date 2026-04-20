@@ -126,6 +126,12 @@ API design follows RESTful principles with consistent JSON formats and strong au
 ### TIER_ORDER (낮은 숫자 = 하위 플랜)
 `free=0 < starter=1 < basic=2 < standard=3 < center_200=4 < advance=5 < pro=6 < max=7`
 
+## 빌드 101 예약 항목
+
+| 항목 | 설명 |
+|---|---|
+| 시스템 상태 화면 실데이터 연결 | `system-status.tsx`의 하드코딩 더미 데이터 → 실제 `ops_alerts` DB 테이블 연결. 서버 이상 이력(느려짐/다운/헬스체크 실패) 앱에서 조회 가능 |
+
 ## 다음 업데이트 예정 목록 (v1.4.0+)
 
 | 항목 | 설명 | 우선순위 |
