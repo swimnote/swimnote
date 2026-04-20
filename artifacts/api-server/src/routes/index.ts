@@ -43,6 +43,7 @@ import infraUsageRouter from "./infra-usage.js";
 import backupStatusRouter from "./backup-status.js";
 import restoreRouter from "./restore.js";
 import platformBannersRouter from "./platform-banners.js";
+import systemHealthRouter from "./system-health.js";
 
 const router: IRouter = Router();
 
@@ -92,5 +93,6 @@ router.use("/", backupStatusRouter);
 router.use("/", restoreRouter);
 router.use("/", privacyPageRouter);
 router.use("/", platformBannersRouter);
+router.use("/", systemHealthRouter);
 
 export default router;

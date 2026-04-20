@@ -1,17 +1,15 @@
 /**
  * (super)/system-status.tsx — 시스템 상태
- * DB·스토리지·PG·이메일·푸시·기타 연동 서비스 상태 표시.
- * 정상(normal) / 주의(warning) / 장애(error) 상태.
- * 오늘 처리할 일 · 리스크 요약과 연동 가능한 구조.
+ * 실제 API(/super/system-health)에서 각 서비스의 상태/지연/메모를 가져와 표시.
  */
 import { Info, RefreshCw } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useMemo, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { useAuditLogStore } from "@/store/auditLogStore";
-import { useAuth } from "@/context/AuthContext";
+import { useFocusEffect } from "expo-router";
+import { apiRequest, useAuth } from "@/context/AuthContext";
 
 const P = "#7C3AED";
 
@@ -28,20 +26,6 @@ export interface ServiceItem {
   lastChecked: string;
   note: string;
 }
-
-// ─── 시스템 상태 시드 데이터 ───────────────────────────────────────────────
-// 실제 운영에서는 각 서비스의 health endpoint 또는 모니터링 API 연동으로 대체.
-const INITIAL_SERVICES: ServiceItem[] = [
-  { id: "db",       name: "데이터베이스",     category: "인프라",  icon: "database",     status: "normal",  latencyMs: 12,   uptimePct: 99.98, lastChecked: new Date().toISOString(), note: "PostgreSQL 17 — 정상 운영 중" },
-  { id: "storage",  name: "파일 스토리지",    category: "인프라",  icon: "hard-drive",   status: "warning", latencyMs: 180,  uptimePct: 99.5,  lastChecked: new Date().toISOString(), note: "업로드 지연 감지 — 점검 중" },
-  { id: "pg",       name: "PG (결제)",        category: "외부",    icon: "credit-card",  status: "normal",  latencyMs: 65,   uptimePct: 99.95, lastChecked: new Date().toISOString(), note: "토스페이먼츠 — 정상" },
-  { id: "email",    name: "이메일 서비스",    category: "외부",    icon: "mail",         status: "normal",  latencyMs: 320,  uptimePct: 99.9,  lastChecked: new Date().toISOString(), note: "SendGrid — 정상 발송 중" },
-  { id: "push",     name: "푸시 알림",        category: "외부",    icon: "bell",         status: "normal",  latencyMs: 45,   uptimePct: 99.8,  lastChecked: new Date().toISOString(), note: "FCM/APNs — 정상" },
-  { id: "auth",     name: "인증 서버",        category: "인프라",  icon: "lock",         status: "normal",  latencyMs: 8,    uptimePct: 100,   lastChecked: new Date().toISOString(), note: "JWT/세션 정상 처리 중" },
-  { id: "cdn",      name: "CDN",              category: "인프라",  icon: "globe",        status: "normal",  latencyMs: 22,   uptimePct: 99.99, lastChecked: new Date().toISOString(), note: "Cloudflare — 전 리전 정상" },
-  { id: "sms_gw",   name: "SMS 게이트웨이",  category: "외부",    icon: "message-square", status: "warning", latencyMs: null, uptimePct: 97.2, lastChecked: new Date().toISOString(), note: "알림톡 연동 지연 — 자체 발송으로 전환" },
-  { id: "monitor",  name: "모니터링",         category: "내부",    icon: "activity",     status: "normal",  latencyMs: 5,    uptimePct: 100,   lastChecked: new Date().toISOString(), note: "Sentry/로그 수집 정상" },
-];
 
 const STATUS_CFG: Record<ServiceStatus, { label: string; color: string; bg: string; icon: string }> = {
   normal:  { label: "정상",  color: "#2EC4B6", bg: "#E6FFFA", icon: "check-circle" },
@@ -63,7 +47,7 @@ const sb = StyleSheet.create({
   txt:   { fontSize: 11, fontFamily: "Pretendard-Regular" },
 });
 
-function ServiceCard({ item, onToggle }: { item: ServiceItem; onToggle: (id: string) => void }) {
+function ServiceCard({ item }: { item: ServiceItem }) {
   const cfg = STATUS_CFG[item.status];
   return (
     <View style={[sc.card, { borderLeftColor: cfg.color, borderLeftWidth: 4 }]}>
@@ -90,12 +74,6 @@ function ServiceCard({ item, onToggle }: { item: ServiceItem; onToggle: (id: str
         </View>
       </View>
       {item.note ? <Text style={sc.note}>{item.note}</Text> : null}
-      {item.status !== "normal" && (
-        <Pressable style={sc.fixBtn} onPress={() => onToggle(item.id)}>
-          <RefreshCw size={12} color={cfg.color} />
-          <Text style={[sc.fixTxt, { color: cfg.color }]}>정상으로 표시</Text>
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -110,19 +88,36 @@ const sc = StyleSheet.create({
   metricLabel:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   metricVal:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   note:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 4 },
-  fixBtn:     { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8, padding: 6,
-                borderRadius: 6, backgroundColor: "#F1F5F9" },
-  fixTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular" },
 });
 
 export default function SystemStatusScreen() {
   const insets = useSafeAreaInsets();
-  const { adminUser } = useAuth();
-  const actorName = adminUser?.name ?? "슈퍼관리자";
-  const createLog = useAuditLogStore(s => s.createLog);
+  const { token } = useAuth();
 
-  const [services, setServices] = useState<ServiceItem[]>(INITIAL_SERVICES);
+  const [services, setServices] = useState<ServiceItem[]>([]);
+  const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [checkedAt, setCheckedAt]   = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    setFetchError(null);
+    try {
+      const data = await apiRequest(token, "/super/system-health");
+      setServices(data.services ?? []);
+      setCheckedAt(data.summary?.checkedAt ?? null);
+    } catch (e: any) {
+      setFetchError(e?.message ?? "헬스체크 요청 실패");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const normalCount  = useMemo(() => services.filter(s => s.status === "normal").length, [services]);
   const warningCount = useMemo(() => services.filter(s => s.status === "warning").length, [services]);
@@ -130,27 +125,6 @@ export default function SystemStatusScreen() {
 
   const overallStatus: ServiceStatus = errorCount > 0 ? "error" : warningCount > 0 ? "warning" : "normal";
   const overallCfg = STATUS_CFG[overallStatus];
-
-  function handleToggleNormal(id: string) {
-    const svc = services.find(s => s.id === id);
-    if (!svc) return;
-    setServices(prev => prev.map(s => s.id === id ? { ...s, status: "normal", lastChecked: new Date().toISOString() } : s));
-    createLog({
-      category: "시스템상태",
-      title: `${svc.name} 상태 정상으로 변경`,
-      actorName,
-      impact: "medium",
-      detail: `이전 상태: ${svc.status}`,
-    });
-  }
-
-  function handleRefresh() {
-    setRefreshing(true);
-    setTimeout(() => {
-      setServices(prev => prev.map(s => ({ ...s, lastChecked: new Date().toISOString() })));
-      setRefreshing(false);
-    }, 800);
-  }
 
   const categorized = useMemo(() => {
     const map: Record<string, ServiceItem[]> = {};
@@ -161,44 +135,68 @@ export default function SystemStatusScreen() {
     return map;
   }, [services]);
 
+  const checkedAtStr = useMemo(() => {
+    if (!checkedAt) return null;
+    return new Date(checkedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }, [checkedAt]);
+
   return (
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="시스템 상태" homePath="/(super)/more" />
 
       {/* 전체 상태 배너 */}
-      <View style={[s.overallBanner, { backgroundColor: overallCfg.bg }]}>
-        <LucideIcon name={overallCfg.icon} size={20} color={overallCfg.color} />
+      <View style={[s.overallBanner, { backgroundColor: loading ? "#F1F5F9" : overallCfg.bg }]}>
+        {loading
+          ? <ActivityIndicator size="small" color={P} />
+          : <LucideIcon name={overallCfg.icon} size={20} color={overallCfg.color} />
+        }
         <View style={{ flex: 1 }}>
-          <Text style={[s.overallTitle, { color: overallCfg.color }]}>
-            {overallStatus === "normal" ? "모든 시스템 정상" : overallStatus === "warning" ? "일부 서비스 주의 필요" : "장애 감지됨"}
+          <Text style={[s.overallTitle, { color: loading ? "#94A3B8" : overallCfg.color }]}>
+            {loading
+              ? "점검 중..."
+              : fetchError
+                ? "헬스체크 실패"
+                : overallStatus === "normal" ? "모든 시스템 정상"
+                  : overallStatus === "warning" ? "일부 서비스 주의 필요" : "장애 감지됨"}
           </Text>
-          <Text style={[s.overallSub, { color: overallCfg.color }]}>
-            정상 {normalCount} · 주의 {warningCount} · 장애 {errorCount}
+          <Text style={[s.overallSub, { color: loading ? "#94A3B8" : overallCfg.color }]}>
+            {loading
+              ? "서버에서 실측 중..."
+              : fetchError
+                ? fetchError
+                : `정상 ${normalCount} · 주의 ${warningCount} · 장애 ${errorCount}${checkedAtStr ? `  ·  ${checkedAtStr} 기준` : ""}`}
           </Text>
         </View>
-        <Pressable style={s.refreshBtn} onPress={handleRefresh}>
-          <RefreshCw size={14} color={overallCfg.color} />
+        <Pressable style={s.refreshBtn} onPress={() => load(true)} disabled={loading || refreshing}>
+          <RefreshCw size={14} color={loading ? "#94A3B8" : overallCfg.color} />
         </Pressable>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={P} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={P} />}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 14 }}>
 
-        {Object.entries(categorized).map(([category, items]) => (
-          <View key={category} style={{ gap: 8 }}>
-            <Text style={s.categoryTitle}>{category}</Text>
-            {items.map(item => (
-              <ServiceCard key={item.id} item={item} onToggle={handleToggleNormal} />
-            ))}
+        {loading && services.length === 0 ? (
+          <View style={s.loadingBox}>
+            <ActivityIndicator color={P} />
+            <Text style={s.loadingTxt}>각 서비스 실측 중...</Text>
           </View>
-        ))}
+        ) : (
+          Object.entries(categorized).map(([category, items]) => (
+            <View key={category} style={{ gap: 8 }}>
+              <Text style={s.categoryTitle}>{category}</Text>
+              {items.map(item => (
+                <ServiceCard key={item.id} item={item} />
+              ))}
+            </View>
+          ))
+        )}
 
         <View style={s.noteBox}>
           <Info size={12} color="#64748B" />
           <Text style={s.noteTxt}>
-            서비스 상태는 1분 단위로 자동 점검됩니다. 이상 감지 시 슈퍼관리자에게 푸시 알림이 발송됩니다.
+            이 화면을 열거나 새로고침할 때 각 서비스에 실시간으로 연결해 상태를 확인합니다.
           </Text>
         </View>
       </ScrollView>
@@ -217,4 +215,6 @@ const s = StyleSheet.create({
   noteBox:        { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#FFFFFF",
                     borderRadius: 8, padding: 10 },
   noteTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
+  loadingBox:     { alignItems: "center", gap: 10, paddingVertical: 40 },
+  loadingTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
 });
