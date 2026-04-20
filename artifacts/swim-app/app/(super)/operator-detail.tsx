@@ -127,9 +127,8 @@ export default function OperatorDetailScreen() {
   const [subSaving,  setSubSaving]  = useState(false);
 
   // 삭제 확인 모달
-  const [deleteModal,   setDeleteModal]   = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState("");
-  const [deleting,      setDeleting]      = useState(false);
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [deleting,    setDeleting]    = useState(false);
 
   const SENSITIVE_ACTIONS = ["approve", "reject", "restrict"];
 
@@ -229,14 +228,12 @@ export default function OperatorDetailScreen() {
   }
 
   async function doDelete() {
-    if (deleteConfirm !== pool?.name) {
-      Alert.alert("확인 실패", "수영장 이름을 정확히 입력해주세요."); return;
-    }
     setDeleting(true);
     try {
       const res  = await apiRequest(token, `/super/operators/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (res.ok) {
+        setDeleteModal(false);
         Alert.alert("삭제 완료", data.message ?? "수영장이 삭제되었습니다.", [
           { text: "확인", onPress: () => router.replace("/(super)/pools" as any) },
         ]);
@@ -247,7 +244,6 @@ export default function OperatorDetailScreen() {
       Alert.alert("오류", "서버 오류가 발생했습니다.");
     }
     setDeleting(false);
-    setDeleteModal(false);
   }
 
   if (loading) {
@@ -694,27 +690,33 @@ export default function OperatorDetailScreen() {
 
       {/* ─────── 수영장 삭제 확인 모달 ─────── */}
       <Modal visible={deleteModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setDeleteModal(false)}>
-        <Pressable style={m.backdrop} onPress={() => setDeleteModal(false)}>
+        <Pressable style={m.backdrop} onPress={() => !deleting && setDeleteModal(false)}>
           <Pressable style={m.sheet} onPress={() => {}}>
             <View style={m.handle} />
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
               <Trash2 size={20} color="#D96C6C" />
               <Text style={[m.title, { color: "#D96C6C" }]}>수영장 완전 삭제</Text>
             </View>
-            <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular", lineHeight: 20, marginBottom: 16 }}>
-              {`회원, 수업, 출결, 선생님 등 모든 데이터가 영구 삭제됩니다.\n아래에 수영장 이름을 정확히 입력해야 삭제됩니다.`}
+            <View style={{ backgroundColor: "#FFF5F5", borderRadius: 10, padding: 14, marginBottom: 16, gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: "#B91C1C" }}>⚠ 이 작업은 되돌릴 수 없습니다</Text>
+              <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular", lineHeight: 20 }}>
+                {`· 수영장: `}<Text style={{ fontWeight: "700", color: "#0F172A" }}>{pool.name}</Text>{`\n· 회원, 수업, 출결, 선생님 등 모든 데이터 영구 삭제\n· 삭제 후 복구 불가`}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 13, color: "#374151", fontFamily: "Pretendard-SemiBold", marginBottom: 16 }}>
+              정말로 이 수영장을 삭제하시겠습니까?
             </Text>
-            <Text style={[m.fieldLabel, { color: "#D96C6C" }]}>수영장 이름 입력: <Text style={{ fontFamily: "Pretendard-Regular" }}>{pool.name}</Text></Text>
-            <TextInput style={[m.input, { borderColor: "#FCA5A5" }]}
-              value={deleteConfirm} onChangeText={setDeleteConfirm}
-              placeholder={pool.name} placeholderTextColor="#94A3B8" />
             <View style={m.btnRow}>
-              <Pressable style={m.cancelBtn} onPress={() => { setDeleteModal(false); setDeleteConfirm(""); }}>
+              <Pressable style={m.cancelBtn} onPress={() => setDeleteModal(false)} disabled={deleting}>
                 <Text style={m.cancelTxt}>취소</Text>
               </Pressable>
-              <Pressable style={[m.confirmBtn, { backgroundColor: "#D96C6C", opacity: deleting ? 0.6 : 1 }]}
-                onPress={doDelete} disabled={deleting || deleteConfirm !== pool.name}>
-                {deleting ? <ActivityIndicator color="#fff" size="small" />
+              <Pressable
+                style={[m.confirmBtn, { backgroundColor: "#D96C6C", opacity: deleting ? 0.6 : 1 }]}
+                onPress={doDelete}
+                disabled={deleting}
+              >
+                {deleting
+                  ? <ActivityIndicator color="#fff" size="small" />
                   : <Text style={m.confirmTxt}>삭제 확인</Text>}
               </Pressable>
             </View>
