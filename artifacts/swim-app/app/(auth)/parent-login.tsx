@@ -116,7 +116,7 @@ export default function ParentLoginScreen() {
 
         <Pressable
           style={({ pressed }) => [styles.joinRequestBtn, { backgroundColor: C.card, borderColor: C.border, opacity: pressed ? 0.8 : 1 }]}
-          onPress={() => router.push("/(auth)/signup")}
+          onPress={() => router.push("/pool-join-request" as any)}
         >
           <View style={[styles.joinIconBox, { backgroundColor: C.tintLight }]}>
             <UserPlus size={18} color={C.tint} />

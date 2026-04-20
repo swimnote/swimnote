@@ -428,7 +428,7 @@ export default function LoginScreen() {
               </Pressable>
               <Pressable
                 style={[s.modalBtn, { backgroundColor: BRAND }]}
-                onPress={() => { setShowNotFoundModal(false); router.push("/signup" as any); }}
+                onPress={() => { setShowNotFoundModal(false); router.push("/signup-role" as any); }}
               >
                 <Text style={s.modalBtnText}>회원가입</Text>
               </Pressable>
