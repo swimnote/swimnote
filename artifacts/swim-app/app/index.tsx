@@ -98,9 +98,22 @@ export default function LoginScreen() {
       const e = err as Error & {
         needs_activation?: boolean; teacher_id?: string;
         error_code?: string; totp_required?: boolean; totp_session?: string;
+        days_until_deletion?: number; deletion_scheduled_at?: string; deactivated_at?: string;
       };
       if (e.totp_required && e.totp_session) {
         router.push({ pathname: "/otp-verify", params: { session: e.totp_session } } as any); return;
+      }
+      if (e.error_code === "pool_deactivated") {
+        router.push({
+          pathname: "/(auth)/pool-deactivated",
+          params: {
+            days_until_deletion:   String(e.days_until_deletion ?? 0),
+            deletion_scheduled_at: e.deletion_scheduled_at ?? "",
+            pool_name:             "",
+            is_teacher:            "false",
+          },
+        } as any);
+        return;
       }
       if (e.error_code === "pending_pool_request") {
         setError("가입 요청이 승인 대기 중입니다.\n수영장 관리자 승인 후 로그인 가능합니다."); return;

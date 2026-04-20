@@ -8,6 +8,7 @@ import router from "./routes";
 import { initPushTables } from "./lib/push-service.js";
 import { startPushScheduler } from "./jobs/push-scheduler.js";
 import { recordResponseTime } from "./lib/responseTracker.js";
+import { requireNotDeactivated } from "./lib/deactivationGuard.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -68,6 +69,9 @@ app.use("/api", (req: Request, res: Response, next: NextFunction) => {
 });
 
 app.use("/api/store-assets", express.static(path.join(__dirname, "../public/store-assets")));
+
+// ── 구독 취소 후 90일 비활성화 수영장 전면 차단 ────────────────────────────
+app.use("/api", requireNotDeactivated);
 
 // ── SVG 업로드 페이지 ─────────────────────────────────────────────────
 const SVG_DEST = path.resolve("/home/runner/workspace/artifacts/swim-app/assets/images");

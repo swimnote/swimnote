@@ -126,6 +126,22 @@ API design follows RESTful principles with consistent JSON formats and strong au
 ### TIER_ORDER (낮은 숫자 = 하위 플랜)
 `free=0 < starter=1 < basic=2 < standard=3 < center_200=4 < advance=5 < pro=6 < max=7`
 
+## 환불 정책 v2 — 90일 유예 비활성화 시스템 (v1.3.5 완료)
+
+### 구현 요약
+- **DB**: `swimming_pools.deactivated_at`, `deletion_scheduled_at` 컬럼 + 인덱스
+- **API 미들웨어**: `lib/deactivationGuard.ts` — 비활성 풀 전역 차단 (`requireNotDeactivated`), `/auth /billing /cards /pricing /health /super` 제외
+- **billing.ts 웹훅**: EXPIRATION → `deactivated_at=NOW()` + 90일 후 `deletion_scheduled_at` 설정. INITIAL_PURCHASE/RENEWAL/UNCANCELLATION → 비활성 풀 자동 복구
+- **billing.ts 크론**: `POST /billing/cron/cleanup-deactivated` — `deletion_scheduled_at <= NOW()` 풀 영구 삭제 (연관 데이터 cascading)
+- **auth.ts 로그인 차단**: `/auth/login`, `/auth/unified-login` 모두 `deactivated_at` 체크 → `error_code: "pool_deactivated"` + `days_until_deletion`, `deletion_scheduled_at` 반환
+- **auth.ts 가입 차단**: 같은 이메일이 비활성 풀에 속하면 `deactivated_account_reregistration` 에러
+- **앱 화면**: `/(auth)/pool-deactivated.tsx` — 남은 일수, 재구독 버튼, 선생님/관리자 분기
+- **앱 라우팅**: `SessionContext.tsx` — `adminLogin`/`unifiedLogin` 에서 `pool_deactivated` 에러 코드+메타 전파. `app/index.tsx` → `pool-deactivated` 화면 자동 라우팅
+
+### Render 크론 Job 설정 방법
+`POST /billing/cron/cleanup-deactivated` 를 매일 1회 호출 (예: 새벽 3시)
+`Authorization: Bearer <CRON_SECRET 또는 JWT_SECRET>` 헤더 필수
+
 ## 빌드 101 예약 항목
 
 | 항목 | 설명 |

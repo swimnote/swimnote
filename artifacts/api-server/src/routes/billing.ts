@@ -165,6 +165,30 @@ router.post("/revenuecat-webhook", async (req, res) => {
         await applySubscriptionState(poolId, tier, "revenuecat", "active", {
           nextBillingAt: nextBilling, resetReadonly: true,
         });
+
+        // ── 비활성화 상태이던 수영장 복구 (90일 이내 재구독) ─────────────
+        const [deactivatedCheck] = (await db.execute(sql`
+          SELECT deactivated_at FROM swimming_pools WHERE id = ${poolId} AND deactivated_at IS NOT NULL LIMIT 1
+        `)).rows as any[];
+        if (deactivatedCheck?.deactivated_at) {
+          await db.execute(sql`
+            UPDATE swimming_pools
+            SET deactivated_at = NULL, deletion_scheduled_at = NULL, updated_at = NOW()
+            WHERE id = ${poolId}
+          `);
+          logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
+            description: `비활성화 수영장 재구독 복구: ${productId} → ${tier}`,
+            metadata: { eventType, productId, tier, restored: true } }).catch(console.error);
+          import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
+            createOpsAlert({
+              type: "subscription_restored",
+              title: "비활성화 수영장 복구",
+              message: `${poolId} 수영장이 재구독으로 복구되었습니다 (${tier})`,
+              severity: "success",
+              relatedPoolId: poolId,
+            }).catch(console.error);
+          }).catch(console.error);
+        }
         const resolved = await resolveSubscription(poolId).catch(() => null);
         const poolInfo = (await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0] as any;
         if (eventType !== "UNCANCELLATION") {
@@ -227,18 +251,34 @@ router.post("/revenuecat-webhook", async (req, res) => {
       }
 
       case "EXPIRATION": {
-        // 구독 만료 → 무료 전환 + 읽기전용
-        await applySubscriptionState(poolId, "free", "free_default", "payment_failed", {
+        // 구독 만료 → 비활성화 + 90일 유예 (탈퇴 처리, 데이터 보존)
+        const deletionDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+        await applySubscriptionState(poolId, "free", "free_default", "cancelled", {
           endsAt: null,
         });
         await db.execute(sql`
           UPDATE swimming_pools
           SET is_readonly = true, upload_blocked = true,
-              readonly_reason = 'expired', payment_failed_at = now(), updated_at = now()
+              readonly_reason = 'cancelled',
+              subscription_status = 'cancelled',
+              deactivated_at = NOW(),
+              deletion_scheduled_at = ${deletionDate}::timestamptz,
+              updated_at = NOW()
           WHERE id = ${poolId}
         `);
         logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
-          description: `구독 만료 → free 전환: ${productId}`, metadata: { eventType, productId } }).catch(console.error);
+          description: `구독 만료 → 비활성화 처리 (90일 후 ${deletionDate.slice(0,10)} 영구삭제 예약)`,
+          metadata: { eventType, productId, deletion_scheduled_at: deletionDate } }).catch(console.error);
+
+        import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
+          createOpsAlert({
+            type: "subscription_expired",
+            title: "구독 만료 → 비활성화",
+            message: `${poolId} 수영장 구독 만료. 90일 후 (${deletionDate.slice(0,10)}) 영구 삭제 예정.`,
+            severity: "warning",
+            relatedPoolId: poolId,
+          }).catch(console.error);
+        }).catch(console.error);
         break;
       }
 
@@ -1486,6 +1526,64 @@ router.delete("/revenue-logs/cleanup-test", requireAuth, requireRole("super_admi
     res.json({ ok: true, deleted, message: `테스트 기록 ${deleted}건 삭제 완료` });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /billing/cron/cleanup-deactivated — 90일 경과 수영장 영구 삭제 크론 ──
+// Render Cron Job 또는 내부 스케줄러에서 주기적으로 호출
+router.post("/cron/cleanup-deactivated", async (req, res) => {
+  const cronSecret = process.env.CRON_SECRET ?? process.env.JWT_SECRET ?? "";
+  const authHeader = req.headers.authorization ?? "";
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    res.status(401).json({ error: "unauthorized" }); return;
+  }
+  try {
+    // 삭제 예정일이 현재 시각 이전인 수영장 조회
+    const expiredPools = (await superAdminDb.execute(sql`
+      SELECT id, name FROM swimming_pools
+      WHERE deletion_scheduled_at IS NOT NULL
+        AND deletion_scheduled_at <= NOW()
+      LIMIT 50
+    `)).rows as any[];
+
+    if (expiredPools.length === 0) {
+      res.json({ ok: true, deleted: 0, message: "삭제 대상 없음" }); return;
+    }
+
+    let deletedCount = 0;
+    for (const pool of expiredPools) {
+      try {
+        const poolId = pool.id;
+        // 연관 데이터 삭제 (students, parent_accounts, teacher_invites, etc.)
+        await db.execute(sql`DELETE FROM students WHERE swimming_pool_id = ${poolId}`).catch(() => {});
+        await superAdminDb.execute(sql`DELETE FROM parent_accounts WHERE swimming_pool_id = ${poolId}`).catch(() => {});
+        await superAdminDb.execute(sql`DELETE FROM teacher_invites WHERE swimming_pool_id = ${poolId}`).catch(() => {});
+        await superAdminDb.execute(sql`DELETE FROM policy_consents WHERE pool_id = ${poolId}`).catch(() => {});
+        await superAdminDb.execute(sql`DELETE FROM pool_subscriptions WHERE swimming_pool_id = ${poolId}`).catch(() => {});
+        await superAdminDb.execute(sql`DELETE FROM users WHERE swimming_pool_id = ${poolId}`).catch(() => {});
+        await superAdminDb.execute(sql`DELETE FROM swimming_pools WHERE id = ${poolId}`).catch(() => {});
+
+        console.log(`[cron/cleanup] 풀 영구 삭제 완료: ${poolId} (${pool.name})`);
+        deletedCount++;
+
+        import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
+          createOpsAlert({
+            type: "pool_permanently_deleted",
+            title: "수영장 영구 삭제",
+            message: `${pool.name ?? poolId} 수영장이 90일 유예 만료로 영구 삭제되었습니다.`,
+            severity: "warning",
+            relatedPoolId: poolId,
+          }).catch(console.error);
+        }).catch(console.error);
+      } catch (e: any) {
+        console.error(`[cron/cleanup] 풀 삭제 오류 ${pool.id}:`, e.message);
+      }
+    }
+
+    res.json({ ok: true, deleted: deletedCount, pools: expiredPools.map((p: any) => p.id) });
+  } catch (e: any) {
+    console.error("[cron/cleanup] 크론 오류:", e);
+    res.status(500).json({ error: e.message });
   }
 });
 

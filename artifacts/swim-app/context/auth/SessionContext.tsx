@@ -366,8 +366,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           needs_activation: true, error_code: "needs_activation", teacher_id: data.teacher_id,
         });
       }
-      throw Object.assign(new Error(data.error || "로그인에 실패했습니다."), {
-        error_code: data.error_code || "unknown",
+      throw Object.assign(new Error(data.message || data.error || "로그인에 실패했습니다."), {
+        error_code:            data.error_code || "unknown",
+        days_until_deletion:   data.days_until_deletion ?? null,
+        deletion_scheduled_at: data.deletion_scheduled_at ?? null,
+        deactivated_at:        data.deactivated_at ?? null,
       });
     }
     if (data.totp_required) {
@@ -415,7 +418,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email, password }),
     });
     const data = await safeJson(res);
-    if (!res.ok) throw new Error(data.error || "로그인에 실패했습니다.");
+    if (!res.ok) {
+      throw Object.assign(
+        new Error(data.message || data.error || "로그인에 실패했습니다."),
+        {
+          error_code:            data.error_code || data.error || "unknown",
+          days_until_deletion:   data.days_until_deletion ?? null,
+          deletion_scheduled_at: data.deletion_scheduled_at ?? null,
+          deactivated_at:        data.deactivated_at ?? null,
+        },
+      );
+    }
     const user: AdminUser = { ...data.user, roles: Array.isArray(data.user.roles) && data.user.roles.length > 0 ? data.user.roles : [data.user.role] };
     await AsyncStorage.multiSet([
       ["auth_token", data.token], ["auth_kind", "admin"], ["auth_admin", JSON.stringify(user)],

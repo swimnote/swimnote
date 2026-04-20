@@ -457,5 +457,18 @@ export async function initSuperDb(): Promise<void> {
     console.warn("[super-db-init] 인덱스 보완 오류:", e.message);
   }
 
+  // ── 구독 취소 후 90일 유예 비활성화 컬럼 ────────────────────────────────
+  await db.execute(sql.raw(`
+    ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMPTZ;
+  `)).catch((e: any) => console.warn("[super-db-init] swimming_pools.deactivated_at 추가 건너뜀:", e.message));
+  await db.execute(sql.raw(`
+    ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS deletion_scheduled_at TIMESTAMPTZ;
+  `)).catch((e: any) => console.warn("[super-db-init] swimming_pools.deletion_scheduled_at 추가 건너뜀:", e.message));
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_swimming_pools_deletion_scheduled ON swimming_pools (deletion_scheduled_at)
+    WHERE deletion_scheduled_at IS NOT NULL;
+  `)).catch(() => {});
+  console.log("[super-db-init] 비활성화/삭제 예약 컬럼 준비 완료");
+
   console.log("[super-db-init] super DB 컬럼 보완 + backup_logs/restore_logs 초기화 완료");
 }

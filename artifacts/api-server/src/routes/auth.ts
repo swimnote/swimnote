@@ -39,13 +39,32 @@ router.post("/login", async (req, res) => {
     const valid = await comparePassword(password, user.password_hash);
     if (!valid) return err(res, 401, "이메일 또는 비밀번호가 올바르지 않습니다.");
 
-    // pool_admin 역할은 수영장 승인 상태 확인
+    // pool_admin 역할은 수영장 상태 확인
     if (user.role === "pool_admin" && user.swimming_pool_id) {
-      const [pool] = await superAdminDb.select({ approval_status: swimmingPoolsTable.approval_status })
-        .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, user.swimming_pool_id)).limit(1);
-      
+      const [pool] = (await superAdminDb.execute(sql`
+        SELECT approval_status, deactivated_at, deletion_scheduled_at
+        FROM swimming_pools WHERE id = ${user.swimming_pool_id} LIMIT 1
+      `)).rows as any[];
+
       if (!pool) return err(res, 403, "소속된 수영장을 찾을 수 없습니다.");
-      
+
+      // 비활성화 수영장 (구독 취소 후 90일 유예)
+      if (pool.deactivated_at) {
+        const deletionAt = pool.deletion_scheduled_at
+          ? new Date(pool.deletion_scheduled_at)
+          : new Date(new Date(pool.deactivated_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+        const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+        return res.status(403).json({
+          success: false,
+          error: "pool_deactivated",
+          error_code: "pool_deactivated",
+          message: `구독이 취소되어 서비스 이용이 중단되었습니다. ${daysLeft}일 이내 재구독 시 모든 데이터가 복구됩니다.`,
+          days_until_deletion: daysLeft,
+          deletion_scheduled_at: deletionAt.toISOString(),
+          deactivated_at: pool.deactivated_at,
+        });
+      }
+
       if (pool.approval_status === "pending") {
         return res.status(403).json({
           success: false, message: "수영장이 아직 승인되지 않았습니다. 플랫폼 운영자의 승인을 기다려주세요.",
@@ -56,6 +75,28 @@ router.post("/login", async (req, res) => {
         return res.status(403).json({
           success: false, message: "수영장 신청이 반려되었습니다. 플랫폼 운영자에게 문의하세요.",
           error: "pool_approval_rejected", pool_status: "rejected",
+        });
+      }
+    }
+
+    // teacher 역할 — 소속 수영장 비활성화 확인
+    if (user.role === "teacher" && user.swimming_pool_id) {
+      const [teacherPool] = (await superAdminDb.execute(sql`
+        SELECT deactivated_at, deletion_scheduled_at FROM swimming_pools
+        WHERE id = ${user.swimming_pool_id} AND deactivated_at IS NOT NULL LIMIT 1
+      `)).rows as any[];
+      if (teacherPool?.deactivated_at) {
+        const deletionAt = teacherPool.deletion_scheduled_at
+          ? new Date(teacherPool.deletion_scheduled_at)
+          : new Date(new Date(teacherPool.deactivated_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+        const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+        return res.status(403).json({
+          success: false,
+          error: "pool_deactivated",
+          error_code: "pool_deactivated",
+          message: `소속 수영장의 구독이 취소되어 서비스 이용이 중단되었습니다. 관리자에게 문의해주세요.`,
+          days_until_deletion: daysLeft,
+          deletion_scheduled_at: deletionAt.toISOString(),
         });
       }
     }
@@ -114,7 +155,29 @@ router.post("/register", async (req, res) => {
   try {
     const [existing] = await superAdminDb.select().from(usersTable)
       .where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
-    if (existing) return err(res, 400, "이미 사용 중인 이메일입니다.");
+    if (existing) {
+      // 비활성화된 수영장 계정 → 90일 이내 재가입 불가 안내
+      if (existing.swimming_pool_id) {
+        const [deactivatedPool] = (await superAdminDb.execute(sql`
+          SELECT deactivated_at, deletion_scheduled_at FROM swimming_pools
+          WHERE id = ${existing.swimming_pool_id} AND deactivated_at IS NOT NULL LIMIT 1
+        `)).rows as any[];
+        if (deactivatedPool?.deactivated_at) {
+          const deletionAt = deactivatedPool.deletion_scheduled_at
+            ? new Date(deactivatedPool.deletion_scheduled_at)
+            : new Date(new Date(deactivatedPool.deactivated_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+          const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+          return res.status(400).json({
+            success: false,
+            error: "deactivated_account_reregistration",
+            error_code: "deactivated_account_reregistration",
+            message: `해당 이메일은 탈퇴 후 ${daysLeft}일 이내 재가입이 불가합니다.\n기존 계정으로 재구독하면 모든 데이터가 복구됩니다.`,
+            days_until_deletion: daysLeft,
+          });
+        }
+      }
+      return err(res, 400, "이미 사용 중인 이메일입니다.");
+    }
 
     const password_hash = await hashPassword(password);
     const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -778,6 +841,29 @@ router.post("/unified-login", async (req, res) => {
               res.status(403).json({ success: false, error: "관리자 승인 대기 중입니다.", error_code: "pending_teacher_approval" }); return;
             }
             res.status(403).json({ success: false, error: "계정이 아직 활성화되지 않았습니다.", error_code: "needs_activation", needs_activation: true, teacher_id: user.id }); return;
+          }
+        }
+        // ── 수영장 비활성화(90일 유예) 체크 ───────────────────────────
+        if (user.swimming_pool_id && user.role !== "super_admin") {
+          const poolStatus = (await superAdminDb.execute(sql`
+            SELECT deactivated_at, deletion_scheduled_at
+            FROM swimming_pools
+            WHERE id = ${user.swimming_pool_id} AND deactivated_at IS NOT NULL LIMIT 1
+          `)).rows[0] as any;
+          if (poolStatus?.deactivated_at) {
+            const scheduledAt = poolStatus.deletion_scheduled_at
+              ? new Date(poolStatus.deletion_scheduled_at)
+              : new Date(new Date(poolStatus.deactivated_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+            const daysLeft = Math.max(0, Math.ceil((scheduledAt.getTime() - Date.now()) / 86400000));
+            res.status(403).json({
+              success: false,
+              error_code: "pool_deactivated",
+              error: "구독이 만료되어 계정이 비활성화되었습니다.",
+              message: "구독이 만료되어 계정이 비활성화되었습니다.",
+              days_until_deletion: daysLeft,
+              deletion_scheduled_at: scheduledAt.toISOString(),
+              deactivated_at: poolStatus.deactivated_at,
+            }); return;
           }
         }
         // TOTP 2단계 인증 체크 (App Store 리뷰 데모 계정은 우회)
