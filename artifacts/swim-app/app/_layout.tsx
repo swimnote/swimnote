@@ -5,7 +5,7 @@ import * as SplashScreen from "expo-splash-screen";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Platform, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, Text, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -13,6 +13,8 @@ import { NoticePopup } from "@/components/common/NoticePopup";
 import { AuthProvider, apiRequest, useAuth, type AccountEntry, type AdminUser, type SessionKind, type ParentAccount } from "@/context/AuthContext";
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 import { initializeRevenueCat, loginRevenueCat, logoutRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
+import { DebugLogProvider, useDebugLog } from "@/context/DebugLogContext";
+import { DebugLogOverlay } from "@/components/debug/DebugLogOverlay";
 
 // Expo Go 환경 여부 — Expo Go SDK 53부터 Android 원격 알림 미지원
 const IS_EXPO_GO = Constants.appOwnership === "expo";
@@ -61,6 +63,41 @@ function AppLoadingScreen() {
     <View style={{ flex: 1, backgroundColor: "#FFFFFF", justifyContent: "center", alignItems: "center" }}>
       <ActivityIndicator size="large" color="#2EC4B6" />
     </View>
+  );
+}
+
+// 5번 탭 → 디버그 로그 오버레이 열기/닫기
+// 화면 우측 상단 모서리에 투명 버튼 (50x80)
+function DebugTapTarget() {
+  const { handleHiddenTap, tapCount } = useDebugLog();
+  return (
+    <Pressable
+      onPress={handleHiddenTap}
+      style={{
+        position: "absolute",
+        top: 0,
+        right: 0,
+        width: 60,
+        height: 80,
+        zIndex: 9998,
+        // 개발 확인용: backgroundColor: "rgba(255,0,0,0.2)"
+      }}
+      hitSlop={0}
+    >
+      {tapCount > 0 && tapCount < 5 && (
+        <View style={{
+          position: "absolute",
+          bottom: 4,
+          right: 4,
+          backgroundColor: "rgba(0,0,0,0.45)",
+          borderRadius: 10,
+          paddingHorizontal: 6,
+          paddingVertical: 2,
+        }}>
+          <Text style={{ color: "#fff", fontSize: 10 }}>{tapCount}/5</Text>
+        </View>
+      )}
+    </Pressable>
   );
 }
 
@@ -623,18 +660,22 @@ export default function RootLayout() {
       <ErrorBoundary onError={(error, stack) => console.error("[ROOT_ERROR_BOUNDARY]", error?.message, stack)}>
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
-            <BrandProvider>
-              <AuthProvider>
-                <SubscriptionProvider>
-                  <BrandSync />
-                  <RcUserSync />
-                  <PushTokenSync />
-                  <PushNavSync />
-                  <NoticePopup />
-                  <RootNav />
-                </SubscriptionProvider>
-              </AuthProvider>
-            </BrandProvider>
+            <DebugLogProvider>
+              <BrandProvider>
+                <AuthProvider>
+                  <SubscriptionProvider>
+                    <BrandSync />
+                    <RcUserSync />
+                    <PushTokenSync />
+                    <PushNavSync />
+                    <NoticePopup />
+                    <RootNav />
+                    <DebugLogOverlay />
+                    <DebugTapTarget />
+                  </SubscriptionProvider>
+                </AuthProvider>
+              </BrandProvider>
+            </DebugLogProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>
       </ErrorBoundary>
