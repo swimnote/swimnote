@@ -171,8 +171,9 @@ export default function LoginScreen() {
 
       // ── STEP 2 실패: Apple 시스템 시트에서 에러 발생 (서버 미도달) ──
       if (e?.code === "ERR_REQUEST_CANCELED" || e?.code === "ERR_CANCELED") {
-        console.log("[AppleLogin][STEP2] 사용자 취소 — 정상");
+        console.log("[AppleLogin][STEP2] 사용자 취소 또는 Apple 인증 취소");
         setAppleLoading(false);
+        setError("Apple 로그인이 취소되었습니다. 다시 시도해주세요.");
         return;
       }
       console.error(`[AppleLogin][STEP2 FAIL] Apple signInAsync 실패 — code: ${e?.code}, message: ${e?.message}`);

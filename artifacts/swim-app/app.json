@@ -44,7 +44,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.swimnote.app",
-      "versionCode": 126,
+      "versionCode": 127,
       "edgeToEdge": true,
       "allowBackup": false,
       "permissions": [
