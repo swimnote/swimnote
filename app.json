@@ -7,6 +7,12 @@
     },
     "android": {
       "package": "com.swimnote.workspace"
+    },
+    "ios": {
+      "bundleIdentifier": "com.swimnote.workspace",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     }
   }
 }
