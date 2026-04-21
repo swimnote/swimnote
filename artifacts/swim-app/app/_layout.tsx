@@ -239,6 +239,9 @@ function RootNav() {
   } = useAuth();
   console.log(`[ROOTNAV] state: isLoading=${isLoading} isAuth=${isAuthenticating} kind=${kind} role=${adminUser?.role ?? "none"} activeRole=${activeRole ?? "none"}`);
   const segments = useSegments();
+  // kindRef: 타임아웃 콜백(stale closure) 내부에서 최신 kind 값 읽기 위한 ref
+  const kindRef = useRef(kind);
+  kindRef.current = kind;
   const didRoute = useRef(false);
   const [hasRouted, setHasRouted] = useState(false);
   // 타이머 2개 분리 (GPT 권장: 하나의 ref로 2단계 타이머 관리하면 race condition 위험)
@@ -246,14 +249,22 @@ function RootNav() {
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const poolRetryRef = useRef(0);
   const [poolLoadError, setPoolLoadError] = useState(false);
-  // 경로1 방어: isAuthenticating 워치독 — API가 응답 없이 걸리면 25초 후 로그인 화면 강제 이동
+  // 경로1 방어: isAuthenticating 워치독
+  // — API가 25초 이상 응답 없을 때 세션 존재 여부로 분기:
+  //   세션 없음 → "/" (로그인 화면, 재시도 가능)
+  //   세션 있음 → "/route-error" (라우팅 실패 안내 + 재시도·로그아웃 버튼)
   const authingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (isAuthenticating) {
       authingTimerRef.current = setTimeout(() => {
         authingTimerRef.current = null;
-        console.warn("[ROOTNAV] isAuthenticating watchdog(25s) → force /");
-        router.replace("/");
+        const hasSession = !!kindRef.current;
+        console.warn(`[ROOTNAV] isAuthenticating watchdog(25s) → hasSession=${hasSession}`);
+        if (hasSession) {
+          router.replace("/route-error" as any);
+        } else {
+          router.replace("/");
+        }
       }, 25000);
     } else {
       if (authingTimerRef.current) { clearTimeout(authingTimerRef.current); authingTimerRef.current = null; }
@@ -274,6 +285,7 @@ function RootNav() {
     "pool-join-request", "signup-role", "register", "teacher-activate", "teacher-invite-join",
     "terms", "privacy", "refund",
     "support-ticket-write", "support-ticket-list", "support-ticket-detail",
+    "route-error",
   ];
 
   useEffect(() => {
@@ -393,7 +405,9 @@ function RootNav() {
                 retryTimerRef.current = setTimeout(() => {
                   retryTimerRef.current = null;
                   if (didRoute.current) return;
-                  console.log(`[ROUTE][${cycleId}] pool 2차 타임아웃(8s 누적) → 대시보드 강제 이동`);
+                  // dashboard는 pool?.name (optional chaining) + 독자 /pools/my API 호출로
+                  // pool=null 상태에서도 크래시·리다이렉트·무한로딩 없음이 검증됨.
+                  console.log(`[ROUTE][${cycleId}] pool 2차 타임아웃(8s 누적) → 대시보드 강제 이동 (pool=null safe)`);
                   navigate("/(admin)/dashboard");
                 }, 4000);
               }, 4000);
