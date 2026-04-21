@@ -52,6 +52,7 @@ export default function LoginScreen() {
   // isAvailableAsync()가 명시적으로 false를 반환할 때만 숨김.
   // 이렇게 하면 isAvailableAsync 응답 지연이나 일시 실패로 버튼이 사라지는 상황을 방지.
   const [appleAvailable, setAppleAvailable] = useState(Platform.OS === "ios");
+  const [appleHangMsg, setAppleHangMsg] = useState("");
   const [error,      setError]            = useState("");
   const [failCount,  setFailCount]        = useState(0);
   const [showNotFoundModal, setShowNotFoundModal] = useState(false);
@@ -145,15 +146,20 @@ export default function LoginScreen() {
     console.log("[AppleLogin][STEP1] signInAsync 호출 시작 — Apple 시스템 시트 표시");
     let credential: Awaited<ReturnType<typeof AppleAuthentication.signInAsync>>;
 
-    // signInAsync가 무응답으로 hang할 경우 20초 후 강제 해제
+    // signInAsync가 무응답으로 hang할 경우 단계별 안내 후 10초 강제 해제
     let signInDone = false;
+    setAppleHangMsg("");
+    const phase1 = setTimeout(() => {
+      if (!signInDone) setAppleHangMsg("Apple 인증 화면을 기다리는 중…");
+    }, 3000);
     const hangGuard = setTimeout(() => {
       if (!signInDone) {
-        console.error("[AppleLogin][HANG] signInAsync 20초 무응답 — 강제 해제 (provisioning profile 또는 Apple ID 미설정 의심)");
+        console.error("[AppleLogin][HANG] signInAsync 10초 무응답 — 강제 해제");
         setAppleLoading(false);
-        setError("Apple 로그인에 응답이 없습니다.\n기기의 Apple ID 설정을 확인하거나 카카오 로그인을 이용해주세요.");
+        setAppleHangMsg("");
+        setError("Apple 로그인에 응답이 없습니다.\n기기 설정 > Apple ID > 암호 및 보안을 확인해주세요.\n카카오 로그인을 이용하시면 바로 가능합니다.");
       }
-    }, 20000);
+    }, 10000);
 
     try {
       credential = await AppleAuthentication.signInAsync({
@@ -163,10 +169,14 @@ export default function LoginScreen() {
         ],
       });
       signInDone = true;
+      clearTimeout(phase1);
       clearTimeout(hangGuard);
+      setAppleHangMsg("");
     } catch (signInErr: unknown) {
       signInDone = true;
+      clearTimeout(phase1);
       clearTimeout(hangGuard);
+      setAppleHangMsg("");
       const e = signInErr as any;
 
       // ── STEP 2 실패: Apple 시스템 시트에서 에러 발생 (서버 미도달) ──
@@ -373,13 +383,23 @@ export default function LoginScreen() {
         <View style={s.signupCol}>
           {/* Sign in with Apple (iOS/iPadOS — isAvailableAsync 체크) */}
           {appleAvailable && (
-            <AppleAuthentication.AppleAuthenticationButton
-              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-              cornerRadius={14}
-              style={s.appleBtn}
-              onPress={handleAppleLogin}
-            />
+            <View style={{ position: "relative" }}>
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={14}
+                style={[s.appleBtn, appleLoading && { opacity: 0.5 }]}
+                onPress={appleLoading ? () => {} : handleAppleLogin}
+              />
+              {appleLoading && (
+                <View style={s.appleLoadingOverlay} pointerEvents="none">
+                  <ActivityIndicator color="#fff" size="small" />
+                  {!!appleHangMsg && (
+                    <Text style={s.appleLoadingText}>{appleHangMsg}</Text>
+                  )}
+                </View>
+              )}
+            </View>
           )}
 
           <View style={s.signupRow}>
@@ -528,6 +548,12 @@ const s = StyleSheet.create({
   /* 가입 버튼 영역 */
   signupCol: { gap: 10 },
   appleBtn:  { width: "100%", height: 52 },
+  appleLoadingOverlay: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    borderRadius: 14, backgroundColor: "rgba(0,0,0,0.55)",
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+  },
+  appleLoadingText: { color: "#fff", fontSize: 12, fontFamily: "Pretendard-Regular" },
   signupRow: { flexDirection: "row", gap: 12 },
   socialBtn: {
     flex: 1, height: 52, borderRadius: 14,
