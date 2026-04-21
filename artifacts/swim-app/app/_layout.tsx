@@ -246,6 +246,20 @@ function RootNav() {
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const poolRetryRef = useRef(0);
   const [poolLoadError, setPoolLoadError] = useState(false);
+  // 경로1 방어: isAuthenticating 워치독 — API가 응답 없이 걸리면 25초 후 로그인 화면 강제 이동
+  const authingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (isAuthenticating) {
+      authingTimerRef.current = setTimeout(() => {
+        authingTimerRef.current = null;
+        console.warn("[ROOTNAV] isAuthenticating watchdog(25s) → force /");
+        router.replace("/");
+      }, 25000);
+    } else {
+      if (authingTimerRef.current) { clearTimeout(authingTimerRef.current); authingTimerRef.current = null; }
+    }
+    return () => { if (authingTimerRef.current) { clearTimeout(authingTimerRef.current); authingTimerRef.current = null; } };
+  }, [isAuthenticating]);
 
   function clearPoolTimers() {
     if (firstWaitTimerRef.current) { clearTimeout(firstWaitTimerRef.current); firstWaitTimerRef.current = null; }
@@ -307,14 +321,20 @@ function RootNav() {
         if (!done) return "/(auth)/onboarding-admin";
         if (role === "pool_admin" && token) {
           try {
-            const policyRes = await apiRequest(token, "/admin/refund-policy");
-            if (policyRes.ok) {
-              const policyData = await policyRes.json();
+            // 경로3 방어: refund-policy API에 5초 타임아웃 → 응답 없어도 doRoute() 계속 진행
+            const timeoutPromise = new Promise<null>((_, rej) =>
+              setTimeout(() => rej(new Error("refund-policy timeout")), 5000)
+            );
+            const policyRes = await Promise.race([apiRequest(token, "/admin/refund-policy"), timeoutPromise]);
+            if (policyRes && (policyRes as Response).ok) {
+              const policyData = await (policyRes as Response).json();
               if (policyData.success && (!policyData.agreed || policyData.needs_reagree)) {
                 return "/(auth)/policy-agreement";
               }
             }
-          } catch {}
+          } catch (e) {
+            console.warn("[ROUTE] checkOnboarding refund-policy skip:", e);
+          }
         }
         return null;
       }
@@ -330,6 +350,8 @@ function RootNav() {
     }
 
     async function doRoute() {
+      // 경로2 방어: 전체를 try/catch로 감싸 예외 발생 시 안전 fallback으로 탈출 보장
+      try {
       // GPT 권장: doRoute 시작 시점 값 스냅샷 고정 → 실행 중 외부 state 변경과 섞임 방지
       const snapKind = kind;
       const snapRole = adminUser?.role;
@@ -384,8 +406,12 @@ function RootNav() {
           if (snapPool.approval_status === "pending") { navigate("/pending"); return; }
           if (snapPool.approval_status === "rejected") { navigate("/rejected"); return; }
           try {
-            const poolsRes = await apiRequest(token, "/pools/my-pools");
-            const pools = await poolsRes.json();
+            // 경로2 보조: my-pools API도 5초 타임아웃 → 응답 없으면 pool-select 건너뜀
+            const myPoolsTimeout = new Promise<never>((_, rej) =>
+              setTimeout(() => rej(new Error("my-pools timeout")), 5000)
+            );
+            const poolsRes = await Promise.race([apiRequest(token, "/pools/my-pools"), myPoolsTimeout]);
+            const pools = await (poolsRes as Response).json();
             if (Array.isArray(pools) && pools.length > 1 && !lastUsedTenant) {
               navigate("/pool-select");
               return;
@@ -449,6 +475,15 @@ function RootNav() {
 
       console.log(`[ROUTE][${cycleId}] FALLBACK roleKeys=[${roleKeys.join(",")}] → org-role-select`);
       navigate("/org-role-select");
+      } catch (err) {
+        // 경로2: doRoute() 내 예외 발생 시 → 재시도 버튼 있는 로그인 화면으로 강제 탈출
+        console.error("[ROUTE] doRoute() 예외 → 강제 로그인 화면 이동", err);
+        if (!didRoute.current) {
+          didRoute.current = true;
+          clearPoolTimers();
+          router.replace("/");
+        }
+      }
     }
 
     doRoute();
