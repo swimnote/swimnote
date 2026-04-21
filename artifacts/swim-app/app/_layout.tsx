@@ -343,17 +343,19 @@ function RootNav() {
                 poolTimeoutRef.current = null;
                 if (didRoute.current) return;
                 if (poolRetryRef.current === 0) {
-                  // 1차 타임아웃(10s): refreshPool 재시도 후 10초 더 대기
+                  // 1차 타임아웃(4s): refreshPool 재시도 후 4초 더 대기
                   poolRetryRef.current = 1;
-                  console.log("[ROUTE] pool 1차 타임아웃 → refreshPool 재시도");
+                  console.log("[ROUTE] pool 1차 타임아웃(4s) → refreshPool 재시도");
                   refreshPool();
-                } else {
-                  // 2차 타임아웃(20s 누적): 에러 화면 표시 (pool-apply로 보내지 않음)
-                  console.log("[ROUTE] pool 2차 타임아웃 → 에러 화면 표시");
-                  setPoolLoadError(true);
-                  setHasRouted(true);
+                  // 2차 타임아웃(4s): 그래도 없으면 대시보드로 강제 이동
+                  poolTimeoutRef.current = setTimeout(() => {
+                    poolTimeoutRef.current = null;
+                    if (didRoute.current) return;
+                    console.log("[ROUTE] pool 2차 타임아웃(8s 누적) → 대시보드 강제 이동");
+                    navigate("/(admin)/dashboard");
+                  }, 4000);
                 }
-              }, 10000);
+              }, 4000);
             }
             return;
           }
