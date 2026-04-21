@@ -1,27 +1,54 @@
-import { ArrowLeft, ChevronRight, UserPlus } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
+import { ArrowLeft, Briefcase, Award, Heart, Check } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
-  Pressable, ScrollView, StyleSheet, Text, View,
+  Pressable, ScrollView, StyleSheet, Text, View, TouchableOpacity,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
+const MINT = "#2EC4B6";
+const MINT_DARK = "#1BA89B";
+const MINT_LIGHT = "#E6FAF8";
 
-interface RoleCard {
-  key: string;
-  icon: any;
+type RoleKey = "admin" | "teacher" | "parent";
+
+interface RoleItem {
+  key: RoleKey;
+  Icon: React.ComponentType<{ size: number; color: string }>;
   iconColor: string;
-  iconBg: string;
   label: string;
-  tag: string;
-  tagColor: string;
-  tagBg: string;
-  bullets: string[];
-  onPress: () => void;
+  desc: string;
+  condition: string;
 }
+
+const ROLES: RoleItem[] = [
+  {
+    key: "admin",
+    Icon: Briefcase,
+    iconColor: "#4F6EF7",
+    label: "수영장 대표",
+    desc: "수영장을 직접 운영하는 원장/관리자\n또는 1인 레슨 팀을 운영하는 선생님",
+    condition: "",
+  },
+  {
+    key: "teacher",
+    Icon: Award,
+    iconColor: "#2E9B6F",
+    label: "선생님",
+    desc: "스윔노트에 가입된 수영장에서 근무 중인 선생님",
+    condition: "(수영장 대표의 초대 후 가입 가능)",
+  },
+  {
+    key: "parent",
+    Icon: Heart,
+    iconColor: "#E4A93A",
+    label: "학부모",
+    desc: "스윔노트에 가입된 수영장에 자녀가 등록된 학부모",
+    condition: "(회원 등록 완료 후 이용 가능)",
+  },
+];
 
 export default function SignupRoleScreen() {
   const insets = useSafeAreaInsets();
@@ -29,131 +56,117 @@ export default function SignupRoleScreen() {
     appleId?: string; appleEmail?: string; appleName?: string; kakaoId?: string; kakaoPhone?: string;
   }>();
 
-  const isSocial = !!(appleId || kakaoId);
+  const [selected, setSelected] = useState<RoleKey | null>(null);
 
+  const isSocial = !!(appleId || kakaoId);
   const socialParams = {
     ...(appleId ? { appleId } : {}),
     ...(kakaoId ? { kakaoId } : {}),
     ...(kakaoPhone ? { phone: kakaoPhone } : {}),
   };
 
-  const ROLES: RoleCard[] = [
-    {
-      key: "admin",
-      icon: "briefcase",
-      iconColor: "#4F6EF7",
-      iconBg: "#EFF4FF",
-      label: "수영장 대표",
-      tag: "원장님 · 원감님",
-      tagColor: "#4F6EF7",
-      tagBg: "#EFF4FF",
-      bullets: [
-        "수영장을 직접 운영하는 대표자",
-        "선생님·학부모 초대 및 전체 관리",
-        "수업 운영, 출결, 수업일지 통합 관리",
-      ],
-      onPress: () => router.push({ pathname: "/register", params: isSocial ? socialParams : {} } as any),
-    },
-    {
-      key: "teacher",
-      icon: "award",
-      iconColor: "#2E9B6F",
-      iconBg: "#DFF3EC",
-      label: "선생님",
-      tag: "선생님·코치",
-      tagColor: "#2E9B6F",
-      tagBg: "#DFF3EC",
-      bullets: [
-        "소속 수영장을 검색해 가입 요청을 보냅니다",
-        "수영장 관리자 승인 후 수업을 시작할 수 있어요",
-      ],
-      onPress: () => router.push({ pathname: "/(auth)/teacher-signup", params: isSocial ? socialParams : {} } as any),
-    },
-    {
-      key: "parent",
-      icon: "heart",
-      iconColor: "#E4A93A",
-      iconBg: "#FFFBEB",
-      label: "학부모",
-      tag: "학부모",
-      tagColor: "#D97706",
-      tagBg: "#FFF8E1",
-      bullets: [
-        "아이가 등록한 수영장이 없는 경우 가입이 불가합니다",
-        "수영장에서 자녀 회원등록을 먼저 마쳐야 가입 가능",
-        "가입 후 수업일지·사진·출결을 실시간으로 확인",
-      ],
-      onPress: () => router.push({ pathname: "/pool-join-request", params: isSocial ? socialParams : {} } as any),
-    },
-  ];
+  function handleNext() {
+    if (!selected) return;
+    if (selected === "admin") {
+      router.push({ pathname: "/register", params: isSocial ? socialParams : {} } as any);
+    } else if (selected === "teacher") {
+      router.push({ pathname: "/(auth)/teacher-signup", params: isSocial ? socialParams : {} } as any);
+    } else if (selected === "parent") {
+      router.push({ pathname: "/pool-join-request", params: isSocial ? socialParams : {} } as any);
+    }
+  }
 
   return (
-    <ScrollView
-      style={[styles.root, { backgroundColor: C.background }]}
-      contentContainerStyle={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 40 }]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.header}>
-        <Pressable style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]} onPress={() => router.back()}>
-          <ArrowLeft size={20} color={C.text} />
-        </Pressable>
-      </View>
-
-      <View style={styles.titleArea}>
-        <View style={[styles.logoBox, { backgroundColor: appleId ? "#000" : C.tint }]}>
-          <UserPlus size={28} color="#fff" />
+    <View style={[styles.root, { backgroundColor: C.background }]}>
+      <ScrollView
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 16, paddingBottom: 24 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Pressable style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]} onPress={() => router.back()}>
+            <ArrowLeft size={20} color={C.text} />
+          </Pressable>
         </View>
-        <Text style={[styles.title, { color: C.text }]}>회원가입</Text>
-        <Text style={[styles.subtitle, { color: C.textSecondary }]}>
-          {appleId
-            ? "Apple 인증이 완료됐습니다.\n어떤 역할로 가입하시겠어요?"
-            : kakaoId
-            ? "카카오 인증이 완료됐습니다.\n어떤 역할로 가입하시겠어요?"
-            : "어떤 역할로 가입하시겠어요?"}
-        </Text>
-      </View>
 
-      <View style={styles.cards}>
-        {ROLES.map(r => (
-          <Pressable
-            key={r.key}
-            style={({ pressed }) => [styles.roleCard, { backgroundColor: C.card, opacity: pressed ? 0.9 : 1 }]}
-            onPress={r.onPress}
-          >
-            <View style={styles.cardTop}>
-              <View style={[styles.roleIconWrap, { backgroundColor: r.iconBg }]}>
-                <LucideIcon name={r.icon} size={22} color={r.iconColor} />
-              </View>
-              <View style={{ flex: 1, gap: 4 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Text style={[styles.roleLabel, { color: C.text }]}>{r.label}</Text>
-                  <View style={[styles.tag, { backgroundColor: r.tagBg }]}>
-                    <Text style={[styles.tagText, { color: r.tagColor }]}>{r.tag}</Text>
+        <View style={styles.titleArea}>
+          <Text style={[styles.title, { color: C.text }]}>어떤 역할로 가입하시겠어요?</Text>
+          <Text style={[styles.subtitle, { color: C.textSecondary }]}>
+            {appleId
+              ? "Apple 인증이 완료됐습니다."
+              : kakaoId
+              ? "카카오 인증이 완료됐습니다."
+              : "역할을 선택하고 다음 단계로 이동하세요."}
+          </Text>
+        </View>
+
+        <View style={styles.cards}>
+          {ROLES.map(r => {
+            const isSelected = selected === r.key;
+            return (
+              <Pressable
+                key={r.key}
+                style={[
+                  styles.roleCard,
+                  isSelected
+                    ? { backgroundColor: MINT, borderColor: MINT_DARK, borderWidth: 2 }
+                    : { backgroundColor: C.card, borderColor: "#E5E5E5", borderWidth: 1.5 },
+                ]}
+                onPress={() => setSelected(r.key)}
+              >
+                {isSelected && (
+                  <View style={styles.checkBadge}>
+                    <Check size={13} color="#fff" strokeWidth={3} />
+                  </View>
+                )}
+
+                <View style={styles.cardRow}>
+                  <View style={[
+                    styles.iconWrap,
+                    isSelected
+                      ? { backgroundColor: "rgba(255,255,255,0.25)" }
+                      : { backgroundColor: r.iconColor + "18" },
+                  ]}>
+                    <r.Icon size={22} color={isSelected ? "#fff" : r.iconColor} />
+                  </View>
+
+                  <View style={styles.cardText}>
+                    <Text style={[styles.roleLabel, { color: isSelected ? "#fff" : C.text }]}>
+                      {r.label}
+                    </Text>
+                    <Text style={[styles.roleDesc, { color: isSelected ? "rgba(255,255,255,0.9)" : C.textSecondary }]}>
+                      {r.desc}
+                    </Text>
+                    {r.condition ? (
+                      <Text style={[styles.roleCondition, { color: isSelected ? "rgba(255,255,255,0.7)" : "#999" }]}>
+                        {r.condition}
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
-              </View>
-              <ChevronRight size={16} color={C.textMuted} />
-            </View>
-            <View style={[styles.divider, { backgroundColor: C.border }]} />
-            <View style={styles.bullets}>
-              {r.bullets.map((b, i) => (
-                <View key={i} style={styles.bulletRow}>
-                  <View style={[styles.bulletDot, { backgroundColor: r.iconColor }]} />
-                  <Text style={[styles.bulletText, { color: C.textSecondary }]}>{b}</Text>
-                </View>
-              ))}
-            </View>
-          </Pressable>
-        ))}
-      </View>
+              </Pressable>
+            );
+          })}
+        </View>
 
-      <Pressable style={({ pressed }) => [styles.loginLink, { opacity: pressed ? 0.6 : 1 }]} onPress={() => router.back()}>
-        <Text style={[styles.loginLinkText, { color: C.textSecondary }]}>
-          이미 계정이 있으신가요?{" "}
-          <Text style={{ color: C.tint, fontFamily: "Pretendard-Regular" }}>로그인</Text>
-        </Text>
-      </Pressable>
-    </ScrollView>
+        <Pressable style={({ pressed }) => [styles.loginLink, { opacity: pressed ? 0.6 : 1 }]} onPress={() => router.back()}>
+          <Text style={[styles.loginLinkText, { color: C.textSecondary }]}>
+            이미 계정이 있으신가요?{" "}
+            <Text style={{ color: C.tint }}>로그인</Text>
+          </Text>
+        </Pressable>
+      </ScrollView>
+
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
+        <TouchableOpacity
+          style={[styles.nextBtn, { backgroundColor: selected ? MINT : "#CCC" }]}
+          onPress={handleNext}
+          disabled={!selected}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.nextBtnText}>다음</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
@@ -162,31 +175,58 @@ const styles = StyleSheet.create({
   container: { paddingHorizontal: 20, gap: 24 },
   header: { flexDirection: "row", alignItems: "center" },
   backBtn: { padding: 4 },
-  titleArea: { alignItems: "center", gap: 10 },
-  logoBox: {
-    width: 64, height: 64, borderRadius: 20,
-    alignItems: "center", justifyContent: "center",
-    shadowColor: "#2EC4B6", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2, shadowRadius: 10, elevation: 5,
-  },
-  title: { fontSize: 24, fontFamily: "Pretendard-Regular" },
+  titleArea: { gap: 6 },
+  title: { fontSize: 22, fontFamily: "Pretendard-Regular", fontWeight: "700" },
   subtitle: { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  cards: { gap: 12 },
+  cards: { gap: 16 },
   roleCard: {
-    borderRadius: 18, padding: 18, gap: 12,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 10, elevation: 3,
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  cardTop: { flexDirection: "row", alignItems: "center", gap: 12 },
-  roleIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  roleLabel: { fontSize: 16, fontFamily: "Pretendard-Regular" },
-  tag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  tagText: { fontSize: 10, fontFamily: "Pretendard-Regular" },
-  divider: { height: StyleSheet.hairlineWidth },
-  bullets: { gap: 6 },
-  bulletRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  bulletDot: { width: 5, height: 5, borderRadius: 3, marginTop: 5, flexShrink: 0 },
-  bulletText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
-  loginLink: { alignItems: "center", paddingVertical: 8 },
+  checkBadge: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(255,255,255,0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardRow: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
+  iconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    marginTop: 2,
+  },
+  cardText: { flex: 1, gap: 4 },
+  roleLabel: { fontSize: 16, fontFamily: "Pretendard-Regular", fontWeight: "700" },
+  roleDesc: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 20 },
+  roleCondition: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
+  loginLink: { alignItems: "center", paddingVertical: 4 },
   loginLinkText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  bottomBar: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    backgroundColor: "#fff",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E5E5",
+  },
+  nextBtn: {
+    height: 52,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nextBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular", fontWeight: "600" },
 });
