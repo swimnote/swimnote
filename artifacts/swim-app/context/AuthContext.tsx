@@ -80,6 +80,8 @@ export function useAuth() {
     updateParentProfile: session.updateParentProfile,
     updateAdminProfile: session.updateAdminProfile,
     checkRolePermission: session.checkRolePermission,
+    pendingRoute: session.pendingRoute,
+    clearPendingRoute: session.clearPendingRoute,
 
     switchRole: role.switchRole,
     setLastUsedRole: role.setActiveRole,

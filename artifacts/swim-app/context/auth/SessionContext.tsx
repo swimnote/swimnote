@@ -4,6 +4,7 @@
  */
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
 
 export const _DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
 export const API_BASE =
@@ -142,6 +143,8 @@ interface SessionContextType {
   updateAdminProfile: (fields: Partial<AdminUser>) => void;
   checkRolePermission: (roleKey: string) => Promise<boolean>;
   applyRoleSwitch: (newToken: string, updatedUser: AdminUser) => Promise<void>;
+  pendingRoute: string | null;
+  clearPendingRoute: () => void;
 }
 
 export const SessionContext = createContext<SessionContextType | null>(null);
@@ -156,6 +159,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [pool, setPool] = useState<PoolInfo | null>(null);
   const [isLoading, _setIsLoading] = useState(true);
   const [isAuthenticating, _setIsAuthenticating] = useState(false);
+  const [pendingRoute, setPendingRoute] = useState<string | null>(null);
 
   function setToken(t: string | null) {
     console.log(`[AUTH COMPLETE][4] setToken QUEUED → ${t ? "has_token" : "null"}`);
@@ -357,6 +361,33 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await loadOwnedPools();
   }
 
+  // ─── 로그인/회원가입 완료 파이프라인 ───────────────────────────────────────
+  // computeLoginDest: kind + role → 목적지 경로를 동기 계산 (API 호출 없음)
+  function computeLoginDest(k: "admin" | "parent", user: AdminUser | null): string {
+    if (k === "parent") return "/(parent)/home";
+    if (k === "admin" && user) {
+      const { role, swimming_pool_id } = user;
+      if (role === "super_admin" || role === "platform_admin" || role === "super_manager") return "/(super)/dashboard";
+      if (role === "teacher") return "/(teacher)/today-schedule";
+      if (role === "pool_admin" || role === "sub_admin") return swimming_pool_id ? "/(admin)/dashboard" : "/pool-apply";
+    }
+    return "/";
+  }
+
+  // finishLogin: 세션 완료 후 즉시 목적지로 라우팅 (RootNav doRoute() 우회)
+  // setState는 이미 호출된 상태에서 호출하세요.
+  // pendingRoute를 RootNav가 감지 → setHasRouted(true) + router.replace() 실행
+  function finishLogin(k: "admin" | "parent", user: AdminUser | null, _parent?: ParentAccount | null): void {
+    const dest = computeLoginDest(k, user ?? null);
+    console.log(`[AUTH COMPLETE][FINISH_LOGIN] kind=${k} role=${user?.role ?? "parent"} → ${dest}`);
+    setPendingRoute(dest);
+  }
+
+  function clearPendingRoute() {
+    setPendingRoute(null);
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   async function activateAccount(entry: AccountEntry) {
     const { kind: k, token: t, user, parent, join_status, join_request_id } = entry;
     console.log(`[AUTH COMPLETE][1] API success → activateAccount 시작 kind=${k} role=${user?.role ?? "parent"}`);
@@ -462,15 +493,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setAllAccounts(accounts);
     if (accounts.length > 0) {
       await activateAccount(accounts[0]);
+      finishLogin(accounts[0].kind, accounts[0].user ?? null, accounts[0].parent ?? null);
     } else {
       if (data.kind === "admin" && data.user) {
         const entry: AccountEntry = { kind: "admin", token: data.token, user: { ...data.user, roles: data.user.roles || [data.user.role] } };
         await activateAccount(entry);
         accounts.push(entry);
+        finishLogin("admin", entry.user ?? null);
       } else if (data.kind === "parent" && data.parent) {
         const entry: AccountEntry = { kind: "parent", token: data.token, parent: data.parent };
         await activateAccount(entry);
         accounts.push(entry);
+        finishLogin("parent", null, entry.parent ?? null);
       }
     }
     return { available_accounts: accounts };
@@ -487,7 +521,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const accounts: AccountEntry[] = data.available_accounts || [];
     await AsyncStorage.setItem("auth_all_accounts", JSON.stringify(accounts));
     setAllAccounts(accounts);
-    if (accounts.length > 0) await activateAccount(accounts[0]);
+    if (accounts.length > 0) {
+      await activateAccount(accounts[0]);
+      finishLogin(accounts[0].kind, accounts[0].user ?? null, accounts[0].parent ?? null);
+    }
     return { available_accounts: accounts };
   }
 
@@ -517,6 +554,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setAdminUser(user);
     setKind("admin");
     if (user.swimming_pool_id) fetchPool(data.token).catch(e => console.warn(`[AUTH COMPLETE][POOL FETCH FAIL] fetchPool 실패: ${e?.message}`));
+    finishLogin("admin", user);
   }
 
   async function parentLogin(identifier: string, password: string) {
@@ -538,6 +576,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
     }
     fetchPool(data.token).catch(e => console.warn(`[AUTH COMPLETE][POOL FETCH FAIL] fetchPool 실패: ${e?.message}`));
+    finishLogin("parent", null, data.parent);
   }
 
   async function kakaoSocialLogin(accessToken: string): Promise<"admin" | "parent"> {
@@ -603,6 +642,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         resultKind = "admin";
         console.log(`[KakaoLogin][STEP7] traceId=${tid} setKind=admin 완료`);
         if (u.swimming_pool_id) fetchPool(data.token).catch(e => console.warn(`[AUTH COMPLETE][POOL FETCH FAIL] fetchPool 실패: ${e?.message}`));
+        finishLogin("admin", u);
       } else {
         console.log(`[KakaoLogin][STEP5] traceId=${tid} parent 세션 저장 시작`);
         await Promise.race([
@@ -624,6 +664,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         }
         console.log(`[KakaoLogin][STEP7] traceId=${tid} setKind=parent 완료`);
         fetchPool(data.token).catch(e => console.warn(`[AUTH COMPLETE][POOL FETCH FAIL] fetchPool 실패: ${e?.message}`));
+        finishLogin("parent", null, data.parent);
       }
     } finally {
       setIsAuthenticating(false);
@@ -685,6 +726,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         await setAdminSession(data.token, data.user);
         console.log(`[AppleLogin][STEP6] traceId=${tid} setAdminSession 완료`);
         resultKind = "admin";
+        finishLogin("admin", data.user);
         console.log(`[AppleLogin][STEP7] traceId=${tid} kind=admin — finally에서 isAuthenticating=false 처리`);
         return "admin";
       }
@@ -709,6 +751,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       fetchPool(data.token).catch(e => console.warn(`[AUTH COMPLETE][POOL FETCH FAIL] fetchPool 실패: ${e?.message}`));
       resultKind = "parent";
+      finishLogin("parent", null, data.parent);
       console.log(`[AppleLogin][STEP7] traceId=${tid} kind=parent — finally에서 isAuthenticating=false 처리`);
       return "parent";
     } finally {
@@ -821,6 +864,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       unifiedLogin, completeTotpLogin, adminLogin, parentLogin, kakaoSocialLogin, appleSocialLogin, setParentSession, setAdminSession,
       logout, refreshPool, loadOwnedPools, switchPool,
       activateAccount, updateParentNickname, updateParentProfile, updateAdminProfile, checkRolePermission, applyRoleSwitch,
+      pendingRoute, clearPendingRoute,
     }}>
       {children}
     </SessionContext.Provider>

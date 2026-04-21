@@ -259,6 +259,7 @@ function RootNav() {
   const {
     kind, isLoading, isAuthenticating, adminUser, parentAccount, pool,
     activeRole, activePoolId, lastUsedTenant, allAccounts, checkRolePermission, setActiveRole, token, refreshPool,
+    pendingRoute, clearPendingRoute,
   } = useAuth();
   console.log(`[ROOTNAV] state: isLoading=${isLoading} isAuth=${isAuthenticating} kind=${kind} role=${adminUser?.role ?? "none"} activeRole=${activeRole ?? "none"}`);
   const segments = useSegments();
@@ -294,6 +295,20 @@ function RootNav() {
     }
     return () => { if (authingTimerRef.current) { clearTimeout(authingTimerRef.current); authingTimerRef.current = null; } };
   }, [isAuthenticating]);
+
+  // ─── finishLogin() 완료 신호 수신 ───────────────────────────────────────────
+  // SessionContext의 finishLogin()이 pendingRoute를 설정하면 즉시 hasRouted=true + navigate
+  // doRoute()의 async 체인(API/AsyncStorage) 완전 우회
+  useEffect(() => {
+    if (!pendingRoute) return;
+    console.log(`[AUTH COMPLETE][PENDING_ROUTE] 감지 → ${pendingRoute} hasRouted 즉시 true`);
+    didRoute.current = true;
+    setHasRouted(true);
+    clearPoolTimers();
+    router.replace(pendingRoute as any);
+    clearPendingRoute();
+  }, [pendingRoute]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   function clearPoolTimers() {
     if (firstWaitTimerRef.current) { clearTimeout(firstWaitTimerRef.current); firstWaitTimerRef.current = null; }

@@ -157,20 +157,7 @@ export default function LoginScreen() {
         : null;
       console.log(`[AppleLogin][STEP3 START] traceId=${tid} appleSocialLogin 호출 fullName=${fullName ?? "없음"}`);
       const loginKind = await appleSocialLogin(credential.identityToken, fullName, tid);
-      console.log(`[AppleLogin][STEP5 OK] traceId=${tid} appleSocialLogin 정상 완료 kind=${loginKind} → 라우팅 대기`);
-      // [4] 2초 후 fallback 체크 로그
-      setTimeout(() => {
-        console.log(`[LOGIN FALLBACK] traceId=${tid} 2s 경과 — kind=${loginKind} RootNav가 라우팅했는지 확인`);
-      }, 2000);
-      // [5] RootNav 미작동 대비: 로그인 완료 직후 직접 navigate (kind 기반)
-      // 이 navigate가 성공하면 → RootNav 문제가 아님. 실패하면 → login 처리 자체 문제.
-      if (loginKind === "admin") {
-        console.log(`[LOGIN FALLBACK] traceId=${tid} 직접 navigate → /(admin)/dashboard`);
-        router.replace("/(admin)/dashboard" as any);
-      } else {
-        console.log(`[LOGIN FALLBACK] traceId=${tid} 직접 navigate → /(parent)/home`);
-        router.replace("/(parent)/home" as any);
-      }
+      console.log(`[AppleLogin][STEP5 OK] traceId=${tid} appleSocialLogin 정상 완료 kind=${loginKind} → finishLogin이 라우팅 처리`);
     } catch (e: any) {
       const code = e?.code ?? "";
       const errCode = e?.error_code ?? "";
@@ -211,19 +198,7 @@ export default function LoginScreen() {
       const result = await kakaoLogin();
       console.log(`[KakaoLogin][INDEX STEP2] traceId=${ktid} accessToken 수신 → kakaoSocialLogin 호출`);
       const loginKind = await kakaoSocialLogin(result.accessToken);
-      console.log(`[KakaoLogin][INDEX STEP3] traceId=${ktid} kakaoSocialLogin 완료 kind=${loginKind}`);
-      // [4] 2초 후 fallback 체크 로그
-      setTimeout(() => {
-        console.log(`[LOGIN FALLBACK] traceId=${ktid} 2s 경과 — kind=${loginKind} RootNav가 라우팅했는지 확인`);
-      }, 2000);
-      // [5] RootNav 미작동 대비: 직접 navigate
-      if (loginKind === "admin") {
-        console.log(`[LOGIN FALLBACK] traceId=${ktid} 직접 navigate → /(admin)/dashboard`);
-        router.replace("/(admin)/dashboard" as any);
-      } else {
-        console.log(`[LOGIN FALLBACK] traceId=${ktid} 직접 navigate → /(parent)/home`);
-        router.replace("/(parent)/home" as any);
-      }
+      console.log(`[KakaoLogin][INDEX STEP3] traceId=${ktid} kakaoSocialLogin 완료 kind=${loginKind} → finishLogin이 라우팅 처리`);
     } catch (err: unknown) {
       const e = err as Error & { error_code?: string; kakao_info?: any; needs_activation?: boolean; teacher_id?: string };
       if (e.error_code === "kakao_no_account" && e.kakao_info) {
