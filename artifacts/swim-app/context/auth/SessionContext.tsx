@@ -142,7 +142,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [parentJoinRequestId, setParentJoinRequestId] = useState<string | null>(null);
   const [parentPoolName, setParentPoolName] = useState<string | null>(null);
 
-  useEffect(() => { loadStored(); }, []);
+  useEffect(() => {
+    // 안전 타임아웃: 12초 이상 isLoading이 유지되면 강제 해제 (흰 화면 방지)
+    const t = setTimeout(() => {
+      setIsLoading(prev => {
+        if (prev) {
+          console.warn("[SESSION] isLoading timeout → force false");
+          return false;
+        }
+        return prev;
+      });
+    }, 12000);
+    loadStored().finally(() => clearTimeout(t));
+  }, []);
 
   async function loadStored() {
     try {

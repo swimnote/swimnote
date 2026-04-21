@@ -57,7 +57,11 @@ try {
 }
 
 function AppLoadingScreen() {
-  return <View style={{ flex: 1, backgroundColor: "#FFFFFF" }} />;
+  return (
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF", justifyContent: "center", alignItems: "center" }}>
+      <ActivityIndicator size="large" color="#2EC4B6" />
+    </View>
+  );
 }
 
 SplashScreen.preventAutoHideAsync();
