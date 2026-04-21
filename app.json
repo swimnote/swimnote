@@ -4,6 +4,9 @@
       "eas": {
         "projectId": "327104ab-4db0-4623-9a69-53a03afdd752"
       }
+    },
+    "android": {
+      "package": "com.swimnote.workspace"
     }
   }
 }
