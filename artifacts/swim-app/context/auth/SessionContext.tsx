@@ -406,12 +406,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (!swimming_pool_id) return "/pool-apply";
 
         // 1순위: pool_admin 환불 정책 미동의 (sub_admin 제외 — 정책 서명 권한 없음)
+        // 5초 AbortController 타임아웃: 느린 서버가 loadStored() 전체를 블로킹하지 않도록
         if (role === "pool_admin" && authToken) {
           try {
-            const policyRes = await fetch(`${API_BASE}/admin/refund-policy`, {
-              headers: { Authorization: `Bearer ${authToken}` },
-              cache: "no-store",
-            });
+            const policyController = new AbortController();
+            const policyTimer = setTimeout(() => policyController.abort(), 5000);
+            let policyRes: Response;
+            try {
+              policyRes = await fetch(`${API_BASE}/admin/refund-policy`, {
+                headers: { Authorization: `Bearer ${authToken}` },
+                cache: "no-store",
+                signal: policyController.signal,
+              });
+            } finally {
+              clearTimeout(policyTimer);
+            }
             if (policyRes.ok) {
               const policyData = await policyRes.json();
               if (policyData.success && (!policyData.agreed || policyData.needs_reagree)) {
@@ -419,7 +428,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               }
             }
           } catch {
-            // 네트워크 오류 시 정책 체크 스킵 → 온보딩/홈 판단으로 계속
+            // 네트워크 오류 또는 5초 타임아웃 시 정책 체크 스킵 → 온보딩/홈 판단으로 계속
           }
         }
 
