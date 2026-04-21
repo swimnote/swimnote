@@ -120,12 +120,6 @@
         "projectId": "7d0e0faa-32d8-4f40-88c4-2c99e0613afc"
       }
     },
-    "owner": "swimnote",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/7d0e0faa-32d8-4f40-88c4-2c99e0613afc"
-    }
+    "owner": "swimnote"
   }
 }

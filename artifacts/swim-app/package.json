@@ -69,7 +69,6 @@
     "expo-media-library": "^18.2.1",
     "expo-notifications": "^0.32.16",
     "expo-sharing": "~14.0.8",
-    "expo-updates": "~29.0.16",
     "lucide-react-native": "^1.7.0",
     "react-native-purchases": "9.7.2",
     "react-native-qrcode-svg": "^6.3.21",
