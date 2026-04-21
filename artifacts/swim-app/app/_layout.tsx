@@ -5,7 +5,7 @@ import * as SplashScreen from "expo-splash-screen";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useRef, useState } from "react";
-import { Platform, View } from "react-native";
+import { ActivityIndicator, Platform, Text, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -231,13 +231,15 @@ function RootNav() {
   console.log("[ROOTNAV] RENDER_START");
   const {
     kind, isLoading, adminUser, parentAccount, pool,
-    activeRole, activePoolId, lastUsedTenant, allAccounts, checkRolePermission, setActiveRole, token,
+    activeRole, activePoolId, lastUsedTenant, allAccounts, checkRolePermission, setActiveRole, token, refreshPool,
   } = useAuth();
   console.log(`[ROOTNAV] state: isLoading=${isLoading} kind=${kind} role=${adminUser?.role ?? "none"} activeRole=${activeRole ?? "none"}`);
   const segments = useSegments();
   const didRoute = useRef(false);
   const [hasRouted, setHasRouted] = useState(false);
   const poolTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const poolRetryRef = useRef(0);
+  const [poolLoadError, setPoolLoadError] = useState(false);
 
   const APP_ROOTS = [
     "(admin)", "(super)", "(teacher)", "(parent)", "(auth)",
@@ -263,6 +265,8 @@ function RootNav() {
       console.log("[ROOTNAV] no session → router.replace('/')");
       didRoute.current = false;
       setHasRouted(false);
+      poolRetryRef.current = 0;
+      setPoolLoadError(false);
       if (poolTimeoutRef.current) { clearTimeout(poolTimeoutRef.current); poolTimeoutRef.current = null; }
       router.replace("/");
       return;
@@ -322,24 +326,34 @@ function RootNav() {
         }
 
         if (role === "pool_admin") {
+          // swimming_pool_id 없음 = 실제로 수영장 미등록 → pool-apply
           if (!adminUser?.swimming_pool_id) {
             navigate("/pool-apply");
             return;
           }
-          // pool 로딩 대기: pool 없으면 타임아웃 후 재시도
+          // swimming_pool_id 있는데 pool 데이터 아직 미수신 = 네트워크 지연
           if (!pool) {
             if (!poolTimeoutRef.current) {
               poolTimeoutRef.current = setTimeout(() => {
                 poolTimeoutRef.current = null;
-                // 타임아웃 후에도 pool 없으면 pool-apply로 보냄
-                if (!didRoute.current) {
-                  console.log("[ROUTE] pool 로딩 타임아웃 → pool-apply");
-                  navigate("/pool-apply");
+                if (didRoute.current) return;
+                if (poolRetryRef.current === 0) {
+                  // 1차 타임아웃(10s): refreshPool 재시도 후 10초 더 대기
+                  poolRetryRef.current = 1;
+                  console.log("[ROUTE] pool 1차 타임아웃 → refreshPool 재시도");
+                  refreshPool();
+                } else {
+                  // 2차 타임아웃(20s 누적): 에러 화면 표시 (pool-apply로 보내지 않음)
+                  console.log("[ROUTE] pool 2차 타임아웃 → 에러 화면 표시");
+                  setPoolLoadError(true);
+                  setHasRouted(true);
                 }
               }, 10000);
             }
             return;
           }
+          poolRetryRef.current = 0;
+          setPoolLoadError(false);
           if (poolTimeoutRef.current) { clearTimeout(poolTimeoutRef.current); poolTimeoutRef.current = null; }
           if (pool.approval_status === "pending") { navigate("/pending"); return; }
           if (pool.approval_status === "rejected") { navigate("/rejected"); return; }
@@ -408,7 +422,32 @@ function RootNav() {
     doRoute();
   }, [kind, isLoading, adminUser?.role, adminUser?.swimming_pool_id, pool?.id, pool?.approval_status, pool?.subscription_status, activeRole, lastUsedTenant]);
 
-  if (isLoading || (!!kind && !hasRouted)) return <AppLoadingScreen />;
+  if (isLoading || (!!kind && !hasRouted && !poolLoadError)) return <AppLoadingScreen />;
+
+  if (poolLoadError) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff", padding: 32 }}>
+        <Text style={{ fontSize: 16, color: "#333", textAlign: "center", marginBottom: 8 }}>
+          서버 응답이 지연되고 있습니다.
+        </Text>
+        <Text style={{ fontSize: 14, color: "#888", textAlign: "center", marginBottom: 32 }}>
+          잠시 후 다시 시도해 주세요.
+        </Text>
+        <TouchableOpacity
+          onPress={() => {
+            setPoolLoadError(false);
+            setHasRouted(false);
+            poolRetryRef.current = 0;
+            if (poolTimeoutRef.current) { clearTimeout(poolTimeoutRef.current); poolTimeoutRef.current = null; }
+            refreshPool();
+          }}
+          style={{ backgroundColor: "#3B82F6", paddingHorizontal: 32, paddingVertical: 14, borderRadius: 10 }}
+        >
+          <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>재시도</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#ffffff" } }}>
