@@ -275,6 +275,7 @@ function RootNav() {
     if (didRoute.current) return;
 
     function navigate(path: string) {
+      if (didRoute.current) return;
       didRoute.current = true;
       setHasRouted(true);
       if (poolTimeoutRef.current) { clearTimeout(poolTimeoutRef.current); poolTimeoutRef.current = null; }
