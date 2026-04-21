@@ -12,18 +12,36 @@ const PERMISSIONS_TO_REMOVE = [
 module.exports = function withRemoveMediaPermissions(config) {
   return withAndroidManifest(config, (config) => {
     const manifest = config.modResults.manifest;
-    if (Array.isArray(manifest["uses-permission"])) {
-      manifest["uses-permission"] = manifest["uses-permission"].filter((perm) => {
-        const name = perm.$?.["android:name"] || "";
-        return !PERMISSIONS_TO_REMOVE.includes(name);
+
+    // xmlns:tools 없으면 추가 (tools:node="remove" 사용에 필요)
+    if (!manifest.$["xmlns:tools"]) {
+      manifest.$["xmlns:tools"] = "http://schemas.android.com/tools";
+    }
+
+    // 기존 선언 제거
+    for (const key of ["uses-permission", "uses-permission-sdk-23"]) {
+      if (Array.isArray(manifest[key])) {
+        manifest[key] = manifest[key].filter((perm) => {
+          const name = perm.$?.["android:name"] || "";
+          return !PERMISSIONS_TO_REMOVE.includes(name);
+        });
+      }
+    }
+
+    // tools:node="remove" 마커 추가
+    // → Gradle manifest merger가 AAR 라이브러리에서 이 권한을 주입하더라도 최종 APK/AAB에서 제거됨
+    if (!Array.isArray(manifest["uses-permission"])) {
+      manifest["uses-permission"] = [];
+    }
+    for (const perm of PERMISSIONS_TO_REMOVE) {
+      manifest["uses-permission"].push({
+        $: {
+          "android:name": perm,
+          "tools:node": "remove",
+        },
       });
     }
-    if (Array.isArray(manifest["uses-permission-sdk-23"])) {
-      manifest["uses-permission-sdk-23"] = manifest["uses-permission-sdk-23"].filter((perm) => {
-        const name = perm.$?.["android:name"] || "";
-        return !PERMISSIONS_TO_REMOVE.includes(name);
-      });
-    }
+
     return config;
   });
 };
