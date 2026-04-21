@@ -236,6 +236,8 @@ function RootNav() {
   console.log(`[ROOTNAV] state: isLoading=${isLoading} kind=${kind} role=${adminUser?.role ?? "none"} activeRole=${activeRole ?? "none"}`);
   const segments = useSegments();
   const didRoute = useRef(false);
+  const [hasRouted, setHasRouted] = useState(false);
+  const poolTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const APP_ROOTS = [
     "(admin)", "(super)", "(teacher)", "(parent)", "(auth)",
@@ -260,11 +262,20 @@ function RootNav() {
     if (!kind) {
       console.log("[ROOTNAV] no session → router.replace('/')");
       didRoute.current = false;
+      setHasRouted(false);
+      if (poolTimeoutRef.current) { clearTimeout(poolTimeoutRef.current); poolTimeoutRef.current = null; }
       router.replace("/");
       return;
     }
 
     if (didRoute.current) return;
+
+    function navigate(path: string) {
+      didRoute.current = true;
+      setHasRouted(true);
+      if (poolTimeoutRef.current) { clearTimeout(poolTimeoutRef.current); poolTimeoutRef.current = null; }
+      router.replace(path as any);
+    }
 
     async function checkOnboarding(role: string, userId: string | undefined): Promise<string | null> {
       if (!userId) return null;
@@ -272,7 +283,6 @@ function RootNav() {
       if (ADMIN_ROLES.includes(role)) {
         const done = await AsyncStorage.getItem(`@swimnote:onboarded_${userId}_admin`).catch(() => "1");
         if (!done) return "/(auth)/onboarding-admin";
-        // pool_admin: 현재 활성 정책 동의 여부 확인 (강제 온보딩)
         if (role === "pool_admin" && token) {
           try {
             const policyRes = await apiRequest(token, "/admin/refund-policy");
@@ -298,36 +308,46 @@ function RootNav() {
     }
 
     async function doRoute() {
-      console.log(`[AppleLogin][STEP6 ROUTE] doRoute kind=${kind} role=${adminUser?.role ?? "none"} activeRole=${activeRole ?? "none"} parentId=${parentAccount?.id?.substring(0,8) ?? "없음"} pool=${pool?.id?.substring(0,8) ?? "없음"}`);
+      console.log(`[ROUTE] doRoute kind=${kind} role=${adminUser?.role ?? "none"} activeRole=${activeRole ?? "none"} pool=${pool?.id?.substring(0,8) ?? "없음"}`);
       if (kind === "admin") {
         const role = adminUser?.role;
 
-        // 슈퍼관리자 계열은 activeRole 무시하고 즉시 해당 홈으로 라우팅
         if (role === "super_admin" || role === "platform_admin" || role === "super_manager") {
           const homePath = ROLE_HOME_MAP[role];
           if (homePath) {
-            didRoute.current = true;
             await setActiveRole(role);
-            router.replace(homePath as any);
+            navigate(homePath);
             return;
           }
         }
 
         if (role === "pool_admin") {
           if (!adminUser?.swimming_pool_id) {
-            didRoute.current = true;
-            router.replace("/pool-apply");
+            navigate("/pool-apply");
             return;
           }
-          if (!pool) return;
-          if (pool.approval_status === "pending") { didRoute.current = true; router.replace("/pending"); return; }
-          if (pool.approval_status === "rejected") { didRoute.current = true; router.replace("/rejected"); return; }
+          // pool 로딩 대기: pool 없으면 타임아웃 후 재시도
+          if (!pool) {
+            if (!poolTimeoutRef.current) {
+              poolTimeoutRef.current = setTimeout(() => {
+                poolTimeoutRef.current = null;
+                // 타임아웃 후에도 pool 없으면 pool-apply로 보냄
+                if (!didRoute.current) {
+                  console.log("[ROUTE] pool 로딩 타임아웃 → pool-apply");
+                  navigate("/pool-apply");
+                }
+              }, 10000);
+            }
+            return;
+          }
+          if (poolTimeoutRef.current) { clearTimeout(poolTimeoutRef.current); poolTimeoutRef.current = null; }
+          if (pool.approval_status === "pending") { navigate("/pending"); return; }
+          if (pool.approval_status === "rejected") { navigate("/rejected"); return; }
           try {
             const poolsRes = await apiRequest(token, "/pools/my-pools");
             const pools = await poolsRes.json();
             if (Array.isArray(pools) && pools.length > 1 && !lastUsedTenant) {
-              didRoute.current = true;
-              router.replace("/pool-select" as any);
+              navigate("/pool-select");
               return;
             }
           } catch {}
@@ -335,40 +355,36 @@ function RootNav() {
       }
 
       const targetRole = activeRole;
-      console.log(`[AppleLogin][STEP6 A] targetRole=${targetRole ?? "없음"} parentAccount=${!!parentAccount}`);
+      console.log(`[ROUTE] targetRole=${targetRole ?? "없음"} parentAccount=${!!parentAccount}`);
       if (targetRole) {
         const valid = await checkRolePermission(targetRole);
-        console.log(`[AppleLogin][STEP6 B] checkRolePermission(${targetRole})=${valid}`);
         if (valid) {
           const homePath = ROLE_HOME_MAP[targetRole];
           if (homePath) {
-            didRoute.current = true;
             const uid = kind === "parent" ? parentAccount?.id : adminUser?.id;
             const onboardPath = await checkOnboarding(targetRole, uid);
-            console.log(`[AppleLogin][STEP6 NAVIGATE] → ${onboardPath ?? homePath} (onboard=${onboardPath ?? "없음"})`);
-            router.replace((onboardPath ?? homePath) as any);
+            console.log(`[ROUTE] NAVIGATE → ${onboardPath ?? homePath}`);
+            navigate(onboardPath ?? homePath);
             return;
           }
         }
       }
 
       const roleKeys = computeRoleKeys(allAccounts, kind, adminUser, parentAccount);
-      console.log(`[AppleLogin][STEP6 C] roleKeys=[${roleKeys.join(",")}] allAccounts=${allAccounts.length}`);
+      console.log(`[ROUTE] roleKeys=[${roleKeys.join(",")}] allAccounts=${allAccounts.length}`);
       if (roleKeys.length === 1) {
         const roleKey = roleKeys[0];
         const homePath = ROLE_HOME_MAP[roleKey];
         if (homePath) {
-          didRoute.current = true;
           await setActiveRole(roleKey);
           const uid = kind === "parent" ? parentAccount?.id : adminUser?.id;
           const onboardPath = await checkOnboarding(roleKey, uid);
-          console.log(`[AppleLogin][STEP6 NAVIGATE] → ${onboardPath ?? homePath} (role=${roleKey} onboard=${onboardPath ?? "없음"})`);
-          router.replace((onboardPath ?? homePath) as any);
+          console.log(`[ROUTE] NAVIGATE → ${onboardPath ?? homePath} (role=${roleKey})`);
+          navigate(onboardPath ?? homePath);
           return;
         }
       }
 
-      // 복수 역할: 저장된 기본 진입 모드 확인 → 없으면 관리자 우선
       if (roleKeys.length > 1) {
         const ADMIN_ROLES = ["pool_admin", "sub_admin"];
         const storedDefault = await AsyncStorage.getItem("@swimnote:default_login_mode").catch(() => null);
@@ -378,23 +394,21 @@ function RootNav() {
           ? (teacherRole || adminRole)
           : (adminRole || teacherRole);
         if (chosen) {
-          didRoute.current = true;
           await setActiveRole(chosen);
           const onboardPath = await checkOnboarding(chosen, adminUser?.id);
-          router.replace((onboardPath ?? ROLE_HOME_MAP[chosen]) as any);
+          navigate(onboardPath ?? ROLE_HOME_MAP[chosen] ?? "/org-role-select");
           return;
         }
       }
 
-      console.log(`[AppleLogin][STEP6 FALLBACK] roleKeys=[${roleKeys.join(",")}] → org-role-select`);
-      didRoute.current = true;
-      router.replace("/org-role-select");
+      console.log(`[ROUTE] FALLBACK roleKeys=[${roleKeys.join(",")}] → org-role-select`);
+      navigate("/org-role-select");
     }
 
     doRoute();
   }, [kind, isLoading, adminUser?.role, adminUser?.swimming_pool_id, pool?.id, pool?.approval_status, pool?.subscription_status, activeRole, lastUsedTenant]);
 
-  if (isLoading) return <AppLoadingScreen />;
+  if (isLoading || (!!kind && !hasRouted)) return <AppLoadingScreen />;
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#ffffff" } }}>
