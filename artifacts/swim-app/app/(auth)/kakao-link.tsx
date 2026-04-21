@@ -35,7 +35,7 @@ export default function KakaoLinkScreen() {
   }>();
 
   const isApple = loginType === "apple";
-  const { setParentSession, setAdminSession } = useAuth();
+  const { setParentSession, setAdminSession, finishLogin } = useAuth();
   const [role, setRole] = useState<Role>("parent");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
@@ -111,8 +111,10 @@ export default function KakaoLinkScreen() {
 
       if (data.kind === "admin" && data.user) {
         await setAdminSession(data.token, data.user);
+        finishLogin("admin", data.user);
       } else {
         await setParentSession(data.token, data.parent);
+        finishLogin("parent", null, data.parent);
       }
     } catch {
       setError("네트워크 오류가 발생했습니다.");

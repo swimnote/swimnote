@@ -49,7 +49,7 @@ function genRandomPassword() {
 
 export default function SignupScreen() {
   const insets = useSafeAreaInsets();
-  const { unifiedLogin, setParentSession, setAdminSession } = useAuth();
+  const { unifiedLogin, setParentSession, setAdminSession, finishLogin } = useAuth();
 
   // 소셜 가입 파라미터 (Apple 또는 카카오 인증 후 전달됨)
   const params = useLocalSearchParams<{
@@ -358,6 +358,7 @@ export default function SignupScreen() {
         }
         if (data.token) {
           await setParentSession(data.token, data.parent);
+          finishLogin("parent", null, data.parent);
           return;
         }
       }
@@ -365,6 +366,7 @@ export default function SignupScreen() {
       // 서버가 token을 바로 반환하면 바로 세션 설정, 아니면 일반 로그인
       if (data?.token && data?.user) {
         await setAdminSession(data.token, data.user);
+        finishLogin("admin", data.user);
       } else {
         await unifiedLogin(effectiveLoginId, effectivePw);
       }

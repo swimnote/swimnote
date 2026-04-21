@@ -21,7 +21,7 @@ type Step = "type" | "pool" | "workspace" | "info";
 
 export default function TeacherSignupScreen() {
   const insets = useSafeAreaInsets();
-  const { setAdminSession } = useAuth();
+  const { setAdminSession, finishLogin } = useAuth();
   const { phone: prefillPhone, kakaoId, appleId } = useLocalSearchParams<{
     phone?: string; kakaoId?: string; appleId?: string;
   }>();
@@ -130,6 +130,7 @@ export default function TeacherSignupScreen() {
         const data = await res.json();
         if (!res.ok) { setError(data.error || data.message || "가입 실패"); return; }
         await setAdminSession(data.token, data.user);
+        finishLogin("admin", data.user);
       }
     } catch { setError("서버 오류가 발생했습니다."); }
     finally   { setLoading(false); }

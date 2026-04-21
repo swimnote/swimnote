@@ -4,7 +4,6 @@
  */
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
 
 export const _DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
 export const API_BASE =
@@ -143,6 +142,7 @@ interface SessionContextType {
   updateAdminProfile: (fields: Partial<AdminUser>) => void;
   checkRolePermission: (roleKey: string) => Promise<boolean>;
   applyRoleSwitch: (newToken: string, updatedUser: AdminUser) => Promise<void>;
+  finishLogin: (k: "admin" | "parent", user: AdminUser | null, parent?: ParentAccount | null) => void;
   pendingRoute: string | null;
   clearPendingRoute: () => void;
 }
@@ -375,9 +375,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return "/";
   }
 
-  // finishLogin: 세션 완료 후 즉시 목적지로 라우팅 (RootNav doRoute() 우회)
+  // finishLogin: 세션 완료 후 즉시 목적지로 라우팅
   // setState는 이미 호출된 상태에서 호출하세요.
-  // pendingRoute를 RootNav가 감지 → setHasRouted(true) + router.replace() 실행
+  // pendingRoute를 RootNav가 감지 → router.replace() 실행
   function finishLogin(k: "admin" | "parent", user: AdminUser | null, _parent?: ParentAccount | null): void {
     const dest = computeLoginDest(k, user ?? null);
     console.log(`[AUTH COMPLETE][FINISH_LOGIN] kind=${k} role=${user?.role ?? "parent"} → ${dest}`);
@@ -865,7 +865,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       unifiedLogin, completeTotpLogin, adminLogin, parentLogin, kakaoSocialLogin, appleSocialLogin, setParentSession, setAdminSession,
       logout, refreshPool, loadOwnedPools, switchPool,
       activateAccount, updateParentNickname, updateParentProfile, updateAdminProfile, checkRolePermission, applyRoleSwitch,
-      pendingRoute, clearPendingRoute,
+      finishLogin, pendingRoute, clearPendingRoute,
     }}>
       {children}
     </SessionContext.Provider>
