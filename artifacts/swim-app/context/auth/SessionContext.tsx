@@ -280,19 +280,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (!user.roles || user.roles.length === 0) user.roles = [user.role];
         setAdminUser(user);
         setKind("admin");
-        // 비동기 fire-and-forget — isLoading 해제를 블로킹하지 않음
         if (user.swimming_pool_id) fetchPool(storedToken).catch(e => console.warn("[AUTH COMPLETE][POOL FETCH FAIL] loadStored admin fetchPool 실패:", e?.message));
+        // 앱 복원 라우팅 — 로그인 완료와 동일한 finishLogin 경로로 통합
+        finishLogin("admin", user);
       } else if (storedKind === "parent" && storedParent) {
         const pa: ParentAccount = JSON.parse(storedParent);
         setParentAccount(pa);
         setKind("parent");
         setParentJoinStatus(storedJoinStatus || null);
         setParentJoinRequestId(storedJoinRequestId || null);
-        // parent_pool_name 독립 키에서 복원 (pool_name이 없으면 parentAccount.pool_name으로 보완)
         const restoredPoolName = storedPoolName || (pa as any).pool_name || null;
         if (restoredPoolName) setParentPoolName(restoredPoolName);
-        // 비동기 fire-and-forget — isLoading 해제를 블로킹하지 않음
         fetchPool(storedToken).catch(e => console.warn("[AUTH COMPLETE][POOL FETCH FAIL] loadStored parent fetchPool 실패:", e?.message));
+        // 앱 복원 라우팅 — 로그인 완료와 동일한 finishLogin 경로로 통합
+        finishLogin("parent", null, pa);
       }
     } catch (err) { console.error(err); }
     finally { setIsLoading(false); }
