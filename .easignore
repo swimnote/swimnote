@@ -2,6 +2,7 @@ node_modules
 attached_assets
 screenshots
 .git
+.local
 *.log
 artifacts/api-server
 artifacts/mockup-sandbox
