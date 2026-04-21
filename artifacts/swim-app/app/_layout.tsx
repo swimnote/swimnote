@@ -523,8 +523,12 @@ export default function RootLayout() {
   }, []);
 
   if (!fontsReady) {
-    console.log("[LAYOUT] fontsReady=false → returning null (splash still visible)");
-    return null;
+    console.log("[LAYOUT] fontsReady=false → returning loading view");
+    return (
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF", justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#2EC4B6" />
+      </View>
+    );
   }
   console.log("[LAYOUT] fontsReady=true → rendering root tree");
 
