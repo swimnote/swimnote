@@ -217,6 +217,45 @@ function PushNavSync() {
  * 로그인 완료 / 앱 복원 모두 동일한 경로로 처리
  * 목적지 계산: SessionContext.computeLoginDest() (API 대기 없음)
  */
+// 로그인 진단용 미니 플로팅 패널
+// [AUTH COMPLETE][FINISH_LOGIN] 과 [ROUTE] 두 줄을 화면에 직접 표시
+// 마지막 줄 수신 후 8초 뒤 자동 사라짐
+function AuthDiagPanel() {
+  const { logs } = useDebugLog();
+  const [visible, setVisible] = useState(false);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // [AUTH COMPLETE][FINISH_LOGIN] 또는 [ROUTE] 줄만 필터
+  const diagLines = logs
+    .filter(l => l.msg.includes("[AUTH COMPLETE][FINISH_LOGIN]") || (l.msg.includes("[ROUTE]") && l.msg.includes("pendingRoute")))
+    .slice(-4);
+
+  useEffect(() => {
+    if (diagLines.length === 0) return;
+    setVisible(true);
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setVisible(false), 8000);
+    return () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
+  }, [diagLines.length, diagLines[diagLines.length - 1]?.id]);
+
+  if (!visible || diagLines.length === 0) return null;
+
+  return (
+    <View style={{
+      position: "absolute", top: 0, left: 0, right: 0, zIndex: 99999,
+      backgroundColor: "rgba(0,0,0,0.82)", paddingTop: 44, paddingBottom: 10, paddingHorizontal: 12,
+    }}
+      pointerEvents="none"
+    >
+      {diagLines.map(l => (
+        <Text key={l.id} style={{ color: l.msg.includes("[ROUTE]") ? "#4ADE80" : "#FCD34D", fontSize: 11, fontFamily: "Pretendard-Regular", marginBottom: 2 }} numberOfLines={2}>
+          {l.time} {l.msg}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
 function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
 
@@ -240,37 +279,52 @@ function RootNav() {
   }, [isLoading, isAuthenticating, kind, pendingRoute]);
   // ──────────────────────────────────────────────────────────────────────────
 
-  // 초기 로딩 중 또는 라우팅 대기 중 → 로딩 화면
-  if (isLoading || !!pendingRoute) return <AppLoadingScreen />;
+  // 앱 최초 로딩 중(세션 복원 전) → Stack 자체를 렌더하지 않음
+  if (isLoading) return <AppLoadingScreen />;
 
+  // pendingRoute 중: Stack은 마운트 유지 + 불투명 오버레이 위에 덮음
+  // → router.replace() 가 Stack이 마운트된 상태에서 실행돼야 정상 동작
+  // (Stack을 return 으로 교체하면 재마운트 시 초기 경로(/)로 리셋됨)
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#ffffff" } }}>
-      <Stack.Screen name="index" />
-      {/* (auth) 그룹 — 파일시스템으로 자동 등록됨, 개별 화면은 선언 불필요 */}
-      <Stack.Screen name="(auth)" />
-      {/* 로그인 후 온보딩/전환 화면 */}
-      <Stack.Screen name="register" />
-      <Stack.Screen name="pool-apply" />
-      <Stack.Screen name="pool-select" />
-      <Stack.Screen name="pool-join-request" />
-      <Stack.Screen name="teacher-invite-join" />
-      <Stack.Screen name="signup-role" />
-      <Stack.Screen name="teacher-activate" />
-      <Stack.Screen name="pending" />
-      <Stack.Screen name="rejected" />
-      <Stack.Screen name="subscription-expired" />
-      {/* 역할별 앱 그룹 */}
-      <Stack.Screen name="(admin)" />
-      <Stack.Screen name="(super)" />
-      <Stack.Screen name="(teacher)" />
-      <Stack.Screen name="(parent)" />
-      <Stack.Screen name="class-assign" />
-      <Stack.Screen name="support-ticket-write" />
-      <Stack.Screen name="support-ticket-list" />
-      <Stack.Screen name="support-ticket-detail" />
-      <Stack.Screen name="terms" />
-      <Stack.Screen name="privacy" />
-    </Stack>
+    <View style={{ flex: 1 }}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#ffffff" } }}>
+        <Stack.Screen name="index" />
+        {/* (auth) 그룹 — 파일시스템으로 자동 등록됨, 개별 화면은 선언 불필요 */}
+        <Stack.Screen name="(auth)" />
+        {/* 로그인 후 온보딩/전환 화면 */}
+        <Stack.Screen name="register" />
+        <Stack.Screen name="pool-apply" />
+        <Stack.Screen name="pool-select" />
+        <Stack.Screen name="pool-join-request" />
+        <Stack.Screen name="teacher-invite-join" />
+        <Stack.Screen name="signup-role" />
+        <Stack.Screen name="teacher-activate" />
+        <Stack.Screen name="pending" />
+        <Stack.Screen name="rejected" />
+        <Stack.Screen name="subscription-expired" />
+        {/* 역할별 앱 그룹 */}
+        <Stack.Screen name="(admin)" />
+        <Stack.Screen name="(super)" />
+        <Stack.Screen name="(teacher)" />
+        <Stack.Screen name="(parent)" />
+        <Stack.Screen name="class-assign" />
+        <Stack.Screen name="support-ticket-write" />
+        <Stack.Screen name="support-ticket-list" />
+        <Stack.Screen name="support-ticket-detail" />
+        <Stack.Screen name="terms" />
+        <Stack.Screen name="privacy" />
+      </Stack>
+      {/* pendingRoute 중: Stack 위에 로딩 오버레이 — Stack은 언마운트하지 않음 */}
+      {!!pendingRoute && (
+        <View style={{
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: "#FFFFFF", justifyContent: "center", alignItems: "center",
+          zIndex: 9000,
+        }}>
+          <ActivityIndicator size="large" color="#2EC4B6" />
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -334,6 +388,7 @@ export default function RootLayout() {
                     <PushNavSync />
                     <NoticePopup />
                     <RootNav />
+                    <AuthDiagPanel />
                     <DebugLogOverlay />
                     <DebugTapTarget />
                   </SubscriptionProvider>

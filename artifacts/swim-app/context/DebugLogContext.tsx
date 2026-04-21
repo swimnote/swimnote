@@ -38,6 +38,7 @@ const DebugLogContext = createContext<DebugLogContextValue>({
 
 const FILTER_KEYWORDS = [
   "[AUTH COMPLETE]",
+  "[ROUTE]",
   "[AppleLogin]",
   "[KakaoLogin]",
   "[GoogleLogin]",
