@@ -296,15 +296,16 @@ function RootNav() {
   }, [segments]);
 
   useEffect(() => {
-    if (isLoading) return;
+    console.log(`[AUTH COMPLETE][10] RootNav useEffect 진입 — isLoading=${isLoading} isAuth=${isAuthenticating} kind=${kind ?? "null"} didRoute=${didRoute.current}`);
+    if (isLoading) { console.log("[AUTH COMPLETE][10a] isLoading=true → skip"); return; }
 
     if (!kind) {
       // isAuthenticating=true면 소셜 로그인 API 진행 중 → 아직 kind가 settle 안 됨 → 로그인 화면 복귀 금지
       if (isAuthenticating) {
-        console.log("[ROOTNAV] !kind but isAuthenticating=true → skip redirect (auth settling)");
+        console.log("[AUTH COMPLETE][10b] !kind + isAuthenticating=true → skip redirect (auth settling)");
         return;
       }
-      console.log("[ROOTNAV] no session → router.replace('/')");
+      console.log("[AUTH COMPLETE][10c] !kind + !isAuthenticating → router.replace('/')");
       didRoute.current = false;
       setHasRouted(false);
       poolRetryRef.current = 0;
@@ -314,13 +315,16 @@ function RootNav() {
       return;
     }
 
-    if (didRoute.current) return;
+    if (didRoute.current) { console.log(`[AUTH COMPLETE][10d] didRoute=true → skip (already routed)`); return; }
+
+    console.log(`[AUTH COMPLETE][10e] kind=${kind} didRoute=false → doRoute() 호출 예정`);
 
     function navigate(path: string) {
       if (didRoute.current) return;
-      console.log(`[ROUTE] navigate → ${path}`);
+      console.log(`[AUTH COMPLETE][12] navigate CALLED → ${path}`);
       didRoute.current = true;
       setHasRouted(true);
+      console.log(`[AUTH COMPLETE][13] hasRouted=true`);
       clearPoolTimers();
       router.replace(path as any);
     }
@@ -362,6 +366,7 @@ function RootNav() {
     }
 
     async function doRoute() {
+      console.log(`[AUTH COMPLETE][11] doRoute START`);
       // 경로2 방어: 전체를 try/catch로 감싸 예외 발생 시 안전 fallback으로 탈출 보장
       try {
       // GPT 권장: doRoute 시작 시점 값 스냅샷 고정 → 실행 중 외부 state 변경과 섞임 방지
@@ -500,8 +505,14 @@ function RootNav() {
       }
     }
 
+    console.log(`[AUTH COMPLETE][11b] doRoute() 호출`);
     doRoute();
   }, [kind, isLoading, isAuthenticating, adminUser?.role, adminUser?.swimming_pool_id, pool?.id, pool?.approval_status, pool?.subscription_status, activeRole, lastUsedTenant]);
+
+  // [AUTH COMPLETE][14] 로딩 플래그 최종 감시
+  useEffect(() => {
+    console.log(`[AUTH COMPLETE][14] 플래그 감시 — isLoading=${isLoading} isAuth=${isAuthenticating} hasRouted=${hasRouted} kind=${kind ?? "null"}`);
+  }, [isLoading, isAuthenticating, hasRouted, kind]);
 
   if (isLoading || (!!kind && !hasRouted && !poolLoadError)) return <AppLoadingScreen />;
 

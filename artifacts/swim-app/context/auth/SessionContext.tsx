@@ -147,13 +147,44 @@ interface SessionContextType {
 export const SessionContext = createContext<SessionContextType | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [kind, setKind] = useState<SessionKind | null>(null);
-  const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
-  const [parentAccount, setParentAccount] = useState<ParentAccount | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  // [AUTH COMPLETE] 공통 완료 체인 계측을 위해 setState 래퍼 사용
+  // 모든 로그인 경로(Apple/Kakao/일반/구글)에서 호출되는 공통 setter를 단일 지점에서 추적
+  const [kind, _setKind] = useState<SessionKind | null>(null);
+  const [adminUser, _setAdminUser] = useState<AdminUser | null>(null);
+  const [parentAccount, _setParentAccount] = useState<ParentAccount | null>(null);
+  const [token, _setToken] = useState<string | null>(null);
   const [pool, setPool] = useState<PoolInfo | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [isLoading, _setIsLoading] = useState(true);
+  const [isAuthenticating, _setIsAuthenticating] = useState(false);
+
+  function setToken(t: string | null) {
+    console.log(`[AUTH COMPLETE][4] setToken QUEUED → ${t ? "has_token" : "null"}`);
+    _setToken(t);
+    console.log(`[AUTH COMPLETE][5] setToken DONE (state update scheduled)`);
+  }
+  function setAdminUser(u: AdminUser | null | ((prev: AdminUser | null) => AdminUser | null)) {
+    if (typeof u !== "function") console.log(`[AUTH COMPLETE][6] setAdminUser QUEUED → role=${(u as AdminUser | null)?.role ?? "null"}`);
+    _setAdminUser(u as any);
+    if (typeof u !== "function") console.log(`[AUTH COMPLETE][7] setAdminUser DONE`);
+  }
+  function setParentAccount(p: ParentAccount | null | ((prev: ParentAccount | null) => ParentAccount | null)) {
+    if (typeof p !== "function") console.log(`[AUTH COMPLETE][6] setParentAccount QUEUED → id=${(p as ParentAccount | null)?.id?.substring(0,8) ?? "null"}`);
+    _setParentAccount(p as any);
+    if (typeof p !== "function") console.log(`[AUTH COMPLETE][7] setParentAccount DONE`);
+  }
+  function setKind(k: SessionKind | null) {
+    console.log(`[AUTH COMPLETE][8] setKind START → ${k}`);
+    _setKind(k);
+    console.log(`[AUTH COMPLETE][9] setKind DONE (next render will have kind=${k})`);
+  }
+  function setIsLoading(v: boolean | ((prev: boolean) => boolean)) {
+    if (typeof v === "boolean") console.log(`[AUTH COMPLETE][14a] setIsLoading → ${v}`);
+    _setIsLoading(v);
+  }
+  function setIsAuthenticating(v: boolean) {
+    console.log(`[AUTH COMPLETE][14b] setIsAuthenticating → ${v}`);
+    _setIsAuthenticating(v);
+  }
   const [allAccounts, setAllAccounts] = useState<AccountEntry[]>([]);
   const [ownedPools, setOwnedPools] = useState<OwnedPool[]>([]);
   const [parentJoinStatus, setParentJoinStatus] = useState<string | null>(null);
@@ -326,32 +357,48 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   async function activateAccount(entry: AccountEntry) {
     const { kind: k, token: t, user, parent, join_status, join_request_id } = entry;
-    await AsyncStorage.setItem("auth_token", t);
-    await AsyncStorage.setItem("auth_kind", k);
+    console.log(`[AUTH COMPLETE][1] API success → activateAccount 시작 kind=${k} role=${user?.role ?? "parent"}`);
+    console.log(`[AUTH COMPLETE][2] token save start`);
+    await Promise.race([
+      AsyncStorage.setItem("auth_token", t),
+      new Promise<void>((_, rej) => setTimeout(() => rej(new Error("AsyncStorage token timeout")), 3000)),
+    ]).catch(e => console.warn("[AUTH COMPLETE][2 ERR] token save 실패", e));
+    await Promise.race([
+      AsyncStorage.setItem("auth_kind", k),
+      new Promise<void>((_, rej) => setTimeout(() => rej(new Error("AsyncStorage kind timeout")), 3000)),
+    ]).catch(e => console.warn("[AUTH COMPLETE][2 ERR] kind save 실패", e));
+    console.log(`[AUTH COMPLETE][3] token save done → setState 시작`);
     setToken(t);
     setKind(k);
     if (k === "admin" && user) {
       const u = { ...user, roles: user.roles?.length ? user.roles : [user.role] };
-      await AsyncStorage.setItem("auth_admin", JSON.stringify(u));
+      await Promise.race([
+        AsyncStorage.setItem("auth_admin", JSON.stringify(u)),
+        new Promise<void>((_, rej) => setTimeout(() => rej(new Error("AsyncStorage admin timeout")), 3000)),
+      ]).catch(e => console.warn("[AUTH COMPLETE][3 ERR] admin save 실패", e));
       setAdminUser(u);
-      if (u.swimming_pool_id) await fetchPool(t);
+      if (u.swimming_pool_id) fetchPool(t).catch(() => {}); // 비동기 — await 제거 (블로킹 방지)
     } else if (k === "parent" && parent) {
-      await AsyncStorage.setItem("auth_parent", JSON.stringify(parent));
+      await Promise.race([
+        AsyncStorage.setItem("auth_parent", JSON.stringify(parent)),
+        new Promise<void>((_, rej) => setTimeout(() => rej(new Error("AsyncStorage parent timeout")), 3000)),
+      ]).catch(e => console.warn("[AUTH COMPLETE][3 ERR] parent save 실패", e));
       setParentAccount(parent);
       const js = join_status ?? "approved";
       const jri = join_request_id ?? null;
-      await AsyncStorage.setItem("parent_join_status", js);
-      if (jri) await AsyncStorage.setItem("parent_join_request_id", jri);
-      else await AsyncStorage.removeItem("parent_join_request_id");
+      await AsyncStorage.setItem("parent_join_status", js).catch(() => {});
+      if (jri) await AsyncStorage.setItem("parent_join_request_id", jri).catch(() => {});
+      else await AsyncStorage.removeItem("parent_join_request_id").catch(() => {});
       setParentJoinStatus(js);
       setParentJoinRequestId(jri);
       if ((parent as any).pool_name) {
         setParentPoolName((parent as any).pool_name);
         AsyncStorage.setItem("parent_pool_name", (parent as any).pool_name).catch(() => {});
       }
-      await fetchPool(t);
+      fetchPool(t).catch(() => {}); // 비동기 — await 제거 (블로킹 방지)
     }
-    await AsyncStorage.setItem("app_version", APP_VERSION);
+    AsyncStorage.setItem("app_version", APP_VERSION).catch(() => {}); // 비동기 — await 제거
+    console.log(`[AUTH COMPLETE][3b] activateAccount 완료 — kind=${k} 세팅됨`);
   }
 
   async function applyRoleSwitch(newToken: string, updatedUser: AdminUser) {
