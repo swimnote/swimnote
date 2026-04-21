@@ -437,7 +437,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setToken(data.token);
     setAdminUser(user);
     setKind("admin");
-    if (user.swimming_pool_id) await fetchPool(data.token);
+    if (user.swimming_pool_id) fetchPool(data.token).catch(() => {});
   }
 
   async function parentLogin(identifier: string, password: string) {
@@ -458,7 +458,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setParentPoolName(data.parent.pool_name);
       AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
     }
-    await fetchPool(data.token);
+    fetchPool(data.token).catch(() => {});
   }
 
   async function kakaoSocialLogin(accessToken: string) {
@@ -484,7 +484,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setToken(data.token);
       setAdminUser(u);
       setKind("admin");
-      if (u.swimming_pool_id) await fetchPool(data.token);
+      if (u.swimming_pool_id) fetchPool(data.token).catch(() => {});
     } else {
       await AsyncStorage.multiSet([
         ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
@@ -498,7 +498,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setParentPoolName(data.parent.pool_name);
         AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
       }
-      await fetchPool(data.token);
+      fetchPool(data.token).catch(() => {});
     }
   }
 
@@ -556,7 +556,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setParentPoolName(data.parent.pool_name);
       AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
     }
-    await fetchPool(data.token);
+    fetchPool(data.token).catch(() => {});
   }
 
   async function setParentSession(token: string, parent: ParentAccount) {
@@ -573,7 +573,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setKind("parent");
     setParentJoinStatus("approved");
     if (pname) setParentPoolName(pname);
-    await fetchPool(token);
+    fetchPool(token).catch(() => {});
   }
 
   async function setAdminSession(token: string, user: AdminUser) {
@@ -585,7 +585,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setToken(token);
     setAdminUser(userWithRoles);
     setKind("admin");
-    if (user.swimming_pool_id) await fetchPool(token);
+    if (user.swimming_pool_id) fetchPool(token).catch(() => {});
   }
 
   async function logout() {
@@ -633,7 +633,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   async function checkRolePermission(roleKey: string): Promise<boolean> {
     if (!token) return false;
     try {
-      if (roleKey === "parent") return !!parentAccount;
+      if (roleKey === "parent" || roleKey === "parent_account") return !!parentAccount;
       // 서버에서 현재 JWT 역할이 DB roles에 존재하는지 검증 (클라이언트 조작 방지)
       const res = await fetch(`${API_BASE}/auth/check-role-permission`, {
         method: "POST",
