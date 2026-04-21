@@ -132,30 +132,40 @@ export default function LoginScreen() {
 
   async function handleAppleLogin() {
     if (appleLoading) return;
+    const tid = "AL-" + Date.now().toString(36).toUpperCase();
+    console.log(`[AppleLogin][STEP1] 버튼 탭 traceId=${tid}`);
     setAppleLoading(true);
     setError("");
     try {
+      console.log(`[AppleLogin][STEP2 START] traceId=${tid} signInAsync 호출`);
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
+      console.log(`[AppleLogin][STEP2 OK] traceId=${tid} user=${credential.user?.substring(0,8)}*** hasToken=${!!credential.identityToken} hasFullName=${!!credential.fullName}`);
       if (!credential.identityToken) {
+        console.log(`[AppleLogin][STEP2 FAIL] traceId=${tid} identityToken 없음`);
         setError("Apple 인증 토큰을 받지 못했습니다. 다시 시도해주세요.");
         return;
       }
       const fullName = credential.fullName
         ? [credential.fullName.familyName, credential.fullName.givenName].filter(Boolean).join("")
         : null;
-      await appleSocialLogin(credential.identityToken, fullName);
+      console.log(`[AppleLogin][STEP3 START] traceId=${tid} appleSocialLogin 호출 fullName=${fullName ?? "없음"}`);
+      await appleSocialLogin(credential.identityToken, fullName, tid);
+      console.log(`[AppleLogin][STEP5 OK] traceId=${tid} appleSocialLogin 정상 완료 → 라우팅 대기`);
     } catch (e: any) {
       const code = e?.code ?? "";
       const errCode = e?.error_code ?? "";
+      console.log(`[AppleLogin][CATCH] traceId=${tid} code=${code} errCode=${errCode} msg=${e?.message}`);
       if (code === "ERR_REQUEST_CANCELED" || code === "ERR_CANCELED") {
+        console.log(`[AppleLogin][STEP2 CANCEL] traceId=${tid} 사용자 취소`);
         return;
       }
       if (errCode === "apple_no_account") {
+        console.log(`[AppleLogin][STEP4 NO_ACCOUNT] traceId=${tid} 계정 없음 → 가입 화면`);
         router.push({
           pathname: "/(auth)/signup",
           params: {
@@ -168,6 +178,7 @@ export default function LoginScreen() {
       }
       setError(e?.message || "Apple 로그인에 실패했습니다. 카카오 또는 일반 로그인을 이용해주세요.");
     } finally {
+      console.log(`[AppleLogin][FINALLY] traceId=${tid} appleLoading=false`);
       setAppleLoading(false);
     }
   }

@@ -298,7 +298,7 @@ function RootNav() {
     }
 
     async function doRoute() {
-      console.log(`[ROOTNAV] doRoute start kind=${kind} role=${adminUser?.role ?? "none"} activeRole=${activeRole ?? "none"}`);
+      console.log(`[AppleLogin][STEP6 ROUTE] doRoute kind=${kind} role=${adminUser?.role ?? "none"} activeRole=${activeRole ?? "none"} parentId=${parentAccount?.id?.substring(0,8) ?? "없음"} pool=${pool?.id?.substring(0,8) ?? "없음"}`);
       if (kind === "admin") {
         const role = adminUser?.role;
 
@@ -335,14 +335,17 @@ function RootNav() {
       }
 
       const targetRole = activeRole;
+      console.log(`[AppleLogin][STEP6 A] targetRole=${targetRole ?? "없음"} parentAccount=${!!parentAccount}`);
       if (targetRole) {
         const valid = await checkRolePermission(targetRole);
+        console.log(`[AppleLogin][STEP6 B] checkRolePermission(${targetRole})=${valid}`);
         if (valid) {
           const homePath = ROLE_HOME_MAP[targetRole];
           if (homePath) {
             didRoute.current = true;
             const uid = kind === "parent" ? parentAccount?.id : adminUser?.id;
             const onboardPath = await checkOnboarding(targetRole, uid);
+            console.log(`[AppleLogin][STEP6 NAVIGATE] → ${onboardPath ?? homePath} (onboard=${onboardPath ?? "없음"})`);
             router.replace((onboardPath ?? homePath) as any);
             return;
           }
@@ -350,6 +353,7 @@ function RootNav() {
       }
 
       const roleKeys = computeRoleKeys(allAccounts, kind, adminUser, parentAccount);
+      console.log(`[AppleLogin][STEP6 C] roleKeys=[${roleKeys.join(",")}] allAccounts=${allAccounts.length}`);
       if (roleKeys.length === 1) {
         const roleKey = roleKeys[0];
         const homePath = ROLE_HOME_MAP[roleKey];
@@ -358,6 +362,7 @@ function RootNav() {
           await setActiveRole(roleKey);
           const uid = kind === "parent" ? parentAccount?.id : adminUser?.id;
           const onboardPath = await checkOnboarding(roleKey, uid);
+          console.log(`[AppleLogin][STEP6 NAVIGATE] → ${onboardPath ?? homePath} (role=${roleKey} onboard=${onboardPath ?? "없음"})`);
           router.replace((onboardPath ?? homePath) as any);
           return;
         }
@@ -381,6 +386,7 @@ function RootNav() {
         }
       }
 
+      console.log(`[AppleLogin][STEP6 FALLBACK] roleKeys=[${roleKeys.join(",")}] → org-role-select`);
       didRoute.current = true;
       router.replace("/org-role-select");
     }

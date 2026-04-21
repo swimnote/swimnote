@@ -112,7 +112,7 @@ interface SessionContextType {
   adminLogin: (email: string, password: string) => Promise<void>;
   parentLogin: (identifier: string, password: string) => Promise<void>;
   kakaoSocialLogin: (accessToken: string) => Promise<void>;
-  appleSocialLogin: (identityToken: string, fullName?: string | null) => Promise<void>;
+  appleSocialLogin: (identityToken: string, fullName?: string | null, traceId?: string) => Promise<void>;
   setParentSession: (token: string, parent: ParentAccount) => Promise<void>;
   setAdminSession: (token: string, user: AdminUser) => Promise<void>;
   logout: () => Promise<void>;
@@ -502,20 +502,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function appleSocialLogin(identityToken: string, fullName?: string | null) {
+  async function appleSocialLogin(identityToken: string, fullName?: string | null, traceId?: string) {
+    const tid = traceId ?? ("AL-" + Date.now().toString(36).toUpperCase());
+    const url = `${API_BASE}/auth/apple-social-login`;
+    console.log(`[AppleLogin][STEP3 FETCH] traceId=${tid} url=${url} tokenLen=${identityToken?.length ?? 0}`);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
+    const timer = setTimeout(() => {
+      console.log(`[AppleLogin][STEP3 ABORT] traceId=${tid} 20s 타임아웃 → abort`);
+      controller.abort();
+    }, 20000);
     let res: Response;
     try {
-      res = await fetch(`${API_BASE}/auth/apple-social-login`, {
+      res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identityToken, fullName }),
         signal: controller.signal,
       });
+      console.log(`[AppleLogin][STEP4 OK] traceId=${tid} HTTP=${res.status}`);
     } catch (fetchErr: any) {
       const isTimeout = fetchErr?.name === "AbortError";
-      console.error("[appleSocialLogin] 서버 연결 실패:", isTimeout ? "타임아웃(20s)" : fetchErr?.message);
+      console.error(`[AppleLogin][STEP4 FAIL] traceId=${tid} timeout=${isTimeout} err=${fetchErr?.message}`);
       throw Object.assign(
         new Error(isTimeout
           ? "서버 응답이 너무 늦습니다. 잠시 후 다시 시도해주세요."
@@ -527,9 +534,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       clearTimeout(timer);
     }
     const data = await safeJson(res);
-    console.log("[appleSocialLogin] 서버 응답:", res.status, data?.success ? "success" : data?.error_code,
-      "| type:", data?.user ? "admin/teacher" : data?.parent ? "parent" : "unknown");
+    console.log(`[AppleLogin][STEP4 BODY] traceId=${tid} success=${data?.success} errCode=${data?.error_code ?? "없음"} type=${data?.user ? "admin" : data?.parent ? "parent" : "unknown"}`);
     if (!res.ok) {
+      console.log(`[AppleLogin][STEP4 ERR] traceId=${tid} status=${res.status} code=${data?.error_code}`);
       throw Object.assign(new Error(data.message || data.error || "Apple 로그인에 실패했습니다."), {
         error_code: data.error_code || "unknown",
         apple_info: data.apple_info || null,
@@ -538,16 +545,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     // 관리자·선생님 계정 (users 테이블) → data.user 반환
     if (data.user) {
-      console.log("[appleSocialLogin] admin/teacher 계정 로그인 — role:", data.user.role);
+      console.log(`[AppleLogin][STEP5 ADMIN] traceId=${tid} role=${data.user.role} → setAdminSession`);
       await setAdminSession(data.token, data.user);
       return;
     }
 
     // 학부모 계정 (parent_accounts 테이블) → data.parent 반환
+    console.log(`[AppleLogin][STEP5 PARENT] traceId=${tid} parentId=${data.parent?.id?.substring(0,8)}*** poolId=${data.parent?.swimming_pool_id ?? "없음"} → AsyncStorage 저장`);
     await AsyncStorage.multiSet([
       ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
       ["parent_join_status", "approved"], ["app_version", APP_VERSION],
     ]);
+    console.log(`[AppleLogin][STEP5 STORAGE OK] traceId=${tid} → setState 호출`);
     setToken(data.token);
     setParentAccount(data.parent);
     setKind("parent");
@@ -556,6 +565,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setParentPoolName(data.parent.pool_name);
       AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
     }
+    console.log(`[AppleLogin][STEP5 DONE] traceId=${tid} kind=parent → fetchPool 백그라운드 시작`);
     fetchPool(data.token).catch(() => {});
   }
 
