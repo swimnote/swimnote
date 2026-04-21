@@ -15,6 +15,7 @@ import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { useToast } from "@/components/common/Toast";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useDebugLog } from "@/context/DebugLogContext";
 import { validateName, validatePhone, normalizePhone } from "@/utils/validation";
 
 const C = Colors.light;
@@ -40,6 +41,7 @@ function Field({ label, value, onChangeText, placeholder, secureEntry = false, k
 
 export default function ParentProfileScreen() {
   const { token, parentAccount, updateParentProfile, logout } = useAuth();
+  const { showOverlay } = useDebugLog();
   const insets = useSafeAreaInsets();
   const { showToast, ToastComponent } = useToast();
 
@@ -246,6 +248,16 @@ export default function ParentProfileScreen() {
               onPress={() => { setDeleteConfirmText(""); setDeleteMsg(""); setDeleteVisible(true); }}
             >
               <Text style={s.deleteBtnTxt}>계정 탈퇴하기</Text>
+            </Pressable>
+
+            {/* 디버그 로그 버튼 */}
+            <Pressable
+              onPress={showOverlay}
+              style={{ alignItems: "center", paddingVertical: 12 }}
+            >
+              <Text style={{ fontSize: 11, color: "#94A3B8", fontFamily: "Pretendard-Regular" }}>
+                🔍 디버그 로그 보기
+              </Text>
             </Pressable>
           </View>
         </ScrollView>

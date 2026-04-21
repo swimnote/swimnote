@@ -22,6 +22,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useDebugLog } from "@/context/DebugLogContext";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
@@ -52,6 +53,7 @@ function fmtBytes(bytes: number): string {
 export default function TeacherSettingsScreen() {
   const { token, logout } = useAuth();
   const { themeColor } = useBrand();
+  const { showOverlay } = useDebugLog();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("settings");
 
@@ -348,6 +350,16 @@ export default function TeacherSettingsScreen() {
           onPress={() => setDeleteConfirm(true)}
         >
           <Text style={s.deleteBtnText}>회원 탈퇴</Text>
+        </Pressable>
+
+        {/* 디버그 로그 버튼 */}
+        <Pressable
+          onPress={showOverlay}
+          style={{ alignItems: "center", paddingVertical: 12 }}
+        >
+          <Text style={{ fontSize: 11, color: "#94A3B8", fontFamily: "Pretendard-Regular" }}>
+            🔍 디버그 로그 보기
+          </Text>
         </Pressable>
 
       </ScrollView>

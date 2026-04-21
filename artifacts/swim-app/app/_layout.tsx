@@ -66,38 +66,24 @@ function AppLoadingScreen() {
   );
 }
 
-// 5번 탭 → 디버그 로그 오버레이 열기/닫기
-// 화면 우측 상단 모서리에 투명 버튼 (50x80)
+// 화면 하단 중앙 롱프레스(3초) → 디버그 로그 오버레이 열기/닫기
+// 각 설정 화면의 "🔍 디버그 로그 보기" 버튼이 주 진입 경로
+// 이 컴포넌트는 보조 수단으로, 화면 하단 중앙 투명 영역에서만 동작
 function DebugTapTarget() {
-  const { handleHiddenTap, tapCount } = useDebugLog();
+  const { toggleOverlay } = useDebugLog();
   return (
     <Pressable
-      onPress={handleHiddenTap}
+      onLongPress={toggleOverlay}
+      delayLongPress={3000}
       style={{
         position: "absolute",
-        top: 0,
-        right: 0,
-        width: 60,
-        height: 80,
+        bottom: 0,
+        left: "25%",
+        width: "50%",
+        height: 36,
         zIndex: 9998,
-        // 개발 확인용: backgroundColor: "rgba(255,0,0,0.2)"
       }}
-      hitSlop={0}
-    >
-      {tapCount > 0 && tapCount < 5 && (
-        <View style={{
-          position: "absolute",
-          bottom: 4,
-          right: 4,
-          backgroundColor: "rgba(0,0,0,0.45)",
-          borderRadius: 10,
-          paddingHorizontal: 6,
-          paddingVertical: 2,
-        }}>
-          <Text style={{ color: "#fff", fontSize: 10 }}>{tapCount}/5</Text>
-        </View>
-      )}
-    </Pressable>
+    />
   );
 }
 

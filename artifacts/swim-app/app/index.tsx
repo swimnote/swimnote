@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
+import { useDebugLog } from "@/context/DebugLogContext";
 import { toAsciiOnly } from "@/utils/koreanToQwerty";
 import { login as kakaoLogin } from "@react-native-seoul/kakao-login";
 import * as AppleAuthentication from "expo-apple-authentication";
@@ -39,6 +40,7 @@ function KakaoIcon({ size = 22 }: { size?: number }) {
 export default function LoginScreen() {
   console.log("[LOGIN] RENDER_START");
   const { unifiedLogin, kakaoSocialLogin, appleSocialLogin } = useAuth();
+  const { showOverlay } = useDebugLog();
   const insets = useSafeAreaInsets();
   const pwRef  = useRef<TextInput>(null);
 
@@ -396,6 +398,17 @@ export default function LoginScreen() {
             </Pressable>
           </View>
         </View>
+
+        {/* 디버그 롱프레스 영역 — 3초 길게 누르면 로그 오버레이 열림 */}
+        <Pressable
+          onLongPress={showOverlay}
+          delayLongPress={3000}
+          style={{ alignItems: "center", paddingVertical: 14 }}
+        >
+          <Text style={{ fontSize: 10, color: "#CBD5E1", fontFamily: "Pretendard-Regular" }}>
+            SwimNote
+          </Text>
+        </Pressable>
 
         </View>{/* ── 하단 그룹 끝 ── */}
       </ScrollView>
