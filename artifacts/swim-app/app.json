@@ -20,7 +20,6 @@
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.applesignin": [
-          "Default",
           "Default"
         ]
       },
@@ -38,15 +37,6 @@
           "kakaoplus",
           "kakaonavi",
           "kakaomail",
-          "kakaoopen",
-          "kakaokompassauth",
-          "storekvstore",
-          "kakaolink",
-          "kakaotalk",
-          "kakaostory",
-          "kakaoplus",
-          "kakaonavi",
-          "kakaomail",
           "kakaoopen"
         ]
       }
@@ -54,7 +44,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.swimnote.app",
-      "versionCode": 122,
+      "versionCode": 126,
       "edgeToEdge": true,
       "allowBackup": false,
       "permissions": [
@@ -63,23 +53,7 @@
         "android.permission.VIBRATE",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.RECORD_AUDIO",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_MEDIA_VIDEO",
-        "android.permission.READ_MEDIA_AUDIO",
-        "android.permission.CAMERA",
-        "android.permission.INTERNET",
-        "android.permission.VIBRATE",
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_MEDIA_VIDEO",
-        "android.permission.READ_MEDIA_AUDIO"
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
       ]
     },
     "web": {
