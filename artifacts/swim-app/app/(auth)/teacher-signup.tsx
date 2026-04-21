@@ -113,7 +113,7 @@ export default function TeacherSignupScreen() {
         const data = await res.json();
         if (!res.ok) { setError(data.error || data.message || "가입 실패"); return; }
         await setAdminSession(data.token, data.user);
-        router.replace("/(admin)/dashboard" as any);
+        finishLogin("admin", data.user, null, data.token);
       } else {
         /* ── 소속 수영장 (선생님) ── */
         const res = await fetch(`${API_BASE}/auth/teacher-self-signup`, {
@@ -130,7 +130,7 @@ export default function TeacherSignupScreen() {
         const data = await res.json();
         if (!res.ok) { setError(data.error || data.message || "가입 실패"); return; }
         await setAdminSession(data.token, data.user);
-        finishLogin("admin", data.user);
+        finishLogin("admin", data.user, null, data.token);
       }
     } catch { setError("서버 오류가 발생했습니다."); }
     finally   { setLoading(false); }

@@ -111,10 +111,10 @@ export default function KakaoLinkScreen() {
 
       if (data.kind === "admin" && data.user) {
         await setAdminSession(data.token, data.user);
-        finishLogin("admin", data.user);
+        finishLogin("admin", data.user, null, data.token);
       } else {
         await setParentSession(data.token, data.parent);
-        finishLogin("parent", null, data.parent);
+        finishLogin("parent", null, data.parent, data.token);
       }
     } catch {
       setError("네트워크 오류가 발생했습니다.");

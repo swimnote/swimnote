@@ -358,7 +358,7 @@ export default function SignupScreen() {
         }
         if (data.token) {
           await setParentSession(data.token, data.parent);
-          finishLogin("parent", null, data.parent);
+          finishLogin("parent", null, data.parent, data.token);
           return;
         }
       }
@@ -366,7 +366,7 @@ export default function SignupScreen() {
       // 서버가 token을 바로 반환하면 바로 세션 설정, 아니면 일반 로그인
       if (data?.token && data?.user) {
         await setAdminSession(data.token, data.user);
-        finishLogin("admin", data.user);
+        finishLogin("admin", data.user, null, data.token);
       } else {
         await unifiedLogin(effectiveLoginId, effectivePw);
       }
