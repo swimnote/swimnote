@@ -20,6 +20,7 @@
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.applesignin": [
+          "Default",
           "Default"
         ]
       },
@@ -29,6 +30,15 @@
         "NSPhotoLibraryAddUsageDescription": "SwimNote saves photos to your photo library when you download lesson diary images or class photos shared by your swimming instructor.",
         "NSCameraUsageDescription": "SwimNote uses the camera to take photos directly for lesson diaries and class progress documentation. For example, a teacher can photograph a student's swimming form to include in the lesson record.",
         "LSApplicationQueriesSchemes": [
+          "kakaokompassauth",
+          "storekvstore",
+          "kakaolink",
+          "kakaotalk",
+          "kakaostory",
+          "kakaoplus",
+          "kakaonavi",
+          "kakaomail",
+          "kakaoopen",
           "kakaokompassauth",
           "storekvstore",
           "kakaolink",
@@ -51,7 +61,25 @@
         "android.permission.CAMERA",
         "android.permission.INTERNET",
         "android.permission.VIBRATE",
-        "android.permission.RECEIVE_BOOT_COMPLETED"
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.INTERNET",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
       ]
     },
     "web": {
@@ -118,6 +146,12 @@
         "projectId": "7d0e0faa-32d8-4f40-88c4-2c99e0613afc"
       }
     },
-    "owner": "swimnote"
+    "owner": "swimnote",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/7d0e0faa-32d8-4f40-88c4-2c99e0613afc"
+    }
   }
 }
