@@ -48,6 +48,7 @@ export function useAuth() {
     pool: session.pool,
     parentPoolName: session.parentPoolName,
     isLoading: session.isLoading,
+    isAuthenticating: session.isAuthenticating,
     allAccounts: session.allAccounts,
     ownedPools: session.ownedPools,
     parentJoinStatus: session.parentJoinStatus,

@@ -234,16 +234,23 @@ function PushNavSync() {
 function RootNav() {
   console.log("[ROOTNAV] RENDER_START");
   const {
-    kind, isLoading, adminUser, parentAccount, pool,
+    kind, isLoading, isAuthenticating, adminUser, parentAccount, pool,
     activeRole, activePoolId, lastUsedTenant, allAccounts, checkRolePermission, setActiveRole, token, refreshPool,
   } = useAuth();
-  console.log(`[ROOTNAV] state: isLoading=${isLoading} kind=${kind} role=${adminUser?.role ?? "none"} activeRole=${activeRole ?? "none"}`);
+  console.log(`[ROOTNAV] state: isLoading=${isLoading} isAuth=${isAuthenticating} kind=${kind} role=${adminUser?.role ?? "none"} activeRole=${activeRole ?? "none"}`);
   const segments = useSegments();
   const didRoute = useRef(false);
   const [hasRouted, setHasRouted] = useState(false);
-  const poolTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 타이머 2개 분리 (GPT 권장: 하나의 ref로 2단계 타이머 관리하면 race condition 위험)
+  const firstWaitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const poolRetryRef = useRef(0);
   const [poolLoadError, setPoolLoadError] = useState(false);
+
+  function clearPoolTimers() {
+    if (firstWaitTimerRef.current) { clearTimeout(firstWaitTimerRef.current); firstWaitTimerRef.current = null; }
+    if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
+  }
 
   const APP_ROOTS = [
     "(admin)", "(super)", "(teacher)", "(parent)", "(auth)",
@@ -266,12 +273,17 @@ function RootNav() {
     if (isLoading) return;
 
     if (!kind) {
+      // isAuthenticating=true면 소셜 로그인 API 진행 중 → 아직 kind가 settle 안 됨 → 로그인 화면 복귀 금지
+      if (isAuthenticating) {
+        console.log("[ROOTNAV] !kind but isAuthenticating=true → skip redirect (auth settling)");
+        return;
+      }
       console.log("[ROOTNAV] no session → router.replace('/')");
       didRoute.current = false;
       setHasRouted(false);
       poolRetryRef.current = 0;
       setPoolLoadError(false);
-      if (poolTimeoutRef.current) { clearTimeout(poolTimeoutRef.current); poolTimeoutRef.current = null; }
+      clearPoolTimers();
       router.replace("/");
       return;
     }
@@ -280,9 +292,10 @@ function RootNav() {
 
     function navigate(path: string) {
       if (didRoute.current) return;
+      console.log(`[ROUTE] navigate → ${path}`);
       didRoute.current = true;
       setHasRouted(true);
-      if (poolTimeoutRef.current) { clearTimeout(poolTimeoutRef.current); poolTimeoutRef.current = null; }
+      clearPoolTimers();
       router.replace(path as any);
     }
 
@@ -317,9 +330,17 @@ function RootNav() {
     }
 
     async function doRoute() {
-      console.log(`[ROUTE] doRoute kind=${kind} role=${adminUser?.role ?? "none"} activeRole=${activeRole ?? "none"} pool=${pool?.id?.substring(0,8) ?? "없음"}`);
-      if (kind === "admin") {
-        const role = adminUser?.role;
+      // GPT 권장: doRoute 시작 시점 값 스냅샷 고정 → 실행 중 외부 state 변경과 섞임 방지
+      const snapKind = kind;
+      const snapRole = adminUser?.role;
+      const snapPoolId = adminUser?.swimming_pool_id;
+      const snapPool = pool;
+      const snapActiveRole = activeRole;
+      const cycleId = Date.now().toString(36).toUpperCase();
+      console.log(`[ROUTE][${cycleId}] doRoute start kind=${snapKind} role=${snapRole ?? "none"} activeRole=${snapActiveRole ?? "none"} pool=${snapPool?.id?.substring(0,8) ?? "없음"}`);
+
+      if (snapKind === "admin") {
+        const role = snapRole;
 
         if (role === "super_admin" || role === "platform_admin" || role === "super_manager") {
           const homePath = ROLE_HOME_MAP[role];
@@ -332,38 +353,36 @@ function RootNav() {
 
         if (role === "pool_admin") {
           // swimming_pool_id 없음 = 실제로 수영장 미등록 → pool-apply
-          if (!adminUser?.swimming_pool_id) {
+          if (!snapPoolId) {
             navigate("/pool-apply");
             return;
           }
           // swimming_pool_id 있는데 pool 데이터 아직 미수신 = 네트워크 지연
-          if (!pool) {
-            if (!poolTimeoutRef.current) {
-              poolTimeoutRef.current = setTimeout(() => {
-                poolTimeoutRef.current = null;
+          if (!snapPool) {
+            if (!firstWaitTimerRef.current && !retryTimerRef.current) {
+              console.log(`[ROUTE][${cycleId}] pool 없음 → 1차 대기 4s 시작`);
+              firstWaitTimerRef.current = setTimeout(() => {
+                firstWaitTimerRef.current = null;
                 if (didRoute.current) return;
-                if (poolRetryRef.current === 0) {
-                  // 1차 타임아웃(4s): refreshPool 재시도 후 4초 더 대기
-                  poolRetryRef.current = 1;
-                  console.log("[ROUTE] pool 1차 타임아웃(4s) → refreshPool 재시도");
-                  refreshPool();
-                  // 2차 타임아웃(4s): 그래도 없으면 대시보드로 강제 이동
-                  poolTimeoutRef.current = setTimeout(() => {
-                    poolTimeoutRef.current = null;
-                    if (didRoute.current) return;
-                    console.log("[ROUTE] pool 2차 타임아웃(8s 누적) → 대시보드 강제 이동");
-                    navigate("/(admin)/dashboard");
-                  }, 4000);
-                }
+                console.log(`[ROUTE][${cycleId}] pool 1차 타임아웃(4s) → refreshPool 재시도`);
+                poolRetryRef.current = 1;
+                refreshPool();
+                // 2차 타이머: refreshPool 후 4초 더 대기, 그래도 없으면 대시보드 강제 이동
+                retryTimerRef.current = setTimeout(() => {
+                  retryTimerRef.current = null;
+                  if (didRoute.current) return;
+                  console.log(`[ROUTE][${cycleId}] pool 2차 타임아웃(8s 누적) → 대시보드 강제 이동`);
+                  navigate("/(admin)/dashboard");
+                }, 4000);
               }, 4000);
             }
             return;
           }
           poolRetryRef.current = 0;
           setPoolLoadError(false);
-          if (poolTimeoutRef.current) { clearTimeout(poolTimeoutRef.current); poolTimeoutRef.current = null; }
-          if (pool.approval_status === "pending") { navigate("/pending"); return; }
-          if (pool.approval_status === "rejected") { navigate("/rejected"); return; }
+          clearPoolTimers();
+          if (snapPool.approval_status === "pending") { navigate("/pending"); return; }
+          if (snapPool.approval_status === "rejected") { navigate("/rejected"); return; }
           try {
             const poolsRes = await apiRequest(token, "/pools/my-pools");
             const pools = await poolsRes.json();
@@ -375,32 +394,36 @@ function RootNav() {
         }
       }
 
-      const targetRole = activeRole;
-      console.log(`[ROUTE] targetRole=${targetRole ?? "없음"} parentAccount=${!!parentAccount}`);
+      const targetRole = snapActiveRole;
+      console.log(`[ROUTE][${cycleId}] targetRole=${targetRole ?? "없음"} parentAccount=${!!parentAccount}`);
       if (targetRole) {
         const valid = await checkRolePermission(targetRole);
+        if (didRoute.current) return; // 비동기 대기 중 이미 라우팅됐으면 중단
         if (valid) {
           const homePath = ROLE_HOME_MAP[targetRole];
           if (homePath) {
-            const uid = kind === "parent" ? parentAccount?.id : adminUser?.id;
+            const uid = snapKind === "parent" ? parentAccount?.id : adminUser?.id;
             const onboardPath = await checkOnboarding(targetRole, uid);
-            console.log(`[ROUTE] NAVIGATE → ${onboardPath ?? homePath}`);
+            if (didRoute.current) return;
+            console.log(`[ROUTE][${cycleId}] NAVIGATE → ${onboardPath ?? homePath}`);
             navigate(onboardPath ?? homePath);
             return;
           }
         }
       }
 
-      const roleKeys = computeRoleKeys(allAccounts, kind, adminUser, parentAccount);
-      console.log(`[ROUTE] roleKeys=[${roleKeys.join(",")}] allAccounts=${allAccounts.length}`);
+      const roleKeys = computeRoleKeys(allAccounts, snapKind, adminUser, parentAccount);
+      console.log(`[ROUTE][${cycleId}] roleKeys=[${roleKeys.join(",")}] allAccounts=${allAccounts.length}`);
       if (roleKeys.length === 1) {
         const roleKey = roleKeys[0];
         const homePath = ROLE_HOME_MAP[roleKey];
         if (homePath) {
           await setActiveRole(roleKey);
-          const uid = kind === "parent" ? parentAccount?.id : adminUser?.id;
+          if (didRoute.current) return;
+          const uid = snapKind === "parent" ? parentAccount?.id : adminUser?.id;
           const onboardPath = await checkOnboarding(roleKey, uid);
-          console.log(`[ROUTE] NAVIGATE → ${onboardPath ?? homePath} (role=${roleKey})`);
+          if (didRoute.current) return;
+          console.log(`[ROUTE][${cycleId}] NAVIGATE → ${onboardPath ?? homePath} (role=${roleKey})`);
           navigate(onboardPath ?? homePath);
           return;
         }
@@ -416,18 +439,20 @@ function RootNav() {
           : (adminRole || teacherRole);
         if (chosen) {
           await setActiveRole(chosen);
+          if (didRoute.current) return;
           const onboardPath = await checkOnboarding(chosen, adminUser?.id);
+          if (didRoute.current) return;
           navigate(onboardPath ?? ROLE_HOME_MAP[chosen] ?? "/org-role-select");
           return;
         }
       }
 
-      console.log(`[ROUTE] FALLBACK roleKeys=[${roleKeys.join(",")}] → org-role-select`);
+      console.log(`[ROUTE][${cycleId}] FALLBACK roleKeys=[${roleKeys.join(",")}] → org-role-select`);
       navigate("/org-role-select");
     }
 
     doRoute();
-  }, [kind, isLoading, adminUser?.role, adminUser?.swimming_pool_id, pool?.id, pool?.approval_status, pool?.subscription_status, activeRole, lastUsedTenant]);
+  }, [kind, isLoading, isAuthenticating, adminUser?.role, adminUser?.swimming_pool_id, pool?.id, pool?.approval_status, pool?.subscription_status, activeRole, lastUsedTenant]);
 
   if (isLoading || (!!kind && !hasRouted && !poolLoadError)) return <AppLoadingScreen />;
 
@@ -444,8 +469,9 @@ function RootNav() {
           onPress={() => {
             setPoolLoadError(false);
             setHasRouted(false);
+            didRoute.current = false;
             poolRetryRef.current = 0;
-            if (poolTimeoutRef.current) { clearTimeout(poolTimeoutRef.current); poolTimeoutRef.current = null; }
+            clearPoolTimers();
             refreshPool();
           }}
           style={{ backgroundColor: "#3B82F6", paddingHorizontal: 32, paddingVertical: 14, borderRadius: 10 }}

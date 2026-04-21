@@ -103,6 +103,7 @@ interface SessionContextType {
   pool: PoolInfo | null;
   parentPoolName: string | null;
   isLoading: boolean;
+  isAuthenticating: boolean;
   allAccounts: AccountEntry[];
   ownedPools: OwnedPool[];
   parentJoinStatus: string | null;
@@ -136,6 +137,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [pool, setPool] = useState<PoolInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [allAccounts, setAllAccounts] = useState<AccountEntry[]>([]);
   const [ownedPools, setOwnedPools] = useState<OwnedPool[]>([]);
   const [parentJoinStatus, setParentJoinStatus] = useState<string | null>(null);
@@ -474,47 +476,53 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }
 
   async function kakaoSocialLogin(accessToken: string) {
-    const res = await fetch(`${API_BASE}/auth/kakao-social-login`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accessToken }),
-    });
-    const data = await safeJson(res);
-    if (!res.ok) {
-      throw Object.assign(new Error(data.message || "카카오 로그인에 실패했습니다."), {
-        error_code: data.error_code || "unknown",
-        kakao_info: data.kakao_info || null,
-        needs_activation: data.needs_activation || false,
-        teacher_id: data.teacher_id || null,
+    setIsAuthenticating(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/kakao-social-login`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken }),
       });
-    }
-    if (data.kind === "admin" && data.user) {
-      const u = { ...data.user, roles: data.user.roles?.length ? data.user.roles : [data.user.role] };
-      await AsyncStorage.multiSet([
-        ["auth_token", data.token], ["auth_kind", "admin"], ["auth_admin", JSON.stringify(u)],
-        ["app_version", APP_VERSION],
-      ]);
-      setToken(data.token);
-      setAdminUser(u);
-      setKind("admin");
-      if (u.swimming_pool_id) fetchPool(data.token).catch(() => {});
-    } else {
-      await AsyncStorage.multiSet([
-        ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
-        ["parent_join_status", "approved"], ["app_version", APP_VERSION],
-      ]);
-      setToken(data.token);
-      setParentAccount(data.parent);
-      setKind("parent");
-      setParentJoinStatus("approved");
-      if (data.parent?.pool_name) {
-        setParentPoolName(data.parent.pool_name);
-        AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
+      const data = await safeJson(res);
+      if (!res.ok) {
+        throw Object.assign(new Error(data.message || "카카오 로그인에 실패했습니다."), {
+          error_code: data.error_code || "unknown",
+          kakao_info: data.kakao_info || null,
+          needs_activation: data.needs_activation || false,
+          teacher_id: data.teacher_id || null,
+        });
       }
-      fetchPool(data.token).catch(() => {});
+      if (data.kind === "admin" && data.user) {
+        const u = { ...data.user, roles: data.user.roles?.length ? data.user.roles : [data.user.role] };
+        await AsyncStorage.multiSet([
+          ["auth_token", data.token], ["auth_kind", "admin"], ["auth_admin", JSON.stringify(u)],
+          ["app_version", APP_VERSION],
+        ]);
+        setToken(data.token);
+        setAdminUser(u);
+        setKind("admin");
+        if (u.swimming_pool_id) fetchPool(data.token).catch(() => {});
+      } else {
+        await AsyncStorage.multiSet([
+          ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
+          ["parent_join_status", "approved"], ["app_version", APP_VERSION],
+        ]);
+        setToken(data.token);
+        setParentAccount(data.parent);
+        setKind("parent");
+        setParentJoinStatus("approved");
+        if (data.parent?.pool_name) {
+          setParentPoolName(data.parent.pool_name);
+          AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
+        }
+        fetchPool(data.token).catch(() => {});
+      }
+    } finally {
+      setIsAuthenticating(false);
     }
   }
 
   async function appleSocialLogin(identityToken: string, fullName?: string | null, traceId?: string) {
+    setIsAuthenticating(true);
     const tid = traceId ?? ("AL-" + Date.now().toString(36).toUpperCase());
     const url = `${API_BASE}/auth/apple-social-login`;
     console.log(`[AppleLogin][STEP3 FETCH] traceId=${tid} url=${url} tokenLen=${identityToken?.length ?? 0}`);
@@ -535,6 +543,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } catch (fetchErr: any) {
       const isTimeout = fetchErr?.name === "AbortError";
       console.error(`[AppleLogin][STEP4 FAIL] traceId=${tid} timeout=${isTimeout} err=${fetchErr?.message}`);
+      setIsAuthenticating(false);
       throw Object.assign(
         new Error(isTimeout
           ? "서버 응답이 너무 늦습니다. 잠시 후 다시 시도해주세요."
@@ -549,6 +558,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     console.log(`[AppleLogin][STEP4 BODY] traceId=${tid} success=${data?.success} errCode=${data?.error_code ?? "없음"} type=${data?.user ? "admin" : data?.parent ? "parent" : "unknown"}`);
     if (!res.ok) {
       console.log(`[AppleLogin][STEP4 ERR] traceId=${tid} status=${res.status} code=${data?.error_code}`);
+      setIsAuthenticating(false);
       throw Object.assign(new Error(data.message || data.error || "Apple 로그인에 실패했습니다."), {
         error_code: data.error_code || "unknown",
         apple_info: data.apple_info || null,
@@ -559,6 +569,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (data.user) {
       console.log(`[AppleLogin][STEP5 ADMIN] traceId=${tid} role=${data.user.role} → setAdminSession`);
       await setAdminSession(data.token, data.user);
+      setIsAuthenticating(false);
       return;
     }
 
@@ -579,6 +590,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
     console.log(`[AppleLogin][STEP5 DONE] traceId=${tid} kind=parent → fetchPool 백그라운드 시작`);
     fetchPool(data.token).catch(() => {});
+    setIsAuthenticating(false);
   }
 
   async function setParentSession(token: string, parent: ParentAccount) {
@@ -673,7 +685,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   return (
     <SessionContext.Provider value={{
-      kind, adminUser, parentAccount, token, pool, parentPoolName, isLoading,
+      kind, adminUser, parentAccount, token, pool, parentPoolName, isLoading, isAuthenticating,
       allAccounts, ownedPools, parentJoinStatus, parentJoinRequestId,
       unifiedLogin, completeTotpLogin, adminLogin, parentLogin, kakaoSocialLogin, appleSocialLogin, setParentSession, setAdminSession,
       logout, refreshPool, loadOwnedPools, switchPool,
