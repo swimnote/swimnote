@@ -6,6 +6,7 @@ android
 ios
 *.log
 .git
+.local
 attached_assets
 screenshots
 __tests__
