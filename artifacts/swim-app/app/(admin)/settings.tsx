@@ -61,7 +61,8 @@ const MY_SETTINGS: MenuItem[] = [
 ];
 
 export default function SettingsScreen() {
-  const { adminUser, switchRole, token, logout } = useAuth();
+  const { adminUser, switchRole, token, logout, pool } = useAuth();
+  const isPaidPlan = adminUser?.role === "pool_admin" && !!pool?.subscription_tier && pool.subscription_tier !== "free";
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("settings");
@@ -306,6 +307,7 @@ export default function SettingsScreen() {
         onClose={() => setDeleteConfirm(false)}
         onConfirm={handleDeleteAccount}
         loading={deleteLoading}
+        isPaidPlan={isPaidPlan}
       />
 
       {/* 역할 전환 모달 */}

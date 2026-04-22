@@ -857,9 +857,23 @@ router.post("/unified-login", async (req, res) => {
       } else {
         // ── 탈퇴 예정 계정 체크 (90일 유예 중) ────────────────────────
         if ((user as any).withdrawal_requested_at) {
+          // 이메일 익명화 여부로 즉시삭제(차단) vs 90일유예(읽기전용) 구분
+          const isAnonymized = String((user as any).email ?? "").startsWith("deleted_") && String((user as any).email ?? "").endsWith("@deleted.local");
+          if (isAnonymized) {
+            res.status(401).json({ success: false, error: "탈퇴 처리된 계정입니다.", error_code: "account_withdrawn" }); return;
+          }
+          // 90일 유예 → 읽기 전용 토큰 발급 허용
           const deletionAt = new Date(new Date((user as any).withdrawal_requested_at).getTime() + 90 * 24 * 60 * 60 * 1000);
           const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86400000));
-          res.status(403).json({ success: false, error: `탈퇴 처리 중인 계정입니다. ${daysLeft}일 후 완전히 삭제됩니다.`, error_code: "withdrawal_in_progress", days_until_deletion: daysLeft }); return;
+          const wToken = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id, withdrawing: true });
+          const { password_hash: _pw2, ...safeWUser } = user as any;
+          const wKind = user.role === "pool_admin" ? "admin" : "teacher";
+          res.json({
+            success: true, withdrawing: true, days_until_deletion: daysLeft,
+            available_accounts: [{ kind: wKind, token: wToken, withdrawing: true, days_until_deletion: daysLeft, user: { ...safeWUser, withdrawing: true, days_until_deletion: daysLeft } }],
+            token: wToken, kind: wKind,
+            user: { ...safeWUser, withdrawing: true, days_until_deletion: daysLeft },
+          }); return;
         }
         // teacher 활성화 체크
         if (user.role === "teacher") {
@@ -2226,54 +2240,47 @@ router.post("/apple-link-teacher", async (req, res) => {
 router.delete("/account", requireAuth, async (req: AuthRequest, res) => {
   const userId   = req.user!.userId;
   const role     = req.user!.role;
-  const immediate = req.body?.immediate === true;
+  let immediate = req.body?.immediate === true;
 
   try {
     if (role === "parent_account" || role === "parent") {
-      // ── 학부모 탈퇴 ─────────────────────────────────────────
+      // ── 학부모 탈퇴: 항상 즉시 삭제 (구독 없음) ───────────────
       const rows = (await db.execute(sql`
-        SELECT id, login_id, withdrawal_requested_at FROM parent_accounts WHERE id = ${userId} LIMIT 1
+        SELECT id, login_id FROM parent_accounts WHERE id = ${userId} LIMIT 1
       `)).rows as any[];
 
       if (!rows.length) return err(res, 404, "계정을 찾을 수 없습니다.");
       if (rows[0].login_id === "demo_parent") return err(res, 403, "데모 계정은 삭제할 수 없습니다.");
 
-      if (rows[0].withdrawal_requested_at && !immediate) {
-        const deletionAt = new Date(new Date(rows[0].withdrawal_requested_at).getTime() + 90 * 24 * 60 * 60 * 1000);
-        const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86400000));
-        return res.json({ success: true, already_requested: true, days_until_deletion: daysLeft, message: `이미 탈퇴 처리 중입니다. ${daysLeft}일 후 완전히 삭제됩니다.` });
-      }
-
-      if (immediate) {
-        // 즉시 삭제: 고유 식별자를 해제하여 즉시 재가입 가능
-        await db.execute(sql`
-          DELETE FROM parent_accounts WHERE id = ${userId}
-        `);
-        return res.json({ success: true, immediate: true, message: "계정이 즉시 삭제되었습니다. 언제든지 재가입하실 수 있습니다." });
-      } else {
-        await db.execute(sql`
-          UPDATE parent_accounts
-          SET withdrawal_requested_at = NOW(), updated_at = NOW()
-          WHERE id = ${userId}
-        `);
-        return res.json({ success: true, days_until_deletion: 90, message: "탈퇴 요청이 접수되었습니다. 90일 후 모든 데이터가 완전히 삭제됩니다." });
-      }
+      await db.execute(sql`DELETE FROM parent_accounts WHERE id = ${userId}`);
+      return res.json({ success: true, immediate: true, message: "계정이 즉시 삭제되었습니다. 언제든지 재가입하실 수 있습니다." });
 
     } else {
       // ── 관리자/선생님 탈퇴 ──────────────────────────────────
       const rows = (await superAdminDb.execute(sql`
-        SELECT id, email, role, withdrawal_requested_at FROM users WHERE id = ${userId} LIMIT 1
+        SELECT u.id, u.email, u.role, u.withdrawal_requested_at, u.swimming_pool_id,
+               COALESCE(sp.subscription_tier, 'free') AS subscription_tier
+        FROM users u
+        LEFT JOIN swimming_pools sp ON sp.id = u.swimming_pool_id
+        WHERE u.id = ${userId} LIMIT 1
       `)).rows as any[];
 
       if (!rows.length) return err(res, 404, "계정을 찾을 수 없습니다.");
       if (rows[0].email === "demo@swimnote.app") return err(res, 403, "데모 계정은 삭제할 수 없습니다.");
       if (rows[0].role === "super_admin") return err(res, 403, "슈퍼관리자 계정은 앱에서 삭제할 수 없습니다.");
 
+      // 무료 플랜(teacher 포함)은 항상 즉시 삭제
+      const isPaidPlan = rows[0].role === "pool_admin" && rows[0].subscription_tier !== "free";
+      if (!isPaidPlan) immediate = true;
+
       if (rows[0].withdrawal_requested_at && !immediate) {
         const deletionAt = new Date(new Date(rows[0].withdrawal_requested_at).getTime() + 90 * 24 * 60 * 60 * 1000);
         const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86400000));
         return res.json({ success: true, already_requested: true, days_until_deletion: daysLeft, message: `이미 탈퇴 처리 중입니다. ${daysLeft}일 후 완전히 삭제됩니다.` });
       }
+
+      const poolId = rows[0].swimming_pool_id;
+      const isPoolAdmin = rows[0].role === "pool_admin";
 
       if (immediate) {
         // 즉시 익명화: deactivation-cleanup.ts 와 동일한 처리를 즉시 수행
@@ -2292,8 +2299,16 @@ router.delete("/account", requireAuth, async (req: AuthRequest, res) => {
             updated_at    = NOW()
           WHERE id = ${userId}
         `);
+        // pool_admin 탈퇴 시: 연결된 학부모 계정 전체 즉시 삭제
+        if (isPoolAdmin && poolId) {
+          await db.execute(sql`
+            DELETE FROM parent_accounts WHERE swimming_pool_id = ${poolId}
+          `);
+          console.log(`[DELETE /auth/account] pool_admin 탈퇴(즉시) → 학부모 cascade 삭제: poolId=${poolId}`);
+        }
         return res.json({ success: true, immediate: true, message: "계정이 즉시 삭제되었습니다. 언제든지 재가입하실 수 있습니다." });
       } else {
+        // 90일 유예: 개인정보 일부 보존, 읽기 전용 허용
         await superAdminDb.execute(sql`
           UPDATE users SET
             phone        = NULL,
@@ -2302,7 +2317,14 @@ router.delete("/account", requireAuth, async (req: AuthRequest, res) => {
             updated_at   = NOW()
           WHERE id = ${userId}
         `);
-        return res.json({ success: true, days_until_deletion: 90, message: "탈퇴 요청이 접수되었습니다. 90일 후 모든 데이터가 완전히 삭제됩니다." });
+        // pool_admin 탈퇴 시: 연결된 학부모 계정 전체 즉시 삭제 (학부모는 구독 없음)
+        if (isPoolAdmin && poolId) {
+          await db.execute(sql`
+            DELETE FROM parent_accounts WHERE swimming_pool_id = ${poolId}
+          `);
+          console.log(`[DELETE /auth/account] pool_admin 탈퇴(90일유예) → 학부모 cascade 삭제: poolId=${poolId}`);
+        }
+        return res.json({ success: true, days_until_deletion: 90, message: "탈퇴 요청이 접수되었습니다. 90일 후 모든 데이터가 완전히 삭제됩니다. 이 기간 동안 읽기 전용으로 로그인하실 수 있습니다." });
       }
     }
   } catch (e) {

@@ -1,7 +1,7 @@
 import { Briefcase, Home, Layers, Send, Settings } from "lucide-react-native";
 import { Tabs, router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Platform, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
@@ -86,7 +86,18 @@ export default function AdminLayout() {
     });
   }
 
+  const isWithdrawing = adminUser?.withdrawing === true;
+  const daysLeft     = adminUser?.days_until_deletion ?? 0;
+
   return (
+    <View style={{ flex: 1 }}>
+    {isWithdrawing && (
+      <View style={[wdStyle.banner, { top: insets.top }]}>
+        <Text style={wdStyle.bannerText}>
+          계정 탈퇴 유예 중 — {daysLeft}일 후 자동 삭제 · 재구독 시 복구 가능 (읽기 전용)
+        </Text>
+      </View>
+    )}
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: themeColor,
@@ -217,5 +228,26 @@ export default function AdminLayout() {
       <Tabs.Screen name="parents-list"            options={{ href: null }} />
       <Tabs.Screen name="refund-policy"           options={{ href: null }} />
     </Tabs>
+    </View>
   );
 }
+
+const wdStyle = StyleSheet.create({
+  banner: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 9999,
+    backgroundColor: "#D97706",
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  bannerText: {
+    color: "#fff",
+    fontSize: 11,
+    fontFamily: "Pretendard-Medium",
+    textAlign: "center",
+    lineHeight: 16,
+  },
+});

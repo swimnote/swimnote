@@ -252,6 +252,7 @@ export default function ParentProfileScreen() {
         onClose={() => setDeleteConfirm(false)}
         onConfirm={deleteAccount}
         loading={deleteLoading}
+        isPaidPlan={false}
       />
 
       <ToastComponent />

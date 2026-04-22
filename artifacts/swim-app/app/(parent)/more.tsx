@@ -187,6 +187,7 @@ export default function ParentMoreScreen() {
         onClose={() => setDeleteConfirm(false)}
         onConfirm={handleDeleteAccount}
         loading={deleteLoading}
+        isPaidPlan={false}
       />
     </View>
   );

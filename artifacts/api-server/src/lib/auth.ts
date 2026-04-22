@@ -36,6 +36,7 @@ export type JwtPayload = {
   poolId?: string | null;
   permissions?: PlatformPermissions;
   tv?: number;
+  withdrawing?: boolean; // 90일 유예 중인 계정 (읽기 전용 모드)
 };
 
 export const TOKEN_VERSION = 1;

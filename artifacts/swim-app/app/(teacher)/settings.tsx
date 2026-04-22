@@ -362,6 +362,7 @@ export default function TeacherSettingsScreen() {
         onClose={() => setDeleteConfirm(false)}
         onConfirm={handleDeleteAccount}
         loading={deleteLoading}
+        isPaidPlan={false}
       />
     </SafeAreaView>
   );

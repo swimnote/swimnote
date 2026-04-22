@@ -45,6 +45,8 @@ export interface AdminUser {
   swimming_pool_id?: string | null;
   roles: string[];
   is_activated?: boolean;
+  withdrawing?: boolean;          // 90일 유예 중 읽기 전용 모드
+  days_until_deletion?: number | null; // 남은 일수
 }
 
 export interface ParentAccount {

@@ -202,10 +202,12 @@ router.post("/revenuecat-webhook", async (req, res) => {
           if (withdrawalCheck?.withdrawal_requested_at) {
             await db.execute(sql`
               UPDATE users
-              SET withdrawal_requested_at = NULL, updated_at = NOW()
+              SET withdrawal_requested_at = NULL,
+                  is_activated = true,
+                  updated_at = NOW()
               WHERE id = ${appUserId}
             `);
-            console.log(`[rc-webhook] 탈퇴 신청 취소 복구: user=${appUserId} (${eventType})`);
+            console.log(`[rc-webhook] 탈퇴 신청 취소 복구 (is_activated=true): user=${appUserId} (${eventType})`);
             logEvent({
               pool_id: poolId, category: "계정", actor_id: "revenuecat", actor_name: "RevenueCat",
               description: `탈퇴 신청 자동 취소: 재구독으로 탈퇴 의사 철회 (${eventType})`,

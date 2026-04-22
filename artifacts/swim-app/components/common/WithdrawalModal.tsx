@@ -7,6 +7,7 @@
  *   onClose      — 취소 / 닫기
  *   onConfirm    — (immediate: boolean) => Promise<void>   실제 탈퇴 실행
  *   loading      — 처리 중 여부
+ *   isPaidPlan   — 유료 구독 중 여부 (true면 90일 보존 옵션 표시)
  */
 import React, { useState } from "react";
 import {
@@ -26,11 +27,12 @@ interface Props {
   onClose: () => void;
   onConfirm: (immediate: boolean) => Promise<void>;
   loading: boolean;
+  isPaidPlan?: boolean; // 유료 구독 중이면 90일 옵션 활성화
 }
 
 type Choice = "immediate" | "retain" | null;
 
-export function WithdrawalModal({ visible, onClose, onConfirm, loading }: Props) {
+export function WithdrawalModal({ visible, onClose, onConfirm, loading, isPaidPlan = false }: Props) {
   const [choice, setChoice] = useState<Choice>(null);
 
   function handleClose() {
@@ -45,6 +47,50 @@ export function WithdrawalModal({ visible, onClose, onConfirm, loading }: Props)
     setChoice(null);
   }
 
+  // 무료 플랜: 선택지 없이 즉시 삭제만 확인
+  if (!isPaidPlan) {
+    return (
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={handleClose}
+      >
+        <Pressable style={s.overlay} onPress={handleClose}>
+          <Pressable style={s.sheet} onPress={e => e.stopPropagation()}>
+            <View style={s.header}>
+              <View style={s.handle} />
+              <Text style={s.title}>회원 탈퇴</Text>
+              <Text style={s.subtitle}>
+                탈퇴 시 계정 정보가 즉시 삭제됩니다.{"\n"}
+                동일한 전화번호·이메일로 재가입할 수 있으나,{"\n"}
+                기존 데이터는 복구할 수 없습니다.
+              </Text>
+            </View>
+
+            <View style={s.buttons}>
+              <Pressable style={s.cancelBtn} onPress={handleClose} disabled={loading}>
+                <Text style={s.cancelText}>취소</Text>
+              </Pressable>
+              <Pressable
+                style={[s.confirmBtn, { backgroundColor: "#D96C6C" }, loading && { opacity: 0.7 }]}
+                onPress={() => onConfirm(true).then(() => setChoice(null))}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={s.confirmText}>탈퇴 확인</Text>
+                )}
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    );
+  }
+
+  // 유료 플랜: 즉시 삭제 vs 90일 보존 선택
   return (
     <Modal
       visible={visible}
@@ -81,8 +127,7 @@ export function WithdrawalModal({ visible, onClose, onConfirm, loading }: Props)
               </View>
               <Text style={s.optionDesc}>
                 개인정보가 즉시 삭제됩니다.{"\n"}
-                탈퇴 즉시 동일한 전화번호·이메일로{"\n"}
-                재가입할 수 있습니다.{"\n"}
+                탈퇴 즉시 동일한 이메일로 재가입할 수 있습니다.{"\n"}
                 <Text style={{ color: "#D96C6C" }}>기존 데이터는 복구할 수 없습니다.</Text>
               </Text>
             </Pressable>
@@ -103,8 +148,8 @@ export function WithdrawalModal({ visible, onClose, onConfirm, loading }: Props)
               </View>
               <Text style={s.optionDesc}>
                 90일간 데이터가 보존됩니다.{"\n"}
-                보존 기간 내 재가입 시 기존 데이터를{"\n"}
-                복구할 수 있습니다.{"\n"}
+                이 기간 중 앱을 읽기 전용으로 사용할 수 있으며,{"\n"}
+                동일 플랜 재구독 시 계정이 완전히 복구됩니다.{"\n"}
                 <Text style={{ color: "#64748B" }}>90일 후 완전히 삭제됩니다.</Text>
               </Text>
             </Pressable>

@@ -20,7 +20,8 @@ interface Profile {
 }
 
 export default function AdminMyInfoScreen() {
-  const { token, adminUser, updateAdminProfile, logout } = useAuth();
+  const { token, adminUser, updateAdminProfile, logout, pool } = useAuth();
+  const isPaidPlan = adminUser?.role === "pool_admin" && !!pool?.subscription_tier && pool.subscription_tier !== "free";
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
@@ -263,6 +264,7 @@ export default function AdminMyInfoScreen() {
         onClose={() => setDeleteConfirm(false)}
         onConfirm={deleteAccount}
         loading={deleteLoading}
+        isPaidPlan={isPaidPlan}
       />
 
     </SafeAreaView>
