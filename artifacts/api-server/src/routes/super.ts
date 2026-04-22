@@ -576,6 +576,18 @@ router.delete(
 
       const poolName = poolCheck.name;
 
+      // 삭제 대상 사용자 phone 수집 (phone_verifications 정리용)
+      const userRows = (await superAdminDb.execute(sql`
+        SELECT phone FROM users WHERE swimming_pool_id = ${id}
+      `)).rows as any[];
+      const phones = userRows.map((u: any) => u.phone).filter(Boolean);
+
+      // 학부모 phone 수집
+      const parentRows = (await superAdminDb.execute(sql`
+        SELECT phone FROM parent_accounts WHERE swimming_pool_id = ${id}
+      `)).rows as any[];
+      const parentPhones = parentRows.map((p: any) => p.phone).filter(Boolean);
+
       // 연관 데이터 순차 삭제 (FK 참조 순서 고려)
       await superAdminDb.execute(sql`DELETE FROM attendance WHERE swimming_pool_id = ${id}`).catch(() => {});
       await superAdminDb.execute(sql`DELETE FROM supplements WHERE swimming_pool_id = ${id}`).catch(() => {});
@@ -588,10 +600,19 @@ router.delete(
       await superAdminDb.execute(sql`DELETE FROM parent_accounts WHERE swimming_pool_id = ${id}`).catch(() => {});
       await db.execute(sql`DELETE FROM support_tickets WHERE pool_id = ${id}`).catch(() => {});
       await db.execute(sql`DELETE FROM event_logs WHERE pool_id = ${id}`).catch(() => {});
-      // 사용자(스태프) 삭제
+
+      // 사용자(스태프) 완전 삭제 — 역할 무관, withdrawal_requested_at 무시, 즉시 영구삭제
       await superAdminDb.execute(sql`
-        DELETE FROM users WHERE swimming_pool_id = ${id} AND role IN ('pool_admin','sub_admin','teacher')
+        DELETE FROM users WHERE swimming_pool_id = ${id}
       `).catch(() => {});
+
+      // phone_verifications 잔여 기록 삭제 (아이디 중복 방지)
+      for (const phone of [...phones, ...parentPhones]) {
+        await superAdminDb.execute(sql`
+          DELETE FROM phone_verifications WHERE phone = ${phone}
+        `).catch(() => {});
+      }
+
       // 수영장 최종 삭제
       await superAdminDb.execute(sql`DELETE FROM swimming_pools WHERE id = ${id}`);
 
