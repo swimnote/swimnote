@@ -169,14 +169,13 @@ export default function LoginScreen() {
       }
       if (errCode === "apple_no_account") {
         console.log(`[AppleLogin][STEP4 NO_ACCOUNT] traceId=${tid} 계정 없음 → 가입 화면`);
-        const _appleId    = e.apple_info?.apple_id ?? "";
-        const _appleEmail = e.apple_info?.email    ?? "";
-        const _appleName  = e.apple_info?.name     ?? "";
-        console.log(`[AppleLogin][SIGNUP_PARAMS] appleId=${_appleId.substring(0,8)}... email=${_appleEmail ? "있음" : "없음"}`);
-        console.log(`[AppleLogin][SIGNUP_NAV] router.push 실행`);
         router.push({
           pathname: "/(auth)/signup",
-          params: { appleId: _appleId, appleEmail: _appleEmail, appleName: _appleName },
+          params: {
+            appleId:    e.apple_info?.apple_id ?? "",
+            appleEmail: e.apple_info?.email    ?? "",
+            appleName:  e.apple_info?.name     ?? "",
+          },
         } as any);
         return;
       }
@@ -204,15 +203,14 @@ export default function LoginScreen() {
     } catch (err: unknown) {
       const e = err as Error & { error_code?: string; kakao_info?: any; needs_activation?: boolean; teacher_id?: string };
       if (e.error_code === "kakao_no_account" && e.kakao_info) {
-        const _kakaoId    = e.kakao_info.kakao_id ?? "";
-        const _kakaoPhone = e.kakao_info.phone    ?? "";
-        const _kakaoName  = e.kakao_info.name     ?? "";
-        console.log(`[KakaoLogin][NO_ACCOUNT] router.push 실행`);
         router.push({
           pathname: "/(auth)/signup",
-          params: { kakaoId: _kakaoId, kakaoPhone: _kakaoPhone, kakaoName: _kakaoName },
-        } as any);
-        return;
+          params: {
+            kakaoId:    e.kakao_info.kakao_id ?? "",
+            kakaoPhone: e.kakao_info.phone    ?? "",
+            kakaoName:  e.kakao_info.name     ?? "",
+          },
+        } as any); return;
       }
       if (e.needs_activation && e.teacher_id) {
         router.push({ pathname: "/teacher-activate", params: { teacher_id: e.teacher_id } } as any); return;
@@ -324,7 +322,7 @@ export default function LoginScreen() {
           {appleAvailable && (
             <View style={{ position: "relative" }}>
               <AppleAuthentication.AppleAuthenticationButton
-                buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
                 buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
                 cornerRadius={14}
                 style={[s.appleBtn, appleLoading && { opacity: 0.4 }]}
