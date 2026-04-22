@@ -17,7 +17,6 @@ import Colors from "@/constants/colors";
 import { ROLE_CONFIGS } from "@/constants/auth";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { useDebugLog } from "@/context/DebugLogContext";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const C = Colors.light;
@@ -63,7 +62,6 @@ const MY_SETTINGS: MenuItem[] = [
 export default function SettingsScreen() {
   const { adminUser, switchRole, token, logout } = useAuth();
   const { themeColor } = useBrand();
-  const { showOverlay } = useDebugLog();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("settings");
 
@@ -296,15 +294,6 @@ export default function SettingsScreen() {
           <Text style={s.inquiryBtnDesc}>스윔노트 고객센터 문의</Text>
         </Pressable>
 
-        {/* 디버그 로그 버튼 */}
-        <Pressable
-          onPress={showOverlay}
-          style={{ alignItems: "center", paddingVertical: 12 }}
-        >
-          <Text style={{ fontSize: 11, color: "#94A3B8", fontFamily: "Pretendard-Regular" }}>
-            🔍 디버그 로그 보기
-          </Text>
-        </Pressable>
 
       </ScrollView>
 
