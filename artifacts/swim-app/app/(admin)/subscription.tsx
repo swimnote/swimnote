@@ -41,17 +41,17 @@ interface PlanMeta {
 }
 
 const SOLO_PLANS: PlanMeta[] = [
-  { tier: "free",     name: "Free",        price: 0,      limit: 10,   storage: "100MB",  storageMb: 102,    group: "solo",   rcPackageId: null },
-  { tier: "starter",  name: "Coach30",     price: 1900,   limit: 30,   storage: "3GB",    storageMb: 3072,   group: "solo",   rcPackageId: "solo_30" },
-  { tier: "basic",    name: "Coach50",     price: 2900,   limit: 50,   storage: "5GB",    storageMb: 5120,   group: "solo",   rcPackageId: "solo_50" },
-  { tier: "standard", name: "Coach100",    price: 5900,   limit: 100,  storage: "10GB",   storageMb: 10240,  group: "solo",   rcPackageId: "solo_100", recommended: true },
+  { tier: "free",     name: "Free",        price: 0,      limit: 10,   storage: "100MB",  storageMb: 102,   group: "solo",   rcPackageId: null },
+  { tier: "starter",  name: "Coach30",     price: 1900,   limit: 30,   storage: "300MB",  storageMb: 307,   group: "solo",   rcPackageId: "solo_30" },
+  { tier: "basic",    name: "Coach50",     price: 2900,   limit: 50,   storage: "500MB",  storageMb: 512,   group: "solo",   rcPackageId: "solo_50" },
+  { tier: "standard", name: "Coach100",    price: 5900,   limit: 100,  storage: "1GB",    storageMb: 1024,  group: "solo",   rcPackageId: "solo_100", recommended: true },
 ];
 
 const CENTER_PLANS: PlanMeta[] = [
-  { tier: "center_200", name: "Premier200",  price: 19000,  limit: 200,  storage: "50GB",   storageMb: 51200,   group: "center", rcPackageId: "center_200" },
-  { tier: "advance",    name: "Premier300",  price: 27000,  limit: 300,  storage: "80GB",   storageMb: 81920,   group: "center", rcPackageId: "center_300" },
-  { tier: "pro",        name: "Premier500",  price: 43000,  limit: 500,  storage: "130GB",  storageMb: 133120,  group: "center", rcPackageId: "center_500" },
-  { tier: "max",        name: "Premier1000", price: 79000,  limit: 1000, storage: "500GB",  storageMb: 512000,  group: "center", rcPackageId: "center_1000", recommended: true },
+  { tier: "center_200", name: "Premier200",  price: 19000,  limit: 200,  storage: "5GB",   storageMb: 5120,  group: "center", rcPackageId: "center_200" },
+  { tier: "advance",    name: "Premier300",  price: 27000,  limit: 300,  storage: "10GB",  storageMb: 10240, group: "center", rcPackageId: "center_300" },
+  { tier: "pro",        name: "Premier500",  price: 43000,  limit: 500,  storage: "20GB",  storageMb: 20480, group: "center", rcPackageId: "center_500" },
+  { tier: "max",        name: "Premier1000", price: 79000,  limit: 1000, storage: "50GB",  storageMb: 51200, group: "center", rcPackageId: "center_1000", recommended: true },
 ];
 
 function fmt(price: number) {
