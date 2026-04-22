@@ -220,7 +220,7 @@ export default function SubscriptionScreen() {
       return;
     }
 
-    const priceStr    = pkg.product.priceString ?? `₩${plan.price.toLocaleString("ko-KR")}`;
+    const priceStr    = fmt(plan.price);   // 항상 한화 표시 (App Store sandbox는 USD 반환)
     const isChange    = isSubscribed;
     const actionLabel = isChange ? "플랜 변경" : "구독 시작";
     const confirmBody = isChange
