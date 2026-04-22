@@ -1,6 +1,6 @@
 import { useFonts } from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, router } from "expo-router";
+import { Stack, router, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import Constants from "expo-constants";
 import React, { useEffect, useRef, useState } from "react";
@@ -189,6 +189,7 @@ function PushNavSync() {
 
 function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
+  const segments = useSegments();
 
   // ─── 단일 라우팅 트리거 ─────────────────────────────────────────────────────
   // SessionContext.finishLogin()이 pendingRoute를 설정하면 즉시 navigate
@@ -202,14 +203,16 @@ function RootNav() {
   }, [pendingRoute, isLoading]);
 
   // 세션 없음 → 로그인 화면
-  // finishLogin이 setKind + setPendingRoute를 동일 배치에서 처리하므로
-  // isAuthenticating=false 시점에 kind는 항상 정상 반영된 상태
+  // (auth) 그룹(signup/onboarding 등)에 있을 때는 redirect 금지:
+  // apple_no_account / kakao_no_account 후 signup 화면으로 push된 직후
+  // isAuthenticating=false + kind=null 이 동시에 되면서 잘못 redirect되는 현상 방지
   useEffect(() => {
     if (isLoading || isAuthenticating || pendingRoute) return;
     if (!kind) {
-      router.replace("/");
+      const inAuthGroup = segments[0] === "(auth)";
+      if (!inAuthGroup) router.replace("/");
     }
-  }, [isLoading, isAuthenticating, kind, pendingRoute]);
+  }, [isLoading, isAuthenticating, kind, pendingRoute, segments]);
   // ──────────────────────────────────────────────────────────────────────────
 
   // 앱 최초 로딩 중(세션 복원 전) → Stack 자체를 렌더하지 않음
