@@ -37,10 +37,10 @@ interface Pool { id: string; name: string; address?: string; }
 
 const STEP_LABELS = ["기본정보", "휴대폰", "역할선택", "추가정보"];
 
-const ROLE_CARDS: Array<{ role: Role; label: string; desc: string; icon: any; bg: string; color: string }> = [
-  { role: "admin",   label: "수영장 대표",  desc: "수영장을 직접 운영하는 원장님·원감님\n선생님·학부모 관리 및 전체 운영 담당",     icon: "briefcase", bg: "#EFF4FF", color: "#4F6EF7" },
-  { role: "teacher", label: "선생님",       desc: "수영장 대표로부터 초대코드를 받은\n선생님만 가입 가능합니다",                    icon: "award",     bg: "#DFF3EC", color: "#2E9B6F" },
-  { role: "parent",  label: "학부모",       desc: "수영장에 회원 등록이 완료된\n학부모님만 가입 가능합니다",                    icon: "heart",     bg: "#FFF3E0", color: "#E4A93A" },
+const ROLE_CARDS: Array<{ role: Role; label: string; desc: string; condition: string | null; icon: any; bg: string; color: string }> = [
+  { role: "admin",   label: "수영장 대표", desc: "수영장을 직접 운영하는 원장/관리자\n또는 1인 레슨 팀을 운영하는 선생님",           condition: null,                                   icon: "briefcase", bg: "#EFF4FF", color: "#4F6EF7" },
+  { role: "teacher", label: "선생님",      desc: "스윔노트에 가입된 수영장에서 근무 중인 선생님",                                    condition: "(수영장 대표의 초대 후 가입 가능)",    icon: "award",     bg: "#DFF3EC", color: "#2E9B6F" },
+  { role: "parent",  label: "학부모",      desc: "스윔노트에 가입된 수영장에 자녀가 등록된 학부모",                                  condition: "(회원 등록 완료 후 이용 가능)",        icon: "heart",     bg: "#FFF3E0", color: "#E4A93A" },
 ];
 
 function genRandomPassword() {
@@ -566,22 +566,40 @@ export default function SignupScreen() {
       <View style={styles.card}>
         <Text style={[styles.cardTitle, { color: C.text }]}>역할 선택</Text>
         <Text style={[styles.cardDesc, { color: C.textSecondary }]}>어떤 역할로 가입하시겠어요?</Text>
-        {ROLE_CARDS.map(r => (
-          <Pressable
-            key={r.role}
-            style={[styles.roleCard, { borderColor: role === r.role ? C.tint : C.border, borderWidth: role === r.role ? 2 : 1.5 }]}
-            onPress={() => setRole(r.role)}
-          >
-            <View style={[styles.roleIcon, { backgroundColor: r.bg }]}>
-              <LucideIcon name={r.icon} size={22} color={r.color} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.roleLabel, { color: C.text }]}>{r.label}</Text>
-              <Text style={[styles.roleDesc, { color: C.textSecondary }]}>{r.desc}</Text>
-            </View>
-            {role === r.role && <CircleCheck size={18} color={C.tint} />}
-          </Pressable>
-        ))}
+        <View style={{ gap: 12, marginTop: 4 }}>
+          {ROLE_CARDS.map(r => {
+            const selected = role === r.role;
+            return (
+              <Pressable
+                key={r.role}
+                style={[
+                  styles.roleCard,
+                  selected
+                    ? { backgroundColor: C.tint, borderColor: "#0099AA", borderWidth: 2 }
+                    : { backgroundColor: "#fff", borderColor: "#E5E5E5", borderWidth: 1.5 },
+                ]}
+                onPress={() => setRole(r.role)}
+              >
+                {/* 우측 상단 체크 */}
+                {selected && (
+                  <View style={styles.roleCheckBadge}>
+                    <CircleCheck size={18} color="#fff" />
+                  </View>
+                )}
+                <View style={[styles.roleIcon, { backgroundColor: selected ? "rgba(255,255,255,0.25)" : r.bg }]}>
+                  <LucideIcon name={r.icon} size={22} color={selected ? "#fff" : r.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.roleLabel, { color: selected ? "#fff" : C.text }]}>{r.label}</Text>
+                  <Text style={[styles.roleDesc, { color: selected ? "rgba(255,255,255,0.85)" : C.textSecondary }]}>{r.desc}</Text>
+                  {r.condition && (
+                    <Text style={[styles.roleCond, { color: selected ? "rgba(255,255,255,0.7)" : "#999" }]}>{r.condition}</Text>
+                  )}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
     );
   }
@@ -863,9 +881,12 @@ export default function SignupScreen() {
 
         {/* 버튼 */}
         <Pressable
-          style={({ pressed }) => [styles.primaryBtn, { backgroundColor: C.tint, opacity: pressed || loading ? 0.8 : 1 }]}
+          style={({ pressed }) => [
+            styles.primaryBtn,
+            { backgroundColor: (step === 3 && !role) ? "#CCC" : C.tint, opacity: pressed || loading ? 0.8 : 1 },
+          ]}
           onPress={isLastStep ? handleSubmit : nextStep}
-          disabled={loading}
+          disabled={loading || (step === 3 && !role)}
         >
           {loading
             ? <ActivityIndicator color="#fff" />
@@ -933,10 +954,12 @@ const styles = StyleSheet.create({
   devCodeLabel:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#856404" },
   devCodeNum:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#856404" },
 
-  roleCard:  { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, padding: 14, backgroundColor: "#fff" },
-  roleIcon:  { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  roleLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
-  roleDesc:  { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
+  roleCard:       { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, padding: 16, position: "relative" },
+  roleCheckBadge: { position: "absolute", top: 10, right: 10 },
+  roleIcon:       { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  roleLabel:      { fontSize: 15, fontFamily: "Pretendard-SemiBold", fontWeight: "600" },
+  roleDesc:       { fontSize: 14, fontFamily: "Pretendard-Regular", marginTop: 3, lineHeight: 20 },
+  roleCond:       { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 4 },
 
   selectedPool: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, backgroundColor: "#F0FAF9" },
   poolItem:     { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, borderWidth: 1, marginTop: 4 },
