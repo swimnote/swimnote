@@ -614,7 +614,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setAdminUser(user);
     setKind("admin");
     if (user.swimming_pool_id) fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] fetchPool 실패: ${e?.message}`));
-    finishLogin("admin", user, null, data.token);
+    await finishLogin("admin", user, null, data.token);
   }
 
   async function parentLogin(identifier: string, password: string) {
@@ -636,7 +636,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
     }
     fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] fetchPool 실패: ${e?.message}`));
-    finishLogin("parent", null, data.parent, data.token);
+    await finishLogin("parent", null, data.parent, data.token);
   }
 
   async function kakaoSocialLogin(accessToken: string): Promise<"admin" | "parent"> {
@@ -702,7 +702,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         resultKind = "admin";
         console.log(`[KakaoLogin][STEP7] traceId=${tid} setKind=admin 완료`);
         if (u.swimming_pool_id) fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] fetchPool 실패: ${e?.message}`));
-        finishLogin("admin", u, null, data.token);
+        await finishLogin("admin", u, null, data.token);
       } else {
         console.log(`[KakaoLogin][STEP5] traceId=${tid} parent 세션 저장 시작`);
         await Promise.race([
@@ -724,7 +724,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         }
         console.log(`[KakaoLogin][STEP7] traceId=${tid} setKind=parent 완료`);
         fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] fetchPool 실패: ${e?.message}`));
-        finishLogin("parent", null, data.parent, data.token);
+        await finishLogin("parent", null, data.parent, data.token);
       }
     } finally {
       setIsAuthenticating(false);
@@ -786,7 +786,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         await setAdminSession(data.token, data.user);
         console.log(`[AppleLogin][STEP6] traceId=${tid} setAdminSession 완료`);
         resultKind = "admin";
-        finishLogin("admin", data.user, null, data.token);
+        await finishLogin("admin", data.user, null, data.token);
         console.log(`[AppleLogin][STEP7] traceId=${tid} kind=admin — finally에서 isAuthenticating=false 처리`);
         return "admin";
       }
@@ -811,7 +811,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] fetchPool 실패: ${e?.message}`));
       resultKind = "parent";
-      finishLogin("parent", null, data.parent, data.token);
+      await finishLogin("parent", null, data.parent, data.token);
       console.log(`[AppleLogin][STEP7] traceId=${tid} kind=parent — finally에서 isAuthenticating=false 처리`);
       return "parent";
     } finally {
