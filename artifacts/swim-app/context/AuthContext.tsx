@@ -8,7 +8,7 @@
  *   - 역할 데이터만 필요하면 → useRole()
  *   - 기존 코드 그대로 유지 → useAuth()
  */
-import React, { createContext, useContext, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, ReactNode } from "react";
 import { SessionProvider, useSession } from "./auth/SessionContext";
 import { RoleProvider, useRole } from "./auth/RoleContext";
 
@@ -24,13 +24,34 @@ export type {
 export { safeJson, API_BASE } from "./auth/SessionContext";
 import { API_BASE as _API_BASE } from "./auth/SessionContext";
 
+// 전역 강제 로그아웃 핸들러 — account_withdrawn/account_deleted 401 수신 시 호출
+let _globalLogoutHandler: (() => void) | null = null;
+export function setGlobalLogoutHandler(fn: () => void) { _globalLogoutHandler = fn; }
+export function clearGlobalLogoutHandler() { _globalLogoutHandler = null; }
+
 export const AuthContext = createContext<any>(null);
+
+// 탈퇴 계정 401 감지 시 자동 로그아웃 등록 컴포넌트
+function WithdrawalGuard({ children }: { children: ReactNode }) {
+  const session = useSession();
+  const role = useRole();
+  useEffect(() => {
+    setGlobalLogoutHandler(async () => {
+      await session.logout();
+      await role.clearRole();
+    });
+    return () => clearGlobalLogoutHandler();
+  }, [session.logout, role.clearRole]);
+  return <>{children}</>;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <SessionProvider>
       <RoleProvider>
-        {children}
+        <WithdrawalGuard>
+          {children}
+        </WithdrawalGuard>
       </RoleProvider>
     </SessionProvider>
   );
@@ -108,5 +129,16 @@ export async function apiRequest(token: string | null, path: string, options: Re
     },
   });
   console.log(`[API←] ${res.status} ${url}`);
+  // 탈퇴/삭제 계정 → 전역 강제 로그아웃
+  if (res.status === 401) {
+    try {
+      const cloned = res.clone();
+      const body = await cloned.json().catch(() => ({}));
+      if (body?.error === "account_withdrawn" || body?.error === "account_deleted") {
+        console.warn("[apiRequest] 탈퇴 계정 감지 → 강제 로그아웃");
+        _globalLogoutHandler?.();
+      }
+    } catch {}
+  }
   return res;
 }

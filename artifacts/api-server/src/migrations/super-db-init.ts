@@ -175,13 +175,16 @@ export async function initSuperDb(): Promise<void> {
     console.warn("[super-db-init] phone_verifications 보완 오류:", e.message);
   }
 
-  // ── users — Apple/Kakao 소셜 로그인 컬럼 보완 ────────────────────────────
+  // ── users — Apple/Kakao 소셜 로그인 + 탈퇴 컬럼 보완 ───────────────────
   try {
     await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_id VARCHAR;`)).catch(() => {});
     await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS kakao_id text;`)).catch(() => {});
-    console.log("[super-db-init] users 소셜 로그인 컬럼 보완 완료");
+    await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS withdrawal_requested_at TIMESTAMPTZ;`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret text;`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled boolean DEFAULT false;`)).catch(() => {});
+    console.log("[super-db-init] users 소셜 로그인/탈퇴 컬럼 보완 완료");
   } catch (e: any) {
-    console.warn("[super-db-init] users 소셜 로그인 컬럼 보완 오류:", e.message);
+    console.warn("[super-db-init] users 소셜 로그인/탈퇴 컬럼 보완 오류:", e.message);
   }
 
   // ── parent_accounts — Apple/Kakao 소셜 로그인 컬럼 보완 ──────────────────

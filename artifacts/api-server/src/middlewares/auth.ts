@@ -17,6 +17,29 @@ export interface AuthRequest extends Omit<Request, "params" | "query"> {
   };
 }
 
+// ── 탈퇴 계정 캐시 (1분 TTL) — DB 부하 최소화 ──────────────────────────
+const WITHDRAWN_CACHE_TTL_MS = 60_000;
+const withdrawnCache = new Map<string, { withdrawn: boolean; at: number }>();
+
+function isWithdrawnCached(userId: string): boolean | null {
+  const entry = withdrawnCache.get(userId);
+  if (!entry) return null;
+  if (Date.now() - entry.at > WITHDRAWN_CACHE_TTL_MS) {
+    withdrawnCache.delete(userId);
+    return null;
+  }
+  return entry.withdrawn;
+}
+function setWithdrawnCache(userId: string, withdrawn: boolean) {
+  withdrawnCache.set(userId, { withdrawn, at: Date.now() });
+}
+
+// 탈퇴 체크 대상 역할 (users 테이블 소속)
+const SKIP_WITHDRAWAL_ROLES = new Set([
+  "super_admin", "platform_admin", "super_manager",
+  "parent_account", "parent", // parent_accounts 테이블 소속 — 별도 처리
+]);
+
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
@@ -31,7 +54,50 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
       return;
     }
     req.user = payload;
-    next();
+
+    // 탈퇴 체크 불필요 역할은 즉시 통과
+    if (SKIP_WITHDRAWAL_ROLES.has(payload.role)) {
+      next();
+      return;
+    }
+
+    // pool_admin / teacher / sub_admin — 탈퇴 요청 계정 차단
+    const userId = payload.userId;
+    const cached = isWithdrawnCached(userId);
+    if (cached === true) {
+      res.status(401).json({ success: false, message: "탈퇴 처리된 계정입니다.", error: "account_withdrawn" });
+      return;
+    }
+    if (cached === false) {
+      next();
+      return;
+    }
+
+    // 캐시 미스 → users 테이블 DB 조회 (비동기)
+    superAdminDb.execute(sql`
+      SELECT is_activated, withdrawal_requested_at FROM users
+      WHERE id = ${userId} LIMIT 1
+    `).then(result => {
+      const row = result.rows[0] as any;
+      if (!row) {
+        // users 테이블에 없음 = 삭제된 계정
+        setWithdrawnCache(userId, true);
+        res.status(401).json({ success: false, message: "존재하지 않는 계정입니다.", error: "account_deleted" });
+        return;
+      }
+      // is_activated=false(탈퇴 처리) 또는 withdrawal_requested_at 존재(탈퇴 예약)
+      const isWithdrawn = !row.is_activated || !!row.withdrawal_requested_at;
+      setWithdrawnCache(userId, isWithdrawn);
+      if (isWithdrawn) {
+        res.status(401).json({ success: false, message: "탈퇴 처리된 계정입니다.", error: "account_withdrawn" });
+        return;
+      }
+      next();
+    }).catch(err => {
+      console.error("[requireAuth] 탈퇴 체크 DB 오류:", err);
+      // DB 오류 시 통과 (서비스 안정성 우선)
+      next();
+    });
   } catch {
     res.status(401).json({ success: false, message: "유효하지 않은 토큰입니다.", error: "유효하지 않은 토큰입니다." });
   }
