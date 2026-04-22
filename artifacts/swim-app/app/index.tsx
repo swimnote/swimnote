@@ -128,6 +128,13 @@ export default function LoginScreen() {
         setFailCount(n => n + 1);
         setError("아이디 또는 비밀번호가 올바르지 않습니다."); return;
       }
+      if (e.error_code === "withdrawal_in_progress") {
+        const daysLeft = (e as any).days_until_deletion;
+        setError(daysLeft != null
+          ? `탈퇴 처리 중인 계정입니다. ${daysLeft}일 후 완전히 삭제됩니다.\n재구독하시면 탈퇴 신청이 자동으로 취소됩니다.`
+          : "탈퇴 처리 중인 계정입니다.");
+        return;
+      }
       setError(e.message || "아이디 또는 비밀번호를 확인해주세요.");
     } finally { setLoading(false); }
   }

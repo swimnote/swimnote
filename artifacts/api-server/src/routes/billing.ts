@@ -191,6 +191,28 @@ router.post("/revenuecat-webhook", async (req, res) => {
             }).catch(console.error);
           }).catch(console.error);
         }
+
+        // ── 탈퇴 신청 계정 복구 (INITIAL_PURCHASE / UNCANCELLATION 시) ──
+        // 사용자가 탈퇴 신청 후 재구독하면 탈퇴 의사를 철회한 것으로 간주
+        if (eventType === "INITIAL_PURCHASE" || eventType === "UNCANCELLATION") {
+          const [withdrawalCheck] = (await db.execute(sql`
+            SELECT withdrawal_requested_at FROM users
+            WHERE id = ${appUserId} AND withdrawal_requested_at IS NOT NULL LIMIT 1
+          `)).rows as any[];
+          if (withdrawalCheck?.withdrawal_requested_at) {
+            await db.execute(sql`
+              UPDATE users
+              SET withdrawal_requested_at = NULL, updated_at = NOW()
+              WHERE id = ${appUserId}
+            `);
+            console.log(`[rc-webhook] 탈퇴 신청 취소 복구: user=${appUserId} (${eventType})`);
+            logEvent({
+              pool_id: poolId, category: "계정", actor_id: "revenuecat", actor_name: "RevenueCat",
+              description: `탈퇴 신청 자동 취소: 재구독으로 탈퇴 의사 철회 (${eventType})`,
+              metadata: { eventType, productId, tier, userId: appUserId },
+            }).catch(console.error);
+          }
+        }
         const resolved = await resolveSubscription(poolId).catch(() => null);
         const poolInfo = (await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0] as any;
         if (eventType !== "UNCANCELLATION") {
