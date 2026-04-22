@@ -33,12 +33,15 @@ export default function InviteQrScreen() {
   const teacherUrl = `https://swimnote.app/join?pool=${poolId}&role=teacher`;
   const currentUrl = tab === "parent" ? parentUrl : teacherUrl;
 
+  const ANDROID_STORE = 'https://play.google.com/store/apps/details?id=com.swimnote.app';
+
   async function handleShare() {
     try {
+      const baseMsg = tab === "parent"
+        ? `${displayName} 학부모 앱 가입 링크입니다.`
+        : `${displayName} 선생님 앱 가입 링크입니다.`;
       await Share.share({
-        message: tab === "parent"
-          ? `${displayName} 학부모 앱 가입 링크입니다.\n\n${parentUrl}\n\n스윔노트 앱을 설치하고 위 링크를 통해 가입해 주세요.`
-          : `${displayName} 선생님 앱 가입 링크입니다.\n\n${teacherUrl}\n\n스윔노트 앱을 설치하고 위 링크를 통해 가입해 주세요.`,
+        message: `${baseMsg}\n\n${currentUrl}\n\n▶ 안드로이드: ${ANDROID_STORE}`,
         url: currentUrl,
       });
     } catch {}

@@ -25,8 +25,9 @@ export interface InviteRecord {
 }
 
 // ── 기본 앱 링크 ──────────────────────────────────────────────────
-export const DEFAULT_IOS_LINK     = 'https://apps.apple.com/app/swimnote/id0000000000'
-export const DEFAULT_ANDROID_LINK = 'https://play.google.com/store/apps/details?id=com.swimnote'
+// iOS: 앱스토어 출시 후 실제 ID로 교체 필요
+export const DEFAULT_IOS_LINK     = ''
+export const DEFAULT_ANDROID_LINK = 'https://play.google.com/store/apps/details?id=com.swimnote.app'
 
 // ── 선생님 고정 템플릿 (수정 불가) ──────────────────────────────────
 export const TEACHER_TEMPLATE_FIXED =
@@ -46,11 +47,13 @@ export function resolveTemplate(
     androidLink: string
   }
 ): string {
-  return template
+  const raw = template
     .replace(/\{수영장이름\}/g, vars.poolName)
     .replace(/\{학생이름\}/g, vars.studentName ?? '')
     .replace(/\{iOS링크\}/g, vars.iosLink)
     .replace(/\{Android링크\}/g, vars.androidLink)
+  // 빈 링크 자리로 인한 연속 빈 줄 제거
+  return raw.replace(/\n{2,}/g, '\n').trim()
 }
 
 // ── buildGuardianMessage: 저장된 템플릿 기반 (역호환) ─────────────
