@@ -10,7 +10,7 @@ export const API_BASE =
   process.env.EXPO_PUBLIC_API_URL ||
   (_DOMAIN ? `https://${_DOMAIN}/api` : "/api");
 
-const APP_VERSION = "1.2.0-106-b2";
+const APP_VERSION = "1.2.0-107-b2";
 
 export async function safeJson(res: Response): Promise<any> {
   const text = await res.text();
@@ -243,8 +243,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           headers: { Authorization: `Bearer ${storedToken}` },
           cache: "no-store",
         });
-        // 401: 토큰 만료/버전 불일치, 5xx: 서버 오류 → 모두 세션 초기화 (자동로그인 방지)
-        if (meRes.status === 401 || meRes.status >= 500) {
+        // 2xx 이외: 토큰 만료(401), 계정 삭제(404), 서버 오류(5xx) → 세션 초기화 (자동로그인 방지)
+        if (!meRes.ok) {
           await AsyncStorage.multiRemove([
             "auth_token", "auth_kind", "auth_admin", "auth_parent",
             "auth_all_accounts", "last_used_role", "last_used_tenant", "last_selected_student",
@@ -301,6 +301,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           setParentPoolName(poolData.name);
           AsyncStorage.setItem("parent_pool_name", poolData.name).catch(() => {});
         }
+        return;
+      }
+      // 404: 수영장 삭제됨 — 세션 강제 초기화 (찌꺼기 로그인 방지)
+      if (res.status === 404) {
+        await AsyncStorage.multiRemove([
+          "auth_token", "auth_kind", "auth_admin", "auth_parent",
+          "auth_all_accounts", "last_used_role", "last_used_tenant", "last_selected_student",
+          "parent_selected_student_id", "brand_data",
+          "parent_join_status", "parent_join_request_id", "parent_pool_name",
+        ]);
+        setToken(null); setAdminUser(null); setParentAccount(null); setKind(null); setPool(null);
         return;
       }
     } catch (err) { console.error(err); }

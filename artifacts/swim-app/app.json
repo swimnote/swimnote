@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.swimnote.app",
-      "buildNumber": "130",
+      "buildNumber": "131",
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.applesignin": [
