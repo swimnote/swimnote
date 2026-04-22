@@ -264,10 +264,12 @@ function RootNav() {
   // 로그인 완료 + 앱 복원 모두 이 하나의 useEffect만 통과
   useEffect(() => {
     if (!pendingRoute) return;
-    console.log(`[ROUTE] pendingRoute → ${pendingRoute}`);
-    router.replace(pendingRoute as any);
+    if (isLoading) return; // isLoading 중엔 Stack 미마운트 → replace 지연, isLoading=false 시 재발동
+    const dest = pendingRoute; // 지역변수 캡처 — effect 실행 중 외부 상태 변경 격리
+    console.log(`[ROUTE] pendingRoute → ${dest}`);
+    router.replace(dest as any);
     clearPendingRoute();
-  }, [pendingRoute]);
+  }, [pendingRoute, isLoading]);
 
   // 세션 없음 → 로그인 화면
   useEffect(() => {
@@ -314,13 +316,17 @@ function RootNav() {
         <Stack.Screen name="terms" />
         <Stack.Screen name="privacy" />
       </Stack>
-      {/* pendingRoute 중: Stack 위에 로딩 오버레이 — Stack은 언마운트하지 않음 */}
+      {/* pendingRoute 중: Stack 위에 로딩 오버레이 — Stack은 언마운트하지 않음
+          pointerEvents="auto"(기본값)이므로 아래 Stack 터치 입력 차단 */}
       {!!pendingRoute && (
-        <View style={{
-          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: "#FFFFFF", justifyContent: "center", alignItems: "center",
-          zIndex: 9000,
-        }}>
+        <View
+          style={{
+            position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: "#FFFFFF", justifyContent: "center", alignItems: "center",
+            zIndex: 9000,
+          }}
+          pointerEvents="box-only"
+        >
           <ActivityIndicator size="large" color="#2EC4B6" />
         </View>
       )}
