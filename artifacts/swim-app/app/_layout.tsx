@@ -190,34 +190,24 @@ function PushNavSync() {
 function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
 
-  // kind의 최신값을 ref로 추적 — setTimeout 클로저 안에서 stale 값 방지
-  const kindRef = useRef(kind);
-  useEffect(() => { kindRef.current = kind; }, [kind]);
-
   // ─── 단일 라우팅 트리거 ─────────────────────────────────────────────────────
   // SessionContext.finishLogin()이 pendingRoute를 설정하면 즉시 navigate
   // 로그인 완료 + 앱 복원 모두 이 하나의 useEffect만 통과
   useEffect(() => {
     if (!pendingRoute) return;
-    if (isLoading) return; // isLoading 중엔 Stack 미마운트 → replace 지연, isLoading=false 시 재발동
-    const dest = pendingRoute; // 지역변수 캡처 — effect 실행 중 외부 상태 변경 격리
+    if (isLoading) return;
+    const dest = pendingRoute;
     router.replace(dest as any);
     clearPendingRoute();
   }, [pendingRoute, isLoading]);
 
   // 세션 없음 → 로그인 화면
-  // 레이스 조건 방지: isAuthenticating이 false로 바뀐 직후 kind가 아직 React state에
-  // 반영되지 않았을 수 있으므로 setTimeout(0)으로 한 이벤트 루프 틱을 양보한 뒤
-  // kindRef(최신값)를 확인해 실제로 세션이 없을 때만 "/"로 이동
+  // finishLogin이 setKind + setPendingRoute를 동일 배치에서 처리하므로
+  // isAuthenticating=false 시점에 kind는 항상 정상 반영된 상태
   useEffect(() => {
     if (isLoading || isAuthenticating || pendingRoute) return;
     if (!kind) {
-      const timer = setTimeout(() => {
-        if (!kindRef.current) {
-          router.replace("/");
-        }
-      }, 0);
-      return () => clearTimeout(timer);
+      router.replace("/");
     }
   }, [isLoading, isAuthenticating, kind, pendingRoute]);
   // ──────────────────────────────────────────────────────────────────────────

@@ -434,18 +434,60 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return "/";
   }
 
-  // finishLogin: 세션 완료 후 목적지 계산(onboarding/policy 포함) → pendingRoute 설정
-  // authToken: React setState 반영 전이므로 raw token 값을 직접 전달해야 함
-  // pendingRoute를 RootNav가 감지 → router.replace() 실행
-  // 중요: setKind를 setPendingRoute와 같은 배치에서 호출해 레이스 조건 방지
-  //   (setKind가 finishLogin 이전에 호출됐어도 여기서 다시 호출해 최종 렌더에서 동시 반영 보장)
+  // ─── finishLogin: 로그인/가입/소셜로그인 공통 단일 진입점 ────────────────────────
+  // 역할: AsyncStorage 저장 → computeLoginDest → React state 전체 일괄 설정 → pendingRoute
+  //
+  // sessionToken 있을 때 (신규 로그인):
+  //   AsyncStorage 저장(await) → computeLoginDest(await) → setState 동기 블록 → setKind + setPendingRoute
+  //   모든 setState가 computeLoginDest 이후 단일 동기 블록에서 실행 → React 단일 배치 렌더
+  //   → kind + pendingRoute 동시 반영 → RootNav race condition 원천 차단
+  //
+  // sessionToken 없을 때 (앱 복원 loadStored):
+  //   isLoading=true 가 race guard 역할 → setKind는 이미 loadStored에서 완료됨
+  //   여기서는 computeLoginDest + setKind(재확인) + setPendingRoute만 실행
+  //
+  // authToken: computeLoginDest 내부 refund-policy API 호출용 (React state 미반영 raw token)
   async function finishLogin(
     k: "admin" | "parent",
     user: AdminUser | null,
     _parent?: ParentAccount | null,
     authToken?: string | null,
+    sessionToken?: string | null,
   ): Promise<void> {
+    // ── 1) AsyncStorage 저장 (신규 로그인일 때만) ─────────────────────────────
+    if (sessionToken) {
+      const multiSet: [string, string][] = [
+        ["auth_token", sessionToken],
+        ["auth_kind", k],
+        ["app_version", APP_VERSION],
+      ];
+      if (k === "admin" && user) {
+        const u = { ...user, roles: user.roles?.length ? user.roles : [user.role] };
+        multiSet.push(["auth_admin", JSON.stringify(u)]);
+      } else if (k === "parent" && _parent) {
+        multiSet.push(["auth_parent", JSON.stringify(_parent)]);
+        multiSet.push(["parent_join_status", "approved"]);
+        if ((_parent as any).pool_name) multiSet.push(["parent_pool_name", (_parent as any).pool_name]);
+      }
+      await AsyncStorage.multiSet(multiSet).catch(e => console.warn("[finishLogin] AsyncStorage 실패 → 계속", e));
+    }
+
+    // ── 2) 목적지 계산 (await 포함, 최대 5초) ──────────────────────────────
     const dest = await computeLoginDest(k, user ?? null, _parent ?? null, authToken ?? null);
+
+    // ── 3) React state 전체 일괄 설정 ─────────────────────────────────────
+    // computeLoginDest 완료 후 await 없는 동기 블록 → React 18 단일 배치 렌더 보장
+    // setKind + setPendingRoute 동시 반영 → RootNav "!kind → /" 오발동 원천 차단
+    if (sessionToken) {
+      setToken(sessionToken);
+      if (k === "admin" && user) {
+        setAdminUser({ ...user, roles: user.roles?.length ? user.roles : [user.role] });
+      } else if (k === "parent" && _parent) {
+        setParentAccount(_parent);
+        setParentJoinStatus("approved");
+        if ((_parent as any).pool_name) setParentPoolName((_parent as any).pool_name);
+      }
+    }
     setKind(k);
     setPendingRoute(dest);
   }
@@ -552,22 +594,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       });
     }
     const accounts: AccountEntry[] = data.available_accounts || [];
-    await AsyncStorage.setItem("auth_all_accounts", JSON.stringify(accounts));
+    await AsyncStorage.setItem("auth_all_accounts", JSON.stringify(accounts)).catch(() => {});
     setAllAccounts(accounts);
     if (accounts.length > 0) {
-      await activateAccount(accounts[0]);
-      await finishLogin(accounts[0].kind, accounts[0].user ?? null, accounts[0].parent ?? null, accounts[0].token);
+      const first = accounts[0];
+      // activateAccount 없이 finishLogin 단일 진입 — state 전체를 finishLogin이 일괄 처리
+      if (first.kind === "admin" && first.user?.swimming_pool_id) fetchPool(first.token).catch(e => console.warn(`[fetchPool 실패] unifiedLogin fetchPool 실패: ${e?.message}`));
+      else if (first.kind === "parent") fetchPool(first.token).catch(e => console.warn(`[fetchPool 실패] unifiedLogin parent fetchPool 실패: ${e?.message}`));
+      await finishLogin(first.kind, first.user ?? null, first.parent ?? null, first.token, first.token);
     } else {
       if (data.kind === "admin" && data.user) {
         const entry: AccountEntry = { kind: "admin", token: data.token, user: { ...data.user, roles: data.user.roles || [data.user.role] } };
-        await activateAccount(entry);
         accounts.push(entry);
-        await finishLogin("admin", entry.user ?? null, null, data.token);
+        await AsyncStorage.setItem("auth_all_accounts", JSON.stringify(accounts)).catch(() => {});
+        if (entry.user?.swimming_pool_id) fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] unifiedLogin admin fetchPool 실패: ${e?.message}`));
+        await finishLogin("admin", entry.user ?? null, null, data.token, data.token);
       } else if (data.kind === "parent" && data.parent) {
         const entry: AccountEntry = { kind: "parent", token: data.token, parent: data.parent };
-        await activateAccount(entry);
         accounts.push(entry);
-        await finishLogin("parent", null, entry.parent ?? null, data.token);
+        await AsyncStorage.setItem("auth_all_accounts", JSON.stringify(accounts)).catch(() => {});
+        fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] unifiedLogin parent fetchPool 실패: ${e?.message}`));
+        await finishLogin("parent", null, entry.parent ?? null, data.token, data.token);
       }
     }
     return { available_accounts: accounts };
@@ -582,11 +629,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "OTP 인증에 실패했습니다.");
     const accounts: AccountEntry[] = data.available_accounts || [];
-    await AsyncStorage.setItem("auth_all_accounts", JSON.stringify(accounts));
+    await AsyncStorage.setItem("auth_all_accounts", JSON.stringify(accounts)).catch(() => {});
     setAllAccounts(accounts);
     if (accounts.length > 0) {
-      await activateAccount(accounts[0]);
-      await finishLogin(accounts[0].kind, accounts[0].user ?? null, accounts[0].parent ?? null, accounts[0].token);
+      const first = accounts[0];
+      if (first.kind === "admin" && first.user?.swimming_pool_id) fetchPool(first.token).catch(e => console.warn(`[fetchPool 실패] totp fetchPool 실패: ${e?.message}`));
+      else if (first.kind === "parent") fetchPool(first.token).catch(e => console.warn(`[fetchPool 실패] totp parent fetchPool 실패: ${e?.message}`));
+      await finishLogin(first.kind, first.user ?? null, first.parent ?? null, first.token, first.token);
     }
     return { available_accounts: accounts };
   }
@@ -609,15 +658,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       );
     }
     const user: AdminUser = { ...data.user, roles: Array.isArray(data.user.roles) && data.user.roles.length > 0 ? data.user.roles : [data.user.role] };
-    await AsyncStorage.multiSet([
-      ["auth_token", data.token], ["auth_kind", "admin"], ["auth_admin", JSON.stringify(user)],
-      ["app_version", APP_VERSION],
-    ]);
-    setToken(data.token);
-    setAdminUser(user);
-    setKind("admin");
     if (user.swimming_pool_id) fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] fetchPool 실패: ${e?.message}`));
-    await finishLogin("admin", user, null, data.token);
+    await finishLogin("admin", user, null, data.token, data.token);
   }
 
   async function parentLogin(identifier: string, password: string) {
@@ -627,19 +669,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
     const data = await safeJson(res);
     if (!res.ok) throw Object.assign(new Error(data.error || "로그인에 실패했습니다."), { error_code: data.error_code || "unknown" });
-    await AsyncStorage.multiSet([
-      ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
-      ["app_version", APP_VERSION],
-    ]);
-    setToken(data.token);
-    setParentAccount(data.parent);
-    setKind("parent");
-    if (data.parent?.pool_name) {
-      setParentPoolName(data.parent.pool_name);
-      AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
-    }
     fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] fetchPool 실패: ${e?.message}`));
-    await finishLogin("parent", null, data.parent, data.token);
+    await finishLogin("parent", null, data.parent, data.token, data.token);
   }
 
   async function kakaoSocialLogin(accessToken: string): Promise<"admin" | "parent"> {
@@ -687,47 +718,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      // STEP5: 세션 저장
+      // STEP5: finishLogin 단일 진입 — AsyncStorage 저장 + setState 전체를 finishLogin이 일괄 처리
       if (data.kind === "admin" && data.user) {
-        console.log(`[KakaoLogin][STEP5] traceId=${tid} admin 세션 저장 시작 role=${data.user.role}`);
+        console.log(`[KakaoLogin][STEP5] traceId=${tid} admin → finishLogin 단일 진입 role=${data.user.role}`);
         const u = { ...data.user, roles: data.user.roles?.length ? data.user.roles : [data.user.role] };
-        await Promise.race([
-          AsyncStorage.multiSet([
-            ["auth_token", data.token], ["auth_kind", "admin"], ["auth_admin", JSON.stringify(u)],
-            ["app_version", APP_VERSION],
-          ]),
-          new Promise<void>((_, rej) => setTimeout(() => rej(new Error("AsyncStorage timeout")), 4000)),
-        ]).catch(e => console.warn(`[KakaoLogin][STEP5 STORAGE ERR] traceId=${tid}`, e));
-        console.log(`[KakaoLogin][STEP6] traceId=${tid} setState 시작`);
-        setToken(data.token);
-        setAdminUser(u);
-        setKind("admin");
         resultKind = "admin";
-        console.log(`[KakaoLogin][STEP7] traceId=${tid} setKind=admin 완료`);
-        if (u.swimming_pool_id) fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] fetchPool 실패: ${e?.message}`));
-        await finishLogin("admin", u, null, data.token);
+        if (u.swimming_pool_id) fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] kakao admin fetchPool 실패: ${e?.message}`));
+        await finishLogin("admin", u, null, data.token, data.token);
+        console.log(`[KakaoLogin][STEP7] traceId=${tid} finishLogin 완료 kind=admin`);
       } else {
-        console.log(`[KakaoLogin][STEP5] traceId=${tid} parent 세션 저장 시작`);
-        await Promise.race([
-          AsyncStorage.multiSet([
-            ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
-            ["parent_join_status", "approved"], ["app_version", APP_VERSION],
-          ]),
-          new Promise<void>((_, rej) => setTimeout(() => rej(new Error("AsyncStorage timeout")), 4000)),
-        ]).catch(e => console.warn(`[KakaoLogin][STEP5 STORAGE ERR] traceId=${tid}`, e));
-        console.log(`[KakaoLogin][STEP6] traceId=${tid} setState 시작`);
-        setToken(data.token);
-        setParentAccount(data.parent);
-        setKind("parent");
-        setParentJoinStatus("approved");
+        console.log(`[KakaoLogin][STEP5] traceId=${tid} parent → finishLogin 단일 진입`);
         resultKind = "parent";
-        if (data.parent?.pool_name) {
-          setParentPoolName(data.parent.pool_name);
-          AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
-        }
-        console.log(`[KakaoLogin][STEP7] traceId=${tid} setKind=parent 완료`);
-        fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] fetchPool 실패: ${e?.message}`));
-        await finishLogin("parent", null, data.parent, data.token);
+        fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] kakao parent fetchPool 실패: ${e?.message}`));
+        await finishLogin("parent", null, data.parent, data.token, data.token);
+        console.log(`[KakaoLogin][STEP7] traceId=${tid} finishLogin 완료 kind=parent`);
       }
     } finally {
       setIsAuthenticating(false);
@@ -785,37 +789,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
       // 관리자·선생님 계정 (users 테이블) → data.user 반환
       if (data.user) {
-        console.log(`[AppleLogin][STEP5 ADMIN] traceId=${tid} role=${data.user.role} → setAdminSession`);
-        await setAdminSession(data.token, data.user);
-        console.log(`[AppleLogin][STEP6] traceId=${tid} setAdminSession 완료`);
+        console.log(`[AppleLogin][STEP5 ADMIN] traceId=${tid} role=${data.user.role} → finishLogin 단일 진입`);
         resultKind = "admin";
-        await finishLogin("admin", data.user, null, data.token);
-        console.log(`[AppleLogin][STEP7] traceId=${tid} kind=admin — finally에서 isAuthenticating=false 처리`);
+        if (data.user.swimming_pool_id) fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] apple admin fetchPool 실패: ${e?.message}`));
+        await finishLogin("admin", data.user, null, data.token, data.token);
+        console.log(`[AppleLogin][STEP7] traceId=${tid} finishLogin 완료 kind=admin`);
         return "admin";
       }
 
       // 학부모 계정 (parent_accounts 테이블) → data.parent 반환
-      console.log(`[AppleLogin][STEP5 PARENT] traceId=${tid} parentId=${data.parent?.id?.substring(0,8)}*** → AsyncStorage 저장`);
-      await Promise.race([
-        AsyncStorage.multiSet([
-          ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
-          ["parent_join_status", "approved"], ["app_version", APP_VERSION],
-        ]),
-        new Promise<void>((_, rej) => setTimeout(() => rej(new Error("AsyncStorage timeout")), 4000)),
-      ]).catch(e => console.warn(`[AppleLogin][STEP5 STORAGE ERR] traceId=${tid}`, e));
-      console.log(`[AppleLogin][STEP6] traceId=${tid} AsyncStorage 완료 → setState`);
-      setToken(data.token);
-      setParentAccount(data.parent);
-      setKind("parent");
-      setParentJoinStatus("approved");
-      if (data.parent?.pool_name) {
-        setParentPoolName(data.parent.pool_name);
-        AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
-      }
-      fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] fetchPool 실패: ${e?.message}`));
+      console.log(`[AppleLogin][STEP5 PARENT] traceId=${tid} parentId=${data.parent?.id?.substring(0,8)}*** → finishLogin 단일 진입`);
       resultKind = "parent";
-      await finishLogin("parent", null, data.parent, data.token);
-      console.log(`[AppleLogin][STEP7] traceId=${tid} kind=parent — finally에서 isAuthenticating=false 처리`);
+      fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] apple parent fetchPool 실패: ${e?.message}`));
+      await finishLogin("parent", null, data.parent, data.token, data.token);
+      console.log(`[AppleLogin][STEP7] traceId=${tid} finishLogin 완료 kind=parent`);
       return "parent";
     } finally {
       // 성공/실패/예외 어느 경로든 반드시 isAuthenticating 해제
