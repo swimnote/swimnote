@@ -4,7 +4,7 @@ import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import Constants from "expo-constants";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -12,8 +12,6 @@ import { NoticePopup } from "@/components/common/NoticePopup";
 import { AuthProvider, useAuth, apiRequest } from "@/context/AuthContext";
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 import { initializeRevenueCat, loginRevenueCat, logoutRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
-import { DebugLogProvider, useDebugLog } from "@/context/DebugLogContext";
-import { DebugLogOverlay } from "@/components/debug/DebugLogOverlay";
 
 // Expo Go 환경 여부 — Expo Go SDK 53부터 Android 원격 알림 미지원
 const IS_EXPO_GO = Constants.appOwnership === "expo";
@@ -65,26 +63,6 @@ function AppLoadingScreen() {
   );
 }
 
-// 화면 하단 중앙 롱프레스(3초) → 디버그 로그 오버레이 열기/닫기
-// 각 설정 화면의 "🔍 디버그 로그 보기" 버튼이 주 진입 경로
-// 이 컴포넌트는 보조 수단으로, 화면 하단 중앙 투명 영역에서만 동작
-function DebugTapTarget() {
-  const { toggleOverlay } = useDebugLog();
-  return (
-    <Pressable
-      onLongPress={toggleOverlay}
-      delayLongPress={3000}
-      style={{
-        position: "absolute",
-        bottom: 0,
-        left: "25%",
-        width: "50%",
-        height: 36,
-        zIndex: 9998,
-      }}
-    />
-  );
-}
 
 SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
@@ -217,44 +195,6 @@ function PushNavSync() {
  * 로그인 완료 / 앱 복원 모두 동일한 경로로 처리
  * 목적지 계산: SessionContext.computeLoginDest() (API 대기 없음)
  */
-// 로그인 진단용 미니 플로팅 패널
-// [AUTH COMPLETE][FINISH_LOGIN] 과 [ROUTE] 두 줄을 화면에 직접 표시
-// 마지막 줄 수신 후 8초 뒤 자동 사라짐
-function AuthDiagPanel() {
-  const { logs } = useDebugLog();
-  const [visible, setVisible] = useState(false);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // [AUTH COMPLETE][FINISH_LOGIN] 또는 [ROUTE] 줄만 필터
-  const diagLines = logs
-    .filter(l => l.msg.includes("[AUTH COMPLETE][FINISH_LOGIN]") || (l.msg.includes("[ROUTE]") && l.msg.includes("pendingRoute")))
-    .slice(-4);
-
-  useEffect(() => {
-    if (diagLines.length === 0) return;
-    setVisible(true);
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => setVisible(false), 8000);
-    return () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
-  }, [diagLines.length, diagLines[diagLines.length - 1]?.id]);
-
-  if (!visible || diagLines.length === 0) return null;
-
-  return (
-    <View style={{
-      position: "absolute", top: 0, left: 0, right: 0, zIndex: 99999,
-      backgroundColor: "rgba(0,0,0,0.82)", paddingTop: 44, paddingBottom: 10, paddingHorizontal: 12,
-    }}
-      pointerEvents="none"
-    >
-      {diagLines.map(l => (
-        <Text key={l.id} style={{ color: l.msg.includes("[ROUTE]") ? "#4ADE80" : "#FCD34D", fontSize: 11, fontFamily: "Pretendard-Regular", marginBottom: 2 }} numberOfLines={2}>
-          {l.time} {l.msg}
-        </Text>
-      ))}
-    </View>
-  );
-}
 
 function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
@@ -384,23 +324,18 @@ export default function RootLayout() {
       <ErrorBoundary onError={(error, stack) => console.error("[ROOT_ERROR_BOUNDARY]", error?.message, stack)}>
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
-            <DebugLogProvider>
-              <BrandProvider>
-                <AuthProvider>
-                  <SubscriptionProvider>
-                    <BrandSync />
-                    <RcUserSync />
-                    <PushTokenSync />
-                    <PushNavSync />
-                    <NoticePopup />
-                    <RootNav />
-                    <AuthDiagPanel />
-                    <DebugLogOverlay />
-                    <DebugTapTarget />
-                  </SubscriptionProvider>
-                </AuthProvider>
-              </BrandProvider>
-            </DebugLogProvider>
+            <BrandProvider>
+              <AuthProvider>
+                <SubscriptionProvider>
+                  <BrandSync />
+                  <RcUserSync />
+                  <PushTokenSync />
+                  <PushNavSync />
+                  <NoticePopup />
+                  <RootNav />
+                </SubscriptionProvider>
+              </AuthProvider>
+            </BrandProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>
       </ErrorBoundary>
