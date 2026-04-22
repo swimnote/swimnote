@@ -553,18 +553,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setAllAccounts(accounts);
     if (accounts.length > 0) {
       await activateAccount(accounts[0]);
-      finishLogin(accounts[0].kind, accounts[0].user ?? null, accounts[0].parent ?? null, accounts[0].token);
+      await finishLogin(accounts[0].kind, accounts[0].user ?? null, accounts[0].parent ?? null, accounts[0].token);
     } else {
       if (data.kind === "admin" && data.user) {
         const entry: AccountEntry = { kind: "admin", token: data.token, user: { ...data.user, roles: data.user.roles || [data.user.role] } };
         await activateAccount(entry);
         accounts.push(entry);
-        finishLogin("admin", entry.user ?? null, null, data.token);
+        await finishLogin("admin", entry.user ?? null, null, data.token);
       } else if (data.kind === "parent" && data.parent) {
         const entry: AccountEntry = { kind: "parent", token: data.token, parent: data.parent };
         await activateAccount(entry);
         accounts.push(entry);
-        finishLogin("parent", null, entry.parent ?? null, data.token);
+        await finishLogin("parent", null, entry.parent ?? null, data.token);
       }
     }
     return { available_accounts: accounts };
@@ -583,7 +583,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setAllAccounts(accounts);
     if (accounts.length > 0) {
       await activateAccount(accounts[0]);
-      finishLogin(accounts[0].kind, accounts[0].user ?? null, accounts[0].parent ?? null, accounts[0].token);
+      await finishLogin(accounts[0].kind, accounts[0].user ?? null, accounts[0].parent ?? null, accounts[0].token);
     }
     return { available_accounts: accounts };
   }
