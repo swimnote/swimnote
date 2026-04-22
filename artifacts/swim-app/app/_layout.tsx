@@ -1,6 +1,6 @@
 import { useFonts } from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, router, useSegments } from "expo-router";
+import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import Constants from "expo-constants";
 import React, { useEffect, useRef, useState } from "react";
@@ -189,30 +189,35 @@ function PushNavSync() {
 
 function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
-  const segments = useSegments();
+
+  // kind가 한 번이라도 설정됐는지 추적 — 로그아웃 감지용
+  // (한 번도 로그인 안 한 상태에서 kind=null은 정상: login 화면이 초기 라우트)
+  const wasLoggedIn = useRef(false);
+  useEffect(() => {
+    if (kind) wasLoggedIn.current = true;
+  }, [kind]);
 
   // ─── 단일 라우팅 트리거 ─────────────────────────────────────────────────────
-  // SessionContext.finishLogin()이 pendingRoute를 설정하면 즉시 navigate
-  // 로그인 완료 + 앱 복원 모두 이 하나의 useEffect만 통과
+  // finishLogin()이 pendingRoute를 설정하면 즉시 navigate
+  // 로그인 완료 / 앱 복원 모두 이 경로만 통과
   useEffect(() => {
-    if (!pendingRoute) return;
-    if (isLoading) return;
+    if (!pendingRoute || isLoading) return;
     const dest = pendingRoute;
     router.replace(dest as any);
     clearPendingRoute();
   }, [pendingRoute, isLoading]);
 
-  // 세션 없음 → 로그인 화면
-  // (auth) 그룹(signup/onboarding 등)에 있을 때는 redirect 금지:
-  // apple_no_account / kakao_no_account 후 signup 화면으로 push된 직후
-  // isAuthenticating=false + kind=null 이 동시에 되면서 잘못 redirect되는 현상 방지
+  // ─── 로그아웃 감지 → 로그인 화면 ──────────────────────────────────────────
+  // 조건: 이전에 로그인된 상태(wasLoggedIn=true)에서 kind가 null로 바뀐 경우만
+  // apple_no_account / kakao_no_account 후 kind=null은 wasLoggedIn=false이므로
+  // 이 effect가 발동하지 않음 → signup 화면으로 정상 이동 가능
   useEffect(() => {
     if (isLoading || isAuthenticating || pendingRoute) return;
-    if (!kind) {
-      const inAuthGroup = segments[0] === "(auth)";
-      if (!inAuthGroup) router.replace("/");
+    if (!kind && wasLoggedIn.current) {
+      wasLoggedIn.current = false;
+      router.replace("/");
     }
-  }, [isLoading, isAuthenticating, kind, pendingRoute, segments]);
+  }, [isLoading, isAuthenticating, kind, pendingRoute]);
   // ──────────────────────────────────────────────────────────────────────────
 
   // 앱 최초 로딩 중(세션 복원 전) → Stack 자체를 렌더하지 않음
