@@ -13,6 +13,7 @@ export const parentAccountsTable = pgTable("parent_accounts", {
   gender: text("gender"),
   kakao_id: text("kakao_id"),
   kakao_profile_image: text("kakao_profile_image"),
+  withdrawal_requested_at: timestamp("withdrawal_requested_at"),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

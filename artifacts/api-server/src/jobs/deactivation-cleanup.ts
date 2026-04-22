@@ -69,8 +69,63 @@ async function runDeactivationCleanup(): Promise<void> {
     }
 
     console.log(`[deactivation-cleanup] 완료: ${deleted}/${expiredPools.length}개 삭제`);
+
+    // ── 탈퇴 요청 90일 만료 계정 삭제 ────────────────────────────────────────
+    await runWithdrawalCleanup();
   } finally {
     await releaseLock(LOCK_KEY).catch(() => {});
+  }
+}
+
+async function runWithdrawalCleanup(): Promise<void> {
+  // 90일 경과한 탈퇴 요청 users (관리자/선생님) — 개인정보 익명화
+  const expiredUsers = (await superAdminDb.execute(sql`
+    SELECT id, role FROM users
+    WHERE withdrawal_requested_at IS NOT NULL
+      AND withdrawal_requested_at <= NOW() - INTERVAL '90 days'
+    LIMIT 100
+  `)).rows as any[];
+
+  for (const u of expiredUsers) {
+    try {
+      const deletedId = u.id;
+      await superAdminDb.execute(sql`
+        UPDATE users SET
+          email         = ${`deleted_${deletedId}@deleted.local`},
+          name          = '탈퇴한 사용자',
+          phone         = NULL,
+          password_hash = '',
+          is_activated  = false,
+          totp_secret   = NULL,
+          totp_enabled  = false,
+          updated_at    = NOW()
+        WHERE id = ${deletedId}
+      `);
+      console.log(`[withdrawal-cleanup] users 익명화 완료: ${deletedId} (${u.role})`);
+    } catch (e: any) {
+      console.error(`[withdrawal-cleanup] users 오류 ${u.id}:`, e.message);
+    }
+  }
+
+  // 90일 경과한 탈퇴 요청 parent_accounts — 완전 삭제
+  const expiredParents = (await superAdminDb.execute(sql`
+    SELECT id FROM parent_accounts
+    WHERE withdrawal_requested_at IS NOT NULL
+      AND withdrawal_requested_at <= NOW() - INTERVAL '90 days'
+    LIMIT 100
+  `)).rows as any[];
+
+  for (const p of expiredParents) {
+    try {
+      await superAdminDb.execute(sql`DELETE FROM parent_accounts WHERE id = ${p.id}`);
+      console.log(`[withdrawal-cleanup] parent_accounts 삭제 완료: ${p.id}`);
+    } catch (e: any) {
+      console.error(`[withdrawal-cleanup] parent_accounts 오류 ${p.id}:`, e.message);
+    }
+  }
+
+  if (expiredUsers.length > 0 || expiredParents.length > 0) {
+    console.log(`[withdrawal-cleanup] 처리 완료 — users: ${expiredUsers.length}건, parents: ${expiredParents.length}건`);
   }
 }
 

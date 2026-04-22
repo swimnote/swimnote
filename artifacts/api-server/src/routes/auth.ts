@@ -395,6 +395,14 @@ router.post("/parent-login", async (req, res) => {
       }
     }
     if (!matched) return err(res, 401, "비밀번호가 올바르지 않습니다.");
+
+    // 탈퇴 예정 계정 체크
+    if (matched.withdrawal_requested_at) {
+      const deletionAt = new Date(new Date(matched.withdrawal_requested_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+      const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86400000));
+      return res.status(403).json({ success: false, error: `탈퇴 처리 중인 계정입니다. ${daysLeft}일 후 완전히 삭제됩니다.`, error_code: "withdrawal_in_progress", days_until_deletion: daysLeft });
+    }
+
     // 수영장 이름 조회 (swimming_pool_id 없으면 join_request에서 poolId 추출)
     let resolvedPoolId: string | null = matched.swimming_pool_id || null;
     let poolDisplayName: string | null = null;
@@ -847,6 +855,12 @@ router.post("/unified-login", async (req, res) => {
       if (!valid) {
         wrongPwCount++;
       } else {
+        // ── 탈퇴 예정 계정 체크 (90일 유예 중) ────────────────────────
+        if ((user as any).withdrawal_requested_at) {
+          const deletionAt = new Date(new Date((user as any).withdrawal_requested_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+          const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86400000));
+          res.status(403).json({ success: false, error: `탈퇴 처리 중인 계정입니다. ${daysLeft}일 후 완전히 삭제됩니다.`, error_code: "withdrawal_in_progress", days_until_deletion: daysLeft }); return;
+        }
         // teacher 활성화 체크
         if (user.role === "teacher") {
           const rawRows = await superAdminDb.execute(sql`SELECT is_activated FROM users WHERE id = ${user.id} LIMIT 1`);
@@ -916,6 +930,12 @@ router.post("/unified-login", async (req, res) => {
       if (!valid) {
         wrongPwCount++;
       } else {
+        // 탈퇴 예정 계정 체크
+        if (parentRow.withdrawal_requested_at) {
+          const deletionAt = new Date(new Date(parentRow.withdrawal_requested_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+          const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86400000));
+          res.status(403).json({ success: false, error: `탈퇴 처리 중인 계정입니다. ${daysLeft}일 후 완전히 삭제됩니다.`, error_code: "withdrawal_in_progress", days_until_deletion: daysLeft }); return;
+        }
         let poolName: string | null = null;
         try {
           const [pool] = await superAdminDb.select({ name: swimmingPoolsTable.name })
@@ -2198,7 +2218,7 @@ router.post("/apple-link-teacher", async (req, res) => {
 // ── users 테이블에 apple_id 컬럼 추가 (마이그레이션에서 처리되지만 안전장치) ──
 
 // ════════════════════════════════════════════════════════════════
-// DELETE /auth/account — 계정 영구 탈퇴 (Apple 5.1.1(v) 필수 요건)
+// DELETE /auth/account — 계정 탈퇴 요청 (90일 유예 후 완전 삭제)
 // ════════════════════════════════════════════════════════════════
 router.delete("/account", requireAuth, async (req: AuthRequest, res) => {
   const userId = req.user!.userId;
@@ -2206,25 +2226,36 @@ router.delete("/account", requireAuth, async (req: AuthRequest, res) => {
 
   try {
     if (role === "parent_account" || role === "parent") {
-      // 학부모 계정 영구 삭제
+      // 학부모 계정 탈퇴 → 90일 유예 소프트딜리트
       const rows = (await db.execute(sql`
-        SELECT id, login_id FROM parent_accounts WHERE id = ${userId} LIMIT 1
+        SELECT id, login_id, withdrawal_requested_at FROM parent_accounts WHERE id = ${userId} LIMIT 1
       `)).rows as any[];
 
       if (!rows.length) return err(res, 404, "계정을 찾을 수 없습니다.");
 
-      // 데모 계정 보호 (로그인 ID: demo_parent)
+      // 데모 계정 보호
       if (rows[0].login_id === "demo_parent") {
         return err(res, 403, "데모 계정은 삭제할 수 없습니다.");
       }
 
-      await db.execute(sql`DELETE FROM parent_accounts WHERE id = ${userId}`);
-      return res.json({ success: true, message: "계정이 삭제되었습니다." });
+      // 이미 탈퇴 요청된 경우
+      if (rows[0].withdrawal_requested_at) {
+        const deletionAt = new Date(new Date(rows[0].withdrawal_requested_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+        const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86400000));
+        return res.json({ success: true, already_requested: true, days_until_deletion: daysLeft, message: `이미 탈퇴 처리 중입니다. ${daysLeft}일 후 완전히 삭제됩니다.` });
+      }
+
+      await db.execute(sql`
+        UPDATE parent_accounts
+        SET withdrawal_requested_at = NOW(), updated_at = NOW()
+        WHERE id = ${userId}
+      `);
+      return res.json({ success: true, days_until_deletion: 90, message: "탈퇴 요청이 접수되었습니다. 90일 후 모든 데이터가 완전히 삭제됩니다." });
 
     } else {
-      // 관리자/선생님 계정 익명화 처리 (데이터 영구 삭제)
+      // 관리자/선생님 계정 탈퇴 → 90일 유예 소프트딜리트
       const rows = (await superAdminDb.execute(sql`
-        SELECT id, email, role FROM users WHERE id = ${userId} LIMIT 1
+        SELECT id, email, role, withdrawal_requested_at FROM users WHERE id = ${userId} LIMIT 1
       `)).rows as any[];
 
       if (!rows.length) return err(res, 404, "계정을 찾을 수 없습니다.");
@@ -2239,21 +2270,23 @@ router.delete("/account", requireAuth, async (req: AuthRequest, res) => {
         return err(res, 403, "슈퍼관리자 계정은 앱에서 삭제할 수 없습니다.");
       }
 
-      const deletedId = randomUUID();
+      // 이미 탈퇴 요청된 경우
+      if (rows[0].withdrawal_requested_at) {
+        const deletionAt = new Date(new Date(rows[0].withdrawal_requested_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+        const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86400000));
+        return res.json({ success: true, already_requested: true, days_until_deletion: daysLeft, message: `이미 탈퇴 처리 중입니다. ${daysLeft}일 후 완전히 삭제됩니다.` });
+      }
+
       await superAdminDb.execute(sql`
         UPDATE users SET
-          email        = ${`deleted_${deletedId}@deleted.local`},
-          name         = '탈퇴한 사용자',
           phone        = NULL,
-          password_hash = '',
           is_activated = false,
-          totp_secret  = NULL,
-          totp_enabled = false,
+          withdrawal_requested_at = NOW(),
           updated_at   = NOW()
         WHERE id = ${userId}
       `);
 
-      return res.json({ success: true, message: "계정이 삭제되었습니다." });
+      return res.json({ success: true, days_until_deletion: 90, message: "탈퇴 요청이 접수되었습니다. 90일 후 모든 데이터가 완전히 삭제됩니다." });
     }
   } catch (e) {
     console.error("[DELETE /auth/account]", e);
