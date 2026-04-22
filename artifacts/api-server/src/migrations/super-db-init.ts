@@ -175,6 +175,15 @@ export async function initSuperDb(): Promise<void> {
     console.warn("[super-db-init] phone_verifications 보완 오류:", e.message);
   }
 
+  // ── users — Apple/Kakao 소셜 로그인 컬럼 보완 ────────────────────────────
+  try {
+    await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_id VARCHAR;`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS kakao_id text;`)).catch(() => {});
+    console.log("[super-db-init] users 소셜 로그인 컬럼 보완 완료");
+  } catch (e: any) {
+    console.warn("[super-db-init] users 소셜 로그인 컬럼 보완 오류:", e.message);
+  }
+
   // ── parent_accounts — Apple/Kakao 소셜 로그인 컬럼 보완 ──────────────────
   try {
     // apple_id: Apple Sign In 고유 식별자
