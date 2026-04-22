@@ -21,7 +21,7 @@ interface InviteInfo { id: string; name: string; phone: string; position: string
 
 export default function TeacherInviteJoinScreen() {
   const insets = useSafeAreaInsets();
-  const { setAdminSession } = useAuth();
+  const { finishLogin } = useAuth();
   const params = useLocalSearchParams();
   const [step, setStep] = useState<"token" | "form">("token");
   const [token, setToken] = useState(String(params.token || ""));
@@ -73,8 +73,7 @@ export default function TeacherInviteJoinScreen() {
       const data = await res.json();
       if (!res.ok) { setFormError(data.message || "가입 중 오류가 발생했습니다."); return; }
       // 자동 로그인 후 선생님 홈(승인 대기 화면)으로 이동
-      await setAdminSession(data.token, data.user);
-      router.replace("/(teacher)/today-schedule" as any);
+      await finishLogin("admin", data.user, null, data.token, data.token);
     } catch { setFormError("네트워크 오류가 발생했습니다."); }
     finally { setSubmitting(false); }
   }

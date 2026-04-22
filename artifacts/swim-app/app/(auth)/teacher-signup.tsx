@@ -21,7 +21,7 @@ type Step = "type" | "pool" | "workspace" | "info";
 
 export default function TeacherSignupScreen() {
   const insets = useSafeAreaInsets();
-  const { setAdminSession, finishLogin } = useAuth();
+  const { finishLogin } = useAuth();
   const { phone: prefillPhone, kakaoId, appleId } = useLocalSearchParams<{
     phone?: string; kakaoId?: string; appleId?: string;
   }>();
@@ -112,8 +112,7 @@ export default function TeacherSignupScreen() {
         });
         const data = await res.json();
         if (!res.ok) { setError(data.error || data.message || "가입 실패"); return; }
-        await setAdminSession(data.token, data.user);
-        finishLogin("admin", data.user, null, data.token);
+        await finishLogin("admin", data.user, null, data.token, data.token);
       } else {
         /* ── 소속 수영장 (선생님) ── */
         const res = await fetch(`${API_BASE}/auth/teacher-self-signup`, {
@@ -129,8 +128,7 @@ export default function TeacherSignupScreen() {
         });
         const data = await res.json();
         if (!res.ok) { setError(data.error || data.message || "가입 실패"); return; }
-        await setAdminSession(data.token, data.user);
-        finishLogin("admin", data.user, null, data.token);
+        await finishLogin("admin", data.user, null, data.token, data.token);
       }
     } catch { setError("서버 오류가 발생했습니다."); }
     finally   { setLoading(false); }

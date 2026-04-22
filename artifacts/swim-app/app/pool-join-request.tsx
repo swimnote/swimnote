@@ -14,7 +14,7 @@ const C = Colors.light;
 
 export default function ParentRegisterScreen() {
   const insets = useSafeAreaInsets();
-  const { setParentSession } = useAuth();
+  const { finishLogin } = useAuth();
   const { phone: prefillPhone, kakaoId, appleId } = useLocalSearchParams<{
     phone?: string; kakaoId?: string; appleId?: string;
   }>();
@@ -63,8 +63,7 @@ export default function ParentRegisterScreen() {
       const data = await res.json();
       if (!res.ok) { setError(data.message || "오류가 발생했습니다."); return; }
 
-      await setParentSession(data.token, data.parent);
-      router.replace("/(parent)/home" as any);
+      await finishLogin("parent", null, data.parent, data.token, data.token);
     } catch {
       setError("네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
     } finally {

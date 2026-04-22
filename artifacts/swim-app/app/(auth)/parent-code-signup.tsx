@@ -22,7 +22,7 @@ type StudentInfo = {
 
 export default function ParentCodeSignupScreen() {
   const insets = useSafeAreaInsets();
-  const { setParentSession } = useAuth();
+  const { finishLogin } = useAuth();
   const params = useLocalSearchParams<{ code?: string }>();
   const parentNameRef = useRef<TextInput>(null);
   const pwRef = useRef<TextInput>(null);
@@ -93,8 +93,7 @@ export default function ParentCodeSignupScreen() {
         }
         return;
       }
-      await setParentSession(joinData.token, joinData.parent);
-      router.replace("/(parent)/home" as any);
+      await finishLogin("parent", null, joinData.parent, joinData.token, joinData.token);
     } catch { setError("서버 오류가 발생했습니다."); } finally { setLoading(false); }
   }
 
