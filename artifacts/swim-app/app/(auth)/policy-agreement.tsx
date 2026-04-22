@@ -50,7 +50,7 @@ export default function PolicyAgreementScreen() {
       const res  = await apiRequest(token, "/admin/refund-policy/agree", { method: "POST" });
       const data = await res.json();
       if (data.success) {
-        router.replace("/(admin)/(tabs)/dashboard" as any);
+        router.replace("/(admin)/dashboard" as any);
       } else {
         setErrorMsg(data.error ?? "처리에 실패했습니다.");
       }
