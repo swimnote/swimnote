@@ -23,7 +23,9 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
   const { adminUser, pool } = useAuth();
   const addRecord = useInviteRecordStore(s => s.addRecord);
 
-  const appUrl = "https://swimnote.kr";
+  const appUrl = Platform.OS === "ios"
+    ? "https://apps.apple.com/app/id6738888898"
+    : "https://play.google.com/store/apps/details?id=com.swimnote.app";
   const msg = buildInviteMessage({ poolName, studentName: student.name, appUrl });
 
   function makeRecordBase() {
@@ -103,10 +105,13 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
           </View>
 
           {/* 카카오톡 초대 버튼 (주 버튼) */}
-          <Pressable style={[inv.kakaoBtn]} onPress={openKakao}>
-            <Text style={inv.kakaoBtnIcon}>💬</Text>
-            <Text style={inv.kakaoBtnTxt}>카카오톡으로 초대하기</Text>
-          </Pressable>
+          <View>
+            <Pressable style={[inv.kakaoBtn]} onPress={openKakao}>
+              <Text style={inv.kakaoBtnIcon}>💬</Text>
+              <Text style={inv.kakaoBtnTxt}>카카오톡으로 초대하기</Text>
+            </Pressable>
+            <Text style={inv.kakaoNote}>* 카카오톡에 등록된 친구만 초대 가능</Text>
+          </View>
 
           {/* 문자 / 복사 / 공유 */}
           <View style={inv.btnRow}>
@@ -142,6 +147,7 @@ const inv = StyleSheet.create({
   kakaoBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: KAKAO_YELLOW },
   kakaoBtnIcon:{ fontSize: 16 },
   kakaoBtnTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: KAKAO_TEXT },
+  kakaoNote:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#999", textAlign: "center", marginTop: 5 },
   btnRow:      { flexDirection: "row", gap: 8 },
   btn:         { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 11, borderRadius: 12 },
   btnText:     { fontSize: 13, fontFamily: "Pretendard-Regular" },
