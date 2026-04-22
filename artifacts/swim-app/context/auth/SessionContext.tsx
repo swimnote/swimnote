@@ -437,6 +437,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // finishLogin: 세션 완료 후 목적지 계산(onboarding/policy 포함) → pendingRoute 설정
   // authToken: React setState 반영 전이므로 raw token 값을 직접 전달해야 함
   // pendingRoute를 RootNav가 감지 → router.replace() 실행
+  // 중요: setKind를 setPendingRoute와 같은 배치에서 호출해 레이스 조건 방지
+  //   (setKind가 finishLogin 이전에 호출됐어도 여기서 다시 호출해 최종 렌더에서 동시 반영 보장)
   async function finishLogin(
     k: "admin" | "parent",
     user: AdminUser | null,
@@ -444,6 +446,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     authToken?: string | null,
   ): Promise<void> {
     const dest = await computeLoginDest(k, user ?? null, _parent ?? null, authToken ?? null);
+    setKind(k);
     setPendingRoute(dest);
   }
 
