@@ -1,8 +1,9 @@
 /**
  * 학부모 수업 요청 화면 — 결석/보강/연기/퇴원/상담/문의
  */
-import { ChevronLeft, ClipboardList, Plus, Send } from "lucide-react-native";
+import { CalendarDays, ChevronLeft, ClipboardList, Plus, Send } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { DatePickerModal } from "@/components/common/DatePickerModal";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -53,6 +54,7 @@ export default function ParentRequestsScreen() {
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -223,12 +225,28 @@ export default function ParentRequestsScreen() {
             </View>
 
             <Text style={[s.label, { color: C.textSecondary }]}>신청 날짜 (선택)</Text>
-            <TextInput
-              style={[s.input, { backgroundColor: C.card, color: C.text, borderColor: C.border }]}
-              placeholder="예: 2026-04-10"
-              placeholderTextColor={C.textMuted}
+            <Pressable
+              style={[s.datePicker, { backgroundColor: C.card, borderColor: reqDate ? C.tint : C.border }]}
+              onPress={() => setDatePickerVisible(true)}
+            >
+              <CalendarDays size={16} color={reqDate ? C.tint : C.textMuted} />
+              <Text style={[s.datePickerTxt, { color: reqDate ? C.text : C.textMuted }]}>
+                {reqDate || "날짜 선택 (선택사항)"}
+              </Text>
+              {reqDate ? (
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => setReqDate("")}
+                >
+                  <Text style={{ fontSize: 13, color: C.textMuted }}>✕</Text>
+                </Pressable>
+              ) : null}
+            </Pressable>
+            <DatePickerModal
+              visible={datePickerVisible}
               value={reqDate}
-              onChangeText={setReqDate}
+              onConfirm={setReqDate}
+              onClose={() => setDatePickerVisible(false)}
             />
 
             <Text style={[s.label, { color: C.textSecondary }]}>메모 / 사유 (선택)</Text>
@@ -295,6 +313,8 @@ const s = StyleSheet.create({
   typeBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12 },
   typeBtnText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Pretendard-Regular", marginBottom: 14 },
+  datePicker:    { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 14 },
+  datePickerTxt: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
   multiline: { minHeight: 80, textAlignVertical: "top" },
   error: { color: "#EF4444", fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 8 },
   submitBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16, borderRadius: 16, marginTop: 4 },
