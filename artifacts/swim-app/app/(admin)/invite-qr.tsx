@@ -33,7 +33,7 @@ export default function InviteQrScreen() {
   const teacherUrl = `https://swimnote.app/join?pool=${poolId}&role=teacher`;
   const currentUrl = tab === "parent" ? parentUrl : teacherUrl;
 
-  const IOS_STORE     = 'https://apps.apple.com/app/id6761360360';
+  const IOS_STORE     = 'https://apps.apple.com/kr/app/%EC%8A%A4%EC%9C%94%EB%85%B8%ED%8A%B8/id6761360360';
   const ANDROID_STORE = 'https://play.google.com/store/apps/details?id=com.swimnote.app';
 
   async function handleShare() {

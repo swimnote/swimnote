@@ -25,7 +25,7 @@ export interface InviteRecord {
 }
 
 // ── 기본 앱 링크 ──────────────────────────────────────────────────
-export const DEFAULT_IOS_LINK     = 'https://apps.apple.com/app/id6761360360'
+export const DEFAULT_IOS_LINK     = 'https://apps.apple.com/kr/app/%EC%8A%A4%EC%9C%94%EB%85%B8%ED%8A%B8/id6761360360'
 export const DEFAULT_ANDROID_LINK = 'https://play.google.com/store/apps/details?id=com.swimnote.app'
 
 // ── 선생님 고정 템플릿 (수정 불가) ──────────────────────────────────
