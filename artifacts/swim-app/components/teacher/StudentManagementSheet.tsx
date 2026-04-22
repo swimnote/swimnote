@@ -5,7 +5,7 @@
  *
  * 배정/보강배정 완료 후 → onAssignDone() 호출 → 주간뷰 복귀 + 데이터 갱신
  */
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, CircleCheck, Eye, X } from "lucide-react-native";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, CircleCheck, Eye, Plus, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
+import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 
 const C = Colors.light;
 
@@ -113,18 +114,21 @@ interface Props {
   groups: TeacherClassGroup[];
   themeColor: string;
   readOnly?: boolean;
+  selfTeacher?: { id: string; name: string };
   onClose: () => void;
   onAssignDone: () => void;
+  onRefreshGroups?: () => void;
 }
 
 export default function StudentManagementSheet({
-  visible, token, groups, themeColor, readOnly = false, onClose, onAssignDone,
+  visible, token, groups, themeColor, readOnly = false, selfTeacher, onClose, onAssignDone, onRefreshGroups,
 }: Props) {
   const insets = useSafeAreaInsets();
 
   /* ── 공통 상태 ── */
   const [tab, setTab]       = useState<ManagementTab>("unassigned");
   const [view, setView]     = useState<SheetView>("tabs");
+  const [classCreateVisible, setClassCreateVisible] = useState(false);
 
   /* ── 미배정회원 ── */
   const [allStudents,  setAllStudents]  = useState<UnassignedStudent[]>([]);
@@ -462,6 +466,15 @@ export default function StudentManagementSheet({
           {available.length === 0 ? (
             <View style={st.emptyBox}>
               <Text style={st.emptyText}>배정 가능한 반이 없습니다.</Text>
+              {selfTeacher && (
+                <Pressable
+                  style={[st.createClassBtn, { backgroundColor: themeColor }]}
+                  onPress={() => setClassCreateVisible(true)}
+                >
+                  <Plus size={15} color="#fff" />
+                  <Text style={st.createClassBtnTxt}>반 개설하기</Text>
+                </Pressable>
+              )}
             </View>
           ) : available.map(g => {
             const isSaving = classSaving === g.id;
@@ -627,6 +640,22 @@ export default function StudentManagementSheet({
         {view === "class-pick"  && <ClassPickView />}
         {view === "makeup-pick" && <MakeupPickView />}
       </View>
+
+      {/* 반 개설 팝업 */}
+      {classCreateVisible && selfTeacher && (
+        <Modal visible animationType="slide" onRequestClose={() => setClassCreateVisible(false)}>
+          <ClassCreateFlow
+            token={token}
+            role="teacher"
+            selfTeacher={selfTeacher}
+            onSuccess={() => {
+              setClassCreateVisible(false);
+              onRefreshGroups?.();
+            }}
+            onClose={() => setClassCreateVisible(false)}
+          />
+        </Modal>
+      )}
     </Modal>
   );
 }
@@ -703,8 +732,10 @@ const st = StyleSheet.create({
   actionBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   center:   { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 40 },
-  emptyBox: { alignItems: "center", justifyContent: "center", paddingVertical: 40, gap: 10 },
-  emptyText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  emptyBox:          { alignItems: "center", justifyContent: "center", paddingVertical: 40, gap: 12 },
+  emptyText:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  createClassBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, marginTop: 4 },
+  createClassBtnTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   pickLabel: {
     fontSize: 13, fontFamily: "Pretendard-Regular",

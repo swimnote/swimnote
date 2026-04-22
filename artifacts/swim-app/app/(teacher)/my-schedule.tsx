@@ -611,8 +611,10 @@ export default function MyScheduleScreen() {
         token={token}
         groups={groups}
         themeColor={themeColor}
+        selfTeacher={selfTeacher}
         onClose={() => setShowManagement(false)}
         onAssignDone={() => { setShowManagement(false); setDetailGroup(null); setSelectedGroup(null); load(); }}
+        onRefreshGroups={load}
       />
 
       {showCreate && (
