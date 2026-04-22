@@ -121,13 +121,26 @@ export default function RevenueAnalyticsScreen() {
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
   const [testCount,   setTestCount]   = useState(0);
+  const [totalCount,  setTotalCount]  = useState(0);
   const [cleaning,    setCleaning]    = useState(false);
   const [cleanModal,  setCleanModal]  = useState(false);
+  const [cleanAllConfirm, setCleanAllConfirm] = useState(false);
 
   const fetchTestCount = useCallback(async () => {
     try {
       const res = await apiRequest(token, "/billing/revenue-logs/test-count");
       if (res.ok) { const d = await res.json(); setTestCount(Number(d.count ?? 0)); }
+    } catch (_) {}
+  }, [token]);
+
+  const fetchTotalCount = useCallback(async () => {
+    try {
+      const [tcRes, allRes] = await Promise.all([
+        apiRequest(token, "/billing/revenue-logs/test-count"),
+        apiRequest(token, "/billing/revenue-logs?start=2020-01-01&end=2099-12-31&limit=1000"),
+      ]);
+      if (tcRes.ok) { const d = await tcRes.json(); setTestCount(Number(d.count ?? 0)); }
+      if (allRes.ok) { const d = await allRes.json(); setTotalCount(Number(d.summary?.count ?? 0)); }
     } catch (_) {}
   }, [token]);
 
@@ -155,6 +168,27 @@ export default function RevenueAnalyticsScreen() {
         setCleanModal(false);
         setTestCount(0);
         Alert.alert("완료", d.message ?? "테스트 데이터 삭제 완료");
+        await Promise.all([fetchLogs(period), fetchTotalCount()]);
+      } else {
+        Alert.alert("오류", d.error ?? "삭제 실패");
+      }
+    } catch (_) {
+      Alert.alert("오류", "서버 오류가 발생했습니다.");
+    }
+    setCleaning(false);
+  }, [token, period, fetchLogs, fetchTotalCount]);
+
+  const cleanAllData = useCallback(async () => {
+    setCleaning(true);
+    try {
+      const res = await apiRequest(token, "/billing/revenue-logs/all", { method: "DELETE" });
+      const d = await res.json();
+      if (d.ok) {
+        setCleanModal(false);
+        setCleanAllConfirm(false);
+        setTestCount(0);
+        setTotalCount(0);
+        Alert.alert("완료", d.message ?? "전체 삭제 완료");
         await fetchLogs(period);
       } else {
         Alert.alert("오류", d.error ?? "삭제 실패");
@@ -168,9 +202,9 @@ export default function RevenueAnalyticsScreen() {
   const load = useCallback(async (p?: Period) => {
     const target = p ?? period;
     setLoading(true);
-    await Promise.all([fetchLogs(target), fetchTestCount()]);
+    await Promise.all([fetchLogs(target), fetchTotalCount()]);
     setLoading(false);
-  }, [fetchLogs, period, fetchTestCount]);
+  }, [fetchLogs, period, fetchTotalCount]);
 
   useEffect(() => { load(period); }, [period]);
 
@@ -235,12 +269,14 @@ export default function RevenueAnalyticsScreen() {
           <Text style={st.noticeTxt}>revenue_logs DB 실측 기반. 추정·미결제 금액 제외.</Text>
         </View>
 
-        {/* 테스트 데이터 정리 배너 */}
-        {testCount > 0 && (
+        {/* 테스트/샌드박스 데이터 정리 배너 */}
+        {(testCount > 0 || totalCount > 0) && (
           <Pressable style={st.testBanner} onPress={() => setCleanModal(true)}>
             <Trash2 size={13} color="#D97706" />
             <Text style={st.testBannerTxt}>
-              날짜 없는 테스트 기록 {testCount}건이 매출에 포함되어 있습니다. 탭하여 정리
+              {testCount > 0
+                ? `샌드박스/테스트 기록 ${testCount}건이 포함되어 있습니다. 탭하여 정리`
+                : `현재 실 매출 없음 — ${totalCount}건은 TestFlight 샌드박스 결제입니다. 탭하여 초기화`}
             </Text>
           </Pressable>
         )}
@@ -332,23 +368,53 @@ export default function RevenueAnalyticsScreen() {
             <View style={{ width: 36, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
               <Trash2 size={18} color="#D97706" />
-              <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" }}>테스트 데이터 정리</Text>
+              <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" }}>매출 기록 정리</Text>
             </View>
-            <View style={{ backgroundColor: "#FFF1BF", borderRadius: 8, padding: 12, marginBottom: 16 }}>
-              <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 20 }}>
-                {`날짜(occurred_at)가 없는 기록 ${testCount}건을 삭제합니다.\n테스트/데모 과정에서 생성된 기록이며, 삭제 후 복구할 수 없습니다.`}
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable style={[st.modalBtn, { backgroundColor: "#F1F5F9" }]} onPress={() => setCleanModal(false)} disabled={cleaning}>
-                <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" }}>취소</Text>
-              </Pressable>
-              <Pressable style={[st.modalBtn, { backgroundColor: "#D97706", flex: 1.5, opacity: cleaning ? 0.6 : 1 }]} onPress={cleanupTestData} disabled={cleaning}>
-                {cleaning
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" }}>삭제 확인</Text>}
-              </Pressable>
-            </View>
+
+            {!cleanAllConfirm ? (
+              <>
+                <View style={{ backgroundColor: "#FFF1BF", borderRadius: 8, padding: 12, marginBottom: 16 }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 20 }}>
+                    {testCount > 0
+                      ? `샌드박스/테스트 기록 ${testCount}건을 삭제합니다.\n실 매출 데이터는 유지됩니다.`
+                      : `TestFlight/샌드박스 결제 기록 ${totalCount}건이 있습니다.\n실제 결제가 없으므로 전체 초기화를 권장합니다.`}
+                  </Text>
+                </View>
+                <View style={{ gap: 8 }}>
+                  {testCount > 0 && (
+                    <Pressable style={[st.modalBtn, { backgroundColor: "#D97706", opacity: cleaning ? 0.6 : 1 }]} onPress={cleanupTestData} disabled={cleaning}>
+                      {cleaning
+                        ? <ActivityIndicator color="#fff" size="small" />
+                        : <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" }}>샌드박스만 삭제 ({testCount}건)</Text>}
+                    </Pressable>
+                  )}
+                  <Pressable style={[st.modalBtn, { backgroundColor: "#DC2626", opacity: cleaning ? 0.6 : 1 }]} onPress={() => setCleanAllConfirm(true)} disabled={cleaning}>
+                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" }}>전체 초기화 ({totalCount}건)</Text>
+                  </Pressable>
+                  <Pressable style={[st.modalBtn, { backgroundColor: "#F1F5F9" }]} onPress={() => setCleanModal(false)} disabled={cleaning}>
+                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" }}>취소</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={{ backgroundColor: "#FEE2E2", borderRadius: 8, padding: 12, marginBottom: 16 }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#991B1B", lineHeight: 20 }}>
+                    {`⚠️ 전체 매출 기록 ${totalCount}건을 삭제합니다.\n이 작업은 복구할 수 없습니다.\n실 매출 데이터가 없을 때만 사용하세요.`}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <Pressable style={[st.modalBtn, { backgroundColor: "#F1F5F9" }]} onPress={() => setCleanAllConfirm(false)} disabled={cleaning}>
+                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" }}>뒤로</Text>
+                  </Pressable>
+                  <Pressable style={[st.modalBtn, { backgroundColor: "#DC2626", flex: 1.5, opacity: cleaning ? 0.6 : 1 }]} onPress={cleanAllData} disabled={cleaning}>
+                    {cleaning
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" }}>전체 삭제 확인</Text>}
+                  </Pressable>
+                </View>
+              </>
+            )}
           </Pressable>
         </Pressable>
       </Modal>

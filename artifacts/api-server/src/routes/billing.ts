@@ -133,14 +133,15 @@ router.post("/revenuecat-webhook", async (req, res) => {
   const event = req.body?.event;
   if (!event) { res.json({ received: true }); return; }
 
-  const eventType  = event.type as string;
-  const appUserId  = event.app_user_id as string;
-  const productId  = (event.product_id as string) ?? "";
-  const expiresMs  = event.expiration_at_ms as number | null;
-  const expiresAt  = expiresMs ? new Date(expiresMs).toISOString().split("T")[0] : null;
-  const tier       = RC_PRODUCT_TIER_MAP[productId] ?? null;
+  const eventType   = event.type as string;
+  const appUserId   = event.app_user_id as string;
+  const productId   = (event.product_id as string) ?? "";
+  const expiresMs   = event.expiration_at_ms as number | null;
+  const expiresAt   = expiresMs ? new Date(expiresMs).toISOString().split("T")[0] : null;
+  const tier        = RC_PRODUCT_TIER_MAP[productId] ?? null;
+  const isSandbox   = (event.environment as string | undefined)?.toUpperCase() === "SANDBOX";
 
-  console.log(`[rc-webhook] 이벤트: ${eventType} | 사용자: ${appUserId} | 제품: ${productId} | tier: ${tier}`);
+  console.log(`[rc-webhook] 이벤트: ${eventType} | 사용자: ${appUserId} | 제품: ${productId} | tier: ${tier} | sandbox: ${isSandbox}`);
 
   try {
     // 사용자 → 수영장 찾기
@@ -201,6 +202,7 @@ router.post("/revenuecat-webhook", async (req, res) => {
             description: `${resolved?.planName ?? tier} ${eventType === "RENEWAL" ? "갱신" : "신규 구독"} (RevenueCat)`,
             planId: tier, planName: resolved?.planName,
             eventType: eventType === "RENEWAL" ? "renewal" : "new_subscription",
+            isSandbox,
           });
         }
         logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
@@ -523,6 +525,7 @@ async function ensureBillingTables() {
   await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`).catch(() => {});
   await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS store_fee INTEGER NOT NULL DEFAULT 0`).catch(() => {});
   await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS net_revenue INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS is_sandbox BOOLEAN NOT NULL DEFAULT FALSE`).catch(() => {});
   // 다운그레이드 예약 컬럼 추가
   await db.execute(sql`ALTER TABLE pool_subscriptions ADD COLUMN IF NOT EXISTS pending_tier TEXT`).catch(() => {});
   await db.execute(sql`ALTER TABLE pool_subscriptions ADD COLUMN IF NOT EXISTS downgrade_at DATE`).catch(() => {});
@@ -585,6 +588,7 @@ async function recordPayment(params: {
   pgTransactionId?: string;
   planId?: string; planName?: string; poolName?: string;
   eventType?: string; grossAmount?: number; introDiscount?: number;
+  isSandbox?: boolean;
 }): Promise<string> {
   const id = `pay_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   await superAdminDb.execute(sql`
@@ -605,16 +609,17 @@ async function recordPayment(params: {
     const grossAmt  = params.grossAmount ?? params.amount;
     const introDis  = params.introDiscount ?? 0;
     const evtType   = params.eventType ?? "new_subscription";
+    const isSandbox = params.isSandbox ?? false;
     await superAdminDb.execute(sql`
       INSERT INTO revenue_logs
         (id, pool_id, pool_name, plan_id, plan_name, event_type,
          gross_amount, intro_discount_amount, charged_amount,
-         store_fee, net_revenue, payment_provider, occurred_at)
+         store_fee, net_revenue, payment_provider, occurred_at, is_sandbox)
       VALUES
         (${revId}, ${params.poolId}, ${params.poolName ?? null},
          ${params.planId}, ${params.planName ?? null}, ${evtType},
          ${grossAmt}, ${introDis}, ${params.amount},
-         ${storeFee}, ${netRev}, 'store', NOW())
+         ${storeFee}, ${netRev}, 'store', NOW(), ${isSandbox})
     `).catch(console.error);
   }
   return id;
@@ -1462,11 +1467,13 @@ router.get("/revenue-logs", requireAuth, requireRole("super_admin"), async (req:
         COALESCE(rl.net_revenue, 0)                                                         AS net_revenue,
         COALESCE(rl.payment_provider, 'store')                                             AS payment_provider,
         COALESCE(rl.occurred_at, rl.created_at)                                            AS occurred_at,
+        COALESCE(rl.is_sandbox, FALSE)                                                      AS is_sandbox,
         rl.created_at
       FROM revenue_logs rl
       LEFT JOIN swimming_pools sp ON sp.id = rl.pool_id
       LEFT JOIN subscription_plans pp ON pp.tier = rl.plan_id
-      WHERE (${start ?? null}::date IS NULL OR COALESCE(rl.occurred_at, rl.created_at) >= ${start ?? null}::date)
+      WHERE COALESCE(rl.is_sandbox, FALSE) = FALSE
+        AND (${start ?? null}::date IS NULL OR COALESCE(rl.occurred_at, rl.created_at) >= ${start ?? null}::date)
         AND (${end ?? null}::date IS NULL OR COALESCE(rl.occurred_at, rl.created_at) <= (${end ?? null}::date + INTERVAL '1 day'))
       ORDER BY COALESCE(rl.occurred_at, rl.created_at) DESC
       LIMIT ${parseInt(limit as string)}
@@ -1542,12 +1549,14 @@ router.get("/revenue-by-pool", requireAuth, requireRole("super_admin"), async (_
   }
 });
 
-// GET /billing/revenue-logs/test-count — 테스트 기록 건수 조회 (슈퍼관리자 전용)
+// GET /billing/revenue-logs/test-count — 샌드박스/테스트 기록 건수 조회 (슈퍼관리자 전용)
 router.get("/revenue-logs/test-count", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
   try {
     await ensureBillingTables();
     const row = (await superAdminDb.execute(sql`
-      SELECT COUNT(*)::int AS cnt FROM revenue_logs WHERE occurred_at IS NULL
+      SELECT COUNT(*)::int AS cnt
+      FROM revenue_logs
+      WHERE occurred_at IS NULL OR COALESCE(is_sandbox, FALSE) = TRUE
     `)).rows[0] as any;
     res.json({ count: Number(row?.cnt ?? 0) });
   } catch (err: any) {
@@ -1555,15 +1564,29 @@ router.get("/revenue-logs/test-count", requireAuth, requireRole("super_admin"), 
   }
 });
 
-// DELETE /billing/revenue-logs/cleanup-test — occurred_at NULL 테스트 기록 삭제 (슈퍼관리자 전용)
+// DELETE /billing/revenue-logs/cleanup-test — 샌드박스/테스트 기록 삭제 (슈퍼관리자 전용)
 router.delete("/revenue-logs/cleanup-test", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
   try {
     await ensureBillingTables();
     const result = await superAdminDb.execute(sql`
-      DELETE FROM revenue_logs WHERE occurred_at IS NULL RETURNING id
+      DELETE FROM revenue_logs
+      WHERE occurred_at IS NULL OR COALESCE(is_sandbox, FALSE) = TRUE
+      RETURNING id
     `);
     const deleted = result.rows.length;
-    res.json({ ok: true, deleted, message: `테스트 기록 ${deleted}건 삭제 완료` });
+    res.json({ ok: true, deleted, message: `샌드박스/테스트 기록 ${deleted}건 삭제 완료` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /billing/revenue-logs/all — 전체 매출 기록 초기화 (슈퍼관리자 전용, 실매출 없을 때만 사용)
+router.delete("/revenue-logs/all", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    await ensureBillingTables();
+    const result = await superAdminDb.execute(sql`DELETE FROM revenue_logs RETURNING id`);
+    const deleted = result.rows.length;
+    res.json({ ok: true, deleted, message: `매출 기록 전체 ${deleted}건 삭제 완료` });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
