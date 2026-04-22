@@ -444,6 +444,7 @@ export default function SignupScreen() {
             autoCorrect={false}
             keyboardType="ascii-capable"
             returnKeyType="next"
+            textContentType="oneTimeCode"
           />
           <Pressable onPress={() => setShowPw(v => !v)}>
             <LucideIcon name={showPw ? "eye-off" : "eye"} size={18} color={C.textMuted} />
@@ -462,6 +463,7 @@ export default function SignupScreen() {
             autoCorrect={false}
             keyboardType="ascii-capable"
             returnKeyType="done"
+            textContentType="oneTimeCode"
           />
           <Pressable onPress={() => setShowPwc(v => !v)}>
             <LucideIcon name={showPwc ? "eye-off" : "eye"} size={18} color={C.textMuted} />
