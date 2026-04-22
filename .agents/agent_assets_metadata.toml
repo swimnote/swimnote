@@ -66,3 +66,9 @@ id = "cGYypCsOOCeu9bkOgRRrg"
 uri = "file://attached_assets/IMG_1504_1776356970629.png"
 type = "image"
 title = "구독 관리 화면"
+
+[[outputs]]
+id = "0SYM_IKoVCZ6CAE-eaqEJ"
+uri = "file://artifacts/swim-app/assets/images/splash-new.png"
+type = "image"
+title = "새 스플래시 화면 (교체됨)"
