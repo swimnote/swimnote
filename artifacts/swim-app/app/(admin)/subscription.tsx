@@ -442,7 +442,7 @@ function PlanCard({
       <View style={s.planRow}>
         <Text style={[s.planName, { color: isFree ? C.textSecondary : C.text }]}>{plan.name}</Text>
         <Text style={[s.planPrice, { color: isFree ? C.textMuted : accentColor }]}>
-          {isFree ? "무료" : (rcPriceString ?? fmt(plan.price))}
+          {isFree ? "무료" : fmt(plan.price)}
           {!isFree && <Text style={s.planPriceSub}>/월</Text>}
         </Text>
       </View>
