@@ -23,6 +23,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
+import { WithdrawalModal } from "@/components/common/WithdrawalModal";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
@@ -61,10 +62,13 @@ export default function TeacherSettingsScreen() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  async function handleDeleteAccount() {
+  async function handleDeleteAccount(immediate: boolean) {
     setDeleteLoading(true);
     try {
-      const res = await apiRequest(token, "/auth/account", { method: "DELETE" });
+      const res = await apiRequest(token, "/auth/account", {
+        method: "DELETE",
+        body: JSON.stringify({ immediate }),
+      });
       if (res.ok) { setDeleteConfirm(false); await logout(); }
     } catch { } finally { setDeleteLoading(false); }
   }
@@ -353,14 +357,11 @@ export default function TeacherSettingsScreen() {
 
       </ScrollView>
 
-      <ConfirmModal
+      <WithdrawalModal
         visible={deleteConfirm}
-        title="회원 탈퇴"
-        message={"계정을 삭제하면 모든 데이터가 익명 처리되며\n복구할 수 없습니다. 정말 탈퇴하시겠습니까?"}
-        confirmText={deleteLoading ? "처리 중..." : "탈퇴하기"}
-        destructive
+        onClose={() => setDeleteConfirm(false)}
         onConfirm={handleDeleteAccount}
-        onCancel={() => setDeleteConfirm(false)}
+        loading={deleteLoading}
       />
     </SafeAreaView>
   );

@@ -4,10 +4,11 @@
  * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
 import { CircleAlert, Trash2 } from "lucide-react-native";
+import { WithdrawalModal } from "@/components/common/WithdrawalModal";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -54,10 +55,8 @@ export default function ParentProfileScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const hasFieldErrors = Object.values(fieldErrors).some(v => !!v);
 
-  const [deleteVisible, setDeleteVisible] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [deleteMsg, setDeleteMsg] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -68,22 +67,18 @@ export default function ParentProfileScreen() {
     })();
   }, []);
 
-  async function deleteAccount() {
-    if (deleteConfirmText !== "탈퇴") { setDeleteMsg("'탈퇴'를 정확히 입력해주세요."); return; }
-    setDeleteLoading(true); setDeleteMsg("");
+  async function deleteAccount(immediate: boolean) {
+    setDeleteLoading(true);
     try {
-      const res = await apiRequest(token, "/auth/account", { method: "DELETE" });
+      const res = await apiRequest(token, "/auth/account", {
+        method: "DELETE",
+        body: JSON.stringify({ immediate }),
+      });
       if (res.ok) {
-        setDeleteVisible(false);
-        Alert.alert("계정 탈퇴 완료", "계정이 삭제되었습니다. 이용해 주셔서 감사합니다.", [
-          { text: "확인", onPress: () => { logout(); router.replace("/"); } },
-        ]);
-      } else {
-        const d = await res.json().catch(() => ({}));
-        setDeleteMsg(d.message || d.error || "탈퇴 처리에 실패했습니다.");
+        setDeleteConfirm(false);
+        await logout();
       }
-    } catch { setDeleteMsg("오류가 발생했습니다. 다시 시도해주세요."); }
-    finally { setDeleteLoading(false); }
+    } catch { } finally { setDeleteLoading(false); }
   }
 
   async function handleSave() {
@@ -243,7 +238,7 @@ export default function ParentProfileScreen() {
             </Text>
             <Pressable
               style={({ pressed }) => [s.deleteBtn, { opacity: pressed ? 0.7 : 1 }]}
-              onPress={() => { setDeleteConfirmText(""); setDeleteMsg(""); setDeleteVisible(true); }}
+              onPress={() => setDeleteConfirm(true)}
             >
               <Text style={s.deleteBtnTxt}>계정 탈퇴하기</Text>
             </Pressable>
@@ -252,43 +247,12 @@ export default function ParentProfileScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* ═══ 계정 탈퇴 확인 모달 ═══ */}
-      <Modal visible={deleteVisible} animationType="slide" transparent presentationStyle="overFullScreen">
-        <View style={s.deleteOverlay}>
-          <View style={[s.deleteModal, { paddingBottom: insets.bottom + 16 }]}>
-            <Text style={s.deleteModalTitle}>계정 탈퇴</Text>
-            <View style={[s.deleteWarnBox]}>
-              <Text style={s.deleteWarnTxt}>⚠️ 탈퇴 시 모든 계정 정보가 즉시 삭제되며{"\n"}복구가 불가능합니다.</Text>
-            </View>
-            <Text style={s.deleteInputLabel}>확인을 위해 아래에 <Text style={{ color: "#D96C6C" }}>'탈퇴'</Text>를 입력하세요</Text>
-            <TextInput
-              style={[s.deleteInput, { color: C.text }]}
-              value={deleteConfirmText}
-              onChangeText={(t) => { setDeleteConfirmText(t); setDeleteMsg(""); }}
-              placeholder="탈퇴"
-              placeholderTextColor={C.textMuted}
-            />
-            {deleteMsg ? (
-              <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C" }}>{deleteMsg}</Text>
-            ) : null}
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
-              <Pressable style={[s.deleteCancelBtn]} onPress={() => setDeleteVisible(false)}>
-                <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>취소</Text>
-              </Pressable>
-              <Pressable
-                style={[s.deleteConfirmBtn, { opacity: (deleteLoading || deleteConfirmText !== "탈퇴") ? 0.5 : 1 }]}
-                onPress={deleteAccount}
-                disabled={deleteLoading || deleteConfirmText !== "탈퇴"}
-              >
-                {deleteLoading
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" }}>계정 영구 삭제</Text>
-                }
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <WithdrawalModal
+        visible={deleteConfirm}
+        onClose={() => setDeleteConfirm(false)}
+        onConfirm={deleteAccount}
+        loading={deleteLoading}
+      />
 
       <ToastComponent />
     </View>

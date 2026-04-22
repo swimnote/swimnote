@@ -14,10 +14,11 @@ import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
+import { WithdrawalModal } from "@/components/common/WithdrawalModal";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
@@ -62,28 +63,18 @@ export default function ParentMoreScreen() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  async function handleDeleteAccount() {
+  async function handleDeleteAccount(immediate: boolean) {
     setDeleteLoading(true);
     try {
-      const res = await apiRequest(token, "/auth/account", { method: "DELETE" });
+      const res = await apiRequest(token, "/auth/account", {
+        method: "DELETE",
+        body: JSON.stringify({ immediate }),
+      });
       if (res.ok) {
         setDeleteConfirm(false);
         await logout();
-      } else {
-        let msg = "계정 삭제 중 오류가 발생했습니다.";
-        try {
-          const body = await res.json();
-          if (body?.message) msg = body.message;
-        } catch {}
-        setDeleteConfirm(false);
-        Alert.alert("탈퇴 실패", msg);
       }
-    } catch {
-      setDeleteConfirm(false);
-      Alert.alert("탈퇴 실패", "네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
-    } finally {
-      setDeleteLoading(false);
-    }
+    } catch { } finally { setDeleteLoading(false); }
   }
 
   return (
@@ -191,15 +182,11 @@ export default function ParentMoreScreen() {
         onConfirm={async () => { setLogoutConfirm(false); await logout(); }}
         onCancel={() => setLogoutConfirm(false)}
       />
-      <ConfirmModal
+      <WithdrawalModal
         visible={deleteConfirm}
-        title="회원 탈퇴"
-        message={"계정을 삭제하면 모든 데이터가 영구적으로\n삭제되며 복구할 수 없습니다.\n정말 탈퇴하시겠습니까?"}
-        confirmText="탈퇴하기"
-        loading={deleteLoading}
-        destructive
+        onClose={() => setDeleteConfirm(false)}
         onConfirm={handleDeleteAccount}
-        onCancel={deleteLoading ? undefined : () => setDeleteConfirm(false)}
+        loading={deleteLoading}
       />
     </View>
   );
