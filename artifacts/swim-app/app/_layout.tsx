@@ -29,14 +29,6 @@ try {
   console.warn("[RevenueCat] 초기화 실패:", err?.message ?? "Unknown error");
 }
 
-// ── 빌드 식별 로그 ──────────────────────────────────────
-const BUILD_TAG = "SwimNote-20260407-pools-summary-v3";
-console.log(`[BUILD_TAG] ${BUILD_TAG}`);
-console.log(`[BUILD_TAG] API_BASE=${process.env.EXPO_PUBLIC_API_URL || "https://" + (process.env.EXPO_PUBLIC_DOMAIN || "unknown") + "/api"}`);
-
-// ── 파일 진입 로그 ──────────────────────────────────────
-console.log("[LAYOUT] FILE_ENTRY");
-
 // ── 전역 에러 핸들러 (Android fatal crash 캡처) ──────────
 declare const ErrorUtils: any;
 try {
@@ -47,9 +39,8 @@ try {
       console.error(`[GLOBAL_ERROR_STACK] ${(error?.stack ?? "").substring(0, 800)}`);
       if (typeof _prevErrHandler === "function") _prevErrHandler(error, isFatal);
     });
-    console.log("[LAYOUT] global error handler installed");
   } else {
-    console.log("[LAYOUT] ErrorUtils NOT available");
+    // ErrorUtils 미지원 환경
   }
 } catch (handlerErr: any) {
   console.warn("[LAYOUT] failed to install global error handler:", handlerErr?.message);
@@ -206,7 +197,6 @@ function RootNav() {
     if (!pendingRoute) return;
     if (isLoading) return; // isLoading 중엔 Stack 미마운트 → replace 지연, isLoading=false 시 재발동
     const dest = pendingRoute; // 지역변수 캡처 — effect 실행 중 외부 상태 변경 격리
-    console.log(`[ROUTE] pendingRoute → ${dest}`);
     router.replace(dest as any);
     clearPendingRoute();
   }, [pendingRoute, isLoading]);
@@ -215,7 +205,6 @@ function RootNav() {
   useEffect(() => {
     if (isLoading || isAuthenticating || pendingRoute) return;
     if (!kind) {
-      console.log(`[ROUTE] 세션 없음 → /`);
       router.replace("/");
     }
   }, [isLoading, isAuthenticating, kind, pendingRoute]);
@@ -275,20 +264,16 @@ function RootNav() {
 }
 
 export default function RootLayout() {
-  console.log("[LAYOUT] RootLayout RENDER_START");
   const [fontsLoaded, fontError] = useFonts({
     "Pretendard-Regular":  require("../assets/fonts/Pretendard-Regular.otf"),
     "Pretendard-Medium":   require("../assets/fonts/Pretendard-Medium.otf"),
     "Pretendard-SemiBold": require("../assets/fonts/Pretendard-SemiBold.otf"),
     "Pretendard-Bold":     require("../assets/fonts/Pretendard-Bold.otf"),
   });
-  console.log(`[FONT] useFonts result: loaded=${fontsLoaded} error=${fontError?.message ?? "none"}`);
   const [fontsReady, setFontsReady] = useState(false);
 
   useEffect(() => {
-    console.log(`[FONT] useEffect fired: loaded=${fontsLoaded} hasError=${!!fontError}`);
     if (fontsLoaded) {
-      console.log("[FONT] LOADED_OK → setFontsReady(true) + hideAsync");
       setFontsReady(true);
       SplashScreen.hideAsync();
     } else if (fontError) {
@@ -298,9 +283,7 @@ export default function RootLayout() {
 
   // 안전 타임아웃: 5초 후 강제 렌더링
   useEffect(() => {
-    console.log("[FONT] timeout useEffect registered");
     const t = setTimeout(() => {
-      console.log("[FONT] TIMEOUT_FIRED → forcing fontsReady=true");
       setFontsReady(prev => {
         if (!prev) SplashScreen.hideAsync();
         return true;
@@ -310,14 +293,12 @@ export default function RootLayout() {
   }, []);
 
   if (!fontsReady) {
-    console.log("[LAYOUT] fontsReady=false → returning loading view");
     return (
       <View style={{ flex: 1, backgroundColor: "#FFFFFF", justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#2EC4B6" />
       </View>
     );
   }
-  console.log("[LAYOUT] fontsReady=true → rendering root tree");
 
   return (
     <SafeAreaProvider>

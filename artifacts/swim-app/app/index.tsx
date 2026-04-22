@@ -4,7 +4,6 @@
  * 중단: 아이디/비밀번호 입력 + 로그인 버튼 + 비밀번호 찾기
  * 하단: or 구분선 + 카카오 가입 / 일반 가입
  */
-console.log("[INDEX_SCREEN] login screen loaded");
 import { CircleAlert, Key, Lock, User, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
@@ -37,7 +36,6 @@ function KakaoIcon({ size = 22 }: { size?: number }) {
 }
 
 export default function LoginScreen() {
-  console.log("[LOGIN] RENDER_START");
   const { unifiedLogin, kakaoSocialLogin, appleSocialLogin } = useAuth();
   const insets = useSafeAreaInsets();
   const pwRef  = useRef<TextInput>(null);
@@ -56,7 +54,6 @@ export default function LoginScreen() {
   const [focusedField, setFocusedField]           = useState<"id" | "pw" | null>(null);
 
   useEffect(() => {
-    console.log("[LOGIN] useEffect:apple-check start platform=" + Platform.OS);
     if (Platform.OS === "ios") {
       AppleAuthentication.isAvailableAsync().then(available => {
         console.log("[LOGIN] apple available=" + available);
@@ -70,7 +67,6 @@ export default function LoginScreen() {
   }, []);
 
   useEffect(() => {
-    console.log("[LOGIN] useEffect:keyboard registered");
     const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvt = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
     const onShow = Keyboard.addListener(showEvt, (e) => {
@@ -226,7 +222,6 @@ export default function LoginScreen() {
 
   const isTablet = Dimensions.get("window").width >= 768;
 
-  console.log("[LOGIN] RETURN_JSX");
   return (
     <View style={[s.root, { backgroundColor: "#fff" }]}>
       <ScrollView
@@ -237,22 +232,18 @@ export default function LoginScreen() {
         {/* ── 전체 콘텐츠 (로고 + 폼 + 가입 버튼) ── */}
         <View style={[s.bottomSection, isTablet && s.bottomSectionTablet]}>
         {/* ── 로고 ── */}
-        {(() => { console.log("[LOGIN] JSX:logo"); return null; })()}
         <Image
           source={require("../assets/images/swimnote-logo.png")}
           style={[s.logoImg, isTablet && s.logoImgTablet]}
           resizeMode="contain"
         />
         {/* ── 로그인 폼 ── */}
-        {(() => { console.log("[LOGIN] JSX:form"); return null; })()}
         <View style={s.form}>
           {/* 아이디 */}
-          {(() => { console.log("[LOGIN] JSX:id-field"); return null; })()}
           <View style={s.fieldWrap}>
             <Text style={s.fieldLabel}>아이디</Text>
             <View style={[s.inputRow, { borderColor: identifier ? BRAND : "#E2E8F0" }]}>
               <User size={16} color={identifier ? BRAND : "#94A3B8"} />
-              {(() => { console.log("[LOGIN] JSX:id-textinput"); return null; })()}
               <TextInput
                 style={s.input}
                 value={identifier}
@@ -271,7 +262,6 @@ export default function LoginScreen() {
           </View>
 
           {/* 비밀번호 */}
-          {(() => { console.log("[LOGIN] JSX:pw-field"); return null; })()}
           <View style={s.fieldWrap}>
             <Text style={s.fieldLabel}>비밀번호</Text>
             <View style={[s.inputRow, { borderColor: password ? BRAND : "#E2E8F0" }]}>
@@ -305,7 +295,6 @@ export default function LoginScreen() {
           )}
 
           {/* 로그인 버튼 */}
-          {(() => { console.log("[LOGIN] JSX:login-btn"); return null; })()}
           <Pressable
             style={({ pressed }) => [s.loginBtn, { opacity: pressed || loading ? 0.85 : 1 }]}
             onPress={handleLogin}
@@ -328,7 +317,6 @@ export default function LoginScreen() {
         </View>
 
         {/* ── 소셜 / 가입 버튼 ── */}
-        {(() => { console.log("[LOGIN] JSX:social-section"); return null; })()}
         <View style={s.signupCol}>
           {/* Sign in with Apple (iOS/iPadOS — isAvailableAsync 체크) */}
           {appleAvailable && (
@@ -389,7 +377,6 @@ export default function LoginScreen() {
       </ScrollView>
 
       {/* ── 계정 없음 모달 ── */}
-      {(() => { console.log("[LOGIN] JSX:modal"); return null; })()}
       <Modal
         transparent
         visible={showNotFoundModal}
@@ -425,7 +412,6 @@ export default function LoginScreen() {
       </Modal>
 
       {/* ── 키보드 위 입력 미리보기 말풍선 ── */}
-      {(() => { console.log("[LOGIN] JSX:keyboard-bubble-check focused=" + focusedField + " kbH=" + keyboardHeight); return null; })()}
       {focusedField !== null && keyboardHeight > 0 && (
         <View style={[s.inputBubble, { bottom: keyboardHeight + 10 }]}>
           <Text style={s.inputBubbleLabel}>
