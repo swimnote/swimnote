@@ -322,7 +322,7 @@ export default function LoginScreen() {
           {appleAvailable && (
             <View style={{ position: "relative" }}>
               <AppleAuthentication.AppleAuthenticationButton
-                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
                 buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
                 cornerRadius={14}
                 style={[s.appleBtn, appleLoading && { opacity: 0.4 }]}
