@@ -42,16 +42,16 @@ interface PlanMeta {
 
 const SOLO_PLANS: PlanMeta[] = [
   { tier: "free",     name: "Free",        price: 0,      limit: 10,   storage: "100MB",  storageMb: 102,    group: "solo",   rcPackageId: null },
-  { tier: "starter",  name: "Coach30",     price: 3500,   limit: 30,   storage: "3GB",    storageMb: 3072,   group: "solo",   rcPackageId: "solo_30" },
-  { tier: "basic",    name: "Coach50",     price: 6500,   limit: 50,   storage: "5GB",    storageMb: 5120,   group: "solo",   rcPackageId: "solo_50" },
-  { tier: "standard", name: "Coach100",    price: 9500,   limit: 100,  storage: "10GB",   storageMb: 10240,  group: "solo",   rcPackageId: "solo_100", recommended: true },
+  { tier: "starter",  name: "Coach30",     price: 1900,   limit: 30,   storage: "3GB",    storageMb: 3072,   group: "solo",   rcPackageId: "solo_30" },
+  { tier: "basic",    name: "Coach50",     price: 2900,   limit: 50,   storage: "5GB",    storageMb: 5120,   group: "solo",   rcPackageId: "solo_50" },
+  { tier: "standard", name: "Coach100",    price: 5900,   limit: 100,  storage: "10GB",   storageMb: 10240,  group: "solo",   rcPackageId: "solo_100", recommended: true },
 ];
 
 const CENTER_PLANS: PlanMeta[] = [
-  { tier: "center_200", name: "Premier200",  price: 69000,  limit: 200,  storage: "50GB",   storageMb: 51200,   group: "center", rcPackageId: "center_200" },
-  { tier: "advance",    name: "Premier300",  price: 99000,  limit: 300,  storage: "80GB",   storageMb: 81920,   group: "center", rcPackageId: "center_300" },
-  { tier: "pro",        name: "Premier500",  price: 149000, limit: 500,  storage: "130GB",  storageMb: 133120,  group: "center", rcPackageId: "center_500" },
-  { tier: "max",        name: "Premier1000", price: 249000, limit: 1000, storage: "500GB",  storageMb: 512000,  group: "center", rcPackageId: "center_1000", recommended: true },
+  { tier: "center_200", name: "Premier200",  price: 19000,  limit: 200,  storage: "50GB",   storageMb: 51200,   group: "center", rcPackageId: "center_200" },
+  { tier: "advance",    name: "Premier300",  price: 27000,  limit: 300,  storage: "80GB",   storageMb: 81920,   group: "center", rcPackageId: "center_300" },
+  { tier: "pro",        name: "Premier500",  price: 43000,  limit: 500,  storage: "130GB",  storageMb: 133120,  group: "center", rcPackageId: "center_500" },
+  { tier: "max",        name: "Premier1000", price: 79000,  limit: 1000, storage: "500GB",  storageMb: 512000,  group: "center", rcPackageId: "center_1000", recommended: true },
 ];
 
 function fmt(price: number) {
@@ -211,13 +211,6 @@ export default function SubscriptionScreen() {
     ];
     const pkg = allPackages.find(p => p.identifier === plan.rcPackageId);
 
-    const priceStr    = `₩${plan.price.toLocaleString("ko-KR")}`;
-    const isChange    = isSubscribed;
-    const actionLabel = isChange ? "플랜 변경" : "구독 시작";
-    const confirmBody = isChange
-      ? `현재 구독을 ${plan.name}으로 변경합니다.\n${priceStr}/월 · 최대 ${plan.limit.toLocaleString()}명 · ${plan.storage}\n\n결제 수단: ${STORE_NAME}`
-      : `${priceStr}/월 · 최대 ${plan.limit.toLocaleString()}명 · ${plan.storage}\n\n결제 수단: ${STORE_NAME}`;
-
     if (!pkg) {
       showConfirm(
         "구독 상품 로드 중",
@@ -226,6 +219,13 @@ export default function SubscriptionScreen() {
       );
       return;
     }
+
+    const priceStr    = pkg.product.priceString ?? `₩${plan.price.toLocaleString("ko-KR")}`;
+    const isChange    = isSubscribed;
+    const actionLabel = isChange ? "플랜 변경" : "구독 시작";
+    const confirmBody = isChange
+      ? `현재 구독을 ${plan.name}으로 변경합니다.\n${priceStr}/월 · 최대 ${plan.limit.toLocaleString()}명 · ${plan.storage}\n\n결제 수단: ${STORE_NAME}`
+      : `${priceStr}/월 · 최대 ${plan.limit.toLocaleString()}명 · ${plan.storage}\n\n결제 수단: ${STORE_NAME}`;
 
     showConfirm(
       `${plan.name} ${actionLabel}`,
@@ -442,7 +442,7 @@ function PlanCard({
       <View style={s.planRow}>
         <Text style={[s.planName, { color: isFree ? C.textSecondary : C.text }]}>{plan.name}</Text>
         <Text style={[s.planPrice, { color: isFree ? C.textMuted : accentColor }]}>
-          {isFree ? "무료" : fmt(plan.price)}
+          {isFree ? "무료" : (rcPriceString ?? fmt(plan.price))}
           {!isFree && <Text style={s.planPriceSub}>/월</Text>}
         </Text>
       </View>

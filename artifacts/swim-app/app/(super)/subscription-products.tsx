@@ -248,15 +248,15 @@ function rowToSubscriptionPlan(row: ApiPlanRow): SubscriptionPlan {
 // ── 확정 플랜 정보 (DB 초기값 기준) ─────────────────────────────
 const PLAN_GUIDE = [
   { group: "Coach (개인 선생님)", color: P, plans: [
-    { name: "Coach30",  price: "₩3,500", members: "30명",    storage: "3GB",   video: false },
-    { name: "Coach50",  price: "₩6,500", members: "50명",    storage: "5GB",   video: false },
-    { name: "Coach100", price: "₩9,500", members: "100명",   storage: "10GB",  video: false },
+    { name: "Coach30",  price: "₩1,900", members: "30명",    storage: "3GB",   video: false },
+    { name: "Coach50",  price: "₩2,900", members: "50명",    storage: "5GB",   video: false },
+    { name: "Coach100", price: "₩5,900", members: "100명",   storage: "10GB",  video: false },
   ]},
   { group: "Premier (수영장/센터)", color: "#F59E0B", plans: [
-    { name: "Premier200",  price: "₩69,000",  members: "200명",  storage: "50GB",  video: true },
-    { name: "Premier300",  price: "₩99,000",  members: "300명",  storage: "80GB",  video: true },
-    { name: "Premier500",  price: "₩149,000", members: "500명",  storage: "130GB", video: true },
-    { name: "Premier1000", price: "₩249,000", members: "1000명", storage: "500GB", video: true },
+    { name: "Premier200",  price: "₩19,000",  members: "200명",  storage: "50GB",  video: true },
+    { name: "Premier300",  price: "₩27,000",  members: "300명",  storage: "80GB",  video: true },
+    { name: "Premier500",  price: "₩43,000",  members: "500명",  storage: "130GB", video: true },
+    { name: "Premier1000", price: "₩79,000",  members: "1000명", storage: "500GB", video: true },
   ]},
 ];
 

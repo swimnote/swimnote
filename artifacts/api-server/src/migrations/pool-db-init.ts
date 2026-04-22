@@ -817,13 +817,13 @@ export async function initPoolDb(): Promise<void> {
   // tier, plan_id, name, price, member_limit, storage_mb, storage_gb, display
   const PLAN_ROWS = [
     ['free',       'free_10',     'Free',         0,       10,   102,     0.1,   '100MB'],
-    ['starter',    'solo_30',     'Coach 30',     3500,    30,   3072,    3,     '3GB'  ],
-    ['basic',      'solo_50',     'Coach 50',     6500,    50,   5120,    5,     '5GB'  ],
-    ['standard',   'solo_100',    'Coach 100',    9500,    100,  10240,   10,    '10GB' ],
-    ['center_200', 'center_200',  'Premier 200',  69000,   200,  51200,   50,    '50GB' ],
-    ['advance',    'center_300',  'Premier 300',  99000,   300,  81920,   80,    '80GB' ],
-    ['pro',        'center_500',  'Premier 500',  149000,  500,  133120,  130,   '130GB'],
-    ['max',        'center_1000', 'Premier 1000', 249000,  1000, 512000,  500,   '500GB'],
+    ['starter',    'solo_30',     'Coach 30',     1900,    30,   3072,    3,     '3GB'  ],
+    ['basic',      'solo_50',     'Coach 50',     2900,    50,   5120,    5,     '5GB'  ],
+    ['standard',   'solo_100',    'Coach 100',    5900,    100,  10240,   10,    '10GB' ],
+    ['center_200', 'center_200',  'Premier 200',  19000,   200,  51200,   50,    '50GB' ],
+    ['advance',    'center_300',  'Premier 300',  27000,   300,  81920,   80,    '80GB' ],
+    ['pro',        'center_500',  'Premier 500',  43000,   500,  133120,  130,   '130GB'],
+    ['max',        'center_1000', 'Premier 1000', 79000,   1000, 512000,  500,   '500GB'],
   ] as const;
 
   for (const [tier, plan_id, name, price, member_limit, storage_mb, storage_gb, display] of PLAN_ROWS) {
