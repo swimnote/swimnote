@@ -31,11 +31,11 @@ export const DEFAULT_ANDROID_LINK = 'https://play.google.com/store/apps/details?
 
 // ── 선생님 고정 템플릿 (수정 불가) ──────────────────────────────────
 export const TEACHER_TEMPLATE_FIXED =
-  '{수영장이름} 수영장에서 선생님으로 초대했습니다. 링크를 확인해주세요.\n{iOS링크}\n{Android링크}'
+  '{수영장이름} 수영장에서 선생님으로 초대했습니다. 링크를 확인해주세요.\n\n{iOS링크}\n\n{Android링크}'
 
 // ── 학부모 기본 템플릿 ────────────────────────────────────────────
 export const DEFAULT_PARENT_TEMPLATE =
-  '{수영장이름}에서 스윔노트를 이용할 수 있도록 {학생이름} 학부모님을 초대합니다.\n앱을 설치한 뒤 링크를 확인해주세요.\n{iOS링크}\n{Android링크}'
+  '{수영장이름}에서 스윔노트를 이용할 수 있도록 {학생이름} 학부모님을 초대합니다.\n앱을 설치한 뒤 링크를 확인해주세요.\n\n{iOS링크}\n\n{Android링크}'
 
 // ── 변수 치환 헬퍼 ────────────────────────────────────────────────
 export function resolveTemplate(
@@ -52,8 +52,8 @@ export function resolveTemplate(
     .replace(/\{학생이름\}/g, vars.studentName ?? '')
     .replace(/\{iOS링크\}/g, vars.iosLink)
     .replace(/\{Android링크\}/g, vars.androidLink)
-  // 빈 링크 자리로 인한 연속 빈 줄 제거
-  return raw.replace(/\n{2,}/g, '\n').trim()
+  // 빈 링크 자리로 인한 3줄 이상 연속 빈 줄만 제거 (의도된 한 줄 공백은 유지)
+  return raw.replace(/\n{3,}/g, '\n\n').trim()
 }
 
 // ── buildGuardianMessage: 저장된 템플릿 기반 (역호환) ─────────────
