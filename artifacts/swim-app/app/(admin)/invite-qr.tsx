@@ -33,6 +33,7 @@ export default function InviteQrScreen() {
   const teacherUrl = `https://swimnote.app/join?pool=${poolId}&role=teacher`;
   const currentUrl = tab === "parent" ? parentUrl : teacherUrl;
 
+  const IOS_STORE     = 'https://apps.apple.com/app/id6761360360';
   const ANDROID_STORE = 'https://play.google.com/store/apps/details?id=com.swimnote.app';
 
   async function handleShare() {
@@ -41,7 +42,7 @@ export default function InviteQrScreen() {
         ? `${displayName} 학부모 앱 가입 링크입니다.`
         : `${displayName} 선생님 앱 가입 링크입니다.`;
       await Share.share({
-        message: `${baseMsg}\n\n${currentUrl}\n\n▶ 안드로이드: ${ANDROID_STORE}`,
+        message: `${baseMsg}\n\n${currentUrl}\n\n▶ iOS: ${IOS_STORE}\n\n▶ 안드로이드: ${ANDROID_STORE}`,
         url: currentUrl,
       });
     } catch {}
