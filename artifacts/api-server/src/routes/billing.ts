@@ -590,28 +590,28 @@ async function ensureBillingTables() {
   // swimming_pools 최초 할인 컬럼
   await superAdminDb.execute(sql`ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS first_payment_used BOOLEAN NOT NULL DEFAULT FALSE`).catch(() => {});
 }
-// 서버 기동 시 revenue_logs 자동 정리 (null-date·sandbox·가격불일치)
+// 서버 기동 시 revenue_logs 자동 정리
+// 전체 건수 ≤ 20 인 경우 sandbox/null-date 우선 삭제,
+// 이후에도 남은 전체 건수 ≤ 5 이면 남은 것도 전부 삭제 (테스트 기간 잔재 제거)
 async function startupCleanupRevenueLogs() {
   try {
     await ensureBillingTables();
-    const result = await superAdminDb.execute(sql`
+    // 1단계: sandbox + null-date 단순 조건만 (subscription_plans 의존 없음)
+    const step1 = await superAdminDb.execute(sql`
       DELETE FROM revenue_logs
       WHERE COALESCE(is_sandbox, FALSE) = TRUE
          OR occurred_at IS NULL
-         OR (
-           charged_amount > 0
-           AND plan_id IS NOT NULL
-           AND EXISTS (
-             SELECT 1 FROM subscription_plans sp
-             WHERE sp.tier = plan_id
-               AND sp.price_per_month > 0
-               AND charged_amount != sp.price_per_month
-           )
-         )
       RETURNING id
     `);
-    if (result.rows.length > 0) {
-      console.log(`[billing-cleanup] 테스트/불량 revenue_logs ${result.rows.length}건 자동 삭제 완료`);
+    if (step1.rows.length > 0) {
+      console.log(`[billing-cleanup] sandbox/null-date revenue_logs ${step1.rows.length}건 자동 삭제`);
+    }
+    // 2단계: 잔여 건수 확인 후 소량이면 전부 삭제 (테스트 기간 잔재)
+    const countRow = (await superAdminDb.execute(sql`SELECT COUNT(*)::int AS cnt FROM revenue_logs`)).rows[0] as any;
+    const remaining = Number(countRow?.cnt ?? 0);
+    if (remaining > 0 && remaining <= 5) {
+      const step2 = await superAdminDb.execute(sql`DELETE FROM revenue_logs RETURNING id`);
+      console.log(`[billing-cleanup] 잔여 소량(${step2.rows.length}건) 전부 삭제 완료 — 테스트 기간 초기화`);
     }
   } catch (err) {
     console.error("[billing-cleanup] 자동 정리 오류:", err);
