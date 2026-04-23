@@ -164,7 +164,11 @@ export default function RevenueAnalyticsScreen() {
   const cleanupTestData = useCallback(async () => {
     setCleaning(true);
     try {
-      const res = await apiRequest(token, "/billing/revenue-logs/cleanup-test", { method: "DELETE" });
+      // super 경로 우선 시도, 실패 시 billing 폴백
+      let res = await apiRequest(token, "/super/revenue-logs/purge-test", { method: "DELETE" });
+      if (res.status === 404) {
+        res = await apiRequest(token, "/billing/revenue-logs/cleanup-test", { method: "DELETE" });
+      }
       const d = await res.json();
       if (d.ok) {
         setCleanModal(false);
@@ -183,7 +187,11 @@ export default function RevenueAnalyticsScreen() {
   const cleanAllData = useCallback(async () => {
     setCleaning(true);
     try {
-      const res = await apiRequest(token, "/billing/revenue-logs/all", { method: "DELETE" });
+      // super 경로 우선 시도, 실패 시 billing 폴백
+      let res = await apiRequest(token, "/super/revenue-logs/purge-all", { method: "DELETE" });
+      if (res.status === 404) {
+        res = await apiRequest(token, "/billing/revenue-logs/all", { method: "DELETE" });
+      }
       const d = await res.json();
       if (d.ok) {
         setCleanModal(false);

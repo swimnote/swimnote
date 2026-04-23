@@ -590,7 +590,34 @@ async function ensureBillingTables() {
   // swimming_pools 최초 할인 컬럼
   await superAdminDb.execute(sql`ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS first_payment_used BOOLEAN NOT NULL DEFAULT FALSE`).catch(() => {});
 }
-ensureBillingTables().catch(console.error);
+// 서버 기동 시 revenue_logs 자동 정리 (null-date·sandbox·가격불일치)
+async function startupCleanupRevenueLogs() {
+  try {
+    await ensureBillingTables();
+    const result = await superAdminDb.execute(sql`
+      DELETE FROM revenue_logs
+      WHERE COALESCE(is_sandbox, FALSE) = TRUE
+         OR occurred_at IS NULL
+         OR (
+           charged_amount > 0
+           AND plan_id IS NOT NULL
+           AND EXISTS (
+             SELECT 1 FROM subscription_plans sp
+             WHERE sp.tier = plan_id
+               AND sp.price_per_month > 0
+               AND charged_amount != sp.price_per_month
+           )
+         )
+      RETURNING id
+    `);
+    if (result.rows.length > 0) {
+      console.log(`[billing-cleanup] 테스트/불량 revenue_logs ${result.rows.length}건 자동 삭제 완료`);
+    }
+  } catch (err) {
+    console.error("[billing-cleanup] 자동 정리 오류:", err);
+  }
+}
+startupCleanupRevenueLogs().catch(console.error);
 
 // ── GET /billing/plans — 구독 플랜 목록 (pool_admin 접근 가능) ────────
 // subscription.tsx 화면에서 서버 값으로 플랜 목록 표시

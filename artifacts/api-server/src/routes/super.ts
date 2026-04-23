@@ -2944,6 +2944,44 @@ router.post("/super/pools/:id/credits", requireAuth, requireRole("super_admin"),
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
+// ── 매출 기록 정리 (super 경로 — billing 경로 장애 대비) ──────────────────
+// DELETE /super/revenue-logs/purge-test — 샌드박스/날짜없음/가격불일치 삭제
+router.delete("/super/revenue-logs/purge-test", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    const result = await superAdminDb.execute(sql`
+      DELETE FROM revenue_logs
+      WHERE COALESCE(is_sandbox, FALSE) = TRUE
+         OR occurred_at IS NULL
+         OR (
+           charged_amount > 0
+           AND plan_id IS NOT NULL
+           AND EXISTS (
+             SELECT 1 FROM subscription_plans sp
+             WHERE sp.tier = plan_id
+               AND sp.price_per_month > 0
+               AND charged_amount != sp.price_per_month
+           )
+         )
+      RETURNING id
+    `);
+    const count = result.rows.length;
+    res.json({ ok: true, deleted: count, message: `테스트/불일치 기록 ${count}건 삭제 완료` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /super/revenue-logs/purge-all — 전체 삭제
+router.delete("/super/revenue-logs/purge-all", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    const result = await superAdminDb.execute(sql`DELETE FROM revenue_logs RETURNING id`);
+    const count = result.rows.length;
+    res.json({ ok: true, deleted: count, message: `전체 매출 기록 ${count}건 삭제 완료` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 앱 시작 시 비동기로 테이블/컬럼 보장
 ensureExtraTables().catch(err => console.error("[super] ensureExtraTables 오류:", err));
 ensurePlansTables().catch(err => console.error("[super] ensurePlansTables 오류:", err));
