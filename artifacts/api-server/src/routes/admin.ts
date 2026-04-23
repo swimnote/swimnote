@@ -610,28 +610,30 @@ router.get("/storage", requireAuth, requireRole("super_admin", "pool_admin"), as
     const poolId = meRow?.swimming_pool_id ?? null;
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-    // swimming_pools에서 직접 읽기 (applySubscriptionState가 항상 최신 값 기록)
+    // subscription_plans JOIN → 항상 최신 플랜 용량 사용 (swimming_pools 캐시 무시)
     const [poolRow] = (await superAdminDb.execute(sql`
-      SELECT COALESCE(subscription_tier, 'free') AS tier,
-             storage_mb,
-             display_storage,
-             base_storage_gb,
-             COALESCE(extra_storage_gb, 0) AS extra_storage_gb
-      FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+      SELECT COALESCE(sp.subscription_tier, 'free') AS tier,
+             COALESCE(plans.storage_mb, sp.storage_mb) AS plan_storage_mb,
+             COALESCE(sp.extra_storage_gb, 0)          AS extra_storage_gb
+      FROM swimming_pools sp
+      LEFT JOIN subscription_plans plans
+             ON plans.tier = COALESCE(sp.subscription_tier, 'free')
+      WHERE sp.id = ${poolId} LIMIT 1
     `)).rows as any[];
-    const activeTier    = poolRow?.tier ?? "free";
-    const displayStorage: string | null = poolRow?.display_storage ?? null;
+    const activeTier = poolRow?.tier ?? "free";
 
-    // quota_bytes: storage_mb(플랜) + extra_storage_gb(추가 구매) → bytes
-    let quotaBytes: number;
-    if (poolRow?.storage_mb) {
-      const extraMb = Number(poolRow.extra_storage_gb ?? 0) * 1024;
-      quotaBytes = (Number(poolRow.storage_mb) + extraMb) * 1024 * 1024;
-    } else {
-      const baseGb  = Number(poolRow?.base_storage_gb ?? 0.5);
-      const extraGb = Number(poolRow?.extra_storage_gb ?? 0);
-      quotaBytes = (baseGb + extraGb) * 1024 ** 3;
+    // quota_bytes: 플랜 storage_mb + 추가 구매 extra_storage_gb → bytes
+    const planMb  = Number(poolRow?.plan_storage_mb ?? 102); // free fallback 100MB
+    const extraMb = Number(poolRow?.extra_storage_gb ?? 0) * 1024;
+    const totalMb = planMb + extraMb;
+    const quotaBytes = totalMb * 1024 * 1024;
+
+    // display_storage: subscription_plans 기준으로 항상 재계산 (stale 캐시 무시)
+    function storageLabel(mb: number): string {
+      if (mb >= 1024) return `${Math.round(mb / 1024)}GB`;
+      return `${Math.round(mb / 100) * 100 || Math.round(mb / 10) * 10 || mb}MB`;
     }
+    const displayStorage: string = storageLabel(totalMb);
 
     // 사진·영상 사용량
     let photoBytes = 0;
