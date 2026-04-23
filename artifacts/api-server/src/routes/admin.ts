@@ -610,11 +610,11 @@ router.get("/storage", requireAuth, requireRole("super_admin", "pool_admin"), as
     const poolId = meRow?.swimming_pool_id ?? null;
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-    // subscription_plans JOIN → 항상 최신 플랜 용량 사용 (swimming_pools 캐시 무시)
+    // subscription_plans JOIN → 항상 최신 플랜 용량 사용
     const [poolRow] = (await superAdminDb.execute(sql`
       SELECT COALESCE(sp.subscription_tier, 'free') AS tier,
-             COALESCE(plans.storage_mb, sp.storage_mb) AS plan_storage_mb,
-             COALESCE(sp.extra_storage_gb, 0)          AS extra_storage_gb
+             plans.storage_mb                        AS plan_storage_mb,
+             COALESCE(sp.extra_storage_gb, 0)        AS extra_storage_gb
       FROM swimming_pools sp
       LEFT JOIN subscription_plans plans
              ON plans.tier = COALESCE(sp.subscription_tier, 'free')
@@ -628,7 +628,7 @@ router.get("/storage", requireAuth, requireRole("super_admin", "pool_admin"), as
     const totalMb = planMb + extraMb;
     const quotaBytes = totalMb * 1024 * 1024;
 
-    // display_storage: subscription_plans 기준으로 항상 재계산 (stale 캐시 무시)
+    // display_storage: subscription_plans 기준으로 항상 재계산
     function storageLabel(mb: number): string {
       if (mb >= 1024) return `${Math.round(mb / 1024)}GB`;
       return `${Math.round(mb / 100) * 100 || Math.round(mb / 10) * 10 || mb}MB`;
