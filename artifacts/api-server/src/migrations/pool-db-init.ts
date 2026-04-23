@@ -777,9 +777,27 @@ export async function initPoolDb(): Promise<void> {
     console.error('[pool-db-init] member_limit 초기화 오류:', e?.message);
   }
 
-  // ─── subscription_plans ─────────────────────────────────────────────────
-  // 단일 기준 스키마: tier TEXT PRIMARY KEY (super.ts ensurePlansTables와 통일)
-  // silent failure 금지 — 모든 에러 콘솔 출력
+  // ── pool_class_pricing (수업 단가표) ─────────────────────────────────────
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS pool_class_pricing (
+        id                  text      PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        pool_id             text      NOT NULL,
+        type_key            text      NOT NULL,
+        type_name           text      NOT NULL DEFAULT '',
+        monthly_fee         integer   NOT NULL DEFAULT 0,
+        sessions_per_month  integer   NOT NULL DEFAULT 4,
+        is_active           boolean   NOT NULL DEFAULT true,
+        updated_at          timestamptz NOT NULL DEFAULT now(),
+        UNIQUE (pool_id, type_key)
+      )
+    `));
+  } catch (e: any) {
+    if (!e?.message?.includes('already exists')) {
+      console.error('[pool-db-init] pool_class_pricing CREATE TABLE 오류:', e?.message);
+    }
+  }
+
   try {
     await db.execute(sql.raw(`
       CREATE TABLE IF NOT EXISTS subscription_plans (
