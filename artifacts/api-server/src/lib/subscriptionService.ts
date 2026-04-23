@@ -170,13 +170,13 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
   const memberLimit    = overrideActive ? rawMemberLimit! : Number(plan?.member_limit ?? 10);
 
   // ── storage (항상 플랜 기준) ──
-  const storageMb      = Number(plan?.storage_mb    ?? 512);
-  const storageGb      = Number(plan?.storage_gb    ?? 0.5);
-  const displayStorage = String(plan?.display_storage ?? "500MB");
+  const storageMb      = Number(plan?.storage_mb    ?? 102);
+  const storageGb      = Number(plan?.storage_gb    ?? 0.1);
+  const displayStorage = String(plan?.display_storage ?? "100MB");
 
-  // ── video / whitelabel (플랜 storage_mb 기준: Premier200 = 51200MB 이상) ──
-  const videoEnabled        = storageMb >= 51200;
-  const whiteLabelEnabled   = storageMb >= 51200;
+  // ── video / whitelabel (플랜 storage_mb 기준: Premier200 = 5120MB 이상) ──
+  const videoEnabled        = storageMb >= 5120;
+  const whiteLabelEnabled   = storageMb >= 5120;
   const videoStorageLimitMb = videoEnabled ? 1024 * 1024 : 0;
 
   // ── 다운그레이드 예약 정보 ──
@@ -227,10 +227,10 @@ export async function applySubscriptionState(
   const { startsAt, endsAt, trialEndsAt, memberLimitOverride, nextBillingAt, resetReadonly } = options;
 
   const plan = await fetchPlan(effectiveTier);
-  const storageMb         = Number(plan?.storage_mb ?? 512);
-  const storageGb         = Number(plan?.storage_gb ?? 0.5);
-  const videoEnabled      = storageMb >= 51200;
-  const whiteLabelEnabled = storageMb >= 51200;
+  const storageMb         = Number(plan?.storage_mb ?? 102);
+  const storageGb         = Number(plan?.storage_gb ?? 0.1);
+  const videoEnabled      = storageMb >= 5120;
+  const whiteLabelEnabled = storageMb >= 5120;
   const videoLimitMb      = videoEnabled ? 1024 * 1024 : 0;
 
   // ── swimming_pools 주 상태 업데이트 (플랜 표시명/용량/회원한도 포함) ──
@@ -334,12 +334,12 @@ export async function backfillPoolSubscriptionFields(): Promise<{ updated: numbe
     try {
       const tier = normalizeTier(row.subscription_tier ?? "free");
       const plan = await fetchPlan(tier);
-      const storageMb     = Number(plan?.storage_mb ?? 512);
-      const storageGb     = Number(plan?.storage_gb ?? 0.5);
-      const displayStorage = String(plan?.display_storage ?? "500MB");
+      const storageMb     = Number(plan?.storage_mb ?? 102);
+      const storageGb     = Number(plan?.storage_gb ?? 0.1);
+      const displayStorage = String(plan?.display_storage ?? "100MB");
       const planName      = String(plan?.name ?? tier);
-      const videoLimitMb  = storageMb >= 51200 ? 1024 * 1024 : 0;
-      const whiteLabelEn  = storageMb >= 51200;
+      const videoLimitMb  = storageMb >= 5120 ? 1024 * 1024 : 0;
+      const whiteLabelEn  = storageMb >= 5120;
       await db.execute(sql`
         UPDATE swimming_pools SET
           subscription_plan_name = ${planName},
