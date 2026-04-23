@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Crown, Users, HardDrive, Check, Zap, Image as ImageIcon, Video, CreditCard } from "lucide-react-native";
+import { Crown, Users, HardDrive, Check, Zap, Image as ImageIcon, Video, CreditCard, Clock } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
@@ -61,8 +61,11 @@ function fmt(price: number) {
 export default function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
   const { token, refreshPool } = useAuth();
-  const [currentTier, setCurrentTier] = useState<string | null>(null);
-  const [loading, setLoading]         = useState(true);
+  const [currentTier, setCurrentTier]       = useState<string | null>(null);
+  const [endsAt, setEndsAt]                 = useState<string | null>(null);
+  const [pendingTier, setPendingTier]       = useState<string | null>(null);
+  const [pendingPlanName, setPendingPlanName] = useState<string | null>(null);
+  const [loading, setLoading]               = useState(true);
 
 
   const {
@@ -116,6 +119,9 @@ export default function SubscriptionScreen() {
       if (statusRes.ok) {
         const d = await statusRes.json();
         setCurrentTier(d.current_plan ?? d.plan_id ?? null);
+        setEndsAt(d.subscription_ends_at ?? null);
+        setPendingTier(d.pending_tier ?? null);
+        setPendingPlanName(d.pending_plan_name ?? null);
       }
       if (policyRes?.ok) {
         const d = await policyRes.json();
@@ -268,6 +274,20 @@ export default function SubscriptionScreen() {
           </View>
           <CreditCard size={18} color="#D97706" />
         </Pressable>
+      )}
+
+      {/* 구독 취소 예약 배너 — 취소했지만 만료일까지 유지 중 */}
+      {!loading && endsAt && pendingTier === "free" && (
+        <View style={cancelBannerStyle}>
+          <Clock size={16} color="#B45309" />
+          <View style={{ flex: 1 }}>
+            <Text style={cancelBannerTitle}>구독 취소 예약됨</Text>
+            <Text style={cancelBannerDesc}>
+              {endsAt.slice(0, 10).replace(/-/g, ".")}까지 현재 플랜이 유지됩니다.{"\n"}
+              이후 {pendingPlanName ?? "Free"} 플랜으로 전환됩니다.
+            </Text>
+          </View>
+        </View>
       )}
 
       {loading ? (
@@ -484,6 +504,19 @@ const policyBannerStyle = {
 };
 const policyBannerTitle = { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E" };
 const policyBannerDesc  = { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706", marginTop: 2 };
+
+const cancelBannerStyle = {
+  flexDirection: "row" as const,
+  alignItems: "flex-start" as const,
+  gap: 10,
+  backgroundColor: "#FFF7ED",
+  borderBottomWidth: 1,
+  borderBottomColor: "#FED7AA",
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+};
+const cancelBannerTitle = { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", marginBottom: 2 };
+const cancelBannerDesc  = { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#B45309", lineHeight: 18 };
 
 const s = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 16, gap: 10 },
