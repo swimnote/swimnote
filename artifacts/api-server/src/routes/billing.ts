@@ -1602,14 +1602,25 @@ router.get("/revenue-by-pool", requireAuth, requireRole("super_admin"), async (_
   }
 });
 
-// GET /billing/revenue-logs/test-count — 샌드박스/테스트 기록 건수 조회 (슈퍼관리자 전용)
+// GET /billing/revenue-logs/test-count — 샌드박스/테스트/가격불일치 기록 건수 조회 (슈퍼관리자 전용)
 router.get("/revenue-logs/test-count", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
   try {
     await ensureBillingTables();
     const row = (await superAdminDb.execute(sql`
       SELECT COUNT(*)::int AS cnt
       FROM revenue_logs
-      WHERE occurred_at IS NULL OR COALESCE(is_sandbox, FALSE) = TRUE
+      WHERE COALESCE(is_sandbox, FALSE) = TRUE
+         OR occurred_at IS NULL
+         OR (
+           charged_amount > 0
+           AND plan_id IS NOT NULL
+           AND EXISTS (
+             SELECT 1 FROM subscription_plans sp
+             WHERE sp.tier = plan_id
+               AND sp.price_per_month > 0
+               AND charged_amount != sp.price_per_month
+           )
+         )
     `)).rows[0] as any;
     res.json({ count: Number(row?.cnt ?? 0) });
   } catch (err: any) {
@@ -1617,17 +1628,29 @@ router.get("/revenue-logs/test-count", requireAuth, requireRole("super_admin"), 
   }
 });
 
-// DELETE /billing/revenue-logs/cleanup-test — 샌드박스/테스트 기록 삭제 (슈퍼관리자 전용)
+// DELETE /billing/revenue-logs/cleanup-test — 샌드박스/테스트/가격불일치 기록 삭제 (슈퍼관리자 전용)
 router.delete("/revenue-logs/cleanup-test", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
   try {
     await ensureBillingTables();
     const result = await superAdminDb.execute(sql`
       DELETE FROM revenue_logs
-      WHERE occurred_at IS NULL OR COALESCE(is_sandbox, FALSE) = TRUE
+      WHERE COALESCE(is_sandbox, FALSE) = TRUE
+         OR occurred_at IS NULL
+         OR (
+           -- 가격 불일치: 해당 플랜의 실제 가격과 저장된 금액이 다른 경우
+           charged_amount > 0
+           AND plan_id IS NOT NULL
+           AND EXISTS (
+             SELECT 1 FROM subscription_plans sp
+             WHERE sp.tier = plan_id
+               AND sp.price_per_month > 0
+               AND charged_amount != sp.price_per_month
+           )
+         )
       RETURNING id
     `);
     const deleted = result.rows.length;
-    res.json({ ok: true, deleted, message: `샌드박스/테스트 기록 ${deleted}건 삭제 완료` });
+    res.json({ ok: true, deleted, message: `테스트/불량 기록 ${deleted}건 삭제 완료` });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
