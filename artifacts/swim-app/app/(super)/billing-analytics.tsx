@@ -129,9 +129,12 @@ const EVENT_LABEL: Record<string, string> = {
   cancellation:     "구독 해지",
 };
 
-function fmtDate(iso?: string): string {
+function fmtDate(iso?: string | Date): string {
   if (!iso) return "—";
-  const d = new Date(iso);
+  // PostgreSQL이 "2026-04-23 01:37:00.123+00" 포맷으로 반환할 수 있어 정규화
+  const normalized = String(iso).replace(" ", "T").replace(/\+00:00$/, "Z").replace(/\+00$/, "Z");
+  const d = new Date(normalized);
+  if (isNaN(d.getTime())) return String(iso).slice(0, 16);
   return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
 
@@ -160,6 +163,7 @@ export default function BillingAnalyticsScreen() {
   const [poolStats,     setPoolStats]     = useState<PoolStat[]>([]);
   const [platformMetrics, setPlatformMetrics] = useState<PlatformMetrics | null>(null);
   const [refreshing,    setRefreshing]    = useState(false);
+  const [deletingId,    setDeletingId]    = useState<string | null>(null);
 
   const { start, end, prevStart, prevEnd, label: periodLabel } = useMemo(() => getPeriodRange(period), [period]);
 
@@ -185,6 +189,20 @@ export default function BillingAnalyticsScreen() {
   }, [token, start, end, prevStart, prevEnd]);
 
   useEffect(() => { fetchData(); }, [period]);
+
+  const deleteLog = useCallback(async (id: string) => {
+    try {
+      setDeletingId(id);
+      const res = await apiRequest(token, `/billing/revenue-logs/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setLogs(prev => prev.filter(l => l.id !== id));
+      }
+    } catch (e) {
+      console.error("deleteLog error:", e);
+    } finally {
+      setDeletingId(null);
+    }
+  }, [token]);
 
   // ── 매출 집계 (API 데이터 기반) ──
   const revenue = useMemo(() => {
@@ -336,6 +354,7 @@ export default function BillingAnalyticsScreen() {
             logs.map((log, i) => {
               const isRefund = (log.refunded_amount ?? 0) > 0;
               const evtLabel = EVENT_LABEL[log.event_type ?? ""] ?? log.event_type ?? "결제";
+              const isDeleting = deletingId === log.id;
               return (
                 <View key={log.id ?? i} style={[s.txRow, i < logs.length - 1 && s.txRowBorder]}>
                   <View style={s.txLeft}>
@@ -346,13 +365,20 @@ export default function BillingAnalyticsScreen() {
                     <Text style={s.txPlan}>{log.plan_name ?? log.plan_id ?? "플랜 없음"} · {evtLabel}</Text>
                     <Text style={s.txDate}>{fmtDate(log.occurred_at)}</Text>
                   </View>
-                  <View style={s.txRight}>
+                  <View style={[s.txRight, { alignItems: "flex-end", gap: 4 }]}>
                     <Text style={[s.txAmount, isRefund && { color: "#D96C6C" }]}>
                       {isRefund ? `−${fmtKRW(Number(log.refunded_amount))}` : fmtKRW(Number(log.charged_amount))}
                     </Text>
                     {(log.net_revenue ?? 0) > 0 && (
                       <Text style={s.txNet}>순 {fmtKRW(Number(log.net_revenue))}</Text>
                     )}
+                    <Pressable
+                      onPress={() => log.id && deleteLog(log.id)}
+                      disabled={isDeleting}
+                      style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: "#FEE2E2", borderRadius: 4 }}
+                    >
+                      <Text style={{ fontSize: 10, color: "#DC2626" }}>{isDeleting ? "삭제 중…" : "삭제"}</Text>
+                    </Pressable>
                   </View>
                 </View>
               );

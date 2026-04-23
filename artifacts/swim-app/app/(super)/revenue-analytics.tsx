@@ -104,7 +104,9 @@ function SectionHeader({ title, icon }: { title: string; icon: string }) {
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "날짜 없음";
-  const d = new Date(iso);
+  // PostgreSQL이 "2026-04-23 01:37:00.123+00" 포맷으로 반환할 수 있어 정규화
+  const normalized = String(iso).replace(" ", "T").replace(/\+00:00$/, "Z").replace(/\+00$/, "Z");
+  const d = new Date(normalized);
   if (isNaN(d.getTime())) return "날짜 없음";
   return d.toLocaleDateString("ko-KR");
 }

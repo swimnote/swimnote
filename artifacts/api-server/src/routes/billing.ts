@@ -140,6 +140,11 @@ router.post("/revenuecat-webhook", async (req, res) => {
   const expiresAt   = expiresMs ? new Date(expiresMs).toISOString().split("T")[0] : null;
   const tier        = RC_PRODUCT_TIER_MAP[productId] ?? null;
   const isSandbox   = (event.environment as string | undefined)?.toUpperCase() === "SANDBOX";
+  // RC 실제 결제 금액 (price_in_purchased_currency: KRW 기준 정수)
+  const rcCurrency  = (event.currency as string | null)?.toUpperCase() ?? "KRW";
+  const rcRawPrice  = event.price_in_purchased_currency as number | null;
+  const rcPrice     = (rcCurrency === "KRW" && rcRawPrice != null && rcRawPrice > 0)
+    ? Math.round(rcRawPrice) : null;
 
   console.log(`[rc-webhook] 이벤트: ${eventType} | 사용자: ${appUserId} | 제품: ${productId} | tier: ${tier} | sandbox: ${isSandbox}`);
 
@@ -217,10 +222,34 @@ router.post("/revenuecat-webhook", async (req, res) => {
         }
         const resolved = await resolveSubscription(poolId).catch(() => null);
         const poolInfo = (await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0] as any;
-        if (eventType !== "UNCANCELLATION") {
+
+        // ── RENEWAL 중복 방지: INITIAL_PURCHASE 직후 5분 내 RENEWAL은 스킵 ──
+        let skipPaymentRecord = false;
+        if (eventType === "RENEWAL") {
+          try {
+            const [recentInitial] = (await superAdminDb.execute(sql`
+              SELECT id FROM revenue_logs
+              WHERE pool_id = ${poolId}
+                AND event_type = 'new_subscription'
+                AND occurred_at >= NOW() - INTERVAL '5 minutes'
+              LIMIT 1
+            `)).rows as any[];
+            if (recentInitial) {
+              skipPaymentRecord = true;
+              console.log(`[rc-webhook] RENEWAL dedup 스킵 (5분 내 INITIAL_PURCHASE 존재): pool=${poolId}`);
+            }
+          } catch (e: any) {
+            console.error("[rc-webhook] RENEWAL dedup 체크 오류:", e?.message);
+          }
+        }
+
+        if (eventType !== "UNCANCELLATION" && !skipPaymentRecord) {
+          // RC 실제 결제 금액 우선 사용, 없으면 DB 플랜 가격 fallback
+          const priceToRecord = rcPrice ?? (resolved?.pricePerMonth ?? 0);
           await recordPayment({
             poolId, poolName: poolInfo?.name,
-            amount: resolved?.pricePerMonth ?? 0,
+            amount: priceToRecord,
+            grossAmount: priceToRecord,
             status: "success",
             type: eventType === "RENEWAL" ? "renewal" : "new_subscription",
             description: `${resolved?.planName ?? tier} ${eventType === "RENEWAL" ? "갱신" : "신규 구독"} (RevenueCat)`,
@@ -1611,6 +1640,24 @@ router.delete("/revenue-logs/all", requireAuth, requireRole("super_admin"), asyn
     const result = await superAdminDb.execute(sql`DELETE FROM revenue_logs RETURNING id`);
     const deleted = result.rows.length;
     res.json({ ok: true, deleted, message: `매출 기록 전체 ${deleted}건 삭제 완료` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /billing/revenue-logs/:id — 개별 매출 기록 삭제 (슈퍼관리자 전용)
+router.delete("/revenue-logs/:id", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensureBillingTables();
+    const { id } = req.params;
+    const result = await superAdminDb.execute(sql`
+      DELETE FROM revenue_logs WHERE id = ${id} RETURNING id
+    `);
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: "해당 기록을 찾을 수 없습니다." });
+      return;
+    }
+    res.json({ ok: true, deleted: 1 });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
