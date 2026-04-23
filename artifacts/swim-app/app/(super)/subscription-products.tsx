@@ -270,6 +270,31 @@ export default function SubscriptionProductsScreen() {
   const [plansLoading, setPlansLoading] = useState(false);
   const [showPlanForm, setShowPlanForm] = useState(false);
   const [editPlan,     setEditPlan]     = useState<SubscriptionPlan | null>(null);
+  const [reiniting,    setReiniting]    = useState(false);
+
+  async function handleReinit() {
+    Alert.alert(
+      "플랜 기준값 초기화",
+      "모든 플랜을 확정 기준값(Coach 30/50/100 · Premier 200/300/500/1000)으로 덮어씁니다.\n폐기 플랜(엔터프라이즈 등)은 삭제됩니다.\n계속하시겠습니까?",
+      [
+        { text: "취소", style: "cancel" },
+        { text: "초기화", style: "destructive", onPress: async () => {
+          try {
+            setReiniting(true);
+            const r = await apiRequest(token, "/super/plans/reinit", { method: "POST" });
+            const d = await r.json();
+            if (r.ok) {
+              Alert.alert("완료", d.message ?? "플랜 초기화 완료");
+              await loadPlans();
+            } else {
+              Alert.alert("오류", d.error ?? "초기화 실패");
+            }
+          } catch { Alert.alert("오류", "서버 통신에 실패했습니다."); }
+          finally { setReiniting(false); }
+        }},
+      ]
+    );
+  }
 
   async function loadPlans() {
     setPlansLoading(true);
@@ -326,10 +351,19 @@ export default function SubscriptionProductsScreen() {
     <SafeAreaView style={s.safe} edges={["top"]}>
       <SubScreenHeader title="구독 플랜 설정" subtitle="Coach · Premier 플랜 관리" homePath="/(super)/more" />
 
-      <Pressable style={s.createBtn} onPress={() => { setEditPlan(null); setShowPlanForm(true); }}>
-        <CirclePlus size={16} color="#fff" />
-        <Text style={s.createBtnTxt}>새 구독 플랜 생성</Text>
-      </Pressable>
+      <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 8 }}>
+        <Pressable style={[s.createBtn, { flex: 1 }]} onPress={() => { setEditPlan(null); setShowPlanForm(true); }}>
+          <CirclePlus size={16} color="#fff" />
+          <Text style={s.createBtnTxt}>새 구독 플랜 생성</Text>
+        </Pressable>
+        <Pressable
+          style={[s.createBtn, { flex: 0, paddingHorizontal: 14, backgroundColor: reiniting ? "#999" : "#DC2626" }]}
+          onPress={handleReinit}
+          disabled={reiniting}
+        >
+          <Text style={[s.createBtnTxt, { fontSize: 12 }]}>{reiniting ? "초기화 중…" : "기준값으로\n초기화"}</Text>
+        </Pressable>
+      </View>
 
       <FlatList
         data={plans}

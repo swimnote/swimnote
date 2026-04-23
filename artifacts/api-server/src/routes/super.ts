@@ -2265,6 +2265,55 @@ router.post("/super/plans", requireAuth, requireRole("super_admin"), async (req:
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// POST /super/plans/reinit — 확정 기준값으로 플랜 강제 초기화 (슈퍼관리자 전용)
+router.post("/super/plans/reinit", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensurePlansTables();
+    // ── 확정 기준값 (pool-db-init.ts 와 동일하게 유지) ──
+    const PLAN_ROWS: [string, string, string, number, number, number, number, string][] = [
+      ['free',       'free_10',     'Free',         0,       10,   102,    0.1,  '100MB'],
+      ['starter',    'solo_30',     'Coach 30',     1900,    30,   307,    0.3,  '300MB'],
+      ['basic',      'solo_50',     'Coach 50',     2900,    50,   512,    0.5,  '500MB'],
+      ['standard',   'solo_100',    'Coach 100',    5900,    100,  1024,   1,    '1GB'  ],
+      ['center_200', 'center_200',  'Premier 200',  19000,   200,  5120,   5,    '5GB'  ],
+      ['advance',    'center_300',  'Premier 300',  27000,   300,  10240,  10,   '10GB' ],
+      ['pro',        'center_500',  'Premier 500',  43000,   500,  20480,  20,   '20GB' ],
+      ['max',        'center_1000', 'Premier 1000', 79000,   1000, 51200,  50,   '50GB' ],
+    ];
+    let upserted = 0;
+    for (const [tier, plan_id, name, price, member_limit, storage_mb, storage_gb, display] of PLAN_ROWS) {
+      await superAdminDb.execute(sql.raw(`
+        INSERT INTO subscription_plans
+          (tier, plan_id, name, price_per_month, member_limit, storage_mb, storage_gb, display_storage)
+        VALUES
+          ('${tier}','${plan_id}','${name}',${price},${member_limit},${storage_mb},${storage_gb},'${display}')
+        ON CONFLICT (tier) DO UPDATE SET
+          plan_id         = EXCLUDED.plan_id,
+          name            = EXCLUDED.name,
+          price_per_month = EXCLUDED.price_per_month,
+          member_limit    = EXCLUDED.member_limit,
+          storage_mb      = EXCLUDED.storage_mb,
+          storage_gb      = EXCLUDED.storage_gb,
+          display_storage = EXCLUDED.display_storage
+      `));
+      upserted++;
+    }
+    // 폐기 티어 삭제
+    const delResult = await superAdminDb.execute(sql.raw(
+      `DELETE FROM subscription_plans WHERE tier IN ('enterprise_2000','enterprise_3000','swimnote_2000','swimnote_3000') RETURNING tier`
+    ));
+    const deleted = delResult.rows.length;
+    const actor = req.user?.name ?? "슈퍼관리자";
+    const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await superAdminDb.execute(sql`
+      INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+      VALUES (${logId}, NULL, '구독', ${req.user!.userId}, ${actor}, 'plans', '구독 플랜 강제 초기화 (확정 기준값)', '{}'::jsonb)
+    `).catch(() => {});
+    console.log(`[super/plans/reinit] upserted=${upserted}, deleted=${deleted}`);
+    res.json({ ok: true, upserted, deleted, message: `플랜 ${upserted}개 초기화, 폐기 ${deleted}개 삭제 완료` });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 router.put("/super/plans/:id", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
   try {
     await ensurePlansTables();
