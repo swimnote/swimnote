@@ -1,5 +1,6 @@
 import { BellOff, Camera, Check, Circle, CircleCheck, Image as ImageIcon, Pencil, Pin, SquareCheck, Trash2, Users, X } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
+import { compressImageIfNeeded } from "../../utils/compressImage";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -135,10 +136,11 @@ export default function NoticesScreen() {
         if (img.file) {
           formData.append("images", img.file, img.file.name);
         } else {
-          const filename = img.uri.split("/").pop() || "photo.jpg";
+          const compressedUri = await compressImageIfNeeded(img.uri);
+          const filename = compressedUri.split("/").pop() || "photo.jpg";
           const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
           const mimeType = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
-          formData.append("images", { uri: img.uri, name: filename, type: mimeType } as any);
+          formData.append("images", { uri: compressedUri, name: filename, type: mimeType } as any);
         }
       }
       const res = await fetch(`${API_BASE}/uploads`, {

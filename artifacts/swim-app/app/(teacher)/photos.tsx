@@ -12,6 +12,7 @@ import { router } from "expo-router";
 import { Check, ChevronRight, CircleAlert, CloudUpload, Database, HardDrive, Image as ImageIcon, Plus, RefreshCw, SquareCheck, Trash2, Users, Video, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
+import { compressImageIfNeeded } from "../../utils/compressImage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Dimensions, FlatList, Image,
@@ -349,8 +350,9 @@ export default function TeacherPhotosScreen() {
       setUploading(true);
       const form = new FormData();
       for (const asset of result.assets) {
+        const uri = !isVideo ? await compressImageIfNeeded(asset.uri, asset.fileSize ?? undefined) : asset.uri;
         form.append(isVideo ? "video" : "photos", {
-          uri: asset.uri,
+          uri,
           name: asset.fileName || (isVideo ? "video.mp4" : "photo.jpg"),
           type: asset.mimeType || (isVideo ? "video/mp4" : "image/jpeg"),
         } as any);

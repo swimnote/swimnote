@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
+import { compressImageIfNeeded } from "../../utils/compressImage";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useAdsStore, type Ad, type AdStatus } from "@/store/adsStore";
 import { useAuth } from "@/context/AuthContext";
@@ -218,7 +219,8 @@ export default function StripBannerScreen() {
     });
     if (!result.canceled && result.assets?.[0]) {
       const asset = result.assets[0];
-      setForm(f => ({ ...f, imageUri: asset.uri, imageKey: "", imageUrl: "" }));
+      const uri = await compressImageIfNeeded(asset.uri, asset.fileSize ?? undefined);
+      setForm(f => ({ ...f, imageUri: uri, imageKey: "", imageUrl: "" }));
     }
   }
 

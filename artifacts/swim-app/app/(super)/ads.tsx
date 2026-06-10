@@ -7,6 +7,7 @@ import { Calendar, Camera, Image, Plus, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useMemo, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
+import { compressImageIfNeeded } from "../../utils/compressImage";
 import {
   ActivityIndicator, Alert, Image as RNImage, Modal, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
@@ -190,7 +191,8 @@ export default function AdsScreen() {
     });
     if (!result.canceled && result.assets?.[0]) {
       const asset = result.assets[0];
-      setForm(f => ({ ...f, imageUri: asset.uri, imageKey: "", imageUrl: "" }));
+      const uri = await compressImageIfNeeded(asset.uri, asset.fileSize ?? undefined);
+      setForm(f => ({ ...f, imageUri: uri, imageKey: "", imageUrl: "" }));
     }
   }
 

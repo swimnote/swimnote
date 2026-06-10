@@ -1,5 +1,6 @@
 import { Camera, Check, Info, Plus, Search, X } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
+import { compressImageIfNeeded } from "../../utils/compressImage";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -84,9 +85,10 @@ export default function PhotoUploadScreen() {
         if (img.file) {
           fd.append("photos", img.file, img.file.name);
         } else {
-          const filename = img.uri.split("/").pop() || "photo.jpg";
+          const compressedUri = await compressImageIfNeeded(img.uri);
+          const filename = compressedUri.split("/").pop() || "photo.jpg";
           const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
-          fd.append("photos", { uri: img.uri, name: filename, type: ext === "png" ? "image/png" : "image/jpeg" } as any);
+          fd.append("photos", { uri: compressedUri, name: filename, type: ext === "png" ? "image/png" : "image/jpeg" } as any);
         }
       }
       const res = await fetch(`${API_BASE}/photos/batch`, {

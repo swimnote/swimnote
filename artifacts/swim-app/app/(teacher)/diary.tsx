@@ -4,6 +4,7 @@
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
+import { compressImageIfNeeded } from "../../utils/compressImage";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -226,7 +227,10 @@ export default function TeacherDiaryScreen() {
     setGroupMedia(prev => [...prev, ...newItems]);
     try {
       const form = new FormData();
-      for (const asset of result.assets) { form.append(kind === "video" ? "video" : "photos", { uri: asset.uri, name: asset.fileName || (kind === "video" ? "video.mp4" : "photo.jpg"), type: asset.mimeType || (kind === "video" ? "video/mp4" : "image/jpeg") } as any); }
+      for (const asset of result.assets) {
+        const uri = kind === "photo" ? await compressImageIfNeeded(asset.uri, asset.fileSize ?? undefined) : asset.uri;
+        form.append(kind === "video" ? "video" : "photos", { uri, name: asset.fileName || (kind === "video" ? "video.mp4" : "photo.jpg"), type: asset.mimeType || (kind === "video" ? "video/mp4" : "image/jpeg") } as any);
+      }
       form.append("class_id", selectedGroup.id); form.append("caption", caption);
       form.append("lesson_date", targetDate);
       const endpoint = kind === "video" ? "/videos/group" : "/photos/group";
@@ -257,7 +261,10 @@ export default function TeacherDiaryScreen() {
     setStudentMedia(prev => ({ ...prev, [student.id]: [...(prev[student.id] || []), ...newItems] }));
     try {
       const form = new FormData();
-      for (const asset of result.assets) { form.append(kind === "video" ? "video" : "photos", { uri: asset.uri, name: asset.fileName || (kind === "video" ? "video.mp4" : "photo.jpg"), type: asset.mimeType || (kind === "video" ? "video/mp4" : "image/jpeg") } as any); }
+      for (const asset of result.assets) {
+        const uri = kind === "photo" ? await compressImageIfNeeded(asset.uri, asset.fileSize ?? undefined) : asset.uri;
+        form.append(kind === "video" ? "video" : "photos", { uri, name: asset.fileName || (kind === "video" ? "video.mp4" : "photo.jpg"), type: asset.mimeType || (kind === "video" ? "video/mp4" : "image/jpeg") } as any);
+      }
       if (selectedGroup) form.append("class_id", selectedGroup.id);
       form.append("student_id", student.id); form.append("caption", `${student.name} 개별 일지`);
       const endpoint = kind === "video" ? "/videos/private" : "/photos/private";
