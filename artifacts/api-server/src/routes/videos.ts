@@ -270,7 +270,7 @@ router.post(
         const check = await checkVideoUploadAllowed(user.swimming_pool_id);
         if (check.tierBlocked) {
           res.status(403).json({
-            error: "현재 플랜에서는 영상 업로드가 지원되지 않습니다. Premier 플랜으로 업그레이드해주세요.",
+            error: "동영상 업로드는 프리미어 플랜부터 사용할 수 있습니다.",
             code: "VIDEO_UPLOAD_NOT_AVAILABLE",
             tier: check.tier,
           }); return;
@@ -359,7 +359,7 @@ router.post(
         const check = await checkVideoUploadAllowed(user.swimming_pool_id);
         if (check.tierBlocked) {
           res.status(403).json({
-            error: "현재 플랜에서는 영상 업로드가 지원되지 않습니다. Premier 플랜으로 업그레이드해주세요.",
+            error: "동영상 업로드는 프리미어 플랜부터 사용할 수 있습니다.",
             code: "VIDEO_UPLOAD_NOT_AVAILABLE",
             tier: check.tier,
           }); return;

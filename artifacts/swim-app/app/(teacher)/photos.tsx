@@ -769,7 +769,7 @@ export default function TeacherPhotosScreen() {
         <ConfirmModal
           visible={showVideoGateModal}
           title="영상 업로드 불가"
-          message={`현재 플랜(${planFeatures?.tier ?? "Free"})은 영상 업로드를 지원하지 않습니다.\nCenter 200 이상 플랜에서 영상을 업로드할 수 있습니다.`}
+          message="동영상 업로드는 프리미어 플랜부터 사용할 수 있습니다."
           confirmText="플랜 업그레이드"
           cancelText="닫기"
           onConfirm={() => { setShowVideoGateModal(false); router.push("/(admin)/billing" as any); }}
@@ -902,7 +902,7 @@ export default function TeacherPhotosScreen() {
       <ConfirmModal
         visible={showVideoGateModal}
         title="영상 업로드 불가"
-        message={`현재 플랜(${planFeatures?.tier ?? "Free"})은 영상 업로드를 지원하지 않습니다.\nCenter 200 이상 플랜에서 영상을 업로드할 수 있습니다.`}
+        message="동영상 업로드는 프리미어 플랜부터 사용할 수 있습니다."
         confirmText="플랜 업그레이드"
         cancelText="닫기"
         onConfirm={() => { setShowVideoGateModal(false); router.push("/(admin)/billing" as any); }}
