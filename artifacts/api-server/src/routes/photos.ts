@@ -519,10 +519,11 @@ router.post("/photos/saved", requireAuth, requireRole("teacher", "pool_admin", "
       res.status(400).json({ error: "photo_ids가 필요합니다." }); return;
     }
     const poolId = await getUserPoolId(userId);
-    // pool 소속 검증
+    // pool 소속 검증 (drizzle sql 배열 바인딩 우회: PG array literal 형식 사용)
+    const photoIdsLiteral = `{${photo_ids.join(',')}}`;
     const checkRow = await db.execute(sql`
       SELECT COUNT(*)::int AS cnt FROM photo_assets_meta
-      WHERE id = ANY(${photo_ids}::text[]) AND pool_id = ${poolId}
+      WHERE id = ANY(${photoIdsLiteral}::text[]) AND pool_id = ${poolId}
     `);
     if (Number((checkRow.rows[0] as any)?.cnt ?? 0) !== photo_ids.length) {
       res.status(403).json({ error: "일부 사진에 대한 접근 권한이 없습니다." }); return;
@@ -749,9 +750,10 @@ router.post("/photos/diary-attach", requireAuth, requireRole("teacher", "pool_ad
     if (photo_ids.length === 0) { res.json({ updated: 0 }); return; }
 
     // pool_id 소속 검증 (타 수영장 접근 차단)
+    const diaryPhotoLiteral = `{${photo_ids.join(',')}}`;
     const checkRow = await db.execute(sql`
       SELECT COUNT(*)::int AS cnt FROM photo_assets_meta
-      WHERE id = ANY(${photo_ids}::text[]) AND pool_id = ${poolId}
+      WHERE id = ANY(${diaryPhotoLiteral}::text[]) AND pool_id = ${poolId}
     `);
     if (Number((checkRow.rows[0] as any)?.cnt ?? 0) !== photo_ids.length) {
       res.status(403).json({ error: "일부 사진에 대한 접근 권한이 없습니다." }); return;
@@ -759,7 +761,7 @@ router.post("/photos/diary-attach", requireAuth, requireRole("teacher", "pool_ad
 
     await db.execute(sql`
       UPDATE photo_assets_meta SET journal_id = ${diary_id}
-      WHERE id = ANY(${photo_ids}::text[]) AND pool_id = ${poolId}
+      WHERE id = ANY(${diaryPhotoLiteral}::text[]) AND pool_id = ${poolId}
     `);
 
     res.json({ updated: photo_ids.length });
@@ -779,9 +781,10 @@ router.post("/photos/diary-detach", requireAuth, requireRole("teacher", "pool_ad
     const poolId = await getUserPoolId(userId);
     if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
 
+    const detachLiteral = `{${photo_ids.join(',')}}`;
     await db.execute(sql`
       UPDATE photo_assets_meta SET journal_id = NULL
-      WHERE id = ANY(${photo_ids}::text[]) AND pool_id = ${poolId}
+      WHERE id = ANY(${detachLiteral}::text[]) AND pool_id = ${poolId}
     `);
 
     res.json({ updated: photo_ids.length });

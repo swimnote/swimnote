@@ -6,9 +6,10 @@
  */
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Dimensions, FlatList, Image, Modal,
+  ActivityIndicator, Dimensions, FlatList, Modal,
   Pressable, StyleSheet, Text, View,
 } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Check, ImageIcon, Video, X } from "lucide-react-native";
 import Colors from "@/constants/colors";
@@ -122,7 +123,10 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
   function fmtDate(ts: string) {
     if (!ts) return "";
     try {
-      const d = new Date(ts);
+      // PostgreSQL "2026-06-18 07:00:44+00" 형식 → ISO 8601 정규화 (Hermes 대응)
+      const iso = ts.replace(' ', 'T').replace('+00:00', 'Z').replace('+00', 'Z');
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return "";
       return `${d.getMonth() + 1}/${d.getDate()}`;
     } catch { return ""; }
   }
@@ -207,7 +211,7 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
                     <Image
                       source={{ uri, headers: { Authorization: `Bearer ${token ?? ""}` } }}
                       style={{ width: "100%", height: "100%" }}
-                      resizeMode="cover"
+                      contentFit="cover"
                     />
                   ) : (
                     <View style={s.photoPlaceholder}>

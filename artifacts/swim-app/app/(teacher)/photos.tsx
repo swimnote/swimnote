@@ -15,9 +15,10 @@ import * as ImagePicker from "expo-image-picker";
 import { compressImageIfNeeded } from "../../utils/compressImage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Dimensions, FlatList, Image,
+  ActivityIndicator, Alert, Dimensions, FlatList,
   Modal, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import Colors from "@/constants/colors";
@@ -75,10 +76,19 @@ function fmtBytes(b: number | null | undefined): string {
   return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
+function parseTs(ts: string): Date {
+  // PostgreSQL timestamptz가 "2026-06-18 07:00:44+00" (T 없음) 형식으로 올 때
+  // Hermes JS 엔진은 이 형식을 파싱하지 못함 → ISO 8601 형식으로 정규화
+  const iso = ts.replace(' ', 'T').replace('+00:00', 'Z').replace('+00', 'Z');
+  return new Date(iso);
+}
+
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "";
   try {
-    return new Date(d).toLocaleDateString("ko-KR", {
+    const dt = parseTs(String(d));
+    if (isNaN(dt.getTime())) return "";
+    return dt.toLocaleDateString("ko-KR", {
       year: "numeric", month: "short", day: "numeric",
     });
   } catch { return ""; }
@@ -108,9 +118,9 @@ function normalizeItem(raw: any, idx: number): MediaItem {
     schedule_time: String(raw?.schedule_time ?? ""),
     student_name: String(raw?.student_name ?? ""),
     caption: String(raw?.caption ?? ""),
-    uploader_name: String(raw?.uploader_name ?? ""),
+    uploader_name: String(raw?.uploaded_by_name ?? raw?.uploader_name ?? ""),
     created_at: String(raw?.created_at ?? ""),
-    file_size_bytes: Number(raw?.file_size_bytes ?? 0),
+    file_size_bytes: Number(raw?.file_size_bytes ?? raw?.file_size ?? 0),
   };
 }
 
@@ -620,8 +630,7 @@ export default function TeacherPhotosScreen() {
                     <Image
                       source={{ uri, headers: { Authorization: `Bearer ${token ?? ""}` } }}
                       style={{ width: "100%", height: "100%" }}
-                      resizeMode="cover"
-                      defaultSource={undefined}
+                      contentFit="cover"
                     />
                   ) : (
                     <View style={s.photoPlaceholder}>
@@ -824,7 +833,7 @@ export default function TeacherPhotosScreen() {
                     headers: { Authorization: `Bearer ${token ?? ""}` },
                   }}
                   style={s.lbImage}
-                  resizeMode="contain"
+                  contentFit="contain"
                 />
               ) : (
                 <View style={s.lbImagePlaceholder}>

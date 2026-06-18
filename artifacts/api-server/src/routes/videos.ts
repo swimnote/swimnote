@@ -478,9 +478,10 @@ router.post("/videos/saved", requireAuth, requireRole("teacher", "pool_admin", "
       res.status(400).json({ error: "video_ids가 필요합니다." }); return;
     }
     const poolId = await getUserPoolId(userId);
+    const videoIdsLiteral = `{${video_ids.join(',')}}`;
     const checkRow = await db.execute(sql`
       SELECT COUNT(*)::int AS cnt FROM video_assets_meta
-      WHERE id = ANY(${video_ids}::text[]) AND pool_id = ${poolId}
+      WHERE id = ANY(${videoIdsLiteral}::text[]) AND pool_id = ${poolId}
     `);
     if (Number((checkRow.rows[0] as any)?.cnt ?? 0) !== video_ids.length) {
       res.status(403).json({ error: "일부 영상에 대한 접근 권한이 없습니다." }); return;
