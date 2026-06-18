@@ -618,6 +618,7 @@ router.get("/photos/parent-view", requireAuth, requireRole("parent_account"), as
         const rows = (await db.execute(sql`
           SELECT sp.id, sp.album_type, sp.class_id, sp.student_id,
                  sp.uploaded_by_name, sp.caption, sp.created_at,
+                 sp.journal_id,
                  '/api/photos/' || sp.id || '/file' AS file_url,
                  cg.name AS class_name, cg.schedule_days, cg.schedule_time
           FROM photo_assets_meta sp
@@ -638,6 +639,7 @@ router.get("/photos/parent-view", requireAuth, requireRole("parent_account"), as
       const privRows = (await db.execute(sql`
         SELECT sp.id, sp.album_type, sp.class_id, sp.student_id,
                sp.uploaded_by_name, sp.caption, sp.created_at,
+               sp.journal_id,
                '/api/photos/' || sp.id || '/file' AS file_url,
                s.name AS student_name
         FROM photo_assets_meta sp

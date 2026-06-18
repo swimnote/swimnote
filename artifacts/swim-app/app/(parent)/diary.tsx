@@ -6,7 +6,7 @@
  */
 import { BookOpen, CircleCheck, Mail, User, UserRound } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Platform, Pressable, RefreshControl,
@@ -46,12 +46,12 @@ function Toast({ msg, visible }: { msg: string; visible: boolean }) {
   );
 }
 
-function DiaryCard({ entry, studentId, studentName, classGroupId }: {
-  entry: DiaryEntry; studentId: string; studentName: string; classGroupId?: string | null;
+function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }: {
+  entry: DiaryEntry; studentId: string; studentName: string; classGroupId?: string | null; initialOpen?: boolean;
 }) {
   const { token } = useAuth();
   const effectiveClassGroupId = classGroupId ?? entry.class_group_id;
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen ?? false);
   const [myReactions, setMyReactions] = useState<Set<string>>(new Set(entry.reactions ?? []));
   const [toast, setToast] = useState("");
   const [toastVisible, setToastVisible] = useState(false);
@@ -189,6 +189,7 @@ function DiaryCard({ entry, studentId, studentName, classGroupId }: {
 export default function ParentDiaryScreen() {
   const { token } = useAuth();
   const { selectedStudent } = useParent();
+  const { diary_id: highlightId } = useLocalSearchParams<{ diary_id: string }>();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -240,6 +241,7 @@ export default function ParentDiaryScreen() {
                 studentId={selectedStudent.id}
                 studentName={selectedStudent.name}
                 classGroupId={selectedStudent.class_group_id}
+                initialOpen={!!highlightId && e.id === highlightId}
               />
             ))
           )}

@@ -1,122 +1,142 @@
 /**
- * (parent)/photos.tsx — 학부모: 사진첩
+ * (parent)/photos.tsx — 학부모: 통합 앨범 (사진 + 영상)
  *
- * - 반 전체 사진 + 개별 사진 통합 (탭 없음)
- * - 각 사진마다 출처 표시 (어느 일지/경로에서 왔는지)
- * - 최신순 정렬
- * - 사진 탭 → 라이트박스 (이 사진 다운로드 / 전체 다운로드)
- * - 롱프레스 → 선택 모드 다중 다운로드
+ * - 자녀 일지에 첨부된 사진 + 영상 통합 표시
+ * - 전체 / 사진 / 영상 탭 필터
+ * - 월별 그룹핑, created_at 최신순, 3열 격자
+ * - 사진: 확대 라이트박스, 다운로드, 해당 일지 보기
+ * - 영상: 썸네일 + 재생 아이콘, 해당 일지 보기
  */
-import { Check, CloudDownload, Download, ImageIcon, SquareCheck, X } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
-import * as FileSystem from "expo-file-system/legacy";
-import * as MediaLibrary from "expo-media-library";
-import { useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, Alert, Dimensions, FlatList, Image, Modal,
+  ActivityIndicator, Alert, Dimensions, FlatList, Modal,
   Platform, Pressable, RefreshControl, StyleSheet, Text, View,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import { BookOpen, Download, ImageIcon, Play, Video, X } from "lucide-react-native";
+import * as FileSystem from "expo-file-system/legacy";
+import * as MediaLibrary from "expo-media-library";
 import Colors from "@/constants/colors";
-import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
-import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
-import { useParent } from "@/context/ParentContext";
+import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 
-interface Photo {
-  id: string;
-  file_url: string;
-  album_type?: string;
-  source_label?: string | null;
-  caption?: string | null;
-  uploader_name?: string | null;
-  created_at?: string | null;
-  student_name?: string | null;
-}
 
 const C = Colors.light;
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "/api";
 const { width: W } = Dimensions.get("window");
-const PHOTO_SIZE = (W - 12) / 3;
+const CELL = Math.floor((W - 6) / 3);
 
-function photoUri(fileUrl: string) {
+type TabType = "all" | "photo" | "video";
+
+interface MediaItem {
+  id: string;
+  _type: "photo" | "video";
+  file_url: string;
+  thumbnail_presigned_url?: string | null;
+  journal_id?: string | null;
+  created_at?: string | null;
+  source_label?: string | null;
+  uploaded_by_name?: string | null;
+  caption?: string | null;
+}
+
+type FlatRow =
+  | { kind: "header"; label: string; rowKey: string }
+  | { kind: "row"; items: (MediaItem | null)[]; rowKey: string };
+
+function monthKey(d?: string | null) {
+  if (!d) return "unknown";
+  return d.slice(0, 7);
+}
+function monthLabel(d?: string | null) {
+  if (!d) return "";
+  const dt = new Date(d);
+  return `${dt.getFullYear()}년 ${dt.getMonth() + 1}월`;
+}
+
+function buildRows(items: MediaItem[]): FlatRow[] {
+  const result: FlatRow[] = [];
+  let curMonth = "";
+  let buf: MediaItem[] = [];
+  let rowIdx = 0;
+
+  function flush() {
+    if (!buf.length) return;
+    const padded: (MediaItem | null)[] = [...buf];
+    while (padded.length < 3) padded.push(null);
+    result.push({ kind: "row", items: padded, rowKey: `r${rowIdx++}` });
+    buf = [];
+  }
+
+  for (const item of items) {
+    const mk = monthKey(item.created_at);
+    if (mk !== curMonth) {
+      flush();
+      curMonth = mk;
+      result.push({ kind: "header", label: monthLabel(item.created_at), rowKey: `h-${mk}` });
+    }
+    buf.push(item);
+    if (buf.length === 3) flush();
+  }
+  flush();
+  return result;
+}
+
+function photoFileUri(fileUrl: string) {
   if (!fileUrl) return "";
   if (fileUrl.startsWith("http")) return fileUrl;
   return `${API_BASE.replace(/\/api$/, "")}${fileUrl}`;
 }
 
-function fmtDate(d?: string | null) {
-  if (!d) return "";
-  return new Date(d).toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
-}
-
-export default function ParentPhotosScreen() {
+export default function ParentAlbumScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const { id: paramId, name: paramName } = useLocalSearchParams<{ id: string; name: string }>();
-  const { selectedStudent } = useParent();
 
-  const [photos, setPhotos]         = useState<Photo[]>([]);
-  const [loading, setLoading]       = useState(true);
+  const [photos, setPhotos]   = useState<MediaItem[]>([]);
+  const [videos, setVideos]   = useState<MediaItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [lightbox, setLightbox]     = useState<Photo | null>(null);
-  const [lbSaving, setLbSaving]     = useState(false);
-  const [allSaving, setAllSaving]   = useState(false);
+  const [tab, setTab]         = useState<TabType>("all");
 
-  const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected]     = useState<Set<string>>(new Set());
-  const [bulkSaving, setBulkSaving] = useState(false);
-  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
-  const [saveErrorMsg,   setSaveErrorMsg]   = useState<string | null>(null);
+  const [lightbox, setLightbox]   = useState<MediaItem | null>(null);
+  const [lbSaving, setLbSaving]   = useState(false);
+  const [videoDetail, setVideoDetail] = useState<MediaItem | null>(null);
 
-  async function load() {
-    const sid = paramId || selectedStudent?.id;
-    if (sid) {
-      apiRequest(token, `/parent/students/${sid}/mark-photos-read`, { method: "POST" }).catch(() => {});
-    }
+  const load = useCallback(async () => {
     try {
-      const r = await apiRequest(token, "/photos/parent-view");
-      const data = await safeJson(r);
-      let photoList: Photo[] = [];
-      if (data && Array.isArray(data.photos)) {
-        photoList = data.photos;
-      } else if (Array.isArray(data)) {
-        // legacy format: ChildAlbum[]
-        photoList = (data as any[]).flatMap(a => [
-          ...(a.group_photos || []),
-          ...(a.private_photos || []),
-        ]);
-      }
-      // Filter by selected student if provided
-      const studentId = paramId || selectedStudent?.id;
-      if (studentId) {
-        // For group photos: keep all (they belong to the class)
-        // For private photos: keep only this student's
-        photoList = photoList.filter(p =>
-          p.album_type === "group" || p.student_name === (paramName || selectedStudent?.name) || (p as any).student_id === studentId
-        );
-      }
-      setPhotos(photoList);
-    } finally { setLoading(false); setRefreshing(false); }
-  }
+      const [pr, vr] = await Promise.all([
+        apiRequest(token, "/photos/parent-view"),
+        apiRequest(token, "/videos/parent-view"),
+      ]);
+      const pd = pr.ok ? await pr.json() : {};
+      const vd = vr.ok ? await vr.json() : {};
 
-  useEffect(() => { load(); }, [paramId, selectedStudent?.id]);
+      const rawPhotos: MediaItem[] = (Array.isArray(pd.photos) ? pd.photos : [])
+        .map((p: any) => ({ ...p, _type: "photo" as const }));
+      const rawVideos: MediaItem[] = (Array.isArray(vd.videos) ? vd.videos : [])
+        .map((v: any) => ({ ...v, _type: "video" as const }));
 
-  function exitSelect() { setSelectMode(false); setSelected(new Set()); }
-  function toggleSelect(id: string) {
-    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  }
-  function toggleAll() {
-    if (selected.size === photos.length) setSelected(new Set());
-    else setSelected(new Set(photos.map(p => p.id)));
-  }
+      setPhotos(rawPhotos);
+      setVideos(rawVideos);
+    } catch {}
+    finally { setLoading(false); setRefreshing(false); }
+  }, [token]);
 
-  async function saveSingle(photo: Photo) {
+  useEffect(() => { load(); }, [load]);
+
+  const filtered = useMemo<MediaItem[]>(() => {
+    const src = tab === "photo" ? photos : tab === "video" ? videos : [...photos, ...videos];
+    return src.slice().sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+  }, [photos, videos, tab]);
+
+  const rows = useMemo(() => buildRows(filtered), [filtered]);
+
+  async function downloadPhoto(item: MediaItem) {
     if (Platform.OS === "web") {
       const a = document.createElement("a");
-      a.href = photoUri(photo.file_url);
-      a.download = `swim_${photo.id}.jpg`;
+      a.href = photoFileUri(item.file_url);
+      a.download = `swim_${item.id}.jpg`;
       a.click();
       return;
     }
@@ -124,218 +144,206 @@ export default function ParentPhotosScreen() {
     if (status !== "granted") { Alert.alert("권한 필요", "갤러리 접근 권한이 필요합니다."); return; }
     setLbSaving(true);
     try {
-      const localUri = `${FileSystem.documentDirectory}swim_${photo.id}.jpg`;
-      await FileSystem.downloadAsync(photoUri(photo.file_url), localUri, { headers: { Authorization: `Bearer ${token}` } });
+      const localUri = `${FileSystem.documentDirectory}swim_${item.id}.jpg`;
+      await FileSystem.downloadAsync(photoFileUri(item.file_url), localUri, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       await MediaLibrary.saveToLibraryAsync(localUri);
-      setSaveSuccessMsg("갤러리에 저장했습니다.");
-    } catch { setSaveErrorMsg("저장 중 오류가 발생했습니다."); }
+      Alert.alert("저장 완료", "갤러리에 저장됐습니다.");
+    } catch { Alert.alert("오류", "저장 중 오류가 발생했습니다."); }
     finally { setLbSaving(false); }
   }
 
-  async function saveAll() {
-    if (Platform.OS === "web") {
-      for (const p of photos) {
-        const a = document.createElement("a");
-        a.href = photoUri(p.file_url);
-        a.download = `swim_${p.id}.jpg`;
-        a.click();
-        await new Promise(r => setTimeout(r, 200));
-      }
-      return;
-    }
-    const { status } = await MediaLibrary.requestPermissionsAsync();
-    if (status !== "granted") { Alert.alert("권한 필요", "갤러리 접근 권한이 필요합니다."); return; }
-    setAllSaving(true);
-    let saved = 0;
-    try {
-      for (const p of photos) {
-        const lp = `${FileSystem.documentDirectory}swim_${p.id}.jpg`;
-        await FileSystem.downloadAsync(photoUri(p.file_url), lp, { headers: { Authorization: `Bearer ${token}` } });
-        await MediaLibrary.saveToLibraryAsync(lp);
-        saved++;
-      }
-      setSaveSuccessMsg(`${saved}장 전체 저장됐습니다.`);
-    } catch { setSaveErrorMsg(`${saved}장 저장 후 오류가 발생했습니다.`); }
-    finally { setAllSaving(false); setLightbox(null); }
+  function goToDiary(journalId?: string | null) {
+    setLightbox(null);
+    setVideoDetail(null);
+    router.push({
+      pathname: "/(parent)/diary" as any,
+      params: journalId ? { diary_id: journalId } : {},
+    });
   }
 
-  async function bulkDownload() {
-    const targets = photos.filter(p => selected.has(p.id));
-    if (!targets.length) return;
-    if (Platform.OS === "web") {
-      for (const p of targets) {
-        const a = document.createElement("a");
-        a.href = photoUri(p.file_url);
-        a.download = `swim_${p.id}.jpg`;
-        a.click();
-        await new Promise(r => setTimeout(r, 200));
-      }
-      exitSelect(); return;
+  function renderCell(item: MediaItem | null, colIdx: number) {
+    if (!item) return <View key={`empty-${colIdx}`} style={[st.cell, { width: CELL, height: CELL }]} />;
+
+    if (item._type === "photo") {
+      const uri = photoFileUri(item.file_url);
+      return (
+        <Pressable key={item.id} onPress={() => setLightbox(item)} style={[st.cell, { width: CELL, height: CELL }]}>
+          <ExpoImage
+            source={{ uri, headers: { Authorization: `Bearer ${token}` } }}
+            style={st.cellImg}
+            contentFit="cover"
+          />
+        </Pressable>
+      );
     }
-    const { status } = await MediaLibrary.requestPermissionsAsync();
-    if (status !== "granted") { Alert.alert("권한 필요", "갤러리 접근 권한이 필요합니다."); return; }
-    setBulkSaving(true);
-    let saved = 0;
-    try {
-      for (const p of targets) {
-        const lp = `${FileSystem.documentDirectory}swim_${p.id}.jpg`;
-        await FileSystem.downloadAsync(photoUri(p.file_url), lp, { headers: { Authorization: `Bearer ${token}` } });
-        await MediaLibrary.saveToLibraryAsync(lp);
-        saved++;
-      }
-      setSaveSuccessMsg(`${saved}장이 갤러리에 저장됐습니다.`);
-      exitSelect();
-    } catch { setSaveErrorMsg(`${saved}장 저장 후 오류가 발생했습니다.`); }
-    finally { setBulkSaving(false); }
+
+    const thumbUri = item.thumbnail_presigned_url ?? null;
+    return (
+      <Pressable key={item.id} onPress={() => setVideoDetail(item)} style={[st.cell, { width: CELL, height: CELL }]}>
+        {thumbUri ? (
+          <ExpoImage source={{ uri: thumbUri }} style={st.cellImg} contentFit="cover" />
+        ) : (
+          <View style={[st.cellImg, st.videoPlaceholder]} />
+        )}
+        <View style={st.playBadge}>
+          <Play size={14} color="#fff" fill="#fff" />
+        </View>
+      </Pressable>
+    );
   }
 
-  const studentName = paramName || selectedStudent?.name;
+  function renderRow({ item }: { item: FlatRow }) {
+    if (item.kind === "header") {
+      return (
+        <View style={st.monthHeader}>
+          <Text style={st.monthLabel}>{item.label}</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={st.row}>
+        {item.items.map((m, i) => renderCell(m, i))}
+      </View>
+    );
+  }
+
+  const TABS: { key: TabType; label: string }[] = [
+    { key: "all",   label: "전체" },
+    { key: "photo", label: "사진" },
+    { key: "video", label: "영상" },
+  ];
 
   return (
     <View style={[st.root, { backgroundColor: C.background }]}>
-      <ParentScreenHeader title={studentName ? `${studentName} 사진첩` : "사진첩"} />
+      <ParentScreenHeader title="앨범" />
 
-      {/* 선택 모드 툴바 */}
-      {selectMode && (
-        <View style={st.toolbar}>
-          <Pressable onPress={toggleAll} style={st.toolbarLeft}>
-            <LucideIcon name={selected.size === photos.length ? "check-square" : "square"} size={18} color={C.tint} />
-            <Text style={[st.toolbarToggleText, { color: C.tint }]}>
-              {selected.size === photos.length ? "전체 해제" : "전체 선택"}
-            </Text>
+      {/* 탭 */}
+      <View style={st.tabRow}>
+        {TABS.map(t => (
+          <Pressable
+            key={t.key}
+            style={[st.tabBtn, tab === t.key && st.tabBtnActive]}
+            onPress={() => setTab(t.key)}
+          >
+            <Text style={[st.tabTxt, tab === t.key && st.tabTxtActive]}>{t.label}</Text>
           </Pressable>
-          <Text style={st.toolbarCount}>{selected.size}장 선택</Text>
-          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-            <Pressable onPress={bulkDownload} disabled={selected.size === 0 || bulkSaving}
-              style={[st.toolbarAction, { backgroundColor: C.button, opacity: selected.size === 0 ? 0.4 : 1 }]}>
-              {bulkSaving
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <><Download size={14} color="#fff" /><Text style={st.toolbarActionText}>받기</Text></>}
-            </Pressable>
-            <Pressable onPress={exitSelect} style={st.toolbarCancel}>
-              <Text style={st.toolbarCancelText}>취소</Text>
-            </Pressable>
-          </View>
-        </View>
-      )}
+        ))}
+      </View>
 
-      {/* 사진 그리드 */}
       {loading ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+      ) : rows.length === 0 ? (
+        <View style={st.empty}>
+          <ImageIcon size={44} color={C.textMuted} />
+          <Text style={[st.emptyTitle, { color: C.text }]}>
+            {tab === "video" ? "영상이 없습니다" : tab === "photo" ? "사진이 없습니다" : "사진/영상이 없습니다"}
+          </Text>
+          <Text style={[st.emptySub, { color: C.textSecondary }]}>
+            선생님이 수업 일지에 사진/영상을 올리면{"\n"}여기에 표시됩니다
+          </Text>
+        </View>
       ) : (
         <FlatList
-          data={photos}
-          keyExtractor={p => p.id}
-          numColumns={3}
+          data={rows}
+          keyExtractor={r => r.rowKey}
+          renderItem={renderRow}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
-          contentContainerStyle={{ padding: 6, gap: 3, paddingBottom: insets.bottom + 100 }}
-          columnWrapperStyle={{ gap: 3 }}
-          ListHeaderComponent={
-            photos.length > 0 && !selectMode ? (
-              <Pressable onPress={() => setSelectMode(true)} style={st.selectBtn}>
-                <SquareCheck size={15} color={C.tint} />
-                <Text style={[st.selectBtnText, { color: C.tint }]}>선택</Text>
-              </Pressable>
-            ) : null
-          }
-          ListEmptyComponent={
-            <View style={st.empty}>
-              <ImageIcon size={44} color={C.textMuted} />
-              <Text style={[st.emptyTitle, { color: C.text }]}>사진이 없습니다</Text>
-              <Text style={[st.emptySub, { color: C.textSecondary }]}>
-                선생님이 수업 사진을 올리면{"\n"}여기에 표시됩니다
-              </Text>
-            </View>
-          }
-          renderItem={({ item: p }) => {
-            const isSelected = selected.has(p.id);
-            const label = p.source_label || p.caption || "";
-            return (
-              <Pressable
-                onPress={() => selectMode ? toggleSelect(p.id) : setLightbox(p)}
-                onLongPress={() => { if (!selectMode) { setSelectMode(true); setSelected(new Set([p.id])); } }}
-                style={[st.photoCell, isSelected && st.photoCellSelected, { width: PHOTO_SIZE, height: PHOTO_SIZE }]}
-              >
-                <Image
-                  source={{ uri: photoUri(p.file_url), headers: { Authorization: `Bearer ${token}` } }}
-                  style={st.thumbnail}
-                  resizeMode="cover"
-                />
-                {/* 날짜 오버레이 */}
-                {p.created_at && (
-                  <View style={st.dateOverlay}>
-                    <Text style={st.dateText}>{fmtDate(p.created_at)}</Text>
-                  </View>
-                )}
-                {/* 출처 라벨 */}
-                {label ? (
-                  <View style={st.sourceBar}>
-                    <Text style={st.sourceText} numberOfLines={1}>{label}</Text>
-                  </View>
-                ) : null}
-                {/* 선택 체크 */}
-                {selectMode && (
-                  <View style={[st.checkCircle, isSelected && { backgroundColor: C.tint, borderColor: C.tint }]}>
-                    {isSelected && <Check size={12} color="#fff" />}
-                  </View>
-                )}
-              </Pressable>
-            );
-          }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
+          showsVerticalScrollIndicator={false}
         />
       )}
 
-      {/* 라이트박스 */}
+      {/* 사진 라이트박스 */}
       <Modal visible={!!lightbox} transparent animationType="fade" onRequestClose={() => setLightbox(null)}>
-        <View style={st.lightbox}>
-          <View style={[st.lbHeader, { paddingTop: insets.top + 12 }]}>
-            <Pressable onPress={() => setLightbox(null)} style={st.lbClose}>
+        <View style={st.lbBg}>
+          <View style={[st.lbTop, { paddingTop: insets.top + 14 }]}>
+            <Pressable onPress={() => setLightbox(null)} style={st.lbClose} hitSlop={10}>
               <X size={26} color="#fff" />
             </Pressable>
           </View>
+
           {lightbox && (
-            <Image
-              source={{ uri: photoUri(lightbox.file_url), headers: { Authorization: `Bearer ${token}` } }}
-              style={st.fullImage}
-              resizeMode="contain"
+            <ExpoImage
+              source={{ uri: photoFileUri(lightbox.file_url), headers: { Authorization: `Bearer ${token}` } }}
+              style={st.lbImage}
+              contentFit="contain"
             />
           )}
-          {/* 출처 & 메타 */}
-          {(lightbox?.source_label || lightbox?.caption) && (
-            <Text style={st.lbSource}>{lightbox.source_label || lightbox.caption}</Text>
-          )}
-          <Text style={st.lbMeta}>
-            {lightbox?.uploader_name ? `선생님: ${lightbox.uploader_name}  ` : ""}
-            {fmtDate(lightbox?.created_at)}
-          </Text>
-          {/* 다운로드 버튼 */}
+
+          {lightbox?.source_label ? (
+            <Text style={st.lbSource}>{lightbox.source_label}</Text>
+          ) : null}
+
           <View style={st.lbBtnRow}>
             <Pressable
-              onPress={() => lightbox && saveSingle(lightbox)}
+              style={[st.lbBtn, { backgroundColor: C.tint }]}
+              onPress={() => lightbox && downloadPhoto(lightbox)}
               disabled={lbSaving}
-              style={[st.lbBtn, { backgroundColor: C.button }]}
             >
               {lbSaving
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <><Download size={16} color="#fff" /><Text style={st.lbBtnText}>이 사진 다운로드</Text></>}
+                : <><Download size={16} color="#fff" /><Text style={st.lbBtnTxt}>다운로드</Text></>}
             </Pressable>
-            <Pressable
-              onPress={saveAll}
-              disabled={allSaving}
-              style={[st.lbBtn, { backgroundColor: "#0F172A" }]}
-            >
-              {allSaving
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <><CloudDownload size={16} color="#fff" /><Text style={st.lbBtnText}>전체 다운로드 ({photos.length})</Text></>}
-            </Pressable>
+            {lightbox?.journal_id && (
+              <Pressable
+                style={[st.lbBtn, { backgroundColor: "#0F172A" }]}
+                onPress={() => goToDiary(lightbox?.journal_id)}
+              >
+                <BookOpen size={16} color="#fff" />
+                <Text style={st.lbBtnTxt}>해당 일지 보기</Text>
+              </Pressable>
+            )}
           </View>
         </View>
       </Modal>
 
-      <ConfirmModal visible={!!saveSuccessMsg} title="저장 완료" message={saveSuccessMsg ?? ""}
-        confirmText="확인" onConfirm={() => setSaveSuccessMsg(null)} />
-      <ConfirmModal visible={!!saveErrorMsg} title="오류" message={saveErrorMsg ?? ""}
-        confirmText="확인" onConfirm={() => setSaveErrorMsg(null)} />
+      {/* 영상 상세 모달 */}
+      <Modal visible={!!videoDetail} transparent animationType="slide" onRequestClose={() => setVideoDetail(null)}>
+        <Pressable style={st.vdOverlay} onPress={() => setVideoDetail(null)}>
+          <Pressable style={[st.vdSheet, { paddingBottom: insets.bottom + 20 }]} onPress={e => e.stopPropagation()}>
+            <View style={st.vdHandle} />
+
+            {videoDetail?.thumbnail_presigned_url ? (
+              <View style={st.vdThumbWrap}>
+                <ExpoImage
+                  source={{ uri: videoDetail.thumbnail_presigned_url }}
+                  style={st.vdThumb}
+                  contentFit="cover"
+                />
+                <View style={st.vdPlayOverlay}>
+                  <Play size={36} color="#fff" fill="#fff" />
+                </View>
+              </View>
+            ) : (
+              <View style={[st.vdThumbWrap, st.vdThumbEmpty]}>
+                <Video size={40} color="#64748B" />
+                <Text style={st.vdThumbEmptyTxt}>썸네일 없음</Text>
+              </View>
+            )}
+
+            {videoDetail?.source_label ? (
+              <Text style={st.vdLabel}>{videoDetail.source_label}</Text>
+            ) : null}
+
+            <View style={st.vdBtnCol}>
+              {videoDetail?.journal_id && (
+                <Pressable
+                  style={[st.vdBtn, { backgroundColor: C.tint }]}
+                  onPress={() => goToDiary(videoDetail?.journal_id)}
+                >
+                  <BookOpen size={16} color="#fff" />
+                  <Text style={st.vdBtnTxt}>해당 일지 보기</Text>
+                </Pressable>
+              )}
+              <Pressable style={[st.vdBtn, { backgroundColor: "#F1F5F9" }]} onPress={() => setVideoDetail(null)}>
+                <Text style={[st.vdBtnTxt, { color: "#374151" }]}>닫기</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -343,38 +351,49 @@ export default function ParentPhotosScreen() {
 const st = StyleSheet.create({
   root: { flex: 1 },
 
-  toolbar: { flexDirection: "row", alignItems: "center", backgroundColor: "#F1F5F9", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#E5E7EB", gap: 4 },
-  toolbarLeft: { flexDirection: "row", alignItems: "center", gap: 5 },
-  toolbarToggleText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  toolbarCount: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
-  toolbarAction: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
-  toolbarActionText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
-  toolbarCancel: { paddingHorizontal: 8, paddingVertical: 7 },
-  toolbarCancelText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  tabBtn: { paddingHorizontal: 18, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F8FAFC" },
+  tabBtnActive: { borderColor: "#2EC4B6", backgroundColor: "#E6FFFA" },
+  tabTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxtActive: { color: "#2EC4B6" },
 
-  selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-end", paddingHorizontal: 12, paddingVertical: 6, marginBottom: 4 },
-  selectBtnText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  monthHeader: { paddingHorizontal: 14, paddingTop: 18, paddingBottom: 8 },
+  monthLabel: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
 
-  photoCell: { borderRadius: 4, overflow: "hidden", backgroundColor: "#FFFFFF" },
-  photoCellSelected: { borderWidth: 3, borderColor: "#2EC4B6" },
-  thumbnail: { width: "100%", height: "100%" },
-  dateOverlay: { position: "absolute", top: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.28)", paddingHorizontal: 5, paddingVertical: 2 },
-  dateText: { color: "#fff", fontSize: 9, fontFamily: "Pretendard-Regular" },
-  sourceBar: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.52)", paddingHorizontal: 5, paddingVertical: 3 },
-  sourceText: { color: "#fff", fontSize: 9, fontFamily: "Pretendard-Regular" },
-  checkCircle: { position: "absolute", top: 5, right: 5, width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#fff", backgroundColor: "rgba(255,255,255,0.3)", alignItems: "center", justifyContent: "center" },
+  row: { flexDirection: "row", gap: 2, paddingHorizontal: 2 },
+  cell: { borderRadius: 2, overflow: "hidden", backgroundColor: "#E2E8F0", marginBottom: 2 },
+  cellImg: { width: "100%", height: "100%" },
+  videoPlaceholder: { backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" },
+  playBadge: {
+    position: "absolute", bottom: 5, left: 5,
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center", justifyContent: "center",
+  },
 
   empty: { alignItems: "center", paddingTop: 80, gap: 10, paddingHorizontal: 28 },
   emptyTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
-  emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 19 },
+  emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20, color: "#64748B" },
 
-  lightbox: { flex: 1, backgroundColor: "rgba(0,0,0,0.96)", justifyContent: "center" },
-  lbHeader: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, flexDirection: "row", justifyContent: "flex-start", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
+  lbBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.96)", justifyContent: "center" },
+  lbTop: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingHorizontal: 16, paddingBottom: 12 },
   lbClose: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  fullImage: { width: "100%", height: "55%" },
-  lbSource: { color: "#E6FFFA", fontSize: 13, textAlign: "center", paddingHorizontal: 24, paddingTop: 14, fontFamily: "Pretendard-Regular" },
-  lbMeta: { color: "rgba(255,255,255,0.5)", fontSize: 12, textAlign: "center", paddingTop: 4, fontFamily: "Pretendard-Regular" },
-  lbBtnRow: { flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingTop: 18, justifyContent: "center" },
-  lbBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 14 },
-  lbBtnText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },
+  lbImage: { width: "100%", height: "60%" },
+  lbSource: { color: "#E6FFFA", fontSize: 13, textAlign: "center", paddingHorizontal: 24, paddingTop: 16, fontFamily: "Pretendard-Regular" },
+  lbBtnRow: { flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingTop: 20, justifyContent: "center" },
+  lbBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14 },
+  lbBtnTxt: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },
+
+  vdOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  vdSheet: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 14, gap: 16 },
+  vdHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  vdThumbWrap: { width: "100%", height: 200, borderRadius: 14, overflow: "hidden", backgroundColor: "#E2E8F0" },
+  vdThumb: { width: "100%", height: "100%" },
+  vdThumbEmpty: { alignItems: "center", justifyContent: "center", gap: 8 },
+  vdThumbEmptyTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  vdPlayOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.3)" },
+  vdLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#374151", textAlign: "center" },
+  vdBtnCol: { gap: 10 },
+  vdBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14 },
+  vdBtnTxt: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },
 });

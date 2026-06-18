@@ -601,6 +601,7 @@ router.get("/videos/parent-view", requireAuth, requireRole("parent_account"), as
         const rows = (await db.execute(sql`
           SELECT sv.id, sv.album_type, sv.class_id, sv.student_id,
                  sv.uploaded_by_name, sv.caption, sv.created_at,
+                 sv.thumbnail_key, sv.journal_id,
                  '/api/videos/' || sv.id || '/file' AS file_url,
                  cg.name AS class_name, cg.schedule_days, cg.schedule_time
           FROM video_assets_meta sv
@@ -621,6 +622,7 @@ router.get("/videos/parent-view", requireAuth, requireRole("parent_account"), as
       const privRows = (await db.execute(sql`
         SELECT sv.id, sv.album_type, sv.class_id, sv.student_id,
                sv.uploaded_by_name, sv.caption, sv.created_at,
+               sv.thumbnail_key, sv.journal_id,
                '/api/videos/' || sv.id || '/file' AS file_url,
                s.name AS student_name
         FROM video_assets_meta sv
@@ -637,8 +639,9 @@ router.get("/videos/parent-view", requireAuth, requireRole("parent_account"), as
       }
     }
 
-    const videos = Array.from(videoMap.values())
+    const rawVideos = Array.from(videoMap.values())
       .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+    const videos = await batchVideoPresign(rawVideos);
 
     res.json({ videos, total: videos.length });
   } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
