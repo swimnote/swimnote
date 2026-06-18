@@ -166,9 +166,10 @@ export default function TeacherPhotosScreen() {
   const [lightbox, setLightbox] = useState<MediaItem | null>(null);
 
   // 업로드
-  const [uploading,  setUploading]  = useState(false);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
+  const [uploading,           setUploading]           = useState(false);
+  const [successMsg,          setSuccessMsg]          = useState<string | null>(null);
+  const [errorMsg,            setErrorMsg]            = useState<string | null>(null);
+  const [pendingUploadAssets, setPendingUploadAssets] = useState<any[]>([]);
 
   type PlanFeatures = { video_enabled: boolean; storage_quota_gb: number; storage_used_gb: number; storage_used_pct: number; upload_blocked: boolean; tier: string };
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures>({ video_enabled: false, storage_quota_gb: 0, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" });
@@ -333,26 +334,13 @@ export default function TeacherPhotosScreen() {
     setStep("upload");
   }
 
-  async function pickAndUpload(group?: TeacherClassGroup, student?: Student) {
-    const effectiveGroup   = group   ?? selGroup;
-    const effectiveStudent = student ?? selStudent;
+  /** 실제 파일 업로드 — 파일 피커 이후에 실행 */
+  async function doUpload(assets: any[], group: TeacherClassGroup | null | undefined, student: Student | null | undefined) {
     const isVideo = mediaType === "video";
-    if (isVideo && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
-    if (planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
+    setUploading(true);
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) { Alert.alert("권한 필요", "미디어 접근 권한이 필요합니다."); return; }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: isVideo ? ["videos"] : ["images"],
-        allowsMultipleSelection: !isVideo,
-        quality: isVideo ? 1 : 0.85,
-      });
-      if (result.canceled || !result.assets?.length) return;
-
-      setUploading(true);
       const form = new FormData();
-      for (const asset of result.assets) {
+      for (const asset of assets) {
         const uri = !isVideo ? await compressImageIfNeeded(asset.uri, asset.fileSize ?? undefined) : asset.uri;
         form.append(isVideo ? "video" : "photos", {
           uri,
@@ -360,8 +348,8 @@ export default function TeacherPhotosScreen() {
           type: asset.mimeType || (isVideo ? "video/mp4" : "image/jpeg"),
         } as any);
       }
-      form.append("class_id", effectiveGroup?.id ?? "");
-      if (scope === "private" && effectiveStudent?.id) form.append("student_id", effectiveStudent.id);
+      form.append("class_id", group?.id ?? "");
+      if (scope === "private" && student?.id) form.append("student_id", student.id);
 
       const endpoint = isVideo
         ? (scope === "group" ? "/videos/group" : "/videos/private")
@@ -375,11 +363,11 @@ export default function TeacherPhotosScreen() {
       const resData = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((resData as any)?.error ?? "업로드 실패");
 
-      const cnt = result.assets.length;
+      const cnt = assets.length;
       setSuccessMsg(
         scope === "group"
-          ? `${isVideo ? "영상" : `${cnt}장`}이 ${effectiveGroup?.name ?? "반"} ${cfg.title} 앨범에 추가됐습니다.`
-          : `${isVideo ? "영상" : `${cnt}장`}이 ${effectiveStudent?.name ?? "학생"} 개인 ${cfg.title} 앨범에 추가됐습니다.`
+          ? `${isVideo ? "영상" : `${cnt}장`}이 ${group?.name ?? "반"} ${cfg.title} 앨범에 추가됐습니다.`
+          : `${isVideo ? "영상" : `${cnt}장`}이 ${student?.name ?? "학생"} 개인 ${cfg.title} 앨범에 추가됐습니다.`
       );
       await loadList();
     } catch (e: any) {
@@ -387,6 +375,61 @@ export default function TeacherPhotosScreen() {
       setErrorMsg(e?.message ?? "업로드 중 오류가 발생했습니다.");
     } finally {
       setUploading(false);
+      setPendingUploadAssets([]);
+    }
+  }
+
+  /**
+   * 파일 피커 실행 → 파일 선택 후 반 결정 → 업로드
+   * group 파라미터가 있으면 그 반으로 바로 업로드 (클래스 피커 이후 재진입 경로)
+   */
+  async function pickAndUpload(group?: TeacherClassGroup, student?: Student) {
+    const isVideo = mediaType === "video";
+    if (isVideo && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
+    if (planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
+
+    // ── 반이 이미 결정된 경우: 대기 파일로 바로 업로드 ──────────────
+    if (group) {
+      const assets = pendingUploadAssets.length > 0 ? pendingUploadAssets : null;
+      if (assets) { await doUpload(assets, group, student ?? selStudent); return; }
+    }
+
+    // ── 파일 피커 먼저 실행 ─────────────────────────────────────────
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) { Alert.alert("권한 필요", "미디어 접근 권한이 필요합니다."); return; }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: isVideo ? ["videos"] : ["images"],
+        allowsMultipleSelection: !isVideo,
+        quality: isVideo ? 1 : 0.85,
+      });
+      if (result.canceled || !result.assets?.length) return;
+
+      const assets = result.assets;
+
+      // ── 반 결정 ─────────────────────────────────────────────────
+      if (scope === "group") {
+        if (groups.length === 0) {
+          // 반이 하나도 없는 경우: 파일 선택 후 안내
+          Alert.alert("반 없음", "개설된 반이 없습니다.\n먼저 반을 등록해주세요.");
+          return;
+        }
+        if (groups.length === 1) {
+          // 반이 1개: 바로 업로드
+          await doUpload(assets, groups[0], null);
+        } else {
+          // 반이 여러 개: 파일 선택 완료 후 반 선택 모달 표시
+          setPendingUploadAssets(assets);
+          setShowClassPickerModal(true);
+        }
+      } else {
+        // private: selGroup/selStudent 사용 (schedule → student 흐름)
+        await doUpload(assets, selGroup, selStudent);
+      }
+    } catch (e: any) {
+      console.warn("[photos] upload error:", e);
+      setErrorMsg(e?.message ?? "업로드 중 오류가 발생했습니다.");
     }
   }
 
@@ -677,9 +720,7 @@ export default function TeacherPhotosScreen() {
               if (scope === "private") {
                 setSelGroup(null); setSelStudent(null); setStep("schedule");
               } else {
-                if (groups.length === 0) { Alert.alert("반 없음", "등록된 반이 없습니다."); return; }
-                if (groups.length === 1) { pickAndUpload(groups[0]); return; }
-                setShowClassPickerModal(true);
+                pickAndUpload();
               }
             }}
             style={[s.fab, { backgroundColor: cfg.color, bottom: insets.bottom + 20 }]}
@@ -705,7 +746,10 @@ export default function TeacherPhotosScreen() {
                 <Pressable
                   key={g.id}
                   style={s.cpItem}
-                  onPress={() => { setShowClassPickerModal(false); pickAndUpload(g); }}
+                  onPress={() => {
+                    setShowClassPickerModal(false);
+                    doUpload(pendingUploadAssets, g, null);
+                  }}
                 >
                   <Text style={s.cpItemText}>{g.name}</Text>
                   <ChevronRight size={16} color="#64748B" />
