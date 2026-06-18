@@ -111,7 +111,7 @@ function safeLabel(item: MediaItem | null | undefined): string {
 function normalizeItem(raw: any, idx: number): MediaItem {
   return {
     id: String(raw?.id ?? `item_fallback_${idx}`),
-    file_url: String(raw?.file_url ?? raw?.url ?? ""),
+    file_url: String(raw?.presigned_url ?? raw?.file_url ?? raw?.url ?? ""),
     album_type: String(raw?.album_type ?? "group"),
     class_name: String(raw?.class_name ?? ""),
     schedule_days: String(raw?.schedule_days ?? ""),

@@ -65,8 +65,9 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate }: Pro
         Alert.alert("권한 필요", "사진 저장을 위해 갤러리 접근 권한이 필요합니다.");
         return;
       }
-      // presigned URL 302 리다이렉트 방식: ?token= 으로 서버 인증, headers 불필요
-      const url = token ? `${BASE_ORIGIN}${photo.file_url}?token=${token}` : `${BASE_ORIGIN}${photo.file_url}`;
+      // presigned_url이 있으면 직접 R2 접근 (Replit mTLS 프록시 우회)
+      const rawUrl = (photo as any).presigned_url ?? photo.file_url ?? "";
+      const url = rawUrl.startsWith("http") ? rawUrl : (token ? `${BASE_ORIGIN}${rawUrl}?token=${token}` : `${BASE_ORIGIN}${rawUrl}`);
       const ext = "jpg";
       const localPath = FileSystem.cacheDirectory + `diary_${photo.id}.${ext}`;
       const dl = await FileSystem.downloadAsync(url, localPath);
@@ -84,8 +85,11 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate }: Pro
     }
   }
 
-  const thumbUrl = (photo: Photo) =>
-    token ? `${BASE_ORIGIN}${photo.file_url}?token=${token}` : `${BASE_ORIGIN}${photo.file_url}`;
+  const thumbUrl = (photo: Photo) => {
+    const url = (photo as any).presigned_url ?? photo.file_url ?? "";
+    if (url.startsWith("http")) return url;
+    return token ? `${BASE_ORIGIN}${url}?token=${token}` : `${BASE_ORIGIN}${url}`;
+  };
 
   if (loading) {
     return (

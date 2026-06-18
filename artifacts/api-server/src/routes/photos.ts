@@ -25,6 +25,21 @@ import { genFilename, sanitizePoolName } from "../utils/filename.js";
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 
+/**
+ * 사진/영상 목록에 R2 presigned URL 일괄 추가.
+ * expo-image의 네이티브 iOS URLSession은 Replit mTLS 프록시를 신뢰하지 않아
+ * Authorization 헤더나 302 redirect 방식이 모두 불가능합니다.
+ * 해결책: JS fetch로 받은 목록에 presigned_url을 포함하고,
+ * expo-image가 R2에 직접(프록시 없이) 접근하도록 합니다.
+ */
+async function batchPresign(photos: any[], type: "photo" | "video" = "photo"): Promise<any[]> {
+  return Promise.all(photos.map(async (p) => {
+    if (!p.object_key) return p;
+    const { ok, url } = await getPresignedUrl(p.object_key, type, 3600);
+    return ok && url ? { ...p, presigned_url: url } : p;
+  }));
+}
+
 
 async function getPoolSlug(poolId: string): Promise<string> {
   const rows = await superAdminDb.execute(sql`SELECT name_en, name FROM swimming_pools WHERE id = ${poolId}`);
@@ -186,7 +201,7 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
     const rows = await db.execute(sql`
       SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.pool_id,
              sp.uploaded_by, sp.uploaded_by_name, sp.caption, sp.created_at,
-             sp.lesson_date, sp.file_size,
+             sp.lesson_date, sp.file_size, sp.object_key,
              s.name AS student_name
       FROM photo_assets_meta sp
       LEFT JOIN students s ON s.id = sp.student_id
@@ -197,7 +212,9 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
         )` : sql``}
       ORDER BY sp.created_at DESC
     `);
-    const photos = (rows.rows as any[]).map(p => ({ ...p, file_url: `/api/photos/${p.id}/file` }));
+    const photos = await batchPresign(
+      (rows.rows as any[]).map(p => ({ ...p, file_url: `/api/photos/${p.id}/file` }))
+    );
     res.json(photos);
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
@@ -456,7 +473,7 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
       if (!poolId) { res.json({ photos: [], total: 0 }); return; }
       const rows = await db.execute(sql`
         SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploaded_by_name,
-               sp.caption, sp.created_at, sp.file_size,
+               sp.caption, sp.created_at, sp.file_size, sp.object_key,
                '/api/photos/' || sp.id || '/file' AS file_url,
                cg.name AS class_name, cg.schedule_days, cg.schedule_time
         FROM photo_assets_meta sp
@@ -465,12 +482,12 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
           AND sp.pool_id = ${poolId}
         ORDER BY sp.created_at DESC
       `);
-      photos = rows.rows as any[];
+      photos = await batchPresign(rows.rows as any[]);
     } else {
       // 개인앨범 = teacher_saved_photos 에서 가져옴
       const rows = await db.execute(sql`
         SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploaded_by_name,
-               sp.caption, sp.created_at, sp.file_size,
+               sp.caption, sp.created_at, sp.file_size, sp.object_key,
                '/api/photos/' || sp.id || '/file' AS file_url,
                cg.name AS class_name, cg.schedule_days, cg.schedule_time,
                tsp.created_at AS saved_at
@@ -480,7 +497,7 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
         WHERE tsp.teacher_id = ${userId}
         ORDER BY tsp.created_at DESC
       `);
-      photos = rows.rows as any[];
+      photos = await batchPresign(rows.rows as any[]);
     }
 
     res.json({ photos, total: photos.length });
@@ -682,7 +699,7 @@ router.get("/photos/picker", requireAuth, requireRole("teacher", "pool_admin", "
       // 본인 담당 반 사진 + 수영장 공용(class_id=null) 사진 모두 포함
       const poolId = await getUserPoolId(userId);
       const rows = await db.execute(sql`
-        SELECT sp.id, sp.class_id, sp.uploaded_by_name, sp.created_at, sp.file_size,
+        SELECT sp.id, sp.class_id, sp.uploaded_by_name, sp.created_at, sp.file_size, sp.object_key,
                '/api/photos/' || sp.id || '/file' AS file_url,
                cg.name AS class_name
         FROM photo_assets_meta sp
@@ -695,14 +712,14 @@ router.get("/photos/picker", requireAuth, requireRole("teacher", "pool_admin", "
           )
         ORDER BY sp.created_at DESC
       `);
-      photos = rows.rows as any[];
+      photos = await batchPresign(rows.rows as any[]);
     } else if (role === "super_admin") {
       photos = [];
     } else {
       const poolId = await getUserPoolId(userId);
       if (!poolId) { res.json({ photos: [], total: 0 }); return; }
       const rows = await db.execute(sql`
-        SELECT sp.id, sp.class_id, sp.uploaded_by_name, sp.created_at, sp.file_size,
+        SELECT sp.id, sp.class_id, sp.uploaded_by_name, sp.created_at, sp.file_size, sp.object_key,
                '/api/photos/' || sp.id || '/file' AS file_url,
                cg.name AS class_name
         FROM photo_assets_meta sp
@@ -711,7 +728,7 @@ router.get("/photos/picker", requireAuth, requireRole("teacher", "pool_admin", "
           AND sp.pool_id = ${poolId}
         ORDER BY sp.created_at DESC
       `);
-      photos = rows.rows as any[];
+      photos = await batchPresign(rows.rows as any[]);
     }
 
     res.json({ photos, total: photos.length });

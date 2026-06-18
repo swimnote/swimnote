@@ -198,7 +198,7 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
             columnWrapperStyle={{ gap: 1 }}
             renderItem={({ item }) => {
               const isSel = selected.has(item.id);
-              const uri = photoUri(item.file_url);
+              const uri = photoUri((item as any).presigned_url ?? item.file_url);
               return (
                 <Pressable
                   onPress={() => toggle(item.id)}

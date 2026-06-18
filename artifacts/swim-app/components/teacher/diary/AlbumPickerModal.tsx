@@ -50,7 +50,8 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
 
   const renderItem = ({ item }: { item: AlbumPhotoInfo }) => {
     const isSelected = selected.has(item.id);
-    const imageUri = `${BASE_ORIGIN}${item.file_url}?token=${token}`;
+    const rawUrl = (item as any).presigned_url ?? item.file_url ?? "";
+    const imageUri = rawUrl.startsWith("http") ? rawUrl : `${BASE_ORIGIN}${rawUrl}?token=${token}`;
     return (
       <Pressable onPress={() => toggle(item.id)} style={[s.item, isSelected && s.itemSelected]}>
         <ExpoImage
