@@ -326,9 +326,9 @@ router.post(
       const id = `video_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
       const rows = await db.execute(sql`
         INSERT INTO video_assets_meta
-          (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id, caption, thumbnail_key)
+          (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id, caption, thumbnail_key, expires_at, status)
         VALUES
-          (${id}, NULL, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'group', ${class_id || null}, ${caption || null}, ${thumbnailKey})
+          (${id}, NULL, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'group', ${class_id || null}, ${caption || null}, ${thumbnailKey}, NOW() + INTERVAL '14 days', 'active')
         RETURNING *
       `);
 
@@ -426,9 +426,9 @@ router.post(
       const id = `video_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
       const rows = await db.execute(sql`
         INSERT INTO video_assets_meta
-          (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id, caption, thumbnail_key)
+          (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id, caption, thumbnail_key, expires_at, status)
         VALUES
-          (${id}, ${student_id}, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'private', ${class_id}, ${caption || null}, ${thumbnailKey})
+          (${id}, ${student_id}, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'private', ${class_id}, ${caption || null}, ${thumbnailKey}, NOW() + INTERVAL '14 days', 'active')
         RETURNING *
       `);
 
@@ -464,6 +464,7 @@ router.get("/videos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
         LEFT JOIN class_groups cg ON cg.id = sv.class_id
         WHERE sv.album_type = 'group'
           AND sv.pool_id = ${poolId}
+          AND sv.status = 'active'
         ORDER BY sv.created_at DESC
       `);
       console.log("[teacher-all:group] poolId=", poolId, "rows=", rows.rows.length, "첫번째=", rows.rows[0] ?? null);
@@ -607,6 +608,7 @@ router.get("/videos/parent-view", requireAuth, requireRole("parent_account"), as
           FROM video_assets_meta sv
           LEFT JOIN class_groups cg ON cg.id = sv.class_id
           WHERE sv.album_type = 'group' AND sv.class_id = ${child.class_group_id}
+            AND sv.status = 'active'
           ORDER BY sv.created_at DESC LIMIT 100
         `)).rows as any[];
         for (const row of rows) {
@@ -628,6 +630,7 @@ router.get("/videos/parent-view", requireAuth, requireRole("parent_account"), as
         FROM video_assets_meta sv
         LEFT JOIN students s ON s.id = sv.student_id
         WHERE sv.album_type = 'private' AND sv.student_id = ${child.id}
+          AND sv.status = 'active'
         ORDER BY sv.created_at DESC LIMIT 100
       `)).rows as any[];
       for (const row of privRows) {
@@ -738,7 +741,7 @@ router.get("/videos/diary/:diaryId", requireAuth, requireRole("teacher", "pool_a
     if (!poolId) { res.json({ videos: [], total: 0 }); return; }
 
     const rows = await db.execute(sql`
-      SELECT id, uploaded_by_name, created_at, file_size, class_id, caption, thumbnail_key,
+      SELECT id, uploaded_by_name, created_at, file_size, class_id, caption, thumbnail_key, status,
              '/api/videos/' || id || '/file' AS file_url
       FROM video_assets_meta
       WHERE journal_id = ${diaryId}

@@ -156,7 +156,12 @@ export default function DiaryEditView({
                   <View style={s.albumPreviewRow}>
                     {linkedVideos.map(video => (
                       <View key={video.id} style={s.albumThumb}>
-                        {video.thumbnail_presigned_url ? (
+                        {video.status === 'expired' ? (
+                          <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", padding: 4 }}>
+                            <CircleAlert size={14} color="#94A3B8" />
+                            <Text style={{ fontSize: 8, color: "#94A3B8", textAlign: "center", marginTop: 2 }}>보관기간{"\n"}만료</Text>
+                          </View>
+                        ) : video.thumbnail_presigned_url ? (
                           <ExpoImage
                             source={{ uri: video.thumbnail_presigned_url }}
                             style={{ width: "100%", height: "100%", borderRadius: 6 }}

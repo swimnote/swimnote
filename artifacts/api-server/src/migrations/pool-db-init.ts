@@ -1133,4 +1133,10 @@ export async function initPoolDb(): Promise<void> {
   // ── teacher_id 인덱스 중복 정리 (기존 idx_saved_*_teacher 유지, 중복 제거) ──
   await db.execute(sql.raw(`DROP INDEX IF EXISTS idx_teacher_saved_photos_teacher`)).catch(() => {});
   await db.execute(sql.raw(`DROP INDEX IF EXISTS idx_teacher_saved_videos_teacher`)).catch(() => {});
+
+  // ── 영상 14일 만료 시스템: expires_at 컬럼 + 인덱스 + 기존 레코드 백필 ──────
+  await db.execute(sql.raw(`ALTER TABLE video_assets_meta ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`)).catch(() => {});
+  await db.execute(sql.raw(`UPDATE video_assets_meta SET expires_at = uploaded_at + INTERVAL '14 days' WHERE expires_at IS NULL`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_video_assets_expires_at ON video_assets_meta(expires_at)`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_video_assets_status ON video_assets_meta(status)`)).catch(() => {});
 }

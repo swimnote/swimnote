@@ -41,6 +41,7 @@ export interface AlbumVideoInfo {
   uploaded_by_name?: string;
   class_name?: string;
   caption?: string;
+  status?: string;
 }
 
 export type SubView = "write" | "history" | "edit";
