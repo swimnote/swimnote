@@ -13,7 +13,7 @@
  */
 import { Router, Response } from "express";
 import multer from "multer";
-import { uploadToR2, downloadFromR2, deleteFromR2 } from "../lib/objectStorage.js";
+import { uploadToR2, downloadFromR2, deleteFromR2, getPresignedUrl } from "../lib/objectStorage.js";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { usersTable, parentAccountsTable } from "@workspace/db/schema";
@@ -142,14 +142,11 @@ router.get("/photos/:photoId/file", requireAuth, async (req: AuthRequest, res: R
     }
     // super_admin: 통과
 
-    const { ok, data: bytes, error } = await downloadFromR2(photo.object_key, "photo");
-    if (!ok || !bytes) { res.status(404).json({ error: "파일을 찾을 수 없습니다." }); return; }
+    const { ok, url, error } = await getPresignedUrl(photo.object_key, "photo", 3600);
+    if (!ok || !url) { res.status(404).json({ error: "파일을 찾을 수 없습니다." }); return; }
 
-    const ext = (photo.object_key.split(".").pop() || "jpg").toLowerCase();
-    const mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : ext === "webp" ? "image/webp" : "image/jpeg";
-    res.setHeader("Content-Type", mime);
     res.setHeader("Cache-Control", "private, max-age=3600");
-    res.send(bytes);
+    res.redirect(302, url);
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 

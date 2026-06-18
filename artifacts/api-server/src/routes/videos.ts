@@ -13,7 +13,7 @@
  */
 import { Router, Response } from "express";
 import multer from "multer";
-import { uploadToR2, downloadFromR2, deleteFromR2 } from "../lib/objectStorage.js";
+import { uploadToR2, downloadFromR2, deleteFromR2, getPresignedUrl } from "../lib/objectStorage.js";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
@@ -154,13 +154,11 @@ router.get("/videos/:videoId/file", requireAuth, async (req: AuthRequest, res: R
       if (video.pool_id !== poolId) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
     }
 
-    const { ok, data: bytes, error } = await downloadFromR2(video.object_key, "video");
-    if (!ok || !bytes) { res.status(404).json({ error: "파일을 찾을 수 없습니다." }); return; }
+    const { ok, url, error } = await getPresignedUrl(video.object_key, "video", 3600);
+    if (!ok || !url) { res.status(404).json({ error: "파일을 찾을 수 없습니다." }); return; }
 
-    const ext = (video.object_key.split(".").pop() || "mp4").toLowerCase();
-    res.setHeader("Content-Type", videoMimeType(ext));
     res.setHeader("Cache-Control", "private, max-age=3600");
-    res.send(bytes);
+    res.redirect(302, url);
   } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
 });
 
