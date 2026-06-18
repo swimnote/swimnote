@@ -829,4 +829,105 @@ router.get("/photos/diary/:diaryId", requireAuth, requireRole("teacher", "pool_a
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
+// ── 사진 일괄 정리 미리보기 ───────────────────────────────────────────────────
+// GET /photos/cleanup-preview?before=6m|1y
+// 권한: pool_admin, sub_admin, super_admin
+router.get(
+  "/photos/cleanup-preview",
+  requireAuth,
+  requireRole("pool_admin", "sub_admin", "super_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { userId } = req.user!;
+      const before = (req.query.before as string) || "6m";
+
+      if (!["6m", "1y"].includes(before)) {
+        res.status(400).json({ error: "before는 '6m' 또는 '1y'만 허용됩니다." }); return;
+      }
+
+      const poolId = await getUserPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
+
+      const row = before === "1y"
+        ? (await db.execute(sql`
+            SELECT COUNT(*)::int AS count, COALESCE(SUM(file_size), 0)::bigint AS total_size
+            FROM photo_assets_meta
+            WHERE pool_id = ${poolId}
+              AND created_at < NOW() - INTERVAL '1 year'
+          `)).rows[0] as any
+        : (await db.execute(sql`
+            SELECT COUNT(*)::int AS count, COALESCE(SUM(file_size), 0)::bigint AS total_size
+            FROM photo_assets_meta
+            WHERE pool_id = ${poolId}
+              AND created_at < NOW() - INTERVAL '6 months'
+          `)).rows[0] as any;
+
+      res.json({ count: Number(row.count), total_size: Number(row.total_size) });
+    } catch (err) { console.error("[cleanup-preview]", err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ── 사진 일괄 정리 실행 ───────────────────────────────────────────────────────
+// POST /photos/cleanup   body: { before: "6m" | "1y" }
+// 권한: pool_admin, sub_admin, super_admin
+// R2 삭제 성공 후 DB 삭제. 중간 오류 발생 시 해당 건 DB 유지.
+router.post(
+  "/photos/cleanup",
+  requireAuth,
+  requireRole("pool_admin", "sub_admin", "super_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { userId } = req.user!;
+      const { before } = req.body as { before?: string };
+
+      if (!before || !["6m", "1y"].includes(before)) {
+        res.status(400).json({ error: "before는 '6m' 또는 '1y'만 허용됩니다." }); return;
+      }
+
+      const poolId = await getUserPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
+
+      // cleanup 직전 실제 대상 재계산
+      const targets = before === "1y"
+        ? (await db.execute(sql`
+            SELECT id, object_key, file_size
+            FROM photo_assets_meta
+            WHERE pool_id = ${poolId}
+              AND created_at < NOW() - INTERVAL '1 year'
+          `)).rows as any[]
+        : (await db.execute(sql`
+            SELECT id, object_key, file_size
+            FROM photo_assets_meta
+            WHERE pool_id = ${poolId}
+              AND created_at < NOW() - INTERVAL '6 months'
+          `)).rows as any[];
+
+      if (targets.length === 0) {
+        res.json({ deleted: 0, freed_bytes: 0 }); return;
+      }
+
+      console.log(`[photo-cleanup] pool=${poolId} before=${before} 대상=${targets.length}건 시작`);
+
+      let deletedCount = 0;
+      let freedBytes = 0;
+
+      for (const photo of targets) {
+        try {
+          // R2 삭제 (실패 시 해당 건 건너뜀 — DB 유지)
+          await deleteFromR2(photo.object_key, "photo");
+          // R2 삭제 완료 후 DB 삭제
+          await db.execute(sql`DELETE FROM photo_assets_meta WHERE id = ${photo.id}`);
+          deletedCount++;
+          freedBytes += Number(photo.file_size ?? 0);
+        } catch (err) {
+          console.error(`[photo-cleanup] 실패 id=${photo.id}:`, err);
+        }
+      }
+
+      console.log(`[photo-cleanup] 완료: 삭제=${deletedCount}건 확보=${freedBytes}bytes`);
+      res.json({ deleted: deletedCount, freed_bytes: freedBytes });
+    } catch (err) { console.error("[photo-cleanup]", err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 export default router;
