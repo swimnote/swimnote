@@ -57,7 +57,7 @@ export default function FeedbackCustomScreen() {
     setLevelsLoading(true);
     try {
       const data = await apiRequest("/diary-template-levels", "GET", undefined, token);
-      const lvs: DiaryTemplateLevel[] = data.levels ?? [];
+      const lvs: DiaryTemplateLevel[] = Array.isArray(data) ? data : (data.levels ?? []);
       setLevels(lvs);
       if (lvs.length > 0 && !selectedLevelId) setSelectedLevelId(lvs[0].id);
     } catch { /* ignore */ }
