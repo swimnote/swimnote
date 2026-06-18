@@ -26,6 +26,7 @@ import { WeeklySchedule } from "@/components/teacher/WeeklySchedule";
 import { TeacherClassGroup, SlotStatus } from "@/components/teacher/types";
 import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { FullAlbumPickerModal } from "@/components/teacher/album/FullAlbumPickerModal";
 
 const C = Colors.light;
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL ?? "/api");
@@ -173,9 +174,10 @@ export default function TeacherPhotosScreen() {
 
   type PlanFeatures = { video_enabled: boolean; storage_quota_gb: number; storage_used_gb: number; storage_used_pct: number; upload_blocked: boolean; tier: string };
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures>({ video_enabled: false, storage_quota_gb: 0, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" });
-  const [showVideoGateModal,   setShowVideoGateModal]   = useState(false);
-  const [showStorageModal,     setShowStorageModal]     = useState(false);
-  const [showClassPickerModal, setShowClassPickerModal] = useState(false);
+  const [showVideoGateModal,    setShowVideoGateModal]    = useState(false);
+  const [showStorageModal,      setShowStorageModal]      = useState(false);
+  const [showClassPickerModal,  setShowClassPickerModal]  = useState(false);
+  const [showFullAlbumPicker,   setShowFullAlbumPicker]   = useState(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -290,24 +292,30 @@ export default function TeacherPhotosScreen() {
     if (ids.length === 0) { setConfirmDel(false); return; }
     setDeleting(true);
     try {
-      // State에서 즉시 제거 (낙관적 업데이트)
       setItems(prev => prev.filter(i => !ids.includes(i.id)));
       exitSelect();
 
-      // 실제 API 삭제 시도
       const isPhoto = mediaType === "photo";
-      const res = await fetch(`${API_BASE}${isPhoto ? "/photos/bulk" : "/videos/bulk"}`, {
+      // 개인앨범(saved) = 참조 제거만 / 전체앨범 = R2 + DB 삭제
+      const endpoint = scope === "private"
+        ? (isPhoto ? "/photos/saved" : "/videos/saved")
+        : (isPhoto ? "/photos/bulk" : "/videos/bulk");
+
+      const res = await fetch(`${API_BASE}${endpoint}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
         body: JSON.stringify({ ids }),
       });
       const data = await res.json().catch(() => ({}));
       const deleted = (data as any)?.deleted ?? ids.length;
-      setSuccessMsg(`${deleted}개가 삭제됐습니다.`);
+      setSuccessMsg(
+        scope === "private"
+          ? `${deleted}개가 개인앨범에서 제거됐습니다.`
+          : `${deleted}개가 삭제됐습니다.`
+      );
     } catch (e) {
       console.warn("[photos] delete error:", e);
-      // 실패해도 State 제거는 유지 (낙관적)
-      setSuccessMsg(`${ids.length}개가 삭제됐습니다.`);
+      setSuccessMsg(`${ids.length}개가 처리됐습니다.`);
     } finally {
       setDeleting(false);
       setConfirmDel(false);
@@ -713,19 +721,19 @@ export default function TeacherPhotosScreen() {
           />
         )}
 
-        {/* + 업로드 FAB */}
+        {/* + FAB: 전체앨범 = 파일 피커, 개인앨범 = 전체앨범 피커 */}
         {!selectMode && (
           <Pressable
             onPress={() => {
               if (scope === "private") {
-                setSelGroup(null); setSelStudent(null); setStep("schedule");
+                setShowFullAlbumPicker(true);
               } else {
                 pickAndUpload();
               }
             }}
             style={[s.fab, { backgroundColor: cfg.color, bottom: insets.bottom + 20 }]}
             accessibilityRole="button"
-            accessibilityLabel={`${cfg.title} 업로드`}
+            accessibilityLabel={`${cfg.title} ${scope === "private" ? "저장" : "업로드"}`}
           >
             {uploading ? <ActivityIndicator color="#fff" /> : <Plus size={26} color="#fff" />}
           </Pressable>
@@ -761,6 +769,19 @@ export default function TeacherPhotosScreen() {
             </View>
           </Pressable>
         </Modal>
+
+        {/* FullAlbumPickerModal — 개인앨범 + 버튼 → 전체앨범에서 선택 */}
+        <FullAlbumPickerModal
+          visible={showFullAlbumPicker}
+          mediaType={mediaType}
+          token={token}
+          onClose={() => setShowFullAlbumPicker(false)}
+          onSaved={(count) => {
+            setShowFullAlbumPicker(false);
+            setSuccessMsg(`${count}개가 개인앨범에 저장됐습니다.`);
+            loadList();
+          }}
+        />
 
         {/* ── 사진 라이트박스 ── */}
         {/* ★ lightbox !== null 조건을 Modal 안에 반드시 감싸야 크래시 방지 */}

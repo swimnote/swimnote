@@ -1078,4 +1078,27 @@ export async function initPoolDb(): Promise<void> {
   `)).catch(() => {});
   // 담당 선생님 컬럼 (기존 테이블 보완)
   await db.execute(sql.raw(`ALTER TABLE parent_student_requests ADD COLUMN IF NOT EXISTS teacher_user_id text`)).catch(() => {});
+
+  // ── 개인앨범(즐겨찾기) 매핑 테이블 ────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS teacher_saved_photos (
+      id          text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      teacher_id  text        NOT NULL,
+      photo_id    text        NOT NULL,
+      created_at  timestamptz NOT NULL DEFAULT now(),
+      UNIQUE(teacher_id, photo_id)
+    );
+  `)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_saved_photos_teacher ON teacher_saved_photos(teacher_id)`)).catch(() => {});
+
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS teacher_saved_videos (
+      id          text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      teacher_id  text        NOT NULL,
+      video_id    text        NOT NULL,
+      created_at  timestamptz NOT NULL DEFAULT now(),
+      UNIQUE(teacher_id, video_id)
+    );
+  `)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_saved_videos_teacher ON teacher_saved_videos(teacher_id)`)).catch(() => {});
 }

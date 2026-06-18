@@ -248,16 +248,16 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       const { class_id, lesson_date } = req.body;
-      if (!class_id) { res.status(400).json({ error: "반(class_id)을 선택해주세요." }); return; }
+      // class_id는 선택사항 — 전체앨범은 반 선택 없이 업로드 가능
 
       const files = req.files as Express.Multer.File[];
       if (!files?.length) { res.status(400).json({ error: "사진을 선택해주세요." }); return; }
 
       const { role, userId } = req.user!;
-      console.log(`[photos/group] 업로드 시작: userId=${userId} role=${role} class_id=${class_id} files=${files.length}`);
+      console.log(`[photos/group] 업로드 시작: userId=${userId} role=${role} class_id=${class_id ?? "없음"} files=${files.length}`);
 
-      // teacher는 담당 반만
-      if (role === "teacher") {
+      // teacher: class_id가 있을 때만 담당 반 확인
+      if (role === "teacher" && class_id) {
         const ok = await teacherOwnsClass(userId, class_id);
         if (!ok) { res.status(403).json({ error: "담당 반이 아닙니다." }); return; }
       }
@@ -268,8 +268,8 @@ router.post(
       if (!user) { res.status(403).json({ error: "사용자를 찾을 수 없습니다." }); return; }
       console.log(`[photos/group] user 확인: pool_id=${user.swimming_pool_id}`);
 
-      // pool_admin 권한: 자신의 풀 반만
-      if (role === "pool_admin") {
+      // pool_admin: class_id가 있을 때만 반 소속 확인
+      if (role === "pool_admin" && class_id) {
         const classRows = await db.execute(sql`SELECT id FROM class_groups WHERE id = ${class_id} AND swimming_pool_id = ${user.swimming_pool_id}`);
         if (!classRows.rows.length) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
       }
@@ -291,7 +291,10 @@ router.post(
       for (const file of files) {
         const ext = file.originalname.split(".").pop() || "jpg";
         const filename = genFilename(poolSlug, ext);
-        const key = `photos/group/${class_id}/${filename}`;
+        // class_id가 있으면 반별 경로, 없으면 풀 전체 경로
+        const key = class_id
+          ? `photos/group/${class_id}/${filename}`
+          : `photos/pool/${user.swimming_pool_id}/${filename}`;
         console.log(`[photos/group] R2 업로드: key=${key} size=${file.size}`);
         const { ok, error } = await uploadToR2(key, file.buffer, file.mimetype || "image/jpeg", "photo");
         if (!ok) {
@@ -301,26 +304,24 @@ router.post(
         console.log(`[photos/group] 스토리지 업로드 완료, DB INSERT 중...`);
 
         const id = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-        // group 앨범: student_id는 NULL (반 전체 공유)
         const rows = await db.execute(sql`
           INSERT INTO photo_assets_meta
             (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id, lesson_date)
           VALUES
-            (${id}, NULL, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'group', ${class_id}, ${lesson_date || null})
+            (${id}, NULL, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'group', ${class_id || null}, ${lesson_date || null})
           RETURNING *
         `);
         console.log(`[photos/group] DB INSERT 완료: id=${id}`);
         inserted.push({ ...rows.rows[0], file_url: `/api/photos/${id}/file` });
       }
 
-      // 반 전체 앨범 업로드 → 해당 반 학부모에게 푸시 알림
-      if (inserted.length > 0) {
+      // class_id가 있을 때만 학부모 푸시 발송
+      if (inserted.length > 0 && class_id) {
         const pSettings = await db.execute(sql`
           SELECT COALESCE(tpl_photo, '📸 새 사진이 업로드되었습니다.') AS tpl
           FROM pool_push_settings WHERE pool_id = ${user.swimming_pool_id} LIMIT 1
         `).catch(() => ({ rows: [] }));
         const tpl = (pSettings.rows[0] as any)?.tpl ?? "📸 새 사진이 업로드되었습니다.";
-        // 5분 내 diary 푸시가 발송된 경우 photo 푸시 스킵 (중복 방지)
         sendPushToClassParents(
           class_id,
           "photo_upload",
@@ -445,44 +446,114 @@ router.post(
   }
 );
 
-// ── 선생님: 내 담당 반 전체 미디어 목록 (scope=group|private) ─────────────
+// ── 선생님: 전체앨범(pool-wide) / 개인앨범(saved) 목록 ───────────────────
 router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admin", "super_admin"), async (req: AuthRequest, res: Response) => {
   try {
-    const { userId } = req.user!;
+    const { userId, role } = req.user!;
     const scope = (req.query.scope as string) || "group";
 
     let photos: any[];
     if (scope === "group") {
+      // 전체앨범 = pool 전체 사진 (class 무관)
+      const poolId = await getUserPoolId(userId);
+      if (!poolId) { res.json({ photos: [], total: 0 }); return; }
       const rows = await db.execute(sql`
         SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploaded_by_name,
                sp.caption, sp.created_at, sp.file_size,
                '/api/photos/' || sp.id || '/file' AS file_url,
                cg.name AS class_name, cg.schedule_days, cg.schedule_time
         FROM photo_assets_meta sp
-        JOIN class_groups cg ON cg.id = sp.class_id
+        LEFT JOIN class_groups cg ON cg.id = sp.class_id
         WHERE sp.album_type = 'group'
-          AND cg.teacher_user_id = ${userId}
+          AND sp.pool_id = ${poolId}
         ORDER BY sp.created_at DESC
       `);
       photos = rows.rows as any[];
     } else {
+      // 개인앨범 = teacher_saved_photos 에서 가져옴
       const rows = await db.execute(sql`
         SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploaded_by_name,
                sp.caption, sp.created_at, sp.file_size,
                '/api/photos/' || sp.id || '/file' AS file_url,
-               s.name AS student_name,
-               cg.name AS class_name
-        FROM photo_assets_meta sp
-        LEFT JOIN students s ON s.id = sp.student_id
+               cg.name AS class_name, cg.schedule_days, cg.schedule_time,
+               tsp.created_at AS saved_at
+        FROM teacher_saved_photos tsp
+        JOIN photo_assets_meta sp ON sp.id = tsp.photo_id
         LEFT JOIN class_groups cg ON cg.id = sp.class_id
-        WHERE sp.album_type = 'private'
-          AND sp.uploaded_by = ${userId}
-        ORDER BY sp.created_at DESC
+        WHERE tsp.teacher_id = ${userId}
+        ORDER BY tsp.created_at DESC
       `);
       photos = rows.rows as any[];
     }
 
     res.json({ photos, total: photos.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 개인앨범 저장 목록 조회 ─────────────────────────────────────────────
+router.get("/photos/saved", requireAuth, requireRole("teacher", "pool_admin", "super_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.user!;
+    const rows = await db.execute(sql`
+      SELECT sp.id, sp.album_type, sp.class_id, sp.uploaded_by_name,
+             sp.caption, sp.created_at, sp.file_size,
+             '/api/photos/' || sp.id || '/file' AS file_url,
+             cg.name AS class_name
+      FROM teacher_saved_photos tsp
+      JOIN photo_assets_meta sp ON sp.id = tsp.photo_id
+      LEFT JOIN class_groups cg ON cg.id = sp.class_id
+      WHERE tsp.teacher_id = ${userId}
+      ORDER BY tsp.created_at DESC
+    `);
+    const photos = rows.rows as any[];
+    res.json({ photos, total: photos.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 개인앨범에 사진 저장 (즐겨찾기 추가) ──────────────────────────────────
+router.post("/photos/saved", requireAuth, requireRole("teacher", "pool_admin", "super_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.user!;
+    const { photo_ids } = req.body as { photo_ids: string[] };
+    if (!Array.isArray(photo_ids) || photo_ids.length === 0) {
+      res.status(400).json({ error: "photo_ids가 필요합니다." }); return;
+    }
+    const poolId = await getUserPoolId(userId);
+    // pool 소속 검증
+    const checkRow = await db.execute(sql`
+      SELECT COUNT(*)::int AS cnt FROM photo_assets_meta
+      WHERE id = ANY(${photo_ids}::text[]) AND pool_id = ${poolId}
+    `);
+    if (Number((checkRow.rows[0] as any)?.cnt ?? 0) !== photo_ids.length) {
+      res.status(403).json({ error: "일부 사진에 대한 접근 권한이 없습니다." }); return;
+    }
+    for (const photoId of photo_ids) {
+      const saveId = `save_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+      await db.execute(sql`
+        INSERT INTO teacher_saved_photos (id, teacher_id, photo_id)
+        VALUES (${saveId}, ${userId}, ${photoId})
+        ON CONFLICT (teacher_id, photo_id) DO NOTHING
+      `);
+    }
+    res.json({ success: true, saved: photo_ids.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 개인앨범에서 사진 제거 (파일 삭제 아님) ───────────────────────────────
+router.delete("/photos/saved", requireAuth, requireRole("teacher", "pool_admin", "super_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.user!;
+    const { ids } = req.body as { ids: string[] };
+    if (!Array.isArray(ids) || ids.length === 0) {
+      res.status(400).json({ error: "ids가 필요합니다." }); return;
+    }
+    for (const photoId of ids) {
+      await db.execute(sql`
+        DELETE FROM teacher_saved_photos
+        WHERE teacher_id = ${userId} AND photo_id = ${photoId}
+      `);
+    }
+    res.json({ success: true, deleted: ids.length });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
