@@ -5,13 +5,14 @@
  * - 최근 수업 일지 피드백
  * - 공유 버튼 (카카오톡 포함)
  */
-import { Award, BookOpen, Calendar, ChevronLeft, Share2, TrendingUp } from "lucide-react-native";
+import { Award, BookOpen, Calendar, ChevronLeft, Copy, Share2, TrendingUp } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Platform, Pressable,
   ScrollView, Share, StyleSheet, Text, View,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -66,9 +67,10 @@ export default function GrowthReportScreen() {
 
   const studentId = params.studentId || selectedStudent?.id;
 
-  const [report,  setReport]  = useState<Report | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState<string | null>(null);
+  const [report,   setReport]   = useState<Report | null>(null);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState<string | null>(null);
+  const [copied,   setCopied]   = useState(false);
 
   useEffect(() => {
     if (!studentId) { setLoading(false); return; }
@@ -85,17 +87,14 @@ export default function GrowthReportScreen() {
     setLoading(false);
   }
 
-  async function handleShare() {
-    if (!report) return;
+  function buildReportText() {
+    if (!report) return "";
     const { student_name, period_label, monthly_attendance, level_history, total_lessons } = report;
-
     const totalPresent = monthly_attendance.reduce((s, m) => s + m.present, 0);
     const totalAll     = monthly_attendance.reduce((s, m) => s + m.total, 0);
     const rate = totalAll > 0 ? Math.round((totalPresent / totalAll) * 100) : 0;
-
     const currentLevel = level_history.length > 0 ? level_history[level_history.length - 1].level : null;
     const firstLevel   = level_history.length > 1 ? level_history[0].level : null;
-
     const lines: string[] = [];
     lines.push(`🏊 ${student_name}의 3개월 성장 리포트`);
     lines.push(`📅 ${period_label}`);
@@ -113,10 +112,21 @@ export default function GrowthReportScreen() {
     lines.push(Platform.OS === "ios"
       ? "https://apps.apple.com/app/id6738888898"
       : "https://play.google.com/store/apps/details?id=com.swimnote.app");
+    return lines.join("\n");
+  }
 
+  async function handleShare() {
+    if (!report) return;
     try {
-      await Share.share({ message: lines.join("\n"), title: `${student_name}의 성장 리포트` });
+      await Share.share({ message: buildReportText(), title: `${report.student_name}의 성장 리포트` });
     } catch (_) {}
+  }
+
+  async function handleCopy() {
+    if (!report) return;
+    await Clipboard.setStringAsync(buildReportText());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   const PT = insets.top + (Platform.OS === "web" ? 67 : 12);
@@ -298,11 +308,19 @@ export default function GrowthReportScreen() {
           </View>
         )}
 
-        {/* ── 공유 버튼 ── */}
-        <Pressable style={gr.shareBtn} onPress={handleShare}>
-          <Share2 size={16} color="#fff" />
-          <Text style={gr.shareBtnText}>카카오톡으로 공유하기</Text>
-        </Pressable>
+        {/* ── 하단 버튼 ── */}
+        <View style={gr.btnRow}>
+          <Pressable style={[gr.copyBtn, copied && { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" }]} onPress={handleCopy}>
+            <Copy size={15} color={copied ? "#2EC4B6" : "#374151"} />
+            <Text style={[gr.copyBtnText, copied && { color: "#2EC4B6" }]}>
+              {copied ? "복사됨!" : "텍스트 복사"}
+            </Text>
+          </Pressable>
+          <Pressable style={gr.shareBtn} onPress={handleShare}>
+            <Share2 size={15} color="#fff" />
+            <Text style={gr.shareBtnText}>공유하기</Text>
+          </Pressable>
+        </View>
 
         <View style={{ height: insets.bottom + 24 }} />
       </ScrollView>
