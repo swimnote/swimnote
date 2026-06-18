@@ -1101,4 +1101,33 @@ export async function initPoolDb(): Promise<void> {
     );
   `)).catch(() => {});
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_saved_videos_teacher ON teacher_saved_videos(teacher_id)`)).catch(() => {});
+
+  // ── A안: FK ON DELETE CASCADE — 원본 삭제 시 즐겨찾기 참조 자동 삭제 ──────
+  // teacher_saved_photos.photo_id → photo_assets_meta(id) ON DELETE CASCADE
+  await db.execute(sql.raw(`
+    DO $$ BEGIN
+      ALTER TABLE teacher_saved_photos
+        ADD CONSTRAINT fk_saved_photos_photo_id
+        FOREIGN KEY (photo_id)
+        REFERENCES photo_assets_meta(id)
+        ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `)).catch(() => {});
+
+  // teacher_saved_videos.video_id → video_assets_meta(id) ON DELETE CASCADE
+  await db.execute(sql.raw(`
+    DO $$ BEGIN
+      ALTER TABLE teacher_saved_videos
+        ADD CONSTRAINT fk_saved_videos_video_id
+        FOREIGN KEY (video_id)
+        REFERENCES video_assets_meta(id)
+        ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `)).catch(() => {});
+
+  // ── teacher_id 인덱스 (명칭 보정 — 기존 + 요청명 모두 생성) ────────────────
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_teacher_saved_photos_teacher ON teacher_saved_photos(teacher_id)`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_teacher_saved_videos_teacher ON teacher_saved_videos(teacher_id)`)).catch(() => {});
 }
