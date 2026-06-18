@@ -31,6 +31,7 @@ type MenuItem = { label: string; icon: string; color: string; bg: string; route:
 const CLASS_SETTINGS: MenuItem[] = [
   { label: "수영레벨/테스트기준설정", icon: "award",      color: "#CA8A04", bg: NB, route: "/(admin)/level-settings",             desc: "수영 레벨 기준 및 테스트 관리" },
   { label: "일지 템플릿 관리",     icon: "file-text",     color: "#7C3AED", bg: NB, route: "/(admin)/diary-template-settings", desc: "레벨별 일지 템플릿 관리" },
+  { label: "반 개설 관리",        icon: "users",          color: "#0891B2", bg: NB, route: "/(admin)/class-capacity-settings",   desc: "반 정원 및 개설 기본값 설정" },
   { label: "수업단가표",          icon: "dollar-sign",    color: "#059669", bg: NB, route: "/(admin)/unit-pricing",               desc: "주1회·주2회·주3회 수업료 단가 설정" },
   { label: "권한 설정",          icon: "shield",         color: "#1D4ED8", bg: NB, route: "/(admin)/admin-grant",                desc: "관리자 / 선생님 권한" },
   { label: "보강 정책",          icon: "refresh-cw",     color: "#EA580C", bg: NB, route: "/(admin)/makeup-policy",             desc: "보강 가능 기간 및 규칙" },

@@ -216,7 +216,8 @@ export default function AdminLayout() {
       <Tabs.Screen name="invite-records"          options={{ href: null }} />
       <Tabs.Screen name="recovery"                options={{ href: null }} />
       <Tabs.Screen name="feedback-settings"       options={{ href: null }} />
-      <Tabs.Screen name="diary-template-settings" options={{ href: null }} />
+      <Tabs.Screen name="diary-template-settings"   options={{ href: null }} />
+      <Tabs.Screen name="class-capacity-settings"   options={{ href: null }} />
       <Tabs.Screen name="unit-pricing"            options={{ href: null }} />
       <Tabs.Screen name="push-notification-settings" options={{ href: null }} />
       <Tabs.Screen name="push-message-settings"   options={{ href: null }} />

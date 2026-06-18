@@ -751,6 +751,7 @@ export async function initPoolDb(): Promise<void> {
   const spoolAlters = [
     `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS member_limit integer`,
     `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS subscription_source text`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS default_capacity integer NOT NULL DEFAULT 5`,
   ];
   for (const alter of spoolAlters) {
     try {

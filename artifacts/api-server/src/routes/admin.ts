@@ -2097,8 +2097,8 @@ router.get("/makeups/extinguished-log", requireAuth, requireRole("super_admin","
   }
 );
 
-// GET /admin/class-settings — 반 기본 설정 (기본 정원)
-router.get("/class-settings", requireAuth, requireRole("super_admin","pool_admin"),
+// GET /admin/class-settings — 반 기본 설정 (기본 정원) — 선생님도 읽기 허용
+router.get("/class-settings", requireAuth, requireRole("super_admin","pool_admin","teacher"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req);
