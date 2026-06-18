@@ -172,8 +172,9 @@ export default function TeacherPhotosScreen() {
 
   type PlanFeatures = { video_enabled: boolean; storage_quota_gb: number; storage_used_gb: number; storage_used_pct: number; upload_blocked: boolean; tier: string };
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures>({ video_enabled: false, storage_quota_gb: 0, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" });
-  const [showVideoGateModal, setShowVideoGateModal] = useState(false);
-  const [showStorageModal,   setShowStorageModal]   = useState(false);
+  const [showVideoGateModal,   setShowVideoGateModal]   = useState(false);
+  const [showStorageModal,     setShowStorageModal]     = useState(false);
+  const [showClassPickerModal, setShowClassPickerModal] = useState(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -332,7 +333,9 @@ export default function TeacherPhotosScreen() {
     setStep("upload");
   }
 
-  async function pickAndUpload() {
+  async function pickAndUpload(group?: TeacherClassGroup, student?: Student) {
+    const effectiveGroup   = group   ?? selGroup;
+    const effectiveStudent = student ?? selStudent;
     const isVideo = mediaType === "video";
     if (isVideo && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
     if (planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
@@ -357,8 +360,8 @@ export default function TeacherPhotosScreen() {
           type: asset.mimeType || (isVideo ? "video/mp4" : "image/jpeg"),
         } as any);
       }
-      form.append("class_id", selGroup?.id ?? "");
-      if (scope === "private" && selStudent?.id) form.append("student_id", selStudent.id);
+      form.append("class_id", effectiveGroup?.id ?? "");
+      if (scope === "private" && effectiveStudent?.id) form.append("student_id", effectiveStudent.id);
 
       const endpoint = isVideo
         ? (scope === "group" ? "/videos/group" : "/videos/private")
@@ -375,9 +378,10 @@ export default function TeacherPhotosScreen() {
       const cnt = result.assets.length;
       setSuccessMsg(
         scope === "group"
-          ? `${isVideo ? "영상" : `${cnt}장`}이 ${selGroup?.name ?? "반"} ${cfg.title} 앨범에 추가됐습니다.`
-          : `${isVideo ? "영상" : `${cnt}장`}이 ${selStudent?.name ?? "학생"} 개인 ${cfg.title} 앨범에 추가됐습니다.`
+          ? `${isVideo ? "영상" : `${cnt}장`}이 ${effectiveGroup?.name ?? "반"} ${cfg.title} 앨범에 추가됐습니다.`
+          : `${isVideo ? "영상" : `${cnt}장`}이 ${effectiveStudent?.name ?? "학생"} 개인 ${cfg.title} 앨범에 추가됐습니다.`
       );
+      await loadList();
     } catch (e: any) {
       console.warn("[photos] upload error:", e);
       setErrorMsg(e?.message ?? "업로드 중 오류가 발생했습니다.");
@@ -669,14 +673,50 @@ export default function TeacherPhotosScreen() {
         {/* + 업로드 FAB */}
         {!selectMode && (
           <Pressable
-            onPress={() => { setSelGroup(null); setSelStudent(null); setStep("schedule"); }}
+            onPress={() => {
+              if (scope === "private") {
+                setSelGroup(null); setSelStudent(null); setStep("schedule");
+              } else {
+                if (groups.length === 0) { Alert.alert("반 없음", "등록된 반이 없습니다."); return; }
+                if (groups.length === 1) { pickAndUpload(groups[0]); return; }
+                setShowClassPickerModal(true);
+              }
+            }}
             style={[s.fab, { backgroundColor: cfg.color, bottom: insets.bottom + 20 }]}
             accessibilityRole="button"
             accessibilityLabel={`${cfg.title} 업로드`}
           >
-            <Plus size={26} color="#fff" />
+            {uploading ? <ActivityIndicator color="#fff" /> : <Plus size={26} color="#fff" />}
           </Pressable>
         )}
+
+        {/* 반 선택 바텀시트 (group 업로드, 반이 여러 개일 때) */}
+        <Modal
+          visible={showClassPickerModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowClassPickerModal(false)}
+        >
+          <Pressable style={s.cpOverlay} onPress={() => setShowClassPickerModal(false)}>
+            <View style={s.cpSheet}>
+              <View style={s.cpHandle} />
+              <Text style={s.cpTitle}>어느 반에 업로드할까요?</Text>
+              {groups.map(g => (
+                <Pressable
+                  key={g.id}
+                  style={s.cpItem}
+                  onPress={() => { setShowClassPickerModal(false); pickAndUpload(g); }}
+                >
+                  <Text style={s.cpItemText}>{g.name}</Text>
+                  <ChevronRight size={16} color="#64748B" />
+                </Pressable>
+              ))}
+              <Pressable style={s.cpCancel} onPress={() => setShowClassPickerModal(false)}>
+                <Text style={s.cpCancelText}>취소</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Modal>
 
         {/* ── 사진 라이트박스 ── */}
         {/* ★ lightbox !== null 조건을 Modal 안에 반드시 감싸야 크래시 방지 */}
@@ -1000,4 +1040,13 @@ const s = StyleSheet.create({
   avatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   studentName: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+
+  cpOverlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  cpSheet:      { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingBottom: 36, paddingTop: 12, gap: 6 },
+  cpHandle:     { alignSelf: "center", width: 36, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", marginBottom: 8 },
+  cpTitle:      { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#374151", textAlign: "center", paddingVertical: 8 },
+  cpItem:       { flexDirection: "row", alignItems: "center", paddingVertical: 16, paddingHorizontal: 14, backgroundColor: "#F8FAFC", borderRadius: 14, gap: 8 },
+  cpItemText:   { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  cpCancel:     { alignItems: "center", paddingVertical: 14, marginTop: 4 },
+  cpCancelText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
 });
