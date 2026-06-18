@@ -466,6 +466,7 @@ router.get("/videos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
           AND sv.pool_id = ${poolId}
         ORDER BY sv.created_at DESC
       `);
+      console.log("[teacher-all:group] poolId=", poolId, "rows=", rows.rows.length, "첫번째=", rows.rows[0] ?? null);
       videos = await batchVideoPresign(rows.rows as any[]);
     } else {
       // 개인앨범 = teacher_saved_videos 에서 가져옴
@@ -648,14 +649,17 @@ router.get("/videos/parent-view", requireAuth, requireRole("parent_account"), as
 router.get("/videos/picker", requireAuth, requireRole("teacher", "pool_admin", "sub_admin", "super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { userId, role } = req.user!;
+    console.log("[picker] 요청 userId=", userId, "role=", role);
 
     if (role === "super_admin") { res.json({ videos: [], total: 0 }); return; }
 
     const poolId = await getUserPoolId(userId);
+    console.log("[picker] poolId=", poolId);
     if (!poolId) { res.json({ videos: [], total: 0 }); return; }
 
     const rows = await db.execute(sql`
-      SELECT sv.id, sv.class_id, sv.uploaded_by_name, sv.created_at, sv.file_size, sv.thumbnail_key,
+      SELECT sv.id, sv.class_id, sv.uploaded_by_name, sv.created_at, sv.file_size,
+             sv.thumbnail_key,
              '/api/videos/' || sv.id || '/file' AS file_url,
              cg.name AS class_name
       FROM video_assets_meta sv
@@ -664,9 +668,14 @@ router.get("/videos/picker", requireAuth, requireRole("teacher", "pool_admin", "
         AND sv.pool_id = ${poolId}
       ORDER BY sv.created_at DESC
     `);
+    console.log("[picker] 쿼리 결과 rows=", rows.rows.length, "첫번째=", rows.rows[0] ?? null);
     const videos = await batchVideoPresign(rows.rows as any[]);
+    console.log("[picker] 응답 videos.length=", videos.length);
     res.json({ videos, total: videos.length });
-  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  } catch (err) {
+    console.error("[picker] 에러:", err);
+    res.status(500).json({ error: "서버 오류" });
+  }
 });
 
 // ── POST /videos/diary-attach — 선택 영상 journal_id 연결 ─────────────────
