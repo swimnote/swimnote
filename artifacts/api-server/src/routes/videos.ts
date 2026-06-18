@@ -650,8 +650,6 @@ router.get("/videos/picker", requireAuth, requireRole("teacher", "pool_admin", "
   try {
     const { userId, role } = req.user!;
     const poolId = await getUserPoolId(userId);
-    console.log("[VIDEOS_PICKER] hit", { userId, poolId, role });
-
     if (role === "super_admin") { res.json({ videos: [], total: 0 }); return; }
     if (!poolId) { res.json({ videos: [], total: 0 }); return; }
 
@@ -666,8 +664,6 @@ router.get("/videos/picker", requireAuth, requireRole("teacher", "pool_admin", "
         AND sv.pool_id = ${poolId}
       ORDER BY sv.created_at DESC
     `);
-    console.log("[VIDEOS_PICKER] rows =", rows.rows.length);
-    console.log("[VIDEOS_PICKER] first =", rows.rows[0] ?? null);
     const videos = await batchVideoPresign(rows.rows as any[]);
     res.json({ videos, total: videos.length });
   } catch (err) {

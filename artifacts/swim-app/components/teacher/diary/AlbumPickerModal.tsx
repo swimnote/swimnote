@@ -44,29 +44,12 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
     setSelVideos(new Set());
     setLoading(true);
 
-    const photosUrl = `${API_BASE}/photos/picker`;
-    const videosUrl = `${API_BASE}/videos/picker`;
-    console.log("[ALBUM_PICKER] photos url =", photosUrl);
-    console.log("[ALBUM_PICKER] videos url =", videosUrl);
-
     Promise.all([
-      fetch(photosUrl, { headers: { Authorization: `Bearer ${token}` } })
-        .then(async r => {
-          const text = await r.text();
-          console.log("[ALBUM_PICKER] photos status =", r.status);
-          console.log("[ALBUM_PICKER] photos raw =", text.slice(0, 300));
-          try { const d = JSON.parse(text); return Array.isArray(d.photos) ? d.photos : []; } catch { return []; }
-        }).catch(e => { console.log("[ALBUM_PICKER] photos fetch error =", String(e)); return []; }),
-      fetch(videosUrl, { headers: { Authorization: `Bearer ${token}` } })
-        .then(async r => {
-          const text = await r.text();
-          console.log("[ALBUM_PICKER] videos status =", r.status);
-          console.log("[ALBUM_PICKER] videos raw =", text.slice(0, 300));
-          try { const d = JSON.parse(text); return Array.isArray(d.videos) ? d.videos : []; } catch { return []; }
-        }).catch(e => { console.log("[ALBUM_PICKER] videos fetch error =", String(e)); return []; }),
+      fetch(`${API_BASE}/photos/picker`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json()).then(d => Array.isArray(d.photos) ? d.photos : []).catch(() => []),
+      fetch(`${API_BASE}/videos/picker`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json()).then(d => Array.isArray(d.videos) ? d.videos : []).catch(() => []),
     ]).then(([p, v]) => {
-      console.log("[ALBUM_PICKER] photos =", p.length);
-      console.log("[ALBUM_PICKER] videos =", v.length);
       setPhotos(p);
       setVideos(v);
     }).finally(() => setLoading(false));
@@ -157,8 +140,6 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
     const tb = (b.item as any).created_at ?? "";
     return tb.localeCompare(ta);
   });
-
-  console.log("[ALBUM_PICKER] tab =", tab, "visible =", combined.length);
 
   const isEmpty = combined.length === 0;
 
