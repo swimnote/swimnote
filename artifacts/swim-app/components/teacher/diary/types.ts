@@ -7,7 +7,14 @@ export interface UploadedMedia {
 }
 
 export interface DiaryTemplateLevel { id: string; level_name: string; sort_order: number; template_count: number; }
-export interface DiaryTemplate { id: string; level_id?: string | null; category: string; level?: string | null; title?: string | null; template_text: string; sort_order: number; is_active: boolean; scope?: string; teacher_id?: string | null; }
+export interface DiaryTemplate {
+  id: string; level_id?: string | null; category: string; level?: string | null;
+  title?: string | null; template_text: string; sort_order: number; is_active: boolean;
+  scope?: string; teacher_id?: string | null; source_template_id?: string | null;
+  global_id?: string | null;
+  is_overridden?: boolean;
+  override_id?: string | null;
+}
 export interface StudentOption  { id: string; name: string; birth_year?: string | null; }
 export interface StudentNote    { student_id: string; student_name: string; note_content: string; }
 export interface ExistingNote   { id: string; student_id: string; student_name: string; note_content: string; _deleted?: boolean; _modified?: boolean; }

@@ -422,13 +422,10 @@ function TemplatePicker({
   selectedLevelId: string | null; onSelectLevel: (id: string) => void;
   themeColor: string; onInsert: (text: string) => void; onClose: () => void;
 }) {
-  const globalFiltered = selectedLevelId
-    ? templates.filter(t => t.level_id === selectedLevelId && t.scope !== "teacher")
-    : [];
-  const teacherFiltered = selectedLevelId
-    ? templates.filter(t => t.level_id === selectedLevelId && t.scope === "teacher")
-    : [];
-  const totalCount = globalFiltered.length + teacherFiltered.length;
+  // merged view: global_id != null → merged(global+override), global_id==null → 내 신규 추가
+  const baseItems    = selectedLevelId ? templates.filter(t => t.level_id === selectedLevelId && t.global_id !== null) : [];
+  const myNewItems   = selectedLevelId ? templates.filter(t => t.level_id === selectedLevelId && t.global_id === null) : [];
+  const totalCount   = baseItems.length + myNewItems.length;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -466,21 +463,19 @@ function TemplatePicker({
               </View>
             ) : (
               <>
-                {globalFiltered.length > 0 && (
+                {baseItems.map(t => (
+                  <Pressable key={t.id} style={[tp.item, t.is_overridden && tp.itemOverridden]} onPress={() => onInsert(t.template_text)}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: t.is_overridden ? 2 : 0 }}>
+                      {!!t.title && <Text style={tp.itemTitle} numberOfLines={1}>{t.title}</Text>}
+                      {t.is_overridden && <View style={tp.myBadge}><Text style={tp.myBadgeText}>내 수정</Text></View>}
+                    </View>
+                    <Text style={tp.itemText} numberOfLines={3}>{t.template_text}</Text>
+                  </Pressable>
+                ))}
+                {myNewItems.length > 0 && (
                   <>
-                    <Text style={tp.sectionLabel}>공통</Text>
-                    {globalFiltered.map(t => (
-                      <Pressable key={t.id} style={tp.item} onPress={() => onInsert(t.template_text)}>
-                        {!!t.title && <Text style={tp.itemTitle} numberOfLines={1}>{t.title}</Text>}
-                        <Text style={tp.itemText} numberOfLines={3}>{t.template_text}</Text>
-                      </Pressable>
-                    ))}
-                  </>
-                )}
-                {teacherFiltered.length > 0 && (
-                  <>
-                    <Text style={[tp.sectionLabel, { marginTop: globalFiltered.length > 0 ? 12 : 0 }]}>내 템플릿</Text>
-                    {teacherFiltered.map(t => (
+                    <Text style={[tp.sectionLabel, { marginTop: baseItems.length > 0 ? 12 : 0 }]}>내 추가 항목</Text>
+                    {myNewItems.map(t => (
                       <Pressable key={t.id} style={[tp.item, tp.itemTeacher]} onPress={() => onInsert(t.template_text)}>
                         {!!t.title && <Text style={[tp.itemTitle, { color: "#7C3AED" }]} numberOfLines={1}>{t.title}</Text>}
                         <Text style={tp.itemText} numberOfLines={3}>{t.template_text}</Text>
@@ -511,8 +506,11 @@ const tp = StyleSheet.create({
   emptyBox:     { paddingTop: 32, alignItems: "center" },
   emptyText:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
   sectionLabel: { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#94A3B8", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 },
-  item:         { borderRadius: 10, padding: 12, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E5E7EB", gap: 4, marginBottom: 6 },
-  itemTeacher:  { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" },
+  item:          { borderRadius: 10, padding: 12, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E5E7EB", gap: 4, marginBottom: 6 },
+  itemTeacher:   { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" },
+  itemOverridden:{ backgroundColor: "#FFF8EC", borderColor: "#FCD34D" },
+  myBadge:       { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: "#FCD34D" },
+  myBadgeText:   { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#92400E" },
   itemTitle:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
   itemText:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
 });

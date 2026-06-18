@@ -1158,5 +1158,7 @@ export async function initPoolDb(): Promise<void> {
   await db.execute(sql.raw(`ALTER TABLE diary_templates ADD COLUMN IF NOT EXISTS sort_order int NOT NULL DEFAULT 0`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE diary_templates ADD COLUMN IF NOT EXISTS scope text NOT NULL DEFAULT 'global'`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE diary_templates ADD COLUMN IF NOT EXISTS teacher_id text`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE diary_templates ADD COLUMN IF NOT EXISTS source_template_id text`)).catch(() => {});
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_diary_templates_scope ON diary_templates(swimming_pool_id, scope, level_id)`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_diary_templates_override ON diary_templates(source_template_id, teacher_id)`)).catch(() => {});
 }
