@@ -5,9 +5,10 @@
  */
 import * as FileSystem from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
+import { Image } from "expo-image";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, Image, Modal, Pressable,
+  ActivityIndicator, Alert, Modal, Pressable,
   ScrollView, StyleSheet, Text, ToastAndroid, View, Platform,
 } from "react-native";
 import { Download, ImageIcon, X } from "lucide-react-native";
@@ -64,12 +65,11 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate }: Pro
         Alert.alert("권한 필요", "사진 저장을 위해 갤러리 접근 권한이 필요합니다.");
         return;
       }
-      const url = `${BASE_ORIGIN}${photo.file_url}`;
+      // presigned URL 302 리다이렉트 방식: ?token= 으로 서버 인증, headers 불필요
+      const url = token ? `${BASE_ORIGIN}${photo.file_url}?token=${token}` : `${BASE_ORIGIN}${photo.file_url}`;
       const ext = "jpg";
       const localPath = FileSystem.cacheDirectory + `diary_${photo.id}.${ext}`;
-      const dl = await FileSystem.downloadAsync(url, localPath, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
+      const dl = await FileSystem.downloadAsync(url, localPath);
       if (dl.status !== 200) throw new Error("다운로드 실패");
       await MediaLibrary.saveToLibraryAsync(dl.uri);
       if (Platform.OS === "android") {
@@ -84,7 +84,8 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate }: Pro
     }
   }
 
-  const thumbUrl = (photo: Photo) => `${BASE_ORIGIN}${photo.file_url}`;
+  const thumbUrl = (photo: Photo) =>
+    token ? `${BASE_ORIGIN}${photo.file_url}?token=${token}` : `${BASE_ORIGIN}${photo.file_url}`;
 
   if (loading) {
     return (
@@ -122,12 +123,9 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate }: Pro
             style={({ pressed }) => [s.thumb, pressed && { opacity: 0.85 }]}
           >
             <Image
-              source={{
-                uri: thumbUrl(photo),
-                headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-              }}
+              source={{ uri: thumbUrl(photo) }}
               style={s.thumbImg}
-              resizeMode="cover"
+              contentFit="cover"
             />
             <Pressable
               style={s.downloadOverlay}
@@ -155,12 +153,9 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate }: Pro
             {viewPhoto && (
               <>
                 <Image
-                  source={{
-                    uri: thumbUrl(viewPhoto),
-                    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-                  }}
+                  source={{ uri: thumbUrl(viewPhoto) }}
                   style={s.fullImg}
-                  resizeMode="contain"
+                  contentFit="contain"
                 />
                 <Pressable
                   style={[s.dlBtn, downloading && { opacity: 0.6 }]}
