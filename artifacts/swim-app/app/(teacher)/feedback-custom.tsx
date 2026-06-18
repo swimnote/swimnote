@@ -174,7 +174,7 @@ export default function FeedbackCustomScreen() {
         </View>
       ) : (
         <>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabScroll} contentContainerStyle={s.tabRow}>
             {levels.map(lv => (
               <Pressable
                 key={lv.id}
@@ -370,7 +370,8 @@ export default function FeedbackCustomScreen() {
 }
 
 const s = StyleSheet.create({
-  tabRow:       { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  tabScroll:    { flexGrow: 0, flexShrink: 0 },
+  tabRow:       { paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: "center" },
   tab:          { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, borderWidth: 1.5, borderColor: "#E2E8F0" },
   tabActive:    { backgroundColor: "#2EC4B620", borderColor: "#2EC4B6" },
   tabText:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
