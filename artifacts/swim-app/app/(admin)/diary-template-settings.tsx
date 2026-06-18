@@ -322,7 +322,17 @@ export default function DiaryTemplateSettingsScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={s.levelSection}>
-            <Text style={s.sectionTitle}>레벨 <Text style={s.sectionCount}>({levels.length}/10)</Text></Text>
+            <View style={s.levelSectionHeader}>
+              <Text style={s.sectionTitle}>레벨 <Text style={s.sectionCount}>({levels.length}/10)</Text></Text>
+              {selectedLevel && (
+                <Pressable
+                  style={s.levelManageBtn}
+                  onPress={() => { setLevelActionTarget(selectedLevel); setLevelActionVisible(true); }}
+                >
+                  <Text style={s.levelManageBtnText}>레벨 관리</Text>
+                </Pressable>
+              )}
+            </View>
 
             {levels.length === 0 ? (
               <View style={s.emptyBox}>
@@ -758,6 +768,9 @@ function TemplateInputModal({
 
 const s = StyleSheet.create({
   levelSection: { padding: 16, paddingBottom: 12 },
+  levelSectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 0 },
+  levelManageBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: C.tint },
+  levelManageBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.tint },
   sectionTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   sectionCount: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
   levelGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
