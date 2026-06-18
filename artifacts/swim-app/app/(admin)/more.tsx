@@ -45,6 +45,7 @@ const TYPE_LABEL: Record<string, string> = {
 const N = "#0F172A"; const N_BG = "#E6FAF8";
 
 const SHORTCUTS = [
+  { label: "일지 템플릿",      icon: "file-text"  as const, color: N, bg: N_BG, route: "/(admin)/diary-template-settings"     },
   { label: "공지함",           icon: "bell"       as const, color: N, bg: N_BG, route: "/(admin)/notices"                     },
   { label: "휴무일 관리",      icon: "x-square"   as const, color: N, bg: N_BG, route: "/(admin)/holidays"                    },
   { label: "데이터 관리",      icon: "hard-drive" as const, color: N, bg: N_BG, route: "/(admin)/data-management"             },

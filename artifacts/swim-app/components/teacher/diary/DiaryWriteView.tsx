@@ -1,14 +1,14 @@
 import { BookOpen, CircleAlert, CirclePlus, CircleX, Images, Image, Save, User, Users, Video, Zap } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { MutableRefObject } from "react";
+import React, { MutableRefObject, useState } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { Image as ExpoImage } from "expo-image";
 import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
-import { AlbumPhotoInfo, AlbumVideoInfo, DiaryTemplate, StudentNote, StudentOption, UploadedMedia } from "./types";
+import { AlbumPhotoInfo, AlbumVideoInfo, DiaryTemplate, DiaryTemplateLevel, StudentNote, StudentOption, UploadedMedia } from "./types";
 import { API_BASE } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
 
@@ -16,7 +16,7 @@ const C = Colors.light;
 
 export default function DiaryWriteView({
   group, targetDate, themeColor, myDiaryExists,
-  templates, showTemplates, setShowTemplates,
+  templates, levels,
   commonContent, setCommonContent,
   classStudents,
   studentNotes,
@@ -35,7 +35,7 @@ export default function DiaryWriteView({
   token, onOpenAlbumPicker, selectedAlbumPhotos, onRemoveAlbumPhoto, selectedAlbumVideos, onRemoveAlbumVideo,
 }: {
   group: TeacherClassGroup; targetDate: string; themeColor: string; myDiaryExists: boolean;
-  templates: DiaryTemplate[]; showTemplates: boolean; setShowTemplates: (v: boolean) => void;
+  templates: DiaryTemplate[]; levels: DiaryTemplateLevel[];
   commonContent: string; setCommonContent: (v: string) => void;
   classStudents: StudentOption[];
   studentNotes: StudentNote[];
@@ -65,6 +65,9 @@ export default function DiaryWriteView({
   selectedAlbumVideos: AlbumVideoInfo[];
   onRemoveAlbumVideo: (id: string) => void;
 }) {
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [pickerLevelId, setPickerLevelId] = useState<string | null>(null);
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <ScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -85,25 +88,17 @@ export default function DiaryWriteView({
             <Text style={s.cardSub}>모든 학생에게 공통으로 보이는 내용</Text>
           </View>
 
-          {templates.length > 0 && (
-            <Pressable style={[s.templateBtn, { borderColor: themeColor }]} onPress={() => setShowTemplates(!showTemplates)}>
+          {levels.length > 0 && (
+            <Pressable
+              style={[s.templateBtn, { borderColor: themeColor }]}
+              onPress={() => {
+                if (!pickerLevelId && levels.length > 0) setPickerLevelId(levels[0].id);
+                setShowTemplatePicker(true);
+              }}
+            >
               <Zap size={13} color={themeColor} />
-              <Text style={[s.templateBtnText, { color: themeColor }]}>템플릿 선택</Text>
-              <LucideIcon name={showTemplates ? "chevron-up" : "chevron-down"} size={13} color={themeColor} />
+              <Text style={[s.templateBtnText, { color: themeColor }]}>템플릿 불러오기</Text>
             </Pressable>
-          )}
-          {showTemplates && (
-            <View style={s.templateList}>
-              {templates.map(t => (
-                <Pressable key={t.id} style={[s.templateItem, { backgroundColor: C.background }]} onPress={() => {
-                  setCommonContent(commonContent.trim() ? `${commonContent.trim()}\n${t.template_text}` : t.template_text);
-                  setShowTemplates(false);
-                }}>
-                  <Text style={[s.templateText, { color: C.text }]} numberOfLines={2}>{t.template_text}</Text>
-                  {t.category !== "general" && <Text style={[s.templateCategory, { color: themeColor }]}>{t.category}</Text>}
-                </Pressable>
-              ))}
-            </View>
           )}
 
           <TextInput style={[s.textarea, { borderColor: C.border, color: C.text }]}
@@ -325,6 +320,20 @@ export default function DiaryWriteView({
           setShowPickerFor(null);
         }}
       />
+
+      <TemplatePicker
+        visible={showTemplatePicker}
+        levels={levels}
+        templates={templates}
+        selectedLevelId={pickerLevelId}
+        onSelectLevel={setPickerLevelId}
+        themeColor={themeColor}
+        onInsert={(text) => {
+          setCommonContent(commonContent.trim() ? `${commonContent.trim()}\n${text}` : text);
+          setShowTemplatePicker(false);
+        }}
+        onClose={() => setShowTemplatePicker(false)}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -404,4 +413,82 @@ export const s = StyleSheet.create({
   delDesc:       { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20 },
   delBtn:        { height: 48, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   safe:          { flex: 1, backgroundColor: "#FFFFFF" },
+});
+
+function TemplatePicker({
+  visible, levels, templates, selectedLevelId, onSelectLevel, themeColor, onInsert, onClose,
+}: {
+  visible: boolean; levels: DiaryTemplateLevel[]; templates: DiaryTemplate[];
+  selectedLevelId: string | null; onSelectLevel: (id: string) => void;
+  themeColor: string; onInsert: (text: string) => void; onClose: () => void;
+}) {
+  const filtered = selectedLevelId
+    ? templates.filter(t => t.level_id === selectedLevelId)
+    : [];
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={tp.overlay}>
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
+        <View style={tp.sheet}>
+          <View style={tp.handle} />
+          <View style={tp.header}>
+            <Text style={tp.headerTitle}>템플릿 불러오기</Text>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <LucideIcon name="x" size={18} color={C.textSecondary} />
+            </Pressable>
+          </View>
+
+          {levels.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={tp.tabRow}>
+              {levels.map(lv => (
+                <Pressable
+                  key={lv.id}
+                  style={[tp.tab, selectedLevelId === lv.id && { backgroundColor: themeColor + "20", borderColor: themeColor }]}
+                  onPress={() => onSelectLevel(lv.id)}
+                >
+                  <Text style={[tp.tabText, selectedLevelId === lv.id && { color: themeColor }]}>
+                    {lv.level_name}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+
+          <ScrollView style={tp.listScroll} contentContainerStyle={tp.listContent} keyboardShouldPersistTaps="handled">
+            {filtered.length === 0 ? (
+              <View style={tp.emptyBox}>
+                <Text style={tp.emptyText}>이 레벨에 등록된 템플릿이 없습니다.</Text>
+              </View>
+            ) : (
+              filtered.map(t => (
+                <Pressable key={t.id} style={tp.item} onPress={() => onInsert(t.template_text)}>
+                  {!!t.title && <Text style={tp.itemTitle} numberOfLines={1}>{t.title}</Text>}
+                  <Text style={tp.itemText} numberOfLines={3}>{t.template_text}</Text>
+                </Pressable>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const tp = StyleSheet.create({
+  overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "flex-end" },
+  sheet:       { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: 440 },
+  handle:      { width: 36, height: 4, borderRadius: 2, backgroundColor: "#E2E8F0", alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  header:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  headerTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  tabRow:      { paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
+  tab:         { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1.5, borderColor: "#E2E8F0" },
+  tabText:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  listScroll:  { flexShrink: 1 },
+  listContent: { padding: 12, gap: 8, paddingBottom: 24 },
+  emptyBox:    { paddingTop: 32, alignItems: "center" },
+  emptyText:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  item:        { borderRadius: 10, padding: 12, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E5E7EB", gap: 4 },
+  itemTitle:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  itemText:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
 });

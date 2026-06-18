@@ -23,7 +23,7 @@ import DiaryEditView from "@/components/teacher/diary/DiaryEditView";
 import DiaryHistoryList from "@/components/teacher/diary/DiaryHistoryList";
 import AlbumPickerModal from "@/components/teacher/diary/AlbumPickerModal";
 import {
-  AlbumPhotoInfo, AlbumVideoInfo, DiaryEntry, DiaryTemplate, ExistingNote,
+  AlbumPhotoInfo, AlbumVideoInfo, DiaryEntry, DiaryTemplate, DiaryTemplateLevel, ExistingNote,
   StudentNote, StudentOption, SubView, UploadedMedia, todayStr,
 } from "@/components/teacher/diary/types";
 import { Clock, RotateCcw } from "lucide-react-native";
@@ -49,7 +49,7 @@ export default function TeacherDiaryScreen() {
   const [subView,       setSubView]       = useState<SubView>("write");
 
   const [templates,      setTemplates]      = useState<DiaryTemplate[]>([]);
-  const [showTemplates,  setShowTemplates]  = useState(false);
+  const [levels,         setLevels]         = useState<DiaryTemplateLevel[]>([]);
   const [commonContent,  setCommonContent]  = useState("");
   const [classStudents,  setClassStudents]  = useState<StudentOption[]>([]);
   const [studentNotes,   setStudentNotes]   = useState<StudentNote[]>([]);
@@ -211,7 +211,14 @@ export default function TeacherDiaryScreen() {
     haptic.light();
   }
   async function loadTemplates() {
-    try { const r = await apiRequest(token, "/diary-templates"); if (r.ok) setTemplates(await r.json()); } catch {}
+    try {
+      const [tr, lr] = await Promise.all([
+        apiRequest(token, "/diary-templates"),
+        apiRequest(token, "/diary-template-levels"),
+      ]);
+      if (tr.ok) setTemplates(await tr.json());
+      if (lr.ok) setLevels(await lr.json());
+    } catch {}
   }
   async function loadClassStudents(classId: string) {
     try {
@@ -558,7 +565,7 @@ export default function TeacherDiaryScreen() {
         {subView === "write" ? (
           <DiaryWriteView
             group={group} targetDate={targetDate} themeColor={themeColor} myDiaryExists={myDiaryExists}
-            templates={templates} showTemplates={showTemplates} setShowTemplates={setShowTemplates}
+            templates={templates} levels={levels}
             commonContent={commonContent} setCommonContent={setCommonContent}
             classStudents={classStudents} studentNotes={studentNotes}
             addNoteStudent={addNoteStudent} setAddNoteStudent={setAddNoteStudent}

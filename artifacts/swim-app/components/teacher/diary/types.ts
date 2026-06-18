@@ -6,7 +6,8 @@ export interface UploadedMedia {
   error?: string;
 }
 
-export interface DiaryTemplate { id: string; category: string; level?: string | null; template_text: string; }
+export interface DiaryTemplateLevel { id: string; level_name: string; sort_order: number; template_count: number; }
+export interface DiaryTemplate { id: string; level_id?: string | null; category: string; level?: string | null; title?: string | null; template_text: string; sort_order: number; is_active: boolean; }
 export interface StudentOption  { id: string; name: string; birth_year?: string | null; }
 export interface StudentNote    { student_id: string; student_name: string; note_content: string; }
 export interface ExistingNote   { id: string; student_id: string; student_name: string; note_content: string; _deleted?: boolean; _modified?: boolean; }

@@ -642,56 +642,226 @@ router.get("/diaries/:id/audit-logs",
 );
 
 // ════════════════════════════════════════════════════════════════════════
-// 5. 템플릿 관리
+// 5. 일지 템플릿 레벨 관리
 // ════════════════════════════════════════════════════════════════════════
 
-// GET /diary-templates — 선생님 + 관리자 조회
-router.get("/diary-templates",
+// GET /diary-template-levels — 레벨 목록 (template_count 포함)
+router.get("/diary-template-levels",
   requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
       const rows = await db.execute(sql`
-        SELECT * FROM diary_templates WHERE swimming_pool_id = ${poolId} AND is_active = true
-        ORDER BY category, created_at DESC
+        SELECT dtl.id, dtl.level_name, dtl.sort_order,
+               COUNT(dt.id) FILTER (WHERE dt.is_active = true) AS template_count
+        FROM diary_template_levels dtl
+        LEFT JOIN diary_templates dt ON dt.level_id = dtl.id AND dt.swimming_pool_id = ${poolId}
+        WHERE dtl.swimming_pool_id = ${poolId}
+        GROUP BY dtl.id, dtl.level_name, dtl.sort_order
+        ORDER BY dtl.sort_order ASC, dtl.created_at ASC
       `);
-      res.json(rows.rows);
+      res.json(rows.rows.map((r: any) => ({ ...r, template_count: Number(r.template_count) })));
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
 );
 
-// POST /diary-templates — 관리자 전용 생성
+// POST /diary-template-levels — 레벨 추가 (최대 10개)
+router.post("/diary-template-levels",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      const { level_name } = req.body;
+      if (!level_name?.trim()) return apiErr(res, 400, "레벨 이름을 입력해주세요.");
+      if (level_name.trim().length > 50) return apiErr(res, 400, "레벨 이름은 50자 이내로 입력해주세요.");
+      const cntRow = await db.execute(sql`SELECT COUNT(*) AS cnt FROM diary_template_levels WHERE swimming_pool_id = ${poolId}`);
+      if (Number((cntRow.rows[0] as any)?.cnt) >= 10) return apiErr(res, 400, "레벨은 최대 10개까지 생성할 수 있습니다.");
+      const sortRow = await db.execute(sql`SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM diary_template_levels WHERE swimming_pool_id = ${poolId}`);
+      const sortOrder = Number((sortRow.rows[0] as any)?.next ?? 0);
+      const id = genId("dtl");
+      await db.execute(sql`INSERT INTO diary_template_levels (id, swimming_pool_id, level_name, sort_order) VALUES (${id}, ${poolId}, ${level_name.trim()}, ${sortOrder})`);
+      res.json({ success: true, id });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// POST /diary-template-levels/reorder — 순서 일괄 변경
+router.post("/diary-template-levels/reorder",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      const { ordered_ids } = req.body;
+      if (!Array.isArray(ordered_ids)) return apiErr(res, 400, "ordered_ids 필드 필요");
+      for (let i = 0; i < ordered_ids.length; i++) {
+        await db.execute(sql`UPDATE diary_template_levels SET sort_order = ${i} WHERE id = ${ordered_ids[i]} AND swimming_pool_id = ${poolId}`);
+      }
+      res.json({ success: true });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// PATCH /diary-template-levels/:id — 이름 변경
+router.patch("/diary-template-levels/:id",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      const { level_name } = req.body;
+      if (!level_name?.trim()) return apiErr(res, 400, "레벨 이름을 입력해주세요.");
+      if (level_name.trim().length > 50) return apiErr(res, 400, "레벨 이름은 50자 이내로 입력해주세요.");
+      await db.execute(sql`UPDATE diary_template_levels SET level_name = ${level_name.trim()} WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
+      res.json({ success: true });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// DELETE /diary-template-levels/:id — 레벨 삭제 (최소 1개 유지, 하위 템플릿 삭제)
+router.delete("/diary-template-levels/:id",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      const cntRow = await db.execute(sql`SELECT COUNT(*) AS cnt FROM diary_template_levels WHERE swimming_pool_id = ${poolId}`);
+      if (Number((cntRow.rows[0] as any)?.cnt) <= 1) return apiErr(res, 400, "레벨이 1개 남았습니다. 최소 1개의 레벨은 유지되어야 합니다.");
+      await db.execute(sql`DELETE FROM diary_templates WHERE level_id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
+      await db.execute(sql`DELETE FROM diary_template_levels WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
+      res.json({ success: true });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// POST /diary-template-levels/:id/clear — 레벨 비우기 (이름 유지, 템플릿만 삭제)
+router.post("/diary-template-levels/:id/clear",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      await db.execute(sql`DELETE FROM diary_templates WHERE level_id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
+      res.json({ success: true });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════════════
+// 6. 일지 템플릿 관리
+// ════════════════════════════════════════════════════════════════════════
+
+// GET /diary-templates — 템플릿 목록 (level_id 필터, include_inactive 지원)
+router.get("/diary-templates",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      const levelId = req.query.level_id as string | undefined;
+      const includeInactive = req.query.include_inactive === "true";
+      if (levelId) {
+        if (includeInactive) {
+          const rows = await db.execute(sql`SELECT id, level_id, title, template_text, sort_order, is_active, category, level FROM diary_templates WHERE swimming_pool_id = ${poolId} AND level_id = ${levelId} ORDER BY sort_order ASC, created_at ASC`);
+          res.json(rows.rows);
+        } else {
+          const rows = await db.execute(sql`SELECT id, level_id, title, template_text, sort_order, is_active, category, level FROM diary_templates WHERE swimming_pool_id = ${poolId} AND level_id = ${levelId} AND is_active = true ORDER BY sort_order ASC, created_at ASC`);
+          res.json(rows.rows);
+        }
+      } else {
+        const rows = await db.execute(sql`SELECT id, level_id, title, template_text, sort_order, is_active, category, level FROM diary_templates WHERE swimming_pool_id = ${poolId} AND is_active = true ORDER BY sort_order ASC, category, created_at ASC`);
+        res.json(rows.rows);
+      }
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// POST /diary-templates/reset-default — 기본 구조 생성 (레벨 1~4 빈 구조)
+router.post("/diary-templates/reset-default",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      await db.execute(sql`DELETE FROM diary_templates WHERE swimming_pool_id = ${poolId} AND level_id IS NOT NULL`);
+      await db.execute(sql`DELETE FROM diary_template_levels WHERE swimming_pool_id = ${poolId}`);
+      for (let i = 1; i <= 4; i++) {
+        const id = genId("dtl");
+        await db.execute(sql`INSERT INTO diary_template_levels (id, swimming_pool_id, level_name, sort_order) VALUES (${id}, ${poolId}, ${"레벨 " + i}, ${i - 1})`);
+      }
+      res.json({ success: true });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// POST /diary-templates/reorder — 템플릿 순서 일괄 변경
+router.post("/diary-templates/reorder",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      const { ordered_ids } = req.body;
+      if (!Array.isArray(ordered_ids)) return apiErr(res, 400, "ordered_ids 필드 필요");
+      for (let i = 0; i < ordered_ids.length; i++) {
+        await db.execute(sql`UPDATE diary_templates SET sort_order = ${i} WHERE id = ${ordered_ids[i]} AND swimming_pool_id = ${poolId}`);
+      }
+      res.json({ success: true });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// POST /diary-templates — 템플릿 추가
 router.post("/diary-templates",
   requireAuth, requireRole("super_admin", "pool_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const { category, level, template_text } = req.body;
+      const { category, level, template_text, level_id, title, sort_order } = req.body;
       if (!template_text?.trim()) return apiErr(res, 400, "템플릿 내용을 입력해주세요.");
       const poolId = await getUserPoolId(req.user!.userId);
       const id = genId("dt");
       await db.execute(sql`
-        INSERT INTO diary_templates (id, swimming_pool_id, category, level, template_text, created_by)
-        VALUES (${id}, ${poolId}, ${category || "general"}, ${level || null}, ${template_text.trim()}, ${req.user!.userId})
+        INSERT INTO diary_templates (id, swimming_pool_id, category, level, template_text, level_id, title, sort_order, created_by)
+        VALUES (${id}, ${poolId}, ${category || "general"}, ${level || null}, ${template_text.trim()},
+                ${level_id || null}, ${title?.trim() || null}, ${sort_order ?? 0}, ${req.user!.userId})
       `);
       res.json({ success: true, id });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
 );
 
-// PATCH /diary-templates/:id — 관리자 전용 수정
+// POST /diary-templates/:id/copy — 복사
+router.post("/diary-templates/:id/copy",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      const srcRows = await db.execute(sql`SELECT * FROM diary_templates WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
+      if (!srcRows.rows.length) return apiErr(res, 404, "템플릿을 찾을 수 없습니다.");
+      const s = srcRows.rows[0] as any;
+      const newId = genId("dt");
+      const maxRow = await db.execute(sql`SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM diary_templates WHERE level_id = ${s.level_id} AND swimming_pool_id = ${poolId}`);
+      const newSort = Number((maxRow.rows[0] as any)?.next ?? 0);
+      await db.execute(sql`
+        INSERT INTO diary_templates (id, swimming_pool_id, category, level, template_text, level_id, title, sort_order, created_by)
+        VALUES (${newId}, ${poolId}, ${s.category}, ${s.level}, ${s.template_text},
+                ${s.level_id}, ${s.title ? s.title + " 복사" : null}, ${newSort}, ${req.user!.userId})
+      `);
+      res.json({ success: true, id: newId });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// PATCH /diary-templates/:id — 수정
 router.patch("/diary-templates/:id",
   requireAuth, requireRole("super_admin", "pool_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const { template_text, category, level, is_active } = req.body;
+      const { template_text, category, level, is_active, level_id, title, sort_order } = req.body;
       const poolId = await getUserPoolId(req.user!.userId);
       await db.execute(sql`
         UPDATE diary_templates
-        SET template_text = COALESCE(${template_text ?? null}, template_text),
-            category = COALESCE(${category ?? null}, category),
-            level = COALESCE(${level ?? null}, level),
-            is_active = COALESCE(${is_active ?? null}, is_active),
-            updated_at = NOW()
+        SET template_text = COALESCE(${template_text?.trim() || null}, template_text),
+            category      = COALESCE(${category ?? null}, category),
+            level         = COALESCE(${level ?? null}, level),
+            is_active     = COALESCE(${is_active ?? null}, is_active),
+            level_id      = COALESCE(${level_id ?? null}, level_id),
+            title         = COALESCE(${title?.trim() || null}, title),
+            sort_order    = COALESCE(${sort_order ?? null}, sort_order),
+            updated_at    = NOW()
         WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
       `);
       res.json({ success: true });
@@ -699,13 +869,13 @@ router.patch("/diary-templates/:id",
   }
 );
 
-// DELETE /diary-templates/:id — 소프트 비활성화
+// DELETE /diary-templates/:id — 하드 삭제
 router.delete("/diary-templates/:id",
   requireAuth, requireRole("super_admin", "pool_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
-      await db.execute(sql`UPDATE diary_templates SET is_active = false WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
+      await db.execute(sql`DELETE FROM diary_templates WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }

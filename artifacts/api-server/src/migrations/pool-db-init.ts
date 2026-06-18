@@ -1139,4 +1139,21 @@ export async function initPoolDb(): Promise<void> {
   await db.execute(sql.raw(`UPDATE video_assets_meta SET expires_at = uploaded_at + INTERVAL '14 days' WHERE expires_at IS NULL`)).catch(() => {});
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_video_assets_expires_at ON video_assets_meta(expires_at)`)).catch(() => {});
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_video_assets_status ON video_assets_meta(status)`)).catch(() => {});
+
+  // ── diary_template_levels 테이블 생성 ──────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS diary_template_levels (
+      id               text        PRIMARY KEY DEFAULT ('dtl_' || replace(gen_random_uuid()::text,'-','')),
+      swimming_pool_id text        NOT NULL,
+      level_name       varchar(50) NOT NULL,
+      sort_order       int         NOT NULL DEFAULT 0,
+      created_at       timestamptz NOT NULL DEFAULT now()
+    )
+  `)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_diary_template_levels_pool ON diary_template_levels(swimming_pool_id, sort_order)`)).catch(() => {});
+
+  // ── diary_templates 컬럼 추가 (level_id, title, sort_order) ──────────
+  await db.execute(sql.raw(`ALTER TABLE diary_templates ADD COLUMN IF NOT EXISTS level_id text`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE diary_templates ADD COLUMN IF NOT EXISTS title varchar(200)`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE diary_templates ADD COLUMN IF NOT EXISTS sort_order int NOT NULL DEFAULT 0`)).catch(() => {});
 }
