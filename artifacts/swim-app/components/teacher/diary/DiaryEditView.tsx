@@ -1,12 +1,12 @@
-import { BookOpen, Calendar, CircleAlert, CirclePlus, CircleX, Layers, Save, Trash2, User, Users } from "lucide-react-native";
+import { BookOpen, Calendar, CircleAlert, CirclePlus, CircleX, Images, Layers, Save, Trash2, User, Users } from "lucide-react-native";
 import React, { MutableRefObject } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, Image as RNImage, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
-import { DiaryEntry, ExistingNote, StudentNote, StudentOption } from "./types";
+import { AlbumPhotoInfo, API_BASE, DiaryEntry, ExistingNote, StudentNote, StudentOption } from "./types";
 import { TeacherClassGroup } from "@/components/teacher/types";
 
 const C = Colors.light;
@@ -25,6 +25,7 @@ export default function DiaryEditView({
   onUpdateNoteContent, onMarkNoteDeleted,
   onEditAddNote, onRemoveNewNote,
   insertAtCursor,
+  token, linkedPhotos, onRemoveLinkedPhoto, onOpenAlbumPicker, newAlbumPhotos, onRemoveNewAlbumPhoto,
 }: {
   group: TeacherClassGroup; themeColor: string;
   editDiary: DiaryEntry | null;
@@ -44,6 +45,12 @@ export default function DiaryEditView({
   onEditAddNote: () => void;
   onRemoveNewNote: (idx: number) => void;
   insertAtCursor: (current: string, insert: string, cursorPos: number, setter: (v: string) => void) => void;
+  token: string;
+  linkedPhotos: AlbumPhotoInfo[];
+  onRemoveLinkedPhoto: (id: string) => void;
+  onOpenAlbumPicker: () => void;
+  newAlbumPhotos: AlbumPhotoInfo[];
+  onRemoveNewAlbumPhoto: (id: string) => void;
 }) {
   const activeNotes = editNotes.filter(n => !n._deleted);
   const usedStudentIds = new Set([
@@ -95,6 +102,54 @@ export default function DiaryEditView({
               <Text style={s.sentencePickBtnText}>문장 불러오기</Text>
             </TouchableOpacity>
           </View>
+
+          {(linkedPhotos.length > 0 || newAlbumPhotos.length > 0) && (
+            <View style={s.photoSection}>
+              {linkedPhotos.length > 0 && (
+                <View>
+                  <Text style={s.photoSectionLabel}>연결된 사진 ({linkedPhotos.length}장)</Text>
+                  <View style={s.albumPreviewRow}>
+                    {linkedPhotos.map(photo => (
+                      <View key={photo.id} style={s.albumThumb}>
+                        <RNImage
+                          source={{ uri: `${API_BASE}${photo.file_url}`, headers: { Authorization: `Bearer ${token}` } } as any}
+                          style={{ width: "100%", height: "100%", borderRadius: 6 }}
+                          resizeMode="cover"
+                        />
+                        <Pressable style={s.albumThumbRemove} onPress={() => onRemoveLinkedPhoto(photo.id)} hitSlop={6}>
+                          <CircleX size={16} color="#fff" fill="#DC2626" />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+              {newAlbumPhotos.length > 0 && (
+                <View>
+                  <Text style={[s.photoSectionLabel, { color: "#3B82F6" }]}>추가할 사진 ({newAlbumPhotos.length}장)</Text>
+                  <View style={s.albumPreviewRow}>
+                    {newAlbumPhotos.map(photo => (
+                      <View key={photo.id} style={s.albumThumb}>
+                        <RNImage
+                          source={{ uri: `${API_BASE}${photo.file_url}`, headers: { Authorization: `Bearer ${token}` } } as any}
+                          style={{ width: "100%", height: "100%", borderRadius: 6 }}
+                          resizeMode="cover"
+                        />
+                        <Pressable style={s.albumThumbRemove} onPress={() => onRemoveNewAlbumPhoto(photo.id)} hitSlop={6}>
+                          <CircleX size={16} color="#fff" fill="#374151" />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
+
+          <Pressable style={s.albumPickerBtn} onPress={onOpenAlbumPicker}>
+            <Images size={14} color="#3B82F6" />
+            <Text style={s.albumPickerBtnText}>앨범에서 선택</Text>
+          </Pressable>
         </View>
 
         <View style={[s.card, { backgroundColor: C.card }]}>
@@ -253,4 +308,11 @@ const s = StyleSheet.create({
   saveBtnText:   { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
   inlineError:   { flexDirection: "row", alignItems: "center", gap: 6, padding: 10, borderRadius: 10 },
   inlineErrorText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 17 },
+  photoSection:  { gap: 10 },
+  photoSectionLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 6 },
+  albumPreviewRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
+  albumThumb:    { width: 56, height: 56, borderRadius: 8, overflow: "hidden", backgroundColor: "#F1F5F9" },
+  albumThumbRemove: { position: "absolute", top: 2, right: 2 },
+  albumPickerBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: "#EFF6FF", alignSelf: "flex-start", marginTop: 4 },
+  albumPickerBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#3B82F6" },
 });

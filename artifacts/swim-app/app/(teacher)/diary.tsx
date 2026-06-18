@@ -21,8 +21,9 @@ import AuditModal from "@/components/teacher/diary/AuditModal";
 import DiaryWriteView from "@/components/teacher/diary/DiaryWriteView";
 import DiaryEditView from "@/components/teacher/diary/DiaryEditView";
 import DiaryHistoryList from "@/components/teacher/diary/DiaryHistoryList";
+import AlbumPickerModal from "@/components/teacher/diary/AlbumPickerModal";
 import {
-  API_BASE, DiaryEntry, DiaryTemplate, ExistingNote,
+  AlbumPhotoInfo, API_BASE, DiaryEntry, DiaryTemplate, ExistingNote,
   StudentNote, StudentOption, SubView, UploadedMedia, todayStr,
 } from "@/components/teacher/diary/types";
 import { Clock, RotateCcw } from "lucide-react-native";
@@ -101,6 +102,16 @@ export default function TeacherDiaryScreen() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError,   setDeleteError]   = useState<string | null>(null);
 
+  const [showAlbumPicker,     setShowAlbumPicker]     = useState(false);
+  const [selectedAlbumIds,    setSelectedAlbumIds]    = useState<string[]>([]);
+  const [selectedAlbumPhotos, setSelectedAlbumPhotos] = useState<AlbumPhotoInfo[]>([]);
+
+  const [showEditAlbumPicker,  setShowEditAlbumPicker]  = useState(false);
+  const [editLinkedPhotos,     setEditLinkedPhotos]     = useState<AlbumPhotoInfo[]>([]);
+  const [editRemovedPhotoIds,  setEditRemovedPhotoIds]  = useState<string[]>([]);
+  const [editNewAlbumIds,      setEditNewAlbumIds]      = useState<string[]>([]);
+  const [editNewAlbumPhotos,   setEditNewAlbumPhotos]   = useState<AlbumPhotoInfo[]>([]);
+
   type PlanFeatures = { video_enabled: boolean; storage_quota_gb: number; storage_used_gb: number; storage_used_pct: number; upload_blocked: boolean; tier: string };
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures>({ video_enabled: false, storage_quota_gb: 0, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" });
   const [showVideoGateModal, setShowVideoGateModal] = useState(false);
@@ -160,6 +171,7 @@ export default function TeacherDiaryScreen() {
   async function openGroup(group: TeacherClassGroup) {
     setSelectedGroup(group); setSubView("write"); setCommonContent(""); setStudentNotes([]);
     setShowTemplates(false); setGroupMedia([]); setStudentMedia({}); setHasDraft(false);
+    setSelectedAlbumIds([]); setSelectedAlbumPhotos([]);
     loadTemplates(); loadClassStudents(group.id); loadDiaries(group.id);
     try {
       const key = `@swimnote:diary_draft:${group.id}:${targetDate}`;
@@ -308,6 +320,14 @@ export default function TeacherDiaryScreen() {
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error || "저장 실패");
+      // 앨범 사진 연결
+      if (selectedAlbumIds.length > 0 && data.id) {
+        await apiRequest(token, "/photos/diary-attach", {
+          method: "POST",
+          body: JSON.stringify({ diary_id: data.id, photo_ids: selectedAlbumIds }),
+        }).catch(() => {});
+      }
+      setSelectedAlbumIds([]); setSelectedAlbumPhotos([]);
       setDiarySet(prev => new Set([...prev, selectedGroup.id]));
       if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => {});
       setHasDraft(false);
@@ -322,13 +342,21 @@ export default function TeacherDiaryScreen() {
   async function openEditDiary(item: DiaryEntry) {
     setEditDiary(item); setEditContent(item.common_content || "");
     setEditNotes([]); setEditNewNotes([]); setEditAddStudent(null); setEditAddInput(""); setEditError(null);
+    setEditLinkedPhotos([]); setEditRemovedPhotoIds([]); setEditNewAlbumIds([]); setEditNewAlbumPhotos([]);
     setSubView("edit"); setEditLoading(true);
     try {
-      const r = await apiRequest(token, `/diaries/${item.id}`);
-      if (!r.ok) throw new Error("불러오기 실패");
-      const data = await r.json();
+      const [diaryRes, photoRes] = await Promise.all([
+        apiRequest(token, `/diaries/${item.id}`),
+        apiRequest(token, `/photos/diary/${item.id}`),
+      ]);
+      if (!diaryRes.ok) throw new Error("불러오기 실패");
+      const data = await diaryRes.json();
       setEditDiary(data); setEditContent(data.common_content || "");
       setEditNotes(Array.isArray(data.student_notes) ? data.student_notes.map((n: any) => ({ ...n })) : []);
+      if (photoRes.ok) {
+        const photoData = await photoRes.json();
+        setEditLinkedPhotos(Array.isArray(photoData.photos) ? photoData.photos : []);
+      }
     } catch (e: any) { setEditError(e.message || "불러오기 오류"); }
     finally { setEditLoading(false); }
   }
@@ -349,6 +377,21 @@ export default function TeacherDiaryScreen() {
       for (const note of editNewNotes) {
         await apiRequest(token, `/diaries/${editDiary.id}/student-notes`, { method: "POST", body: JSON.stringify({ student_id: note.student_id, note_content: note.note_content }) });
       }
+      // 사진 제거 (journal_id = NULL)
+      if (editRemovedPhotoIds.length > 0) {
+        await apiRequest(token, "/photos/diary-detach", {
+          method: "POST",
+          body: JSON.stringify({ photo_ids: editRemovedPhotoIds }),
+        }).catch(() => {});
+      }
+      // 신규 앨범 사진 연결
+      if (editNewAlbumIds.length > 0) {
+        await apiRequest(token, "/photos/diary-attach", {
+          method: "POST",
+          body: JSON.stringify({ diary_id: editDiary.id, photo_ids: editNewAlbumIds }),
+        }).catch(() => {});
+      }
+      setEditLinkedPhotos([]); setEditRemovedPhotoIds([]); setEditNewAlbumIds([]); setEditNewAlbumPhotos([]);
       if (params.editDiaryId) { router.back(); }
       else { setSubView("history"); setEditDiary(null); await loadDiaries(selectedGroup.id); }
     } catch (e: any) { setEditError(e.message || "저장 중 오류가 발생했습니다."); }
@@ -415,6 +458,25 @@ export default function TeacherDiaryScreen() {
             }}
             onRemoveNewNote={(idx) => setEditNewNotes(prev => prev.filter((_, i) => i !== idx))}
             insertAtCursor={insertAtCursor}
+            token={token || ""}
+            linkedPhotos={editLinkedPhotos}
+            onRemoveLinkedPhoto={(id) => {
+              setEditRemovedPhotoIds(prev => [...prev, id]);
+              setEditLinkedPhotos(prev => prev.filter(p => p.id !== id));
+            }}
+            onOpenAlbumPicker={() => setShowEditAlbumPicker(true)}
+            newAlbumPhotos={editNewAlbumPhotos}
+            onRemoveNewAlbumPhoto={(id) => {
+              setEditNewAlbumIds(prev => prev.filter(i => i !== id));
+              setEditNewAlbumPhotos(prev => prev.filter(p => p.id !== id));
+            }}
+          />
+          <AlbumPickerModal
+            visible={showEditAlbumPicker}
+            token={token || ""}
+            initialSelected={editNewAlbumIds}
+            onConfirm={(ids, photos) => { setEditNewAlbumIds(ids); setEditNewAlbumPhotos(photos); setShowEditAlbumPicker(false); }}
+            onClose={() => setShowEditAlbumPicker(false)}
           />
         </SafeAreaView>
       );
@@ -472,6 +534,13 @@ export default function TeacherDiaryScreen() {
             onAddNote={handleAddNote}
             onRemoveNote={(studentId) => setStudentNotes(prev => prev.filter(n => n.student_id !== studentId))}
             insertAtCursor={insertAtCursor}
+            token={token || ""}
+            onOpenAlbumPicker={() => setShowAlbumPicker(true)}
+            selectedAlbumPhotos={selectedAlbumPhotos}
+            onRemoveAlbumPhoto={(id) => {
+              setSelectedAlbumIds(prev => prev.filter(i => i !== id));
+              setSelectedAlbumPhotos(prev => prev.filter(p => p.id !== id));
+            }}
           />
         ) : (
           <DiaryHistoryList
@@ -499,6 +568,13 @@ export default function TeacherDiaryScreen() {
           cancelText="닫기"
           onConfirm={() => { setShowVideoGateModal(false); router.push("/(admin)/billing" as any); }}
           onCancel={() => setShowVideoGateModal(false)}
+        />
+        <AlbumPickerModal
+          visible={showAlbumPicker}
+          token={token || ""}
+          initialSelected={selectedAlbumIds}
+          onConfirm={(ids, photos) => { setSelectedAlbumIds(ids); setSelectedAlbumPhotos(photos); setShowAlbumPicker(false); }}
+          onClose={() => setShowAlbumPicker(false)}
         />
         <ConfirmModal
           visible={showStorageModal}

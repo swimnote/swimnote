@@ -1,13 +1,13 @@
-import { BookOpen, CircleAlert, CirclePlus, CircleX, Image, Save, User, Users, Video, Zap } from "lucide-react-native";
+import { BookOpen, CircleAlert, CirclePlus, CircleX, Images, Image, Save, User, Users, Video, Zap } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { MutableRefObject } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, Image as RNImage, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
-import { DiaryTemplate, StudentNote, StudentOption, UploadedMedia } from "./types";
+import { AlbumPhotoInfo, API_BASE, DiaryTemplate, StudentNote, StudentOption, UploadedMedia } from "./types";
 import { TeacherClassGroup } from "@/components/teacher/types";
 
 const C = Colors.light;
@@ -30,6 +30,7 @@ export default function DiaryWriteView({
   onUploadGroupMedia, onUploadStudentMedia,
   onAddNote, onRemoveNote,
   insertAtCursor,
+  token, onOpenAlbumPicker, selectedAlbumPhotos, onRemoveAlbumPhoto,
 }: {
   group: TeacherClassGroup; targetDate: string; themeColor: string; myDiaryExists: boolean;
   templates: DiaryTemplate[]; showTemplates: boolean; setShowTemplates: (v: boolean) => void;
@@ -55,6 +56,10 @@ export default function DiaryWriteView({
   onAddNote: () => void;
   onRemoveNote: (studentId: string) => void;
   insertAtCursor: (current: string, insert: string, cursorPos: number, setter: (v: string) => void) => void;
+  token: string;
+  onOpenAlbumPicker: () => void;
+  selectedAlbumPhotos: AlbumPhotoInfo[];
+  onRemoveAlbumPhoto: (id: string) => void;
 }) {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -117,6 +122,9 @@ export default function DiaryWriteView({
             <Pressable style={[s.mediaBtn, { backgroundColor: "#E6FFFA" }]} onPress={() => onUploadGroupMedia("video")} disabled={mediaUploading === "group"}>
               <Video size={14} color="#2EC4B6" /><Text style={[s.mediaBtnText, { color: "#2EC4B6" }]}>반 영상 추가</Text>
             </Pressable>
+            <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={onOpenAlbumPicker}>
+              <Images size={14} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
+            </Pressable>
           </View>
           {groupMedia.length > 0 && (
             <View style={s.mediaPreviewRow}>
@@ -128,6 +136,25 @@ export default function DiaryWriteView({
                   {m.uploading && <ActivityIndicator size="small" color={C.tint} style={{ position: "absolute" }} />}
                 </View>
               ))}
+            </View>
+          )}
+          {selectedAlbumPhotos.length > 0 && (
+            <View>
+              <Text style={[s.albumLabel, { color: "#3B82F6" }]}>앨범 선택 {selectedAlbumPhotos.length}장</Text>
+              <View style={s.albumPreviewRow}>
+                {selectedAlbumPhotos.map(photo => (
+                  <View key={photo.id} style={s.albumThumb}>
+                    <RNImage
+                      source={{ uri: `${API_BASE}${photo.file_url}`, headers: { Authorization: `Bearer ${token}` } } as any}
+                      style={{ width: "100%", height: "100%", borderRadius: 6 }}
+                      resizeMode="cover"
+                    />
+                    <Pressable style={s.albumThumbRemove} onPress={() => onRemoveAlbumPhoto(photo.id)} hitSlop={6}>
+                      <CircleX size={16} color="#fff" fill="#374151" />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
             </View>
           )}
         </View>
@@ -304,6 +331,10 @@ export const s = StyleSheet.create({
   mediaBtnText:  { fontSize: 12, fontFamily: "Pretendard-Regular" },
   mediaPreviewRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 4 },
   mediaThumb:    { width: 36, height: 36, borderRadius: 8, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
+  albumLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular", marginBottom: 6 },
+  albumPreviewRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
+  albumThumb:    { width: 56, height: 56, borderRadius: 8, overflow: "hidden", backgroundColor: "#F1F5F9" },
+  albumThumbRemove: { position: "absolute", top: 2, right: 2 },
   footer:        { gap: 8, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
   cancelBtnFt:   { flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   cancelBtnFtText: { fontSize: 14, fontFamily: "Pretendard-Regular" },

@@ -603,4 +603,134 @@ router.delete("/photos/:photoId", requireAuth,
   }
 );
 
+// ── GET /photos/picker — 일지 작성용 전체앨범 사진 조회 ───────────────────────
+router.get("/photos/picker", requireAuth, requireRole("teacher", "pool_admin", "sub_admin", "super_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId, role } = req.user!;
+    let photos: any[];
+
+    if (role === "teacher") {
+      const rows = await db.execute(sql`
+        SELECT sp.id, sp.class_id, sp.uploaded_by_name, sp.created_at, sp.file_size,
+               '/api/photos/' || sp.id || '/file' AS file_url,
+               cg.name AS class_name
+        FROM photo_assets_meta sp
+        JOIN class_groups cg ON cg.id = sp.class_id
+        WHERE sp.album_type = 'group'
+          AND cg.teacher_user_id = ${userId}
+        ORDER BY sp.created_at DESC
+      `);
+      photos = rows.rows as any[];
+    } else if (role === "super_admin") {
+      photos = [];
+    } else {
+      const poolId = await getUserPoolId(userId);
+      if (!poolId) { res.json({ photos: [], total: 0 }); return; }
+      const rows = await db.execute(sql`
+        SELECT sp.id, sp.class_id, sp.uploaded_by_name, sp.created_at, sp.file_size,
+               '/api/photos/' || sp.id || '/file' AS file_url,
+               cg.name AS class_name
+        FROM photo_assets_meta sp
+        LEFT JOIN class_groups cg ON cg.id = sp.class_id
+        WHERE sp.album_type = 'group'
+          AND sp.pool_id = ${poolId}
+        ORDER BY sp.created_at DESC
+      `);
+      photos = rows.rows as any[];
+    }
+
+    res.json({ photos, total: photos.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── POST /photos/diary-attach — 선택 사진 journal_id 연결 ─────────────────────
+router.post("/photos/diary-attach", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.user!;
+    const { diary_id, photo_ids } = req.body as { diary_id: string; photo_ids: string[] };
+
+    if (!diary_id || !Array.isArray(photo_ids)) {
+      res.status(400).json({ error: "diary_id와 photo_ids가 필요합니다." }); return;
+    }
+    if (photo_ids.length > 20) {
+      res.status(400).json({ error: "한 번에 최대 20장까지 연결할 수 있습니다." }); return;
+    }
+
+    const poolId = await getUserPoolId(userId);
+    if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
+
+    // 기존 연결 사진 수 확인 (기존 + 신규 합계 20장 초과 방지)
+    const existingRow = await db.execute(sql`
+      SELECT COUNT(*)::int AS cnt FROM photo_assets_meta
+      WHERE journal_id = ${diary_id} AND pool_id = ${poolId}
+    `);
+    const existing = Number((existingRow.rows[0] as any)?.cnt ?? 0);
+    if (existing + photo_ids.length > 20) {
+      res.status(400).json({ error: `최대 20장까지 연결할 수 있습니다. 현재 ${existing}장 연결됨.` }); return;
+    }
+
+    if (photo_ids.length === 0) { res.json({ updated: 0 }); return; }
+
+    // pool_id 소속 검증 (타 수영장 접근 차단)
+    const checkRow = await db.execute(sql`
+      SELECT COUNT(*)::int AS cnt FROM photo_assets_meta
+      WHERE id = ANY(${photo_ids}::text[]) AND pool_id = ${poolId}
+    `);
+    if (Number((checkRow.rows[0] as any)?.cnt ?? 0) !== photo_ids.length) {
+      res.status(403).json({ error: "일부 사진에 대한 접근 권한이 없습니다." }); return;
+    }
+
+    await db.execute(sql`
+      UPDATE photo_assets_meta SET journal_id = ${diary_id}
+      WHERE id = ANY(${photo_ids}::text[]) AND pool_id = ${poolId}
+    `);
+
+    res.json({ updated: photo_ids.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── POST /photos/diary-detach — journal_id 해제 (일지 수정 시 사진 제거) ──────
+router.post("/photos/diary-detach", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.user!;
+    const { photo_ids } = req.body as { photo_ids: string[] };
+
+    if (!Array.isArray(photo_ids) || photo_ids.length === 0) {
+      res.status(400).json({ error: "photo_ids가 필요합니다." }); return;
+    }
+
+    const poolId = await getUserPoolId(userId);
+    if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
+
+    await db.execute(sql`
+      UPDATE photo_assets_meta SET journal_id = NULL
+      WHERE id = ANY(${photo_ids}::text[]) AND pool_id = ${poolId}
+    `);
+
+    res.json({ updated: photo_ids.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── GET /photos/diary/:diaryId — 일지 연결 사진 목록 ─────────────────────────
+router.get("/photos/diary/:diaryId", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.user!;
+    const { diaryId } = req.params;
+
+    const poolId = await getUserPoolId(userId);
+    if (!poolId) { res.json({ photos: [], total: 0 }); return; }
+
+    const rows = await db.execute(sql`
+      SELECT id, uploaded_by_name, created_at, file_size, class_id, caption,
+             '/api/photos/' || id || '/file' AS file_url
+      FROM photo_assets_meta
+      WHERE journal_id = ${diaryId}
+        AND pool_id = ${poolId}
+      ORDER BY created_at ASC
+    `);
+
+    res.json({ photos: rows.rows, total: (rows.rows as any[]).length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
 export default router;

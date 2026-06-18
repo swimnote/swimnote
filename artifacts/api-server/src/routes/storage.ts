@@ -31,10 +31,10 @@ async function safeCnt(query: Promise<any>): Promise<number> {
 async function calcUserStorage(userId: string, poolId: string) {
   const [photo_bytes, photo_count, video_bytes, video_count, messenger_bytes,
          cd_bytes, cdn_bytes, sd_bytes, memo_bytes, notice_bytes] = await Promise.all([
-    safeBytes(db.execute(sql`SELECT COALESCE(SUM(file_size_bytes),0)::bigint AS bytes FROM student_photos WHERE uploader_id=${userId} AND swimming_pool_id=${poolId}`)),
-    safeCnt(db.execute(sql`SELECT COUNT(*)::int AS cnt FROM student_photos WHERE uploader_id=${userId} AND swimming_pool_id=${poolId}`)),
-    safeBytes(db.execute(sql`SELECT COALESCE(SUM(file_size_bytes),0)::bigint AS bytes FROM student_videos WHERE uploader_id=${userId} AND swimming_pool_id=${poolId}`)),
-    safeCnt(db.execute(sql`SELECT COUNT(*)::int AS cnt FROM student_videos WHERE uploader_id=${userId} AND swimming_pool_id=${poolId}`)),
+    safeBytes(db.execute(sql`SELECT COALESCE(SUM(file_size),0)::bigint AS bytes FROM photo_assets_meta WHERE uploaded_by=${userId} AND pool_id=${poolId}`)),
+    safeCnt(db.execute(sql`SELECT COUNT(*)::int AS cnt FROM photo_assets_meta WHERE uploaded_by=${userId} AND pool_id=${poolId}`)),
+    safeBytes(db.execute(sql`SELECT COALESCE(SUM(file_size),0)::bigint AS bytes FROM video_assets_meta WHERE uploaded_by=${userId} AND pool_id=${poolId}`)),
+    safeCnt(db.execute(sql`SELECT COUNT(*)::int AS cnt FROM video_assets_meta WHERE uploaded_by=${userId} AND pool_id=${poolId}`)),
     safeBytes(db.execute(sql`SELECT COALESCE(SUM(OCTET_LENGTH(COALESCE(content,''))),0)::bigint AS bytes FROM work_messages WHERE sender_id=${userId} AND pool_id=${poolId}`)),
     safeBytes(db.execute(sql`SELECT COALESCE(SUM(OCTET_LENGTH(COALESCE(common_content,''))),0)::bigint AS bytes FROM class_diaries WHERE teacher_id=${userId} AND swimming_pool_id=${poolId} AND is_deleted=false`)),
     safeBytes(db.execute(sql`SELECT COALESCE(SUM(OCTET_LENGTH(COALESCE(n.note_content,''))),0)::bigint AS bytes FROM class_diary_student_notes n JOIN class_diaries d ON d.id=n.diary_id WHERE d.teacher_id=${userId} AND d.swimming_pool_id=${poolId} AND n.is_deleted=false`)),

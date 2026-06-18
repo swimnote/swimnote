@@ -1044,6 +1044,9 @@ export async function initPoolDb(): Promise<void> {
   await db.execute(sql.raw(`ALTER TABLE photo_assets_meta ADD COLUMN IF NOT EXISTS lesson_date text`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE video_assets_meta ADD COLUMN IF NOT EXISTS lesson_date text`)).catch(() => {});
 
+  // ── photo_assets_meta journal_id 인덱스 (일지 연결 조회 성능) ──────────────
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_photo_assets_journal_id ON photo_assets_meta(journal_id)`)).catch(() => {});
+
   // ── 학부모 간편가입: swimming_pool_id nullable 허용 + is_active 컬럼 추가 ──
   await db.execute(sql.raw(`ALTER TABLE parent_accounts ALTER COLUMN swimming_pool_id DROP NOT NULL`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true`)).catch(() => {});

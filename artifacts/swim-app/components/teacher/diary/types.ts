@@ -26,6 +26,14 @@ export interface AuditLog {
   actor_name: string; actor_role: string; created_at: string;
 }
 
+export interface AlbumPhotoInfo {
+  id: string;
+  file_url: string;
+  created_at: string;
+  uploaded_by_name?: string;
+  class_name?: string;
+}
+
 export type SubView = "write" | "history" | "edit";
 
 export function todayStr() {
