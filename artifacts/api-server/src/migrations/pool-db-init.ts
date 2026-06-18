@@ -1127,7 +1127,7 @@ export async function initPoolDb(): Promise<void> {
     END $$;
   `)).catch(() => {});
 
-  // ── teacher_id 인덱스 (명칭 보정 — 기존 + 요청명 모두 생성) ────────────────
-  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_teacher_saved_photos_teacher ON teacher_saved_photos(teacher_id)`)).catch(() => {});
-  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_teacher_saved_videos_teacher ON teacher_saved_videos(teacher_id)`)).catch(() => {});
+  // ── teacher_id 인덱스 중복 정리 (기존 idx_saved_*_teacher 유지, 중복 제거) ──
+  await db.execute(sql.raw(`DROP INDEX IF EXISTS idx_teacher_saved_photos_teacher`)).catch(() => {});
+  await db.execute(sql.raw(`DROP INDEX IF EXISTS idx_teacher_saved_videos_teacher`)).catch(() => {});
 }
