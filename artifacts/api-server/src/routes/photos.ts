@@ -681,14 +681,20 @@ router.get("/photos/picker", requireAuth, requireRole("teacher", "pool_admin", "
     let photos: any[];
 
     if (role === "teacher") {
+      // 본인 담당 반 사진 + 수영장 공용(class_id=null) 사진 모두 포함
+      const poolId = await getUserPoolId(userId);
       const rows = await db.execute(sql`
         SELECT sp.id, sp.class_id, sp.uploaded_by_name, sp.created_at, sp.file_size,
                '/api/photos/' || sp.id || '/file' AS file_url,
                cg.name AS class_name
         FROM photo_assets_meta sp
-        JOIN class_groups cg ON cg.id = sp.class_id
+        LEFT JOIN class_groups cg ON cg.id = sp.class_id
         WHERE sp.album_type = 'group'
-          AND cg.teacher_user_id = ${userId}
+          AND (
+            (sp.class_id IS NOT NULL AND cg.teacher_user_id = ${userId})
+            OR
+            (sp.class_id IS NULL AND sp.pool_id = ${poolId})
+          )
         ORDER BY sp.created_at DESC
       `);
       photos = rows.rows as any[];
