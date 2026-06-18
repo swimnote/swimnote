@@ -1044,6 +1044,9 @@ export async function initPoolDb(): Promise<void> {
   await db.execute(sql.raw(`ALTER TABLE photo_assets_meta ADD COLUMN IF NOT EXISTS lesson_date text`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE video_assets_meta ADD COLUMN IF NOT EXISTS lesson_date text`)).catch(() => {});
 
+  // ── 영상 썸네일 키 컬럼 추가 (Expo 클라이언트에서 썸네일 생성 후 R2에 저장) ──
+  await db.execute(sql.raw(`ALTER TABLE video_assets_meta ADD COLUMN IF NOT EXISTS thumbnail_key text`)).catch(() => {});
+
   // ── photo_assets_meta journal_id 인덱스 (일지 연결 조회 성능) ──────────────
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_photo_assets_journal_id ON photo_assets_meta(journal_id)`)).catch(() => {});
 

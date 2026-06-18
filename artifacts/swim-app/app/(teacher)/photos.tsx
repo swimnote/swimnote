@@ -12,6 +12,7 @@ import { router } from "expo-router";
 import { Check, ChevronRight, CircleAlert, CloudUpload, Database, HardDrive, Image as ImageIcon, Plus, RefreshCw, SquareCheck, Trash2, Users, Video, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
+import * as VideoThumbnails from "expo-video-thumbnails";
 import { compressImageIfNeeded } from "../../utils/compressImage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -42,6 +43,7 @@ type Step = "home" | "list" | "schedule" | "student" | "upload";
 interface MediaItem {
   id: string;
   file_url: string;
+  thumbnail_url?: string;
   album_type: string;
   class_name: string;
   schedule_days: string;
@@ -112,6 +114,7 @@ function normalizeItem(raw: any, idx: number): MediaItem {
   return {
     id: String(raw?.id ?? `item_fallback_${idx}`),
     file_url: String(raw?.presigned_url ?? raw?.file_url ?? raw?.url ?? ""),
+    thumbnail_url: raw?.thumbnail_presigned_url ? String(raw.thumbnail_presigned_url) : undefined,
     album_type: String(raw?.album_type ?? "group"),
     class_name: String(raw?.class_name ?? ""),
     schedule_days: String(raw?.schedule_days ?? ""),
@@ -363,6 +366,20 @@ export default function TeacherPhotosScreen() {
           name: asset.fileName || (isVideo ? "video.mp4" : "photo.jpg"),
           type: asset.mimeType || (isVideo ? "video/mp4" : "image/jpeg"),
         } as any);
+
+        // 영상 업로드 시 썸네일 자동 생성 — 실패해도 업로드는 계속 진행
+        if (isVideo) {
+          try {
+            const thumb = await VideoThumbnails.getThumbnailAsync(uri, { time: 1000 });
+            form.append("thumbnail", {
+              uri: thumb.uri,
+              name: "thumbnail.jpg",
+              type: "image/jpeg",
+            } as any);
+          } catch (thumbErr) {
+            console.warn("[videos] 썸네일 생성 실패 (무시됨):", thumbErr);
+          }
+        }
       }
       form.append("class_id", group?.id ?? "");
       if (scope === "private" && student?.id) form.append("student_id", student.id);
@@ -694,9 +711,17 @@ export default function TeacherPhotosScreen() {
                     isSel && { borderWidth: 2, borderColor: cfg.color },
                   ]}
                 >
-                  <View style={[s.videoThumb, { backgroundColor: cfg.bg }]}>
-                    <Video size={22} color={cfg.color} />
-                  </View>
+                  {item.thumbnail_url ? (
+                    <Image
+                      source={{ uri: item.thumbnail_url }}
+                      style={[s.videoThumb, { borderRadius: 12 }]}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <View style={[s.videoThumb, { backgroundColor: cfg.bg }]}>
+                      <Video size={22} color={cfg.color} />
+                    </View>
+                  )}
                   <View style={{ flex: 1, gap: 3 }}>
                     <Text style={s.videoLabel} numberOfLines={1}>{label || "영상"}</Text>
                     <Text style={s.videoMeta} numberOfLines={1}>

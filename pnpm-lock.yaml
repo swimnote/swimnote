@@ -472,6 +472,9 @@ importers:
       expo-sharing:
         specifier: ~14.0.8
         version: 14.0.8(expo@54.0.33)
+      expo-video-thumbnails:
+        specifier: ^56.0.3
+        version: 56.0.3(expo@54.0.33)
       lucide-react-native:
         specifier: ^1.7.0
         version: 1.7.0(react-native-svg@15.12.1(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -4390,6 +4393,11 @@ packages:
     peerDependenciesMeta:
       react-native-web:
         optional: true
+
+  expo-video-thumbnails@56.0.3:
+    resolution: {integrity: sha512-V3uqwOeT3KzHxiO32cAGC4ldP45wlgUc22w2ejPdo5uCMM6rm1FakKxccMPPqaJQGn4EUUVGIeGZlzR5tBmr+Q==}
+    peerDependencies:
+      expo: '*'
 
   expo-web-browser@15.0.10:
     resolution: {integrity: sha512-fvDhW4bhmXAeWFNFiInmsGCK83PAqAcQaFyp/3pE/jbdKmFKoRCWr46uZGIfN4msLK/OODhaQ/+US7GSJNDHJg==}
@@ -11855,6 +11863,10 @@ snapshots:
       react-native-web: 0.21.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
     transitivePeerDependencies:
       - supports-color
+
+  expo-video-thumbnails@56.0.3(expo@54.0.33):
+    dependencies:
+      expo: 54.0.33(@babel/core@7.29.0)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
 
   expo-web-browser@15.0.10(expo@54.0.33)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)):
     dependencies:

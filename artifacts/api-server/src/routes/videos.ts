@@ -24,6 +24,23 @@ import { genFilename, sanitizePoolName } from "../utils/filename.js";
 const router = Router();
 // 영상은 최대 100MB
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+// 영상 + 썸네일 동시 수신용 필드 설정
+const uploadVideoFields = upload.fields([
+  { name: "video",     maxCount: 1 },
+  { name: "thumbnail", maxCount: 1 },
+]);
+
+/**
+ * 영상 목록에 썸네일 presigned URL 일괄 추가.
+ * 썸네일은 photo bucket(swimnotepicture)에 저장되므로 type="photo"로 서명.
+ */
+async function batchVideoPresign(videos: any[]): Promise<any[]> {
+  return Promise.all(videos.map(async (v) => {
+    if (!v.thumbnail_key) return v;
+    const { ok, url } = await getPresignedUrl(v.thumbnail_key, "photo", 3600);
+    return ok && url ? { ...v, thumbnail_presigned_url: url } : v;
+  }));
+}
 
 
 async function getPoolSlug(poolId: string): Promise<string> {
@@ -188,13 +205,14 @@ router.get("/videos/group/:classId", requireAuth, async (req: AuthRequest, res: 
     const rows = await db.execute(sql`
       SELECT sv.id, sv.album_type, sv.class_id, sv.student_id, sv.pool_id,
              sv.uploaded_by, sv.uploaded_by_name, sv.caption, sv.created_at, sv.file_size,
-             s.name AS student_name
+             sv.thumbnail_key, s.name AS student_name
       FROM video_assets_meta sv
       LEFT JOIN students s ON s.id = sv.student_id
       WHERE sv.album_type = 'group' AND sv.class_id = ${classId}
       ORDER BY sv.created_at DESC
     `);
-    const videos = (rows.rows as any[]).map(v => ({ ...v, file_url: `/api/videos/${v.id}/file` }));
+    const rawVideos = (rows.rows as any[]).map(v => ({ ...v, file_url: `/api/videos/${v.id}/file` }));
+    const videos = await batchVideoPresign(rawVideos);
     res.json(videos);
   } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
 });
@@ -238,13 +256,15 @@ router.post(
   "/videos/group",
   requireAuth,
   requireRole("pool_admin", "teacher", "super_admin"),
-  upload.single("video"),
+  uploadVideoFields,
   async (req: AuthRequest, res: Response) => {
     try {
       const { class_id, caption } = req.body;
       // class_id는 선택사항 — 전체앨범은 반 선택 없이 업로드 가능
 
-      const file = req.file;
+      const files = req.files as { [f: string]: Express.Multer.File[] } | undefined;
+      const file = files?.video?.[0];
+      const thumbFile = files?.thumbnail?.[0];
       if (!file) { res.status(400).json({ error: "영상 파일을 선택해주세요." }); return; }
 
       const { role, userId } = req.user!;
@@ -294,12 +314,21 @@ router.post(
       const { ok, error } = await uploadToR2(key, file.buffer, file.mimetype || "video/mp4", "video");
       if (!ok) throw new Error(error || "업로드 실패");
 
+      // 썸네일 업로드 (있을 경우) — photo bucket에 저장
+      let thumbnailKey: string | null = null;
+      if (thumbFile) {
+        const thumbFilename = genFilename(poolSlug, "jpg");
+        const tKey = `thumbnails/video/${user.swimming_pool_id}/${thumbFilename}`;
+        const { ok: tOk } = await uploadToR2(tKey, thumbFile.buffer, "image/jpeg", "photo");
+        if (tOk) thumbnailKey = tKey;
+      }
+
       const id = `video_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
       const rows = await db.execute(sql`
         INSERT INTO video_assets_meta
-          (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id, caption)
+          (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id, caption, thumbnail_key)
         VALUES
-          (${id}, NULL, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'group', ${class_id || null}, ${caption || null})
+          (${id}, NULL, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'group', ${class_id || null}, ${caption || null}, ${thumbnailKey})
         RETURNING *
       `);
 
@@ -320,7 +349,7 @@ router.post(
   "/videos/private",
   requireAuth,
   requireRole("pool_admin", "teacher", "super_admin"),
-  upload.single("video"),
+  uploadVideoFields,
   async (req: AuthRequest, res: Response) => {
     try {
       const { class_id, student_id, caption } = req.body;
@@ -328,7 +357,9 @@ router.post(
         res.status(400).json({ error: "반과 학생을 선택해주세요." }); return;
       }
 
-      const file = req.file;
+      const files = req.files as { [f: string]: Express.Multer.File[] } | undefined;
+      const file = files?.video?.[0];
+      const thumbFile = files?.thumbnail?.[0];
       if (!file) { res.status(400).json({ error: "영상 파일을 선택해주세요." }); return; }
 
       const { role, userId } = req.user!;
@@ -383,12 +414,21 @@ router.post(
       const { ok, error } = await uploadToR2(key, file.buffer, file.mimetype || "video/mp4", "video");
       if (!ok) throw new Error(error || "업로드 실패");
 
+      // 썸네일 업로드 (있을 경우) — photo bucket에 저장
+      let thumbnailKey: string | null = null;
+      if (thumbFile) {
+        const thumbFilename = genFilename(poolSlug, "jpg");
+        const tKey = `thumbnails/video/${user.swimming_pool_id}/${thumbFilename}`;
+        const { ok: tOk } = await uploadToR2(tKey, thumbFile.buffer, "image/jpeg", "photo");
+        if (tOk) thumbnailKey = tKey;
+      }
+
       const id = `video_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
       const rows = await db.execute(sql`
         INSERT INTO video_assets_meta
-          (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id, caption)
+          (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id, caption, thumbnail_key)
         VALUES
-          (${id}, ${student_id}, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'private', ${class_id}, ${caption || null})
+          (${id}, ${student_id}, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'private', ${class_id}, ${caption || null}, ${thumbnailKey})
         RETURNING *
       `);
 
@@ -417,7 +457,7 @@ router.get("/videos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
       if (!poolId) { res.json({ videos: [], total: 0 }); return; }
       const rows = await db.execute(sql`
         SELECT sv.id, sv.album_type, sv.class_id, sv.student_id, sv.uploaded_by_name,
-               sv.caption, sv.created_at, sv.file_size,
+               sv.caption, sv.created_at, sv.file_size, sv.thumbnail_key,
                '/api/videos/' || sv.id || '/file' AS file_url,
                cg.name AS class_name, cg.schedule_days, cg.schedule_time
         FROM video_assets_meta sv
@@ -426,12 +466,12 @@ router.get("/videos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
           AND sv.pool_id = ${poolId}
         ORDER BY sv.created_at DESC
       `);
-      videos = rows.rows as any[];
+      videos = await batchVideoPresign(rows.rows as any[]);
     } else {
       // 개인앨범 = teacher_saved_videos 에서 가져옴
       const rows = await db.execute(sql`
         SELECT sv.id, sv.album_type, sv.class_id, sv.student_id, sv.uploaded_by_name,
-               sv.caption, sv.created_at, sv.file_size,
+               sv.caption, sv.created_at, sv.file_size, sv.thumbnail_key,
                '/api/videos/' || sv.id || '/file' AS file_url,
                cg.name AS class_name, cg.schedule_days, cg.schedule_time,
                tsv.created_at AS saved_at
@@ -441,7 +481,7 @@ router.get("/videos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
         WHERE tsv.teacher_id = ${userId}
         ORDER BY tsv.created_at DESC
       `);
-      videos = rows.rows as any[];
+      videos = await batchVideoPresign(rows.rows as any[]);
     }
 
     res.json({ videos, total: videos.length });
