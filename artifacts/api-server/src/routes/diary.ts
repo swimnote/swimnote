@@ -794,13 +794,14 @@ router.get("/diary-templates",
       const ORDER = sql`ORDER BY scope ASC, sort_order ASC, created_at ASC`;
 
       if (isAdmin) {
+        // 관리자: scope='global' 원본 템플릿만 반환 (teacher override 제외)
         if (levelId) {
           const rows = includeInactive
-            ? await db.execute(sql`SELECT ${sql.raw(COL)} FROM diary_templates WHERE swimming_pool_id = ${poolId} AND level_id = ${levelId} ${ORDER}`)
-            : await db.execute(sql`SELECT ${sql.raw(COL)} FROM diary_templates WHERE swimming_pool_id = ${poolId} AND level_id = ${levelId} AND is_active = true ${ORDER}`);
+            ? await db.execute(sql`SELECT ${sql.raw(COL)} FROM diary_templates WHERE swimming_pool_id = ${poolId} AND level_id = ${levelId} AND scope = 'global' ${ORDER}`)
+            : await db.execute(sql`SELECT ${sql.raw(COL)} FROM diary_templates WHERE swimming_pool_id = ${poolId} AND level_id = ${levelId} AND scope = 'global' AND is_active = true ${ORDER}`);
           res.json(rows.rows);
         } else {
-          const rows = await db.execute(sql`SELECT ${sql.raw(COL)} FROM diary_templates WHERE swimming_pool_id = ${poolId} AND is_active = true ${ORDER}`);
+          const rows = await db.execute(sql`SELECT ${sql.raw(COL)} FROM diary_templates WHERE swimming_pool_id = ${poolId} AND scope = 'global' AND is_active = true ${ORDER}`);
           res.json(rows.rows);
         }
       } else {

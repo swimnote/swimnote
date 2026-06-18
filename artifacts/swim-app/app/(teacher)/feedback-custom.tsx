@@ -56,10 +56,12 @@ export default function FeedbackCustomScreen() {
   const loadLevels = useCallback(async () => {
     setLevelsLoading(true);
     try {
-      const data = await apiRequest("/diary-template-levels", "GET", undefined, token);
-      const lvs: DiaryTemplateLevel[] = Array.isArray(data) ? data : (data.levels ?? []);
-      setLevels(lvs);
-      if (lvs.length > 0 && !selectedLevelId) setSelectedLevelId(lvs[0].id);
+      const r = await apiRequest(token, "/diary-template-levels");
+      if (r.ok) {
+        const lvs: DiaryTemplateLevel[] = await r.json();
+        setLevels(lvs);
+        if (lvs.length > 0 && !selectedLevelId) setSelectedLevelId(lvs[0].id);
+      }
     } catch { /* ignore */ }
     setLevelsLoading(false);
   }, [token, selectedLevelId]);
@@ -68,8 +70,8 @@ export default function FeedbackCustomScreen() {
   const loadTemplates = useCallback(async (levelId: string) => {
     setTemplatesLoading(true);
     try {
-      const data = await apiRequest(`/diary-templates?level_id=${levelId}`, "GET", undefined, token);
-      setTemplates(Array.isArray(data) ? data : []);
+      const r = await apiRequest(token, `/diary-templates?level_id=${levelId}`);
+      if (r.ok) setTemplates(await r.json());
     } catch { /* ignore */ }
     setTemplatesLoading(false);
   }, [token]);
@@ -83,14 +85,23 @@ export default function FeedbackCustomScreen() {
     setEditSaving(true);
     setEditError("");
     try {
+      let r: Response;
       if (editTarget.global_id) {
-        // global 항목 → override endpoint
-        await apiRequest(`/diary-templates/${editTarget.global_id}/override`, "POST",
-          { template_text: editText.trim(), title: editTitle.trim() || null }, token);
+        r = await apiRequest(token, `/diary-templates/${editTarget.global_id}/override`, {
+          method: "POST",
+          body: JSON.stringify({ template_text: editText.trim(), title: editTitle.trim() || null }),
+        });
       } else {
-        // teacher 신규 항목 → 일반 PATCH
-        await apiRequest(`/diary-templates/${editTarget.id}`, "PATCH",
-          { template_text: editText.trim(), title: editTitle.trim() || null }, token);
+        r = await apiRequest(token, `/diary-templates/${editTarget.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ template_text: editText.trim(), title: editTitle.trim() || null }),
+        });
+      }
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        setEditError(j.error ?? "저장 실패");
+        setEditSaving(false);
+        return;
       }
       setEditTarget(null);
       if (selectedLevelId) loadTemplates(selectedLevelId);
@@ -104,7 +115,7 @@ export default function FeedbackCustomScreen() {
   const confirmReset = async () => {
     if (!resetTarget?.global_id) return;
     try {
-      await apiRequest(`/diary-templates/${resetTarget.global_id}/override`, "DELETE", undefined, token);
+      await apiRequest(token, `/diary-templates/${resetTarget.global_id}/override`, { method: "DELETE" });
     } catch { /* ignore */ }
     setResetTarget(null);
     if (selectedLevelId) loadTemplates(selectedLevelId);
@@ -117,8 +128,16 @@ export default function FeedbackCustomScreen() {
     setAddSaving(true);
     setAddError("");
     try {
-      await apiRequest("/diary-templates", "POST",
-        { level_id: selectedLevelId, template_text: addText.trim(), title: addTitle.trim() || null }, token);
+      const r = await apiRequest(token, "/diary-templates", {
+        method: "POST",
+        body: JSON.stringify({ level_id: selectedLevelId, template_text: addText.trim(), title: addTitle.trim() || null }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        setAddError(j.error ?? "저장 실패");
+        setAddSaving(false);
+        return;
+      }
       setAddVisible(false);
       setAddText(""); setAddTitle("");
       loadTemplates(selectedLevelId);
@@ -132,7 +151,7 @@ export default function FeedbackCustomScreen() {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await apiRequest(`/diary-templates/${deleteTarget.id}`, "DELETE", undefined, token);
+      await apiRequest(token, `/diary-templates/${deleteTarget.id}`, { method: "DELETE" });
     } catch { /* ignore */ }
     setDeleteTarget(null);
     if (selectedLevelId) loadTemplates(selectedLevelId);
