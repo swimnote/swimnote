@@ -649,12 +649,10 @@ router.get("/videos/parent-view", requireAuth, requireRole("parent_account"), as
 router.get("/videos/picker", requireAuth, requireRole("teacher", "pool_admin", "sub_admin", "super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { userId, role } = req.user!;
-    console.log("[picker] 요청 userId=", userId, "role=", role);
+    const poolId = await getUserPoolId(userId);
+    console.log("[VIDEOS_PICKER] hit", { userId, poolId, role });
 
     if (role === "super_admin") { res.json({ videos: [], total: 0 }); return; }
-
-    const poolId = await getUserPoolId(userId);
-    console.log("[picker] poolId=", poolId);
     if (!poolId) { res.json({ videos: [], total: 0 }); return; }
 
     const rows = await db.execute(sql`
@@ -668,12 +666,12 @@ router.get("/videos/picker", requireAuth, requireRole("teacher", "pool_admin", "
         AND sv.pool_id = ${poolId}
       ORDER BY sv.created_at DESC
     `);
-    console.log("[picker] 쿼리 결과 rows=", rows.rows.length, "첫번째=", rows.rows[0] ?? null);
+    console.log("[VIDEOS_PICKER] rows =", rows.rows.length);
+    console.log("[VIDEOS_PICKER] first =", rows.rows[0] ?? null);
     const videos = await batchVideoPresign(rows.rows as any[]);
-    console.log("[picker] 응답 videos.length=", videos.length);
     res.json({ videos, total: videos.length });
   } catch (err) {
-    console.error("[picker] 에러:", err);
+    console.error("[VIDEOS_PICKER] 에러:", err);
     res.status(500).json({ error: "서버 오류" });
   }
 });
