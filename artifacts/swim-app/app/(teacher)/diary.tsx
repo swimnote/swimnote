@@ -10,7 +10,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { WeeklySchedule } from "@/components/teacher/WeeklySchedule";
@@ -23,7 +23,7 @@ import DiaryEditView from "@/components/teacher/diary/DiaryEditView";
 import DiaryHistoryList from "@/components/teacher/diary/DiaryHistoryList";
 import AlbumPickerModal from "@/components/teacher/diary/AlbumPickerModal";
 import {
-  AlbumPhotoInfo, AlbumVideoInfo, API_BASE, DiaryEntry, DiaryTemplate, ExistingNote,
+  AlbumPhotoInfo, AlbumVideoInfo, DiaryEntry, DiaryTemplate, ExistingNote,
   StudentNote, StudentOption, SubView, UploadedMedia, todayStr,
 } from "@/components/teacher/diary/types";
 import { Clock, RotateCcw } from "lucide-react-native";

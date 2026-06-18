@@ -6,7 +6,8 @@ import {
 import { Image as ExpoImage } from "expo-image";
 import { CheckCircle2, Play, X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AlbumPhotoInfo, AlbumVideoInfo, API_BASE } from "./types";
+import { AlbumPhotoInfo, AlbumVideoInfo } from "./types";
+import { API_BASE } from "@/context/AuthContext";
 
 const SCREEN_W = Dimensions.get("window").width;
 const ITEM_SIZE = Math.floor((SCREEN_W - 4 * 4) / 3);

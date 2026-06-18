@@ -8,7 +8,8 @@ import {
 import { Image as ExpoImage } from "expo-image";
 import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
-import { AlbumPhotoInfo, AlbumVideoInfo, API_BASE, DiaryTemplate, StudentNote, StudentOption, UploadedMedia } from "./types";
+import { AlbumPhotoInfo, AlbumVideoInfo, DiaryTemplate, StudentNote, StudentOption, UploadedMedia } from "./types";
+import { API_BASE } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
 
 const C = Colors.light;
