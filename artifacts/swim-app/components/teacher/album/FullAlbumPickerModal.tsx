@@ -117,7 +117,8 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
   function photoUri(url: string) {
     if (!url) return "";
     if (url.startsWith("http")) return url;
-    return `${API_BASE.replace("/api", "")}${url}`;
+    const base = `${API_BASE.replace(/\/api$/, "")}${url}`;
+    return token ? `${base}?token=${token}` : base;
   }
 
   function fmtDate(ts: string) {
@@ -209,7 +210,7 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
                 >
                   {uri ? (
                     <Image
-                      source={{ uri, headers: { Authorization: `Bearer ${token ?? ""}` } }}
+                      source={{ uri }}
                       style={{ width: "100%", height: "100%" }}
                       contentFit="cover"
                     />

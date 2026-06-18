@@ -58,11 +58,15 @@ function isRetainModeAllowed(req: Request): boolean {
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) {
+  // Expo Go 등 환경에서 Image 컴포넌트가 Authorization 헤더를 전송 못할 때
+  // ?token= 쿼리 파라미터를 폴백으로 허용 (GET 전용 파일 서빙 엔드포인트)
+  const queryToken = typeof req.query.token === "string" ? req.query.token : undefined;
+  const rawToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : queryToken;
+  if (!rawToken) {
     res.status(401).json({ success: false, message: "인증이 필요합니다.", error: "인증이 필요합니다." });
     return;
   }
-  const token = authHeader.slice(7);
+  const token = rawToken;
   try {
     const payload = verifyToken(token);
     if (payload.tv !== TOKEN_VERSION) {

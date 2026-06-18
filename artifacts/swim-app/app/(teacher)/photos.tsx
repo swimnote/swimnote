@@ -124,11 +124,12 @@ function normalizeItem(raw: any, idx: number): MediaItem {
   };
 }
 
-/** 파일 URL을 절대 URI로 변환 (빈 문자열은 빈 문자열로) */
-function photoUri(url: string | null | undefined): string {
+/** 파일 URL을 절대 URI로 변환. tok 전달 시 ?token= 쿼리 첨부 (Expo Go headers 미지원 대응) */
+function photoUri(url: string | null | undefined, tok?: string | null): string {
   if (!url) return "";
   if (url.startsWith("http")) return url;
-  return `${API_BASE.replace(/\/api$/, "")}${url}`;
+  const base = `${API_BASE.replace(/\/api$/, "")}${url}`;
+  return tok ? `${base}?token=${tok}` : base;
 }
 
 
@@ -610,7 +611,7 @@ export default function TeacherPhotosScreen() {
               if (!item) return null;
               const isSel = selected.has(item.id);
               const label = safeLabel(item);
-              const uri = photoUri(item.file_url);
+              const uri = photoUri(item.file_url, token);
               return (
                 <Pressable
                   onPress={() => selectMode ? toggleSelect(item.id) : setLightbox(item)}
@@ -628,7 +629,7 @@ export default function TeacherPhotosScreen() {
                 >
                   {uri ? (
                     <Image
-                      source={{ uri, headers: { Authorization: `Bearer ${token ?? ""}` } }}
+                      source={{ uri }}
                       style={{ width: "100%", height: "100%" }}
                       contentFit="cover"
                     />
@@ -828,10 +829,7 @@ export default function TeacherPhotosScreen() {
 
               {!!lightbox.file_url ? (
                 <Image
-                  source={{
-                    uri: photoUri(lightbox.file_url),
-                    headers: { Authorization: `Bearer ${token ?? ""}` },
-                  }}
+                  source={{ uri: photoUri(lightbox.file_url, token) }}
                   style={s.lbImage}
                   contentFit="contain"
                 />

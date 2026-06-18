@@ -146,7 +146,7 @@ export default function DiaryWriteView({
                 {selectedAlbumPhotos.map(photo => (
                   <View key={photo.id} style={s.albumThumb}>
                     <ExpoImage
-                      source={{ uri: `${API_BASE.replace(/\/api$/, "")}${photo.file_url}`, headers: { Authorization: `Bearer ${token}` } }}
+                      source={{ uri: `${API_BASE.replace(/\/api$/, "")}${photo.file_url}?token=${token}` }}
                       style={{ width: "100%", height: "100%", borderRadius: 6 }}
                       contentFit="cover"
                     />

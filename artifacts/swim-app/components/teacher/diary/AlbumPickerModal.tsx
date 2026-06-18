@@ -50,11 +50,11 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
 
   const renderItem = ({ item }: { item: AlbumPhotoInfo }) => {
     const isSelected = selected.has(item.id);
-    const imageUri = `${BASE_ORIGIN}${item.file_url}`;
+    const imageUri = `${BASE_ORIGIN}${item.file_url}?token=${token}`;
     return (
       <Pressable onPress={() => toggle(item.id)} style={[s.item, isSelected && s.itemSelected]}>
         <ExpoImage
-          source={{ uri: imageUri, headers: { Authorization: `Bearer ${token}` } }}
+          source={{ uri: imageUri }}
           style={s.image}
           contentFit="cover"
         />
