@@ -8,7 +8,7 @@ import {
 import { Image as ExpoImage } from "expo-image";
 import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
-import { AlbumPhotoInfo, API_BASE, DiaryTemplate, StudentNote, StudentOption, UploadedMedia } from "./types";
+import { AlbumPhotoInfo, AlbumVideoInfo, API_BASE, DiaryTemplate, StudentNote, StudentOption, UploadedMedia } from "./types";
 import { TeacherClassGroup } from "@/components/teacher/types";
 
 const C = Colors.light;
@@ -31,7 +31,7 @@ export default function DiaryWriteView({
   onUploadGroupMedia, onUploadStudentMedia,
   onAddNote, onRemoveNote,
   insertAtCursor,
-  token, onOpenAlbumPicker, selectedAlbumPhotos, onRemoveAlbumPhoto,
+  token, onOpenAlbumPicker, selectedAlbumPhotos, onRemoveAlbumPhoto, selectedAlbumVideos, onRemoveAlbumVideo,
 }: {
   group: TeacherClassGroup; targetDate: string; themeColor: string; myDiaryExists: boolean;
   templates: DiaryTemplate[]; showTemplates: boolean; setShowTemplates: (v: boolean) => void;
@@ -61,6 +61,8 @@ export default function DiaryWriteView({
   onOpenAlbumPicker: () => void;
   selectedAlbumPhotos: AlbumPhotoInfo[];
   onRemoveAlbumPhoto: (id: string) => void;
+  selectedAlbumVideos: AlbumVideoInfo[];
+  onRemoveAlbumVideo: (id: string) => void;
 }) {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -139,23 +141,55 @@ export default function DiaryWriteView({
               ))}
             </View>
           )}
-          {selectedAlbumPhotos.length > 0 && (
-            <View>
-              <Text style={[s.albumLabel, { color: "#3B82F6" }]}>앨범 선택 {selectedAlbumPhotos.length}장</Text>
-              <View style={s.albumPreviewRow}>
-                {selectedAlbumPhotos.map(photo => (
-                  <View key={photo.id} style={s.albumThumb}>
-                    <ExpoImage
-                      source={{ uri: `${API_BASE.replace(/\/api$/, "")}${photo.file_url}?token=${token}` }}
-                      style={{ width: "100%", height: "100%", borderRadius: 6 }}
-                      contentFit="cover"
-                    />
-                    <Pressable style={s.albumThumbRemove} onPress={() => onRemoveAlbumPhoto(photo.id)} hitSlop={6}>
-                      <CircleX size={16} color="#fff" fill="#374151" />
-                    </Pressable>
+          {(selectedAlbumPhotos.length > 0 || selectedAlbumVideos.length > 0) && (
+            <View style={{ gap: 10 }}>
+              {selectedAlbumPhotos.length > 0 && (
+                <View>
+                  <Text style={[s.albumLabel, { color: "#3B82F6" }]}>첨부 사진 {selectedAlbumPhotos.length}장</Text>
+                  <View style={s.albumPreviewRow}>
+                    {selectedAlbumPhotos.map(photo => (
+                      <View key={photo.id} style={s.albumThumb}>
+                        <ExpoImage
+                          source={{ uri: photo.presigned_url ?? `${API_BASE.replace(/\/api$/, "")}${photo.file_url}?token=${token}` }}
+                          style={{ width: "100%", height: "100%", borderRadius: 6 }}
+                          contentFit="cover"
+                        />
+                        <Pressable style={s.albumThumbRemove} onPress={() => onRemoveAlbumPhoto(photo.id)} hitSlop={6}>
+                          <CircleX size={16} color="#fff" fill="#374151" />
+                        </Pressable>
+                      </View>
+                    ))}
                   </View>
-                ))}
-              </View>
+                </View>
+              )}
+              {selectedAlbumVideos.length > 0 && (
+                <View>
+                  <Text style={[s.albumLabel, { color: "#2EC4B6" }]}>첨부 영상 {selectedAlbumVideos.length}개</Text>
+                  <View style={s.albumPreviewRow}>
+                    {selectedAlbumVideos.map(video => (
+                      <View key={video.id} style={s.albumThumb}>
+                        {video.thumbnail_presigned_url ? (
+                          <ExpoImage
+                            source={{ uri: video.thumbnail_presigned_url }}
+                            style={{ width: "100%", height: "100%", borderRadius: 6 }}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
+                            <Video size={18} color="#94A3B8" />
+                          </View>
+                        )}
+                        <View style={{ position: "absolute", bottom: 3, left: 3, width: 16, height: 16, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center" }}>
+                          <Video size={8} color="#fff" />
+                        </View>
+                        <Pressable style={s.albumThumbRemove} onPress={() => onRemoveAlbumVideo(video.id)} hitSlop={6}>
+                          <CircleX size={16} color="#fff" fill="#374151" />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
             </View>
           )}
         </View>

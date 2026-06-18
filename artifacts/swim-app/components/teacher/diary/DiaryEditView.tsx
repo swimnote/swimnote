@@ -7,7 +7,7 @@ import {
 import { Image as ExpoImage } from "expo-image";
 import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
-import { AlbumPhotoInfo, API_BASE, DiaryEntry, ExistingNote, StudentNote, StudentOption } from "./types";
+import { AlbumPhotoInfo, AlbumVideoInfo, API_BASE, DiaryEntry, ExistingNote, StudentNote, StudentOption } from "./types";
 import { TeacherClassGroup } from "@/components/teacher/types";
 
 const C = Colors.light;
@@ -27,6 +27,7 @@ export default function DiaryEditView({
   onEditAddNote, onRemoveNewNote,
   insertAtCursor,
   token, linkedPhotos, onRemoveLinkedPhoto, onOpenAlbumPicker, newAlbumPhotos, onRemoveNewAlbumPhoto,
+  linkedVideos, onRemoveLinkedVideo, newAlbumVideos, onRemoveNewAlbumVideo,
 }: {
   group: TeacherClassGroup; themeColor: string;
   editDiary: DiaryEntry | null;
@@ -52,6 +53,10 @@ export default function DiaryEditView({
   onOpenAlbumPicker: () => void;
   newAlbumPhotos: AlbumPhotoInfo[];
   onRemoveNewAlbumPhoto: (id: string) => void;
+  linkedVideos: AlbumVideoInfo[];
+  onRemoveLinkedVideo: (id: string) => void;
+  newAlbumVideos: AlbumVideoInfo[];
+  onRemoveNewAlbumVideo: (id: string) => void;
 }) {
   const activeNotes = editNotes.filter(n => !n._deleted);
   const usedStudentIds = new Set([
@@ -104,7 +109,7 @@ export default function DiaryEditView({
             </TouchableOpacity>
           </View>
 
-          {(linkedPhotos.length > 0 || newAlbumPhotos.length > 0) && (
+          {(linkedPhotos.length > 0 || newAlbumPhotos.length > 0 || linkedVideos.length > 0 || newAlbumVideos.length > 0) && (
             <View style={s.photoSection}>
               {linkedPhotos.length > 0 && (
                 <View>
@@ -113,7 +118,7 @@ export default function DiaryEditView({
                     {linkedPhotos.map(photo => (
                       <View key={photo.id} style={s.albumThumb}>
                         <ExpoImage
-                          source={{ uri: `${API_BASE.replace(/\/api$/, "")}${photo.file_url}?token=${token}` }}
+                          source={{ uri: photo.presigned_url ?? `${API_BASE.replace(/\/api$/, "")}${photo.file_url}?token=${token}` }}
                           style={{ width: "100%", height: "100%", borderRadius: 6 }}
                           contentFit="cover"
                         />
@@ -132,11 +137,61 @@ export default function DiaryEditView({
                     {newAlbumPhotos.map(photo => (
                       <View key={photo.id} style={s.albumThumb}>
                         <ExpoImage
-                          source={{ uri: `${API_BASE.replace(/\/api$/, "")}${photo.file_url}?token=${token}` }}
+                          source={{ uri: photo.presigned_url ?? `${API_BASE.replace(/\/api$/, "")}${photo.file_url}?token=${token}` }}
                           style={{ width: "100%", height: "100%", borderRadius: 6 }}
                           contentFit="cover"
                         />
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveNewAlbumPhoto(photo.id)} hitSlop={6}>
+                          <CircleX size={16} color="#fff" fill="#374151" />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+              {linkedVideos.length > 0 && (
+                <View>
+                  <Text style={s.photoSectionLabel}>연결된 영상 ({linkedVideos.length}개)</Text>
+                  <View style={s.albumPreviewRow}>
+                    {linkedVideos.map(video => (
+                      <View key={video.id} style={s.albumThumb}>
+                        {video.thumbnail_presigned_url ? (
+                          <ExpoImage
+                            source={{ uri: video.thumbnail_presigned_url }}
+                            style={{ width: "100%", height: "100%", borderRadius: 6 }}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
+                            <Layers size={16} color="#94A3B8" />
+                          </View>
+                        )}
+                        <Pressable style={s.albumThumbRemove} onPress={() => onRemoveLinkedVideo(video.id)} hitSlop={6}>
+                          <CircleX size={16} color="#fff" fill="#DC2626" />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+              {newAlbumVideos.length > 0 && (
+                <View>
+                  <Text style={[s.photoSectionLabel, { color: "#2EC4B6" }]}>추가할 영상 ({newAlbumVideos.length}개)</Text>
+                  <View style={s.albumPreviewRow}>
+                    {newAlbumVideos.map(video => (
+                      <View key={video.id} style={s.albumThumb}>
+                        {video.thumbnail_presigned_url ? (
+                          <ExpoImage
+                            source={{ uri: video.thumbnail_presigned_url }}
+                            style={{ width: "100%", height: "100%", borderRadius: 6 }}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
+                            <Layers size={16} color="#94A3B8" />
+                          </View>
+                        )}
+                        <Pressable style={s.albumThumbRemove} onPress={() => onRemoveNewAlbumVideo(video.id)} hitSlop={6}>
                           <CircleX size={16} color="#fff" fill="#374151" />
                         </Pressable>
                       </View>

@@ -29,9 +29,20 @@ export interface AuditLog {
 export interface AlbumPhotoInfo {
   id: string;
   file_url: string;
+  presigned_url?: string;
   created_at: string;
   uploaded_by_name?: string;
   class_name?: string;
+}
+
+export interface AlbumVideoInfo {
+  id: string;
+  file_url: string;
+  thumbnail_presigned_url?: string;
+  created_at: string;
+  uploaded_by_name?: string;
+  class_name?: string;
+  caption?: string;
 }
 
 export type SubView = "write" | "history" | "edit";

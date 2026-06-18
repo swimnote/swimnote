@@ -643,6 +643,127 @@ router.get("/videos/parent-view", requireAuth, requireRole("parent_account"), as
   } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
 });
 
+// ── GET /videos/picker — 일지 작성용 전체앨범 영상 조회 ─────────────────────
+router.get("/videos/picker", requireAuth, requireRole("teacher", "pool_admin", "sub_admin", "super_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId, role } = req.user!;
+    let videos: any[];
+
+    if (role === "teacher") {
+      const poolId = await getUserPoolId(userId);
+      const rows = await db.execute(sql`
+        SELECT sv.id, sv.class_id, sv.uploaded_by_name, sv.created_at, sv.file_size, sv.thumbnail_key,
+               '/api/videos/' || sv.id || '/file' AS file_url,
+               cg.name AS class_name
+        FROM video_assets_meta sv
+        LEFT JOIN class_groups cg ON cg.id = sv.class_id
+        WHERE sv.album_type = 'group'
+          AND (
+            (sv.class_id IS NOT NULL AND cg.teacher_user_id = ${userId})
+            OR
+            (sv.class_id IS NULL AND sv.pool_id = ${poolId})
+          )
+        ORDER BY sv.created_at DESC
+      `);
+      videos = await batchVideoPresign(rows.rows as any[]);
+    } else if (role === "super_admin") {
+      videos = [];
+    } else {
+      const poolId = await getUserPoolId(userId);
+      if (!poolId) { res.json({ videos: [], total: 0 }); return; }
+      const rows = await db.execute(sql`
+        SELECT sv.id, sv.class_id, sv.uploaded_by_name, sv.created_at, sv.file_size, sv.thumbnail_key,
+               '/api/videos/' || sv.id || '/file' AS file_url,
+               cg.name AS class_name
+        FROM video_assets_meta sv
+        LEFT JOIN class_groups cg ON cg.id = sv.class_id
+        WHERE sv.album_type = 'group'
+          AND sv.pool_id = ${poolId}
+        ORDER BY sv.created_at DESC
+      `);
+      videos = await batchVideoPresign(rows.rows as any[]);
+    }
+
+    res.json({ videos, total: videos.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── POST /videos/diary-attach — 선택 영상 journal_id 연결 ─────────────────
+router.post("/videos/diary-attach", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.user!;
+    const { diary_id, video_ids } = req.body as { diary_id: string; video_ids: string[] };
+    if (!diary_id || !Array.isArray(video_ids)) {
+      res.status(400).json({ error: "diary_id와 video_ids가 필요합니다." }); return;
+    }
+    if (video_ids.length > 10) {
+      res.status(400).json({ error: "한 번에 최대 10개까지 연결할 수 있습니다." }); return;
+    }
+    if (video_ids.length === 0) { res.json({ updated: 0 }); return; }
+
+    const poolId = await getUserPoolId(userId);
+    if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
+
+    const videoIdsLiteral = `{${video_ids.join(',')}}`;
+    const checkRow = await db.execute(sql`
+      SELECT COUNT(*)::int AS cnt FROM video_assets_meta
+      WHERE id = ANY(${videoIdsLiteral}::text[]) AND pool_id = ${poolId}
+    `);
+    if (Number((checkRow.rows[0] as any)?.cnt ?? 0) !== video_ids.length) {
+      res.status(403).json({ error: "일부 영상에 대한 접근 권한이 없습니다." }); return;
+    }
+
+    await db.execute(sql`
+      UPDATE video_assets_meta SET journal_id = ${diary_id}
+      WHERE id = ANY(${videoIdsLiteral}::text[]) AND pool_id = ${poolId}
+    `);
+
+    res.json({ updated: video_ids.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── POST /videos/diary-detach — journal_id 해제 ──────────────────────────
+router.post("/videos/diary-detach", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.user!;
+    const { video_ids } = req.body as { video_ids: string[] };
+    if (!Array.isArray(video_ids) || video_ids.length === 0) {
+      res.status(400).json({ error: "video_ids가 필요합니다." }); return;
+    }
+    const poolId = await getUserPoolId(userId);
+    if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
+
+    const detachLiteral = `{${video_ids.join(',')}}`;
+    await db.execute(sql`
+      UPDATE video_assets_meta SET journal_id = NULL
+      WHERE id = ANY(${detachLiteral}::text[]) AND pool_id = ${poolId}
+    `);
+    res.json({ updated: video_ids.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── GET /videos/diary/:diaryId — 일지 연결 영상 목록 ─────────────────────
+router.get("/videos/diary/:diaryId", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.user!;
+    const { diaryId } = req.params;
+    const poolId = await getUserPoolId(userId);
+    if (!poolId) { res.json({ videos: [], total: 0 }); return; }
+
+    const rows = await db.execute(sql`
+      SELECT id, uploaded_by_name, created_at, file_size, class_id, caption, thumbnail_key,
+             '/api/videos/' || id || '/file' AS file_url
+      FROM video_assets_meta
+      WHERE journal_id = ${diaryId}
+        AND pool_id = ${poolId}
+      ORDER BY created_at ASC
+    `);
+
+    const videos = await batchVideoPresign(rows.rows as any[]);
+    res.json({ videos, total: videos.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
 // ── 영상 삭제 ────────────────────────────────────────────────────────
 router.delete("/videos/:videoId", requireAuth,
   requireRole("pool_admin", "teacher", "super_admin"),

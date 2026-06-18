@@ -23,7 +23,7 @@ import DiaryEditView from "@/components/teacher/diary/DiaryEditView";
 import DiaryHistoryList from "@/components/teacher/diary/DiaryHistoryList";
 import AlbumPickerModal from "@/components/teacher/diary/AlbumPickerModal";
 import {
-  AlbumPhotoInfo, API_BASE, DiaryEntry, DiaryTemplate, ExistingNote,
+  AlbumPhotoInfo, AlbumVideoInfo, API_BASE, DiaryEntry, DiaryTemplate, ExistingNote,
   StudentNote, StudentOption, SubView, UploadedMedia, todayStr,
 } from "@/components/teacher/diary/types";
 import { Clock, RotateCcw } from "lucide-react-native";
@@ -106,11 +106,16 @@ export default function TeacherDiaryScreen() {
   const [selectedAlbumIds,    setSelectedAlbumIds]    = useState<string[]>([]);
   const [selectedAlbumPhotos, setSelectedAlbumPhotos] = useState<AlbumPhotoInfo[]>([]);
 
+  const [selectedAlbumVideos,  setSelectedAlbumVideos]  = useState<AlbumVideoInfo[]>([]);
+
   const [showEditAlbumPicker,  setShowEditAlbumPicker]  = useState(false);
   const [editLinkedPhotos,     setEditLinkedPhotos]     = useState<AlbumPhotoInfo[]>([]);
   const [editRemovedPhotoIds,  setEditRemovedPhotoIds]  = useState<string[]>([]);
   const [editNewAlbumIds,      setEditNewAlbumIds]      = useState<string[]>([]);
   const [editNewAlbumPhotos,   setEditNewAlbumPhotos]   = useState<AlbumPhotoInfo[]>([]);
+  const [editLinkedVideos,     setEditLinkedVideos]     = useState<AlbumVideoInfo[]>([]);
+  const [editRemovedVideoIds,  setEditRemovedVideoIds]  = useState<string[]>([]);
+  const [editNewAlbumVideos,   setEditNewAlbumVideos]   = useState<AlbumVideoInfo[]>([]);
 
   type PlanFeatures = { video_enabled: boolean; storage_quota_gb: number; storage_used_gb: number; storage_used_pct: number; upload_blocked: boolean; tier: string };
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures>({ video_enabled: false, storage_quota_gb: 0, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" });
@@ -171,7 +176,7 @@ export default function TeacherDiaryScreen() {
   async function openGroup(group: TeacherClassGroup) {
     setSelectedGroup(group); setSubView("write"); setCommonContent(""); setStudentNotes([]);
     setShowTemplates(false); setGroupMedia([]); setStudentMedia({}); setHasDraft(false);
-    setSelectedAlbumIds([]); setSelectedAlbumPhotos([]);
+    setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
     loadTemplates(); loadClassStudents(group.id); loadDiaries(group.id);
     try {
       const key = `@swimnote:diary_draft:${group.id}:${targetDate}`;
@@ -327,7 +332,14 @@ export default function TeacherDiaryScreen() {
           body: JSON.stringify({ diary_id: data.id, photo_ids: selectedAlbumIds }),
         }).catch(() => {});
       }
-      setSelectedAlbumIds([]); setSelectedAlbumPhotos([]);
+      // 앨범 영상 연결
+      if (selectedAlbumVideos.length > 0 && data.id) {
+        await apiRequest(token, "/videos/diary-attach", {
+          method: "POST",
+          body: JSON.stringify({ diary_id: data.id, video_ids: selectedAlbumVideos.map(v => v.id) }),
+        }).catch(() => {});
+      }
+      setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
       setDiarySet(prev => new Set([...prev, selectedGroup.id]));
       if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => {});
       setHasDraft(false);
@@ -343,11 +355,13 @@ export default function TeacherDiaryScreen() {
     setEditDiary(item); setEditContent(item.common_content || "");
     setEditNotes([]); setEditNewNotes([]); setEditAddStudent(null); setEditAddInput(""); setEditError(null);
     setEditLinkedPhotos([]); setEditRemovedPhotoIds([]); setEditNewAlbumIds([]); setEditNewAlbumPhotos([]);
+    setEditLinkedVideos([]); setEditRemovedVideoIds([]); setEditNewAlbumVideos([]);
     setSubView("edit"); setEditLoading(true);
     try {
-      const [diaryRes, photoRes] = await Promise.all([
+      const [diaryRes, photoRes, videoRes] = await Promise.all([
         apiRequest(token, `/diaries/${item.id}`),
         apiRequest(token, `/photos/diary/${item.id}`),
+        apiRequest(token, `/videos/diary/${item.id}`),
       ]);
       if (!diaryRes.ok) throw new Error("불러오기 실패");
       const data = await diaryRes.json();
@@ -356,6 +370,10 @@ export default function TeacherDiaryScreen() {
       if (photoRes.ok) {
         const photoData = await photoRes.json();
         setEditLinkedPhotos(Array.isArray(photoData.photos) ? photoData.photos : []);
+      }
+      if (videoRes.ok) {
+        const videoData = await videoRes.json();
+        setEditLinkedVideos(Array.isArray(videoData.videos) ? videoData.videos : []);
       }
     } catch (e: any) { setEditError(e.message || "불러오기 오류"); }
     finally { setEditLoading(false); }
@@ -391,7 +409,22 @@ export default function TeacherDiaryScreen() {
           body: JSON.stringify({ diary_id: editDiary.id, photo_ids: editNewAlbumIds }),
         }).catch(() => {});
       }
+      // 영상 제거 (journal_id = NULL)
+      if (editRemovedVideoIds.length > 0) {
+        await apiRequest(token, "/videos/diary-detach", {
+          method: "POST",
+          body: JSON.stringify({ video_ids: editRemovedVideoIds }),
+        }).catch(() => {});
+      }
+      // 신규 앨범 영상 연결
+      if (editNewAlbumVideos.length > 0) {
+        await apiRequest(token, "/videos/diary-attach", {
+          method: "POST",
+          body: JSON.stringify({ diary_id: editDiary.id, video_ids: editNewAlbumVideos.map(v => v.id) }),
+        }).catch(() => {});
+      }
       setEditLinkedPhotos([]); setEditRemovedPhotoIds([]); setEditNewAlbumIds([]); setEditNewAlbumPhotos([]);
+      setEditLinkedVideos([]); setEditRemovedVideoIds([]); setEditNewAlbumVideos([]);
       if (params.editDiaryId) { router.back(); }
       else { setSubView("history"); setEditDiary(null); await loadDiaries(selectedGroup.id); }
     } catch (e: any) { setEditError(e.message || "저장 중 오류가 발생했습니다."); }
@@ -470,12 +503,19 @@ export default function TeacherDiaryScreen() {
               setEditNewAlbumIds(prev => prev.filter(i => i !== id));
               setEditNewAlbumPhotos(prev => prev.filter(p => p.id !== id));
             }}
+            linkedVideos={editLinkedVideos}
+            onRemoveLinkedVideo={(id) => {
+              setEditRemovedVideoIds(prev => [...prev, id]);
+              setEditLinkedVideos(prev => prev.filter(v => v.id !== id));
+            }}
+            newAlbumVideos={editNewAlbumVideos}
+            onRemoveNewAlbumVideo={(id) => setEditNewAlbumVideos(prev => prev.filter(v => v.id !== id))}
           />
           <AlbumPickerModal
             visible={showEditAlbumPicker}
             token={token || ""}
             initialSelected={editNewAlbumIds}
-            onConfirm={(ids, photos) => { setEditNewAlbumIds(ids); setEditNewAlbumPhotos(photos); setShowEditAlbumPicker(false); }}
+            onConfirm={({ photos, videos }) => { setEditNewAlbumIds(photos.map(p => p.id)); setEditNewAlbumPhotos(photos); setEditNewAlbumVideos(videos); setShowEditAlbumPicker(false); }}
             onClose={() => setShowEditAlbumPicker(false)}
           />
         </SafeAreaView>
@@ -541,6 +581,8 @@ export default function TeacherDiaryScreen() {
               setSelectedAlbumIds(prev => prev.filter(i => i !== id));
               setSelectedAlbumPhotos(prev => prev.filter(p => p.id !== id));
             }}
+            selectedAlbumVideos={selectedAlbumVideos}
+            onRemoveAlbumVideo={(id) => setSelectedAlbumVideos(prev => prev.filter(v => v.id !== id))}
           />
         ) : (
           <DiaryHistoryList
@@ -573,7 +615,7 @@ export default function TeacherDiaryScreen() {
           visible={showAlbumPicker}
           token={token || ""}
           initialSelected={selectedAlbumIds}
-          onConfirm={(ids, photos) => { setSelectedAlbumIds(ids); setSelectedAlbumPhotos(photos); setShowAlbumPicker(false); }}
+          onConfirm={({ photos, videos }) => { setSelectedAlbumIds(photos.map(p => p.id)); setSelectedAlbumPhotos(photos); setSelectedAlbumVideos(videos); setShowAlbumPicker(false); }}
           onClose={() => setShowAlbumPicker(false)}
         />
         <ConfirmModal
