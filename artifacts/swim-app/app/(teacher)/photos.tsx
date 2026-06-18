@@ -89,10 +89,7 @@ function safeLabel(item: MediaItem | null | undefined): string {
   if (!item) return "";
   if (item.caption) return item.caption;
   if (item.album_type === "group") {
-    const days = (item.schedule_days ?? "").split(",")[0]?.trim() ?? "";
-    const time = (item.schedule_time ?? "").trim();
-    const tag = `${days} ${time}반`.trim();
-    return tag || item.class_name || "반 전체";
+    return item.class_name || "전체앨범";
   }
   if (item.album_type === "private") {
     return `${item.student_name || "학생"} 개별`;
@@ -130,10 +127,10 @@ const MEDIA_CONFIG: Record<`${MediaType}_${AlbumScope}`, {
   icon: string;
   title: string; sub: string; color: string; bg: string;
 }> = {
-  photo_group:   { icon: "image",  title: "사진", sub: "반 전체 앨범", color: "#E4A93A", bg: "#FFF1BF" },
-  photo_private: { icon: "user",   title: "사진", sub: "개인 앨범",   color: "#2EC4B6", bg: "#E6FFFA" },
-  video_group:   { icon: "video",  title: "영상", sub: "반 전체 앨범", color: "#2EC4B6", bg: "#E6FFFA" },
-  video_private: { icon: "film",   title: "영상", sub: "개인 앨범",   color: "#7C3AED", bg: "#EEDDF5" },
+  photo_group:   { icon: "image",  title: "사진", sub: "전체앨범",  color: "#E4A93A", bg: "#FFF1BF" },
+  photo_private: { icon: "user",   title: "사진", sub: "개인앨범",  color: "#2EC4B6", bg: "#E6FFFA" },
+  video_group:   { icon: "video",  title: "영상", sub: "전체앨범",  color: "#2EC4B6", bg: "#E6FFFA" },
+  video_private: { icon: "film",   title: "영상", sub: "개인앨범",  color: "#7C3AED", bg: "#EEDDF5" },
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -374,7 +371,7 @@ export default function TeacherPhotosScreen() {
       const cnt = assets.length;
       setSuccessMsg(
         scope === "group"
-          ? `${isVideo ? "영상" : `${cnt}장`}이 ${group?.name ?? "반"} ${cfg.title} 앨범에 추가됐습니다.`
+          ? `${isVideo ? "영상" : `${cnt}장`}이 ${group?.name ? `${group.name} ` : ""}전체앨범에 추가됐습니다.`
           : `${isVideo ? "영상" : `${cnt}장`}이 ${student?.name ?? "학생"} 개인 ${cfg.title} 앨범에 추가됐습니다.`
       );
       await loadList();
@@ -419,15 +416,10 @@ export default function TeacherPhotosScreen() {
       // ── 반 결정 ─────────────────────────────────────────────────
       if (scope === "group") {
         if (groups.length === 0) {
-          // 반이 하나도 없는 경우: 파일 선택 후 안내
-          Alert.alert("반 없음", "개설된 반이 없습니다.\n먼저 반을 등록해주세요.");
-          return;
-        }
-        if (groups.length === 1) {
-          // 반이 1개: 바로 업로드
-          await doUpload(assets, groups[0], null);
+          // 반이 없어도 pool 공용으로 바로 업로드 (class_id = null)
+          await doUpload(assets, null, null);
         } else {
-          // 반이 여러 개: 파일 선택 완료 후 반 선택 모달 표시
+          // 반이 1개 이상: 반 선택 모달 표시 (공용 업로드 선택지 포함)
           setPendingUploadAssets(assets);
           setShowClassPickerModal(true);
         }
@@ -739,7 +731,7 @@ export default function TeacherPhotosScreen() {
           </Pressable>
         )}
 
-        {/* 반 선택 바텀시트 (group 업로드, 반이 여러 개일 때) */}
+        {/* 반 선택 바텀시트 (group 업로드) */}
         <Modal
           visible={showClassPickerModal}
           transparent
@@ -749,7 +741,30 @@ export default function TeacherPhotosScreen() {
           <Pressable style={s.cpOverlay} onPress={() => setShowClassPickerModal(false)}>
             <View style={s.cpSheet}>
               <View style={s.cpHandle} />
-              <Text style={s.cpTitle}>어느 반에 업로드할까요?</Text>
+              <Text style={s.cpTitle}>어디에 업로드할까요?</Text>
+
+              {/* 공용 업로드 (반 없이 pool 전체) */}
+              <Pressable
+                style={[s.cpItem, s.cpItemPool]}
+                onPress={() => {
+                  setShowClassPickerModal(false);
+                  doUpload(pendingUploadAssets, null, null);
+                }}
+              >
+                <View style={s.cpItemPoolIcon}>
+                  <LucideIcon name="layers" size={16} color="#E4A93A" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.cpItemText, { color: "#E4A93A" }]}>전체앨범 (공용)</Text>
+                  <Text style={s.cpItemSub}>반 구분 없이 수영장 공용 앨범에 저장</Text>
+                </View>
+                <ChevronRight size={16} color="#E4A93A" />
+              </Pressable>
+
+              {/* 반별 업로드 */}
+              {groups.length > 0 && (
+                <Text style={s.cpSectionLabel}>반별 업로드</Text>
+              )}
               {groups.map(g => (
                 <Pressable
                   key={g.id}
@@ -1110,8 +1125,12 @@ const s = StyleSheet.create({
   cpSheet:      { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingBottom: 36, paddingTop: 12, gap: 6 },
   cpHandle:     { alignSelf: "center", width: 36, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", marginBottom: 8 },
   cpTitle:      { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#374151", textAlign: "center", paddingVertical: 8 },
-  cpItem:       { flexDirection: "row", alignItems: "center", paddingVertical: 16, paddingHorizontal: 14, backgroundColor: "#F8FAFC", borderRadius: 14, gap: 8 },
-  cpItemText:   { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  cpCancel:     { alignItems: "center", paddingVertical: 14, marginTop: 4 },
-  cpCancelText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  cpItem:          { flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingHorizontal: 14, backgroundColor: "#F8FAFC", borderRadius: 14, gap: 8 },
+  cpItemPool:      { backgroundColor: "#FFF8E6", borderWidth: 1, borderColor: "#E4A93A33" },
+  cpItemPoolIcon:  { width: 32, height: 32, borderRadius: 8, backgroundColor: "#E4A93A1A", alignItems: "center", justifyContent: "center" },
+  cpItemText:      { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  cpItemSub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
+  cpSectionLabel:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", paddingHorizontal: 4, paddingTop: 6 },
+  cpCancel:        { alignItems: "center", paddingVertical: 14, marginTop: 4 },
+  cpCancelText:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
 });
