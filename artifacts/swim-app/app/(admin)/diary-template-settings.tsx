@@ -1,8 +1,8 @@
 /**
- * (admin)/diary-template-settings.tsx — 일지 템플릿 관리
+ * (admin)/diary-template-settings.tsx — 일지 템플릿 관리 (관리자)
  *
- * 레벨 슬롯 (최대 10개) + 레벨별 템플릿 CRUD
- * 기본 구조 생성: 레벨 1~4 빈 구조 재생성
+ * scope=global 템플릿 관리: 레벨 슬롯 (최대 10개) + 레벨별 CRUD
+ * SwimNote 기본 템플릿 복원 / 전체 초기화
  */
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
@@ -49,7 +49,8 @@ export default function DiaryTemplateSettingsScreen() {
 
   const [confirmDeleteLevel, setConfirmDeleteLevel] = useState<DiaryTemplateLevel | null>(null);
   const [confirmClearLevel, setConfirmClearLevel] = useState<DiaryTemplateLevel | null>(null);
-  const [confirmResetDefault, setConfirmResetDefault] = useState(false);
+  const [confirmRestoreDefault, setConfirmRestoreDefault] = useState(false);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
   const [confirmDeleteTemplate, setConfirmDeleteTemplate] = useState<DiaryTemplate | null>(null);
 
   const [addTemplateVisible, setAddTemplateVisible] = useState(false);
@@ -183,12 +184,20 @@ export default function DiaryTemplateSettingsScreen() {
     }).catch(async () => { await loadLevels(selectedLevelId ?? undefined); });
   }
 
-  async function handleResetDefault() {
-    const r = await apiRequest(token, "/diary-templates/reset-default", { method: "POST" }).catch(() => null);
+  async function handleRestoreDefault() {
+    const r = await apiRequest(token, "/diary-templates/restore-default", { method: "POST" }).catch(() => null);
     if (r?.ok) {
       setSelectedLevelId(null);
       setTemplates([]);
       await loadLevels();
+    }
+  }
+
+  async function handleClearAll() {
+    const r = await apiRequest(token, "/diary-templates/clear-all", { method: "POST" }).catch(() => null);
+    if (r?.ok) {
+      if (selectedLevelId) await loadTemplates(selectedLevelId);
+      await loadLevels(selectedLevelId ?? undefined);
     }
   }
 
@@ -293,10 +302,15 @@ export default function DiaryTemplateSettingsScreen() {
       <SubScreenHeader
         title="일지 템플릿"
         rightSlot={
-          <Pressable style={s.resetBtn} onPress={() => setConfirmResetDefault(true)}>
-            <RefreshCcw size={13} color={C.textSecondary} />
-            <Text style={s.resetBtnText}>기본 구조 생성</Text>
-          </Pressable>
+          <View style={{ flexDirection: "row", gap: 6 }}>
+            <Pressable style={s.resetBtn} onPress={() => setConfirmRestoreDefault(true)}>
+              <RefreshCcw size={12} color="#7C3AED" />
+              <Text style={[s.resetBtnText, { color: "#7C3AED" }]}>기본 복원</Text>
+            </Pressable>
+            <Pressable style={[s.resetBtn, { borderColor: "#FECACA" }]} onPress={() => setConfirmClearAll(true)}>
+              <Text style={[s.resetBtnText, { color: "#DC2626" }]}>전체 초기화</Text>
+            </Pressable>
+          </View>
         }
       />
 
@@ -313,7 +327,7 @@ export default function DiaryTemplateSettingsScreen() {
             {levels.length === 0 ? (
               <View style={s.emptyBox}>
                 <Text style={s.emptyText}>레벨이 없습니다.</Text>
-                <Text style={s.emptySubText}>"기본 구조 생성" 버튼으로 레벨 1~4를 만들어보세요.</Text>
+                <Text style={s.emptySubText}>"기본 복원" 버튼으로 SwimNote 기본 템플릿을 불러오세요.</Text>
                 <Pressable
                   style={[s.addLevelBtn, { borderColor: C.tint, marginTop: 12 }]}
                   onPress={() => { setAddLevelText("레벨 1"); setAddLevelError(""); setAddLevelVisible(true); }}
@@ -468,13 +482,23 @@ export default function DiaryTemplateSettingsScreen() {
       />
 
       <ConfirmModal
-        visible={confirmResetDefault}
-        title="기본 구조 생성"
-        message={"현재 레벨과 템플릿이 모두 삭제되고\n레벨 1 ~ 4가 새로 생성됩니다.\n\n이 작업은 되돌릴 수 없습니다."}
-        confirmText="생성"
+        visible={confirmRestoreDefault}
+        title="SwimNote 기본 템플릿 복원"
+        message={"현재 공통 템플릿이 모두 삭제되고\nSwimNote 기본 템플릿(초급·중급·상급)으로\n복원됩니다.\n\n선생님 개인 템플릿은 유지됩니다.\n이 작업은 되돌릴 수 없습니다."}
+        confirmText="복원"
         cancelText="취소"
-        onConfirm={async () => { await handleResetDefault(); setConfirmResetDefault(false); }}
-        onCancel={() => setConfirmResetDefault(false)}
+        onConfirm={async () => { await handleRestoreDefault(); setConfirmRestoreDefault(false); }}
+        onCancel={() => setConfirmRestoreDefault(false)}
+      />
+
+      <ConfirmModal
+        visible={confirmClearAll}
+        title="전체 초기화"
+        message={"레벨 구조는 유지되고\n모든 공통 템플릿이 삭제됩니다.\n\n선생님 개인 템플릿은 유지됩니다.\n이 작업은 되돌릴 수 없습니다."}
+        confirmText="초기화"
+        cancelText="취소"
+        onConfirm={async () => { await handleClearAll(); setConfirmClearAll(false); }}
+        onCancel={() => setConfirmClearAll(false)}
       />
 
       <ConfirmModal

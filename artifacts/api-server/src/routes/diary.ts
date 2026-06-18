@@ -744,10 +744,43 @@ router.post("/diary-template-levels/:id/clear",
 );
 
 // ════════════════════════════════════════════════════════════════════════
-// 6. 일지 템플릿 관리
+// 6. 일지 템플릿 관리 (scope: global=관리자공통 / teacher=선생님개인)
 // ════════════════════════════════════════════════════════════════════════
 
-// GET /diary-templates — 템플릿 목록 (level_id 필터, include_inactive 지원)
+const SWIMNOTE_DEFAULT_TEMPLATES: { levelName: string; templates: string[] }[] = [
+  { levelName: "초급", templates: [
+    "물에 대한 적응력이 빠르게 늘고 있습니다.",
+    "킥 동작을 차분하게 연습했습니다.",
+    "호흡 연습이 잘 이루어졌습니다.",
+    "발차기 자세가 점점 안정되고 있습니다.",
+    "물 속에서 눈을 뜨는 연습을 했습니다.",
+    "벽 잡고 킥 연습을 반복했습니다.",
+    "물 위에서 몸의 균형을 잡는 연습을 했습니다.",
+  ]},
+  { levelName: "중급", templates: [
+    "자유형 스트로크 동작이 향상되고 있습니다.",
+    "배영 자세 교정이 잘 이루어졌습니다.",
+    "호흡 리듬이 안정적으로 자리 잡고 있습니다.",
+    "턴 동작을 처음 연습했습니다.",
+    "유선형 자세가 좋아지고 있습니다.",
+    "팔 동작과 발 동작의 협응이 좋아졌습니다.",
+    "물의 저항을 최소화하는 연습을 했습니다.",
+  ]},
+  { levelName: "상급", templates: [
+    "접영 동작의 리듬감이 향상되었습니다.",
+    "타이밍 조절이 점점 자연스러워지고 있습니다.",
+    "거리 수영 시 체력 분배가 잘 이루어졌습니다.",
+    "개인혼영 순서 연습이 잘 진행됐습니다.",
+    "레이스 페이스 조절 훈련을 시작했습니다.",
+    "스타트 동작을 점검하고 개선했습니다.",
+    "기록 단축을 목표로 인터벌 훈련을 실시했습니다.",
+  ]},
+];
+
+const COL = `id, level_id, title, template_text, sort_order, is_active, category, level, scope, teacher_id`;
+
+// GET /diary-templates — 템플릿 목록
+// Admin: 모든 템플릿 / Teacher: global + 본인 teacher 템플릿
 router.get("/diary-templates",
   requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
@@ -755,49 +788,87 @@ router.get("/diary-templates",
       const poolId = await getUserPoolId(req.user!.userId);
       const levelId = req.query.level_id as string | undefined;
       const includeInactive = req.query.include_inactive === "true";
-      if (levelId) {
-        if (includeInactive) {
-          const rows = await db.execute(sql`SELECT id, level_id, title, template_text, sort_order, is_active, category, level FROM diary_templates WHERE swimming_pool_id = ${poolId} AND level_id = ${levelId} ORDER BY sort_order ASC, created_at ASC`);
+      const isAdmin = ["super_admin", "pool_admin"].includes(req.user!.role);
+      const userId = req.user!.userId;
+
+      const ORDER = sql`ORDER BY scope ASC, sort_order ASC, created_at ASC`;
+
+      if (isAdmin) {
+        if (levelId) {
+          const rows = includeInactive
+            ? await db.execute(sql`SELECT ${sql.raw(COL)} FROM diary_templates WHERE swimming_pool_id = ${poolId} AND level_id = ${levelId} ${ORDER}`)
+            : await db.execute(sql`SELECT ${sql.raw(COL)} FROM diary_templates WHERE swimming_pool_id = ${poolId} AND level_id = ${levelId} AND is_active = true ${ORDER}`);
           res.json(rows.rows);
         } else {
-          const rows = await db.execute(sql`SELECT id, level_id, title, template_text, sort_order, is_active, category, level FROM diary_templates WHERE swimming_pool_id = ${poolId} AND level_id = ${levelId} AND is_active = true ORDER BY sort_order ASC, created_at ASC`);
+          const rows = await db.execute(sql`SELECT ${sql.raw(COL)} FROM diary_templates WHERE swimming_pool_id = ${poolId} AND is_active = true ${ORDER}`);
           res.json(rows.rows);
         }
       } else {
-        const rows = await db.execute(sql`SELECT id, level_id, title, template_text, sort_order, is_active, category, level FROM diary_templates WHERE swimming_pool_id = ${poolId} AND is_active = true ORDER BY sort_order ASC, category, created_at ASC`);
-        res.json(rows.rows);
+        const scopeFilter = sql`AND (scope = 'global' OR (scope = 'teacher' AND teacher_id = ${userId}))`;
+        if (levelId) {
+          const rows = includeInactive
+            ? await db.execute(sql`SELECT ${sql.raw(COL)} FROM diary_templates WHERE swimming_pool_id = ${poolId} AND level_id = ${levelId} ${scopeFilter} ${ORDER}`)
+            : await db.execute(sql`SELECT ${sql.raw(COL)} FROM diary_templates WHERE swimming_pool_id = ${poolId} AND level_id = ${levelId} AND is_active = true ${scopeFilter} ${ORDER}`);
+          res.json(rows.rows);
+        } else {
+          const rows = await db.execute(sql`SELECT ${sql.raw(COL)} FROM diary_templates WHERE swimming_pool_id = ${poolId} AND is_active = true ${scopeFilter} ${ORDER}`);
+          res.json(rows.rows);
+        }
       }
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
 );
 
-// POST /diary-templates/reset-default — 기본 구조 생성 (레벨 1~4 빈 구조)
-router.post("/diary-templates/reset-default",
+// POST /diary-templates/restore-default — SwimNote 기본 템플릿 복원
+router.post("/diary-templates/restore-default",
   requireAuth, requireRole("super_admin", "pool_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
-      await db.execute(sql`DELETE FROM diary_templates WHERE swimming_pool_id = ${poolId} AND level_id IS NOT NULL`);
+      await db.execute(sql`DELETE FROM diary_templates WHERE swimming_pool_id = ${poolId} AND scope = 'global'`);
       await db.execute(sql`DELETE FROM diary_template_levels WHERE swimming_pool_id = ${poolId}`);
-      for (let i = 1; i <= 4; i++) {
-        const id = genId("dtl");
-        await db.execute(sql`INSERT INTO diary_template_levels (id, swimming_pool_id, level_name, sort_order) VALUES (${id}, ${poolId}, ${"레벨 " + i}, ${i - 1})`);
+      for (let li = 0; li < SWIMNOTE_DEFAULT_TEMPLATES.length; li++) {
+        const { levelName, templates } = SWIMNOTE_DEFAULT_TEMPLATES[li];
+        const lvId = genId("dtl");
+        await db.execute(sql`INSERT INTO diary_template_levels (id, swimming_pool_id, level_name, sort_order) VALUES (${lvId}, ${poolId}, ${levelName}, ${li})`);
+        for (let ti = 0; ti < templates.length; ti++) {
+          const dtId = genId("dt");
+          await db.execute(sql`INSERT INTO diary_templates (id, swimming_pool_id, level_id, template_text, sort_order, scope, created_by) VALUES (${dtId}, ${poolId}, ${lvId}, ${templates[ti]}, ${ti}, 'global', ${req.user!.userId})`);
+        }
       }
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
 );
 
-// POST /diary-templates/reorder — 템플릿 순서 일괄 변경
-router.post("/diary-templates/reorder",
+// POST /diary-templates/clear-all — 전체 초기화 (레벨 유지, 모든 global 템플릿 삭제)
+router.post("/diary-templates/clear-all",
   requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      await db.execute(sql`DELETE FROM diary_templates WHERE swimming_pool_id = ${poolId} AND scope = 'global'`);
+      res.json({ success: true });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// POST /diary-templates/reorder — 순서 일괄 변경
+router.post("/diary-templates/reorder",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
       const { ordered_ids } = req.body;
       if (!Array.isArray(ordered_ids)) return apiErr(res, 400, "ordered_ids 필드 필요");
+      const isAdmin = ["super_admin", "pool_admin"].includes(req.user!.role);
+      const userId = req.user!.userId;
       for (let i = 0; i < ordered_ids.length; i++) {
-        await db.execute(sql`UPDATE diary_templates SET sort_order = ${i} WHERE id = ${ordered_ids[i]} AND swimming_pool_id = ${poolId}`);
+        if (isAdmin) {
+          await db.execute(sql`UPDATE diary_templates SET sort_order = ${i} WHERE id = ${ordered_ids[i]} AND swimming_pool_id = ${poolId}`);
+        } else {
+          await db.execute(sql`UPDATE diary_templates SET sort_order = ${i} WHERE id = ${ordered_ids[i]} AND swimming_pool_id = ${poolId} AND scope = 'teacher' AND teacher_id = ${userId}`);
+        }
       }
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
@@ -805,18 +876,22 @@ router.post("/diary-templates/reorder",
 );
 
 // POST /diary-templates — 템플릿 추가
+// Admin → scope='global' / Teacher → scope='teacher'
 router.post("/diary-templates",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
-      const { category, level, template_text, level_id, title, sort_order } = req.body;
+      const { template_text, level_id, title, sort_order } = req.body;
       if (!template_text?.trim()) return apiErr(res, 400, "템플릿 내용을 입력해주세요.");
       const poolId = await getUserPoolId(req.user!.userId);
+      const isAdmin = ["super_admin", "pool_admin"].includes(req.user!.role);
+      const scope = isAdmin ? "global" : "teacher";
+      const teacherId = isAdmin ? null : req.user!.userId;
       const id = genId("dt");
       await db.execute(sql`
-        INSERT INTO diary_templates (id, swimming_pool_id, category, level, template_text, level_id, title, sort_order, created_by)
-        VALUES (${id}, ${poolId}, ${category || "general"}, ${level || null}, ${template_text.trim()},
-                ${level_id || null}, ${title?.trim() || null}, ${sort_order ?? 0}, ${req.user!.userId})
+        INSERT INTO diary_templates (id, swimming_pool_id, template_text, level_id, title, sort_order, scope, teacher_id, created_by)
+        VALUES (${id}, ${poolId}, ${template_text.trim()}, ${level_id || null}, ${title?.trim() || null},
+                ${sort_order ?? 0}, ${scope}, ${teacherId}, ${req.user!.userId})
       `);
       res.json({ success: true, id });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
@@ -825,20 +900,24 @@ router.post("/diary-templates",
 
 // POST /diary-templates/:id/copy — 복사
 router.post("/diary-templates/:id/copy",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
+      const isAdmin = ["super_admin", "pool_admin"].includes(req.user!.role);
+      const userId = req.user!.userId;
       const srcRows = await db.execute(sql`SELECT * FROM diary_templates WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
       if (!srcRows.rows.length) return apiErr(res, 404, "템플릿을 찾을 수 없습니다.");
       const s = srcRows.rows[0] as any;
       const newId = genId("dt");
       const maxRow = await db.execute(sql`SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM diary_templates WHERE level_id = ${s.level_id} AND swimming_pool_id = ${poolId}`);
       const newSort = Number((maxRow.rows[0] as any)?.next ?? 0);
+      const newScope = isAdmin ? "global" : "teacher";
+      const newTeacherId = isAdmin ? null : userId;
       await db.execute(sql`
-        INSERT INTO diary_templates (id, swimming_pool_id, category, level, template_text, level_id, title, sort_order, created_by)
-        VALUES (${newId}, ${poolId}, ${s.category}, ${s.level}, ${s.template_text},
-                ${s.level_id}, ${s.title ? s.title + " 복사" : null}, ${newSort}, ${req.user!.userId})
+        INSERT INTO diary_templates (id, swimming_pool_id, template_text, level_id, title, sort_order, scope, teacher_id, created_by)
+        VALUES (${newId}, ${poolId}, ${s.template_text}, ${s.level_id}, ${s.title ? s.title + " 복사" : null},
+                ${newSort}, ${newScope}, ${newTeacherId}, ${userId})
       `);
       res.json({ success: true, id: newId });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
@@ -846,17 +925,25 @@ router.post("/diary-templates/:id/copy",
 );
 
 // PATCH /diary-templates/:id — 수정
+// Admin: 모든 수정 가능 / Teacher: 본인 teacher 템플릿만
 router.patch("/diary-templates/:id",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
-      const { template_text, category, level, is_active, level_id, title, sort_order } = req.body;
+      const { template_text, is_active, level_id, title, sort_order } = req.body;
       const poolId = await getUserPoolId(req.user!.userId);
+      const isAdmin = ["super_admin", "pool_admin"].includes(req.user!.role);
+      const userId = req.user!.userId;
+      if (!isAdmin) {
+        const check = await db.execute(sql`SELECT scope, teacher_id FROM diary_templates WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
+        const row = check.rows[0] as any;
+        if (!row) return apiErr(res, 404, "템플릿을 찾을 수 없습니다.");
+        if (row.scope === "global") return apiErr(res, 403, "공통 템플릿은 수정할 수 없습니다.");
+        if (row.teacher_id !== userId) return apiErr(res, 403, "본인 템플릿만 수정할 수 있습니다.");
+      }
       await db.execute(sql`
         UPDATE diary_templates
         SET template_text = COALESCE(${template_text?.trim() || null}, template_text),
-            category      = COALESCE(${category ?? null}, category),
-            level         = COALESCE(${level ?? null}, level),
             is_active     = COALESCE(${is_active ?? null}, is_active),
             level_id      = COALESCE(${level_id ?? null}, level_id),
             title         = COALESCE(${title?.trim() || null}, title),
@@ -869,12 +956,22 @@ router.patch("/diary-templates/:id",
   }
 );
 
-// DELETE /diary-templates/:id — 하드 삭제
+// DELETE /diary-templates/:id — 삭제
+// Admin: 모든 삭제 가능 / Teacher: 본인 teacher 템플릿만
 router.delete("/diary-templates/:id",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
+      const isAdmin = ["super_admin", "pool_admin"].includes(req.user!.role);
+      const userId = req.user!.userId;
+      if (!isAdmin) {
+        const check = await db.execute(sql`SELECT scope, teacher_id FROM diary_templates WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
+        const row = check.rows[0] as any;
+        if (!row) return apiErr(res, 404, "템플릿을 찾을 수 없습니다.");
+        if (row.scope === "global") return apiErr(res, 403, "공통 템플릿은 삭제할 수 없습니다.");
+        if (row.teacher_id !== userId) return apiErr(res, 403, "본인 템플릿만 삭제할 수 있습니다.");
+      }
       await db.execute(sql`DELETE FROM diary_templates WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }

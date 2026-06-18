@@ -164,13 +164,13 @@ export default function TeacherSettingsScreen() {
           <ChevronRight size={16} color="#0F172A" />
         </Pressable>
 
-        {/* ── 피드백 기본 설정 ── */}
+        {/* ── 일지 템플릿 ── */}
         <Pressable
           style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/feedback-custom?backTo=settings" as any)}
         >
           <Pencil size={18} color="#0F172A" />
-          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>피드백 기본 설정</Text>
+          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>일지 템플릿</Text>
           <ChevronRight size={16} color="#0F172A" />
         </Pressable>
 

@@ -422,9 +422,13 @@ function TemplatePicker({
   selectedLevelId: string | null; onSelectLevel: (id: string) => void;
   themeColor: string; onInsert: (text: string) => void; onClose: () => void;
 }) {
-  const filtered = selectedLevelId
-    ? templates.filter(t => t.level_id === selectedLevelId)
+  const globalFiltered = selectedLevelId
+    ? templates.filter(t => t.level_id === selectedLevelId && t.scope !== "teacher")
     : [];
+  const teacherFiltered = selectedLevelId
+    ? templates.filter(t => t.level_id === selectedLevelId && t.scope === "teacher")
+    : [];
+  const totalCount = globalFiltered.length + teacherFiltered.length;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -456,17 +460,35 @@ function TemplatePicker({
           )}
 
           <ScrollView style={tp.listScroll} contentContainerStyle={tp.listContent} keyboardShouldPersistTaps="handled">
-            {filtered.length === 0 ? (
+            {totalCount === 0 ? (
               <View style={tp.emptyBox}>
                 <Text style={tp.emptyText}>이 레벨에 등록된 템플릿이 없습니다.</Text>
               </View>
             ) : (
-              filtered.map(t => (
-                <Pressable key={t.id} style={tp.item} onPress={() => onInsert(t.template_text)}>
-                  {!!t.title && <Text style={tp.itemTitle} numberOfLines={1}>{t.title}</Text>}
-                  <Text style={tp.itemText} numberOfLines={3}>{t.template_text}</Text>
-                </Pressable>
-              ))
+              <>
+                {globalFiltered.length > 0 && (
+                  <>
+                    <Text style={tp.sectionLabel}>공통</Text>
+                    {globalFiltered.map(t => (
+                      <Pressable key={t.id} style={tp.item} onPress={() => onInsert(t.template_text)}>
+                        {!!t.title && <Text style={tp.itemTitle} numberOfLines={1}>{t.title}</Text>}
+                        <Text style={tp.itemText} numberOfLines={3}>{t.template_text}</Text>
+                      </Pressable>
+                    ))}
+                  </>
+                )}
+                {teacherFiltered.length > 0 && (
+                  <>
+                    <Text style={[tp.sectionLabel, { marginTop: globalFiltered.length > 0 ? 12 : 0 }]}>내 템플릿</Text>
+                    {teacherFiltered.map(t => (
+                      <Pressable key={t.id} style={[tp.item, tp.itemTeacher]} onPress={() => onInsert(t.template_text)}>
+                        {!!t.title && <Text style={[tp.itemTitle, { color: "#7C3AED" }]} numberOfLines={1}>{t.title}</Text>}
+                        <Text style={tp.itemText} numberOfLines={3}>{t.template_text}</Text>
+                      </Pressable>
+                    ))}
+                  </>
+                )}
+              </>
             )}
           </ScrollView>
         </View>
@@ -486,9 +508,11 @@ const tp = StyleSheet.create({
   tabText:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   listScroll:  { flexShrink: 1 },
   listContent: { padding: 12, gap: 8, paddingBottom: 24 },
-  emptyBox:    { paddingTop: 32, alignItems: "center" },
-  emptyText:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
-  item:        { borderRadius: 10, padding: 12, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E5E7EB", gap: 4 },
-  itemTitle:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
-  itemText:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
+  emptyBox:     { paddingTop: 32, alignItems: "center" },
+  emptyText:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  sectionLabel: { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#94A3B8", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 },
+  item:         { borderRadius: 10, padding: 12, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E5E7EB", gap: 4, marginBottom: 6 },
+  itemTeacher:  { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" },
+  itemTitle:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  itemText:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
 });

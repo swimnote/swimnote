@@ -1,470 +1,383 @@
 /**
- * (teacher)/feedback-custom.tsx — 피드백커스텀
+ * (teacher)/feedback-custom.tsx — 일지 템플릿 (선생님)
  *
- * 선생님 개인의 일지 자동완성 문장 세트를 관리하는 화면
- * - 카테고리 탭 (초급/중급/상급/커스텀) — 레벨별 고유 색상 적용
- * - 문장 추가/수정/삭제
- * - 카테고리 이름 수정
- * - 카테고리 초기화 / 전체 초기화
+ * 공통(global scope) 템플릿: 읽기 전용, 복사 가능
+ * 내 템플릿(teacher scope): 생성·수정·삭제 가능
+ * 레벨 구조는 관리자가 관리 — 선생님은 탭만 사용
  */
-import { Inbox, Info, PenLine, Plus, RefreshCcw, RotateCcw, Tag, Trash2 } from "lucide-react-native";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  FlatList, KeyboardAvoidingView, Modal, Platform,
+  ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Copy, Edit2, Lock, Plus, Trash2 } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
-import {
-  useFeedbackTemplates,
-  SentenceLevel,
-  FeedbackTemplate,
-  DEFAULT_LABELS,
-} from "@/context/FeedbackTemplateContext";
+import { apiRequest, useAuth } from "@/context/AuthContext";
+import { DiaryTemplateLevel, DiaryTemplate } from "@/components/teacher/diary/types";
 
 const C = Colors.light;
 
-const MAX_PER_CATEGORY = 100;
-
-const LEVEL_COLORS: Record<SentenceLevel, string> = {
-  beginner:     "#2E9B6F",
-  intermediate: "#4EA7D8",
-  advanced:     "#8B5CF6",
-  custom:       "#E4A93A",
-};
-
-const LEVEL_KEYS: SentenceLevel[] = ["beginner", "intermediate", "advanced", "custom"];
-
 export default function FeedbackCustomScreen() {
+  const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const {
-    templates, labels,
-    addTemplate, updateTemplate, deleteTemplate,
-    updateLabel, resetCategory, resetAll,
-  } = useFeedbackTemplates();
 
-  const [activeTab, setActiveTab] = useState<SentenceLevel>("beginner");
+  const [levels, setLevels] = useState<DiaryTemplateLevel[]>([]);
+  const [selectedLevelId, setSelectedLevelId] = useState<string | null>(null);
+  const [levelsLoading, setLevelsLoading] = useState(true);
 
-  /* ── 문장 추가 모달 ── */
-  const [addVisible, setAddVisible]   = useState(false);
-  const [addText,    setAddText]      = useState("");
-  const [addError,   setAddError]     = useState("");
+  const [templates, setTemplates] = useState<DiaryTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
 
-  /* ── 문장 수정 모달 ── */
-  const [editItem,    setEditItem]    = useState<FeedbackTemplate | null>(null);
-  const [editText,    setEditText]    = useState("");
-  const [editError,   setEditError]   = useState("");
+  const [addVisible, setAddVisible] = useState(false);
+  const [addTitle, setAddTitle] = useState("");
+  const [addText, setAddText] = useState("");
+  const [addError, setAddError] = useState("");
+  const [addSaving, setAddSaving] = useState(false);
 
-  /* ── 문장 삭제 확인 ── */
-  const [deleteTarget, setDeleteTarget] = useState<FeedbackTemplate | null>(null);
+  const [editTarget, setEditTarget] = useState<DiaryTemplate | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editText, setEditText] = useState("");
+  const [editError, setEditError] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
-  /* ── 카테고리 이름 수정 모달 ── */
-  const [labelVisible, setLabelVisible] = useState(false);
-  const [labelText,    setLabelText]    = useState("");
-  const [labelError,   setLabelError]   = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<DiaryTemplate | null>(null);
 
-  /* ── 카테고리 초기화 확인 ── */
-  const [resetCatVisible, setResetCatVisible] = useState(false);
+  const loadLevels = useCallback(async () => {
+    setLevelsLoading(true);
+    try {
+      const r = await apiRequest(token, "/diary-template-levels");
+      if (r.ok) {
+        const data: DiaryTemplateLevel[] = await r.json();
+        setLevels(data);
+        setSelectedLevelId(prev => {
+          if (prev && data.find(l => l.id === prev)) return prev;
+          return data[0]?.id ?? null;
+        });
+      }
+    } catch {}
+    finally { setLevelsLoading(false); }
+  }, [token]);
 
-  /* ── 전체 초기화 확인 ── */
-  const [resetAllVisible, setResetAllVisible] = useState(false);
+  const loadTemplates = useCallback(async (levelId: string) => {
+    setTemplatesLoading(true);
+    try {
+      const r = await apiRequest(token, `/diary-templates?level_id=${levelId}&include_inactive=true`);
+      if (r.ok) {
+        const data: DiaryTemplate[] = await r.json();
+        setTemplates([...data].sort((a, b) => a.sort_order - b.sort_order));
+      }
+    } catch {}
+    finally { setTemplatesLoading(false); }
+  }, [token]);
 
-  const activeColor = LEVEL_COLORS[activeTab];
-  const currentList = templates.filter(t => t.level === activeTab);
-  const currentCount = currentList.length;
-  const isFull = currentCount >= MAX_PER_CATEGORY;
+  useEffect(() => { loadLevels(); }, []);
+  useEffect(() => {
+    if (selectedLevelId) loadTemplates(selectedLevelId);
+    else setTemplates([]);
+  }, [selectedLevelId]);
 
-  /* ──────── 문장 추가 ──────── */
-  function openAdd() {
-    setAddText(""); setAddError(""); setAddVisible(true);
+  const globalTemplates = templates.filter(t => t.scope !== "teacher");
+  const teacherTemplates = templates.filter(t => t.scope === "teacher");
+
+  async function handleAdd() {
+    if (!addText.trim()) { setAddError("내용을 입력해주세요."); return; }
+    if (!selectedLevelId) return;
+    setAddSaving(true);
+    try {
+      const r = await apiRequest(token, "/diary-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          level_id: selectedLevelId,
+          title: addTitle.trim() || null,
+          template_text: addText.trim(),
+          sort_order: teacherTemplates.length,
+        }),
+      });
+      if (r.ok) {
+        setAddVisible(false); setAddTitle(""); setAddText(""); setAddError("");
+        await loadTemplates(selectedLevelId);
+      } else {
+        const err = await r.json();
+        setAddError(err.error || "추가에 실패했습니다.");
+      }
+    } catch { setAddError("서버 오류가 발생했습니다."); }
+    finally { setAddSaving(false); }
   }
-  function handleAdd() {
-    const t = addText.trim();
-    if (!t) { setAddError("문장을 입력해주세요."); return; }
-    if (t.length > 100) { setAddError("최대 100자까지 입력 가능합니다."); return; }
-    if (isFull) { setAddError(`카테고리당 최대 ${MAX_PER_CATEGORY}개까지 추가할 수 있습니다.`); return; }
-    addTemplate(activeTab, t);
-    setAddVisible(false);
+
+  async function handleCopy(t: DiaryTemplate) {
+    if (!selectedLevelId) return;
+    const r = await apiRequest(token, `/diary-templates/${t.id}/copy`, { method: "POST" }).catch(() => null);
+    if (r?.ok) await loadTemplates(selectedLevelId);
   }
 
-  /* ──────── 문장 수정 ──────── */
-  function openEdit(item: FeedbackTemplate) {
-    setEditItem(item); setEditText(item.template_text); setEditError(""); 
-  }
-  function handleEdit() {
-    if (!editItem) return;
-    const t = editText.trim();
-    if (!t) { setEditError("문장을 입력해주세요."); return; }
-    if (t.length > 100) { setEditError("최대 100자까지 입력 가능합니다."); return; }
-    updateTemplate(editItem.id, t);
-    setEditItem(null);
-  }
-
-  /* ──────── 문장 삭제 ──────── */
-  function handleDelete() {
-    if (!deleteTarget) return;
-    deleteTemplate(deleteTarget.id);
-    setDeleteTarget(null);
-  }
-
-  /* ──────── 카테고리 이름 수정 ──────── */
-  function openLabel() {
-    setLabelText(labels[activeTab]); setLabelError(""); setLabelVisible(true);
-  }
-  function handleLabelSave() {
-    const t = labelText.trim();
-    if (!t) { setLabelError("카테고리 이름을 입력해주세요."); return; }
-    if (t.length > 20) { setLabelError("최대 20자까지 입력 가능합니다."); return; }
-    updateLabel(activeTab, t);
-    setLabelVisible(false);
+  async function handleEditSave() {
+    if (!editTarget) return;
+    if (!editText.trim()) { setEditError("내용을 입력해주세요."); return; }
+    setEditSaving(true);
+    try {
+      const r = await apiRequest(token, `/diary-templates/${editTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editTitle.trim() || null,
+          template_text: editText.trim(),
+        }),
+      });
+      if (r.ok) {
+        setEditTarget(null); setEditTitle(""); setEditText(""); setEditError("");
+        if (selectedLevelId) await loadTemplates(selectedLevelId);
+      } else {
+        const err = await r.json();
+        setEditError(err.error || "수정에 실패했습니다.");
+      }
+    } catch { setEditError("서버 오류가 발생했습니다."); }
+    finally { setEditSaving(false); }
   }
 
-  /* ──────── 렌더 ──────── */
-  function renderItem({ item, index }: { item: FeedbackTemplate; index: number }) {
-    return (
-      <View style={[s.row, { backgroundColor: C.card }]}>
-        <View style={[s.rowIndex, { backgroundColor: activeColor + "18" }]}>
-          <Text style={[s.rowIndexText, { color: C.text }]}>{index + 1}</Text>
-        </View>
-        <Text style={[s.rowText, { color: C.text }]} numberOfLines={3}>{item.template_text}</Text>
-        <View style={s.rowActions}>
-          <Pressable style={[s.rowBtn, { backgroundColor: activeColor + "15" }]} onPress={() => openEdit(item)} hitSlop={6}>
-            <PenLine size={15} color={activeColor} />
-          </Pressable>
-          <Pressable style={[s.rowBtn, { backgroundColor: "#FEF2F2" }]} onPress={() => setDeleteTarget(item)} hitSlop={6}>
-            <Trash2 size={15} color="#D96C6C" />
-          </Pressable>
-        </View>
-      </View>
-    );
+  async function handleDelete(t: DiaryTemplate) {
+    if (!selectedLevelId) return;
+    await apiRequest(token, `/diary-templates/${t.id}`, { method: "DELETE" }).catch(() => null);
+    await loadTemplates(selectedLevelId);
   }
 
   return (
-    <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader
-        title="피드백 커스텀"
-        
-        homePath="/(teacher)/today-schedule"
-        rightSlot={
-          <Pressable style={s.resetAllBtn} onPress={() => setResetAllVisible(true)}>
-            <RefreshCcw size={13} color="#D96C6C" />
-            <Text style={s.resetAllBtnText}>전체 초기화</Text>
-          </Pressable>
-        }
-      />
+    <View style={{ flex: 1, backgroundColor: C.background }}>
+      <SubScreenHeader title="일지 템플릿" />
 
-      {/* 안내 문구 */}
-      <View style={[s.descBox, { backgroundColor: activeColor + "0D" }]}>
-        <Info size={13} color={activeColor} />
-        <Text style={[s.descText, { color: C.text }]}>
-          일지 작성 시 불러올 문장을 직접 수정하고 관리할 수 있습니다. 변경 내용은 즉시 반영됩니다.
-        </Text>
-      </View>
+      {levelsLoading ? (
+        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+      ) : levels.length === 0 ? (
+        <View style={s.emptyRoot}>
+          <Text style={s.emptyTitle}>레벨이 없습니다</Text>
+          <Text style={s.emptySubText}>관리자가 레벨을 등록하면 여기에 표시됩니다.</Text>
+        </View>
+      ) : (
+        <>
+          <ScrollView
+            horizontal showsHorizontalScrollIndicator={false}
+            style={s.tabScrollOuter} contentContainerStyle={s.tabRow}
+          >
+            {levels.map(lv => (
+              <Pressable
+                key={lv.id}
+                style={[s.tab, selectedLevelId === lv.id && s.tabActive]}
+                onPress={() => setSelectedLevelId(lv.id)}
+              >
+                <Text style={[s.tabText, selectedLevelId === lv.id && s.tabTextActive]}>
+                  {lv.level_name}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
 
-      {/* 카테고리 탭 */}
-      <View style={s.tabBar}>
-        {LEVEL_KEYS.map(key => {
-          const active = activeTab === key;
-          const color  = LEVEL_COLORS[key];
-          const cnt    = templates.filter(t => t.level === key).length;
-          return (
-            <Pressable
-              key={key}
-              style={[s.tabBtn, active && { backgroundColor: color, borderColor: color }]}
-              onPress={() => setActiveTab(key)}
+          {templatesLoading ? (
+            <ActivityIndicator color={C.tint} style={{ marginTop: 32 }} />
+          ) : (
+            <ScrollView
+              contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32 }}
+              showsVerticalScrollIndicator={false}
             >
-              <Text style={[s.tabText, { color: active ? "#fff" : C.textSecondary }]}>{labels[key]}</Text>
-              {cnt > 0 && (
-                <View style={[s.tabBadge, { backgroundColor: active ? "rgba(255,255,255,0.25)" : color + "20" }]}>
-                  <Text style={[s.tabBadgeText, { color: active ? "#fff" : color }]}>{cnt}</Text>
+              {globalTemplates.length > 0 && (
+                <View style={s.section}>
+                  <View style={s.sectionHeader}>
+                    <Lock size={11} color="#94A3B8" />
+                    <Text style={s.sectionLabel}>공통 (읽기 전용)</Text>
+                  </View>
+                  {globalTemplates.map(t => (
+                    <View key={t.id} style={s.templateItem}>
+                      <View style={s.templateBody}>
+                        {!!t.title && <Text style={s.templateTitleGlobal}>{t.title}</Text>}
+                        <Text style={s.templateText}>{t.template_text}</Text>
+                      </View>
+                      <Pressable
+                        style={s.iconBtn} hitSlop={8}
+                        onPress={() => handleCopy(t)}
+                      >
+                        <Copy size={15} color="#64748B" />
+                      </Pressable>
+                    </View>
+                  ))}
                 </View>
               )}
-            </Pressable>
-          );
-        })}
-      </View>
 
-      {/* 카테고리 컨트롤 */}
-      <View style={s.catControl}>
-        <Text style={[s.countText, { color: isFull ? "#D96C6C" : C.textSecondary }]}>
-          현재 {currentCount} / {MAX_PER_CATEGORY}
-        </Text>
-        <View style={s.catBtns}>
-          <Pressable style={[s.catBtn, { borderColor: activeColor + "50" }]} onPress={openLabel}>
-            <Tag size={13} color={activeColor} />
-            <Text style={[s.catBtnText, { color: C.text }]}>이름 변경</Text>
-          </Pressable>
-          <Pressable style={[s.catBtn, { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" }]} onPress={() => setResetCatVisible(true)}>
-            <RotateCcw size={13} color="#D96C6C" />
-            <Text style={[s.catBtnText, { color: "#D96C6C" }]}>초기화</Text>
-          </Pressable>
-        </View>
-      </View>
+              <View style={s.section}>
+                <View style={[s.sectionHeader, { justifyContent: "space-between" }]}>
+                  <Text style={s.sectionLabel}>내 템플릿</Text>
+                  <Pressable
+                    style={s.addBtn}
+                    onPress={() => { setAddTitle(""); setAddText(""); setAddError(""); setAddVisible(true); }}
+                  >
+                    <Plus size={12} color={C.tint} />
+                    <Text style={s.addBtnText}>추가</Text>
+                  </Pressable>
+                </View>
 
-      {/* 문장 리스트 */}
-      <FlatList
-        data={currentList}
-        keyExtractor={item => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 100 }]}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={s.emptyBox}>
-            <Inbox size={36} color={C.textMuted} />
-            <Text style={s.emptyText}>
-              {activeTab === "custom"
-                ? "문장을 추가해 보세요."
-                : "초기화하면 기본 문장이 복구됩니다."}
-            </Text>
-          </View>
-        }
+                {teacherTemplates.length === 0 ? (
+                  <View style={s.emptySection}>
+                    <Text style={s.emptySectionText}>아직 내 템플릿이 없습니다.</Text>
+                    <Text style={s.emptySectionSub}>공통 템플릿 복사 또는 직접 추가할 수 있습니다.</Text>
+                  </View>
+                ) : (
+                  teacherTemplates.map(t => (
+                    <View key={t.id} style={[s.templateItem, s.templateItemTeacher]}>
+                      <View style={s.templateBody}>
+                        {!!t.title && <Text style={s.templateTitleTeacher}>{t.title}</Text>}
+                        <Text style={s.templateText}>{t.template_text}</Text>
+                      </View>
+                      <View style={s.iconRow}>
+                        <Pressable
+                          style={s.iconBtn} hitSlop={8}
+                          onPress={() => {
+                            setEditTarget(t);
+                            setEditTitle(t.title || "");
+                            setEditText(t.template_text);
+                            setEditError("");
+                          }}
+                        >
+                          <Edit2 size={15} color="#64748B" />
+                        </Pressable>
+                        <Pressable style={s.iconBtn} hitSlop={8} onPress={() => setConfirmDelete(t)}>
+                          <Trash2 size={15} color="#DC2626" />
+                        </Pressable>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+            </ScrollView>
+          )}
+        </>
+      )}
+
+      <TemplateModal
+        visible={addVisible}
+        title="내 템플릿 추가"
+        titleValue={addTitle}
+        textValue={addText}
+        onTitleChange={setAddTitle}
+        onTextChange={setAddText}
+        error={addError}
+        saving={addSaving}
+        onClose={() => setAddVisible(false)}
+        onConfirm={handleAdd}
       />
 
-      {/* 문장 추가 버튼 */}
-      <View style={[s.addBtnWrap, { paddingBottom: insets.bottom + 16 }]}>
-        <Pressable
-          style={[s.addBtn, { backgroundColor: isFull ? "#64748B" : activeColor }]}
-          onPress={openAdd}
-          disabled={isFull}
-        >
-          <Plus size={18} color="#fff" />
-          <Text style={s.addBtnText}>문장 추가</Text>
-          {isFull && <Text style={[s.addBtnText, { fontSize: 11, opacity: 0.8 }]}>(최대 도달)</Text>}
-        </Pressable>
-      </View>
+      <TemplateModal
+        visible={!!editTarget}
+        title="템플릿 수정"
+        titleValue={editTitle}
+        textValue={editText}
+        onTitleChange={setEditTitle}
+        onTextChange={setEditText}
+        error={editError}
+        saving={editSaving}
+        onClose={() => setEditTarget(null)}
+        onConfirm={handleEditSave}
+      />
 
-      {/* ════ 문장 추가 모달 ════ */}
-      <Modal visible={addVisible} transparent animationType="slide" onRequestClose={() => setAddVisible(false)}>
-        <Pressable style={s.modalOverlay} onPress={() => setAddVisible(false)} />
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={s.modalKV}>
-          <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
-            <Text style={s.modalTitle}>문장 추가</Text>
-            <Text style={s.modalSub}>{labels[activeTab]} 카테고리에 추가됩니다.</Text>
-            <TextInput
-              style={[s.textInput, { borderColor: addError ? "#D96C6C" : C.border }]}
-              value={addText}
-              onChangeText={t => { setAddText(t); setAddError(""); }}
-              placeholder="문장을 입력하세요 (최대 100자)"
-              placeholderTextColor={C.textMuted}
-              multiline
-              maxLength={100}
-              autoFocus
-            />
-            <Text style={s.charCount}>{addText.length} / 100</Text>
-            {addError ? <Text style={s.errorText}>{addError}</Text> : null}
-            <View style={s.modalBtns}>
-              <Pressable style={[s.modalBtn, s.modalBtnCancel]} onPress={() => setAddVisible(false)}>
-                <Text style={s.modalBtnCancelText}>취소</Text>
-              </Pressable>
-              <Pressable style={[s.modalBtn, { backgroundColor: activeColor }]} onPress={handleAdd}>
-                <Text style={s.modalBtnText}>추가</Text>
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* ════ 문장 수정 모달 ════ */}
-      <Modal visible={editItem !== null} transparent animationType="slide" onRequestClose={() => setEditItem(null)}>
-        <Pressable style={s.modalOverlay} onPress={() => setEditItem(null)} />
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={s.modalKV}>
-          <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
-            <Text style={s.modalTitle}>문장 수정</Text>
-            <TextInput
-              style={[s.textInput, { borderColor: editError ? "#D96C6C" : C.border }]}
-              value={editText}
-              onChangeText={t => { setEditText(t); setEditError(""); }}
-              placeholder="문장을 입력하세요 (최대 100자)"
-              placeholderTextColor={C.textMuted}
-              multiline
-              maxLength={100}
-              autoFocus
-            />
-            <Text style={s.charCount}>{editText.length} / 100</Text>
-            {editError ? <Text style={s.errorText}>{editError}</Text> : null}
-            <View style={s.modalBtns}>
-              <Pressable style={[s.modalBtn, s.modalBtnCancel]} onPress={() => setEditItem(null)}>
-                <Text style={s.modalBtnCancelText}>취소</Text>
-              </Pressable>
-              <Pressable style={[s.modalBtn, { backgroundColor: activeColor }]} onPress={handleEdit}>
-                <Text style={s.modalBtnText}>저장</Text>
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* ════ 카테고리 이름 수정 모달 ════ */}
-      <Modal visible={labelVisible} transparent animationType="slide" onRequestClose={() => setLabelVisible(false)}>
-        <Pressable style={s.modalOverlay} onPress={() => setLabelVisible(false)} />
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={s.modalKV}>
-          <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
-            <Text style={s.modalTitle}>카테고리 이름 변경</Text>
-            <Text style={s.modalSub}>내부 분류 키는 변경되지 않으며, 표시 이름만 바뀝니다.</Text>
-            <TextInput
-              style={[s.textInput, { borderColor: labelError ? "#D96C6C" : C.border }]}
-              value={labelText}
-              onChangeText={t => { setLabelText(t); setLabelError(""); }}
-              placeholder="카테고리 이름 (최대 20자)"
-              placeholderTextColor={C.textMuted}
-              maxLength={20}
-              autoFocus
-            />
-            {labelError ? <Text style={s.errorText}>{labelError}</Text> : null}
-            <View style={s.modalBtns}>
-              <Pressable style={[s.modalBtn, s.modalBtnCancel]} onPress={() => setLabelVisible(false)}>
-                <Text style={s.modalBtnCancelText}>취소</Text>
-              </Pressable>
-              <Pressable style={[s.modalBtn, { backgroundColor: activeColor }]} onPress={handleLabelSave}>
-                <Text style={s.modalBtnText}>저장</Text>
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* ════ 문장 삭제 확인 ════ */}
       <ConfirmModal
-        visible={deleteTarget !== null}
-        title="문장 삭제"
-        message={`이 문장을 삭제하시겠습니까?\n\n"${deleteTarget?.template_text ?? ""}"`}
+        visible={!!confirmDelete}
+        title="템플릿 삭제"
+        message={"이 템플릿을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다."}
         confirmText="삭제"
         cancelText="취소"
-        destructive
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
+        onConfirm={async () => { if (confirmDelete) { await handleDelete(confirmDelete); setConfirmDelete(null); } }}
+        onCancel={() => setConfirmDelete(null)}
       />
+    </View>
+  );
+}
 
-      {/* ════ 카테고리 초기화 확인 ════ */}
-      <ConfirmModal
-        visible={resetCatVisible}
-        title={`${labels[activeTab]} 초기화`}
-        message={
-          activeTab === "custom"
-            ? `커스텀 카테고리의 모든 문장이 삭제됩니다.\n계속하시겠습니까?`
-            : `${labels[activeTab]} 카테고리를 기본 문장으로 되돌립니다.\n현재 수정 내용은 사라집니다.`
-        }
-        confirmText="초기화"
-        cancelText="취소"
-        destructive
-        onConfirm={() => { resetCategory(activeTab); setResetCatVisible(false); }}
-        onCancel={() => setResetCatVisible(false)}
-      />
-
-      {/* ════ 전체 초기화 확인 ════ */}
-      <ConfirmModal
-        visible={resetAllVisible}
-        title="전체 초기화"
-        message="현재 수정한 모든 피드백 문장이 삭제되고 기본값으로 복구됩니다.\n이 작업은 되돌릴 수 없습니다."
-        confirmText="전체 초기화"
-        cancelText="취소"
-        destructive
-        onConfirm={() => { resetAll(); setResetAllVisible(false); }}
-        onCancel={() => setResetAllVisible(false)}
-      />
-    </SafeAreaView>
+function TemplateModal({
+  visible, title, titleValue, textValue,
+  onTitleChange, onTextChange, error, saving, onClose, onConfirm,
+}: {
+  visible: boolean; title: string;
+  titleValue: string; textValue: string;
+  onTitleChange: (v: string) => void; onTextChange: (v: string) => void;
+  error: string; saving: boolean; onClose: () => void; onConfirm: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+        <Pressable style={m.overlay} onPress={onClose}>
+          <Pressable style={m.card} onPress={() => {}}>
+            <Text style={m.title}>{title}</Text>
+            <TextInput
+              style={m.input}
+              placeholder="제목 (선택)"
+              placeholderTextColor="#94A3B8"
+              value={titleValue}
+              onChangeText={onTitleChange}
+              maxLength={50}
+            />
+            <TextInput
+              style={[m.input, m.textarea]}
+              placeholder="템플릿 내용 *"
+              placeholderTextColor="#94A3B8"
+              value={textValue}
+              onChangeText={onTextChange}
+              multiline
+              maxLength={500}
+            />
+            {!!error && <Text style={m.error}>{error}</Text>}
+            <View style={m.btnRow}>
+              <Pressable style={m.cancelBtn} onPress={onClose} disabled={saving}>
+                <Text style={m.cancelBtnText}>취소</Text>
+              </Pressable>
+              <Pressable style={m.confirmBtn} onPress={onConfirm} disabled={saving}>
+                <Text style={m.confirmBtnText}>{saving ? "저장 중..." : "저장"}</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.background },
+  emptyRoot:           { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
+  emptyTitle:          { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#0F172A", marginBottom: 8 },
+  emptySubText:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8", textAlign: "center" },
+  tabScrollOuter:      { maxHeight: 52, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  tabRow:              { paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: "center" as const },
+  tab:                 { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: "#E2E8F0" },
+  tabActive:           { borderColor: Colors.light.tint, backgroundColor: Colors.light.tint + "15" },
+  tabText:             { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTextActive:       { color: Colors.light.tint, fontFamily: "Pretendard-SemiBold" },
+  section:             { marginBottom: 20 },
+  sectionHeader:       { flexDirection: "row" as const, alignItems: "center" as const, gap: 5, marginBottom: 10 },
+  sectionLabel:        { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: 0.5 },
+  addBtn:              { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: Colors.light.tint },
+  addBtnText:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: Colors.light.tint },
+  emptySection:        { paddingVertical: 20, paddingHorizontal: 12, borderRadius: 10, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E5E7EB", alignItems: "center" as const, gap: 4 },
+  emptySectionText:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  emptySectionSub:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#CBD5E1" },
+  templateItem:        { flexDirection: "row" as const, alignItems: "flex-start" as const, padding: 12, borderRadius: 10, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 8, gap: 8 },
+  templateItemTeacher: { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" },
+  templateBody:        { flex: 1, gap: 4 },
+  templateTitleGlobal: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: Colors.light.tint },
+  templateTitleTeacher:{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#7C3AED" },
+  templateText:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
+  iconBtn:             { padding: 4 },
+  iconRow:             { flexDirection: "row" as const, gap: 4 },
+});
 
-  resetAllBtn: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 8, borderWidth: 1, borderColor: "#FCA5A5", backgroundColor: "#FEF2F2",
-  },
-  resetAllBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
-
-  descBox: {
-    flexDirection: "row", alignItems: "flex-start", gap: 8,
-    marginHorizontal: 14, marginTop: 10, marginBottom: 4,
-    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
-  },
-  descText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
-
-  tabBar: {
-    flexDirection: "row", paddingHorizontal: 14, gap: 8, marginTop: 10, marginBottom: 4,
-  },
-  tabBtn: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 4, paddingVertical: 8, borderRadius: 12,
-    borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
-  },
-  tabText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  tabBadge: { borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 },
-  tabBadgeText: { fontSize: 10, fontFamily: "Pretendard-Regular" },
-
-  catControl: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: C.border,
-  },
-  countText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  catBtns: { flexDirection: "row", gap: 8 },
-  catBtn: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
-    borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
-  },
-  catBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-
-  listContent: { paddingHorizontal: 14, paddingTop: 8, gap: 8 },
-
-  row: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    borderRadius: 12, paddingVertical: 12, paddingHorizontal: 12,
-  },
-  rowIndex: {
-    width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center",
-    flexShrink: 0,
-  },
-  rowIndexText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  rowText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 19 },
-  rowActions: { flexDirection: "row", gap: 6, flexShrink: 0 },
-  rowBtn: {
-    width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center",
-  },
-
-  emptyBox: { alignItems: "center", justifyContent: "center", paddingVertical: 60, gap: 10 },
-  emptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center" },
-
-  addBtnWrap: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
-    paddingHorizontal: 14, paddingTop: 10,
-    backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: C.border,
-  },
-  addBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    height: 50, borderRadius: 14,
-  },
-  addBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
-
-  /* 모달 공통 */
-  modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
-  modalKV:  { flex: 1, justifyContent: "flex-end" },
-  modalBox: {
-    backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    paddingHorizontal: 20, paddingTop: 20, gap: 12,
-  },
-  modalTitle: { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
-  modalSub:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -4 },
-  textInput: {
-    borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text,
-    minHeight: 80, textAlignVertical: "top",
-    backgroundColor: C.background,
-  },
-  charCount: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "right", marginTop: -6 },
-  errorText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
-  modalBtns: { flexDirection: "row", gap: 10, marginTop: 4 },
-  modalBtn: {
-    flex: 1, height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center",
-  },
-  modalBtnCancel: { borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
-  modalBtnCancelText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  modalBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
+const m = StyleSheet.create({
+  overlay:        { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", padding: 24 },
+  card:           { backgroundColor: "#fff", borderRadius: 16, padding: 20, gap: 12 },
+  title:          { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  input:          { borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  textarea:       { minHeight: 100, textAlignVertical: "top" },
+  error:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#DC2626" },
+  btnRow:         { flexDirection: "row", gap: 10, marginTop: 4 },
+  cancelBtn:      { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1.5, borderColor: "#E2E8F0", alignItems: "center" },
+  cancelBtnText:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  confirmBtn:     { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: Colors.light.tint, alignItems: "center" },
+  confirmBtnText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });
