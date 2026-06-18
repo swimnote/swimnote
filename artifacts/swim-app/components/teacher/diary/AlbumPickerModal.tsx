@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Dimensions, FlatList, Image, Modal,
+  ActivityIndicator, Dimensions, FlatList, Modal,
   Pressable, StyleSheet, Text, View,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { CheckCircle2, X } from "lucide-react-native";
 import { AlbumPhotoInfo, API_BASE } from "./types";
 
 const SCREEN_W = Dimensions.get("window").width;
 const ITEM_SIZE = Math.floor((SCREEN_W - 4 * 4) / 3);
+const BASE_ORIGIN = API_BASE.replace(/\/api$/, "");
 
 interface Props {
   visible: boolean;
@@ -48,12 +50,13 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
 
   const renderItem = ({ item }: { item: AlbumPhotoInfo }) => {
     const isSelected = selected.has(item.id);
+    const imageUri = `${BASE_ORIGIN}${item.file_url}`;
     return (
       <Pressable onPress={() => toggle(item.id)} style={[s.item, isSelected && s.itemSelected]}>
-        <Image
-          source={{ uri: `${API_BASE}${item.file_url}`, headers: { Authorization: `Bearer ${token}` } } as any}
+        <ExpoImage
+          source={{ uri: imageUri, headers: { Authorization: `Bearer ${token}` } }}
           style={s.image}
-          resizeMode="cover"
+          contentFit="cover"
         />
         {isSelected && (
           <View style={s.checkOverlay}>

@@ -1,9 +1,10 @@
 import { BookOpen, Calendar, CircleAlert, CirclePlus, CircleX, Images, Layers, Save, Trash2, User, Users } from "lucide-react-native";
 import React, { MutableRefObject } from "react";
 import {
-  ActivityIndicator, Image as RNImage, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
 import { AlbumPhotoInfo, API_BASE, DiaryEntry, ExistingNote, StudentNote, StudentOption } from "./types";
@@ -111,10 +112,10 @@ export default function DiaryEditView({
                   <View style={s.albumPreviewRow}>
                     {linkedPhotos.map(photo => (
                       <View key={photo.id} style={s.albumThumb}>
-                        <RNImage
-                          source={{ uri: `${API_BASE}${photo.file_url}`, headers: { Authorization: `Bearer ${token}` } } as any}
+                        <ExpoImage
+                          source={{ uri: `${API_BASE.replace(/\/api$/, "")}${photo.file_url}`, headers: { Authorization: `Bearer ${token}` } }}
                           style={{ width: "100%", height: "100%", borderRadius: 6 }}
-                          resizeMode="cover"
+                          contentFit="cover"
                         />
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveLinkedPhoto(photo.id)} hitSlop={6}>
                           <CircleX size={16} color="#fff" fill="#DC2626" />
@@ -130,10 +131,10 @@ export default function DiaryEditView({
                   <View style={s.albumPreviewRow}>
                     {newAlbumPhotos.map(photo => (
                       <View key={photo.id} style={s.albumThumb}>
-                        <RNImage
-                          source={{ uri: `${API_BASE}${photo.file_url}`, headers: { Authorization: `Bearer ${token}` } } as any}
+                        <ExpoImage
+                          source={{ uri: `${API_BASE.replace(/\/api$/, "")}${photo.file_url}`, headers: { Authorization: `Bearer ${token}` } }}
                           style={{ width: "100%", height: "100%", borderRadius: 6 }}
-                          resizeMode="cover"
+                          contentFit="cover"
                         />
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveNewAlbumPhoto(photo.id)} hitSlop={6}>
                           <CircleX size={16} color="#fff" fill="#374151" />

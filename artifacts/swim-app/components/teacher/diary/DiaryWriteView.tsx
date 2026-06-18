@@ -2,9 +2,10 @@ import { BookOpen, CircleAlert, CirclePlus, CircleX, Images, Image, Save, User, 
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { MutableRefObject } from "react";
 import {
-  ActivityIndicator, Image as RNImage, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
 import { AlbumPhotoInfo, API_BASE, DiaryTemplate, StudentNote, StudentOption, UploadedMedia } from "./types";
@@ -144,10 +145,10 @@ export default function DiaryWriteView({
               <View style={s.albumPreviewRow}>
                 {selectedAlbumPhotos.map(photo => (
                   <View key={photo.id} style={s.albumThumb}>
-                    <RNImage
-                      source={{ uri: `${API_BASE}${photo.file_url}`, headers: { Authorization: `Bearer ${token}` } } as any}
+                    <ExpoImage
+                      source={{ uri: `${API_BASE.replace(/\/api$/, "")}${photo.file_url}`, headers: { Authorization: `Bearer ${token}` } }}
                       style={{ width: "100%", height: "100%", borderRadius: 6 }}
-                      resizeMode="cover"
+                      contentFit="cover"
                     />
                     <Pressable style={s.albumThumbRemove} onPress={() => onRemoveAlbumPhoto(photo.id)} hitSlop={6}>
                       <CircleX size={16} color="#fff" fill="#374151" />
