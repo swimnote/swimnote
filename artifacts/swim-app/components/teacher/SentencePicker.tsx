@@ -87,7 +87,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [visible, authToken]);
+  }, [visible, token]);
 
   /* ── 표시할 문장 목록 ── */
   const displayList = useMemo<DiaryTemplate[]>(() => {
