@@ -557,11 +557,11 @@ export default function TeacherPhotosScreen() {
             <View style={s.limitCardBody}>
               <View style={s.limitRow}>
                 <LucideIcon name="image" size={13} color="#E4A93A" />
-                <Text style={s.limitText}>사진: 1장 최대 <Text style={{ color: "#0F172A" }}>10MB</Text> · 최대 <Text style={{ color: "#0F172A" }}>20장</Text> 동시 업로드</Text>
+                <Text style={s.limitText}>사진: 1장 최대 <Text style={{ color: "#0F172A" }}>8MB</Text> · 최대 <Text style={{ color: "#0F172A" }}>20장</Text> 동시 업로드</Text>
               </View>
               <View style={s.limitRow}>
                 <LucideIcon name="video" size={13} color="#2EC4B6" />
-                <Text style={s.limitText}>영상: 1개 최대 <Text style={{ color: "#0F172A" }}>500MB</Text> · <Text style={{ color: "#7C3AED" }}>프리미어 플랜</Text> 이상만 사용 가능</Text>
+                <Text style={s.limitText}>영상: 1개 최대 <Text style={{ color: "#0F172A" }}>100MB</Text> · <Text style={{ color: "#7C3AED" }}>프리미어 플랜</Text> 이상만 사용 가능</Text>
               </View>
               <View style={s.limitRow}>
                 <LucideIcon name="users" size={13} color="#94A3B8" />
