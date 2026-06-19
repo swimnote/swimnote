@@ -329,7 +329,7 @@ export default function DiaryWriteView({
         onSelectLevel={setPickerLevelId}
         themeColor={themeColor}
         onInsert={(text) => {
-          setCommonContent(commonContent.trim() ? `${commonContent.trim()}\n${text}` : text);
+          setCommonContent(commonContent.trim() ? `${commonContent.trim()}\n\n${text}` : text);
           setShowTemplatePicker(false);
         }}
         onClose={() => setShowTemplatePicker(false)}
