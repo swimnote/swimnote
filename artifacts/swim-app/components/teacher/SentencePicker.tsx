@@ -55,7 +55,7 @@ interface Props {
 }
 
 export default function SentencePicker({ visible, onClose, onInsert }: Props) {
-  const { authToken } = useAuth();
+  const { token } = useAuth();
 
   const [levels, setLevels] = useState<DiaryLevel[]>([]);
   const [templates, setTemplates] = useState<DiaryTemplate[]>([]);
@@ -67,10 +67,10 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
 
   /* ── 데이터 로드 ── */
   useEffect(() => {
-    if (!visible || !authToken) return;
+    if (!visible || !token) return;
 
     setLoading(true);
-    const headers = { Authorization: `Bearer ${authToken}` };
+    const headers = { Authorization: `Bearer ${token}` };
 
     Promise.all([
       fetch(`${API_BASE}/diary-template-levels`, { headers }).then(r => r.json()),

@@ -175,7 +175,7 @@ export default function TeacherDiaryScreen() {
 
   async function openGroup(group: TeacherClassGroup) {
     setSelectedGroup(group); setSubView("write"); setCommonContent(""); setStudentNotes([]);
-    setShowTemplates(false); setGroupMedia([]); setStudentMedia({}); setHasDraft(false);
+    setGroupMedia([]); setStudentMedia({}); setHasDraft(false);
     setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
     loadTemplates(); loadClassStudents(group.id); loadDiaries(group.id);
     try {
