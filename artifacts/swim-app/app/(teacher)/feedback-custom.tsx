@@ -462,7 +462,7 @@ const s = StyleSheet.create({
   hintRow:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingBottom: 6 },
   hintText:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
 
-  listContent:  { paddingHorizontal: 16, paddingTop: 4, gap: 8 },
+  listContent:  { paddingHorizontal: 16, paddingTop: 4, gap: 14 },
 
   card:           { backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
   cardOverridden: { backgroundColor: "#FFF8EC", borderColor: "#FCD34D" },
