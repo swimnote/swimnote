@@ -1103,11 +1103,22 @@ router.get("/students/:id/home-summary", requireAuth, requireParent, async (req:
     let latestPhotos: any[] = [];
     if (student?.class_group_id) {
       const rows = await db.execute(sql`
-        SELECT id, caption, created_at, '/api/photos/' || id || '/file' AS file_url, album_type,
+        SELECT id, caption, created_at,
+               '/api/photos/' || id || '/file' AS file_url, album_type,
                CASE WHEN ${photoRead?.last_read_at ?? null}::timestamptz IS NULL OR created_at > ${photoRead?.last_read_at ?? null}::timestamptz THEN true ELSE false END AS is_new
-        FROM photo_assets_meta
-        WHERE class_id = ${student.class_group_id} OR student_id = ${req.params.id}
-        ORDER BY created_at DESC LIMIT 4
+        FROM (
+          SELECT sp.id, sp.caption, sp.created_at, sp.album_type
+          FROM photo_assets_meta sp
+          WHERE sp.class_id = ${student.class_group_id} OR sp.student_id = ${req.params.id}
+          UNION
+          SELECT sp.id, sp.caption, sp.created_at, sp.album_type
+          FROM photo_assets_meta sp
+          JOIN class_diaries cd ON cd.id = sp.journal_id
+          WHERE cd.class_group_id = ${student.class_group_id}
+            AND sp.journal_id IS NOT NULL
+        ) sub
+        ORDER BY created_at DESC
+        LIMIT 4
       `);
       latestPhotos = rows.rows as any[];
     }
