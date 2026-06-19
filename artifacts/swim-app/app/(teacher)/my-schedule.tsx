@@ -7,7 +7,7 @@ import { BookOpen, ChevronRight, Pencil, Plus, SquareCheck, Trash2, Users } from
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Modal,
+  ActivityIndicator, Alert, FlatList, Modal,
   Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -107,15 +107,21 @@ export default function MyScheduleScreen() {
 
   const handleDeleteClass = useCallback(async () => {
     if (!deletingClass) return;
+    setShowDeleteClassConfirm(false);
+    const target = deletingClass;
+    setDeletingClass(null);
+    setSelectedGroup(null);
     try {
-      const res = await apiRequest(token, `/class-groups/${deletingClass.id}`, { method: "DELETE" });
+      const res = await apiRequest(token, `/class-groups/${target.id}`, { method: "DELETE" });
       if (res.ok) {
-        setSelectedGroup(null);
-        setDeletingClass(null);
-        setShowDeleteClassConfirm(false);
         load();
+      } else {
+        const body = await res.json().catch(() => ({}));
+        Alert.alert("삭제 실패", body?.error ?? "반 삭제 중 오류가 발생했습니다.");
       }
-    } catch {}
+    } catch (e: any) {
+      Alert.alert("오류", "반 삭제 중 오류가 발생했습니다.");
+    }
   }, [token, deletingClass, load]);
 
   useEffect(() => {
