@@ -510,12 +510,12 @@ export default function TeacherPhotosScreen() {
     const HOME_TILES: {
       key: string; mt: MediaType; sc: AlbumScope;
       icon: string; title: string; sub: string;
-      color: string; bg: string; isPremier: boolean; isUpload: boolean;
+      color: string; bg: string; isPremier: boolean;
     }[] = [
-      { key: "photo_upload",   mt: "photo", sc: "group",   icon: "cloud-upload", title: "전체사진 업로드", sub: "전체 학생에게 공유",    color: "#E4A93A", bg: "#FFF8E6", isPremier: false, isUpload: true },
-      { key: "video_upload",   mt: "video", sc: "group",   icon: "cloud-upload", title: "전체영상 업로드", sub: "전체 학생에게 공유",    color: "#2EC4B6", bg: "#E6FFFA", isPremier: true,  isUpload: true },
-      { key: "photo_album",    mt: "photo", sc: "private", icon: "image",        title: "내사진앨범",     sub: "내가 올린 개인 사진",   color: "#F97316", bg: "#FFF4EE", isPremier: false, isUpload: false },
-      { key: "video_album",    mt: "video", sc: "private", icon: "video",        title: "내영상앨범",     sub: "내가 올린 개인 영상",   color: "#7C3AED", bg: "#F3EEFF", isPremier: true,  isUpload: false },
+      { key: "photo_upload",   mt: "photo", sc: "group",   icon: "upload-cloud", title: "전체사진 업로드", sub: "전체 학생에게 공유",    color: "#E4A93A", bg: "#FFF8E6", isPremier: false },
+      { key: "video_upload",   mt: "video", sc: "group",   icon: "upload-cloud", title: "전체영상 업로드", sub: "전체 학생에게 공유",    color: "#2EC4B6", bg: "#E6FFFA", isPremier: true  },
+      { key: "photo_album",    mt: "photo", sc: "private", icon: "image",        title: "내사진앨범",     sub: "내가 올린 개인 사진",   color: "#F97316", bg: "#FFF4EE", isPremier: false },
+      { key: "video_album",    mt: "video", sc: "private", icon: "video",        title: "내영상앨범",     sub: "내가 올린 개인 영상",   color: "#7C3AED", bg: "#F3EEFF", isPremier: true  },
     ];
 
     return (
@@ -530,7 +530,7 @@ export default function TeacherPhotosScreen() {
               <Pressable
                 key={tile.key}
                 style={[s.gridBtn, { backgroundColor: tile.bg, borderColor: tile.color + "40" }]}
-                onPress={() => tile.isUpload ? handleTileUpload(tile.mt, tile.sc) : openList(tile.mt, tile.sc)}
+                onPress={() => openList(tile.mt, tile.sc)}
                 accessibilityRole="button"
                 accessibilityLabel={tile.title}
               >
