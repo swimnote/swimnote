@@ -196,12 +196,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
 
           {/* 레벨 탭 (검색 중 숨김) */}
           {!isSearching && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={s.tabScroll}
-              contentContainerStyle={s.tabBar}
-            >
+            <View style={s.tabBar}>
               {levels.map(lv => (
                 <TouchableOpacity
                   key={lv.id}
@@ -212,7 +207,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                   <Text style={[s.tabText, activeLevelId === lv.id && { color: "#fff" }]}>{lv.level_name}</Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </View>
           )}
 
           {isSearching && (
@@ -346,14 +341,16 @@ const s = StyleSheet.create({
     marginHorizontal: 16, marginBottom: 8,
   },
 
-  tabScroll: { flexGrow: 0, marginBottom: 10 },
-  tabBar: { paddingHorizontal: 16, gap: 8, flexDirection: "row" },
+  tabBar: {
+    flexDirection: "row", flexWrap: "wrap",
+    paddingHorizontal: 16, paddingBottom: 10, gap: 6,
+  },
   tabBtn: {
     alignItems: "center", justifyContent: "center",
-    paddingVertical: 9, paddingHorizontal: 16,
-    borderRadius: 12, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
+    paddingVertical: 6, paddingHorizontal: 12,
+    borderRadius: 11, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
-  tabText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  tabText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   loadingBox: { alignItems: "center", justifyContent: "center", paddingVertical: 32, gap: 8 },
   loadingText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" },

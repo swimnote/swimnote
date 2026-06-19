@@ -199,7 +199,7 @@ export default function FeedbackCustomScreen() {
         </View>
       ) : (
         <>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabScroll} contentContainerStyle={s.tabRow}>
+          <View style={s.tabRow}>
             {levels.map(lv => (
               <Pressable
                 key={lv.id}
@@ -209,7 +209,7 @@ export default function FeedbackCustomScreen() {
                 <Text style={[s.tabText, selectedLevelId === lv.id && s.tabTextActive]}>{lv.level_name}</Text>
               </Pressable>
             ))}
-          </ScrollView>
+          </View>
 
           {/* 안내 문구 */}
           <View style={s.hintRow}>
@@ -452,11 +452,10 @@ export default function FeedbackCustomScreen() {
 }
 
 const s = StyleSheet.create({
-  tabScroll:    { flexGrow: 0, flexShrink: 0 },
-  tabRow:       { paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: "center" },
-  tab:          { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, borderWidth: 1.5, borderColor: "#E2E8F0" },
+  tabRow:       { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingVertical: 10, gap: 6 },
+  tab:          { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14, borderWidth: 1.5, borderColor: "#E2E8F0" },
   tabActive:    { backgroundColor: "#2EC4B620", borderColor: "#2EC4B6" },
-  tabText:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabText:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   tabTextActive:{ color: "#2EC4B6", fontFamily: "Pretendard-SemiBold" },
 
   hintRow:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingBottom: 6 },
