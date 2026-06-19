@@ -313,6 +313,7 @@ export default function MyScheduleScreen() {
     const otherGroups = groups.filter(og => og.id !== g.id);
 
     return (
+      <>
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader title={g.name} subtitle={`${g.schedule_days} · ${g.schedule_time}`}
           onBack={() => setSelectedGroup(null)} homePath="/(teacher)/today-schedule"
@@ -444,6 +445,12 @@ export default function MyScheduleScreen() {
           </View>
         </Modal>
       </SafeAreaView>
+      <ConfirmModal visible={showDeleteClassConfirm} title="반 삭제"
+        message={`이 반을 삭제하면 다음 주부터 시간표에서 사라집니다.\n현재 소속 회원은 미배정으로 이동하며,\n기존 수업 기록과 일지는 유지됩니다.`}
+        confirmText="반 삭제" cancelText="취소" destructive
+        onConfirm={handleDeleteClass}
+        onCancel={() => { setShowDeleteClassConfirm(false); setDeletingClass(null); }} />
+      </>
     );
   }
 
