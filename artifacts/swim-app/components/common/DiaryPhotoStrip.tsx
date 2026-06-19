@@ -114,22 +114,25 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
         return;
       }
 
-      // presigned_url 우선, 없으면 서버 스트리밍 URL (token 쿼리)
-      let url = video.presigned_url ?? "";
-      if (!url) {
-        const raw = video.file_url ?? "";
-        url = raw.startsWith("http")
-          ? raw
-          : `${BASE_ORIGIN}${raw}${token ? `?token=${token}` : ""}`;
-      }
+      // 서버 /file 엔드포인트는 302 redirect → FileSystem이 못 따라감.
+      // fetch(redirect:'follow')로 실제 R2 URL을 먼저 resolve한다.
+      const raw = video.file_url ?? "";
+      const serverUrl = raw.startsWith("http")
+        ? raw
+        : `${BASE_ORIGIN}${raw}`;
 
-      const ext = url.split("?")[0].split(".").pop()?.toLowerCase() ?? "mp4";
+      const resolved = await fetch(serverUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+        redirect: "follow",
+      });
+      const finalUrl = resolved.url; // 리다이렉트 후 실제 R2 URL
+      if (!finalUrl) throw new Error("URL 확인 실패");
+
+      const ext = finalUrl.split("?")[0].split(".").pop()?.toLowerCase() ?? "mp4";
       const localPath = FileSystem.cacheDirectory + `diary_video_${video.id}.${ext}`;
 
-      const dl = await FileSystem.downloadAsync(url, localPath, {
-        headers: token && !video.presigned_url ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (dl.status !== 200) throw new Error("다운로드 실패");
+      const dl = await FileSystem.downloadAsync(finalUrl, localPath);
+      if (dl.status !== 200) throw new Error(`다운로드 실패 (${dl.status})`);
 
       await MediaLibrary.saveToLibraryAsync(dl.uri);
 

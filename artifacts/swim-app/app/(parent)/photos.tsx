@@ -160,18 +160,28 @@ export default function ParentAlbumScreen() {
     if (status !== "granted") { Alert.alert("권한 필요", "갤러리 접근 권한이 필요합니다."); return; }
     setVdSaving(true);
     try {
-      const rawUrl = (item as any).presigned_url ?? item.file_url ?? "";
-      const url = rawUrl.startsWith("http")
-        ? rawUrl
-        : `${API_BASE.replace(/\/api$/, "")}${rawUrl}`;
-      const ext = url.split("?")[0].split(".").pop()?.toLowerCase() ?? "mp4";
-      const localUri = `${FileSystem.documentDirectory}swim_video_${item.id}.${ext}`;
-      await FileSystem.downloadAsync(url, localUri, {
-        headers: rawUrl.startsWith("http") ? {} : { Authorization: `Bearer ${token}` },
+      const BASE_ORIGIN = API_BASE.replace(/\/api$/, "");
+      const raw = item.file_url ?? "";
+      const serverUrl = raw.startsWith("http") ? raw : `${BASE_ORIGIN}${raw}`;
+
+      // /file 엔드포인트는 302 redirect → fetch로 실제 R2 URL을 먼저 resolve
+      const resolved = await fetch(serverUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+        redirect: "follow",
       });
-      await MediaLibrary.saveToLibraryAsync(localUri);
+      const finalUrl = resolved.url;
+      if (!finalUrl) throw new Error("URL 확인 실패");
+
+      const ext = finalUrl.split("?")[0].split(".").pop()?.toLowerCase() ?? "mp4";
+      const localUri = `${FileSystem.documentDirectory}swim_video_${item.id}.${ext}`;
+      const dl = await FileSystem.downloadAsync(finalUrl, localUri);
+      if (dl.status !== 200) throw new Error(`다운로드 실패 (${dl.status})`);
+      await MediaLibrary.saveToLibraryAsync(dl.uri);
       Alert.alert("저장 완료", "영상이 갤러리에 저장됐습니다.");
-    } catch { Alert.alert("오류", "저장 중 오류가 발생했습니다."); }
+    } catch (e: any) {
+      console.warn("[ParentAlbum] video download error:", e);
+      Alert.alert("오류", "저장 중 오류가 발생했습니다.");
+    }
     finally { setVdSaving(false); }
   }
 

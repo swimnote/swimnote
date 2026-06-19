@@ -1,2 +1,3 @@
 - [API_BASE 소스 규칙](api-base-source.md) — 실기기에서 /api fallback 사용 금지; 반드시 AuthContext에서 import
 - [서버 핫리로드 실패 패턴](server-hotreload.md) — tsx watch가 라우트 변경을 놓칠 때 404 발생; 재시작으로 해결
+- [영상 다운로드 302 리다이렉트 패턴](video-download-redirect.md) — FileSystem.downloadAsync는 302 불가; fetch로 URL resolve 후 다운로드
