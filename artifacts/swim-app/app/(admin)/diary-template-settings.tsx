@@ -494,7 +494,7 @@ export default function DiaryTemplateSettingsScreen() {
       <ConfirmModal
         visible={confirmRestoreDefault}
         title="SwimNote 기본 템플릿 복원"
-        message={"현재 공통 템플릿이 모두 삭제되고\nSwimNote 기본 템플릿(초급·중급·상급)으로\n복원됩니다.\n\n선생님 개인 템플릿은 유지됩니다.\n이 작업은 되돌릴 수 없습니다."}
+        message={"기본 템플릿으로 복원합니다.\n\n이 작업은 되돌릴 수 없습니다."}
         confirmText="복원"
         cancelText="취소"
         onConfirm={async () => { await handleRestoreDefault(); setConfirmRestoreDefault(false); }}
@@ -504,7 +504,7 @@ export default function DiaryTemplateSettingsScreen() {
       <ConfirmModal
         visible={confirmClearAll}
         title="전체 초기화"
-        message={"레벨 구조는 유지되고\n모든 공통 템플릿이 삭제됩니다.\n\n선생님 개인 템플릿은 유지됩니다.\n이 작업은 되돌릴 수 없습니다."}
+        message={"레벨 구조는 유지되고\n모든 템플릿이 삭제됩니다.\n\n이 작업은 되돌릴 수 없습니다."}
         confirmText="초기화"
         cancelText="취소"
         onConfirm={async () => { await handleClearAll(); setConfirmClearAll(false); }}
