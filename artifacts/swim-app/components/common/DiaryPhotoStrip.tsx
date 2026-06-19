@@ -9,8 +9,8 @@ import * as MediaLibrary from "expo-media-library";
 import { Image } from "expo-image";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, Modal, Pressable,
-  ScrollView, StyleSheet, Text, ToastAndroid, View, Platform,
+  ActivityIndicator, Alert, Modal, Platform, Pressable,
+  ScrollView, StyleSheet, Text, ToastAndroid, View,
 } from "react-native";
 import { Download, ImageIcon, Play, X } from "lucide-react-native";
 import { apiRequest, API_BASE } from "@/context/AuthContext";
@@ -45,7 +45,9 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewPhoto, setViewPhoto] = useState<Photo | null>(null);
+  const [viewVideo, setViewVideo] = useState<VideoItem | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingVideo, setDownloadingVideo] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,6 +75,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
 
   useEffect(() => { load(); }, [load]);
 
+  // ── 사진 다운로드 ────────────────────────────────────────────────────
   async function downloadPhoto(photo: Photo) {
     if (downloading) return;
     setDownloading(true);
@@ -100,6 +103,50 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
     }
   }
 
+  // ── 영상 다운로드 ────────────────────────────────────────────────────
+  async function downloadVideo(video: VideoItem) {
+    if (downloadingVideo) return;
+    setDownloadingVideo(true);
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("권한 필요", "영상 저장을 위해 갤러리 접근 권한이 필요합니다.");
+        return;
+      }
+
+      // presigned_url 우선, 없으면 서버 스트리밍 URL (token 쿼리)
+      let url = video.presigned_url ?? "";
+      if (!url) {
+        const raw = video.file_url ?? "";
+        url = raw.startsWith("http")
+          ? raw
+          : `${BASE_ORIGIN}${raw}${token ? `?token=${token}` : ""}`;
+      }
+
+      const ext = url.split("?")[0].split(".").pop()?.toLowerCase() ?? "mp4";
+      const localPath = FileSystem.cacheDirectory + `diary_video_${video.id}.${ext}`;
+
+      const dl = await FileSystem.downloadAsync(url, localPath, {
+        headers: token && !video.presigned_url ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (dl.status !== 200) throw new Error("다운로드 실패");
+
+      await MediaLibrary.saveToLibraryAsync(dl.uri);
+
+      if (Platform.OS === "android") {
+        ToastAndroid.show("영상이 갤러리에 저장되었습니다 🎥", ToastAndroid.SHORT);
+      } else {
+        Alert.alert("저장 완료", "영상이 갤러리에 저장되었습니다.");
+      }
+    } catch (e: any) {
+      console.warn("[DiaryPhotoStrip] video download error:", e);
+      Alert.alert("오류", "영상 저장에 실패했습니다.");
+    } finally {
+      setDownloadingVideo(false);
+    }
+  }
+
+  // ── URL 헬퍼 ────────────────────────────────────────────────────────
   const thumbUrl = (photo: Photo) => {
     const url = photo.presigned_url ?? photo.file_url ?? "";
     if (url.startsWith("http")) return url;
@@ -167,11 +214,15 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
           </Pressable>
         ))}
 
-        {/* 영상 썸네일 */}
+        {/* 영상 썸네일 — 탭하면 모달 */}
         {videos.map((video) => {
           const tn = videoThumbUrl(video);
           return (
-            <View key={video.id} style={[s.thumb, s.videoThumb]}>
+            <Pressable
+              key={video.id}
+              style={({ pressed }) => [s.thumb, s.videoThumb, pressed && { opacity: 0.85 }]}
+              onPress={() => setViewVideo(video)}
+            >
               {tn ? (
                 <Image source={{ uri: tn }} style={s.thumbImg} contentFit="cover" />
               ) : (
@@ -180,15 +231,19 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
               <View style={s.videoPlayOverlay}>
                 <Play size={22} color="#fff" fill="#fff" />
               </View>
+              {/* 다운로드 아이콘 오버레이 */}
+              <View style={s.downloadOverlay}>
+                <Download size={14} color="#fff" />
+              </View>
               <View style={s.videoBadge}>
                 <Play size={8} color="#fff" />
               </View>
-            </View>
+            </Pressable>
           );
         })}
       </ScrollView>
 
-      {/* 사진 전체화면 모달 */}
+      {/* ── 사진 전체화면 모달 ── */}
       <Modal
         visible={!!viewPhoto}
         transparent
@@ -219,6 +274,58 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
                     {downloading ? "저장 중..." : "갤러리에 저장"}
                   </Text>
                 </Pressable>
+              </>
+            )}
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* ── 영상 전체화면 모달 ── */}
+      <Modal
+        visible={!!viewVideo}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setViewVideo(null)}
+      >
+        <Pressable style={s.overlay} onPress={() => setViewVideo(null)}>
+          <View style={s.overlayCard}>
+            <Pressable style={s.closeBtn} onPress={() => setViewVideo(null)}>
+              <X size={20} color="#fff" />
+            </Pressable>
+            {viewVideo && (
+              <>
+                {/* 썸네일 미리보기 */}
+                {videoThumbUrl(viewVideo) ? (
+                  <Image
+                    source={{ uri: videoThumbUrl(viewVideo)! }}
+                    style={s.fullImg}
+                    contentFit="contain"
+                  />
+                ) : (
+                  <View style={[s.fullImg, { backgroundColor: "#0F172A", alignItems: "center", justifyContent: "center" }]}>
+                    <Play size={52} color="rgba(255,255,255,0.5)" fill="rgba(255,255,255,0.5)" />
+                  </View>
+                )}
+                {/* 재생 아이콘 오버레이 */}
+                <View style={s.videoModalPlayIcon} pointerEvents="none">
+                  <Play size={42} color="#fff" fill="#fff" />
+                </View>
+                {/* 다운로드 버튼 */}
+                <Pressable
+                  style={[s.dlBtn, downloadingVideo && { opacity: 0.6 }]}
+                  onPress={(e) => { e.stopPropagation?.(); downloadVideo(viewVideo); }}
+                  disabled={downloadingVideo}
+                >
+                  {downloadingVideo
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Download size={16} color="#fff" />}
+                  <Text style={s.dlBtnText}>
+                    {downloadingVideo ? "저장 중..." : "영상 다운로드"}
+                  </Text>
+                </Pressable>
+                {viewVideo.caption ? (
+                  <Text style={s.videoCaption}>{viewVideo.caption}</Text>
+                ) : null}
               </>
             )}
           </View>
@@ -289,6 +396,11 @@ const s = StyleSheet.create({
     width: 36, height: 36, alignItems: "center", justifyContent: "center",
   },
   fullImg: { width: "100%", height: "100%" },
+  videoModalPlayIcon: {
+    position: "absolute", inset: 0,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.25)",
+  },
   dlBtn: {
     position: "absolute", bottom: 16,
     flexDirection: "row", alignItems: "center", gap: 8,
@@ -297,4 +409,10 @@ const s = StyleSheet.create({
     borderRadius: 30, zIndex: 10,
   },
   dlBtnText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },
+  videoCaption: {
+    position: "absolute", bottom: 64,
+    color: "rgba(255,255,255,0.7)", fontSize: 12,
+    fontFamily: "Pretendard-Regular", textAlign: "center",
+    paddingHorizontal: 20,
+  },
 });
