@@ -162,20 +162,19 @@ export default function ParentAlbumScreen() {
     setVdSaving(true);
     try {
       const BASE_ORIGIN = API_BASE.replace(/\/api$/, "");
-      const raw = item.file_url ?? "";
-      const serverUrl = raw.startsWith("http") ? raw : `${BASE_ORIGIN}${raw}`;
-
-      // /file 엔드포인트는 302 redirect → fetch로 실제 R2 URL을 먼저 resolve
-      const resolved = await fetch(serverUrl, {
-        headers: { Authorization: `Bearer ${token}` },
-        redirect: "follow",
-      });
-      const finalUrl = resolved.url;
+      // 서버 batchVideoPresign이 presigned_url을 함께 내려줌 → 직접 다운로드
+      const presigned = (item as any).presigned_url as string | undefined;
+      const finalUrl = presigned
+        ?? (() => {
+          const raw = item.file_url ?? "";
+          return raw.startsWith("http") ? raw : `${BASE_ORIGIN}${raw}`;
+        })();
       if (!finalUrl) throw new Error("URL 확인 실패");
 
       const ext = finalUrl.split("?")[0].split(".").pop()?.toLowerCase() ?? "mp4";
       const localUri = `${FileSystem.documentDirectory}swim_video_${item.id}.${ext}`;
-      const dl = await FileSystem.downloadAsync(finalUrl, localUri);
+      const headers = presigned ? {} : { Authorization: `Bearer ${token}` };
+      const dl = await FileSystem.downloadAsync(finalUrl, localUri, { headers });
       if (dl.status !== 200) throw new Error(`다운로드 실패 (${dl.status})`);
       await MediaLibrary.saveToLibraryAsync(dl.uri);
       Alert.alert("저장 완료", "영상이 갤러리에 저장됐습니다.");

@@ -36,9 +36,18 @@ const uploadVideoFields = upload.fields([
  */
 async function batchVideoPresign(videos: any[]): Promise<any[]> {
   return Promise.all(videos.map(async (v) => {
-    if (!v.thumbnail_key) return v;
-    const { ok, url } = await getPresignedUrl(v.thumbnail_key, "photo", 3600);
-    return ok && url ? { ...v, thumbnail_presigned_url: url } : v;
+    let result = { ...v };
+    // 썸네일 presign
+    if (v.thumbnail_key) {
+      const { ok, url } = await getPresignedUrl(v.thumbnail_key, "photo", 3600);
+      if (ok && url) result.thumbnail_presigned_url = url;
+    }
+    // 영상 파일 presign (클라이언트가 redirect 없이 직접 다운로드 가능하게)
+    if (v.object_key) {
+      const { ok, url } = await getPresignedUrl(v.object_key, "video", 3600);
+      if (ok && url) result.presigned_url = url;
+    }
+    return result;
   }));
 }
 
