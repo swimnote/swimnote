@@ -205,11 +205,21 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
              s.name AS student_name
       FROM photo_assets_meta sp
       LEFT JOIN students s ON s.id = sp.student_id
-      WHERE sp.album_type = 'group' AND sp.class_id = ${classId}
-        ${date ? sql`AND (
-          (sp.lesson_date IS NOT NULL AND sp.lesson_date = ${date as string})
-          OR (sp.lesson_date IS NULL AND DATE(sp.created_at AT TIME ZONE 'Asia/Seoul') = ${date as string})
+      WHERE (
+        (
+          sp.album_type = 'group' AND sp.class_id = ${classId}
+          ${date ? sql`AND (
+            (sp.lesson_date IS NOT NULL AND sp.lesson_date = ${date as string})
+            OR (sp.lesson_date IS NULL AND DATE(sp.created_at AT TIME ZONE 'Asia/Seoul') = ${date as string})
+          )` : sql``}
+        )
+        ${date ? sql`OR (
+          sp.journal_id IS NOT NULL AND sp.journal_id IN (
+            SELECT id FROM class_diaries
+            WHERE class_group_id = ${classId} AND lesson_date = ${date as string}
+          )
         )` : sql``}
+      )
       ORDER BY sp.created_at DESC
     `);
     const photos = await batchPresign(

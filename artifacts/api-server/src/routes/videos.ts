@@ -732,11 +732,45 @@ router.post("/videos/diary-detach", requireAuth, requireRole("teacher", "pool_ad
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
-// ── GET /videos/diary/:diaryId — 일지 연결 영상 목록 ─────────────────────
-router.get("/videos/diary/:diaryId", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
+// ── GET /videos/diary/:diaryId — 일지 연결 영상 목록 (선생님/관리자/학부모)
+router.get("/videos/diary/:diaryId", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const { userId } = req.user!;
+    const { userId, role } = req.user!;
     const { diaryId } = req.params;
+
+    // 학부모: 해당 일지 반에 자녀가 등록되어 있어야 함
+    if (role === "parent_account") {
+      const diaryRow = await db.execute(sql`
+        SELECT cd.class_group_id FROM class_diaries cd
+        JOIN class_groups cg ON cg.id = cd.class_group_id
+        WHERE cd.id = ${diaryId}
+        LIMIT 1
+      `);
+      if (!diaryRow.rows.length) { res.status(404).json({ error: "일지를 찾을 수 없습니다." }); return; }
+      const classGroupId = (diaryRow.rows[0] as any).class_group_id;
+      const childRows = await db.execute(sql`
+        SELECT s.id FROM students s
+        JOIN parent_students ps ON ps.student_id = s.id
+        WHERE ps.parent_id = ${userId} AND ps.status = 'approved'
+          AND s.class_group_id = ${classGroupId}
+      `);
+      if (!childRows.rows.length) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+      // 학부모는 pool_id 없이 journal_id만으로 조회
+      const rows = await db.execute(sql`
+        SELECT id, uploaded_by_name, created_at, file_size, class_id, caption, thumbnail_key, status,
+               '/api/videos/' || id || '/file' AS file_url
+        FROM video_assets_meta
+        WHERE journal_id = ${diaryId}
+        ORDER BY created_at ASC
+      `);
+      const videos = await batchVideoPresign(rows.rows as any[]);
+      res.json({ videos, total: videos.length }); return;
+    }
+
+    // 선생님/관리자
+    if (!["teacher", "pool_admin", "sub_admin", "super_admin"].includes(role)) {
+      res.status(403).json({ error: "권한이 없습니다." }); return;
+    }
     const poolId = await getUserPoolId(userId);
     if (!poolId) { res.json({ videos: [], total: 0 }); return; }
 

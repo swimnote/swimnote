@@ -144,6 +144,7 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
               token={token}
               classGroupId={effectiveClassGroupId}
               lessonDate={entry.lesson_date.slice(0, 10)}
+              diaryId={entry.id}
             />
           ) : null}
 
