@@ -115,7 +115,11 @@ export async function tryMatchStudentV2(
   const rows = await db.execute(sql`
     SELECT id, name FROM students
     WHERE swimming_pool_id = ${poolId}
-      AND REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${phoneNorm}
+      AND (
+        REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${phoneNorm}
+        OR REGEXP_REPLACE(COALESCE(parent_phone2,''),'[^0-9]','','g') = ${phoneNorm}
+        OR REGEXP_REPLACE(COALESCE(parent_phone3,''),'[^0-9]','','g') = ${phoneNorm}
+      )
       AND REPLACE(LOWER(TRIM(COALESCE(name,''))), ' ', '') = ${childNameNorm}
       AND status NOT IN ('withdrawn','archived','deleted')
     LIMIT 1
@@ -270,7 +274,7 @@ export async function getParentStatusV2(parentId: string): Promise<{
 // ── 관리자 학생 등록/수정 시 V2 자동연결 트리거 ──────────────────────────
 // 호출 조건: name / parent_phone / pool_id 변경 또는 신규 등록 / 승인 완료 시만
 export async function triggerAutoLinkOnStudentV2(studentId: string, changedFields?: string[]): Promise<void> {
-  const relevantFields = ["name", "parent_phone", "swimming_pool_id", "status"];
+  const relevantFields = ["name", "parent_phone", "parent_phone2", "parent_phone3", "swimming_pool_id", "status"];
   if (changedFields && changedFields.length > 0) {
     const hasRelevant = changedFields.some(f => relevantFields.includes(f));
     if (!hasRelevant) {
@@ -280,23 +284,32 @@ export async function triggerAutoLinkOnStudentV2(studentId: string, changedField
   }
 
   const [student] = (await db.execute(sql`
-    SELECT id, name, swimming_pool_id, parent_phone FROM students WHERE id = ${studentId} LIMIT 1
+    SELECT id, name, swimming_pool_id, parent_phone, parent_phone2, parent_phone3 FROM students WHERE id = ${studentId} LIMIT 1
   `)).rows as any[];
 
-  if (!student?.swimming_pool_id || !student?.parent_phone) {
-    console.log(`[v2-admin-trigger] SKIP student=${studentId} — pool 또는 phone 미설정`);
+  if (!student?.swimming_pool_id) {
+    console.log(`[v2-admin-trigger] SKIP student=${studentId} — pool 미설정`);
     return;
   }
 
-  const phoneNorm = normalizePhone(student.parent_phone);
+  const allPhones = [student.parent_phone, student.parent_phone2, student.parent_phone3]
+    .map((p: string | null) => normalizePhone(p || ""))
+    .filter((p: string) => p.length > 0);
+
+  if (allPhones.length === 0) {
+    console.log(`[v2-admin-trigger] SKIP student=${studentId} — phone 미설정`);
+    return;
+  }
+
+  const phoneNorm = allPhones[0];
   const nameNorm  = normalizeName(student.name);
 
-  console.log(`[v2-admin-trigger] 검색 시작 student=${studentId} pool=${student.swimming_pool_id} phone=${phoneMask(phoneNorm)} name="${nameNorm}"`);
+  console.log(`[v2-admin-trigger] 검색 시작 student=${studentId} pool=${student.swimming_pool_id} phones=[${allPhones.map(phoneMask).join(",")}] name="${nameNorm}"`);
 
   const pendingRows = (await db.execute(sql`
     SELECT id, parent_id FROM parent_v2_pending
     WHERE pool_id = ${student.swimming_pool_id}
-      AND parent_phone_normalized = ${phoneNorm}
+      AND parent_phone_normalized = ANY(${allPhones}::text[])
       AND child_name_normalized = ${nameNorm}
       AND status = 'pending'
   `)).rows as any[];

@@ -72,6 +72,7 @@ export async function initPoolDb(): Promise<void> {
       parent_name            text,
       parent_phone           text,
       parent_phone2          text,
+      parent_phone3          text,
       parent_user_id         text,
       weekly_count           integer     DEFAULT 1,
       schedule_labels        text,
@@ -90,6 +91,8 @@ export async function initPoolDb(): Promise<void> {
     ALTER TABLE students ADD COLUMN IF NOT EXISTS current_level_order integer;
     ALTER TABLE students ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
     ALTER TABLE students ADD COLUMN IF NOT EXISTS name_korean text;
+    ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_phone2 text;
+    ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_phone3 text;
   `));
 
   // name_korean 백필: NULL인 행만 채움 (멱등)

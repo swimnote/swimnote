@@ -19,6 +19,8 @@ interface MemberInfoTabProps {
   editBirth: string; setEditBirth: (v: string) => void;
   editParentName: string; setEditParentName: (v: string) => void;
   editParentPhone: string; setEditParentPhone: (v: string) => void;
+  editParentPhone2: string; setEditParentPhone2: (v: string) => void;
+  editParentPhone3: string; setEditParentPhone3: (v: string) => void;
   infoChanged: boolean; setInfoChanged: (v: boolean) => void;
   onSave: () => void;
   onRestoreMember: () => void;
@@ -34,6 +36,8 @@ export function MemberInfoTab({
   editName, setEditName, editBirth, setEditBirth,
   editParentName, setEditParentName,
   editParentPhone, setEditParentPhone,
+  editParentPhone2, setEditParentPhone2,
+  editParentPhone3, setEditParentPhone3,
   infoChanged, setInfoChanged, onSave, onRestoreMember, onShowStatusModal,
   isArchived, statusMeta,
   isPoolAdmin = false, onPurgeMember,
@@ -41,12 +45,12 @@ export function MemberInfoTab({
   const isParentLinked = !!(data as any).parent_user_id;
   const parentAccountName = (data as any).parent_account_name || editParentName;
 
-  const [fieldErrors, setFieldErrors] = useState({ name: "", birth: "", parentName: "", parentPhone: "" });
+  const [fieldErrors, setFieldErrors] = useState({ name: "", birth: "", parentName: "", parentPhone: "", parentPhone2: "", parentPhone3: "" });
   const scrollRef = useRef<ScrollView>(null);
   const hasFieldErrors = Object.values(fieldErrors).some(v => !!v);
 
   function handleSave() {
-    const errors = { name: "", birth: "", parentName: "", parentPhone: "" };
+    const errors = { name: "", birth: "", parentName: "", parentPhone: "", parentPhone2: "", parentPhone3: "" };
 
     if (!validateName(editName)) {
       errors.name = "이름을 입력해주세요";
@@ -60,16 +64,22 @@ export function MemberInfoTab({
     if (editParentPhone && !validatePhone(editParentPhone)) {
       errors.parentPhone = "전화번호 형식이 올바르지 않습니다";
     }
+    if (editParentPhone2 && !validatePhone(editParentPhone2)) {
+      errors.parentPhone2 = "연락처2 형식이 올바르지 않습니다";
+    }
+    if (editParentPhone3 && !validatePhone(editParentPhone3)) {
+      errors.parentPhone3 = "연락처3 형식이 올바르지 않습니다";
+    }
 
     setFieldErrors(errors);
-    if (errors.name || errors.birth || errors.parentName || errors.parentPhone) {
+    if (errors.name || errors.birth || errors.parentName || errors.parentPhone || errors.parentPhone2 || errors.parentPhone3) {
       scrollRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
 
-    if (editParentPhone) {
-      setEditParentPhone(normalizePhone(editParentPhone));
-    }
+    if (editParentPhone) setEditParentPhone(normalizePhone(editParentPhone));
+    if (editParentPhone2) setEditParentPhone2(normalizePhone(editParentPhone2));
+    if (editParentPhone3) setEditParentPhone3(normalizePhone(editParentPhone3));
     onSave();
   }
 
@@ -172,6 +182,32 @@ export function MemberInfoTab({
         {fieldErrors.parentPhone ? (
           <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.error, marginTop: -4, marginBottom: 4 }}>
             {fieldErrors.parentPhone}
+          </Text>
+        ) : null}
+
+        <EditField
+          label="연락처2"
+          value={editParentPhone2}
+          onChangeText={v => { setEditParentPhone2(v); setInfoChanged(true); setFieldErrors(e => ({ ...e, parentPhone2: "" })); }}
+          keyboardType="phone-pad"
+          placeholder="010-0000-0000 (선택)"
+        />
+        {fieldErrors.parentPhone2 ? (
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.error, marginTop: -4, marginBottom: 4 }}>
+            {fieldErrors.parentPhone2}
+          </Text>
+        ) : null}
+
+        <EditField
+          label="연락처3"
+          value={editParentPhone3}
+          onChangeText={v => { setEditParentPhone3(v); setInfoChanged(true); setFieldErrors(e => ({ ...e, parentPhone3: "" })); }}
+          keyboardType="phone-pad"
+          placeholder="010-0000-0000 (선택)"
+        />
+        {fieldErrors.parentPhone3 ? (
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.error, marginTop: -4, marginBottom: 4 }}>
+            {fieldErrors.parentPhone3}
           </Text>
         ) : null}
 

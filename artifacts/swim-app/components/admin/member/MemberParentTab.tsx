@@ -55,8 +55,8 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
           <Text style={ms.infoLabel}>이름</Text>
           <Text style={ms.infoValue}>{data.parent_name || "미입력"}</Text>
         </View>
-        {[data.parent_phone, (data as any).parent_phone2].map((ph, i) => {
-          const label = i === 0 ? "연락처" : "연락처2";
+        {[data.parent_phone, (data as any).parent_phone2, (data as any).parent_phone3].map((ph, i) => {
+          const label = i === 0 ? "연락처" : i === 1 ? "연락처2" : "연락처3";
           const hasPhone = !!ph;
           return (
             <View key={label} style={ms.infoRow}>

@@ -74,6 +74,8 @@ interface ParsedRow {
   birth_year?: string;
   parent_name?: string;
   parent_phone?: string;
+  parent_phone2?: string;
+  parent_phone3?: string;
   weekly_count?: number;
   memo?: string;
   _rowError?: string;
@@ -179,7 +181,16 @@ function parseRows(raw: any[][], headerIdx: number): ParsedRow[] {
         rawPhone = split.phone;
       }
     }
-    const normPhone = rawPhone ? normalizePhone(rawPhone) : "";
+
+    // 콤마 구분 전화번호 분배 (예: "01012341234,01056785678,01099990000")
+    const phoneParts = rawPhone
+      .split(",")
+      .map((p: string) => normalizePhone(p.trim()))
+      .filter((p: string) => p.length > 0);
+    const normPhone  = phoneParts[0] || "";
+    const normPhone2 = phoneParts[1] || undefined;
+    const normPhone3 = phoneParts[2] || undefined;
+
     const byear = obj.birth_year?.replace(/[^0-9]/g, "") ?? "";
 
     const row: ParsedRow = {
@@ -188,6 +199,8 @@ function parseRows(raw: any[][], headerIdx: number): ParsedRow[] {
       birth_year: byear || undefined,
       parent_name: obj.parent_name || undefined,
       parent_phone: normPhone || undefined,
+      parent_phone2: normPhone2,
+      parent_phone3: normPhone3,
       weekly_count: obj.weekly_count ? Math.max(1, Math.min(7, Number(obj.weekly_count) || 1)) : undefined,
       memo: obj.memo || undefined,
     };
@@ -425,12 +438,14 @@ export default function BulkRegisterScreen() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(validRows.map(r => ({
-          name:         r.name,
-          birth_year:   r.birth_year   ?? null,
-          parent_name:  r.parent_name  ?? null,
-          parent_phone: r.parent_phone ?? null,
-          weekly_count: r.weekly_count ?? 1,
-          memo:         r.memo         ?? null,
+          name:          r.name,
+          birth_year:    r.birth_year    ?? null,
+          parent_name:   r.parent_name   ?? null,
+          parent_phone:  r.parent_phone  ?? null,
+          parent_phone2: r.parent_phone2 ?? null,
+          parent_phone3: r.parent_phone3 ?? null,
+          weekly_count:  r.weekly_count  ?? 1,
+          memo:          r.memo          ?? null,
         }))),
       });
 

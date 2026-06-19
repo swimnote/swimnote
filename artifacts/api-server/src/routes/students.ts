@@ -231,6 +231,8 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
     birth_year?: string | null;
     parent_name?: string | null;
     parent_phone?: string | null;
+    parent_phone2?: string | null;
+    parent_phone3?: string | null;
     weekly_count?: number;
     memo?: string | null;
   }> = req.body;
@@ -392,6 +394,8 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
           birth_year:       s.birth_year   || null,
           parent_name:      s.parent_name  || null,
           parent_phone:     normPhone,
+          parent_phone2:    s.parent_phone2 ? s.parent_phone2.replace(/[^0-9]/g, "") || null : null,
+          parent_phone3:    s.parent_phone3 ? s.parent_phone3.replace(/[^0-9]/g, "") || null : null,
           parent_user_id:   resolvedParentUserId,
           memo:             s.memo         || null,
           status:           resolvedParentUserId ? "active" : "unregistered",
@@ -427,6 +431,7 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
 router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   const {
     name, phone, birth_date, birth_year, parent_name, parent_phone,
+    parent_phone2, parent_phone3,
     parent_user_id, class_group_id, memo, weekly_count = 1,
     registration_path = "admin_created", force_create = false,
   } = req.body;
@@ -469,14 +474,18 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
 
     // ── 학부모 전화번호/이름으로 기존 계정 찾기 (자동 연결용) ─────────
     // 같은 수영장 우선, 없으면 수영장 미선택(NULL) 학부모도 매칭
-    const normParentPhone = parent_phone ? parent_phone.replace(/[^0-9]/g, "") : null;
-    const normParentName  = parent_name  ? parent_name.replace(/\s+/g, "").toLowerCase() : null;
+    const normParentPhone  = parent_phone  ? parent_phone.replace(/[^0-9]/g, "")  : null;
+    const normParentPhone2 = parent_phone2 ? parent_phone2.replace(/[^0-9]/g, "") : null;
+    const normParentPhone3 = parent_phone3 ? parent_phone3.replace(/[^0-9]/g, "") : null;
+    const normParentName   = parent_name   ? parent_name.replace(/\s+/g, "").toLowerCase() : null;
 
     let resolvedParentUserId = parent_user_id || null;
-    if (!resolvedParentUserId && normParentPhone) {
+    // 전화번호1 → 전화번호2 → 전화번호3 → 이름 순으로 매칭 시도
+    for (const tryPhone of [normParentPhone, normParentPhone2, normParentPhone3]) {
+      if (resolvedParentUserId || !tryPhone) continue;
       const matchedPa = await db.execute(sql`
         SELECT id FROM parent_accounts
-        WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normParentPhone}
+        WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${tryPhone}
           AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
         ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
         LIMIT 1
@@ -573,6 +582,8 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       birth_year: birth_year || null,
       parent_name: parent_name || null,
       parent_phone: normParentPhone || null,
+      parent_phone2: normParentPhone2 || null,
+      parent_phone3: normParentPhone3 || null,
       parent_user_id: resolvedParentUserId,
       class_group_id: class_group_id || null,
       memo: memo || null,
@@ -643,7 +654,7 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res) => {
 
 // ── PATCH /:id — 기본 정보 수정 ─────────────────────────────────────
 router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
-  const { name, phone, birth_date, birth_year, parent_name, parent_phone, class_group_id, memo, weekly_count, status } = req.body;
+  const { name, phone, birth_date, birth_year, parent_name, parent_phone, parent_phone2, parent_phone3, class_group_id, memo, weekly_count, status } = req.body;
   try {
     const poolId = await getPoolId(req.user!.userId);
     const [existing] = await db.select()
@@ -657,6 +668,12 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
     const normParentPhone = parent_phone != null
       ? parent_phone.replace(/[^0-9]/g, "") || null
       : (existing.parent_phone ? existing.parent_phone.replace(/[^0-9]/g, "") || null : null);
+    const normParentPhone2 = parent_phone2 != null
+      ? parent_phone2.replace(/[^0-9]/g, "") || null
+      : ((existing as any).parent_phone2 ? (existing as any).parent_phone2.replace(/[^0-9]/g, "") || null : null);
+    const normParentPhone3 = parent_phone3 != null
+      ? parent_phone3.replace(/[^0-9]/g, "") || null
+      : ((existing as any).parent_phone3 ? (existing as any).parent_phone3.replace(/[^0-9]/g, "") || null : null);
     const normParentName = parent_name != null
       ? parent_name.replace(/\s+/g, "").toLowerCase() || null
       : (existing.parent_name ? existing.parent_name.replace(/\s+/g, "").toLowerCase() || null : null);
@@ -715,6 +732,8 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
         ...(birth_year !== undefined && { birth_year }),
         ...(parent_name !== undefined && { parent_name }),
         ...(parent_phone !== undefined && { parent_phone: normParentPhone }),
+        ...(parent_phone2 !== undefined && { parent_phone2: normParentPhone2 }),
+        ...(parent_phone3 !== undefined && { parent_phone3: normParentPhone3 }),
         ...(class_group_id !== undefined && { class_group_id: class_group_id || null }),
         ...(memo !== undefined && { memo }),
         ...(weekly_count !== undefined && { weekly_count: Number(weekly_count) }),

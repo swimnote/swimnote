@@ -99,13 +99,21 @@ async function autoLinkParentToStudents(parentId: string, poolId?: string | null
     const rows = effectivePoolId
       ? await db.execute(sql`
           SELECT id, swimming_pool_id FROM students
-          WHERE REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
+          WHERE (
+            REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
+            OR REGEXP_REPLACE(COALESCE(parent_phone2,''),'[^0-9]','','g') = ${normPhone}
+            OR REGEXP_REPLACE(COALESCE(parent_phone3,''),'[^0-9]','','g') = ${normPhone}
+          )
             AND swimming_pool_id = ${effectivePoolId}
             AND status NOT IN ('withdrawn','archived','deleted')
           LIMIT 20`)
       : await db.execute(sql`
           SELECT id, swimming_pool_id FROM students
-          WHERE REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
+          WHERE (
+            REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
+            OR REGEXP_REPLACE(COALESCE(parent_phone2,''),'[^0-9]','','g') = ${normPhone}
+            OR REGEXP_REPLACE(COALESCE(parent_phone3,''),'[^0-9]','','g') = ${normPhone}
+          )
             AND status NOT IN ('withdrawn','archived','deleted')
           LIMIT 20`);
     matched.push(...(rows.rows as any[]));

@@ -1343,7 +1343,7 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
     try {
       const poolId = await getAdminPoolId(req);
       if (!poolId) { return res.status(403).json({ error: "수영장 정보가 없습니다." }); }
-      const { name, birth_year, parent_name, parent_phone, memo, notes } = req.body;
+      const { name, birth_year, parent_name, parent_phone, parent_phone2, parent_phone3, memo, notes } = req.body;
 
       const [student] = (await db.execute(sql`SELECT * FROM students WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`)).rows as any[];
       if (!student) { return res.status(404).json({ error: "회원을 찾을 수 없습니다." }); }
@@ -1356,27 +1356,38 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
       if (birth_year && String(birth_year) !== String(student.birth_year)) changes.push(`출생년: ${student.birth_year}→${birth_year}`);
       if (parent_name && parent_name !== student.parent_name) changes.push(`보호자: ${student.parent_name}→${parent_name}`);
       if (parent_phone !== undefined && parent_phone !== student.parent_phone) changes.push(`보호자연락처 변경`);
+      if (parent_phone2 !== undefined && parent_phone2 !== student.parent_phone2) changes.push(`보호자연락처2 변경`);
+      if (parent_phone3 !== undefined && parent_phone3 !== student.parent_phone3) changes.push(`보호자연락처3 변경`);
 
       // ── 학부모 연락처 변경 시 즉시 자동 연결 ─────────────────────────
-      const normParentPhone = parent_phone != null
-        ? String(parent_phone).replace(/[^0-9]/g, "") || null
-        : null;
+      const normParentPhone  = parent_phone  != null ? String(parent_phone).replace(/[^0-9]/g, "")  || null : null;
+      const phone2Provided = "parent_phone2" in req.body;
+      const phone3Provided = "parent_phone3" in req.body;
+      const normParentPhone2 = phone2Provided
+        ? (parent_phone2 ? String(parent_phone2).replace(/[^0-9]/g, "") || null : null)
+        : undefined;
+      const normParentPhone3 = phone3Provided
+        ? (parent_phone3 ? String(parent_phone3).replace(/[^0-9]/g, "") || null : null)
+        : undefined;
 
       let newParentUserId = student.parent_user_id || null;
       let parentAccountName: string | null = null;
 
-      if (!newParentUserId && normParentPhone) {
-        const [matched] = (await db.execute(sql`
-          SELECT pa.id, pa.name FROM parent_accounts pa
-          WHERE REGEXP_REPLACE(COALESCE(pa.phone,''),'[^0-9]','','g') = ${normParentPhone}
-            AND (pa.swimming_pool_id = ${poolId} OR pa.swimming_pool_id IS NULL)
-          ORDER BY (pa.swimming_pool_id = ${poolId}) DESC NULLS LAST
-          LIMIT 1
-        `)).rows as any[];
-        if (matched) {
-          newParentUserId = matched.id;
-          parentAccountName = matched.name;
-          changes.push(`학부모 앱 자동 연결: ${matched.name}`);
+      if (!newParentUserId) {
+        for (const tryPhone of [normParentPhone, normParentPhone2, normParentPhone3]) {
+          if (newParentUserId || !tryPhone) continue;
+          const [matched] = (await db.execute(sql`
+            SELECT pa.id, pa.name FROM parent_accounts pa
+            WHERE REGEXP_REPLACE(COALESCE(pa.phone,''),'[^0-9]','','g') = ${tryPhone}
+              AND (pa.swimming_pool_id = ${poolId} OR pa.swimming_pool_id IS NULL)
+            ORDER BY (pa.swimming_pool_id = ${poolId}) DESC NULLS LAST
+            LIMIT 1
+          `)).rows as any[];
+          if (matched) {
+            newParentUserId = matched.id;
+            parentAccountName = matched.name;
+            changes.push(`학부모 앱 자동 연결: ${matched.name}`);
+          }
         }
       }
 
@@ -1386,6 +1397,8 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
           birth_year = COALESCE(${birth_year ?? null}, birth_year),
           parent_name = COALESCE(${parent_name ?? null}, parent_name),
           parent_phone = COALESCE(${normParentPhone}, parent_phone),
+          parent_phone2 = CASE WHEN ${phone2Provided} THEN ${normParentPhone2 ?? null} ELSE parent_phone2 END,
+          parent_phone3 = CASE WHEN ${phone3Provided} THEN ${normParentPhone3 ?? null} ELSE parent_phone3 END,
           memo = COALESCE(${memo ?? null}, memo),
           notes = COALESCE(${notes ?? null}, notes),
           updated_at = NOW()
@@ -1422,6 +1435,8 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
       const changedV2Fields: string[] = [];
       if (name && name !== student.name) changedV2Fields.push("name");
       if (parent_phone !== undefined && parent_phone !== student.parent_phone) changedV2Fields.push("parent_phone");
+      if (parent_phone2 !== undefined && parent_phone2 !== student.parent_phone2) changedV2Fields.push("parent_phone2");
+      if (parent_phone3 !== undefined && parent_phone3 !== student.parent_phone3) changedV2Fields.push("parent_phone3");
       if (changedV2Fields.length > 0) {
         triggerAutoLinkOnStudentV2(req.params.id, changedV2Fields).catch(e =>
           console.error("[v2-admin-trigger] info patch 트리거 오류:", e?.message)
