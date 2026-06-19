@@ -1,16 +1,13 @@
 /**
  * SentencePicker.tsx — 문장 불러오기 바텀시트
  *
- * 기능:
- * - FeedbackTemplateContext에서 templates/labels 읽기 (즉시 반영)
- * - 초급/중급/상급/커스텀 카테고리 탭
- * - 전체 통합 검색 (카테고리 경계 무시)
- * - 미리보기 영역 (쌓기 방식)
- * - 바로 전 삽입 취소 / 전체 삭제
- * - 완료 시 onInsert(text) 콜백
+ * - /api/diary-template-levels 에서 레벨 탭 동적 로드
+ * - /api/diary-templates 에서 선생님 문장 로드 (override 병합)
+ * - 전체 통합 검색, 미리보기, 삽입
  */
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Dimensions,
   FlatList,
   KeyboardAvoidingView,
@@ -27,66 +24,84 @@ import {
 
 import { Check, CircleX, CornerLeftUp, Eye, Inbox, Plus, Search, Trash2, X } from "lucide-react-native";
 import Colors from "@/constants/colors";
-import { useFeedbackTemplates, SentenceLevel, FeedbackTemplate } from "@/context/FeedbackTemplateContext";
+import { API_BASE } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 
 const SCREEN_H = Dimensions.get("window").height;
-
 const C = Colors.light;
 const PRIMARY = C.tint;
 
-export type { SentenceLevel };
-export type SentenceTemplate = FeedbackTemplate;
+interface DiaryLevel {
+  id: string;
+  level_name: string;
+  sort_order: number;
+  template_count: number;
+}
 
-/* ─── Props ──────────────────────────────────────────────────────── */
+interface DiaryTemplate {
+  id: string;
+  template_text: string;
+  title: string | null;
+  level_id: string;
+  sort_order: number;
+  is_active: boolean;
+  is_overridden: boolean;
+}
+
 interface Props {
   visible: boolean;
   onClose: () => void;
   onInsert: (text: string) => void;
 }
 
-const LEVEL_COLORS: Record<SentenceLevel, string> = {
-  beginner:     "#2E9B6F",
-  intermediate: "#4EA7D8",
-  advanced:     "#8B5CF6",
-  custom:       "#E4A93A",
-};
-
-/* ════════════════════════════════════════════════════════════════
-   메인 컴포넌트
-   ════════════════════════════════════════════════════════════════ */
 export default function SentencePicker({ visible, onClose, onInsert }: Props) {
-  const { templates, labels } = useFeedbackTemplates();
+  const { authToken } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<SentenceLevel>("beginner");
+  const [levels, setLevels] = useState<DiaryLevel[]>([]);
+  const [templates, setTemplates] = useState<DiaryTemplate[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const [activeLevelId, setActiveLevelId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [preview, setPreview] = useState<string[]>([]);
 
-  const TABS: { key: SentenceLevel; label: string }[] = [
-    { key: "beginner",     label: labels.beginner },
-    { key: "intermediate", label: labels.intermediate },
-    { key: "advanced",     label: labels.advanced },
-    { key: "custom",       label: labels.custom },
-  ];
+  /* ── 데이터 로드 ── */
+  useEffect(() => {
+    if (!visible || !authToken) return;
 
-  /* 표시할 문장 목록 */
-  const displayList = useMemo<FeedbackTemplate[]>(() => {
+    setLoading(true);
+    const headers = { Authorization: `Bearer ${authToken}` };
+
+    Promise.all([
+      fetch(`${API_BASE}/diary-template-levels`, { headers }).then(r => r.json()),
+      fetch(`${API_BASE}/diary-templates`, { headers }).then(r => r.json()),
+    ])
+      .then(([lvls, tmps]) => {
+        const levelList: DiaryLevel[] = Array.isArray(lvls) ? lvls : [];
+        const templateList: DiaryTemplate[] = Array.isArray(tmps) ? tmps : [];
+        setLevels(levelList);
+        setTemplates(templateList);
+        if (levelList.length > 0) {
+          setActiveLevelId(levelList[0].id);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [visible, authToken]);
+
+  /* ── 표시할 문장 목록 ── */
+  const displayList = useMemo<DiaryTemplate[]>(() => {
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
-      return templates.filter(s => s.template_text.toLowerCase().includes(q));
+      return templates.filter(t => t.template_text.toLowerCase().includes(q));
     }
-    return templates.filter(s => s.level === activeTab);
-  }, [templates, searchQuery, activeTab]);
+    if (!activeLevelId) return [];
+    return templates.filter(t => t.level_id === activeLevelId);
+  }, [templates, searchQuery, activeLevelId]);
 
   const isSearching = searchQuery.trim().length > 0;
 
-  function levelLabel(level: SentenceLevel): string {
-    return labels[level] || level;
-  }
-
-  function levelColor(level: SentenceLevel): string {
-    return LEVEL_COLORS[level] || C.textSecondary;
-  }
-
+  /* ── 미리보기 조작 ── */
   const addToPreview = useCallback((text: string) => {
     setPreview(prev => [...prev, text]);
   }, []);
@@ -104,32 +119,39 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
     onInsert(preview.join("\n"));
     setPreview([]);
     setSearchQuery("");
-    setActiveTab("beginner");
     onClose();
   }, [preview, onInsert, onClose]);
 
   const handleClose = useCallback(() => {
     setPreview([]);
     setSearchQuery("");
-    setActiveTab("beginner");
     onClose();
   }, [onClose]);
 
-  const renderSentenceItem = useCallback(({ item }: { item: FeedbackTemplate }) => (
-    <TouchableOpacity
-      style={s.sentenceItem}
-      onPress={() => addToPreview(item.template_text)}
-      activeOpacity={0.7}
-    >
-      <Text style={s.sentenceText}>{item.template_text}</Text>
-      {isSearching && (
-        <View style={[s.levelBadge, { backgroundColor: levelColor(item.level) + "20" }]}>
-          <Text style={[s.levelBadgeText, { color: levelColor(item.level) }]}>{levelLabel(item.level)}</Text>
-        </View>
-      )}
-      <Plus size={16} color={PRIMARY} style={{ marginLeft: 6 }} />
-    </TouchableOpacity>
-  ), [isSearching, addToPreview, labels]);
+  const renderSentenceItem = useCallback(({ item }: { item: DiaryTemplate }) => {
+    const levelName = isSearching
+      ? levels.find(l => l.id === item.level_id)?.level_name
+      : null;
+
+    return (
+      <TouchableOpacity
+        style={s.sentenceItem}
+        onPress={() => addToPreview(item.template_text)}
+        activeOpacity={0.7}
+      >
+        <Text style={s.sentenceText}>{item.template_text}</Text>
+        {levelName && (
+          <View style={s.levelBadge}>
+            <Text style={s.levelBadgeText}>{levelName}</Text>
+          </View>
+        )}
+        {item.is_overridden && (
+          <View style={s.editedDot} />
+        )}
+        <Plus size={16} color={PRIMARY} style={{ marginLeft: 4 }} />
+      </TouchableOpacity>
+    );
+  }, [isSearching, levels, addToPreview]);
 
   return (
     <Modal
@@ -144,7 +166,6 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
         style={s.kvWrapper}
       >
         <View style={s.sheet}>
-          {/* 핸들 */}
           <View style={s.handle} />
 
           {/* 헤더 */}
@@ -173,46 +194,60 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
             )}
           </View>
 
-          {/* 카테고리 탭 (검색 중에는 숨김) */}
+          {/* 레벨 탭 (검색 중 숨김) */}
           {!isSearching && (
-            <View style={s.tabBar}>
-              {TABS.map(tab => (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={s.tabScroll}
+              contentContainerStyle={s.tabBar}
+            >
+              {levels.map(lv => (
                 <TouchableOpacity
-                  key={tab.key}
-                  style={[s.tabBtn, activeTab === tab.key && { backgroundColor: PRIMARY, borderColor: PRIMARY }]}
-                  onPress={() => setActiveTab(tab.key)}
+                  key={lv.id}
+                  style={[s.tabBtn, activeLevelId === lv.id && { backgroundColor: PRIMARY, borderColor: PRIMARY }]}
+                  onPress={() => setActiveLevelId(lv.id)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[s.tabText, activeTab === tab.key && { color: "#fff" }]}>{tab.label}</Text>
+                  <Text style={[s.tabText, activeLevelId === lv.id && { color: "#fff" }]}>{lv.level_name}</Text>
                 </TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
           )}
 
           {isSearching && (
-            <Text style={s.searchHint}>
-              전체 {displayList.length}개 문장 검색됨
-            </Text>
+            <Text style={s.searchHint}>전체 {displayList.length}개 문장 검색됨</Text>
           )}
 
           {/* 문장 목록 */}
-          <FlatList
-            data={displayList}
-            keyExtractor={item => item.id}
-            renderItem={renderSentenceItem}
-            style={s.sentenceList}
-            contentContainerStyle={s.sentenceListContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={
-              <View style={s.emptyBox}>
-                <Inbox size={28} color={C.textMuted} />
-                <Text style={s.emptyText}>
-                  {isSearching ? "검색 결과가 없습니다." : "문장이 없습니다.\n피드백커스텀에서 추가해 보세요."}
-                </Text>
-              </View>
-            }
-          />
+          {loading ? (
+            <View style={s.loadingBox}>
+              <ActivityIndicator color={PRIMARY} />
+              <Text style={s.loadingText}>불러오는 중...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={displayList}
+              keyExtractor={item => item.id}
+              renderItem={renderSentenceItem}
+              style={s.sentenceList}
+              contentContainerStyle={s.sentenceListContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={
+                <View style={s.emptyBox}>
+                  <Inbox size={28} color={C.textMuted} />
+                  <Text style={s.emptyText}>
+                    {isSearching
+                      ? "검색 결과가 없습니다."
+                      : levels.length === 0
+                      ? "카테고리가 없습니다.\n관리자에게 문의해주세요."
+                      : "문장이 없습니다."}
+                  </Text>
+                </View>
+              }
+            />
+          )}
 
           {/* 미리보기 영역 */}
           <View style={s.previewBox}>
@@ -233,7 +268,6 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
               )}
             </ScrollView>
 
-            {/* 미리보기 조작 버튼 */}
             <View style={s.previewActions}>
               <TouchableOpacity
                 style={[s.previewBtn, preview.length === 0 && s.previewBtnDisabled]}
@@ -305,29 +339,24 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 9,
   },
   searchInput: {
-    flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text,
-    padding: 0,
+    flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, padding: 0,
   },
   searchHint: {
     fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular",
     marginHorizontal: 16, marginBottom: 8,
   },
 
-  tabBar: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    gap: 8,
-    marginBottom: 10,
-  },
+  tabScroll: { flexGrow: 0, marginBottom: 10 },
+  tabBar: { paddingHorizontal: 16, gap: 8, flexDirection: "row" },
   tabBtn: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 9,
-    borderRadius: 12,
-    borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
+    alignItems: "center", justifyContent: "center",
+    paddingVertical: 9, paddingHorizontal: 16,
+    borderRadius: 12, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
-  tabText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  tabText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+
+  loadingBox: { alignItems: "center", justifyContent: "center", paddingVertical: 32, gap: 8 },
+  loadingText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" },
 
   sentenceList: { maxHeight: 274 },
   sentenceListContent: { paddingHorizontal: 16, paddingBottom: 4, gap: 4 },
@@ -338,8 +367,14 @@ const s = StyleSheet.create({
     minHeight: 44,
   },
   sentenceText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 19 },
-  levelBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  levelBadgeText: { fontSize: 10, fontFamily: "Pretendard-Regular" },
+  levelBadge: {
+    borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
+    backgroundColor: PRIMARY + "20",
+  },
+  levelBadgeText: { fontSize: 10, fontFamily: "Pretendard-Regular", color: PRIMARY },
+  editedDot: {
+    width: 6, height: 6, borderRadius: 3, backgroundColor: "#E4A93A",
+  },
   emptyBox: { alignItems: "center", justifyContent: "center", paddingVertical: 32, gap: 8 },
   emptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20 },
 
