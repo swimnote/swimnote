@@ -109,7 +109,8 @@
           "isAccessMediaLocationEnabled": false
         }
       ],
-      "./plugins/withRemoveMediaPermissions"
+      "./plugins/withRemoveMediaPermissions",
+      "./plugins/withFixScreenOrientation"
     ],
     "experiments": {
       "typedRoutes": true,
