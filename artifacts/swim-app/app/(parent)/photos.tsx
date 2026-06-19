@@ -51,7 +51,8 @@ function monthKey(d?: string | null) {
 }
 function monthLabel(d?: string | null) {
   if (!d) return "";
-  const dt = new Date(d);
+  const dt = new Date(d.replace(" ", "T"));
+  if (isNaN(dt.getTime())) return "";
   return `${dt.getFullYear()}년 ${dt.getMonth() + 1}월`;
 }
 
