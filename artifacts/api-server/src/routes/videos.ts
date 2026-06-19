@@ -640,6 +640,32 @@ router.get("/videos/parent-view", requireAuth, requireRole("parent_account"), as
           videoMap.set(row.id, { ...row, source_label });
         }
       }
+
+      // ── 일지 첨부 영상 (journal_id 기준, class_diaries 조인) ──────────
+      if (child.class_group_id) {
+        const diaryVideoRows = (await db.execute(sql`
+          SELECT sv.id, sv.album_type, sv.class_id, sv.student_id,
+                 sv.uploaded_by_name, sv.caption, sv.created_at,
+                 sv.thumbnail_key, sv.journal_id,
+                 '/api/videos/' || sv.id || '/file' AS file_url,
+                 cd.class_group_id
+          FROM video_assets_meta sv
+          JOIN class_diaries cd ON cd.id = sv.journal_id
+          WHERE cd.class_group_id = ${child.class_group_id}
+            AND sv.journal_id IS NOT NULL
+            AND sv.status = 'active'
+          ORDER BY sv.created_at DESC LIMIT 200
+        `)).rows as any[];
+        for (const row of diaryVideoRows) {
+          if (!videoMap.has(row.id)) {
+            const source_label = row.caption ||
+              (child.class_name
+                ? `${child.class_name} 일지 영상`
+                : "수업 일지 영상");
+            videoMap.set(row.id, { ...row, source_label });
+          }
+        }
+      }
     }
 
     const rawVideos = Array.from(videoMap.values())

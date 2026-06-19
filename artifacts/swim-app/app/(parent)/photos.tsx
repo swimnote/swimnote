@@ -102,6 +102,7 @@ export default function ParentAlbumScreen() {
   const [lightbox, setLightbox]   = useState<MediaItem | null>(null);
   const [lbSaving, setLbSaving]   = useState(false);
   const [videoDetail, setVideoDetail] = useState<MediaItem | null>(null);
+  const [vdSaving, setVdSaving]   = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -152,6 +153,26 @@ export default function ParentAlbumScreen() {
       Alert.alert("저장 완료", "갤러리에 저장됐습니다.");
     } catch { Alert.alert("오류", "저장 중 오류가 발생했습니다."); }
     finally { setLbSaving(false); }
+  }
+
+  async function downloadVideo(item: MediaItem) {
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    if (status !== "granted") { Alert.alert("권한 필요", "갤러리 접근 권한이 필요합니다."); return; }
+    setVdSaving(true);
+    try {
+      const rawUrl = (item as any).presigned_url ?? item.file_url ?? "";
+      const url = rawUrl.startsWith("http")
+        ? rawUrl
+        : `${API_BASE.replace(/\/api$/, "")}${rawUrl}`;
+      const ext = url.split("?")[0].split(".").pop()?.toLowerCase() ?? "mp4";
+      const localUri = `${FileSystem.documentDirectory}swim_video_${item.id}.${ext}`;
+      await FileSystem.downloadAsync(url, localUri, {
+        headers: rawUrl.startsWith("http") ? {} : { Authorization: `Bearer ${token}` },
+      });
+      await MediaLibrary.saveToLibraryAsync(localUri);
+      Alert.alert("저장 완료", "영상이 갤러리에 저장됐습니다.");
+    } catch { Alert.alert("오류", "저장 중 오류가 발생했습니다."); }
+    finally { setVdSaving(false); }
   }
 
   function goToDiary(journalId?: string | null) {
@@ -328,9 +349,18 @@ export default function ParentAlbumScreen() {
             ) : null}
 
             <View style={st.vdBtnCol}>
+              <Pressable
+                style={[st.vdBtn, { backgroundColor: C.tint }]}
+                onPress={() => videoDetail && downloadVideo(videoDetail)}
+                disabled={vdSaving}
+              >
+                {vdSaving
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <><Download size={16} color="#fff" /><Text style={st.vdBtnTxt}>영상 다운로드</Text></>}
+              </Pressable>
               {videoDetail?.journal_id && (
                 <Pressable
-                  style={[st.vdBtn, { backgroundColor: C.tint }]}
+                  style={[st.vdBtn, { backgroundColor: "#0F172A" }]}
                   onPress={() => goToDiary(videoDetail?.journal_id)}
                 >
                   <BookOpen size={16} color="#fff" />

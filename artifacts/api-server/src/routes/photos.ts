@@ -664,6 +664,31 @@ router.get("/photos/parent-view", requireAuth, requireRole("parent_account"), as
           photoMap.set(row.id, { ...row, source_label });
         }
       }
+
+      // ── 일지 첨부 사진 (journal_id 기준, class_diaries 조인) ──────────
+      if (child.class_group_id) {
+        const diaryPhotoRows = (await db.execute(sql`
+          SELECT sp.id, sp.album_type, sp.class_id, sp.student_id,
+                 sp.uploaded_by_name, sp.caption, sp.created_at,
+                 sp.journal_id,
+                 '/api/photos/' || sp.id || '/file' AS file_url,
+                 cd.lesson_date, cd.class_group_id
+          FROM photo_assets_meta sp
+          JOIN class_diaries cd ON cd.id = sp.journal_id
+          WHERE cd.class_group_id = ${child.class_group_id}
+            AND sp.journal_id IS NOT NULL
+          ORDER BY sp.created_at DESC LIMIT 200
+        `)).rows as any[];
+        for (const row of diaryPhotoRows) {
+          if (!photoMap.has(row.id)) {
+            const source_label = row.caption ||
+              (child.class_name
+                ? `${child.class_name} 일지 사진`
+                : "수업 일지 사진");
+            photoMap.set(row.id, { ...row, source_label });
+          }
+        }
+      }
     }
 
     const photos = Array.from(photoMap.values())
