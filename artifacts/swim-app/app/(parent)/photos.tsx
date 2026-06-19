@@ -171,7 +171,10 @@ export default function ParentAlbumScreen() {
         })();
       if (!finalUrl) throw new Error("URL 확인 실패");
 
-      const ext = finalUrl.split("?")[0].split(".").pop()?.toLowerCase() ?? "mp4";
+      const pathPart = finalUrl.split("?")[0];
+      const lastSeg = pathPart.split("/").pop() ?? "";
+      const extCandidate = lastSeg.includes(".") ? lastSeg.split(".").pop()?.toLowerCase() : undefined;
+      const ext = (extCandidate && extCandidate.length <= 4) ? extCandidate : "mp4";
       const localUri = `${FileSystem.documentDirectory}swim_video_${item.id}.${ext}`;
       const headers = presigned ? {} : { Authorization: `Bearer ${token}` };
       const dl = await FileSystem.downloadAsync(finalUrl, localUri, { headers });
