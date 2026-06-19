@@ -6,14 +6,15 @@
  *   - 선생님이 수정 → 해당 항목만 개인 override 저장
  *   - 초기화 → override 삭제, 관리자 원본으로 복귀
  *   - 선생님 신규 추가 → source_template_id=NULL 별도 항목
+ *   - 활성/비활성 토글 → toggle-active API (문장 불러오기에서 표시 여부 조절)
  */
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Edit2, Plus, RotateCcw, Trash2 } from "lucide-react-native";
+import { Edit2, Eye, EyeOff, Plus, RotateCcw, Trash2 } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
@@ -32,6 +33,9 @@ export default function FeedbackCustomScreen() {
 
   const [templates, setTemplates] = useState<DiaryTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
+
+  // 토글 로딩 (templateId → boolean)
+  const [toggling, setToggling] = useState<Record<string, boolean>>({});
 
   // 수정 모달 (global override + teacher 신규 모두)
   const [editTarget, setEditTarget] = useState<DiaryTemplate | null>(null);
@@ -66,11 +70,11 @@ export default function FeedbackCustomScreen() {
     setLevelsLoading(false);
   }, [token, selectedLevelId]);
 
-  // ── 템플릿 로드 (merged view) ───────────────────────
+  // ── 템플릿 로드 (include_inactive=true → 비활성 항목도 관리 화면에 표시)
   const loadTemplates = useCallback(async (levelId: string) => {
     setTemplatesLoading(true);
     try {
-      const r = await apiRequest(token, `/diary-templates?level_id=${levelId}`);
+      const r = await apiRequest(token, `/diary-templates?level_id=${levelId}&include_inactive=true`);
       if (r.ok) setTemplates(await r.json());
     } catch { /* ignore */ }
     setTemplatesLoading(false);
@@ -78,6 +82,27 @@ export default function FeedbackCustomScreen() {
 
   useEffect(() => { loadLevels(); }, []);
   useEffect(() => { if (selectedLevelId) loadTemplates(selectedLevelId); }, [selectedLevelId]);
+
+  // ── 활성/비활성 토글 ────────────────────────────────
+  const handleToggleActive = async (t: DiaryTemplate, newValue: boolean) => {
+    const id = t.global_id ?? t.id;
+    setToggling(prev => ({ ...prev, [t.id]: true }));
+    // 낙관적 업데이트
+    setTemplates(prev => prev.map(item => item.id === t.id ? { ...item, is_active: newValue } : item));
+    try {
+      const r = await apiRequest(token, `/diary-templates/${id}/toggle-active`, {
+        method: "POST",
+        body: JSON.stringify({ is_active: newValue }),
+      });
+      if (!r.ok) {
+        // 롤백
+        setTemplates(prev => prev.map(item => item.id === t.id ? { ...item, is_active: !newValue } : item));
+      }
+    } catch {
+      setTemplates(prev => prev.map(item => item.id === t.id ? { ...item, is_active: !newValue } : item));
+    }
+    setToggling(prev => { const next = { ...prev }; delete next[t.id]; return next; });
+  };
 
   // ── override 저장 (global 항목 수정) ───────────────
   const saveOverride = async () => {
@@ -186,6 +211,12 @@ export default function FeedbackCustomScreen() {
             ))}
           </ScrollView>
 
+          {/* 안내 문구 */}
+          <View style={s.hintRow}>
+            <Eye size={12} color="#94A3B8" />
+            <Text style={s.hintText}>스위치를 끄면 "문장 불러오기"에서 숨겨집니다</Text>
+          </View>
+
           <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 80 }]}>
             {templatesLoading ? (
               <ActivityIndicator style={{ marginTop: 32 }} color={C.primary} />
@@ -198,21 +229,47 @@ export default function FeedbackCustomScreen() {
                   </View>
                 ) : (
                   baseItems.map((t, i) => (
-                    <View key={t.global_id} style={[s.card, t.is_overridden && s.cardOverridden]}>
+                    <View key={t.global_id} style={[
+                      s.card,
+                      t.is_overridden && s.cardOverridden,
+                      !t.is_active && s.cardInactive,
+                    ]}>
                       <View style={s.cardTop}>
-                        <Text style={s.cardNum}>{i + 1}</Text>
-                        <Text style={s.cardText} numberOfLines={3}>{t.template_text}</Text>
-                        <Pressable style={s.editBtn} onPress={() => {
-                          setEditTarget(t);
-                          setEditText(t.template_text);
-                          setEditTitle(t.title ?? "");
-                          setEditError("");
-                        }}>
-                          <Edit2 size={14} color="#64748B" />
-                          <Text style={s.editBtnText}>수정</Text>
-                        </Pressable>
+                        <Text style={[s.cardNum, !t.is_active && s.cardNumInactive]}>{i + 1}</Text>
+                        <Text style={[s.cardText, !t.is_active && s.cardTextInactive]} numberOfLines={3}>
+                          {t.template_text}
+                        </Text>
+                        <View style={s.cardActions}>
+                          {/* 활성/비활성 스위치 */}
+                          {toggling[t.id] ? (
+                            <ActivityIndicator size="small" color={C.primary} style={{ width: 44 }} />
+                          ) : (
+                            <Switch
+                              value={!!t.is_active}
+                              onValueChange={v => handleToggleActive(t, v)}
+                              trackColor={{ false: "#E2E8F0", true: "#2EC4B640" }}
+                              thumbColor={t.is_active ? "#2EC4B6" : "#94A3B8"}
+                              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                            />
+                          )}
+                          <Pressable style={s.editBtn} onPress={() => {
+                            setEditTarget(t);
+                            setEditText(t.template_text);
+                            setEditTitle(t.title ?? "");
+                            setEditError("");
+                          }}>
+                            <Edit2 size={14} color="#64748B" />
+                            <Text style={s.editBtnText}>수정</Text>
+                          </Pressable>
+                        </View>
                       </View>
-                      {t.is_overridden && (
+                      {!t.is_active && (
+                        <View style={s.hiddenBadgeRow}>
+                          <EyeOff size={11} color="#94A3B8" />
+                          <Text style={s.hiddenBadgeText}>문장 불러오기에서 숨겨짐</Text>
+                        </View>
+                      )}
+                      {t.is_overridden && t.is_active && (
                         <View style={s.overriddenRow}>
                           <View style={s.myBadge}><Text style={s.myBadgeText}>내 수정</Text></View>
                           <Pressable style={s.resetBtn} onPress={() => setResetTarget(t)}>
@@ -220,6 +277,12 @@ export default function FeedbackCustomScreen() {
                             <Text style={s.resetBtnText}>초기화</Text>
                           </Pressable>
                         </View>
+                      )}
+                      {t.is_overridden && !t.is_active && (
+                        <Pressable style={[s.resetBtn, { alignSelf: "flex-start", marginTop: 4 }]} onPress={() => setResetTarget(t)}>
+                          <RotateCcw size={11} color="#64748B" />
+                          <Text style={s.resetBtnText}>수정 초기화</Text>
+                        </Pressable>
                       )}
                     </View>
                   ))
@@ -234,11 +297,24 @@ export default function FeedbackCustomScreen() {
                       <View style={s.sectionLine} />
                     </View>
                     {myNewItems.map((t) => (
-                      <View key={t.id} style={[s.card, s.cardMine]}>
+                      <View key={t.id} style={[s.card, s.cardMine, !t.is_active && s.cardInactive]}>
                         <View style={s.cardTop}>
                           {!!t.title && <Text style={s.cardTitle}>{t.title}</Text>}
-                          <Text style={[s.cardText, { flex: 1 }]} numberOfLines={3}>{t.template_text}</Text>
-                          <View style={{ flexDirection: "row", gap: 6 }}>
+                          <Text style={[s.cardText, { flex: 1 }, !t.is_active && s.cardTextInactive]} numberOfLines={3}>
+                            {t.template_text}
+                          </Text>
+                          <View style={s.cardActions}>
+                            {toggling[t.id] ? (
+                              <ActivityIndicator size="small" color={C.primary} style={{ width: 44 }} />
+                            ) : (
+                              <Switch
+                                value={!!t.is_active}
+                                onValueChange={v => handleToggleActive(t, v)}
+                                trackColor={{ false: "#E2E8F0", true: "#2EC4B640" }}
+                                thumbColor={t.is_active ? "#2EC4B6" : "#94A3B8"}
+                                style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                              />
+                            )}
                             <Pressable style={s.editBtn} onPress={() => {
                               setEditTarget(t);
                               setEditText(t.template_text);
@@ -253,6 +329,12 @@ export default function FeedbackCustomScreen() {
                             </Pressable>
                           </View>
                         </View>
+                        {!t.is_active && (
+                          <View style={s.hiddenBadgeRow}>
+                            <EyeOff size={11} color="#94A3B8" />
+                            <Text style={s.hiddenBadgeText}>문장 불러오기에서 숨겨짐</Text>
+                          </View>
+                        )}
                       </View>
                     ))}
                   </>
@@ -377,26 +459,37 @@ const s = StyleSheet.create({
   tabText:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
   tabTextActive:{ color: "#2EC4B6", fontFamily: "Pretendard-SemiBold" },
 
+  hintRow:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingBottom: 6 },
+  hintText:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+
   listContent:  { paddingHorizontal: 16, paddingTop: 4, gap: 8 },
 
-  card:         { backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
-  cardOverridden:{ backgroundColor: "#FFF8EC", borderColor: "#FCD34D" },
-  cardMine:     { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" },
-  cardTop:      { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  cardNum:      { width: 22, height: 22, borderRadius: 11, backgroundColor: "#E2E8F0", textAlign: "center", lineHeight: 22, fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
-  cardTitle:    { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#7C3AED", marginBottom: 2 },
-  cardText:     { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
-  editBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#fff" },
-  editBtnText:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  overriddenRow:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#FDE68A" },
-  myBadge:      { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: "#FCD34D" },
-  myBadgeText:  { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#92400E" },
-  resetBtn:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#fff" },
-  resetBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  card:           { backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+  cardOverridden: { backgroundColor: "#FFF8EC", borderColor: "#FCD34D" },
+  cardMine:       { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" },
+  cardInactive:   { backgroundColor: "#F1F5F9", borderColor: "#E2E8F0", opacity: 0.7 },
+  cardTop:        { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  cardNum:        { width: 22, height: 22, borderRadius: 11, backgroundColor: "#E2E8F0", textAlign: "center", lineHeight: 22, fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
+  cardNumInactive:{ backgroundColor: "#CBD5E1", color: "#94A3B8" },
+  cardTitle:      { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#7C3AED", marginBottom: 2 },
+  cardText:       { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
+  cardTextInactive:{ color: "#94A3B8" },
+  cardActions:    { flexDirection: "row", alignItems: "center", gap: 4 },
+  editBtn:        { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#fff" },
+  editBtnText:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
-  sectionDivider:{ flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 10 },
-  sectionLine:   { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
-  sectionLabel:  { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#94A3B8" },
+  hiddenBadgeRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: "#E2E8F0" },
+  hiddenBadgeText:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+
+  overriddenRow:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#FDE68A" },
+  myBadge:        { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: "#FCD34D" },
+  myBadgeText:    { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#92400E" },
+  resetBtn:       { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#fff" },
+  resetBtnText:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+
+  sectionDivider: { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 10 },
+  sectionLine:    { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
+  sectionLabel:   { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#94A3B8" },
 
   emptyBox:   { paddingTop: 48, alignItems: "center" },
   emptyText:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8" },

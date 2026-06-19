@@ -1151,13 +1151,16 @@ router.get("/diary-templates",
         // Teacher: override 병합 뷰 (global LEFT JOIN teacher-override) + 선생님 신규 추가 항목
         const lvF   = levelId ? sql`AND g.level_id = ${levelId}`  : sql``;
         const lvFt  = levelId ? sql`AND level_id = ${levelId}` : sql``;
+        // include_inactive=true: 선생님이 숨긴 항목도 관리 화면에 표시 (기본: 숨긴 항목 제외)
+        const activeFilter = includeInactive ? sql`` : sql`AND COALESCE(ov.is_active, true) = true`;
         const merged = await db.execute(sql`
           SELECT
             g.id           AS global_id,
             g.id           AS id,
             COALESCE(ov.template_text, g.template_text) AS template_text,
             COALESCE(ov.title, g.title)                 AS title,
-            g.level_id, g.sort_order, g.is_active,
+            g.level_id, g.sort_order,
+            COALESCE(ov.is_active, g.is_active)         AS is_active,
             (ov.id IS NOT NULL)                         AS is_overridden,
             ov.id                                       AS override_id
           FROM diary_templates g
@@ -1170,6 +1173,7 @@ router.get("/diary-templates",
             AND g.scope = 'global'
             AND g.is_active = true
             ${lvF}
+            ${activeFilter}
           ORDER BY g.sort_order ASC, g.created_at ASC
         `);
         const teacherNew = await db.execute(sql`
@@ -1184,7 +1188,7 @@ router.get("/diary-templates",
             AND teacher_id = ${userId}
             AND source_template_id IS NULL
             ${lvFt}
-            AND is_active = true
+            ${includeInactive ? sql`` : sql`AND is_active = true`}
           ORDER BY sort_order ASC
         `);
         res.json([...merged.rows, ...teacherNew.rows]);
@@ -1218,6 +1222,54 @@ router.post("/diary-templates/:id/override",
         await db.execute(sql`INSERT INTO diary_templates (id, swimming_pool_id, template_text, title, level_id, sort_order, scope, teacher_id, source_template_id, created_by) VALUES (${newId}, ${poolId}, ${template_text.trim()}, ${title?.trim() || null}, ${g.level_id}, ${g.sort_order}, 'teacher', ${userId}, ${globalId}, ${userId})`);
         res.json({ success: true, id: newId });
       }
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// POST /diary-templates/:id/toggle-active — 선생님 개인 표시/숨기기
+// global 템플릿: override에 is_active 저장 / teacher 본인 항목: 직접 업데이트
+router.post("/diary-templates/:id/toggle-active",
+  requireAuth, requireRole("teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { is_active } = req.body; // boolean
+      if (typeof is_active !== "boolean") return apiErr(res, 400, "is_active(boolean) 필요");
+      const templateId = req.params.id;
+      const poolId = await getUserPoolId(req.user!.userId);
+      const userId = req.user!.userId;
+
+      const check = await db.execute(sql`
+        SELECT id, scope, teacher_id, template_text, level_id, sort_order
+        FROM diary_templates WHERE id = ${templateId} AND swimming_pool_id = ${poolId}
+      `);
+      if (!check.rows.length) return apiErr(res, 404, "템플릿을 찾을 수 없습니다.");
+      const tpl = check.rows[0] as any;
+
+      if (tpl.scope === "global") {
+        // override 존재 여부 확인
+        const existing = await db.execute(sql`
+          SELECT id FROM diary_templates
+          WHERE source_template_id = ${templateId} AND scope = 'teacher'
+            AND teacher_id = ${userId} AND swimming_pool_id = ${poolId}
+        `);
+        if (existing.rows.length) {
+          const ovId = (existing.rows[0] as any).id;
+          await db.execute(sql`UPDATE diary_templates SET is_active = ${is_active}, updated_at = NOW() WHERE id = ${ovId}`);
+        } else if (!is_active) {
+          // 숨기는 경우에만 override 신규 생성
+          const newId = genId("dt");
+          await db.execute(sql`
+            INSERT INTO diary_templates (id, swimming_pool_id, template_text, level_id, sort_order, scope, teacher_id, source_template_id, is_active, created_by)
+            VALUES (${newId}, ${poolId}, ${tpl.template_text}, ${tpl.level_id}, ${tpl.sort_order}, 'teacher', ${userId}, ${templateId}, false, ${userId})
+          `);
+        }
+        // is_active=true + override 없음 → 원래 표시 상태, 아무것도 안 해도 됨
+      } else if (tpl.scope === "teacher" && tpl.teacher_id === userId) {
+        await db.execute(sql`UPDATE diary_templates SET is_active = ${is_active}, updated_at = NOW() WHERE id = ${templateId} AND swimming_pool_id = ${poolId}`);
+      } else {
+        return apiErr(res, 403, "권한이 없습니다.");
+      }
+      res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
 );
