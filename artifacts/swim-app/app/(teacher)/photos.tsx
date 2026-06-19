@@ -9,7 +9,7 @@
  *  - Mock 데이터로 UI 테스트 가능
  */
 import { router } from "expo-router";
-import { Check, ChevronRight, CircleAlert, CloudUpload, Database, HardDrive, Image as ImageIcon, Plus, RefreshCw, SquareCheck, Trash2, Users, Video, X } from "lucide-react-native";
+import { Check, ChevronRight, CircleAlert, CloudUpload, Database, HardDrive, Image as ImageIcon, Info, Plus, RefreshCw, SquareCheck, Trash2, Users, Video, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
 import * as VideoThumbnails from "expo-video-thumbnails";
@@ -353,9 +353,38 @@ export default function TeacherPhotosScreen() {
     setStep("upload");
   }
 
+  /** 홈 타일에서 직접 업로드 */
+  async function handleTileUpload(mt: MediaType, sc: AlbumScope) {
+    setMediaType(mt);
+    setScope(sc);
+    const isVideo = mt === "video";
+    if (isVideo && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
+    if (planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) { Alert.alert("권한 필요", "미디어 접근 권한이 필요합니다."); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: isVideo ? ["videos"] : ["images"],
+        allowsMultipleSelection: !isVideo,
+        quality: isVideo ? 1 : 0.85,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const assets = result.assets;
+      if (groups.length === 0) {
+        await doUpload(assets, null, null, mt, sc);
+      } else {
+        setPendingUploadAssets(assets);
+        setShowClassPickerModal(true);
+      }
+    } catch (e: any) {
+      setErrorMsg(e?.message ?? "업로드 중 오류가 발생했습니다.");
+    }
+  }
+
   /** 실제 파일 업로드 — 파일 피커 이후에 실행 */
-  async function doUpload(assets: any[], group: TeacherClassGroup | null | undefined, student: Student | null | undefined) {
-    const isVideo = mediaType === "video";
+  async function doUpload(assets: any[], group: TeacherClassGroup | null | undefined, student: Student | null | undefined, overrideMt?: MediaType, overrideSc?: AlbumScope) {
+    const isVideo = (overrideMt ?? mediaType) === "video";
+    const sc = overrideSc ?? scope;
     setUploading(true);
     try {
       const form = new FormData();
@@ -382,11 +411,11 @@ export default function TeacherPhotosScreen() {
         }
       }
       form.append("class_id", group?.id ?? "");
-      if (scope === "private" && student?.id) form.append("student_id", student.id);
+      if (sc === "private" && student?.id) form.append("student_id", student.id);
 
       const endpoint = isVideo
-        ? (scope === "group" ? "/videos/group" : "/videos/private")
-        : (scope === "group" ? "/photos/group" : "/photos/private");
+        ? (sc === "group" ? "/videos/group" : "/videos/private")
+        : (sc === "group" ? "/photos/group" : "/photos/private");
 
       const res = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
@@ -476,35 +505,76 @@ export default function TeacherPhotosScreen() {
     );
   }
 
-  // ── 홈: 4버튼 + 사용량 ───────────────────────────────────────────────
+  // ── 홈: 새 레이아웃 (업로드 / 앨범 구분) ────────────────────────────
   if (step === "home") {
+    const HOME_TILES: {
+      key: string; mt: MediaType; sc: AlbumScope;
+      icon: string; title: string; sub: string;
+      color: string; bg: string; isPremier: boolean; isUpload: boolean;
+    }[] = [
+      { key: "photo_upload",   mt: "photo", sc: "group",   icon: "cloud-upload", title: "전체사진 업로드", sub: "전체 학생에게 공유",    color: "#E4A93A", bg: "#FFF8E6", isPremier: false, isUpload: true },
+      { key: "video_upload",   mt: "video", sc: "group",   icon: "cloud-upload", title: "전체영상 업로드", sub: "전체 학생에게 공유",    color: "#2EC4B6", bg: "#E6FFFA", isPremier: true,  isUpload: true },
+      { key: "photo_album",    mt: "photo", sc: "private", icon: "image",        title: "내사진앨범",     sub: "내가 올린 개인 사진",   color: "#F97316", bg: "#FFF4EE", isPremier: false, isUpload: false },
+      { key: "video_album",    mt: "video", sc: "private", icon: "video",        title: "내영상앨범",     sub: "내가 올린 개인 영상",   color: "#7C3AED", bg: "#F3EEFF", isPremier: true,  isUpload: false },
+    ];
+
     return (
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader title="사진 & 영상" homePath="/(teacher)/today-schedule" />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
           <View style={s.titleRow}><Text style={s.title}>사진 & 영상</Text></View>
+
+          {/* ── 2×2 타일 그리드 ── */}
           <View style={s.grid}>
-            {(["photo_group", "photo_private", "video_group", "video_private"] as const).map(key => {
-              const [mt, sc] = key.split("_") as [MediaType, AlbumScope];
-              const c = MEDIA_CONFIG[key];
-              return (
-                <Pressable
-                  key={key}
-                  style={[s.gridBtn, { backgroundColor: c.bg, borderColor: c.color + "40" }]}
-                  onPress={() => openList(mt, sc)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${c.title} ${c.sub}`}
-                >
-                  <View style={[s.gridIcon, { backgroundColor: c.color + "25" }]}>
-                    <LucideIcon name={c.icon} size={28} color={c.color} />
+            {HOME_TILES.map(tile => (
+              <Pressable
+                key={tile.key}
+                style={[s.gridBtn, { backgroundColor: tile.bg, borderColor: tile.color + "40" }]}
+                onPress={() => tile.isUpload ? handleTileUpload(tile.mt, tile.sc) : openList(tile.mt, tile.sc)}
+                accessibilityRole="button"
+                accessibilityLabel={tile.title}
+              >
+                {tile.isPremier && (
+                  <View style={s.premierBadge}>
+                    <Text style={s.premierBadgeText}>프리미어 이상</Text>
                   </View>
-                  <Text style={[s.gridTitle, { color: c.color }]}>{c.title}</Text>
-                  <Text style={[s.gridSub, { color: c.color + "CC" }]}>{c.sub}</Text>
-                </Pressable>
-              );
-            })}
+                )}
+                <View style={[s.gridIcon, { backgroundColor: tile.color + "22" }]}>
+                  <LucideIcon name={tile.icon} size={26} color={tile.color} />
+                </View>
+                <Text style={[s.gridTitle, { color: tile.color }]}>{tile.title}</Text>
+                <Text style={[s.gridSub, { color: tile.color + "BB" }]}>{tile.sub}</Text>
+              </Pressable>
+            ))}
           </View>
 
+          {/* ── 업로드 제한사항 안내 ── */}
+          <View style={s.limitCard}>
+            <View style={s.limitCardHeader}>
+              <Info size={14} color="#64748B" />
+              <Text style={s.limitCardTitle}>업로드 제한사항</Text>
+            </View>
+            <View style={s.limitCardBody}>
+              <View style={s.limitRow}>
+                <LucideIcon name="image" size={13} color="#E4A93A" />
+                <Text style={s.limitText}>사진: 1장 최대 <Text style={{ color: "#0F172A" }}>10MB</Text> · 최대 <Text style={{ color: "#0F172A" }}>20장</Text> 동시 업로드</Text>
+              </View>
+              <View style={s.limitRow}>
+                <LucideIcon name="video" size={13} color="#2EC4B6" />
+                <Text style={s.limitText}>영상: 1개 최대 <Text style={{ color: "#0F172A" }}>500MB</Text> · <Text style={{ color: "#7C3AED" }}>프리미어 플랜</Text> 이상만 사용 가능</Text>
+              </View>
+              <View style={s.limitRow}>
+                <LucideIcon name="users" size={13} color="#94A3B8" />
+                <Text style={s.limitText}>업로드한 사진·영상은 학부모 앱에서 즉시 확인 가능합니다</Text>
+              </View>
+              <View style={s.limitRow}>
+                <LucideIcon name="hard-drive" size={13} color="#94A3B8" />
+                <Text style={s.limitText}>저장공간 초과 시 업로드가 제한됩니다 (현재 {planFeatures.storage_used_pct.toFixed(0)}% 사용 중)</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* ── 내 업로드 사용량 ── */}
           <View style={s.usageCard}>
             <View style={s.usageCardHeader}>
               <HardDrive size={15} color={themeColor} />
@@ -1080,10 +1150,20 @@ const s = StyleSheet.create({
   title: { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#0F172A" },
 
   grid: { flexDirection: "row", flexWrap: "wrap", padding: 12, gap: 12 },
-  gridBtn: { width: "47%", aspectRatio: 1, borderRadius: 20, borderWidth: 1.5, alignItems: "center", justifyContent: "center", gap: 10 },
-  gridIcon: { width: 60, height: 60, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  gridTitle: { fontSize: 18, fontFamily: "Pretendard-Regular" },
-  gridSub: { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  gridBtn: { width: "47%", aspectRatio: 1, borderRadius: 20, borderWidth: 1.5, alignItems: "center", justifyContent: "center", gap: 8, position: "relative", overflow: "hidden" },
+  gridIcon: { width: 56, height: 56, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  gridTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center" },
+  gridSub: { fontSize: 11, fontFamily: "Pretendard-Regular", textAlign: "center", paddingHorizontal: 6 },
+
+  premierBadge: { position: "absolute", top: 8, right: 0, backgroundColor: "#7C3AED", paddingHorizontal: 8, paddingVertical: 3, borderTopLeftRadius: 8, borderBottomLeftRadius: 8 },
+  premierBadgeText: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#fff" },
+
+  limitCard: { marginHorizontal: 12, marginTop: 4, marginBottom: 4, backgroundColor: "#F8FAFC", borderRadius: 16, borderWidth: 1, borderColor: "#E5E7EB", overflow: "hidden" },
+  limitCardHeader: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  limitCardTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  limitCardBody: { paddingHorizontal: 14, paddingVertical: 10, gap: 8 },
+  limitRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  limitText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18 },
 
   usageCard: { marginHorizontal: 12, marginTop: 4, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden" },
   usageCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
