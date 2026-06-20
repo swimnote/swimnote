@@ -4,7 +4,7 @@
  * - diaryId 로 일지에 직접 첨부된 사진(앨범 선택) + 영상도 함께 표시
  * - 중복 제거 후 시간순 정렬
  */
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import { Image } from "expo-image";
 import React, { useCallback, useEffect, useState } from "react";

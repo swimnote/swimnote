@@ -29,18 +29,43 @@ try {
   console.warn("[RevenueCat] 초기화 실패:", err?.message ?? "Unknown error");
 }
 
-// ── 전역 에러 핸들러 (Android fatal crash 캡처) ──────────
+// ── 전역 에러 핸들러 (Android fatal crash 캡처 + 서버 전송) ──────────
 declare const ErrorUtils: any;
+const _CRASH_API = process.env.EXPO_PUBLIC_API_URL
+  ? `${process.env.EXPO_PUBLIC_API_URL}/crash-report`
+  : null;
+
+function sendCrashReport(error: any, isFatal: boolean, source: string) {
+  if (!_CRASH_API) return;
+  try {
+    fetch(_CRASH_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        timestamp: new Date().toISOString(),
+        isFatal,
+        message: error?.message ?? "(no msg)",
+        stack: (error?.stack ?? "").substring(0, 3000),
+        platform: Platform.OS,
+        version: Constants.expoConfig?.version ?? "unknown",
+        versionCode: (Constants.expoConfig as any)?.android?.versionCode ?? null,
+        buildNumber: (Constants.expoConfig as any)?.ios?.buildNumber ?? null,
+        source,
+      }),
+    }).catch(() => {});
+  } catch (_) {}
+}
+
 try {
   if (typeof ErrorUtils !== "undefined" && ErrorUtils.setGlobalHandler) {
     const _prevErrHandler = ErrorUtils.getGlobalHandler();
     ErrorUtils.setGlobalHandler((error: any, isFatal?: boolean) => {
-      console.error(`[GLOBAL_ERROR] isFatal=${isFatal} msg=${error?.message ?? "(no msg)"}`);
+      const fatal = !!isFatal;
+      console.error(`[GLOBAL_ERROR] isFatal=${fatal} msg=${error?.message ?? "(no msg)"}`);
       console.error(`[GLOBAL_ERROR_STACK] ${(error?.stack ?? "").substring(0, 800)}`);
+      sendCrashReport(error, fatal, "global_error_handler");
       if (typeof _prevErrHandler === "function") _prevErrHandler(error, isFatal);
     });
-  } else {
-    // ErrorUtils 미지원 환경
   }
 } catch (handlerErr: any) {
   console.warn("[LAYOUT] failed to install global error handler:", handlerErr?.message);
