@@ -593,6 +593,7 @@ router.delete("/videos/bulk", requireAuth, requireRole("pool_admin", "teacher", 
 router.get("/videos/parent-view", requireAuth, requireRole("parent_account"), async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.user!;
+    const studentId = (req.query.student_id as string) || null;
 
     const childRows = await db.execute(sql`
       SELECT s.id, s.name, s.class_group_id,
@@ -601,6 +602,7 @@ router.get("/videos/parent-view", requireAuth, requireRole("parent_account"), as
       JOIN parent_students ps ON ps.student_id = s.id
       LEFT JOIN class_groups cg ON cg.id = s.class_group_id
       WHERE ps.parent_id = ${userId} AND ps.status = 'approved'
+        AND (${studentId}::text IS NULL OR s.id = ${studentId})
     `);
     const children = childRows.rows as any[];
 

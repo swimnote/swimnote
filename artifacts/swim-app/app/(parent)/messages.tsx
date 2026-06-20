@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useParent } from "@/context/ParentContext";
 import { parseDateSafe } from "@/domain/formatters";
 
 const C = Colors.light;
@@ -101,14 +102,18 @@ export default function MessagesScreen() {
 
   const isChat = !!diaryId;
 
+  const { selectedStudent } = useParent();
+
   /* ── 스레드 목록 로드 ── */
   const loadThreads = useCallback(async () => {
     setListLoading(true);
     try {
-      const res = await apiRequest(token, "/parent/messages");
+      const sid = selectedStudent?.id;
+      const q = sid ? `?student_id=${sid}` : "";
+      const res = await apiRequest(token, `/parent/messages${q}`);
       if (res.ok) setThreads(await res.json());
     } finally { setListLoading(false); setListRefreshing(false); }
-  }, [token]);
+  }, [token, selectedStudent?.id]);
 
   /* ── 채팅 로드 ── */
   const loadChat = useCallback(async () => {

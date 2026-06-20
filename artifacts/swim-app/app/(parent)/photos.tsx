@@ -21,6 +21,7 @@ import * as MediaLibrary from "expo-media-library";
 import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
+import { useParent } from "@/context/ParentContext";
 
 
 const C = Colors.light;
@@ -92,6 +93,7 @@ function photoFileUri(fileUrl: string) {
 
 export default function ParentAlbumScreen() {
   const { token } = useAuth();
+  const { selectedStudent } = useParent();
   const insets = useSafeAreaInsets();
 
   const [photos, setPhotos]   = useState<MediaItem[]>([]);
@@ -107,9 +109,11 @@ export default function ParentAlbumScreen() {
 
   const load = useCallback(async () => {
     try {
+      const sid = selectedStudent?.id;
+      const q = sid ? `?student_id=${sid}` : "";
       const [pr, vr] = await Promise.all([
-        apiRequest(token, "/photos/parent-view"),
-        apiRequest(token, "/videos/parent-view"),
+        apiRequest(token, `/photos/parent-view${q}`),
+        apiRequest(token, `/videos/parent-view${q}`),
       ]);
       const pd = pr.ok ? await pr.json() : {};
       const vd = vr.ok ? await vr.json() : {};
@@ -123,7 +127,7 @@ export default function ParentAlbumScreen() {
       setVideos(rawVideos);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
-  }, [token]);
+  }, [token, selectedStudent?.id]);
 
   useEffect(() => { load(); }, [load]);
 

@@ -722,6 +722,7 @@ router.post("/diary/:diaryId/reactions", requireAuth, requireParent, async (req:
 router.get("/messages", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
     const parentId = req.user!.userId!;
+    const studentId = (req.query.student_id as string) || null;
     const rows = await db.execute(sql`
       SELECT
         cd.id              AS diary_id,
@@ -768,6 +769,7 @@ router.get("/messages", requireAuth, requireParent, async (req: AuthRequest, res
       JOIN students s ON s.class_group_id = cd.class_group_id
       JOIN parent_students ps ON ps.student_id = s.id
       WHERE ps.parent_id = ${parentId} AND ps.status = 'approved'
+        AND (${studentId}::text IS NULL OR s.id = ${studentId})
         AND cd.is_deleted = false
         AND EXISTS (
           SELECT 1 FROM diary_messages dm
@@ -1497,13 +1499,7 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
       student = byPhone[0];
     } else {
       student = found.rows[0] as any;
-      // 단일 매칭: 양쪽 전화번호가 모두 있을 때만 비교
-      if (parentPhone) {
-        const studentPhone = (student.parent_phone || "").replace(/[^0-9]/g, "");
-        if (studentPhone && studentPhone !== parentPhone) {
-          res.json({ success: false, status: "phone_mismatch", message: "전화번호가 일치하지 않습니다. 수영장에 등록된 연락처를 확인해주세요." }); return;
-        }
-      }
+      // 단일 매칭: 이름 일치 시 전화번호 무관 연결 허용 (형제 등록 지원)
     }
 
     // students 테이블 연결
