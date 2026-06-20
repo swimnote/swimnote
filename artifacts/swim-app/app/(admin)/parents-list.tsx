@@ -287,6 +287,46 @@ function ParentDetailModal({
                   </View>
                 </View>
               )}
+
+              {/* 강제탈퇴 — 앱 가입 학부모만 */}
+              {isApp && (
+                <View style={{ backgroundColor: "#FEF2F2", borderRadius: 14, padding: 16, gap: 10 }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#991B1B" }}>
+                    계정을 삭제하면 자녀 연결이 모두 해제되고 복구할 수 없습니다.
+                  </Text>
+                  <Pressable
+                    style={({ pressed }) => [md.deleteBtn, { opacity: pressed ? 0.8 : 1 }]}
+                    onPress={() => {
+                      Alert.alert(
+                        "학부모 계정 삭제",
+                        `${item.name || "이 학부모"}의 계정을 삭제하시겠습니까?\n자녀 연결이 모두 해제되며 복구할 수 없습니다.`,
+                        [
+                          { text: "취소", style: "cancel" },
+                          {
+                            text: "삭제", style: "destructive",
+                            onPress: async () => {
+                              try {
+                                const res = await apiRequest(token, `/admin/parents/${item.id}`, { method: "DELETE" });
+                                if (res.ok) {
+                                  onClose();
+                                  onRefresh();
+                                } else {
+                                  const body = await res.json().catch(() => ({}));
+                                  Alert.alert("오류", body.error || "삭제에 실패했습니다.");
+                                }
+                              } catch {
+                                Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+                              }
+                            },
+                          },
+                        ],
+                      );
+                    }}
+                  >
+                    <Text style={md.deleteBtnTxt}>학부모 계정 삭제</Text>
+                  </Pressable>
+                </View>
+              )}
             </>
           )}
         </ScrollView>
@@ -639,4 +679,7 @@ const md = StyleSheet.create({
     gap: 8, paddingVertical: 13, borderRadius: 12, backgroundColor: TEAL,
   },
   registerBtnTxt: { fontSize: 14, fontWeight: "700", color: "#fff" },
+
+  deleteBtn:    { paddingVertical: 13, borderRadius: 12, alignItems: "center", backgroundColor: "#DC2626" },
+  deleteBtnTxt: { fontSize: 14, fontWeight: "700", color: "#fff" },
 });

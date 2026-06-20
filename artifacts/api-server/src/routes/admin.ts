@@ -2702,7 +2702,8 @@ router.get("/parents/:parentId", requireAuth, requireRole("super_admin","pool_ad
         const stuRows = (await db.execute(sql`
           SELECT s.id, s.name, s.status,
                  cg.name AS class_name,
-                 s.level AS level
+                 s.level AS level,
+                 ps.id AS link_id
           FROM parent_students ps
           JOIN students s ON s.id = ps.student_id
           LEFT JOIN class_groups cg ON cg.id = s.class_group_id
