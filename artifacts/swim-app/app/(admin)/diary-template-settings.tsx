@@ -189,7 +189,18 @@ export default function DiaryTemplateSettingsScreen() {
     if (r?.ok) {
       setSelectedLevelId(null);
       setTemplates([]);
-      await loadLevels();
+      setLevelsLoading(true);
+      try {
+        const lr = await apiRequest(token, "/diary-template-levels");
+        if (lr.ok) {
+          const data: DiaryTemplateLevel[] = await lr.json();
+          setLevels(data);
+          if (data.length > 0) {
+            setSelectedLevelId(data[0].id);
+          }
+        }
+      } catch {}
+      finally { setLevelsLoading(false); }
     }
   }
 
