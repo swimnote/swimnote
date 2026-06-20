@@ -386,14 +386,16 @@ export async function insertDefaultTemplates(poolId: string, createdByUserId: st
       INSERT INTO diary_template_levels (id, swimming_pool_id, level_name, sort_order)
       VALUES (${lvId}, ${poolId}, ${levelName}, ${li})
     `);
-    for (let ti = 0; ti < templates.length; ti++) {
+    if (templates.length === 0) continue;
+    const rows = templates.map((text, ti) => {
       const dtId = genDefaultId("dt");
-      await db.execute(sql`
-        INSERT INTO diary_templates
-          (id, swimming_pool_id, level_id, template_text, sort_order, scope, created_by)
-        VALUES
-          (${dtId}, ${poolId}, ${lvId}, ${templates[ti]}, ${ti}, 'global', ${createdByUserId})
-      `);
-    }
+      return sql`(${dtId}, ${poolId}, ${lvId}, ${text}, ${ti}, 'global', ${createdByUserId})`;
+    });
+    const valuesSql = rows.reduce((acc, cur, i) => i === 0 ? cur : sql`${acc}, ${cur}`);
+    await db.execute(sql`
+      INSERT INTO diary_templates
+        (id, swimming_pool_id, level_id, template_text, sort_order, scope, created_by)
+      VALUES ${valuesSql}
+    `);
   }
 }
