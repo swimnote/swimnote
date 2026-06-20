@@ -110,10 +110,10 @@ export default function MyScheduleScreen() {
     setShowDeleteClassConfirm(false);
     const target = deletingClass;
     setDeletingClass(null);
-    setSelectedGroup(null);
     try {
       const res = await apiRequest(token, `/class-groups/${target.id}`, { method: "DELETE" });
       if (res.ok) {
+        setSelectedGroup(null);
         load();
       } else {
         const body = await res.json().catch(() => ({}));
