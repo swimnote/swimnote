@@ -25,6 +25,7 @@ import { SWIMNOTE_DEFAULT_TEMPLATES, insertDefaultTemplates } from "../lib/defau
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
+
 let _client: Client | null = null;
 function getClient() {
   if (!_client) _client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
