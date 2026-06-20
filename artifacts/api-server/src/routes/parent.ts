@@ -1589,5 +1589,27 @@ router.post("/v2/update-pending", requireAuth, requireParent, async (req: AuthRe
   }
 });
 
+// DELETE /parent/unlink-child/:studentId — 자녀 연결 해제
+router.delete("/unlink-child/:studentId", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const parentId  = req.user!.userId;
+    const studentId = req.params.studentId;
+    if (!studentId) return res.status(400).json({ success: false, message: "studentId 필수" });
+
+    const result = await db.execute(sql`
+      DELETE FROM parent_students
+      WHERE parent_id = ${parentId} AND student_id = ${studentId}
+    `);
+
+    const deleted = (result as any).rowCount ?? (result as any).count ?? 0;
+    if (!deleted) return res.status(404).json({ success: false, message: "연결된 자녀를 찾을 수 없습니다" });
+
+    res.json({ success: true, message: "자녀 연결이 해제되었습니다" });
+  } catch (e) {
+    console.error("[unlink-child] 오류:", e);
+    res.status(500).json({ success: false, message: "서버 오류" });
+  }
+});
+
 export default router;
 

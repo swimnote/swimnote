@@ -11,13 +11,13 @@
  *   3. 공지사항 카드
  *   4. 현재 레벨 카드
  */
-import { Bell, Plus, Settings } from "lucide-react-native";
+import { Bell, Plus, Settings, UserMinus } from "lucide-react-native";
 import { ParentPromoBanner } from "@/components/parent/ParentPromoBanner";
 import { ParentPromoStrip } from "@/components/parent/ParentPromoStrip";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, BackHandler, FlatList, Keyboard,
+  ActivityIndicator, Alert, BackHandler, FlatList, Keyboard,
   KeyboardAvoidingView, Modal, Platform,
   Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
@@ -195,6 +195,33 @@ export default function ParentHomeScreen() {
       }
     } catch {}
     setV2Retrying(false);
+  }
+
+  async function unlinkChild(studentId: string, studentName: string) {
+    Alert.alert(
+      "자녀 연결 해제",
+      `${studentName}의 연결을 해제할까요?`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "해제",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const r = await apiRequest(token, `/parent/unlink-child/${studentId}`, { method: "DELETE" });
+              const d = await r.json();
+              if (r.ok && d.success) {
+                await refresh();
+              } else {
+                Alert.alert("오류", d.message || "연결 해제에 실패했습니다.");
+              }
+            } catch {
+              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+            }
+          },
+        },
+      ]
+    );
   }
 
   useFocusEffect(useCallback(() => {
@@ -392,41 +419,13 @@ export default function ParentHomeScreen() {
         </View>
       </View>
 
-      {/* ─── B. 자녀 탭 (슬롯 3개 고정) ─── */}
+      {/* ─── B. 자녀 탭 (동적) ─── */}
       <ScrollView
         horizontal showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingBottom: 6 }}
         style={{ flexGrow: 0 }}
       >
-        {[0, 1, 2].map(i => {
-          const st = students[i];
-          if (st) {
-            const isSel = selectedStudent?.id === st.id;
-            return (
-              <Pressable
-                key={st.id}
-                style={[s.childTab, isSel
-                  ? { backgroundColor: C.tint, borderColor: C.tint }
-                  : { backgroundColor: C.card, borderColor: C.border }]}
-                onPress={() => setSelectedStudentId(st.id)}
-              >
-                <Text style={[s.childTabTxt, { color: isSel ? "#fff" : C.text }]}>{st.name}</Text>
-              </Pressable>
-            );
-          } else {
-            return (
-              <Pressable
-                key={`slot-${i}`}
-                style={[s.childTab, s.childTabAdd, { backgroundColor: C.card, borderColor: C.border }]}
-                onPress={() => router.push("/(parent)/link-child" as any)}
-              >
-                <Plus size={14} color={C.textMuted} />
-                <Text style={[s.childTabTxt, { color: C.textMuted, marginLeft: 2 }]}>추가</Text>
-              </Pressable>
-            );
-          }
-        })}
-        {students.length > 3 && students.slice(3).map(st => {
+        {students.map(st => {
           const isSel = selectedStudent?.id === st.id;
           return (
             <Pressable
@@ -435,11 +434,22 @@ export default function ParentHomeScreen() {
                 ? { backgroundColor: C.tint, borderColor: C.tint }
                 : { backgroundColor: C.card, borderColor: C.border }]}
               onPress={() => setSelectedStudentId(st.id)}
+              onLongPress={() => unlinkChild(st.id, st.name)}
+              delayLongPress={600}
             >
               <Text style={[s.childTabTxt, { color: isSel ? "#fff" : C.text }]}>{st.name}</Text>
+              {isSel && <UserMinus size={12} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />}
             </Pressable>
           );
         })}
+        {/* 자녀 추가 버튼 */}
+        <Pressable
+          style={[s.childTab, s.childTabAdd, { backgroundColor: C.card, borderColor: C.border }]}
+          onPress={() => router.push("/(parent)/link-child" as any)}
+        >
+          <Plus size={14} color={C.textMuted} />
+          <Text style={[s.childTabTxt, { color: C.textMuted, marginLeft: 2 }]}>추가</Text>
+        </Pressable>
       </ScrollView>
 
       <ScrollView
