@@ -226,16 +226,23 @@ function parseRows(raw: any[][], headerIdx: number): ParsedRow[] {
     rows.push(row);
   }
 
-  // 파일 내 전화번호 중복 → 오류 처리
-  const phoneCnt: Record<string, number> = {};
+  // 파일 내 이름+전화번호 조합 중복 → 오류 처리
+  // (같은 전화번호라도 이름이 다르면 형제로 허용)
+  const namePhoneCnt: Record<string, number> = {};
   rows.forEach(r => {
-    if (r.parent_phone) phoneCnt[r.parent_phone] = (phoneCnt[r.parent_phone] ?? 0) + 1;
+    if (r.name && r.parent_phone) {
+      const key = `${r.name.trim()}|${r.parent_phone}`;
+      namePhoneCnt[key] = (namePhoneCnt[key] ?? 0) + 1;
+    }
   });
   rows.forEach(r => {
-    if (r.parent_phone && phoneCnt[r.parent_phone] > 1) {
-      const dupMsg = "파일 내 전화번호 중복";
-      r._rowError = r._rowError ? `${r._rowError} · ${dupMsg}` : dupMsg;
-      r._isDuplicate = true;
+    if (r.name && r.parent_phone) {
+      const key = `${r.name.trim()}|${r.parent_phone}`;
+      if (namePhoneCnt[key] > 1) {
+        const dupMsg = "파일 내 동일 이름+전화번호 중복";
+        r._rowError = r._rowError ? `${r._rowError} · ${dupMsg}` : dupMsg;
+        r._isDuplicate = true;
+      }
     }
   });
 

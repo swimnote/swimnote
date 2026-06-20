@@ -56,6 +56,7 @@ export default function LinkChildScreen() {
   const [selectedPool, setSelectedPool] = useState<PoolResult | null>(null);
 
   const [childNames, setChildNames]   = useState<string[]>(["", "", ""]);
+  const [childPhone4s, setChildPhone4s] = useState<string[]>(["", "", ""]);
   const [birthYear, setBirthYear]     = useState("");
   const [submitting, setSubmitting]   = useState(false);
   const [linkedNames, setLinkedNames] = useState<string[]>([]);
@@ -80,8 +81,10 @@ export default function LinkChildScreen() {
   async function handleLink() {
     if (!selectedPool) return;
 
-    const validNames = childNames.map(n => n.trim()).filter(Boolean);
-    if (validNames.length === 0) {
+    const validPairs = childNames
+      .map((n, i) => ({ name: n.trim(), phone4: childPhone4s[i]?.replace(/[^0-9]/g, "").slice(-4) || "" }))
+      .filter(p => p.name);
+    if (validPairs.length === 0) {
       setNameError("자녀 이름을 최소 한 명 입력해주세요");
       childScrollRef.current?.scrollTo({ y: 0, animated: true });
       return;
@@ -98,13 +101,14 @@ export default function LinkChildScreen() {
     let lastError = "";
 
     try {
-      for (const name of validNames) {
+      for (const { name, phone4 } of validPairs) {
         try {
           const r = await apiRequest(token, "/parent/link-child", {
             method: "POST",
             body: JSON.stringify({
               swimming_pool_id: selectedPool.id,
               child_name: name,
+              child_phone_last4: phone4 || undefined,
               child_birth_year: birthYear ? Number(birthYear) : null,
             }),
           });
@@ -139,6 +143,14 @@ export default function LinkChildScreen() {
       return next;
     });
     if (index === 0) setNameError("");
+  }
+
+  function updatePhone4(index: number, value: string) {
+    setChildPhone4s(prev => {
+      const next = [...prev];
+      next[index] = value.replace(/[^0-9]/g, "").slice(0, 4);
+      return next;
+    });
   }
 
   return (
@@ -263,12 +275,26 @@ export default function LinkChildScreen() {
                     onChangeText={v => updateName(i, v)}
                     placeholder={i === 0 ? "홍길동" : "형제 이름 입력 (선택)"}
                     placeholderTextColor={C.textMuted}
-                    returnKeyType={i < 2 ? "next" : "done"}
+                    returnKeyType="next"
                   />
                 </View>
                 {i === 0 && nameError ? (
                   <Text style={st.fieldErr}>{nameError}</Text>
                 ) : null}
+                {/* 전화번호 뒷 4자리 — 동명이인 구분용 */}
+                <View style={[st.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
+                  <Text style={{ fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>📞</Text>
+                  <TextInput
+                    style={[st.input, { color: C.text }]}
+                    value={childPhone4s[i]}
+                    onChangeText={v => updatePhone4(i, v)}
+                    placeholder="전화번호 뒷 4자리 (동명이인 구분)"
+                    placeholderTextColor={C.textMuted}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    returnKeyType={i < 2 ? "next" : "done"}
+                  />
+                </View>
               </View>
             ))}
 

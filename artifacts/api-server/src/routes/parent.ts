@@ -1445,7 +1445,7 @@ router.get("/pool-info", requireAuth, requireParent, async (req: AuthRequest, re
 // ── POST /parent/link-child — 자녀 연결 (단순 버전) ─────────────────────
 router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, res) => {
   const parentId = req.user!.userId;
-  const { swimming_pool_id, child_name, child_birth_year } = req.body;
+  const { swimming_pool_id, child_name, child_birth_year, child_phone_last4 } = req.body;
   if (!swimming_pool_id || !child_name?.trim()) {
     res.status(400).json({ success: false, message: "수영장과 자녀 이름을 입력해주세요." }); return;
   }
@@ -1485,18 +1485,23 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
     let student: any;
 
     if (found.rows.length >= 2) {
-      // 동명이인: 전화번호 필수 비교
-      if (!parentPhone) {
-        res.json({ success: false, status: "phone_required", message: "동일한 이름의 학생이 여러 명입니다. 수영장에 전화번호 등록 후 다시 시도해주세요." }); return;
+      // 동명이인: 전화번호 뒷 4자리 우선, 없으면 전체 번호, 없으면 첫 번째
+      const last4 = (child_phone_last4 || "").replace(/[^0-9]/g, "").slice(-4);
+      if (last4.length === 4) {
+        const byLast4 = (found.rows as any[]).filter(r => {
+          const sp = (r.parent_phone || "").replace(/[^0-9]/g, "");
+          return sp.slice(-4) === last4;
+        });
+        student = byLast4.length > 0 ? byLast4[0] : (found.rows as any[])[0];
+      } else if (parentPhone) {
+        const byPhone = (found.rows as any[]).filter(r => {
+          const sp = (r.parent_phone || "").replace(/[^0-9]/g, "");
+          return sp && sp === parentPhone;
+        });
+        student = byPhone.length > 0 ? byPhone[0] : (found.rows as any[])[0];
+      } else {
+        student = (found.rows as any[])[0];
       }
-      const byPhone = (found.rows as any[]).filter(r => {
-        const sp = (r.parent_phone || "").replace(/[^0-9]/g, "");
-        return sp && sp === parentPhone;
-      });
-      if (byPhone.length === 0) {
-        res.json({ success: false, status: "phone_mismatch", message: "전화번호가 일치하는 학생을 찾을 수 없습니다. 수영장에 등록된 연락처를 확인해주세요." }); return;
-      }
-      student = byPhone[0];
     } else {
       student = found.rows[0] as any;
       // 단일 매칭: 이름 일치 시 전화번호 무관 연결 허용 (형제 등록 지원)

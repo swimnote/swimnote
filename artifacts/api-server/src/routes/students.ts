@@ -510,28 +510,19 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       }
     }
 
-    // ── 중복 체크 ──────────────────────────────────────────────────
-    if (!force_create && (birth_year || normParentPhone)) {
+    // ── 중복 체크 (이름+전화번호 조합만; 이름 단독 중복 허용) ────────
+    if (!force_create && normParentPhone) {
       const dupRows = await db.execute(sql`
-        SELECT id, name, birth_year, parent_phone, status
+        SELECT id, name, parent_phone, status
         FROM students
         WHERE swimming_pool_id = ${poolId}
           AND status NOT IN ('withdrawn', 'deleted', 'archived')
           AND name = ${name.trim()}
-          AND (
-            ${birth_year ? sql`birth_year = ${birth_year}` : sql`FALSE`}
-            OR ${normParentPhone ? sql`REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normParentPhone}` : sql`FALSE`}
-          )
-        LIMIT 5
+          AND REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normParentPhone}
+        LIMIT 1
       `);
       if (dupRows.rows.length > 0) {
-        const exact = (dupRows.rows as any[]).find((r: any) =>
-          r.name === name.trim() &&
-          (!birth_year || r.birth_year === birth_year) &&
-          (!normParentPhone || (r.parent_phone || "").replace(/[^0-9]/g, "") === normParentPhone)
-        );
-        if (exact) return res.status(409).json({ success: false, duplicate: true, existing: exact, message: "동일한 학생이 이미 등록되어 있습니다." });
-        return res.status(200).json({ success: false, possible_duplicate: true, candidates: dupRows.rows, message: "유사한 학생 정보가 있습니다. 계속 등록하시겠습니까?" });
+        return res.status(409).json({ success: false, duplicate: true, existing: dupRows.rows[0], message: "동일한 학생(이름+전화번호)이 이미 등록되어 있습니다." });
       }
     }
 
