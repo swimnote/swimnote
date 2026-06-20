@@ -8,7 +8,7 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -52,12 +52,45 @@ const ir = StyleSheet.create({
 
 export default function ChildProfileScreen() {
   const { token, parentAccount } = useAuth();
-  const { students, setSelectedStudentId } = useParent();
+  const { students, setSelectedStudentId, refresh } = useParent();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [student, setStudent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [unlinking, setUnlinking] = useState(false);
+
+  function handleUnlink() {
+    if (!student) return;
+    Alert.alert(
+      "자녀 연결 해제",
+      `${student.name}의 연결을 해제할까요?\n해제 후 홈 화면에서 다시 추가할 수 있습니다.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "해제",
+          style: "destructive",
+          onPress: async () => {
+            setUnlinking(true);
+            try {
+              const r = await apiRequest(token, `/parent/unlink-child/${id}`, { method: "DELETE" });
+              const d = await r.json();
+              if (r.ok && d.success) {
+                await refresh();
+                router.replace("/(parent)/home" as any);
+              } else {
+                Alert.alert("오류", d.message || "연결 해제에 실패했습니다.");
+              }
+            } catch {
+              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+            } finally {
+              setUnlinking(false);
+            }
+          },
+        },
+      ]
+    );
+  }
 
   const studentIdx = students.findIndex(s => s.id === id);
   const accentColor = CHILD_COLORS[Math.max(0, studentIdx) % CHILD_COLORS.length];
@@ -184,6 +217,18 @@ export default function ChildProfileScreen() {
               ))}
             </View>
           </View>
+          {/* 연결 해제 버튼 */}
+          <Pressable
+            style={({ pressed }) => [s.unlinkBtn, { opacity: pressed || unlinking ? 0.7 : 1 }]}
+            onPress={handleUnlink}
+            disabled={unlinking}
+          >
+            {unlinking
+              ? <ActivityIndicator size="small" color="#DC2626" />
+              : <LucideIcon name="user-minus" size={16} color="#DC2626" />
+            }
+            <Text style={s.unlinkTxt}>자녀 연결 해제</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </View>
@@ -218,4 +263,6 @@ const s = StyleSheet.create({
 
   empty: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyTxt: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  unlinkBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: "#FECACA", backgroundColor: "#FEF2F2" },
+  unlinkTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#DC2626" },
 });
