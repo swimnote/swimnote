@@ -935,13 +935,14 @@ router.post("/diary-templates/restore-default",
   }
 );
 
-// POST /diary-templates/clear-all — 전체 초기화 (레벨 유지, 모든 템플릿 삭제)
+// POST /diary-templates/clear-all — 전체 초기화 (템플릿 + 레벨 모두 삭제)
 router.post("/diary-templates/clear-all",
   requireAuth, requireRole("super_admin", "pool_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
       await db.execute(sql`DELETE FROM diary_templates WHERE swimming_pool_id = ${poolId}`);
+      await db.execute(sql`DELETE FROM diary_template_levels WHERE swimming_pool_id = ${poolId}`);
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
