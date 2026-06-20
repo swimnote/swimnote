@@ -22,6 +22,7 @@ import {
   getSmsConfigError,
 } from "../lib/sms/sendSms.js";
 import { logEvent } from "../lib/event-logger.js";
+import { insertDefaultTemplates } from "../lib/defaultTemplates.js";
 
 const router = Router();
 
@@ -247,6 +248,9 @@ router.post("/register", async (req, res) => {
            ${inviteId}, ${'approved'}, ${userId}, ${userId},
            now(), ${userId}, ${'teacher'}, now(), now())
       `);
+
+      // ── 4) 기본 일지 템플릿 자동 삽입 ──────────────────────────────────
+      insertDefaultTemplates(poolId, userId).catch((e: any) => console.error("[insertDefaultTemplates] pool_admin signup:", e));
 
       const token = signToken({ userId, role: "pool_admin", poolId });
 
@@ -1300,6 +1304,9 @@ router.post("/solo-teacher-signup", async (req, res) => {
          ${inviteId}, ${"approved"}, ${userId}, ${userId},
          now(), ${userId}, ${"teacher"}, now(), now())
     `);
+
+    // ── 기본 일지 템플릿 자동 삽입 ──────────────────────────────────────
+    insertDefaultTemplates(poolId, userId).catch((e: any) => console.error("[insertDefaultTemplates] solo-teacher signup:", e));
 
     const token = signToken({ userId, role: "pool_admin", poolId });
     res.status(201).json({

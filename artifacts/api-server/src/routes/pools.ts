@@ -9,6 +9,7 @@ import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.
 import { sanitizePoolName } from "../utils/filename.js";
 import { signToken } from "../lib/auth.js";
 import { resolveSubscription } from "../lib/subscriptionService.js";
+import { insertDefaultTemplates } from "../lib/defaultTemplates.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -414,6 +415,9 @@ router.post("/create-pool", requireAuth, requireRole("pool_admin", "super_admin"
         `);
       }
     }
+    // ── 기본 일지 템플릿 자동 삽입 ──────────────────────────────────────
+    insertDefaultTemplates(id, userId).catch((e: any) => console.error("[insertDefaultTemplates] create-pool:", e));
+
     const poolRow = await superAdminDb.execute(sql`SELECT * FROM swimming_pools WHERE id = ${id} LIMIT 1`);
     res.status(201).json(poolRow.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
