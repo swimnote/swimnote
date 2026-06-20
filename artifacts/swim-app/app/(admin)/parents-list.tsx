@@ -288,45 +288,45 @@ function ParentDetailModal({
                 </View>
               )}
 
-              {/* 강제탈퇴 — 앱 가입 학부모만 */}
-              {isApp && (
-                <View style={{ backgroundColor: "#FEF2F2", borderRadius: 14, padding: 16, gap: 10 }}>
-                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#991B1B" }}>
-                    계정을 삭제하면 자녀 연결이 모두 해제되고 복구할 수 없습니다.
-                  </Text>
-                  <Pressable
-                    style={({ pressed }) => [md.deleteBtn, { opacity: pressed ? 0.8 : 1 }]}
-                    onPress={() => {
-                      Alert.alert(
-                        "학부모 계정 삭제",
-                        `${item.name || "이 학부모"}의 계정을 삭제하시겠습니까?\n자녀 연결이 모두 해제되며 복구할 수 없습니다.`,
-                        [
-                          { text: "취소", style: "cancel" },
-                          {
-                            text: "삭제", style: "destructive",
-                            onPress: async () => {
-                              try {
-                                const res = await apiRequest(token, `/admin/parents/${item.id}`, { method: "DELETE" });
-                                if (res.ok) {
-                                  onClose();
-                                  onRefresh();
-                                } else {
-                                  const body = await res.json().catch(() => ({}));
-                                  Alert.alert("오류", body.error || "삭제에 실패했습니다.");
-                                }
-                              } catch {
-                                Alert.alert("오류", "네트워크 오류가 발생했습니다.");
-                              }
-                            },
-                          },
-                        ],
-                      );
-                    }}
-                  >
-                    <Text style={md.deleteBtnTxt}>학부모 계정 삭제</Text>
-                  </Pressable>
-                </View>
-              )}
+              {/* 계정/정보 삭제 — 앱 가입 + 보호자 모두 */}
+              <View style={{ backgroundColor: "#FEF2F2", borderRadius: 14, padding: 16, gap: 10 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#991B1B" }}>
+                  {isApp
+                    ? "계정을 삭제하면 앱 로그인이 불가능해지고 자녀 연결이 모두 해제됩니다. 복구할 수 없습니다."
+                    : "보호자 정보를 삭제하면 연결된 학생의 이름·연락처가 모두 지워집니다. 복구할 수 없습니다."}
+                </Text>
+                <Pressable
+                  style={({ pressed }) => [md.deleteBtn, { opacity: pressed ? 0.8 : 1 }]}
+                  onPress={() => {
+                    const title = isApp ? "학부모 계정 삭제" : "보호자 정보 삭제";
+                    const msg = isApp
+                      ? `${item.name || "이 학부모"}의 계정을 완전히 삭제하시겠습니까?\n아이디, 자녀 연결이 모두 삭제되며 복구할 수 없습니다.`
+                      : `${item.name || "이 보호자"}의 정보를 삭제하시겠습니까?\n연결된 학생의 보호자 이름·연락처가 모두 지워집니다.`;
+                    Alert.alert(title, msg, [
+                      { text: "취소", style: "cancel" },
+                      {
+                        text: "삭제", style: "destructive",
+                        onPress: async () => {
+                          try {
+                            const res = await apiRequest(token, `/admin/parents/${item.id}?source=${item.source}`, { method: "DELETE" });
+                            if (res.ok) {
+                              onClose();
+                              onRefresh();
+                            } else {
+                              const body = await res.json().catch(() => ({}));
+                              Alert.alert("오류", body.error || "삭제에 실패했습니다.");
+                            }
+                          } catch {
+                            Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+                          }
+                        },
+                      },
+                    ]);
+                  }}
+                >
+                  <Text style={md.deleteBtnTxt}>{isApp ? "계정 완전 삭제" : "보호자 정보 삭제"}</Text>
+                </Pressable>
+              </View>
             </>
           )}
         </ScrollView>

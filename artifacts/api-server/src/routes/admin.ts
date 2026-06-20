@@ -347,18 +347,43 @@ router.post("/parents", requireAuth, requireRole("super_admin", "pool_admin"), a
 
 router.delete("/parents/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   const parentId = req.params.id;
+  const source   = (req.query.source as string) || "app";
   try {
-    // 삭제 전 학부모 login_id, phone 조회 (parent_pool_requests 정리에 사용)
+    const poolId = await getAdminPoolId(req);
+
+    if (source === "guardian") {
+      // 보호자만 타입 — parent_accounts 없음, 학생 테이블의 parent 필드만 초기화
+      if (parentId.startsWith("nophone_")) {
+        const sid = parentId.replace("nophone_", "");
+        await db.execute(sql`
+          UPDATE students SET parent_name = NULL, parent_phone = NULL,
+            parent_phone2 = NULL, parent_phone3 = NULL, updated_at = NOW()
+          WHERE id = ${sid} AND swimming_pool_id = ${poolId}
+        `);
+      } else {
+        // parentId = 전화번호
+        await db.execute(sql`
+          UPDATE students SET parent_name = NULL, parent_phone = NULL,
+            parent_phone2 = NULL, parent_phone3 = NULL, updated_at = NOW()
+          WHERE REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g')
+                = REGEXP_REPLACE(${parentId},'[^0-9]','','g')
+            AND swimming_pool_id = ${poolId}
+        `);
+      }
+      return res.json({ success: true, message: "보호자 정보가 삭제되었습니다." });
+    }
+
+    // 앱 가입 학부모 — parent_accounts 완전 삭제
     const paRows = await db.execute(sql`SELECT login_id, phone FROM parent_accounts WHERE id = ${parentId} LIMIT 1`);
     const pa = (paRows.rows as any[])[0];
     const loginId: string | null = pa?.login_id ?? null;
     const phone: string | null = pa?.phone ?? null;
 
-    // 1. 학생 parent_user_id 초기화 (자녀 기록은 보존, 연결만 해제)
+    // 1. 학생 parent_user_id 초기화
     await db.execute(sql`UPDATE students SET parent_user_id = NULL, updated_at = NOW() WHERE parent_user_id = ${parentId}`);
     // 2. parent_students 링크 삭제
     await db.delete(parentStudentsTable).where(eq(parentStudentsTable.parent_id, parentId));
-    // 3. parent_pool_requests 취소 처리 — parent_account_id 기준 + login_id/phone 기준 모두 정리
+    // 3. parent_pool_requests 취소
     await superAdminDb.execute(sql`
       UPDATE parent_pool_requests SET request_status = 'revoked', processed_at = NOW()
       WHERE parent_account_id = ${parentId} AND request_status NOT IN ('revoked', 'rejected')
@@ -375,7 +400,7 @@ router.delete("/parents/:id", requireAuth, requireRole("super_admin", "pool_admi
         WHERE phone = ${phone} AND request_status NOT IN ('revoked', 'rejected')
       `).catch(() => {});
     }
-    // 4. 학부모 계정 삭제 (강제탈퇴 — phone 포함 모든 정보 삭제)
+    // 4. 계정 삭제
     await db.execute(sql`DELETE FROM parent_accounts WHERE id = ${parentId}`);
     res.json({ success: true, message: "학부모 계정이 삭제되었습니다." });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
