@@ -1,4 +1,4 @@
-import { ArrowLeft, Calendar, ChevronRight, CircleAlert, CircleCheck, Clock, Droplet, Search, User } from "lucide-react-native";
+import { ArrowLeft, Calendar, ChevronRight, CircleAlert, CircleCheck, Clock, Droplet, Minus, Plus, Search, User } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -16,13 +16,14 @@ const C = Colors.light;
 interface PoolResult { id: string; name: string; address: string | null; }
 type Step = "pool" | "child" | "done" | "pending";
 
-function DoneAutoRedirect({ linkedName, poolName }: { linkedName: string; poolName: string }) {
+function DoneAutoRedirect({ linkedNames, poolName }: { linkedNames: string[]; poolName: string }) {
   const [countdown, setCountdown] = useState(2);
   useEffect(() => {
     const t = setTimeout(() => router.replace("/(parent)/home" as any), 2000);
     const c = setInterval(() => setCountdown(p => p - 1), 1000);
     return () => { clearTimeout(t); clearInterval(c); };
   }, []);
+  const nameStr = linkedNames.join(", ");
   return (
     <View style={st.resultBox}>
       <View style={[st.resultIcon, { backgroundColor: "#E6FFFA" }]}>
@@ -30,7 +31,7 @@ function DoneAutoRedirect({ linkedName, poolName }: { linkedName: string; poolNa
       </View>
       <Text style={[st.resultTitle, { color: C.text }]}>연결 완료!</Text>
       <Text style={[st.resultSub, { color: C.textSecondary }]}>
-        {linkedName}이(가) {poolName}과{"\n"}성공적으로 연결되었습니다.{"\n\n"}이제 자녀의 수업 기록을 확인할 수 있습니다.
+        {nameStr}이(가) {poolName}과{"\n"}성공적으로 연결되었습니다.{"\n\n"}이제 자녀의 수업 기록을 확인할 수 있습니다.
       </Text>
       <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted }}>{countdown}초 후 홈으로 이동합니다</Text>
       <Pressable
@@ -54,15 +55,15 @@ export default function LinkChildScreen() {
   const [searching, setSearching]     = useState(false);
   const [selectedPool, setSelectedPool] = useState<PoolResult | null>(null);
 
-  const [childName, setChildName]     = useState("");
+  const [childNames, setChildNames]   = useState<string[]>(["", "", ""]);
   const [birthYear, setBirthYear]     = useState("");
   const [submitting, setSubmitting]   = useState(false);
-  const [linkedName, setLinkedName]   = useState("");
+  const [linkedNames, setLinkedNames] = useState<string[]>([]);
   const [error, setError]             = useState("");
-  const [fieldErrors, setFieldErrors] = useState({ name: "", birthYear: "" });
+  const [nameError, setNameError]     = useState("");
+  const [birthYearError, setBirthYearError] = useState("");
 
   const childScrollRef = useRef<ScrollView>(null);
-  const hasFieldErrors = fieldErrors.name || fieldErrors.birthYear;
 
   async function searchPools() {
     if (!query.trim()) return;
@@ -78,40 +79,66 @@ export default function LinkChildScreen() {
 
   async function handleLink() {
     if (!selectedPool) return;
-    const errs = { name: "", birthYear: "" };
 
-    if (!validateName(childName)) {
-      errs.name = "이름을 입력해주세요";
-    }
-    if (birthYear && !validateStudentBirthYear(birthYear)) {
-      errs.birthYear = "출생년도 형식이 올바르지 않습니다";
-    }
-
-    setFieldErrors(errs);
-    if (errs.name || errs.birthYear) {
+    const validNames = childNames.map(n => n.trim()).filter(Boolean);
+    if (validNames.length === 0) {
+      setNameError("자녀 이름을 최소 한 명 입력해주세요");
       childScrollRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
 
-    setSubmitting(true); setError("");
-    try {
-      const r = await apiRequest(token, "/parent/link-child", {
-        method: "POST",
-        body: JSON.stringify({
-          swimming_pool_id: selectedPool.id,
-          child_name: childName.trim(),
-          child_birth_year: birthYear ? Number(birthYear) : null,
-        }),
-      });
-      const d = await r.json();
-      if (!r.ok || !d.success) { setError(d.message || "오류가 발생했습니다."); return; }
+    if (birthYear && !validateStudentBirthYear(birthYear)) {
+      setBirthYearError("출생년도 형식이 올바르지 않습니다");
+      return;
+    }
 
-      setLinkedName(d.student?.name || childName.trim());
-      setStep("done");
-      updateParentProfile({ swimming_pool_id: selectedPool.id, pool_name: selectedPool.name });
-      await refresh();
-    } catch { setError("네트워크 오류가 발생했습니다."); }
-    finally { setSubmitting(false); }
+    setSubmitting(true); setError(""); setNameError(""); setBirthYearError("");
+
+    const successNames: string[] = [];
+    let lastError = "";
+
+    try {
+      for (const name of validNames) {
+        try {
+          const r = await apiRequest(token, "/parent/link-child", {
+            method: "POST",
+            body: JSON.stringify({
+              swimming_pool_id: selectedPool.id,
+              child_name: name,
+              child_birth_year: birthYear ? Number(birthYear) : null,
+            }),
+          });
+          const d = await r.json();
+          if (r.ok && d.success) {
+            successNames.push(d.student?.name || name);
+          } else {
+            lastError = d.message || "일부 자녀 연결에 실패했습니다.";
+          }
+        } catch {
+          lastError = "네트워크 오류가 발생했습니다.";
+        }
+      }
+
+      if (successNames.length > 0) {
+        updateParentProfile({ swimming_pool_id: selectedPool.id, pool_name: selectedPool.name });
+        await refresh();
+        setLinkedNames(successNames);
+        setStep("done");
+      } else {
+        setError(lastError || "연결에 실패했습니다.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function updateName(index: number, value: string) {
+    setChildNames(prev => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+    if (index === 0) setNameError("");
   }
 
   return (
@@ -194,14 +221,6 @@ export default function LinkChildScreen() {
           contentContainerStyle={[st.content, { paddingBottom: insets.bottom + 40 }]}
           keyboardShouldPersistTaps="handled"
         >
-          {/* 에러 요약 배너 */}
-          {!!hasFieldErrors && (
-            <View style={[st.errBox, { backgroundColor: "#FEE2E2" }]}>
-              <CircleAlert size={15} color="#DC2626" />
-              <Text style={[st.errTxt, { color: "#DC2626" }]}>입력 오류가 있습니다. 아래 항목을 확인해주세요.</Text>
-            </View>
-          )}
-
           {/* 선택된 수영장 */}
           <View style={[st.selectedPool, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
             <Droplet size={16} color={C.tint} />
@@ -213,7 +232,7 @@ export default function LinkChildScreen() {
 
           <Text style={[st.sectionTitle, { color: C.text }]}>자녀 정보를 입력해주세요</Text>
           <Text style={[st.sectionSub, { color: C.textSecondary }]}>
-            수영장에 등록된 이름과 일치하면 바로 연결됩니다.
+            수영장에 등록된 이름과 일치하면 바로 연결됩니다.{"\n"}형제가 여러 명이면 이름을 모두 입력해주세요.
           </Text>
 
           {!!error && (
@@ -223,34 +242,52 @@ export default function LinkChildScreen() {
             </View>
           )}
 
-          <View style={{ gap: 14 }}>
-            <View style={{ gap: 6 }}>
-              <Text style={[st.label, { color: C.textSecondary }]}>자녀 이름 *</Text>
-              <View style={[st.inputRow, { borderColor: fieldErrors.name ? C.error : C.border, backgroundColor: C.card }]}>
-                <User size={16} color={C.textMuted} />
-                <TextInput
-                  style={[st.input, { color: C.text }]}
-                  value={childName}
-                  onChangeText={v => { setChildName(v); setFieldErrors(e => ({ ...e, name: "" })); }}
-                  placeholder="홍길동" placeholderTextColor={C.textMuted}
-                />
+          <View style={{ gap: 10 }}>
+            {/* 자녀 이름 슬롯 3개 */}
+            {childNames.map((name, i) => (
+              <View key={i} style={{ gap: 4 }}>
+                <Text style={[st.label, { color: C.textSecondary }]}>
+                  자녀 이름 {i + 1}{i === 0 ? " *" : " (선택)"}
+                </Text>
+                <View style={[
+                  st.inputRow,
+                  {
+                    borderColor: i === 0 && nameError ? C.error : C.border,
+                    backgroundColor: C.card,
+                  }
+                ]}>
+                  <User size={16} color={C.textMuted} />
+                  <TextInput
+                    style={[st.input, { color: C.text }]}
+                    value={name}
+                    onChangeText={v => updateName(i, v)}
+                    placeholder={i === 0 ? "홍길동" : "형제 이름 입력 (선택)"}
+                    placeholderTextColor={C.textMuted}
+                    returnKeyType={i < 2 ? "next" : "done"}
+                  />
+                </View>
+                {i === 0 && nameError ? (
+                  <Text style={st.fieldErr}>{nameError}</Text>
+                ) : null}
               </View>
-              {fieldErrors.name ? <Text style={st.fieldErr}>{fieldErrors.name}</Text> : null}
-            </View>
+            ))}
 
-            <View style={{ gap: 6 }}>
+            {/* 출생 연도 (공통) */}
+            <View style={{ gap: 4, marginTop: 4 }}>
               <Text style={[st.label, { color: C.textSecondary }]}>출생 연도 (선택)</Text>
-              <View style={[st.inputRow, { borderColor: fieldErrors.birthYear ? C.error : C.border, backgroundColor: C.card }]}>
+              <View style={[st.inputRow, { borderColor: birthYearError ? C.error : C.border, backgroundColor: C.card }]}>
                 <Calendar size={16} color={C.textMuted} />
                 <TextInput
                   style={[st.input, { color: C.text }]}
                   value={birthYear}
-                  onChangeText={v => { setBirthYear(v); setFieldErrors(e => ({ ...e, birthYear: "" })); }}
-                  placeholder="예: 2015" placeholderTextColor={C.textMuted}
-                  keyboardType="number-pad" maxLength={4}
+                  onChangeText={v => { setBirthYear(v); setBirthYearError(""); }}
+                  placeholder="예: 2015"
+                  placeholderTextColor={C.textMuted}
+                  keyboardType="number-pad"
+                  maxLength={4}
                 />
               </View>
-              {fieldErrors.birthYear ? <Text style={st.fieldErr}>{fieldErrors.birthYear}</Text> : null}
+              {birthYearError ? <Text style={st.fieldErr}>{birthYearError}</Text> : null}
             </View>
           </View>
 
@@ -269,7 +306,7 @@ export default function LinkChildScreen() {
 
       {/* ── 완료: 자동 연결 ───────────────────────────────────── */}
       {step === "done" && (
-        <DoneAutoRedirect linkedName={linkedName} poolName={selectedPool?.name ?? ""} />
+        <DoneAutoRedirect linkedNames={linkedNames} poolName={selectedPool?.name ?? ""} />
       )}
 
       {/* ── 미매칭: 학생 정보 없음 ──────────────────────────── */}

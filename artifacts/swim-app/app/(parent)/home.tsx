@@ -392,14 +392,15 @@ export default function ParentHomeScreen() {
         </View>
       </View>
 
-      {/* ─── B. 자녀 탭 ─── */}
-      {students.length > 0 && (
-        <ScrollView
-          horizontal showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingBottom: 6 }}
-          style={{ flexGrow: 0 }}
-        >
-          {students.map(st => {
+      {/* ─── B. 자녀 탭 (슬롯 3개 고정) ─── */}
+      <ScrollView
+        horizontal showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingBottom: 6 }}
+        style={{ flexGrow: 0 }}
+      >
+        {[0, 1, 2].map(i => {
+          const st = students[i];
+          if (st) {
             const isSel = selectedStudent?.id === st.id;
             return (
               <Pressable
@@ -412,16 +413,34 @@ export default function ParentHomeScreen() {
                 <Text style={[s.childTabTxt, { color: isSel ? "#fff" : C.text }]}>{st.name}</Text>
               </Pressable>
             );
-          })}
-          <Pressable
-            style={[s.childTab, s.childTabAdd, { backgroundColor: C.card, borderColor: C.border }]}
-            onPress={() => router.push("/(parent)/link-child" as any)}
-          >
-            <Plus size={14} color={C.textSecondary} />
-            <Text style={[s.childTabTxt, { color: C.textSecondary, marginLeft: 2 }]}>추가</Text>
-          </Pressable>
-        </ScrollView>
-      )}
+          } else {
+            return (
+              <Pressable
+                key={`slot-${i}`}
+                style={[s.childTab, s.childTabAdd, { backgroundColor: C.card, borderColor: C.border }]}
+                onPress={() => router.push("/(parent)/link-child" as any)}
+              >
+                <Plus size={14} color={C.textMuted} />
+                <Text style={[s.childTabTxt, { color: C.textMuted, marginLeft: 2 }]}>추가</Text>
+              </Pressable>
+            );
+          }
+        })}
+        {students.length > 3 && students.slice(3).map(st => {
+          const isSel = selectedStudent?.id === st.id;
+          return (
+            <Pressable
+              key={st.id}
+              style={[s.childTab, isSel
+                ? { backgroundColor: C.tint, borderColor: C.tint }
+                : { backgroundColor: C.card, borderColor: C.border }]}
+              onPress={() => setSelectedStudentId(st.id)}
+            >
+              <Text style={[s.childTabTxt, { color: isSel ? "#fff" : C.text }]}>{st.name}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       <ScrollView
         ref={scrollRef}
