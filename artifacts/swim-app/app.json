@@ -54,7 +54,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.swimnote.app",
-      "versionCode": 215,
+      "versionCode": 216,
       "allowBackup": false,
       "permissions": [
         "android.permission.CAMERA",
@@ -115,7 +115,7 @@
         "@react-native-seoul/kakao-login",
         {
           "kakaoAppKey": "0c984af3a5fcb64715c2cf3cc76c55ca",
-          "kotlinVersion": "1.9.25",
+          "kotlinVersion": "2.1.21",
           "overrideKakaoSDKVersion": "2.22.0"
         }
       ],
