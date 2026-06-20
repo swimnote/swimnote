@@ -55,8 +55,8 @@ export default function LinkChildScreen() {
   const [searching, setSearching]     = useState(false);
   const [selectedPool, setSelectedPool] = useState<PoolResult | null>(null);
 
-  const [childNames, setChildNames]   = useState<string[]>(["", "", ""]);
-  const [childPhone4s, setChildPhone4s] = useState<string[]>(["", "", ""]);
+  const [childNames, setChildNames]   = useState<string[]>([""]);
+  const [childPhone4s, setChildPhone4s] = useState<string[]>([""]);
   const [birthYear, setBirthYear]     = useState("");
   const [submitting, setSubmitting]   = useState(false);
   const [linkedNames, setLinkedNames] = useState<string[]>([]);
@@ -151,6 +151,16 @@ export default function LinkChildScreen() {
       next[index] = value.replace(/[^0-9]/g, "").slice(0, 4);
       return next;
     });
+  }
+
+  function addChild() {
+    setChildNames(prev => [...prev, ""]);
+    setChildPhone4s(prev => [...prev, ""]);
+  }
+
+  function removeChild(index: number) {
+    setChildNames(prev => prev.filter((_, i) => i !== index));
+    setChildPhone4s(prev => prev.filter((_, i) => i !== index));
   }
 
   return (
@@ -254,35 +264,33 @@ export default function LinkChildScreen() {
             </View>
           )}
 
-          <View style={{ gap: 10 }}>
-            {/* 자녀 이름 슬롯 3개 */}
+          <View style={{ gap: 12 }}>
             {childNames.map((name, i) => (
-              <View key={i} style={{ gap: 4 }}>
-                <Text style={[st.label, { color: C.textSecondary }]}>
-                  자녀 이름 {i + 1}{i === 0 ? " *" : " (선택)"}
-                </Text>
-                <View style={[
-                  st.inputRow,
-                  {
-                    borderColor: i === 0 && nameError ? C.error : C.border,
-                    backgroundColor: C.card,
-                  }
-                ]}>
+              <View key={i} style={[st.childCard, { borderColor: C.border, backgroundColor: C.card }]}>
+                {/* 슬롯 헤더 */}
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <Text style={[st.label, { color: C.textSecondary }]}>자녀 {i + 1}{i === 0 ? " *" : ""}</Text>
+                  {i > 0 && (
+                    <Pressable onPress={() => removeChild(i)} style={[st.removeBtn, { backgroundColor: "#FEF2F2" }]} hitSlop={8}>
+                      <Minus size={14} color="#DC2626" />
+                    </Pressable>
+                  )}
+                </View>
+                {/* 이름 */}
+                <View style={[st.inputRow, { borderColor: i === 0 && nameError ? C.error : C.border, backgroundColor: C.background }]}>
                   <User size={16} color={C.textMuted} />
                   <TextInput
                     style={[st.input, { color: C.text }]}
                     value={name}
                     onChangeText={v => updateName(i, v)}
-                    placeholder={i === 0 ? "홍길동" : "형제 이름 입력 (선택)"}
+                    placeholder="이름 입력"
                     placeholderTextColor={C.textMuted}
                     returnKeyType="next"
                   />
                 </View>
-                {i === 0 && nameError ? (
-                  <Text style={st.fieldErr}>{nameError}</Text>
-                ) : null}
-                {/* 전화번호 뒷 4자리 — 동명이인 구분용 */}
-                <View style={[st.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
+                {i === 0 && nameError ? <Text style={st.fieldErr}>{nameError}</Text> : null}
+                {/* 전화번호 뒷 4자리 */}
+                <View style={[st.inputRow, { borderColor: C.border, backgroundColor: C.background, marginTop: 8 }]}>
                   <Text style={{ fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>📞</Text>
                   <TextInput
                     style={[st.input, { color: C.text }]}
@@ -292,11 +300,16 @@ export default function LinkChildScreen() {
                     placeholderTextColor={C.textMuted}
                     keyboardType="number-pad"
                     maxLength={4}
-                    returnKeyType={i < 2 ? "next" : "done"}
+                    returnKeyType="done"
                   />
                 </View>
               </View>
             ))}
+            {/* 자녀 추가 버튼 */}
+            <Pressable style={[st.addBtn, { borderColor: C.tint }]} onPress={addChild}>
+              <Plus size={16} color={C.tint} />
+              <Text style={[st.addBtnTxt, { color: C.tint }]}>자녀 추가</Text>
+            </Pressable>
 
             {/* 출생 연도 (공통) */}
             <View style={{ gap: 4, marginTop: 4 }}>
@@ -388,4 +401,8 @@ const st = StyleSheet.create({
   resultTitle:      { fontSize: 22, fontFamily: "Pretendard-Regular" },
   resultSub:        { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   fieldErr:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 2 },
+  childCard:        { borderWidth: 1, borderRadius: 12, padding: 14 },
+  removeBtn:        { width: 28, height: 28, borderRadius: 8, justifyContent: "center", alignItems: "center" },
+  addBtn:           { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderStyle: "dashed", borderRadius: 12, paddingVertical: 12 },
+  addBtnTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular" },
 });
