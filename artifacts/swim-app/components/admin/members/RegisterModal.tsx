@@ -20,13 +20,15 @@ interface RegisterModalProps {
   poolName: string;
   onSuccess: (student: StudentMember) => void;
   onClose: () => void;
+  initialParentPhone?: string;
+  initialParentName?: string;
 }
 
-export function RegisterModal({ token, poolName, onSuccess, onClose }: RegisterModalProps) {
+export function RegisterModal({ token, poolName, onSuccess, onClose, initialParentPhone, initialParentName }: RegisterModalProps) {
   const [names,       setNames]       = useState(["", "", ""]);
   const [birthYear,   setBirthYear]   = useState("");
-  const [parentName,  setParentName]  = useState("");
-  const [parentPhone, setParentPhone] = useState("");
+  const [parentName,  setParentName]  = useState(initialParentName || "");
+  const [parentPhone, setParentPhone] = useState(initialParentPhone || "");
   const [weekly,      setWeekly]      = useState<WeeklyCount>(1);
   const [saving,      setSaving]      = useState(false);
   const [error,       setError]       = useState("");

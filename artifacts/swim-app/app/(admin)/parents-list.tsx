@@ -3,12 +3,13 @@
  * - 카드 누르면 상세 모달 (학생 반·레벨 정보)
  * - 전화걸기 / 문자보내기 버튼
  */
-import { HeartHandshake, MessageSquare, Phone, Search, Users, X } from "lucide-react-native";
+import { HeartHandshake, Link2, MessageSquare, Phone, Search, Users, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Linking,
   Modal,
@@ -26,6 +27,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { RegisterModal } from "@/components/admin/members/RegisterModal";
 
 const C = Colors.light;
 const TEAL = "#2EC4B6";
@@ -104,15 +106,20 @@ function ParentDetailModal({
   visible,
   onClose,
   token,
+  poolName,
+  onRefresh,
 }: {
   item: ParentRow | null;
   visible: boolean;
   onClose: () => void;
   token: string | null;
+  poolName: string;
+  onRefresh: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const [detail, setDetail] = useState<ParentDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
 
   React.useEffect(() => {
     if (!visible || !item) { setDetail(null); return; }
@@ -247,8 +254,19 @@ function ParentDetailModal({
                     </View>
                   ))
                 ) : (
-                  <View style={[md.infoCard, { alignItems: "center", paddingVertical: 16 }]}>
-                    <Text style={{ color: C.textMuted, fontSize: 13 }}>연결된 자녀가 없습니다</Text>
+                  <View>
+                    <View style={[md.infoCard, { alignItems: "center", paddingVertical: 12, marginBottom: 10 }]}>
+                      <Text style={{ color: C.textMuted, fontSize: 13 }}>연결된 자녀가 없습니다</Text>
+                    </View>
+                    {isApp && (
+                      <Pressable
+                        style={({ pressed }) => [md.registerBtn, { opacity: pressed ? 0.8 : 1 }]}
+                        onPress={() => setShowRegister(true)}
+                      >
+                        <Link2 size={16} color="#fff" />
+                        <Text style={md.registerBtnTxt}>학생 등록 후 바로 연결</Text>
+                      </Pressable>
+                    )}
                   </View>
                 )}
               </View>
@@ -273,6 +291,35 @@ function ParentDetailModal({
           )}
         </ScrollView>
       </View>
+
+      {/* 학생 등록 모달 — 전화번호 미리 입력 */}
+      {showRegister && item && (
+        <RegisterModal
+          token={token}
+          poolName={poolName}
+          initialParentPhone={item.phone || ""}
+          initialParentName={item.name || ""}
+          onClose={() => setShowRegister(false)}
+          onSuccess={async (student) => {
+            setShowRegister(false);
+            // 등록 후 바로 parent_students 연결
+            try {
+              await apiRequest(token, `/admin/parents/${item.id}/link-student`, {
+                method: "POST",
+                body: JSON.stringify({ student_id: student.id }),
+              });
+            } catch {}
+            onRefresh();
+            // 모달 데이터 새로고침
+            setLoading(true);
+            apiRequest(token, `/admin/parents/${encodeURIComponent(item.id)}?source=${item.source}`)
+              .then(r => r.ok ? r.json() : null)
+              .then(d => setDetail(d))
+              .catch(() => {})
+              .finally(() => setLoading(false));
+          }}
+        />
+      )}
     </Modal>
   );
 }
@@ -480,6 +527,8 @@ export default function ParentsListScreen() {
         visible={!!selected}
         onClose={() => setSelected(null)}
         token={token}
+        poolName={pool?.name || "수영장"}
+        onRefresh={fetchParents}
       />
     </View>
   );
@@ -584,4 +633,10 @@ const md = StyleSheet.create({
 
   tag: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: TEAL_BG },
   tagTxt: { fontSize: 11, color: TEAL, fontWeight: "600" },
+
+  registerBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, paddingVertical: 13, borderRadius: 12, backgroundColor: TEAL,
+  },
+  registerBtnTxt: { fontSize: 14, fontWeight: "700", color: "#fff" },
 });
