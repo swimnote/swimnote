@@ -1,4 +1,4 @@
-import { ChevronRight, Key, Lock, PenLine, Trash2, User } from "lucide-react-native";
+import { ChevronRight, Key, Lock, PenLine, Trash2, User, X } from "lucide-react-native";
 import { WithdrawalModal } from "@/components/common/WithdrawalModal";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";

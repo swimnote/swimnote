@@ -26,12 +26,11 @@ import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { WeeklySchedule } from "@/components/teacher/WeeklySchedule";
 import { TeacherClassGroup, SlotStatus } from "@/components/teacher/types";
-import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
+import { API_BASE, apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { FullAlbumPickerModal } from "@/components/teacher/album/FullAlbumPickerModal";
 
 const C = Colors.light;
-const API_BASE = (process.env.EXPO_PUBLIC_API_URL ?? "/api");
 const { width: W } = Dimensions.get("window");
 const PHOTO_SIZE = Math.floor((W - 6) / 3);
 
@@ -1092,7 +1091,7 @@ export default function TeacherPhotosScreen() {
         </Text>
         <Pressable
           style={[s.uploadBtn, { backgroundColor: cfg.color, opacity: uploading ? 0.7 : 1 }]}
-          onPress={pickAndUpload}
+          onPress={() => pickAndUpload()}
           disabled={uploading}
         >
           {uploading

@@ -108,14 +108,15 @@ function PushTokenSync() {
     if (!token || registered.current || Platform.OS === "web" || !Notifications) return;
     async function registerToken() {
       try {
-        const { status: existing } = await Notifications!.getPermissionsAsync();
+        const N = Notifications!;
+        const { status: existing } = await N.getPermissionsAsync();
         let finalStatus = existing;
         if (existing !== "granted") {
-          const { status } = await Notifications.requestPermissionsAsync();
+          const { status } = await N.requestPermissionsAsync();
           finalStatus = status;
         }
         if (finalStatus !== "granted") return;
-        const tokenData = await Notifications.getExpoPushTokenAsync();
+        const tokenData = await N.getExpoPushTokenAsync();
         if (!tokenData?.data) return;
         await apiRequest(token, "/push-token", {
           method: "POST",

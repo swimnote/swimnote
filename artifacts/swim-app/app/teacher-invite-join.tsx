@@ -73,7 +73,7 @@ export default function TeacherInviteJoinScreen() {
       const data = await res.json();
       if (!res.ok) { setFormError(data.message || "가입 중 오류가 발생했습니다."); return; }
       // 자동 로그인 후 선생님 홈(승인 대기 화면)으로 이동
-      await finishLogin("admin", data.user, null, data.token, data.token);
+      await finishLogin("admin", data.user, null, data.token);
     } catch { setFormError("네트워크 오류가 발생했습니다."); }
     finally { setSubmitting(false); }
   }

@@ -111,7 +111,7 @@ export default function SupportTicketDetailScreen() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") return;
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.35, base64: false,
+      mediaTypes: ["images"], quality: 0.35, base64: false,
     });
     if (result.canceled || !result.assets[0]) return;
     const base64 = await FileSystem.readAsStringAsync(result.assets[0].uri, {

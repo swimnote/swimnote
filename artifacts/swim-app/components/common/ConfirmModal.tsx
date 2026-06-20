@@ -32,13 +32,14 @@ import Colors from "@/constants/colors";
 
 const C = Colors.light;
 
-interface ConfirmModalProps {
+export interface ConfirmModalProps {
   visible: boolean;
   title: string;
   message: string;
   confirmText?: string;
   cancelText?: string;
   destructive?: boolean;
+  confirmColor?: string;
   loading?: boolean;
   onConfirm: () => void;
   onCancel?: () => void;
@@ -51,6 +52,7 @@ export function ConfirmModal({
   confirmText = "확인",
   cancelText = "취소",
   destructive = false,
+  confirmColor,
   loading = false,
   onConfirm,
   onCancel,
@@ -85,7 +87,7 @@ export function ConfirmModal({
               style={({ pressed }) => [
                 s.btn,
                 {
-                  backgroundColor: destructive ? C.error : C.tint,
+                  backgroundColor: confirmColor ?? (destructive ? C.error : C.tint),
                   opacity: loading ? 0.7 : pressed ? 0.85 : 1,
                   flex: onCancel ? 1 : undefined,
                   minWidth: onCancel ? undefined : 120,

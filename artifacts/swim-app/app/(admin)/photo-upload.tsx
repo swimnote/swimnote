@@ -154,7 +154,7 @@ export default function PhotoUploadScreen() {
                     {sel && <Check size={12} color="#fff" />}
                   </View>
                   <View style={[styles.avatar, { backgroundColor: C.tintLight }]}>
-                    <Text style={[styles.avatarText, { color: C.tint }]}>{s.name[0]}</Text>
+                    <Text style={[styles.avatarText, { color: C.tint }]}>{(s.name || "?")[0]}</Text>
                   </View>
                   <View style={styles.studentInfo}>
                     <Text style={[styles.studentName, { color: C.text }]}>{s.name}</Text>

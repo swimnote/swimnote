@@ -73,7 +73,7 @@ export default function SupportTicketWriteScreen() {
     if (status !== "granted") { Alert.alert("사진 접근 권한이 필요합니다."); return; }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       quality: 0.35,
       base64: false,
     });

@@ -196,7 +196,7 @@ export default function MessagesInboxScreen() {
         const data = await uploadRes.json();
         const key = data.urls?.[0] || data.url || null;
         const url = key ? `${API_BASE}/uploads/${key}` : null;
-        setReplyImage({ uri: asset.uri, url });
+        setReplyImage({ uri: asset.uri, url: url ?? undefined });
       } else {
         Alert.alert("업로드 실패", "사진 업로드에 실패했습니다."); setReplyImage(null);
       }

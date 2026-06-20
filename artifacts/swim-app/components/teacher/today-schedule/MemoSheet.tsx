@@ -40,6 +40,11 @@ export default function MemoSheet({
       setAudioUri(null); setIsRecording(false);
       setRecording(null); setPlaying(false);
     }
+    if (!visible) {
+      sound?.unloadAsync().catch(() => {});
+      setSound(null);
+      if (recTimer.current) { clearInterval(recTimer.current); recTimer.current = null; }
+    }
   }, [visible, item]);
 
   async function startRecording() {

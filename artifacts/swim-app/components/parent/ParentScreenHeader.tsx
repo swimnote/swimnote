@@ -20,6 +20,7 @@ interface Props {
   showHome?: boolean;
   showBack?: boolean;
   rightSlot?: React.ReactNode;
+  leftSlot?: React.ReactNode;
   onBack?: () => void;
 }
 
@@ -29,6 +30,7 @@ export function ParentScreenHeader({
   showHome = true,
   showBack = true,
   rightSlot,
+  leftSlot,
   onBack,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -45,13 +47,13 @@ export function ParentScreenHeader({
 
   return (
     <View style={[s.root, { paddingTop: topPad }]}>
-      {showBack ? (
+      {leftSlot ?? (showBack ? (
         <Pressable onPress={handleBack} style={s.btn} hitSlop={10}>
           <ArrowLeft size={22} color={C.text} />
         </Pressable>
       ) : (
         <View style={s.placeholder} />
-      )}
+      ))}
 
       <View style={s.titleBlock}>
         <Text style={s.title} numberOfLines={1}>{title}</Text>

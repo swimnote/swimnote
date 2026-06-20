@@ -36,6 +36,7 @@ export default {
     border:         "#E8E8E8",   // 경계선 (더 연하게)
 
     // ── 메인 액센트 (민트) ────────────────────────────────────────────
+    primary:        mint,
     tint:           mint,
     tintDark:       navy,
     tintLight:      mintLight,

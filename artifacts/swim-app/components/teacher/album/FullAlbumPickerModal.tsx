@@ -13,9 +13,9 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Check, ImageIcon, Video, X } from "lucide-react-native";
 import Colors from "@/constants/colors";
+import { API_BASE } from "@/context/AuthContext";
 
 const C = Colors.light;
-const API_BASE = (process.env.EXPO_PUBLIC_API_URL ?? "/api");
 const { width: W } = Dimensions.get("window");
 const CELL = Math.floor((W - 4) / 3);
 

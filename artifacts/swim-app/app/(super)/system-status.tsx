@@ -105,7 +105,8 @@ export default function SystemStatusScreen() {
     else setLoading(true);
     setFetchError(null);
     try {
-      const data = await apiRequest(token, "/super/system-health");
+      const res = await apiRequest(token, "/super/system-health");
+      const data = res instanceof Response ? await res.json() : res;
       setServices(data.services ?? []);
       setCheckedAt(data.summary?.checkedAt ?? null);
     } catch (e: any) {

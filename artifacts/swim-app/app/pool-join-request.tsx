@@ -63,7 +63,7 @@ export default function ParentRegisterScreen() {
       const data = await res.json();
       if (!res.ok) { setError(data.message || "오류가 발생했습니다."); return; }
 
-      await finishLogin("parent", null, data.parent, data.token, data.token);
+      await finishLogin("parent", null, data.parent, data.token);
     } catch {
       setError("네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
     } finally {

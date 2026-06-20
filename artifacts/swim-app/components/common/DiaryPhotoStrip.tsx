@@ -87,7 +87,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
       }
       const rawUrl = photo.presigned_url ?? photo.file_url ?? "";
       const url = rawUrl.startsWith("http") ? rawUrl : (token ? `${BASE_ORIGIN}${rawUrl}?token=${token}` : `${BASE_ORIGIN}${rawUrl}`);
-      const localPath = FileSystem.cacheDirectory + `diary_${photo.id}.jpg`;
+      const localPath = (FileSystem.documentDirectory ?? "") + `diary_${photo.id}.jpg`;
       const dl = await FileSystem.downloadAsync(url, localPath);
       if (dl.status !== 200) throw new Error("다운로드 실패");
       await MediaLibrary.saveToLibraryAsync(dl.uri);
@@ -123,7 +123,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
       if (!finalUrl) throw new Error("URL 확인 실패");
 
       const ext = finalUrl.split("?")[0].split(".").pop()?.toLowerCase() ?? "mp4";
-      const localPath = FileSystem.cacheDirectory + `diary_video_${video.id}.${ext}`;
+      const localPath = (FileSystem.documentDirectory ?? "") + `diary_video_${video.id}.${ext}`;
 
       const headers: Record<string, string> = video.presigned_url
         ? {}

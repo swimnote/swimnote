@@ -9,9 +9,6 @@
 export { useOperatorsStore } from '../operatorsStore'
 export type { OperatorFilter } from '../operatorsStore'
 
-// 구독·결제
-export { useSubscriptionStore } from '../subscriptionStore'
-
 // 저장공간
 export { useStorageStore } from '../storageStore'
 export { useExtraStorageStore } from '../extraStorageStore'

@@ -112,7 +112,7 @@ export default function NoticesScreen() {
       Alert.alert("권한 필요", "사진 접근 권한이 필요합니다. 설정에서 허용해주세요."); return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       allowsMultipleSelection: true,
       quality: 0.8,
       selectionLimit: MAX_IMAGES - pickedImages.length,

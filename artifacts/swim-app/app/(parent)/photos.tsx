@@ -176,7 +176,7 @@ export default function ParentAlbumScreen() {
       const extCandidate = lastSeg.includes(".") ? lastSeg.split(".").pop()?.toLowerCase() : undefined;
       const ext = (extCandidate && extCandidate.length <= 4) ? extCandidate : "mp4";
       const localUri = `${FileSystem.documentDirectory}swim_video_${item.id}.${ext}`;
-      const headers = presigned ? {} : { Authorization: `Bearer ${token}` };
+      const headers: Record<string, string> = presigned ? {} : { Authorization: `Bearer ${token}` };
       const dl = await FileSystem.downloadAsync(finalUrl, localUri, { headers });
       if (dl.status !== 200) throw new Error(`다운로드 실패 (${dl.status})`);
       await MediaLibrary.saveToLibraryAsync(dl.uri);
