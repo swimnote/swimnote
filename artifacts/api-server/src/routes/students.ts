@@ -298,32 +298,6 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
       }
     }
 
-    // 파일 내 전화번호 중복 검사
-    const errDuplicatePhone: Array<{ phone: string; rows: number[] }> = [];
-    for (const [phone, rows] of phoneBatchMap) {
-      if (rows.length > 1) errDuplicatePhone.push({ phone, rows });
-    }
-
-    // DB 내 동일 수영장 전화번호 중복 검사
-    const errDbDuplicatePhone: Array<{ phone: string; rows: number[] }> = [];
-    const validPhonesArr = [...phoneBatchMap.keys()].filter(
-      p => !errDuplicatePhone.some(d => d.phone === p)
-    );
-    if (validPhonesArr.length > 0) {
-      const dbDupRows = (await db.execute(sql`
-        SELECT REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') AS phone
-        FROM students
-        WHERE swimming_pool_id = ${poolId}
-          AND status NOT IN ('archived','deleted')
-          AND REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ANY(${validPhonesArr}::text[])
-      `)).rows as any[];
-      for (const dbRow of dbDupRows) {
-        const phone    = dbRow.phone as string;
-        const batchRows = phoneBatchMap.get(phone) ?? [];
-        errDbDuplicatePhone.push({ phone, rows: batchRows });
-      }
-    }
-
     // 회원 수 한도 초과 검사
     const errMemberLimit = items.length > available
       ? { available, limit: memberLimit, current: currentCount, requested: items.length }
@@ -334,8 +308,6 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
       errMissingName.length   > 0 ||
       errMissingPhone.length  > 0 ||
       errInvalidPhone.length  > 0 ||
-      errDuplicatePhone.length > 0 ||
-      errDbDuplicatePhone.length > 0 ||
       errMemberLimit !== null;
 
     if (hasErrors) {
@@ -347,8 +319,6 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
           missing_name:       errMissingName.length   > 0 ? errMissingName   : undefined,
           missing_phone:      errMissingPhone.length  > 0 ? errMissingPhone  : undefined,
           invalid_phone:      errInvalidPhone.length  > 0 ? errInvalidPhone  : undefined,
-          duplicate_phone:    errDuplicatePhone.length > 0 ? errDuplicatePhone : undefined,
-          db_duplicate_phone: errDbDuplicatePhone.length > 0 ? errDbDuplicatePhone : undefined,
           member_limit:       errMemberLimit ?? undefined,
         },
       });
