@@ -921,13 +921,16 @@ router.delete("/diary-templates/:id/override",
 router.post("/diary-templates/restore-default",
   requireAuth, requireRole("super_admin", "pool_admin"),
   async (req: AuthRequest, res) => {
+    console.log("[restore-default] 요청 수신 — userId:", req.user?.userId);
     try {
       const poolId = await getUserPoolId(req.user!.userId);
+      console.log("[restore-default] poolId:", poolId);
       await db.execute(sql`DELETE FROM diary_templates WHERE swimming_pool_id = ${poolId}`);
       await db.execute(sql`DELETE FROM diary_template_levels WHERE swimming_pool_id = ${poolId}`);
       await insertDefaultTemplates(poolId, req.user!.userId);
+      console.log("[restore-default] 완료");
       res.json({ success: true });
-    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+    } catch (e) { console.error("[restore-default] 오류:", e); apiErr(res, 500, "서버 오류"); }
   }
 );
 
