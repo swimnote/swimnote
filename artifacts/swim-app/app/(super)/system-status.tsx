@@ -2,7 +2,7 @@
  * (super)/system-status.tsx — 시스템 상태
  * 실제 API(/super/system-health)에서 각 서비스의 상태/지연/메모를 가져와 표시.
  */
-import { Info, RefreshCw } from "lucide-react-native";
+import { Cpu, Info, RefreshCw } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -14,6 +14,16 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 const P = "#7C3AED";
 
 export type ServiceStatus = "normal" | "warning" | "error";
+
+export interface MemoryInfo {
+  rssBytes: number;
+  heapUsedBytes: number;
+  heapTotalBytes: number;
+  containerLimitBytes: number;
+  rssPct: number;
+  status: ServiceStatus;
+  note: string;
+}
 
 export interface ServiceItem {
   id: string;
@@ -90,12 +100,54 @@ const sc = StyleSheet.create({
   note:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 4 },
 });
 
+function MemoryCard({ info }: { info: MemoryInfo }) {
+  const cfg = STATUS_CFG[info.status];
+  const pct = Math.min(info.rssPct, 100);
+  const barColor = info.status === "error" ? "#D96C6C" : info.status === "warning" ? "#D97706" : "#2EC4B6";
+  const rssMB  = Math.round(info.rssBytes / (1024 * 1024));
+  const heapMB = Math.round(info.heapUsedBytes / (1024 * 1024));
+
+  return (
+    <View style={[sc.card, { borderLeftColor: cfg.color, borderLeftWidth: 4 }]}>
+      <View style={sc.top}>
+        <View style={[sc.iconWrap, { backgroundColor: cfg.bg }]}>
+          <Cpu size={16} color={cfg.color} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={sc.name}>서버 메모리 (Render)</Text>
+          <Text style={sc.category}>서버</Text>
+        </View>
+        <View style={[sb.badge, { backgroundColor: cfg.bg }]}>
+          <LucideIcon name={cfg.icon} size={11} color={cfg.color} />
+          <Text style={[sb.txt, { color: cfg.color }]}>{cfg.label}</Text>
+        </View>
+      </View>
+
+      {/* 게이지 바 */}
+      <View style={mem.track}>
+        <View style={[mem.fill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
+      </View>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
+        <Text style={sc.note}>RSS {rssMB} MB  ·  힙 {heapMB} MB</Text>
+        <Text style={[sc.note, { color: cfg.color, fontFamily: "Pretendard-Regular" }]}>{pct.toFixed(1)}%</Text>
+      </View>
+      <Text style={[sc.note, { marginTop: 2 }]}>컨테이너 한도 2,048 MB  ·  주의 70% / 위험 85%</Text>
+    </View>
+  );
+}
+
+const mem = StyleSheet.create({
+  track: { height: 8, borderRadius: 4, backgroundColor: "#E5E7EB", overflow: "hidden", marginTop: 8 },
+  fill:  { height: 8, borderRadius: 4 },
+});
+
 export default function SystemStatusScreen() {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
 
-  const [services, setServices] = useState<ServiceItem[]>([]);
-  const [loading, setLoading]   = useState(true);
+  const [services, setServices]     = useState<ServiceItem[]>([]);
+  const [memory, setMemory]         = useState<MemoryInfo | null>(null);
+  const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [checkedAt, setCheckedAt]   = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -108,6 +160,7 @@ export default function SystemStatusScreen() {
       const res = await apiRequest(token, "/super/system-health");
       const data = res instanceof Response ? await res.json() : res;
       setServices(data.services ?? []);
+      setMemory(data.memory ?? null);
       setCheckedAt(data.summary?.checkedAt ?? null);
     } catch (e: any) {
       setFetchError(e?.message ?? "헬스체크 요청 실패");
@@ -184,14 +237,24 @@ export default function SystemStatusScreen() {
             <Text style={s.loadingTxt}>각 서비스 실측 중...</Text>
           </View>
         ) : (
-          Object.entries(categorized).map(([category, items]) => (
-            <View key={category} style={{ gap: 8 }}>
-              <Text style={s.categoryTitle}>{category}</Text>
-              {items.map(item => (
-                <ServiceCard key={item.id} item={item} />
-              ))}
-            </View>
-          ))
+          <>
+            {/* 서버 메모리 게이지 */}
+            {memory && (
+              <View style={{ gap: 8 }}>
+                <Text style={s.categoryTitle}>서버</Text>
+                <MemoryCard info={memory} />
+              </View>
+            )}
+
+            {Object.entries(categorized).map(([category, items]) => (
+              <View key={category} style={{ gap: 8 }}>
+                <Text style={s.categoryTitle}>{category}</Text>
+                {items.map(item => (
+                  <ServiceCard key={item.id} item={item} />
+                ))}
+              </View>
+            ))}
+          </>
         )}
 
         <View style={s.noteBox}>

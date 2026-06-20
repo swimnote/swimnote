@@ -191,6 +191,25 @@ function checkMonitoring(): CheckResult {
   };
 }
 
+function checkServerMemory() {
+  const mem = process.memoryUsage();
+  const LIMIT = 2 * 1024 * 1024 * 1024; // Render Standard 2GB
+  const rssPct = (mem.rss / LIMIT) * 100;
+  const status: CheckStatus = rssPct > 85 ? "error" : rssPct > 70 ? "warning" : "normal";
+  const rssMB   = Math.round(mem.rss      / (1024 * 1024));
+  const heapMB  = Math.round(mem.heapUsed / (1024 * 1024));
+  const totalMB = Math.round(mem.heapTotal / (1024 * 1024));
+  return {
+    rssBytes:          mem.rss,
+    heapUsedBytes:     mem.heapUsed,
+    heapTotalBytes:    mem.heapTotal,
+    containerLimitBytes: LIMIT,
+    rssPct:            Math.round(rssPct * 10) / 10,
+    status,
+    note: `RSS ${rssMB} MB / 2048 MB  ·  힙 ${heapMB} / ${totalMB} MB`,
+  };
+}
+
 // ── 라우트 ────────────────────────────────────────────────────────────────────
 
 router.get(
@@ -218,7 +237,8 @@ router.get(
       const warningCount = results.filter(r => r.status === "warning").length;
       const errorCount = results.filter(r => r.status === "error").length;
 
-      res.json({ ok: true, services: results, summary: { normal: normalCount, warning: warningCount, error: errorCount, checkedAt: new Date().toISOString() } });
+      const memory = checkServerMemory();
+      res.json({ ok: true, services: results, memory, summary: { normal: normalCount, warning: warningCount, error: errorCount, checkedAt: new Date().toISOString() } });
     } catch (e: any) {
       console.error("[system-health] 오류:", e);
       res.status(500).json({ ok: false, error: e?.message ?? "unknown" });
