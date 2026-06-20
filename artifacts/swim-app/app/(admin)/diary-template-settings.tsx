@@ -505,7 +505,7 @@ export default function DiaryTemplateSettingsScreen() {
       <ConfirmModal
         visible={confirmRestoreDefault}
         title="SwimNote 기본 템플릿 복원"
-        message={"기본 템플릿으로 복원합니다.\n\n이 작업은 되돌릴 수 없습니다."}
+        message={"기본 템플릿으로 복원합니다.\n복원 완료까지 10~20초 정도 소요될 수 있습니다.\n\n이 작업은 되돌릴 수 없습니다."}
         confirmText="복원"
         cancelText="취소"
         onConfirm={async () => { await handleRestoreDefault(); setConfirmRestoreDefault(false); }}
