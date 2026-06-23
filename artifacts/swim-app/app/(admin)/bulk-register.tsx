@@ -375,14 +375,20 @@ export default function BulkRegisterScreen() {
 
         // PK magic bytes (50 4B) = ZIP = XLSX/XLS
         const isExcel = bytes[0] === 0x50 && bytes[1] === 0x4B;
-        // UTF-8 BOM (EF BB BF) 또는 일반 텍스트 = CSV
         if (isExcel) {
           wb = XLSX.read(bytes, { type: "array" });
         } else {
-          // 텍스트 파일: UTF-8 디코딩
-          const decoder = new TextDecoder("utf-8");
-          const text = decoder.decode(bytes).replace(/^\uFEFF/, "");
-          wb = XLSX.read(text, { type: "string" });
+          // CSV: UTF-8 먼저 시도, 헤더 미인식이면 EUC-KR 재시도
+          const utfDecoder = new TextDecoder("utf-8");
+          const utfText = utfDecoder.decode(bytes).replace(/^\uFEFF/, "");
+          wb = XLSX.read(utfText, { type: "string" });
+          if (parseWorkbookDebug(wb).rows.length === 0) {
+            try {
+              const euckrDecoder = new TextDecoder("euc-kr");
+              const euckrText = euckrDecoder.decode(bytes);
+              wb = XLSX.read(euckrText, { type: "string" });
+            } catch { /* euc-kr 미지원 환경은 그냥 넘김 */ }
+          }
         }
       } else if (ext === "xlsx" || ext === "xls" || ext === "xlsm") {
         // 네이티브 Excel: base64로 읽어 SheetJS 파싱
@@ -391,17 +397,14 @@ export default function BulkRegisterScreen() {
         });
         wb = XLSX.read(b64, { type: "base64" });
       } else {
-        // 네이티브 CSV: UTF-8 먼저, 실패 시 base64로 SheetJS 처리
-        try {
-          const text = await FileSystem.readAsStringAsync(uri, {
-            encoding: FileSystem.EncodingType.UTF8,
-          });
-          wb = XLSX.read(text.replace(/^\uFEFF/, ""), { type: "string" });
-        } catch {
-          const b64 = await FileSystem.readAsStringAsync(uri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          wb = XLSX.read(b64, { type: "base64" });
+        // 네이티브 CSV: base64로 읽어 SheetJS 자동 감지 (UTF-8 BOM 처리)
+        const b64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        wb = XLSX.read(b64, { type: "base64" });
+        // 헤더 미인식이면 EUC-KR(codepage 949)로 재시도
+        if (parseWorkbookDebug(wb).rows.length === 0) {
+          wb = XLSX.read(b64, { type: "base64", codepage: 949 });
         }
       }
 
