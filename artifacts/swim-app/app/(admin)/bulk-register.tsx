@@ -34,29 +34,30 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 const C = Colors.light;
 const MAX_UPLOAD = 100; // 업로드 최대 인원
 
-// ── 컬럼 헤더 별칭 매핑 (최대한 관대하게) ─────────────────────────
-const COL_MAP: Record<string, string> = {
-  "이름": "name",           "name": "name",           "성명": "name",
-  "성함": "name",           "회원명": "name",         "학생명": "name",
-  "회원이름": "name",       "학생이름": "name",       "자녀이름": "name",
-  "출생년도": "birth_year", "birth_year": "birth_year", "생년": "birth_year",
-  "출생연도": "birth_year", "태어난해": "birth_year", "출생일": "birth_year",
-  "보호자이름": "parent_name", "parent_name": "parent_name", "보호자": "parent_name",
-  "보호자성명": "parent_name", "학부모": "parent_name", "학부모이름": "parent_name",
-  "부모이름": "parent_name", "부모": "parent_name",
-  "보호자전화번호": "parent_phone", "parent_phone": "parent_phone",
-  "보호자연락처": "parent_phone", "전화번호": "parent_phone",
-  "연락처": "parent_phone", "학부모전화": "parent_phone",
-  "학부모연락처": "parent_phone", "보호자휴대폰": "parent_phone",
-  "휴대폰": "parent_phone", "휴대폰번호": "parent_phone",
-  "핸드폰": "parent_phone", "핸드폰번호": "parent_phone",
-  "전화": "parent_phone",   "hp": "parent_phone",     "phone": "parent_phone",
-  "보호자 전화번호": "parent_phone", "보호자 연락처": "parent_phone",
-  "주횟수": "weekly_count", "weekly_count": "weekly_count",
-  "횟수": "weekly_count",  "주수업횟수": "weekly_count", "수업횟수": "weekly_count",
-  "메모": "memo",           "memo": "memo",
-  "비고": "memo",           "특이사항": "memo",        "참고": "memo",
-};
+// ── 컬럼 헤더 별칭 매핑 (공백·대소문자 제거 후 비교) ───────────────
+// 키: 공백·특수문자 제거 + 소문자 정규화 후 값
+const COL_MAP_RAW: Array<[string[], string]> = [
+  [["이름","name","성명","성함","회원명","학생명","회원이름","학생이름","자녀이름","자녀명"],    "name"],
+  [["출생년도","birth_year","생년","출생연도","태어난해","출생일","생년월일","birthyear"],         "birth_year"],
+  [["보호자이름","parent_name","보호자","보호자성명","학부모","학부모이름","부모이름","부모","parentname"], "parent_name"],
+  [["보호자전화번호","parent_phone","보호자연락처","전화번호","연락처","학부모전화","학부모연락처",
+    "보호자휴대폰","휴대폰","휴대폰번호","핸드폰","핸드폰번호","전화","hp","phone","parentphone",
+    "보호자전화","연락처(보호자)","보호자번호","보호자폰"],                                       "parent_phone"],
+  [["주횟수","weekly_count","횟수","주수업횟수","수업횟수","weeklycount","주당횟수"],             "weekly_count"],
+  [["메모","memo","비고","특이사항","참고","note","notes"],                                       "memo"],
+];
+
+// 정규화: 공백·특수문자 제거 + 소문자
+function normHeader(h: string): string {
+  return h.replace(/[\s\-_()（）·•,]/g, "").toLowerCase();
+}
+
+const COL_MAP: Record<string, string> = {};
+for (const [aliases, field] of COL_MAP_RAW) {
+  for (const alias of aliases) {
+    COL_MAP[normHeader(alias)] = field;
+  }
+}
 
 // ── 이름 셀에 전화번호가 섞인 경우 자동 분리 ─────────────────────
 const PHONE_IN_TEXT_RE = /(?<![0-9])(0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4})(?![0-9])/;
@@ -133,16 +134,18 @@ function parseWorkbookDebug(wb: XLSX.WorkBook): { rows: ParsedRow[]; debugInfo: 
 
   let headerIdx = 0;
   let bestScore = -1;
-  for (let i = 0; i < Math.min(6, raw.length); i++) {
-    const score = raw[i].filter((c: any) => COL_MAP[String(c ?? "").trim()]).length;
+  for (let i = 0; i < Math.min(10, raw.length); i++) {
+    const score = raw[i].filter((c: any) => COL_MAP[normHeader(String(c ?? ""))]).length;
     if (score > bestScore) { bestScore = score; headerIdx = i; }
   }
 
-  const firstRowSample = (raw[0] || []).slice(0, 3).map((c: any) => JSON.stringify(String(c ?? ""))).join(", ");
+  const firstRowSample = (raw[0] || []).slice(0, 4)
+    .map((c: any) => `"${String(c ?? "").trim()}"`)
+    .join(", ");
   if (bestScore === 0) {
     return {
       rows: [],
-      debugInfo: `헤더 미인식. 총 ${raw.length}행. 첫 행: [${firstRowSample}]`,
+      debugInfo: `열 이름 미인식. 첫 행: [${firstRowSample}]\n→ 열 이름에 '이름', '보호자전화번호'(또는 '전화번호')가 있어야 합니다.`,
     };
   }
 
@@ -157,7 +160,7 @@ function parseWorkbook(wb: XLSX.WorkBook): ParsedRow[] {
 
 function parseRows(raw: any[][], headerIdx: number): ParsedRow[] {
   const headers = (raw[headerIdx] as any[]).map(h => String(h ?? "").trim());
-  const colKeys = headers.map(h => COL_MAP[h] ?? null);
+  const colKeys = headers.map(h => COL_MAP[normHeader(h)] ?? null);
 
   const rows: ParsedRow[] = [];
   for (let i = headerIdx + 1; i < raw.length; i++) {
