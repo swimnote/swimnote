@@ -32,7 +32,7 @@ import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
-const MAX_UPLOAD = 100; // 업로드 최대 인원
+const MAX_UPLOAD = 300; // 업로드 최대 인원
 
 // ── 컬럼 헤더 별칭 매핑 (공백·대소문자 제거 후 비교) ───────────────
 // 키: 공백·특수문자 제거 + 소문자 정규화 후 값

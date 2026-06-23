@@ -241,11 +241,11 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
     return err(res, 400, "등록할 학생 데이터가 없습니다.");
 
   // ── 업로드 인원수 제한 (100명) ─────────────────────────────────
-  if (items.length > 100) {
+  if (items.length > 300) {
     return res.status(400).json({
       success: false,
       code: "LIMIT_EXCEEDED",
-      message: "한 번에 최대 100명까지 업로드할 수 있습니다.",
+      message: "한 번에 최대 300명까지 업로드할 수 있습니다.",
     });
   }
 
