@@ -83,6 +83,7 @@ interface ParsedRow {
   _rowError?: string;
   _rowWarn?: string;
   _isDuplicate?: boolean;
+  _autoSkipped?: boolean;
 }
 
 interface ServerErrors {
@@ -230,30 +231,19 @@ function parseRows(raw: any[][], headerIdx: number): ParsedRow[] {
     rows.push(row);
   }
 
-  // 파일 내 이름+전화번호 조합 중복 → 오류 처리
-  // (같은 전화번호라도 이름이 다르면 형제로 허용)
-  const namePhoneCnt: Record<string, number> = {};
+  // 이름+전화번호 중복 → 첫 번째만 유지, 이후는 자동 제거
+  const namePhoneSeen = new Set<string>();
   rows.forEach(r => {
     if (r.name && r.parent_phone) {
       const key = `${r.name.trim()}|${r.parent_phone}`;
-      namePhoneCnt[key] = (namePhoneCnt[key] ?? 0) + 1;
-    }
-  });
-  rows.forEach(r => {
-    if (r.name && r.parent_phone) {
-      const key = `${r.name.trim()}|${r.parent_phone}`;
-      if (namePhoneCnt[key] > 1) {
-        const dupMsg = "파일 내 동일 이름+전화번호 중복";
-        r._rowError = r._rowError ? `${r._rowError} · ${dupMsg}` : dupMsg;
-        r._isDuplicate = true;
+      if (namePhoneSeen.has(key)) {
+        r._autoSkipped = true;
+      } else {
+        namePhoneSeen.add(key);
       }
     }
   });
-
-  // 파일 내 이름 중복 표시 (오류는 아님, 시각적 구분만)
-  const nameCnt: Record<string, number> = {};
-  rows.forEach(r => { if (r.name) nameCnt[r.name] = (nameCnt[r.name] ?? 0) + 1; });
-  rows.forEach(r => { if (r.name && nameCnt[r.name] > 1 && !r._isDuplicate) r._isDuplicate = true; });
+  // 이름만 중복(형제 가능) → 표시 없음
 
   return rows;
 }
@@ -324,11 +314,12 @@ export default function BulkRegisterScreen() {
   const [showGuide, setShowGuide] = useState(true);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
 
-  const validRows = rows.filter(r => !r._rowError);
-  const errorRows = rows.filter(r => !!r._rowError);
-  const warnRows  = rows.filter(r => !r._rowError && !!r._rowWarn);
-  const overLimit = rows.length > MAX_UPLOAD;
-  const canUpload = rows.length > 0 && errorRows.length === 0 && !overLimit;
+  const validRows   = rows.filter(r => !r._rowError && !r._autoSkipped);
+  const errorRows   = rows.filter(r => !!r._rowError);
+  const warnRows    = rows.filter(r => !r._rowError && !r._autoSkipped && !!r._rowWarn);
+  const skippedRows = rows.filter(r => !!r._autoSkipped);
+  const overLimit   = rows.length > MAX_UPLOAD;
+  const canUpload   = validRows.length > 0 && errorRows.length === 0 && !overLimit;
 
   // ── 파일 선택 & 파싱 ────────────────────────────────────────
   const pickFile = useCallback(async () => {
@@ -662,6 +653,12 @@ export default function BulkRegisterScreen() {
                 <Text style={[s.summaryNum, { color: "#16A34A" }]}>{validRows.length}</Text>
                 <Text style={[s.summaryLabel, { color: C.textSecondary }]}>등록 가능</Text>
               </View>
+              {skippedRows.length > 0 && (
+                <View style={[s.summaryItem, s.summaryDivider]}>
+                  <Text style={[s.summaryNum, { color: "#6B7280" }]}>{skippedRows.length}</Text>
+                  <Text style={[s.summaryLabel, { color: C.textSecondary }]}>중복 제거</Text>
+                </View>
+              )}
               {warnRows.length > 0 && (
                 <View style={[s.summaryItem, s.summaryDivider]}>
                   <Text style={[s.summaryNum, { color: "#D97706" }]}>{warnRows.length}</Text>
@@ -704,9 +701,10 @@ export default function BulkRegisterScreen() {
               </View>
 
               {rows.map((row, i) => {
-                const hasErr  = !!row._rowError;
-                const hasWarn = !hasErr && !!row._rowWarn;
-                const bg = hasErr ? "#FEF2F2" : hasWarn ? "#FFFBEB" : "transparent";
+                const hasErr     = !!row._rowError;
+                const isSkipped  = !!row._autoSkipped;
+                const hasWarn    = !hasErr && !isSkipped && !!row._rowWarn;
+                const bg = hasErr ? "#FEF2F2" : isSkipped ? "#F3F4F6" : hasWarn ? "#FFFBEB" : "transparent";
 
                 return (
                   <View
@@ -720,7 +718,7 @@ export default function BulkRegisterScreen() {
                     <View style={{ flex: 2, justifyContent: "center", paddingLeft: 4 }}>
                       <Text
                         style={[s.tdTxt, {
-                          color: hasErr ? "#DC2626" : C.text,
+                          color: hasErr ? "#DC2626" : isSkipped ? "#9CA3AF" : C.text,
                           textAlign: "left",
                         }]}
                         numberOfLines={1}
@@ -730,11 +728,14 @@ export default function BulkRegisterScreen() {
                       {hasErr && (
                         <Text style={[s.tdSub, { color: "#DC2626" }]}>{row._rowError}</Text>
                       )}
-                      {!hasErr && hasWarn && (
+                      {isSkipped && (
+                        <Text style={[s.tdSub, { color: "#9CA3AF" }]}>중복 자동 제거</Text>
+                      )}
+                      {!hasErr && !isSkipped && hasWarn && (
                         <Text style={[s.tdSub, { color: "#D97706" }]}>{row._rowWarn}</Text>
                       )}
                     </View>
-                    <Text style={[s.tdTxt, { flex: 3, color: C.textSecondary }]} numberOfLines={1}>
+                    <Text style={[s.tdTxt, { flex: 3, color: isSkipped ? "#9CA3AF" : C.textSecondary }]} numberOfLines={1}>
                       {row.parent_phone ? formatPhone(row.parent_phone) : "-"}
                     </Text>
                   </View>
