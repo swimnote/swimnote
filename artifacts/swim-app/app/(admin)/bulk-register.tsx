@@ -498,9 +498,9 @@ export default function BulkRegisterScreen() {
               {[
                 "이름, 전화번호는 필수 입력입니다",
                 "형제는 전화번호가 같아도 이름이 다르면 등록 가능합니다",
-                "이름+전화번호가 완전히 같은 중복 행은 업로드 불가입니다",
+                "이름+전화번호가 완전히 같은 중복 행은 자동으로 제외됩니다",
                 `${MAX_UPLOAD}명 초과 시 업로드가 불가능합니다`,
-                "오류가 1개라도 있으면 전체 업로드가 실패합니다",
+                "오류 행은 자동 제외되고 정상 행만 등록됩니다",
               ].map((txt, i) => (
                 <Text key={i} style={[s.noticeLine, { color: "#92400E" }]}>• {txt}</Text>
               ))}
@@ -673,12 +673,12 @@ export default function BulkRegisterScreen() {
               )}
             </View>
 
-            {/* 오류 존재 시 전체 차단 배너 */}
+            {/* 오류 존재 시 안내 배너 */}
             {errorRows.length > 0 && !overLimit && (
-              <View style={[s.alertBanner, { backgroundColor: "#FEE2E2" }]}>
-                <AlertCircle size={14} color="#DC2626" />
-                <Text style={[s.alertTxt, { color: "#DC2626" }]}>
-                  오류 {errorRows.length}건이 있습니다. 빨간 항목을 수정 후 다시 업로드해주세요.{"\n"}오류가 1개라도 있으면 전체 업로드가 실패합니다.
+              <View style={[s.alertBanner, { backgroundColor: "#FEF3C7" }]}>
+                <AlertTriangle size={14} color="#D97706" />
+                <Text style={[s.alertTxt, { color: "#92400E" }]}>
+                  오류 {errorRows.length}건은 자동 제외됩니다. 정상 {validRows.length}명만 등록됩니다.
                 </Text>
               </View>
             )}

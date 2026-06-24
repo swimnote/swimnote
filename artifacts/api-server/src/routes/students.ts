@@ -240,7 +240,7 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
   if (!Array.isArray(items) || items.length === 0)
     return err(res, 400, "등록할 학생 데이터가 없습니다.");
 
-  // ── 업로드 인원수 제한 (100명) ─────────────────────────────────
+  // ── 업로드 인원수 제한 (300명) ─────────────────────────────────
   if (items.length > 300) {
     return res.status(400).json({
       success: false,
