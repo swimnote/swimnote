@@ -313,13 +313,15 @@ export default function BulkRegisterScreen() {
   const [loadingFile, setLoadingFile] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
+  const [capacity, setCapacity] = useState<{ limit: number; current: number; available: number } | null>(null);
 
   const validRows   = rows.filter(r => !r._rowError && !r._autoSkipped);
   const errorRows   = rows.filter(r => !!r._rowError);
   const warnRows    = rows.filter(r => !r._rowError && !r._autoSkipped && !!r._rowWarn);
   const skippedRows = rows.filter(r => !!r._autoSkipped);
   const overLimit   = rows.length > MAX_UPLOAD;
-  const canUpload   = validRows.length > 0 && !overLimit;
+  const overPlanLimit = capacity !== null && validRows.length > capacity.available;
+  const canUpload   = validRows.length > 0 && !overLimit && !overPlanLimit;
 
   // ── 파일 선택 & 파싱 ────────────────────────────────────────
   const pickFile = useCallback(async () => {
@@ -411,6 +413,14 @@ export default function BulkRegisterScreen() {
       }
       setRows(parsed);
       setStep("preview");
+      // 플랜 회원 수 한도 조회
+      try {
+        const capRes = await apiRequest(token, "/students/capacity", { method: "GET" });
+        if (capRes.ok) {
+          const capData = await capRes.json();
+          setCapacity(capData);
+        }
+      } catch { /* 한도 조회 실패 시 무시 */ }
     } catch (e: any) {
       setParseError(
         "파일을 읽는 중 오류가 발생했습니다.\n지원 형식: xlsx, xls, csv\n" +
@@ -471,6 +481,7 @@ export default function BulkRegisterScreen() {
     setFileName("");
     setParseError("");
     setUploadResult(null);
+    setCapacity(null);
   };
 
   // ══════════════════════════════════════════════════════════════
@@ -637,12 +648,24 @@ export default function BulkRegisterScreen() {
               </Pressable>
             </View>
 
-            {/* 100명 초과 오류 */}
+            {/* 파일 인원 초과 (300명) */}
             {overLimit && (
               <View style={[s.alertBanner, { backgroundColor: "#FEE2E2" }]}>
                 <AlertCircle size={14} color="#DC2626" />
                 <Text style={[s.alertTxt, { color: "#DC2626" }]}>
                   {rows.length}명 감지 — 최대 {MAX_UPLOAD}명까지 업로드 가능합니다. 파일을 나누어 업로드해주세요.
+                </Text>
+              </View>
+            )}
+
+            {/* 플랜 회원 수 한도 초과 */}
+            {overPlanLimit && capacity && (
+              <View style={[s.alertBanner, { backgroundColor: "#FEE2E2" }]}>
+                <AlertCircle size={14} color="#DC2626" />
+                <Text style={[s.alertTxt, { color: "#DC2626" }]}>
+                  플랜 한도 초과 — 현재 {capacity.current}명 / 최대 {capacity.limit}명{"\n"}
+                  등록 가능 잔여: {capacity.available}명, 요청: {validRows.length}명{"\n"}
+                  플랜을 변경하거나 기존 회원을 정리 후 다시 업로드해주세요.
                 </Text>
               </View>
             )}
@@ -754,7 +777,11 @@ export default function BulkRegisterScreen() {
             >
               <Upload size={16} color="#fff" />
               <Text style={s.uploadBtnTxt}>
-                {canUpload ? `${validRows.length}명 일괄 등록하기` : "오류 수정 후 업로드 가능"}
+                {overPlanLimit
+                  ? "플랜 한도 초과 — 업로드 불가"
+                  : canUpload
+                    ? `${validRows.length}명 일괄 등록하기`
+                    : "오류 수정 후 업로드 가능"}
               </Text>
             </Pressable>
           </>
@@ -830,8 +857,10 @@ export default function BulkRegisterScreen() {
                 ))}
                 {uploadResult.errors?.member_limit && (
                   <Text style={[s.failReason, { color: "#DC2626", marginBottom: 4 }]}>
-                    회원 수 한도 초과 — 현재 {uploadResult.errors.member_limit.current}명 / 최대 {uploadResult.errors.member_limit.limit}명
-                    (등록 요청 {uploadResult.errors.member_limit.requested}명, 가능 {uploadResult.errors.member_limit.available}명)
+                    플랜 회원 수 한도 초과{"\n"}
+                    현재 {uploadResult.errors.member_limit.current}명 / 최대 {uploadResult.errors.member_limit.limit}명{"\n"}
+                    등록 요청 {uploadResult.errors.member_limit.requested}명, 남은 자리 {uploadResult.errors.member_limit.available}명{"\n"}
+                    설정 {">"} 구독 플랜에서 플랜을 변경하거나 기존 회원을 정리해주세요.
                   </Text>
                 )}
                 {!uploadResult.errors && uploadResult.message && (

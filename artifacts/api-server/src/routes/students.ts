@@ -81,6 +81,19 @@ async function enrichWithClasses(student: any) {
   return { ...student, assignedClasses: validClasses, schedule_labels: labels };
 }
 
+// ── GET /capacity — 회원 수 한도 조회 ──────────────────────────────
+router.get("/capacity", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
+    const { limit, current } = await getEffectiveMemberLimit(poolId);
+    const available = Math.max(0, limit - current);
+    return res.json({ limit, current, available });
+  } catch (e: any) {
+    return err(res, 500, e?.message ?? "서버 오류");
+  }
+});
+
 // ── GET / ──────────────────────────────────────────────────────────
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
