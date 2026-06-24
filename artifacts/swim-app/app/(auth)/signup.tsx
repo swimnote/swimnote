@@ -618,7 +618,7 @@ export default function SignupScreen() {
               placeholder="실명을 입력해주세요 (한글)"
               placeholderTextColor={C.textMuted}
               value={name}
-              onChangeText={v => { setName(v.replace(/[^가-힣ㄱ-ㅎㅏ-ㅣ\s]/g, "")); setFieldErrors(e => ({ ...e, name: "" })); }}
+              onChangeText={v => { setName(v); setFieldErrors(e => ({ ...e, name: "" })); }}
               keyboardType="default"
               autoCorrect={false}
               autoCapitalize="none"
