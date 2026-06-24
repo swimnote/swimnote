@@ -319,7 +319,7 @@ export default function BulkRegisterScreen() {
   const warnRows    = rows.filter(r => !r._rowError && !r._autoSkipped && !!r._rowWarn);
   const skippedRows = rows.filter(r => !!r._autoSkipped);
   const overLimit   = rows.length > MAX_UPLOAD;
-  const canUpload   = validRows.length > 0 && errorRows.length === 0 && !overLimit;
+  const canUpload   = validRows.length > 0 && !overLimit;
 
   // ── 파일 선택 & 파싱 ────────────────────────────────────────
   const pickFile = useCallback(async () => {
