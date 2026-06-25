@@ -17,8 +17,8 @@ import { ParentPromoStrip } from "@/components/parent/ParentPromoStrip";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, BackHandler, FlatList, Keyboard,
-  KeyboardAvoidingView, Modal, Platform,
+  ActivityIndicator, Alert, BackHandler, FlatList, Image, Keyboard,
+  KeyboardAvoidingView, Linking, Modal, Platform,
   Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -412,6 +412,9 @@ export default function ParentHomeScreen() {
         <View style={s.headerBtns}>
           <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => router.push("/(parent)/notifications" as any)}>
             <Bell size={19} color={C.textSecondary} />
+          </Pressable>
+          <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => Linking.openURL("https://swimnote.kr")}>
+            <Image source={require("@/assets/images/swimnote-logo.png")} style={{ width: 19, height: 19 }} resizeMode="contain" />
           </Pressable>
           <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => router.push("/(parent)/more" as any)}>
             <Settings size={19} color={C.textSecondary} />
