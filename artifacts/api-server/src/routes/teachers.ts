@@ -729,7 +729,7 @@ router.get("/teacher/me/members", requireAuth,
           ORDER BY s.name ASC
         `);
       } else {
-        // 전체: active/pending_parent_link 상태이거나 pending_status_change 있는 회원
+        // 전체: active/pending_parent_link/unregistered 상태이거나 pending_status_change 있는 회원
         rows = await db.execute(sql`
           SELECT ${COLS}
           FROM students s
@@ -737,7 +737,7 @@ router.get("/teacher/me/members", requireAuth,
           WHERE s.swimming_pool_id = ${poolId}
             AND s.deleted_at IS NULL
             AND (
-              s.status IN ('active', 'suspended', 'withdrawn', 'pending_parent_link')
+              s.status IN ('active', 'suspended', 'withdrawn', 'pending_parent_link', 'unregistered')
               OR s.pending_status_change IS NOT NULL
             )
           ORDER BY s.name ASC
