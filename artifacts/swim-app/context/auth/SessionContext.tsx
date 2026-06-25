@@ -239,14 +239,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
       if (!storedToken || !storedKind) return;
 
-      // 서버에서 토큰 유효성 검증 — 구 토큰 / 서버 오류 시 세션 초기화
+      // 서버에서 토큰 유효성 검증 — 명시적 인증 실패(401/403/404)만 세션 초기화
+      // 네트워크 오류·5xx 서버 오류는 일시적 문제이므로 세션 유지
       try {
         const meRes = await fetch(`${API_BASE}/auth/me`, {
           headers: { Authorization: `Bearer ${storedToken}` },
           cache: "no-store",
         });
-        // 2xx 이외: 토큰 만료(401), 계정 삭제(404), 서버 오류(5xx) → 세션 초기화 (자동로그인 방지)
-        if (!meRes.ok) {
+        // 토큰 만료(401), 권한 없음(403), 계정 삭제(404) → 세션 초기화
+        if (meRes.status === 401 || meRes.status === 403 || meRes.status === 404) {
           await AsyncStorage.multiRemove([
             "auth_token", "auth_kind", "auth_admin", "auth_parent",
             "auth_all_accounts", "last_used_role", "last_used_tenant", "last_selected_student",
@@ -255,15 +256,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           ]);
           return;
         }
+        // 5xx 서버 오류 → 서버가 일시적으로 다운된 것이므로 세션 유지하고 진행
       } catch {
-        // 네트워크 오류(오프라인/DNS 실패) → 세션 초기화 (서버 불안정 시 자동로그인 방지)
-        await AsyncStorage.multiRemove([
-          "auth_token", "auth_kind", "auth_admin", "auth_parent",
-          "auth_all_accounts", "last_used_role", "last_used_tenant", "last_selected_student",
-          "parent_selected_student_id", "brand_data",
-          "parent_join_status", "parent_join_request_id", "parent_pool_name",
-        ]);
-        return;
+        // 네트워크 오류(오프라인/DNS 실패) → 일시적 문제이므로 세션 유지하고 진행
       }
 
       setToken(storedToken);
