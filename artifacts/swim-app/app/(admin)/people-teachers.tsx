@@ -4,11 +4,11 @@
  * - rejected → teacher-pending-detail (승인관리 상세, 재승인 가능)
  * - approved → teacher-hub (일반 상세)
  */
-import { ArrowRight, Check, ChevronRight, CircleX, Clock, MessageSquare, Phone, Search, Users, X } from "lucide-react-native";
+import { ArrowRight, Check, ChevronRight, CircleX, Clock, MessageSquare, Phone, Search, Trash2, Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Platform, Pressable,
+  ActivityIndicator, Alert, FlatList, Platform, Pressable,
   RefreshControl, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -65,6 +65,7 @@ export default function PeopleTeachersScreen() {
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<FilterKey>("전체");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -89,6 +90,35 @@ export default function PeopleTeachersScreen() {
     if (filter === "관리자") return isApproved(t) && isAdminGranted(t);
     return true;
   });
+
+  function handleDelete(t: Teacher) {
+    Alert.alert(
+      "선생님 삭제",
+      `${t.name} 계정을 삭제하시겠습니까?\n삭제된 계정은 복구할 수 없습니다.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제", style: "destructive",
+          onPress: async () => {
+            setDeletingId(t.id);
+            try {
+              const r = await apiRequest(token, `/teachers/${t.id}`, { method: "DELETE" });
+              if (r.ok) {
+                setTeachers(prev => prev.filter(x => x.id !== t.id));
+              } else {
+                const body = await r.json().catch(() => ({}));
+                Alert.alert("삭제 실패", body?.error ?? "삭제 중 오류가 발생했습니다.");
+              }
+            } catch {
+              Alert.alert("오류", "삭제 중 오류가 발생했습니다.");
+            } finally {
+              setDeletingId(null);
+            }
+          },
+        },
+      ]
+    );
+  }
 
   function onPress(t: Teacher) {
     if (needsApprovalPage(t) && t.invite_id) {
@@ -242,7 +272,19 @@ export default function PeopleTeachersScreen() {
                       </View>
                     )}
                   </View>
-                  <ChevronRight size={18} color={C.textSecondary} />
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <Pressable
+                      hitSlop={8}
+                      onPress={(e) => { e.stopPropagation?.(); handleDelete(item); }}
+                      disabled={deletingId === item.id}
+                      style={s.deleteBtn}
+                    >
+                      {deletingId === item.id
+                        ? <ActivityIndicator size="small" color="#E11D48" />
+                        : <Trash2 size={15} color="#E11D48" />}
+                    </Pressable>
+                    <ChevronRight size={18} color={C.textSecondary} />
+                  </View>
                 </View>
               </Pressable>
             );
@@ -293,4 +335,5 @@ const s = StyleSheet.create({
   hintTxt:          { fontSize: 11, fontWeight: "500" },
   empty:            { paddingVertical: 60, alignItems: "center", gap: 10 },
   emptyTxt:         { color: C.textSecondary, fontSize: 14 },
+  deleteBtn:        { padding: 6, borderRadius: 8, backgroundColor: "#FEF2F2" },
 });
