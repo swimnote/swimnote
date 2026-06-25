@@ -140,7 +140,12 @@ export default function StudentDetailScreen() {
       });
       if (res.ok) {
         setLevelNote("");
-        await load();
+        // 전체 reload 없이 levelInfo 즉시 업데이트 → 모자 즉시 반영
+        const newLevel = levelInfo?.all_levels.find(l => l.level_order === levelOrder) ?? null;
+        setLevelInfo(prev => prev
+          ? { ...prev, current_level_order: levelOrder, current_level: newLevel }
+          : prev
+        );
       }
     } catch (e) { console.error(e); }
     finally { setLevelChanging(false); }

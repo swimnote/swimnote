@@ -192,7 +192,7 @@ router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "p
       if (classGroupId) {
         const remainingResult = await db.execute(sql`
           SELECT COUNT(*) AS cnt FROM students
-          WHERE class_group_id = ${classGroupId} AND status = 'active'
+          WHERE class_group_id = ${classGroupId} AND status IN ('active', 'pending_parent_link', 'unregistered')
         `);
         const remainCount = Number((remainingResult.rows[0] as any)?.cnt || 0);
         if (remainCount === 0) {

@@ -88,7 +88,7 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
     const studentRows = await db.execute(sql`
       SELECT id, class_group_id, assigned_class_ids FROM students
       WHERE swimming_pool_id = ${poolId}
-      AND status = 'active'
+      AND status IN ('active', 'pending_parent_link', 'unregistered')
       AND deleted_at IS NULL
     `);
     const studentCountMap: Record<string, number> = {};

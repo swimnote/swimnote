@@ -151,7 +151,17 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       return withClasses;
     }));
 
-    res.json(enriched.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+    const result = enriched.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    // pool_all=true(반배정 목적): unregistered 학생을 pending_parent_link로 노출
+    // → 구버전 앱 필터(active|pending_parent_link)도 통과하게 함
+    if (poolAll) {
+      result.forEach((s: any) => {
+        if (s.status === 'unregistered') s.status = 'pending_parent_link';
+      });
+    }
+
+    res.json(result);
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 

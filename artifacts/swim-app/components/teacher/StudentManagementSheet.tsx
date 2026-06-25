@@ -296,6 +296,7 @@ export default function StudentManagementSheet({
       <FlatList
         data={unassigned}
         keyExtractor={i => i.id}
+        style={{ flex: 1 }}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={readOnly ? (
@@ -373,6 +374,7 @@ export default function StudentManagementSheet({
       <FlatList
         data={makeups}
         keyExtractor={i => i.id}
+        style={{ flex: 1 }}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={readOnly ? (
@@ -600,8 +602,9 @@ export default function StudentManagementSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={st.backdrop} onPress={onClose} />
-      <View style={[st.sheet, { paddingBottom: insets.bottom }]}>
+      <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" }}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[st.sheet, { paddingBottom: insets.bottom }]}>
         <View style={st.handle} />
 
         {/* ── 탭 리스트 뷰 ── */}
@@ -656,6 +659,7 @@ export default function StudentManagementSheet({
           />
         </Modal>
       )}
+      </View>
     </Modal>
   );
 }
@@ -665,10 +669,9 @@ const st = StyleSheet.create({
     flex: 1, backgroundColor: "rgba(0,0,0,0.4)",
   },
   sheet: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
     backgroundColor: "#fff",
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
-    maxHeight: "90%", minHeight: "60%",
+    height: "88%",
   },
   handle: {
     width: 36, height: 4, borderRadius: 2,

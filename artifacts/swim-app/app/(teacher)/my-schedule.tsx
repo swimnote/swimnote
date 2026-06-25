@@ -66,8 +66,9 @@ export default function MyScheduleScreen() {
   const [memoDateSet, setMemoDateSet] = useState<Set<string>>(new Set());
 
   const [detailGroup,       setDetailGroup]       = useState<TeacherClassGroup | null>(null);
-  const [showDeleteClassConfirm, setShowDeleteClassConfirm] = useState(false);
-  const [deletingClass,         setDeletingClass]          = useState<TeacherClassGroup | null>(null);
+  const [showDeleteClassConfirm,  setShowDeleteClassConfirm]  = useState(false);
+  const [deletingClass,          setDeletingClass]           = useState<TeacherClassGroup | null>(null);
+  const [deletingClassLoading,   setDeletingClassLoading]    = useState(false);
   const [unregClassId,          setUnregClassId]           = useState<string | null>(null);
   const [removeClassGroup,  setRemoveClassGroup]  = useState<TeacherClassGroup | null>(null);
 
@@ -106,12 +107,13 @@ export default function MyScheduleScreen() {
   useEffect(() => { load(); }, [load]);
 
   const handleDeleteClass = useCallback(async () => {
-    if (!deletingClass) return;
-    setShowDeleteClassConfirm(false);
+    if (!deletingClass || deletingClassLoading) return;
     const target = deletingClass;
-    setDeletingClass(null);
+    setDeletingClassLoading(true);
     try {
       const res = await apiRequest(token, `/class-groups/${target.id}`, { method: "DELETE" });
+      setShowDeleteClassConfirm(false);
+      setDeletingClass(null);
       if (res.ok) {
         setSelectedGroup(null);
         load();
@@ -119,10 +121,14 @@ export default function MyScheduleScreen() {
         const body = await res.json().catch(() => ({}));
         Alert.alert("삭제 실패", body?.error ?? "반 삭제 중 오류가 발생했습니다.");
       }
-    } catch (e: any) {
+    } catch {
+      setShowDeleteClassConfirm(false);
+      setDeletingClass(null);
       Alert.alert("오류", "반 삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeletingClassLoading(false);
     }
-  }, [token, deletingClass, load]);
+  }, [token, deletingClass, deletingClassLoading, load]);
 
   useEffect(() => {
     if (!loading && params.openDate && typeof params.openDate === "string" && !autoOpenDoneRef.current) {
@@ -446,10 +452,11 @@ export default function MyScheduleScreen() {
         </Modal>
       </SafeAreaView>
       <ConfirmModal visible={showDeleteClassConfirm} title="반 삭제"
-        message={`이 반을 삭제하면 다음 주부터 시간표에서 사라집니다.\n현재 소속 회원은 미배정으로 이동하며,\n기존 수업 기록과 일지는 유지됩니다.`}
+        message={`이 반을 삭제하면 다음 주부터 시간표에서 사라집니다.\n현재 소속 회원은 미배정으로 이동하며,\n기록과 일지는 유지됩니다.`}
         confirmText="반 삭제" cancelText="취소" destructive
+        loading={deletingClassLoading}
         onConfirm={handleDeleteClass}
-        onCancel={() => { setShowDeleteClassConfirm(false); setDeletingClass(null); }} />
+        onCancel={() => { if (deletingClassLoading) return; setShowDeleteClassConfirm(false); setDeletingClass(null); }} />
       </>
     );
   }
@@ -669,10 +676,11 @@ export default function MyScheduleScreen() {
       )}
 
       <ConfirmModal visible={showDeleteClassConfirm} title="반 삭제"
-        message={`이 반을 삭제하면 다음 주부터 시간표에서 사라집니다.\n현재 소속 회원은 미배정으로 이동하며,\n기존 수업 기록과 일지는 유지됩니다.`}
+        message={`이 반을 삭제하면 다음 주부터 시간표에서 사라집니다.\n현재 소속 회원은 미배정으로 이동하며,\n기록과 일지는 유지됩니다.`}
         confirmText="반 삭제" cancelText="취소" destructive
+        loading={deletingClassLoading}
         onConfirm={handleDeleteClass}
-        onCancel={() => { setShowDeleteClassConfirm(false); setDeletingClass(null); }} />
+        onCancel={() => { if (deletingClassLoading) return; setShowDeleteClassConfirm(false); setDeletingClass(null); }} />
     </SafeAreaView>
   );
 }

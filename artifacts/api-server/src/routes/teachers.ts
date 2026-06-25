@@ -308,7 +308,7 @@ router.get("/teacher/me/stats", requireAuth,
             class_group_id = ${cls.id}
             OR assigned_class_ids @> to_jsonb(${cls.id}::text)
           )
-          AND deleted_at IS NULL AND status = 'active'
+          AND deleted_at IS NULL AND status IN ('active', 'pending_parent_link', 'unregistered')
         `);
         for (const st of students.rows as any[]) {
           for (const d of clsDays) {
@@ -444,8 +444,8 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
           cg.id, cg.name, cg.schedule_days, cg.schedule_time,
           cg.capacity, cg.teacher_user_id,
           u.name AS instructor,
-          COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL) AS current_members,
-          GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL)) AS available_slots
+          COUNT(s.id) FILTER (WHERE s.status IN ('active', 'pending_parent_link', 'unregistered') AND s.deleted_at IS NULL) AS current_members,
+          GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status IN ('active', 'pending_parent_link', 'unregistered') AND s.deleted_at IS NULL)) AS available_slots
         FROM class_groups cg
         LEFT JOIN users u ON cg.teacher_user_id = u.id
         LEFT JOIN students s ON s.class_group_id = cg.id OR s.assigned_class_ids @> to_jsonb(cg.id::text)
@@ -453,7 +453,7 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
           AND cg.is_deleted = false
           AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
         GROUP BY cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity, cg.teacher_user_id, u.name
-        HAVING GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL)) > 0
+        HAVING GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status IN ('active', 'pending_parent_link', 'unregistered') AND s.deleted_at IS NULL)) > 0
         ORDER BY cg.schedule_days, cg.schedule_time
       `);
       res.json(rows.rows);
