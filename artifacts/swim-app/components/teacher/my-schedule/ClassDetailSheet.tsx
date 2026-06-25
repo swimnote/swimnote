@@ -66,7 +66,6 @@ export default function ClassDetailSheet({
     try {
       const res = await apiRequest(token, `/class-groups/${group.id}`, { method: "DELETE" });
       if (res.ok) {
-        setConfirmDelete(false);
         onClose();
         onDeleteClass?.();
       } else {
@@ -78,6 +77,17 @@ export default function ClassDetailSheet({
     } finally {
       setDeleting(false);
     }
+  }
+
+  function confirmDeleteClass() {
+    Alert.alert(
+      "반 삭제",
+      "이 반을 삭제하면 다음 주부터 시간표에서 사라집니다.\n현재 소속 회원은 미배정으로 이동하며,\n기록과 일지는 유지됩니다.",
+      [
+        { text: "취소", style: "cancel" },
+        { text: "반 삭제", style: "destructive", onPress: handleDelete },
+      ]
+    );
   }
 
   function handleColorSelect(color: string) {
@@ -202,7 +212,7 @@ export default function ClassDetailSheet({
                 <Text style={cds.sheetSub}>{group.schedule_days.split(",").join("·")} · {group.schedule_time}</Text>
               </View>
               <Pressable style={cds.deleteBtn}
-                onPress={() => setConfirmDelete(true)}>
+                onPress={confirmDeleteClass}>
                 <Trash2 size={15} color="#E11D48" />
               </Pressable>
               <Pressable onPress={handleClose} style={cds.closeBtn}>
@@ -414,17 +424,6 @@ export default function ClassDetailSheet({
         </Modal>
       )}
 
-      <ConfirmModal
-        visible={confirmDelete}
-        title="반 삭제"
-        message={`이 반을 삭제하면 다음 주부터 시간표에서 사라집니다.\n현재 소속 회원은 미배정으로 이동하며,\n기록과 일지는 유지됩니다.`}
-        confirmText="반 삭제"
-        cancelText="취소"
-        destructive
-        loading={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => { if (!deleting) setConfirmDelete(false); }}
-      />
     </>
   );
 }
