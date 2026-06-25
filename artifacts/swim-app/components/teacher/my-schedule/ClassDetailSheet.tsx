@@ -5,7 +5,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
-import { ConfirmModal } from "@/components/common/ConfirmModal";
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
@@ -57,7 +56,6 @@ export default function ClassDetailSheet({
   const [draftColor, setDraftColor] = useState<string>(group.color || "#FFFFFF");
   const [colorSaving, setColorSaving] = useState(false);
 
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   async function handleDelete() {
