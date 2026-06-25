@@ -115,6 +115,8 @@ export default function MyScheduleScreen() {
       setShowDeleteClassConfirm(false);
       setDeletingClass(null);
       if (res.ok) {
+        setDetailGroup(null);
+        setSelectedDate(null);
         setSelectedGroup(null);
         load();
       } else {
@@ -617,7 +619,7 @@ export default function MyScheduleScreen() {
           token={token}
           classGroups={groups}
           onClose={() => setDetailGroup(null)}
-          onDeleteClass={() => { setDetailGroup(null); setSelectedDate(null); setSelectedGroup(null); load(); }}
+          onDeleteClass={() => { setDeletingClass(detailGroup); setShowDeleteClassConfirm(true); }}
           onNavigateTo={navigateFromSheet}
           weekChangeLogs={viewMode === "weekly" ? weekChangeLogs : undefined}
           onColorChange={(id, color) =>

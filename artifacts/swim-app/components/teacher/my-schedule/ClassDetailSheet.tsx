@@ -3,10 +3,9 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import Colors from "@/constants/colors";
-import { apiRequest } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import PastelColorPicker from "@/components/common/PastelColorPicker";
 import { WEEKLY_BADGE } from "@/utils/studentUtils";
@@ -56,40 +55,6 @@ export default function ClassDetailSheet({
   const [draftColor, setDraftColor] = useState<string>(group.color || "#FFFFFF");
   const [colorSaving, setColorSaving] = useState(false);
 
-  const [deleting, setDeleting] = useState(false);
-
-  async function handleDelete() {
-    if (deleting) return;
-    setDeleting(true);
-    try {
-      const res = await apiRequest(token, `/class-groups/${group.id}`, { method: "DELETE" });
-      if (res.ok) {
-        onClose();
-        onDeleteClass?.();
-      } else {
-        const body = await res.json().catch(() => ({}));
-        Alert.alert("삭제 실패", body?.error ?? "반 삭제 중 오류가 발생했습니다.");
-      }
-    } catch (e: any) {
-      Alert.alert("오류", e?.message ?? "반 삭제 중 오류가 발생했습니다.");
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  function confirmDeleteClass() {
-    onClose();
-    setTimeout(() => {
-      Alert.alert(
-        "반 삭제",
-        "이 반을 삭제하면 다음 주부터 시간표에서 사라집니다.\n현재 소속 회원은 미배정으로 이동하며,\n기록과 일지는 유지됩니다.",
-        [
-          { text: "취소", style: "cancel" },
-          { text: "반 삭제", style: "destructive", onPress: handleDelete },
-        ]
-      );
-    }, 400);
-  }
 
   function handleColorSelect(color: string) {
     setDraftColor(color);
@@ -213,7 +178,7 @@ export default function ClassDetailSheet({
                 <Text style={cds.sheetSub}>{group.schedule_days.split(",").join("·")} · {group.schedule_time}</Text>
               </View>
               <Pressable style={cds.deleteBtn}
-                onPress={confirmDeleteClass}>
+                onPress={() => onDeleteClass?.()}>
                 <Trash2 size={15} color="#E11D48" />
               </Pressable>
               <Pressable onPress={handleClose} style={cds.closeBtn}>
