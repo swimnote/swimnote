@@ -5,7 +5,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -244,7 +244,7 @@ export default function MemberDetailScreen() {
   const isArchived    = ["withdrawn", "deleted"].includes(data.status);
 
   return (
-    <View style={s.safe}>
+    <KeyboardAvoidingView style={s.safe} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <SubScreenHeader
         title={data.name}
         subtitle={statusMeta.label}
@@ -388,7 +388,7 @@ export default function MemberDetailScreen() {
         onConfirm={purgeMember}
         onCancel={() => setShowPurgeConfirm(false)}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
