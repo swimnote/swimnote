@@ -78,14 +78,17 @@ export default function ClassDetailSheet({
   }
 
   function confirmDeleteClass() {
-    Alert.alert(
-      "반 삭제",
-      "이 반을 삭제하면 다음 주부터 시간표에서 사라집니다.\n현재 소속 회원은 미배정으로 이동하며,\n기록과 일지는 유지됩니다.",
-      [
-        { text: "취소", style: "cancel" },
-        { text: "반 삭제", style: "destructive", onPress: handleDelete },
-      ]
-    );
+    onClose();
+    setTimeout(() => {
+      Alert.alert(
+        "반 삭제",
+        "이 반을 삭제하면 다음 주부터 시간표에서 사라집니다.\n현재 소속 회원은 미배정으로 이동하며,\n기록과 일지는 유지됩니다.",
+        [
+          { text: "취소", style: "cancel" },
+          { text: "반 삭제", style: "destructive", onPress: handleDelete },
+        ]
+      );
+    }, 400);
   }
 
   function handleColorSelect(color: string) {
