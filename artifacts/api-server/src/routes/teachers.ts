@@ -618,9 +618,9 @@ router.get("/teacher/me/members/counts", requireAuth,
       const [row] = (await db.execute(sql`
         SELECT
           COUNT(*) FILTER (WHERE deleted_at IS NULL AND (
-            status IN ('active','suspended','withdrawn','pending_parent_link') OR pending_status_change IS NOT NULL
+            status IN ('active','suspended','withdrawn','pending_parent_link','unregistered') OR pending_status_change IS NOT NULL
           ))::int AS all,
-          COUNT(*) FILTER (WHERE deleted_at IS NULL AND status IN ('active','pending_parent_link')
+          COUNT(*) FILTER (WHERE deleted_at IS NULL AND status IN ('active','pending_parent_link','unregistered')
             AND class_group_id IS NULL
             AND (assigned_class_ids IS NULL OR jsonb_array_length(assigned_class_ids) = 0)
           )::int AS unassigned,
@@ -671,14 +671,14 @@ router.get("/teacher/me/members", requireAuth,
       let rows;
 
       if (tab === "unassigned") {
-        // 미배정: active 또는 pending_parent_link 이지만 반 배정 없는 회원
-        // (관리자가 학부모 정보와 함께 등록한 학생은 pending_parent_link 상태이지만 미배정 목록에 표시)
+        // 미배정: active, pending_parent_link, unregistered 이지만 반 배정 없는 회원
+        // (엑셀 업로드된 학생은 unregistered 상태로 생성되므로 포함)
         rows = await db.execute(sql`
           SELECT ${COLS}
           FROM students s
           LEFT JOIN class_groups cg ON s.class_group_id = cg.id
           WHERE s.swimming_pool_id = ${poolId}
-            AND s.status IN ('active', 'pending_parent_link')
+            AND s.status IN ('active', 'pending_parent_link', 'unregistered')
             AND s.deleted_at IS NULL
             AND s.class_group_id IS NULL
             AND (s.assigned_class_ids IS NULL OR jsonb_array_length(s.assigned_class_ids) = 0)
