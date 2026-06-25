@@ -37,7 +37,14 @@ export function ParentChildHeroCard({ student, attended, total, todaySchedule, c
             : <LucideIcon name="award" size={20} color={C.tint} />}
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.name, { color: C.text }]}>{student.name}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={[styles.name, { color: C.text }]}>{student.name}</Text>
+            {currentLevel ? (
+              <View style={styles.levelChip}>
+                <Text style={styles.levelChipTxt}>{String(currentLevel)}</Text>
+              </View>
+            ) : null}
+          </View>
           {hasClass ? (
             <Text style={[styles.sub, { color: C.textSecondary }]}>
               {cg!.name}{cg!.schedule_time ? ` · ${cg!.schedule_time}` : ""}
@@ -117,5 +124,13 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 10, paddingVertical: 5,
     borderRadius: 20, borderWidth: 1,
+  },
+  levelChip: {
+    backgroundColor: C.tintLight,
+    paddingHorizontal: 8, paddingVertical: 2,
+    borderRadius: 8,
+  },
+  levelChipTxt: {
+    fontSize: 11, fontFamily: "Pretendard-Regular", color: C.tint,
   },
 });

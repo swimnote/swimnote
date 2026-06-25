@@ -1165,4 +1165,20 @@ export async function initPoolDb(): Promise<void> {
   await db.execute(sql.raw(`ALTER TABLE diary_templates ADD COLUMN IF NOT EXISTS source_template_id text`)).catch(() => {});
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_diary_templates_scope ON diary_templates(swimming_pool_id, scope, level_id)`)).catch(() => {});
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_diary_templates_override ON diary_templates(source_template_id, teacher_id)`)).catch(() => {});
+
+  // ── student_levels 테이블 생성 (레벨 변경 이력) ────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS student_levels (
+      id                text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      student_id        text        NOT NULL,
+      swimming_pool_id  text,
+      level             text,
+      level_order       integer,
+      achieved_date     date        NOT NULL DEFAULT CURRENT_DATE,
+      note              text,
+      teacher_name      text,
+      created_at        timestamptz NOT NULL DEFAULT now()
+    )
+  `)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_student_levels_student ON student_levels(student_id, created_at DESC)`)).catch(() => {});
 }

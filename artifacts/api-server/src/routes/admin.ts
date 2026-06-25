@@ -3153,12 +3153,9 @@ router.put("/level-settings", requireAuth, requireRole("super_admin","pool_admin
 router.get("/students/:id/level", requireAuth, requireRole("super_admin","pool_admin","teacher"), async (req: AuthRequest, res) => {
   try {
     const studRow = await db.execute(sql`
-      SELECT s.id, s.name, s.current_level_order, s.swimming_pool_id,
-             sl.level as level_name_hist
-      FROM students s
-      LEFT JOIN student_levels sl ON sl.student_id = s.id
-      WHERE s.id = ${req.params.id}
-      ORDER BY sl.created_at DESC
+      SELECT id, name, current_level_order, swimming_pool_id
+      FROM students
+      WHERE id = ${req.params.id}
       LIMIT 1
     `);
     const student = studRow.rows[0] as any;
