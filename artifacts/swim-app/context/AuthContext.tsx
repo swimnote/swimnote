@@ -118,16 +118,27 @@ export async function apiRequest(token: string | null, path: string, options: Re
   const url = `${_API_BASE}${path}`;
   const method = (options.method ?? "GET").toUpperCase();
   console.log(`[API→] ${method} ${url}`);
-  const res = await fetch(url, {
-    cache: "no-store",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      "Cache-Control": "no-cache",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30_000);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      cache: "no-store",
+      ...options,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+  } catch (e: any) {
+    clearTimeout(timeoutId);
+    if (e?.name === "AbortError") throw new Error("요청 시간이 초과됐습니다. 네트워크 연결을 확인해주세요.");
+    throw e;
+  }
+  clearTimeout(timeoutId);
   console.log(`[API←] ${res.status} ${url}`);
   // 탈퇴/삭제 계정 → 전역 강제 로그아웃
   if (res.status === 401) {
