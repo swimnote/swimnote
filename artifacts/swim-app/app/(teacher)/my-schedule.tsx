@@ -597,6 +597,11 @@ export default function MyScheduleScreen() {
           onClose={() => setSelectedDate(null)}
           onSelectClass={handleDaySheetClassPress}
           onOpenMakeup={handleDaySheetMakeup}
+          isAdminTeacher={
+            (adminUser as any)?.role === "pool_admin" ||
+            (adminUser as any)?.role === "super_admin"
+          }
+          allStudents={students}
           onAddClass={() => {
             const koDay = selectedDate ? getKoDay(selectedDate) : null;
             const validDay = koDay && koDay !== "일" ? koDay : null;

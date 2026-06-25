@@ -2,7 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
-import { Calendar, Check, ChevronRight, CirclePlus, CircleStop, FileText, Mic, Pencil, Plus, Trash2, X } from "lucide-react-native";
+import { Calendar, Check, ChevronRight, CirclePlus, CircleStop, FileText, Mic, Pencil, Plus, Trash2, User, X } from "lucide-react-native";
+import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -10,7 +11,7 @@ import {
 import Colors from "@/constants/colors";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import {
-  classColor, dateLabelFull, getKoDay, parseHour,
+  classColor, dateLabelFull, getKoDay, parseHour, StudentItem,
 } from "./utils";
 
 const C = Colors.light;
@@ -22,6 +23,7 @@ export default function DaySheet({
   memo, onMemoChange, onSaveMemo,
   onClose, onSelectClass,
   onOpenMakeup, onAddClass,
+  isAdminTeacher, allStudents,
 }: {
   dateStr: string;
   classes: TeacherClassGroup[];
@@ -36,9 +38,12 @@ export default function DaySheet({
   onSelectClass: (g: TeacherClassGroup) => void;
   onOpenMakeup: () => void;
   onAddClass: () => void;
+  isAdminTeacher?: boolean;
+  allStudents?: StudentItem[];
 }) {
   const [editingMemo, setEditingMemo] = useState(false);
   const [showMemoPanel, setShowMemoPanel] = useState(false);
+  const [rosterClass, setRosterClass] = useState<TeacherClassGroup | null>(null);
   const label = dateLabelFull(dateStr);
 
   const [isRecording, setIsRecording] = useState(false);
@@ -121,6 +126,7 @@ export default function DaySheet({
   }
 
   return (
+    <>
     <Modal visible animationType="slide" transparent onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={dy.backdrop} onPress={onClose}>
         <Pressable style={dy.sheet} onPress={() => {}}>
@@ -182,7 +188,7 @@ export default function DaySheet({
                       <View style={{ flex: 1 }}>
                         <Text style={[dy.classTime, done && dy.strikeText]}>{timeLabel}</Text>
                         <Text style={[dy.className, done && dy.strikeText]} numberOfLines={1}>{g.name}</Text>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
                           <Text style={[dy.classSub, done && { color: C.textMuted }]}>{capLabel}</Text>
                           {attCnt > 0 && (
                             <View style={dy.attBadge}>
@@ -197,6 +203,16 @@ export default function DaySheet({
                             </View>
                           )}
                         </View>
+                        {isAdminTeacher && g.instructor && (
+                          <Pressable
+                            style={dy.teacherChip}
+                            onPress={() => setRosterClass(g)}
+                            hitSlop={4}
+                          >
+                            <User size={10} color={themeColor} />
+                            <Text style={[dy.teacherChipTxt, { color: themeColor }]}>{g.instructor}</Text>
+                          </Pressable>
+                        )}
                       </View>
                       <ChevronRight size={16} color={done ? C.textMuted : C.textSecondary} />
                     </Pressable>
@@ -302,6 +318,72 @@ export default function DaySheet({
         </Pressable>
       </Pressable>
     </Modal>
+
+    {/* 학생 명단 모달 (관리자 선생님 전용) */}
+    {rosterClass && (
+      <Modal visible animationType="slide" transparent onRequestClose={() => setRosterClass(null)}>
+        <Pressable style={dy.backdrop} onPress={() => setRosterClass(null)}>
+          <Pressable style={[dy.sheet, { minHeight: "50%" }]} onPress={() => {}}>
+            <View style={dy.handle} />
+            <View style={[dy.header, { paddingBottom: 12 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={dy.dateTitle}>{rosterClass.name}</Text>
+                <Text style={dy.dateSub}>
+                  {rosterClass.instructor ? `담임: ${rosterClass.instructor}` : ""}{" "}
+                  · 학생 {(() => {
+                    const list = (allStudents ?? []).filter(s =>
+                      (Array.isArray(s.assigned_class_ids) && s.assigned_class_ids.includes(rosterClass.id))
+                      || s.class_group_id === rosterClass.id
+                    );
+                    return list.length;
+                  })()}명
+                </Text>
+              </View>
+              <Pressable onPress={() => setRosterClass(null)} style={dy.closeBtn}>
+                <X size={20} color={C.textSecondary} />
+              </Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
+              {(() => {
+                const list = (allStudents ?? [])
+                  .filter(s =>
+                    (Array.isArray(s.assigned_class_ids) && s.assigned_class_ids.includes(rosterClass.id))
+                    || s.class_group_id === rosterClass.id
+                  )
+                  .slice(0, 100);
+                if (list.length === 0) {
+                  return (
+                    <View style={{ alignItems: "center", paddingVertical: 40, gap: 8 }}>
+                      <User size={32} color={C.textMuted} />
+                      <Text style={{ fontSize: 13, color: C.textMuted }}>배정된 학생이 없습니다</Text>
+                    </View>
+                  );
+                }
+                return list.map((s, idx) => (
+                  <Pressable
+                    key={s.id}
+                    style={[dy.rosterRow, idx < list.length - 1 && dy.rosterRowBorder]}
+                    onPress={() => {
+                      setRosterClass(null);
+                      router.push({ pathname: "/(admin)/member-detail" as any, params: { id: s.id } });
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={dy.rosterName}>{s.name}</Text>
+                      {s.birth_year ? (
+                        <Text style={dy.rosterSub}>{s.birth_year}년생</Text>
+                      ) : null}
+                    </View>
+                    <ChevronRight size={15} color={C.textMuted} />
+                  </Pressable>
+                ));
+              })()}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    )}
+    </>
   );
 }
 
@@ -342,6 +424,14 @@ const dy = StyleSheet.create({
   diaryBadge:       { flexDirection: "row", alignItems: "center", gap: 3,
                       backgroundColor: "#EDE9FE", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   diaryBadgeTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
+  teacherChip:      { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start",
+                      paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, marginTop: 5,
+                      backgroundColor: "#F0FDF9", borderWidth: 1, borderColor: "#C2E8E5" },
+  teacherChipTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  rosterRow:        { flexDirection: "row", alignItems: "center", paddingVertical: 14 },
+  rosterRowBorder:  { borderBottomWidth: 1, borderBottomColor: C.border },
+  rosterName:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
+  rosterSub:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
   memoSection:      { marginHorizontal: 16, marginTop: 8, padding: 14,
                       backgroundColor: "#FFFBF0", borderRadius: 12,
                       borderWidth: 1, borderColor: "#F3E8C0" },
