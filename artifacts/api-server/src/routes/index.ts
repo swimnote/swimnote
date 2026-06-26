@@ -45,6 +45,7 @@ import restoreRouter from "./restore.js";
 import platformBannersRouter from "./platform-banners.js";
 import systemHealthRouter from "./system-health.js";
 import crashReportRouter from "./crash-report.js";
+import appVersionRouter from "./app-version.js";
 
 const router: IRouter = Router();
 
@@ -96,5 +97,6 @@ router.use("/", privacyPageRouter);
 router.use("/", platformBannersRouter);
 router.use("/", systemHealthRouter);
 router.use("/", crashReportRouter);
+router.use("/", appVersionRouter);
 
 export default router;

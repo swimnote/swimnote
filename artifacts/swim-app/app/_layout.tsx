@@ -5,7 +5,7 @@ import * as SplashScreen from "expo-splash-screen";
 import * as Updates from "expo-updates";
 import Constants from "expo-constants";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Platform, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Platform, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -227,6 +227,57 @@ function RootNav() {
         if (result.isAvailable) {
           await Updates.fetchUpdateAsync();
           await Updates.reloadAsync();
+        }
+      } catch (_) {}
+    })();
+  }, []);
+
+  // 앱 버전 체크 — 강제/소프트 업데이트 유도
+  useEffect(() => {
+    if (__DEV__) return;
+    (async () => {
+      try {
+        const API_URL = process.env.EXPO_PUBLIC_API_URL;
+        if (!API_URL) return;
+        const res = await fetch(`${API_URL}/app-version`, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        const current = Constants.expoConfig?.version ?? "0.0.0";
+        const platform = Platform.OS === "ios" ? "ios" : "android";
+        const { min_version, latest_version } = data[platform] ?? {};
+        const storeUrl = data.store_urls?.[platform];
+
+        function cmp(a: string, b: string): number {
+          const pa = a.split(".").map(Number);
+          const pb = b.split(".").map(Number);
+          for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+            const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+            if (d !== 0) return d;
+          }
+          return 0;
+        }
+
+        if (min_version && cmp(current, min_version) < 0) {
+          // 강제 업데이트
+          Alert.alert(
+            "업데이트 필요",
+            "더 나은 서비스를 위해 최신 버전으로 업데이트해주세요.\n업데이트 후 계속 이용할 수 있습니다.",
+            [{ text: "업데이트", onPress: () => storeUrl && Linking.openURL(storeUrl) }],
+            { cancelable: false }
+          );
+          return;
+        }
+
+        if (latest_version && cmp(current, latest_version) < 0) {
+          // 소프트 업데이트
+          Alert.alert(
+            "새 버전 출시",
+            "새로운 버전이 출시되었습니다.\n지금 업데이트하시겠어요?",
+            [
+              { text: "나중에" },
+              { text: "업데이트", onPress: () => storeUrl && Linking.openURL(storeUrl) },
+            ]
+          );
         }
       } catch (_) {}
     })();
