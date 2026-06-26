@@ -72,18 +72,6 @@ try {
   console.warn("[LAYOUT] failed to install global error handler:", handlerErr?.message);
 }
 
-/** 앱 시작 시 OTA 업데이트가 있으면 즉시 다운로드 → 재시작 적용 */
-async function checkAndApplyUpdate() {
-  try {
-    if (__DEV__ || Updates.isEmbeddedLaunch === undefined) return;
-    const result = await Updates.checkForUpdateAsync();
-    if (result.isAvailable) {
-      await Updates.fetchUpdateAsync();
-      await Updates.reloadAsync();
-    }
-  } catch (_) {}
-}
-checkAndApplyUpdate();
 
 function AppLoadingScreen() {
   return (
@@ -229,6 +217,20 @@ function PushNavSync() {
 
 function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
+
+  // OTA 업데이트 체크 — 컴포넌트 마운트 후 실행 (네이티브 브릿지 준비 완료 시점)
+  useEffect(() => {
+    if (__DEV__) return;
+    (async () => {
+      try {
+        const result = await Updates.checkForUpdateAsync();
+        if (result.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          await Updates.reloadAsync();
+        }
+      } catch (_) {}
+    })();
+  }, []);
 
   // kind가 한 번이라도 설정됐는지 추적 — 로그아웃 감지용
   // (한 번도 로그인 안 한 상태에서 kind=null은 정상: login 화면이 초기 라우트)

@@ -221,21 +221,30 @@ router.patch("/teachers/:id", requireAuth, requireRole("pool_admin"),
 );
 
 // ── 선생님 계정 삭제 ──────────────────────────────────────────────────
-router.delete("/teachers/:id", requireAuth, requireRole("pool_admin"),
+router.delete("/teachers/:id", requireAuth, requireRole("pool_admin", "super_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req.user!.userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
+      // role 제한 없이 같은 수영장 소속 여부만 확인
       const teacher = await superAdminDb.execute(sql`
-        SELECT id FROM users WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId} AND role = 'teacher'
+        SELECT id FROM users WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
       `);
       if (!teacher.rows.length) { res.status(404).json({ error: "선생님을 찾을 수 없습니다." }); return; }
 
-      await db.execute(sql`DELETE FROM phone_verifications WHERE ref_id = ${req.params.id}`);
-      await superAdminDb.execute(sql`DELETE FROM users WHERE id = ${req.params.id}`);
+      const uid = req.params.id;
+      // pool DB 관련 레코드 먼저 정리 (FK 방지)
+      await db.execute(sql`DELETE FROM phone_verifications WHERE ref_id = ${uid}`).catch(() => {});
+      await db.execute(sql`DELETE FROM teacher_invites WHERE user_id = ${uid}`).catch(() => {});
+      await db.execute(sql`UPDATE class_groups SET teacher_user_id = NULL WHERE teacher_user_id = ${uid}`).catch(() => {});
+      // 유저 삭제
+      await superAdminDb.execute(sql`DELETE FROM users WHERE id = ${uid}`);
       res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+    } catch (err) {
+      console.error("[teacher DELETE]", err);
+      res.status(500).json({ error: "서버 오류" });
+    }
   }
 );
 
