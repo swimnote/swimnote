@@ -206,7 +206,7 @@ export default function DaySheet({
                         {isAdminTeacher && g.instructor && (
                           <Pressable
                             style={dy.teacherChip}
-                            onPress={() => setRosterClass(g)}
+                            onPress={(e) => { e.stopPropagation?.(); setRosterClass(g); }}
                             hitSlop={4}
                           >
                             <User size={10} color={themeColor} />
