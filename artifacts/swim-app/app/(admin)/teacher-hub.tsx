@@ -7,7 +7,7 @@ import { ChevronRight, Trash2 } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Platform, Pressable,
+  ActivityIndicator, Alert, FlatList, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -45,6 +45,7 @@ export default function TeacherHubScreen() {
   const [data, setData]       = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [deleteDiaryId, setDeleteDiaryId] = useState<string | null>(null);
+  const [deleteTeacherLoading, setDeleteTeacherLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (!params.id) return;
@@ -56,6 +57,36 @@ export default function TeacherHubScreen() {
   }, [token, params.id]);
 
   useEffect(() => { load(); }, [load]);
+
+  function handleDeleteTeacher() {
+    const name = data?.teacher?.name || params.name || "선생님";
+    Alert.alert(
+      "선생님 삭제",
+      `${name} 계정을 삭제하시겠습니까?\n삭제된 계정은 복구할 수 없습니다.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제", style: "destructive",
+          onPress: async () => {
+            setDeleteTeacherLoading(true);
+            try {
+              const r = await apiRequest(token, `/teachers/${params.id}`, { method: "DELETE" });
+              if (r.ok) {
+                router.back();
+              } else {
+                const body = await r.json().catch(() => ({}));
+                Alert.alert("삭제 실패", body?.error ?? "삭제 중 오류가 발생했습니다.");
+              }
+            } catch {
+              Alert.alert("오류", "삭제 중 오류가 발생했습니다.");
+            } finally {
+              setDeleteTeacherLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  }
 
   const deleteDiary = (id: string) => {
     setDeleteDiaryId(id);
@@ -83,7 +114,17 @@ export default function TeacherHubScreen() {
 
   return (
     <View style={s.root}>
-      <SubScreenHeader title={`${data?.teacher?.name || params.name} 운영현황`} />
+      <SubScreenHeader
+        title={`${data?.teacher?.name || params.name} 운영현황`}
+        rightSlot={
+          <Pressable onPress={handleDeleteTeacher} disabled={deleteTeacherLoading} hitSlop={10}
+            style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#FEF2F2" }}>
+            {deleteTeacherLoading
+              ? <ActivityIndicator size="small" color="#E11D48" />
+              : <Trash2 size={18} color="#E11D48" />}
+          </Pressable>
+        }
+      />
 
       {/* 요약 통계 카드 */}
       <View style={s.statsCard}>
