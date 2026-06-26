@@ -1,7 +1,7 @@
-import { CircleAlert, CircleCheck, Eye, PenLine, Plus, User, Users, X } from "lucide-react-native";
+import { CircleAlert, CircleCheck, Eye, PenLine, Plus, Trash2, User, Users, X } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable,
   ScrollView, StyleSheet, Switch, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
@@ -99,11 +99,24 @@ export function TeacherAccountSheet({
     } finally { setEditSaving(false); }
   }
 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   async function confirmDeleteTeacher() {
     if (!deleteTarget) return;
-    const res = await apiRequest(token, `/teachers/${deleteTarget.id}`, { method: "DELETE" });
-    setDeleteTarget(null);
-    if (res.ok) { onRefresh(); setSelectedDetail(null); }
+    setDeletingId(deleteTarget.id);
+    try {
+      const res = await apiRequest(token, `/teachers/${deleteTarget.id}`, { method: "DELETE" });
+      setDeleteTarget(null);
+      if (res.ok) { onRefresh(); setSelectedDetail(null); }
+      else {
+        const body = await res.json().catch(() => ({}));
+        Alert.alert("삭제 실패", body?.error ?? "삭제 중 오류가 발생했습니다.");
+      }
+    } catch {
+      Alert.alert("오류", "삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
@@ -130,25 +143,46 @@ export function TeacherAccountSheet({
                 <View style={ts.emptyBox}><Users size={36} color={C.textMuted} /><Text style={[ts.emptyText, { color: C.textMuted }]}>등록된 선생님이 없습니다</Text></View>
               ) : teachers.map(t => (
                 <View key={t.id} style={[ts.teacherCard, { backgroundColor: C.background }]}>
-                  <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }} onPress={() => openTeacherEdit(t)}>
-                    <View style={[ts.avatar, { backgroundColor: C.tintLight }]}><User size={18} color={C.tint} /></View>
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Text style={[ts.teacherName, { color: C.text }]}>{t.name}</Text>
-                        {t.is_admin_self_teacher && (
-                          <View style={[ts.selfBadge, { backgroundColor: "#7C3AED15" }]}>
-                            <Text style={[ts.selfBadgeText, { color: "#7C3AED" }]}>내 계정</Text>
-                          </View>
-                        )}
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }} onPress={() => openTeacherEdit(t)}>
+                      <View style={[ts.avatar, { backgroundColor: C.tintLight }]}><User size={18} color={C.tint} /></View>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <Text style={[ts.teacherName, { color: C.text }]}>{t.name}</Text>
+                          {t.is_admin_self_teacher && (
+                            <View style={[ts.selfBadge, { backgroundColor: "#7C3AED15" }]}>
+                              <Text style={[ts.selfBadgeText, { color: "#7C3AED" }]}>내 계정</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={[ts.teacherSub, { color: C.textMuted }]}>{t.email}</Text>
+                        {t.position && <Text style={[ts.teacherSub, { color: C.tint }]}>{t.position}</Text>}
                       </View>
-                      <Text style={[ts.teacherSub, { color: C.textMuted }]}>{t.email}</Text>
-                      {t.position && <Text style={[ts.teacherSub, { color: C.tint }]}>{t.position}</Text>}
-                    </View>
-                    <View style={[ts.statusBadge, { backgroundColor: t.is_activated ? "#E6FFFA" : "#FFF1BF" }]}>
-                      <Text style={[ts.statusText, { color: t.is_activated ? "#2EC4B6" : "#D97706" }]}>{t.is_activated ? "활성" : "인증 대기"}</Text>
-                    </View>
-                    <PenLine size={14} color={C.textMuted} />
-                  </Pressable>
+                      <View style={[ts.statusBadge, { backgroundColor: t.is_activated ? "#E6FFFA" : "#FFF1BF" }]}>
+                        <Text style={[ts.statusText, { color: t.is_activated ? "#2EC4B6" : "#D97706" }]}>{t.is_activated ? "활성" : "인증 대기"}</Text>
+                      </View>
+                      <PenLine size={14} color={C.textMuted} style={{ marginLeft: 6 }} />
+                    </Pressable>
+                    <Pressable
+                      hitSlop={8}
+                      style={ts.trashBtn}
+                      onPress={() => {
+                        Alert.alert(
+                          "선생님 삭제",
+                          `${t.name} 계정을 삭제하시겠습니까?\n삭제된 계정은 복구할 수 없습니다.`,
+                          [
+                            { text: "취소", style: "cancel" },
+                            { text: "삭제", style: "destructive", onPress: () => setDeleteTarget(t) },
+                          ]
+                        );
+                      }}
+                      disabled={deletingId === t.id}
+                    >
+                      {deletingId === t.id
+                        ? <ActivityIndicator size="small" color="#E11D48" />
+                        : <Trash2 size={15} color="#E11D48" />}
+                    </Pressable>
+                  </View>
                   {!t.is_activated && (
                     <Pressable style={[ts.codeBtn, { borderTopColor: C.border }]} onPress={() => handleViewCode(t.id)} disabled={loadingCode === t.id}>
                       {loadingCode === t.id ? <ActivityIndicator size={14} color={C.tint} />
@@ -332,7 +366,8 @@ const ts = StyleSheet.create({
   cancelText: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   submitBtn: { flex: 1, height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   submitText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
-  teacherCard: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, padding: 14, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
+  teacherCard: { flexDirection: "column", borderRadius: 14, padding: 14, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
+  trashBtn:    { padding: 8, borderRadius: 8, backgroundColor: "#FEF2F2", marginLeft: 8 },
   avatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   teacherName: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   teacherSub: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
