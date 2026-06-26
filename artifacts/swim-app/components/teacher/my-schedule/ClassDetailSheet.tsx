@@ -6,6 +6,7 @@ import {
   ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import Colors from "@/constants/colors";
+import { apiRequest } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import PastelColorPicker from "@/components/common/PastelColorPicker";
 import { WEEKLY_BADGE } from "@/utils/studentUtils";
