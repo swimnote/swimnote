@@ -2,6 +2,7 @@ import { useFonts } from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import * as Updates from "expo-updates";
 import Constants from "expo-constants";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Text, View } from "react-native";
@@ -70,6 +71,19 @@ try {
 } catch (handlerErr: any) {
   console.warn("[LAYOUT] failed to install global error handler:", handlerErr?.message);
 }
+
+/** 앱 시작 시 OTA 업데이트가 있으면 즉시 다운로드 → 재시작 적용 */
+async function checkAndApplyUpdate() {
+  try {
+    if (__DEV__ || Updates.isEmbeddedLaunch === undefined) return;
+    const result = await Updates.checkForUpdateAsync();
+    if (result.isAvailable) {
+      await Updates.fetchUpdateAsync();
+      await Updates.reloadAsync();
+    }
+  } catch (_) {}
+}
+checkAndApplyUpdate();
 
 function AppLoadingScreen() {
   return (
