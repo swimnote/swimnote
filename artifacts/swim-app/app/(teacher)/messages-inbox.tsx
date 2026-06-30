@@ -54,6 +54,7 @@ interface ParentRequest {
   content: string | null;
   status: string;
   created_at: string;
+  is_read_by_teacher: boolean;
 }
 
 const REQUEST_TYPE_LABEL: Record<string, string> = {
@@ -158,15 +159,23 @@ export default function MessagesInboxScreen() {
     }
   }, [params.diaryId, loadingThreads, threads]);
 
+  async function markAsRead(id: string) {
+    // 낙관적 업데이트: 즉시 읽음으로 표시
+    setParentRequests(prev => prev.map(r => r.id === id ? { ...r, is_read_by_teacher: true } : r));
+    apiRequest(token, `/teacher/parent-requests/${id}/read`, { method: "PATCH" }).catch(() => {});
+  }
+
   async function updateRequestStatus(id: string, status: "done" | "rejected") {
     setUpdatingId(id);
+    // 상태 변경 시 읽음도 함께 처리 (낙관적)
+    setParentRequests(prev => prev.map(r => r.id === id ? { ...r, is_read_by_teacher: true } : r));
     try {
       const res = await apiRequest(token, `/parent-requests/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ status }),
       });
       if (res.ok) {
-        setParentRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+        setParentRequests(prev => prev.map(r => r.id === id ? { ...r, status, is_read_by_teacher: true } : r));
       } else {
         Alert.alert("오류", "상태 변경에 실패했습니다.");
       }
@@ -245,7 +254,7 @@ export default function MessagesInboxScreen() {
     return `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   }
 
-  const pendingCount = parentRequests.filter(r => r.status === "pending").length;
+  const unreadRequestCount = parentRequests.filter(r => !r.is_read_by_teacher).length;
   const unreadMsgCount = threads.reduce((sum, t) => sum + (t.unread_count ?? 0), 0);
 
   // ── 대화 화면 (thread view) ──
@@ -369,9 +378,9 @@ export default function MessagesInboxScreen() {
           onPress={() => setActiveTab("requests")}>
           <ClipboardList size={16} color={activeTab === "requests" ? themeColor : C.textMuted} />
           <Text style={[s.tabTxt, { color: activeTab === "requests" ? themeColor : C.textMuted }]}>학부모 요청</Text>
-          {pendingCount > 0 && (
+          {unreadRequestCount > 0 && (
             <View style={[s.tabBadge, { backgroundColor: C.error }]}>
-              <Text style={s.tabBadgeTxt}>{pendingCount}</Text>
+              <Text style={s.tabBadgeTxt}>{unreadRequestCount}</Text>
             </View>
           )}
         </Pressable>
@@ -443,8 +452,23 @@ export default function MessagesInboxScreen() {
               const typeLabel = REQUEST_TYPE_LABEL[item.request_type] || item.request_type;
               const statusStyle = STATUS_COLOR[item.status] || STATUS_COLOR.pending;
               const isUpdating = updatingId === item.id;
+              const isUnread = !item.is_read_by_teacher;
               return (
-                <View style={s.reqCard}>
+                <Pressable
+                  style={({ pressed }) => [
+                    s.reqCard,
+                    isUnread && { borderColor: "#3B82F6", borderWidth: 1.5, backgroundColor: "#F0F7FF" },
+                    { opacity: pressed ? 0.92 : 1 },
+                  ]}
+                  onPress={() => { if (isUnread) markAsRead(item.id); }}
+                >
+                  {/* 미읽음 표시 */}
+                  {isUnread && (
+                    <View style={s.unreadDotRow}>
+                      <View style={s.unreadDot} />
+                      <Text style={s.unreadLabel}>새 요청</Text>
+                    </View>
+                  )}
                   {/* 상단: 타입 뱃지 + 날짜 */}
                   <View style={s.reqCardTop}>
                     <View style={[s.reqTypeBadge, { backgroundColor: typeColor + "18" }]}>
@@ -492,7 +516,7 @@ export default function MessagesInboxScreen() {
                       </View>
                     )}
                   </View>
-                </View>
+                </Pressable>
               );
             }}
           />
@@ -528,6 +552,9 @@ const s = StyleSheet.create({
   unreadBadgeTxt: { color: "#fff", fontSize: 11, fontFamily: "Pretendard-Regular" },
 
   reqCard:        { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: C.border },
+  unreadDotRow:   { flexDirection: "row", alignItems: "center", gap: 6 },
+  unreadDot:      { width: 8, height: 8, borderRadius: 4, backgroundColor: "#3B82F6" },
+  unreadLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#3B82F6", fontWeight: "700" },
   reqCardTop:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   reqTypeBadge:   { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   reqTypeLabel:   { fontSize: 13, fontFamily: "Pretendard-Regular", fontWeight: "600" },

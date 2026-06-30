@@ -284,9 +284,16 @@ router.get("/teacher/parent-requests", requireAuth, requireRole("teacher", "pool
         .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
+      // is_read_by_teacher 컬럼 없으면 자동 추가
+      await db.execute(sql`
+        ALTER TABLE parent_student_requests
+        ADD COLUMN IF NOT EXISTS is_read_by_teacher BOOLEAN DEFAULT false
+      `).catch(() => {});
+
       const rows = await db.execute(sql`
         SELECT
           psr.*,
+          COALESCE(psr.is_read_by_teacher, false) AS is_read_by_teacher,
           s.name AS student_name,
           pa.name AS parent_name
         FROM parent_student_requests psr
@@ -295,9 +302,35 @@ router.get("/teacher/parent-requests", requireAuth, requireRole("teacher", "pool
         WHERE psr.swimming_pool_id = ${me.swimming_pool_id}
           AND psr.teacher_user_id = ${userId}
         ORDER BY psr.created_at DESC
-        LIMIT 50
+        LIMIT 100
       `);
       res.json({ success: true, data: rows.rows });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
+// ─── 선생님: 요청 읽음 처리 ──────────────────────────────────────────────
+// PATCH /teacher/parent-requests/:id/read
+router.patch("/teacher/parent-requests/:id/read", requireAuth, requireRole("teacher", "pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId } = req.user!;
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+      if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      await db.execute(sql`
+        UPDATE parent_student_requests
+        SET is_read_by_teacher = true,
+            updated_at = NOW()
+        WHERE id = ${req.params.id}
+          AND swimming_pool_id = ${me.swimming_pool_id}
+          AND teacher_user_id = ${userId}
+      `);
+      res.json({ success: true });
     } catch (err) {
       console.error(err);
       res.status(500).json({ success: false, message: "서버 오류" });
@@ -318,9 +351,11 @@ router.patch("/parent-requests/:id", requireAuth, requireRole("pool_admin", "sub
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
+      // 상태 변경 시 읽음 처리도 함께
       await db.execute(sql`
         UPDATE parent_student_requests
         SET status = ${status},
+            is_read_by_teacher = true,
             updated_at = NOW()
         WHERE id = ${req.params.id} AND swimming_pool_id = ${me.swimming_pool_id}
       `);
