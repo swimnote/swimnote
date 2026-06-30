@@ -24,8 +24,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { WeeklySchedule } from "@/components/teacher/WeeklySchedule";
-import { TeacherClassGroup, SlotStatus } from "@/components/teacher/types";
+import { TeacherClassGroup } from "@/components/teacher/types";
 import { API_BASE, apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { FullAlbumPickerModal } from "@/components/teacher/album/FullAlbumPickerModal";
@@ -37,7 +36,7 @@ const PHOTO_SIZE = Math.floor((W - 6) / 3);
 // ── 타입 ──────────────────────────────────────────────────────────────────
 type MediaType = "photo" | "video";
 type AlbumScope = "group" | "private";
-type Step = "home" | "list" | "schedule" | "student" | "upload";
+type Step = "home" | "list" | "student" | "upload";
 
 interface MediaItem {
   id: string;
@@ -177,17 +176,15 @@ export default function TeacherPhotosScreen() {
   const [lightbox, setLightbox] = useState<MediaItem | null>(null);
 
   // 업로드
-  const [uploading,           setUploading]           = useState(false);
-  const [successMsg,          setSuccessMsg]          = useState<string | null>(null);
-  const [errorMsg,            setErrorMsg]            = useState<string | null>(null);
-  const [pendingUploadAssets, setPendingUploadAssets] = useState<any[]>([]);
+  const [uploading,  setUploading]  = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
 
   type PlanFeatures = { video_enabled: boolean; storage_quota_gb: number; storage_used_gb: number; storage_used_pct: number; upload_blocked: boolean; tier: string };
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures>({ video_enabled: false, storage_quota_gb: 0, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" });
-  const [showVideoGateModal,    setShowVideoGateModal]    = useState(false);
-  const [showStorageModal,      setShowStorageModal]      = useState(false);
-  const [showClassPickerModal,  setShowClassPickerModal]  = useState(false);
-  const [showFullAlbumPicker,   setShowFullAlbumPicker]   = useState(false);
+  const [showVideoGateModal,  setShowVideoGateModal]  = useState(false);
+  const [showStorageModal,    setShowStorageModal]    = useState(false);
+  const [showFullAlbumPicker, setShowFullAlbumPicker] = useState(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -341,12 +338,6 @@ export default function TeacherPhotosScreen() {
     : []
   ).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
 
-  function selectGroup(g: TeacherClassGroup) {
-    setSelGroup(g);
-    if (scope === "private") setStep("student");
-    else setStep("upload");
-  }
-
   function selectStudent(st: Student) {
     setSelStudent(st);
     setStep("upload");
@@ -431,26 +422,15 @@ export default function TeacherPhotosScreen() {
       setErrorMsg(e?.message ?? "업로드 중 오류가 발생했습니다.");
     } finally {
       setUploading(false);
-      setPendingUploadAssets([]);
     }
   }
 
-  /**
-   * 파일 피커 실행 → 파일 선택 후 반 결정 → 업로드
-   * group 파라미터가 있으면 그 반으로 바로 업로드 (클래스 피커 이후 재진입 경로)
-   */
-  async function pickAndUpload(group?: TeacherClassGroup, student?: Student) {
+  /** 파일 피커 실행 → 바로 업로드 */
+  async function pickAndUpload() {
     const isVideo = mediaType === "video";
     if (isVideo && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
     if (planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
 
-    // ── 반이 이미 결정된 경우: 대기 파일로 바로 업로드 ──────────────
-    if (group) {
-      const assets = pendingUploadAssets.length > 0 ? pendingUploadAssets : null;
-      if (assets) { await doUpload(assets, group, student ?? selStudent); return; }
-    }
-
-    // ── 파일 피커 먼저 실행 ─────────────────────────────────────────
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) { Alert.alert("권한 필요", "미디어 접근 권한이 필요합니다."); return; }
@@ -462,25 +442,12 @@ export default function TeacherPhotosScreen() {
       });
       if (result.canceled || !result.assets?.length) return;
 
-      const assets = result.assets;
-
-      // ── 반 결정 ─────────────────────────────────────────────────
-      if (scope === "group") {
-        await doUpload(assets, null, null);
-      } else {
-        // private: selGroup/selStudent 사용 (schedule → student 흐름)
-        await doUpload(assets, selGroup, selStudent);
-      }
+      await doUpload(result.assets, null, null);
     } catch (e: any) {
       console.warn("[photos] upload error:", e);
       setErrorMsg(e?.message ?? "업로드 중 오류가 발생했습니다.");
     }
   }
-
-  const statusMap: Record<string, SlotStatus> = {};
-  (groups ?? []).forEach(g => {
-    statusMap[g.id] = { attChecked: 0, diaryDone: true, hasPhotos: false };
-  });
 
   // ── 로딩 ─────────────────────────────────────────────────────────────
   if (loading) {
@@ -823,60 +790,6 @@ export default function TeacherPhotosScreen() {
           </Pressable>
         )}
 
-        {/* 반 선택 바텀시트 (group 업로드) */}
-        <Modal
-          visible={showClassPickerModal}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowClassPickerModal(false)}
-        >
-          <Pressable style={s.cpOverlay} onPress={() => setShowClassPickerModal(false)}>
-            <View style={s.cpSheet}>
-              <View style={s.cpHandle} />
-              <Text style={s.cpTitle}>어디에 업로드할까요?</Text>
-
-              {/* 공용 업로드 (반 없이 pool 전체) */}
-              <Pressable
-                style={[s.cpItem, s.cpItemPool]}
-                onPress={() => {
-                  setShowClassPickerModal(false);
-                  doUpload(pendingUploadAssets, null, null);
-                }}
-              >
-                <View style={s.cpItemPoolIcon}>
-                  <LucideIcon name="layers" size={16} color="#E4A93A" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.cpItemText, { color: "#E4A93A" }]}>전체앨범 (공용)</Text>
-                  <Text style={s.cpItemSub}>반 구분 없이 수영장 공용 앨범에 저장</Text>
-                </View>
-                <ChevronRight size={16} color="#E4A93A" />
-              </Pressable>
-
-              {/* 반별 업로드 */}
-              {groups.length > 0 && (
-                <Text style={s.cpSectionLabel}>반별 업로드</Text>
-              )}
-              {groups.map(g => (
-                <Pressable
-                  key={g.id}
-                  style={s.cpItem}
-                  onPress={() => {
-                    setShowClassPickerModal(false);
-                    doUpload(pendingUploadAssets, g, null);
-                  }}
-                >
-                  <Text style={s.cpItemText}>{g.name}</Text>
-                  <ChevronRight size={16} color="#64748B" />
-                </Pressable>
-              ))}
-              <Pressable style={s.cpCancel} onPress={() => setShowClassPickerModal(false)}>
-                <Text style={s.cpCancelText}>취소</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Modal>
-
         {/* FullAlbumPickerModal — 개인앨범 + 버튼 → 전체앨범에서 선택 */}
         <FullAlbumPickerModal
           visible={showFullAlbumPicker}
@@ -997,29 +910,6 @@ export default function TeacherPhotosScreen() {
     );
   }
 
-  // ── 시간표 (반 선택) ──────────────────────────────────────────────────
-  if (step === "schedule") {
-    return (
-      <SafeAreaView style={s.safe} edges={[]}>
-        <SubScreenHeader
-          title={`${cfg.title} 업로드`}
-          subtitle="수업 반을 선택하세요"
-          onBack={() => setStep("list")}
-          homePath="/(teacher)/today-schedule"
-        />
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-          <WeeklySchedule
-            classGroups={groups}
-            statusMap={statusMap}
-            onSelectClass={selectGroup}
-            themeColor={cfg.color}
-          />
-          <View style={{ height: 100 }} />
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
-
   // ── 학생 선택 ─────────────────────────────────────────────────────────
   if (step === "student") {
     return (
@@ -1027,7 +917,7 @@ export default function TeacherPhotosScreen() {
         <SubScreenHeader
           title={`${selGroup?.name ?? "반"} · 학생 선택`}
           subtitle={`개인 ${cfg.title} 앨범에 업로드할 학생을 선택하세요`}
-          onBack={() => setStep("schedule")}
+          onBack={() => setStep("list")}
           homePath="/(teacher)/today-schedule"
         />
         <ScrollView contentContainerStyle={s.studentList} showsVerticalScrollIndicator={false}>
@@ -1060,7 +950,7 @@ export default function TeacherPhotosScreen() {
       <SubScreenHeader
         title={`${scope === "group" ? selGroup?.name ?? "반" : selStudent?.name ?? "학생"} · ${cfg.sub}`}
         subtitle={`${cfg.title} 업로드`}
-        onBack={() => setStep(scope === "private" ? "student" : "schedule")}
+        onBack={() => setStep("list")}
         homePath="/(teacher)/today-schedule"
       />
       <View style={s.uploadCenter}>
@@ -1220,16 +1110,4 @@ const s = StyleSheet.create({
   avatarText: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   studentName: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
 
-  cpOverlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
-  cpSheet:      { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingBottom: 36, paddingTop: 12, gap: 6 },
-  cpHandle:     { alignSelf: "center", width: 36, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", marginBottom: 8 },
-  cpTitle:      { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#374151", textAlign: "center", paddingVertical: 8 },
-  cpItem:          { flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingHorizontal: 14, backgroundColor: "#F8FAFC", borderRadius: 14, gap: 8 },
-  cpItemPool:      { backgroundColor: "#FFF8E6", borderWidth: 1, borderColor: "#E4A93A33" },
-  cpItemPoolIcon:  { width: 32, height: 32, borderRadius: 8, backgroundColor: "#E4A93A1A", alignItems: "center", justifyContent: "center" },
-  cpItemText:      { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  cpItemSub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
-  cpSectionLabel:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", paddingHorizontal: 4, paddingTop: 6 },
-  cpCancel:        { alignItems: "center", paddingVertical: 14, marginTop: 4 },
-  cpCancelText:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
 });
