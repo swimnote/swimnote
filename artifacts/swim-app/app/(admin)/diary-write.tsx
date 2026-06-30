@@ -7,7 +7,7 @@
  * - 클릭 → 일지 내용 펼쳐 읽기
  * - 길게 눌러 선택 모드 → 일괄 삭제
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
   StyleSheet, Text, TextInput, View,

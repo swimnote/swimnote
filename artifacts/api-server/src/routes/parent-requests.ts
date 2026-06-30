@@ -351,6 +351,12 @@ router.patch("/parent-requests/:id", requireAuth, requireRole("pool_admin", "sub
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
+      // 컬럼 보장 (GET보다 PATCH가 먼저 호출될 경우 대비)
+      await db.execute(sql`
+        ALTER TABLE parent_student_requests
+        ADD COLUMN IF NOT EXISTS is_read_by_teacher BOOLEAN DEFAULT false
+      `).catch(() => {});
+
       // 상태 변경 시 읽음 처리도 함께
       await db.execute(sql`
         UPDATE parent_student_requests
