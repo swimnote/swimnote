@@ -6,7 +6,7 @@
  *  2. 알림 설정
  *  3. 앱 설정
  *  4. 피드백 기본 설정
- *  5. 사진·영상 앨범 바로가기
+ *  5. 사진·영상 업로드/앨범 바로가기
  *  6. 기타
  */
 import { Bell, Camera, ChevronRight, CircleDollarSign, FileText, HardDrive, Mail, Pencil, UserCog } from "lucide-react-native";
@@ -184,13 +184,13 @@ export default function TeacherSettingsScreen() {
           <ChevronRight size={16} color="#0F172A" />
         </Pressable>
 
-        {/* ── 사진·영상 앨범 ── */}
+        {/* ── 사진·영상 업로드/앨범 ── */}
         <Pressable
           style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/photos?backTo=settings" as any)}
         >
           <Camera size={18} color="#0F172A" />
-          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>사진·영상 앨범</Text>
+          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>사진·영상 업로드/앨범</Text>
           <ChevronRight size={16} color="#0F172A" />
         </Pressable>
 
