@@ -198,7 +198,7 @@ router.post("/parent/requests", requireAuth,
       `);
       const newReq = result.rows[0] as any;
 
-      // 담당 선생님에게 푸시 알림
+      // 담당 선생님에게 푸시 알림 + 메시지함(notice 채널) 삽입
       if (teacherUserId) {
         try {
           const { sendPushToUser } = await import("../lib/push-service.js");
@@ -215,6 +215,33 @@ router.post("/parent/requests", requireAuth,
         } catch (pushErr) {
           console.error("[parent-requests push error]", pushErr);
         }
+      }
+
+      // 선생님 메시지함(notice 채널)에 요청 내용 삽입
+      try {
+        const msgContent = [
+          `📋 [${typeLabel}] ${parentName}님 (${studentName})`,
+          content?.trim() ? content.trim() : null,
+          request_date ? `📅 요청일: ${request_date}` : null,
+        ].filter(Boolean).join("\n");
+
+        const extraData = JSON.stringify({
+          type: "parent_request",
+          requestId: newReq.id,
+          requestType: request_type,
+          studentName,
+          parentName,
+        });
+
+        await db.execute(sql`
+          INSERT INTO work_messages
+            (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, extra_data)
+          VALUES
+            (${poolId}, ${req.user!.userId}, ${parentName}, 'parent_account',
+             'text', 'notice', 'parent_request', ${msgContent}, ${extraData}::jsonb)
+        `);
+      } catch (msgErr) {
+        console.error("[parent-requests work_messages error]", msgErr);
       }
 
       res.status(201).json({ success: true, data: newReq });
