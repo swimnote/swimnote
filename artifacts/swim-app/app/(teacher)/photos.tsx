@@ -369,12 +369,7 @@ export default function TeacherPhotosScreen() {
       });
       if (result.canceled || !result.assets?.length) return;
       const assets = result.assets;
-      if (groups.length === 0) {
-        await doUpload(assets, null, null, mt, sc);
-      } else {
-        setPendingUploadAssets(assets);
-        setShowClassPickerModal(true);
-      }
+      await doUpload(assets, null, null, mt, sc);
     } catch (e: any) {
       setErrorMsg(e?.message ?? "업로드 중 오류가 발생했습니다.");
     }
@@ -471,14 +466,7 @@ export default function TeacherPhotosScreen() {
 
       // ── 반 결정 ─────────────────────────────────────────────────
       if (scope === "group") {
-        if (groups.length === 0) {
-          // 반이 없어도 pool 공용으로 바로 업로드 (class_id = null)
-          await doUpload(assets, null, null);
-        } else {
-          // 반이 1개 이상: 반 선택 모달 표시 (공용 업로드 선택지 포함)
-          setPendingUploadAssets(assets);
-          setShowClassPickerModal(true);
-        }
+        await doUpload(assets, null, null);
       } else {
         // private: selGroup/selStudent 사용 (schedule → student 흐름)
         await doUpload(assets, selGroup, selStudent);
