@@ -1497,6 +1497,58 @@ router.get("/diaries/unwritten-slots",
 );
 
 // ════════════════════════════════════════════════════════════════════════
+// 관리자 — 전체 일지 통합 목록 (저장 순, 선생님 정보 포함)
+// GET /diaries/admin/all-entries?q=검색어&limit=100&offset=0
+// ════════════════════════════════════════════════════════════════════════
+router.get("/diaries/admin/all-entries",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId } = req.user!;
+      const poolId = await getUserPoolId(userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
+
+      const { q = "", limit = "100", offset = "0" } = req.query as Record<string, string>;
+      const lim = Math.min(parseInt(limit) || 100, 300);
+      const off = parseInt(offset) || 0;
+
+      const rows = await db.execute(sql`
+        SELECT
+          cd.id,
+          cd.lesson_date,
+          cd.common_content,
+          cd.teacher_name,
+          cd.teacher_id,
+          cd.is_edited,
+          cd.created_at,
+          cg.name AS class_name,
+          cg.schedule_days,
+          cg.schedule_time,
+          (SELECT COUNT(*)::int FROM class_diary_student_notes csn
+           WHERE csn.diary_id = cd.id AND csn.is_deleted = false) AS note_count
+        FROM class_diaries cd
+        LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+        WHERE cd.swimming_pool_id = ${poolId}
+          AND cd.is_deleted = false
+        ORDER BY cd.created_at DESC
+        LIMIT ${lim} OFFSET ${off}
+      `);
+
+      const countRow = await db.execute(sql`
+        SELECT COUNT(*)::int AS total FROM class_diaries
+        WHERE swimming_pool_id = ${poolId} AND is_deleted = false
+      `);
+
+      res.json({
+        success: true,
+        entries: rows.rows,
+        total: Number((countRow.rows[0] as any)?.total || 0),
+      });
+    } catch (e) { console.error("[diaries/admin/all-entries]", e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════════════
 // 관리자 — 교사별 일지 통계 목록
 // GET /diaries/admin/teachers
 // ════════════════════════════════════════════════════════════════════════
