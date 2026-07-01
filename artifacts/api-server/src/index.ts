@@ -53,6 +53,10 @@ initPoolDb().catch((e) => console.error("[pool-db-init] 초기화 오류:", e.me
 initSuperDb().catch((e) => console.error("[super-db-init] 초기화 오류:", e.message));
 initV2PendingTable().catch((e) => console.error("[v2-init] parent_v2_pending 테이블 초기화 오류:", e.message));
 backfillPoolAdminRoles().catch((e) => console.error("[roles-backfill] 오류:", e.message));
+// 일회성: diary_templates에서 "오늘은 " 접두사 제거
+import("./migrations/strip-oneulun.js")
+  .then(m => m.stripOneulun())
+  .catch((e) => console.error("[strip-oneulun] 오류:", e.message));
 setTimeout(() => {
   backfillPoolSubscriptionFields().catch((e) => console.error("[backfill-pools] 오류:", e.message));
 }, 3000);
