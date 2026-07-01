@@ -11,7 +11,7 @@
  * API: /settlement/calculator, /settlement/save, /settlement/finalize
  *      /holidays (GET, POST, DELETE)
  */
-import { Calendar, ChevronLeft, ChevronRight, CircleAlert, CircleArrowRight, List, RotateCcw, Save, Users } from "lucide-react-native";
+import { ActivityIndicator as AI2, Calendar, CheckCircle, ChevronLeft, ChevronRight, CircleAlert, CircleArrowRight, List, RotateCcw, Save, Users } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -101,6 +101,7 @@ export default function AdminRevenueScreen() {
   const [savedMsg, setSavedMsg] = useState("");
   const [nextMonthModal, setNextMonthModal] = useState(false);
   const [holiModal, setHoliModal]           = useState(false);
+  const [confirmingId, setConfirmingId]     = useState<string | null>(null);
 
   const poolId = (adminUser as any)?.swimming_pool_id || "";
   const { backTo } = useLocalSearchParams<{ backTo?: string }>();
@@ -141,6 +142,19 @@ export default function AdminRevenueScreen() {
     const [y, m] = month.split("-").map(Number);
     const d = new Date(y, m - 1 + delta, 1);
     setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+
+  async function handleConfirmTeacher(teacherId: string) {
+    setConfirmingId(teacherId);
+    try {
+      await apiRequest(token, "/settlement/finalize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pool_id: poolId, month, teacher_id: teacherId }),
+      });
+      await load();
+    } catch { }
+    finally { setConfirmingId(null); }
   }
 
   async function handleSave() {
@@ -283,27 +297,52 @@ export default function AdminRevenueScreen() {
                 const status: SettlementStatus = apiStatusToUI(report?.status);
                 const statusStyle = STATUS_COLOR[status];
                 const isLast = idx === teachers.length - 1;
+                const isConfirming = confirmingId === t.id;
+                const canConfirm = report?.status === "submitted";
+                const isConfirmed = report?.status === "confirmed";
                 return (
-                  <View key={t.id} style={[s.tableRow, !isLast && s.tableRowBorder]}>
-                    {/* 이름 + 상태 */}
-                    <View style={{ flex: 2, gap: 3 }}>
-                      <Text style={[s.rowName, { color: C.text }]}>{t.name}</Text>
-                      <View style={[s.statusPill, { backgroundColor: statusStyle.bg }]}>
-                        <Text style={[s.statusPillTxt, { color: statusStyle.text }]}>{status}</Text>
+                  <View key={t.id} style={[s.tableRow, !isLast && s.tableRowBorder, { flexDirection: "column", gap: 8 }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      {/* 이름 + 상태 */}
+                      <View style={{ flex: 2, gap: 3 }}>
+                        <Text style={[s.rowName, { color: C.text }]}>{t.name}</Text>
+                        <View style={[s.statusPill, { backgroundColor: statusStyle.bg }]}>
+                          <Text style={[s.statusPillTxt, { color: statusStyle.text }]}>{status}</Text>
+                        </View>
                       </View>
+                      {/* 매출 */}
+                      <Text style={[s.rowAmt, { flex: 2, color: report?.total_revenue != null ? themeColor : C.textMuted }]}>
+                        {report?.total_revenue != null ? formatWon(report.total_revenue) : "미제출"}
+                      </Text>
+                      {/* 수업시수 */}
+                      <Text style={[s.rowVal, { flex: 1 }]}>
+                        {report?.total_sessions != null ? `${report.total_sessions}회` : "—"}
+                      </Text>
+                      {/* 추가수업비용 */}
+                      <Text style={[s.rowExtra, { flex: 2, color: (report?.extra_manual_amount || 0) > 0 ? "#C2410C" : C.textMuted }]}>
+                        {(report?.extra_manual_amount || 0) > 0 ? formatWon(report!.extra_manual_amount!) : "—"}
+                      </Text>
                     </View>
-                    {/* 매출 */}
-                    <Text style={[s.rowAmt, { flex: 2, color: report?.total_revenue != null ? themeColor : C.textMuted }]}>
-                      {report?.total_revenue != null ? formatWon(report.total_revenue) : "미제출"}
-                    </Text>
-                    {/* 수업시수 */}
-                    <Text style={[s.rowVal, { flex: 1 }]}>
-                      {report?.total_sessions != null ? `${report.total_sessions}회` : "—"}
-                    </Text>
-                    {/* 추가수업비용 */}
-                    <Text style={[s.rowExtra, { flex: 2, color: (report?.extra_manual_amount || 0) > 0 ? "#C2410C" : C.textMuted }]}>
-                      {(report?.extra_manual_amount || 0) > 0 ? formatWon(report!.extra_manual_amount!) : "—"}
-                    </Text>
+                    {/* 관리자 확인 버튼 (제출완료 상태일 때만) */}
+                    {(canConfirm || isConfirmed) && (
+                      <Pressable
+                        style={[s.confirmBtn, {
+                          backgroundColor: isConfirmed ? "#F0FFF4" : themeColor,
+                          opacity: isConfirming ? 0.6 : 1,
+                        }]}
+                        onPress={() => !isConfirmed && handleConfirmTeacher(t.id)}
+                        disabled={isConfirming || isConfirmed}
+                      >
+                        {isConfirming ? (
+                          <AI2 size={14} color="#fff" />
+                        ) : (
+                          <CheckCircle size={14} color={isConfirmed ? "#16A34A" : "#fff"} />
+                        )}
+                        <Text style={[s.confirmBtnTxt, { color: isConfirmed ? "#16A34A" : "#fff" }]}>
+                          {isConfirmed ? "관리자 확인 완료" : "정산 확인"}
+                        </Text>
+                      </Pressable>
+                    )}
                   </View>
                 );
               })
@@ -473,4 +512,8 @@ const s = StyleSheet.create({
   modalBtns: { flexDirection: "row", gap: 10, marginTop: 4 },
   modalBtn: { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center" },
   modalBtnTxt: { fontSize: 15, fontFamily: "Pretendard-Regular" },
+
+  confirmBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+                   paddingVertical: 9, borderRadius: 10 },
+  confirmBtnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
 });
