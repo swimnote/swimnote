@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Updates from "expo-updates";
+import { useUpdates } from "expo-updates";
 import Constants from "expo-constants";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Platform, Text, View } from "react-native";
@@ -218,34 +219,20 @@ function PushNavSync() {
 function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
 
-  // OTA 업데이트 — 새 업데이트 있을 때 알림 후 재시작
+  // OTA 업데이트 — Expo 자동 다운로드 완료 시 재시작 알림
+  const { isUpdatePending } = useUpdates();
+
   useEffect(() => {
-    if (__DEV__) return;
-    (async () => {
-      try {
-        const check = await Updates.checkForUpdateAsync();
-        if (!check.isAvailable) return;
-
-        Alert.alert(
-          "업데이트 다운로드 중",
-          "새로운 버전을 다운로드하고 있습니다. 잠시 후 재시작됩니다.",
-          [{ text: "확인" }]
-        );
-
-        const result = await Updates.fetchUpdateAsync();
-        if (result.isNew) {
-          Alert.alert(
-            "업데이트 완료",
-            "새로운 버전이 설치되었습니다. 지금 재시작하시겠어요?",
-            [
-              { text: "나중에" },
-              { text: "재시작", style: "default", onPress: () => Updates.reloadAsync() },
-            ]
-          );
-        }
-      } catch (_) {}
-    })();
-  }, []);
+    if (__DEV__ || !isUpdatePending) return;
+    Alert.alert(
+      "업데이트 완료",
+      "새로운 버전이 다운로드되었습니다.\n지금 재시작하시겠어요?",
+      [
+        { text: "나중에" },
+        { text: "재시작", style: "default", onPress: () => Updates.reloadAsync() },
+      ]
+    );
+  }, [isUpdatePending]);
 
   // 앱 버전 체크 — 강제/소프트 업데이트 유도
   useEffect(() => {
