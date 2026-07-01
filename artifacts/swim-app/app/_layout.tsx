@@ -219,17 +219,24 @@ function PushNavSync() {
 function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
 
-  // OTA 업데이트 — Expo 자동 다운로드 완료 시 재시작 알림
-  const { isUpdatePending } = useUpdates();
+  // OTA 업데이트 — 업데이트 발견 즉시 다운로드 → 완료 시 재시작 Alert
+  const { isUpdateAvailable, isUpdatePending, isDownloading } = useUpdates();
 
+  // 업데이트 발견 → 즉시 다운로드 시작
+  useEffect(() => {
+    if (__DEV__ || !isUpdateAvailable || isDownloading || isUpdatePending) return;
+    Updates.fetchUpdateAsync().catch(() => {});
+  }, [isUpdateAvailable]);
+
+  // 다운로드 완료 → 재시작 Alert
   useEffect(() => {
     if (__DEV__ || !isUpdatePending) return;
     Alert.alert(
       "업데이트 완료",
-      "새로운 버전이 다운로드되었습니다.\n지금 재시작하시겠어요?",
+      "새로운 버전이 준비됐습니다.\n지금 재시작하시겠어요?",
       [
         { text: "나중에" },
-        { text: "재시작", style: "default", onPress: () => Updates.reloadAsync() },
+        { text: "지금 재시작", style: "default", onPress: () => Updates.reloadAsync() },
       ]
     );
   }, [isUpdatePending]);
