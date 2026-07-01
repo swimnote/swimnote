@@ -64,6 +64,7 @@ export default function DiaryTeacherEntriesScreen() {
   // 선생님 목록 (teacherId 없을 때)
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [teachersLoading, setTeachersLoading] = useState(false);
+  const [teachersError, setTeachersError] = useState<string | null>(null);
 
   // 일지 목록
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
@@ -88,10 +89,19 @@ export default function DiaryTeacherEntriesScreen() {
   useEffect(() => {
     if (selectedTeacherId || !token) return;
     setTeachersLoading(true);
+    setTeachersError(null);
     apiRequest(token, "/diaries/admin/teachers")
-      .then(r => r.json())
-      .then(d => setTeachers(Array.isArray(d.teachers) ? d.teachers : []))
-      .catch(() => {})
+      .then(async r => {
+        const d = await r.json();
+        if (!r.ok) {
+          setTeachersError(d.error || `오류 ${r.status}`);
+          return;
+        }
+        setTeachers(Array.isArray(d.teachers) ? d.teachers : []);
+      })
+      .catch(e => {
+        setTeachersError("네트워크 오류: " + String(e));
+      })
       .finally(() => setTeachersLoading(false));
   }, [token, selectedTeacherId]);
 
@@ -258,6 +268,12 @@ export default function DiaryTeacherEntriesScreen() {
         <SubScreenHeader title="수업 일지" subtitle="선생님을 선택하세요" homePath="/(admin)/diary-write" />
         {teachersLoading ? (
           <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
+        ) : teachersError ? (
+          <View style={de.empty}>
+            <Info size={40} color="#EF4444" />
+            <Text style={[de.emptyTitle, { color: "#EF4444" }]}>불러오기 실패</Text>
+            <Text style={[de.emptyTitle, { fontSize: 13, color: C.textSecondary, marginTop: 8, textAlign: "center", paddingHorizontal: 24 }]}>{teachersError}</Text>
+          </View>
         ) : (
           <FlatList
             data={teachers}

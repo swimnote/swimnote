@@ -1561,8 +1561,10 @@ router.get("/diaries/admin/teachers",
   requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
-      const { userId } = req.user!;
+      const { userId, role } = req.user!;
+      console.log(`[diaries/admin/teachers] userId=${userId} role=${role}`);
       const poolId = await getUserPoolId(userId);
+      console.log(`[diaries/admin/teachers] poolId=${poolId}`);
       if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
 
       const rows = await superAdminDb.execute(sql`
@@ -1580,8 +1582,9 @@ router.get("/diaries/admin/teachers",
         ORDER BY diary_count DESC, u.name ASC
       `);
 
+      console.log(`[diaries/admin/teachers] found ${rows.rows.length} teachers for poolId=${poolId}`);
       res.json({ success: true, teachers: rows.rows });
-    } catch (e) { console.error("[diaries/admin/teachers]", e); apiErr(res, 500, "서버 오류"); }
+    } catch (e) { console.error("[diaries/admin/teachers] ERROR:", e); apiErr(res, 500, "서버 오류"); }
   }
 );
 
