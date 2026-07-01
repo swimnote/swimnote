@@ -70,7 +70,7 @@ export default function DiaryTeacherEntriesScreen() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!token || !params.teacherId) return;
+    if (!token || !params.teacherId) { setLoading(false); return; }
     try {
       const res = await apiRequest(token, `/diaries/admin/teacher/${params.teacherId}/entries`);
       if (res.ok) {

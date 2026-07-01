@@ -628,7 +628,7 @@ router.delete("/diaries/student-notes/:noteId",
 // ════════════════════════════════════════════════════════════════════════
 
 router.get("/diaries/:id/audit-logs",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
       const { userId } = req.user!;
@@ -669,7 +669,7 @@ router.get("/diary-template-levels",
 
 // POST /diary-template-levels — 레벨 추가 (최대 10개)
 router.post("/diary-template-levels",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
@@ -689,7 +689,7 @@ router.post("/diary-template-levels",
 
 // POST /diary-template-levels/reorder — 순서 일괄 변경
 router.post("/diary-template-levels/reorder",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
@@ -705,7 +705,7 @@ router.post("/diary-template-levels/reorder",
 
 // PATCH /diary-template-levels/:id — 이름 변경
 router.patch("/diary-template-levels/:id",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
@@ -720,7 +720,7 @@ router.patch("/diary-template-levels/:id",
 
 // DELETE /diary-template-levels/:id — 레벨 삭제 (최소 1개 유지, 하위 템플릿 삭제)
 router.delete("/diary-template-levels/:id",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
@@ -735,7 +735,7 @@ router.delete("/diary-template-levels/:id",
 
 // POST /diary-template-levels/:id/clear — 레벨 비우기 (이름 유지, 템플릿만 삭제)
 router.post("/diary-template-levels/:id/clear",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
@@ -920,7 +920,7 @@ router.delete("/diary-templates/:id/override",
 
 // POST /diary-templates/restore-default — SwimNote 기본 템플릿 복원
 router.post("/diary-templates/restore-default",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     console.log("[restore-default] 요청 수신 — userId:", req.user?.userId);
     try {
@@ -937,7 +937,7 @@ router.post("/diary-templates/restore-default",
 
 // POST /diary-templates/clear-all — 전체 초기화 (템플릿 + 레벨 모두 삭제)
 router.post("/diary-templates/clear-all",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
@@ -1558,7 +1558,7 @@ router.get("/diaries/admin/all-entries",
 // GET /diaries/admin/teachers
 // ════════════════════════════════════════════════════════════════════════
 router.get("/diaries/admin/teachers",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
       const { userId } = req.user!;
@@ -1590,10 +1590,14 @@ router.get("/diaries/admin/teachers",
 // GET /diaries/admin/teacher/:teacherId/entries
 // ════════════════════════════════════════════════════════════════════════
 router.get("/diaries/admin/teacher/:teacherId/entries",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
-      const { userId } = req.user!;
+      const { userId, role } = req.user!;
+      if (role === "teacher") {
+        const dbRole = await getUserDbRole(userId);
+        if (dbRole !== "pool_admin") return apiErr(res, 403, "권한이 없습니다.");
+      }
       const poolId = await getUserPoolId(userId);
       if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
 
@@ -1635,7 +1639,7 @@ router.get("/diaries/admin/teacher/:teacherId/entries",
 // Body: { ids: string[], mode: "photo_only" | "full" }
 // ════════════════════════════════════════════════════════════════════════
 router.post("/diaries/admin/bulk-delete",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
       const { userId, role } = req.user!;
