@@ -535,7 +535,10 @@ export default function ParentHomeScreen() {
 
             {/* 2. 최근 사진 */}
             <ParentRecentPhotosCard
-              photos={summary.latest_photos}
+              photos={summary.latest_photos.map(p => ({
+                ...p,
+                file_url: p.file_url?.startsWith("/") ? `${API_BASE}${p.file_url}` : p.file_url,
+              }))}
               unreadCount={unread_counts.photos}
               token={token}
               onPress={() => router.push("/(parent)/photos?backTo=home" as any)}

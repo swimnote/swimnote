@@ -1106,7 +1106,7 @@ router.get("/students/:id/home-summary", requireAuth, requireParent, async (req:
     if (student?.class_group_id) {
       const rows = await db.execute(sql`
         SELECT id, caption, created_at,
-               '/api/photos/' || id || '/file' AS file_url, album_type,
+               'https://swimnote-api.onrender.com/api/photos/' || id || '/file' AS file_url, album_type,
                CASE WHEN ${photoRead?.last_read_at ?? null}::timestamptz IS NULL OR created_at > ${photoRead?.last_read_at ?? null}::timestamptz THEN true ELSE false END AS is_new
         FROM (
           SELECT sp.id, sp.caption, sp.created_at, sp.album_type
@@ -1163,6 +1163,21 @@ router.get("/students/:id/home-summary", requireAuth, requireParent, async (req:
         prev_level: levels[1]?.level ?? null,
         note: levels[0].note,
         teacher_name: levels[0].teacher_name,
+      };
+    } else if (student?.current_level_order != null) {
+      // student_levels 기록 없어도 current_level_order가 설정돼 있으면 pool_level_settings로 이름 조회
+      const defRow = await db.execute(sql`
+        SELECT level_name FROM pool_level_settings
+        WHERE pool_id = ${student.swimming_pool_id} AND level_order = ${student.current_level_order}
+        LIMIT 1
+      `).catch(() => ({ rows: [] }));
+      const levelName = (defRow.rows[0] as any)?.level_name ?? `레벨 ${student.current_level_order}`;
+      growthInfo = {
+        current_level: levelName,
+        achieved_date: null,
+        prev_level: null,
+        note: null,
+        teacher_name: null,
       };
     }
 
