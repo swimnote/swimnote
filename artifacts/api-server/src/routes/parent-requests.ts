@@ -304,7 +304,7 @@ router.get("/teacher/parent-requests", requireAuth, requireRole("teacher", "pool
         ORDER BY psr.created_at DESC
         LIMIT 100
       `);
-      res.json({ success: true, data: rows.rows });
+      res.json(rows.rows);
     } catch (err) {
       console.error(err);
       res.status(500).json({ success: false, message: "서버 오류" });

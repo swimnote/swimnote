@@ -48,10 +48,13 @@ export default function UnreadMessagesModal({
 
     Promise.all([
       apiRequest(token, "/teacher/messages?unread=true").then(r => r.ok ? r.json() : []),
-      apiRequest(token, "/teacher/parent-requests").then(r => r.ok ? r.json() : []),
+      apiRequest(token, "/teacher/parent-requests").then(r => {
+        if (!r.ok) return [];
+        return r.json().then((j: any) => Array.isArray(j) ? j : (j.data ?? []));
+      }),
     ]).then(([msgs, reqs]: [UnreadMessage[], ParentRequest[]]) => {
-      const msgItems: ListItem[] = msgs.map(m => ({ kind: "message", data: m }));
-      const pendingReqs = (reqs as ParentRequest[]).filter(r => r.status === "pending");
+      const msgItems: ListItem[] = (Array.isArray(msgs) ? msgs : []).map(m => ({ kind: "message", data: m }));
+      const pendingReqs = (Array.isArray(reqs) ? reqs : []).filter(r => r.status === "pending");
       const reqItems: ListItem[] = pendingReqs.map(r => ({ kind: "request", data: r }));
 
       const merged = [
