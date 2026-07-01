@@ -133,7 +133,15 @@ export function FeedbackTemplateProvider({ children }: { children: React.ReactNo
           AsyncStorage.getItem(storageKey(userId, "templates")),
           AsyncStorage.getItem(storageKey(userId, "labels")),
         ]);
-        if (tRaw) setTemplates(JSON.parse(tRaw));
+        if (tRaw) {
+          const parsed: FeedbackTemplate[] = JSON.parse(tRaw);
+          const migrated = parsed.map(t => ({
+            ...t,
+            template_text: t.template_text.replace(/^오늘은\s+/, ""),
+          }));
+          setTemplates(migrated);
+          AsyncStorage.setItem(storageKey(userId, "templates"), JSON.stringify(migrated)).catch(() => {});
+        }
         if (lRaw) setLabels(JSON.parse(lRaw));
       } catch {}
       setLoaded(true);
