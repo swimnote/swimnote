@@ -218,14 +218,30 @@ function PushNavSync() {
 function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
 
-  // OTA 업데이트 — 새 업데이트 있을 때만 즉시 적용
+  // OTA 업데이트 — 새 업데이트 있을 때 알림 후 재시작
   useEffect(() => {
     if (__DEV__) return;
     (async () => {
       try {
+        const check = await Updates.checkForUpdateAsync();
+        if (!check.isAvailable) return;
+
+        Alert.alert(
+          "업데이트 다운로드 중",
+          "새로운 버전을 다운로드하고 있습니다. 잠시 후 재시작됩니다.",
+          [{ text: "확인" }]
+        );
+
         const result = await Updates.fetchUpdateAsync();
         if (result.isNew) {
-          await Updates.reloadAsync();
+          Alert.alert(
+            "업데이트 완료",
+            "새로운 버전이 설치되었습니다. 지금 재시작하시겠어요?",
+            [
+              { text: "나중에" },
+              { text: "재시작", style: "default", onPress: () => Updates.reloadAsync() },
+            ]
+          );
         }
       } catch (_) {}
     })();
