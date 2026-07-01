@@ -1501,10 +1501,15 @@ router.get("/diaries/unwritten-slots",
 // GET /diaries/admin/all-entries?q=검색어&limit=100&offset=0
 // ════════════════════════════════════════════════════════════════════════
 router.get("/diaries/admin/all-entries",
-  requireAuth, requireRole("super_admin", "pool_admin"),
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
-      const { userId } = req.user!;
+      const { userId, role } = req.user!;
+      // teacher 토큰으로 접근 시 DB 역할이 pool_admin인지 검증
+      if (role === "teacher") {
+        const dbRole = await getUserDbRole(userId);
+        if (dbRole !== "pool_admin") return apiErr(res, 403, "권한이 없습니다.");
+      }
       const poolId = await getUserPoolId(userId);
       if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
 
