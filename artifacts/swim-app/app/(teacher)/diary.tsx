@@ -307,7 +307,7 @@ export default function TeacherDiaryScreen() {
   function insertAtCursor(current: string, insert: string, cursorPos: number, setter: (v: string) => void) {
     const before = current.slice(0, cursorPos);
     const after  = current.slice(cursorPos);
-    const glue   = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
+    const glue   = before.length > 0 && !before.endsWith("\n") ? "\n\n" : (before.length > 0 && !before.endsWith("\n\n") && before.endsWith("\n") ? "\n" : "");
     setter(before + glue + insert + after);
   }
 
