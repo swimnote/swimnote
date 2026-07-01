@@ -1,19 +1,17 @@
 /**
  * (admin)/diary-teacher-entries.tsx — 관리자 교사별 일지 목록
  *
- * - 특정 선생님의 수업일지 목록 (최신순)
+ * - teacherId 없으면 선생님 목록 → 선택 → 일지 목록
  * - 조회 전용: 수정 버튼 없음
  * - 체크박스 다중 선택 후 일괄 삭제 (사진삭제/글전체삭제)
- * - 삭제 방식 선택 팝업 + 최종 확인 팝업
- * - 삭제 후 목록 갱신
  */
-import { BookOpen, Check, Clock, Image, Info, Layers, SquareCheck, Trash2 } from "lucide-react-native";
+import { BookOpen, Check, ChevronRight, Clock, Image, Info, Layers, SquareCheck, Trash2 } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
-  ScrollView, StyleSheet, Text, View,
+  StyleSheet, Text, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -23,6 +21,14 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 
 const C = Colors.light;
+
+interface Teacher {
+  teacher_id: string;
+  teacher_name: string;
+  class_count: number;
+  diary_count: number;
+  last_diary_date: string | null;
+}
 
 interface DiaryEntry {
   id: string;
@@ -51,8 +57,17 @@ export default function DiaryTeacherEntriesScreen() {
   const { themeColor } = useBrand();
   const params = useLocalSearchParams<{ teacherId: string; teacherName: string }>();
 
+  // 선생님 선택 상태
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string>(params.teacherId || "");
+  const [selectedTeacherName, setSelectedTeacherName] = useState<string>(params.teacherName || "");
+
+  // 선생님 목록 (teacherId 없을 때)
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [teachersLoading, setTeachersLoading] = useState(false);
+
+  // 일지 목록
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // 선택 모드
@@ -69,10 +84,23 @@ export default function DiaryTeacherEntriesScreen() {
   // 단일 일지 상세 보기
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!token || !params.teacherId) { setLoading(false); return; }
+  // teacherId 없을 때 선생님 목록 로드
+  useEffect(() => {
+    if (selectedTeacherId || !token) return;
+    setTeachersLoading(true);
+    apiRequest(token, "/diaries/admin/teachers")
+      .then(r => r.json())
+      .then(d => setTeachers(Array.isArray(d.teachers) ? d.teachers : []))
+      .catch(() => {})
+      .finally(() => setTeachersLoading(false));
+  }, [token, selectedTeacherId]);
+
+  // 선생님 선택 후 일지 로드
+  const load = useCallback(async (isRefresh = false) => {
+    if (!token || !selectedTeacherId) return;
+    isRefresh ? setRefreshing(true) : setLoading(true);
     try {
-      const res = await apiRequest(token, `/diaries/admin/teacher/${params.teacherId}/entries`);
+      const res = await apiRequest(token, `/diaries/admin/teacher/${selectedTeacherId}/entries`);
       if (res.ok) {
         const data = await res.json();
         setEntries(Array.isArray(data.entries) ? data.entries : []);
@@ -83,9 +111,22 @@ export default function DiaryTeacherEntriesScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [token, params.teacherId]);
+  }, [token, selectedTeacherId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (selectedTeacherId) load(); }, [load]);
+
+  function selectTeacher(t: Teacher) {
+    setSelectedTeacherId(t.teacher_id);
+    setSelectedTeacherName(t.teacher_name);
+  }
+
+  function backToList() {
+    setSelectedTeacherId("");
+    setSelectedTeacherName("");
+    setEntries([]);
+    setSelectMode(false);
+    setSelected(new Set());
+  }
 
   function toggleSelect(id: string) {
     setSelected(prev => {
@@ -96,11 +137,8 @@ export default function DiaryTeacherEntriesScreen() {
   }
 
   function toggleSelectAll() {
-    if (selected.size === entries.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(entries.map(e => e.id)));
-    }
+    if (selected.size === entries.length) setSelected(new Set());
+    else setSelected(new Set(entries.map(e => e.id)));
   }
 
   function exitSelectMode() {
@@ -149,29 +187,18 @@ export default function DiaryTeacherEntriesScreen() {
     }
   }
 
-  const renderItem = useCallback(({ item }: { item: DiaryEntry }) => {
+  const renderEntry = useCallback(({ item }: { item: DiaryEntry }) => {
     const isSelected = selected.has(item.id);
     const isExpanded = expandedId === item.id;
-
     return (
       <Pressable
-        style={[
-          de.card,
-          { backgroundColor: C.card },
-          isSelected && { borderColor: themeColor, borderWidth: 2 },
-        ]}
+        style={[de.card, { backgroundColor: C.card }, isSelected && { borderColor: themeColor, borderWidth: 2 }]}
         onPress={() => {
-          if (selectMode) {
-            toggleSelect(item.id);
-          } else {
-            setExpandedId(prev => prev === item.id ? null : item.id);
-          }
+          if (selectMode) toggleSelect(item.id);
+          else setExpandedId(prev => prev === item.id ? null : item.id);
         }}
         onLongPress={() => {
-          if (!selectMode) {
-            setSelectMode(true);
-            setSelected(new Set([item.id]));
-          }
+          if (!selectMode) { setSelectMode(true); setSelected(new Set([item.id])); }
         }}
       >
         <View style={de.cardHeader}>
@@ -206,14 +233,9 @@ export default function DiaryTeacherEntriesScreen() {
             </View>
           </View>
           {!selectMode && (
-            <LucideIcon
-              name={isExpanded ? "chevron-up" : "chevron-down"}
-              size={15} color={C.textMuted}
-            />
+            <LucideIcon name={isExpanded ? "chevron-up" : "chevron-down"} size={15} color={C.textMuted} />
           )}
         </View>
-
-        {/* 일지 내용 (펼침) */}
         {isExpanded && (
           <View style={[de.contentBox, { backgroundColor: C.background }]}>
             <Text style={de.contentText}>{item.common_content}</Text>
@@ -224,24 +246,54 @@ export default function DiaryTeacherEntriesScreen() {
   }, [selected, selectMode, expandedId, themeColor]);
 
   const keyExtractor = useCallback((item: DiaryEntry) => item.id, []);
-
-  const confirmTitle = pendingMode === "photo_only"
-    ? "사진만 삭제하시겠습니까?"
-    : "일지를 완전히 삭제하시겠습니까?";
+  const confirmTitle = pendingMode === "photo_only" ? "사진만 삭제하시겠습니까?" : "일지를 완전히 삭제하시겠습니까?";
   const confirmMessage = pendingMode === "photo_only"
     ? `선택한 ${selected.size}건의 사진을 삭제합니다. 글 내용은 유지됩니다.`
     : `선택한 ${selected.size}건의 일지를 완전히 삭제합니다. 이 작업은 되돌릴 수 없습니다.`;
 
+  // ── 선생님 목록 화면 ──────────────────────────────────────────────
+  if (!selectedTeacherId) {
+    return (
+      <SafeAreaView style={de.safe} edges={[]}>
+        <SubScreenHeader title="수업 일지" subtitle="선생님을 선택하세요" homePath="/(admin)/diary-write" />
+        {teachersLoading ? (
+          <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
+        ) : (
+          <FlatList
+            data={teachers}
+            keyExtractor={t => t.teacher_id}
+            contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 100 }}
+            renderItem={({ item }) => (
+              <Pressable style={[de.teacherCard, { backgroundColor: C.card }]} onPress={() => selectTeacher(item)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={de.teacherName}>{item.teacher_name}</Text>
+                  <Text style={de.teacherMeta}>일지 {item.diary_count}건 · 반 {item.class_count}개</Text>
+                </View>
+                <ChevronRight size={16} color={C.textMuted} />
+              </Pressable>
+            )}
+            ListEmptyComponent={
+              <View style={de.empty}>
+                <BookOpen size={40} color={C.textMuted} />
+                <Text style={de.emptyTitle}>선생님이 없습니다</Text>
+              </View>
+            }
+          />
+        )}
+      </SafeAreaView>
+    );
+  }
+
+  // ── 일지 목록 화면 ────────────────────────────────────────────────
   return (
     <SafeAreaView style={de.safe} edges={[]}>
       <SubScreenHeader
-        title={`${params.teacherName || "선생님"} 일지`}
+        title={`${selectedTeacherName} 일지`}
         subtitle={selectMode ? `${selected.size}개 선택됨` : `총 ${entries.length}건 (최신순)`}
-        onBack={selectMode ? exitSelectMode : undefined}
+        onBack={selectMode ? exitSelectMode : backToList}
         homePath="/(admin)/diary-write"
       />
 
-      {/* 선택 모드 툴바 */}
       {selectMode ? (
         <View style={[de.toolbar, { borderBottomColor: C.border }]}>
           <Pressable style={de.toolbarBtn} onPress={toggleSelectAll}>
@@ -262,14 +314,12 @@ export default function DiaryTeacherEntriesScreen() {
           </Pressable>
         </View>
       ) : (
-        /* 일반 모드 안내 */
         <View style={de.infoBar}>
           <Info size={12} color={C.textMuted} />
           <Text style={de.infoText}>항목을 길게 눌러 선택 모드로 전환합니다</Text>
         </View>
       )}
 
-      {/* 삭제 완료 메시지 */}
       {deleteMsg && (
         <View style={[de.msg, { backgroundColor: deleteMsg.includes("실패") ? "#F9DEDA" : "#E6FFFA" }]}>
           <LucideIcon name={deleteMsg.includes("실패") ? "alert-circle" : "check-circle"} size={13}
@@ -284,10 +334,10 @@ export default function DiaryTeacherEntriesScreen() {
         <FlatList
           data={entries}
           keyExtractor={keyExtractor}
-          renderItem={renderItem}
+          renderItem={renderEntry}
           contentContainerStyle={de.listContent}
           showsVerticalScrollIndicator={false}
-          onRefresh={() => { setRefreshing(true); load(); }}
+          onRefresh={() => load(true)}
           refreshing={refreshing}
           ListEmptyComponent={
             <View style={de.empty}>
@@ -298,40 +348,29 @@ export default function DiaryTeacherEntriesScreen() {
         />
       )}
 
-      {/* 삭제 방식 선택 모달 */}
       <Modal visible={showModeModal} transparent animationType="fade">
-        <Pressable
-          style={de.overlay}
-          onPress={() => setShowModeModal(false)}
-        >
+        <Pressable style={de.overlay} onPress={() => setShowModeModal(false)}>
           <Pressable onPress={() => {}} style={[de.modeSheet, { backgroundColor: C.card }]}>
             <Text style={[de.modeTitle, { color: C.text }]}>삭제 방식 선택</Text>
             <Text style={[de.modeDesc, { color: C.textSecondary }]}>
               선택한 {selected.size}건에 대해 삭제 방식을 선택하세요
             </Text>
-
-            <Pressable
-              style={[de.modeBtn, { backgroundColor: "#FFF1BF", borderColor: "#FDE68A" }]}
-              onPress={() => handleModeSelect("photo_only")}
-            >
+            <Pressable style={[de.modeBtn, { backgroundColor: "#FFF1BF", borderColor: "#FDE68A" }]}
+              onPress={() => handleModeSelect("photo_only")}>
               <Image size={18} color="#B45309" />
               <View style={{ flex: 1 }}>
                 <Text style={[de.modeBtnTitle, { color: "#B45309" }]}>사진만 삭제</Text>
                 <Text style={[de.modeBtnDesc, { color: "#78350F" }]}>글 내용은 유지, 첨부 사진만 제거</Text>
               </View>
             </Pressable>
-
-            <Pressable
-              style={[de.modeBtn, { backgroundColor: "#F9DEDA", borderColor: "#FCA5A5" }]}
-              onPress={() => handleModeSelect("full")}
-            >
+            <Pressable style={[de.modeBtn, { backgroundColor: "#F9DEDA", borderColor: "#FCA5A5" }]}
+              onPress={() => handleModeSelect("full")}>
               <Trash2 size={18} color={C.error} />
               <View style={{ flex: 1 }}>
                 <Text style={[de.modeBtnTitle, { color: C.error }]}>글 전체 삭제</Text>
                 <Text style={[de.modeBtnDesc, { color: "#7F1D1D" }]}>일지 전체를 삭제 (복구 불가)</Text>
               </View>
             </Pressable>
-
             <Pressable style={de.modeCancelBtn} onPress={() => setShowModeModal(false)}>
               <Text style={[de.modeCancelText, { color: C.textSecondary }]}>취소</Text>
             </Pressable>
@@ -339,7 +378,6 @@ export default function DiaryTeacherEntriesScreen() {
         </Pressable>
       </Modal>
 
-      {/* 최종 확인 */}
       <ConfirmModal
         visible={showConfirm}
         title={confirmTitle}
@@ -358,39 +396,32 @@ const de = StyleSheet.create({
 
   toolbar: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1,
+    paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1,
   },
   toolbarBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
   toolbarBtnText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   toolbarDeleteBtn: { gap: 4 },
   toolbarDeleteText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
 
-  infoBar: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 16, paddingVertical: 8,
-  },
+  infoBar: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 8 },
   infoText: { fontSize: 11, color: C.textMuted, fontFamily: "Pretendard-Regular" },
 
   msg: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    marginHorizontal: 16, marginBottom: 8,
-    padding: 10, borderRadius: 8,
+    marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 8,
   },
   msgText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
 
   listContent: { paddingHorizontal: 16, paddingBottom: 100, gap: 8 },
 
   card: {
-    borderRadius: 12, padding: 14,
-    borderWidth: 1.5, borderColor: "transparent",
+    borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: "transparent",
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
   },
   cardHeader: { flexDirection: "row", alignItems: "flex-start" },
   checkbox: {
-    width: 20, height: 20, borderRadius: 5,
-    borderWidth: 2, borderColor: C.border,
+    width: 20, height: 20, borderRadius: 5, borderWidth: 2, borderColor: C.border,
     alignItems: "center", justifyContent: "center",
   },
   cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 3 },
@@ -403,23 +434,22 @@ const de = StyleSheet.create({
   contentBox: { marginTop: 10, padding: 10, borderRadius: 8 },
   contentText: { fontSize: 13, color: C.text, fontFamily: "Pretendard-Regular", lineHeight: 20 },
 
+  teacherCard: {
+    flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
+  },
+  teacherName: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text, marginBottom: 3 },
+  teacherMeta: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+
   empty: { alignItems: "center", paddingTop: 100, gap: 10 },
   emptyTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
-  overlay: {
-    flex: 1, backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modeSheet: {
-    borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: 20, paddingBottom: 36, gap: 12,
-  },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modeSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36, gap: 12 },
   modeTitle: { fontSize: 17, fontFamily: "Pretendard-Regular", textAlign: "center" },
   modeDesc: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", marginBottom: 4 },
-  modeBtn: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    padding: 14, borderRadius: 12, borderWidth: 1,
-  },
+  modeBtn: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 12, borderWidth: 1 },
   modeBtnTitle: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   modeBtnDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   modeCancelBtn: { paddingVertical: 14, alignItems: "center" },

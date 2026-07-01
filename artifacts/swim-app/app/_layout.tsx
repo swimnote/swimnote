@@ -218,16 +218,13 @@ function PushNavSync() {
 function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
 
-  // OTA 업데이트 체크 — 업데이트 있으면 다운로드 후 즉시 적용
+  // OTA 업데이트 — 무조건 fetch 후 즉시 강제 적용
   useEffect(() => {
     if (__DEV__) return;
     (async () => {
       try {
-        const result = await Updates.checkForUpdateAsync();
-        if (result.isAvailable) {
-          await Updates.fetchUpdateAsync();
-          await Updates.reloadAsync();
-        }
+        await Updates.fetchUpdateAsync();
+        await Updates.reloadAsync();
       } catch (_) {}
     })();
   }, []);
