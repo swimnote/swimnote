@@ -1567,23 +1567,55 @@ router.get("/diaries/admin/teachers",
       console.log(`[diaries/admin/teachers] poolId=${poolId}`);
       if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
 
-      const rows = await superAdminDb.execute(sql`
-        SELECT
-          u.id AS teacher_id,
-          u.name AS teacher_name,
-          COUNT(DISTINCT cg.id) AS class_count,
-          COUNT(DISTINCT cd.id) FILTER (WHERE cd.is_deleted = false) AS diary_count,
-          MAX(cd.lesson_date) FILTER (WHERE cd.is_deleted = false) AS last_diary_date
-        FROM users u
-        LEFT JOIN class_groups cg ON cg.teacher_user_id = u.id AND cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
-        LEFT JOIN class_diaries cd ON cd.teacher_id = u.id::text AND cd.swimming_pool_id = ${poolId}
-        WHERE u.swimming_pool_id = ${poolId} AND u.role = 'teacher' AND u.is_active = true
-        GROUP BY u.id, u.name
-        ORDER BY diary_count DESC, u.name ASC
+      // 1단계: 선생님 목록 (단순 조회)
+      const teacherRows = await superAdminDb.execute(sql`
+        SELECT id AS teacher_id, name AS teacher_name
+        FROM users
+        WHERE swimming_pool_id = ${poolId}
+          AND role = 'teacher'
+          AND is_activated = true
+        ORDER BY name ASC
       `);
+      console.log(`[diaries/admin/teachers] teachers count=${teacherRows.rows.length}`);
 
-      console.log(`[diaries/admin/teachers] found ${rows.rows.length} teachers for poolId=${poolId}`);
-      res.json({ success: true, teachers: rows.rows });
+      // 2단계: 각 선생님별 반·일지 카운트
+      const teachers = await Promise.all(
+        (teacherRows.rows as any[]).map(async (t) => {
+          try {
+            const [cgRow, cdRow] = await Promise.all([
+              superAdminDb.execute(sql`
+                SELECT COUNT(*) AS class_count
+                FROM class_groups
+                WHERE teacher_user_id = ${t.teacher_id}
+                  AND swimming_pool_id = ${poolId}
+                  AND is_deleted = false
+              `),
+              superAdminDb.execute(sql`
+                SELECT COUNT(*) AS diary_count, MAX(lesson_date) AS last_diary_date
+                FROM class_diaries
+                WHERE teacher_id = ${t.teacher_id}
+                  AND swimming_pool_id = ${poolId}
+                  AND is_deleted = false
+              `),
+            ]);
+            return {
+              teacher_id: t.teacher_id,
+              teacher_name: t.teacher_name,
+              class_count: Number((cgRow.rows[0] as any)?.class_count ?? 0),
+              diary_count: Number((cdRow.rows[0] as any)?.diary_count ?? 0),
+              last_diary_date: (cdRow.rows[0] as any)?.last_diary_date ?? null,
+            };
+          } catch (inner) {
+            console.error(`[diaries/admin/teachers] count error for ${t.teacher_id}:`, inner);
+            return { teacher_id: t.teacher_id, teacher_name: t.teacher_name, class_count: 0, diary_count: 0, last_diary_date: null };
+          }
+        })
+      );
+
+      // diary_count 내림차순 정렬
+      teachers.sort((a, b) => b.diary_count - a.diary_count);
+
+      res.json({ success: true, teachers });
     } catch (e) { console.error("[diaries/admin/teachers] ERROR:", e); apiErr(res, 500, "서버 오류"); }
   }
 );
