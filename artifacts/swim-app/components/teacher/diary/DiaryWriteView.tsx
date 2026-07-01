@@ -311,11 +311,9 @@ export default function DiaryWriteView({
         onClose={() => setShowPickerFor(null)}
         onInsert={text => {
           if (showPickerFor === "common") {
-            insertAtCursor(commonContent, text, commonCursorRef.current, setCommonContent);
-            commonCursorRef.current = commonCursorRef.current + text.length;
+            setCommonContent(prev => prev.trim() ? `${prev.trim()}\n\n${text}` : text);
           } else if (showPickerFor === "note") {
-            insertAtCursor(noteInput, text, noteCursorRef.current, setNoteInput);
-            noteCursorRef.current = noteCursorRef.current + text.length;
+            setNoteInput(prev => prev.trim() ? `${prev.trim()}\n\n${text}` : text);
           }
           setShowPickerFor(null);
         }}
