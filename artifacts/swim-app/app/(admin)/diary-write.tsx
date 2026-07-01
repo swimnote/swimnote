@@ -101,7 +101,7 @@ export default function AdminDiaryAllScreen() {
   const [deleteMsg, setDeleteMsg] = useState<string | null>(null);
 
   const load = useCallback(async (isRefresh = false) => {
-    if (!token) return;
+    if (!token) { setLoading(false); return; }
     if (!isRefresh) setLoading(true);
     try {
       const res = await apiRequest(token, "/diaries/admin/all-entries?limit=200");
