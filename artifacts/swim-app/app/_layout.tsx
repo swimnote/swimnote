@@ -218,7 +218,7 @@ function PushNavSync() {
 function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
 
-  // OTA 업데이트 체크 — 업데이트 있으면 다운로드 후 사용자에게 알림
+  // OTA 업데이트 체크 — 업데이트 있으면 다운로드 후 즉시 적용
   useEffect(() => {
     if (__DEV__) return;
     (async () => {
@@ -226,14 +226,7 @@ function RootNav() {
         const result = await Updates.checkForUpdateAsync();
         if (result.isAvailable) {
           await Updates.fetchUpdateAsync();
-          Alert.alert(
-            "업데이트 완료 🎉",
-            "새로운 업데이트가 준비됐습니다.\n지금 적용하면 앱이 잠깐 재시작됩니다.",
-            [
-              { text: "나중에", style: "cancel" },
-              { text: "지금 적용", onPress: () => Updates.reloadAsync() },
-            ]
-          );
+          await Updates.reloadAsync();
         }
       } catch (_) {}
     })();
