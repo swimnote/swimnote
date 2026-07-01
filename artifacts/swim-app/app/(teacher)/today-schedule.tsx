@@ -4,7 +4,7 @@
  */
 import { BookOpen, Calendar, ChevronRight, Layers, LogOut, Mail, Repeat, Settings2, Sun, Trophy } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
-import { Platform, Pressable } from "react-native";
+import { Image, Linking, Platform, Pressable } from "react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View,
@@ -280,6 +280,13 @@ export default function TodayScheduleScreen() {
               }} />
             )}
           </View>
+        </Pressable>
+        <Pressable
+          onPress={() => Linking.openURL("https://swimnote.kr")}
+          style={[h.logoutBtn, { marginRight: 8 }]}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Image source={require("@/assets/images/swimnote-logo.png")} style={{ width: 18, height: 18 }} resizeMode="contain" />
         </Pressable>
         <Pressable onPress={logout} style={h.logoutBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <LogOut size={18} color={C.textMuted} />
