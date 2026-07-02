@@ -344,6 +344,24 @@ app.use((_req: Request, res: Response) => {
   res.status(404).json({ success: false, message: "요청한 경로를 찾을 수 없습니다.", error: "Not Found" });
 });
 
+// multer 전용 에러 핸들러 (LIMIT_FILE_SIZE, LIMIT_UNEXPECTED_FILE 등)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+  if (err?.code === "LIMIT_FILE_SIZE") {
+    res.status(413).json({ error: "파일 크기 초과: 최대 8MB까지 업로드할 수 있습니다." });
+    return;
+  }
+  if (err?.code === "LIMIT_FILE_COUNT" || err?.code === "LIMIT_UNEXPECTED_FILE") {
+    res.status(400).json({ error: "한 번에 최대 100장까지 업로드할 수 있습니다." });
+    return;
+  }
+  if (err?.code?.startsWith("LIMIT_")) {
+    res.status(400).json({ error: `업로드 제한 초과: ${err.message}` });
+    return;
+  }
+  next(err);
+});
+
 // 전역 에러 핸들러 — 프로덕션에서는 내부 메시지 노출 안 함
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
