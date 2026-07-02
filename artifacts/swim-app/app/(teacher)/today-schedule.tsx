@@ -2,7 +2,7 @@
  * (teacher)/today-schedule.tsx — 오늘 스케줄 탭 (thin shell)
  * 컴포넌트: components/teacher/today-schedule/
  */
-import { BookOpen, Calendar, ChevronRight, Layers, LogOut, Mail, Repeat, Settings2, Sun, Trophy } from "lucide-react-native";
+import { BookOpen, Calendar, ChevronRight, Layers, LogOut, Mail, PenLine, Repeat, Settings2, Sun, Trophy } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Image, Linking, Platform, Pressable } from "react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -502,6 +502,16 @@ export default function TodayScheduleScreen() {
           onNavigateTo={navigateFromChip}
         />
       )}
+
+      {/* ── 일지 바로쓰기 FAB ── */}
+      <Pressable
+        style={[h.fab, { backgroundColor: themeColor, bottom: insets.bottom + 72 }]}
+        onPress={() => { haptic.light(); router.push("/(teacher)/diary?backTo=today-schedule" as any); }}
+        accessibilityLabel="일지 바로쓰기"
+      >
+        <PenLine size={18} color="#fff" />
+        <Text style={h.fabText}>일지 바로쓰기</Text>
+      </Pressable>
     </SafeAreaView>
   );
 }
@@ -555,4 +565,6 @@ const h = StyleSheet.create({
   weekDotEmpty: { width: 5, height: 5 },
   miniDateToday:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
   miniDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: "#2DD4BF", marginTop: -2 },
+  fab:              { position: "absolute", right: 20, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 18, paddingVertical: 13, borderRadius: 28, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 10, elevation: 6 },
+  fabText:          { color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold", lineHeight: 20 },
 });
