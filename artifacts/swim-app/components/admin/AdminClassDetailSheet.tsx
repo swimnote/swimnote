@@ -58,12 +58,19 @@ interface Props {
   onClose: () => void;
   onReload: () => void;
   onColorChange?: (id: string, color: string) => void;
+  initialStudents?: StudentItem[];
 }
 
-export default function AdminClassDetailSheet({ group, token, themeColor, onClose, onReload, onColorChange }: Props) {
+export default function AdminClassDetailSheet({ group, token, themeColor, onClose, onReload, onColorChange, initialStudents }: Props) {
   const [detail, setDetail]       = useState<ClassGroupDetail | null>(null);
   const [students, setStudents]   = useState<StudentItem[]>([]);
-  const [allStudents, setAll]     = useState<StudentItem[]>([]);
+  const [allStudents, setAll]     = useState<StudentItem[]>(() => {
+    if (initialStudents) {
+      const active = initialStudents.filter(s => s.status === "active" || !s.status);
+      return active;
+    }
+    return [];
+  });
   const [teachers, setTeachers]   = useState<TeacherItem[]>([]);
   const [loading, setLoading]     = useState(true);
   const [subView, setSubView]     = useState<SubView>(null);
@@ -101,29 +108,48 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [cgRes, stuAllRes] = await Promise.all([
-        apiRequest(token, `/class-groups/${group.id}`),
-        apiRequest(token, "/students?pool_all=true"),
-      ]);
-      if (cgRes.ok) {
-        const d = await cgRes.json();
-        setDetail(d);
-        const loaded = d.color || "#FFFFFF";
-        originalColorRef.current = loaded;
-        setDraftColor(loaded);
-      }
-      if (stuAllRes.ok) {
-        const all: StudentItem[] = await stuAllRes.json();
-        const active = all.filter(s => s.status === "active" || !s.status);
+      if (initialStudents) {
+        // 학생 목록은 부모에서 이미 로드됨 — class-group 상세만 조회
+        const cgRes = await apiRequest(token, `/class-groups/${group.id}`);
+        if (cgRes.ok) {
+          const d = await cgRes.json();
+          setDetail(d);
+          const loaded = d.color || "#FFFFFF";
+          originalColorRef.current = loaded;
+          setDraftColor(loaded);
+        }
+        const active = initialStudents.filter(s => s.status === "active" || !s.status);
         setAll(active);
         setStudents(active.filter(s => {
           const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
           return s.class_group_id === group.id || ids.includes(group.id);
         }));
+      } else {
+        // fallback: 직접 전체 학생 로드
+        const [cgRes, stuAllRes] = await Promise.all([
+          apiRequest(token, `/class-groups/${group.id}`),
+          apiRequest(token, "/students?pool_all=true"),
+        ]);
+        if (cgRes.ok) {
+          const d = await cgRes.json();
+          setDetail(d);
+          const loaded = d.color || "#FFFFFF";
+          originalColorRef.current = loaded;
+          setDraftColor(loaded);
+        }
+        if (stuAllRes.ok) {
+          const all: StudentItem[] = await stuAllRes.json();
+          const active = all.filter(s => s.status === "active" || !s.status);
+          setAll(active);
+          setStudents(active.filter(s => {
+            const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
+            return s.class_group_id === group.id || ids.includes(group.id);
+          }));
+        }
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [token, group.id]);
+  }, [token, group.id, initialStudents]);
 
   useEffect(() => { load(); }, [load]);
 

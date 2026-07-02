@@ -780,6 +780,7 @@ export default function ClassesScreen() {
           onColorChange={(id, color) =>
             setGroups(prev => prev.map(g => g.id === id ? { ...g, color } : g))
           }
+          initialStudents={allStudents}
         />
       )}
 
