@@ -225,7 +225,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
   return (
     <Modal visible animationType="slide" transparent onRequestClose={handleClose}>
       <Pressable style={sh.backdrop} onPress={handleClose} />
-      <View style={sh.sheet}>
+      <View style={[sh.sheet, subView && { height: "88%" }]}>
         <View style={sh.handle} />
 
         <View style={sh.header}>
