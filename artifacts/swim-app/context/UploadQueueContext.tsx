@@ -45,7 +45,7 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
           job.uri,
           {
             httpMethod: "POST",
-            uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+            uploadType: 1 as any, // FileSystemUploadType.MULTIPART (legacy enum 미노출 우회)
             fieldName: "photos",
             headers: { Authorization: `Bearer ${job.token}` },
             parameters: job.params,

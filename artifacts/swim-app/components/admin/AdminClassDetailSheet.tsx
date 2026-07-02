@@ -166,7 +166,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
 
   // 선생님 목록 로드 (컴포넌트 마운트 시 항상 백그라운드 로드)
   useEffect(() => {
-    apiRequest(token, "/teachers").then(r => r.ok && r.json().then(setTeachers)).catch(() => {});
+    apiRequest(token, "/teachers").then(r => { if (r.ok) r.json().then(setTeachers); }).catch(() => {});
   }, [token]);
 
   async function loadTeachers() {
