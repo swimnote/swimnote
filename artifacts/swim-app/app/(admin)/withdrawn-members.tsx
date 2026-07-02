@@ -401,7 +401,7 @@ function MemberCard({
 const styles = StyleSheet.create({
   tabRow:      { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tab:         { flex: 1, alignItems: "center", paddingVertical: 12, borderBottomWidth: 2.5, borderBottomColor: "transparent" },
-  tabText:     { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  tabText:     { fontSize: 14, lineHeight: 20 },
   infoBanner:  { paddingHorizontal: 16, paddingVertical: 8, marginBottom: 8 },
   infoText:    { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
   searchBox:   { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginBottom: 10 },

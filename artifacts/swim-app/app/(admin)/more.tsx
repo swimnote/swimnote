@@ -347,7 +347,7 @@ const sm = StyleSheet.create({
 const s = StyleSheet.create({
   tabBar:   { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tabItem:  { flex: 1, paddingVertical: 14, alignItems: "center" },
-  tabText:  { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  tabText:  { fontSize: 14, lineHeight: 20 },
 
   profileCard:    { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 18, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   profileAvatar:  { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },

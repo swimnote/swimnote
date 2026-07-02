@@ -455,8 +455,8 @@ const s = StyleSheet.create({
   tabRow:       { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingVertical: 10, gap: 6 },
   tab:          { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14, borderWidth: 1.5, borderColor: "#E2E8F0" },
   tabActive:    { backgroundColor: "#2EC4B620", borderColor: "#2EC4B6" },
-  tabText:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  tabTextActive:{ color: "#2EC4B6", fontFamily: "Pretendard-SemiBold" },
+  tabText:      { fontSize: 11, lineHeight: 16, color: "#64748B" },
+  tabTextActive:{ color: "#2EC4B6" },
 
   hintRow:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingBottom: 6 },
   hintText:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },

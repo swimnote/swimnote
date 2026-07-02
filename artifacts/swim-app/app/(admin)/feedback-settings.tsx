@@ -392,7 +392,7 @@ const s = StyleSheet.create({
     gap: 4, paddingVertical: 8, borderRadius: 12,
     borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
-  tabText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  tabText: { fontSize: 12, lineHeight: 17 },
   tabBadge: { borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 },
   tabBadgeText: { fontSize: 10, fontFamily: "Pretendard-Regular" },
 

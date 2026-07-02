@@ -350,7 +350,7 @@ const s = StyleSheet.create({
     paddingVertical: 6, paddingHorizontal: 12,
     borderRadius: 11, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
-  tabText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  tabText: { fontSize: 11, lineHeight: 16, color: C.textSecondary },
 
   loadingBox: { alignItems: "center", justifyContent: "center", paddingVertical: 32, gap: 8 },
   loadingText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" },

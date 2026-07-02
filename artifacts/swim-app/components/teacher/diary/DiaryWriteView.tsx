@@ -498,7 +498,7 @@ const tp = StyleSheet.create({
   headerTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   tabRow:      { paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
   tab:         { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1.5, borderColor: "#E2E8F0" },
-  tabText:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabText:     { fontSize: 12, lineHeight: 17, color: "#64748B" },
   listScroll:  { flexShrink: 1 },
   listContent: { padding: 12, gap: 8, paddingBottom: 24 },
   emptyBox:     { paddingTop: 32, alignItems: "center" },
