@@ -536,10 +536,10 @@ export default function TeacherPhotosScreen() {
       icon: string; title: string; sub: string;
       color: string; bg: string; isPremier: boolean;
     }[] = [
-      { key: "photo_upload",   mt: "photo", sc: "group",   icon: "upload-cloud", title: "전체사진 업로드", sub: "전체 학생에게 공유",    color: "#E4A93A", bg: "#FFF8E6", isPremier: false },
-      { key: "video_upload",   mt: "video", sc: "group",   icon: "upload-cloud", title: "전체영상 업로드", sub: "전체 학생에게 공유",    color: "#2EC4B6", bg: "#E6FFFA", isPremier: true  },
-      { key: "photo_album",    mt: "photo", sc: "private", icon: "image",        title: "내사진앨범",     sub: "내가 올린 개인 사진",   color: "#F97316", bg: "#FFF4EE", isPremier: false },
-      { key: "video_album",    mt: "video", sc: "private", icon: "video",        title: "내영상앨범",     sub: "내가 올린 개인 영상",   color: "#7C3AED", bg: "#F3EEFF", isPremier: true  },
+      { key: "photo_upload",   mt: "photo", sc: "group",   icon: "camera",       title: "전체사진 업로드", sub: "전체 학생에게 공유",    color: "#B45309", bg: "#FEF3C7", isPremier: false },
+      { key: "video_upload",   mt: "video", sc: "group",   icon: "film",         title: "전체영상 업로드", sub: "전체 학생에게 공유",    color: "#0F766E", bg: "#CCFBF1", isPremier: true  },
+      { key: "photo_album",    mt: "photo", sc: "private", icon: "images",       title: "내사진앨범",     sub: "내가 올린 개인 사진",   color: "#C2410C", bg: "#FFEDD5", isPremier: false },
+      { key: "video_album",    mt: "video", sc: "private", icon: "play-square",  title: "내영상앨범",     sub: "내가 올린 개인 영상",   color: "#5B21B6", bg: "#EDE9FE", isPremier: true  },
     ];
 
     return (
@@ -553,7 +553,7 @@ export default function TeacherPhotosScreen() {
             {HOME_TILES.map(tile => (
               <Pressable
                 key={tile.key}
-                style={[s.gridBtn, { backgroundColor: tile.bg, borderColor: tile.color + "40" }]}
+                style={[s.gridBtn, { backgroundColor: tile.bg, borderColor: tile.color + "90" }]}
                 onPress={() => openList(tile.mt, tile.sc)}
                 accessibilityRole="button"
                 accessibilityLabel={tile.title}
@@ -563,11 +563,11 @@ export default function TeacherPhotosScreen() {
                     <Text style={s.premierBadgeText}>프리미어 이상</Text>
                   </View>
                 )}
-                <View style={[s.gridIcon, { backgroundColor: tile.color + "22" }]}>
-                  <LucideIcon name={tile.icon} size={26} color={tile.color} />
+                <View style={[s.gridIcon, { backgroundColor: tile.color + "20" }]}>
+                  <LucideIcon name={tile.icon} size={32} color={tile.color} />
                 </View>
                 <Text style={[s.gridTitle, { color: tile.color }]}>{tile.title}</Text>
-                <Text style={[s.gridSub, { color: tile.color + "BB" }]}>{tile.sub}</Text>
+                <Text style={[s.gridSub, { color: tile.color + "CC" }]}>{tile.sub}</Text>
               </Pressable>
             ))}
           </View>
@@ -1141,9 +1141,9 @@ const s = StyleSheet.create({
   title: { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#0F172A" },
 
   grid: { flexDirection: "row", flexWrap: "wrap", padding: 12, gap: 12 },
-  gridBtn: { width: "47%", aspectRatio: 1, borderRadius: 20, borderWidth: 1.5, alignItems: "center", justifyContent: "center", gap: 8, position: "relative", overflow: "hidden" },
-  gridIcon: { width: 56, height: 56, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  gridTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center" },
+  gridBtn: { width: "47%", aspectRatio: 1, borderRadius: 20, borderWidth: 2, alignItems: "center", justifyContent: "center", gap: 8, position: "relative", overflow: "hidden" },
+  gridIcon: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  gridTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", textAlign: "center" },
   gridSub: { fontSize: 11, fontFamily: "Pretendard-Regular", textAlign: "center", paddingHorizontal: 6 },
 
   premierBadge: { position: "absolute", top: 8, right: 0, backgroundColor: "#7C3AED", paddingHorizontal: 8, paddingVertical: 3, borderTopLeftRadius: 8, borderBottomLeftRadius: 8 },
