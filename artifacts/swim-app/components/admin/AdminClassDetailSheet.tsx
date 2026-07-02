@@ -2,7 +2,7 @@
  * AdminClassDetailSheet.tsx
  * 관리자 반 상세 바텀시트
  */
-import { Check, ChevronLeft, CircleCheck, PenLine, Repeat, Search, User, UserPlus, UserX, Users, X } from "lucide-react-native";
+import { Check, ChevronLeft, PenLine, Repeat, Search, User, UserPlus, Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -49,7 +49,7 @@ interface TeacherItem {
   position?: string;
 }
 
-type SubView = "unregistered" | "transfer" | "teacher" | null;
+type SubView = "transfer" | "teacher" | null;
 
 interface Props {
   group: { id: string; name: string; schedule_days: string; schedule_time: string; instructor?: string | null; color?: string | null };
@@ -176,27 +176,6 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
     finally { setTeacherSaving(false); }
   }
 
-  async function handleAddUnregistered(student: StudentItem) {
-    if (!detail) return;
-    setSaving(student.id);
-    try {
-      const currentIds: string[] = Array.isArray(student.assigned_class_ids) ? student.assigned_class_ids : [];
-      const weeklyCount = student.weekly_count || 1;
-      const newIds = [...currentIds, group.id];
-      const res = await apiRequest(token, `/students/${student.id}/assign`, {
-        method: "PATCH",
-        body: JSON.stringify({ assigned_class_ids: newIds, weekly_count: weeklyCount }),
-      });
-      if (res.ok) {
-        const updated: StudentItem = await res.json();
-        setAll(prev => prev.map(s => s.id === student.id ? { ...s, ...updated } : s));
-        setStudents(prev => [...prev, { ...student, ...updated }]);
-        onReload();
-      }
-    } catch (e) { console.error(e); }
-    finally { setSaving(null); }
-  }
-
   async function handleTransfer(student: StudentItem) {
     const ids: string[] = Array.isArray(student.assigned_class_ids) ? student.assigned_class_ids : [];
     const fromClassId = ids.find(id => id !== group.id) || student.class_group_id;
@@ -223,13 +202,6 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
     : `${students.length}명`;
   const capacityFull = detail?.capacity != null && students.length >= detail.capacity;
 
-  const unregistered = allStudents.filter(s => {
-    const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
-    if (ids.includes(group.id) || s.class_group_id === group.id) return false;
-    if (ids.length > 0 || s.class_group_id) return false;
-    return true;
-  }).filter(s => !search.trim() || s.name.includes(search.trim()) || (s.parent_phone || "").includes(search.trim()));
-
   const transferable = allStudents.filter(s => {
     const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
     if (ids.includes(group.id) || s.class_group_id === group.id) return false;
@@ -241,7 +213,6 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
   const instructorLabel = detail?.instructor || "미지정";
 
   function enterTeacher() { loadTeachers(); setSearch(""); setSubView("teacher"); }
-  function enterUnregistered() { setSearch(""); setSubView("unregistered"); }
   function enterTransfer() { setSearch(""); setSubView("transfer"); }
 
   function handleAssign() {
@@ -267,8 +238,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
           )}
           <View style={{ flex: 1, alignItems: "center" }}>
             <Text style={sh.headerTitle} numberOfLines={1}>
-              {subView === "unregistered" ? "미등록 회원"
-                : subView === "transfer" ? "반이동"
+              {subView === "transfer" ? "반이동"
                 : subView === "teacher" ? "담당선생님 지정"
                 : group.name}
             </Text>
@@ -307,15 +277,11 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
               </View>
 
               <View style={sh.actionRow}>
-                <Pressable style={[sh.actionBtn, { backgroundColor: themeColor }]} onPress={handleAssign}>
+                <Pressable style={[sh.actionBtn, { backgroundColor: themeColor, flex: 1 }]} onPress={handleAssign}>
                   <UserPlus size={14} color="#fff" />
                   <Text style={sh.actionBtnText}>반배정</Text>
                 </Pressable>
-                <Pressable style={[sh.actionBtn, { backgroundColor: "#2E9B6F" }]} onPress={enterUnregistered}>
-                  <UserX size={14} color="#fff" />
-                  <Text style={sh.actionBtnText}>미등록</Text>
-                </Pressable>
-                <Pressable style={[sh.actionBtn, { backgroundColor: "#E4A93A" }]} onPress={enterTransfer}>
+                <Pressable style={[sh.actionBtn, { backgroundColor: "#E4A93A", flex: 1 }]} onPress={enterTransfer}>
                   <Repeat size={14} color="#fff" />
                   <Text style={sh.actionBtnText}>반이동</Text>
                 </Pressable>
@@ -345,59 +311,6 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
               ))}
             </ScrollView>
           )
-        )}
-
-        {subView === "unregistered" && (
-          <View style={{ flex: 1 }}>
-            <View style={sh.searchBox}>
-              <Search size={14} color={C.textMuted} />
-              <TextInput
-                style={sh.searchInput}
-                placeholder="이름 또는 연락처 검색"
-                placeholderTextColor={C.textMuted}
-                value={search}
-                onChangeText={setSearch}
-              />
-            </View>
-            {unregistered.length === 0 ? (
-              <View style={sh.emptyBox}>
-                <CircleCheck size={32} color={C.textMuted} />
-                <Text style={sh.emptyText}>미등록 회원이 없습니다</Text>
-              </View>
-            ) : (
-              <FlatList
-                data={unregistered}
-                keyExtractor={i => i.id}
-                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}
-                showsVerticalScrollIndicator={false}
-                renderItem={({ item }) => (
-                  <View style={sh.listRow}>
-                    <View style={sh.studentAvatar}>
-                      <Text style={sh.studentAvatarText}>{item.name[0]}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={sh.studentName}>{item.name}</Text>
-                      <Text style={sh.studentSub}>
-                        {item.parent_phone?.slice(-4) || "연락처 없음"} · 주{item.weekly_count || 1}회
-                      </Text>
-                    </View>
-                    <View style={sh.listRowRight}>
-                      <View style={sh.unregBadge}><Text style={sh.unregBadgeText}>미배정</Text></View>
-                      <Pressable
-                        style={[sh.addBtn, saving === item.id && { opacity: 0.5 }, capacityFull && { backgroundColor: "#D1D5DB" }]}
-                        disabled={saving === item.id || capacityFull}
-                        onPress={() => handleAddUnregistered(item)}
-                      >
-                        {saving === item.id
-                          ? <ActivityIndicator size="small" color="#fff" />
-                          : <Text style={sh.addBtnText}>{capacityFull ? "정원 마감" : "추가"}</Text>}
-                      </Pressable>
-                    </View>
-                  </View>
-                )}
-              />
-            )}
-          </View>
         )}
 
         {subView === "transfer" && (
@@ -557,8 +470,6 @@ const sh = StyleSheet.create({
   listRow:    { flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 10,
                 borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   listRowRight:{ flexDirection: "row", alignItems: "center", gap: 6 },
-  unregBadge: { backgroundColor: "#FFF1BF", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  unregBadgeText:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D97706" },
   addBtn:     { backgroundColor: C.tint, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6,
                 minWidth: 48, alignItems: "center" },
   addBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
