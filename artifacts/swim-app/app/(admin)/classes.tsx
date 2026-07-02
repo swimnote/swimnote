@@ -571,9 +571,13 @@ export default function ClassesScreen() {
     setTimeout(navigate, 350);
   }
 
-  // ── 포커스 복귀: 날짜 팝업 복원 ──
+  // ── 포커스 복귀: 날짜 팝업 복원 + stuck Modal 초기화 ──
   useFocusEffect(useCallback(() => {
     if (!isMountedRef.current) { isMountedRef.current = true; return; }
+
+    // 탭 전환 후 복귀 시 invisible Modal이 화면을 막는 문제 방지
+    setDetailGroup(null);
+    setSelectedSlot(null);
 
     if (pendingRestoreDateRef.current) {
       const d = pendingRestoreDateRef.current;
@@ -752,7 +756,7 @@ export default function ClassesScreen() {
           attMap={dayAttMap}
           themeColor={themeColor}
           onClose={() => setSelectedDate(null)}
-          onSelectClass={(g) => setDetailGroup(g)}
+          onSelectClass={(g) => { setSelectedDate(null); setTimeout(() => setDetailGroup(g), 300); }}
           onOpenMakeup={() => navigateFromSheet(() => router.push("/(admin)/makeups?backTo=classes" as any))}
         />
       )}
