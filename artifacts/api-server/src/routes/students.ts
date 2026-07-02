@@ -102,10 +102,26 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
 
     // pool_all=true: 반배정 목적으로 선생님도 pool 전체 학생 조회 가능
     const poolAll = req.query.pool_all === "true";
+    // class_group_id=xxx: 특정 반 학생만 빠르게 조회 (AdminClassDetailSheet용)
+    const filterClassId = typeof req.query.class_group_id === "string" ? req.query.class_group_id : null;
 
     let students: any[];
 
-    if (req.user!.role === "teacher" && !poolAll) {
+    if (filterClassId) {
+      // 특정 반 학생만 조회 — 전체 로드 없이 빠른 응답
+      students = await db.select().from(studentsTable)
+        .where(and(
+          eq(studentsTable.swimming_pool_id, poolId!),
+          sql`status NOT IN ('archived', 'deleted')`,
+          sql`(
+            class_group_id = ${filterClassId}
+            OR EXISTS (
+              SELECT 1 FROM jsonb_array_elements_text(COALESCE(assigned_class_ids, '[]'::jsonb)) AS cid
+              WHERE cid = ${filterClassId}
+            )
+          )`
+        ));
+    } else if (req.user!.role === "teacher" && !poolAll) {
       // teacher (일반): 본인이 담당하는 반에 배정된 학생만 반환 (삭제된 반 제외)
       const teacherClasses = await db.select({ id: classGroupsTable.id })
         .from(classGroupsTable)
@@ -141,15 +157,40 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         ));
     }
 
-    const enriched = await Promise.all(students.map(async (s) => {
-      let class_group_name: string | null = null;
-      if (s.class_group_id) {
-        const [grp] = await db.select({ name: classGroupsTable.name }).from(classGroupsTable).where(eq(classGroupsTable.id, s.class_group_id)).limit(1);
-        class_group_name = grp?.name || null;
-      }
-      const withClasses = await enrichWithClasses({ ...s, class_group_name });
-      return withClasses;
-    }));
+    // ── 배치 enrichment: N+1 쿼리 → 1개 IN 쿼리 ────────────────────
+    // 모든 class_group_id 수집 → 한 번에 조회
+    const allClassIds = new Set<string>();
+    students.forEach(s => {
+      if (s.class_group_id) allClassIds.add(s.class_group_id);
+      const ids: string[] = Array.isArray(s.assigned_class_ids)
+        ? s.assigned_class_ids
+        : (typeof s.assigned_class_ids === "string" ? JSON.parse(s.assigned_class_ids || "[]") : []);
+      ids.forEach((id: string) => allClassIds.add(id));
+    });
+
+    const classInfoMap = new Map<string, any>();
+    if (allClassIds.size > 0) {
+      const idList = [...allClassIds].map(id => `'${id.replace(/'/g, "''")}'`).join(",");
+      const cgRows = await db.execute(sql`
+        SELECT id, name, schedule_days, schedule_time, instructor
+        FROM class_groups WHERE id = ANY(ARRAY[${sql.raw(idList)}]::text[])
+      `);
+      (cgRows.rows as any[]).forEach(r => classInfoMap.set(r.id, r));
+    }
+
+    const enriched = students.map(s => {
+      const class_group_name = s.class_group_id ? (classInfoMap.get(s.class_group_id)?.name || null) : null;
+      const assignedIds: string[] = Array.isArray(s.assigned_class_ids)
+        ? s.assigned_class_ids
+        : (typeof s.assigned_class_ids === "string" ? JSON.parse(s.assigned_class_ids || "[]") : []);
+      const assignedClasses = assignedIds.map(id => classInfoMap.get(id)).filter(Boolean);
+      const schedule_labels = assignedClasses.map((c: any) => {
+        const days = c.schedule_days.split(",").map((d: string) => d.trim());
+        const hour = c.schedule_time.split(":")[0];
+        return days.map((d: string) => `${d}${hour}`).join("·");
+      }).filter(Boolean).join("·");
+      return { ...s, class_group_name, assignedClasses, schedule_labels };
+    });
 
     const result = enriched.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 

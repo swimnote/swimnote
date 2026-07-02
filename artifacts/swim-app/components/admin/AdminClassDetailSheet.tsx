@@ -62,17 +62,23 @@ interface Props {
 }
 
 export default function AdminClassDetailSheet({ group, token, themeColor, onClose, onReload, onColorChange, initialStudents }: Props) {
+  // initialStudents가 있으면 즉시 필터링해서 보여줌 (로딩 없음)
+  function filterForGroup(all: StudentItem[]) {
+    return all.filter(s => {
+      const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
+      return s.class_group_id === group.id || ids.includes(group.id);
+    });
+  }
+  const prefiltered = initialStudents
+    ? initialStudents.filter(s => s.status === "active" || !s.status)
+    : [];
+
   const [detail, setDetail]       = useState<ClassGroupDetail | null>(null);
-  const [students, setStudents]   = useState<StudentItem[]>([]);
-  const [allStudents, setAll]     = useState<StudentItem[]>(() => {
-    if (initialStudents) {
-      const active = initialStudents.filter(s => s.status === "active" || !s.status);
-      return active;
-    }
-    return [];
-  });
+  const [students, setStudents]   = useState<StudentItem[]>(() => filterForGroup(prefiltered));
+  const [allStudents, setAll]     = useState<StudentItem[]>(prefiltered);
   const [teachers, setTeachers]   = useState<TeacherItem[]>([]);
-  const [loading, setLoading]     = useState(true);
+  // initialStudents가 있으면 학생 목록 즉시 표시 — detail만 백그라운드 로드
+  const [loading, setLoading]     = useState(!initialStudents || initialStudents.length === 0);
   const [subView, setSubView]     = useState<SubView>(null);
   const [saving, setSaving]       = useState<string | null>(null);
   const [search, setSearch]       = useState("");
@@ -106,10 +112,9 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
   }
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
-      if (initialStudents) {
-        // 학생 목록은 부모에서 이미 로드됨 — class-group 상세만 조회
+      if (initialStudents && initialStudents.length > 0) {
+        // 학생 목록은 이미 즉시 표시됨 — detail만 백그라운드 조용히 로드 (스피너 없음)
         const cgRes = await apiRequest(token, `/class-groups/${group.id}`);
         if (cgRes.ok) {
           const d = await cgRes.json();
@@ -118,17 +123,12 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
           originalColorRef.current = loaded;
           setDraftColor(loaded);
         }
-        const active = initialStudents.filter(s => s.status === "active" || !s.status);
-        setAll(active);
-        setStudents(active.filter(s => {
-          const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
-          return s.class_group_id === group.id || ids.includes(group.id);
-        }));
       } else {
-        // fallback: 직접 전체 학생 로드
-        const [cgRes, stuAllRes] = await Promise.all([
+        // fallback: 학생 미전달 — 해당 반 학생만 빠르게 조회 (pool_all 대신 class_group_id 필터)
+        setLoading(true);
+        const [cgRes, stuRes] = await Promise.all([
           apiRequest(token, `/class-groups/${group.id}`),
-          apiRequest(token, "/students?pool_all=true"),
+          apiRequest(token, `/students?class_group_id=${group.id}`),
         ]);
         if (cgRes.ok) {
           const d = await cgRes.json();
@@ -137,18 +137,15 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
           originalColorRef.current = loaded;
           setDraftColor(loaded);
         }
-        if (stuAllRes.ok) {
-          const all: StudentItem[] = await stuAllRes.json();
+        if (stuRes.ok) {
+          const all: StudentItem[] = await stuRes.json();
           const active = all.filter(s => s.status === "active" || !s.status);
           setAll(active);
-          setStudents(active.filter(s => {
-            const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
-            return s.class_group_id === group.id || ids.includes(group.id);
-          }));
+          setStudents(active);
         }
+        setLoading(false);
       }
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    } catch (e) { console.error(e); setLoading(false); }
   }, [token, group.id, initialStudents]);
 
   useEffect(() => { load(); }, [load]);
