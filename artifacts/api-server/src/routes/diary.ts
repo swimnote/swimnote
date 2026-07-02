@@ -155,7 +155,7 @@ router.get("/diaries/index",
       // 선생님은 자신이 담당하는 반만
       let classFilter = sql`true`;
       if (role === "teacher") {
-        const cgRows = await db.execute(sql`SELECT id FROM class_groups WHERE teacher_user_id = ${userId} AND swimming_pool_id = ${poolId} AND is_deleted = false`);
+        const cgRows = await db.execute(sql`SELECT id FROM class_groups WHERE (teacher_user_id = ${userId} OR co_teacher_ids @> to_jsonb(${userId}::text)) AND swimming_pool_id = ${poolId} AND is_deleted = false`);
         const ids = (cgRows.rows as any[]).map(r => `'${r.id}'`);
         if (ids.length === 0) return res.json([]);
         classFilter = sql.raw(`cd.class_group_id IN (${ids.join(",")})`);
@@ -268,8 +268,8 @@ router.get("/diaries",
           if (allIds.length === 0) { res.json([]); return; }
           classFilter = allIds.map(id => `cd.class_group_id = '${id}'`).join(" OR ");
         } else {
-          // 일반 선생님: 본인 반만 조회
-          const rows = await db.execute(sql`SELECT id FROM class_groups WHERE teacher_user_id = ${userId}`);
+          // 일반 선생님: 주담당 또는 co-teacher인 반 조회
+          const rows = await db.execute(sql`SELECT id FROM class_groups WHERE teacher_user_id = ${userId} OR co_teacher_ids @> to_jsonb(${userId}::text)`);
           const myClassIds = (rows.rows as any[]).map(r => r.id);
           if (myClassIds.length === 0) { res.json([]); return; }
           classFilter = myClassIds.map(id => `cd.class_group_id = '${id}'`).join(" OR ");
@@ -338,7 +338,7 @@ router.post("/diaries",
         const dbUserRow = await superAdminDb.execute(sql`SELECT role FROM users WHERE id = ${userId} LIMIT 1`);
         const dbRole = (dbUserRow.rows[0] as any)?.role;
         if (dbRole !== "pool_admin") {
-          const r = await db.execute(sql`SELECT id FROM class_groups WHERE id = ${class_group_id} AND swimming_pool_id = ${poolId} AND teacher_user_id = ${userId}`);
+          const r = await db.execute(sql`SELECT id FROM class_groups WHERE id = ${class_group_id} AND swimming_pool_id = ${poolId} AND (teacher_user_id = ${userId} OR co_teacher_ids @> to_jsonb(${userId}::text))`);
           if (r.rows.length === 0) return apiErr(res, 403, "본인 반의 일지만 작성할 수 있습니다.");
         } else {
           // pool_admin이 teacher 모드 → 풀 내 반인지만 확인

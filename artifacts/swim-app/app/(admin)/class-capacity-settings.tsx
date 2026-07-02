@@ -127,6 +127,16 @@ export default function ClassCapacitySettingsScreen() {
               : <Text style={s.saveBtnText}>저장</Text>}
           </Pressable>
 
+          {/* ── 반별 개별 설정 안내 ── */}
+          <View style={s.guideCard}>
+            <Text style={s.guideTitle}>반별 개별 설정이 필요한 경우</Text>
+            <Text style={s.guideDesc}>
+              {'• 특정 반(예: 마스터즈반)의 정원만 별도로 수정하거나, 선생님이 2명 이상 투입되는 반을 운영할 경우\n\n'}
+              {'• 수업 스케줄러에서 해당 반을 선택하면 반 정보 화면이 열립니다. 여기서 정원을 직접 수정하거나 선생님을 추가할 수 있습니다.\n\n'}
+              {'• 추가된 선생님도 각자 수업 일지를 작성할 수 있습니다. (관리자만 선생님 추가·변경 가능)'}
+            </Text>
+          </View>
+
         </View>
       )}
     </View>
@@ -172,4 +182,11 @@ const s = StyleSheet.create({
     paddingVertical: 14, alignItems: "center",
   },
   saveBtnText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+
+  guideCard: {
+    backgroundColor: "#F0F9FF", borderRadius: 14, padding: 16,
+    borderWidth: 1, borderColor: "#BAE6FD", gap: 8,
+  },
+  guideTitle: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0369A1" },
+  guideDesc:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#374151", lineHeight: 20 },
 });

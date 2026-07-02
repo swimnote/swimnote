@@ -27,11 +27,11 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
 
     let groups;
     if (tokenRole === "teacher") {
-      // teacher 모드: DB 역할(pool_admin 포함)에 관계없이 담당 반만 조회
+      // teacher 모드: 주담당 또는 co-teacher인 반 모두 조회
       const rawRows = await db.execute(
         sql`SELECT * FROM class_groups
             WHERE swimming_pool_id = ${poolId}
-              AND teacher_user_id = ${userId}
+              AND (teacher_user_id = ${userId} OR co_teacher_ids @> to_jsonb(${userId}::text))
               AND is_deleted = false`
       );
       groups = rawRows.rows as any[];
@@ -205,7 +205,7 @@ router.get("/:id/attendance", requireAuth, async (req: AuthRequest, res) => {
 });
 
 router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { name, schedule_days, schedule_time, instructor, teacher_user_id, level, capacity, description, color } = req.body;
+  const { name, schedule_days, schedule_time, instructor, teacher_user_id, level, capacity, description, color, co_teacher_ids } = req.body;
   try {
     const poolId = await getPoolId(req.user!.userId);
     const [existing] = await db.select({ swimming_pool_id: classGroupsTable.swimming_pool_id, is_deleted: classGroupsTable.is_deleted })
@@ -227,6 +227,10 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin", "teac
         ...(capacity !== undefined && { capacity }),
         ...(description !== undefined && { description }),
         ...(color !== undefined && { color: (!color || color === "") ? "#FFFFFF" : color }),
+        // co_teacher_ids: pool_admin / super_admin만 수정 가능
+        ...(co_teacher_ids !== undefined && req.user!.role !== "teacher" && {
+          co_teacher_ids: Array.isArray(co_teacher_ids) ? co_teacher_ids : [],
+        }),
         updated_at: new Date(),
       })
       .where(eq(classGroupsTable.id, req.params.id))
