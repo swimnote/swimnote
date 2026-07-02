@@ -324,7 +324,7 @@ export default function DiaryEditView({
         onClose={() => setEditPickerFor(null)}
         onInsert={text => {
           if (editPickerFor === "common") {
-            setEditContent(prev => prev.trim() ? `${prev.trim()}\n\n${text}` : text);
+            setEditContent(editContent.trim() ? `${editContent.trim()}\n\n${text}` : text);
           }
           setEditPickerFor(null);
         }}

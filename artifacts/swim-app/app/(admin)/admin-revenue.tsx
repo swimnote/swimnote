@@ -11,7 +11,7 @@
  * API: /settlement/calculator, /settlement/save, /settlement/finalize
  *      /holidays (GET, POST, DELETE)
  */
-import { ActivityIndicator as AI2, Calendar, CheckCircle, ChevronLeft, ChevronRight, CircleAlert, CircleArrowRight, List, RotateCcw, Save, Users } from "lucide-react-native";
+import { Calendar, CheckCircle, ChevronLeft, ChevronRight, CircleAlert, CircleArrowRight, List, RotateCcw, Save, Users } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -334,7 +334,7 @@ export default function AdminRevenueScreen() {
                         disabled={isConfirming || isConfirmed}
                       >
                         {isConfirming ? (
-                          <AI2 size={14} color="#fff" />
+                          <ActivityIndicator size="small" color="#fff" />
                         ) : (
                           <CheckCircle size={14} color={isConfirmed ? "#16A34A" : "#fff"} />
                         )}
