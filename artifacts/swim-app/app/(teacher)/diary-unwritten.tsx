@@ -4,18 +4,19 @@
  * 선생님이 아직 작성하지 않은 수업 슬롯을 날짜 오름차순으로 보여줌
  * 항목 클릭 → diary.tsx (classGroupId + lessonDate 파라미터 전달)
  */
-import { CircleAlert, CircleCheck, Clock, Pencil, Users } from "lucide-react-native";
+import { CircleAlert, CircleCheck, Clock, Pencil, PenLine, Users } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, FlatList, Pressable,
   StyleSheet, Text, View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { haptic } from "@/utils/haptic";
 
 const C = Colors.light;
 
@@ -36,6 +37,12 @@ function formatDateKo(dateStr: string) {
 export default function DiaryUnwrittenScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
+  const insets = useSafeAreaInsets();
+
+  function goBlankDiary() {
+    haptic.light();
+    router.push("/(teacher)/diary?backTo=diary-unwritten" as any);
+  }
 
   const [slots, setSlots] = useState<UnwrittenSlot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,10 +158,24 @@ export default function DiaryUnwrittenScreen() {
               <CircleCheck size={42} color="#2E9B6F" />
               <Text style={u.emptyTitle}>모든 수업 일지를 작성했습니다!</Text>
               <Text style={u.emptyDesc}>최근 8주간 미작성 일지가 없습니다.</Text>
+              <Pressable style={[u.emptyBtn, { backgroundColor: themeColor }]} onPress={goBlankDiary}>
+                <PenLine size={15} color="#fff" />
+                <Text style={u.emptyBtnText}>빈 일지 작성하기</Text>
+              </Pressable>
             </View>
           }
         />
       )}
+
+      {/* ── 빈 일지 작성 FAB ── */}
+      <Pressable
+        style={[u.fab, { backgroundColor: themeColor, bottom: insets.bottom + 72 }]}
+        onPress={goBlankDiary}
+        accessibilityLabel="빈 일지 작성"
+      >
+        <PenLine size={17} color="#fff" />
+        <Text style={u.fabText}>빈 일지 작성</Text>
+      </Pressable>
     </SafeAreaView>
   );
 }
@@ -203,4 +224,8 @@ const u = StyleSheet.create({
   empty: { alignItems: "center", paddingTop: 100, gap: 10 },
   emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center" },
   emptyDesc: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center" },
+  emptyBtn: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 24 },
+  emptyBtnText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold", lineHeight: 20 },
+  fab: { position: "absolute", right: 20, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 18, paddingVertical: 13, borderRadius: 28, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 10, elevation: 6 },
+  fabText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold", lineHeight: 20 },
 });
