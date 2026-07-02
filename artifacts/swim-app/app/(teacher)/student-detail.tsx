@@ -83,9 +83,11 @@ export default function StudentDetailScreen() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showWeeklyPicker, setShowWeeklyPicker] = useState(false);
   const [weeklyChanging, setWeeklyChanging] = useState(false);
-  const [showLevelPicker, setShowLevelPicker] = useState(false);
-  const [levelChanging, setLevelChanging] = useState(false);
-  const [levelNote, setLevelNote] = useState("");
+  const [showLevelPicker,   setShowLevelPicker]   = useState(false);
+  const [levelChanging,     setLevelChanging]     = useState(false);
+  const [levelNote,         setLevelNote]         = useState("");
+  const [pendingLevelOrder, setPendingLevelOrder] = useState<number | null>(null);
+  const [levelSuccessMsg,   setLevelSuccessMsg]   = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -128,10 +130,12 @@ export default function StudentDetailScreen() {
     finally { setWeeklyChanging(false); }
   }
 
-  async function handleLevelChange(levelOrder: number) {
-    if (!id) return;
+  async function handleLevelChange() {
+    if (!id || pendingLevelOrder == null) return;
+    const levelOrder = pendingLevelOrder;
     setLevelChanging(true);
     setShowLevelPicker(false);
+    setPendingLevelOrder(null);
     try {
       const res = await apiRequest(token, `/teacher/students/${id}/level`, {
         method: "PATCH",
@@ -139,15 +143,17 @@ export default function StudentDetailScreen() {
         body: JSON.stringify({ level_order: levelOrder, note: levelNote || null }),
       });
       if (res.ok) {
-        setLevelNote("");
-        // 전체 reload 없이 levelInfo 즉시 업데이트 → 모자 즉시 반영
         const newLevel = levelInfo?.all_levels.find(l => l.level_order === levelOrder) ?? null;
         setLevelInfo(prev => prev
           ? { ...prev, current_level_order: levelOrder, current_level: newLevel }
           : prev
         );
+        setLevelNote("");
+        setLevelSuccessMsg(`레벨이 "${newLevel?.level_name ?? levelOrder}"로 변경됐습니다.\n학부모 앱에 즉시 반영됩니다.`);
+      } else {
+        setLevelSuccessMsg("레벨 변경에 실패했습니다. 다시 시도해주세요.");
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); setLevelSuccessMsg("레벨 변경 중 오류가 발생했습니다."); }
     finally { setLevelChanging(false); }
   }
 
@@ -266,7 +272,7 @@ export default function StudentDetailScreen() {
               </View>
               <Pressable
                 style={[s.changeBtn, { borderColor: themeColor }]}
-                onPress={() => setShowLevelPicker(true)}
+                onPress={() => { setPendingLevelOrder(null); setShowLevelPicker(true); }}
               >
                 <PenLine size={14} color={themeColor} />
                 <Text style={[s.changeBtnText, { color: themeColor }]}>레벨 변경</Text>
@@ -457,31 +463,37 @@ export default function StudentDetailScreen() {
       </Modal>
 
       {/* ── 레벨 선택 모달 ──────────────────────────────────── */}
-      <Modal visible={showLevelPicker} transparent animationType="slide" onRequestClose={() => setShowLevelPicker(false)}>
-        <Pressable style={s.pickerOverlay} onPress={() => setShowLevelPicker(false)}>
-          <View style={[s.pickerSheet, { backgroundColor: C.card, maxHeight: 520 }]}
+      <Modal
+        visible={showLevelPicker} transparent animationType="slide"
+        onRequestClose={() => { setShowLevelPicker(false); setPendingLevelOrder(null); }}
+      >
+        <Pressable style={s.pickerOverlay} onPress={() => { setShowLevelPicker(false); setPendingLevelOrder(null); }}>
+          <View style={[s.pickerSheet, { backgroundColor: C.card, maxHeight: 560 }]}
             onStartShouldSetResponder={() => true}>
             <Text style={s.pickerTitle}>레벨 변경</Text>
-            <Text style={s.pickerSub}>{student.name} 학생의 현재 레벨을 선택하세요</Text>
+            <Text style={s.pickerSub}>{student.name} 학생의 새 레벨을 선택하세요</Text>
             <View style={{ maxHeight: 260, overflow: "hidden" }}>
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, padding: 4 }}>
                   {(levelInfo?.all_levels ?? []).filter(lv => lv.is_active !== false).map(lv => {
                     const isCurrent = lv.level_order === levelInfo?.current_level_order;
+                    const isPending = lv.level_order === pendingLevelOrder;
                     return (
                       <Pressable
                         key={lv.level_order}
                         style={[
                           s.levelPickerItem,
-                          isCurrent && { borderColor: themeColor, backgroundColor: themeColor + "10" }
+                          isCurrent && !isPending && { borderColor: "#94A3B8", backgroundColor: "#F8FAFC" },
+                          isPending && { borderColor: themeColor, borderWidth: 2, backgroundColor: themeColor + "12" },
                         ]}
-                        onPress={() => handleLevelChange(lv.level_order)}
+                        onPress={() => setPendingLevelOrder(lv.level_order)}
                       >
                         <LevelBadge level={lv} size="sm" />
-                        <Text style={[s.levelPickerLabel, isCurrent && { color: themeColor }]}>
+                        <Text style={[s.levelPickerLabel, isPending && { color: themeColor, fontFamily: "Pretendard-SemiBold" }]}>
                           {lv.level_name}
                         </Text>
-                        {isCurrent && <Check size={12} color={themeColor} />}
+                        {isCurrent && !isPending && <Text style={{ fontSize: 9, color: "#94A3B8" }}>현재</Text>}
+                        {isPending && <Check size={12} color={themeColor} />}
                       </Pressable>
                     );
                   })}
@@ -498,8 +510,30 @@ export default function StudentDetailScreen() {
                 placeholderTextColor={C.textMuted}
               />
             </View>
-            <Pressable style={s.pickerCancel} onPress={() => setShowLevelPicker(false)}>
-              <Text style={s.pickerCancelText}>취소</Text>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+              <Pressable style={[s.pickerCancel, { flex: 1 }]} onPress={() => { setShowLevelPicker(false); setPendingLevelOrder(null); }}>
+                <Text style={s.pickerCancelText}>취소</Text>
+              </Pressable>
+              <Pressable
+                style={[s.levelConfirmBtn, { backgroundColor: pendingLevelOrder != null ? themeColor : "#CBD5E1", flex: 1.5 }]}
+                onPress={handleLevelChange}
+                disabled={pendingLevelOrder == null}
+              >
+                <Text style={s.levelConfirmBtnText}>변경 완료</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* ── 레벨 변경 결과 모달 ── */}
+      <Modal visible={!!levelSuccessMsg} transparent animationType="fade" onRequestClose={() => setLevelSuccessMsg(null)}>
+        <Pressable style={s.pickerOverlay} onPress={() => setLevelSuccessMsg(null)}>
+          <View style={[s.pickerSheet, { backgroundColor: C.card, gap: 12 }]} onStartShouldSetResponder={() => true}>
+            <Text style={[s.pickerTitle, { fontSize: 16 }]}>✅ 완료</Text>
+            <Text style={[s.pickerSub, { textAlign: "center", lineHeight: 22 }]}>{levelSuccessMsg}</Text>
+            <Pressable style={[s.levelConfirmBtn, { backgroundColor: themeColor }]} onPress={() => setLevelSuccessMsg(null)}>
+              <Text style={s.levelConfirmBtnText}>확인</Text>
             </Pressable>
           </View>
         </Pressable>
@@ -571,6 +605,13 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: C.border, borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 8,
     fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text,
+  },
+
+  levelConfirmBtn: {
+    alignItems: "center", paddingVertical: 13, borderRadius: 12,
+  },
+  levelConfirmBtnText: {
+    fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff",
   },
 
   section:        { gap: 8 },

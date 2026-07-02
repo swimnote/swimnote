@@ -819,6 +819,26 @@ router.patch("/teacher/students/:id/level", requireAuth, async (req: AuthRequest
               to_char(now(), 'YYYY-MM-DD'), ${note ?? null}, ${actorName}, NOW())
     `);
     res.json({ ok: true, level_order, level_name: lvName });
+
+    // 비동기 학부모 push 알림 (응답 후 처리)
+    try {
+      const parentRows = await db.execute(sql`
+        SELECT DISTINCT ps.parent_id
+        FROM parent_students ps
+        WHERE ps.student_id = ${req.params.id} AND ps.status = 'approved'
+      `);
+      for (const p of parentRows.rows as any[]) {
+        await sendPushToUser(
+          p.parent_id, true, "level_change",
+          "🎉 레벨이 변경됐어요!",
+          `${student.name} 학생의 레벨이 "${lvName}"로 변경됐습니다.`,
+          { screen: "level", studentId: req.params.id },
+          userId
+        );
+      }
+    } catch (pushErr) {
+      console.error("[레벨변경 push]", pushErr);
+    }
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
