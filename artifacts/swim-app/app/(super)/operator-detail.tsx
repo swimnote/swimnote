@@ -768,7 +768,7 @@ const d = StyleSheet.create({
   tab:            { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
                     borderWidth: 1.5, borderColor: "#E5E7EB" },
   tabActive:      { backgroundColor: P, borderColor: P },
-  tabTxt:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt:         { fontSize: 12, lineHeight: 17, color: "#64748B" },
   tabActiveTxt:   { color: "#fff" },
   card:           { backgroundColor: "#fff", borderRadius: 14, padding: 16,
                     borderWidth: 1, borderColor: "#E5E7EB", gap: 8 },

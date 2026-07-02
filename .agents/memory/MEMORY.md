@@ -4,3 +4,5 @@
 - [OTA 배포 패턴](ota-deploy-pattern.md) — Replit RAM 부족으로 Metro OOM; 2단계(115s 번들→skip-bundler 업로드) 우회법 및 앱 2회 재시작 필요
 - [OTA 채널 패턴](ota-channel-pattern.md) — production+preview 브랜치 둘 다 배포 필수; 동시 실행 금지(순차), eas.json preview에 channel:production 추가됨
 - [다음 빌드 포함 변경 사항](pending-build-changes.md) — 1.3.11 빌드 이후 코드 반영됐으나 미배포 변경 목록 (엑셀 업로드 개선, capacity API)
+- [탭 텍스트 Pretendard 금지](tab-font-clipping.md) — 탭 바 Text에 fontFamily Pretendard 사용 시 iOS에서 한글 받침 세로 클리핑 발생; lineHeight 명시로 해결
+- [프로덕션 API 서버 배포 필요](pending-server-deploy.md) — 사진 100장 multer 한도 + /photos/batch 엔드포인트 + multer 에러 미들웨어가 개발에만 반영됨; Render.com 재배포 필요
