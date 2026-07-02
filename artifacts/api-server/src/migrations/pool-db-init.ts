@@ -1182,6 +1182,13 @@ export async function initPoolDb(): Promise<void> {
   `)).catch(() => {});
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_student_levels_student ON student_levels(student_id, created_at DESC)`)).catch(() => {});
 
+  // ── students 조회 성능 인덱스 ──────────────────────────────────────────────
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_students_pool_status ON students(swimming_pool_id, status)`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_students_pool_created ON students(swimming_pool_id, created_at DESC)`)).catch(() => {});
+  // ── class_groups 조회 성능 인덱스 ─────────────────────────────────────────
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_class_groups_pool_deleted ON class_groups(swimming_pool_id, is_deleted)`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_class_groups_teacher ON class_groups(teacher_user_id, is_deleted)`)).catch(() => {});
+
   // ── holiday_confirmations 테이블 생성 ─────────────────────────────────────
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS holiday_confirmations (

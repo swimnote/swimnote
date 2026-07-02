@@ -7,7 +7,7 @@ import {
   parentAccountsTable, usersTable, attendanceTable,
   classChangeLogsTable,
 } from "@workspace/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
 import { logChange } from "../utils/change-logger.js";
@@ -97,7 +97,8 @@ router.get("/capacity", requireAuth, requireRole("super_admin", "pool_admin"), a
 // ── GET / ──────────────────────────────────────────────────────────
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const poolId = await getPoolId(req.user!.userId);
+    // 토큰에 poolId가 있으면 DB 조회 생략 (빠른 경로)
+    const poolId = req.user!.poolId || await getPoolId(req.user!.userId);
     if (!poolId && req.user!.role !== "super_admin") return err(res, 403, "소속된 수영장이 없습니다.");
 
     // pool_all=true: 반배정 목적으로 선생님도 pool 전체 학생 조회 가능
@@ -120,7 +121,8 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
               WHERE cid = ${filterClassId}
             )
           )`
-        ));
+        ))
+        .orderBy(desc(studentsTable.created_at));
     } else if (req.user!.role === "teacher" && !poolAll) {
       // teacher (일반): 본인이 담당하는 반에 배정된 학생만 반환 (삭제된 반 제외)
       const teacherClasses = await db.select({ id: classGroupsTable.id })
@@ -146,7 +148,8 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
               WHERE cid = ANY(ARRAY[${sql.raw(classIdsLiteral)}])
             )
           )`
-        ));
+        ))
+        .orderBy(desc(studentsTable.created_at));
     } else {
       // admin / super_admin / teacher(pool_all=true): 해당 수영장의 모든 학생 반환
       // archived/deleted 제외, suspended/withdrawn 포함 (회원 목록에서 필터로 구분)
@@ -154,7 +157,8 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         .where(and(
           eq(studentsTable.swimming_pool_id, poolId!),
           sql`status NOT IN ('archived', 'deleted')`
-        ));
+        ))
+        .orderBy(desc(studentsTable.created_at));
     }
 
     // ── 배치 enrichment: N+1 쿼리 → 1개 IN 쿼리 ────────────────────
@@ -192,7 +196,8 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       return { ...s, class_group_name, assignedClasses, schedule_labels };
     });
 
-    const result = enriched.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    // SQL ORDER BY 적용됐으므로 JS 재정렬 불필요
+    const result = enriched;
 
     // pool_all=true(반배정 목적): unregistered 학생을 pending_parent_link로 노출
     // → 구버전 앱 필터(active|pending_parent_link)도 통과하게 함

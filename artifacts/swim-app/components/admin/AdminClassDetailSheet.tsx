@@ -181,13 +181,16 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
     setTeacherSaving(true);
     const instrName = teacher.name || null;
     const instrId   = teacher.id   || null;
+    // 새 주담당이 co_teacher_ids에 있으면 자동 제거
+    const currentCoIds = detail?.co_teacher_ids || [];
+    const newCoIds = instrId ? currentCoIds.filter(id => id !== instrId) : currentCoIds;
     try {
       const res = await apiRequest(token, `/class-groups/${group.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ instructor: instrName, teacher_user_id: instrId }),
+        body: JSON.stringify({ instructor: instrName, teacher_user_id: instrId, co_teacher_ids: newCoIds }),
       });
       if (res.ok) {
-        setDetail(prev => prev ? { ...prev, instructor: instrName, teacher_user_id: instrId } : prev);
+        setDetail(prev => prev ? { ...prev, instructor: instrName, teacher_user_id: instrId, co_teacher_ids: newCoIds } : prev);
         setSubView(null);
         onReload();
       }

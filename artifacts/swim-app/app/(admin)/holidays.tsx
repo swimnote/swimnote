@@ -137,7 +137,6 @@ export default function HolidaysScreen() {
     const ny = d.getFullYear();
     const nm = d.getMonth() + 1;
     setYear(ny); setMonth(nm);
-    setConfirmStatus({ confirmed: false, confirmed_at: null });
     loadConfirmStatus(ny, nm);
   }
 
