@@ -4,11 +4,11 @@
  * 메신저 외 7개 아이콘은 3열 그리드 팝업을 거쳐 페이지 이동
  * SearchModal, AdminQuickRegisterModal → components/admin/ 로 이동됨
  */
-import { Check, ChevronRight, CircleAlert, Crown, LogOut, Repeat, Search, TriangleAlert, UserPlus, UserX, X, Zap } from "lucide-react-native";
+import { Bell, CalendarCheck, Check, ChevronRight, CircleAlert, Crown, LogOut, Repeat, Search, TriangleAlert, UserPlus, UserX, X, Zap } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
@@ -70,6 +70,21 @@ export default function DashboardScreen() {
   const [wizardDismissed, setWizardDismissed] = useState(true);
   const [showCelebration, setShowCelebration] = useState(false);
 
+  // ── 휴무일 확정 배너 ─────────────────────────────────────────────────────────
+  const confirmTargetMonth = useMemo(() => {
+    const today = new Date();
+    const day = today.getDate();
+    if (day >= 25) {
+      const next = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+      return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+    }
+    if (day <= 10) {
+      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    }
+    return null;
+  }, []);
+  const [holidayConfirmed, setHolidayConfirmed] = useState(true);
+
   useEffect(() => {
     AsyncStorage.getItem(WIZARD_DISMISSED_KEY).then(v => {
       setWizardDismissed(v === "1");
@@ -99,12 +114,17 @@ export default function DashboardScreen() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const [statsRes, storageRes, stats2Res, poolRes, featRes] = await Promise.all([
+      const poolId = (adminUser as any)?.swimming_pool_id;
+      const confirmFetch = confirmTargetMonth && poolId
+        ? apiRequest(token, `/holidays/confirm-status?month=${confirmTargetMonth}&pool_id=${poolId}`).catch(() => null)
+        : Promise.resolve(null);
+      const [statsRes, storageRes, stats2Res, poolRes, featRes, confirmRes] = await Promise.all([
         apiRequest(token, "/admin/dashboard-stats"),
         apiRequest(token, "/admin/storage").catch(() => null),
         apiRequest(token, "/admin/dashboard-stats2").catch(() => null),
         apiRequest(token, "/pools/my").catch(() => null),
         apiRequest(token, "/billing/features").catch(() => null),
+        confirmFetch,
       ]);
       if (statsRes.ok) setStats(await statsRes.json());
       if (storageRes?.ok) {
@@ -125,8 +145,16 @@ export default function DashboardScreen() {
         const f = await featRes.json();
         setSubTier(f.tier ?? "free");
       }
+      if (confirmTargetMonth) {
+        if (confirmRes?.ok) {
+          const cd = await confirmRes.json();
+          setHolidayConfirmed(cd.confirmed === true);
+        } else {
+          setHolidayConfirmed(false);
+        }
+      }
     } finally { setLoading(false); setRefreshing(false); }
-  }, [token]);
+  }, [token, confirmTargetMonth, adminUser]);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
@@ -275,6 +303,32 @@ export default function DashboardScreen() {
             accentColor={themeColor}
           />
         )}
+
+        {/* ── 휴무일 확정 배너 (매월 25일 ~ 다음달 10일, 미확정 시) ── */}
+        {confirmTargetMonth && !holidayConfirmed && (() => {
+          const m = parseInt(confirmTargetMonth.split("-")[1], 10);
+          const monthLabel = `${m}월`;
+          return (
+            <Pressable
+              style={hol.banner}
+              onPress={() => router.push(`/(admin)/holidays?month=${confirmTargetMonth}` as any)}
+            >
+              <View style={hol.bannerLeft}>
+                <View style={hol.bannerIconWrap}>
+                  <Bell size={18} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={hol.bannerTitle}>{monthLabel} 휴무일 확정이 필요합니다</Text>
+                  <Text style={hol.bannerSub}>휴무일이 없어도 반드시 확정 버튼을 눌러주세요</Text>
+                </View>
+              </View>
+              <View style={hol.bannerBtn}>
+                <CalendarCheck size={13} color="#C0392B" />
+                <Text style={hol.bannerBtnTxt}>확정하기</Text>
+              </View>
+            </Pressable>
+          );
+        })()}
 
         {loading ? (
           <ActivityIndicator color={themeColor} size="large" style={{ marginTop: 40 }} />
@@ -477,7 +531,7 @@ export default function DashboardScreen() {
               );
             })()}
 
-            {/* ── 핵심 퀵액션 3버튼 ── */}
+            {/* ── 핵심 퀵액션 4버튼 ── */}
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable
                 style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
@@ -508,6 +562,18 @@ export default function DashboardScreen() {
                 </View>
                 <Text style={s.quickBtnLabel}>스케줄러</Text>
                 <Text style={s.quickBtnSub}>일정 관리</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
+                onPress={() => router.push("/(admin)/holidays" as any)}
+              >
+                <View style={[s.quickBtnIcon, { backgroundColor: !holidayConfirmed && confirmTargetMonth ? "#FEE2E2" : "#FFF1F2" }]}>
+                  <LucideIcon name="calendar-off" size={18} color={!holidayConfirmed && confirmTargetMonth ? "#DC2626" : "#E11D48"} />
+                </View>
+                <Text style={s.quickBtnLabel}>휴무일</Text>
+                <Text style={[s.quickBtnSub, { color: !holidayConfirmed && confirmTargetMonth ? "#DC2626" : C.textMuted }]}>
+                  {!holidayConfirmed && confirmTargetMonth ? "확정 필요" : "관리"}
+                </Text>
               </Pressable>
             </View>
 
@@ -666,6 +732,30 @@ const wz = StyleSheet.create({
   stepLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, flex: 1 },
   stepDone:  { color: "#64748B", textDecorationLine: "line-through" },
   doneTag:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#16A34A", backgroundColor: "#D1FAE5", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+});
+
+// H: 휴무일 확정 배너 스타일
+const hol = StyleSheet.create({
+  banner: {
+    backgroundColor: "#DC2626",
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    shadowColor: "#DC2626",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  bannerLeft:    { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  bannerIconWrap:{ width: 36, height: 36, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  bannerTitle:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff", lineHeight: 19 },
+  bannerSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.75)", marginTop: 2, lineHeight: 16 },
+  bannerBtn:     { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#fff", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  bannerBtnTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#C0392B" },
 });
 
 // W: 설정 완료 축하 스타일

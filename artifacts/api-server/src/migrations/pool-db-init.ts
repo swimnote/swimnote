@@ -1181,4 +1181,17 @@ export async function initPoolDb(): Promise<void> {
     )
   `)).catch(() => {});
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_student_levels_student ON student_levels(student_id, created_at DESC)`)).catch(() => {});
+
+  // ── holiday_confirmations 테이블 생성 ─────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS holiday_confirmations (
+      id             text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      pool_id        text        NOT NULL,
+      target_month   text        NOT NULL,
+      confirmed_at   timestamptz NOT NULL DEFAULT now(),
+      confirmed_by   text        NOT NULL,
+      UNIQUE(pool_id, target_month)
+    )
+  `)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_holiday_confirmations_pool ON holiday_confirmations(pool_id, target_month)`)).catch(() => {});
 }
