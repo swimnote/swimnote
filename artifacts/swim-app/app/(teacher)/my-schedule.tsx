@@ -106,6 +106,13 @@ export default function MyScheduleScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  // 탭 전환 후 복귀 시 stuck Modal 상태 초기화
+  useFocusEffect(useCallback(() => {
+    setShowDeleteClassConfirm(false);
+    setDeletingClass(null);
+    setDeletingClassLoading(false);
+  }, []));
+
   const handleDeleteClass = useCallback(async () => {
     if (!deletingClass || deletingClassLoading) return;
     const target = deletingClass;
@@ -458,7 +465,7 @@ export default function MyScheduleScreen() {
         confirmText="반 삭제" cancelText="취소" destructive
         loading={deletingClassLoading}
         onConfirm={handleDeleteClass}
-        onCancel={() => { if (deletingClassLoading) return; setShowDeleteClassConfirm(false); setDeletingClass(null); }} />
+        onCancel={() => { setShowDeleteClassConfirm(false); setDeletingClass(null); }} />
       </>
     );
   }
@@ -687,7 +694,7 @@ export default function MyScheduleScreen() {
         confirmText="반 삭제" cancelText="취소" destructive
         loading={deletingClassLoading}
         onConfirm={handleDeleteClass}
-        onCancel={() => { if (deletingClassLoading) return; setShowDeleteClassConfirm(false); setDeletingClass(null); }} />
+        onCancel={() => { setShowDeleteClassConfirm(false); setDeletingClass(null); }} />
     </SafeAreaView>
   );
 }
