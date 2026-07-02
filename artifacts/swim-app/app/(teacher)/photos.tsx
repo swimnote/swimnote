@@ -27,6 +27,7 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import { API_BASE, apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useUploadQueue, PhotoUploadJob } from "@/context/UploadQueueContext";
 import { FullAlbumPickerModal } from "@/components/teacher/album/FullAlbumPickerModal";
 
 const C = Colors.light;
@@ -176,9 +177,12 @@ export default function TeacherPhotosScreen() {
   const [lightbox, setLightbox] = useState<MediaItem | null>(null);
 
   // 업로드
-  const [uploading,  setUploading]  = useState(false);
+  const [uploading,       setUploading]       = useState(false);
+  const [compressProgress, setCompressProgress] = useState(0);
+  const [compressTotal,    setCompressTotal]    = useState(0);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
+  const { addJobs } = useUploadQueue();
 
   type PlanFeatures = { video_enabled: boolean; storage_quota_gb: number; storage_used_gb: number; storage_used_pct: number; upload_blocked: boolean; tier: string };
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures>({ video_enabled: false, storage_quota_gb: 0, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" });
@@ -357,6 +361,7 @@ export default function TeacherPhotosScreen() {
         mediaTypes: isVideo ? ["videos"] : ["images"],
         allowsMultipleSelection: !isVideo,
         quality: isVideo ? 1 : 0.85,
+        selectionLimit: isVideo ? 1 : 100,
       });
       if (result.canceled || !result.assets?.length) return;
       const assets = result.assets;
@@ -372,37 +377,60 @@ export default function TeacherPhotosScreen() {
     const sc = overrideSc ?? scope;
     setUploading(true);
     try {
+      if (!isVideo) {
+        // ── 사진: 압축 후 백그라운드 큐에 추가 ──────────────────────
+        setCompressTotal(assets.length);
+        setCompressProgress(0);
+        const endpoint = sc === "group" ? "/photos/group" : "/photos/private";
+        const jobs: PhotoUploadJob[] = [];
+        const BATCH = 5;
+        for (let i = 0; i < assets.length; i += BATCH) {
+          const batch = assets.slice(i, i + BATCH);
+          const uris = await Promise.all(
+            batch.map((a: any) => compressImageIfNeeded(a.uri, a.fileSize ?? undefined))
+          );
+          uris.forEach(uri => jobs.push({
+            uri,
+            endpoint,
+            params: {
+              class_id: group?.id ?? "",
+              ...(sc === "private" && student?.id ? { student_id: student.id } : {}),
+            },
+            token: token ?? "",
+          }));
+          setCompressProgress(Math.min(i + BATCH, assets.length));
+        }
+        addJobs(jobs);
+        setSuccessMsg(`${assets.length}장 업로드 시작!\n화면을 이동해도 계속 업로드됩니다.`);
+        await loadList();
+        return;
+      }
+
+      // ── 영상: 기존 방식 유지 (블로킹) ────────────────────────────
       const form = new FormData();
       for (const asset of assets) {
-        const uri = !isVideo ? await compressImageIfNeeded(asset.uri, asset.fileSize ?? undefined) : asset.uri;
-        form.append(isVideo ? "video" : "photos", {
+        const uri = asset.uri;
+        form.append("video", {
           uri,
-          name: asset.fileName || (isVideo ? "video.mp4" : "photo.jpg"),
-          type: asset.mimeType || (isVideo ? "video/mp4" : "image/jpeg"),
+          name: asset.fileName || "video.mp4",
+          type: asset.mimeType || "video/mp4",
         } as any);
-
-        // 영상 업로드 시 썸네일 자동 생성 — 실패해도 업로드는 계속 진행
-        if (isVideo) {
-          try {
-            const thumb = await VideoThumbnails.getThumbnailAsync(uri, { time: 1000 });
-            form.append("thumbnail", {
-              uri: thumb.uri,
-              name: "thumbnail.jpg",
-              type: "image/jpeg",
-            } as any);
-          } catch (thumbErr) {
-            console.warn("[videos] 썸네일 생성 실패 (무시됨):", thumbErr);
-          }
+        try {
+          const thumb = await VideoThumbnails.getThumbnailAsync(uri, { time: 1000 });
+          form.append("thumbnail", {
+            uri: thumb.uri,
+            name: "thumbnail.jpg",
+            type: "image/jpeg",
+          } as any);
+        } catch (thumbErr) {
+          console.warn("[videos] 썸네일 생성 실패 (무시됨):", thumbErr);
         }
       }
       form.append("class_id", group?.id ?? "");
       if (sc === "private" && student?.id) form.append("student_id", student.id);
 
-      const endpoint = isVideo
-        ? (sc === "group" ? "/videos/group" : "/videos/private")
-        : (sc === "group" ? "/photos/group" : "/photos/private");
-
-      const res = await fetch(`${API_BASE}${endpoint}`, {
+      const videoEndpoint = sc === "group" ? "/videos/group" : "/videos/private";
+      const res = await fetch(`${API_BASE}${videoEndpoint}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token ?? ""}` },
         body: form,
@@ -410,11 +438,10 @@ export default function TeacherPhotosScreen() {
       const resData = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((resData as any)?.error ?? "업로드 실패");
 
-      const cnt = assets.length;
       setSuccessMsg(
-        scope === "group"
-          ? `${isVideo ? "영상" : `${cnt}장`}이 ${group?.name ? `${group.name} ` : ""}전체앨범에 추가됐습니다.`
-          : `${isVideo ? "영상" : `${cnt}장`}이 ${student?.name ?? "학생"} 개인 ${cfg.title} 앨범에 추가됐습니다.`
+        sc === "group"
+          ? `영상이 ${group?.name ? `${group.name} ` : ""}전체앨범에 추가됐습니다.`
+          : `영상이 ${student?.name ?? "학생"} 개인 ${cfg.title} 앨범에 추가됐습니다.`
       );
       await loadList();
     } catch (e: any) {
@@ -422,6 +449,8 @@ export default function TeacherPhotosScreen() {
       setErrorMsg(e?.message ?? "업로드 중 오류가 발생했습니다.");
     } finally {
       setUploading(false);
+      setCompressTotal(0);
+      setCompressProgress(0);
     }
   }
 
@@ -439,6 +468,7 @@ export default function TeacherPhotosScreen() {
         mediaTypes: isVideo ? ["videos"] : ["images"],
         allowsMultipleSelection: !isVideo,
         quality: isVideo ? 1 : 0.85,
+        selectionLimit: isVideo ? 1 : 100,
       });
       if (result.canceled || !result.assets?.length) return;
 
@@ -511,7 +541,7 @@ export default function TeacherPhotosScreen() {
             <View style={s.limitCardBody}>
               <View style={s.limitRow}>
                 <LucideIcon name="image" size={13} color="#E4A93A" />
-                <Text style={s.limitText}>사진: 1장 최대 <Text style={{ color: "#0F172A" }}>8MB</Text> · 최대 <Text style={{ color: "#0F172A" }}>20장</Text> 동시 업로드</Text>
+                <Text style={s.limitText}>사진: 1장 최대 <Text style={{ color: "#0F172A" }}>8MB</Text> · 최대 <Text style={{ color: "#0F172A" }}>100장</Text> 동시 업로드</Text>
               </View>
               <View style={s.limitRow}>
                 <LucideIcon name="video" size={13} color="#2EC4B6" />
@@ -973,7 +1003,16 @@ export default function TeacherPhotosScreen() {
           disabled={uploading}
         >
           {uploading
-            ? <ActivityIndicator color="#fff" />
+            ? (
+              <>
+                <ActivityIndicator color="#fff" size="small" />
+                {compressTotal > 0 && (
+                  <Text style={[s.uploadBtnText, { fontSize: 12 }]}>
+                    압축 중 {compressProgress}/{compressTotal}
+                  </Text>
+                )}
+              </>
+            )
             : (
               <>
                 <CloudUpload size={20} color="#fff" />

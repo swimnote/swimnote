@@ -268,7 +268,7 @@ router.post(
   "/photos/group",
   requireAuth,
   requireRole("pool_admin", "teacher", "super_admin"),
-  upload.array("photos", 10),
+  upload.array("photos", 100),
   async (req: AuthRequest, res: Response) => {
     try {
       const { class_id, lesson_date } = req.body;
@@ -374,7 +374,7 @@ router.post(
   "/photos/private",
   requireAuth,
   requireRole("pool_admin", "teacher", "super_admin"),
-  upload.array("photos", 10),
+  upload.array("photos", 100),
   async (req: AuthRequest, res: Response) => {
     try {
       const { class_id, student_id } = req.body;
@@ -461,6 +461,77 @@ router.post(
       res.status(201).json({ count: inserted.length, photos: inserted });
     } catch (err) {
       console.error(err);
+      const msg = (err as any)?.message || "";
+      if (msg.includes("LIMIT_FILE_SIZE")) {
+        res.status(413).json({ error: "파일 크기 초과: 최대 8MB까지 업로드할 수 있습니다." }); return;
+      }
+      res.status(500).json({ error: "업로드 중 오류" });
+    }
+  }
+);
+
+// ── 일괄 개인 앨범 업로드 (사진 1장 → 복수 학생) ─────────────────────────
+router.post(
+  "/photos/batch",
+  requireAuth,
+  requireRole("pool_admin", "teacher", "super_admin"),
+  upload.array("photos", 1),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { student_ids } = req.body;
+      if (!student_ids) { res.status(400).json({ error: "학생을 선택해주세요." }); return; }
+
+      let ids: string[];
+      try { ids = JSON.parse(student_ids); } catch { res.status(400).json({ error: "student_ids 형식 오류" }); return; }
+      if (!ids.length) { res.status(400).json({ error: "학생을 선택해주세요." }); return; }
+
+      const files = req.files as Express.Multer.File[];
+      if (!files?.length) { res.status(400).json({ error: "사진을 선택해주세요." }); return; }
+      const file = files[0];
+
+      const { userId } = req.user!;
+      const [user] = await superAdminDb.select({ name: usersTable.name, swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+      if (!user) { res.status(403).json({ error: "사용자를 찾을 수 없습니다." }); return; }
+
+      if (user.swimming_pool_id) {
+        const { blocked } = await checkStorageLimit(user.swimming_pool_id);
+        if (blocked) { res.status(403).json({ error: "저장공간이 가득 차 업로드가 제한됩니다.", code: "UPLOAD_BLOCKED" }); return; }
+      }
+
+      const poolSlug = await getPoolSlug(user.swimming_pool_id || "");
+      const ext = file.originalname.split(".").pop() || "jpg";
+      const filename = genFilename(poolSlug, ext);
+      const r2Key = `photos/batch/${user.swimming_pool_id}/${filename}`;
+      const { ok, error } = await uploadToR2(r2Key, file.buffer, file.mimetype || "image/jpeg", "photo");
+      if (!ok) throw new Error(error || "업로드 실패");
+
+      const inserted: any[] = [];
+      for (const student_id of ids) {
+        const id = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        const rows = await db.execute(sql`
+          INSERT INTO photo_assets_meta
+            (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type)
+          VALUES
+            (${id}, ${student_id}, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${r2Key}, ${file.size}, 'private')
+          RETURNING *
+        `);
+        inserted.push({ ...rows.rows[0], file_url: `/api/photos/${id}/file` });
+
+        const parentRows = await db.execute(sql`
+          SELECT parent_id AS parent_account_id FROM parent_students
+          WHERE student_id = ${student_id} AND status = 'approved'
+        `).catch(() => ({ rows: [] }));
+        for (const p of parentRows.rows as any[]) {
+          sendPushToUser(p.parent_account_id, true, "photo_upload", "📸 사진 업로드", "📸 새 사진이 업로드되었습니다.",
+            { type: "photo", studentId: student_id }, `photo_batch_${student_id}_${Date.now()}`
+          ).catch(() => {});
+        }
+      }
+
+      res.status(201).json({ count: inserted.length });
+    } catch (err) {
+      console.error("[photos/batch]", err);
       const msg = (err as any)?.message || "";
       if (msg.includes("LIMIT_FILE_SIZE")) {
         res.status(413).json({ error: "파일 크기 초과: 최대 8MB까지 업로드할 수 있습니다." }); return;

@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
+import { useUploadQueue, PhotoUploadJob } from "@/context/UploadQueueContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal }   from "@/components/common/ConfirmModal";
 
@@ -20,13 +21,15 @@ interface Student { id: string; name: string; phone: string; class_name?: string
 export default function PhotoUploadScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
+  const { addJobs } = useUploadQueue();
 
   const [students, setStudents] = useState<Student[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(true);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [images, setImages] = useState<{ uri: string; file?: File }[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const [compressing, setCompressing] = useState(false);
+  const [compressProgress, setCompressProgress] = useState(0);
   const [step, setStep] = useState<"students" | "photos">("students");
   const [infoMsg,    setInfoMsg]    = useState<{ title: string; msg: string } | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -69,7 +72,7 @@ export default function PhotoUploadScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      allowsMultipleSelection: true, quality: 0.85, selectionLimit: 20,
+      allowsMultipleSelection: true, quality: 0.85, selectionLimit: 100,
     });
     if (!result.canceled) setImages(result.assets.map(a => ({ uri: a.uri })));
   }
@@ -77,28 +80,32 @@ export default function PhotoUploadScreen() {
   async function handleUpload() {
     if (!selected.size) { setInfoMsg({ title: "알림", msg: "학생을 선택해주세요." }); return; }
     if (!images.length) { setInfoMsg({ title: "알림", msg: "사진을 선택해주세요." }); return; }
-    setUploading(true);
+    setCompressing(true);
+    setCompressProgress(0);
     try {
-      const fd = new FormData();
-      fd.append("student_ids", JSON.stringify([...selected]));
-      for (const img of images) {
-        if (img.file) {
-          fd.append("photos", img.file, img.file.name);
-        } else {
-          const compressedUri = await compressImageIfNeeded(img.uri);
-          const filename = compressedUri.split("/").pop() || "photo.jpg";
-          const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
-          fd.append("photos", { uri: compressedUri, name: filename, type: ext === "png" ? "image/png" : "image/jpeg" } as any);
-        }
+      const jobs: PhotoUploadJob[] = [];
+      const studentIds = JSON.stringify([...selected]);
+      const BATCH = 5;
+      for (let i = 0; i < images.length; i += BATCH) {
+        const batch = images.slice(i, i + BATCH);
+        const uris = await Promise.all(
+          batch.map(async (img) => {
+            if (img.file) return img.uri;
+            return compressImageIfNeeded(img.uri);
+          })
+        );
+        uris.forEach(uri => jobs.push({
+          uri,
+          endpoint: "/photos/batch",
+          params: { student_ids: studentIds },
+          token: token ?? "",
+        }));
+        setCompressProgress(Math.min(i + BATCH, images.length));
       }
-      const res = await fetch(`${API_BASE}/photos/batch`, {
-        method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "업로드 실패");
-      setSuccessMsg(`${selected.size}명의 사진첩에 ${images.length}장이 업로드되었습니다.`);
+      addJobs(jobs);
+      setSuccessMsg(`${images.length}장 업로드 시작!\n화면을 이동해도 계속 업로드됩니다.`);
     } catch (err: any) { setErrorMsg(err.message || "업로드 중 오류가 발생했습니다."); }
-    finally { setUploading(false); }
+    finally { setCompressing(false); setCompressProgress(0); }
   }
 
   const filtered = students.filter(s => s.name.includes(search) || s.phone.includes(search));
@@ -184,11 +191,14 @@ export default function PhotoUploadScreen() {
         onBack={() => setStep("students")}
         rightSlot={
           <Pressable
-            style={[styles.nextBtn, { backgroundColor: images.length > 0 ? "#2EC4B6" : C.border, opacity: uploading ? 0.6 : 1 }]}
+            style={[styles.nextBtn, { backgroundColor: images.length > 0 ? "#2EC4B6" : C.border, opacity: compressing ? 0.6 : 1 }]}
             onPress={handleUpload}
-            disabled={uploading || images.length === 0}
+            disabled={compressing || images.length === 0}
           >
-            {uploading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.nextBtnText}>업로드</Text>}
+            {compressing
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={styles.nextBtnText}>업로드</Text>
+            }
           </Pressable>
         }
       />

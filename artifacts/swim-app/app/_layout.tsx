@@ -6,7 +6,10 @@ import * as Updates from "expo-updates";
 import { useUpdates } from "expo-updates";
 import Constants from "expo-constants";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Platform, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { X } from "lucide-react-native";
+import { UploadQueueProvider, useUploadQueue } from "@/context/UploadQueueContext";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -78,6 +81,73 @@ function AppLoadingScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#FFFFFF", justifyContent: "center", alignItems: "center" }}>
       <ActivityIndicator size="large" color="#2EC4B6" />
+    </View>
+  );
+}
+
+function UploadProgressBanner() {
+  const { total, done, failed, isActive, dismiss } = useUploadQueue();
+  const insets = useSafeAreaInsets();
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (total > 0) setVisible(true);
+  }, [total]);
+
+  useEffect(() => {
+    if (!isActive && total > 0 && done + failed >= total) {
+      const t = setTimeout(() => {
+        setVisible(false);
+        setTimeout(dismiss, 400);
+      }, 4000);
+      return () => clearTimeout(t);
+    }
+  }, [isActive, done, failed, total, dismiss]);
+
+  if (!visible || total === 0) return null;
+
+  const isComplete = !isActive && done + failed >= total;
+  const percent = total > 0 ? Math.round((done + failed) / total * 100) : 0;
+
+  return (
+    <View style={{
+      position: "absolute",
+      bottom: insets.bottom + 72,
+      left: 16, right: 16,
+      backgroundColor: isComplete ? "#22C55E" : "#1F8F86",
+      borderRadius: 16,
+      padding: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 12,
+      elevation: 10,
+      zIndex: 9999,
+    }}>
+      {!isComplete && <ActivityIndicator color="#fff" size="small" />}
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: "#fff", fontSize: 13, fontFamily: "Pretendard-SemiBold" }}>
+          {isComplete
+            ? `업로드 완료${failed > 0 ? ` (실패 ${failed}장)` : ""}`
+            : `사진 업로드 중... ${percent}%`}
+        </Text>
+        <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 2 }}>
+          {done}/{total}장 완료
+        </Text>
+        {!isComplete && (
+          <View style={{ height: 3, backgroundColor: "rgba(255,255,255,0.3)", borderRadius: 2, marginTop: 6 }}>
+            <View style={{ width: `${percent}%` as any, height: 3, backgroundColor: "#fff", borderRadius: 2 }} />
+          </View>
+        )}
+      </View>
+      {isComplete && (
+        <Pressable onPress={() => { setVisible(false); setTimeout(dismiss, 300); }}>
+          <X size={18} color="#fff" />
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -418,16 +488,19 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
             <BrandProvider>
-              <AuthProvider>
-                <SubscriptionProvider>
-                  <BrandSync />
-                  <RcUserSync />
-                  <PushTokenSync />
-                  <PushNavSync />
-                  <NoticePopup />
-                  <RootNav />
-                </SubscriptionProvider>
-              </AuthProvider>
+              <UploadQueueProvider>
+                <AuthProvider>
+                  <SubscriptionProvider>
+                    <BrandSync />
+                    <RcUserSync />
+                    <PushTokenSync />
+                    <PushNavSync />
+                    <NoticePopup />
+                    <RootNav />
+                    <UploadProgressBanner />
+                  </SubscriptionProvider>
+                </AuthProvider>
+              </UploadQueueProvider>
             </BrandProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>
