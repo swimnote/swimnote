@@ -32,7 +32,8 @@ import { haptic } from "@/utils/haptic";
 const C = Colors.light;
 
 export default function TeacherDiaryScreen() {
-  const { token, adminUser: user } = useAuth();
+  const { token, adminUser: user, kind } = useAuth();
+  const isAdmin = kind === "admin";
   const { themeColor } = useBrand();
   const params = useLocalSearchParams<{ classGroupId?: string; className?: string; lessonDate?: string; editDiaryId?: string }>();
 
@@ -174,7 +175,7 @@ export default function TeacherDiaryScreen() {
   useEffect(() => { load(); }, [load]);
 
   async function openGroup(group: TeacherClassGroup) {
-    setSelectedGroup(group); setSubView("write"); setCommonContent(""); setStudentNotes([]);
+    setSelectedGroup(group); setSubView(isAdmin ? "history" : "write"); setCommonContent(""); setStudentNotes([]);
     setGroupMedia([]); setStudentMedia({}); setHasDraft(false);
     setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
     loadTemplates(); loadClassStudents(group.id); loadDiaries(group.id);
@@ -537,17 +538,19 @@ export default function TeacherDiaryScreen() {
           onBack={() => setSelectedGroup(null)}
           homePath="/(teacher)/today-schedule"
         />
-        <View style={s.subHeader}>
-          <View style={{ flex: 1 }} />
-          <Pressable
-            style={[s.tabBtn, { backgroundColor: subView === "history" ? themeColor : C.background, borderColor: themeColor }]}
-            onPress={() => setSubView(v => v === "history" ? "write" : "history")}>
-            <Clock size={13} color={subView === "history" ? "#fff" : themeColor} />
-            <Text style={[s.tabBtnText, { color: subView === "history" ? "#fff" : themeColor }]}>지난 일지</Text>
-          </Pressable>
-        </View>
+        {!isAdmin && (
+          <View style={s.subHeader}>
+            <View style={{ flex: 1 }} />
+            <Pressable
+              style={[s.tabBtn, { backgroundColor: subView === "history" ? themeColor : C.background, borderColor: themeColor }]}
+              onPress={() => setSubView(v => v === "history" ? "write" : "history")}>
+              <Clock size={13} color={subView === "history" ? "#fff" : themeColor} />
+              <Text style={[s.tabBtnText, { color: subView === "history" ? "#fff" : themeColor }]}>지난 일지</Text>
+            </Pressable>
+          </View>
+        )}
 
-        {subView === "write" && hasDraft && (
+        {!isAdmin && subView === "write" && hasDraft && (
           <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#EFF6FF", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginHorizontal: 16, marginBottom: 8, gap: 10 }}>
             <RotateCcw size={14} color="#2563EB" />
             <Text style={{ flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#1E40AF" }}>
