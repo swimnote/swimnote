@@ -172,8 +172,9 @@ export default function TeacherPhotosScreen() {
   const [selected,    setSelected]    = useState<Set<string>>(new Set());
   const [deleting,    setDeleting]    = useState(false);
   const [confirmDel,  setConfirmDel]  = useState(false);
-  const [saving,      setSaving]      = useState(false);
-  const [confirmSave, setConfirmSave] = useState(false);
+  const [saving,        setSaving]        = useState(false);
+  const [confirmSave,   setConfirmSave]   = useState(false);
+  const [savedPhotoIds, setSavedPhotoIds] = useState<Set<string>>(new Set());
 
   // 라이트박스 (null 안전 처리 필수)
   const [lightbox, setLightbox] = useState<MediaItem | null>(null);
@@ -282,6 +283,19 @@ export default function TeacherPhotosScreen() {
     if (step === "list") loadList();
   }, [step, loadList]);
 
+  // 전체앨범 사진 목록 로드 시 내앨범 저장 여부 병렬 로드
+  useEffect(() => {
+    if (step !== "list" || scope !== "group" || mediaType !== "photo") return;
+    (async () => {
+      try {
+        const res = await apiRequest(token, "/photos/saved");
+        const data = await safeJson(res);
+        const photos: any[] = Array.isArray(data?.photos) ? data.photos : [];
+        setSavedPhotoIds(new Set(photos.map((p: any) => p.id)));
+      } catch { /* 무시 */ }
+    })();
+  }, [step, scope, mediaType, token]);
+
   // ── 선택 모드 ─────────────────────────────────────────────────────────
   function exitSelect() { setSelectMode(false); setSelected(new Set()); }
 
@@ -348,6 +362,7 @@ export default function TeacherPhotosScreen() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((data as any)?.error ?? "저장 실패");
+      setSavedPhotoIds(prev => new Set([...prev, ...ids]));
       exitSelect();
       setSuccessMsg(`${ids.length}장이 내 개인앨범에 추가됐습니다.`);
     } catch (e: any) {
@@ -723,6 +738,7 @@ export default function TeacherPhotosScreen() {
             renderItem={({ item, index }) => {
               if (!item) return null;
               const isSel = selected.has(item.id);
+              const isSaved = scope === "group" && mediaType === "photo" && savedPhotoIds.has(item.id);
               const label = safeLabel(item);
               const uri = photoUri(item.file_url, token);
               return (
@@ -737,6 +753,7 @@ export default function TeacherPhotosScreen() {
                   style={[
                     s.photoCell,
                     { width: PHOTO_SIZE, height: PHOTO_SIZE },
+                    isSaved && !isSel && { borderWidth: 2, borderColor: "#2EC4B6" },
                     isSel && { borderWidth: 3, borderColor: cfg.color },
                   ]}
                 >
@@ -761,6 +778,11 @@ export default function TeacherPhotosScreen() {
                   {!!label && (
                     <View style={s.photoLabelBar}>
                       <Text style={s.photoLabelText} numberOfLines={1}>{label}</Text>
+                    </View>
+                  )}
+                  {isSaved && (
+                    <View style={s.savedBadge}>
+                      <BookmarkPlus size={11} color="#fff" />
                     </View>
                   )}
                   {selectMode && (
@@ -1173,6 +1195,7 @@ const s = StyleSheet.create({
   photoLabelBar: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.55)", paddingHorizontal: 5, paddingVertical: 4 },
   photoLabelText: { color: "#fff", fontSize: 9, fontFamily: "Pretendard-Regular" },
   checkCircle: { position: "absolute", top: 5, right: 5, width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#fff", backgroundColor: "rgba(255,255,255,0.3)", alignItems: "center", justifyContent: "center" },
+  savedBadge: { position: "absolute", top: 5, left: 5, width: 22, height: 22, borderRadius: 11, backgroundColor: "#2EC4B6", alignItems: "center", justifyContent: "center" },
 
   videoRow: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 12, gap: 12 },
   videoThumb: { width: 52, height: 52, borderRadius: 12, alignItems: "center", justifyContent: "center" },
