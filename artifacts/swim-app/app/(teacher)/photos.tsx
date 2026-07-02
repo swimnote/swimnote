@@ -9,7 +9,7 @@
  *  - Mock 데이터로 UI 테스트 가능
  */
 import { router } from "expo-router";
-import { Check, ChevronRight, CircleAlert, CloudUpload, Database, HardDrive, Image as ImageIcon, Info, Plus, RefreshCw, SquareCheck, Trash2, Users, Video, X } from "lucide-react-native";
+import { BookmarkPlus, Check, ChevronRight, CircleAlert, CloudUpload, Database, HardDrive, Image as ImageIcon, Info, Plus, RefreshCw, SquareCheck, Trash2, Users, Video, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
 import * as VideoThumbnails from "expo-video-thumbnails";
@@ -172,6 +172,8 @@ export default function TeacherPhotosScreen() {
   const [selected,    setSelected]    = useState<Set<string>>(new Set());
   const [deleting,    setDeleting]    = useState(false);
   const [confirmDel,  setConfirmDel]  = useState(false);
+  const [saving,      setSaving]      = useState(false);
+  const [confirmSave, setConfirmSave] = useState(false);
 
   // 라이트박스 (null 안전 처리 필수)
   const [lightbox, setLightbox] = useState<MediaItem | null>(null);
@@ -330,6 +332,29 @@ export default function TeacherPhotosScreen() {
     } finally {
       setDeleting(false);
       setConfirmDel(false);
+    }
+  }
+
+  // ── 내앨범으로 이동 ───────────────────────────────────────────────────
+  async function saveToMyAlbum() {
+    const ids = Array.from(selected).filter(Boolean);
+    if (!ids.length) { setConfirmSave(false); return; }
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/photos/saved`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+        body: JSON.stringify({ photo_ids: ids }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as any)?.error ?? "저장 실패");
+      exitSelect();
+      setSuccessMsg(`${ids.length}장이 내 개인앨범에 추가됐습니다.`);
+    } catch (e: any) {
+      setErrorMsg(e?.message ?? "저장 중 오류가 발생했습니다.");
+    } finally {
+      setSaving(false);
+      setConfirmSave(false);
     }
   }
 
@@ -616,10 +641,27 @@ export default function TeacherPhotosScreen() {
               </Text>
             </Pressable>
             <Text style={s.selectBarCount}>{selected.size}개 선택</Text>
-            <View style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              {scope === "group" && mediaType === "photo" && (
+                <Pressable
+                  onPress={() => selected.size > 0 && setConfirmSave(true)}
+                  disabled={selected.size === 0 || saving || deleting}
+                  style={[s.selectBarSave, { opacity: selected.size === 0 ? 0.4 : 1 }]}
+                >
+                  {saving
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : (
+                      <>
+                        <BookmarkPlus size={14} color="#fff" />
+                        <Text style={s.selectBarSaveText}>내앨범</Text>
+                      </>
+                    )
+                  }
+                </Pressable>
+              )}
               <Pressable
                 onPress={() => selected.size > 0 && setConfirmDel(true)}
-                disabled={selected.size === 0 || deleting}
+                disabled={selected.size === 0 || deleting || saving}
                 style={[s.selectBarDel, { opacity: selected.size === 0 ? 0.4 : 1 }]}
               >
                 {deleting
@@ -893,6 +935,17 @@ export default function TeacherPhotosScreen() {
           )}
         </Modal>
 
+        {/* 내앨범 저장 확인 */}
+        <ConfirmModal
+          visible={confirmSave}
+          title={`내앨범에 추가`}
+          message={`선택한 사진 ${selected.size}장을 내 개인앨범에 추가합니다.\n(전체앨범에서 삭제되지 않습니다)`}
+          confirmText="추가"
+          cancelText="취소"
+          onConfirm={saveToMyAlbum}
+          onCancel={() => setConfirmSave(false)}
+        />
+
         {/* 삭제 확인 */}
         <ConfirmModal
           visible={confirmDel}
@@ -1099,10 +1152,12 @@ const s = StyleSheet.create({
   selectBarLeft: { flexDirection: "row", alignItems: "center", gap: 5 },
   selectBarAllText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   selectBarCount: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
-  selectBarDel: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#D96C6C", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
-  selectBarDelText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
+  selectBarSave: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#2EC4B6", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  selectBarSaveText: { color: "#fff", fontSize: 13, lineHeight: 18 },
+  selectBarDel: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#D96C6C", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  selectBarDelText: { color: "#fff", fontSize: 13, lineHeight: 18 },
   selectBarCancel: { paddingHorizontal: 8, paddingVertical: 7 },
-  selectBarCancelText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  selectBarCancelText: { fontSize: 13, lineHeight: 18, color: "#64748B" },
 
   centerBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 28 },
   centerText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
