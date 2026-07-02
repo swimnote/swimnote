@@ -196,6 +196,22 @@ app.get(["/health", "/api/health", "/healthz", "/api/healthz"], (_req: Request, 
   res.json({ ok: true, uptime: Math.floor(process.uptime()), timestamp: new Date().toISOString(), version: "v2.1-2026-04-04" });
 });
 
+// ── 작업 결과보고서 ─────────────────────────────────────────────────
+app.get(["/report", "/api/report"], (_req: Request, res: Response) => {
+  const candidates = [
+    "/home/runner/workspace/report.html",
+    path.resolve(process.cwd(), "../../report.html"),
+    path.resolve(process.cwd(), "report.html"),
+  ];
+  const file = candidates.find(f => fs.existsSync(f));
+  if (file) {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(fs.readFileSync(file, "utf-8"));
+  } else {
+    res.status(404).send("report.html not found — checked: " + candidates.join(", "));
+  }
+});
+
 // ── 서비스 소개 랜딩 페이지 (루트) ────────────────────────────────────
 app.get("/", (_req: Request, res: Response) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
