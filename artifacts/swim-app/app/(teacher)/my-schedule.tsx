@@ -92,6 +92,16 @@ export default function MyScheduleScreen() {
     load,
   } = useMyScheduleData(token);
 
+  // 관리자가 선생님 모드일 때 → 본인 담당 반만 표시
+  // 일반 선생님은 API가 이미 필터링해서 반환하므로 그대로 사용
+  const myUserId = adminUser?.id;
+  const myGroups = myUserId
+    ? groups.filter(g =>
+        g.teacher_user_id === myUserId ||
+        (Array.isArray((g as any).co_teacher_ids) && (g as any).co_teacher_ids.includes(myUserId))
+      )
+    : groups;
+
   const {
     dayViewAttState, setDayViewAttState,
     dayViewAttSaving,
@@ -470,7 +480,7 @@ export default function MyScheduleScreen() {
     );
   }
 
-  const dayClasses = selectedDate ? classesForDate(groups, selectedDate) : [];
+  const dayClasses = selectedDate ? classesForDate(myGroups, selectedDate) : [];
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
@@ -544,7 +554,7 @@ export default function MyScheduleScreen() {
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
           <MonthlyCalendar
-            groups={groups}
+            groups={myGroups}
             themeColor={themeColor}
             selectedDate={selectedDate}
             onSelectDate={handleDatePress}
@@ -558,13 +568,13 @@ export default function MyScheduleScreen() {
 
       {viewMode === "weekly" && (
         <View style={{ flex: 1 }}>
-          {groups.length === 0 && (
+          {myGroups.length === 0 && (
             <View style={s.emptyHintBanner}>
               <Text style={s.emptyHintText}>등록된 수업이 없습니다</Text>
             </View>
           )}
           <WeeklyTimetable
-            groups={groups}
+            groups={myGroups}
             onSelectClass={g => setDetailGroup(g)}
             selectionMode={selectionMode}
             selectedIds={selectedIds}
@@ -583,7 +593,7 @@ export default function MyScheduleScreen() {
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
           <WeeklySchedule
-            classGroups={groups} statusMap={statusMap} onSelectClass={setSelectedGroup}
+            classGroups={myGroups} statusMap={statusMap} onSelectClass={setSelectedGroup}
             themeColor={themeColor} selectionMode={selectionMode}
             selectedIds={selectedIds} onToggleSelect={toggleSelect} />
           <View style={{ height: 80 }} />
@@ -643,7 +653,7 @@ export default function MyScheduleScreen() {
       <StudentManagementSheet
         visible={showManagement}
         token={token}
-        groups={groups}
+        groups={myGroups}
         themeColor={themeColor}
         selfTeacher={selfTeacher}
         onClose={() => setShowManagement(false)}
