@@ -721,8 +721,7 @@ export default function ClassesScreen() {
             onNextWeek={() => setWeeklyViewStart(prev => addDaysStr(prev, 7))}
             statusMap={statusMap}
             students={allStudents}
-            compactMode={true}
-            onSelectSlot={(day, hour, cls) => setSelectedSlot({ day, hour, classes: cls })}
+            compactMode={false}
           />
         </View>
       )}
