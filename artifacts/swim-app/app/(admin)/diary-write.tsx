@@ -83,6 +83,7 @@ export default function AdminDiaryAllScreen() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
 
@@ -103,15 +104,20 @@ export default function AdminDiaryAllScreen() {
   const load = useCallback(async (isRefresh = false) => {
     if (!token) { setLoading(false); return; }
     if (!isRefresh) setLoading(true);
+    setLoadError(null);
     try {
       const res = await apiRequest(token, "/diaries/admin/all-entries?limit=200");
       if (res.ok) {
         const data = await res.json();
         setEntries(Array.isArray(data.entries) ? data.entries : []);
         setTotal(data.total || 0);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setLoadError(err.error || `서버 오류 (${res.status})`);
       }
     } catch (e) {
       console.error("[admin-diary-all] load error", e);
+      setLoadError("네트워크 오류가 발생했습니다.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -382,6 +388,15 @@ export default function AdminDiaryAllScreen() {
 
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
+      ) : loadError ? (
+        <View style={s.empty}>
+          <Info size={40} color="#EF4444" />
+          <Text style={[s.emptyTitle, { color: "#EF4444" }]}>불러오기 실패</Text>
+          <Text style={[s.emptyTitle, { fontSize: 13, color: C.textSecondary, marginTop: 8, textAlign: "center", paddingHorizontal: 24 }]}>{loadError}</Text>
+          <Pressable onPress={() => load()} style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: themeColor, borderRadius: 8 }}>
+            <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" }}>다시 시도</Text>
+          </Pressable>
+        </View>
       ) : (
         <FlatList
           data={filtered}

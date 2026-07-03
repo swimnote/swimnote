@@ -105,18 +105,26 @@ export default function DiaryTeacherEntriesScreen() {
       .finally(() => setTeachersLoading(false));
   }, [token, selectedTeacherId]);
 
+  // 일지 로드 에러
+  const [entriesError, setEntriesError] = useState<string | null>(null);
+
   // 선생님 선택 후 일지 로드
   const load = useCallback(async (isRefresh = false) => {
     if (!token || !selectedTeacherId) return;
     isRefresh ? setRefreshing(true) : setLoading(true);
+    setEntriesError(null);
     try {
       const res = await apiRequest(token, `/diaries/admin/teacher/${selectedTeacherId}/entries`);
       if (res.ok) {
         const data = await res.json();
         setEntries(Array.isArray(data.entries) ? data.entries : []);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setEntriesError(err.error || `서버 오류 (${res.status})`);
       }
     } catch (e) {
       console.error("[diary-teacher-entries] load error", e);
+      setEntriesError("네트워크 오류가 발생했습니다.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -346,6 +354,15 @@ export default function DiaryTeacherEntriesScreen() {
 
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
+      ) : entriesError ? (
+        <View style={de.empty}>
+          <Info size={40} color="#EF4444" />
+          <Text style={[de.emptyTitle, { color: "#EF4444" }]}>불러오기 실패</Text>
+          <Text style={[de.emptyTitle, { fontSize: 13, color: C.textSecondary, marginTop: 8, textAlign: "center", paddingHorizontal: 24 }]}>{entriesError}</Text>
+          <Pressable onPress={() => load()} style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: themeColor, borderRadius: 8 }}>
+            <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" }}>다시 시도</Text>
+          </Pressable>
+        </View>
       ) : (
         <FlatList
           data={entries}
