@@ -2,12 +2,13 @@ build:
   name: iOS Production Build
   steps:
     - eas/checkout
-    - run:
-        name: Install dependencies
-        command: pnpm install --no-frozen-lockfile
+    - eas/install_node_modules
     - eas/prebuild:
         inputs:
           clean: true
+          platform: ios
     - eas/install_pods
-    - eas/build
+    - eas/build:
+        inputs:
+          platform: ios
     - eas/upload_build_artifacts
