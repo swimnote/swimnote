@@ -26,7 +26,7 @@
       }
     },
     "production": {
-      "autoIncrement": true,
+      "autoIncrement": false,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://swimnote-api.onrender.com/api",
         "EXPO_PUBLIC_DOMAIN": "swimnote-api.onrender.com",
