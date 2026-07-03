@@ -3,10 +3,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Updates from "expo-updates";
-import { useUpdates } from "expo-updates";
 import Constants from "expo-constants";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Platform, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, AppStateStatus, Linking, Platform, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X } from "lucide-react-native";
 import { UploadQueueProvider, useUploadQueue } from "@/context/UploadQueueContext";
@@ -81,6 +80,49 @@ function AppLoadingScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#FFFFFF", justifyContent: "center", alignItems: "center" }}>
       <ActivityIndicator size="large" color="#2EC4B6" />
+    </View>
+  );
+}
+
+// ─── OTA 업데이트 배너 ──────────────────────────────────────────
+function UpdateBanner({ onApply, onDismiss }: { onApply: () => void; onDismiss: () => void }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{
+      position: "absolute",
+      top: insets.top + 8,
+      left: 16, right: 16,
+      backgroundColor: "#1F8F86",
+      borderRadius: 14,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.18,
+      shadowRadius: 10,
+      elevation: 12,
+      zIndex: 99999,
+    }}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: "#fff", fontSize: 13, fontFamily: "Pretendard-SemiBold", lineHeight: 18 }}>
+          새 업데이트가 있습니다
+        </Text>
+        <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 2 }}>
+          탭하여 지금 바로 적용하세요
+        </Text>
+      </View>
+      <Pressable
+        onPress={onApply}
+        style={{ backgroundColor: "rgba(255,255,255,0.25)", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
+      >
+        <Text style={{ color: "#fff", fontSize: 12, fontFamily: "Pretendard-SemiBold" }}>적용</Text>
+      </Pressable>
+      <Pressable onPress={onDismiss} hitSlop={8}>
+        <X size={16} color="rgba(255,255,255,0.8)" />
+      </Pressable>
     </View>
   );
 }
@@ -289,27 +331,42 @@ function PushNavSync() {
 function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
 
-  // OTA 업데이트 — 업데이트 발견 즉시 다운로드 → 완료 시 재시작 Alert
-  const { isUpdateAvailable, isUpdatePending, isDownloading } = useUpdates();
+  // OTA 업데이트 — AppState 기반으로 포그라운드 복귀마다 체크
+  const [showUpdateBanner, setShowUpdateBanner] = useState(false);
+  const isCheckingRef = useRef(false);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
-  // 업데이트 발견 → 즉시 다운로드 시작
-  useEffect(() => {
-    if (__DEV__ || !isUpdateAvailable || isDownloading || isUpdatePending) return;
-    Updates.fetchUpdateAsync().catch(() => {});
-  }, [isUpdateAvailable]);
+  async function checkAndFetchUpdate() {
+    if (__DEV__ || isCheckingRef.current) return;
+    isCheckingRef.current = true;
+    try {
+      const check = await Updates.checkForUpdateAsync();
+      if (check.isAvailable) {
+        await Updates.fetchUpdateAsync();
+        setShowUpdateBanner(true);
+      }
+    } catch (_) {
+    } finally {
+      isCheckingRef.current = false;
+    }
+  }
 
-  // 다운로드 완료 → 재시작 Alert
+  // 앱 시작 시 1회 체크
   useEffect(() => {
-    if (__DEV__ || !isUpdatePending) return;
-    Alert.alert(
-      "업데이트 완료",
-      "새로운 버전이 준비됐습니다.\n지금 재시작하시겠어요?",
-      [
-        { text: "나중에" },
-        { text: "지금 재시작", style: "default", onPress: () => Updates.reloadAsync() },
-      ]
-    );
-  }, [isUpdatePending]);
+    checkAndFetchUpdate();
+  }, []);
+
+  // 백그라운드 → 포그라운드 복귀 시 체크
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState: AppStateStatus) => {
+      const prev = appStateRef.current;
+      appStateRef.current = nextState;
+      if ((prev === "background" || prev === "inactive") && nextState === "active") {
+        checkAndFetchUpdate();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   // 앱 버전 체크 — 강제/소프트 업데이트 유도
   useEffect(() => {
@@ -440,6 +497,12 @@ function RootNav() {
         >
           <ActivityIndicator size="large" color="#2EC4B6" />
         </View>
+      )}
+      {showUpdateBanner && (
+        <UpdateBanner
+          onApply={() => { setShowUpdateBanner(false); Updates.reloadAsync(); }}
+          onDismiss={() => setShowUpdateBanner(false)}
+        />
       )}
     </View>
   );
