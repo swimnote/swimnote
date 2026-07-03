@@ -98,10 +98,10 @@ export default function WeeklyTimetableV2({
   /* ── 카드 렌더 (기존 로직 그대로) ── */
   function renderCard(g: TeacherClassGroup, isToday: boolean) {
     const selected  = selectedIds.has(g.id);
-    const accent    = classColor(g.id);
+    const accent    = classColor(g.id, g.color);
     const hasDot    = changedClassIds.has(g.id);
-    const cardBg    = g.color && g.color !== "#FFFFFF" ? g.color : "#FFFFFF";
-    const cardBdr   = cardBg === "#FFFFFF" ? "#E5E7EB" : "transparent";
+    const cardBg    = accent + "18";
+    const cardBdr   = accent + "55";
 
     const names     = classStudentMap[g.id] ?? [];
     const namesLine = names.length > 0 ? names.join(" · ") : null;

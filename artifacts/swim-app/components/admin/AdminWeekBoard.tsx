@@ -5,6 +5,7 @@
 import React, { useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
+import { classColor } from "@/utils/classColor";
 
 const C = Colors.light;
 
@@ -13,19 +14,11 @@ const COL_W = 56;
 const TIME_W = 44;
 const ROW_H = 60;
 
-const CLASS_COLORS = ["#4EA7D8","#2E9B6F","#E4A93A","#D96C6C","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
-
-function classColor(id: string) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
-  return CLASS_COLORS[Math.abs(h) % CLASS_COLORS.length];
-}
-
 function parseHour(t: string): number { return parseInt(t.split(/[:-]/)[0]) || 0; }
 
 export interface ClassGroupItem {
   id: string; name: string; schedule_days: string; schedule_time: string;
-  student_count: number; teacher_user_id?: string | null;
+  student_count: number; teacher_user_id?: string | null; color?: string | null;
 }
 
 interface Props {
@@ -83,7 +76,7 @@ export default function AdminWeekBoard({ classGroups, onCellPress }: Props) {
                   onPress={() => onCellPress(day, `${String(h).padStart(2, "0")}:00`)}
                 >
                   {cls.map(g => (
-                    <View key={g.id} style={[wb.classChip, { backgroundColor: classColor(g.id) }]}>
+                    <View key={g.id} style={[wb.classChip, { backgroundColor: classColor(g.id, g.color) }]}>
                       <Text style={wb.chipName} numberOfLines={2}>{g.name}</Text>
                       <Text style={wb.chipCount}>{g.student_count}명</Text>
                     </View>

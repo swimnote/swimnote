@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import Colors from "@/constants/colors";
 import { TeacherClassGroup, SlotStatus, DayBarProps } from "@/components/teacher/types";
+import { classColor } from "@/utils/classColor";
 
 const C = Colors.light;
 
@@ -44,14 +45,6 @@ function getDayClasses(groups: TeacherClassGroup[], day: string) {
     .sort((a, b) => parseHour(a.schedule_time) - parseHour(b.schedule_time));
 }
 
-const CLASS_COLORS = [
-  "#2EC4B6","#EC4899","#14B8A6","#E4A93A","#8B5CF6",
-  "#2E9B6F","#4EA7D8","#D96C6C","#F97316","#06B6D4",
-];
-function classColor(id: string) {
-  let n = 0; for (let i = 0; i < id.length; i++) n += id.charCodeAt(i);
-  return CLASS_COLORS[n % CLASS_COLORS.length];
-}
 
 export function WeeklySchedule({
   classGroups, statusMap, onSelectClass, themeColor,
@@ -143,8 +136,8 @@ export function WeeklySchedule({
             const diaryDone = status?.diaryDone ?? true;
             const hasPhotos = status?.hasPhotos ?? false;
             const inactive  = total === 0;
-            const barColor  = classColor(g.id);
-            const bgColor   = g.color && g.color !== "#FFFFFF" ? g.color : "#FFFFFF";
+            const barColor  = classColor(g.id, g.color);
+            const bgColor   = barColor + "18";
             const isSelected = selectedIds.has(g.id);
 
             return (

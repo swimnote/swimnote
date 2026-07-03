@@ -177,7 +177,7 @@ export default function DaySheet({
                   const diarDone = diarySet.has(g.id);
                   const attCnt   = attMap[g.id] || 0;
                   const done     = diarDone;
-                  const color    = classColor(g.id);
+                  const color    = classColor(g.id, g.color);
                   const koDay    = getKoDay(dateStr);
                   const timeLabel = `${koDay}요일 ${g.schedule_time}`;
                   const capLabel  = g.capacity ? `${g.student_count}/${g.capacity}명` : `${g.student_count}명`;

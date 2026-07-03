@@ -2,16 +2,11 @@ import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import { Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
+import { classColor } from "@/utils/classColor";
 
 const C = Colors.light;
 const SCREEN_W = Dimensions.get("window").width;
 const DAY_KO = ["일", "월", "화", "수", "목", "금", "토"];
-
-const CLASS_COLORS = ["#4EA7D8","#2E9B6F","#E4A93A","#D96C6C","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
-function classColor(id: string) {
-  let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
-  return CLASS_COLORS[Math.abs(h) % CLASS_COLORS.length];
-}
 
 function todayDateStr() {
   const d = new Date();
@@ -21,7 +16,7 @@ function dateToKo(dateStr: string): string {
   return DAY_KO[new Date(dateStr + "T12:00:00Z").getUTCDay()];
 }
 
-interface ClassGroup { id: string; schedule_days: string; }
+interface ClassGroup { id: string; schedule_days: string; color?: string | null; }
 
 interface MonthlyCalendarProps {
   classGroups: ClassGroup[];
@@ -88,7 +83,7 @@ export function MonthlyCalendar({ classGroups, onSelectDate }: MonthlyCalendarPr
                 </View>
                 <View style={{ flexDirection: "row", gap: 1.5, marginTop: 3, flexWrap: "wrap", justifyContent: "center" }}>
                   {cls.slice(0, 4).map(g => (
-                    <View key={g.id} style={[mc.dot, { backgroundColor: classColor(g.id) }]} />
+                    <View key={g.id} style={[mc.dot, { backgroundColor: classColor(g.id, g.color) }]} />
                   ))}
                   {cls.length > 4 && <Text style={[mc.moreText, { color: C.textMuted }]}>+{cls.length - 4}</Text>}
                 </View>

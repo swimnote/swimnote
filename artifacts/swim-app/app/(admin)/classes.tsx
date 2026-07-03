@@ -20,6 +20,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { addTabResetListener } from "@/utils/tabReset";
+import { classColor } from "@/utils/classColor";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import OnboardingTooltip from "@/components/common/OnboardingTooltip";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
@@ -63,11 +64,6 @@ function getHourRange(groups: TeacherClassGroup[]): number[] {
   const minH = Math.max(6, Math.min(...hours));
   const maxH = Math.min(22, Math.max(...hours));
   return Array.from({ length: maxH - minH + 1 }, (_, i) => i + minH);
-}
-const COLORS = ["#4EA7D8","#2E9B6F","#E4A93A","#D96C6C","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
-function classColor(id: string) {
-  let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
-  return COLORS[Math.abs(h) % COLORS.length];
 }
 
 
@@ -179,8 +175,8 @@ function MonthlyCalendar({ groups, themeColor, selectedDate, onSelectDate }: {
                       const pillIsPast = isPast ||
                         (isToday && parseHour(cls[ti].schedule_time) < nowHour);
                       return (
-                        <View key={ti} style={[mc.timePill, { backgroundColor: classColor(cls[ti].id) + "22" }]}>
-                          <Text style={[mc.timePillText, { color: classColor(cls[ti].id) }]}>{label}</Text>
+                        <View key={ti} style={[mc.timePill, { backgroundColor: classColor(cls[ti].id, cls[ti].color) + "22" }]}>
+                          <Text style={[mc.timePillText, { color: classColor(cls[ti].id, cls[ti].color) }]}>{label}</Text>
                           {pillIsPast && (
                             <View style={mc.strikeOverlay} pointerEvents="none">
                               <View style={mc.strikeLine} />
@@ -306,7 +302,7 @@ function SlotSheet({ day, hour, classes, themeColor, onClose, onSelectClass }: {
                 {teacherClasses.map(g => (
                   <Pressable key={g.id} style={sl.classCard}
                     onPress={() => { onClose(); setTimeout(() => onSelectClass(g), 250); }}>
-                    <View style={[sl.colorBar, { backgroundColor: classColor(g.id) }]} />
+                    <View style={[sl.colorBar, { backgroundColor: classColor(g.id, g.color) }]} />
                     <View style={{ flex: 1 }}>
                       <Text style={sl.className}>{g.name}</Text>
                       <Text style={sl.classSub}>{g.student_count ?? 0}명 · {g.schedule_time}</Text>
@@ -406,7 +402,7 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
               <View style={{ paddingHorizontal: 16, gap: 8, marginBottom: 12 }}>
                 {classes.map(g => {
                   const attCnt = attMap[g.id] || 0;
-                  const color  = classColor(g.id);
+                  const color  = classColor(g.id, g.color);
                   return (
                     <Pressable key={g.id} style={dy.classCard} onPress={() => onSelectClass(g)}>
                       <View style={[dy.colorBar, { backgroundColor: color }]} />
