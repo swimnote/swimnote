@@ -349,7 +349,7 @@ const sl = StyleSheet.create({
 });
 
 // ─── 날짜 상세 팝업 ─────────────────────────────────────────────
-function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass, onOpenMakeup, onDismissed }: {
+function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass, onOpenMakeup }: {
   dateStr: string;
   classes: TeacherClassGroup[];
   attMap: Record<string, number>;
@@ -357,12 +357,11 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
   onClose: () => void;
   onSelectClass: (g: TeacherClassGroup) => void;
   onOpenMakeup: () => void;
-  onDismissed?: () => void;
 }) {
   const label = dateLabelFull(dateStr);
 
   return (
-    <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={onClose} onDismiss={onDismissed}>
+    <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
       <Pressable style={dy.backdrop} onPress={onClose}>
         <Pressable style={dy.sheet} onPress={() => {}}>
           <View style={dy.handle} />
@@ -509,8 +508,6 @@ export default function ClassesScreen() {
   // 포커스 복귀 시 날짜 팝업 복원용
   const isMountedRef          = useRef(false);
   const pendingRestoreDateRef = useRef<string | null>(null);
-  // DaySheet 닫힌 후 열 반 (Modal 애니메이션 충돌 방지)
-  const pendingDetailGroupRef = useRef<TeacherClassGroup | null>(null);
 
   // ── 데이터 로드 ──
   const load = useCallback(async () => {
@@ -756,13 +753,8 @@ export default function ClassesScreen() {
           themeColor={themeColor}
           onClose={() => setSelectedDate(null)}
           onSelectClass={(g) => {
-            pendingDetailGroupRef.current = g;
             setSelectedDate(null);
-          }}
-          onDismissed={() => {
-            const g = pendingDetailGroupRef.current;
-            pendingDetailGroupRef.current = null;
-            if (g) setDetailGroup(g);
+            setTimeout(() => setDetailGroup(g), 350);
           }}
           onOpenMakeup={() => navigateFromSheet(() => router.push("/(admin)/makeups?backTo=classes" as any))}
         />
