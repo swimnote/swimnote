@@ -4,18 +4,18 @@
  * - 자녀 일지에 첨부된 사진 + 영상 통합 표시
  * - 전체 / 사진 / 영상 탭 필터
  * - 월별 그룹핑, created_at 최신순, 3열 격자
- * - 사진: 확대 라이트박스, 다운로드, 해당 일지 보기
+ * - 사진: 확대 라이트박스 + 좌우 스와이프/버튼으로 이전·다음 사진 이동
  * - 영상: 썸네일 + 재생 아이콘, 해당 일지 보기
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Dimensions, FlatList, Modal,
-  Platform, Pressable, RefreshControl, StyleSheet, Text, View,
+  PanResponder, Platform, Pressable, RefreshControl, StyleSheet, Text, View,
 } from "react-native";
 import { Image as ExpoImage } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { BookOpen, Download, ImageIcon, Play, Video, X } from "lucide-react-native";
+import { BookOpen, ChevronLeft, ChevronRight, Download, ImageIcon, Play, Video, X } from "lucide-react-native";
 import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import Colors from "@/constants/colors";
@@ -102,10 +102,12 @@ export default function ParentAlbumScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab]         = useState<TabType>("all");
 
-  const [lightbox, setLightbox]   = useState<MediaItem | null>(null);
-  const [lbSaving, setLbSaving]   = useState(false);
+  // 라이트박스: 인덱스 기반 (photoOnlyItems 배열 인덱스)
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const [lbSaving, setLbSaving]       = useState(false);
+
   const [videoDetail, setVideoDetail] = useState<MediaItem | null>(null);
-  const [vdSaving, setVdSaving]   = useState(false);
+  const [vdSaving, setVdSaving]       = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -136,7 +138,62 @@ export default function ParentAlbumScreen() {
     return src.slice().sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
   }, [photos, videos, tab]);
 
+  // 사진만 추출 (스와이프 이동 대상)
+  const photoOnlyItems = useMemo<MediaItem[]>(
+    () => filtered.filter(i => i._type === "photo"),
+    [filtered]
+  );
+
   const rows = useMemo(() => buildRows(filtered), [filtered]);
+
+  // 현재 라이트박스 아이템
+  const lightboxItem = lightboxIdx !== null ? photoOnlyItems[lightboxIdx] ?? null : null;
+
+  function openLightbox(item: MediaItem) {
+    const idx = photoOnlyItems.findIndex(p => p.id === item.id);
+    if (idx >= 0) setLightboxIdx(idx);
+  }
+
+  function closeLightbox() { setLightboxIdx(null); }
+
+  function goPrev() {
+    setLightboxIdx(prev => (prev !== null && prev > 0 ? prev - 1 : prev));
+  }
+  function goNext() {
+    setLightboxIdx(prev => (prev !== null && prev < photoOnlyItems.length - 1 ? prev + 1 : prev));
+  }
+
+  // 스와이프 감지
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) =>
+        Math.abs(gs.dx) > 10 && Math.abs(gs.dx) > Math.abs(gs.dy),
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dx < -50) goNext();
+        else if (gs.dx > 50) goPrev();
+      },
+    })
+  ).current;
+
+  // goPrev/goNext가 클로저 캡처 문제가 있으므로 ref로 최신 인덱스 추적
+  const lightboxIdxRef = useRef<number | null>(null);
+  const photoOnlyItemsRef = useRef<MediaItem[]>([]);
+  useEffect(() => { lightboxIdxRef.current = lightboxIdx; }, [lightboxIdx]);
+  useEffect(() => { photoOnlyItemsRef.current = photoOnlyItems; }, [photoOnlyItems]);
+
+  const panResponderFixed = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) =>
+        Math.abs(gs.dx) > 10 && Math.abs(gs.dx) > Math.abs(gs.dy),
+      onPanResponderRelease: (_, gs) => {
+        const cur = lightboxIdxRef.current;
+        const arr = photoOnlyItemsRef.current;
+        if (cur === null) return;
+        if (gs.dx < -50 && cur < arr.length - 1) setLightboxIdx(cur + 1);
+        else if (gs.dx > 50 && cur > 0) setLightboxIdx(cur - 1);
+      },
+    })
+  ).current;
 
   async function downloadPhoto(item: MediaItem) {
     if (Platform.OS === "web") {
@@ -166,7 +223,6 @@ export default function ParentAlbumScreen() {
     setVdSaving(true);
     try {
       const BASE_ORIGIN = API_BASE.replace(/\/api$/, "");
-      // 서버 batchVideoPresign이 presigned_url을 함께 내려줌 → 직접 다운로드
       const presigned = (item as any).presigned_url as string | undefined;
       const finalUrl = presigned
         ?? (() => {
@@ -193,7 +249,7 @@ export default function ParentAlbumScreen() {
   }
 
   function goToDiary(journalId?: string | null) {
-    setLightbox(null);
+    closeLightbox();
     setVideoDetail(null);
     router.push({
       pathname: "/(parent)/diary" as any,
@@ -207,7 +263,7 @@ export default function ParentAlbumScreen() {
     if (item._type === "photo") {
       const uri = photoFileUri(item.file_url);
       return (
-        <Pressable key={item.id} onPress={() => setLightbox(item)} style={[st.cell, { width: CELL, height: CELL }]}>
+        <Pressable key={item.id} onPress={() => openLightbox(item)} style={[st.cell, { width: CELL, height: CELL }]}>
           <ExpoImage
             source={{ uri, headers: { Authorization: `Bearer ${token}` } }}
             style={st.cellImg}
@@ -253,6 +309,9 @@ export default function ParentAlbumScreen() {
     { key: "video", label: "영상" },
   ];
 
+  const hasPrev = lightboxIdx !== null && lightboxIdx > 0;
+  const hasNext = lightboxIdx !== null && lightboxIdx < photoOnlyItems.length - 1;
+
   return (
     <View style={[st.root, { backgroundColor: C.background }]}>
       <ParentScreenHeader title="앨범" />
@@ -293,41 +352,77 @@ export default function ParentAlbumScreen() {
         />
       )}
 
-      {/* 사진 라이트박스 */}
-      <Modal visible={!!lightbox} transparent animationType="fade" onRequestClose={() => setLightbox(null)}>
-        <View style={st.lbBg}>
+      {/* 사진 라이트박스 (스와이프 이동 가능) */}
+      <Modal
+        visible={lightboxIdx !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={closeLightbox}
+      >
+        <View style={st.lbBg} {...panResponderFixed.panHandlers}>
+          {/* 닫기 */}
           <View style={[st.lbTop, { paddingTop: insets.top + 14 }]}>
-            <Pressable onPress={() => setLightbox(null)} style={st.lbClose} hitSlop={10}>
+            <Pressable onPress={closeLightbox} style={st.lbClose} hitSlop={10}>
               <X size={26} color="#fff" />
             </Pressable>
+            {/* 인덱스 표시 */}
+            {photoOnlyItems.length > 1 && lightboxIdx !== null && (
+              <Text style={st.lbCounter}>
+                {lightboxIdx + 1} / {photoOnlyItems.length}
+              </Text>
+            )}
           </View>
 
-          {lightbox && (
+          {/* 이미지 */}
+          {lightboxItem ? (
             <ExpoImage
-              source={{ uri: photoFileUri(lightbox.file_url), headers: { Authorization: `Bearer ${token}` } }}
+              source={{ uri: photoFileUri(lightboxItem.file_url), headers: { Authorization: `Bearer ${token}` } }}
               style={st.lbImage}
               contentFit="contain"
             />
-          )}
-
-          {lightbox?.source_label ? (
-            <Text style={st.lbSource}>{lightbox.source_label}</Text>
           ) : null}
 
+          {lightboxItem?.source_label ? (
+            <Text style={st.lbSource}>{lightboxItem.source_label}</Text>
+          ) : null}
+
+          {/* 이전/다음 화살표 */}
+          {photoOnlyItems.length > 1 && (
+            <View style={st.lbArrowRow}>
+              <Pressable
+                onPress={goPrev}
+                style={[st.lbArrow, !hasPrev && st.lbArrowDisabled]}
+                hitSlop={16}
+                disabled={!hasPrev}
+              >
+                <ChevronLeft size={28} color={hasPrev ? "#fff" : "rgba(255,255,255,0.25)"} />
+              </Pressable>
+              <Pressable
+                onPress={goNext}
+                style={[st.lbArrow, !hasNext && st.lbArrowDisabled]}
+                hitSlop={16}
+                disabled={!hasNext}
+              >
+                <ChevronRight size={28} color={hasNext ? "#fff" : "rgba(255,255,255,0.25)"} />
+              </Pressable>
+            </View>
+          )}
+
+          {/* 다운로드 / 일지보기 버튼 */}
           <View style={st.lbBtnRow}>
             <Pressable
               style={[st.lbBtn, { backgroundColor: C.tint }]}
-              onPress={() => lightbox && downloadPhoto(lightbox)}
+              onPress={() => lightboxItem && downloadPhoto(lightboxItem)}
               disabled={lbSaving}
             >
               {lbSaving
                 ? <ActivityIndicator color="#fff" size="small" />
                 : <><Download size={16} color="#fff" /><Text style={st.lbBtnTxt}>다운로드</Text></>}
             </Pressable>
-            {lightbox?.journal_id && (
+            {lightboxItem?.journal_id && (
               <Pressable
                 style={[st.lbBtn, { backgroundColor: "#0F172A" }]}
-                onPress={() => goToDiary(lightbox?.journal_id)}
+                onPress={() => goToDiary(lightboxItem?.journal_id)}
               >
                 <BookOpen size={16} color="#fff" />
                 <Text style={st.lbBtnTxt}>해당 일지 보기</Text>
@@ -423,10 +518,33 @@ const st = StyleSheet.create({
   emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20, color: "#64748B" },
 
   lbBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.96)", justifyContent: "center" },
-  lbTop: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingHorizontal: 16, paddingBottom: 12 },
+  lbTop: {
+    position: "absolute", top: 0, left: 0, right: 0, zIndex: 10,
+    paddingHorizontal: 16, paddingBottom: 12,
+    flexDirection: "row", alignItems: "center",
+  },
   lbClose: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  lbCounter: {
+    flex: 1, textAlign: "center",
+    color: "rgba(255,255,255,0.75)", fontSize: 14, fontFamily: "Pretendard-Regular",
+    marginRight: 44,
+  },
   lbImage: { width: "100%", height: "60%" },
   lbSource: { color: "#E6FFFA", fontSize: 13, textAlign: "center", paddingHorizontal: 24, paddingTop: 16, fontFamily: "Pretendard-Regular" },
+
+  lbArrowRow: {
+    position: "absolute", left: 0, right: 0,
+    flexDirection: "row", justifyContent: "space-between",
+    paddingHorizontal: 8, top: "35%",
+    zIndex: 5,
+  },
+  lbArrow: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center", justifyContent: "center",
+  },
+  lbArrowDisabled: { backgroundColor: "rgba(0,0,0,0.15)" },
+
   lbBtnRow: { flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingTop: 20, justifyContent: "center" },
   lbBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14 },
   lbBtnTxt: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },

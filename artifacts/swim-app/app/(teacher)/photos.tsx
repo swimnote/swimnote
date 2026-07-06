@@ -9,7 +9,7 @@
  *  - Mock 데이터로 UI 테스트 가능
  */
 import { router } from "expo-router";
-import { BookmarkPlus, Check, ChevronRight, CircleAlert, CloudUpload, Database, HardDrive, Image as ImageIcon, Info, Plus, RefreshCw, SquareCheck, Trash2, Users, Video, X } from "lucide-react-native";
+import { BookmarkPlus, Check, ChevronLeft, ChevronRight, CircleAlert, CloudUpload, Database, HardDrive, Image as ImageIcon, Info, Plus, RefreshCw, SquareCheck, Trash2, Users, Video, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
 import * as VideoThumbnails from "expo-video-thumbnails";
@@ -17,7 +17,7 @@ import { compressImageIfNeeded } from "../../utils/compressImage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Dimensions, FlatList,
-  Modal, Pressable, ScrollView, StyleSheet, Text, View,
+  Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -176,8 +176,27 @@ export default function TeacherPhotosScreen() {
   const [confirmSave,   setConfirmSave]   = useState(false);
   const [savedPhotoIds, setSavedPhotoIds] = useState<Set<string>>(new Set());
 
-  // 라이트박스 (null 안전 처리 필수)
-  const [lightbox, setLightbox] = useState<MediaItem | null>(null);
+  // 라이트박스 — 인덱스 기반 (items 배열 인덱스)
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+
+  const lightboxIdxRef = useRef<number | null>(null);
+  const itemsRef = useRef<MediaItem[]>([]);
+  useEffect(() => { lightboxIdxRef.current = lightboxIdx; }, [lightboxIdx]);
+  useEffect(() => { itemsRef.current = items; }, [items]);
+
+  const lbPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) =>
+        Math.abs(gs.dx) > 10 && Math.abs(gs.dx) > Math.abs(gs.dy),
+      onPanResponderRelease: (_, gs) => {
+        const cur = lightboxIdxRef.current;
+        const arr = itemsRef.current;
+        if (cur === null) return;
+        if (gs.dx < -50 && cur < arr.length - 1) setLightboxIdx(cur + 1);
+        else if (gs.dx > 50 && cur > 0) setLightboxIdx(cur - 1);
+      },
+    })
+  ).current;
 
   // 업로드
   const [uploading,       setUploading]       = useState(false);
@@ -743,7 +762,7 @@ export default function TeacherPhotosScreen() {
               const uri = photoUri(item.file_url, token);
               return (
                 <Pressable
-                  onPress={() => selectMode ? toggleSelect(item.id) : setLightbox(item)}
+                  onPress={() => selectMode ? toggleSelect(item.id) : setLightboxIdx(items.findIndex(i => i.id === item.id))}
                   onLongPress={() => {
                     if (!selectMode) {
                       setSelectMode(true);
@@ -897,65 +916,103 @@ export default function TeacherPhotosScreen() {
           }}
         />
 
-        {/* ── 사진 라이트박스 ── */}
-        {/* ★ lightbox !== null 조건을 Modal 안에 반드시 감싸야 크래시 방지 */}
-        <Modal
-          visible={!!lightbox}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setLightbox(null)}
-        >
-          {lightbox != null ? (
-            <View style={s.lbBg}>
-              <Pressable
-                onPress={() => setLightbox(null)}
-                style={[s.lbClose, { top: insets.top + 12 }]}
-                accessibilityRole="button"
-                accessibilityLabel="닫기"
-              >
-                <X size={26} color="#fff" />
-              </Pressable>
-
-              {!!lightbox.file_url ? (
-                <Image
-                  source={{ uri: photoUri(lightbox.file_url, token) }}
-                  style={s.lbImage}
-                  contentFit="contain"
-                />
-              ) : (
-                <View style={s.lbImagePlaceholder}>
-                  <ImageIcon size={60} color="rgba(255,255,255,0.3)" />
-                  <Text style={{ color: "rgba(255,255,255,0.4)", marginTop: 12 }}>이미지를 불러올 수 없습니다</Text>
+        {/* ── 사진 라이트박스 (스와이프 이동) ── */}
+        {(() => {
+          const lbItem = lightboxIdx !== null ? items[lightboxIdx] ?? null : null;
+          const hasPrev = lightboxIdx !== null && lightboxIdx > 0;
+          const hasNext = lightboxIdx !== null && lightboxIdx < items.length - 1;
+          return (
+            <Modal
+              visible={lightboxIdx !== null}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setLightboxIdx(null)}
+            >
+              <View style={s.lbBg} {...lbPanResponder.panHandlers}>
+                {/* 상단 바 */}
+                <View style={[s.lbTopBar, { paddingTop: insets.top + 12 }]}>
+                  <Pressable
+                    onPress={() => setLightboxIdx(null)}
+                    style={s.lbClose}
+                    accessibilityRole="button"
+                    accessibilityLabel="닫기"
+                  >
+                    <X size={26} color="#fff" />
+                  </Pressable>
+                  {items.length > 1 && lightboxIdx !== null && (
+                    <Text style={s.lbCounter}>{lightboxIdx + 1} / {items.length}</Text>
+                  )}
+                  <View style={{ width: 44 }} />
                 </View>
-              )}
 
-              {!!safeLabel(lightbox) && (
-                <Text style={s.lbLabel}>{safeLabel(lightbox)}</Text>
-              )}
-              <Text style={s.lbMeta}>
-                {lightbox.uploader_name ? `${lightbox.uploader_name}  ` : ""}
-                {fmtDate(lightbox.created_at)}
-                {lightbox.file_size_bytes ? `  ·  ${fmtBytes(lightbox.file_size_bytes)}` : ""}
-              </Text>
+                {lbItem && !!lbItem.file_url ? (
+                  <Image
+                    source={{ uri: photoUri(lbItem.file_url, token) }}
+                    style={s.lbImage}
+                    contentFit="contain"
+                  />
+                ) : (
+                  <View style={s.lbImagePlaceholder}>
+                    <ImageIcon size={60} color="rgba(255,255,255,0.3)" />
+                    <Text style={{ color: "rgba(255,255,255,0.4)", marginTop: 12 }}>이미지를 불러올 수 없습니다</Text>
+                  </View>
+                )}
 
-              <View style={{ flexDirection: "row", justifyContent: "center", marginTop: 8, gap: 10 }}>
-                <Pressable
-                  onPress={() => { setLightbox(null); toggleSelect(lightbox?.id ?? ""); if (!selectMode) setSelectMode(true); }}
-                  style={[s.lbActionBtn, { backgroundColor: "#0F172A" }]}
-                >
-                  <Trash2 size={15} color="#fff" />
-                  <Text style={s.lbActionBtnText}>삭제</Text>
-                </Pressable>
-                <Pressable onPress={() => setLightbox(null)} style={[s.lbActionBtn, { backgroundColor: "#64748B" }]}>
-                  <X size={15} color="#fff" />
-                  <Text style={s.lbActionBtnText}>닫기</Text>
-                </Pressable>
+                {lbItem && !!safeLabel(lbItem) && (
+                  <Text style={s.lbLabel}>{safeLabel(lbItem)}</Text>
+                )}
+                {lbItem && (
+                  <Text style={s.lbMeta}>
+                    {lbItem.uploader_name ? `${lbItem.uploader_name}  ` : ""}
+                    {fmtDate(lbItem.created_at)}
+                    {lbItem.file_size_bytes ? `  ·  ${fmtBytes(lbItem.file_size_bytes)}` : ""}
+                  </Text>
+                )}
+
+                {/* 이전/다음 화살표 */}
+                {items.length > 1 && (
+                  <View style={s.lbArrowRow}>
+                    <Pressable
+                      onPress={() => setLightboxIdx(i => (i !== null && i > 0 ? i - 1 : i))}
+                      style={[s.lbArrow, !hasPrev && s.lbArrowDisabled]}
+                      hitSlop={16}
+                      disabled={!hasPrev}
+                    >
+                      <ChevronLeft size={28} color={hasPrev ? "#fff" : "rgba(255,255,255,0.25)"} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setLightboxIdx(i => (i !== null && i < items.length - 1 ? i + 1 : i))}
+                      style={[s.lbArrow, !hasNext && s.lbArrowDisabled]}
+                      hitSlop={16}
+                      disabled={!hasNext}
+                    >
+                      <ChevronRight size={28} color={hasNext ? "#fff" : "rgba(255,255,255,0.25)"} />
+                    </Pressable>
+                  </View>
+                )}
+
+                <View style={{ flexDirection: "row", justifyContent: "center", marginTop: 8, gap: 10 }}>
+                  <Pressable
+                    onPress={() => {
+                      if (!lbItem) return;
+                      setLightboxIdx(null);
+                      toggleSelect(lbItem.id ?? "");
+                      if (!selectMode) setSelectMode(true);
+                    }}
+                    style={[s.lbActionBtn, { backgroundColor: "#0F172A" }]}
+                  >
+                    <Trash2 size={15} color="#fff" />
+                    <Text style={s.lbActionBtnText}>삭제</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setLightboxIdx(null)} style={[s.lbActionBtn, { backgroundColor: "#64748B" }]}>
+                    <X size={15} color="#fff" />
+                    <Text style={s.lbActionBtnText}>닫기</Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
-          ) : (
-            <View style={s.lbBg} />
-          )}
-        </Modal>
+            </Modal>
+          );
+        })()}
 
         {/* 내앨범 저장 확인 */}
         <ConfirmModal
@@ -1206,11 +1263,16 @@ const s = StyleSheet.create({
   fab: { position: "absolute", right: 20, width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 8 },
 
   lbBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.97)", justifyContent: "center", alignItems: "center" },
-  lbClose: { position: "absolute", left: 16, width: 44, height: 44, alignItems: "center", justifyContent: "center", zIndex: 10 },
+  lbTopBar: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingHorizontal: 16, paddingBottom: 12, flexDirection: "row", alignItems: "center" },
+  lbClose: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  lbCounter: { flex: 1, textAlign: "center", color: "rgba(255,255,255,0.75)", fontSize: 14, fontFamily: "Pretendard-Regular" },
   lbImage: { width: W, height: W * 1.1 },
   lbImagePlaceholder: { width: W, height: W * 0.8, alignItems: "center", justifyContent: "center" },
   lbLabel: { color: "#E6FFFA", fontSize: 13, fontFamily: "Pretendard-Regular", paddingHorizontal: 24, paddingTop: 14, textAlign: "center" },
   lbMeta: { color: "rgba(255,255,255,0.45)", fontSize: 12, fontFamily: "Pretendard-Regular", paddingTop: 4, textAlign: "center" },
+  lbArrowRow: { position: "absolute", left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 8, top: "35%", zIndex: 5 },
+  lbArrow: { width: 48, height: 48, borderRadius: 24, backgroundColor: "rgba(0,0,0,0.35)", alignItems: "center", justifyContent: "center" },
+  lbArrowDisabled: { backgroundColor: "rgba(0,0,0,0.15)" },
   lbActionBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
   lbActionBtnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
 
