@@ -10,70 +10,44 @@ EAS CLI의 `makeShallowCopyAsync`가 git root(`/home/runner/workspace`)를 기�
 → 187MB 업로드 = 전체 workspace (잘못된 것).
 → 5.5MB 업로드 = swim-app만 (올바른 것).
 
-## 성공 패치 방법 (매 빌드 전 적용 필수)
+## 가장 간단한 해결법 (패치 불필요) ✅
 
-```js
-// pnpm store 경로의 eas-cli git.js를 패치
-const realPath = '/home/runner/workspace/node_modules/.pnpm/eas-cli@20.5.1_@types+node@25.3.5_typescript@5.9.3/node_modules/eas-cli/build/vcs/clients/git.js';
-```
-
-### 1. commitAsync → no-op
-### 2. isCommitRequiredAsync → return false
-### 3. trackFileAsync → no-op (line 193-194 주의: `});` 오류 발생 가능, 수동 수정 필요)
-### 4. getRootPathAsync → swim-app 경로 반환
-```js
-async getRootPathAsync() {
-  return '/home/runner/workspace/artifacts/swim-app';
-}
-```
-### 5. makeShallowCopyAsync → fs-extra로 swim-app만 복사 (핵심!)
-```js
-async makeShallowCopyAsync(destinationPath) {
-  const fse = require('fs-extra');
-  const src = '/home/runner/workspace/artifacts/swim-app';
-  await fse.copy(src, destinationPath, {
-    filter: (s) => {
-      const rel = s.replace(src, '');
-      return !rel.startsWith('/node_modules') && !rel.startsWith('/.expo') &&
-             !rel.startsWith('/android') && !rel.startsWith('/ios') &&
-             !rel.startsWith('/dist') && !rel.startsWith('/.git');
-    }
-  });
-}
-```
-
-### 6. repository.js도 패치
-```
-artifacts/swim-app/node_modules/eas-cli/build/build/utils/repository.js
-async function reviewAndCommitChangesAsync() {}
-```
-
-## 빌드 순서
+`EAS_NO_VCS=1` 사용 시 `noVcs.js`의 `getRootPathAsync`가 `EAS_PROJECT_ROOT` 절대경로를 우선함:
 
 ```bash
-# 1. pnpm-lock.yaml 제거 (swim-app에서)
-rm -f artifacts/swim-app/pnpm-lock.yaml
-
-# 2. 의존성 설치
-cd artifacts/swim-app && pnpm install --no-frozen-lockfile
-
-# 3. 위 패치 적용
-
-# 4. 빌드 (--no-wait로 비동기)
-EAS_SKIP_AUTO_FINGERPRINT=1 EXPO_TOKEN=$(printenv EXPO_TOKEN) \
-  node_modules/.bin/eas build --platform ios --profile production --non-interactive --no-wait
-
-# 5. iOS 제출 (빌드 FINISHED 후)
+EAS_PROJECT_ROOT=/home/runner/workspace/artifacts/swim-app \
+EAS_SKIP_AUTO_FINGERPRINT=1 EAS_NO_VCS=1 EXPO_NO_TELEMETRY=1 EAS_BUILD_NO_EXPO_GO_WARNING=true \
 EXPO_TOKEN=$(printenv EXPO_TOKEN) \
-  node_modules/.bin/eas submit --platform ios --profile production --latest --non-interactive
+node_modules/.bin/eas build --platform all --profile production --non-interactive --no-wait
+```
+
+→ 5.5MB만 업로드됨, 패치 불필요.
+
+## 빌드 완전 명령어
+
+```bash
+cd artifacts/swim-app && \
+EAS_PROJECT_ROOT=/home/runner/workspace/artifacts/swim-app \
+EAS_SKIP_AUTO_FINGERPRINT=1 EAS_NO_VCS=1 EXPO_NO_TELEMETRY=1 EAS_BUILD_NO_EXPO_GO_WARNING=true \
+EXPO_TOKEN=$(printenv EXPO_TOKEN) \
+node_modules/.bin/eas build --platform all --profile production --non-interactive --no-wait
+```
+
+## iOS 제출 (빌드 FINISHED 후, 사용자 허락 받고)
+
+```bash
+cd artifacts/swim-app && \
+EAS_NO_VCS=1 EXPO_TOKEN=$(printenv EXPO_TOKEN) \
+node_modules/.bin/eas submit --platform ios --profile production --latest --non-interactive
 ```
 
 ## 주의사항
-- `trackFileAsync` 패치 시 regex가 `});` 잔여 문자를 남길 수 있음 → syntax OK 확인 필수
-- pnpm store 실제 경로: `fs.realpathSync(path)` 로 확인
-- rsync 없음 → fs-extra 사용
-- 업로드 크기 5.5MB = 정상, 187MB = workspace 전체 포함됨 (실패 원인)
+- `EAS_PROJECT_ROOT` 필수 — 없으면 git rev-parse로 workspace root 잡혀서 187MB 업로드
+- `eas.json` production 프로필에 `"channel": "production"` 필수 — 없으면 OTA 업데이트 불가 (channel: None → checkForUpdateAsync 실패)
+- `.npmrc`에 `frozen-lockfile=false` 유지 필수
+- 버전 올리기 전 사용자 허락 필수
+- 앱스토어 제출 전 사용자 허락 필수
 - iOS EAS Free 플랜 월 한도 있음 → Starter($19/월) 이상 필요
 
-## .npmrc
+## .npmrc (swim-app 루트)
 `frozen-lockfile=false` 유지 필수
