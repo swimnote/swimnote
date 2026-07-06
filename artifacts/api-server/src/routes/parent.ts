@@ -99,13 +99,21 @@ async function autoLinkParentToStudents(parentId: string, poolId?: string | null
     const rows = effectivePoolId
       ? await db.execute(sql`
           SELECT id, swimming_pool_id FROM students
-          WHERE REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
+          WHERE (
+            REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
+            OR REGEXP_REPLACE(COALESCE(parent_phone2,''),'[^0-9]','','g') = ${normPhone}
+            OR REGEXP_REPLACE(COALESCE(parent_phone3,''),'[^0-9]','','g') = ${normPhone}
+          )
             AND swimming_pool_id = ${effectivePoolId}
             AND status NOT IN ('withdrawn','archived','deleted')
           LIMIT 20`)
       : await db.execute(sql`
           SELECT id, swimming_pool_id FROM students
-          WHERE REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
+          WHERE (
+            REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
+            OR REGEXP_REPLACE(COALESCE(parent_phone2,''),'[^0-9]','','g') = ${normPhone}
+            OR REGEXP_REPLACE(COALESCE(parent_phone3,''),'[^0-9]','','g') = ${normPhone}
+          )
             AND status NOT IN ('withdrawn','archived','deleted')
           LIMIT 20`);
     matched.push(...(rows.rows as any[]));
@@ -714,6 +722,7 @@ router.post("/diary/:diaryId/reactions", requireAuth, requireParent, async (req:
 router.get("/messages", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
     const parentId = req.user!.userId!;
+    const studentId = (req.query.student_id as string) || null;
     const rows = await db.execute(sql`
       SELECT
         cd.id              AS diary_id,
@@ -760,6 +769,7 @@ router.get("/messages", requireAuth, requireParent, async (req: AuthRequest, res
       JOIN students s ON s.class_group_id = cd.class_group_id
       JOIN parent_students ps ON ps.student_id = s.id
       WHERE ps.parent_id = ${parentId} AND ps.status = 'approved'
+        AND (${studentId}::text IS NULL OR s.id = ${studentId})
         AND cd.is_deleted = false
         AND EXISTS (
           SELECT 1 FROM diary_messages dm
@@ -1095,11 +1105,22 @@ router.get("/students/:id/home-summary", requireAuth, requireParent, async (req:
     let latestPhotos: any[] = [];
     if (student?.class_group_id) {
       const rows = await db.execute(sql`
-        SELECT id, caption, created_at, '/api/photos/' || id || '/file' AS file_url, album_type,
+        SELECT id, caption, created_at,
+               'https://swimnote-api.onrender.com/api/photos/' || id || '/file' AS file_url, album_type,
                CASE WHEN ${photoRead?.last_read_at ?? null}::timestamptz IS NULL OR created_at > ${photoRead?.last_read_at ?? null}::timestamptz THEN true ELSE false END AS is_new
-        FROM photo_assets_meta
-        WHERE class_id = ${student.class_group_id} OR student_id = ${req.params.id}
-        ORDER BY created_at DESC LIMIT 4
+        FROM (
+          SELECT sp.id, sp.caption, sp.created_at, sp.album_type
+          FROM photo_assets_meta sp
+          WHERE sp.class_id = ${student.class_group_id} OR sp.student_id = ${req.params.id}
+          UNION
+          SELECT sp.id, sp.caption, sp.created_at, sp.album_type
+          FROM photo_assets_meta sp
+          JOIN class_diaries cd ON cd.id = sp.journal_id
+          WHERE cd.class_group_id = ${student.class_group_id}
+            AND sp.journal_id IS NOT NULL
+        ) sub
+        ORDER BY created_at DESC
+        LIMIT 4
       `);
       latestPhotos = rows.rows as any[];
     }
@@ -1128,20 +1149,47 @@ router.get("/students/:id/home-summary", requireAuth, requireParent, async (req:
     const latestStatus = attList[0]?.status ?? null;
 
     // ── 성장 (현재 레벨) ─────────────────────────────────────────────────────
+    // current_level_order는 Drizzle ORM 스키마에 없을 수 있으므로 raw SQL로 명시적으로 조회
     let growthInfo: any = null;
+    const [studLevelRaw] = (await db.execute(sql`
+      SELECT current_level_order, swimming_pool_id FROM students WHERE id = ${req.params.id} LIMIT 1
+    `).catch(() => ({ rows: [] }))).rows as any[];
+
     const levelRows = await db.execute(sql`
       SELECT level, achieved_date, note, teacher_name FROM student_levels
       WHERE student_id = ${req.params.id}
       ORDER BY achieved_date DESC, created_at DESC LIMIT 2
     `).catch(() => ({ rows: [] }));
+
+    // pool_level_settings에서 현재 레벨 정의 조회 (이름·배지 등)
+    let currentLevelName: string | null = null;
+    if (studLevelRaw?.current_level_order != null && studLevelRaw?.swimming_pool_id) {
+      const defRow = await db.execute(sql`
+        SELECT level_name FROM pool_level_settings
+        WHERE pool_id = ${studLevelRaw.swimming_pool_id}
+          AND level_order = ${studLevelRaw.current_level_order}
+        LIMIT 1
+      `).catch(() => ({ rows: [] }));
+      currentLevelName = (defRow.rows[0] as any)?.level_name ?? `레벨 ${studLevelRaw.current_level_order}`;
+    }
+
     if (levelRows.rows.length > 0) {
       const levels = levelRows.rows as any[];
       growthInfo = {
-        current_level: levels[0].level,
+        current_level: currentLevelName ?? levels[0].level,
         achieved_date: levels[0].achieved_date,
         prev_level: levels[1]?.level ?? null,
         note: levels[0].note,
         teacher_name: levels[0].teacher_name,
+      };
+    } else if (currentLevelName != null) {
+      // student_levels 기록 없어도 current_level_order가 설정돼 있으면 레벨명 표시
+      growthInfo = {
+        current_level: currentLevelName,
+        achieved_date: null,
+        prev_level: null,
+        note: null,
+        teacher_name: null,
       };
     }
 
@@ -1424,7 +1472,7 @@ router.get("/pool-info", requireAuth, requireParent, async (req: AuthRequest, re
 // ── POST /parent/link-child — 자녀 연결 (단순 버전) ─────────────────────
 router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, res) => {
   const parentId = req.user!.userId;
-  const { swimming_pool_id, child_name, child_birth_year } = req.body;
+  const { swimming_pool_id, child_name, child_birth_year, child_phone_last4 } = req.body;
   if (!swimming_pool_id || !child_name?.trim()) {
     res.status(400).json({ success: false, message: "수영장과 자녀 이름을 입력해주세요." }); return;
   }
@@ -1434,22 +1482,57 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
       .where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);
     if (!pool) { res.status(400).json({ success: false, message: "존재하지 않는 수영장입니다." }); return; }
 
-    // 관리자 회원목록에서 이름으로 검색 — 상태/parent_user_id 조건 없이 순수 이름만 매칭
-    const normalName = child_name.trim().replace(/\s+/g, "").toLowerCase();
+    // 이름 정규화: 한글만 추출 (숫자·공백·기호 제거)
+    const normalName = child_name.replace(/[^가-힣]/g, "");
+    if (!normalName) {
+      res.status(400).json({ success: false, message: "이름에 한글을 포함해주세요." }); return;
+    }
 
+    // 학부모 전화번호 조회 (숫자만)
+    const paRows = await db.execute(sql`
+      SELECT phone FROM parent_accounts WHERE id = ${parentId} LIMIT 1
+    `);
+    const parentPhone = ((paRows.rows[0] as any)?.phone || "").replace(/[^0-9]/g, "");
+
+    // 관리자 회원목록에서 한글 기준 이름 매칭 (name_korean 컬럼 우선, 없으면 REGEXP_REPLACE 폴백)
     const found = await db.execute(sql`
-      SELECT id, name, status FROM students
+      SELECT id, name, status, parent_phone FROM students
       WHERE swimming_pool_id = ${swimming_pool_id}
-        AND LOWER(REPLACE(name, ' ', '')) = ${normalName}
+        AND (
+          name_korean = ${normalName}
+          OR (name_korean IS NULL AND REGEXP_REPLACE(name, '[^가-힣]', '', 'g') = ${normalName})
+        )
       ORDER BY created_at ASC
-      LIMIT 1
     `);
 
     if (found.rows.length === 0) {
       res.json({ success: false, status: "not_found", message: "관리자 회원목록에 해당 학생이 없습니다. 관리자에게 이름 등록을 요청하세요." }); return;
     }
 
-    const student = found.rows[0] as any;
+    let student: any;
+
+    if (found.rows.length >= 2) {
+      // 동명이인: 전화번호 뒷 4자리 우선, 없으면 전체 번호, 없으면 첫 번째
+      const last4 = (child_phone_last4 || "").replace(/[^0-9]/g, "").slice(-4);
+      if (last4.length === 4) {
+        const byLast4 = (found.rows as any[]).filter(r => {
+          const sp = (r.parent_phone || "").replace(/[^0-9]/g, "");
+          return sp.slice(-4) === last4;
+        });
+        student = byLast4.length > 0 ? byLast4[0] : (found.rows as any[])[0];
+      } else if (parentPhone) {
+        const byPhone = (found.rows as any[]).filter(r => {
+          const sp = (r.parent_phone || "").replace(/[^0-9]/g, "");
+          return sp && sp === parentPhone;
+        });
+        student = byPhone.length > 0 ? byPhone[0] : (found.rows as any[])[0];
+      } else {
+        student = (found.rows as any[])[0];
+      }
+    } else {
+      student = found.rows[0] as any;
+      // 단일 매칭: 이름 일치 시 전화번호 무관 연결 허용 (형제 등록 지원)
+    }
 
     // students 테이블 연결
     await db.execute(sql`
@@ -1530,6 +1613,28 @@ router.post("/v2/update-pending", requireAuth, requireParent, async (req: AuthRe
   } catch (e) {
     console.error("[v2-update-pending] 오류:", e);
     res.status(500).json({ error: "서버 오류" });
+  }
+});
+
+// DELETE /parent/unlink-child/:studentId — 자녀 연결 해제
+router.delete("/unlink-child/:studentId", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const parentId  = req.user!.userId;
+    const studentId = req.params.studentId;
+    if (!studentId) return res.status(400).json({ success: false, message: "studentId 필수" });
+
+    const result = await db.execute(sql`
+      DELETE FROM parent_students
+      WHERE parent_id = ${parentId} AND student_id = ${studentId}
+    `);
+
+    const deleted = (result as any).rowCount ?? (result as any).count ?? 0;
+    if (!deleted) return res.status(404).json({ success: false, message: "연결된 자녀를 찾을 수 없습니다" });
+
+    res.json({ success: true, message: "자녀 연결이 해제되었습니다" });
+  } catch (e) {
+    console.error("[unlink-child] 오류:", e);
+    res.status(500).json({ success: false, message: "서버 오류" });
   }
 });
 
