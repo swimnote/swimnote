@@ -6,6 +6,7 @@ import * as Updates from "expo-updates";
 import Constants from "expo-constants";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, AppState, AppStateStatus, Linking, Modal, Platform, Pressable, Text, View } from "react-native";
+// Modal, Pressable kept for other uses in this file
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X } from "lucide-react-native";
 import { UploadQueueProvider, useUploadQueue } from "@/context/UploadQueueContext";
@@ -84,67 +85,6 @@ function AppLoadingScreen() {
   );
 }
 
-// ─── OTA 강제 업데이트 모달 ─────────────────────────────────────
-function ForceUpdateModal({ onUpdate, isApplying }: { onUpdate: () => void; isApplying: boolean }) {
-  return (
-    <Modal visible transparent animationType="fade" statusBarTranslucent>
-      <View style={{
-        flex: 1,
-        backgroundColor: "rgba(0,0,0,0.75)",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 32,
-      }}>
-        <View style={{
-          backgroundColor: "#fff",
-          borderRadius: 20,
-          padding: 32,
-          width: "100%",
-          alignItems: "center",
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.25,
-          shadowRadius: 20,
-          elevation: 20,
-        }}>
-          <View style={{
-            width: 56, height: 56,
-            borderRadius: 28,
-            backgroundColor: "#E8FBF9",
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: 20,
-          }}>
-            <Text style={{ fontSize: 26 }}>🔄</Text>
-          </View>
-          <Text style={{ fontSize: 20, fontFamily: "Pretendard-Bold", color: "#111", marginBottom: 10, textAlign: "center" }}>
-            업데이트 알림
-          </Text>
-          <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#666", textAlign: "center", lineHeight: 22, marginBottom: 28 }}>
-            새로운 업데이트가 준비됐습니다.{"\n"}업데이트 후 계속 이용하실 수 있습니다.
-          </Text>
-          <Pressable
-            onPress={onUpdate}
-            disabled={isApplying}
-            style={{
-              backgroundColor: isApplying ? "#A0D4D0" : "#2EC4B6",
-              borderRadius: 14,
-              paddingVertical: 16,
-              paddingHorizontal: 48,
-              width: "100%",
-              alignItems: "center",
-            }}
-          >
-            {isApplying
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" }}>지금 업데이트</Text>
-            }
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
-  );
-}
 
 function UploadProgressBanner() {
   const { total, done, failed, isActive, dismiss } = useUploadQueue();
@@ -350,45 +290,39 @@ function PushNavSync() {
 function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
 
-  // OTA 업데이트 — AppState 기반으로 포그라운드 복귀마다 체크
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [isApplyingUpdate, setIsApplyingUpdate] = useState(false);
-  const isCheckingRef = useRef(false);
+  // OTA 업데이트 — 앱 시작 및 포그라운드 복귀 시 자동 체크 후 즉시 재시작
+  const { isUpdateAvailable, isUpdatePending } = Updates.useUpdates();
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const isApplyingRef = useRef(false);
 
-  async function checkAndFetchUpdate() {
-    if (__DEV__ || isCheckingRef.current || showUpdateModal) return;
-    isCheckingRef.current = true;
+  async function runOtaUpdate() {
+    if (__DEV__ || isApplyingRef.current) return;
+    isApplyingRef.current = true;
     try {
-      const check = await Updates.checkForUpdateAsync();
-      console.log("[OTA] 업데이트 체크 결과:", check.isAvailable);
-      if (check.isAvailable) {
-        setShowUpdateModal(true);
+      const { isAvailable } = await Updates.checkForUpdateAsync();
+      console.log("[OTA] isAvailable:", isAvailable);
+      if (isAvailable) {
         await Updates.fetchUpdateAsync();
         console.log("[OTA] 다운로드 완료 — 재시작");
         await Updates.reloadAsync();
       }
     } catch (e: any) {
-      console.warn("[OTA] 업데이트 체크 실패:", e?.message ?? e);
-    } finally {
-      isCheckingRef.current = false;
+      console.warn("[OTA] 오류:", e?.message ?? e);
+      isApplyingRef.current = false;
     }
   }
 
-  async function applyUpdate() {
-    setIsApplyingUpdate(true);
-    try {
-      await Updates.reloadAsync();
-    } catch (e: any) {
-      setIsApplyingUpdate(false);
-      Alert.alert("오류", "업데이트 적용 중 오류가 발생했습니다. 앱을 직접 재시작해주세요.");
-    }
-  }
-
-  // 앱 시작 시 1회 체크
+  // 이미 다운로드된 pending 업데이트 즉시 적용
   useEffect(() => {
-    checkAndFetchUpdate();
-  }, []);
+    if (__DEV__) return;
+    if (isUpdatePending) {
+      console.log("[OTA] pending 업데이트 즉시 재시작");
+      Updates.reloadAsync().catch(console.warn);
+    }
+  }, [isUpdatePending]);
+
+  // 앱 시작 시 체크
+  useEffect(() => { runOtaUpdate(); }, []);
 
   // 백그라운드 → 포그라운드 복귀 시 체크
   useEffect(() => {
@@ -396,7 +330,8 @@ function RootNav() {
       const prev = appStateRef.current;
       appStateRef.current = nextState;
       if ((prev === "background" || prev === "inactive") && nextState === "active") {
-        checkAndFetchUpdate();
+        isApplyingRef.current = false;
+        runOtaUpdate();
       }
     });
     return () => sub.remove();
@@ -531,12 +466,6 @@ function RootNav() {
         >
           <ActivityIndicator size="large" color="#2EC4B6" />
         </View>
-      )}
-      {showUpdateModal && (
-        <ForceUpdateModal
-          onUpdate={applyUpdate}
-          isApplying={isApplyingUpdate}
-        />
       )}
     </View>
   );
