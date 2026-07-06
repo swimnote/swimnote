@@ -30,6 +30,24 @@ export default function AppUpdateButton({ themeColor = "#1A5CFF" }: Props) {
 
     setState("checking");
     try {
+      if (!Updates.isEnabled) {
+        setState("idle");
+        Alert.alert(
+          "OTA 비활성화",
+          `expo-updates가 비활성화 상태입니다.\nchannel: ${(Updates as any).channel ?? "없음"}\nruntimeVersion: ${Updates.runtimeVersion ?? "없음"}\n\n스토어에서 업데이트를 확인해주세요.`,
+          [
+            { text: "취소", style: "cancel" },
+            {
+              text: "스토어 열기",
+              onPress: () => {
+                const url = Platform.OS === "ios" ? IOS_STORE_URL : ANDROID_STORE_URL;
+                Linking.openURL(url).catch(() => {});
+              },
+            },
+          ]
+        );
+        return;
+      }
       const result = await Updates.checkForUpdateAsync();
 
       if (result.isAvailable) {
