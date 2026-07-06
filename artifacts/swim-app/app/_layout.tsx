@@ -290,39 +290,26 @@ function PushNavSync() {
 function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
 
-  // OTA 업데이트 — 앱 시작 및 포그라운드 복귀 시 자동 체크 후 즉시 재시작
-  const { isUpdateAvailable, isUpdatePending } = Updates.useUpdates();
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const isApplyingRef = useRef(false);
 
-  async function runOtaUpdate() {
-    if (__DEV__ || isApplyingRef.current) return;
-    isApplyingRef.current = true;
-    try {
-      const { isAvailable } = await Updates.checkForUpdateAsync();
-      console.log("[OTA] isAvailable:", isAvailable);
-      if (isAvailable) {
-        await Updates.fetchUpdateAsync();
-        console.log("[OTA] 다운로드 완료 — 재시작");
-        await Updates.reloadAsync();
-      }
-    } catch (e: any) {
-      console.warn("[OTA] 오류:", e?.message ?? e);
-      isApplyingRef.current = false;
-    }
-  }
-
-  // 이미 다운로드된 pending 업데이트 즉시 적용
+  // 앱 시작 시 OTA 체크
   useEffect(() => {
     if (__DEV__) return;
-    if (isUpdatePending) {
-      console.log("[OTA] pending 업데이트 즉시 재시작");
-      Updates.reloadAsync().catch(console.warn);
-    }
-  }, [isUpdatePending]);
-
-  // 앱 시작 시 체크
-  useEffect(() => { runOtaUpdate(); }, []);
+    (async () => {
+      if (isApplyingRef.current) return;
+      isApplyingRef.current = true;
+      try {
+        const { isAvailable } = await Updates.checkForUpdateAsync();
+        if (isAvailable) {
+          await Updates.fetchUpdateAsync();
+          await Updates.reloadAsync();
+        }
+      } catch (_) {
+        isApplyingRef.current = false;
+      }
+    })();
+  }, []);
 
   // 백그라운드 → 포그라운드 복귀 시 체크
   useEffect(() => {
@@ -331,7 +318,20 @@ function RootNav() {
       appStateRef.current = nextState;
       if ((prev === "background" || prev === "inactive") && nextState === "active") {
         isApplyingRef.current = false;
-        runOtaUpdate();
+        if (__DEV__) return;
+        (async () => {
+          if (isApplyingRef.current) return;
+          isApplyingRef.current = true;
+          try {
+            const { isAvailable } = await Updates.checkForUpdateAsync();
+            if (isAvailable) {
+              await Updates.fetchUpdateAsync();
+              await Updates.reloadAsync();
+            }
+          } catch (_) {
+            isApplyingRef.current = false;
+          }
+        })();
       }
     });
     return () => sub.remove();
