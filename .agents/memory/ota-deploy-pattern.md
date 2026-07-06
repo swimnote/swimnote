@@ -24,3 +24,30 @@ Replit 환경(가용 RAM ~1.4GB)에서 `eas update`는 Metro 번들러가 ~1.5-2
 - 앱 **두 번** 재시작 필요: 1번째 열기 → 다운로드, 2번째 열기 → 적용
 - EAS_NO_VCS=1 사용 시 git 추적 스킵 (Replit sandbox에서 git commit 불가)
 - EAS_SKIP_AUTO_FINGERPRINT=1: appVersion policy에서는 안전하게 스킵 가능
+
+## EAS_SKIP_AUTO_FINGERPRINT=1 필수
+
+fingerprint 계산 단계에서 타임아웃 발생 → `EAS_SKIP_AUTO_FINGERPRINT=1` 환경변수 추가 필수.
+
+정확한 OTA 배포 명령어:
+```bash
+cd artifacts/swim-app && \
+EAS_SKIP_AUTO_FINGERPRINT=1 \
+EXPO_TOKEN=$(printenv EXPO_TOKEN) \
+node_modules/.bin/eas update \
+  --branch production \
+  --message "메시지" \
+  --non-interactive
+```
+
+## runtimeVersion = app.json version 필드
+
+`runtimeVersion: {policy: appVersion}` → app.json의 `version` 필드값과 동일.
+OTA 배포 시 app.json version이 **설치된 바이너리 버전**과 반드시 일치해야 함.
+- 현재 설치 바이너리: 1.5.1 → app.json version = "1.5.1" 유지
+- 새 바이너리 빌드 시에만 version 올릴 것
+
+## preview 브랜치 불필요
+
+eas.json preview 프로필에 `channel: "production"` → 모든 빌드가 production 채널/브랜치 사용.
+production 브랜치만 배포하면 됨.

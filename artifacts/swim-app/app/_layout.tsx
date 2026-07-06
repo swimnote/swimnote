@@ -361,13 +361,15 @@ function RootNav() {
     isCheckingRef.current = true;
     try {
       const check = await Updates.checkForUpdateAsync();
+      console.log("[OTA] 업데이트 체크 결과:", check.isAvailable);
       if (check.isAvailable) {
-        await Updates.fetchUpdateAsync();
         setShowUpdateModal(true);
+        await Updates.fetchUpdateAsync();
+        console.log("[OTA] 다운로드 완료 — 재시작");
+        await Updates.reloadAsync();
       }
     } catch (e: any) {
-      // 개발 중 디버깅용 — 프로덕션에서는 조용히 무시
-      if (__DEV__) console.warn("[OTA] 업데이트 체크 실패:", e?.message);
+      console.warn("[OTA] 업데이트 체크 실패:", e?.message ?? e);
     } finally {
       isCheckingRef.current = false;
     }
