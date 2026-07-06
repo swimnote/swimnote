@@ -72,6 +72,7 @@ export async function initPoolDb(): Promise<void> {
       parent_name            text,
       parent_phone           text,
       parent_phone2          text,
+      parent_phone3          text,
       parent_user_id         text,
       weekly_count           integer     DEFAULT 1,
       schedule_labels        text,
@@ -89,7 +90,17 @@ export async function initPoolDb(): Promise<void> {
     );
     ALTER TABLE students ADD COLUMN IF NOT EXISTS current_level_order integer;
     ALTER TABLE students ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+    ALTER TABLE students ADD COLUMN IF NOT EXISTS name_korean text;
+    ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_phone2 text;
+    ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_phone3 text;
   `));
+
+  // name_korean 백필: NULL인 행만 채움 (멱등)
+  await db.execute(sql.raw(`
+    UPDATE students
+    SET name_korean = REGEXP_REPLACE(name, '[^가-힣]', '', 'g')
+    WHERE name_korean IS NULL
+  `)).catch((e: any) => console.warn("[pool-db-init] name_korean 백필 건너뜀:", e.message));
 
   // ─── 3. class_groups ─────────────────────────────────────────────────────
   await db.execute(sql.raw(`
@@ -113,6 +124,7 @@ export async function initPoolDb(): Promise<void> {
     );
   `));
   await db.execute(sql.raw(`ALTER TABLE class_groups ADD COLUMN IF NOT EXISTS color text NOT NULL DEFAULT '#FFFFFF';`));
+  await db.execute(sql.raw(`ALTER TABLE class_groups ADD COLUMN IF NOT EXISTS co_teacher_ids jsonb NOT NULL DEFAULT '[]';`));
 
   // ─── 4. classes + class_members ──────────────────────────────────────────
   await db.execute(sql.raw(`
@@ -743,6 +755,7 @@ export async function initPoolDb(): Promise<void> {
   const spoolAlters = [
     `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS member_limit integer`,
     `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS subscription_source text`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS default_capacity integer NOT NULL DEFAULT 5`,
   ];
   for (const alter of spoolAlters) {
     try {
@@ -755,9 +768,41 @@ export async function initPoolDb(): Promise<void> {
   }
   console.log('[pool-db-init] swimming_pools 누락 컬럼 보완 완료 (member_limit, subscription_source)');
 
-  // ─── subscription_plans ─────────────────────────────────────────────────
-  // 단일 기준 스키마: tier TEXT PRIMARY KEY (super.ts ensurePlansTables와 통일)
-  // silent failure 금지 — 모든 에러 콘솔 출력
+  // member_limit = 5 는 과거 하드코딩 기본값 잔재 — NULL로 초기화하여 플랜 기본값(10) 사용
+  try {
+    const { rowCount } = await db.execute(sql`
+      UPDATE swimming_pools
+      SET member_limit = NULL
+      WHERE member_limit = 5
+    `);
+    if ((rowCount ?? 0) > 0) {
+      console.log(`[pool-db-init] member_limit=5 잔재 ${rowCount}개 → NULL 초기화 완료`);
+    }
+  } catch (e: any) {
+    console.error('[pool-db-init] member_limit 초기화 오류:', e?.message);
+  }
+
+  // ── pool_class_pricing (수업 단가표) ─────────────────────────────────────
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS pool_class_pricing (
+        id                  text      PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        pool_id             text      NOT NULL,
+        type_key            text      NOT NULL,
+        type_name           text      NOT NULL DEFAULT '',
+        monthly_fee         integer   NOT NULL DEFAULT 0,
+        sessions_per_month  integer   NOT NULL DEFAULT 4,
+        is_active           boolean   NOT NULL DEFAULT true,
+        updated_at          timestamptz NOT NULL DEFAULT now(),
+        UNIQUE (pool_id, type_key)
+      )
+    `));
+  } catch (e: any) {
+    if (!e?.message?.includes('already exists')) {
+      console.error('[pool-db-init] pool_class_pricing CREATE TABLE 오류:', e?.message);
+    }
+  }
+
   try {
     await db.execute(sql.raw(`
       CREATE TABLE IF NOT EXISTS subscription_plans (
@@ -794,14 +839,14 @@ export async function initPoolDb(): Promise<void> {
   // ── 플랜 시드: 확정 기준값 (항상 최신값 유지) ───────────────────────────
   // tier, plan_id, name, price, member_limit, storage_mb, storage_gb, display
   const PLAN_ROWS = [
-    ['free',       'free_10',     'Free',         0,      10,   512,    0.5, '500MB'],
-    ['starter',    'solo_30',     'Coach 30',     3500,   30,   3072,   3,   '3GB'  ],
-    ['basic',      'solo_50',     'Coach 50',     6500,   50,   5120,   5,   '5GB'  ],
-    ['standard',   'solo_100',    'Coach 100',    9500,   100,  10240,  10,  '10GB' ],
-    ['center_200', 'center_200',  'Premier 200',  69000,  200,  51200,  50,  '50GB' ],
-    ['advance',    'center_300',  'Premier 300',  99000,  300,  81920,  80,  '80GB' ],
-    ['pro',        'center_500',  'Premier 500',  149000, 500,  133120, 130, '130GB'],
-    ['max',        'center_1000', 'Premier 1000', 249000, 1000, 512000, 500, '500GB'],
+    ['free',       'free_10',     'Free',         0,       10,   102,    0.1,  '100MB'],
+    ['starter',    'solo_30',     'Coach 30',     1900,    30,   307,    0.3,  '300MB'],
+    ['basic',      'solo_50',     'Coach 50',     2900,    50,   512,    0.5,  '500MB'],
+    ['standard',   'solo_100',    'Coach 100',    5900,    100,  1024,   1,    '1GB'  ],
+    ['center_200', 'center_200',  'Premier 200',  19000,   200,  5120,   5,    '5GB'  ],
+    ['advance',    'center_300',  'Premier 300',  27000,   300,  10240,  10,   '10GB' ],
+    ['pro',        'center_500',  'Premier 500',  43000,   500,  20480,  20,   '20GB' ],
+    ['max',        'center_1000', 'Premier 1000', 79000,   1000, 51200,  50,   '50GB' ],
   ] as const;
 
   for (const [tier, plan_id, name, price, member_limit, storage_mb, storage_gb, display] of PLAN_ROWS) {
@@ -846,7 +891,7 @@ export async function initPoolDb(): Promise<void> {
     ))).rows as any[];
     console.log('[pool-db-init] ✅ subscription_plans 현재 값:');
     for (const r of rows) {
-      const ok = r.member_limit < 9999 && r.storage_mb > 5120 || r.tier === 'free' || r.tier === 'starter' || r.tier === 'basic' || r.tier === 'standard';
+      const ok = r.storage_mb >= 100;
       console.log(`  ${r.tier}: name="${r.name}", member_limit=${r.member_limit}, storage_mb=${r.storage_mb}, storage_gb=${r.storage_gb}${ok ? '' : ' ⚠️ 값 이상'}`);
     }
   } catch (e: any) {
@@ -1004,11 +1049,22 @@ export async function initPoolDb(): Promise<void> {
   await db.execute(sql.raw(`ALTER TABLE photo_assets_meta ADD COLUMN IF NOT EXISTS lesson_date text`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE video_assets_meta ADD COLUMN IF NOT EXISTS lesson_date text`)).catch(() => {});
 
+  // ── 영상 썸네일 키 컬럼 추가 (Expo 클라이언트에서 썸네일 생성 후 R2에 저장) ──
+  await db.execute(sql.raw(`ALTER TABLE video_assets_meta ADD COLUMN IF NOT EXISTS thumbnail_key text`)).catch(() => {});
+
+  // ── photo_assets_meta journal_id 인덱스 (일지 연결 조회 성능) ──────────────
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_photo_assets_journal_id ON photo_assets_meta(journal_id)`)).catch(() => {});
+
   // ── 학부모 간편가입: swimming_pool_id nullable 허용 + is_active 컬럼 추가 ──
   await db.execute(sql.raw(`ALTER TABLE parent_accounts ALTER COLUMN swimming_pool_id DROP NOT NULL`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS kakao_id text`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS kakao_profile_image text`)).catch(() => {});
+
+  // ── 선생님/코치 카카오·애플 로그인 지원 ─────────────────────────────
+  await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS kakao_id text`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS kakao_profile_image text`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_id text`)).catch(() => {});
 
   // ── 학부모 수업 요청 테이블 (결석/보강/연기/퇴원/상담/문의) ──────────────
   await db.execute(sql.raw(`
@@ -1030,4 +1086,120 @@ export async function initPoolDb(): Promise<void> {
   `)).catch(() => {});
   // 담당 선생님 컬럼 (기존 테이블 보완)
   await db.execute(sql.raw(`ALTER TABLE parent_student_requests ADD COLUMN IF NOT EXISTS teacher_user_id text`)).catch(() => {});
+
+  // ── 개인앨범(즐겨찾기) 매핑 테이블 ────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS teacher_saved_photos (
+      id          text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      teacher_id  text        NOT NULL,
+      photo_id    text        NOT NULL,
+      created_at  timestamptz NOT NULL DEFAULT now(),
+      UNIQUE(teacher_id, photo_id)
+    );
+  `)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_saved_photos_teacher ON teacher_saved_photos(teacher_id)`)).catch(() => {});
+
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS teacher_saved_videos (
+      id          text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      teacher_id  text        NOT NULL,
+      video_id    text        NOT NULL,
+      created_at  timestamptz NOT NULL DEFAULT now(),
+      UNIQUE(teacher_id, video_id)
+    );
+  `)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_saved_videos_teacher ON teacher_saved_videos(teacher_id)`)).catch(() => {});
+
+  // ── A안: FK ON DELETE CASCADE — 원본 삭제 시 즐겨찾기 참조 자동 삭제 ──────
+  // teacher_saved_photos.photo_id → photo_assets_meta(id) ON DELETE CASCADE
+  await db.execute(sql.raw(`
+    DO $$ BEGIN
+      ALTER TABLE teacher_saved_photos
+        ADD CONSTRAINT fk_saved_photos_photo_id
+        FOREIGN KEY (photo_id)
+        REFERENCES photo_assets_meta(id)
+        ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `)).catch(() => {});
+
+  // teacher_saved_videos.video_id → video_assets_meta(id) ON DELETE CASCADE
+  await db.execute(sql.raw(`
+    DO $$ BEGIN
+      ALTER TABLE teacher_saved_videos
+        ADD CONSTRAINT fk_saved_videos_video_id
+        FOREIGN KEY (video_id)
+        REFERENCES video_assets_meta(id)
+        ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `)).catch(() => {});
+
+  // ── teacher_id 인덱스 중복 정리 (기존 idx_saved_*_teacher 유지, 중복 제거) ──
+  await db.execute(sql.raw(`DROP INDEX IF EXISTS idx_teacher_saved_photos_teacher`)).catch(() => {});
+  await db.execute(sql.raw(`DROP INDEX IF EXISTS idx_teacher_saved_videos_teacher`)).catch(() => {});
+
+  // ── 영상 14일 만료 시스템: expires_at 컬럼 + 인덱스 + 기존 레코드 백필 ──────
+  await db.execute(sql.raw(`ALTER TABLE video_assets_meta ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`)).catch(() => {});
+  await db.execute(sql.raw(`UPDATE video_assets_meta SET expires_at = uploaded_at + INTERVAL '14 days' WHERE expires_at IS NULL`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_video_assets_expires_at ON video_assets_meta(expires_at)`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_video_assets_status ON video_assets_meta(status)`)).catch(() => {});
+
+  // ── diary_template_levels 테이블 생성 ──────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS diary_template_levels (
+      id               text        PRIMARY KEY DEFAULT ('dtl_' || replace(gen_random_uuid()::text,'-','')),
+      swimming_pool_id text        NOT NULL,
+      level_name       varchar(50) NOT NULL,
+      sort_order       int         NOT NULL DEFAULT 0,
+      created_at       timestamptz NOT NULL DEFAULT now()
+    )
+  `)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_diary_template_levels_pool ON diary_template_levels(swimming_pool_id, sort_order)`)).catch(() => {});
+
+  // ── diary_templates 컬럼 추가 (level_id, title, sort_order) ──────────
+  await db.execute(sql.raw(`ALTER TABLE diary_templates ADD COLUMN IF NOT EXISTS level_id text`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE diary_templates ADD COLUMN IF NOT EXISTS title varchar(200)`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE diary_templates ADD COLUMN IF NOT EXISTS sort_order int NOT NULL DEFAULT 0`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE diary_templates ADD COLUMN IF NOT EXISTS scope text NOT NULL DEFAULT 'global'`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE diary_templates ADD COLUMN IF NOT EXISTS teacher_id text`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE diary_templates ADD COLUMN IF NOT EXISTS source_template_id text`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_diary_templates_scope ON diary_templates(swimming_pool_id, scope, level_id)`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_diary_templates_override ON diary_templates(source_template_id, teacher_id)`)).catch(() => {});
+
+  // ── student_levels 테이블 생성 (레벨 변경 이력) ────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS student_levels (
+      id                text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      student_id        text        NOT NULL,
+      swimming_pool_id  text,
+      level             text,
+      level_order       integer,
+      achieved_date     date        NOT NULL DEFAULT CURRENT_DATE,
+      note              text,
+      teacher_name      text,
+      created_at        timestamptz NOT NULL DEFAULT now()
+    )
+  `)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_student_levels_student ON student_levels(student_id, created_at DESC)`)).catch(() => {});
+
+  // ── students 조회 성능 인덱스 ──────────────────────────────────────────────
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_students_pool_status ON students(swimming_pool_id, status)`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_students_pool_created ON students(swimming_pool_id, created_at DESC)`)).catch(() => {});
+  // ── class_groups 조회 성능 인덱스 ─────────────────────────────────────────
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_class_groups_pool_deleted ON class_groups(swimming_pool_id, is_deleted)`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_class_groups_teacher ON class_groups(teacher_user_id, is_deleted)`)).catch(() => {});
+
+  // ── holiday_confirmations 테이블 생성 ─────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS holiday_confirmations (
+      id             text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      pool_id        text        NOT NULL,
+      target_month   text        NOT NULL,
+      confirmed_at   timestamptz NOT NULL DEFAULT now(),
+      confirmed_by   text        NOT NULL,
+      UNIQUE(pool_id, target_month)
+    )
+  `)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_holiday_confirmations_pool ON holiday_confirmations(pool_id, target_month)`)).catch(() => {});
 }
