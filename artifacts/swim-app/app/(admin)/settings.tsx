@@ -6,6 +6,7 @@ import { ChevronRight, Check, Repeat } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { WithdrawalModal } from "@/components/common/WithdrawalModal";
+import AppUpdateButton from "@/components/common/AppUpdateButton";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -281,6 +282,12 @@ export default function SettingsScreen() {
         {adminUser?.role !== "sub_admin" && renderSection("운영 설정", OPS_SETTINGS)}
         {adminUser?.role !== "sub_admin" && renderSection("수영장 설정", POOL_SETTINGS)}
         {renderSection("계정 / 기타", MY_SETTINGS)}
+
+        {/* 앱 업데이트 */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>앱 업데이트</Text>
+          <AppUpdateButton themeColor={themeColor} />
+        </View>
 
         {/* 계정 삭제 */}
         <Pressable

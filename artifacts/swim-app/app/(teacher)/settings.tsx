@@ -11,6 +11,7 @@
  */
 import { Bell, Camera, ChevronRight, CircleDollarSign, FileText, HardDrive, Mail, Pencil, UserCog } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import AppUpdateButton from "@/components/common/AppUpdateButton";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -345,6 +346,9 @@ export default function TeacherSettingsScreen() {
             </Pressable>
           ))}
         </View>
+
+        {/* 앱 업데이트 */}
+        <AppUpdateButton themeColor={themeColor} />
 
         {/* 회원 탈퇴 */}
         <Pressable
