@@ -143,7 +143,7 @@ const MEDIA_CONFIG: Record<`${MediaType}_${AlbumScope}`, {
   photo_group:   { icon: "image",  title: "사진", sub: "전체앨범",  color: "#E4A93A", bg: "#FFF1BF" },
   photo_private: { icon: "user",   title: "사진", sub: "개인앨범",  color: "#2EC4B6", bg: "#E6FFFA" },
   video_group:   { icon: "video",  title: "영상", sub: "전체앨범",  color: "#2EC4B6", bg: "#E6FFFA" },
-  video_private: { icon: "film",   title: "영상", sub: "개인앨범",  color: "#7C3AED", bg: "#EEDDF5" },
+  video_private: { icon: "video",  title: "영상", sub: "개인앨범",  color: "#7C3AED", bg: "#EEDDF5" },
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -536,10 +536,10 @@ export default function TeacherPhotosScreen() {
       icon: string; title: string; sub: string;
       color: string; bg: string; isPremier: boolean;
     }[] = [
-      { key: "photo_upload",   mt: "photo", sc: "group",   icon: "camera",       title: "전체사진 업로드", sub: "전체 학생에게 공유",    color: "#B45309", bg: "#FEF3C7", isPremier: false },
-      { key: "video_upload",   mt: "video", sc: "group",   icon: "film",         title: "전체영상 업로드", sub: "전체 학생에게 공유",    color: "#0F766E", bg: "#CCFBF1", isPremier: true  },
-      { key: "photo_album",    mt: "photo", sc: "private", icon: "images",       title: "내사진앨범",     sub: "내가 올린 개인 사진",   color: "#C2410C", bg: "#FFEDD5", isPremier: false },
-      { key: "video_album",    mt: "video", sc: "private", icon: "play-square",  title: "내영상앨범",     sub: "내가 올린 개인 영상",   color: "#5B21B6", bg: "#EDE9FE", isPremier: true  },
+      { key: "photo_upload",   mt: "photo", sc: "group",   icon: "camera",  title: "전체사진 업로드", sub: "전체 학생에게 공유",    color: "#B45309", bg: "#FEF3C7", isPremier: false },
+      { key: "video_upload",   mt: "video", sc: "group",   icon: "video",   title: "전체영상 업로드", sub: "전체 학생에게 공유",    color: "#0F766E", bg: "#CCFBF1", isPremier: true  },
+      { key: "photo_album",    mt: "photo", sc: "private", icon: "image",   title: "내사진앨범",     sub: "내가 올린 개인 사진",   color: "#C2410C", bg: "#FFEDD5", isPremier: false },
+      { key: "video_album",    mt: "video", sc: "private", icon: "video",   title: "내영상앨범",     sub: "내가 올린 개인 영상",   color: "#5B21B6", bg: "#EDE9FE", isPremier: true  },
     ];
 
     return (
