@@ -55,11 +55,12 @@ export default function AppUpdateButton({ themeColor = "#1A5CFF" }: Props) {
           ]
         );
       }
-    } catch {
+    } catch (err: any) {
       setState("idle");
+      const msg = err?.message ?? String(err);
       Alert.alert(
         "업데이트 확인 실패",
-        "업데이트를 확인할 수 없습니다. 스토어에서 직접 확인하시겠습니까?",
+        `오류: ${msg}\n\n스토어에서 직접 확인하시겠습니까?`,
         [
           { text: "취소", style: "cancel" },
           {
