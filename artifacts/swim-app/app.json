@@ -2,7 +2,7 @@
   "expo": {
     "name": "SwimNote",
     "slug": "swim-app",
-    "version": "1.5.5",
+    "version": "1.5.6",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "swim-app",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.swimnote.app",
-      "buildNumber": "239",
+      "buildNumber": "240",
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.applesignin": [
@@ -54,7 +54,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.swimnote.app",
-      "versionCode": 230,
+      "versionCode": 231,
       "allowBackup": false,
       "permissions": [
         "android.permission.CAMERA",
