@@ -9,36 +9,40 @@
  *  - Mock 데이터로 UI 테스트 가능
  */
 import { router } from "expo-router";
-import { Check, ChevronRight, CircleAlert, CloudUpload, Database, HardDrive, Image as ImageIcon, Plus, RefreshCw, SquareCheck, Trash2, Users, Video, X } from "lucide-react-native";
+import { BookmarkPlus, Check, ChevronLeft, ChevronRight, CircleAlert, CloudUpload, Database, HardDrive, Image as ImageIcon, Info, Plus, RefreshCw, SquareCheck, Trash2, Users, Video, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
+import * as VideoThumbnails from "expo-video-thumbnails";
+import { compressImageIfNeeded } from "../../utils/compressImage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Dimensions, FlatList, Image,
-  Modal, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Alert, Dimensions, FlatList,
+  Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { WeeklySchedule } from "@/components/teacher/WeeklySchedule";
-import { TeacherClassGroup, SlotStatus } from "@/components/teacher/types";
-import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
+import { TeacherClassGroup } from "@/components/teacher/types";
+import { API_BASE, apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useUploadQueue, PhotoUploadJob } from "@/context/UploadQueueContext";
+import { FullAlbumPickerModal } from "@/components/teacher/album/FullAlbumPickerModal";
 
 const C = Colors.light;
-const API_BASE = (process.env.EXPO_PUBLIC_API_URL ?? "/api");
 const { width: W } = Dimensions.get("window");
 const PHOTO_SIZE = Math.floor((W - 6) / 3);
 
 // ── 타입 ──────────────────────────────────────────────────────────────────
 type MediaType = "photo" | "video";
 type AlbumScope = "group" | "private";
-type Step = "home" | "list" | "schedule" | "student" | "upload";
+type Step = "home" | "list" | "student" | "upload";
 
 interface MediaItem {
   id: string;
   file_url: string;
+  thumbnail_url?: string;
   album_type: string;
   class_name: string;
   schedule_days: string;
@@ -73,10 +77,19 @@ function fmtBytes(b: number | null | undefined): string {
   return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
+function parseTs(ts: string): Date {
+  // PostgreSQL timestamptz가 "2026-06-18 07:00:44+00" (T 없음) 형식으로 올 때
+  // Hermes JS 엔진은 이 형식을 파싱하지 못함 → ISO 8601 형식으로 정규화
+  const iso = ts.replace(' ', 'T').replace('+00:00', 'Z').replace('+00', 'Z');
+  return new Date(iso);
+}
+
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "";
   try {
-    return new Date(d).toLocaleDateString("ko-KR", {
+    const dt = parseTs(String(d));
+    if (isNaN(dt.getTime())) return "";
+    return dt.toLocaleDateString("ko-KR", {
       year: "numeric", month: "short", day: "numeric",
     });
   } catch { return ""; }
@@ -87,10 +100,7 @@ function safeLabel(item: MediaItem | null | undefined): string {
   if (!item) return "";
   if (item.caption) return item.caption;
   if (item.album_type === "group") {
-    const days = (item.schedule_days ?? "").split(",")[0]?.trim() ?? "";
-    const time = (item.schedule_time ?? "").trim();
-    const tag = `${days} ${time}반`.trim();
-    return tag || item.class_name || "반 전체";
+    return item.class_name || "전체앨범";
   }
   if (item.album_type === "private") {
     return `${item.student_name || "학생"} 개별`;
@@ -102,24 +112,26 @@ function safeLabel(item: MediaItem | null | undefined): string {
 function normalizeItem(raw: any, idx: number): MediaItem {
   return {
     id: String(raw?.id ?? `item_fallback_${idx}`),
-    file_url: String(raw?.file_url ?? raw?.url ?? ""),
+    file_url: String(raw?.presigned_url ?? raw?.file_url ?? raw?.url ?? ""),
+    thumbnail_url: raw?.thumbnail_presigned_url ? String(raw.thumbnail_presigned_url) : undefined,
     album_type: String(raw?.album_type ?? "group"),
     class_name: String(raw?.class_name ?? ""),
     schedule_days: String(raw?.schedule_days ?? ""),
     schedule_time: String(raw?.schedule_time ?? ""),
     student_name: String(raw?.student_name ?? ""),
     caption: String(raw?.caption ?? ""),
-    uploader_name: String(raw?.uploader_name ?? ""),
+    uploader_name: String(raw?.uploaded_by_name ?? raw?.uploader_name ?? ""),
     created_at: String(raw?.created_at ?? ""),
-    file_size_bytes: Number(raw?.file_size_bytes ?? 0),
+    file_size_bytes: Number(raw?.file_size_bytes ?? raw?.file_size ?? 0),
   };
 }
 
-/** 파일 URL을 절대 URI로 변환 (빈 문자열은 빈 문자열로) */
-function photoUri(url: string | null | undefined): string {
+/** 파일 URL을 절대 URI로 변환. tok 전달 시 ?token= 쿼리 첨부 (Expo Go headers 미지원 대응) */
+function photoUri(url: string | null | undefined, tok?: string | null): string {
   if (!url) return "";
   if (url.startsWith("http")) return url;
-  return `${API_BASE.replace(/\/api$/, "")}${url}`;
+  const base = `${API_BASE.replace(/\/api$/, "")}${url}`;
+  return tok ? `${base}?token=${tok}` : base;
 }
 
 
@@ -128,10 +140,10 @@ const MEDIA_CONFIG: Record<`${MediaType}_${AlbumScope}`, {
   icon: string;
   title: string; sub: string; color: string; bg: string;
 }> = {
-  photo_group:   { icon: "image",  title: "사진", sub: "반 전체 앨범", color: "#E4A93A", bg: "#FFF1BF" },
-  photo_private: { icon: "user",   title: "사진", sub: "개인 앨범",   color: "#2EC4B6", bg: "#E6FFFA" },
-  video_group:   { icon: "video",  title: "영상", sub: "반 전체 앨범", color: "#2EC4B6", bg: "#E6FFFA" },
-  video_private: { icon: "film",   title: "영상", sub: "개인 앨범",   color: "#7C3AED", bg: "#EEDDF5" },
+  photo_group:   { icon: "image",  title: "사진", sub: "전체앨범",  color: "#E4A93A", bg: "#FFF1BF" },
+  photo_private: { icon: "user",   title: "사진", sub: "개인앨범",  color: "#2EC4B6", bg: "#E6FFFA" },
+  video_group:   { icon: "video",  title: "영상", sub: "전체앨범",  color: "#2EC4B6", bg: "#E6FFFA" },
+  video_private: { icon: "video",  title: "영상", sub: "개인앨범",  color: "#7C3AED", bg: "#EEDDF5" },
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -160,19 +172,45 @@ export default function TeacherPhotosScreen() {
   const [selected,    setSelected]    = useState<Set<string>>(new Set());
   const [deleting,    setDeleting]    = useState(false);
   const [confirmDel,  setConfirmDel]  = useState(false);
+  const [saving,        setSaving]        = useState(false);
+  const [confirmSave,   setConfirmSave]   = useState(false);
+  const [savedPhotoIds, setSavedPhotoIds] = useState<Set<string>>(new Set());
 
-  // 라이트박스 (null 안전 처리 필수)
-  const [lightbox, setLightbox] = useState<MediaItem | null>(null);
+  // 라이트박스 — 인덱스 기반 (items 배열 인덱스)
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+
+  const lightboxIdxRef = useRef<number | null>(null);
+  const itemsRef = useRef<MediaItem[]>([]);
+  useEffect(() => { lightboxIdxRef.current = lightboxIdx; }, [lightboxIdx]);
+  useEffect(() => { itemsRef.current = items; }, [items]);
+
+  const lbPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) =>
+        Math.abs(gs.dx) > 10 && Math.abs(gs.dx) > Math.abs(gs.dy),
+      onPanResponderRelease: (_, gs) => {
+        const cur = lightboxIdxRef.current;
+        const arr = itemsRef.current;
+        if (cur === null) return;
+        if (gs.dx < -50 && cur < arr.length - 1) setLightboxIdx(cur + 1);
+        else if (gs.dx > 50 && cur > 0) setLightboxIdx(cur - 1);
+      },
+    })
+  ).current;
 
   // 업로드
-  const [uploading,  setUploading]  = useState(false);
+  const [uploading,       setUploading]       = useState(false);
+  const [compressProgress, setCompressProgress] = useState(0);
+  const [compressTotal,    setCompressTotal]    = useState(0);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
+  const { addJobs } = useUploadQueue();
 
   type PlanFeatures = { video_enabled: boolean; storage_quota_gb: number; storage_used_gb: number; storage_used_pct: number; upload_blocked: boolean; tier: string };
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures>({ video_enabled: false, storage_quota_gb: 0, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" });
-  const [showVideoGateModal, setShowVideoGateModal] = useState(false);
-  const [showStorageModal,   setShowStorageModal]   = useState(false);
+  const [showVideoGateModal,  setShowVideoGateModal]  = useState(false);
+  const [showStorageModal,    setShowStorageModal]    = useState(false);
+  const [showFullAlbumPicker, setShowFullAlbumPicker] = useState(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -264,6 +302,19 @@ export default function TeacherPhotosScreen() {
     if (step === "list") loadList();
   }, [step, loadList]);
 
+  // 전체앨범 사진 목록 로드 시 내앨범 저장 여부 병렬 로드
+  useEffect(() => {
+    if (step !== "list" || scope !== "group" || mediaType !== "photo") return;
+    (async () => {
+      try {
+        const res = await apiRequest(token, "/photos/saved");
+        const data = await safeJson(res);
+        const photos: any[] = Array.isArray(data?.photos) ? data.photos : [];
+        setSavedPhotoIds(new Set(photos.map((p: any) => p.id)));
+      } catch { /* 무시 */ }
+    })();
+  }, [step, scope, mediaType, token]);
+
   // ── 선택 모드 ─────────────────────────────────────────────────────────
   function exitSelect() { setSelectMode(false); setSelected(new Set()); }
 
@@ -287,27 +338,57 @@ export default function TeacherPhotosScreen() {
     if (ids.length === 0) { setConfirmDel(false); return; }
     setDeleting(true);
     try {
-      // State에서 즉시 제거 (낙관적 업데이트)
       setItems(prev => prev.filter(i => !ids.includes(i.id)));
       exitSelect();
 
-      // 실제 API 삭제 시도
       const isPhoto = mediaType === "photo";
-      const res = await fetch(`${API_BASE}${isPhoto ? "/photos/bulk" : "/videos/bulk"}`, {
+      // 개인앨범(saved) = 참조 제거만 / 전체앨범 = R2 + DB 삭제
+      const endpoint = scope === "private"
+        ? (isPhoto ? "/photos/saved" : "/videos/saved")
+        : (isPhoto ? "/photos/bulk" : "/videos/bulk");
+
+      const res = await fetch(`${API_BASE}${endpoint}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
         body: JSON.stringify({ ids }),
       });
       const data = await res.json().catch(() => ({}));
       const deleted = (data as any)?.deleted ?? ids.length;
-      setSuccessMsg(`${deleted}개가 삭제됐습니다.`);
+      setSuccessMsg(
+        scope === "private"
+          ? `${deleted}개가 개인앨범에서 제거됐습니다.`
+          : `${deleted}개가 삭제됐습니다.`
+      );
     } catch (e) {
       console.warn("[photos] delete error:", e);
-      // 실패해도 State 제거는 유지 (낙관적)
-      setSuccessMsg(`${ids.length}개가 삭제됐습니다.`);
+      setSuccessMsg(`${ids.length}개가 처리됐습니다.`);
     } finally {
       setDeleting(false);
       setConfirmDel(false);
+    }
+  }
+
+  // ── 내앨범으로 이동 ───────────────────────────────────────────────────
+  async function saveToMyAlbum() {
+    const ids = Array.from(selected).filter(Boolean);
+    if (!ids.length) { setConfirmSave(false); return; }
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/photos/saved`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+        body: JSON.stringify({ photo_ids: ids }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as any)?.error ?? "저장 실패");
+      setSavedPhotoIds(prev => new Set([...prev, ...ids]));
+      exitSelect();
+      setSuccessMsg(`${ids.length}장이 내 개인앨범에 추가됐습니다.`);
+    } catch (e: any) {
+      setErrorMsg(e?.message ?? "저장 중 오류가 발생했습니다.");
+    } finally {
+      setSaving(false);
+      setConfirmSave(false);
     }
   }
 
@@ -320,21 +401,124 @@ export default function TeacherPhotosScreen() {
     : []
   ).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
 
-  function selectGroup(g: TeacherClassGroup) {
-    setSelGroup(g);
-    if (scope === "private") setStep("student");
-    else setStep("upload");
-  }
-
   function selectStudent(st: Student) {
     setSelStudent(st);
     setStep("upload");
   }
 
+  /** 홈 타일에서 직접 업로드 */
+  async function handleTileUpload(mt: MediaType, sc: AlbumScope) {
+    setMediaType(mt);
+    setScope(sc);
+    const isVideo = mt === "video";
+    if (isVideo && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
+    if (planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) { Alert.alert("권한 필요", "미디어 접근 권한이 필요합니다."); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: isVideo ? ["videos"] : ["images"],
+        allowsMultipleSelection: !isVideo,
+        quality: isVideo ? 1 : 0.85,
+        selectionLimit: isVideo ? 1 : 100,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const assets = result.assets;
+      await doUpload(assets, null, null, mt, sc);
+    } catch (e: any) {
+      setErrorMsg(e?.message ?? "업로드 중 오류가 발생했습니다.");
+    }
+  }
+
+  /** 실제 파일 업로드 — 파일 피커 이후에 실행 */
+  async function doUpload(assets: any[], group: TeacherClassGroup | null | undefined, student: Student | null | undefined, overrideMt?: MediaType, overrideSc?: AlbumScope) {
+    const isVideo = (overrideMt ?? mediaType) === "video";
+    const sc = overrideSc ?? scope;
+    setUploading(true);
+    try {
+      if (!isVideo) {
+        // ── 사진: 압축 후 백그라운드 큐에 추가 ──────────────────────
+        setCompressTotal(assets.length);
+        setCompressProgress(0);
+        const endpoint = sc === "group" ? "/photos/group" : "/photos/private";
+        const jobs: PhotoUploadJob[] = [];
+        const BATCH = 5;
+        for (let i = 0; i < assets.length; i += BATCH) {
+          const batch = assets.slice(i, i + BATCH);
+          const uris = await Promise.all(
+            batch.map((a: any) => compressImageIfNeeded(a.uri, a.fileSize ?? undefined))
+          );
+          uris.forEach(uri => jobs.push({
+            uri,
+            endpoint,
+            params: {
+              class_id: group?.id ?? "",
+              ...(sc === "private" && student?.id ? { student_id: student.id } : {}),
+            },
+            token: token ?? "",
+          }));
+          setCompressProgress(Math.min(i + BATCH, assets.length));
+        }
+        addJobs(jobs);
+        setSuccessMsg(`${assets.length}장 업로드 시작!\n화면을 이동해도 계속 업로드됩니다.`);
+        await loadList();
+        return;
+      }
+
+      // ── 영상: 기존 방식 유지 (블로킹) ────────────────────────────
+      const form = new FormData();
+      for (const asset of assets) {
+        const uri = asset.uri;
+        form.append("video", {
+          uri,
+          name: asset.fileName || "video.mp4",
+          type: asset.mimeType || "video/mp4",
+        } as any);
+        try {
+          const thumb = await VideoThumbnails.getThumbnailAsync(uri, { time: 1000 });
+          form.append("thumbnail", {
+            uri: thumb.uri,
+            name: "thumbnail.jpg",
+            type: "image/jpeg",
+          } as any);
+        } catch (thumbErr) {
+          console.warn("[videos] 썸네일 생성 실패 (무시됨):", thumbErr);
+        }
+      }
+      form.append("class_id", group?.id ?? "");
+      if (sc === "private" && student?.id) form.append("student_id", student.id);
+
+      const videoEndpoint = sc === "group" ? "/videos/group" : "/videos/private";
+      const res = await fetch(`${API_BASE}${videoEndpoint}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token ?? ""}` },
+        body: form,
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((resData as any)?.error ?? "업로드 실패");
+
+      setSuccessMsg(
+        sc === "group"
+          ? `영상이 ${group?.name ? `${group.name} ` : ""}전체앨범에 추가됐습니다.`
+          : `영상이 ${student?.name ?? "학생"} 개인 ${cfg.title} 앨범에 추가됐습니다.`
+      );
+      await loadList();
+    } catch (e: any) {
+      console.warn("[photos] upload error:", e);
+      setErrorMsg(e?.message ?? "업로드 중 오류가 발생했습니다.");
+    } finally {
+      setUploading(false);
+      setCompressTotal(0);
+      setCompressProgress(0);
+    }
+  }
+
+  /** 파일 피커 실행 → 바로 업로드 */
   async function pickAndUpload() {
     const isVideo = mediaType === "video";
     if (isVideo && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
     if (planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
+
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) { Alert.alert("권한 필요", "미디어 접근 권한이 필요합니다."); return; }
@@ -343,51 +527,16 @@ export default function TeacherPhotosScreen() {
         mediaTypes: isVideo ? ["videos"] : ["images"],
         allowsMultipleSelection: !isVideo,
         quality: isVideo ? 1 : 0.85,
+        selectionLimit: isVideo ? 1 : 100,
       });
       if (result.canceled || !result.assets?.length) return;
 
-      setUploading(true);
-      const form = new FormData();
-      for (const asset of result.assets) {
-        form.append(isVideo ? "video" : "photos", {
-          uri: asset.uri,
-          name: asset.fileName || (isVideo ? "video.mp4" : "photo.jpg"),
-          type: asset.mimeType || (isVideo ? "video/mp4" : "image/jpeg"),
-        } as any);
-      }
-      form.append("class_id", selGroup?.id ?? "");
-      if (scope === "private" && selStudent?.id) form.append("student_id", selStudent.id);
-
-      const endpoint = isVideo
-        ? (scope === "group" ? "/videos/group" : "/videos/private")
-        : (scope === "group" ? "/photos/group" : "/photos/private");
-
-      const res = await fetch(`${API_BASE}${endpoint}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token ?? ""}` },
-        body: form,
-      });
-      const resData = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((resData as any)?.error ?? "업로드 실패");
-
-      const cnt = result.assets.length;
-      setSuccessMsg(
-        scope === "group"
-          ? `${isVideo ? "영상" : `${cnt}장`}이 ${selGroup?.name ?? "반"} ${cfg.title} 앨범에 추가됐습니다.`
-          : `${isVideo ? "영상" : `${cnt}장`}이 ${selStudent?.name ?? "학생"} 개인 ${cfg.title} 앨범에 추가됐습니다.`
-      );
+      await doUpload(result.assets, null, null);
     } catch (e: any) {
       console.warn("[photos] upload error:", e);
       setErrorMsg(e?.message ?? "업로드 중 오류가 발생했습니다.");
-    } finally {
-      setUploading(false);
     }
   }
-
-  const statusMap: Record<string, SlotStatus> = {};
-  (groups ?? []).forEach(g => {
-    statusMap[g.id] = { attChecked: 0, diaryDone: true, hasPhotos: false };
-  });
 
   // ── 로딩 ─────────────────────────────────────────────────────────────
   if (loading) {
@@ -399,35 +548,76 @@ export default function TeacherPhotosScreen() {
     );
   }
 
-  // ── 홈: 4버튼 + 사용량 ───────────────────────────────────────────────
+  // ── 홈: 새 레이아웃 (업로드 / 앨범 구분) ────────────────────────────
   if (step === "home") {
+    const HOME_TILES: {
+      key: string; mt: MediaType; sc: AlbumScope;
+      icon: string; title: string; sub: string;
+      color: string; bg: string; isPremier: boolean;
+    }[] = [
+      { key: "photo_upload",   mt: "photo", sc: "group",   icon: "camera",  title: "전체사진 업로드", sub: "전체 학생에게 공유",    color: "#B45309", bg: "#FEF3C7", isPremier: false },
+      { key: "video_upload",   mt: "video", sc: "group",   icon: "video",   title: "전체영상 업로드", sub: "전체 학생에게 공유",    color: "#0F766E", bg: "#CCFBF1", isPremier: true  },
+      { key: "photo_album",    mt: "photo", sc: "private", icon: "image",   title: "내사진앨범",     sub: "내가 올린 개인 사진",   color: "#C2410C", bg: "#FFEDD5", isPremier: false },
+      { key: "video_album",    mt: "video", sc: "private", icon: "video",   title: "내영상앨범",     sub: "내가 올린 개인 영상",   color: "#5B21B6", bg: "#EDE9FE", isPremier: true  },
+    ];
+
     return (
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader title="사진 & 영상" homePath="/(teacher)/today-schedule" />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
           <View style={s.titleRow}><Text style={s.title}>사진 & 영상</Text></View>
+
+          {/* ── 2×2 타일 그리드 ── */}
           <View style={s.grid}>
-            {(["photo_group", "photo_private", "video_group", "video_private"] as const).map(key => {
-              const [mt, sc] = key.split("_") as [MediaType, AlbumScope];
-              const c = MEDIA_CONFIG[key];
-              return (
-                <Pressable
-                  key={key}
-                  style={[s.gridBtn, { backgroundColor: c.bg, borderColor: c.color + "40" }]}
-                  onPress={() => openList(mt, sc)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${c.title} ${c.sub}`}
-                >
-                  <View style={[s.gridIcon, { backgroundColor: c.color + "25" }]}>
-                    <LucideIcon name={c.icon} size={28} color={c.color} />
+            {HOME_TILES.map(tile => (
+              <Pressable
+                key={tile.key}
+                style={[s.gridBtn, { backgroundColor: tile.bg, borderColor: tile.color + "90" }]}
+                onPress={() => openList(tile.mt, tile.sc)}
+                accessibilityRole="button"
+                accessibilityLabel={tile.title}
+              >
+                {tile.isPremier && (
+                  <View style={s.premierBadge}>
+                    <Text style={s.premierBadgeText}>프리미어 이상</Text>
                   </View>
-                  <Text style={[s.gridTitle, { color: c.color }]}>{c.title}</Text>
-                  <Text style={[s.gridSub, { color: c.color + "CC" }]}>{c.sub}</Text>
-                </Pressable>
-              );
-            })}
+                )}
+                <View style={[s.gridIcon, { backgroundColor: tile.color + "20" }]}>
+                  <LucideIcon name={tile.icon} size={32} color={tile.color} />
+                </View>
+                <Text style={[s.gridTitle, { color: tile.color }]}>{tile.title}</Text>
+                <Text style={[s.gridSub, { color: tile.color + "CC" }]}>{tile.sub}</Text>
+              </Pressable>
+            ))}
           </View>
 
+          {/* ── 업로드 제한사항 안내 ── */}
+          <View style={s.limitCard}>
+            <View style={s.limitCardHeader}>
+              <Info size={14} color="#64748B" />
+              <Text style={s.limitCardTitle}>업로드 제한사항</Text>
+            </View>
+            <View style={s.limitCardBody}>
+              <View style={s.limitRow}>
+                <LucideIcon name="image" size={13} color="#E4A93A" />
+                <Text style={s.limitText}>사진: 1장 최대 <Text style={{ color: "#0F172A" }}>8MB</Text> · 최대 <Text style={{ color: "#0F172A" }}>100장</Text> 동시 업로드</Text>
+              </View>
+              <View style={s.limitRow}>
+                <LucideIcon name="video" size={13} color="#2EC4B6" />
+                <Text style={s.limitText}>영상: 1개 최대 <Text style={{ color: "#0F172A" }}>100MB</Text> · <Text style={{ color: "#7C3AED" }}>프리미어 플랜</Text> 이상만 사용 가능</Text>
+              </View>
+              <View style={s.limitRow}>
+                <LucideIcon name="users" size={13} color="#94A3B8" />
+                <Text style={s.limitText}>업로드한 사진·영상은 학부모 앱에서 즉시 확인 가능합니다</Text>
+              </View>
+              <View style={s.limitRow}>
+                <LucideIcon name="hard-drive" size={13} color="#94A3B8" />
+                <Text style={s.limitText}>저장공간 초과 시 업로드가 제한됩니다 (현재 {planFeatures.storage_used_pct.toFixed(0)}% 사용 중)</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* ── 내 업로드 사용량 ── */}
           <View style={s.usageCard}>
             <View style={s.usageCardHeader}>
               <HardDrive size={15} color={themeColor} />
@@ -485,10 +675,27 @@ export default function TeacherPhotosScreen() {
               </Text>
             </Pressable>
             <Text style={s.selectBarCount}>{selected.size}개 선택</Text>
-            <View style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              {scope === "group" && mediaType === "photo" && (
+                <Pressable
+                  onPress={() => selected.size > 0 && setConfirmSave(true)}
+                  disabled={selected.size === 0 || saving || deleting}
+                  style={[s.selectBarSave, { opacity: selected.size === 0 ? 0.4 : 1 }]}
+                >
+                  {saving
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : (
+                      <>
+                        <BookmarkPlus size={14} color="#fff" />
+                        <Text style={s.selectBarSaveText}>내앨범</Text>
+                      </>
+                    )
+                  }
+                </Pressable>
+              )}
               <Pressable
                 onPress={() => selected.size > 0 && setConfirmDel(true)}
-                disabled={selected.size === 0 || deleting}
+                disabled={selected.size === 0 || deleting || saving}
                 style={[s.selectBarDel, { opacity: selected.size === 0 ? 0.4 : 1 }]}
               >
                 {deleting
@@ -550,11 +757,12 @@ export default function TeacherPhotosScreen() {
             renderItem={({ item, index }) => {
               if (!item) return null;
               const isSel = selected.has(item.id);
+              const isSaved = scope === "group" && mediaType === "photo" && savedPhotoIds.has(item.id);
               const label = safeLabel(item);
-              const uri = photoUri(item.file_url);
+              const uri = photoUri(item.file_url, token);
               return (
                 <Pressable
-                  onPress={() => selectMode ? toggleSelect(item.id) : setLightbox(item)}
+                  onPress={() => selectMode ? toggleSelect(item.id) : setLightboxIdx(items.findIndex(i => i.id === item.id))}
                   onLongPress={() => {
                     if (!selectMode) {
                       setSelectMode(true);
@@ -564,15 +772,15 @@ export default function TeacherPhotosScreen() {
                   style={[
                     s.photoCell,
                     { width: PHOTO_SIZE, height: PHOTO_SIZE },
+                    isSaved && !isSel && { borderWidth: 2, borderColor: "#2EC4B6" },
                     isSel && { borderWidth: 3, borderColor: cfg.color },
                   ]}
                 >
                   {uri ? (
                     <Image
-                      source={{ uri, headers: { Authorization: `Bearer ${token ?? ""}` } }}
+                      source={{ uri }}
                       style={{ width: "100%", height: "100%" }}
-                      resizeMode="cover"
-                      defaultSource={undefined}
+                      contentFit="cover"
                     />
                   ) : (
                     <View style={s.photoPlaceholder}>
@@ -589,6 +797,11 @@ export default function TeacherPhotosScreen() {
                   {!!label && (
                     <View style={s.photoLabelBar}>
                       <Text style={s.photoLabelText} numberOfLines={1}>{label}</Text>
+                    </View>
+                  )}
+                  {isSaved && (
+                    <View style={s.savedBadge}>
+                      <BookmarkPlus size={11} color="#fff" />
                     </View>
                   )}
                   {selectMode && (
@@ -635,9 +848,17 @@ export default function TeacherPhotosScreen() {
                     isSel && { borderWidth: 2, borderColor: cfg.color },
                   ]}
                 >
-                  <View style={[s.videoThumb, { backgroundColor: cfg.bg }]}>
-                    <Video size={22} color={cfg.color} />
-                  </View>
+                  {item.thumbnail_url ? (
+                    <Image
+                      source={{ uri: item.thumbnail_url }}
+                      style={[s.videoThumb, { borderRadius: 12 }]}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <View style={[s.videoThumb, { backgroundColor: cfg.bg }]}>
+                      <Video size={22} color={cfg.color} />
+                    </View>
+                  )}
                   <View style={{ flex: 1, gap: 3 }}>
                     <Text style={s.videoLabel} numberOfLines={1}>{label || "영상"}</Text>
                     <Text style={s.videoMeta} numberOfLines={1}>
@@ -664,80 +885,145 @@ export default function TeacherPhotosScreen() {
           />
         )}
 
-        {/* + 업로드 FAB */}
+        {/* + FAB: 전체앨범 = 파일 피커, 개인앨범 = 전체앨범 피커 */}
         {!selectMode && (
           <Pressable
-            onPress={() => { setSelGroup(null); setSelStudent(null); setStep("schedule"); }}
+            onPress={() => {
+              if (scope === "private") {
+                setShowFullAlbumPicker(true);
+              } else {
+                pickAndUpload();
+              }
+            }}
             style={[s.fab, { backgroundColor: cfg.color, bottom: insets.bottom + 20 }]}
             accessibilityRole="button"
-            accessibilityLabel={`${cfg.title} 업로드`}
+            accessibilityLabel={`${cfg.title} ${scope === "private" ? "저장" : "업로드"}`}
           >
-            <Plus size={26} color="#fff" />
+            {uploading ? <ActivityIndicator color="#fff" /> : <Plus size={26} color="#fff" />}
           </Pressable>
         )}
 
-        {/* ── 사진 라이트박스 ── */}
-        {/* ★ lightbox !== null 조건을 Modal 안에 반드시 감싸야 크래시 방지 */}
-        <Modal
-          visible={!!lightbox}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setLightbox(null)}
-        >
-          {lightbox != null ? (
-            <View style={s.lbBg}>
-              <Pressable
-                onPress={() => setLightbox(null)}
-                style={[s.lbClose, { top: insets.top + 12 }]}
-                accessibilityRole="button"
-                accessibilityLabel="닫기"
-              >
-                <X size={26} color="#fff" />
-              </Pressable>
+        {/* FullAlbumPickerModal — 개인앨범 + 버튼 → 전체앨범에서 선택 */}
+        <FullAlbumPickerModal
+          visible={showFullAlbumPicker}
+          mediaType={mediaType}
+          token={token}
+          onClose={() => setShowFullAlbumPicker(false)}
+          onSaved={(count) => {
+            setShowFullAlbumPicker(false);
+            setSuccessMsg(`${count}개가 개인앨범에 저장됐습니다.`);
+            loadList();
+          }}
+        />
 
-              {!!lightbox.file_url ? (
-                <Image
-                  source={{
-                    uri: photoUri(lightbox.file_url),
-                    headers: { Authorization: `Bearer ${token ?? ""}` },
-                  }}
-                  style={s.lbImage}
-                  resizeMode="contain"
-                />
-              ) : (
-                <View style={s.lbImagePlaceholder}>
-                  <ImageIcon size={60} color="rgba(255,255,255,0.3)" />
-                  <Text style={{ color: "rgba(255,255,255,0.4)", marginTop: 12 }}>이미지를 불러올 수 없습니다</Text>
+        {/* ── 사진 라이트박스 (스와이프 이동) ── */}
+        {(() => {
+          const lbItem = lightboxIdx !== null ? items[lightboxIdx] ?? null : null;
+          const hasPrev = lightboxIdx !== null && lightboxIdx > 0;
+          const hasNext = lightboxIdx !== null && lightboxIdx < items.length - 1;
+          return (
+            <Modal
+              visible={lightboxIdx !== null}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setLightboxIdx(null)}
+            >
+              <View style={s.lbBg} {...lbPanResponder.panHandlers}>
+                {/* 상단 바 */}
+                <View style={[s.lbTopBar, { paddingTop: insets.top + 12 }]}>
+                  <Pressable
+                    onPress={() => setLightboxIdx(null)}
+                    style={s.lbClose}
+                    accessibilityRole="button"
+                    accessibilityLabel="닫기"
+                  >
+                    <X size={26} color="#fff" />
+                  </Pressable>
+                  {items.length > 1 && lightboxIdx !== null && (
+                    <Text style={s.lbCounter}>{lightboxIdx + 1} / {items.length}</Text>
+                  )}
+                  <View style={{ width: 44 }} />
                 </View>
-              )}
 
-              {!!safeLabel(lightbox) && (
-                <Text style={s.lbLabel}>{safeLabel(lightbox)}</Text>
-              )}
-              <Text style={s.lbMeta}>
-                {lightbox.uploader_name ? `${lightbox.uploader_name}  ` : ""}
-                {fmtDate(lightbox.created_at)}
-                {lightbox.file_size_bytes ? `  ·  ${fmtBytes(lightbox.file_size_bytes)}` : ""}
-              </Text>
+                {lbItem && !!lbItem.file_url ? (
+                  <Image
+                    source={{ uri: photoUri(lbItem.file_url, token) }}
+                    style={s.lbImage}
+                    contentFit="contain"
+                  />
+                ) : (
+                  <View style={s.lbImagePlaceholder}>
+                    <ImageIcon size={60} color="rgba(255,255,255,0.3)" />
+                    <Text style={{ color: "rgba(255,255,255,0.4)", marginTop: 12 }}>이미지를 불러올 수 없습니다</Text>
+                  </View>
+                )}
 
-              <View style={{ flexDirection: "row", justifyContent: "center", marginTop: 8, gap: 10 }}>
-                <Pressable
-                  onPress={() => { setLightbox(null); toggleSelect(lightbox?.id ?? ""); if (!selectMode) setSelectMode(true); }}
-                  style={[s.lbActionBtn, { backgroundColor: "#0F172A" }]}
-                >
-                  <Trash2 size={15} color="#fff" />
-                  <Text style={s.lbActionBtnText}>삭제</Text>
-                </Pressable>
-                <Pressable onPress={() => setLightbox(null)} style={[s.lbActionBtn, { backgroundColor: "#64748B" }]}>
-                  <X size={15} color="#fff" />
-                  <Text style={s.lbActionBtnText}>닫기</Text>
-                </Pressable>
+                {lbItem && !!safeLabel(lbItem) && (
+                  <Text style={s.lbLabel}>{safeLabel(lbItem)}</Text>
+                )}
+                {lbItem && (
+                  <Text style={s.lbMeta}>
+                    {lbItem.uploader_name ? `${lbItem.uploader_name}  ` : ""}
+                    {fmtDate(lbItem.created_at)}
+                    {lbItem.file_size_bytes ? `  ·  ${fmtBytes(lbItem.file_size_bytes)}` : ""}
+                  </Text>
+                )}
+
+                {/* 이전/다음 화살표 */}
+                {items.length > 1 && (
+                  <View style={s.lbArrowRow}>
+                    <Pressable
+                      onPress={() => setLightboxIdx(i => (i !== null && i > 0 ? i - 1 : i))}
+                      style={[s.lbArrow, !hasPrev && s.lbArrowDisabled]}
+                      hitSlop={16}
+                      disabled={!hasPrev}
+                    >
+                      <ChevronLeft size={28} color={hasPrev ? "#fff" : "rgba(255,255,255,0.25)"} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setLightboxIdx(i => (i !== null && i < items.length - 1 ? i + 1 : i))}
+                      style={[s.lbArrow, !hasNext && s.lbArrowDisabled]}
+                      hitSlop={16}
+                      disabled={!hasNext}
+                    >
+                      <ChevronRight size={28} color={hasNext ? "#fff" : "rgba(255,255,255,0.25)"} />
+                    </Pressable>
+                  </View>
+                )}
+
+                <View style={{ flexDirection: "row", justifyContent: "center", marginTop: 8, gap: 10 }}>
+                  <Pressable
+                    onPress={() => {
+                      if (!lbItem) return;
+                      setLightboxIdx(null);
+                      toggleSelect(lbItem.id ?? "");
+                      if (!selectMode) setSelectMode(true);
+                    }}
+                    style={[s.lbActionBtn, { backgroundColor: "#0F172A" }]}
+                  >
+                    <Trash2 size={15} color="#fff" />
+                    <Text style={s.lbActionBtnText}>삭제</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setLightboxIdx(null)} style={[s.lbActionBtn, { backgroundColor: "#64748B" }]}>
+                    <X size={15} color="#fff" />
+                    <Text style={s.lbActionBtnText}>닫기</Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
-          ) : (
-            <View style={s.lbBg} />
-          )}
-        </Modal>
+            </Modal>
+          );
+        })()}
+
+        {/* 내앨범 저장 확인 */}
+        <ConfirmModal
+          visible={confirmSave}
+          title={`내앨범에 추가`}
+          message={`선택한 사진 ${selected.size}장을 내 개인앨범에 추가합니다.\n(전체앨범에서 삭제되지 않습니다)`}
+          confirmText="추가"
+          cancelText="취소"
+          onConfirm={saveToMyAlbum}
+          onCancel={() => setConfirmSave(false)}
+        />
 
         {/* 삭제 확인 */}
         <ConfirmModal
@@ -767,7 +1053,7 @@ export default function TeacherPhotosScreen() {
         <ConfirmModal
           visible={showVideoGateModal}
           title="영상 업로드 불가"
-          message={`현재 플랜(${planFeatures?.tier ?? "Free"})은 영상 업로드를 지원하지 않습니다.\nCenter 200 이상 플랜에서 영상을 업로드할 수 있습니다.`}
+          message="동영상 업로드는 프리미어 플랜부터 사용할 수 있습니다."
           confirmText="플랜 업그레이드"
           cancelText="닫기"
           onConfirm={() => { setShowVideoGateModal(false); router.push("/(admin)/billing" as any); }}
@@ -786,29 +1072,6 @@ export default function TeacherPhotosScreen() {
     );
   }
 
-  // ── 시간표 (반 선택) ──────────────────────────────────────────────────
-  if (step === "schedule") {
-    return (
-      <SafeAreaView style={s.safe} edges={[]}>
-        <SubScreenHeader
-          title={`${cfg.title} 업로드`}
-          subtitle="수업 반을 선택하세요"
-          onBack={() => setStep("list")}
-          homePath="/(teacher)/today-schedule"
-        />
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-          <WeeklySchedule
-            classGroups={groups}
-            statusMap={statusMap}
-            onSelectClass={selectGroup}
-            themeColor={cfg.color}
-          />
-          <View style={{ height: 100 }} />
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
-
   // ── 학생 선택 ─────────────────────────────────────────────────────────
   if (step === "student") {
     return (
@@ -816,7 +1079,7 @@ export default function TeacherPhotosScreen() {
         <SubScreenHeader
           title={`${selGroup?.name ?? "반"} · 학생 선택`}
           subtitle={`개인 ${cfg.title} 앨범에 업로드할 학생을 선택하세요`}
-          onBack={() => setStep("schedule")}
+          onBack={() => setStep("list")}
           homePath="/(teacher)/today-schedule"
         />
         <ScrollView contentContainerStyle={s.studentList} showsVerticalScrollIndicator={false}>
@@ -849,7 +1112,7 @@ export default function TeacherPhotosScreen() {
       <SubScreenHeader
         title={`${scope === "group" ? selGroup?.name ?? "반" : selStudent?.name ?? "학생"} · ${cfg.sub}`}
         subtitle={`${cfg.title} 업로드`}
-        onBack={() => setStep(scope === "private" ? "student" : "schedule")}
+        onBack={() => setStep("list")}
         homePath="/(teacher)/today-schedule"
       />
       <View style={s.uploadCenter}>
@@ -868,11 +1131,20 @@ export default function TeacherPhotosScreen() {
         </Text>
         <Pressable
           style={[s.uploadBtn, { backgroundColor: cfg.color, opacity: uploading ? 0.7 : 1 }]}
-          onPress={pickAndUpload}
+          onPress={() => pickAndUpload()}
           disabled={uploading}
         >
           {uploading
-            ? <ActivityIndicator color="#fff" />
+            ? (
+              <>
+                <ActivityIndicator color="#fff" size="small" />
+                {compressTotal > 0 && (
+                  <Text style={[s.uploadBtnText, { fontSize: 12 }]}>
+                    압축 중 {compressProgress}/{compressTotal}
+                  </Text>
+                )}
+              </>
+            )
             : (
               <>
                 <CloudUpload size={20} color="#fff" />
@@ -900,7 +1172,7 @@ export default function TeacherPhotosScreen() {
       <ConfirmModal
         visible={showVideoGateModal}
         title="영상 업로드 불가"
-        message={`현재 플랜(${planFeatures?.tier ?? "Free"})은 영상 업로드를 지원하지 않습니다.\nCenter 200 이상 플랜에서 영상을 업로드할 수 있습니다.`}
+        message="동영상 업로드는 프리미어 플랜부터 사용할 수 있습니다."
         confirmText="플랜 업그레이드"
         cancelText="닫기"
         onConfirm={() => { setShowVideoGateModal(false); router.push("/(admin)/billing" as any); }}
@@ -926,10 +1198,20 @@ const s = StyleSheet.create({
   title: { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#0F172A" },
 
   grid: { flexDirection: "row", flexWrap: "wrap", padding: 12, gap: 12 },
-  gridBtn: { width: "47%", aspectRatio: 1, borderRadius: 20, borderWidth: 1.5, alignItems: "center", justifyContent: "center", gap: 10 },
-  gridIcon: { width: 60, height: 60, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  gridTitle: { fontSize: 18, fontFamily: "Pretendard-Regular" },
-  gridSub: { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  gridBtn: { width: "47%", aspectRatio: 1, borderRadius: 20, borderWidth: 2, alignItems: "center", justifyContent: "center", gap: 8, position: "relative", overflow: "hidden" },
+  gridIcon: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  gridTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", textAlign: "center" },
+  gridSub: { fontSize: 11, fontFamily: "Pretendard-Regular", textAlign: "center", paddingHorizontal: 6 },
+
+  premierBadge: { position: "absolute", top: 8, right: 0, backgroundColor: "#7C3AED", paddingHorizontal: 8, paddingVertical: 3, borderTopLeftRadius: 8, borderBottomLeftRadius: 8 },
+  premierBadgeText: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#fff" },
+
+  limitCard: { marginHorizontal: 12, marginTop: 4, marginBottom: 4, backgroundColor: "#F8FAFC", borderRadius: 16, borderWidth: 1, borderColor: "#E5E7EB", overflow: "hidden" },
+  limitCardHeader: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  limitCardTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  limitCardBody: { paddingHorizontal: 14, paddingVertical: 10, gap: 8 },
+  limitRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  limitText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18 },
 
   usageCard: { marginHorizontal: 12, marginTop: 4, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden" },
   usageCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
@@ -949,10 +1231,12 @@ const s = StyleSheet.create({
   selectBarLeft: { flexDirection: "row", alignItems: "center", gap: 5 },
   selectBarAllText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   selectBarCount: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
-  selectBarDel: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#D96C6C", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
-  selectBarDelText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
+  selectBarSave: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#2EC4B6", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  selectBarSaveText: { color: "#fff", fontSize: 13, lineHeight: 18 },
+  selectBarDel: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#D96C6C", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  selectBarDelText: { color: "#fff", fontSize: 13, lineHeight: 18 },
   selectBarCancel: { paddingHorizontal: 8, paddingVertical: 7 },
-  selectBarCancelText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  selectBarCancelText: { fontSize: 13, lineHeight: 18, color: "#64748B" },
 
   centerBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 28 },
   centerText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
@@ -968,6 +1252,7 @@ const s = StyleSheet.create({
   photoLabelBar: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.55)", paddingHorizontal: 5, paddingVertical: 4 },
   photoLabelText: { color: "#fff", fontSize: 9, fontFamily: "Pretendard-Regular" },
   checkCircle: { position: "absolute", top: 5, right: 5, width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#fff", backgroundColor: "rgba(255,255,255,0.3)", alignItems: "center", justifyContent: "center" },
+  savedBadge: { position: "absolute", top: 5, left: 5, width: 22, height: 22, borderRadius: 11, backgroundColor: "#2EC4B6", alignItems: "center", justifyContent: "center" },
 
   videoRow: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 12, gap: 12 },
   videoThumb: { width: 52, height: 52, borderRadius: 12, alignItems: "center", justifyContent: "center" },
@@ -978,11 +1263,16 @@ const s = StyleSheet.create({
   fab: { position: "absolute", right: 20, width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 8 },
 
   lbBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.97)", justifyContent: "center", alignItems: "center" },
-  lbClose: { position: "absolute", left: 16, width: 44, height: 44, alignItems: "center", justifyContent: "center", zIndex: 10 },
+  lbTopBar: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingHorizontal: 16, paddingBottom: 12, flexDirection: "row", alignItems: "center" },
+  lbClose: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  lbCounter: { flex: 1, textAlign: "center", color: "rgba(255,255,255,0.75)", fontSize: 14, fontFamily: "Pretendard-Regular" },
   lbImage: { width: W, height: W * 1.1 },
   lbImagePlaceholder: { width: W, height: W * 0.8, alignItems: "center", justifyContent: "center" },
   lbLabel: { color: "#E6FFFA", fontSize: 13, fontFamily: "Pretendard-Regular", paddingHorizontal: 24, paddingTop: 14, textAlign: "center" },
   lbMeta: { color: "rgba(255,255,255,0.45)", fontSize: 12, fontFamily: "Pretendard-Regular", paddingTop: 4, textAlign: "center" },
+  lbArrowRow: { position: "absolute", left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 8, top: "35%", zIndex: 5 },
+  lbArrow: { width: 48, height: 48, borderRadius: 24, backgroundColor: "rgba(0,0,0,0.35)", alignItems: "center", justifyContent: "center" },
+  lbArrowDisabled: { backgroundColor: "rgba(0,0,0,0.15)" },
   lbActionBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
   lbActionBtnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
 
@@ -998,4 +1288,5 @@ const s = StyleSheet.create({
   avatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   studentName: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+
 });
