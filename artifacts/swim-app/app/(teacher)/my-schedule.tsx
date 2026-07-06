@@ -335,7 +335,7 @@ export default function MyScheduleScreen() {
       return now.getHours() * 60 + now.getMinutes() > parseInt(m[3]) * 60 + parseInt(m[4]);
     })();
 
-    const otherGroups = groups.filter(og => og.id !== g.id);
+    const otherGroups = myGroups.filter(og => og.id !== g.id);
 
     return (
       <>
