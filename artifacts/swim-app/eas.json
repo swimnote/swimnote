@@ -10,17 +10,34 @@
     },
     "preview": {
       "distribution": "internal",
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://swimnote-api.onrender.com/api",
+        "EXPO_PUBLIC_DOMAIN": "swimnote-api.onrender.com",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_iOSUEXOdIktvMemPmJEbTDelJXu",
+        "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo"
+      },
+      "android": {
+        "buildType": "apk"
+      },
       "ios": {
         "simulator": false
       }
     },
     "production": {
       "autoIncrement": false,
+      "channel": "production",
+      "pnpm": "9.15.4",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://swimnote-api.onrender.com/api",
         "EXPO_PUBLIC_DOMAIN": "swimnote-api.onrender.com",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_iOSUEXOdIktvMemPmJEbTDelJXu"
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_iOSUEXOdIktvMemPmJEbTDelJXu",
+        "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo"
+      },
+      "android": {
+        "buildType": "app-bundle"
       }
     }
   },
