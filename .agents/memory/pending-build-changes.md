@@ -4,28 +4,23 @@ description: 마지막 스토어 빌드 이후 코드에 반영됐으나 아직 
 ---
 
 ## 마지막 빌드 기준
-- 앱 버전: 1.3.11 (Play Store 내부 테스트 트랙)
+- 앱 버전: 1.5.5 (iOS buildNumber 238 / Android versionCode 229)
+- 이전 바이너리: iOS 빌드 236/237, Android versionCode 227/228 (1.5.1)
 
-## 변경 사항
+## 1.5.5 빌드에 포함된 수정 사항
 
-### 1. 엑셀 일괄 업로드 (bulk-register.tsx)
-- MAX_UPLOAD 100명 → 300명 (파일 내 인원 제한 해제)
-- canUpload 조건 변경: 오류 행 있어도 유효한 행만 골라서 등록 가능
-- 이름+전화번호 중복 행 → _autoSkipped (회색 "중복 자동 제거", 업로드 차단 아님)
-- 이름만 중복 (형제) → 중복 표시 없음, 정상 처리
-- EUC-KR 인코딩 CSV 자동 감지 및 재시도
-- 확장 헤더 인식: "이름보호가", "이름보호자" 등 COL_MAP 추가
-- 파일 선택 시 /students/capacity 호출 → 플랜 한도 선제 체크
-- 플랜 한도 초과 시 빨간 배너 + "플랜 변경" 안내 + 버튼 비활성화
-- 안내 문구 수정: "오류가 1개라도 있으면 전체 업로드 실패" → "오류 행은 자동 제외, 정상 행만 등록"
-- 오류 배너 빨간색 → 노란색으로 변경 (경고 수준 조정)
+### ① 선생님 모드 — 담당 반만 표시 (my-schedule.tsx)
+- `myGroups` 필터: `groups.filter(g => g.teacher_user_id === adminUser?.id || co_teacher_ids.includes(...))`
+- weekly/monthly/daily 모든 뷰에 `myGroups` 적용
+- daily view 반이동 패널 `otherGroups`도 `myGroups.filter(...)` 로 수정
+- 서버(class-groups.ts): tokenRole=teacher이면 `WHERE teacher_user_id = userId` 자동 필터
 
-### 2. 가입 화면 천지인 키보드 오류 수정 (signup.tsx)
-- 실명 입력 필드 onChangeText에서 실시간 한글 정규식 필터링 제거
-- 원인: `[^가-힣ㄱ-ㅎㅏ-ㅣ\s]` 필터가 천지인 조합 중간 문자 ㆍ(아래아, U+318D)를 삭제해서 조합이 깨짐
-- 수정: 입력 중 필터 없이 그대로 저장, 제출 시 validateName으로 검증
+### ② 관리자 주간뷰 compactMode=false
+- `(admin)/classes.tsx` 724번 줄: `compactMode={false}` 명시
 
-### 3. 서버 (students.ts)
-- POST /students/batch: 배치 한도 100명 → 300명
-- GET /students/capacity: 신규 엔드포인트 추가 (플랜 한도/현재 인원/잔여 반환)
-- 플랜 한도 초과 오류 메시지에 "설정 > 구독 플랜 변경" 안내 추가
+### ③ 관리자 일지 전체보기 서버 404 수정
+- 프로덕션 서버에 3개 엔드포인트 배포 완료 (Render.com)
+
+### ④ OTA 코드 개선 (_layout.tsx)
+- `useUpdates()` 제거, `checkForUpdateAsync → fetchUpdateAsync → reloadAsync` 단순화
+- 앱 시작 + 포그라운드 복귀 시 체크
