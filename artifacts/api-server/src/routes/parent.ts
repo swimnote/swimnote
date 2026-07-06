@@ -1149,31 +1149,43 @@ router.get("/students/:id/home-summary", requireAuth, requireParent, async (req:
     const latestStatus = attList[0]?.status ?? null;
 
     // ── 성장 (현재 레벨) ─────────────────────────────────────────────────────
+    // current_level_order는 Drizzle ORM 스키마에 없을 수 있으므로 raw SQL로 명시적으로 조회
     let growthInfo: any = null;
+    const [studLevelRaw] = (await db.execute(sql`
+      SELECT current_level_order, swimming_pool_id FROM students WHERE id = ${req.params.id} LIMIT 1
+    `).catch(() => ({ rows: [] }))).rows as any[];
+
     const levelRows = await db.execute(sql`
       SELECT level, achieved_date, note, teacher_name FROM student_levels
       WHERE student_id = ${req.params.id}
       ORDER BY achieved_date DESC, created_at DESC LIMIT 2
     `).catch(() => ({ rows: [] }));
+
+    // pool_level_settings에서 현재 레벨 정의 조회 (이름·배지 등)
+    let currentLevelName: string | null = null;
+    if (studLevelRaw?.current_level_order != null && studLevelRaw?.swimming_pool_id) {
+      const defRow = await db.execute(sql`
+        SELECT level_name FROM pool_level_settings
+        WHERE pool_id = ${studLevelRaw.swimming_pool_id}
+          AND level_order = ${studLevelRaw.current_level_order}
+        LIMIT 1
+      `).catch(() => ({ rows: [] }));
+      currentLevelName = (defRow.rows[0] as any)?.level_name ?? `레벨 ${studLevelRaw.current_level_order}`;
+    }
+
     if (levelRows.rows.length > 0) {
       const levels = levelRows.rows as any[];
       growthInfo = {
-        current_level: levels[0].level,
+        current_level: currentLevelName ?? levels[0].level,
         achieved_date: levels[0].achieved_date,
         prev_level: levels[1]?.level ?? null,
         note: levels[0].note,
         teacher_name: levels[0].teacher_name,
       };
-    } else if (student?.current_level_order != null) {
-      // student_levels 기록 없어도 current_level_order가 설정돼 있으면 pool_level_settings로 이름 조회
-      const defRow = await db.execute(sql`
-        SELECT level_name FROM pool_level_settings
-        WHERE pool_id = ${student.swimming_pool_id} AND level_order = ${student.current_level_order}
-        LIMIT 1
-      `).catch(() => ({ rows: [] }));
-      const levelName = (defRow.rows[0] as any)?.level_name ?? `레벨 ${student.current_level_order}`;
+    } else if (currentLevelName != null) {
+      // student_levels 기록 없어도 current_level_order가 설정돼 있으면 레벨명 표시
       growthInfo = {
-        current_level: levelName,
+        current_level: currentLevelName,
         achieved_date: null,
         prev_level: null,
         note: null,
