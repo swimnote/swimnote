@@ -5,7 +5,7 @@ import * as SplashScreen from "expo-splash-screen";
 import * as Updates from "expo-updates";
 import Constants from "expo-constants";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, AppState, AppStateStatus, Linking, Platform, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, AppStateStatus, Linking, Modal, Platform, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X } from "lucide-react-native";
 import { UploadQueueProvider, useUploadQueue } from "@/context/UploadQueueContext";
@@ -84,46 +84,65 @@ function AppLoadingScreen() {
   );
 }
 
-// ─── OTA 업데이트 배너 ──────────────────────────────────────────
-function UpdateBanner({ onApply, onDismiss }: { onApply: () => void; onDismiss: () => void }) {
-  const insets = useSafeAreaInsets();
+// ─── OTA 강제 업데이트 모달 ─────────────────────────────────────
+function ForceUpdateModal({ onUpdate, isApplying }: { onUpdate: () => void; isApplying: boolean }) {
   return (
-    <View style={{
-      position: "absolute",
-      top: insets.top + 8,
-      left: 16, right: 16,
-      backgroundColor: "#1F8F86",
-      borderRadius: 14,
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: 0.18,
-      shadowRadius: 10,
-      elevation: 12,
-      zIndex: 99999,
-    }}>
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: "#fff", fontSize: 13, fontFamily: "Pretendard-SemiBold", lineHeight: 18 }}>
-          새 업데이트가 있습니다
-        </Text>
-        <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 2 }}>
-          탭하여 지금 바로 적용하세요
-        </Text>
+    <Modal visible transparent animationType="fade" statusBarTranslucent>
+      <View style={{
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.75)",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 32,
+      }}>
+        <View style={{
+          backgroundColor: "#fff",
+          borderRadius: 20,
+          padding: 32,
+          width: "100%",
+          alignItems: "center",
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.25,
+          shadowRadius: 20,
+          elevation: 20,
+        }}>
+          <View style={{
+            width: 56, height: 56,
+            borderRadius: 28,
+            backgroundColor: "#E8FBF9",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 20,
+          }}>
+            <Text style={{ fontSize: 26 }}>🔄</Text>
+          </View>
+          <Text style={{ fontSize: 20, fontFamily: "Pretendard-Bold", color: "#111", marginBottom: 10, textAlign: "center" }}>
+            업데이트 알림
+          </Text>
+          <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#666", textAlign: "center", lineHeight: 22, marginBottom: 28 }}>
+            새로운 업데이트가 준비됐습니다.{"\n"}업데이트 후 계속 이용하실 수 있습니다.
+          </Text>
+          <Pressable
+            onPress={onUpdate}
+            disabled={isApplying}
+            style={{
+              backgroundColor: isApplying ? "#A0D4D0" : "#2EC4B6",
+              borderRadius: 14,
+              paddingVertical: 16,
+              paddingHorizontal: 48,
+              width: "100%",
+              alignItems: "center",
+            }}
+          >
+            {isApplying
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" }}>지금 업데이트</Text>
+            }
+          </Pressable>
+        </View>
       </View>
-      <Pressable
-        onPress={onApply}
-        style={{ backgroundColor: "rgba(255,255,255,0.25)", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
-      >
-        <Text style={{ color: "#fff", fontSize: 12, fontFamily: "Pretendard-SemiBold" }}>적용</Text>
-      </Pressable>
-      <Pressable onPress={onDismiss} hitSlop={8}>
-        <X size={16} color="rgba(255,255,255,0.8)" />
-      </Pressable>
-    </View>
+    </Modal>
   );
 }
 
@@ -332,22 +351,35 @@ function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
 
   // OTA 업데이트 — AppState 기반으로 포그라운드 복귀마다 체크
-  const [showUpdateBanner, setShowUpdateBanner] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [isApplyingUpdate, setIsApplyingUpdate] = useState(false);
   const isCheckingRef = useRef(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   async function checkAndFetchUpdate() {
-    if (__DEV__ || isCheckingRef.current) return;
+    if (__DEV__ || isCheckingRef.current || showUpdateModal) return;
     isCheckingRef.current = true;
     try {
       const check = await Updates.checkForUpdateAsync();
       if (check.isAvailable) {
         await Updates.fetchUpdateAsync();
-        setShowUpdateBanner(true);
+        setShowUpdateModal(true);
       }
-    } catch (_) {
+    } catch (e: any) {
+      // 개발 중 디버깅용 — 프로덕션에서는 조용히 무시
+      if (__DEV__) console.warn("[OTA] 업데이트 체크 실패:", e?.message);
     } finally {
       isCheckingRef.current = false;
+    }
+  }
+
+  async function applyUpdate() {
+    setIsApplyingUpdate(true);
+    try {
+      await Updates.reloadAsync();
+    } catch (e: any) {
+      setIsApplyingUpdate(false);
+      Alert.alert("오류", "업데이트 적용 중 오류가 발생했습니다. 앱을 직접 재시작해주세요.");
     }
   }
 
@@ -498,10 +530,10 @@ function RootNav() {
           <ActivityIndicator size="large" color="#2EC4B6" />
         </View>
       )}
-      {showUpdateBanner && (
-        <UpdateBanner
-          onApply={() => { setShowUpdateBanner(false); Updates.reloadAsync(); }}
-          onDismiss={() => setShowUpdateBanner(false)}
+      {showUpdateModal && (
+        <ForceUpdateModal
+          onUpdate={applyUpdate}
+          isApplying={isApplyingUpdate}
         />
       )}
     </View>
