@@ -78,3 +78,9 @@ id = "d0494CEHXfyhHY_0uIZpl"
 uri = "file://swimnote-structure.md"
 type = "text"
 title = "SwimNote 앱 기능 구조도"
+
+[[outputs]]
+id = "cycuVHWXILlOt1DPDAwwS"
+uri = "file://swimnote-pricing.md"
+type = "text"
+title = "SwimNote 플랜 가격표"
