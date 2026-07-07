@@ -72,3 +72,9 @@ id = "0SYM_IKoVCZ6CAE-eaqEJ"
 uri = "file://artifacts/swim-app/assets/images/splash-new.png"
 type = "image"
 title = "새 스플래시 화면 (교체됨)"
+
+[[outputs]]
+id = "d0494CEHXfyhHY_0uIZpl"
+uri = "file://swimnote-structure.md"
+type = "text"
+title = "SwimNote 앱 기능 구조도"
