@@ -897,6 +897,34 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  async function refreshSession() {
+    const t = token;
+    const k = kind;
+    if (!t || !k) return;
+    try {
+      const res = await fetch(`${API_BASE}/auth/me`, {
+        headers: { Authorization: `Bearer ${t}` },
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const user = await res.json();
+      if (k === "admin") {
+        const updated: AdminUser = {
+          ...user,
+          roles: user.roles?.length ? user.roles : [user.role],
+        };
+        setAdminUser(updated);
+        AsyncStorage.setItem("auth_admin", JSON.stringify(updated)).catch(() => {});
+      } else if (k === "parent") {
+        setParentAccount((prev: any) => {
+          const updated = { ...prev, ...user };
+          AsyncStorage.setItem("auth_parent", JSON.stringify(updated)).catch(() => {});
+          return updated;
+        });
+      }
+    } catch {}
+  }
+
   async function checkRolePermission(roleKey: string): Promise<boolean> {
     if (!token) return false;
     try {
@@ -922,7 +950,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       allAccounts, ownedPools, parentJoinStatus, parentJoinRequestId,
       unifiedLogin, completeTotpLogin, adminLogin, parentLogin, kakaoSocialLogin, appleSocialLogin, setParentSession, setAdminSession,
       logout, refreshPool, loadOwnedPools, switchPool,
-      activateAccount, updateParentNickname, updateParentProfile, updateAdminProfile, checkRolePermission, applyRoleSwitch,
+      activateAccount, updateParentNickname, updateParentProfile, updateAdminProfile, checkRolePermission, applyRoleSwitch, refreshSession,
       finishLogin, pendingRoute, clearPendingRoute,
     }}>
       {children}

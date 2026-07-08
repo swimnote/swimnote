@@ -288,7 +288,7 @@ function PushNavSync() {
  */
 
 function RootNav() {
-  const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute } = useAuth();
+  const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute, refreshSession } = useAuth();
 
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const isApplyingRef = useRef(false);
@@ -311,12 +311,14 @@ function RootNav() {
     })();
   }, []);
 
-  // 백그라운드 → 포그라운드 복귀 시 체크
+  // 백그라운드 → 포그라운드 복귀 시 OTA 체크 + 세션 갱신
   useEffect(() => {
     const sub = AppState.addEventListener("change", (nextState: AppStateStatus) => {
       const prev = appStateRef.current;
       appStateRef.current = nextState;
       if ((prev === "background" || prev === "inactive") && nextState === "active") {
+        // 세션 갱신 (권한/역할 변경 즉시 반영)
+        refreshSession?.().catch(() => {});
         isApplyingRef.current = false;
         if (__DEV__) return;
         (async () => {
@@ -335,7 +337,7 @@ function RootNav() {
       }
     });
     return () => sub.remove();
-  }, []);
+  }, [refreshSession]);
 
   // 앱 버전 체크 — 강제/소프트 업데이트 유도
   useEffect(() => {

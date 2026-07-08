@@ -14,7 +14,8 @@
  */
 import { Info, MapPin, Phone } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
@@ -134,7 +135,8 @@ export default function SwimInfoScreen() {
   const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadInfo = useCallback(() => {
+    setLoading(true);
     (async () => {
       try {
         const [poolRes, lvRes] = await Promise.all([
@@ -147,7 +149,9 @@ export default function SwimInfoScreen() {
       } catch { setInfo({}); }
       finally { setLoading(false); }
     })();
-  }, [selectedStudent?.id]);
+  }, [token, selectedStudent?.id]);
+
+  useFocusEffect(loadInfo);
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>

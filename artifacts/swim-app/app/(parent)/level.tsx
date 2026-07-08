@@ -1,5 +1,6 @@
 import { Award, BookOpen, CircleArrowRight, Info, UserRound } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   ActivityIndicator, RefreshControl,
   ScrollView, StyleSheet, Text, View,
@@ -56,7 +57,7 @@ export default function ParentLevelScreen() {
     finally { setLoading(false); setRefreshing(false); }
   }
 
-  useEffect(() => { setLoading(true); fetchLevels(); }, [selectedStudent?.id]);
+  useFocusEffect(useCallback(() => { setLoading(true); fetchLevels(); }, [selectedStudent?.id]));
 
   const currentLevel = levelInfo?.current_level;
 
