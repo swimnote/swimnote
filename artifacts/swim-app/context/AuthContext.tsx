@@ -29,6 +29,31 @@ let _globalLogoutHandler: (() => void) | null = null;
 export function setGlobalLogoutHandler(fn: () => void) { _globalLogoutHandler = fn; }
 export function clearGlobalLogoutHandler() { _globalLogoutHandler = null; }
 
+// ─── GET 인메모리 캐시 ────────────────────────────────────────────────────────
+// 규칙: GET 2xx 응답만 캐시 / 쓰기 요청 시 관련 캐시 자동 삭제 / 30초 TTL
+const _CACHE_TTL = 30_000;
+interface _CacheEntry { data: unknown; expiresAt: number; }
+const _apiCache = new Map<string, _CacheEntry>();
+
+function _makeCacheKey(token: string | null, path: string) {
+  return `${token ? token.slice(0, 20) : "anon"}::${path}`;
+}
+function _getCached(key: string): unknown | null {
+  const entry = _apiCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { _apiCache.delete(key); return null; }
+  return entry.data;
+}
+function _setCached(key: string, data: unknown) {
+  _apiCache.set(key, { data, expiresAt: Date.now() + _CACHE_TTL });
+}
+function _bustRelated(path: string) {
+  const base = path.split("?")[0];
+  for (const k of _apiCache.keys()) { if (k.includes(base)) _apiCache.delete(k); }
+}
+export function clearApiCache() { _apiCache.clear(); }
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const AuthContext = createContext<any>(null);
 
 // 탈퇴 계정 401 감지 시 자동 로그아웃 등록 컴포넌트
@@ -37,6 +62,7 @@ function WithdrawalGuard({ children }: { children: ReactNode }) {
   const role = useRole();
   useEffect(() => {
     setGlobalLogoutHandler(async () => {
+      clearApiCache();
       await session.logout();
       await role.clearRole();
     });
@@ -90,6 +116,7 @@ export function useAuth() {
     setParentSession: session.setParentSession,
     setAdminSession: session.setAdminSession,
     logout: async () => {
+      clearApiCache();
       await session.logout();
       await role.clearRole();
     },
@@ -118,6 +145,30 @@ export function useAuth() {
 export async function apiRequest(token: string | null, path: string, options: RequestInit = {}) {
   const url = `${_API_BASE}${path}`;
   const method = (options.method ?? "GET").toUpperCase();
+  const isWrite = method !== "GET";
+
+  // ── 쓰기 요청: 관련 캐시 즉시 삭제 ──────────────────────────────────────
+  if (isWrite) _bustRelated(path);
+
+  // ── GET: 캐시 히트 시 즉시 반환 ──────────────────────────────────────────
+  if (!isWrite) {
+    try {
+      const cacheKey = _makeCacheKey(token, path);
+      const cached = _getCached(cacheKey);
+      if (cached !== null) {
+        console.log(`[API↩] HIT ${path}`);
+        // 실제 Response와 동일한 인터페이스 유지 (.ok .status .json() .clone())
+        const fakeRes = {
+          ok: true,
+          status: 200,
+          json: async () => cached,
+          clone: () => ({ ok: true, status: 200, json: async () => cached }),
+        } as unknown as Response;
+        return fakeRes;
+      }
+    } catch {}
+  }
+
   console.log(`[API→] ${method} ${url}`);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30_000);
@@ -141,7 +192,17 @@ export async function apiRequest(token: string | null, path: string, options: Re
   }
   clearTimeout(timeoutId);
   console.log(`[API←] ${res.status} ${url}`);
-  // 탈퇴/삭제 계정 → 전역 강제 로그아웃
+
+  // ── GET 2xx 응답만 캐시 저장 ─────────────────────────────────────────────
+  if (!isWrite && res.ok) {
+    try {
+      const cacheKey = _makeCacheKey(token, path);
+      const clonedForCache = res.clone();
+      clonedForCache.json().then(data => _setCached(cacheKey, data)).catch(() => {});
+    } catch {}
+  }
+
+  // ── 탈퇴/삭제 계정 → 전역 강제 로그아웃 ─────────────────────────────────
   if (res.status === 401) {
     try {
       const cloned = res.clone();
