@@ -323,7 +323,8 @@ export default function TeacherDiaryScreen() {
 
   async function handleSave() {
     if (!selectedGroup) return;
-    if (!commonContent.trim()) { setFormError("공통 일지 내용을 입력해주세요."); return; }
+    const hasAnyContent = commonContent.trim().length > 0 || studentNotes.some(n => n.note_content?.trim());
+    if (!hasAnyContent) { setFormError("전체 일지 또는 개인 일지 내용을 입력해주세요."); return; }
     setFormError(null); setSaving(true);
     try {
       const r = await apiRequest(token, "/diaries", {
