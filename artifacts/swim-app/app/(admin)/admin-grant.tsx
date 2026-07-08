@@ -74,10 +74,10 @@ export default function AdminGrantScreen() {
       const d = await r.json();
       if (!r.ok) { setResultMsg(d.message || "처리 중 오류가 발생했습니다."); return; }
       setResultMsg(d.message || (grant ? "관리자 권한이 부여되었습니다." : "관리자 권한이 회수되었습니다."));
-      await load();
+      load(); // await 제거 — 백그라운드 갱신, 모달 막힘 방지
     } finally {
       setProcessing(false);
-      setConfirmTarget(null);
+      setConfirmTarget(null); // API 완료 즉시 모달 닫기
     }
   }
 
