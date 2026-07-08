@@ -177,7 +177,19 @@ export default function TeacherDiaryScreen() {
     setSelectedGroup(group); setSubView("write"); setCommonContent(""); setStudentNotes([]);
     setGroupMedia([]); setStudentMedia({}); setHasDraft(false);
     setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
-    loadTemplates(); loadClassStudents(group.id); loadDiaries(group.id);
+    loadTemplates(); loadClassStudents(group.id);
+    // 오늘 일지가 있으면 히스토리 뷰로 자동 전환
+    try {
+      const r = await apiRequest(token, `/diaries?class_group_id=${group.id}`);
+      if (r.ok) {
+        const data = await r.json();
+        const list: DiaryEntry[] = Array.isArray(data) ? data : [];
+        setDiaries(list);
+        const todayExists = list.some(d => d.lesson_date === targetDate);
+        if (todayExists) { setSubView("history"); return; }
+      }
+    } catch {}
+    // 오늘 일지 없으면 임시저장 확인
     try {
       const key = `@swimnote:diary_draft:${group.id}:${targetDate}`;
       const saved = await AsyncStorage.getItem(key);
@@ -389,7 +401,8 @@ export default function TeacherDiaryScreen() {
 
   async function handleEditSave() {
     if (!editDiary || !selectedGroup) return;
-    if (!editContent.trim()) { setEditError("일지 본문을 입력해주세요."); return; }
+    const hasEditContent = editContent.trim().length > 0 || editNotes.some(n => !n._deleted && n.note_content?.trim()) || editNewNotes.some(n => n.note_content?.trim());
+    if (!hasEditContent) { setEditError("전체 일지 또는 개인 일지 내용을 입력해주세요."); return; }
     setEditSaving(true); setEditError(null);
     try {
       const r = await apiRequest(token, `/diaries/${editDiary.id}`, { method: "PUT", body: JSON.stringify({ common_content: editContent.trim() }) });
