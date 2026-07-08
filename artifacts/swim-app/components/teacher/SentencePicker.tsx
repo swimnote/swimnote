@@ -116,7 +116,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
 
   const handleInsert = useCallback(() => {
     if (preview.length === 0) return;
-    onInsert(preview.join(" "));
+    onInsert(preview.join("\n\n"));
     setPreview([]);
     setSearchQuery("");
     onClose();
