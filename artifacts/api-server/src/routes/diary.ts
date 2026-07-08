@@ -1567,6 +1567,11 @@ router.get("/diaries/admin/teachers",
     try {
       const { userId, role } = req.user!;
       console.log(`[diaries/admin/teachers] userId=${userId} role=${role}`);
+      // teacher 토큰으로 접근 시 DB 역할이 pool_admin인지 검증
+      if (role === "teacher") {
+        const dbRole = await getUserDbRole(userId);
+        if (dbRole !== "pool_admin") return apiErr(res, 403, "권한이 없습니다.");
+      }
       const poolId = await getUserPoolId(userId);
       console.log(`[diaries/admin/teachers] poolId=${poolId}`);
       if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
