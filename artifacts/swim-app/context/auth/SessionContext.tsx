@@ -241,6 +241,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
       // 서버에서 토큰 유효성 검증 — 명시적 인증 실패(401/403/404)만 세션 초기화
       // 네트워크 오류·5xx 서버 오류는 일시적 문제이므로 세션 유지
+      let freshUserData: any = null;
       try {
         const meRes = await fetch(`${API_BASE}/auth/me`, {
           headers: { Authorization: `Bearer ${storedToken}` },
@@ -256,6 +257,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           ]);
           return;
         }
+        // 200 OK → 최신 유저 데이터(roles 포함) 보관
+        if (meRes.ok) freshUserData = await meRes.json().catch(() => null);
         // 5xx 서버 오류 → 서버가 일시적으로 다운된 것이므로 세션 유지하고 진행
       } catch {
         // 네트워크 오류(오프라인/DNS 실패) → 일시적 문제이므로 세션 유지하고 진행
@@ -263,8 +266,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
       setToken(storedToken);
       if (storedKind === "admin" && storedAdmin) {
-        const user: AdminUser = JSON.parse(storedAdmin);
+        const stored: AdminUser = JSON.parse(storedAdmin);
+        // 서버에서 받은 최신 데이터로 roles 등 동기화 (권한 변경 즉시 반영)
+        const user: AdminUser = freshUserData
+          ? { ...stored, ...freshUserData, roles: freshUserData.roles?.length ? freshUserData.roles : [freshUserData.role ?? stored.role] }
+          : stored;
         if (!user.roles || user.roles.length === 0) user.roles = [user.role];
+        // AsyncStorage 갱신 (다음 재시작 시 최신 데이터 사용)
+        AsyncStorage.setItem("auth_admin", JSON.stringify(user)).catch(() => {});
         setAdminUser(user);
         setKind("admin");
         if (user.swimming_pool_id) fetchPool(storedToken).catch(e => console.warn("[fetchPool 실패] loadStored admin fetchPool 실패:", e?.message));
