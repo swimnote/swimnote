@@ -613,6 +613,42 @@ router.post("/teacher/makeups/:id/extinguish", requireAuth,
   }
 );
 
+// ── 보강 현황 이력 (teacher 탭 3) ────────────────────────────
+router.get("/teacher/makeup-requests", requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const rows = (await db.execute(sql`
+        SELECT
+          id,
+          student_name,
+          original_class_group_name  AS class_name,
+          absence_date               AS original_date,
+          note                       AS reason,
+          status,
+          created_at                 AS requested_at,
+          assigned_date              AS makeup_date,
+          assigned_class_group_name  AS makeup_class_name
+        FROM makeup_sessions
+        WHERE original_teacher_id = ${userId}
+          AND cancelled_at IS NULL
+        ORDER BY absence_date DESC, created_at DESC
+      `)).rows as any[];
+
+      const mapped = rows.map((r: any) => ({
+        ...r,
+        status:
+          r.status === "waiting"    ? "pending"   :
+          r.status === "assigned"   ? "approved"  :
+          r.status === "completed"  ? "completed" :
+          "rejected",
+      }));
+
+      res.json(mapped);
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 // ── 탭별 카운트 (전체 탭 동시 표시용) ──────────────────────────
 router.get("/teacher/me/members/counts", requireAuth,
   async (req: AuthRequest, res) => {
