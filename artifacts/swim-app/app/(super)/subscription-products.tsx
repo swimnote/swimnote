@@ -5,11 +5,10 @@
  */
 import { CirclePlus, Lock, Package, PenLine, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
-import {
-  Alert, FlatList, KeyboardAvoidingView, Modal, Platform,
-  Pressable, RefreshControl, ScrollView,
-  StyleSheet, Switch, Text, TextInput, View,
-} from "react-native";
+import {Alert, FlatList, Modal, Platform,
+  Pressable, RefreshControl,
+  StyleSheet, Switch, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -164,8 +163,8 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
           <Text style={fm.title}>{isEdit ? "구독 플랜 수정" : "구독 플랜 생성"}</Text>
           <View style={{ width: 28 }} />
         </View>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 24 }}>
+        <View style={{ flex: 1 }}>
+          <KeyboardAwareScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 24 }}>
             {textFields.map(f => (
               <View key={f.key}>
                 <Text style={fm.label}>{f.label}</Text>
@@ -185,14 +184,14 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
               <Switch value={form.includesVideo} onValueChange={v => setVal("includesVideo", v)}
                 trackColor={{ false: "#E5E7EB", true: "#C4B5FD" }} thumbColor={form.includesVideo ? P : "#64748B"} />
             </View>
-          </ScrollView>
+          </KeyboardAwareScrollView>
           <View style={fm.bottomBar}>
             <Pressable style={fm.bottomSaveBtn} onPress={() => setOtpVisible(true)}>
               <Lock size={14} color="#fff" />
               <Text style={fm.saveTxt}>{isEdit ? "수정 후 저장" : "생성하기"}</Text>
             </Pressable>
           </View>
-        </KeyboardAvoidingView>
+        </View>
         <OtpGateModal
           visible={otpVisible}
           token={token}

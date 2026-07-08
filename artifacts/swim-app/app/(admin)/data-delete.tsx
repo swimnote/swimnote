@@ -6,10 +6,9 @@ import { ChevronRight, CircleCheck, Info, Search, Trash2, TriangleAlert, UserX }
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import {
-  ActivityIndicator, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Pressable,
+  StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -123,7 +122,7 @@ export default function DataDeleteScreen() {
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader title="삭제·보존 정책" />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: insets.bottom + 40, gap: 28 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -331,7 +330,7 @@ export default function DataDeleteScreen() {
           )}
         </View>
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }

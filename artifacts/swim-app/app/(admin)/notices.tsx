@@ -3,10 +3,9 @@ import * as ImagePicker from "expo-image-picker";
 import { compressImageIfNeeded } from "../../utils/compressImage";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Image, Modal, Platform,
+  Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
@@ -264,7 +263,7 @@ export default function NoticesScreen() {
       />
 
       {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} /> : (
-        <ScrollView
+        <KeyboardAwareScrollView
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: sel.selectionMode ? insets.bottom + 90 : insets.bottom + 100, paddingTop: 8, gap: 10 }}
           showsVerticalScrollIndicator={false}
         >
@@ -297,7 +296,7 @@ export default function NoticesScreen() {
               <Text style={[styles.emptyText, { color: C.textMuted }]}>등록된 공지사항이 없습니다</Text>
             </View>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       <SelectionActionBar
@@ -313,10 +312,10 @@ export default function NoticesScreen() {
       />
 
       <Modal visible={showModal} animationType="slide" transparent onRequestClose={closeModal}>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <View style={styles.modalOverlay}>
           <View style={[styles.modalSheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
             <View style={styles.modalHandle} />
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <KeyboardAwareScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: C.text }]}>공지 작성</Text>
                 <Pressable onPress={closeModal}><X size={22} color={C.textSecondary} /></Pressable>
@@ -353,7 +352,7 @@ export default function NoticesScreen() {
                   )}
                 </View>
                 {pickedImages.length > 0 && (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
+                  <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
                     {pickedImages.map((img, i) => (
                       <View key={i} style={styles.previewWrap}>
                         <Image source={{ uri: img.uri }} style={styles.previewImage} resizeMode="cover" />
@@ -362,7 +361,7 @@ export default function NoticesScreen() {
                         </Pressable>
                       </View>
                     ))}
-                  </ScrollView>
+                  </KeyboardAwareScrollView>
                 )}
               </View>
 
@@ -383,9 +382,9 @@ export default function NoticesScreen() {
                   ? <ActivityIndicator color="#fff" size="small" />
                   : <Text style={styles.saveBtnText}>게시하기</Text>}
               </Pressable>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </View>
   );
@@ -438,7 +437,7 @@ function NoticeCard({ n, expanded, onExpand, handleDelete, readStats, C, selecti
         <View style={{ gap: 10 }}>
           <Text style={[styles.noticeContent, { color: C.textSecondary }]}>{n.content}</Text>
           {images.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
               {images.map((key, i) => (
                 <Image
                   key={i}
@@ -447,7 +446,7 @@ function NoticeCard({ n, expanded, onExpand, handleDelete, readStats, C, selecti
                   resizeMode="cover"
                 />
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           )}
           {readStats && (
             <View style={[styles.statsRow, { backgroundColor: C.background, borderRadius: 10, padding: 10 }]}>

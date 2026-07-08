@@ -7,8 +7,7 @@ import { HeartHandshake, Link2, MessageSquare, Phone, Search, Users, X } from "l
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
+import {ActivityIndicator,
   Alert,
   FlatList,
   Linking,
@@ -16,12 +15,11 @@ import {
   Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
-} from "react-native";
+  View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -194,7 +192,7 @@ function ParentDetailModal({
           </Pressable>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 16 }}>
+        <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 16 }}>
           {/* 기본 정보 */}
           <View style={md.section}>
             <Text style={md.sectionTitle}>기본 정보</Text>
@@ -329,7 +327,7 @@ function ParentDetailModal({
               </View>
             </>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
 
       {/* 학생 등록 모달 — 전화번호 미리 입력 */}

@@ -6,10 +6,9 @@
 import { Activity, Globe, ToggleLeft, TriangleAlert, Unlock, Users } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Alert, Modal, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Modal, Pressable,
+  RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -286,7 +285,7 @@ export default function ReadonlyControlScreen() {
     <SafeAreaView style={s.safe} edges={["top"]}>
       <SubScreenHeader title="읽기전용 제어" subtitle="3단계 읽기전용 제어 시스템" homePath="/(super)/protect-group" />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 80 }}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P} onRefresh={onRefresh} />}>
 
@@ -401,7 +400,7 @@ export default function ReadonlyControlScreen() {
             })
           )}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

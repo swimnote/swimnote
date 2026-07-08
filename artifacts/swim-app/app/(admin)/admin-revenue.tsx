@@ -14,10 +14,8 @@
 import { Calendar, CheckCircle, ChevronLeft, ChevronRight, CircleAlert, CircleArrowRight, List, RotateCcw, Save, Users } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -213,7 +211,7 @@ export default function AdminRevenueScreen() {
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
       ) : (
-        <ScrollView
+        <KeyboardAwareScrollView
           ref={scrollRef}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
           contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: pBottom }}
@@ -389,7 +387,7 @@ export default function AdminRevenueScreen() {
             </Pressable>
           </View>
           {savedMsg ? <Text style={[s.savedMsg, { color: themeColor }]}>{savedMsg}</Text> : null}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {/* ── 다음 달 시작 확인 모달 ── */}

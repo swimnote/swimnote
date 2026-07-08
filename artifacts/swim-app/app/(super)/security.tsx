@@ -5,10 +5,8 @@
 import { Check, Lock, Monitor } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useMemo, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable,
-  ScrollView, StyleSheet, Switch, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -152,7 +150,7 @@ export default function SecurityScreen() {
       <SubScreenHeader title="슈퍼관리자 보안관리" homePath="/(super)/more" />
 
       {/* KPI 요약 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.kpiBar} contentContainerStyle={{ paddingHorizontal: 14, paddingVertical: 10, gap: 8 }}>
         {[
           { label: '전체', val: stats.total, color: P },
@@ -166,7 +164,7 @@ export default function SecurityScreen() {
             <Text style={s.kpiLabel}>{k.label}</Text>
           </View>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <FlatList
         data={accounts}
@@ -182,7 +180,7 @@ export default function SecurityScreen() {
           <Pressable style={m.backdrop} onPress={() => setSelected(null)}>
             <Pressable style={m.sheet} onPress={() => {}}>
               <View style={m.handle} />
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
                 <View style={m.titleRow}>
                   <Text style={m.title}>{selected.name}</Text>
                   <View style={[m.roleBadge, { backgroundColor: ROLE_CFG[selected.role].bg }]}>
@@ -268,7 +266,7 @@ export default function SecurityScreen() {
                     )}
                   </View>
                 </View>
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </Pressable>
           </Pressable>
         </Modal>

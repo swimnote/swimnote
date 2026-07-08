@@ -1,17 +1,14 @@
 import { ArrowLeft, Briefcase, CircleAlert, CircleCheck, Home, Key, Lock, Mail, MapPin, Phone, User } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState, useEffect, useRef } from "react";
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
+import {ActivityIndicator,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
-} from "react-native";
+  View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
@@ -172,11 +169,8 @@ export default function RegisterScreen() {
   const phoneVerified = smsState === "verified";
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: C.background }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
+    <View style={{ flex: 1, backgroundColor: C.background }}>
+      <KeyboardAwareScrollView
         contentContainerStyle={[
           styles.container,
           { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20), paddingBottom: insets.bottom + 34 },
@@ -448,8 +442,8 @@ export default function RegisterScreen() {
             <Text style={[styles.footerLink, { color: C.tint }]}> 로그인</Text>
           </Pressable>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 

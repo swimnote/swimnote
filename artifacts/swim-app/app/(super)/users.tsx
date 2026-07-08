@@ -5,10 +5,7 @@
 import { Shield, SlidersHorizontal, UserPlus, Users } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Switch, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth, apiRequest } from "@/context/AuthContext";

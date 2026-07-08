@@ -7,10 +7,8 @@ import { CircleAlert, Trash2 } from "lucide-react-native";
 import { WithdrawalModal } from "@/components/common/WithdrawalModal";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
@@ -52,7 +50,7 @@ export default function ParentProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({ name: "", phone: "", newPw: "", newPw2: "", currentPw: "" });
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<KeyboardAwareScrollView>(null);
   const hasFieldErrors = Object.values(fieldErrors).some(v => !!v);
 
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -137,8 +135,8 @@ export default function ParentProfileScreen() {
     <View style={[s.root, { backgroundColor: C.background }]}>
       <ParentScreenHeader title="내 정보 수정" />
 
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-        <ScrollView
+      <View style={{ flex: 1 }}>
+        <KeyboardAwareScrollView
           ref={scrollRef}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40, gap: 20 }}
@@ -244,8 +242,8 @@ export default function ParentProfileScreen() {
             </Pressable>
 
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
+      </View>
 
       <WithdrawalModal
         visible={deleteConfirm}

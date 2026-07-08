@@ -9,10 +9,9 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import Svg, { Ellipse, Path } from "react-native-svg";
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Alert, Dimensions, Image, Keyboard, Modal,
-  Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Dimensions, Image, Keyboard, Modal,
+  Platform, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
@@ -224,7 +223,7 @@ export default function LoginScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: "#fff" }]}>
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={[s.scroll, { paddingTop: insets.top + (isTablet ? 60 : 24), paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -374,7 +373,7 @@ export default function LoginScreen() {
         </View>
 
         </View>{/* ── 하단 그룹 끝 ── */}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ── 계정 없음 모달 ── */}
       <Modal

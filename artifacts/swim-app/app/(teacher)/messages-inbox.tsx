@@ -5,11 +5,10 @@
  * 탭2: 학부모 요청 — 결석/보강/퇴원 등 학부모가 보낸 요청
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView,
-  Platform, Pressable, ScrollView, StyleSheet, Text,
-  TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Image,
+  Platform, Pressable, StyleSheet, Text,
+  TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -106,7 +105,7 @@ export default function MessagesInboxScreen() {
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<KeyboardAwareScrollView>(null);
 
   const fetchThreads = useCallback(async () => {
     setLoadingThreads(true);
@@ -274,11 +273,11 @@ export default function MessagesInboxScreen() {
           <View style={{ width: 40 }} />
         </View>
 
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={0}>
+        <View style={{ flex: 1 }}>
           {loadingMsgs ? (
             <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
           ) : (
-            <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }}
+            <KeyboardAwareScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }}
               onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })} showsVerticalScrollIndicator={false}>
               {messages.length === 0 ? (
                 <View style={s.empty}>
@@ -310,7 +309,7 @@ export default function MessagesInboxScreen() {
                   );
                 })
               )}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           )}
 
           <View style={s.inputWrap}>
@@ -346,7 +345,7 @@ export default function MessagesInboxScreen() {
               </Pressable>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </SafeAreaView>
     );
   }

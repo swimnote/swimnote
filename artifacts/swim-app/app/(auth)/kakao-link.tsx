@@ -6,10 +6,9 @@
 import { ArrowLeft, Phone, Link2 } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Platform,
+  Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
@@ -122,11 +121,8 @@ export default function KakaoLinkScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: C.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
+    <View style={[styles.root, { backgroundColor: C.background }]}>
+      <KeyboardAwareScrollView
         contentContainerStyle={[
           styles.container,
           { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 40 },
@@ -221,8 +217,8 @@ export default function KakaoLinkScreen() {
         <Text style={[styles.hint, { color: C.textMuted }]}>
           수영장에 등록된 전화번호가 없다면{"\n"}수영장 관리자에게 먼저 등록을 요청해주세요.
         </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 

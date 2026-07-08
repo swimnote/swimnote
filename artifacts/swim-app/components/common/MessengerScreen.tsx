@@ -28,6 +28,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { AtSign, Bell, BellOff, Calendar, CircleCheck, Layers, Lock, Paperclip, Phone, Plus, Send, Smile, User, Users, X } from "lucide-react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { useFocusEffect } from "expo-router";
@@ -743,7 +744,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
               </TouchableOpacity>
             </View>
             <Text style={s.modalSub}>정보를 공유할 회원을 선택하세요</Text>
-            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
               {myStudents.map((st) => (
                 <TouchableOpacity
                   key={st.id}
@@ -763,7 +764,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                   <Send size={16} color={PRIMARY} />
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -779,7 +780,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
               </TouchableOpacity>
             </View>
             <Text style={s.modalSub}>메시지를 보낼 대상을 선택하면 지정 메시지를 보낼 수 있습니다.</Text>
-            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
               {staff.map((member) => {
                 const isMe = member.id === myUserId;
                 const isSelected = targetUser?.id === member.id;
@@ -810,7 +811,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                   </TouchableOpacity>
                 );
               })}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </Pressable>
         </Pressable>
       </Modal>

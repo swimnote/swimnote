@@ -15,10 +15,8 @@ import { ChevronRight, CircleAlert, CreditCard, MessageCircle, OctagonAlert, Plu
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -427,7 +425,7 @@ export default function SupportScreen() {
 
       {/* 필터 탭 1줄 (6개 의미 기반, 명확한 높이) */}
       <View style={s.tabBarWrapper}>
-        <ScrollView
+        <KeyboardAwareScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.tabContent}
@@ -451,7 +449,7 @@ export default function SupportScreen() {
               </Pressable>
             );
           })}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
 
       {/* 티켓 리스트 (flex:1 — 나머지 공간 전체) */}
@@ -526,7 +524,7 @@ export default function SupportScreen() {
 
               <View style={m.section}>
                 <Text style={m.label}>처리 상태</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                   {STATUS_KEYS.map(k => {
                     const sc = STATUS_CFG[k];
                     return (
@@ -537,7 +535,7 @@ export default function SupportScreen() {
                       </Pressable>
                     );
                   })}
-                </ScrollView>
+                </KeyboardAwareScrollView>
               </View>
 
               <View style={m.section}>
@@ -582,10 +580,10 @@ export default function SupportScreen() {
               <View style={m.handle} />
               <Text style={m.title}>문의 등록</Text>
 
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+              <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
                 <View style={m.section}>
                   <Text style={m.label}>문의 유형</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                     {TICKET_TYPES.map(t => {
                       const tc = TYPE_CFG[t];
                       return (
@@ -596,12 +594,12 @@ export default function SupportScreen() {
                         </Pressable>
                       );
                     })}
-                  </ScrollView>
+                  </KeyboardAwareScrollView>
                 </View>
 
                 <View style={m.section}>
                   <Text style={m.label}>요청자 유형</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                     {["operator", "teacher", "parent"].map(t => (
                       <Pressable key={t}
                         style={[m.optChip, form.requesterRole === t && { backgroundColor: P, borderColor: P }]}
@@ -611,7 +609,7 @@ export default function SupportScreen() {
                         </Text>
                       </Pressable>
                     ))}
-                  </ScrollView>
+                  </KeyboardAwareScrollView>
                 </View>
 
                 <View style={m.section}>
@@ -648,7 +646,7 @@ export default function SupportScreen() {
                       : <Text style={m.saveTxt}>등록</Text>}
                   </Pressable>
                 </View>
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </Pressable>
           </Pressable>
         </Modal>

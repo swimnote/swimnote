@@ -5,10 +5,8 @@
 import { ChevronRight, CircleAlert, CircleCheck, CirclePlus, FileText, GitBranch, Plus } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import {
-  FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useOperatorsStore } from "@/store/operatorsStore";
@@ -96,17 +94,17 @@ export default function PolicyScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="정책·컴플라이언스" homePath="/(super)/more" />
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.tabBar} contentContainerStyle={s.tabContent}>
         {TABS.map(t => (
           <Pressable key={t.key} style={[s.tab, tab === t.key && s.tabActive]} onPress={() => setTab(t.key)}>
             <Text style={[s.tabTxt, tab === t.key && s.tabTxtActive]}>{t.label}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {POLICY_KEYS.includes(tab) && (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 60 }}
+        <KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 60 }}
           refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
             onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}>
           <View style={s.policyCard}>
@@ -141,12 +139,12 @@ export default function PolicyScreen() {
               <ChevronRight size={15} color="#64748B" />
             </Pressable>
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {tab === "versions" && (
         <View style={{ flex: 1 }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
             style={s.subTabBar} contentContainerStyle={s.subTabContent}>
             {POLICY_KEYS.map(k => (
               <Pressable key={k} style={[s.subTab, versionKey === k && s.subTabActive]}
@@ -156,7 +154,7 @@ export default function PolicyScreen() {
                 </Text>
               </Pressable>
             ))}
-          </ScrollView>
+          </KeyboardAwareScrollView>
           <FlatList
             data={versions}
             keyExtractor={i => i.id}
@@ -188,7 +186,7 @@ export default function PolicyScreen() {
 
       {tab === "unsigned" && (
         <View style={{ flex: 1 }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
             style={s.subTabBar} contentContainerStyle={s.subTabContent}>
             {POLICY_KEYS.map(k => (
               <Pressable key={k} style={[s.subTab, unsignedKey === k && s.subTabActive]}
@@ -198,7 +196,7 @@ export default function PolicyScreen() {
                 </Text>
               </Pressable>
             ))}
-          </ScrollView>
+          </KeyboardAwareScrollView>
           <FlatList
             data={unsignedOperators}
             keyExtractor={i => i.id}

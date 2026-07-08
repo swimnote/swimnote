@@ -1,10 +1,8 @@
 import { ArrowLeft, Calendar, ChevronRight, CircleAlert, CircleCheck, Clock, Droplet, Minus, Plus, Search, User } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, API_BASE, useAuth } from "@/context/AuthContext";
@@ -64,7 +62,7 @@ export default function LinkChildScreen() {
   const [nameError, setNameError]     = useState("");
   const [birthYearError, setBirthYearError] = useState("");
 
-  const childScrollRef = useRef<ScrollView>(null);
+  const childScrollRef = useRef<KeyboardAwareScrollView>(null);
 
   async function searchPools() {
     if (!query.trim()) return;
@@ -164,10 +162,7 @@ export default function LinkChildScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: C.background }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 헤더 */}
       <View style={[st.header, { paddingTop: insets.top + 10 }]}>
         <Pressable style={st.backBtn} onPress={() => router.back()}>
@@ -179,7 +174,7 @@ export default function LinkChildScreen() {
 
       {/* ── 1단계: 수영장 검색 ─────────────────────────────────── */}
       {step === "pool" && (
-        <ScrollView
+        <KeyboardAwareScrollView
           contentContainerStyle={[st.content, { paddingBottom: insets.bottom + 40 }]}
           keyboardShouldPersistTaps="handled"
         >
@@ -233,12 +228,12 @@ export default function LinkChildScreen() {
               <Text style={[st.emptyTxt, { color: C.textMuted }]}>검색 결과가 없습니다</Text>
             </View>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {/* ── 2단계: 자녀 정보 입력 ─────────────────────────────── */}
       {step === "child" && selectedPool && (
-        <ScrollView
+        <KeyboardAwareScrollView
           ref={childScrollRef}
           contentContainerStyle={[st.content, { paddingBottom: insets.bottom + 40 }]}
           keyboardShouldPersistTaps="handled"
@@ -340,7 +335,7 @@ export default function LinkChildScreen() {
               : <Text style={st.submitTxt}>연결하기</Text>
             }
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {/* ── 완료: 자동 연결 ───────────────────────────────────── */}
@@ -366,7 +361,7 @@ export default function LinkChildScreen() {
           </Pressable>
         </View>
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

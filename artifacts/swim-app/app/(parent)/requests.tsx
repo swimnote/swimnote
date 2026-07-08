@@ -6,10 +6,9 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { DatePickerModal } from "@/components/common/DatePickerModal";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Modal, Platform,
+  Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -118,7 +117,7 @@ export default function ParentRequestsScreen() {
 
       {/* 자녀 탭 */}
       {students.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.studentTabs}>
+        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.studentTabs}>
           {students.map(st => (
             <Pressable
               key={st.id}
@@ -130,11 +129,11 @@ export default function ParentRequestsScreen() {
               </Text>
             </Pressable>
           ))}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {/* 요청 목록 */}
-      <ScrollView contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 32 }]} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 32 }]} showsVerticalScrollIndicator={false}>
         {loading ? (
           <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
         ) : requests.length === 0 ? (
@@ -180,11 +179,11 @@ export default function ParentRequestsScreen() {
             </View>
           );
         })}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* 요청 작성 모달 */}
       <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.modalOverlay}>
+        <View style={s.modalOverlay}>
           <View style={[s.modalSheet, { backgroundColor: C.background, paddingBottom: insets.bottom + 24 }]}>
             <View style={s.modalHeader}>
               <Text style={[s.modalTitle, { color: C.text }]}>새 요청 보내기</Text>
@@ -196,7 +195,7 @@ export default function ParentRequestsScreen() {
             {students.length > 1 && (
               <>
                 <Text style={[s.label, { color: C.textSecondary }]}>자녀 선택</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginBottom: 16 }}>
+                <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginBottom: 16 }}>
                   {students.map(st => (
                     <Pressable
                       key={st.id}
@@ -206,7 +205,7 @@ export default function ParentRequestsScreen() {
                       <Text style={{ fontSize: 13, color: selStudentId === st.id ? "#fff" : C.text, fontFamily: "Pretendard-Regular" }}>{st.name}</Text>
                     </Pressable>
                   ))}
-                </ScrollView>
+                </KeyboardAwareScrollView>
               </>
             )}
 
@@ -277,7 +276,7 @@ export default function ParentRequestsScreen() {
               )}
             </Pressable>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </View>
   );

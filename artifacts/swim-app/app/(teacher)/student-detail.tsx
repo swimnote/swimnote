@@ -15,10 +15,9 @@ import { Check, EyeOff, Layers, MessageSquare, PenLine, Phone, Plus, UserX } fro
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Modal, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Modal, Pressable,
+  StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Colors from "@/constants/colors";
 import { callPhone, sendSms, formatPhone, CALL_COLOR, SMS_COLOR } from "@/utils/phoneUtils";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -188,7 +187,7 @@ export default function StudentDetailScreen() {
     <View style={s.safe}>
       <SubScreenHeader title={student.name} homePath="/(teacher)/today-schedule" />
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
+      <KeyboardAwareScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
         contentContainerStyle={s.content}>
 
         {/* ── 프로필 헤더 카드 ────────────────────────────────── */}
@@ -417,7 +416,7 @@ export default function StudentDetailScreen() {
         )}
 
         <View style={{ height: 100 }} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ── 상태 변경 모달 ──────────────────────────────────── */}
       <MemberStatusChangeModal
@@ -473,7 +472,7 @@ export default function StudentDetailScreen() {
             <Text style={s.pickerTitle}>레벨 변경</Text>
             <Text style={s.pickerSub}>{student.name} 학생의 새 레벨을 선택하세요</Text>
             <View style={{ maxHeight: 260, overflow: "hidden" }}>
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, padding: 4 }}>
                   {(levelInfo?.all_levels ?? []).filter(lv => lv.is_active !== false).map(lv => {
                     const isCurrent = lv.level_order === levelInfo?.current_level_order;
@@ -498,7 +497,7 @@ export default function StudentDetailScreen() {
                     );
                   })}
                 </View>
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </View>
             <View style={{ gap: 8, marginTop: 8 }}>
               <Text style={s.pickerSub}>변경 메모 (선택)</Text>

@@ -4,10 +4,9 @@
  */
 import { CirclePlus, HardDrive, Info, Lock, PenLine, TriangleAlert, User, X } from "lucide-react-native";
 import React, { useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Modal, Platform,
+  Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -112,7 +111,7 @@ export default function StoragePolicyScreen() {
         </Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}
+      <KeyboardAwareScrollView showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 40, gap: 12 }}>
         {policies.map(p => {
           const meta = TIER_META[p.tier] ?? { label: p.tier, color: "#64748B", bg: "#FFFFFF", memberRange: "" };
@@ -160,10 +159,10 @@ export default function StoragePolicyScreen() {
             사용량이 <Text style={{ fontFamily: "Pretendard-Regular", color: "#D97706" }}>80%</Text> 이상이 되면 수영장 관리자에게 자동으로 경고 알림이 발송됩니다.
           </Text>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <Modal visible={!!editTarget} animationType="slide" transparent onRequestClose={() => setEditTarget(null)}>
-        <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <View style={styles.overlay}>
           <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
             <View style={styles.handle} />
             <View style={styles.modalHeader}>
@@ -206,7 +205,7 @@ export default function StoragePolicyScreen() {
               )}
             </Pressable>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
       <OtpGateModal
         visible={otpVisible}

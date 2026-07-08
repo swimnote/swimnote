@@ -9,10 +9,8 @@
  */
 import { Archive, Lock, RotateCcw, Search, Trash2, TriangleAlert, UserX, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable,
+  RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";

@@ -5,10 +5,9 @@
 import { Bookmark, Plus, Trash2 } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
+  RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
@@ -102,7 +101,7 @@ export default function CommunicationScreen() {
       />
 
       {/* 탭 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipRow}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipRow}
         contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
         {TABS.map(t => (
           <Pressable key={t} onPress={() => setTab(t)}
@@ -110,7 +109,7 @@ export default function CommunicationScreen() {
             <Text style={[s.chipTxt, tab === t && { color: "#fff" }]}>{t}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {loading ? (
         <ActivityIndicator style={{ flex: 1 }} color={themeColor} />

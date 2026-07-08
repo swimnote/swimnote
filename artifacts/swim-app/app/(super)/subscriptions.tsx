@@ -5,10 +5,8 @@
 import { Clock, CreditCard, Eye, Lock, OctagonAlert, TriangleAlert, User } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -340,7 +338,7 @@ export default function SubscriptionsScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="구독·결제 관리" homePath="/(super)/more" />
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.summaryBar} contentContainerStyle={s.summaryContent}>
         {TABS.map(t => {
           const isActive = tab === t.key;
@@ -355,7 +353,7 @@ export default function SubscriptionsScreen() {
             </Pressable>
           );
         })}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {tab === "failed" && (
         <View style={s.bannerRow}>
@@ -403,7 +401,7 @@ export default function SubscriptionsScreen() {
 
               <View style={m.section}>
                 <Text style={m.label}>구독 상태 변경</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                   {SUB_STATUS_KEYS.map(k => {
                     const sc = SUB_STATUS_CFG[k];
                     return (
@@ -414,7 +412,7 @@ export default function SubscriptionsScreen() {
                       </Pressable>
                     );
                   })}
-                </ScrollView>
+                </KeyboardAwareScrollView>
               </View>
 
               <View style={m.section}>

@@ -6,10 +6,9 @@ import { Check, Download, Search, Upload, X } from "lucide-react-native";
 import { router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Platform, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Platform, Pressable,
+  RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
@@ -289,7 +288,7 @@ export default function PeoplePendingScreen() {
             {okCount > 0 && (
               <Text style={s.validateNote}>정상 {okCount}건이 미배정회원 명단에 추가되었습니다.</Text>
             )}
-            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
               {parseResults.map((row, i) => (
                 <View key={i} style={[s.validateRow,
                   row.result === "ok" ? s.rowOk : row.result === "duplicate" ? s.rowDup : s.rowErr
@@ -307,7 +306,7 @@ export default function PeoplePendingScreen() {
                   </Text>
                 </View>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
             <Pressable style={[s.validateClose, { backgroundColor: C.button }]} onPress={() => setShowValidate(false)}>
               <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>확인</Text>
             </Pressable>

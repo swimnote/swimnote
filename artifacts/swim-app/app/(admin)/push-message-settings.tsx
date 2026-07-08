@@ -7,10 +7,9 @@
  */
 import { Clock, PenLine, Save } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet,
-  Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Pressable, StyleSheet,
+  Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -106,7 +105,7 @@ export default function AdminPushMessageSettingsScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="푸시 발송 설정" homePath="/(admin)/more" />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: insets.bottom + 80 }}
       >
@@ -124,7 +123,7 @@ export default function AdminPushMessageSettingsScreen() {
                 <Text style={s.subDesc}>전날 이 시각에 내일 수업 학부모에게 발송</Text>
               </View>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 14, gap: 8, flexDirection: "row" }}>
               {TIME_OPTIONS.map(t => (
                 <Pressable
@@ -135,7 +134,7 @@ export default function AdminPushMessageSettingsScreen() {
                   <Text style={[s.chipText, settings.prev_day_push_time === t && { color: "#fff" }]}>{t}</Text>
                 </Pressable>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
 
             <View style={[s.row, { borderTopWidth: 1, borderTopColor: C.border }]}>
               <View style={s.rowLeft}>
@@ -195,7 +194,7 @@ export default function AdminPushMessageSettingsScreen() {
           <Save size={16} color="#fff" />
           <Text style={s.saveBtnText}>설정 저장</Text>
         </Pressable>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <ConfirmModal
         visible={confirmVisible}

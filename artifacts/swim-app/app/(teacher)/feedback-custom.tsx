@@ -9,10 +9,9 @@
  *   - 활성/비활성 토글 → toggle-active API (문장 불러오기에서 표시 여부 조절)
  */
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
-  Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Modal, Platform,
+  Pressable, StyleSheet, Switch, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Edit2, Eye, EyeOff, Plus, RotateCcw, Trash2 } from "lucide-react-native";
 import Colors from "@/constants/colors";
@@ -187,7 +186,7 @@ export default function FeedbackCustomScreen() {
   const myNewItems = templates.filter(t => !t.global_id);
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.background }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader title="일지 템플릿" />
 
       {/* ── 레벨 탭 ── */}
@@ -217,7 +216,7 @@ export default function FeedbackCustomScreen() {
             <Text style={s.hintText}>스위치를 끄면 "문장 불러오기"에서 숨겨집니다</Text>
           </View>
 
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 80 }]}>
+          <KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 80 }]}>
             {templatesLoading ? (
               <ActivityIndicator style={{ marginTop: 32 }} color={C.primary} />
             ) : (
@@ -341,7 +340,7 @@ export default function FeedbackCustomScreen() {
                 )}
               </>
             )}
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </>
       )}
 
@@ -447,7 +446,7 @@ export default function FeedbackCustomScreen() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

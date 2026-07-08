@@ -1,10 +1,9 @@
 import { Check, Droplet, Info, Layers, LogIn, MapPin, Phone, Plus } from "lucide-react-native";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Linking, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Linking, Pressable,
+  StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth, type OwnedPool } from "@/context/AuthContext";
@@ -172,7 +171,7 @@ export default function PoolsScreen() {
       {loading ? (
         <ActivityIndicator color={TINT} style={{ marginTop: 60 }} />
       ) : (
-        <ScrollView
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 32, gap: 14 }}
         >
@@ -271,7 +270,7 @@ export default function PoolsScreen() {
               </Pressable>
             );
           })}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {/* 새 수영장 추가 모달 */}

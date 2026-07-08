@@ -6,9 +6,8 @@
 import { Bell, BellOff, Lock, Plus, Radio, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {Modal, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { type Notice, type NoticeTarget, type NoticeType, NOTICE_TYPE_CFG } from "@/store/noticeStore";
@@ -243,7 +242,7 @@ export default function NoticesScreen() {
 
       {/* 필터 + 등록 */}
       <View style={s.filterRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", gap: 6 }}>
             {FILTER_ITEMS.map(f => (
               <Pressable key={f.key} style={[s.filterBtn, filterType === f.key && s.filterActive]}
@@ -252,7 +251,7 @@ export default function NoticesScreen() {
               </Pressable>
             ))}
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
         <Pressable style={s.addBtn} onPress={openCreate}>
           <Plus size={16} color="#fff" />
           <Text style={s.addTxt}>공지 등록</Text>
@@ -260,7 +259,7 @@ export default function NoticesScreen() {
       </View>
 
       {/* 목록 */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
+      <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
         {filtered.length === 0 ? (
           <View style={s.empty}>
             <BellOff size={36} color="#D1D5DB" />
@@ -273,7 +272,7 @@ export default function NoticesScreen() {
               isLatest={idx === 0 && filterType === "all"} />
           ))
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* 등록/수정 모달 */}
       <Modal visible={showModal} transparent animationType="slide">
@@ -285,7 +284,7 @@ export default function NoticesScreen() {
                 <X size={20} color="#64748B" />
               </Pressable>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
               <Text style={m.label}>제목 *</Text>
               <TextInput style={m.input} value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))}
                 placeholder="공지 제목을 입력하세요" />
@@ -332,7 +331,7 @@ export default function NoticesScreen() {
                   <Text style={[m.segTxt, !form.forcedAck && m.segActiveTxt]}>선택 확인</Text>
                 </Pressable>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
             <View style={m.footer}>
               <Pressable style={m.cancelBtn} onPress={() => setShowModal(false)}>
                 <Text style={m.cancelTxt}>취소</Text>

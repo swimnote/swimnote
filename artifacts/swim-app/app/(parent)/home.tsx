@@ -16,11 +16,9 @@ import { ParentPromoBanner } from "@/components/parent/ParentPromoBanner";
 import { ParentPromoStrip } from "@/components/parent/ParentPromoStrip";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Alert, BackHandler, FlatList, Image, Keyboard,
-  KeyboardAvoidingView, Linking, Modal, Platform,
-  Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, BackHandler, FlatList, Image, Keyboard, Linking, Modal, Platform,
+  Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
@@ -89,8 +87,7 @@ function PoolSelectModal({ visible, onClose, onSelect }: {
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)" }} onPress={onClose} />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%", paddingBottom: insets.bottom + 16 }}>
+      <View style={{ backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%", paddingBottom: insets.bottom + 16 }}>
         <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "#E0E0E0", alignSelf: "center", marginTop: 10, marginBottom: 6 }} />
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12 }}>
           <Text style={{ fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111" }}>수영장 선택</Text>
@@ -126,14 +123,14 @@ function PoolSelectModal({ visible, onClose, onSelect }: {
             )}
           />
         )}
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
 
 export default function ParentHomeScreen() {
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<KeyboardAwareScrollView>(null);
   const { token, parentAccount, pool, parentPoolName, logout } = useAuth();
   const { students, selectedStudent, setSelectedStudentId, loading: ctxLoading, refresh } = useParent();
 
@@ -289,7 +286,7 @@ export default function ParentHomeScreen() {
           <Text style={[s.poolName, { color: C.textMuted }]}>SwimNote</Text>
           <View style={s.headerBtns} />
         </View>
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 80 }}>
+        <KeyboardAwareScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 80 }}>
           <View style={{ alignItems: "center", marginBottom: 32 }}>
             <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: "#FFF3E0", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
               <LucideIcon name="clock" size={44} color={ORANGE} />
@@ -342,7 +339,7 @@ export default function ParentHomeScreen() {
               로그아웃
             </Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
     );
   }
@@ -355,7 +352,7 @@ export default function ParentHomeScreen() {
           <View style={s.headerBtns} />
         </View>
 
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 80 }}>
+        <KeyboardAwareScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 80 }}>
           <View style={{ alignItems: "center", marginBottom: 32 }}>
             <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
               <LucideIcon name="building-2" size={44} color={TEAL} />
@@ -388,7 +385,7 @@ export default function ParentHomeScreen() {
           <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", marginTop: 16 }}>
             선택 후 전화번호로 등록된 자녀가 자동 연결됩니다
           </Text>
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         <PoolSelectModal
           visible={poolModal}
@@ -423,7 +420,7 @@ export default function ParentHomeScreen() {
       </View>
 
       {/* ─── B. 자녀 탭 (동적) ─── */}
-      <ScrollView
+      <KeyboardAwareScrollView
         horizontal showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingBottom: 6 }}
         style={{ flexGrow: 0 }}
@@ -453,9 +450,9 @@ export default function ParentHomeScreen() {
           <Plus size={14} color={C.textMuted} />
           <Text style={[s.childTabTxt, { color: C.textMuted, marginLeft: 2 }]}>추가</Text>
         </Pressable>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         ref={scrollRef}
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
@@ -570,7 +567,7 @@ export default function ParentHomeScreen() {
             )}
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }

@@ -14,11 +14,10 @@ import { ChevronLeft, ChevronRight, CircleCheck, Repeat, TriangleAlert, Users, X
 import { haptic } from "@/utils/haptic";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text,
-  TextInput, TouchableOpacity, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable,
+  RefreshControl, StyleSheet, Text,
+  TextInput, TouchableOpacity, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -556,7 +555,7 @@ export default function TeacherAttendanceScreen() {
                 보강 가능한 반이 없습니다
               </Text>
             ) : (
-              <ScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
+              <KeyboardAwareScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
                 {eligibleClasses.map(ec => {
                   const isSame = assignTarget && ec.teacher_user_id === assignTarget.original_teacher_id;
                   const sel = assignClassId === ec.id;
@@ -581,7 +580,7 @@ export default function TeacherAttendanceScreen() {
                     </TouchableOpacity>
                   );
                 })}
-              </ScrollView>
+              </KeyboardAwareScrollView>
             )}
 
             {assignError ? <Text style={s.errText}>{assignError}</Text> : null}
@@ -683,7 +682,7 @@ export default function TeacherAttendanceScreen() {
             <Text style={s.title}>출결 체크</Text>
             <Text style={s.dateBadge}>{date}</Text>
           </View>
-          <ScrollView
+          <KeyboardAwareScrollView
             style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
@@ -695,7 +694,7 @@ export default function TeacherAttendanceScreen() {
               themeColor={themeColor}
             />
             <View style={{ height: 120 }} />
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </>
       )}
 

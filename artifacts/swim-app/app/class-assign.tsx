@@ -9,11 +9,9 @@
 import { ArrowLeft, Calendar, Check, CircleX, Clock, Layers, Minus, Plus, RefreshCw, Search, TriangleAlert, User, X } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
-  Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Modal, Platform,
+  Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -219,11 +217,7 @@ export default function ClassAssignScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[s.root, { backgroundColor: C.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={0}
-    >
+    <View style={[s.root, { backgroundColor: C.background }]}>
       <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
         <Pressable onPress={goBack} style={s.backBtn}>
           <ArrowLeft size={20} color={C.text} />
@@ -232,7 +226,7 @@ export default function ClassAssignScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
@@ -353,7 +347,7 @@ export default function ClassAssignScreen() {
             ))}
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <View style={[s.doneWrap, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable
@@ -386,7 +380,7 @@ export default function ClassAssignScreen() {
           onCancel={() => setTimingTarget(null)}
         />
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

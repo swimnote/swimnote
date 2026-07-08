@@ -8,10 +8,8 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useMemo, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
 import { compressImageIfNeeded } from "../../utils/compressImage";
-import {
-  ActivityIndicator, Alert, Image as RNImage, Modal, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Image as RNImage, Modal, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { API_BASE } from "@/context/AuthContext";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -271,7 +269,7 @@ export default function AdsScreen() {
 
       {/* 필터 + 등록 버튼 */}
       <View style={s.filterRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", gap: 6 }}>
             {FILTERS.map(f => (
               <Pressable key={f.key} style={[s.filterBtn, filter === f.key && s.filterBtnActive]} onPress={() => setFilter(f.key)}>
@@ -279,7 +277,7 @@ export default function AdsScreen() {
               </Pressable>
             ))}
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
         <Pressable style={s.addBtn} onPress={openCreate}>
           <Plus size={16} color="#fff" />
           <Text style={s.addTxt}>등록</Text>
@@ -287,7 +285,7 @@ export default function AdsScreen() {
       </View>
 
       {/* 목록 */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
+      <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
         {filtered.length === 0 ? (
           <View style={s.empty}>
             <Image size={36} color="#D1D5DB" />
@@ -302,7 +300,7 @@ export default function AdsScreen() {
             />
           ))
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* 등록/수정 모달 */}
       <Modal visible={showModal} transparent animationType="slide">
@@ -314,7 +312,7 @@ export default function AdsScreen() {
                 <X size={20} color="#64748B" />
               </Pressable>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <KeyboardAwareScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {/* 이미지 업로드 */}
               <Text style={m.label}>배너 이미지 (선택)</Text>
               {(() => {
@@ -389,7 +387,7 @@ export default function AdsScreen() {
                   }
                 </Pressable>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </View>
       </Modal>

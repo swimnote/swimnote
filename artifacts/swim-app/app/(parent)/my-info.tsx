@@ -6,10 +6,9 @@
 import { Check, Pencil, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Alert, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal,
-  Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Keyboard, Linking, Modal,
+  Platform, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
@@ -143,10 +142,7 @@ function PoolSelectModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={s.modalBackdrop} onPress={onClose} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={[s.modalSheet, { paddingBottom: insets.bottom + 16 }]}
-      >
+      <View style={[s.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
         {/* 핸들 */}
         <View style={s.modalHandle} />
         <View style={s.modalHeader}>
@@ -212,7 +208,7 @@ function PoolSelectModal({
             )}
           />
         )}
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -348,7 +344,7 @@ export default function MyInfoScreen() {
           <ActivityIndicator color={TEAL} />
         </View>
       ) : (
-        <ScrollView
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: insets.bottom + 40, gap: 12 }}
         >
@@ -545,7 +541,7 @@ export default function MyInfoScreen() {
             <LucideIcon name="pencil" size={16} color="#fff" />
             <Text style={s.editBtnTxt}>내 정보 수정</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       <PoolSelectModal

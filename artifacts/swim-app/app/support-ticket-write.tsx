@@ -10,10 +10,9 @@ import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import React, { useState } from "react";
-import {
-  ActivityIndicator, Alert, Image, KeyboardAvoidingView,
-  Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Image,
+  Platform, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -131,8 +130,8 @@ export default function SupportTicketWriteScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView
+      <View style={{ flex: 1 }}>
+        <KeyboardAwareScrollView
           contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: insets.bottom + 80 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -235,8 +234,8 @@ export default function SupportTicketWriteScreen() {
             </View>
           </Pressable>
 
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
+      </View>
 
       {/* 제출 버튼 */}
       <View style={[s.submitWrap, { paddingBottom: insets.bottom + 12 }]}>

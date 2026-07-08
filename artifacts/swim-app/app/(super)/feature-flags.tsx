@@ -5,10 +5,8 @@
  */
 import { Check, Info, RotateCcw, Target, TriangleAlert, Users } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Switch, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Modal, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -225,7 +223,7 @@ export default function FeatureFlagsScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="기능 플래그" homePath="/(super)/protect-group" />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={{ padding: 14, gap: 16, paddingBottom: 80 }}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P} onRefresh={onRefresh} />}
       >
@@ -311,7 +309,7 @@ export default function FeatureFlagsScreen() {
             </View>
           );
         })}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {reasonModal && (
         <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={() => setReasonModal(null)}>
@@ -423,7 +421,7 @@ export default function FeatureFlagsScreen() {
               <TextInput style={m.searchInput} value={opSearch} onChangeText={setOpSearch}
                 placeholder="운영자 검색" placeholderTextColor="#64748B" />
 
-              <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
+              <KeyboardAwareScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
                 {filteredOps.slice(0, 12).map(op => (
                   <Pressable key={op.id} style={[m.opRow, selOp?.id === op.id && m.opRowActive]}
                     onPress={() => setSelOp({ id: op.id, name: op.name })}>
@@ -432,7 +430,7 @@ export default function FeatureFlagsScreen() {
                     {selOp?.id === op.id && <Check size={14} color={P} />}
                   </Pressable>
                 ))}
-              </ScrollView>
+              </KeyboardAwareScrollView>
 
               {selOp && (
                 <>

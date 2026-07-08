@@ -5,10 +5,8 @@
 import { Camera, Plus, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, Alert, Image, Modal, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Image, Modal, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { compressImageIfNeeded } from "../../utils/compressImage";
@@ -303,7 +301,7 @@ export default function StripBannerScreen() {
 
       {/* 안내 + 필터 */}
       <View style={s.filterRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", gap: 6 }}>
             {FILTERS.map(f => (
               <Pressable key={f.key} style={[s.filterBtn, filter === f.key && s.filterBtnActive]} onPress={() => setFilter(f.key)}>
@@ -311,7 +309,7 @@ export default function StripBannerScreen() {
               </Pressable>
             ))}
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
         <Pressable style={s.addBtn} onPress={openCreate}>
           <Plus size={16} color="#fff" />
           <Text style={s.addTxt}>등록</Text>
@@ -319,7 +317,7 @@ export default function StripBannerScreen() {
       </View>
 
       {/* 목록 */}
-      <ScrollView showsVerticalScrollIndicator={false}
+      <KeyboardAwareScrollView showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
         {loading && filtered.length === 0 ? (
           <View style={{ padding: 40, alignItems: "center" }}>
@@ -339,7 +337,7 @@ export default function StripBannerScreen() {
             />
           ))
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* 등록/수정 모달 */}
       <Modal visible={showModal} transparent animationType="slide">
@@ -351,7 +349,7 @@ export default function StripBannerScreen() {
                 <X size={20} color="#64748B" />
               </Pressable>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <KeyboardAwareScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
               {/* 미리보기 */}
               <Text style={m.label}>미리보기</Text>
@@ -445,7 +443,7 @@ export default function StripBannerScreen() {
                   : <Text style={m.saveTxt}>{editId ? "수정 완료" : "등록하기"}</Text>
                 }
               </Pressable>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </View>
       </Modal>

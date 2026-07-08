@@ -10,10 +10,8 @@ import { CircleAlert, CircleCheck, CircleX, FileText, RefreshCw } from "lucide-r
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -189,7 +187,7 @@ export default function TeacherPendingDetailScreen() {
     <View style={[s.root, { paddingTop: insets.top }]}>
       <SubScreenHeader title="선생님 승인 처리" />
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
         {/* ── 상태 배너 ── */}
         <View style={[s.statusBanner, { backgroundColor: statusInfo.bg }]}>
@@ -337,11 +335,11 @@ export default function TeacherPendingDetailScreen() {
           </View>
         )}
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ── 거절 모달 ── */}
       <Modal visible={showRejectModal} transparent animationType="slide" onRequestClose={() => setShowRejectModal(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <View style={{ flex: 1 }}>
           <Pressable style={s.modalOverlay} onPress={() => setShowRejectModal(false)}>
             <Pressable style={[s.modalSheet, { paddingBottom: insets.bottom + 24 }]} onPress={e => e.stopPropagation()}>
               <View style={s.modalHandle} />
@@ -404,7 +402,7 @@ export default function TeacherPendingDetailScreen() {
               </View>
             </Pressable>
           </Pressable>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       {/* ── 거절 사유 보기 모달 ── */}

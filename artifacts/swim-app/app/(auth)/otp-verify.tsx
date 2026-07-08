@@ -6,10 +6,8 @@
 import { ArrowLeft, CircleAlert, Info, Shield, Smartphone } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useRef, useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
@@ -72,11 +70,8 @@ export default function OtpVerifyScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: C.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
+    <View style={[styles.root, { backgroundColor: C.background }]}>
+      <KeyboardAwareScrollView
         contentContainerStyle={[
           styles.container,
           { paddingTop: insets.top + (Platform.OS === "web" ? 70 : 50), paddingBottom: insets.bottom + 40 },
@@ -166,8 +161,8 @@ export default function OtpVerifyScreen() {
             Google Authenticator 앱을 열고 계정 이름 옆의 6자리 숫자를 입력하세요. 코드는 30초마다 갱신됩니다.
           </Text>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 

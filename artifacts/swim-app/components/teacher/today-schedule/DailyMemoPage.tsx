@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
@@ -152,7 +153,7 @@ export default function DailyMemoPage({
           <Text style={[dm.headerTitle, { color: C.text }]}>{formatDate(date)}</Text>
           <View style={{ width: 48 }} />
         </View>
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: insets.bottom + 100 }}
+        <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: insets.bottom + 100 }}
           showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={dm.section}>
             <View style={dm.sectionHeader}>
@@ -217,7 +218,7 @@ export default function DailyMemoPage({
               )}
             </View>
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
         <View style={[dm.saveWrap, { paddingBottom: insets.bottom + 12, borderTopColor: C.border, backgroundColor: C.background }]}>
           <Pressable style={[dm.saveBtn, { backgroundColor: themeColor, opacity: saving || uploadingAudio ? 0.7 : 1 }]}
             onPress={handleSave} disabled={saving || uploadingAudio}>

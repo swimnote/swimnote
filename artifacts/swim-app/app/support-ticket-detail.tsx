@@ -7,11 +7,10 @@ import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Image, KeyboardAvoidingView, Modal,
-  Platform, Pressable, RefreshControl, ScrollView,
-  StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Image, Modal,
+  Platform, Pressable, RefreshControl,
+  StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -64,7 +63,7 @@ export default function SupportTicketDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token, kind, adminUser } = useAuth();
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<KeyboardAwareScrollView>(null);
 
   const [ticket,     setTicket]     = useState<Ticket | null>(null);
   const [loading,    setLoading]    = useState(true);
@@ -168,8 +167,8 @@ export default function SupportTicketDetailScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView
+      <View style={{ flex: 1 }}>
+        <KeyboardAwareScrollView
           ref={scrollRef}
           contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: insets.bottom + 80 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
@@ -232,7 +231,7 @@ export default function SupportTicketDetailScreen() {
             );
           })}
 
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         {/* 답변 입력 */}
         {ticket.status !== "resolved" && ticket.status !== "closed" && (
@@ -275,7 +274,7 @@ export default function SupportTicketDetailScreen() {
             </View>
           </View>
         )}
-      </KeyboardAvoidingView>
+      </View>
 
       {/* 이미지 미리보기 모달 */}
       <Modal visible={!!previewImg} transparent animationType="fade" onRequestClose={() => setPreviewImg(null)}>

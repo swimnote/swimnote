@@ -5,10 +5,8 @@
 import { Check, Inbox, Search, SquareCheck, X } from "lucide-react-native";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useMemo, useRef, useState, useEffect, useCallback } from "react";
-import {
-  FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE } from "@/context/auth/SessionContext";
@@ -335,14 +333,14 @@ export default function SuperPoolsScreen() {
             </Pressable>
           )}
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}>
           {SORT_OPTS.map(o => (
             <Pressable key={o.key} style={[s.sortChip, sort === o.key && s.sortChipActive]}
               onPress={() => setSort(o.key)}>
               <Text style={[s.sortChipTxt, sort === o.key && s.sortChipTxtActive]}>{o.label}</Text>
             </Pressable>
           ))}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
 
       {/* 필터 칩 — 전체 표시 (wrap) */}
@@ -364,14 +362,14 @@ export default function SuperPoolsScreen() {
         </Text>
         <View style={s.listHeaderRight}>
           {multiSelect && selected.size > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}>
               {BULK_ACTIONS.map(a => (
                 <Pressable key={a.key} style={[s.bulkBtn, { backgroundColor: a.bg }]}
                   onPress={() => setBulkModal(a.key)}>
                   <Text style={[s.bulkTxt, { color: a.color }]}>{a.label}</Text>
                 </Pressable>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           )}
           <Pressable style={[s.multiBtn, multiSelect && s.multiBtnActive]}
             onPress={() => { setMultiSelect(!multiSelect); setSelected(new Set()); }}>

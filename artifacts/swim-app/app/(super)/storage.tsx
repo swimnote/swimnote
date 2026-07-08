@@ -6,10 +6,8 @@
 import { CircleAlert, CircleArrowUp, CirclePlus, Clock, DollarSign, HardDrive, Lock, Settings, TrendingUp } from "lucide-react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -245,7 +243,7 @@ export default function StorageScreen() {
         </Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.tabBar} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 6, gap: 4 }}>
         {TABS.map(t => {
           const isActive = tab === t.key;
@@ -261,7 +259,7 @@ export default function StorageScreen() {
             </Pressable>
           );
         })}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {tab === "blocked95" && (
         <View style={[s.spikeBanner, { backgroundColor: "#FFF3CD" }]}>

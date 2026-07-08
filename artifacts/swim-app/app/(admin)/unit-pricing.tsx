@@ -4,10 +4,9 @@
  */
 import { Check, DollarSign } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Platform,
+  Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -116,10 +115,7 @@ export default function UnitPricingScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: C.background }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader
         title="수업 단가표"
         rightSlot={
@@ -139,7 +135,7 @@ export default function UnitPricingScreen() {
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
       ) : (
-        <ScrollView
+        <KeyboardAwareScrollView
           contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 40 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -217,9 +213,9 @@ export default function UnitPricingScreen() {
               + 추가수업비용 (별도 발생 시)
             </Text>
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

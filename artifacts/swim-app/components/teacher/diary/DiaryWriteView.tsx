@@ -5,6 +5,7 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image as ExpoImage } from "expo-image";
 import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
@@ -70,7 +71,7 @@ export default function DiaryWriteView({
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <ScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
         {myDiaryExists && (
           <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
@@ -279,7 +280,7 @@ export default function DiaryWriteView({
         </View>
 
         <View style={{ height: 100 }} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <View style={s.footer}>
         {formError && (
@@ -439,7 +440,7 @@ function TemplatePicker({
           </View>
 
           {levels.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={tp.tabRow}>
+            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={tp.tabRow}>
               {levels.map(lv => (
                 <Pressable
                   key={lv.id}
@@ -451,10 +452,10 @@ function TemplatePicker({
                   </Text>
                 </Pressable>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           )}
 
-          <ScrollView style={tp.listScroll} contentContainerStyle={tp.listContent} keyboardShouldPersistTaps="handled">
+          <KeyboardAwareScrollView style={tp.listScroll} contentContainerStyle={tp.listContent} keyboardShouldPersistTaps="handled">
             {totalCount === 0 ? (
               <View style={tp.emptyBox}>
                 <Text style={tp.emptyText}>이 레벨에 등록된 템플릿이 없습니다.</Text>
@@ -483,7 +484,7 @@ function TemplatePicker({
                 )}
               </>
             )}
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </View>
       </View>
     </Modal>

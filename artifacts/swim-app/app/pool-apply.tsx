@@ -2,17 +2,14 @@ import { CircleAlert, Info, MapPin, Send, Type } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
+import {ActivityIndicator,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
-} from "react-native";
+  View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
@@ -80,8 +77,8 @@ export default function PoolApplyScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.background }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <ScrollView
+    <View style={{ flex: 1, backgroundColor: C.background }}>
+      <KeyboardAwareScrollView
         contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 24), paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
       >
@@ -184,8 +181,8 @@ export default function PoolApplyScreen() {
         <Pressable onPress={logout} style={styles.logoutBtn}>
           <Text style={[styles.logoutText, { color: C.textMuted }]}>다른 계정으로 로그인</Text>
         </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 

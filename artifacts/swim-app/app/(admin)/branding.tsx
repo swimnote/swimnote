@@ -6,10 +6,9 @@
 import { Check, Info } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, ActivityIndicator,
-} from "react-native";
+import {View, Text, StyleSheet, TouchableOpacity,
+  TextInput, ActivityIndicator} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { useBrand, APP_PLATFORM_NAME, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -141,7 +140,7 @@ export default function BrandingScreen() {
         }
       />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* ── 실시간 미리보기 ─────────────────────────────────── */}
         <Section title="미리보기">
@@ -305,7 +304,7 @@ export default function BrandingScreen() {
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* 초기화 확인 모달 */}
       <ConfirmModal

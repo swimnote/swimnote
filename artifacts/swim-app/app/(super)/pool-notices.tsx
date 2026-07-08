@@ -13,10 +13,8 @@
 import { BellOff, Bookmark, Check, ChevronDown, Globe, Home, PenLine, Plus, Send, Trash2 } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Switch, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -398,7 +396,7 @@ export default function PoolNoticesScreen() {
             <Text style={pm.title}>수영장 선택</Text>
             <TextInput style={pm.search} value={poolSearch} onChangeText={setPoolSearch}
               placeholder="수영장 이름 검색" placeholderTextColor="#64748B" />
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
               {filteredPools.map(p => (
                 <Pressable key={p.id}
                   style={[pm.item, selectedPool?.id === p.id && pm.itemActive]}
@@ -412,7 +410,7 @@ export default function PoolNoticesScreen() {
                 </Pressable>
               ))}
               {filteredPools.length === 0 && <Text style={pm.empty}>검색 결과 없음</Text>}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -451,7 +449,7 @@ export default function PoolNoticesScreen() {
               </View>
             )}
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+            <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
               <View>
                 <Text style={fm.label}>제목 *</Text>
                 <TextInput style={fm.input} value={form.title}
@@ -524,7 +522,7 @@ export default function PoolNoticesScreen() {
                     : <Text style={fm.saveTxt}>{editNotice ? "저장" : "등록"}</Text>}
                 </Pressable>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </Pressable>
         </Pressable>
       </Modal>

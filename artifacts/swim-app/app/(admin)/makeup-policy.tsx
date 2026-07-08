@@ -5,10 +5,9 @@
  */
 import { Save } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Pressable,
+  StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -108,7 +107,7 @@ export default function MakeupPolicyScreen() {
   return (
     <View style={s.root}>
       <SubScreenHeader title="보강 정책 설정" />
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
@@ -192,7 +191,7 @@ export default function MakeupPolicyScreen() {
               </>
           }
         </Pressable>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <ConfirmModal
         visible={showConfirm}

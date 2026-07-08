@@ -11,10 +11,8 @@ import { BookOpen, Calendar, Check, ChevronDown, ChevronRight, CircleX, Clock, L
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shareDiaryEntry } from "@/utils/diaryShare";
-import {
-  ActivityIndicator, FlatList, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Pressable,
+  StyleSheet, Text, TextInput, TouchableOpacity, View} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";

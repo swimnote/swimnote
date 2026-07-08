@@ -3,10 +3,9 @@ import * as ImagePicker from "expo-image-picker";
 import { compressImageIfNeeded } from "../../utils/compressImage";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Image, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Image, Platform,
+  Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
@@ -203,11 +202,11 @@ export default function PhotoUploadScreen() {
         }
       />
 
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: insets.bottom + 40 }}>
+      <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: insets.bottom + 40 }}>
         {/* 선택된 학생 칩 */}
         <View>
           <Text style={[styles.sectionTitle, { color: C.textSecondary }]}>선택된 학생</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 8 }}>
+          <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 8 }}>
             {[...selected].map(id => {
               const s = students.find(s => s.id === id);
               return s ? (
@@ -216,7 +215,7 @@ export default function PhotoUploadScreen() {
                 </View>
               ) : null;
             })}
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </View>
 
         {/* 사진 선택 */}
@@ -224,7 +223,7 @@ export default function PhotoUploadScreen() {
           <Text style={[styles.sectionTitle, { color: C.textSecondary }]}>업로드할 사진 ({images.length}장)</Text>
           {images.length > 0 ? (
             <>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingTop: 12 }}>
+              <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingTop: 12 }}>
                 {images.map((img, i) => (
                   <View key={i} style={styles.previewWrap}>
                     <Image source={{ uri: img.uri }} style={styles.previewImg} resizeMode="cover" />
@@ -233,7 +232,7 @@ export default function PhotoUploadScreen() {
                     </Pressable>
                   </View>
                 ))}
-              </ScrollView>
+              </KeyboardAwareScrollView>
               <Pressable style={[styles.addMoreBtn, { borderColor: C.border, marginTop: 12 }]} onPress={pickImages}>
                 <Plus size={16} color={C.textSecondary} />
                 <Text style={[styles.addMoreText, { color: C.textSecondary }]}>사진 추가</Text>
@@ -256,7 +255,7 @@ export default function PhotoUploadScreen() {
             </Text>
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
     )}
 

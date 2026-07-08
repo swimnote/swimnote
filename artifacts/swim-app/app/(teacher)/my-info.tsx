@@ -12,10 +12,9 @@
 import { ChartBar, ChevronRight, Key, Lock, MessageCircle, PenLine, Repeat, Shield, TriangleAlert, UserX, Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable,
+  RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ROLE_CONFIGS } from "@/constants/auth";
@@ -245,7 +244,7 @@ export default function MyInfoScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="내 정보" homePath="/(teacher)/today-schedule" />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 60 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
@@ -406,7 +405,7 @@ export default function MyInfoScreen() {
           <ChevronRight size={16} color="#D96C6C" />
         </Pressable>
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ═══ 정보 편집 모달 ═══ */}
       <Modal visible={editVisible} animationType="slide" transparent presentationStyle="overFullScreen">

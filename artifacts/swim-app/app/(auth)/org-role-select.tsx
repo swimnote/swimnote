@@ -3,9 +3,7 @@ import { CircleAlert, LogOut } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
-import {
-  ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View,
-} from "react-native";
+import {ActivityIndicator, Platform, Pressable, StyleSheet, Text, View} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ROLE_CONFIGS, ROLE_SELECT_LABELS, type RoleConfig } from "@/constants/auth";

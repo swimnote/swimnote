@@ -9,10 +9,8 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -189,7 +187,7 @@ export default function RevenueScreen() {
       <View style={[rv.tabHeader, { paddingTop: insets.top + 14 }]}>
         <Text style={[rv.tabHeaderTitle, { color: themeColor }]}>정산</Text>
       </View>
-      <ScrollView
+      <KeyboardAwareScrollView
         ref={scrollRef}
         contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 80 }}
         showsVerticalScrollIndicator={false}
@@ -431,7 +429,7 @@ export default function RevenueScreen() {
             </Pressable>
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ── 다음 달 시작 확인 모달 ─────────────────────── */}
       <Modal visible={nextMonthModal} transparent animationType="fade" onRequestClose={() => setNextMonthModal(false)}>

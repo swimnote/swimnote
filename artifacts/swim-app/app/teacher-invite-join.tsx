@@ -7,10 +7,8 @@ import { ArrowLeft, CircleAlert, CircleCheck, Droplet, Info, Key, Lock, Send, Us
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { API_BASE, useAuth } from "@/context/AuthContext";
@@ -79,7 +77,7 @@ export default function TeacherInviteJoinScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.background }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+    <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 헤더 */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
@@ -91,7 +89,7 @@ export default function TeacherInviteJoinScreen() {
 
       {/* ── 토큰 입력 단계 ────────────────────────────────────── */}
       {step === "token" && (
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
           <View style={[styles.illustBox, { backgroundColor: C.tintLight }]}>
             <Send size={40} color={C.tint} />
           </View>
@@ -138,12 +136,12 @@ export default function TeacherInviteJoinScreen() {
               코드를 분실한 경우 관리자에게 문의해주세요.
             </Text>
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {/* ── 폼 단계 ───────────────────────────────────────────── */}
       {step === "form" && inviteInfo && (
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
           {/* 수영장/초대 정보 */}
           <View style={[styles.inviteInfoCard, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
             <Droplet size={20} color={C.tint} />
@@ -229,10 +227,10 @@ export default function TeacherInviteJoinScreen() {
               <Text style={styles.primaryBtnText}>가입 완료</Text></>
             )}
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

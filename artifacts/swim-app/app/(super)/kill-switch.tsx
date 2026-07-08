@@ -6,10 +6,8 @@
 import { Archive, Check, CircleCheck, Lock, OctagonAlert, Trash2, TriangleAlert } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, Alert, FlatList, Modal, Pressable,
-  ScrollView, StyleSheet, Switch, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -255,7 +253,7 @@ export default function KillSwitchScreen() {
         <Text style={s.bannerTxt}>삭제는 해지 확정 + 정책 동의 + 유예 완료 후에만 가능합니다. 결제 실패·저장공간 초과만으로는 자동삭제 금지.</Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.tabBar} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 6, gap: 4 }}>
         {[
           { key: "exec",  label: "삭제 실행" },
@@ -266,16 +264,16 @@ export default function KillSwitchScreen() {
             <Text style={[s.tabTxt, tab === t.key && s.tabTxtActive]}>{t.label}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ── 삭제 실행 탭 ── */}
       {tab === "exec" && (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 80 }}>
+        <KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 80 }}>
 
           <StepCard step="1" title="운영자 선택 (해지 확정된 운영자만 가능)">
             {loadingOps
               ? <ActivityIndicator color={DANGER} />
-              : <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              : <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
                   contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
                   {operators.map(op => {
                     const terminated = confirmedIds.has(op.id);
@@ -296,7 +294,7 @@ export default function KillSwitchScreen() {
                   {operators.length === 0 && (
                     <Text style={{ color: "#64748B", fontSize: 13, padding: 8 }}>결제 이상 운영자 없음</Text>
                   )}
-                </ScrollView>
+                </KeyboardAwareScrollView>
             }
             {poolId && !isTerminated && (
               <View style={s.warnBox}>
@@ -380,7 +378,7 @@ export default function KillSwitchScreen() {
             <OctagonAlert size={16} color="#fff" />
             <Text style={s.execTxt}>안전장치 확인 후 삭제 진행</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {/* ── 삭제 예정 탭 ── */}
@@ -474,7 +472,7 @@ export default function KillSwitchScreen() {
                 <Text style={m.dangerHeaderTxt}>최종 삭제 안전장치 확인</Text>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+              <KeyboardAwareScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
                 <View style={m.confirmInfo}>
                   <Text style={m.confirmInfoTxt}>
                     대상: <Text style={{ fontFamily: "Pretendard-Regular", color: DANGER }}>{poolName}</Text>{"\n"}
@@ -536,7 +534,7 @@ export default function KillSwitchScreen() {
                       : <><Lock size={13} color="#fff" /><Text style={m.deleteTxt}>OTP 인증 후 영구 삭제</Text></>}
                   </Pressable>
                 </View>
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </View>
           </Pressable>
         </Modal>

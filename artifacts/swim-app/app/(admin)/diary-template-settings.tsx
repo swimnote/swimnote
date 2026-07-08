@@ -4,11 +4,10 @@
  * scope=global 템플릿 관리: 레벨 슬롯 (최대 10개) + 레벨별 CRUD
  * SwimNote 기본 템플릿 복원 / 전체 초기화
  */
-import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
-  Pressable, ScrollView, StyleSheet, Switch,
-  Text, TextInput, TouchableOpacity, View,
-} from "react-native";
+import {ActivityIndicator, Modal, Platform,
+  Pressable, StyleSheet, Switch,
+  Text, TextInput, TouchableOpacity, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import React, { useCallback, useEffect, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronDown, ChevronUp, Copy, Edit2, Plus, RefreshCcw, Trash2 } from "lucide-react-native";
@@ -328,7 +327,7 @@ export default function DiaryTemplateSettingsScreen() {
       {levelsLoading ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
       ) : (
-        <ScrollView
+        <KeyboardAwareScrollView
           contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
           showsVerticalScrollIndicator={false}
         >
@@ -432,7 +431,7 @@ export default function DiaryTemplateSettingsScreen() {
               </View>
             </>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       <InputModal
@@ -736,7 +735,7 @@ function TemplateInputModal({
 }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <View style={{ flex: 1 }}>
         <View style={m.overlay}>
           <View style={m.sheet}>
             <Text style={m.title}>{title}</Text>
@@ -772,7 +771,7 @@ function TemplateInputModal({
             </View>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

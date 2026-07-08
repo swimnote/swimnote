@@ -11,10 +11,9 @@
 import { AtSign, ChevronRight, CircleAlert, CircleCheck, Eye, Info, Key, Lock, PenLine, RefreshCw, Save, Shield, ShieldOff, Trash2, TriangleAlert, Unlock, UserPlus } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useMemo, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet,
-  Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Image, Modal, Pressable, StyleSheet,
+  Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -274,7 +273,7 @@ export default function SecuritySettingsScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="보안·설정" homePath="/(super)/more" />
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 60 }}>
+      <KeyboardAwareScrollView contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 60 }}>
 
         {/* ══ A. 계정 목록 ══ */}
         <View style={s.section}>
@@ -531,7 +530,7 @@ export default function SecuritySettingsScreen() {
         {/* ══ G. 로그인 이력 ══ */}
         <LoginHistorySection />
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ══ 계정 상세 모달 ══ */}
       {detailAcc && (

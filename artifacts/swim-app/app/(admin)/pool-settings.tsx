@@ -3,10 +3,9 @@ import { CircleAlert, DollarSign, File, Tag, Type, Users, BookOpen, CreditCard, 
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView,
-  Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator,
+  Platform, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -31,7 +30,7 @@ export default function PoolSettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({ name: "", phone: "" });
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<KeyboardAwareScrollView>(null);
   const hasFieldErrors = fieldErrors.name || fieldErrors.phone;
 
   const [defaultCapacity, setDefaultCapacity] = useState<string>("5");
@@ -228,7 +227,7 @@ export default function PoolSettingsScreen() {
   if (loading) return <View style={[styles.root, { backgroundColor: C.background, alignItems: "center", justifyContent: "center" }]}><ActivityIndicator color={C.tint} /></View>;
 
   return (
-    <KeyboardAvoidingView style={[styles.root, { backgroundColor: C.background }]} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+    <View style={[styles.root, { backgroundColor: C.background }]}>
       <SubScreenHeader
         title="수영장 설정"
         onBack={undefined}
@@ -243,7 +242,7 @@ export default function PoolSettingsScreen() {
         }
       />
 
-      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: insets.bottom + 60 }} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView ref={scrollRef} contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: insets.bottom + 60 }} showsVerticalScrollIndicator={false}>
         {hasFieldErrors ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", padding: 12, borderRadius: 10 }}>
             <CircleAlert size={15} color="#DC2626" />
@@ -518,9 +517,9 @@ export default function PoolSettingsScreen() {
             </View>
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
       <ToastComponent />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

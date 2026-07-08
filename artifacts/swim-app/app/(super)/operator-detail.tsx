@@ -6,10 +6,8 @@ import { ChevronRight, CircleCheck, CreditCard, FileText, HardDrive, Lock, Trash
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Alert, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { useOperatorsStore } from "@/store/operatorsStore";
@@ -324,16 +322,16 @@ export default function OperatorDetailScreen() {
       )}
 
       {/* 탭 바 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
         style={d.tabBar} contentContainerStyle={d.tabContent}>
         {TABS.map(t => (
           <Pressable key={t} style={[d.tab, tab === t && d.tabActive]} onPress={() => setTab(t)}>
             <Text style={[d.tabTxt, tab === t && d.tabActiveTxt]}>{t}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
+      <KeyboardAwareScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 80 }}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
           onRefresh={() => { setRefreshing(true); load(true); }} />}>
@@ -583,7 +581,7 @@ export default function OperatorDetailScreen() {
             </View>
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ─────── 강제조치 확인 모달 ─────── */}
       {action && (
@@ -632,7 +630,7 @@ export default function OperatorDetailScreen() {
       <Modal visible={subModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setSubModal(false)}>
         <Pressable style={m.backdrop} onPress={() => setSubModal(false)}>
           <Pressable style={[m.sheet, { maxHeight: "85%" }]} onPress={() => {}}>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
               <View style={m.handle} />
               <Text style={m.title}>구독 직접 조정</Text>
               <Text style={{ fontSize: 12, color: "#64748B", fontFamily: "Pretendard-Regular", marginBottom: 12 }}>
@@ -686,7 +684,7 @@ export default function OperatorDetailScreen() {
                     : <Text style={m.confirmTxt}>저장</Text>}
                 </Pressable>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </Pressable>
         </Pressable>
       </Modal>

@@ -2,10 +2,9 @@ import { ChevronRight, Key, Lock, PenLine, Trash2, User, X } from "lucide-react-
 import { WithdrawalModal } from "@/components/common/WithdrawalModal";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Alert, Modal, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Modal, Pressable,
+  RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ROLE_CONFIGS } from "@/constants/auth";
@@ -121,7 +120,7 @@ export default function AdminMyInfoScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="내 정보" />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 60 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
@@ -205,7 +204,7 @@ export default function AdminMyInfoScreen() {
           </View>
         </View>
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ═══ 정보 편집 모달 ═══ */}
       <Modal visible={editVisible} animationType="slide" transparent presentationStyle="overFullScreen">

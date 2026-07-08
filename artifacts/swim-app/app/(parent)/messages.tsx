@@ -8,10 +8,9 @@ import { ChevronLeft, ChevronRight, MailOpen, Send } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Platform, Pressable,
+  RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
@@ -96,7 +95,7 @@ export default function MessagesScreen() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<KeyboardAwareScrollView>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const myId = parentAccount?.id ?? "";
 
@@ -201,12 +200,8 @@ export default function MessagesScreen() {
             </Pressable>
           }
         />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 60 : 0}
-        >
-          <ScrollView
+        <View style={{ flex: 1 }}>
+          <KeyboardAwareScrollView
             ref={scrollRef}
             style={{ flex: 1 }}
             contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 12 }}
@@ -262,7 +257,7 @@ export default function MessagesScreen() {
                 </View>
               );
             })}
-          </ScrollView>
+          </KeyboardAwareScrollView>
 
           <View style={[s.inputRow, { borderTopColor: C.border, paddingBottom: insets.bottom + 8 }]}>
             <TextInput
@@ -282,7 +277,7 @@ export default function MessagesScreen() {
               {sending ? <ActivityIndicator color="#fff" size="small" /> : <Send size={18} color="#fff" />}
             </Pressable>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </View>
     );
   }
@@ -295,7 +290,7 @@ export default function MessagesScreen() {
       {listLoading && threads.length === 0 ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
       ) : (
-        <ScrollView
+        <KeyboardAwareScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
           refreshControl={
@@ -386,7 +381,7 @@ export default function MessagesScreen() {
               ))}
             </>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
     </View>
   );

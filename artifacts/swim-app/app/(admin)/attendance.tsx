@@ -1,10 +1,9 @@
 import { Calendar, ChevronLeft, ChevronRight, CircleCheck, CircleX, Clock, Info, Lock, RefreshCw, Search, TriangleAlert, Users, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Platform, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Platform, Pressable,
+  StyleSheet, Text, TextInput, TouchableOpacity, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -363,7 +362,7 @@ export default function AttendanceScreen() {
 
   // ── 반 선택 탭 ───────────────────────────────────────────────
   const ClassTabs = (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}
+    <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 8 }}>
       {viewMode !== "monthly" && (
         <Pressable
@@ -382,7 +381,7 @@ export default function AttendanceScreen() {
           <Text style={[a.classTabText, { color: selectedClass === cg.id ? "#fff" : C.textSecondary }]}>{cg.name}</Text>
         </Pressable>
       ))}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 
   // ── 고정 상단 헤더 ───────────────────────────────────────────
@@ -439,7 +438,7 @@ export default function AttendanceScreen() {
               {loadingEligible ? (
                 <ActivityIndicator color={C.tint} style={{ marginTop: 16 }} />
               ) : (
-                <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
+                <KeyboardAwareScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
                   {eligibleClasses.length === 0 ? (
                     <Text style={[{ color: C.textMuted, textAlign: "center", marginTop: 24, fontFamily: "Pretendard-Regular" }]}>
                       보강 가능한 반이 없습니다
@@ -481,7 +480,7 @@ export default function AttendanceScreen() {
                       </TouchableOpacity>
                     );
                   })}
-                </ScrollView>
+                </KeyboardAwareScrollView>
               )}
               <Pressable
                 style={[a.confirmBtn, { backgroundColor: assignClassId ? C.tint : C.border, opacity: assigning ? 0.6 : 1 }]}
@@ -656,7 +655,7 @@ export default function AttendanceScreen() {
         </View>
 
         {/* 날짜 범위 필터 */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 10 }}>
           {SEARCH_DAY_OPTIONS.map(opt => (
             <Pressable
@@ -670,7 +669,7 @@ export default function AttendanceScreen() {
           <Pressable style={[a.chip, { backgroundColor: C.button, borderColor: C.button }]} onPress={runSearch}>
             <Text style={[a.chipText, { color: "#fff" }]}>검색</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         {loadingSearch ? (
           <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
@@ -783,8 +782,8 @@ export default function AttendanceScreen() {
         {loadingWeekly ? (
           <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
         ) : (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
+            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View>
                 <View style={[a.weekHeaderRow, { borderColor: C.border }]}>
                   <View style={[a.weekNameCell, { borderColor: C.border }]}>
@@ -830,8 +829,8 @@ export default function AttendanceScreen() {
                   </View>
                 ))}
               </View>
-            </ScrollView>
-          </ScrollView>
+            </KeyboardAwareScrollView>
+          </KeyboardAwareScrollView>
         )}
       </ScreenLayout>
     );

@@ -12,6 +12,7 @@ import { X } from "lucide-react-native";
 import { UploadQueueProvider, useUploadQueue } from "@/context/UploadQueueContext";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NoticePopup } from "@/components/common/NoticePopup";
 import { AuthProvider, useAuth, apiRequest } from "@/context/AuthContext";
@@ -515,6 +516,7 @@ export default function RootLayout() {
       <ErrorBoundary onError={(error, stack) => console.error("[ROOT_ERROR_BOUNDARY]", error?.message, stack)}>
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
+            <KeyboardProvider>
             <BrandProvider>
               <UploadQueueProvider>
                 <AuthProvider>
@@ -530,6 +532,7 @@ export default function RootLayout() {
                 </AuthProvider>
               </UploadQueueProvider>
             </BrandProvider>
+            </KeyboardProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>
       </ErrorBoundary>

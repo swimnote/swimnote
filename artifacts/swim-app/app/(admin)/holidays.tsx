@@ -8,10 +8,8 @@
 import { CheckCircle, ChevronLeft, ChevronRight, Info, X } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Alert, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -149,7 +147,7 @@ export default function HolidaysScreen() {
   return (
     <View style={s.safe}>
       <SubScreenHeader title="휴무일 관리" />
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 80 }}
         showsVerticalScrollIndicator={false}
       >
@@ -289,7 +287,7 @@ export default function HolidaysScreen() {
             </View>
           )
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* 사유 입력 모달 */}
       <Modal visible={reasonModal} transparent animationType="fade" onRequestClose={() => setReasonModal(false)}>

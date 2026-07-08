@@ -11,18 +11,15 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
+import {ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
-} from "react-native";
+  View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { API_BASE, safeJson, useAuth } from "@/context/AuthContext";
@@ -110,7 +107,7 @@ export default function SignupScreen() {
   const [loading, setLoading]       = useState(false);
   const [isPendingTeacher, setIsPendingTeacher] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({ pw: "", pwc: "", name: "", poolName: "" });
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<KeyboardAwareScrollView>(null);
   const hasFieldErrors = Object.values(fieldErrors).some(v => !!v);
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
@@ -787,7 +784,7 @@ export default function SignupScreen() {
   if (isPendingTeacher) {
     return (
       <View style={{ flex: 1, backgroundColor: C.background, paddingTop: insets.top, paddingBottom: insets.bottom + 24 }}>
-        <ScrollView
+        <KeyboardAwareScrollView
           contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
         >
@@ -832,14 +829,14 @@ export default function SignupScreen() {
           >
             <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" }}>로그인 화면으로 이동</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
     );
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView
+    <View style={{ flex: 1 }}>
+      <KeyboardAwareScrollView
         ref={scrollRef}
         style={[styles.root, { backgroundColor: C.background }]}
         contentContainerStyle={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }]}
@@ -899,8 +896,8 @@ export default function SignupScreen() {
             <Text style={{ color: C.tint, fontFamily: "Pretendard-Regular" }}>로그인</Text>
           </Text>
         </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 

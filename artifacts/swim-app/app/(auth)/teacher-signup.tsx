@@ -5,10 +5,9 @@ import {
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useRef, useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView,
-  Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator,
+  Platform, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { API_BASE, useAuth } from "@/context/AuthContext";
@@ -141,11 +140,8 @@ export default function TeacherSignupScreen() {
   const stepIndex  = step === "type" ? 0 : step === "pool" || step === "workspace" ? 1 : 2;
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: C.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
+    <View style={[styles.root, { backgroundColor: C.background }]}>
+      <KeyboardAwareScrollView
         contentContainerStyle={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -462,8 +458,8 @@ export default function TeacherSignupScreen() {
             )}
           </View>
         )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 

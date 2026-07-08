@@ -14,11 +14,10 @@ import { Anchor, Calendar, Check, ChevronLeft, ChevronRight, CircleAlert, Circle
 import { LucideIcon } from "@/components/common/LucideIcon";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, Alert, FlatList, Modal, Pressable,
-  RefreshControl, ScrollView, Share, StyleSheet, Switch,
-  Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Modal, Pressable,
+  RefreshControl, Share, StyleSheet, Switch,
+  Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -533,7 +532,7 @@ function CreateModal({
           <Text style={cr.title}>수동 백업 생성</Text>
           <View style={{ width: 24 }} />
         </View>
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
+        <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
           <View style={cr.infoBox}>
             <Info size={14} color="#0284C7" />
             <Text style={cr.infoTxt}>
@@ -554,7 +553,7 @@ function CreateModal({
             }
             <Text style={cr.confirmTxt}>{busy ? "백업 생성 중..." : "백업 생성"}</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </Modal>
   );
@@ -588,7 +587,7 @@ function RestoreModal({ target, onClose, onConfirm, busy }: {
           <Text style={rm.title}>데이터 복구</Text>
           <View style={{ width: 24 }} />
         </View>
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
+        <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
           <View style={rm.warningBox}>
             <TriangleAlert size={20} color={WARN} />
             <Text style={rm.warningTxt}>
@@ -619,7 +618,7 @@ function RestoreModal({ target, onClose, onConfirm, busy }: {
             {busy ? <ActivityIndicator color="#fff" size="small" /> : <RotateCcw size={16} color="#fff" />}
             <Text style={rm.confirmTxt}>{busy ? "처리 중..." : "복구 실행"}</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </Modal>
   );
@@ -852,7 +851,7 @@ function FullRestoreModal({
             </Pressable>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
+          <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
             {/* 1단계: 백업 시점 선택 */}
             <Text style={fr.stepTitle}>1단계 — 복구할 백업 시점 선택</Text>
             {backups.length === 0 ? (
@@ -860,7 +859,7 @@ function FullRestoreModal({
                 <Text style={fr.emptyTxt}>백업 기록이 없습니다. 먼저 백업을 생성하세요.</Text>
               </View>
             ) : (
-              <ScrollView style={fr.backupList} nestedScrollEnabled showsVerticalScrollIndicator>
+              <KeyboardAwareScrollView style={fr.backupList} nestedScrollEnabled showsVerticalScrollIndicator>
                 {backups.map(bk => (
                   <Pressable key={bk.id} style={[fr.backupItem, selectedBackup?.id === bk.id && fr.backupItemSel]}
                     onPress={() => setSelectedBackup(bk)}>
@@ -878,7 +877,7 @@ function FullRestoreModal({
                     )}
                   </Pressable>
                 ))}
-              </ScrollView>
+              </KeyboardAwareScrollView>
             )}
 
             {/* 선택된 백업 요약 */}
@@ -922,7 +921,7 @@ function FullRestoreModal({
               }
               <Text style={fr.execTxt}>{busy ? "복구 실행 중..." : "전체 복구 실행"}</Text>
             </Pressable>
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
       </SafeAreaView>
     </Modal>
@@ -1079,7 +1078,7 @@ function PoolRestoreModal({
             </Pressable>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}
+          <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}
             keyboardShouldPersistTaps="handled">
 
             {/* Step 1: 수영장 검색 */}
@@ -1136,7 +1135,7 @@ function PoolRestoreModal({
                 <Text style={fr.emptyTxt}>백업 기록이 없습니다.</Text>
               </View>
             ) : (
-              <ScrollView style={pr.backupList} nestedScrollEnabled showsVerticalScrollIndicator>
+              <KeyboardAwareScrollView style={pr.backupList} nestedScrollEnabled showsVerticalScrollIndicator>
                 {backups.map(bk => (
                   <Pressable key={bk.id}
                     style={[pr.backupItem, selectedBackup?.id === bk.id && pr.backupItemSel]}
@@ -1154,7 +1153,7 @@ function PoolRestoreModal({
                     )}
                   </Pressable>
                 ))}
-              </ScrollView>
+              </KeyboardAwareScrollView>
             )}
 
             {selectedBackup && (
@@ -1201,7 +1200,7 @@ function PoolRestoreModal({
               }
               <Text style={fr.execTxt}>{busy ? "복구 중..." : "수영장별 복구 실행"}</Text>
             </Pressable>
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
       </SafeAreaView>
     </Modal>
@@ -1440,7 +1439,7 @@ export default function BackupScreen() {
             {showSettings && <AutoBackupPanel token={token} />}
 
             {/* 탭 */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: 8, paddingHorizontal: 0 }}>
               {TABS.map(t => (
                 <Pressable key={t.key} style={[s.tab, activeTab === t.key && s.tabActive]}
@@ -1448,7 +1447,7 @@ export default function BackupScreen() {
                   <Text style={[s.tabTxt, activeTab === t.key && s.tabActiveTxt]}>{t.label}</Text>
                 </Pressable>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         }
         ListEmptyComponent={
