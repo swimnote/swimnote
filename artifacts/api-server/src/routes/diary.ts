@@ -46,8 +46,12 @@ async function getUserPoolId(userId: string): Promise<string | null> {
 }
 
 async function getUserDbRole(userId: string): Promise<string | null> {
-  const r = await superAdminDb.execute(sql`SELECT role FROM users WHERE id = ${userId} LIMIT 1`);
-  return (r.rows[0] as any)?.role || null;
+  const r = await superAdminDb.execute(sql`SELECT role, roles FROM users WHERE id = ${userId} LIMIT 1`);
+  const row = r.rows[0] as any;
+  if (!row) return null;
+  // roles 배열에 pool_admin이 있으면 pool_admin으로 취급 (선생님→관리자 권한 부여 케이스)
+  if (Array.isArray(row.roles) && row.roles.includes("pool_admin")) return "pool_admin";
+  return row.role || null;
 }
 
 async function getUserName(userId: string): Promise<string> {
@@ -1583,14 +1587,14 @@ router.get("/diaries/admin/teachers",
         (teacherRows.rows as any[]).map(async (t) => {
           try {
             const [cgRow, cdRow] = await Promise.all([
-              superAdminDb.execute(sql`
+              db.execute(sql`
                 SELECT COUNT(*) AS class_count
                 FROM class_groups
                 WHERE teacher_user_id = ${t.teacher_id}
                   AND swimming_pool_id = ${poolId}
                   AND is_deleted = false
               `),
-              superAdminDb.execute(sql`
+              db.execute(sql`
                 SELECT COUNT(*) AS diary_count, MAX(lesson_date) AS last_diary_date
                 FROM class_diaries
                 WHERE teacher_id = ${t.teacher_id}
