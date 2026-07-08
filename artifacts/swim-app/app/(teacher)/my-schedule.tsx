@@ -641,7 +641,14 @@ export default function MyScheduleScreen() {
           token={token}
           classGroups={groups}
           onClose={() => setDetailGroup(null)}
-          onDeleteClass={() => { setDeletingClass(detailGroup); setShowDeleteClassConfirm(true); }}
+          onDeleteClass={() => {
+            const target = detailGroup;
+            setDetailGroup(null); // 시트 먼저 닫기 (Modal 중첩 방지)
+            setTimeout(() => {
+              setDeletingClass(target);
+              setShowDeleteClassConfirm(true);
+            }, 350); // 슬라이드 애니메이션 완료 후 확인 모달 표시
+          }}
           onNavigateTo={navigateFromSheet}
           weekChangeLogs={viewMode === "weekly" ? weekChangeLogs : undefined}
           onColorChange={(id, color) =>
