@@ -87,6 +87,57 @@ function AppLoadingScreen() {
 }
 
 
+function OtaUpdateBanner({ ready }: { ready: boolean }) {
+  const insets = useSafeAreaInsets();
+  const [applying, setApplying] = useState(false);
+
+  if (!ready) return null;
+
+  async function applyUpdate() {
+    setApplying(true);
+    try { await Updates.reloadAsync(); } catch (_) { setApplying(false); }
+  }
+
+  return (
+    <View style={{
+      position: "absolute",
+      bottom: insets.bottom + 80,
+      left: 16, right: 16,
+      backgroundColor: "#1F8F86",
+      borderRadius: 16,
+      paddingVertical: 12, paddingHorizontal: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.18,
+      shadowRadius: 12,
+      elevation: 12,
+      zIndex: 9998,
+    }}>
+      <Text style={{ fontSize: 16 }}>🔄</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>업데이트 준비 완료</Text>
+        <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 1 }}>새 버전이 다운로드됐습니다</Text>
+      </View>
+      <Pressable
+        onPress={applyUpdate}
+        disabled={applying}
+        style={({ pressed }) => ({
+          backgroundColor: pressed ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.2)",
+          borderRadius: 10,
+          paddingVertical: 7, paddingHorizontal: 14,
+        })}
+      >
+        <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>
+          {applying ? "적용 중..." : "지금 적용"}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function UploadProgressBanner() {
   const { total, done, failed, isActive, dismiss } = useUploadQueue();
   const insets = useSafeAreaInsets();
@@ -292,25 +343,26 @@ function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute, refreshSession } = useAuth();
 
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
-  const isApplyingRef = useRef(false);
+  const isCheckingRef = useRef(false);
+  const [otaReady, setOtaReady] = useState(false);
 
-  // 앱 시작 시 OTA 체크
-  useEffect(() => {
-    if (__DEV__) return;
-    (async () => {
-      if (isApplyingRef.current) return;
-      isApplyingRef.current = true;
-      try {
-        const { isAvailable } = await Updates.checkForUpdateAsync();
-        if (isAvailable) {
-          await Updates.fetchUpdateAsync();
-          await Updates.reloadAsync();
-        }
-      } catch (_) {
-        isApplyingRef.current = false;
+  async function checkAndDownloadOta() {
+    if (__DEV__ || isCheckingRef.current) return;
+    isCheckingRef.current = true;
+    try {
+      const { isAvailable } = await Updates.checkForUpdateAsync();
+      if (isAvailable) {
+        await Updates.fetchUpdateAsync();
+        setOtaReady(true);
       }
-    })();
-  }, []);
+    } catch (_) {
+    } finally {
+      isCheckingRef.current = false;
+    }
+  }
+
+  // 앱 시작 시 OTA 백그라운드 다운로드
+  useEffect(() => { checkAndDownloadOta(); }, []);
 
   // 백그라운드 → 포그라운드 복귀 시 OTA 체크 + 세션 갱신
   useEffect(() => {
@@ -318,27 +370,12 @@ function RootNav() {
       const prev = appStateRef.current;
       appStateRef.current = nextState;
       if ((prev === "background" || prev === "inactive") && nextState === "active") {
-        // 세션 갱신 (권한/역할 변경 즉시 반영)
         refreshSession?.().catch(() => {});
-        isApplyingRef.current = false;
-        if (__DEV__) return;
-        (async () => {
-          if (isApplyingRef.current) return;
-          isApplyingRef.current = true;
-          try {
-            const { isAvailable } = await Updates.checkForUpdateAsync();
-            if (isAvailable) {
-              await Updates.fetchUpdateAsync();
-              await Updates.reloadAsync();
-            }
-          } catch (_) {
-            isApplyingRef.current = false;
-          }
-        })();
+        if (!otaReady) checkAndDownloadOta();
       }
     });
     return () => sub.remove();
-  }, [refreshSession]);
+  }, [refreshSession, otaReady]);
 
   // 앱 버전 체크 — 강제/소프트 업데이트 유도
   useEffect(() => {
@@ -470,6 +507,7 @@ function RootNav() {
           <ActivityIndicator size="large" color="#2EC4B6" />
         </View>
       )}
+      <OtaUpdateBanner ready={otaReady} />
     </View>
   );
 }
