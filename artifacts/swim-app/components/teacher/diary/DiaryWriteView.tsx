@@ -468,7 +468,7 @@ function TemplatePicker({
                       {!!t.title && <Text style={tp.itemTitle} numberOfLines={1}>{t.title}</Text>}
                       {t.is_overridden && <View style={tp.myBadge}><Text style={tp.myBadgeText}>내 수정</Text></View>}
                     </View>
-                    <Text style={tp.itemText} numberOfLines={3}>{t.template_text}</Text>
+                    <Text style={tp.itemText}>{t.template_text}</Text>
                   </Pressable>
                 ))}
                 {myNewItems.length > 0 && (
@@ -477,7 +477,7 @@ function TemplatePicker({
                     {myNewItems.map(t => (
                       <Pressable key={t.id} style={[tp.item, tp.itemTeacher]} onPress={() => onInsert(t.template_text)}>
                         {!!t.title && <Text style={[tp.itemTitle, { color: "#7C3AED" }]} numberOfLines={1}>{t.title}</Text>}
-                        <Text style={tp.itemText} numberOfLines={3}>{t.template_text}</Text>
+                        <Text style={tp.itemText}>{t.template_text}</Text>
                       </Pressable>
                     ))}
                   </>
@@ -505,7 +505,7 @@ const tp = StyleSheet.create({
   emptyBox:     { paddingTop: 32, alignItems: "center" },
   emptyText:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
   sectionLabel: { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#94A3B8", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 },
-  item:          { borderRadius: 10, padding: 12, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E5E7EB", gap: 4, marginBottom: 6 },
+  item:          { borderRadius: 10, padding: 16, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E5E7EB", gap: 4, marginBottom: 10 },
   itemTeacher:   { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" },
   itemOverridden:{ backgroundColor: "#FFF8EC", borderColor: "#FCD34D" },
   myBadge:       { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: "#FCD34D" },
