@@ -1,15 +1,14 @@
-import { BookOpen, CircleAlert, CirclePlus, CircleX, Images, Image, Save, User, Users, Video, Zap } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
+import { BookOpen, CircleAlert, CirclePlus, CircleX, Images, Image, Save, User, Users, Video } from "lucide-react-native";
 import React, { MutableRefObject, useState } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image as ExpoImage } from "expo-image";
 import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
-import { AlbumPhotoInfo, AlbumVideoInfo, DiaryTemplate, DiaryTemplateLevel, StudentNote, StudentOption, UploadedMedia } from "./types";
+import { AlbumPhotoInfo, AlbumVideoInfo, StudentNote, StudentOption, UploadedMedia } from "./types";
 import { API_BASE } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
 
@@ -17,7 +16,7 @@ const C = Colors.light;
 
 export default function DiaryWriteView({
   group, targetDate, themeColor, myDiaryExists,
-  templates, levels,
+
   commonContent, setCommonContent,
   classStudents,
   studentNotes,
@@ -36,7 +35,7 @@ export default function DiaryWriteView({
   token, onOpenAlbumPicker, selectedAlbumPhotos, onRemoveAlbumPhoto, selectedAlbumVideos, onRemoveAlbumVideo,
 }: {
   group: TeacherClassGroup; targetDate: string; themeColor: string; myDiaryExists: boolean;
-  templates: DiaryTemplate[]; levels: DiaryTemplateLevel[];
+
   commonContent: string; setCommonContent: (v: string) => void;
   classStudents: StudentOption[];
   studentNotes: StudentNote[];
@@ -66,8 +65,6 @@ export default function DiaryWriteView({
   selectedAlbumVideos: AlbumVideoInfo[];
   onRemoveAlbumVideo: (id: string) => void;
 }) {
-  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
-
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <KeyboardAwareScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -88,16 +85,6 @@ export default function DiaryWriteView({
             <Text style={s.cardSub}>모든 학생에게 공통으로 보이는 내용</Text>
           </View>
 
-          {levels.length > 0 && (
-            <Pressable
-              style={[s.templateBtn, { borderColor: themeColor }]}
-              onPress={() => setShowTemplatePicker(true)}
-            >
-              <Zap size={13} color={themeColor} />
-              <Text style={[s.templateBtnText, { color: themeColor }]}>템플릿 불러오기</Text>
-            </Pressable>
-          )}
-
           <TextInput style={[s.textarea, { borderColor: C.border, color: C.text }]}
             value={commonContent} onChangeText={setCommonContent}
             onSelectionChange={e => { commonCursorRef.current = e.nativeEvent.selection.start; }}
@@ -107,7 +94,7 @@ export default function DiaryWriteView({
             <Text style={s.charCount}>{commonContent.length}자</Text>
             <TouchableOpacity style={s.sentencePickBtn} onPress={() => setShowPickerFor("common")} activeOpacity={0.7}>
               <BookOpen size={13} color={C.tint} />
-              <Text style={s.sentencePickBtnText}>문장 불러오기</Text>
+              <Text style={s.sentencePickBtnText}>템플릿선택</Text>
             </TouchableOpacity>
           </View>
 
@@ -261,7 +248,7 @@ export default function DiaryWriteView({
                 placeholderTextColor={C.textMuted} multiline numberOfLines={3} textAlignVertical="top" autoFocus />
               <TouchableOpacity style={[s.sentencePickBtn, { alignSelf: "flex-start", marginTop: 6 }]} onPress={() => setShowPickerFor("note")} activeOpacity={0.7}>
                 <BookOpen size={13} color="#8B5CF6" />
-                <Text style={[s.sentencePickBtnText, { color: "#8B5CF6" }]}>문장 불러오기</Text>
+                <Text style={[s.sentencePickBtnText, { color: "#8B5CF6" }]}>템플릿선택</Text>
               </TouchableOpacity>
               <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
                 <Pressable style={[s.noteBtn, { borderColor: C.border }]} onPress={() => { setAddNoteStudent(null); setNoteInput(""); }}>
@@ -316,19 +303,6 @@ export default function DiaryWriteView({
         }}
       />
 
-      <TemplatePicker
-        visible={showTemplatePicker}
-        levels={levels}
-        templates={templates}
-        selectedLevelId={pickerLevelId}
-        onSelectLevel={setPickerLevelId}
-        themeColor={themeColor}
-        onInsert={(text) => {
-          setCommonContent(commonContent.trim() ? `${commonContent.trim()}\n\n${text}` : text);
-          setShowTemplatePicker(false);
-        }}
-        onClose={() => setShowTemplatePicker(false)}
-      />
     </KeyboardAvoidingView>
   );
 }
@@ -410,102 +384,3 @@ export const s = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: "#FFFFFF" },
 });
 
-function TemplatePicker({
-  visible, levels, templates, selectedLevelId, onSelectLevel, themeColor, onInsert, onClose,
-}: {
-  visible: boolean; levels: DiaryTemplateLevel[]; templates: DiaryTemplate[];
-  selectedLevelId: string | null; onSelectLevel: (id: string) => void;
-  themeColor: string; onInsert: (text: string) => void; onClose: () => void;
-}) {
-  // merged view: global_id != null → merged(global+override), global_id==null → 내 신규 추가
-  const baseItems    = selectedLevelId ? templates.filter(t => t.level_id === selectedLevelId && t.global_id !== null) : [];
-  const myNewItems   = selectedLevelId ? templates.filter(t => t.level_id === selectedLevelId && t.global_id === null) : [];
-  const totalCount   = baseItems.length + myNewItems.length;
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={tp.overlay}>
-        <Pressable style={{ flex: 1 }} onPress={onClose} />
-        <View style={tp.sheet}>
-          <View style={tp.handle} />
-          <View style={tp.header}>
-            <Text style={tp.headerTitle}>템플릿 불러오기</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
-              <LucideIcon name="x" size={18} color={C.textSecondary} />
-            </Pressable>
-          </View>
-
-          {levels.length > 0 && (
-            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={tp.tabRow}>
-              {levels.map(lv => (
-                <Pressable
-                  key={lv.id}
-                  style={[tp.tab, selectedLevelId === lv.id && { backgroundColor: themeColor + "20", borderColor: themeColor }]}
-                  onPress={() => onSelectLevel(lv.id)}
-                >
-                  <Text style={[tp.tabText, selectedLevelId === lv.id && { color: themeColor }]}>
-                    {lv.level_name}
-                  </Text>
-                </Pressable>
-              ))}
-            </KeyboardAwareScrollView>
-          )}
-
-          <KeyboardAwareScrollView style={tp.listScroll} contentContainerStyle={tp.listContent} keyboardShouldPersistTaps="handled">
-            {totalCount === 0 ? (
-              <View style={tp.emptyBox}>
-                <Text style={tp.emptyText}>이 레벨에 등록된 템플릿이 없습니다.</Text>
-              </View>
-            ) : (
-              <>
-                {baseItems.map(t => (
-                  <Pressable key={t.id} style={[tp.item, t.is_overridden && tp.itemOverridden]} onPress={() => onInsert(t.template_text)}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: t.is_overridden ? 2 : 0 }}>
-                      {!!t.title && <Text style={tp.itemTitle} numberOfLines={1}>{t.title}</Text>}
-                      {t.is_overridden && <View style={tp.myBadge}><Text style={tp.myBadgeText}>내 수정</Text></View>}
-                    </View>
-                    <Text style={tp.itemText}>{t.template_text}</Text>
-                  </Pressable>
-                ))}
-                {myNewItems.length > 0 && (
-                  <>
-                    <Text style={[tp.sectionLabel, { marginTop: baseItems.length > 0 ? 12 : 0 }]}>내 추가 항목</Text>
-                    {myNewItems.map(t => (
-                      <Pressable key={t.id} style={[tp.item, tp.itemTeacher]} onPress={() => onInsert(t.template_text)}>
-                        {!!t.title && <Text style={[tp.itemTitle, { color: "#7C3AED" }]} numberOfLines={1}>{t.title}</Text>}
-                        <Text style={tp.itemText}>{t.template_text}</Text>
-                      </Pressable>
-                    ))}
-                  </>
-                )}
-              </>
-            )}
-          </KeyboardAwareScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-const tp = StyleSheet.create({
-  overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "flex-end" },
-  sheet:       { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: 440 },
-  handle:      { width: 36, height: 4, borderRadius: 2, backgroundColor: "#E2E8F0", alignSelf: "center", marginTop: 10, marginBottom: 4 },
-  header:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  headerTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  tabRow:      { paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
-  tab:         { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, borderWidth: 1.5, borderColor: "#94A3B8" },
-  tabText:     { fontSize: 13, lineHeight: 18, color: "#1E293B" },
-  listScroll:  { flexShrink: 1 },
-  listContent: { padding: 12, gap: 8, paddingBottom: 24 },
-  emptyBox:     { paddingTop: 32, alignItems: "center" },
-  emptyText:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
-  sectionLabel: { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#94A3B8", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 },
-  item:          { borderRadius: 10, padding: 16, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E5E7EB", gap: 4, marginBottom: 10 },
-  itemTeacher:   { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" },
-  itemOverridden:{ backgroundColor: "#FFF8EC", borderColor: "#FCD34D" },
-  myBadge:       { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: "#FCD34D" },
-  myBadgeText:   { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#92400E" },
-  itemTitle:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
-  itemText:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
-});

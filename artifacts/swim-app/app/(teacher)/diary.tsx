@@ -600,7 +600,7 @@ export default function TeacherDiaryScreen() {
         {subView === "write" ? (
           <DiaryWriteView
             group={group} targetDate={targetDate} themeColor={themeColor} myDiaryExists={myDiaryExists}
-            templates={templates} levels={levels}
+
             commonContent={commonContent} setCommonContent={setCommonContent}
             classStudents={classStudents} studentNotes={studentNotes}
             addNoteStudent={addNoteStudent} setAddNoteStudent={setAddNoteStudent}

@@ -107,7 +107,7 @@ export default function DiaryEditView({
             <Text style={s.charCount}>{editContent.length}자</Text>
             <TouchableOpacity style={s.sentencePickBtn} onPress={() => setEditPickerFor("common")} activeOpacity={0.7}>
               <BookOpen size={13} color={C.tint} />
-              <Text style={s.sentencePickBtnText}>문장 불러오기</Text>
+              <Text style={s.sentencePickBtnText}>템플릿선택</Text>
             </TouchableOpacity>
           </View>
 
