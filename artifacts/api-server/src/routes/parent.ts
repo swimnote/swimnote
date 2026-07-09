@@ -541,24 +541,33 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
       )).limit(1);
     if (!link) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
 
-    const [student] = await db.select({ id: studentsTable.id, class_group_id: studentsTable.class_group_id })
+    const [student] = await db.select({ id: studentsTable.id, class_group_id: studentsTable.class_group_id, assigned_class_ids: (studentsTable as any).assigned_class_ids })
       .from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
-    if (!student?.class_group_id) { res.json([]); return; }
+    if (!student) { res.json([]); return; }
+
+    // 학생이 배정된 모든 반 ID 수집 (주2회 이상 = 여러 반)
+    const assignedIds: string[] = Array.isArray(student.assigned_class_ids) ? student.assigned_class_ids : [];
+    const allClassIds: string[] = Array.from(new Set([
+      ...(student.class_group_id ? [student.class_group_id] : []),
+      ...assignedIds,
+    ]));
+    if (!allClassIds.length) { res.json([]); return; }
 
     const { month } = req.query;
+    const idsLiteral = allClassIds.map(id => `'${id.replace(/'/g, "''")}'`).join(",");
 
-    // 공통 일지 조회 (삭제된 것 제외)
-    const diaryRows = await db.execute(sql`
+    // 공통 일지 조회 (삭제된 것 제외) — 배정된 모든 반 포함
+    const diaryRows = await db.execute(sql.raw(`
       SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at,
-             cg.name AS class_group_name
+             cd.class_group_id, cg.name AS class_group_name
       FROM class_diaries cd
       LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
-      WHERE cd.class_group_id = ${student.class_group_id}
+      WHERE cd.class_group_id IN (${idsLiteral})
         AND cd.is_deleted = false
-        ${month ? sql`AND cd.lesson_date LIKE ${month + "%"}` : sql``}
+        ${month ? `AND cd.lesson_date LIKE '${(month as string).replace(/'/g, "''")}%'` : ""}
       ORDER BY cd.lesson_date DESC, cd.created_at DESC
-      LIMIT 50
-    `);
+      LIMIT 100
+    `));
 
     // 각 일지에서 해당 학생의 추가 일지 조인
     const result = await Promise.all((diaryRows.rows as any[]).map(async (diary) => {
@@ -573,7 +582,7 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
         lesson_date: diary.lesson_date,
         common_content: diary.common_content,
         teacher_name: diary.teacher_name,
-        class_group_id: student.class_group_id,
+        class_group_id: diary.class_group_id,
         class_group_name: diary.class_group_name || null,
         is_edited: diary.is_edited,
         created_at: diary.created_at,
@@ -596,21 +605,30 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
     const studentIds = links.map(l => l.student_id);
     const studentsData: any[] = [];
     for (const sid of studentIds) {
-      const [s] = await db.select({ id: studentsTable.id, class_group_id: studentsTable.class_group_id, name: studentsTable.name })
+      const [s] = await db.select({ id: studentsTable.id, class_group_id: studentsTable.class_group_id, name: studentsTable.name, assigned_class_ids: (studentsTable as any).assigned_class_ids })
         .from(studentsTable).where(eq(studentsTable.id, sid)).limit(1);
-      if (s?.class_group_id) studentsData.push(s);
+      if (s) studentsData.push(s);
     }
     if (!studentsData.length) { res.json([]); return; }
 
     const result: any[] = [];
     for (const student of studentsData) {
-      const diaryRows = await db.execute(sql`
+      // 배정된 모든 반 ID 수집 (주2회 이상 = 여러 반)
+      const assignedIds: string[] = Array.isArray(student.assigned_class_ids) ? student.assigned_class_ids : [];
+      const allClassIds: string[] = Array.from(new Set([
+        ...(student.class_group_id ? [student.class_group_id] : []),
+        ...assignedIds,
+      ]));
+      if (!allClassIds.length) continue;
+      const idsLiteral = allClassIds.map(id => `'${id.replace(/'/g, "''")}'`).join(",");
+
+      const diaryRows = await db.execute(sql.raw(`
         SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at, cd.class_group_id
         FROM class_diaries cd
-        WHERE cd.class_group_id = ${student.class_group_id} AND cd.is_deleted = false
+        WHERE cd.class_group_id IN (${idsLiteral}) AND cd.is_deleted = false
         ORDER BY cd.lesson_date DESC, cd.created_at DESC
-        LIMIT 20
-      `);
+        LIMIT 40
+      `));
       for (const diary of diaryRows.rows as any[]) {
         const noteRows = await db.execute(sql`
           SELECT id, note_content, is_edited FROM class_diary_student_notes
@@ -623,7 +641,7 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
       }
     }
     result.sort((a, b) => b.lesson_date.localeCompare(a.lesson_date));
-    res.json(result.slice(0, 50));
+    res.json(result.slice(0, 100));
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
