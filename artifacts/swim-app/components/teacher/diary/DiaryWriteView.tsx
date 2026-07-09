@@ -248,10 +248,36 @@ export default function DiaryWriteView({
                 onSelectionChange={e => { noteCursorRef.current = e.nativeEvent.selection.start; }}
                 placeholder="이 학생에게 전달할 추가 내용을 입력하세요"
                 placeholderTextColor={C.textMuted} multiline numberOfLines={3} textAlignVertical="top" autoFocus />
-              <TouchableOpacity style={[s.sentencePickBtn, { alignSelf: "flex-start", marginTop: 6 }]} onPress={() => setShowPickerFor("note")} activeOpacity={0.7}>
-                <BookOpen size={13} color="#8B5CF6" />
-                <Text style={[s.sentencePickBtnText, { color: "#8B5CF6" }]}>템플릿선택</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
+                <TouchableOpacity style={[s.sentencePickBtn]} onPress={() => setShowPickerFor("note")} activeOpacity={0.7}>
+                  <BookOpen size={13} color="#8B5CF6" />
+                  <Text style={[s.sentencePickBtnText, { color: "#8B5CF6" }]}>템플릿선택</Text>
+                </TouchableOpacity>
+                <Pressable
+                  style={[s.mediaBtn, { backgroundColor: "#F3E8FF", borderWidth: 1, borderColor: "#C4B5FD" }]}
+                  onPress={() => onUploadStudentMedia(addNoteStudent, "photo")}
+                  disabled={mediaUploading === addNoteStudent.id}
+                >
+                  {mediaUploading === addNoteStudent.id
+                    ? <ActivityIndicator size="small" color="#7C3AED" />
+                    : <><Image size={13} color="#7C3AED" /><Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개인 사진 추가</Text></>}
+                </Pressable>
+              </View>
+              {(studentMedia[addNoteStudent.id] ?? []).length > 0 && (
+                <View style={[s.mediaPreviewRow, { marginTop: 6 }]}>
+                  {(studentMedia[addNoteStudent.id] ?? []).map((m, i) => (
+                    <View key={i} style={s.mediaThumb}>
+                      {m.uri && m.kind === "photo" ? (
+                        <ExpoImage source={{ uri: m.uri }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
+                      ) : (
+                        <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "image"} size={16}
+                          color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#7C3AED"} />
+                      )}
+                      {m.uploading && <ActivityIndicator size="small" color="#7C3AED" style={{ position: "absolute" }} />}
+                    </View>
+                  ))}
+                </View>
+              )}
               <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
                 <Pressable style={[s.noteBtn, { borderColor: C.border }]} onPress={() => { setAddNoteStudent(null); setNoteInput(""); }}>
                   <Text style={{ color: C.textSecondary, fontFamily: "Pretendard-Regular", fontSize: 13 }}>취소</Text>
