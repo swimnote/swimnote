@@ -264,7 +264,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         // 네트워크 오류(오프라인/DNS 실패) → 일시적 문제이므로 세션 유지하고 진행
       }
 
-      setToken(storedToken);
       if (storedKind === "admin" && storedAdmin) {
         const stored: AdminUser = JSON.parse(storedAdmin);
         // 서버에서 받은 최신 데이터로 roles 등 동기화 (권한 변경 즉시 반영)
@@ -276,11 +275,47 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         AsyncStorage.setItem("auth_admin", JSON.stringify(user)).catch(() => {});
         setAdminUser(user);
         setKind("admin");
-        if (user.swimming_pool_id) fetchPool(storedToken).catch(e => console.warn("[fetchPool 실패] loadStored admin fetchPool 실패:", e?.message));
+
+        // JWT role 정규화: 저장된 토큰의 role이 DB role(freshUserData.role)과 다를 경우
+        // (예: teacher 전환 후 앱 재시작 → pool_admin이어야 하는데 teacher 토큰 복원)
+        // → /auth/switch-role로 올바른 role의 토큰으로 자동 교체
+        let activeToken = storedToken;
+        if (freshUserData?.role) {
+          try {
+            const parts = storedToken.split(".");
+            if (parts.length === 3) {
+              const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+              const padded = b64 + "=".repeat((4 - b64.length % 4) % 4);
+              const payload = JSON.parse(atob(padded));
+              if (payload.role && payload.role !== freshUserData.role) {
+                console.log(`[SESSION] JWT role(${payload.role}) ≠ DB role(${freshUserData.role}) → /auth/switch-role 호출`);
+                const switchRes = await fetch(`${API_BASE}/auth/switch-role`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${storedToken}` },
+                  body: JSON.stringify({ role: freshUserData.role }),
+                });
+                if (switchRes.ok) {
+                  const switchData = await switchRes.json().catch(() => ({}));
+                  if (switchData.token) {
+                    activeToken = switchData.token;
+                    await AsyncStorage.setItem("auth_token", activeToken);
+                    console.log(`[SESSION] 토큰 role 정규화 완료 → ${freshUserData.role}`);
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("[SESSION] JWT role 정규화 실패:", e);
+          }
+        }
+
+        setToken(activeToken);
+        if (user.swimming_pool_id) fetchPool(activeToken).catch(e => console.warn("[fetchPool 실패] loadStored admin fetchPool 실패:", e?.message));
         // 앱 복원 라우팅 — 로그인 완료와 동일한 finishLogin 경로로 통합
         // await: onboarding/policy 체크 동안 isLoading=true 유지 → AppLoadingScreen 표시
-        await finishLogin("admin", user, null, storedToken);
+        await finishLogin("admin", user, null, activeToken);
       } else if (storedKind === "parent" && storedParent) {
+        setToken(storedToken);
         const pa: ParentAccount = JSON.parse(storedParent);
         setParentAccount(pa);
         setKind("parent");

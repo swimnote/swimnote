@@ -9,3 +9,4 @@
 - [학생 목록 성능 최적화](students-perf.md) — getPoolId DB 조회 → 토큰 poolId 우선 사용; SQL ORDER BY 추가로 JS sort 제거; pool_status/pool_created 복합 인덱스 추가
 - [EAS 빌드 tarball 구조 및 패치](eas-build-tarball.md) — tarball은 workspace root 기준 project/artifacts/swim-app/ 구조; git.js 3개 메서드 no-op 패치; lockfile 없음+.npmrc frozen-lockfile=false가 안정적
 - [_layout.tsx otaReady 미선언 크래시](layout-otaReady-bug.md) — RootNav에서 otaReady 변수 선언 없이 참조 → ReferenceError → 앱 크래시; const otaReady = false 추가로 해결
+- [JWT role 정규화 버그](jwt-role-normalization.md) — teacher 전환 후 앱 재시작 시 teacher 토큰이 pool_admin API 호출에 사용 → 403 → 대시보드 "—"; loadStored에서 JWT role vs DB role 비교 후 자동 교체로 해결
