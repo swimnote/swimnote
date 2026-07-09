@@ -1038,4 +1038,35 @@ router.post(
   }
 );
 
+// ── POST /photos/note-attach — 선택 사진 student_note_id 연결 ──────────────────
+router.post("/photos/note-attach", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.user!;
+    const { note_id, photo_ids } = req.body as { note_id: string; photo_ids: string[] };
+
+    if (!note_id || !Array.isArray(photo_ids) || photo_ids.length === 0) {
+      res.status(400).json({ error: "note_id와 photo_ids가 필요합니다." }); return;
+    }
+
+    const poolId = await getUserPoolId(userId);
+    if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
+
+    const literal = `{${photo_ids.join(",")}}`;
+    const checkRow = await db.execute(sql`
+      SELECT COUNT(*)::int AS cnt FROM photo_assets_meta
+      WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
+    `);
+    if (Number((checkRow.rows[0] as any)?.cnt ?? 0) !== photo_ids.length) {
+      res.status(403).json({ error: "일부 사진에 대한 접근 권한이 없습니다." }); return;
+    }
+
+    await db.execute(sql`
+      UPDATE photo_assets_meta SET student_note_id = ${note_id}
+      WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
+    `);
+
+    res.json({ updated: photo_ids.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
 export default router;

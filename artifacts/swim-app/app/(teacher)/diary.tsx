@@ -124,6 +124,10 @@ export default function TeacherDiaryScreen() {
   const [selectedAlbumIds,    setSelectedAlbumIds]    = useState<string[]>([]);
   const [selectedAlbumPhotos, setSelectedAlbumPhotos] = useState<AlbumPhotoInfo[]>([]);
 
+  const [showStudentAlbumPicker,     setShowStudentAlbumPicker]     = useState(false);
+  const [studentAlbumPickerTarget,   setStudentAlbumPickerTarget]   = useState<StudentOption | null>(null);
+  const [studentAlbumPhotos,         setStudentAlbumPhotos]         = useState<Record<string, AlbumPhotoInfo[]>>({});
+
   const [selectedAlbumVideos,  setSelectedAlbumVideos]  = useState<AlbumVideoInfo[]>([]);
 
   const [showEditAlbumPicker,  setShowEditAlbumPicker]  = useState(false);
@@ -380,7 +384,20 @@ export default function TeacherDiaryScreen() {
           body: JSON.stringify({ diary_id: data.id, video_ids: selectedAlbumVideos.map(v => v.id) }),
         }).catch(() => {});
       }
+      // 학생별 앨범 사진 연결
+      if (data.student_notes && Array.isArray(data.student_notes)) {
+        for (const note of data.student_notes) {
+          const photos = studentAlbumPhotos[note.student_id] ?? [];
+          if (photos.length > 0) {
+            await apiRequest(token, "/photos/note-attach", {
+              method: "POST",
+              body: JSON.stringify({ note_id: note.id, photo_ids: photos.map((p: AlbumPhotoInfo) => p.id) }),
+            }).catch(() => {});
+          }
+        }
+      }
       setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
+      setStudentAlbumPhotos({});
       setDiarySet(prev => new Set([...prev, selectedGroup.id]));
       if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => {});
       setHasDraft(false);
@@ -625,6 +642,9 @@ export default function TeacherDiaryScreen() {
             }}
             selectedAlbumVideos={selectedAlbumVideos}
             onRemoveAlbumVideo={(id) => setSelectedAlbumVideos(prev => prev.filter(v => v.id !== id))}
+            onOpenStudentAlbumPicker={(student) => { setStudentAlbumPickerTarget(student); setShowStudentAlbumPicker(true); }}
+            studentAlbumPhotos={studentAlbumPhotos}
+            onRemoveStudentAlbumPhoto={(studentId, photoId) => setStudentAlbumPhotos(prev => ({ ...prev, [studentId]: (prev[studentId] ?? []).filter(p => p.id !== photoId) }))}
           />
         ) : (
           <DiaryHistoryList
@@ -659,6 +679,19 @@ export default function TeacherDiaryScreen() {
           initialSelected={selectedAlbumIds}
           onConfirm={({ photos, videos }) => { setSelectedAlbumIds(photos.map(p => p.id)); setSelectedAlbumPhotos(photos); setSelectedAlbumVideos(videos); setShowAlbumPicker(false); }}
           onClose={() => setShowAlbumPicker(false)}
+        />
+        <AlbumPickerModal
+          visible={showStudentAlbumPicker}
+          token={token || ""}
+          initialSelected={studentAlbumPickerTarget ? (studentAlbumPhotos[studentAlbumPickerTarget.id] ?? []).map(p => p.id) : []}
+          onConfirm={({ photos }) => {
+            if (studentAlbumPickerTarget) {
+              setStudentAlbumPhotos(prev => ({ ...prev, [studentAlbumPickerTarget.id]: photos }));
+            }
+            setShowStudentAlbumPicker(false);
+            setStudentAlbumPickerTarget(null);
+          }}
+          onClose={() => { setShowStudentAlbumPicker(false); setStudentAlbumPickerTarget(null); }}
         />
         <ConfirmModal
           visible={showStorageModal}

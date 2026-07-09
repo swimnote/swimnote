@@ -33,6 +33,7 @@ export default function DiaryWriteView({
   onAddNote, onRemoveNote,
   insertAtCursor,
   token, onOpenAlbumPicker, selectedAlbumPhotos, onRemoveAlbumPhoto, selectedAlbumVideos, onRemoveAlbumVideo,
+  onOpenStudentAlbumPicker, studentAlbumPhotos, onRemoveStudentAlbumPhoto,
 }: {
   group: TeacherClassGroup; targetDate: string; themeColor: string; myDiaryExists: boolean;
 
@@ -64,6 +65,9 @@ export default function DiaryWriteView({
   onRemoveAlbumPhoto: (id: string) => void;
   selectedAlbumVideos: AlbumVideoInfo[];
   onRemoveAlbumVideo: (id: string) => void;
+  onOpenStudentAlbumPicker: (student: StudentOption) => void;
+  studentAlbumPhotos: Record<string, AlbumPhotoInfo[]>;
+  onRemoveStudentAlbumPhoto: (studentId: string, photoId: string) => void;
 }) {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -255,26 +259,21 @@ export default function DiaryWriteView({
                 </TouchableOpacity>
                 <Pressable
                   style={[s.mediaBtn, { backgroundColor: "#F3E8FF", borderWidth: 1, borderColor: "#C4B5FD" }]}
-                  onPress={() => onUploadStudentMedia(addNoteStudent, "photo")}
-                  disabled={mediaUploading === addNoteStudent.id}
+                  onPress={() => onOpenStudentAlbumPicker(addNoteStudent)}
                 >
-                  {mediaUploading === addNoteStudent.id
-                    ? <ActivityIndicator size="small" color="#7C3AED" />
-                    : <><Image size={13} color="#7C3AED" /><Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개인 사진 추가</Text></>}
+                  <Images size={13} color="#7C3AED" />
+                  <Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개인 사진 추가</Text>
                 </Pressable>
               </View>
-              {(studentMedia[addNoteStudent.id] ?? []).length > 0 && (
+              {(studentAlbumPhotos[addNoteStudent.id] ?? []).length > 0 && (
                 <View style={[s.mediaPreviewRow, { marginTop: 6 }]}>
-                  {(studentMedia[addNoteStudent.id] ?? []).map((m, i) => (
-                    <View key={i} style={s.mediaThumb}>
-                      {m.uri && m.kind === "photo" ? (
-                        <ExpoImage source={{ uri: m.uri }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
-                      ) : (
-                        <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "image"} size={16}
-                          color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#7C3AED"} />
-                      )}
-                      {m.uploading && <ActivityIndicator size="small" color="#7C3AED" style={{ position: "absolute" }} />}
-                    </View>
+                  {(studentAlbumPhotos[addNoteStudent.id] ?? []).map((p) => (
+                    <Pressable key={p.id} style={s.mediaThumb} onPress={() => onRemoveStudentAlbumPhoto(addNoteStudent.id, p.id)}>
+                      <ExpoImage source={{ uri: p.presigned_url || p.file_url }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
+                      <View style={{ position: "absolute", top: 2, right: 2, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 8 }}>
+                        <CircleX size={14} color="#fff" />
+                      </View>
+                    </Pressable>
                   ))}
                 </View>
               )}
