@@ -293,13 +293,26 @@ function PushNavSync() {
  * 목적지 계산: SessionContext.computeLoginDest() (API 대기 없음)
  */
 
+const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10분
+
+function getRoleHome(kind: string | null, role?: string): string {
+  if (kind === "parent") return "/(parent)/home";
+  if (kind === "admin") {
+    if (role === "super_admin" || role === "platform_admin" || role === "super_manager") return "/(super)/dashboard";
+    if (role === "teacher") return "/(teacher)/today-schedule";
+    return "/(admin)/dashboard";
+  }
+  return "/";
+}
+
 function RootNav() {
-  const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute, refreshSession } = useAuth();
+  const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute, refreshSession, adminUser } = useAuth();
   const pathname = usePathname();
 
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const isCheckingRef = useRef(false);
   const pathnameRef = useRef(pathname);
+  const backgroundAtRef = useRef<number | null>(null);
   const otaReady = false;
 
   useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
@@ -323,21 +336,37 @@ function RootNav() {
     }
   }
 
-  // 앱 시작 시 OTA 백그라운드 다운로드
+  // 앱 시작 시에만 OTA 체크 (백그라운드 복귀 시 제거 — 재시작 튕김 방지)
   useEffect(() => { checkAndDownloadOta(); }, []);
 
-  // 백그라운드 → 포그라운드 복귀 시 OTA 체크 + 세션 갱신
+  // 백그라운드 → 포그라운드 복귀 처리
+  // - 10분 미만: 현재 화면 유지 (세션 갱신만)
+  // - 10분 이상: 역할 홈으로 이동 (데이터 재로딩)
   useEffect(() => {
     const sub = AppState.addEventListener("change", (nextState: AppStateStatus) => {
       const prev = appStateRef.current;
       appStateRef.current = nextState;
+
+      // 백그라운드 진입 시각 기록
+      if (nextState === "background") {
+        backgroundAtRef.current = Date.now();
+      }
+
       if ((prev === "background" || prev === "inactive") && nextState === "active") {
         refreshSession?.().catch(() => {});
-        if (!otaReady) checkAndDownloadOta();
+
+        const bgAt = backgroundAtRef.current;
+        backgroundAtRef.current = null;
+        if (bgAt && Date.now() - bgAt >= IDLE_TIMEOUT_MS) {
+          // 10분 이상 → 역할 홈으로 이동
+          const home = getRoleHome(kind, adminUser?.role);
+          router.replace(home as any);
+        }
+        // 10분 미만 → 아무것도 하지 않음 (현재 화면 유지)
       }
     });
     return () => sub.remove();
-  }, [refreshSession, otaReady]);
+  }, [refreshSession, kind, adminUser?.role]);
 
   // 앱 버전 체크 — 강제/소프트 업데이트 유도
   useEffect(() => {
