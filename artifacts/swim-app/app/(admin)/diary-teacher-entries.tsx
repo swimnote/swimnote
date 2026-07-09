@@ -66,6 +66,7 @@ export default function DiaryTeacherEntriesScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [collapsedTeachers, setCollapsedTeachers] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -112,6 +113,23 @@ export default function DiaryTeacherEntriesScreen() {
       data,
     }));
   }, [entries]);
+
+  // 접기 상태에 따라 data를 빈 배열로 교체
+  const displaySections = useMemo(() =>
+    sections.map(s => ({
+      ...s,
+      data: collapsedTeachers.has(s.title) ? [] : s.data,
+    })),
+  [sections, collapsedTeachers]);
+
+  function toggleTeacherCollapse(title: string) {
+    setCollapsedTeachers(prev => {
+      const next = new Set(prev);
+      if (next.has(title)) next.delete(title);
+      else next.add(title);
+      return next;
+    });
+  }
 
   function toggleSelect(id: string) {
     setSelected(prev => {
@@ -239,14 +257,24 @@ export default function DiaryTeacherEntriesScreen() {
 
   const renderSectionHeader = useCallback(({ section }: { section: Section }) => {
     const color = teacherColor(section.title);
+    const isCollapsed = collapsedTeachers.has(section.title);
+    const originalCount = sections.find(s => s.title === section.title)?.data.length ?? section.data.length;
     return (
-      <View style={[s.sectionHeader, { backgroundColor: C.background }]}>
+      <Pressable
+        style={[s.sectionHeader, { backgroundColor: C.background }]}
+        onPress={() => toggleTeacherCollapse(section.title)}
+        hitSlop={8}
+      >
         <View style={[s.sectionDot, { backgroundColor: color }]} />
         <Text style={[s.sectionTitle, { color }]}>{section.title} 선생님</Text>
-        <Text style={[s.sectionCount, { color: C.textMuted }]}>{section.data.length}건</Text>
-      </View>
+        <Text style={[s.sectionCount, { color: C.textMuted }]}>{originalCount}건</Text>
+        {isCollapsed
+          ? <ChevronDown size={15} color={C.textMuted} style={{ marginLeft: 4 }} />
+          : <ChevronUp size={15} color={C.textMuted} style={{ marginLeft: 4 }} />
+        }
+      </Pressable>
     );
-  }, []);
+  }, [collapsedTeachers, sections]);
 
   const keyExtractor = useCallback((item: DiaryEntry) => item.id, []);
 
@@ -316,7 +344,7 @@ export default function DiaryTeacherEntriesScreen() {
         </View>
       ) : (
         <SectionList
-          sections={sections}
+          sections={displaySections}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
           renderSectionHeader={renderSectionHeader}
