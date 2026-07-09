@@ -1533,8 +1533,7 @@ router.get("/diaries/admin/all-entries",
           cg.name AS class_name,
           cg.schedule_days,
           cg.schedule_time,
-          (SELECT COUNT(*)::int FROM class_diary_student_notes csn
-           WHERE csn.diary_id = cd.id AND csn.is_deleted = false) AS note_count
+          0 AS note_count
         FROM class_diaries cd
         LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
         WHERE cd.swimming_pool_id = ${poolId}
@@ -1655,7 +1654,7 @@ router.get("/diaries/admin/teacher/:teacherId/entries",
           cd.is_edited, cd.is_deleted, cd.created_at, cd.deleted_at,
           cg.name AS class_name,
           cg.schedule_days, cg.schedule_time,
-          (SELECT COUNT(*) FROM class_diary_student_notes csn WHERE csn.diary_id = cd.id AND csn.is_deleted = false) AS note_count
+          0 AS note_count
         FROM class_diaries cd
         LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
         WHERE cd.teacher_id = ${teacherId} AND cd.swimming_pool_id = ${poolId} AND cd.is_deleted = false
