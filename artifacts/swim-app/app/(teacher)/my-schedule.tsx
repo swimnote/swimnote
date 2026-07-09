@@ -116,10 +116,9 @@ export default function MyScheduleScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // 탭 전환 후 복귀 시 stuck Modal 상태 초기화
+  // 탭 전환 후 복귀 시 stuck loading 상태만 초기화
+  // (showDeleteClassConfirm/deletingClass는 ClassDetailSheet Modal 닫힘 → focus 이벤트 경쟁 조건으로 삭제 흐름을 방해하므로 여기서 리셋 금지)
   useFocusEffect(useCallback(() => {
-    setShowDeleteClassConfirm(false);
-    setDeletingClass(null);
     setDeletingClassLoading(false);
   }, []));
 
