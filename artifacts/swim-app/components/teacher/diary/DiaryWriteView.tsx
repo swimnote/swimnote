@@ -262,7 +262,7 @@ export default function DiaryWriteView({
                   onPress={() => onOpenStudentAlbumPicker(addNoteStudent)}
                 >
                   <Images size={13} color="#7C3AED" />
-                  <Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개인 사진 추가</Text>
+                  <Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>앨범에서 선택</Text>
                 </Pressable>
               </View>
               {(studentAlbumPhotos[addNoteStudent.id] ?? []).length > 0 && (
