@@ -67,7 +67,6 @@ export default function DiaryWriteView({
   onRemoveAlbumVideo: (id: string) => void;
 }) {
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
-  const [pickerLevelId, setPickerLevelId] = useState<string | null>(null);
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -92,10 +91,7 @@ export default function DiaryWriteView({
           {levels.length > 0 && (
             <Pressable
               style={[s.templateBtn, { borderColor: themeColor }]}
-              onPress={() => {
-                if (!pickerLevelId && levels.length > 0) setPickerLevelId(levels[0].id);
-                setShowTemplatePicker(true);
-              }}
+              onPress={() => setShowTemplatePicker(true)}
             >
               <Zap size={13} color={themeColor} />
               <Text style={[s.templateBtnText, { color: themeColor }]}>템플릿 불러오기</Text>
