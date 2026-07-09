@@ -99,14 +99,14 @@ export default function DiaryWriteView({
           </View>
 
           <View style={s.mediaRow}>
+            <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={onOpenAlbumPicker}>
+              <Images size={14} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
+            </Pressable>
             <Pressable style={[s.mediaBtn, { backgroundColor: "#FFF1BF" }]} onPress={() => onUploadGroupMedia("photo")} disabled={mediaUploading === "group"}>
               {mediaUploading === "group" ? <ActivityIndicator size="small" color="#E4A93A" /> : <><Image size={14} color="#E4A93A" /><Text style={[s.mediaBtnText, { color: "#E4A93A" }]}>반 사진 추가</Text></>}
             </Pressable>
             <Pressable style={[s.mediaBtn, { backgroundColor: "#E6FFFA" }]} onPress={() => onUploadGroupMedia("video")} disabled={mediaUploading === "group"}>
               <Video size={14} color="#2EC4B6" /><Text style={[s.mediaBtnText, { color: "#2EC4B6" }]}>반 영상 추가</Text>
-            </Pressable>
-            <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={onOpenAlbumPicker}>
-              <Images size={14} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
             </Pressable>
           </View>
           {groupMedia.length > 0 && (
@@ -196,20 +196,22 @@ export default function DiaryWriteView({
                     </Pressable>
                   </View>
                   <Text style={s.noteContent} numberOfLines={2}>{note.note_content}</Text>
-                  <View style={[s.mediaRow, { marginTop: 2 }]}>
-                    <Pressable style={[s.mediaBtn, { backgroundColor: "#EEDDF5" }]} onPress={() => onUploadStudentMedia(st, "photo")} disabled={mediaUploading === note.student_id}>
-                      {mediaUploading === note.student_id ? <ActivityIndicator size="small" color="#7C3AED" /> : <><Image size={13} color="#7C3AED" /><Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개별 사진</Text></>}
-                    </Pressable>
-                    <Pressable style={[s.mediaBtn, { backgroundColor: "#EEDDF5" }]} onPress={() => onUploadStudentMedia(st, "video")} disabled={mediaUploading === note.student_id}>
-                      <Video size={13} color="#7C3AED" /><Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개별 영상</Text>
+                  <View style={[s.mediaRow, { marginTop: 4 }]}>
+                    <Pressable style={[s.mediaBtn, { backgroundColor: "#F3E8FF", borderWidth: 1, borderColor: "#C4B5FD" }]} onPress={() => onUploadStudentMedia(st, "photo")} disabled={mediaUploading === note.student_id}>
+                      {mediaUploading === note.student_id ? <ActivityIndicator size="small" color="#7C3AED" /> : <><Image size={13} color="#7C3AED" /><Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개인 사진 추가</Text></>}
                     </Pressable>
                   </View>
                   {stMedia.length > 0 && (
                     <View style={s.mediaPreviewRow}>
                       {stMedia.map((m, i) => (
                         <View key={i} style={s.mediaThumb}>
-                          <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : (m.kind === "photo" ? "image" : "video")} size={16}
-                            color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#7C3AED"} />
+                          {m.uri && m.kind === "photo" ? (
+                            <ExpoImage source={{ uri: m.uri }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
+                          ) : (
+                            <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : (m.kind === "photo" ? "image" : "video")} size={16}
+                              color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#7C3AED"} />
+                          )}
+                          {m.uploading && <ActivityIndicator size="small" color="#7C3AED" style={{ position: "absolute" }} />}
                         </View>
                       ))}
                     </View>
