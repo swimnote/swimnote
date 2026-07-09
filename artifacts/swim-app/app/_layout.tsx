@@ -297,6 +297,7 @@ function RootNav() {
 
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const isCheckingRef = useRef(false);
+  const otaReady = false;
 
   async function checkAndDownloadOta() {
     if (__DEV__ || isCheckingRef.current) return;
