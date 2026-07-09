@@ -36,8 +36,24 @@ export default function TeacherDiaryScreen() {
   const { themeColor } = useBrand();
   const params = useLocalSearchParams<{ classGroupId?: string; className?: string; lessonDate?: string; editDiaryId?: string }>();
 
-  const targetDate = (params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/))
-    ? params.lessonDate : todayStr();
+  const [targetDate, setTargetDate] = useState<string>(() =>
+    (params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/))
+      ? params.lessonDate : todayStr()
+  );
+
+  const DAY_KO_IDX = ["일", "월", "화", "수", "목", "금", "토"];
+
+  function getDateForKoDay(dayKo: string, refDate: string): string {
+    const targetIdx = DAY_KO_IDX.indexOf(dayKo);
+    if (targetIdx === -1) return refDate;
+    const ref = new Date(refDate + "T12:00:00");
+    const diff = targetIdx - ref.getDay();
+    const d = new Date(ref);
+    d.setDate(d.getDate() + diff);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  const selectedDayKo = DAY_KO_IDX[new Date(targetDate + "T12:00:00").getDay()];
 
   const [groups,     setGroups]     = useState<TeacherClassGroup[]>([]);
   const [diarySet,   setDiarySet]   = useState<Set<string>>(new Set());
@@ -84,6 +100,8 @@ export default function TeacherDiaryScreen() {
   const [formError,     setFormError]     = useState<string | null>(null);
 
   const [hasDraft,      setHasDraft]      = useState(false);
+
+  const initialParamsHandled = useRef(false);
 
   const draftKey = selectedGroup
     ? `@swimnote:diary_draft:${selectedGroup.id}:${targetDate}`
@@ -146,26 +164,29 @@ export default function TeacherDiaryScreen() {
         const arr: any[] = await dRes.json();
         setDiarySet(new Set(arr.map((d: any) => d.class_group_id).filter(Boolean)));
       }
-      if (params.editDiaryId) {
-        try {
-          const dr = await apiRequest(token, `/diaries/${params.editDiaryId}`);
-          if (dr.ok) {
-            const diaryData = await dr.json();
-            const group = groupsList.find(g => g.id === diaryData.class_group_id);
-            if (group) {
-              setSelectedGroup(group);
-              setEditDiary(diaryData);
-              setEditContent(diaryData.common_content || "");
-              setEditNotes(Array.isArray(diaryData.student_notes) ? diaryData.student_notes.map((n: any) => ({ ...n })) : []);
-              setEditNewNotes([]); setEditAddStudent(null); setEditAddInput(""); setEditError(null);
-              setSubView("edit");
-              loadClassStudents(group.id);
+      if (!initialParamsHandled.current) {
+        initialParamsHandled.current = true;
+        if (params.editDiaryId) {
+          try {
+            const dr = await apiRequest(token, `/diaries/${params.editDiaryId}`);
+            if (dr.ok) {
+              const diaryData = await dr.json();
+              const group = groupsList.find(g => g.id === diaryData.class_group_id);
+              if (group) {
+                setSelectedGroup(group);
+                setEditDiary(diaryData);
+                setEditContent(diaryData.common_content || "");
+                setEditNotes(Array.isArray(diaryData.student_notes) ? diaryData.student_notes.map((n: any) => ({ ...n })) : []);
+                setEditNewNotes([]); setEditAddStudent(null); setEditAddInput(""); setEditError(null);
+                setSubView("edit");
+                loadClassStudents(group.id);
+              }
             }
-          }
-        } catch {}
-      } else if (params.classGroupId) {
-        const found = groupsList.find(g => g.id === params.classGroupId);
-        if (found) openGroup(found);
+          } catch {}
+        } else if (params.classGroupId) {
+          const found = groupsList.find(g => g.id === params.classGroupId);
+          if (found) openGroup(found);
+        }
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
@@ -652,12 +673,32 @@ export default function TeacherDiaryScreen() {
     );
   }
 
+  function handleDayChange(day: string) {
+    const newDate = getDateForKoDay(day, targetDate);
+    if (newDate !== targetDate) {
+      setTargetDate(newDate);
+      setSelectedGroup(null);
+    }
+  }
+
+  function formatTargetDate(dateStr: string): string {
+    const [, m, d] = dateStr.split("-");
+    return `${parseInt(m)}월 ${parseInt(d)}일`;
+  }
+
   return (
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="수업 일지" homePath="/(teacher)/today-schedule" />
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
-        <WeeklySchedule classGroups={groups} statusMap={statusMap} onSelectClass={openGroup} themeColor={themeColor} />
+        <View style={s.dateLabelRow}>
+          <Text style={s.dateLabel}>{formatTargetDate(targetDate)}</Text>
+        </View>
+        <WeeklySchedule
+          classGroups={groups} statusMap={statusMap} onSelectClass={openGroup} themeColor={themeColor}
+          selectedDay={selectedDayKo}
+          onDayChange={handleDayChange}
+        />
         <View style={{ height: 120 }} />
       </ScrollView>
     </SafeAreaView>
@@ -665,8 +706,10 @@ export default function TeacherDiaryScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:     { flex: 1, backgroundColor: "#FFFFFF" },
-  subHeader:{ flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  tabBtn:   { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
-  tabBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  safe:         { flex: 1, backgroundColor: "#FFFFFF" },
+  subHeader:    { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  tabBtn:       { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
+  tabBtnText:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  dateLabelRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 2 },
+  dateLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#6B7280" },
 });
