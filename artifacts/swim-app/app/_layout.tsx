@@ -510,7 +510,7 @@ function RootNav() {
           <ActivityIndicator size="large" color="#2EC4B6" />
         </View>
       )}
-      <OtaUpdateBanner ready={otaReady} />
+      <OtaUpdateBanner />
     </View>
   );
 }
