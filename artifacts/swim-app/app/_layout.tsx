@@ -313,7 +313,8 @@ function RootNav() {
   const isCheckingRef = useRef(false);
   const pathnameRef = useRef(pathname);
   const backgroundAtRef = useRef<number | null>(null);
-  const otaReady = false;
+  const didGoBackgroundRef = useRef(false);
+  const otaReadyRef = useRef(false);
 
   useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
 
@@ -323,12 +324,9 @@ function RootNav() {
     try {
       const { isAvailable } = await Updates.checkForUpdateAsync();
       if (isAvailable) {
-        const cur = pathnameRef.current;
-        if (cur && cur !== "/" && cur !== "/index") {
-          await AsyncStorage.setItem("@swimnote:ota_resume_route", cur).catch(() => {});
-        }
+        // 다운로드만 해두고 즉시 재시작하지 않음 — 백그라운드 복귀 시 적용
         await Updates.fetchUpdateAsync();
-        await Updates.reloadAsync();
+        otaReadyRef.current = true;
       }
     } catch (_) {
     } finally {
@@ -336,12 +334,14 @@ function RootNav() {
     }
   }
 
-  // 앱 시작 시에만 OTA 체크 (백그라운드 복귀 시 제거 — 재시작 튕김 방지)
+  // 앱 시작 시 OTA 체크 (다운로드만, 재시작은 백그라운드 복귀 시)
   useEffect(() => { checkAndDownloadOta(); }, []);
 
-  // 백그라운드 → 포그라운드 복귀 처리
+  // 백그라운드 복귀 처리
+  // - OTA 준비됨: 재시작 → 새 버전으로 홈 이동
+  // - 10분 이상: 역할 홈으로 이동
   // - 10분 미만: 현재 화면 유지 (세션 갱신만)
-  // - 10분 이상: 역할 홈으로 이동 (데이터 재로딩)
+  // * inactive만 거친 경우(제어센터·알림 배너 등)는 무시
   useEffect(() => {
     const sub = AppState.addEventListener("change", (nextState: AppStateStatus) => {
       const prev = appStateRef.current;
@@ -350,19 +350,31 @@ function RootNav() {
       // 백그라운드 진입 시각 기록
       if (nextState === "background") {
         backgroundAtRef.current = Date.now();
+        didGoBackgroundRef.current = true;
       }
 
+      // active 복귀 시 — background를 실제로 거친 경우만 처리
       if ((prev === "background" || prev === "inactive") && nextState === "active") {
-        refreshSession?.().catch(() => {});
+        if (!didGoBackgroundRef.current) return; // inactive만 거친 경우 무시
+        didGoBackgroundRef.current = false;
+
+        // OTA 다운로드 완료 → 재시작 (앱이 새 버전으로 시작되며 자동으로 홈 이동)
+        if (otaReadyRef.current) {
+          Updates.reloadAsync().catch(() => {});
+          return;
+        }
 
         const bgAt = backgroundAtRef.current;
         backgroundAtRef.current = null;
+
         if (bgAt && Date.now() - bgAt >= IDLE_TIMEOUT_MS) {
           // 10분 이상 → 역할 홈으로 이동
           const home = getRoleHome(kind, adminUser?.role);
           router.replace(home as any);
+        } else {
+          // 10분 미만 → 현재 화면 유지, 세션 갱신만
+          refreshSession?.().catch(() => {});
         }
-        // 10분 미만 → 아무것도 하지 않음 (현재 화면 유지)
       }
     });
     return () => sub.remove();
