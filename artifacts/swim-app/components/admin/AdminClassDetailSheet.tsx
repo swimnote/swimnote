@@ -60,9 +60,10 @@ interface Props {
   onReload: () => void;
   onColorChange?: (id: string, color: string) => void;
   initialStudents?: StudentItem[];
+  onDeleteClass?: () => void;
 }
 
-export default function AdminClassDetailSheet({ group, token, themeColor, onClose, onReload, onColorChange, initialStudents }: Props) {
+export default function AdminClassDetailSheet({ group, token, themeColor, onClose, onReload, onColorChange, initialStudents, onDeleteClass }: Props) {
   // initialStudents가 있으면 즉시 필터링해서 보여줌 (로딩 없음)
   function filterForGroup(all: StudentItem[]) {
     return all.filter(s => {
@@ -323,6 +324,11 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
               <Text style={sh.headerSub}>{days} · {detail?.schedule_time || group.schedule_time}</Text>
             )}
           </View>
+          {!subView && onDeleteClass && (
+            <Pressable onPress={onDeleteClass} style={sh.deleteBtn} hitSlop={8}>
+              <Trash2 size={18} color="#E11D48" />
+            </Pressable>
+          )}
           <Pressable onPress={handleClose} style={sh.closeBtn}>
             {colorSaving
               ? <ActivityIndicator size="small" color={C.textSecondary} />
@@ -684,4 +690,6 @@ const sh = StyleSheet.create({
   teacherAvatarText:{ fontSize: 16, fontFamily: "Pretendard-Regular" },
   teacherName:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   teacherSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
+
+  deleteBtn:      { padding: 8, marginRight: 2 },
 });

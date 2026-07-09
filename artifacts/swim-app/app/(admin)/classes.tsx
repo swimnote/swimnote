@@ -8,7 +8,7 @@
  * - 일간 뷰: WeeklySchedule 공용 컴포넌트 + 담당 선생님 표시
  * - AdminClassDetailSheet 사용 (관리자 기능)
  */
-import { Calendar, Check, ChevronLeft, ChevronRight, Plus, Repeat, RotateCcw, User, Users, X } from "lucide-react-native";
+import { Calendar, Check, ChevronLeft, ChevronRight, Plus, Repeat, RotateCcw, Trash2, User, Users, X } from "lucide-react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -496,6 +496,11 @@ export default function ClassesScreen() {
   // 반 상세 시트
   const [detailGroup, setDetailGroup] = useState<TeacherClassGroup | null>(null);
 
+  // 반 삭제
+  const [deletingClass, setDeletingClass] = useState<TeacherClassGroup | null>(null);
+  const [showDeleteClassConfirm, setShowDeleteClassConfirm] = useState(false);
+  const [deletingClassLoading, setDeletingClassLoading] = useState(false);
+
   // 주간 compact 슬롯 시트
   const [selectedSlot, setSelectedSlot] = useState<{ day: string; hour: number; classes: TeacherClassGroup[] } | null>(null);
 
@@ -534,6 +539,30 @@ export default function ClassesScreen() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // ── 반 삭제 ──
+  const handleDeleteClass = useCallback(async () => {
+    if (!deletingClass || deletingClassLoading) return;
+    const target = deletingClass;
+    setDeletingClassLoading(true);
+    try {
+      const res = await apiRequest(token, `/class-groups/${target.id}`, { method: "DELETE" });
+      setShowDeleteClassConfirm(false);
+      setDeletingClass(null);
+      if (res.ok) {
+        setDetailGroup(null);
+        setSelectedDate(null);
+        load();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "반 삭제에 실패했습니다.");
+      }
+    } catch (e) {
+      alert("반 삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeletingClassLoading(false);
+    }
+  }, [deletingClass, deletingClassLoading, token, load]);
 
   // ── 날짜별 출결 로드 ──
   async function loadDayData(dateStr: string) {
@@ -783,6 +812,14 @@ export default function ClassesScreen() {
             setGroups(prev => prev.map(g => g.id === id ? { ...g, color } : g))
           }
           initialStudents={allStudents}
+          onDeleteClass={() => {
+            const target = detailGroup;
+            setDetailGroup(null);
+            setTimeout(() => {
+              setDeletingClass(target);
+              setShowDeleteClassConfirm(true);
+            }, 350);
+          }}
         />
       )}
 
@@ -800,6 +837,30 @@ export default function ClassesScreen() {
           load();
         }}
       />
+
+      {/* 반 삭제 확인 모달 */}
+      <Modal visible={showDeleteClassConfirm} transparent animationType="fade" onRequestClose={() => setShowDeleteClassConfirm(false)}>
+        <View style={s.modalOverlay}>
+          <View style={s.confirmBox}>
+            <Trash2 size={28} color="#E11D48" style={{ marginBottom: 12 }} />
+            <Text style={s.confirmTitle}>반을 삭제할까요?</Text>
+            <Text style={s.confirmSub}>
+              <Text style={{ fontFamily: "Pretendard-Bold", color: "#1E293B" }}>{deletingClass?.name}</Text>
+              {" 반이 삭제됩니다.\n이 작업은 되돌릴 수 없습니다."}
+            </Text>
+            <View style={s.confirmBtnRow}>
+              <Pressable style={s.confirmCancelBtn} onPress={() => { setShowDeleteClassConfirm(false); setDeletingClass(null); }}>
+                <Text style={s.confirmCancelTxt}>취소</Text>
+              </Pressable>
+              <Pressable style={s.confirmDeleteBtn} onPress={handleDeleteClass} disabled={deletingClassLoading}>
+                {deletingClassLoading
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={s.confirmDeleteTxt}>삭제</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* 반 등록 */}
       {showCreate && (
@@ -844,4 +905,14 @@ const s = StyleSheet.create({
   emptyText:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted },
   emptyHintBanner: { paddingVertical: 6, paddingHorizontal: 14, backgroundColor: "#F1F5F9", borderBottomWidth: 1, borderBottomColor: "#F0EDE9", alignItems: "center" },
   emptyHintText:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
+
+  modalOverlay:   { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" },
+  confirmBox:     { backgroundColor: "#fff", borderRadius: 20, padding: 28, width: 300, alignItems: "center", gap: 4 },
+  confirmTitle:   { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#1E293B", marginBottom: 6 },
+  confirmSub:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 22, marginBottom: 16 },
+  confirmBtnRow:  { flexDirection: "row", gap: 10, width: "100%" },
+  confirmCancelBtn: { flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: "#F1F5F9", alignItems: "center" },
+  confirmCancelTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  confirmDeleteBtn: { flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: "#E11D48", alignItems: "center" },
+  confirmDeleteTxt: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
 });
