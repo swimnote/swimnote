@@ -87,55 +87,8 @@ function AppLoadingScreen() {
 }
 
 
-function OtaUpdateBanner({ ready }: { ready: boolean }) {
-  const insets = useSafeAreaInsets();
-  const [applying, setApplying] = useState(false);
-
-  if (!ready) return null;
-
-  async function applyUpdate() {
-    setApplying(true);
-    try { await Updates.reloadAsync(); } catch (_) { setApplying(false); }
-  }
-
-  return (
-    <View style={{
-      position: "absolute",
-      bottom: insets.bottom + 80,
-      left: 16, right: 16,
-      backgroundColor: "#1F8F86",
-      borderRadius: 16,
-      paddingVertical: 12, paddingHorizontal: 16,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.18,
-      shadowRadius: 12,
-      elevation: 12,
-      zIndex: 9998,
-    }}>
-      <Text style={{ fontSize: 16 }}>🔄</Text>
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>업데이트 준비 완료</Text>
-        <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 1 }}>새 버전이 다운로드됐습니다</Text>
-      </View>
-      <Pressable
-        onPress={applyUpdate}
-        disabled={applying}
-        style={({ pressed }) => ({
-          backgroundColor: pressed ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.2)",
-          borderRadius: 10,
-          paddingVertical: 7, paddingHorizontal: 14,
-        })}
-      >
-        <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>
-          {applying ? "적용 중..." : "지금 적용"}
-        </Text>
-      </Pressable>
-    </View>
-  );
+function OtaUpdateBanner(_props: { ready?: boolean }) {
+  return null;
 }
 
 function UploadProgressBanner() {
@@ -344,7 +297,6 @@ function RootNav() {
 
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const isCheckingRef = useRef(false);
-  const [otaReady, setOtaReady] = useState(false);
 
   async function checkAndDownloadOta() {
     if (__DEV__ || isCheckingRef.current) return;
@@ -353,7 +305,7 @@ function RootNav() {
       const { isAvailable } = await Updates.checkForUpdateAsync();
       if (isAvailable) {
         await Updates.fetchUpdateAsync();
-        setOtaReady(true);
+        await Updates.reloadAsync();
       }
     } catch (_) {
     } finally {
