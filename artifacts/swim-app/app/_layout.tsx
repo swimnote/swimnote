@@ -1,6 +1,7 @@
 import { useFonts } from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, router } from "expo-router";
+import { Stack, router, usePathname } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SplashScreen from "expo-splash-screen";
 import * as Updates from "expo-updates";
 import Constants from "expo-constants";
@@ -294,10 +295,14 @@ function PushNavSync() {
 
 function RootNav() {
   const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute, refreshSession } = useAuth();
+  const pathname = usePathname();
 
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const isCheckingRef = useRef(false);
+  const pathnameRef = useRef(pathname);
   const otaReady = false;
+
+  useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
 
   async function checkAndDownloadOta() {
     if (__DEV__ || isCheckingRef.current) return;
@@ -305,6 +310,10 @@ function RootNav() {
     try {
       const { isAvailable } = await Updates.checkForUpdateAsync();
       if (isAvailable) {
+        const cur = pathnameRef.current;
+        if (cur && cur !== "/" && cur !== "/index") {
+          await AsyncStorage.setItem("@swimnote:ota_resume_route", cur).catch(() => {});
+        }
         await Updates.fetchUpdateAsync();
         await Updates.reloadAsync();
       }

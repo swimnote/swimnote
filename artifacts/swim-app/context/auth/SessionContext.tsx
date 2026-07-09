@@ -418,20 +418,32 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     pa: ParentAccount | null,
     authToken: string | null,
   ): Promise<string> {
+    const OTA_RESUME_KEY = "@swimnote:ota_resume_route";
+
+    async function consumeResumeRoute(validPrefixes: string[]): Promise<string | null> {
+      try {
+        const saved = await AsyncStorage.getItem(OTA_RESUME_KEY);
+        if (!saved) return null;
+        await AsyncStorage.removeItem(OTA_RESUME_KEY);
+        const ok = validPrefixes.some(p => saved.startsWith(p));
+        return ok ? saved : null;
+      } catch { return null; }
+    }
+
     if (k === "parent") {
       const parentId = pa?.id ?? null;
       if (parentId) {
         const done = await AsyncStorage.getItem(`@swimnote:onboarded_${parentId}_parent`).catch(() => "1");
         if (!done) return "/(auth)/onboarding-parent";
       }
-      return "/(parent)/home";
+      return (await consumeResumeRoute(["/(parent)/"])) ?? "/(parent)/home";
     }
     if (k === "admin" && user) {
       const { role, swimming_pool_id, id: userId } = user;
 
       // super 계정군 — 온보딩/정책 체크 없음
       if (role === "super_admin" || role === "platform_admin" || role === "super_manager") {
-        return "/(super)/dashboard";
+        return (await consumeResumeRoute(["/(super)/"])) ?? "/(super)/dashboard";
       }
 
       // teacher
@@ -440,7 +452,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           const done = await AsyncStorage.getItem(`@swimnote:onboarded_${userId}_teacher`).catch(() => "1");
           if (!done) return "/(auth)/onboarding-teacher";
         }
-        return "/(teacher)/today-schedule";
+        return (await consumeResumeRoute(["/(teacher)/", "/(admin)/"])) ?? "/(teacher)/today-schedule";
       }
 
       // pool_admin / sub_admin
@@ -480,7 +492,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           if (!done) return "/(auth)/onboarding-admin";
         }
 
-        return "/(admin)/dashboard";
+        return (await consumeResumeRoute(["/(admin)/", "/(teacher)/"])) ?? "/(admin)/dashboard";
       }
     }
     return "/";
