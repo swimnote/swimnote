@@ -346,7 +346,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingBottom: 10, gap: 6,
   },
   tabBtn: {
-    alignItems: "center", justifyContent: "center",
+    flexGrow: 1, alignItems: "center", justifyContent: "center",
     paddingVertical: Platform.OS === "android" ? 7 : 6, paddingHorizontal: 12,
     borderRadius: 11, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
