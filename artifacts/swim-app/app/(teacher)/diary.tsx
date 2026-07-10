@@ -422,7 +422,8 @@ export default function TeacherDiaryScreen() {
       haptic.success();
       setSaveMsg({ type: "success", text: "수업 일지가 저장되었습니다. 학부모에게 알림이 발송됩니다." });
       const cameFromUnwritten = !!(params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/));
-      setTimeout(() => { setSaveMsg(null); if (cameFromUnwritten) router.back(); else setSelectedGroup(null); }, 2000);
+      const savedGroupId = selectedGroup.id;
+      setTimeout(() => { setSaveMsg(null); if (cameFromUnwritten) router.back(); else setSelectedGroup(prev => prev?.id === savedGroupId ? null : prev); }, 2000);
     } catch (e: any) { setSaveMsg({ type: "error", text: e.message || "저장 중 오류가 발생했습니다." }); }
     finally { setSaving(false); }
   }
