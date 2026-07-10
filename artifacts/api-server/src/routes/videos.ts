@@ -825,6 +825,37 @@ router.get("/videos/diary/:diaryId", requireAuth, async (req: AuthRequest, res: 
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
+// ── POST /videos/note-attach — 선택 영상 student_note_id 연결 ──────────────────
+router.post("/videos/note-attach", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.user!;
+    const { note_id, video_ids } = req.body as { note_id: string; video_ids: string[] };
+
+    if (!note_id || !Array.isArray(video_ids) || video_ids.length === 0) {
+      res.status(400).json({ error: "note_id와 video_ids가 필요합니다." }); return;
+    }
+
+    const poolId = await getUserPoolId(userId);
+    if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
+
+    const literal = `{${video_ids.join(",")}}`;
+    const checkRow = await db.execute(sql`
+      SELECT COUNT(*)::int AS cnt FROM video_assets_meta
+      WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
+    `);
+    if (Number((checkRow.rows[0] as any)?.cnt ?? 0) !== video_ids.length) {
+      res.status(403).json({ error: "일부 영상에 대한 접근 권한이 없습니다." }); return;
+    }
+
+    await db.execute(sql`
+      UPDATE video_assets_meta SET student_note_id = ${note_id}
+      WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
+    `);
+
+    res.json({ updated: video_ids.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
 // ── 영상 삭제 ────────────────────────────────────────────────────────
 router.delete("/videos/:videoId", requireAuth,
   requireRole("pool_admin", "teacher", "super_admin"),

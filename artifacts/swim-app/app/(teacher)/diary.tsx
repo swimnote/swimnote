@@ -22,6 +22,7 @@ import DiaryWriteView from "@/components/teacher/diary/DiaryWriteView";
 import DiaryEditView from "@/components/teacher/diary/DiaryEditView";
 import DiaryHistoryList from "@/components/teacher/diary/DiaryHistoryList";
 import AlbumPickerModal from "@/components/teacher/diary/AlbumPickerModal";
+import MyAlbumPickerModal from "@/components/teacher/diary/MyAlbumPickerModal";
 import {
   AlbumPhotoInfo, AlbumVideoInfo, DiaryEntry, DiaryTemplate, DiaryTemplateLevel, ExistingNote,
   StudentNote, StudentOption, SubView, UploadedMedia, todayStr,
@@ -127,6 +128,13 @@ export default function TeacherDiaryScreen() {
   const [showStudentAlbumPicker,     setShowStudentAlbumPicker]     = useState(false);
   const [studentAlbumPickerTarget,   setStudentAlbumPickerTarget]   = useState<StudentOption | null>(null);
   const [studentAlbumPhotos,         setStudentAlbumPhotos]         = useState<Record<string, AlbumPhotoInfo[]>>({});
+
+  const [studentAlbumVideos,     setStudentAlbumVideos]     = useState<Record<string, AlbumVideoInfo[]>>({});
+  const [showGroupMyAlbum,       setShowGroupMyAlbum]       = useState(false);
+  const [groupMyAlbumMediaType,  setGroupMyAlbumMediaType]  = useState<"photo" | "video">("photo");
+  const [showStudentMyAlbum,     setShowStudentMyAlbum]     = useState(false);
+  const [studentMyAlbumTarget,   setStudentMyAlbumTarget]   = useState<StudentOption | null>(null);
+  const [studentMyAlbumMediaType,setStudentMyAlbumMediaType]= useState<"photo" | "video">("photo");
 
   const [selectedAlbumVideos,  setSelectedAlbumVideos]  = useState<AlbumVideoInfo[]>([]);
 
@@ -384,7 +392,7 @@ export default function TeacherDiaryScreen() {
           body: JSON.stringify({ diary_id: data.id, video_ids: selectedAlbumVideos.map(v => v.id) }),
         }).catch(() => {});
       }
-      // 학생별 앨범 사진 연결
+      // 학생별 앨범 사진/영상 연결
       if (data.student_notes && Array.isArray(data.student_notes)) {
         for (const note of data.student_notes) {
           const photos = studentAlbumPhotos[note.student_id] ?? [];
@@ -394,10 +402,17 @@ export default function TeacherDiaryScreen() {
               body: JSON.stringify({ note_id: note.id, photo_ids: photos.map((p: AlbumPhotoInfo) => p.id) }),
             }).catch(() => {});
           }
+          const vids = studentAlbumVideos[note.student_id] ?? [];
+          if (vids.length > 0) {
+            await apiRequest(token, "/videos/note-attach", {
+              method: "POST",
+              body: JSON.stringify({ note_id: note.id, video_ids: vids.map((v: AlbumVideoInfo) => v.id) }),
+            }).catch(() => {});
+          }
         }
       }
       setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
-      setStudentAlbumPhotos({});
+      setStudentAlbumPhotos({}); setStudentAlbumVideos({});
       setDiarySet(prev => new Set([...prev, selectedGroup.id]));
       if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => {});
       setHasDraft(false);
@@ -645,6 +660,20 @@ export default function TeacherDiaryScreen() {
             onOpenStudentAlbumPicker={(student) => { setStudentAlbumPickerTarget(student); setShowStudentAlbumPicker(true); }}
             studentAlbumPhotos={studentAlbumPhotos}
             onRemoveStudentAlbumPhoto={(studentId, photoId) => setStudentAlbumPhotos(prev => ({ ...prev, [studentId]: (prev[studentId] ?? []).filter(p => p.id !== photoId) }))}
+            studentAlbumVideos={studentAlbumVideos}
+            onRemoveStudentAlbumVideo={(studentId, videoId) => setStudentAlbumVideos(prev => ({ ...prev, [studentId]: (prev[studentId] ?? []).filter(v => v.id !== videoId) }))}
+            onOpenGroupMyAlbum={(kind) => {
+              if (kind === "video" && !planFeatures?.video_enabled) { setShowVideoGateModal(true); return; }
+              setGroupMyAlbumMediaType(kind);
+              setShowGroupMyAlbum(true);
+            }}
+            onOpenStudentMyAlbum={(student, kind) => {
+              if (kind === "video" && !planFeatures?.video_enabled) { setShowVideoGateModal(true); return; }
+              setStudentMyAlbumTarget(student);
+              setStudentMyAlbumMediaType(kind);
+              setShowStudentMyAlbum(true);
+            }}
+            videoEnabled={planFeatures?.video_enabled ?? false}
           />
         ) : (
           <DiaryHistoryList
@@ -692,6 +721,53 @@ export default function TeacherDiaryScreen() {
             setStudentAlbumPickerTarget(null);
           }}
           onClose={() => { setShowStudentAlbumPicker(false); setStudentAlbumPickerTarget(null); }}
+        />
+        <MyAlbumPickerModal
+          visible={showGroupMyAlbum}
+          mediaType={groupMyAlbumMediaType}
+          token={token}
+          onClose={() => setShowGroupMyAlbum(false)}
+          onConfirm={(photos, videos) => {
+            if (photos.length > 0) {
+              setSelectedAlbumPhotos(prev => {
+                const existing = new Set(prev.map(p => p.id));
+                return [...prev, ...photos.filter(p => !existing.has(p.id))];
+              });
+              setSelectedAlbumIds(prev => [...new Set([...prev, ...photos.map(p => p.id)])]);
+            }
+            if (videos.length > 0) {
+              setSelectedAlbumVideos(prev => {
+                const existing = new Set(prev.map(v => v.id));
+                return [...prev, ...videos.filter(v => !existing.has(v.id))];
+              });
+            }
+            setShowGroupMyAlbum(false);
+          }}
+        />
+        <MyAlbumPickerModal
+          visible={showStudentMyAlbum}
+          mediaType={studentMyAlbumMediaType}
+          token={token}
+          onClose={() => { setShowStudentMyAlbum(false); setStudentMyAlbumTarget(null); }}
+          onConfirm={(photos, videos) => {
+            if (studentMyAlbumTarget) {
+              const sid = studentMyAlbumTarget.id;
+              if (photos.length > 0) {
+                setStudentAlbumPhotos(prev => {
+                  const existing = new Set((prev[sid] ?? []).map(p => p.id));
+                  return { ...prev, [sid]: [...(prev[sid] ?? []), ...photos.filter(p => !existing.has(p.id))] };
+                });
+              }
+              if (videos.length > 0) {
+                setStudentAlbumVideos(prev => {
+                  const existing = new Set((prev[sid] ?? []).map(v => v.id));
+                  return { ...prev, [sid]: [...(prev[sid] ?? []), ...videos.filter(v => !existing.has(v.id))] };
+                });
+              }
+            }
+            setShowStudentMyAlbum(false);
+            setStudentMyAlbumTarget(null);
+          }}
         />
         <ConfirmModal
           visible={showStorageModal}

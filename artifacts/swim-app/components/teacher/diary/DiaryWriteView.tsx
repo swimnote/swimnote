@@ -34,6 +34,8 @@ export default function DiaryWriteView({
   insertAtCursor,
   token, onOpenAlbumPicker, selectedAlbumPhotos, onRemoveAlbumPhoto, selectedAlbumVideos, onRemoveAlbumVideo,
   onOpenStudentAlbumPicker, studentAlbumPhotos, onRemoveStudentAlbumPhoto,
+  studentAlbumVideos, onRemoveStudentAlbumVideo,
+  onOpenGroupMyAlbum, onOpenStudentMyAlbum, videoEnabled,
 }: {
   group: TeacherClassGroup; targetDate: string; themeColor: string; myDiaryExists: boolean;
 
@@ -68,6 +70,11 @@ export default function DiaryWriteView({
   onOpenStudentAlbumPicker: (student: StudentOption) => void;
   studentAlbumPhotos: Record<string, AlbumPhotoInfo[]>;
   onRemoveStudentAlbumPhoto: (studentId: string, photoId: string) => void;
+  studentAlbumVideos: Record<string, AlbumVideoInfo[]>;
+  onRemoveStudentAlbumVideo: (studentId: string, videoId: string) => void;
+  onOpenGroupMyAlbum: (kind: "photo" | "video") => void;
+  onOpenStudentMyAlbum: (student: StudentOption, kind: "photo" | "video") => void;
+  videoEnabled: boolean;
 }) {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -106,11 +113,11 @@ export default function DiaryWriteView({
             <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={onOpenAlbumPicker}>
               <Images size={14} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
             </Pressable>
-            <Pressable style={[s.mediaBtn, { backgroundColor: "#FFF1BF" }]} onPress={() => onUploadGroupMedia("photo")} disabled={mediaUploading === "group"}>
-              {mediaUploading === "group" ? <ActivityIndicator size="small" color="#E4A93A" /> : <><Image size={14} color="#E4A93A" /><Text style={[s.mediaBtnText, { color: "#E4A93A" }]}>반 사진 추가</Text></>}
+            <Pressable style={[s.mediaBtn, { backgroundColor: "#FFEDD5" }]} onPress={() => onOpenGroupMyAlbum("photo")}>
+              <Image size={14} color="#C2410C" /><Text style={[s.mediaBtnText, { color: "#C2410C" }]}>내 사진앨범</Text>
             </Pressable>
-            <Pressable style={[s.mediaBtn, { backgroundColor: "#E6FFFA" }]} onPress={() => onUploadGroupMedia("video")} disabled={mediaUploading === "group"}>
-              <Video size={14} color="#2EC4B6" /><Text style={[s.mediaBtnText, { color: "#2EC4B6" }]}>반 영상 추가</Text>
+            <Pressable style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]} onPress={() => onOpenGroupMyAlbum("video")}>
+              <Video size={14} color="#5B21B6" /><Text style={[s.mediaBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
             </Pressable>
           </View>
           {groupMedia.length > 0 && (
@@ -201,8 +208,14 @@ export default function DiaryWriteView({
                   </View>
                   <Text style={s.noteContent} numberOfLines={2}>{note.note_content}</Text>
                   <View style={[s.mediaRow, { marginTop: 4 }]}>
-                    <Pressable style={[s.mediaBtn, { backgroundColor: "#F3E8FF", borderWidth: 1, borderColor: "#C4B5FD" }]} onPress={() => onUploadStudentMedia(st, "photo")} disabled={mediaUploading === note.student_id}>
-                      {mediaUploading === note.student_id ? <ActivityIndicator size="small" color="#7C3AED" /> : <><Image size={13} color="#7C3AED" /><Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개인 사진 추가</Text></>}
+                    <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={() => onOpenStudentAlbumPicker(st)}>
+                      <Images size={13} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
+                    </Pressable>
+                    <Pressable style={[s.mediaBtn, { backgroundColor: "#FFEDD5" }]} onPress={() => onOpenStudentMyAlbum(st, "photo")}>
+                      <Image size={13} color="#C2410C" /><Text style={[s.mediaBtnText, { color: "#C2410C" }]}>내 사진앨범</Text>
+                    </Pressable>
+                    <Pressable style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]} onPress={() => onOpenStudentMyAlbum(st, "video")}>
+                      <Video size={13} color="#5B21B6" /><Text style={[s.mediaBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
                     </Pressable>
                   </View>
                   {stMedia.length > 0 && (
@@ -258,18 +271,46 @@ export default function DiaryWriteView({
                   <Text style={[s.sentencePickBtnText, { color: "#8B5CF6" }]}>템플릿선택</Text>
                 </TouchableOpacity>
                 <Pressable
-                  style={[s.mediaBtn, { backgroundColor: "#F3E8FF", borderWidth: 1, borderColor: "#C4B5FD" }]}
+                  style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]}
                   onPress={() => onOpenStudentAlbumPicker(addNoteStudent)}
                 >
-                  <Images size={13} color="#7C3AED" />
-                  <Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>앨범에서 선택</Text>
+                  <Images size={13} color="#3B82F6" />
+                  <Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
+                </Pressable>
+                <Pressable
+                  style={[s.mediaBtn, { backgroundColor: "#FFEDD5" }]}
+                  onPress={() => onOpenStudentMyAlbum(addNoteStudent, "photo")}
+                >
+                  <Image size={13} color="#C2410C" />
+                  <Text style={[s.mediaBtnText, { color: "#C2410C" }]}>내 사진앨범</Text>
+                </Pressable>
+                <Pressable
+                  style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]}
+                  onPress={() => onOpenStudentMyAlbum(addNoteStudent, "video")}
+                >
+                  <Video size={13} color="#5B21B6" />
+                  <Text style={[s.mediaBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
                 </Pressable>
               </View>
-              {(studentAlbumPhotos[addNoteStudent.id] ?? []).length > 0 && (
+              {((studentAlbumPhotos[addNoteStudent.id] ?? []).length > 0 || (studentAlbumVideos[addNoteStudent.id] ?? []).length > 0) && (
                 <View style={[s.mediaPreviewRow, { marginTop: 6 }]}>
                   {(studentAlbumPhotos[addNoteStudent.id] ?? []).map((p) => (
                     <Pressable key={p.id} style={s.mediaThumb} onPress={() => onRemoveStudentAlbumPhoto(addNoteStudent.id, p.id)}>
                       <ExpoImage source={{ uri: p.presigned_url || p.file_url }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
+                      <View style={{ position: "absolute", top: 2, right: 2, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 8 }}>
+                        <CircleX size={14} color="#fff" />
+                      </View>
+                    </Pressable>
+                  ))}
+                  {(studentAlbumVideos[addNoteStudent.id] ?? []).map((v) => (
+                    <Pressable key={v.id} style={s.mediaThumb} onPress={() => onRemoveStudentAlbumVideo(addNoteStudent.id, v.id)}>
+                      {v.thumbnail_presigned_url ? (
+                        <ExpoImage source={{ uri: v.thumbnail_presigned_url }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
+                      ) : (
+                        <View style={{ width: "100%", height: "100%", borderRadius: 8, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
+                          <Video size={14} color="#94A3B8" />
+                        </View>
+                      )}
                       <View style={{ position: "absolute", top: 2, right: 2, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 8 }}>
                         <CircleX size={14} color="#fff" />
                       </View>

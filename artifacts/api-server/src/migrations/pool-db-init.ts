@@ -1049,6 +1049,7 @@ export async function initPoolDb(): Promise<void> {
   await db.execute(sql.raw(`ALTER TABLE photo_assets_meta ADD COLUMN IF NOT EXISTS lesson_date text`)).catch(() => {});
   // ── 개인 일지 노트 사진 연결 컬럼 추가 ──────────────────────────────────
   await db.execute(sql.raw(`ALTER TABLE photo_assets_meta ADD COLUMN IF NOT EXISTS student_note_id text`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE video_assets_meta ADD COLUMN IF NOT EXISTS student_note_id text`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE video_assets_meta ADD COLUMN IF NOT EXISTS lesson_date text`)).catch(() => {});
 
   // ── 영상 썸네일 키 컬럼 추가 (Expo 클라이언트에서 썸네일 생성 후 R2에 저장) ──
