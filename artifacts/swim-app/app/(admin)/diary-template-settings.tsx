@@ -815,7 +815,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: C.border,
   },
   templateItemInactive: { opacity: 0.55 },
-  templateItemLeft: { width: 38, alignItems: "center" },
+  templateItemLeft: { width: 52, alignItems: "center", justifyContent: "center" },
   templateItemCenter: { flex: 1, gap: 3 },
   templateTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.text },
   templateContent: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18 },
