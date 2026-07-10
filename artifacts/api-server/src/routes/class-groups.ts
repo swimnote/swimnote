@@ -164,12 +164,14 @@ router.get("/:id/students", requireAuth, async (req: AuthRequest, res) => {
     if (req.user!.role !== "super_admin" && poolId && group.swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
     }
-    const students = await db.select().from(studentsTable)
-      .where(and(
-        eq(studentsTable.class_group_id, req.params.id),
-        sql`status NOT IN ('withdrawn', 'deleted')`
-      ));
-    res.json(students);
+    const cgId = req.params.id;
+    const students = await db.execute(sql`
+      SELECT * FROM students
+      WHERE (class_group_id = ${cgId} OR assigned_class_ids @> to_jsonb(${cgId}::text))
+        AND status NOT IN ('withdrawn', 'deleted')
+      ORDER BY name ASC
+    `);
+    res.json(students.rows);
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
