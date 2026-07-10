@@ -25,9 +25,10 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     const poolId = await getPoolId(userId);
     if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
 
+    const mineOnly = tokenRole === "teacher" || req.query.mine === "true";
     let groups;
-    if (tokenRole === "teacher") {
-      // teacher 모드: 주담당 또는 co-teacher인 반 모두 조회
+    if (mineOnly) {
+      // teacher 모드 또는 mine=true: 주담당 또는 co-teacher인 반만 조회
       const rawRows = await db.execute(
         sql`SELECT * FROM class_groups
             WHERE swimming_pool_id = ${poolId}

@@ -99,12 +99,12 @@ export default function TodayScheduleScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // 화면 포커스 시 overview 즉시 갱신 + 60초 폴링 (쪽지 배지 실시간 반영)
+  // 화면 포커스 시 스케줄 + overview 갱신 + 60초 폴링 (쪽지 배지 실시간 반영)
   useFocusEffect(useCallback(() => {
-    loadOverview();
+    load();
     overviewTimerRef.current = setInterval(loadOverview, 60_000);
     return () => { if (overviewTimerRef.current) clearInterval(overviewTimerRef.current); };
-  }, [loadOverview]));
+  }, [load, loadOverview]));
 
   useEffect(() => {
     if (!token || items.length === 0) return;

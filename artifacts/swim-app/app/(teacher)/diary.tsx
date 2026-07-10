@@ -156,7 +156,7 @@ export default function TeacherDiaryScreen() {
   const load = useCallback(async () => {
     try {
       const [cgRes, attRes, dRes, featRes] = await Promise.all([
-        apiRequest(token, "/class-groups"),
+        apiRequest(token, "/class-groups?mine=true"),
         apiRequest(token, `/attendance?date=${targetDate}`),
         apiRequest(token, `/diaries?lesson_date=${targetDate}`),
         apiRequest(token, "/billing/features"),
