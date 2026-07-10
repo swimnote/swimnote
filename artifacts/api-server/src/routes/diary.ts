@@ -88,7 +88,8 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
       FROM students s
       JOIN parent_students ps ON ps.student_id = s.id
       JOIN parent_accounts pa ON pa.id = ps.parent_id
-      WHERE s.class_group_id = ${classId} AND s.status != 'deleted' AND ps.status = 'approved'
+      WHERE (s.class_group_id = ${classId} OR s.assigned_class_ids @> to_jsonb(${classId}::text))
+        AND s.status != 'deleted' AND ps.status = 'approved'
     `);
     for (const p of parentRows.rows as any[]) {
       const nid = genId("notif");
@@ -1430,14 +1431,14 @@ router.get("/diaries/unwritten-slots",
       if (role === "teacher") {
         classRows = await db.execute(sql`
           SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time,
-            (SELECT COUNT(*) FROM students s WHERE s.class_group_id = cg.id AND s.status NOT IN ('withdrawn','deleted')) AS student_count
+            (SELECT COUNT(*) FROM students s WHERE (s.class_group_id = cg.id OR s.assigned_class_ids @> to_jsonb(cg.id::text)) AND s.status NOT IN ('withdrawn','deleted')) AS student_count
           FROM class_groups cg
-          WHERE cg.teacher_user_id = ${userId} AND cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
+          WHERE (cg.teacher_user_id = ${userId} OR cg.co_teacher_ids @> to_jsonb(${userId}::text)) AND cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
         `);
       } else {
         classRows = await db.execute(sql`
           SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time,
-            (SELECT COUNT(*) FROM students s WHERE s.class_group_id = cg.id AND s.status NOT IN ('withdrawn','deleted')) AS student_count
+            (SELECT COUNT(*) FROM students s WHERE (s.class_group_id = cg.id OR s.assigned_class_ids @> to_jsonb(cg.id::text)) AND s.status NOT IN ('withdrawn','deleted')) AS student_count
           FROM class_groups cg
           WHERE cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
         `);
