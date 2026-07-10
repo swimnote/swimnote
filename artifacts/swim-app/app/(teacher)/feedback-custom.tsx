@@ -9,8 +9,8 @@
  *   - 활성/비활성 토글 → toggle-active API (문장 불러오기에서 표시 여부 조절)
  */
 import React, { useCallback, useEffect, useState } from "react";
-import {ActivityIndicator, Modal, Platform,
-  Pressable, StyleSheet, Switch, Text, TextInput, View} from "react-native";
+import {ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform,
+  Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Edit2, Eye, EyeOff, Plus, RotateCcw, Trash2 } from "lucide-react-native";
@@ -357,72 +357,82 @@ export default function FeedbackCustomScreen() {
 
       {/* ── 수정 모달 ── */}
       <Modal visible={!!editTarget} transparent animationType="fade" onRequestClose={() => setEditTarget(null)}>
-        <Pressable style={s.modalOverlay} onPress={() => setEditTarget(null)}>
-          <Pressable style={s.modalBox} onPress={e => e.stopPropagation()}>
-            <Text style={s.modalTitle}>템플릿 수정</Text>
-            {editTarget?.global_id && !editTarget.is_overridden && (
-              <Text style={s.modalHint}>수정하면 이 항목만 내 버전으로 저장됩니다.</Text>
-            )}
-            <TextInput
-              style={s.input}
-              placeholder="제목 (선택)"
-              value={editTitle}
-              onChangeText={setEditTitle}
-              placeholderTextColor="#94A3B8"
-            />
-            <TextInput
-              style={[s.input, s.textArea]}
-              placeholder="내용을 입력하세요"
-              value={editText}
-              onChangeText={setEditText}
-              multiline
-              placeholderTextColor="#94A3B8"
-            />
-            {!!editError && <Text style={s.errorText}>{editError}</Text>}
-            <View style={s.modalBtns}>
-              <Pressable style={s.cancelBtn} onPress={() => setEditTarget(null)}>
-                <Text style={s.cancelBtnText}>취소</Text>
-              </Pressable>
-              <Pressable style={[s.saveBtn, editSaving && { opacity: 0.6 }]} onPress={saveOverride} disabled={editSaving}>
-                {editSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.saveBtnText}>저장</Text>}
-              </Pressable>
-            </View>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+          <Pressable style={s.modalOverlay} onPress={Keyboard.dismiss}>
+            <Pressable style={s.modalBox} onPress={e => e.stopPropagation()}>
+              <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <Text style={s.modalTitle}>템플릿 수정</Text>
+                {editTarget?.global_id && !editTarget.is_overridden && (
+                  <Text style={[s.modalHint, { marginBottom: 12 }]}>수정하면 이 항목만 내 버전으로 저장됩니다.</Text>
+                )}
+                <TextInput
+                  style={[s.input, { marginBottom: 10 }]}
+                  placeholder="제목 (선택)"
+                  value={editTitle}
+                  onChangeText={setEditTitle}
+                  placeholderTextColor="#94A3B8"
+                />
+                <TextInput
+                  style={[s.input, s.textArea]}
+                  placeholder="내용을 입력하세요"
+                  value={editText}
+                  onChangeText={setEditText}
+                  multiline
+                  scrollEnabled
+                  placeholderTextColor="#94A3B8"
+                />
+                {!!editError && <Text style={s.errorText}>{editError}</Text>}
+                <View style={s.modalBtns}>
+                  <Pressable style={s.cancelBtn} onPress={() => setEditTarget(null)}>
+                    <Text style={s.cancelBtnText}>취소</Text>
+                  </Pressable>
+                  <Pressable style={[s.saveBtn, editSaving && { opacity: 0.6 }]} onPress={saveOverride} disabled={editSaving}>
+                    {editSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.saveBtnText}>저장</Text>}
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── 신규 추가 모달 ── */}
       <Modal visible={addVisible} transparent animationType="fade" onRequestClose={() => setAddVisible(false)}>
-        <Pressable style={s.modalOverlay} onPress={() => setAddVisible(false)}>
-          <Pressable style={s.modalBox} onPress={e => e.stopPropagation()}>
-            <Text style={s.modalTitle}>내 항목 추가</Text>
-            <Text style={s.modalHint}>나에게만 표시되는 항목입니다.</Text>
-            <TextInput
-              style={s.input}
-              placeholder="제목 (선택)"
-              value={addTitle}
-              onChangeText={setAddTitle}
-              placeholderTextColor="#94A3B8"
-            />
-            <TextInput
-              style={[s.input, s.textArea]}
-              placeholder="내용을 입력하세요"
-              value={addText}
-              onChangeText={setAddText}
-              multiline
-              placeholderTextColor="#94A3B8"
-            />
-            {!!addError && <Text style={s.errorText}>{addError}</Text>}
-            <View style={s.modalBtns}>
-              <Pressable style={s.cancelBtn} onPress={() => setAddVisible(false)}>
-                <Text style={s.cancelBtnText}>취소</Text>
-              </Pressable>
-              <Pressable style={[s.saveBtn, addSaving && { opacity: 0.6 }]} onPress={saveAdd} disabled={addSaving}>
-                {addSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.saveBtnText}>추가</Text>}
-              </Pressable>
-            </View>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+          <Pressable style={s.modalOverlay} onPress={Keyboard.dismiss}>
+            <Pressable style={s.modalBox} onPress={e => e.stopPropagation()}>
+              <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <Text style={s.modalTitle}>내 항목 추가</Text>
+                <Text style={[s.modalHint, { marginBottom: 12 }]}>나에게만 표시되는 항목입니다.</Text>
+                <TextInput
+                  style={[s.input, { marginBottom: 10 }]}
+                  placeholder="제목 (선택)"
+                  value={addTitle}
+                  onChangeText={setAddTitle}
+                  placeholderTextColor="#94A3B8"
+                />
+                <TextInput
+                  style={[s.input, s.textArea]}
+                  placeholder="내용을 입력하세요"
+                  value={addText}
+                  onChangeText={setAddText}
+                  multiline
+                  scrollEnabled
+                  placeholderTextColor="#94A3B8"
+                />
+                {!!addError && <Text style={s.errorText}>{addError}</Text>}
+                <View style={s.modalBtns}>
+                  <Pressable style={s.cancelBtn} onPress={() => setAddVisible(false)}>
+                    <Text style={s.cancelBtnText}>취소</Text>
+                  </Pressable>
+                  <Pressable style={[s.saveBtn, addSaving && { opacity: 0.6 }]} onPress={saveAdd} disabled={addSaving}>
+                    {addSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.saveBtnText}>추가</Text>}
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── 초기화 확인 ── */}
@@ -496,7 +506,7 @@ const s = StyleSheet.create({
   fabText:    { color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold" },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center", padding: 24 },
-  modalBox:     { width: "100%", backgroundColor: "#fff", borderRadius: 16, padding: 20, gap: 12 },
+  modalBox:     { width: "100%", backgroundColor: "#fff", borderRadius: 16, padding: 20, maxHeight: "85%" },
   modalTitle:   { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   modalHint:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
   input:        { borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
