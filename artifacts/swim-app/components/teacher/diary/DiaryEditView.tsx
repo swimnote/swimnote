@@ -30,6 +30,7 @@ export default function DiaryEditView({
   insertAtCursor,
   token, linkedPhotos, onRemoveLinkedPhoto, onOpenAlbumPicker, newAlbumPhotos, onRemoveNewAlbumPhoto,
   linkedVideos, onRemoveLinkedVideo, newAlbumVideos, onRemoveNewAlbumVideo,
+  studentAlbumPhotos, studentAlbumVideos, onOpenStudentAlbumPicker, onRemoveStudentAlbumPhoto, onRemoveStudentAlbumVideo,
 }: {
   group: TeacherClassGroup; themeColor: string;
   editDiary: DiaryEntry | null;
@@ -59,6 +60,11 @@ export default function DiaryEditView({
   onRemoveLinkedVideo: (id: string) => void;
   newAlbumVideos: AlbumVideoInfo[];
   onRemoveNewAlbumVideo: (id: string) => void;
+  studentAlbumPhotos: Record<string, AlbumPhotoInfo[]>;
+  studentAlbumVideos: Record<string, AlbumVideoInfo[]>;
+  onOpenStudentAlbumPicker: (student: StudentOption) => void;
+  onRemoveStudentAlbumPhoto: (studentId: string, photoId: string) => void;
+  onRemoveStudentAlbumVideo: (studentId: string, videoId: string) => void;
 }) {
   const activeNotes = editNotes.filter(n => !n._deleted);
   const usedStudentIds = new Set([
@@ -224,38 +230,110 @@ export default function DiaryEditView({
             <Text style={s.cardSub}>개별 코멘트 수정</Text>
           </View>
 
-          {activeNotes.map(note => (
-            <View key={note.id} style={[s.editNoteItem, { backgroundColor: "#EEDDF5", borderColor: "#C4B5FD" }]}>
-              <View style={s.editNoteHeader}>
-                <Text style={s.noteName}>{note.student_name}</Text>
-                <Pressable onPress={() => onMarkNoteDeleted(note.id)}>
-                  <Trash2 size={15} color={C.error} />
-                </Pressable>
-              </View>
-              <TextInput style={[s.noteTextarea, { borderColor: "#C4B5FD", color: C.text }]}
-                value={note.note_content}
-                onChangeText={t => onUpdateNoteContent(note.id, t)}
-                multiline numberOfLines={3} textAlignVertical="top"
-                placeholder="개별 코멘트를 입력하세요" placeholderTextColor={C.textMuted} />
-            </View>
-          ))}
-
-          {editNewNotes.map((note, idx) => (
-            <View key={idx} style={[s.editNoteItem, { backgroundColor: "#DFF3EC", borderColor: "#6EE7B7" }]}>
-              <View style={s.editNoteHeader}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <View style={[s.statusBadge, { backgroundColor: "#E6FFFA" }]}>
-                    <Text style={[s.statusBadgeText, { color: "#2EC4B6" }]}>신규</Text>
-                  </View>
-                  <Text style={[s.noteName, { color: "#2EC4B6" }]}>{note.student_name}</Text>
+          {activeNotes.map(note => {
+            const st: StudentOption = { id: note.student_id, name: note.student_name };
+            const stPhotos = studentAlbumPhotos[note.student_id] ?? [];
+            const stVideos = studentAlbumVideos[note.student_id] ?? [];
+            return (
+              <View key={note.id} style={[s.editNoteItem, { backgroundColor: "#EEDDF5", borderColor: "#C4B5FD" }]}>
+                <View style={s.editNoteHeader}>
+                  <Text style={s.noteName}>{note.student_name}</Text>
+                  <Pressable onPress={() => onMarkNoteDeleted(note.id)}>
+                    <Trash2 size={15} color={C.error} />
+                  </Pressable>
                 </View>
-                <Pressable onPress={() => onRemoveNewNote(idx)}>
-                  <CircleX size={15} color={C.error} />
-                </Pressable>
+                <TextInput style={[s.noteTextarea, { borderColor: "#C4B5FD", color: C.text }]}
+                  value={note.note_content}
+                  onChangeText={t => onUpdateNoteContent(note.id, t)}
+                  multiline numberOfLines={3} textAlignVertical="top"
+                  placeholder="개별 코멘트를 입력하세요" placeholderTextColor={C.textMuted} />
+                <View style={s.mediaRow}>
+                  <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={() => onOpenStudentAlbumPicker(st)}>
+                    <Images size={13} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
+                  </Pressable>
+                </View>
+                {(stPhotos.length > 0 || stVideos.length > 0) && (
+                  <View style={s.albumPreviewRow}>
+                    {stPhotos.map(photo => (
+                      <View key={photo.id} style={s.albumThumb}>
+                        <ExpoImage source={{ uri: photo.presigned_url ?? `${API_BASE.replace(/\/api$/, "")}${photo.file_url}?token=${token}` }} style={{ width: "100%", height: "100%", borderRadius: 6 }} contentFit="cover" />
+                        <Pressable style={s.albumThumbRemove} onPress={() => onRemoveStudentAlbumPhoto(note.student_id, photo.id)} hitSlop={6}>
+                          <CircleX size={16} color="#fff" fill="#374151" />
+                        </Pressable>
+                      </View>
+                    ))}
+                    {stVideos.map(video => (
+                      <View key={video.id} style={s.albumThumb}>
+                        {video.thumbnail_presigned_url ? (
+                          <ExpoImage source={{ uri: video.thumbnail_presigned_url }} style={{ width: "100%", height: "100%", borderRadius: 6 }} contentFit="cover" />
+                        ) : (
+                          <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
+                            <Layers size={16} color="#94A3B8" />
+                          </View>
+                        )}
+                        <Pressable style={s.albumThumbRemove} onPress={() => onRemoveStudentAlbumVideo(note.student_id, video.id)} hitSlop={6}>
+                          <CircleX size={16} color="#fff" fill="#374151" />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
-              <Text style={[s.noteContent, { color: C.text }]}>{note.note_content}</Text>
-            </View>
-          ))}
+            );
+          })}
+
+          {editNewNotes.map((note, idx) => {
+            const st: StudentOption = { id: note.student_id, name: note.student_name };
+            const stPhotos = studentAlbumPhotos[note.student_id] ?? [];
+            const stVideos = studentAlbumVideos[note.student_id] ?? [];
+            return (
+              <View key={idx} style={[s.editNoteItem, { backgroundColor: "#DFF3EC", borderColor: "#6EE7B7" }]}>
+                <View style={s.editNoteHeader}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <View style={[s.statusBadge, { backgroundColor: "#E6FFFA" }]}>
+                      <Text style={[s.statusBadgeText, { color: "#2EC4B6" }]}>신규</Text>
+                    </View>
+                    <Text style={[s.noteName, { color: "#2EC4B6" }]}>{note.student_name}</Text>
+                  </View>
+                  <Pressable onPress={() => onRemoveNewNote(idx)}>
+                    <CircleX size={15} color={C.error} />
+                  </Pressable>
+                </View>
+                <Text style={[s.noteContent, { color: C.text }]}>{note.note_content}</Text>
+                <View style={s.mediaRow}>
+                  <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={() => onOpenStudentAlbumPicker(st)}>
+                    <Images size={13} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
+                  </Pressable>
+                </View>
+                {(stPhotos.length > 0 || stVideos.length > 0) && (
+                  <View style={s.albumPreviewRow}>
+                    {stPhotos.map(photo => (
+                      <View key={photo.id} style={s.albumThumb}>
+                        <ExpoImage source={{ uri: photo.presigned_url ?? `${API_BASE.replace(/\/api$/, "")}${photo.file_url}?token=${token}` }} style={{ width: "100%", height: "100%", borderRadius: 6 }} contentFit="cover" />
+                        <Pressable style={s.albumThumbRemove} onPress={() => onRemoveStudentAlbumPhoto(note.student_id, photo.id)} hitSlop={6}>
+                          <CircleX size={16} color="#fff" fill="#374151" />
+                        </Pressable>
+                      </View>
+                    ))}
+                    {stVideos.map(video => (
+                      <View key={video.id} style={s.albumThumb}>
+                        {video.thumbnail_presigned_url ? (
+                          <ExpoImage source={{ uri: video.thumbnail_presigned_url }} style={{ width: "100%", height: "100%", borderRadius: 6 }} contentFit="cover" />
+                        ) : (
+                          <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
+                            <Layers size={16} color="#94A3B8" />
+                          </View>
+                        )}
+                        <Pressable style={s.albumThumbRemove} onPress={() => onRemoveStudentAlbumVideo(note.student_id, video.id)} hitSlop={6}>
+                          <CircleX size={16} color="#fff" fill="#374151" />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            );
+          })}
 
           {classStudents.length === 0 ? (
             <View style={[s.emptyStudents, { backgroundColor: C.background, borderColor: C.border }]}>
@@ -370,6 +448,9 @@ const s = StyleSheet.create({
   saveBtnText:   { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
   inlineError:   { flexDirection: "row", alignItems: "center", gap: 6, padding: 10, borderRadius: 10 },
   inlineErrorText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 17 },
+  mediaRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
+  mediaBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
+  mediaBtnText:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
   photoSection:  { gap: 10 },
   photoSectionLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 6 },
   albumPreviewRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },

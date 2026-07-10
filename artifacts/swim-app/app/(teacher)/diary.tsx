@@ -138,7 +138,8 @@ export default function TeacherDiaryScreen() {
 
   const [selectedAlbumVideos,  setSelectedAlbumVideos]  = useState<AlbumVideoInfo[]>([]);
 
-  const [showEditAlbumPicker,  setShowEditAlbumPicker]  = useState(false);
+  const [showEditAlbumPicker,         setShowEditAlbumPicker]         = useState(false);
+  const [showEditStudentAlbumPicker,  setShowEditStudentAlbumPicker]  = useState(false);
   const [editLinkedPhotos,     setEditLinkedPhotos]     = useState<AlbumPhotoInfo[]>([]);
   const [editRemovedPhotoIds,  setEditRemovedPhotoIds]  = useState<string[]>([]);
   const [editNewAlbumIds,      setEditNewAlbumIds]      = useState<string[]>([]);
@@ -431,6 +432,7 @@ export default function TeacherDiaryScreen() {
     setEditNotes([]); setEditNewNotes([]); setEditAddStudent(null); setEditAddInput(""); setEditError(null);
     setEditLinkedPhotos([]); setEditRemovedPhotoIds([]); setEditNewAlbumIds([]); setEditNewAlbumPhotos([]);
     setEditLinkedVideos([]); setEditRemovedVideoIds([]); setEditNewAlbumVideos([]);
+    setStudentAlbumPhotos({}); setStudentAlbumVideos({}); setStudentAlbumPickerTarget(null);
     setSubView("edit"); setEditLoading(true);
     try {
       const [diaryRes, photoRes, videoRes] = await Promise.all([
@@ -468,8 +470,26 @@ export default function TeacherDiaryScreen() {
       for (const note of editNotes) {
         if (!note._deleted && note._modified) await apiRequest(token, `/diaries/student-notes/${note.id}`, { method: "PUT", body: JSON.stringify({ note_content: note.note_content }) });
       }
+      const savedEditNoteIds: Record<string, string> = {};
       for (const note of editNewNotes) {
-        await apiRequest(token, `/diaries/${editDiary.id}/student-notes`, { method: "POST", body: JSON.stringify({ student_id: note.student_id, note_content: note.note_content }) });
+        const r2 = await apiRequest(token, `/diaries/${editDiary.id}/student-notes`, { method: "POST", body: JSON.stringify({ student_id: note.student_id, note_content: note.note_content }) });
+        if (r2.ok) { const d2 = await r2.json(); if (d2.note_id) savedEditNoteIds[note.student_id] = d2.note_id; }
+      }
+      // 기존 note 학생별 사진/영상 연결
+      for (const note of editNotes) {
+        if (!note._deleted) {
+          const photos = studentAlbumPhotos[note.student_id] ?? [];
+          if (photos.length > 0) await apiRequest(token, "/photos/note-attach", { method: "POST", body: JSON.stringify({ note_id: note.id, photo_ids: photos.map((p: AlbumPhotoInfo) => p.id) }) }).catch(() => {});
+          const vids = studentAlbumVideos[note.student_id] ?? [];
+          if (vids.length > 0) await apiRequest(token, "/videos/note-attach", { method: "POST", body: JSON.stringify({ note_id: note.id, video_ids: vids.map((v: AlbumVideoInfo) => v.id) }) }).catch(() => {});
+        }
+      }
+      // 신규 note 학생별 사진/영상 연결
+      for (const [studentId, noteId] of Object.entries(savedEditNoteIds)) {
+        const photos = studentAlbumPhotos[studentId] ?? [];
+        if (photos.length > 0) await apiRequest(token, "/photos/note-attach", { method: "POST", body: JSON.stringify({ note_id: noteId, photo_ids: photos.map((p: AlbumPhotoInfo) => p.id) }) }).catch(() => {});
+        const vids = studentAlbumVideos[studentId] ?? [];
+        if (vids.length > 0) await apiRequest(token, "/videos/note-attach", { method: "POST", body: JSON.stringify({ note_id: noteId, video_ids: vids.map((v: AlbumVideoInfo) => v.id) }) }).catch(() => {});
       }
       // 사진 제거 (journal_id = NULL)
       if (editRemovedPhotoIds.length > 0) {
@@ -501,6 +521,7 @@ export default function TeacherDiaryScreen() {
       }
       setEditLinkedPhotos([]); setEditRemovedPhotoIds([]); setEditNewAlbumIds([]); setEditNewAlbumPhotos([]);
       setEditLinkedVideos([]); setEditRemovedVideoIds([]); setEditNewAlbumVideos([]);
+      setStudentAlbumPhotos({}); setStudentAlbumVideos({});
       if (params.editDiaryId) { router.back(); }
       else { setSubView("history"); setEditDiary(null); await loadDiaries(selectedGroup.id); }
     } catch (e: any) { setEditError(e.message || "저장 중 오류가 발생했습니다."); }
@@ -586,6 +607,11 @@ export default function TeacherDiaryScreen() {
             }}
             newAlbumVideos={editNewAlbumVideos}
             onRemoveNewAlbumVideo={(id) => setEditNewAlbumVideos(prev => prev.filter(v => v.id !== id))}
+            studentAlbumPhotos={studentAlbumPhotos}
+            studentAlbumVideos={studentAlbumVideos}
+            onOpenStudentAlbumPicker={(student) => { setStudentAlbumPickerTarget(student); setShowEditStudentAlbumPicker(true); }}
+            onRemoveStudentAlbumPhoto={(studentId, photoId) => setStudentAlbumPhotos(prev => ({ ...prev, [studentId]: (prev[studentId] ?? []).filter(p => p.id !== photoId) }))}
+            onRemoveStudentAlbumVideo={(studentId, videoId) => setStudentAlbumVideos(prev => ({ ...prev, [studentId]: (prev[studentId] ?? []).filter(v => v.id !== videoId) }))}
           />
           <AlbumPickerModal
             visible={showEditAlbumPicker}
@@ -593,6 +619,16 @@ export default function TeacherDiaryScreen() {
             initialSelected={editNewAlbumIds}
             onConfirm={({ photos, videos }) => { setEditNewAlbumIds(photos.map(p => p.id)); setEditNewAlbumPhotos(photos); setEditNewAlbumVideos(videos); setShowEditAlbumPicker(false); }}
             onClose={() => setShowEditAlbumPicker(false)}
+          />
+          <AlbumPickerModal
+            visible={showEditStudentAlbumPicker}
+            token={token || ""}
+            initialSelected={studentAlbumPickerTarget ? (studentAlbumPhotos[studentAlbumPickerTarget.id] ?? []).map(p => p.id) : []}
+            onConfirm={({ photos }) => {
+              if (studentAlbumPickerTarget) setStudentAlbumPhotos(prev => ({ ...prev, [studentAlbumPickerTarget.id]: photos }));
+              setShowEditStudentAlbumPicker(false); setStudentAlbumPickerTarget(null);
+            }}
+            onClose={() => { setShowEditStudentAlbumPicker(false); setStudentAlbumPickerTarget(null); }}
           />
         </SafeAreaView>
       );
