@@ -9,7 +9,7 @@
  *   - 활성/비활성 토글 → toggle-active API (문장 불러오기에서 표시 여부 조절)
  */
 import React, { useCallback, useEffect, useState } from "react";
-import {ActivityIndicator, InputAccessoryView, Keyboard, KeyboardAvoidingView, Modal, Platform,
+import {ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -49,6 +49,14 @@ export default function FeedbackCustomScreen() {
   const [addTitle, setAddTitle] = useState("");
   const [addError, setAddError] = useState("");
   const [addSaving, setAddSaving] = useState(false);
+
+  // 키보드 높이 추적 (Modal 내 완료 버튼용)
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", e => setKbHeight(e.endCoordinates.height));
+    const hide = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide", () => setKbHeight(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   // 초기화 확인
   const [resetTarget, setResetTarget] = useState<DiaryTemplate | null>(null);
@@ -359,6 +367,13 @@ export default function FeedbackCustomScreen() {
       <Modal visible={!!editTarget} transparent animationType="fade" onRequestClose={() => setEditTarget(null)}>
         <View style={s.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+          {kbHeight > 0 && (
+            <View style={{ position: "absolute", bottom: kbHeight, left: 0, right: 0, zIndex: 100, flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingVertical: 8, backgroundColor: "#F1F5F9", borderTopWidth: 1, borderTopColor: "#E2E8F0" }}>
+              <Pressable onPress={Keyboard.dismiss} hitSlop={12}>
+                <Text style={{ color: "#2A9D8F", fontWeight: "600", fontSize: 16 }}>완료</Text>
+              </Pressable>
+            </View>
+          )}
           <View style={s.modalBox}>
             <KeyboardAwareScrollView
               bounces={false}
@@ -377,7 +392,6 @@ export default function FeedbackCustomScreen() {
                 onChangeText={setEditTitle}
                 placeholderTextColor="#94A3B8"
                 returnKeyType="next"
-                inputAccessoryViewID="modal-done-toolbar"
               />
               <TextInput
                 style={[s.input, s.textArea]}
@@ -387,7 +401,6 @@ export default function FeedbackCustomScreen() {
                 multiline
                 scrollEnabled
                 placeholderTextColor="#94A3B8"
-                inputAccessoryViewID="modal-done-toolbar"
               />
               {!!editError && <Text style={s.errorText}>{editError}</Text>}
               <View style={[s.modalBtns, { marginTop: 12 }]}>
@@ -407,6 +420,13 @@ export default function FeedbackCustomScreen() {
       <Modal visible={addVisible} transparent animationType="fade" onRequestClose={() => setAddVisible(false)}>
         <View style={s.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+          {kbHeight > 0 && (
+            <View style={{ position: "absolute", bottom: kbHeight, left: 0, right: 0, zIndex: 100, flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingVertical: 8, backgroundColor: "#F1F5F9", borderTopWidth: 1, borderTopColor: "#E2E8F0" }}>
+              <Pressable onPress={Keyboard.dismiss} hitSlop={12}>
+                <Text style={{ color: "#2A9D8F", fontWeight: "600", fontSize: 16 }}>완료</Text>
+              </Pressable>
+            </View>
+          )}
           <View style={s.modalBox}>
             <KeyboardAwareScrollView
               bounces={false}
@@ -423,7 +443,6 @@ export default function FeedbackCustomScreen() {
                 onChangeText={setAddTitle}
                 placeholderTextColor="#94A3B8"
                 returnKeyType="next"
-                inputAccessoryViewID="modal-done-toolbar"
               />
               <TextInput
                 style={[s.input, s.textArea]}
@@ -433,7 +452,6 @@ export default function FeedbackCustomScreen() {
                 multiline
                 scrollEnabled
                 placeholderTextColor="#94A3B8"
-                inputAccessoryViewID="modal-done-toolbar"
               />
               {!!addError && <Text style={s.errorText}>{addError}</Text>}
               <View style={[s.modalBtns, { marginTop: 12 }]}>
@@ -448,17 +466,6 @@ export default function FeedbackCustomScreen() {
           </View>
         </View>
       </Modal>
-
-      {/* ── 키보드 완료 툴바 (iOS) ── */}
-      {Platform.OS === "ios" && (
-        <InputAccessoryView nativeID="modal-done-toolbar">
-          <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingVertical: 8, backgroundColor: "#F1F5F9", borderTopWidth: 1, borderTopColor: "#E2E8F0" }}>
-            <Pressable onPress={Keyboard.dismiss} hitSlop={12}>
-              <Text style={{ color: "#2A9D8F", fontWeight: "600", fontSize: 16 }}>완료</Text>
-            </Pressable>
-          </View>
-        </InputAccessoryView>
-      )}
 
       {/* ── 초기화 확인 ── */}
       <ConfirmModal
