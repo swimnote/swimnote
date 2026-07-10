@@ -1181,14 +1181,25 @@ router.get("/students/:id/home-summary", requireAuth, requireParent, async (req:
 
     // pool_level_settings에서 현재 레벨 정의 조회 (이름·배지 등)
     let currentLevelName: string | null = null;
-    if (studLevelRaw?.current_level_order != null && studLevelRaw?.swimming_pool_id) {
-      const defRow = await db.execute(sql`
-        SELECT level_name FROM pool_level_settings
-        WHERE pool_id = ${studLevelRaw.swimming_pool_id}
-          AND level_order = ${studLevelRaw.current_level_order}
-        LIMIT 1
-      `).catch(() => ({ rows: [] }));
-      currentLevelName = (defRow.rows[0] as any)?.level_name ?? `레벨 ${studLevelRaw.current_level_order}`;
+    if (studLevelRaw?.current_level_order != null) {
+      const poolId2 = studLevelRaw?.swimming_pool_id;
+      if (poolId2) {
+        const defRow = await db.execute(sql`
+          SELECT level_name FROM pool_level_settings
+          WHERE pool_id = ${poolId2}
+            AND level_order = ${studLevelRaw.current_level_order}
+          LIMIT 1
+        `).catch(() => ({ rows: [] }));
+        if (defRow.rows.length > 0) {
+          currentLevelName = (defRow.rows[0] as any)?.level_name ?? `레벨 ${studLevelRaw.current_level_order}`;
+        } else {
+          // pool_level_settings 없으면 DEFAULT fallback
+          const defLevel = DEFAULT_LEVELS_P.find((l: any) => l.level_order === Number(studLevelRaw.current_level_order));
+          currentLevelName = defLevel?.level_name ?? `레벨 ${studLevelRaw.current_level_order}`;
+        }
+      } else {
+        currentLevelName = `레벨 ${studLevelRaw.current_level_order}`;
+      }
     }
 
     if (levelRows.rows.length > 0) {
