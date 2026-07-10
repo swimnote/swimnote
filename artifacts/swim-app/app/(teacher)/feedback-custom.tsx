@@ -357,84 +357,98 @@ export default function FeedbackCustomScreen() {
 
       {/* ── 수정 모달 ── */}
       <Modal visible={!!editTarget} transparent animationType="fade" onRequestClose={() => setEditTarget(null)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-          <View style={s.modalOverlay}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
-            <View style={s.modalBox}>
-              <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                <Text style={s.modalTitle}>템플릿 수정</Text>
-                {editTarget?.global_id && !editTarget.is_overridden && (
-                  <Text style={[s.modalHint, { marginBottom: 12 }]}>수정하면 이 항목만 내 버전으로 저장됩니다.</Text>
-                )}
-                <TextInput
-                  style={[s.input, { marginBottom: 10 }]}
-                  placeholder="제목 (선택)"
-                  value={editTitle}
-                  onChangeText={setEditTitle}
-                  placeholderTextColor="#94A3B8"
-                />
-                <TextInput
-                  style={[s.input, s.textArea]}
-                  placeholder="내용을 입력하세요"
-                  value={editText}
-                  onChangeText={setEditText}
-                  multiline
-                  scrollEnabled
-                  placeholderTextColor="#94A3B8"
-                />
-                {!!editError && <Text style={s.errorText}>{editError}</Text>}
-                <View style={[s.modalBtns, { marginTop: 12 }]}>
-                  <Pressable style={s.cancelBtn} onPress={() => setEditTarget(null)}>
-                    <Text style={s.cancelBtnText}>취소</Text>
-                  </Pressable>
-                  <Pressable style={[s.saveBtn, editSaving && { opacity: 0.6 }]} onPress={saveOverride} disabled={editSaving}>
-                    {editSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.saveBtnText}>저장</Text>}
-                  </Pressable>
-                </View>
-              </ScrollView>
-            </View>
+        <View style={s.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+          <View style={s.modalBox}>
+            <KeyboardAwareScrollView
+              bounces={false}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 140 }}
+            >
+              <Text style={s.modalTitle}>템플릿 수정</Text>
+              {editTarget?.global_id && !editTarget.is_overridden && (
+                <Text style={[s.modalHint, { marginBottom: 12 }]}>수정하면 이 항목만 내 버전으로 저장됩니다.</Text>
+              )}
+              <TextInput
+                style={[s.input, { marginBottom: 10 }]}
+                placeholder="제목 (선택)"
+                value={editTitle}
+                onChangeText={setEditTitle}
+                placeholderTextColor="#94A3B8"
+                returnKeyType="next"
+              />
+              <TextInput
+                style={[s.input, s.textArea]}
+                placeholder="내용을 입력하세요"
+                value={editText}
+                onChangeText={setEditText}
+                multiline
+                scrollEnabled
+                placeholderTextColor="#94A3B8"
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={Keyboard.dismiss}
+              />
+              {!!editError && <Text style={s.errorText}>{editError}</Text>}
+              <View style={[s.modalBtns, { marginTop: 12 }]}>
+                <Pressable style={s.cancelBtn} onPress={() => setEditTarget(null)}>
+                  <Text style={s.cancelBtnText}>취소</Text>
+                </Pressable>
+                <Pressable style={[s.saveBtn, editSaving && { opacity: 0.6 }]} onPress={saveOverride} disabled={editSaving}>
+                  {editSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.saveBtnText}>저장</Text>}
+                </Pressable>
+              </View>
+            </KeyboardAwareScrollView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       {/* ── 신규 추가 모달 ── */}
       <Modal visible={addVisible} transparent animationType="fade" onRequestClose={() => setAddVisible(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-          <View style={s.modalOverlay}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
-            <View style={s.modalBox}>
-              <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                <Text style={s.modalTitle}>내 항목 추가</Text>
-                <Text style={[s.modalHint, { marginBottom: 12 }]}>나에게만 표시되는 항목입니다.</Text>
-                <TextInput
-                  style={[s.input, { marginBottom: 10 }]}
-                  placeholder="제목 (선택)"
-                  value={addTitle}
-                  onChangeText={setAddTitle}
-                  placeholderTextColor="#94A3B8"
-                />
-                <TextInput
-                  style={[s.input, s.textArea]}
-                  placeholder="내용을 입력하세요"
-                  value={addText}
-                  onChangeText={setAddText}
-                  multiline
-                  scrollEnabled
-                  placeholderTextColor="#94A3B8"
-                />
-                {!!addError && <Text style={s.errorText}>{addError}</Text>}
-                <View style={[s.modalBtns, { marginTop: 12 }]}>
-                  <Pressable style={s.cancelBtn} onPress={() => setAddVisible(false)}>
-                    <Text style={s.cancelBtnText}>취소</Text>
-                  </Pressable>
-                  <Pressable style={[s.saveBtn, addSaving && { opacity: 0.6 }]} onPress={saveAdd} disabled={addSaving}>
-                    {addSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.saveBtnText}>추가</Text>}
-                  </Pressable>
-                </View>
-              </ScrollView>
-            </View>
+        <View style={s.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+          <View style={s.modalBox}>
+            <KeyboardAwareScrollView
+              bounces={false}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 140 }}
+            >
+              <Text style={s.modalTitle}>내 항목 추가</Text>
+              <Text style={[s.modalHint, { marginBottom: 12 }]}>나에게만 표시되는 항목입니다.</Text>
+              <TextInput
+                style={[s.input, { marginBottom: 10 }]}
+                placeholder="제목 (선택)"
+                value={addTitle}
+                onChangeText={setAddTitle}
+                placeholderTextColor="#94A3B8"
+                returnKeyType="next"
+              />
+              <TextInput
+                style={[s.input, s.textArea]}
+                placeholder="내용을 입력하세요"
+                value={addText}
+                onChangeText={setAddText}
+                multiline
+                scrollEnabled
+                placeholderTextColor="#94A3B8"
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={Keyboard.dismiss}
+              />
+              {!!addError && <Text style={s.errorText}>{addError}</Text>}
+              <View style={[s.modalBtns, { marginTop: 12 }]}>
+                <Pressable style={s.cancelBtn} onPress={() => setAddVisible(false)}>
+                  <Text style={s.cancelBtnText}>취소</Text>
+                </Pressable>
+                <Pressable style={[s.saveBtn, addSaving && { opacity: 0.6 }]} onPress={saveAdd} disabled={addSaving}>
+                  {addSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.saveBtnText}>추가</Text>}
+                </Pressable>
+              </View>
+            </KeyboardAwareScrollView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       {/* ── 초기화 확인 ── */}
