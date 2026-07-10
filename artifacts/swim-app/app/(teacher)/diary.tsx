@@ -166,7 +166,17 @@ export default function TeacherDiaryScreen() {
         if (feat) setPlanFeatures(feat);
       }
       let groupsList: TeacherClassGroup[] = [];
-      if (cgRes.ok) { groupsList = await cgRes.json(); setGroups(groupsList); }
+      if (cgRes.ok) {
+        const allGroups: any[] = await cgRes.json();
+        const uid = user?.id;
+        groupsList = uid
+          ? allGroups.filter((g: any) =>
+              g.teacher_user_id === uid ||
+              (Array.isArray(g.co_teacher_ids) && g.co_teacher_ids.includes(uid))
+            )
+          : allGroups;
+        setGroups(groupsList);
+      }
       if (attRes.ok) {
         const arr: any[] = await attRes.json();
         const map: Record<string, number> = {};
