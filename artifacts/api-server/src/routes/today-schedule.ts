@@ -39,45 +39,28 @@ function todayDayKO(): string {
 
 /** ─────────────────────────────────────────────────────────
  *  GET /today-schedule
- *  선생님: 자신이 담당하는 오늘 수업
- *  pool_admin: 풀 전체 오늘 수업
+ *  선생님 홈 전용 — role 무관하게 항상 자신(teacher_user_id = userId)이 담당하는 수업만 반환
+ *  (pool_admin이 teacher 화면으로 전환 도중 이전 token으로 호출해도 전체 반 노출 방지)
  * ───────────────────────────────────────────────────────── */
 router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", "super_admin"), async (req: AuthRequest, res) => {
   try {
     const user = req.user!;
-    const role = user.role;
     const today = todayKST();
-    const dayKO = todayDayKO();
     const dateParam = (req.query.date as string) || today;
 
     // UTC 정오 기준 파싱 → 어떤 서버 시간대에서도 올바른 요일 계산
     const targetDate = new Date(dateParam + "T12:00:00Z");
     const targetDayKO = ["일", "월", "화", "수", "목", "금", "토"][targetDate.getUTCDay()];
 
-    let groups: any[];
-    if (role === "teacher") {
-      const rows = await db.execute(sql`
-        SELECT * FROM class_groups
-        WHERE teacher_user_id = ${user.userId}
-        AND schedule_days LIKE ${"%" + targetDayKO + "%"}
-        AND is_deleted = false
-        ORDER BY schedule_time ASC
-      `);
-      groups = rows.rows as any[];
-    } else if (role === "pool_admin") {
-      const poolId = user.poolId;
-      if (!poolId) { res.json([]); return; }
-      const rows = await db.execute(sql`
-        SELECT * FROM class_groups
-        WHERE swimming_pool_id = ${poolId}
-        AND schedule_days LIKE ${"%" + targetDayKO + "%"}
-        AND is_deleted = false
-        ORDER BY schedule_time ASC
-      `);
-      groups = rows.rows as any[];
-    } else {
-      res.json([]); return;
-    }
+    // 항상 자신이 담당하는 반만 반환 (role 무관)
+    const rows = await db.execute(sql`
+      SELECT * FROM class_groups
+      WHERE teacher_user_id = ${user.userId}
+      AND schedule_days LIKE ${"%" + targetDayKO + "%"}
+      AND is_deleted = false
+      ORDER BY schedule_time ASC
+    `);
+    const groups: any[] = rows.rows as any[];
 
     if (groups.length === 0) { res.json([]); return; }
 
