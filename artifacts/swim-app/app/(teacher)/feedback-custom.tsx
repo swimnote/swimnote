@@ -358,8 +358,9 @@ export default function FeedbackCustomScreen() {
       {/* ── 수정 모달 ── */}
       <Modal visible={!!editTarget} transparent animationType="fade" onRequestClose={() => setEditTarget(null)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-          <Pressable style={s.modalOverlay} onPress={Keyboard.dismiss}>
-            <Pressable style={s.modalBox} onPress={e => e.stopPropagation()}>
+          <View style={s.modalOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+            <View style={s.modalBox}>
               <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                 <Text style={s.modalTitle}>템플릿 수정</Text>
                 {editTarget?.global_id && !editTarget.is_overridden && (
@@ -382,7 +383,7 @@ export default function FeedbackCustomScreen() {
                   placeholderTextColor="#94A3B8"
                 />
                 {!!editError && <Text style={s.errorText}>{editError}</Text>}
-                <View style={s.modalBtns}>
+                <View style={[s.modalBtns, { marginTop: 12 }]}>
                   <Pressable style={s.cancelBtn} onPress={() => setEditTarget(null)}>
                     <Text style={s.cancelBtnText}>취소</Text>
                   </Pressable>
@@ -391,16 +392,17 @@ export default function FeedbackCustomScreen() {
                   </Pressable>
                 </View>
               </ScrollView>
-            </Pressable>
-          </Pressable>
+            </View>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* ── 신규 추가 모달 ── */}
       <Modal visible={addVisible} transparent animationType="fade" onRequestClose={() => setAddVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-          <Pressable style={s.modalOverlay} onPress={Keyboard.dismiss}>
-            <Pressable style={s.modalBox} onPress={e => e.stopPropagation()}>
+          <View style={s.modalOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+            <View style={s.modalBox}>
               <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                 <Text style={s.modalTitle}>내 항목 추가</Text>
                 <Text style={[s.modalHint, { marginBottom: 12 }]}>나에게만 표시되는 항목입니다.</Text>
@@ -421,7 +423,7 @@ export default function FeedbackCustomScreen() {
                   placeholderTextColor="#94A3B8"
                 />
                 {!!addError && <Text style={s.errorText}>{addError}</Text>}
-                <View style={s.modalBtns}>
+                <View style={[s.modalBtns, { marginTop: 12 }]}>
                   <Pressable style={s.cancelBtn} onPress={() => setAddVisible(false)}>
                     <Text style={s.cancelBtnText}>취소</Text>
                   </Pressable>
@@ -430,8 +432,8 @@ export default function FeedbackCustomScreen() {
                   </Pressable>
                 </View>
               </ScrollView>
-            </Pressable>
-          </Pressable>
+            </View>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
 
