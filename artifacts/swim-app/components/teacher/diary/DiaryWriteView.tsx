@@ -265,30 +265,30 @@ export default function DiaryWriteView({
                 onSelectionChange={e => { noteCursorRef.current = e.nativeEvent.selection.start; }}
                 placeholder="이 학생에게 전달할 추가 내용을 입력하세요"
                 placeholderTextColor={C.textMuted} multiline numberOfLines={3} textAlignVertical="top" autoFocus />
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
                 <TouchableOpacity style={[s.sentencePickBtn]} onPress={() => setShowPickerFor("note")} activeOpacity={0.7}>
-                  <BookOpen size={13} color="#8B5CF6" />
-                  <Text style={[s.sentencePickBtnText, { color: "#8B5CF6" }]}>템플릿선택</Text>
+                  <BookOpen size={12} color="#8B5CF6" />
+                  <Text style={[s.sentencePickBtnText, { color: "#8B5CF6" }]}>템플릿</Text>
                 </TouchableOpacity>
                 <Pressable
                   style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]}
                   onPress={() => onOpenStudentAlbumPicker(addNoteStudent)}
                 >
-                  <Images size={13} color="#3B82F6" />
-                  <Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
+                  <Images size={12} color="#3B82F6" />
+                  <Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범선택</Text>
                 </Pressable>
                 <Pressable
                   style={[s.mediaBtn, { backgroundColor: "#FFEDD5" }]}
                   onPress={() => onOpenStudentMyAlbum(addNoteStudent, "photo")}
                 >
-                  <Image size={13} color="#C2410C" />
+                  <Image size={12} color="#C2410C" />
                   <Text style={[s.mediaBtnText, { color: "#C2410C" }]}>내 사진앨범</Text>
                 </Pressable>
                 <Pressable
                   style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]}
                   onPress={() => onOpenStudentMyAlbum(addNoteStudent, "video")}
                 >
-                  <Video size={13} color="#5B21B6" />
+                  <Video size={12} color="#5B21B6" />
                   <Text style={[s.mediaBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
                 </Pressable>
               </View>
@@ -406,11 +406,11 @@ export const s = StyleSheet.create({
   noteName:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
   noteContent:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 18 },
   noteInput:     { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 4 },
-  noteTextarea:  { borderWidth: 1.5, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20, minHeight: 80, textAlignVertical: "top", backgroundColor: "#fff" },
+  noteTextarea:  { borderWidth: 1.5, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20, minHeight: 130, textAlignVertical: "top", backgroundColor: "#fff" },
   noteBtn:       { flex: 1, height: 38, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   mediaRow:      { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  mediaBtn:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
-  mediaBtnText:  { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  mediaBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 20 },
+  mediaBtnText:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
   mediaPreviewRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 4 },
   mediaThumb:    { width: 36, height: 36, borderRadius: 8, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
   albumLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular", marginBottom: 6 },
