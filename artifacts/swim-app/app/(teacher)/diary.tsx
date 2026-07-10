@@ -174,7 +174,7 @@ export default function TeacherDiaryScreen() {
       }
       if (dRes.ok) {
         const arr: any[] = await dRes.json();
-        setDiarySet(new Set(arr.map((d: any) => d.class_group_id).filter(Boolean)));
+        setDiarySet(new Set(arr.map((d: any) => d.class_group_id && d.lesson_date ? `${d.class_group_id}_${d.lesson_date}` : null).filter(Boolean) as string[]));
       }
       if (!initialParamsHandled.current) {
         initialParamsHandled.current = true;
@@ -413,7 +413,7 @@ export default function TeacherDiaryScreen() {
       }
       setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
       setStudentAlbumPhotos({}); setStudentAlbumVideos({});
-      setDiarySet(prev => new Set([...prev, selectedGroup.id]));
+      setDiarySet(prev => new Set([...prev, `${selectedGroup.id}_${targetDate}`]));
       if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => {});
       setHasDraft(false);
       haptic.success();
@@ -512,14 +512,14 @@ export default function TeacherDiaryScreen() {
       const r = await apiRequest(token, `/diaries/${deleteTarget.id}`, { method: "DELETE" });
       if (r.ok) {
         setDiaries(prev => prev.filter(d => d.id !== deleteTarget.id));
-        setDiarySet(prev => { const next = new Set(prev); next.delete(selectedGroup.id); return next; });
+        setDiarySet(prev => { const next = new Set(prev); next.delete(`${selectedGroup.id}_${deleteTarget.lesson_date ?? targetDate}`); return next; });
         setDeleteTarget(null);
       } else { const d = await r.json(); setDeleteError(d.error || "삭제 실패"); }
     } finally { setDeleteLoading(false); }
   }
 
   const statusMap: Record<string, SlotStatus> = {};
-  groups.forEach(g => { statusMap[g.id] = { attChecked: attMap[g.id] || 0, diaryDone: diarySet.has(g.id), hasPhotos: false }; });
+  groups.forEach(g => { statusMap[g.id] = { attChecked: attMap[g.id] || 0, diaryDone: diarySet.has(`${g.id}_${targetDate}`), hasPhotos: false }; });
 
   if (loading) {
     return (
@@ -532,7 +532,7 @@ export default function TeacherDiaryScreen() {
 
   if (selectedGroup) {
     const group = selectedGroup;
-    const myDiaryExists = diarySet.has(group.id);
+    const myDiaryExists = diarySet.has(`${group.id}_${targetDate}`);
 
     if (subView === "edit") {
       return (
