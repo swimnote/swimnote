@@ -331,8 +331,9 @@ router.post("/diaries",
       const { userId, role } = req.user!;
       const { class_group_id, lesson_date, common_content, student_notes } = req.body;
 
-      if (!class_group_id || !common_content?.trim()) {
-        return apiErr(res, 400, "반 ID와 공통 일지 내용은 필수입니다.");
+      const hasStudentNotes = Array.isArray(student_notes) && student_notes.some((n: any) => n.note_content?.trim());
+      if (!class_group_id || (!common_content?.trim() && !hasStudentNotes)) {
+        return apiErr(res, 400, "반 ID와 일지 내용은 필수입니다.");
       }
 
       const poolId = await getUserPoolId(userId);
@@ -367,12 +368,12 @@ router.post("/diaries",
 
       await db.execute(sql`
         INSERT INTO class_diaries (id, class_group_id, teacher_id, teacher_name, swimming_pool_id, lesson_date, common_content)
-        VALUES (${diaryId}, ${class_group_id}, ${userId}, ${teacherName}, ${poolId}, ${dateStr}, ${common_content.trim()})
+        VALUES (${diaryId}, ${class_group_id}, ${userId}, ${teacherName}, ${poolId}, ${dateStr}, ${(common_content || "").trim()})
       `);
 
       await logAudit({
         diaryId, targetType: "common", actionType: "create",
-        afterContent: common_content.trim(),
+        afterContent: (common_content || "").trim(),
         actorId: userId, actorName: teacherName, actorRole: role, poolId,
       });
 

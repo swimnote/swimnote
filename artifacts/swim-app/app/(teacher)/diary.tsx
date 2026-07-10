@@ -378,18 +378,19 @@ export default function TeacherDiaryScreen() {
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error || "저장 실패");
+      const savedDiaryId = data.diary_id || data.id;
       // 앨범 사진 연결
-      if (selectedAlbumIds.length > 0 && data.id) {
+      if (selectedAlbumIds.length > 0 && savedDiaryId) {
         await apiRequest(token, "/photos/diary-attach", {
           method: "POST",
-          body: JSON.stringify({ diary_id: data.id, photo_ids: selectedAlbumIds }),
+          body: JSON.stringify({ diary_id: savedDiaryId, photo_ids: selectedAlbumIds }),
         }).catch(() => {});
       }
       // 앨범 영상 연결
-      if (selectedAlbumVideos.length > 0 && data.id) {
+      if (selectedAlbumVideos.length > 0 && savedDiaryId) {
         await apiRequest(token, "/videos/diary-attach", {
           method: "POST",
-          body: JSON.stringify({ diary_id: data.id, video_ids: selectedAlbumVideos.map(v => v.id) }),
+          body: JSON.stringify({ diary_id: savedDiaryId, video_ids: selectedAlbumVideos.map(v => v.id) }),
         }).catch(() => {});
       }
       // 학생별 앨범 사진/영상 연결
@@ -413,6 +414,7 @@ export default function TeacherDiaryScreen() {
       }
       setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
       setStudentAlbumPhotos({}); setStudentAlbumVideos({});
+      setStudentNotes([]); setCommonContent(""); setAddNoteStudent(null); setNoteInput("");
       setDiarySet(prev => new Set([...prev, `${selectedGroup.id}_${targetDate}`]));
       if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => {});
       setHasDraft(false);
