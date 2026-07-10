@@ -483,8 +483,8 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                   <AtSign size={10} color="#64748B" />
                   <Text style={s.directedTagText}>
                     {isMine
-                      ? `${extra.target_user_name}에게만`
-                      : "나에게만"}
+                      ? `@${extra.target_user_name} 언급`
+                      : `@나 언급`}
                   </Text>
                 </View>
               )}
@@ -605,7 +605,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
           {targetUser && (
             <View style={s.targetBadge}>
               <AtSign size={13} color={PRIMARY} />
-              <Text style={s.targetBadgeText}>{targetUser.name}에게만 보냄</Text>
+              <Text style={s.targetBadgeText}>@{targetUser.name} 언급</Text>
               <TouchableOpacity onPress={() => setTargetUser(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <X size={14} color={C.textSecondary} />
               </TouchableOpacity>
