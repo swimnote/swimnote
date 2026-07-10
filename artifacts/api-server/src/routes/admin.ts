@@ -3204,12 +3204,13 @@ router.patch("/students/:id/level", requireAuth, requireRole("super_admin","pool
       UPDATE students SET current_level_order = ${level_order}, updated_at = NOW() WHERE id = ${req.params.id}
     `);
     const actorName = req.user!.name || "관리자";
-    await db.execute(sql`
+    // UPDATE 성공 즉시 응답 — INSERT는 비동기 처리
+    res.json({ ok: true, level_order, level_name: lvName });
+    db.execute(sql`
       INSERT INTO student_levels (id, student_id, swimming_pool_id, level, level_order, achieved_date, note, teacher_name, created_at)
       VALUES (gen_random_uuid()::text, ${req.params.id}, ${poolId}, ${lvName}, ${level_order},
               to_char(now(), 'YYYY-MM-DD'), ${note ?? null}, ${actorName}, NOW())
-    `);
-    res.json({ ok: true, level_order, level_name: lvName });
+    `).catch((e: any) => console.error("[레벨변경] student_levels INSERT 실패:", e?.message));
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 

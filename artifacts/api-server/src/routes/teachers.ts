@@ -849,12 +849,13 @@ router.patch("/teacher/students/:id/level", requireAuth, async (req: AuthRequest
     await db.execute(sql`
       UPDATE students SET current_level_order = ${level_order}, updated_at = NOW() WHERE id = ${req.params.id}
     `);
-    await db.execute(sql`
+    // UPDATE 성공 즉시 응답 — INSERT는 비동기 처리 (테이블 미존재 등 실패해도 UX 영향 없음)
+    res.json({ ok: true, level_order, level_name: lvName });
+    db.execute(sql`
       INSERT INTO student_levels (id, student_id, swimming_pool_id, level, level_order, achieved_date, note, teacher_name, created_at)
       VALUES (gen_random_uuid()::text, ${req.params.id}, ${poolId}, ${lvName}, ${level_order},
               to_char(now(), 'YYYY-MM-DD'), ${note ?? null}, ${actorName}, NOW())
-    `);
-    res.json({ ok: true, level_order, level_name: lvName });
+    `).catch((e: any) => console.error("[레벨변경] student_levels INSERT 실패:", e?.message));
 
     // 비동기 학부모 push 알림 (응답 후 처리)
     try {
