@@ -86,7 +86,7 @@ export default function StudentDetailScreen() {
   const [levelChanging,     setLevelChanging]     = useState(false);
   const [levelNote,         setLevelNote]         = useState("");
   const [pendingLevelOrder, setPendingLevelOrder] = useState<number | null>(null);
-  const [levelSuccessMsg,   setLevelSuccessMsg]   = useState<string | null>(null);
+  const [levelResult, setLevelResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -148,11 +148,11 @@ export default function StudentDetailScreen() {
           : prev
         );
         setLevelNote("");
-        setLevelSuccessMsg(`레벨이 "${newLevel?.level_name ?? levelOrder}"로 변경됐습니다.\n학부모 앱에 즉시 반영됩니다.`);
+        setLevelResult({ ok: true, msg: `레벨이 "${newLevel?.level_name ?? levelOrder}"로 변경됐습니다.\n학부모 앱에 즉시 반영됩니다.` });
       } else {
-        setLevelSuccessMsg("레벨 변경에 실패했습니다. 다시 시도해주세요.");
+        setLevelResult({ ok: false, msg: "레벨 변경에 실패했습니다. 다시 시도해주세요." });
       }
-    } catch (e) { console.error(e); setLevelSuccessMsg("레벨 변경 중 오류가 발생했습니다."); }
+    } catch (e) { console.error(e); setLevelResult({ ok: false, msg: "레벨 변경 중 오류가 발생했습니다." }); }
     finally { setLevelChanging(false); }
   }
 
@@ -526,12 +526,12 @@ export default function StudentDetailScreen() {
       </Modal>
 
       {/* ── 레벨 변경 결과 모달 ── */}
-      <Modal visible={!!levelSuccessMsg} transparent animationType="fade" onRequestClose={() => setLevelSuccessMsg(null)}>
-        <Pressable style={s.pickerOverlay} onPress={() => setLevelSuccessMsg(null)}>
+      <Modal visible={!!levelResult} transparent animationType="fade" onRequestClose={() => setLevelResult(null)}>
+        <Pressable style={s.pickerOverlay} onPress={() => setLevelResult(null)}>
           <View style={[s.pickerSheet, { backgroundColor: C.card, gap: 12 }]} onStartShouldSetResponder={() => true}>
-            <Text style={[s.pickerTitle, { fontSize: 16 }]}>✅ 완료</Text>
-            <Text style={[s.pickerSub, { textAlign: "center", lineHeight: 22 }]}>{levelSuccessMsg}</Text>
-            <Pressable style={[s.levelConfirmBtn, { backgroundColor: themeColor }]} onPress={() => setLevelSuccessMsg(null)}>
+            <Text style={[s.pickerTitle, { fontSize: 16 }]}>{levelResult?.ok ? "✅ 완료" : "❌ 실패"}</Text>
+            <Text style={[s.pickerSub, { textAlign: "center", lineHeight: 22 }]}>{levelResult?.msg}</Text>
+            <Pressable style={[s.levelConfirmBtn, { backgroundColor: levelResult?.ok ? themeColor : "#EF4444" }]} onPress={() => setLevelResult(null)}>
               <Text style={s.levelConfirmBtnText}>확인</Text>
             </Pressable>
           </View>
