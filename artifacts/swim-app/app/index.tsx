@@ -34,6 +34,14 @@ function KakaoIcon({ size = 22 }: { size?: number }) {
   );
 }
 
+function AppleIcon({ size = 22 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="#fff">
+      <Path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+    </Svg>
+  );
+}
+
 export default function LoginScreen() {
   const { unifiedLogin, kakaoSocialLogin, appleSocialLogin } = useAuth();
   const insets = useSafeAreaInsets();
@@ -317,51 +325,39 @@ export default function LoginScreen() {
 
         {/* ── 소셜 / 가입 버튼 ── */}
         <View style={s.signupCol}>
-          {/* Sign in with Apple (iOS/iPadOS — isAvailableAsync 체크) */}
-          {appleAvailable && (
-            <View style={{ position: "relative" }}>
-              <AppleAuthentication.AppleAuthenticationButton
-                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                cornerRadius={14}
-                style={[s.appleBtn, appleLoading && { opacity: 0.4 }]}
-                onPress={handleAppleLogin}
-              />
-              {appleLoading && (
-                <View style={s.appleLoadingOverlay} pointerEvents="none">
-                  <ActivityIndicator color="#fff" size="small" />
-                  <Text style={s.appleLoadingText}>Apple 로그인 중…</Text>
-                </View>
-              )}
-            </View>
-          )}
+          {/* 일반 가입 — 메인 CTA */}
+          <Pressable
+            style={({ pressed }) => [s.signupMainBtn, { opacity: pressed || loading ? 0.85 : 1 }]}
+            onPress={() => router.push("/(auth)/signup" as any)}
+            disabled={loading}
+          >
+            <LucideIcon name="user-plus" size={18} color="#0a2540" />
+            <Text style={s.signupMainBtnText}>회원가입</Text>
+          </Pressable>
 
-          <View style={s.signupRow}>
-            {/* 카카오 가입 */}
+          {/* 소셜 아이콘 — 아이콘만, 중앙 배치 */}
+          <View style={s.socialIconRow}>
+            {appleAvailable && (
+              <Pressable
+                style={[s.socialIconBtn, s.appleIconBtn, (appleLoading || loading) && { opacity: 0.5 }]}
+                onPress={handleAppleLogin}
+                disabled={appleLoading || loading}
+              >
+                {appleLoading
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <AppleIcon size={20} />
+                }
+              </Pressable>
+            )}
             <Pressable
-              style={({ pressed }) => [s.socialBtn, s.kakaoBtn, { opacity: pressed || kakaoLoading ? 0.85 : 1 }]}
+              style={[s.socialIconBtn, s.kakaoIconBtn, (kakaoLoading || loading) && { opacity: 0.5 }]}
               onPress={handleKakaoLogin}
               disabled={kakaoLoading || loading}
             >
               {kakaoLoading
                 ? <ActivityIndicator color="#3C1E1E" size="small" />
-                : (
-                  <>
-                    <KakaoIcon size={22} />
-                    <Text style={s.kakaoBtnText}>카카오 가입</Text>
-                  </>
-                )
+                : <KakaoIcon size={22} />
               }
-            </Pressable>
-
-            {/* 일반 가입 */}
-            <Pressable
-              style={({ pressed }) => [s.socialBtn, s.regularBtn, { opacity: pressed ? 0.85 : 1 }]}
-              onPress={() => router.push("/(auth)/signup" as any)}
-              disabled={loading}
-            >
-              <LucideIcon name="user-plus" size={18} color="#475569" />
-              <Text style={s.regularBtnText}>일반 가입</Text>
             </Pressable>
           </View>
         </View>
@@ -484,27 +480,27 @@ const s = StyleSheet.create({
   dividerLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
 
   /* 가입 버튼 영역 */
-  signupCol: { gap: 10 },
-  appleBtn:  { width: "100%", height: 52 },
-  appleLoadingOverlay: {
-    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-    borderRadius: 14, backgroundColor: "rgba(0,0,0,0.55)",
+  signupCol: { gap: 14 },
+
+  signupMainBtn: {
+    height: 54, borderRadius: 14, backgroundColor: "#a1f7da",
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    shadowColor: "#a1f7da", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 10, elevation: 4,
   },
-  appleLoadingText: { color: "#fff", fontSize: 12, fontFamily: "Pretendard-Regular" },
-  signupRow: { flexDirection: "row", gap: 12 },
-  socialBtn: {
-    flex: 1, height: 52, borderRadius: 14,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+  signupMainBtnText: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0a2540" },
+
+  socialIconRow: {
+    flexDirection: "row", justifyContent: "center", gap: 16,
   },
-  kakaoBtn:  {
-    backgroundColor: KAKAO,
-    shadowColor: KAKAO, shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25, shadowRadius: 6, elevation: 3,
+  socialIconBtn: {
+    width: 52, height: 52, borderRadius: 26,
+    alignItems: "center", justifyContent: "center",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2, shadowRadius: 6, elevation: 3,
   },
-  kakaoBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#3C1E1E" },
-  regularBtn:   { backgroundColor: "#97cdf7", borderWidth: 1.5, borderColor: "#97cdf7" },
-  regularBtnText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0a2540" },
+  appleIconBtn: { backgroundColor: "#000", shadowColor: "#000" },
+  kakaoIconBtn: { backgroundColor: KAKAO, shadowColor: KAKAO },
 
   /* 키보드 위 입력 미리보기 */
   inputBubble: {
