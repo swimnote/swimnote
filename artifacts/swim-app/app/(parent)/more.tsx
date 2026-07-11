@@ -12,6 +12,7 @@
  */
 import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import AppUpdateButton from "@/components/common/AppUpdateButton";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -153,10 +154,8 @@ export default function ParentMoreScreen() {
           iconColor={NAVY_C} iconBg={NAVY_BG}
           onPress={() => router.push("/privacy" as any)}
         />
-        {/* 앱 버전 */}
-        <View style={[s.versionRow]}>
-          <Text style={[s.versionTxt, { color: C.textMuted }]}>SwimNote v1.0.0</Text>
-        </View>
+        {/* 앱 업데이트 */}
+        <AppUpdateButton />
 
         <MenuItem
           icon="log-out"
@@ -219,6 +218,5 @@ const s = StyleSheet.create({
   menuLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   menuSub: { fontSize: 12, fontFamily: "Pretendard-Regular" },
 
-  versionRow: { paddingVertical: 4, alignItems: "center" },
-  versionTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+
 });
