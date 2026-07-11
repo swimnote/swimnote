@@ -31,6 +31,7 @@ import { ParentLatestDiaryCard } from "@/components/parent/ParentLatestDiaryCard
 import { ParentRecentPhotosCard } from "@/components/parent/ParentRecentPhotosCard";
 import { ParentNoticeCard } from "@/components/parent/ParentNoticeCard";
 import { ParentGrowthCard } from "@/components/parent/ParentGrowthCard";
+import { type LevelDef } from "@/components/common/LevelBadge";
 
 const C = Colors.light;
 
@@ -40,7 +41,7 @@ interface HomeSummary {
   latest_photos: any[];
   latest_notices: any[];
   attendance: { attended: number; total: number; latest_status: string | null };
-  growth: { current_level: any; prev_level: any; achieved_date?: string; note?: string; teacher_name?: string; badge_color?: string | null; badge_text_color?: string | null } | null;
+  growth: { current_level: any; prev_level: any; achieved_date?: string; note?: string; teacher_name?: string; badge_color?: string | null; badge_text_color?: string | null; level_def?: LevelDef | null } | null;
   today_schedule: string | null;
 }
 
@@ -253,18 +254,21 @@ export default function ParentHomeScreen() {
           try {
             const ld = await levelRes.json();
             if (ld.current_level) {
-              const bColor = ld.current_level.badge_color ?? null;
-              const bTextColor = ld.current_level.badge_text_color ?? null;
+              const levelDefObj: LevelDef = ld.current_level;
+              const bColor = levelDefObj.badge_color ?? null;
+              const bTextColor = levelDefObj.badge_text_color ?? null;
               if (!data.growth && ld.current_level_order != null) {
                 data.growth = {
-                  current_level: ld.current_level.level_name ?? `레벨 ${ld.current_level_order}`,
+                  current_level: levelDefObj.level_name ?? `레벨 ${ld.current_level_order}`,
                   prev_level: null,
                   badge_color: bColor,
                   badge_text_color: bTextColor,
+                  level_def: levelDefObj,
                 };
               } else if (data.growth) {
                 data.growth.badge_color = bColor;
                 data.growth.badge_text_color = bTextColor;
+                data.growth.level_def = levelDefObj;
               }
             }
           } catch {}
@@ -520,8 +524,7 @@ export default function ParentHomeScreen() {
             total={summary.attendance.total}
             todaySchedule={summary.today_schedule}
             currentLevel={summary.growth?.current_level ?? null}
-            levelColor={summary.growth?.badge_color ?? null}
-            levelTextColor={summary.growth?.badge_text_color ?? null}
+            levelDef={summary.growth?.level_def ?? null}
             onPress={() => router.push({ pathname: "/(parent)/child-profile" as any, params: { id: selectedStudent.id, backTo: "home" } })}
           />
         )}

@@ -1,4 +1,5 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { LevelBadge, type LevelDef } from "@/components/common/LevelBadge";
 import { Award, TrendingUp } from "lucide-react-native";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -14,6 +15,7 @@ interface GrowthData {
   teacher_name?: string | null;
   badge_color?: string | null;
   badge_text_color?: string | null;
+  level_def?: LevelDef | null;
 }
 
 interface Props {
@@ -28,6 +30,8 @@ function fmt(d: string) {
 
 export function ParentGrowthCard({ growth, onPress }: Props) {
   const hasLevelUp = !!(growth?.prev_level && growth.prev_level !== growth.current_level);
+  const badgeBg = growth?.badge_color ?? "#DCFCE7";
+  const badgeTxt = growth?.badge_text_color ?? "#15803D";
 
   return (
     <Pressable
@@ -53,9 +57,17 @@ export function ParentGrowthCard({ growth, onPress }: Props) {
       {growth ? (
         <View style={styles.body}>
           <View style={styles.levelRow}>
-            <View style={[styles.levelBadge, growth.badge_color ? { backgroundColor: growth.badge_color + "33" } : {}]}>
-              <Text style={[styles.levelValue, growth.badge_color ? { color: growth.badge_color } : {}]}>{growth.current_level}</Text>
-            </View>
+            {growth.level_def ? (
+              <View style={[styles.levelBadge, { backgroundColor: growth.level_def.badge_color ?? "#DCFCE7" }]}>
+                <Text style={[styles.levelValue, { color: growth.level_def.badge_text_color ?? "#15803D" }]}>
+                  {growth.current_level}
+                </Text>
+              </View>
+            ) : (
+              <View style={[styles.levelBadge, { backgroundColor: badgeBg }]}>
+                <Text style={[styles.levelValue, { color: badgeTxt }]}>{growth.current_level}</Text>
+              </View>
+            )}
             <View style={{ flex: 1, gap: 3 }}>
               {growth.achieved_date && (
                 <Text style={[styles.metaTxt, { color: C.textMuted }]}>
@@ -118,10 +130,10 @@ const styles = StyleSheet.create({
   body: { gap: 8 },
   levelRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   levelBadge: {
-    backgroundColor: "#DCFCE7", borderRadius: 12,
+    borderRadius: 12,
     paddingHorizontal: 14, paddingVertical: 8,
   },
-  levelValue: { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#15803D" },
+  levelValue: { fontSize: 18, fontFamily: "Pretendard-Regular" },
   metaTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   noteBox: {
     flexDirection: "row", alignItems: "center", gap: 5,
