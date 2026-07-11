@@ -203,19 +203,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   async function loadStored() {
     try {
-      // 앱 버전 변경 시 세션 강제 초기화 (업데이트 시 자동로그인 방지)
-      const storedAppVersion = await AsyncStorage.getItem("app_version");
-      if (storedAppVersion !== APP_VERSION) {
-        await AsyncStorage.multiRemove([
-          "auth_token", "auth_kind", "auth_admin", "auth_parent",
-          "auth_all_accounts", "last_used_role", "last_used_tenant", "last_selected_student",
-          "parent_selected_student_id", "brand_data",
-          "parent_join_status", "parent_join_request_id", "parent_pool_name",
-        ]);
-        await AsyncStorage.setItem("app_version", APP_VERSION);
-        return;
-      }
-
       const [
         storedToken, storedKind, storedAdmin, storedParent, storedAccounts,
         storedJoinStatus, storedJoinRequestId, storedPoolName,
@@ -344,15 +331,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         }
         return;
       }
-      // 404: 수영장 삭제됨 — 세션 강제 초기화 (찌꺼기 로그인 방지)
+      // 404: 수영장 없음 — 세션은 유지하되 pool 정보만 초기화
       if (res.status === 404) {
-        await AsyncStorage.multiRemove([
-          "auth_token", "auth_kind", "auth_admin", "auth_parent",
-          "auth_all_accounts", "last_used_role", "last_used_tenant", "last_selected_student",
-          "parent_selected_student_id", "brand_data",
-          "parent_join_status", "parent_join_request_id", "parent_pool_name",
-        ]);
-        setToken(null); setAdminUser(null); setParentAccount(null); setKind(null); setPool(null);
         return;
       }
     } catch (err) { console.error(err); }
