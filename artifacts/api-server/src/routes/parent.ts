@@ -229,11 +229,6 @@ router.post("/auto-link-students", requireAuth, requireParent, async (req: AuthR
 
 router.get("/students", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
-    // ── 조회 전: 통합 자동 연결 실행 (pool 필터 없이 전화번호/이름 전체 매칭) ──
-    const parentId = req.user!.userId;
-    await autoLinkParentToStudents(parentId, null);
-    // ────────────────────────────────────────────────────────────────────────
-
     const links = await db.select().from(parentStudentsTable).where(
       and(eq(parentStudentsTable.parent_id, req.user!.userId), eq(parentStudentsTable.status, "approved"))
     );
