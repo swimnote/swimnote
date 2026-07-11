@@ -207,7 +207,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
         capacity: defaultCapacity,
         is_one_time: isOneTime,
         one_time_date: isOneTime ? oneTimeDate : undefined,
-        color: selectedColor !== "#FFFFFF" ? selectedColor : undefined,
+        color: selectedColor,
       };
       const res = await apiRequest(token, "/class-groups", {
         method: "POST",
