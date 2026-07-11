@@ -248,7 +248,7 @@ const wt = StyleSheet.create({
     borderRightWidth: 0.5, borderRightColor: "#E5E7EB",
     alignItems: "center", justifyContent: "flex-start", paddingTop: 4,
   },
-  timeText: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#D1D5DB" },
+  timeText: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
 
   dayHeader: {
     alignItems: "center", justifyContent: "center",
@@ -256,8 +256,8 @@ const wt = StyleSheet.create({
     backgroundColor: "#FFFFFF", paddingVertical: 6,
   },
   dayHeaderToday: { backgroundColor: "#F0FFFE" },
-  dayHeaderDate:  { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#D1D5DB", lineHeight: 12 },
-  dayHeaderText:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", lineHeight: 15 },
+  dayHeaderDate:  { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#9CA3AF", lineHeight: 12 },
+  dayHeaderText:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", lineHeight: 15 },
 
   cell: {
     borderLeftWidth: 0.5, borderLeftColor: "#E5E7EB",
