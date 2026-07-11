@@ -244,7 +244,25 @@ export default function ParentHomeScreen() {
     setSummaryLoading(true);
     try {
       const r = await apiRequest(token, `/parent/students/${sid}/home-summary`);
-      if (r.ok) setSummary(await r.json());
+      if (r.ok) {
+        const data = await r.json();
+        if (!data.growth) {
+          try {
+            const lr = await apiRequest(token, `/parent/students/${sid}/level-info`);
+            if (lr.ok) {
+              const ld = await lr.json();
+              if (ld.current_level_order != null && ld.current_level) {
+                data.growth = {
+                  current_level: ld.current_level.level_name ?? `레벨 ${ld.current_level_order}`,
+                  prev_level: null,
+                  achieved_date: undefined,
+                };
+              }
+            }
+          } catch {}
+        }
+        setSummary(data);
+      }
     } catch {}
     setSummaryLoading(false);
   }
