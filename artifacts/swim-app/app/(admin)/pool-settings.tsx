@@ -174,7 +174,9 @@ export default function PoolSettingsScreen() {
     if (!validateName(form.name)) {
       errs.name = "수영장명을 입력해주세요";
     }
-    if (form.phone && !validatePhone(form.phone)) {
+    if (!form.phone) {
+      errs.phone = "대표 전화번호를 입력해주세요";
+    } else if (!validatePhone(form.phone)) {
       errs.phone = "대표전화 형식이 올바르지 않습니다";
     }
 

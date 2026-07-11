@@ -771,6 +771,21 @@ router.post("/simple-parent-register", async (req, res) => {
 
     console.log(`[simple-parent-register] 학부모 가입: poolId=${resolvedPoolId} matched=${matched.length}명`);
 
+    // 수영장 관리자에게 push 알림 (수영장 지정된 경우)
+    if (resolvedPoolId) {
+      try {
+        const { sendPushToPoolAdmins } = await import("../lib/push-service.js");
+        const childSummary = childNamesArr.length > 0 ? `자녀: ${childNamesArr.join(", ")}` : "자녀 미입력";
+        await sendPushToPoolAdmins(
+          resolvedPoolId, "parent_join",
+          "새 학부모 가입",
+          `${name} 학부모님이 가입했습니다. ${childSummary}`,
+          { screen: "parent-requests" },
+          `parent_join_${parentId}`
+        );
+      } catch (pushErr) { console.error("[simple-parent-register] push 오류:", pushErr); }
+    }
+
     const token = signToken({ userId: parentId, role: "parent_account", poolId: resolvedPoolId });
     return res.status(201).json({
       success: true, token,
@@ -2418,6 +2433,17 @@ router.post("/v2/parent-register", async (req, res) => {
       // 연결 실패 → pending 저장
       await upsertParentV2Pending(parentId, poolId, childRaw, childNorm, ph);
       console.log(`[v2-register] 대기 상태로 저장: child="${childRaw}" pool=${poolId}`);
+      // 수영장 관리자에게 push 알림
+      try {
+        const { sendPushToPoolAdmins } = await import("../lib/push-service.js");
+        await sendPushToPoolAdmins(
+          poolId, "parent_join",
+          "새 학부모 가입 대기",
+          `${name} 학부모님이 가입을 요청했습니다. 자녀(${childRaw}) 연결을 확인해주세요.`,
+          { screen: "parent-requests" },
+          `parent_join_${parentId}`
+        );
+      } catch (pushErr) { console.error("[v2-register] push 오류:", pushErr); }
     }
 
     const token = signToken({ userId: parentId, role: "parent_account", poolId });
