@@ -240,6 +240,17 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin", "teac
       .returning();
     await logChange({ tenantId: group.swimming_pool_id, tableName: "class_groups", recordId: group.id, changeType: "update", payload: { name: group.name, schedule_days: group.schedule_days, schedule_time: group.schedule_time } });
     logPoolEvent({ pool_id: group.swimming_pool_id, event_type: "class_update", entity_type: "class_group", entity_id: group.id, actor_id: req.user!.userId, payload: { name: group.name, schedule_days: group.schedule_days, schedule_time: group.schedule_time } }).catch(console.error);
+
+    // 담당 선생님 변경 시 새 선생님에게 알림
+    if (teacher_user_id !== undefined && teacher_user_id && teacher_user_id !== req.user!.userId) {
+      try {
+        const { sendPushToUser } = await import("../lib/push-service.js");
+        await sendPushToUser(teacher_user_id, false, "class_assigned", `${group.name} 반 담당으로 배정됐습니다`,
+          `${group.schedule_days || ""} ${group.schedule_time || ""} 반을 담당하게 됐습니다. 시간표를 확인해주세요.`,
+          { screen: "my-schedule" }, `class_assigned_${group.id}_${teacher_user_id}`);
+      } catch (pushErr) { console.error("[class-groups teacher assign push error]", pushErr); }
+    }
+
     res.json({ success: true, ...group });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });

@@ -442,6 +442,19 @@ router.patch("/parents/:id/students/:link_id", requireAuth, requireRole("super_a
       .where(eq(parentStudentsTable.id, req.params.link_id))
       .returning();
     if (!link) { res.status(404).json({ error: "연결 요청을 찾을 수 없습니다." }); return; }
+    // 학부모에게 연결 처리 결과 알림
+    try {
+      const { sendPushToUser } = await import("../lib/push-service.js");
+      if (action === "approve") {
+        await sendPushToUser(link.parent_id, true, "link_approved", "자녀 연결이 완료됐습니다 🎉",
+          "수영장에서 자녀 연결을 승인했습니다. 이제 앱에서 수업 기록을 확인할 수 있습니다.",
+          { screen: "home" }, `ps_approved_${link.id}`);
+      } else {
+        const rejectMsg = reason ? `거절 사유: ${reason}` : "수영장에 문의해주세요.";
+        await sendPushToUser(link.parent_id, true, "link_rejected", "자녀 연결이 거절됐습니다",
+          rejectMsg, { screen: "home" }, `ps_rejected_${link.id}`);
+      }
+    } catch (pushErr) { console.error("[parents/students patch push error]", pushErr); }
     res.json(link);
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
@@ -541,11 +554,25 @@ router.patch("/student-requests/:id", requireAuth, requireRole("super_admin", "p
       await superAdminDb.update(studentRegistrationRequestsTable)
         .set({ status: "approved", reviewed_by: req.user!.userId, reviewed_at: new Date() })
         .where(eq(studentRegistrationRequestsTable.id, req.params.id));
+      // 학부모에게 자녀 연결 승인 알림
+      try {
+        const { sendPushToUser } = await import("../lib/push-service.js");
+        await sendPushToUser(srr.parent_id, true, "link_approved", "자녀 연결이 완료됐습니다 🎉",
+          "수영장에서 자녀 연결을 승인했습니다. 이제 앱에서 수업 기록을 확인할 수 있습니다.",
+          { screen: "home" }, `link_approved_${srr.id}`);
+      } catch (pushErr) { console.error("[student-requests link push error]", pushErr); }
       res.json({ linked: true, student_ids: ids });
     } else {
       await superAdminDb.update(studentRegistrationRequestsTable)
         .set({ status: "rejected", reviewed_by: req.user!.userId, reviewed_at: new Date(), rejection_reason: reason || "관리자 거부" })
         .where(eq(studentRegistrationRequestsTable.id, req.params.id));
+      // 학부모에게 자녀 연결 거절 알림
+      try {
+        const { sendPushToUser } = await import("../lib/push-service.js");
+        const rejectMsg = reason ? `거절 사유: ${reason}` : "입력하신 정보와 등록된 학생 정보가 일치하지 않습니다. 수영장에 문의해주세요.";
+        await sendPushToUser(srr.parent_id, true, "link_rejected", "자녀 연결이 거절됐습니다",
+          rejectMsg, { screen: "home" }, `link_rejected_${srr.id}`);
+      } catch (pushErr) { console.error("[student-requests reject push error]", pushErr); }
       res.json({ linked: false });
     }
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }

@@ -351,6 +351,13 @@ router.patch("/parent-requests/:id", requireAuth, requireRole("pool_admin", "sub
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
+      // 요청 정보 조회 (알림 발송용)
+      const [reqRow] = await db.execute(sql`
+        SELECT parent_id, request_type, student_id FROM parent_student_requests
+        WHERE id = ${req.params.id} AND swimming_pool_id = ${me.swimming_pool_id}
+        LIMIT 1
+      `).then(r => r.rows as any[]);
+
       // 컬럼 보장 (GET보다 PATCH가 먼저 호출될 경우 대비)
       await db.execute(sql`
         ALTER TABLE parent_student_requests
@@ -365,6 +372,20 @@ router.patch("/parent-requests/:id", requireAuth, requireRole("pool_admin", "sub
             updated_at = NOW()
         WHERE id = ${req.params.id} AND swimming_pool_id = ${me.swimming_pool_id}
       `);
+
+      // 학부모에게 처리 결과 push 알림
+      if (reqRow?.parent_id && status !== "pending") {
+        try {
+          const { sendPushToUser } = await import("../lib/push-service.js");
+          const typeLabel = reqRow.request_type === "absence" ? "결석" : reqRow.request_type === "makeup" ? "보강" : "수업";
+          const pushTitle = status === "done" ? `${typeLabel} 요청이 처리됐습니다` : `${typeLabel} 요청이 거절됐습니다`;
+          const pushBody = status === "done"
+            ? "선생님이 요청을 확인하고 처리했습니다."
+            : (admin_note ? `거절 사유: ${admin_note}` : "요청이 거절됐습니다. 수영장에 문의해주세요.");
+          await sendPushToUser(reqRow.parent_id, true, "parent_request_result", pushTitle, pushBody, { requestId: req.params.id }, `req_result_${req.params.id}`);
+        } catch (pushErr) { console.error("[parent-requests PATCH push error]", pushErr); }
+      }
+
       res.json({ success: true });
     } catch (err) {
       console.error(err);
