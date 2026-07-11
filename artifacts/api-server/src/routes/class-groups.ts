@@ -251,6 +251,22 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin", "teac
       } catch (pushErr) { console.error("[class-groups teacher assign push error]", pushErr); }
     }
 
+    // 수업 시간표(요일/시간) 변경 시 해당 반 학부모들에게 알림
+    if ((schedule_days !== undefined || schedule_time !== undefined)) {
+      try {
+        const { sendPushToClassParents } = await import("../lib/push-service.js");
+        const days = group.schedule_days || "";
+        const time = group.schedule_time || "";
+        await sendPushToClassParents(
+          group.id, "schedule_change",
+          `${group.name} 반 수업 일정이 변경됐습니다`,
+          `변경된 수업 일정: ${days} ${time}`.trim(),
+          { classId: group.id },
+          `schedule_change_${group.id}_${Date.now()}`
+        );
+      } catch (pushErr) { console.error("[class-groups schedule change push error]", pushErr); }
+    }
+
     res.json({ success: true, ...group });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
