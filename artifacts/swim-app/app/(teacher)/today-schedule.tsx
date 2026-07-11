@@ -2,10 +2,11 @@
  * (teacher)/today-schedule.tsx — 오늘 스케줄 탭 (thin shell)
  * 컴포넌트: components/teacher/today-schedule/
  */
-import { BookOpen, Calendar, ChevronRight, Layers, LogOut, Mail, PenLine, Repeat, Settings2, Sun, Trophy } from "lucide-react-native";
+import { BookOpen, Calendar, ChevronRight, Layers, LogOut, Mail, PenLine, Repeat, Settings2, Sun, Trophy, X } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Image, Linking, Platform, Pressable } from "react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
@@ -53,6 +54,18 @@ export default function TodayScheduleScreen() {
   const [showSchedMemo,  setShowSchedMemo]  = useState(false);
   const [notePopupVisible, setNotePopupVisible] = useState(false);
   const [showTeacherRegister, setShowTeacherRegister] = useState(false);
+  const [diaryBannerDismissed, setDiaryBannerDismissed] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem("dismissedDiaryBannerDate").then(date => {
+      if (date === today) setDiaryBannerDismissed(true);
+    });
+  }, [today]);
+
+  const dismissDiaryBanner = useCallback(async () => {
+    await AsyncStorage.setItem("dismissedDiaryBannerDate", today);
+    setDiaryBannerDismissed(true);
+  }, [today]);
 
   const [activeItem, setActiveItem] = useState<ScheduleItem | null>(null);
 
@@ -368,7 +381,7 @@ export default function TodayScheduleScreen() {
           })}
         </View>
 
-        {(overview?.pending_diaries_today ?? 0) > 0 && (
+        {!diaryBannerDismissed && (overview?.pending_diaries_today ?? 0) > 0 && (
           <Pressable
             style={[h.feedbackBanner, { backgroundColor: "#7C3AED" }]}
             onPress={() => router.push("/(teacher)/diary?backTo=today-schedule" as any)}
@@ -377,7 +390,9 @@ export default function TodayScheduleScreen() {
               <Text style={h.feedbackBannerTitle}>미작성 일지 {overview!.pending_diaries_today}개</Text>
               <Text style={h.feedbackBannerSub}>학부모가 기다리고 있어요 · 탭해서 작성</Text>
             </View>
-            <ChevronRight size={16} color="rgba(255,255,255,0.8)" />
+            <Pressable onPress={(e) => { e.stopPropagation(); dismissDiaryBanner(); }} hitSlop={10} style={h.feedbackBannerClose}>
+              <X size={15} color="rgba(255,255,255,0.85)" />
+            </Pressable>
           </Pressable>
         )}
       </View>
@@ -552,10 +567,11 @@ const h = StyleSheet.create({
   diaryStatusBar: { width: 3, alignSelf: "stretch", borderRadius: 2, marginRight: 2 },
   diaryStatusTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   detailBtn:      { padding: 8, marginLeft: 4 },
-  feedbackBanner:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16 },
-  feedbackBannerLeft: { flex: 1, gap: 2 },
-  feedbackBannerTitle:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
-  feedbackBannerSub:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.75)" },
+  feedbackBanner:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16 },
+  feedbackBannerLeft:  { flex: 1, gap: 2 },
+  feedbackBannerTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
+  feedbackBannerSub:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.75)" },
+  feedbackBannerClose: { padding: 6, marginLeft: 4 },
   weekCard:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   weekCell:     { flex: 1, alignItems: "center", gap: 5 },
   weekDay:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },

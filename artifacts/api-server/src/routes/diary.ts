@@ -1188,11 +1188,21 @@ router.get("/teacher/overview",
           AND dm.read_at IS NULL
       `).catch(() => ({ rows: [{ cnt: 0 }] }));
 
-      // 오늘 미작성 수업일지 (오늘 수업이 있는 반 중 diary 없는 것)
+      // KST 기준 오늘 요일 (한글)
+      const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+      const dayNamesKr: Record<number, string> = { 0: '일', 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토' };
+      const todayKr = dayNamesKr[nowKST.getDay()];
+
+      // 오늘 미작성 수업일지 (오늘 요일에 실제 수업이 있는 반 중 diary 없는 것)
       const pendingToday = await db.execute(sql`
         SELECT COUNT(*) AS cnt
         FROM class_groups cg
         WHERE cg.id IN (${sql.raw(classIdList)})
+          AND cg.is_deleted = false
+          AND (
+            (cg.is_one_time = false AND cg.schedule_days LIKE ${'%' + todayKr + '%'})
+            OR (cg.is_one_time = true AND cg.one_time_date = ${today})
+          )
           AND NOT EXISTS (
             SELECT 1 FROM class_diaries cd
             WHERE cd.class_group_id = cg.id AND cd.lesson_date = ${today} AND cd.is_deleted = false
