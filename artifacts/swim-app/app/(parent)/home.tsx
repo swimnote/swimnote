@@ -232,6 +232,8 @@ export default function ParentHomeScreen() {
   useEffect(() => { loadV2Status(); }, []);
   useFocusEffect(useCallback(() => { loadV2Status(); }, []));
 
+  useFocusEffect(useCallback(() => { refresh(); }, []));
+
   useEffect(() => {
     if (selectedStudent?.id) loadSummary(selectedStudent.id);
     else setSummary(EMPTY_SUMMARY);
