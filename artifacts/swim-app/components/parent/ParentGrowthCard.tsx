@@ -12,6 +12,8 @@ interface GrowthData {
   prev_level?: string | null;
   note?: string | null;
   teacher_name?: string | null;
+  badge_color?: string | null;
+  badge_text_color?: string | null;
 }
 
 interface Props {
@@ -51,8 +53,8 @@ export function ParentGrowthCard({ growth, onPress }: Props) {
       {growth ? (
         <View style={styles.body}>
           <View style={styles.levelRow}>
-            <View style={styles.levelBadge}>
-              <Text style={styles.levelValue}>{growth.current_level}</Text>
+            <View style={[styles.levelBadge, growth.badge_color ? { backgroundColor: growth.badge_color + "33" } : {}]}>
+              <Text style={[styles.levelValue, growth.badge_color ? { color: growth.badge_color } : {}]}>{growth.current_level}</Text>
             </View>
             <View style={{ flex: 1, gap: 3 }}>
               {growth.achieved_date && (

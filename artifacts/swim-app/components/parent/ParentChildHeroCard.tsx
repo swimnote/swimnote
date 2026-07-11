@@ -17,12 +17,18 @@ interface Props {
   total: number;
   todaySchedule: string | null;
   currentLevel: string | number | null;
+  levelColor?: string | null;
+  levelTextColor?: string | null;
   onPress: () => void;
 }
 
-export function ParentChildHeroCard({ student, attended, total, todaySchedule, currentLevel, onPress }: Props) {
+export function ParentChildHeroCard({ student, attended, total, todaySchedule, currentLevel, levelColor, levelTextColor, onPress }: Props) {
   const cg = student.class_group;
   const hasClass = !!cg?.name;
+  const bgColor = levelColor ? levelColor + "22" : C.tintLight;
+  const fgColor = levelColor ?? C.tint;
+  const chipBg = levelColor ? levelColor + "22" : C.tintLight;
+  const chipTxt = levelColor ?? C.tint;
 
   return (
     <Pressable
@@ -31,17 +37,17 @@ export function ParentChildHeroCard({ student, attended, total, todaySchedule, c
     >
       {/* 상단: 이름 + 레벨 + 화살표 */}
       <View style={styles.topRow}>
-        <View style={[styles.avatar, { backgroundColor: C.tintLight }]}>
+        <View style={[styles.avatar, { backgroundColor: bgColor }]}>
           {currentLevel
-            ? <Text style={styles.avatarTxt}>Lv</Text>
+            ? <Text style={[styles.avatarTxt, { color: fgColor }]}>Lv</Text>
             : <LucideIcon name="award" size={20} color={C.tint} />}
         </View>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text style={[styles.name, { color: C.text }]}>{student.name}</Text>
             {currentLevel ? (
-              <View style={styles.levelChip}>
-                <Text style={styles.levelChipTxt}>{String(currentLevel)}</Text>
+              <View style={[styles.levelChip, { backgroundColor: chipBg }]}>
+                <Text style={[styles.levelChipTxt, { color: chipTxt }]}>{String(currentLevel)}</Text>
               </View>
             ) : null}
           </View>
