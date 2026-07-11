@@ -1647,12 +1647,34 @@ router.post("/v2/update-pending", requireAuth, requireParent, async (req: AuthRe
   }
 });
 
-// DELETE /parent/unlink-child/:studentId — 자녀 연결 해제
+// DELETE /parent/unlink-child/:studentId — 자녀 연결 삭제
 router.delete("/unlink-child/:studentId", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
     const parentId  = req.user!.userId;
     const studentId = req.params.studentId;
     if (!studentId) return res.status(400).json({ success: false, message: "studentId 필수" });
+
+    // 반 배정 여부 확인 — 배정된 경우 삭제 차단
+    const studentRow = await db.execute(sql`
+      SELECT s.id, cg.name AS class_group_name
+      FROM students s
+      LEFT JOIN class_groups cg ON cg.id = s.class_group_id
+      INNER JOIN parent_students ps ON ps.student_id = s.id AND ps.parent_id = ${parentId}
+      WHERE s.id = ${studentId}
+      LIMIT 1
+    `);
+
+    if (!studentRow.rows.length) {
+      return res.status(404).json({ success: false, message: "연결된 자녀를 찾을 수 없습니다" });
+    }
+
+    const row = studentRow.rows[0] as any;
+    if (row.class_group_name) {
+      return res.status(403).json({
+        success: false,
+        message: `반 배정이 되어 있어 삭제할 수 없습니다. 선생님 모드에서 '${row.class_group_name}' 반 배정을 제외한 후 삭제해 주세요.`,
+      });
+    }
 
     const result = await db.execute(sql`
       DELETE FROM parent_students
@@ -1662,7 +1684,7 @@ router.delete("/unlink-child/:studentId", requireAuth, requireParent, async (req
 
     if (!result.rows.length) return res.status(404).json({ success: false, message: "연결된 자녀를 찾을 수 없습니다" });
 
-    res.json({ success: true, message: "자녀 연결이 해제되었습니다" });
+    res.json({ success: true, message: "자녀 연결이 삭제되었습니다" });
   } catch (e) {
     console.error("[unlink-child] 오류:", e);
     res.status(500).json({ success: false, message: "서버 오류" });
