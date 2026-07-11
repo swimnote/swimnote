@@ -62,15 +62,6 @@ export default function ChildProfileScreen() {
 
   function handleUnlink() {
     if (!student) return;
-    const hasClass = !!student.class_group?.name;
-    if (hasClass) {
-      Alert.alert(
-        "삭제 불가",
-        `${student.name}은(는) 현재 '${student.class_group.name}' 반에 배정되어 있습니다.\n\n선생님 모드에서 반 배정을 제외한 후 삭제할 수 있습니다.`,
-        [{ text: "확인" }]
-      );
-      return;
-    }
     Alert.alert(
       "자녀 연결 삭제",
       `${student.name}의 연결을 삭제할까요?\n삭제 후 홈 화면에서 다시 추가할 수 있습니다.`,
@@ -83,14 +74,10 @@ export default function ChildProfileScreen() {
             setUnlinking(true);
             try {
               await apiRequest(token, `/parent/unlink-child/${id}`, { method: "DELETE" });
-              // API 응답 코드와 관계없이 refresh 후 실제 삭제 여부 확인
-              await refresh();
-              router.replace("/(parent)/home" as any);
-            } catch {
-              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
-            } finally {
-              setUnlinking(false);
-            }
+            } catch {}
+            try { await refresh(); } catch {}
+            router.replace("/(parent)/home" as any);
+            setUnlinking(false);
           },
         },
       ]
@@ -222,30 +209,18 @@ export default function ChildProfileScreen() {
               ))}
             </View>
           </View>
-          {/* 연결 삭제 / 잠금 */}
-          {classGroup?.name ? (
-            <View style={s.unlinkLocked}>
-              <View style={s.unlinkLockedRow}>
-                <LucideIcon name="lock" size={15} color="#94A3B8" />
-                <Text style={s.unlinkLockedTxt}>자녀 연결 삭제</Text>
-              </View>
-              <Text style={s.unlinkLockedDesc}>
-                반 배정이 되어 있어 삭제할 수 없습니다.{"\n"}선생님 모드에서 반 배정을 제외한 후 삭제할 수 있습니다.
-              </Text>
-            </View>
-          ) : (
-            <Pressable
-              style={({ pressed }) => [s.unlinkBtn, { opacity: pressed || unlinking ? 0.7 : 1 }]}
-              onPress={handleUnlink}
-              disabled={unlinking}
-            >
-              {unlinking
-                ? <ActivityIndicator size="small" color="#DC2626" />
-                : <LucideIcon name="user-minus" size={16} color="#DC2626" />
-              }
-              <Text style={s.unlinkTxt}>자녀 연결 삭제</Text>
-            </Pressable>
-          )}
+          {/* 연결 삭제 */}
+          <Pressable
+            style={({ pressed }) => [s.unlinkBtn, { opacity: pressed || unlinking ? 0.7 : 1 }]}
+            onPress={handleUnlink}
+            disabled={unlinking}
+          >
+            {unlinking
+              ? <ActivityIndicator size="small" color="#DC2626" />
+              : <LucideIcon name="user-minus" size={16} color="#DC2626" />
+            }
+            <Text style={s.unlinkTxt}>자녀 연결 삭제</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </View>
