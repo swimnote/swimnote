@@ -1068,7 +1068,9 @@ router.get("/students/:id/home-summary", requireAuth, requireParent, async (req:
     if (!link) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
 
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
-    const [student] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+    // raw SQL로 조회해야 current_level_order 컬럼을 확실히 포함 (Drizzle 스키마에 미등록일 수 있음)
+    const studentResult = await db.execute(sql`SELECT * FROM students WHERE id = ${req.params.id} LIMIT 1`);
+    const student = (studentResult.rows[0] ?? null) as any;
 
     // ── 읽음 기준 시점 ───────────────────────────────────────────────────────
     const [diaryRead] = (await db.execute(sql`SELECT last_read_at FROM parent_content_reads WHERE parent_id = ${pa.id} AND student_id = ${req.params.id} AND content_type = 'diary'`)).rows as any[];
@@ -1167,11 +1169,11 @@ router.get("/students/:id/home-summary", requireAuth, requireParent, async (req:
     const latestStatus = attList[0]?.status ?? null;
 
     // ── 성장 (현재 레벨) ─────────────────────────────────────────────────────
-    // current_level_order는 Drizzle ORM 스키마에 없을 수 있으므로 raw SQL로 명시적으로 조회
+    // student는 위에서 raw SQL로 조회했으므로 current_level_order 포함
     let growthInfo: any = null;
-    const [studLevelRaw] = (await db.execute(sql`
-      SELECT current_level_order, swimming_pool_id FROM students WHERE id = ${req.params.id} LIMIT 1
-    `).catch(() => ({ rows: [] }))).rows as any[];
+    const currentLevelOrder: number | null = student?.current_level_order != null
+      ? Number(student.current_level_order)
+      : null;
 
     const levelRows = await db.execute(sql`
       SELECT level, achieved_date, note, teacher_name FROM student_levels
@@ -1181,24 +1183,24 @@ router.get("/students/:id/home-summary", requireAuth, requireParent, async (req:
 
     // pool_level_settings에서 현재 레벨 정의 조회 (이름·배지 등)
     let currentLevelName: string | null = null;
-    if (studLevelRaw?.current_level_order != null) {
-      const poolId2 = studLevelRaw?.swimming_pool_id;
+    if (currentLevelOrder != null) {
+      const poolId2 = student?.swimming_pool_id;
       if (poolId2) {
         const defRow = await db.execute(sql`
           SELECT level_name FROM pool_level_settings
           WHERE pool_id = ${poolId2}
-            AND level_order = ${studLevelRaw.current_level_order}
+            AND level_order = ${currentLevelOrder}
           LIMIT 1
         `).catch(() => ({ rows: [] }));
         if (defRow.rows.length > 0) {
-          currentLevelName = (defRow.rows[0] as any)?.level_name ?? `레벨 ${studLevelRaw.current_level_order}`;
+          currentLevelName = (defRow.rows[0] as any)?.level_name ?? `레벨 ${currentLevelOrder}`;
         } else {
           // pool_level_settings 없으면 DEFAULT fallback
-          const defLevel = DEFAULT_LEVELS_P.find((l: any) => l.level_order === Number(studLevelRaw.current_level_order));
-          currentLevelName = defLevel?.level_name ?? `레벨 ${studLevelRaw.current_level_order}`;
+          const defLevel = DEFAULT_LEVELS_P.find((l: any) => l.level_order === currentLevelOrder);
+          currentLevelName = defLevel?.level_name ?? `레벨 ${currentLevelOrder}`;
         }
       } else {
-        currentLevelName = `레벨 ${studLevelRaw.current_level_order}`;
+        currentLevelName = `레벨 ${currentLevelOrder}`;
       }
     }
 
