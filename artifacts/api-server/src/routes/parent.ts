@@ -1657,10 +1657,10 @@ router.delete("/unlink-child/:studentId", requireAuth, requireParent, async (req
     const result = await db.execute(sql`
       DELETE FROM parent_students
       WHERE parent_id = ${parentId} AND student_id = ${studentId}
+      RETURNING id
     `);
 
-    const deleted = (result as any).rowCount ?? (result as any).count ?? 0;
-    if (!deleted) return res.status(404).json({ success: false, message: "연결된 자녀를 찾을 수 없습니다" });
+    if (!result.rows.length) return res.status(404).json({ success: false, message: "연결된 자녀를 찾을 수 없습니다" });
 
     res.json({ success: true, message: "자녀 연결이 해제되었습니다" });
   } catch (e) {
