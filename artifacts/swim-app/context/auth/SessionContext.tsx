@@ -205,7 +205,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     try {
       const [
         storedToken, storedKind, storedAdmin, storedParent, storedAccounts,
-        storedJoinStatus, storedJoinRequestId, storedPoolName,
+        storedJoinStatus, storedJoinRequestId, storedPoolName, lastUsedRole,
       ] = await Promise.all([
         AsyncStorage.getItem("auth_token"),
         AsyncStorage.getItem("auth_kind"),
@@ -215,6 +215,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         AsyncStorage.getItem("parent_join_status"),
         AsyncStorage.getItem("parent_join_request_id"),
         AsyncStorage.getItem("parent_pool_name"),
+        AsyncStorage.getItem("last_used_role"),
       ]);
 
       if (storedAccounts) {
@@ -263,9 +264,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setAdminUser(user);
         setKind("admin");
 
-        // JWT role 정규화: 저장된 토큰의 role이 DB role(freshUserData.role)과 다를 경우
-        // (예: teacher 전환 후 앱 재시작 → pool_admin이어야 하는데 teacher 토큰 복원)
-        // → /auth/switch-role로 올바른 role의 토큰으로 자동 교체
+        // JWT role 정규화: 저장된 토큰 role과 목표 role이 다를 경우 switch-role로 교체
+        // 목표 role 결정:
+        //   - last_used_role이 "teacher"이고 roles 배열에 "teacher" 포함 → teacher 모드 복원
+        //   - 그 외 → DB role(freshUserData.role)로 정규화
         let activeToken = storedToken;
         if (freshUserData?.role) {
           try {
@@ -274,19 +276,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
               const padded = b64 + "=".repeat((4 - b64.length % 4) % 4);
               const payload = JSON.parse(atob(padded));
-              if (payload.role && payload.role !== freshUserData.role) {
-                console.log(`[SESSION] JWT role(${payload.role}) ≠ DB role(${freshUserData.role}) → /auth/switch-role 호출`);
+              // 마지막으로 선생님 모드를 사용했고 roles에 teacher 권한이 있으면 teacher로 복원
+              const restoreTeacher = lastUsedRole === "teacher" && user.roles.includes("teacher");
+              const targetRole = restoreTeacher ? "teacher" : freshUserData.role;
+              if (payload.role && payload.role !== targetRole) {
+                console.log(`[SESSION] JWT role(${payload.role}) ≠ target role(${targetRole}) → /auth/switch-role 호출`);
                 const switchRes = await fetch(`${API_BASE}/auth/switch-role`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json", Authorization: `Bearer ${storedToken}` },
-                  body: JSON.stringify({ role: freshUserData.role }),
+                  body: JSON.stringify({ role: targetRole }),
                 });
                 if (switchRes.ok) {
                   const switchData = await switchRes.json().catch(() => ({}));
                   if (switchData.token) {
                     activeToken = switchData.token;
                     await AsyncStorage.setItem("auth_token", activeToken);
-                    console.log(`[SESSION] 토큰 role 정규화 완료 → ${freshUserData.role}`);
+                    // teacher 복원 시 user.role도 teacher로 설정
+                    if (restoreTeacher) user.role = "teacher";
+                    console.log(`[SESSION] 토큰 role 정규화 완료 → ${targetRole}`);
                   }
                 }
               }
