@@ -268,7 +268,11 @@ export default function TeacherAttendanceScreen() {
       if (status === "present" && prevStatus === "absent") {
         setMakeupList(prev => prev.filter(m => !(m.student_id === studentId && m.absence_date === date)));
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      // 저장 실패 시 이전 상태로 롤백
+      setAttState(prev => ({ ...prev, [studentId]: prevStatus }));
+    }
     finally { setSavingId(null); }
   }
 

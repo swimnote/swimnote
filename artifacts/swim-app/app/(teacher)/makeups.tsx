@@ -9,6 +9,7 @@ import {
   StyleSheet, Text, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
@@ -162,6 +163,12 @@ export default function MakeupsScreen() {
   useEffect(() => { loadWaiting(); }, [loadWaiting]);
   useEffect(() => { if (tab === "assigned") loadAssigned(); }, [tab, loadAssigned]);
   useEffect(() => { if (tab === "history") loadHistory(); }, [tab, loadHistory]);
+
+  // 화면 포커스 시 대기 목록 갱신 (다른 화면에서 출결 변경 후 돌아왔을 때)
+  useFocusEffect(useCallback(() => {
+    loadWaiting();
+    if (tab === "assigned") loadAssigned();
+  }, [loadWaiting, loadAssigned, tab]));
 
   // ── 보강반 배정 ─────────────────────────────────────────────────────────
   const openAssignModal = async (mk: MakeupSession) => {

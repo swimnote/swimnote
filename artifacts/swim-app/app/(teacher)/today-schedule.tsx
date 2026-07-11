@@ -8,7 +8,7 @@ import { Image, Linking, Platform, Pressable } from "react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View,
+  Alert, ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -84,7 +84,10 @@ export default function TodayScheduleScreen() {
       await switchRole("pool_admin");
       await setLastUsedRole("pool_admin");
       router.replace("/(admin)/dashboard" as any);
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      Alert.alert("전환 실패", "관리자 모드로 전환할 수 없습니다. 다시 시도해주세요.");
+    }
     finally { setSwitching(false); }
   }
 
