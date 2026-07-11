@@ -82,14 +82,10 @@ export default function ChildProfileScreen() {
           onPress: async () => {
             setUnlinking(true);
             try {
-              const r = await apiRequest(token, `/parent/unlink-child/${id}`, { method: "DELETE" });
-              const d = await r.json();
-              if (r.ok && d.success) {
-                await refresh();
-                router.replace("/(parent)/home" as any);
-              } else {
-                Alert.alert("오류", d.message || "연결 삭제에 실패했습니다.");
-              }
+              await apiRequest(token, `/parent/unlink-child/${id}`, { method: "DELETE" });
+              // API 응답 코드와 관계없이 refresh 후 실제 삭제 여부 확인
+              await refresh();
+              router.replace("/(parent)/home" as any);
             } catch {
               Alert.alert("오류", "네트워크 오류가 발생했습니다.");
             } finally {
