@@ -144,6 +144,7 @@ export default function ParentHomeScreen() {
 
   const [v2Status, setV2Status] = useState<"no_pool" | "waiting" | "linked" | null>("no_pool");
   const [v2PendingChildName, setV2PendingChildName] = useState<string | null>(null);
+  const [v2PoolPhone, setV2PoolPhone] = useState<string | null>(null);
   const [v2Retrying, setV2Retrying] = useState(false);
 
   const noPool = !confirmedPool && !(parentAccount as any)?.swimming_pool_id && !pool;
@@ -173,6 +174,7 @@ export default function ParentHomeScreen() {
         const data = await r.json();
         setV2Status(data.status);
         setV2PendingChildName(data.pendingChildName || null);
+        setV2PoolPhone(data.pool_phone || null);
         if (data.status === "linked") await refresh();
       }
     } catch (e) {
@@ -337,8 +339,24 @@ export default function ParentHomeScreen() {
               </Text>
             </View>
             <Text style={{ fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", lineHeight: 18 }}>
-              수영장 담당자에게 아이 이름과 보호자 전화번호{"\n"}등록을 확인해주세요.
+              수영장에 아이 이름·보호자 전화번호가{"\n"}정확히 등록되어 있는지 확인해주세요.
             </Text>
+            {!!v2PoolPhone && (
+              <Pressable
+                onPress={() => Linking.openURL(`tel:${v2PoolPhone.replace(/[^0-9]/g, "")}`)}
+                style={({ pressed }) => ({
+                  flexDirection: "row", alignItems: "center", gap: 8,
+                  backgroundColor: pressed ? "#FECFA2" : "#fff",
+                  borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14,
+                  borderWidth: 1, borderColor: "#FECFA2",
+                })}
+              >
+                <LucideIcon name="phone" size={15} color={ORANGE} />
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: ORANGE }}>
+                  수영장 전화하기  {v2PoolPhone}
+                </Text>
+              </Pressable>
+            )}
           </View>
 
           <Pressable

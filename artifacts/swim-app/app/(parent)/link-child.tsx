@@ -226,6 +226,9 @@ export default function LinkChildScreen() {
             <View style={st.emptyBox}>
               <Search size={28} color={C.textMuted} />
               <Text style={[st.emptyTxt, { color: C.textMuted }]}>검색 결과가 없습니다</Text>
+              <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 18 }}>
+                이름을 다르게 검색해보거나{"\n"}수영장에 SwimNote 등록 여부를 확인해주세요
+              </Text>
             </View>
           )}
         </KeyboardAwareScrollView>
@@ -253,9 +256,16 @@ export default function LinkChildScreen() {
           </Text>
 
           {!!error && (
-            <View style={[st.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <CircleAlert size={14} color={C.error} />
-              <Text style={[st.errTxt, { color: C.error }]}>{error}</Text>
+            <View style={[st.errBox, { backgroundColor: "#F9DEDA", flexDirection: "column", gap: 6 }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <CircleAlert size={14} color={C.error} />
+                <Text style={[st.errTxt, { color: C.error }]}>{error}</Text>
+              </View>
+              <Text style={{ fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", lineHeight: 17, paddingLeft: 22 }}>
+                · 이름이 수영장 등록 정보와 정확히 일치하는지 확인하세요{"\n"}
+                · 동명이인이라면 전화번호 뒷 4자리를 입력하세요{"\n"}
+                · 모두 확인했다면 수영장에 직접 문의해주세요
+              </Text>
             </View>
           )}
 
