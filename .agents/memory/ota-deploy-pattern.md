@@ -48,6 +48,13 @@ Replit 환경에서 `eas update`는 bash tool 120초 제한 때문에 직접 완
 - `dist/` 또는 재사용 폴더 대신 항상 `/tmp/ios-new`, `/tmp/android-new` 등 새 경로 사용
 - 이전 export 결과물을 재업로드하면 변경사항 미반영됨 → 반드시 새 export
 
+## --input-dir 필수 명시
+
+- `eas update --skip-bundler`의 기본 번들 경로는 `dist` 이다
+- `expo export --output-dir dist-ota`로 생성하면 **반드시 `--input-dir dist-ota` 명시**
+- 명시 안 하면 "platform not found in metadata.json" 오류 발생
+- iOS와 Android를 **별도로 export** 해야 함 (`--platform all`로 생성해도 iOS 배포 후 Android 배포 시 metadata가 ios만으로 업데이트될 수 있음) → iOS용 dir / Android용 dir 분리 권장
+
 ## 배포 브랜치
 
 - **production + preview 양쪽 모두** 배포 필수

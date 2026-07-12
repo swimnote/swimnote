@@ -6,7 +6,7 @@ import * as SplashScreen from "expo-splash-screen";
 import * as Updates from "expo-updates";
 import Constants from "expo-constants";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, AppState, AppStateStatus, Linking, Modal, Platform, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, AppState, AppStateStatus, Linking, Modal, Platform, Pressable, Text, View } from "react-native";
 // Modal, Pressable kept for other uses in this file
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X } from "lucide-react-native";
@@ -92,70 +92,123 @@ function OtaUpdateBanner(_props: { ready?: boolean }) {
   return null;
 }
 
-function UploadProgressBanner() {
+function UploadProgressModal() {
   const { total, done, failed, isActive, dismiss } = useUploadQueue();
   const insets = useSafeAreaInsets();
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible]   = useState(false);
+  const slideAnim  = useRef(new Animated.Value(200)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
+  // 업로드 시작 시 슬라이드 업
   useEffect(() => {
-    if (total > 0) setVisible(true);
+    if (total > 0) {
+      setVisible(true);
+      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
+    }
   }, [total]);
 
+  // 진행률 애니메이션
+  useEffect(() => {
+    const percent = total > 0 ? (done + failed) / total : 0;
+    Animated.timing(progressAnim, { toValue: percent, duration: 300, useNativeDriver: false }).start();
+  }, [done, failed, total]);
+
+  // 완료 시 4초 후 자동 닫힘
   useEffect(() => {
     if (!isActive && total > 0 && done + failed >= total) {
       const t = setTimeout(() => {
-        setVisible(false);
-        setTimeout(dismiss, 400);
-      }, 4000);
+        Animated.timing(slideAnim, { toValue: 260, duration: 350, useNativeDriver: true }).start(() => {
+          setVisible(false);
+          dismiss();
+        });
+      }, 3500);
       return () => clearTimeout(t);
     }
-  }, [isActive, done, failed, total, dismiss]);
+  }, [isActive, done, failed, total]);
+
+  function handleDismiss() {
+    Animated.timing(slideAnim, { toValue: 260, duration: 300, useNativeDriver: true }).start(() => {
+      setVisible(false);
+      dismiss();
+    });
+  }
 
   if (!visible || total === 0) return null;
 
   const isComplete = !isActive && done + failed >= total;
-  const percent = total > 0 ? Math.round((done + failed) / total * 100) : 0;
+  const hasFailed  = failed > 0;
+  const percent    = total > 0 ? Math.round((done + failed) / total * 100) : 0;
+  const accentColor = isComplete ? (hasFailed ? "#F59E0B" : "#10B981") : "#2EC4B6";
 
   return (
-    <View style={{
+    <Animated.View style={{
       position: "absolute",
-      bottom: insets.bottom + 72,
+      bottom: insets.bottom + 66,
       left: 16, right: 16,
-      backgroundColor: isComplete ? "#22C55E" : "#1F8F86",
-      borderRadius: 16,
-      padding: 14,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 12,
-      elevation: 10,
+      transform: [{ translateY: slideAnim }],
       zIndex: 9999,
     }}>
-      {!isComplete && <ActivityIndicator color="#fff" size="small" />}
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: "#fff", fontSize: 13, fontFamily: "Pretendard-SemiBold" }}>
-          {isComplete
-            ? `업로드 완료${failed > 0 ? ` (실패 ${failed}장)` : ""}`
-            : `사진 업로드 중... ${percent}%`}
-        </Text>
-        <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 2 }}>
-          {done}/{total}장 완료
-        </Text>
-        {!isComplete && (
-          <View style={{ height: 3, backgroundColor: "rgba(255,255,255,0.3)", borderRadius: 2, marginTop: 6 }}>
-            <View style={{ width: `${percent}%` as any, height: 3, backgroundColor: "#fff", borderRadius: 2 }} />
+      <View style={{
+        backgroundColor: "#fff",
+        borderRadius: 20,
+        padding: 18,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.13,
+        shadowRadius: 20,
+        elevation: 14,
+        borderWidth: 1,
+        borderColor: "#F0F0F0",
+      }}>
+        {/* 헤더 */}
+        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14, gap: 10 }}>
+          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: accentColor + "1A", alignItems: "center", justifyContent: "center" }}>
+            {isComplete
+              ? <Text style={{ fontSize: 18 }}>{hasFailed ? "⚠️" : "✅"}</Text>
+              : <ActivityIndicator color={accentColor} size="small" />
+            }
           </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" }}>
+              {isComplete
+                ? (hasFailed ? `업로드 완료 (일부 실패)` : "업로드 완료 🎉")
+                : "사진 업로드 중..."}
+            </Text>
+            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 1 }}>
+              {isComplete
+                ? `${done}장 성공${hasFailed ? ` · ${failed}장 실패` : ""}`
+                : `${done + failed}/${total}장 · ${percent}%`}
+            </Text>
+          </View>
+          {isComplete && (
+            <Pressable
+              onPress={handleDismiss}
+              hitSlop={12}
+              style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" }}
+            >
+              <X size={14} color="#9CA3AF" />
+            </Pressable>
+          )}
+        </View>
+
+        {/* 진행률 바 */}
+        <View style={{ height: 6, backgroundColor: "#F3F4F6", borderRadius: 3, overflow: "hidden" }}>
+          <Animated.View style={{
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: accentColor,
+            width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }),
+          }} />
+        </View>
+
+        {/* 하단 힌트 */}
+        {!isComplete && (
+          <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 8, textAlign: "center" }}>
+            화면을 이동해도 계속 업로드됩니다
+          </Text>
         )}
       </View>
-      {isComplete && (
-        <Pressable onPress={() => { setVisible(false); setTimeout(dismiss, 300); }}>
-          <X size={18} color="#fff" />
-        </Pressable>
-      )}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -568,7 +621,7 @@ export default function RootLayout() {
                     <PushNavSync />
                     <NoticePopup />
                     <RootNav />
-                    <UploadProgressBanner />
+                    <UploadProgressModal />
                   </SubscriptionProvider>
                 </AuthProvider>
               </UploadQueueProvider>

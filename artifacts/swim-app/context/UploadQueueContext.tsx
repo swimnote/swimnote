@@ -23,6 +23,7 @@ const UploadQueueCtx = createContext<UploadQueueCtxType>({
 });
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
+const CONCURRENCY = 3;
 
 export function UploadQueueProvider({ children }: { children: React.ReactNode }) {
   const [total,    setTotal]    = useState(0);
@@ -30,45 +31,44 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
   const [failed,   setFailed]   = useState(0);
   const [isActive, setIsActive] = useState(false);
 
-  const queueRef   = useRef<(PhotoUploadJob & { id: string })[]>([]);
-  const workingRef = useRef(false);
+  const queueRef      = useRef<(PhotoUploadJob & { id: string })[]>([]);
+  const activeCountRef = useRef(0);
 
-  const processQueue = useCallback(async () => {
-    if (workingRef.current) return;
-    workingRef.current = true;
-
-    while (queueRef.current.length > 0) {
-      const job = queueRef.current.shift()!;
-      let success = false;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
-          const result = await FileSystem.uploadAsync(
-            `${API_BASE_URL}${job.endpoint}`,
-            job.uri,
-            {
-              httpMethod: "POST",
-              uploadType: 1 as any,
-              fieldName: "photos",
-              headers: { Authorization: `Bearer ${job.token}` },
-              parameters: job.params,
-            }
-          );
-          if (result.status >= 200 && result.status < 300) {
-            success = true;
-            break;
+  async function uploadOne(job: PhotoUploadJob & { id: string }) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
+        const result = await FileSystem.uploadAsync(
+          `${API_BASE_URL}${job.endpoint}`,
+          job.uri,
+          {
+            httpMethod: "POST",
+            uploadType: 1 as any,
+            fieldName: "photos",
+            headers: { Authorization: `Bearer ${job.token}` },
+            parameters: job.params,
           }
-        } catch {
-          // 재시도
+        );
+        if (result.status >= 200 && result.status < 300) {
+          setDone(d => d + 1);
+          return;
         }
+      } catch {
+        // retry
       }
-      if (success) setDone(d => d + 1);
-      else setFailed(f => f + 1);
     }
+    setFailed(f => f + 1);
+  }
 
-    workingRef.current = false;
-    setIsActive(false);
-  }, []);
+  async function runWorker() {
+    while (queueRef.current.length > 0) {
+      const job = queueRef.current.shift();
+      if (!job) break;
+      await uploadOne(job);
+    }
+    activeCountRef.current -= 1;
+    if (activeCountRef.current === 0) setIsActive(false);
+  }
 
   const addJobs = useCallback((jobs: PhotoUploadJob[]) => {
     if (!jobs.length) return;
@@ -76,11 +76,17 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
     queueRef.current.push(...tagged);
     setTotal(t => t + jobs.length);
     setIsActive(true);
-    processQueue();
-  }, [processQueue]);
+
+    const toStart = Math.max(0, CONCURRENCY - activeCountRef.current);
+    const actualStart = Math.min(toStart, tagged.length);
+    for (let i = 0; i < actualStart; i++) {
+      activeCountRef.current += 1;
+      runWorker();
+    }
+  }, []);
 
   const dismiss = useCallback(() => {
-    if (workingRef.current) return;
+    if (activeCountRef.current > 0) return;
     setTotal(0);
     setDone(0);
     setFailed(0);
