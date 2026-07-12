@@ -228,13 +228,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (!storedToken || !storedKind) return;
 
       // 서버에서 토큰 유효성 검증 — 명시적 인증 실패(401/403/404)만 세션 초기화
-      // 네트워크 오류·5xx 서버 오류는 일시적 문제이므로 세션 유지
+      // 네트워크 오류·5xx 서버 오류·타임아웃은 일시적 문제이므로 세션 유지
       let freshUserData: any = null;
       try {
-        const meRes = await fetch(`${API_BASE}/auth/me`, {
-          headers: { Authorization: `Bearer ${storedToken}` },
-          cache: "no-store",
-        });
+        const meController = new AbortController();
+        const meTimer = setTimeout(() => meController.abort(), 8000); // 8초 타임아웃 (Render cold start 대비)
+        let meRes: Response;
+        try {
+          meRes = await fetch(`${API_BASE}/auth/me`, {
+            headers: { Authorization: `Bearer ${storedToken}` },
+            cache: "no-store",
+            signal: meController.signal,
+          });
+        } finally {
+          clearTimeout(meTimer);
+        }
         // 토큰 만료(401), 권한 없음(403), 계정 삭제(404) → 세션 초기화
         if (meRes.status === 401 || meRes.status === 403 || meRes.status === 404) {
           await AsyncStorage.multiRemove([
@@ -249,7 +257,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (meRes.ok) freshUserData = await meRes.json().catch(() => null);
         // 5xx 서버 오류 → 서버가 일시적으로 다운된 것이므로 세션 유지하고 진행
       } catch {
-        // 네트워크 오류(오프라인/DNS 실패) → 일시적 문제이므로 세션 유지하고 진행
+        // 네트워크 오류(오프라인/DNS 실패/8초 타임아웃) → 일시적 문제이므로 세션 유지하고 진행
+        console.warn("[SESSION] /auth/me 실패(타임아웃 또는 네트워크) → 저장된 세션으로 복원");
       }
 
       if (storedKind === "admin" && storedAdmin) {
@@ -265,42 +274,46 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setKind("admin");
 
         // JWT role 정규화: 저장된 토큰 role과 목표 role이 다를 경우 switch-role로 교체
+        // freshUserData가 없을 때(서버 타임아웃)도 JWT payload를 디코딩해서 정규화 시도
         // 목표 role 결정:
         //   - last_used_role이 "teacher"이고 roles 배열에 "teacher" 포함 → teacher 모드 복원
-        //   - 그 외 → DB role(freshUserData.role)로 정규화
+        //   - 그 외 → DB role(freshUserData.role) 또는 stored.role로 정규화
         let activeToken = storedToken;
-        if (freshUserData?.role) {
-          try {
-            const parts = storedToken.split(".");
-            if (parts.length === 3) {
-              const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-              const padded = b64 + "=".repeat((4 - b64.length % 4) % 4);
-              const payload = JSON.parse(atob(padded));
-              // 마지막으로 선생님 모드를 사용했고 roles에 teacher 권한이 있으면 teacher로 복원
-              const restoreTeacher = lastUsedRole === "teacher" && user.roles.includes("teacher");
-              const targetRole = restoreTeacher ? "teacher" : freshUserData.role;
-              if (payload.role && payload.role !== targetRole) {
-                console.log(`[SESSION] JWT role(${payload.role}) ≠ target role(${targetRole}) → /auth/switch-role 호출`);
-                const switchRes = await fetch(`${API_BASE}/auth/switch-role`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${storedToken}` },
-                  body: JSON.stringify({ role: targetRole }),
-                });
-                if (switchRes.ok) {
-                  const switchData = await switchRes.json().catch(() => ({}));
-                  if (switchData.token) {
-                    activeToken = switchData.token;
-                    await AsyncStorage.setItem("auth_token", activeToken);
-                    // teacher 복원 시 user.role도 teacher로 설정
-                    if (restoreTeacher) user.role = "teacher";
-                    console.log(`[SESSION] 토큰 role 정규화 완료 → ${targetRole}`);
-                  }
+        try {
+          const parts = storedToken.split(".");
+          if (parts.length === 3) {
+            const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+            const padded = b64 + "=".repeat((4 - b64.length % 4) % 4);
+            const payload = JSON.parse(atob(padded));
+            const jwtRole: string | undefined = payload.role;
+
+            // freshUserData 없을 때(타임아웃)는 stored.role을 DB role 대리값으로 사용
+            const dbRole = freshUserData?.role ?? stored.role;
+
+            // 마지막으로 선생님 모드를 사용했고 roles에 teacher 권한이 있으면 teacher로 복원
+            const restoreTeacher = lastUsedRole === "teacher" && user.roles.includes("teacher");
+            const targetRole = restoreTeacher ? "teacher" : dbRole;
+
+            if (jwtRole && jwtRole !== targetRole) {
+              console.log(`[SESSION] JWT role(${jwtRole}) ≠ target role(${targetRole}) → /auth/switch-role 호출`);
+              const switchRes = await fetch(`${API_BASE}/auth/switch-role`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${storedToken}` },
+                body: JSON.stringify({ role: targetRole }),
+              });
+              if (switchRes.ok) {
+                const switchData = await switchRes.json().catch(() => ({}));
+                if (switchData.token) {
+                  activeToken = switchData.token;
+                  await AsyncStorage.setItem("auth_token", activeToken);
+                  if (restoreTeacher) user.role = "teacher";
+                  console.log(`[SESSION] 토큰 role 정규화 완료 → ${targetRole}`);
                 }
               }
             }
-          } catch (e) {
-            console.warn("[SESSION] JWT role 정규화 실패:", e);
           }
+        } catch (e) {
+          console.warn("[SESSION] JWT role 정규화 실패:", e);
         }
 
         setToken(activeToken);
