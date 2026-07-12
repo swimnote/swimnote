@@ -33,11 +33,18 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 *
  * expo-image가 R2에 직접(프록시 없이) 접근하도록 합니다.
  */
 async function batchPresign(photos: any[], type: "photo" | "video" = "photo"): Promise<any[]> {
-  return Promise.all(photos.map(async (p) => {
-    if (!p.object_key) return p;
-    const { ok, url } = await getPresignedUrl(p.object_key, type, 3600);
-    return ok && url ? { ...p, presigned_url: url } : p;
-  }));
+  const CHUNK = 10;
+  const result: any[] = [];
+  for (let i = 0; i < photos.length; i += CHUNK) {
+    const chunk = photos.slice(i, i + CHUNK);
+    const signed = await Promise.all(chunk.map(async (p) => {
+      if (!p.object_key) return p;
+      const { ok, url } = await getPresignedUrl(p.object_key, type, 3600);
+      return ok && url ? { ...p, presigned_url: url } : p;
+    }));
+    result.push(...signed);
+  }
+  return result;
 }
 
 

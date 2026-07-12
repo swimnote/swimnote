@@ -39,26 +39,31 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
 
     while (queueRef.current.length > 0) {
       const job = queueRef.current.shift()!;
-      try {
-        const result = await FileSystem.uploadAsync(
-          `${API_BASE_URL}${job.endpoint}`,
-          job.uri,
-          {
-            httpMethod: "POST",
-            uploadType: 1 as any, // FileSystemUploadType.MULTIPART (legacy enum 미노출 우회)
-            fieldName: "photos",
-            headers: { Authorization: `Bearer ${job.token}` },
-            parameters: job.params,
+      let success = false;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
+          const result = await FileSystem.uploadAsync(
+            `${API_BASE_URL}${job.endpoint}`,
+            job.uri,
+            {
+              httpMethod: "POST",
+              uploadType: 1 as any,
+              fieldName: "photos",
+              headers: { Authorization: `Bearer ${job.token}` },
+              parameters: job.params,
+            }
+          );
+          if (result.status >= 200 && result.status < 300) {
+            success = true;
+            break;
           }
-        );
-        if (result.status >= 200 && result.status < 300) {
-          setDone(d => d + 1);
-        } else {
-          setFailed(f => f + 1);
+        } catch {
+          // 재시도
         }
-      } catch {
-        setFailed(f => f + 1);
       }
+      if (success) setDone(d => d + 1);
+      else setFailed(f => f + 1);
     }
 
     workingRef.current = false;
