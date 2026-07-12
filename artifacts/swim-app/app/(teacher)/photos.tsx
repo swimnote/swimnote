@@ -204,7 +204,16 @@ export default function TeacherPhotosScreen() {
   const [compressTotal,    setCompressTotal]    = useState(0);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
-  const { addJobs } = useUploadQueue();
+  const { addJobs, isActive: uploadActive, done: uploadDone, total: uploadTotal } = useUploadQueue();
+
+  // 업로드 완료 후 목록 자동 새로고침
+  const prevActiveRef = useRef(false);
+  useEffect(() => {
+    if (prevActiveRef.current && !uploadActive && step === "list") {
+      loadList();
+    }
+    prevActiveRef.current = uploadActive;
+  }, [uploadActive, step, loadList]);
 
   type PlanFeatures = { video_enabled: boolean; storage_quota_gb: number; storage_used_gb: number; storage_used_pct: number; upload_blocked: boolean; tier: string };
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures>({ video_enabled: false, storage_quota_gb: 0, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" });
@@ -461,7 +470,6 @@ export default function TeacherPhotosScreen() {
         }
         addJobs(jobs);
         setSuccessMsg(`${assets.length}장 업로드 시작!\n화면을 이동해도 계속 업로드됩니다.`);
-        await loadList();
         return;
       }
 
@@ -730,7 +738,7 @@ export default function TeacherPhotosScreen() {
             <ActivityIndicator color={cfg.color} size="large" />
             <Text style={s.centerText}>목록을 불러오는 중…</Text>
           </View>
-        ) : listError ? (
+        ) : listError && !uploadActive ? (
           <View style={s.centerBox}>
             <CircleAlert size={36} color="#D96C6C" />
             <Text style={[s.centerText, { color: "#D96C6C" }]}>{listError}</Text>
@@ -738,6 +746,12 @@ export default function TeacherPhotosScreen() {
               <RefreshCw size={14} color="#fff" />
               <Text style={s.retryBtnText}>다시 시도</Text>
             </Pressable>
+          </View>
+        ) : uploadActive && safeItems.length === 0 ? (
+          <View style={s.centerBox}>
+            <ActivityIndicator color={cfg.color} size="large" />
+            <Text style={s.centerText}>업로드 중… {uploadDone}/{uploadTotal}장</Text>
+            <Text style={[s.centerText, { fontSize: 13, color: "#9CA3AF", marginTop: 4 }]}>완료 후 자동으로 목록이 업데이트됩니다</Text>
           </View>
         ) : safeItems.length === 0 ? (
           <View style={s.centerBox}>
