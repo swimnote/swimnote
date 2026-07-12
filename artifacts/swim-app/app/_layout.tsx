@@ -391,47 +391,35 @@ function RootNav() {
   useEffect(() => { checkAndDownloadOta(); }, []);
 
   // 백그라운드 복귀 처리
-  // - OTA 준비됨: 재시작 → 새 버전으로 홈 이동
-  // - 10분 이상: 역할 홈으로 이동
-  // - 10분 미만: 현재 화면 유지 (세션 갱신만)
+  // - OTA 준비됨: 재시작
+  // - 그 외: 현재 화면 유지 + 세션 갱신만 (홈 이동 없음)
   // * inactive만 거친 경우(제어센터·알림 배너 등)는 무시
   useEffect(() => {
     const sub = AppState.addEventListener("change", (nextState: AppStateStatus) => {
       const prev = appStateRef.current;
       appStateRef.current = nextState;
 
-      // 백그라운드 진입 시각 기록
       if (nextState === "background") {
-        backgroundAtRef.current = Date.now();
         didGoBackgroundRef.current = true;
       }
 
       // active 복귀 시 — background를 실제로 거친 경우만 처리
       if ((prev === "background" || prev === "inactive") && nextState === "active") {
-        if (!didGoBackgroundRef.current) return; // inactive만 거친 경우 무시
+        if (!didGoBackgroundRef.current) return;
         didGoBackgroundRef.current = false;
 
-        // OTA 다운로드 완료 → 재시작 (앱이 새 버전으로 시작되며 자동으로 홈 이동)
+        // OTA 다운로드 완료 → 재시작
         if (otaReadyRef.current) {
           Updates.reloadAsync().catch(() => {});
           return;
         }
 
-        const bgAt = backgroundAtRef.current;
-        backgroundAtRef.current = null;
-
-        if (bgAt && Date.now() - bgAt >= IDLE_TIMEOUT_MS) {
-          // 10분 이상 → 역할 홈으로 이동
-          const home = getRoleHome(kind, adminUser?.role);
-          router.replace(home as any);
-        } else {
-          // 10분 미만 → 현재 화면 유지, 세션 갱신만
-          refreshSession?.().catch(() => {});
-        }
+        // 항상 현재 화면 유지, 세션 갱신만
+        refreshSession?.().catch(() => {});
       }
     });
     return () => sub.remove();
-  }, [refreshSession, kind, adminUser?.role]);
+  }, [refreshSession]);
 
   // 앱 버전 체크 — 강제/소프트 업데이트 유도
   useEffect(() => {
