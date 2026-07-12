@@ -1,5 +1,4 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from "react";
-import * as FileSystem from "expo-file-system";
 
 export interface PhotoUploadJob {
   uri: string;
@@ -25,6 +24,32 @@ const UploadQueueCtx = createContext<UploadQueueCtxType>({
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 const CONCURRENCY = 3;
 
+async function uploadOnce(job: PhotoUploadJob): Promise<boolean> {
+  try {
+    const form = new FormData();
+    // 파일 첨부 (React Native FormData 방식)
+    const fieldName = job.endpoint.includes("batch") ? "photos" : "photos";
+    form.append(fieldName, {
+      uri: job.uri,
+      name: "photo.jpg",
+      type: "image/jpeg",
+    } as any);
+    // 추가 파라미터
+    for (const [key, val] of Object.entries(job.params)) {
+      if (val) form.append(key, val);
+    }
+    const res = await fetch(`${API_BASE_URL}${job.endpoint}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${job.token}` },
+      body: form,
+    });
+    return res.status >= 200 && res.status < 300;
+  } catch (e) {
+    console.warn("[UploadQueue] uploadOnce 실패:", e);
+    return false;
+  }
+}
+
 export function UploadQueueProvider({ children }: { children: React.ReactNode }) {
   const [total,    setTotal]    = useState(0);
   const [done,     setDone]     = useState(0);
@@ -35,29 +60,14 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
   const activeCountRef = useRef(0);
 
   async function uploadOne(job: PhotoUploadJob & { id: string }) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
-        const result = await FileSystem.uploadAsync(
-          `${API_BASE_URL}${job.endpoint}`,
-          job.uri,
-          {
-            httpMethod: "POST",
-            uploadType: 1 as any,
-            fieldName: "photos",
-            headers: { Authorization: `Bearer ${job.token}` },
-            parameters: job.params,
-          }
-        );
-        if (result.status >= 200 && result.status < 300) {
-          setDone(d => d + 1);
-          return;
-        }
-      } catch {
-        // retry
-      }
+    // 최대 2회 시도
+    let ok = await uploadOnce(job);
+    if (!ok) {
+      await new Promise(r => setTimeout(r, 2000));
+      ok = await uploadOnce(job);
     }
-    setFailed(f => f + 1);
+    if (ok) setDone(d => d + 1);
+    else setFailed(f => f + 1);
   }
 
   async function runWorker() {
