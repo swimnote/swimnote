@@ -5,9 +5,9 @@
  * 상세: 문의 내용 + 답변 채팅 (KeyboardAwareScrollView)
  * 신규: 하단 시트 → 스윔노트에 문의 / 원장님에게 문의 선택
  */
-import { ChevronLeft, MessageCircle, Plus, Send, X } from "lucide-react-native";
+import { ChevronLeft, Plus, Send, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Modal,
