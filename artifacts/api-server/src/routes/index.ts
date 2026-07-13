@@ -46,6 +46,7 @@ import platformBannersRouter from "./platform-banners.js";
 import systemHealthRouter from "./system-health.js";
 import crashReportRouter from "./crash-report.js";
 import appVersionRouter from "./app-version.js";
+import inquiriesRouter from "./inquiries.js";
 
 const router: IRouter = Router();
 
@@ -98,5 +99,6 @@ router.use("/", platformBannersRouter);
 router.use("/", systemHealthRouter);
 router.use("/", crashReportRouter);
 router.use("/", appVersionRouter);
+router.use("/", inquiriesRouter);
 
 export default router;

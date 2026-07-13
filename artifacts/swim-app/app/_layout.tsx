@@ -359,7 +359,7 @@ function getRoleHome(kind: string | null, role?: string): string {
 }
 
 function RootNav() {
-  const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute, refreshSession, adminUser } = useAuth();
+  const { isLoading, isAuthenticating, kind, pendingRoute, clearPendingRoute, refreshSession, adminUser, token } = useAuth();
   const pathname = usePathname();
 
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
@@ -368,8 +368,13 @@ function RootNav() {
   const backgroundAtRef = useRef<number | null>(null);
   const didGoBackgroundRef = useRef(false);
   const otaReadyRef = useRef(false);
+  const inquiryPopupShownRef = useRef(false);
+  const tokenRef = useRef(token);
+  const kindRef = useRef(kind);
 
   useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
+  useEffect(() => { tokenRef.current = token; }, [token]);
+  useEffect(() => { kindRef.current = kind; }, [kind]);
 
   async function checkAndDownloadOta() {
     if (__DEV__ || isCheckingRef.current) return;
@@ -416,6 +421,35 @@ function RootNav() {
 
         // 항상 현재 화면 유지, 세션 갱신만
         refreshSession?.().catch(() => {});
+
+        // 미읽은 문의 답변 팝업 — 세션당 1회
+        if (!inquiryPopupShownRef.current && tokenRef.current && kindRef.current) {
+          inquiryPopupShownRef.current = true;
+          apiRequest(tokenRef.current, "/inquiries/unread-count")
+            .then(r => r.json())
+            .then((d: any) => {
+              const count = Number(d?.count ?? 0);
+              if (count > 0) {
+                const k = kindRef.current;
+                const route =
+                  k === "parent"  ? "/(parent)/inquiries"  :
+                  k === "teacher" ? "/(teacher)/inquiries" :
+                  k === "admin"   ? "/(admin)/inquiries"   :
+                  k === "super"   ? "/(super)/inquiries"   : null;
+                if (route) {
+                  Alert.alert(
+                    "📩 문의 답변 도착",
+                    `${count}건의 미읽은 답변이 있습니다.`,
+                    [
+                      { text: "나중에", style: "cancel" },
+                      { text: "확인하기", onPress: () => router.push(route as any) },
+                    ]
+                  );
+                }
+              }
+            })
+            .catch(() => {});
+        }
       }
     });
     return () => sub.remove();

@@ -13,8 +13,8 @@
 import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AppUpdateButton from "@/components/common/AppUpdateButton";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -63,6 +63,18 @@ export default function ParentMoreScreen() {
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [inquiryBadge, setInquiryBadge] = useState(0);
+
+  const fetchBadge = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await apiRequest(token, "/inquiries/unread-count");
+      if (res.ok) { const d = await res.json(); setInquiryBadge(d.count ?? 0); }
+    } catch { /* ignore */ }
+  }, [token]);
+
+  useEffect(() => { fetchBadge(); }, [fetchBadge]);
+  useFocusEffect(useCallback(() => { fetchBadge(); }, [fetchBadge]));
 
   async function handleDeleteAccount(immediate: boolean) {
     setDeleteLoading(true);
@@ -141,6 +153,24 @@ export default function ParentMoreScreen() {
           iconColor={NAVY_C} iconBg={NAVY_BG}
           onPress={() => router.push("/(parent)/push-settings?backTo=more" as any)}
         />
+        <Pressable
+          style={({ pressed }) => [s.menuItem, { backgroundColor: C.card, opacity: pressed ? 0.8 : 1 }]}
+          onPress={() => router.push("/(parent)/inquiries" as any)}
+        >
+          <View style={[s.menuIcon, { backgroundColor: "#FFF7ED" }]}>
+            <LucideIcon name="message-circle" size={18} color={ORNG_C} />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[s.menuLabel, { color: C.text }]}>문의하기</Text>
+            <Text style={[s.menuSub, { color: C.textMuted }]}>스윔노트 · 원장님에게 문의</Text>
+          </View>
+          {inquiryBadge > 0 && (
+            <View style={s.badge}>
+              <Text style={s.badgeText}>{inquiryBadge}</Text>
+            </View>
+          )}
+          <ChevronRight size={16} color={C.textMuted} />
+        </Pressable>
         {/* 약관 및 정책 */}
         <MenuItem
           icon="file-text"
@@ -217,6 +247,9 @@ const s = StyleSheet.create({
   menuIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   menuLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   menuSub: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-
-
+  badge: {
+    minWidth: 22, height: 22, borderRadius: 11, backgroundColor: "#D96C6C",
+    alignItems: "center", justifyContent: "center", paddingHorizontal: 5, marginRight: 4,
+  },
+  badgeText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

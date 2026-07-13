@@ -9,7 +9,7 @@
  *  5. 사진·영상 업로드/앨범 바로가기
  *  6. 기타
  */
-import { Bell, Camera, ChevronRight, CircleDollarSign, FileText, HardDrive, Mail, Pencil, UserCog } from "lucide-react-native";
+import { Bell, Camera, ChevronRight, CircleDollarSign, FileText, HardDrive, Mail, MessageCircle, Pencil, UserCog } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AppUpdateButton from "@/components/common/AppUpdateButton";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -182,6 +182,16 @@ export default function TeacherSettingsScreen() {
         >
           <Mail size={18} color="#0F172A" />
           <Text style={[s.actionBtnText, { color: "#0F172A" }]}>쪽지보관함</Text>
+          <ChevronRight size={16} color="#0F172A" />
+        </Pressable>
+
+        {/* ── 문의하기 ── */}
+        <Pressable
+          style={[s.actionBtn, { backgroundColor: "#FFF7ED", borderColor: "#F97316" }]}
+          onPress={() => router.push("/(teacher)/inquiries" as any)}
+        >
+          <MessageCircle size={18} color="#F97316" />
+          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>문의하기</Text>
           <ChevronRight size={16} color="#0F172A" />
         </Pressable>
 

@@ -60,6 +60,7 @@ const POOL_SETTINGS: MenuItem[] = [
 const MY_SETTINGS: MenuItem[] = [
   { label: "내 정보",            icon: "user",           color: N,         bg: NB, route: "/(admin)/my-info",                   desc: "프로필 및 계정 정보" },
   { label: "앱 사용 도움말",     icon: "life-buoy",      color: "#0EA5E9", bg: NB, route: "/(admin)/help",                      desc: "FAQ 및 기능 사용 가이드" },
+  { label: "문의하기",           icon: "message-circle", color: "#F97316", bg: "#FFF7ED", route: "/(admin)/inquiries",           desc: "스윔노트·학부모 문의 관리" },
 ];
 
 export default function SettingsScreen() {

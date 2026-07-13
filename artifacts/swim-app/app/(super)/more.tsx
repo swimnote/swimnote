@@ -82,6 +82,7 @@ export default function SuperMoreScreen() {
     storage_risk: 0, deletion_pending: 0, sla_overdue: 0,
   });
   const [totpEnabled, setTotpEnabled] = useState<boolean | null>(null);
+  const [unreadInquiries, setUnreadInquiries] = useState(0);
 
   const fetchRisk = useCallback(async () => {
     if (!token) return;
@@ -99,6 +100,14 @@ export default function SuperMoreScreen() {
   }, [token]);
 
   useEffect(() => { fetchRisk(); }, [fetchRisk]);
+
+  useEffect(() => {
+    if (!token) return;
+    apiRequest(token, "/inquiries/unread-count")
+      .then(r => r.json())
+      .then((d: any) => setUnreadInquiries(d.count ?? 0))
+      .catch(() => {});
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
@@ -168,6 +177,12 @@ export default function SuperMoreScreen() {
           sub: "문의·복구·보안·SLA 관리",
           color: "navy", onPress: go("/(super)/support-group"),
           badge: risk.sla_overdue > 0 ? `SLA 초과 ${risk.sla_overdue}` : undefined,
+        },
+        {
+          icon: "inbox", label: "문의함",
+          sub: "고객 문의 수신 및 답변",
+          color: "navy", onPress: go("/(super)/inquiries"),
+          badge: unreadInquiries > 0 ? `미답변 ${unreadInquiries}` : undefined,
         },
       ],
     },
