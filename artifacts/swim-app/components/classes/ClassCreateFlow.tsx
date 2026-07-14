@@ -141,6 +141,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>("#FFFFFF");
   const [defaultCapacity, setDefaultCapacity] = useState<number>(20);
+  const [customCapacity, setCustomCapacity] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -148,7 +149,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
   useEffect(() => {
     apiRequest(token, "/admin/class-settings")
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.default_capacity) setDefaultCapacity(d.default_capacity); })
+      .then(d => { if (d?.default_capacity) { setDefaultCapacity(d.default_capacity); setCustomCapacity(c => c === null ? d.default_capacity : c); } })
       .catch(() => {});
     if (isAdmin) {
       setTeachersLoading(true);
@@ -204,7 +205,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
         schedule_days: daysStr,
         schedule_time: selectedTime,
         teacher_user_id: isAdmin ? selectedTeacher?.id : selfTeacher?.id,
-        capacity: defaultCapacity,
+        capacity: customCapacity ?? defaultCapacity,
         is_one_time: isOneTime,
         one_time_date: isOneTime ? oneTimeDate : undefined,
         color: selectedColor,
@@ -391,7 +392,11 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                     <SummaryRow icon="calendar" label={isOneTime ? "날짜" : "요일"} value={dayLabel} />
                     <SummaryRow icon="clock" label="시간" value={selectedTime} />
                     <SummaryRow icon="user" label="선생님" value={teacherName} />
-                    <SummaryRow icon="users" label="기본 정원" value={`${defaultCapacity}명`} last />
+                    <CapacityRow
+                      value={customCapacity ?? defaultCapacity}
+                      defaultValue={defaultCapacity}
+                      onChange={setCustomCapacity}
+                    />
                   </View>
                 </View>
               </>
@@ -431,11 +436,51 @@ function SummaryRow({ icon, label, value, last }: { icon: string; label: string;
     </View>
   );
 }
+
+function CapacityRow({ value, defaultValue, onChange }: { value: number; defaultValue: number; onChange: (v: number) => void }) {
+  const isModified = value !== defaultValue;
+  return (
+    <View style={[sr.row]}>
+      <LucideIcon name="users" size={13} color={C.textMuted} />
+      <Text style={sr.label}>정원</Text>
+      <View style={cp.stepper}>
+        <Pressable
+          style={[cp.btn, value <= 1 && { opacity: 0.35 }]}
+          onPress={() => onChange(Math.max(1, value - 1))}
+          hitSlop={8}
+        >
+          <Text style={cp.btnTxt}>−</Text>
+        </Pressable>
+        <View style={cp.valBox}>
+          <Text style={[cp.val, isModified && { color: C.tint, fontFamily: "Pretendard-SemiBold" }]}>
+            {value}명
+          </Text>
+          {isModified && (
+            <Text style={cp.hint}>기본 {defaultValue}명</Text>
+          )}
+        </View>
+        <Pressable style={cp.btn} onPress={() => onChange(value + 1)} hitSlop={8}>
+          <Text style={cp.btnTxt}>+</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 const sr = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 9 },
   border: { borderBottomWidth: 1, borderBottomColor: C.border },
   label: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, width: 60 },
   value: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text, flex: 1 },
+});
+
+const cp = StyleSheet.create({
+  stepper: { flex: 1, flexDirection: "row", alignItems: "center", gap: 0 },
+  btn: { width: 30, height: 30, borderRadius: 8, backgroundColor: C.background, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+  btnTxt: { fontSize: 18, lineHeight: 22, color: C.text, fontFamily: "Pretendard-Regular" },
+  valBox: { minWidth: 64, alignItems: "center" },
+  val: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
+  hint: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
 });
 
 const fl = StyleSheet.create({
