@@ -385,13 +385,25 @@ export default function TeacherDiaryScreen() {
 
   async function handleSave() {
     if (!selectedGroup) return;
-    const hasAnyContent = commonContent.trim().length > 0 || studentNotes.some(n => n.note_content?.trim());
+
+    // 입력 중인 개인 일지가 있으면 목록에 자동 추가
+    let effectiveNotes = [...studentNotes];
+    if (addNoteStudent && noteInput.trim()) {
+      const idx = effectiveNotes.findIndex(n => n.student_id === addNoteStudent!.id);
+      if (idx >= 0) {
+        effectiveNotes[idx] = { ...effectiveNotes[idx], note_content: noteInput.trim() };
+      } else {
+        effectiveNotes.push({ student_id: addNoteStudent.id, student_name: addNoteStudent.name, note_content: noteInput.trim() });
+      }
+    }
+
+    const hasAnyContent = commonContent.trim().length > 0 || effectiveNotes.some(n => n.note_content?.trim());
     if (!hasAnyContent) { setFormError("전체 일지 또는 개인 일지 내용을 입력해주세요."); return; }
     setFormError(null); setSaving(true);
     try {
       const r = await apiRequest(token, "/diaries", {
         method: "POST",
-        body: JSON.stringify({ class_group_id: selectedGroup.id, lesson_date: targetDate, common_content: commonContent.trim(), student_notes: studentNotes.map(n => ({ student_id: n.student_id, note_content: n.note_content })) }),
+        body: JSON.stringify({ class_group_id: selectedGroup.id, lesson_date: targetDate, common_content: commonContent.trim(), student_notes: effectiveNotes.map(n => ({ student_id: n.student_id, note_content: n.note_content })) }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error || "저장 실패");

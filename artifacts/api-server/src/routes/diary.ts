@@ -121,6 +121,45 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
   } catch (e) { console.error("[diary] 푸시 알림 오류:", e); }
 }
 
+// 공통 일지 없이 개인 일지만 있을 때: 해당 학생의 학부모에게만 발송
+async function sendDiaryPushToStudents(studentIds: string[], diaryId: string, className: string, poolId: string) {
+  if (studentIds.length === 0) return;
+  try {
+    const idsLiteral = studentIds.map(id => `'${id.replace(/'/g, "''")}'`).join(",");
+    const parentRows = await db.execute(sql.raw(`
+      SELECT DISTINCT pa.id AS parent_account_id
+      FROM students s
+      JOIN parent_students ps ON ps.student_id = s.id
+      JOIN parent_accounts pa ON pa.id = ps.parent_id
+      WHERE s.id IN (${idsLiteral})
+        AND s.status != 'deleted' AND ps.status = 'approved'
+    `));
+    const pSettings = await db.execute(sql`
+      SELECT COALESCE(tpl_diary, '📒 새 수업 일지가 작성되었습니다.') AS tpl
+      FROM pool_push_settings WHERE pool_id = ${poolId} LIMIT 1
+    `).catch(() => ({ rows: [] }));
+    const tpl = (pSettings.rows[0] as any)?.tpl ?? "📒 새 수업 일지가 작성되었습니다.";
+    const { sendPushToUser } = await import("../lib/push-service.js");
+    for (const p of parentRows.rows as any[]) {
+      const nid = genId("notif");
+      await db.execute(sql`
+        INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
+        VALUES (${nid}, ${p.parent_account_id}, 'parent_account', 'diary_upload',
+                '새 수업 일지가 작성되었습니다',
+                ${`${className} 개인 일지가 작성되었습니다. 확인해보세요!`},
+                ${diaryId}, 'class_diary', ${poolId}, false)
+        ON CONFLICT DO NOTHING
+      `);
+      await sendPushToUser(
+        p.parent_account_id, true, "diary_upload",
+        "📒 새 수업 일지", tpl,
+        { type: "diary_upload", diaryId },
+        `diary_${diaryId}_${p.parent_account_id}`
+      ).catch(() => {});
+    }
+  } catch (e) { console.error("[diary] 개인일지 푸시 알림 오류:", e); }
+}
+
 // ════════════════════════════════════════════════════════════════════════
 // 1. 미디어 업로드 (레거시 호환 유지)
 // ════════════════════════════════════════════════════════════════════════
@@ -398,7 +437,14 @@ router.post("/diaries",
       // 학부모 푸시 알림
       const cgRow = await db.execute(sql`SELECT name FROM class_groups WHERE id = ${class_group_id}`);
       const className = (cgRow.rows[0] as any)?.name || "수업";
-      sendDiaryPush(class_group_id, diaryId, className, poolId);
+      if ((common_content || "").trim()) {
+        // 공통 일지 있음 → 전체 반 학부모에게 발송
+        sendDiaryPush(class_group_id, diaryId, className, poolId);
+      } else {
+        // 공통 일지 없음 → 개인 일지가 있는 학생의 학부모에게만 발송
+        const noteStudentIds = savedNotes.map((n: any) => n.student_id);
+        sendDiaryPushToStudents(noteStudentIds, diaryId, className, poolId);
+      }
 
       logPoolEvent({
         pool_id: poolId!, event_type: "journal.create", entity_type: "class_diary",
