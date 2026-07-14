@@ -75,9 +75,8 @@ export default function ChildProfileScreen() {
             try {
               await apiRequest(token, `/parent/unlink-child/${id}`, { method: "DELETE" });
             } catch {}
-            try { await refresh(); } catch {}
             router.replace("/(parent)/home" as any);
-            setUnlinking(false);
+            refresh().catch(() => {});
           },
         },
       ]

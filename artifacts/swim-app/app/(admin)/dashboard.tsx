@@ -10,7 +10,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, Modal, Platform, Pressable,
+  ActivityIndicator, AppState, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -161,6 +161,13 @@ export default function DashboardScreen() {
   useFocusEffect(useCallback(() => {
     fetchStats();
   }, [fetchStats]));
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") fetchStats();
+    });
+    return () => sub.remove();
+  }, [fetchStats]);
 
   // pool_admin이면 항상 선생님 모드 전환 가능 (자동 생성 구조 — 신규·기존 계정 모두 지원)
   const canSwitchToTeacher = adminUser?.role === "pool_admin" || !!(adminUser?.roles?.includes("teacher"));
