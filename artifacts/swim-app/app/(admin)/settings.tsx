@@ -60,7 +60,6 @@ const POOL_SETTINGS: MenuItem[] = [
 const MY_SETTINGS: MenuItem[] = [
   { label: "내 정보",            icon: "user",           color: N,         bg: NB, route: "/(admin)/my-info",                   desc: "프로필 및 계정 정보" },
   { label: "앱 사용 도움말",     icon: "life-buoy",      color: "#0EA5E9", bg: NB, route: "/(admin)/help",                      desc: "FAQ 및 기능 사용 가이드" },
-  { label: "문의하기",           icon: "message-circle", color: "#F97316", bg: "#FFF7ED", route: "/(admin)/inquiries",           desc: "스윔노트·학부모 문의 관리" },
 ];
 
 export default function SettingsScreen() {
@@ -290,22 +289,17 @@ export default function SettingsScreen() {
           <AppUpdateButton themeColor={themeColor} />
         </View>
 
+        {/* 문의하기 — 목록 최하단 */}
+        {renderSection("문의하기", [
+          { label: "문의하기", icon: "help-circle", color: "#2EC4B6", bg: "#E6FAF8", route: "/(admin)/inquiries", desc: "스윔노트 · 학부모 문의 관리" },
+        ])}
+
         {/* 계정 삭제 */}
         <Pressable
           style={({ pressed }) => [s.deleteBtn, { opacity: pressed ? 0.7 : 1 }]}
           onPress={() => setDeleteConfirm(true)}
         >
           <Text style={s.deleteBtnText}>회원 탈퇴</Text>
-        </Pressable>
-
-        {/* 문의하기 — 설정 최하단 */}
-        <Pressable
-          style={({ pressed }) => [s.inquiryBtn, { opacity: pressed ? 0.8 : 1 }]}
-          onPress={() => router.push("/support-ticket-list" as any)}
-        >
-          <LucideIcon name="message-circle" size={16} color="#7C3AED" />
-          <Text style={s.inquiryBtnText}>문의하기</Text>
-          <Text style={s.inquiryBtnDesc}>스윔노트 고객센터 문의</Text>
         </Pressable>
 
 

@@ -185,16 +185,6 @@ export default function TeacherSettingsScreen() {
           <ChevronRight size={16} color="#0F172A" />
         </Pressable>
 
-        {/* ── 문의하기 ── */}
-        <Pressable
-          style={[s.actionBtn, { backgroundColor: "#FFF7ED", borderColor: "#F97316" }]}
-          onPress={() => router.push("/(teacher)/inquiries" as any)}
-        >
-          <MessageCircle size={18} color="#F97316" />
-          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>문의하기</Text>
-          <ChevronRight size={16} color="#0F172A" />
-        </Pressable>
-
         {/* ── 사진·영상 업로드/앨범 ── */}
         <Pressable
           style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
@@ -356,6 +346,16 @@ export default function TeacherSettingsScreen() {
             </Pressable>
           ))}
         </View>
+
+        {/* ── 문의하기 — 목록 최하단 ── */}
+        <Pressable
+          style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#2EC4B6" }]}
+          onPress={() => router.push("/(teacher)/inquiries" as any)}
+        >
+          <MessageCircle size={18} color="#2EC4B6" />
+          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>문의하기</Text>
+          <ChevronRight size={16} color="#0F172A" />
+        </Pressable>
 
         {/* 앱 업데이트 */}
         <AppUpdateButton themeColor={themeColor} />

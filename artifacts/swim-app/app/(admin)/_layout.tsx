@@ -225,6 +225,7 @@ export default function AdminLayout() {
       <Tabs.Screen name="bulk-register"           options={{ href: null }} />
       <Tabs.Screen name="extra-storage"           options={{ href: null }} />
       <Tabs.Screen name="help"                    options={{ href: null }} />
+      <Tabs.Screen name="inquiries"               options={{ href: null }} />
       <Tabs.Screen name="invite-qr"               options={{ href: null }} />
       <Tabs.Screen name="subscription"            options={{ href: null }} />
       <Tabs.Screen name="parents-list"            options={{ href: null }} />

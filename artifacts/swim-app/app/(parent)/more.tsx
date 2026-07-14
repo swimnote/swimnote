@@ -153,24 +153,6 @@ export default function ParentMoreScreen() {
           iconColor={NAVY_C} iconBg={NAVY_BG}
           onPress={() => router.push("/(parent)/push-settings?backTo=more" as any)}
         />
-        <Pressable
-          style={({ pressed }) => [s.menuItem, { backgroundColor: C.card, opacity: pressed ? 0.8 : 1 }]}
-          onPress={() => router.push("/(parent)/inquiries" as any)}
-        >
-          <View style={[s.menuIcon, { backgroundColor: "#FFF7ED" }]}>
-            <LucideIcon name="message-circle" size={18} color={ORNG_C} />
-          </View>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={[s.menuLabel, { color: C.text }]}>문의하기</Text>
-            <Text style={[s.menuSub, { color: C.textMuted }]}>스윔노트 · 원장님에게 문의</Text>
-          </View>
-          {inquiryBadge > 0 && (
-            <View style={s.badge}>
-              <Text style={s.badgeText}>{inquiryBadge}</Text>
-            </View>
-          )}
-          <ChevronRight size={16} color={C.textMuted} />
-        </Pressable>
         {/* 약관 및 정책 */}
         <MenuItem
           icon="file-text"
@@ -186,6 +168,26 @@ export default function ParentMoreScreen() {
         />
         {/* 앱 업데이트 */}
         <AppUpdateButton />
+
+        {/* 문의하기 — 목록 최하단 */}
+        <Pressable
+          style={({ pressed }) => [s.menuItem, { backgroundColor: C.card, opacity: pressed ? 0.8 : 1 }]}
+          onPress={() => router.push("/(parent)/inquiries" as any)}
+        >
+          <View style={[s.menuIcon, { backgroundColor: "#E6FAF8" }]}>
+            <LucideIcon name="help-circle" size={18} color={MINT_C} />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[s.menuLabel, { color: C.text }]}>문의하기</Text>
+            <Text style={[s.menuSub, { color: C.textMuted }]}>스윔노트 · 원장님에게 문의</Text>
+          </View>
+          {inquiryBadge > 0 && (
+            <View style={s.badge}>
+              <Text style={s.badgeText}>{inquiryBadge}</Text>
+            </View>
+          )}
+          <ChevronRight size={16} color={C.textMuted} />
+        </Pressable>
 
         <MenuItem
           icon="log-out"
