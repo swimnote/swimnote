@@ -7,7 +7,7 @@ import {
   parentAccountsTable, usersTable, attendanceTable,
   classChangeLogsTable,
 } from "@workspace/db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, or, sql, desc } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
 import { logChange } from "../utils/change-logger.js";
@@ -124,12 +124,15 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         ))
         .orderBy(desc(studentsTable.created_at));
     } else if (req.user!.role === "teacher" && !poolAll) {
-      // teacher (일반): 본인이 담당하는 반에 배정된 학생만 반환 (삭제된 반 제외)
+      // teacher (일반): 본인이 담당하는 반에 배정된 학생만 반환 (co_teacher 포함, 삭제된 반 제외)
       const teacherClasses = await db.select({ id: classGroupsTable.id })
         .from(classGroupsTable)
         .where(and(
           eq(classGroupsTable.swimming_pool_id, poolId!),
-          eq(classGroupsTable.teacher_user_id, req.user!.userId),
+          or(
+            eq(classGroupsTable.teacher_user_id, req.user!.userId),
+            sql`co_teacher_ids @> to_jsonb(${req.user!.userId}::text)`
+          ),
           eq(classGroupsTable.is_deleted, false)
         ));
       const classIds = teacherClasses.map(c => c.id);

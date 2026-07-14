@@ -276,10 +276,16 @@ export default function TeacherDiaryScreen() {
       if (lr.ok) setLevels(await lr.json());
     } catch {}
   }
-  async function loadClassStudents(classId: string) {
+  async function loadClassStudents(_classId: string) {
     try {
-      const r = await apiRequest(token, `/class-groups/${classId}/students`);
-      if (r.ok) { const data = await r.json(); setClassStudents(Array.isArray(data) ? data : []); }
+      // 특정 반만 조회하면 주2회 학생처럼 다른 반에 배정된 학생이 누락됨
+      // → 선생님 담당 전체 학생을 가져와 일지 작성 범위를 확보
+      const r = await apiRequest(token, `/students`);
+      if (r.ok) {
+        const data = await r.json();
+        const list = Array.isArray(data) ? data : [];
+        setClassStudents(list.filter((s: any) => !["deleted", "archived"].includes(s.status)));
+      }
     } catch {}
   }
   async function loadDiaries(classId: string) {
