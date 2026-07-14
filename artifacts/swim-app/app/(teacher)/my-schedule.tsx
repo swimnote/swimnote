@@ -653,6 +653,9 @@ export default function MyScheduleScreen() {
           onColorChange={(id, color) =>
             setGroups(prev => prev.map(g => g.id === id ? { ...g, color } : g))
           }
+          onCapacityChange={(id, capacity) =>
+            setGroups(prev => prev.map(g => g.id === id ? { ...g, capacity } : g))
+          }
         />
       )}
 

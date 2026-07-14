@@ -3,7 +3,7 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
@@ -17,7 +17,7 @@ const C = Colors.light;
 export default function ClassDetailSheet({
   group, students, attMap, diarySet, themeColor, date, onClose,
   onOpenUnreg, onOpenRemove, onNavigateTo, onDeleteClass, weekChangeLogs, token,
-  classGroups, onColorChange,
+  classGroups, onColorChange, onCapacityChange,
 }: {
   group: TeacherClassGroup;
   students: StudentItem[];
@@ -34,6 +34,7 @@ export default function ClassDetailSheet({
   onNavigateTo?: (navigate: () => void) => void;
   classGroups?: TeacherClassGroup[];
   onColorChange?: (id: string, color: string) => void;
+  onCapacityChange?: (id: string, capacity: number | null) => void;
 }) {
   const myLogs = useMemo(() =>
     (weekChangeLogs || []).filter(l => l.class_group_id === group.id),
@@ -56,24 +57,42 @@ export default function ClassDetailSheet({
   const [draftColor, setDraftColor] = useState<string>(group.color || "#FFFFFF");
   const [colorSaving, setColorSaving] = useState(false);
 
+  const originalCapacityRef = useRef<number | null>(group.capacity ?? null);
+  const [draftCapacity, setDraftCapacity] = useState<string>(
+    group.capacity != null ? String(group.capacity) : ""
+  );
 
   function handleColorSelect(color: string) {
     setDraftColor(color);
   }
 
   async function handleClose() {
-    if (draftColor !== originalColorRef.current) {
+    const parsedCapacity = draftCapacity.trim() === "" ? null : parseInt(draftCapacity, 10);
+    const capacityChanged = parsedCapacity !== originalCapacityRef.current;
+    const colorChanged = draftColor !== originalColorRef.current;
+
+    if (colorChanged || capacityChanged) {
       setColorSaving(true);
       try {
+        const patch: Record<string, unknown> = {};
+        if (colorChanged) patch.color = draftColor;
+        if (capacityChanged) patch.capacity = parsedCapacity;
         await apiRequest(token, `/class-groups/${group.id}`, {
           method: "PATCH",
-          body: JSON.stringify({ color: draftColor }),
+          body: JSON.stringify(patch),
         });
-        onColorChange?.(group.id, draftColor);
-        originalColorRef.current = draftColor;
+        if (colorChanged) {
+          onColorChange?.(group.id, draftColor);
+          originalColorRef.current = draftColor;
+        }
+        if (capacityChanged) {
+          onCapacityChange?.(group.id, parsedCapacity);
+          originalCapacityRef.current = parsedCapacity;
+        }
       } catch (e) {
         console.error(e);
         setDraftColor(originalColorRef.current);
+        setDraftCapacity(originalCapacityRef.current != null ? String(originalCapacityRef.current) : "");
       }
       setColorSaving(false);
     }
@@ -201,6 +220,42 @@ export default function ClassDetailSheet({
               </Pressable>
             </View>
             <PastelColorPicker selected={draftColor} onSelect={handleColorSelect} />
+            <View style={cds.capacityRow}>
+              <View style={cds.capacityLabelRow}>
+                <Users size={14} color={C.textSecondary} />
+                <Text style={cds.capacityLabel}>정원</Text>
+              </View>
+              <View style={cds.capacityInputWrap}>
+                <Pressable
+                  style={cds.capacityBtn}
+                  onPress={() => {
+                    const cur = parseInt(draftCapacity || "0", 10);
+                    if (cur > 1) setDraftCapacity(String(cur - 1));
+                  }}
+                >
+                  <Text style={cds.capacityBtnTxt}>−</Text>
+                </Pressable>
+                <TextInput
+                  style={cds.capacityInput}
+                  value={draftCapacity}
+                  onChangeText={v => setDraftCapacity(v.replace(/[^0-9]/g, ""))}
+                  keyboardType="number-pad"
+                  placeholder="없음"
+                  placeholderTextColor={C.textMuted}
+                  maxLength={3}
+                />
+                <Text style={cds.capacityUnit}>명</Text>
+                <Pressable
+                  style={cds.capacityBtn}
+                  onPress={() => {
+                    const cur = parseInt(draftCapacity || "0", 10);
+                    setDraftCapacity(String(cur + 1));
+                  }}
+                >
+                  <Text style={cds.capacityBtnTxt}>+</Text>
+                </Pressable>
+              </View>
+            </View>
             <Text style={cds.sectionLabel}>학생 목록 · {effectiveDate}</Text>
             <ScrollView style={cds.studentScroll} showsVerticalScrollIndicator={false}>
               {groupStudents.length === 0 ? (
@@ -446,4 +501,16 @@ const cds = StyleSheet.create({
                      borderTopWidth: 1, borderTopColor: "#F8FAFC" },
   timingLabel:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   timingSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  capacityRow:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                     paddingHorizontal: 16, paddingVertical: 10,
+                     borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+  capacityLabelRow:{ flexDirection: "row", alignItems: "center", gap: 6 },
+  capacityLabel:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  capacityInputWrap:{ flexDirection: "row", alignItems: "center", gap: 6 },
+  capacityBtn:     { width: 28, height: 28, borderRadius: 8, backgroundColor: "#F1F5F9",
+                     alignItems: "center", justifyContent: "center" },
+  capacityBtnTxt:  { fontSize: 16, color: C.textSecondary, lineHeight: 20 },
+  capacityInput:   { minWidth: 36, textAlign: "center", fontSize: 15,
+                     fontFamily: "Pretendard-Regular", color: C.text, padding: 0 },
+  capacityUnit:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });
