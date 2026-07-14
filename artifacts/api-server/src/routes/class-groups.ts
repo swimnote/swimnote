@@ -168,7 +168,13 @@ router.get("/:id/students", requireAuth, async (req: AuthRequest, res) => {
     const cgId = req.params.id;
     const students = await db.execute(sql`
       SELECT * FROM students
-      WHERE (class_group_id = ${cgId} OR assigned_class_ids @> to_jsonb(${cgId}::text))
+      WHERE (
+        class_group_id = ${cgId}
+        OR EXISTS (
+          SELECT 1 FROM jsonb_array_elements_text(COALESCE(assigned_class_ids, '[]'::jsonb)) AS elem
+          WHERE elem = ${cgId}
+        )
+      )
         AND status NOT IN ('withdrawn', 'deleted')
       ORDER BY name ASC
     `);
