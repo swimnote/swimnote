@@ -294,6 +294,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             const restoreTeacher = lastUsedRole === "teacher" && user.roles.includes("teacher");
             const targetRole = restoreTeacher ? "teacher" : dbRole;
 
+            // teacher 복원: role 먼저 설정 (JWT 교체 성공 여부와 무관하게 라우팅 보장)
+            if (restoreTeacher) user.role = "teacher";
+
             if (jwtRole && jwtRole !== targetRole) {
               console.log(`[SESSION] JWT role(${jwtRole}) ≠ target role(${targetRole}) → /auth/switch-role 호출`);
               const switchRes = await fetch(`${API_BASE}/auth/switch-role`, {
@@ -306,7 +309,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                 if (switchData.token) {
                   activeToken = switchData.token;
                   await AsyncStorage.setItem("auth_token", activeToken);
-                  if (restoreTeacher) user.role = "teacher";
                   console.log(`[SESSION] 토큰 role 정규화 완료 → ${targetRole}`);
                 }
               }
