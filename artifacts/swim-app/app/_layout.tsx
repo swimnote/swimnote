@@ -406,6 +406,7 @@ function RootNav() {
 
       if (nextState === "background") {
         didGoBackgroundRef.current = true;
+        backgroundAtRef.current = Date.now();
       }
 
       // active 복귀 시 — background를 실제로 거친 경우만 처리
@@ -419,8 +420,12 @@ function RootNav() {
           return;
         }
 
-        // 항상 현재 화면 유지, 세션 갱신만
-        refreshSession?.().catch(() => {});
+        // 1시간 이상 백그라운드였을 때만 세션 갱신 (teacher 모드 유지)
+        const elapsed = backgroundAtRef.current ? Date.now() - backgroundAtRef.current : Infinity;
+        const BACKGROUND_THRESHOLD_MS = 60 * 60 * 1000;
+        if (elapsed >= BACKGROUND_THRESHOLD_MS) {
+          refreshSession?.().catch(() => {});
+        }
 
         // 미읽은 문의 답변 팝업 — 세션당 1회
         if (!inquiryPopupShownRef.current && tokenRef.current && kindRef.current) {
