@@ -295,7 +295,19 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
   function handleAssign() {
     onClose();
     setTimeout(() => {
-      router.push({ pathname: "/class-assign", params: { classId: group.id, returnTo: "admin-classes" } } as any);
+      router.push({ pathname: "/class-assign", params: {
+        classId: group.id,
+        returnTo: "admin-classes",
+        initialClass: JSON.stringify({
+          id: group.id,
+          name: group.name,
+          schedule_days: group.schedule_days,
+          schedule_time: group.schedule_time,
+          instructor: group.instructor || null,
+          capacity: group.capacity ?? null,
+          level: group.level || null,
+        }),
+      } } as any);
     }, 150);
   }
 

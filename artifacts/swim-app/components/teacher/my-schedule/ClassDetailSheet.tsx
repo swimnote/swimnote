@@ -209,7 +209,21 @@ export default function ClassDetailSheet({
             </View>
             <View style={cds.actionRow}>
               <Pressable style={[cds.actionBtn, { backgroundColor: "#E6FFFA", flex: 1 }]}
-                onPress={() => onNavigateTo?.(() => router.push(`/class-assign?classId=${group.id}` as any))}>
+                onPress={() => onNavigateTo?.(() => router.push({
+                pathname: "/class-assign",
+                params: {
+                  classId: group.id,
+                  initialClass: JSON.stringify({
+                    id: group.id,
+                    name: group.name,
+                    schedule_days: group.schedule_days,
+                    schedule_time: group.schedule_time,
+                    instructor: group.instructor || null,
+                    capacity: group.capacity ?? null,
+                    level: group.level || null,
+                  }),
+                },
+              } as any))}>
                 <Users size={13} color="#4338CA" />
                 <Text style={[cds.actionText, { color: "#4338CA" }]}>반배정</Text>
               </Pressable>

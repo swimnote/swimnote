@@ -71,15 +71,35 @@ function toStudentMember(s: Student): StudentMember {
   };
 }
 
+// ── 모듈 레벨 학생 캐시 (화면 재진입 시 즉시 표시) ──────────────
+let _stuCache: { data: Student[]; ts: number } | null = null;
+
+function isActiveStudent(s: Student) {
+  return s.status === "active" || s.status === "pending_parent_link" || s.status === "unregistered";
+}
+function isInClass(s: Student, cid: string) {
+  const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
+  return s.class_group_id === cid || ids.includes(cid);
+}
+
 export default function ClassAssignScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const { classId } = useLocalSearchParams<{ classId: string }>();
+  const { classId, initialClass } = useLocalSearchParams<{ classId: string; initialClass?: string }>();
 
-  const [classInfo, setClassInfo] = useState<ClassGroup | null>(null);
-  const [assigned, setAssigned] = useState<Student[]>([]);
-  const [allStudents, setAllStudents] = useState<Student[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [classInfo, setClassInfo] = useState<ClassGroup | null>(() => {
+    if (initialClass) { try { return JSON.parse(initialClass); } catch { return null; } }
+    return null;
+  });
+  const [allStudents, setAllStudents] = useState<Student[]>(() =>
+    _stuCache ? _stuCache.data.filter(isActiveStudent) : []
+  );
+  const [assigned, setAssigned] = useState<Student[]>(() =>
+    _stuCache && classId
+      ? _stuCache.data.filter(isActiveStudent).filter(s => isInClass(s, classId))
+      : []
+  );
+  const [loadingStudents, setLoadingStudents] = useState(!_stuCache);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -98,16 +118,13 @@ export default function ClassAssignScreen() {
       if (cgRes.ok) setClassInfo(await cgRes.json());
       if (stuRes.ok) {
         const allStu: Student[] = await stuRes.json();
-        const active = allStu.filter(s => s.status === "active" || s.status === "pending_parent_link" || s.status === "unregistered");
+        _stuCache = { data: allStu, ts: Date.now() };
+        const active = allStu.filter(isActiveStudent);
         setAllStudents(active);
-        const inClass = active.filter(s => {
-          const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
-          return s.class_group_id === classId || ids.includes(classId);
-        });
-        setAssigned(inClass);
+        setAssigned(active.filter(s => isInClass(s, classId)));
       }
     } catch (e) { console.error(e); }
-    finally { setLoading(false); setRefreshing(false); }
+    finally { setLoadingStudents(false); setRefreshing(false); }
   }, [token, classId]);
 
   useEffect(() => { load(); }, [load]);
@@ -199,21 +216,6 @@ export default function ClassAssignScreen() {
 
   function goBack() {
     router.back();
-  }
-
-  if (loading) {
-    return (
-      <View style={[s.root, { backgroundColor: C.background }]}>
-        <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
-          <Pressable onPress={goBack} style={s.backBtn}>
-            <ArrowLeft size={20} color={C.text} />
-          </Pressable>
-          <Text style={[s.title, { color: C.text }]}>반배정 변경</Text>
-          <View style={{ width: 40 }} />
-        </View>
-        <ActivityIndicator color={C.tint} style={{ marginTop: 80 }} />
-      </View>
-    );
   }
 
   return (
@@ -324,7 +326,9 @@ export default function ClassAssignScreen() {
           )}
         </View>
 
-        {assignable.length === 0 ? (
+        {loadingStudents ? (
+          <ActivityIndicator color={C.tint} style={{ marginTop: 24, marginBottom: 8 }} />
+        ) : assignable.length === 0 ? (
           <View style={s.emptyRow}>
             <Text style={[s.emptyText, { color: C.textMuted }]}>
               {search.trim()
