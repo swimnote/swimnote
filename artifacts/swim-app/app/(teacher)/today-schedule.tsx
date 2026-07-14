@@ -265,11 +265,12 @@ export default function TodayScheduleScreen() {
   return (
     <SafeAreaView style={h.safe} edges={[]}>
       <View style={[h.header, { paddingTop: topPad }]}>
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text style={[h.poolName, { color: C.text }]} numberOfLines={1}>
-              {pool?.name ?? "수영장"}
-            </Text>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[h.poolName, { color: C.text }]} numberOfLines={1}>
+            {pool?.name ?? "수영장"}
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
+            <Text style={h.greeting} numberOfLines={1}>{adminUser?.name ?? "선생님"}선생님</Text>
             {canSwitchToAdmin && (
               <Pressable style={({ pressed }) => [h.switchChip, { borderColor: "#0F172A30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 }]}
                 onPress={handleSwitchToAdmin} disabled={switching}>
@@ -279,7 +280,6 @@ export default function TodayScheduleScreen() {
               </Pressable>
             )}
           </View>
-          <Text style={h.greeting} numberOfLines={1}>{adminUser?.name ?? "선생님"}선생님</Text>
         </View>
         {/* 학부모 쪽지 확인 버튼 */}
         <Pressable

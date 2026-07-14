@@ -382,9 +382,10 @@ function RootNav() {
     try {
       const { isAvailable } = await Updates.checkForUpdateAsync();
       if (isAvailable) {
-        // 다운로드만 해두고 즉시 재시작하지 않음 — 백그라운드 복귀 시 적용
         await Updates.fetchUpdateAsync();
+        // cold start 시 즉시 재시작 (백그라운드 복귀 전에도 적용)
         otaReadyRef.current = true;
+        await Updates.reloadAsync();
       }
     } catch (_) {
     } finally {
