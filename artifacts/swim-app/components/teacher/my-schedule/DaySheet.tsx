@@ -6,8 +6,9 @@ import { Calendar, Check, ChevronRight, CirclePlus, CircleStop, FileText, Mic, P
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Colors from "@/constants/colors";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import {
@@ -129,6 +130,10 @@ export default function DaySheet({
     <>
     <Modal visible animationType="slide" transparent onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={dy.backdrop} onPress={onClose}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{ width: "100%" }}
+        >
         <Pressable style={dy.sheet} onPress={() => {}}>
           <View style={dy.handle} />
 
@@ -156,8 +161,13 @@ export default function DaySheet({
             </View>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} style={{ flexShrink: 1 }}
-            contentContainerStyle={{ paddingBottom: 80 }}>
+          <KeyboardAwareScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            style={{ flexShrink: 1 }}
+            contentContainerStyle={{ paddingBottom: 120 }}
+            bottomOffset={20}
+          >
 
             {classes.length === 0 && (
               <View style={dy.emptyBox}>
@@ -314,8 +324,9 @@ export default function DaySheet({
                 )}
               </View>
             )}
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
 
@@ -388,10 +399,9 @@ export default function DaySheet({
 }
 
 const dy = StyleSheet.create({
-  backdrop:         { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
-  sheet:            { position: "absolute", bottom: 0, left: 0, right: 0,
-                      backgroundColor: "#fff", borderTopLeftRadius: 22, borderTopRightRadius: 22,
-                      minHeight: "55%", maxHeight: "70%", paddingBottom: 8 },
+  backdrop:         { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  sheet:            { backgroundColor: "#fff", borderTopLeftRadius: 22, borderTopRightRadius: 22,
+                      minHeight: "55%", maxHeight: "80%", paddingBottom: 8 },
   handle:           { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
                       alignSelf: "center", marginTop: 10, marginBottom: 6 },
   header:           { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 16, paddingBottom: 10 },
