@@ -189,6 +189,18 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
 
   useEffect(() => { loadMessages(); }, [loadMessages]);
 
+  /* ── 화면 진입 시 talk 읽음 처리 (백그라운드 복귀 포함) ── */
+  useFocusEffect(
+    useCallback(() => {
+      if (token && poolId) {
+        apiRequest(token, "/messenger/read-state", {
+          method: "POST",
+          body: JSON.stringify({ pool_id: poolId, channel_type: "talk" }),
+        }).catch(() => {});
+      }
+    }, [token, poolId])
+  );
+
   /* ── 탭 이탈 시에만 지정 대상 초기화 ── */
   useFocusEffect(
     useCallback(() => {

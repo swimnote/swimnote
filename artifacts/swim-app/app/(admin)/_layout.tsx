@@ -144,6 +144,12 @@ export default function AdminLayout() {
           tabPress: (e: any) => {
             e.preventDefault();
             setMessengerUnread(false);
+            if (token && pool?.id) {
+              apiRequest(token, "/messenger/read-state", {
+                method: "POST",
+                body: JSON.stringify({ pool_id: pool.id, channel_type: "talk" }),
+              }).catch(() => {});
+            }
             const state = navigation.getState();
             const currentRoute = state.routes[state.index]?.name;
             if (currentRoute === "messenger") {
