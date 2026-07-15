@@ -102,7 +102,8 @@ export default function TeacherDiaryScreen() {
 
   const [hasDraft,      setHasDraft]      = useState(false);
 
-  const initialParamsHandled = useRef(false);
+  // 마지막으로 처리한 param 값을 저장 — classGroupId가 바뀔 때마다 재처리
+  const handledParamKey = useRef<string | undefined>(undefined);
 
   const draftKey = selectedGroup
     ? `@swimnote:diary_draft:${selectedGroup.id}:${targetDate}`
@@ -187,8 +188,10 @@ export default function TeacherDiaryScreen() {
         const arr: any[] = await dRes.json();
         setDiarySet(new Set(arr.map((d: any) => d.class_group_id && d.lesson_date ? `${d.class_group_id}_${d.lesson_date}` : null).filter(Boolean) as string[]));
       }
-      if (!initialParamsHandled.current) {
-        initialParamsHandled.current = true;
+      // classGroupId가 바뀔 때마다 재처리 (동일 값이면 skip)
+      const paramKey = params.classGroupId ?? params.editDiaryId;
+      if (paramKey && paramKey !== handledParamKey.current) {
+        handledParamKey.current = paramKey;
         if (params.editDiaryId) {
           try {
             const dr = await apiRequest(token, `/diaries/${params.editDiaryId}`);
@@ -213,7 +216,7 @@ export default function TeacherDiaryScreen() {
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
-  }, [token, targetDate]);
+  }, [token, targetDate, params.classGroupId, params.editDiaryId]);
 
   useEffect(() => { load(); }, [load]);
 
