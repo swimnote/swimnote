@@ -4,7 +4,7 @@
  * scope=global 템플릿 관리: 레벨 슬롯 (최대 10개) + 레벨별 CRUD
  * SwimNote 기본 템플릿 복원 / 전체 초기화
  */
-import {ActivityIndicator, Modal, Platform,
+import {ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
   Pressable, StyleSheet, Switch,
   Text, TextInput, TouchableOpacity, View} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -651,32 +651,34 @@ function InputModal({
 }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={m.overlay}>
-        <View style={m.sheet}>
-          <Text style={m.title}>{title}</Text>
-          <Text style={m.label}>{label}</Text>
-          <TextInput
-            style={m.input}
-            value={value}
-            onChangeText={onChange}
-            placeholder="이름 입력"
-            placeholderTextColor={C.textMuted}
-            maxLength={maxLength}
-            autoFocus
-          />
-          {!!error && <Text style={m.error}>{error}</Text>}
-          <View style={m.btnRow}>
-            <Pressable style={[m.btn, { borderColor: C.border }]} onPress={onClose}>
-              <Text style={m.btnCancelText}>취소</Text>
-            </Pressable>
-            <Pressable style={[m.btn, { backgroundColor: C.tint }]} onPress={onConfirm} disabled={saving}>
-              {saving
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <Text style={m.btnConfirmText}>확인</Text>}
-            </Pressable>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <View style={m.overlay}>
+          <View style={m.sheet}>
+            <Text style={m.title}>{title}</Text>
+            <Text style={m.label}>{label}</Text>
+            <TextInput
+              style={m.input}
+              value={value}
+              onChangeText={onChange}
+              placeholder="이름 입력"
+              placeholderTextColor={C.textMuted}
+              maxLength={maxLength}
+              autoFocus
+            />
+            {!!error && <Text style={m.error}>{error}</Text>}
+            <View style={m.btnRow}>
+              <Pressable style={[m.btn, { borderColor: C.border }]} onPress={onClose}>
+                <Text style={m.btnCancelText}>취소</Text>
+              </Pressable>
+              <Pressable style={[m.btn, { backgroundColor: C.tint }]} onPress={onConfirm} disabled={saving}>
+                {saving
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={m.btnConfirmText}>확인</Text>}
+              </Pressable>
+            </View>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -735,7 +737,7 @@ function TemplateInputModal({
 }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={{ flex: 1 }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={m.overlay}>
           <View style={m.sheet}>
             <Text style={m.title}>{title}</Text>
@@ -771,7 +773,7 @@ function TemplateInputModal({
             </View>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
