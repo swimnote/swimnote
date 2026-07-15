@@ -589,7 +589,7 @@ export default function FeedbackCustomScreen() {
         onRequestClose={() => setPickerVisible(false)}
       >
         <Pressable style={s.pickerBackdrop} onPress={() => setPickerVisible(false)} />
-        <View style={[s.pickerSheet, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={[s.pickerSheet, { paddingBottom: Math.max(insets.bottom + 12, kbHeight + 12) }]}>
           {/* 핸들 */}
           <View style={s.pickerHandle} />
           {/* 타이틀 + 새 카테고리 버튼 */}
