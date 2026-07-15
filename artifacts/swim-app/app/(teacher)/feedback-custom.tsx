@@ -234,22 +234,33 @@ export default function FeedbackCustomScreen() {
         </View>
       ) : (
         <>
-          <View style={s.tabRow}>
+          <View style={s.tabBarWrapper}>
+            {/* "내 항목" 탭 — 항상 왼쪽 고정 */}
             <Pressable
               style={[s.tab, s.tabMine, isMyTab && s.tabMineActive]}
               onPress={() => setSelectedLevelId(MY_TAB_ID)}
             >
               <Text style={[s.tabText, s.tabMineText, isMyTab && s.tabMineTextActive]}>✦ 내 항목</Text>
             </Pressable>
-            {levels.map(lv => (
-              <Pressable
-                key={lv.id}
-                style={[s.tab, selectedLevelId === lv.id && s.tabActive]}
-                onPress={() => setSelectedLevelId(lv.id)}
-              >
-                <Text style={[s.tabText, selectedLevelId === lv.id && s.tabTextActive]}>{lv.level_name}</Text>
-              </Pressable>
-            ))}
+            {/* 세로 구분선 */}
+            <View style={s.tabDivider} />
+            {/* 레벨 탭 — 가로 스크롤 */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.tabScrollContent}
+              style={{ flex: 1 }}
+            >
+              {levels.map(lv => (
+                <Pressable
+                  key={lv.id}
+                  style={[s.tab, selectedLevelId === lv.id && s.tabActive]}
+                  onPress={() => setSelectedLevelId(lv.id)}
+                >
+                  <Text style={[s.tabText, selectedLevelId === lv.id && s.tabTextActive]}>{lv.level_name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
 
           {/* 안내 문구 */}
@@ -550,7 +561,9 @@ export default function FeedbackCustomScreen() {
 }
 
 const s = StyleSheet.create({
-  tabRow:            { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingVertical: 10, gap: 6 },
+  tabBarWrapper:     { flexDirection: "row", alignItems: "center", paddingLeft: 16, paddingVertical: 10, gap: 8 },
+  tabScrollContent:  { flexDirection: "row", gap: 6, paddingRight: 16 },
+  tabDivider:        { width: 1, height: 22, backgroundColor: "#E2E8F0" },
   tab:               { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14, borderWidth: 1.5, borderColor: "#E2E8F0" },
   tabActive:         { backgroundColor: "#2EC4B620", borderColor: "#2EC4B6" },
   tabText:           { fontSize: 11, lineHeight: 16, color: "#64748B" },
