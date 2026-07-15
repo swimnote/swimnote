@@ -192,9 +192,9 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
         style={s.kvWrapper}
       >
         <View style={s.sheet}>
+          {/* ── 고정 상단 ── */}
           <View style={s.handle} />
 
-          {/* 헤더 */}
           <View style={s.header}>
             <Text style={s.title}>문장 불러오기</Text>
             <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -223,7 +223,6 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
           {/* 탭 바 (검색 중 숨김) */}
           {!isSearching && (
             <View style={s.tabBarRow}>
-              {/* "나의 템플릿" — 항상 고정 */}
               <TouchableOpacity
                 style={[s.tabBtn, s.myTabBtn, activeLevelId === MY_TAB_ID && s.myTabBtnActive]}
                 onPress={() => { setActiveLevelId(MY_TAB_ID); setPickerOpen(false); }}
@@ -233,9 +232,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                   ✦ 나의 템플릿
                 </Text>
               </TouchableOpacity>
-              {/* 세로 구분선 */}
               <View style={s.tabDivider} />
-              {/* 레벨 피커 버튼 */}
               <TouchableOpacity
                 style={[s.pickerBtn, activeLevelId !== MY_TAB_ID && !!selectedLevelName && s.pickerBtnActive]}
                 onPress={() => { setPickerSearch(""); setPickerOpen(v => !v); }}
@@ -252,78 +249,82 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
             </View>
           )}
 
-          {/* 레벨 피커 인라인 패널 */}
-          {!isSearching && pickerOpen && (
-            <View style={s.inlinePicker}>
-              <View style={s.inlinePickerSearch}>
-                <Search size={14} color={C.textMuted} />
-                <TextInput
-                  style={s.inlinePickerInput}
-                  value={pickerSearch}
-                  onChangeText={setPickerSearch}
-                  placeholder="레벨 검색..."
-                  placeholderTextColor={C.textMuted}
-                  autoFocus
-                  clearButtonMode="while-editing"
-                />
-              </View>
-              <ScrollView style={s.inlinePickerList} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                {filteredLevels.map(lv => {
-                  const isSel = activeLevelId === lv.id;
-                  return (
-                    <TouchableOpacity
-                      key={lv.id}
-                      style={[s.inlinePickerRow, isSel && s.inlinePickerRowSel]}
-                      onPress={() => { setActiveLevelId(lv.id); setPickerOpen(false); setPickerSearch(""); }}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[s.inlinePickerRowText, isSel && s.inlinePickerRowTextSel]} numberOfLines={1}>
-                        {lv.level_name}
-                      </Text>
-                      {isSel && <Check size={14} color={PRIMARY} />}
-                    </TouchableOpacity>
-                  );
-                })}
-                {filteredLevels.length === 0 && (
-                  <Text style={s.inlinePickerEmpty}>검색 결과 없음</Text>
-                )}
-              </ScrollView>
-            </View>
-          )}
+          {/* ── 중간 스크롤 영역 (flex:1 — 남은 공간 전부 차지) ── */}
+          <View style={s.middleArea}>
 
-          {isSearching && (
-            <Text style={s.searchHint}>전체 {displayList.length}개 문장 검색됨</Text>
-          )}
-
-          {/* 문장 목록 */}
-          {loading ? (
-            <View style={s.loadingBox}>
-              <ActivityIndicator color={PRIMARY} />
-              <Text style={s.loadingText}>불러오는 중...</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={displayList}
-              keyExtractor={item => item.id}
-              renderItem={renderSentenceItem}
-              style={s.sentenceList}
-              contentContainerStyle={s.sentenceListContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={
-                <View style={s.emptyBox}>
-                  <Inbox size={28} color={C.textMuted} />
-                  <Text style={s.emptyText}>
-                    {isSearching
-                      ? "검색 결과가 없습니다."
-                      : levels.length === 0
-                      ? "카테고리가 없습니다.\n관리자에게 문의해주세요."
-                      : "문장이 없습니다."}
-                  </Text>
+            {/* 레벨 피커 인라인 패널 */}
+            {!isSearching && pickerOpen && (
+              <View style={s.inlinePicker}>
+                <View style={s.inlinePickerSearch}>
+                  <Search size={14} color={C.textMuted} />
+                  <TextInput
+                    style={s.inlinePickerInput}
+                    value={pickerSearch}
+                    onChangeText={setPickerSearch}
+                    placeholder="레벨 검색..."
+                    placeholderTextColor={C.textMuted}
+                    autoFocus
+                    clearButtonMode="while-editing"
+                  />
                 </View>
-              }
-            />
-          )}
+                <ScrollView style={s.inlinePickerList} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                  {filteredLevels.map(lv => {
+                    const isSel = activeLevelId === lv.id;
+                    return (
+                      <TouchableOpacity
+                        key={lv.id}
+                        style={[s.inlinePickerRow, isSel && s.inlinePickerRowSel]}
+                        onPress={() => { setActiveLevelId(lv.id); setPickerOpen(false); setPickerSearch(""); }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[s.inlinePickerRowText, isSel && s.inlinePickerRowTextSel]} numberOfLines={1}>
+                          {lv.level_name}
+                        </Text>
+                        {isSel && <Check size={14} color={PRIMARY} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {filteredLevels.length === 0 && (
+                    <Text style={s.inlinePickerEmpty}>검색 결과 없음</Text>
+                  )}
+                </ScrollView>
+              </View>
+            )}
+
+            {isSearching && (
+              <Text style={s.searchHint}>전체 {displayList.length}개 문장 검색됨</Text>
+            )}
+
+            {/* 문장 목록 */}
+            {loading ? (
+              <View style={s.loadingBox}>
+                <ActivityIndicator color={PRIMARY} />
+                <Text style={s.loadingText}>불러오는 중...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={displayList}
+                keyExtractor={item => item.id}
+                renderItem={renderSentenceItem}
+                style={s.sentenceList}
+                contentContainerStyle={s.sentenceListContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={
+                  <View style={s.emptyBox}>
+                    <Inbox size={28} color={C.textMuted} />
+                    <Text style={s.emptyText}>
+                      {isSearching
+                        ? "검색 결과가 없습니다."
+                        : levels.length === 0
+                        ? "카테고리가 없습니다.\n관리자에게 문의해주세요."
+                        : "문장이 없습니다."}
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
 
           {/* 미리보기 영역 */}
           <View style={s.previewBox}>
@@ -394,9 +395,13 @@ const s = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    minHeight: SCREEN_H * 0.72,
     maxHeight: SCREEN_H * 0.92,
+    flex: 1,
     paddingBottom: Platform.OS === "ios" ? 20 : 10,
+  },
+  middleArea: {
+    flex: 1,
+    overflow: "hidden",
   },
   handle: {
     width: 36, height: 4, borderRadius: 2, backgroundColor: C.border,
@@ -460,7 +465,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: C.border,
   },
   inlinePickerInput:   { flex: 1, fontSize: 13, color: C.text, padding: 0, fontFamily: "Pretendard-Regular" },
-  inlinePickerList:    { maxHeight: 180 },
+  inlinePickerList:    { maxHeight: 210 },
   inlinePickerRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingVertical: 11, paddingHorizontal: 12,
@@ -474,7 +479,7 @@ const s = StyleSheet.create({
   loadingBox: { alignItems: "center", justifyContent: "center", paddingVertical: 32, gap: 8 },
   loadingText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" },
 
-  sentenceList: { maxHeight: 274 },
+  sentenceList: { flex: 1 },
   sentenceListContent: { paddingHorizontal: 16, paddingBottom: 4, gap: 4 },
   sentenceItem: {
     flexDirection: "row", alignItems: "center", gap: 8,
