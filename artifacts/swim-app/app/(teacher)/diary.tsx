@@ -276,11 +276,11 @@ export default function TeacherDiaryScreen() {
       if (lr.ok) setLevels(await lr.json());
     } catch {}
   }
-  async function loadClassStudents(_classId: string) {
+  async function loadClassStudents(classId: string) {
     try {
-      // 특정 반만 조회하면 주2회 학생처럼 다른 반에 배정된 학생이 누락됨
-      // → 선생님 담당 전체 학생을 가져와 일지 작성 범위를 확보
-      const r = await apiRequest(token, `/students`);
+      // 해당 반에 배정된 학생만 조회
+      // (주2회 학생처럼 assigned_class_ids에 포함된 경우도 함께 반환됨)
+      const r = await apiRequest(token, `/students?class_group_id=${classId}`);
       if (r.ok) {
         const data = await r.json();
         const list = Array.isArray(data) ? data : [];
