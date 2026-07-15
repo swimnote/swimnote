@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   Dimensions,
   FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
@@ -71,6 +71,14 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
   // 레벨 피커 인라인 패널
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
+
+  // 키보드 높이 추적 (Modal 내 KeyboardAvoidingView 대체)
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", e => setKbHeight(e.endCoordinates.height));
+    const hide = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide", () => setKbHeight(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   /* ── 데이터 로드 ── */
   useEffect(() => {
@@ -187,11 +195,8 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
       onRequestClose={handleClose}
     >
       <Pressable style={s.backdrop} onPress={handleClose} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={s.kvWrapper}
-      >
-        <View style={s.sheet}>
+      <View style={s.kvWrapper}>
+        <View style={[s.sheet, { paddingBottom: kbHeight > 0 ? kbHeight : (Platform.OS === "ios" ? 20 : 10) }]}>
           {/* ── 고정 상단 ── */}
           <View style={s.handle} />
 
@@ -383,7 +388,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
             </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -396,11 +401,10 @@ const s = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: SCREEN_H * 0.92,
-    flex: 1,
-    paddingBottom: Platform.OS === "ios" ? 20 : 10,
   },
   middleArea: {
     flex: 1,
+    minHeight: 180,
     overflow: "hidden",
   },
   handle: {
