@@ -22,6 +22,8 @@ import { DiaryTemplateLevel, DiaryTemplate } from "@/components/teacher/diary/ty
 
 const C = Colors.light;
 
+const MY_TAB_ID = "__my__";
+
 export default function FeedbackCustomScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
@@ -32,6 +34,12 @@ export default function FeedbackCustomScreen() {
 
   const [templates, setTemplates] = useState<DiaryTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
+
+  // "내 항목" 탭 전용: 전체 커스텀 템플릿
+  const [allMyTemplates, setAllMyTemplates] = useState<DiaryTemplate[]>([]);
+
+  // 추가 모달에서 "내 항목" 탭일 때 레벨 선택
+  const [addLevelId, setAddLevelId] = useState<string | null>(null);
 
   // 토글 로딩 (templateId → boolean)
   const [toggling, setToggling] = useState<Record<string, boolean>>({});
@@ -87,8 +95,25 @@ export default function FeedbackCustomScreen() {
     setTemplatesLoading(false);
   }, [token]);
 
+  // ── "내 항목" 탭: 전체 커스텀 템플릿 로드
+  const loadMyTemplates = useCallback(async () => {
+    setTemplatesLoading(true);
+    try {
+      const r = await apiRequest(token, "/diary-templates?include_inactive=true");
+      if (r.ok) {
+        const all: DiaryTemplate[] = await r.json();
+        setAllMyTemplates(all.filter(t => !t.global_id));
+      }
+    } catch { /* ignore */ }
+    setTemplatesLoading(false);
+  }, [token]);
+
   useEffect(() => { loadLevels(); }, []);
-  useEffect(() => { if (selectedLevelId) loadTemplates(selectedLevelId); }, [selectedLevelId]);
+  useEffect(() => {
+    if (!selectedLevelId) return;
+    if (selectedLevelId === MY_TAB_ID) loadMyTemplates();
+    else loadTemplates(selectedLevelId);
+  }, [selectedLevelId]);
 
   // ── 활성/비활성 토글 ────────────────────────────────
   const handleToggleActive = async (t: DiaryTemplate, newValue: boolean) => {
@@ -150,19 +175,20 @@ export default function FeedbackCustomScreen() {
       await apiRequest(token, `/diary-templates/${resetTarget.global_id}/override`, { method: "DELETE" });
     } catch { /* ignore */ }
     setResetTarget(null);
-    if (selectedLevelId) loadTemplates(selectedLevelId);
+    if (selectedLevelId && selectedLevelId !== MY_TAB_ID) loadTemplates(selectedLevelId);
   };
 
   // ── 신규 추가 ──────────────────────────────────────
   const saveAdd = async () => {
     if (!addText.trim()) { setAddError("내용을 입력해주세요."); return; }
-    if (!selectedLevelId) return;
+    const targetLevelId = selectedLevelId === MY_TAB_ID ? addLevelId : selectedLevelId;
+    if (!targetLevelId) { setAddError("레벨을 선택해주세요."); return; }
     setAddSaving(true);
     setAddError("");
     try {
       const r = await apiRequest(token, "/diary-templates", {
         method: "POST",
-        body: JSON.stringify({ level_id: selectedLevelId, template_text: addText.trim(), title: addTitle.trim() || null }),
+        body: JSON.stringify({ level_id: targetLevelId, template_text: addText.trim(), title: addTitle.trim() || null }),
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
@@ -171,8 +197,9 @@ export default function FeedbackCustomScreen() {
         return;
       }
       setAddVisible(false);
-      setAddText(""); setAddTitle("");
-      loadTemplates(selectedLevelId);
+      setAddText(""); setAddTitle(""); setAddLevelId(null);
+      if (selectedLevelId === MY_TAB_ID) loadMyTemplates();
+      else loadTemplates(selectedLevelId!);
     } catch (e: any) {
       setAddError(e?.message ?? "저장 실패");
     }
@@ -186,12 +213,13 @@ export default function FeedbackCustomScreen() {
       await apiRequest(token, `/diary-templates/${deleteTarget.id}`, { method: "DELETE" });
     } catch { /* ignore */ }
     setDeleteTarget(null);
-    if (selectedLevelId) loadTemplates(selectedLevelId);
+    if (selectedLevelId === MY_TAB_ID) loadMyTemplates();
+    else if (selectedLevelId) loadTemplates(selectedLevelId);
   };
 
-  // ── 항목 분류 ──────────────────────────────────────
-  const baseItems  = templates.filter(t => t.global_id !== null && t.global_id !== undefined);
-  const myNewItems = templates.filter(t => !t.global_id);
+  // ── 항목 분류 (일반 레벨 탭용) ──────────────────────
+  const baseItems = templates.filter(t => t.global_id !== null && t.global_id !== undefined);
+  const isMyTab   = selectedLevelId === MY_TAB_ID;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
@@ -207,6 +235,12 @@ export default function FeedbackCustomScreen() {
       ) : (
         <>
           <View style={s.tabRow}>
+            <Pressable
+              style={[s.tab, s.tabMine, isMyTab && s.tabMineActive]}
+              onPress={() => setSelectedLevelId(MY_TAB_ID)}
+            >
+              <Text style={[s.tabText, s.tabMineText, isMyTab && s.tabMineTextActive]}>✦ 내 항목</Text>
+            </Pressable>
             {levels.map(lv => (
               <Pressable
                 key={lv.id}
@@ -227,9 +261,66 @@ export default function FeedbackCustomScreen() {
           <KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 80 }]}>
             {templatesLoading ? (
               <ActivityIndicator style={{ marginTop: 32 }} color={C.primary} />
+            ) : isMyTab ? (
+              /* ── "내 항목" 탭 ── */
+              allMyTemplates.length === 0 ? (
+                <View style={s.emptyBox}>
+                  <Text style={s.emptyText}>{"내가 추가한 항목이 없습니다.\n하단 버튼으로 추가해보세요."}</Text>
+                </View>
+              ) : (
+                allMyTemplates.map((t) => {
+                  const levelName = levels.find(lv => lv.id === t.level_id)?.level_name;
+                  return (
+                    <View key={t.id} style={[s.card, s.cardMine, !t.is_active && s.cardInactive]}>
+                      <View style={s.cardTop}>
+                        {!!t.title && <Text style={s.cardTitle}>{t.title}</Text>}
+                        <Text style={[s.cardText, { flex: 1 }, !t.is_active && s.cardTextInactive]} numberOfLines={3}>
+                          {t.template_text}
+                        </Text>
+                        <View style={s.cardActions}>
+                          {toggling[t.id] ? (
+                            <ActivityIndicator size="small" color={C.primary} style={{ width: 44 }} />
+                          ) : (
+                            <Switch
+                              value={!!t.is_active}
+                              onValueChange={v => handleToggleActive(t, v)}
+                              trackColor={{ false: "#E2E8F0", true: "#2EC4B640" }}
+                              thumbColor={t.is_active ? "#2EC4B6" : "#94A3B8"}
+                              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                            />
+                          )}
+                          <Pressable style={s.editBtn} onPress={() => {
+                            setEditTarget(t);
+                            setEditText(t.template_text);
+                            setEditTitle(t.title ?? "");
+                            setEditError("");
+                          }}>
+                            <Edit2 size={14} color="#64748B" />
+                            <Text style={s.editBtnText}>수정</Text>
+                          </Pressable>
+                          <Pressable style={[s.editBtn, { borderColor: "#FCA5A5" }]} onPress={() => setDeleteTarget(t)}>
+                            <Trash2 size={14} color="#EF4444" />
+                          </Pressable>
+                        </View>
+                      </View>
+                      {levelName && (
+                        <View style={s.levelTagRow}>
+                          <View style={s.levelTag}><Text style={s.levelTagText}>{levelName}</Text></View>
+                        </View>
+                      )}
+                      {!t.is_active && (
+                        <View style={s.hiddenBadgeRow}>
+                          <EyeOff size={11} color="#94A3B8" />
+                          <Text style={s.hiddenBadgeText}>문장 불러오기에서 숨겨짐</Text>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })
+              )
             ) : (
+              /* ── 일반 레벨 탭: 관리자 원본만 표시 ── */
               <>
-                {/* ── 관리자 원본 (merged) ── */}
                 {baseItems.length === 0 ? (
                   <View style={s.emptyBox}>
                     <Text style={s.emptyText}>이 레벨에 등록된 공통 템플릿이 없습니다.</Text>
@@ -247,7 +338,6 @@ export default function FeedbackCustomScreen() {
                           {t.template_text}
                         </Text>
                         <View style={s.cardActions}>
-                          {/* 활성/비활성 스위치 */}
                           {toggling[t.id] ? (
                             <ActivityIndicator size="small" color={C.primary} style={{ width: 44 }} />
                           ) : (
@@ -293,58 +383,6 @@ export default function FeedbackCustomScreen() {
                       )}
                     </View>
                   ))
-                )}
-
-                {/* ── 내가 추가한 항목 ── */}
-                {myNewItems.length > 0 && (
-                  <>
-                    <View style={s.sectionDivider}>
-                      <View style={s.sectionLine} />
-                      <Text style={s.sectionLabel}>내가 추가한 항목</Text>
-                      <View style={s.sectionLine} />
-                    </View>
-                    {myNewItems.map((t) => (
-                      <View key={t.id} style={[s.card, s.cardMine, !t.is_active && s.cardInactive]}>
-                        <View style={s.cardTop}>
-                          {!!t.title && <Text style={s.cardTitle}>{t.title}</Text>}
-                          <Text style={[s.cardText, { flex: 1 }, !t.is_active && s.cardTextInactive]} numberOfLines={3}>
-                            {t.template_text}
-                          </Text>
-                          <View style={s.cardActions}>
-                            {toggling[t.id] ? (
-                              <ActivityIndicator size="small" color={C.primary} style={{ width: 44 }} />
-                            ) : (
-                              <Switch
-                                value={!!t.is_active}
-                                onValueChange={v => handleToggleActive(t, v)}
-                                trackColor={{ false: "#E2E8F0", true: "#2EC4B640" }}
-                                thumbColor={t.is_active ? "#2EC4B6" : "#94A3B8"}
-                                style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-                              />
-                            )}
-                            <Pressable style={s.editBtn} onPress={() => {
-                              setEditTarget(t);
-                              setEditText(t.template_text);
-                              setEditTitle(t.title ?? "");
-                              setEditError("");
-                            }}>
-                              <Edit2 size={14} color="#64748B" />
-                              <Text style={s.editBtnText}>수정</Text>
-                            </Pressable>
-                            <Pressable style={[s.editBtn, { borderColor: "#FCA5A5" }]} onPress={() => setDeleteTarget(t)}>
-                              <Trash2 size={14} color="#EF4444" />
-                            </Pressable>
-                          </View>
-                        </View>
-                        {!t.is_active && (
-                          <View style={s.hiddenBadgeRow}>
-                            <EyeOff size={11} color="#94A3B8" />
-                            <Text style={s.hiddenBadgeText}>문장 불러오기에서 숨겨짐</Text>
-                          </View>
-                        )}
-                      </View>
-                    ))}
-                  </>
                 )}
               </>
             )}
@@ -436,6 +474,25 @@ export default function FeedbackCustomScreen() {
             >
               <Text style={s.modalTitle}>내 항목 추가</Text>
               <Text style={[s.modalHint, { marginBottom: 12 }]}>나에게만 표시되는 항목입니다.</Text>
+              {/* "내 항목" 탭에서 추가 시 레벨 선택 필요 */}
+              {isMyTab && (
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={[s.modalHint, { marginBottom: 6, color: "#475569" }]}>레벨 선택 *</Text>
+                  <View style={s.levelPickerRow}>
+                    {levels.map(lv => (
+                      <Pressable
+                        key={lv.id}
+                        style={[s.levelPickerBtn, addLevelId === lv.id && s.levelPickerBtnActive]}
+                        onPress={() => setAddLevelId(lv.id)}
+                      >
+                        <Text style={[s.levelPickerText, addLevelId === lv.id && s.levelPickerTextActive]} numberOfLines={1}>
+                          {lv.level_name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
               <TextInput
                 style={[s.input, { marginBottom: 10 }]}
                 placeholder="제목 (선택)"
@@ -455,7 +512,7 @@ export default function FeedbackCustomScreen() {
               />
               {!!addError && <Text style={s.errorText}>{addError}</Text>}
               <View style={[s.modalBtns, { marginTop: 12 }]}>
-                <Pressable style={s.cancelBtn} onPress={() => setAddVisible(false)}>
+                <Pressable style={s.cancelBtn} onPress={() => { setAddVisible(false); setAddLevelId(null); }}>
                   <Text style={s.cancelBtnText}>취소</Text>
                 </Pressable>
                 <Pressable style={[s.saveBtn, addSaving && { opacity: 0.6 }]} onPress={saveAdd} disabled={addSaving}>
@@ -493,11 +550,15 @@ export default function FeedbackCustomScreen() {
 }
 
 const s = StyleSheet.create({
-  tabRow:       { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingVertical: 10, gap: 6 },
-  tab:          { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14, borderWidth: 1.5, borderColor: "#E2E8F0" },
-  tabActive:    { backgroundColor: "#2EC4B620", borderColor: "#2EC4B6" },
-  tabText:      { fontSize: 11, lineHeight: 16, color: "#64748B" },
-  tabTextActive:{ color: "#2EC4B6" },
+  tabRow:            { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingVertical: 10, gap: 6 },
+  tab:               { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14, borderWidth: 1.5, borderColor: "#E2E8F0" },
+  tabActive:         { backgroundColor: "#2EC4B620", borderColor: "#2EC4B6" },
+  tabText:           { fontSize: 11, lineHeight: 16, color: "#64748B" },
+  tabTextActive:     { color: "#2EC4B6" },
+  tabMine:           { borderColor: "#6B5BCD", backgroundColor: "#F5F3FF" },
+  tabMineActive:     { backgroundColor: "#6B5BCD", borderColor: "#6B5BCD" },
+  tabMineText:       { color: "#6B5BCD" } as any,
+  tabMineTextActive: { color: "#fff" } as any,
 
   hintRow:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingBottom: 6 },
   hintText:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
@@ -530,6 +591,16 @@ const s = StyleSheet.create({
   sectionDivider: { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 10 },
   sectionLine:    { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
   sectionLabel:   { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#94A3B8" },
+
+  levelTagRow:  { flexDirection: "row", marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: "#EDE9FE" },
+  levelTag:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "#EDE9FE" },
+  levelTagText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B5BCD" },
+
+  levelPickerRow:        { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  levelPickerBtn:        { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "#F8FAFC" },
+  levelPickerBtnActive:  { borderColor: "#6B5BCD", backgroundColor: "#F5F3FF" },
+  levelPickerText:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" } as any,
+  levelPickerTextActive: { color: "#6B5BCD", fontFamily: "Pretendard-SemiBold" } as any,
 
   emptyBox:   { paddingTop: 48, alignItems: "center" },
   emptyText:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
