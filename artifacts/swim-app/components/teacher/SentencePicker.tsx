@@ -22,7 +22,7 @@ import {
   View,
 } from "react-native";
 
-import { Check, CircleX, CornerLeftUp, Eye, Inbox, Plus, Search, Trash2, X } from "lucide-react-native";
+import { Check, ChevronDown, CircleX, CornerLeftUp, Eye, Inbox, Plus, Search, Trash2, X } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { API_BASE } from "@/context/AuthContext";
 import { useAuth } from "@/context/AuthContext";
@@ -68,6 +68,10 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [preview, setPreview] = useState<string[]>([]);
 
+  // 레벨 피커 인라인 패널
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
+
   /* ── 데이터 로드 ── */
   useEffect(() => {
     if (!visible || !token) return;
@@ -100,6 +104,16 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
     () => templates.filter(t => t.global_id === null),
     [templates],
   );
+
+  const filteredLevels = useMemo(() => {
+    const q = pickerSearch.trim().toLowerCase();
+    if (!q) return levels;
+    return levels.filter(lv => lv.level_name.toLowerCase().includes(q));
+  }, [levels, pickerSearch]);
+
+  const selectedLevelName = activeLevelId === MY_TAB_ID
+    ? null
+    : levels.find(lv => lv.id === activeLevelId)?.level_name ?? null;
 
   const displayList = useMemo<DiaryTemplate[]>(() => {
     if (searchQuery.trim()) {
@@ -206,34 +220,74 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
             )}
           </View>
 
-          {/* 레벨 탭 (검색 중 숨김) */}
+          {/* 탭 바 (검색 중 숨김) */}
           {!isSearching && (
-            <View style={s.tabBar}>
-              {myTemplates.length > 0 && (
-                <TouchableOpacity
-                  key={MY_TAB_ID}
-                  style={[
-                    s.tabBtn, s.myTabBtn,
-                    activeLevelId === MY_TAB_ID && { backgroundColor: "#6B5BCD", borderColor: "#6B5BCD" },
-                  ]}
-                  onPress={() => setActiveLevelId(MY_TAB_ID)}
-                  activeOpacity={0.7}
+            <View style={s.tabBarRow}>
+              {/* "나의 템플릿" — 항상 고정 */}
+              <TouchableOpacity
+                style={[s.tabBtn, s.myTabBtn, activeLevelId === MY_TAB_ID && s.myTabBtnActive]}
+                onPress={() => { setActiveLevelId(MY_TAB_ID); setPickerOpen(false); }}
+                activeOpacity={0.7}
+              >
+                <Text style={[s.tabText, s.myTabText, activeLevelId === MY_TAB_ID && s.myTabTextActive]}>
+                  ✦ 나의 템플릿
+                </Text>
+              </TouchableOpacity>
+              {/* 세로 구분선 */}
+              <View style={s.tabDivider} />
+              {/* 레벨 피커 버튼 */}
+              <TouchableOpacity
+                style={[s.pickerBtn, activeLevelId !== MY_TAB_ID && !!selectedLevelName && s.pickerBtnActive]}
+                onPress={() => { setPickerSearch(""); setPickerOpen(v => !v); }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[s.pickerBtnText, activeLevelId !== MY_TAB_ID && !!selectedLevelName && s.pickerBtnTextActive]}
+                  numberOfLines={1}
                 >
-                  <Text style={[s.tabText, s.myTabText, activeLevelId === MY_TAB_ID && { color: "#fff" }]}>
-                    ✦ 나의 템플릿
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {levels.map(lv => (
-                <TouchableOpacity
-                  key={lv.id}
-                  style={[s.tabBtn, activeLevelId === lv.id && { backgroundColor: PRIMARY, borderColor: PRIMARY }]}
-                  onPress={() => setActiveLevelId(lv.id)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[s.tabText, activeLevelId === lv.id && { color: "#fff" }]}>{lv.level_name}</Text>
-                </TouchableOpacity>
-              ))}
+                  {activeLevelId === MY_TAB_ID || !selectedLevelName ? "레벨 선택" : selectedLevelName}
+                </Text>
+                <ChevronDown size={14} color={activeLevelId !== MY_TAB_ID && selectedLevelName ? PRIMARY : C.textMuted} />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* 레벨 피커 인라인 패널 */}
+          {!isSearching && pickerOpen && (
+            <View style={s.inlinePicker}>
+              <View style={s.inlinePickerSearch}>
+                <Search size={14} color={C.textMuted} />
+                <TextInput
+                  style={s.inlinePickerInput}
+                  value={pickerSearch}
+                  onChangeText={setPickerSearch}
+                  placeholder="레벨 검색..."
+                  placeholderTextColor={C.textMuted}
+                  autoFocus
+                  clearButtonMode="while-editing"
+                />
+              </View>
+              <ScrollView style={s.inlinePickerList} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                {filteredLevels.map(lv => {
+                  const isSel = activeLevelId === lv.id;
+                  return (
+                    <TouchableOpacity
+                      key={lv.id}
+                      style={[s.inlinePickerRow, isSel && s.inlinePickerRowSel]}
+                      onPress={() => { setActiveLevelId(lv.id); setPickerOpen(false); setPickerSearch(""); }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[s.inlinePickerRowText, isSel && s.inlinePickerRowTextSel]} numberOfLines={1}>
+                        {lv.level_name}
+                      </Text>
+                      {isSel && <Check size={14} color={PRIMARY} />}
+                    </TouchableOpacity>
+                  );
+                })}
+                {filteredLevels.length === 0 && (
+                  <Text style={s.inlinePickerEmpty}>검색 결과 없음</Text>
+                )}
+              </ScrollView>
             </View>
           )}
 
@@ -368,20 +422,54 @@ const s = StyleSheet.create({
     marginHorizontal: 16, marginBottom: 8,
   },
 
-  tabBar: {
-    flexDirection: "row", flexWrap: "wrap",
-    paddingHorizontal: 16, paddingBottom: 10, gap: 6,
+  // ── 탭 바 ──
+  tabBarRow: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 16, paddingBottom: 10, gap: 8,
   },
   tabBtn: {
-    flexGrow: 1, alignItems: "center", justifyContent: "center",
-    paddingVertical: Platform.OS === "android" ? 7 : 6, paddingHorizontal: 12,
-    borderRadius: 11, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
+    paddingVertical: Platform.OS === "android" ? 7 : 5, paddingHorizontal: 11,
+    borderRadius: 14, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "#fff",
   },
-  tabText: { fontSize: 11, lineHeight: 20, color: C.textSecondary, includeFontPadding: false } as any,
-  myTabBtn: {
-    borderColor: "#6B5BCD", backgroundColor: "#F5F3FF",
+  tabText: { fontSize: 11, lineHeight: 16, color: C.textSecondary, includeFontPadding: false } as any,
+  myTabBtn:        { borderColor: "#6B5BCD", backgroundColor: "#F5F3FF" },
+  myTabBtnActive:  { backgroundColor: "#6B5BCD", borderColor: "#6B5BCD" },
+  myTabText:       { color: "#6B5BCD", fontFamily: "Pretendard-SemiBold" } as any,
+  myTabTextActive: { color: "#fff" } as any,
+  tabDivider:      { width: 1, height: 22, backgroundColor: C.border },
+
+  // ── 레벨 피커 버튼 ──
+  pickerBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 14, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
-  myTabText: { color: "#6B5BCD", fontFamily: "Pretendard-SemiBold" } as any,
+  pickerBtnActive:     { borderColor: PRIMARY, backgroundColor: PRIMARY + "10" },
+  pickerBtnText:       { flex: 1, fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular" } as any,
+  pickerBtnTextActive: { color: PRIMARY, fontFamily: "Pretendard-SemiBold" } as any,
+
+  // ── 인라인 피커 패널 ──
+  inlinePicker: {
+    marginHorizontal: 16, marginBottom: 8,
+    borderRadius: 12, borderWidth: 1, borderColor: C.border,
+    backgroundColor: "#F8FAFC", overflow: "hidden",
+  },
+  inlinePickerSearch: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 10, paddingVertical: 8,
+    borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  inlinePickerInput:   { flex: 1, fontSize: 13, color: C.text, padding: 0, fontFamily: "Pretendard-Regular" },
+  inlinePickerList:    { maxHeight: 180 },
+  inlinePickerRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingVertical: 11, paddingHorizontal: 12,
+    borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  inlinePickerRowSel:     { backgroundColor: PRIMARY + "10" },
+  inlinePickerRowText:    { flex: 1, fontSize: 13, color: C.text, fontFamily: "Pretendard-Regular" },
+  inlinePickerRowTextSel: { color: PRIMARY, fontFamily: "Pretendard-SemiBold" } as any,
+  inlinePickerEmpty:      { fontSize: 12, color: C.textMuted, textAlign: "center", padding: 16, fontFamily: "Pretendard-Regular" },
 
   loadingBox: { alignItems: "center", justifyContent: "center", paddingVertical: 32, gap: 8 },
   loadingText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" },

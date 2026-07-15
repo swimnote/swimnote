@@ -719,7 +719,7 @@ router.get("/diary-template-levels",
   }
 );
 
-// POST /diary-template-levels — 레벨 추가 (최대 10개)
+// POST /diary-template-levels — 레벨 추가 (무제한)
 router.post("/diary-template-levels",
   requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
@@ -728,8 +728,6 @@ router.post("/diary-template-levels",
       const { level_name } = req.body;
       if (!level_name?.trim()) return apiErr(res, 400, "레벨 이름을 입력해주세요.");
       if (level_name.trim().length > 50) return apiErr(res, 400, "레벨 이름은 50자 이내로 입력해주세요.");
-      const cntRow = await db.execute(sql`SELECT COUNT(*) AS cnt FROM diary_template_levels WHERE swimming_pool_id = ${poolId}`);
-      if (Number((cntRow.rows[0] as any)?.cnt) >= 10) return apiErr(res, 400, "레벨은 최대 10개까지 생성할 수 있습니다.");
       const sortRow = await db.execute(sql`SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM diary_template_levels WHERE swimming_pool_id = ${poolId}`);
       const sortOrder = Number((sortRow.rows[0] as any)?.next ?? 0);
       const id = genId("dtl");

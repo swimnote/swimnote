@@ -8,12 +8,12 @@
  *   - 선생님 신규 추가 → source_template_id=NULL 별도 항목
  *   - 활성/비활성 토글 → toggle-active API (문장 불러오기에서 표시 여부 조절)
  */
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Edit2, Eye, EyeOff, Plus, RotateCcw, Trash2 } from "lucide-react-native";
+import { Check, ChevronDown, Edit2, Eye, EyeOff, Plus, RotateCcw, Search, Trash2 } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
@@ -40,6 +40,16 @@ export default function FeedbackCustomScreen() {
 
   // 추가 모달에서 "내 항목" 탭일 때 레벨 선택
   const [addLevelId, setAddLevelId] = useState<string | null>(null);
+
+  // 레벨 피커 바텀시트
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
+
+  // 피커 내 새 카테고리 인라인 입력
+  const [newCatMode, setNewCatMode] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatError, setNewCatError] = useState("");
+  const [newCatSaving, setNewCatSaving] = useState(false);
 
   // 토글 로딩 (templateId → boolean)
   const [toggling, setToggling] = useState<Record<string, boolean>>({});
@@ -84,6 +94,36 @@ export default function FeedbackCustomScreen() {
     } catch { /* ignore */ }
     setLevelsLoading(false);
   }, [token, selectedLevelId]);
+
+  // ── 카테고리(레벨) 신규 생성 ────────────────────────
+  const createLevel = useCallback(async () => {
+    const name = newCatName.trim();
+    if (!name) { setNewCatError("이름을 입력해주세요."); return; }
+    if (name.length > 50) { setNewCatError("50자 이내로 입력해주세요."); return; }
+    setNewCatSaving(true);
+    setNewCatError("");
+    try {
+      const r = await apiRequest(token, "/diary-template-levels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ level_name: name }),
+      });
+      const data = await r.json();
+      if (!r.ok) { setNewCatError(data.message ?? "오류가 발생했습니다."); setNewCatSaving(false); return; }
+      // 레벨 목록 다시 로드 후 새 레벨 선택
+      const r2 = await apiRequest(token, "/diary-template-levels");
+      if (r2.ok) {
+        const lvs: DiaryTemplateLevel[] = await r2.json();
+        setLevels(lvs);
+        setSelectedLevelId(data.id);
+      }
+      setNewCatMode(false);
+      setNewCatName("");
+      setPickerVisible(false);
+      setPickerSearch("");
+    } catch { setNewCatError("네트워크 오류가 발생했습니다."); }
+    setNewCatSaving(false);
+  }, [token, newCatName]);
 
   // ── 템플릿 로드 (include_inactive=true → 비활성 항목도 관리 화면에 표시)
   const loadTemplates = useCallback(async (levelId: string) => {
@@ -221,6 +261,16 @@ export default function FeedbackCustomScreen() {
   const baseItems = templates.filter(t => t.global_id !== null && t.global_id !== undefined);
   const isMyTab   = selectedLevelId === MY_TAB_ID;
 
+  // ── 피커 검색 필터 ──────────────────────────────────
+  const filteredLevels = useMemo(() => {
+    const q = pickerSearch.trim().toLowerCase();
+    if (!q) return levels;
+    return levels.filter(lv => lv.level_name.toLowerCase().includes(q));
+  }, [levels, pickerSearch]);
+
+  // ── 현재 선택된 레벨 이름 ──────────────────────────
+  const selectedLevelName = isMyTab ? null : levels.find(lv => lv.id === selectedLevelId)?.level_name ?? null;
+
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader title="일지 템플릿" />
@@ -235,7 +285,7 @@ export default function FeedbackCustomScreen() {
       ) : (
         <>
           <View style={s.tabBarWrapper}>
-            {/* "내 항목" 탭 — 항상 왼쪽 고정 */}
+            {/* "내 항목" 탭 — 항상 고정 */}
             <Pressable
               style={[s.tab, s.tabMine, isMyTab && s.tabMineActive]}
               onPress={() => setSelectedLevelId(MY_TAB_ID)}
@@ -244,23 +294,19 @@ export default function FeedbackCustomScreen() {
             </Pressable>
             {/* 세로 구분선 */}
             <View style={s.tabDivider} />
-            {/* 레벨 탭 — 가로 스크롤 */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={s.tabScrollContent}
-              style={{ flex: 1 }}
+            {/* 레벨 피커 버튼 */}
+            <Pressable
+              style={[s.pickerBtn, !isMyTab && !!selectedLevelId && s.pickerBtnActive]}
+              onPress={() => { setPickerSearch(""); setPickerVisible(true); }}
             >
-              {levels.map(lv => (
-                <Pressable
-                  key={lv.id}
-                  style={[s.tab, selectedLevelId === lv.id && s.tabActive]}
-                  onPress={() => setSelectedLevelId(lv.id)}
-                >
-                  <Text style={[s.tabText, selectedLevelId === lv.id && s.tabTextActive]}>{lv.level_name}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+              <Text
+                style={[s.pickerBtnText, !isMyTab && !!selectedLevelId && s.pickerBtnTextActive]}
+                numberOfLines={1}
+              >
+                {isMyTab || !selectedLevelName ? "레벨 선택" : selectedLevelName}
+              </Text>
+              <ChevronDown size={14} color={!isMyTab && selectedLevelName ? "#2EC4B6" : "#94A3B8"} />
+            </Pressable>
           </View>
 
           {/* 안내 문구 */}
@@ -535,6 +581,111 @@ export default function FeedbackCustomScreen() {
         </View>
       </Modal>
 
+      {/* ── 레벨 피커 바텀시트 ── */}
+      <Modal
+        visible={pickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPickerVisible(false)}
+      >
+        <Pressable style={s.pickerBackdrop} onPress={() => setPickerVisible(false)} />
+        <View style={[s.pickerSheet, { paddingBottom: insets.bottom + 12 }]}>
+          {/* 핸들 */}
+          <View style={s.pickerHandle} />
+          {/* 타이틀 + 새 카테고리 버튼 */}
+          <View style={s.pickerTitleRow}>
+            <Text style={s.pickerTitle}>카테고리 선택</Text>
+            <Pressable
+              style={s.pickerAddCatBtn}
+              onPress={() => {
+                setNewCatMode(v => !v);
+                setNewCatName("");
+                setNewCatError("");
+              }}
+            >
+              <Plus size={14} color="#2EC4B6" />
+              <Text style={s.pickerAddCatBtnText}>새 카테고리</Text>
+            </Pressable>
+          </View>
+          {/* 새 카테고리 인라인 입력 */}
+          {newCatMode && (
+            <View style={s.newCatBox}>
+              <TextInput
+                style={s.newCatInput}
+                value={newCatName}
+                onChangeText={t => { setNewCatName(t); setNewCatError(""); }}
+                placeholder="카테고리 이름 (50자 이내)"
+                placeholderTextColor="#94A3B8"
+                autoFocus
+                maxLength={50}
+                returnKeyType="done"
+                onSubmitEditing={createLevel}
+              />
+              {!!newCatError && <Text style={s.newCatError}>{newCatError}</Text>}
+              <View style={s.newCatActions}>
+                <Pressable style={s.newCatCancelBtn} onPress={() => { setNewCatMode(false); setNewCatName(""); setNewCatError(""); }}>
+                  <Text style={s.newCatCancelText}>취소</Text>
+                </Pressable>
+                <Pressable style={[s.newCatSaveBtn, newCatSaving && { opacity: 0.6 }]} onPress={createLevel} disabled={newCatSaving}>
+                  {newCatSaving
+                    ? <ActivityIndicator size={14} color="#fff" />
+                    : <Text style={s.newCatSaveText}>추가</Text>
+                  }
+                </Pressable>
+              </View>
+            </View>
+          )}
+          {/* 검색 */}
+          {!newCatMode && (
+            <View style={s.pickerSearchRow}>
+              <Search size={15} color="#94A3B8" />
+              <TextInput
+                style={s.pickerSearchInput}
+                value={pickerSearch}
+                onChangeText={setPickerSearch}
+                placeholder="카테고리 검색..."
+                placeholderTextColor="#94A3B8"
+                autoFocus
+                clearButtonMode="while-editing"
+              />
+            </View>
+          )}
+          {/* 레벨 목록 */}
+          <ScrollView
+            style={s.pickerList}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {filteredLevels.length === 0 ? (
+              <View style={s.pickerEmpty}>
+                <Text style={s.pickerEmptyText}>검색 결과가 없습니다.</Text>
+              </View>
+            ) : (
+              filteredLevels.map(lv => {
+                const isSelected = selectedLevelId === lv.id;
+                return (
+                  <Pressable
+                    key={lv.id}
+                    style={[s.pickerRow, isSelected && s.pickerRowSelected]}
+                    onPress={() => {
+                      setSelectedLevelId(lv.id);
+                      setPickerVisible(false);
+                      setPickerSearch("");
+                      setNewCatMode(false);
+                    }}
+                  >
+                    <Text style={[s.pickerRowText, isSelected && s.pickerRowTextSelected]} numberOfLines={2}>
+                      {lv.level_name}
+                    </Text>
+                    {isSelected && <Check size={16} color="#2EC4B6" />}
+                  </Pressable>
+                );
+              })
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+
       {/* ── 초기화 확인 ── */}
       <ConfirmModal
         visible={!!resetTarget}
@@ -561,8 +712,8 @@ export default function FeedbackCustomScreen() {
 }
 
 const s = StyleSheet.create({
-  tabBarWrapper:     { flexDirection: "row", alignItems: "center", paddingLeft: 16, paddingVertical: 10, gap: 8 },
-  tabScrollContent:  { flexDirection: "row", gap: 6, paddingRight: 16 },
+  // ── 탭 바 ──
+  tabBarWrapper:     { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   tabDivider:        { width: 1, height: 22, backgroundColor: "#E2E8F0" },
   tab:               { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14, borderWidth: 1.5, borderColor: "#E2E8F0" },
   tabActive:         { backgroundColor: "#2EC4B620", borderColor: "#2EC4B6" },
@@ -572,6 +723,45 @@ const s = StyleSheet.create({
   tabMineActive:     { backgroundColor: "#6B5BCD", borderColor: "#6B5BCD" },
   tabMineText:       { color: "#6B5BCD" } as any,
   tabMineTextActive: { color: "#fff" } as any,
+
+  // ── 레벨 피커 버튼 ──
+  pickerBtn:          { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "#fff" },
+  pickerBtnActive:    { borderColor: "#2EC4B6", backgroundColor: "#F0FAFB" },
+  pickerBtnText:      { flex: 1, fontSize: 12, color: "#94A3B8", fontFamily: "Pretendard-Regular" } as any,
+  pickerBtnTextActive:{ color: "#2EC4B6", fontFamily: "Pretendard-SemiBold" } as any,
+
+  // ── 레벨 피커 바텀시트 ──
+  pickerBackdrop:    { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+  pickerSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "75%",
+    paddingTop: 12,
+    paddingHorizontal: 16,
+  },
+  pickerHandle:      { width: 36, height: 4, borderRadius: 2, backgroundColor: "#E2E8F0", alignSelf: "center", marginBottom: 14 },
+  pickerTitleRow:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  pickerTitle:       { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  pickerAddCatBtn:   { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1, borderColor: "#2EC4B6", backgroundColor: "#F0FAFB" },
+  pickerAddCatBtnText:{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#2EC4B6" } as any,
+  newCatBox:         { backgroundColor: "#F8FAFC", borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", padding: 12, marginBottom: 8 },
+  newCatInput:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#fff", marginBottom: 6 },
+  newCatError:       { fontSize: 12, color: "#EF4444", marginBottom: 6, fontFamily: "Pretendard-Regular" },
+  newCatActions:     { flexDirection: "row", gap: 8, justifyContent: "flex-end" },
+  newCatCancelBtn:   { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#fff" },
+  newCatCancelText:  { fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular" },
+  newCatSaveBtn:     { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8, backgroundColor: "#2EC4B6", minWidth: 52, alignItems: "center" },
+  newCatSaveText:    { fontSize: 13, color: "#fff", fontFamily: "Pretendard-SemiBold" } as any,
+  pickerSearchRow:   { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", paddingHorizontal: 10, paddingVertical: 9, marginBottom: 8 },
+  pickerSearchInput: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", padding: 0 },
+  pickerList:        { flexGrow: 0 },
+  pickerRow:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  pickerRowSelected: { backgroundColor: "#F0FAFB" },
+  pickerRowText:     { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#334155", lineHeight: 20 },
+  pickerRowTextSelected: { color: "#2EC4B6", fontFamily: "Pretendard-SemiBold" } as any,
+  pickerEmpty:       { alignItems: "center", paddingVertical: 32 },
+  pickerEmptyText:   { fontSize: 13, color: "#94A3B8", fontFamily: "Pretendard-Regular" },
 
   hintRow:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingBottom: 6 },
   hintText:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
