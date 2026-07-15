@@ -278,13 +278,18 @@ export default function TeacherDiaryScreen() {
   }
   async function loadClassStudents(classId: string) {
     try {
-      // 해당 반에 배정된 학생만 조회
-      // (주2회 학생처럼 assigned_class_ids에 포함된 경우도 함께 반환됨)
       const r = await apiRequest(token, `/students?class_group_id=${classId}`);
       if (r.ok) {
         const data = await r.json();
         const list = Array.isArray(data) ? data : [];
-        setClassStudents(list.filter((s: any) => !["deleted", "archived"].includes(s.status)));
+        // 서버 필터와 무관하게 클라이언트에서도 해당 반 학생만 확정 필터링
+        setClassStudents(
+          list.filter((s: any) =>
+            !["deleted", "archived"].includes(s.status) &&
+            (s.class_group_id === classId ||
+              (Array.isArray(s.assigned_class_ids) && s.assigned_class_ids.includes(classId)))
+          )
+        );
       }
     } catch {}
   }
