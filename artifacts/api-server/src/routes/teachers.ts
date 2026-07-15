@@ -559,6 +559,65 @@ router.get("/teacher/makeups/assigned", requireAuth,
 );
 
 // ── 배정된 보강 완료 처리 (teacher용) ─────────────────────────
+// ── 스케줄표에서 보강 직접 완료 (원래 담당 선생님이 당일 처리) ─────────────
+router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
+  requireRole("teacher", "pool_admin", "sub_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const { date } = req.body as { date?: string };
+      if (!date) { res.status(400).json({ error: "date가 필요합니다." }); return; }
+
+      const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const userName = (userRow.rows[0] as any)?.name || "";
+
+      const poolId = await getMyPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
+
+      const rows = (await db.execute(sql`
+        SELECT * FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
+      `)).rows as any[];
+      if (!rows.length) { res.status(404).json({ error: "보강 없음" }); return; }
+      const mk = rows[0];
+
+      if (mk.original_teacher_id !== userId) {
+        res.status(403).json({ error: "처리 권한이 없습니다." }); return;
+      }
+      if (!["waiting", "assigned"].includes(mk.status)) {
+        res.status(400).json({ error: "이미 처리된 보강입니다." }); return;
+      }
+
+      await db.execute(sql`
+        UPDATE makeup_sessions SET
+          status                  = 'completed',
+          is_substitute           = TRUE,
+          substitute_teacher_id   = ${userId},
+          substitute_teacher_name = ${userName},
+          assigned_date           = ${date},
+          completed_at            = now(),
+          updated_at              = now()
+        WHERE id = ${req.params.id}
+      `);
+
+      const attId = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await db.execute(sql`
+        INSERT INTO attendance
+          (id, swimming_pool_id, student_id, date, status, session_type,
+           class_group_id, teacher_user_id, teacher_name, created_by, created_by_name)
+        VALUES
+          (${attId}, ${poolId}, ${mk.student_id}, ${date}, 'present', 'makeup',
+           ${mk.original_class_group_id ?? null}, ${userId}, ${userName}, ${userId}, ${userName})
+        ON CONFLICT (student_id, date) DO UPDATE SET
+          status = 'present', session_type = 'makeup',
+          teacher_user_id = ${userId}, teacher_name = ${userName},
+          updated_at = now()
+      `);
+
+      res.json({ success: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 router.patch("/teacher/makeups/:id/complete", requireAuth,
   async (req: AuthRequest, res) => {
     try {

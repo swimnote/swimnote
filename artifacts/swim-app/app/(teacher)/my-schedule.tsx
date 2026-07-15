@@ -613,6 +613,7 @@ export default function MyScheduleScreen() {
           onClose={() => setSelectedDate(null)}
           onSelectClass={handleDaySheetClassPress}
           onOpenMakeup={handleDaySheetMakeup}
+          token={token}
           isAdminTeacher={
             (adminUser as any)?.role === "pool_admin" ||
             (adminUser as any)?.role === "super_admin"

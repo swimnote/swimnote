@@ -2,18 +2,27 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
-import { Calendar, Check, ChevronRight, CirclePlus, CircleStop, FileText, Mic, Pencil, Plus, Trash2, User, X } from "lucide-react-native";
+import { Calendar, Check, ChevronRight, CirclePlus, CircleStop, FileText, Mic, Pencil, Plus, Trash2, User, Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Colors from "@/constants/colors";
+import { apiRequest } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import {
   classColor, dateLabelFull, getKoDay, parseHour, StudentItem,
 } from "./utils";
+
+interface PendingMakeup {
+  id: string;
+  student_id: string;
+  student_name: string;
+  absence_date: string;
+  original_class_group_name: string | null;
+}
 
 const C = Colors.light;
 
@@ -24,7 +33,7 @@ export default function DaySheet({
   memo, onMemoChange, onSaveMemo,
   onClose, onSelectClass,
   onOpenMakeup, onAddClass,
-  isAdminTeacher, allStudents,
+  isAdminTeacher, allStudents, token,
 }: {
   dateStr: string;
   classes: TeacherClassGroup[];
@@ -41,11 +50,47 @@ export default function DaySheet({
   onAddClass: () => void;
   isAdminTeacher?: boolean;
   allStudents?: StudentItem[];
+  token?: string | null;
 }) {
   const [editingMemo, setEditingMemo] = useState(false);
   const [showMemoPanel, setShowMemoPanel] = useState(false);
   const [rosterClass, setRosterClass] = useState<TeacherClassGroup | null>(null);
   const label = dateLabelFull(dateStr);
+
+  const [showMakeupPicker, setShowMakeupPicker]     = useState(false);
+  const [makeupList, setMakeupList]                 = useState<PendingMakeup[]>([]);
+  const [makeupLoading, setMakeupLoading]           = useState(false);
+  const [makeupSaving, setMakeupSaving]             = useState<string | null>(null);
+
+  async function openMakeupPicker() {
+    setShowMakeupPicker(true);
+    setMakeupLoading(true);
+    try {
+      const res = await apiRequest(token ?? null, "/teacher/makeups?status=pending");
+      if (res.ok) setMakeupList(await res.json());
+    } catch {}
+    finally { setMakeupLoading(false); }
+  }
+
+  async function completeMakeup(mk: PendingMakeup) {
+    if (makeupSaving) return;
+    setMakeupSaving(mk.id);
+    try {
+      const res = await apiRequest(token ?? null, `/teacher/makeups/${mk.id}/complete-direct`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: dateStr }),
+      });
+      if (res.ok) {
+        setMakeupList(prev => {
+          const idx = prev.findIndex(m => m.id === mk.id);
+          if (idx === -1) return prev;
+          return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+        });
+      }
+    } catch {}
+    finally { setMakeupSaving(null); }
+  }
 
   const [isRecording, setIsRecording] = useState(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -150,6 +195,10 @@ export default function DaySheet({
               <Pressable style={dy.iconBtnWrap} onPress={isRecording ? stopAndSaveRecording : startRecording}>
                 <Mic size={20} color={isRecording ? "#D96C6C" : (audioList.length > 0 ? "#4338CA" : C.textSecondary)} />
                 {(audioList.length > 0 && !isRecording) ? <View style={[dy.redDot, { backgroundColor: "#4338CA" }]} /> : null}
+              </Pressable>
+              <Pressable style={[dy.headerBtn, { backgroundColor: "#EEF2FF", borderWidth: 1, borderColor: "#C7D2FE" }]} onPress={openMakeupPicker}>
+                <Users size={13} color="#4F46E5" />
+                <Text style={[dy.headerBtnTxt, { color: "#4F46E5" }]}>보강인원</Text>
               </Pressable>
               <Pressable style={[dy.headerBtn, { backgroundColor: C.tint }]} onPress={onAddClass}>
                 <Plus size={13} color="#fff" />
@@ -330,6 +379,62 @@ export default function DaySheet({
       </Pressable>
     </Modal>
 
+    {/* 보강인원 추가 모달 */}
+    {showMakeupPicker && (
+      <Modal visible animationType="slide" transparent onRequestClose={() => setShowMakeupPicker(false)}>
+        <Pressable style={dy.backdrop} onPress={() => setShowMakeupPicker(false)}>
+          <Pressable style={[dy.sheet, { minHeight: "50%" }]} onPress={() => {}}>
+            <View style={dy.handle} />
+            <View style={[dy.header, { paddingBottom: 12 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={dy.dateTitle}>보강인원 추가</Text>
+                <Text style={dy.dateSub}>{label}에 보강을 진행할 학생을 선택하세요</Text>
+              </View>
+              <Pressable onPress={() => setShowMakeupPicker(false)} style={dy.closeBtn}>
+                <X size={20} color={C.textSecondary} />
+              </Pressable>
+            </View>
+            {makeupLoading ? (
+              <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
+                <ActivityIndicator color="#4F46E5" />
+              </View>
+            ) : makeupList.length === 0 ? (
+              <View style={{ alignItems: "center", paddingVertical: 40, gap: 10 }}>
+                <Users size={32} color={C.textMuted} />
+                <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted }}>보강 대기 중인 학생이 없습니다</Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
+                {makeupList.map((mk, idx) => {
+                  const isSaving = makeupSaving === mk.id;
+                  return (
+                    <Pressable
+                      key={`${mk.id}_${idx}`}
+                      style={({ pressed }) => [dy.mkRow, idx < makeupList.length - 1 && dy.mkRowBorder, pressed && { opacity: 0.75 }]}
+                      onPress={() => completeMakeup(mk)}
+                      disabled={!!makeupSaving}
+                    >
+                      <View style={dy.mkBadge}>
+                        <User size={14} color="#4F46E5" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={dy.mkName}>{mk.student_name}</Text>
+                        <Text style={dy.mkSub}>결석일 {mk.absence_date}{mk.original_class_group_name ? ` · ${mk.original_class_group_name}` : ""}</Text>
+                      </View>
+                      {isSaving
+                        ? <ActivityIndicator size="small" color="#4F46E5" />
+                        : <View style={dy.mkCheckBtn}><Check size={14} color="#4F46E5" /><Text style={dy.mkCheckTxt}>보강 완료</Text></View>
+                      }
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+    )}
+
     {/* 학생 명단 모달 (관리자 선생님 전용) */}
     {rosterClass && (
       <Modal visible animationType="slide" transparent onRequestClose={() => setRosterClass(null)}>
@@ -442,6 +547,16 @@ const dy = StyleSheet.create({
   rosterRowBorder:  { borderBottomWidth: 1, borderBottomColor: C.border },
   rosterName:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
   rosterSub:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
+  mkRow:            { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 14 },
+  mkRowBorder:      { borderBottomWidth: 1, borderBottomColor: C.border },
+  mkBadge:          { width: 32, height: 32, borderRadius: 10, backgroundColor: "#EEF2FF",
+                      alignItems: "center", justifyContent: "center" },
+  mkName:           { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
+  mkSub:            { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
+  mkCheckBtn:       { flexDirection: "row", alignItems: "center", gap: 4,
+                      paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+                      backgroundColor: "#EEF2FF", borderWidth: 1, borderColor: "#C7D2FE" },
+  mkCheckTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#4F46E5" },
   memoSection:      { marginHorizontal: 16, marginTop: 8, padding: 14,
                       backgroundColor: "#FFFBF0", borderRadius: 12,
                       borderWidth: 1, borderColor: "#F3E8C0" },
