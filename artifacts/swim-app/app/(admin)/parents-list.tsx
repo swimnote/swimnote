@@ -385,14 +385,20 @@ function ParentItem({ item, onPress }: { item: ParentRow; onPress: () => void })
         </View>
 
         <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Text style={s.name}>{item.name || "(이름 없음)"}</Text>
+          {/* 학생 이름 — 메인 (크게) */}
+          <Text style={s.studentMain}>
+            {item.students.length > 0 ? item.students.map(st => st.name).join(", ") : "(자녀 미연결)"}
+          </Text>
+          {/* 학부모 이름 + 뱃지 — 서브 (작게) */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 }}>
+            <Text style={s.parentSub}>{item.name || "(이름 없음)"}</Text>
             <View style={[s.badge, { backgroundColor: isApp ? "#DBEAFE" : "#F1F5F9" }]}>
               <Text style={[s.badgeTxt, { color: isApp ? "#1D4ED8" : "#64748B" }]}>
                 {isApp ? "앱 가입" : "보호자"}
               </Text>
             </View>
           </View>
+          {/* 전화번호 */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
             <Phone size={11} color={C.textMuted} />
             <Text style={s.phone}>{formatPhone(item.phone)}</Text>
@@ -420,14 +426,6 @@ function ParentItem({ item, onPress }: { item: ParentRow; onPress: () => void })
         <Text style={s.date}>{formatDate(item.created_at)}</Text>
       </View>
 
-      {/* 자녀 목록 */}
-      {item.students.length > 0 && (
-        <View style={s.studentsRow}>
-          <Users size={11} color={C.textMuted} />
-          <Text style={s.studentsLabel}>자녀: </Text>
-          <Text style={s.studentsVal}>{item.students.map(st => st.name).join(", ")}</Text>
-        </View>
-      )}
     </Pressable>
   );
 }
@@ -598,6 +596,8 @@ const s = StyleSheet.create({
   },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   iconBox: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  studentMain: { fontSize: 16, fontWeight: "700", color: C.text } as any,
+  parentSub:   { fontSize: 12, color: C.textSecondary } as any,
   name: { fontSize: 15, fontWeight: "700", color: C.text },
   badge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   badgeTxt: { fontSize: 11, fontWeight: "600" },
