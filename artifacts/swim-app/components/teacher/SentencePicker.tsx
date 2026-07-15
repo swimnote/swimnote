@@ -400,11 +400,12 @@ const s = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    minHeight: SCREEN_H * 0.72,
     maxHeight: SCREEN_H * 0.92,
   },
   middleArea: {
     flex: 1,
-    minHeight: 180,
+    minHeight: 240,
     overflow: "hidden",
   },
   handle: {
