@@ -50,3 +50,7 @@ SMS_DEV_EXPOSE_CODE = "true"
 
 [userenv.production]
 SMS_DEV_EXPOSE_CODE = "false"
+
+[[ports]]
+localPort = 22317
+externalPort = 80
