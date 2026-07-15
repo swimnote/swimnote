@@ -120,6 +120,7 @@ export default function DiaryHistoryList({
                     token={token}
                     classGroupId={classGroupId}
                     lessonDate={item.lesson_date}
+                    diaryId={item.id}
                   />
                 ) : null}
               </Pressable>

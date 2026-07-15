@@ -226,6 +226,14 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
             WHERE class_group_id = ${classId} AND lesson_date = ${date as string}
           )
         )` : sql``}
+        ${date ? sql`OR (
+          sp.student_note_id IS NOT NULL AND sp.student_note_id IN (
+            SELECT csn.id FROM class_diary_student_notes csn
+            JOIN class_diaries cd ON cd.id = csn.diary_id
+            WHERE cd.class_group_id = ${classId} AND cd.lesson_date = ${date as string}
+              AND csn.is_deleted = false
+          )
+        )` : sql``}
       )
       ORDER BY sp.created_at DESC
     `);
