@@ -46,7 +46,10 @@ interface DiaryTemplate {
   sort_order: number;
   is_active: boolean;
   is_overridden: boolean;
+  global_id: string | null;
 }
+
+const MY_TAB_ID = "__my_templates__";
 
 interface Props {
   visible: boolean;
@@ -81,7 +84,10 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
         const templateList: DiaryTemplate[] = Array.isArray(tmps) ? tmps : [];
         setLevels(levelList);
         setTemplates(templateList);
-        if (levelList.length > 0) {
+        const hasMyTemplates = templateList.some(t => t.global_id === null);
+        if (hasMyTemplates) {
+          setActiveLevelId(MY_TAB_ID);
+        } else if (levelList.length > 0) {
           setActiveLevelId(levelList[0].id);
         }
       })
@@ -90,14 +96,20 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
   }, [visible, token]);
 
   /* ── 표시할 문장 목록 ── */
+  const myTemplates = useMemo(
+    () => templates.filter(t => t.global_id === null),
+    [templates],
+  );
+
   const displayList = useMemo<DiaryTemplate[]>(() => {
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       return templates.filter(t => t.template_text.toLowerCase().includes(q));
     }
     if (!activeLevelId) return [];
+    if (activeLevelId === MY_TAB_ID) return myTemplates;
     return templates.filter(t => t.level_id === activeLevelId);
-  }, [templates, searchQuery, activeLevelId]);
+  }, [templates, myTemplates, searchQuery, activeLevelId]);
 
   const isSearching = searchQuery.trim().length > 0;
 
@@ -197,6 +209,21 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
           {/* 레벨 탭 (검색 중 숨김) */}
           {!isSearching && (
             <View style={s.tabBar}>
+              {myTemplates.length > 0 && (
+                <TouchableOpacity
+                  key={MY_TAB_ID}
+                  style={[
+                    s.tabBtn, s.myTabBtn,
+                    activeLevelId === MY_TAB_ID && { backgroundColor: "#6B5BCD", borderColor: "#6B5BCD" },
+                  ]}
+                  onPress={() => setActiveLevelId(MY_TAB_ID)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.tabText, s.myTabText, activeLevelId === MY_TAB_ID && { color: "#fff" }]}>
+                    ✦ 나의 템플릿
+                  </Text>
+                </TouchableOpacity>
+              )}
               {levels.map(lv => (
                 <TouchableOpacity
                   key={lv.id}
@@ -351,6 +378,10 @@ const s = StyleSheet.create({
     borderRadius: 11, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
   tabText: { fontSize: 11, lineHeight: 20, color: C.textSecondary, includeFontPadding: false } as any,
+  myTabBtn: {
+    borderColor: "#6B5BCD", backgroundColor: "#F5F3FF",
+  },
+  myTabText: { color: "#6B5BCD", fontFamily: "Pretendard-SemiBold" } as any,
 
   loadingBox: { alignItems: "center", justifyContent: "center", paddingVertical: 32, gap: 8 },
   loadingText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" },
