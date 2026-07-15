@@ -312,7 +312,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                 keyExtractor={item => item.id}
                 renderItem={renderSentenceItem}
                 style={s.sentenceList}
-                contentContainerStyle={s.sentenceListContent}
+                contentContainerStyle={[s.sentenceListContent, { paddingBottom: kbHeight > 0 ? kbHeight + 16 : 4 }]}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 ListEmptyComponent={
