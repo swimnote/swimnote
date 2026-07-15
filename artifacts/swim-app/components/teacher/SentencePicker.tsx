@@ -5,7 +5,7 @@
  * - /api/diary-templates 에서 선생님 문장 로드 (override 병합)
  * - 전체 통합 검색, 미리보기, 삽입
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -22,7 +22,7 @@ import {
   View,
 } from "react-native";
 
-import { Check, ChevronDown, CircleX, CornerLeftUp, Eye, Inbox, Plus, Search, Trash2, X } from "lucide-react-native";
+import { Check, ChevronDown, CircleX, CornerLeftUp, Eye, Inbox, Plus, Search, Trash2, X, ZoomIn } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { API_BASE } from "@/context/AuthContext";
 import { useAuth } from "@/context/AuthContext";
@@ -71,6 +71,12 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
   // 레벨 피커 인라인 패널
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
+
+  // 미리보기 전체 확대 모달
+  const [previewModalVisible, setPreviewModalVisible] = useState(false);
+
+  // 미리보기 ScrollView ref (자동 스크롤)
+  const previewScrollRef = useRef<ScrollView>(null);
 
   // 키보드 높이 추적 (Modal 내 KeyboardAvoidingView 대체)
   const [kbHeight, setKbHeight] = useState(0);
@@ -135,6 +141,13 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
 
   const isSearching = searchQuery.trim().length > 0;
 
+  /* ── 미리보기 자동 스크롤 (추가 시 맨 아래로) ── */
+  useEffect(() => {
+    if (preview.length > 0) {
+      setTimeout(() => previewScrollRef.current?.scrollToEnd({ animated: true }), 80);
+    }
+  }, [preview.length]);
+
   /* ── 미리보기 조작 ── */
   const addToPreview = useCallback((text: string) => {
     setPreview(prev => [...prev, text]);
@@ -188,6 +201,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
   }, [isSearching, levels, addToPreview]);
 
   return (
+    <>
     <Modal
       visible={visible}
       transparent
@@ -338,9 +352,20 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                 <Eye size={12} color={C.textSecondary} />
                 {" "}삽입 예정 미리보기
               </Text>
-              <Text style={s.previewCount}>{preview.length}문장</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={s.previewCount}>{preview.length}문장</Text>
+                {preview.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setPreviewModalVisible(true)}
+                    hitSlop={8}
+                    activeOpacity={0.7}
+                  >
+                    <ZoomIn size={15} color={PRIMARY} />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
-            <ScrollView style={s.previewScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView ref={previewScrollRef} style={s.previewScroll} showsVerticalScrollIndicator={false}>
               {preview.length === 0 ? (
                 <Text style={s.previewEmpty}>문장을 선택하면 여기에 쌓입니다.</Text>
               ) : (
@@ -390,6 +415,41 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
         </View>
       </View>
     </Modal>
+
+    {/* ── 미리보기 전체 확대 모달 ── */}
+    <Modal
+      visible={previewModalVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setPreviewModalVisible(false)}
+    >
+      <View style={s.fullPreviewBackdrop}>
+        <View style={s.fullPreviewBox}>
+          <View style={s.fullPreviewHeader}>
+            <Text style={s.fullPreviewTitle}>삽입 예정 미리보기 ({preview.length}문장)</Text>
+            <TouchableOpacity onPress={() => setPreviewModalVisible(false)} hitSlop={12} activeOpacity={0.7}>
+              <X size={20} color={C.textSecondary} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={s.fullPreviewScroll} showsVerticalScrollIndicator={false}>
+            {preview.map((line, idx) => (
+              <View key={idx} style={s.fullPreviewItem}>
+                <Text style={s.fullPreviewNum}>{idx + 1}.</Text>
+                <Text style={s.fullPreviewText}>{line}</Text>
+              </View>
+            ))}
+          </ScrollView>
+          <TouchableOpacity
+            style={s.fullPreviewCloseBtn}
+            onPress={() => setPreviewModalVisible(false)}
+            activeOpacity={0.8}
+          >
+            <Text style={s.fullPreviewCloseBtnText}>닫기</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -545,4 +605,29 @@ const s = StyleSheet.create({
   },
   insertBtnDisabled: { backgroundColor: C.border },
   insertBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
+
+  // ── 전체 미리보기 확대 모달 ──
+  fullPreviewBackdrop: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center", alignItems: "center", padding: 24,
+  },
+  fullPreviewBox: {
+    width: "100%", backgroundColor: "#fff", borderRadius: 18,
+    maxHeight: SCREEN_H * 0.78, overflow: "hidden",
+  },
+  fullPreviewHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 20, paddingVertical: 16,
+    borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  fullPreviewTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.text } as any,
+  fullPreviewScroll: { paddingHorizontal: 20, paddingVertical: 12, maxHeight: SCREEN_H * 0.55 },
+  fullPreviewItem: { flexDirection: "row", gap: 8, marginBottom: 14 },
+  fullPreviewNum: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: PRIMARY, minWidth: 20 } as any,
+  fullPreviewText: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 22 } as any,
+  fullPreviewCloseBtn: {
+    marginHorizontal: 20, marginVertical: 14, paddingVertical: 13, borderRadius: 12,
+    backgroundColor: PRIMARY, alignItems: "center",
+  },
+  fullPreviewCloseBtnText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" } as any,
 });
