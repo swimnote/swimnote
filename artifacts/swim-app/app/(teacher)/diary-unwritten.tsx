@@ -43,7 +43,7 @@ function formatDateKo(dateStr: string) {
 }
 
 export default function DiaryUnwrittenScreen() {
-  const { token, user } = useAuth();
+  const { token, adminUser: user } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
