@@ -138,6 +138,15 @@ router.post("/login", async (req, res) => {
       return;
     }
 
+    // 웹 로그인 시 pool_admin 웹 접속 비밀번호 확인
+    if (req.body.web_login === true && user.role === "pool_admin") {
+      const webPinHash = (user as any).web_pin_hash;
+      if (webPinHash) {
+        const webSession = signTotpSession(user.id);
+        return res.json({ success: true, web_pin_required: true, web_session: webSession });
+      }
+    }
+
     // platform_admin: permissions를 JWT에 포함
     let permissions;
     if ((user.role as string) === "platform_admin") {
@@ -159,6 +168,67 @@ router.post("/login", async (req, res) => {
 
     res.json({ success: true, token, user: safeUser });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── 웹 접속 비밀번호 검증 (pool_admin 웹 로그인 2단계) ──────────────
+router.post("/web-pin/verify", async (req, res) => {
+  const { web_session, web_pin } = req.body;
+  if (!web_session || !web_pin) return err(res, 400, "필수 정보를 입력해주세요.");
+  try {
+    const { userId } = verifyTotpSession(web_session);
+    const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user || !(user as any).web_pin_hash) return err(res, 401, "올바르지 않은 세션입니다.");
+    const valid = await comparePassword(web_pin, (user as any).web_pin_hash);
+    if (!valid) return err(res, 401, "웹 접속 비밀번호가 올바르지 않습니다.");
+    const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
+    const { password_hash: _ph, web_pin_hash: _wph, ...safeUser } = user as any;
+    logEvent({
+      pool_id: user.swimming_pool_id ?? "system",
+      category: "로그인",
+      actor_id: user.id,
+      actor_name: user.name ?? user.email,
+      description: `웹 로그인 성공 — ${user.role}: ${user.email}`,
+      metadata: {},
+    }).catch(() => {});
+    res.json({ success: true, token, user: safeUser });
+  } catch { return err(res, 401, "세션이 만료되었습니다. 다시 로그인해주세요."); }
+});
+
+// ── 웹 접속 비밀번호 설정/삭제 ───────────────────────────────────────
+router.patch("/web-pin", requireAuth, async (req: AuthRequest, res) => {
+  const { current_password, web_pin } = req.body;
+  const userId = req.user?.userId;
+  if (!userId) return err(res, 401, "인증이 필요합니다.");
+  if (!current_password) return err(res, 400, "현재 비밀번호를 입력해주세요.");
+  try {
+    const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user) return err(res, 404, "계정을 찾을 수 없습니다.");
+    const validPw = await comparePassword(current_password, user.password_hash);
+    if (!validPw) return err(res, 401, "현재 비밀번호가 올바르지 않습니다.");
+    if (web_pin) {
+      if (String(web_pin).length < 4) return err(res, 400, "웹 접속 비밀번호는 4자리 이상이어야 합니다.");
+      const hash = await hashPassword(String(web_pin));
+      await superAdminDb.execute(sql`UPDATE users SET web_pin_hash = ${hash} WHERE id = ${userId}`);
+      res.json({ success: true, message: "웹 접속 비밀번호가 설정되었습니다.", web_pin_set: true });
+    } else {
+      await superAdminDb.execute(sql`UPDATE users SET web_pin_hash = NULL WHERE id = ${userId}`);
+      res.json({ success: true, message: "웹 접속 비밀번호가 해제되었습니다.", web_pin_set: false });
+    }
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── 웹 접속 비밀번호 설정 여부 확인 ──────────────────────────────────
+router.get("/web-pin/status", requireAuth, async (req: AuthRequest, res) => {
+  const userId = req.user?.userId;
+  if (!userId) return err(res, 401, "인증이 필요합니다.");
+  try {
+    const result = await superAdminDb.execute(sql`
+      SELECT (web_pin_hash IS NOT NULL) AS web_pin_set FROM users WHERE id = ${userId} LIMIT 1
+    `);
+    const row = result.rows[0] as any;
+    const webPinSet = row?.web_pin_set === true || row?.web_pin_set === "t" || row?.web_pin_set === 1;
+    res.json({ success: true, web_pin_set: webPinSet });
+  } catch { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
 // ── 관리자 계정 가입 ──────────────────────────────────────────────────

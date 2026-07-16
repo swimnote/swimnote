@@ -294,8 +294,17 @@ router.patch("/users/:id/permissions", requireAuth, requireRole("super_admin"), 
 });
 
 // ── 수영장 상세 조회 (플랫폼 관리자, 권한 체크) ─────────────────────
-router.get("/pools/:id/detail", requireAuth, requirePermission("canViewPools"), async (req: AuthRequest, res) => {
+router.get("/pools/:id/detail", requireAuth, async (req: AuthRequest, res) => {
   const { id } = req.params;
+  const role = req.user!.role;
+  const userPoolId = req.user!.poolId;
+  // pool_admin: 자신의 수영장만 조회 가능
+  if (role === "pool_admin") {
+    if (userPoolId !== id) return res.status(403).json({ success: false, message: "자신의 수영장만 조회할 수 있습니다.", error: "forbidden" });
+  } else if (role !== "super_admin") {
+    const perms = req.user!.permissions;
+    if (!perms?.canViewPools) return res.status(403).json({ success: false, message: "권한이 없습니다.", error: "forbidden" });
+  }
   try {
     const poolResult = await superAdminDb.execute(sql`SELECT * FROM swimming_pools WHERE id = ${id} LIMIT 1`);
     const pool = (poolResult as any).rows[0];
@@ -310,7 +319,6 @@ router.get("/pools/:id/detail", requireAuth, requirePermission("canViewPools"), 
       `)
     ]);
 
-    const role = req.user!.role;
     const perms = req.user!.permissions;
     const canEdit = role === "super_admin" || perms?.canEditPools === true;
 

@@ -122,10 +122,20 @@ export default function PoolAdmin() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
 
   useEffect(() => {
-    if (!authLoading && (!user || user.role !== "super_admin")) {
+    if (authLoading) return;
+    if (!user) { navigate("/login", { replace: true }); return; }
+    // pool_admin은 자신의 수영장만 접근 가능
+    if (user.role === "pool_admin") {
+      if ((user as any).swimming_pool_id && (user as any).swimming_pool_id !== poolId) {
+        navigate(`/pool/${(user as any).swimming_pool_id}/admin`, { replace: true });
+      }
+      return;
+    }
+    // 그 외 비super_admin은 로그인 페이지로
+    if (user.role !== "super_admin") {
       navigate("/login", { replace: true });
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, poolId]);
 
   const fetchPool = useCallback(async () => {
     if (!poolId) return;
@@ -215,7 +225,9 @@ export default function PoolAdmin() {
   if (authLoading || loading) {
     return <div className="min-h-screen flex items-center justify-center"><span className="text-[#aaa] text-[14px]">불러오는 중...</span></div>;
   }
-  if (!user || user.role !== "super_admin") return null;
+  if (!user || (user.role !== "super_admin" && user.role !== "pool_admin")) return null;
+  const isSuperAdmin = user.role === "super_admin";
+  const visibleTabs = isSuperAdmin ? TABS : TABS.filter(t => t.id !== "actions");
   if (!pool) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -491,19 +503,30 @@ export default function PoolAdmin() {
       <header className="bg-white border-b border-[#ebebeb] sticky top-0 z-20">
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate("/super-admin")} className="flex items-center gap-2 hover:opacity-70 transition-opacity">
+            <button
+              onClick={() => isSuperAdmin ? navigate("/super-admin") : navigate("/")}
+              className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+            >
               <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: PRIMARY }}>
                 <span className="text-white text-[12px] font-black" translate="no">S</span>
               </div>
               <span className="text-[14px] font-bold text-[#0a0a0a]" translate="no">SWIMNOTE</span>
             </button>
-            <span className="text-[#ddd]">/</span>
-            <span className="text-[13px] text-[#888]">슈퍼관리자</span>
+            {isSuperAdmin && (
+              <>
+                <span className="text-[#ddd]">/</span>
+                <span className="text-[13px] text-[#888]">슈퍼관리자</span>
+              </>
+            )}
             <span className="text-[#ddd]">/</span>
             <span className="text-[13px] font-semibold text-[#0a0a0a] truncate max-w-[200px]">{pool.name}</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600">슈퍼관리자</span>
+            <span className={`hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+              isSuperAdmin ? "bg-blue-50 text-blue-600" : "bg-green-50 text-green-600"
+            }`}>
+              {isSuperAdmin ? "슈퍼관리자" : "수영장 관리자"}
+            </span>
             <button onClick={() => { logout(); navigate("/login"); }} className="text-[12px] text-[#888] hover:text-[#0a0a0a]">로그아웃</button>
           </div>
         </div>
@@ -530,7 +553,7 @@ export default function PoolAdmin() {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6 bg-white rounded-2xl border border-[#ebebeb] p-1.5 overflow-x-auto">
-          {TABS.map(t => (
+          {visibleTabs.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
