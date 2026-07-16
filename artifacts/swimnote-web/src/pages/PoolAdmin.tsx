@@ -123,7 +123,7 @@ export default function PoolAdmin() {
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== "super_admin")) {
-      navigate("/login");
+      navigate("/login", { replace: true });
     }
   }, [user, authLoading, navigate]);
 

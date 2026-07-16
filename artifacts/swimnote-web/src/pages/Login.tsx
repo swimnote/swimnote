@@ -39,11 +39,11 @@ export default function Login() {
         setTotpSession((result as LoginResult).totp_session);
         setStep("otp");
       } else {
-        const user = result as any;
-        if (user.role === "super_admin") navigate("/super-admin");
-        else if (user.role === "pool_admin" && user.swimming_pool_id)
-          navigate(`/pool/${user.swimming_pool_id}/admin`);
-        else navigate("/");
+        const u = result as any;
+        if (u.role === "super_admin") navigate("/super-admin");
+        else {
+          setError("이 페이지는 슈퍼관리자 전용입니다. 수영장 관리자는 앱을 이용해주세요.");
+        }
       }
     } catch (err: any) {
       setError(err?.data?.error || err?.data?.message || "이메일 또는 비밀번호가 올바르지 않습니다.");
@@ -59,9 +59,11 @@ export default function Login() {
     try {
       const user = await completeTotpLogin(totpSession, otpCode);
       if (user.role === "super_admin") navigate("/super-admin");
-      else if (user.role === "pool_admin" && user.swimming_pool_id)
-        navigate(`/pool/${user.swimming_pool_id}/admin`);
-      else navigate("/");
+      else {
+        setError("이 페이지는 슈퍼관리자 전용입니다. 수영장 관리자는 앱을 이용해주세요.");
+        setStep("credentials");
+        setDigits(["", "", "", "", "", ""]);
+      }
     } catch (err: any) {
       setError(err?.data?.error || err?.data?.message || "OTP 코드가 올바르지 않거나 만료되었습니다.");
       setDigits(["", "", "", "", "", ""]);

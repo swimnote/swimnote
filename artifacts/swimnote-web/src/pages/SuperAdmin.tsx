@@ -108,7 +108,7 @@ export default function SuperAdmin() {
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== "super_admin")) {
-      navigate("/login");
+      navigate("/login", { replace: true });
     }
   }, [user, authLoading, navigate]);
 
