@@ -170,15 +170,36 @@ export default function MyAlbumPickerModal({
           { uri, name: asset.fileName || (isPhoto ? "photo.jpg" : "video.mp4"), type: asset.mimeType || (isPhoto ? "image/jpeg" : "video/mp4") } as any
         );
       }
-      const endpoint = isPhoto ? "/photos/private" : "/videos/private";
+      // class_id/student_id 없이 pool 전체 앨범(/photos/group)에 업로드 후 내 앨범에 저장
+      const endpoint = isPhoto ? "/photos/group" : "/videos/group";
       const res = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token ?? ""}` },
         body: form,
       });
+      const d = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
         throw new Error((d as any)?.error ?? "업로드 실패");
+      }
+      // 업로드된 항목을 내 앨범(saved)에 등록
+      if (isPhoto) {
+        const photoIds: string[] = ((d as any).photos || []).map((p: any) => p.id).filter(Boolean);
+        if (photoIds.length > 0) {
+          await fetch(`${API_BASE}/photos/saved`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token ?? ""}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ photo_ids: photoIds }),
+          }).catch(() => {});
+        }
+      } else {
+        const videoId: string | undefined = (d as any).video?.id;
+        if (videoId) {
+          await fetch(`${API_BASE}/videos/saved`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token ?? ""}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ video_ids: [videoId] }),
+          }).catch(() => {});
+        }
       }
       // 목록 재로드 후 새 항목 자동 선택
       await loadList(undefined);
