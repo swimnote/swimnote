@@ -151,6 +151,7 @@ export default function StudentManagementSheet({
   const [assignDate,        setAssignDate]        = useState(todayDateStr);
   const [assigning,         setAssigning]         = useState(false);
   const [assignError,       setAssignError]       = useState("");
+  const [showAllClasses,    setShowAllClasses]    = useState(false);
 
   /* ── 미배정 학생 계산 ── */
   const unassigned = allStudents
@@ -229,10 +230,17 @@ export default function StudentManagementSheet({
     setAssignClassId("");
     setAssignDate(todayDateStr());
     setAssignError("");
-    setEligLoading(true);
+    setShowAllClasses(false);
     setView("makeup-pick");
+    await loadEligibleClasses(false);
+  }
+
+  async function loadEligibleClasses(all: boolean) {
+    setEligLoading(true);
+    setAssignClassId("");
     try {
-      const res = await apiRequest(token, "/teacher/makeups/eligible-classes");
+      const url = all ? "/teacher/makeups/eligible-classes?all=true" : "/teacher/makeups/eligible-classes";
+      const res = await apiRequest(token, url);
       if (res.ok) {
         const list: EligibleClass[] = await res.json();
         list.sort((a, b) => a.schedule_days.localeCompare(b.schedule_days));
@@ -528,7 +536,23 @@ export default function StudentManagementSheet({
           <Text style={st.pickLabel}>보강 날짜를 선택하세요</Text>
         </View>
         <DatePicker value={assignDate} onChange={setAssignDate} />
-        <Text style={[st.pickLabel, { marginHorizontal: 16, marginBottom: 4 }]}>보강 가능한 반 선택</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", marginHorizontal: 16, marginBottom: 4, gap: 8 }}>
+          <Text style={[st.pickLabel, { flex: 1 }]}>
+            {showAllClasses ? "전체 반 선택 (다른 선생님 포함)" : "보강 가능한 반 선택 (내 반)"}
+          </Text>
+          <TouchableOpacity
+            onPress={async () => {
+              const next = !showAllClasses;
+              setShowAllClasses(next);
+              await loadEligibleClasses(next);
+            }}
+            style={{ paddingVertical: 4, paddingHorizontal: 10, borderRadius: 12, backgroundColor: showAllClasses ? "#EEF2FF" : "#F3F4F6", borderWidth: 1, borderColor: showAllClasses ? "#6366F1" : "#D1D5DB" }}
+          >
+            <Text style={{ fontSize: 11, color: showAllClasses ? "#4F46E5" : "#6B7280", fontFamily: "Pretendard-Regular" }}>
+              {showAllClasses ? "✓ 다른 선생님 반 포함" : "다른 선생님 반에서 보강"}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {eligLoading ? (
           <View style={st.center}>
@@ -538,7 +562,7 @@ export default function StudentManagementSheet({
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 32 }}>
             {eligibleClasses.length === 0 ? (
               <View style={st.emptyBox}>
-                <Text style={st.emptyText}>보강 가능한 반이 없습니다.</Text>
+                <Text style={st.emptyText}>{showAllClasses ? "보강 가능한 반이 없습니다." : "내 반에 보강 가능한 자리가 없습니다."}</Text>
               </View>
             ) : eligibleClasses.map(ec => {
               const isFull = ec.available_slots <= 0;

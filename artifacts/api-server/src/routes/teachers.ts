@@ -453,6 +453,9 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
       const poolId = await getMyPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
+      // ?all=true 이면 수영장 전체 반, 기본값은 내 반만
+      const showAll = req.query.all === "true";
+
       const rows = await superAdminDb.execute(sql`
         SELECT
           cg.id, cg.name, cg.schedule_days, cg.schedule_time,
@@ -466,6 +469,7 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
         WHERE cg.swimming_pool_id = ${poolId}
           AND cg.is_deleted = false
           AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
+          AND (${showAll} OR cg.teacher_user_id = ${userId})
         GROUP BY cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity, cg.teacher_user_id, u.name
         HAVING GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status IN ('active', 'pending_parent_link', 'unregistered') AND s.deleted_at IS NULL)) > 0
         ORDER BY cg.schedule_days, cg.schedule_time
