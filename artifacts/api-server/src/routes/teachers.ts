@@ -18,7 +18,8 @@ function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-async function getAdminPoolId(adminId: string): Promise<string | null> {
+async function getAdminPoolId(adminId: string, tokenPoolId?: string | null): Promise<string | null> {
+  if (tokenPoolId) return tokenPoolId;
   const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
     .from(usersTable).where(eq(usersTable.id, adminId)).limit(1);
   return me?.swimming_pool_id || null;
@@ -28,7 +29,7 @@ async function getAdminPoolId(adminId: string): Promise<string | null> {
 router.get("/teachers", requireAuth, requireRole("pool_admin", "super_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const poolId = await getAdminPoolId(req.user!.userId);
+      const poolId = await getAdminPoolId(req.user!.userId, req.user!.poolId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
       const teachers = await superAdminDb.execute(sql`
@@ -58,7 +59,7 @@ router.post("/teachers", requireAuth, requireRole("pool_admin"),
         res.status(400).json({ error: "연락처를 입력해주세요. 인증코드 전달에 사용됩니다." }); return;
       }
 
-      const poolId = await getAdminPoolId(req.user!.userId);
+      const poolId = await getAdminPoolId(req.user!.userId, req.user!.poolId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
       // 관리자 본인 계정 중복 확인 (최대 1개)
@@ -129,7 +130,7 @@ router.post("/teachers", requireAuth, requireRole("pool_admin"),
 router.get("/teachers/:id/activation-code", requireAuth, requireRole("pool_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const poolId = await getAdminPoolId(req.user!.userId);
+      const poolId = await getAdminPoolId(req.user!.userId, req.user!.poolId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
       const teacher = await superAdminDb.execute(sql`
@@ -179,7 +180,7 @@ router.patch("/teachers/:id/password", requireAuth, requireRole("pool_admin"),
       if (!password || password.length < 6) {
         res.status(400).json({ error: "비밀번호는 6자 이상이어야 합니다." }); return;
       }
-      const poolId = await getAdminPoolId(req.user!.userId);
+      const poolId = await getAdminPoolId(req.user!.userId, req.user!.poolId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
       const teacher = await superAdminDb.execute(sql`
@@ -199,7 +200,7 @@ router.patch("/teachers/:id", requireAuth, requireRole("pool_admin"),
   async (req: AuthRequest, res) => {
     try {
       const { name, phone, position } = req.body;
-      const poolId = await getAdminPoolId(req.user!.userId);
+      const poolId = await getAdminPoolId(req.user!.userId, req.user!.poolId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
       const teacher = await superAdminDb.execute(sql`
@@ -224,7 +225,7 @@ router.patch("/teachers/:id", requireAuth, requireRole("pool_admin"),
 router.delete("/teachers/:id", requireAuth, requireRole("pool_admin", "super_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const poolId = await getAdminPoolId(req.user!.userId);
+      const poolId = await getAdminPoolId(req.user!.userId, req.user!.poolId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
       // role 제한 없이 같은 수영장 소속 여부만 확인

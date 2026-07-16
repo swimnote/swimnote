@@ -7,8 +7,9 @@ import { logPoolEvent } from "../lib/pool-event-logger.js";
 
 const router = Router();
 
-async function getPoolId(userId: string, role: string): Promise<string | null> {
+async function getPoolId(userId: string, role: string, tokenPoolId?: string | null): Promise<string | null> {
   if (role === "parent_account") return userId;
+  if (tokenPoolId) return tokenPoolId;
   const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   return user?.swimming_pool_id || null;
 }
@@ -31,26 +32,35 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     if (role === "parent_account") {
       poolId = await getPoolIdForParent(req.user!.userId);
     } else {
-      poolId = await getPoolId(req.user!.userId, role);
+      poolId = await getPoolId(req.user!.userId, role, req.user!.poolId);
     }
     if (!poolId) { res.status(403).json({ success: false, message: "소속된 수영장이 없습니다." }); return; }
 
     const { class_group_id, student_id, date, month } = req.query;
 
-    let records = await db.select().from(attendanceTable).where(eq(attendanceTable.swimming_pool_id, poolId));
+    // DB 레벨 필터링 (메모리 필터 제거 → 네트워크 전송량 감소)
+    const conditions: any[] = [eq(attendanceTable.swimming_pool_id, poolId)];
+    if (class_group_id) conditions.push(eq(attendanceTable.class_group_id, class_group_id as string));
+    if (student_id) conditions.push(eq(attendanceTable.student_id, student_id as string));
+    if (date) conditions.push(eq(attendanceTable.date, date as string));
+    if (month) conditions.push(sql`${attendanceTable.date} LIKE ${(month as string) + "%"}`);
 
-    if (class_group_id) records = records.filter(r => r.class_group_id === class_group_id);
-    if (student_id) records = records.filter(r => r.student_id === student_id);
-    if (date) records = records.filter(r => r.date === date as string);
-    if (month) records = records.filter(r => r.date.startsWith(month as string));
+    const records = await db.select().from(attendanceTable).where(and(...conditions));
 
-    const enriched = await Promise.all(records.map(async (r) => {
-      let student_name: string | null = null;
-      if (r.student_id) {
-        const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, r.student_id)).limit(1);
-        student_name = s?.name || null;
-      }
-      return { ...r, student_name };
+    // 학생 이름 배치 조회 (N+1 → 1회)
+    const studentIds = [...new Set(records.map(r => r.student_id).filter(Boolean))] as string[];
+    const nameMap = new Map<string, string>();
+    if (studentIds.length > 0) {
+      const idList = studentIds.map(id => `'${id.replace(/'/g, "''")}'`).join(",");
+      const nameRows = (await db.execute(sql`
+        SELECT id, name FROM students WHERE id = ANY(ARRAY[${sql.raw(idList)}]::text[])
+      `)).rows as any[];
+      nameRows.forEach((r: any) => nameMap.set(r.id, r.name));
+    }
+
+    const enriched = records.map(r => ({
+      ...r,
+      student_name: r.student_id ? (nameMap.get(r.student_id) || null) : null,
     }));
 
     res.json(enriched);
@@ -64,7 +74,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
 router.get("/makeup-students", requireAuth, async (req: AuthRequest, res) => {
   try {
     const role = (req.user as { role: string }).role;
-    const poolId = await getPoolId(req.user!.userId, role);
+    const poolId = await getPoolId(req.user!.userId, role, req.user!.poolId);
     if (!poolId) { res.status(403).json({ error: "소속 없음" }); return; }
     const { class_group_id, date } = req.query;
     if (!class_group_id || !date) { res.status(400).json({ error: "class_group_id, date 필요" }); return; }
@@ -94,7 +104,7 @@ router.get("/weekly", requireAuth, async (req: AuthRequest, res) => {
     if (role === "parent_account") {
       poolId = await getPoolIdForParent(req.user!.userId);
     } else {
-      poolId = await getPoolId(req.user!.userId, role);
+      poolId = await getPoolId(req.user!.userId, role, req.user!.poolId);
     }
     if (!poolId) { res.status(403).json({ success: false, message: "소속된 수영장이 없습니다." }); return; }
 
@@ -151,7 +161,7 @@ router.get("/monthly-summary", requireAuth, async (req: AuthRequest, res) => {
     if (role === "parent_account") {
       poolId = await getPoolIdForParent(req.user!.userId);
     } else {
-      poolId = await getPoolId(req.user!.userId, role);
+      poolId = await getPoolId(req.user!.userId, role, req.user!.poolId);
     }
     if (!poolId) { res.status(403).json({ success: false, message: "소속된 수영장이 없습니다." }); return; }
 
@@ -214,7 +224,7 @@ router.get("/search", requireAuth, async (req: AuthRequest, res) => {
     if (role === "parent_account") {
       poolId = await getPoolIdForParent(req.user!.userId);
     } else {
-      poolId = await getPoolId(req.user!.userId, role);
+      poolId = await getPoolId(req.user!.userId, role, req.user!.poolId);
     }
     if (!poolId) { res.status(403).json({ success: false, message: "소속된 수영장이 없습니다." }); return; }
 
@@ -234,19 +244,20 @@ router.get("/search", requireAuth, async (req: AuthRequest, res) => {
     const daysNum = days ? parseInt(days as string) : 30;
     const studentIds = matchingStudents.map(s => s.id);
 
-    let allRecords = await db.select().from(attendanceTable)
-      .where(eq(attendanceTable.swimming_pool_id, poolId));
-
-    allRecords = allRecords.filter(r => r.student_id && studentIds.includes(r.student_id));
-
+    // DB 레벨에서 student_id 필터 + 날짜 필터 적용 (전체 조회 후 JS 필터 제거)
+    const attConditions: any[] = [
+      eq(attendanceTable.swimming_pool_id, poolId),
+      sql`${attendanceTable.student_id} = ANY(ARRAY[${sql.raw(studentIds.map(id => `'${id.replace(/'/g, "''")}'`).join(","))}]::text[])`,
+    ];
     if (daysNum > 0) {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - daysNum);
-      const cutoffStr = cutoff.toISOString().split("T")[0];
-      allRecords = allRecords.filter(r => r.date >= cutoffStr);
+      attConditions.push(gte(attendanceTable.date, cutoff.toISOString().split("T")[0]));
     }
 
-    allRecords.sort((a, b) => b.date.localeCompare(a.date));
+    const allRecords = (await db.select().from(attendanceTable)
+      .where(and(...attConditions)))
+      .sort((a, b) => b.date.localeCompare(a.date));
 
     const classGroups = await db.select().from(classGroupsTable)
       .where(eq(classGroupsTable.swimming_pool_id, poolId));
