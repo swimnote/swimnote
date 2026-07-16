@@ -1252,6 +1252,7 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
     // students에 first class_group_id도 업데이트 (하위 호환)
     const firstClassId = assigned_class_ids[0] || null;
 
+    const todayStr = new Date().toISOString().slice(0, 10);
     const [student] = await db.update(studentsTable)
       .set({
         assigned_class_ids: assigned_class_ids as any,
@@ -1259,6 +1260,7 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
         schedule_labels: labels || null,
         class_group_id: firstClassId,
         status: "active",
+        class_enrolled_at: todayStr,
         updated_at: new Date(),
       })
       .where(eq(studentsTable.id, req.params.id))

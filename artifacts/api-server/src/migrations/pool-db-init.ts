@@ -1205,4 +1205,7 @@ export async function initPoolDb(): Promise<void> {
     )
   `)).catch(() => {});
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_holiday_confirmations_pool ON holiday_confirmations(pool_id, target_month)`)).catch(() => {});
+
+  // ── students.class_enrolled_at — 반 배정일 컬럼 ─────────────────────────────
+  await db.execute(sql.raw(`ALTER TABLE students ADD COLUMN IF NOT EXISTS class_enrolled_at text`)).catch(() => {});
 }

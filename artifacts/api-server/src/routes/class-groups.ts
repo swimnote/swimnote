@@ -196,11 +196,12 @@ router.get("/:id/attendance", requireAuth, async (req: AuthRequest, res) => {
       return err(res, 403, "접근 권한이 없습니다.");
     }
 
-    // active 학생만 출결 대상
+    // active 학생만 출결 대상 (반 배정일이 있으면 조회날짜 이후 배정 학생 제외)
     const students = await db.select().from(studentsTable)
       .where(and(
         eq(studentsTable.class_group_id, req.params.id),
-        sql`status NOT IN ('withdrawn', 'deleted')`
+        sql`status NOT IN ('withdrawn', 'deleted')`,
+        sql`(${studentsTable.class_enrolled_at} IS NULL OR ${studentsTable.class_enrolled_at} <= ${date as string})`
       ));
     const attRecords = await db.select().from(attendanceTable)
       .where(and(eq(attendanceTable.class_group_id, req.params.id), eq(attendanceTable.date, date as string)));
