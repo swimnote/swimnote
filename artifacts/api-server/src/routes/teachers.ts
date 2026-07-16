@@ -427,10 +427,14 @@ router.get("/teacher/makeups", requireAuth,
       const { status = "waiting" } = req.query as any;
       // "pending"은 "waiting"과 동일하게 처리
       const dbStatus = status === "pending" ? "waiting" : status;
+      // 같은 수영장 소속이면 전체 결석 보강 목록을 볼 수 있음
+      const poolId = await getMyPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
       const rows = await db.execute(sql`
-        SELECT ms.*
+        SELECT ms.*, u.name AS student_name_from_user
         FROM makeup_sessions ms
-        WHERE ms.original_teacher_id = ${userId}
+        LEFT JOIN users u ON u.id = ms.student_id
+        WHERE ms.swimming_pool_id = ${poolId}
           AND ms.status = ${dbStatus}
           AND ms.cancelled_at IS NULL
         ORDER BY ms.absence_date ASC, ms.created_at ASC
