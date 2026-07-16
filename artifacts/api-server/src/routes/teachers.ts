@@ -580,9 +580,8 @@ router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
       if (!rows.length) { res.status(404).json({ error: "보강 없음" }); return; }
       const mk = rows[0];
 
-      // 원래 담당 선생님이거나 관리자 권한인 경우 처리 가능
-      const role = req.user!.role;
-      if (mk.original_teacher_id !== userId && !["pool_admin", "sub_admin"].includes(role)) {
+      // 같은 수영장 소속 선생님이면 누구나 보충수업 처리 가능
+      if (mk.swimming_pool_id && mk.swimming_pool_id !== poolId) {
         res.status(403).json({ error: "처리 권한이 없습니다." }); return;
       }
       if (!["waiting", "assigned"].includes(mk.status)) {

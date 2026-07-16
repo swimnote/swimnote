@@ -628,6 +628,7 @@ export default function MyScheduleScreen() {
         <DaySheet
           dateStr={selectedDate}
           classes={dayClasses}
+          allClasses={myGroups}
           attMap={dayAttMap}
           diarySet={dayDiarySet}
           themeColor={themeColor}

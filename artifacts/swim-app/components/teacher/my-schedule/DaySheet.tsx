@@ -29,7 +29,7 @@ const C = Colors.light;
 type AudioItem = { uri: string; createdAt: string };
 
 export default function DaySheet({
-  dateStr, classes, attMap, diarySet, themeColor, poolId,
+  dateStr, classes, allClasses, attMap, diarySet, themeColor, poolId,
   memo, onMemoChange, onSaveMemo,
   onClose, onSelectClass,
   onOpenMakeup, onAddClass,
@@ -37,6 +37,7 @@ export default function DaySheet({
 }: {
   dateStr: string;
   classes: TeacherClassGroup[];
+  allClasses?: TeacherClassGroup[];
   attMap: Record<string, number>;
   diarySet: Set<string>;
   themeColor: string;
@@ -433,7 +434,7 @@ export default function DaySheet({
                 )}
               </>
             ) : (
-              /* 단계 2: 오늘의 수업반 선택 */
+              /* 단계 2: 반 선택 (전체 반 목록) */
               <>
                 <View style={[dy.header, { paddingBottom: 12 }]}>
                   <Pressable onPress={() => setSelectedMakeupStudent(null)} style={{ padding: 4, marginRight: 8 }}>
@@ -441,46 +442,56 @@ export default function DaySheet({
                   </Pressable>
                   <View style={{ flex: 1 }}>
                     <Text style={dy.dateTitle}>{selectedMakeupStudent.student_name}</Text>
-                    <Text style={dy.dateSub}>{label}에 합류할 반을 선택하세요</Text>
+                    <Text style={dy.dateSub}>{label} · 합류할 반을 선택하세요</Text>
                   </View>
                   <Pressable onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }} style={dy.closeBtn}>
                     <X size={20} color={C.textSecondary} />
                   </Pressable>
                 </View>
-                {classes.length === 0 ? (
-                  <View style={{ alignItems: "center", paddingVertical: 40, gap: 10 }}>
-                    <Users size={32} color={C.textMuted} />
-                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted }}>오늘 수업이 없습니다</Text>
-                  </View>
-                ) : (
-                  <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
-                    {classes.map((cls, idx) => {
-                      const isSaving = makeupSaving === selectedMakeupStudent.id;
-                      return (
-                        <Pressable
-                          key={cls.id}
-                          style={({ pressed }) => [dy.mkRow, idx < classes.length - 1 && dy.mkRowBorder, pressed && { opacity: 0.75 }]}
-                          onPress={() => completeMakeupWithClass(selectedMakeupStudent, cls)}
-                          disabled={isSaving}
-                        >
-                          <View style={[dy.mkBadge, { backgroundColor: "#F0FDF4" }]}>
-                            <Check size={14} color="#16A34A" />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={dy.mkName}>{cls.name}</Text>
-                            <Text style={dy.mkSub}>{cls.schedule_days ? cls.schedule_days.split(",").join("·") : ""} {cls.schedule_time || ""}</Text>
-                          </View>
-                          {isSaving
-                            ? <ActivityIndicator size="small" color="#4F46E5" />
-                            : <View style={[dy.mkCheckBtn, { backgroundColor: "#EEF2FF" }]}>
-                                <Text style={[dy.mkCheckTxt, { color: "#4F46E5" }]}>보충수업 배정</Text>
-                              </View>
-                          }
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                )}
+                {(() => {
+                  const pickList = (allClasses && allClasses.length > 0 ? allClasses : classes);
+                  if (pickList.length === 0) {
+                    return (
+                      <View style={{ alignItems: "center", paddingVertical: 40, gap: 10 }}>
+                        <Users size={32} color={C.textMuted} />
+                        <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted }}>등록된 수업반이 없습니다</Text>
+                      </View>
+                    );
+                  }
+                  return (
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
+                      {pickList.map((cls, idx) => {
+                        const isSaving = makeupSaving === selectedMakeupStudent.id;
+                        const isToday = classes.some(c => c.id === cls.id);
+                        return (
+                          <Pressable
+                            key={cls.id}
+                            style={({ pressed }) => [dy.mkRow, idx < pickList.length - 1 && dy.mkRowBorder, pressed && { opacity: 0.75 }]}
+                            onPress={() => completeMakeupWithClass(selectedMakeupStudent, cls)}
+                            disabled={isSaving}
+                          >
+                            <View style={[dy.mkBadge, { backgroundColor: isToday ? "#F0FDF4" : "#F5F3FF" }]}>
+                              <Check size={14} color={isToday ? "#16A34A" : "#7C3AED"} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={dy.mkName}>
+                                {cls.name}
+                                {isToday ? <Text style={{ fontSize: 11, color: "#16A34A", fontFamily: "Pretendard-Regular" }}> (오늘 수업)</Text> : null}
+                              </Text>
+                              <Text style={dy.mkSub}>{cls.schedule_days ? cls.schedule_days.split(",").join("·") : ""} {cls.schedule_time || ""}</Text>
+                            </View>
+                            {isSaving
+                              ? <ActivityIndicator size="small" color="#4F46E5" />
+                              : <View style={[dy.mkCheckBtn, { backgroundColor: "#EEF2FF" }]}>
+                                  <Text style={[dy.mkCheckTxt, { color: "#4F46E5" }]}>배정</Text>
+                                </View>
+                            }
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  );
+                })()}
               </>
             )}
           </Pressable>
