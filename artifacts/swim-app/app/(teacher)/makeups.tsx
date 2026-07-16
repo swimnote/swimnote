@@ -219,6 +219,8 @@ export default function MakeupsScreen() {
         setSelectedClassId(null);
         setSelectedDate(null);
         loadWaiting();
+        loadAssigned();
+        setTab("assigned");
         setConfirmMsg(`보강이 ${selectedDate}에 배정되었습니다.`);
       } else if (r.status === 409) {
         setConfirmMsg("이미 해당 날짜에 보강이 배정되어 있습니다.");
