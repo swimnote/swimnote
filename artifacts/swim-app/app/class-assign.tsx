@@ -8,7 +8,7 @@
  */
 import { ArrowLeft, Calendar, Check, CircleX, Clock, Layers, Minus, Plus, RefreshCw, Search, TriangleAlert, User, X } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {ActivityIndicator, Modal, Platform,
   Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -128,6 +128,12 @@ export default function ClassAssignScreen() {
   }, [token, classId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const dupNames = useMemo(() => {
+    const counts: Record<string, number> = {};
+    allStudents.forEach(s => { counts[s.name] = (counts[s.name] || 0) + 1; });
+    return new Set(Object.entries(counts).filter(([, v]) => v > 1).map(([k]) => k));
+  }, [allStudents]);
 
   const assignable = allStudents.filter(s => {
     const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
@@ -347,6 +353,7 @@ export default function ClassAssignScreen() {
                 loading={saving === item.id}
                 onPress={() => handlePressAdd(item)}
                 disabled={capacityOver}
+                isDuplicate={dupNames.has(item.name)}
               />
             ))}
           </View>
@@ -458,7 +465,7 @@ const rt = StyleSheet.create({
 });
 
 function StudentRow({
-  student, classId, action, loading, onPress, disabled,
+  student, classId, action, loading, onPress, disabled, isDuplicate,
 }: {
   student: Student;
   classId: string;
@@ -466,6 +473,7 @@ function StudentRow({
   loading: boolean;
   onPress: () => void;
   disabled?: boolean;
+  isDuplicate?: boolean;
 }) {
   const isAdd = action === "add";
   const ids: string[] = Array.isArray(student.assigned_class_ids) ? student.assigned_class_ids : [];
@@ -485,6 +493,11 @@ function StudentRow({
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={sr.name}>{student.name}</Text>
+        {isDuplicate && student.schedule_labels ? (
+          <View style={sr.scheduleHintTag}>
+            <Text style={sr.scheduleHintTxt}>{student.schedule_labels}</Text>
+          </View>
+        ) : null}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           {student.parent_phone && (
             <Text style={sr.phone}>{student.parent_phone.slice(-4)}</Text>
@@ -519,8 +532,10 @@ const sr = StyleSheet.create({
   avatarText:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.tint },
   name:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   phone:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
-  progressBadge:{ borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  progressText: { fontSize: 10, fontFamily: "Pretendard-Regular" },
+  progressBadge:   { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  progressText:    { fontSize: 10, fontFamily: "Pretendard-Regular" },
+  scheduleHintTag: { alignSelf: "flex-start", backgroundColor: "#F1F5F9", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+  scheduleHintTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   btn:          { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   addBtn:       { backgroundColor: C.tint },
   removeBtn:    { backgroundColor: C.error },

@@ -50,6 +50,8 @@ interface UnifiedMemberCardProps {
   showWithdrawnDate?: boolean;
   /** 선생님 정보 표시 여부 (반배정 화면에서 불필요할 때 false) */
   showTeacher?: boolean;
+  /** 동명이인 구분용 스케줄 힌트 (이름 아래 작게 표시) */
+  scheduleHint?: string;
 }
 
 export function UnifiedMemberCard({
@@ -64,6 +66,7 @@ export function UnifiedMemberCard({
   onToggle,
   showWithdrawnDate,
   showTeacher = true,
+  scheduleHint,
 }: UnifiedMemberCardProps) {
   const ps       = getPrimaryStatus(student);
   const wc       = getEffectiveWeekly(student);
@@ -148,6 +151,13 @@ export function UnifiedMemberCard({
               </View>
             )}
           </View>
+
+          {/* 동명이인 구분 스케줄 힌트 */}
+          {scheduleHint ? (
+            <View style={s.scheduleHintTag}>
+              <Text style={s.scheduleHintTxt}>{scheduleHint}</Text>
+            </View>
+          ) : null}
 
           {/* 배정 반 (배정된 경우만 표시) */}
           {classNames ? (
@@ -269,8 +279,10 @@ const s = StyleSheet.create({
   name:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
   badge:      { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   badgeTxt:   { fontSize: 10, fontFamily: "Pretendard-Regular" },
-  classTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
-  subTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  classTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
+  subTxt:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  scheduleHintTag: { alignSelf: "flex-start", backgroundColor: "#F1F5F9", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+  scheduleHintTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   right:      { alignItems: "flex-end", gap: 6 },
   iconBtn:    { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   bottom:     { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: C.border },

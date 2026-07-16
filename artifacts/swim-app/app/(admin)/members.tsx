@@ -1,7 +1,7 @@
 import { CircleX, Info, Search, SquareCheck } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, FlatList, Pressable, RefreshControl,
   StyleSheet, Text, TextInput, View,
@@ -288,6 +288,12 @@ export default function MembersScreen() {
     : students;
   const filtered = searchStudents(applyStudentFilter(baseStudents, filter), search);
 
+  const dupNames = useMemo(() => {
+    const counts: Record<string, number> = {};
+    students.forEach(s => { counts[s.name] = (counts[s.name] || 0) + 1; });
+    return new Set(Object.entries(counts).filter(([, v]) => v > 1).map(([k]) => k));
+  }, [students]);
+
   const chipsWithCount: FilterChipItem<StudentFilterKey>[] = FILTER_CHIPS.map(chip => ({
     ...chip,
     count: chip.key === "all"
@@ -466,6 +472,7 @@ export default function MembersScreen() {
                 onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.id, backTo: "members" } } as any)}
                 showInvite={!item.parent_user_id}
                 onPressInvite={() => setInviteTarget(item)}
+                scheduleHint={dupNames.has(item.name) && item.schedule_labels ? item.schedule_labels : undefined}
                 selectionMode={sel.selectionMode}
                 isSelected={sel.isSelected(item.id)}
                 onToggle={() => sel.toggleItem(item.id)}
