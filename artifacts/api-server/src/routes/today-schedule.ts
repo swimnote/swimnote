@@ -65,9 +65,17 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
     if (groups.length === 0) { res.json([]); return; }
 
     const classIds = groups.map(g => g.id);
+    const poolId = groups[0]?.swimming_pool_id || "";
+
+    // 휴무일 체크 — 휴무일이면 수업 없음
+    const holidayCheck = await db.execute(sql`
+      SELECT id FROM pool_holidays
+      WHERE pool_id = ${poolId} AND holiday_date = ${dateParam}
+      LIMIT 1
+    `);
+    if (holidayCheck.rows.length > 0) { res.json([]); return; }
 
     // 학생 수 — class_group_id + assigned_class_ids 모두 기준
-    const poolId = groups[0]?.swimming_pool_id || "";
     const studentRows = await db.execute(sql`
       SELECT id, class_group_id, assigned_class_ids FROM students
       WHERE swimming_pool_id = ${poolId}
