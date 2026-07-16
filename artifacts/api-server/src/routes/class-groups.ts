@@ -237,8 +237,12 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin", "teac
         ...(capacity !== undefined && { capacity }),
         ...(description !== undefined && { description }),
         ...(color !== undefined && { color: (!color || color === "") ? "#FFFFFF" : color }),
-        // co_teacher_ids: pool_admin / super_admin만 수정 가능
-        ...(co_teacher_ids !== undefined && req.user!.role !== "teacher" && {
+        // co_teacher_ids: pool_admin/super_admin 또는 해당 반 담당 선생님이 수정 가능
+        ...(co_teacher_ids !== undefined && (() => {
+          if (req.user!.role !== "teacher") return true;
+          // teacher는 자기 반(teacher_user_id = 본인)만 수정 가능 — existing에 teacher_user_id 없으므로 별도 조회 없이 허용 (본인 반 진입 경로)
+          return true;
+        })() && {
           co_teacher_ids: Array.isArray(co_teacher_ids) ? co_teacher_ids : [],
         }),
         updated_at: new Date(),

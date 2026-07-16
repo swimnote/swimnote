@@ -90,10 +90,12 @@ function isInClass(s: Student, cid: string) {
 }
 
 export default function ClassAssignScreen() {
-  const { token, activeRole } = useAuth();
+  const { token, activeRole, adminUser } = useAuth();
   const insets = useSafeAreaInsets();
   const { classId, initialClass } = useLocalSearchParams<{ classId: string; initialClass?: string }>();
   const isAdmin = activeRole === "pool_admin" || activeRole === "super_admin";
+  // 자기 반 담당 선생님도 co-teacher 추가/제거 가능
+  const [canManageTeachers, setCanManageTeachers] = useState(isAdmin);
 
   const [classInfo, setClassInfo] = useState<ClassGroup | null>(() => {
     if (initialClass) { try { return JSON.parse(initialClass); } catch { return null; } }
@@ -134,6 +136,10 @@ export default function ClassAssignScreen() {
         const cg = await cgRes.json();
         setClassInfo(cg);
         setCoTeacherIds(Array.isArray(cg.co_teacher_ids) ? cg.co_teacher_ids : []);
+        // 자기 반 담당 선생님도 co-teacher 관리 가능
+        if (adminUser?.id && cg.teacher_user_id === adminUser.id) {
+          setCanManageTeachers(true);
+        }
       }
       if (stuRes.ok) {
         const allStu: Student[] = await stuRes.json();
@@ -150,9 +156,9 @@ export default function ClassAssignScreen() {
 
   // 선생님 목록 백그라운드 로드 (관리자 전용)
   useEffect(() => {
-    if (!isAdmin || !token) return;
+    if (!canManageTeachers || !token) return;
     apiRequest(token, "/teachers").then(r => { if (r.ok) r.json().then(setTeachers); }).catch(() => {});
-  }, [token, isAdmin]);
+  }, [token, canManageTeachers]);
 
   async function handleAddCoTeacher(teacher: TeacherItem) {
     if (!classId) return;
@@ -326,7 +332,7 @@ export default function ClassAssignScreen() {
                   <View key={cid} style={[s.metaRow, { gap: 4 }]}>
                     <UserPlus size={12} color="#7C3AED" />
                     <Text style={[s.meta, { color: "#7C3AED" }]}>{ct?.name || "선생님"}</Text>
-                    {isAdmin && (
+                    {canManageTeachers && (
                       <Pressable onPress={() => handleRemoveCoTeacher(cid)} hitSlop={8} disabled={coTeacherSaving}>
                         <X size={11} color="#EF4444" />
                       </Pressable>
@@ -334,8 +340,8 @@ export default function ClassAssignScreen() {
                   </View>
                 );
               })}
-              {/* 선생님 추가 버튼 (관리자만) */}
-              {isAdmin && (
+              {/* 선생님 추가 버튼 */}
+              {canManageTeachers && (
                 <Pressable
                   style={[s.metaRow, { marginTop: 2 }]}
                   onPress={() => { setTeacherSearch(""); setShowTeacherModal(true); }}
