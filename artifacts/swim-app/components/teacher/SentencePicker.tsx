@@ -21,6 +21,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Check, ChevronDown, CircleX, CornerLeftUp, Eye, Inbox, Plus, Search, Trash2, X, ZoomIn } from "lucide-react-native";
 import Colors from "@/constants/colors";
@@ -59,6 +60,7 @@ interface Props {
 
 export default function SentencePicker({ visible, onClose, onInsert }: Props) {
   const { token } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const [levels, setLevels] = useState<DiaryLevel[]>([]);
   const [templates, setTemplates] = useState<DiaryTemplate[]>([]);
@@ -210,7 +212,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
     >
       <Pressable style={s.backdrop} onPress={handleClose} />
       <View style={[s.kvWrapper, { paddingBottom: kbHeight }]}>
-        <View style={[s.sheet, { paddingBottom: Platform.OS === "ios" ? 20 : 10 }]}>
+        <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, Platform.OS === "ios" ? 20 : 16) }]}>
           {/* ── 고정 상단 ── */}
           <View style={s.handle} />
 
