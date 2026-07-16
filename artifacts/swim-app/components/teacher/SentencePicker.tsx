@@ -462,12 +462,12 @@ const s = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    minHeight: SCREEN_H * 0.72,
-    maxHeight: SCREEN_H * 0.92,
+    minHeight: SCREEN_H * 0.58,
+    maxHeight: SCREEN_H * 0.88,
   },
   middleArea: {
     flex: 1,
-    minHeight: 240,
+    minHeight: Math.max(72, SCREEN_H * 0.17),
     overflow: "hidden",
   },
   handle: {
@@ -578,7 +578,7 @@ const s = StyleSheet.create({
   },
   previewLabel: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular" },
   previewCount: { fontSize: 11, color: PRIMARY, fontFamily: "Pretendard-Regular" },
-  previewScroll: { maxHeight: 88, paddingHorizontal: 12, paddingVertical: 8 },
+  previewScroll: { maxHeight: Math.max(44, SCREEN_H * 0.09), paddingHorizontal: 12, paddingVertical: 8 },
   previewEmpty: { fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", paddingVertical: 8 },
   previewLine: { fontSize: 12, color: C.text, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   previewActions: {
