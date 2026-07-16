@@ -90,6 +90,27 @@ router.get("/public-search", async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ success: false, data: [] }); }
 });
 
+// ── 수영장 공개 페이지 조회 (인증 불필요) ─────────────────────────────
+router.get("/:id/public", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const rows = await superAdminDb.execute(sql`
+      SELECT id, name, address, phone, owner_name, approval_status, subscription_status
+      FROM swimming_pools
+      WHERE id = ${id}
+      LIMIT 1
+    `);
+    if (!rows.rows.length) {
+      res.status(404).json({ error: "수영장을 찾을 수 없습니다." });
+      return;
+    }
+    res.json(rows.rows[0]);
+  } catch (e) {
+    console.error("[pools/:id/public]", e);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
 // ── 수영장 등록 신청 (기본 정보만 입력, JSON) ─────────────────────────
 router.post("/apply", requireAuth,
   async (req: AuthRequest, res) => {
