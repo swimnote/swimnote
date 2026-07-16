@@ -556,11 +556,14 @@ router.get("/teacher/makeups/assigned", requireAuth,
       const rows = await db.execute(sql`
         SELECT ms.*
         FROM makeup_sessions ms
-        WHERE (ms.transferred_to_teacher_id = ${userId} OR ms.assigned_teacher_id = ${userId})
-          AND ms.original_teacher_id != ${userId}
-          AND ms.status IN ('assigned','transferred')
+        WHERE ms.status IN ('assigned','transferred')
           AND ms.cancelled_at IS NULL
-        ORDER BY ms.absence_date ASC, ms.created_at ASC
+          AND (
+            ms.original_teacher_id = ${userId}
+            OR ms.transferred_to_teacher_id = ${userId}
+            OR ms.assigned_teacher_id = ${userId}
+          )
+        ORDER BY ms.assigned_date ASC, ms.absence_date ASC, ms.created_at ASC
       `);
       res.json(rows.rows);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
