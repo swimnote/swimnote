@@ -19,7 +19,7 @@ if (!isBuild && (Number.isNaN(port) || port <= 0)) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-const basePath = isBuild ? "/" : (process.env.BASE_PATH ?? "/swimnote-web/");
+const basePath = isBuild ? "/swimnote-web/" : (process.env.BASE_PATH ?? "/swimnote-web/");
 
 export default defineConfig({
   base: basePath,
