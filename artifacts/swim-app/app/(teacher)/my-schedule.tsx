@@ -63,7 +63,8 @@ export default function MyScheduleScreen() {
   const [dayAttMap, setDayAttMap] = useState<Record<string, number>>({});
   const [dayDiarySet, setDayDiarySet] = useState<Set<string>>(new Set());
   const [dayMemo, setDayMemo] = useState("");
-  const [memoDateSet, setMemoDateSet] = useState<Set<string>>(new Set());
+  const [memoDateSet,   setMemoDateSet]   = useState<Set<string>>(new Set());
+  const [makeupDateSet, setMakeupDateSet] = useState<Set<string>>(new Set());
 
   const [detailGroup,       setDetailGroup]       = useState<TeacherClassGroup | null>(null);
   const [showDeleteClassConfirm,  setShowDeleteClassConfirm]  = useState(false);
@@ -138,6 +139,21 @@ export default function MyScheduleScreen() {
   }
 
   useEffect(() => { load(); }, [load]);
+
+  // 배정된 보충수업 날짜 Set 로드 (캘린더 보라색 도트 표시용)
+  const loadMakeupDates = useCallback(async () => {
+    if (!token) return;
+    try {
+      const r = await apiRequest(token, "/teacher/makeups/assigned");
+      if (r.ok) {
+        const list: any[] = await r.json();
+        const dates = new Set(list.map((m: any) => m.assigned_date).filter(Boolean) as string[]);
+        setMakeupDateSet(dates);
+      }
+    } catch {}
+  }, [token]);
+
+  useEffect(() => { loadMakeupDates(); }, [loadMakeupDates]);
 
   // 탭 전환 후 복귀 시 stuck loading 상태만 초기화
   // (showDeleteClassConfirm/deletingClass는 ClassDetailSheet Modal 닫힘 → focus 이벤트 경쟁 조건으로 삭제 흐름을 방해하므로 여기서 리셋 금지)
@@ -588,6 +604,7 @@ export default function MyScheduleScreen() {
             selectedDate={selectedDate}
             onSelectDate={handleDatePress}
             memoDateSet={memoDateSet}
+            makeupDateSet={makeupDateSet}
             selectionMode={selectionMode}
             selectedDates={selectedDates}
           />

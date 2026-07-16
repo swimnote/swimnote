@@ -78,9 +78,11 @@ router.get("/makeup-students", requireAuth, async (req: AuthRequest, res) => {
     if (!poolId) { res.status(403).json({ error: "소속 없음" }); return; }
     const { class_group_id, date } = req.query;
     if (!class_group_id || !date) { res.status(400).json({ error: "class_group_id, date 필요" }); return; }
-    const rows = (await db.execute(sql`
+
+    // ① 이미 출석 처리된 보충수업 학생 (attendance 테이블)
+    const attRows = (await db.execute(sql`
       SELECT a.student_id AS id, s.name, s.birth_year, s.weekly_count,
-             a.session_type, a.status AS att_status
+             a.session_type, a.status AS att_status, false AS is_pending
       FROM attendance a
       JOIN students s ON s.id = a.student_id
       WHERE a.swimming_pool_id = ${poolId}
@@ -89,7 +91,27 @@ router.get("/makeup-students", requireAuth, async (req: AuthRequest, res) => {
         AND a.session_type = 'makeup'
         AND a.status = 'present'
     `)).rows as any[];
-    res.json(rows);
+
+    const attendedIds = new Set(attRows.map((r: any) => r.id));
+
+    // ② 배정됐지만 아직 출석 처리 안 된 보충수업 학생 (makeup_sessions 테이블)
+    const msRows = (await db.execute(sql`
+      SELECT ms.student_id AS id, s.name, s.birth_year, s.weekly_count,
+             'makeup' AS session_type, 'assigned' AS att_status,
+             true AS is_pending, ms.id AS makeup_session_id
+      FROM makeup_sessions ms
+      JOIN students s ON s.id = ms.student_id
+      WHERE ms.swimming_pool_id = ${poolId}
+        AND ms.assigned_class_group_id = ${class_group_id as string}
+        AND ms.assigned_date = ${date as string}
+        AND ms.status = 'assigned'
+        AND ms.cancelled_at IS NULL
+    `)).rows as any[];
+
+    // 중복 제거: 이미 출석 처리된 학생은 ②에서 제외
+    const pendingRows = msRows.filter((r: any) => !attendedIds.has(r.id));
+
+    res.json([...attRows, ...pendingRows]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "서버 오류" });

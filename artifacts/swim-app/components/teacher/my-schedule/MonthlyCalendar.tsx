@@ -13,6 +13,7 @@ const C = Colors.light;
 
 export default function MonthlyCalendar({
   groups, themeColor, selectedDate, onSelectDate, memoDateSet,
+  makeupDateSet,
   selectionMode, selectedDates,
 }: {
   groups: TeacherClassGroup[];
@@ -20,6 +21,7 @@ export default function MonthlyCalendar({
   selectedDate: string | null;
   onSelectDate: (dateStr: string) => void;
   memoDateSet: Set<string>;
+  makeupDateSet?: Set<string>;
   selectionMode?: boolean;
   selectedDates?: Set<string>;
 }) {
@@ -102,6 +104,7 @@ export default function MonthlyCalendar({
             const isSun      = di === 0;
             const isSat      = di === 6;
             const hasMemo    = memoDateSet.has(dateStr);
+            const hasMakeup  = makeupDateSet?.has(dateStr) ?? false;
             const timePills  = cls.slice(0, 3).map(g => fmtHour(g.schedule_time));
             const extraCount = cls.length - timePills.length;
 
@@ -133,8 +136,11 @@ export default function MonthlyCalendar({
                   ]}>{dayNum}</Text>
                 </View>
 
-                {hasMemo && !isHoliday && (
-                  <View style={mc.memoDot} />
+                {(hasMemo || hasMakeup) && !isHoliday && (
+                  <View style={{ flexDirection: "row", gap: 2, marginTop: 1 }}>
+                    {hasMemo   && <View style={mc.memoDot} />}
+                    {hasMakeup && <View style={[mc.memoDot, { backgroundColor: "#7C3AED" }]} />}
+                  </View>
                 )}
 
                 {isHoliday ? (
