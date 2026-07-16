@@ -341,12 +341,25 @@ async function autoCreateMakeup(
   `)) as any).rows as any[];
   if (existing) return;
 
-  // 풀 정책 조회 (swimming_pools는 superAdminDb)
-  const [poolRow] = ((await (superAdminDb as any).execute(sql`
-    SELECT make_up_expiry_type, make_up_expiry_days,
-           make_up_limit_weekly_1, make_up_limit_weekly_2, make_up_limit_weekly_3
-    FROM swimming_pools WHERE id = ${poolId} LIMIT 1
-  `)) as any).rows as any[];
+  // 풀 정책 조회 (swimming_pools는 superAdminDb) — 컬럼 누락 시 기본값으로 폴백
+  let poolRow: any = null;
+  try {
+    const rows = ((await (superAdminDb as any).execute(sql`
+      SELECT make_up_expiry_type, make_up_expiry_days,
+             make_up_limit_weekly_1, make_up_limit_weekly_2, make_up_limit_weekly_3
+      FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `)) as any).rows as any[];
+    poolRow = rows[0] ?? null;
+  } catch {
+    // 컬럼 미존재 등 → 기본값 사용
+    try {
+      const rows = ((await (superAdminDb as any).execute(sql`
+        SELECT make_up_expiry_type, make_up_expiry_days
+        FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+      `)) as any).rows as any[];
+      poolRow = rows[0] ?? null;
+    } catch { poolRow = null; }
+  }
 
   const weeklyCount: number = (student as any).weekly_count ?? 1;
   const expiryType: string | null = poolRow?.make_up_expiry_type ?? "end_of_month";
@@ -405,7 +418,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
   }
   try {
     const role = (req.user as { role: string }).role;
-    const poolId = await getPoolId(req.user!.userId, role);
+    const poolId = await getPoolId(req.user!.userId, role, req.user!.poolId);
     if (!poolId) { res.status(403).json({ success: false, message: "소속된 수영장이 없습니다." }); return; }
 
     const [existing] = await db.select().from(attendanceTable)
@@ -419,13 +432,14 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
         .returning();
       const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
       if (status === "absent") {
-        await autoCreateMakeup(poolId, student_id, date, class_group_id || existing.class_group_id, existing.id, prevStatus);
+        autoCreateMakeup(poolId, student_id, date, class_group_id || existing.class_group_id, existing.id, prevStatus)
+          .catch(e => console.error("[autoCreateMakeup] 보강세션 생성 실패:", e));
       } else if (status === "present" && prevStatus === "absent") {
-        await db.execute(sql`
+        db.execute(sql`
           UPDATE makeup_sessions
           SET status = 'cancelled', cancelled_at = now(), cancelled_reason = 'absent_cleared'
           WHERE student_id = ${student_id} AND absence_date = ${date} AND status = 'waiting'
-        `);
+        `).catch(e => console.error("[cancelMakeup] 취소 실패:", e));
       }
       res.json({ success: true, data: { ...updated, student_name: s?.name || null } }); return;
     }
@@ -436,7 +450,8 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     }).returning();
     const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
     if (status === "absent") {
-      await autoCreateMakeup(poolId, student_id, date, class_group_id, id, null);
+      autoCreateMakeup(poolId, student_id, date, class_group_id, id, null)
+        .catch(e => console.error("[autoCreateMakeup] 보강세션 생성 실패:", e));
     }
     logPoolEvent({
       pool_id: poolId, event_type: `attendance.${status}`, entity_type: "attendance",
