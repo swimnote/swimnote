@@ -469,25 +469,33 @@ function RootNav() {
   const pathnameRef = useRef(pathname);
   const backgroundAtRef = useRef<number | null>(null);
   const didGoBackgroundRef = useRef(false);
-  const otaReadyRef = useRef(false);
+  const otaDownloadedRef = useRef(false);   // 다운로드 완료 여부
   const inquiryPopupShownRef = useRef(false);
   const tokenRef = useRef(token);
   const kindRef = useRef(kind);
+
+  const [showOtaModal, setShowOtaModal] = useState(false);
+  const [otaUpdating,  setOtaUpdating]  = useState(false);
 
   useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
   useEffect(() => { tokenRef.current = token; }, [token]);
   useEffect(() => { kindRef.current = kind; }, [kind]);
 
+  // OTA 체크 + 다운로드 → 완료되면 팝업 표시
   async function checkAndDownloadOta() {
     if (__DEV__ || isCheckingRef.current) return;
     isCheckingRef.current = true;
     try {
+      if (otaDownloadedRef.current) {
+        // 이미 다운로드 완료 → 바로 팝업만 띄우기
+        setShowOtaModal(true);
+        return;
+      }
       const { isAvailable } = await Updates.checkForUpdateAsync();
       if (isAvailable) {
         await Updates.fetchUpdateAsync();
-        // cold start 시 즉시 재시작 (백그라운드 복귀 전에도 적용)
-        otaReadyRef.current = true;
-        await Updates.reloadAsync();
+        otaDownloadedRef.current = true;
+        setShowOtaModal(true);
       }
     } catch (_) {
     } finally {
@@ -495,7 +503,17 @@ function RootNav() {
     }
   }
 
-  // 앱 시작 시 OTA 체크 (다운로드만, 재시작은 백그라운드 복귀 시)
+  // 업데이트 적용 (사용자가 팝업에서 누름)
+  async function applyOtaUpdate() {
+    setOtaUpdating(true);
+    try {
+      await Updates.reloadAsync();
+    } catch (_) {
+      setOtaUpdating(false);
+    }
+  }
+
+  // 앱 시작 시 OTA 체크
   useEffect(() => { checkAndDownloadOta(); }, []);
 
   // 백그라운드 복귀 처리
@@ -517,11 +535,13 @@ function RootNav() {
         if (!didGoBackgroundRef.current) return;
         didGoBackgroundRef.current = false;
 
-        // OTA 다운로드 완료 → 재시작
-        if (otaReadyRef.current) {
-          Updates.reloadAsync().catch(() => {});
+        // OTA 다운로드 완료 → 팝업 표시
+        if (otaDownloadedRef.current) {
+          setShowOtaModal(true);
           return;
         }
+        // 아직 체크 안 됐으면 체크
+        checkAndDownloadOta();
 
         // 1시간 이상 백그라운드였을 때만 세션 갱신 (teacher 모드 유지)
         const elapsed = backgroundAtRef.current ? Date.now() - backgroundAtRef.current : Infinity;
@@ -694,6 +714,69 @@ function RootNav() {
         </View>
       )}
       <OtaUpdateBanner />
+
+      {/* OTA 업데이트 팝업 */}
+      <Modal visible={showOtaModal} transparent animationType="fade" statusBarTranslucent>
+        <View style={{
+          flex: 1, backgroundColor: "rgba(0,0,0,0.5)",
+          alignItems: "center", justifyContent: "center", paddingHorizontal: 32,
+        }}>
+          <View style={{
+            backgroundColor: "#fff", borderRadius: 20, padding: 28,
+            width: "100%", shadowColor: "#000", shadowOpacity: 0.15,
+            shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 10,
+          }}>
+            {/* 아이콘 + 제목 */}
+            <View style={{ alignItems: "center", marginBottom: 16 }}>
+              <View style={{
+                width: 56, height: 56, borderRadius: 16,
+                backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center",
+                marginBottom: 12,
+              }}>
+                <Text style={{ fontSize: 26 }}>🆕</Text>
+              </View>
+              <Text style={{ fontSize: 18, fontFamily: "Pretendard-SemiBold", color: "#0F172A" }}>
+                업데이트 준비 완료
+              </Text>
+            </View>
+            <Text style={{
+              fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B",
+              textAlign: "center", lineHeight: 22, marginBottom: 24,
+            }}>
+              새로운 기능이 포함된 업데이트가{"\n"}준비됐습니다. 지금 적용하시겠어요?
+            </Text>
+
+            {/* 버튼 */}
+            <Pressable
+              onPress={applyOtaUpdate}
+              disabled={otaUpdating}
+              style={{
+                backgroundColor: "#4F46E5", borderRadius: 12, height: 50,
+                alignItems: "center", justifyContent: "center", marginBottom: 10,
+                opacity: otaUpdating ? 0.7 : 1,
+              }}
+            >
+              {otaUpdating
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={{ fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" }}>
+                    지금 업데이트
+                  </Text>
+              }
+            </Pressable>
+            <Pressable
+              onPress={() => setShowOtaModal(false)}
+              disabled={otaUpdating}
+              style={{
+                height: 44, alignItems: "center", justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#94A3B8" }}>
+                나중에
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
