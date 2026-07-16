@@ -213,7 +213,7 @@ export default function DaySheet({
                 <Mic size={20} color={isRecording ? "#D96C6C" : (audioList.length > 0 ? "#4338CA" : C.textSecondary)} />
                 {(audioList.length > 0 && !isRecording) ? <View style={[dy.redDot, { backgroundColor: "#4338CA" }]} /> : null}
               </Pressable>
-              <Pressable style={[dy.headerBtn, { backgroundColor: "#EEF2FF", borderWidth: 1, borderColor: "#C7D2FE" }]} onPress={openMakeupPicker}>
+              <Pressable style={[dy.headerBtn, { backgroundColor: "#EEF2FF", borderWidth: 1, borderColor: "#C7D2FE" }]} onPress={onOpenMakeup}>
                 <Users size={13} color="#4F46E5" />
                 <Text style={[dy.headerBtnTxt, { color: "#4F46E5" }]}>보충수업</Text>
               </Pressable>

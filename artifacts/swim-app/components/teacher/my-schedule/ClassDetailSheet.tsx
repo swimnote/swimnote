@@ -288,7 +288,7 @@ export default function ClassDetailSheet({
                 <Text style={[cds.actionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
               </Pressable>
               <Pressable style={[cds.actionBtn, { backgroundColor: "#EEF2FF", flex: 1 }]}
-                onPress={openMakeupPicker}>
+                onPress={() => onNavigateTo?.(() => router.push("/(teacher)/makeups?backTo=my-schedule" as any))}>
                 <Users size={13} color="#4F46E5" />
                 <Text style={[cds.actionText, { color: "#4F46E5" }]}>보충수업</Text>
               </Pressable>
