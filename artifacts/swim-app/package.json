@@ -4,7 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "dev": "node -e \"require('http').createServer((_,r)=>r.end('building')).listen(process.env.PORT||22317,()=>console.log('dummy port open'))\" & EXPO_NO_TELEMETRY=1 node_modules/.bin/expo export --platform ios --output-dir /tmp/ios-hotfix ; kill %1 2>/dev/null; EXPO_TOKEN=WeNuUChLeFVnqUjrsQgTMlAEX_czcxXPYHrRwdPP EXPO_PACKAGER_PROXY_URL=https://$REPLIT_EXPO_DEV_DOMAIN EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN EXPO_PUBLIC_REPL_ID=$REPL_ID REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN pnpm exec expo start --localhost --port $PORT",
+    "dev": "EXPO_TOKEN=WeNuUChLeFVnqUjrsQgTMlAEX_czcxXPYHrRwdPP EXPO_PACKAGER_PROXY_URL=https://$REPLIT_EXPO_DEV_DOMAIN EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN EXPO_PUBLIC_REPL_ID=$REPL_ID REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN pnpm exec expo start --localhost --port $PORT",
     "build": "node scripts/build.js",
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",

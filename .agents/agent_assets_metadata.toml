@@ -84,3 +84,9 @@ id = "cycuVHWXILlOt1DPDAwwS"
 uri = "file://swimnote-pricing.md"
 type = "text"
 title = "SwimNote 플랜 가격표"
+
+[[outputs]]
+id = "Y5azGzoQvmdo5E_RfrV8L"
+uri = "file://swimnote_작업감사보고서.txt"
+type = "text"
+title = "SwimNote 작업 감사 보고서"

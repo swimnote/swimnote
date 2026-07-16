@@ -103,24 +103,40 @@ export default function TodayScheduleScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [schedRes, ovRes] = await Promise.all([
+      const poolId = (adminUser as any)?.swimming_pool_id || "";
+      const month  = today.slice(0, 7);
+      const [schedRes, ovRes, holRes] = await Promise.all([
         apiRequest(token, `/today-schedule?date=${today}`),
         apiRequest(token, "/teacher/overview"),
+        poolId ? apiRequest(token, `/holidays?pool_id=${poolId}&month=${month}`) : Promise.resolve(null),
       ]);
+
+      // 휴무일 클라이언트 체크 — 서버 버전과 무관하게 항상 동작
+      let isHoliday = false;
+      if (holRes && holRes.ok) {
+        const holData = await holRes.json();
+        const holidays: any[] = holData.holidays || [];
+        isHoliday = holidays.some((h: any) => (h.holiday_date ?? "").slice(0, 10) === today);
+      }
+
       if (schedRes.ok) {
         const schedData: ScheduleItem[] = await schedRes.json();
-        setItems(schedData);
-        // 서버가 students 포함해서 내려주면 바로 map에 저장 — 별도 API 호출 불필요
-        const map: Record<string, StudentItem[]> = {};
-        for (const it of schedData) {
-          if ((it as any).students) map[it.id] = (it as any).students as StudentItem[];
+        if (isHoliday) {
+          setItems([]);
+        } else {
+          setItems(schedData);
+          // 서버가 students 포함해서 내려주면 바로 map에 저장 — 별도 API 호출 불필요
+          const map: Record<string, StudentItem[]> = {};
+          for (const it of schedData) {
+            if ((it as any).students) map[it.id] = (it as any).students as StudentItem[];
+          }
+          if (Object.keys(map).length > 0) setItemStudentsMap(map);
         }
-        if (Object.keys(map).length > 0) setItemStudentsMap(map);
       }
       if (ovRes.ok) setOverview(await ovRes.json());
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
-  }, [token, today]);
+  }, [token, today, adminUser]);
 
   // useFocusEffect이 마운트 + 포커스 복귀 모두 처리 — useEffect(() => load()) 중복 제거
   useFocusEffect(useCallback(() => {
