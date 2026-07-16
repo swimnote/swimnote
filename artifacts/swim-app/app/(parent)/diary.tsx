@@ -1,18 +1,17 @@
 /**
  * 학부모 수업일지 — 수업 피드백 리스트
+ * - FlatList로 수백개 일지도 부드럽게 스크롤
  * - 날짜, 선생님, 내용 미리보기, 개별코멘트 표시
  * - 항목 클릭 시 펼치기/접기
- * - 쪽지달기 → messages.tsx 페이지로 이동 (Modal 제거)
  */
 import { BookOpen, CircleCheck, Mail, User, UserRound } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Platform, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, FlatList, Pressable, RefreshControl,
+  StyleSheet, Text, View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -194,6 +193,7 @@ export default function ParentDiaryScreen() {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const listRef = useRef<FlatList>(null);
 
   const fetchEntries = useCallback(async () => {
     if (!selectedStudent?.id) { setLoading(false); return; }
@@ -206,6 +206,27 @@ export default function ParentDiaryScreen() {
   }, [token, selectedStudent?.id]);
 
   useEffect(() => { setLoading(true); fetchEntries(); }, [fetchEntries]);
+
+  // 하이라이트 항목 스크롤
+  useEffect(() => {
+    if (!highlightId || entries.length === 0) return;
+    const idx = entries.findIndex(e => e.id === highlightId);
+    if (idx > 0) {
+      setTimeout(() => listRef.current?.scrollToIndex({ index: idx, animated: true, viewOffset: 8 }), 400);
+    }
+  }, [highlightId, entries]);
+
+  const renderItem = useCallback(({ item }: { item: DiaryEntry }) => (
+    <DiaryCard
+      entry={item}
+      studentId={selectedStudent?.id ?? ""}
+      studentName={selectedStudent?.name ?? ""}
+      classGroupId={selectedStudent?.class_group_id}
+      initialOpen={!!highlightId && item.id === highlightId}
+    />
+  ), [selectedStudent, highlightId]);
+
+  const keyExtractor = useCallback((item: DiaryEntry) => item.id, []);
 
   return (
     <View style={[ds.root, { backgroundColor: C.background }]}>
@@ -222,31 +243,30 @@ export default function ParentDiaryScreen() {
           <Text style={[ds.emptyTitle, { color: C.text }]}>자녀를 선택해주세요</Text>
           <Text style={[ds.emptySub, { color: C.textSecondary }]}>홈 화면에서 자녀를 선택하세요</Text>
         </View>
+      ) : entries.length === 0 ? (
+        <View style={ds.empty}>
+          <BookOpen size={44} color={C.textMuted} />
+          <Text style={[ds.emptyTitle, { color: C.text }]}>아직 수업 일지가 없습니다</Text>
+          <Text style={[ds.emptySub, { color: C.textSecondary }]}>선생님이 수업 후 일지를 작성하면{"\n"}여기에서 확인하실 수 있습니다</Text>
+        </View>
       ) : (
-        <ScrollView
+        <FlatList
+          ref={listRef}
+          data={entries}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchEntries(); }} />
+          }
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, paddingTop: 8 }}
+          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchEntries(); }} />}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, paddingTop: 8, gap: 12 }}
-        >
-          {entries.length === 0 ? (
-            <View style={ds.empty}>
-              <BookOpen size={44} color={C.textMuted} />
-              <Text style={[ds.emptyTitle, { color: C.text }]}>아직 수업 일지가 없습니다</Text>
-              <Text style={[ds.emptySub, { color: C.textSecondary }]}>선생님이 수업 후 일지를 작성하면{"\n"}여기에서 확인하실 수 있습니다</Text>
-            </View>
-          ) : (
-            entries.map(e => (
-              <DiaryCard
-                key={e.id}
-                entry={e}
-                studentId={selectedStudent.id}
-                studentName={selectedStudent.name}
-                classGroupId={selectedStudent.class_group_id}
-                initialOpen={!!highlightId && e.id === highlightId}
-              />
-            ))
-          )}
-        </ScrollView>
+          removeClippedSubviews
+          maxToRenderPerBatch={8}
+          windowSize={15}
+          initialNumToRender={10}
+          onScrollToIndexFailed={() => {}}
+        />
       )}
     </View>
   );
