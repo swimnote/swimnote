@@ -257,6 +257,60 @@ function RcUserSync() {
   return null;
 }
 
+// ── Android 알림 채널 설정 (앱 시작 시 1회 등록) ──────────────────────
+async function setupNotificationChannels(N: NotificationsModule) {
+  if (Platform.OS !== "android") return;
+  try {
+    await N.setNotificationChannelAsync("diary", {
+      name: "수업 일지",
+      description: "선생님이 작성한 수업 일지 알림",
+      importance: N.AndroidImportance.HIGH,
+      vibrationPattern: [0, 300, 200, 300],
+      lightColor: "#2EC4B6",
+      sound: "default",
+      enableLights: true,
+      enableVibrate: true,
+      showBadge: true,
+    });
+    await N.setNotificationChannelAsync("class_reminder", {
+      name: "수업 알림",
+      description: "전날/당일 수업 시작 전 알림",
+      importance: N.AndroidImportance.DEFAULT,
+      sound: "default",
+      enableVibrate: true,
+      showBadge: true,
+    });
+    await N.setNotificationChannelAsync("notice", {
+      name: "공지사항",
+      description: "수영장 공지 및 안내",
+      importance: N.AndroidImportance.DEFAULT,
+      sound: "default",
+      showBadge: true,
+    });
+    await N.setNotificationChannelAsync("makeup_schedule", {
+      name: "보강 알림",
+      description: "보강 수업 배정 및 취소 알림",
+      importance: N.AndroidImportance.DEFAULT,
+      sound: "default",
+      enableVibrate: true,
+    });
+    await N.setNotificationChannelAsync("photo_upload", {
+      name: "사진 업로드",
+      description: "새 수업 사진 업로드 알림",
+      importance: N.AndroidImportance.LOW,
+      showBadge: false,
+    });
+    await N.setNotificationChannelAsync("messenger", {
+      name: "메신저",
+      description: "선생님·학교 메시지 알림",
+      importance: N.AndroidImportance.HIGH,
+      sound: "default",
+      enableVibrate: true,
+      showBadge: true,
+    });
+  } catch (_) {}
+}
+
 function PushTokenSync() {
   const { token, kind, parentAccount } = useAuth();
   const registered = useRef(false);
@@ -267,6 +321,8 @@ function PushTokenSync() {
     async function registerToken() {
       try {
         const N = Notifications!;
+        // Android 알림 채널 먼저 등록
+        await setupNotificationChannels(N);
         const { status: existing } = await N.getPermissionsAsync();
         let finalStatus = existing;
         if (existing !== "granted") {
@@ -291,15 +347,18 @@ function PushTokenSync() {
 
 /**
  * 푸시 탭 딥링크 핸들러
- * 푸시 알림 탭 시 역할에 맞는 공지함 화면으로 이동
+ * 알림 타입별로 적합한 화면으로 딥링크 이동
  *
- * 라우팅 규칙:
- *  - parent          → /(parent)/notices
- *  - teacher         → /(teacher)/notices
- *  - pool_admin/sub_admin → /(admin)/notices
- *  - super_admin/etc → /(super)/pool-notices (관리 화면)
- *
- * 데이터 페이로드 { noticeId } 가 없는 알림(타입 불일치 등)은 무시.
+ * type 매핑:
+ *  diary_upload           → 일지 화면
+ *  prev_day_reminder      → 출석/스케줄 화면
+ *  same_day_reminder      → 출석/스케줄 화면
+ *  makeup_day_of          → 출석/스케줄 화면
+ *  makeup_schedule        → 출석/스케줄 화면
+ *  photo_upload           → 사진 화면
+ *  notice                 → 공지 화면
+ *  messenger              → 메신저 화면
+ *  (기타/미분류)           → 공지 화면 (기본)
  */
 function PushNavSync() {
   const { kind, adminUser } = useAuth();
@@ -310,24 +369,67 @@ function PushNavSync() {
 
     const sub = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data as Record<string, unknown> | null;
+      const notifType = (data?.type as string | undefined) ?? "";
+      const role = adminUser?.roles?.[0] ?? adminUser?.role ?? "";
+      const isSuperAdmin = role === "super_admin" || role === "platform_admin" || role === "super_manager";
+      const isTeacher = role === "teacher";
 
-      // 공지 타입 알림이 아니면 무시
-      const category = (data?.category as string | undefined) ?? (data?.type as string | undefined);
-      if (category && category !== "notice") return;
+      // ── 일지 알림 ─────────────────────────────────────────────────────
+      if (notifType === "diary_upload") {
+        if (kind === "parent") {
+          router.push("/(parent)/swim-diary" as any);
+        } else if (kind === "admin") {
+          router.push(isTeacher ? "/(teacher)/diary" as any : "/(admin)/diary-teacher-entries" as any);
+        }
+        return;
+      }
 
-      // 역할에 따라 공지함 화면으로 이동
+      // ── 수업 알림 (전날 / 당일 / 보강) ───────────────────────────────
+      if (
+        notifType === "prev_day_reminder" ||
+        notifType === "same_day_reminder" ||
+        notifType === "makeup_day_of" ||
+        notifType === "makeup_schedule"
+      ) {
+        if (kind === "parent") {
+          router.push("/(parent)/attendance" as any);
+        } else if (kind === "admin") {
+          router.push(isTeacher ? "/(teacher)/today-schedule" as any : "/(admin)/notices" as any);
+        }
+        return;
+      }
+
+      // ── 사진 업로드 알림 ──────────────────────────────────────────────
+      if (notifType === "photo_upload") {
+        if (kind === "parent") {
+          router.push("/(parent)/photos" as any);
+        } else if (kind === "admin") {
+          router.push(isTeacher ? "/(teacher)/photos" as any : "/(admin)/notices" as any);
+        }
+        return;
+      }
+
+      // ── 메신저 알림 ───────────────────────────────────────────────────
+      if (notifType === "messenger") {
+        if (kind === "admin") {
+          router.push(isTeacher ? "/(teacher)/messenger" as any : "/(admin)/messenger" as any);
+        } else if (kind === "parent") {
+          router.push("/(parent)/notices" as any);
+        }
+        return;
+      }
+
+      // ── 공지 / 기본 폴백 ─────────────────────────────────────────────
       if (kind === "parent") {
         router.push("/(parent)/notices" as any);
         return;
       }
       if (kind === "admin" && adminUser) {
-        const role = adminUser.roles?.[0] ?? adminUser.role;
-        if (role === "super_admin" || role === "platform_admin" || role === "super_manager") {
+        if (isSuperAdmin) {
           router.push("/(super)/pool-notices" as any);
-        } else if (role === "teacher") {
+        } else if (isTeacher) {
           router.push("/(teacher)/notices" as any);
         } else {
-          // pool_admin, sub_admin
           router.push("/(admin)/notices" as any);
         }
       }

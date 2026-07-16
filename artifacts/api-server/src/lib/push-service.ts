@@ -19,10 +19,21 @@ const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 export interface PushMessage {
   to: string;
   title: string;
+  subtitle?: string;
   body: string;
   data?: Record<string, unknown>;
   sound?: "default" | null;
   badge?: number;
+  channelId?: string;
+  priority?: "default" | "normal" | "high";
+  ttl?: number;
+}
+
+export interface PushOptions {
+  subtitle?: string;
+  channelId?: string;
+  priority?: "default" | "normal" | "high";
+  ttl?: number;
 }
 
 /** Expo Push API로 실제 발송 */
@@ -30,11 +41,16 @@ export async function sendRawPush(
   tokens: string[],
   title: string,
   body: string,
-  data: Record<string, unknown> = {}
+  data: Record<string, unknown> = {},
+  options: PushOptions = {}
 ): Promise<void> {
   if (!tokens.length) return;
   const messages: PushMessage[] = tokens.map(to => ({
     to, title, body, data, sound: "default",
+    ...(options.subtitle   && { subtitle: options.subtitle }),
+    ...(options.channelId  && { channelId: options.channelId }),
+    ...(options.priority   && { priority: options.priority }),
+    ...(options.ttl != null && { ttl: options.ttl }),
   }));
   try {
     await fetch(EXPO_PUSH_URL, {
@@ -124,7 +140,8 @@ export async function sendPushToUser(
   title: string,
   body: string,
   data: Record<string, unknown> = {},
-  triggeredBy?: string
+  triggeredBy?: string,
+  options: PushOptions = {}
 ): Promise<void> {
   try {
     const enabled = await checkPushEnabled(userId, notifType, isParent);
@@ -136,7 +153,7 @@ export async function sendPushToUser(
       ? await getTokensByParentId(userId)
       : await getTokensByUserId(userId);
     if (!tokens.length) return;
-    await sendRawPush(tokens, title, body, data);
+    await sendRawPush(tokens, title, body, data, options);
     await logPush(userId, isParent ? "parent" : "user", notifType, "sent", body, triggeredBy);
   } catch (e) {
     console.error("[push-service] sendPushToUser 오류:", e);
@@ -156,7 +173,8 @@ export async function sendPushToClassParents(
   body: string,
   data: Record<string, unknown> = {},
   triggeredBy?: string,
-  skipIfDiaryRecentlySent = false
+  skipIfDiaryRecentlySent = false,
+  options: PushOptions = {}
 ): Promise<void> {
   try {
     if (skipIfDiaryRecentlySent) {
@@ -186,7 +204,7 @@ export async function sendPushToClassParents(
       if (!enabled) continue;
       const tokens = await getTokensByParentId(pid);
       if (!tokens.length) continue;
-      await sendRawPush(tokens, title, body, data);
+      await sendRawPush(tokens, title, body, data, options);
       await logPush(pid, "parent", notifType, "sent", body, triggeredBy);
     }
   } catch (e) {

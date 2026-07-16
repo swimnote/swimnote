@@ -151,7 +151,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
           // ── 전체 공지 푸시 ────────────────────────────────────────
           const pushTitle = "[스윔노트] 공지사항";
           const pushBody  = title;
-          await sendPushToAllUsers("notice", pushTitle, pushBody, { noticeId: id }, `notice_${id}`);
+          await sendPushToAllUsers("notice", pushTitle, pushBody, { noticeId: id, type: "notice" }, `notice_${id}`);
 
         } else if (poolId) {
           // ── 수영장별 공지 푸시 ────────────────────────────────────
@@ -166,14 +166,16 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
               WHERE student_id = ${student_id} AND status = 'approved'
             `);
             const { sendPushToUser } = await import("../lib/push-service.js");
+            const noticeOpts = { subtitle: "SwimNote", channelId: "notice" as const };
             for (const p of parentRows.rows as any[]) {
-              await sendPushToUser(p.parent_account_id, true, "notice", pushTitle, pushBody, { noticeId: id }, `notice_${id}`);
+              await sendPushToUser(p.parent_account_id, true, "notice", pushTitle, pushBody, { noticeId: id, type: "notice" }, `notice_${id}`, noticeOpts);
             }
           } else {
+            const noticeOpts = { subtitle: "SwimNote", channelId: "notice" as const };
             await Promise.allSettled([
-              sendPushToPoolParents(poolId, "notice", pushTitle, pushBody, { noticeId: id }, `notice_${id}`),
-              sendPushToPoolAdmins(poolId, "notice", pushTitle, pushBody, { noticeId: id }, `notice_${id}`),
-              sendPushToPoolTeachers(poolId, "notice", pushTitle, pushBody, { noticeId: id }, `notice_${id}`),
+              sendPushToPoolParents(poolId, "notice", pushTitle, pushBody, { noticeId: id, type: "notice" }, `notice_${id}`),
+              sendPushToPoolAdmins(poolId, "notice", pushTitle, pushBody, { noticeId: id, type: "notice" }, `notice_${id}`),
+              sendPushToPoolTeachers(poolId, "notice", pushTitle, pushBody, { noticeId: id, type: "notice" }, `notice_${id}`),
             ]);
           }
         }

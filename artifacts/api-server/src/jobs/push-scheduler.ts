@@ -67,13 +67,16 @@ async function runPrevDaySchedule(): Promise<void> {
       `);
 
       for (const cls of classes.rows as any[]) {
+        const body = `${cls.class_name} 수업이 내일 있어요. 준비물 챙기는 거 잊지 마세요! 🏊`;
         await sendPushToClassParents(
           cls.class_id,
           "class_reminder",
-          "📅 내일 수업 알림",
-          template,
+          "📅 내일 수업이 있어요",
+          body,
           { type: "prev_day_reminder", classId: cls.class_id },
-          `prev_day_${pool_id}_${todayDateStr}`
+          `prev_day_${pool_id}_${todayDateStr}`,
+          false,
+          { subtitle: "SwimNote", channelId: "class_reminder", ttl: 43200 }
         );
       }
 
@@ -139,14 +142,17 @@ async function runSameDaySchedule(): Promise<void> {
         `);
         if (alreadySent.rows.length > 0) continue;
 
-        const body = template.replace("{offset}", String(offset_hours));
+        const hourLabel = offset_hours === 1 ? "1시간" : `${offset_hours}시간`;
+        const body = `${cls.class_name} 수업 시작까지 ${hourLabel} 남았어요 ⏱`;
         await sendPushToClassParents(
           cls.class_id,
           "class_reminder",
-          "⏰ 오늘 수업 알림",
+          "⏰ 곧 수업이 시작돼요",
           body,
           { type: "same_day_reminder", classId: cls.class_id },
-          `same_day_${pool_id}_${todayDateStr}`
+          `same_day_${pool_id}_${todayDateStr}`,
+          false,
+          { subtitle: "SwimNote", channelId: "class_reminder", priority: "high", ttl: 3600 }
         );
 
         const sentId = `pss_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;

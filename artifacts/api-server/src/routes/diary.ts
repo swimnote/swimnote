@@ -80,8 +80,17 @@ async function logAudit({
   `);
 }
 
-async function sendDiaryPush(classId: string, diaryId: string, className: string, poolId: string) {
+// ── 날짜 포맷 헬퍼 (일지 알림용) ──────────────────────────────────────
+function formatDateKr(dateStr: string): string {
   try {
+    const [, m, d] = dateStr.split("-");
+    return `${parseInt(m)}월 ${parseInt(d)}일`;
+  } catch { return dateStr; }
+}
+
+async function sendDiaryPush(classId: string, diaryId: string, className: string, poolId: string, lessonDate?: string) {
+  try {
+    const dateLabel = lessonDate ? ` (${formatDateKr(lessonDate)})` : "";
     // 인앱 알림 생성 (notifications 테이블)
     const parentRows = await db.execute(sql`
       SELECT DISTINCT pa.id AS parent_account_id
@@ -91,70 +100,67 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
       WHERE (s.class_group_id = ${classId} OR s.assigned_class_ids @> to_jsonb(${classId}::text))
         AND s.status != 'deleted' AND ps.status = 'approved'
     `);
+    const notifBody = `${className}${dateLabel} 수업 일지가 도착했어요. 지금 확인해보세요 💬`;
     for (const p of parentRows.rows as any[]) {
       const nid = genId("notif");
       await db.execute(sql`
         INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
         VALUES (${nid}, ${p.parent_account_id}, 'parent_account', 'diary_upload',
-                '새 수업 일지가 작성되었습니다',
-                ${`${className} 수업 일지가 작성되었습니다. 확인해보세요!`},
+                '📖 수업 일지가 도착했어요',
+                ${notifBody},
                 ${diaryId}, 'class_diary', ${poolId}, false)
         ON CONFLICT DO NOTHING
       `);
     }
 
-    // 푸시 알림 발송 (pool 템플릿 + 개별 ON/OFF 설정 적용)
-    const pSettings = await db.execute(sql`
-      SELECT COALESCE(tpl_diary, '📒 새 수업 일지가 작성되었습니다.') AS tpl
-      FROM pool_push_settings WHERE pool_id = ${poolId} LIMIT 1
-    `).catch(() => ({ rows: [] }));
-    const tpl = (pSettings.rows[0] as any)?.tpl ?? "📒 새 수업 일지가 작성되었습니다.";
     const { sendPushToClassParents } = await import("../lib/push-service.js");
     await sendPushToClassParents(
       classId,
       "diary_upload",
-      "📒 새 수업 일지",
-      tpl,
+      "📖 수업 일지가 도착했어요",
+      notifBody,
       { type: "diary_upload", diaryId, classId },
-      `diary_${diaryId}`
+      `diary_${diaryId}`,
+      false,
+      { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
     );
   } catch (e) { console.error("[diary] 푸시 알림 오류:", e); }
 }
 
 // 공통 일지 없이 개인 일지만 있을 때: 해당 학생의 학부모에게만 발송
-async function sendDiaryPushToStudents(studentIds: string[], diaryId: string, className: string, poolId: string) {
+async function sendDiaryPushToStudents(studentIds: string[], diaryId: string, className: string, poolId: string, lessonDate?: string) {
   if (studentIds.length === 0) return;
   try {
+    const dateLabel = lessonDate ? ` (${formatDateKr(lessonDate)})` : "";
     const idsLiteral = studentIds.map(id => `'${id.replace(/'/g, "''")}'`).join(",");
     const parentRows = await db.execute(sql.raw(`
-      SELECT DISTINCT pa.id AS parent_account_id
+      SELECT DISTINCT pa.id AS parent_account_id, s.name AS student_name
       FROM students s
       JOIN parent_students ps ON ps.student_id = s.id
       JOIN parent_accounts pa ON pa.id = ps.parent_id
       WHERE s.id IN (${idsLiteral})
         AND s.status != 'deleted' AND ps.status = 'approved'
     `));
-    const pSettings = await db.execute(sql`
-      SELECT COALESCE(tpl_diary, '📒 새 수업 일지가 작성되었습니다.') AS tpl
-      FROM pool_push_settings WHERE pool_id = ${poolId} LIMIT 1
-    `).catch(() => ({ rows: [] }));
-    const tpl = (pSettings.rows[0] as any)?.tpl ?? "📒 새 수업 일지가 작성되었습니다.";
     const { sendPushToUser } = await import("../lib/push-service.js");
     for (const p of parentRows.rows as any[]) {
+      const studentLabel = p.student_name ? `${p.student_name}의 ` : "";
+      const notifBody = `${className}${dateLabel} ${studentLabel}개인 수업 일지가 도착했어요 💬`;
       const nid = genId("notif");
       await db.execute(sql`
         INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
         VALUES (${nid}, ${p.parent_account_id}, 'parent_account', 'diary_upload',
-                '새 수업 일지가 작성되었습니다',
-                ${`${className} 개인 일지가 작성되었습니다. 확인해보세요!`},
+                '📖 수업 일지가 도착했어요',
+                ${notifBody},
                 ${diaryId}, 'class_diary', ${poolId}, false)
         ON CONFLICT DO NOTHING
       `);
       await sendPushToUser(
         p.parent_account_id, true, "diary_upload",
-        "📒 새 수업 일지", tpl,
-        { type: "diary_upload", diaryId },
-        `diary_${diaryId}_${p.parent_account_id}`
+        "📖 수업 일지가 도착했어요",
+        notifBody,
+        { type: "diary_upload", diaryId, classId: classId },
+        `diary_${diaryId}_${p.parent_account_id}`,
+        { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
       ).catch(() => {});
     }
   } catch (e) { console.error("[diary] 개인일지 푸시 알림 오류:", e); }
@@ -439,11 +445,11 @@ router.post("/diaries",
       const className = (cgRow.rows[0] as any)?.name || "수업";
       if ((common_content || "").trim()) {
         // 공통 일지 있음 → 전체 반 학부모에게 발송
-        sendDiaryPush(class_group_id, diaryId, className, poolId);
+        sendDiaryPush(class_group_id, diaryId, className, poolId, dateStr);
       } else {
         // 공통 일지 없음 → 개인 일지가 있는 학생의 학부모에게만 발송
         const noteStudentIds = savedNotes.map((n: any) => n.student_id);
-        sendDiaryPushToStudents(noteStudentIds, diaryId, className, poolId);
+        sendDiaryPushToStudents(noteStudentIds, diaryId, className, poolId, dateStr);
       }
 
       logPoolEvent({

@@ -364,11 +364,12 @@ router.post(
         sendPushToClassParents(
           class_id,
           "photo_upload",
-          "📸 사진 업로드",
+          "📸 새 사진이 올라왔어요",
           tpl,
-          { type: "photo", classId: class_id },
+          { type: "photo_upload", classId: class_id },
           `photo_group_${class_id}_${Date.now()}`,
-          true
+          true,
+          { subtitle: "SwimNote", channelId: "photo_upload" }
         ).catch(() => {});
       }
 
