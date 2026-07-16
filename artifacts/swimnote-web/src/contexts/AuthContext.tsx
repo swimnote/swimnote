@@ -15,8 +15,14 @@ interface AuthState {
   loading: boolean;
 }
 
+export interface LoginResult {
+  totp_required: true;
+  totp_session: string;
+}
+
 interface AuthContextValue extends AuthState {
-  login: (email: string, password: string) => Promise<User>;
+  login: (email: string, password: string) => Promise<User | LoginResult>;
+  completeTotpLogin: (totpSession: string, otpCode: string) => Promise<User>;
   logout: () => void;
 }
 
@@ -43,11 +49,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, []);
 
-  const login = async (email: string, password: string): Promise<User> => {
-    const res = await api.post<{ token: string; user: User }>("/auth/login", { email, password });
+  const login = async (email: string, password: string): Promise<User | LoginResult> => {
+    const res = await api.post<any>("/auth/login", { email, password });
+    if (res.totp_required) {
+      return { totp_required: true, totp_session: res.totp_session } as LoginResult;
+    }
     localStorage.setItem("sw_token", res.token);
     setState({ user: res.user, token: res.token, loading: false });
-    return res.user;
+    return res.user as User;
+  };
+
+  const completeTotpLogin = async (totpSession: string, otpCode: string): Promise<User> => {
+    const res = await api.post<any>("/auth/totp/verify-login", {
+      totp_session: totpSession,
+      otp_code: otpCode,
+    });
+    localStorage.setItem("sw_token", res.token);
+    setState({ user: res.user, token: res.token, loading: false });
+    return res.user as User;
   };
 
   const logout = () => {
@@ -56,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout }}>
+    <AuthContext.Provider value={{ ...state, login, completeTotpLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );
