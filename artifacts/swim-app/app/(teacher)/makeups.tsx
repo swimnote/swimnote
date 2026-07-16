@@ -158,7 +158,7 @@ export default function MakeupsScreen() {
   const loadWaiting = useCallback(async () => {
     if (!adminUser?.id) return;
     try {
-      const res = await apiRequest(token, `/admin/makeups?status=waiting&teacher_id=${adminUser.id}`);
+      const res = await apiRequest(token, `/admin/makeups?status=waiting`);
       if (res.ok) setWaitingList(await res.json());
     } catch (e) { console.error(e); }
     finally { setWaitingLoading(false); setWaitingRefresh(false); }
@@ -825,9 +825,9 @@ export default function MakeupsScreen() {
 const s = StyleSheet.create({
   safe:            { flex: 1, backgroundColor: "#FFFFFF" },
   tabBtn:          { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
-  tabTxt:          { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  tabTxt:          { fontSize: 13, lineHeight: 18, color: C.textSecondary },
   tabBadge:        { width: 16, height: 16, borderRadius: 8, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center" },
-  tabBadgeTxt:     { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#fff" },
+  tabBadgeTxt:     { fontSize: 9, lineHeight: 13, color: "#fff" },
   list:            { padding: 14, gap: 10 },
   groupLabel:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, marginBottom: 6, marginTop: 4 },
   empty:           { alignItems: "center", gap: 12, paddingVertical: 60 },

@@ -372,8 +372,8 @@ function WaitingActionSheet({
 const s = StyleSheet.create({
   tabRow:      { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
   tabBtn:      { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
-  tabTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  tabCount:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  tabTxt:      { fontSize: 12, lineHeight: 17, color: C.textSecondary },
+  tabCount:    { fontSize: 12, lineHeight: 17, color: C.textMuted },
   searchRow:   { flexDirection: "row", alignItems: "center", backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
   searchInput: { flex: 1, height: 42, paddingHorizontal: 8, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   emptyBox:    { alignItems: "center", gap: 10, paddingVertical: 60 },

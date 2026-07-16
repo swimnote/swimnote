@@ -496,7 +496,7 @@ const st = StyleSheet.create({
   tabRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   tabBtn: { paddingHorizontal: 18, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F8FAFC" },
   tabBtnActive: { borderColor: "#2EC4B6", backgroundColor: "#E6FFFA" },
-  tabTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt: { fontSize: 13, lineHeight: 18, color: "#64748B" },
   tabTxtActive: { color: "#2EC4B6" },
 
   monthHeader: { paddingHorizontal: 14, paddingTop: 18, paddingBottom: 8 },

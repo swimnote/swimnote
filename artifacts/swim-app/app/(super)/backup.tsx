@@ -1507,7 +1507,7 @@ const s = StyleSheet.create({
   outlineBtnTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: P },
   tab:           { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#FFFFFF" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt:        { fontSize: 12, lineHeight: 17, color: "#64748B" },
   tabActiveTxt:  { color: "#fff" },
   empty:         { alignItems: "center", paddingTop: 60, gap: 10 },
   emptyTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },

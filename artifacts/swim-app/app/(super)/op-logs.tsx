@@ -277,7 +277,7 @@ const s = StyleSheet.create({
   tab:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7,
                   borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
   tabAllActive: { backgroundColor: P, borderColor: P },
-  tabTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt:       { fontSize: 12, lineHeight: 17, color: "#64748B" },
   dateDivider:  { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 6 },
   dateLine:     { flex: 1, height: 1, backgroundColor: "#E5E7EB" },
   dateLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },

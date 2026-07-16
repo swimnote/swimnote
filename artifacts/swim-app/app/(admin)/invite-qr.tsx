@@ -152,7 +152,7 @@ const s = StyleSheet.create({
 
   tabRow: { flexDirection: "row", gap: 8 },
   tab: { flex: 1, height: 40, borderRadius: 12, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center", backgroundColor: C.background },
-  tabTxt: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  tabTxt: { fontSize: 14, lineHeight: 19 },
 
   qrCard: { backgroundColor: "#fff", borderRadius: 20, padding: 24, alignItems: "center", gap: 10, shadowColor: "#00000015", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 4 },
   qrHeader: { width: "100%", alignItems: "center" },

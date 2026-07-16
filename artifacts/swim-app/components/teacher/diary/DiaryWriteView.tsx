@@ -431,7 +431,7 @@ export const s = StyleSheet.create({
   infoCardText:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
   subHeader:     { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tabBtn:        { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
-  tabBtnText:    { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  tabBtnText:    { fontSize: 12, lineHeight: 17 },
   diaryList:     { padding: 12, gap: 10, paddingBottom: 120 },
   diaryCard:     { borderRadius: 14, padding: 14, gap: 8 },
   diaryCardEditable: { borderWidth: 1.5, borderColor: "#E6FFFA" },

@@ -634,8 +634,8 @@ const s = StyleSheet.create({
   tabBar:    { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tab:       { flex: 1, paddingVertical: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 4 },
   tabActive: { borderBottomWidth: 2, borderBottomColor: P },
-  tabTxt:    { fontSize: 12, color: GRAY, fontFamily: "Pretendard-Regular" },
-  tabTxtActive: { color: P, fontFamily: "Pretendard-Regular" },
+  tabTxt:    { fontSize: 12, lineHeight: 17, color: GRAY },
+  tabTxtActive: { color: P },
   badge:     { backgroundColor: RED, borderRadius: 8, minWidth: 16, height: 16, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
   badgeTxt:  { color: "#fff", fontSize: 9, fontFamily: "Pretendard-Regular" },
 

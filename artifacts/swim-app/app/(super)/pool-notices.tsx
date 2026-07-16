@@ -558,7 +558,7 @@ const s = StyleSheet.create({
   tab:           { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
                    gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: "#FFFFFF" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt:        { fontSize: 13, lineHeight: 18, color: "#64748B" },
   tabTxtActive:  { color: "#fff" },
   banner:        { flexDirection: "row", gap: 8, alignItems: "flex-start",
                    paddingHorizontal: 16, paddingVertical: 10,

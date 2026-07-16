@@ -923,7 +923,7 @@ const s = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: "#FFFFFF" },
   subHeader:    { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tabBtn:       { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
-  tabBtnText:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  tabBtnText:   { fontSize: 12, lineHeight: 17 },
   dateLabelRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 2 },
   dateLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#6B7280" },
 });

@@ -336,7 +336,7 @@ const s = StyleSheet.create({
                    borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tab:           { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: "#FFFFFF" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt:        { fontSize: 13, lineHeight: 18, color: "#64748B" },
   tabTxtActive:  { color: "#fff" },
   infoBanner:    { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#E0F2FE",
                    borderRadius: 8, padding: 10, marginTop: 4 },

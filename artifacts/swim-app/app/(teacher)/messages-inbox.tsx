@@ -534,9 +534,9 @@ const s = StyleSheet.create({
 
   tabRow:         { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border },
   tab:            { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 },
-  tabTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  tabTxt:         { fontSize: 14, lineHeight: 19 },
   tabBadge:       { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 },
-  tabBadgeTxt:    { color: "#fff", fontSize: 11, fontFamily: "Pretendard-Regular" },
+  tabBadgeTxt:    { color: "#fff", fontSize: 11, lineHeight: 15 },
 
   empty:          { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingTop: 80 },
   emptyTxt:       { fontSize: 16, fontFamily: "Pretendard-Regular" },

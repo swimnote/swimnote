@@ -572,7 +572,7 @@ const s = StyleSheet.create({
   tab:              { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
                       backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E7EB" },
   tabActive:        { backgroundColor: DANGER, borderColor: DANGER },
-  tabTxt:           { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt:           { fontSize: 13, lineHeight: 18, color: "#64748B" },
   tabTxtActive:     { color: "#fff" },
 
   stepCard:         { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#E5E7EB",
