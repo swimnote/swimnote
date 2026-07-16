@@ -35,7 +35,7 @@ const C = Colors.light;
 export default function TeacherDiaryScreen() {
   const { token, adminUser: user } = useAuth();
   const { themeColor } = useBrand();
-  const params = useLocalSearchParams<{ classGroupId?: string; className?: string; lessonDate?: string; editDiaryId?: string }>();
+  const params = useLocalSearchParams<{ classGroupId?: string; className?: string; lessonDate?: string; editDiaryId?: string; backTo?: string }>();
 
   const [targetDate, setTargetDate] = useState<string>(() =>
     (params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/))
@@ -471,9 +471,9 @@ export default function TeacherDiaryScreen() {
       setHasDraft(false);
       haptic.success();
       setSaveMsg({ type: "success", text: "수업 일지가 저장되었습니다. 학부모에게 알림이 발송됩니다." });
-      const cameFromUnwritten = !!(params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/));
+      const cameFromExternal = !!(params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/)) || !!(params.backTo) || !!(params.classGroupId);
       const savedGroupId = selectedGroup.id;
-      setTimeout(() => { setSaveMsg(null); if (cameFromUnwritten) router.back(); else setSelectedGroup(prev => prev?.id === savedGroupId ? null : prev); }, 2000);
+      setTimeout(() => { setSaveMsg(null); if (cameFromExternal) router.back(); else setSelectedGroup(prev => prev?.id === savedGroupId ? null : prev); }, 2000);
     } catch (e: any) { setSaveMsg({ type: "error", text: e.message || "저장 중 오류가 발생했습니다." }); }
     finally { setSaving(false); }
   }
@@ -619,7 +619,7 @@ export default function TeacherDiaryScreen() {
           <SubScreenHeader
             title="일지 수정"
             subtitle={editDiary ? `${editDiary.lesson_date} · ${group.schedule_time}` : ""}
-            onBack={() => { if (params.editDiaryId) router.back(); else { setSubView("history"); setEditDiary(null); } }}
+            onBack={() => { if (params.editDiaryId || params.backTo || params.classGroupId) router.back(); else { setSubView("history"); setEditDiary(null); } }}
             homePath="/(teacher)/today-schedule"
           />
           <DiaryEditView
@@ -634,7 +634,7 @@ export default function TeacherDiaryScreen() {
             editCursorRef={editCursorRef}
             classStudents={classStudents}
             onSave={handleEditSave}
-            onBack={() => { if (params.editDiaryId) router.back(); else { setSubView("history"); setEditDiary(null); } }}
+            onBack={() => { if (params.editDiaryId || params.backTo || params.classGroupId) router.back(); else { setSubView("history"); setEditDiary(null); } }}
             onUpdateNoteContent={(noteId, content) => setEditNotes(prev => prev.map(n => n.id === noteId ? { ...n, note_content: content, _modified: true } : n))}
             onMarkNoteDeleted={(noteId) => setEditNotes(prev => prev.map(n => n.id === noteId ? { ...n, _deleted: true } : n))}
             onEditAddNote={() => {
@@ -695,7 +695,10 @@ export default function TeacherDiaryScreen() {
         <SubScreenHeader
           title={group.name}
           subtitle={`${targetDate} · ${group.schedule_time}`}
-          onBack={() => setSelectedGroup(null)}
+          onBack={() => {
+            if (params.backTo || params.classGroupId) { router.back(); }
+            else { setSelectedGroup(null); }
+          }}
           homePath="/(teacher)/today-schedule"
         />
         <View style={s.subHeader}>
@@ -736,7 +739,10 @@ export default function TeacherDiaryScreen() {
             showPickerFor={showPickerFor} setShowPickerFor={setShowPickerFor}
             commonCursorRef={commonCursorRef} noteCursorRef={noteCursorRef}
             onSave={handleSave}
-            onBack={() => setSelectedGroup(null)}
+            onBack={() => {
+              if (params.backTo || params.classGroupId) { router.back(); }
+              else { setSelectedGroup(null); }
+            }}
             onUploadGroupMedia={uploadGroupMedia}
             onUploadStudentMedia={uploadStudentMedia}
             onAddNote={handleAddNote}
