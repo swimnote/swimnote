@@ -158,7 +158,7 @@ export default function MakeupsScreen() {
   const loadWaiting = useCallback(async () => {
     if (!adminUser?.id) return;
     try {
-      const res = await apiRequest(token, `/admin/makeups?status=waiting`);
+      const res = await apiRequest(token, `/admin/makeups?status=waiting&teacher_id=${adminUser.id}`);
       if (res.ok) setWaitingList(await res.json());
     } catch (e) { console.error(e); }
     finally { setWaitingLoading(false); setWaitingRefresh(false); }

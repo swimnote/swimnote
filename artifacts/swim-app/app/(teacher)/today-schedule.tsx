@@ -107,43 +107,27 @@ export default function TodayScheduleScreen() {
         apiRequest(token, `/today-schedule?date=${today}`),
         apiRequest(token, "/teacher/overview"),
       ]);
-      if (schedRes.ok) setItems(await schedRes.json());
+      if (schedRes.ok) {
+        const schedData: ScheduleItem[] = await schedRes.json();
+        setItems(schedData);
+        // 서버가 students 포함해서 내려주면 바로 map에 저장 — 별도 API 호출 불필요
+        const map: Record<string, StudentItem[]> = {};
+        for (const it of schedData) {
+          if ((it as any).students) map[it.id] = (it as any).students as StudentItem[];
+        }
+        if (Object.keys(map).length > 0) setItemStudentsMap(map);
+      }
       if (ovRes.ok) setOverview(await ovRes.json());
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [token, today]);
 
-  useEffect(() => { load(); }, [load]);
-
-  // 화면 포커스 시 스케줄 + overview 갱신 + 60초 폴링 (쪽지 배지 실시간 반영)
+  // useFocusEffect이 마운트 + 포커스 복귀 모두 처리 — useEffect(() => load()) 중복 제거
   useFocusEffect(useCallback(() => {
     load();
     overviewTimerRef.current = setInterval(loadOverview, 60_000);
     return () => { if (overviewTimerRef.current) clearInterval(overviewTimerRef.current); };
   }, [load, loadOverview]));
-
-  useEffect(() => {
-    if (!token || items.length === 0) return;
-    const missing = items.filter(it => !(it.id in itemStudentsMap));
-    if (missing.length === 0) return;
-    Promise.all(
-      missing.map(it =>
-        apiRequest(token, `/class-groups/${it.id}/students`)
-          .then(r => r.ok ? r.json() : [])
-          .then(data => ({
-            id: it.id,
-            students: (Array.isArray(data) ? data : (data.students ?? [])) as StudentItem[],
-          }))
-          .catch(() => ({ id: it.id, students: [] as StudentItem[] }))
-      )
-    ).then(results => {
-      setItemStudentsMap(prev => {
-        const next = { ...prev };
-        results.forEach(r => { next[r.id] = r.students; });
-        return next;
-      });
-    });
-  }, [items, token]);
 
   const pendingAtt  = items.filter(i => i.student_count > 0 && i.att_present < i.student_count).length;
   const diaryPending = items.filter(i => !i.diary_done).length;

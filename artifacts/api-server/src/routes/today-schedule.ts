@@ -137,15 +137,41 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
       noteMap[r.class_group_id] = { note_text: r.note_text, audio_file_url: r.audio_file_url };
     }
 
+    // 학생 상세 목록 — 단일 쿼리로 모든 반 학생 한번에 조회
+    const studentDetailRows = await db.execute(sql`
+      SELECT id, name, birth_year, class_group_id, assigned_class_ids,
+             weekly_count, schedule_labels, status, parent_user_id,
+             updated_at, class_enrolled_at
+      FROM students
+      WHERE swimming_pool_id = ${poolId}
+        AND status NOT IN ('withdrawn', 'deleted')
+        AND deleted_at IS NULL
+      ORDER BY name ASC
+    `);
+    // classId → StudentItem[] 매핑
+    const studentsByClass: Record<string, any[]> = {};
+    for (const cid of classIds) studentsByClass[cid] = [];
+    for (const st of studentDetailRows.rows as any[]) {
+      const ids: string[] = [];
+      const raw = st.assigned_class_ids;
+      if (Array.isArray(raw)) ids.push(...raw);
+      else if (typeof raw === "string") { try { ids.push(...JSON.parse(raw)); } catch {} }
+      if (st.class_group_id && !ids.includes(st.class_group_id)) ids.push(st.class_group_id);
+      for (const cid of ids) {
+        if (classIds.includes(cid)) studentsByClass[cid].push(st);
+      }
+    }
+
     const result = groups.map(g => ({
       ...g,
-      student_count: studentCountMap[g.id] || 0,
-      att_total:     attMap[g.id]?.total || 0,
-      att_present:   attMap[g.id]?.present || 0,
-      diary_done:    diarySet.has(g.id),
-      has_note:      !!noteMap[g.id]?.note_text || !!noteMap[g.id]?.audio_file_url,
-      note_text:     noteMap[g.id]?.note_text || null,
+      student_count:  studentCountMap[g.id] || 0,
+      att_total:      attMap[g.id]?.total || 0,
+      att_present:    attMap[g.id]?.present || 0,
+      diary_done:     diarySet.has(g.id),
+      has_note:       !!noteMap[g.id]?.note_text || !!noteMap[g.id]?.audio_file_url,
+      note_text:      noteMap[g.id]?.note_text || null,
       audio_file_url: noteMap[g.id]?.audio_file_url || null,
+      students:       studentsByClass[g.id] || [],
     }));
 
     res.json(result);
