@@ -209,8 +209,8 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
       onRequestClose={handleClose}
     >
       <Pressable style={s.backdrop} onPress={handleClose} />
-      <View style={s.kvWrapper}>
-        <View style={[s.sheet, { paddingBottom: kbHeight > 0 ? kbHeight : (Platform.OS === "ios" ? 20 : 10) }]}>
+      <View style={[s.kvWrapper, { paddingBottom: kbHeight }]}>
+        <View style={[s.sheet, { paddingBottom: Platform.OS === "ios" ? 20 : 10 }]}>
           {/* ── 고정 상단 ── */}
           <View style={s.handle} />
 
@@ -326,7 +326,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                 keyExtractor={item => item.id}
                 renderItem={renderSentenceItem}
                 style={s.sentenceList}
-                contentContainerStyle={[s.sentenceListContent, { paddingBottom: kbHeight > 0 ? kbHeight + 16 : 4 }]}
+                contentContainerStyle={s.sentenceListContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 ListEmptyComponent={
