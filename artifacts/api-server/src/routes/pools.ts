@@ -475,7 +475,7 @@ router.put("/white-label", requireAuth, requireRole("pool_admin", "super_admin")
 
 // ── 수영장 홈페이지 슬러그로 공개 조회 (인증 불필요) ──────────────────
 router.get("/by-slug/:slug", async (req, res) => {
-  const { slug } = req.params;
+  const slug = decodeURIComponent(req.params.slug);
   try {
     const rows = await superAdminDb.execute(sql`
       SELECT id, name, name_en, address, phone, owner_name,

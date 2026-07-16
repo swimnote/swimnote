@@ -65,6 +65,37 @@ export async function initSuperDb(): Promise<void> {
     await db.execute(sql.raw(`ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS ${col} text;`))
       .catch((e: any) => console.warn(`[super-db-init] swimming_pools.${col} 추가 건너뜀:`, e.message));
   }
+  // swimming_pools 테이블 — 수영장 홈페이지 컬럼
+  await db.execute(sql.raw(`ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS homepage_slug text;`))
+    .catch((e: any) => console.warn("[super-db-init] swimming_pools.homepage_slug 추가 건너뜀:", e.message));
+  await db.execute(sql.raw(`ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS homepage_enabled boolean NOT NULL DEFAULT false;`))
+    .catch((e: any) => console.warn("[super-db-init] swimming_pools.homepage_enabled 추가 건너뜀:", e.message));
+  await db.execute(sql.raw(`CREATE UNIQUE INDEX IF NOT EXISTS idx_swimming_pools_homepage_slug ON swimming_pools(homepage_slug) WHERE homepage_slug IS NOT NULL;`))
+    .catch(() => {});
+  // 홈페이지 샘플 데이터 — 토이키즈스윔클럽 (슬러그 미설정 풀에만 적용)
+  try {
+    const seedResult = await db.execute(sql.raw(`
+      UPDATE swimming_pools SET
+        homepage_slug    = '토이키즈스윔클럽',
+        homepage_enabled = TRUE,
+        introduction     = E'토이키즈스윔클럽은 아이들의 행복한 수영 경험을 위해 설립된 전문 수영 교육 센터입니다.\n\n경력 10년 이상의 전문 코치진이 아이 한 명 한 명에게 맞춤형 수업을 제공하며, 안전하고 즐거운 환경에서 수영의 기초부터 고급 기술까지 체계적으로 가르칩니다.\n\n🏊 소규모 클래스 운영 (레인당 최대 6명)\n🎯 레벨별 맞춤 커리큘럼\n🏅 대회 참가 지원 프로그램',
+        tuition_info     = E'✅ 수강료 안내 (월 기준)\n\n• 유아반 (5~7세): 월 100,000원\n• 초등 기초반: 월 120,000원\n• 초등 심화반: 월 140,000원\n• 중·고등 일반반: 월 150,000원\n\n📌 형제 할인 10% 적용\n📌 3개월 선납 시 5% 추가 할인',
+        level_test_info  = E'🎯 레벨 테스트 안내\n\n수강 등록 전 레벨 테스트를 통해 적합한 반을 배정합니다.\n\n• 유아반: 물 적응도 확인 (보호자 동반)\n• 초등 기초: 25m 자유형 완영 여부\n• 초등 심화: 4영법 50m 이상 완영\n• 중·고등: 영법별 기술 평가\n\n📅 레벨 테스트는 매월 첫째 주 토요일 오전 10시\n📞 사전 예약 필수',
+        event_info       = E'🎉 현재 진행 중인 이벤트\n\n🌟 신규 등록 이벤트\n3월 신규 등록 시 첫 달 수강료 20% 할인\n(선착순 20명 한정)\n\n👨‍👩‍👧 가족 패키지\n가족 3인 이상 등록 시 전원 10% 할인\n\n🏅 대회 준비반 특별 모집\n전국 수영 대회를 목표로 하는 선수반 추가 모집 중',
+        equipment_info   = E'🎽 준비물 안내\n\n✅ 필수 지참물\n• 수영복 (원피스 또는 레쉬가드)\n• 수영모\n• 물안경\n• 개인 수건\n• 물통\n\n💡 선택 지참물\n• 킥판 (저희 센터 대여 가능)\n• 오리발 (심화반 이상)\n\n🚫 주의사항\n• 면 재질 수영복 착용 불가\n• 귀걸이 등 장신구 착용 금지'
+      WHERE name = '토이키즈스윔클럽'
+        AND (homepage_slug IS NULL OR homepage_slug = '')
+      RETURNING id, name, homepage_slug
+    `));
+    if (seedResult.rowCount) {
+      console.log(`[super-db-init] 토이키즈스윔클럽 홈페이지 샘플 데이터 적용 완료 (${seedResult.rowCount}행)`);
+    } else {
+      const check = await db.execute(sql.raw(`SELECT id, name, homepage_slug, homepage_enabled FROM swimming_pools WHERE name = '토이키즈스윔클럽' LIMIT 1`));
+      console.log("[super-db-init] 홈페이지 샘플 데이터 건너뜀 — 현재 상태:", JSON.stringify(check.rows[0] ?? "풀 없음"));
+    }
+  } catch (e: any) {
+    console.warn("[super-db-init] 홈페이지 샘플 데이터 오류:", e.message);
+  }
   console.log("[super-db-init] swimming_pools 수영정보 컬럼 보완 완료");
 
   // subscription_status enum — 결제실패/삭제대기/삭제 값 보완
