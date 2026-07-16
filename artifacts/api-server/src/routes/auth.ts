@@ -138,6 +138,12 @@ router.post("/login", async (req, res) => {
       return;
     }
 
+    // 웹 로그인 시 TOTP 확인 (totp_enabled 설정된 모든 역할)
+    if (req.body.web_login === true && (user as any).totp_enabled && (user as any).totp_secret) {
+      const totpSession = signTotpSession(user.id);
+      return res.json({ success: true, totp_required: true, totp_session: totpSession });
+    }
+
     // 웹 로그인 시 pool_admin 웹 접속 비밀번호 확인
     if (req.body.web_login === true && user.role === "pool_admin") {
       const webPinHash = (user as any).web_pin_hash;
