@@ -95,6 +95,13 @@ export default function Nav() {
               </button>
             );
           })}
+          <button
+            onClick={() => navigate("/login")}
+            className="ml-1 sm:ml-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[11px] sm:text-[13px] font-semibold border transition-all duration-150 cursor-pointer select-none whitespace-nowrap hover:opacity-80"
+            style={{ borderColor: PRIMARY, color: PRIMARY }}
+          >
+            관리자 로그인
+          </button>
         </nav>
       </div>
     </header>
