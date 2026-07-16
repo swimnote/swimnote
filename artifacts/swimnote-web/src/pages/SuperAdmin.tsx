@@ -351,6 +351,12 @@ export default function SuperAdmin() {
                           </>
                         )}
                         <button
+                          onClick={() => navigate(`/pool/${pool.id}`)}
+                          className="px-4 py-2 rounded-xl text-[12px] font-semibold border border-[#ebebeb] text-[#555] hover:bg-[#f5f5f5] transition-colors"
+                        >
+                          홈페이지
+                        </button>
+                        <button
                           onClick={() => {
                             setSubModal(pool);
                             setSubStatus(pool.subscription_status);
