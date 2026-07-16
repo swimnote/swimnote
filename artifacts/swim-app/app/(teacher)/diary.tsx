@@ -191,8 +191,9 @@ export default function TeacherDiaryScreen() {
       // classGroupId가 바뀔 때마다 재처리 (동일 값이면 skip)
       const paramKey = params.classGroupId ?? params.editDiaryId;
       if (paramKey && paramKey !== handledParamKey.current) {
-        handledParamKey.current = paramKey;
         if (params.editDiaryId) {
+          // editDiaryId: 중복 API 호출 방지를 위해 즉시 기록
+          handledParamKey.current = paramKey;
           try {
             const dr = await apiRequest(token, `/diaries/${params.editDiaryId}`);
             if (dr.ok) {
@@ -211,7 +212,11 @@ export default function TeacherDiaryScreen() {
           } catch {}
         } else if (params.classGroupId) {
           const found = groupsList.find(g => g.id === params.classGroupId);
-          if (found) openGroup(found);
+          if (found) {
+            // openGroup 성공 후에만 기록 — 실패 시 다음 load()에서 재시도 가능
+            openGroup(found);
+            handledParamKey.current = paramKey;
+          }
         }
       }
     } catch (e) { console.error(e); }
