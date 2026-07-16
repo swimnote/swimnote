@@ -3,7 +3,7 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
@@ -142,13 +142,18 @@ export default function ClassDetailSheet({
         setMakeupList(prev => prev.filter(m => m.id !== mk.id));
         setSelectedMakeupStudent(null);
         setShowMakeupPicker(false);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        Alert.alert("처리 실패", body?.error || "보충수업 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
       }
-    } catch {}
+    } catch {
+      Alert.alert("오류", "네트워크 오류가 발생했습니다. 다시 시도해주세요.");
+    }
     finally { setMakeupSaving(null); }
   }
 
-  async function markAtt(studentId: string, newStatus: "present" | "absent") {
-    if (studentAttState[studentId] === newStatus) return;
+  async function markAtt(studentId: string, newStatus: "present" | "absent"): Promise<boolean> {
+    if (studentAttState[studentId] === newStatus) return true;
     setSavingStudentId(studentId);
     try {
       await apiRequest(token, "/attendance", {
@@ -162,8 +167,23 @@ export default function ClassDetailSheet({
         }),
       });
       setStudentAttState(prev => ({ ...prev, [studentId]: newStatus }));
-    } catch {}
-    setSavingStudentId(null);
+      setSavingStudentId(null);
+      return true;
+    } catch {
+      setSavingStudentId(null);
+      return false;
+    }
+  }
+
+  async function handleStudentMakeup(st: StudentItem) {
+    if (studentAttState[st.id] !== "absent") {
+      const ok = await markAtt(st.id, "absent");
+      if (!ok) {
+        Alert.alert("오류", "결석 처리 중 오류가 발생했습니다.");
+        return;
+      }
+    }
+    openMakeupPicker();
   }
 
   async function doMoveStudent() {
@@ -347,6 +367,12 @@ export default function ClassDetailSheet({
                           onPress={() => markAtt(st.id, "absent")}
                         >
                           <Text style={[cds.stBtnTxt, { color: isAbsent ? "#D96C6C" : C.textMuted }]}>결석</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[cds.stBtn, { backgroundColor: "#EEF2FF", borderColor: "#C7D2FE" }]}
+                          onPress={() => handleStudentMakeup(st)}
+                        >
+                          <Text style={[cds.stBtnTxt, { color: "#4F46E5" }]}>보충</Text>
                         </Pressable>
                         <Pressable
                           style={[cds.stBtn, { backgroundColor: "#F0F0FF" }]}

@@ -6,7 +6,7 @@ import { Calendar, Check, ChevronRight, CirclePlus, CircleStop, FileText, Mic, P
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Colors from "@/constants/colors";
@@ -89,8 +89,13 @@ export default function DaySheet({
         setMakeupList(prev => prev.filter(m => m.id !== mk.id));
         setSelectedMakeupStudent(null);
         setShowMakeupPicker(false);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        Alert.alert("처리 실패", body?.error || "보충수업 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
       }
-    } catch {}
+    } catch {
+      Alert.alert("오류", "네트워크 오류가 발생했습니다. 다시 시도해주세요.");
+    }
     finally { setMakeupSaving(null); }
   }
 
