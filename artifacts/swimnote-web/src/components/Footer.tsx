@@ -5,7 +5,7 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex items-center gap-3">
             <div style={{ width: 36, height: 23, overflow: "hidden", borderRadius: 7, flexShrink: 0 }}>
-              <img src={`${import.meta.env.BASE_URL}icon.png`} alt="SWIMNOTE" style={{ width: 36, height: "auto", display: "block" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+              <img src={`${import.meta.env.BASE_URL}logo.png`} alt="SWIMNOTE" style={{ width: 36, height: "auto", display: "block" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
             </div>
             <span className="text-[15px] font-bold tracking-tight text-[#0a0a0a]" translate="no">SWIMNOTE</span>
           </div>

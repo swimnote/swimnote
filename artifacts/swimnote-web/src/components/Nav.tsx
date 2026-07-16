@@ -60,7 +60,7 @@ export default function Nav() {
       <div className="max-w-6xl mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
         <button onClick={() => { navigate("/"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
           <span className="flex items-center cursor-pointer select-none shrink-0">
-            <img src={`${import.meta.env.BASE_URL}icon.png`} alt="SWIMNOTE" className="h-8 sm:h-10 w-auto object-contain" onError={(e) => {
+            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="SWIMNOTE" className="h-8 sm:h-10 w-auto object-contain" onError={(e) => {
               (e.currentTarget as HTMLImageElement).style.display = "none";
               (e.currentTarget.nextSibling as HTMLElement).style.display = "block";
             }} />
