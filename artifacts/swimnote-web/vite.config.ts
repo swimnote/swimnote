@@ -66,15 +66,14 @@ export default defineConfig({
     fs: {
       strict: true,
     },
-    proxy: process.env.API_SERVER_PORT
-      ? {
-          "/api": {
-            target: `http://localhost:${process.env.API_SERVER_PORT}`,
-            changeOrigin: true,
-            secure: false,
-          },
-        }
-      : undefined,
+    proxy: {
+      "/api": {
+        target: `http://localhost:${process.env.API_SERVER_PORT ?? 8080}`,
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path,
+      },
+    },
   },
   preview: {
     port,
