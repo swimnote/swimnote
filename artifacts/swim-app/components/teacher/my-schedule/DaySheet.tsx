@@ -80,17 +80,27 @@ export default function DaySheet({
     if (makeupSaving) return;
     setMakeupSaving(mk.id);
     try {
-      const res = await apiRequest(token ?? null, `/teacher/makeups/${mk.id}/complete-direct`, {
+      const assignRes = await apiRequest(token ?? null, `/teacher/makeups/${mk.id}/assign`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: dateStr, class_group_id: classGroup.id }),
+        body: JSON.stringify({ class_group_id: classGroup.id, assigned_date: dateStr }),
       });
-      if (res.ok) {
+      if (!assignRes.ok) {
+        const body = await assignRes.json().catch(() => ({}));
+        Alert.alert("처리 실패", body?.error || "보충수업 배정 중 오류가 발생했습니다.");
+        return;
+      }
+      const completeRes = await apiRequest(token ?? null, `/admin/makeups/${mk.id}/complete`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (completeRes.ok) {
         setMakeupList(prev => prev.filter(m => m.id !== mk.id));
         setSelectedMakeupStudent(null);
         setShowMakeupPicker(false);
       } else {
-        const body = await res.json().catch(() => ({}));
+        const body = await completeRes.json().catch(() => ({}));
         Alert.alert("처리 실패", body?.error || "보충수업 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
       }
     } catch {

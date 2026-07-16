@@ -120,14 +120,19 @@ export default function MyScheduleScreen() {
     if (!selectedGroup || assigningMakeupId) return;
     setAssigningMakeupId(mk.id);
     try {
-      const res = await apiRequest(token, `/teacher/makeups/${mk.id}/complete-direct`, {
+      const today = todayDateStr();
+      const assignRes = await apiRequest(token, `/teacher/makeups/${mk.id}/assign`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: todayDateStr(), class_group_id: selectedGroup.id }),
+        body: JSON.stringify({ class_group_id: selectedGroup.id, assigned_date: today }),
       });
-      if (res.ok) {
-        await loadDayMakeups(selectedGroup.id);
-      }
+      if (!assignRes.ok) return;
+      await apiRequest(token, `/admin/makeups/${mk.id}/complete`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      await loadDayMakeups(selectedGroup.id);
     } catch {}
     finally { setAssigningMakeupId(null); }
   }
