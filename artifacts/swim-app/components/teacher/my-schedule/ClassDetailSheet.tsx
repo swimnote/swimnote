@@ -175,17 +175,6 @@ export default function ClassDetailSheet({
     }
   }
 
-  async function handleStudentMakeup(st: StudentItem) {
-    if (studentAttState[st.id] !== "absent") {
-      const ok = await markAtt(st.id, "absent");
-      if (!ok) {
-        Alert.alert("오류", "결석 처리 중 오류가 발생했습니다.");
-        return;
-      }
-    }
-    openMakeupPicker();
-  }
-
   async function doMoveStudent() {
     if (!moveStudent || !movingToClassId) return;
     setMovingStudent(true);
@@ -367,12 +356,6 @@ export default function ClassDetailSheet({
                           onPress={() => markAtt(st.id, "absent")}
                         >
                           <Text style={[cds.stBtnTxt, { color: isAbsent ? "#D96C6C" : C.textMuted }]}>결석</Text>
-                        </Pressable>
-                        <Pressable
-                          style={[cds.stBtn, { backgroundColor: "#EEF2FF", borderColor: "#C7D2FE" }]}
-                          onPress={() => handleStudentMakeup(st)}
-                        >
-                          <Text style={[cds.stBtnTxt, { color: "#4F46E5" }]}>보충</Text>
                         </Pressable>
                         <Pressable
                           style={[cds.stBtn, { backgroundColor: "#F0F0FF" }]}
