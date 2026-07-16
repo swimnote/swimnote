@@ -39,7 +39,7 @@ interface PoolDetail {
   canEdit?: boolean;
 }
 
-type TabId = "info" | "subscription" | "storage" | "policy" | "logs" | "actions";
+type TabId = "info" | "subscription" | "storage" | "policy" | "logs" | "actions" | "homepage";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "info", label: "기본정보" },
@@ -48,6 +48,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "policy", label: "정책·동의" },
   { id: "logs", label: "로그" },
   { id: "actions", label: "강제조치" },
+  { id: "homepage", label: "🌐 홈페이지" },
 ];
 
 const subLabel: Record<string, string> = {
@@ -121,6 +122,15 @@ export default function PoolAdmin() {
   // Delete confirm
   const [deleteConfirm, setDeleteConfirm] = useState("");
 
+  // Homepage settings
+  const [hpSlug, setHpSlug] = useState("");
+  const [hpEnabled, setHpEnabled] = useState(false);
+  const [hpSlugInput, setHpSlugInput] = useState("");
+  const [hpCheckMsg, setHpCheckMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [hpSaving, setHpSaving] = useState(false);
+  const [hpMsg, setHpMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [hpLoaded, setHpLoaded] = useState(false);
+
   useEffect(() => {
     if (authLoading) return;
     if (!user) { navigate("/login", { replace: true }); return; }
@@ -166,6 +176,19 @@ export default function PoolAdmin() {
   }, [poolId, tab]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
+
+  useEffect(() => {
+    if (tab !== "homepage" || hpLoaded) return;
+    (async () => {
+      try {
+        const data = await api.get<any>("/pools/homepage/settings");
+        setHpSlug(data.homepage_slug ?? "");
+        setHpSlugInput(data.homepage_slug ?? "");
+        setHpEnabled(data.homepage_enabled ?? false);
+        setHpLoaded(true);
+      } catch { /* ignore */ }
+    })();
+  }, [tab, hpLoaded]);
 
   const openSubModal = () => {
     if (!pool) return;
@@ -227,7 +250,9 @@ export default function PoolAdmin() {
   }
   if (!user || (user.role !== "super_admin" && user.role !== "pool_admin")) return null;
   const isSuperAdmin = user.role === "super_admin";
-  const visibleTabs = isSuperAdmin ? TABS : TABS.filter(t => t.id !== "actions");
+  const visibleTabs = isSuperAdmin
+    ? TABS
+    : TABS.filter(t => t.id !== "actions" && t.id !== "subscription" && t.id !== "storage" && t.id !== "policy" && t.id !== "logs");
   if (!pool) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -487,6 +512,159 @@ export default function PoolAdmin() {
     </div>
   );
 
+  const checkSlug = async () => {
+    if (!hpSlugInput) return;
+    setHpCheckMsg(null);
+    try {
+      const data = await api.get<any>(`/pools/homepage/check-slug?slug=${encodeURIComponent(hpSlugInput)}`);
+      setHpCheckMsg({ text: data.message, ok: data.available });
+    } catch { setHpCheckMsg({ text: "확인 중 오류가 발생했습니다.", ok: false }); }
+  };
+
+  const saveHomepage = async () => {
+    setHpSaving(true); setHpMsg(null);
+    try {
+      const payload: any = { homepage_slug: hpSlugInput || null, homepage_enabled: hpEnabled };
+      const data = await api.patch<any>("/pools/homepage/settings", payload);
+      if (data.success !== false) {
+        setHpSlug(data.homepage_slug ?? "");
+        setHpSlugInput(data.homepage_slug ?? "");
+        setHpEnabled(data.homepage_enabled ?? false);
+        setHpMsg({ text: "저장되었습니다.", ok: true });
+      }
+    } catch (e: any) {
+      setHpMsg({ text: e?.data?.error || "저장 중 오류가 발생했습니다.", ok: false });
+    } finally { setHpSaving(false); }
+  };
+
+  const BASE_URL = window.location.origin;
+
+  const renderHomepage = () => (
+    <div className="space-y-6 max-w-2xl">
+      {/* Status Card */}
+      <div className="bg-white rounded-2xl border border-[#ebebeb] p-6">
+        <p className="text-[12px] font-bold text-[#888] uppercase tracking-wide mb-5">홈페이지 현황</p>
+        <div className="flex items-center justify-between py-3 border-b border-[#f5f5f5]">
+          <span className="text-[13px] text-[#333]">현재 주소</span>
+          {hpSlug ? (
+            <a
+              href={`${BASE_URL}/${hpSlug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[13px] font-semibold text-[#0369A1] hover:underline truncate max-w-[240px]"
+            >
+              swimnote.kr/{hpSlug}
+            </a>
+          ) : (
+            <span className="text-[13px] text-[#bbb]">주소 미설정</span>
+          )}
+        </div>
+        <div className="flex items-center justify-between py-3">
+          <span className="text-[13px] text-[#333]">공개 상태</span>
+          <span className={`px-3 py-1 rounded-full text-[11px] font-semibold ${
+            hpEnabled && hpSlug ? "bg-green-50 text-green-600" : "bg-gray-100 text-[#888]"
+          }`}>
+            {hpEnabled && hpSlug ? "공개 중" : "비공개"}
+          </span>
+        </div>
+      </div>
+
+      {/* URL Setup */}
+      <div className="bg-white rounded-2xl border border-[#ebebeb] p-6 space-y-5">
+        <p className="text-[12px] font-bold text-[#888] uppercase tracking-wide">홈페이지 주소 설정</p>
+
+        <div>
+          <label className="block text-[12px] font-semibold text-[#555] mb-2">홈페이지 주소</label>
+          <div className="flex gap-2">
+            <div className="flex items-center border border-[#e5e5e5] rounded-xl overflow-hidden flex-1">
+              <span className="px-3 py-3 text-[12px] text-[#aaa] bg-[#fafafa] border-r border-[#e5e5e5] whitespace-nowrap">swimnote.kr/</span>
+              <input
+                type="text"
+                value={hpSlugInput}
+                onChange={e => { setHpSlugInput(e.target.value); setHpCheckMsg(null); }}
+                placeholder="수영장주소"
+                className="flex-1 px-3 py-3 text-[14px] focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={checkSlug}
+              className="px-4 py-3 rounded-xl border border-[#e5e5e5] text-[12px] font-semibold text-[#555] hover:bg-[#f5f5f5] transition-colors whitespace-nowrap"
+            >
+              중복확인
+            </button>
+          </div>
+          <p className="text-[11px] text-[#aaa] mt-1.5">한글, 영문, 숫자, 하이픈(-)만 사용 가능합니다.</p>
+          {hpCheckMsg && (
+            <p className={`text-[12px] font-medium mt-1.5 ${hpCheckMsg.ok ? "text-green-600" : "text-red-500"}`}>
+              {hpCheckMsg.ok ? "✓ " : "✗ "}{hpCheckMsg.text}
+            </p>
+          )}
+        </div>
+
+        {/* Toggle */}
+        <div className="flex items-center justify-between py-3 border-t border-[#f5f5f5]">
+          <div>
+            <p className="text-[13px] font-semibold text-[#0a0a0a]">홈페이지 공개</p>
+            <p className="text-[11px] text-[#aaa] mt-0.5">주소를 설정한 후 공개할 수 있습니다.</p>
+          </div>
+          <button
+            onClick={() => setHpEnabled(v => !v)}
+            disabled={!hpSlugInput}
+            className={`relative w-12 h-6 rounded-full transition-colors ${
+              hpEnabled && hpSlugInput ? "bg-[#002F5F]" : "bg-[#e0e0e0]"
+            } disabled:opacity-40`}
+          >
+            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+              hpEnabled && hpSlugInput ? "translate-x-7" : "translate-x-1"
+            }`} />
+          </button>
+        </div>
+
+        {hpMsg && (
+          <div className={`rounded-xl px-4 py-3 text-[12px] font-medium ${hpMsg.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+            {hpMsg.text}
+          </div>
+        )}
+
+        <button
+          onClick={saveHomepage}
+          disabled={hpSaving}
+          className="w-full py-3 rounded-xl text-white text-[13px] font-semibold disabled:opacity-60 transition-opacity"
+          style={{ background: PRIMARY }}
+        >
+          {hpSaving ? "저장 중..." : "저장하기"}
+        </button>
+      </div>
+
+      {/* Preview link */}
+      {hpSlug && hpEnabled && (
+        <div className="bg-[#f0f9ff] rounded-2xl border border-[#bae6fd] p-5 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[12px] font-bold text-[#0369A1] mb-1">홈페이지 공개 중 🎉</p>
+            <p className="text-[12px] text-[#0284c7]">고객들이 아래 주소로 수영장 정보를 볼 수 있습니다.</p>
+          </div>
+          <a
+            href={`/${hpSlug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 rounded-xl text-white text-[12px] font-semibold whitespace-nowrap"
+            style={{ background: "#0369A1" }}
+          >
+            미리보기
+          </a>
+        </div>
+      )}
+
+      {/* Content note */}
+      <div className="bg-[#fffbeb] rounded-2xl border border-[#fde68a] p-5">
+        <p className="text-[12px] font-semibold text-[#92400e] mb-1">💡 홈페이지 내용 편집</p>
+        <p className="text-[12px] text-[#a16207]">
+          수영장 소개, 수강료, 레벨테스트 정보 등 홈페이지에 표시될 내용은 앱의 <strong>설정 → 수영장 정보</strong>에서 수정할 수 있습니다.
+        </p>
+      </div>
+    </div>
+  );
+
   const renderContent = () => {
     if (tab === "info") return renderInfo();
     if (tab === "subscription") return renderSubscription();
@@ -494,6 +672,7 @@ export default function PoolAdmin() {
     if (tab === "policy") return renderPolicy();
     if (tab === "logs") return renderLogs();
     if (tab === "actions") return renderActions();
+    if (tab === "homepage") return renderHomepage();
     return null;
   };
 

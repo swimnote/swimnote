@@ -13,6 +13,7 @@ import Login from "@/pages/Login";
 import SuperAdmin from "@/pages/SuperAdmin";
 import PoolPage from "@/pages/PoolPage";
 import PoolAdmin from "@/pages/PoolAdmin";
+import PoolHomepage from "@/pages/PoolHomepage";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -53,8 +54,11 @@ function Router() {
       {/* 수영장 관리자 대시보드 */}
       <Route path="/pool/:id/admin" component={PoolAdmin} />
 
-      {/* 수영장 공개 페이지 */}
+      {/* 수영장 공개 페이지 (ID 기반) */}
       <Route path="/pool/:id" component={PoolPage} />
+
+      {/* 수영장 개별 홈페이지 (슬러그 기반) */}
+      <Route path="/:slug" component={PoolHomepage} />
 
       <Route component={NotFound} />
     </Switch>

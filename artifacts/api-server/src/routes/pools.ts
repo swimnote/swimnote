@@ -473,4 +473,125 @@ router.put("/white-label", requireAuth, requireRole("pool_admin", "super_admin")
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
+// ── 수영장 홈페이지 슬러그로 공개 조회 (인증 불필요) ──────────────────
+router.get("/by-slug/:slug", async (req, res) => {
+  const { slug } = req.params;
+  try {
+    const rows = await superAdminDb.execute(sql`
+      SELECT id, name, name_en, address, phone, owner_name,
+             theme_color, logo_url, logo_emoji,
+             introduction, tuition_info, level_test_info, event_info, equipment_info,
+             homepage_slug, homepage_enabled,
+             approval_status, subscription_status
+      FROM swimming_pools
+      WHERE homepage_slug = ${slug} AND homepage_enabled = TRUE
+      LIMIT 1
+    `);
+    if (!rows.rows.length) {
+      res.status(404).json({ error: "수영장 홈페이지를 찾을 수 없습니다." });
+      return;
+    }
+    res.json(rows.rows[0]);
+  } catch (e) {
+    console.error("[pools/by-slug]", e);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
+// ── 홈페이지 슬러그 중복 확인 (인증 필요) ────────────────────────────
+router.get("/homepage/check-slug", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  const { slug } = req.query as { slug: string };
+  if (!slug) { res.status(400).json({ error: "슬러그를 입력해주세요." }); return; }
+
+  // 슬러그 유효성 검사: 한글, 영문, 숫자, 하이픈만 허용
+  if (!/^[가-힣a-zA-Z0-9-]+$/.test(slug)) {
+    res.json({ available: false, message: "한글, 영문, 숫자, 하이픈(-)만 사용할 수 있습니다." }); return;
+  }
+
+  // 예약어 체크
+  const reserved = ["login", "super-admin", "pool", "education", "app", "support", "api", "admin"];
+  if (reserved.includes(slug.toLowerCase())) {
+    res.json({ available: false, message: "사용할 수 없는 주소입니다." }); return;
+  }
+
+  try {
+    const existing = await superAdminDb.execute(sql`
+      SELECT id FROM swimming_pools
+      WHERE homepage_slug = ${slug} AND id != ${req.user!.poolId ?? ""}
+      LIMIT 1
+    `);
+    if (existing.rows.length) {
+      res.json({ available: false, message: "이미 사용 중인 주소입니다." });
+    } else {
+      res.json({ available: true, message: "사용 가능한 주소입니다." });
+    }
+  } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 홈페이지 슬러그 조회 (내 수영장) ────────────────────────────────
+router.get("/homepage/settings", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  try {
+    const poolId = req.user!.poolId;
+    if (!poolId) { res.status(404).json({ error: "수영장 없음" }); return; }
+    const row = await superAdminDb.execute(sql`
+      SELECT homepage_slug, homepage_enabled,
+             introduction, tuition_info, level_test_info, event_info, equipment_info,
+             theme_color, logo_url, logo_emoji, name, phone, address
+      FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `);
+    res.json(row.rows[0] ?? {});
+  } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 홈페이지 슬러그 설정 ──────────────────────────────────────────
+router.patch("/homepage/settings", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  const { homepage_slug, homepage_enabled } = req.body;
+  try {
+    const poolId = req.user!.poolId;
+    if (!poolId) { res.status(404).json({ error: "수영장 없음" }); return; }
+
+    if (homepage_slug !== undefined && homepage_slug !== null && homepage_slug !== "") {
+      if (!/^[가-힣a-zA-Z0-9-]+$/.test(homepage_slug)) {
+        res.status(400).json({ error: "한글, 영문, 숫자, 하이픈(-)만 사용할 수 있습니다." }); return;
+      }
+      const reserved = ["login", "super-admin", "pool", "education", "app", "support", "api", "admin"];
+      if (reserved.includes(homepage_slug.toLowerCase())) {
+        res.status(400).json({ error: "사용할 수 없는 주소입니다." }); return;
+      }
+      const dup = await superAdminDb.execute(sql`
+        SELECT id FROM swimming_pools WHERE homepage_slug = ${homepage_slug} AND id != ${poolId} LIMIT 1
+      `);
+      if (dup.rows.length) {
+        res.status(409).json({ error: "이미 사용 중인 주소입니다." }); return;
+      }
+    }
+
+    const slug = homepage_slug === "" ? null : (homepage_slug ?? undefined);
+    const enabledVal = homepage_enabled !== undefined ? homepage_enabled : undefined;
+
+    if (slug !== undefined && enabledVal !== undefined) {
+      await superAdminDb.execute(sql`
+        UPDATE swimming_pools SET homepage_slug = ${slug}, homepage_enabled = ${enabledVal}, updated_at = NOW()
+        WHERE id = ${poolId}
+      `);
+    } else if (slug !== undefined) {
+      await superAdminDb.execute(sql`
+        UPDATE swimming_pools SET homepage_slug = ${slug}, updated_at = NOW() WHERE id = ${poolId}
+      `);
+    } else if (enabledVal !== undefined) {
+      await superAdminDb.execute(sql`
+        UPDATE swimming_pools SET homepage_enabled = ${enabledVal}, updated_at = NOW() WHERE id = ${poolId}
+      `);
+    }
+
+    const updated = await superAdminDb.execute(sql`
+      SELECT homepage_slug, homepage_enabled FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `);
+    res.json({ success: true, ...(updated.rows[0] ?? {}) });
+  } catch (e: any) {
+    if (e?.code === "23505") { res.status(409).json({ error: "이미 사용 중인 주소입니다." }); return; }
+    console.error(e); res.status(500).json({ error: "서버 오류" });
+  }
+});
+
 export default router;
