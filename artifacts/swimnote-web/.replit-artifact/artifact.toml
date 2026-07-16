@@ -11,7 +11,7 @@ kind = "web"
 
   [[services]]
   name = "web"
-  paths = [ "/swimnote-web/" ]
+  paths = [ "/", "/swimnote-web/" ]
   localPort = 20219
 
   [services.development]
@@ -28,4 +28,3 @@ kind = "web"
 
   [services.env]
   PORT = "20219"
-  
