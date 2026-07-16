@@ -65,11 +65,11 @@ export default function Intro() {
 
       {/* ── Hero ── */}
       <section className="min-h-[90vh] flex flex-col items-center justify-center px-6 text-center border-b border-[#f0f0f0]">
-        <motion.div {...fadeUp(0)} className="mb-3" style={{ width: 120, height: 76, overflow: "hidden", borderRadius: 22, flexShrink: 0 }}>
+        <motion.div {...fadeUp(0)} className="mb-3" style={{ width: 80, flexShrink: 0 }}>
           <img
-            src={`${import.meta.env.BASE_URL}logo.png`}
+            src={`${import.meta.env.BASE_URL}icon.png`}
             alt="SWIMNOTE 아이콘"
-            style={{ width: 120, height: "auto", display: "block" }}
+            style={{ width: 80, height: "auto", display: "block" }}
           />
         </motion.div>
 
@@ -149,15 +149,29 @@ export default function Intro() {
                 animate={{ opacity: [0.35, 0.65, 0.35], scale: [1, 1.04, 1] }}
                 transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
               />
-              {/* 이미지 – 공중 부양 + 호버 확대 */}
+              {/* 브랜드 개요 카드 */}
               <motion.div
                 animate={{ y: [0, -10, 0] }}
                 transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
                 whileHover={{ scale: 1.025, transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] } }}
                 className="rounded-3xl overflow-hidden cursor-default"
-                style={{ boxShadow: "0 28px 64px rgba(1,178,241,0.18), 0 8px 24px rgba(0,47,95,0.10)" }}
+                style={{ boxShadow: "0 28px 64px rgba(1,178,241,0.18), 0 8px 24px rgba(0,47,95,0.10)", background: "linear-gradient(135deg, #002F5F 0%, #01B2F1 100%)" }}
               >
-                <img src="/intro-overview.png" alt="SWIMNOTE 브랜드 개요" className="w-full h-auto" />
+                <div className="p-10 flex flex-col gap-6">
+                  <div style={{ width: 64, height: 40, overflow: "hidden", borderRadius: 12, flexShrink: 0 }}>
+                    <img src={`${import.meta.env.BASE_URL}icon.png`} alt="SWIMNOTE" style={{ width: 64, height: "auto", display: "block" }} />
+                  </div>
+                  <p className="text-white text-[13px] font-semibold tracking-[0.18em] uppercase opacity-70">SWIMNOTE 브랜드 개요</p>
+                  <div className="space-y-3">
+                    {identity.map((item, i) => (
+                      <div key={i} className="flex items-center gap-3">
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: ACCENT }} />
+                        <span className="text-white text-[16px] font-medium opacity-90">{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-white text-[14px] opacity-50 font-light">을 하나로 연결하는 브랜드</p>
+                </div>
               </motion.div>
             </motion.div>
           </div>

@@ -104,7 +104,7 @@ const tabs = [
     label: "운영자",
     subtitle: "운영자 기능",
     desc: "수영장 운영 전반을 하나의 앱에서 관리합니다.",
-    image: "/app-admin.jpeg",
+    image: undefined,
     features: adminFeatures,
     extra: null,
   },
@@ -113,7 +113,7 @@ const tabs = [
     label: "선생님",
     subtitle: "선생님 기능",
     desc: "수업에 집중할 수 있도록 필요한 기능만 담았습니다.",
-    image: "/app-teacher.jpeg",
+    image: undefined,
     features: teacherFeatures,
     extra: (
       <div className="space-y-4 mt-6">
@@ -142,7 +142,7 @@ const tabs = [
     label: "학부모",
     subtitle: "학부모 기능",
     desc: "아이의 수업 내용과 성장 과정을 실시간으로 확인합니다.",
-    image: "/app-parent.png",
+    image: undefined,
     features: parentFeatures,
     extra: (
       <div className="mt-6">
@@ -231,8 +231,8 @@ export default function AppPage() {
         <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div>
-              <div className="mb-6" style={{ width: 80, height: 50, overflow: "hidden", borderRadius: 16 }}>
-                <img src={`${import.meta.env.BASE_URL}logo.png`} alt="SWIMNOTE 아이콘" style={{ width: 80, height: "auto", display: "block" }} />
+              <div className="mb-6" style={{ width: 56 }}>
+                <img src={`${import.meta.env.BASE_URL}icon.png`} alt="SWIMNOTE 아이콘" style={{ width: 56, height: "auto", display: "block" }} />
               </div>
 
               <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}
@@ -289,9 +289,9 @@ export default function AppPage() {
             {/* Phone mockups */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
               className="flex justify-center items-end gap-6">
-              <div className="mb-10"><PhoneMockup label="운영자" image="/app-admin.jpeg" /></div>
-              <PhoneMockup label="선생님" image="/app-teacher.jpeg" />
-              <div className="mb-10"><PhoneMockup label="학부모" image="/app-parent.png" /></div>
+              <div className="mb-10"><PhoneMockup label="운영자" /></div>
+              <PhoneMockup label="선생님" />
+              <div className="mb-10"><PhoneMockup label="학부모" /></div>
             </motion.div>
           </div>
         </div>

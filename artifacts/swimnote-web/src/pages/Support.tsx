@@ -144,8 +144,8 @@ export default function Support() {
       {/* Header */}
       <section className="py-24 md:py-32 px-6 border-b border-[#f0f0f0]">
         <div className="max-w-5xl mx-auto">
-          <div className="mb-6" style={{ width: 80, height: 50, overflow: "hidden", borderRadius: 16 }}>
-            <img src="/logo.png" alt="SWIMNOTE 아이콘" style={{ width: 80, height: "auto", display: "block" }} />
+          <div className="mb-6" style={{ width: 56 }}>
+            <img src={`${import.meta.env.BASE_URL}icon.png`} alt="SWIMNOTE 아이콘" style={{ width: 56, height: "auto", display: "block" }} />
           </div>
 
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}
