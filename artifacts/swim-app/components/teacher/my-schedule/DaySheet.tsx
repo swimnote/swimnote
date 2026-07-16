@@ -57,12 +57,15 @@ export default function DaySheet({
   const [rosterClass, setRosterClass] = useState<TeacherClassGroup | null>(null);
   const label = dateLabelFull(dateStr);
 
-  const [showMakeupPicker, setShowMakeupPicker]     = useState(false);
-  const [makeupList, setMakeupList]                 = useState<PendingMakeup[]>([]);
-  const [makeupLoading, setMakeupLoading]           = useState(false);
-  const [makeupSaving, setMakeupSaving]             = useState<string | null>(null);
+  const [showMakeupPicker,       setShowMakeupPicker]       = useState(false);
+  const [makeupList,             setMakeupList]             = useState<PendingMakeup[]>([]);
+  const [makeupLoading,          setMakeupLoading]          = useState(false);
+  const [makeupSaving,           setMakeupSaving]           = useState<string | null>(null);
+  // 2단계 선택: null = 1단계(학생선택), not null = 2단계(반선택)
+  const [selectedMakeupStudent,  setSelectedMakeupStudent]  = useState<PendingMakeup | null>(null);
 
   async function openMakeupPicker() {
+    setSelectedMakeupStudent(null);
     setShowMakeupPicker(true);
     setMakeupLoading(true);
     try {
@@ -72,21 +75,19 @@ export default function DaySheet({
     finally { setMakeupLoading(false); }
   }
 
-  async function completeMakeup(mk: PendingMakeup) {
+  async function completeMakeupWithClass(mk: PendingMakeup, classGroup: TeacherClassGroup) {
     if (makeupSaving) return;
     setMakeupSaving(mk.id);
     try {
       const res = await apiRequest(token ?? null, `/teacher/makeups/${mk.id}/complete-direct`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: dateStr }),
+        body: JSON.stringify({ date: dateStr, class_group_id: classGroup.id }),
       });
       if (res.ok) {
-        setMakeupList(prev => {
-          const idx = prev.findIndex(m => m.id === mk.id);
-          if (idx === -1) return prev;
-          return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
-        });
+        setMakeupList(prev => prev.filter(m => m.id !== mk.id));
+        setSelectedMakeupStudent(null);
+        setShowMakeupPicker(false);
       }
     } catch {}
     finally { setMakeupSaving(null); }
@@ -198,7 +199,7 @@ export default function DaySheet({
               </Pressable>
               <Pressable style={[dy.headerBtn, { backgroundColor: "#EEF2FF", borderWidth: 1, borderColor: "#C7D2FE" }]} onPress={openMakeupPicker}>
                 <Users size={13} color="#4F46E5" />
-                <Text style={[dy.headerBtnTxt, { color: "#4F46E5" }]}>보강인원</Text>
+                <Text style={[dy.headerBtnTxt, { color: "#4F46E5" }]}>보충수업</Text>
               </Pressable>
               <Pressable style={[dy.headerBtn, { backgroundColor: C.tint }]} onPress={onAddClass}>
                 <Plus size={13} color="#fff" />
@@ -379,56 +380,108 @@ export default function DaySheet({
       </Pressable>
     </Modal>
 
-    {/* 보강인원 추가 모달 */}
+    {/* 보충수업 모달 (2단계) */}
     {showMakeupPicker && (
-      <Modal visible animationType="slide" transparent onRequestClose={() => setShowMakeupPicker(false)}>
-        <Pressable style={dy.backdrop} onPress={() => setShowMakeupPicker(false)}>
+      <Modal visible animationType="slide" transparent onRequestClose={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }}>
+        <Pressable style={dy.backdrop} onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }}>
           <Pressable style={[dy.sheet, { minHeight: "50%" }]} onPress={() => {}}>
             <View style={dy.handle} />
-            <View style={[dy.header, { paddingBottom: 12 }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={dy.dateTitle}>보강인원 추가</Text>
-                <Text style={dy.dateSub}>{label}에 보강을 진행할 학생을 선택하세요</Text>
-              </View>
-              <Pressable onPress={() => setShowMakeupPicker(false)} style={dy.closeBtn}>
-                <X size={20} color={C.textSecondary} />
-              </Pressable>
-            </View>
-            {makeupLoading ? (
-              <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
-                <ActivityIndicator color="#4F46E5" />
-              </View>
-            ) : makeupList.length === 0 ? (
-              <View style={{ alignItems: "center", paddingVertical: 40, gap: 10 }}>
-                <Users size={32} color={C.textMuted} />
-                <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted }}>보강 대기 중인 학생이 없습니다</Text>
-              </View>
+
+            {/* 단계 1: 보강 대기 학생 선택 */}
+            {selectedMakeupStudent === null ? (
+              <>
+                <View style={[dy.header, { paddingBottom: 12 }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={dy.dateTitle}>보충수업</Text>
+                    <Text style={dy.dateSub}>보강 대기 학생을 선택하세요</Text>
+                  </View>
+                  <Pressable onPress={() => setShowMakeupPicker(false)} style={dy.closeBtn}>
+                    <X size={20} color={C.textSecondary} />
+                  </Pressable>
+                </View>
+                {makeupLoading ? (
+                  <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
+                    <ActivityIndicator color="#4F46E5" />
+                  </View>
+                ) : makeupList.length === 0 ? (
+                  <View style={{ alignItems: "center", paddingVertical: 40, gap: 10 }}>
+                    <Users size={32} color={C.textMuted} />
+                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted }}>보강 대기 중인 학생이 없습니다</Text>
+                  </View>
+                ) : (
+                  <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
+                    {makeupList.map((mk, idx) => (
+                      <Pressable
+                        key={`${mk.id}_${idx}`}
+                        style={({ pressed }) => [dy.mkRow, idx < makeupList.length - 1 && dy.mkRowBorder, pressed && { opacity: 0.75 }]}
+                        onPress={() => setSelectedMakeupStudent(mk)}
+                        disabled={!!makeupSaving}
+                      >
+                        <View style={dy.mkBadge}>
+                          <User size={14} color="#4F46E5" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={dy.mkName}>{mk.student_name}</Text>
+                          <Text style={dy.mkSub}>결석일 {mk.absence_date}{mk.original_class_group_name ? ` · ${mk.original_class_group_name}` : ""}</Text>
+                        </View>
+                        <View style={dy.mkCheckBtn}>
+                          <Text style={dy.mkCheckTxt}>반 선택 →</Text>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                )}
+              </>
             ) : (
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
-                {makeupList.map((mk, idx) => {
-                  const isSaving = makeupSaving === mk.id;
-                  return (
-                    <Pressable
-                      key={`${mk.id}_${idx}`}
-                      style={({ pressed }) => [dy.mkRow, idx < makeupList.length - 1 && dy.mkRowBorder, pressed && { opacity: 0.75 }]}
-                      onPress={() => completeMakeup(mk)}
-                      disabled={!!makeupSaving}
-                    >
-                      <View style={dy.mkBadge}>
-                        <User size={14} color="#4F46E5" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={dy.mkName}>{mk.student_name}</Text>
-                        <Text style={dy.mkSub}>결석일 {mk.absence_date}{mk.original_class_group_name ? ` · ${mk.original_class_group_name}` : ""}</Text>
-                      </View>
-                      {isSaving
-                        ? <ActivityIndicator size="small" color="#4F46E5" />
-                        : <View style={dy.mkCheckBtn}><Check size={14} color="#4F46E5" /><Text style={dy.mkCheckTxt}>보강 완료</Text></View>
-                      }
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+              /* 단계 2: 오늘의 수업반 선택 */
+              <>
+                <View style={[dy.header, { paddingBottom: 12 }]}>
+                  <Pressable onPress={() => setSelectedMakeupStudent(null)} style={{ padding: 4, marginRight: 8 }}>
+                    <Text style={{ fontSize: 14, color: "#4F46E5", fontFamily: "Pretendard-Regular" }}>← 뒤로</Text>
+                  </Pressable>
+                  <View style={{ flex: 1 }}>
+                    <Text style={dy.dateTitle}>{selectedMakeupStudent.student_name}</Text>
+                    <Text style={dy.dateSub}>{label}에 합류할 반을 선택하세요</Text>
+                  </View>
+                  <Pressable onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }} style={dy.closeBtn}>
+                    <X size={20} color={C.textSecondary} />
+                  </Pressable>
+                </View>
+                {classes.length === 0 ? (
+                  <View style={{ alignItems: "center", paddingVertical: 40, gap: 10 }}>
+                    <Users size={32} color={C.textMuted} />
+                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted }}>오늘 수업이 없습니다</Text>
+                  </View>
+                ) : (
+                  <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
+                    {classes.map((cls, idx) => {
+                      const isSaving = makeupSaving === selectedMakeupStudent.id;
+                      return (
+                        <Pressable
+                          key={cls.id}
+                          style={({ pressed }) => [dy.mkRow, idx < classes.length - 1 && dy.mkRowBorder, pressed && { opacity: 0.75 }]}
+                          onPress={() => completeMakeupWithClass(selectedMakeupStudent, cls)}
+                          disabled={isSaving}
+                        >
+                          <View style={[dy.mkBadge, { backgroundColor: "#F0FDF4" }]}>
+                            <Check size={14} color="#16A34A" />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={dy.mkName}>{cls.name}</Text>
+                            <Text style={dy.mkSub}>{cls.schedule_days ? cls.schedule_days.split(",").join("·") : ""} {cls.schedule_time || ""}</Text>
+                          </View>
+                          {isSaving
+                            ? <ActivityIndicator size="small" color="#4F46E5" />
+                            : <View style={[dy.mkCheckBtn, { backgroundColor: "#EEF2FF" }]}>
+                                <Text style={[dy.mkCheckTxt, { color: "#4F46E5" }]}>보충수업 배정</Text>
+                              </View>
+                          }
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                )}
+              </>
             )}
           </Pressable>
         </Pressable>

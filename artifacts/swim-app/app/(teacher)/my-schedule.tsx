@@ -114,6 +114,24 @@ export default function MyScheduleScreen() {
     handleMoveToClass,
   } = useMyScheduleActions({ token, selectedGroup, load });
 
+  const [assigningMakeupId, setAssigningMakeupId] = useState<string | null>(null);
+
+  async function assignMakeupToCurrentClass(mk: typeof dayMakeups[0]) {
+    if (!selectedGroup || assigningMakeupId) return;
+    setAssigningMakeupId(mk.id);
+    try {
+      const res = await apiRequest(token, `/teacher/makeups/${mk.id}/complete-direct`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: todayDateStr(), class_group_id: selectedGroup.id }),
+      });
+      if (res.ok) {
+        await loadDayMakeups(selectedGroup.id);
+      }
+    } catch {}
+    finally { setAssigningMakeupId(null); }
+  }
+
   useEffect(() => { load(); }, [load]);
 
   // 탭 전환 후 복귀 시 stuck loading 상태만 초기화
@@ -381,9 +399,16 @@ export default function MyScheduleScreen() {
                     <Text style={[s.studentName, { color: "#D96C6C" }]}>{mk.student_name}</Text>
                     <Text style={s.studentSub}>결석일 {mk.absence_date} · 보강 대기 중</Text>
                   </View>
-                  <View style={[s.stBtn, { backgroundColor: "#FDEAEA", borderColor: "#D96C6C" }]}>
-                    <Text style={[s.stBtnTxt, { color: "#D96C6C" }]}>대기</Text>
-                  </View>
+                  <Pressable
+                    style={[s.stBtn, { backgroundColor: "#4F46E5", borderColor: "#4F46E5", opacity: assigningMakeupId === mk.id ? 0.6 : 1 }]}
+                    onPress={() => assignMakeupToCurrentClass(mk)}
+                    disabled={!!assigningMakeupId}
+                  >
+                    {assigningMakeupId === mk.id
+                      ? <ActivityIndicator size="small" color="#fff" style={{ width: 40 }} />
+                      : <Text style={[s.stBtnTxt, { color: "#fff" }]}>보충수업</Text>
+                    }
+                  </Pressable>
                 </View>
               ))}
             </View>

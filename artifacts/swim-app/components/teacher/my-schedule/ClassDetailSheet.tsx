@@ -53,6 +53,13 @@ export default function ClassDetailSheet({
   const [showUnassignTiming, setShowUnassignTiming] = useState(false);
   const [unassigningStudent, setUnassigningStudent] = useState(false);
 
+  // 보충수업 관련
+  const [showMakeupPicker,        setShowMakeupPicker]        = useState(false);
+  const [makeupList,              setMakeupList]              = useState<any[]>([]);
+  const [makeupLoading,           setMakeupLoading]           = useState(false);
+  const [makeupSaving,            setMakeupSaving]            = useState<string | null>(null);
+  const [selectedMakeupStudent,   setSelectedMakeupStudent]   = useState<any | null>(null);
+
   const originalColorRef = useRef<string>(group.color || "#FFFFFF");
   const [draftColor, setDraftColor] = useState<string>(group.color || "#FFFFFF");
   const [colorSaving, setColorSaving] = useState(false);
@@ -110,6 +117,35 @@ export default function ClassDetailSheet({
       })
       .catch(() => {});
   }, [group.id, effectiveDate, token]);
+
+  async function openMakeupPicker() {
+    setSelectedMakeupStudent(null);
+    setShowMakeupPicker(true);
+    setMakeupLoading(true);
+    try {
+      const res = await apiRequest(token, "/teacher/makeups?status=pending");
+      if (res.ok) setMakeupList(await res.json());
+    } catch {}
+    finally { setMakeupLoading(false); }
+  }
+
+  async function completeMakeupWithClass(mk: any, targetClassId: string) {
+    if (makeupSaving) return;
+    setMakeupSaving(mk.id);
+    try {
+      const res = await apiRequest(token, `/teacher/makeups/${mk.id}/complete-direct`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: effectiveDate, class_group_id: targetClassId }),
+      });
+      if (res.ok) {
+        setMakeupList(prev => prev.filter(m => m.id !== mk.id));
+        setSelectedMakeupStudent(null);
+        setShowMakeupPicker(false);
+      }
+    } catch {}
+    finally { setMakeupSaving(null); }
+  }
 
   async function markAtt(studentId: string, newStatus: "present" | "absent") {
     if (studentAttState[studentId] === newStatus) return;
@@ -231,6 +267,11 @@ export default function ClassDetailSheet({
                 onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name} } as any))}>
                 <Pencil size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
                 <Text style={[cds.actionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
+              </Pressable>
+              <Pressable style={[cds.actionBtn, { backgroundColor: "#EEF2FF", flex: 1 }]}
+                onPress={openMakeupPicker}>
+                <Users size={13} color="#4F46E5" />
+                <Text style={[cds.actionText, { color: "#4F46E5" }]}>보충수업</Text>
               </Pressable>
             </View>
             <PastelColorPicker selected={draftColor} onSelect={handleColorSelect} />
@@ -413,6 +454,108 @@ export default function ClassDetailSheet({
                     }
                   </Pressable>
                 </View>
+              )}
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/* 보충수업 모달 (2단계) */}
+      {showMakeupPicker && (
+        <Modal visible animationType="slide" transparent onRequestClose={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }} statusBarTranslucent>
+          <Pressable style={cds.backdrop} onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }}>
+            <Pressable style={[cds.sheet, { minHeight: "50%" }]} onPress={() => {}}>
+              <View style={cds.handle} />
+              {selectedMakeupStudent === null ? (
+                /* 단계 1: 보강 대기 학생 선택 */
+                <>
+                  <View style={cds.sheetHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={cds.sheetTitle}>보충수업</Text>
+                      <Text style={cds.sheetSub}>보강 대기 학생을 선택하세요</Text>
+                    </View>
+                    <Pressable onPress={() => setShowMakeupPicker(false)} style={cds.closeBtn}>
+                      <X size={20} color={C.textSecondary} />
+                    </Pressable>
+                  </View>
+                  {makeupLoading ? (
+                    <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                      <ActivityIndicator color="#4F46E5" />
+                    </View>
+                  ) : makeupList.length === 0 ? (
+                    <View style={cds.empty}>
+                      <Users size={32} color={C.textMuted} />
+                      <Text style={cds.emptyText}>보강 대기 중인 학생이 없습니다</Text>
+                    </View>
+                  ) : (
+                    <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                      {makeupList.map((mk: any) => (
+                        <Pressable
+                          key={mk.id}
+                          style={({ pressed }) => [cds.moveClassRow, pressed && { opacity: 0.7 }]}
+                          onPress={() => setSelectedMakeupStudent(mk)}
+                          disabled={!!makeupSaving}
+                        >
+                          <LucideIcon name="user" size={16} color={C.textMuted} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={cds.moveClassName}>{mk.student_name}</Text>
+                            <Text style={cds.moveClassSub}>결석일 {mk.absence_date}{mk.original_class_group_name ? ` · ${mk.original_class_group_name}` : ""}</Text>
+                          </View>
+                          <ChevronRight size={14} color={C.textMuted} />
+                        </Pressable>
+                      ))}
+                      <View style={{ height: 20 }} />
+                    </ScrollView>
+                  )}
+                </>
+              ) : (
+                /* 단계 2: 합류할 반 선택 */
+                <>
+                  <View style={cds.sheetHeader}>
+                    <Pressable onPress={() => setSelectedMakeupStudent(null)} style={{ padding: 4, marginRight: 8 }}>
+                      <Text style={{ fontSize: 14, color: "#4F46E5", fontFamily: "Pretendard-Regular" }}>← 뒤로</Text>
+                    </Pressable>
+                    <View style={{ flex: 1 }}>
+                      <Text style={cds.sheetTitle}>{selectedMakeupStudent.student_name}</Text>
+                      <Text style={cds.sheetSub}>합류할 반을 선택하세요</Text>
+                    </View>
+                    <Pressable onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }} style={cds.closeBtn}>
+                      <X size={20} color={C.textSecondary} />
+                    </Pressable>
+                  </View>
+                  <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                    {/* 현재 반을 첫 번째로 표시 */}
+                    {[group, ...(classGroups || []).filter(g => g.id !== group.id)].map((cls, idx) => {
+                      const isSaving = makeupSaving === selectedMakeupStudent.id;
+                      const isCurrentClass = cls.id === group.id;
+                      return (
+                        <Pressable
+                          key={cls.id}
+                          style={({ pressed }) => [
+                            cds.moveClassRow,
+                            isCurrentClass && { backgroundColor: "#EEF2FF", borderColor: "#C7D2FE" },
+                            pressed && { opacity: 0.7 },
+                          ]}
+                          onPress={() => completeMakeupWithClass(selectedMakeupStudent, cls.id)}
+                          disabled={isSaving}
+                        >
+                          <LucideIcon name={isCurrentClass ? "check-circle" : "circle"} size={16} color={isCurrentClass ? "#4F46E5" : C.textMuted} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[cds.moveClassName, isCurrentClass && { color: "#4F46E5" }]}>
+                              {cls.name}{isCurrentClass ? " (현재 반)" : ""}
+                            </Text>
+                            <Text style={cds.moveClassSub}>{(cls.schedule_days || "").split(",").join("·")} {cls.schedule_time || ""}</Text>
+                          </View>
+                          {isSaving
+                            ? <ActivityIndicator size="small" color="#4F46E5" />
+                            : <ChevronRight size={14} color={C.textMuted} />
+                          }
+                        </Pressable>
+                      );
+                    })}
+                    <View style={{ height: 20 }} />
+                  </ScrollView>
+                </>
               )}
             </Pressable>
           </Pressable>

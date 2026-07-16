@@ -60,6 +60,32 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// 보충수업 학생 조회: ?class_group_id=X&date=Y (일지 화면에서 보충학생 표시용)
+router.get("/makeup-students", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const role = (req.user as { role: string }).role;
+    const poolId = await getPoolId(req.user!.userId, role);
+    if (!poolId) { res.status(403).json({ error: "소속 없음" }); return; }
+    const { class_group_id, date } = req.query;
+    if (!class_group_id || !date) { res.status(400).json({ error: "class_group_id, date 필요" }); return; }
+    const rows = (await db.execute(sql`
+      SELECT a.student_id AS id, s.name, s.birth_year, s.weekly_count,
+             a.session_type, a.status AS att_status
+      FROM attendance a
+      JOIN students s ON s.id = a.student_id
+      WHERE a.swimming_pool_id = ${poolId}
+        AND a.class_group_id = ${class_group_id as string}
+        AND a.date = ${date as string}
+        AND a.session_type = 'makeup'
+        AND a.status = 'present'
+    `)).rows as any[];
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
 // 주간 출결 조회: ?start_date=YYYY-MM-DD&class_group_id=...
 router.get("/weekly", requireAuth, async (req: AuthRequest, res) => {
   try {

@@ -565,7 +565,7 @@ router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
   async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const { date } = req.body as { date?: string };
+      const { date, class_group_id } = req.body as { date?: string; class_group_id?: string };
       if (!date) { res.status(400).json({ error: "date가 필요합니다." }); return; }
 
       const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
@@ -580,22 +580,28 @@ router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
       if (!rows.length) { res.status(404).json({ error: "보강 없음" }); return; }
       const mk = rows[0];
 
-      if (mk.original_teacher_id !== userId) {
+      // 원래 담당 선생님이거나 관리자 권한인 경우 처리 가능
+      const role = req.user!.role;
+      if (mk.original_teacher_id !== userId && !["pool_admin", "sub_admin"].includes(role)) {
         res.status(403).json({ error: "처리 권한이 없습니다." }); return;
       }
       if (!["waiting", "assigned"].includes(mk.status)) {
         res.status(400).json({ error: "이미 처리된 보강입니다." }); return;
       }
 
+      // 보충수업 배정 반 결정 (명시적으로 전달된 class_group_id 우선)
+      const targetClassId = class_group_id || mk.original_class_group_id || null;
+
       await db.execute(sql`
         UPDATE makeup_sessions SET
-          status                  = 'completed',
-          is_substitute           = TRUE,
-          substitute_teacher_id   = ${userId},
-          substitute_teacher_name = ${userName},
-          assigned_date           = ${date},
-          completed_at            = now(),
-          updated_at              = now()
+          status                    = 'completed',
+          is_substitute             = TRUE,
+          substitute_teacher_id     = ${userId},
+          substitute_teacher_name   = ${userName},
+          assigned_date             = ${date},
+          assigned_class_group_id   = ${targetClassId},
+          completed_at              = now(),
+          updated_at                = now()
         WHERE id = ${req.params.id}
       `);
 
@@ -606,9 +612,10 @@ router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
            class_group_id, teacher_user_id, teacher_name, created_by, created_by_name)
         VALUES
           (${attId}, ${poolId}, ${mk.student_id}, ${date}, 'present', 'makeup',
-           ${mk.original_class_group_id ?? null}, ${userId}, ${userName}, ${userId}, ${userName})
+           ${targetClassId}, ${userId}, ${userName}, ${userId}, ${userName})
         ON CONFLICT (student_id, date) DO UPDATE SET
           status = 'present', session_type = 'makeup',
+          class_group_id = ${targetClassId},
           teacher_user_id = ${userId}, teacher_name = ${userName},
           updated_at = now()
       `);

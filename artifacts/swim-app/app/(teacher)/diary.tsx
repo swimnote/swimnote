@@ -281,19 +281,26 @@ export default function TeacherDiaryScreen() {
   }
   async function loadClassStudents(classId: string) {
     try {
-      const r = await apiRequest(token, `/students?class_group_id=${classId}`);
-      if (r.ok) {
-        const data = await r.json();
-        const list = Array.isArray(data) ? data : [];
-        // 서버 필터와 무관하게 클라이언트에서도 해당 반 학생만 확정 필터링
-        setClassStudents(
-          list.filter((s: any) =>
-            !["deleted", "archived"].includes(s.status) &&
-            (s.class_group_id === classId ||
-              (Array.isArray(s.assigned_class_ids) && s.assigned_class_ids.includes(classId)))
-          )
-        );
-      }
+      const [studentsRes, makeupRes] = await Promise.all([
+        apiRequest(token, `/students?class_group_id=${classId}`),
+        apiRequest(token, `/attendance/makeup-students?class_group_id=${classId}&date=${targetDate}`),
+      ]);
+      const list: any[] = studentsRes.ok ? (await studentsRes.json().catch(() => [])) : [];
+      const makeupList: any[] = makeupRes.ok ? (await makeupRes.json().catch(() => [])) : [];
+
+      const regularStudents = list.filter((s: any) =>
+        !["deleted", "archived"].includes(s.status) &&
+        (s.class_group_id === classId ||
+          (Array.isArray(s.assigned_class_ids) && s.assigned_class_ids.includes(classId)))
+      );
+
+      // 보충수업 학생은 정규 학생 목록에 없으면 추가 (is_makeup 플래그)
+      const regularIds = new Set(regularStudents.map((s: any) => s.id));
+      const makeupStudents = makeupList
+        .filter((m: any) => !regularIds.has(m.id))
+        .map((m: any) => ({ ...m, is_makeup: true }));
+
+      setClassStudents([...regularStudents, ...makeupStudents]);
     } catch {}
   }
   async function loadDiaries(classId: string) {
