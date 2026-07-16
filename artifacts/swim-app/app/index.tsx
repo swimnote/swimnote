@@ -238,6 +238,12 @@ export default function LoginScreen() {
       >
         {/* ── 전체 콘텐츠 (로고 + 폼 + 가입 버튼) ── */}
         <View style={[s.bottomSection, isTablet && s.bottomSectionTablet]}>
+        {/* ── 앱 소개 이미지 ── */}
+        <View style={s.appImgRow}>
+          <Image source={require("../assets/images/app-admin.jpeg")} style={s.appImg} resizeMode="cover" />
+          <Image source={require("../assets/images/app-teacher.jpeg")} style={[s.appImg, s.appImgCenter]} resizeMode="cover" />
+          <Image source={require("../assets/images/app-parent.png")} style={s.appImg} resizeMode="cover" />
+        </View>
         {/* ── 로고 ── */}
         <Image
           source={require("../assets/images/swimnote-logo.png")}
@@ -428,6 +434,11 @@ const SCREEN_W = Dimensions.get("window").width;
 const s = StyleSheet.create({
   root:    { flex: 1 },
   scroll:  { flexGrow: 1, paddingHorizontal: 24, justifyContent: "flex-end" },
+
+  /* 앱 소개 이미지 */
+  appImgRow: { flexDirection: "row", justifyContent: "center", alignItems: "flex-end", gap: 8, marginBottom: 16 },
+  appImg: { width: SCREEN_W * 0.26, height: SCREEN_W * 0.46, borderRadius: 14, overflow: "hidden" },
+  appImgCenter: { width: SCREEN_W * 0.30, height: SCREEN_W * 0.53, marginBottom: -4 },
 
   /* iPad: 가운데 정렬 + 최대 폭 제한 */
   bottomSection: { gap: 0 },
