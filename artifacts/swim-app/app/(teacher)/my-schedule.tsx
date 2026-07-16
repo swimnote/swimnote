@@ -331,8 +331,9 @@ export default function MyScheduleScreen() {
 
   const groupStudents = selectedGroup
     ? students.filter(st =>
-        (Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(selectedGroup.id))
-        || st.class_group_id === selectedGroup.id
+        ((Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(selectedGroup.id))
+        || st.class_group_id === selectedGroup.id)
+        && (!(st as any).class_enrolled_at || (st as any).class_enrolled_at <= todayDateStr())
       ).sort((a, b) => {
         const aAbs = dayViewAttState[a.id] === "absent";
         const bAbs = dayViewAttState[b.id] === "absent";

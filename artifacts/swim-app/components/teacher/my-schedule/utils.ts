@@ -40,6 +40,7 @@ export interface StudentItem {
   weekly_count?: number; schedule_labels?: string | null;
   status?: string; parent_user_id?: string | null;
   updated_at?: string | null;
+  class_enrolled_at?: string | null;
 }
 
 export function todayDateStr(): string {

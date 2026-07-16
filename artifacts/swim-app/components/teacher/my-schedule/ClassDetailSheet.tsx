@@ -228,8 +228,9 @@ export default function ClassDetailSheet({
 
   const groupStudents = students
     .filter(st =>
-      (Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(group.id))
-      || st.class_group_id === group.id
+      ((Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(group.id))
+      || st.class_group_id === group.id)
+      && (!st.class_enrolled_at || st.class_enrolled_at <= effectiveDate)
     )
     .sort((a, b) => {
       const aAbs = studentAttState[a.id] === "absent" ? 0 : 1;
