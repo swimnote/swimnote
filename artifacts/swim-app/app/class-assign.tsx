@@ -6,7 +6,7 @@
  * 주횟수 미설정 학생 → 주횟수 선택 팝업 먼저 표시
  * 배정 후 남은 횟수 있으면 리스트 유지, 다 채우면 제거
  */
-import { ArrowLeft, Calendar, Check, CircleX, Clock, Layers, Minus, Plus, RefreshCw, Search, TriangleAlert, User, X } from "lucide-react-native";
+import { ArrowLeft, Calendar, Check, CircleX, Clock, Layers, Minus, Plus, RefreshCw, Search, Trash2, TriangleAlert, User, UserPlus, X } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {ActivityIndicator, Modal, Platform,
@@ -27,6 +27,13 @@ interface ClassGroup {
   instructor: string | null;
   capacity: number | null;
   level: string | null;
+  co_teacher_ids?: string[];
+}
+
+interface TeacherItem {
+  id: string;
+  name: string;
+  position?: string;
 }
 
 interface Student {
@@ -83,9 +90,10 @@ function isInClass(s: Student, cid: string) {
 }
 
 export default function ClassAssignScreen() {
-  const { token } = useAuth();
+  const { token, activeRole } = useAuth();
   const insets = useSafeAreaInsets();
   const { classId, initialClass } = useLocalSearchParams<{ classId: string; initialClass?: string }>();
+  const isAdmin = activeRole === "pool_admin" || activeRole === "super_admin";
 
   const [classInfo, setClassInfo] = useState<ClassGroup | null>(() => {
     if (initialClass) { try { return JSON.parse(initialClass); } catch { return null; } }
@@ -108,6 +116,13 @@ export default function ClassAssignScreen() {
   const [timingTarget, setTimingTarget] = useState<Student | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
 
+  /* ── co-teacher 상태 ── */
+  const [coTeacherIds, setCoTeacherIds]     = useState<string[]>([]);
+  const [teachers, setTeachers]             = useState<TeacherItem[]>([]);
+  const [showTeacherModal, setShowTeacherModal] = useState(false);
+  const [coTeacherSaving, setCoTeacherSaving]   = useState(false);
+  const [teacherSearch, setTeacherSearch]   = useState("");
+
   const load = useCallback(async () => {
     if (!classId) return;
     try {
@@ -115,7 +130,11 @@ export default function ClassAssignScreen() {
         apiRequest(token, `/class-groups/${classId}`),
         apiRequest(token, "/students?pool_all=true"),
       ]);
-      if (cgRes.ok) setClassInfo(await cgRes.json());
+      if (cgRes.ok) {
+        const cg = await cgRes.json();
+        setClassInfo(cg);
+        setCoTeacherIds(Array.isArray(cg.co_teacher_ids) ? cg.co_teacher_ids : []);
+      }
       if (stuRes.ok) {
         const allStu: Student[] = await stuRes.json();
         _stuCache = { data: allStu, ts: Date.now() };
@@ -128,6 +147,42 @@ export default function ClassAssignScreen() {
   }, [token, classId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 선생님 목록 백그라운드 로드 (관리자 전용)
+  useEffect(() => {
+    if (!isAdmin || !token) return;
+    apiRequest(token, "/teachers").then(r => { if (r.ok) r.json().then(setTeachers); }).catch(() => {});
+  }, [token, isAdmin]);
+
+  async function handleAddCoTeacher(teacher: TeacherItem) {
+    if (!classId) return;
+    const newIds = [...coTeacherIds.filter(id => id !== teacher.id), teacher.id];
+    setCoTeacherSaving(true);
+    try {
+      const res = await apiRequest(token, `/class-groups/${classId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ co_teacher_ids: newIds }),
+      });
+      if (res.ok) { setCoTeacherIds(newIds); setShowTeacherModal(false); setTeacherSearch(""); }
+    } catch (e) { console.error(e); }
+    finally { setCoTeacherSaving(false); }
+  }
+
+  async function handleRemoveCoTeacher(removeId: string) {
+    if (!classId) return;
+    const newIds = coTeacherIds.filter(id => id !== removeId);
+    setCoTeacherSaving(true);
+    try {
+      const res = await apiRequest(token, `/class-groups/${classId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ co_teacher_ids: newIds }),
+      });
+      if (res.ok) setCoTeacherIds(newIds);
+    } catch (e) { console.error(e); }
+    finally { setCoTeacherSaving(false); }
+  }
 
   const dupNames = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -257,11 +312,38 @@ export default function ClassAssignScreen() {
                   <Text style={[s.meta, { color: C.textSecondary }]}>{classInfo.schedule_time}</Text>
                 </View>
               </View>
+              {/* 주담당 선생님 */}
               {classInfo.instructor && (
                 <View style={s.metaRow}>
                   <User size={12} color={C.textMuted} />
                   <Text style={[s.meta, { color: C.textSecondary }]}>{classInfo.instructor}</Text>
                 </View>
+              )}
+              {/* 추가 선생님 */}
+              {coTeacherIds.length > 0 && coTeacherIds.map(cid => {
+                const ct = teachers.find(t => t.id === cid);
+                return (
+                  <View key={cid} style={[s.metaRow, { gap: 4 }]}>
+                    <UserPlus size={12} color="#7C3AED" />
+                    <Text style={[s.meta, { color: "#7C3AED" }]}>{ct?.name || "선생님"}</Text>
+                    {isAdmin && (
+                      <Pressable onPress={() => handleRemoveCoTeacher(cid)} hitSlop={8} disabled={coTeacherSaving}>
+                        <X size={11} color="#EF4444" />
+                      </Pressable>
+                    )}
+                  </View>
+                );
+              })}
+              {/* 선생님 추가 버튼 (관리자만) */}
+              {isAdmin && (
+                <Pressable
+                  style={[s.metaRow, { marginTop: 2 }]}
+                  onPress={() => { setTeacherSearch(""); setShowTeacherModal(true); }}
+                  disabled={coTeacherSaving}
+                >
+                  <UserPlus size={12} color={C.tint} />
+                  <Text style={[s.meta, { color: C.tint }]}>선생님 추가</Text>
+                </Pressable>
               )}
             </View>
             <View style={[s.countBadge, { backgroundColor: capacityOver ? "#F9DEDA" : C.tintLight }]}>
@@ -390,6 +472,89 @@ export default function ClassAssignScreen() {
           }}
           onCancel={() => setTimingTarget(null)}
         />
+      )}
+
+      {/* ── 선생님 추가 모달 ── */}
+      {showTeacherModal && (
+        <Modal visible animationType="slide" transparent onRequestClose={() => setShowTeacherModal(false)}>
+          <Pressable style={s.backdrop} onPress={() => setShowTeacherModal(false)} />
+          <View style={{ position: "absolute", bottom: 0, left: 0, right: 0,
+            backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+            paddingBottom: insets.bottom + 16, maxHeight: "70%" }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: C.border,
+              flexDirection: "row", alignItems: "center" }}>
+              <Text style={{ flex: 1, fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text }}>
+                선생님 추가
+              </Text>
+              <Pressable onPress={() => setShowTeacherModal(false)} hitSlop={8}>
+                <X size={20} color={C.textSecondary} />
+              </Pressable>
+            </View>
+            {/* 검색 */}
+            <View style={[s.searchWrap, { marginTop: 12, marginHorizontal: 16, marginBottom: 8, backgroundColor: C.background }]}>
+              <Search size={15} color={C.textMuted} />
+              <TextInput
+                style={[s.searchInput, { color: C.text }]}
+                value={teacherSearch}
+                onChangeText={setTeacherSearch}
+                placeholder="이름으로 검색..."
+                placeholderTextColor={C.textMuted}
+                autoFocus
+              />
+              {teacherSearch.length > 0 && (
+                <Pressable onPress={() => setTeacherSearch("")}>
+                  <CircleX size={15} color={C.textMuted} />
+                </Pressable>
+              )}
+            </View>
+            {coTeacherSaving ? (
+              <ActivityIndicator color={C.tint} style={{ marginTop: 24 }} />
+            ) : (
+              <View style={{ paddingHorizontal: 16, gap: 8 }}>
+                {teachers
+                  .filter(t =>
+                    !coTeacherIds.includes(t.id) &&
+                    classInfo?.instructor !== t.name &&
+                    (!teacherSearch.trim() || t.name.includes(teacherSearch.trim()))
+                  )
+                  .map(t => (
+                    <Pressable
+                      key={t.id}
+                      style={{ flexDirection: "row", alignItems: "center", backgroundColor: C.background,
+                        borderRadius: 12, padding: 14, gap: 10 }}
+                      onPress={() => handleAddCoTeacher(t)}
+                    >
+                      <View style={{ width: 36, height: 36, borderRadius: 18,
+                        backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center" }}>
+                        <User size={16} color="#4F46E5" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text }}>{t.name}</Text>
+                        {t.position ? (
+                          <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted }}>{t.position}</Text>
+                        ) : null}
+                      </View>
+                      <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
+                        backgroundColor: "#EEF2FF" }}>
+                        <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#4F46E5" }}>추가</Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                {teachers.filter(t =>
+                  !coTeacherIds.includes(t.id) &&
+                  classInfo?.instructor !== t.name &&
+                  (!teacherSearch.trim() || t.name.includes(teacherSearch.trim()))
+                ).length === 0 && (
+                  <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                    <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
+                      추가할 수 있는 선생님이 없습니다
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        </Modal>
       )}
     </View>
   );
