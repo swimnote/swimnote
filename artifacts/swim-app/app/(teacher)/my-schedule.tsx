@@ -65,6 +65,7 @@ export default function MyScheduleScreen() {
   const [dayMemo, setDayMemo] = useState("");
   const [memoDateSet,   setMemoDateSet]   = useState<Set<string>>(new Set());
   const [makeupDateSet, setMakeupDateSet] = useState<Set<string>>(new Set());
+  const [holidaySet,    setHolidaySet]    = useState<Set<string>>(new Set());
 
   const [detailGroup,       setDetailGroup]       = useState<TeacherClassGroup | null>(null);
   const [showDeleteClassConfirm,  setShowDeleteClassConfirm]  = useState(false);
@@ -139,6 +140,26 @@ export default function MyScheduleScreen() {
   }
 
   useEffect(() => { load(); }, [load]);
+
+  // 휴무일 Set 로드 (선택된 날짜 기준 해당 월)
+  const loadHolidays = useCallback(async (dateStr: string) => {
+    if (!token || !poolId) return;
+    const [y, m] = dateStr.split("-");
+    const mm = m.padStart(2, "0");
+    try {
+      const r = await apiRequest(token, `/holidays?pool_id=${poolId}&month=${y}-${mm}`);
+      if (r.ok) {
+        const d = await r.json();
+        if (d?.holidays) {
+          setHolidaySet(prev => {
+            const next = new Set(prev);
+            d.holidays.forEach((h: any) => next.add(h.holiday_date));
+            return next;
+          });
+        }
+      }
+    } catch {}
+  }, [token, poolId]);
 
   // 배정된 보충수업 날짜 Set 로드 (캘린더 보라색 도트 표시용)
   const loadMakeupDates = useCallback(async () => {
@@ -253,6 +274,7 @@ export default function MyScheduleScreen() {
       setSelectedDate(dateStr);
       loadDayData(dateStr);
       loadMemo(dateStr);
+      loadHolidays(dateStr);
     }
   }
 
@@ -525,7 +547,8 @@ export default function MyScheduleScreen() {
     );
   }
 
-  const dayClasses = selectedDate ? classesForDate(myGroups, selectedDate) : [];
+  const isSelectedHoliday = !!(selectedDate && holidaySet.has(selectedDate));
+  const dayClasses = selectedDate && !isSelectedHoliday ? classesForDate(myGroups, selectedDate) : [];
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
@@ -662,6 +685,7 @@ export default function MyScheduleScreen() {
           onSelectClass={handleDaySheetClassPress}
           onOpenMakeup={handleDaySheetMakeup}
           token={token}
+          isHoliday={isSelectedHoliday}
           isAdminTeacher={
             (adminUser as any)?.role === "pool_admin" ||
             (adminUser as any)?.role === "super_admin"

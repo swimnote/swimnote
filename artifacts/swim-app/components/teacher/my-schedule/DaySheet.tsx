@@ -33,7 +33,7 @@ export default function DaySheet({
   memo, onMemoChange, onSaveMemo,
   onClose, onSelectClass,
   onOpenMakeup, onAddClass,
-  isAdminTeacher, allStudents, token,
+  isAdminTeacher, allStudents, token, isHoliday,
 }: {
   dateStr: string;
   classes: TeacherClassGroup[];
@@ -52,6 +52,7 @@ export default function DaySheet({
   isAdminTeacher?: boolean;
   allStudents?: StudentItem[];
   token?: string | null;
+  isHoliday?: boolean;
 }) {
   const [editingMemo, setEditingMemo] = useState(false);
   const [showMemoPanel, setShowMemoPanel] = useState(false);
@@ -202,7 +203,7 @@ export default function DaySheet({
           <View style={dy.header}>
             <View style={{ flex: 1 }}>
               <Text style={dy.dateTitle}>{label}</Text>
-              <Text style={dy.dateSub}>{classes.length > 0 ? `수업 ${classes.length}개` : "수업 없음"}</Text>
+              <Text style={dy.dateSub}>{isHoliday ? "휴무일" : classes.length > 0 ? `수업 ${classes.length}개` : "수업 없음"}</Text>
             </View>
             <View style={dy.headerActions}>
               <Pressable style={dy.iconBtnWrap} onPress={() => setShowMemoPanel(p => !p)}>
@@ -235,7 +236,15 @@ export default function DaySheet({
             bottomOffset={20}
           >
 
-            {classes.length === 0 && (
+            {isHoliday && (
+              <View style={dy.emptyBox}>
+                <Text style={{ fontSize: 32, marginBottom: 8 }}>🏖️</Text>
+                <Text style={[dy.emptyTxt, { color: "#D96C6C" }]}>휴무일</Text>
+                <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>이 날은 수업이 없습니다</Text>
+              </View>
+            )}
+
+            {!isHoliday && classes.length === 0 && (
               <View style={dy.emptyBox}>
                 <Calendar size={32} color={C.textMuted} />
                 <Text style={dy.emptyTxt}>이 날은 수업이 없습니다</Text>
