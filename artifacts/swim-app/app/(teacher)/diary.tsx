@@ -412,8 +412,15 @@ export default function TeacherDiaryScreen() {
       }
     }
 
-    const hasAnyContent = commonContent.trim().length > 0 || effectiveNotes.some(n => n.note_content?.trim());
-    if (!hasAnyContent) { setFormError("전체 일지 또는 개인 일지 내용을 입력해주세요."); return; }
+    const hasAnyMedia =
+      groupMedia.some(m => m.uploaded) ||
+      selectedAlbumPhotos.length > 0 ||
+      selectedAlbumVideos.length > 0 ||
+      Object.values(studentMedia).flat().some(m => m.uploaded) ||
+      Object.values(studentAlbumPhotos).some(arr => arr.length > 0) ||
+      Object.values(studentAlbumVideos).some(arr => arr.length > 0);
+    const hasAnyContent = commonContent.trim().length > 0 || effectiveNotes.some(n => n.note_content?.trim()) || hasAnyMedia;
+    if (!hasAnyContent) { setFormError("전체 일지 또는 개인 일지 내용이나 사진/영상을 추가해주세요."); return; }
     setFormError(null); setSaving(true);
     try {
       const r = await apiRequest(token, "/diaries", {
@@ -502,8 +509,13 @@ export default function TeacherDiaryScreen() {
 
   async function handleEditSave() {
     if (!editDiary || !selectedGroup) return;
-    const hasEditContent = editContent.trim().length > 0 || editNotes.some(n => !n._deleted && n.note_content?.trim()) || editNewNotes.some(n => n.note_content?.trim());
-    if (!hasEditContent) { setEditError("전체 일지 또는 개인 일지 내용을 입력해주세요."); return; }
+    const hasEditMedia =
+      editLinkedPhotos.length > 0 ||
+      editLinkedVideos.length > 0 ||
+      editNewAlbumIds.length > 0 ||
+      editNewAlbumVideos.length > 0;
+    const hasEditContent = editContent.trim().length > 0 || editNotes.some(n => !n._deleted && n.note_content?.trim()) || editNewNotes.some(n => n.note_content?.trim()) || hasEditMedia;
+    if (!hasEditContent) { setEditError("전체 일지 또는 개인 일지 내용이나 사진/영상을 추가해주세요."); return; }
     setEditSaving(true); setEditError(null);
     try {
       const r = await apiRequest(token, `/diaries/${editDiary.id}`, { method: "PUT", body: JSON.stringify({ common_content: editContent.trim() }) });
