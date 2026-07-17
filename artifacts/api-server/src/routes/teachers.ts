@@ -430,7 +430,29 @@ router.get("/teacher/makeups", requireAuth,
       const poolId = await getMyPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
-      // 내가 담당(primary + co_teacher)인 반 ID 전체 조회
+      // 실제 DB role 확인 (pool_admin이면 풀 전체 보강 반환)
+      const [userRow] = (await superAdminDb.execute(sql`
+        SELECT role, roles FROM users WHERE id = ${userId} LIMIT 1
+      `)).rows as any[];
+      const dbRole: string = userRow?.role || "";
+      const dbRoles: string = userRow?.roles || "";
+      const isPoolAdmin = dbRole === "pool_admin" || dbRoles.includes("pool_admin");
+
+      if (isPoolAdmin) {
+        // pool_admin은 본인 풀의 전체 보강 대기 목록 반환
+        const rows = await db.execute(sql`
+          SELECT ms.*, u.name AS student_name_from_user
+          FROM makeup_sessions ms
+          LEFT JOIN users u ON u.id = ms.student_id
+          WHERE ms.swimming_pool_id = ${poolId}
+            AND ms.status = ${dbStatus}
+            AND ms.cancelled_at IS NULL
+          ORDER BY ms.absence_date ASC, ms.created_at ASC
+        `);
+        res.json(rows.rows); return;
+      }
+
+      // 일반 선생님: 담당(primary + co_teacher)인 반 ID 전체 조회
       const myClassRows = (await superAdminDb.execute(sql`
         SELECT id FROM class_groups
         WHERE swimming_pool_id = ${poolId}
