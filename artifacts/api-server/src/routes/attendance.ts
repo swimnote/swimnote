@@ -138,9 +138,12 @@ router.get("/weekly", requireAuth, async (req: AuthRequest, res) => {
     const allStudents = await db.select().from(studentsTable)
       .where(eq(studentsTable.swimming_pool_id, poolId));
 
-    const filteredStudents = class_group_id
+    const filteredStudents = (class_group_id
       ? allStudents.filter(s => s.class_group_id === class_group_id)
-      : allStudents;
+      : allStudents
+    ).filter(s =>
+      !(s as any).class_enrolled_at || (s as any).class_enrolled_at <= endDate
+    );
 
     const allRecords = await db.select().from(attendanceTable)
       .where(and(
@@ -195,15 +198,19 @@ router.get("/monthly-summary", requireAuth, async (req: AuthRequest, res) => {
     const allStudents = await db.select().from(studentsTable)
       .where(eq(studentsTable.swimming_pool_id, poolId));
 
-    const filteredStudents = class_group_id
+    const monthEnd = `${monthStr}-31`;
+    const filteredStudents = (class_group_id
       ? allStudents.filter(s => s.class_group_id === class_group_id)
-      : allStudents;
+      : allStudents
+    ).filter(s =>
+      !(s as any).class_enrolled_at || (s as any).class_enrolled_at <= monthEnd
+    );
 
     const allRecords = await db.select().from(attendanceTable)
       .where(and(
         eq(attendanceTable.swimming_pool_id, poolId),
         gte(attendanceTable.date, `${monthStr}-01`),
-        lte(attendanceTable.date, `${monthStr}-31`)
+        lte(attendanceTable.date, monthEnd)
       ));
 
     const classGroups = await db.select().from(classGroupsTable)

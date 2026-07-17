@@ -15,7 +15,7 @@ const C = Colors.light;
 
 // ── 타입 ───────────────────────────────────────────────────────
 interface ClassGroup { id: string; name: string; }
-interface Student    { id: string; name: string; class_group_id: string | null; }
+interface Student    { id: string; name: string; class_group_id: string | null; class_enrolled_at?: string | null; }
 interface WeeklyRow {
   student_id: string; student_name: string;
   class_group_id: string | null; class_name: string | null;
@@ -387,7 +387,10 @@ export default function AttendanceScreen() {
     if (tab === "search") setTimeout(() => searchInputRef.current?.focus(), 100);
   }
 
-  const classStudents = students.filter(s => s.class_group_id === selectedClass);
+  const classStudents = students.filter(s =>
+    s.class_group_id === selectedClass &&
+    (!s.class_enrolled_at || s.class_enrolled_at <= baseDate)
+  );
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(getMonday(baseDate), i));
 
   // ── 날짜 탐색 바 ─────────────────────────────────────────────

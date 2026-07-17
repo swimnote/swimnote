@@ -146,6 +146,7 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
       WHERE swimming_pool_id = ${poolId}
         AND status NOT IN ('withdrawn', 'deleted')
         AND deleted_at IS NULL
+        AND (class_enrolled_at IS NULL OR class_enrolled_at <= ${dateParam})
       ORDER BY name ASC
     `);
     // classId → StudentItem[] 매핑
