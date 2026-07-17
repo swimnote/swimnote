@@ -134,7 +134,17 @@ export default function Dashboard() {
         setStats(s);
         setStats2(s2);
         setStorage(st);
-        setTodayClasses(Array.isArray(classes) ? classes.slice(0, 5) : []);
+        const todayKo = ["일", "월", "화", "수", "목", "금", "토"][new Date().getDay()];
+        const todayList = Array.isArray(classes)
+          ? classes.filter((c: any) => {
+              if (c.is_one_time) {
+                const today = new Date().toISOString().slice(0, 10);
+                return c.one_time_date === today;
+              }
+              return c.schedule_days && c.schedule_days.includes(todayKo);
+            })
+          : [];
+        setTodayClasses(todayList.slice(0, 5));
 
         const revenuePromises = months.map(m =>
           api.get<any>(`/admin/settlement-summary?month=${m.ym}`).catch(() => null)
