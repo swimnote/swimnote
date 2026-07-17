@@ -85,6 +85,7 @@ function Badge({ label, cls }: { label: string; cls: string }) {
 export default function SuperAdmin() {
   const [, navigate] = useLocation();
   const { user, logout, loading: authLoading } = useAuth();
+  const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
   const [pools, setPools] = useState<Pool[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
@@ -324,7 +325,8 @@ export default function SuperAdmin() {
                           </span>
                           {pool.homepage_slug && pool.homepage_enabled && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#EFF6FF] text-[#0369A1]">
-                              🌐 홈페이지
+                              <img src={`${BASE}/favicon.svg`} alt="swimnote" className="w-3 h-3" />
+                              홈페이지
                             </span>
                           )}
                         </div>
