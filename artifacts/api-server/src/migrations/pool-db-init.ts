@@ -214,9 +214,11 @@ export async function initPoolDb(): Promise<void> {
       created_at                  timestamptz NOT NULL DEFAULT now(),
       updated_at                  timestamptz NOT NULL DEFAULT now()
     );
-    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS absence_id   text;
-    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS source_type  text;
-    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS can_expire   boolean DEFAULT true;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS absence_id        text;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS source_type       text;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS can_expire        boolean DEFAULT true;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS expire_at         timestamptz;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS weekly_frequency  integer DEFAULT 1;
   `));
 
   // ─── 7. notices ──────────────────────────────────────────────────────────

@@ -330,16 +330,22 @@ async function autoCreateMakeup(
   classGroupId: string | null | undefined,
   attendanceId: string,
   previousStatus?: string | null
-) {
+): Promise<{ created: boolean; reason?: string }> {
   // previousStatus 가 absent 여도 기존 세션이 cancelled/expired 면 새로 생성해야 함
   const [student] = await db.select().from(studentsTable).where(eq(studentsTable.id, studentId)).limit(1);
-  if (!student) return;
+  if (!student) {
+    console.warn(`[autoCreateMakeup] student not found: ${studentId}`);
+    return { created: false, reason: "student_not_found" };
+  }
   const [existing] = ((await (db as any).execute(sql`
-    SELECT id FROM makeup_sessions
+    SELECT id, status FROM makeup_sessions
     WHERE student_id = ${studentId} AND absence_date = ${date} AND status NOT IN ('cancelled','expired')
     LIMIT 1
   `)) as any).rows as any[];
-  if (existing) return;
+  if (existing) {
+    console.log(`[autoCreateMakeup] 이미 보강세션 존재 (id=${existing.id}, status=${existing.status}) → 스킵`);
+    return { created: false, reason: "already_exists" };
+  }
 
   // 풀 정책 조회 (swimming_pools는 superAdminDb) — 컬럼 누락 시 기본값으로 폴백
   let poolRow: any = null;
@@ -377,7 +383,10 @@ async function autoCreateMakeup(
       AND status NOT IN ('cancelled','expired')
   `)) as any).rows as any[];
   const currentCount: number = countRow?.cnt ?? 0;
-  if (currentCount >= maxPerMonth) return; // 한도 초과 시 자동 생성 안함
+  if (currentCount >= maxPerMonth) {
+    console.warn(`[autoCreateMakeup] 월간 보강 한도 초과 → 스킵. student=${studentId}, month=${monthPrefix}, current=${currentCount}, max=${maxPerMonth}`);
+    return { created: false, reason: "monthly_limit_exceeded" };
+  }
 
   let teacherId: string | null = null;
   let teacherName: string | null = null;
@@ -416,6 +425,8 @@ async function autoCreateMakeup(
       ${expireAt}, ${weeklyCount}
     )
   `);
+  console.log(`[autoCreateMakeup] 보강세션 생성 완료: id=${mkId}, student=${student.name}, date=${date}`);
+  return { created: true };
 }
 
 router.post("/", requireAuth, async (req: AuthRequest, res) => {
@@ -441,9 +452,10 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
         .where(eq(attendanceTable.id, existing.id))
         .returning();
       const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
+      let makeupResult: { created: boolean; reason?: string } | null = null;
       if (status === "absent") {
         try {
-          await autoCreateMakeup(poolId, student_id, date, class_group_id || existing.class_group_id, existing.id, prevStatus);
+          makeupResult = await autoCreateMakeup(poolId, student_id, date, class_group_id || existing.class_group_id, existing.id, prevStatus);
         } catch(e) { console.error("[autoCreateMakeup] 보강세션 생성 실패:", e); }
       } else if ((status === "present" || status === "late") && prevStatus === "absent") {
         db.execute(sql`
@@ -453,7 +465,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
             AND status IN ('waiting', 'assigned', 'transferred')
         `).catch(e => console.error("[cancelMakeup] 취소 실패:", e));
       }
-      res.json({ success: true, data: { ...updated, student_name: s?.name || null } }); return;
+      res.json({ success: true, data: { ...updated, student_name: s?.name || null }, makeup_queued: makeupResult?.created ?? null, makeup_skip_reason: makeupResult?.reason ?? null }); return;
     }
 
     const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -461,9 +473,10 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       id, swimming_pool_id: poolId, class_group_id: class_group_id || null, student_id, date, status,
     }).returning();
     const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
+    let makeupResult2: { created: boolean; reason?: string } | null = null;
     if (status === "absent") {
       try {
-        await autoCreateMakeup(poolId, student_id, date, class_group_id, id, null);
+        makeupResult2 = await autoCreateMakeup(poolId, student_id, date, class_group_id, id, null);
       } catch(e) { console.error("[autoCreateMakeup] 보강세션 생성 실패:", e); }
     }
     logPoolEvent({
@@ -471,7 +484,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       entity_id: id, actor_id: req.user!.userId,
       payload: { student_id, student_name: s?.name, date, status },
     }).catch(() => {});
-    res.status(201).json({ success: true, data: { ...record, student_name: s?.name || null } });
+    res.status(201).json({ success: true, data: { ...record, student_name: s?.name || null }, makeup_queued: makeupResult2?.created ?? null, makeup_skip_reason: makeupResult2?.reason ?? null });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "서버 오류가 발생했습니다." });

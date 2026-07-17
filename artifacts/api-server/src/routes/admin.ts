@@ -2154,6 +2154,61 @@ router.post("/makeups/:id/self-extinguish", requireAuth, requireRole("super_admi
   }
 );
 
+// POST /admin/makeups/ensure — 결석 시 보강 대기 강제 등록 (클라이언트에서 직접 호출)
+// 이미 waiting/assigned/transferred 상태 있으면 스킵, cancelled/expired면 새로 생성
+router.post("/makeups/ensure", requireAuth, requireRole("super_admin","pool_admin","teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
+      const { student_id, date, class_group_id, attendance_id } = req.body;
+      if (!student_id || !date) { res.status(400).json({ error: "student_id, date 필요" }); return; }
+
+      // 이미 활성 보강세션 있으면 스킵
+      const existingRows = (await db.execute(sql.raw(`
+        SELECT id, status FROM makeup_sessions
+        WHERE student_id = '${student_id}' AND absence_date = '${date}'
+          AND status NOT IN ('cancelled','expired')
+        LIMIT 1
+      `))).rows as any[];
+      if (existingRows.length > 0) {
+        return res.json({ created: false, reason: "already_exists", id: existingRows[0].id });
+      }
+
+      // 학생 정보 조회
+      const [student] = await db.select({ name: studentsTable.name, class_group_id: studentsTable.class_group_id })
+        .from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
+      if (!student) { res.status(404).json({ error: "학생 없음" }); return; }
+
+      // 반 정보 조회
+      const cgId = class_group_id || student.class_group_id;
+      let teacherId: string | null = null, teacherName: string | null = null, cgName: string | null = null;
+      if (cgId) {
+        const [cg] = await db.select().from(classGroupsTable).where(eq(classGroupsTable.id, cgId)).limit(1);
+        if (cg) { teacherId = cg.teacher_user_id || null; teacherName = cg.instructor || null; cgName = cg.name || null; }
+      }
+
+      const mkId = `mk_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+      // 구버전 DB 호환: expire_at/weekly_frequency 없이 기본 컬럼만 INSERT
+      await db.execute(sql.raw(`
+        INSERT INTO makeup_sessions (
+          id, swimming_pool_id, student_id, student_name,
+          original_class_group_id, original_class_group_name,
+          original_teacher_id, original_teacher_name,
+          absence_date, absence_attendance_id, status
+        ) VALUES (
+          '${mkId}', '${poolId}', '${student_id}', '${(student.name || "").replace(/'/g, "''")}',
+          ${cgId ? `'${cgId}'` : "NULL"}, ${cgName ? `'${cgName.replace(/'/g, "''")}'` : "NULL"},
+          ${teacherId ? `'${teacherId}'` : "NULL"}, ${teacherName ? `'${teacherName.replace(/'/g, "''")}'` : "NULL"},
+          '${date}', ${attendance_id ? `'${attendance_id}'` : "NULL"}, 'waiting'
+        )
+      `));
+      console.log(`[makeups/ensure] 보강세션 생성: ${mkId}, student=${student.name}, date=${date}`);
+      res.json({ created: true, id: mkId });
+    } catch (err) { console.error("[makeups/ensure]", err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 // GET /admin/makeups/pending — 보강 대기 목록 (waiting/transferred, absence_date 오름차순)
 router.get("/makeups/pending", requireAuth, requireRole("super_admin","pool_admin","teacher"),
   async (req: AuthRequest, res) => {

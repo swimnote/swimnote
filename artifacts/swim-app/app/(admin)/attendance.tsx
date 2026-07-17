@@ -230,7 +230,16 @@ export default function AttendanceScreen() {
     try {
       const res  = await apiRequest(token, "/admin/makeups/pending");
       const data = await res.json();
-      setMakeupList(Array.isArray(data) ? data : []);
+      const serverList: MakeupSession[] = Array.isArray(data) ? data : [];
+      setMakeupList(prev => {
+        // 서버에서 확인된 항목 키셋
+        const serverKeys = new Set(serverList.map(m => `${m.student_id}_${m.absence_date}`));
+        // 서버에 아직 없는 낙관적(temp) 항목 유지
+        const tempItems = prev.filter(m =>
+          m.id.startsWith("temp_") && !serverKeys.has(`${m.student_id}_${m.absence_date}`)
+        );
+        return [...serverList, ...tempItems];
+      });
     } catch (e) { console.error(e); }
     finally { setLoadingMakeup(false); }
   }, [token]);
@@ -305,18 +314,56 @@ export default function AttendanceScreen() {
     setSavingId(studentId);
     try {
       const prevStatus = dailyAtt[studentId] ?? null;
-      await apiRequest(token, "/attendance", {
+
+      // 1. 결석으로 변경 시 즉시 보강대기 목록에 반영 (낙관적 UI)
+      if (status === "absent" && prevStatus !== "absent") {
+        const st = students.find(s => s.id === studentId);
+        const cg = classGroups.find(g => g.id === selectedClass);
+        const tempId = `temp_${studentId}_${baseDate}`;
+        const tempSession: MakeupSession = {
+          id: tempId,
+          student_id: studentId,
+          student_name: st?.name ?? "",
+          original_class_group_id: selectedClass,
+          original_class_group_name: cg?.name ?? "",
+          original_teacher_id: null,
+          original_teacher_name: "",
+          absence_date: baseDate,
+          status: "waiting",
+        };
+        setMakeupList(prev => {
+          // 이미 같은 날짜의 항목이 있으면 추가 안함
+          const alreadyExists = prev.some(m => m.student_id === studentId && m.absence_date === baseDate);
+          if (alreadyExists) return prev;
+          return [...prev, tempSession];
+        });
+      }
+
+      // 2. 출결 취소(결석→출석/지각) 시 보강대기에서 즉시 제거
+      if (status !== "absent" && prevStatus === "absent") {
+        setMakeupList(prev => prev.filter(m => !(m.student_id === studentId && m.absence_date === baseDate)));
+      }
+
+      // 3. 서버에 출결 저장
+      const attRes = await apiRequest(token, "/attendance", {
         method: "POST",
         body: JSON.stringify({ student_id: studentId, class_group_id: selectedClass, date: baseDate, status }),
       });
+      const attData = attRes.ok ? await attRes.json().catch(() => ({})) : {};
       setDailyAtt(prev => ({ ...prev, [studentId]: status }));
-      // 결석 처리 → 보강대기 즉시 갱신
+
+      // 4. 서버에 보강세션 생성 요청 (백그라운드) + 서버 목록 동기화
       if (status === "absent" && prevStatus !== "absent") {
-        fetchMakeup();
+        const attId = attData?.data?.id ?? null;
+        apiRequest(token, "/admin/makeups/ensure", {
+          method: "POST",
+          body: JSON.stringify({ student_id: studentId, date: baseDate, class_group_id: selectedClass, attendance_id: attId }),
+        })
+          .then(() => fetchMakeup())   // 서버 확정 후 실제 ID로 갱신
+          .catch(() => fetchMakeup()); // 실패해도 서버 목록 갱신 시도
       }
-      // 결석 취소 → 보강대기에서 제거됨 → 즉시 갱신
       if (status !== "absent" && prevStatus === "absent") {
-        fetchMakeup();
+        fetchMakeup(); // 서버와 동기화
       }
     } finally { setSavingId(null); }
   }
@@ -605,22 +652,29 @@ export default function AttendanceScreen() {
                     </View>
                   </View>
                   <Text style={[a.absDate, { color: C.textMuted }]}>결석일: {item.absence_date}</Text>
-                  <View style={a.mkActions}>
-                    <Pressable
-                      style={[a.mkBtn, { backgroundColor: C.button }]}
-                      onPress={() => openAssign(item)}
-                    >
-                      <Calendar size={14} color="#fff" />
-                      <Text style={a.mkBtnText}>보강 지정</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[a.mkBtn, { backgroundColor: "#F9DEDA", borderWidth: 1, borderColor: "#FCA5A5" }]}
-                      onPress={() => openExtinguish(item)}
-                    >
-                      <CircleX size={14} color="#D96C6C" />
-                      <Text style={[a.mkBtnText, { color: "#D96C6C" }]}>결석 소멸</Text>
-                    </Pressable>
-                  </View>
+                  {item.id.startsWith("temp_") ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
+                      <ActivityIndicator size="small" color={C.tint} />
+                      <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>서버 등록 중...</Text>
+                    </View>
+                  ) : (
+                    <View style={a.mkActions}>
+                      <Pressable
+                        style={[a.mkBtn, { backgroundColor: C.button }]}
+                        onPress={() => openAssign(item)}
+                      >
+                        <Calendar size={14} color="#fff" />
+                        <Text style={a.mkBtnText}>보강 지정</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[a.mkBtn, { backgroundColor: "#F9DEDA", borderWidth: 1, borderColor: "#FCA5A5" }]}
+                        onPress={() => openExtinguish(item)}
+                      >
+                        <CircleX size={14} color="#D96C6C" />
+                        <Text style={[a.mkBtnText, { color: "#D96C6C" }]}>결석 소멸</Text>
+                      </Pressable>
+                    </View>
+                  )}
                 </View>
               );
             }}
