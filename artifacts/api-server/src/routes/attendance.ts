@@ -331,7 +331,7 @@ async function autoCreateMakeup(
   attendanceId: string,
   previousStatus?: string | null
 ) {
-  if (previousStatus === "absent") return;
+  // previousStatus 가 absent 여도 기존 세션이 cancelled/expired 면 새로 생성해야 함
   const [student] = await db.select().from(studentsTable).where(eq(studentsTable.id, studentId)).limit(1);
   if (!student) return;
   const [existing] = ((await (db as any).execute(sql`
