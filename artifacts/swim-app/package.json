@@ -60,6 +60,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "@workspace/app-content": "workspace:*",
     "@react-native-seoul/kakao-login": "^5.4.2",
     "expo-apple-authentication": "^8.0.8",
     "expo-av": "~16.0.8",

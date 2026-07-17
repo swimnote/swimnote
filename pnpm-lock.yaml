@@ -448,6 +448,9 @@ importers:
       '@react-native-seoul/kakao-login':
         specifier: ^5.4.2
         version: 5.4.2(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+      '@workspace/app-content':
+        specifier: workspace:*
+        version: link:../../lib/app-content
       expo-apple-authentication:
         specifier: ^8.0.8
         version: 8.0.8(expo@54.0.33)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))
@@ -755,6 +758,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/app-content':
+        specifier: workspace:*
+        version: link:../../lib/app-content
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -845,6 +851,8 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 3.25.76
+
+  lib/app-content: {}
 
   lib/db:
     dependencies:
@@ -1635,7 +1643,7 @@ packages:
 
   '@expo/bunyan@4.0.1':
     resolution: {integrity: sha512-+Lla7nYSiHZirgK+U/uYzsLv/X+HaJienbD5AKX1UQZHYfWaP+9uuQluRB4GrEVWF0GZ7vEVp/jzaOT9k/SQlg==}
-    engines: {'0': node >=0.10.0}
+    engines: {node: '>=0.10.0'}
 
   '@expo/cli@54.0.23':
     resolution: {integrity: sha512-km0h72SFfQCmVycH/JtPFTVy69w6Lx1cHNDmfLfQqgKFYeeHTjx7LVDP4POHCtNxFP2UeRazrygJhlh4zz498g==}
