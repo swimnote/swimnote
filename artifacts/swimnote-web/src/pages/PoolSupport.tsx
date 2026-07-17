@@ -1,11 +1,17 @@
 import { Mail, Phone, LayoutDashboard } from "lucide-react";
-import { useLocation } from "wouter";
 
 const SECONDARY = "#01B2F1";
 const PRIMARY = "#002F5F";
 
-export default function PoolSupport() {
-  const [, navigate] = useLocation();
+interface Props {
+  poolId: string;
+}
+
+export default function PoolSupport({ poolId }: Props) {
+  const goAdmin = () => {
+    const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+    window.location.href = `${base}/login?pool=${poolId}`;
+  };
 
   return (
     <section className="py-20 px-6">
@@ -38,7 +44,7 @@ export default function PoolSupport() {
         </a>
 
         <button
-          onClick={() => navigate("/login")}
+          onClick={goAdmin}
           className="flex items-center gap-5 px-6 py-5 rounded-2xl border border-[#ebebeb] bg-white hover:border-[#d0d0d0] transition-colors text-left w-full"
         >
           <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#eef2f8" }}>

@@ -198,7 +198,7 @@ export default function PoolHomepage() {
           {activeTab === "intro" && <Intro />}
           {activeTab === "education" && <Education />}
           {activeTab === "app" && <AppPage />}
-          {activeTab === "support" && <PoolSupport />}
+          {activeTab === "support" && <PoolSupport poolId={pool?.id ?? ""} />}
         </main>
       </PoolModeContext.Provider>
     </div>

@@ -11,6 +11,9 @@ export default function Login() {
   const [, navigate] = useLocation();
   const { login, completeTotpLogin, completeWebPinLogin } = useAuth();
 
+  // ?pool=:poolId 파라미터 — 수영장 전용 로그인 제한
+  const poolId = new URLSearchParams(window.location.search).get("pool") ?? "";
+
   const [step, setStep] = useState<"credentials" | "otp" | "web_pin">("credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,9 +34,19 @@ export default function Login() {
 
   const otpCode = digits.join("");
 
-  const redirectByRole = (role: string, poolId?: string | null) => {
+  const redirectByRole = (role: string, userPoolId?: string | null) => {
+    // 수영장 전용 로그인 — pool_admin이고 해당 수영장 관리자여야만 허용
+    if (poolId) {
+      if (role !== "pool_admin" || userPoolId !== poolId) {
+        setError("해당 수영장 관리자 계정으로만 로그인할 수 있습니다.");
+        setLoading(false);
+        return;
+      }
+      navigate(`/pool/${poolId}/admin`);
+      return;
+    }
     if (role === "super_admin") navigate("/super-admin");
-    else if (role === "pool_admin" && poolId) navigate(`/pool/${poolId}/admin`);
+    else if (role === "pool_admin" && userPoolId) navigate(`/pool/${userPoolId}/admin`);
     else navigate("/");
   };
 
