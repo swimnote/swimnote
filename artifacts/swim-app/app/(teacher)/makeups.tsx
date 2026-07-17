@@ -371,11 +371,9 @@ export default function MakeupsScreen() {
       <SubScreenHeader title="결석자 리스트" homePath="/(teacher)/today-schedule" />
 
       {/* 탭 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        style={{ flexGrow: 0 }}
-        contentContainerStyle={{ flexDirection: "row", paddingHorizontal: 14, paddingVertical: 10, gap: 8, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border }}>
+      <View style={{ flexDirection: "row", paddingHorizontal: 10, paddingVertical: 10, gap: 6, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border }}>
         <Pressable
-          style={[s.tabBtn, tab === "waiting" && { backgroundColor: themeColor, borderColor: themeColor }]}
+          style={[s.tabBtn, { flex: 1, justifyContent: "center" }, tab === "waiting" && { backgroundColor: themeColor, borderColor: themeColor }]}
           onPress={() => setTab("waiting")}
         >
           {waitingList.length > 0 && tab !== "waiting" && (
@@ -384,7 +382,7 @@ export default function MakeupsScreen() {
           <Text style={[s.tabTxt, tab === "waiting" && { color: "#fff" }]}>결석자 리스트</Text>
         </Pressable>
         <Pressable
-          style={[s.tabBtn, tab === "assigned" && { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }]}
+          style={[s.tabBtn, { flex: 1, justifyContent: "center" }, tab === "assigned" && { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }]}
           onPress={() => setTab("assigned")}
         >
           {assignedList.length > 0 && tab !== "assigned" && (
@@ -393,12 +391,12 @@ export default function MakeupsScreen() {
           <Text style={[s.tabTxt, tab === "assigned" && { color: "#fff" }]}>배정된 보강</Text>
         </Pressable>
         <Pressable
-          style={[s.tabBtn, tab === "history" && { backgroundColor: themeColor, borderColor: themeColor }]}
+          style={[s.tabBtn, { flex: 1, justifyContent: "center" }, tab === "history" && { backgroundColor: themeColor, borderColor: themeColor }]}
           onPress={() => setTab("history")}
         >
           <Text style={[s.tabTxt, tab === "history" && { color: "#fff" }]}>보강 현황</Text>
         </Pressable>
-      </ScrollView>
+      </View>
 
       {/* ── 탭 1: 결석자 리스트 ─────────────────────────────────────────── */}
       {tab === "waiting" && (

@@ -430,18 +430,21 @@ router.get("/teacher/makeups", requireAuth,
       const poolId = await getMyPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
-      // co_teacher로 배정된 반 ID 목록 조회
-      const coRows = (await superAdminDb.execute(sql`
+      // 내가 담당(primary + co_teacher)인 반 ID 전체 조회
+      const myClassRows = (await superAdminDb.execute(sql`
         SELECT id FROM class_groups
         WHERE swimming_pool_id = ${poolId}
           AND is_deleted = false
-          AND co_teacher_ids @> to_jsonb(${userId}::text)
+          AND (
+            teacher_user_id = ${userId}
+            OR co_teacher_ids @> to_jsonb(${userId}::text)
+          )
       `)).rows as any[];
-      const coIds = coRows.map((r: any) => r.id as string);
+      const myClassIds = myClassRows.map((r: any) => r.id as string);
 
       let rows;
-      if (coIds.length > 0) {
-        const idList = coIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
+      if (myClassIds.length > 0) {
+        const idList = myClassIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
         rows = await db.execute(sql.raw(`
           SELECT ms.*, u.name AS student_name_from_user
           FROM makeup_sessions ms
@@ -450,8 +453,8 @@ router.get("/teacher/makeups", requireAuth,
             AND ms.status = '${dbStatus}'
             AND ms.cancelled_at IS NULL
             AND (
-              ms.original_teacher_id = '${userId}'
-              OR ms.original_class_group_id IN (${idList})
+              ms.original_class_group_id IN (${idList})
+              OR ms.original_teacher_id = '${userId}'
             )
           ORDER BY ms.absence_date ASC, ms.created_at ASC
         `));
