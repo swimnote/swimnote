@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import type { LoginResult, WebPinRequired } from "@/contexts/AuthContext";
 import { Shield, Smartphone, Globe } from "lucide-react";
+import { api } from "@/lib/api";
 
 const PRIMARY = "#002F5F";
 const PURPLE = "#7C3AED";
@@ -17,6 +18,8 @@ export default function Login() {
   const [step, setStep] = useState<"credentials" | "otp" | "web_pin">("credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [poolNameInput, setPoolNameInput] = useState("");
+  const [poolNameExpected, setPoolNameExpected] = useState("");
   const [totpSession, setTotpSession] = useState("");
   const [webSession, setWebSession] = useState("");
   const [webPin, setWebPin] = useState("");
@@ -26,6 +29,14 @@ export default function Login() {
 
   const digitRefs = useRef<(HTMLInputElement | null)[]>(Array(6).fill(null));
   const webPinRef = useRef<HTMLInputElement>(null);
+
+  // 풀 전용 로그인: 수영장 이름 미리 가져오기
+  useEffect(() => {
+    if (!poolId) return;
+    api.get<{ name: string }>(`/pools/${poolId}/public`)
+      .then(res => setPoolNameExpected(res.name))
+      .catch(() => setPoolNameExpected(""));
+  }, [poolId]);
 
   useEffect(() => {
     if (step === "otp") setTimeout(() => digitRefs.current[0]?.focus(), 100);
@@ -53,6 +64,17 @@ export default function Login() {
   const handleCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    // 풀 전용 로그인: 수영장 이름 검증
+    if (poolId) {
+      const trimmed = poolNameInput.trim();
+      if (!trimmed) { setError("수영장 이름을 입력해주세요."); return; }
+      if (poolNameExpected && trimmed !== poolNameExpected) {
+        setError("수영장 이름이 일치하지 않습니다.");
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const result = await login(email, password);
@@ -64,6 +86,12 @@ export default function Login() {
         setWebPin("");
         setStep("web_pin");
       } else {
+        // 풀 전용 로그인인데 핀번호 미설정 → 차단
+        if (poolId) {
+          setError("앱에서 웹 접속 비밀번호(핀번호)를 설정한 후 다시 시도해주세요.");
+          setLoading(false);
+          return;
+        }
         const u = result as any;
         redirectByRole(u.role, u.swimming_pool_id);
       }
@@ -155,6 +183,20 @@ export default function Login() {
 
             <div className="bg-white rounded-2xl shadow-sm border border-[#ebebeb] p-8">
               <form onSubmit={handleCredentials} className="space-y-4">
+                {/* 수영장 전용 로그인: 수영장 이름 필드 */}
+                {poolId && (
+                  <div>
+                    <label className="block text-[12px] font-semibold text-[#555] mb-1.5">수영장 이름</label>
+                    <input
+                      type="text"
+                      value={poolNameInput}
+                      onChange={(e) => { setPoolNameInput(e.target.value); setError(""); }}
+                      placeholder="앱에 가입된 수영장 이름"
+                      required
+                      className="w-full px-4 py-3 rounded-xl border border-[#e5e5e5] text-[14px] focus:outline-none focus:border-[#002F5F] transition-colors"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-[12px] font-semibold text-[#555] mb-1.5">이메일</label>
                   <input
