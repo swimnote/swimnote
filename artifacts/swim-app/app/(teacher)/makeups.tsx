@@ -9,6 +9,7 @@ import {
   StyleSheet, Text, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
@@ -87,6 +88,27 @@ function formatExpireAt(expire_at: string | null) {
   return { text: label, color: col };
 }
 
+// 앞으로 4주간 특정 요일의 날짜 목록 생성
+function getNextDates(scheduleDays: string): { date: string; label: string }[] {
+  const dayMap: Record<string, number> = { 일: 0, 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6 };
+  const labels = ["일", "월", "화", "수", "목", "금", "토"];
+  const parts = scheduleDays.includes(",") ? scheduleDays.split(",") : scheduleDays.split("");
+  const targetDays = parts.map(p => dayMap[p.trim()]).filter(d => d !== undefined) as number[];
+  if (targetDays.length === 0) return [];
+  const results: { date: string; label: string }[] = [];
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  for (let i = 1; i <= 28; i++) {
+    const d = new Date(today); d.setDate(d.getDate() + i);
+    if (targetDays.includes(d.getDay())) {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      results.push({ date: `${yyyy}-${mm}-${dd}`, label: `${d.getMonth()+1}/${d.getDate()} (${labels[d.getDay()]})` });
+    }
+  }
+  return results;
+}
+
 export default function MakeupsScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
@@ -104,6 +126,7 @@ export default function MakeupsScreen() {
   const [eligibleClasses, setEligibleClasses] = useState<any[]>([]);
   const [classLoading,    setClassLoading]    = useState(false);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [selectedDate,    setSelectedDate]    = useState<string | null>(null);
   const [assigning,       setAssigning]       = useState(false);
 
   // 기타 보강 모달
@@ -133,13 +156,12 @@ export default function MakeupsScreen() {
 
   // ── 결석자 리스트 로드 ──────────────────────────────────────────────────
   const loadWaiting = useCallback(async () => {
-    if (!adminUser?.id) return;
     try {
-      const res = await apiRequest(token, `/admin/makeups?status=waiting&teacher_id=${adminUser.id}`);
+      const res = await apiRequest(token, `/admin/makeups?status=waiting`);
       if (res.ok) setWaitingList(await res.json());
     } catch (e) { console.error(e); }
     finally { setWaitingLoading(false); setWaitingRefresh(false); }
-  }, [token, adminUser?.id]);
+  }, [token]);
 
   const loadAssigned = useCallback(async () => {
     setAssignedLoading(true);
@@ -163,31 +185,48 @@ export default function MakeupsScreen() {
   useEffect(() => { if (tab === "assigned") loadAssigned(); }, [tab, loadAssigned]);
   useEffect(() => { if (tab === "history") loadHistory(); }, [tab, loadHistory]);
 
+  // 화면 포커스 시 대기 목록 갱신 (다른 화면에서 출결 변경 후 돌아왔을 때)
+  useFocusEffect(useCallback(() => {
+    loadWaiting();
+    if (tab === "assigned") loadAssigned();
+  }, [loadWaiting, loadAssigned, tab]));
+
   // ── 보강반 배정 ─────────────────────────────────────────────────────────
   const openAssignModal = async (mk: MakeupSession) => {
     setAssignTarget(mk);
     setSelectedClassId(null);
+    setSelectedDate(null);
     setClassLoading(true);
     try {
-      const r = await apiRequest(token, `/admin/makeups/eligible-classes?teacher_id=${mk.original_teacher_id || ""}`);
+      const r = await apiRequest(token, `/teacher/makeups/eligible-classes?all=true`);
       if (r.ok) setEligibleClasses(await r.json());
     } catch {}
     setClassLoading(false);
   };
 
   const doAssign = async () => {
-    if (!assignTarget || !selectedClassId) return;
+    if (!assignTarget || !selectedClassId || !selectedDate) return;
     setAssigning(true);
     try {
-      const r = await apiRequest(token, `/admin/makeups/${assignTarget.id}/assign`, {
+      const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/assign`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ class_group_id: selectedClassId }),
+        body: JSON.stringify({ class_group_id: selectedClassId, assigned_date: selectedDate }),
       });
-      if (r.status === 409) setConfirmMsg("이미 해당 날짜에 보강이 배정되어 있습니다.");
-      setAssignTarget(null);
-      setSelectedClassId(null);
-      loadWaiting();
+      if (r.ok) {
+        setAssignTarget(null);
+        setSelectedClassId(null);
+        setSelectedDate(null);
+        loadWaiting();
+        loadAssigned();
+        setTab("assigned");
+        setConfirmMsg(`보강이 ${selectedDate}에 배정되었습니다.`);
+      } else if (r.status === 409) {
+        setConfirmMsg("이미 해당 날짜에 보강이 배정되어 있습니다.");
+      } else {
+        const body = await r.json().catch(() => ({}));
+        setConfirmMsg(body.error || "배정에 실패했습니다.");
+      }
     } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
     setAssigning(false);
   };
@@ -332,11 +371,9 @@ export default function MakeupsScreen() {
       <SubScreenHeader title="결석자 리스트" homePath="/(teacher)/today-schedule" />
 
       {/* 탭 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        style={{ flexGrow: 0 }}
-        contentContainerStyle={{ flexDirection: "row", paddingHorizontal: 14, paddingVertical: 10, gap: 8, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border }}>
+      <View style={{ flexDirection: "row", paddingHorizontal: 10, paddingVertical: 10, gap: 6, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border }}>
         <Pressable
-          style={[s.tabBtn, tab === "waiting" && { backgroundColor: themeColor, borderColor: themeColor }]}
+          style={[s.tabBtn, { flex: 1, justifyContent: "center" }, tab === "waiting" && { backgroundColor: themeColor, borderColor: themeColor }]}
           onPress={() => setTab("waiting")}
         >
           {waitingList.length > 0 && tab !== "waiting" && (
@@ -345,7 +382,7 @@ export default function MakeupsScreen() {
           <Text style={[s.tabTxt, tab === "waiting" && { color: "#fff" }]}>결석자 리스트</Text>
         </Pressable>
         <Pressable
-          style={[s.tabBtn, tab === "assigned" && { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }]}
+          style={[s.tabBtn, { flex: 1, justifyContent: "center" }, tab === "assigned" && { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }]}
           onPress={() => setTab("assigned")}
         >
           {assignedList.length > 0 && tab !== "assigned" && (
@@ -354,12 +391,12 @@ export default function MakeupsScreen() {
           <Text style={[s.tabTxt, tab === "assigned" && { color: "#fff" }]}>배정된 보강</Text>
         </Pressable>
         <Pressable
-          style={[s.tabBtn, tab === "history" && { backgroundColor: themeColor, borderColor: themeColor }]}
+          style={[s.tabBtn, { flex: 1, justifyContent: "center" }, tab === "history" && { backgroundColor: themeColor, borderColor: themeColor }]}
           onPress={() => setTab("history")}
         >
           <Text style={[s.tabTxt, tab === "history" && { color: "#fff" }]}>보강 현황</Text>
         </Pressable>
-      </ScrollView>
+      </View>
 
       {/* ── 탭 1: 결석자 리스트 ─────────────────────────────────────────── */}
       {tab === "waiting" && (
@@ -536,56 +573,143 @@ export default function MakeupsScreen() {
 
       {/* ── 보강반 배정 모달 ──────────────────────────────────────────────── */}
       {assignTarget && (
-        <Modal visible animationType="slide" transparent onRequestClose={() => setAssignTarget(null)} statusBarTranslucent>
-          <Pressable style={s.backdrop} onPress={() => setAssignTarget(null)}>
+        <Modal visible animationType="slide" transparent onRequestClose={() => { setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); }} statusBarTranslucent>
+          <Pressable style={s.backdrop} onPress={() => { setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); }}>
             <Pressable style={s.sheet} onPress={() => {}}>
               <View style={s.sheetHandle} />
               <View style={s.sheetHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.sheetTitle}>보강반 배정</Text>
-                  <Text style={s.sheetSub}>{assignTarget.student_name} · 결석일: {fmtDate(assignTarget.absence_date)}</Text>
+                  {selectedClassId && !selectedDate ? (
+                    <>
+                      <Text style={s.sheetTitle}>보강 날짜 선택</Text>
+                      <Text style={s.sheetSub}>
+                        {eligibleClasses.find(c => c.id === selectedClassId)?.name} · 앞으로 4주
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={s.sheetTitle}>보강반 배정</Text>
+                      <Text style={s.sheetSub}>{assignTarget.student_name} · 결석일: {fmtDate(assignTarget.absence_date)}</Text>
+                    </>
+                  )}
                 </View>
-                <Pressable onPress={() => { setAssignTarget(null); setSelectedClassId(null); }} style={{ padding: 4 }}>
-                  <X size={20} color={C.textSecondary} />
-                </Pressable>
-              </View>
-              <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
-                {classLoading ? (
-                  <ActivityIndicator color={themeColor} style={{ marginVertical: 32 }} />
-                ) : eligibleClasses.length === 0 ? (
-                  <View style={s.empty}>
-                    <CircleAlert size={24} color={C.textMuted} />
-                    <Text style={s.emptyTxt}>배정 가능한 반이 없습니다</Text>
-                  </View>
-                ) : eligibleClasses.map(cg => {
-                  const isSelected = selectedClassId === cg.id;
-                  return (
-                    <Pressable
-                      key={cg.id}
-                      style={[s.classRow, isSelected && { backgroundColor: themeColor + "15", borderColor: themeColor }]}
-                      onPress={() => setSelectedClassId(cg.id)}
-                    >
-                      <LucideIcon name={isSelected ? "check-circle" : "circle"} size={16} color={isSelected ? themeColor : C.textMuted} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={[s.className, { fontSize: 14, fontFamily: "Pretendard-Regular", color: isSelected ? themeColor : C.text }]}>{cg.name}</Text>
-                        <Text style={s.infoTxt}>{cg.schedule_days?.split(",").join("·")} · {cg.schedule_time}</Text>
-                      </View>
-                      <Text style={[s.infoTxt, { color: C.textMuted }]}>잔여 {cg.available_slots ?? "?"}석</Text>
-                    </Pressable>
-                  );
-                })}
-                <View style={{ height: 16 }} />
-              </ScrollView>
-              {selectedClassId && (
-                <View style={{ paddingHorizontal: 16, paddingBottom: 16, paddingTop: 8 }}>
-                  <Pressable
-                    style={[s.confirmBtn, { backgroundColor: C.button, opacity: assigning ? 0.6 : 1 }]}
-                    onPress={doAssign}
-                    disabled={assigning}
-                  >
-                    {assigning ? <ActivityIndicator color="#fff" /> : <Text style={s.confirmTxt}>배정 확정</Text>}
+                {selectedClassId && !selectedDate ? (
+                  <Pressable onPress={() => setSelectedClassId(null)} style={{ padding: 4 }}>
+                    <ArrowLeft size={20} color={C.textSecondary} />
                   </Pressable>
-                </View>
+                ) : (
+                  <Pressable onPress={() => { setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); }} style={{ padding: 4 }}>
+                    <X size={20} color={C.textSecondary} />
+                  </Pressable>
+                )}
+              </View>
+
+              {/* 단계 1: 반 선택 (내 반 우선, 다른 선생님 반 하단) */}
+              {!selectedClassId && (
+                <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                  {classLoading ? (
+                    <ActivityIndicator color={themeColor} style={{ marginVertical: 32 }} />
+                  ) : eligibleClasses.length === 0 ? (
+                    <View style={s.empty}>
+                      <CircleAlert size={24} color={C.textMuted} />
+                      <Text style={s.emptyTxt}>배정 가능한 반이 없습니다</Text>
+                    </View>
+                  ) : (() => {
+                    const myClasses = eligibleClasses.filter((cg: any) => cg.is_mine);
+                    const otherClasses = eligibleClasses.filter((cg: any) => !cg.is_mine);
+                    const renderClassRow = (cg: any) => (
+                      <Pressable
+                        key={cg.id}
+                        style={s.classRow}
+                        onPress={() => { setSelectedClassId(cg.id); setSelectedDate(null); }}
+                      >
+                        <LucideIcon name="calendar" size={16} color={cg.is_mine ? themeColor : "#9CA3AF"} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[s.className, { fontSize: 14, color: C.text }]}>{cg.name}</Text>
+                          <Text style={s.infoTxt}>{cg.schedule_days?.split(",").join("·")} · {cg.schedule_time}</Text>
+                        </View>
+                        <Text style={[s.infoTxt, { color: C.textMuted }]}>잔여 {cg.available_slots ?? "?"}석</Text>
+                      </Pressable>
+                    );
+                    return (
+                      <>
+                        {myClasses.length > 0 && (
+                          <>
+                            <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12 }]}>내 반</Text>
+                            {myClasses.map(renderClassRow)}
+                          </>
+                        )}
+                        {otherClasses.length > 0 && (
+                          <>
+                            <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: "#9CA3AF" }]}>
+                              다른 선생님 반 (인계 처리)
+                            </Text>
+                            {otherClasses.map(renderClassRow)}
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
+                  <View style={{ height: 16 }} />
+                </ScrollView>
+              )}
+
+              {/* 단계 2: 날짜 선택 */}
+              {selectedClassId && !selectedDate && (() => {
+                const selClass = eligibleClasses.find(c => c.id === selectedClassId);
+                const dates = selClass ? getNextDates(selClass.schedule_days || "") : [];
+                return (
+                  <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                    {dates.length === 0 ? (
+                      <View style={s.empty}>
+                        <CircleAlert size={24} color={C.textMuted} />
+                        <Text style={s.emptyTxt}>앞으로 4주간 해당 요일이 없습니다</Text>
+                      </View>
+                    ) : dates.map(({ date, label }) => (
+                      <Pressable
+                        key={date}
+                        style={[s.classRow, { justifyContent: "space-between" }]}
+                        onPress={() => setSelectedDate(date)}
+                      >
+                        <LucideIcon name="check-circle" size={16} color="#7C3AED" />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[s.className, { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }]}>{label}</Text>
+                        </View>
+                        <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+                      </Pressable>
+                    ))}
+                    <View style={{ height: 16 }} />
+                  </ScrollView>
+                );
+              })()}
+
+              {/* 단계 3: 확인 및 배정 확정 */}
+              {selectedClassId && selectedDate && (
+                <>
+                  <View style={{ padding: 16, gap: 10 }}>
+                    <View style={[s.assignedInfo]}>
+                      <LucideIcon name="check-circle" size={18} color="#7C3AED" />
+                      <Text style={s.assignedInfoTxt}>
+                        {`${eligibleClasses.find(c => c.id === selectedClassId)?.name}\n${fmtDate(selectedDate)} 보강 수업`}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4, gap: 8 }}>
+                    <Pressable
+                      style={[s.confirmBtn, { backgroundColor: C.button, opacity: assigning ? 0.6 : 1 }]}
+                      onPress={doAssign}
+                      disabled={assigning}
+                    >
+                      {assigning ? <ActivityIndicator color="#fff" /> : <Text style={s.confirmTxt}>배정 확정</Text>}
+                    </Pressable>
+                    <Pressable
+                      style={[s.confirmBtn, { backgroundColor: C.card, borderWidth: 1, borderColor: C.border }]}
+                      onPress={() => setSelectedDate(null)}
+                    >
+                      <Text style={[s.confirmTxt, { color: C.textSecondary }]}>날짜 다시 선택</Text>
+                    </Pressable>
+                  </View>
+                </>
               )}
             </Pressable>
           </Pressable>
@@ -720,9 +844,9 @@ export default function MakeupsScreen() {
 const s = StyleSheet.create({
   safe:            { flex: 1, backgroundColor: "#FFFFFF" },
   tabBtn:          { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
-  tabTxt:          { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  tabTxt:          { fontSize: 13, lineHeight: 18, color: C.textSecondary },
   tabBadge:        { width: 16, height: 16, borderRadius: 8, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center" },
-  tabBadgeTxt:     { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#fff" },
+  tabBadgeTxt:     { fontSize: 9, lineHeight: 13, color: "#fff" },
   list:            { padding: 14, gap: 10 },
   groupLabel:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, marginBottom: 6, marginTop: 4 },
   empty:           { alignItems: "center", gap: 12, paddingVertical: 60 },
