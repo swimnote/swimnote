@@ -157,7 +157,7 @@ export default function MakeupsScreen() {
   // ── 결석자 리스트 로드 ──────────────────────────────────────────────────
   const loadWaiting = useCallback(async () => {
     try {
-      const res = await apiRequest(token, `/admin/makeups?status=waiting`);
+      const res = await apiRequest(token, `/teacher/makeups?status=waiting`);
       if (res.ok) setWaitingList(await res.json());
     } catch (e) { console.error(e); }
     finally { setWaitingLoading(false); setWaitingRefresh(false); }
