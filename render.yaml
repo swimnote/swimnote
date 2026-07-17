@@ -4,8 +4,8 @@ services:
     runtime: node
     region: singapore
     plan: starter
-    buildCommand: npm install -g pnpm@10 && pnpm install --no-frozen-lockfile && pnpm --filter @workspace/api-server run build
-    startCommand: node artifacts/api-server/dist/index.mjs
+    buildCommand: npm install -g pnpm@10 && pnpm install --no-frozen-lockfile
+    startCommand: node_modules/.bin/tsx artifacts/api-server/src/index.ts
     healthCheckPath: /api/healthz
     envVars:
       - key: NODE_ENV
