@@ -355,10 +355,24 @@ app.get("/", (_req: Request, res: Response) => {
 </html>`);
 });
 
-// 404 핸들러 — HTML 대신 JSON
-app.use((_req: Request, res: Response) => {
-  res.status(404).json({ success: false, message: "요청한 경로를 찾을 수 없습니다.", error: "Not Found" });
-});
+// ── swimnote-web SPA 서빙 (/api 이외 모든 경로) ─────────────────────────
+const webDistDir = path.join(__dirname, "../../swimnote-web/dist/public");
+if (fs.existsSync(webDistDir)) {
+  app.use(express.static(webDistDir));
+  app.get("*", (_req: Request, res: Response) => {
+    const indexPath = path.join(webDistDir, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).json({ success: false, message: "Not Found", error: "Not Found" });
+    }
+  });
+} else {
+  // 404 핸들러 — HTML 대신 JSON
+  app.use((_req: Request, res: Response) => {
+    res.status(404).json({ success: false, message: "요청한 경로를 찾을 수 없습니다.", error: "Not Found" });
+  });
+}
 
 // multer 전용 에러 핸들러 (LIMIT_FILE_SIZE, LIMIT_UNEXPECTED_FILE 등)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
