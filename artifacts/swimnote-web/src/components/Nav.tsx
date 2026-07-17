@@ -95,6 +95,15 @@ export default function Nav() {
               </button>
             );
           })}
+          <a
+            href={`${import.meta.env.BASE_URL}login`}
+            className="ml-1 sm:ml-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[11px] sm:text-[13.5px] font-medium border transition-all duration-150 whitespace-nowrap"
+            style={{ borderColor: PRIMARY, color: PRIMARY }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = PRIMARY; (e.currentTarget as HTMLElement).style.color = "#fff"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ""; (e.currentTarget as HTMLElement).style.color = PRIMARY; }}
+          >
+            로그인
+          </a>
         </nav>
       </div>
     </header>
