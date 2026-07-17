@@ -322,6 +322,11 @@ export default function SuperAdmin() {
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${subColor[pool.subscription_status]}`}>
                             {subLabel[pool.subscription_status]}
                           </span>
+                          {pool.homepage_slug && pool.homepage_enabled && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#EFF6FF] text-[#0369A1]">
+                              🌐 홈페이지
+                            </span>
+                          )}
                         </div>
                         <p className="text-[13px] text-[#888] mb-1">{pool.address}</p>
                         <p className="text-[12px] text-[#aaa]">{pool.owner_name} · {pool.owner_email} · {pool.phone}</p>
