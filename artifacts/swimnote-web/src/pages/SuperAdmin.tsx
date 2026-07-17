@@ -45,6 +45,8 @@ interface Pool {
   subscription_end_at?: string | null;
   member_count?: number | null;
   created_at: string;
+  homepage_slug?: string | null;
+  homepage_enabled?: boolean | null;
 }
 
 const statusLabel: Record<string, string> = {
@@ -351,7 +353,7 @@ export default function SuperAdmin() {
                           </>
                         )}
                         <button
-                          onClick={() => navigate(`/pool/${pool.id}`)}
+                          onClick={() => navigate(pool.homepage_slug && pool.homepage_enabled ? `/${pool.homepage_slug}` : `/pool/${pool.id}`)}
                           className="px-4 py-2 rounded-xl text-[12px] font-semibold border border-[#ebebeb] text-[#555] hover:bg-[#f5f5f5] transition-colors"
                         >
                           홈페이지
