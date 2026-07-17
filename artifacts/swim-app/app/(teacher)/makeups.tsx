@@ -368,7 +368,7 @@ export default function MakeupsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="결석자 리스트" homePath="/(teacher)/today-schedule" />
+      <SubScreenHeader title="보강 대기" homePath="/(teacher)/today-schedule" />
 
       {/* 탭 */}
       <View style={{ flexDirection: "row", paddingHorizontal: 10, paddingVertical: 10, gap: 6, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border }}>
@@ -379,7 +379,7 @@ export default function MakeupsScreen() {
           {waitingList.length > 0 && tab !== "waiting" && (
             <View style={s.tabBadge}><Text style={s.tabBadgeTxt}>{waitingList.length}</Text></View>
           )}
-          <Text style={[s.tabTxt, tab === "waiting" && { color: "#fff" }]}>결석자 리스트</Text>
+          <Text style={[s.tabTxt, tab === "waiting" && { color: "#fff" }]}>보강 대기</Text>
         </Pressable>
         <Pressable
           style={[s.tabBtn, { flex: 1, justifyContent: "center" }, tab === "assigned" && { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }]}
