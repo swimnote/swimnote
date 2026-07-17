@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
+import { usePoolMode } from "@/contexts/PoolModeContext";
 
 const fadeUp = (_delay = 0) => ({
   initial: { opacity: 1, y: 0 },
@@ -82,35 +83,37 @@ export default function Intro() {
         <motion.p {...fadeUp(0.35)} className="text-[18px] md:text-[22px] text-[#666] max-w-lg leading-relaxed mb-14 font-light">
           수영을 배우는 과정부터 성장기록까지<br />하나의 시스템으로 연결합니다.
         </motion.p>
-        <motion.div {...fadeUp(0.45)} className="flex flex-col sm:flex-row gap-3">
-          <Link href="/education">
-            <span
-              data-testid="hero-btn-education"
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-white text-[14px] font-semibold cursor-pointer transition-opacity hover:opacity-85"
-              style={{ background: PRIMARY }}
-            >
-              교육시스템 <ArrowRight className="w-4 h-4" />
-            </span>
-          </Link>
-          <Link href="/app">
-            <span
-              data-testid="hero-btn-app"
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-white text-[14px] font-semibold cursor-pointer transition-opacity hover:opacity-85"
-              style={{ background: SECONDARY }}
-              translate="no"
-            >
-              SWIMNOTE APP
-            </span>
-          </Link>
-          <Link href="/support">
-            <span
-              data-testid="hero-btn-inquiry"
-              className="inline-block px-7 py-3.5 rounded-full border border-[#d5d5d5] text-[#0a0a0a] text-[14px] font-semibold cursor-pointer hover:bg-[#f5f5f5] transition-colors"
-            >
-              제휴문의
-            </span>
-          </Link>
-        </motion.div>
+        {!usePoolMode() && (
+          <motion.div {...fadeUp(0.45)} className="flex flex-col sm:flex-row gap-3">
+            <Link href="/education">
+              <span
+                data-testid="hero-btn-education"
+                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-white text-[14px] font-semibold cursor-pointer transition-opacity hover:opacity-85"
+                style={{ background: PRIMARY }}
+              >
+                교육시스템 <ArrowRight className="w-4 h-4" />
+              </span>
+            </Link>
+            <Link href="/app">
+              <span
+                data-testid="hero-btn-app"
+                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-white text-[14px] font-semibold cursor-pointer transition-opacity hover:opacity-85"
+                style={{ background: SECONDARY }}
+                translate="no"
+              >
+                SWIMNOTE APP
+              </span>
+            </Link>
+            <Link href="/support">
+              <span
+                data-testid="hero-btn-inquiry"
+                className="inline-block px-7 py-3.5 rounded-full border border-[#d5d5d5] text-[#0a0a0a] text-[14px] font-semibold cursor-pointer hover:bg-[#f5f5f5] transition-colors"
+              >
+                제휴문의
+              </span>
+            </Link>
+          </motion.div>
+        )}
       </section>
 
       {/* ── SWIMNOTE는 ── */}

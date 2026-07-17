@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRoute } from "wouter";
+import { PoolModeContext } from "@/contexts/PoolModeContext";
 import Intro from "./Intro";
 import Education from "./Education";
 import AppPage from "./AppPage";
@@ -190,11 +191,13 @@ export default function PoolHomepage() {
       </header>
 
       {/* ── Page content ─────────────────────────────────────── */}
-      <main ref={contentRef} className="flex-1 pt-14 sm:pt-16">
-        {activeTab === "intro" && <Intro />}
-        {activeTab === "education" && <Education />}
-        {activeTab === "app" && <AppPage />}
-      </main>
+      <PoolModeContext.Provider value={true}>
+        <main ref={contentRef} className="flex-1 pt-14 sm:pt-16">
+          {activeTab === "intro" && <Intro />}
+          {activeTab === "education" && <Education />}
+          {activeTab === "app" && <AppPage />}
+        </main>
+      </PoolModeContext.Provider>
     </div>
   );
 }
