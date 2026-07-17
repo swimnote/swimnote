@@ -359,7 +359,7 @@ app.get("/", (_req: Request, res: Response) => {
 const webDistDir = path.join(__dirname, "../../swimnote-web/dist/public");
 if (fs.existsSync(webDistDir)) {
   app.use(express.static(webDistDir));
-  app.get("*", (_req: Request, res: Response) => {
+  app.get("/{*path}", (_req: Request, res: Response) => {
     const indexPath = path.join(webDistDir, "index.html");
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);

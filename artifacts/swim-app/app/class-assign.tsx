@@ -9,7 +9,7 @@
 import { ArrowLeft, Calendar, Check, CircleX, Clock, Layers, Minus, Plus, RefreshCw, Search, Trash2, TriangleAlert, User, UserPlus, X } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {ActivityIndicator, Modal, Platform,
+import {ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
   Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -522,7 +522,7 @@ export default function ClassAssignScreen() {
 
       {/* ── 주담당 선생님 변경 모달 ── */}
       <Modal visible={showMainTeacherModal} animationType="slide" transparent onRequestClose={() => setShowMainTeacherModal(false)}>
-        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: "flex-end" }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowMainTeacherModal(false)} />
           <View style={{ backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20,
             paddingBottom: insets.bottom + 16, maxHeight: "75%" }}>
@@ -609,12 +609,12 @@ export default function ClassAssignScreen() {
               </ScrollView>
             )}
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── 선생님 추가 모달 ── */}
       <Modal visible={showTeacherModal} animationType="slide" transparent onRequestClose={() => setShowTeacherModal(false)}>
-        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: "flex-end" }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowTeacherModal(false)} />
           <View style={{ backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20,
             paddingBottom: insets.bottom + 16, maxHeight: "75%" }}>
@@ -689,7 +689,7 @@ export default function ClassAssignScreen() {
               </ScrollView>
             )}
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

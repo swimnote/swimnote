@@ -26,7 +26,7 @@ async function getAdminPoolId(adminId: string, tokenPoolId?: string | null): Pro
 }
 
 // ── 선생님 목록 ───────────────────────────────────────────────────────
-router.get("/teachers", requireAuth, requireRole("pool_admin", "super_admin"),
+router.get("/teachers", requireAuth, requireRole("pool_admin", "super_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req.user!.userId, req.user!.poolId);
