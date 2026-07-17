@@ -420,7 +420,7 @@ router.post("/teacher/resign-request", requireAuth,
   }
 );
 
-// ── 내 반 보강 대기 목록 (담당/공동담당 반 학생만) ───────────────
+// ── 내 풀 보강 대기 목록 ───────────────────────────────────────
 router.get("/teacher/makeups", requireAuth,
   async (req: AuthRequest, res) => {
     try {
@@ -430,68 +430,15 @@ router.get("/teacher/makeups", requireAuth,
       const poolId = await getMyPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
-      // 실제 DB role 확인 (pool_admin이면 풀 전체 보강 반환)
-      const [userRow] = (await superAdminDb.execute(sql`
-        SELECT role, roles FROM users WHERE id = ${userId} LIMIT 1
-      `)).rows as any[];
-      const dbRole: string = userRow?.role || "";
-      const dbRoles: string = userRow?.roles || "";
-      const isPoolAdmin = dbRole === "pool_admin" || dbRoles.includes("pool_admin");
-
-      if (isPoolAdmin) {
-        // pool_admin은 본인 풀의 전체 보강 대기 목록 반환
-        const rows = await db.execute(sql`
-          SELECT ms.*, u.name AS student_name_from_user
-          FROM makeup_sessions ms
-          LEFT JOIN users u ON u.id = ms.student_id
-          WHERE ms.swimming_pool_id = ${poolId}
-            AND ms.status = ${dbStatus}
-            AND ms.cancelled_at IS NULL
-          ORDER BY ms.absence_date ASC, ms.created_at ASC
-        `);
-        res.json(rows.rows); return;
-      }
-
-      // 일반 선생님: 담당(primary + co_teacher)인 반 ID 전체 조회
-      const myClassRows = (await superAdminDb.execute(sql`
-        SELECT id FROM class_groups
-        WHERE swimming_pool_id = ${poolId}
-          AND is_deleted = false
-          AND (
-            teacher_user_id = ${userId}
-            OR co_teacher_ids @> to_jsonb(${userId}::text)
-          )
-      `)).rows as any[];
-      const myClassIds = myClassRows.map((r: any) => r.id as string);
-
-      let rows;
-      if (myClassIds.length > 0) {
-        const idList = myClassIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
-        rows = await db.execute(sql.raw(`
-          SELECT ms.*, u.name AS student_name_from_user
-          FROM makeup_sessions ms
-          LEFT JOIN users u ON u.id = ms.student_id
-          WHERE ms.swimming_pool_id = '${poolId}'
-            AND ms.status = '${dbStatus}'
-            AND ms.cancelled_at IS NULL
-            AND (
-              ms.original_class_group_id IN (${idList})
-              OR ms.original_teacher_id = '${userId}'
-            )
-          ORDER BY ms.absence_date ASC, ms.created_at ASC
-        `));
-      } else {
-        rows = await db.execute(sql`
-          SELECT ms.*, u.name AS student_name_from_user
-          FROM makeup_sessions ms
-          LEFT JOIN users u ON u.id = ms.student_id
-          WHERE ms.swimming_pool_id = ${poolId}
-            AND ms.status = ${dbStatus}
-            AND ms.cancelled_at IS NULL
-            AND ms.original_teacher_id = ${userId}
-          ORDER BY ms.absence_date ASC, ms.created_at ASC
-        `);
-      }
+      const rows = await db.execute(sql`
+        SELECT ms.*, u.name AS student_name_from_user
+        FROM makeup_sessions ms
+        LEFT JOIN users u ON u.id = ms.student_id
+        WHERE ms.swimming_pool_id = ${poolId}
+          AND ms.status = ${dbStatus}
+          AND ms.cancelled_at IS NULL
+        ORDER BY ms.absence_date ASC, ms.created_at ASC
+      `);
       res.json(rows.rows);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
