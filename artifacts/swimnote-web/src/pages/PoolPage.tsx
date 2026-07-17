@@ -1,26 +1,43 @@
-import { useEffect, useState } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { useRoute } from "wouter";
 import { api } from "@/lib/api";
+import Intro from "./Intro";
+import Education from "./Education";
+import AppPage from "./AppPage";
 
-const PRIMARY = "#002F5F";
-const SECONDARY = "#01B2F1";
+const SWIMNOTE_PRIMARY = "#002F5F";
+const SWIMNOTE_SECONDARY = "#01B2F1";
 
 interface Pool {
   id: string;
   name: string;
-  address: string;
-  phone: string;
-  owner_name: string;
-  approval_status: string;
-  subscription_status: string;
+  theme_color?: string | null;
 }
 
+type TabId = "intro" | "education" | "app";
+
+const tabs: { id: TabId; label: string; highlight?: boolean }[] = [
+  { id: "intro", label: "소개" },
+  { id: "education", label: "교육시스템" },
+  { id: "app", label: "스윔노트 앱", highlight: true },
+];
+
 export default function PoolPage() {
-  const [match, params] = useRoute("/pool/:id");
-  const [, navigate] = useLocation();
+  const [, params] = useRoute("/pool/:id");
   const [pool, setPool] = useState<Pool | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabId>("intro");
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+
+  useEffect(() => {
+    const handler = () => setScrolled(window.scrollY > 8);
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
 
   useEffect(() => {
     if (!params?.id) return;
@@ -30,98 +47,123 @@ export default function PoolPage() {
       .finally(() => setLoading(false));
   }, [params?.id]);
 
+  const handleTabChange = useCallback((id: TabId) => {
+    setActiveTab(id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const intercept = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement).closest("a");
+      if (!a) return;
+      const href = a.getAttribute("href") ?? "";
+      if (href === "/education") { e.preventDefault(); e.stopPropagation(); handleTabChange("education"); }
+      else if (href === "/app") { e.preventDefault(); e.stopPropagation(); handleTabChange("app"); }
+      else if (href === "/support") { e.preventDefault(); e.stopPropagation(); }
+    };
+    el.addEventListener("click", intercept, true);
+    return () => el.removeEventListener("click", intercept, true);
+  }, [handleTabChange]);
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-[#aaa] text-[14px]">로딩 중...</div>
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-full border-2 border-[#002F5F] border-t-transparent animate-spin" />
+          <span className="text-[13px] text-[#aaa]">불러오는 중...</span>
+        </div>
       </div>
     );
   }
 
-  if (error || !pool || pool.approval_status !== "approved") {
+  if (error || !pool) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
-        <div className="w-16 h-16 rounded-2xl mb-6 flex items-center justify-center" style={{ background: "#f5f5f5" }}>
-          <span className="text-[28px]">🏊</span>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white px-4">
+        <div className="text-center">
+          <div className="text-7xl mb-6">🏊</div>
+          <h1 className="text-[22px] font-bold text-[#0a0a0a] mb-2">수영장을 찾을 수 없습니다</h1>
+          <p className="text-[14px] text-[#888] mb-8">요청하신 수영장 페이지가 존재하지 않거나 비공개 상태입니다.</p>
+          <a
+            href={BASE + "/"}
+            className="px-6 py-3 rounded-xl text-white text-[13px] font-semibold hover:opacity-85 transition-opacity inline-block"
+            style={{ background: SWIMNOTE_PRIMARY }}
+          >
+            SWIMNOTE 홈으로
+          </a>
         </div>
-        <h1 className="text-[22px] font-bold text-[#0a0a0a] mb-3">수영장을 찾을 수 없습니다</h1>
-        <p className="text-[14px] text-[#888] mb-8">요청하신 수영장 페이지가 존재하지 않거나 비공개 상태입니다.</p>
-        <button
-          onClick={() => navigate("/")}
-          className="px-6 py-3 rounded-full text-white text-[14px] font-semibold transition-opacity hover:opacity-85"
-          style={{ background: PRIMARY }}
-        >
-          홈으로
-        </button>
       </div>
     );
   }
+
+  const primary = pool.theme_color || SWIMNOTE_PRIMARY;
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Hero */}
-      <div className="h-2 w-full" style={{ background: `linear-gradient(90deg, ${PRIMARY} 0%, ${SECONDARY} 100%)` }} />
-      <div className="max-w-3xl mx-auto px-6 py-20">
-        <div className="text-center mb-16">
-          <div
-            className="inline-flex items-center justify-center w-20 h-20 rounded-3xl mb-6"
-            style={{ background: `linear-gradient(135deg, ${PRIMARY} 0%, ${SECONDARY} 100%)` }}
-          >
-            <span className="text-white text-[36px]">🏊</span>
-          </div>
-          <h1 className="text-[32px] sm:text-[40px] font-bold text-[#0a0a0a] mb-4">{pool.name}</h1>
-          <p className="text-[15px] text-[#888]">{pool.address}</p>
-        </div>
-
-        {/* Info cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12">
-          <div className="p-6 rounded-2xl border border-[#ebebeb]">
-            <p className="text-[11px] font-semibold text-[#aaa] tracking-widest uppercase mb-2">연락처</p>
-            <a href={`tel:${pool.phone.replace(/-/g, "")}`} className="text-[18px] font-bold text-[#0a0a0a] hover:underline">{pool.phone}</a>
-          </div>
-          <div className="p-6 rounded-2xl border border-[#ebebeb]">
-            <p className="text-[11px] font-semibold text-[#aaa] tracking-widest uppercase mb-2">원장</p>
-            <p className="text-[18px] font-bold text-[#0a0a0a]">{pool.owner_name}</p>
-          </div>
-        </div>
-
-        {/* SWIMNOTE promo */}
-        <div className="p-8 rounded-3xl mb-8" style={{ background: `linear-gradient(135deg, ${PRIMARY} 0%, #005092 100%)` }}>
-          <p className="text-[12px] font-semibold tracking-widest uppercase text-white/60 mb-3" translate="no">SWIMNOTE APP</p>
-          <h2 className="text-[22px] font-bold text-white mb-3">수업 피드백을 앱으로 받아보세요</h2>
-          <p className="text-[14px] text-white/70 mb-6 leading-relaxed">
-            출석 알림, 수업일지, 사진 앨범, 레벨 확인까지<br />학부모님이 앱에서 바로 확인하실 수 있습니다.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <a
-              href="https://apps.apple.com/app/swimnote"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-[13px] font-semibold transition-opacity hover:opacity-90"
-              style={{ color: PRIMARY }}
-            >
-              App Store
-            </a>
-            <a
-              href="https://play.google.com/store/apps/swimnote"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/20 text-white text-[13px] font-semibold transition-opacity hover:opacity-90 border border-white/30"
-            >
-              Google Play
-            </a>
-          </div>
-        </div>
-
-        <div className="text-center">
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* ── Nav ──────────────────────────────────────────────── */}
+      <header
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+          scrolled ? "bg-white/96 backdrop-blur-md border-b border-[#e8e8e8]" : "bg-white"
+        }`}
+      >
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
           <button
-            onClick={() => navigate("/")}
-            className="text-[13px] text-[#bbb] hover:text-[#888] transition-colors"
+            onClick={() => { setActiveTab("intro"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+            className="shrink-0 flex items-center"
           >
-            SWIMNOTE 홈페이지 →
+            <img
+              src={`${BASE}/logo.png`}
+              alt="SWIMNOTE"
+              className="h-8 sm:h-10 w-auto object-contain"
+              onError={e => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+                (e.currentTarget.nextSibling as HTMLElement | null)?.setAttribute("style", "display:block");
+              }}
+            />
+            <span className="hidden text-[18px] font-black tracking-tight" style={{ color: SWIMNOTE_PRIMARY }} translate="no">SWIMNOTE</span>
           </button>
+
+          <nav className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto scrollbar-none">
+            <button
+              onClick={() => handleTabChange("intro")}
+              className="px-2 sm:px-4 py-1.5 sm:py-2 rounded-full text-[11px] sm:text-[13.5px] font-semibold whitespace-nowrap transition-all duration-150"
+              style={{ background: primary, color: "#fff" }}
+            >
+              {pool.name}
+            </button>
+
+            {tabs.map(t => {
+              const active = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => handleTabChange(t.id)}
+                  className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-full text-[11px] sm:text-[13.5px] font-medium whitespace-nowrap transition-all duration-150 ${
+                    active ? "text-white" : "text-[#555] hover:text-[#0a0a0a] hover:bg-[#f4f4f4]"
+                  }`}
+                  style={
+                    active
+                      ? { background: t.highlight ? SWIMNOTE_SECONDARY : SWIMNOTE_PRIMARY }
+                      : t.highlight
+                      ? { color: SWIMNOTE_SECONDARY }
+                      : {}
+                  }
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </nav>
         </div>
-      </div>
+      </header>
+
+      {/* ── Page content ─────────────────────────────────────── */}
+      <main ref={contentRef} className="flex-1 pt-14 sm:pt-16">
+        {activeTab === "intro" && <Intro />}
+        {activeTab === "education" && <Education />}
+        {activeTab === "app" && <AppPage />}
+      </main>
     </div>
   );
 }
