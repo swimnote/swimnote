@@ -16,6 +16,9 @@ const app: Express = express();
 
 // ── CORS ─────────────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = [
+  // 프로덕션 도메인
+  "https://swimnote.kr",
+  "https://www.swimnote.kr",
   // Render production 서버 (신규)
   /^https:\/\/.*\.onrender\.com$/,
   // Replit 운영 도메인 (레거시 유지)
