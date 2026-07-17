@@ -7,6 +7,8 @@ import { fileURLToPath } from "url";
 import router from "./routes";
 import { initPushTables } from "./lib/push-service.js";
 import { startPushScheduler } from "./jobs/push-scheduler.js";
+import { recordResponseTime } from "./lib/responseTracker.js";
+import { requireNotDeactivated } from "./lib/deactivationGuard.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -14,6 +16,9 @@ const app: Express = express();
 
 // ── CORS ─────────────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = [
+  // 프로덕션 도메인
+  "https://swimnote.kr",
+  "https://www.swimnote.kr",
   // Render production 서버 (신규)
   /^https:\/\/.*\.onrender\.com$/,
   // Replit 운영 도메인 (레거시 유지)
@@ -53,7 +58,23 @@ app.use("/api", (_req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// ── 응답시간 추적 미들웨어 (슈퍼관리자 서버 느려짐 감지용) ─────────────────
+app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+  // 헬스체크·스태틱 제외
+  if (req.path === "/healthz" || /\.(jpg|jpeg|png|gif|webp|mp4|m4v|ts|m3u8|svg|pdf|zip)$/i.test(req.path)) {
+    return next();
+  }
+  const start = Date.now();
+  res.on("finish", () => {
+    recordResponseTime(Date.now() - start);
+  });
+  next();
+});
+
 app.use("/api/store-assets", express.static(path.join(__dirname, "../public/store-assets")));
+
+// ── 구독 취소 후 90일 비활성화 수영장 전면 차단 ────────────────────────────
+app.use("/api", requireNotDeactivated);
 
 // ── SVG 업로드 페이지 ─────────────────────────────────────────────────
 const SVG_DEST = path.resolve("/home/runner/workspace/artifacts/swim-app/assets/images");
@@ -178,9 +199,55 @@ app.get(["/health", "/api/health", "/healthz", "/api/healthz"], (_req: Request, 
   res.json({ ok: true, uptime: Math.floor(process.uptime()), timestamp: new Date().toISOString(), version: "v2.1-2026-04-04" });
 });
 
-// 404 핸들러 — HTML 대신 JSON
+// ── 작업 결과보고서 ─────────────────────────────────────────────────
+app.get(["/report", "/api/report"], (_req: Request, res: Response) => {
+  const candidates = [
+    "/home/runner/workspace/report.html",
+    path.resolve(process.cwd(), "../../report.html"),
+    path.resolve(process.cwd(), "report.html"),
+  ];
+  const file = candidates.find(f => fs.existsSync(f));
+  if (file) {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(fs.readFileSync(file, "utf-8"));
+  } else {
+    res.status(404).send("report.html not found — checked: " + candidates.join(", "));
+  }
+});
+
+
+// ── swimnote-web SPA 서빙 (/api 이외 모든 경로) ─────────────────────────
+const webDistDir = path.join(__dirname, "../../swimnote-web/dist/public");
+const webIndexPath = path.join(webDistDir, "index.html");
+if (fs.existsSync(webDistDir)) {
+  app.use(express.static(webDistDir));
+}
+
+// 404 핸들러 — SPA fallback 또는 JSON
 app.use((_req: Request, res: Response) => {
-  res.status(404).json({ success: false, message: "요청한 경로를 찾을 수 없습니다.", error: "Not Found" });
+  if (fs.existsSync(webIndexPath)) {
+    res.sendFile(webIndexPath);
+  } else {
+    res.status(404).json({ success: false, message: "요청한 경로를 찾을 수 없습니다.", error: "Not Found" });
+  }
+});
+
+// multer 전용 에러 핸들러 (LIMIT_FILE_SIZE, LIMIT_UNEXPECTED_FILE 등)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+  if (err?.code === "LIMIT_FILE_SIZE") {
+    res.status(413).json({ error: "파일 크기 초과: 최대 8MB까지 업로드할 수 있습니다." });
+    return;
+  }
+  if (err?.code === "LIMIT_FILE_COUNT" || err?.code === "LIMIT_UNEXPECTED_FILE") {
+    res.status(400).json({ error: "한 번에 최대 100장까지 업로드할 수 있습니다." });
+    return;
+  }
+  if (err?.code?.startsWith("LIMIT_")) {
+    res.status(400).json({ error: `업로드 제한 초과: ${err.message}` });
+    return;
+  }
+  next(err);
 });
 
 // 전역 에러 핸들러 — 프로덕션에서는 내부 메시지 노출 안 함
