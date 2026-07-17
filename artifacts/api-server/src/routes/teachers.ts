@@ -18,17 +18,18 @@ function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-async function getAdminPoolId(adminId: string): Promise<string | null> {
+async function getAdminPoolId(adminId: string, tokenPoolId?: string | null): Promise<string | null> {
+  if (tokenPoolId) return tokenPoolId;
   const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
     .from(usersTable).where(eq(usersTable.id, adminId)).limit(1);
   return me?.swimming_pool_id || null;
 }
 
 // ── 선생님 목록 ───────────────────────────────────────────────────────
-router.get("/teachers", requireAuth, requireRole("pool_admin", "super_admin"),
+router.get("/teachers", requireAuth, requireRole("pool_admin", "super_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
-      const poolId = await getAdminPoolId(req.user!.userId);
+      const poolId = await getAdminPoolId(req.user!.userId, req.user!.poolId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
       const teachers = await superAdminDb.execute(sql`
@@ -58,7 +59,7 @@ router.post("/teachers", requireAuth, requireRole("pool_admin"),
         res.status(400).json({ error: "연락처를 입력해주세요. 인증코드 전달에 사용됩니다." }); return;
       }
 
-      const poolId = await getAdminPoolId(req.user!.userId);
+      const poolId = await getAdminPoolId(req.user!.userId, req.user!.poolId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
       // 관리자 본인 계정 중복 확인 (최대 1개)
@@ -129,7 +130,7 @@ router.post("/teachers", requireAuth, requireRole("pool_admin"),
 router.get("/teachers/:id/activation-code", requireAuth, requireRole("pool_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const poolId = await getAdminPoolId(req.user!.userId);
+      const poolId = await getAdminPoolId(req.user!.userId, req.user!.poolId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
       const teacher = await superAdminDb.execute(sql`
@@ -179,7 +180,7 @@ router.patch("/teachers/:id/password", requireAuth, requireRole("pool_admin"),
       if (!password || password.length < 6) {
         res.status(400).json({ error: "비밀번호는 6자 이상이어야 합니다." }); return;
       }
-      const poolId = await getAdminPoolId(req.user!.userId);
+      const poolId = await getAdminPoolId(req.user!.userId, req.user!.poolId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
       const teacher = await superAdminDb.execute(sql`
@@ -199,7 +200,7 @@ router.patch("/teachers/:id", requireAuth, requireRole("pool_admin"),
   async (req: AuthRequest, res) => {
     try {
       const { name, phone, position } = req.body;
-      const poolId = await getAdminPoolId(req.user!.userId);
+      const poolId = await getAdminPoolId(req.user!.userId, req.user!.poolId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
       const teacher = await superAdminDb.execute(sql`
@@ -221,21 +222,30 @@ router.patch("/teachers/:id", requireAuth, requireRole("pool_admin"),
 );
 
 // ── 선생님 계정 삭제 ──────────────────────────────────────────────────
-router.delete("/teachers/:id", requireAuth, requireRole("pool_admin"),
+router.delete("/teachers/:id", requireAuth, requireRole("pool_admin", "super_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const poolId = await getAdminPoolId(req.user!.userId);
+      const poolId = await getAdminPoolId(req.user!.userId, req.user!.poolId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
+      // role 제한 없이 같은 수영장 소속 여부만 확인
       const teacher = await superAdminDb.execute(sql`
-        SELECT id FROM users WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId} AND role = 'teacher'
+        SELECT id FROM users WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
       `);
       if (!teacher.rows.length) { res.status(404).json({ error: "선생님을 찾을 수 없습니다." }); return; }
 
-      await db.execute(sql`DELETE FROM phone_verifications WHERE ref_id = ${req.params.id}`);
-      await superAdminDb.execute(sql`DELETE FROM users WHERE id = ${req.params.id}`);
+      const uid = req.params.id;
+      // pool DB 관련 레코드 먼저 정리 (FK 방지)
+      await db.execute(sql`DELETE FROM phone_verifications WHERE ref_id = ${uid}`).catch(() => {});
+      await db.execute(sql`DELETE FROM teacher_invites WHERE user_id = ${uid}`).catch(() => {});
+      await db.execute(sql`UPDATE class_groups SET teacher_user_id = NULL WHERE teacher_user_id = ${uid}`).catch(() => {});
+      // 유저 삭제
+      await superAdminDb.execute(sql`DELETE FROM users WHERE id = ${uid}`);
       res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+    } catch (err) {
+      console.error("[teacher DELETE]", err);
+      res.status(500).json({ error: "서버 오류" });
+    }
   }
 );
 
@@ -308,7 +318,7 @@ router.get("/teacher/me/stats", requireAuth,
             class_group_id = ${cls.id}
             OR assigned_class_ids @> to_jsonb(${cls.id}::text)
           )
-          AND deleted_at IS NULL AND status = 'active'
+          AND deleted_at IS NULL AND status IN ('active', 'pending_parent_link', 'unregistered')
         `);
         for (const st of students.rows as any[]) {
           for (const d of clsDays) {
@@ -410,22 +420,56 @@ router.post("/teacher/resign-request", requireAuth,
   }
 );
 
-// ── 내 반 보강 대기 목록 ────────────────────────────────────────
+// ── 내 반 보강 대기 목록 (담당/공동담당 반 학생만) ───────────────
 router.get("/teacher/makeups", requireAuth,
   async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
       const { status = "waiting" } = req.query as any;
-      // "pending"은 "waiting"과 동일하게 처리
       const dbStatus = status === "pending" ? "waiting" : status;
-      const rows = await db.execute(sql`
-        SELECT ms.*
-        FROM makeup_sessions ms
-        WHERE ms.original_teacher_id = ${userId}
-          AND ms.status = ${dbStatus}
-          AND ms.cancelled_at IS NULL
-        ORDER BY ms.absence_date ASC, ms.created_at ASC
-      `);
+      const poolId = await getMyPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
+
+      // 내가 담당(primary + co_teacher)인 반 ID 전체 조회
+      const myClassRows = (await superAdminDb.execute(sql`
+        SELECT id FROM class_groups
+        WHERE swimming_pool_id = ${poolId}
+          AND is_deleted = false
+          AND (
+            teacher_user_id = ${userId}
+            OR co_teacher_ids @> to_jsonb(${userId}::text)
+          )
+      `)).rows as any[];
+      const myClassIds = myClassRows.map((r: any) => r.id as string);
+
+      let rows;
+      if (myClassIds.length > 0) {
+        const idList = myClassIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
+        rows = await db.execute(sql.raw(`
+          SELECT ms.*, u.name AS student_name_from_user
+          FROM makeup_sessions ms
+          LEFT JOIN users u ON u.id = ms.student_id
+          WHERE ms.swimming_pool_id = '${poolId}'
+            AND ms.status = '${dbStatus}'
+            AND ms.cancelled_at IS NULL
+            AND (
+              ms.original_class_group_id IN (${idList})
+              OR ms.original_teacher_id = '${userId}'
+            )
+          ORDER BY ms.absence_date ASC, ms.created_at ASC
+        `));
+      } else {
+        rows = await db.execute(sql`
+          SELECT ms.*, u.name AS student_name_from_user
+          FROM makeup_sessions ms
+          LEFT JOIN users u ON u.id = ms.student_id
+          WHERE ms.swimming_pool_id = ${poolId}
+            AND ms.status = ${dbStatus}
+            AND ms.cancelled_at IS NULL
+            AND ms.original_teacher_id = ${userId}
+          ORDER BY ms.absence_date ASC, ms.created_at ASC
+        `);
+      }
       res.json(rows.rows);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
@@ -439,22 +483,27 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
       const poolId = await getMyPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
+      // ?all=true 이면 수영장 전체 반, 기본값은 내 반만
+      const showAll = req.query.all === "true";
+
       const rows = await superAdminDb.execute(sql`
         SELECT
           cg.id, cg.name, cg.schedule_days, cg.schedule_time,
           cg.capacity, cg.teacher_user_id,
           u.name AS instructor,
-          COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL) AS current_members,
-          GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL)) AS available_slots
+          COUNT(s.id) FILTER (WHERE s.status IN ('active', 'pending_parent_link', 'unregistered') AND s.deleted_at IS NULL) AS current_members,
+          GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status IN ('active', 'pending_parent_link', 'unregistered') AND s.deleted_at IS NULL)) AS available_slots,
+          (cg.teacher_user_id = ${userId} OR cg.co_teacher_ids @> to_jsonb(${userId}::text)) AS is_mine
         FROM class_groups cg
         LEFT JOIN users u ON cg.teacher_user_id = u.id
         LEFT JOIN students s ON s.class_group_id = cg.id OR s.assigned_class_ids @> to_jsonb(cg.id::text)
         WHERE cg.swimming_pool_id = ${poolId}
           AND cg.is_deleted = false
           AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
-        GROUP BY cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity, cg.teacher_user_id, u.name
-        HAVING GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL)) > 0
-        ORDER BY cg.schedule_days, cg.schedule_time
+          AND (${showAll} OR cg.teacher_user_id = ${userId})
+        GROUP BY cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity, cg.teacher_user_id, cg.co_teacher_ids, u.name
+        HAVING GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status IN ('active', 'pending_parent_link', 'unregistered') AND s.deleted_at IS NULL)) > 0
+        ORDER BY is_mine DESC, cg.schedule_days, cg.schedule_time
       `);
       res.json(rows.rows);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
@@ -538,11 +587,14 @@ router.get("/teacher/makeups/assigned", requireAuth,
       const rows = await db.execute(sql`
         SELECT ms.*
         FROM makeup_sessions ms
-        WHERE (ms.transferred_to_teacher_id = ${userId} OR ms.assigned_teacher_id = ${userId})
-          AND ms.original_teacher_id != ${userId}
-          AND ms.status IN ('assigned','transferred')
+        WHERE ms.status IN ('assigned','transferred')
           AND ms.cancelled_at IS NULL
-        ORDER BY ms.absence_date ASC, ms.created_at ASC
+          AND (
+            ms.original_teacher_id = ${userId}
+            OR ms.transferred_to_teacher_id = ${userId}
+            OR ms.assigned_teacher_id = ${userId}
+          )
+        ORDER BY ms.assigned_date ASC, ms.absence_date ASC, ms.created_at ASC
       `);
       res.json(rows.rows);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
@@ -550,6 +602,71 @@ router.get("/teacher/makeups/assigned", requireAuth,
 );
 
 // ── 배정된 보강 완료 처리 (teacher용) ─────────────────────────
+// ── 스케줄표에서 보강 직접 완료 (원래 담당 선생님이 당일 처리) ─────────────
+router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
+  requireRole("teacher", "pool_admin", "sub_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const { date, class_group_id } = req.body as { date?: string; class_group_id?: string };
+      if (!date) { res.status(400).json({ error: "date가 필요합니다." }); return; }
+
+      const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const userName = (userRow.rows[0] as any)?.name || "";
+
+      const poolId = await getMyPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
+
+      const rows = (await db.execute(sql`
+        SELECT * FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
+      `)).rows as any[];
+      if (!rows.length) { res.status(404).json({ error: "보강 없음" }); return; }
+      const mk = rows[0];
+
+      // 같은 수영장 소속 선생님이면 누구나 보충수업 처리 가능
+      if (mk.swimming_pool_id && mk.swimming_pool_id !== poolId) {
+        res.status(403).json({ error: "처리 권한이 없습니다." }); return;
+      }
+      if (!["waiting", "assigned"].includes(mk.status)) {
+        res.status(400).json({ error: "이미 처리된 보강입니다." }); return;
+      }
+
+      // 보충수업 배정 반 결정 (명시적으로 전달된 class_group_id 우선)
+      const targetClassId = class_group_id || mk.original_class_group_id || null;
+
+      await db.execute(sql`
+        UPDATE makeup_sessions SET
+          status                    = 'completed',
+          is_substitute             = TRUE,
+          substitute_teacher_id     = ${userId},
+          substitute_teacher_name   = ${userName},
+          assigned_date             = ${date},
+          assigned_class_group_id   = ${targetClassId},
+          completed_at              = now(),
+          updated_at                = now()
+        WHERE id = ${req.params.id}
+      `);
+
+      const attId = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await db.execute(sql`
+        INSERT INTO attendance
+          (id, swimming_pool_id, student_id, date, status, session_type,
+           class_group_id, teacher_user_id, teacher_name, created_by, created_by_name)
+        VALUES
+          (${attId}, ${poolId}, ${mk.student_id}, ${date}, 'present', 'makeup',
+           ${targetClassId}, ${userId}, ${userName}, ${userId}, ${userName})
+        ON CONFLICT (student_id, date) DO UPDATE SET
+          status = 'present', session_type = 'makeup',
+          class_group_id = ${targetClassId},
+          teacher_user_id = ${userId}, teacher_name = ${userName},
+          updated_at = now()
+      `);
+
+      res.json({ success: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 router.patch("/teacher/makeups/:id/complete", requireAuth,
   async (req: AuthRequest, res) => {
     try {
@@ -604,6 +721,42 @@ router.post("/teacher/makeups/:id/extinguish", requireAuth,
   }
 );
 
+// ── 보강 현황 이력 (teacher 탭 3) ────────────────────────────
+router.get("/teacher/makeup-requests", requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const rows = (await db.execute(sql`
+        SELECT
+          id,
+          student_name,
+          original_class_group_name  AS class_name,
+          absence_date               AS original_date,
+          note                       AS reason,
+          status,
+          created_at                 AS requested_at,
+          assigned_date              AS makeup_date,
+          assigned_class_group_name  AS makeup_class_name
+        FROM makeup_sessions
+        WHERE original_teacher_id = ${userId}
+          AND cancelled_at IS NULL
+        ORDER BY absence_date DESC, created_at DESC
+      `)).rows as any[];
+
+      const mapped = rows.map((r: any) => ({
+        ...r,
+        status:
+          r.status === "waiting"    ? "pending"   :
+          r.status === "assigned"   ? "approved"  :
+          r.status === "completed"  ? "completed" :
+          "rejected",
+      }));
+
+      res.json(mapped);
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 // ── 탭별 카운트 (전체 탭 동시 표시용) ──────────────────────────
 router.get("/teacher/me/members/counts", requireAuth,
   async (req: AuthRequest, res) => {
@@ -618,9 +771,9 @@ router.get("/teacher/me/members/counts", requireAuth,
       const [row] = (await db.execute(sql`
         SELECT
           COUNT(*) FILTER (WHERE deleted_at IS NULL AND (
-            status IN ('active','suspended','withdrawn','pending_parent_link') OR pending_status_change IS NOT NULL
+            status IN ('active','suspended','withdrawn','pending_parent_link','unregistered') OR pending_status_change IS NOT NULL
           ))::int AS all,
-          COUNT(*) FILTER (WHERE deleted_at IS NULL AND status IN ('active','pending_parent_link')
+          COUNT(*) FILTER (WHERE deleted_at IS NULL AND status IN ('active','pending_parent_link','unregistered')
             AND class_group_id IS NULL
             AND (assigned_class_ids IS NULL OR jsonb_array_length(assigned_class_ids) = 0)
           )::int AS unassigned,
@@ -671,14 +824,14 @@ router.get("/teacher/me/members", requireAuth,
       let rows;
 
       if (tab === "unassigned") {
-        // 미배정: active 또는 pending_parent_link 이지만 반 배정 없는 회원
-        // (관리자가 학부모 정보와 함께 등록한 학생은 pending_parent_link 상태이지만 미배정 목록에 표시)
+        // 미배정: active, pending_parent_link, unregistered 이지만 반 배정 없는 회원
+        // (엑셀 업로드된 학생은 unregistered 상태로 생성되므로 포함)
         rows = await db.execute(sql`
           SELECT ${COLS}
           FROM students s
           LEFT JOIN class_groups cg ON s.class_group_id = cg.id
           WHERE s.swimming_pool_id = ${poolId}
-            AND s.status IN ('active', 'pending_parent_link')
+            AND s.status IN ('active', 'pending_parent_link', 'unregistered')
             AND s.deleted_at IS NULL
             AND s.class_group_id IS NULL
             AND (s.assigned_class_ids IS NULL OR jsonb_array_length(s.assigned_class_ids) = 0)
@@ -729,7 +882,7 @@ router.get("/teacher/me/members", requireAuth,
           ORDER BY s.name ASC
         `);
       } else {
-        // 전체: active/pending_parent_link 상태이거나 pending_status_change 있는 회원
+        // 전체: active/pending_parent_link/unregistered 상태이거나 pending_status_change 있는 회원
         rows = await db.execute(sql`
           SELECT ${COLS}
           FROM students s
@@ -737,7 +890,7 @@ router.get("/teacher/me/members", requireAuth,
           WHERE s.swimming_pool_id = ${poolId}
             AND s.deleted_at IS NULL
             AND (
-              s.status IN ('active', 'suspended', 'withdrawn', 'pending_parent_link')
+              s.status IN ('active', 'suspended', 'withdrawn', 'pending_parent_link', 'unregistered')
               OR s.pending_status_change IS NOT NULL
             )
           ORDER BY s.name ASC
@@ -804,12 +957,33 @@ router.patch("/teacher/students/:id/level", requireAuth, async (req: AuthRequest
     await db.execute(sql`
       UPDATE students SET current_level_order = ${level_order}, updated_at = NOW() WHERE id = ${req.params.id}
     `);
-    await db.execute(sql`
+    // UPDATE 성공 즉시 응답 — INSERT는 비동기 처리 (테이블 미존재 등 실패해도 UX 영향 없음)
+    res.json({ ok: true, level_order, level_name: lvName });
+    db.execute(sql`
       INSERT INTO student_levels (id, student_id, swimming_pool_id, level, level_order, achieved_date, note, teacher_name, created_at)
       VALUES (gen_random_uuid()::text, ${req.params.id}, ${poolId}, ${lvName}, ${level_order},
               to_char(now(), 'YYYY-MM-DD'), ${note ?? null}, ${actorName}, NOW())
-    `);
-    res.json({ ok: true, level_order, level_name: lvName });
+    `).catch((e: any) => console.error("[레벨변경] student_levels INSERT 실패:", e?.message));
+
+    // 비동기 학부모 push 알림 (응답 후 처리)
+    try {
+      const parentRows = await db.execute(sql`
+        SELECT DISTINCT ps.parent_id
+        FROM parent_students ps
+        WHERE ps.student_id = ${req.params.id} AND ps.status = 'approved'
+      `);
+      for (const p of parentRows.rows as any[]) {
+        await sendPushToUser(
+          p.parent_id, true, "level_change",
+          "🎉 레벨이 변경됐어요!",
+          `${student.name} 학생의 레벨이 "${lvName}"로 변경됐습니다.`,
+          { screen: "level", studentId: req.params.id },
+          userId
+        );
+      }
+    } catch (pushErr) {
+      console.error("[레벨변경 push]", pushErr);
+    }
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
