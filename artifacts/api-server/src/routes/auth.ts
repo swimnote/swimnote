@@ -33,13 +33,28 @@ function err(res: any, status: number, message: string) {
 // ── 관리자/선생님 로그인 ──────────────────────────────────────────────
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return err(res, 400, "이메일과 비밀번호를 입력해주세요.");
+  if (!email || !password) return err(res, 400, "아이디(이메일)와 비밀번호를 입력해주세요.");
   const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket?.remoteAddress ?? "unknown";
+  const identifier = email.trim();
   try {
-    const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
+    // 이메일 형식이면 이메일로 조회, 아니면 수영장 슬러그(name_en)로 pool_admin 조회
+    let user: typeof usersTable.$inferSelect | undefined;
+    if (identifier.includes("@")) {
+      [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.email, identifier.toLowerCase())).limit(1);
+    } else {
+      // 슬러그로 수영장 찾아서 pool_admin 유저 조회
+      const poolRows = (await superAdminDb.execute(sql`
+        SELECT u.* FROM users u
+        JOIN swimming_pools sp ON u.swimming_pool_id = sp.id
+        WHERE (sp.name_en = ${identifier.toLowerCase()} OR u.email = ${identifier.toLowerCase()})
+          AND u.role = 'pool_admin'
+        LIMIT 1
+      `)).rows as any[];
+      if (poolRows[0]) user = poolRows[0] as any;
+    }
     if (!user) {
-      logEvent({ pool_id: "system", category: "보안", actor_name: "미인증", description: `로그인 실패 — 존재하지 않는 계정: ${email}`, metadata: { ip: clientIp } }).catch(() => {});
-      return err(res, 401, "이메일 또는 비밀번호가 올바르지 않습니다.");
+      logEvent({ pool_id: "system", category: "보안", actor_name: "미인증", description: `로그인 실패 — 존재하지 않는 계정: ${identifier}`, metadata: { ip: clientIp } }).catch(() => {});
+      return err(res, 401, "아이디 또는 비밀번호가 올바르지 않습니다.");
     }
 
     const valid = await comparePassword(password, user.password_hash);

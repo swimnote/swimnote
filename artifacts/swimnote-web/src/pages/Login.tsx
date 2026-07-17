@@ -190,13 +190,14 @@ export default function Login() {
             <div className="bg-white rounded-2xl shadow-sm border border-[#ebebeb] p-8">
               <form onSubmit={handlePoolLogin} className="space-y-4">
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#555] mb-1.5">이메일</label>
+                  <label className="block text-[12px] font-semibold text-[#555] mb-1.5">아이디 또는 이메일</label>
                   <input
-                    type="email"
+                    type="text"
                     value={poolEmail}
                     onChange={(e) => { setPoolEmail(e.target.value); setError(""); }}
-                    placeholder="이메일 주소 입력"
+                    placeholder="아이디 또는 이메일 입력"
                     required
+                    autoComplete="username"
                     className="w-full px-4 py-3 rounded-xl border border-[#e5e5e5] text-[14px] focus:outline-none focus:border-[#002F5F] transition-colors"
                   />
                 </div>
