@@ -606,7 +606,7 @@ export default function MakeupsScreen() {
                 )}
               </View>
 
-              {/* 단계 1: 반 선택 */}
+              {/* 단계 1: 반 선택 (내 반 우선, 다른 선생님 반 하단) */}
               {!selectedClassId && (
                 <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
                   {classLoading ? (
@@ -616,20 +616,42 @@ export default function MakeupsScreen() {
                       <CircleAlert size={24} color={C.textMuted} />
                       <Text style={s.emptyTxt}>배정 가능한 반이 없습니다</Text>
                     </View>
-                  ) : eligibleClasses.map(cg => (
-                    <Pressable
-                      key={cg.id}
-                      style={s.classRow}
-                      onPress={() => { setSelectedClassId(cg.id); setSelectedDate(null); }}
-                    >
-                      <LucideIcon name="calendar" size={16} color={themeColor} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={[s.className, { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text }]}>{cg.name}</Text>
-                        <Text style={s.infoTxt}>{cg.schedule_days?.split(",").join("·")} · {cg.schedule_time}</Text>
-                      </View>
-                      <Text style={[s.infoTxt, { color: C.textMuted }]}>잔여 {cg.available_slots ?? "?"}석</Text>
-                    </Pressable>
-                  ))}
+                  ) : (() => {
+                    const myClasses = eligibleClasses.filter((cg: any) => cg.is_mine);
+                    const otherClasses = eligibleClasses.filter((cg: any) => !cg.is_mine);
+                    const renderClassRow = (cg: any) => (
+                      <Pressable
+                        key={cg.id}
+                        style={s.classRow}
+                        onPress={() => { setSelectedClassId(cg.id); setSelectedDate(null); }}
+                      >
+                        <LucideIcon name="calendar" size={16} color={cg.is_mine ? themeColor : "#9CA3AF"} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[s.className, { fontSize: 14, color: C.text }]}>{cg.name}</Text>
+                          <Text style={s.infoTxt}>{cg.schedule_days?.split(",").join("·")} · {cg.schedule_time}</Text>
+                        </View>
+                        <Text style={[s.infoTxt, { color: C.textMuted }]}>잔여 {cg.available_slots ?? "?"}석</Text>
+                      </Pressable>
+                    );
+                    return (
+                      <>
+                        {myClasses.length > 0 && (
+                          <>
+                            <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12 }]}>내 반</Text>
+                            {myClasses.map(renderClassRow)}
+                          </>
+                        )}
+                        {otherClasses.length > 0 && (
+                          <>
+                            <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: "#9CA3AF" }]}>
+                              다른 선생님 반 (인계 처리)
+                            </Text>
+                            {otherClasses.map(renderClassRow)}
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
                   <View style={{ height: 16 }} />
                 </ScrollView>
               )}

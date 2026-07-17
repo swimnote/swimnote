@@ -107,6 +107,7 @@ export default function ClassDetailSheet({
   }
 
   useEffect(() => {
+    setStudentAttState({});
     if (!token) return;
     apiRequest(token, `/attendance?class_group_id=${group.id}&date=${effectiveDate}`)
       .then(r => r.ok ? r.json() : [])

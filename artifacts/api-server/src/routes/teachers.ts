@@ -420,26 +420,53 @@ router.post("/teacher/resign-request", requireAuth,
   }
 );
 
-// ── 내 반 보강 대기 목록 ────────────────────────────────────────
+// ── 내 반 보강 대기 목록 (담당/공동담당 반 학생만) ───────────────
 router.get("/teacher/makeups", requireAuth,
   async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
       const { status = "waiting" } = req.query as any;
-      // "pending"은 "waiting"과 동일하게 처리
       const dbStatus = status === "pending" ? "waiting" : status;
-      // 같은 수영장 소속이면 전체 결석 보강 목록을 볼 수 있음
       const poolId = await getMyPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
-      const rows = await db.execute(sql`
-        SELECT ms.*, u.name AS student_name_from_user
-        FROM makeup_sessions ms
-        LEFT JOIN users u ON u.id = ms.student_id
-        WHERE ms.swimming_pool_id = ${poolId}
-          AND ms.status = ${dbStatus}
-          AND ms.cancelled_at IS NULL
-        ORDER BY ms.absence_date ASC, ms.created_at ASC
-      `);
+
+      // co_teacher로 배정된 반 ID 목록 조회
+      const coRows = (await superAdminDb.execute(sql`
+        SELECT id FROM class_groups
+        WHERE swimming_pool_id = ${poolId}
+          AND is_deleted = false
+          AND co_teacher_ids @> to_jsonb(${userId}::text)
+      `)).rows as any[];
+      const coIds = coRows.map((r: any) => r.id as string);
+
+      let rows;
+      if (coIds.length > 0) {
+        const idList = coIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
+        rows = await db.execute(sql.raw(`
+          SELECT ms.*, u.name AS student_name_from_user
+          FROM makeup_sessions ms
+          LEFT JOIN users u ON u.id = ms.student_id
+          WHERE ms.swimming_pool_id = '${poolId}'
+            AND ms.status = '${dbStatus}'
+            AND ms.cancelled_at IS NULL
+            AND (
+              ms.original_teacher_id = '${userId}'
+              OR ms.original_class_group_id IN (${idList})
+            )
+          ORDER BY ms.absence_date ASC, ms.created_at ASC
+        `));
+      } else {
+        rows = await db.execute(sql`
+          SELECT ms.*, u.name AS student_name_from_user
+          FROM makeup_sessions ms
+          LEFT JOIN users u ON u.id = ms.student_id
+          WHERE ms.swimming_pool_id = ${poolId}
+            AND ms.status = ${dbStatus}
+            AND ms.cancelled_at IS NULL
+            AND ms.original_teacher_id = ${userId}
+          ORDER BY ms.absence_date ASC, ms.created_at ASC
+        `);
+      }
       res.json(rows.rows);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
@@ -462,7 +489,8 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
           cg.capacity, cg.teacher_user_id,
           u.name AS instructor,
           COUNT(s.id) FILTER (WHERE s.status IN ('active', 'pending_parent_link', 'unregistered') AND s.deleted_at IS NULL) AS current_members,
-          GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status IN ('active', 'pending_parent_link', 'unregistered') AND s.deleted_at IS NULL)) AS available_slots
+          GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status IN ('active', 'pending_parent_link', 'unregistered') AND s.deleted_at IS NULL)) AS available_slots,
+          (cg.teacher_user_id = ${userId} OR cg.co_teacher_ids @> to_jsonb(${userId}::text)) AS is_mine
         FROM class_groups cg
         LEFT JOIN users u ON cg.teacher_user_id = u.id
         LEFT JOIN students s ON s.class_group_id = cg.id OR s.assigned_class_ids @> to_jsonb(cg.id::text)
@@ -470,9 +498,9 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
           AND cg.is_deleted = false
           AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
           AND (${showAll} OR cg.teacher_user_id = ${userId})
-        GROUP BY cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity, cg.teacher_user_id, u.name
+        GROUP BY cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity, cg.teacher_user_id, cg.co_teacher_ids, u.name
         HAVING GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status IN ('active', 'pending_parent_link', 'unregistered') AND s.deleted_at IS NULL)) > 0
-        ORDER BY cg.schedule_days, cg.schedule_time
+        ORDER BY is_mine DESC, cg.schedule_days, cg.schedule_time
       `);
       res.json(rows.rows);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
