@@ -123,12 +123,16 @@ export default function ClassDetailSheet({
       .catch(() => {});
   }, [group.id, effectiveDate, token]);
 
-  useEffect(() => {
+  function loadMakeupStudents() {
     if (!token) return;
     apiRequest(token, `/teacher/makeups/by-class?class_group_id=${group.id}&date=${effectiveDate}`)
       .then(r => r.ok ? r.json() : [])
       .then(setMakeupStudents)
       .catch(() => {});
+  }
+
+  useEffect(() => {
+    loadMakeupStudents();
   }, [group.id, effectiveDate, token]);
 
   async function completeMakeupDirect(mkId: string) {
@@ -206,6 +210,10 @@ export default function ClassDetailSheet({
       });
       setStudentAttState(prev => ({ ...prev, [studentId]: newStatus }));
       setSavingStudentId(null);
+      // 결석 처리 시 보강 학생 목록 즉시 새로고침
+      if (newStatus === "absent") {
+        loadMakeupStudents();
+      }
       return true;
     } catch {
       setSavingStudentId(null);
