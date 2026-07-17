@@ -60,6 +60,10 @@ export default function ClassDetailSheet({
   const [makeupSaving,            setMakeupSaving]            = useState<string | null>(null);
   const [selectedMakeupStudent,   setSelectedMakeupStudent]   = useState<any | null>(null);
 
+  // 이 반/날짜에 배정된 보강 학생
+  const [makeupStudents,       setMakeupStudents]       = useState<any[]>([]);
+  const [completingMakeupId,   setCompletingMakeupId]   = useState<string | null>(null);
+
   const originalColorRef = useRef<string>(group.color || "#FFFFFF");
   const [draftColor, setDraftColor] = useState<string>(group.color || "#FFFFFF");
   const [colorSaving, setColorSaving] = useState(false);
@@ -118,6 +122,29 @@ export default function ClassDetailSheet({
       })
       .catch(() => {});
   }, [group.id, effectiveDate, token]);
+
+  useEffect(() => {
+    if (!token) return;
+    apiRequest(token, `/teacher/makeups/by-class?class_group_id=${group.id}&date=${effectiveDate}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setMakeupStudents)
+      .catch(() => {});
+  }, [group.id, effectiveDate, token]);
+
+  async function completeMakeupDirect(mkId: string) {
+    setCompletingMakeupId(mkId);
+    try {
+      const res = await apiRequest(token, `/teacher/makeups/${mkId}/complete-direct`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: effectiveDate, class_group_id: group.id }),
+      });
+      if (res.ok) {
+        setMakeupStudents(prev => prev.filter(m => m.id !== mkId));
+      }
+    } catch {}
+    setCompletingMakeupId(null);
+  }
 
   async function openMakeupPicker() {
     setSelectedMakeupStudent(null);
@@ -386,6 +413,37 @@ export default function ClassDetailSheet({
                   </View>
                 );
               })}
+              {makeupStudents.length > 0 && (
+                <>
+                  <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#7C3AED" }} />
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#7C3AED" }}>보강 학생</Text>
+                  </View>
+                  {makeupStudents.map(mk => (
+                    <View key={mk.id} style={[cds.studentRow, { backgroundColor: "#F5F3FF" }]}>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <Text style={cds.studentName}>{mk.student_name}</Text>
+                          <View style={{ backgroundColor: "#7C3AED", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                            <Text style={{ fontSize: 9, color: "#fff", fontFamily: "Pretendard-SemiBold" }}>보강</Text>
+                          </View>
+                        </View>
+                        <Text style={cds.studentSub}>결석일: {mk.absence_date}</Text>
+                      </View>
+                      {completingMakeupId === mk.id ? (
+                        <ActivityIndicator size="small" color="#7C3AED" style={{ marginHorizontal: 8 }} />
+                      ) : (
+                        <Pressable
+                          style={[cds.stBtn, { backgroundColor: "#EDE9FE", borderColor: "#7C3AED" }]}
+                          onPress={() => completeMakeupDirect(mk.id)}
+                        >
+                          <Text style={[cds.stBtnTxt, { color: "#7C3AED" }]}>완료</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  ))}
+                </>
+              )}
               {myLogs.length > 0 && (
                 <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
                   <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D97706", marginBottom: 4 }}>
