@@ -147,6 +147,14 @@ export default function PoolAdmin() {
     }
   }, [user, authLoading, navigate, poolId]);
 
+  // 뒤로가기로 슈퍼관리자 페이지 접근 차단
+  useEffect(() => {
+    window.history.pushState(null, "", window.location.href);
+    const preventBack = () => window.history.pushState(null, "", window.location.href);
+    window.addEventListener("popstate", preventBack);
+    return () => window.removeEventListener("popstate", preventBack);
+  }, []);
+
   const fetchPool = useCallback(async () => {
     if (!poolId) return;
     setLoading(true);
@@ -258,7 +266,7 @@ export default function PoolAdmin() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-[15px] font-semibold text-[#333] mb-2">수영장을 찾을 수 없습니다.</p>
-          <button onClick={() => navigate("/super-admin")} className="text-[13px] text-[#01B2F1] hover:underline">← 슈퍼관리자로 돌아가기</button>
+          <button onClick={() => navigate("/")} className="text-[13px] text-[#01B2F1] hover:underline">← 홈으로</button>
         </div>
       </div>
     );
@@ -683,7 +691,7 @@ export default function PoolAdmin() {
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button
-              onClick={() => isSuperAdmin ? navigate("/super-admin") : navigate("/")}
+              onClick={() => navigate("/")}
               className="flex items-center gap-2 hover:opacity-70 transition-opacity"
             >
               <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: PRIMARY }}>
