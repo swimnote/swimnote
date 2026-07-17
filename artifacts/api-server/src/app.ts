@@ -21,9 +21,8 @@ const ALLOWED_ORIGINS = [
   "https://www.swimnote.kr",
   // Render production 서버 (신규)
   /^https:\/\/.*\.onrender\.com$/,
-  // Replit 운영 도메인 (레거시 유지)
-  "https://swimnote-7.replit.app",
-  "https://swimnote-8.pcrskm.replit.app",
+  // Replit 운영 도메인
+  /^https:\/\/[\w-]+\.replit\.app$/,
   // EAS 빌드 / 개발 Expo
   /^https:\/\/.*\.expo\.dev$/,
   /^https:\/\/.*\.replit\.dev$/,
