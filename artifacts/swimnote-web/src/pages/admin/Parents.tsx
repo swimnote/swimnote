@@ -8,7 +8,9 @@ interface Parent {
   email?: string;
   phone?: string;
   children?: Array<{ id: string; name: string; class_name?: string }>;
+  students?: Array<{ id: string; name: string }>;
   app_connected?: boolean;
+  linked?: boolean;
 }
 
 export default function Parents() {
@@ -29,7 +31,7 @@ export default function Parents() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-[22px] font-bold text-[#0A0A0A]">학부모 목록</h1>
-          <p className="text-[13px] text-[#999] mt-1">앱에 연결된 학부모 {parents.filter(p => p.app_connected).length}명 / 전체 {parents.length}명</p>
+          <p className="text-[13px] text-[#999] mt-1">앱에 연결된 학부모 {parents.filter(p => p.app_connected || p.linked).length}명 / 전체 {parents.length}명</p>
         </div>
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#999]" />
@@ -56,22 +58,25 @@ export default function Parents() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-[14px] text-[#0A0A0A]">{p.name}</span>
-                    {p.app_connected
+                    {(p.app_connected || p.linked)
                       ? <span className="flex items-center gap-1 text-[10px] font-semibold text-[#059669] bg-[#DCFCE7] px-1.5 py-0.5 rounded-full"><Smartphone size={9} /> 앱연결</span>
                       : <span className="text-[10px] font-medium text-[#BBB] bg-[#F5F5F5] px-1.5 py-0.5 rounded-full">미연결</span>}
                   </div>
                   {p.email && <p className="text-[11px] text-[#999]">{p.email}</p>}
                 </div>
               </div>
-              {p.children && p.children.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {p.children.map(c => (
-                    <span key={c.id} className="text-[11px] bg-[#EFF6FF] text-[#0369A1] px-2 py-0.5 rounded-full font-medium">
-                      {c.name}{c.class_name ? ` (${c.class_name})` : ""}
-                    </span>
-                  ))}
-                </div>
-              )}
+              {(() => {
+                const kids = p.children?.length ? p.children : (p.students || []);
+                return kids.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {kids.map((c: any) => (
+                      <span key={c.id} className="text-[11px] bg-[#EFF6FF] text-[#0369A1] px-2 py-0.5 rounded-full font-medium">
+                        {c.name}{c.class_name ? ` (${c.class_name})` : ""}
+                      </span>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
             </div>
           ))}
         </div>
