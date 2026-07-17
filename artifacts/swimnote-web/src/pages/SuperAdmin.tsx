@@ -325,7 +325,7 @@ export default function SuperAdmin() {
                           </span>
                           {pool.homepage_slug && pool.homepage_enabled && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#EFF6FF] text-[#0369A1]">
-                              <img src={`${BASE}/favicon.svg`} alt="swimnote" className="w-3 h-3" />
+                              <img src={`${BASE}/icon.png`} alt="swimnote" className="w-3 h-3 rounded-[2px]" />
                               홈페이지
                             </span>
                           )}
