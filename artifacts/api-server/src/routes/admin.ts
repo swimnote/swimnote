@@ -192,7 +192,7 @@ router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "p
       if (classGroupId) {
         const remainingResult = await db.execute(sql`
           SELECT COUNT(*) AS cnt FROM students
-          WHERE class_group_id = ${classGroupId} AND status = 'active'
+          WHERE class_group_id = ${classGroupId} AND status IN ('active', 'pending_parent_link', 'unregistered')
         `);
         const remainCount = Number((remainingResult.rows[0] as any)?.cnt || 0);
         if (remainCount === 0) {
@@ -294,8 +294,17 @@ router.patch("/users/:id/permissions", requireAuth, requireRole("super_admin"), 
 });
 
 // ── 수영장 상세 조회 (플랫폼 관리자, 권한 체크) ─────────────────────
-router.get("/pools/:id/detail", requireAuth, requirePermission("canViewPools"), async (req: AuthRequest, res) => {
+router.get("/pools/:id/detail", requireAuth, async (req: AuthRequest, res) => {
   const { id } = req.params;
+  const role = req.user!.role;
+  const userPoolId = req.user!.poolId;
+  // pool_admin: 자신의 수영장만 조회 가능
+  if (role === "pool_admin") {
+    if (userPoolId !== id) return res.status(403).json({ success: false, message: "자신의 수영장만 조회할 수 있습니다.", error: "forbidden" });
+  } else if (role !== "super_admin") {
+    const perms = req.user!.permissions;
+    if (!perms?.canViewPools) return res.status(403).json({ success: false, message: "권한이 없습니다.", error: "forbidden" });
+  }
   try {
     const poolResult = await superAdminDb.execute(sql`SELECT * FROM swimming_pools WHERE id = ${id} LIMIT 1`);
     const pool = (poolResult as any).rows[0];
@@ -310,7 +319,6 @@ router.get("/pools/:id/detail", requireAuth, requirePermission("canViewPools"), 
       `)
     ]);
 
-    const role = req.user!.role;
     const perms = req.user!.permissions;
     const canEdit = role === "super_admin" || perms?.canEditPools === true;
 
@@ -347,18 +355,43 @@ router.post("/parents", requireAuth, requireRole("super_admin", "pool_admin"), a
 
 router.delete("/parents/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   const parentId = req.params.id;
+  const source   = (req.query.source as string) || "app";
   try {
-    // 삭제 전 학부모 login_id, phone 조회 (parent_pool_requests 정리에 사용)
+    const poolId = await getAdminPoolId(req);
+
+    if (source === "guardian") {
+      // 보호자만 타입 — parent_accounts 없음, 학생 테이블의 parent 필드만 초기화
+      if (parentId.startsWith("nophone_")) {
+        const sid = parentId.replace("nophone_", "");
+        await db.execute(sql`
+          UPDATE students SET parent_name = NULL, parent_phone = NULL,
+            parent_phone2 = NULL, parent_phone3 = NULL, updated_at = NOW()
+          WHERE id = ${sid} AND swimming_pool_id = ${poolId}
+        `);
+      } else {
+        // parentId = 전화번호
+        await db.execute(sql`
+          UPDATE students SET parent_name = NULL, parent_phone = NULL,
+            parent_phone2 = NULL, parent_phone3 = NULL, updated_at = NOW()
+          WHERE REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g')
+                = REGEXP_REPLACE(${parentId},'[^0-9]','','g')
+            AND swimming_pool_id = ${poolId}
+        `);
+      }
+      return res.json({ success: true, message: "보호자 정보가 삭제되었습니다." });
+    }
+
+    // 앱 가입 학부모 — parent_accounts 완전 삭제
     const paRows = await db.execute(sql`SELECT login_id, phone FROM parent_accounts WHERE id = ${parentId} LIMIT 1`);
     const pa = (paRows.rows as any[])[0];
     const loginId: string | null = pa?.login_id ?? null;
     const phone: string | null = pa?.phone ?? null;
 
-    // 1. 학생 parent_user_id 초기화 (자녀 기록은 보존, 연결만 해제)
+    // 1. 학생 parent_user_id 초기화
     await db.execute(sql`UPDATE students SET parent_user_id = NULL, updated_at = NOW() WHERE parent_user_id = ${parentId}`);
     // 2. parent_students 링크 삭제
     await db.delete(parentStudentsTable).where(eq(parentStudentsTable.parent_id, parentId));
-    // 3. parent_pool_requests 취소 처리 — parent_account_id 기준 + login_id/phone 기준 모두 정리
+    // 3. parent_pool_requests 취소
     await superAdminDb.execute(sql`
       UPDATE parent_pool_requests SET request_status = 'revoked', processed_at = NOW()
       WHERE parent_account_id = ${parentId} AND request_status NOT IN ('revoked', 'rejected')
@@ -375,7 +408,7 @@ router.delete("/parents/:id", requireAuth, requireRole("super_admin", "pool_admi
         WHERE phone = ${phone} AND request_status NOT IN ('revoked', 'rejected')
       `).catch(() => {});
     }
-    // 4. 학부모 계정 삭제 (강제탈퇴 — phone 포함 모든 정보 삭제)
+    // 4. 계정 삭제
     await db.execute(sql`DELETE FROM parent_accounts WHERE id = ${parentId}`);
     res.json({ success: true, message: "학부모 계정이 삭제되었습니다." });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
@@ -417,6 +450,19 @@ router.patch("/parents/:id/students/:link_id", requireAuth, requireRole("super_a
       .where(eq(parentStudentsTable.id, req.params.link_id))
       .returning();
     if (!link) { res.status(404).json({ error: "연결 요청을 찾을 수 없습니다." }); return; }
+    // 학부모에게 연결 처리 결과 알림
+    try {
+      const { sendPushToUser } = await import("../lib/push-service.js");
+      if (action === "approve") {
+        await sendPushToUser(link.parent_id, true, "link_approved", "자녀 연결이 완료됐습니다 🎉",
+          "수영장에서 자녀 연결을 승인했습니다. 이제 앱에서 수업 기록을 확인할 수 있습니다.",
+          { screen: "home" }, `ps_approved_${link.id}`);
+      } else {
+        const rejectMsg = reason ? `거절 사유: ${reason}` : "수영장에 문의해주세요.";
+        await sendPushToUser(link.parent_id, true, "link_rejected", "자녀 연결이 거절됐습니다",
+          rejectMsg, { screen: "home" }, `ps_rejected_${link.id}`);
+      }
+    } catch (pushErr) { console.error("[parents/students patch push error]", pushErr); }
     res.json(link);
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
@@ -516,11 +562,25 @@ router.patch("/student-requests/:id", requireAuth, requireRole("super_admin", "p
       await superAdminDb.update(studentRegistrationRequestsTable)
         .set({ status: "approved", reviewed_by: req.user!.userId, reviewed_at: new Date() })
         .where(eq(studentRegistrationRequestsTable.id, req.params.id));
+      // 학부모에게 자녀 연결 승인 알림
+      try {
+        const { sendPushToUser } = await import("../lib/push-service.js");
+        await sendPushToUser(srr.parent_id, true, "link_approved", "자녀 연결이 완료됐습니다 🎉",
+          "수영장에서 자녀 연결을 승인했습니다. 이제 앱에서 수업 기록을 확인할 수 있습니다.",
+          { screen: "home" }, `link_approved_${srr.id}`);
+      } catch (pushErr) { console.error("[student-requests link push error]", pushErr); }
       res.json({ linked: true, student_ids: ids });
     } else {
       await superAdminDb.update(studentRegistrationRequestsTable)
         .set({ status: "rejected", reviewed_by: req.user!.userId, reviewed_at: new Date(), rejection_reason: reason || "관리자 거부" })
         .where(eq(studentRegistrationRequestsTable.id, req.params.id));
+      // 학부모에게 자녀 연결 거절 알림
+      try {
+        const { sendPushToUser } = await import("../lib/push-service.js");
+        const rejectMsg = reason ? `거절 사유: ${reason}` : "입력하신 정보와 등록된 학생 정보가 일치하지 않습니다. 수영장에 문의해주세요.";
+        await sendPushToUser(srr.parent_id, true, "link_rejected", "자녀 연결이 거절됐습니다",
+          rejectMsg, { screen: "home" }, `link_rejected_${srr.id}`);
+      } catch (pushErr) { console.error("[student-requests reject push error]", pushErr); }
       res.json({ linked: false });
     }
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
@@ -610,28 +670,30 @@ router.get("/storage", requireAuth, requireRole("super_admin", "pool_admin"), as
     const poolId = meRow?.swimming_pool_id ?? null;
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-    // swimming_pools에서 직접 읽기 (applySubscriptionState가 항상 최신 값 기록)
+    // subscription_plans JOIN → 항상 최신 플랜 용량 사용
     const [poolRow] = (await superAdminDb.execute(sql`
-      SELECT COALESCE(subscription_tier, 'free') AS tier,
-             storage_mb,
-             display_storage,
-             base_storage_gb,
-             COALESCE(extra_storage_gb, 0) AS extra_storage_gb
-      FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+      SELECT COALESCE(sp.subscription_tier, 'free') AS tier,
+             plans.storage_mb                        AS plan_storage_mb,
+             COALESCE(sp.extra_storage_gb, 0)        AS extra_storage_gb
+      FROM swimming_pools sp
+      LEFT JOIN subscription_plans plans
+             ON plans.tier = COALESCE(sp.subscription_tier, 'free')
+      WHERE sp.id = ${poolId} LIMIT 1
     `)).rows as any[];
-    const activeTier    = poolRow?.tier ?? "free";
-    const displayStorage: string | null = poolRow?.display_storage ?? null;
+    const activeTier = poolRow?.tier ?? "free";
 
-    // quota_bytes: storage_mb(플랜) + extra_storage_gb(추가 구매) → bytes
-    let quotaBytes: number;
-    if (poolRow?.storage_mb) {
-      const extraMb = Number(poolRow.extra_storage_gb ?? 0) * 1024;
-      quotaBytes = (Number(poolRow.storage_mb) + extraMb) * 1024 * 1024;
-    } else {
-      const baseGb  = Number(poolRow?.base_storage_gb ?? 0.5);
-      const extraGb = Number(poolRow?.extra_storage_gb ?? 0);
-      quotaBytes = (baseGb + extraGb) * 1024 ** 3;
+    // quota_bytes: 플랜 storage_mb + 추가 구매 extra_storage_gb → bytes
+    const planMb  = Number(poolRow?.plan_storage_mb ?? 102); // free fallback 100MB
+    const extraMb = Number(poolRow?.extra_storage_gb ?? 0) * 1024;
+    const totalMb = planMb + extraMb;
+    const quotaBytes = totalMb * 1024 * 1024;
+
+    // display_storage: subscription_plans 기준으로 항상 재계산
+    function storageLabel(mb: number): string {
+      if (mb >= 1024) return `${Math.round(mb / 1024)}GB`;
+      return `${Math.round(mb / 100) * 100 || Math.round(mb / 10) * 10 || mb}MB`;
     }
+    const displayStorage: string = storageLabel(totalMb);
 
     // 사진·영상 사용량
     let photoBytes = 0;
@@ -1341,7 +1403,7 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
     try {
       const poolId = await getAdminPoolId(req);
       if (!poolId) { return res.status(403).json({ error: "수영장 정보가 없습니다." }); }
-      const { name, birth_year, parent_name, parent_phone, memo, notes } = req.body;
+      const { name, birth_year, parent_name, parent_phone, parent_phone2, parent_phone3, memo, notes } = req.body;
 
       const [student] = (await db.execute(sql`SELECT * FROM students WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`)).rows as any[];
       if (!student) { return res.status(404).json({ error: "회원을 찾을 수 없습니다." }); }
@@ -1354,27 +1416,38 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
       if (birth_year && String(birth_year) !== String(student.birth_year)) changes.push(`출생년: ${student.birth_year}→${birth_year}`);
       if (parent_name && parent_name !== student.parent_name) changes.push(`보호자: ${student.parent_name}→${parent_name}`);
       if (parent_phone !== undefined && parent_phone !== student.parent_phone) changes.push(`보호자연락처 변경`);
+      if (parent_phone2 !== undefined && parent_phone2 !== student.parent_phone2) changes.push(`보호자연락처2 변경`);
+      if (parent_phone3 !== undefined && parent_phone3 !== student.parent_phone3) changes.push(`보호자연락처3 변경`);
 
       // ── 학부모 연락처 변경 시 즉시 자동 연결 ─────────────────────────
-      const normParentPhone = parent_phone != null
-        ? String(parent_phone).replace(/[^0-9]/g, "") || null
-        : null;
+      const normParentPhone  = parent_phone  != null ? String(parent_phone).replace(/[^0-9]/g, "")  || null : null;
+      const phone2Provided = "parent_phone2" in req.body;
+      const phone3Provided = "parent_phone3" in req.body;
+      const normParentPhone2 = phone2Provided
+        ? (parent_phone2 ? String(parent_phone2).replace(/[^0-9]/g, "") || null : null)
+        : undefined;
+      const normParentPhone3 = phone3Provided
+        ? (parent_phone3 ? String(parent_phone3).replace(/[^0-9]/g, "") || null : null)
+        : undefined;
 
       let newParentUserId = student.parent_user_id || null;
       let parentAccountName: string | null = null;
 
-      if (!newParentUserId && normParentPhone) {
-        const [matched] = (await db.execute(sql`
-          SELECT pa.id, pa.name FROM parent_accounts pa
-          WHERE REGEXP_REPLACE(COALESCE(pa.phone,''),'[^0-9]','','g') = ${normParentPhone}
-            AND (pa.swimming_pool_id = ${poolId} OR pa.swimming_pool_id IS NULL)
-          ORDER BY (pa.swimming_pool_id = ${poolId}) DESC NULLS LAST
-          LIMIT 1
-        `)).rows as any[];
-        if (matched) {
-          newParentUserId = matched.id;
-          parentAccountName = matched.name;
-          changes.push(`학부모 앱 자동 연결: ${matched.name}`);
+      if (!newParentUserId) {
+        for (const tryPhone of [normParentPhone, normParentPhone2, normParentPhone3]) {
+          if (newParentUserId || !tryPhone) continue;
+          const [matched] = (await db.execute(sql`
+            SELECT pa.id, pa.name FROM parent_accounts pa
+            WHERE REGEXP_REPLACE(COALESCE(pa.phone,''),'[^0-9]','','g') = ${tryPhone}
+              AND (pa.swimming_pool_id = ${poolId} OR pa.swimming_pool_id IS NULL)
+            ORDER BY (pa.swimming_pool_id = ${poolId}) DESC NULLS LAST
+            LIMIT 1
+          `)).rows as any[];
+          if (matched) {
+            newParentUserId = matched.id;
+            parentAccountName = matched.name;
+            changes.push(`학부모 앱 자동 연결: ${matched.name}`);
+          }
         }
       }
 
@@ -1384,6 +1457,8 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
           birth_year = COALESCE(${birth_year ?? null}, birth_year),
           parent_name = COALESCE(${parent_name ?? null}, parent_name),
           parent_phone = COALESCE(${normParentPhone}, parent_phone),
+          parent_phone2 = CASE WHEN ${phone2Provided} THEN ${normParentPhone2 ?? null} ELSE parent_phone2 END,
+          parent_phone3 = CASE WHEN ${phone3Provided} THEN ${normParentPhone3 ?? null} ELSE parent_phone3 END,
           memo = COALESCE(${memo ?? null}, memo),
           notes = COALESCE(${notes ?? null}, notes),
           updated_at = NOW()
@@ -1420,6 +1495,8 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
       const changedV2Fields: string[] = [];
       if (name && name !== student.name) changedV2Fields.push("name");
       if (parent_phone !== undefined && parent_phone !== student.parent_phone) changedV2Fields.push("parent_phone");
+      if (parent_phone2 !== undefined && parent_phone2 !== student.parent_phone2) changedV2Fields.push("parent_phone2");
+      if (parent_phone3 !== undefined && parent_phone3 !== student.parent_phone3) changedV2Fields.push("parent_phone3");
       if (changedV2Fields.length > 0) {
         triggerAutoLinkOnStudentV2(req.params.id, changedV2Fields).catch(e =>
           console.error("[v2-admin-trigger] info patch 트리거 오류:", e?.message)
@@ -1498,6 +1575,19 @@ router.get("/makeups", requireAuth, requireRole("super_admin","pool_admin","teac
       if (student_id) conditions.push(`student_id = '${student_id}'`);
       if (teacher_id) conditions.push(`original_teacher_id = '${teacher_id}'`);
       if (assigned_teacher_id) conditions.push(`(assigned_teacher_id = '${assigned_teacher_id}' OR transferred_to_teacher_id = '${assigned_teacher_id}')`);
+      // teacher 역할이면 내 반 학생만 (pool_admin/super_admin은 전체)
+      const callerRole = (req.user as any)?.role;
+      const callerId = (req.user as any)?.userId;
+      if (callerRole === 'teacher' && callerId && !teacher_id) {
+        conditions.push(`(
+          original_teacher_id = '${callerId}'
+          OR original_class_group_id IN (
+            SELECT id FROM class_groups
+            WHERE teacher_user_id = '${callerId}'
+               OR co_teacher_ids @> to_jsonb('${callerId}'::text)
+          )
+        )`);
+      }
       const rows = (await db.execute(sql.raw(`
         SELECT * FROM makeup_sessions
         WHERE ${conditions.join(" AND ")}
@@ -2095,8 +2185,8 @@ router.get("/makeups/extinguished-log", requireAuth, requireRole("super_admin","
   }
 );
 
-// GET /admin/class-settings — 반 기본 설정 (기본 정원)
-router.get("/class-settings", requireAuth, requireRole("super_admin","pool_admin"),
+// GET /admin/class-settings — 반 기본 설정 (기본 정원) — 선생님도 읽기 허용
+router.get("/class-settings", requireAuth, requireRole("super_admin","pool_admin","teacher"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req);
@@ -2685,7 +2775,8 @@ router.get("/parents/:parentId", requireAuth, requireRole("super_admin","pool_ad
         const stuRows = (await db.execute(sql`
           SELECT s.id, s.name, s.status,
                  cg.name AS class_name,
-                 s.level AS level
+                 s.level AS level,
+                 ps.id AS link_id
           FROM parent_students ps
           JOIN students s ON s.id = ps.student_id
           LEFT JOIN class_groups cg ON cg.id = s.class_group_id
@@ -2740,6 +2831,89 @@ router.get("/parents/:parentId", requireAuth, requireRole("super_admin","pool_ad
           reg_request: null,
         });
       }
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// GET /admin/parents/:parentId/linkable-students — 전화번호 일치하는 미연결 학생 목록
+router.get("/parents/:parentId/linkable-students", requireAuth, requireRole("super_admin","pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
+      const { parentId } = req.params;
+
+      const [pa] = (await db.execute(sql`
+        SELECT phone FROM parent_accounts WHERE id = ${parentId} LIMIT 1
+      `)).rows as any[];
+      if (!pa?.phone) { res.json({ students: [] }); return; }
+
+      const normPhone = pa.phone.replace(/[^0-9]/g, "");
+
+      // 이미 연결된 student id 목록
+      const linked = (await db.execute(sql`
+        SELECT student_id FROM parent_students WHERE parent_id = ${parentId}
+      `)).rows as any[];
+      const linkedIds = linked.map((r: any) => r.student_id);
+
+      // 전화번호 일치하는 학생 (parent_phone)
+      const students = (await db.execute(sql`
+        SELECT s.id, s.name, s.status, s.parent_phone,
+               cg.name AS class_name
+        FROM students s
+        LEFT JOIN class_groups cg ON cg.id = s.class_group_id
+        WHERE s.swimming_pool_id = ${poolId}
+          AND s.deleted_at IS NULL
+          AND s.status NOT IN ('archived','deleted')
+          AND REGEXP_REPLACE(COALESCE(s.parent_phone,''),'[^0-9]','','g') = ${normPhone}
+        ORDER BY s.name
+      `)).rows as any[];
+
+      const unlinked = students.filter((s: any) => !linkedIds.includes(s.id));
+      res.json({ students: unlinked });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// POST /admin/parents/:parentId/link-student — 학생을 학부모에게 즉시 연결
+router.post("/parents/:parentId/link-student", requireAuth, requireRole("super_admin","pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
+      const { parentId } = req.params;
+      const { student_id } = req.body;
+      if (!student_id) { res.status(400).json({ error: "student_id 필수" }); return; }
+
+      // 학부모 확인
+      const [pa] = (await db.execute(sql`
+        SELECT id FROM parent_accounts WHERE id = ${parentId} LIMIT 1
+      `)).rows as any[];
+      if (!pa) { res.status(404).json({ error: "학부모 없음" }); return; }
+
+      // 학생이 해당 풀 소속인지 확인
+      const [stu] = (await db.execute(sql`
+        SELECT id, name FROM students
+        WHERE id = ${student_id} AND swimming_pool_id = ${poolId} AND deleted_at IS NULL LIMIT 1
+      `)).rows as any[];
+      if (!stu) { res.status(404).json({ error: "학생 없음" }); return; }
+
+      const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await db.execute(sql`
+        INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
+        VALUES (${psId}, ${parentId}, ${student_id}, ${poolId}, 'approved', NOW())
+        ON CONFLICT DO NOTHING
+      `);
+      await db.execute(sql`
+        UPDATE students SET parent_user_id = ${parentId}, status = 'active', updated_at = NOW()
+        WHERE id = ${student_id} AND parent_user_id IS NULL
+      `);
+      await db.execute(sql`
+        UPDATE parent_accounts SET swimming_pool_id = ${poolId}, updated_at = NOW()
+        WHERE id = ${parentId} AND swimming_pool_id IS NULL
+      `);
+
+      res.json({ success: true, student_name: stu.name });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
@@ -3027,12 +3201,9 @@ router.put("/level-settings", requireAuth, requireRole("super_admin","pool_admin
 router.get("/students/:id/level", requireAuth, requireRole("super_admin","pool_admin","teacher"), async (req: AuthRequest, res) => {
   try {
     const studRow = await db.execute(sql`
-      SELECT s.id, s.name, s.current_level_order, s.swimming_pool_id,
-             sl.level as level_name_hist
-      FROM students s
-      LEFT JOIN student_levels sl ON sl.student_id = s.id
-      WHERE s.id = ${req.params.id}
-      ORDER BY sl.created_at DESC
+      SELECT id, name, current_level_order, swimming_pool_id
+      FROM students
+      WHERE id = ${req.params.id}
       LIMIT 1
     `);
     const student = studRow.rows[0] as any;
@@ -3081,12 +3252,13 @@ router.patch("/students/:id/level", requireAuth, requireRole("super_admin","pool
       UPDATE students SET current_level_order = ${level_order}, updated_at = NOW() WHERE id = ${req.params.id}
     `);
     const actorName = req.user!.name || "관리자";
-    await db.execute(sql`
+    // UPDATE 성공 즉시 응답 — INSERT는 비동기 처리
+    res.json({ ok: true, level_order, level_name: lvName });
+    db.execute(sql`
       INSERT INTO student_levels (id, student_id, swimming_pool_id, level, level_order, achieved_date, note, teacher_name, created_at)
       VALUES (gen_random_uuid()::text, ${req.params.id}, ${poolId}, ${lvName}, ${level_order},
               to_char(now(), 'YYYY-MM-DD'), ${note ?? null}, ${actorName}, NOW())
-    `);
-    res.json({ ok: true, level_order, level_name: lvName });
+    `).catch((e: any) => console.error("[레벨변경] student_levels INSERT 실패:", e?.message));
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
@@ -3116,6 +3288,132 @@ router.get("/unlinked-students", requireAuth, requireRole("super_admin", "pool_a
     res.json({ success: true, data: rows.rows });
   } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
+
+// ── 정책 동의 여부 서버 검증 헬퍼 (결제 차단용) ─────────────────────────────
+async function checkRefundPolicyAgreed(poolId: string): Promise<boolean> {
+  try {
+    const activeRes = await superAdminDb.execute(sql`
+      SELECT version FROM policy_versions
+      WHERE policy_key = 'refund_policy' AND is_active = TRUE
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    const activeVersion = (activeRes.rows[0] as any)?.version;
+    if (!activeVersion) return true; // 정책 미설정 → 허용 (fail-open)
+    const consentRes = await superAdminDb.execute(sql`
+      SELECT id FROM policy_consents
+      WHERE pool_id = ${poolId} AND policy_key = 'refund_policy' AND version = ${activeVersion}
+      LIMIT 1
+    `);
+    return consentRes.rows.length > 0;
+  } catch { return true; } // 오류 시 fail-open
+}
+
+// ── GET /admin/refund-policy — 활성 정책 + 동의 여부 ─────────────────────────
+router.get("/refund-policy", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    let poolId: string | null = null;
+    if (req.user!.role === "pool_admin") {
+      const [u] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      poolId = u?.swimming_pool_id ?? null;
+    } else {
+      poolId = (req.query.pool_id as string) ?? null;
+    }
+    if (!poolId) { res.status(400).json({ error: "pool_id가 필요합니다." }); return; }
+
+    const DEFAULT_POLICY_CONTENT = [
+      "[구독 취소 및 환불]",
+      "구독을 취소하면 취소 요청일 기준으로 잔여 기간을 일할 계산하여 환불됩니다.",
+      "예: 30일 이용권 구독 후 10일 사용 → 남은 20일분 환불",
+      "환불금은 App Store(Apple) 또는 Google Play(구글) 결제 수단으로 처리됩니다.",
+      "구독 취소 시 서비스는 즉시 중단되며, 자동으로 회원 탈퇴 처리됩니다.",
+      "탈퇴 후에는 수영장 운영 데이터(회원, 수업일지, 사진, 영상 등)가 즉시 삭제됩니다.",
+      "삭제된 데이터는 복구가 불가능하오니 신중하게 결정해 주세요.",
+      "[플랜 다운그레이드]",
+      "상위 플랜 → 하위 플랜 다운그레이드는 현재 구독 기간 종료 후 다음 결제일부터 적용됩니다.",
+      "다운그레이드 신청 후에도 현재 결제 기간이 끝날 때까지 기존 플랜의 모든 기능을 이용할 수 있습니다.",
+      "다운그레이드로 인한 잔여 기간의 차액은 환불되지 않습니다.",
+      "[플랜 업그레이드]",
+      "하위 플랜 → 상위 플랜 업그레이드는 즉시 적용되며, 남은 기간에 대한 차액이 즉시 결제됩니다.",
+      "[무료 플랜 전환 불가]",
+      "SwimNote는 구독 취소 시 무료 플랜으로 자동 전환되지 않습니다.",
+      "구독 취소는 서비스 이용 종료 및 자동 회원 탈퇴를 의미합니다.",
+      "[스토어 환불 정책]",
+      "App Store(Apple) 결제는 Apple의 환불 정책이 우선 적용됩니다.",
+      "Google Play(구글) 결제는 Google의 환불 정책이 우선 적용됩니다.",
+      "[환불 문의]",
+      "환불 및 구독 관련 문의: support@swimnote.app",
+    ].join("\n");
+
+    // 현재 활성 정책 버전 조회 (없으면 기본값)
+    const versionRes = await superAdminDb.execute(sql`
+      SELECT id, version, value FROM policy_versions
+      WHERE policy_key = 'refund_policy' AND is_active = TRUE
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    const activeRow  = (versionRes.rows[0] as any);
+    const version    = activeRow?.version ?? "v1.0";
+    const content    = activeRow?.value   ?? DEFAULT_POLICY_CONTENT;
+
+    // 이 수영장의 현재 활성 버전에 대한 동의 여부
+    const consentRes = await superAdminDb.execute(sql`
+      SELECT agreed_at, version AS agreed_version FROM policy_consents
+      WHERE pool_id = ${poolId} AND policy_key = 'refund_policy' AND version = ${version}
+      ORDER BY agreed_at DESC LIMIT 1
+    `);
+    const consentRow   = (consentRes.rows[0] as any);
+    const agreedAt     = consentRow?.agreed_at     ?? null;
+    const agreedVersion = consentRow?.agreed_version ?? null;
+    const agreed        = !!agreedAt;
+    const needsReagree  = !agreed;
+
+    res.json({
+      success: true,
+      policy_type: "refund_policy",
+      version,
+      content,
+      agreed,
+      agreed_at:      agreedAt,
+      agreed_version: agreedVersion,
+      needs_reagree:  needsReagree,
+    });
+  } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+// ── POST /admin/refund-policy/agree — 현재 활성 버전 기준 동의 처리 ──────────
+router.post("/refund-policy/agree", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    let poolId: string | null = null;
+    if (req.user!.role === "pool_admin") {
+      const [u] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      poolId = u?.swimming_pool_id ?? null;
+    } else {
+      poolId = (req.body.pool_id as string) ?? null;
+    }
+    if (!poolId) { res.status(400).json({ error: "pool_id가 필요합니다." }); return; }
+
+    // 현재 활성 버전 조회
+    const versionRes = await superAdminDb.execute(sql`
+      SELECT version FROM policy_versions
+      WHERE policy_key = 'refund_policy' AND is_active = TRUE
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    const version = (versionRes.rows[0] as any)?.version ?? "v1.0";
+
+    const consentId = `pc_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const now = new Date().toISOString();
+    await superAdminDb.execute(sql`
+      INSERT INTO policy_consents (id, pool_id, policy_key, version, agreed_at)
+      VALUES (${consentId}, ${poolId}, 'refund_policy', ${version}, NOW())
+      ON CONFLICT (pool_id, policy_key, version) DO UPDATE SET agreed_at = NOW()
+    `);
+
+    res.json({ success: true, message: "환불 정책에 동의했습니다.", agreed_at: now, agreed_version: version });
+  } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+export { checkRefundPolicyAgreed };
 
 export default router;
 
