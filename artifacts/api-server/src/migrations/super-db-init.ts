@@ -213,6 +213,7 @@ export async function initSuperDb(): Promise<void> {
     await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS withdrawal_requested_at TIMESTAMPTZ;`)).catch(() => {});
     await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret text;`)).catch(() => {});
     await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled boolean DEFAULT false;`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS web_pin_hash text;`)).catch(() => {});
     console.log("[super-db-init] users 소셜 로그인/탈퇴 컬럼 보완 완료");
   } catch (e: any) {
     console.warn("[super-db-init] users 소셜 로그인/탈퇴 컬럼 보완 오류:", e.message);
