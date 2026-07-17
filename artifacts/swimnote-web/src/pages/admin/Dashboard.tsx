@@ -306,7 +306,7 @@ export default function Dashboard() {
                     )}
                   </div>
                   <span className="text-[11px] text-[#BBB] flex-shrink-0">
-                    {c.current_members ?? 0}/{c.capacity ?? 0}명
+                    {c.student_count ?? 0}/{c.capacity ?? 0}명
                   </span>
                 </div>
               ))}
