@@ -593,10 +593,37 @@ router.get("/teacher/makeups/assigned", requireAuth,
             ms.original_teacher_id = ${userId}
             OR ms.transferred_to_teacher_id = ${userId}
             OR ms.assigned_teacher_id = ${userId}
+            OR ms.original_class_group_id IN (
+              SELECT id FROM class_groups
+              WHERE teacher_user_id = ${userId}
+                 OR co_teacher_ids @> to_jsonb(${userId}::text)
+            )
           )
         ORDER BY ms.assigned_date ASC, ms.absence_date ASC, ms.created_at ASC
       `);
       res.json(rows.rows);
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ── 특정 반/날짜의 배정된 보강 학생 목록 ──────────────────────
+router.get("/teacher/makeups/by-class", requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const { class_group_id, date } = req.query as { class_group_id?: string; date?: string };
+      if (!class_group_id || !date) {
+        res.status(400).json({ error: "class_group_id와 date가 필요합니다." }); return;
+      }
+      const rows = (await db.execute(sql`
+        SELECT ms.*
+        FROM makeup_sessions ms
+        WHERE ms.assigned_class_group_id = ${class_group_id}
+          AND ms.assigned_date = ${date}
+          AND ms.status = 'assigned'
+          AND ms.cancelled_at IS NULL
+        ORDER BY ms.student_name ASC
+      `)).rows;
+      res.json(rows);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
@@ -738,8 +765,15 @@ router.get("/teacher/makeup-requests", requireAuth,
           assigned_date              AS makeup_date,
           assigned_class_group_name  AS makeup_class_name
         FROM makeup_sessions
-        WHERE original_teacher_id = ${userId}
-          AND cancelled_at IS NULL
+        WHERE cancelled_at IS NULL
+          AND (
+            original_teacher_id = ${userId}
+            OR original_class_group_id IN (
+              SELECT id FROM class_groups
+              WHERE teacher_user_id = ${userId}
+                 OR co_teacher_ids @> to_jsonb(${userId}::text)
+            )
+          )
         ORDER BY absence_date DESC, created_at DESC
       `)).rows as any[];
 
