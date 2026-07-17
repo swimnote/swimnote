@@ -4,6 +4,7 @@ import { PoolModeContext } from "@/contexts/PoolModeContext";
 import Intro from "./Intro";
 import Education from "./Education";
 import AppPage from "./AppPage";
+import PoolSupport from "./PoolSupport";
 
 interface PoolData {
   id: string;
@@ -15,12 +16,13 @@ interface PoolData {
 const SWIMNOTE_PRIMARY = "#002F5F";
 const SWIMNOTE_SECONDARY = "#01B2F1";
 
-type TabId = "intro" | "education" | "app";
+type TabId = "intro" | "education" | "app" | "support";
 
 const tabs: { id: TabId; label: string; highlight?: boolean }[] = [
   { id: "intro", label: "소개" },
   { id: "education", label: "교육시스템" },
   { id: "app", label: "스윔노트 앱", highlight: true },
+  { id: "support", label: "고객지원" },
 ];
 
 export default function PoolHomepage() {
@@ -196,6 +198,7 @@ export default function PoolHomepage() {
           {activeTab === "intro" && <Intro />}
           {activeTab === "education" && <Education />}
           {activeTab === "app" && <AppPage />}
+          {activeTab === "support" && <PoolSupport />}
         </main>
       </PoolModeContext.Provider>
     </div>
