@@ -205,12 +205,14 @@ router.patch("/web-pin", requireAuth, async (req: AuthRequest, res) => {
   const { current_password, web_pin } = req.body;
   const userId = req.user?.userId;
   if (!userId) return err(res, 401, "인증이 필요합니다.");
-  if (!current_password) return err(res, 400, "현재 비밀번호를 입력해주세요.");
   try {
     const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
     if (!user) return err(res, 404, "계정을 찾을 수 없습니다.");
-    const validPw = await comparePassword(current_password, user.password_hash);
-    if (!validPw) return err(res, 401, "현재 비밀번호가 올바르지 않습니다.");
+    // 현재 비밀번호는 선택사항 — 입력된 경우에만 검증
+    if (current_password) {
+      const validPw = await comparePassword(current_password, user.password_hash);
+      if (!validPw) return err(res, 401, "현재 비밀번호가 올바르지 않습니다.");
+    }
     if (web_pin) {
       if (String(web_pin).length < 4) return err(res, 400, "웹 접속 비밀번호는 4자리 이상이어야 합니다.");
       const hash = await hashPassword(String(web_pin));

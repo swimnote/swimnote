@@ -41,7 +41,6 @@ export default function WebPinSettingsScreen() {
   useEffect(() => { loadStatus(); }, [loadStatus]);
 
   const handleSave = async () => {
-    if (!currentPw) { setMsg({ text: "현재 비밀번호를 입력해주세요.", ok: false }); return; }
     if (!newPin) { setMsg({ text: "새 웹 접속 비밀번호를 입력해주세요.", ok: false }); return; }
     if (newPin.length < 4) { setMsg({ text: "웹 접속 비밀번호는 4자리 이상이어야 합니다.", ok: false }); return; }
     if (newPin !== confirmPin) { setMsg({ text: "비밀번호가 일치하지 않습니다.", ok: false }); return; }
@@ -74,10 +73,6 @@ export default function WebPinSettingsScreen() {
         {
           text: "해제", style: "destructive",
           onPress: async () => {
-            if (!currentPw) {
-              Alert.alert("현재 비밀번호 필요", "현재 비밀번호를 먼저 입력해주세요.");
-              return;
-            }
             setSaving(true);
             setMsg(null);
             try {
@@ -140,10 +135,10 @@ export default function WebPinSettingsScreen() {
           </Text>
 
           <View style={s.fieldGroup}>
-            <Text style={s.label}>현재 앱 로그인 비밀번호</Text>
+            <Text style={s.label}>현재 앱 로그인 비밀번호 <Text style={{ color: "#AAA", fontWeight: "400" }}>(선택사항)</Text></Text>
             <TextInput
               style={s.input}
-              placeholder="현재 비밀번호 입력"
+              placeholder="입력하지 않아도 됩니다"
               secureTextEntry
               value={currentPw}
               onChangeText={setCurrentPw}
