@@ -162,6 +162,31 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
       }
     }
 
+    // 보강 배정 학생 — 오늘 날짜에 배정된 makeup_sessions 학생도 포함
+    const classIdList = classIds.map(id => `'${id}'`).join(",");
+    const makeupRows = classIds.length > 0 ? await db.execute(sql.raw(`
+      SELECT ms.student_id AS id, s.name, s.birth_year, ms.assigned_class_group_id AS class_group_id,
+             s.weekly_count, s.schedule_labels, s.status,
+             true AS is_makeup, ms.id AS makeup_session_id
+      FROM makeup_sessions ms
+      JOIN students s ON s.id = ms.student_id
+      WHERE ms.swimming_pool_id = '${poolId}'
+        AND ms.assigned_date = '${dateParam}'
+        AND ms.assigned_class_group_id IN (${classIdList})
+        AND ms.status = 'assigned'
+        AND ms.cancelled_at IS NULL
+    `)) : { rows: [] };
+    for (const mk of makeupRows.rows as any[]) {
+      const cid = mk.class_group_id;
+      if (classIds.includes(cid)) {
+        const alreadyIn = (studentsByClass[cid] || []).some((s: any) => s.id === mk.id);
+        if (!alreadyIn) {
+          if (!studentsByClass[cid]) studentsByClass[cid] = [];
+          studentsByClass[cid].push({ ...mk, is_makeup: true });
+        }
+      }
+    }
+
     const result = groups.map(g => ({
       ...g,
       student_count:  studentCountMap[g.id] || 0,
@@ -172,6 +197,7 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
       note_text:      noteMap[g.id]?.note_text || null,
       audio_file_url: noteMap[g.id]?.audio_file_url || null,
       students:       studentsByClass[g.id] || [],
+      makeup_count:   (makeupRows.rows as any[]).filter((m: any) => m.class_group_id === g.id).length,
     }));
 
     res.json(result);

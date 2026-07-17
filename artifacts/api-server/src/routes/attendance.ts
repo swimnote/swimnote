@@ -432,8 +432,9 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
         .returning();
       const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
       if (status === "absent") {
-        autoCreateMakeup(poolId, student_id, date, class_group_id || existing.class_group_id, existing.id, prevStatus)
-          .catch(e => console.error("[autoCreateMakeup] 보강세션 생성 실패:", e));
+        try {
+          await autoCreateMakeup(poolId, student_id, date, class_group_id || existing.class_group_id, existing.id, prevStatus);
+        } catch(e) { console.error("[autoCreateMakeup] 보강세션 생성 실패:", e); }
       } else if (status === "present" && prevStatus === "absent") {
         db.execute(sql`
           UPDATE makeup_sessions
@@ -450,8 +451,9 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     }).returning();
     const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
     if (status === "absent") {
-      autoCreateMakeup(poolId, student_id, date, class_group_id, id, null)
-        .catch(e => console.error("[autoCreateMakeup] 보강세션 생성 실패:", e));
+      try {
+        await autoCreateMakeup(poolId, student_id, date, class_group_id, id, null);
+      } catch(e) { console.error("[autoCreateMakeup] 보강세션 생성 실패:", e); }
     }
     logPoolEvent({
       pool_id: poolId, event_type: `attendance.${status}`, entity_type: "attendance",
