@@ -1575,18 +1575,26 @@ router.get("/makeups", requireAuth, requireRole("super_admin","pool_admin","teac
       if (student_id) conditions.push(`student_id = '${student_id}'`);
       if (teacher_id) conditions.push(`original_teacher_id = '${teacher_id}'`);
       if (assigned_teacher_id) conditions.push(`(assigned_teacher_id = '${assigned_teacher_id}' OR transferred_to_teacher_id = '${assigned_teacher_id}')`);
-      // teacher 역할이면 내 반 학생만 (pool_admin/super_admin은 전체)
-      const callerRole = (req.user as any)?.role;
+      // super_admin이 아니고, teacher_id 필터 없으면 → 내 반 학생만
       const callerId = (req.user as any)?.userId;
-      if (callerRole === 'teacher' && callerId && !teacher_id) {
-        conditions.push(`(
-          original_teacher_id = '${callerId}'
-          OR original_class_group_id IN (
-            SELECT id FROM class_groups
-            WHERE teacher_user_id = '${callerId}'
-               OR co_teacher_ids @> to_jsonb('${callerId}'::text)
-          )
-        )`);
+      const callerRole = (req.user as any)?.role;
+      if (callerRole !== 'super_admin' && callerId && !teacher_id) {
+        const myClasses = (await db.execute(sql.raw(`
+          SELECT id FROM class_groups
+          WHERE (teacher_user_id = '${callerId}'
+             OR co_teacher_ids @> to_jsonb('${callerId}'::text))
+          LIMIT 1
+        `))).rows;
+        if (myClasses.length > 0) {
+          conditions.push(`(
+            original_teacher_id = '${callerId}'
+            OR original_class_group_id IN (
+              SELECT id FROM class_groups
+              WHERE teacher_user_id = '${callerId}'
+                 OR co_teacher_ids @> to_jsonb('${callerId}'::text)
+            )
+          )`);
+        }
       }
       const rows = (await db.execute(sql.raw(`
         SELECT * FROM makeup_sessions
