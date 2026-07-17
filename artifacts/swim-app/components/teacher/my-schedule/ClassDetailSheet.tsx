@@ -3,7 +3,7 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
@@ -17,7 +17,7 @@ const C = Colors.light;
 export default function ClassDetailSheet({
   group, students, attMap, diarySet, themeColor, date, onClose,
   onOpenUnreg, onOpenRemove, onNavigateTo, onDeleteClass, weekChangeLogs, token,
-  classGroups, onColorChange,
+  classGroups, onColorChange, onCapacityChange,
 }: {
   group: TeacherClassGroup;
   students: StudentItem[];
@@ -34,6 +34,7 @@ export default function ClassDetailSheet({
   onNavigateTo?: (navigate: () => void) => void;
   classGroups?: TeacherClassGroup[];
   onColorChange?: (id: string, color: string) => void;
+  onCapacityChange?: (id: string, capacity: number | null) => void;
 }) {
   const myLogs = useMemo(() =>
     (weekChangeLogs || []).filter(l => l.class_group_id === group.id),
@@ -52,27 +53,53 @@ export default function ClassDetailSheet({
   const [showUnassignTiming, setShowUnassignTiming] = useState(false);
   const [unassigningStudent, setUnassigningStudent] = useState(false);
 
+  // 보충수업 관련
+  const [showMakeupPicker,        setShowMakeupPicker]        = useState(false);
+  const [makeupList,              setMakeupList]              = useState<any[]>([]);
+  const [makeupLoading,           setMakeupLoading]           = useState(false);
+  const [makeupSaving,            setMakeupSaving]            = useState<string | null>(null);
+  const [selectedMakeupStudent,   setSelectedMakeupStudent]   = useState<any | null>(null);
+
   const originalColorRef = useRef<string>(group.color || "#FFFFFF");
   const [draftColor, setDraftColor] = useState<string>(group.color || "#FFFFFF");
   const [colorSaving, setColorSaving] = useState(false);
+
+  const originalCapacityRef = useRef<number | null>(group.capacity ?? null);
+  const [draftCapacity, setDraftCapacity] = useState<string>(
+    group.capacity != null ? String(group.capacity) : ""
+  );
 
   function handleColorSelect(color: string) {
     setDraftColor(color);
   }
 
   async function handleClose() {
-    if (draftColor !== originalColorRef.current) {
+    const parsedCapacity = draftCapacity.trim() === "" ? null : parseInt(draftCapacity, 10);
+    const capacityChanged = parsedCapacity !== originalCapacityRef.current;
+    const colorChanged = draftColor !== originalColorRef.current;
+
+    if (colorChanged || capacityChanged) {
       setColorSaving(true);
       try {
+        const patch: Record<string, unknown> = {};
+        if (colorChanged) patch.color = draftColor;
+        if (capacityChanged) patch.capacity = parsedCapacity;
         await apiRequest(token, `/class-groups/${group.id}`, {
           method: "PATCH",
-          body: JSON.stringify({ color: draftColor }),
+          body: JSON.stringify(patch),
         });
-        onColorChange?.(group.id, draftColor);
-        originalColorRef.current = draftColor;
+        if (colorChanged) {
+          onColorChange?.(group.id, draftColor);
+          originalColorRef.current = draftColor;
+        }
+        if (capacityChanged) {
+          onCapacityChange?.(group.id, parsedCapacity);
+          originalCapacityRef.current = parsedCapacity;
+        }
       } catch (e) {
         console.error(e);
         setDraftColor(originalColorRef.current);
+        setDraftCapacity(originalCapacityRef.current != null ? String(originalCapacityRef.current) : "");
       }
       setColorSaving(false);
     }
@@ -80,6 +107,7 @@ export default function ClassDetailSheet({
   }
 
   useEffect(() => {
+    setStudentAttState({});
     if (!token) return;
     apiRequest(token, `/attendance?class_group_id=${group.id}&date=${effectiveDate}`)
       .then(r => r.ok ? r.json() : [])
@@ -91,8 +119,52 @@ export default function ClassDetailSheet({
       .catch(() => {});
   }, [group.id, effectiveDate, token]);
 
-  async function markAtt(studentId: string, newStatus: "present" | "absent") {
-    if (studentAttState[studentId] === newStatus) return;
+  async function openMakeupPicker() {
+    setSelectedMakeupStudent(null);
+    setShowMakeupPicker(true);
+    setMakeupLoading(true);
+    try {
+      const res = await apiRequest(token, "/teacher/makeups?status=pending");
+      if (res.ok) setMakeupList(await res.json());
+    } catch {}
+    finally { setMakeupLoading(false); }
+  }
+
+  async function completeMakeupWithClass(mk: any, targetClassId: string) {
+    if (makeupSaving) return;
+    setMakeupSaving(mk.id);
+    try {
+      const assignRes = await apiRequest(token, `/teacher/makeups/${mk.id}/assign`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ class_group_id: targetClassId, assigned_date: effectiveDate }),
+      });
+      if (!assignRes.ok) {
+        const body = await assignRes.json().catch(() => ({}));
+        Alert.alert("처리 실패", body?.error || "보충수업 배정 중 오류가 발생했습니다.");
+        return;
+      }
+      const completeRes = await apiRequest(token, `/admin/makeups/${mk.id}/complete`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (completeRes.ok) {
+        setMakeupList(prev => prev.filter(m => m.id !== mk.id));
+        setSelectedMakeupStudent(null);
+        setShowMakeupPicker(false);
+      } else {
+        const body = await completeRes.json().catch(() => ({}));
+        Alert.alert("처리 실패", body?.error || "보충수업 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
+      }
+    } catch {
+      Alert.alert("오류", "네트워크 오류가 발생했습니다. 다시 시도해주세요.");
+    }
+    finally { setMakeupSaving(null); }
+  }
+
+  async function markAtt(studentId: string, newStatus: "present" | "absent"): Promise<boolean> {
+    if (studentAttState[studentId] === newStatus) return true;
     setSavingStudentId(studentId);
     try {
       await apiRequest(token, "/attendance", {
@@ -106,8 +178,12 @@ export default function ClassDetailSheet({
         }),
       });
       setStudentAttState(prev => ({ ...prev, [studentId]: newStatus }));
-    } catch {}
-    setSavingStudentId(null);
+      setSavingStudentId(null);
+      return true;
+    } catch {
+      setSavingStudentId(null);
+      return false;
+    }
   }
 
   async function doMoveStudent() {
@@ -153,8 +229,9 @@ export default function ClassDetailSheet({
 
   const groupStudents = students
     .filter(st =>
-      (Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(group.id))
-      || st.class_group_id === group.id
+      ((Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(group.id))
+      || st.class_group_id === group.id)
+      && (!st.class_enrolled_at || st.class_enrolled_at <= todayDateStr())
     )
     .sort((a, b) => {
       const aAbs = studentAttState[a.id] === "absent" ? 0 : 1;
@@ -178,7 +255,7 @@ export default function ClassDetailSheet({
                 <Text style={cds.sheetSub}>{group.schedule_days.split(",").join("·")} · {group.schedule_time}</Text>
               </View>
               <Pressable style={cds.deleteBtn}
-                onPress={() => { onClose(); setTimeout(() => onDeleteClass?.(), 200); }}>
+                onPress={() => onDeleteClass?.()}>
                 <Trash2 size={15} color="#E11D48" />
               </Pressable>
               <Pressable onPress={handleClose} style={cds.closeBtn}>
@@ -189,7 +266,21 @@ export default function ClassDetailSheet({
             </View>
             <View style={cds.actionRow}>
               <Pressable style={[cds.actionBtn, { backgroundColor: "#E6FFFA", flex: 1 }]}
-                onPress={() => onNavigateTo?.(() => router.push(`/class-assign?classId=${group.id}` as any))}>
+                onPress={() => onNavigateTo?.(() => router.push({
+                pathname: "/class-assign",
+                params: {
+                  classId: group.id,
+                  initialClass: JSON.stringify({
+                    id: group.id,
+                    name: group.name,
+                    schedule_days: group.schedule_days,
+                    schedule_time: group.schedule_time,
+                    instructor: group.instructor || null,
+                    capacity: group.capacity ?? null,
+                    level: group.level || null,
+                  }),
+                },
+              } as any))}>
                 <Users size={13} color="#4338CA" />
                 <Text style={[cds.actionText, { color: "#4338CA" }]}>반배정</Text>
               </Pressable>
@@ -198,8 +289,49 @@ export default function ClassDetailSheet({
                 <Pencil size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
                 <Text style={[cds.actionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
               </Pressable>
+              <Pressable style={[cds.actionBtn, { backgroundColor: "#EEF2FF", flex: 1 }]}
+                onPress={() => onNavigateTo?.(() => router.push("/(teacher)/makeups?backTo=my-schedule" as any))}>
+                <Users size={13} color="#4F46E5" />
+                <Text style={[cds.actionText, { color: "#4F46E5" }]}>보충수업</Text>
+              </Pressable>
             </View>
             <PastelColorPicker selected={draftColor} onSelect={handleColorSelect} />
+            <View style={cds.capacityRow}>
+              <View style={cds.capacityLabelRow}>
+                <Users size={14} color={C.textSecondary} />
+                <Text style={cds.capacityLabel}>정원</Text>
+              </View>
+              <View style={cds.capacityInputWrap}>
+                <Pressable
+                  style={cds.capacityBtn}
+                  onPress={() => {
+                    const cur = parseInt(draftCapacity || "0", 10);
+                    if (cur > 1) setDraftCapacity(String(cur - 1));
+                  }}
+                >
+                  <Text style={cds.capacityBtnTxt}>−</Text>
+                </Pressable>
+                <TextInput
+                  style={cds.capacityInput}
+                  value={draftCapacity}
+                  onChangeText={v => setDraftCapacity(v.replace(/[^0-9]/g, ""))}
+                  keyboardType="number-pad"
+                  placeholder="없음"
+                  placeholderTextColor={C.textMuted}
+                  maxLength={3}
+                />
+                <Text style={cds.capacityUnit}>명</Text>
+                <Pressable
+                  style={cds.capacityBtn}
+                  onPress={() => {
+                    const cur = parseInt(draftCapacity || "0", 10);
+                    setDraftCapacity(String(cur + 1));
+                  }}
+                >
+                  <Text style={cds.capacityBtnTxt}>+</Text>
+                </Pressable>
+              </View>
+            </View>
             <Text style={cds.sectionLabel}>학생 목록 · {effectiveDate}</Text>
             <ScrollView style={cds.studentScroll} showsVerticalScrollIndicator={false}>
               {groupStudents.length === 0 ? (
@@ -349,6 +481,108 @@ export default function ClassDetailSheet({
         </Modal>
       )}
 
+      {/* 보충수업 모달 (2단계) */}
+      {showMakeupPicker && (
+        <Modal visible animationType="slide" transparent onRequestClose={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }} statusBarTranslucent>
+          <Pressable style={cds.backdrop} onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }}>
+            <Pressable style={[cds.sheet, { minHeight: "50%" }]} onPress={() => {}}>
+              <View style={cds.handle} />
+              {selectedMakeupStudent === null ? (
+                /* 단계 1: 보강 대기 학생 선택 */
+                <>
+                  <View style={cds.sheetHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={cds.sheetTitle}>보충수업</Text>
+                      <Text style={cds.sheetSub}>보강 대기 학생을 선택하세요</Text>
+                    </View>
+                    <Pressable onPress={() => setShowMakeupPicker(false)} style={cds.closeBtn}>
+                      <X size={20} color={C.textSecondary} />
+                    </Pressable>
+                  </View>
+                  {makeupLoading ? (
+                    <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                      <ActivityIndicator color="#4F46E5" />
+                    </View>
+                  ) : makeupList.length === 0 ? (
+                    <View style={cds.empty}>
+                      <Users size={32} color={C.textMuted} />
+                      <Text style={cds.emptyText}>보강 대기 중인 학생이 없습니다</Text>
+                    </View>
+                  ) : (
+                    <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                      {makeupList.map((mk: any) => (
+                        <Pressable
+                          key={mk.id}
+                          style={({ pressed }) => [cds.moveClassRow, pressed && { opacity: 0.7 }]}
+                          onPress={() => setSelectedMakeupStudent(mk)}
+                          disabled={!!makeupSaving}
+                        >
+                          <LucideIcon name="user" size={16} color={C.textMuted} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={cds.moveClassName}>{mk.student_name}</Text>
+                            <Text style={cds.moveClassSub}>결석일 {mk.absence_date}{mk.original_class_group_name ? ` · ${mk.original_class_group_name}` : ""}</Text>
+                          </View>
+                          <ChevronRight size={14} color={C.textMuted} />
+                        </Pressable>
+                      ))}
+                      <View style={{ height: 20 }} />
+                    </ScrollView>
+                  )}
+                </>
+              ) : (
+                /* 단계 2: 합류할 반 선택 */
+                <>
+                  <View style={cds.sheetHeader}>
+                    <Pressable onPress={() => setSelectedMakeupStudent(null)} style={{ padding: 4, marginRight: 8 }}>
+                      <Text style={{ fontSize: 14, color: "#4F46E5", fontFamily: "Pretendard-Regular" }}>← 뒤로</Text>
+                    </Pressable>
+                    <View style={{ flex: 1 }}>
+                      <Text style={cds.sheetTitle}>{selectedMakeupStudent.student_name}</Text>
+                      <Text style={cds.sheetSub}>합류할 반을 선택하세요</Text>
+                    </View>
+                    <Pressable onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }} style={cds.closeBtn}>
+                      <X size={20} color={C.textSecondary} />
+                    </Pressable>
+                  </View>
+                  <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                    {/* 현재 반을 첫 번째로 표시 */}
+                    {[group, ...(classGroups || []).filter(g => g.id !== group.id)].map((cls, idx) => {
+                      const isSaving = makeupSaving === selectedMakeupStudent.id;
+                      const isCurrentClass = cls.id === group.id;
+                      return (
+                        <Pressable
+                          key={cls.id}
+                          style={({ pressed }) => [
+                            cds.moveClassRow,
+                            isCurrentClass && { backgroundColor: "#EEF2FF", borderColor: "#C7D2FE" },
+                            pressed && { opacity: 0.7 },
+                          ]}
+                          onPress={() => completeMakeupWithClass(selectedMakeupStudent, cls.id)}
+                          disabled={isSaving}
+                        >
+                          <LucideIcon name={isCurrentClass ? "check-circle" : "circle"} size={16} color={isCurrentClass ? "#4F46E5" : C.textMuted} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[cds.moveClassName, isCurrentClass && { color: "#4F46E5" }]}>
+                              {cls.name}{isCurrentClass ? " (현재 반)" : ""}
+                            </Text>
+                            <Text style={cds.moveClassSub}>{(cls.schedule_days || "").split(",").join("·")} {cls.schedule_time || ""}</Text>
+                          </View>
+                          {isSaving
+                            ? <ActivityIndicator size="small" color="#4F46E5" />
+                            : <ChevronRight size={14} color={C.textMuted} />
+                          }
+                        </Pressable>
+                      );
+                    })}
+                    <View style={{ height: 20 }} />
+                  </ScrollView>
+                </>
+              )}
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
       {showUnassignTiming && unassignStudent && (
         <Modal visible animationType="slide" transparent onRequestClose={() => setShowUnassignTiming(false)} statusBarTranslucent>
           <Pressable style={cds.backdrop} onPress={() => setShowUnassignTiming(false)}>
@@ -389,6 +623,7 @@ export default function ClassDetailSheet({
           </Pressable>
         </Modal>
       )}
+
     </>
   );
 }
@@ -444,4 +679,16 @@ const cds = StyleSheet.create({
                      borderTopWidth: 1, borderTopColor: "#F8FAFC" },
   timingLabel:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   timingSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  capacityRow:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                     paddingHorizontal: 16, paddingVertical: 10,
+                     borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+  capacityLabelRow:{ flexDirection: "row", alignItems: "center", gap: 6 },
+  capacityLabel:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  capacityInputWrap:{ flexDirection: "row", alignItems: "center", gap: 6 },
+  capacityBtn:     { width: 28, height: 28, borderRadius: 8, backgroundColor: "#F1F5F9",
+                     alignItems: "center", justifyContent: "center" },
+  capacityBtnTxt:  { fontSize: 16, color: C.textSecondary, lineHeight: 20 },
+  capacityInput:   { minWidth: 36, textAlign: "center", fontSize: 15,
+                     fontFamily: "Pretendard-Regular", color: C.text, padding: 0 },
+  capacityUnit:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });
