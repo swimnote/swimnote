@@ -48,11 +48,11 @@ export default function Login() {
         setLoading(false);
         return;
       }
-      navigate(`/pool/${poolId}/admin`);
+      navigate("/admin");
       return;
     }
     if (role === "super_admin") navigate("/super-admin");
-    else if (role === "pool_admin" && userPoolId) navigate(`/pool/${userPoolId}/admin`);
+    else if (role === "pool_admin" && userPoolId) navigate("/admin");
     else navigate("/");
   };
 
