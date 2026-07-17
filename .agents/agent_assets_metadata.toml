@@ -96,3 +96,9 @@ id = "Mi0V03QOwov6sVneSkDsc"
 uri = "file://swimnote_templates_export.txt"
 type = "text"
 title = "스윔노트 일지 템플릿 전체 (10개 카테고리 · 350개)"
+
+[[outputs]]
+id = "SDWbnK9OVkj3TQq5OUHkm"
+uri = "file://swimnote_x_design.txt"
+type = "text"
+title = "스윔노트 X 전체 설계 문서"
