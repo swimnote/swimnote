@@ -442,9 +442,29 @@ router.get("/teacher/makeups", requireAuth,
       `)).rows as any[];
       const myClassIds = myClassRows.map((r: any) => r.id as string);
 
+      // 이 풀의 전체 class_groups teacher_user_id도 조회 (비교용)
+      const allClassRows = (await superAdminDb.execute(sql`
+        SELECT id, name, teacher_user_id, co_teacher_ids FROM class_groups
+        WHERE swimming_pool_id = ${poolId} AND is_deleted = false
+        LIMIT 20
+      `)).rows as any[];
+      console.log("[DEBUG makeups] userId:", userId, "poolId:", poolId);
+      console.log("[DEBUG makeups] myClassIds:", JSON.stringify(myClassIds));
+      console.log("[DEBUG makeups] allClasses:", JSON.stringify(allClassRows.map((r: any) => ({ id: r.id, name: r.name, teacher: r.teacher_user_id, co: r.co_teacher_ids }))));
+
       let rows;
       if (myClassIds.length > 0) {
         const idList = myClassIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
+        rows = await db.execute(sql.raw(`
+          SELECT ms.id, ms.student_name, ms.original_class_group_id, ms.original_teacher_id, ms.absence_date, ms.status
+          FROM makeup_sessions ms
+          WHERE ms.swimming_pool_id = '${poolId}'
+            AND ms.status = '${dbStatus}'
+            AND ms.cancelled_at IS NULL
+          ORDER BY ms.absence_date ASC
+          LIMIT 30
+        `));
+        console.log("[DEBUG makeups] ALL waiting in pool:", JSON.stringify((rows as any).rows?.map((r: any) => ({ name: r.student_name, cgId: r.original_class_group_id, tId: r.original_teacher_id }))));
         rows = await db.execute(sql.raw(`
           SELECT ms.*, u.name AS student_name_from_user
           FROM makeup_sessions ms
@@ -470,6 +490,7 @@ router.get("/teacher/makeups", requireAuth,
           ORDER BY ms.absence_date ASC, ms.created_at ASC
         `);
       }
+      console.log("[DEBUG makeups] filtered result count:", (rows as any).rows?.length);
       res.json(rows.rows);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
