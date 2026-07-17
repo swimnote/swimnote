@@ -196,7 +196,7 @@ app.use("/api", router);
 
 // 헬스체크 — /api/health, /health, /api/healthz, /healthz 모두 지원
 app.get(["/health", "/api/health", "/healthz", "/api/healthz"], (_req: Request, res: Response) => {
-  res.json({ ok: true, uptime: Math.floor(process.uptime()), timestamp: new Date().toISOString(), version: "v2.1-2026-04-04" });
+  res.json({ ok: true, uptime: Math.floor(process.uptime()), timestamp: new Date().toISOString(), version: "v2.2-2026-07-17" });
 });
 
 // ── 작업 결과보고서 ─────────────────────────────────────────────────
