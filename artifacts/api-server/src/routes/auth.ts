@@ -197,8 +197,9 @@ router.post("/web-pin/verify", async (req, res) => {
   if (!web_session || !web_pin) return err(res, 400, "필수 정보를 입력해주세요.");
   try {
     const { userId } = verifyTotpSession(web_session);
-    const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-    if (!user || !(user as any).web_pin_hash) return err(res, 401, "올바르지 않은 세션입니다.");
+    const rows = (await superAdminDb.execute(sql`SELECT * FROM users WHERE id = ${userId} LIMIT 1`)).rows as any[];
+    const user = rows[0];
+    if (!user || !user.web_pin_hash) return err(res, 401, "올바르지 않은 세션입니다.");
     const valid = await comparePassword(web_pin, (user as any).web_pin_hash);
     if (!valid) return err(res, 401, "웹 접속 비밀번호가 올바르지 않습니다.");
     const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
