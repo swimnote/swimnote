@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import {
   Users, Receipt, RefreshCw, HardDrive, CalendarDays, ClipboardCheck,
-  BookOpen, Megaphone, UserCheck, ShieldCheck, Building2,
+  BookOpen, Megaphone, UserCheck, ShieldCheck, Building2, UserPlus,
   TrendingUp, TrendingDown, ArrowRight, Clock,
 } from "lucide-react";
 import {
@@ -73,16 +73,14 @@ function StatCard({ icon: Icon, label, value, sub, color, bgColor, trend, onClic
 }
 
 const QUICK_LINKS = [
-  { label: "수업 목록",   path: "/admin/classes",    icon: CalendarDays, color: "#0369A1",  bg: "#EFF6FF" },
-  { label: "출석 관리",   path: "/admin/attendance",  icon: ClipboardCheck, color: "#059669", bg: "#DCFCE7" },
-  { label: "선생님 일지", path: "/admin/diary",       icon: BookOpen,     color: "#7C3AED", bg: "#EDE9FE" },
-  { label: "공지사항",    path: "/admin/notices",     icon: Megaphone,    color: "#D97706", bg: "#FEF3C7" },
-  { label: "회원 목록",   path: "/admin/members",    icon: Users,        color: "#DC2626", bg: "#FEE2E2" },
-  { label: "선생님 목록", path: "/admin/teachers",   icon: UserCheck,    color: "#0891B2", bg: "#CFFAFE" },
-  { label: "승인 관리",   path: "/admin/approvals",  icon: ShieldCheck,  color: "#65A30D", bg: "#ECFCCB" },
-  { label: "보강 관리",   path: "/admin/makeups",    icon: RefreshCw,    color: "#7C3AED", bg: "#EDE9FE" },
-  { label: "월별 수입",   path: "/admin/revenue",    icon: Receipt,      color: "#059669", bg: "#DCFCE7" },
-  { label: "수영장 정보", path: "/admin/settings/pool", icon: Building2, color: "#0369A1", bg: "#EFF6FF" },
+  { label: "회원 등록",   path: "/admin/members",       icon: UserPlus,     color: "#DC2626", bg: "#FEE2E2" },
+  { label: "승인 관리",   path: "/admin/approvals",     icon: ShieldCheck,  color: "#65A30D", bg: "#ECFCCB" },
+  { label: "수업 목록",   path: "/admin/classes",       icon: CalendarDays, color: "#0369A1", bg: "#EFF6FF" },
+  { label: "선생님 일지", path: "/admin/diary",          icon: BookOpen,     color: "#7C3AED", bg: "#EDE9FE" },
+  { label: "공지사항",    path: "/admin/notices",        icon: Megaphone,    color: "#D97706", bg: "#FEF3C7" },
+  { label: "보강 관리",   path: "/admin/makeups",        icon: RefreshCw,    color: "#7C3AED", bg: "#EDE9FE" },
+  { label: "선생님 목록", path: "/admin/teachers",       icon: UserCheck,    color: "#0891B2", bg: "#CFFAFE" },
+  { label: "수영장 정보", path: "/admin/settings/pool",  icon: Building2,    color: "#0369A1", bg: "#EFF6FF" },
 ];
 
 const MONTHS_KO = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
@@ -308,8 +306,8 @@ export default function Dashboard() {
 
         {/* 빠른 이동 */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-[#EBEBEB] p-5">
-          <p className="font-bold text-[15px] text-[#0A0A0A] mb-4">바로 가기</p>
-          <div className="grid grid-cols-5 gap-2">
+          <p className="font-bold text-[15px] text-[#0A0A0A] mb-4">빠른이동</p>
+          <div className="grid grid-cols-4 gap-2">
             {QUICK_LINKS.map((link) => {
               const Icon = link.icon;
               return (
