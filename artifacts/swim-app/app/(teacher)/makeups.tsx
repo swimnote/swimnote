@@ -156,13 +156,12 @@ export default function MakeupsScreen() {
 
   // ── 결석자 리스트 로드 ──────────────────────────────────────────────────
   const loadWaiting = useCallback(async () => {
-    if (!adminUser?.id) return;
     try {
-      const res = await apiRequest(token, `/admin/makeups?status=waiting&teacher_id=${adminUser.id}`);
+      const res = await apiRequest(token, `/admin/makeups?status=waiting`);
       if (res.ok) setWaitingList(await res.json());
     } catch (e) { console.error(e); }
     finally { setWaitingLoading(false); setWaitingRefresh(false); }
-  }, [token, adminUser?.id]);
+  }, [token]);
 
   const loadAssigned = useCallback(async () => {
     setAssignedLoading(true);
@@ -199,7 +198,7 @@ export default function MakeupsScreen() {
     setSelectedDate(null);
     setClassLoading(true);
     try {
-      const r = await apiRequest(token, `/teacher/makeups/eligible-classes`);
+      const r = await apiRequest(token, `/teacher/makeups/eligible-classes?all=true`);
       if (r.ok) setEligibleClasses(await r.json());
     } catch {}
     setClassLoading(false);

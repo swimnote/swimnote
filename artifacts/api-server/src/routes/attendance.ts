@@ -391,6 +391,16 @@ async function autoCreateMakeup(
       cgName = cg.name || null;
     }
   }
+  // 담당 선생님 없으면 pool_admin을 기본 담당자로 설정 (결석자 리스트 조회 필터 작동 보장)
+  if (!teacherId) {
+    try {
+      const rows = ((await (superAdminDb as any).execute(sql`
+        SELECT id, name FROM users
+        WHERE swimming_pool_id = ${poolId} AND role = 'pool_admin' LIMIT 1
+      `)) as any).rows as any[];
+      if (rows[0]) { teacherId = rows[0].id; teacherName = teacherName || rows[0].name || null; }
+    } catch { /* ignore */ }
+  }
   const mkId = `mk_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
   await (db as any).execute(sql`
     INSERT INTO makeup_sessions (

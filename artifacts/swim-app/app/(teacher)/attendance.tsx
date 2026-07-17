@@ -303,7 +303,7 @@ export default function TeacherAttendanceScreen() {
     setAssignClassId(""); setAssignDate(todayDateStr()); setAssignError("");
     setEligLoading(true);
     try {
-      const res = await apiRequest(token, `/teacher/makeups/eligible-classes`);
+      const res = await apiRequest(token, `/teacher/makeups/eligible-classes?all=true`);
       if (res.ok) {
         const list: EligibleClass[] = await res.json();
         list.sort((a, b) => {
