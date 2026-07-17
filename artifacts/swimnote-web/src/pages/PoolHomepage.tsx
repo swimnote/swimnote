@@ -60,21 +60,33 @@ export default function PoolHomepage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  // Intro 내부 <Link> 클릭을 탭 전환으로 처리
+  // 모든 내부 링크 차단 + 탭 전환 처리
   useEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
     const intercept = (e: MouseEvent) => {
       const a = (e.target as HTMLElement).closest("a");
       if (!a) return;
-      const href = a.getAttribute("href") ?? "";
-      if (href === "/education") { e.preventDefault(); e.stopPropagation(); handleTabChange("education"); }
-      else if (href === "/app") { e.preventDefault(); e.stopPropagation(); handleTabChange("app"); }
-      else if (href === "/support") { e.preventDefault(); e.stopPropagation(); /* 지원 탭 없음 — 무시 */ }
+      if (a.target === "_blank") return;
+      const href = a.href ?? "";
+      if (href.startsWith("tel:") || href.startsWith("mailto:")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        const path = new URL(href).pathname;
+        if (path.endsWith("/education")) handleTabChange("education");
+        else if (path.endsWith("/app")) handleTabChange("app");
+      } catch { /* 무시 */ }
     };
-    el.addEventListener("click", intercept, true);
-    return () => el.removeEventListener("click", intercept, true);
+    document.addEventListener("click", intercept, true);
+    return () => document.removeEventListener("click", intercept, true);
   }, [handleTabChange]);
+
+  // 뒤로가기 차단
+  useEffect(() => {
+    window.history.pushState(null, "", window.location.href);
+    const preventBack = () => window.history.pushState(null, "", window.location.href);
+    window.addEventListener("popstate", preventBack);
+    return () => window.removeEventListener("popstate", preventBack);
+  }, []);
 
   if (loading) {
     return (
