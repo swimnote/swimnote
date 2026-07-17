@@ -613,22 +613,20 @@ export default function ClassAssignScreen() {
       </Modal>
 
       {/* ── 선생님 추가 모달 ── */}
-      {showTeacherModal && (
-        <Modal visible animationType="slide" transparent onRequestClose={() => setShowTeacherModal(false)}>
-          <Pressable style={s.backdrop} onPress={() => setShowTeacherModal(false)} />
-          <View style={{ position: "absolute", bottom: 0, left: 0, right: 0,
-            backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-            paddingBottom: insets.bottom + 16, maxHeight: "70%" }}>
+      <Modal visible={showTeacherModal} animationType="slide" transparent onRequestClose={() => setShowTeacherModal(false)}>
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowTeacherModal(false)} />
+          <View style={{ backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+            paddingBottom: insets.bottom + 16, maxHeight: "75%" }}>
             <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: C.border,
               flexDirection: "row", alignItems: "center" }}>
               <Text style={{ flex: 1, fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text }}>
-                선생님 추가
+                공동담당 선생님 추가
               </Text>
               <Pressable onPress={() => setShowTeacherModal(false)} hitSlop={8}>
                 <X size={20} color={C.textSecondary} />
               </Pressable>
             </View>
-            {/* 검색 */}
             <View style={[s.searchWrap, { marginTop: 12, marginHorizontal: 16, marginBottom: 8, backgroundColor: C.background }]}>
               <Search size={15} color={C.textMuted} />
               <TextInput
@@ -637,7 +635,6 @@ export default function ClassAssignScreen() {
                 onChangeText={setTeacherSearch}
                 placeholder="이름으로 검색..."
                 placeholderTextColor={C.textMuted}
-                autoFocus
               />
               {teacherSearch.length > 0 && (
                 <Pressable onPress={() => setTeacherSearch("")}>
@@ -646,13 +643,13 @@ export default function ClassAssignScreen() {
               )}
             </View>
             {coTeacherSaving ? (
-              <ActivityIndicator color={C.tint} style={{ marginTop: 24 }} />
+              <ActivityIndicator color={C.tint} style={{ marginVertical: 32 }} />
             ) : (
-              <View style={{ paddingHorizontal: 16, gap: 8 }}>
+              <ScrollView style={{ paddingHorizontal: 16 }} contentContainerStyle={{ gap: 8, paddingBottom: 8 }} keyboardShouldPersistTaps="handled">
                 {teachers
                   .filter(t =>
                     !coTeacherIds.includes(t.id) &&
-                    classInfo?.instructor !== t.name &&
+                    classInfo?.teacher_user_id !== t.id &&
                     (!teacherSearch.trim() || t.name.includes(teacherSearch.trim()))
                   )
                   .map(t => (
@@ -680,20 +677,20 @@ export default function ClassAssignScreen() {
                   ))}
                 {teachers.filter(t =>
                   !coTeacherIds.includes(t.id) &&
-                  classInfo?.instructor !== t.name &&
+                  classInfo?.teacher_user_id !== t.id &&
                   (!teacherSearch.trim() || t.name.includes(teacherSearch.trim()))
-                ).length === 0 && (
+                ).length === 0 ? (
                   <View style={{ alignItems: "center", paddingVertical: 32 }}>
                     <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
                       추가할 수 있는 선생님이 없습니다
                     </Text>
                   </View>
-                )}
-              </View>
+                ) : null}
+              </ScrollView>
             )}
           </View>
-        </Modal>
-      )}
+        </View>
+      </Modal>
     </View>
   );
 }
