@@ -1575,6 +1575,19 @@ router.get("/makeups", requireAuth, requireRole("super_admin","pool_admin","teac
       if (student_id) conditions.push(`student_id = '${student_id}'`);
       if (teacher_id) conditions.push(`original_teacher_id = '${teacher_id}'`);
       if (assigned_teacher_id) conditions.push(`(assigned_teacher_id = '${assigned_teacher_id}' OR transferred_to_teacher_id = '${assigned_teacher_id}')`);
+      // teacher 역할이면 내 반 학생만 (pool_admin/super_admin은 전체)
+      const callerRole = (req.user as any)?.role;
+      const callerId = (req.user as any)?.userId;
+      if (callerRole === 'teacher' && callerId && !teacher_id) {
+        conditions.push(`(
+          original_teacher_id = '${callerId}'
+          OR original_class_group_id IN (
+            SELECT id FROM class_groups
+            WHERE teacher_user_id = '${callerId}'
+               OR co_teacher_ids @> to_jsonb('${callerId}'::text)
+          )
+        )`);
+      }
       const rows = (await db.execute(sql.raw(`
         SELECT * FROM makeup_sessions
         WHERE ${conditions.join(" AND ")}
