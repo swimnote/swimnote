@@ -25,6 +25,7 @@ interface ClassGroup {
   schedule_days: string;
   schedule_time: string;
   instructor: string | null;
+  teacher_user_id: string | null;
   capacity: number | null;
   level: string | null;
   co_teacher_ids?: string[];
@@ -125,6 +126,11 @@ export default function ClassAssignScreen() {
   const [coTeacherSaving, setCoTeacherSaving]   = useState(false);
   const [teacherSearch, setTeacherSearch]   = useState("");
 
+  /* ── 주담당 선생님 변경 상태 ── */
+  const [showMainTeacherModal, setShowMainTeacherModal] = useState(false);
+  const [mainTeacherSearch, setMainTeacherSearch]       = useState("");
+  const [mainTeacherSaving, setMainTeacherSaving]       = useState(false);
+
   const load = useCallback(async () => {
     if (!classId) return;
     try {
@@ -173,6 +179,24 @@ export default function ClassAssignScreen() {
       if (res.ok) { setCoTeacherIds(newIds); setShowTeacherModal(false); setTeacherSearch(""); }
     } catch (e) { console.error(e); }
     finally { setCoTeacherSaving(false); }
+  }
+
+  async function handleChangeMainTeacher(teacher: TeacherItem) {
+    if (!classId) return;
+    setMainTeacherSaving(true);
+    try {
+      const res = await apiRequest(token, `/class-groups/${classId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teacher_user_id: teacher.id }),
+      });
+      if (res.ok) {
+        setClassInfo(prev => prev ? { ...prev, instructor: teacher.name, teacher_user_id: teacher.id } : prev);
+        setShowMainTeacherModal(false);
+        setMainTeacherSearch("");
+      }
+    } catch (e) { console.error(e); }
+    finally { setMainTeacherSaving(false); }
   }
 
   async function handleRemoveCoTeacher(removeId: string) {
@@ -319,12 +343,28 @@ export default function ClassAssignScreen() {
                 </View>
               </View>
               {/* 주담당 선생님 */}
-              {classInfo.instructor && (
+              {isAdmin ? (
+                <Pressable
+                  style={[s.metaRow, { gap: 4 }]}
+                  onPress={() => { setMainTeacherSearch(""); setShowMainTeacherModal(true); }}
+                  disabled={mainTeacherSaving}
+                >
+                  <User size={12} color={C.textMuted} />
+                  <Text style={[s.meta, { color: C.textSecondary }]}>
+                    {classInfo.instructor || "선생님 미지정"}
+                  </Text>
+                  <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: "#EEF2FF" }}>
+                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#4F46E5" }}>
+                      {mainTeacherSaving ? "저장 중..." : "변경"}
+                    </Text>
+                  </View>
+                </Pressable>
+              ) : classInfo.instructor ? (
                 <View style={s.metaRow}>
                   <User size={12} color={C.textMuted} />
                   <Text style={[s.meta, { color: C.textSecondary }]}>{classInfo.instructor}</Text>
                 </View>
-              )}
+              ) : null}
               {/* 추가 선생님 */}
               {coTeacherIds.length > 0 && coTeacherIds.map(cid => {
                 const ct = teachers.find(t => t.id === cid);
@@ -478,6 +518,100 @@ export default function ClassAssignScreen() {
           }}
           onCancel={() => setTimingTarget(null)}
         />
+      )}
+
+      {/* ── 주담당 선생님 변경 모달 ── */}
+      {showMainTeacherModal && (
+        <Modal visible animationType="slide" transparent onRequestClose={() => setShowMainTeacherModal(false)}>
+          <Pressable style={s.backdrop} onPress={() => setShowMainTeacherModal(false)} />
+          <View style={{ position: "absolute", bottom: 0, left: 0, right: 0,
+            backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+            paddingBottom: insets.bottom + 16, maxHeight: "70%" }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: C.border,
+              flexDirection: "row", alignItems: "center" }}>
+              <Text style={{ flex: 1, fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text }}>
+                주담당 선생님 변경
+              </Text>
+              <Pressable onPress={() => setShowMainTeacherModal(false)} hitSlop={8}>
+                <X size={20} color={C.textSecondary} />
+              </Pressable>
+            </View>
+            {classInfo?.instructor && (
+              <View style={{ marginHorizontal: 16, marginTop: 12, flexDirection: "row", alignItems: "center",
+                backgroundColor: "#F0FDF4", borderRadius: 10, padding: 10, gap: 8 }}>
+                <User size={14} color="#16A34A" />
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#16A34A" }}>
+                  현재: {classInfo.instructor}
+                </Text>
+              </View>
+            )}
+            <View style={[s.searchWrap, { marginTop: 12, marginHorizontal: 16, marginBottom: 8, backgroundColor: C.background }]}>
+              <Search size={15} color={C.textMuted} />
+              <TextInput
+                style={[s.searchInput, { color: C.text }]}
+                value={mainTeacherSearch}
+                onChangeText={setMainTeacherSearch}
+                placeholder="이름으로 검색..."
+                placeholderTextColor={C.textMuted}
+                autoFocus
+              />
+              {mainTeacherSearch.length > 0 && (
+                <Pressable onPress={() => setMainTeacherSearch("")}>
+                  <CircleX size={15} color={C.textMuted} />
+                </Pressable>
+              )}
+            </View>
+            {mainTeacherSaving ? (
+              <ActivityIndicator color={C.tint} style={{ marginTop: 24 }} />
+            ) : (
+              <View style={{ paddingHorizontal: 16, gap: 8 }}>
+                {teachers
+                  .filter(t => !mainTeacherSearch.trim() || t.name.includes(mainTeacherSearch.trim()))
+                  .map(t => {
+                    const isCurrent = classInfo?.instructor === t.name;
+                    return (
+                      <Pressable
+                        key={t.id}
+                        style={{ flexDirection: "row", alignItems: "center",
+                          backgroundColor: isCurrent ? "#F0FDF4" : C.background,
+                          borderRadius: 12, padding: 14, gap: 10 }}
+                        onPress={() => !isCurrent && handleChangeMainTeacher(t)}
+                        disabled={isCurrent}
+                      >
+                        <View style={{ width: 36, height: 36, borderRadius: 18,
+                          backgroundColor: isCurrent ? "#D1FAE5" : "#EEF2FF",
+                          alignItems: "center", justifyContent: "center" }}>
+                          <User size={16} color={isCurrent ? "#16A34A" : "#4F46E5"} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text }}>{t.name}</Text>
+                          {t.position ? (
+                            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted }}>{t.position}</Text>
+                          ) : null}
+                        </View>
+                        {isCurrent ? (
+                          <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#D1FAE5" }}>
+                            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#16A34A" }}>현재</Text>
+                          </View>
+                        ) : (
+                          <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#EEF2FF" }}>
+                            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#4F46E5" }}>배정</Text>
+                          </View>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                {teachers.filter(t => !mainTeacherSearch.trim() || t.name.includes(mainTeacherSearch.trim())).length === 0 && (
+                  <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                    <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
+                      등록된 선생님이 없습니다
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        </Modal>
       )}
 
       {/* ── 선생님 추가 모달 ── */}
