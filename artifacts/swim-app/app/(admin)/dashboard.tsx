@@ -114,6 +114,21 @@ export default function DashboardScreen() {
 
   const fetchStats = useCallback(async () => {
     try {
+      const cacheKey = `@sn:dashboard_${(adminUser as any)?.swimming_pool_id ?? "x"}`;
+      try {
+        const raw = await AsyncStorage.getItem(cacheKey);
+        if (raw) {
+          const c = JSON.parse(raw);
+          if (c.stats) setStats(c.stats);
+          if (c.storagePct != null) setStoragePct(c.storagePct);
+          if (c.videoStoragePct != null) setVideoStoragePct(c.videoStoragePct);
+          if (c.memberLimit) setMemberLimit(c.memberLimit);
+          if (c.makeupAssigned != null) setMakeupAssigned(c.makeupAssigned);
+          if (c.subTier) setSubTier(c.subTier);
+          setLoading(false);
+        }
+      } catch {}
+
       const poolId = (adminUser as any)?.swimming_pool_id;
       const confirmFetch = confirmTargetMonth && poolId
         ? apiRequest(token, `/holidays/confirm-status?month=${confirmTargetMonth}&pool_id=${poolId}`).catch(() => null)
@@ -126,24 +141,35 @@ export default function DashboardScreen() {
         apiRequest(token, "/billing/features").catch(() => null),
         confirmFetch,
       ]);
-      if (statsRes.ok) setStats(await statsRes.json());
+      let freshStats = null;
+      let freshStoragePct = null;
+      let freshVideoStoragePct = null;
+      let freshMakeupAssigned = null;
+      let freshMemberLimit = null;
+      let freshSubTier = null;
+      if (statsRes.ok) { freshStats = await statsRes.json(); setStats(freshStats); }
       if (storageRes?.ok) {
         const s = await storageRes.json();
         const quota = s.quota_bytes ?? 5 * 1024 ** 3;
-        setStoragePct(quota > 0 ? Math.min(100, Math.round((s.total_bytes / quota) * 1000) / 10) : 0);
-        setVideoStoragePct(quota > 0 ? Math.min(100, Math.round((s.video_bytes / quota) * 1000) / 10) : 0);
+        freshStoragePct = quota > 0 ? Math.min(100, Math.round((s.total_bytes / quota) * 1000) / 10) : 0;
+        freshVideoStoragePct = quota > 0 ? Math.min(100, Math.round((s.video_bytes / quota) * 1000) / 10) : 0;
+        setStoragePct(freshStoragePct);
+        setVideoStoragePct(freshVideoStoragePct);
       }
       if (stats2Res?.ok) {
         const s2 = await stats2Res.json();
-        setMakeupAssigned(s2.makeup_assigned ?? 0);
+        freshMakeupAssigned = s2.makeup_assigned ?? 0;
+        setMakeupAssigned(freshMakeupAssigned);
       }
       if (poolRes?.ok) {
         const p = await poolRes.json();
-        setMemberLimit(p.member_limit ?? 10);
+        freshMemberLimit = p.member_limit ?? 10;
+        setMemberLimit(freshMemberLimit);
       }
       if (featRes?.ok) {
         const f = await featRes.json();
-        setSubTier(f.tier ?? "free");
+        freshSubTier = f.tier ?? "free";
+        setSubTier(freshSubTier);
       }
       if (confirmTargetMonth) {
         if (confirmRes?.ok) {
@@ -152,6 +178,16 @@ export default function DashboardScreen() {
         } else {
           setHolidayConfirmed(false);
         }
+      }
+      if (freshStats) {
+        AsyncStorage.setItem(cacheKey, JSON.stringify({
+          stats: freshStats,
+          storagePct: freshStoragePct,
+          videoStoragePct: freshVideoStoragePct,
+          makeupAssigned: freshMakeupAssigned,
+          memberLimit: freshMemberLimit,
+          subTier: freshSubTier,
+        })).catch(() => {});
       }
     } finally { setLoading(false); setRefreshing(false); }
   }, [token, confirmTargetMonth, adminUser]);

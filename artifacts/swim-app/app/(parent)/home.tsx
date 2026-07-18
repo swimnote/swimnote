@@ -246,7 +246,12 @@ export default function ParentHomeScreen() {
   }, [selectedStudent?.id]));
 
   async function loadSummary(sid: string) {
-    setSummaryLoading(true);
+    let hasCached = false;
+    try {
+      const raw = await AsyncStorage.getItem(`@sn:home_summary_${sid}`);
+      if (raw) { setSummary(JSON.parse(raw)); hasCached = true; }
+    } catch {}
+    if (!hasCached) setSummaryLoading(true);
     try {
       const [summaryRes, levelRes] = await Promise.all([
         apiRequest(token, `/parent/students/${sid}/home-summary`),
@@ -278,6 +283,7 @@ export default function ParentHomeScreen() {
           } catch {}
         }
         setSummary(data);
+        AsyncStorage.setItem(`@sn:home_summary_${sid}`, JSON.stringify(data)).catch(() => {});
       }
     } catch {}
     setSummaryLoading(false);

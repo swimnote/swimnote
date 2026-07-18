@@ -94,9 +94,13 @@ export default function TeacherHubScreen() {
 
   async function confirmDeleteDiary() {
     if (!deleteDiaryId) return;
+    const targetId = deleteDiaryId;
     setDeleteDiaryId(null);
-    await apiRequest(token, `/class-diaries/${deleteDiaryId}`, { method: "DELETE" });
-    load();
+    await apiRequest(token, `/class-diaries/${targetId}`, { method: "DELETE" });
+    setData((prev: any) => prev ? {
+      ...prev,
+      recent_diaries: (prev.recent_diaries ?? []).filter((d: any) => d.id !== targetId),
+    } : prev);
   }
 
   if (loading && !data) return (

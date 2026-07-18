@@ -4,6 +4,7 @@
  * - 날짜, 선생님, 내용 미리보기, 개별코멘트 표시
  * - 항목 클릭 시 펼치기/접기
  */
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BookOpen, CircleCheck, Mail, User, UserRound } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
@@ -196,16 +197,27 @@ export default function ParentDiaryScreen() {
   const listRef = useRef<FlatList>(null);
 
   const fetchEntries = useCallback(async () => {
-    if (!selectedStudent?.id) { setLoading(false); return; }
+    const sid = selectedStudent?.id;
+    if (!sid) { setLoading(false); return; }
+    let hasCached = false;
     try {
-      const res = await apiRequest(token, `/parent/students/${selectedStudent.id}/diary`);
-      if (res.ok) setEntries(await res.json());
-      apiRequest(token, `/parent/students/${selectedStudent.id}/mark-diary-read`, { method: "POST" }).catch(() => {});
+      const raw = await AsyncStorage.getItem(`@sn:parent_diary_${sid}`);
+      if (raw) { setEntries(JSON.parse(raw)); hasCached = true; setLoading(false); }
+    } catch {}
+    if (!hasCached) setLoading(true);
+    try {
+      const res = await apiRequest(token, `/parent/students/${sid}/diary`);
+      if (res.ok) {
+        const data = await res.json();
+        setEntries(data);
+        AsyncStorage.setItem(`@sn:parent_diary_${sid}`, JSON.stringify(data)).catch(() => {});
+      }
+      apiRequest(token, `/parent/students/${sid}/mark-diary-read`, { method: "POST" }).catch(() => {});
     } catch { }
     finally { setLoading(false); setRefreshing(false); }
   }, [token, selectedStudent?.id]);
 
-  useEffect(() => { setLoading(true); fetchEntries(); }, [fetchEntries]);
+  useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
   // 하이라이트 항목 스크롤
   useEffect(() => {

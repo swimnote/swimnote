@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CircleX, Info, Search, SquareCheck } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
@@ -85,14 +86,21 @@ export default function MembersScreen() {
 
   const load = useCallback(async () => {
     try {
+      const raw = await AsyncStorage.getItem("@sn:admin_members");
+      if (raw) { const c = JSON.parse(raw); setStudents(c.students ?? []); setClassGroups(c.classGroups ?? []); setLoading(false); }
+    } catch {}
+    try {
       const [res, reqRes, cgRes] = await Promise.all([
         apiRequest(token, "/students"),
         apiRequest(token, "/students/teacher-requests"),
         apiRequest(token, "/class-groups"),
       ]);
+      let freshStudents: any[] = [];
+      let freshClassGroups: any[] = [];
       if (res.ok) {
         const data = await res.json();
-        setStudents(Array.isArray(data) ? data : []);
+        freshStudents = Array.isArray(data) ? data : [];
+        setStudents(freshStudents);
       }
       if (reqRes.ok) {
         const reqData = await reqRes.json();
@@ -100,7 +108,11 @@ export default function MembersScreen() {
       }
       if (cgRes.ok) {
         const cgData = await cgRes.json();
-        setClassGroups(Array.isArray(cgData) ? cgData : []);
+        freshClassGroups = Array.isArray(cgData) ? cgData : [];
+        setClassGroups(freshClassGroups);
+      }
+      if (freshStudents.length > 0) {
+        AsyncStorage.setItem("@sn:admin_members", JSON.stringify({ students: freshStudents, classGroups: freshClassGroups })).catch(() => {});
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
@@ -111,9 +123,17 @@ export default function MembersScreen() {
     try {
       const res = await apiRequest(token, `/students/teacher-requests/${id}/approve`, { method: "POST" });
       if (res.ok) {
+        const d = await res.json().catch(() => ({}));
         setTeacherRequests(prev => prev.filter(r => r.id !== id));
         setInfoModal(`${name} 학생이 정식 회원으로 등록됐습니다.`);
-        load();
+        if (d.student) {
+          setStudents(prev => [...prev, d.student]);
+        } else {
+          apiRequest(token, "/students")
+            .then(r2 => r2.ok ? r2.json() : null)
+            .then(data => { if (Array.isArray(data)) setStudents(data); })
+            .catch(() => {});
+        }
       } else {
         const d = await res.json();
         setInfoModal(d.message || "승인에 실패했습니다.");
@@ -541,7 +561,7 @@ export default function MembersScreen() {
           poolName={poolName}
           onSuccess={(s) => {
             setShowRegister(false);
-            load();
+            setStudents(prev => [s, ...prev]);
           }}
           onClose={() => setShowRegister(false)}
         />

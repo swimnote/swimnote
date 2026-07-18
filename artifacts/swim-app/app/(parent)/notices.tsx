@@ -4,6 +4,7 @@
  * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
 import { Bookmark, ClipboardList } from "lucide-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Pressable, RefreshControl,
@@ -55,10 +56,19 @@ export default function ParentNoticesScreen() {
   const [filter, setFilter] = useState<FilterKey>("all");
 
   async function fetchNotices() {
+    let hasCached = false;
     try {
-      setLoading(true);
+      const raw = await AsyncStorage.getItem("@sn:parent_notices");
+      if (raw) { setNotices(JSON.parse(raw)); hasCached = true; setLoading(false); }
+    } catch {}
+    if (!hasCached) setLoading(true);
+    try {
       const res = await apiRequest(token, "/parent/notices");
-      if (res.ok) setNotices(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setNotices(data);
+        AsyncStorage.setItem("@sn:parent_notices", JSON.stringify(data)).catch(() => {});
+      }
     } finally { setLoading(false); }
   }
 

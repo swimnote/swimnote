@@ -84,9 +84,22 @@ export default function ParentRequestsScreen() {
         body: JSON.stringify({ student_id: selStudentId, request_type: reqType, request_date: reqDate || null, content: content || null }),
       });
       if (r.ok) {
+        const newReq = await r.json().catch(() => null);
         setModalVisible(false);
         setContent(""); setReqDate("");
-        await load();
+        const entry = newReq?.request ?? newReq;
+        if (entry?.id) {
+          setRequests(prev => [entry, ...prev]);
+        } else {
+          setRequests(prev => [{
+            id: `tmp_${Date.now()}`,
+            request_type: reqType,
+            request_date: reqDate || null,
+            content: content || null,
+            status: "pending",
+            created_at: new Date().toISOString(),
+          }, ...prev]);
+        }
       } else {
         const d = await r.json();
         setErrorMsg(d.message || "요청 전송 실패");

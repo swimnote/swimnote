@@ -552,7 +552,7 @@ export default function ClassesScreen() {
       if (res.ok) {
         setDetailGroup(null);
         setSelectedDate(null);
-        load();
+        setGroups(prev => prev.filter(g => g.id !== target.id));
       } else {
         const err = await res.json().catch(() => ({}));
         alert(err.error || "반 삭제에 실패했습니다.");

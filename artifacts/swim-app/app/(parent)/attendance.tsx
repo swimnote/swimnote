@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Calendar } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
@@ -53,6 +54,12 @@ export default function ParentAttendanceScreen() {
   useEffect(() => { load(); }, []);
 
   async function load() {
+    let hasCached = false;
+    try {
+      const raw = await AsyncStorage.getItem("@sn:parent_attendance");
+      if (raw) { setRecords(JSON.parse(raw)); hasCached = true; setLoading(false); }
+    } catch {}
+    if (!hasCached) setLoading(true);
     try {
       const res = await apiRequest(token, "/parent/attendance");
       const data = await res.json();
@@ -60,7 +67,8 @@ export default function ParentAttendanceScreen() {
         ? [...data].sort((a, b) => b.date.localeCompare(a.date))
         : [];
       setRecords(sorted);
-    } catch { setRecords([]); }
+      AsyncStorage.setItem("@sn:parent_attendance", JSON.stringify(sorted)).catch(() => {});
+    } catch { if (!hasCached) setRecords([]); }
     finally { setLoading(false); setRefreshing(false); }
   }
 
