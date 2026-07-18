@@ -437,6 +437,14 @@ router.get("/teacher/makeups", requireAuth,
         WHERE ms.swimming_pool_id = ${poolId}
           AND ms.status = ${dbStatus}
           AND ms.cancelled_at IS NULL
+          AND (
+            ms.original_teacher_id = ${userId}
+            OR EXISTS (
+              SELECT 1 FROM class_groups cg
+              WHERE cg.id = ms.original_class_group_id
+                AND cg.co_teacher_ids @> to_jsonb(${userId}::text)
+            )
+          )
         ORDER BY ms.absence_date ASC, ms.created_at ASC
       `);
       res.json(rows.rows);
@@ -762,6 +770,14 @@ router.get("/teacher/makeup-requests", requireAuth,
         FROM makeup_sessions
         WHERE swimming_pool_id = ${poolId}
           AND cancelled_at IS NULL
+          AND (
+            original_teacher_id = ${userId}
+            OR EXISTS (
+              SELECT 1 FROM class_groups cg
+              WHERE cg.id = original_class_group_id
+                AND cg.co_teacher_ids @> to_jsonb(${userId}::text)
+            )
+          )
         ORDER BY absence_date DESC, created_at DESC
       `)).rows as any[];
 
