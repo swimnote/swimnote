@@ -438,11 +438,17 @@ router.get("/teacher/makeups", requireAuth,
           AND ms.status = ${dbStatus}
           AND ms.cancelled_at IS NULL
           AND (
-            ms.original_teacher_id = ${userId}
-            OR EXISTS (
-              SELECT 1 FROM class_groups cg
-              WHERE cg.id = ms.original_class_group_id
-                AND cg.co_teacher_ids @> to_jsonb(${userId}::text)
+            ms.handed_to_teacher_id = ${userId}
+            OR (
+              ms.handed_to_teacher_id IS NULL
+              AND (
+                ms.original_teacher_id = ${userId}
+                OR EXISTS (
+                  SELECT 1 FROM class_groups cg
+                  WHERE cg.id = ms.original_class_group_id
+                    AND cg.co_teacher_ids @> to_jsonb(${userId}::text)
+                )
+              )
             )
           )
         ORDER BY ms.absence_date ASC, ms.created_at ASC
@@ -552,6 +558,68 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
         }
       } catch (e) { console.error("[makeup-assign] 푸시 알림 오류:", e); }
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ── 보강 인계 (담당선생님 → 다른 선생님) ─────────────────────
+router.post("/teacher/makeups/:id/handover", requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const { receiver_teacher_id } = req.body as { receiver_teacher_id: string };
+      if (!receiver_teacher_id) { res.status(400).json({ error: "receiver_teacher_id 필수" }); return; }
+
+      const poolId = await getMyPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
+
+      // 보강 세션 확인
+      const mkRows = (await db.execute(sql`
+        SELECT id, student_name, absence_date, status, swimming_pool_id, original_teacher_id, original_class_group_id
+        FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
+      `)).rows as any[];
+      const mk = mkRows[0];
+      if (!mk)                          { res.status(404).json({ error: "보강 건을 찾을 수 없습니다." }); return; }
+      if (mk.swimming_pool_id !== poolId){ res.status(403).json({ error: "접근 권한 없음" }); return; }
+      if (mk.status !== "waiting")       { res.status(409).json({ error: "이미 처리된 보강 건입니다." }); return; }
+
+      // 권한 확인: 내가 담당 또는 co-teacher인지
+      const isOriginal = mk.original_teacher_id === userId;
+      let isCo = false;
+      if (!isOriginal && mk.original_class_group_id) {
+        const coRows = (await superAdminDb.execute(sql`
+          SELECT 1 FROM class_groups WHERE id = ${mk.original_class_group_id}
+            AND co_teacher_ids @> to_jsonb(${userId}::text) LIMIT 1
+        `)).rows;
+        isCo = coRows.length > 0;
+      }
+      if (!isOriginal && !isCo) { res.status(403).json({ error: "담당 선생님만 인계할 수 있습니다." }); return; }
+
+      // 수신 선생님 정보
+      const [receiverRow] = (await superAdminDb.execute(sql`
+        SELECT id, name FROM users WHERE id = ${receiver_teacher_id} AND swimming_pool_id = ${poolId} LIMIT 1
+      `)).rows as any[];
+      if (!receiverRow) { res.status(404).json({ error: "선생님을 찾을 수 없습니다." }); return; }
+
+      // 인계 처리 — status 유지(waiting), handed_to 업데이트
+      await db.execute(sql`
+        UPDATE makeup_sessions SET
+          handed_to_teacher_id   = ${receiver_teacher_id},
+          handed_to_teacher_name = ${receiverRow.name as string},
+          updated_at             = now()
+        WHERE id = ${req.params.id}
+      `);
+
+      // 메신저 자동 알림
+      const [actorRow] = (await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId} LIMIT 1`)).rows as any[];
+      const actorName: string = (actorRow as any)?.name || "선생님";
+      await db.execute(sql`
+        INSERT INTO work_messages (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content)
+        VALUES (${poolId}, ${userId}, ${actorName}, ${req.user!.role}, 'text', 'talk', 'normal',
+          ${`보강 인계\n학생: ${mk.student_name || "미상"}\n결석일: ${mk.absence_date || "-"}\n인계 → ${receiverRow.name as string} 선생님`})
+      `);
+
+      res.json({ success: true, handed_to_teacher_name: receiverRow.name as string });
+    } catch (err) { console.error("[teacher/makeups/handover]", err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
 

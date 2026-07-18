@@ -31,6 +31,8 @@ interface MakeupSession {
   expire_at: string | null;
   assigned_class_group_name: string | null;
   note: string | null;
+  handed_to_teacher_id: string | null;
+  handed_to_teacher_name: string | null;
 }
 
 interface MakeupRequest {
@@ -248,22 +250,36 @@ export default function MakeupsScreen() {
   // A. 다른 선생님에게 인계 확인
   const doHandover = async () => {
     if (!handoverTarget || !selectedTeacher) return;
+    // 즉시 목록에서 제거 (optimistic)
+    const removedId = handoverTarget.id;
+    setWaitingList(prev => prev.filter(m => m.id !== removedId));
+    setHandoverStep("done");
+    setHandoverDoneMsg(`${selectedTeacher.name} 선생님에게 인계되었습니다.\n${selectedTeacher.name} 선생님 보강 대기 목록에 추가됩니다.`);
     setHandoverSubmitting(true);
     try {
-      const r = await apiRequest(token, `/admin/makeups/${handoverTarget.id}/handover`, {
+      const r = await apiRequest(token, `/teacher/makeups/${removedId}/handover`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ receiver_teacher_id: selectedTeacher.id }),
       });
-      if (r.ok) {
-        setHandoverDoneMsg(`${selectedTeacher.name} 선생님 정산에\n기타 1시수가 반영되었습니다.`);
-        setHandoverStep("done");
-        loadWaiting();
-      } else {
+      if (!r.ok) {
+        // 실패 시 롤백
         const d = await r.json().catch(() => ({}));
+        setHandoverStep("teacher_select");
+        setWaitingList(prev => {
+          if (prev.some(m => m.id === removedId)) return prev;
+          return [{ ...handoverTarget, handed_to_teacher_id: null, handed_to_teacher_name: null }, ...prev];
+        });
         setConfirmMsg(d.error || "처리에 실패했습니다.");
       }
-    } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
+    } catch {
+      setHandoverStep("teacher_select");
+      setWaitingList(prev => {
+        if (prev.some(m => m.id === removedId)) return prev;
+        return [{ ...handoverTarget, handed_to_teacher_id: null, handed_to_teacher_name: null }, ...prev];
+      });
+      setConfirmMsg("네트워크 오류가 발생했습니다.");
+    }
     setHandoverSubmitting(false);
   };
 
@@ -427,10 +443,21 @@ export default function MakeupsScreen() {
                     <View style={{ flex: 1, gap: 2 }}>
                       <Text style={s.studentName}>{mk.student_name || "-"}</Text>
                       <Text style={s.className}>{mk.original_class_group_name || "미배정"}</Text>
+                      {mk.handed_to_teacher_id === adminUser?.id && mk.original_teacher_name && (
+                        <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#4F46E5" }}>
+                          인계 from {mk.original_teacher_name}
+                        </Text>
+                      )}
                     </View>
-                    <View style={[s.statusBadge, { backgroundColor: "#FFF1BF" }]}>
-                      <Text style={[s.statusTxt, { color: "#D97706" }]}>대기</Text>
-                    </View>
+                    {mk.handed_to_teacher_id === adminUser?.id ? (
+                      <View style={[s.statusBadge, { backgroundColor: "#EEF2FF" }]}>
+                        <Text style={[s.statusTxt, { color: "#4F46E5" }]}>이관받음</Text>
+                      </View>
+                    ) : (
+                      <View style={[s.statusBadge, { backgroundColor: "#FFF1BF" }]}>
+                        <Text style={[s.statusTxt, { color: "#D97706" }]}>대기</Text>
+                      </View>
+                    )}
                   </View>
                   <View style={s.infoRow}>
                     <Calendar size={13} color={C.textSecondary} />
@@ -731,8 +758,8 @@ export default function MakeupsScreen() {
                       <ArrowLeft size={20} color={C.text} />
                     </Pressable>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.sheetTitle}>다른 선생님한테 보내기</Text>
-                      <Text style={s.sheetSub}>선택한 선생님 정산에 기타 1시수가 반영됩니다.</Text>
+                      <Text style={s.sheetTitle}>담당선생님 인계</Text>
+                      <Text style={s.sheetSub}>선택한 선생님의 보강 대기 목록으로 이관됩니다.</Text>
                     </View>
                     <Pressable onPress={closeHandover} style={{ padding: 4 }}>
                       <X size={20} color={C.textSecondary} />
