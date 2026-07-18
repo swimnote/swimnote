@@ -61,11 +61,16 @@ async function ensureHealthLogTable() {
   `).catch(() => {});
 }
 
-// ── DB Ping ──────────────────────────────────────────────────────────────────
+// ── DB Ping (3초 타임아웃) ────────────────────────────────────────────────────
 async function pingDb(db: any, name: string): Promise<{ ok: boolean; latency_ms: number; error?: string }> {
   const t0 = Date.now();
   try {
-    await db.execute(sql`SELECT 1`);
+    await Promise.race([
+      db.execute(sql`SELECT 1`),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("ping timeout 3000ms")), 3000)
+      ),
+    ]);
     return { ok: true, latency_ms: Date.now() - t0 };
   } catch (e: any) {
     return { ok: false, latency_ms: Date.now() - t0, error: String(e.message ?? e) };
@@ -152,15 +157,17 @@ export async function runDbHealthCheck(): Promise<void> {
     }
 
     // ── 스탠바이 DB 체크 ─────────────────────────────────────
-    if (!isDbSeparated) {
-      console.log("[standby-sync] 스탠바이 DB 미설정 — 헬스 체크 스킵");
-      return;
-    }
+    if (!isDbSeparated) return;
+
+    // 서킷브레이커 오픈 상태면 스킵 (연속 느림으로 30분 대기 중)
+    if (!checkStandbyCircuit()) return;
 
     const backupDb = getBackupDb();
     if (!backupDb) return;
 
     const standbyPing = await pingDb(backupDb, "standby");
+    recordStandbyPingResult(standbyPing.latency_ms, standbyPing.ok);
+
     await writeHealthLog(
       "standby_db",
       standbyPing.ok ? (standbyPing.latency_ms > 800 ? "slow" : "ok") : "failed",
@@ -170,15 +177,13 @@ export async function runDbHealthCheck(): Promise<void> {
 
     if (!standbyPing.ok) {
       const fails = await getConsecutiveFailures("standby_db");
-      if (fails >= 3) { // 3회 연속 = 15분 이상 다운
+      if (fails >= 3) {
         await fireAlert(
           "warning",
           "🟡 스탠바이 DB 응답 없음",
           `pool backup DB 연결 불가 — 연속 ${fails}회 실패. 장애 시 자동 복구 불가 상태.`,
         );
       }
-    } else if (standbyPing.latency_ms > 800) {
-      console.warn(`[standby-sync] 스탠바이 DB 응답 지연: ${standbyPing.latency_ms}ms`);
     }
 
   } catch (e: any) {
@@ -186,18 +191,52 @@ export async function runDbHealthCheck(): Promise<void> {
   }
 }
 
+// ── 서킷브레이커: 스탠바이 DB 연속 느림 → 30분 스킵 ────────────────────────
+let standbyCircuitOpenUntil = 0; // 0 = 닫힘(정상), >0 = 열림(스킵 중)
+let standbySlowStreak = 0;       // 연속 느린 핑 횟수
+const CIRCUIT_SLOW_THRESHOLD_MS = 2000; // 2초 초과 = 느림
+const CIRCUIT_OPEN_STREAK = 3;          // 3회 연속 느리면 서킷 오픈
+const CIRCUIT_OPEN_DURATION_MS = 30 * 60 * 1000; // 30분
+
+function checkStandbyCircuit(): boolean {
+  if (standbyCircuitOpenUntil > 0 && Date.now() < standbyCircuitOpenUntil) return false; // 스킵
+  if (standbyCircuitOpenUntil > 0) {
+    standbyCircuitOpenUntil = 0; standbySlowStreak = 0;
+    console.log("[standby-sync] 서킷브레이커 복구 — 스탠바이 체크 재개");
+  }
+  return true;
+}
+
+function recordStandbyPingResult(latency_ms: number, ok: boolean) {
+  if (!ok || latency_ms >= CIRCUIT_SLOW_THRESHOLD_MS) {
+    standbySlowStreak++;
+    if (standbySlowStreak >= CIRCUIT_OPEN_STREAK && standbyCircuitOpenUntil === 0) {
+      standbyCircuitOpenUntil = Date.now() + CIRCUIT_OPEN_DURATION_MS;
+      console.warn(`[standby-sync] 서킷브레이커 오픈 — 스탠바이 DB 연속 ${standbySlowStreak}회 느림 (${latency_ms}ms). 30분간 스킵.`);
+    }
+  } else {
+    standbySlowStreak = 0;
+  }
+}
+
 // ════════════════════════════════════════════════════════════════
-// 테이블 단위 복제 (TRUNCATE + INSERT 방식)
+// 테이블 단위 복제 (TRUNCATE + INSERT 방식, 30초 타임아웃)
 // ════════════════════════════════════════════════════════════════
 async function replicateTable(
   backupDb: any,
   tableName: string,
 ): Promise<{ rows: number; error?: string }> {
+  const TABLE_TIMEOUT_MS = 30_000;
+  const tableTimer = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`replicateTable timeout 30s: ${tableName}`)), TABLE_TIMEOUT_MS)
+  );
+
   try {
-    // 소스에서 전체 읽기
-    const rows = (await superAdminDb.execute(
-      sql.raw(`SELECT * FROM "${tableName}"`)
-    )).rows as Record<string, unknown>[];
+    // 소스에서 전체 읽기 (타임아웃 경쟁)
+    const rows = (await Promise.race([
+      superAdminDb.execute(sql.raw(`SELECT * FROM "${tableName}"`)),
+      tableTimer,
+    ]) as any).rows as Record<string, unknown>[];
 
     if (rows.length === 0) {
       // 빈 테이블은 스킵 (TRUNCATE 하지 않음 — 데이터 없으면 그대로 유지)
@@ -248,8 +287,11 @@ async function replicateTable(
 // 30분마다: Critical 테이블 핫 스탠바이 복제
 // ════════════════════════════════════════════════════════════════
 export async function runHotStandbySync(tables: string[] = HOT_SYNC_TABLES): Promise<void> {
-  if (!isDbSeparated) {
-    console.log("[standby-sync] 스탠바이 DB 미설정 — 핫 싱크 스킵");
+  if (!isDbSeparated) return;
+
+  // 서킷브레이커 오픈 상태면 싱크도 스킵
+  if (!checkStandbyCircuit()) {
+    console.log("[standby-sync] 서킷브레이커 오픈 중 — 핫 싱크 스킵");
     return;
   }
 

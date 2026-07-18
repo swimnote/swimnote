@@ -1,4 +1,4 @@
-import app from "./app";
+import app, { setServerReady } from "./app";
 import { startBackupJobs } from "./jobs/backup-batch.js";
 import { startParentLinkScheduler } from "./jobs/parent-link-scheduler.js";
 import { startAutoAttendanceScheduler } from "./jobs/auto-attendance-scheduler.js";
@@ -49,8 +49,14 @@ if (!IS_WORKER && (Number.isNaN(port) || port <= 0)) {
 }
 
 // DB 초기화 (CREATE TABLE IF NOT EXISTS / ADD COLUMN IF NOT EXISTS — 멱등)
-initPoolDb().catch((e) => console.error("[pool-db-init] 초기화 오류:", e.message));
-initSuperDb().catch((e) => console.error("[super-db-init] 초기화 오류:", e.message));
+// 핵심 2개 완료 시 헬스체크를 200으로 전환 (Render 헬스체크 실패 방지)
+Promise.all([
+  initPoolDb().catch((e) => console.error("[pool-db-init] 초기화 오류:", e.message)),
+  initSuperDb().catch((e) => console.error("[super-db-init] 초기화 오류:", e.message)),
+]).then(() => {
+  setServerReady();
+  console.log("[server] DB 초기화 완료 — 헬스체크 200 응답 시작");
+});
 initV2PendingTable().catch((e) => console.error("[v2-init] parent_v2_pending 테이블 초기화 오류:", e.message));
 backfillPoolAdminRoles().catch((e) => console.error("[roles-backfill] 오류:", e.message));
 // 일회성: diary_templates에서 "오늘은 " 접두사 제거
@@ -120,7 +126,8 @@ if (IS_WORKER) {
   // ── Keep-Alive 자기 핑 (슬립 방지 + 다운 감지) ──────────────────────────
   if (process.env["NODE_ENV"] === "production") {
     const PING_INTERVAL_MS = 4 * 60 * 1000;
-    const selfBase = process.env["RENDER_EXTERNAL_URL"] || `http://localhost:${port}`;
+    // 외부 URL 대신 localhost 직접 핑 — 네트워크 왕복 없이 빠르게 체크
+    const selfBase = `http://localhost:${port}`;
     let pingFailCount = 0;
 
     setInterval(async () => {
