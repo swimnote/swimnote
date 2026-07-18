@@ -13,6 +13,8 @@ interface PoolData {
   logo_url: string | null;
 }
 
+const API_BASE = import.meta.env.VITE_API_BASE || "/api";
+
 const SWIMNOTE_PRIMARY = "#002F5F";
 const SWIMNOTE_SECONDARY = "#01B2F1";
 
@@ -48,7 +50,7 @@ export default function PoolHomepage() {
     if (!slug) return;
     (async () => {
       try {
-        const res = await fetch(`/api/pools/by-slug/${slug}`);
+        const res = await fetch(`${API_BASE}/pools/by-slug/${slug}`);
         if (res.status === 404) { setNotFound(true); setLoading(false); return; }
         if (!res.ok) { setNotFound(true); setLoading(false); return; }
         const data = await res.json();
