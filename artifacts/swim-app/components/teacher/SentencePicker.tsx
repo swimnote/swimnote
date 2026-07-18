@@ -210,9 +210,9 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
       animationType="slide"
       onRequestClose={handleClose}
     >
-      <Pressable style={s.backdrop} onPress={handleClose} />
-      <View style={[s.kvWrapper, { paddingBottom: kbHeight }]}>
-        <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, Platform.OS === "ios" ? 20 : 16) }]}>
+      <View style={s.kvWrapper}>
+        <Pressable style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.45)" }]} onPress={handleClose} />
+        <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, Platform.OS === "ios" ? 20 : 16), marginBottom: kbHeight }]}>
           {/* ── 고정 상단 ── */}
           <View style={s.handle} />
 
@@ -456,13 +456,11 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
 }
 
 const s = StyleSheet.create({
-  backdrop:   { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
   kvWrapper:  { flex: 1, justifyContent: "flex-end" },
   sheet: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    minHeight: SCREEN_H * 0.58,
     maxHeight: SCREEN_H * 0.88,
   },
   middleArea: {
