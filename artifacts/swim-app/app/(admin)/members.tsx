@@ -167,7 +167,6 @@ export default function MembersScreen() {
       const res = await apiRequest(token, `/students/${id}`, { method: "DELETE" });
       if (res.ok) {
         setStudents(prev => prev.filter(s => s.id !== id));
-        load();
       } else {
         setInfoModal("삭제에 실패했습니다.");
       }
@@ -234,7 +233,6 @@ export default function MembersScreen() {
             ? { ...s, ...updated, assigned_class_ids: newIds, status: "active" }
             : s
         ));
-        load();
       } else {
         const d = await res.json().catch(() => ({}));
         setInfoModal(d.message || "반이동에 실패했습니다.");
@@ -273,7 +271,6 @@ export default function MembersScreen() {
               : s
           ));
         }
-        load();
       } else {
         const d = await res.json().catch(() => ({}));
         setInfoModal(d.message || "처리에 실패했습니다.");
