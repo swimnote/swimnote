@@ -155,7 +155,13 @@ export default function DiaryTemplates() {
     if (!addLevelText.trim()) { setAddLevelError("레벨 이름을 입력해주세요."); return; }
     setAddLevelSaving(true);
     try {
-      const created: DiaryTemplateLevel = await api.post("/diary-template-levels", { level_name: addLevelText.trim() });
+      const res: any = await api.post("/diary-template-levels", { level_name: addLevelText.trim() });
+      const created: DiaryTemplateLevel = {
+        id: res.id,
+        level_name: addLevelText.trim(),
+        template_count: 0,
+        sort_order: levels.length,
+      };
       setAddLevelText(""); setAddLevelError(""); setAddLevelVisible(false);
       setLevels(prev => [...prev, created]);
       setSelectedLevelId(created.id);
@@ -168,14 +174,12 @@ export default function DiaryTemplates() {
   async function handleDeleteLevel(lv: DiaryTemplateLevel) {
     try {
       await api.delete(`/diary-template-levels/${lv.id}`);
-      setLevels(prev => {
-        const next = prev.filter(l => l.id !== lv.id);
-        if (selectedLevelId === lv.id) {
-          setSelectedLevelId(next.length > 0 ? next[0].id : null);
-        }
-        return next;
-      });
-      if (selectedLevelId === lv.id) setTemplates([]);
+      const next = levels.filter(l => l.id !== lv.id);
+      setLevels(next);
+      if (selectedLevelId === lv.id) {
+        setSelectedLevelId(next.length > 0 ? next[0].id : null);
+        setTemplates([]);
+      }
     } catch {}
   }
 
@@ -192,12 +196,20 @@ export default function DiaryTemplates() {
     if (!selectedLevelId) return;
     setAddTemplateSaving(true);
     try {
-      const created = await api.post<DiaryTemplate>("/diary-templates", {
+      const res: any = await api.post("/diary-templates", {
         level_id: selectedLevelId,
         title: addTemplateTitle.trim() || null,
         template_text: addTemplateText.trim(),
         sort_order: templates.length,
       });
+      const created: DiaryTemplate = {
+        id: res.id,
+        level_id: selectedLevelId,
+        title: addTemplateTitle.trim() || null,
+        template_text: addTemplateText.trim(),
+        is_active: true,
+        sort_order: templates.length,
+      };
       setAddTemplateVisible(false); setAddTemplateTitle(""); setAddTemplateText(""); setAddTemplateError("");
       setTemplates(prev => [...prev, created]);
       setLevels(prev => prev.map(l => l.id === selectedLevelId ? { ...l, template_count: (l.template_count || 0) + 1 } : l));
@@ -229,7 +241,15 @@ export default function DiaryTemplates() {
 
   async function handleCopyTemplate(t: DiaryTemplate) {
     try {
-      const copied = await api.post<DiaryTemplate>(`/diary-templates/${t.id}/copy`, {});
+      const res: any = await api.post(`/diary-templates/${t.id}/copy`, {});
+      const copied: DiaryTemplate = {
+        id: res.id,
+        level_id: t.level_id,
+        title: t.title ? t.title + " 복사" : null,
+        template_text: t.template_text,
+        is_active: t.is_active,
+        sort_order: templates.length,
+      };
       setTemplates(prev => [...prev, copied]);
       setLevels(prev => prev.map(l => l.id === t.level_id ? { ...l, template_count: (l.template_count || 0) + 1 } : l));
     } catch {}
