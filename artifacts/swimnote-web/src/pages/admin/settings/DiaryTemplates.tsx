@@ -183,15 +183,15 @@ export default function DiaryTemplates() {
     if (!selectedLevelId) return;
     setAddTemplateSaving(true);
     try {
-      await api.post("/diary-templates", {
+      const created = await api.post<DiaryTemplate>("/diary-templates", {
         level_id: selectedLevelId,
         title: addTemplateTitle.trim() || null,
         template_text: addTemplateText.trim(),
         sort_order: templates.length,
       });
       setAddTemplateVisible(false); setAddTemplateTitle(""); setAddTemplateText(""); setAddTemplateError("");
-      await loadTemplates(selectedLevelId);
-      await loadLevels(selectedLevelId);
+      setTemplates(prev => [...prev, created]);
+      setLevels(prev => prev.map(l => l.id === selectedLevelId ? { ...l, template_count: (l.template_count || 0) + 1 } : l));
     } catch (e: any) {
       setAddTemplateError(e?.data?.error || "추가에 실패했습니다.");
     } finally { setAddTemplateSaving(false); }
@@ -203,8 +203,8 @@ export default function DiaryTemplates() {
     setEditSaving(true);
     try {
       await api.patch(`/diary-templates/${editTarget.id}`, { title: editTitle.trim() || null, template_text: editText.trim() });
+      setTemplates(prev => prev.map(t => t.id === editTarget.id ? { ...t, title: editTitle.trim() || null, template_text: editText.trim() } : t));
       setEditTarget(null);
-      if (selectedLevelId) await loadTemplates(selectedLevelId);
     } catch (e: any) {
       setEditError(e?.data?.error || "수정에 실패했습니다.");
     } finally { setEditSaving(false); }
@@ -214,15 +214,15 @@ export default function DiaryTemplates() {
     try {
       await api.delete(`/diary-templates/${t.id}`);
       setTemplates(prev => prev.filter(x => x.id !== t.id));
-      await loadLevels(selectedLevelId);
+      setLevels(prev => prev.map(l => l.id === t.level_id ? { ...l, template_count: Math.max(0, (l.template_count || 1) - 1) } : l));
     } catch {}
   }
 
   async function handleCopyTemplate(t: DiaryTemplate) {
     try {
-      await api.post(`/diary-templates/${t.id}/copy`, {});
-      if (selectedLevelId) await loadTemplates(selectedLevelId);
-      await loadLevels(selectedLevelId);
+      const copied = await api.post<DiaryTemplate>(`/diary-templates/${t.id}/copy`, {});
+      setTemplates(prev => [...prev, copied]);
+      setLevels(prev => prev.map(l => l.id === t.level_id ? { ...l, template_count: (l.template_count || 0) + 1 } : l));
     } catch {}
   }
 

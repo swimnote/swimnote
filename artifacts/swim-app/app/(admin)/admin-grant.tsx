@@ -74,7 +74,12 @@ export default function AdminGrantScreen() {
       const d = await r.json();
       if (!r.ok) { setResultMsg(d.message || "처리 중 오류가 발생했습니다."); return; }
       setResultMsg(d.message || (grant ? "관리자 권한이 부여되었습니다." : "관리자 권한이 회수되었습니다."));
-      load(); // await 제거 — 백그라운드 갱신, 모달 막힘 방지
+      // 즉시 반영
+      setTeachers(prev => prev.map(t => t.id === userId ? { ...t, is_admin_granted: grant } : t));
+      // 백그라운드 조용히 갱신 (스피너 없음)
+      apiRequest(token, "/admin/approved-teachers-for-grant").then(async res => {
+        if (res.ok) { const d2 = await res.json(); setTeachers(Array.isArray(d2) ? d2 : (d2.data ?? [])); }
+      }).catch(() => {});
     } finally {
       setProcessing(false);
       setConfirmTarget(null); // API 완료 즉시 모달 닫기

@@ -408,8 +408,8 @@ export default function Members() {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
 
-  async function load() {
-    setLoading(true);
+  async function load(silent = false) {
+    if (!silent) setLoading(true);
     try {
       const [st, cl] = await Promise.all([
         api.get<Student[]>("/students"),
@@ -417,8 +417,8 @@ export default function Members() {
       ]);
       setStudents(Array.isArray(st) ? st : []);
       setClasses(Array.isArray(cl) ? cl : []);
-    } catch { setStudents([]); }
-    finally { setLoading(false); }
+    } catch { if (!silent) setStudents([]); }
+    finally { if (!silent) setLoading(false); }
   }
 
   useEffect(() => { load(); }, []);
@@ -483,7 +483,7 @@ export default function Members() {
       });
       setShowRegister(false);
       setRegForm({ name: "", phone: "", class_group_id: "" });
-      await load();
+      load(true);
     } catch (e: any) { setRegError(e?.data?.message || e?.data?.error || "등록 실패"); }
     finally { setRegSaving(false); }
   }
