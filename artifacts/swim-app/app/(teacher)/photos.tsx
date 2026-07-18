@@ -942,8 +942,8 @@ export default function TeacherPhotosScreen() {
               animationType="fade"
               onRequestClose={() => setLightboxIdx(null)}
             >
-              <View style={s.lbBg} {...lbPanResponder.panHandlers}>
-                {/* 상단 바 */}
+              <View style={s.lbBg}>
+                {/* 상단 바 — panHandlers 밖에 배치해야 닫기 터치 정상 작동 */}
                 <View style={[s.lbTopBar, { paddingTop: insets.top + 12 }]}>
                   <Pressable
                     onPress={() => setLightboxIdx(null)}
@@ -959,18 +959,21 @@ export default function TeacherPhotosScreen() {
                   <View style={{ width: 44 }} />
                 </View>
 
-                {lbItem && !!lbItem.file_url ? (
-                  <Image
-                    source={{ uri: photoUri(lbItem.file_url, token) }}
-                    style={s.lbImage}
-                    contentFit="contain"
-                  />
-                ) : (
-                  <View style={s.lbImagePlaceholder}>
-                    <ImageIcon size={60} color="rgba(255,255,255,0.3)" />
-                    <Text style={{ color: "rgba(255,255,255,0.4)", marginTop: 12 }}>이미지를 불러올 수 없습니다</Text>
-                  </View>
-                )}
+                {/* 이미지 영역에만 panHandlers 적용 */}
+                <View style={s.lbImageWrap} {...lbPanResponder.panHandlers}>
+                  {lbItem && !!lbItem.file_url ? (
+                    <Image
+                      source={{ uri: photoUri(lbItem.file_url, token) }}
+                      style={s.lbImage}
+                      contentFit="contain"
+                    />
+                  ) : (
+                    <View style={s.lbImagePlaceholder}>
+                      <ImageIcon size={60} color="rgba(255,255,255,0.3)" />
+                      <Text style={{ color: "rgba(255,255,255,0.4)", marginTop: 12 }}>이미지를 불러올 수 없습니다</Text>
+                    </View>
+                  )}
+                </View>
 
                 {lbItem && !!safeLabel(lbItem) && (
                   <Text style={s.lbLabel}>{safeLabel(lbItem)}</Text>
@@ -1280,8 +1283,9 @@ const s = StyleSheet.create({
   lbTopBar: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingHorizontal: 16, paddingBottom: 12, flexDirection: "row", alignItems: "center" },
   lbClose: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   lbCounter: { flex: 1, textAlign: "center", color: "rgba(255,255,255,0.75)", fontSize: 14, fontFamily: "Pretendard-Regular" },
-  lbImage: { width: W, height: W * 1.1 },
-  lbImagePlaceholder: { width: W, height: W * 0.8, alignItems: "center", justifyContent: "center" },
+  lbImageWrap: { width: W, height: W * 1.1 },
+  lbImage: { width: "100%", height: "100%" },
+  lbImagePlaceholder: { width: "100%", height: "100%", alignItems: "center", justifyContent: "center" },
   lbLabel: { color: "#E6FFFA", fontSize: 13, fontFamily: "Pretendard-Regular", paddingHorizontal: 24, paddingTop: 14, textAlign: "center" },
   lbMeta: { color: "rgba(255,255,255,0.45)", fontSize: 12, fontFamily: "Pretendard-Regular", paddingTop: 4, textAlign: "center" },
   lbArrowRow: { position: "absolute", left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 8, top: "35%", zIndex: 5 },

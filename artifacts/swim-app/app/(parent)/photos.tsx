@@ -359,8 +359,8 @@ export default function ParentAlbumScreen() {
         animationType="fade"
         onRequestClose={closeLightbox}
       >
-        <View style={st.lbBg} {...panResponderFixed.panHandlers}>
-          {/* 닫기 */}
+        <View style={st.lbBg}>
+          {/* 닫기 — panHandlers 밖에 배치해야 터치 정상 작동 */}
           <View style={[st.lbTop, { paddingTop: insets.top + 14 }]}>
             <Pressable onPress={closeLightbox} style={st.lbClose} hitSlop={10}>
               <X size={26} color="#fff" />
@@ -373,14 +373,16 @@ export default function ParentAlbumScreen() {
             )}
           </View>
 
-          {/* 이미지 */}
-          {lightboxItem ? (
-            <ExpoImage
-              source={{ uri: photoFileUri(lightboxItem.file_url), headers: { Authorization: `Bearer ${token}` } }}
-              style={st.lbImage}
-              contentFit="contain"
-            />
-          ) : null}
+          {/* 이미지 영역에만 panHandlers 적용 */}
+          <View style={st.lbImageWrap} {...panResponderFixed.panHandlers}>
+            {lightboxItem ? (
+              <ExpoImage
+                source={{ uri: photoFileUri(lightboxItem.file_url), headers: { Authorization: `Bearer ${token}` } }}
+                style={st.lbImage}
+                contentFit="contain"
+              />
+            ) : null}
+          </View>
 
           {lightboxItem?.source_label ? (
             <Text style={st.lbSource}>{lightboxItem.source_label}</Text>
@@ -529,7 +531,8 @@ const st = StyleSheet.create({
     color: "rgba(255,255,255,0.75)", fontSize: 14, fontFamily: "Pretendard-Regular",
     marginRight: 44,
   },
-  lbImage: { width: "100%", height: "60%" },
+  lbImageWrap: { width: "100%", height: "60%" },
+  lbImage: { width: "100%", height: "100%" },
   lbSource: { color: "#E6FFFA", fontSize: 13, textAlign: "center", paddingHorizontal: 24, paddingTop: 16, fontFamily: "Pretendard-Regular" },
 
   lbArrowRow: {
