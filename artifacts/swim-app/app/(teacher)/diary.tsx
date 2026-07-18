@@ -227,8 +227,10 @@ export default function TeacherDiaryScreen() {
 
   async function openGroup(group: TeacherClassGroup) {
     setSelectedGroup(group); setSubView("write"); setCommonContent(""); setStudentNotes([]);
+    setAddNoteStudent(null); setNoteInput("");
     setGroupMedia([]); setStudentMedia({}); setHasDraft(false);
     setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
+    setStudentAlbumPhotos({}); setStudentAlbumVideos({});
     loadTemplates(); loadClassStudents(group.id);
     // 오늘 일지가 있으면 히스토리 뷰로 자동 전환
     try {
