@@ -191,10 +191,10 @@ export default function MyScheduleScreen() {
       setShowDeleteClassConfirm(false);
       setDeletingClass(null);
       if (res.ok) {
+        setGroups(prev => prev.filter(g => g.id !== target.id));
         setDetailGroup(null);
         setSelectedDate(null);
         setSelectedGroup(null);
-        load();
       } else {
         const body = await res.json().catch(() => ({}));
         Alert.alert("삭제 실패", body?.error ?? "반 삭제 중 오류가 발생했습니다.");
@@ -357,10 +357,14 @@ export default function MyScheduleScreen() {
   async function confirmDelete() {
     setShowDeleteConfirm(false); setDeleting(true);
     const ids = Array.from(selectedIds); let failed = 0;
-    for (const id of ids) { const res = await apiRequest(token, `/class-groups/${id}`, { method: "DELETE" }); if (!res.ok) failed++; }
+    const deleted: string[] = [];
+    for (const id of ids) {
+      const res = await apiRequest(token, `/class-groups/${id}`, { method: "DELETE" });
+      if (!res.ok) failed++; else deleted.push(id);
+    }
     setDeleting(false); setSelectionMode(false); setSelectedIds(new Set());
+    if (deleted.length > 0) setGroups(prev => prev.filter(g => !deleted.includes(g.id)));
     if (failed > 0) setDeleteFailCount(failed);
-    load();
   }
   async function confirmDeleteMemos() {
     setShowDeleteConfirm(false); setDeleting(true);

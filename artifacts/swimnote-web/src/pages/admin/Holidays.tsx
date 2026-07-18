@@ -57,9 +57,9 @@ export default function Holidays() {
     if (!newDate) return;
     setSaving(true);
     try {
-      await api.post("/holidays", { date: newDate, reason: newReason, pool_id: poolId });
+      const created = await api.post<Holiday>("/holidays", { date: newDate, reason: newReason, pool_id: poolId });
       setShowAddForm(false); setNewDate(""); setNewReason("");
-      await load();
+      setHolidays(prev => [...prev, created].sort((a, b) => a.date.localeCompare(b.date)));
     } catch (e: any) {
       alert(e?.data?.message || "추가에 실패했습니다.");
     } finally { setSaving(false); }
@@ -67,8 +67,10 @@ export default function Holidays() {
 
   async function handleRemove(id: string) {
     if (!confirm("이 휴일을 삭제하시겠습니까?")) return;
-    try { await api.delete(`/holidays/${id}`); await load(); }
-    catch (e: any) { alert(e?.data?.message || "삭제에 실패했습니다."); }
+    try {
+      await api.delete(`/holidays/${id}`);
+      setHolidays(prev => prev.filter(h => h.id !== id));
+    } catch (e: any) { alert(e?.data?.message || "삭제에 실패했습니다."); }
   }
 
   async function handleConfirm() {

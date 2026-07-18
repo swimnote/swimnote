@@ -96,15 +96,15 @@ export default function MakeupsScreen() {
     });
     setAssignModal(null);
     if (r.status === 409) { setConflictVisible(true); return; }
-    load();
+    if (r.ok) setMakeups(prev => prev.filter(m => m.id !== mk.id));
   };
 
   const handleTransfer = async (mk: any, teacher: any) => {
-    await apiRequest(token, `/admin/makeups/${mk.id}/transfer`, {
+    const r = await apiRequest(token, `/admin/makeups/${mk.id}/transfer`, {
       method: "PATCH", body: JSON.stringify({ target_teacher_id: teacher.id, target_teacher_name: teacher.name }),
     });
     setTransferModal(null);
-    load();
+    if (r.ok) setMakeups(prev => prev.filter(m => m.id !== mk.id));
   };
 
   const requestComplete = (mk: any) => {
@@ -114,8 +114,8 @@ export default function MakeupsScreen() {
       confirmText: "완료 처리",
       onConfirm: async () => {
         const r = await apiRequest(token, `/admin/makeups/${mk.id}/complete`, { method: "PATCH" });
-        if (r.status === 409) { setConflictVisible(true); load(); return; }
-        if (r.ok) load();
+        if (r.status === 409) { setConflictVisible(true); return; }
+        if (r.ok) setMakeups(prev => prev.filter(m => m.id !== mk.id));
       },
     });
   };
@@ -128,7 +128,7 @@ export default function MakeupsScreen() {
       confirmColor: "#D97706",
       onConfirm: async () => {
         const r = await apiRequest(token, `/admin/makeups/${mk.id}/revert`, { method: "PATCH" });
-        if (r.ok) load();
+        if (r.ok) setMakeups(prev => prev.filter(m => m.id !== mk.id));
       },
     });
   };
@@ -141,7 +141,7 @@ export default function MakeupsScreen() {
       confirmColor: "#D96C6C",
       onConfirm: async () => {
         const r = await apiRequest(token, `/admin/makeups/${mk.id}/cancel`, { method: "PATCH" });
-        if (r.ok) load();
+        if (r.ok) setMakeups(prev => prev.filter(m => m.id !== mk.id));
       },
     });
   };

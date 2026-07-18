@@ -51,10 +51,12 @@ export default function Notices() {
     try {
       if (editing) {
         await api.patch(`/notices/${editing.id}`, form);
+        setNotices(prev => prev.map(n => n.id === editing.id ? { ...n, ...form } : n));
       } else {
-        await api.post("/notices", form);
+        const created = await api.post<Notice>("/notices", form);
+        setNotices(prev => [created, ...prev]);
       }
-      setShowForm(false); await load();
+      setShowForm(false);
     } catch (e: any) {
       setError(e?.data?.message || "저장에 실패했습니다.");
     } finally { setSaving(false); }

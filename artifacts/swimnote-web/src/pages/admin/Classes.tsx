@@ -82,11 +82,12 @@ export default function Classes() {
       const body = { name: form.name.trim(), schedule_days: form.schedule_days, schedule_time: form.schedule_time, capacity: parseInt(form.capacity) || 20, instructor: form.instructor.trim() };
       if (editing) {
         await api.patch(`/class-groups/${editing.id}`, body);
+        setClasses(prev => prev.map(c => c.id === editing.id ? { ...c, ...body } : c));
       } else {
-        await api.post("/class-groups", body);
+        const created = await api.post<ClassGroup>("/class-groups", body);
+        setClasses(prev => [created, ...prev]);
       }
       setShowForm(false);
-      await load();
     } catch (e: any) {
       setError(e?.data?.message || e?.data?.error || "저장에 실패했습니다.");
     } finally { setSaving(false); }
@@ -96,7 +97,7 @@ export default function Classes() {
     if (!confirm(`"${c.name}" 수업을 삭제하시겠습니까?`)) return;
     try {
       await api.delete(`/class-groups/${c.id}`);
-      await load();
+      setClasses(prev => prev.filter(cl => cl.id !== c.id));
     } catch (e: any) {
       alert(e?.data?.message || "삭제에 실패했습니다.");
     }

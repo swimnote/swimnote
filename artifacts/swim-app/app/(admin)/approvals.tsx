@@ -90,7 +90,8 @@ export default function ApprovalsScreen() {
         setRejectTargetId(null);
         setTeacherDetailInvite(null);
         setTeacherDetail(null);
-        await load();
+        const newStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : "inactive";
+        setInvites(prev => prev.map(i => i.id === inviteId ? { ...i, invite_status: newStatus } : i));
       }
     } finally { setProcessingId(null); }
   }
@@ -115,7 +116,7 @@ export default function ApprovalsScreen() {
       if (!res.ok) { const { Alert } = require("react-native"); Alert.alert("오류", d.message || "처리 중 오류"); return; }
       setTeacherDetailInvite(null);
       setTeacherDetail(null);
-      await load();
+      setInvites(prev => prev.map(i => i.id === inviteId ? { ...i, invite_status: "inactive" } : i));
     } finally { setActionProcessing(false); }
   }
 

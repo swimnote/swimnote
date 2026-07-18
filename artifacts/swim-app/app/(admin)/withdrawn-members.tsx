@@ -105,9 +105,17 @@ export default function WithdrawnMembersScreen() {
         return;
       }
       if (res.ok) {
+        const targetId = actionTarget.id;
+        const action = confirmAction;
         setConfirmAction(null);
         setActionTarget(null);
-        await load();
+        if (action === "final_withdraw") {
+          setMembers(prev => prev.map(m => m.id === targetId ? { ...m, status: "deleted" as const } : m));
+        } else if (action === "archive") {
+          setMembers(prev => prev.map(m => m.id === targetId ? { ...m, status: "archived" as const } : m));
+        } else if (action === "restore" || action === "permanent_delete") {
+          setMembers(prev => prev.filter(m => m.id !== targetId));
+        }
       } else {
         const err = await res.json().catch(() => ({}));
         console.error("action failed:", err.error || res.status);

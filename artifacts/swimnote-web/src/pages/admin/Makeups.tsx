@@ -61,8 +61,9 @@ export default function Makeups() {
     setAssigning(true);
     try {
       await api.patch(`/admin/makeups/${assignTarget.id}/assign`, { class_group_id: selectedClassId });
+      const assignedId = assignTarget.id;
       setAssignTarget(null);
-      await load();
+      setMakeups(prev => prev.map(m => m.id === assignedId ? { ...m, status: "assigned" } : m));
     } catch (e: any) {
       alert(e?.data?.message || "배정에 실패했습니다.");
     } finally { setAssigning(false); }
@@ -71,7 +72,8 @@ export default function Makeups() {
   async function handleAction(id: string, action: "complete" | "cancel") {
     try {
       await api.patch(`/admin/makeups/${id}/${action}`, {});
-      await load();
+      const newStatus = action === "complete" ? "completed" : "cancelled";
+      setMakeups(prev => prev.map(m => m.id === id ? { ...m, status: newStatus } : m));
     } catch (e: any) {
       alert(e?.data?.message || "처리에 실패했습니다.");
     }
