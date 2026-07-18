@@ -346,8 +346,11 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
             showsHorizontalScrollIndicator={false}
             scrollEventThrottle={16}
             onMomentumScrollEnd={e => {
-              const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
-              setViewIdx(Math.max(0, Math.min(idx, photos.length - 1)));
+              setViewIdx(prev => {
+                if (prev === null) return null; // 닫히는 중이면 재오픈 방지
+                const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
+                return Math.max(0, Math.min(idx, photos.length - 1));
+              });
             }}
             style={{ flex: 1 }}
             contentContainerStyle={{ alignItems: "center" }}
