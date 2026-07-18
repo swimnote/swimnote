@@ -47,6 +47,7 @@ import systemHealthRouter from "./system-health.js";
 import crashReportRouter from "./crash-report.js";
 import appVersionRouter from "./app-version.js";
 import inquiriesRouter from "./inquiries.js";
+import aiEngineDocRouter from "./ai-engine-doc.js";
 
 const router: IRouter = Router();
 
@@ -100,5 +101,6 @@ router.use("/", systemHealthRouter);
 router.use("/", crashReportRouter);
 router.use("/", appVersionRouter);
 router.use("/", inquiriesRouter);
+router.use("/", aiEngineDocRouter);
 
 export default router;
