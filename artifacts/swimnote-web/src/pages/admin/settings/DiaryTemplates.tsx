@@ -155,9 +155,11 @@ export default function DiaryTemplates() {
     if (!addLevelText.trim()) { setAddLevelError("레벨 이름을 입력해주세요."); return; }
     setAddLevelSaving(true);
     try {
-      const data: any = await api.post("/diary-template-levels", { level_name: addLevelText.trim() });
+      const created: DiaryTemplateLevel = await api.post("/diary-template-levels", { level_name: addLevelText.trim() });
       setAddLevelText(""); setAddLevelError(""); setAddLevelVisible(false);
-      await loadLevels(data.id);
+      setLevels(prev => [...prev, created]);
+      setSelectedLevelId(created.id);
+      setTemplates([]);
     } catch (e: any) {
       setAddLevelError(e?.data?.error || "레벨 추가에 실패했습니다.");
     } finally { setAddLevelSaving(false); }
@@ -166,7 +168,14 @@ export default function DiaryTemplates() {
   async function handleDeleteLevel(lv: DiaryTemplateLevel) {
     try {
       await api.delete(`/diary-template-levels/${lv.id}`);
-      await loadLevels(selectedLevelId === lv.id ? null : selectedLevelId);
+      setLevels(prev => {
+        const next = prev.filter(l => l.id !== lv.id);
+        if (selectedLevelId === lv.id) {
+          setSelectedLevelId(next.length > 0 ? next[0].id : null);
+        }
+        return next;
+      });
+      if (selectedLevelId === lv.id) setTemplates([]);
     } catch {}
   }
 
@@ -174,7 +183,7 @@ export default function DiaryTemplates() {
     try {
       await api.post(`/diary-template-levels/${lv.id}/clear`, {});
       if (selectedLevelId === lv.id) setTemplates([]);
-      await loadLevels(selectedLevelId);
+      setLevels(prev => prev.map(l => l.id === lv.id ? { ...l, template_count: 0 } : l));
     } catch {}
   }
 
@@ -250,15 +259,19 @@ export default function DiaryTemplates() {
   async function handleRestoreDefault() {
     try {
       await api.post("/diary-templates/restore-default", {});
-      await loadLevels(null);
+      // 전체 레벨·템플릿 구조가 교체되므로 silent 갱신
+      api.get<DiaryTemplateLevel[]>("/diary-template-levels").then(data => {
+        setLevels(data);
+        setSelectedLevelId(data.length > 0 ? data[0].id : null);
+      }).catch(() => {});
     } catch {}
   }
 
   async function handleClearAll() {
     try {
       await api.post("/diary-templates/clear-all", {});
-      if (selectedLevelId) await loadTemplates(selectedLevelId);
-      await loadLevels(selectedLevelId);
+      setTemplates([]);
+      setLevels(prev => prev.map(l => ({ ...l, template_count: 0 })));
     } catch {}
   }
 
