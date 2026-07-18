@@ -153,7 +153,7 @@ export default function DailyMemoPage({
           <Text style={[dm.headerTitle, { color: C.text }]}>{formatDate(date)}</Text>
           <View style={{ width: 48 }} />
         </View>
-        <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: insets.bottom + 100 }}
+        <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: insets.bottom + 16 }}
           showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={dm.section}>
             <View style={dm.sectionHeader}>
@@ -218,15 +218,15 @@ export default function DailyMemoPage({
               )}
             </View>
           </View>
+          <View style={[dm.saveWrap, { paddingBottom: insets.bottom + 12 }]}>
+            <Pressable style={[dm.saveBtn, { backgroundColor: themeColor, opacity: saving || uploadingAudio ? 0.7 : 1 }]}
+              onPress={handleSave} disabled={saving || uploadingAudio}>
+              {saving || uploadingAudio
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <><Check size={18} color="#fff" /><Text style={dm.saveBtnText}>저장</Text></>}
+            </Pressable>
+          </View>
         </KeyboardAwareScrollView>
-        <View style={[dm.saveWrap, { paddingBottom: insets.bottom + 12, borderTopColor: C.border, backgroundColor: C.background }]}>
-          <Pressable style={[dm.saveBtn, { backgroundColor: themeColor, opacity: saving || uploadingAudio ? 0.7 : 1 }]}
-            onPress={handleSave} disabled={saving || uploadingAudio}>
-            {saving || uploadingAudio
-              ? <ActivityIndicator color="#fff" size="small" />
-              : <><Check size={18} color="#fff" /><Text style={dm.saveBtnText}>저장</Text></>}
-          </Pressable>
-        </View>
       </View>
       <ConfirmModal visible={!!errMsg} title="오류" message={errMsg ?? ""} confirmText="확인" onConfirm={() => setErrMsg(null)} />
     </>

@@ -4,7 +4,8 @@ import {
   ActivityIndicator, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
-import { KeyboardAwareScrollView, KeyboardStickyView } from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image as ExpoImage } from "expo-image";
 import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
@@ -76,6 +77,7 @@ export default function DiaryWriteView({
   onOpenStudentMyAlbum: (student: StudentOption, kind: "photo" | "video") => void;
   videoEnabled: boolean;
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <View style={{ flex: 1 }}>
       <KeyboardAwareScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} keyboardDismissMode="interactive" bottomOffset={90}>
@@ -330,34 +332,32 @@ export default function DiaryWriteView({
           )}
         </View>
 
-      </KeyboardAwareScrollView>
-
-      <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
-      <View style={s.footer}>
-        {formError && (
-          <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
-            <CircleAlert size={13} color={C.error} />
-            <Text style={[s.inlineErrorText, { color: C.error }]}>{formError}</Text>
+        <View style={[s.footer, { paddingBottom: insets.bottom }]}>
+          {formError && (
+            <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
+              <CircleAlert size={13} color={C.error} />
+              <Text style={[s.inlineErrorText, { color: C.error }]}>{formError}</Text>
+            </View>
+          )}
+          {saveMsg && (
+            <View style={[s.inlineError, { backgroundColor: saveMsg.type === "success" ? "#E6FFFA" : "#F9DEDA" }]}>
+              <LucideIcon name={saveMsg.type === "success" ? "check-circle" : "alert-circle"} size={13}
+                color={saveMsg.type === "success" ? "#2EC4B6" : C.error} />
+              <Text style={[s.inlineErrorText, { color: saveMsg.type === "success" ? "#2EC4B6" : C.error }]}>{saveMsg.text}</Text>
+            </View>
+          )}
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <Pressable style={[s.cancelBtnFt, { borderColor: C.border }]} onPress={onBack}>
+              <Text style={[s.cancelBtnFtText, { color: C.textSecondary }]}>나가기</Text>
+            </Pressable>
+            <Pressable style={[s.saveBtn, { backgroundColor: themeColor, opacity: saving || myDiaryExists ? 0.5 : 1, flex: 2 }]}
+              onPress={onSave} disabled={saving || myDiaryExists}>
+              {saving ? <ActivityIndicator color="#fff" size="small" /> : <><Save size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
+            </Pressable>
           </View>
-        )}
-        {saveMsg && (
-          <View style={[s.inlineError, { backgroundColor: saveMsg.type === "success" ? "#E6FFFA" : "#F9DEDA" }]}>
-            <LucideIcon name={saveMsg.type === "success" ? "check-circle" : "alert-circle"} size={13}
-              color={saveMsg.type === "success" ? "#2EC4B6" : C.error} />
-            <Text style={[s.inlineErrorText, { color: saveMsg.type === "success" ? "#2EC4B6" : C.error }]}>{saveMsg.text}</Text>
-          </View>
-        )}
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          <Pressable style={[s.cancelBtnFt, { borderColor: C.border }]} onPress={onBack}>
-            <Text style={[s.cancelBtnFtText, { color: C.textSecondary }]}>나가기</Text>
-          </Pressable>
-          <Pressable style={[s.saveBtn, { backgroundColor: themeColor, opacity: saving || myDiaryExists ? 0.5 : 1, flex: 2 }]}
-            onPress={onSave} disabled={saving || myDiaryExists}>
-            {saving ? <ActivityIndicator color="#fff" size="small" /> : <><Save size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
-          </Pressable>
         </View>
-      </View>
-      </KeyboardStickyView>
+
+      </KeyboardAwareScrollView>
 
       <SentencePicker
         visible={showPickerFor === "common" || showPickerFor === "note"}
@@ -377,7 +377,7 @@ export default function DiaryWriteView({
 }
 
 export const s = StyleSheet.create({
-  form:          { padding: 14, gap: 14, paddingBottom: 80 },
+  form:          { padding: 14, gap: 14, paddingBottom: 8 },
   infoBox:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12 },
   infoText:      { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 18 },
   card:          { borderRadius: 16, padding: 14, gap: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },

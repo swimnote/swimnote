@@ -299,31 +299,28 @@ export default function RefundPolicyScreen() {
               </View>
             )}
 
-            <View style={{ height: 120 }} />
+            {data.needs_reagree && (
+              <View style={[s.footer, { paddingBottom: insets.bottom + 16 }]}>
+                <Text style={s.footerHint}>
+                  {data.agreed
+                    ? "정책이 변경되었습니다. 재동의 후 결제 기능을 이용할 수 있습니다."
+                    : "위 내용을 모두 읽은 후 동의 버튼을 눌러주세요"}
+                </Text>
+                <Pressable
+                  style={[s.agreeBtn, agreeing && { opacity: 0.6 }]}
+                  onPress={handleAgreePress}
+                  disabled={agreeing}
+                >
+                  {agreeing
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={s.agreeBtnTxt}>
+                        {data.agreed ? "재동의합니다" : "환불 정책에 동의합니다"}
+                      </Text>
+                  }
+                </Pressable>
+              </View>
+            )}
           </ScrollView>
-
-          {/* 동의 버튼 */}
-          {data.needs_reagree && (
-            <View style={[s.footer, { paddingBottom: insets.bottom + 16 }]}>
-              <Text style={s.footerHint}>
-                {data.agreed
-                  ? "정책이 변경되었습니다. 재동의 후 결제 기능을 이용할 수 있습니다."
-                  : "위 내용을 모두 읽은 후 동의 버튼을 눌러주세요"}
-              </Text>
-              <Pressable
-                style={[s.agreeBtn, agreeing && { opacity: 0.6 }]}
-                onPress={handleAgreePress}
-                disabled={agreeing}
-              >
-                {agreeing
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={s.agreeBtnTxt}>
-                      {data.agreed ? "재동의합니다" : "환불 정책에 동의합니다"}
-                    </Text>
-                }
-              </Pressable>
-            </View>
-          )}
         </>
       )}
     </View>

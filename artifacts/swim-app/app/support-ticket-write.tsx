@@ -132,7 +132,7 @@ export default function SupportTicketWriteScreen() {
 
       <View style={{ flex: 1 }}>
         <KeyboardAwareScrollView
-          contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: insets.bottom + 80 }}
+          contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: insets.bottom + 16 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -234,21 +234,20 @@ export default function SupportTicketWriteScreen() {
             </View>
           </Pressable>
 
+          {/* 제출 버튼 */}
+          <View style={[s.submitWrap, { paddingBottom: insets.bottom + 12 }]}>
+            <Pressable
+              style={[s.submitBtn, { opacity: submitting ? 0.7 : 1 }]}
+              onPress={handleSubmit}
+              disabled={submitting}
+            >
+              {submitting
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={s.submitTxt}>문의 접수하기</Text>
+              }
+            </Pressable>
+          </View>
         </KeyboardAwareScrollView>
-      </View>
-
-      {/* 제출 버튼 */}
-      <View style={[s.submitWrap, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable
-          style={[s.submitBtn, { opacity: submitting ? 0.7 : 1 }]}
-          onPress={handleSubmit}
-          disabled={submitting}
-        >
-          {submitting
-            ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={s.submitTxt}>문의 접수하기</Text>
-          }
-        </Pressable>
       </View>
     </SafeAreaView>
   );

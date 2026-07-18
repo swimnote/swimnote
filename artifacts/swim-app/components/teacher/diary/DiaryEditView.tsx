@@ -4,7 +4,8 @@ import {
   ActivityIndicator, Pressable,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
-import { KeyboardAwareScrollView, KeyboardStickyView } from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image as ExpoImage } from "expo-image";
 import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
@@ -66,6 +67,7 @@ export default function DiaryEditView({
   onRemoveStudentAlbumPhoto: (studentId: string, photoId: string) => void;
   onRemoveStudentAlbumVideo: (studentId: string, videoId: string) => void;
 }) {
+  const insets = useSafeAreaInsets();
   const activeNotes = editNotes.filter(n => !n._deleted);
   const usedStudentIds = new Set([
     ...activeNotes.map(n => n.student_id),
@@ -377,27 +379,25 @@ export default function DiaryEditView({
           )}
         </View>
 
-      </KeyboardAwareScrollView>
-
-      <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
-      <View style={s.footer}>
-        {editError && (
-          <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
-            <CircleAlert size={13} color={C.error} />
-            <Text style={[s.inlineErrorText, { color: C.error }]}>{editError}</Text>
+        <View style={[s.footer, { paddingBottom: insets.bottom }]}>
+          {editError && (
+            <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
+              <CircleAlert size={13} color={C.error} />
+              <Text style={[s.inlineErrorText, { color: C.error }]}>{editError}</Text>
+            </View>
+          )}
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <Pressable style={[s.cancelBtnFt, { borderColor: C.border }]} onPress={onBack}>
+              <Text style={[s.cancelBtnFtText, { color: C.textSecondary }]}>취소</Text>
+            </Pressable>
+            <Pressable style={[s.saveBtn, { backgroundColor: themeColor, opacity: editSaving ? 0.5 : 1, flex: 2 }]}
+              onPress={onSave} disabled={editSaving}>
+              {editSaving ? <ActivityIndicator color="#fff" size="small" /> : <><Save size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
+            </Pressable>
           </View>
-        )}
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          <Pressable style={[s.cancelBtnFt, { borderColor: C.border }]} onPress={onBack}>
-            <Text style={[s.cancelBtnFtText, { color: C.textSecondary }]}>취소</Text>
-          </Pressable>
-          <Pressable style={[s.saveBtn, { backgroundColor: themeColor, opacity: editSaving ? 0.5 : 1, flex: 2 }]}
-            onPress={onSave} disabled={editSaving}>
-            {editSaving ? <ActivityIndicator color="#fff" size="small" /> : <><Save size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
-          </Pressable>
         </View>
-      </View>
-      </KeyboardStickyView>
+
+      </KeyboardAwareScrollView>
 
       <SentencePicker
         visible={editPickerFor !== null}
@@ -414,7 +414,7 @@ export default function DiaryEditView({
 }
 
 const s = StyleSheet.create({
-  form:          { padding: 14, gap: 14, paddingBottom: 80 },
+  form:          { padding: 14, gap: 14, paddingBottom: 8 },
   infoCard:      { borderRadius: 14, borderWidth: 1.5, padding: 14, gap: 8 },
   infoCardRow:   { flexDirection: "row", alignItems: "center", gap: 8 },
   infoCardText:  { fontSize: 13, fontFamily: "Pretendard-Regular" },

@@ -79,7 +79,7 @@ export default function SignupRoleScreen() {
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
       <ScrollView
-        contentContainerStyle={[styles.container, { paddingTop: insets.top + 16, paddingBottom: 24 }]}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
@@ -154,18 +154,17 @@ export default function SignupRoleScreen() {
             <Text style={{ color: C.tint }}>로그인</Text>
           </Text>
         </Pressable>
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
+          <TouchableOpacity
+            style={[styles.nextBtn, { backgroundColor: selected ? MINT : "#CCC" }]}
+            onPress={handleNext}
+            disabled={!selected}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.nextBtnText}>다음</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
-
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
-        <TouchableOpacity
-          style={[styles.nextBtn, { backgroundColor: selected ? MINT : "#CCC" }]}
-          onPress={handleNext}
-          disabled={!selected}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.nextBtnText}>다음</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }

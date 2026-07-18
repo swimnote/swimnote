@@ -321,7 +321,7 @@ export default function ClassAssignScreen() {
 
       <KeyboardAwareScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
         showsVerticalScrollIndicator={false}
       >
@@ -486,19 +486,19 @@ export default function ClassAssignScreen() {
             ))}
           </View>
         )}
-      </KeyboardAwareScrollView>
 
-      <View style={[s.doneWrap, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable
-          style={[s.doneBtn, { backgroundColor: hasChanges ? C.tint : C.border }]}
-          onPress={goBack}
-        >
-          <Check size={18} color={hasChanges ? "#fff" : C.textMuted} />
-          <Text style={[s.doneTxt, { color: hasChanges ? "#fff" : C.textMuted }]}>
-            {hasChanges ? `배정 완료 — ${assigned.length}명 확정` : "변경 없음 · 돌아가기"}
-          </Text>
-        </Pressable>
-      </View>
+        <View style={[s.doneWrap, { paddingBottom: insets.bottom + 12 }]}>
+          <Pressable
+            style={[s.doneBtn, { backgroundColor: hasChanges ? C.tint : C.border }]}
+            onPress={goBack}
+          >
+            <Check size={18} color={hasChanges ? "#fff" : C.textMuted} />
+            <Text style={[s.doneTxt, { color: hasChanges ? "#fff" : C.textMuted }]}>
+              {hasChanges ? `배정 완료 — ${assigned.length}명 확정` : "변경 없음 · 돌아가기"}
+            </Text>
+          </Pressable>
+        </View>
+      </KeyboardAwareScrollView>
 
       {weeklyPicker && (
         <WeeklyPickerModal

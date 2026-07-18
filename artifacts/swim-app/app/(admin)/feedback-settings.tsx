@@ -207,7 +207,7 @@ export default function FeedbackSettingsScreen() {
         data={currentList}
         keyExtractor={item => item.id}
         renderItem={renderItem}
-        contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 16 }]}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={s.emptyBox}>
@@ -219,20 +219,20 @@ export default function FeedbackSettingsScreen() {
             </Text>
           </View>
         }
+        ListFooterComponent={
+          <View style={[s.addBtnWrap, { paddingBottom: insets.bottom + 16 }]}>
+            <Pressable
+              style={[s.addBtn, { backgroundColor: isFull ? "#64748B" : activeColor }]}
+              onPress={openAdd}
+              disabled={isFull}
+            >
+              <Plus size={18} color="#fff" />
+              <Text style={s.addBtnText}>문구 추가</Text>
+              {isFull && <Text style={[s.addBtnText, { fontSize: 11, opacity: 0.8 }]}>(최대 도달)</Text>}
+            </Pressable>
+          </View>
+        }
       />
-
-      {/* 문장 추가 버튼 */}
-      <View style={[s.addBtnWrap, { paddingBottom: insets.bottom + 16 }]}>
-        <Pressable
-          style={[s.addBtn, { backgroundColor: isFull ? "#64748B" : activeColor }]}
-          onPress={openAdd}
-          disabled={isFull}
-        >
-          <Plus size={18} color="#fff" />
-          <Text style={s.addBtnText}>문구 추가</Text>
-          {isFull && <Text style={[s.addBtnText, { fontSize: 11, opacity: 0.8 }]}>(최대 도달)</Text>}
-        </Pressable>
-      </View>
 
       {/* ════ 문장 추가 모달 ════ */}
       <Modal visible={addVisible} transparent animationType="slide" onRequestClose={() => setAddVisible(false)}>
