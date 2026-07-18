@@ -1,10 +1,10 @@
 import { BookOpen, CircleAlert, CirclePlus, CircleX, Images, Image, Save, User, Users, Video } from "lucide-react-native";
 import React, { MutableRefObject, useState } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView, KeyboardStickyView } from "react-native-keyboard-controller";
 import { Image as ExpoImage } from "expo-image";
 import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
@@ -77,8 +77,8 @@ export default function DiaryWriteView({
   videoEnabled: boolean;
 }) {
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <KeyboardAwareScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+    <View style={{ flex: 1 }}>
+      <KeyboardAwareScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} keyboardDismissMode="interactive" bottomOffset={90}>
 
         {myDiaryExists && (
           <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
@@ -330,9 +330,9 @@ export default function DiaryWriteView({
           )}
         </View>
 
-        <View style={{ height: 100 }} />
       </KeyboardAwareScrollView>
 
+      <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
       <View style={s.footer}>
         {formError && (
           <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
@@ -357,6 +357,7 @@ export default function DiaryWriteView({
           </Pressable>
         </View>
       </View>
+      </KeyboardStickyView>
 
       <SentencePicker
         visible={showPickerFor === "common" || showPickerFor === "note"}
@@ -371,7 +372,7 @@ export default function DiaryWriteView({
         }}
       />
 
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
