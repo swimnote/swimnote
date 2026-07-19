@@ -24,6 +24,17 @@ interface FoundAccount {
   social_provider?: "kakao" | "apple" | null;
 }
 
+function maskPhone(phone: string): string {
+  const digits = phone.replace(/[^0-9]/g, "");
+  if (digits.length === 11) {
+    return `${digits.slice(0, 3)}-****-${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)}-***-${digits.slice(6)}`;
+  }
+  return phone;
+}
+
 function roleLabel(role?: string) {
   if (role === "teacher")    return "선생님";
   if (role === "pool_admin") return "대표";
@@ -354,7 +365,7 @@ export default function ForgotPasswordScreen() {
                           {acc.social_provider === "kakao" ? "카카오로 가입한 계정"
                             : acc.social_provider === "apple" ? "Apple로 가입한 계정"
                             : acc.type === "parent"
-                              ? (acc.login_id ? `아이디: ${acc.login_id}` : `전화번호 로그인`)
+                              ? (acc.login_id ? `아이디: ${acc.login_id}` : maskPhone(acc.identifier))
                               : `아이디: ${acc.identifier}`
                           }
                         </Text>
