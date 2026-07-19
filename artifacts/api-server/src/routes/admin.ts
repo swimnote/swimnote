@@ -3558,6 +3558,29 @@ router.post("/refund-policy/agree", requireAuth, requireRole("super_admin", "poo
   } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
+// ── 전화번호로 학부모 계정 삭제 (슈퍼어드민 전용) ──────────────────────────
+// DELETE /admin/maintenance/delete-parent-by-phone?phone=010-7787-1507&pool_id=pool_toykids_swim_club
+router.delete("/maintenance/delete-parent-by-phone", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  const phone = (req.query.phone as string || "").trim();
+  const poolId = (req.query.pool_id as string || "").trim();
+  if (!phone || !poolId) return res.status(400).json({ error: "phone, pool_id 필수" });
+  const cleaned = phone.replace(/[-\s]/g, "");
+  const withHyphen = cleaned.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
+  try {
+    const rows = (await db.execute(sql`
+      SELECT id, name, phone, login_id FROM parent_accounts
+      WHERE (phone = ${cleaned} OR phone = ${withHyphen}) AND swimming_pool_id = ${poolId}
+    `)).rows as any[];
+    if (rows.length === 0) return res.json({ success: true, deleted: 0, message: "해당 계정 없음" });
+    for (const row of rows) {
+      await db.execute(sql`DELETE FROM parent_students WHERE parent_id = ${row.id}`);
+      await db.execute(sql`DELETE FROM parent_accounts WHERE id = ${row.id}`);
+    }
+    console.log(`[maintenance] 전화번호 ${phone} 학부모 ${rows.length}개 삭제 완료`);
+    return res.json({ success: true, deleted: rows.length, accounts: rows.map((r: any) => ({ id: r.id, name: r.name, login_id: r.login_id })) });
+  } catch (e) { console.error(e); return res.status(500).json({ error: "서버 오류" }); }
+});
+
 export { checkRefundPolicyAgreed };
 
 export default router;

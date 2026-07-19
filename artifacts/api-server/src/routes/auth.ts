@@ -1776,6 +1776,9 @@ router.post("/find-identifier-by-phone", async (req, res) => {
   if (!phone) return err(res, 400, "전화번호를 입력해주세요.");
   const cleaned = (phone as string).replace(/[-\s]/g, "");
   try {
+    // 하이픈 있는 형식도 함께 검색 (010-1234-5678 OR 01012345678)
+    const withHyphen = cleaned.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
+
     // users 테이블 (superAdminDb) — 관리자·선생님 계정
     const userRows = (await superAdminDb.execute(sql`
       SELECT u.email AS identifier, u.name, u.role, u.is_activated,
@@ -1783,7 +1786,7 @@ router.post("/find-identifier-by-phone", async (req, res) => {
              sp.name AS pool_name
       FROM users u
       LEFT JOIN swimming_pools sp ON sp.id = u.swimming_pool_id
-      WHERE u.phone = ${cleaned}
+      WHERE (u.phone = ${cleaned} OR u.phone = ${withHyphen})
         AND u.role != 'super_admin'
       ORDER BY u.created_at ASC
     `)).rows as any[];
@@ -1793,7 +1796,7 @@ router.post("/find-identifier-by-phone", async (req, res) => {
       SELECT pa.phone, pa.login_id, pa.name, pa.swimming_pool_id,
              pa.kakao_id, pa.apple_id
       FROM parent_accounts pa
-      WHERE pa.phone = ${cleaned}
+      WHERE pa.phone = ${cleaned} OR pa.phone = ${withHyphen}
       ORDER BY pa.created_at ASC
     `)).rows as any[];
 
