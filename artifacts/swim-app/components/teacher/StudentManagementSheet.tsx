@@ -207,21 +207,17 @@ export default function StudentManagementSheet({
   /* ── 반 배정 실행 ── */
   async function doAssignToClass(classId: string) {
     if (!pickedStudent) return;
-    setClassSaving(classId);
-    try {
-      const currentIds = Array.isArray(pickedStudent.assigned_class_ids)
-        ? pickedStudent.assigned_class_ids : [];
-      if (currentIds.includes(classId)) return;
-      const newIds = [...currentIds, classId];
-      const res = await apiRequest(token, `/students/${pickedStudent.id}/assign`, {
-        method: "PATCH",
-        body: JSON.stringify({ assigned_class_ids: newIds, weekly_count: pickedWeekly }),
-      });
-      if (res.ok) {
-        onAssignDone();
-      }
-    } catch (e) { console.error(e); }
-    finally { setClassSaving(null); }
+    const currentIds = Array.isArray(pickedStudent.assigned_class_ids)
+      ? pickedStudent.assigned_class_ids : [];
+    if (currentIds.includes(classId)) return;
+    const newIds = [...currentIds, classId];
+    // 즉시 완료 처리
+    onAssignDone();
+    // 백그라운드 API
+    apiRequest(token, `/students/${pickedStudent.id}/assign`, {
+      method: "PATCH",
+      body: JSON.stringify({ assigned_class_ids: newIds, weekly_count: pickedWeekly }),
+    }).catch(e => console.error(e));
   }
 
   /* ── 보강 → 배정 시작 ── */
@@ -253,21 +249,14 @@ export default function StudentManagementSheet({
   /* ── 보강 배정 실행 ── */
   async function doAssignMakeup() {
     if (!pickedMakeup || !assignClassId) { setAssignError("반을 선택해주세요."); return; }
-    setAssigning(true); setAssignError("");
-    try {
-      const res = await apiRequest(token, `/teacher/makeups/${pickedMakeup.id}/assign`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ class_group_id: assignClassId, assigned_date: assignDate }),
-      });
-      if (res.ok) {
-        onAssignDone();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        setAssignError(d.error || "배정에 실패했습니다.");
-      }
-    } catch (e) { setAssignError("배정에 실패했습니다."); }
-    finally { setAssigning(false); }
+    // 즉시 완료 처리
+    onAssignDone();
+    // 백그라운드 API
+    apiRequest(token, `/teacher/makeups/${pickedMakeup.id}/assign`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ class_group_id: assignClassId, assigned_date: assignDate }),
+    }).catch(e => console.error(e));
   }
 
   /* ── 공통 헤더 ── */

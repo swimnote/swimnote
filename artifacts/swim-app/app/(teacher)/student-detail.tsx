@@ -115,26 +115,34 @@ export default function StudentDetailScreen() {
 
   async function handleWeeklyChange(newCount: number) {
     if (!id || !student) return;
-    setWeeklyChanging(true);
+    const prevCount = student.weekly_count;
+    // 즉시 UI 반영
+    setStudent(prev => prev ? { ...prev, weekly_count: newCount } : prev);
     setShowWeeklyPicker(false);
-    try {
-      const r = await apiRequest(token, `/students/${id}/weekly-count`, {
-        method: "PATCH",
-        body: JSON.stringify({ weekly_count: newCount }),
-      });
-      if (r.ok) {
-        setStudent(prev => prev ? { ...prev, weekly_count: newCount } : prev);
-      }
-    } catch (e) { console.error(e); }
-    finally { setWeeklyChanging(false); }
+    // 백그라운드 API
+    apiRequest(token, `/students/${id}/weekly-count`, {
+      method: "PATCH",
+      body: JSON.stringify({ weekly_count: newCount }),
+    }).then(r => {
+      if (!r.ok) setStudent(prev => prev ? { ...prev, weekly_count: prevCount } : prev);
+    }).catch(() => {
+      setStudent(prev => prev ? { ...prev, weekly_count: prevCount } : prev);
+    });
   }
 
   async function handleLevelChange() {
     if (!id || pendingLevelOrder == null) return;
     const levelOrder = pendingLevelOrder;
-    setLevelChanging(true);
+    const prevLevelInfo = levelInfo;
+    const newLevel = levelInfo?.all_levels.find(l => l.level_order === levelOrder) ?? null;
+
+    // 즉시 UI 반영
     setShowLevelPicker(false);
     setPendingLevelOrder(null);
+    setLevelNote("");
+    setLevelInfo(prev => prev ? { ...prev, current_level_order: levelOrder, current_level: newLevel } : prev);
+
+    // 백그라운드 API
     try {
       const res = await apiRequest(token, `/teacher/students/${id}/level`, {
         method: "PATCH",
@@ -142,18 +150,16 @@ export default function StudentDetailScreen() {
         body: JSON.stringify({ level_order: levelOrder, note: levelNote || null }),
       });
       if (res.ok) {
-        const newLevel = levelInfo?.all_levels.find(l => l.level_order === levelOrder) ?? null;
-        setLevelInfo(prev => prev
-          ? { ...prev, current_level_order: levelOrder, current_level: newLevel }
-          : prev
-        );
-        setLevelNote("");
         setLevelResult({ ok: true, msg: `레벨이 "${newLevel?.level_name ?? levelOrder}"로 변경됐습니다.\n학부모 앱에 즉시 반영됩니다.` });
       } else {
+        setLevelInfo(prevLevelInfo);
         setLevelResult({ ok: false, msg: "레벨 변경에 실패했습니다. 다시 시도해주세요." });
       }
-    } catch (e) { console.error(e); setLevelResult({ ok: false, msg: "레벨 변경 중 오류가 발생했습니다." }); }
-    finally { setLevelChanging(false); }
+    } catch (e) {
+      console.error(e);
+      setLevelInfo(prevLevelInfo);
+      setLevelResult({ ok: false, msg: "레벨 변경 중 오류가 발생했습니다." });
+    }
   }
 
   if (loading) {

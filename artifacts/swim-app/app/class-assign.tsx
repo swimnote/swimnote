@@ -169,49 +169,46 @@ export default function ClassAssignScreen() {
   async function handleAddCoTeacher(teacher: TeacherItem) {
     if (!classId) return;
     const newIds = [...coTeacherIds.filter(id => id !== teacher.id), teacher.id];
-    setCoTeacherSaving(true);
-    try {
-      const res = await apiRequest(token, `/class-groups/${classId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ co_teacher_ids: newIds }),
-      });
-      if (res.ok) { setCoTeacherIds(newIds); setShowTeacherModal(false); setTeacherSearch(""); }
-    } catch (e) { console.error(e); }
-    finally { setCoTeacherSaving(false); }
+    const prevIds = [...coTeacherIds];
+    // 즉시 반영
+    setCoTeacherIds(newIds);
+    setShowTeacherModal(false);
+    setTeacherSearch("");
+    // 백그라운드 API
+    apiRequest(token, `/class-groups/${classId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ co_teacher_ids: newIds }),
+    }).then(r => { if (!r.ok) setCoTeacherIds(prevIds); }).catch(() => setCoTeacherIds(prevIds));
   }
 
   async function handleChangeMainTeacher(teacher: TeacherItem) {
     if (!classId) return;
-    setMainTeacherSaving(true);
-    try {
-      const res = await apiRequest(token, `/class-groups/${classId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teacher_user_id: teacher.id }),
-      });
-      if (res.ok) {
-        setClassInfo(prev => prev ? { ...prev, instructor: teacher.name, teacher_user_id: teacher.id } : prev);
-        setShowMainTeacherModal(false);
-        setMainTeacherSearch("");
-      }
-    } catch (e) { console.error(e); }
-    finally { setMainTeacherSaving(false); }
+    const prevInfo = classInfo;
+    // 즉시 반영
+    setClassInfo(prev => prev ? { ...prev, instructor: teacher.name, teacher_user_id: teacher.id } : prev);
+    setShowMainTeacherModal(false);
+    setMainTeacherSearch("");
+    // 백그라운드 API
+    apiRequest(token, `/class-groups/${classId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teacher_user_id: teacher.id }),
+    }).then(r => { if (!r.ok) setClassInfo(prevInfo); }).catch(() => setClassInfo(prevInfo));
   }
 
   async function handleRemoveCoTeacher(removeId: string) {
     if (!classId) return;
     const newIds = coTeacherIds.filter(id => id !== removeId);
-    setCoTeacherSaving(true);
-    try {
-      const res = await apiRequest(token, `/class-groups/${classId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ co_teacher_ids: newIds }),
-      });
-      if (res.ok) setCoTeacherIds(newIds);
-    } catch (e) { console.error(e); }
-    finally { setCoTeacherSaving(false); }
+    const prevIds = [...coTeacherIds];
+    // 즉시 반영
+    setCoTeacherIds(newIds);
+    // 백그라운드 API
+    apiRequest(token, `/class-groups/${classId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ co_teacher_ids: newIds }),
+    }).then(r => { if (!r.ok) setCoTeacherIds(prevIds); }).catch(() => setCoTeacherIds(prevIds));
   }
 
   const dupNames = useMemo(() => {
@@ -256,47 +253,59 @@ export default function ClassAssignScreen() {
     const capacityOver = classInfo?.capacity != null && assigned.length >= classInfo.capacity;
     if (capacityOver) return;
 
-    setSaving(student.id);
+    const currentIds: string[] = Array.isArray(student.assigned_class_ids) ? student.assigned_class_ids : [];
+    const newIds = [...currentIds, classId];
+    const optimistic = { ...student, assigned_class_ids: newIds, weekly_count: weeklyCount };
+
+    // 즉시 UI 반영
+    setAllStudents(prev => prev.map(s => s.id === student.id ? optimistic : s));
+    setAssigned(prev => [...prev, optimistic]);
+    setHasChanges(true);
+
+    // 백그라운드 API
     try {
-      const currentIds: string[] = Array.isArray(student.assigned_class_ids)
-        ? student.assigned_class_ids : [];
-      const newIds = [...currentIds, classId];
       const res = await apiRequest(token, `/students/${student.id}/assign`, {
         method: "PATCH",
-        body: JSON.stringify({
-          assigned_class_ids: newIds,
-          weekly_count: weeklyCount,
-        }),
+        body: JSON.stringify({ assigned_class_ids: newIds, weekly_count: weeklyCount }),
       });
-      if (!res.ok) return;
-      const updated: Student = await res.json();
-      setAllStudents(prev => prev.map(s => s.id === student.id ? { ...s, ...updated } : s));
-      setAssigned(prev => [...prev, { ...student, ...updated }]);
-      setHasChanges(true);
-    } catch (e) { console.error(e); }
-    finally { setSaving(null); }
+      if (!res.ok) {
+        setAllStudents(prev => prev.map(s => s.id === student.id ? student : s));
+        setAssigned(prev => prev.filter(s => s.id !== student.id));
+      } else {
+        const updated: Student = await res.json();
+        setAllStudents(prev => prev.map(s => s.id === student.id ? { ...s, ...updated } : s));
+        setAssigned(prev => prev.map(s => s.id === student.id ? { ...s, ...updated } : s));
+      }
+    } catch {
+      setAllStudents(prev => prev.map(s => s.id === student.id ? student : s));
+      setAssigned(prev => prev.filter(s => s.id !== student.id));
+    }
   }
 
   async function doRemove(student: Student, timing: "now" | "next_week" | "week_after" = "now") {
     if (!classId) return;
-    setSaving(student.id);
+
+    const prevAssigned = assigned;
+    const prevAll = allStudents;
+
+    // 즉시 UI 반영
+    setAssigned(prev => prev.filter(s => s.id !== student.id));
+    setAllStudents(prev => prev.map(s => s.id === student.id
+      ? { ...s, assigned_class_ids: (s.assigned_class_ids || []).filter(id => id !== classId), class_group_id: s.class_group_id === classId ? null : s.class_group_id }
+      : s
+    ));
+    setHasChanges(true);
+
+    // 백그라운드 API
     try {
       const res = await apiRequest(token, `/students/${student.id}/remove-from-class`, {
         method: "POST",
-        body: JSON.stringify({
-          class_group_id: classId,
-          effective_timing: timing,
-        }),
+        body: JSON.stringify({ class_group_id: classId, effective_timing: timing }),
       });
-      if (!res.ok) return;
-      setAssigned(prev => prev.filter(s => s.id !== student.id));
-      setAllStudents(prev => prev.map(s => s.id === student.id
-        ? { ...s, assigned_class_ids: (s.assigned_class_ids || []).filter(id => id !== classId), class_group_id: (s.class_group_id === classId ? null : s.class_group_id) }
-        : s
-      ));
-      setHasChanges(true);
-    } catch (e) { console.error(e); }
-    finally { setSaving(null); }
+      if (!res.ok) { setAssigned(prevAssigned); setAllStudents(prevAll); }
+    } catch {
+      setAssigned(prevAssigned); setAllStudents(prevAll);
+    }
   }
 
   const days = classInfo?.schedule_days.split(",").map(d => d.trim()).join("·") || "";
@@ -354,9 +363,7 @@ export default function ClassAssignScreen() {
                     {classInfo.instructor || "선생님 미지정"}
                   </Text>
                   <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: "#EEF2FF" }}>
-                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#4F46E5" }}>
-                      {mainTeacherSaving ? "저장 중..." : "변경"}
-                    </Text>
+                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#4F46E5" }}>변경</Text>
                   </View>
                 </Pressable>
               ) : classInfo.instructor ? (

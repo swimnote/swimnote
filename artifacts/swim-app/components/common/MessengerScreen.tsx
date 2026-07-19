@@ -237,40 +237,70 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
   const sendTalk = useCallback(async () => {
     const text = talkInput.trim();
     if (!text || sending || !token) return;
+
+    const tempId = Date.now();
+    const optimistic: WorkMessage = {
+      id: tempId,
+      pool_id: poolId,
+      sender_id: myUserId,
+      sender_name: null,
+      content: text,
+      msg_type: "normal",
+      channel_type: "talk",
+      message_type: targetUser ? "directed_message" : "normal",
+      extra_data: targetUser ? { target_user_id: targetUser.id, target_user_name: targetUser.name } : null,
+      created_at: new Date().toISOString(),
+    };
+
+    // 즉시 UI 반영
+    setTalkMessages(prev => [optimistic, ...prev]);
+    setTalkInput("");
     setSending(true);
+
     try {
       const body: Record<string, any> = {
-        pool_id: poolId,
-        content: text,
-        channel_type: "talk",
-        message_type: "normal",
+        pool_id: poolId, content: text, channel_type: "talk", message_type: "normal",
       };
-      if (targetUser) {
-        body.target_user_id = targetUser.id;
-        body.target_user_name = targetUser.name;
-      }
-      const res = await apiRequest(token, "/messenger/messages", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      if (targetUser) { body.target_user_id = targetUser.id; body.target_user_name = targetUser.name; }
+      const res = await apiRequest(token, "/messenger/messages", { method: "POST", body: JSON.stringify(body) });
       if (res.ok) {
         const d = await res.json();
-        if (d.message) setTalkMessages((prev) => [d.message, ...prev]);
+        if (d.message) setTalkMessages(prev => prev.map(m => m.id === tempId ? d.message : m));
+      } else {
+        setTalkMessages(prev => prev.filter(m => m.id !== tempId));
       }
-      setTalkInput("");
-      // targetUser는 여기서 초기화하지 않음 — X 버튼 또는 탭 이탈 시에만 초기화
     } catch (e) {
       console.error("[messenger] sendTalk error", e);
+      setTalkMessages(prev => prev.filter(m => m.id !== tempId));
     } finally {
       setSending(false);
     }
-  }, [talkInput, sending, poolId, token, targetUser]);
+  }, [talkInput, sending, poolId, token, targetUser, myUserId]);
 
   /* ── 공지 전송 ── */
   const sendNotice = useCallback(async () => {
     const text = noticeInput.trim();
     if (!text || sending || !isAdmin || !token) return;
+
+    const tempId = Date.now();
+    const optimistic: WorkMessage = {
+      id: tempId,
+      pool_id: poolId,
+      sender_id: myUserId,
+      sender_name: null,
+      content: text,
+      msg_type: "notice",
+      channel_type: "notice",
+      message_type: "notice",
+      extra_data: null,
+      created_at: new Date().toISOString(),
+    };
+
+    // 즉시 UI 반영
+    setNoticeMessages(prev => [optimistic, ...prev]);
+    setNoticeInput("");
     setSending(true);
+
     try {
       const res = await apiRequest(token, "/messenger/notice", {
         method: "POST",
@@ -278,15 +308,17 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
       });
       if (res.ok) {
         const d = await res.json();
-        if (d.message) setNoticeMessages((prev) => [d.message, ...prev]);
+        if (d.message) setNoticeMessages(prev => prev.map(m => m.id === tempId ? d.message : m));
+      } else {
+        setNoticeMessages(prev => prev.filter(m => m.id !== tempId));
       }
-      setNoticeInput("");
     } catch (e) {
       console.error("[messenger] sendNotice error", e);
+      setNoticeMessages(prev => prev.filter(m => m.id !== tempId));
     } finally {
       setSending(false);
     }
-  }, [noticeInput, sending, poolId, isAdmin, token]);
+  }, [noticeInput, sending, poolId, isAdmin, token, myUserId]);
 
   /* ── + 버튼: 첨부 메뉴 열기 ── */
   const handlePlusBtn = useCallback(() => {

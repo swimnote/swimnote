@@ -62,26 +62,21 @@ export function MemberStatusChangeModal({
   }
 
   async function doChange(status: ActionStatus, mode: "immediate" | "next_month") {
-    setLoading(true);
     setError(null);
+    // 즉시 모달 닫기
+    setStep("select");
+    setPickedStatus(null);
+    onClose();
+    // 백그라운드 API → 성공 시 부모 갱신
     try {
       const res = await apiRequest(token, `/students/${studentId}/change-status`, {
         method: "POST",
         body: JSON.stringify({ new_status: status, effective_mode: mode }),
       });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setError(d.error || d.message || "상태 변경에 실패했습니다.");
-        setLoading(false);
-        return;
+      if (res.ok) {
+        onChanged({ status, mode });
       }
-      setLoading(false);
-      handleClose();
-      onChanged({ status, mode });
-    } catch {
-      setError("네트워크 오류가 발생했습니다.");
-      setLoading(false);
-    }
+    } catch { /* 실패 시 부모가 다음 갱신 시 자동 복구 */ }
   }
 
   const now = new Date();
