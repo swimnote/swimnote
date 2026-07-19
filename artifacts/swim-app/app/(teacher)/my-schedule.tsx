@@ -176,11 +176,11 @@ export default function MyScheduleScreen() {
 
   useEffect(() => { loadMakeupDates(); }, [loadMakeupDates]);
 
-  // 탭 전환 후 복귀 시 stuck loading 상태만 초기화
-  // (showDeleteClassConfirm/deletingClass는 ClassDetailSheet Modal 닫힘 → focus 이벤트 경쟁 조건으로 삭제 흐름을 방해하므로 여기서 리셋 금지)
+  // 탭 전환/화면 복귀 시 데이터 리로드 + stuck loading 초기화
   useFocusEffect(useCallback(() => {
     setDeletingClassLoading(false);
-  }, []));
+    load();
+  }, [load]));
 
   const handleDeleteClass = useCallback(async () => {
     if (!deletingClass || deletingClassLoading) return;
@@ -334,6 +334,7 @@ export default function MyScheduleScreen() {
         ((Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(selectedGroup.id))
         || st.class_group_id === selectedGroup.id)
         && (!(st as any).class_enrolled_at || (st as any).class_enrolled_at <= todayDateStr())
+        && (!st.status || st.status === "active")
       ).sort((a, b) => {
         const aAbs = dayViewAttState[a.id] === "absent";
         const bAbs = dayViewAttState[b.id] === "absent";
@@ -414,7 +415,7 @@ export default function MyScheduleScreen() {
           } />
         <View style={s.subHeader}>
           <Pressable style={[s.subActionBtn, { backgroundColor: C.tintLight, flex: 1 }]}
-            onPress={() => router.push(`/class-assign?classId=${g.id}` as any)}>
+            onPress={() => router.push(`/class-assign?classId=${g.id}&backTo=my-schedule` as any)}>
             <Users size={13} color={C.tint} />
             <Text style={[s.subActionText, { color: C.tint }]}>반배정</Text>
           </Pressable>

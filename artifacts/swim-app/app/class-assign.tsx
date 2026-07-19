@@ -93,7 +93,7 @@ function isInClass(s: Student, cid: string) {
 export default function ClassAssignScreen() {
   const { token, activeRole, adminUser } = useAuth();
   const insets = useSafeAreaInsets();
-  const { classId, initialClass } = useLocalSearchParams<{ classId: string; initialClass?: string }>();
+  const { classId, initialClass, backTo } = useLocalSearchParams<{ classId: string; initialClass?: string; backTo?: string }>();
   const isAdmin = activeRole === "pool_admin" || activeRole === "super_admin";
   // 자기 반 담당 선생님도 co-teacher 추가/제거 가능
   const [canManageTeachers, setCanManageTeachers] = useState(isAdmin);
@@ -315,7 +315,11 @@ export default function ClassAssignScreen() {
   const capacityOver = classInfo?.capacity != null && assigned.length >= classInfo.capacity;
 
   function goBack() {
-    router.back();
+    if (backTo === "my-schedule") {
+      router.navigate("/(teacher)/my-schedule" as any);
+    } else {
+      router.back();
+    }
   }
 
   return (
