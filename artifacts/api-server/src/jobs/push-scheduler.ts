@@ -225,9 +225,82 @@ async function runMakeupDaySchedule(): Promise<void> {
   }
 }
 
+// ── 일지 푸시 예약 큐 처리 ───────────────────────────────────────────
+function formatDateKrSched(dateStr: string): string {
+  try {
+    const [, m, d] = dateStr.split("-");
+    return `${parseInt(m)}월 ${parseInt(d)}일`;
+  } catch { return dateStr; }
+}
+
+async function runDiaryPushQueue(): Promise<void> {
+  try {
+    const items = (await db.execute(sql`
+      SELECT * FROM diary_push_queue
+      WHERE scheduled_at <= now() AND sent_at IS NULL
+      ORDER BY scheduled_at
+      LIMIT 50
+    `)).rows as any[];
+
+    for (const item of items) {
+      try {
+        const dateLabel = item.lesson_date ? ` (${formatDateKrSched(item.lesson_date)})` : "";
+
+        if (item.is_individual) {
+          // 개인 일지: student_ids 기반으로 학부모 조회 후 발송
+          const studentIds: string[] = item.student_ids || [];
+          if (studentIds.length > 0) {
+            const idsLiteral = studentIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
+            const parentRows = (await db.execute(sql.raw(`
+              SELECT DISTINCT pa.id AS parent_account_id, s.name AS student_name
+              FROM students s
+              JOIN parent_students ps ON ps.student_id = s.id
+              JOIN parent_accounts pa ON pa.id = ps.parent_id
+              WHERE s.id IN (${idsLiteral})
+                AND s.status != 'deleted' AND ps.status = 'approved'
+            `))).rows as any[];
+
+            for (const p of parentRows) {
+              const studentLabel = p.student_name ? `${p.student_name}의 ` : "";
+              const notifBody = `${item.class_name}${dateLabel} ${studentLabel}개인 수업 일지가 도착했어요 💬`;
+              await sendPushToUser(
+                p.parent_account_id, true, "diary_upload",
+                "📖 수업 일지가 도착했어요", notifBody,
+                { type: "diary_upload", diaryId: item.diary_id },
+                `diary_${item.diary_id}_${p.parent_account_id}`,
+                { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
+              ).catch(() => {});
+            }
+          }
+        } else {
+          // 공통 일지: 반 전체 학부모에게 발송
+          const notifBody = `${item.class_name}${dateLabel} 수업 일지가 도착했어요. 지금 확인해보세요 💬`;
+          await sendPushToClassParents(
+            item.class_id, "diary_upload",
+            "📖 수업 일지가 도착했어요", notifBody,
+            { type: "diary_upload", diaryId: item.diary_id, classId: item.class_id },
+            `diary_${item.diary_id}`, false,
+            { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
+          );
+        }
+
+        // 발송 완료 표시
+        await db.execute(sql`
+          UPDATE diary_push_queue SET sent_at = now() WHERE id = ${item.id}
+        `);
+        console.log(`[push-scheduler] 일지 푸시 예약 발송 완료:`, item.id);
+      } catch (e) {
+        console.error("[push-scheduler] 일지 큐 항목 발송 오류:", item.id, e);
+      }
+    }
+  } catch (e) {
+    console.error("[push-scheduler] diary_queue 처리 오류:", e);
+  }
+}
+
 // ── 스케줄러 등록 ────────────────────────────────────────────────────
 export function startPushScheduler(): void {
-  // 매 분 실행 (전날 알림 + 당일 알림 시간 체크)
+  // 매 분 실행 (전날 알림 + 당일 알림 시간 체크 + 일지 예약 큐)
   // DB 락으로 서버 여러 대에서 중복 발송 방지
   cron.schedule("* * * * *", async () => {
     const locked = await acquireLock("push-minute", 90); // 1분30초 TTL
@@ -235,6 +308,7 @@ export function startPushScheduler(): void {
     try {
       await runPrevDaySchedule();
       await runSameDaySchedule();
+      await runDiaryPushQueue();
       await recordHeartbeat("push-minute", { ran: true, at: new Date().toISOString() });
     } finally {
       await releaseLock("push-minute");

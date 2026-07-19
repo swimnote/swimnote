@@ -448,6 +448,22 @@ export async function initPushTables(): Promise<void> {
         created_at      TIMESTAMPTZ DEFAULT now()
       )
     `);
+    // 일지 푸시 예약 큐 (22시 이후 작성 → 다음날 10시 발송)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS diary_push_queue (
+        id            TEXT PRIMARY KEY,
+        pool_id       TEXT NOT NULL,
+        class_id      TEXT,
+        diary_id      TEXT NOT NULL,
+        student_ids   JSONB,
+        class_name    TEXT NOT NULL,
+        lesson_date   TEXT,
+        is_individual BOOLEAN NOT NULL DEFAULT false,
+        scheduled_at  TIMESTAMPTZ NOT NULL,
+        sent_at       TIMESTAMPTZ,
+        created_at    TIMESTAMPTZ DEFAULT now()
+      )
+    `);
     // 예약 발송 중복 방지용 테이블
     await superAdminDb.execute(sql`
       CREATE TABLE IF NOT EXISTS push_scheduled_sent (

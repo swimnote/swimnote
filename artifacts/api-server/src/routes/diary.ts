@@ -88,10 +88,34 @@ function formatDateKr(dateStr: string): string {
   } catch { return dateStr; }
 }
 
+// 일지 푸시 허용 시간대: KST 10:00 ~ 22:00
+const DIARY_PUSH_START_H = 10;
+const DIARY_PUSH_END_H   = 22;
+
+function getKSTNow(): Date {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+}
+
+function isDiaryPushAllowed(kstNow: Date): boolean {
+  const h = kstNow.getHours();
+  return h >= DIARY_PUSH_START_H && h < DIARY_PUSH_END_H;
+}
+
+/** 다음 발송 가능 시각 (KST 기준 다음날 10:00) → UTC ISO 문자열 반환 */
+function nextDiaryPushTime(kstNow: Date): string {
+  const next = new Date(kstNow);
+  next.setDate(next.getDate() + 1);
+  next.setHours(DIARY_PUSH_START_H, 0, 0, 0);
+  // KST → UTC: -9시간
+  return new Date(next.getTime() - 9 * 60 * 60 * 1000).toISOString();
+}
+
 async function sendDiaryPush(classId: string, diaryId: string, className: string, poolId: string, lessonDate?: string) {
   try {
     const dateLabel = lessonDate ? ` (${formatDateKr(lessonDate)})` : "";
-    // 인앱 알림 생성 (notifications 테이블)
+    const notifBody = `${className}${dateLabel} 수업 일지가 도착했어요. 지금 확인해보세요 💬`;
+
+    // 인앱 알림 생성 (시간대 무관 즉시)
     const parentRows = await db.execute(sql`
       SELECT DISTINCT pa.id AS parent_account_id
       FROM students s
@@ -100,7 +124,6 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
       WHERE (s.class_group_id = ${classId} OR s.assigned_class_ids @> to_jsonb(${classId}::text))
         AND s.status != 'deleted' AND ps.status = 'approved'
     `);
-    const notifBody = `${className}${dateLabel} 수업 일지가 도착했어요. 지금 확인해보세요 💬`;
     for (const p of parentRows.rows as any[]) {
       const nid = genId("notif");
       await db.execute(sql`
@@ -114,16 +137,26 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
     }
 
     const { sendPushToClassParents } = await import("../lib/push-service.js");
-    await sendPushToClassParents(
-      classId,
-      "diary_upload",
-      "📖 수업 일지가 도착했어요",
-      notifBody,
-      { type: "diary_upload", diaryId, classId },
-      `diary_${diaryId}`,
-      false,
-      { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
-    );
+    const kstNow = getKSTNow();
+    if (isDiaryPushAllowed(kstNow)) {
+      // 허용 시간대 → 즉시 발송
+      await sendPushToClassParents(
+        classId, "diary_upload",
+        "📖 수업 일지가 도착했어요", notifBody,
+        { type: "diary_upload", diaryId, classId },
+        `diary_${diaryId}`, false,
+        { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
+      );
+    } else {
+      // 비허용 시간대 → 다음날 10시 예약
+      const qid = genId("dpq");
+      const scheduledAt = nextDiaryPushTime(kstNow);
+      await db.execute(sql`
+        INSERT INTO diary_push_queue (id, pool_id, class_id, diary_id, class_name, lesson_date, is_individual, scheduled_at)
+        VALUES (${qid}, ${poolId}, ${classId}, ${diaryId}, ${className}, ${lessonDate ?? null}, false, ${scheduledAt})
+      `);
+      console.log(`[diary] 푸시 예약 등록 (${scheduledAt}):`, qid);
+    }
   } catch (e) { console.error("[diary] 푸시 알림 오류:", e); }
 }
 
@@ -141,7 +174,8 @@ async function sendDiaryPushToStudents(studentIds: string[], diaryId: string, cl
       WHERE s.id IN (${idsLiteral})
         AND s.status != 'deleted' AND ps.status = 'approved'
     `));
-    const { sendPushToUser } = await import("../lib/push-service.js");
+
+    // 인앱 알림은 시간대 무관 즉시 생성
     for (const p of parentRows.rows as any[]) {
       const studentLabel = p.student_name ? `${p.student_name}의 ` : "";
       const notifBody = `${className}${dateLabel} ${studentLabel}개인 수업 일지가 도착했어요 💬`;
@@ -154,14 +188,32 @@ async function sendDiaryPushToStudents(studentIds: string[], diaryId: string, cl
                 ${diaryId}, 'class_diary', ${poolId}, false)
         ON CONFLICT DO NOTHING
       `);
-      await sendPushToUser(
-        p.parent_account_id, true, "diary_upload",
-        "📖 수업 일지가 도착했어요",
-        notifBody,
-        { type: "diary_upload", diaryId, classId: classId },
-        `diary_${diaryId}_${p.parent_account_id}`,
-        { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
-      ).catch(() => {});
+    }
+
+    const { sendPushToUser } = await import("../lib/push-service.js");
+    const kstNow = getKSTNow();
+    if (isDiaryPushAllowed(kstNow)) {
+      // 허용 시간대 → 즉시 발송
+      for (const p of parentRows.rows as any[]) {
+        const studentLabel = p.student_name ? `${p.student_name}의 ` : "";
+        const notifBody = `${className}${dateLabel} ${studentLabel}개인 수업 일지가 도착했어요 💬`;
+        await sendPushToUser(
+          p.parent_account_id, true, "diary_upload",
+          "📖 수업 일지가 도착했어요", notifBody,
+          { type: "diary_upload", diaryId },
+          `diary_${diaryId}_${p.parent_account_id}`,
+          { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
+        ).catch(() => {});
+      }
+    } else {
+      // 비허용 시간대 → 다음날 10시 예약
+      const qid = genId("dpq");
+      const scheduledAt = nextDiaryPushTime(kstNow);
+      await db.execute(sql`
+        INSERT INTO diary_push_queue (id, pool_id, class_id, diary_id, student_ids, class_name, lesson_date, is_individual, scheduled_at)
+        VALUES (${qid}, ${poolId}, null, ${diaryId}, ${JSON.stringify(studentIds)}::jsonb, ${className}, ${lessonDate ?? null}, true, ${scheduledAt})
+      `);
+      console.log(`[diary] 개인일지 푸시 예약 등록 (${scheduledAt}):`, qid);
     }
   } catch (e) { console.error("[diary] 개인일지 푸시 알림 오류:", e); }
 }
