@@ -81,9 +81,7 @@ export default function StudentDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showWeeklyPicker, setShowWeeklyPicker] = useState(false);
-  const [weeklyChanging, setWeeklyChanging] = useState(false);
   const [showLevelPicker,   setShowLevelPicker]   = useState(false);
-  const [levelChanging,     setLevelChanging]     = useState(false);
   const [levelNote,         setLevelNote]         = useState("");
   const [pendingLevelOrder, setPendingLevelOrder] = useState<number | null>(null);
   const [levelResult, setLevelResult] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -203,10 +201,7 @@ export default function StudentDetailScreen() {
               <Text style={[s.avatarText, { color: themeColor }]}>{student.name[0]}</Text>
             </View>
             {/* 레벨 뱃지 */}
-            {levelChanging
-              ? <ActivityIndicator size="small" color={themeColor} />
-              : <LevelBadge level={levelInfo?.current_level ?? null} size="sm" showName />
-            }
+            <LevelBadge level={levelInfo?.current_level ?? null} size="sm" showName />
           </View>
 
           <View style={{ flex: 1 }}>
@@ -220,11 +215,7 @@ export default function StudentDetailScreen() {
               <View style={[s.statusBadge, { backgroundColor: primaryBadge.bg }]}>
                 <Text style={[s.statusText, { color: primaryBadge.color }]}>{primaryBadge.label}</Text>
               </View>
-              {weeklyChanging ? (
-                <View style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: "#FFFFFF" }]}>
-                  <ActivityIndicator size={10} color="#64748B" />
-                </View>
-              ) : weeklyBadge ? (
+              {weeklyBadge ? (
                 <Pressable
                   style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: weeklyBadge.bg }]}
                   onPress={() => setShowWeeklyPicker(true)}

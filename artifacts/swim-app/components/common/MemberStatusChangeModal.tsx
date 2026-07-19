@@ -7,7 +7,7 @@
  */
 import { Calendar, CircleAlert, Clock, Zap } from "lucide-react-native";
 import React, { useState } from "react";
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
@@ -41,7 +41,6 @@ export function MemberStatusChangeModal({
   const { token } = useAuth();
   const [step, setStep] = useState<"select" | "timing">("select");
   const [pickedStatus, setPickedStatus] = useState<ActionStatus | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function handleClose() {
@@ -88,12 +87,7 @@ export function MemberStatusChangeModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
       <Pressable style={m.overlay} onPress={handleClose} />
       <View style={m.sheet}>
-        {loading ? (
-          <View style={{ alignItems: "center", paddingVertical: 40 }}>
-            <ActivityIndicator color={C.tint} size="large" />
-            <Text style={{ color: C.textSecondary, marginTop: 12, fontFamily: "Pretendard-Regular" }}>처리 중...</Text>
-          </View>
-        ) : step === "select" ? (
+        {step === "select" ? (
           <>
             <Text style={m.title}>상태 변경</Text>
             <Text style={m.sub}>{studentName}님의 상태를 선택하세요</Text>
