@@ -102,3 +102,9 @@ id = "SDWbnK9OVkj3TQq5OUHkm"
 uri = "file://swimnote_x_design.txt"
 type = "text"
 title = "스윔노트 X 전체 설계 문서"
+
+[[outputs]]
+id = "E6r-JnY2fw0KBGO4udbQD"
+uri = "file://swimnote_작업로그_20260719.txt"
+type = "text"
+title = "SwimNote 오늘 작업 로그 (2026-07-19)"
