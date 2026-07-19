@@ -41,10 +41,12 @@ export function WithdrawalModal({ visible, onClose, onConfirm, loading, isPaidPl
     onClose();
   }
 
-  async function handleConfirm() {
+  function handleConfirm() {
     if (!choice || loading) return;
-    await onConfirm(choice === "immediate");
+    const isImmediate = choice === "immediate";
     setChoice(null);
+    onClose();
+    onConfirm(isImmediate).catch(() => {});
   }
 
   // 무료 플랜: 선택지 없이 즉시 삭제만 확인
@@ -74,7 +76,7 @@ export function WithdrawalModal({ visible, onClose, onConfirm, loading, isPaidPl
               </Pressable>
               <Pressable
                 style={[s.confirmBtn, { backgroundColor: "#D96C6C" }, loading && { opacity: 0.7 }]}
-                onPress={() => onConfirm(true).then(() => setChoice(null))}
+                onPress={() => { onClose(); onConfirm(true).catch(() => {}); }}
                 disabled={loading}
               >
                 {loading ? (

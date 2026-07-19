@@ -37,7 +37,7 @@ type ConfirmAction = {
   message: string;
   confirmText: string;
   confirmColor?: string;
-  onConfirm: () => Promise<void>;
+  onConfirm: () => void;
 } | null;
 
 export default function MakeupsScreen() {
@@ -90,21 +90,23 @@ export default function MakeupsScreen() {
     if (r.ok) setTeachers(await r.json());
   };
 
-  const handleAssign = async (mk: any, classGroup: any) => {
-    const r = await apiRequest(token, `/admin/makeups/${mk.id}/assign`, {
-      method: "PATCH", body: JSON.stringify({ class_group_id: classGroup.id }),
-    });
+  const handleAssign = (mk: any, classGroup: any) => {
     setAssignModal(null);
-    if (r.status === 409) { setConflictVisible(true); return; }
-    if (r.ok) setMakeups(prev => prev.filter(m => m.id !== mk.id));
+    setMakeups(prev => prev.filter(m => m.id !== mk.id));
+    apiRequest(token, `/admin/makeups/${mk.id}/assign`, {
+      method: "PATCH", body: JSON.stringify({ class_group_id: classGroup.id }),
+    }).then(r => {
+      if (r.status === 409) { setConflictVisible(true); load(); }
+      else if (!r.ok) load();
+    }).catch(() => load());
   };
 
-  const handleTransfer = async (mk: any, teacher: any) => {
-    const r = await apiRequest(token, `/admin/makeups/${mk.id}/transfer`, {
-      method: "PATCH", body: JSON.stringify({ target_teacher_id: teacher.id, target_teacher_name: teacher.name }),
-    });
+  const handleTransfer = (mk: any, teacher: any) => {
     setTransferModal(null);
-    if (r.ok) setMakeups(prev => prev.filter(m => m.id !== mk.id));
+    setMakeups(prev => prev.filter(m => m.id !== mk.id));
+    apiRequest(token, `/admin/makeups/${mk.id}/transfer`, {
+      method: "PATCH", body: JSON.stringify({ target_teacher_id: teacher.id, target_teacher_name: teacher.name }),
+    }).then(r => { if (!r.ok) load(); }).catch(() => load());
   };
 
   const requestComplete = (mk: any) => {
@@ -112,10 +114,12 @@ export default function MakeupsScreen() {
       title: "보강 완료 처리",
       message: `${mk.student_name}의 보강을 완료로 처리합니까?\n완료 처리 후에는 되돌릴 수 없습니다.`,
       confirmText: "완료 처리",
-      onConfirm: async () => {
-        const r = await apiRequest(token, `/admin/makeups/${mk.id}/complete`, { method: "PATCH" });
-        if (r.status === 409) { setConflictVisible(true); return; }
-        if (r.ok) setMakeups(prev => prev.filter(m => m.id !== mk.id));
+      onConfirm: () => {
+        setMakeups(prev => prev.filter(m => m.id !== mk.id));
+        apiRequest(token, `/admin/makeups/${mk.id}/complete`, { method: "PATCH" }).then(r => {
+          if (r.status === 409) { setConflictVisible(true); load(); }
+          else if (!r.ok) load();
+        }).catch(() => load());
       },
     });
   };
@@ -126,9 +130,10 @@ export default function MakeupsScreen() {
       message: `${mk.student_name}을(를) 보강 대기 목록으로 되돌립니까?\n배정/이동 정보가 모두 초기화됩니다.`,
       confirmText: "되돌리기",
       confirmColor: "#D97706",
-      onConfirm: async () => {
-        const r = await apiRequest(token, `/admin/makeups/${mk.id}/revert`, { method: "PATCH" });
-        if (r.ok) setMakeups(prev => prev.filter(m => m.id !== mk.id));
+      onConfirm: () => {
+        setMakeups(prev => prev.filter(m => m.id !== mk.id));
+        apiRequest(token, `/admin/makeups/${mk.id}/revert`, { method: "PATCH" })
+          .then(r => { if (!r.ok) load(); }).catch(() => load());
       },
     });
   };
@@ -139,9 +144,10 @@ export default function MakeupsScreen() {
       message: "이 보강 항목을 취소하시겠습니까?\n취소된 항목은 복구할 수 없습니다.",
       confirmText: "취소 처리",
       confirmColor: "#D96C6C",
-      onConfirm: async () => {
-        const r = await apiRequest(token, `/admin/makeups/${mk.id}/cancel`, { method: "PATCH" });
-        if (r.ok) setMakeups(prev => prev.filter(m => m.id !== mk.id));
+      onConfirm: () => {
+        setMakeups(prev => prev.filter(m => m.id !== mk.id));
+        apiRequest(token, `/admin/makeups/${mk.id}/cancel`, { method: "PATCH" })
+          .then(r => { if (!r.ok) load(); }).catch(() => load());
       },
     });
   };
@@ -248,9 +254,10 @@ export default function MakeupsScreen() {
         title={confirmAction?.title ?? ""}
         message={confirmAction?.message ?? ""}
         confirmText={confirmAction?.confirmText ?? "확인"}
-        onConfirm={async () => {
-          if (confirmAction) await confirmAction.onConfirm();
+        onConfirm={() => {
+          const action = confirmAction;
           setConfirmAction(null);
+          if (action) action.onConfirm();
         }}
         onCancel={() => setConfirmAction(null)}
       />

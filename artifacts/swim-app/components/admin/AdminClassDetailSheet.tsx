@@ -199,25 +199,16 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
     finally { setTeacherSaving(false); }
   }
 
-  async function handleTransfer(student: StudentItem) {
+  function handleTransfer(student: StudentItem) {
     const ids: string[] = Array.isArray(student.assigned_class_ids) ? student.assigned_class_ids : [];
     const fromClassId = ids.find(id => id !== group.id) || student.class_group_id;
     if (!fromClassId) return;
-    setSaving(student.id);
-    try {
-      const res = await apiRequest(token, `/students/${student.id}/move-class`, {
-        method: "POST",
-        body: JSON.stringify({
-          from_class_id: fromClassId,
-          to_class_id: group.id,
-        }),
-      });
-      if (res.ok) {
-        await load();
-        onReload();
-      }
-    } catch (e) { console.error(e); }
-    finally { setSaving(null); }
+    setStudents(prev => [...prev, { ...student, class_group_id: group.id, assigned_class_ids: [...ids, group.id] }]);
+    onReload();
+    apiRequest(token, `/students/${student.id}/move-class`, {
+      method: "POST",
+      body: JSON.stringify({ from_class_id: fromClassId, to_class_id: group.id }),
+    }).then(() => load()).catch(e => { console.error(e); load(); });
   }
 
   const capacityLabel = detail?.capacity != null

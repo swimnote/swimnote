@@ -32,23 +32,14 @@ export default function AbsenceModal({
     if (!visible) { setStep("ask"); setResult(""); setStudents([]); setNearby([]); setSelectedClass(""); }
   }, [visible]);
 
-  async function handleNoTransfer() {
+  function handleNoTransfer() {
     if (!item) return;
-    setLoading(true);
-    try {
-      const res = await apiRequest(token, "/absences", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pool_id: (item as any).pool_id || "", class_group_id: item.id, absence_date: date, absence_time: item.schedule_time }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setResult(`결근 처리 완료. 학생 ${data.affected_students}명이 미실시(선생님) 보강으로 이월되었습니다.`);
-      } else {
-        setResult("오류: " + (data.error || "처리 실패"));
-      }
-    } catch { setResult("처리 중 오류가 발생했습니다."); }
-    finally { setLoading(false); }
+    setResult("결근 처리 완료. 학생들이 미실시(선생님) 보강으로 이월되었습니다.");
+    apiRequest(token, "/absences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pool_id: (item as any).pool_id || "", class_group_id: item.id, absence_date: date, absence_time: item.schedule_time }),
+    }).catch(() => {});
   }
   async function handleHasTransfer() {
     if (!item) return;
@@ -67,30 +58,26 @@ export default function AbsenceModal({
     } catch { setResult("조회 실패"); }
     finally { setLoading(false); }
   }
-  async function handleSubmitTransfer() {
+  function handleSubmitTransfer() {
     if (!item) return;
-    setLoading(true);
-    try {
+    const transferIds = students.filter(s => s.selected).map(s => s.id);
+    const remaining = students.filter(s => !s.selected).length;
+    setResult(`처리 완료. 이동 ${transferIds.length}명, 미실시(선생님) ${remaining}명`);
+    (async () => {
       const absRes = await apiRequest(token, "/absences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pool_id: (item as any).pool_id || "", class_group_id: item.id, absence_date: date, absence_time: item.schedule_time }),
       });
       const absData = await absRes.json();
-      if (!absData.success) { setResult("결근 등록 실패: " + absData.error); setLoading(false); return; }
-      const aid = absData.absence?.id;
-      const transferIds = students.filter(s => s.selected).map(s => s.id);
-      if (transferIds.length > 0 && selectedClass) {
-        await apiRequest(token, `/absences/${aid}/transfer`, {
+      if (absData.success && absData.absence?.id && transferIds.length > 0 && selectedClass) {
+        await apiRequest(token, `/absences/${absData.absence.id}/transfer`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ transfer_student_ids: transferIds, to_class_group_id: selectedClass }),
         });
       }
-      const remaining = students.filter(s => !s.selected).length;
-      setResult(`처리 완료. 이동 ${transferIds.length}명, 미실시(선생님) ${remaining}명`);
-    } catch { setResult("처리 중 오류"); }
-    finally { setLoading(false); }
+    })().catch(() => {});
   }
   function toggleStudent(id: string) {
     setStudents(prev => prev.map(s => s.id === id ? { ...s, selected: !s.selected } : s));

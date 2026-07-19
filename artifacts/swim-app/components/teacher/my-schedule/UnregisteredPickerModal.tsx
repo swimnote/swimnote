@@ -26,7 +26,6 @@ export default function UnregisteredPickerModal({
   const [list, setList]       = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ]             = useState("");
-  const [assigning, setAssigning] = useState<string | null>(null);
   const [confirmItem, setConfirmItem] = useState<any | null>(null);
 
   useEffect(() => {
@@ -39,12 +38,11 @@ export default function UnregisteredPickerModal({
 
   const filtered = list.filter(u => !q || u.name?.includes(q) || u.parent_phone?.includes(q));
 
-  async function doAssign(student: any) {
-    setAssigning(student.id);
-    await apiRequest(token, `/teacher/unregistered/${student.id}/assign`, {
+  function doAssign(student: any) {
+    onAssigned();
+    apiRequest(token, `/teacher/unregistered/${student.id}/assign`, {
       method: "POST", body: JSON.stringify({ class_group_id: classGroupId }),
-    });
-    setAssigning(null); onAssigned();
+    }).catch(() => {});
   }
 
   return (
