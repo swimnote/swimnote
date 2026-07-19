@@ -238,12 +238,6 @@ export default function LoginScreen() {
       >
         {/* ── 전체 콘텐츠 (로고 + 폼 + 가입 버튼) ── */}
         <View style={[s.bottomSection, isTablet && s.bottomSectionTablet]}>
-        {/* ── 앱 소개 이미지 ── */}
-        <View style={s.appImgRow}>
-          <Image source={require("../assets/images/app-admin.jpeg")} style={s.appImg} resizeMode="cover" />
-          <Image source={require("../assets/images/app-teacher.jpeg")} style={[s.appImg, s.appImgCenter]} resizeMode="cover" />
-          <Image source={require("../assets/images/app-parent.png")} style={s.appImg} resizeMode="cover" />
-        </View>
         {/* ── 로고 ── */}
         <Image
           source={require("../assets/images/swimnote-logo.png")}
