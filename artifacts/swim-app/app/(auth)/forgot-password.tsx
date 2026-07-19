@@ -16,10 +16,12 @@ type SmsState = "idle" | "sending" | "sent" | "verifying" | "verified" | "error"
 interface FoundAccount {
   type: "admin" | "parent";
   identifier: string;
+  login_id?: string | null;
   name: string;
   role?: string;
   pool_name?: string | null;
   is_activated?: boolean;
+  social_provider?: "kakao" | "apple" | null;
 }
 
 function roleLabel(role?: string) {
@@ -322,12 +324,20 @@ export default function ForgotPasswordScreen() {
                       ]}
                       onPress={() => setSelectedIdx(idx)}
                     >
-                      <View style={[styles.accountIcon, { backgroundColor: isSelected ? C.tint : C.border }]}>
-                        {acc.type === "parent"
-                          ? <User size={16} color={isSelected ? "#fff" : C.textMuted} />
-                          : acc.role === "teacher"
-                            ? <GraduationCap size={16} color={isSelected ? "#fff" : C.textMuted} />
-                            : <Building2 size={16} color={isSelected ? "#fff" : C.textMuted} />
+                      <View style={[styles.accountIcon, {
+                        backgroundColor: acc.social_provider === "kakao" ? "#FEE500"
+                          : acc.social_provider === "apple" ? "#000"
+                          : isSelected ? C.tint : C.border,
+                      }]}>
+                        {acc.social_provider === "kakao"
+                          ? <Text style={{ fontSize: 16 }}>K</Text>
+                          : acc.social_provider === "apple"
+                            ? <Text style={{ fontSize: 16, color: "#fff" }}></Text>
+                            : acc.type === "parent"
+                              ? <User size={16} color={isSelected ? "#fff" : C.textMuted} />
+                              : acc.role === "teacher"
+                                ? <GraduationCap size={16} color={isSelected ? "#fff" : C.textMuted} />
+                                : <Building2 size={16} color={isSelected ? "#fff" : C.textMuted} />
                         }
                       </View>
                       <View style={{ flex: 1, gap: 2 }}>
@@ -341,8 +351,18 @@ export default function ForgotPasswordScreen() {
                         </View>
                         <Text style={[styles.accountSub, { color: C.textMuted }]}>
                           {acc.pool_name ? acc.pool_name + " · " : ""}
-                          {acc.identifier}
+                          {acc.social_provider === "kakao" ? "카카오로 가입한 계정"
+                            : acc.social_provider === "apple" ? "Apple로 가입한 계정"
+                            : acc.type === "parent"
+                              ? (acc.login_id ? `아이디: ${acc.login_id}` : `전화번호 로그인`)
+                              : `아이디: ${acc.identifier}`
+                          }
                         </Text>
+                        {acc.social_provider && (
+                          <Text style={[styles.socialNote, { color: "#D97706" }]}>
+                            {acc.social_provider === "kakao" ? "카카오" : "Apple"} 앱으로 로그인해주세요
+                          </Text>
+                        )}
                       </View>
                       <View style={[styles.radioOuter, { borderColor: isSelected ? C.tint : C.border }]}>
                         {isSelected && <View style={[styles.radioInner, { backgroundColor: C.tint }]} />}
@@ -359,11 +379,30 @@ export default function ForgotPasswordScreen() {
                   styles.submitBtn,
                   { backgroundColor: selectedIdx !== null ? C.button : C.border, opacity: pressed ? 0.85 : 1 }
                 ]}
-                onPress={() => { if (selectedIdx !== null) setStep("pw"); }}
+                onPress={() => {
+                  if (selectedIdx === null) return;
+                  const acc = accounts[selectedIdx];
+                  if (acc.social_provider) {
+                    setError(
+                      acc.social_provider === "kakao"
+                        ? "카카오로 가입한 계정은 카카오 앱에서 로그인해주세요."
+                        : "Apple로 가입한 계정은 Apple 로그인으로 접속해주세요."
+                    );
+                    return;
+                  }
+                  setError("");
+                  setStep("pw");
+                }}
                 disabled={selectedIdx === null}
               >
                 <Text style={styles.submitBtnText}>다음</Text>
               </Pressable>
+            )}
+            {!!error && (
+              <View style={[styles.errBox, { backgroundColor: "#FEF3C7" }]}>
+                <CircleAlert size={14} color="#D97706" />
+                <Text style={[styles.errText, { color: "#92400E" }]}>{error}</Text>
+              </View>
             )}
           </View>
         )}
@@ -501,6 +540,7 @@ const styles = StyleSheet.create({
   roleBadgeTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   radioOuter: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   radioInner: { width: 10, height: 10, borderRadius: 5 },
+  socialNote: { fontSize: 11 },
   selectedBadge: {
     flexDirection: "row", alignItems: "center", gap: 12,
     borderWidth: 1, borderRadius: 14, padding: 12,

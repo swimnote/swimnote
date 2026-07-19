@@ -1779,6 +1779,7 @@ router.post("/find-identifier-by-phone", async (req, res) => {
     // users 테이블 (superAdminDb) — 관리자·선생님 계정
     const userRows = (await superAdminDb.execute(sql`
       SELECT u.email AS identifier, u.name, u.role, u.is_activated,
+             u.kakao_id, u.apple_id,
              sp.name AS pool_name
       FROM users u
       LEFT JOIN swimming_pools sp ON sp.id = u.swimming_pool_id
@@ -1789,13 +1790,14 @@ router.post("/find-identifier-by-phone", async (req, res) => {
 
     // parent_accounts 테이블 (db — pool별 DB)
     const parentRows = (await db.execute(sql`
-      SELECT pa.phone AS identifier, pa.name, pa.swimming_pool_id
+      SELECT pa.phone, pa.login_id, pa.name, pa.swimming_pool_id,
+             pa.kakao_id, pa.apple_id
       FROM parent_accounts pa
       WHERE pa.phone = ${cleaned}
       ORDER BY pa.created_at ASC
     `)).rows as any[];
 
-    // 학부모 계정 pool_name: pool_id 목록을 쉼표 구분 IN 절로 조회
+    // 학부모 계정 pool_name: pool_id 목록 조회
     const poolMap: Record<string, string> = {};
     const parentPoolIds = [...new Set(parentRows.map((r: any) => r.swimming_pool_id).filter(Boolean))];
     for (const pid of parentPoolIds) {
@@ -1805,20 +1807,29 @@ router.post("/find-identifier-by-phone", async (req, res) => {
       if (poolRows.length > 0) poolMap[pid] = poolRows[0].name;
     }
 
+    function socialProvider(row: any): "kakao" | "apple" | null {
+      if (row.kakao_id) return "kakao";
+      if (row.apple_id) return "apple";
+      return null;
+    }
+
     const accounts = [
       ...userRows.map((r: any) => ({
         type: "admin",
-        identifier: r.identifier,
+        identifier: r.identifier,        // 아이디(email 필드 = 로그인 아이디)
         name: r.name,
         role: r.role,
         pool_name: r.pool_name || null,
         is_activated: r.is_activated,
+        social_provider: socialProvider(r),
       })),
       ...parentRows.map((r: any) => ({
         type: "parent",
-        identifier: r.identifier,
+        identifier: r.phone,             // reset-password는 phone으로 계정 찾음
+        login_id: r.login_id || null,    // 표시용 아이디
         name: r.name,
         pool_name: poolMap[r.swimming_pool_id] || null,
+        social_provider: socialProvider(r),
       })),
     ];
 
