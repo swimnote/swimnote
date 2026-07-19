@@ -307,6 +307,9 @@ export default function MyScheduleScreen() {
       return;
     }
 
+    apiRequest(token, "/class-groups").then(r => r.ok && r.json()).then(data => {
+      if (Array.isArray(data)) setGroups(data);
+    }).catch(() => {});
     apiRequest(token, "/students").then(r => r.ok && r.json()).then(data => {
       if (Array.isArray(data)) setStudents(data);
     }).catch(() => {});
@@ -503,7 +506,7 @@ export default function MyScheduleScreen() {
                   </Pressable>
                 </View>
 
-                <Pressable onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id, backTo:"my-schedule"} } as any)}
+                <Pressable onPress={() => navigateFromSheet(() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id, backTo:"my-schedule"} } as any))}
                   style={{ padding: 4 }}>
                   <ChevronRight size={16} color={C.textMuted} />
                 </Pressable>

@@ -424,7 +424,21 @@ export default function StudentDetailScreen() {
         pendingStatusChange={student.pending_status_change}
         pendingEffectiveMode={student.pending_effective_mode}
         onClose={() => setShowStatusModal(false)}
-        onChanged={() => load()}
+        onChanged={({ status: newStatus }) => {
+          // 즉시 optimistic UI 반영
+          setStudent(prev => {
+            if (!prev) return prev;
+            if (newStatus === "unassigned") {
+              return { ...prev, assigned_class_ids: [], class_group_id: null, schedule_labels: null };
+            } else if (newStatus === "suspended" || newStatus === "withdrawn") {
+              return { ...prev, status: newStatus as any, assigned_class_ids: [], class_group_id: null };
+            } else if (newStatus === "active") {
+              return { ...prev, status: "active" };
+            }
+            return prev;
+          });
+          load();
+        }}
       />
 
       {/* ── 주 횟수 선택 모달 ──────────────────────────────── */}
