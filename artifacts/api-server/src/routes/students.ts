@@ -995,8 +995,12 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
       schedule_labels: labels || null,
       updated_at: new Date(),
     }).where(eq(studentsTable.id, req.params.id));
-    // 해당 반 이력 닫기
-    await closeClassHistory(req.params.id, class_group_id, today);
+    // 이력 닫기: 마지막 반이면 전체 이력 닫기, 아니면 해당 반만
+    if (newIds.length === 0) {
+      await closeAllClassHistory(req.params.id, today);
+    } else {
+      await closeClassHistory(req.params.id, class_group_id, today);
+    }
 
     // change_log 생성 (즉시 적용)
     try {
