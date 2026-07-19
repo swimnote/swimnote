@@ -140,7 +140,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       students = await db.select().from(studentsTable)
         .where(and(
           eq(studentsTable.swimming_pool_id, poolId!),
-          sql`status NOT IN ('archived', 'deleted')`,
+          sql`status NOT IN ('archived', 'deleted', 'unregistered')`,
           sql`(
             class_group_id = ${filterClassId}
             OR EXISTS (
