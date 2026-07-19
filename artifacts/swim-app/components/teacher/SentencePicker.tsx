@@ -461,7 +461,7 @@ const s = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: SCREEN_H * 0.88,
+    height: SCREEN_H * 0.88,
   },
   middleArea: {
     flex: 1,
