@@ -6,7 +6,7 @@
 - [OTA 채널 패턴](ota-channel-pattern.md) — production+preview 브랜치 둘 다 배포 필수; 동시 실행 금지(순차), eas.json preview에 channel:production 추가됨
 - [다음 빌드 포함 변경 사항](pending-build-changes.md) — 1.3.11 빌드 이후 코드 반영됐으나 미배포 변경 목록 (엑셀 업로드 개선, capacity API)
 - [탭 텍스트 Pretendard 금지](tab-font-clipping.md) — 탭 바 Text에 fontFamily Pretendard 사용 시 iOS에서 한글 받침 세로 클리핑 발생; lineHeight 명시로 해결
-- [프로덕션 API 서버 배포 필요](pending-server-deploy.md) — co_teacher_ids 컬럼·holiday_confirmations 테이블·새 API 엔드포인트들이 개발에만 반영됨; Render.com 재배포 필요
+- [API 서버 DB 구성](api-server-db-config.md) — executeSql≠운영DB; tsx 스크립트(@workspace/db)로만 실제 데이터 접근; swimnote.kr=Render.com 동일 외부DB 확인
 - [학생 목록 성능 최적화](students-perf.md) — getPoolId DB 조회 → 토큰 poolId 우선 사용; SQL ORDER BY 추가로 JS sort 제거; pool_status/pool_created 복합 인덱스 추가
 - [EAS 빌드 tarball 구조 및 패치](eas-build-tarball.md) — tarball은 workspace root 기준 project/artifacts/swim-app/ 구조; git.js 3개 메서드 no-op 패치; lockfile 없음+.npmrc frozen-lockfile=false가 안정적
 - [_layout.tsx otaReady 미선언 크래시](layout-otaReady-bug.md) — RootNav에서 otaReady 변수 선언 없이 참조 → ReferenceError → 앱 크래시; const otaReady = false 추가로 해결
