@@ -264,16 +264,23 @@ router.get("/photos/private/:studentId", requireAuth, async (req: AuthRequest, r
       if (!sRows.rows.length) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
     }
 
+    const { date } = req.query;
     const rows = await db.execute(sql`
       SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.pool_id,
              sp.uploaded_by, sp.uploaded_by_name, sp.caption, sp.created_at, sp.file_size,
-             s.name AS student_name
+             sp.object_key, sp.lesson_date, s.name AS student_name
       FROM photo_assets_meta sp
       LEFT JOIN students s ON s.id = sp.student_id
       WHERE sp.album_type = 'private' AND sp.student_id = ${studentId}
+      ${date ? sql`AND (
+        (sp.lesson_date IS NOT NULL AND sp.lesson_date = ${date as string})
+        OR (sp.lesson_date IS NULL AND DATE(sp.created_at AT TIME ZONE 'Asia/Seoul') = ${date as string})
+      )` : sql``}
       ORDER BY sp.created_at DESC
     `);
-    const photos = (rows.rows as any[]).map(p => ({ ...p, file_url: `/api/photos/${p.id}/file` }));
+    const photos = await batchPresign(
+      (rows.rows as any[]).map(p => ({ ...p, file_url: `/api/photos/${p.id}/file` }))
+    );
     res.json(photos);
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });

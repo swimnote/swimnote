@@ -40,9 +40,10 @@ interface Props {
   classGroupId: string;
   lessonDate: string;
   diaryId?: string;
+  studentId?: string;
 }
 
-export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diaryId }: Props) {
+export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diaryId, studentId }: Props) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,26 +62,34 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const photoReq = apiRequest(token, `/photos/group/${classGroupId}?date=${lessonDate}`);
+      const groupPhotoReq = apiRequest(token, `/photos/group/${classGroupId}?date=${lessonDate}`);
+      const privatePhotoReq = studentId
+        ? apiRequest(token, `/photos/private/${studentId}?date=${lessonDate}`)
+        : Promise.resolve(null);
       const videoReq = diaryId
         ? fetch(`${API_BASE}/videos/diary/${diaryId}`, { headers: { Authorization: `Bearer ${token}` } })
             .then(r => r.ok ? r.json() : { videos: [] })
             .catch(() => ({ videos: [] }))
         : Promise.resolve({ videos: [] });
 
-      const [photoRes, videoData] = await Promise.all([photoReq, videoReq]);
+      const [groupRes, privateRes, videoData] = await Promise.all([groupPhotoReq, privatePhotoReq, videoReq]);
 
-      if (photoRes.ok) {
-        const data = await photoRes.json();
-        setPhotos(Array.isArray(data) ? data : []);
+      const groupPhotos: Photo[] = groupRes?.ok ? (await groupRes.json()) : [];
+      const privatePhotos: Photo[] = privateRes?.ok ? (await privateRes.json()) : [];
+
+      const seen = new Set<string>();
+      const merged: Photo[] = [];
+      for (const p of [...(Array.isArray(groupPhotos) ? groupPhotos : []), ...(Array.isArray(privatePhotos) ? privatePhotos : [])]) {
+        if (!seen.has(p.id)) { seen.add(p.id); merged.push(p); }
       }
+      setPhotos(merged);
       setVideos(Array.isArray(videoData?.videos) ? videoData.videos : []);
     } catch (e) {
       console.error(`[DiaryPhotoStrip] catch:`, e);
     } finally {
       setLoading(false);
     }
-  }, [token, classGroupId, lessonDate, diaryId]);
+  }, [token, classGroupId, lessonDate, diaryId, studentId]);
 
   useEffect(() => { load(); }, [load]);
 

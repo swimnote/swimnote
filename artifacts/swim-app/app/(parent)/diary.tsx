@@ -5,7 +5,7 @@
  * - 항목 클릭 시 펼치기/접기
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { BookOpen, CircleCheck, Mail, User, UserRound } from "lucide-react-native";
+import { BookOpen, CircleCheck, Mail, UserRound } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -113,19 +113,13 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
                 <Text style={[ds.badgeTxt, { color: "#2EC4B6" }]}>{entry.class_group_name}</Text>
               </View>
             )}
-            {entry.student_note && (
-              <View style={[ds.badge, { backgroundColor: "#EEDDF5" }]}>
-                <User size={9} color="#7C3AED" />
-                <Text style={[ds.badgeTxt, { color: "#7C3AED" }]}>개별 일지</Text>
-              </View>
-            )}
             {entry.is_edited && (
               <View style={[ds.badge, { backgroundColor: "#FFFFFF" }]}>
                 <Text style={[ds.badgeTxt, { color: C.textMuted }]}>수정됨</Text>
               </View>
             )}
           </View>
-          <Text style={[ds.preview, { color: C.textMuted }]} numberOfLines={2}>{entry.common_content}</Text>
+          <Text style={[ds.preview, { color: C.textMuted }]} numberOfLines={2}>{entry.common_content?.trim() || entry.student_note?.note_content?.trim() || ""}</Text>
         </View>
         <LucideIcon name={open ? "chevron-up" : "chevron-down"} size={18} color={C.textMuted} />
       </Pressable>
@@ -133,11 +127,25 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
       {open && (
         <View style={ds.body}>
           <View style={[ds.divider, { backgroundColor: C.border }]} />
-          <View style={ds.section}>
-            <View style={[ds.dot, { backgroundColor: C.tint }]} />
-            <Text style={[ds.sectionLabel, { color: C.tint }]}>수업 내용</Text>
-          </View>
-          <Text style={[ds.content, { color: C.text }]}>{entry.common_content}</Text>
+
+          {entry.common_content?.trim() ? (
+            <>
+              <View style={ds.section}>
+                <View style={[ds.dot, { backgroundColor: C.tint }]} />
+                <Text style={[ds.sectionLabel, { color: C.tint }]}>수업 내용</Text>
+              </View>
+              <Text style={[ds.content, { color: C.text }]}>{entry.common_content}</Text>
+            </>
+          ) : null}
+
+          {entry.student_note?.note_content?.trim() ? (
+            <>
+              {entry.common_content?.trim() ? (
+                <View style={[ds.divider, { backgroundColor: C.border }]} />
+              ) : null}
+              <Text style={[ds.content, { color: C.text }]}>{entry.student_note.note_content}</Text>
+            </>
+          ) : null}
 
           {effectiveClassGroupId ? (
             <DiaryPhotoStrip
@@ -145,17 +153,8 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
               classGroupId={effectiveClassGroupId}
               lessonDate={entry.lesson_date.slice(0, 10)}
               diaryId={entry.id}
+              studentId={studentId}
             />
-          ) : null}
-
-          {entry.student_note?.note_content ? (
-            <View style={[ds.noteBox, { backgroundColor: "#EEDDF5", borderColor: "#E6FAF8" }]}>
-              <View style={ds.section}>
-                <User size={12} color="#7C3AED" />
-                <Text style={ds.noteTitle}>우리 아이 개별 일지</Text>
-              </View>
-              <Text style={[ds.content, { color: "#0F172A" }]}>{entry.student_note.note_content}</Text>
-            </View>
           ) : null}
         </View>
       )}
@@ -307,8 +306,6 @@ const ds = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
   sectionLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", textTransform: "uppercase" },
   content: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22, paddingLeft: 14 },
-  noteBox: { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
-  noteTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED", flex: 1 },
   reactions: { flexDirection: "row", borderTopWidth: 1, paddingHorizontal: 8, paddingVertical: 6 },
   reactionBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 10, gap: 3, flexDirection: "row", justifyContent: "center" },
   reactionEmoji: { fontSize: 16 },
