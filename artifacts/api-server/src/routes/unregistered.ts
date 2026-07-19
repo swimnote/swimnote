@@ -256,6 +256,7 @@ router.post("/teacher/unregistered/:id/assign", requireAuth, requireRole("teache
       : [...existingIds, class_group_id];
 
     // 정상회원으로 전환
+    const enrolledAt = new Date().toISOString().split("T")[0];
     await db
       .update(studentsTable)
       .set({
@@ -266,6 +267,13 @@ router.post("/teacher/unregistered/:id/assign", requireAuth, requireRole("teache
         updated_at: new Date(),
       })
       .where(eq(studentsTable.id, req.params.id));
+
+    // student_class_history 이력 기록 (미등록→정상 전환 시 배정 반 등록)
+    await db.execute(sql`
+      INSERT INTO student_class_history (student_id, class_group_id, swimming_pool_id, enrolled_at)
+      VALUES (${req.params.id}, ${class_group_id}, ${poolId}, ${enrolledAt}::date)
+      ON CONFLICT DO NOTHING
+    `);
 
     return res.json({ success: true, message: "정상회원으로 전환 완료" });
   } catch (e) {

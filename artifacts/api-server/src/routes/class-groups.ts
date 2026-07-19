@@ -332,13 +332,22 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin", "tea
         )
     `);
 
-    // 3) attendance: class_group_id null 처리 (출결 기록 보존)
+    // 3) student_class_history: 해당 반의 열린 이력 닫기 (반 삭제일 = left_at)
+    const todayStr = new Date().toISOString().split("T")[0];
+    await db.execute(sql`
+      UPDATE student_class_history
+      SET left_at = ${todayStr}::date
+      WHERE class_group_id = ${cgId}
+        AND left_at IS NULL
+    `);
+
+    // 5) attendance: class_group_id null 처리 (출결 기록 보존)
     await db.execute(sql`UPDATE attendance SET class_group_id = NULL WHERE class_group_id = ${cgId}`);
 
-    // 4) teacher_schedule_notes 삭제
+    // 6) teacher_schedule_notes 삭제
     await db.execute(sql`DELETE FROM teacher_schedule_notes WHERE class_group_id = ${cgId}`);
 
-    // 5) 반 soft delete (hard delete 하지 않음)
+    // 7) 반 soft delete (hard delete 하지 않음)
     await db.update(classGroupsTable)
       .set({ is_deleted: true, deleted_at: new Date(), updated_at: new Date() })
       .where(eq(classGroupsTable.id, cgId));
