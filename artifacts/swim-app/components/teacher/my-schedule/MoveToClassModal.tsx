@@ -70,79 +70,87 @@ export default function MoveToClassModal({
     : "";
 
   return (
-    <>
-      <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-        <Pressable style={rm.backdrop} onPress={onClose} />
-        <View style={rm.sheet}>
-          <View style={rm.handle} />
-          {step === "list" && (
-            <>
-              <View style={rm.header}>
-                <View style={{ flex: 1 }}>
-                  <Text style={rm.title}>반이동 — {clsLabel(classGroup)}</Text>
-                  <Text style={rm.sub}>선택한 학생을 현재 반으로 이동합니다</Text>
-                </View>
-                <Pressable onPress={onClose} style={{ padding: 4 }}><X size={20} color={C.textSecondary} /></Pressable>
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={rm.backdrop} onPress={onClose} />
+      <View style={rm.sheet}>
+        <View style={rm.handle} />
+        {step === "list" && (
+          <>
+            <View style={rm.header}>
+              <View style={{ flex: 1 }}>
+                <Text style={rm.title}>반이동 — {clsLabel(classGroup)}</Text>
+                <Text style={rm.sub}>선택한 학생을 현재 반으로 이동합니다</Text>
               </View>
-              <View style={rm.searchBar}>
-                <Search size={14} color={C.textMuted} />
-                <TextInput style={rm.searchInput} value={q} onChangeText={setQ} placeholder="이름 검색" placeholderTextColor={C.textMuted} />
-                {!!q && <Pressable onPress={() => setQ("")}><X size={14} color={C.textMuted} /></Pressable>}
-              </View>
-              <ScrollView style={rm.list} showsVerticalScrollIndicator={false}>
-                {filtered.length === 0 ? (
-                  <View style={rm.empty}><Users size={28} color={C.textMuted} /><Text style={rm.emptyTxt}>이동 가능한 학생이 없습니다</Text></View>
-                ) : filtered.map(item => {
-                  const fromClses = teacherClassesOf(item);
-                  return (
-                    <View key={item.id} style={rm.row}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={rm.name}>{item.name}</Text>
-                        <Text style={rm.weeklyBadge}>주 {item.weekly_count ?? 1}회</Text>
-                        <Text style={rm.classSub} numberOfLines={2}>현재 반: {fromClses.map(clsLabel).join(" / ") || "—"}</Text>
-                      </View>
-                      <Pressable style={[rm.moveBtn, { borderColor: themeColor }]} onPress={() => handleSelectStudent(item)}>
-                        <Text style={[rm.moveTxt, { color: themeColor }]}>이동</Text>
-                      </Pressable>
-                    </View>
-                  );
-                })}
-                <View style={{ height: 40 }} />
-              </ScrollView>
-            </>
-          )}
-          {step === "pick-class" && selected && (
-            <>
-              <View style={rm.header}>
-                <Pressable onPress={() => { setStep("list"); setSelected(null); }} style={{ padding: 4, marginRight: 8 }}>
-                  <ArrowLeft size={20} color={C.textSecondary} />
-                </Pressable>
-                <View style={{ flex: 1 }}>
-                  <Text style={rm.title}>어떤 반에서 제거할까요?</Text>
-                  <Text style={rm.sub}>{selected.name} · 주 {selected.weekly_count ?? 1}회</Text>
-                </View>
-              </View>
-              <ScrollView style={rm.list} showsVerticalScrollIndicator={false}>
-                {teacherClassesOf(selected).map(g => (
-                  <Pressable key={g.id} style={rm.pickRow} onPress={() => { setFromClassId(g.id); setStep("confirm"); }}>
+              <Pressable onPress={onClose} style={{ padding: 4 }}><X size={20} color={C.textSecondary} /></Pressable>
+            </View>
+            <View style={rm.searchBar}>
+              <Search size={14} color={C.textMuted} />
+              <TextInput style={rm.searchInput} value={q} onChangeText={setQ} placeholder="이름 검색" placeholderTextColor={C.textMuted} />
+              {!!q && <Pressable onPress={() => setQ("")}><X size={14} color={C.textMuted} /></Pressable>}
+            </View>
+            <ScrollView style={rm.list} showsVerticalScrollIndicator={false}>
+              {filtered.length === 0 ? (
+                <View style={rm.empty}><Users size={28} color={C.textMuted} /><Text style={rm.emptyTxt}>이동 가능한 학생이 없습니다</Text></View>
+              ) : filtered.map(item => {
+                const fromClses = teacherClassesOf(item);
+                return (
+                  <View key={item.id} style={rm.row}>
                     <View style={{ flex: 1 }}>
-                      <Text style={rm.pickName}>{clsLabel(g)}</Text>
-                      <Text style={rm.pickSub}>이 반에서 {selected.name} 회원만 제거됩니다</Text>
+                      <Text style={rm.name}>{item.name}</Text>
+                      <Text style={rm.weeklyBadge}>주 {item.weekly_count ?? 1}회</Text>
+                      <Text style={rm.classSub} numberOfLines={2}>현재 반: {fromClses.map(clsLabel).join(" / ") || "—"}</Text>
                     </View>
-                    <ChevronRight size={18} color={C.textMuted} />
-                  </Pressable>
-                ))}
-                <View style={{ height: 40 }} />
-              </ScrollView>
-            </>
-          )}
-        </View>
-      </Modal>
-      <ConfirmModal visible={step === "confirm" && !!selected && !!fromClassId}
-        title="반이동 확인" message={confirmMsg} confirmText="이동" cancelText="취소"
-        onConfirm={() => { setStep("list"); doMove(); }}
-        onCancel={() => setStep(selected && teacherClassesOf(selected).length > 1 ? "pick-class" : "list")} />
-    </>
+                    <Pressable style={[rm.moveBtn, { borderColor: themeColor }]} onPress={() => handleSelectStudent(item)}>
+                      <Text style={[rm.moveTxt, { color: themeColor }]}>이동</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </>
+        )}
+        {step === "pick-class" && selected && (
+          <>
+            <View style={rm.header}>
+              <Pressable onPress={() => { setStep("list"); setSelected(null); }} style={{ padding: 4, marginRight: 8 }}>
+                <ArrowLeft size={20} color={C.textSecondary} />
+              </Pressable>
+              <View style={{ flex: 1 }}>
+                <Text style={rm.title}>어떤 반에서 제거할까요?</Text>
+                <Text style={rm.sub}>{selected.name} · 주 {selected.weekly_count ?? 1}회</Text>
+              </View>
+            </View>
+            <ScrollView style={rm.list} showsVerticalScrollIndicator={false}>
+              {teacherClassesOf(selected).map(g => (
+                <Pressable key={g.id} style={rm.pickRow} onPress={() => { setFromClassId(g.id); setStep("confirm"); }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={rm.pickName}>{clsLabel(g)}</Text>
+                    <Text style={rm.pickSub}>이 반에서 {selected.name} 회원만 제거됩니다</Text>
+                  </View>
+                  <ChevronRight size={18} color={C.textMuted} />
+                </Pressable>
+              ))}
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </>
+        )}
+        {step === "confirm" && selected && fromClassId && (
+          <View style={rm.confirmBox}>
+            <Text style={rm.confirmTitle}>반이동 확인</Text>
+            <Text style={rm.confirmMsg}>{confirmMsg}</Text>
+            <View style={rm.confirmBtns}>
+              <Pressable style={rm.cancelBtn} onPress={() => setStep(selected && teacherClassesOf(selected).length > 1 ? "pick-class" : "list")}>
+                <Text style={rm.cancelTxt}>취소</Text>
+              </Pressable>
+              <Pressable style={[rm.confirmBtn, { backgroundColor: themeColor }]} onPress={doMove}>
+                <Text style={rm.confirmBtnTxt}>이동</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+      </View>
+    </Modal>
   );
 }
 
@@ -170,4 +178,12 @@ const rm = StyleSheet.create({
   pickSub:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
   empty:       { alignItems: "center", paddingVertical: 40, gap: 8 },
   emptyTxt:    { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" },
+  confirmBox:  { padding: 24, gap: 16 },
+  confirmTitle:{ fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center" },
+  confirmMsg:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 21 },
+  confirmBtns: { flexDirection: "row", gap: 12, marginTop: 8 },
+  cancelBtn:   { flex: 1, height: 46, borderRadius: 12, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+  cancelTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  confirmBtn:  { flex: 1, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  confirmBtnTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
 });
