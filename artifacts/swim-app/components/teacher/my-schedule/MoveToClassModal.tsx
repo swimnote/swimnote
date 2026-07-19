@@ -26,7 +26,6 @@ export default function MoveToClassModal({
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<StudentItem | null>(null);
   const [fromClassId, setFromClassId] = useState<string | null>(null);
-  const [moving, setMoving] = useState(false);
 
   const teacherClassIds = new Set(classGroups.map(g => g.id));
   const eligible = students.filter(st => {
@@ -51,17 +50,18 @@ export default function MoveToClassModal({
     if (fromCls.length === 1) { setFromClassId(fromCls[0].id); setStep("confirm"); }
     else { setFromClassId(null); setStep("pick-class"); }
   }
-  async function doMove() {
+  function doMove() {
     if (!selected || !fromClassId) return;
-    setMoving(true);
-    const res = await apiRequest(token, `/students/${selected.id}/move-class`, {
+    const sid = selected.id;
+    const fid = fromClassId;
+    onClose();
+    onMoved();
+    apiRequest(token, `/students/${sid}/move-class`, {
       method: "POST", body: JSON.stringify({
-        from_class_id: fromClassId,
+        from_class_id: fid,
         to_class_id: classGroup.id,
       }),
-    });
-    setMoving(false);
-    onMoved();
+    }).catch(() => {});
   }
 
   const fromCls = classGroups.find(g => g.id === fromClassId);
