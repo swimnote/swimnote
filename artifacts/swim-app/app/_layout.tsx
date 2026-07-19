@@ -481,21 +481,15 @@ function RootNav() {
   useEffect(() => { tokenRef.current = token; }, [token]);
   useEffect(() => { kindRef.current = kind; }, [kind]);
 
-  // OTA 체크 + 다운로드 → 완료되면 팝업 표시
+  // OTA 체크 + 다운로드 → 완료되면 즉시 자동 재시작
   async function checkAndDownloadOta() {
     if (__DEV__ || isCheckingRef.current) return;
     isCheckingRef.current = true;
     try {
-      if (otaDownloadedRef.current) {
-        // 이미 다운로드 완료 → 바로 팝업만 띄우기
-        setShowOtaModal(true);
-        return;
-      }
       const { isAvailable } = await Updates.checkForUpdateAsync();
       if (isAvailable) {
         await Updates.fetchUpdateAsync();
-        otaDownloadedRef.current = true;
-        setShowOtaModal(true);
+        await Updates.reloadAsync();
       }
     } catch (_) {
     } finally {
@@ -503,7 +497,7 @@ function RootNav() {
     }
   }
 
-  // 업데이트 적용 (사용자가 팝업에서 누름)
+  // 업데이트 적용 (사용자가 팝업에서 누름) — 하위 호환용
   async function applyOtaUpdate() {
     setOtaUpdating(true);
     try {
@@ -535,12 +529,7 @@ function RootNav() {
         if (!didGoBackgroundRef.current) return;
         didGoBackgroundRef.current = false;
 
-        // OTA 다운로드 완료 → 팝업 표시
-        if (otaDownloadedRef.current) {
-          setShowOtaModal(true);
-          return;
-        }
-        // 아직 체크 안 됐으면 체크
+        // OTA 체크 (있으면 자동 재시작)
         checkAndDownloadOta();
 
         // 1시간 이상 백그라운드였을 때만 세션 갱신 (teacher 모드 유지)
