@@ -1,4 +1,4 @@
-import { CircleAlert, Flame, PenLine, RotateCcw, Save } from "lucide-react-native";
+import { CircleAlert, Flame, PenLine, RotateCcw, Save, Trash2 } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
@@ -29,6 +29,7 @@ interface MemberInfoTabProps {
   statusMeta: { label: string; color: string; bg: string };
   isPoolAdmin?: boolean;
   onPurgeMember?: () => void;
+  onForceDelete?: () => void;
 }
 
 export function MemberInfoTab({
@@ -40,7 +41,7 @@ export function MemberInfoTab({
   editParentPhone3, setEditParentPhone3,
   infoChanged, setInfoChanged, onSave, onRestoreMember, onShowStatusModal,
   isArchived, statusMeta,
-  isPoolAdmin = false, onPurgeMember,
+  isPoolAdmin = false, onPurgeMember, onForceDelete,
 }: MemberInfoTabProps) {
   const isParentLinked = !!(data as any).parent_user_id;
   const parentAccountName = (data as any).parent_account_name || editParentName;
@@ -282,6 +283,27 @@ export function MemberInfoTab({
               disabled={saving}
             >
               <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" }}>소각하기</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {isPoolAdmin && onForceDelete && (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 24 }}>
+          <View style={{ backgroundColor: "#FFF1F2", borderRadius: 12, padding: 14, gap: 10, borderWidth: 1, borderColor: "#FECDD3" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Trash2 size={16} color="#BE123C" />
+              <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#BE123C" }}>회원 즉시 삭제</Text>
+            </View>
+            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9F1239", lineHeight: 18 }}>
+              30일 대기 없이 즉시 삭제합니다. 출결·수영일지·학부모 가입정보까지 모든 데이터가 완전히 삭제되며 복구할 수 없습니다.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [{ backgroundColor: "#BE123C", padding: 12, borderRadius: 10, alignItems: "center", opacity: pressed || saving ? 0.8 : 1 }]}
+              onPress={onForceDelete}
+              disabled={saving}
+            >
+              <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold" }}>즉시 삭제</Text>
             </Pressable>
           </View>
         </View>

@@ -51,6 +51,7 @@ export default function MemberDetailScreen() {
   const [alertInfo, setAlertInfo]         = useState<{ title: string; msg: string } | null>(null);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
+  const [showForceDeleteConfirm, setShowForceDeleteConfirm] = useState(false);
 
   // 편집 상태
   const [editName, setEditName]                   = useState("");
@@ -200,6 +201,22 @@ export default function MemberDetailScreen() {
     finally { setSaving(false); setShowPurgeConfirm(false); }
   }
 
+  async function doForceDelete() {
+    if (!id) return;
+    setShowForceDeleteConfirm(false);
+    setSaving(true);
+    try {
+      const res = await apiRequest(token, `/admin/students/${id}/force-delete`, { method: "DELETE" });
+      if (res.ok) {
+        router.back();
+      } else {
+        const e = await res.json();
+        setAlertInfo({ title: "오류", msg: e.error || "삭제에 실패했습니다." });
+      }
+    } catch { setAlertInfo({ title: "오류", msg: "네트워크 오류" }); }
+    finally { setSaving(false); }
+  }
+
   async function saveAssignment() {
     if (!data) return;
     setSaving(true);
@@ -286,6 +303,7 @@ export default function MemberDetailScreen() {
           statusMeta={statusMeta}
           isPoolAdmin={isPoolAdmin}
           onPurgeMember={() => setShowPurgeConfirm(true)}
+          onForceDelete={() => setShowForceDeleteConfirm(true)}
         />
       )}
 
@@ -387,6 +405,15 @@ export default function MemberDetailScreen() {
         cancelText="취소"
         onConfirm={purgeMember}
         onCancel={() => setShowPurgeConfirm(false)}
+      />
+      <ConfirmModal
+        visible={showForceDeleteConfirm}
+        title="⚠️ 회원 즉시 삭제"
+        message={`${data?.name}님의 모든 데이터(출결·수영일지·학부모 가입정보)를 즉시 완전 삭제합니다.\n\n이 작업은 절대 되돌릴 수 없습니다.\n\n정말 삭제하시겠습니까?`}
+        confirmText="즉시 삭제"
+        cancelText="취소"
+        onConfirm={doForceDelete}
+        onCancel={() => setShowForceDeleteConfirm(false)}
       />
     </KeyboardAvoidingView>
   );

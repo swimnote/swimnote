@@ -1397,6 +1397,85 @@ router.delete("/students/:id/permanent", requireAuth, requireRole("super_admin",
   }
 );
 
+// ── 즉시 삭제 (상태 무관, 학부모 가입정보까지 완전 삭제) ─────────────────────
+router.delete("/students/:id/force-delete", requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) return res.status(403).json({ error: "수영장 정보가 없습니다." });
+
+      const [student] = (await db.execute(sql`
+        SELECT id, name, status FROM students
+        WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
+      `)).rows as any[];
+      if (!student) return res.status(404).json({ error: "회원을 찾을 수 없습니다." });
+
+      // 1. 이 학생과 연결된 parent_accounts 목록 조회
+      const psRows = (await db.execute(sql`
+        SELECT parent_id FROM parent_students
+        WHERE student_id = ${req.params.id}
+      `)).rows as any[];
+      const parentIds: string[] = psRows.map((r: any) => r.parent_id).filter(Boolean);
+
+      // 2. 사진 삭제
+      const photos = (await db.execute(sql`
+        SELECT storage_key FROM student_photos WHERE student_id = ${req.params.id}
+      `)).rows as any[];
+      if (photos.length > 0) {
+        try {
+          const { Client } = await import("@replit/object-storage");
+          const client = new Client();
+          await Promise.allSettled(photos.map((p: any) => client.delete(p.storage_key).catch(() => {})));
+        } catch { /* 무시 */ }
+        await db.execute(sql`DELETE FROM student_photos WHERE student_id = ${req.params.id}`);
+      }
+
+      // 3. 학생 관련 데이터 삭제
+      await db.execute(sql`DELETE FROM attendance WHERE student_id = ${req.params.id}`);
+      await db.execute(sql`DELETE FROM swim_diary WHERE student_id = ${req.params.id}`);
+      await db.execute(sql`DELETE FROM makeups WHERE student_id = ${req.params.id}`).catch(() => {});
+      await db.execute(sql`DELETE FROM parent_students WHERE student_id = ${req.params.id}`);
+      await db.execute(sql`DELETE FROM students WHERE id = ${req.params.id}`);
+
+      // 4. 각 parent_account 에서 남은 연결이 없으면 학부모 계정도 삭제
+      for (const parentId of parentIds) {
+        const remaining = (await db.execute(sql`
+          SELECT COUNT(*) AS cnt FROM parent_students WHERE parent_id = ${parentId}
+        `)).rows[0] as any;
+        if (Number(remaining?.cnt ?? 0) === 0) {
+          const paRows = (await db.execute(sql`
+            SELECT login_id, phone FROM parent_accounts WHERE id = ${parentId} LIMIT 1
+          `)).rows as any[];
+          const pa = paRows[0];
+          // parent_pool_requests 취소
+          await superAdminDb.execute(sql`
+            UPDATE parent_pool_requests SET request_status = 'revoked', processed_at = NOW()
+            WHERE parent_account_id = ${parentId} AND request_status NOT IN ('revoked', 'rejected')
+          `).catch(() => {});
+          if (pa?.login_id) {
+            await superAdminDb.execute(sql`
+              UPDATE parent_pool_requests SET request_status = 'revoked', processed_at = NOW()
+              WHERE login_id = ${pa.login_id} AND request_status NOT IN ('revoked', 'rejected')
+            `).catch(() => {});
+          }
+          if (pa?.phone) {
+            await superAdminDb.execute(sql`
+              UPDATE parent_pool_requests SET request_status = 'revoked', processed_at = NOW()
+              WHERE phone = ${pa.phone} AND request_status NOT IN ('revoked', 'rejected')
+            `).catch(() => {});
+            await superAdminDb.execute(sql`
+              DELETE FROM phone_verifications WHERE phone = ${pa.phone}
+            `).catch(() => {});
+          }
+          await db.execute(sql`DELETE FROM parent_accounts WHERE id = ${parentId}`);
+        }
+      }
+
+      res.json({ success: true, message: `${student.name} 회원이 즉시 삭제되었습니다.` });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+  }
+);
+
 // ── 회원 정보 수정 (활동 로그 자동 기록) ──────────────────────────────────
 router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool_admin"),
   async (req: AuthRequest, res) => {
