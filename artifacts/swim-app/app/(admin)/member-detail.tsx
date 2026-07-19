@@ -421,7 +421,7 @@ export default function MemberDetailScreen() {
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#FFFFFF" },
-  tabScroll: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0 },
-  tabBtn: { paddingHorizontal: 14, paddingVertical: 12, overflow: "visible" },
+  tabScroll: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0, minHeight: 46 },
+  tabBtn: { paddingHorizontal: 14, height: 46, overflow: "visible", alignItems: "center", justifyContent: "center" },
   tabText: { fontSize: 13, lineHeight: 18 },
 });
