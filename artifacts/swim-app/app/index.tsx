@@ -266,6 +266,7 @@ export default function LoginScreen() {
                 placeholderTextColor="#CBD5E1"
                 autoCapitalize="none"
                 autoCorrect={false}
+                autoComplete="username"
                 keyboardType="ascii-capable"
                 returnKeyType="next"
                 onSubmitEditing={() => pwRef.current?.focus()}
