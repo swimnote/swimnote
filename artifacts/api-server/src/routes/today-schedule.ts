@@ -148,7 +148,7 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
       JOIN students s ON s.id = h.student_id
       WHERE h.swimming_pool_id = '${poolId}'
         AND h.class_group_id IN (${classIdList})
-        AND h.enrolled_at <= '${dateParam}'
+        AND (h.left_at IS NULL OR h.enrolled_at <= '${dateParam}')
         AND (h.left_at IS NULL OR h.left_at > '${dateParam}')
         AND s.deleted_at IS NULL
         AND s.status NOT IN ('withdrawn', 'deleted', 'suspended')
