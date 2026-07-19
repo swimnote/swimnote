@@ -918,6 +918,9 @@ router.get("/pending-connections", requireAuth, requireRole("super_admin", "pool
 // ════════════════════════════════════════════════════════════════════════
 async function getAdminPoolId(req: AuthRequest): Promise<string | null> {
   if (req.user!.role === "pool_admin") {
+    // JWT poolId 우선 사용 (DB 조회 없이 빠르게)
+    if (req.user!.poolId) return req.user!.poolId;
+    // fallback: DB 조회
     const [u] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id }).from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     return u?.swimming_pool_id ?? null;
   }
