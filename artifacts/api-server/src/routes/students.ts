@@ -23,6 +23,33 @@ async function getPoolId(userId: string): Promise<string | null> {
   return user?.swimming_pool_id || null;
 }
 
+// ── 반 이력 기록 헬퍼 (날짜 기반 스케쥴 필터링용) ─────────────────────────────
+async function openClassHistory(studentId: string, classGroupId: string, poolId: string, enrolledAt: string): Promise<void> {
+  await db.execute(sql`
+    INSERT INTO student_class_history (id, student_id, class_group_id, swimming_pool_id, enrolled_at, left_at, reason)
+    VALUES (gen_random_uuid()::text, ${studentId}, ${classGroupId}, ${poolId}, ${enrolledAt}::date, NULL, 'assign')
+  `).catch((e: any) => console.error('[classHistory] open error:', e));
+}
+
+async function closeClassHistory(studentId: string, classGroupId: string, leftAt: string): Promise<void> {
+  await db.execute(sql`
+    UPDATE student_class_history
+    SET left_at = ${leftAt}::date
+    WHERE student_id = ${studentId}
+      AND class_group_id = ${classGroupId}
+      AND left_at IS NULL
+  `).catch((e: any) => console.error('[classHistory] close error:', e));
+}
+
+async function closeAllClassHistory(studentId: string, leftAt: string): Promise<void> {
+  await db.execute(sql`
+    UPDATE student_class_history
+    SET left_at = ${leftAt}::date
+    WHERE student_id = ${studentId}
+      AND left_at IS NULL
+  `).catch((e: any) => console.error('[classHistory] closeAll error:', e));
+}
+
 // 회원 수 한도 체크 헬퍼
 // effective_member_limit = pool.member_limit(개별 override) 우선, 없으면 subscription_plans.member_limit
 async function getEffectiveMemberLimit(poolId: string): Promise<{ limit: number; current: number; overrideActive: boolean }> {
@@ -903,6 +930,9 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
         extraFields.archived_reason = new_status === "suspended" ? "suspended" : "pending";
       }
       await db.update(studentsTable).set(extraFields).where(eq(studentsTable.id, req.params.id));
+      // 전체 반 이력 닫기
+      const todayForHistory = new Date().toISOString().slice(0, 10);
+      await closeAllClassHistory(req.params.id, todayForHistory);
       return res.json({ success: true, new_status, remaining_classes: 0 });
     }
 
@@ -965,6 +995,8 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
       schedule_labels: labels || null,
       updated_at: new Date(),
     }).where(eq(studentsTable.id, req.params.id));
+    // 해당 반 이력 닫기
+    await closeClassHistory(req.params.id, class_group_id, today);
 
     // change_log 생성 (즉시 적용)
     try {
@@ -1028,6 +1060,9 @@ router.post("/:id/apply-pending-now", requireAuth, requireRole("super_admin", "p
     }
 
     await db.update(studentsTable).set(updateData).where(eq(studentsTable.id, req.params.id));
+    // 전체 반 이력 닫기
+    const todayPAN = new Date().toISOString().slice(0, 10);
+    await closeAllClassHistory(req.params.id, todayPAN);
     return res.json({ success: true, new_status: newStatus });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
 });
@@ -1116,6 +1151,11 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
     }
 
     await db.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
+    // 반 배정 해제 시 전체 이력 닫기
+    if (new_status === "unassigned" || new_status === "suspended" || new_status === "withdrawn") {
+      const todayCS = new Date().toISOString().slice(0, 10);
+      await closeAllClassHistory(req.params.id, todayCS);
+    }
     const [updated] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
     console.log(`[change-status] ✅ 즉시 변경 완료 → status: ${(updated as any).status}`);
     return res.json({ success: true, new_status, student: updated });
@@ -1172,13 +1212,18 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
       return days.map((d: string) => `${d}${hour}`).join("·");
     }).join("·");
 
+    const todayMC = new Date().toISOString().slice(0, 10);
     const [moved] = await db.update(studentsTable).set({
       assigned_class_ids: newIds as any,
       class_group_id: newIds[0] || null,
       schedule_labels: labels || null,
       status: "active",
+      class_enrolled_at: todayMC,
       updated_at: new Date(),
     }).where(eq(studentsTable.id, req.params.id)).returning({ id: studentsTable.id });
+    // 출발반 이력 닫기 + 도착반 이력 열기
+    await closeClassHistory(req.params.id, from_class_id, todayMC);
+    await openClassHistory(req.params.id, to_class_id, poolId!, todayMC);
 
     // 출발반/도착반 이름 조회 (메신저 메시지용)
     const [fromCls] = await db.select({ name: classGroupsTable.name })
@@ -1265,6 +1310,15 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
       })
       .where(eq(studentsTable.id, req.params.id))
       .returning();
+
+    // 반 이력 업데이트: 제거된 반 닫기 + 새 반 열기
+    const prevIds: string[] = Array.isArray(existing.assigned_class_ids)
+      ? existing.assigned_class_ids
+      : (typeof existing.assigned_class_ids === "string" ? JSON.parse(existing.assigned_class_ids || "[]") : []);
+    const removedFromClass = prevIds.filter((id: string) => !assigned_class_ids.includes(id));
+    const addedToClass = assigned_class_ids.filter((id: string) => !prevIds.includes(id));
+    for (const cid of removedFromClass) await closeClassHistory(req.params.id, cid, todayStr);
+    for (const cid of addedToClass) await openClassHistory(req.params.id, cid, poolId!, todayStr);
 
     // class_groups의 student_count는 GET 때 집계이므로 별도 업데이트 불필요
     const enriched = await enrichWithClasses({ ...student, assignedClasses: validClasses });

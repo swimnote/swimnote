@@ -1212,4 +1212,52 @@ export async function initPoolDb(): Promise<void> {
 
   // ── students.class_enrolled_at — 반 배정일 컬럼 ─────────────────────────────
   await db.execute(sql.raw(`ALTER TABLE students ADD COLUMN IF NOT EXISTS class_enrolled_at text`)).catch(() => {});
+
+  // ── student_class_history — 반 입퇴장 이력 (날짜 기반 스케쥴 필터링) ─────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS student_class_history (
+      id               text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      student_id       text        NOT NULL,
+      class_group_id   text        NOT NULL,
+      swimming_pool_id text        NOT NULL,
+      enrolled_at      date        NOT NULL,
+      left_at          date,
+      reason           text        DEFAULT 'assign',
+      created_at       timestamptz NOT NULL DEFAULT now()
+    )
+  `)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_sch_student ON student_class_history(student_id)`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_sch_class ON student_class_history(class_group_id)`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_sch_pool_class_date ON student_class_history(swimming_pool_id, class_group_id, enrolled_at)`)).catch(() => {});
+
+  // 기존 학생 히스토리 초기 데이터 채우기 (최초 1회만)
+  await db.execute(sql.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM student_class_history LIMIT 1) THEN
+        INSERT INTO student_class_history (id, student_id, class_group_id, swimming_pool_id, enrolled_at, left_at, reason)
+        SELECT
+          gen_random_uuid()::text,
+          s.id,
+          elem,
+          s.swimming_pool_id,
+          COALESCE(s.class_enrolled_at::date, s.created_at::date, '2024-01-01'::date),
+          NULL,
+          'backfill'
+        FROM students s,
+             jsonb_array_elements_text(
+               COALESCE(
+                 CASE
+                   WHEN jsonb_typeof(s.assigned_class_ids::jsonb) = 'array' THEN s.assigned_class_ids::jsonb
+                   ELSE '[]'::jsonb
+                 END,
+                 '[]'::jsonb
+               )
+             ) AS elem
+        WHERE s.deleted_at IS NULL
+          AND s.status NOT IN ('deleted')
+          AND elem IS NOT NULL AND elem != '';
+      END IF;
+    END $$;
+  `)).catch((e: any) => console.error('[backfill] student_class_history:', e));
 }

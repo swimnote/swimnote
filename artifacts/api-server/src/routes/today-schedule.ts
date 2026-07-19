@@ -137,34 +137,32 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
       noteMap[r.class_group_id] = { note_text: r.note_text, audio_file_url: r.audio_file_url };
     }
 
-    // 학생 상세 목록 — 단일 쿼리로 모든 반 학생 한번에 조회
-    const studentDetailRows = await db.execute(sql`
-      SELECT id, name, birth_year, class_group_id, assigned_class_ids,
-             weekly_count, schedule_labels, status, parent_user_id,
-             updated_at, class_enrolled_at
-      FROM students
-      WHERE swimming_pool_id = ${poolId}
-        AND status NOT IN ('withdrawn', 'deleted')
-        AND deleted_at IS NULL
-        AND (class_enrolled_at IS NULL OR class_enrolled_at <= ${dateParam})
-      ORDER BY name ASC
-    `);
-    // classId → StudentItem[] 매핑
+    // 학생 상세 목록 — history 기반 날짜 필터링 (등록일~퇴장일 범위만 표시)
+    const classIdList = classIds.map(id => `'${id}'`).join(",");
+    const studentDetailRows = classIds.length > 0 ? await db.execute(sql.raw(`
+      SELECT DISTINCT ON (s.id, h.class_group_id)
+        s.id, s.name, s.birth_year, h.class_group_id,
+        s.assigned_class_ids, s.weekly_count, s.schedule_labels,
+        s.status, s.parent_user_id, s.updated_at
+      FROM student_class_history h
+      JOIN students s ON s.id = h.student_id
+      WHERE h.swimming_pool_id = '${poolId}'
+        AND h.class_group_id IN (${classIdList})
+        AND h.enrolled_at <= '${dateParam}'
+        AND (h.left_at IS NULL OR h.left_at > '${dateParam}')
+        AND s.deleted_at IS NULL
+      ORDER BY s.id, h.class_group_id, h.enrolled_at DESC
+    `)) : { rows: [] };
+
+    // classId → StudentItem[] 매핑 (class_group_id가 history에서 직접 옴)
     const studentsByClass: Record<string, any[]> = {};
     for (const cid of classIds) studentsByClass[cid] = [];
     for (const st of studentDetailRows.rows as any[]) {
-      const ids: string[] = [];
-      const raw = st.assigned_class_ids;
-      if (Array.isArray(raw)) ids.push(...raw);
-      else if (typeof raw === "string") { try { ids.push(...JSON.parse(raw)); } catch {} }
-      if (st.class_group_id && !ids.includes(st.class_group_id)) ids.push(st.class_group_id);
-      for (const cid of ids) {
-        if (classIds.includes(cid)) studentsByClass[cid].push(st);
-      }
+      const cid = st.class_group_id as string;
+      if (classIds.includes(cid)) studentsByClass[cid].push(st);
     }
 
     // 보강 배정 학생 — 오늘 날짜에 배정된 makeup_sessions 학생도 포함
-    const classIdList = classIds.map(id => `'${id}'`).join(",");
     const makeupRows = classIds.length > 0 ? await db.execute(sql.raw(`
       SELECT ms.student_id AS id, s.name, s.birth_year, ms.assigned_class_group_id AS class_group_id,
              s.weekly_count, s.schedule_labels, s.status,

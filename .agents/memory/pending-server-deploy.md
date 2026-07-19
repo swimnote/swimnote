@@ -3,8 +3,9 @@ name: 프로덕션 API 서버 배포 대기 항목
 description: 개발(Replit)에만 반영되고 Render.com 프로덕션에 아직 미배포된 서버 변경사항
 ---
 
-## 미배포 항목 (2026-07-16 기준)
+## 미배포 항목 (2026-07-19 기준)
 
+- **스케쥴 날짜 기반 필터링 수정** (2026-07-19): student_class_history 테이블 추가, today-schedule/attendance 날짜 기반 필터 수정, students.ts 이력 로깅
 - **attendance/makeup-students 확장** (2026-07-16): 배정(assigned)된 보충수업 학생도 일지 화면에서 표시되도록 makeup_sessions 테이블 조회 추가
 
 ## 최근 배포 완료 항목
