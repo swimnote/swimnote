@@ -37,14 +37,18 @@ interface ClassGroup {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  active:            { label: "정상",     color: "#059669", bg: "#DCFCE7" },
-  normal:            { label: "정상",     color: "#059669", bg: "#DCFCE7" },
-  unassigned:        { label: "미배정",   color: "#D97706", bg: "#FEF3C7" },
-  suspended:         { label: "연기",     color: "#7C3AED", bg: "#EDE9FE" },
-  pending_suspended: { label: "연기예정", color: "#7C3AED", bg: "#EDE9FE" },
-  withdrawn:         { label: "퇴원",     color: "#DC2626", bg: "#FEE2E2" },
-  pending_withdrawn: { label: "퇴원예정", color: "#DC2626", bg: "#FEE2E2" },
-  deleted:           { label: "삭제",     color: "#9CA3AF", bg: "#F3F4F6" },
+  active:               { label: "정상",     color: "#059669", bg: "#DCFCE7" },
+  normal:               { label: "정상",     color: "#059669", bg: "#DCFCE7" },
+  unassigned:           { label: "미배정",   color: "#D97706", bg: "#FEF3C7" },
+  suspended:            { label: "연기",     color: "#7C3AED", bg: "#EDE9FE" },
+  pending_suspended:    { label: "연기예정", color: "#7C3AED", bg: "#EDE9FE" },
+  withdrawn:            { label: "퇴원",     color: "#DC2626", bg: "#FEE2E2" },
+  pending_withdrawn:    { label: "퇴원예정", color: "#DC2626", bg: "#FEE2E2" },
+  deleted:              { label: "삭제",     color: "#9CA3AF", bg: "#F3F4F6" },
+  pending_parent_link:  { label: "미배정",   color: "#D97706", bg: "#FEF3C7" },
+  unregistered:         { label: "미등록",   color: "#9CA3AF", bg: "#F3F4F6" },
+  pending_approval:     { label: "승인대기", color: "#0369A1", bg: "#EFF6FF" },
+  archived:             { label: "보관",     color: "#9CA3AF", bg: "#F3F4F6" },
 };
 
 const FILTER_TABS = [
@@ -139,20 +143,29 @@ function StudentDrawer({
   const [statusChanging, setStatusChanging] = useState(false);
   const [assignSaving, setAssignSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [forceDeleting, setForceDeleting] = useState(false);
+  const [showForceDeleteConfirm, setShowForceDeleteConfirm] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>(
     Array.isArray(student.assigned_class_ids) ? student.assigned_class_ids : (student.class_group_id ? [student.class_group_id] : [])
   );
   const [classAssignMode, setClassAssignMode] = useState(false);
-  const [statusMode, setStatusMode] = useState<null | "change" | "schedule">(null);
 
   const st = getStatus(s);
-  const statusConf = STATUS_CONFIG[st] || { label: st, color: "#666", bg: "#F5F5F5" };
+  const statusConf = STATUS_CONFIG[st] || { label: st, color: "#D97706", bg: "#FEF3C7" };
 
   async function patchInfo(field: string, value: string) {
-    const updated = await api.patch<Student>(`/students/${s.id}`, { [field]: value });
-    const merged = { ...s, ...updated };
-    setS(merged);
-    onUpdated(merged);
+    try {
+      const updated = await api.patch<Student>(`/students/${s.id}`, { [field]: value });
+      const merged = { ...s, ...updated };
+      setS(merged);
+      onUpdated(merged);
+      setErrorMsg(null);
+    } catch (e: any) {
+      const msg = e?.data?.error || e?.data?.message || "저장에 실패했습니다.";
+      setErrorMsg(msg);
+      throw e;
+    }
   }
 
   async function changeStatus(new_status: string, effective_mode: "immediate" | "next_month" = "immediate") {
@@ -162,8 +175,8 @@ function StudentDrawer({
       const merged = { ...s, ...(res.student || {}), status: res.student?.status || new_status };
       setS(merged);
       onUpdated(merged);
-      setStatusMode(null);
-    } catch (e: any) { alert(e?.data?.error || e?.data?.message || "상태 변경 실패"); }
+      setErrorMsg(null);
+    } catch (e: any) { setErrorMsg(e?.data?.error || e?.data?.message || "상태 변경 실패"); }
     finally { setStatusChanging(false); }
   }
 
@@ -175,7 +188,8 @@ function StudentDrawer({
       const merged = { ...s, status: "active", pool_status: "active" };
       setS(merged);
       onUpdated(merged);
-    } catch (e: any) { alert(e?.data?.error || "복원 실패"); }
+      setErrorMsg(null);
+    } catch (e: any) { setErrorMsg(e?.data?.error || "복원 실패"); }
     finally { setStatusChanging(false); }
   }
 
@@ -187,7 +201,8 @@ function StudentDrawer({
       setS(merged);
       onUpdated(merged);
       setClassAssignMode(false);
-    } catch (e: any) { alert(e?.data?.message || "반 배정 실패"); }
+      setErrorMsg(null);
+    } catch (e: any) { setErrorMsg(e?.data?.message || "반 배정 실패"); }
     finally { setAssignSaving(false); }
   }
 
@@ -198,8 +213,19 @@ function StudentDrawer({
       await api.delete(`/students/${s.id}`);
       onDeleted(s.id);
       onClose();
-    } catch (e: any) { alert(e?.data?.message || "삭제 실패"); }
+    } catch (e: any) { setErrorMsg(e?.data?.message || "삭제 실패"); }
     finally { setDeleting(false); }
+  }
+
+  async function forceDeleteStudent() {
+    setForceDeleting(true);
+    setShowForceDeleteConfirm(false);
+    try {
+      await api.delete(`/admin/students/${s.id}/force-delete`);
+      onDeleted(s.id);
+      onClose();
+    } catch (e: any) { setErrorMsg(e?.data?.error || e?.data?.message || "즉시 삭제 실패"); }
+    finally { setForceDeleting(false); }
   }
 
   const currentAssignedClasses = classes.filter(c => selectedClassIds.includes(c.id));
@@ -227,17 +253,36 @@ function StudentDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto">
+          {/* 에러 배너 */}
+          {errorMsg && (
+            <div className="mx-5 mt-3 px-4 py-2.5 bg-[#FEF2F2] border border-[#FCA5A5] rounded-xl flex items-center justify-between gap-2">
+              <span className="text-[12px] text-[#DC2626] font-medium">{errorMsg}</span>
+              <button onClick={() => setErrorMsg(null)} className="text-[#DC2626] shrink-0"><X size={14} /></button>
+            </div>
+          )}
+
           {/* 기본 정보 */}
           <div className="px-5 pt-4 pb-2">
             <p className="text-[11px] font-bold text-[#999] uppercase tracking-wider mb-2">기본 정보</p>
             <div className="bg-[#FAFAFA] rounded-2xl px-4">
               <EditField label="이름" value={s.name} onSave={v => patchInfo("name", v)} />
-              <EditField label="연락처" value={s.phone || ""} onSave={v => patchInfo("phone", v)} placeholder="010-0000-0000" />
               <EditField label="생년" value={s.birth_year || ""} onSave={v => patchInfo("birth_year", v)} placeholder="2010" />
-              <EditField label="학부모명" value={s.parent_name || ""} onSave={v => patchInfo("parent_name", v)} />
-              <EditField label="학부모 연락처" value={s.parent_phone || ""} onSave={v => patchInfo("parent_phone", v)} placeholder="010-0000-0000" />
               <EditField label="메모" value={s.memo || ""} onSave={v => patchInfo("memo", v)} />
             </div>
+          </div>
+
+          {/* 보호자 정보 */}
+          <div className="px-5 pt-4 pb-2">
+            <p className="text-[11px] font-bold text-[#999] uppercase tracking-wider mb-2">보호자 정보</p>
+            <div className="bg-[#FAFAFA] rounded-2xl px-4">
+              <EditField label="보호자명" value={s.parent_name || ""} onSave={v => patchInfo("parent_name", v)} />
+              <EditField label="보호자 연락처" value={s.parent_phone || ""} onSave={v => patchInfo("parent_phone", v)} placeholder="010-0000-0000" />
+              <EditField label="연락처2" value={(s as any).parent_phone2 || ""} onSave={v => patchInfo("parent_phone2", v)} placeholder="010-0000-0000" />
+              <EditField label="연락처3" value={(s as any).parent_phone3 || ""} onSave={v => patchInfo("parent_phone3", v)} placeholder="010-0000-0000" />
+            </div>
+            {!s.parent_linked && (
+              <p className="text-[11px] text-[#999] mt-1.5 ml-1">보호자 연락처 저장 시 앱 계정이 자동 연결됩니다</p>
+            )}
           </div>
 
           {/* 반 배정 */}
@@ -375,19 +420,55 @@ function StudentDrawer({
           </div>
 
           {/* 삭제 */}
-          <div className="px-5 pt-4 pb-8">
+          <div className="px-5 pt-4 pb-8 space-y-2">
             <button
               onClick={deleteStudent}
-              disabled={deleting}
+              disabled={deleting || forceDeleting}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl bg-[#FEF2F2] text-[#DC2626] text-[13px] font-semibold hover:bg-[#FEE2E2] disabled:opacity-50 transition-colors"
             >
               <Trash2 size={14} />
               {deleting ? "삭제 중..." : "회원 삭제"}
             </button>
-            <p className="text-[11px] text-[#BBB] text-center mt-2">삭제 후 삭제 회원 탭에서 복원 가능합니다</p>
+            <p className="text-[11px] text-[#BBB] text-center">삭제 후 삭제 회원 탭에서 복원 가능합니다</p>
+            <button
+              onClick={() => setShowForceDeleteConfirm(true)}
+              disabled={deleting || forceDeleting}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-[#DC2626] text-[#DC2626] text-[13px] font-semibold hover:bg-[#FEF2F2] disabled:opacity-50 transition-colors"
+            >
+              <Trash2 size={14} />
+              {forceDeleting ? "삭제 중..." : "즉시 완전 삭제"}
+            </button>
+            <p className="text-[11px] text-[#BBB] text-center">DB에서 완전 삭제 — 복원 불가</p>
           </div>
         </div>
       </div>
+
+      {/* 즉시 삭제 확인 모달 */}
+      {showForceDeleteConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl mx-5 p-6 max-w-xs w-full shadow-2xl">
+            <h3 className="text-[16px] font-bold text-[#0A0A0A] mb-2">즉시 완전 삭제</h3>
+            <p className="text-[13px] text-[#555] leading-relaxed mb-5">
+              <span className="font-bold text-[#DC2626]">{s.name}</span> 회원의 모든 데이터를 DB에서 완전히 삭제합니다.<br />
+              출석 기록, 결제 내역 포함 모든 정보가 삭제되며 <span className="font-bold">복원이 불가능합니다.</span>
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowForceDeleteConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl border border-[#DDD] text-[#555] text-[13px] font-semibold hover:bg-[#F5F5F5]"
+              >
+                취소
+              </button>
+              <button
+                onClick={forceDeleteStudent}
+                className="flex-1 py-2.5 rounded-xl bg-[#DC2626] text-white text-[13px] font-semibold hover:bg-[#B91C1C]"
+              >
+                완전 삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -605,7 +686,7 @@ export default function Members() {
                     ? <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600"><Smartphone size={11} /> 연결</span>
                     : <span className="text-[11px] text-[#CCC]">미연결</span>}
                 </div>
-                <div className="px-5 py-3.5 text-[12px] text-[#888]">{s.phone || s.parent_phone || <span className="text-[#CCC]">—</span>}</div>
+                <div className="px-5 py-3.5 text-[12px] text-[#888]">{s.parent_phone || s.phone || <span className="text-[#CCC]">—</span>}</div>
                 <div className="pr-2 py-3.5 flex items-center justify-center">
                   <ChevronRight size={14} color="#CCC" />
                 </div>
