@@ -745,11 +745,16 @@ router.patch("/teacher/makeups/:id/revert", requireAuth,
       console.log(`[teacher/makeups/revert] userId=${userId} role=${userRole} poolId=${poolId} mkId=${req.params.id}`);
 
       const rows = (await db.execute(sql`
-        SELECT id, status, swimming_pool_id, assigned_teacher_id, assigned_class_group_id
+        SELECT id, status, swimming_pool_id,
+               assigned_class_group_id, assigned_class_group_name,
+               assigned_teacher_id, assigned_teacher_name,
+               assigned_date, absence_date, absence_time,
+               student_name, created_at, updated_at
         FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
       `)).rows as any[];
       if (!rows.length) { res.status(404).json({ error: "보강 건을 찾을 수 없습니다." }); return; }
       const mk = rows[0];
+      console.log(`[teacher/makeups/revert] BEFORE:`, JSON.stringify(mk));
 
       console.log(`[teacher/makeups/revert] mk.status=${mk.status} mk.swimming_pool_id=${mk.swimming_pool_id} mk.assigned_teacher_id=${mk.assigned_teacher_id}`);
 
@@ -804,16 +809,19 @@ router.patch("/teacher/makeups/:id/revert", requireAuth,
           substitute_teacher_name     = NULL,
           updated_at                  = now()
         WHERE id = ${req.params.id}
-        RETURNING id, status
+        RETURNING id, status,
+                  assigned_class_group_id, assigned_class_group_name,
+                  assigned_teacher_id, assigned_teacher_name,
+                  assigned_date, updated_at
       `)).rows as any[];
 
-      console.log(`[teacher/makeups/revert] updated rows=${updated.length}`, updated[0] || "none");
+      console.log(`[teacher/makeups/revert] rowCount=${updated.length} AFTER:`, JSON.stringify(updated[0] || null));
 
       if (!updated.length) {
         res.status(500).json({ error: "업데이트 실패 (0 rows affected)" }); return;
       }
 
-      res.json({ success: true });
+      res.json({ success: true, rowCount: updated.length, before: mk, after: updated[0] });
     } catch (err) { console.error("[teacher/makeups/revert]", err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
