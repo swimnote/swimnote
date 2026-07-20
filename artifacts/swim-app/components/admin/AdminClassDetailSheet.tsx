@@ -2,11 +2,11 @@
  * AdminClassDetailSheet.tsx
  * 관리자 반 상세 바텀시트
  */
-import { Check, ChevronLeft, Minus, PenLine, Plus, Repeat, Search, Trash2, User, UserPlus, Users, UserX, X } from "lucide-react-native";
+import { Check, ChevronLeft, Minus, PenLine, Plus, Repeat, RotateCcw, Search, Trash2, User, UserPlus, Users, UserX, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Modal,
+  ActivityIndicator, Alert, FlatList, Modal,
   Pressable, ScrollView, StyleSheet, Text,
   TextInput, View,
 } from "react-native";
@@ -99,6 +99,16 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
   const originalColorRef = useRef<string>(group.color || "#FFFFFF");
   const [draftColor, setDraftColor] = useState<string>(group.color || "#FFFFFF");
 
+  // 배정된 보강학생
+  interface AssignedMakeup {
+    id: string; student_id: string; student_name: string;
+    original_class_group_name: string; absence_date: string;
+    assigned_date: string | null; status: string;
+  }
+  const [assignedMakeups, setAssignedMakeups] = useState<AssignedMakeup[]>([]);
+  const [makeupLoading, setMakeupLoading] = useState(false);
+  const [revertingId, setRevertingId] = useState<string | null>(null);
+
   function handleColorSelect(color: string) {
     setDraftColor(color);
   }
@@ -164,6 +174,46 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
   }, [token, group.id, initialStudents]);
 
   useEffect(() => { load(); }, [load]);
+
+  const loadAssignedMakeups = useCallback(async () => {
+    setMakeupLoading(true);
+    try {
+      const res = await apiRequest(token, `/admin/makeups?status=assigned&class_group_id=${group.id}`);
+      if (res.ok) setAssignedMakeups(await res.json());
+    } catch (e) { console.error(e); }
+    finally { setMakeupLoading(false); }
+  }, [token, group.id]);
+
+  useEffect(() => { loadAssignedMakeups(); }, [loadAssignedMakeups]);
+
+  async function handleRevert(mk: AssignedMakeup) {
+    Alert.alert(
+      "배정 취소",
+      `${mk.student_name}의 보강 배정을 취소하고 보강대기로 되돌리시겠습니까?\n\n결석 기록과 보강 권리는 유지되며, 현재 스케줄 배정만 취소됩니다.`,
+      [
+        { text: "닫기", style: "cancel" },
+        {
+          text: "배정 취소",
+          style: "destructive",
+          onPress: async () => {
+            setRevertingId(mk.id);
+            try {
+              const res = await apiRequest(token, `/admin/makeups/${mk.id}/revert`, { method: "PATCH" });
+              if (res.ok) {
+                setAssignedMakeups(prev => prev.filter(m => m.id !== mk.id));
+              } else {
+                const err = await res.json().catch(() => ({}));
+                Alert.alert("오류", err.error || "배정 취소에 실패했습니다.");
+              }
+            } catch (e) {
+              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+            }
+            finally { setRevertingId(null); }
+          },
+        },
+      ]
+    );
+  }
 
   // 선생님 목록 로드 (컴포넌트 마운트 시 항상 백그라운드 로드)
   useEffect(() => {
@@ -460,6 +510,43 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                   </View>
                 </View>
               ))}
+
+              {/* ── 배정된 보강학생 ── */}
+              {(makeupLoading || assignedMakeups.length > 0) && (
+                <View style={sh.makeupSection}>
+                  <View style={sh.sectionHeader}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <RotateCcw size={13} color="#D97706" />
+                      <Text style={[sh.sectionTitle, { color: "#D97706" }]}>배정된 보강학생</Text>
+                    </View>
+                    <Text style={sh.sectionCount}>{assignedMakeups.length}명</Text>
+                  </View>
+                  {makeupLoading ? (
+                    <ActivityIndicator size="small" color="#D97706" style={{ marginVertical: 10 }} />
+                  ) : assignedMakeups.map(mk => (
+                    <View key={mk.id} style={sh.makeupRow}>
+                      <View style={sh.makeupAvatar}>
+                        <Text style={sh.makeupAvatarText}>{mk.student_name[0]}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={sh.makeupName}>{mk.student_name}</Text>
+                        <Text style={sh.makeupSub}>
+                          결석일: {mk.absence_date}{mk.assigned_date ? `  →  보강: ${mk.assigned_date}` : ""}
+                        </Text>
+                      </View>
+                      <Pressable
+                        style={[sh.revertBtn, revertingId === mk.id && { opacity: 0.5 }]}
+                        disabled={revertingId === mk.id}
+                        onPress={() => handleRevert(mk)}
+                      >
+                        {revertingId === mk.id
+                          ? <ActivityIndicator size="small" color="#D97706" />
+                          : <Text style={sh.revertBtnText}>배정 취소</Text>}
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
             </ScrollView>
           )
         )}
@@ -695,4 +782,16 @@ const sh = StyleSheet.create({
   teacherSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
 
   deleteBtn:      { padding: 8, marginRight: 2 },
+
+  makeupSection:  { borderTopWidth: 1, borderTopColor: "#FEF3C7", marginTop: 8 },
+  makeupRow:      { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10,
+                    borderBottomWidth: 1, borderBottomColor: "#FEF3C7", gap: 10 },
+  makeupAvatar:   { width: 36, height: 36, borderRadius: 18, backgroundColor: "#FEF3C7",
+                    alignItems: "center", justifyContent: "center" },
+  makeupAvatarText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#D97706" },
+  makeupName:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
+  makeupSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
+  revertBtn:      { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5,
+                    borderColor: "#D97706", backgroundColor: "#FFF8EE", minWidth: 64, alignItems: "center" },
+  revertBtnText:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D97706" },
 });

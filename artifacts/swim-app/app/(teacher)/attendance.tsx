@@ -10,7 +10,8 @@
  * - 지각/결석사유 없음
  * - 정렬: 결석 → 출석
  */
-import { ChevronLeft, ChevronRight, CircleCheck, Repeat, TriangleAlert, Users, X } from "lucide-react-native";
+import { Alert } from "react-native";
+import { ChevronLeft, ChevronRight, CircleCheck, Repeat, RotateCcw, TriangleAlert, Users, X } from "lucide-react-native";
 import { haptic } from "@/utils/haptic";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -120,9 +121,11 @@ export default function TeacherAttendanceScreen() {
   const [classOver,      setClassOver]      = useState(false);
 
   /* ─ 보강 관리 ─ */
-  const [makeupList,     setMakeupList]     = useState<MakeupSession[]>([]);
-  const [makeupLoading,  setMakeupLoading]  = useState(false);
-  const [makeupRefresh,  setMakeupRefresh]  = useState(false);
+  const [makeupList,         setMakeupList]         = useState<MakeupSession[]>([]);
+  const [assignedMakeupList, setAssignedMakeupList] = useState<MakeupSession[]>([]);
+  const [makeupLoading,      setMakeupLoading]      = useState(false);
+  const [makeupRefresh,      setMakeupRefresh]      = useState(false);
+  const [revertingId,        setRevertingId]        = useState<string | null>(null);
 
   /* ─ 보강 지정 모달 ─ */
   const [assignTarget,   setAssignTarget]   = useState<MakeupSession | null>(null);
@@ -174,11 +177,45 @@ export default function TeacherAttendanceScreen() {
   const loadMakeups = useCallback(async () => {
     setMakeupLoading(true);
     try {
-      const res = await apiRequest(token, "/teacher/makeups?status=pending");
-      if (res.ok) setMakeupList(await res.json());
+      const [pendingRes, assignedRes] = await Promise.all([
+        apiRequest(token, "/teacher/makeups?status=pending"),
+        apiRequest(token, "/teacher/makeups?status=assigned"),
+      ]);
+      if (pendingRes.ok)  setMakeupList(await pendingRes.json());
+      if (assignedRes.ok) setAssignedMakeupList(await assignedRes.json());
     } catch (e) { console.error(e); }
     finally { setMakeupLoading(false); setMakeupRefresh(false); }
   }, [token]);
+
+  async function handleRevert(mk: MakeupSession) {
+    Alert.alert(
+      "배정 취소",
+      `${mk.student_name}의 보강 배정을 취소하고 보강대기로 되돌리시겠습니까?\n\n결석 기록과 보강 권리는 유지되며, 현재 스케줄 배정만 취소됩니다.`,
+      [
+        { text: "닫기", style: "cancel" },
+        {
+          text: "배정 취소",
+          style: "destructive",
+          onPress: async () => {
+            setRevertingId(mk.id);
+            try {
+              const res = await apiRequest(token, `/admin/makeups/${mk.id}/revert`, { method: "PATCH" });
+              if (res.ok) {
+                setAssignedMakeupList(prev => prev.filter(m => m.id !== mk.id));
+                setMakeupList(prev => [...prev, { ...mk, status: "waiting" }]);
+              } else {
+                const err = await res.json().catch(() => ({}));
+                Alert.alert("오류", err.error || "배정 취소에 실패했습니다.");
+              }
+            } catch (e) {
+              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+            }
+            finally { setRevertingId(null); }
+          },
+        },
+      ]
+    );
+  }
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (subTab === "makeup") loadMakeups(); }, [subTab, loadMakeups]);
@@ -708,8 +745,13 @@ export default function TeacherAttendanceScreen() {
             <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
           ) : (
             <FlatList
-              data={makeupList}
-              keyExtractor={m => m.id}
+              data={[
+                ...(assignedMakeupList.length > 0 ? [{ _type: "assignedHeader" as const }] : []),
+                ...assignedMakeupList.map(m => ({ ...m, _type: "assigned" as const })),
+                ...(makeupList.length > 0 || assignedMakeupList.length > 0 ? [{ _type: "pendingHeader" as const }] : []),
+                ...makeupList.map(m => ({ ...m, _type: "pending" as const })),
+              ]}
+              keyExtractor={(item: any) => item._type === "assignedHeader" ? "__ah" : item._type === "pendingHeader" ? "__ph" : item.id}
               contentContainerStyle={{ padding: 12, paddingBottom: insets.bottom + 80, gap: 10 }}
               showsVerticalScrollIndicator={false}
               refreshControl={<RefreshControl refreshing={makeupRefresh} onRefresh={() => { setMakeupRefresh(true); loadMakeups(); }} />}
@@ -719,7 +761,49 @@ export default function TeacherAttendanceScreen() {
                   <Text style={[s.emptyText, { marginTop: 8 }]}>보강 대기 중인 학생이 없습니다</Text>
                 </View>
               }
-              renderItem={({ item: mk }) => {
+              renderItem={({ item }: any) => {
+                if (item._type === "assignedHeader") {
+                  return (
+                    <View style={[s.mkSectionHeader, { backgroundColor: "#FEF3C7" }]}>
+                      <RotateCcw size={13} color="#D97706" />
+                      <Text style={[s.mkSectionTitle, { color: "#D97706" }]}>
+                        배정된 보강 ({assignedMakeupList.length}명)
+                      </Text>
+                    </View>
+                  );
+                }
+                if (item._type === "pendingHeader") {
+                  return (
+                    <View style={[s.mkSectionHeader, { backgroundColor: C.tintLight || "#E6FFFA" }]}>
+                      <Text style={[s.mkSectionTitle, { color: themeColor }]}>
+                        보강 대기 ({makeupList.length}명)
+                      </Text>
+                    </View>
+                  );
+                }
+                if (item._type === "assigned") {
+                  const mk: MakeupSession = item;
+                  return (
+                    <View style={[s.mkCard, { backgroundColor: "#FFFBEB" }]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.mkName, { color: C.text }]}>{mk.student_name}</Text>
+                        <Text style={s.mkSub}>{mk.original_class_group_name}</Text>
+                        <Text style={s.mkSub}>결석일: {mk.absence_date}{mk.absence_time ? ` ${mk.absence_time}` : ""}</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={[s.mkActionBtn, { backgroundColor: "#FFF8EE", borderWidth: 1.5, borderColor: "#D97706" }]}
+                        disabled={revertingId === mk.id}
+                        onPress={() => handleRevert(mk)}
+                      >
+                        {revertingId === mk.id
+                          ? <ActivityIndicator size="small" color="#D97706" />
+                          : <Text style={[s.mkActionBtnText, { color: "#D97706" }]}>배정 취소</Text>}
+                      </TouchableOpacity>
+                    </View>
+                  );
+                }
+                // pending
+                const mk: MakeupSession = item;
                 const diff = daysDiff(mk.absence_date);
                 const isOld = diff >= 14;
                 return (
@@ -804,11 +888,13 @@ const s = StyleSheet.create({
   emptyText:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" },
 
   // 보강 카드
-  mkCard:         { flexDirection: "row", alignItems: "center", borderRadius: 12, padding: 14, gap: 12 },
-  mkName:         { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
-  mkSub:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
-  mkActionBtn:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, alignItems: "center", minWidth: 64 },
-  mkActionBtnText:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
+  mkCard:          { flexDirection: "row", alignItems: "center", borderRadius: 12, padding: 14, gap: 12 },
+  mkName:          { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
+  mkSub:           { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
+  mkActionBtn:     { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, alignItems: "center", minWidth: 64 },
+  mkActionBtnText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
+  mkSectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  mkSectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
 
   // 모달
   modalOverlay:   { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },

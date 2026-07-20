@@ -1651,12 +1651,13 @@ router.get("/makeups", requireAuth, requireRole("super_admin","pool_admin","teac
           AND expire_at IS NOT NULL
           AND expire_at < NOW()
       `));
-      const { status, student_id, teacher_id, assigned_teacher_id } = req.query;
+      const { status, student_id, teacher_id, assigned_teacher_id, class_group_id } = req.query;
       const conditions: string[] = [`swimming_pool_id = '${poolId}'`];
       if (status) conditions.push(`status = '${status}'`);
       if (student_id) conditions.push(`student_id = '${student_id}'`);
       if (teacher_id) conditions.push(`original_teacher_id = '${teacher_id}'`);
       if (assigned_teacher_id) conditions.push(`(assigned_teacher_id = '${assigned_teacher_id}' OR transferred_to_teacher_id = '${assigned_teacher_id}')`);
+      if (class_group_id) conditions.push(`assigned_class_group_id = '${class_group_id}'`);
       // super_admin이 아니고, teacher_id 필터 없으면 → 내 반 학생만
       const callerId = (req.user as any)?.userId;
       const callerRole = (req.user as any)?.role;
@@ -1887,7 +1888,7 @@ router.patch("/makeups/:id/complete", requireAuth, requireRole("super_admin","po
 );
 
 // PATCH /admin/makeups/:id/revert — 보강 대기로 되돌리기 (잘못 배정 시 원복)
-router.patch("/makeups/:id/revert", requireAuth, requireRole("super_admin","pool_admin"),
+router.patch("/makeups/:id/revert", requireAuth, requireRole("super_admin","pool_admin","teacher"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req);

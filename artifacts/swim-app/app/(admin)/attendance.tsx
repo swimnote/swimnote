@@ -1,7 +1,7 @@
-import { Calendar, ChevronLeft, ChevronRight, CircleCheck, CircleX, Clock, Info, Lock, RefreshCw, Search, TriangleAlert, Users, X } from "lucide-react-native";
+import { Calendar, ChevronLeft, ChevronRight, CircleCheck, CircleX, Clock, Info, Lock, RefreshCw, RotateCcw, Search, TriangleAlert, Users, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {ActivityIndicator, FlatList, Modal, Platform, Pressable,
+import {ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
   StyleSheet, Text, TextInput, TouchableOpacity, View} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -122,8 +122,10 @@ export default function AttendanceScreen() {
   const [searchTriggered, setSearchTriggered] = useState(false);
 
   // 보강관리 상태
-  const [makeupList,    setMakeupList]    = useState<MakeupSession[]>([]);
-  const [loadingMakeup, setLoadingMakeup] = useState(false);
+  const [makeupList,         setMakeupList]         = useState<MakeupSession[]>([]);
+  const [assignedMakeupList, setAssignedMakeupList] = useState<MakeupSession[]>([]);
+  const [loadingMakeup,      setLoadingMakeup]      = useState(false);
+  const [revertingId,        setRevertingId]        = useState<string | null>(null);
 
   // 보강 지정 모달
   const [assignTarget,    setAssignTarget]    = useState<MakeupSession | null>(null);
@@ -224,25 +226,60 @@ export default function AttendanceScreen() {
     finally { setLoadingSearch(false); }
   }
 
-  // ── 보강 대기 목록 ────────────────────────────────────────────
+  // ── 보강 대기 + 배정됨 목록 ───────────────────────────────────
   const fetchMakeup = useCallback(async () => {
     setLoadingMakeup(true);
     try {
-      const res  = await apiRequest(token, "/admin/makeups/pending");
-      const data = await res.json();
-      const serverList: MakeupSession[] = Array.isArray(data) ? data : [];
+      const [pendingRes, assignedRes] = await Promise.all([
+        apiRequest(token, "/admin/makeups/pending"),
+        apiRequest(token, "/admin/makeups?status=assigned"),
+      ]);
+      const pendingData = await pendingRes.json();
+      const serverList: MakeupSession[] = Array.isArray(pendingData) ? pendingData : [];
       setMakeupList(prev => {
-        // 서버에서 확인된 항목 키셋
         const serverKeys = new Set(serverList.map(m => `${m.student_id}_${m.absence_date}`));
-        // 서버에 아직 없는 낙관적(temp) 항목 유지
         const tempItems = prev.filter(m =>
           m.id.startsWith("temp_") && !serverKeys.has(`${m.student_id}_${m.absence_date}`)
         );
         return [...serverList, ...tempItems];
       });
+      if (assignedRes.ok) {
+        const assignedData = await assignedRes.json();
+        setAssignedMakeupList(Array.isArray(assignedData) ? assignedData : []);
+      }
     } catch (e) { console.error(e); }
     finally { setLoadingMakeup(false); }
   }, [token]);
+
+  async function handleRevert(mk: MakeupSession) {
+    Alert.alert(
+      "배정 취소",
+      `${mk.student_name}의 보강 배정을 취소하고 보강대기로 되돌리시겠습니까?\n\n결석 기록과 보강 권리는 유지되며, 현재 스케줄 배정만 취소됩니다.`,
+      [
+        { text: "닫기", style: "cancel" },
+        {
+          text: "배정 취소",
+          style: "destructive",
+          onPress: async () => {
+            setRevertingId(mk.id);
+            try {
+              const res = await apiRequest(token, `/admin/makeups/${mk.id}/revert`, { method: "PATCH" });
+              if (res.ok) {
+                setAssignedMakeupList(prev => prev.filter(m => m.id !== mk.id));
+                setMakeupList(prev => [...prev, { ...mk, status: "waiting" }]);
+              } else {
+                const err = await res.json().catch(() => ({}));
+                Alert.alert("오류", err.error || "배정 취소에 실패했습니다.");
+              }
+            } catch (e) {
+              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+            }
+            finally { setRevertingId(null); }
+          },
+        },
+      ]
+    );
+  }
 
   useEffect(() => {
     if (viewMode === "makeup") fetchMakeup();
@@ -608,44 +645,92 @@ export default function AttendanceScreen() {
           </View>
         </Modal>
 
-        {/* 보강 대기 목록 */}
+        {/* 보강 대기 + 배정됨 목록 */}
         {loadingMakeup ? (
           <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
         ) : (
           <FlatList
-            data={makeupList}
-            keyExtractor={item => item.id}
+            data={[
+              ...(assignedMakeupList.length > 0 ? [{ _type: "assignedHeader" as const, id: "__ah" }] : []),
+              ...assignedMakeupList.map(m => ({ ...m, _type: "assigned" as const })),
+              ...[{ _type: "pendingHeader" as const, id: "__ph" }],
+              ...makeupList.map(m => ({ ...m, _type: "pending" as const })),
+            ]}
+            keyExtractor={(item: any) => item._type === "assignedHeader" ? "__ah" : item._type === "pendingHeader" ? "__ph" : item.id}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 100, paddingTop: 12, gap: 10 }}
             showsVerticalScrollIndicator={false}
-            ListHeaderComponent={
-              <View style={[a.makeupSummary, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
-                <Clock size={16} color={C.tint} />
-                <Text style={[{ fontFamily: "Pretendard-Regular", fontSize: 14, color: C.tint }]}>
-                  보강 대기 {makeupList.length}명
-                </Text>
-                <Pressable style={[a.refreshBtn]} onPress={fetchMakeup}>
-                  <RefreshCw size={14} color={C.tint} />
-                </Pressable>
-              </View>
-            }
-            ListEmptyComponent={
-              <View style={a.empty}>
-                <CircleCheck size={40} color={C.textMuted} />
-                <Text style={[a.emptyText, { color: C.textMuted }]}>보강 대기 중인 회원이 없습니다</Text>
-              </View>
-            }
-            renderItem={({ item }) => {
-              const days = daysSince(item.absence_date);
+            renderItem={({ item }: any) => {
+              if (item._type === "assignedHeader") {
+                return (
+                  <View style={[a.makeupSummary, { backgroundColor: "#FEF3C7", borderColor: "#D97706" }]}>
+                    <RotateCcw size={16} color="#D97706" />
+                    <Text style={[{ fontFamily: "Pretendard-Regular", fontSize: 14, color: "#D97706", flex: 1 }]}>
+                      배정된 보강 {assignedMakeupList.length}명
+                    </Text>
+                  </View>
+                );
+              }
+              if (item._type === "pendingHeader") {
+                return (
+                  <View style={[a.makeupSummary, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
+                    <Clock size={16} color={C.tint} />
+                    <Text style={[{ fontFamily: "Pretendard-Regular", fontSize: 14, color: C.tint, flex: 1 }]}>
+                      보강 대기 {makeupList.length}명
+                    </Text>
+                    <Pressable style={[a.refreshBtn]} onPress={fetchMakeup}>
+                      <RefreshCw size={14} color={C.tint} />
+                    </Pressable>
+                  </View>
+                );
+              }
+              if (item._type === "assigned") {
+                const mk: MakeupSession = item;
+                return (
+                  <View style={[a.mkCard, { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <View style={[a.avatar, { backgroundColor: "#FEF3C7" }]}>
+                        <Text style={[a.avatarText, { color: "#D97706" }]}>{mk.student_name?.[0] ?? "?"}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[a.memberName, { color: C.text }]}>{mk.student_name}</Text>
+                        <Text style={[a.mkSub, { color: C.textSecondary }]}>
+                          {mk.original_class_group_name} · {(mk as any).assigned_class_group_name || "반 배정됨"}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[a.absDate, { color: C.textMuted }]}>
+                      결석일: {mk.absence_date}{(mk as any).assigned_date ? `  →  보강: ${(mk as any).assigned_date}` : ""}
+                    </Text>
+                    <View style={a.mkActions}>
+                      <Pressable
+                        style={[a.mkBtn, { backgroundColor: "#FFF8EE", borderWidth: 1.5, borderColor: "#D97706", opacity: revertingId === mk.id ? 0.5 : 1 }]}
+                        disabled={revertingId === mk.id}
+                        onPress={() => handleRevert(mk)}
+                      >
+                        {revertingId === mk.id
+                          ? <ActivityIndicator size="small" color="#D97706" />
+                          : <>
+                              <RotateCcw size={14} color="#D97706" />
+                              <Text style={[a.mkBtnText, { color: "#D97706" }]}>배정 취소</Text>
+                            </>}
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              }
+              // pending
+              const mk: MakeupSession = item;
+              const days = daysSince(mk.absence_date);
               return (
                 <View style={[a.mkCard, { backgroundColor: C.card, borderColor: days >= 14 ? "#FCA5A5" : C.border }]}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
                     <View style={[a.avatar, { backgroundColor: C.tintLight }]}>
-                      <Text style={[a.avatarText, { color: C.tint }]}>{item.student_name?.[0] ?? "?"}</Text>
+                      <Text style={[a.avatarText, { color: C.tint }]}>{mk.student_name?.[0] ?? "?"}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[a.memberName, { color: C.text }]}>{item.student_name}</Text>
+                      <Text style={[a.memberName, { color: C.text }]}>{mk.student_name}</Text>
                       <Text style={[a.mkSub, { color: C.textSecondary }]}>
-                        {item.original_class_group_name} · {item.original_teacher_name}
+                        {mk.original_class_group_name} · {mk.original_teacher_name}
                       </Text>
                     </View>
                     <View style={[a.daysTag, { backgroundColor: days >= 14 ? "#F9DEDA" : "#FFFFFF" }]}>
@@ -654,8 +739,8 @@ export default function AttendanceScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Text style={[a.absDate, { color: C.textMuted }]}>결석일: {item.absence_date}</Text>
-                  {item.id.startsWith("temp_") ? (
+                  <Text style={[a.absDate, { color: C.textMuted }]}>결석일: {mk.absence_date}</Text>
+                  {mk.id.startsWith("temp_") ? (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
                       <ActivityIndicator size="small" color={C.tint} />
                       <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>서버 등록 중...</Text>
@@ -664,14 +749,14 @@ export default function AttendanceScreen() {
                     <View style={a.mkActions}>
                       <Pressable
                         style={[a.mkBtn, { backgroundColor: C.button }]}
-                        onPress={() => openAssign(item)}
+                        onPress={() => openAssign(mk)}
                       >
                         <Calendar size={14} color="#fff" />
                         <Text style={a.mkBtnText}>보강 지정</Text>
                       </Pressable>
                       <Pressable
                         style={[a.mkBtn, { backgroundColor: "#F9DEDA", borderWidth: 1, borderColor: "#FCA5A5" }]}
-                        onPress={() => openExtinguish(item)}
+                        onPress={() => openExtinguish(mk)}
                       >
                         <CircleX size={14} color="#D96C6C" />
                         <Text style={[a.mkBtnText, { color: "#D96C6C" }]}>결석 소멸</Text>
@@ -681,6 +766,7 @@ export default function AttendanceScreen() {
                 </View>
               );
             }}
+            ListEmptyComponent={null}
           />
         )}
       </ScreenLayout>
