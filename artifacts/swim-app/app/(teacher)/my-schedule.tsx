@@ -79,6 +79,9 @@ export default function MyScheduleScreen() {
   const [weeklyViewStart, setWeeklyViewStart] = useState<string>(() => getMondayStr(todayDateStr()));
   const [weekChangeLogs, setWeekChangeLogs] = useState<ChangeLogItem[]>([]);
 
+  // ClassDetailSheet용 날짜 기준 학생 목록 (등록일 필터 적용)
+  const [detailDateStudents, setDetailDateStudents] = useState<StudentItem[]>([]);
+
   const isMountedRef = useRef(false);
   const pendingRestoreDateRef = useRef<string | null>(null);
   const autoOpenDoneRef = useRef(false);
@@ -140,6 +143,24 @@ export default function MyScheduleScreen() {
   }
 
   useEffect(() => { load(); }, [load]);
+
+  // detailGroup + selectedDate 변경 시: 날짜 기준 학생 목록 조회 (enrolled_at 필터)
+  useEffect(() => {
+    if (!detailGroup || !selectedDate || !token) {
+      setDetailDateStudents([]);
+      return;
+    }
+    let cancelled = false;
+    apiRequest(token, `/today-schedule?date=${selectedDate}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((list: any[]) => {
+        if (cancelled) return;
+        const found = list.find((g: any) => g.id === detailGroup.id);
+        setDetailDateStudents(found?.students ?? []);
+      })
+      .catch(() => { if (!cancelled) setDetailDateStudents([]); });
+    return () => { cancelled = true; };
+  }, [detailGroup, selectedDate, token]);
 
   // 휴무일 Set 로드 (선택된 날짜 기준 해당 월)
   const loadHolidays = useCallback(async (dateStr: string) => {
@@ -714,7 +735,7 @@ export default function MyScheduleScreen() {
       {detailGroup && (
         <ClassDetailSheet
           group={detailGroup}
-          students={students}
+          students={selectedDate ? detailDateStudents : students}
           attMap={selectedDate ? dayAttMap : todayAttMap}
           diarySet={selectedDate ? dayDiarySet : todayDiarySet}
           themeColor={themeColor}
