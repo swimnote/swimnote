@@ -75,29 +75,22 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
     `);
     if (holidayCheck.rows.length > 0) { res.json([]); return; }
 
-    // 학생 수 — class_group_id + assigned_class_ids 모두 기준
-    const studentRows = await db.execute(sql`
-      SELECT id, class_group_id, assigned_class_ids FROM students
-      WHERE swimming_pool_id = ${poolId}
-      AND status IN ('active', 'pending_parent_link', 'unregistered')
-      AND deleted_at IS NULL
-    `);
+    // 학생 수 — student_class_history 기반 날짜 기준 (학생 상세 목록과 동일 조건)
+    const classIdListForCount = classIds.map(id => `'${id}'`).join(",");
+    const countRows = await db.execute(sql.raw(`
+      SELECT h.class_group_id, COUNT(DISTINCT h.student_id) AS cnt
+      FROM student_class_history h
+      JOIN students s ON s.id = h.student_id
+      WHERE h.swimming_pool_id = '${poolId}'
+        AND h.class_group_id IN (${classIdListForCount})
+        AND h.enrolled_at <= '${dateParam}'
+        AND (h.left_at IS NULL OR h.left_at > '${dateParam}')
+        AND s.deleted_at IS NULL
+      GROUP BY h.class_group_id
+    `));
     const studentCountMap: Record<string, number> = {};
-    for (const st of studentRows.rows as any[]) {
-      const seen = new Set<string>();
-      // assigned_class_ids: JSONB → already a JS array from node-postgres
-      let ids: string[] = [];
-      const raw = st.assigned_class_ids;
-      if (Array.isArray(raw)) ids = raw;
-      else if (typeof raw === "string") { try { ids = JSON.parse(raw); } catch { ids = []; } }
-      // also add class_group_id if set
-      if (st.class_group_id && !ids.includes(st.class_group_id)) ids.push(st.class_group_id);
-      for (const cid of ids) {
-        if (classIds.includes(cid) && !seen.has(cid)) {
-          seen.add(cid);
-          studentCountMap[cid] = (studentCountMap[cid] || 0) + 1;
-        }
-      }
+    for (const row of countRows.rows as any[]) {
+      studentCountMap[row.class_group_id] = Number(row.cnt);
     }
 
     // 출결 현황 — poolId 기반으로 조회 후 JS에서 필터

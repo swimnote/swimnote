@@ -247,7 +247,7 @@ async function runDiaryPushQueue(): Promise<void> {
         const dateLabel = item.lesson_date ? ` (${formatDateKrSched(item.lesson_date)})` : "";
 
         if (item.is_individual) {
-          // 개인 일지: student_ids 기반으로 학부모 조회 후 발송
+          // 개인 일지: student_ids 기반 학부모 조회 (일지 작성 시 소속 학생 ID가 이미 저장됨)
           const studentIds: string[] = item.student_ids || [];
           if (studentIds.length > 0) {
             const idsLiteral = studentIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
@@ -257,7 +257,7 @@ async function runDiaryPushQueue(): Promise<void> {
               JOIN parent_students ps ON ps.student_id = s.id
               JOIN parent_accounts pa ON pa.id = ps.parent_id
               WHERE s.id IN (${idsLiteral})
-                AND s.status != 'deleted' AND ps.status = 'approved'
+                AND s.deleted_at IS NULL AND ps.status = 'approved'
             `))).rows as any[];
 
             for (const p of parentRows) {
@@ -273,15 +273,35 @@ async function runDiaryPushQueue(): Promise<void> {
             }
           }
         } else {
-          // 공통 일지: 반 전체 학부모에게 발송
-          const notifBody = `${item.class_name}${dateLabel} 수업 일지가 도착했어요. 지금 확인해보세요 💬`;
-          await sendPushToClassParents(
-            item.class_id, "diary_upload",
-            "📖 수업 일지가 도착했어요", notifBody,
-            { type: "diary_upload", diaryId: item.diary_id, classId: item.class_id },
-            `diary_${item.diary_id}`, false,
-            { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
-          );
+          // 공통 일지: lesson_date 기준 student_class_history에 유효한 학부모에게만 발송
+          if (!item.lesson_date) {
+            console.error(`[push-scheduler] 공통 일지 예약에 lesson_date 없음, 건너뜀: ${item.id}`);
+          } else {
+            const classIdSafe = (item.class_id || "").replace(/'/g, "''");
+            const lessonDateSafe = item.lesson_date.replace(/'/g, "''");
+            const parentRows2 = (await db.execute(sql.raw(`
+              SELECT DISTINCT pa.id AS parent_account_id
+              FROM parent_students ps
+              JOIN parent_accounts pa ON pa.id = ps.parent_id
+              JOIN student_class_history sch
+                ON sch.student_id = ps.student_id
+                AND sch.class_group_id = '${classIdSafe}'
+                AND sch.enrolled_at <= '${lessonDateSafe}'
+                AND (sch.left_at IS NULL OR sch.left_at > '${lessonDateSafe}')
+              JOIN students s ON s.id = ps.student_id
+              WHERE ps.status = 'approved' AND s.deleted_at IS NULL
+            `))).rows as any[];
+            const notifBody = `${item.class_name}${dateLabel} 수업 일지가 도착했어요. 지금 확인해보세요 💬`;
+            for (const p of parentRows2) {
+              await sendPushToUser(
+                p.parent_account_id, true, "diary_upload",
+                "📖 수업 일지가 도착했어요", notifBody,
+                { type: "diary_upload", diaryId: item.diary_id, classId: item.class_id },
+                `diary_${item.diary_id}_${p.parent_account_id}`,
+                { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
+              ).catch(() => {});
+            }
+          }
         }
 
         // 발송 완료 표시

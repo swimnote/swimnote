@@ -110,20 +110,28 @@ function nextDiaryPushTime(kstNow: Date): string {
   return new Date(next.getTime() - 9 * 60 * 60 * 1000).toISOString();
 }
 
-async function sendDiaryPush(classId: string, diaryId: string, className: string, poolId: string, lessonDate?: string) {
+async function sendDiaryPush(classId: string, diaryId: string, className: string, poolId: string, lessonDate: string) {
   try {
-    const dateLabel = lessonDate ? ` (${formatDateKr(lessonDate)})` : "";
+    const dateLabel = ` (${formatDateKr(lessonDate)})`;
     const notifBody = `${className}${dateLabel} 수업 일지가 도착했어요. 지금 확인해보세요 💬`;
+    const classIdSafe = classId.replace(/'/g, "''");
+    const lessonDateSafe = lessonDate.replace(/'/g, "''");
+
+    // lesson_date 기준 student_class_history에 유효한 학부모만 대상
+    const parentRows = await db.execute(sql.raw(`
+      SELECT DISTINCT pa.id AS parent_account_id
+      FROM parent_students ps
+      JOIN parent_accounts pa ON pa.id = ps.parent_id
+      JOIN student_class_history sch
+        ON sch.student_id = ps.student_id
+        AND sch.class_group_id = '${classIdSafe}'
+        AND sch.enrolled_at <= '${lessonDateSafe}'
+        AND (sch.left_at IS NULL OR sch.left_at > '${lessonDateSafe}')
+      JOIN students s ON s.id = ps.student_id
+      WHERE ps.status = 'approved' AND s.deleted_at IS NULL
+    `));
 
     // 인앱 알림 생성 (시간대 무관 즉시)
-    const parentRows = await db.execute(sql`
-      SELECT DISTINCT pa.id AS parent_account_id
-      FROM students s
-      JOIN parent_students ps ON ps.student_id = s.id
-      JOIN parent_accounts pa ON pa.id = ps.parent_id
-      WHERE (s.class_group_id = ${classId} OR s.assigned_class_ids @> to_jsonb(${classId}::text))
-        AND s.status != 'deleted' AND ps.status = 'approved'
-    `);
     for (const p of parentRows.rows as any[]) {
       const nid = genId("notif");
       await db.execute(sql`
@@ -136,24 +144,26 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
       `);
     }
 
-    const { sendPushToClassParents } = await import("../lib/push-service.js");
+    const { sendPushToUser } = await import("../lib/push-service.js");
     const kstNow = getKSTNow();
     if (isDiaryPushAllowed(kstNow)) {
-      // 허용 시간대 → 즉시 발송
-      await sendPushToClassParents(
-        classId, "diary_upload",
-        "📖 수업 일지가 도착했어요", notifBody,
-        { type: "diary_upload", diaryId, classId },
-        `diary_${diaryId}`, false,
-        { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
-      );
+      // 허용 시간대 → lesson_date 기준 학부모에게 즉시 개별 발송
+      for (const p of parentRows.rows as any[]) {
+        await sendPushToUser(
+          p.parent_account_id, true, "diary_upload",
+          "📖 수업 일지가 도착했어요", notifBody,
+          { type: "diary_upload", diaryId, classId },
+          `diary_${diaryId}_${p.parent_account_id}`,
+          { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
+        ).catch(() => {});
+      }
     } else {
-      // 비허용 시간대 → 다음날 10시 예약
+      // 비허용 시간대 → 다음날 10시 예약 (lesson_date 저장)
       const qid = genId("dpq");
       const scheduledAt = nextDiaryPushTime(kstNow);
       await db.execute(sql`
         INSERT INTO diary_push_queue (id, pool_id, class_id, diary_id, class_name, lesson_date, is_individual, scheduled_at)
-        VALUES (${qid}, ${poolId}, ${classId}, ${diaryId}, ${className}, ${lessonDate ?? null}, false, ${scheduledAt})
+        VALUES (${qid}, ${poolId}, ${classId}, ${diaryId}, ${className}, ${lessonDate}, false, ${scheduledAt})
       `);
       console.log(`[diary] 푸시 예약 등록 (${scheduledAt}):`, qid);
     }

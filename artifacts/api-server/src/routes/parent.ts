@@ -322,12 +322,19 @@ router.get("/attendance", requireAuth, requireParent, async (req: AuthRequest, r
 
     const records: any[] = [];
     for (const sid of studentIds) {
-      const rows = await db.execute(sql`
-        SELECT id, student_id as member_id, date, status
-        FROM attendance
-        WHERE student_id = ${sid}
-        ORDER BY date DESC
-      `);
+      const sidSafe = sid.replace(/'/g, "''");
+      const rows = await db.execute(sql.raw(`
+        SELECT a.id, a.student_id as member_id, a.date, a.status
+        FROM attendance a
+        JOIN student_class_history sch
+          ON sch.student_id = a.student_id
+          AND sch.class_group_id = a.class_group_id
+          AND sch.enrolled_at <= a.date
+          AND (sch.left_at IS NULL OR sch.left_at > a.date)
+        WHERE a.student_id = '${sidSafe}'
+          AND a.class_group_id IS NOT NULL
+        ORDER BY a.date DESC
+      `));
       for (const r of rows.rows as any[]) {
         records.push({ ...r, member_name: studentNames[sid] || "" });
       }
@@ -348,9 +355,22 @@ router.get("/students/:id/attendance", requireAuth, requireParent, async (req: A
       )).limit(1);
     if (!link) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
 
-    let records = await db.select().from(attendanceTable).where(eq(attendanceTable.student_id, req.params.id));
-    if (month) records = records.filter(r => r.date.startsWith(month as string));
-    res.json(records.sort((a, b) => b.date.localeCompare(a.date)));
+    const sId = req.params.id.replace(/'/g, "''");
+    const monthStr = typeof month === "string" ? month : null;
+    const rows = (await db.execute(sql.raw(`
+      SELECT a.id, a.student_id, a.date, a.status, a.class_group_id
+      FROM attendance a
+      JOIN student_class_history sch
+        ON sch.student_id = a.student_id
+        AND sch.class_group_id = a.class_group_id
+        AND sch.enrolled_at <= a.date
+        AND (sch.left_at IS NULL OR sch.left_at > a.date)
+      WHERE a.student_id = '${sId}'
+        AND a.class_group_id IS NOT NULL
+        ${monthStr ? `AND a.date LIKE '${monthStr.replace(/'/g, "''")}%'` : ""}
+      ORDER BY a.date DESC
+    `))).rows as any[];
+    res.json(rows.sort((a: any, b: any) => b.date.localeCompare(a.date)));
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
@@ -536,23 +556,25 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
       )).limit(1);
     if (!link) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
 
-    const [student] = await db.select({ id: studentsTable.id, class_group_id: studentsTable.class_group_id, assigned_class_ids: (studentsTable as any).assigned_class_ids })
+    const [student] = await db.select({ id: studentsTable.id })
       .from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
     if (!student) { res.json([]); return; }
 
-    // 학생이 배정된 모든 반 ID 수집 (주2회 이상 = 여러 반)
-    const assignedIds: string[] = Array.isArray(student.assigned_class_ids) ? student.assigned_class_ids : [];
-    const allClassIds: string[] = Array.from(new Set([
-      ...(student.class_group_id ? [student.class_group_id] : []),
-      ...assignedIds,
-    ]));
-    if (!allClassIds.length) { res.json([]); return; }
-
     const { month } = req.query;
-    const idsLiteral = allClassIds.map(id => `'${id.replace(/'/g, "''")}'`).join(",");
     const studentIdSafe = req.params.id.replace(/'/g, "''");
 
-    // 공통 일지 조회 (삭제된 것 제외) — 등록일~퇴원일 범위 내 일지만
+    // 학생의 모든 반 이력에서 class_group_id 수집 (반 이동 후 과거 반 일지도 조회)
+    const historyClasses = (await db.execute(sql.raw(`
+      SELECT DISTINCT class_group_id
+      FROM student_class_history
+      WHERE student_id = '${studentIdSafe}'
+        AND class_group_id IS NOT NULL
+    `))).rows as any[];
+    const allClassIds = historyClasses.map(r => r.class_group_id);
+    if (!allClassIds.length) { res.json([]); return; }
+    const idsLiteral = allClassIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
+
+    // 공통 일지 조회 (삭제된 것 제외) — lesson_date 기준 history JOIN으로 날짜 유효성 검증
     const diaryRows = await db.execute(sql.raw(`
       SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at,
              cd.class_group_id, cg.name AS class_group_name
@@ -606,7 +628,7 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
     const studentIds = links.map(l => l.student_id);
     const studentsData: any[] = [];
     for (const sid of studentIds) {
-      const [s] = await db.select({ id: studentsTable.id, class_group_id: studentsTable.class_group_id, name: studentsTable.name, assigned_class_ids: (studentsTable as any).assigned_class_ids })
+      const [s] = await db.select({ id: studentsTable.id, name: studentsTable.name })
         .from(studentsTable).where(eq(studentsTable.id, sid)).limit(1);
       if (s) studentsData.push(s);
     }
@@ -614,15 +636,17 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
 
     const result: any[] = [];
     for (const student of studentsData) {
-      // 배정된 모든 반 ID 수집 (주2회 이상 = 여러 반)
-      const assignedIds: string[] = Array.isArray(student.assigned_class_ids) ? student.assigned_class_ids : [];
-      const allClassIds: string[] = Array.from(new Set([
-        ...(student.class_group_id ? [student.class_group_id] : []),
-        ...assignedIds,
-      ]));
-      if (!allClassIds.length) continue;
-      const idsLiteral = allClassIds.map(id => `'${id.replace(/'/g, "''")}'`).join(",");
       const sIdSafe = student.id.replace(/'/g, "''");
+      // 학생의 모든 반 이력에서 class_group_id 수집 (반 이동 후 과거 반 일지도 조회)
+      const historyClasses2 = (await db.execute(sql.raw(`
+        SELECT DISTINCT class_group_id
+        FROM student_class_history
+        WHERE student_id = '${sIdSafe}'
+          AND class_group_id IS NOT NULL
+      `))).rows as any[];
+      const allClassIds = historyClasses2.map((r: any) => r.class_group_id);
+      if (!allClassIds.length) continue;
+      const idsLiteral = allClassIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
 
       const diaryRows = await db.execute(sql.raw(`
         SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at, cd.class_group_id

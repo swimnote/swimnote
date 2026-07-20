@@ -137,10 +137,10 @@ router.get("/weekly", requireAuth, async (req: AuthRequest, res) => {
     const startDateStr = start_date as string;
     const cgIdStr = class_group_id as string | undefined;
 
-    // student_class_history 기반으로 해당 주에 한 번이라도 active한 회원 조회
+    // student_class_history 기반으로 해당 주에 한 번이라도 active한 회원 조회 (enrolled_at/left_at 포함)
     const historyStudents = (await db.execute(sql.raw(`
       SELECT DISTINCT ON (s.id, h.class_group_id)
-        s.id, s.name, h.class_group_id
+        s.id, s.name, h.class_group_id, h.enrolled_at, h.left_at
       FROM student_class_history h
       JOIN students s ON s.id = h.student_id
       WHERE h.swimming_pool_id = '${poolId}'
@@ -164,7 +164,15 @@ router.get("/weekly", requireAuth, async (req: AuthRequest, res) => {
     classGroups.forEach(cg => { cgMap[cg.id] = cg.name; });
 
     const result = historyStudents.map((s: any) => {
-      const studentRecords = allRecords.filter(r => r.student_id === s.id);
+      // class_group_id + 날짜 재판정으로 반 이동 학생 중복 제거
+      const studentRecords = allRecords.filter(r => {
+        if (r.student_id !== s.id) return false;
+        if (r.class_group_id === null) return false;
+        if (r.class_group_id !== s.class_group_id) return false;
+        if (r.date < s.enrolled_at) return false;
+        if (s.left_at !== null && r.date >= s.left_at) return false;
+        return true;
+      });
       const days: Record<string, string> = {};
       studentRecords.forEach(r => { days[r.date] = r.status; });
       return {
@@ -203,10 +211,10 @@ router.get("/monthly-summary", requireAuth, async (req: AuthRequest, res) => {
     const monthEnd = `${monthStr}-31`;
     const cgIdStr = class_group_id as string | undefined;
 
-    // student_class_history 기반으로 해당 월에 한 번이라도 active한 회원 조회
+    // student_class_history 기반으로 해당 월에 한 번이라도 active한 회원 조회 (enrolled_at/left_at 포함)
     const historyStudents = (await db.execute(sql.raw(`
       SELECT DISTINCT ON (s.id, h.class_group_id)
-        s.id, s.name, h.class_group_id
+        s.id, s.name, h.class_group_id, h.enrolled_at, h.left_at
       FROM student_class_history h
       JOIN students s ON s.id = h.student_id
       WHERE h.swimming_pool_id = '${poolId}'
@@ -230,7 +238,15 @@ router.get("/monthly-summary", requireAuth, async (req: AuthRequest, res) => {
     classGroups.forEach(cg => { cgMap[cg.id] = cg.name; });
 
     const result = historyStudents.map((s: any) => {
-      const studentRecords = allRecords.filter(r => r.student_id === s.id);
+      // class_group_id + 날짜 재판정으로 반 이동 학생 중복 제거
+      const studentRecords = allRecords.filter(r => {
+        if (r.student_id !== s.id) return false;
+        if (r.class_group_id === null) return false;
+        if (r.class_group_id !== s.class_group_id) return false;
+        if (r.date < s.enrolled_at) return false;
+        if (s.left_at !== null && r.date >= s.left_at) return false;
+        return true;
+      });
       let present = 0, absent = 0, late = 0;
       studentRecords.forEach(r => {
         if (r.status === "present") present++;
@@ -447,6 +463,9 @@ async function autoCreateMakeup(
   return { created: true };
 }
 
+// TODO: 향후 출결 생성 시 student_class_history 서버 검증 추가 필요
+//   - student_id + class_group_id + date가 history 유효기간 내인지 확인
+//   - 현재는 today-schedule(history 기반)을 통해서만 생성되어 간접 보호됨
 router.post("/", requireAuth, async (req: AuthRequest, res) => {
   const { class_group_id, student_id, date, status } = req.body;
   if (!student_id || !date || !status) {
