@@ -12,3 +12,4 @@
 - [_layout.tsx otaReady 미선언 크래시](layout-otaReady-bug.md) — RootNav에서 otaReady 변수 선언 없이 참조 → ReferenceError → 앱 크래시; const otaReady = false 추가로 해결
 - [JWT role 정규화 버그](jwt-role-normalization.md) — teacher 전환 후 앱 재시작 시 teacher 토큰이 pool_admin API 호출에 사용 → 403 → 대시보드 "—"; loadStored에서 JWT role vs DB role 비교 후 자동 교체로 해결
 - [Optimistic Update 누락 패턴](optimistic-update-pattern.md) — 모달/액션의 onClose·onMoved를 API await 이후 호출하면 딜레이 발생; 반드시 즉시 호출 후 API는 .catch()로 백그라운드 처리
+- [날짜 시스템 통합 완료](date-system-integration.md) — student_class_history(enrolled_at/left_at) 단일 소스 42개 통합 테스트 전체 통과; 핵심 패턴 및 함정 기록

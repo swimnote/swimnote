@@ -137,10 +137,10 @@ router.get("/weekly", requireAuth, async (req: AuthRequest, res) => {
     const startDateStr = start_date as string;
     const cgIdStr = class_group_id as string | undefined;
 
-    // student_class_history 기반으로 해당 주에 한 번이라도 active한 회원 조회 (enrolled_at/left_at 포함)
-    const historyStudents = (await db.execute(sql.raw(`
-      SELECT DISTINCT ON (s.id, h.class_group_id)
-        s.id, s.name, h.class_group_id, h.enrolled_at, h.left_at
+    // student_class_history 기반으로 해당 주에 한 번이라도 active한 회원 조회
+    // DISTINCT ON 제거: 연기→복귀 학생의 각 기간을 모두 반영
+    const histRows = (await db.execute(sql.raw(`
+      SELECT s.id, s.name, h.class_group_id, h.enrolled_at, h.left_at
       FROM student_class_history h
       JOIN students s ON s.id = h.student_id
       WHERE h.swimming_pool_id = '${poolId}'
@@ -148,7 +148,7 @@ router.get("/weekly", requireAuth, async (req: AuthRequest, res) => {
         AND h.enrolled_at <= '${endDate}'
         AND (h.left_at IS NULL OR h.left_at > '${startDateStr}')
         AND s.deleted_at IS NULL
-      ORDER BY s.id, h.class_group_id, h.enrolled_at DESC
+      ORDER BY s.id, h.class_group_id, h.enrolled_at
     `))).rows as any[];
 
     const allRecords = await db.select().from(attendanceTable)
@@ -163,26 +163,34 @@ router.get("/weekly", requireAuth, async (req: AuthRequest, res) => {
     const cgMap: Record<string, string> = {};
     classGroups.forEach(cg => { cgMap[cg.id] = cg.name; });
 
-    const result = historyStudents.map((s: any) => {
-      // class_group_id + 날짜 재판정으로 반 이동 학생 중복 제거
+    // date 타입 안전 변환 (pg가 Date 객체 또는 문자열로 반환할 수 있음)
+    const toDateStr = (v: any): string | null => {
+      if (!v) return null;
+      if (typeof v === "string") return v.slice(0, 10);
+      if (v instanceof Date) return v.toISOString().slice(0, 10);
+      return String(v).slice(0, 10);
+    };
+
+    // (student_id, class_group_id)별로 days 집계 — hist row별로 해당 기간 출결만 포함
+    const aggregated: Record<string, { student_id: string; student_name: string; class_group_id: string; class_name: string | null; days: Record<string, string> }> = {};
+    for (const s of histRows) {
+      const key = `${s.id}__${s.class_group_id}`;
+      if (!aggregated[key]) {
+        aggregated[key] = { student_id: s.id, student_name: s.name, class_group_id: s.class_group_id, class_name: s.class_group_id ? (cgMap[s.class_group_id] || null) : null, days: {} };
+      }
+      const enrStr = toDateStr(s.enrolled_at)!;
+      const lftStr = toDateStr(s.left_at);
       const studentRecords = allRecords.filter(r => {
         if (r.student_id !== s.id) return false;
-        if (r.class_group_id === null) return false;
-        if (r.class_group_id !== s.class_group_id) return false;
-        if (r.date < s.enrolled_at) return false;
-        if (s.left_at !== null && r.date >= s.left_at) return false;
+        if (r.class_group_id === null || r.class_group_id !== s.class_group_id) return false;
+        const rDate = toDateStr(r.date)!;
+        if (rDate < enrStr) return false;
+        if (lftStr !== null && rDate >= lftStr) return false;
         return true;
       });
-      const days: Record<string, string> = {};
-      studentRecords.forEach(r => { days[r.date] = r.status; });
-      return {
-        student_id: s.id,
-        student_name: s.name,
-        class_group_id: s.class_group_id,
-        class_name: s.class_group_id ? (cgMap[s.class_group_id] || null) : null,
-        days,
-      };
-    });
+      studentRecords.forEach(r => { aggregated[key].days[toDateStr(r.date)!] = r.status; });
+    }
+    const result = Object.values(aggregated);
 
     res.json({ success: true, data: result, start_date, end_date: endDate });
   } catch (err) {
@@ -211,10 +219,10 @@ router.get("/monthly-summary", requireAuth, async (req: AuthRequest, res) => {
     const monthEnd = `${monthStr}-31`;
     const cgIdStr = class_group_id as string | undefined;
 
-    // student_class_history 기반으로 해당 월에 한 번이라도 active한 회원 조회 (enrolled_at/left_at 포함)
-    const historyStudents = (await db.execute(sql.raw(`
-      SELECT DISTINCT ON (s.id, h.class_group_id)
-        s.id, s.name, h.class_group_id, h.enrolled_at, h.left_at
+    // student_class_history 기반으로 해당 월에 한 번이라도 active한 회원 조회
+    // DISTINCT ON 제거: 연기→복귀 학생의 각 기간을 모두 반영
+    const histRows = (await db.execute(sql.raw(`
+      SELECT s.id, s.name, h.class_group_id, h.enrolled_at, h.left_at
       FROM student_class_history h
       JOIN students s ON s.id = h.student_id
       WHERE h.swimming_pool_id = '${poolId}'
@@ -222,7 +230,7 @@ router.get("/monthly-summary", requireAuth, async (req: AuthRequest, res) => {
         AND h.enrolled_at <= '${monthEnd}'
         AND (h.left_at IS NULL OR h.left_at > '${monthStart}')
         AND s.deleted_at IS NULL
-      ORDER BY s.id, h.class_group_id, h.enrolled_at DESC
+      ORDER BY s.id, h.class_group_id, h.enrolled_at
     `))).rows as any[];
 
     const allRecords = await db.select().from(attendanceTable)
@@ -237,33 +245,48 @@ router.get("/monthly-summary", requireAuth, async (req: AuthRequest, res) => {
     const cgMap: Record<string, string> = {};
     classGroups.forEach(cg => { cgMap[cg.id] = cg.name; });
 
-    const result = historyStudents.map((s: any) => {
-      // class_group_id + 날짜 재판정으로 반 이동 학생 중복 제거
+    // date 타입 안전 변환
+    const toDateStr = (v: any): string | null => {
+      if (!v) return null;
+      if (typeof v === "string") return v.slice(0, 10);
+      if (v instanceof Date) return v.toISOString().slice(0, 10);
+      return String(v).slice(0, 10);
+    };
+
+    // (student_id, class_group_id)별로 집계 — hist row별로 해당 기간 출결만 포함
+    const aggregated: Record<string, { student_id: string; student_name: string; class_group_id: string; class_name: string | null; present: number; absent: number; late: number; total: number }> = {};
+    for (const s of histRows) {
+      const key = `${s.id}__${s.class_group_id}`;
+      if (!aggregated[key]) {
+        aggregated[key] = { student_id: s.id, student_name: s.name, class_group_id: s.class_group_id, class_name: s.class_group_id ? (cgMap[s.class_group_id] || null) : null, present: 0, absent: 0, late: 0, total: 0 };
+      }
+      const enrStr = toDateStr(s.enrolled_at)!;
+      const lftStr = toDateStr(s.left_at);
       const studentRecords = allRecords.filter(r => {
         if (r.student_id !== s.id) return false;
-        if (r.class_group_id === null) return false;
-        if (r.class_group_id !== s.class_group_id) return false;
-        if (r.date < s.enrolled_at) return false;
-        if (s.left_at !== null && r.date >= s.left_at) return false;
+        if (r.class_group_id === null || r.class_group_id !== s.class_group_id) return false;
+        const rDate = toDateStr(r.date)!;
+        if (rDate < enrStr) return false;
+        if (lftStr !== null && rDate >= lftStr) return false;
         return true;
       });
-      let present = 0, absent = 0, late = 0;
       studentRecords.forEach(r => {
-        if (r.status === "present") present++;
-        else if (r.status === "absent") absent++;
-        else if (r.status === "late") late++;
+        if (r.status === "present") aggregated[key].present++;
+        else if (r.status === "absent") aggregated[key].absent++;
+        else if (r.status === "late") aggregated[key].late++;
+        aggregated[key].total++;
       });
-      return {
-        student_id: s.id,
-        student_name: s.name,
-        class_group_id: s.class_group_id,
-        class_name: s.class_group_id ? (cgMap[s.class_group_id] || null) : null,
-        present,
-        absent,
-        late,
-        total: studentRecords.length,
-      };
-    });
+    }
+    const result = Object.values(aggregated).map(s => ({
+      student_id: s.student_id,
+      student_name: s.student_name,
+      class_group_id: s.class_group_id,
+      class_name: s.class_name,
+      present: s.present,
+      absent: s.absent,
+      late: s.late,
+      total: s.total,
+    }));
 
     res.json({ success: true, data: result, year, month });
   } catch (err) {

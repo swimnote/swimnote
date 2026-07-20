@@ -329,8 +329,8 @@ router.get("/attendance", requireAuth, requireParent, async (req: AuthRequest, r
         JOIN student_class_history sch
           ON sch.student_id = a.student_id
           AND sch.class_group_id = a.class_group_id
-          AND sch.enrolled_at <= a.date
-          AND (sch.left_at IS NULL OR sch.left_at > a.date)
+          AND sch.enrolled_at::text <= a.date
+          AND (sch.left_at IS NULL OR sch.left_at::text > a.date)
         WHERE a.student_id = '${sidSafe}'
           AND a.class_group_id IS NOT NULL
         ORDER BY a.date DESC
@@ -363,8 +363,8 @@ router.get("/students/:id/attendance", requireAuth, requireParent, async (req: A
       JOIN student_class_history sch
         ON sch.student_id = a.student_id
         AND sch.class_group_id = a.class_group_id
-        AND sch.enrolled_at <= a.date
-        AND (sch.left_at IS NULL OR sch.left_at > a.date)
+        AND sch.enrolled_at::text <= a.date
+        AND (sch.left_at IS NULL OR sch.left_at::text > a.date)
       WHERE a.student_id = '${sId}'
         AND a.class_group_id IS NOT NULL
         ${monthStr ? `AND a.date LIKE '${monthStr.replace(/'/g, "''")}%'` : ""}
