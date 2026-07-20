@@ -265,7 +265,14 @@ export default function DaySheet({
                   const color    = classColor(g.id, g.color);
                   const koDay    = getKoDay(dateStr);
                   const timeLabel = `${koDay}요일 ${g.schedule_time}`;
-                  const capLabel  = g.capacity ? `${g.student_count}/${g.capacity}명` : `${g.student_count}명`;
+                  const dateFilteredCount = allStudents
+                    ? allStudents.filter(s =>
+                        ((Array.isArray(s.assigned_class_ids) && s.assigned_class_ids.includes(g.id))
+                        || s.class_group_id === g.id)
+                        && (!s.class_enrolled_at || s.class_enrolled_at <= dateStr)
+                      ).length
+                    : g.student_count;
+                  const capLabel  = g.capacity ? `${dateFilteredCount}/${g.capacity}명` : `${dateFilteredCount}명`;
                   return (
                     <Pressable key={g.id} style={[dy.classCard, done && dy.classCardDone]}
                       onPress={() => onSelectClass(g)}>
@@ -536,8 +543,9 @@ export default function DaySheet({
                   {rosterClass.instructor ? `담임: ${rosterClass.instructor}` : ""}{" "}
                   · 학생 {(() => {
                     const list = (allStudents ?? []).filter(s =>
-                      (Array.isArray(s.assigned_class_ids) && s.assigned_class_ids.includes(rosterClass.id))
-                      || s.class_group_id === rosterClass.id
+                      ((Array.isArray(s.assigned_class_ids) && s.assigned_class_ids.includes(rosterClass.id))
+                      || s.class_group_id === rosterClass.id)
+                      && (!s.class_enrolled_at || s.class_enrolled_at <= dateStr)
                     );
                     return list.length;
                   })()}명
@@ -551,8 +559,9 @@ export default function DaySheet({
               {(() => {
                 const list = (allStudents ?? [])
                   .filter(s =>
-                    (Array.isArray(s.assigned_class_ids) && s.assigned_class_ids.includes(rosterClass.id))
-                    || s.class_group_id === rosterClass.id
+                    ((Array.isArray(s.assigned_class_ids) && s.assigned_class_ids.includes(rosterClass.id))
+                    || s.class_group_id === rosterClass.id)
+                    && (!s.class_enrolled_at || s.class_enrolled_at <= dateStr)
                   )
                   .slice(0, 100);
                 if (list.length === 0) {
