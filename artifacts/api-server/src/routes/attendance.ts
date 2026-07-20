@@ -94,17 +94,18 @@ router.get("/makeup-students", requireAuth, async (req: AuthRequest, res) => {
 
     const attendedIds = new Set(attRows.map((r: any) => r.id));
 
-    // ② 배정됐지만 아직 출석 처리 안 된 보충수업 학생 (makeup_sessions 테이블)
+    // ② 배정됐거나 완료된 보충수업 학생 (makeup_sessions 테이블)
+    // completed도 포함: 출석 처리 없이 complete만 된 케이스 대비
     const msRows = (await db.execute(sql`
       SELECT ms.student_id AS id, s.name, s.birth_year, s.weekly_count,
-             'makeup' AS session_type, 'assigned' AS att_status,
-             true AS is_pending, ms.id AS makeup_session_id
+             'makeup' AS session_type, ms.status AS att_status,
+             (ms.status = 'assigned') AS is_pending, ms.id AS makeup_session_id
       FROM makeup_sessions ms
       JOIN students s ON s.id = ms.student_id
       WHERE ms.swimming_pool_id = ${poolId}
         AND ms.assigned_class_group_id = ${class_group_id as string}
         AND ms.assigned_date = ${date as string}
-        AND ms.status = 'assigned'
+        AND ms.status IN ('assigned', 'completed')
         AND ms.cancelled_at IS NULL
     `)).rows as any[];
 

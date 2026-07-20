@@ -4,12 +4,12 @@
  * 실 DB: /admin/makeups, /admin/makeups/eligible-classes,
  *         /admin/makeups/:id/assign, /transfer, /complete, /cancel, /revert
  */
-import { CircleCheck, Clock, RotateCcw, UserCheck } from "lucide-react-native";
+import { CircleCheck, Clock, RotateCcw, UserCheck, CalendarDays } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Platform, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, View,
+  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -50,11 +50,22 @@ export default function MakeupsScreen() {
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
 
   const [assignModal, setAssignModal]       = useState<{ mk: any } | null>(null);
+  const [pendingClass, setPendingClass]     = useState<any | null>(null);
+  const [assignDate, setAssignDate]         = useState<string>("");
   const [transferModal, setTransferModal]   = useState<{ mk: any } | null>(null);
   const [eligibleClasses, setEligibleClasses] = useState<any[]>([]);
   const [teachers, setTeachers]              = useState<any[]>([]);
   const [classLoading, setClassLoading]     = useState(false);
   const [conflictVisible, setConflictVisible] = useState(false);
+
+  const todayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const isDatePast = (dateStr: string) => {
+    const today = todayStr();
+    return dateStr < today;
+  };
 
   const statusFilter: Record<MkTab, string | null> = {
     "결석자 리스트": "waiting",
@@ -77,6 +88,8 @@ export default function MakeupsScreen() {
   useEffect(() => { load(); }, [load]);
 
   const openAssignModal = async (mk: any) => {
+    setPendingClass(null);
+    setAssignDate(todayStr());
     setAssignModal({ mk });
     setClassLoading(true);
     const r = await apiRequest(token, `/admin/makeups/eligible-classes?teacher_id=${mk.original_teacher_id || ""}`);
@@ -90,11 +103,12 @@ export default function MakeupsScreen() {
     if (r.ok) setTeachers(await r.json());
   };
 
-  const handleAssign = (mk: any, classGroup: any) => {
+  const handleAssign = (mk: any, classGroup: any, date: string) => {
     setAssignModal(null);
+    setPendingClass(null);
     setMakeups(prev => prev.filter(m => m.id !== mk.id));
     apiRequest(token, `/admin/makeups/${mk.id}/assign`, {
-      method: "PATCH", body: JSON.stringify({ class_group_id: classGroup.id }),
+      method: "PATCH", body: JSON.stringify({ class_group_id: classGroup.id, assigned_date: date || null }),
     }).then(r => {
       if (r.status === 409) { setConflictVisible(true); load(); }
       else if (!r.ok) load();
@@ -212,23 +226,79 @@ export default function MakeupsScreen() {
       {/* 반 배정 모달 */}
       <ModalSheet
         visible={!!assignModal}
-        onClose={() => setAssignModal(null)}
-        title={`${assignModal?.mk?.student_name || ""} 보강반 배정`}
+        onClose={() => { setAssignModal(null); setPendingClass(null); }}
+        title={pendingClass
+          ? `${assignModal?.mk?.student_name || ""} 보강 날짜 선택`
+          : `${assignModal?.mk?.student_name || ""} 보강반 배정`}
       >
-        <Text style={s.modalSub}>정원 여유 있는 반만 표시됩니다. 레벨 판단은 선생님 몫입니다.</Text>
-        {classLoading ? (
-          <ActivityIndicator style={{ marginTop: 20 }} color={themeColor} />
-        ) : eligibleClasses.length === 0 ? (
-          <View style={s.empty}><Text style={s.emptyTxt}>배정 가능한 반이 없습니다</Text></View>
+        {!pendingClass ? (
+          <>
+            <Text style={s.modalSub}>정원 여유 있는 반만 표시됩니다. 레벨 판단은 선생님 몫입니다.</Text>
+            {classLoading ? (
+              <ActivityIndicator style={{ marginTop: 20 }} color={themeColor} />
+            ) : eligibleClasses.length === 0 ? (
+              <View style={s.empty}><Text style={s.emptyTxt}>배정 가능한 반이 없습니다</Text></View>
+            ) : (
+              eligibleClasses.map(item => (
+                <Pressable key={item.id} style={[s.classCard, { borderColor: themeColor }]}
+                  onPress={() => { setPendingClass(item); setAssignDate(todayStr()); }}>
+                  <Text style={s.className}>{item.name}</Text>
+                  <Text style={s.classSub}>{item.schedule_days} {item.schedule_time}</Text>
+                  <Text style={s.classSub}>담당: {item.instructor || "미정"}  정원 여유: {item.available_slots === 999 ? "제한없음" : `${item.available_slots}명`}</Text>
+                </Pressable>
+              ))
+            )}
+          </>
         ) : (
-          eligibleClasses.map(item => (
-            <Pressable key={item.id} style={[s.classCard, { borderColor: themeColor }]}
-              onPress={() => handleAssign(assignModal!.mk, item)}>
-              <Text style={s.className}>{item.name}</Text>
-              <Text style={s.classSub}>{item.schedule_days} {item.schedule_time}</Text>
-              <Text style={s.classSub}>담당: {item.instructor || "미정"}  정원 여유: {item.available_slots === 999 ? "제한없음" : `${item.available_slots}명`}</Text>
-            </Pressable>
-          ))
+          <View style={{ gap: 14, paddingHorizontal: 16, paddingBottom: 8 }}>
+            {/* 선택된 반 요약 */}
+            <View style={[s.classCard, { borderColor: themeColor, gap: 2 }]}>
+              <Text style={s.className}>{pendingClass.name}</Text>
+              <Text style={s.classSub}>{pendingClass.schedule_days} {pendingClass.schedule_time}</Text>
+            </View>
+
+            {/* 날짜 입력 */}
+            <View style={{ gap: 8 }}>
+              <Text style={{ fontSize: 13, fontWeight: "600", color: C.text }}>보강 수업 날짜 (YYYY-MM-DD)</Text>
+              <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                <TextInput
+                  value={assignDate}
+                  onChangeText={setAssignDate}
+                  placeholder="예: 2025-07-21"
+                  keyboardType="numeric"
+                  style={[s.dateInput, { borderColor: isDatePast(assignDate) ? "#D97706" : C.border }]}
+                  maxLength={10}
+                />
+                <Pressable onPress={() => setAssignDate(todayStr())}
+                  style={{ backgroundColor: "#F0F9FF", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 }}>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#0284C7" }}>오늘</Text>
+                </Pressable>
+              </View>
+              {isDatePast(assignDate) && (
+                <View style={s.pastWarn}>
+                  <CalendarDays size={13} color="#D97706" />
+                  <Text style={s.pastWarnTxt}>과거 날짜입니다. 해당 수업이 이미 진행됐을 수 있습니다.</Text>
+                </View>
+              )}
+            </View>
+
+            {/* 확인/뒤로 */}
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
+              <Pressable style={[s.actBtn, { backgroundColor: "#F3F4F6", flex: 0, paddingHorizontal: 18 }]}
+                onPress={() => setPendingClass(null)}>
+                <Text style={[s.actBtnTxt, { color: C.textSecondary }]}>뒤로</Text>
+              </Pressable>
+              <Pressable
+                style={[s.actBtn, { backgroundColor: themeColor, flex: 1, opacity: assignDate.length === 10 ? 1 : 0.4 }]}
+                onPress={() => {
+                  if (assignDate.length !== 10) return;
+                  handleAssign(assignModal!.mk, pendingClass, assignDate);
+                }}
+              >
+                <Text style={s.actBtnTxt}>배정 확정</Text>
+              </Pressable>
+            </View>
+          </View>
         )}
       </ModalSheet>
 
@@ -312,7 +382,12 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
           </Pressable>
           <Text style={s.sub}>결석일: {item.absence_date}</Text>
           <Text style={s.sub}>원반: {item.original_class_group_name || "미배정"}  담당: {item.original_teacher_name || "미배정"}</Text>
-          {item.assigned_class_group_name && <Text style={s.sub}>배정반: {item.assigned_class_group_name}</Text>}
+          {item.assigned_class_group_name && (
+            <Text style={s.sub}>
+              배정반: {item.assigned_class_group_name}
+              {item.assigned_date ? `  · ${item.assigned_date}` : ""}
+            </Text>
+          )}
           {item.transferred_to_teacher_name && (
             <Text style={[s.sub, { color: "#7C3AED" }]}>이동선생님: {item.transferred_to_teacher_name}</Text>
           )}
@@ -423,4 +498,7 @@ const s = StyleSheet.create({
   classCard:     { backgroundColor: "#fff", borderRadius: 10, padding: 14, borderWidth: 1.5 },
   className:     { fontSize: 15, fontWeight: "700", color: C.text },
   classSub:      { fontSize: 12, color: C.textSecondary, marginTop: 3 },
+  dateInput:     { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: C.text, backgroundColor: "#FAFAFA" },
+  pastWarn:      { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF8EE", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderColor: "#FDE68A" },
+  pastWarnTxt:   { fontSize: 12, color: "#92400E", flex: 1 },
 });

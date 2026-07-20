@@ -1,11 +1,9 @@
 /**
- * (parent)/swim-diary.tsx — 학부모용 수영일지 (v3)
+ * (parent)/swim-diary.tsx — 학부모용 수영일지 (v4)
  *
- * 새 구조: lesson_date, common_content, teacher_name, is_edited
- *          student_note: { note_content, is_edited }
- * v3: 등록일 필터 서버 적용, 공통/개인 일지 구분선, 날짜 섹션 헤더
+ * 변경: 보강 반 일지 표시(is_makeup_diary), 공통/개인 사진 표시
  */
-import { BookOpen, User, Calendar } from "lucide-react-native";
+import { BookOpen, User, Calendar, Images } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -13,10 +11,11 @@ import {
   ActivityIndicator, Platform, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
 
 const C = Colors.light;
 
@@ -33,7 +32,16 @@ interface DiaryEntry {
   teacher_name: string;
   is_edited: boolean;
   created_at: string;
+  class_group_name?: string | null;
+  is_makeup_diary?: boolean;
   student_note?: StudentNote | null;
+}
+
+interface PhotoItem {
+  id: string;
+  file_url: string;
+  caption?: string | null;
+  student_note_id?: string | null;
 }
 
 function parseLessonDate(dateStr: string) {
@@ -50,7 +58,7 @@ function parseLessonDate(dateStr: string) {
 
 function getWeekKey(d: Date): string {
   const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // 월요일 기준
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   const mon = new Date(d);
   mon.setDate(diff);
   const sun = new Date(mon);
@@ -70,14 +78,54 @@ function getWeekLabel(dateStr: string): string {
   return `${fmt(mon)} ~ ${fmt(sun)}`;
 }
 
-function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: boolean }) {
+function PhotoGrid({ photos, token }: { photos: PhotoItem[]; token: string }) {
+  if (!photos.length) return null;
+  return (
+    <View style={s.photoGrid}>
+      {photos.map(p => (
+        <ExpoImage
+          key={p.id}
+          source={{ uri: `${API_BASE}${p.file_url}`, headers: { Authorization: `Bearer ${token}` } }}
+          style={s.photoItem}
+          contentFit="cover"
+          transition={200}
+        />
+      ))}
+    </View>
+  );
+}
+
+function DiaryCard({ entry, defaultOpen, token }: { entry: DiaryEntry; defaultOpen?: boolean; token: string }) {
   const [open, setOpen] = useState(defaultOpen ?? false);
+  const [photos, setPhotos] = useState<{ common: PhotoItem[]; individual: PhotoItem[] } | null>(null);
+  const [photoLoading, setPhotoLoading] = useState(false);
   const { month, day, weekday, year } = parseLessonDate(entry.lesson_date);
   const isCurrentYear = year === new Date().getFullYear();
 
+  async function loadPhotos() {
+    if (photos !== null || photoLoading) return;
+    setPhotoLoading(true);
+    try {
+      const r = await apiRequest(token, `/parent/diary/${entry.id}/photos`);
+      if (r.ok) {
+        const data = await r.json();
+        setPhotos({ common: data.common || [], individual: data.individual || [] });
+      }
+    } catch { } finally { setPhotoLoading(false); }
+  }
+
+  function handleOpen() {
+    const next = !open;
+    setOpen(next);
+    if (next) loadPhotos();
+  }
+
+  const hasPhotos = photos && (photos.common.length + photos.individual.length) > 0;
+  const totalPhotoCount = (photos?.common.length ?? 0) + (photos?.individual.length ?? 0);
+
   return (
     <View style={[s.card, { backgroundColor: C.card }]}>
-      <Pressable onPress={() => setOpen(o => !o)} style={s.cardHeader}>
+      <Pressable onPress={handleOpen} style={s.cardHeader}>
         {/* 날짜 배지 */}
         <View style={[s.dateBadge, { backgroundColor: C.tint }]}>
           <Text style={s.dateMonth}>{month}월</Text>
@@ -89,6 +137,11 @@ function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: bo
         <View style={s.cardMeta}>
           <View style={s.cardMetaRow}>
             <Text style={[s.cardTeacher, { color: C.text }]}>{entry.teacher_name} 선생님</Text>
+            {entry.is_makeup_diary && (
+              <View style={[s.editedBadge, { backgroundColor: "#DBEAFE" }]}>
+                <Text style={[s.editedBadgeText, { color: "#1D4ED8" }]}>보강</Text>
+              </View>
+            )}
             {entry.is_edited && (
               <View style={s.editedBadge}>
                 <Text style={s.editedBadgeText}>수정됨</Text>
@@ -102,7 +155,9 @@ function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: bo
             )}
           </View>
           <Text style={[s.cardPreview, { color: C.textMuted }]} numberOfLines={open ? undefined : 1}>
-            {!isCurrentYear && `${year}년 · `}{entry.common_content || (entry.student_note?.note_content ? "개별 메모 있음" : "")}
+            {!isCurrentYear && `${year}년 · `}
+            {entry.class_group_name ? `[${entry.class_group_name}] ` : ""}
+            {entry.common_content || (entry.student_note?.note_content ? "개별 메모 있음" : "")}
           </Text>
         </View>
         <LucideIcon name={open ? "chevron-up" : "chevron-down"} size={18} color={C.textMuted} />
@@ -152,6 +207,38 @@ function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: bo
               </View>
             </>
           )}
+
+          {/* 사진 섹션 */}
+          {photoLoading && (
+            <ActivityIndicator size="small" color={C.tint} style={{ marginTop: 4 }} />
+          )}
+          {!photoLoading && photos !== null && (
+            <>
+              {/* 공통 사진 */}
+              {photos.common.length > 0 && (
+                <View style={s.photoSection}>
+                  <View style={s.sectionHeader}>
+                    <Images size={13} color={C.tint} />
+                    <Text style={[s.sectionLabel, { color: C.tint }]}>수업 사진</Text>
+                  </View>
+                  <PhotoGrid photos={photos.common} token={token} />
+                </View>
+              )}
+              {/* 개인 사진 */}
+              {photos.individual.length > 0 && (
+                <View style={s.photoSection}>
+                  <View style={s.sectionHeader}>
+                    <User size={13} color="#7C3AED" />
+                    <Text style={[s.sectionLabel, { color: "#7C3AED" }]}>우리 아이 사진</Text>
+                  </View>
+                  <PhotoGrid photos={photos.individual} token={token} />
+                </View>
+              )}
+              {photos.common.length === 0 && photos.individual.length === 0 && (
+                <Text style={[s.noPhoto, { color: C.textMuted }]}>첨부 사진이 없습니다</Text>
+              )}
+            </>
+          )}
         </View>
       )}
     </View>
@@ -193,7 +280,6 @@ export default function SwimDiaryScreen() {
 
   useEffect(() => { fetchEntries(); }, [id]);
 
-  // 주별로 그룹화
   const grouped: { weekKey: string; weekLabel: string; items: DiaryEntry[] }[] = [];
   for (const entry of entries) {
     const { weekYear } = parseLessonDate(entry.lesson_date);
@@ -231,7 +317,7 @@ export default function SwimDiaryScreen() {
               <View key={group.weekKey} style={{ gap: 12 }}>
                 <WeekHeader label={group.weekLabel} />
                 {group.items.map((e, i) => (
-                  <DiaryCard key={e.id} entry={e} defaultOpen={gi === 0 && i === 0} />
+                  <DiaryCard key={e.id} entry={e} defaultOpen={gi === 0 && i === 0} token={token} />
                 ))}
               </View>
             ))
@@ -280,6 +366,11 @@ const s = StyleSheet.create({
 
   noteBox: { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
   noteTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED", flex: 1 },
+
+  photoSection: { gap: 8 },
+  photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
+  photoItem: { width: 100, height: 100, borderRadius: 10, backgroundColor: C.border },
+  noPhoto: { fontSize: 12, fontFamily: "Pretendard-Regular", textAlign: "center", paddingVertical: 4 },
 
   weekHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
   weekLine: { flex: 1, height: 1 },

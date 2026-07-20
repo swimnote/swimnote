@@ -574,10 +574,11 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
     if (!allClassIds.length) { res.json([]); return; }
     const idsLiteral = allClassIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
 
-    // 공통 일지 조회 (삭제된 것 제외) — lesson_date 기준 history JOIN으로 날짜 유효성 검증
+    // 공통 일지 조회 — 원래 반 + 보강으로 간 반 일지 모두 포함 (UNION)
+    const monthFilter = month ? `AND cd.lesson_date LIKE '${(month as string).replace(/'/g, "''")}%'` : "";
     const diaryRows = await db.execute(sql.raw(`
       SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at,
-             cd.class_group_id, cg.name AS class_group_name
+             cd.class_group_id, cg.name AS class_group_name, false AS is_makeup_diary
       FROM class_diaries cd
       LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
       JOIN student_class_history sch
@@ -587,8 +588,23 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
         AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date)
       WHERE cd.class_group_id IN (${idsLiteral})
         AND cd.is_deleted = false
-        ${month ? `AND cd.lesson_date LIKE '${(month as string).replace(/'/g, "''")}%'` : ""}
-      ORDER BY cd.lesson_date DESC, cd.created_at DESC
+        ${monthFilter}
+
+      UNION
+
+      SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at,
+             cd.class_group_id, cg.name AS class_group_name, true AS is_makeup_diary
+      FROM class_diaries cd
+      LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+      JOIN makeup_sessions ms
+        ON ms.assigned_class_group_id = cd.class_group_id
+        AND ms.student_id = '${studentIdSafe}'
+        AND ms.assigned_date = cd.lesson_date
+        AND ms.status IN ('assigned', 'completed')
+      WHERE cd.is_deleted = false
+        ${monthFilter}
+
+      ORDER BY lesson_date DESC, created_at DESC
       LIMIT 100
     `));
 
@@ -607,6 +623,7 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
         teacher_name: diary.teacher_name,
         class_group_id: diary.class_group_id,
         class_group_name: diary.class_group_name || null,
+        is_makeup_diary: !!diary.is_makeup_diary,
         is_edited: diary.is_edited,
         created_at: diary.created_at,
         student_note: (noteRows.rows[0] as any) || null,
@@ -649,7 +666,8 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
       const idsLiteral = allClassIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
 
       const diaryRows = await db.execute(sql.raw(`
-        SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at, cd.class_group_id
+        SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at,
+               cd.class_group_id, false AS is_makeup_diary
         FROM class_diaries cd
         JOIN student_class_history sch
           ON sch.class_group_id = cd.class_group_id
@@ -657,7 +675,20 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
           AND sch.enrolled_at <= cd.lesson_date
           AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date)
         WHERE cd.class_group_id IN (${idsLiteral}) AND cd.is_deleted = false
-        ORDER BY cd.lesson_date DESC, cd.created_at DESC
+
+        UNION
+
+        SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at,
+               cd.class_group_id, true AS is_makeup_diary
+        FROM class_diaries cd
+        JOIN makeup_sessions ms
+          ON ms.assigned_class_group_id = cd.class_group_id
+          AND ms.student_id = '${sIdSafe}'
+          AND ms.assigned_date = cd.lesson_date
+          AND ms.status IN ('assigned', 'completed')
+        WHERE cd.is_deleted = false
+
+        ORDER BY lesson_date DESC, created_at DESC
         LIMIT 40
       `));
       for (const diary of diaryRows.rows as any[]) {
@@ -666,7 +697,9 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
           WHERE diary_id = ${diary.id} AND student_id = ${student.id} AND is_deleted = false LIMIT 1
         `);
         result.push({
-          ...diary, student_id: student.id, student_name: student.name,
+          ...diary,
+          student_id: student.id, student_name: student.name,
+          is_makeup_diary: !!diary.is_makeup_diary,
           student_note: (noteRows.rows[0] as any) || null,
         });
       }
@@ -674,6 +707,32 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
     result.sort((a, b) => b.lesson_date.localeCompare(a.lesson_date));
     res.json(result.slice(0, 100));
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+// ── 학부모: 일지 사진 조회 ────────────────────────────────────────────────
+router.get("/diary/:diaryId/photos", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const diaryRow = await db.execute(sql`
+      SELECT swimming_pool_id FROM class_diaries WHERE id = ${req.params.diaryId} AND is_deleted = false LIMIT 1
+    `);
+    const poolId = (diaryRow.rows[0] as any)?.swimming_pool_id;
+    if (!poolId) { res.status(404).json({ error: "일지 없음" }); return; }
+
+    const photos = (await db.execute(sql`
+      SELECT id, caption, student_note_id, student_id,
+             '/api/photos/' || id || '/file' AS file_url
+      FROM photo_assets_meta
+      WHERE journal_id = ${req.params.diaryId}
+        AND pool_id = ${poolId}
+        AND status = 'active'
+      ORDER BY created_at ASC
+    `)).rows as any[];
+
+    const common     = photos.filter((p: any) => !p.student_note_id);
+    const individual = photos.filter((p: any) => !!p.student_note_id);
+
+    res.json({ common, individual, total: photos.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
 // ── 레벨 기록 ──────────────────────────────────────────────────────────────
