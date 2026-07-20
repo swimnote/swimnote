@@ -737,18 +737,25 @@ router.patch("/teacher/makeups/:id/revert", requireAuth,
   requireRole("teacher", "pool_admin", "sub_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const userId = req.user!.userId;
-      const poolId = await getMyPoolId(userId);
+      const userId   = req.user!.userId;
+      const userRole = req.user!.role;
+      const poolId   = await getMyPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
+      console.log(`[teacher/makeups/revert] userId=${userId} role=${userRole} poolId=${poolId} mkId=${req.params.id}`);
+
       const rows = (await db.execute(sql`
-        SELECT * FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
+        SELECT id, status, swimming_pool_id, assigned_teacher_id, assigned_class_group_id
+        FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
       `)).rows as any[];
       if (!rows.length) { res.status(404).json({ error: "보강 건을 찾을 수 없습니다." }); return; }
       const mk = rows[0];
 
+      console.log(`[teacher/makeups/revert] mk.status=${mk.status} mk.swimming_pool_id=${mk.swimming_pool_id} mk.assigned_teacher_id=${mk.assigned_teacher_id}`);
+
       // 다른 센터 데이터 접근 차단
       if (mk.swimming_pool_id !== poolId) {
+        console.log(`[teacher/makeups/revert] pool mismatch: mk=${mk.swimming_pool_id} user=${poolId}`);
         res.status(403).json({ error: "접근 권한이 없습니다." }); return;
       }
 
@@ -763,22 +770,26 @@ router.patch("/teacher/makeups/:id/revert", requireAuth,
         res.status(400).json({ error: "배정 취소할 수 없는 상태입니다." }); return;
       }
 
-      // 담당 수업 소유권 검사: assigned_teacher_id가 본인이어야 함
-      // co-teacher인 경우도 허용
-      const isAssignedTeacher = mk.assigned_teacher_id === userId;
-      let isCo = false;
-      if (!isAssignedTeacher && mk.assigned_class_group_id) {
-        const coRows = (await superAdminDb.execute(sql`
-          SELECT 1 FROM class_groups WHERE id = ${mk.assigned_class_group_id}
-            AND co_teacher_ids @> to_jsonb(${userId}::text) LIMIT 1
-        `)).rows;
-        isCo = coRows.length > 0;
-      }
-      if (!isAssignedTeacher && !isCo) {
-        res.status(403).json({ error: "담당 수업의 보강만 취소할 수 있습니다." }); return;
+      // pool_admin / sub_admin: 소속 수영장 확인만으로 충분 (소유권 검사 면제)
+      const isAdmin = userRole === "pool_admin" || userRole === "sub_admin";
+      if (!isAdmin) {
+        // teacher: assigned_teacher_id가 본인이거나 co-teacher여야 함
+        const isAssignedTeacher = mk.assigned_teacher_id === userId;
+        let isCo = false;
+        if (!isAssignedTeacher && mk.assigned_class_group_id) {
+          const coRows = (await superAdminDb.execute(sql`
+            SELECT 1 FROM class_groups WHERE id = ${mk.assigned_class_group_id}
+              AND co_teacher_ids @> to_jsonb(${userId}::text) LIMIT 1
+          `)).rows;
+          isCo = coRows.length > 0;
+        }
+        if (!isAssignedTeacher && !isCo) {
+          console.log(`[teacher/makeups/revert] ownership fail: assigned_teacher=${mk.assigned_teacher_id} user=${userId}`);
+          res.status(403).json({ error: "담당 수업의 보강만 취소할 수 있습니다." }); return;
+        }
       }
 
-      await db.execute(sql`
+      const updated = (await db.execute(sql`
         UPDATE makeup_sessions SET
           status                      = 'waiting',
           assigned_class_group_id     = NULL,
@@ -792,8 +803,15 @@ router.patch("/teacher/makeups/:id/revert", requireAuth,
           substitute_teacher_id       = NULL,
           substitute_teacher_name     = NULL,
           updated_at                  = now()
-        WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
-      `);
+        WHERE id = ${req.params.id}
+        RETURNING id, status
+      `)).rows as any[];
+
+      console.log(`[teacher/makeups/revert] updated rows=${updated.length}`, updated[0] || "none");
+
+      if (!updated.length) {
+        res.status(500).json({ error: "업데이트 실패 (0 rows affected)" }); return;
+      }
 
       res.json({ success: true });
     } catch (err) { console.error("[teacher/makeups/revert]", err); res.status(500).json({ error: "서버 오류" }); }
