@@ -8,6 +8,7 @@ import {
   StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
+import { DatePickerModal } from "@/components/common/DatePickerModal";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -83,6 +84,12 @@ export default function MembersScreen() {
   const [statusTarget, setStatusTarget] = useState<StudentMember | null>(null);
   const [statusAction, setStatusAction] = useState<"suspended" | "withdrawn" | null>(null);
   const [statusSaving, setStatusSaving] = useState(false);
+
+  // ── 복귀 ────────────────────────────────────────────────────────────
+  const [resumeTarget, setResumeTarget] = useState<StudentMember | null>(null);
+  const [resumeDateVisible, setResumeDateVisible] = useState(false);
+  const [resumeDate, setResumeDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [resumeSaving, setResumeSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -299,6 +306,31 @@ export default function MembersScreen() {
     finally { setStatusSaving(false); }
   }
 
+  async function confirmResume(date: string) {
+    if (!resumeTarget) return;
+    const { id, name } = resumeTarget;
+    setResumeTarget(null);
+    setResumeSaving(true);
+    try {
+      const res = await apiRequest(token, `/students/${id}/change-status`, {
+        method: "POST",
+        body: JSON.stringify({ new_status: "active", effective_mode: "immediate", resume_date: date }),
+      });
+      if (res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setStudents(prev => prev.map(s =>
+          s.id === id
+            ? { ...s, status: "active", ...(body.student || {}) }
+            : s
+        ));
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setInfoModal(d.message || d.error || "복귀 처리에 실패했습니다.");
+      }
+    } catch { setInfoModal("네트워크 오류가 발생했습니다."); }
+    finally { setResumeSaving(false); }
+  }
+
   // "전체" 필터에서 퇴원 회원 제외 (withdrawn-members 화면에서 별도 관리)
   const baseStudents = filter === "all"
     ? students.filter(s => s.status !== "withdrawn")
@@ -493,7 +525,28 @@ export default function MembersScreen() {
                 selectionMode={sel.selectionMode}
                 isSelected={sel.isSelected(item.id)}
                 onToggle={() => sel.toggleItem(item.id)}
-                actions={[
+                actions={filter === "suspended" ? [
+                  {
+                    label: "복귀",
+                    icon: "rotate-ccw",
+                    color: "#059669",
+                    bg: "#D1FAE5",
+                    onPress: () => {
+                      setResumeTarget(item);
+                      setResumeDate(new Date().toISOString().slice(0, 10));
+                      setResumeDateVisible(true);
+                    },
+                    loading: resumeSaving && resumeTarget?.id === item.id,
+                  },
+                  {
+                    label: "퇴원",
+                    icon: "log-out",
+                    color: "#D96C6C",
+                    bg: "#FEF2F2",
+                    onPress: () => openStatusAction(item, "withdrawn"),
+                    loading: statusSaving && statusTarget?.id === item.id && statusAction === "withdrawn",
+                  },
+                ] : [
                   {
                     label: "반이동",
                     icon: "shuffle",
@@ -573,6 +626,17 @@ export default function MembersScreen() {
           onClose={() => setInviteTarget(null)}
         />
       )}
+
+      {/* ── 복귀 날짜 선택 ── */}
+      <DatePickerModal
+        visible={resumeDateVisible}
+        value={resumeDate}
+        onConfirm={(date) => {
+          setResumeDateVisible(false);
+          confirmResume(date);
+        }}
+        onClose={() => { setResumeDateVisible(false); setResumeTarget(null); }}
+      />
 
       {/* ── 연기 확인 ── */}
       <ConfirmModal

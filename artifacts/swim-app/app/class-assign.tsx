@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { UnifiedMemberCard } from "@/components/common/MemberCard";
+import { DatePickerModal } from "@/components/common/DatePickerModal";
 import type { StudentMember } from "@/utils/studentUtils";
 const C = Colors.light;
 
@@ -118,6 +119,9 @@ export default function ClassAssignScreen() {
   const [weeklyPicker, setWeeklyPicker] = useState<Student | null>(null);
   const [timingTarget, setTimingTarget] = useState<Student | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const [lessonDateTarget, setLessonDateTarget] = useState<{ student: Student; weekly: number } | null>(null);
+  const [lessonDate, setLessonDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [lessonDateVisible, setLessonDateVisible] = useState(false);
 
   /* ── co-teacher 상태 ── */
   const [coTeacherIds, setCoTeacherIds]     = useState<string[]>([]);
@@ -237,7 +241,9 @@ export default function ClassAssignScreen() {
     if (!student.weekly_count || student.weekly_count < 1) {
       setWeeklyPicker(student);
     } else {
-      doAssign(student, student.weekly_count);
+      setLessonDateTarget({ student, weekly: student.weekly_count });
+      setLessonDate(new Date().toISOString().slice(0, 10));
+      setLessonDateVisible(true);
     }
   }
 
@@ -245,10 +251,12 @@ export default function ClassAssignScreen() {
     if (!weeklyPicker) return;
     const student = weeklyPicker;
     setWeeklyPicker(null);
-    doAssign(student, weekly);
+    setLessonDateTarget({ student, weekly });
+    setLessonDate(new Date().toISOString().slice(0, 10));
+    setLessonDateVisible(true);
   }
 
-  async function doAssign(student: Student, weeklyCount: number) {
+  async function doAssign(student: Student, weeklyCount: number, firstLessonDate?: string) {
     if (!classId) return;
     const capacityOver = classInfo?.capacity != null && assigned.length >= classInfo.capacity;
     if (capacityOver) return;
@@ -266,7 +274,7 @@ export default function ClassAssignScreen() {
     try {
       const res = await apiRequest(token, `/students/${student.id}/assign`, {
         method: "PATCH",
-        body: JSON.stringify({ assigned_class_ids: newIds, weekly_count: weeklyCount }),
+        body: JSON.stringify({ assigned_class_ids: newIds, weekly_count: weeklyCount, first_lesson_date: firstLessonDate }),
       });
       if (!res.ok) {
         setAllStudents(prev => prev.map(s => s.id === student.id ? student : s));
@@ -530,6 +538,20 @@ export default function ClassAssignScreen() {
           onCancel={() => setTimingTarget(null)}
         />
       )}
+
+      <DatePickerModal
+        visible={lessonDateVisible}
+        value={lessonDate}
+        onConfirm={(date) => {
+          setLessonDateVisible(false);
+          if (lessonDateTarget) {
+            const { student, weekly } = lessonDateTarget;
+            setLessonDateTarget(null);
+            doAssign(student, weekly, date);
+          }
+        }}
+        onClose={() => { setLessonDateVisible(false); setLessonDateTarget(null); }}
+      />
 
       {/* ── 주담당 선생님 변경 모달 ── */}
       <Modal visible={showMainTeacherModal} animationType="slide" transparent onRequestClose={() => setShowMainTeacherModal(false)}>

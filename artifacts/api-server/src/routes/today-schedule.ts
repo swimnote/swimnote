@@ -151,7 +151,6 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
         AND h.enrolled_at <= '${dateParam}'
         AND (h.left_at IS NULL OR h.left_at > '${dateParam}')
         AND s.deleted_at IS NULL
-        AND s.status NOT IN ('withdrawn', 'deleted', 'suspended')
       ORDER BY s.id, h.class_group_id, h.enrolled_at DESC
     `)) : { rows: [] };
 

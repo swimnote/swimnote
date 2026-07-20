@@ -134,31 +134,36 @@ router.get("/weekly", requireAuth, async (req: AuthRequest, res) => {
     if (!start_date) { res.status(400).json({ success: false, message: "start_date가 필요합니다." }); return; }
 
     const endDate = addDays(start_date as string, 6);
+    const startDateStr = start_date as string;
+    const cgIdStr = class_group_id as string | undefined;
 
-    const allStudents = await db.select().from(studentsTable)
-      .where(eq(studentsTable.swimming_pool_id, poolId));
-
-    const filteredStudents = (class_group_id
-      ? allStudents.filter(s => s.class_group_id === class_group_id)
-      : allStudents
-    ).filter(s =>
-      !(s as any).class_enrolled_at || (s as any).class_enrolled_at <= endDate
-    );
+    // student_class_history 기반으로 해당 주에 한 번이라도 active한 회원 조회
+    const historyStudents = (await db.execute(sql.raw(`
+      SELECT DISTINCT ON (s.id, h.class_group_id)
+        s.id, s.name, h.class_group_id
+      FROM student_class_history h
+      JOIN students s ON s.id = h.student_id
+      WHERE h.swimming_pool_id = '${poolId}'
+        ${cgIdStr ? `AND h.class_group_id = '${cgIdStr}'` : ""}
+        AND h.enrolled_at <= '${endDate}'
+        AND (h.left_at IS NULL OR h.left_at > '${startDateStr}')
+        AND s.deleted_at IS NULL
+      ORDER BY s.id, h.class_group_id, h.enrolled_at DESC
+    `))).rows as any[];
 
     const allRecords = await db.select().from(attendanceTable)
       .where(and(
         eq(attendanceTable.swimming_pool_id, poolId),
-        gte(attendanceTable.date, start_date as string),
+        gte(attendanceTable.date, startDateStr),
         lte(attendanceTable.date, endDate)
       ));
 
-    const classGroupIds = [...new Set(filteredStudents.map(s => s.class_group_id).filter(Boolean))];
     const classGroups = await db.select().from(classGroupsTable)
       .where(eq(classGroupsTable.swimming_pool_id, poolId));
     const cgMap: Record<string, string> = {};
     classGroups.forEach(cg => { cgMap[cg.id] = cg.name; });
 
-    const result = filteredStudents.map(s => {
+    const result = historyStudents.map((s: any) => {
       const studentRecords = allRecords.filter(r => r.student_id === s.id);
       const days: Record<string, string> = {};
       studentRecords.forEach(r => { days[r.date] = r.status; });
@@ -194,22 +199,28 @@ router.get("/monthly-summary", requireAuth, async (req: AuthRequest, res) => {
     if (!year || !month) { res.status(400).json({ success: false, message: "year와 month가 필요합니다." }); return; }
 
     const monthStr = `${year}-${String(month).padStart(2, "0")}`;
-
-    const allStudents = await db.select().from(studentsTable)
-      .where(eq(studentsTable.swimming_pool_id, poolId));
-
+    const monthStart = `${monthStr}-01`;
     const monthEnd = `${monthStr}-31`;
-    const filteredStudents = (class_group_id
-      ? allStudents.filter(s => s.class_group_id === class_group_id)
-      : allStudents
-    ).filter(s =>
-      !(s as any).class_enrolled_at || (s as any).class_enrolled_at <= monthEnd
-    );
+    const cgIdStr = class_group_id as string | undefined;
+
+    // student_class_history 기반으로 해당 월에 한 번이라도 active한 회원 조회
+    const historyStudents = (await db.execute(sql.raw(`
+      SELECT DISTINCT ON (s.id, h.class_group_id)
+        s.id, s.name, h.class_group_id
+      FROM student_class_history h
+      JOIN students s ON s.id = h.student_id
+      WHERE h.swimming_pool_id = '${poolId}'
+        ${cgIdStr ? `AND h.class_group_id = '${cgIdStr}'` : ""}
+        AND h.enrolled_at <= '${monthEnd}'
+        AND (h.left_at IS NULL OR h.left_at > '${monthStart}')
+        AND s.deleted_at IS NULL
+      ORDER BY s.id, h.class_group_id, h.enrolled_at DESC
+    `))).rows as any[];
 
     const allRecords = await db.select().from(attendanceTable)
       .where(and(
         eq(attendanceTable.swimming_pool_id, poolId),
-        gte(attendanceTable.date, `${monthStr}-01`),
+        gte(attendanceTable.date, monthStart),
         lte(attendanceTable.date, monthEnd)
       ));
 
@@ -218,7 +229,7 @@ router.get("/monthly-summary", requireAuth, async (req: AuthRequest, res) => {
     const cgMap: Record<string, string> = {};
     classGroups.forEach(cg => { cgMap[cg.id] = cg.name; });
 
-    const result = filteredStudents.map(s => {
+    const result = historyStudents.map((s: any) => {
       const studentRecords = allRecords.filter(r => r.student_id === s.id);
       let present = 0, absent = 0, late = 0;
       studentRecords.forEach(r => {
