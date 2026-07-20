@@ -489,7 +489,8 @@ function RootNav() {
       const { isAvailable } = await Updates.checkForUpdateAsync();
       if (isAvailable) {
         await Updates.fetchUpdateAsync();
-        await Updates.reloadAsync();
+        otaDownloadedRef.current = true;
+        setShowOtaModal(true);
       }
     } catch (_) {
     } finally {
