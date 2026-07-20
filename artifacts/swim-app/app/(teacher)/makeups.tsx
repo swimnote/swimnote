@@ -11,7 +11,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { apiRequest, clearApiCache, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
@@ -208,7 +208,9 @@ export default function MakeupsScreen() {
             try {
               const res = await apiRequest(token, `/teacher/makeups/${mk.id}/revert`, { method: "PATCH" });
               if (res.ok) {
+                clearApiCache();
                 setAssignedList(prev => prev.filter(m => m.id !== mk.id));
+                setTimeout(() => loadAssigned(), 300);
               } else {
                 const err = await res.json().catch(() => ({}));
                 Alert.alert("오류", err.error || "배정 취소에 실패했습니다.");

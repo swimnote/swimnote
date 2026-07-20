@@ -6,7 +6,7 @@ import {
   ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
-import { apiRequest } from "@/context/AuthContext";
+import { apiRequest, clearApiCache } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import PastelColorPicker from "@/components/common/PastelColorPicker";
 import { WEEKLY_BADGE } from "@/utils/studentUtils";
@@ -165,7 +165,9 @@ export default function ClassDetailSheet({
             try {
               const res = await apiRequest(token, `/teacher/makeups/${mk.id}/revert`, { method: "PATCH" });
               if (res.ok) {
+                clearApiCache();
                 setMakeupStudents(prev => prev.filter(m => m.id !== mk.id));
+                setTimeout(() => loadMakeupStudents(), 300);
               } else {
                 const err = await res.json().catch(() => ({}));
                 Alert.alert("오류", err.error || "배정 취소에 실패했습니다.");
