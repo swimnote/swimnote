@@ -4,6 +4,7 @@ import {
   ActivityIndicator, FlatList, Modal, Pressable,
   RefreshControl, StyleSheet, Text, View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { DiaryEntry } from "./types";
 import DiaryPhotoStrip from "@/components/common/DiaryPhotoStrip";
@@ -33,6 +34,7 @@ export default function DiaryHistoryList({
   deleteTarget, deleteLoading, deleteError,
   onRefresh, onOpenEdit, onDelete, onDeleteConfirm, onDeleteCancel,
   token, classGroupId,
+  extraBottomPadding = 0,
 }: {
   diaries: DiaryEntry[];
   diaryLoading: boolean;
@@ -49,7 +51,9 @@ export default function DiaryHistoryList({
   onDeleteCancel: () => void;
   token?: string | null;
   classGroupId?: string;
+  extraBottomPadding?: number;
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <>
       {diaryLoading ? (
@@ -58,7 +62,7 @@ export default function DiaryHistoryList({
         <FlatList
           data={diaries}
           keyExtractor={i => i.id}
-          contentContainerStyle={s.diaryList}
+          contentContainerStyle={[s.diaryList, { paddingBottom: insets.bottom + extraBottomPadding + 60 }]}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListEmptyComponent={
@@ -165,7 +169,7 @@ export default function DiaryHistoryList({
 }
 
 const s = StyleSheet.create({
-  diaryList:     { padding: 12, gap: 10, paddingBottom: 120 },
+  diaryList:     { padding: 12, gap: 10 },
   diaryCard:     { borderRadius: 14, padding: 14, gap: 8 },
   diaryCardEditable: { borderWidth: 1.5, borderColor: "#E6FFFA" },
   badgeRow:      { flexDirection: "row", gap: 6, flexWrap: "wrap" },

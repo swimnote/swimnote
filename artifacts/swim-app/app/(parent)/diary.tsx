@@ -13,6 +13,7 @@ import {
   ActivityIndicator, FlatList, Pressable, RefreshControl,
   StyleSheet, Text, View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -37,9 +38,10 @@ function parseLessonDate(d: string) {
 }
 
 function Toast({ msg, visible }: { msg: string; visible: boolean }) {
+  const insets = useSafeAreaInsets();
   if (!visible) return null;
   return (
-    <View style={ts.toast} pointerEvents="none">
+    <View style={[ts.toast, { bottom: insets.bottom + 46 }]} pointerEvents="none">
       <CircleCheck size={14} color="#fff" />
       <Text style={ts.toastTxt}>{msg}</Text>
     </View>
@@ -312,7 +314,7 @@ const ds = StyleSheet.create({
 
 const ts = StyleSheet.create({
   toast: {
-    position: "absolute", bottom: 80, alignSelf: "center",
+    position: "absolute", alignSelf: "center",
     backgroundColor: "rgba(0,0,0,0.72)", flexDirection: "row", alignItems: "center",
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, gap: 6, zIndex: 999,
   },

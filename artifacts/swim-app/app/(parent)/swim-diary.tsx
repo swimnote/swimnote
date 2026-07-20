@@ -9,7 +9,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Platform, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, View,
+  ScrollView, StyleSheet, Text, View, useWindowDimensions,
 } from "react-native";
 import { Image as ExpoImage } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -79,6 +79,8 @@ function getWeekLabel(dateStr: string): string {
 }
 
 function PhotoGrid({ photos, token }: { photos: PhotoItem[]; token: string }) {
+  const { width } = useWindowDimensions();
+  const photoSize = Math.floor((width - 32 - 8) / 3);
   if (!photos.length) return null;
   return (
     <View style={s.photoGrid}>
@@ -86,7 +88,7 @@ function PhotoGrid({ photos, token }: { photos: PhotoItem[]; token: string }) {
         <ExpoImage
           key={p.id}
           source={{ uri: `${API_BASE}${p.file_url}`, headers: { Authorization: `Bearer ${token}` } }}
-          style={s.photoItem}
+          style={[s.photoItem, { width: photoSize, height: photoSize }]}
           contentFit="cover"
           transition={200}
         />
@@ -369,7 +371,7 @@ const s = StyleSheet.create({
 
   photoSection: { gap: 8 },
   photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
-  photoItem: { width: 100, height: 100, borderRadius: 10, backgroundColor: C.border },
+  photoItem: { borderRadius: 10, backgroundColor: C.border },
   noPhoto: { fontSize: 12, fontFamily: "Pretendard-Regular", textAlign: "center", paddingVertical: 4 },
 
   weekHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },

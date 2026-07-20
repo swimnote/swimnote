@@ -13,7 +13,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { shareDiaryEntry } from "@/utils/diaryShare";
 import {ActivityIndicator, FlatList, Pressable,
   StyleSheet, Text, TextInput, TouchableOpacity, View} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
@@ -53,6 +53,7 @@ function formatDate(iso: string) {
 export default function DiaryIndexScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
+  const insets = useSafeAreaInsets();
 
   const [entries, setEntries]       = useState<DiaryIndexEntry[]>([]);
   const [loading, setLoading]       = useState(true);
@@ -308,7 +309,7 @@ export default function DiaryIndexScreen() {
           data={entries}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
-          contentContainerStyle={di.listContent}
+          contentContainerStyle={[di.listContent, { paddingBottom: insets.bottom + 32 }]}
           showsVerticalScrollIndicator={false}
           onRefresh={() => { setRefreshing(true); load(searchText, activeDay, activeTime); }}
           refreshing={refreshing}
