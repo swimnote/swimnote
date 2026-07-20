@@ -318,7 +318,8 @@ export default function TeacherDiaryScreen() {
       const makeupList: any[] = makeupRes.ok ? (await makeupRes.json().catch(() => [])) : [];
       const regularIds = new Set(regularStudents.map((s: any) => s.id));
       const makeupStudents = makeupList
-        .filter((m: any) => !regularIds.has(m.id))
+        // 일지 작성 대상: completed 상태만 (assigned = 아직 수업 안 받음)
+        .filter((m: any) => !regularIds.has(m.id) && m.att_status !== 'assigned')
         .map((m: any) => ({ ...m, is_makeup: true }));
 
       setClassStudents([...regularStudents, ...makeupStudents]);

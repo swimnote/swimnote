@@ -264,7 +264,7 @@ export default function MakeupsScreen() {
                 <TextInput
                   value={assignDate}
                   onChangeText={setAssignDate}
-                  placeholder="예: 2025-07-21"
+                  placeholder="예: 2026-07-21"
                   keyboardType="numeric"
                   style={[s.dateInput, { borderColor: isDatePast(assignDate) ? "#D97706" : C.border }]}
                   maxLength={10}

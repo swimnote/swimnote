@@ -600,7 +600,7 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
         ON ms.assigned_class_group_id = cd.class_group_id
         AND ms.student_id = '${studentIdSafe}'
         AND ms.assigned_date = cd.lesson_date
-        AND ms.status IN ('assigned', 'completed')
+        AND ms.status = 'completed'
       WHERE cd.is_deleted = false
         ${monthFilter}
 
@@ -685,7 +685,7 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
           ON ms.assigned_class_group_id = cd.class_group_id
           AND ms.student_id = '${sIdSafe}'
           AND ms.assigned_date = cd.lesson_date
-          AND ms.status IN ('assigned', 'completed')
+          AND ms.status = 'completed'
         WHERE cd.is_deleted = false
 
         ORDER BY lesson_date DESC, created_at DESC
@@ -718,6 +718,15 @@ router.get("/diary/:diaryId/photos", requireAuth, requireParent, async (req: Aut
     const poolId = (diaryRow.rows[0] as any)?.swimming_pool_id;
     if (!poolId) { res.status(404).json({ error: "일지 없음" }); return; }
 
+    // 이 학부모의 자녀 ID 목록 수집 (개인사진 접근 범위 제한)
+    const myLinks = await db.select({ student_id: parentStudentsTable.student_id })
+      .from(parentStudentsTable)
+      .where(and(
+        eq(parentStudentsTable.parent_id, req.user!.userId),
+        eq(parentStudentsTable.status, "approved")
+      ));
+    const myStudentIds = new Set(myLinks.map(l => l.student_id));
+
     const photos = (await db.execute(sql`
       SELECT id, caption, student_note_id, student_id,
              '/api/photos/' || id || '/file' AS file_url
@@ -728,10 +737,13 @@ router.get("/diary/:diaryId/photos", requireAuth, requireParent, async (req: Aut
       ORDER BY created_at ASC
     `)).rows as any[];
 
-    const common     = photos.filter((p: any) => !p.student_note_id);
-    const individual = photos.filter((p: any) => !!p.student_note_id);
+    const common = photos.filter((p: any) => !p.student_note_id);
+    // 개인사진: 이 학부모의 자녀 사진만 노출
+    const individual = photos.filter((p: any) =>
+      !!p.student_note_id && myStudentIds.has(p.student_id)
+    );
 
-    res.json({ common, individual, total: photos.length });
+    res.json({ common, individual, total: common.length + individual.length });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
