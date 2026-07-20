@@ -1,11 +1,11 @@
 /**
  * (teacher)/makeups.tsx — 결석자 리스트 / 배정된 보강 / 보강 현황
  */
-import { ArrowLeft, Calendar, Check, CircleAlert, CircleCheck, CircleX, Clock, UserCheck, UserPlus, Users, X } from "lucide-react-native";
+import { ArrowLeft, Calendar, Check, CircleAlert, CircleCheck, CircleX, Clock, RotateCcw, UserCheck, UserPlus, Users, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView,
+  ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -162,6 +162,7 @@ export default function MakeupsScreen() {
   const [assignedList,    setAssignedList]    = useState<any[]>([]);
   const [assignedLoading, setAssignedLoading] = useState(false);
   const [completeTarget,  setCompleteTarget]  = useState<any | null>(null);
+  const [revertingId,     setRevertingId]     = useState<string | null>(null);
 
   // 보강 현황 (탭 3)
   const [historyList,    setHistoryList]    = useState<MakeupRequest[]>([]);
@@ -192,6 +193,36 @@ export default function MakeupsScreen() {
     } catch (e) { console.error(e); }
     finally { setAssignedLoading(false); }
   }, [token]);
+
+  async function handleRevert(mk: any) {
+    Alert.alert(
+      "배정 취소",
+      `${mk.student_name}의 보강 배정을 취소하고 보강 대기로 되돌리시겠습니까?\n\n결석 기록과 보강 권리는 유지됩니다.`,
+      [
+        { text: "닫기", style: "cancel" },
+        {
+          text: "배정 취소",
+          style: "destructive",
+          onPress: async () => {
+            setRevertingId(mk.id);
+            try {
+              const res = await apiRequest(token, `/admin/makeups/${mk.id}/revert`, { method: "PATCH" });
+              if (res.ok) {
+                setAssignedList(prev => prev.filter(m => m.id !== mk.id));
+              } else {
+                const err = await res.json().catch(() => ({}));
+                Alert.alert("오류", err.error || "배정 취소에 실패했습니다.");
+              }
+            } catch {
+              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+            } finally {
+              setRevertingId(null);
+            }
+          },
+        },
+      ]
+    );
+  }
 
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
@@ -613,13 +644,27 @@ export default function MakeupsScreen() {
                           <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#7C3AED" }}>대리보강</Text>
                         </View>
                       </View>
-                      <Pressable
-                        style={[s.actionBtn, { backgroundColor: "#EEDDF5", marginTop: 10, flex: undefined, paddingHorizontal: 16 }]}
-                        onPress={() => setCompleteTarget(mk)}
-                      >
-                        <CircleCheck size={15} color="#7C3AED" />
-                        <Text style={[s.actionTxt, { color: "#7C3AED", fontFamily: "Pretendard-Regular" }]}>보강 완료 확인</Text>
-                      </Pressable>
+                      <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                        <Pressable
+                          style={[s.actionBtn, { backgroundColor: "#EEDDF5", flex: 1, paddingHorizontal: 12 }]}
+                          onPress={() => setCompleteTarget(mk)}
+                        >
+                          <CircleCheck size={15} color="#7C3AED" />
+                          <Text style={[s.actionTxt, { color: "#7C3AED", fontFamily: "Pretendard-Regular" }]}>완료 확인</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[s.actionBtn, { backgroundColor: "#FFF8EE", borderWidth: 1.5, borderColor: "#D97706", flex: 1, paddingHorizontal: 12, opacity: revertingId === mk.id ? 0.5 : 1 }]}
+                          onPress={() => handleRevert(mk)}
+                          disabled={revertingId === mk.id}
+                        >
+                          {revertingId === mk.id
+                            ? <ActivityIndicator size="small" color="#D97706" />
+                            : <>
+                                <RotateCcw size={14} color="#D97706" />
+                                <Text style={[s.actionTxt, { color: "#D97706", fontFamily: "Pretendard-Regular" }]}>배정 취소</Text>
+                              </>}
+                        </Pressable>
+                      </View>
                     </View>
                   );
                 })}
