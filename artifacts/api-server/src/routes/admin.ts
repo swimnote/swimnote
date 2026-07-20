@@ -1888,7 +1888,7 @@ router.patch("/makeups/:id/complete", requireAuth, requireRole("super_admin","po
 );
 
 // PATCH /admin/makeups/:id/revert — 보강 대기로 되돌리기 (잘못 배정 시 원복)
-router.patch("/makeups/:id/revert", requireAuth, requireRole("super_admin","pool_admin","teacher"),
+router.patch("/makeups/:id/revert", requireAuth, requireRole("super_admin","pool_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req);

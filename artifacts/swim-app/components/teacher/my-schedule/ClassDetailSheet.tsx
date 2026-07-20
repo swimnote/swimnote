@@ -163,7 +163,7 @@ export default function ClassDetailSheet({
           onPress: async () => {
             setRevertingMakeupId(mk.id);
             try {
-              const res = await apiRequest(token, `/admin/makeups/${mk.id}/revert`, { method: "PATCH" });
+              const res = await apiRequest(token, `/teacher/makeups/${mk.id}/revert`, { method: "PATCH" });
               if (res.ok) {
                 setMakeupStudents(prev => prev.filter(m => m.id !== mk.id));
               } else {
