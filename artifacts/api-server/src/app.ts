@@ -204,7 +204,7 @@ app.get(["/health", "/api/health", "/healthz", "/api/healthz"], (_req: Request, 
   if (!_serverReady) {
     return res.status(503).json({ ok: false, reason: "initializing", uptime: Math.floor(process.uptime()) });
   }
-  res.json({ ok: true, uptime: Math.floor(process.uptime()), timestamp: new Date().toISOString(), version: "v2.3-2026-07-20" });
+  res.json({ ok: true, uptime: Math.floor(process.uptime()), timestamp: new Date().toISOString(), version: "v2.4-2026-07-20" });
 });
 
 // ── 작업 결과보고서 ─────────────────────────────────────────────────

@@ -207,14 +207,18 @@ export default function MakeupsScreen() {
             setRevertingId(mk.id);
             try {
               const res = await apiRequest(token, `/teacher/makeups/${mk.id}/revert`, { method: "PATCH" });
-              const resBody = await res.json().catch(() => ({}));
-              console.log(`[revert] id=${mk.id} status=${res.status}`, JSON.stringify(resBody));
-              if (res.ok) {
+              const contentType = res.headers?.get?.("content-type") ?? "";
+              const isJson = contentType.includes("application/json");
+              const resBody = isJson ? await res.json().catch(() => ({})) : {};
+              console.log(`[revert] id=${mk.id} http=${res.status} isJson=${isJson}`, JSON.stringify(resBody));
+              if (res.ok && isJson && resBody?.success === true) {
                 clearApiCache();
                 setAssignedList(prev => prev.filter(m => m.id !== mk.id));
                 setTimeout(() => loadAssigned(), 300);
-              } else {
+              } else if (!res.ok && isJson) {
                 Alert.alert("오류", resBody?.error || "배정 취소에 실패했습니다.");
+              } else {
+                Alert.alert("오류", "서버 응답이 올바르지 않습니다. 잠시 후 다시 시도해주세요.");
               }
             } catch {
               Alert.alert("오류", "네트워크 오류가 발생했습니다.");
