@@ -720,19 +720,27 @@ router.get("/photos/parent-view", requireAuth, requireRole("parent_account"), as
     const photoMap = new Map<string, any>();
 
     for (const child of children) {
+      // 반 전체 사진: 일지(journal_id)에 연결된 것만, 등록 기간 내만
       if (child.class_group_id) {
-        const rows = (await db.execute(sql`
+        const groupRows = (await db.execute(sql`
           SELECT sp.id, sp.album_type, sp.class_id, sp.student_id,
                  sp.uploaded_by_name, sp.caption, sp.created_at,
                  sp.journal_id,
                  '/api/photos/' || sp.id || '/file' AS file_url,
+                 cd.lesson_date,
                  cg.name AS class_name, cg.schedule_days, cg.schedule_time
           FROM photo_assets_meta sp
-          LEFT JOIN class_groups cg ON cg.id = sp.class_id
+          JOIN class_diaries cd ON cd.id = sp.journal_id AND cd.is_deleted = false
+          JOIN class_groups cg ON cg.id = sp.class_id
+          JOIN student_class_history sch
+            ON sch.class_group_id = cd.class_group_id
+            AND sch.student_id = ${child.id}
+            AND sch.enrolled_at <= cd.lesson_date
+            AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date)
           WHERE sp.album_type = 'group' AND sp.class_id = ${child.class_group_id}
-          ORDER BY sp.created_at DESC LIMIT 100
+          ORDER BY cd.lesson_date DESC, sp.created_at DESC LIMIT 200
         `)).rows as any[];
-        for (const row of rows) {
+        for (const row of groupRows) {
           if (!photoMap.has(row.id)) {
             const source_label = row.caption ||
               (row.schedule_days && row.schedule_time
@@ -742,47 +750,32 @@ router.get("/photos/parent-view", requireAuth, requireRole("parent_account"), as
           }
         }
       }
+
+      // 개별 사진: student_note_id에 연결된 것만, 등록 기간 내만
       const privRows = (await db.execute(sql`
         SELECT sp.id, sp.album_type, sp.class_id, sp.student_id,
                sp.uploaded_by_name, sp.caption, sp.created_at,
                sp.journal_id,
                '/api/photos/' || sp.id || '/file' AS file_url,
-               s.name AS student_name
+               s.name AS student_name,
+               cd.lesson_date
         FROM photo_assets_meta sp
         LEFT JOIN students s ON s.id = sp.student_id
+        JOIN class_diary_student_notes csn ON csn.id = sp.student_note_id AND csn.is_deleted = false
+        JOIN class_diaries cd ON cd.id = csn.diary_id AND cd.is_deleted = false
+        JOIN student_class_history sch
+          ON sch.class_group_id = cd.class_group_id
+          AND sch.student_id = ${child.id}
+          AND sch.enrolled_at <= cd.lesson_date
+          AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date)
         WHERE sp.album_type = 'private' AND sp.student_id = ${child.id}
-        ORDER BY sp.created_at DESC LIMIT 100
+        ORDER BY cd.lesson_date DESC, sp.created_at DESC LIMIT 200
       `)).rows as any[];
       for (const row of privRows) {
         if (!photoMap.has(row.id)) {
           const source_label = row.caption ||
             `${row.student_name || child.name || "학생"} 개별 사진`;
           photoMap.set(row.id, { ...row, source_label });
-        }
-      }
-
-      // ── 일지 첨부 사진 (journal_id 기준, class_diaries 조인) ──────────
-      if (child.class_group_id) {
-        const diaryPhotoRows = (await db.execute(sql`
-          SELECT sp.id, sp.album_type, sp.class_id, sp.student_id,
-                 sp.uploaded_by_name, sp.caption, sp.created_at,
-                 sp.journal_id,
-                 '/api/photos/' || sp.id || '/file' AS file_url,
-                 cd.lesson_date, cd.class_group_id
-          FROM photo_assets_meta sp
-          JOIN class_diaries cd ON cd.id = sp.journal_id
-          WHERE cd.class_group_id = ${child.class_group_id}
-            AND sp.journal_id IS NOT NULL
-          ORDER BY sp.created_at DESC LIMIT 200
-        `)).rows as any[];
-        for (const row of diaryPhotoRows) {
-          if (!photoMap.has(row.id)) {
-            const source_label = row.caption ||
-              (child.class_name
-                ? `${child.class_name} 일지 사진`
-                : "수업 일지 사진");
-            photoMap.set(row.id, { ...row, source_label });
-          }
         }
       }
     }

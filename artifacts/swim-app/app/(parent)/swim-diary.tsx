@@ -1,10 +1,11 @@
 /**
- * (parent)/swim-diary.tsx — 학부모용 수영일지 (v2)
+ * (parent)/swim-diary.tsx — 학부모용 수영일지 (v3)
  *
  * 새 구조: lesson_date, common_content, teacher_name, is_edited
  *          student_note: { note_content, is_edited }
+ * v3: 등록일 필터 서버 적용, 공통/개인 일지 구분선, 날짜 섹션 헤더
  */
-import { BookOpen, User } from "lucide-react-native";
+import { BookOpen, User, Calendar } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -43,7 +44,30 @@ function parseLessonDate(dateStr: string) {
     day: d.getDate(),
     weekday: weekdays[d.getDay()],
     year: d.getFullYear(),
+    weekYear: getWeekKey(d),
   };
+}
+
+function getWeekKey(d: Date): string {
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // 월요일 기준
+  const mon = new Date(d);
+  mon.setDate(diff);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  return `${mon.getFullYear()}-W${String(mon.getMonth() + 1).padStart(2, "0")}${String(mon.getDate()).padStart(2, "0")}`;
+}
+
+function getWeekLabel(dateStr: string): string {
+  const d = new Date(dateStr.includes("T") ? dateStr : dateStr + "T00:00:00");
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const mon = new Date(d);
+  mon.setDate(diff);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  const fmt = (dt: Date) => `${dt.getMonth() + 1}/${dt.getDate()}`;
+  return `${fmt(mon)} ~ ${fmt(sun)}`;
 }
 
 function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: boolean }) {
@@ -78,7 +102,7 @@ function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: bo
             )}
           </View>
           <Text style={[s.cardPreview, { color: C.textMuted }]} numberOfLines={open ? undefined : 1}>
-            {!isCurrentYear && `${year}년 · `}{entry.common_content}
+            {!isCurrentYear && `${year}년 · `}{entry.common_content || (entry.student_note?.note_content ? "개별 메모 있음" : "")}
           </Text>
         </View>
         <LucideIcon name={open ? "chevron-up" : "chevron-down"} size={18} color={C.textMuted} />
@@ -89,31 +113,60 @@ function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: bo
           <View style={[s.divider, { backgroundColor: C.border }]} />
 
           {/* 공통 일지 */}
-          <View style={s.section}>
-            <View style={s.sectionHeader}>
-              <View style={[s.dot, { backgroundColor: C.tint }]} />
-              <Text style={[s.sectionLabel, { color: C.tint }]}>수업 내용</Text>
+          {entry.common_content ? (
+            <View style={s.section}>
+              <View style={s.sectionHeader}>
+                <View style={[s.dot, { backgroundColor: C.tint }]} />
+                <Text style={[s.sectionLabel, { color: C.tint }]}>수업 내용</Text>
+              </View>
+              <Text style={[s.sectionValue, { color: C.text }]}>{entry.common_content}</Text>
             </View>
-            <Text style={[s.sectionValue, { color: C.text }]}>{entry.common_content}</Text>
-          </View>
+          ) : null}
 
           {/* 개별 추가 일지 */}
           {entry.student_note?.note_content && (
-            <View style={[s.noteBox, { backgroundColor: "#EEDDF5", borderColor: "#E6FAF8" }]}>
-              <View style={s.sectionHeader}>
-                <User size={12} color="#7C3AED" />
-                <Text style={s.noteTitle}>우리 아이 개별 일지</Text>
+            <>
+              {entry.common_content ? (
+                <View style={s.noteSeparator}>
+                  <View style={[s.noteSepLine, { backgroundColor: "#E9D5FF" }]} />
+                  <View style={[s.noteSepBadge, { backgroundColor: "#F3E8FF" }]}>
+                    <User size={10} color="#7C3AED" />
+                    <Text style={s.noteSepText}>우리 아이 개별 메모</Text>
+                  </View>
+                  <View style={[s.noteSepLine, { backgroundColor: "#E9D5FF" }]} />
+                </View>
+              ) : null}
+              <View style={[s.noteBox, { backgroundColor: "#EEDDF5", borderColor: "#E9D5FF" }]}>
+                {!entry.common_content && (
+                  <View style={s.sectionHeader}>
+                    <User size={12} color="#7C3AED" />
+                    <Text style={s.noteTitle}>우리 아이 개별 메모</Text>
+                  </View>
+                )}
                 {entry.student_note.is_edited && (
-                  <View style={[s.editedBadge, { backgroundColor: "#EEDDF5" }]}>
+                  <View style={[s.editedBadge, { backgroundColor: "#F3E8FF", alignSelf: "flex-start" }]}>
                     <Text style={[s.editedBadgeText, { color: "#7C3AED" }]}>수정됨</Text>
                   </View>
                 )}
+                <Text style={[s.sectionValue, { color: "#0F172A", paddingLeft: 0 }]}>{entry.student_note.note_content}</Text>
               </View>
-              <Text style={[s.sectionValue, { color: "#0F172A" }]}>{entry.student_note.note_content}</Text>
-            </View>
+            </>
           )}
         </View>
       )}
+    </View>
+  );
+}
+
+function WeekHeader({ label }: { label: string }) {
+  return (
+    <View style={s.weekHeader}>
+      <View style={[s.weekLine, { backgroundColor: C.border }]} />
+      <View style={[s.weekBadge, { backgroundColor: C.card, borderColor: C.border }]}>
+        <Calendar size={11} color={C.textMuted} />
+        <Text style={[s.weekLabel, { color: C.textMuted }]}>{label}</Text>
+      </View>
+      <View style={[s.weekLine, { backgroundColor: C.border }]} />
     </View>
   );
 }
@@ -140,6 +193,19 @@ export default function SwimDiaryScreen() {
 
   useEffect(() => { fetchEntries(); }, [id]);
 
+  // 주별로 그룹화
+  const grouped: { weekKey: string; weekLabel: string; items: DiaryEntry[] }[] = [];
+  for (const entry of entries) {
+    const { weekYear } = parseLessonDate(entry.lesson_date);
+    const weekLabel = getWeekLabel(entry.lesson_date);
+    const last = grouped[grouped.length - 1];
+    if (last && last.weekKey === weekYear) {
+      last.items.push(entry);
+    } else {
+      grouped.push({ weekKey: weekYear, weekLabel, items: [entry] });
+    }
+  }
+
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
       <SubScreenHeader title={`${name} 수업 일지`} showHome={false} homePath="/(parent)/children" />
@@ -161,7 +227,14 @@ export default function SwimDiaryScreen() {
               </Text>
             </View>
           ) : (
-            entries.map((e, i) => <DiaryCard key={e.id} entry={e} defaultOpen={i === 0} />)
+            grouped.map((group, gi) => (
+              <View key={group.weekKey} style={{ gap: 12 }}>
+                <WeekHeader label={group.weekLabel} />
+                {group.items.map((e, i) => (
+                  <DiaryCard key={e.id} entry={e} defaultOpen={gi === 0 && i === 0} />
+                ))}
+              </View>
+            ))
           )}
         </ScrollView>
       )}
@@ -171,12 +244,6 @@ export default function SwimDiaryScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 16, paddingBottom: 12,
-  },
-  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
 
   card: {
     borderRadius: 18, overflow: "hidden",
@@ -203,11 +270,21 @@ const s = StyleSheet.create({
   section: { gap: 6 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  sectionLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", textTransform: "uppercase"},
+  sectionLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", textTransform: "uppercase" },
   sectionValue: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22, paddingLeft: 14 },
+
+  noteSeparator: { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 2 },
+  noteSepLine: { flex: 1, height: 1 },
+  noteSepBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1, borderColor: "#E9D5FF" },
+  noteSepText: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
 
   noteBox: { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
   noteTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED", flex: 1 },
+
+  weekHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
+  weekLine: { flex: 1, height: 1 },
+  weekBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
+  weekLabel: { fontSize: 11, fontFamily: "Pretendard-Regular" },
 
   empty: { alignItems: "center", justifyContent: "center", paddingTop: 100, gap: 12 },
   emptyTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },

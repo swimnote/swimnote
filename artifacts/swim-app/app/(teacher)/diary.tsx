@@ -288,20 +288,34 @@ export default function TeacherDiaryScreen() {
   }
   async function loadClassStudents(classId: string) {
     try {
-      const [studentsRes, makeupRes] = await Promise.all([
-        apiRequest(token, `/students?class_group_id=${classId}`),
+      const [scheduleRes, makeupRes] = await Promise.all([
+        apiRequest(token, `/today-schedule?date=${targetDate}`),
         apiRequest(token, `/attendance/makeup-students?class_group_id=${classId}&date=${targetDate}`),
       ]);
-      const list: any[] = studentsRes.ok ? (await studentsRes.json().catch(() => [])) : [];
+
+      let regularStudents: any[] = [];
+      if (scheduleRes.ok) {
+        const scheduleData: any[] = await scheduleRes.json().catch(() => []);
+        const classData = scheduleData.find((g: any) => g.id === classId);
+        if (classData?.students?.length > 0) {
+          regularStudents = classData.students.filter((s: any) =>
+            !["deleted", "archived"].includes(s.status)
+          );
+        }
+      }
+
+      // Fallback: today-schedule에 해당 반이 없으면 students API 사용
+      if (regularStudents.length === 0) {
+        const studentsRes = await apiRequest(token, `/students?class_group_id=${classId}`);
+        const list: any[] = studentsRes.ok ? (await studentsRes.json().catch(() => [])) : [];
+        regularStudents = list.filter((s: any) =>
+          !["deleted", "archived"].includes(s.status) &&
+          (s.class_group_id === classId ||
+            (Array.isArray(s.assigned_class_ids) && s.assigned_class_ids.includes(classId)))
+        );
+      }
+
       const makeupList: any[] = makeupRes.ok ? (await makeupRes.json().catch(() => [])) : [];
-
-      const regularStudents = list.filter((s: any) =>
-        !["deleted", "archived"].includes(s.status) &&
-        (s.class_group_id === classId ||
-          (Array.isArray(s.assigned_class_ids) && s.assigned_class_ids.includes(classId)))
-      );
-
-      // 보충수업 학생은 정규 학생 목록에 없으면 추가 (is_makeup 플래그)
       const regularIds = new Set(regularStudents.map((s: any) => s.id));
       const makeupStudents = makeupList
         .filter((m: any) => !regularIds.has(m.id))

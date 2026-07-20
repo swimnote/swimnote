@@ -550,13 +550,19 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
 
     const { month } = req.query;
     const idsLiteral = allClassIds.map(id => `'${id.replace(/'/g, "''")}'`).join(",");
+    const studentIdSafe = req.params.id.replace(/'/g, "''");
 
-    // 공통 일지 조회 (삭제된 것 제외) — 배정된 모든 반 포함
+    // 공통 일지 조회 (삭제된 것 제외) — 등록일~퇴원일 범위 내 일지만
     const diaryRows = await db.execute(sql.raw(`
       SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at,
              cd.class_group_id, cg.name AS class_group_name
       FROM class_diaries cd
       LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+      JOIN student_class_history sch
+        ON sch.class_group_id = cd.class_group_id
+        AND sch.student_id = '${studentIdSafe}'
+        AND sch.enrolled_at <= cd.lesson_date
+        AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date)
       WHERE cd.class_group_id IN (${idsLiteral})
         AND cd.is_deleted = false
         ${month ? `AND cd.lesson_date LIKE '${(month as string).replace(/'/g, "''")}%'` : ""}
@@ -616,10 +622,16 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
       ]));
       if (!allClassIds.length) continue;
       const idsLiteral = allClassIds.map(id => `'${id.replace(/'/g, "''")}'`).join(",");
+      const sIdSafe = student.id.replace(/'/g, "''");
 
       const diaryRows = await db.execute(sql.raw(`
         SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at, cd.class_group_id
         FROM class_diaries cd
+        JOIN student_class_history sch
+          ON sch.class_group_id = cd.class_group_id
+          AND sch.student_id = '${sIdSafe}'
+          AND sch.enrolled_at <= cd.lesson_date
+          AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date)
         WHERE cd.class_group_id IN (${idsLiteral}) AND cd.is_deleted = false
         ORDER BY cd.lesson_date DESC, cd.created_at DESC
         LIMIT 40
@@ -918,7 +930,7 @@ router.get("/students/:id/news", requireAuth, requireParent, async (req: AuthReq
       });
     }
 
-    // 수업일지 (최근 20개)
+    // 수업일지 (최근 20개) — 등록일~퇴원일 범위 내만
     if (student?.class_group_id) {
       const diaryRows = await db.execute(sql`
         SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.created_at,
@@ -926,6 +938,11 @@ router.get("/students/:id/news", requireAuth, requireParent, async (req: AuthReq
         FROM class_diaries cd
         LEFT JOIN class_diary_student_notes csn
           ON csn.diary_id = cd.id AND csn.student_id = ${req.params.id} AND csn.is_deleted = false
+        JOIN student_class_history sch
+          ON sch.class_group_id = cd.class_group_id
+          AND sch.student_id = ${req.params.id}
+          AND sch.enrolled_at <= cd.lesson_date
+          AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date)
         WHERE cd.class_group_id = ${student.class_group_id} AND cd.is_deleted = false
         ORDER BY cd.lesson_date DESC LIMIT 20
       `);

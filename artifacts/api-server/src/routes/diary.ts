@@ -433,7 +433,10 @@ router.post("/diaries",
         return apiErr(res, 400, "반 ID와 일지 내용은 필수입니다.");
       }
 
-      const poolId = await getUserPoolId(userId);
+      const [poolId, teacherName] = await Promise.all([
+        getUserPoolId(userId),
+        getUserName(userId),
+      ]);
       if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
 
       // 선생님: 본인 반인지 확인 (pool_admin이 teacher로 전환한 경우 전체 접근 허용)
@@ -449,8 +452,6 @@ router.post("/diaries",
           if (r.rows.length === 0) return apiErr(res, 403, "해당 반을 찾을 수 없습니다.");
         }
       }
-
-      const teacherName = await getUserName(userId);
       const dateStr = lesson_date || new Date().toISOString().slice(0, 10);
       const diaryId = genId("cd");
 
@@ -467,6 +468,16 @@ router.post("/diaries",
         INSERT INTO class_diaries (id, class_group_id, teacher_id, teacher_name, swimming_pool_id, lesson_date, common_content)
         VALUES (${diaryId}, ${class_group_id}, ${userId}, ${teacherName}, ${poolId}, ${dateStr}, ${(common_content || "").trim()})
       `);
+
+      // 일지 저장 후 같은 반+날짜에 journal_id 없이 업로드된 그룹 사진 자동 연결
+      await db.execute(sql`
+        UPDATE photo_assets_meta
+        SET journal_id = ${diaryId}
+        WHERE album_type = 'group'
+          AND class_id = ${class_group_id}
+          AND journal_id IS NULL
+          AND DATE(created_at AT TIME ZONE 'Asia/Seoul') = ${dateStr}::date
+      `).catch(() => {});
 
       await logAudit({
         diaryId, targetType: "common", actionType: "create",
