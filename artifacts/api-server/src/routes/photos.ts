@@ -205,6 +205,43 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
     // super_admin: 통과
 
     const { date } = req.query;
+
+    // 학부모: journal_id / student_note_id 연결 사진만 (일지에 첨부된 것만)
+    if (role === "parent_account") {
+      const rows = await db.execute(sql`
+        SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.pool_id,
+               sp.uploaded_by, sp.uploaded_by_name, sp.caption, sp.created_at,
+               sp.lesson_date, sp.file_size, sp.object_key,
+               s.name AS student_name
+        FROM photo_assets_meta sp
+        LEFT JOIN students s ON s.id = sp.student_id
+        WHERE sp.class_id = ${classId}
+          AND (
+            (
+              sp.journal_id IS NOT NULL
+              ${date ? sql`AND sp.journal_id IN (
+                SELECT id FROM class_diaries
+                WHERE class_group_id = ${classId} AND lesson_date = ${date as string}
+              )` : sql``}
+            )
+            OR (
+              sp.student_note_id IS NOT NULL
+              ${date ? sql`AND sp.student_note_id IN (
+                SELECT csn.id FROM class_diary_student_notes csn
+                JOIN class_diaries cd ON cd.id = csn.diary_id
+                WHERE cd.class_group_id = ${classId} AND cd.lesson_date = ${date as string}
+                  AND csn.is_deleted = false
+              )` : sql``}
+            )
+          )
+        ORDER BY sp.created_at DESC
+      `);
+      const photos = await batchPresign(
+        (rows.rows as any[]).map(p => ({ ...p, file_url: `/api/photos/${p.id}/file` }))
+      );
+      return res.json(photos);
+    }
+
     const rows = await db.execute(sql`
       SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.pool_id,
              sp.uploaded_by, sp.uploaded_by_name, sp.caption, sp.created_at,

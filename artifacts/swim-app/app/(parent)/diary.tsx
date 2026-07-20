@@ -139,12 +139,7 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
           ) : null}
 
           {entry.student_note?.note_content?.trim() ? (
-            <>
-              {entry.common_content?.trim() ? (
-                <View style={[ds.divider, { backgroundColor: C.border }]} />
-              ) : null}
-              <Text style={[ds.content, { color: C.text }]}>{entry.student_note.note_content}</Text>
-            </>
+            <Text style={[ds.content, { color: C.text }]}>{entry.student_note.note_content}</Text>
           ) : null}
 
           {effectiveClassGroupId ? (
