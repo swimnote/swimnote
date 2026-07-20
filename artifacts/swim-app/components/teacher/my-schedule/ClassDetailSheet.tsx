@@ -1,4 +1,4 @@
-import { ChevronRight, CircleAlert, Pencil, Trash2, UserX, Users, X } from "lucide-react-native";
+import { ChevronRight, CircleAlert, Pencil, RotateCcw, Trash2, UserX, Users, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -63,6 +63,7 @@ export default function ClassDetailSheet({
   // 이 반/날짜에 배정된 보강 학생
   const [makeupStudents,       setMakeupStudents]       = useState<any[]>([]);
   const [completingMakeupId,   setCompletingMakeupId]   = useState<string | null>(null);
+  const [revertingMakeupId,    setRevertingMakeupId]    = useState<string | null>(null);
 
   const originalColorRef = useRef<string>(group.color || "#FFFFFF");
   const [draftColor, setDraftColor] = useState<string>(group.color || "#FFFFFF");
@@ -148,6 +149,36 @@ export default function ClassDetailSheet({
       }
     } catch {}
     setCompletingMakeupId(null);
+  }
+
+  function handleRevertMakeup(mk: any) {
+    Alert.alert(
+      "배정 취소",
+      `${mk.student_name}의 보강 배정을 취소하고 보강 대기로 되돌리시겠습니까?\n\n결석 기록과 보강 권리는 유지됩니다.`,
+      [
+        { text: "닫기", style: "cancel" },
+        {
+          text: "배정 취소",
+          style: "destructive",
+          onPress: async () => {
+            setRevertingMakeupId(mk.id);
+            try {
+              const res = await apiRequest(token, `/admin/makeups/${mk.id}/revert`, { method: "PATCH" });
+              if (res.ok) {
+                setMakeupStudents(prev => prev.filter(m => m.id !== mk.id));
+              } else {
+                const err = await res.json().catch(() => ({}));
+                Alert.alert("오류", err.error || "배정 취소에 실패했습니다.");
+              }
+            } catch {
+              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+            } finally {
+              setRevertingMakeupId(null);
+            }
+          },
+        },
+      ]
+    );
   }
 
   async function openMakeupPicker() {
@@ -428,26 +459,43 @@ export default function ClassDetailSheet({
                     <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#7C3AED" }}>보강 학생</Text>
                   </View>
                   {makeupStudents.map(mk => (
-                    <View key={mk.id} style={[cds.studentRow, { backgroundColor: "#F5F3FF" }]}>
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <Text style={cds.studentName}>{mk.student_name}</Text>
-                          <View style={{ backgroundColor: "#7C3AED", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                            <Text style={{ fontSize: 9, color: "#fff", fontFamily: "Pretendard-SemiBold" }}>보강</Text>
+                    <View key={mk.id} style={[cds.studentRow, { backgroundColor: "#F5F3FF", flexDirection: "column", alignItems: "stretch", paddingVertical: 10 }]}>
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Text style={cds.studentName}>{mk.student_name}</Text>
+                            <View style={{ backgroundColor: "#7C3AED", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                              <Text style={{ fontSize: 9, color: "#fff", fontFamily: "Pretendard-SemiBold" }}>보강</Text>
+                            </View>
                           </View>
+                          <Text style={cds.studentSub}>결석일: {mk.absence_date}</Text>
                         </View>
-                        <Text style={cds.studentSub}>결석일: {mk.absence_date}</Text>
                       </View>
-                      {completingMakeupId === mk.id ? (
-                        <ActivityIndicator size="small" color="#7C3AED" style={{ marginHorizontal: 8 }} />
-                      ) : (
-                        <Pressable
-                          style={[cds.stBtn, { backgroundColor: "#EDE9FE", borderColor: "#7C3AED" }]}
-                          onPress={() => completeMakeupDirect(mk.id)}
-                        >
-                          <Text style={[cds.stBtnTxt, { color: "#7C3AED" }]}>완료</Text>
-                        </Pressable>
-                      )}
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        {completingMakeupId === mk.id ? (
+                          <ActivityIndicator size="small" color="#7C3AED" style={{ marginHorizontal: 8 }} />
+                        ) : (
+                          <Pressable
+                            style={[cds.stBtn, { backgroundColor: "#EDE9FE", borderColor: "#7C3AED", flex: 1 }]}
+                            onPress={() => completeMakeupDirect(mk.id)}
+                            disabled={revertingMakeupId === mk.id}
+                          >
+                            <Text style={[cds.stBtnTxt, { color: "#7C3AED" }]}>완료</Text>
+                          </Pressable>
+                        )}
+                        {revertingMakeupId === mk.id ? (
+                          <ActivityIndicator size="small" color="#D97706" style={{ marginHorizontal: 8 }} />
+                        ) : (
+                          <Pressable
+                            style={[cds.stBtn, { backgroundColor: "#FFF8EE", borderColor: "#D97706", flex: 1 }]}
+                            onPress={() => handleRevertMakeup(mk)}
+                            disabled={completingMakeupId === mk.id}
+                          >
+                            <RotateCcw size={11} color="#D97706" />
+                            <Text style={[cds.stBtnTxt, { color: "#D97706" }]}>배정 취소</Text>
+                          </Pressable>
+                        )}
+                      </View>
                     </View>
                   ))}
                 </>
