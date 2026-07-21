@@ -1,7 +1,7 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {ActivityIndicator, Linking, Pressable,
+import {ActivityIndicator, Image, Linking, Pressable,
   StyleSheet, Text, TextInput, View} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -204,7 +204,13 @@ export default function PoolsScreen() {
                 {/* 상단 행 */}
                 <View style={styles.cardTop}>
                   <View style={[styles.poolIcon, { backgroundColor: isActive ? "#E8F7F6" : "#F3F0EE" }]}>
-                    {p.logo_emoji ? (
+                    {p.logo_url ? (
+                      <Image source={{ uri: p.logo_url }} style={styles.poolIconImg} resizeMode="cover" />
+                    ) : p.name ? (
+                      <View style={[styles.poolIconInitials, { backgroundColor: isActive ? TINT : "#94A3B8" }]}>
+                        <Text style={styles.poolIconInitialsText}>{p.name.slice(0, 2)}</Text>
+                      </View>
+                    ) : p.logo_emoji ? (
                       <Text style={styles.poolIconEmoji}>{p.logo_emoji}</Text>
                     ) : (
                       <LucideIcon name="droplet" size={22} color={isActive ? TINT : C.textMuted} />
@@ -351,6 +357,9 @@ const styles = StyleSheet.create({
   card: { borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
   cardTop: { flexDirection: "row", alignItems: "center", gap: 14, padding: 16 },
   poolIcon: { width: 50, height: 50, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  poolIconImg: { width: 50, height: 50, borderRadius: 15 },
+  poolIconInitials: { width: 50, height: 50, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  poolIconInitialsText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular", letterSpacing: -0.5 },
   poolIconEmoji: { fontSize: 24 },
   nameLine: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   poolName: { fontSize: 16, fontFamily: "Pretendard-Regular", flexShrink: 1 },

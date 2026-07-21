@@ -2,7 +2,7 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Pressable, ScrollView,
+  ActivityIndicator, Image, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -100,7 +100,13 @@ export default function PoolSelectScreen() {
                 ]}
               >
                 <View style={[styles.poolIcon, { backgroundColor: isCurrent ? "#E8F7F6" : "#F3F0EE" }]}>
-                  {p.logo_emoji ? (
+                  {p.logo_url ? (
+                    <Image source={{ uri: p.logo_url }} style={styles.poolIconImg} resizeMode="cover" />
+                  ) : p.name ? (
+                    <View style={[styles.poolIconInitials, { backgroundColor: isCurrent ? TINT : "#94A3B8" }]}>
+                      <Text style={styles.poolIconInitialsText}>{p.name.slice(0, 2)}</Text>
+                    </View>
+                  ) : p.logo_emoji ? (
                     <Text style={styles.emoji}>{p.logo_emoji}</Text>
                   ) : (
                     <LucideIcon name="droplet" size={24} color={isCurrent ? TINT : C.textMuted} />
@@ -180,6 +186,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
   },
   poolIcon: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  poolIconImg: { width: 52, height: 52, borderRadius: 16 },
+  poolIconInitials: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  poolIconInitialsText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular", letterSpacing: -0.5 },
   emoji: { fontSize: 26 },
   poolInfo: { flex: 1, gap: 6 },
   nameLine: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },

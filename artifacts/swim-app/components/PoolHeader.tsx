@@ -61,7 +61,7 @@ export function PoolHeader({ right, left }: PoolHeaderProps) {
   );
 }
 
-/** 로고 뱃지: 이미지 > 이모지 > 이니셜 순으로 표시 */
+/** 로고 뱃지: 이미지 > 이니셜(앞 2글자) > 이모지(하위 호환) 순으로 표시 */
 function LogoBadge({
   logoUrl, logoEmoji, poolName, themeColor,
 }: {
@@ -79,15 +79,15 @@ function LogoBadge({
       />
     );
   }
-  const label = logoEmoji
-    ? logoEmoji
-    : poolName
-      ? poolName.slice(0, 1)
-      : APP_PLATFORM_NAME.slice(0, 1);
+  // 이니셜(앞 2글자) 우선 — 없으면 logo_emoji 하위 호환 — 없으면 플랫폼 이니셜
+  const label = poolName
+    ? poolName.slice(0, 2)
+    : logoEmoji ?? APP_PLATFORM_NAME.slice(0, 1);
+  const isInitials = !!poolName;
 
   return (
     <View style={[styles.logo, styles.logoBadge, { backgroundColor: themeColor }]}>
-      <Text style={styles.logoText}>{label}</Text>
+      <Text style={[styles.logoText, isInitials && styles.logoTextInitials]}>{label}</Text>
     </View>
   );
 }
@@ -132,6 +132,10 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontFamily: "Pretendard-Regular",
+  },
+  logoTextInitials: {
+    fontSize: 13,
+    letterSpacing: -0.5,
   },
   titles: {
     flex: 1,
