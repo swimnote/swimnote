@@ -1,23 +1,32 @@
 /**
- * 학부모 홈 — 정보 우선순위 중심 UX
+ * 학부모 홈 — S6 리뉴얼
  *
- * 구조:
- *   A. 상단 헤더 (수영장명 · 알림 · 설정)
- *   B. 자녀 탭
- *   C. 상단 요약 카드 (이름 / 반 / 출석 / 오늘 수업)
- *   D. 새 소식 스트립 (unread_counts 합산)
- *   1. 최근 수업일지 카드
- *   2. 최근 사진 카드
- *   3. 공지사항 카드
- *   4. 현재 레벨 카드
+ * 구조: 단일 FlatList
+ *   ListHeaderComponent
+ *     A. Slim Header (수영장명 · 알림 · 설정)
+ *     B. 자녀 선택 탭
+ *     C. ParentSlimInfoPanel
+ *     D. 새 소식 스트립
+ *     E. access_blocked 안내
+ *     F. 자녀 없음 빈 화면
+ *   FlatList data items
+ *     1. promo_strip  — 얇은 배너
+ *     2. promo_banner — 두꺼운 배너
+ *     3. photos       — 사진 업데이트
+ *     4. diary        — 수업일지 Feed
  */
 import { ParentPromoBanner } from "@/components/parent/ParentPromoBanner";
 import { ParentPromoStrip } from "@/components/parent/ParentPromoStrip";
+import { ParentSlimInfoPanel } from "@/components/parent/ParentSlimInfoPanel";
+import { ParentLatestDiaryCard } from "@/components/parent/ParentLatestDiaryCard";
+import { ParentRecentPhotosCard } from "@/components/parent/ParentRecentPhotosCard";
+import { type LevelDef } from "@/components/common/LevelBadge";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {ActivityIndicator, Alert, BackHandler, FlatList, Image, Keyboard, Linking, Modal, Platform,
-  Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import {
+  ActivityIndicator, Alert, BackHandler, FlatList, Image, Keyboard, Linking, Modal,
+  Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
@@ -25,22 +34,37 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
-import { ParentChildHeroCard } from "@/components/parent/ParentChildHeroCard";
-import { ParentLatestDiaryCard } from "@/components/parent/ParentLatestDiaryCard";
-import { ParentRecentPhotosCard } from "@/components/parent/ParentRecentPhotosCard";
-import { ParentNoticeCard } from "@/components/parent/ParentNoticeCard";
-import { ParentGrowthCard } from "@/components/parent/ParentGrowthCard";
-import { type LevelDef } from "@/components/common/LevelBadge";
-
 const C = Colors.light;
+const IB = "#E6FAF8";
+const TEAL = "#2EC4B6";
 
+// ── FlatList 아이템 타입 ───────────────────────────────────────────────────
+type FeedItem =
+  | { key: "promo_strip";  type: "promo_strip" }
+  | { key: "promo_banner"; type: "promo_banner" }
+  | { key: "photos";       type: "photos" }
+  | { key: "diary";        type: "diary" };
+
+const FEED_ITEMS: FeedItem[] = [
+  { key: "promo_strip",  type: "promo_strip" },
+  { key: "promo_banner", type: "promo_banner" },
+  { key: "photos",       type: "photos" },
+  { key: "diary",        type: "diary" },
+];
+
+// ── HomeSummary 타입 ──────────────────────────────────────────────────────
 interface HomeSummary {
   unread_counts: { notices: number; diaries: number; photos: number; messages: number };
   latest_diaries: any[];
   latest_photos: any[];
   latest_notices: any[];
   attendance: { attended: number; total: number; latest_status: string | null };
-  growth: { current_level: any; prev_level: any; achieved_date?: string; note?: string; teacher_name?: string; badge_color?: string | null; badge_text_color?: string | null; level_def?: LevelDef | null } | null;
+  growth: {
+    current_level: any; prev_level: any;
+    achieved_date?: string; note?: string; teacher_name?: string;
+    badge_color?: string | null; badge_text_color?: string | null;
+    level_def?: LevelDef | null;
+  } | null;
   today_schedule: string | null;
 }
 
@@ -51,9 +75,7 @@ const EMPTY_SUMMARY: HomeSummary = {
   growth: null, today_schedule: null,
 };
 
-const IB = "#E6FAF8";
-const TEAL = "#2EC4B6";
-
+// ── PoolSelectModal ───────────────────────────────────────────────────────
 interface PoolResult { id: string; name: string; address?: string | null; }
 
 function PoolSelectModal({ visible, onClose, onSelect }: {
@@ -81,13 +103,18 @@ function PoolSelectModal({ visible, onClose, onSelect }: {
 
   useEffect(() => {
     const q = query.trim().toLowerCase();
-    setPools(!q ? allPools : allPools.filter(p => p.name.toLowerCase().includes(q) || (p.address ?? "").toLowerCase().includes(q)));
+    setPools(!q ? allPools : allPools.filter(p =>
+      p.name.toLowerCase().includes(q) || (p.address ?? "").toLowerCase().includes(q)
+    ));
   }, [query, allPools]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)" }} onPress={onClose} />
-      <View style={{ backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%", paddingBottom: insets.bottom + 16 }}>
+      <View style={{
+        backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
+        maxHeight: "80%", paddingBottom: insets.bottom + 16,
+      }}>
         <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "#E0E0E0", alignSelf: "center", marginTop: 10, marginBottom: 6 }} />
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12 }}>
           <Text style={{ fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111" }}>수영장 선택</Text>
@@ -95,10 +122,18 @@ function PoolSelectModal({ visible, onClose, onSelect }: {
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#F4F6FA", borderRadius: 12, marginHorizontal: 20, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}>
           <LucideIcon name="search" size={16} color="#999" />
-          <TextInput ref={inputRef} style={{ flex: 1, fontSize: 15, color: "#111", fontFamily: "Pretendard-Regular" }}
-            placeholder="수영장 이름 검색" placeholderTextColor="#bbb" value={query} onChangeText={setQuery}
-            returnKeyType="search" onSubmitEditing={Keyboard.dismiss} />
-          {query.length > 0 && <Pressable onPress={() => setQuery("")} hitSlop={8}><LucideIcon name="x" size={14} color="#bbb" /></Pressable>}
+          <TextInput
+            ref={inputRef}
+            style={{ flex: 1, fontSize: 15, color: "#111", fontFamily: "Pretendard-Regular" }}
+            placeholder="수영장 이름 검색" placeholderTextColor="#bbb"
+            value={query} onChangeText={setQuery}
+            returnKeyType="search" onSubmitEditing={Keyboard.dismiss}
+          />
+          {query.length > 0 && (
+            <Pressable onPress={() => setQuery("")} hitSlop={8}>
+              <LucideIcon name="x" size={14} color="#bbb" />
+            </Pressable>
+          )}
         </View>
         {loading ? (
           <View style={{ padding: 32, alignItems: "center" }}><ActivityIndicator color={TEAL} /></View>
@@ -107,10 +142,20 @@ function PoolSelectModal({ visible, onClose, onSelect }: {
             data={pools}
             keyExtractor={p => p.id}
             keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={<Text style={{ textAlign: "center", color: "#999", marginTop: 24, fontFamily: "Pretendard-Regular" }}>검색 결과가 없습니다.</Text>}
+            ListEmptyComponent={
+              <Text style={{ textAlign: "center", color: "#999", marginTop: 24, fontFamily: "Pretendard-Regular" }}>
+                검색 결과가 없습니다.
+              </Text>
+            }
             renderItem={({ item }) => (
-              <Pressable onPress={() => { onSelect(item); onClose(); }}
-                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14, gap: 12, backgroundColor: pressed ? "#F0FAF9" : "#fff" })}>
+              <Pressable
+                onPress={() => { onSelect(item); onClose(); }}
+                style={({ pressed }) => ({
+                  flexDirection: "row", alignItems: "center",
+                  paddingHorizontal: 20, paddingVertical: 14, gap: 12,
+                  backgroundColor: pressed ? "#F0FAF9" : "#fff",
+                })}
+              >
                 <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center" }}>
                   <LucideIcon name="building-2" size={18} color={TEAL} />
                 </View>
@@ -128,9 +173,10 @@ function PoolSelectModal({ visible, onClose, onSelect }: {
   );
 }
 
+// ── 메인 화면 ─────────────────────────────────────────────────────────────
 export default function ParentHomeScreen() {
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<KeyboardAwareScrollView>(null);
+  const flatListRef = useRef<FlatList<FeedItem>>(null);
   const { token, parentAccount, pool, parentPoolName, logout } = useAuth();
   const { students, selectedStudent, setSelectedStudentId, loading: ctxLoading, refresh } = useParent();
 
@@ -197,30 +243,25 @@ export default function ParentHomeScreen() {
   }
 
   async function unlinkChild(studentId: string, studentName: string) {
-    Alert.alert(
-      "자녀 연결 해제",
-      `${studentName}의 연결을 해제할까요?`,
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "해제",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const r = await apiRequest(token, `/parent/unlink-child/${studentId}`, { method: "DELETE" });
-              const d = await r.json();
-              if (r.ok && d.success) {
-                await refresh();
-              } else {
-                Alert.alert("오류", d.message || "연결 해제에 실패했습니다.");
-              }
-            } catch {
-              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+    Alert.alert("자녀 연결 해제", `${studentName}의 연결을 해제할까요?`, [
+      { text: "취소", style: "cancel" },
+      {
+        text: "해제", style: "destructive",
+        onPress: async () => {
+          try {
+            const r = await apiRequest(token, `/parent/unlink-child/${studentId}`, { method: "DELETE" });
+            const d = await r.json();
+            if (r.ok && d.success) {
+              await refresh();
+            } else {
+              Alert.alert("오류", d.message || "연결 해제에 실패했습니다.");
             }
-          },
+          } catch {
+            Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+          }
         },
-      ]
-    );
+      },
+    ]);
   }
 
   useFocusEffect(useCallback(() => {
@@ -232,7 +273,6 @@ export default function ParentHomeScreen() {
 
   useEffect(() => { loadV2Status(); }, []);
   useFocusEffect(useCallback(() => { loadV2Status(); }, []));
-
   useFocusEffect(useCallback(() => { refresh(); }, []));
 
   useEffect(() => {
@@ -297,7 +337,6 @@ export default function ParentHomeScreen() {
 
   const { unread_counts } = summary;
 
-  // 새 소식 스트립 텍스트 생성 (최대 3개)
   const newsItems = [
     unread_counts.diaries > 0 && `새 일지 ${unread_counts.diaries}건`,
     unread_counts.photos > 0 && `새 사진 ${unread_counts.photos}장`,
@@ -307,6 +346,8 @@ export default function ParentHomeScreen() {
   const hasNews = newsItems.length > 0;
 
   const PT = insets.top + (Platform.OS === "web" ? 67 : 16);
+  const isBlocked = !!(selectedStudent as any)?.access_blocked;
+  const showFeed = students.length > 0 && !isBlocked && !!selectedStudent;
 
   if (ctxLoading) {
     return (
@@ -316,7 +357,7 @@ export default function ParentHomeScreen() {
     );
   }
 
-  // V2 waiting 상태 — 매칭 대기 중
+  // ── V2 waiting 상태 ────────────────────────────────────────────────────
   if (v2Status === "waiting") {
     const ORANGE = "#F97316";
     return (
@@ -325,7 +366,7 @@ export default function ParentHomeScreen() {
           <Text style={[s.poolName, { color: C.textMuted }]}>SwimNote</Text>
           <View style={s.headerBtns} />
         </View>
-        <KeyboardAwareScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 80 }}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 80 }}>
           <View style={{ alignItems: "center", marginBottom: 32 }}>
             <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: "#FFF3E0", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
               <LucideIcon name="clock" size={44} color={ORANGE} />
@@ -335,7 +376,6 @@ export default function ParentHomeScreen() {
               수영장에서 자녀 등록을 완료하면{"\n"}자동으로 연결됩니다.
             </Text>
           </View>
-
           <View style={{ backgroundColor: "#FFF3E0", borderRadius: 16, padding: 18, gap: 10, marginBottom: 24, borderWidth: 1, borderColor: "#FECFA2" }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <LucideIcon name="user" size={16} color={ORANGE} />
@@ -348,7 +388,7 @@ export default function ParentHomeScreen() {
             </Text>
             {!!v2PoolPhone && (
               <Pressable
-                onPress={() => Linking.openURL(`tel:${v2PoolPhone.replace(/[^0-9]/g, "")}`)}
+                onPress={() => Linking.openURL(`tel:${v2PoolPhone!.replace(/[^0-9]/g, "")}`)}
                 style={({ pressed }) => ({
                   flexDirection: "row", alignItems: "center", gap: 8,
                   backgroundColor: pressed ? "#FECFA2" : "#fff",
@@ -363,7 +403,6 @@ export default function ParentHomeScreen() {
               </Pressable>
             )}
           </View>
-
           <Pressable
             onPress={handleV2Retry}
             disabled={v2Retrying}
@@ -385,7 +424,6 @@ export default function ParentHomeScreen() {
           <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 18 }}>
             수영장 등록 완료 후 버튼을 누르면{"\n"}즉시 연결됩니다.
           </Text>
-
           <Pressable
             onPress={async () => { await logout(); router.replace("/"); }}
             style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, marginTop: 8, paddingVertical: 10 })}
@@ -394,11 +432,12 @@ export default function ParentHomeScreen() {
               로그아웃
             </Text>
           </Pressable>
-        </KeyboardAwareScrollView>
+        </ScrollView>
       </View>
     );
   }
 
+  // ── 수영장 미연결 ──────────────────────────────────────────────────────
   if (noPool) {
     return (
       <View style={[s.root, { backgroundColor: C.background }]}>
@@ -406,8 +445,7 @@ export default function ParentHomeScreen() {
           <Text style={[s.poolName, { color: C.textMuted }]}>SwimNote</Text>
           <View style={s.headerBtns} />
         </View>
-
-        <KeyboardAwareScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 80 }}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 80 }}>
           <View style={{ alignItems: "center", marginBottom: 32 }}>
             <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
               <LucideIcon name="building-2" size={44} color={TEAL} />
@@ -417,7 +455,6 @@ export default function ParentHomeScreen() {
               수영장을 선택하면 자녀의 수업, 앨범,{"\n"}출결 정보를 바로 확인할 수 있어요.
             </Text>
           </View>
-
           <Pressable
             onPress={() => setPoolModal(true)}
             disabled={linking}
@@ -436,12 +473,10 @@ export default function ParentHomeScreen() {
                 </>
             }
           </Pressable>
-
           <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", marginTop: 16 }}>
             선택 후 전화번호로 등록된 자녀가 자동 연결됩니다
           </Text>
-        </KeyboardAwareScrollView>
-
+        </ScrollView>
         <PoolSelectModal
           visible={poolModal}
           onClose={() => setPoolModal(false)}
@@ -451,32 +486,44 @@ export default function ParentHomeScreen() {
     );
   }
 
-  const isBlocked = !!(selectedStudent as any)?.access_blocked;
-
-  return (
-    <View style={[s.root, { backgroundColor: C.background }]}>
-
-      {/* ─── A. 헤더 ─── */}
+  // ── ListHeaderComponent ───────────────────────────────────────────────
+  const ListHeader = (
+    <View>
+      {/* A. Slim Header */}
       <View style={[s.header, { paddingTop: PT }]}>
         <Text style={[s.poolName, { color: C.textMuted }]} numberOfLines={1}>
           {parentPoolName || (parentAccount as any)?.pool_name || pool?.name || "수영장"}
         </Text>
         <View style={s.headerBtns}>
-          <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => router.push("/(parent)/notifications" as any)}>
+          <Pressable
+            style={[s.headerBtn, { backgroundColor: C.card }]}
+            onPress={() => router.push("/(parent)/notifications" as any)}
+          >
             <LucideIcon name="bell" size={19} color={C.textSecondary} />
           </Pressable>
-          <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => Linking.openURL("https://swimnote.kr")}>
-            <Image source={require("@/assets/images/swimnote-logo.png")} style={{ width: 19, height: 19 }} resizeMode="contain" />
+          <Pressable
+            style={[s.headerBtn, { backgroundColor: C.card }]}
+            onPress={() => Linking.openURL("https://swimnote.kr")}
+          >
+            <Image
+              source={require("@/assets/images/swimnote-logo.png")}
+              style={{ width: 19, height: 19 }}
+              resizeMode="contain"
+            />
           </Pressable>
-          <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => router.push("/(parent)/more" as any)}>
+          <Pressable
+            style={[s.headerBtn, { backgroundColor: C.card }]}
+            onPress={() => router.push("/(parent)/more" as any)}
+          >
             <LucideIcon name="settings" size={19} color={C.textSecondary} />
           </Pressable>
         </View>
       </View>
 
-      {/* ─── B. 자녀 탭 (동적) ─── */}
-      <KeyboardAwareScrollView
-        horizontal showsHorizontalScrollIndicator={false}
+      {/* B. 자녀 선택 탭 */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingBottom: 6 }}
         style={{ flexGrow: 0 }}
       >
@@ -485,19 +532,23 @@ export default function ParentHomeScreen() {
           return (
             <Pressable
               key={st.id}
-              style={[s.childTab, isSel
-                ? { backgroundColor: C.tint, borderColor: C.tint }
-                : { backgroundColor: C.card, borderColor: C.border }]}
+              style={[
+                s.childTab,
+                isSel
+                  ? { backgroundColor: C.tint, borderColor: C.tint }
+                  : { backgroundColor: C.card, borderColor: C.border },
+              ]}
               onPress={() => setSelectedStudentId(st.id)}
               onLongPress={() => unlinkChild(st.id, st.name)}
               delayLongPress={600}
             >
               <Text style={[s.childTabTxt, { color: isSel ? "#fff" : C.text }]}>{st.name}</Text>
-              {isSel && <LucideIcon name="user-minus" size={12} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />}
+              {isSel && (
+                <LucideIcon name="user-minus" size={12} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
+              )}
             </Pressable>
           );
         })}
-        {/* 자녀 추가 버튼 */}
         <Pressable
           style={[s.childTab, s.childTabAdd, { backgroundColor: C.card, borderColor: C.border }]}
           onPress={() => router.push("/(parent)/link-child" as any)}
@@ -505,135 +556,148 @@ export default function ParentHomeScreen() {
           <LucideIcon name="plus" size={14} color={C.textMuted} />
           <Text style={[s.childTabTxt, { color: C.textMuted, marginLeft: 2 }]}>추가</Text>
         </Pressable>
-      </KeyboardAwareScrollView>
+      </ScrollView>
 
-      <KeyboardAwareScrollView
-        ref={scrollRef}
-        style={{ flex: 1 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 60 }}
-      >
+      {/* C. ParentSlimInfoPanel */}
+      {selectedStudent && (
+        <ParentSlimInfoPanel
+          student={selectedStudent}
+          attended={summary.attendance.attended}
+          total={summary.attendance.total}
+          todaySchedule={summary.today_schedule}
+          currentLevel={summary.growth?.current_level ?? null}
+          levelDef={summary.growth?.level_def ?? null}
+          onPress={() =>
+            router.push({
+              pathname: "/(parent)/child-profile" as any,
+              params: { id: selectedStudent.id, backTo: "home" },
+            })
+          }
+        />
+      )}
 
-        {/* ─── 자녀 없음 빈 화면 ─── */}
-        {students.length === 0 && (
-          <View style={{ flex: 1, alignItems: "center", paddingTop: 60, paddingHorizontal: 32, gap: 16 }}>
-            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: IB, alignItems: "center", justifyContent: "center" }}>
-              <LucideIcon name="user-plus" size={38} color={TEAL} />
-            </View>
-            <Text style={{ fontSize: 20, fontFamily: "Pretendard-SemiBold", color: C.text, textAlign: "center" }}>
-              아직 연결된 자녀가 없습니다
+      {/* D. 새 소식 스트립 */}
+      {selectedStudent && hasNews && (
+        <View style={s.newsStrip}>
+          <LucideIcon name="bell" size={13} color={TEAL} />
+          <Text style={s.newsTxt} numberOfLines={1}>{newsItems.join(" · ")}</Text>
+        </View>
+      )}
+
+      {/* E. access_blocked 안내 */}
+      {selectedStudent && isBlocked && (
+        <View style={s.blockedCard}>
+          <LucideIcon name="lock" size={20} color="#D97706" />
+          <View style={{ flex: 1 }}>
+            <Text style={[s.blockedTitle, { color: C.text }]}>정보 열람 제한</Text>
+            <Text style={[s.blockedSub, { color: C.textSecondary }]}>
+              현재 일부 정보 열람이 제한되어 있습니다.{"\n"}수영장 담당자에게 문의해주세요.
             </Text>
-            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 }}>
-              자녀를 연결하면 수업 기록을{"\n"}확인할 수 있습니다
-            </Text>
-            <Pressable
-              onPress={() => router.push("/(parent)/link-child" as any)}
-              style={({ pressed }) => ({
-                marginTop: 8, backgroundColor: pressed ? "#27B8AC" : TEAL,
-                borderRadius: 14, paddingVertical: 14, paddingHorizontal: 32,
-                alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 10,
-              })}
-            >
-              <LucideIcon name="link" size={18} color="#fff" />
-              <Text style={{ fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#fff" }}>자녀 연결하기</Text>
-            </Pressable>
           </View>
-        )}
+        </View>
+      )}
 
-        {/* ─── C. 상단 요약 카드 ─── */}
-        {selectedStudent && (
-          <ParentChildHeroCard
-            student={selectedStudent}
-            attended={summary.attendance.attended}
-            total={summary.attendance.total}
-            todaySchedule={summary.today_schedule}
-            currentLevel={summary.growth?.current_level ?? null}
-            levelDef={summary.growth?.level_def ?? null}
-            onPress={() => router.push({ pathname: "/(parent)/child-profile" as any, params: { id: selectedStudent.id, backTo: "home" } })}
+      {/* F. 자녀 없음 빈 화면 */}
+      {students.length === 0 && (
+        <View style={{ alignItems: "center", paddingTop: 60, paddingHorizontal: 32, gap: 16 }}>
+          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: IB, alignItems: "center", justifyContent: "center" }}>
+            <LucideIcon name="user-plus" size={38} color={TEAL} />
+          </View>
+          <Text style={{ fontSize: 20, fontFamily: "Pretendard-SemiBold", color: C.text, textAlign: "center" }}>
+            아직 연결된 자녀가 없습니다
+          </Text>
+          <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 }}>
+            자녀를 연결하면 수업 기록을{"\n"}확인할 수 있습니다
+          </Text>
+          <Pressable
+            onPress={() => router.push("/(parent)/link-child" as any)}
+            style={({ pressed }) => ({
+              marginTop: 8, backgroundColor: pressed ? "#27B8AC" : TEAL,
+              borderRadius: 14, paddingVertical: 14, paddingHorizontal: 32,
+              alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 10,
+            })}
+          >
+            <LucideIcon name="link" size={18} color="#fff" />
+            <Text style={{ fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#fff" }}>자녀 연결하기</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+
+  // ── renderItem ────────────────────────────────────────────────────────
+  const renderItem = ({ item }: { item: FeedItem }) => {
+    switch (item.type) {
+      case "promo_strip":
+        return (
+          <View style={{ marginTop: 8 }}>
+            <ParentPromoStrip />
+          </View>
+        );
+      case "promo_banner":
+        return <ParentPromoBanner />;
+      case "photos":
+        return (
+          <ParentRecentPhotosCard
+            photos={summary.latest_photos.map(p => ({
+              ...p,
+              file_url: p.file_url?.startsWith("/") ? `${API_BASE}${p.file_url}` : p.file_url,
+            }))}
+            unreadCount={unread_counts.photos}
+            token={token}
+            onPress={() => router.push("/(parent)/photos?backTo=home" as any)}
           />
-        )}
+        );
+      case "diary":
+        return (
+          <ParentLatestDiaryCard
+            diaries={summary.latest_diaries}
+            onPress={() => {
+              const d = summary.latest_diaries?.[0];
+              if (d?.id) {
+                router.push({
+                  pathname: "/(parent)/diary",
+                  params: { diary_id: d.id, backTo: "home" },
+                } as any);
+              } else {
+                router.push("/(parent)/diary?backTo=home" as any);
+              }
+            }}
+          />
+        );
+      default:
+        return null;
+    }
+  };
 
-        {/* ─── D. 새 소식 스트립 ─── */}
-        {selectedStudent && hasNews && (
-          <View style={s.newsStrip}>
-            <LucideIcon name="bell" size={13} color={TEAL} />
-            <Text style={s.newsTxt} numberOfLines={1}>
-              {newsItems.join(" · ")}
-            </Text>
-          </View>
-        )}
+  // ── ListFooterComponent ───────────────────────────────────────────────
+  const ListFooter = summaryLoading ? (
+    <View style={{ paddingVertical: 20, alignItems: "center" }}>
+      <ActivityIndicator color={C.tint} size="small" />
+    </View>
+  ) : null;
 
-        {/* ─── access_blocked 제한 안내 ─── */}
-        {selectedStudent && isBlocked && (
-          <View style={s.blockedCard}>
-            <LucideIcon name="lock" size={20} color="#D97706" />
-            <View style={{ flex: 1 }}>
-              <Text style={[s.blockedTitle, { color: C.text }]}>정보 열람 제한</Text>
-              <Text style={[s.blockedSub, { color: C.textSecondary }]}>
-                현재 일부 정보 열람이 제한되어 있습니다.{"\n"}수영장 담당자에게 문의해주세요.
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* ─── 메인 카드 4개 (access_blocked 아닐 때만) ─── */}
-        {students.length > 0 && !isBlocked && (
-          <>
-            {/* 1. 최근 수업일지 */}
-            <ParentLatestDiaryCard
-              diaries={summary.latest_diaries}
-              onPress={() => {
-                const d = summary.latest_diaries?.[0];
-                if (d?.id) {
-                  router.push({
-                    pathname: "/(parent)/diary",
-                    params: { diary_id: d.id, backTo: "home" },
-                  } as any);
-                } else {
-                  router.push("/(parent)/diary?backTo=home" as any);
-                }
-              }}
-            />
-
-            {/* 2. 최근 사진 */}
-            <ParentRecentPhotosCard
-              photos={summary.latest_photos.map(p => ({
-                ...p,
-                file_url: p.file_url?.startsWith("/") ? `${API_BASE}${p.file_url}` : p.file_url,
-              }))}
-              unreadCount={unread_counts.photos}
-              token={token}
-              onPress={() => router.push("/(parent)/photos?backTo=home" as any)}
-            />
-
-            {/* 3. 공지사항 */}
-            <ParentNoticeCard
-              notices={summary.latest_notices}
-              unreadCount={unread_counts.notices}
-              onPress={() => router.push("/(parent)/notices?backTo=home" as any)}
-            />
-
-            {/* 4. 현재 레벨 */}
-            <ParentGrowthCard
-              growth={summary.growth}
-              onPress={() => router.push("/(parent)/level?backTo=home" as any)}
-            />
-
-            {/* 5. 광고 배너 — 얇은 스트립 + 큰 슬라이더 */}
-            <View style={{ marginTop: 8 }}>
-              <ParentPromoStrip />
-            </View>
-            <ParentPromoBanner />
-
-            {summaryLoading && (
-              <View style={{ paddingVertical: 20, alignItems: "center" }}>
-                <ActivityIndicator color={C.tint} size="small" />
-              </View>
-            )}
-          </>
-        )}
-      </KeyboardAwareScrollView>
+  // ── 메인 렌더 ──────────────────────────────────────────────────────────
+  return (
+    <View style={[s.root, { backgroundColor: C.background }]}>
+      <FlatList<FeedItem>
+        ref={flatListRef}
+        data={showFeed ? FEED_ITEMS : []}
+        keyExtractor={item => item.key}
+        renderItem={renderItem}
+        ListHeaderComponent={ListHeader}
+        ListFooterComponent={ListFooter}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />
+        }
+        contentContainerStyle={{ paddingBottom: insets.bottom + 60 }}
+      />
+      <PoolSelectModal
+        visible={poolModal}
+        onClose={() => setPoolModal(false)}
+        onSelect={handlePoolSelect}
+      />
     </View>
   );
 }
