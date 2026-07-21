@@ -11,6 +11,7 @@ import {
   Alert, ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { LogOut, PenLine, Repeat, Sun, X } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
@@ -59,12 +60,12 @@ export default function TodayScheduleScreen() {
   const dismissDiaryBanner = useCallback(async () => {
     await AsyncStorage.setItem("dismissedDiaryBannerDate", today);
     setDiaryBannerDismissed(true);
+  }, [today]);
   const [activeItem, setActiveItem] = useState<ScheduleItem | null>(null);
   const [activeChipGroup,    setActiveChipGroup]    = useState<TeacherClassGroup | null>(null);
   const [chipStudents,       setChipStudents]       = useState<StudentItem[]>([]);
   const [loadingChipStudents,setLoadingChipStudents]= useState(false);
   const [itemStudentsMap,    setItemStudentsMap]    = useState<Record<string, StudentItem[]>>({});
-  // pool_admin과 연결된 선생님 계정에만 관리자 전환 버튼 표시
   const canSwitchToAdmin = !!(adminUser?.roles?.includes("pool_admin"));
   async function handleSwitchToAdmin() {
     if (switching || !canSwitchToAdmin) return;
@@ -76,17 +77,20 @@ export default function TodayScheduleScreen() {
     } catch (e) {
       console.error(e);
       Alert.alert("전환 실패", "관리자 모드로 전환할 수 없습니다. 다시 시도해주세요.");
+    } finally {
+      setSwitching(false);
     }
-    finally { setSwitching(false); }
   }
   const overviewTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const loadOverview = useCallback(async () => {
     if (!token) return;
+    try {
       const res = await apiRequest(token, "/teacher/overview");
       if (res.ok) setOverview(await res.json());
     } catch { /* 무시 */ }
   }, [token]);
   const load = useCallback(async () => {
+    try {
       const poolId = (adminUser as any)?.swimming_pool_id || "";
       const month  = today.slice(0, 7);
       const [schedRes, ovRes, holRes] = await Promise.all([
@@ -94,7 +98,6 @@ export default function TodayScheduleScreen() {
         apiRequest(token, "/teacher/overview"),
         poolId ? apiRequest(token, `/holidays?pool_id=${poolId}&month=${month}`) : Promise.resolve(null),
       ]);
-      // 휴무일 클라이언트 체크 — 서버 버전과 무관하게 항상 동작
       let isHoliday = false;
       if (holRes && holRes.ok) {
         const holData = await holRes.json();
@@ -107,18 +110,21 @@ export default function TodayScheduleScreen() {
           setItems([]);
         } else {
           setItems(schedData);
-          // 서버가 students 포함해서 내려주면 바로 map에 저장 — 별도 API 호출 불필요
           const map: Record<string, StudentItem[]> = {};
           for (const it of schedData) {
             if ((it as any).students) map[it.id] = (it as any).students as StudentItem[];
           }
           if (Object.keys(map).length > 0) setItemStudentsMap(map);
         }
+      }
       if (ovRes.ok) setOverview(await ovRes.json());
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); setRefreshing(false); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, [token, today, adminUser]);
-  // useFocusEffect이 마운트 + 포커스 복귀 모두 처리 — useEffect(() => load()) 중복 제거
   useFocusEffect(useCallback(() => {
     load();
     overviewTimerRef.current = setInterval(loadOverview, 60_000);
@@ -134,8 +140,10 @@ export default function TodayScheduleScreen() {
   const allDone     = totalTasks > 0 && doneTasks === totalTasks;
   function handleOpenDiaryFromMsg(_diaryId: string) {
     router.push("/(teacher)/diary?backTo=today-schedule" as any);
+  }
   function updateItem(id: string, updated: Partial<ScheduleItem>) {
     setItems(prev => prev.map(it => it.id === id ? { ...it, ...updated } : it));
+  }
   async function handleChipPress(item: ScheduleItem) {
     haptic.light();
     const group: TeacherClassGroup = {
@@ -149,15 +157,19 @@ export default function TodayScheduleScreen() {
     setActiveChipGroup(group);
     setChipStudents([]);
     setLoadingChipStudents(true);
+    try {
       const res = await apiRequest(token, `/class-groups/${item.id}/students`);
       if (res.ok) {
         const data = await res.json();
         setChipStudents(Array.isArray(data) ? data : (data.students ?? []));
+      }
     } catch {}
     setLoadingChipStudents(false);
+  }
   function navigateFromChip(navigate: () => void) {
     setActiveChipGroup(null);
     setTimeout(navigate, 200);
+  }
   const WEEK_DAYS = ["일","월","화","수","목","금","토"];
   const weekDates = React.useMemo(() => {
     const now = new Date();
@@ -166,7 +178,6 @@ export default function TodayScheduleScreen() {
     return Array.from({ length: 7 }, (_, i) => { const d = new Date(sun); d.setDate(sun.getDate() + i); return d; });
   }, []);
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 8);
-  // 미승인 선생님 → 대기 화면
   if (adminUser && adminUser.is_activated === false) {
     return (
       <SafeAreaView style={h.safe} edges={[]}>
@@ -182,11 +193,13 @@ export default function TodayScheduleScreen() {
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, gap: 20 }}>
           <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: "#FFF8E1", alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
             <Sun size={36} color="#F59E0B" />
+          </View>
           <Text style={{ fontSize: 20, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center" }}>
             수영장 관리자 승인 대기 중
           </Text>
           <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 }}>
             관리자가 가입 요청을 확인하고 있어요.{"\n"}승인되면 수영장 정보가 연결되고{"\n"}스케줄을 확인할 수 있어요.
+          </Text>
           <View style={{ borderRadius: 16, backgroundColor: C.card, padding: 16, width: "100%", gap: 10,
             shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
@@ -197,23 +210,40 @@ export default function TodayScheduleScreen() {
                 수영장 관리자가 가입 요청을 검토해요
               </Text>
             </View>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#EFF4FF", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.tint }}>2</Text>
+              </View>
+              <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>
                 승인 후 담당 수업과 학생이 연결돼요
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#EFF4FF", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.tint }}>3</Text>
+              </View>
+              <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>
                 출석체크·일지작성·보강관리를 시작할 수 있어요
+              </Text>
+            </View>
+          </View>
           <Pressable
             onPress={() => router.replace("/(teacher)/today-schedule" as any)}
             style={({ pressed }) => ({ height: 50, borderRadius: 14, paddingHorizontal: 32, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.7 : 1, marginTop: 4 })}
           >
             <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>새로고침</Text>
+          </Pressable>
+        </View>
       </SafeAreaView>
     );
+  }
   return (
     <SafeAreaView style={h.safe} edges={[]}>
       <View style={[h.header, { paddingTop: topPad }]}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[h.poolName, { color: C.text }]} numberOfLines={1}>
             {pool?.name ?? "수영장"}
+          </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
             <Text style={h.greeting} numberOfLines={1}>{adminUser?.name ?? "선생님"}선생님</Text>
             {canSwitchToAdmin && (
@@ -224,43 +254,55 @@ export default function TodayScheduleScreen() {
                   : <><Repeat size={10} color="#0F172A" /><Text style={[h.switchChipTxt, { color: "#0F172A" }]}>관리자로 전환</Text></>}
               </Pressable>
             )}
-        {/* 학부모 쪽지 확인 버튼 */}
+          </View>
+        </View>
         <Pressable
           onPress={() => setNotePopupVisible(true)}
           style={[h.logoutBtn, { marginRight: 8 }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <View>
-                            <LucideIcon name="mail" size={18} color={C.textMuted} />
+            <LucideIcon name="mail" size={18} color={C.textMuted} />
             {((overview?.unread_messages ?? 0) > 0 || (overview?.pending_parent_requests ?? 0) > 0) && (
               <View style={{
                 position: "absolute", top: -3, right: -3,
                 width: 8, height: 8, borderRadius: 4, backgroundColor: "#D96C6C",
               }} />
+            )}
+          </View>
         </Pressable>
+        <Pressable
+          style={[h.logoutBtn, { marginRight: 8 }]}
           onPress={() => Linking.openURL("https://swimnote.kr")}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <Image source={require("@/assets/images/swimnote-logo.png")} style={{ width: 18, height: 18 }} resizeMode="contain" />
+        </Pressable>
         <Pressable onPress={logout} style={h.logoutBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <LogOut size={18} color={C.textMuted} />
+        </Pressable>
       </View>
-      {/* ── 상단 고정 영역 (스탯 + 주간 + 일지 배너) ── */}
       <View style={h.topFixed}>
         <View style={[h.todayBanner, { backgroundColor: C.card }]}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
             <Text style={h.todayDate}>{formatDate(today)}</Text>
             {!loading && totalTasks > 0 && (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                {allDone
-                                    ? <LucideIcon name="trophy" size={11} color="#F59E0B" />
-                  : null}
+                {allDone ? <LucideIcon name="trophy" size={11} color="#F59E0B" /> : null}
                 <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: allDone ? "#F59E0B" : C.textMuted }}>
                   {allDone ? "오늘 완료!" : `${progressPct}%`}
                 </Text>
+              </View>
+            )}
+          </View>
           {!loading && totalTasks > 0 && (
             <View style={{ height: 3, backgroundColor: C.border, borderRadius: 2, marginBottom: 8, overflow: "hidden" }}>
+              <View style={{
                 height: 3, borderRadius: 2,
                 backgroundColor: allDone ? "#F59E0B" : themeColor,
                 width: `${progressPct}%`,
+              }} />
+            </View>
           )}
           <View style={h.todayStatRow}>
             <Pressable style={h.todayStat} onPress={() => router.push({ pathname:"/(teacher)/my-schedule", params:{openDate:today, backTo:"today-schedule"} } as any)}>
@@ -271,14 +313,21 @@ export default function TodayScheduleScreen() {
             <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/attendance?backTo=today-schedule" as any)}>
               <Text style={[h.todayStatNum, pendingAtt > 0 && { color: C.error }]}>{loading ? "-" : pendingAtt}</Text>
               <Text style={h.todayStatLabel}>출석 미체크</Text>
+            </Pressable>
+            <View style={h.todayDivider} />
             <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/diary?backTo=today-schedule" as any)}>
               <Text style={[h.todayStatNum, diaryPending > 0 && { color: C.error }]}>{loading ? "-" : diaryPending}</Text>
               <Text style={h.todayStatLabel}>미작성 일지</Text>
+            </Pressable>
+            <View style={h.todayDivider} />
             <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/makeups?backTo=today-schedule" as any)}>
               <Text style={[h.todayStatNum, (overview?.makeup_count ?? 0) > 0 && { color: C.error }]}>
                 {loading ? "-" : (overview?.makeup_count ?? 0)}
+              </Text>
               <Text style={h.todayStatLabel}>보강 대기</Text>
-        {/* ── 미니 주간 캘린더 ── */}
+            </Pressable>
+          </View>
+        </View>
         <View style={[h.weekCard, { backgroundColor: C.card }]}>
           {weekDates.map((d, i) => {
             const dayLabel = WEEK_DAYS[i];
@@ -298,23 +347,31 @@ export default function TodayScheduleScreen() {
                   ? <View style={[h.weekDot, { backgroundColor: isToday ? themeColor : C.tint }]} />
                   : <View style={h.weekDotEmpty} />
                 }
+              </View>
             );
           })}
+        </View>
         {!diaryBannerDismissed && (overview?.pending_diaries_today ?? 0) > 0 && (
+          <Pressable
             style={[h.feedbackBanner, { backgroundColor: "#7C3AED" }]}
             onPress={() => router.push("/(teacher)/diary?backTo=today-schedule" as any)}
+          >
             <View style={h.feedbackBannerLeft}>
               <Text style={h.feedbackBannerTitle}>미작성 일지 {overview!.pending_diaries_today}개</Text>
               <Text style={h.feedbackBannerSub}>학부모가 기다리고 있어요 · 탭해서 작성</Text>
+            </View>
             <Pressable onPress={(e) => { e.stopPropagation(); dismissDiaryBanner(); }} hitSlop={10} style={h.feedbackBannerClose}>
               <X size={15} color="rgba(255,255,255,0.85)" />
+            </Pressable>
+          </Pressable>
         )}
-      {/* ── 오늘 수업 카드 (하단 탭바 직전까지 확장) ── */}
+      </View>
       <View style={[h.classCardWrap, { paddingBottom: insets.bottom + 12 }]}>
         <View style={[h.sectionCard, { flex: 1, backgroundColor: C.card }]}>
           <View style={h.sectionHeaderRow}>
             <View style={[h.sectionIconBox, { backgroundColor: C.tintLight }]}>
-                            <LucideIcon name="layers" size={13} color={C.iconSchedule} />
+              <LucideIcon name="layers" size={13} color={C.iconSchedule} />
+            </View>
             <Text style={h.sectionTitle}>오늘 수업</Text>
             <View style={h.sectionHeaderRight}>
               {!loading && sortedItems.length > 0 && (
@@ -323,21 +380,28 @@ export default function TodayScheduleScreen() {
               <Pressable
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 onPress={() => router.push("/(teacher)/my-schedule?backTo=today-schedule" as any)}>
-                                <LucideIcon name="calendar" size={16} color={C.textMuted} />
+                <LucideIcon name="calendar" size={16} color={C.textMuted} />
+              </Pressable>
+            </View>
+          </View>
           <ScrollView
             style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
             nestedScrollEnabled
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
+          >
             {loading ? (
               <View style={{ gap: 10, paddingTop: 4 }}>
                 <ScheduleCardSkeleton />
+              </View>
             ) : sortedItems.length === 0 ? (
               <View style={h.badgeEmpty}>
                 <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: "#FFF8E1", alignItems: "center", justifyContent: "center", marginBottom: 2 }}>
                   <Sun size={26} color="#F59E0B" />
+                </View>
                 <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }}>오늘 수업 없음</Text>
                 <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted }}>편하게 쉬어가세요</Text>
+              </View>
             ) : sortedItems.map((item, idx) => {
               const students = itemStudentsMap[item.id] ?? [];
               const names    = students.map((s: any) => s.name ?? s.user_name ?? "").filter(Boolean);
@@ -365,21 +429,24 @@ export default function TodayScheduleScreen() {
                       <Text style={h.listNames} numberOfLines={1}>{nameStr}</Text>
                     )}
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
-                                            <LucideIcon name="book-open" size={11} color={diaryDone ? "#2EC4B6" : "#F59E0B"} />
+                      <LucideIcon name="book-open" size={11} color={diaryDone ? "#2EC4B6" : "#F59E0B"} />
                       <Text style={[h.diaryStatusTxt, { color: diaryDone ? "#2EC4B6" : "#F59E0B" }]}>
                         {diaryDone ? "일지 완료" : "일지 미작성"}
                       </Text>
+                    </View>
                   </View>
                   <Pressable
                     style={h.detailBtn}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 0 }}
                     onPress={(e) => { e.stopPropagation(); haptic.light(); handleChipPress(item); }}>
-                                        <LucideIcon name="settings-2" size={16} color={C.textMuted} />
+                    <LucideIcon name="settings-2" size={16} color={C.textMuted} />
                   </Pressable>
                 </Pressable>
               );
             })}
           </ScrollView>
+        </View>
+      </View>
       <MemoSheet
         visible={showMemo} item={activeItem} date={today} token={token} themeColor={themeColor}
         onClose={() => { setShowMemo(false); setActiveItem(null); }}
@@ -389,6 +456,7 @@ export default function TodayScheduleScreen() {
         visible={showAbsence} item={activeItem} date={today} token={token} themeColor={themeColor}
         onClose={() => { setShowAbsence(false); setActiveItem(null); }}
         onDone={() => { load(); }}
+      />
       <ScheduleMemoModal visible={showSchedMemo} token={token} themeColor={themeColor}
         onClose={() => setShowSchedMemo(false)} />
       <UnreadMessagesModal visible={notePopupVisible} token={token} themeColor={themeColor}
@@ -403,8 +471,6 @@ export default function TodayScheduleScreen() {
           attMap={Object.fromEntries(items.map(it => [it.id, it.att_present]))}
           diarySet={new Set(items.filter(it => it.diary_done).map(it => it.id))}
           date={today}
-          token={token}
-          themeColor={themeColor}
           classGroups={sortedItems.map(it => ({
             id: it.id, name: it.name,
             schedule_days: it.schedule_days, schedule_time: it.schedule_time,
@@ -414,7 +480,6 @@ export default function TodayScheduleScreen() {
           onNavigateTo={navigateFromChip}
         />
       )}
-      {/* ── 일지 바로쓰기 FAB ── */}
       <Pressable
         style={[h.fab, { backgroundColor: themeColor, bottom: insets.bottom + 72 }]}
         onPress={() => { haptic.light(); router.push("/(teacher)/diary?backTo=today-schedule" as any); }}
@@ -425,6 +490,7 @@ export default function TodayScheduleScreen() {
       </Pressable>
     </SafeAreaView>
   );
+}
 const h = StyleSheet.create({
   safe:           { flex: 1, backgroundColor: C.background },
   topFixed:       { paddingHorizontal: 12, paddingTop: 12, gap: 8 },

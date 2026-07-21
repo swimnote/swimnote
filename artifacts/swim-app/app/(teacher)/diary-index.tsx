@@ -9,10 +9,10 @@
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { shareDiaryEntry } from "@/utils/diaryShare";
-import {ActivityIndicator, FlatList, Pressable,
-  StyleSheet, Text, TextInput, TouchableOpacity, View} from "react-native";
+import { ActivityIndicator, FlatList, Pressable,
+  StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -43,6 +43,7 @@ function formatDate(iso: string) {
   const d = new Date(iso + "T12:00:00");
   const days = ["일", "월", "화", "수", "목", "금", "토"];
   return `${d.getMonth() + 1}월 ${d.getDate()}일 ${days[d.getDay()]}요일`;
+}
 /* ════════════════════════════════════════════════════════════════
    메인 컴포넌트
    ════════════════════════════════════════════════════════════════ */
@@ -74,7 +75,6 @@ export default function DiaryIndexScreen() {
         const d = await res.json();
         const list: DiaryIndexEntry[] = Array.isArray(d.entries) ? d.entries : [];
         setEntries(list);
-        // 활성 수업 시간 목록 추출 (중복 제거, 정렬)
         if (!day && !sName && !time) {
           const times = Array.from(new Set(list.map(e => (e.schedule_time || "").slice(0, 5)).filter(Boolean))).sort();
           setAvailableTimes(times);
@@ -115,7 +115,7 @@ export default function DiaryIndexScreen() {
       params: { editDiaryId: entry.source_diary_id, backTo: "diary-index" },
     } as any);
   }, []);
-  /* ── 렌더 ── */
+  /* ── 공유 ── */
   const handleShare = useCallback((item: DiaryIndexEntry, e: any) => {
     e.stopPropagation();
     shareDiaryEntry({
@@ -130,6 +130,7 @@ export default function DiaryIndexScreen() {
         ? item.content
         : undefined,
     });
+  }, []);
   const renderItem = useCallback(({ item }: { item: DiaryIndexEntry }) => {
     const isNote = item.entry_type === "student_note";
     return (
@@ -141,7 +142,7 @@ export default function DiaryIndexScreen() {
             <View style={[di.typeBadge, { backgroundColor: "#E6FAF8" }]}>
               {isNote
                 ? <><LucideIcon name="user" size={10} color="#0F172A" /><Text style={[di.typeBadgeText, { color: "#0F172A" }]}>{item.student_name} 추가</Text></>
-                : <><LucideIcon name="user"s size={10} color="#0F172A" /><Text style={[di.typeBadgeText, { color: "#0F172A" }]}>반 공통</Text></>
+                : <><LucideIcon name="user" size={10} color="#0F172A" /><Text style={[di.typeBadgeText, { color: "#0F172A" }]}>반 공통</Text></>
               }
             </View>
             <Pressable
@@ -163,6 +164,7 @@ export default function DiaryIndexScreen() {
           {item.schedule_days && (
             <Text style={di.cardMetaText}> · {item.schedule_days}</Text>
           )}
+        </View>
         {/* 내용 미리보기 */}
         <Text style={di.cardContent} numberOfLines={2}>{item.content}</Text>
         <LucideIcon name="chevron-right" size={15} color={C.textMuted} style={di.chevron} />
@@ -183,6 +185,8 @@ export default function DiaryIndexScreen() {
         <Text style={di.writeBtnText}>일지 작성</Text>
         <View style={di.writeBtnBadgeWrap}>
           <LucideIcon name="chevron-right" size={15} color="rgba(255,255,255,0.7)" />
+        </View>
+      </Pressable>
       {/* 검색창 */}
       <View style={di.searchRow}>
         <LucideIcon name="search" size={15} color={C.textSecondary} />
@@ -204,22 +208,26 @@ export default function DiaryIndexScreen() {
       <View style={di.filterBar}>
         {/* 요일 필터 버튼 */}
         <Pressable
-          style={[di.filterBtn, activeDay && { backgroundColor: themeColor + "18", borderColor: themeColor }]}
+          style={[di.filterBtn, activeDay ? { backgroundColor: themeColor + "18", borderColor: themeColor } : undefined]}
           onPress={() => { setShowDayPicker(v => !v); setShowTimePicker(false); }}
         >
           <LucideIcon name="calendar" size={12} color={activeDay ? themeColor : C.textSecondary} />
-          <Text style={[di.filterBtnText, activeDay && { color: themeColor }]}>
+          <Text style={[di.filterBtnText, activeDay ? { color: themeColor } : undefined]}>
             {activeDay ? `${activeDay}요일` : "요일"}
           </Text>
           <LucideIcon name="chevron-down" size={11} color={activeDay ? themeColor : C.textSecondary} />
         </Pressable>
         {/* 시간 필터 버튼 */}
-          style={[di.filterBtn, activeTime && { backgroundColor: themeColor + "18", borderColor: themeColor }]}
+        <Pressable
+          style={[di.filterBtn, activeTime ? { backgroundColor: themeColor + "18", borderColor: themeColor } : undefined]}
           onPress={() => { setShowTimePicker(v => !v); setShowDayPicker(false); }}
+        >
           <LucideIcon name="clock" size={12} color={activeTime ? themeColor : C.textSecondary} />
-          <Text style={[di.filterBtnText, activeTime && { color: themeColor }]}>
+          <Text style={[di.filterBtnText, activeTime ? { color: themeColor } : undefined]}>
             {activeTime || "시간"}
+          </Text>
           <LucideIcon name="chevron-down" size={11} color={activeTime ? themeColor : C.textSecondary} />
+        </Pressable>
         {/* 필터 초기화 */}
         {activeFilterCount > 0 && (
           <Pressable
@@ -228,28 +236,40 @@ export default function DiaryIndexScreen() {
           >
             <LucideIcon name="x" size={12} color="#D96C6C" />
             <Text style={di.resetBtnText}>초기화</Text>
+          </Pressable>
+        )}
         <Text style={di.resultCount}>{entries.length}건</Text>
+      </View>
       {/* 요일 선택 드롭다운 */}
       {showDayPicker && (
         <View style={di.picker}>
           <Pressable style={di.pickerItem} onPress={() => handleDaySelect(null)}>
             <Text style={[di.pickerItemText, !activeDay && { color: themeColor, fontFamily: "Pretendard-Regular" }]}>전체</Text>
+          </Pressable>
           {KO_DAYS.map(d => (
             <Pressable key={d} style={di.pickerItem} onPress={() => handleDaySelect(d)}>
               <Text style={[di.pickerItemText, activeDay === d && { color: themeColor, fontFamily: "Pretendard-Regular" }]}>{d}요일</Text>
               {activeDay === d && <LucideIcon name="check" size={14} color={themeColor} />}
+            </Pressable>
           ))}
+        </View>
       )}
       {/* 시간 선택 드롭다운 */}
       {showTimePicker && (
+        <View style={di.picker}>
           <Pressable style={di.pickerItem} onPress={() => handleTimeSelect(null)}>
             <Text style={[di.pickerItemText, !activeTime && { color: themeColor, fontFamily: "Pretendard-Regular" }]}>전체</Text>
+          </Pressable>
           {availableTimes.length === 0 ? (
             <Text style={di.pickerEmptyText}>수업 시간 정보 없음</Text>
           ) : availableTimes.map(t => (
             <Pressable key={t} style={di.pickerItem} onPress={() => handleTimeSelect(t)}>
               <Text style={[di.pickerItemText, activeTime === t && { color: themeColor, fontFamily: "Pretendard-Regular" }]}>{t}</Text>
               {activeTime === t && <LucideIcon name="check" size={14} color={themeColor} />}
+            </Pressable>
+          ))}
+        </View>
+      )}
       {/* 목록 */}
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
@@ -271,9 +291,13 @@ export default function DiaryIndexScreen() {
                   ? "검색/필터 조건을 변경해보세요."
                   : "아직 작성된 수업 일지가 없습니다."}
               </Text>
+            </View>
           }
+        />
+      )}
     </SafeAreaView>
   );
+}
 const di = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.background },
   writeBtn: {
@@ -289,21 +313,27 @@ const di = StyleSheet.create({
   headerTitle: { fontSize: 20, fontFamily: "Pretendard-Regular" },
   headerSub: { fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginTop: 2 },
   searchRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
     marginHorizontal: 16, marginBottom: 10,
     backgroundColor: "#fff", borderRadius: 10, borderWidth: 1, borderColor: C.border,
     paddingHorizontal: 12, paddingVertical: 9,
+  },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, padding: 0 },
   filterBar: {
+    flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 16, paddingBottom: 10,
+  },
   filterBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10,
     borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
+  },
   filterBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   resetBtn: {
     flexDirection: "row", alignItems: "center", gap: 3,
     paddingHorizontal: 8, paddingVertical: 6,
     borderRadius: 8, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FCA5A5",
+  },
   resetBtnText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   resultCount: { marginLeft: "auto", fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular" },
   picker: {
@@ -312,9 +342,11 @@ const di = StyleSheet.create({
     marginBottom: 8, paddingVertical: 4, zIndex: 100,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 4,
+  },
   pickerItem: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border,
+  },
   pickerItemText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   pickerEmptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", padding: 12 },
   listContent: { paddingHorizontal: 16, paddingBottom: 32, gap: 8 },
@@ -322,6 +354,7 @@ const di = StyleSheet.create({
     borderRadius: 14, padding: 14, shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04,
     shadowRadius: 4, elevation: 1, position: "relative",
+  },
   cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
   cardDate: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
   typeBadge: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
@@ -338,5 +371,6 @@ const di = StyleSheet.create({
     paddingHorizontal: 9, paddingVertical: 3,
     borderRadius: 8, backgroundColor: "#EBF5FB",
     borderWidth: 1, borderColor: "#B8DCF0",
+  },
   shareBtnText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#4EA7D8" },
 });

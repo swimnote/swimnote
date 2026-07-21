@@ -66,6 +66,7 @@ function isClassOver(group: TeacherClassGroup, dateStr: string): boolean {
   const [hour, min] = endTime.split(":").map(Number);
   const now = new Date();
   return now.getHours() > hour || (now.getHours() === hour && now.getMinutes() >= min);
+}
 /* ──────────────────────────────────────────────────
    날짜 선택 전용 인라인 컴포넌트
    ────────────────────────────────────────────────── */
@@ -977,5 +978,4 @@ const s = StyleSheet.create({
   reasonText:     { fontSize: 14, fontFamily: "Pretendard-Regular" },
   customInput:    { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 14, fontFamily: "Pretendard-Regular", marginTop: 4 },
 });
-}
 

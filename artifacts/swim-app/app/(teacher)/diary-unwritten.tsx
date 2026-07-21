@@ -33,9 +33,11 @@ interface ClassGroup {
   name: string;
   schedule_time: string;
   schedule_days: string;
+}
 function formatDateKo(dateStr: string) {
   const [, m, d] = dateStr.split("-");
   return `${parseInt(m)}월 ${parseInt(d)}일`;
+}
 export default function DiaryUnwrittenScreen() {
   const { token, adminUser: user } = useAuth();
   const { themeColor } = useBrand();
@@ -69,7 +71,9 @@ export default function DiaryUnwrittenScreen() {
   );
   const loadClassGroups = useCallback(async () => {
     setClassGroupsLoading(true);
+    try {
       const res = await apiRequest(token, "/class-groups?mine=true");
+      if (res.ok) {
         const allGroups: any[] = await res.json();
         const uid = user?.id;
         const mine = uid
@@ -79,8 +83,12 @@ export default function DiaryUnwrittenScreen() {
             )
           : allGroups;
         setClassGroups(mine);
+      }
+    } catch (e) {
       console.error("[diary-unwritten] loadClassGroups error", e);
+    } finally {
       setClassGroupsLoading(false);
+    }
   }, [token, user?.id]);
   function openClassPicker() {
     haptic.light();
@@ -93,11 +101,15 @@ export default function DiaryUnwrittenScreen() {
       pathname: "/(teacher)/diary",
       params: { classGroupId: group.id },
     } as any);
+  }
   const handlePress = useCallback((slot: UnwrittenSlot) => {
+    router.push({
+      pathname: "/(teacher)/diary",
       params: {
         classGroupId: slot.classGroupId,
         lessonDate: slot.lessonDate,
       },
+    } as any);
   }, []);
   const renderItem = useCallback(({ item, index }: { item: UnwrittenSlot; index: number }) => {
     const prevDate = index > 0 ? slots[index - 1].lessonDate : null;
@@ -116,7 +128,7 @@ export default function DiaryUnwrittenScreen() {
           onPress={() => handlePress(item)}
         >
           <View style={u.cardLeft}>
-            <View style={[u.unwrittenBadge]}>
+            <View style={u.unwrittenBadge}>
               <Text style={u.unwrittenBadgeText}>미작성</Text>
             </View>
             <View style={{ flex: 1 }}>
@@ -127,6 +139,8 @@ export default function DiaryUnwrittenScreen() {
                 <LucideIcon name="users" size={11} color={C.textSecondary} style={{ marginLeft: 8 }} />
                 <Text style={u.metaText}>{item.studentCount}명</Text>
               </View>
+            </View>
+          </View>
           <LucideIcon name="edit" size={16} color={themeColor} />
         </Pressable>
       </>
@@ -146,6 +160,7 @@ export default function DiaryUnwrittenScreen() {
           <View style={u.summaryLeft}>
             <LucideIcon name="alert-circle" size={13} color="#D97706" />
             <Text style={u.summaryText}>미작성 {slots.length}건</Text>
+          </View>
           <Text style={u.sortLabel}>오래된 순</Text>
         </View>
       )}
@@ -169,8 +184,10 @@ export default function DiaryUnwrittenScreen() {
                 <LucideIcon name="edit-2" size={15} color="#fff" />
                 <Text style={u.emptyBtnText}>반 선택 후 작성하기</Text>
               </Pressable>
+            </View>
           }
         />
+      )}
       {/* ── 빈 일지 작성 FAB ── */}
       <Pressable
         style={[u.fab, { backgroundColor: themeColor, bottom: insets.bottom + 72 }]}
@@ -186,6 +203,7 @@ export default function DiaryUnwrittenScreen() {
         transparent
         animationType="slide"
         onRequestClose={() => setClassPickerVisible(false)}
+      >
         <Pressable style={u.backdrop} onPress={() => setClassPickerVisible(false)} />
         <View style={u.pickerSheet}>
           <View style={u.pickerHandle} />
@@ -194,12 +212,14 @@ export default function DiaryUnwrittenScreen() {
             <Pressable onPress={() => setClassPickerVisible(false)} hitSlop={10}>
               <LucideIcon name="x" size={20} color={C.textSecondary} />
             </Pressable>
+          </View>
           <Text style={u.pickerSubtitle}>일지를 작성할 반을 선택해주세요</Text>
           {classGroupsLoading ? (
             <ActivityIndicator color={themeColor} style={{ marginVertical: 32 }} />
           ) : classGroups.length === 0 ? (
             <View style={u.pickerEmpty}>
               <Text style={u.pickerEmptyText}>담당 반이 없습니다.</Text>
+            </View>
           ) : (
             <ScrollView style={u.pickerList} showsVerticalScrollIndicator={false}>
               {classGroups.map(group => (
@@ -224,8 +244,11 @@ export default function DiaryUnwrittenScreen() {
               ))}
             </ScrollView>
           )}
+        </View>
       </Modal>
     </SafeAreaView>
+  );
+}
 const u = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.background },
   summaryBar: {
@@ -243,12 +266,15 @@ const u = StyleSheet.create({
   dateHeaderText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   card: {
     borderRadius: 12, padding: 14, marginBottom: 6,
+    flexDirection: "row", alignItems: "center",
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
+  },
   cardLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   unwrittenBadge: {
     backgroundColor: "#F9DEDA", borderRadius: 6,
     paddingHorizontal: 7, paddingVertical: 2,
+  },
   unwrittenBadgeText: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   className: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, marginBottom: 2 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 3 },
@@ -265,20 +291,27 @@ const u = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 20, borderTopRightRadius: 20,
     maxHeight: "70%", paddingBottom: 32,
+  },
   pickerHandle: {
     width: 36, height: 4, borderRadius: 2, backgroundColor: C.border,
     alignSelf: "center", marginTop: 10, marginBottom: 8,
+  },
   pickerHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 20, paddingBottom: 4,
+  },
   pickerTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.text },
   pickerSubtitle: {
     fontSize: 13, color: C.textSecondary, fontFamily: "Pretendard-Regular",
     paddingHorizontal: 20, paddingBottom: 12,
+  },
   pickerList: { paddingHorizontal: 16 },
   pickerItem: {
     paddingVertical: 14, paddingHorizontal: 14,
     backgroundColor: C.background, borderRadius: 12, marginBottom: 8,
     borderWidth: 1, borderColor: C.border,
+    flexDirection: "row", alignItems: "center",
+  },
   pickerItemLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1, marginRight: 8 },
   pickerItemName: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, marginBottom: 2 },
   pickerItemMeta: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular" },

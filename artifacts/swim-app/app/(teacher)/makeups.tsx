@@ -33,6 +33,7 @@ interface MakeupSession {
   handed_to_teacher_name: string | null;
 }
 interface MakeupRequest {
+  id: string;
   student_name: string;
   class_name: string;
   original_date: string;
@@ -41,11 +42,13 @@ interface MakeupRequest {
   requested_at: string;
   makeup_date: string | null;
   makeup_class_name: string | null;
+}
 interface Teacher {
+  id: string;
   name: string;
   email: string;
+}
 type TabKey = "waiting" | "assigned" | "history";
-// 기타 보강 바텀시트 단계
 type HandoverStep = "menu" | "teacher_select" | "done";
 const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
   pending:   { bg: "#FFF1BF", text: "#D97706" },
@@ -55,14 +58,17 @@ const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
 };
 const STATUS_LABEL: Record<string, string> = {
   pending: "대기", approved: "승인", rejected: "거절", completed: "완료",
-function fmtDate(s: string | null) {
-  if (!s) return "-";
-  const d = new Date(s + "T00:00:00");
-  const days = ["일","월","화","수","목","금","토"];
+};
+function fmtDate(dateStr: string | null) {
+  if (!dateStr) return "-";
+  const d = new Date(dateStr + "T00:00:00");
+  const days = ["일", "월", "화", "수", "목", "금", "토"];
   return `${d.getMonth() + 1}/${d.getDate()} (${days[d.getDay()]})`;
+}
 function fmtMonthLabel(dateStr: string) {
   const d = new Date(dateStr + "T00:00:00");
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
+}
 function formatExpireAt(expire_at: string | null) {
   if (!expire_at) return null;
   const d = new Date(expire_at);
@@ -71,7 +77,7 @@ function formatExpireAt(expire_at: string | null) {
   const col = diffDays <= 7 ? "#D96C6C" : diffDays <= 14 ? "#D97706" : "#64748B";
   const label = diffDays < 0 ? `만료됨(${ds})` : diffDays <= 14 ? `만료 D-${diffDays}(${ds})` : `만료일: ${ds}`;
   return { text: label, color: col };
-// 오늘 포함 최근 N일 날짜 목록 (역순)
+}
 function getPastDates(days = 30): { date: string; label: string }[] {
   const labels = ["일", "월", "화", "수", "목", "금", "토"];
   const results: { date: string; label: string }[] = [];
@@ -83,12 +89,14 @@ function getPastDates(days = 30): { date: string; label: string }[] {
     results.push({ date: `${yyyy}-${mm}-${dd}`, label: `${d.getMonth()+1}/${d.getDate()} (${labels[d.getDay()]})${i === 0 ? " · 오늘" : ""}` });
   }
   return results;
-// 앞으로 4주간 특정 요일의 날짜 목록 생성
+}
 function getNextDates(scheduleDays: string): { date: string; label: string }[] {
   const dayMap: Record<string, number> = { 일: 0, 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6 };
+  const labels = ["일", "월", "화", "수", "목", "금", "토"];
   const parts = scheduleDays.includes(",") ? scheduleDays.split(",") : scheduleDays.split("");
   const targetDays = parts.map(p => dayMap[p.trim()]).filter(d => d !== undefined) as number[];
   if (targetDays.length === 0) return [];
+  const results: { date: string; label: string }[] = [];
   const today = new Date(); today.setHours(0, 0, 0, 0);
   for (let i = 1; i <= 28; i++) {
     const d = new Date(today); d.setDate(d.getDate() + i);
@@ -98,48 +106,42 @@ function getNextDates(scheduleDays: string): { date: string; label: string }[] {
       const dd = String(d.getDate()).padStart(2, "0");
       results.push({ date: `${yyyy}-${mm}-${dd}`, label: `${d.getMonth()+1}/${d.getDate()} (${labels[d.getDay()]})` });
     }
+  }
+  return results;
+}
 export default function MakeupsScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<TabKey>("waiting");
-  // 결석자 리스트 (탭 1)
   const [waitingList,    setWaitingList]    = useState<MakeupSession[]>([]);
   const [waitingLoading, setWaitingLoading] = useState(true);
   const [waitingRefresh, setWaitingRefresh] = useState(false);
-  // 보강반 배정 모달
   const [assignTarget,    setAssignTarget]    = useState<MakeupSession | null>(null);
   const [eligibleClasses, setEligibleClasses] = useState<any[]>([]);
   const [classLoading,    setClassLoading]    = useState(false);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [selectedDate,    setSelectedDate]    = useState<string | null>(null);
   const [assigning,       setAssigning]       = useState(false);
-  // 기타 보강 모달
   const [handoverTarget,  setHandoverTarget]  = useState<MakeupSession | null>(null);
   const [handoverStep,    setHandoverStep]    = useState<HandoverStep>("menu");
   const [teachers,        setTeachers]        = useState<Teacher[]>([]);
   const [teachersLoading, setTeachersLoading] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [handoverSubmitting, setHandoverSubmitting] = useState(false);
-  const [handoverDoneMsg, setHandoverDoneMsg] = useState<string>("");
-  // 보강 소멸 확인
-  const [selfExtTarget,     setSelfExtTarget]     = useState<MakeupSession | null>(null);
-  const [selfExtSubmitting, setSelfExtSubmitting] = useState(false);
-  // 배정된 보강 (탭 2)
-  const [assignedList,    setAssignedList]    = useState<any[]>([]);
+  const [handoverDoneMsg,    setHandoverDoneMsg]    = useState("");
+  const [selfExtTarget,    setSelfExtTarget]    = useState<MakeupSession | null>(null);
+  const [selfExtSubmitting,setSelfExtSubmitting]= useState(false);
+  const [assignedList,    setAssignedList]    = useState<MakeupSession[]>([]);
   const [assignedLoading, setAssignedLoading] = useState(false);
   const [completeTarget,  setCompleteTarget]  = useState<any | null>(null);
   const [revertingId,     setRevertingId]     = useState<string | null>(null);
-  // 보강 현황 (탭 3)
   const [historyList,    setHistoryList]    = useState<MakeupRequest[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  // 지난 보강 직접 완료
   const [directCompleteTarget, setDirectCompleteTarget] = useState<MakeupSession | null>(null);
   const [directCompleteDate,   setDirectCompleteDate]   = useState<string | null>(null);
   const [directCompleting,     setDirectCompleting]     = useState(false);
-  // 공통 알림
   const [confirmMsg, setConfirmMsg] = useState<string | null>(null);
-  // ── 결석자 리스트 로드 ──────────────────────────────────────────────────
   const loadWaiting = useCallback(async () => {
     try {
       const res = await apiRequest(token, `/teacher/makeups?status=waiting`);
@@ -149,10 +151,21 @@ export default function MakeupsScreen() {
   }, [token]);
   const loadAssigned = useCallback(async () => {
     setAssignedLoading(true);
+    try {
       const res = await apiRequest(token, "/teacher/makeups/assigned");
       if (res.ok) setAssignedList(await res.json());
+    } catch (e) { console.error(e); }
     finally { setAssignedLoading(false); }
-  async function handleRevert(mk: any) {
+  }, [token]);
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await apiRequest(token, "/teacher/makeup-requests");
+      if (res.ok) setHistoryList(await res.json());
+    } catch (e) { console.error(e); }
+    finally { setHistoryLoading(false); }
+  }, [token]);
+  async function handleRevert(mk: MakeupSession) {
     Alert.alert(
       "배정 취소",
       `${mk.student_name}의 보강 배정을 취소하고 보강 대기로 되돌리시겠습니까?\n\n결석 기록과 보강 권리는 유지됩니다.`,
@@ -187,25 +200,20 @@ export default function MakeupsScreen() {
         },
       ]
     );
-  const loadHistory = useCallback(async () => {
-    setHistoryLoading(true);
-      const res = await apiRequest(token, "/teacher/makeup-requests");
-      if (res.ok) setHistoryList(await res.json());
-    finally { setHistoryLoading(false); }
+  }
   useEffect(() => { loadWaiting(); }, [loadWaiting]);
   useEffect(() => { if (tab === "assigned") loadAssigned(); }, [tab, loadAssigned]);
   useEffect(() => { if (tab === "history") loadHistory(); }, [tab, loadHistory]);
-  // 화면 포커스 시 대기 목록 갱신 (다른 화면에서 출결 변경 후 돌아왔을 때)
   useFocusEffect(useCallback(() => {
     loadWaiting();
     if (tab === "assigned") loadAssigned();
   }, [loadWaiting, loadAssigned, tab]));
-  // ── 보강반 배정 ─────────────────────────────────────────────────────────
   const openAssignModal = async (mk: MakeupSession) => {
     setAssignTarget(mk);
     setSelectedClassId(null);
     setSelectedDate(null);
     setClassLoading(true);
+    try {
       const r = await apiRequest(token, `/teacher/makeups/eligible-classes?all=true`);
       if (r.ok) setEligibleClasses(await r.json());
     } catch {}
@@ -214,6 +222,7 @@ export default function MakeupsScreen() {
   const doAssign = async () => {
     if (!assignTarget || !selectedClassId || !selectedDate) return;
     setAssigning(true);
+    try {
       const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/assign`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -240,31 +249,32 @@ export default function MakeupsScreen() {
       }
     } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
     setAssigning(false);
-  // ── 기타 보강: 인계 직접 진입 (메뉴 단계 생략) ──────────────────────────
+  };
   const openHandoverDirect = async (mk: MakeupSession) => {
     setHandoverTarget(mk);
     setHandoverStep("teacher_select");
     setSelectedTeacher(null);
     setHandoverDoneMsg("");
     setTeachersLoading(true);
+    try {
       const r = await apiRequest(token, "/admin/pool-teachers");
       if (r.ok) setTeachers(await r.json());
     } catch { setConfirmMsg("선생님 목록을 불러오지 못했습니다."); }
     setTeachersLoading(false);
-  // A. 다른 선생님에게 인계 확인
+  };
   const doHandover = async () => {
     if (!handoverTarget || !selectedTeacher) return;
-    // 즉시 목록에서 제거 (optimistic)
     const removedId = handoverTarget.id;
     setWaitingList(prev => prev.filter(m => m.id !== removedId));
     setHandoverStep("done");
     setHandoverDoneMsg(`${selectedTeacher.name} 선생님에게 인계되었습니다.\n${selectedTeacher.name} 선생님 보강 대기 목록에 추가됩니다.`);
     setHandoverSubmitting(true);
+    try {
       const r = await apiRequest(token, `/teacher/makeups/${removedId}/handover`, {
         method: "POST",
         body: JSON.stringify({ receiver_teacher_id: selectedTeacher.id }),
+      });
       if (!r.ok) {
-        // 실패 시 롤백
         const d = await r.json().catch(() => ({}));
         setHandoverStep("teacher_select");
         setWaitingList(prev => {
@@ -272,44 +282,61 @@ export default function MakeupsScreen() {
           return [{ ...handoverTarget, handed_to_teacher_id: null, handed_to_teacher_name: null }, ...prev];
         });
         setConfirmMsg(d.error || "처리에 실패했습니다.");
+      }
     } catch {
       setHandoverStep("teacher_select");
       setWaitingList(prev => {
         if (prev.some(m => m.id === removedId)) return prev;
         return [{ ...handoverTarget, handed_to_teacher_id: null, handed_to_teacher_name: null }, ...prev];
+      });
       setConfirmMsg("네트워크 오류가 발생했습니다.");
+    }
     setHandoverSubmitting(false);
-  // B. 보강 소멸 처리
+  };
   const doSelfExtinguish = async () => {
     if (!selfExtTarget) return;
     setSelfExtSubmitting(true);
+    try {
       const r = await apiRequest(token, `/admin/makeups/${selfExtTarget.id}/self-extinguish`, {
+        method: "PATCH",
+      });
       if (r.ok) {
+        setWaitingList(prev => prev.filter(m => m.id !== selfExtTarget.id));
         setSelfExtTarget(null);
         setHandoverTarget(null);
         setConfirmMsg("보강이 소멸 처리되었습니다.\n내 정산에 기타 1시수가 반영됩니다.");
-      setSelfExtTarget(null);
+      } else {
+        setSelfExtTarget(null);
+      }
+    } catch { setSelfExtTarget(null); }
     setSelfExtSubmitting(false);
+  };
   const closeHandover = () => {
     setHandoverTarget(null);
     setHandoverStep("menu");
-  // ── 지난 보강 직접 완료 ──────────────────────────────────────────────────
+  };
   async function doDirectComplete() {
     if (!directCompleteTarget || !directCompleteDate) return;
     setDirectCompleting(true);
     const targetId = directCompleteTarget.id;
-    // optimistic: 즉시 목록에서 제거
     setWaitingList(prev => prev.filter(m => m.id !== targetId));
     setDirectCompleteTarget(null);
+    try {
       const r = await apiRequest(token, `/teacher/makeups/${targetId}/complete-direct`, {
+        method: "PATCH",
         body: JSON.stringify({ date: directCompleteDate }),
+      });
+      if (r.ok) {
         setDirectCompleteDate(null);
         setConfirmMsg(`${directCompleteDate} 보강 완료 처리되었습니다.`);
+      }
       loadWaiting();
+    } catch {}
     setDirectCompleting(false);
     setDirectCompleteDate(null);
-  // ── 배정된 보강 완료 ─────────────────────────────────────────────────────
+  }
   async function handleTeacherComplete(id: string) {
+    try {
       const res = await apiRequest(token, `/teacher/makeups/${id}/complete`, { method: "PATCH" });
       const contentType = res.headers?.get?.("content-type") ?? "";
       const isJson = contentType.includes("application/json");
@@ -321,8 +348,10 @@ export default function MakeupsScreen() {
         setConfirmMsg(resBody.error || "처리에 실패했습니다.");
       } else if (!res.ok) {
         setConfirmMsg("처리에 실패했습니다.");
+      }
+    } catch {}
     setCompleteTarget(null);
-  // ── 보강 현황 그룹화 ─────────────────────────────────────────────────────
+  }
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const prevMonth = (() => {
@@ -346,23 +375,32 @@ export default function MakeupsScreen() {
           </View>
           <View style={[s.statusBadge, { backgroundColor: sc.bg }]}>
             <Text style={[s.statusTxt, { color: sc.text }]}>{STATUS_LABEL[item.status]}</Text>
+          </View>
         </View>
         <View style={s.infoRow}>
           <LucideIcon name="calendar" size={13} color={C.textSecondary} />
           <Text style={s.infoTxt}>결석일: {fmtDate(item.original_date)}</Text>
+        </View>
         {item.makeup_date ? (
           <View style={s.infoRow}>
             <LucideIcon name="check-circle" size={13} color="#2EC4B6" />
             <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>
               보강일: {fmtDate(item.makeup_date)}{item.makeup_class_name ? ` · ${item.makeup_class_name}` : ""}
             </Text>
+          </View>
         ) : null}
       </View>
+    );
+  }
   function renderHistoryGroup(label: string, items: MakeupRequest[]) {
     if (items.length === 0) return null;
+    return (
       <View key={label}>
         <Text style={s.groupLabel}>{label}</Text>
         {items.map(renderHistoryCard)}
+      </View>
+    );
+  }
   return (
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="보강 대기" homePath="/(teacher)/today-schedule" />
@@ -377,14 +415,22 @@ export default function MakeupsScreen() {
           )}
           <Text style={[s.tabTxt, tab === "waiting" && { color: "#fff" }]}>보강 대기</Text>
         </Pressable>
+        <Pressable
           style={[s.tabBtn, { flex: 1, justifyContent: "center" }, tab === "assigned" && { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }]}
           onPress={() => setTab("assigned")}
+        >
           {assignedList.length > 0 && tab !== "assigned" && (
             <View style={s.tabBadge}><Text style={s.tabBadgeTxt}>{assignedList.length}</Text></View>
+          )}
           <Text style={[s.tabTxt, tab === "assigned" && { color: "#fff" }]}>배정된 보강</Text>
+        </Pressable>
+        <Pressable
           style={[s.tabBtn, { flex: 1, justifyContent: "center" }, tab === "history" && { backgroundColor: themeColor, borderColor: themeColor }]}
           onPress={() => setTab("history")}
+        >
           <Text style={[s.tabTxt, tab === "history" && { color: "#fff" }]}>보강 현황</Text>
+        </Pressable>
+      </View>
       {/* ── 탭 1: 결석자 리스트 ─────────────────────────────────────────── */}
       {tab === "waiting" && (
         waitingLoading ? (
@@ -399,6 +445,7 @@ export default function MakeupsScreen() {
                 onRefresh={() => { setWaitingRefresh(true); loadWaiting(); }}
                 tintColor={themeColor}
               />
+            }
           >
             {waitingList.length === 0 ? (
               <View style={s.empty}>
@@ -426,19 +473,25 @@ export default function MakeupsScreen() {
                     ) : (
                       <View style={[s.statusBadge, { backgroundColor: "#FFF1BF" }]}>
                         <Text style={[s.statusTxt, { color: "#D97706" }]}>대기</Text>
+                      </View>
                     )}
                   </View>
                   <View style={s.infoRow}>
                     <LucideIcon name="calendar" size={13} color={C.textSecondary} />
                     <Text style={s.infoTxt}>결석일: {fmtDate(mk.absence_date)}</Text>
+                  </View>
                   {expireInfo && (
                     <View style={s.infoRow}>
                       <LucideIcon name="clock" size={13} color={expireInfo.color} />
                       <Text style={[s.infoTxt, { color: expireInfo.color, fontFamily: "Pretendard-Regular" }]}>{expireInfo.text}</Text>
+                    </View>
                   )}
                   {mk.assigned_class_group_name && (
+                    <View style={s.infoRow}>
                       <LucideIcon name="check-circle" size={13} color="#2EC4B6" />
                       <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>배정반: {mk.assigned_class_group_name}</Text>
+                    </View>
+                  )}
                   <View style={s.btnRow}>
                     <Pressable
                       style={[s.actionBtn, { backgroundColor: C.button }]}
@@ -447,14 +500,21 @@ export default function MakeupsScreen() {
                       <LucideIcon name="calendar" size={14} color="#fff" />
                       <Text style={[s.actionTxt, { color: "#fff" }]}>보강반 배정</Text>
                     </Pressable>
+                    <Pressable
                       style={[s.actionBtn, { backgroundColor: "#EEF2FF", flex: undefined, paddingHorizontal: 12 }]}
                       onPress={() => openHandoverDirect(mk)}
+                    >
                       <LucideIcon name="user-plus" size={14} color="#4F46E5" />
                       <Text style={[s.actionTxt, { color: "#4F46E5" }]}>인계</Text>
+                    </Pressable>
+                    <Pressable
                       style={[s.actionBtn, { backgroundColor: "#FEF2F2", flex: undefined, paddingHorizontal: 12 }]}
                       onPress={() => setSelfExtTarget(mk)}
+                    >
                       <LucideIcon name="x-circle" size={14} color="#DC2626" />
                       <Text style={[s.actionTxt, { color: "#DC2626" }]}>소멸</Text>
+                    </Pressable>
+                  </View>
                   <Pressable
                     style={[s.actionBtn, { backgroundColor: "#ECFDF5", marginTop: 2 }]}
                     onPress={() => { setDirectCompleteTarget(mk); setDirectCompleteDate(null); }}
@@ -472,10 +532,17 @@ export default function MakeupsScreen() {
       {tab === "assigned" && (
         assignedLoading ? (
           <ActivityIndicator color="#7C3AED" style={{ marginTop: 80 }} />
+        ) : (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 60 }]}
             refreshControl={<RefreshControl refreshing={assignedLoading} onRefresh={loadAssigned} tintColor="#7C3AED" />}
+          >
             {assignedList.length === 0 ? (
+              <View style={s.empty}>
                 <LucideIcon name="user-check" size={36} color={C.textMuted} />
                 <Text style={s.emptyTxt}>배정된 대리 보강이 없습니다</Text>
+              </View>
             ) : (
               <>
                 {assignedList.map(mk => {
@@ -496,14 +563,22 @@ export default function MakeupsScreen() {
                             </View>
                           )}
                           {mk.assigned_class_group_name && (
+                            <View style={s.infoRow}>
                               <LucideIcon name="check-circle" size={12} color="#2EC4B6" />
                               <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>배정반: {mk.assigned_class_group_name}</Text>
+                            </View>
+                          )}
                           {expireInfo && (
+                            <View style={s.infoRow}>
                               <LucideIcon name="clock" size={12} color={expireInfo.color} />
                               <Text style={[s.infoTxt, { color: expireInfo.color, fontFamily: "Pretendard-Regular" }]}>{expireInfo.text}</Text>
+                            </View>
+                          )}
                         </View>
                         <View style={{ backgroundColor: "#EEDDF5", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
                           <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#7C3AED" }}>대리보강</Text>
+                        </View>
+                      </View>
                       <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
                         <Pressable
                           style={[s.actionBtn, { backgroundColor: "#EEDDF5", flex: 1, paddingHorizontal: 12 }]}
@@ -512,29 +587,52 @@ export default function MakeupsScreen() {
                           <LucideIcon name="check-circle" size={15} color="#7C3AED" />
                           <Text style={[s.actionTxt, { color: "#7C3AED", fontFamily: "Pretendard-Regular" }]}>완료 확인</Text>
                         </Pressable>
+                        <Pressable
                           style={[s.actionBtn, { backgroundColor: "#FFF8EE", borderWidth: 1.5, borderColor: "#D97706", flex: 1, paddingHorizontal: 12, opacity: revertingId === mk.id ? 0.5 : 1 }]}
                           onPress={() => handleRevert(mk)}
                           disabled={revertingId === mk.id}
+                        >
                           {revertingId === mk.id
                             ? <ActivityIndicator size="small" color="#D97706" />
                             : <>
                                 <LucideIcon name="rotate-ccw" size={14} color="#D97706" />
                                 <Text style={[s.actionTxt, { color: "#D97706", fontFamily: "Pretendard-Regular" }]}>배정 취소</Text>
                               </>}
+                        </Pressable>
+                      </View>
+                    </View>
                   );
                 })}
               </>
             )}
+          </ScrollView>
+        )
+      )}
       {/* ── 탭 3: 보강 현황 ──────────────────────────────────────────────── */}
       {tab === "history" && (
         historyLoading ? (
+          <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
+        ) : (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 60 }]}
             refreshControl={<RefreshControl refreshing={historyLoading} onRefresh={loadHistory} tintColor={themeColor} />}
+          >
             {pendingHistory.length === 0 ? (
+              <View style={s.empty}>
                 <LucideIcon name="calendar" size={36} color={C.textMuted} />
                 <Text style={s.emptyTxt}>보강 현황 내역이 없습니다</Text>
+              </View>
+            ) : (
+              <>
                 {renderHistoryGroup(`이번 달 (${fmtMonthLabel(thisMonth + "-01")})`, thisMonthHist)}
                 {renderHistoryGroup(`전월 이월 (${fmtMonthLabel(prevMonth + "-01")})`, prevMonthHist)}
                 {renderHistoryGroup("이전 내역", olderHist)}
+              </>
+            )}
+          </ScrollView>
+        )
+      )}
       {/* ── 보강반 배정 모달 ──────────────────────────────────────────────── */}
       {assignTarget && (
         <Modal visible animationType="slide" transparent onRequestClose={() => { setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); }} statusBarTranslucent>
@@ -551,16 +649,23 @@ export default function MakeupsScreen() {
                       </Text>
                     </>
                   ) : (
+                    <>
                       <Text style={s.sheetTitle}>보강반 배정</Text>
                       <Text style={s.sheetSub}>{assignTarget.student_name} · 결석일: {fmtDate(assignTarget.absence_date)}</Text>
+                    </>
+                  )}
+                </View>
                 {selectedClassId && !selectedDate ? (
                   <Pressable onPress={() => setSelectedClassId(null)} style={{ padding: 4 }}>
                     <LucideIcon name="arrow-left" size={20} color={C.textSecondary} />
+                  </Pressable>
                 ) : (
                   <Pressable onPress={() => { setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); }} style={{ padding: 4 }}>
                     <LucideIcon name="x" size={20} color={C.textSecondary} />
+                  </Pressable>
                 )}
-              {/* 단계 1: 반 선택 (내 반 우선, 다른 선생님 반 하단) */}
+              </View>
+              {/* 단계 1: 반 선택 */}
               {!selectedClassId && (
                 <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
                   {classLoading ? (
@@ -569,6 +674,7 @@ export default function MakeupsScreen() {
                     <View style={s.empty}>
                       <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
                       <Text style={s.emptyTxt}>배정 가능한 반이 없습니다</Text>
+                    </View>
                   ) : (() => {
                     const myClasses = eligibleClasses.filter((cg: any) => cg.is_mine);
                     const otherClasses = eligibleClasses.filter((cg: any) => !cg.is_mine);
@@ -582,6 +688,7 @@ export default function MakeupsScreen() {
                         <View style={{ flex: 1 }}>
                           <Text style={[s.className, { fontSize: 14, color: C.text }]}>{cg.name}</Text>
                           <Text style={s.infoTxt}>{cg.schedule_days?.split(",").join("·")} · {cg.schedule_time}</Text>
+                        </View>
                         <Text style={[s.infoTxt, { color: C.textMuted }]}>잔여 {cg.available_slots ?? "?"}석</Text>
                       </Pressable>
                     );
@@ -594,11 +701,15 @@ export default function MakeupsScreen() {
                           </>
                         )}
                         {otherClasses.length > 0 && (
+                          <>
                             <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: "#9CA3AF" }]}>
                               다른 선생님 반 (인계 처리)
                             </Text>
                             {otherClasses.map(renderClassRow)}
+                          </>
+                        )}
                       </>
+                    );
                   })()}
                   <View style={{ height: 16 }} />
                 </ScrollView>
@@ -613,13 +724,19 @@ export default function MakeupsScreen() {
                       <View style={s.empty}>
                         <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
                         <Text style={s.emptyTxt}>앞으로 4주간 해당 요일이 없습니다</Text>
+                      </View>
                     ) : dates.map(({ date, label }) => (
+                      <Pressable
                         key={date}
                         style={[s.classRow, { justifyContent: "space-between" }]}
                         onPress={() => setSelectedDate(date)}
+                      >
                         <LucideIcon name="check-circle" size={16} color="#7C3AED" />
+                        <View style={{ flex: 1 }}>
                           <Text style={[s.className, { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }]}>{label}</Text>
+                        </View>
                         <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+                      </Pressable>
                     ))}
                     <View style={{ height: 16 }} />
                   </ScrollView>
@@ -629,109 +746,185 @@ export default function MakeupsScreen() {
               {selectedClassId && selectedDate && (
                 <>
                   <View style={{ padding: 16, gap: 10 }}>
-                    <View style={[s.assignedInfo]}>
+                    <View style={s.assignedInfo}>
                       <LucideIcon name="check-circle" size={18} color="#7C3AED" />
                       <Text style={s.assignedInfoTxt}>
                         {`${eligibleClasses.find(c => c.id === selectedClassId)?.name}\n${fmtDate(selectedDate)} 보강 수업`}
+                      </Text>
+                    </View>
+                  </View>
                   <View style={{ paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4, gap: 8 }}>
+                    <Pressable
                       style={[s.confirmBtn, { backgroundColor: C.button, opacity: assigning ? 0.6 : 1 }]}
                       onPress={doAssign}
                       disabled={assigning}
+                    >
                       {assigning ? <ActivityIndicator color="#fff" /> : <Text style={s.confirmTxt}>배정 확정</Text>}
+                    </Pressable>
+                    <Pressable
                       style={[s.confirmBtn, { backgroundColor: C.card, borderWidth: 1, borderColor: C.border }]}
                       onPress={() => setSelectedDate(null)}
+                    >
                       <Text style={[s.confirmTxt, { color: C.textSecondary }]}>날짜 다시 선택</Text>
+                    </Pressable>
+                  </View>
                 </>
+              )}
             </Pressable>
           </Pressable>
         </Modal>
+      )}
       {/* ── 지난 보강 직접 완료 모달 ────────────────────────────────────── */}
       {directCompleteTarget && (
         <Modal visible animationType="slide" transparent onRequestClose={() => setDirectCompleteTarget(null)} statusBarTranslucent>
           <Pressable style={s.backdrop} onPress={() => setDirectCompleteTarget(null)}>
             <Pressable style={[s.sheet, { maxHeight: "70%" }]} onPress={() => {}}>
+              <View style={s.sheetHandle} />
+              <View style={s.sheetHeader}>
+                <View style={{ flex: 1 }}>
                   <Text style={s.sheetTitle}>지난 보강 직접 완료</Text>
                   <Text style={s.sheetSub}>{directCompleteTarget.student_name} · {directCompleteTarget.original_class_group_name || "미배정"}</Text>
+                </View>
                 <Pressable onPress={() => setDirectCompleteTarget(null)} style={{ padding: 4 }}>
                   <LucideIcon name="x" size={20} color={C.textSecondary} />
                 </Pressable>
+              </View>
               {!directCompleteDate ? (
+                <>
                   <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 4 }]}>이미 진행한 보강 날짜를 선택하세요</Text>
-                  {getPastDates(30).map(({ date, label }) => (
-                      key={date}
-                      style={s.classRow}
-                      onPress={() => setDirectCompleteDate(date)}
-                      <LucideIcon name="check-circle" size={16} color="#059669" />
-                      <Text style={[s.className, { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text, flex: 1 }]}>{label}</Text>
-                      <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
-                  ))}
+                  <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                    {getPastDates(30).map(({ date, label }) => (
+                      <Pressable
+                        key={date}
+                        style={s.classRow}
+                        onPress={() => setDirectCompleteDate(date)}
+                      >
+                        <LucideIcon name="check-circle" size={16} color="#059669" />
+                        <Text style={[s.className, { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text, flex: 1 }]}>{label}</Text>
+                        <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </>
               ) : (
+                <>
+                  <View style={{ padding: 16 }}>
                     <View style={[s.assignedInfo, { backgroundColor: "#ECFDF5" }]}>
                       <LucideIcon name="check-circle" size={18} color="#059669" />
                       <Text style={[s.assignedInfoTxt, { color: "#059669" }]}>
                         {`${directCompleteTarget.student_name}\n${fmtDate(directCompleteDate)} 보강 완료 처리`}
+                      </Text>
+                    </View>
+                  </View>
                   <View style={{ paddingHorizontal: 16, paddingBottom: 24, paddingTop: 4, gap: 8 }}>
+                    <Pressable
                       style={[s.confirmBtn, { backgroundColor: "#059669", opacity: directCompleting ? 0.6 : 1 }]}
                       onPress={doDirectComplete}
                       disabled={directCompleting}
+                    >
                       {directCompleting
                         ? <ActivityIndicator color="#fff" />
                         : <Text style={s.confirmTxt}>완료 처리</Text>
                       }
+                    </Pressable>
+                    <Pressable
+                      style={[s.confirmBtn, { backgroundColor: C.card, borderWidth: 1, borderColor: C.border }]}
                       onPress={() => setDirectCompleteDate(null)}
+                    >
+                      <Text style={[s.confirmTxt, { color: C.textSecondary }]}>날짜 다시 선택</Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
       {/* ── 기타 보강 모달 ──────────────────────────────────────────────── */}
       {handoverTarget && (
         <Modal visible animationType="slide" transparent onRequestClose={closeHandover} statusBarTranslucent>
           <Pressable style={s.backdrop} onPress={closeHandover}>
+            <Pressable style={s.sheet} onPress={() => {}}>
+              <View style={s.sheetHandle} />
               {/* ── 선생님 선택 단계 ── */}
               {handoverStep === "teacher_select" && (
+                <>
                   <View style={s.sheetHeader}>
                     <Pressable onPress={closeHandover} style={{ padding: 4, marginRight: 8 }}>
                       <LucideIcon name="arrow-left" size={20} color={C.text} />
+                    </Pressable>
                     <View style={{ flex: 1 }}>
                       <Text style={s.sheetTitle}>담당선생님 인계</Text>
                       <Text style={s.sheetSub}>선택한 선생님의 보강 대기 목록으로 이관됩니다.</Text>
+                    </View>
                     <Pressable onPress={closeHandover} style={{ padding: 4 }}>
                       <LucideIcon name="x" size={20} color={C.textSecondary} />
+                    </Pressable>
+                  </View>
+                  <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
                     {teachersLoading ? (
                       <ActivityIndicator color={themeColor} style={{ marginVertical: 32 }} />
                     ) : teachers.length === 0 ? (
+                      <View style={s.empty}>
                         <Text style={s.emptyTxt}>등록된 선생님이 없습니다</Text>
+                      </View>
                     ) : teachers.map(t => {
                       const isSelected = selectedTeacher?.id === t.id;
                       const isMe = t.id === adminUser?.id;
                       return (
+                        <Pressable
                           key={t.id}
                           style={[s.classRow, isSelected && { backgroundColor: "#4F46E5" + "12", borderColor: "#4F46E5" }]}
                           onPress={() => setSelectedTeacher(t)}
+                        >
                           <LucideIcon name={isSelected ? "check-circle" : "circle"} size={16} color={isSelected ? "#4F46E5" : C.textMuted} />
                           <View style={{ flex: 1 }}>
                             <Text style={[s.className, { fontSize: 14, fontFamily: "Pretendard-Regular", color: isSelected ? "#4F46E5" : C.text }]}>
                               {t.name}{isMe ? " (나)" : ""}
+                            </Text>
+                          </View>
+                        </Pressable>
                       );
                     })}
+                  </ScrollView>
                   {selectedTeacher && (
                     <View style={{ paddingHorizontal: 16, paddingBottom: 24, paddingTop: 8 }}>
+                      <Pressable
                         style={[s.confirmBtn, { backgroundColor: "#4F46E5", opacity: handoverSubmitting ? 0.6 : 1 }]}
                         onPress={doHandover}
                         disabled={handoverSubmitting}
+                      >
                         {handoverSubmitting
                           ? <ActivityIndicator color="#fff" />
                           : <Text style={s.confirmTxt}>{selectedTeacher.name} 선생님에게 인계</Text>
                         }
+                      </Pressable>
+                    </View>
+                  )}
+                </>
+              )}
               {/* ── 완료 단계 ── */}
               {handoverStep === "done" && (
                 <View style={{ alignItems: "center", padding: 32, gap: 16 }}>
                   <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#E6FFFA", alignItems: "center", justifyContent: "center" }}>
                     <LucideIcon name="check" size={28} color="#2EC4B6" />
+                  </View>
                   <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text }}>인계 완료</Text>
                   <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 }}>
                     {handoverDoneMsg}
                   </Text>
                   <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" }}>
                     메신저 대화방에 자동 알림이 전송되었습니다.
+                  </Text>
                   <Pressable style={[s.confirmBtn, { backgroundColor: "#2EC4B6", alignSelf: "stretch" }]} onPress={closeHandover}>
                     <Text style={s.confirmTxt}>확인</Text>
+                  </Pressable>
+                </View>
+              )}
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
       {/* 보강 완료 확인 모달 */}
       <ConfirmModal
         visible={!!completeTarget}
@@ -742,6 +935,7 @@ export default function MakeupsScreen() {
         onCancel={() => setCompleteTarget(null)}
       />
       {/* 보강 소멸 확인 */}
+      <ConfirmModal
         visible={!!selfExtTarget}
         title="보강 소멸"
         message={
@@ -752,12 +946,18 @@ export default function MakeupsScreen() {
         confirmText={selfExtSubmitting ? "처리 중..." : "소멸 처리"}
         onConfirm={doSelfExtinguish}
         onCancel={() => setSelfExtTarget(null)}
+      />
+      <ConfirmModal
         visible={!!confirmMsg}
         title="알림"
         message={confirmMsg ?? ""}
         confirmText="확인"
         onConfirm={() => setConfirmMsg(null)}
+        onCancel={() => setConfirmMsg(null)}
+      />
     </SafeAreaView>
+  );
+}
 const s = StyleSheet.create({
   safe:            { flex: 1, backgroundColor: "#FFFFFF" },
   tabBtn:          { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
