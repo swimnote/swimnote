@@ -757,22 +757,12 @@ function DiaryFeedItem({
         </Text>
       </View>
 
-      {!!entry.common_content?.trim() && (
-        <Text style={[f.body, { color: C.text }]}>{entry.common_content}</Text>
-      )}
-
-      {!!entry.student_note?.note_content?.trim() && (
-        <View
-          style={[
-            f.noteBox,
-            { backgroundColor: "#EEDDF5", borderColor: "#E9D5FF" },
-          ]}
-        >
-          <Text style={f.noteLabel}>우리 아이 메모</Text>
-          <Text style={[f.body, { color: "#0F172A", marginTop: 4 }]}>
-            {entry.student_note.note_content}
-          </Text>
-        </View>
+      {(!!entry.common_content?.trim() || !!entry.student_note?.note_content?.trim()) && (
+        <Text style={[f.body, { color: C.text }]}>
+          {[entry.common_content?.trim(), entry.student_note?.note_content?.trim()]
+            .filter(Boolean)
+            .join("\n\n")}
+        </Text>
       )}
 
       {photos !== null && allPhotos.length > 0 && (
