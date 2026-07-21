@@ -531,8 +531,35 @@ router.post("/parent-login", async (req, res) => {
 });
 
 // ── 내 정보 조회 ──────────────────────────────────────────────────────
+// parent_account role: parent_accounts 테이블 조회 (users 테이블에 없음)
+// 그 외 role: 기존 users 테이블 조회 유지
 router.get("/me", requireAuth, async (req: AuthRequest, res) => {
   try {
+    if (req.user!.role === "parent_account") {
+      const [pa] = await db
+        .select({
+          id: parentAccountsTable.id,
+          name: parentAccountsTable.name,
+          nickname: parentAccountsTable.nickname,
+          phone: parentAccountsTable.phone,
+          swimming_pool_id: parentAccountsTable.swimming_pool_id,
+          login_id: parentAccountsTable.login_id,
+        })
+        .from(parentAccountsTable)
+        .where(eq(parentAccountsTable.id, req.user!.userId))
+        .limit(1);
+      if (!pa) return err(res, 404, "사용자를 찾을 수 없습니다.");
+      let pool_name: string | null = null;
+      if (pa.swimming_pool_id) {
+        const [pool] = await db
+          .select({ name: swimmingPoolsTable.name })
+          .from(swimmingPoolsTable)
+          .where(eq(swimmingPoolsTable.id, pa.swimming_pool_id))
+          .limit(1);
+        pool_name = pool?.name ?? null;
+      }
+      return res.json({ ...pa, pool_name });
+    }
     const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) return err(res, 404, "사용자를 찾을 수 없습니다.");
     const { password_hash: _, ...safeUser } = user;
