@@ -772,8 +772,8 @@ router.get("/photos/parent-view", requireAuth, requireRole("parent_account"), as
           JOIN student_class_history sch
             ON sch.class_group_id = cd.class_group_id
             AND sch.student_id = ${child.id}
-            AND sch.enrolled_at <= cd.lesson_date
-            AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date)
+            AND sch.enrolled_at <= cd.lesson_date::date
+            AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
           WHERE sp.album_type = 'group' AND cd.class_group_id = ${child.class_group_id}
           ORDER BY cd.lesson_date DESC, sp.created_at DESC LIMIT 200
         `)).rows as any[];
@@ -803,8 +803,8 @@ router.get("/photos/parent-view", requireAuth, requireRole("parent_account"), as
         JOIN student_class_history sch
           ON sch.class_group_id = cd.class_group_id
           AND sch.student_id = ${child.id}
-          AND sch.enrolled_at <= cd.lesson_date
-          AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date)
+          AND sch.enrolled_at <= cd.lesson_date::date
+          AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
         WHERE sp.album_type = 'private' AND sp.student_id = ${child.id}
         ORDER BY cd.lesson_date DESC, sp.created_at DESC LIMIT 200
       `)).rows as any[];
