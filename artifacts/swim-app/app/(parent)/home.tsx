@@ -316,11 +316,13 @@ function PhotosGrid({
   token,
   diaryId,
   diaryDate,
+  teacherName,
 }: {
   photos: PhotoItem[];
   token: string | null;
   diaryId: string;
   diaryDate: string;
+  teacherName: string;
 }) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -384,7 +386,11 @@ function PhotosGrid({
     setSaving(true);
     const dateStr = diaryDate.replace(/-/g, "").slice(0, 8);
     const safeId = diaryId.slice(0, 8);
-    const localUri = `${FileSystem.documentDirectory ?? ""}swimnote_${dateStr}_${safeId}_${String(currentIdx + 1).padStart(2, "0")}.jpg`;
+    const _rawUrl1 = buildPhotoUri(photo.file_url);
+    const _rawSeg1 = _rawUrl1.split("?")[0].split("/").pop() ?? "";
+    const _dot1 = _rawSeg1.lastIndexOf(".");
+    const ext1 = (_dot1 >= 0 && _rawSeg1.slice(_dot1 + 1).length <= 5) ? _rawSeg1.slice(_dot1 + 1).toLowerCase() : "jpg";
+    const localUri = `${FileSystem.documentDirectory ?? ""}swimnote_${dateStr}_${safeId}_${String(currentIdx + 1).padStart(2, "0")}.${ext1}`;
     try {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== "granted") {
@@ -417,7 +423,7 @@ function PhotosGrid({
     if (saving || savingAll || uniquePhotos.length === 0) return;
     Alert.alert(
       "이 수업 사진 모두 저장",
-      `사진 ${uniquePhotos.length}장을 기기에 저장하시겠습니까?`,
+      `${diaryDate.replace(/-/g, ".")} 수업 사진\n총 ${uniquePhotos.length}장을 휴대폰 사진첩에 저장하시겠습니까?`,
       [
         { text: "취소", style: "cancel" },
         {
@@ -438,7 +444,11 @@ function PhotosGrid({
             let failedCount = 0;
             for (let i = 0; i < total; i++) {
               const photo = uniquePhotos[i];
-              const localUri = `${FileSystem.documentDirectory ?? ""}swimnote_${dateStr}_${safeId}_${String(i + 1).padStart(2, "0")}.jpg`;
+              const _rawUrl2 = buildPhotoUri(photo.file_url);
+              const _rawSeg2 = _rawUrl2.split("?")[0].split("/").pop() ?? "";
+              const _dot2 = _rawSeg2.lastIndexOf(".");
+              const _ext2 = (_dot2 >= 0 && _rawSeg2.slice(_dot2 + 1).length <= 5) ? _rawSeg2.slice(_dot2 + 1).toLowerCase() : "jpg";
+              const localUri = `${FileSystem.documentDirectory ?? ""}swimnote_${dateStr}_${safeId}_${String(i + 1).padStart(2, "0")}.${_ext2}`;
               try {
                 if (!photo?.file_url) throw new Error("URL 없음");
                 const url = buildPhotoUri(photo.file_url);
@@ -583,12 +593,22 @@ function PhotosGrid({
               decelerationRate="fast"
             />
 
+            {/* 날짜 · 선생님 */}
+            <View style={{ alignItems: "center", paddingBottom: 8, paddingTop: 4 }}>
+              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, fontFamily: "Pretendard-Regular" }}>
+                {diaryDate.replace(/-/g, ".")}
+              </Text>
+              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 3 }}>
+                {teacherName} 선생님
+              </Text>
+            </View>
+
             {/* 하단: 저장 버튼 */}
             <View
               style={{
                 paddingBottom: insets.bottom + 16,
                 paddingHorizontal: 16,
-                paddingTop: 14,
+                paddingTop: 6,
                 flexDirection: "row",
                 gap: 10,
               }}
@@ -629,7 +649,7 @@ function PhotosGrid({
                 >
                   <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" }}>
                     {savingAll
-                      ? `${saveProgress} / ${uniquePhotos.length} 저장 중`
+                      ? `${saveProgress} / ${uniquePhotos.length} 저장 중...`
                       : "이 수업 사진 모두 저장"}
                   </Text>
                 </Pressable>
@@ -761,6 +781,7 @@ function DiaryFeedItem({
           token={token}
           diaryId={entry.id}
           diaryDate={entry.lesson_date}
+          teacherName={entry.teacher_name}
         />
       )}
 
