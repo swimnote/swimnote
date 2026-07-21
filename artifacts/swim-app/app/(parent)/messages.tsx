@@ -94,7 +94,7 @@ export default function MessagesScreen() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
-  const scrollRef = useRef<KeyboardAwareScrollView>(null);
+  const scrollRef = useRef<any>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const myId = parentAccount?.id ?? "";
 

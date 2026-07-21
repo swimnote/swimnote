@@ -4,6 +4,7 @@
  * /super/storage-list API 실데이터 연결
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { CircleAlert } from "lucide-react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
@@ -358,7 +359,7 @@ export default function StorageScreen() {
               <Text style={m.title}>{ctaModal.name}</Text>
               <Text style={m.sub}>{ctaModal.usage_pct.toFixed(0)}% 사용 — 차단 예정 상태</Text>
 
-              <View style={m.title}>
+              <View style={m.ctaOption}>
                 <LucideIcon name="plus-circle" size={20} color={GREEN} />
                 <View style={{ flex: 1 }}>
                   <Text style={m.ctaOptionTitle}>추가 용량 구매</Text>

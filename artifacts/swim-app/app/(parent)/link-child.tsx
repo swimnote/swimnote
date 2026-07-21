@@ -62,7 +62,7 @@ export default function LinkChildScreen() {
   const [nameError, setNameError]     = useState("");
   const [birthYearError, setBirthYearError] = useState("");
 
-  const childScrollRef = useRef<KeyboardAwareScrollView>(null);
+  const childScrollRef = useRef<any>(null);
 
   async function searchPools() {
     if (!query.trim()) return;

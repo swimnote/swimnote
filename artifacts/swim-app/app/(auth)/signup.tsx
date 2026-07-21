@@ -5,6 +5,9 @@
  * 소셜(애플·전화없음): Step2(휴대폰) → Step3(역할선택) → Step4(추가정보)
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { CircleAlert } from "lucide-react-native";
+import { validateName, validatePhone } from "@/utils/validation";
+import { toAsciiOnly } from "@/utils/koreanToQwerty";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -104,7 +107,7 @@ export default function SignupScreen() {
   const [loading, setLoading]       = useState(false);
   const [isPendingTeacher, setIsPendingTeacher] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({ pw: "", pwc: "", name: "", poolName: "" });
-  const scrollRef = useRef<KeyboardAwareScrollView>(null);
+  const scrollRef = useRef<any>(null);
   const hasFieldErrors = Object.values(fieldErrors).some(v => !!v);
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);

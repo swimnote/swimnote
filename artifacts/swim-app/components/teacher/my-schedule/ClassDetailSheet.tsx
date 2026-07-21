@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import Colors from "@/constants/colors";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { ChevronRight, CircleAlert, Users, UserX, X } from "lucide-react-native";
 import { apiRequest, clearApiCache } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import PastelColorPicker from "@/components/common/PastelColorPicker";

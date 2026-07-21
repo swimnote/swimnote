@@ -588,6 +588,7 @@ export default function TeacherDiaryScreen() {
             editCursorRef={editCursorRef}
             classStudents={classStudents}
             onSave={handleEditSave}
+            onBack={() => { if (params.editDiaryId || params.backTo || params.classGroupId) router.back(); else { setSubView("history"); setEditDiary(null); } }}
             onUpdateNoteContent={(noteId, content) => setEditNotes(prev => prev.map(n => n.id === noteId ? { ...n, note_content: content, _modified: true } : n))}
             onMarkNoteDeleted={(noteId) => setEditNotes(prev => prev.map(n => n.id === noteId ? { ...n, _deleted: true } : n))}
             onEditAddNote={() => {
@@ -715,6 +716,12 @@ export default function TeacherDiaryScreen() {
               setStudentMyAlbumMediaType(kind);
               setShowStudentMyAlbum(true);
             }}
+            insertAtCursor={insertAtCursor}
+            token={token || ""}
+            studentAlbumPhotos={studentAlbumPhotos}
+            studentAlbumVideos={studentAlbumVideos}
+            onRemoveStudentAlbumPhoto={(studentId, photoId) => setStudentAlbumPhotos(prev => ({ ...prev, [studentId]: (prev[studentId] ?? []).filter(p => p.id !== photoId) }))}
+            onRemoveStudentAlbumVideo={(studentId, videoId) => setStudentAlbumVideos(prev => ({ ...prev, [studentId]: (prev[studentId] ?? []).filter(v => v.id !== videoId) }))}
             videoEnabled={planFeatures?.video_enabled ?? false}
           />
         ) : (

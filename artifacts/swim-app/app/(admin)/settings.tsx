@@ -3,6 +3,7 @@
  * U: 복수 역할 보유 시 "로그인 기본 모드" 토글 표시
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { ChevronRight } from "lucide-react-native";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { WithdrawalModal } from "@/components/common/WithdrawalModal";
 import AppUpdateButton from "@/components/common/AppUpdateButton";

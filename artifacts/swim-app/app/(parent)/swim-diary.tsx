@@ -318,7 +318,7 @@ export default function SwimDiaryScreen() {
               <View key={group.weekKey} style={{ gap: 12 }}>
                 <WeekHeader label={group.weekLabel} />
                 {group.items.map((e, i) => (
-                  <DiaryCard key={e.id} entry={e} defaultOpen={gi === 0 && i === 0} token={token} />
+                  <DiaryCard key={e.id} entry={e} defaultOpen={gi === 0 && i === 0} token={token ?? ""} />
                 ))}
               </View>
             ))

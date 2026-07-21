@@ -147,6 +147,7 @@ interface SessionContextType {
   finishLogin: (k: "admin" | "parent", user: AdminUser | null, parent?: ParentAccount | null, authToken?: string | null) => Promise<void>;
   pendingRoute: string | null;
   clearPendingRoute: () => void;
+  refreshSession: () => Promise<void>;
 }
 
 export const SessionContext = createContext<SessionContextType | null>(null);

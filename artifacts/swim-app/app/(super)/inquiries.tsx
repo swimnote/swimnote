@@ -7,6 +7,7 @@
  * 상세: 채팅형 + 답변 작성
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { ChevronLeft } from "lucide-react-native";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -100,7 +101,7 @@ export default function SuperInquiriesScreen() {
 
   const [input, setInput]   = useState("");
   const [sending, setSending] = useState(false);
-  const scrollRef = useRef<KeyboardAwareScrollView>(null);
+  const scrollRef = useRef<any>(null);
 
   const loadList = useCallback(async () => {
     setListLoading(true);

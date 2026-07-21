@@ -7,6 +7,7 @@
  * - 최근 24시간 상태 이력 섹션
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { CircleAlert, RefreshCw } from "lucide-react-native";
 import React, { useState, useCallback } from "react";
 import {
   ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,

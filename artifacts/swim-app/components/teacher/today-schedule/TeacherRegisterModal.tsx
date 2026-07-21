@@ -1,3 +1,4 @@
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform,

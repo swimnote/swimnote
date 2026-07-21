@@ -1,3 +1,4 @@
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View} from "react-native";

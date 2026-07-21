@@ -7,6 +7,7 @@
  * export: StudentManagementSheet
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Check, CircleCheck, Plus } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable,

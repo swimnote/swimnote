@@ -105,7 +105,7 @@ export default function MessagesInboxScreen() {
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const scrollRef = useRef<KeyboardAwareScrollView>(null);
+  const scrollRef = useRef<any>(null);
 
   const fetchThreads = useCallback(async () => {
     setLoadingThreads(true);

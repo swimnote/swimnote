@@ -2,6 +2,7 @@
  * ClassCreateFlow — 반 등록 단일 스크롤 폼
  * 모든 항목(요일·시간·선생님·색상)을 한 화면에서 입력
  */
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Dimensions, KeyboardAvoidingView, Modal, Platform,

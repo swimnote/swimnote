@@ -4,6 +4,7 @@
  * /super/readonly-control API 실데이터 연결
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Unlock } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {ActivityIndicator, Alert, Modal, Pressable,
   RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";

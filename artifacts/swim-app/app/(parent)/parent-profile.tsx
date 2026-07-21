@@ -50,7 +50,7 @@ export default function ParentProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({ name: "", phone: "", newPw: "", newPw2: "", currentPw: "" });
-  const scrollRef = useRef<KeyboardAwareScrollView>(null);
+  const scrollRef = useRef<any>(null);
   const hasFieldErrors = Object.values(fieldErrors).some(v => !!v);
 
   const [deleteConfirm, setDeleteConfirm] = useState(false);

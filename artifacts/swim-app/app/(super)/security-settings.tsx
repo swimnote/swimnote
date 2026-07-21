@@ -9,6 +9,8 @@
  * G. 보안 정책 (SecurityPolicySection) + 로그인 이력 (LoginHistorySection)
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { ChevronRight, CircleAlert, CircleCheck, Eye, Key, Lock as LockIcon, RefreshCw, Save, TriangleAlert, Unlock } from "lucide-react-native";
+const Lock = LockIcon as React.ComponentType<any>;
 import React, { useMemo, useEffect, useRef, useState } from "react";
 import {ActivityIndicator, Image, Modal, Pressable, StyleSheet,
   Text, TextInput, View} from "react-native";

@@ -10,6 +10,7 @@
  *  6. 선생님 권한 탈퇴 요청
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {ActivityIndicator, FlatList, Modal, Pressable,

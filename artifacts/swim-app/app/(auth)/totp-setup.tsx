@@ -2,6 +2,8 @@
  * totp-setup.tsx — Google OTP 등록/설정 화면
  * Google Authenticator 앱 연동, 활성화/비활성화
  */
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { CircleAlert, CircleCheck, ShieldOff } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {ActivityIndicator, Image, Platform,

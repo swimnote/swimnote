@@ -13,6 +13,7 @@ import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
 import PastelColorPicker from "@/components/common/PastelColorPicker";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Users } from "lucide-react-native";
 
 const C = Colors.light;
 
@@ -53,7 +54,7 @@ interface TeacherItem {
 type SubView = "transfer" | "teacher" | "add_co_teacher" | null;
 
 interface Props {
-  group: { id: string; name: string; schedule_days: string; schedule_time: string; instructor?: string | null; color?: string | null };
+  group: { id: string; name: string; schedule_days: string; schedule_time: string; instructor?: string | null; color?: string | null; capacity?: number | null; level?: string | null };
   token: string | null;
   themeColor: string;
   onClose: () => void;

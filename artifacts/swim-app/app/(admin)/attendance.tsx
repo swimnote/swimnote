@@ -1,4 +1,6 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Clock, Lock as LockIcon } from "lucide-react-native";
+const Lock = LockIcon as React.ComponentType<any>;
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
   StyleSheet, Text, TextInput, TouchableOpacity, View} from "react-native";

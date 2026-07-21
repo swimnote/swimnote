@@ -471,7 +471,7 @@ function RootNav() {
   const otaDownloadedRef = useRef(false);   // 다운로드 완료 여부
   const inquiryPopupShownRef = useRef(false);
   const tokenRef = useRef(token);
-  const kindRef = useRef(kind);
+  const kindRef = useRef<"parent" | "teacher" | "admin" | "super" | "pool_admin" | null>(kind);
 
   const [showOtaModal, setShowOtaModal] = useState(false);
   const [otaUpdating,  setOtaUpdating]  = useState(false);

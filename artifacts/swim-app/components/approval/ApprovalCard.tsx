@@ -4,6 +4,7 @@
  * 학부모 승인 · 선생님 승인 · 수영장 승인 모두 이 컴포넌트로 통일.
  * 버튼 구조: [보기] 항상 표시 + [승인] 대기 상태에만 표시
  */
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import {
   ActivityIndicator, Pressable, StyleSheet, Text, View,

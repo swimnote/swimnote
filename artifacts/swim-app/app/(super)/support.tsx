@@ -19,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { CreditCard } from "lucide-react-native";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import type { SupportTicket, SupportStatus } from "@/domain/types";
 import Colors from "@/constants/colors";

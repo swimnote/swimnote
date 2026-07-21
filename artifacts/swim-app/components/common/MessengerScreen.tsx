@@ -12,6 +12,8 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { AtSign, BellOff, Calendar, CircleCheck, Layers, Lock as LockIcon, Paperclip, Phone, Plus, Send, Smile, User, Users, X } from "lucide-react-native";
+const Lock = LockIcon as React.ComponentType<any>;
 import {
   ActivityIndicator,
   Alert,

@@ -14,6 +14,7 @@ import {ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform,
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Check, Plus, Search } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";

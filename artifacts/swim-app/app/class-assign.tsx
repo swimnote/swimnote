@@ -8,6 +8,7 @@
  */
 import { router, useLocalSearchParams } from "expo-router";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { CircleX, Minus, Plus, Search, User, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
   Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View} from "react-native";

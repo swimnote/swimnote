@@ -5,6 +5,7 @@
  * SearchModal, AdminQuickRegisterModal → components/admin/ 로 이동됨
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Crown, Zap } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";

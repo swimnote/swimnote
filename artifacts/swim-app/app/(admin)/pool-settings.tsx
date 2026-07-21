@@ -1,5 +1,6 @@
 import { validateName, validatePhone, normalizePhone } from "@/utils/validation";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Award, BookOpen, CreditCard, Gift, ShoppingBag } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {ActivityIndicator,
@@ -29,7 +30,7 @@ export default function PoolSettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({ name: "", phone: "" });
-  const scrollRef = useRef<KeyboardAwareScrollView>(null);
+  const scrollRef = useRef<any>(null);
   const hasFieldErrors = fieldErrors.name || fieldErrors.phone;
 
   const [defaultCapacity, setDefaultCapacity] = useState<string>("5");

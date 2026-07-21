@@ -167,14 +167,8 @@ export default function TeacherPhotosScreen() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
   const { addJobs, isActive: uploadActive, done: uploadDone, total: uploadTotal } = useUploadQueue();
-  // 업로드 완료 후 목록 자동 새로고침
+  // 업로드 완료 후 목록 자동 새로고침 — loadList 선언 후 아래에서 useEffect 실행
   const prevActiveRef = useRef(false);
-  useEffect(() => {
-    if (prevActiveRef.current && !uploadActive && step === "list") {
-      loadList();
-    }
-    prevActiveRef.current = uploadActive;
-  }, [uploadActive, step, loadList]);
   type PlanFeatures = { video_enabled: boolean; storage_quota_gb: number; storage_used_gb: number; storage_used_pct: number; upload_blocked: boolean; tier: string };
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures>({ video_enabled: false, storage_quota_gb: 0, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" });
   const [showVideoGateModal,  setShowVideoGateModal]  = useState(false);
@@ -248,6 +242,13 @@ export default function TeacherPhotosScreen() {
       if (mountedRef.current) setListLoading(false);
     }
   }, [token, mediaType, scope]);
+  // 업로드 완료 후 목록 자동 새로고침 (loadList 선언 이후에 배치)
+  useEffect(() => {
+    if (prevActiveRef.current && !uploadActive && step === "list") {
+      loadList();
+    }
+    prevActiveRef.current = uploadActive;
+  }, [uploadActive, step, loadList]);
   const openList = useCallback((mt: MediaType, sc: AlbumScope) => {
     setMediaType(mt);
     setScope(sc);

@@ -3,6 +3,7 @@
  * 탭: DB 개요 / 수영장별 / 이벤트 로그 / 서비스 상태
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { CircleAlert, CircleCheck, Inbox, TriangleAlert } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, Pressable, RefreshControl,

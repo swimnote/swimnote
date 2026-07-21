@@ -90,7 +90,7 @@ export default function ParentInquiriesScreen() {
 
   const [input, setInput]       = useState("");
   const [sending, setSending]   = useState(false);
-  const scrollRef = useRef<KeyboardAwareScrollView>(null);
+  const scrollRef = useRef<any>(null);
 
   const [sheetVisible, setSheetVisible] = useState(false);
   const [newTarget, setNewTarget]        = useState<"super" | "admin" | null>(null);

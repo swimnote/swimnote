@@ -99,7 +99,7 @@ export default function AdminInquiriesScreen() {
 
   const [input, setInput]   = useState("");
   const [sending, setSending] = useState(false);
-  const scrollRef = useRef<KeyboardAwareScrollView>(null);
+  const scrollRef = useRef<any>(null);
 
   const [newModal, setNewModal]     = useState(false);
   const [newTitle, setNewTitle]     = useState("");

@@ -27,6 +27,7 @@ export default function UnregisteredPickerModal({
   const [loading, setLoading] = useState(true);
   const [q, setQ]             = useState("");
   const [confirmItem, setConfirmItem] = useState<any | null>(null);
+  const [assigning, setAssigning] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {

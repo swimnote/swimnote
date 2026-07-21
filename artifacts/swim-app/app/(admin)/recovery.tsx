@@ -3,6 +3,7 @@
  * 스냅샷 목록 보기 → 시점 선택 → 영향 범위 확인 → 복구 실행
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Activity, Archive, CircleCheck, Clock, Info, Save, Trash2 } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {

@@ -63,7 +63,7 @@ export default function SupportTicketDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token, kind, adminUser } = useAuth();
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<KeyboardAwareScrollView>(null);
+  const scrollRef = useRef<any>(null);
 
   const [ticket,     setTicket]     = useState<Ticket | null>(null);
   const [loading,    setLoading]    = useState(true);

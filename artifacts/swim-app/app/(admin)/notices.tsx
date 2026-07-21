@@ -1,4 +1,5 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Pencil, SquareCheck } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { compressImageIfNeeded } from "../../utils/compressImage";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";

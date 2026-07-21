@@ -476,6 +476,8 @@ export default function TodayScheduleScreen() {
             schedule_days: it.schedule_days, schedule_time: it.schedule_time,
             student_count: it.student_count, level: it.level,
           }))}
+          themeColor={themeColor}
+          token={token}
           onClose={() => { setActiveChipGroup(null); load(); }}
           onNavigateTo={navigateFromChip}
         />

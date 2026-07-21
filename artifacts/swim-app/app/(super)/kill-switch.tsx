@@ -4,6 +4,8 @@
  * 실 API 연결 완료 — useAuditLogStore / useBackupStore 완전 제거
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Lock as LockIcon } from "lucide-react-native";
+const Lock = LockIcon as React.ComponentType<any>;
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";

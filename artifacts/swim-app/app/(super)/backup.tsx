@@ -11,6 +11,7 @@
  * GET  /super/backups/:id/download — 다운로드
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Anchor, Calendar, Check, ChevronLeft, ChevronRight, CircleCheck, Clock, HardDrive, Layers, RefreshCw, RotateCcw, Save, Search, Settings, TriangleAlert, X } from "lucide-react-native";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {ActivityIndicator, Alert, FlatList, Modal, Pressable,

@@ -3,6 +3,7 @@
  * Zustand 완전 제거 → GET /super/dashboard-stats, /super/risk-summary, /super/recent-audit-logs 실 API 연동
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Activity, ChevronRight } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {

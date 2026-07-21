@@ -1,3 +1,4 @@
+import Colors from "@/constants/colors";
 import React, { useState } from "react";
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform,

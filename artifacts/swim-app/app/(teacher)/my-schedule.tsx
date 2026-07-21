@@ -601,6 +601,8 @@ export default function MyScheduleScreen() {
             </View>
           )}
           <WeeklyTimetable
+            groups={myGroups}
+            selectionMode={selectionMode}
             onSelectClass={g => setDetailGroup(g)}
             selectedIds={selectedIds}
             toggleSelect={toggleSelect}
@@ -662,6 +664,8 @@ export default function MyScheduleScreen() {
           diarySet={selectedDate ? dayDiarySet : todayDiarySet}
           date={selectedDate}
           classGroups={groups}
+          themeColor={themeColor}
+          token={token}
           onClose={() => setDetailGroup(null)}
           onDeleteClass={() => {
             const target = detailGroup;
@@ -693,6 +697,7 @@ export default function MyScheduleScreen() {
       />
       {showCreate && (
         <ClassCreateFlow
+          token={token}
           role="teacher"
           selfTeacher={selfTeacher}
           initialDays={createInitialDays}
