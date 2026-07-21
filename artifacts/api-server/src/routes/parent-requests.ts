@@ -207,7 +207,7 @@ router.post("/parent/requests", requireAuth,
             : `${studentName}`;
           await sendPushToUser(
             teacherUserId, false, "parent_request",
-            `📋 ${parentName}님의 ${typeLabel}`,
+            `${parentName}님의 ${typeLabel}`,
             pushContent,
             { type: "parent_request", poolId, requestId: newReq.id },
             `preq_${poolId}`
@@ -220,9 +220,9 @@ router.post("/parent/requests", requireAuth,
       // 선생님 메시지함(notice 채널)에 요청 내용 삽입
       try {
         const msgContent = [
-          `📋 [${typeLabel}] ${parentName}님 (${studentName})`,
+          `[${typeLabel}] ${parentName}님 (${studentName})`,
           content?.trim() ? content.trim() : null,
-          request_date ? `📅 요청일: ${request_date}` : null,
+          request_date ? `요청일: ${request_date}` : null,
         ].filter(Boolean).join("\n");
 
         const extraData = JSON.stringify({

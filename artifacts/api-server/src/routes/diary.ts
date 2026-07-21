@@ -113,7 +113,7 @@ function nextDiaryPushTime(kstNow: Date): string {
 async function sendDiaryPush(classId: string, diaryId: string, className: string, poolId: string, lessonDate: string) {
   try {
     const dateLabel = ` (${formatDateKr(lessonDate)})`;
-    const notifBody = `${className}${dateLabel} 수업 일지가 도착했어요. 지금 확인해보세요 💬`;
+    const notifBody = `${className}${dateLabel} 수업 일지가 도착했어요. 지금 확인해보세요`;
     const classIdSafe = classId.replace(/'/g, "''");
     const lessonDateSafe = lessonDate.replace(/'/g, "''");
 
@@ -137,7 +137,7 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
       await db.execute(sql`
         INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
         VALUES (${nid}, ${p.parent_account_id}, 'parent_account', 'diary_upload',
-                '📖 수업 일지가 도착했어요',
+                '수업 일지가 도착했어요',
                 ${notifBody},
                 ${diaryId}, 'class_diary', ${poolId}, false)
         ON CONFLICT DO NOTHING
@@ -151,7 +151,7 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
       for (const p of parentRows.rows as any[]) {
         await sendPushToUser(
           p.parent_account_id, true, "diary_upload",
-          "📖 수업 일지가 도착했어요", notifBody,
+          "수업 일지가 도착했어요", notifBody,
           { type: "diary_upload", diaryId, classId },
           `diary_${diaryId}_${p.parent_account_id}`,
           { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
@@ -188,12 +188,12 @@ async function sendDiaryPushToStudents(studentIds: string[], diaryId: string, cl
     // 인앱 알림은 시간대 무관 즉시 생성
     for (const p of parentRows.rows as any[]) {
       const studentLabel = p.student_name ? `${p.student_name}의 ` : "";
-      const notifBody = `${className}${dateLabel} ${studentLabel}개인 수업 일지가 도착했어요 💬`;
+      const notifBody = `${className}${dateLabel} ${studentLabel}개인 수업 일지가 도착했어요`;
       const nid = genId("notif");
       await db.execute(sql`
         INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
         VALUES (${nid}, ${p.parent_account_id}, 'parent_account', 'diary_upload',
-                '📖 수업 일지가 도착했어요',
+                '수업 일지가 도착했어요',
                 ${notifBody},
                 ${diaryId}, 'class_diary', ${poolId}, false)
         ON CONFLICT DO NOTHING
@@ -206,10 +206,10 @@ async function sendDiaryPushToStudents(studentIds: string[], diaryId: string, cl
       // 허용 시간대 → 즉시 발송
       for (const p of parentRows.rows as any[]) {
         const studentLabel = p.student_name ? `${p.student_name}의 ` : "";
-        const notifBody = `${className}${dateLabel} ${studentLabel}개인 수업 일지가 도착했어요 💬`;
+        const notifBody = `${className}${dateLabel} ${studentLabel}개인 수업 일지가 도착했어요`;
         await sendPushToUser(
           p.parent_account_id, true, "diary_upload",
-          "📖 수업 일지가 도착했어요", notifBody,
+          "수업 일지가 도착했어요", notifBody,
           { type: "diary_upload", diaryId },
           `diary_${diaryId}_${p.parent_account_id}`,
           { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }

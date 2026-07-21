@@ -401,14 +401,14 @@ router.post(
       // class_id가 있을 때만 학부모 푸시 발송
       if (inserted.length > 0 && class_id) {
         const pSettings = await db.execute(sql`
-          SELECT COALESCE(tpl_photo, '📸 새 사진이 업로드되었습니다.') AS tpl
+          SELECT COALESCE(tpl_photo, '새 사진이 업로드되었습니다.') AS tpl
           FROM pool_push_settings WHERE pool_id = ${user.swimming_pool_id} LIMIT 1
         `).catch(() => ({ rows: [] }));
-        const tpl = (pSettings.rows[0] as any)?.tpl ?? "📸 새 사진이 업로드되었습니다.";
+        const tpl = (pSettings.rows[0] as any)?.tpl ?? "새 사진이 업로드되었습니다.";
         sendPushToClassParents(
           class_id,
           "photo_upload",
-          "📸 새 사진이 올라왔어요",
+          "새 사진이 올라왔어요",
           tpl,
           { type: "photo_upload", classId: class_id },
           `photo_group_${class_id}_${Date.now()}`,
@@ -503,16 +503,16 @@ router.post(
       // 개인 앨범 업로드 → 해당 학생 학부모에게 푸시 알림
       if (inserted.length > 0) {
         const pSettings = await db.execute(sql`
-          SELECT COALESCE(tpl_photo, '📸 새 사진이 업로드되었습니다.') AS tpl
+          SELECT COALESCE(tpl_photo, '새 사진이 업로드되었습니다.') AS tpl
           FROM pool_push_settings WHERE pool_id = ${user.swimming_pool_id} LIMIT 1
         `).catch(() => ({ rows: [] }));
-        const tpl = (pSettings.rows[0] as any)?.tpl ?? "📸 새 사진이 업로드되었습니다.";
+        const tpl = (pSettings.rows[0] as any)?.tpl ?? "새 사진이 업로드되었습니다.";
         const parentRows = await db.execute(sql`
           SELECT parent_id AS parent_account_id FROM parent_students
           WHERE student_id = ${student_id} AND status = 'approved'
         `).catch(() => ({ rows: [] }));
         for (const p of parentRows.rows as any[]) {
-          sendPushToUser(p.parent_account_id, true, "photo_upload", "📸 사진 업로드", tpl,
+          sendPushToUser(p.parent_account_id, true, "photo_upload", "사진 업로드", tpl,
             { type: "photo", studentId: student_id }, `photo_private_${student_id}_${Date.now()}`
           ).catch(() => {});
         }
@@ -583,7 +583,7 @@ router.post(
           WHERE student_id = ${student_id} AND status = 'approved'
         `).catch(() => ({ rows: [] }));
         for (const p of parentRows.rows as any[]) {
-          sendPushToUser(p.parent_account_id, true, "photo_upload", "📸 사진 업로드", "📸 새 사진이 업로드되었습니다.",
+          sendPushToUser(p.parent_account_id, true, "photo_upload", "사진 업로드", "새 사진이 업로드되었습니다.",
             { type: "photo", studentId: student_id }, `photo_batch_${student_id}_${Date.now()}`
           ).catch(() => {});
         }

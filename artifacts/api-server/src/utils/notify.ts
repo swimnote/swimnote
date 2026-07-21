@@ -120,7 +120,7 @@ export async function notifyStorageWarning(poolId: string, usagePercent: number)
       sendNotification({
         recipientId: a.id, recipientType: "user", poolId,
         type: "storage_warning",
-        title: "📦 사진 저장 공간 부족 경고",
+        title: "사진 저장 공간 부족 경고",
         body: `사진 저장 공간 사용량이 ${pct}%에 도달했습니다. 용량 초과 시 추가 업로드가 제한될 수 있습니다.`,
         refId: poolId, refType: "pool",
       })

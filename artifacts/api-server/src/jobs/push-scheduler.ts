@@ -38,7 +38,7 @@ async function runPrevDaySchedule(): Promise<void> {
     const pools = await superAdminDb.execute(sql`
       SELECT DISTINCT sp.id AS pool_id,
         COALESCE(pps.prev_day_push_time, '20:00') AS push_time,
-        COALESCE(pps.tpl_prev_day, '📅 내일 수업이 있습니다. 준비하세요!') AS template
+        COALESCE(pps.tpl_prev_day, '내일 수업이 있습니다. 준비하세요!') AS template
       FROM swimming_pools sp
       LEFT JOIN pool_push_settings pps ON pps.pool_id = sp.id
       WHERE sp.approval_status = 'approved'
@@ -67,11 +67,11 @@ async function runPrevDaySchedule(): Promise<void> {
       `);
 
       for (const cls of classes.rows as any[]) {
-        const body = `${cls.class_name} 수업이 내일 있어요. 준비물 챙기는 거 잊지 마세요! 🏊`;
+        const body = `${cls.class_name} 수업이 내일 있어요. 준비물 챙기는 거 잊지 마세요!`;
         await sendPushToClassParents(
           cls.class_id,
           "class_reminder",
-          "📅 내일 수업이 있어요",
+          "내일 수업이 있어요",
           body,
           { type: "prev_day_reminder", classId: cls.class_id },
           `prev_day_${pool_id}_${todayDateStr}`,
@@ -103,7 +103,7 @@ async function runSameDaySchedule(): Promise<void> {
     const pools = await superAdminDb.execute(sql`
       SELECT DISTINCT sp.id AS pool_id,
         COALESCE(pps.same_day_push_offset, 1) AS offset_hours,
-        COALESCE(pps.tpl_same_day, '⏰ 오늘 수업 {offset}시간 전입니다.') AS template
+        COALESCE(pps.tpl_same_day, '오늘 수업 {offset}시간 전입니다.') AS template
       FROM swimming_pools sp
       LEFT JOIN pool_push_settings pps ON pps.pool_id = sp.id
       WHERE sp.approval_status = 'approved'
@@ -143,11 +143,11 @@ async function runSameDaySchedule(): Promise<void> {
         if (alreadySent.rows.length > 0) continue;
 
         const hourLabel = offset_hours === 1 ? "1시간" : `${offset_hours}시간`;
-        const body = `${cls.class_name} 수업 시작까지 ${hourLabel} 남았어요 ⏱`;
+        const body = `${cls.class_name} 수업 시작까지 ${hourLabel} 남았어요`;
         await sendPushToClassParents(
           cls.class_id,
           "class_reminder",
-          "⏰ 곧 수업이 시작돼요",
+          "곧 수업이 시작돼요",
           body,
           { type: "same_day_reminder", classId: cls.class_id },
           `same_day_${pool_id}_${todayDateStr}`,
@@ -205,7 +205,7 @@ async function runMakeupDaySchedule(): Promise<void> {
         await sendPushToUser(
           p.parent_account_id, true,
           "makeup_schedule",
-          "📅 오늘 보충 수업이 있습니다",
+          "오늘 보충 수업이 있습니다",
           `${mk.student_name}의 보충 수업이 오늘 있습니다.\n${mk.assigned_class_group_name}`,
           { type: "makeup_day_of", makeupId: mk.id, date: mk.assigned_date },
           `makeup_day_${mk.id}`
@@ -262,10 +262,10 @@ async function runDiaryPushQueue(): Promise<void> {
 
             for (const p of parentRows) {
               const studentLabel = p.student_name ? `${p.student_name}의 ` : "";
-              const notifBody = `${item.class_name}${dateLabel} ${studentLabel}개인 수업 일지가 도착했어요 💬`;
+              const notifBody = `${item.class_name}${dateLabel} ${studentLabel}개인 수업 일지가 도착했어요`;
               await sendPushToUser(
                 p.parent_account_id, true, "diary_upload",
-                "📖 수업 일지가 도착했어요", notifBody,
+                "수업 일지가 도착했어요", notifBody,
                 { type: "diary_upload", diaryId: item.diary_id },
                 `diary_${item.diary_id}_${p.parent_account_id}`,
                 { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
@@ -291,11 +291,11 @@ async function runDiaryPushQueue(): Promise<void> {
               JOIN students s ON s.id = ps.student_id
               WHERE ps.status = 'approved' AND s.deleted_at IS NULL
             `))).rows as any[];
-            const notifBody = `${item.class_name}${dateLabel} 수업 일지가 도착했어요. 지금 확인해보세요 💬`;
+            const notifBody = `${item.class_name}${dateLabel} 수업 일지가 도착했어요. 지금 확인해보세요`;
             for (const p of parentRows2) {
               await sendPushToUser(
                 p.parent_account_id, true, "diary_upload",
-                "📖 수업 일지가 도착했어요", notifBody,
+                "수업 일지가 도착했어요", notifBody,
                 { type: "diary_upload", diaryId: item.diary_id, classId: item.class_id },
                 `diary_${item.diary_id}_${p.parent_account_id}`,
                 { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }

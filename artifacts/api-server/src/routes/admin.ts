@@ -454,7 +454,7 @@ router.patch("/parents/:id/students/:link_id", requireAuth, requireRole("super_a
     try {
       const { sendPushToUser } = await import("../lib/push-service.js");
       if (action === "approve") {
-        await sendPushToUser(link.parent_id, true, "link_approved", "자녀 연결이 완료됐습니다 🎉",
+        await sendPushToUser(link.parent_id, true, "link_approved", "자녀 연결이 완료됐습니다",
           "수영장에서 자녀 연결을 승인했습니다. 이제 앱에서 수업 기록을 확인할 수 있습니다.",
           { screen: "home" }, `ps_approved_${link.id}`);
       } else {
@@ -565,7 +565,7 @@ router.patch("/student-requests/:id", requireAuth, requireRole("super_admin", "p
       // 학부모에게 자녀 연결 승인 알림
       try {
         const { sendPushToUser } = await import("../lib/push-service.js");
-        await sendPushToUser(srr.parent_id, true, "link_approved", "자녀 연결이 완료됐습니다 🎉",
+        await sendPushToUser(srr.parent_id, true, "link_approved", "자녀 연결이 완료됐습니다",
           "수영장에서 자녀 연결을 승인했습니다. 이제 앱에서 수업 기록을 확인할 수 있습니다.",
           { screen: "home" }, `link_approved_${srr.id}`);
       } catch (pushErr) { console.error("[student-requests link push error]", pushErr); }
@@ -2040,7 +2040,7 @@ router.post("/handover-makeups", requireAuth, requireRole("super_admin","pool_ad
       const classLabel  = original_class_group_name ? `원반: ${original_class_group_name}\n` : "";
       const teacherLabel= original_teacher_name ? `담당: ${original_teacher_name}\n` : "";
       const msgContent  =
-        `📋 보강 인계 요청\n` +
+        `보강 인계 요청\n` +
         `학생: ${student_name || "미상"}\n` +
         `${classLabel}${teacherLabel}${absentLabel}` +
         `일시: ${lesson_date} ${lesson_time}\n` +

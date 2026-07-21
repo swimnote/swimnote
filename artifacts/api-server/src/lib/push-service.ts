@@ -428,11 +428,11 @@ export async function initPushTables(): Promise<void> {
         pool_id                TEXT NOT NULL UNIQUE,
         prev_day_push_time     TEXT NOT NULL DEFAULT '20:00',
         same_day_push_offset   INTEGER NOT NULL DEFAULT 1,
-        tpl_notice             TEXT DEFAULT '📢 새 공지사항이 등록되었습니다.',
-        tpl_prev_day           TEXT DEFAULT '📅 내일 수업이 있습니다. 준비하세요!',
-        tpl_same_day           TEXT DEFAULT '⏰ 오늘 수업 {offset}시간 전입니다.',
-        tpl_diary              TEXT DEFAULT '📒 새 수업 일지가 작성되었습니다.',
-        tpl_photo              TEXT DEFAULT '📸 새 사진이 업로드되었습니다.',
+        tpl_notice             TEXT DEFAULT '새 공지사항이 등록되었습니다.',
+        tpl_prev_day           TEXT DEFAULT '내일 수업이 있습니다. 준비하세요!',
+        tpl_same_day           TEXT DEFAULT '오늘 수업 {offset}시간 전입니다.',
+        tpl_diary              TEXT DEFAULT '새 수업 일지가 작성되었습니다.',
+        tpl_photo              TEXT DEFAULT '새 사진이 업로드되었습니다.',
         updated_at             TIMESTAMPTZ DEFAULT now()
       )
     `);
