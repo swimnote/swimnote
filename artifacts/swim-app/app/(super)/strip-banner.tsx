@@ -135,6 +135,16 @@ const ac = StyleSheet.create({
   btnTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });
 
+// ── 배너 제목 검증 (서버와 동일한 규칙) ──────────────────────────────────
+function validateBannerTitle(title: string, bannerType: "strip" | "slider"): string | null {
+  const newlineCount = (title.match(/\n/g) || []).length;
+  if (bannerType === "strip") {
+    if (newlineCount > 0)  return "가로 배너 제목에는 줄바꿈을 사용할 수 없습니다.";
+    if (title.length > 15) return "제목은 최대 15자입니다.";
+  }
+  return null;
+}
+
 interface FormState {
   title: string; description: string; linkUrl: string; linkLabel: string;
   displayStart: string; displayEnd: string;
@@ -172,6 +182,7 @@ export default function StripBannerScreen() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [titleError, setTitleError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (filter === "all") return stripAds;
@@ -187,11 +198,13 @@ export default function StripBannerScreen() {
   function openCreate() {
     setEditId(null);
     setForm(BLANK);
+    setTitleError(null);
     setShowModal(true);
   }
 
   function openEdit(ad: Ad) {
     setEditId(ad.id);
+    setTitleError(null);
     setForm({
       title: ad.title, description: ad.description,
       linkUrl: ad.linkUrl, linkLabel: ad.linkLabel,
@@ -224,6 +237,9 @@ export default function StripBannerScreen() {
 
   async function handleSave() {
     if (!form.title.trim() || !token) return;
+    const validationError = validateBannerTitle(form.title.trim(), "strip");
+    if (validationError) { setTitleError(validationError); return; }
+    setTitleError(null);
     setSaving(true);
     try {
       let finalKey = form.imageKey;
@@ -383,8 +399,24 @@ export default function StripBannerScreen() {
                 </Pressable>
               ) : null}
 
-              <Text style={m.label}>제목 *</Text>
-              <TextInput style={m.input} value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))} placeholder="배너 제목" />
+              <View style={m.labelRow}>
+                <Text style={m.label}>제목 *</Text>
+                <Text style={[m.charCount, form.title.length > 15 && m.charCountOver]}>
+                  {form.title.length}/15
+                </Text>
+              </View>
+              <TextInput
+                style={[m.input, titleError ? m.inputError : null]}
+                value={form.title}
+                onChangeText={v => {
+                  const stripped = v.replace(/\n/g, "");
+                  setForm(f => ({ ...f, title: stripped }));
+                  setTitleError(null);
+                }}
+                placeholder="배너 제목 (최대 15자)"
+                maxLength={15}
+              />
+              {titleError ? <Text style={m.errorTxt}>{titleError}</Text> : null}
 
               <Text style={m.label}>설명 (선택)</Text>
               <TextInput style={[m.input, { height: 64, textAlignVertical: "top" }]}
@@ -512,4 +544,9 @@ const m = StyleSheet.create({
   previewTxt:  { flex: 1, fontSize: 12, fontFamily: "Pretendard-SemiBold" },
   saveBtn:     { backgroundColor: P, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   saveTxt:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
+  labelRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4, marginTop: 8 },
+  charCount:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  charCountOver:{ color: "#DC2626" },
+  inputError:  { borderColor: "#DC2626" },
+  errorTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#DC2626", marginTop: 2, marginBottom: 4 },
 });

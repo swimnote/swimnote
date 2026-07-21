@@ -116,6 +116,16 @@ const ac = StyleSheet.create({
   cardImg:    { width: "100%", height: 120, borderRadius: 8, marginBottom: 8 },
 });
 
+// ── 배너 제목 검증 (서버와 동일한 규칙) ──────────────────────────────────
+function validateBannerTitle(title: string, bannerType: "strip" | "slider"): string | null {
+  const newlineCount = (title.match(/\n/g) || []).length;
+  if (bannerType === "slider") {
+    if (newlineCount > 1)  return "제목에는 줄바꿈을 최대 1회만 허용합니다.";
+    if (title.length > 30) return "제목은 최대 30자입니다.";
+  }
+  return null;
+}
+
 interface FormState {
   title: string; description: string; linkUrl: string; linkLabel: string;
   displayStart: string; displayEnd: string;
@@ -153,6 +163,7 @@ export default function AdsScreen() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [titleError, setTitleError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (filter === "all") return ads;
@@ -162,11 +173,13 @@ export default function AdsScreen() {
   function openCreate() {
     setEditId(null);
     setForm(BLANK_FORM);
+    setTitleError(null);
     setShowModal(true);
   }
 
   function openEdit(ad: Ad) {
     setEditId(ad.id);
+    setTitleError(null);
     setForm({
       title: ad.title, description: ad.description,
       linkUrl: ad.linkUrl, linkLabel: ad.linkLabel,
@@ -196,6 +209,9 @@ export default function AdsScreen() {
 
   async function handleSave() {
     if (!form.title.trim() || !token) return;
+    const validationError = validateBannerTitle(form.title.trim(), "slider");
+    if (validationError) { setTitleError(validationError); return; }
+    setTitleError(null);
     setSaving(true);
     try {
       let finalKey = form.imageKey;
@@ -336,8 +352,20 @@ export default function AdsScreen() {
                 );
               })()}
 
-              <Text style={m.label}>제목 *</Text>
-              <TextInput style={m.input} value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))} placeholder="카드 배너 제목" />
+              <View style={m.labelRow}>
+                <Text style={m.label}>제목 *</Text>
+                <Text style={[m.charCount, form.title.length > 30 && m.charCountOver]}>
+                  {form.title.length}/30
+                </Text>
+              </View>
+              <TextInput
+                style={[m.input, titleError ? m.inputError : null]}
+                value={form.title}
+                onChangeText={v => { setForm(f => ({ ...f, title: v })); setTitleError(null); }}
+                placeholder="카드 배너 제목"
+                maxLength={30}
+              />
+              {titleError ? <Text style={m.errorTxt}>{titleError}</Text> : null}
               <Text style={m.label}>설명</Text>
               <TextInput style={[m.input, { height: 80, textAlignVertical: "top" }]} value={form.description}
                 onChangeText={v => setForm(f => ({ ...f, description: v }))} placeholder="카드 배너 내용 설명" multiline />
@@ -459,4 +487,9 @@ const m = StyleSheet.create({
   colorChip:    { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   colorDot:     { width: 10, height: 10, borderRadius: 5 },
   colorLabel:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  labelRow:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4, marginTop: 10 },
+  charCount:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  charCountOver:{ color: "#DC2626" },
+  inputError:   { borderColor: "#DC2626" },
+  errorTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#DC2626", marginTop: 2, marginBottom: 4 },
 });
