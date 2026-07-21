@@ -151,6 +151,7 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
               lessonDate={entry.lesson_date.slice(0, 10)}
               diaryId={entry.id}
               studentId={studentId}
+              parentMode={true}
             />
           ) : null}
         </View>
@@ -215,6 +216,10 @@ export default function ParentDiaryScreen() {
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
+  // diary_id가 전달됐지만 목록에 없을 때 오류 상태
+  const diaryNotFound = !!highlightId && !loading && !refreshing && entries.length > 0
+    && !entries.find(e => e.id === highlightId);
+
   // 하이라이트 항목 스크롤
   useEffect(() => {
     if (!highlightId || entries.length === 0) return;
@@ -256,6 +261,12 @@ export default function ParentDiaryScreen() {
           <BookOpen size={44} color={C.textMuted} />
           <Text style={[ds.emptyTitle, { color: C.text }]}>아직 수업 일지가 없습니다</Text>
           <Text style={[ds.emptySub, { color: C.textSecondary }]}>선생님이 수업 후 일지를 작성하면{"\n"}여기에서 확인하실 수 있습니다</Text>
+        </View>
+      ) : diaryNotFound ? (
+        <View style={ds.empty}>
+          <BookOpen size={44} color={C.textMuted} />
+          <Text style={[ds.emptyTitle, { color: C.text }]}>일지를 찾을 수 없습니다</Text>
+          <Text style={[ds.emptySub, { color: C.textSecondary }]}>요청한 수업일지가 목록에 없습니다{"\n"}아래로 당겨 새로고침해 주세요</Text>
         </View>
       ) : (
         <FlatList

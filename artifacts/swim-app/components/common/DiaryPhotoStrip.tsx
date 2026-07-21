@@ -41,9 +41,10 @@ interface Props {
   lessonDate: string;
   diaryId?: string;
   studentId?: string;
+  parentMode?: boolean;
 }
 
-export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diaryId, studentId }: Props) {
+export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diaryId, studentId, parentMode }: Props) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +63,28 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      // ── 학부모 모드: diaryId 기준 /parent/diary/:diaryId/photos 사용 ──
+      if (parentMode && diaryId) {
+        const [photoRes, videoData] = await Promise.all([
+          apiRequest(token, `/parent/diary/${diaryId}/photos`),
+          fetch(`${API_BASE}/videos/diary/${diaryId}`, { headers: { Authorization: `Bearer ${token}` } })
+            .then(r => r.ok ? r.json() : { videos: [] })
+            .catch(() => ({ videos: [] })),
+        ]);
+        if (photoRes?.ok) {
+          const data = await photoRes.json();
+          const allPhotos: Photo[] = [...(data.common ?? []), ...(data.individual ?? [])];
+          // API는 '/photos/{id}/file' 반환 → photoUrl 헬퍼(BASE_ORIGIN 기준)가 올바른 URL을 만들도록 '/api' 접두사 정규화
+          setPhotos(allPhotos.map(p => ({
+            ...p,
+            file_url: p.file_url?.startsWith("/photos/") ? `/api${p.file_url}` : (p.file_url ?? ""),
+          })));
+        }
+        setVideos(Array.isArray(videoData?.videos) ? videoData.videos : []);
+        return;
+      }
+
+      // ── 선생님 모드: classGroupId + lessonDate 기반 기존 API 사용 ──
       const groupPhotoReq = apiRequest(token, `/photos/group/${classGroupId}?date=${lessonDate}`);
       const privatePhotoReq = studentId
         ? apiRequest(token, `/photos/private/${studentId}?date=${lessonDate}`)
@@ -89,7 +112,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
     } finally {
       setLoading(false);
     }
-  }, [token, classGroupId, lessonDate, diaryId, studentId]);
+  }, [token, classGroupId, lessonDate, diaryId, studentId, parentMode]);
 
   useEffect(() => { load(); }, [load]);
 

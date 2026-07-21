@@ -584,7 +584,17 @@ export default function ParentHomeScreen() {
             {/* 1. 최근 수업일지 */}
             <ParentLatestDiaryCard
               diaries={summary.latest_diaries}
-              onPress={() => router.push("/(parent)/diary?backTo=home" as any)}
+              onPress={() => {
+                const d = summary.latest_diaries?.[0];
+                if (d?.id) {
+                  router.push({
+                    pathname: "/(parent)/diary",
+                    params: { diary_id: d.id, backTo: "home" },
+                  } as any);
+                } else {
+                  router.push("/(parent)/diary?backTo=home" as any);
+                }
+              }}
             />
 
             {/* 2. 최근 사진 */}
