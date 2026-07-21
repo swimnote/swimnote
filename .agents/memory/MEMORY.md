@@ -15,3 +15,4 @@
 - [날짜 시스템 통합 완료](date-system-integration.md) — student_class_history(enrolled_at/left_at) 단일 소스 42개 통합 테스트 전체 통과; 핵심 패턴 및 함정 기록
 - [DiaryWriteView LucideIcon 버그](diary-lucide-import.md) — LucideIcon import 누락 → ErrorFallback; 진단은 배포 로그 CRASH_REPORT로 확인
 - [학부모 앨범 사진 URL 패턴](parent-photo-url-pattern.md) — home.tsx/swim-diary.tsx는 API_BASE+file_url; photos.tsx는 API_BASE.replace(/\/api$/,"")+fileUrl; parent.ts는 각 소비처에 맞는 형식 반환 필요
+- [학부모 /auth/me 테이블 분리 구조](parent-auth-me-table-split.md) — parent_account role은 parent_accounts 테이블 소속; /auth/me에서 role 분기 필수, users 테이블 단독 조회 시 항상 404 → 앱 재실행마다 강제 로그아웃
