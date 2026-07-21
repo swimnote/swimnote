@@ -1,6 +1,7 @@
 import { CircleCheck, CircleX } from "lucide-react-native";
 import React, { useCallback, useRef, useState } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export type ToastType = "success" | "error";
 
@@ -11,6 +12,7 @@ interface ToastState {
 }
 
 export function useToast() {
+  const insets = useSafeAreaInsets();
   const [state, setState] = useState<ToastState>({ message: "", type: "success", visible: false });
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -39,6 +41,7 @@ export function useToast() {
         style={[
           ts.container,
           isSuccess ? ts.success : ts.error,
+          { bottom: insets.bottom + 20 },
           { opacity: fadeAnim, transform: [{ translateY: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] },
         ]}
       >
@@ -56,7 +59,7 @@ export function useToast() {
 const ts = StyleSheet.create({
   container: {
     position: "absolute",
-    bottom: 36,
+    bottom: 20,
     left: 24,
     right: 24,
     flexDirection: "row",

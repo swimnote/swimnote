@@ -192,7 +192,7 @@ export default function DiaryUnwrittenScreen() {
           data={slots}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
-          contentContainerStyle={u.listContent}
+          contentContainerStyle={[u.listContent, { paddingBottom: insets.bottom + 90 }]}
           showsVerticalScrollIndicator={false}
           onRefresh={() => { setRefreshing(true); load(); }}
           refreshing={refreshing}
