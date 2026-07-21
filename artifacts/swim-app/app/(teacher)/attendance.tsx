@@ -200,6 +200,7 @@ export default function TeacherAttendanceScreen() {
         },
       ]
     );
+  }
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (subTab === "makeup") loadMakeups(); }, [subTab, loadMakeups]);
   /* ════════════════════ 출결 체크 함수 ════════════════════ */
@@ -305,6 +306,8 @@ export default function TeacherAttendanceScreen() {
     }
     if (mk) {
       openAssign(mk);
+    }
+  }
   /* ════════════════════ 보강 지정 함수 ════════════════════ */
   async function openAssign(mk: MakeupSession) {
     setAssignTarget(mk);
