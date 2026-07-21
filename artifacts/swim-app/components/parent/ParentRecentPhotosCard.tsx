@@ -25,7 +25,7 @@ interface Props {
 
 function PhotoThumb({ photo, token, totalCount, idx }: { photo: PhotoItem; token: string | null; totalCount: number; idx: number }) {
   const [failed, setFailed] = useState(false);
-  const uri = token ? `${photo.file_url}?_t=${token.slice(-6)}` : photo.file_url;
+  const uri = token ? `${photo.file_url}?token=${token}` : photo.file_url;
   const isLast = idx === 1 && totalCount > 2;
   const extra = totalCount - 2;
 
