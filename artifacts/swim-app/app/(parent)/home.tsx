@@ -12,7 +12,7 @@
  */
 import { ParentPromoStrip } from "@/components/parent/ParentPromoStrip";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -29,10 +29,13 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  ToastAndroid,
   View,
   useWindowDimensions,
 } from "react-native";
 import { Image as ExpoImage } from "expo-image";
+import * as MediaLibrary from "expo-media-library";
+import * as FileSystem from "expo-file-system/legacy";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
@@ -307,35 +310,208 @@ function PoolSelectModal({
   );
 }
 
-// ── 사진 2열 그리드 + 전체화면 뷰어 ──────────────────────────────────────────
+// ── 사진 2열 그리드 + 전체화면 뷰어 (저장 지원) ─────────────────────────────
 function PhotosGrid({
   photos,
   token,
+  diaryId,
+  diaryDate,
 }: {
   photos: PhotoItem[];
   token: string | null;
+  diaryId: string;
+  diaryDate: string;
 }) {
   const { width } = useWindowDimensions();
-  const [viewerIdx, setViewerIdx] = useState<number | null>(null);
+  const insets = useSafeAreaInsets();
 
-  if (!photos.length) return null;
+  // 중복 제거 (ID 기준)
+  const uniquePhotos = useMemo(() => {
+    const seen = new Set<string>();
+    return photos.filter(p => {
+      if (!p.id || seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
+  }, [photos]);
+
+  // 뷰어 상태
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const flatRef = useRef<FlatList<PhotoItem>>(null);
+  const mountedRef = useRef(true);
+
+  // 저장 상태
+  const [saving, setSaving] = useState(false);
+  const [savingAll, setSavingAll] = useState(false);
+  const [saveProgress, setSaveProgress] = useState(0);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  if (!uniquePhotos.length) return null;
 
   const gap = 4;
   const hPad = 40;
   const imgSize = Math.floor((width - hPad - gap) / 2);
 
+  function openViewer(index: number) {
+    setCurrentIdx(index);
+    setSaving(false);
+    setSavingAll(false);
+    setSaveProgress(0);
+    setViewerOpen(true);
+  }
+
+  function closeViewer() {
+    setViewerOpen(false);
+    setCurrentIdx(0);
+    setSaving(false);
+    setSavingAll(false);
+    setSaveProgress(0);
+  }
+
+  // 현재 사진 1장 저장
+  async function saveCurrentPhoto() {
+    if (saving || savingAll) return;
+    const photo = uniquePhotos[currentIdx];
+    if (!photo?.file_url) {
+      Alert.alert("오류", "사진 정보를 찾을 수 없습니다.");
+      return;
+    }
+    setSaving(true);
+    const dateStr = diaryDate.replace(/-/g, "").slice(0, 8);
+    const safeId = diaryId.slice(0, 8);
+    const localUri = `${FileSystem.documentDirectory ?? ""}swimnote_${dateStr}_${safeId}_${String(currentIdx + 1).padStart(2, "0")}.jpg`;
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("권한 필요", "사진 저장을 위해 사진 접근 권한이 필요합니다.\n설정에서 사진 접근 권한을 허용해 주세요.");
+        return;
+      }
+      const url = buildPhotoUri(photo.file_url);
+      const dl = await FileSystem.downloadAsync(url, localUri, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (dl.status !== 200) throw new Error("다운로드 실패");
+      await MediaLibrary.saveToLibraryAsync(dl.uri);
+      FileSystem.deleteAsync(dl.uri, { idempotent: true }).catch(() => {});
+      if (!mountedRef.current) return;
+      if (Platform.OS === "android") {
+        ToastAndroid.show("사진이 저장되었습니다.", ToastAndroid.SHORT);
+      } else {
+        Alert.alert("저장 완료", "사진이 저장되었습니다.");
+      }
+    } catch {
+      FileSystem.deleteAsync(localUri, { idempotent: true }).catch(() => {});
+      if (mountedRef.current) Alert.alert("저장 실패", "사진을 저장하지 못했습니다. 다시 시도해 주세요.");
+    } finally {
+      if (mountedRef.current) setSaving(false);
+    }
+  }
+
+  // 이 수업 사진 모두 저장 (확인창 → 순차 저장 → 결과)
+  async function saveAllPhotos() {
+    if (saving || savingAll || uniquePhotos.length === 0) return;
+    Alert.alert(
+      "이 수업 사진 모두 저장",
+      `사진 ${uniquePhotos.length}장을 기기에 저장하시겠습니까?`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "저장",
+          onPress: async () => {
+            const { status } = await MediaLibrary.requestPermissionsAsync();
+            if (status !== "granted") {
+              Alert.alert("권한 필요", "사진 저장을 위해 사진 접근 권한이 필요합니다.\n설정에서 사진 접근 권한을 허용해 주세요.");
+              return;
+            }
+            if (!mountedRef.current) return;
+            setSavingAll(true);
+            setSaveProgress(0);
+            const total = uniquePhotos.length;
+            const dateStr = diaryDate.replace(/-/g, "").slice(0, 8);
+            const safeId = diaryId.slice(0, 8);
+            let successCount = 0;
+            let failedCount = 0;
+            for (let i = 0; i < total; i++) {
+              const photo = uniquePhotos[i];
+              const localUri = `${FileSystem.documentDirectory ?? ""}swimnote_${dateStr}_${safeId}_${String(i + 1).padStart(2, "0")}.jpg`;
+              try {
+                if (!photo?.file_url) throw new Error("URL 없음");
+                const url = buildPhotoUri(photo.file_url);
+                const dl = await FileSystem.downloadAsync(url, localUri, {
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                if (dl.status !== 200) throw new Error("다운로드 실패");
+                await MediaLibrary.saveToLibraryAsync(dl.uri);
+                FileSystem.deleteAsync(dl.uri, { idempotent: true }).catch(() => {});
+                successCount++;
+              } catch {
+                failedCount++;
+                FileSystem.deleteAsync(localUri, { idempotent: true }).catch(() => {});
+              }
+              if (mountedRef.current) setSaveProgress(i + 1);
+            }
+            if (!mountedRef.current) return;
+            setSavingAll(false);
+            if (failedCount === 0) {
+              Alert.alert("저장 완료", `사진 ${successCount}장이 저장되었습니다.`);
+            } else if (successCount === 0) {
+              Alert.alert("저장 실패", "사진을 저장하지 못했습니다. 다시 시도해 주세요.");
+            } else {
+              Alert.alert(
+                "일부 저장 완료",
+                `사진 ${total}장 중 ${successCount}장이 저장되었습니다.\n${failedCount}장은 저장하지 못했습니다.`,
+              );
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  // FlatList 렌더 아이템
+  const renderViewerItem = useCallback(
+    ({ item, index }: { item: PhotoItem; index: number }) => (
+      <View
+        style={{ width, justifyContent: "center", alignItems: "center", flex: 1 }}
+        accessibilityLabel={`사진 ${index + 1}`}
+      >
+        <ExpoImage
+          source={{
+            uri: buildPhotoUri(item.file_url),
+            headers: { Authorization: `Bearer ${token}` },
+          }}
+          style={{ width, height: width }}
+          contentFit="contain"
+        />
+      </View>
+    ),
+    [token, width],
+  );
+
+  const getViewerItemLayout = useCallback(
+    (_: ArrayLike<PhotoItem> | null | undefined, index: number) => ({
+      length: width,
+      offset: width * index,
+      index,
+    }),
+    [width],
+  );
+
   return (
     <>
-      <View
-        style={{
-          flexDirection: "row",
-          flexWrap: "wrap",
-          gap,
-          marginTop: 12,
-        }}
-      >
-        {photos.map((p, i) => (
-          <Pressable key={p.id} onPress={() => setViewerIdx(i)}>
+      {/* 2열 그리드 */}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap, marginTop: 12 }}>
+        {uniquePhotos.map((p, i) => (
+          <Pressable
+            key={p.id}
+            onPress={() => openViewer(i)}
+            accessibilityLabel="사진 크게 보기"
+          >
             <ExpoImage
               source={{
                 uri: buildPhotoUri(p.file_url),
@@ -349,68 +525,116 @@ function PhotosGrid({
         ))}
       </View>
 
-      {viewerIdx !== null && (
+      {/* 전체화면 뷰어 Modal */}
+      {viewerOpen && (
         <Modal
           visible
-          transparent
-          animationType="fade"
+          transparent={false}
           statusBarTranslucent
-          onRequestClose={() => setViewerIdx(null)}
+          animationType="fade"
+          onRequestClose={closeViewer}
         >
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: "rgba(0,0,0,0.94)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <ExpoImage
-              source={{
-                uri: buildPhotoUri(photos[viewerIdx].file_url),
-                headers: { Authorization: `Bearer ${token}` },
-              }}
-              style={{ width: width - 32, height: width - 32, borderRadius: 4 }}
-              contentFit="contain"
-            />
-            <Text
+          <View style={{ flex: 1, backgroundColor: "#000" }}>
+            {/* 상단: N/M + 닫기 */}
+            <View
               style={{
-                color: "rgba(255,255,255,0.45)",
-                marginTop: 14,
-                fontSize: 13,
-                fontFamily: "Pretendard-Regular",
+                position: "absolute",
+                top: insets.top + 12,
+                left: 0,
+                right: 0,
+                zIndex: 10,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                paddingHorizontal: 20,
               }}
             >
-              {viewerIdx + 1} / {photos.length}
-            </Text>
+              <Text style={{ color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" }}>
+                {currentIdx + 1} / {uniquePhotos.length}
+              </Text>
+              <Pressable
+                onPress={closeViewer}
+                style={{ position: "absolute", right: 20 }}
+                hitSlop={16}
+                accessibilityLabel="사진 뷰어 닫기"
+              >
+                <LucideIcon name="x" size={26} color="#fff" />
+              </Pressable>
+            </View>
 
-            <Pressable
-              onPress={() => setViewerIdx(null)}
-              style={{ position: "absolute", top: 56, right: 20 }}
-              hitSlop={16}
+            {/* 중앙: 수평 FlatList 스와이프 */}
+            <FlatList
+              ref={flatRef}
+              data={uniquePhotos}
+              renderItem={renderViewerItem}
+              getItemLayout={getViewerItemLayout}
+              keyExtractor={p => p.id}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              initialScrollIndex={currentIdx}
+              onMomentumScrollEnd={e => {
+                const idx = Math.round(e.nativeEvent.contentOffset.x / width);
+                if (mountedRef.current)
+                  setCurrentIdx(Math.max(0, Math.min(idx, uniquePhotos.length - 1)));
+              }}
+              style={{ flex: 1 }}
+              bounces={false}
+              decelerationRate="fast"
+            />
+
+            {/* 하단: 저장 버튼 */}
+            <View
+              style={{
+                paddingBottom: insets.bottom + 16,
+                paddingHorizontal: 16,
+                paddingTop: 14,
+                flexDirection: "row",
+                gap: 10,
+              }}
             >
-              <LucideIcon name="x" size={26} color="#fff" />
-            </Pressable>
-
-            {viewerIdx > 0 && (
               <Pressable
-                onPress={() => setViewerIdx(v => (v ?? 1) - 1)}
-                style={{ position: "absolute", left: 12, top: "45%" }}
-                hitSlop={16}
+                onPress={saveCurrentPhoto}
+                disabled={saving || savingAll}
+                accessibilityLabel="현재 사진 저장"
+                style={{
+                  flex: 1,
+                  backgroundColor: "rgba(255,255,255,0.12)",
+                  borderRadius: 10,
+                  paddingVertical: 13,
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.22)",
+                  opacity: saving || savingAll ? 0.5 : 1,
+                }}
               >
-                <LucideIcon name="chevron-left" size={38} color="#fff" />
+                <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" }}>
+                  {saving ? "저장 중..." : "현재 사진 저장"}
+                </Text>
               </Pressable>
-            )}
 
-            {viewerIdx < photos.length - 1 && (
-              <Pressable
-                onPress={() => setViewerIdx(v => (v ?? 0) + 1)}
-                style={{ position: "absolute", right: 12, top: "45%" }}
-                hitSlop={16}
-              >
-                <LucideIcon name="chevron-right" size={38} color="#fff" />
-              </Pressable>
-            )}
+              {uniquePhotos.length >= 2 && (
+                <Pressable
+                  onPress={saveAllPhotos}
+                  disabled={saving || savingAll}
+                  accessibilityLabel="이 수업 사진 모두 저장"
+                  style={{
+                    flex: 1.6,
+                    backgroundColor: savingAll ? "#555" : TEAL,
+                    borderRadius: 10,
+                    paddingVertical: 13,
+                    alignItems: "center",
+                    opacity: saving ? 0.5 : 1,
+                  }}
+                >
+                  <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" }}>
+                    {savingAll
+                      ? `${saveProgress} / ${uniquePhotos.length} 저장 중`
+                      : "이 수업 사진 모두 저장"}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         </Modal>
       )}
@@ -532,7 +756,12 @@ function DiaryFeedItem({
       )}
 
       {photos !== null && allPhotos.length > 0 && (
-        <PhotosGrid photos={allPhotos} token={token} />
+        <PhotosGrid
+          photos={allPhotos}
+          token={token}
+          diaryId={entry.id}
+          diaryDate={entry.lesson_date}
+        />
       )}
 
       {videoCount != null && videoCount > 0 && (
