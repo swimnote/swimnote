@@ -1,5 +1,5 @@
 /**
- * 학부모 홈 — S6 리뉴얼
+ * 학부모 홈 — S7 Soft Snap 적용
  *
  * 구조: 단일 FlatList
  *   ListHeaderComponent
@@ -25,6 +25,7 @@ import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, BackHandler, FlatList, Image, Keyboard, Linking, Modal,
+  NativeScrollEvent, NativeSyntheticEvent,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -35,6 +36,12 @@ import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
+
+// ── Soft Snap 상수 ────────────────────────────────────────────────────────
+// 스냅 포인트 경계 이내일 때만 보정 (px)
+const SNAP_THRESHOLD = 80;
+// 빠른 플링 감지 기준 (px/ms) — 이 속도 이상이면 보정 안 함
+const VELOCITY_CUTOFF = 0.5;
 const IB = "#E6FAF8";
 const TEAL = "#2EC4B6";
 
@@ -177,6 +184,13 @@ function PoolSelectModal({ visible, onClose, onSelect }: {
 export default function ParentHomeScreen() {
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList<FeedItem>>(null);
+
+  // Soft Snap — 스냅 포인트 및 velocity 추적
+  const snapPointsRef     = useRef<number[]>([0]);
+  const lastScrollYRef    = useRef(0);
+  const lastScrollTimeRef = useRef(Date.now());
+  const scrollVelocityRef = useRef(0);
+
   const { token, parentAccount, pool, parentPoolName, logout } = useAuth();
   const { students, selectedStudent, setSelectedStudentId, loading: ctxLoading, refresh } = useParent();
 
@@ -335,6 +349,47 @@ export default function ParentHomeScreen() {
     setRefreshing(false);
   }
 
+  // ── Soft Snap 핸들러 ────────────────────────────────────────────────────
+  // onScroll: velocity 실시간 추적 (iOS velocity API 미지원 Android 대응)
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y;
+    const now = Date.now();
+    const dt = now - lastScrollTimeRef.current;
+    if (dt > 0) {
+      scrollVelocityRef.current = Math.abs(y - lastScrollYRef.current) / dt;
+    }
+    lastScrollYRef.current = y;
+    lastScrollTimeRef.current = now;
+  }, []);
+
+  // onMomentumScrollEnd: 스크롤 정지 후 경계 근처이면 가장 가까운 포인트로 보정
+  const handleMomentumScrollEnd = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const y = e.nativeEvent.contentOffset.y;
+
+      // 빠른 플링 → 보정 안 함
+      if (scrollVelocityRef.current > VELOCITY_CUTOFF) return;
+
+      const points = snapPointsRef.current;
+      let closest = points[0];
+      let minDist = Math.abs(y - closest);
+
+      for (const point of points) {
+        const dist = Math.abs(y - point);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = point;
+        }
+      }
+
+      // SNAP_THRESHOLD 이내이고 현재 위치와 다를 때만 부드럽게 보정
+      if (minDist > 0 && minDist <= SNAP_THRESHOLD) {
+        flatListRef.current?.scrollToOffset({ offset: closest, animated: true });
+      }
+    },
+    [],
+  );
+
   const { unread_counts } = summary;
 
   const newsItems = [
@@ -488,7 +543,11 @@ export default function ParentHomeScreen() {
 
   // ── ListHeaderComponent ───────────────────────────────────────────────
   const ListHeader = (
-    <View>
+    <View onLayout={e => {
+      const h = e.nativeEvent.layout.height;
+      // 스냅 포인트: [맨 위, 피드 시작(헤더 전체 높이)]
+      snapPointsRef.current = [0, h];
+    }}>
       {/* A. Slim Header */}
       <View style={[s.header, { paddingTop: PT }]}>
         <Text style={[s.poolName, { color: C.textMuted }]} numberOfLines={1}>
@@ -688,6 +747,9 @@ export default function ParentHomeScreen() {
         ListHeaderComponent={ListHeader}
         ListFooterComponent={ListFooter}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={handleScroll}
+        onMomentumScrollEnd={handleMomentumScrollEnd}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />
         }
