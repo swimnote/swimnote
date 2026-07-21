@@ -2,7 +2,6 @@
  * (super)/audit-group.tsx — 감사·리스크 그룹
  * 실 API 연결 완료 — useAuditLogStore / useRiskStore 완전 제거
  */
-import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -172,7 +171,7 @@ export default function AuditGroupScreen() {
               <Text style={s.cardTitle}>{m.title}</Text>
               <Text style={s.cardSub}>{m.sub}</Text>
             </View>
-            <ChevronRight size={16} color="#D1D5DB" />
+            <LucideIcon name="chevron-right" size={16} color="#D1D5DB" />
           </Pressable>
         ))}
       </ScrollView>

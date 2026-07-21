@@ -2,7 +2,6 @@
  * (admin)/unit-pricing.tsx — 수업 단가표 설정
  * 주1회/주2회/주3회 월 수업료 설정 → 정산 자동계산에 반영
  */
-import { Check, DollarSign } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {ActivityIndicator, Platform,
   Pressable, StyleSheet, Text, TextInput, View} from "react-native";
@@ -12,6 +11,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { LucideIcon } from "@/components/common/LucideIcon";
 
 const C = Colors.light;
 
@@ -126,7 +126,7 @@ export default function UnitPricingScreen() {
           >
             {saving
               ? <ActivityIndicator color="#fff" size="small" />
-              : <><Check size={14} color="#fff" /><Text style={s.saveBtnTxt}>저장</Text></>
+              : <><LucideIcon name="check" size={14} color="#fff" /><Text style={s.saveBtnTxt}>저장</Text></>
             }
           </Pressable>
         }
@@ -142,7 +142,7 @@ export default function UnitPricingScreen() {
         >
           {/* 안내 */}
           <View style={[s.infoBox, { backgroundColor: themeColor + "12", borderColor: themeColor + "30" }]}>
-            <DollarSign size={14} color={themeColor} />
+            <LucideIcon name="circle-dollar-sign" size={14} color={themeColor} />
             <Text style={[s.infoTxt, { color: C.text }]}>
               월 수업료를 설정하면 수업시수 × 수업당 단가로{"\n"}선생님 정산이 자동 계산됩니다.
             </Text>

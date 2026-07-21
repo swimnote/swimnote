@@ -1,4 +1,4 @@
-import { Home, Layers, Send, Settings, TrendingUp, Users } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { BlurView } from "expo-blur";
 import { Tabs, router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -113,22 +113,22 @@ export default function TeacherLayout() {
       <Tabs.Screen
         name="today-schedule"
         listeners={makeTabListener("today-schedule")}
-        options={{ title: "홈", tabBarIcon: ({ color }) => <Home size={22} color={color} /> }}
+        options={{ title: "홈", tabBarIcon: ({ color }) => <LucideIcon name="home" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="my-schedule"
         listeners={makeTabListener("my-schedule")}
-        options={{ title: "수업관리", tabBarIcon: ({ color }) => <Layers size={22} color={color} /> }}
+        options={{ title: "수업관리", tabBarIcon: ({ color }) => <LucideIcon name="layers" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="students"
         listeners={makeTabListener("students")}
-        options={{ title: "수강관리", tabBarIcon: ({ color }) => <Users size={22} color={color} /> }}
+        options={{ title: "수강관리", tabBarIcon: ({ color }) => <LucideIcon name="users" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="revenue"
         listeners={makeTabListener("revenue")}
-        options={{ title: "정산", tabBarIcon: ({ color }) => <TrendingUp size={22} color={color} /> }}
+        options={{ title: "정산", tabBarIcon: ({ color }) => <LucideIcon name="trending-up" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="messenger"
@@ -155,7 +155,7 @@ export default function TeacherLayout() {
           title: "메신저",
           tabBarIcon: ({ color }) => (
             <View>
-              <Send size={22} color={color} />
+              <LucideIcon name="send" size={22} color={color} />
               {messengerUnread && (
                 <View style={{
                   position: "absolute", top: -2, right: -4,
@@ -170,7 +170,7 @@ export default function TeacherLayout() {
       <Tabs.Screen
         name="settings"
         listeners={makeTabListener("settings")}
-        options={{ title: "설정", tabBarIcon: ({ color }) => <Settings size={22} color={color} /> }}
+        options={{ title: "설정", tabBarIcon: ({ color }) => <LucideIcon name="settings" size={22} color={color} /> }}
       />
 
       {/* ─── 숨김 화면들 (router.push로 접근) ─── */}

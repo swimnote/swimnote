@@ -1,4 +1,3 @@
-import { BookOpen, CircleAlert, Clock, PenLine, Trash2, User } from "lucide-react-native";
 import React from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
@@ -6,6 +5,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { DiaryEntry } from "./types";
 import DiaryPhotoStrip from "@/components/common/DiaryPhotoStrip";
 
@@ -67,7 +67,7 @@ export default function DiaryHistoryList({
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListEmptyComponent={
             <View style={s.emptyBox}>
-              <BookOpen size={32} color={C.textMuted} />
+              <LucideIcon name="book-open" size={32} color={C.textMuted} />
               <Text style={s.emptyText}>작성된 일지가 없습니다</Text>
             </View>
           }
@@ -85,13 +85,13 @@ export default function DiaryHistoryList({
                   )}
                   {item.note_count && Number(item.note_count) > 0 && (
                     <View style={[s.statusBadge, { backgroundColor: "#EEDDF5" }]}>
-                      <User size={10} color="#7C3AED" />
+                      <LucideIcon name="user" size={10} color="#7C3AED" />
                       <Text style={[s.statusBadgeText, { color: "#7C3AED" }]}>개별 {item.note_count}명</Text>
                     </View>
                   )}
                   {isMine && (
                     <View style={[s.statusBadge, { backgroundColor: "#E6FFFA", marginLeft: "auto" }]}>
-                      <PenLine size={10} color="#4EA7D8" />
+                      <LucideIcon name="edit-2" size={10} color="#4EA7D8" />
                       <Text style={[s.statusBadgeText, { color: "#4EA7D8" }]}>탭하여 수정</Text>
                     </View>
                   )}
@@ -101,7 +101,7 @@ export default function DiaryHistoryList({
                     <Text style={[s.diaryCardDate, { color: C.text }]}>{formatLessonDate(item.lesson_date)}</Text>
                     {(item.schedule_days || item.schedule_time) && (
                       <View style={s.scheduleRow}>
-                        <Clock size={11} color={C.textMuted} />
+                        <LucideIcon name="clock" size={11} color={C.textMuted} />
                         <Text style={[s.scheduleText, { color: C.textMuted }]}>
                           {[item.schedule_days ? formatScheduleDays(item.schedule_days) : null, item.schedule_time].filter(Boolean).join(" · ")}
                         </Text>
@@ -112,7 +112,7 @@ export default function DiaryHistoryList({
                   {isMine && (
                     <Pressable style={[s.iconBtn, { backgroundColor: "#FEF2F2" }]}
                       onPress={e => { e.stopPropagation?.(); onDelete(item); }}>
-                      <Trash2 size={13} color={C.error} />
+                      <LucideIcon name="trash-2" size={13} color={C.error} />
                     </Pressable>
                   )}
                 </View>
@@ -137,7 +137,7 @@ export default function DiaryHistoryList({
         <View style={s.delOverlay}>
           <View style={[s.delSheet, { backgroundColor: C.card }]}>
             <View style={[s.delIconWrap, { backgroundColor: "#F9DEDA" }]}>
-              <Trash2 size={26} color={C.error} />
+              <LucideIcon name="trash-2" size={26} color={C.error} />
             </View>
             <Text style={[s.delTitle, { color: C.text }]}>일지 삭제</Text>
             <Text style={[s.delDesc, { color: C.textSecondary }]}>
@@ -145,7 +145,7 @@ export default function DiaryHistoryList({
             </Text>
             {deleteError && (
               <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
-                <CircleAlert size={13} color={C.error} />
+                <LucideIcon name="alert-circle" size={13} color={C.error} />
                 <Text style={[s.inlineErrorText, { color: C.error }]}>{deleteError}</Text>
               </View>
             )}

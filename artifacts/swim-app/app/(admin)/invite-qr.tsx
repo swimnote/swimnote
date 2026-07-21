@@ -2,7 +2,6 @@
  * invite-qr.tsx — 학부모 QR 초대 화면
  * QR 코드를 생성하여 출력하거나 카카오/링크로 공유
  */
-import { Share2, Printer } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -133,11 +132,11 @@ export default function InviteQrScreen() {
         {/* 버튼 그룹 */}
         <View style={s.btnGroup}>
           <Pressable style={[s.btnMain, { backgroundColor: themeColor }]} onPress={handleShare}>
-            <Share2 size={18} color="#fff" />
+            <LucideIcon name="share-2" size={18} color="#fff" />
             <Text style={s.btnMainTxt}>링크 공유 (카카오·문자)</Text>
           </Pressable>
           <Pressable style={s.btnSub} onPress={handlePrintGuide}>
-            <Printer size={16} color={C.textSecondary} />
+            <LucideIcon name="printer" size={16} color={C.textSecondary} />
             <Text style={s.btnSubTxt}>인쇄 방법 안내</Text>
           </Pressable>
         </View>

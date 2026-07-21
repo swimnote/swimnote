@@ -1,5 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
-import { CircleAlert, LogOut } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -110,12 +108,12 @@ export default function OrgRoleSelectScreen() {
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 68 : 16) }]}>
         <View style={styles.headerNameWrap} pointerEvents="none">
           <View style={styles.orgNameRow}>
-            <Ionicons name="water" size={16} color={C.tint} />
+            <LucideIcon name="droplet" size={16} color={C.tint} />
             <Text style={[styles.orgName, { color: C.text }]} numberOfLines={1}>{orgName}</Text>
           </View>
         </View>
         <Pressable onPress={logout} style={styles.logoutBtn} hitSlop={8}>
-          <LogOut size={18} color={C.textMuted} />
+          <LucideIcon name="log-out" size={18} color={C.textMuted} />
         </Pressable>
       </View>
 
@@ -125,7 +123,7 @@ export default function OrgRoleSelectScreen() {
         ) : availableRoles.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={[styles.emptyIconBox, { backgroundColor: "#FFF1BF" }]}>
-              <CircleAlert size={32} color="#D97706" />
+              <LucideIcon name="alert-circle" size={32} color="#D97706" />
             </View>
             <Text style={[styles.emptyTitle, { color: C.text }]}>이용 가능한 권한이 없습니다</Text>
             <Text style={[styles.emptyText, { color: C.textSecondary }]}>

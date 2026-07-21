@@ -1,7 +1,6 @@
 /**
  * (super)/protect-group.tsx — 보호·통제 그룹
  */
-import { ChevronRight, TriangleAlert } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React from "react";
@@ -81,7 +80,7 @@ export default function ProtectGroupScreen() {
 
         {dangerActive > 0 && (
           <View style={s.warningBanner}>
-            <TriangleAlert size={14} color="#D96C6C" />
+            <LucideIcon name="alert-triangle" size={14} color="#D96C6C" />
             <Text style={s.warningTxt}>위험 플래그 {dangerActive}개가 활성화되어 있습니다. 기능 플래그 화면에서 확인하세요.</Text>
           </View>
         )}
@@ -95,7 +94,7 @@ export default function ProtectGroupScreen() {
               <Text style={s.cardTitle}>{m.title}</Text>
               <Text style={s.cardSub}>{m.sub}</Text>
             </View>
-            <ChevronRight size={16} color="#D1D5DB" />
+            <LucideIcon name="chevron-right" size={16} color="#D1D5DB" />
           </Pressable>
         ))}
       </ScrollView>

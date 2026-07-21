@@ -9,11 +9,11 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import { Image } from "expo-image";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import {
   ActivityIndicator, Alert, Dimensions, Modal, Platform, Pressable,
   ScrollView, StyleSheet, Text, ToastAndroid, View,
 } from "react-native";
-import { ChevronLeft, ChevronRight, Download, ImageIcon, Play, X } from "lucide-react-native";
 import { apiRequest, API_BASE } from "@/context/AuthContext";
 
 const SCREEN_W = Dimensions.get("window").width;
@@ -264,7 +264,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
 
   if (totalCount === 0) return (
     <View style={s.emptyRow}>
-      <ImageIcon size={12} color="#CBD5E1" />
+      <LucideIcon name="image" size={12} color="#CBD5E1" />
       <Text style={s.emptyText}>등록된 수업 사진이 없습니다</Text>
     </View>
   );
@@ -272,7 +272,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
   return (
     <View style={s.container}>
       <View style={s.labelRow}>
-        <ImageIcon size={12} color="#2EC4B6" />
+        <LucideIcon name="image" size={12} color="#2EC4B6" />
         <Text style={s.label}>
           수업 미디어{photos.length > 0 ? ` 사진 ${photos.length}장` : ""}{videos.length > 0 ? ` 영상 ${videos.length}개` : ""}
         </Text>
@@ -288,7 +288,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
               <Text style={s.allDlBtnTxt}>저장 {downloadProgress}/{photos.length}</Text>
             ) : (
               <>
-                <Download size={10} color="#2EC4B6" />
+                <LucideIcon name="upload-cloud" size={10} color="#2EC4B6" />
                 <Text style={s.allDlBtnTxt}>전체 저장</Text>
               </>
             )}
@@ -318,7 +318,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
               onPress={() => downloadPhoto(photo)}
               hitSlop={4}
             >
-              <Download size={14} color="#fff" />
+              <LucideIcon name="upload-cloud" size={14} color="#fff" />
             </Pressable>
           </Pressable>
         ))}
@@ -338,13 +338,13 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
                 <View style={s.videoPlaceholder} />
               )}
               <View style={s.videoPlayOverlay}>
-                <Play size={22} color="#fff" fill="#fff" />
+                <LucideIcon name="play" size={22} color="#fff" fill="#fff" />
               </View>
               <View style={s.downloadOverlay}>
-                <Download size={14} color="#fff" />
+                <LucideIcon name="upload-cloud" size={14} color="#fff" />
               </View>
               <View style={s.videoBadge}>
-                <Play size={8} color="#fff" />
+                <LucideIcon name="play" size={8} color="#fff" />
               </View>
             </Pressable>
           );
@@ -363,7 +363,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
           {/* 헤더: 닫기 + 카운터 */}
           <View style={s.viewerHeader}>
             <Pressable style={s.viewerCloseBtn} onPress={() => setViewIdx(null)} hitSlop={8}>
-              <X size={22} color="#fff" />
+              <LucideIcon name="x" size={22} color="#fff" />
             </Pressable>
             <Text style={s.viewerCounter}>
               {viewIdx !== null ? `${viewIdx + 1} / ${photos.length}` : ""}
@@ -401,12 +401,12 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
           {/* 이전/다음 화살표 버튼 */}
           {viewIdx !== null && viewIdx > 0 && (
             <Pressable style={[s.navBtn, s.navBtnLeft]} onPress={goPrev} hitSlop={8}>
-              <ChevronLeft size={28} color="#fff" />
+              <LucideIcon name="chevron-left" size={28} color="#fff" />
             </Pressable>
           )}
           {viewIdx !== null && viewIdx < photos.length - 1 && (
             <Pressable style={[s.navBtn, s.navBtnRight]} onPress={goNext} hitSlop={8}>
-              <ChevronRight size={28} color="#fff" />
+              <LucideIcon name="chevron-right" size={28} color="#fff" />
             </Pressable>
           )}
 
@@ -420,7 +420,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
               >
                 {downloading
                   ? <ActivityIndicator size="small" color="#fff" />
-                  : <Download size={15} color="#fff" />}
+                  : <LucideIcon name="upload-cloud" size={15} color="#fff" />}
                 <Text style={s.dlBtnText}>{downloading ? "저장 중..." : "이 사진만 저장"}</Text>
               </Pressable>
 
@@ -437,7 +437,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
                     </>
                   ) : (
                     <>
-                      <Download size={15} color="#fff" />
+                      <LucideIcon name="upload-cloud" size={15} color="#fff" />
                       <Text style={s.dlBtnText}>전체 {photos.length}장 저장</Text>
                     </>
                   )}
@@ -459,7 +459,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
         <Pressable style={s.overlay} onPress={() => setViewVideo(null)}>
           <View style={s.overlayCard}>
             <Pressable style={s.closeBtn} onPress={() => setViewVideo(null)}>
-              <X size={20} color="#fff" />
+              <LucideIcon name="x" size={20} color="#fff" />
             </Pressable>
             {viewVideo && (
               <>
@@ -471,11 +471,11 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
                   />
                 ) : (
                   <View style={[s.fullImg, { backgroundColor: "#0F172A", alignItems: "center", justifyContent: "center" }]}>
-                    <Play size={52} color="rgba(255,255,255,0.5)" fill="rgba(255,255,255,0.5)" />
+                    <LucideIcon name="play" size={52} color="rgba(255,255,255,0.5)" fill="rgba(255,255,255,0.5)" />
                   </View>
                 )}
                 <View style={s.videoModalPlayIcon} pointerEvents="none">
-                  <Play size={42} color="#fff" fill="#fff" />
+                  <LucideIcon name="play" size={42} color="#fff" fill="#fff" />
                 </View>
                 <Pressable
                   style={[s.dlBtn, { bottom: 16 }, downloadingVideo && { opacity: 0.6 }]}
@@ -484,7 +484,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
                 >
                   {downloadingVideo
                     ? <ActivityIndicator size="small" color="#fff" />
-                    : <Download size={16} color="#fff" />}
+                    : <LucideIcon name="upload-cloud" size={16} color="#fff" />}
                   <Text style={s.dlBtnText}>
                     {downloadingVideo ? "저장 중..." : "영상 다운로드"}
                   </Text>

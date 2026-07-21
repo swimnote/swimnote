@@ -1,6 +1,5 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { LevelBadge, type LevelDef } from "@/components/common/LevelBadge";
-import { Award, TrendingUp } from "lucide-react-native";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -41,7 +40,7 @@ export function ParentGrowthCard({ growth, onPress }: Props) {
       {/* 헤더 */}
       <View style={styles.header}>
         <View style={[styles.iconBg, { backgroundColor: "#DCFCE7" }]}>
-          <TrendingUp size={16} color="#16A34A" />
+          <LucideIcon name="trending-up" size={16} color="#16A34A" />
         </View>
         <Text style={[styles.title, { color: C.text }]}>현재 레벨</Text>
         {hasLevelUp && (
@@ -97,7 +96,7 @@ export function ParentGrowthCard({ growth, onPress }: Props) {
         </View>
       ) : (
         <View style={styles.empty}>
-          <Award size={22} color={C.textMuted} />
+          <LucideIcon name="award" size={22} color={C.textMuted} />
           <Text style={[styles.emptyTxt, { color: C.textMuted }]}>아직 레벨 기록이 없습니다</Text>
         </View>
       )}

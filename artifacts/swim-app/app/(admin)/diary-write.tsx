@@ -13,10 +13,7 @@ import {
   StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  BookOpen, Check, Clock, Image, Info,
-  Layers, Search, SquareCheck, Trash2, X,
-} from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
@@ -231,7 +228,7 @@ export default function AdminDiaryAllScreen() {
           {selectMode && (
             <Pressable onPress={() => toggleSelect(item.id)} style={{ marginRight: 10 }}>
               <View style={[s.checkbox, isSelected && { backgroundColor: themeColor, borderColor: themeColor }]}>
-                {isSelected && <Check size={12} color="#fff" />}
+                {isSelected && <LucideIcon name="check" size={12} color="#fff" />}
               </View>
             </Pressable>
           )}
@@ -255,11 +252,11 @@ export default function AdminDiaryAllScreen() {
 
             {/* 수업일 + 반 */}
             <View style={s.metaRow}>
-              <Clock size={11} color={C.textMuted} />
+              <LucideIcon name="clock" size={11} color={C.textMuted} />
               <Text style={s.metaTxt}>{formatLessonDate(item.lesson_date)}</Text>
               {item.class_name ? (
                 <>
-                  <Layers size={11} color={C.textMuted} style={{ marginLeft: 8 }} />
+                  <LucideIcon name="layers" size={11} color={C.textMuted} style={{ marginLeft: 8 }} />
                   <Text style={s.metaTxt}>{item.class_name}</Text>
                 </>
               ) : null}
@@ -327,7 +324,7 @@ export default function AdminDiaryAllScreen() {
 
       {/* 검색바 */}
       <View style={s.searchWrap}>
-        <Search size={16} color={C.textMuted} style={{ marginLeft: 12 }} />
+        <LucideIcon name="search" size={16} color={C.textMuted} style={{ marginLeft: 12 }} />
         <TextInput
           style={s.searchInput}
           placeholder="선생님·반 이름·날짜·내용 검색"
@@ -338,7 +335,7 @@ export default function AdminDiaryAllScreen() {
         />
         {query.length > 0 && (
           <Pressable onPress={() => setQuery("")} style={{ paddingHorizontal: 10 }}>
-            <X size={15} color={C.textMuted} />
+            <LucideIcon name="x" size={15} color={C.textMuted} />
           </Pressable>
         )}
       </View>
@@ -347,7 +344,7 @@ export default function AdminDiaryAllScreen() {
       {selectMode ? (
         <View style={[s.toolbar, { borderBottomColor: C.border }]}>
           <Pressable style={s.toolbarBtn} onPress={toggleSelectAll}>
-            <SquareCheck size={15} color={themeColor} />
+            <LucideIcon name="check-square" size={15} color={themeColor} />
             <Text style={[s.toolbarBtnTxt, { color: themeColor }]}>
               {selected.size === filtered.length ? "전체 해제" : "전체 선택"}
             </Text>
@@ -361,7 +358,7 @@ export default function AdminDiaryAllScreen() {
               ? <ActivityIndicator color={C.error} size="small" />
               : (
                 <>
-                  <Trash2 size={14} color={C.error} />
+                  <LucideIcon name="trash-2" size={14} color={C.error} />
                   <Text style={[s.toolbarBtnTxt, { color: C.error }]}>
                     선택 삭제 ({selected.size})
                   </Text>
@@ -372,7 +369,7 @@ export default function AdminDiaryAllScreen() {
         </View>
       ) : (
         <View style={s.infoBar}>
-          <Info size={12} color={C.textMuted} />
+          <LucideIcon name="info" size={12} color={C.textMuted} />
           <Text style={s.infoTxt}>항목을 눌러 읽기 · 길게 눌러 선택 삭제</Text>
         </View>
       )}
@@ -390,7 +387,7 @@ export default function AdminDiaryAllScreen() {
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
       ) : loadError ? (
         <View style={s.empty}>
-          <Info size={40} color="#EF4444" />
+          <LucideIcon name="info" size={40} color="#EF4444" />
           <Text style={[s.emptyTitle, { color: "#EF4444" }]}>불러오기 실패</Text>
           <Text style={[s.emptyTitle, { fontSize: 13, color: C.textSecondary, marginTop: 8, textAlign: "center", paddingHorizontal: 24 }]}>{loadError}</Text>
           <Pressable onPress={() => load()} style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: themeColor, borderRadius: 8 }}>
@@ -408,7 +405,7 @@ export default function AdminDiaryAllScreen() {
           refreshing={refreshing}
           ListEmptyComponent={
             <View style={s.empty}>
-              <BookOpen size={44} color={C.textMuted} />
+              <LucideIcon name="book-open" size={44} color={C.textMuted} />
               <Text style={s.emptyTitle}>
                 {query ? "검색 결과가 없습니다" : "작성된 일지가 없습니다"}
               </Text>
@@ -432,7 +429,7 @@ export default function AdminDiaryAllScreen() {
               style={[s.modeBtn, { backgroundColor: "#FFF1BF", borderColor: "#FDE68A" }]}
               onPress={() => handleModeSelect("photo_only")}
             >
-              <Image size={18} color="#B45309" />
+              <LucideIcon name="image" size={18} color="#B45309" />
               <View style={{ flex: 1 }}>
                 <Text style={[s.modeBtnTitle, { color: "#B45309" }]}>사진만 삭제</Text>
                 <Text style={[s.modeBtnDesc, { color: "#78350F" }]}>글 내용은 유지, 첨부 사진만 제거</Text>
@@ -442,7 +439,7 @@ export default function AdminDiaryAllScreen() {
               style={[s.modeBtn, { backgroundColor: "#F9DEDA", borderColor: "#FCA5A5" }]}
               onPress={() => handleModeSelect("full")}
             >
-              <Trash2 size={18} color={C.error} />
+              <LucideIcon name="trash-2" size={18} color={C.error} />
               <View style={{ flex: 1 }}>
                 <Text style={[s.modeBtnTitle, { color: C.error }]}>글 전체 삭제</Text>
                 <Text style={[s.modeBtnDesc, { color: "#7F1D1D" }]}>일지 전체를 삭제 (복구 불가)</Text>

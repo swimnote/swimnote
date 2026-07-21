@@ -2,7 +2,6 @@
  * 더보기 탭 — 프로필 + 활동 로그 (최소화 버전)
  * 대부분의 메뉴는 홈 대시보드 5대 카테고리 팝업으로 이동됨
  */
-import { Activity, ChevronRight, Info, Repeat, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -145,7 +144,7 @@ export default function MoreScreen() {
                 style={[s.switchBtn, { borderColor: themeColor }]}
                 onPress={() => setSwitchModalVisible(true)}
               >
-                <Repeat size={14} color={themeColor} />
+                <LucideIcon name="repeat" size={14} color={themeColor} />
                 <Text style={[s.switchBtnText, { color: themeColor }]}>역할 전환</Text>
               </Pressable>
             )}
@@ -153,7 +152,7 @@ export default function MoreScreen() {
 
           {/* 안내 배너 */}
           <View style={s.infoBanner}>
-            <Info size={14} color="#2EC4B6" />
+            <LucideIcon name="info" size={14} color="#2EC4B6" />
             <Text style={s.infoBannerText}>
               메뉴 대부분은 홈 화면 아이콘(운영 관리·데이터 관리·수업 설정·운영 설정)에서 바로 접근할 수 있습니다.
             </Text>

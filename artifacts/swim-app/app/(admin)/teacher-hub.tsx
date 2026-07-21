@@ -3,7 +3,7 @@
  * 실 DB: GET /admin/teacher-hub/:id
  * 탭: 담당회원 / 출결 / 수업일지 / 보강
  */
-import { ChevronRight, Trash2 } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -125,7 +125,7 @@ export default function TeacherHubScreen() {
             style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#FEF2F2" }}>
             {deleteTeacherLoading
               ? <ActivityIndicator size="small" color="#E11D48" />
-              : <Trash2 size={18} color="#E11D48" />}
+              : <LucideIcon name="trash-2" size={18} color="#E11D48" />}
           </Pressable>
         }
       />
@@ -165,7 +165,7 @@ export default function TeacherHubScreen() {
                   <Text style={s.name}>{item.name}</Text>
                   <Text style={s.sub}>{item.class_name || "반 미배정"}</Text>
                 </View>
-                <ChevronRight size={16} color={C.textSecondary} />
+                <LucideIcon name="chevron-right" size={16} color={C.textSecondary} />
               </View>
             </Pressable>
           );
@@ -194,7 +194,7 @@ export default function TeacherHubScreen() {
                   {item.is_edited && <Text style={[s.sub, { color: "#D97706" }]}>수정됨</Text>}
                 </View>
                 <Pressable onPress={() => deleteDiary(item.id)} style={{ padding: 6 }}>
-                  <Trash2 size={16} color="#D96C6C" />
+                  <LucideIcon name="trash-2" size={16} color="#D96C6C" />
                 </Pressable>
               </View>
             </View>

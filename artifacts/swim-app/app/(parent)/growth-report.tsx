@@ -5,7 +5,6 @@
  * - 최근 수업 일지 피드백
  * - 공유 버튼 (카카오톡 포함)
  */
-import { Award, BookOpen, Calendar, ChevronLeft, Share2, TrendingUp } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -14,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
@@ -134,12 +134,12 @@ export default function GrowthReportScreen() {
       <View style={[gr.root, { paddingTop: PT }]}>
         <View style={gr.topBar}>
           <Pressable style={gr.backBtn} onPress={() => router.back()}>
-            <ChevronLeft size={22} color={C.text} />
+            <LucideIcon name="chevron-left" size={22} color={C.text} />
           </Pressable>
           <Text style={gr.topTitle}>성장 리포트</Text>
         </View>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12 }}>
-          <TrendingUp size={36} color={C.textMuted} />
+          <LucideIcon name="trending-up" size={36} color={C.textMuted} />
           <Text style={{ fontSize: 15, color: C.textSecondary, fontFamily: "Pretendard-Regular" }}>
             {error || "리포트 데이터가 없습니다."}
           </Text>
@@ -164,14 +164,14 @@ export default function GrowthReportScreen() {
       {/* 상단 바 */}
       <View style={gr.topBar}>
         <Pressable style={gr.backBtn} onPress={() => router.back()}>
-          <ChevronLeft size={22} color={C.text} />
+          <LucideIcon name="chevron-left" size={22} color={C.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={gr.topTitle}>{student_name}의 성장 리포트</Text>
           <Text style={gr.topSub}>{period_label} · {class_name}</Text>
         </View>
         <Pressable style={gr.shareTopBtn} onPress={handleShare}>
-          <Share2 size={15} color="#4EA7D8" />
+          <LucideIcon name="share-2" size={15} color="#4EA7D8" />
           <Text style={gr.shareTopText}>공유</Text>
         </Pressable>
       </View>
@@ -184,22 +184,22 @@ export default function GrowthReportScreen() {
         {/* ── 요약 카드 ── */}
         <View style={gr.summaryRow}>
           <View style={[gr.summaryChip, { backgroundColor: "#ECFDF5" }]}>
-            <Calendar size={14} color="#059669" />
+            <LucideIcon name="calendar" size={14} color="#059669" />
             <Text style={[gr.summaryVal, { color: "#059669" }]}>{totalPresent}회</Text>
             <Text style={[gr.summaryKey, { color: "#059669" }]}>출석</Text>
           </View>
           <View style={[gr.summaryChip, { backgroundColor: "#FEF2F2" }]}>
-            <Calendar size={14} color="#DC2626" />
+            <LucideIcon name="calendar" size={14} color="#DC2626" />
             <Text style={[gr.summaryVal, { color: "#DC2626" }]}>{totalAbsent}회</Text>
             <Text style={[gr.summaryKey, { color: "#DC2626" }]}>결석</Text>
           </View>
           <View style={[gr.summaryChip, { backgroundColor: "#EFF6FF" }]}>
-            <BookOpen size={14} color="#2563EB" />
+            <LucideIcon name="book-open" size={14} color="#2563EB" />
             <Text style={[gr.summaryVal, { color: "#2563EB" }]}>{total_lessons}회</Text>
             <Text style={[gr.summaryKey, { color: "#2563EB" }]}>수업 일수</Text>
           </View>
           <View style={[gr.summaryChip, { backgroundColor: overallRate >= 80 ? "#ECFDF5" : "#FEF9C3" }]}>
-            <TrendingUp size={14} color={overallRate >= 80 ? "#059669" : "#D97706"} />
+            <LucideIcon name="trending-up" size={14} color={overallRate >= 80 ? "#059669" : "#D97706"} />
             <Text style={[gr.summaryVal, { color: overallRate >= 80 ? "#059669" : "#D97706" }]}>{overallRate}%</Text>
             <Text style={[gr.summaryKey, { color: overallRate >= 80 ? "#059669" : "#D97706" }]}>출석률</Text>
           </View>
@@ -209,7 +209,7 @@ export default function GrowthReportScreen() {
         <View style={gr.card}>
           <View style={gr.cardHeader}>
             <View style={[gr.cardIconBg, { backgroundColor: "#DBEAFE" }]}>
-              <Calendar size={15} color="#2563EB" />
+              <LucideIcon name="calendar" size={15} color="#2563EB" />
             </View>
             <Text style={gr.cardTitle}>월별 출석 현황</Text>
           </View>
@@ -231,12 +231,12 @@ export default function GrowthReportScreen() {
           <View style={gr.card}>
             <View style={gr.cardHeader}>
               <View style={[gr.cardIconBg, { backgroundColor: "#DCFCE7" }]}>
-                <Award size={15} color="#16A34A" />
+                <LucideIcon name="award" size={15} color="#16A34A" />
               </View>
               <Text style={gr.cardTitle}>레벨 히스토리</Text>
               {leveledUp && (
                 <View style={gr.upBadge}>
-                  <TrendingUp size={11} color="#16A34A" />
+                  <LucideIcon name="trending-up" size={11} color="#16A34A" />
                   <Text style={gr.upBadgeText}>레벨 상승!</Text>
                 </View>
               )}
@@ -281,7 +281,7 @@ export default function GrowthReportScreen() {
           <View style={gr.card}>
             <View style={gr.cardHeader}>
               <View style={[gr.cardIconBg, { backgroundColor: "#EDE9FE" }]}>
-                <BookOpen size={15} color="#7C3AED" />
+                <LucideIcon name="book-open" size={15} color="#7C3AED" />
               </View>
               <Text style={gr.cardTitle}>최근 수업 피드백</Text>
             </View>
@@ -300,7 +300,7 @@ export default function GrowthReportScreen() {
 
         {/* ── 공유 버튼 ── */}
         <Pressable style={gr.shareBtn} onPress={handleShare}>
-          <Share2 size={16} color="#fff" />
+          <LucideIcon name="share-2" size={16} color="#fff" />
           <Text style={gr.shareBtnText}>카카오톡으로 공유하기</Text>
         </Pressable>
 

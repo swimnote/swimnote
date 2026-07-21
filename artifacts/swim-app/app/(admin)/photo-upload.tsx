@@ -1,4 +1,4 @@
-import { Camera, Check, Info, Plus, Search, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
 import { compressImageIfNeeded } from "../../utils/compressImage";
 import { router } from "expo-router";
@@ -130,7 +130,7 @@ export default function PhotoUploadScreen() {
         />
 
         <View style={[styles.searchBox, { borderColor: C.border, backgroundColor: C.card, marginHorizontal: 20, marginBottom: 8 }]}>
-          <Search size={16} color={C.textMuted} />
+          <LucideIcon name="search" size={16} color={C.textMuted} />
           <TextInput style={[styles.searchInput, { color: C.text }]} value={search} onChangeText={setSearch} placeholder="이름 또는 전화번호 검색" placeholderTextColor={C.textMuted} />
         </View>
 
@@ -138,7 +138,7 @@ export default function PhotoUploadScreen() {
         {filtered.length > 0 && (
           <Pressable style={[styles.selectAllRow, { borderColor: C.border }]} onPress={() => toggleAll(filtered)}>
             <View style={[styles.checkbox, { borderColor: allFiltered ? C.tint : C.border, backgroundColor: allFiltered ? C.tint : "transparent" }]}>
-              {allFiltered && <Check size={12} color="#fff" />}
+              {allFiltered && <LucideIcon name="check" size={12} color="#fff" />}
             </View>
             <Text style={[styles.selectAllText, { color: C.textSecondary }]}>전체 선택 ({filtered.length}명)</Text>
           </Pressable>
@@ -157,7 +157,7 @@ export default function PhotoUploadScreen() {
                   onPress={() => toggleStudent(s.id)}
                 >
                   <View style={[styles.checkbox, { borderColor: sel ? C.tint : C.border, backgroundColor: sel ? C.tint : "transparent" }]}>
-                    {sel && <Check size={12} color="#fff" />}
+                    {sel && <LucideIcon name="check" size={12} color="#fff" />}
                   </View>
                   <View style={[styles.avatar, { backgroundColor: C.tintLight }]}>
                     <Text style={[styles.avatarText, { color: C.tint }]}>{(s.name || "?")[0]}</Text>
@@ -228,19 +228,19 @@ export default function PhotoUploadScreen() {
                   <View key={i} style={styles.previewWrap}>
                     <Image source={{ uri: img.uri }} style={styles.previewImg} resizeMode="cover" />
                     <Pressable style={[styles.removeBtn, { backgroundColor: C.error }]} onPress={() => setImages(prev => prev.filter((_, j) => j !== i))}>
-                      <X size={12} color="#fff" />
+                      <LucideIcon name="x" size={12} color="#fff" />
                     </Pressable>
                   </View>
                 ))}
               </KeyboardAwareScrollView>
               <Pressable style={[styles.addMoreBtn, { borderColor: C.border, marginTop: 12 }]} onPress={pickImages}>
-                <Plus size={16} color={C.textSecondary} />
+                <LucideIcon name="plus" size={16} color={C.textSecondary} />
                 <Text style={[styles.addMoreText, { color: C.textSecondary }]}>사진 추가</Text>
               </Pressable>
             </>
           ) : (
             <Pressable style={[styles.pickBtn, { borderColor: C.border, backgroundColor: C.card, marginTop: 12 }]} onPress={pickImages}>
-              <Camera size={28} color={C.tint} />
+              <LucideIcon name="camera" size={28} color={C.tint} />
               <Text style={[styles.pickText, { color: C.text }]}>사진 선택하기</Text>
               <Text style={[styles.pickSub, { color: C.textMuted }]}>갤러리에서 여러 장 선택 가능</Text>
             </Pressable>
@@ -249,7 +249,7 @@ export default function PhotoUploadScreen() {
 
         {images.length > 0 && (
           <View style={[styles.infoBox, { backgroundColor: C.tintLight, borderRadius: 12, padding: 14 }]}>
-            <Info size={14} color={C.tint} />
+            <LucideIcon name="info" size={14} color={C.tint} />
             <Text style={[styles.infoText, { color: C.tint }]}>
               {selected.size}명의 사진첩에 {images.length}장씩{"\n"}총 {selected.size * images.length}장이 업로드됩니다
             </Text>

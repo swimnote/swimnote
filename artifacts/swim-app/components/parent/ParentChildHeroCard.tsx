@@ -1,4 +1,3 @@
-import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { LevelBadge, type LevelDef } from "@/components/common/LevelBadge";
 import React from "react";
@@ -59,7 +58,7 @@ export function ParentChildHeroCard({ student, attended, total, todaySchedule, c
             <Text style={[styles.sub, { color: C.textMuted }]}>반 정보가 아직 없습니다</Text>
           )}
         </View>
-        <ChevronRight size={16} color={C.textMuted} />
+        <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
       </View>
 
       {/* 구분선 */}

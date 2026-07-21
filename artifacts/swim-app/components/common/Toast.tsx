@@ -1,4 +1,4 @@
-import { CircleCheck, CircleX } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useRef, useState } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -46,8 +46,8 @@ export function useToast() {
         ]}
       >
         {isSuccess
-          ? <CircleCheck size={16} color="#fff" />
-          : <CircleX size={16} color="#fff" />}
+          ? <LucideIcon name="check-circle" size={16} color="#fff" />
+          : <LucideIcon name="x-circle" size={16} color="#fff" />}
         <Text style={ts.text} numberOfLines={2}>{state.message}</Text>
       </Animated.View>
     );

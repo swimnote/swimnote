@@ -1,5 +1,4 @@
 import { validateName, validatePhone, normalizePhone } from "@/utils/validation";
-import { CircleAlert, DollarSign, File, Tag, Type, Users, BookOpen, CreditCard, Award, Gift, ShoppingBag } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -247,13 +246,13 @@ export default function PoolSettingsScreen() {
       <KeyboardAwareScrollView ref={scrollRef} contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: insets.bottom + 60 }} showsVerticalScrollIndicator={false}>
         {hasFieldErrors ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", padding: 12, borderRadius: 10 }}>
-            <CircleAlert size={15} color="#DC2626" />
+            <LucideIcon name="alert-circle" size={15} color="#DC2626" />
             <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>입력 오류가 있습니다. 아래 항목을 확인해주세요.</Text>
           </View>
         ) : null}
         {error ? (
           <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-            <CircleAlert size={14} color={C.error} />
+            <LucideIcon name="alert-circle" size={14} color={C.error} />
             <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
           </View>
         ) : null}
@@ -301,7 +300,7 @@ export default function PoolSettingsScreen() {
               borderColor: nameEnStatus === "changed" ? "#D97706" : nameEnStatus === "ok" ? "#16A34A" : C.border,
               backgroundColor: C.background,
             }]}>
-              <Type size={16} color={C.textMuted} style={styles.inputIcon} />
+              <LucideIcon name="type" size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.name_en}
@@ -329,7 +328,7 @@ export default function PoolSettingsScreen() {
 
           {form.name_en ? (
             <View style={[styles.previewBox, { backgroundColor: C.tintLight }]}>
-              <File size={14} color={C.tint} />
+              <LucideIcon name="file" size={14} color={C.tint} />
               <Text style={[styles.previewText, { color: C.tint }]}>
                 파일명 예시: {form.name_en}_20260314_154530_a3f8.jpg
               </Text>
@@ -340,7 +339,7 @@ export default function PoolSettingsScreen() {
         {/* 반 기본 설정 */}
         <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Users size={16} color={C.tint} />
+            <LucideIcon name="users" size={16} color={C.tint} />
             <Text style={[styles.sectionTitle, { color: C.text }]}>반 기본 설정</Text>
           </View>
           <Text style={[styles.hint, { color: C.textMuted }]}>
@@ -349,7 +348,7 @@ export default function PoolSettingsScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>기본 정원 (명)</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Users size={16} color={C.textMuted} style={styles.inputIcon} />
+              <LucideIcon name="users" size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={defaultCapacity}
@@ -385,7 +384,7 @@ export default function PoolSettingsScreen() {
         {pricing.length > 0 && (
           <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <DollarSign size={16} color="#7C3AED" />
+              <LucideIcon name="dollar-sign" size={16} color="#7C3AED" />
               <Text style={[styles.sectionTitle, { color: C.text }]}>수업 단가표</Text>
             </View>
             <Text style={[styles.hint, { color: C.textMuted }]}>월 수업료 기준. 주1회=4회, 주2회=8회, 주3회=12회 기본.</Text>
@@ -397,7 +396,7 @@ export default function PoolSettingsScreen() {
                 </Text>
                 {p.type_key.startsWith("custom") && (
                   <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-                    <Tag size={16} color={C.textMuted} style={styles.inputIcon} />
+                    <LucideIcon name="tag" size={16} color={C.textMuted} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: C.text }]}
                       value={getPricingVal(p, "type_name")}
@@ -408,7 +407,7 @@ export default function PoolSettingsScreen() {
                 )}
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background, flex: 1 }]}>
-                    <DollarSign size={14} color={C.textMuted} style={styles.inputIcon} />
+                    <LucideIcon name="dollar-sign" size={14} color={C.textMuted} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: C.text }]}
                       value={getPricingVal(p, "monthly_fee")}

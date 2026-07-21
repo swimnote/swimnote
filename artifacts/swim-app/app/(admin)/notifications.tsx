@@ -1,4 +1,3 @@
-import { BellOff, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -102,7 +101,7 @@ export default function AdminNotificationsScreen() {
         >
           {notifications.length === 0 && (
             <View style={styles.empty}>
-              <BellOff size={40} color={C.textMuted} />
+              <LucideIcon name="bell-off" size={40} color={C.textMuted} />
               <Text style={[styles.emptyText, { color: C.textMuted }]}>알림이 없습니다</Text>
             </View>
           )}
@@ -126,7 +125,7 @@ export default function AdminNotificationsScreen() {
                 <View style={styles.cardRight}>
                   {!n.is_read && <View style={[styles.dot, { backgroundColor: C.tint }]} />}
                   <Pressable onPress={() => deleteNotif(n.id)} hitSlop={8}>
-                    <X size={14} color={C.textMuted} />
+                    <LucideIcon name="x" size={14} color={C.textMuted} />
                   </Pressable>
                 </View>
               </Pressable>

@@ -3,7 +3,6 @@
  *
  * 변경: 보강 반 일지 표시(is_makeup_diary), 공통/개인 사진 표시
  */
-import { BookOpen, User, Calendar, Images } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -151,7 +150,7 @@ function DiaryCard({ entry, defaultOpen, token }: { entry: DiaryEntry; defaultOp
             )}
             {entry.student_note && (
               <View style={[s.editedBadge, { backgroundColor: "#EEDDF5" }]}>
-                <User size={9} color="#7C3AED" />
+                <LucideIcon name="user" size={9} color="#7C3AED" />
                 <Text style={[s.editedBadgeText, { color: "#7C3AED" }]}>개별 일지</Text>
               </View>
             )}
@@ -187,7 +186,7 @@ function DiaryCard({ entry, defaultOpen, token }: { entry: DiaryEntry; defaultOp
                 <View style={s.noteSeparator}>
                   <View style={[s.noteSepLine, { backgroundColor: "#E9D5FF" }]} />
                   <View style={[s.noteSepBadge, { backgroundColor: "#F3E8FF" }]}>
-                    <User size={10} color="#7C3AED" />
+                    <LucideIcon name="user" size={10} color="#7C3AED" />
                     <Text style={s.noteSepText}>우리 아이 개별 메모</Text>
                   </View>
                   <View style={[s.noteSepLine, { backgroundColor: "#E9D5FF" }]} />
@@ -196,7 +195,7 @@ function DiaryCard({ entry, defaultOpen, token }: { entry: DiaryEntry; defaultOp
               <View style={[s.noteBox, { backgroundColor: "#EEDDF5", borderColor: "#E9D5FF" }]}>
                 {!entry.common_content && (
                   <View style={s.sectionHeader}>
-                    <User size={12} color="#7C3AED" />
+                    <LucideIcon name="user" size={12} color="#7C3AED" />
                     <Text style={s.noteTitle}>우리 아이 개별 메모</Text>
                   </View>
                 )}
@@ -220,7 +219,7 @@ function DiaryCard({ entry, defaultOpen, token }: { entry: DiaryEntry; defaultOp
               {photos.common.length > 0 && (
                 <View style={s.photoSection}>
                   <View style={s.sectionHeader}>
-                    <Images size={13} color={C.tint} />
+                    <LucideIcon name="image" size={13} color={C.tint} />
                     <Text style={[s.sectionLabel, { color: C.tint }]}>수업 사진</Text>
                   </View>
                   <PhotoGrid photos={photos.common} token={token} />
@@ -230,7 +229,7 @@ function DiaryCard({ entry, defaultOpen, token }: { entry: DiaryEntry; defaultOp
               {photos.individual.length > 0 && (
                 <View style={s.photoSection}>
                   <View style={s.sectionHeader}>
-                    <User size={13} color="#7C3AED" />
+                    <LucideIcon name="user" size={13} color="#7C3AED" />
                     <Text style={[s.sectionLabel, { color: "#7C3AED" }]}>우리 아이 사진</Text>
                   </View>
                   <PhotoGrid photos={photos.individual} token={token} />
@@ -252,7 +251,7 @@ function WeekHeader({ label }: { label: string }) {
     <View style={s.weekHeader}>
       <View style={[s.weekLine, { backgroundColor: C.border }]} />
       <View style={[s.weekBadge, { backgroundColor: C.card, borderColor: C.border }]}>
-        <Calendar size={11} color={C.textMuted} />
+        <LucideIcon name="calendar" size={11} color={C.textMuted} />
         <Text style={[s.weekLabel, { color: C.textMuted }]}>{label}</Text>
       </View>
       <View style={[s.weekLine, { backgroundColor: C.border }]} />
@@ -308,7 +307,7 @@ export default function SwimDiaryScreen() {
         >
           {entries.length === 0 ? (
             <View style={s.empty}>
-              <BookOpen size={44} color={C.textMuted} />
+              <LucideIcon name="book-open" size={44} color={C.textMuted} />
               <Text style={[s.emptyTitle, { color: C.text }]}>아직 수업 일지가 없습니다</Text>
               <Text style={[s.emptySub, { color: C.textSecondary }]}>
                 선생님이 수업 후 일지를 작성하면{"\n"}여기에서 확인하실 수 있습니다

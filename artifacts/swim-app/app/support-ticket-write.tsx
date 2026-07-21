@@ -5,7 +5,7 @@
  *   type  = general | emergency | security | refund  (없으면 관리자용 선택)
  *   showTypeSelect = true  → 수영장관리자용 유형 선택 먼저
  */
-import { Camera, ChevronLeft, MessageCircle, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
@@ -124,7 +124,7 @@ export default function SupportTicketWriteScreen() {
       {/* 헤더 */}
       <View style={s.header}>
         <Pressable onPress={() => router.back()} style={s.backBtn}>
-          <ChevronLeft size={24} color={C.text} />
+          <LucideIcon name="chevron-left" size={24} color={C.text} />
         </Pressable>
         <Text style={s.headerTitle}>문의하기</Text>
         <View style={{ width: 36 }} />
@@ -207,13 +207,13 @@ export default function SupportTicketWriteScreen() {
                 <View key={idx} style={s.imageWrap}>
                   <Image source={{ uri }} style={s.thumbImg} />
                   <Pressable style={s.removeImg} onPress={() => removeImage(idx)}>
-                    <X size={12} color="#fff" />
+                    <LucideIcon name="x" size={12} color="#fff" />
                   </Pressable>
                 </View>
               ))}
               {images.length < 2 && (
                 <Pressable style={s.addImgBtn} onPress={pickImage}>
-                  <Camera size={22} color={C.textMuted} />
+                  <LucideIcon name="camera" size={22} color={C.textMuted} />
                   <Text style={s.addImgTxt}>사진 추가</Text>
                 </Pressable>
               )}

@@ -1,4 +1,3 @@
-import { Globe, Lock, Trash2 } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -15,87 +14,97 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 const C = Colors.light;
 
 export default function WebPinSettingsScreen() {
-  const { token } = useAuth();
   const insets = useSafeAreaInsets();
+  const { token } = useAuth();
 
-  const [webPinSet, setWebPinSet] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
-
+  const [saving, setSaving] = useState(false);
+  const [webPinSet, setWebPinSet] = useState(false);
   const [currentPw, setCurrentPw] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
-  const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   const loadStatus = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
     try {
-      const res = await apiRequest(token, "/auth/web-pin/status");
-      if (res.ok) {
-        const data = await res.json();
-        setWebPinSet(data.web_pin_set === true);
+      const r = await apiRequest(token, "/pools/web-pin-status");
+      if (r.ok) {
+        const data = await r.json();
+        setWebPinSet(!!data.isSet);
       }
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
 
-  useEffect(() => { loadStatus(); }, [loadStatus]);
+  useEffect(() => {
+    loadStatus();
+  }, [loadStatus]);
 
-  const handleSave = async () => {
-    if (!newPin) { setMsg({ text: "새 웹 접속 비밀번호를 입력해주세요.", ok: false }); return; }
-    if (newPin.length < 4) { setMsg({ text: "웹 접속 비밀번호는 4자리 이상이어야 합니다.", ok: false }); return; }
-    if (newPin !== confirmPin) { setMsg({ text: "비밀번호가 일치하지 않습니다.", ok: false }); return; }
+  async function handleSave() {
+    if (!token) return;
+    if (newPin.length < 4) {
+      setMsg({ text: "비밀번호는 4자리 이상이어야 합니다.", ok: false });
+      return;
+    }
+    if (newPin !== confirmPin) {
+      setMsg({ text: "새 비밀번호가 일치하지 않습니다.", ok: false });
+      return;
+    }
+
     setSaving(true);
     setMsg(null);
     try {
-      const res = await apiRequest(token, "/auth/web-pin", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current_password: currentPw, web_pin: newPin }),
+      const r = await apiRequest(token, "/pools/web-pin", {
+        method: "PUT",
+        body: JSON.stringify({
+          currentPassword: currentPw,
+          newPin,
+        }),
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setMsg({ text: "웹 접속 비밀번호가 설정되었습니다.", ok: true });
+      const data = await r.json();
+      if (r.ok) {
+        setMsg({ text: "성공적으로 저장되었습니다.", ok: true });
         setWebPinSet(true);
-        setCurrentPw(""); setNewPin(""); setConfirmPin("");
+        setCurrentPw("");
+        setNewPin("");
+        setConfirmPin("");
       } else {
-        setMsg({ text: data.message || "저장에 실패했습니다.", ok: false });
+        setMsg({ text: data.error || "저장에 실패했습니다.", ok: false });
       }
-    } catch { setMsg({ text: "네트워크 오류가 발생했습니다.", ok: false }); }
-    finally { setSaving(false); }
-  };
+    } catch (e) {
+      setMsg({ text: "오류가 발생했습니다.", ok: false });
+    } finally {
+      setSaving(false);
+    }
+  }
 
-  const handleDelete = () => {
-    Alert.alert(
-      "웹 접속 비밀번호 해제",
-      "웹 접속 비밀번호를 해제하면 이메일/비밀번호만으로 웹 로그인이 가능합니다. 계속하시겠어요?",
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "해제", style: "destructive",
-          onPress: async () => {
-            setSaving(true);
-            setMsg(null);
-            try {
-              const res = await apiRequest(token, "/auth/web-pin", {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ current_password: currentPw, web_pin: null }),
-              });
-              const data = await res.json();
-              if (res.ok && data.success) {
-                setMsg({ text: "웹 접속 비밀번호가 해제되었습니다.", ok: true });
-                setWebPinSet(false);
-                setCurrentPw(""); setNewPin(""); setConfirmPin("");
-              } else {
-                setMsg({ text: data.message || "해제에 실패했습니다.", ok: false });
-              }
-            } catch { setMsg({ text: "네트워크 오류가 발생했습니다.", ok: false }); }
-            finally { setSaving(false); }
-          },
+  async function handleDelete() {
+    Alert.alert("비밀번호 해제", "웹 접속 비밀번호를 해제하시겠습니까?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "해제",
+        style: "destructive",
+        onPress: async () => {
+          if (!token) return;
+          setSaving(true);
+          try {
+            const r = await apiRequest(token, "/pools/web-pin", { method: "DELETE" });
+            if (r.ok) {
+              setWebPinSet(false);
+              setMsg({ text: "비밀번호가 해제되었습니다.", ok: true });
+            }
+          } finally {
+            setSaving(false);
+          }
         },
-      ]
-    );
-  };
+      },
+    ]);
+  }
 
   return (
     <View style={[s.root, { paddingBottom: insets.bottom }]}>
@@ -121,7 +130,7 @@ export default function WebPinSettingsScreen() {
           <ActivityIndicator color={C.primary} style={{ marginVertical: 16 }} />
         ) : (
           <View style={[s.statusBadge, { backgroundColor: webPinSet ? "#DCFCE7" : "#FEF9C3" }]}>
-            <LucideIcon name={webPinSet ? "shield-check" : "shield-alert"} size={14} color={webPinSet ? "#16A34A" : "#CA8A04"} />
+            <LucideIcon name={webPinSet ? "shield-check" : "alert-circle"} size={14} color={webPinSet ? "#16A34A" : "#CA8A04"} />
             <Text style={[s.statusText, { color: webPinSet ? "#16A34A" : "#CA8A04" }]}>
               {webPinSet ? "웹 접속 비밀번호 설정됨" : "웹 접속 비밀번호 미설정"}
             </Text>
@@ -198,57 +207,104 @@ export default function WebPinSettingsScreen() {
         </View>
 
         <Text style={s.hint}>
-          웹 접속 비밀번호를 설정하면 swimnote.kr에서 이메일/비밀번호 입력 후 이 비밀번호를 추가로 입력해야 로그인됩니다.
+          ※ 비밀번호를 분실한 경우 수영장 최고 관리자에게 문의하세요.{"\n"}
+          ※ 웹 대시보드에서는 더 상세한 정산 및 통계 기능을 제공합니다.
         </Text>
+
       </KeyboardAwareScrollView>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F8F9FB" },
-  scroll: { padding: 16, gap: 12 },
+  root: { flex: 1, backgroundColor: "#F8FAFC" },
+  scroll: { padding: 20 },
+
   infoCard: {
-    flexDirection: "row", gap: 12, alignItems: "flex-start",
-    backgroundColor: "#EFF6FF", borderRadius: 16,
-    padding: 16, borderWidth: 1, borderColor: "#BFDBFE",
+    flexDirection: "row",
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    borderRadius: 12,
+    padding: 16,
+    gap: 12,
+    marginBottom: 16,
   },
   infoIcon: {
-    width: 36, height: 36, borderRadius: 10, backgroundColor: "#DBEAFE",
-    alignItems: "center", justifyContent: "center",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#E0F2FE",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  infoTitle: { fontSize: 13, fontWeight: "700", color: "#1E40AF", marginBottom: 4 },
-  infoDesc: { fontSize: 12, color: "#3B82F6", lineHeight: 18 },
+  infoTitle: { fontSize: 14, fontWeight: "700", color: "#0369A1", marginBottom: 2 },
+  infoDesc: { fontSize: 12, color: "#0C4A6E", lineHeight: 18 },
+
   statusBadge: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 6,
+    marginBottom: 20,
   },
-  statusText: { fontSize: 12, fontWeight: "600" },
+  statusText: { fontSize: 13, fontWeight: "600" },
+
   card: {
-    backgroundColor: "#fff", borderRadius: 20,
-    padding: 20, gap: 16,
-    borderWidth: 1, borderColor: "#EBEBEB",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  cardTitle: { fontSize: 14, fontWeight: "700", color: "#0A0A0A" },
-  fieldGroup: { gap: 6 },
-  label: { fontSize: 11, fontWeight: "600", color: "#555" },
+  cardTitle: { fontSize: 16, fontWeight: "700", color: "#1E293B", marginBottom: 20 },
+
+  fieldGroup: { marginBottom: 16 },
+  label: { fontSize: 13, fontWeight: "600", color: "#64748B", marginBottom: 6 },
   input: {
-    borderWidth: 1, borderColor: "#E5E5E5", borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: "#0A0A0A",
+    height: 48,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    color: "#1E293B",
   },
-  msg: { borderRadius: 10, padding: 12 },
-  msgText: { fontSize: 13, fontWeight: "500" },
+
+  msg: { padding: 12, borderRadius: 10, marginBottom: 16 },
+  msgText: { fontSize: 13, fontWeight: "500", textAlign: "center" },
+
   saveBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#0369A1", borderRadius: 14,
-    paddingVertical: 14,
+    height: 50,
+    backgroundColor: "#0F172A",
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
-  disabled: { opacity: 0.6 },
-  saveBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  disabled: { opacity: 0.5 },
+  saveBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+
   deleteBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    marginTop: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
     paddingVertical: 10,
   },
   deleteBtnText: { color: "#DC2626", fontSize: 13, fontWeight: "600" },
-  hint: { fontSize: 11, color: "#BBB", lineHeight: 18, textAlign: "center", paddingHorizontal: 8 },
+
+  hint: {
+    marginTop: 24,
+    fontSize: 12,
+    color: "#94A3B8",
+    textAlign: "center",
+    lineHeight: 18,
+  },
 });

@@ -1,4 +1,3 @@
-import { CircleAlert, Flame, PenLine, RotateCcw, Save, Trash2 } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
@@ -88,7 +87,7 @@ export function MemberInfoTab({
     <ScrollView ref={scrollRef} contentContainerStyle={ms.tabContent} showsVerticalScrollIndicator={false}>
       {isArchived && (
         <Pressable style={ms.restoreBanner} onPress={onRestoreMember}>
-          <RotateCcw size={16} color="#7C3AED" />
+          <LucideIcon name="rotate-ccw" size={16} color="#7C3AED" />
           <Text style={ms.restoreText}>이 회원은 {statusMeta.label} 상태입니다. 탭하여 복구하기</Text>
         </Pressable>
       )}
@@ -121,7 +120,7 @@ export function MemberInfoTab({
 
       {hasFieldErrors && (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", marginHorizontal: 16, marginBottom: 4, padding: 12, borderRadius: 10 }}>
-          <CircleAlert size={15} color="#DC2626" />
+          <LucideIcon name="alert-circle" size={15} color="#DC2626" />
           <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>
             입력 오류가 있습니다. 아래 항목을 확인해주세요.
           </Text>
@@ -218,7 +217,7 @@ export function MemberInfoTab({
           disabled={saving || !infoChanged}
         >
           {saving ? <ActivityIndicator color="#fff" size="small" /> : (
-            <><Save size={16} color="#fff" /><Text style={ms.saveBtnText}>정보 저장</Text></>
+            <><LucideIcon name="save" size={16} color="#fff" /><Text style={ms.saveBtnText}>정보 저장</Text></>
           )}
         </Pressable>
       </View>
@@ -244,12 +243,12 @@ export function MemberInfoTab({
           </View>
           {!isArchived ? (
             <Pressable style={ms.changeStatusBtn} onPress={onShowStatusModal} disabled={saving}>
-              <PenLine size={14} color={themeColor} />
+              <LucideIcon name="edit-2" size={14} color={themeColor} />
               <Text style={[ms.changeStatusText, { color: themeColor }]}>상태 변경</Text>
             </Pressable>
           ) : (
             <Pressable style={[ms.changeStatusBtn, { borderColor: "#7C3AED" }]} onPress={onRestoreMember} disabled={saving}>
-              <RotateCcw size={14} color="#7C3AED" />
+              <LucideIcon name="rotate-ccw" size={14} color="#7C3AED" />
               <Text style={[ms.changeStatusText, { color: "#7C3AED" }]}>복구</Text>
             </Pressable>
           )}
@@ -271,7 +270,7 @@ export function MemberInfoTab({
         <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
           <View style={{ backgroundColor: "#FEF2F2", borderRadius: 12, padding: 14, gap: 10 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Flame size={16} color="#DC2626" />
+              <LucideIcon name="flame" size={16} color="#DC2626" />
               <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>개인정보 소각</Text>
             </View>
             <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7F1D1D", lineHeight: 18 }}>
@@ -292,7 +291,7 @@ export function MemberInfoTab({
         <View style={{ paddingHorizontal: 16, paddingBottom: 24 }}>
           <View style={{ backgroundColor: "#FFF1F2", borderRadius: 12, padding: 14, gap: 10, borderWidth: 1, borderColor: "#FECDD3" }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Trash2 size={16} color="#BE123C" />
+              <LucideIcon name="trash-2" size={16} color="#BE123C" />
               <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#BE123C" }}>회원 즉시 삭제</Text>
             </View>
             <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9F1239", lineHeight: 18 }}>

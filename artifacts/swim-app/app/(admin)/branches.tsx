@@ -1,4 +1,4 @@
-import { Check, Droplet, Info, Layers, LogIn, MapPin, Phone, Plus } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {ActivityIndicator, Linking, Pressable,
@@ -145,7 +145,7 @@ export default function PoolsScreen() {
             onPress={() => { setForm({ name: "", address: "", phone: "" }); setCopyOptions(new Set()); setFormError(""); setShowCreate(true); }}
             style={[styles.addBtn, { backgroundColor: TINT }]}
           >
-            <Plus size={15} color="#fff" />
+            <LucideIcon name="plus" size={15} color="#fff" />
             <Text style={styles.addBtnTxt}>새 수영장</Text>
           </Pressable>
         }
@@ -153,7 +153,7 @@ export default function PoolsScreen() {
 
       {/* 안내 배너 */}
       <View style={[styles.infoBanner, { borderColor: "#B2E0DC", backgroundColor: "#E8F7F6" }]}>
-        <Info size={14} color={TINT} />
+        <LucideIcon name="info" size={14} color={TINT} />
         <Text style={[styles.infoTxt, { color: "#0F6B64" }]}>
           여러 수영장을 운영 중이라면 각 수영장을 독립적으로 관리할 수 있습니다. 전환 시 데이터가 완전히 분리됩니다.
         </Text>
@@ -177,7 +177,7 @@ export default function PoolsScreen() {
         >
           {pools.length === 0 && (
             <View style={styles.empty}>
-              <Layers size={44} color={C.textMuted} />
+              <LucideIcon name="layers" size={44} color={C.textMuted} />
               <Text style={[styles.emptyTitle, { color: C.textSecondary }]}>등록된 수영장이 없습니다</Text>
               <Text style={[styles.emptyDesc, { color: C.textMuted }]}>오른쪽 위 버튼으로 수영장을 추가하세요</Text>
             </View>
@@ -207,7 +207,7 @@ export default function PoolsScreen() {
                     {p.logo_emoji ? (
                       <Text style={styles.poolIconEmoji}>{p.logo_emoji}</Text>
                     ) : (
-                      <Droplet size={22} color={isActive ? TINT : C.textMuted} />
+                      <LucideIcon name="droplet" size={22} color={isActive ? TINT : C.textMuted} />
                     )}
                   </View>
                   <View style={{ flex: 1, gap: 3 }}>
@@ -241,7 +241,7 @@ export default function PoolsScreen() {
                     <ActivityIndicator size="small" color={TINT} />
                   ) : !isActive ? (
                     <View style={styles.switchArrow}>
-                      <LogIn size={18} color={C.textSecondary} />
+                      <LucideIcon name="log-in" size={18} color={C.textSecondary} />
                       <Text style={[styles.switchTxt, { color: C.textSecondary }]}>전환</Text>
                     </View>
                   ) : null}
@@ -252,7 +252,7 @@ export default function PoolsScreen() {
                   <View style={[styles.cardBottom, { borderTopColor: C.border }]}>
                     {p.address ? (
                       <View style={styles.infoRow}>
-                        <MapPin size={12} color={C.textMuted} />
+                        <LucideIcon name="map-pin" size={12} color={C.textMuted} />
                         <Text style={[styles.infoTxt2, { color: C.textSecondary }]} numberOfLines={1}>{p.address}</Text>
                       </View>
                     ) : null}
@@ -261,7 +261,7 @@ export default function PoolsScreen() {
                         style={({ pressed }) => [styles.infoRow, { opacity: pressed ? 0.6 : 1 }]}
                         onPress={e => { e.stopPropagation?.(); Linking.openURL(`tel:${p.phone!.replace(/[^0-9]/g, "")}`); }}
                       >
-                        <Phone size={12} color={TINT} />
+                        <LucideIcon name="phone" size={12} color={TINT} />
                         <Text style={[styles.infoTxt2, { color: TINT, textDecorationLine: "underline" }]}>{p.phone}</Text>
                       </Pressable>
                     ) : null}
@@ -305,7 +305,7 @@ export default function PoolsScreen() {
             {(["levels", "pricing"] as CopyOption[]).map(opt => (
               <Pressable key={opt} onPress={() => toggleCopy(opt)} style={styles.copyRow}>
                 <View style={[styles.checkbox, { borderColor: copyOptions.has(opt) ? TINT : C.border, backgroundColor: copyOptions.has(opt) ? TINT : "transparent" }]}>
-                  {copyOptions.has(opt) && <Check size={13} color="#fff" />}
+                  {copyOptions.has(opt) && <LucideIcon name="check" size={13} color="#fff" />}
                 </View>
                 <Text style={[styles.copyLabel, { color: C.text }]}>
                   {opt === "levels" ? "수준 체계 (레벨 설정)" : "수업료 요금표"}

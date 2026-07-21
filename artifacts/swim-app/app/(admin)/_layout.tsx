@@ -1,4 +1,4 @@
-import { Briefcase, Home, Layers, Send, Settings } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { Tabs, router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
@@ -120,7 +120,7 @@ export default function AdminLayout() {
         listeners={makeTabListener("dashboard")}
         options={{
           title: "홈",
-          tabBarIcon: ({ color }) => <Home size={22} color={color} />,
+          tabBarIcon: ({ color }) => <LucideIcon name="home" size={22} color={color} />,
           tabBarBadge: pendingBadge,
           tabBarBadgeStyle: { backgroundColor: "#D96C6C", fontSize: 10, minWidth: 16, height: 16, lineHeight: 16 },
         }}
@@ -128,14 +128,14 @@ export default function AdminLayout() {
       <Tabs.Screen
         name="class-hub"
         listeners={makeTabListener("class-hub")}
-        options={{ title: "수업관리", tabBarIcon: ({ color }) => <Layers size={22} color={color} /> }}
+        options={{ title: "수업관리", tabBarIcon: ({ color }) => <LucideIcon name="layers" size={22} color={color} /> }}
       />
       <Tabs.Screen name="classes" options={{ href: null }} />
       <Tabs.Screen name="admin-revenue" options={{ href: null }} />
       <Tabs.Screen
         name="ops-hub"
         listeners={makeTabListener("ops-hub")}
-        options={{ title: "운영관리", tabBarIcon: ({ color }) => <Briefcase size={22} color={color} /> }}
+        options={{ title: "운영관리", tabBarIcon: ({ color }) => <LucideIcon name="briefcase" size={22} color={color} /> }}
       />
       <Tabs.Screen name="people" options={{ href: null }} />
       <Tabs.Screen
@@ -163,7 +163,7 @@ export default function AdminLayout() {
           title: "메신저",
           tabBarIcon: ({ color }) => (
             <View>
-              <Send size={22} color={color} />
+              <LucideIcon name="send" size={22} color={color} />
               {messengerUnread && (
                 <View style={{
                   position: "absolute", top: -2, right: -4,
@@ -178,7 +178,7 @@ export default function AdminLayout() {
       <Tabs.Screen
         name="settings"
         listeners={makeTabListener("settings")}
-        options={{ title: "설정", tabBarIcon: ({ color }) => <Settings size={22} color={color} /> }}
+        options={{ title: "설정", tabBarIcon: ({ color }) => <LucideIcon name="settings" size={22} color={color} /> }}
       />
 
       {/* ─── 숨김 화면들 (탭 없이 push/navigate로 접근) ─── */}

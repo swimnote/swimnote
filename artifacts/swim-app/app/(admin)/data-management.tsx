@@ -2,7 +2,6 @@
  * 데이터 관리 — 허브 화면
  * 데이터 보호(백업·복구) / 사용 현황 / 삭제·보존 / 기록 4개 섹션
  */
-import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React from "react";
@@ -143,7 +142,7 @@ export default function DataManagementScreen() {
                     </View>
                     <Text style={s.desc}>{item.desc}</Text>
                   </View>
-                  <ChevronRight size={16} color={C.textMuted} />
+                  <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                 </Pressable>
               ))}
             </View>

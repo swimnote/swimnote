@@ -3,7 +3,6 @@
  * GET /billing/revenue-logs → 실제 revenue_logs DB 기반 집계
  * 탭: 주간 / 월간 / 연간
  */
-import { ChevronRight, CreditCard, Inbox, Info, Trash2 } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -275,14 +274,14 @@ export default function RevenueAnalyticsScreen() {
           onRefresh={async () => { setRefreshing(true); await fetchLogs(period); setRefreshing(false); }} />}
       >
         <View style={st.noticeBox}>
-          <Info size={12} color="#2EC4B6" />
+          <LucideIcon name="info" size={12} color="#2EC4B6" />
           <Text style={st.noticeTxt}>revenue_logs DB 실측 기반. 추정·미결제 금액 제외.</Text>
         </View>
 
         {/* 테스트/샌드박스 데이터 정리 배너 */}
         {(testCount > 0 || totalCount > 0) && (
           <Pressable style={st.testBanner} onPress={() => setCleanModal(true)}>
-            <Trash2 size={13} color="#D97706" />
+            <LucideIcon name="trash-2" size={13} color="#D97706" />
             <Text style={st.testBannerTxt}>
               {testCount > 0
                 ? `샌드박스/테스트 기록 ${testCount}건이 포함되어 있습니다. 탭하여 정리`
@@ -333,7 +332,7 @@ export default function RevenueAnalyticsScreen() {
         <SectionHeader title="기간 내 결제 내역" icon="list" />
         {logs.length === 0 ? (
           <View style={st.empty}>
-            <Inbox size={32} color="#D1D5DB" />
+            <LucideIcon name="inbox" size={32} color="#D1D5DB" />
             <Text style={st.emptyTxt}>이 기간의 결제 내역이 없습니다</Text>
           </View>
         ) : (
@@ -365,9 +364,9 @@ export default function RevenueAnalyticsScreen() {
         )}
 
         <Pressable style={st.linkBtn} onPress={() => router.push("/(super)/subscriptions?backTo=revenue-analytics" as any)}>
-          <CreditCard size={14} color={P} />
+          <LucideIcon name="credit-card" size={14} color={P} />
           <Text style={[st.linkTxt, { color: P }]}>구독·결제 관리로 이동</Text>
-          <ChevronRight size={14} color={P} />
+          <LucideIcon name="chevron-right" size={14} color={P} />
         </Pressable>
       </ScrollView>
 
@@ -377,7 +376,7 @@ export default function RevenueAnalyticsScreen() {
           <Pressable style={st.sheet} onPress={() => {}}>
             <View style={{ width: 36, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <Trash2 size={18} color="#D97706" />
+              <LucideIcon name="trash-2" size={18} color="#D97706" />
               <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" }}>매출 기록 정리</Text>
             </View>
 

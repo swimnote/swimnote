@@ -1,4 +1,3 @@
-import { ChevronRight, ClipboardList, Mail, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -94,7 +93,7 @@ export default function UnreadMessagesModal({
             </View>
           )}
           <Pressable onPress={onClose} style={um.closeBtn}>
-            <X size={18} color={C.textSecondary} />
+            <LucideIcon name="x" size={18} color={C.textSecondary} />
           </Pressable>
         </View>
 
@@ -102,7 +101,7 @@ export default function UnreadMessagesModal({
           <ActivityIndicator color={themeColor} style={{ marginTop: 30 }} />
         ) : items.length === 0 ? (
           <View style={um.empty}>
-            <Mail size={36} color={C.textMuted} />
+            <LucideIcon name="mail" size={36} color={C.textMuted} />
             <Text style={[um.emptyTxt, { color: C.textMuted }]}>새 쪽지 · 요청이 없습니다</Text>
           </View>
         ) : (
@@ -117,7 +116,7 @@ export default function UnreadMessagesModal({
                       router.push(`/(teacher)/messages-inbox?diaryId=${msg.diary_id}` as any);
                     }}>
                     <View style={[um.iconBox, { backgroundColor: themeColor + "18" }]}>
-                      <Mail size={16} color={themeColor} />
+                      <LucideIcon name="mail" size={16} color={themeColor} />
                     </View>
                     <View style={{ flex: 1, gap: 2 }}>
                       <View style={um.rowBetween}>
@@ -127,7 +126,7 @@ export default function UnreadMessagesModal({
                       <Text style={[um.itemContent, { color: C.textSecondary }]} numberOfLines={1}>{msg.content}</Text>
                       <Text style={[um.itemMeta, { color: C.textMuted }]}>{msg.class_name}</Text>
                     </View>
-                    <ChevronRight size={16} color={C.textMuted} />
+                    <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                   </Pressable>
                 );
               } else {
@@ -141,7 +140,7 @@ export default function UnreadMessagesModal({
                       router.push(`/(teacher)/messages-inbox?tab=requests` as any);
                     }}>
                     <View style={[um.iconBox, { backgroundColor: typeColor + "18" }]}>
-                      <ClipboardList size={16} color={typeColor} />
+                      <LucideIcon name="clipboard-list" size={16} color={typeColor} />
                     </View>
                     <View style={{ flex: 1, gap: 2 }}>
                       <View style={um.rowBetween}>
@@ -157,7 +156,7 @@ export default function UnreadMessagesModal({
                         {req.parent_name} · {req.content ?? "내용 없음"}
                       </Text>
                     </View>
-                    <ChevronRight size={16} color={C.textMuted} />
+                    <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                   </Pressable>
                 );
               }

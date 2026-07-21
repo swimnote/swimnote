@@ -3,7 +3,6 @@
  * - 카드 누르면 상세 모달 (학생 반·레벨 정보)
  * - 전화걸기 / 문자보내기 버튼
  */
-import { HeartHandshake, Link2, MessageSquare, Phone, Search, Users, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
@@ -168,7 +167,7 @@ function ParentDetailModal({
             <Text style={md.phoneTxt}>{formatPhone(phone)}</Text>
           </View>
           <Pressable onPress={onClose} hitSlop={12}>
-            <X size={20} color={C.textMuted} />
+            <LucideIcon name="x" size={20} color={C.textMuted} />
           </Pressable>
         </View>
 
@@ -179,7 +178,7 @@ function ParentDetailModal({
             onPress={() => callPhone(phone)}
             disabled={!phone}
           >
-            <Phone size={18} color={TEAL} />
+            <LucideIcon name="phone" size={18} color={TEAL} />
             <Text style={[md.actionTxt, { color: TEAL }]}>전화걸기</Text>
           </Pressable>
           <Pressable
@@ -187,7 +186,7 @@ function ParentDetailModal({
             onPress={() => smsPhone(phone)}
             disabled={!phone}
           >
-            <MessageSquare size={18} color="#4F6EF7" />
+            <LucideIcon name="message-square" size={18} color="#4F6EF7" />
             <Text style={[md.actionTxt, { color: "#4F6EF7" }]}>문자보내기</Text>
           </Pressable>
         </View>
@@ -261,7 +260,7 @@ function ParentDetailModal({
                         style={({ pressed }) => [md.registerBtn, { opacity: pressed ? 0.8 : 1 }]}
                         onPress={() => setShowRegister(true)}
                       >
-                        <Link2 size={16} color="#fff" />
+                        <LucideIcon name="link-2" size={16} color="#fff" />
                         <Text style={md.registerBtnTxt}>학생 등록 후 바로 연결</Text>
                       </Pressable>
                     )}
@@ -400,7 +399,7 @@ function ParentItem({ item, onPress }: { item: ParentRow; onPress: () => void })
           </View>
           {/* 전화번호 */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-            <Phone size={11} color={C.textMuted} />
+            <LucideIcon name="phone" size={11} color={C.textMuted} />
             <Text style={s.phone}>{formatPhone(item.phone)}</Text>
           </View>
         </View>
@@ -412,14 +411,14 @@ function ParentItem({ item, onPress }: { item: ParentRow; onPress: () => void })
             onPress={e => { e.stopPropagation?.(); callPhone(item.phone); }}
             hitSlop={4}
           >
-            <Phone size={14} color={TEAL} />
+            <LucideIcon name="phone" size={14} color={TEAL} />
           </Pressable>
           <Pressable
             style={[s.quickBtn, { backgroundColor: "#F0F4FF" }]}
             onPress={e => { e.stopPropagation?.(); smsPhone(item.phone); }}
             hitSlop={4}
           >
-            <MessageSquare size={14} color="#4F6EF7" />
+            <LucideIcon name="message-square" size={14} color="#4F6EF7" />
           </Pressable>
         </View>
 
@@ -493,7 +492,7 @@ export default function ParentsListScreen() {
 
       {/* 검색 */}
       <View style={s.searchBox}>
-        <Search size={15} color={C.textMuted} />
+        <LucideIcon name="search" size={15} color={C.textMuted} />
         <TextInput
           style={s.searchInput}
           placeholder="이름, 전화번호, 자녀 이름 검색"
@@ -504,7 +503,7 @@ export default function ParentsListScreen() {
         />
         {search.length > 0 && (
           <Pressable onPress={() => setSearch("")} hitSlop={8}>
-            <X size={14} color={C.textMuted} />
+            <LucideIcon name="x" size={14} color={C.textMuted} />
           </Pressable>
         )}
       </View>
@@ -543,7 +542,7 @@ export default function ParentsListScreen() {
           }
           ListEmptyComponent={
             <View style={s.empty}>
-              <HeartHandshake size={40} color={C.textMuted} />
+              <LucideIcon name="heart-handshake" size={40} color={C.textMuted} />
               <Text style={s.emptyTxt}>{search ? "검색 결과가 없습니다" : "등록된 학부모가 없습니다"}</Text>
               <Text style={s.emptySub}>
                 {search ? "다른 검색어를 사용해 보세요" : "학부모가 앱에서 수영장을 선택하면\n자동으로 여기에 표시됩니다"}

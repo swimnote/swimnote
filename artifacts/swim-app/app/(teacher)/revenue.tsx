@@ -4,7 +4,6 @@
  * 이번 달 총 매출 / 회원별 수업 횟수 / 보강/체험/임시이동 카운팅
  * 기타 수기 정산 / 이번 달 정산 저장 / 다음 달 정산 시작
  */
-import { ChartBar, ChevronLeft, ChevronRight, CircleArrowRight, CircleCheck, CircleDollarSign, CircleMinus, CirclePlus, Pencil, Save } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
@@ -196,11 +195,11 @@ export default function RevenueScreen() {
         {/* 월 선택 */}
         <View style={[rv.monthRow, { backgroundColor: C.card }]}>
           <Pressable onPress={() => changeMonth(-1)} style={rv.navBtn}>
-            <ChevronLeft size={22} color={themeColor} />
+            <LucideIcon name="chevron-left" size={22} color={themeColor} />
           </Pressable>
           <Text style={[rv.monthText, { color: C.text }]}>{month.replace("-", "년 ")}월 정산</Text>
           <Pressable onPress={() => changeMonth(1)} style={rv.navBtn}>
-            <ChevronRight size={22} color={themeColor} />
+            <LucideIcon name="chevron-right" size={22} color={themeColor} />
           </Pressable>
         </View>
 
@@ -255,7 +254,7 @@ export default function RevenueScreen() {
             {/* ─── 정산 요약 카드 (상세 통계) ─────────── */}
             <View style={[rv.card, { backgroundColor: C.card }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                <ChartBar size={15} color={themeColor} />
+                <LucideIcon name="chart-bar" size={15} color={themeColor} />
                 <Text style={[rv.sectionTitle, { color: C.text }]}>이번 달 정산 요약</Text>
               </View>
               <View style={rv.summaryGrid}>
@@ -285,23 +284,23 @@ export default function RevenueScreen() {
               return (
                 <View style={[rv.card, { backgroundColor: C.card }]}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 }}>
-                    <CircleDollarSign size={15} color={themeColor} />
+                    <LucideIcon name="circle-dollar-sign" size={15} color={themeColor} />
                     <Text style={[rv.sectionTitle, { color: C.text }]}>납부 수령 현황</Text>
                     <Pressable
                       style={{ marginLeft: "auto" as any, flexDirection: "row", alignItems: "center", gap: 4 }}
                       onPress={() => router.push("/(teacher)/fee-check?backTo=revenue" as any)}
                     >
                       <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: themeColor }}>관리</Text>
-                      <ChevronRight size={13} color={themeColor} />
+                      <LucideIcon name="chevron-right" size={13} color={themeColor} />
                     </Pressable>
                   </View>
                   <View style={rv.feeRow}>
                     <View style={[rv.feeChip, { backgroundColor: themeColor + "12" }]}>
-                      <CircleCheck size={14} color={themeColor} />
+                      <LucideIcon name="check-circle" size={14} color={themeColor} />
                       <Text style={[rv.feeChipText, { color: themeColor }]}>납부 {paidList.length}명</Text>
                     </View>
                     <View style={[rv.feeChip, { backgroundColor: "#FEF2F2" }]}>
-                      <CircleMinus size={14} color="#DC2626" />
+                      <LucideIcon name="circle-minus" size={14} color="#DC2626" />
                       <Text style={[rv.feeChipText, { color: "#DC2626" }]}>미납 {unpaidCount}명</Text>
                     </View>
                   </View>
@@ -350,7 +349,7 @@ export default function RevenueScreen() {
             {/* ─── 기타 수기 정산 ─────────────────────── */}
             <View style={[rv.card, { backgroundColor: C.card }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Pencil size={15} color={themeColor} />
+                <LucideIcon name="edit" size={15} color={themeColor} />
                 <Text style={[rv.sectionTitle, { color: C.text }]}>기타 수기 정산</Text>
               </View>
               <Text style={[rv.hint, { color: C.textMuted }]}>시간표에 없는 예외적인 항목에만 사용하세요.</Text>
@@ -374,7 +373,7 @@ export default function RevenueScreen() {
               />
               {extraAmount ? (
                 <View style={[rv.extraSummary, { backgroundColor: themeColor + "10" }]}>
-                  <CirclePlus size={14} color={themeColor} />
+                  <LucideIcon name="plus-circle" size={14} color={themeColor} />
                   <Text style={[rv.extraSummaryText, { color: themeColor }]}>
                     기타 정산 포함 총액: {formatWon(totalRevenue)}
                   </Text>
@@ -396,7 +395,7 @@ export default function RevenueScreen() {
               onPress={handleSave} disabled={saving || submitting}
             >
               {saving ? <ActivityIndicator color="#fff" /> : <>
-                <Save size={16} color="#fff" />
+                <LucideIcon name="save" size={16} color="#fff" />
                 <Text style={rv.saveBtnText}>반영하기</Text>
               </>}
             </Pressable>
@@ -424,7 +423,7 @@ export default function RevenueScreen() {
               style={[rv.nextBtn, { borderColor: themeColor }]}
               onPress={() => setNextMonthModal(true)}
             >
-              <CircleArrowRight size={16} color={themeColor} />
+              <LucideIcon name="arrow-right-circle" size={16} color={themeColor} />
               <Text style={[rv.nextBtnText, { color: themeColor }]}>다음 달 정산 시작</Text>
             </Pressable>
           </>
@@ -436,7 +435,7 @@ export default function RevenueScreen() {
         <Pressable style={rv.overlay} onPress={() => setNextMonthModal(false)} />
         <View style={rv.confirmSheet}>
           <View style={rv.confirmHandle} />
-          <CircleArrowRight size={32} color={themeColor} style={{ alignSelf: "center" }} />
+          <LucideIcon name="arrow-right-circle" size={32} color={themeColor} style={{ alignSelf: "center" }} />
           <Text style={[rv.confirmTitle, { color: C.text }]}>다음 달 정산 시작</Text>
           <Text style={[rv.confirmSub, { color: C.textSecondary }]}>
             {month}월 정산을 확정하고{"\n"}{monthStr(1).replace("-", "년 ")}월 정산을 시작합니다.{"\n\n"}

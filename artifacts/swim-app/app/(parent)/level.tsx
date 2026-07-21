@@ -1,4 +1,3 @@
-import { Award, BookOpen, CircleArrowRight, Info, UserRound } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import {
@@ -7,6 +6,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { LevelBadge, type LevelDef } from "@/components/common/LevelBadge";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -72,7 +72,7 @@ export default function ParentLevelScreen() {
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
       ) : !selectedStudent ? (
         <View style={s.empty}>
-          <UserRound size={44} color={C.textMuted} />
+          <LucideIcon name="user-round" size={44} color={C.textMuted} />
           <Text style={[s.emptyTitle, { color: C.text }]}>자녀를 선택해주세요</Text>
         </View>
       ) : (
@@ -108,7 +108,7 @@ export default function ParentLevelScreen() {
               {currentLevel.level_description ? (
                 <View style={s.descBlock}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                    <Info size={14} color={C.tint} />
+                    <LucideIcon name="info" size={14} color={C.tint} />
                     <Text style={[s.descTitle, { color: C.tint }]}>레벨 소개</Text>
                   </View>
                   <Text style={[s.descText, { color: C.text }]}>{currentLevel.level_description}</Text>
@@ -118,7 +118,7 @@ export default function ParentLevelScreen() {
               {currentLevel.learning_content ? (
                 <View style={[s.descBlock, currentLevel.level_description && s.descBorderTop]}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                    <BookOpen size={14} color="#3B82F6" />
+                    <LucideIcon name="book-open" size={14} color="#3B82F6" />
                     <Text style={[s.descTitle, { color: "#3B82F6" }]}>이 레벨에서 배우는 내용</Text>
                   </View>
                   <Text style={[s.descText, { color: C.text }]}>{currentLevel.learning_content}</Text>
@@ -128,7 +128,7 @@ export default function ParentLevelScreen() {
               {currentLevel.promotion_test_rule ? (
                 <View style={[s.descBlock, (currentLevel.level_description || currentLevel.learning_content) && s.descBorderTop]}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                    <Award size={14} color="#D97706" />
+                    <LucideIcon name="award" size={14} color="#D97706" />
                     <Text style={[s.descTitle, { color: "#D97706" }]}>다음 레벨 승급 기준</Text>
                   </View>
                   <Text style={[s.descText, { color: C.text }]}>{currentLevel.promotion_test_rule}</Text>
@@ -141,7 +141,7 @@ export default function ParentLevelScreen() {
           {levelInfo?.next_level && (
             <View style={[s.nextCard, { backgroundColor: "#FFFBEB", borderColor: "#FEF3C7" }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <CircleArrowRight size={18} color="#D97706" />
+                <LucideIcon name="arrow-right-circle" size={18} color="#D97706" />
                 <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#D97706" }}>
                   다음 목표: 레벨 {levelInfo.next_level.level_name}
                 </Text>
@@ -166,7 +166,7 @@ export default function ParentLevelScreen() {
             if (displayRecords.length === 0) {
               return (
                 <View style={s.empty}>
-                  <Award size={44} color={C.textMuted} />
+                  <LucideIcon name="award" size={44} color={C.textMuted} />
                   <Text style={[s.emptyTitle, { color: C.text }]}>아직 레벨 기록이 없습니다</Text>
                   <Text style={[s.emptySub, { color: C.textSecondary }]}>선생님이 레벨을 변경하면{"\n"}날짜와 함께 자동으로 기록됩니다</Text>
                 </View>

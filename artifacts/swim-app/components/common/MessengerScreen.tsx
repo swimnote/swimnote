@@ -29,7 +29,6 @@ import {
   View,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { AtSign, Bell, BellOff, Calendar, CircleCheck, Layers, Lock, Paperclip, Phone, Plus, Send, Smile, User, Users, X } from "lucide-react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
@@ -524,7 +523,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
               )}
               {isDirected && (
                 <View style={[s.directedTag, isMine ? s.directedTagRight : s.directedTagLeft]}>
-                  <AtSign size={10} color="#64748B" />
+                  <LucideIcon name="at-sign" size={10} color="#64748B" />
                   <Text style={s.directedTagText}>
                     {isMine
                       ? `@${extra.target_user_name} 언급`
@@ -574,7 +573,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
             <View style={s.noticeCardWrap}>
               <View style={s.noticeCard}>
                 <View style={s.noticeCardHeader}>
-                  <Bell size={13} color={AMBER_TEXT} />
+                  <LucideIcon name="bell" size={13} color={AMBER_TEXT} />
                   <Text style={s.noticeCardSender}>{item.sender_name || "관리자"}</Text>
                   <Text style={s.noticeCardTime}>{fmtTime(item.created_at)}</Text>
                 </View>

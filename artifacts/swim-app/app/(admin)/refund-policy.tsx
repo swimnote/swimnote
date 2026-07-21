@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CheckCircle, FileText, ChevronLeft, AlertCircle, AlertTriangle } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import Colors from "@/constants/colors";
 
@@ -207,18 +207,18 @@ export default function RefundPolicyScreen() {
       {/* 헤더 */}
       <View style={s.header}>
         <Pressable style={s.backBtn} onPress={handleBack}>
-          <ChevronLeft size={22} color={C.text} />
+        <LucideIcon name="chevron-left" size={22} color={C.text} />
         </Pressable>
         <Text style={s.headerTitle}>환불 정책</Text>
         {headerBadge === "done" && (
           <View style={s.agreedBadge}>
-            <CheckCircle size={13} color="#16A34A" />
+            <LucideIcon name="check-circle" size={13} color="#16A34A" />
             <Text style={s.agreedBadgeTxt}>동의 완료</Text>
           </View>
         )}
         {headerBadge === "reagree" && (
           <View style={s.reagreeBadge}>
-            <AlertCircle size={13} color="#D97706" />
+            <LucideIcon name="alert-circle" size={13} color="#D97706" />
             <Text style={s.reagreeBadgeTxt}>재동의 필요</Text>
           </View>
         )}
@@ -241,7 +241,7 @@ export default function RefundPolicyScreen() {
             {/* 버전 카드 */}
             <View style={s.infoCard}>
               <View style={s.infoRow}>
-                <FileText size={15} color={PURPLE} />
+                <LucideIcon name="file-text" size={15} color={PURPLE} />
                 <Text style={s.infoTitle}>SwimNote 환불 정책 (관리자용)</Text>
               </View>
               <Text style={s.infoVersion}>버전: {data.version} · 시행일: 2025년 1월 1일</Text>
@@ -253,7 +253,7 @@ export default function RefundPolicyScreen() {
             {/* 재동의 알림 */}
             {data.needs_reagree && data.agreed && (
               <View style={s.reagreeBox}>
-                <AlertCircle size={18} color="#D97706" />
+                <LucideIcon name="alert-circle" size={18} color="#D97706" />
                 <View style={{ flex: 1 }}>
                   <Text style={s.reagreeTitle}>정책이 변경되어 재동의가 필요합니다.</Text>
                   <Text style={s.reagreeDesc}>현재 버전: {data.version}</Text>
@@ -264,7 +264,7 @@ export default function RefundPolicyScreen() {
             {/* 3대 핵심 정책 */}
             <View style={s.coreSection}>
               <View style={s.coreSectionHeader}>
-                <AlertTriangle size={16} color="#9A3412" />
+                <LucideIcon name="alert-triangle" size={16} color="#9A3412" />
                 <Text style={s.coreSectionTitle}>3대 핵심 정책 — 반드시 확인하세요</Text>
               </View>
               {CORE_POLICIES.map((p, i) => (
@@ -291,7 +291,7 @@ export default function RefundPolicyScreen() {
             {/* 동의 완료 상태 */}
             {data.agreed && !data.needs_reagree && (
               <View style={s.alreadyAgreed}>
-                <CheckCircle size={20} color="#16A34A" />
+                <LucideIcon name="check-circle" size={20} color="#16A34A" />
                 <Text style={s.alreadyAgreedTxt}>
                   동의 완료 (버전 {data.agreed_version}){"\n"}
                   {agreedDate && `동의일: ${agreedDate}`}

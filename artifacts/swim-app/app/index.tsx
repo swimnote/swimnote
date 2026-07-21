@@ -4,7 +4,6 @@
  * 중단: 아이디/비밀번호 입력 + 로그인 버튼 + 비밀번호 찾기
  * 하단: or 구분선 + 카카오 가입 / 일반 가입
  */
-import { CircleAlert, Key, Lock, User, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import Svg, { Ellipse, Path } from "react-native-svg";
@@ -250,7 +249,7 @@ export default function LoginScreen() {
           <View style={s.fieldWrap}>
             <Text style={s.fieldLabel}>아이디</Text>
             <View style={[s.inputRow, { borderColor: identifier ? BRAND : "#E2E8F0" }]}>
-              <User size={16} color={identifier ? BRAND : "#94A3B8"} />
+              <LucideIcon name="user" size={16} color={identifier ? BRAND : "#94A3B8"} />
               <TextInput
                 style={s.input}
                 value={identifier}
@@ -273,7 +272,7 @@ export default function LoginScreen() {
           <View style={s.fieldWrap}>
             <Text style={s.fieldLabel}>비밀번호</Text>
             <View style={[s.inputRow, { borderColor: password ? BRAND : "#E2E8F0" }]}>
-              <Lock size={16} color={password ? BRAND : "#94A3B8"} />
+              <LucideIcon name="lock" size={16} color={password ? BRAND : "#94A3B8"} />
               <TextInput
                 ref={pwRef}
                 style={s.input}
@@ -297,7 +296,7 @@ export default function LoginScreen() {
           {/* 오류 메시지 */}
           {!!error && (
             <View style={s.errBox}>
-              <CircleAlert size={14} color="#EF4444" />
+              <LucideIcon name="alert-circle" size={14} color="#EF4444" />
               <Text style={s.errText}>{error}</Text>
             </View>
           )}
@@ -319,7 +318,7 @@ export default function LoginScreen() {
             style={s.forgotRow}
             onPress={() => router.push({ pathname: "/forgot-password", params: { identifier } } as any)}
           >
-            <Key size={12} color="#94A3B8" />
+            <LucideIcon name="key" size={12} color="#94A3B8" />
             <Text style={s.forgotText}>비밀번호를 잊으셨나요?</Text>
           </Pressable>
         </View>
@@ -382,7 +381,7 @@ export default function LoginScreen() {
         <Pressable style={s.overlay} onPress={() => setShowNotFoundModal(false)}>
           <Pressable style={s.modalCard} onPress={e => e.stopPropagation()}>
             <View style={s.modalIconWrap}>
-              <UserX size={26} color="#D97706" />
+              <LucideIcon name="user-x" size={26} color="#D97706" />
             </View>
             <Text style={s.modalTitle}>가입된 계정이 없습니다</Text>
             <Text style={s.modalDesc}>

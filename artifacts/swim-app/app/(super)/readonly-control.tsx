@@ -3,7 +3,6 @@
  * 3단계: 플랫폼 전체 / 운영자별 / 기능별
  * /super/readonly-control API 실데이터 연결
  */
-import { Activity, Globe, ToggleLeft, TriangleAlert, Unlock, Users } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {ActivityIndicator, Alert, Modal, Pressable,
@@ -78,7 +77,7 @@ function PlatformSection({
     <View style={[ps.card, enabled && ps.cardActive]}>
       <View style={ps.top}>
         <View style={[ps.iconBox, { backgroundColor: enabled ? "#F9DEDA" : "#FFFFFF" }]}>
-          <Globe size={20} color={enabled ? "#D96C6C" : "#64748B"} />
+          <LucideIcon name="globe" size={20} color={enabled ? "#D96C6C" : "#64748B"} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={ps.title}>플랫폼 전체 읽기전용</Text>
@@ -93,7 +92,7 @@ function PlatformSection({
 
       {enabled && (
         <View style={ps.warningBanner}>
-          <TriangleAlert size={14} color="#D96C6C" />
+          <LucideIcon name="alert-triangle" size={14} color="#D96C6C" />
           <Text style={ps.warningTxt}>플랫폼 전체가 읽기전용 상태입니다. 모든 운영자의 데이터 입력이 차단됩니다.</Text>
         </View>
       )}
@@ -113,7 +112,7 @@ function PlatformSection({
             <Text style={pm.title}>{enabled ? "읽기전용 해제" : "플랫폼 전체 읽기전용 활성화"}</Text>
             {!enabled && (
               <View style={pm.warningBox}>
-                <TriangleAlert size={16} color="#D97706" />
+                <LucideIcon name="alert-triangle" size={16} color="#D97706" />
                 <Text style={pm.warningTxt}>모든 운영자의 쓰기 기능이 즉시 차단됩니다.</Text>
               </View>
             )}
@@ -314,7 +313,7 @@ export default function ReadonlyControlScreen() {
 
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <Users size={15} color="#D97706" />
+            <LucideIcon name="users" size={15} color="#D97706" />
             <Text style={s.sectionTitle}>운영자별 읽기전용</Text>
             <View style={[s.countBadge, { backgroundColor: (data?.operators_readonly?.length ?? 0) > 0 ? "#FFF1BF" : "#FFFFFF" }]}>
               <Text style={[s.countTxt, { color: (data?.operators_readonly?.length ?? 0) > 0 ? "#D97706" : "#64748B" }]}>
@@ -346,7 +345,7 @@ export default function ReadonlyControlScreen() {
 
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <ToggleLeft size={15} color="#2EC4B6" />
+            <LucideIcon name="toggle-left" size={15} color="#2EC4B6" />
             <Text style={s.sectionTitle}>기능별 읽기전용 (기능 플래그)</Text>
           </View>
           {!data?.feature_readonly?.filter(f => !f.global_enabled).length ? (
@@ -370,7 +369,7 @@ export default function ReadonlyControlScreen() {
 
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <Activity size={15} color="#64748B" />
+            <LucideIcon name="activity" size={15} color="#64748B" />
             <Text style={s.sectionTitle}>최근 읽기전용 제어 로그</Text>
           </View>
           {!data?.recent_logs?.length ? (

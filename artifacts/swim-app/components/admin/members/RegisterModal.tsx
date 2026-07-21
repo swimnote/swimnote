@@ -1,5 +1,5 @@
-import { CircleAlert, Info, X } from "lucide-react-native";
 import React, { useRef, useState } from "react";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -131,11 +131,11 @@ export function RegisterModal({ token, poolName, onSuccess, onClose, initialPare
             <View style={reg.handle} />
             <View style={reg.header}>
               <Text style={reg.title}>어린이 직접 등록</Text>
-              <Pressable onPress={onClose}><X size={22} color={C.textSecondary} /></Pressable>
+              <Pressable onPress={onClose}><LucideIcon name="x" size={22} color={C.textSecondary} /></Pressable>
             </View>
             {error ? (
               <View style={reg.errorRow}>
-                <CircleAlert size={14} color={C.error} />
+                <LucideIcon name="alert-circle" size={14} color={C.error} />
                 <Text style={reg.errorText}>{error}</Text>
               </View>
             ) : null}
@@ -215,7 +215,7 @@ export function RegisterModal({ token, poolName, onSuccess, onClose, initialPare
                 </View>
               </View>
               <View style={reg.notice}>
-                <Info size={13} color={C.textMuted} />
+                <LucideIcon name="info" size={13} color={C.textMuted} />
                 <Text style={reg.noticeText}>등록 후 초대코드가 생성됩니다. 학부모에게 전달하여 앱 연결을 유도할 수 있습니다.</Text>
               </View>
               <Pressable style={[reg.saveBtn, { backgroundColor: C.tint }]} onPress={() => submit(false)} disabled={saving}>

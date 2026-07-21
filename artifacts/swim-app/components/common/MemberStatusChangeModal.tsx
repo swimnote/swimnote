@@ -6,8 +6,8 @@
  * 연기/퇴원 선택 시 → 즉시 이동 / 다음 달 이동 2단계 선택
  * 정상(active) 복귀 선택 시 → 복귀일 달력 선택 단계
  */
-import { Calendar, ChevronLeft, ChevronRight, CircleAlert, Clock, Zap } from "lucide-react-native";
 import React, { useState } from "react";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -156,7 +156,7 @@ export function MemberStatusChangeModal({
 
             {error && (
               <View style={m.errorBox}>
-                <CircleAlert size={14} color="#D96C6C" />
+                <LucideIcon name="alert-circle" size={14} color="#D96C6C" />
                 <Text style={m.errorText}>{error}</Text>
               </View>
             )}
@@ -173,10 +173,10 @@ export function MemberStatusChangeModal({
                     <Text style={m.optSub}>{opt.sub}</Text>
                   </View>
                   {opt.key === "active"
-                    ? <Calendar size={14} color={opt.color} />
+                    ? <LucideIcon name="calendar" size={14} color={opt.color} />
                     : opt.hasTiming
-                      ? <Clock size={14} color={opt.color} />
-                      : <Zap size={14} color={opt.color} />
+                      ? <LucideIcon name="clock" size={14} color={opt.color} />
+                      : <LucideIcon name="zap" size={14} color={opt.color} />
                   }
                 </Pressable>
               ))}
@@ -195,7 +195,7 @@ export function MemberStatusChangeModal({
 
             {error && (
               <View style={m.errorBox}>
-                <CircleAlert size={14} color="#D96C6C" />
+                <LucideIcon name="alert-circle" size={14} color="#D96C6C" />
                 <Text style={m.errorText}>{error}</Text>
               </View>
             )}
@@ -205,7 +205,7 @@ export function MemberStatusChangeModal({
                 onPress={() => doChange(pickedStatus!, "immediate")}
                 style={[m.option, { backgroundColor: "#FEF2F2", borderColor: "#991B1B40" }]}>
                 <View style={[m.optIcon, { backgroundColor: "#F9DEDA" }]}>
-                  <Zap size={20} color="#991B1B" />
+                  <LucideIcon name="zap" size={20} color="#991B1B" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[m.optLabel, { color: "#991B1B" }]}>즉시 이동</Text>
@@ -217,7 +217,7 @@ export function MemberStatusChangeModal({
                 onPress={() => doChange(pickedStatus!, "next_month")}
                 style={[m.option, { backgroundColor: "#DFF3EC", borderColor: "#16A34A40" }]}>
                 <View style={[m.optIcon, { backgroundColor: "#DCFCE7" }]}>
-                  <Calendar size={20} color="#16A34A" />
+                  <LucideIcon name="calendar" size={20} color="#16A34A" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[m.optLabel, { color: "#16A34A" }]}>다음 달부터 이동</Text>
@@ -243,7 +243,7 @@ export function MemberStatusChangeModal({
                 if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
                 else setCalMonth(prev => prev - 1);
               }}>
-                <ChevronLeft size={20} color={C.text} />
+                <LucideIcon name="chevron-left" size={20} color={C.text} />
               </Pressable>
               <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }}>
                 {calYear}년 {calMonth + 1}월
@@ -252,7 +252,7 @@ export function MemberStatusChangeModal({
                 if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
                 else setCalMonth(prev => prev + 1);
               }}>
-                <ChevronRight size={20} color={C.text} />
+                <LucideIcon name="chevron-right" size={20} color={C.text} />
               </Pressable>
             </View>
 

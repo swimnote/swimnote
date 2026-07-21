@@ -1,7 +1,6 @@
 /**
  * 학부모 수업 요청 화면 — 결석/보강/연기/퇴원/상담/문의
  */
-import { CalendarDays, ChevronLeft, ClipboardList, Plus, Send } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { DatePickerModal } from "@/components/common/DatePickerModal";
 import { router } from "expo-router";
@@ -117,14 +116,14 @@ export default function ParentRequestsScreen() {
       {/* 헤더 */}
       <View style={[s.header, { paddingTop: PT }]}>
         <Pressable onPress={() => router.back()} style={s.backBtn} hitSlop={8}>
-          <ChevronLeft size={24} color={C.text} />
+          <LucideIcon name="chevron-left" size={24} color={C.text} />
         </Pressable>
         <Text style={[s.headerTitle, { color: C.text }]}>수업 요청</Text>
         <Pressable
           style={[s.addBtn, { backgroundColor: C.tint }]}
           onPress={() => { setReqType("absence"); setModalVisible(true); }}
         >
-          <Plus size={18} color="#fff" />
+          <LucideIcon name="plus" size={18} color="#fff" />
         </Pressable>
       </View>
 
@@ -151,7 +150,7 @@ export default function ParentRequestsScreen() {
           <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
         ) : requests.length === 0 ? (
           <View style={s.emptyWrap}>
-            <ClipboardList size={48} color={C.textMuted} />
+            <LucideIcon name="clipboard-list" size={48} color={C.textMuted} />
             <Text style={[s.emptyText, { color: C.textMuted }]}>요청 내역이 없습니다</Text>
             <Text style={{ fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center" }}>
               + 버튼을 눌러 새 요청을 보내세요
@@ -241,7 +240,7 @@ export default function ParentRequestsScreen() {
               style={[s.datePicker, { backgroundColor: C.card, borderColor: reqDate ? C.tint : C.border }]}
               onPress={() => setDatePickerVisible(true)}
             >
-              <CalendarDays size={16} color={reqDate ? C.tint : C.textMuted} />
+              <LucideIcon name="calendar-days" size={16} color={reqDate ? C.tint : C.textMuted} />
               <Text style={[s.datePickerTxt, { color: reqDate ? C.text : C.textMuted }]}>
                 {reqDate || "날짜 선택 (선택사항)"}
               </Text>
@@ -283,7 +282,7 @@ export default function ParentRequestsScreen() {
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
-                  <Send size={16} color="#fff" />
+                  <LucideIcon name="send" size={16} color="#fff" />
                   <Text style={s.submitBtnText}>요청 보내기</Text>
                 </>
               )}

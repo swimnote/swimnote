@@ -6,7 +6,7 @@
  * 슬라이드 4: 회원·수업 관리 흐름
  * 슬라이드 5: 시작하기
  */
-import { ArrowRight, BookOpen, Building2, CheckCircle2, ChevronRight, Circle, ClipboardList, DollarSign, GraduationCap, LayoutDashboard, Settings, UserPlus, Users } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -29,7 +29,7 @@ const GREEN  = "#2E9B6F";
 const CHECKLIST = [
   {
     id: "pool_info",
-    icon: Building2,
+    icon: "building-2",
     color: BLUE,
     bg: "#EFF4FF",
     title: "수영장 기본 정보",
@@ -39,7 +39,7 @@ const CHECKLIST = [
   },
   {
     id: "pricing",
-    icon: DollarSign,
+    icon: "circle-dollar-sign",
     color: GREEN,
     bg: "#DFF3EC",
     title: "수업 단가 설정",
@@ -49,7 +49,7 @@ const CHECKLIST = [
   },
   {
     id: "classes",
-    icon: GraduationCap,
+    icon: "graduation-cap",
     color: MINT,
     bg: "#E6FAF8",
     title: "레벨 · 수업 등록",
@@ -59,7 +59,7 @@ const CHECKLIST = [
   },
   {
     id: "diary",
-    icon: BookOpen,
+    icon: "book-open",
     color: ORANGE,
     bg: "#FFF3E0",
     title: "일지 문구 템플릿",
@@ -69,7 +69,7 @@ const CHECKLIST = [
   },
   {
     id: "teacher",
-    icon: UserPlus,
+    icon: "user-plus",
     color: "#7C3AED",
     bg: "#EEDDF5",
     title: "선생님 초대",
@@ -161,7 +161,7 @@ export default function OnboardingAdminScreen() {
           </Pressable>
           <Pressable style={s.nextBtn} onPress={goNext}>
             <Text style={s.nextTxt}>다음</Text>
-            <ArrowRight size={16} color="#fff" />
+            <LucideIcon name="arrow-right" size={16} color="#fff" />
           </Pressable>
         </View>
       )}
@@ -174,7 +174,7 @@ function SlideWelcome({ name }: { name: string }) {
   return (
     <View style={[sw.root, { width: W }]}>
       <View style={sw.iconWrap}>
-        <LayoutDashboard size={64} color={MINT} />
+        <LucideIcon name="layout-dashboard" size={64} color={MINT} />
       </View>
       <Text style={sw.badge}>수영장 관리자 모드</Text>
       <Text style={sw.title}>{name},{"\n"}스윔노트에 오신 것을{"\n"}환영합니다!</Text>
@@ -193,10 +193,10 @@ function SlideWelcome({ name }: { name: string }) {
 
 /* ── 슬라이드 2: 핵심 기능 ────────────────────────────────────────── */
 const FEATURES = [
-  { icon: Users, color: BLUE, bg: "#EFF4FF", title: "회원 · 학부모 관리", desc: "회원 등록부터 학부모 앱 연동, 탈퇴·보류까지 한 화면에서 처리합니다." },
-  { icon: ClipboardList, color: MINT, bg: "#E6FAF8", title: "수업 · 출결 관리", desc: "수업별 출결을 실시간으로 기록하고, 결석·보강 처리를 자동으로 트래킹합니다." },
-  { icon: DollarSign, color: GREEN, bg: "#DFF3EC", title: "매출 · 정산 확인", desc: "선생님별 정산 내역을 확인하고, 수업 단가 기반 매출을 자동 집계합니다." },
-  { icon: Settings, color: ORANGE, bg: "#FFF3E0", title: "수영장 설정 · 운영", desc: "레벨 분류, 보강 정책, 일지 문구, 공지까지 수영장 맞춤 설정을 관리합니다." },
+  { icon: "users", color: BLUE, bg: "#EFF4FF", title: "회원 · 학부모 관리", desc: "회원 등록부터 학부모 앱 연동, 탈퇴·보류까지 한 화면에서 처리합니다." },
+  { icon: "clipboard-list", color: MINT, bg: "#E6FAF8", title: "수업 · 출결 관리", desc: "수업별 출결을 실시간으로 기록하고, 결석·보강 처리를 자동으로 트래킹합니다." },
+  { icon: "circle-dollar-sign", color: GREEN, bg: "#DFF3EC", title: "매출 · 정산 확인", desc: "선생님별 정산 내역을 확인하고, 수업 단가 기반 매출을 자동 집계합니다." },
+  { icon: "settings", color: ORANGE, bg: "#FFF3E0", title: "수영장 설정 · 운영", desc: "레벨 분류, 보강 정책, 일지 문구, 공지까지 수영장 맞춤 설정을 관리합니다." },
 ];
 
 function SlideFeatures() {
@@ -207,7 +207,7 @@ function SlideFeatures() {
       {FEATURES.map(f => (
         <View key={f.title} style={sf.card}>
           <View style={[sf.iconBox, { backgroundColor: f.bg }]}>
-            <f.icon size={24} color={f.color} />
+            <LucideIcon name={f.icon as any} size={24} color={f.color} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={sf.cardTitle}>{f.title}</Text>
@@ -253,7 +253,7 @@ function SlideChecklist({ checkedIds, onToggle, onNavigate }: {
             onPress={() => onToggle(item.id)}
           >
             <View style={[sc.itemIcon, { backgroundColor: item.bg }]}>
-              <item.icon size={20} color={item.color} />
+              <LucideIcon name={item.icon as any} size={20} color={item.color} />
             </View>
             <View style={{ flex: 1 }}>
               <View style={sc.itemTitleRow}>
@@ -267,8 +267,8 @@ function SlideChecklist({ checkedIds, onToggle, onNavigate }: {
               <Text style={[sc.itemDesc, checked && { color: "#D1D5DB" }]}>{item.desc}</Text>
             </View>
             {checked
-              ? <CheckCircle2 size={22} color={MINT} />
-              : <Circle size={22} color="#D1D5DB" />
+              ? <LucideIcon name="check-circle" size={22} color={MINT} />
+              : <LucideIcon name="circle" size={22} color="#D1D5DB" />
             }
           </Pressable>
         );
@@ -332,7 +332,7 @@ function SlideDone({ name, onStart }: { name: string; onStart: () => void }) {
   return (
     <View style={[sd.root, { width: W }]}>
       <View style={sd.iconWrap}>
-        <CheckCircle2 size={72} color={MINT} />
+        <LucideIcon name="check-circle" size={72} color={MINT} />
       </View>
       <Text style={sd.title}>준비 완료!</Text>
       <Text style={sd.sub}>
@@ -342,25 +342,25 @@ function SlideDone({ name, onStart }: { name: string; onStart: () => void }) {
       <View style={sd.summaryBox}>
         <Text style={sd.summaryTitle}>설정 메뉴 위치 안내</Text>
         <View style={sd.summaryRow}>
-          <ChevronRight size={14} color={MINT} />
+          <LucideIcon name="chevron-right" size={14} color={MINT} />
           <Text style={sd.summaryTxt}>하단 탭 → <Text style={{ color: MINT }}>더보기</Text> → 수영장 설정</Text>
         </View>
         <View style={sd.summaryRow}>
-          <ChevronRight size={14} color={MINT} />
+          <LucideIcon name="chevron-right" size={14} color={MINT} />
           <Text style={sd.summaryTxt}>선생님 초대: <Text style={{ color: MINT }}>더보기</Text> → 선생님 관리</Text>
         </View>
         <View style={sd.summaryRow}>
-          <ChevronRight size={14} color={MINT} />
+          <LucideIcon name="chevron-right" size={14} color={MINT} />
           <Text style={sd.summaryTxt}>레벨 설정: <Text style={{ color: MINT }}>수업 관리</Text> → 수업 목록</Text>
         </View>
         <View style={sd.summaryRow}>
-          <ChevronRight size={14} color={MINT} />
+          <LucideIcon name="chevron-right" size={14} color={MINT} />
           <Text style={sd.summaryTxt}>일지 문구: <Text style={{ color: MINT }}>더보기</Text> → 설정 → 일지 템플릿</Text>
         </View>
       </View>
       <Pressable style={sd.btn} onPress={onStart}>
         <Text style={sd.btnTxt}>대시보드로 시작하기</Text>
-        <ArrowRight size={18} color="#fff" />
+        <LucideIcon name="arrow-right" size={18} color="#fff" />
       </Pressable>
     </View>
   );

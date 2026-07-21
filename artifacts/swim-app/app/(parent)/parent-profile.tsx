@@ -3,7 +3,6 @@
  * - 이름, 전화번호, 비밀번호 변경
  * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
-import { CircleAlert, Trash2 } from "lucide-react-native";
 import { WithdrawalModal } from "@/components/common/WithdrawalModal";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -11,6 +10,7 @@ import {ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View} from "r
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { useToast } from "@/components/common/Toast";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -143,7 +143,7 @@ export default function ParentProfileScreen() {
         >
           {hasFieldErrors && (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", padding: 12, borderRadius: 10 }}>
-              <CircleAlert size={15} color="#DC2626" />
+              <LucideIcon name="alert-circle" size={15} color="#DC2626" />
               <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>
                 입력 오류가 있습니다. 아래 항목을 확인해주세요.
               </Text>
@@ -202,7 +202,7 @@ export default function ParentProfileScreen() {
 
           {error ? (
             <View style={[s.errorBox, { backgroundColor: "#F9DEDA" }]}>
-              <CircleAlert size={14} color="#D96C6C" />
+              <LucideIcon name="alert-circle" size={14} color="#D96C6C" />
               <Text style={s.errorTxt}>{error}</Text>
             </View>
           ) : null}
@@ -228,7 +228,7 @@ export default function ParentProfileScreen() {
           {/* ── 계정 탈퇴 ── */}
           <View style={[s.section, { backgroundColor: C.card, gap: 10 }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Trash2 size={14} color="#D96C6C" />
+              <LucideIcon name="trash-2" size={14} color="#D96C6C" />
               <Text style={[s.sectionTitle, { color: "#D96C6C" }]}>계정 탈퇴</Text>
             </View>
             <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, lineHeight: 18 }}>

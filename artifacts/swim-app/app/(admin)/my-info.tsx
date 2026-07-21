@@ -1,4 +1,4 @@
-import { ChevronRight, Key, Lock, PenLine, Trash2, User, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { WithdrawalModal } from "@/components/common/WithdrawalModal";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -140,7 +140,7 @@ export default function AdminMyInfoScreen() {
             <Pressable style={[s.editBtn, { borderColor: themeColor }]} onPress={() => {
               setEditName(profile?.name || ""); setEditPhone(profile?.phone || ""); setEditMsg(""); setEditVisible(true);
             }}>
-              <PenLine size={14} color={themeColor} />
+              <LucideIcon name="edit-2" size={14} color={themeColor} />
               <Text style={[s.editBtnText, { color: themeColor }]}>편집</Text>
             </Pressable>
           </View>
@@ -149,7 +149,7 @@ export default function AdminMyInfoScreen() {
         {/* ── 계정 정보 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <User size={15} color={themeColor} />
+            <LucideIcon name="user" size={15} color={themeColor} />
             <Text style={s.cardTitle}>계정 정보</Text>
           </View>
           <View style={{ padding: 16, gap: 10 }}>
@@ -170,7 +170,7 @@ export default function AdminMyInfoScreen() {
         {/* ── 보안 설정 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <Lock size={15} color={themeColor} />
+            <LucideIcon name="lock" size={15} color={themeColor} />
             <Text style={s.cardTitle}>보안 설정</Text>
           </View>
           <Pressable
@@ -178,17 +178,17 @@ export default function AdminMyInfoScreen() {
             onPress={() => { setPwCurrent(""); setPwNew(""); setPwConfirm(""); setPwMsg(""); setPwVisible(true); }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Key size={14} color={C.textSecondary} />
+              <LucideIcon name="key" size={14} color={C.textSecondary} />
               <Text style={[s.secItemLabel, { color: C.text }]}>비밀번호 변경</Text>
             </View>
-            <ChevronRight size={16} color={C.textMuted} />
+            <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
           </Pressable>
         </View>
 
         {/* ── 계정 탈퇴 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <Trash2 size={15} color="#D96C6C" />
+            <LucideIcon name="trash-2" size={15} color="#D96C6C" />
             <Text style={[s.cardTitle, { color: "#D96C6C" }]}>계정 탈퇴</Text>
           </View>
           <View style={{ paddingHorizontal: 16, paddingBottom: 14, gap: 8 }}>
@@ -213,7 +213,7 @@ export default function AdminMyInfoScreen() {
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>내 정보 수정</Text>
               <Pressable onPress={() => setEditVisible(false)} hitSlop={8}>
-                <X size={22} color={C.text} />
+                <LucideIcon name="x" size={22} color={C.text} />
               </Pressable>
             </View>
             <Text style={s.inputLabel}>이름</Text>
@@ -238,7 +238,7 @@ export default function AdminMyInfoScreen() {
           <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>비밀번호 변경</Text>
-              <Pressable onPress={() => setPwVisible(false)} hitSlop={8}><X size={22} color={C.text} /></Pressable>
+              <Pressable onPress={() => setPwVisible(false)} hitSlop={8}><LucideIcon name="x" size={22} color={C.text} /></Pressable>
             </View>
             <Text style={s.inputLabel}>현재 비밀번호</Text>
             <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={pwCurrent} onChangeText={setPwCurrent} placeholder="현재 비밀번호" placeholderTextColor={C.textMuted} secureTextEntry />

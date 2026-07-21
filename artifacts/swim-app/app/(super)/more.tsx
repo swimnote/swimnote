@@ -5,7 +5,6 @@
  * 5) 고객센터  6) 정책·컴플라이언스  7) 보안·통제
  * 8) 시스템 상태  9) 광고 관리
  */
-import { ChevronRight, Shield } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -58,7 +57,7 @@ function MenuItem({ icon, label, sub, onPress, color, badge }: MenuEntry) {
           <Text style={[s.badgeTxt, { color: cfg.icon }]}>{badge}</Text>
         </View>
       ) : null}
-      <ChevronRight size={18} color={C.textMuted} />
+      <LucideIcon name="chevron-right" size={18} color={C.textMuted} />
     </Pressable>
   );
 }
@@ -273,7 +272,7 @@ export default function SuperMoreScreen() {
               <Text style={s.profileRole}>슈퍼관리자</Text>
             </View>
             <Pressable style={s.securityBtn} onPress={() => router.push("/(super)/security-settings?backTo=more" as any)}>
-              <Shield size={16} color="#fff" />
+              <LucideIcon name="shield" size={16} color="#fff" />
               <Text style={s.securityBtnTxt}>보안</Text>
             </Pressable>
           </View>
@@ -299,7 +298,7 @@ export default function SuperMoreScreen() {
                 {totpEnabled ? "2단계 인증이 설정되어 있습니다" : "탭하여 2단계 인증을 등록하세요"}
               </Text>
             </View>
-            <ChevronRight size={16} color={totpEnabled ? "#16A34A" : "#D97706"} />
+            <LucideIcon name="chevron-right" size={16} color={totpEnabled ? "#16A34A" : "#D97706"} />
           </Pressable>
         )}
 

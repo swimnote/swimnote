@@ -2,8 +2,6 @@
  * totp-setup.tsx — Google OTP 등록/설정 화면
  * Google Authenticator 앱 연동, 활성화/비활성화
  */
-import { ArrowRight, CircleAlert, CircleCheck, CirclePlus, Info, Key, ShieldOff, Smartphone, SquareCheck } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {ActivityIndicator, Image, Platform,
@@ -196,7 +194,7 @@ export default function TotpSetupScreen() {
             <View style={[styles.card, { backgroundColor: C.card }]}>
               <View style={styles.iconRow}>
                 <View style={[styles.iconBg, { backgroundColor: totpEnabled ? "#DCFCE7" : "#E6FAF8" }]}>
-                  <Smartphone size={32} color={totpEnabled ? "#16A34A" : PURPLE} />
+                  <LucideIcon name="smartphone" size={32} color={totpEnabled ? "#16A34A" : PURPLE} />
                 </View>
               </View>
 
@@ -217,7 +215,7 @@ export default function TotpSetupScreen() {
                 >
                   {loading
                     ? <ActivityIndicator color="#fff" size="small" />
-                    : <><CirclePlus size={16} color="#fff" /><Text style={styles.btnText}>OTP 등록 시작</Text></>
+                    : <><LucideIcon name="plus-circle" size={16} color="#fff" /><Text style={styles.btnText}>OTP 등록 시작</Text></>
                   }
                 </Pressable>
               ) : (
@@ -225,7 +223,7 @@ export default function TotpSetupScreen() {
                   style={({ pressed }) => [styles.btn, { backgroundColor: "#DC2626", opacity: pressed ? 0.85 : 1 }]}
                   onPress={goToDisable}
                 >
-                  <ShieldOff size={16} color="#fff" />
+                  <LucideIcon name="shield-off" size={16} color="#fff" />
                   <Text style={styles.btnText}>OTP 등록 해제</Text>
                 </Pressable>
               )}
@@ -287,7 +285,7 @@ export default function TotpSetupScreen() {
               style={[styles.secretToggle, { borderColor: C.border }]}
               onPress={() => setShowSecret(v => !v)}
             >
-              <Key size={14} color={C.textMuted} />
+              <LucideIcon name="key" size={14} color={C.textMuted} />
               <Text style={[styles.secretToggleTxt, { color: C.textSecondary }]}>QR 스캔이 안 되면 키 직접 입력</Text>
               <LucideIcon name={showSecret ? "chevron-up" : "chevron-down"} size={14} color={C.textMuted} />
             </Pressable>
@@ -307,7 +305,7 @@ export default function TotpSetupScreen() {
               onPress={goToVerify}
             >
               <Text style={styles.btnText}>스캔 완료 — 코드 입력하기</Text>
-              <ArrowRight size={16} color="#fff" />
+              <LucideIcon name="arrow-right" size={16} color="#fff" />
             </Pressable>
 
             <Pressable style={styles.cancelRow} onPress={() => { setStep("check"); setSecret(""); setOtpauthUrl(""); setQrCode(""); }}>
@@ -321,7 +319,7 @@ export default function TotpSetupScreen() {
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={styles.iconRow}>
               <View style={[styles.iconBg, { backgroundColor: "#E6FAF8" }]}>
-                <SquareCheck size={28} color={PURPLE} />
+                <LucideIcon name="check-square" size={28} color={PURPLE} />
               </View>
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>2단계 — 코드 확인</Text>
@@ -331,7 +329,7 @@ export default function TotpSetupScreen() {
 
             {!!error && (
               <View style={[styles.alertBox, { backgroundColor: "#F9DEDA", borderColor: "#FCA5A5" }]}>
-                <CircleAlert size={14} color={C.error} />
+                <LucideIcon name="alert-circle" size={14} color={C.error} />
                 <Text style={[styles.alertText, { color: C.error }]}>{error}</Text>
               </View>
             )}
@@ -360,12 +358,12 @@ export default function TotpSetupScreen() {
             >
               {loading
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <><CircleCheck size={16} color="#fff" /><Text style={styles.btnText}>OTP 등록 완료</Text></>
+                : <><LucideIcon name="check-circle" size={16} color="#fff" /><Text style={styles.btnText}>OTP 등록 완료</Text></>
               }
             </Pressable>
 
             <View style={[styles.tipBox, { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" }]}>
-              <Info size={13} color="#16A34A" />
+              <LucideIcon name="info" size={13} color="#16A34A" />
               <Text style={[styles.tipText, { color: "#15803D" }]}>
                 코드는 30초마다 갱신됩니다. 시간이 지났다면 새 코드로 입력해주세요.
               </Text>

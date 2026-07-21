@@ -2,7 +2,6 @@
  * (admin)/diary-teacher-entries.tsx — 관리자 수업일지 (선생님별 섹션)
  * 전체 일지를 선생님별로 묶어서 한 화면에 표시
  */
-import { BookOpen, Check, ChevronDown, ChevronUp, Clock, Image, Info, Layers, SquareCheck, Trash2 } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -210,7 +209,7 @@ export default function DiaryTeacherEntriesScreen() {
           {selectMode && (
             <Pressable onPress={() => toggleSelect(item.id)} style={{ marginRight: 10 }}>
               <View style={[s.checkbox, isSelected && { backgroundColor: themeColor, borderColor: themeColor }]}>
-                {isSelected && <Check size={12} color="#fff" />}
+                {isSelected && <LucideIcon name="check" size={12} color="#fff" />}
               </View>
             </Pressable>
           )}
@@ -231,9 +230,9 @@ export default function DiaryTeacherEntriesScreen() {
               </View>
             </View>
             <View style={s.metaRow}>
-              <Layers size={11} color={C.textMuted} />
+              <LucideIcon name="layers" size={11} color={C.textMuted} />
               <Text style={s.metaTxt}>{item.class_name || "-"}</Text>
-              <Clock size={11} color={C.textMuted} style={{ marginLeft: 8 }} />
+              <LucideIcon name="clock" size={11} color={C.textMuted} style={{ marginLeft: 8 }} />
               <Text style={s.metaTxt}>{(item.schedule_time || "").slice(0, 5)}</Text>
             </View>
             {!isExpanded && item.common_content ? (
@@ -242,8 +241,8 @@ export default function DiaryTeacherEntriesScreen() {
           </View>
           {!selectMode && (
             isExpanded
-              ? <ChevronUp size={15} color={C.textMuted} />
-              : <ChevronDown size={15} color={C.textMuted} />
+              ? <LucideIcon name="chevron-up" size={15} color={C.textMuted} />
+              : <LucideIcon name="chevron-down" size={15} color={C.textMuted} />
           )}
         </View>
         {isExpanded && (
@@ -269,8 +268,8 @@ export default function DiaryTeacherEntriesScreen() {
         <Text style={[s.sectionTitle, { color }]}>{section.title} 선생님</Text>
         <Text style={[s.sectionCount, { color: C.textMuted }]}>{originalCount}건</Text>
         {isCollapsed
-          ? <ChevronDown size={15} color={C.textMuted} style={{ marginLeft: 4 }} />
-          : <ChevronUp size={15} color={C.textMuted} style={{ marginLeft: 4 }} />
+          ? <LucideIcon name="chevron-down" size={15} color={C.textMuted} style={{ marginLeft: 4 }} />
+          : <LucideIcon name="chevron-up" size={15} color={C.textMuted} style={{ marginLeft: 4 }} />
         }
       </Pressable>
     );
@@ -295,7 +294,7 @@ export default function DiaryTeacherEntriesScreen() {
       {selectMode ? (
         <View style={[s.toolbar, { borderBottomColor: C.border }]}>
           <Pressable style={s.toolbarBtn} onPress={toggleSelectAll}>
-            <SquareCheck size={15} color={themeColor} />
+            <LucideIcon name="check-square" size={15} color={themeColor} />
             <Text style={[s.toolbarBtnText, { color: themeColor }]}>
               {selected.size === entries.length ? "전체 해제" : "전체 선택"}
             </Text>
@@ -307,13 +306,13 @@ export default function DiaryTeacherEntriesScreen() {
           >
             {deleting
               ? <ActivityIndicator color={C.error} size="small" />
-              : <><Trash2 size={14} color={C.error} /><Text style={[s.toolbarBtnText, { color: C.error }]}>선택 삭제 ({selected.size})</Text></>
+              : <><LucideIcon name="trash-2" size={14} color={C.error} /><Text style={[s.toolbarBtnText, { color: C.error }]}>선택 삭제 ({selected.size})</Text></>
             }
           </Pressable>
         </View>
       ) : (
         <View style={s.infoBar}>
-          <Info size={12} color={C.textMuted} />
+          <LucideIcon name="info" size={12} color={C.textMuted} />
           <Text style={s.infoText}>항목을 길게 눌러 선택 모드로 전환합니다</Text>
         </View>
       )}
@@ -330,7 +329,7 @@ export default function DiaryTeacherEntriesScreen() {
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
       ) : loadError ? (
         <View style={s.empty}>
-          <Info size={40} color="#EF4444" />
+          <LucideIcon name="info" size={40} color="#EF4444" />
           <Text style={[s.emptyTitle, { color: "#EF4444" }]}>불러오기 실패</Text>
           <Text style={[s.emptyTitle, { fontSize: 13, color: C.textSecondary, marginTop: 4, textAlign: "center", paddingHorizontal: 24 }]}>{loadError}</Text>
           <Pressable onPress={() => load()} style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: themeColor, borderRadius: 8 }}>
@@ -339,7 +338,7 @@ export default function DiaryTeacherEntriesScreen() {
         </View>
       ) : sections.length === 0 ? (
         <View style={s.empty}>
-          <BookOpen size={40} color={C.textMuted} />
+          <LucideIcon name="book-open" size={40} color={C.textMuted} />
           <Text style={s.emptyTitle}>작성된 일지가 없습니다</Text>
         </View>
       ) : (
@@ -365,7 +364,7 @@ export default function DiaryTeacherEntriesScreen() {
             <Text style={[s.modeDesc, { color: C.textSecondary }]}>선택한 {selected.size}건에 대해 삭제 방식을 선택하세요</Text>
             <Pressable style={[s.modeBtn, { backgroundColor: "#FFF1BF", borderColor: "#FDE68A" }]}
               onPress={() => handleModeSelect("photo_only")}>
-              <Image size={18} color="#B45309" />
+              <LucideIcon name="image" size={18} color="#B45309" />
               <View style={{ flex: 1 }}>
                 <Text style={[s.modeBtnTitle, { color: "#B45309" }]}>사진만 삭제</Text>
                 <Text style={[s.modeBtnDesc, { color: "#78350F" }]}>글 내용은 유지, 첨부 사진만 제거</Text>
@@ -373,7 +372,7 @@ export default function DiaryTeacherEntriesScreen() {
             </Pressable>
             <Pressable style={[s.modeBtn, { backgroundColor: "#F9DEDA", borderColor: "#FCA5A5" }]}
               onPress={() => handleModeSelect("full")}>
-              <Trash2 size={18} color={C.error} />
+              <LucideIcon name="trash-2" size={18} color={C.error} />
               <View style={{ flex: 1 }}>
                 <Text style={[s.modeBtnTitle, { color: C.error }]}>글 전체 삭제</Text>
                 <Text style={[s.modeBtnDesc, { color: "#7F1D1D" }]}>일지 전체를 삭제 (복구 불가)</Text>

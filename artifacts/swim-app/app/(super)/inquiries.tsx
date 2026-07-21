@@ -6,7 +6,6 @@
  * 필터: 전체 / 미답변 / 답변완료
  * 상세: 채팅형 + 답변 작성
  */
-import { ChevronLeft, Send } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -235,7 +234,7 @@ export default function SuperInquiriesScreen() {
               onPress={sendReply}
               disabled={!input.trim() || sending}
             >
-              {sending ? <ActivityIndicator color="#fff" size="small" /> : <Send size={18} color="#fff" />}
+              {sending ? <ActivityIndicator color="#fff" size="small" /> : <LucideIcon name="send" size={18} color="#fff" />}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>

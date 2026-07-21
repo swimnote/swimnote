@@ -2,7 +2,6 @@
  * (super)/dashboard.tsx — 슈퍼관리자 운영 콘솔
  * Zustand 완전 제거 → GET /super/dashboard-stats, /super/risk-summary, /super/recent-audit-logs 실 API 연동
  */
-import { Activity, ChevronRight, CircleAlert, Clipboard, LogOut, MessageCircle, Save, Shield } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -280,15 +279,15 @@ export default function SuperDashboard() {
         <View style={{ flexDirection: "row", gap: 8 }}>
           {totalAlerts > 0 && (
             <Pressable style={s.alertPill} onPress={() => router.push("/(super)/risk-center?backTo=dashboard" as any)}>
-              <CircleAlert size={13} color="#D96C6C" />
+              <LucideIcon name="alert-circle" size={13} color="#D96C6C" />
               <Text style={s.alertPillTxt}>{totalAlerts}건 처리 필요</Text>
             </Pressable>
           )}
           <Pressable style={s.avatarCircle} onPress={() => router.push("/(super)/backup?backTo=dashboard" as any)}>
-            <Save size={17} color="#fff" />
+            <LucideIcon name="save" size={17} color="#fff" />
           </Pressable>
           <Pressable style={s.logoutBtn} onPress={logout}>
-            <LogOut size={15} color={P} />
+            <LucideIcon name="log-out" size={15} color={P} />
           </Pressable>
         </View>
       </View>
@@ -324,7 +323,7 @@ export default function SuperDashboard() {
             {todoCount > 0 && (
               <View style={s.todoSection}>
                 <View style={s.todoHeader}>
-                  <Clipboard size={15} color="#0F172A" />
+                  <LucideIcon name="clipboard" size={15} color="#0F172A" />
                   <Text style={s.todoHeaderTxt}>오늘 처리할 일</Text>
                   <View style={s.todoBadge}>
                     <Text style={s.todoBadgeTxt}>{todoCount}</Text>
@@ -401,7 +400,7 @@ export default function SuperDashboard() {
                 {(todo?.support_open_count ?? 0) > 0 && (
                   <Pressable style={s.supportBanner} onPress={() => router.push("/(super)/support?backTo=dashboard" as any)}>
                     <View style={[ts.iconWrap, { backgroundColor: "#E0F2FE" }]}>
-                      <MessageCircle size={14} color="#0284C7" />
+                      <LucideIcon name="message-circle" size={14} color="#0284C7" />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={s.supportTitle}>고객센터 미처리</Text>
@@ -415,7 +414,7 @@ export default function SuperDashboard() {
                         <Text style={ts.badgeTxt}>{todo?.support_overdue_count}</Text>
                       </View>
                     )}
-                    <ChevronRight size={14} color="#0284C7" />
+                    <LucideIcon name="chevron-right" size={14} color="#0284C7" />
                   </Pressable>
                 )}
               </View>
@@ -425,9 +424,9 @@ export default function SuperDashboard() {
             {riskSummary && (
               <View style={s.riskSection}>
                 <Pressable style={s.riskHeader} onPress={() => router.push("/(super)/risk-center?backTo=dashboard" as any)}>
-                  <Shield size={15} color="#9333EA" />
+                  <LucideIcon name="shield" size={15} color="#9333EA" />
                   <Text style={s.riskHeaderTxt}>리스크 요약</Text>
-                  <ChevronRight size={14} color="#64748B" style={{ marginLeft: "auto" }} />
+                  <LucideIcon name="chevron-right" size={14} color="#64748B" style={{ marginLeft: "auto" }} />
                 </Pressable>
                 <View style={s.riskGrid}>
                   {[

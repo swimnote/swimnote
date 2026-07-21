@@ -1,4 +1,4 @@
-import { BellOff, Camera, Check, Circle, CircleCheck, Image as ImageIcon, Pencil, Pin, SquareCheck, Trash2, Users, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
 import { compressImageIfNeeded } from "../../utils/compressImage";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
@@ -270,7 +270,7 @@ export default function NoticesScreen() {
           {pinned.length > 0 && (
             <>
               <View style={styles.sectionLabel}>
-                <Pin size={13} color={C.tint} />
+                <LucideIcon name="pin" size={13} color={C.tint} />
                 <Text style={[styles.sectionText, { color: C.tint }]}>고정 공지</Text>
               </View>
               {pinned.map(n => (
@@ -292,7 +292,7 @@ export default function NoticesScreen() {
           ))}
           {notices.length === 0 && (
             <View style={styles.empty}>
-              <BellOff size={40} color={C.textMuted} />
+              <LucideIcon name="bell-off" size={40} color={C.textMuted} />
               <Text style={[styles.emptyText, { color: C.textMuted }]}>등록된 공지사항이 없습니다</Text>
             </View>
           )}
@@ -318,7 +318,7 @@ export default function NoticesScreen() {
             <KeyboardAwareScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: C.text }]}>공지 작성</Text>
-                <Pressable onPress={closeModal}><X size={22} color={C.textSecondary} /></Pressable>
+                <Pressable onPress={closeModal}><LucideIcon name="x" size={22} color={C.textSecondary} /></Pressable>
               </View>
               {error ? <Text style={[styles.errorText, { color: C.error }]}>{error}</Text> : null}
 
@@ -346,7 +346,7 @@ export default function NoticesScreen() {
                   <Text style={[styles.label, { color: C.textSecondary }]}>사진 첨부 ({pickedImages.length}/{MAX_IMAGES})</Text>
                   {pickedImages.length < MAX_IMAGES && (
                     <Pressable style={[styles.addImageBtn, { borderColor: C.border }]} onPress={pickImages}>
-                      <Camera size={16} color={C.tint} />
+                      <LucideIcon name="camera" size={16} color={C.tint} />
                       <Text style={[styles.addImageText, { color: C.tint }]}>사진 추가</Text>
                     </Pressable>
                   )}
@@ -357,7 +357,7 @@ export default function NoticesScreen() {
                       <View key={i} style={styles.previewWrap}>
                         <Image source={{ uri: img.uri }} style={styles.previewImage} resizeMode="cover" />
                         <Pressable style={[styles.removeImageBtn, { backgroundColor: C.error }]} onPress={() => removeImage(i)}>
-                          <X size={12} color="#fff" />
+                          <LucideIcon name="x" size={12} color="#fff" />
                         </Pressable>
                       </View>
                     ))}
@@ -369,7 +369,7 @@ export default function NoticesScreen() {
                 style={[styles.pinToggle, { backgroundColor: form.is_pinned ? C.tintLight : C.background, borderColor: form.is_pinned ? C.tint : C.border }]}
                 onPress={() => setForm(f => ({ ...f, is_pinned: !f.is_pinned }))}
               >
-                <Pin size={16} color={form.is_pinned ? C.tint : C.textMuted} />
+                <LucideIcon name="pin" size={16} color={form.is_pinned ? C.tint : C.textMuted} />
                 <Text style={[styles.pinText, { color: form.is_pinned ? C.tint : C.textSecondary }]}>상단 고정</Text>
               </Pressable>
 
@@ -417,18 +417,18 @@ function NoticeCard({ n, expanded, onExpand, handleDelete, readStats, C, selecti
         {selectionMode && (
           <Pressable onPress={onToggle} style={[styles.deleteBtn, { marginRight: 4 }]}>
             <View style={[styles.selCheckbox, isSelected && { backgroundColor: C.tint, borderColor: C.tint }]}>
-              {isSelected && <Check size={11} color="#fff" />}
+              {isSelected && <LucideIcon name="check" size={11} color="#fff" />}
             </View>
           </Pressable>
         )}
         <View style={styles.cardTop}>
-          {n.is_pinned ? <Pin size={12} color={C.tint} /> : null}
+          {n.is_pinned ? <LucideIcon name="pin" size={12} color={C.tint} /> : null}
           <Text style={[styles.noticeTitle, { color: C.text }]} numberOfLines={isOpen ? undefined : 1}>{n.title}</Text>
-          {images.length > 0 && <ImageIcon size={13} color={C.textMuted} />}
+          {images.length > 0 && <LucideIcon name="image" size={13} color={C.textMuted} />}
         </View>
         {!selectionMode && (
           <Pressable onPress={() => handleDelete(n.id)} style={styles.deleteBtn}>
-            <Trash2 size={16} color={C.error} />
+            <LucideIcon name="trash-2" size={16} color={C.error} />
           </Pressable>
         )}
       </View>
@@ -451,17 +451,17 @@ function NoticeCard({ n, expanded, onExpand, handleDelete, readStats, C, selecti
           {readStats && (
             <View style={[styles.statsRow, { backgroundColor: C.background, borderRadius: 10, padding: 10 }]}>
               <View style={styles.statItem}>
-                <CircleCheck size={14} color={C.success} />
+                <LucideIcon name="check-circle" size={14} color={C.success} />
                 <Text style={[styles.statText, { color: C.success }]}>읽음 {readStats.read_count}명</Text>
               </View>
               <View style={[styles.statDivider, { backgroundColor: C.border }]} />
               <View style={styles.statItem}>
-                <Circle size={14} color={C.textMuted} />
+                <LucideIcon name="circle" size={14} color={C.textMuted} />
                 <Text style={[styles.statText, { color: C.textMuted }]}>미읽음 {readStats.unread_count}명</Text>
               </View>
               <View style={[styles.statDivider, { backgroundColor: C.border }]} />
               <View style={styles.statItem}>
-                <Users size={14} color={C.textSecondary} />
+                <LucideIcon name="users" size={14} color={C.textSecondary} />
                 <Text style={[styles.statText, { color: C.textSecondary }]}>전체 {readStats.total}명</Text>
               </View>
             </View>

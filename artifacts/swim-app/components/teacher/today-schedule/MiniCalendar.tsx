@@ -1,4 +1,3 @@
-import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -25,13 +24,13 @@ export default function MiniCalendar({
         <Pressable style={cal.navBtn}
           onPress={() => { const d = new Date(year, month - 2, 1); onChangeMonth(d.getFullYear(), d.getMonth() + 1); }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <ChevronLeft size={24} color={C.text} />
+          <LucideIcon name="chevron-left" size={24} color={C.text} />
         </Pressable>
         <Text style={cal.title}>{year}년 {month}월</Text>
         <Pressable style={cal.navBtn}
           onPress={() => { const d = new Date(year, month, 1); onChangeMonth(d.getFullYear(), d.getMonth() + 1); }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <ChevronRight size={24} color={C.text} />
+          <LucideIcon name="chevron-right" size={24} color={C.text} />
         </Pressable>
       </View>
 

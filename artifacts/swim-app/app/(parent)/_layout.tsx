@@ -3,7 +3,6 @@
  * 미승인 학부모(pending / rejected)는 홈 진입 차단 → 대기 화면 표시
  * join_status는 로그인 응답(unified-login)에서 받아 SessionContext에 저장
  */
-import { Info } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { Stack } from "expo-router";
 import React from "react";
@@ -53,7 +52,7 @@ function ApprovalPendingScreen({ status }: { status: string }) {
         )}
 
         <View style={[g.waitBanner, { backgroundColor: C.tintLight }]}>
-          <Info size={14} color={C.tint} />
+          <LucideIcon name="info" size={14} color={C.tint} />
           <Text style={[g.waitTxt, { color: C.tint }]}>
             {isRejected
               ? "문의: 수영장에 직접 연락해 주세요"

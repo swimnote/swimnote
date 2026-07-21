@@ -23,7 +23,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Check, ChevronDown, CircleX, CornerLeftUp, Eye, Inbox, Plus, Search, Trash2, X, ZoomIn } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { API_BASE } from "@/context/AuthContext";
 import { useAuth } from "@/context/AuthContext";
@@ -197,7 +197,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
         {item.is_overridden && (
           <View style={s.editedDot} />
         )}
-        <Plus size={16} color={PRIMARY} style={{ marginLeft: 4 }} />
+        <LucideIcon name="plus" size={16} color={PRIMARY} style={{ marginLeft: 4 }} />
       </TouchableOpacity>
     );
   }, [isSearching, levels, addToPreview]);
@@ -219,13 +219,13 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
           <View style={s.header}>
             <Text style={s.title}>문장 불러오기</Text>
             <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <X size={20} color={C.textSecondary} />
+              <LucideIcon name="x" size={20} color={C.textSecondary} />
             </TouchableOpacity>
           </View>
 
           {/* 검색창 */}
           <View style={s.searchRow}>
-            <Search size={15} color={C.textSecondary} />
+            <LucideIcon name="search" size={15} color={C.textSecondary} />
             <TextInput
               style={s.searchInput}
               value={searchQuery}
@@ -236,7 +236,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <CircleX size={16} color={C.textSecondary} />
+                <LucideIcon name="x-circle" size={16} color={C.textSecondary} />
               </TouchableOpacity>
             )}
           </View>
@@ -265,7 +265,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                 >
                   {activeLevelId === MY_TAB_ID || !selectedLevelName ? "레벨 선택" : selectedLevelName}
                 </Text>
-                <ChevronDown size={14} color={activeLevelId !== MY_TAB_ID && selectedLevelName ? PRIMARY : C.textMuted} />
+                <LucideIcon name="chevron-down" size={14} color={activeLevelId !== MY_TAB_ID && selectedLevelName ? PRIMARY : C.textMuted} />
               </TouchableOpacity>
             </View>
           )}
@@ -277,7 +277,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
             {!isSearching && pickerOpen && (
               <View style={s.inlinePicker}>
                 <View style={s.inlinePickerSearch}>
-                  <Search size={14} color={C.textMuted} />
+                  <LucideIcon name="search" size={14} color={C.textMuted} />
                   <TextInput
                     style={s.inlinePickerInput}
                     value={pickerSearch}
@@ -301,7 +301,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                         <Text style={[s.inlinePickerRowText, isSel && s.inlinePickerRowTextSel]} numberOfLines={1}>
                           {lv.level_name}
                         </Text>
-                        {isSel && <Check size={14} color={PRIMARY} />}
+                        {isSel && <LucideIcon name="check" size={14} color={PRIMARY} />}
                       </TouchableOpacity>
                     );
                   })}
@@ -333,7 +333,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                 keyboardShouldPersistTaps="handled"
                 ListEmptyComponent={
                   <View style={s.emptyBox}>
-                    <Inbox size={28} color={C.textMuted} />
+                    <LucideIcon name="inbox" size={28} color={C.textMuted} />
                     <Text style={s.emptyText}>
                       {isSearching
                         ? "검색 결과가 없습니다."
@@ -351,7 +351,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
           <View style={s.previewBox}>
             <View style={s.previewHeader}>
               <Text style={s.previewLabel}>
-                <Eye size={12} color={C.textSecondary} />
+                <LucideIcon name="eye" size={12} color={C.textSecondary} />
                 {" "}삽입 예정 미리보기
               </Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -362,7 +362,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                     hitSlop={8}
                     activeOpacity={0.7}
                   >
-                    <ZoomIn size={15} color={PRIMARY} />
+                    <LucideIcon name="zoom-in" size={15} color={PRIMARY} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -384,7 +384,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                 disabled={preview.length === 0}
                 activeOpacity={0.7}
               >
-                <CornerLeftUp size={13} color={preview.length === 0 ? C.textMuted : C.textSecondary} />
+                <LucideIcon name="corner-left-up" size={13} color={preview.length === 0 ? C.textMuted : C.textSecondary} />
                 <Text style={[s.previewBtnText, preview.length === 0 && { color: C.textMuted }]}>바로 전 삭제</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -393,7 +393,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                 disabled={preview.length === 0}
                 activeOpacity={0.7}
               >
-                <Trash2 size={13} color={preview.length === 0 ? C.textMuted : "#D96C6C"} />
+                <LucideIcon name="trash-2" size={13} color={preview.length === 0 ? C.textMuted : "#D96C6C"} />
                 <Text style={[s.previewBtnText, preview.length === 0 ? { color: C.textMuted } : { color: "#D96C6C" }]}>전체 삭제</Text>
               </TouchableOpacity>
             </View>
@@ -410,7 +410,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
               disabled={preview.length === 0}
               activeOpacity={0.7}
             >
-              <Check size={15} color={preview.length === 0 ? C.textMuted : "#fff"} />
+              <LucideIcon name="check" size={15} color={preview.length === 0 ? C.textMuted : "#fff"} />
               <Text style={[s.insertBtnText, preview.length === 0 && { color: C.textMuted }]}>완료 · 삽입</Text>
             </TouchableOpacity>
           </View>
@@ -430,7 +430,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
           <View style={s.fullPreviewHeader}>
             <Text style={s.fullPreviewTitle}>삽입 예정 미리보기 ({preview.length}문장)</Text>
             <TouchableOpacity onPress={() => setPreviewModalVisible(false)} hitSlop={12} activeOpacity={0.7}>
-              <X size={20} color={C.textSecondary} />
+              <LucideIcon name="x" size={20} color={C.textSecondary} />
             </TouchableOpacity>
           </View>
           <ScrollView style={s.fullPreviewScroll} showsVerticalScrollIndicator={false}>

@@ -4,7 +4,6 @@
  * 발신함 전용: 스윔노트에 보낸 문의 목록 + 답변 확인
  * 상세: 채팅형 (KeyboardAwareScrollView)
  */
-import { ChevronLeft, Plus, Send, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -166,7 +165,7 @@ export default function TeacherInquiriesScreen() {
       <View style={[s.root, { backgroundColor: C.background }]}>
         <View style={[s.detailHeader, { paddingTop: insets.top + 12 }]}>
           <Pressable onPress={() => { setCurrentId(null); setDetail(null); loadList(); }} hitSlop={10} style={s.backBtn}>
-            <ChevronLeft size={22} color={C.text} />
+            <LucideIcon name="chevron-left" size={22} color={C.text} />
           </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={[s.detailTitle, { color: C.text }]} numberOfLines={1}>{detail?.title ?? "문의 상세"}</Text>
@@ -227,7 +226,7 @@ export default function TeacherInquiriesScreen() {
               onPress={sendReply}
               disabled={!input.trim() || sending}
             >
-              {sending ? <ActivityIndicator color="#fff" size="small" /> : <Send size={18} color="#fff" />}
+              {sending ? <ActivityIndicator color="#fff" size="small" /> : <LucideIcon name="send" size={18} color="#fff" />}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -287,7 +286,7 @@ export default function TeacherInquiriesScreen() {
       )}
 
       <Pressable style={[s.fab, { bottom: insets.bottom + 24 }]} onPress={() => setNewModal(true)}>
-        <Plus size={24} color="#fff" />
+        <LucideIcon name="plus" size={24} color="#fff" />
       </Pressable>
 
       <Modal visible={newModal} transparent animationType="slide" onRequestClose={() => setNewModal(false)}>
@@ -297,7 +296,7 @@ export default function TeacherInquiriesScreen() {
             <View style={s.sheetHeader}>
               <Text style={[s.sheetTitle, { color: C.text }]}>스윔노트에 문의</Text>
               <Pressable onPress={() => { setNewModal(false); setNewTitle(""); setNewContent(""); }}>
-                <X size={20} color={C.textMuted} />
+                <LucideIcon name="x" size={20} color={C.textMuted} />
               </Pressable>
             </View>
             <ScrollView keyboardShouldPersistTaps="handled" style={{ marginTop: 8 }}>

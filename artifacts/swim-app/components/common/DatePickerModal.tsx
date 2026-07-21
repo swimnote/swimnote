@@ -1,5 +1,5 @@
-import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import React, { useState } from "react";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 
@@ -75,13 +75,13 @@ export function DatePickerModal({ visible, value, onConfirm, onClose }: DatePick
           {/* 헤더 — 연월 네비게이션 */}
           <View style={dp.navRow}>
             <Pressable onPress={prevMonth} style={dp.navBtn} hitSlop={8}>
-              <ChevronLeft size={20} color={C.text} />
+              <LucideIcon name="chevron-left" size={20} color={C.text} />
             </Pressable>
             <Text style={[dp.monthLabel, { color: C.text }]}>
               {year}년 {month + 1}월
             </Text>
             <Pressable onPress={nextMonth} style={dp.navBtn} hitSlop={8}>
-              <ChevronRight size={20} color={C.text} />
+              <LucideIcon name="chevron-right" size={20} color={C.text} />
             </Pressable>
           </View>
 

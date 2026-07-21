@@ -4,7 +4,6 @@
  * - 스토리지: 실제 DB 사용량
  * - DB·기타: 고정 운영비
  */
-import { ChartBar, CircleAlert, PieChart } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -181,7 +180,7 @@ export default function CostAnalyticsScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 14 }}>
 
         <View style={s.infoBanner}>
-          <CircleAlert size={12} color="#0369A1" />
+          <LucideIcon name="alert-circle" size={12} color="#0369A1" />
           <Text style={s.infoTxt}>
             스토어수수료·세금은 revenue_logs 실데이터 기반. DB·기타 운영비는 실제 계약 고정 비용.
           </Text>
@@ -247,7 +246,7 @@ export default function CostAnalyticsScreen() {
 
         {/* 항목별 비용 */}
         <View style={s.sectionHdr}>
-          <PieChart size={14} color={P} />
+          <LucideIcon name="pie-chart" size={14} color={P} />
           <Text style={s.sectionTitle}>항목별 비용</Text>
         </View>
         {costs.map(c => (
@@ -272,7 +271,7 @@ export default function CostAnalyticsScreen() {
 
         {/* 비용 구성비 바 */}
         <View style={s.sectionHdr}>
-          <ChartBar size={14} color={P} />
+          <LucideIcon name="bar-chart" size={14} color={P} />
           <Text style={s.sectionTitle}>비용 구성비</Text>
         </View>
         <View style={s.barWrap}>

@@ -3,7 +3,7 @@
  * - 전체공지 / 우리반공지 태그 분리
  * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
-import { Bookmark, ClipboardList } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
@@ -121,7 +121,7 @@ export default function ParentNoticesScreen() {
         >
           {filtered.length === 0 ? (
             <View style={[s.emptyBox, { backgroundColor: C.card }]}>
-              <ClipboardList size={40} color={C.textMuted} />
+              <LucideIcon name="clipboard-list" size={40} color={C.textMuted} />
               <Text style={[s.emptyTitle, { color: C.textMuted }]}>공지사항이 없습니다</Text>
             </View>
           ) : filtered.map(n => {
@@ -136,7 +136,7 @@ export default function ParentNoticesScreen() {
                   <TypeBadge type={n.notice_type} scope={n.audience_scope} />
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     {!n.is_read && <View style={[s.dot, { backgroundColor: C.tint }]} />}
-                    {n.is_pinned && <Bookmark size={13} color={C.tint} />}
+                    {n.is_pinned && <LucideIcon name="bookmark" size={13} color={C.tint} />}
                   </View>
                 </View>
                 <Text style={[s.title, { color: C.text }]}>{n.title}</Text>

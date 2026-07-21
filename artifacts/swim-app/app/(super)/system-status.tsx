@@ -2,7 +2,6 @@
  * (super)/system-status.tsx — 시스템 상태
  * 실제 API(/super/system-health)에서 각 서비스의 상태/지연/메모를 가져와 표시.
  */
-import { Cpu, Info, RefreshCw } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -111,7 +110,7 @@ function MemoryCard({ info }: { info: MemoryInfo }) {
     <View style={[sc.card, { borderLeftColor: cfg.color, borderLeftWidth: 4 }]}>
       <View style={sc.top}>
         <View style={[sc.iconWrap, { backgroundColor: cfg.bg }]}>
-          <Cpu size={16} color={cfg.color} />
+          <LucideIcon name="cpu" size={16} color={cfg.color} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={sc.name}>서버 메모리 (Render)</Text>
@@ -222,7 +221,7 @@ export default function SystemStatusScreen() {
           </Text>
         </View>
         <Pressable style={s.refreshBtn} onPress={() => load(true)} disabled={loading || refreshing}>
-          <RefreshCw size={14} color={loading ? "#94A3B8" : overallCfg.color} />
+          <LucideIcon name="refresh-cw" size={14} color={loading ? "#94A3B8" : overallCfg.color} />
         </Pressable>
       </View>
 
@@ -258,7 +257,7 @@ export default function SystemStatusScreen() {
         )}
 
         <View style={s.noteBox}>
-          <Info size={12} color="#64748B" />
+          <LucideIcon name="info" size={12} color="#64748B" />
           <Text style={s.noteTxt}>
             이 화면을 열거나 새로고침할 때 각 서비스에 실시간으로 연결해 상태를 확인합니다.
           </Text>

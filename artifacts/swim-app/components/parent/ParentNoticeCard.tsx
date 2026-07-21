@@ -1,5 +1,4 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { Pin } from "lucide-react-native";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -55,7 +54,7 @@ export function ParentNoticeCard({ notices, unreadCount, onPress }: Props) {
           <View style={styles.metaRow}>
             {notice.is_pinned && (
               <View style={styles.pinBadge}>
-                <Pin size={10} color="#B45309" />
+                <LucideIcon name="pin" size={10} color="#B45309" />
                 <Text style={styles.pinTxt}>중요</Text>
               </View>
             )}

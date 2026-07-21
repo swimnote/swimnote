@@ -1,7 +1,6 @@
 /**
  * (super)/support-general.tsx — 슈퍼관리자: 일반 문의 목록
  */
-import { ChevronRight, MessageCircle } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -12,6 +11,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { LucideIcon } from "@/components/common/LucideIcon";
 
 const C = Colors.light;
 const P = "#7C3AED";
@@ -94,7 +94,7 @@ export default function SupportGeneralScreen() {
         </View>
         <Text style={s.subject} numberOfLines={2}>{item.subject}</Text>
         <Text style={s.requesterName} numberOfLines={1}>{item.requester_name || "이름 없음"}</Text>
-        <ChevronRight size={14} color="#CBD5E1" style={{ position: "absolute", right: 14, top: 14 }} />
+        <LucideIcon name="chevron-right" size={14} color="#CBD5E1" style={{ position: "absolute", right: 14, top: 14 }} />
       </Pressable>
     );
   }
@@ -127,7 +127,7 @@ export default function SupportGeneralScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
           ListEmptyComponent={
             <View style={s.empty}>
-              <MessageCircle size={36} color="#E2E8F0" />
+              <LucideIcon name="message-circle" size={36} color="#E2E8F0" />
               <Text style={s.emptyTxt}>접수된 일반 문의가 없습니다</Text>
             </View>
           }

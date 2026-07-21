@@ -1,5 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Calendar } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
@@ -118,7 +117,7 @@ export default function ParentAttendanceScreen() {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Calendar size={40} color={C.textMuted} />
+              <LucideIcon name="calendar" size={40} color={C.textMuted} />
               <Text style={[styles.emptyText, { color: C.textMuted }]}>출결 기록이 없습니다</Text>
             </View>
           }

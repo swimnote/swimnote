@@ -7,7 +7,7 @@
  * 슬라이드 5: 보강 처리 방법
  * 슬라이드 6: 시작하기
  */
-import { ArrowRight, BookOpen, CalendarCheck, CalendarDays, CheckCircle2, ChevronRight, CircleDollarSign, Clock, GraduationCap, ListChecks, RotateCcw, Sun } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -91,7 +91,7 @@ export default function OnboardingTeacherScreen() {
           </Pressable>
           <Pressable style={s.nextBtn} onPress={goNext}>
             <Text style={s.nextTxt}>다음</Text>
-            <ArrowRight size={16} color="#fff" />
+            <LucideIcon name="arrow-right" size={16} color="#fff" />
           </Pressable>
         </View>
       )}
@@ -104,7 +104,7 @@ function SlideWelcome({ name }: { name: string }) {
   return (
     <View style={[sw.root, { width: W }]}>
       <View style={sw.iconWrap}>
-        <GraduationCap size={64} color={GREEN} />
+        <LucideIcon name="graduation-cap" size={64} color={GREEN} />
       </View>
       <Text style={sw.badge}>선생님 모드</Text>
       <Text style={sw.title}>{name},{"\n"}스윔노트에 오신 것을{"\n"}환영합니다!</Text>
@@ -126,7 +126,7 @@ function SlideToday() {
   return (
     <ScrollView style={{ width: W }} contentContainerStyle={st.root} showsVerticalScrollIndicator={false}>
       <View style={st.header}>
-        <Sun size={28} color={ORANGE} />
+        <LucideIcon name="sun" size={28} color={ORANGE} />
         <Text style={st.title}>오늘 스케줄 탭</Text>
       </View>
       <Text style={st.sub}>매일 사용하는 핵심 탭입니다</Text>
@@ -183,7 +183,7 @@ function SlideCalendar() {
   return (
     <ScrollView style={{ width: W }} contentContainerStyle={scal.root} showsVerticalScrollIndicator={false}>
       <View style={scal.header}>
-        <CalendarDays size={28} color={BLUE} />
+        <LucideIcon name="calendar-days" size={28} color={BLUE} />
         <Text style={scal.title}>내 스케줄 탭 (달력)</Text>
       </View>
       <Text style={scal.sub}>주간·월간으로 내 수업 전체를 확인</Text>
@@ -238,7 +238,7 @@ function SlideSettlement() {
   return (
     <ScrollView style={{ width: W }} contentContainerStyle={sse.root} showsVerticalScrollIndicator={false}>
       <View style={sse.header}>
-        <CircleDollarSign size={28} color={GREEN} />
+        <LucideIcon name="circle-dollar-sign" size={28} color={GREEN} />
         <Text style={sse.title}>월 정산 방식 이해</Text>
       </View>
       <Text style={sse.sub}>정산은 어떻게 계산되고 제출하나요?</Text>
@@ -313,7 +313,7 @@ function SlideMakeup() {
   return (
     <ScrollView style={{ width: W }} contentContainerStyle={sm.root} showsVerticalScrollIndicator={false}>
       <View style={sm.header}>
-        <RotateCcw size={28} color={PURPLE} />
+        <LucideIcon name="rotate-ccw" size={28} color={PURPLE} />
         <Text style={sm.title}>보강 처리 방법</Text>
       </View>
       <Text style={sm.sub}>결석하면 보강이 자동으로 생성됩니다</Text>
@@ -358,7 +358,7 @@ function SlideDone({ name, onStart }: { name: string; onStart: () => void }) {
   return (
     <View style={[sd.root, { width: W }]}>
       <View style={sd.iconWrap}>
-        <CheckCircle2 size={72} color={GREEN} />
+        <LucideIcon name="check-circle" size={72} color={GREEN} />
       </View>
       <Text style={sd.title}>준비 완료!</Text>
       <Text style={sd.sub}>
@@ -375,7 +375,7 @@ function SlideDone({ name, onStart }: { name: string; onStart: () => void }) {
           { tab: "정산", desc: "월 수업 횟수 확인 및 제출" },
         ].map(r => (
           <View key={r.tab} style={sd.summaryRow}>
-            <ChevronRight size={14} color={GREEN} />
+            <LucideIcon name="chevron-right" size={14} color={GREEN} />
             <Text style={sd.summaryTxt}>
               <Text style={{ color: GREEN }}>{r.tab}</Text> — {r.desc}
             </Text>
@@ -384,7 +384,7 @@ function SlideDone({ name, onStart }: { name: string; onStart: () => void }) {
       </View>
       <Pressable style={sd.btn} onPress={onStart}>
         <Text style={sd.btnTxt}>오늘 스케줄로 시작하기</Text>
-        <ArrowRight size={18} color="#fff" />
+        <LucideIcon name="arrow-right" size={18} color="#fff" />
       </Pressable>
     </View>
   );

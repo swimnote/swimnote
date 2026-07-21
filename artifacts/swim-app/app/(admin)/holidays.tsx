@@ -5,7 +5,7 @@
  * 선택된 날짜는 다음 달 수업 생성 시 제외
  * 월별 휴무일 확정 기능 포함
  */
-import { CheckCircle, ChevronLeft, ChevronRight, Info, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {ActivityIndicator, Alert, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
@@ -154,17 +154,17 @@ export default function HolidaysScreen() {
         {/* 월 선택 */}
         <View style={[s.monthRow, { backgroundColor: C.card }]}>
           <Pressable onPress={() => changeMonth(-1)} style={s.navBtn}>
-            <ChevronLeft size={22} color={themeColor} />
+            <LucideIcon name="chevron-left" size={22} color={themeColor} />
           </Pressable>
           <Text style={[s.monthText, { color: C.text }]}>{year}년 {month}월 휴무일</Text>
           <Pressable onPress={() => changeMonth(1)} style={s.navBtn}>
-            <ChevronRight size={22} color={themeColor} />
+            <LucideIcon name="chevron-right" size={22} color={themeColor} />
           </Pressable>
         </View>
 
         {/* 안내 */}
         <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
-          <Info size={14} color="#D97706" />
+          <LucideIcon name="info" size={14} color="#D97706" />
           <Text style={s.infoText}>날짜를 누르면 휴무일로 등록됩니다. 다시 누르면 취소됩니다.{"\n"}휴무일에는 수업이 생성되지 않으며, 빠진 수업은 미실시(수영장) 보강으로 이월됩니다.</Text>
         </View>
 
@@ -204,7 +204,7 @@ export default function HolidaysScreen() {
                         color: isHol ? "#D96C6C" : isSun ? "#D96C6C" : isSat ? "#4EA7D8" : C.text,
                       }]}>{d}</Text>
                     )}
-                    {isHol && <X size={8} color="#D96C6C" />}
+                    {isHol && <LucideIcon name="x" size={8} color="#D96C6C" />}
                   </View>
                 </Pressable>
               );
@@ -237,7 +237,7 @@ export default function HolidaysScreen() {
                   style={s.deleteBtn}
                   disabled={!!saving}
                 >
-                  <X size={16} color="#D96C6C" />
+                  <LucideIcon name="x" size={16} color="#D96C6C" />
                 </Pressable>
               </View>
             ))}
@@ -248,7 +248,7 @@ export default function HolidaysScreen() {
         {isAdminRole && !loading && (
           confirmStatus.confirmed ? (
             <View style={s.confirmedCard}>
-              <CheckCircle size={20} color="#16A34A" />
+              <LucideIcon name="check-circle" size={20} color="#16A34A" />
               <View style={{ flex: 1 }}>
                 <Text style={s.confirmedTitle}>{month}월 휴무일 확정 완료</Text>
                 {confirmStatus.confirmed_at && (
@@ -266,7 +266,7 @@ export default function HolidaysScreen() {
           ) : (
             <View style={s.confirmSection}>
               <View style={s.confirmInfo}>
-                <Info size={14} color="#DC2626" />
+                <LucideIcon name="info" size={14} color="#DC2626" />
                 <Text style={s.confirmInfoTxt}>
                   휴무일이 없어도 확정 버튼을 눌러야 합니다. 확정 후 수정하면 재확정이 필요합니다.
                 </Text>
@@ -279,7 +279,7 @@ export default function HolidaysScreen() {
                 {confirming
                   ? <ActivityIndicator size="small" color="#fff" />
                   : <>
-                      <CheckCircle size={16} color="#fff" />
+                      <LucideIcon name="check-circle" size={16} color="#fff" />
                       <Text style={s.confirmBtnTxt}>{month}월 휴무일 확정</Text>
                     </>
                 }

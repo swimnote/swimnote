@@ -5,7 +5,6 @@
  * 상세: 문의 내용 + 답변 채팅 (KeyboardAwareScrollView)
  * 신규: 하단 시트 → 스윔노트에 문의 / 원장님에게 문의 선택
  */
-import { ChevronLeft, Plus, Send, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -186,7 +185,7 @@ export default function ParentInquiriesScreen() {
       <View style={[s.root, { backgroundColor: C.background }]}>
         <View style={[s.detailHeader, { paddingTop: insets.top + 12 }]}>
           <Pressable onPress={() => { setCurrentId(null); setDetail(null); loadList(); }} hitSlop={10} style={s.backBtn}>
-            <ChevronLeft size={22} color={C.text} />
+            <LucideIcon name="chevron-left" size={22} color={C.text} />
           </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={[s.detailTitle, { color: C.text }]} numberOfLines={1}>
@@ -255,7 +254,7 @@ export default function ParentInquiriesScreen() {
             >
               {sending
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Send size={18} color="#fff" />}
+                : <LucideIcon name="send" size={18} color="#fff" />}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -319,7 +318,7 @@ export default function ParentInquiriesScreen() {
         style={[s.fab, { bottom: insets.bottom + 24 }]}
         onPress={() => setSheetVisible(true)}
       >
-        <Plus size={24} color="#fff" />
+        <LucideIcon name="plus" size={24} color="#fff" />
       </Pressable>
 
       <Modal visible={sheetVisible} transparent animationType="slide" onRequestClose={() => setSheetVisible(false)}>
@@ -331,7 +330,7 @@ export default function ParentInquiriesScreen() {
                 {newTarget ? (newTarget === "super" ? "스윔노트에 문의" : "원장님에게 문의") : "문의 대상 선택"}
               </Text>
               <Pressable onPress={() => { setSheetVisible(false); setNewTarget(null); setNewTitle(""); setNewContent(""); }}>
-                <X size={20} color={C.textMuted} />
+                <LucideIcon name="x" size={20} color={C.textMuted} />
               </Pressable>
             </View>
 

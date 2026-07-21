@@ -5,7 +5,6 @@
  * - TOTP 필요 시 /otp-verify?session=... 로 이동
  * - 역할 선택 → org-role-select.tsx로 분리
  */
-import { ArrowLeft, CircleAlert, Lock, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
@@ -73,10 +72,10 @@ export default function LoginPasswordScreen() {
       >
         <View style={styles.topRow}>
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <ArrowLeft size={22} color={C.text} />
+            <LucideIcon name="arrow-left" size={22} color={C.text} />
           </Pressable>
           <View style={styles.idChip}>
-            <User size={13} color={C.tint} />
+            <LucideIcon name="user" size={13} color={C.tint} />
             <Text style={[styles.idChipText, { color: C.tint }]} numberOfLines={1}>{identifier}</Text>
             <Pressable onPress={() => router.replace("/")} style={{ marginLeft: 2 }}>
               <Text style={[styles.changeIdText, { color: C.textMuted }]}>{LOGIN_LABELS.backToId}</Text>
@@ -89,7 +88,7 @@ export default function LoginPasswordScreen() {
 
           {!!error && (
             <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <CircleAlert size={14} color={C.error} />
+              <LucideIcon name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
             </View>
           )}
@@ -97,7 +96,7 @@ export default function LoginPasswordScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>{LOGIN_LABELS.passwordInput.label}</Text>
             <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Lock size={16} color={C.textMuted} />
+              <LucideIcon name="lock" size={16} color={C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={password}

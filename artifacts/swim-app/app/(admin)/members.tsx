@@ -1,5 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { CircleX, Info, Search, SquareCheck } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -426,7 +425,7 @@ export default function MembersScreen() {
               <Text style={ms.actionBtnText}>어린이 직접 등록</Text>
             </Pressable>
             <Pressable style={[ms.selBtn]} onPress={sel.enterSelectionMode}>
-              <SquareCheck size={16} color={C.textSecondary} />
+              <LucideIcon name="check-square" size={16} color={C.textSecondary} />
             </Pressable>
           </>
         ) : (
@@ -439,7 +438,7 @@ export default function MembersScreen() {
       </View>
       {/* 검색 */}
       <View style={[ms.searchRow, { borderColor: C.border, backgroundColor: C.card }]}>
-        <Search size={16} color={C.textMuted} />
+        <LucideIcon name="search" size={16} color={C.textMuted} />
         <TextInput
           style={[ms.searchInput, { color: C.text }]}
           value={search} onChangeText={setSearch}
@@ -448,7 +447,7 @@ export default function MembersScreen() {
         />
         {search.length > 0 && (
           <Pressable onPress={() => setSearch("")}>
-            <CircleX size={16} color={C.textMuted} />
+            <LucideIcon name="x-circle" size={16} color={C.textMuted} />
           </Pressable>
         )}
       </View>
@@ -476,7 +475,7 @@ export default function MembersScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
           ListHeaderComponent={filter === "suspended" ? (
             <View style={ms.suspendedBanner}>
-              <Info size={14} color="#B45309" />
+              <LucideIcon name="info" size={14} color="#B45309" />
               <Text style={ms.suspendedBannerTitle}>연기 회원도 정상 요금 100% 과금</Text>
             </View>
           ) : null}

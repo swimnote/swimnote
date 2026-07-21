@@ -7,7 +7,6 @@
  *   → 복원: active로 복구
  *   → 영구삭제: 2단계 확인 후 복구 불가
  */
-import { Archive, Lock, RotateCcw, Search, Trash2, TriangleAlert, UserX, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {ActivityIndicator, FlatList, Modal, Pressable,
   RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
@@ -17,6 +16,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
+import { LucideIcon } from "@/components/common/LucideIcon";
 
 const C = Colors.light;
 
@@ -169,7 +169,7 @@ export default function WithdrawnMembersScreen() {
 
       {/* 검색 */}
       <View style={[styles.searchBox, { borderColor: C.border, backgroundColor: C.card, marginHorizontal: 16 }]}>
-        <Search size={16} color={C.textMuted} />
+        <LucideIcon name="search" size={16} color={C.textMuted} />
         <TextInput
           style={[styles.searchInput, { color: C.text }]}
           value={search}
@@ -178,7 +178,7 @@ export default function WithdrawnMembersScreen() {
           placeholderTextColor={C.textMuted}
         />
         {search.length > 0 && (
-          <Pressable onPress={() => setSearch("")}><X size={15} color={C.textMuted} /></Pressable>
+          <Pressable onPress={() => setSearch("")}><LucideIcon name="x" size={15} color={C.textMuted} /></Pressable>
         )}
       </View>
 
@@ -193,7 +193,7 @@ export default function WithdrawnMembersScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <UserX size={40} color={C.textMuted} />
+              <LucideIcon name="user-x" size={40} color={C.textMuted} />
               <Text style={[styles.emptyText, { color: C.textMuted }]}>
                 {search ? "검색 결과가 없습니다" : `${tab === "withdrawn" ? "퇴원자" : "아카이브 회원"}이 없습니다`}
               </Text>
@@ -261,7 +261,7 @@ export default function WithdrawnMembersScreen() {
             {deleteStep === 1 ? (
               <>
                 <View style={[styles.deleteIcon, { backgroundColor: "#FEF2F2" }]}>
-                  <TriangleAlert size={28} color="#D96C6C" />
+                  <LucideIcon name="alert-triangle" size={28} color="#D96C6C" />
                 </View>
                 <Text style={styles.deleteTitle}>영구 삭제 확인</Text>
                 <Text style={styles.deleteMsg}>
@@ -282,7 +282,7 @@ export default function WithdrawnMembersScreen() {
             ) : (
               <>
                 <View style={[styles.deleteIcon, { backgroundColor: "#D96C6C" }]}>
-                  <Trash2 size={28} color="#fff" />
+                  <LucideIcon name="trash-2" size={28} color="#fff" />
                 </View>
                 <Text style={styles.deleteTitle}>정말 삭제하시겠습니까?</Text>
                 <Text style={styles.deleteMsg}>
@@ -338,7 +338,7 @@ function MemberCard({
             <Text style={styles.memberName}>{item.name}</Text>
             {tab === "withdrawn" && isAccessBlocked && (
               <View style={[styles.tagBadge, { backgroundColor: "#D96C6C" }]}>
-                <Lock size={9} color="#fff" />
+                <LucideIcon name="lock" size={9} color="#fff" />
                 <Text style={[styles.tagTxt, { color: "#fff" }]}>접근차단</Text>
               </View>
             )}
@@ -376,12 +376,12 @@ function MemberCard({
             <>
               {!isAccessBlocked && (
                 <Pressable style={[styles.actionBtn, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]} onPress={onFinalWithdraw}>
-                  <Lock size={12} color="#D96C6C" />
+                  <LucideIcon name="lock" size={12} color="#D96C6C" />
                   <Text style={[styles.actionBtnTxt, { color: "#D96C6C" }]}>최종 퇴원처리</Text>
                 </Pressable>
               )}
               <Pressable style={[styles.actionBtn, { backgroundColor: "#F1F5F9", borderColor: "#E5E7EB" }]} onPress={onArchive}>
-                <Archive size={12} color="#64748B" />
+                <LucideIcon name="archive" size={12} color="#64748B" />
                 <Text style={[styles.actionBtnTxt, { color: "#64748B" }]}>아카이브로 이동</Text>
               </Pressable>
             </>
@@ -389,11 +389,11 @@ function MemberCard({
           {tab === "archived" && (
             <>
               <Pressable style={[styles.actionBtn, { backgroundColor: "#E6FFFA", borderColor: "#E6FAF8" }]} onPress={onRestore}>
-                <RotateCcw size={12} color="#2EC4B6" />
+                <LucideIcon name="rotate-ccw" size={12} color="#2EC4B6" />
                 <Text style={[styles.actionBtnTxt, { color: "#2EC4B6" }]}>복원</Text>
               </Pressable>
               <Pressable style={[styles.actionBtn, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]} onPress={onPermanentDelete}>
-                <Trash2 size={12} color="#D96C6C" />
+                <LucideIcon name="trash-2" size={12} color="#D96C6C" />
                 <Text style={[styles.actionBtnTxt, { color: "#D96C6C" }]}>영구 삭제</Text>
               </Pressable>
             </>

@@ -10,7 +10,6 @@ import {ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import React, { useCallback, useEffect, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ChevronDown, ChevronUp, Copy, Edit2, Plus, RefreshCcw, Trash2 } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -314,7 +313,7 @@ export default function DiaryTemplateSettingsScreen() {
         rightSlot={
           <View style={{ flexDirection: "row", gap: 6 }}>
             <Pressable style={s.resetBtn} onPress={() => setConfirmRestoreDefault(true)}>
-              <RefreshCcw size={12} color="#7C3AED" />
+              <LucideIcon name="refresh-ccw" size={12} color="#7C3AED" />
               <Text style={[s.resetBtnText, { color: "#7C3AED" }]}>기본 복원</Text>
             </Pressable>
             <Pressable style={[s.resetBtn, { borderColor: "#FECACA" }]} onPress={() => setConfirmClearAll(true)}>
@@ -352,7 +351,7 @@ export default function DiaryTemplateSettingsScreen() {
                   style={[s.addLevelBtn, { borderColor: C.tint, marginTop: 12 }]}
                   onPress={() => { setAddLevelText("레벨 1"); setAddLevelError(""); setAddLevelVisible(true); }}
                 >
-                  <Plus size={14} color={C.tint} />
+                  <LucideIcon name="plus" size={14} color={C.tint} />
                   <Text style={[s.addLevelBtnText, { color: C.tint }]}>레벨 추가</Text>
                 </Pressable>
               </View>
@@ -372,7 +371,7 @@ export default function DiaryTemplateSettingsScreen() {
                     style={s.addChip}
                     onPress={() => { setAddLevelText(`레벨 ${levels.length + 1}`); setAddLevelError(""); setAddLevelVisible(true); }}
                   >
-                    <Plus size={13} color={C.textMuted} />
+                    <LucideIcon name="plus" size={13} color={C.textMuted} />
                     <Text style={s.addChipText}>추가</Text>
                   </Pressable>
                 )}
@@ -393,7 +392,7 @@ export default function DiaryTemplateSettingsScreen() {
                     style={s.addTemplateBtn}
                     onPress={() => { setAddTemplateTitle(""); setAddTemplateText(""); setAddTemplateError(""); setAddTemplateVisible(true); }}
                   >
-                    <Plus size={13} color={C.tint} />
+                    <LucideIcon name="plus" size={13} color={C.tint} />
                     <Text style={s.addTemplateBtnText}>추가</Text>
                   </Pressable>
                 </View>
@@ -615,7 +614,7 @@ function TemplateItem({
             disabled={isFirst}
             hitSlop={6}
           >
-            <ChevronUp size={13} color={C.textSecondary} />
+            <LucideIcon name="chevron-up" size={13} color={C.textSecondary} />
           </Pressable>
           <Pressable
             style={[s.orderBtn, isLast && { opacity: 0.25 }]}
@@ -623,18 +622,18 @@ function TemplateItem({
             disabled={isLast}
             hitSlop={6}
           >
-            <ChevronDown size={13} color={C.textSecondary} />
+            <LucideIcon name="chevron-down" size={13} color={C.textSecondary} />
           </Pressable>
         </View>
         <View style={s.actionBtns}>
           <Pressable style={s.actionBtn} onPress={onCopy} hitSlop={6}>
-            <Copy size={13} color={C.textSecondary} />
+            <LucideIcon name="copy" size={13} color={C.textSecondary} />
           </Pressable>
           <Pressable style={s.actionBtn} onPress={onEdit} hitSlop={6}>
-            <Edit2 size={13} color={C.tint} />
+            <LucideIcon name="edit-2" size={13} color={C.tint} />
           </Pressable>
           <Pressable style={s.actionBtn} onPress={onDelete} hitSlop={6}>
-            <Trash2 size={13} color="#D96C6C" />
+            <LucideIcon name="trash-2" size={13} color="#D96C6C" />
           </Pressable>
         </View>
       </View>

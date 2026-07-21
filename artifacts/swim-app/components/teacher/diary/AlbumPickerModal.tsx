@@ -4,7 +4,7 @@ import {
   Pressable, StyleSheet, Text, View,
 } from "react-native";
 import { Image as ExpoImage } from "expo-image";
-import { CheckCircle2, Play, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AlbumPhotoInfo, AlbumVideoInfo } from "./types";
 import { API_BASE } from "@/context/AuthContext";
@@ -94,7 +94,7 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
         )}
         {isSel && (
           <View style={s.checkOverlay}>
-            <CheckCircle2 size={22} color="#fff" fill="#2EC4B6" />
+            <LucideIcon name="check-circle" size={22} color="#fff" fill="#2EC4B6" />
           </View>
         )}
       </Pressable>
@@ -110,15 +110,15 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
           <ExpoImage source={{ uri: thumbUri }} style={s.image} contentFit="cover" />
         ) : (
           <View style={[s.image, { backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }]}>
-            <Play size={20} color="#94A3B8" fill="#94A3B8" />
+            <LucideIcon name="play" size={20} color="#94A3B8" fill="#94A3B8" />
           </View>
         )}
         <View style={s.videoPlayBadge}>
-          <Play size={11} color="#fff" fill="#fff" />
+          <LucideIcon name="play" size={11} color="#fff" fill="#fff" />
         </View>
         {isSel && (
           <View style={s.checkOverlay}>
-            <CheckCircle2 size={22} color="#fff" fill="#2EC4B6" />
+            <LucideIcon name="check-circle" size={22} color="#fff" fill="#2EC4B6" />
           </View>
         )}
       </Pressable>
@@ -148,7 +148,7 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
       <View style={s.container}>
         <View style={[s.header, { paddingTop: insets.top + 14 }]}>
           <Pressable onPress={onClose} style={s.closeBtn} hitSlop={10}>
-            <X size={20} color="#374151" />
+            <LucideIcon name="x" size={20} color="#374151" />
           </Pressable>
           <Text style={s.title}>앨범에서 선택</Text>
           <Text style={s.countText}>{totalSelected}/20</Text>

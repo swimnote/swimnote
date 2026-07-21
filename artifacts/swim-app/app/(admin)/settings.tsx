@@ -2,7 +2,6 @@
  * 설정 탭 — 수업설정 / 운영설정 / 수영장설정 / 계정
  * U: 복수 역할 보유 시 "로그인 기본 모드" 토글 표시
  */
-import { ChevronRight, Check, Repeat } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { WithdrawalModal } from "@/components/common/WithdrawalModal";
@@ -173,7 +172,7 @@ export default function SettingsScreen() {
                     <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#16A34A" }}>동의 완료</Text>
                   </View>
                 )}
-                <ChevronRight size={16} color={C.textMuted} />
+                <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
               </Pressable>
             );
           })}
@@ -211,7 +210,7 @@ export default function SettingsScreen() {
               style={[s.switchBtn, { borderColor: themeColor }]}
               onPress={() => setSwitchModalVisible(true)}
             >
-              <Repeat size={14} color={themeColor} />
+              <LucideIcon name="repeat" size={14} color={themeColor} />
               <Text style={[s.switchBtnText, { color: themeColor }]}>역할 전환</Text>
             </Pressable>
           )}
@@ -240,7 +239,7 @@ export default function SettingsScreen() {
                 {items.map(item => (
                   <Pressable key={item.label} style={sc.row} onPress={() => router.push((item.route + "?backTo=settings") as any)}>
                     <View style={[sc.dot, { backgroundColor: item.done ? "#D1FAE5" : C.border }]}>
-                      {item.done && <Check size={11} color="#16A34A" />}
+                      {item.done && <LucideIcon name="check" size={11} color="#16A34A" />}
                     </View>
                     <Text style={[sc.rowLabel, { color: item.done ? C.textSecondary : C.text }]}>{item.label}</Text>
                     {!item.done && <Text style={[sc.rowTag, { color: themeColor }]}>설정하기</Text>}

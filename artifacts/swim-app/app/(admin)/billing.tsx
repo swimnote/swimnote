@@ -15,11 +15,7 @@ import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { billingEnabled } from "@/config/billing";
-import {
-  CircleAlert, CircleX, CreditCard, ExternalLink,
-  RotateCcw, TriangleAlert, Check, X, ChevronRight,
-  Users, HardDrive, Image, Video, BookOpen, Baby, Palette, CalendarClock,
-} from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 
 const STORE_NAME   = Platform.OS === "ios" ? "App Store (Apple)" : "Google Play";
 const STORE_MANAGE = Platform.OS === "ios"
@@ -75,18 +71,18 @@ function getTierDetail(tier: string, memberLimit: number, displayStorage: string
   const dimColor  = "#D1D5DB";
 
   const features = [
-    { icon: <Image size={iconSize} color={checkColor} />,   label: "사진 업로드",        included: true },
-    { icon: <BookOpen size={iconSize} color={checkColor} />, label: "출결 관리",          included: true },
-    { icon: <BookOpen size={iconSize} color={checkColor} />, label: "수업 일지",          included: !isFree },
-    { icon: <Baby size={iconSize} color={!isFree ? checkColor : dimColor} />, label: "학부모 연동",  included: !isFree },
+    { icon: <LucideIcon name="image" size={iconSize} color={checkColor} />,   label: "사진 업로드",        included: true },
+    { icon: <LucideIcon name="book-open" size={iconSize} color={checkColor} />, label: "출결 관리",          included: true },
+    { icon: <LucideIcon name="book-open" size={iconSize} color={checkColor} />, label: "수업 일지",          included: !isFree },
+    { icon: <LucideIcon name="user" size={iconSize} color={!isFree ? checkColor : dimColor} />, label: "학부모 연동",  included: !isFree },
     {
-      icon: <Video size={iconSize} color={isCenter ? checkColor : dimColor} />,
+      icon: <LucideIcon name="video" size={iconSize} color={isCenter ? checkColor : dimColor} />,
       label: "영상 업로드",
       included: isCenter,
       note: isCenter ? undefined : "Premier 전용",
     },
     {
-      icon: <Palette size={iconSize} color={isCenter ? checkColor : dimColor} />,
+      icon: <LucideIcon name="palette" size={iconSize} color={isCenter ? checkColor : dimColor} />,
       label: "화이트라벨 (앱 이름·로고 커스텀)",
       included: isCenter,
       note: isCenter ? undefined : "Premier 전용",
@@ -234,8 +230,8 @@ export default function BillingScreen() {
             billingInfo?.subscription_status === "deleted" ? s.failBannerDeleted : s.failBannerActive]}>
             <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
               {billingInfo?.subscription_status === "deleted"
-                ? <CircleX size={18} color="#64748B" />
-                : <TriangleAlert size={18} color="#DC2626" />
+                ? <LucideIcon name="x-circle" size={18} color="#64748B" />
+                : <LucideIcon name="alert-triangle" size={18} color="#DC2626" />
               }
               <View style={{ flex: 1 }}>
                 <Text style={[s.failTitle, billingInfo?.subscription_status === "deleted" && { color: "#64748B" }]}>
@@ -294,7 +290,7 @@ export default function BillingScreen() {
           {billingInfo?.pending_tier && billingInfo?.downgrade_at && (
             <View style={[s.downgradeBanner]}>
               <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
-                <CalendarClock size={16} color="#92400E" style={{ marginTop: 1 }} />
+                <LucideIcon name="calendar" size={16} color="#92400E" style={{ marginTop: 1 }} />
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={s.downgradeTitle}>다운그레이드 예약됨</Text>
                   <Text style={s.downgradeDesc}>
@@ -334,7 +330,7 @@ export default function BillingScreen() {
             </View>
             {storagePct >= 100 && (
               <View style={[s.storageBanner, { backgroundColor: "#FEF2F2", borderColor: "#DC2626" }]}>
-                <CircleX size={14} color="#DC2626" />
+                <LucideIcon name="x-circle" size={14} color="#DC2626" />
                 <View style={{ flex: 1 }}>
                   <Text style={[s.storageBannerTitle, { color: "#DC2626" }]}>저장공간이 가득 차 업로드가 제한됩니다</Text>
                   <Text style={s.storageBannerDesc}>파일을 삭제하거나 상위 플랜으로 업그레이드하세요.</Text>
@@ -349,7 +345,7 @@ export default function BillingScreen() {
             )}
             {storagePct >= 90 && storagePct < 100 && (
               <View style={[s.storageBanner, { backgroundColor: "#FFFBEB", borderColor: "#F59E0B" }]}>
-                <TriangleAlert size={14} color="#D97706" />
+                <LucideIcon name="alert-triangle" size={14} color="#D97706" />
                 <Text style={[s.storageBannerTitle, { color: "#D97706", flex: 1 }]}>
                   곧 업로드가 차단됩니다. 업그레이드해주세요. ({storagePct}%)
                 </Text>
@@ -357,7 +353,7 @@ export default function BillingScreen() {
             )}
             {storagePct >= 80 && storagePct < 90 && (
               <View style={[s.storageBanner, { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" }]}>
-                <CircleAlert size={14} color="#F59E0B" />
+                <LucideIcon name="alert-circle" size={14} color="#F59E0B" />
                 <Text style={[s.storageBannerTitle, { color: "#92400E", flex: 1 }]}>
                   저장공간이 거의 가득 찼습니다. ({storagePct}%)
                 </Text>
@@ -368,7 +364,7 @@ export default function BillingScreen() {
 
         {/* ── 결제 수단 안내 ── */}
         <View style={s.platformBanner}>
-          <CreditCard size={14} color="#475569" />
+          <LucideIcon name="credit-card" size={14} color="#475569" />
           <Text style={s.platformBannerText}>
             이 기기 결제 수단: <Text style={s.platformBannerBold}>{STORE_NAME}</Text>
           </Text>
@@ -377,7 +373,7 @@ export default function BillingScreen() {
               style={s.platformManageBtn}
               onPress={() => Linking.openURL(STORE_MANAGE)}
             >
-              <ExternalLink size={12} color="#2EC4B6" />
+              <LucideIcon name="external-link" size={12} color="#2EC4B6" />
               <Text style={s.platformManageTxt}>구독 관리·해지</Text>
             </Pressable>
           )}
@@ -394,11 +390,11 @@ export default function BillingScreen() {
                 </Text>
                 <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
                   <View style={s.detailChip}>
-                    <Users size={11} color="#64748B" />
+                    <LucideIcon name="users" size={11} color="#64748B" />
                     <Text style={s.detailChipText}>최대 {billingInfo?.member_limit ?? 10}명</Text>
                   </View>
                   <View style={s.detailChip}>
-                    <HardDrive size={11} color="#64748B" />
+                    <LucideIcon name="hard-drive" size={11} color="#64748B" />
                     <Text style={s.detailChipText}>{billingInfo?.display_storage ?? "100MB"}</Text>
                   </View>
                 </View>
@@ -411,8 +407,8 @@ export default function BillingScreen() {
                 <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                   <View style={[s.featureIconWrap, { backgroundColor: f.included ? tierColor + "15" : "#F3F4F6" }]}>
                     {f.included
-                      ? <Check size={13} color={tierColor} strokeWidth={2.5} />
-                      : <X size={13} color="#CBD5E1" strokeWidth={2.5} />
+                      ? <LucideIcon name="check" size={13} color={tierColor} strokeWidth={2.5} />
+                      : <LucideIcon name="x" size={13} color="#CBD5E1" strokeWidth={2.5} />
                     }
                   </View>
                   <Text style={[s.featureLabel, !f.included && { color: "#CBD5E1" }]}>{f.label}</Text>
@@ -434,8 +430,8 @@ export default function BillingScreen() {
                   {pendingTierDetail.features.map((f, i) => (
                     <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                       {f.included
-                        ? <Check size={12} color="#6B7280" strokeWidth={2.5} />
-                        : <X size={12} color="#D1D5DB" strokeWidth={2.5} />
+                        ? <LucideIcon name="check" size={12} color="#6B7280" strokeWidth={2.5} />
+                        : <LucideIcon name="x" size={12} color="#D1D5DB" strokeWidth={2.5} />
                       }
                       <Text style={[{ fontSize: 12, color: f.included ? "#6B7280" : "#D1D5DB" }]}>{f.label}</Text>
                     </View>
@@ -451,7 +447,7 @@ export default function BillingScreen() {
             onPress={() => router.push("/(admin)/subscription" as any)}
           >
             <Text style={[s.changePlanBtnText, { color: tierColor }]}>플랜 변경하기</Text>
-            <ChevronRight size={16} color={tierColor} />
+            <LucideIcon name="chevron-right" size={16} color={tierColor} />
           </Pressable>
         </Section>
 
@@ -476,7 +472,7 @@ export default function BillingScreen() {
             {isRestoring
               ? <ActivityIndicator size="small" color={themeColor} />
               : <>
-                  <RotateCcw size={15} color={themeColor} />
+                  <LucideIcon name="rotate-ccw" size={15} color={themeColor} />
                   <Text style={[s.restoreBtnText, { color: themeColor }]}>구독 복원하기</Text>
                 </>
             }

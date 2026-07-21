@@ -1,5 +1,4 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { BookOpen } from "lucide-react-native";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -36,7 +35,7 @@ export function ParentLatestDiaryCard({ diaries, onPress }: Props) {
       {/* 헤더 */}
       <View style={styles.header}>
         <View style={[styles.iconBg, { backgroundColor: "#EDE9FE" }]}>
-          <BookOpen size={16} color="#7C3AED" />
+          <LucideIcon name="book-open" size={16} color="#7C3AED" />
         </View>
         <Text style={[styles.title, { color: C.text }]}>최근 수업일지</Text>
         {diary?.is_new && (
@@ -73,7 +72,7 @@ export function ParentLatestDiaryCard({ diaries, onPress }: Props) {
         </View>
       ) : (
         <View style={styles.empty}>
-          <BookOpen size={22} color={C.textMuted} />
+          <LucideIcon name="book-open" size={22} color={C.textMuted} />
           <Text style={[styles.emptyTxt, { color: C.textMuted }]}>아직 수업 기록이 없습니다</Text>
         </View>
       )}

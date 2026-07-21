@@ -1,4 +1,3 @@
-import { CreditCard, Info } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React from "react";
@@ -37,7 +36,7 @@ export function MemberPaymentTab({ data, themeColor, weeklyCount, assignedClasse
 
       <View style={[ms.section, { backgroundColor: "#FFF1BF" }]}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Info size={16} color="#D97706" />
+          <LucideIcon name="info" size={16} color="#D97706" />
           <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#D97706" }}>개인 결제 내역</Text>
         </View>
         <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", marginTop: 4, lineHeight: 18 }}>
@@ -45,7 +44,7 @@ export function MemberPaymentTab({ data, themeColor, weeklyCount, assignedClasse
           더보기 → 결제 관리에서 전체 현황을 확인하세요.
         </Text>
         <Pressable style={[ms.outlineBtn, { borderColor: "#D97706", marginTop: 8 }]} onPress={() => router.push("/(admin)/billing" as any)}>
-          <CreditCard size={14} color="#D97706" />
+          <LucideIcon name="credit-card" size={14} color="#D97706" />
           <Text style={[ms.outlineBtnText, { color: "#D97706" }]}>결제 관리 바로가기</Text>
         </Pressable>
       </View>

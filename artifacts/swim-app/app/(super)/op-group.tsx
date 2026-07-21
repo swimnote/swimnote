@@ -1,7 +1,6 @@
 /**
  * (super)/op-group.tsx — 운영 관리 그룹
  */
-import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback } from "react";
@@ -94,7 +93,7 @@ export default function OpGroupScreen() {
               <Text style={s.cardTitle}>{m.title}</Text>
               <Text style={s.cardSub}>{m.sub}</Text>
             </View>
-            <ChevronRight size={16} color="#D1D5DB" />
+            <LucideIcon name="chevron-right" size={16} color="#D1D5DB" />
           </Pressable>
         ))}
       </ScrollView>

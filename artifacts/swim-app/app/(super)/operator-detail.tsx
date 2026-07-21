@@ -2,7 +2,6 @@
  * (super)/operator-detail.tsx — 수영장 상세 관리 콘솔
  * 기본정보 / 구독·결제 / 저장공간 / 정책·동의 / 로그 / 강제조치
  */
-import { ChevronRight, CircleCheck, CreditCard, FileText, HardDrive, Lock, Trash2, TriangleAlert } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -316,7 +315,7 @@ export default function OperatorDetailScreen() {
 
       {!!feedback && (
         <View style={d.feedbackBanner}>
-          <CircleCheck size={14} color="#2EC4B6" />
+          <LucideIcon name="check-circle" size={14} color="#2EC4B6" />
           <Text style={d.feedbackTxt}>{feedback}</Text>
         </View>
       )}
@@ -426,7 +425,7 @@ export default function OperatorDetailScreen() {
               <InfoRow label="결제 플랫폼" value={pool.payment_platform ?? "—"} />
               {isPaymentIssue && (
                 <View style={d.alertBox}>
-                  <TriangleAlert size={14} color="#D96C6C" />
+                  <LucideIcon name="alert-triangle" size={14} color="#D96C6C" />
                   <Text style={d.alertTxt}>결제 이슈가 있습니다. 아래 구독 조정 버튼으로 직접 처리할 수 있습니다.</Text>
                 </View>
               )}
@@ -438,7 +437,7 @@ export default function OperatorDetailScreen() {
               setSubTier(pool.subscription_tier ?? "");
               setSubModal(true);
             }}>
-              <CreditCard size={18} color="#fff" />
+              <LucideIcon name="credit-card" size={18} color="#fff" />
               <Text style={d.primaryBtnTxt}>구독 직접 조정</Text>
             </Pressable>
 
@@ -478,15 +477,15 @@ export default function OperatorDetailScreen() {
               </View>
               {storageAlert && (
                 <View style={d.alertBox}>
-                  <TriangleAlert size={14} color="#D96C6C" />
+                  <LucideIcon name="alert-triangle" size={14} color="#D96C6C" />
                   <Text style={d.alertTxt}>저장공간이 95% 이상 사용되었습니다.</Text>
                 </View>
               )}
             </View>
             <Pressable style={d.actionCard} onPress={() => router.push(`/(super)/storage?operatorId=${id}&backTo=operator-detail` as any)}>
-              <HardDrive size={18} color={P} />
+              <LucideIcon name="hard-drive" size={18} color={P} />
               <Text style={d.actionCardTxt}>추가 용량 부여</Text>
-              <ChevronRight size={16} color="#64748B" style={{ marginLeft: "auto" }} />
+              <LucideIcon name="chevron-right" size={16} color="#64748B" style={{ marginLeft: "auto" }} />
             </Pressable>
           </>
         )}
@@ -503,9 +502,9 @@ export default function OperatorDetailScreen() {
             {policy.terms && <InfoRow label="약관 동의일" value={fmtDate(policy.terms)} />}
             <Pressable style={[d.actionCard, { marginTop: 8 }]}
               onPress={() => router.push("/(super)/policy?backTo=operator-detail" as any)}>
-              <FileText size={18} color={P} />
+              <LucideIcon name="file-text" size={18} color={P} />
               <Text style={d.actionCardTxt}>정책 편집</Text>
-              <ChevronRight size={16} color="#64748B" style={{ marginLeft: "auto" }} />
+              <LucideIcon name="chevron-right" size={16} color="#64748B" style={{ marginLeft: "auto" }} />
             </Pressable>
           </View>
         )}
@@ -550,21 +549,21 @@ export default function OperatorDetailScreen() {
                   <Text style={d.forceTxt}>{item.label}</Text>
                   <Text style={d.forceSub}>{item.sub}</Text>
                 </View>
-                <ChevronRight size={16} color="#D1D5DB" />
+                <LucideIcon name="chevron-right" size={16} color="#D1D5DB" />
               </Pressable>
             ))}
 
             <View style={d.card}>
               <Text style={d.cardTitle}>빠른 링크</Text>
               <Pressable style={d.quickLink} onPress={() => router.push("/(super)/kill-switch?backTo=operator-detail" as any)}>
-                <TriangleAlert size={15} color="#D96C6C" />
+                <LucideIcon name="alert-triangle" size={15} color="#D96C6C" />
                 <Text style={[d.quickLinkTxt, { color: "#D96C6C" }]}>킬스위치 (데이터 삭제)</Text>
-                <ChevronRight size={14} color="#64748B" style={{ marginLeft: "auto" }} />
+                <LucideIcon name="chevron-right" size={14} color="#64748B" style={{ marginLeft: "auto" }} />
               </Pressable>
               <Pressable style={d.quickLink} onPress={() => router.push(`/(super)/storage?operatorId=${id}&backTo=operator-detail` as any)}>
-                <HardDrive size={15} color={P} />
+                <LucideIcon name="hard-drive" size={15} color={P} />
                 <Text style={[d.quickLinkTxt, { color: P }]}>저장공간 조정</Text>
-                <ChevronRight size={14} color="#64748B" style={{ marginLeft: "auto" }} />
+                <LucideIcon name="chevron-right" size={14} color="#64748B" style={{ marginLeft: "auto" }} />
               </Pressable>
             </View>
 
@@ -575,7 +574,7 @@ export default function OperatorDetailScreen() {
                 수영장을 완전히 삭제합니다. 회원, 수업, 출결, 스태프 등 모든 데이터가 영구 삭제되며 복구할 수 없습니다.
               </Text>
               <Pressable style={d.deleteBtn} onPress={() => setDeleteModal(true)}>
-                <Trash2 size={16} color="#fff" />
+                <LucideIcon name="trash-2" size={16} color="#fff" />
                 <Text style={d.deleteBtnTxt}>수영장 완전 삭제</Text>
               </Pressable>
             </View>
@@ -615,7 +614,7 @@ export default function OperatorDetailScreen() {
                   {processing ? <ActivityIndicator color="#fff" size="small" />
                     : SENSITIVE_ACTIONS.includes(action!) ? (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Lock size={13} color="#fff" />
+                        <LucideIcon name="lock" size={13} color="#fff" />
                         <Text style={m.confirmTxt}>OTP 인증 후 실행</Text>
                       </View>
                     ) : <Text style={m.confirmTxt}>확인</Text>}
@@ -695,7 +694,7 @@ export default function OperatorDetailScreen() {
           <Pressable style={m.sheet} onPress={() => {}}>
             <View style={m.handle} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <Trash2 size={20} color="#D96C6C" />
+              <LucideIcon name="trash-2" size={20} color="#D96C6C" />
               <Text style={[m.title, { color: "#D96C6C" }]}>수영장 완전 삭제</Text>
             </View>
             <View style={{ backgroundColor: "#FFF5F5", borderRadius: 10, padding: 14, marginBottom: 16, gap: 6 }}>

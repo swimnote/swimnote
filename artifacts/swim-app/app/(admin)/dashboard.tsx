@@ -4,7 +4,6 @@
  * 메신저 외 7개 아이콘은 3열 그리드 팝업을 거쳐 페이지 이동
  * SearchModal, AdminQuickRegisterModal → components/admin/ 로 이동됨
  */
-import { Bell, CalendarCheck, Check, ChevronRight, CircleAlert, Crown, LogOut, Repeat, Search, TriangleAlert, UserPlus, UserX, X, Zap } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
@@ -251,7 +250,7 @@ export default function DashboardScreen() {
                 {switching
                   ? <ActivityIndicator size="small" color="#0F172A" />
                   : <>
-                      <Repeat size={10} color="#0F172A" />
+                      <LucideIcon name="repeat" size={10} color="#0F172A" />
                       <Text style={[s.switchChipTxt, { color: C.text }]}>선생님으로 전환</Text>
                     </>
                 }
@@ -282,10 +281,10 @@ export default function DashboardScreen() {
           </View>
         </View>
         <Pressable onPress={() => setShowSearch(true)} style={s.headerBtn} hitSlop={8}>
-          <Search size={20} color={C.textSecondary} />
+          <LucideIcon name="search" size={20} color={C.textSecondary} />
         </Pressable>
         <Pressable onPress={logout} style={s.headerBtn} hitSlop={8}>
-          <LogOut size={18} color={C.textSecondary} />
+          <LucideIcon name="log-out" size={18} color={C.textSecondary} />
         </Pressable>
       </View>
 
@@ -312,7 +311,7 @@ export default function DashboardScreen() {
               <View style={wz.header}>
                 <Text style={wz.title}>시작 가이드</Text>
                 <Pressable onPress={dismissWizard} hitSlop={8}>
-                  <X size={16} color={C.textMuted} />
+                  <LucideIcon name="x" size={16} color={C.textMuted} />
                 </Pressable>
               </View>
               <Text style={wz.sub}>아래 3단계를 완료하면 운영 준비가 끝납니다</Text>
@@ -324,12 +323,12 @@ export default function DashboardScreen() {
                 >
                   <View style={[wz.stepIcon, { backgroundColor: step.done ? "#D1FAE5" : "#F1F5F9" }]}>
                     {step.done
-                      ? <Check size={16} color="#16A34A" />
-                      : <LucideIcon name={step.icon as any} size={16} color={C.textMuted} />
+                      ? <LucideIcon name="check" size={16} color="#16A34A" />
+                      : <LucideIcon name="user" size={16} color={C.textMuted} />
                     }
                   </View>
                   <Text style={[wz.stepLabel, step.done && wz.stepDone]}>{step.label}</Text>
-                  {!step.done && <ChevronRight size={14} color={C.textMuted} style={{ marginLeft: "auto" }} />}
+                  {!step.done && <LucideIcon name="chevron-right" size={14} color={C.textMuted} style={{ marginLeft: "auto" }} />}
                   {step.done && <Text style={wz.doneTag}>완료</Text>}
                 </Pressable>
               ))}
@@ -358,7 +357,7 @@ export default function DashboardScreen() {
             >
               <View style={hol.bannerLeft}>
                 <View style={hol.bannerIconWrap}>
-                  <Bell size={18} color="#fff" />
+                  <LucideIcon name="bell" size={18} color="#fff" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={hol.bannerTitle}>{monthLabel} 휴무일 확정이 필요합니다</Text>
@@ -366,7 +365,7 @@ export default function DashboardScreen() {
                 </View>
               </View>
               <View style={hol.bannerBtn}>
-                <CalendarCheck size={13} color="#C0392B" />
+                <LucideIcon name="calendar-check" size={13} color="#C0392B" />
                 <Text style={hol.bannerBtnTxt}>확정하기</Text>
               </View>
             </Pressable>
@@ -493,7 +492,7 @@ export default function DashboardScreen() {
               <View style={s.splitStatRow}>
                 <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unassigned&backTo=dashboard" as any)}>
                   <View style={[s.splitStatIcon, { backgroundColor: "#E6FAF8" }]}>
-                    <CircleAlert size={14} color="#0F172A" />
+                    <LucideIcon name="alert-circle" size={14} color="#0F172A" />
                   </View>
                   <View>
                     <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unassigned ?? 0}명</Text>
@@ -503,7 +502,7 @@ export default function DashboardScreen() {
                 <View style={s.splitStatDivider} />
                 <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unlinked&backTo=dashboard" as any)}>
                   <View style={[s.splitStatIcon, { backgroundColor: "#E6FAF8" }]}>
-                    <UserX size={14} color="#0F172A" />
+                    <LucideIcon name="user-x" size={14} color="#0F172A" />
                   </View>
                   <View>
                     <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unlinked_members ?? 0}명</Text>
@@ -553,7 +552,7 @@ export default function DashboardScreen() {
               return (
                 <View style={s.alertCard}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <TriangleAlert size={13} color="#D97706" />
+                    <LucideIcon name="alert-triangle" size={13} color="#D97706" />
                     <Text style={[s.alertTxt, { fontWeight: "700", color: "#D97706" }]}>처리 필요 {alerts.length}건</Text>
                   </View>
                   {alerts.map(a => (
@@ -567,7 +566,7 @@ export default function DashboardScreen() {
                         <Text style={[s.alertTxt, { color: a.color }]}>{a.label}</Text>
                         <Text style={[s.alertSub]}>{a.sub}</Text>
                       </View>
-                      <ChevronRight size={12} color={a.color} />
+                      <LucideIcon name="chevron-right" size={12} color={a.color} />
                     </Pressable>
                   ))}
                 </View>
@@ -581,7 +580,7 @@ export default function DashboardScreen() {
                 onPress={() => setShowRegister(true)}
               >
                 <View style={[s.quickBtnIcon, { backgroundColor: "#E6FAF8" }]}>
-                  <UserPlus size={18} color="#1D4ED8" />
+                  <LucideIcon name="user-plus" size={18} color="#1D4ED8" />
                 </View>
                 <Text style={s.quickBtnLabel}>회원등록</Text>
                 <Text style={s.quickBtnSub}>즉시 등록</Text>

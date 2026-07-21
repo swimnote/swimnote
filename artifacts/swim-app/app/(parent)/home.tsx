@@ -11,7 +11,6 @@
  *   3. 공지사항 카드
  *   4. 현재 레벨 카드
  */
-import { Bell, Plus, Settings, UserMinus } from "lucide-react-native";
 import { ParentPromoBanner } from "@/components/parent/ParentPromoBanner";
 import { ParentPromoStrip } from "@/components/parent/ParentPromoStrip";
 import { router, useFocusEffect } from "expo-router";
@@ -464,13 +463,13 @@ export default function ParentHomeScreen() {
         </Text>
         <View style={s.headerBtns}>
           <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => router.push("/(parent)/notifications" as any)}>
-            <Bell size={19} color={C.textSecondary} />
+            <LucideIcon name="bell" size={19} color={C.textSecondary} />
           </Pressable>
           <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => Linking.openURL("https://swimnote.kr")}>
             <Image source={require("@/assets/images/swimnote-logo.png")} style={{ width: 19, height: 19 }} resizeMode="contain" />
           </Pressable>
           <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => router.push("/(parent)/more" as any)}>
-            <Settings size={19} color={C.textSecondary} />
+            <LucideIcon name="settings" size={19} color={C.textSecondary} />
           </Pressable>
         </View>
       </View>
@@ -494,7 +493,7 @@ export default function ParentHomeScreen() {
               delayLongPress={600}
             >
               <Text style={[s.childTabTxt, { color: isSel ? "#fff" : C.text }]}>{st.name}</Text>
-              {isSel && <UserMinus size={12} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />}
+              {isSel && <LucideIcon name="user-minus" size={12} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />}
             </Pressable>
           );
         })}
@@ -503,7 +502,7 @@ export default function ParentHomeScreen() {
           style={[s.childTab, s.childTabAdd, { backgroundColor: C.card, borderColor: C.border }]}
           onPress={() => router.push("/(parent)/link-child" as any)}
         >
-          <Plus size={14} color={C.textMuted} />
+          <LucideIcon name="plus" size={14} color={C.textMuted} />
           <Text style={[s.childTabTxt, { color: C.textMuted, marginLeft: 2 }]}>추가</Text>
         </Pressable>
       </KeyboardAwareScrollView>

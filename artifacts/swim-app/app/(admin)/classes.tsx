@@ -8,7 +8,7 @@
  * - 일간 뷰: WeeklySchedule 공용 컴포넌트 + 담당 선생님 표시
  * - AdminClassDetailSheet 사용 (관리자 기능)
  */
-import { Calendar, Check, ChevronLeft, ChevronRight, Plus, Repeat, RotateCcw, Trash2, User, Users, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -111,13 +111,13 @@ function MonthlyCalendar({ groups, themeColor, selectedDate, onSelectDate }: {
     <View style={mc.root}>
       <View style={mc.monthNav}>
         <Pressable style={mc.navBtn} onPress={() => setOffset(o => o - 1)}>
-          <ChevronLeft size={20} color={C.text} />
+          <LucideIcon name="chevron-left" size={20} color={C.text} />
         </Pressable>
         <Pressable onPress={() => setOffset(0)}>
           <Text style={mc.monthTitle}>{year}년 {month}월</Text>
         </Pressable>
         <Pressable style={mc.navBtn} onPress={() => setOffset(o => o + 1)}>
-          <ChevronRight size={20} color={C.text} />
+          <LucideIcon name="chevron-right" size={20} color={C.text} />
         </Pressable>
       </View>
 
@@ -263,7 +263,7 @@ function SlotSheet({ day, hour, classes, themeColor, onClose, onSelectClass }: {
                   <Text style={sl.title}>{slotLabel} 수업</Text>
                   <Text style={sl.sub}>담당 선생님 {grouped.length}명 · 총 {classes.length}개 반</Text>
                 </View>
-                <Pressable onPress={onClose} style={sl.closeBtn}><X size={20} color={C.textSecondary} /></Pressable>
+                <Pressable onPress={onClose} style={sl.closeBtn}><LucideIcon name="x" size={20} color={C.textSecondary} /></Pressable>
               </View>
               <ScrollView showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 60, gap: 8 }}>
@@ -271,13 +271,13 @@ function SlotSheet({ day, hour, classes, themeColor, onClose, onSelectClass }: {
                   <Pressable key={teacher} style={sl.teacherCard}
                     onPress={() => setSelectedTeacher(teacher)}>
                     <View style={sl.teacherIconWrap}>
-                      <User size={18} color="#1D4ED8" />
+                      <LucideIcon name="user" size={18} color="#1D4ED8" />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={sl.teacherCardName}>{teacher}</Text>
                       <Text style={sl.teacherCardSub}>수업 진행 중 {grps.length}개 반</Text>
                     </View>
-                    <ChevronRight size={16} color={C.textSecondary} />
+                    <LucideIcon name="chevron-right" size={16} color={C.textSecondary} />
                   </Pressable>
                 ))}
               </ScrollView>
@@ -289,13 +289,13 @@ function SlotSheet({ day, hour, classes, themeColor, onClose, onSelectClass }: {
             <>
               <View style={sl.header}>
                 <Pressable onPress={() => setSelectedTeacher(null)} style={sl.backBtn}>
-                  <ChevronLeft size={20} color={themeColor} />
+                  <LucideIcon name="chevron-left" size={20} color={themeColor} />
                 </Pressable>
                 <View style={{ flex: 1 }}>
                   <Text style={sl.title}>{selectedTeacher} 선생님</Text>
                   <Text style={sl.sub}>{slotLabel} · {teacherClasses.length}개 반</Text>
                 </View>
-                <Pressable onPress={onClose} style={sl.closeBtn}><X size={20} color={C.textSecondary} /></Pressable>
+                <Pressable onPress={onClose} style={sl.closeBtn}><LucideIcon name="x" size={20} color={C.textSecondary} /></Pressable>
               </View>
               <ScrollView showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 60, gap: 8 }}>
@@ -307,7 +307,7 @@ function SlotSheet({ day, hour, classes, themeColor, onClose, onSelectClass }: {
                       <Text style={sl.className}>{g.name}</Text>
                       <Text style={sl.classSub}>{g.student_count ?? 0}명 · {g.schedule_time}</Text>
                     </View>
-                    <ChevronRight size={15} color={C.textSecondary} />
+                    <LucideIcon name="chevron-right" size={15} color={C.textSecondary} />
                   </Pressable>
                 ))}
               </ScrollView>
@@ -374,11 +374,11 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
             </View>
             <View style={dy.headerActions}>
               <Pressable style={[dy.headerBtn, { backgroundColor: "#E6FFFA" }]} onPress={onOpenMakeup}>
-                <Repeat size={13} color="#4338CA" />
+                <LucideIcon name="repeat" size={13} color="#4338CA" />
                 <Text style={[dy.headerBtnTxt, { color: "#4338CA" }]}>보강</Text>
               </Pressable>
               <Pressable onPress={onClose} style={dy.closeBtn}>
-                <X size={20} color={C.textSecondary} />
+                <LucideIcon name="x" size={20} color={C.textSecondary} />
               </Pressable>
             </View>
           </View>
@@ -388,10 +388,10 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
 
             {classes.length === 0 && (
               <View style={dy.emptyBox}>
-                <Calendar size={32} color={C.textMuted} />
+                <LucideIcon name="calendar" size={32} color={C.textMuted} />
                 <Text style={dy.emptyTxt}>이 날은 수업이 없습니다</Text>
                 <Pressable style={[dy.emptyAction, { borderColor: "#4338CA" }]} onPress={onOpenMakeup}>
-                  <Repeat size={13} color="#4338CA" />
+                  <LucideIcon name="repeat" size={13} color="#4338CA" />
                   <Text style={[dy.emptyActionTxt, { color: "#4338CA" }]}>보강 추가</Text>
                 </Pressable>
               </View>
@@ -414,19 +414,19 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
                           <Text style={dy.classSub}>{g.student_count}명</Text>
                           {!!g.instructor && (
                             <View style={dy.instructorBadge}>
-                              <User size={9} color="#64748B" />
+                              <LucideIcon name="user" size={9} color="#64748B" />
                               <Text style={dy.instructorTxt}>{g.instructor}</Text>
                             </View>
                           )}
                           {attCnt > 0 && (
                             <View style={dy.attBadge}>
-                              <Check size={9} color="#2EC4B6" />
+                              <LucideIcon name="check" size={9} color="#2EC4B6" />
                               <Text style={dy.attBadgeTxt}>출결 {attCnt}</Text>
                             </View>
                           )}
                         </View>
                       </View>
-                      <ChevronRight size={16} color={C.textSecondary} />
+                      <LucideIcon name="chevron-right" size={16} color={C.textSecondary} />
                     </Pressable>
                   );
                 })}
@@ -674,17 +674,17 @@ export default function ClassesScreen() {
           <View style={s.rightBtns}>
             <Pressable style={[s.iconBtn, { backgroundColor: "#EEDDF5" }]}
               onPress={() => router.push("/(admin)/makeups?backTo=classes" as any)}>
-              <RotateCcw size={13} color="#7C3AED" />
+              <LucideIcon name="rotate-ccw" size={13} color="#7C3AED" />
               <Text style={[s.iconBtnTxt, { color: "#7C3AED" }]}>보강</Text>
             </Pressable>
             <Pressable style={[s.mgmtBtn, { borderColor: themeColor }]}
               onPress={() => setShowManagement(true)}>
-              <Users size={13} color={themeColor} />
+              <LucideIcon name="users" size={13} color={themeColor} />
               <Text style={[s.mgmtBtnTxt, { color: themeColor }]}>수강생관리</Text>
             </Pressable>
             <Pressable style={[s.createBtn, { backgroundColor: C.button }]}
               onPress={() => setShowCreate(true)}>
-              <Plus size={14} color="#fff" />
+              <LucideIcon name="plus" size={14} color="#fff" />
               <Text style={s.createBtnTxt}>반 등록</Text>
             </Pressable>
           </View>
@@ -842,7 +842,7 @@ export default function ClassesScreen() {
       <Modal visible={showDeleteClassConfirm} transparent animationType="fade" onRequestClose={() => setShowDeleteClassConfirm(false)}>
         <View style={s.modalOverlay}>
           <View style={s.confirmBox}>
-            <Trash2 size={28} color="#E11D48" style={{ marginBottom: 12 }} />
+            <LucideIcon name="trash-2" size={28} color="#E11D48" style={{ marginBottom: 12 }} />
             <Text style={s.confirmTitle}>반을 삭제할까요?</Text>
             <Text style={s.confirmSub}>
               <Text style={{ fontFamily: "Pretendard-Bold", color: "#1E293B" }}>{deletingClass?.name}</Text>

@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AlertTriangle, RotateCcw, Clock, Trash2, ChevronLeft } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
@@ -58,7 +58,7 @@ export default function PoolDeactivatedScreen() {
     <View style={[s.root, { paddingTop: insets.top }]}>
       <View style={s.header}>
         <Pressable style={s.backBtn} onPress={handleBack}>
-          <ChevronLeft size={22} color={C.text} />
+          <LucideIcon name="chevron-left" size={22} color={C.text} />
         </Pressable>
         <Text style={s.headerTitle}>서비스 이용 중단 안내</Text>
         <View style={{ width: 36 }} />
@@ -71,7 +71,7 @@ export default function PoolDeactivatedScreen() {
         {/* 상태 아이콘 */}
         <View style={s.iconWrap}>
           <View style={[s.iconCircle, { backgroundColor: urgencyColor + "18" }]}>
-            <AlertTriangle size={48} color={urgencyColor} />
+            <LucideIcon name="alert-triangle" size={48} color={urgencyColor} />
           </View>
           <Text style={[s.title, { color: urgencyColor }]}>구독이 취소되었습니다</Text>
           {pool_name && (
@@ -81,7 +81,7 @@ export default function PoolDeactivatedScreen() {
 
         {/* 남은 기간 카드 */}
         <View style={[s.daysCard, { borderColor: urgencyColor + "40", backgroundColor: urgencyColor + "08" }]}>
-          <Clock size={20} color={urgencyColor} />
+          <LucideIcon name="clock" size={20} color={urgencyColor} />
           <View style={{ flex: 1 }}>
             <Text style={[s.daysNumber, { color: urgencyColor }]}>
               {daysLeft > 0 ? `${daysLeft}일` : "오늘까지"}
@@ -101,7 +101,7 @@ export default function PoolDeactivatedScreen() {
         {!isTeacher && daysLeft > 0 && (
           <View style={s.restoreCard}>
             <View style={s.restoreHeader}>
-              <RotateCcw size={18} color={PURPLE} />
+              <LucideIcon name="rotate-ccw" size={18} color={PURPLE} />
               <Text style={s.restoreTitle}>재구독 시 즉시 복구됩니다</Text>
             </View>
             <View style={s.restoreItems}>
@@ -122,7 +122,7 @@ export default function PoolDeactivatedScreen() {
 
         {/* 영구 삭제 경고 */}
         <View style={s.warningCard}>
-          <Trash2 size={18} color={RED} />
+          <LucideIcon name="trash-2" size={18} color={RED} />
           <View style={{ flex: 1 }}>
             <Text style={s.warningTitle}>주의 사항</Text>
             <Text style={s.warningText}>
@@ -147,7 +147,7 @@ export default function PoolDeactivatedScreen() {
         {/* 버튼 */}
         {!isTeacher && daysLeft > 0 && (
           <Pressable style={s.resubBtn} onPress={handleResubscribe}>
-            <RotateCcw size={18} color="#fff" />
+            <LucideIcon name="rotate-ccw" size={18} color="#fff" />
             <Text style={s.resubBtnText}>재구독하여 데이터 복구</Text>
           </Pressable>
         )}

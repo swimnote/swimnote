@@ -2,7 +2,7 @@
  * 미배정회원 화면
  * 반 배정이 안 된 학생 명단 관리 + CSV 업로드 + 학부모 초대
  */
-import { Check, Download, Search, Upload, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import React, { useCallback, useEffect, useState } from "react";
@@ -158,7 +158,7 @@ export default function PeoplePendingScreen() {
       {/* 액션 버튼 */}
       <View style={s.uploadRow}>
         <Pressable style={s.tplBtn} onPress={downloadTemplate}>
-          <Download size={13} color="#4338CA" />
+          <LucideIcon name="download" size={13} color="#4338CA" />
           <Text style={s.tplBtnTxt}>템플릿 다운로드</Text>
         </Pressable>
         <Pressable
@@ -168,14 +168,14 @@ export default function PeoplePendingScreen() {
         >
           {uploading
             ? <ActivityIndicator size="small" color={themeColor} />
-            : <><Upload size={13} color={themeColor} /><Text style={[s.tplBtnTxt, { color: themeColor }]}>CSV 업로드</Text></>
+            : <><LucideIcon name="upload" size={13} color={themeColor} /><Text style={[s.tplBtnTxt, { color: themeColor }]}>CSV 업로드</Text></>
           }
         </Pressable>
       </View>
 
       {/* 검색 */}
       <View style={s.searchBar}>
-        <Search size={15} color={C.textSecondary} />
+        <LucideIcon name="search" size={15} color={C.textSecondary} />
         <TextInput
           style={s.searchInput}
           value={q}
@@ -183,7 +183,7 @@ export default function PeoplePendingScreen() {
           placeholder="이름·전화번호 검색"
           placeholderTextColor={C.textSecondary}
         />
-        {!!q && <Pressable onPress={() => setQ("")}><X size={15} color={C.textSecondary} /></Pressable>}
+        {!!q && <Pressable onPress={() => setQ("")}><LucideIcon name="x" size={15} color={C.textSecondary} /></Pressable>}
       </View>
 
       {/* 전체 선택 */}
@@ -193,7 +193,7 @@ export default function PeoplePendingScreen() {
             ? { backgroundColor: themeColor, borderColor: themeColor } : {}
         ]}>
           {selectedIds.size > 0 && selectedIds.size === filteredUnreg.length &&
-            <Check size={10} color="#fff" />}
+            <LucideIcon name="check" size={10} color="#fff" />}
         </View>
         <Text style={s.allSelectTxt}>전체 선택 ({filteredUnreg.length}명)</Text>
         {unreg.length > 0 && (
@@ -224,7 +224,7 @@ export default function PeoplePendingScreen() {
               <Pressable style={s.card} onPress={() => toggleSelect(item.id)}>
                 <View style={s.row}>
                   <View style={[s.checkbox, selectedIds.has(item.id) ? { backgroundColor: themeColor, borderColor: themeColor } : {}]}>
-                    {selectedIds.has(item.id) && <Check size={10} color="#fff" />}
+                    {selectedIds.has(item.id) && <LucideIcon name="check" size={10} color="#fff" />}
                   </View>
                   <View style={{ flex: 1, marginLeft: 10 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -278,7 +278,7 @@ export default function PeoplePendingScreen() {
           <View style={s.validateSheet}>
             <View style={s.validateHeader}>
               <Text style={s.validateTitle}>업로드 검증 결과</Text>
-              <Pressable onPress={() => setShowValidate(false)}><X size={20} color={C.textSecondary} /></Pressable>
+              <Pressable onPress={() => setShowValidate(false)}><LucideIcon name="x" size={20} color={C.textSecondary} /></Pressable>
             </View>
             <View style={s.validateSummary}>
               <SummaryChip label="정상" count={okCount} color="#2EC4B6" bg="#E6FFFA" />

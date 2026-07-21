@@ -3,7 +3,6 @@
  * 구독 플랜 관리 (Coach30/50/100, Premier200/300/500/1000)
  * API 연동: GET/POST/PUT/PATCH /super/plans
  */
-import { CirclePlus, Lock, Package, PenLine, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {Alert, FlatList, Modal, Platform,
   Pressable, RefreshControl,
@@ -85,7 +84,7 @@ function PlanCard({ plan, onEdit, onToggle }: {
       {plan.note ? <View style={pc.noteBox}><Text style={pc.noteTxt}>{plan.note}</Text></View> : null}
       <View style={pc.actions}>
         <Pressable style={[pc.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => onEdit(plan)}>
-          <PenLine size={13} color={P} />
+          <LucideIcon name="edit-2" size={13} color={P} />
           <Text style={[pc.btnTxt, { color: P }]}>수정</Text>
         </Pressable>
         <Pressable
@@ -159,7 +158,7 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={fm.header}>
-          <Pressable onPress={onClose} style={fm.close} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}><X size={22} color="#64748B" /></Pressable>
+          <Pressable onPress={onClose} style={fm.close} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}><LucideIcon name="x" size={22} color="#64748B" /></Pressable>
           <Text style={fm.title}>{isEdit ? "구독 플랜 수정" : "구독 플랜 생성"}</Text>
           <View style={{ width: 28 }} />
         </View>
@@ -187,7 +186,7 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
           </KeyboardAwareScrollView>
           <View style={fm.bottomBar}>
             <Pressable style={fm.bottomSaveBtn} onPress={() => setOtpVisible(true)}>
-              <Lock size={14} color="#fff" />
+              <LucideIcon name="lock" size={14} color="#fff" />
               <Text style={fm.saveTxt}>{isEdit ? "수정 후 저장" : "생성하기"}</Text>
             </Pressable>
           </View>
@@ -352,7 +351,7 @@ export default function SubscriptionProductsScreen() {
 
       <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 8 }}>
         <Pressable style={[s.createBtn, { flex: 1 }]} onPress={() => { setEditPlan(null); setShowPlanForm(true); }}>
-          <CirclePlus size={16} color="#fff" />
+          <LucideIcon name="plus-circle" size={16} color="#fff" />
           <Text style={s.createBtnTxt}>새 구독 플랜 생성</Text>
         </Pressable>
         <Pressable
@@ -402,7 +401,7 @@ export default function SubscriptionProductsScreen() {
         }
         ListEmptyComponent={
           <View style={s.empty}>
-            <Package size={36} color="#D1D5DB" />
+            <LucideIcon name="package" size={36} color="#D1D5DB" />
             <Text style={s.emptyTxt}>등록된 구독 플랜이 없습니다</Text>
             <Text style={[s.emptyTxt, { fontSize: 12, marginTop: 4 }]}>위 "새 구독 플랜 생성"으로 추가하세요</Text>
           </View>

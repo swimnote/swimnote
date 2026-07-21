@@ -3,7 +3,6 @@
  * 안전장치 보강: 해지 확정 조건 + 비밀번호 재입력 + 체크박스 2개 + 스냅샷 강제 생성
  * 실 API 연결 완료 — useAuditLogStore / useBackupStore 완전 제거
  */
-import { Archive, Check, CircleCheck, Lock, OctagonAlert, Trash2, TriangleAlert } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View} from "react-native";
@@ -249,7 +248,7 @@ export default function KillSwitchScreen() {
       <SubScreenHeader title="데이터·킬스위치" homePath="/(super)/protect-group" />
 
       <View style={s.dangerBanner}>
-        <OctagonAlert size={14} color="#fff" />
+        <LucideIcon name="alert-octagon" size={14} color="#fff" />
         <Text style={s.bannerTxt}>삭제는 해지 확정 + 정책 동의 + 유예 완료 후에만 가능합니다. 결제 실패·저장공간 초과만으로는 자동삭제 금지.</Text>
       </View>
 
@@ -298,13 +297,13 @@ export default function KillSwitchScreen() {
             }
             {poolId && !isTerminated && (
               <View style={s.warnBox}>
-                <TriangleAlert size={13} color={WARN} />
+                <LucideIcon name="alert-triangle" size={13} color={WARN} />
                 <Text style={s.warnTxt}>이 운영자는 해지 미확정 상태입니다. 삭제를 실행하려면 먼저 해지를 확정해야 합니다.</Text>
               </View>
             )}
             {poolId && isTerminated && (
               <View style={[s.warnBox, { backgroundColor: "#E6FFFA" }]}>
-                <CircleCheck size={13} color="#2EC4B6" />
+                <LucideIcon name="check-circle" size={13} color="#2EC4B6" />
                 <Text style={[s.warnTxt, { color: "#065F46" }]}>해지 확정 완료 — 삭제 실행 가능합니다.</Text>
               </View>
             )}
@@ -375,7 +374,7 @@ export default function KillSwitchScreen() {
               setCheck1(false); setCheck2(false); setSnapshotCreated(false);
               setConfirmModal(true);
             }}>
-            <OctagonAlert size={16} color="#fff" />
+            <LucideIcon name="alert-octagon" size={16} color="#fff" />
             <Text style={s.execTxt}>안전장치 확인 후 삭제 진행</Text>
           </Pressable>
         </KeyboardAwareScrollView>
@@ -424,7 +423,7 @@ export default function KillSwitchScreen() {
             loadingOps
               ? <ActivityIndicator color={DANGER} style={{ marginTop: 40 }} />
               : <View style={s.empty}>
-                  <CircleCheck size={30} color="#D1D5DB" />
+                  <LucideIcon name="check-circle" size={30} color="#D1D5DB" />
                   <Text style={s.emptyTxt}>삭제 예정 운영자 없음</Text>
                 </View>
           }
@@ -440,7 +439,7 @@ export default function KillSwitchScreen() {
           renderItem={({ item: l }) => (
             <View style={s.logCard}>
               <View style={s.logLeft}>
-                <Trash2 size={14} color={DANGER} />
+                <LucideIcon name="trash-2" size={14} color={DANGER} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.logTitle}>{l.description}</Text>
@@ -468,7 +467,7 @@ export default function KillSwitchScreen() {
             <View style={m.sheet}>
               <View style={m.handle} />
               <View style={m.dangerHeader}>
-                <OctagonAlert size={22} color="#fff" />
+                <LucideIcon name="alert-octagon" size={22} color="#fff" />
                 <Text style={m.dangerHeaderTxt}>최종 삭제 안전장치 확인</Text>
               </View>
 
@@ -486,9 +485,9 @@ export default function KillSwitchScreen() {
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>A. 삭제 전 스냅샷 강제 생성 (필수)</Text>
                   {snapshotCreated
-                    ? <View style={m.snapshotDone}><CircleCheck size={14} color="#2EC4B6" /><Text style={m.snapshotDoneTxt}>스냅샷 생성 완료</Text></View>
+                    ? <View style={m.snapshotDone}><LucideIcon name="check-circle" size={14} color="#2EC4B6" /><Text style={m.snapshotDoneTxt}>스냅샷 생성 완료</Text></View>
                     : <Pressable style={m.snapshotBtn} onPress={doCreateSnapshot}>
-                        <Archive size={14} color="#2EC4B6" />
+                        <LucideIcon name="archive" size={14} color="#2EC4B6" />
                         <Text style={m.snapshotBtnTxt}>지금 스냅샷 생성</Text>
                       </Pressable>
                   }
@@ -498,13 +497,13 @@ export default function KillSwitchScreen() {
                   <Text style={m.safeTitle}>B. 복구 불가 확인 (2개 필수)</Text>
                   <Pressable style={m.checkRow} onPress={() => setCheck1(v => !v)}>
                     <View style={[m.checkbox, check1 && m.checkboxActive]}>
-                      {check1 && <Check size={12} color="#fff" />}
+                      {check1 && <LucideIcon name="check" size={12} color="#fff" />}
                     </View>
                     <Text style={m.checkTxt}>삭제된 데이터는 복구가 불가능하며, 이를 충분히 인지하였습니다.</Text>
                   </Pressable>
                   <Pressable style={m.checkRow} onPress={() => setCheck2(v => !v)}>
                     <View style={[m.checkbox, check2 && m.checkboxActive]}>
-                      {check2 && <Check size={12} color="#fff" />}
+                      {check2 && <LucideIcon name="check" size={12} color="#fff" />}
                     </View>
                     <Text style={m.checkTxt}>본 삭제 액션의 모든 결과에 대한 책임이 실행자({actorName})에게 있음을 동의합니다.</Text>
                   </Pressable>

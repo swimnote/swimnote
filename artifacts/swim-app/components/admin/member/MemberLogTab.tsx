@@ -1,4 +1,4 @@
-import { Activity } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { ScrollView, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -29,7 +29,7 @@ export function MemberLogTab({ logs }: MemberLogTabProps) {
       <ScrollView contentContainerStyle={ms.tabContent} showsVerticalScrollIndicator={false}>
         <View style={ms.section}>
           <View style={{ alignItems: "center", paddingVertical: 30, gap: 10 }}>
-            <Activity size={36} color={C.textMuted} />
+            <LucideIcon name="activity" size={36} color={C.textMuted} />
             <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted }}>활동 기록이 없습니다</Text>
           </View>
         </View>

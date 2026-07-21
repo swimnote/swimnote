@@ -6,8 +6,8 @@
  * 주횟수 미설정 학생 → 주횟수 선택 팝업 먼저 표시
  * 배정 후 남은 횟수 있으면 리스트 유지, 다 채우면 제거
  */
-import { ArrowLeft, Calendar, Check, CircleX, Clock, Layers, Minus, Plus, RefreshCw, Search, Trash2, TriangleAlert, User, UserPlus, X } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
   Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View} from "react-native";
@@ -334,7 +334,7 @@ export default function ClassAssignScreen() {
     <View style={[s.root, { backgroundColor: C.background }]}>
       <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
         <Pressable onPress={goBack} style={s.backBtn}>
-          <ArrowLeft size={20} color={C.text} />
+          <LucideIcon name="arrow-left" size={20} color={C.text} />
         </Pressable>
         <Text style={[s.title, { color: C.text }]}>반배정 변경</Text>
         <View style={{ width: 40 }} />
@@ -349,17 +349,17 @@ export default function ClassAssignScreen() {
         {classInfo && (
           <View style={[s.classCard, { backgroundColor: C.card }]}>
             <View style={[s.classIcon, { backgroundColor: "#E6FAF8" }]}>
-              <Layers size={20} color="#7C3AED" />
+              <LucideIcon name="layers" size={20} color="#7C3AED" />
             </View>
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={[s.className, { color: C.text }]}>{classInfo.name}</Text>
               <View style={{ flexDirection: "row", gap: 12 }}>
                 <View style={s.metaRow}>
-                  <Calendar size={12} color={C.textMuted} />
+                  <LucideIcon name="calendar" size={12} color={C.textMuted} />
                   <Text style={[s.meta, { color: C.textSecondary }]}>{days}요일</Text>
                 </View>
                 <View style={s.metaRow}>
-                  <Clock size={12} color={C.textMuted} />
+                  <LucideIcon name="clock" size={12} color={C.textMuted} />
                   <Text style={[s.meta, { color: C.textSecondary }]}>{classInfo.schedule_time}</Text>
                 </View>
               </View>
@@ -370,7 +370,7 @@ export default function ClassAssignScreen() {
                   onPress={() => { setMainTeacherSearch(""); setShowMainTeacherModal(true); }}
                   disabled={mainTeacherSaving}
                 >
-                  <User size={12} color={C.textMuted} />
+                  <LucideIcon name="user" size={12} color={C.textMuted} />
                   <Text style={[s.meta, { color: C.textSecondary }]}>
                     {classInfo.instructor || "선생님 미지정"}
                   </Text>
@@ -380,7 +380,7 @@ export default function ClassAssignScreen() {
                 </Pressable>
               ) : classInfo.instructor ? (
                 <View style={s.metaRow}>
-                  <User size={12} color={C.textMuted} />
+                  <LucideIcon name="user" size={12} color={C.textMuted} />
                   <Text style={[s.meta, { color: C.textSecondary }]}>{classInfo.instructor}</Text>
                 </View>
               ) : null}
@@ -389,11 +389,11 @@ export default function ClassAssignScreen() {
                 const ct = teachers.find(t => t.id === cid);
                 return (
                   <View key={cid} style={[s.metaRow, { gap: 4 }]}>
-                    <UserPlus size={12} color="#7C3AED" />
+                    <LucideIcon name="user-plus" size={12} color="#7C3AED" />
                     <Text style={[s.meta, { color: "#7C3AED" }]}>{ct?.name || "선생님"}</Text>
                     {canManageTeachers && (
                       <Pressable onPress={() => handleRemoveCoTeacher(cid)} hitSlop={8} disabled={coTeacherSaving}>
-                        <X size={11} color="#EF4444" />
+                        <LucideIcon name="x" size={11} color="#EF4444" />
                       </Pressable>
                     )}
                   </View>
@@ -406,7 +406,7 @@ export default function ClassAssignScreen() {
                   onPress={() => { setTeacherSearch(""); setShowTeacherModal(true); }}
                   disabled={coTeacherSaving}
                 >
-                  <UserPlus size={12} color={C.tint} />
+                  <LucideIcon name="user-plus" size={12} color={C.tint} />
                   <Text style={[s.meta, { color: C.tint }]}>선생님 추가</Text>
                 </Pressable>
               )}
@@ -464,7 +464,7 @@ export default function ClassAssignScreen() {
         </View>
 
         <View style={[s.searchWrap, { backgroundColor: C.card, borderColor: C.border }]}>
-          <Search size={16} color={C.textMuted} />
+          <LucideIcon name="search" size={16} color={C.textMuted} />
           <TextInput
             style={[s.searchInput, { color: C.text }]}
             value={search}
@@ -474,7 +474,7 @@ export default function ClassAssignScreen() {
           />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch("")}>
-              <CircleX size={16} color={C.textMuted} />
+              <LucideIcon name="x-circle" size={16} color={C.textMuted} />
             </Pressable>
           )}
         </View>
@@ -511,7 +511,7 @@ export default function ClassAssignScreen() {
             style={[s.doneBtn, { backgroundColor: hasChanges ? C.tint : C.border }]}
             onPress={goBack}
           >
-            <Check size={18} color={hasChanges ? "#fff" : C.textMuted} />
+            <LucideIcon name="check" size={18} color={hasChanges ? "#fff" : C.textMuted} />
             <Text style={[s.doneTxt, { color: hasChanges ? "#fff" : C.textMuted }]}>
               {hasChanges ? `배정 완료 — ${assigned.length}명 확정` : "변경 없음 · 돌아가기"}
             </Text>

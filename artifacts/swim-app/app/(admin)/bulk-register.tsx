@@ -10,11 +10,7 @@
  *   5. 서버 전체 유효성 검사 후 트랜잭션 INSERT
  *   6. 학부모 계정 자동 연결
  */
-import {
-  AlertCircle, AlertTriangle, CheckCircle2,
-  ChevronDown, ChevronUp, Download,
-  FileSpreadsheet, FileText, Upload,
-} from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -503,7 +499,7 @@ export default function BulkRegisterScreen() {
             {/* 업로드 전 필수 안내 */}
             <View style={[s.noticeCard, { backgroundColor: "#FEF3C7", borderColor: "#F59E0B30" }]}>
               <View style={[s.cardRow, { marginBottom: 6 }]}>
-                <AlertTriangle size={15} color="#D97706" />
+                <LucideIcon name="alert-triangle" size={15} color="#D97706" />
                 <Text style={[s.cardTitle, { color: "#92400E" }]}>엑셀 업로드 전 반드시 확인하세요</Text>
               </View>
               {[
@@ -523,7 +519,7 @@ export default function BulkRegisterScreen() {
               borderWidth: 1, borderColor: themeColor + "30",
             }]}>
               <View style={s.cardRow}>
-                <FileSpreadsheet size={22} color={themeColor} />
+                <LucideIcon name="grid" size={22} color={themeColor} />
                 <View style={{ flex: 1 }}>
                   <Text style={[s.cardTitle, { color: C.text }]}>
                     양식 파일을 먼저 다운로드하세요
@@ -538,7 +534,7 @@ export default function BulkRegisterScreen() {
                 style={[s.downloadBtn, { backgroundColor: themeColor }]}
                 onPress={downloadTemplate}
               >
-                <Download size={15} color="#fff" />
+                <LucideIcon name="download" size={15} color="#fff" />
                 <Text style={s.downloadBtnTxt}>양식 다운로드 (.csv)</Text>
               </Pressable>
             </View>
@@ -549,13 +545,13 @@ export default function BulkRegisterScreen() {
               onPress={() => setShowGuide(v => !v)}
             >
               <View style={[s.cardRow, { marginBottom: 0 }]}>
-                <FileText size={16} color={C.tint} />
+                <LucideIcon name="file-text" size={16} color={C.tint} />
                 <Text style={[s.cardTitle, { flex: 1, color: C.text }]}>
                   파일 형식 및 열 이름 안내
                 </Text>
                 {showGuide
-                  ? <ChevronUp size={16} color={C.textMuted} />
-                  : <ChevronDown size={16} color={C.textMuted} />}
+                  ? <LucideIcon name="chevron-up" size={16} color={C.textMuted} />
+                  : <LucideIcon name="chevron-down" size={16} color={C.textMuted} />}
               </View>
 
               {showGuide && (
@@ -611,7 +607,7 @@ export default function BulkRegisterScreen() {
             {/* 파싱 오류 메시지 */}
             {parseError ? (
               <View style={s.errorBox}>
-                <AlertCircle size={15} color="#DC2626" />
+                <LucideIcon name="alert-circle" size={15} color="#DC2626" />
                 <Text style={s.errorTxt}>{parseError}</Text>
               </View>
             ) : null}
@@ -626,7 +622,7 @@ export default function BulkRegisterScreen() {
                 ? <ActivityIndicator size="small" color="#fff" />
                 : (
                   <>
-                    <Upload size={18} color="#fff" />
+                    <LucideIcon name="upload" size={18} color="#fff" />
                     <Text style={s.uploadBtnTxt}>파일 선택 (.xlsx / .xls / .csv)</Text>
                   </>
                 )}
@@ -639,7 +635,7 @@ export default function BulkRegisterScreen() {
           <>
             {/* 파일명 + 다시선택 */}
             <View style={[s.card, s.cardRow, { backgroundColor: C.card }]}>
-              <FileSpreadsheet size={16} color={C.tint} />
+              <LucideIcon name="grid" size={16} color={C.tint} />
               <Text style={[s.cardTitle, { flex: 1, color: C.text }]} numberOfLines={1}>
                 {fileName}
               </Text>
@@ -651,7 +647,7 @@ export default function BulkRegisterScreen() {
             {/* 파일 인원 초과 (300명) */}
             {overLimit && (
               <View style={[s.alertBanner, { backgroundColor: "#FEE2E2" }]}>
-                <AlertCircle size={14} color="#DC2626" />
+                <LucideIcon name="alert-circle" size={14} color="#DC2626" />
                 <Text style={[s.alertTxt, { color: "#DC2626" }]}>
                   {rows.length}명 감지 — 최대 {MAX_UPLOAD}명까지 업로드 가능합니다. 파일을 나누어 업로드해주세요.
                 </Text>
@@ -661,7 +657,7 @@ export default function BulkRegisterScreen() {
             {/* 플랜 회원 수 한도 초과 */}
             {overPlanLimit && capacity && (
               <View style={[s.alertBanner, { backgroundColor: "#FEE2E2" }]}>
-                <AlertCircle size={14} color="#DC2626" />
+                <LucideIcon name="alert-circle" size={14} color="#DC2626" />
                 <Text style={[s.alertTxt, { color: "#DC2626" }]}>
                   플랜 한도 초과 — 현재 {capacity.current}명 / 최대 {capacity.limit}명{"\n"}
                   등록 가능 잔여: {capacity.available}명, 요청: {validRows.length}명{"\n"}
@@ -699,7 +695,7 @@ export default function BulkRegisterScreen() {
             {/* 오류 존재 시 안내 배너 */}
             {errorRows.length > 0 && !overLimit && (
               <View style={[s.alertBanner, { backgroundColor: "#FEF3C7" }]}>
-                <AlertTriangle size={14} color="#D97706" />
+                <LucideIcon name="alert-triangle" size={14} color="#D97706" />
                 <Text style={[s.alertTxt, { color: "#92400E" }]}>
                   오류 {errorRows.length}건은 자동 제외됩니다. 정상 {validRows.length}명만 등록됩니다.
                 </Text>
@@ -709,7 +705,7 @@ export default function BulkRegisterScreen() {
             {/* 출생년도 경고 */}
             {warnRows.length > 0 && (
               <View style={[s.alertBanner, { backgroundColor: "#FFFBEB" }]}>
-                <AlertTriangle size={14} color="#D97706" />
+                <LucideIcon name="alert-triangle" size={14} color="#D97706" />
                 <Text style={[s.alertTxt, { color: "#D97706" }]}>
                   출생년도 확인이 필요한 항목 {warnRows.length}명 (등록은 가능)
                 </Text>
@@ -775,7 +771,7 @@ export default function BulkRegisterScreen() {
               onPress={handleSubmit}
               disabled={!canUpload}
             >
-              <Upload size={16} color="#fff" />
+              <LucideIcon name="upload" size={16} color="#fff" />
               <Text style={s.uploadBtnTxt}>
                 {overPlanLimit
                   ? "플랜 한도 초과 — 업로드 불가"
@@ -804,8 +800,8 @@ export default function BulkRegisterScreen() {
         {step === "done" && uploadResult && (
           <View style={{ alignItems: "center", paddingTop: 8 }}>
             {uploadResult.success
-              ? <CheckCircle2 size={64} color="#16A34A" />
-              : <AlertCircle size={64} color="#DC2626" />}
+              ? <LucideIcon name="check-circle" size={64} color="#16A34A" />
+              : <LucideIcon name="alert-circle" size={64} color="#DC2626" />}
 
             <Text style={[s.doneTitle, { color: C.text }]}>
               {uploadResult.success

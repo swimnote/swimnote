@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Crown, Users, HardDrive, Check, Zap, Image as ImageIcon, Video, CreditCard, Clock } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
@@ -272,14 +272,14 @@ export default function SubscriptionScreen() {
             <Text style={policyBannerTitle}>유료 결제를 진행하려면 환불 정책 확인이 필요합니다.</Text>
             <Text style={policyBannerDesc}>현재 버전: {policyVersion} · 탭하여 확인하기</Text>
           </View>
-          <CreditCard size={18} color="#D97706" />
+          <LucideIcon name="credit-card" size={18} color="#D97706" />
         </Pressable>
       )}
 
       {/* 구독 취소 예약 배너 — 취소했지만 만료일까지 유지 중 */}
       {!loading && endsAt && pendingTier === "free" && (
         <View style={cancelBannerStyle}>
-          <Clock size={16} color="#B45309" />
+          <LucideIcon name="clock" size={16} color="#B45309" />
           <View style={{ flex: 1 }}>
             <Text style={cancelBannerTitle}>구독 취소 예약됨</Text>
             <Text style={cancelBannerDesc}>
@@ -302,18 +302,18 @@ export default function SubscriptionScreen() {
           {/* Coach 섹션 */}
           <View style={s.sectionHeader}>
             <View style={[s.sectionIcon, { backgroundColor: "#EDE9FE" }]}>
-              <Zap size={18} color="#7C3AED" />
+              <LucideIcon name="zap" size={18} color="#7C3AED" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.sectionTitle, { color: C.text }]}>Coach</Text>
               <Text style={[s.sectionSub, { color: C.textSecondary }]}>개인 선생님</Text>
             </View>
             <View style={s.featurePill}>
-              <ImageIcon size={12} color="#7C3AED" />
+              <LucideIcon name="image" size={12} color="#7C3AED" />
               <Text style={[s.featurePillText, { color: "#7C3AED" }]}>사진 가능</Text>
             </View>
             <View style={[s.featurePill, s.featurePillGray]}>
-              <Video size={12} color="#9CA3AF" />
+              <LucideIcon name="video" size={12} color="#9CA3AF" />
               <Text style={[s.featurePillText, { color: "#9CA3AF" }]}>영상 불가</Text>
             </View>
           </View>
@@ -336,14 +336,14 @@ export default function SubscriptionScreen() {
           {/* Premier 섹션 */}
           <View style={s.sectionHeader}>
             <View style={[s.sectionIcon, { backgroundColor: "#FEF3C7" }]}>
-              <Crown size={18} color="#F59E0B" />
+              <LucideIcon name="crown" size={18} color="#F59E0B" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.sectionTitle, { color: C.text }]}>Premier</Text>
               <Text style={[s.sectionSub, { color: C.textSecondary }]}>수영장/센터</Text>
             </View>
             <View style={[s.featurePill, { borderColor: "#F59E0B" }]}>
-              <ImageIcon size={12} color="#F59E0B" />
+              <LucideIcon name="image" size={12} color="#F59E0B" />
               <Text style={[s.featurePillText, { color: "#F59E0B" }]}>사진+영상</Text>
             </View>
           </View>
@@ -363,7 +363,7 @@ export default function SubscriptionScreen() {
 
           {/* ── 결제 수단 안내 ── */}
           <View style={s.storePlatformBox}>
-            <CreditCard size={14} color="#64748B" />
+            <LucideIcon name="credit-card" size={14} color="#64748B" />
             <Text style={s.storePlatformText}>
               이 기기 결제 수단: <Text style={s.storePlatformBold}>{STORE_NAME}</Text>
             </Text>
@@ -454,7 +454,7 @@ function PlanCard({
       )}
       {isCurrent && (
         <View style={[s.badge, { backgroundColor: "#10B981" }]}>
-          <Check size={10} color="#fff" />
+          <LucideIcon name="check" size={10} color="#fff" />
           <Text style={s.badgeText}>현재</Text>
         </View>
       )}
@@ -469,11 +469,11 @@ function PlanCard({
 
       <View style={s.planMeta}>
         <View style={s.metaItem}>
-          <Users size={12} color="#64748B" />
+          <LucideIcon name="users" size={12} color="#64748B" />
           <Text style={s.metaText}>최대 {plan.limit.toLocaleString()}명</Text>
         </View>
         <View style={s.metaItem}>
-          <HardDrive size={12} color="#64748B" />
+          <LucideIcon name="hard-drive" size={12} color="#64748B" />
           <Text style={s.metaText}>{plan.storage}</Text>
         </View>
       </View>

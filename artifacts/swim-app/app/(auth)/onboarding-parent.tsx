@@ -5,7 +5,7 @@
  * 슬라이드 3: 선생님 소통 · 공지
  * 슬라이드 4: 호칭 설정 → parent-onboard-nickname으로 이동
  */
-import { ArrowRight, Bell, CheckCircle2, ChevronRight, Heart, MessageSquare, Users } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -91,7 +91,7 @@ export default function OnboardingParentScreen() {
           </Pressable>
           <Pressable style={s.nextBtn} onPress={goNext}>
             <Text style={s.nextTxt}>다음</Text>
-            <ArrowRight size={16} color="#fff" />
+            <LucideIcon name="arrow-right" size={16} color="#fff" />
           </Pressable>
         </View>
       )}
@@ -103,7 +103,7 @@ function SlideWelcome() {
   return (
     <View style={[sw.root, { width: W }]}>
       <View style={sw.iconWrap}>
-        <Heart size={64} color={ORANGE} />
+        <LucideIcon name="heart" size={64} color={ORANGE} />
       </View>
       <Text style={sw.badge}>학부모 모드</Text>
       <Text style={sw.title}>자녀의 수영 수업을{"\n"}한눈에 확인하세요</Text>
@@ -124,7 +124,7 @@ function SlideAttendance() {
   return (
     <View style={[sa.root, { width: W }]}>
       <View style={sa.header}>
-        <CheckCircle2 size={28} color={GREEN} />
+        <LucideIcon name="check-circle" size={28} color={GREEN} />
         <Text style={sa.title}>자녀 출석 확인</Text>
       </View>
       <Text style={sa.sub}>실시간으로 출석 현황을 확인하세요</Text>
@@ -146,7 +146,7 @@ function SlideAttendance() {
           </View>
         </View>
         <View style={[sa.makeupRow]}>
-          <ArrowRight size={12} color={ORANGE} />
+          <LucideIcon name="arrow-right" size={12} color={ORANGE} />
           <Text style={sa.makeupTxt}>서연 보강 1회 생성됨 — 보강 탭에서 확인</Text>
         </View>
       </View>
@@ -170,7 +170,7 @@ function SlideCommunication() {
   return (
     <View style={[sco.root, { width: W }]}>
       <View style={sco.header}>
-        <MessageSquare size={28} color={MINT} />
+        <LucideIcon name="message-square" size={28} color={MINT} />
         <Text style={sco.title}>선생님 소통 · 공지</Text>
       </View>
       <Text style={sco.sub}>선생님과 직접 소통할 수 있어요</Text>
@@ -199,7 +199,7 @@ function SlideNickname({ onGo }: { onGo: () => void }) {
   return (
     <View style={[sn.root, { width: W }]}>
       <View style={sn.iconWrap}>
-        <Users size={64} color={MINT} />
+        <LucideIcon name="users" size={64} color={MINT} />
       </View>
       <Text style={sn.title}>마지막 단계!</Text>
       <Text style={sn.sub}>
@@ -213,7 +213,7 @@ function SlideNickname({ onGo }: { onGo: () => void }) {
       </View>
       <Pressable style={sn.btn} onPress={onGo}>
         <Text style={sn.btnTxt}>호칭 설정하기</Text>
-        <ArrowRight size={18} color="#fff" />
+        <LucideIcon name="arrow-right" size={18} color="#fff" />
       </Pressable>
     </View>
   );

@@ -12,7 +12,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { ChevronLeft, ClipboardList, Image as ImageIcon, Mail, MessageSquare, Send, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
@@ -262,7 +262,7 @@ export default function MessagesInboxScreen() {
       <SafeAreaView style={s.safe} edges={["top"]}>
         <View style={s.header}>
           <Pressable onPress={() => { setView("list"); setActiveThread(null); setReplyText(""); setReplyImage(null); }} style={s.backBtn}>
-            <ChevronLeft size={22} color={C.text} />
+            <LucideIcon name="chevron-left" size={22} color={C.text} />
           </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={s.headerTitle} numberOfLines={1}>{activeThread?.class_name || "쪽지"}</Text>
@@ -281,7 +281,7 @@ export default function MessagesInboxScreen() {
               onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })} showsVerticalScrollIndicator={false}>
               {messages.length === 0 ? (
                 <View style={s.empty}>
-                  <MessageSquare size={40} color={C.textMuted} />
+                  <LucideIcon name="message-square" size={40} color={C.textMuted} />
                   <Text style={[s.emptyTxt, { color: C.textMuted }]}>메시지가 없습니다</Text>
                 </View>
               ) : (
@@ -318,13 +318,13 @@ export default function MessagesInboxScreen() {
                 <Image source={{ uri: replyImage.uri }} style={s.imagePreview} />
                 {uploading && <ActivityIndicator size="small" color={themeColor} style={StyleSheet.absoluteFill} />}
                 <Pressable style={s.removeImageBtn} onPress={() => setReplyImage(null)}>
-                  <X size={12} color="#fff" />
+                  <LucideIcon name="x" size={12} color="#fff" />
                 </Pressable>
               </View>
             )}
             <View style={s.inputRow}>
               <Pressable style={s.imageBtn} onPress={pickImage} disabled={uploading || sending}>
-                <ImageIcon size={20} color={uploading ? C.textMuted : themeColor} />
+                <LucideIcon name="image" size={20} color={uploading ? C.textMuted : themeColor} />
               </Pressable>
               <TextInput
                 style={s.input}
@@ -341,7 +341,7 @@ export default function MessagesInboxScreen() {
                 onPress={sendReply}
                 disabled={sending || (!replyText.trim() && !replyImage?.url)}
               >
-                {sending ? <ActivityIndicator size="small" color="#fff" /> : <Send size={16} color="#fff" />}
+                {sending ? <ActivityIndicator size="small" color="#fff" /> : <LucideIcon name="send" size={16} color="#fff" />}
               </Pressable>
             </View>
           </View>
@@ -355,7 +355,7 @@ export default function MessagesInboxScreen() {
     <SafeAreaView style={s.safe} edges={["top"]}>
       <View style={s.header}>
         <Pressable onPress={() => router.back()} style={s.backBtn}>
-          <ChevronLeft size={22} color={C.text} />
+          <LucideIcon name="chevron-left" size={22} color={C.text} />
         </Pressable>
         <Text style={s.headerTitle}>쪽지보관함</Text>
         <View style={{ width: 40 }} />
@@ -365,7 +365,7 @@ export default function MessagesInboxScreen() {
       <View style={s.tabRow}>
         <Pressable style={[s.tab, activeTab === "messages" && { borderBottomColor: themeColor, borderBottomWidth: 2 }]}
           onPress={() => setActiveTab("messages")}>
-          <MessageSquare size={16} color={activeTab === "messages" ? themeColor : C.textMuted} />
+          <LucideIcon name="message-square" size={16} color={activeTab === "messages" ? themeColor : C.textMuted} />
           <Text style={[s.tabTxt, { color: activeTab === "messages" ? themeColor : C.textMuted }]}>쪽지함</Text>
           {unreadMsgCount > 0 && (
             <View style={[s.tabBadge, { backgroundColor: C.error }]}>
@@ -375,7 +375,7 @@ export default function MessagesInboxScreen() {
         </Pressable>
         <Pressable style={[s.tab, activeTab === "requests" && { borderBottomColor: themeColor, borderBottomWidth: 2 }]}
           onPress={() => setActiveTab("requests")}>
-          <ClipboardList size={16} color={activeTab === "requests" ? themeColor : C.textMuted} />
+          <LucideIcon name="clipboard-list" size={16} color={activeTab === "requests" ? themeColor : C.textMuted} />
           <Text style={[s.tabTxt, { color: activeTab === "requests" ? themeColor : C.textMuted }]}>학부모 요청</Text>
           {unreadRequestCount > 0 && (
             <View style={[s.tabBadge, { backgroundColor: C.error }]}>
@@ -391,7 +391,7 @@ export default function MessagesInboxScreen() {
           <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
         ) : threads.length === 0 ? (
           <View style={s.empty}>
-            <Mail size={48} color={C.textMuted} />
+            <LucideIcon name="mail" size={48} color={C.textMuted} />
             <Text style={[s.emptyTxt, { color: C.textMuted }]}>받은 쪽지가 없습니다</Text>
             <Text style={[s.emptySubTxt, { color: C.textMuted }]}>학부모가 수업일지에 쪽지를 보내면{"\n"}여기에 표시됩니다</Text>
           </View>
@@ -406,7 +406,7 @@ export default function MessagesInboxScreen() {
                 onPress={() => openThread(item)}
               >
                 <View style={[s.threadIcon, { backgroundColor: item.unread_count > 0 ? themeColor + "20" : "#F1F5F9" }]}>
-                  <MessageSquare size={20} color={item.unread_count > 0 ? themeColor : C.textMuted} />
+                  <LucideIcon name="message-square" size={20} color={item.unread_count > 0 ? themeColor : C.textMuted} />
                 </View>
                 <View style={{ flex: 1, gap: 3 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -437,7 +437,7 @@ export default function MessagesInboxScreen() {
           <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
         ) : parentRequests.length === 0 ? (
           <View style={s.empty}>
-            <ClipboardList size={48} color={C.textMuted} />
+            <LucideIcon name="clipboard-list" size={48} color={C.textMuted} />
             <Text style={[s.emptyTxt, { color: C.textMuted }]}>받은 요청이 없습니다</Text>
             <Text style={[s.emptySubTxt, { color: C.textMuted }]}>학부모가 결석/보강 등을 신청하면{"\n"}여기에 표시됩니다</Text>
           </View>

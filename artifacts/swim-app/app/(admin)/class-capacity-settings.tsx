@@ -7,7 +7,7 @@ import {
   ActivityIndicator, Pressable, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Minus, Plus, CheckCircle, AlertCircle } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -90,7 +90,7 @@ export default function ClassCapacitySettingsScreen() {
                 disabled={capacity <= MIN}
                 hitSlop={8}
               >
-                <Minus size={18} color={capacity <= MIN ? C.border : C.text} />
+                <LucideIcon name="minus" size={18} color={capacity <= MIN ? C.border : C.text} />
               </Pressable>
 
               <View style={s.valueBox}>
@@ -104,7 +104,7 @@ export default function ClassCapacitySettingsScreen() {
                 disabled={capacity >= MAX}
                 hitSlop={8}
               >
-                <Plus size={18} color={capacity >= MAX ? C.border : C.text} />
+                <LucideIcon name="plus" size={18} color={capacity >= MAX ? C.border : C.text} />
               </Pressable>
             </View>
             <Text style={s.rangeHint}>최소 {MIN}명 · 최대 {MAX}명</Text>
@@ -114,8 +114,8 @@ export default function ClassCapacitySettingsScreen() {
           {msg && (
             <View style={[s.msgBox, { backgroundColor: msg.ok ? "#E6FFFA" : "#FEE2E2" }]}>
               {msg.ok
-                ? <CheckCircle size={14} color="#2EC4B6" />
-                : <AlertCircle size={14} color={C.error} />}
+                ? <LucideIcon name="check-circle" size={14} color="#2EC4B6" />
+                : <LucideIcon name="alert-circle" size={14} color={C.error} />}
               <Text style={[s.msgText, { color: msg.ok ? "#2EC4B6" : C.error }]}>{msg.text}</Text>
             </View>
           )}

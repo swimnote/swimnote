@@ -4,7 +4,6 @@
  * - 선생님에게 관리자 권한 부여/회수 가능
  * - 관리자 수 제한 없음 (여러 명 가능)
  */
-import { CircleCheck, Info, Shield, Users } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -92,7 +91,7 @@ export default function AdminGrantScreen() {
 
       {/* 안내 배너 */}
       <View style={s.infoBanner}>
-        <Info size={14} color="#2EC4B6" />
+        <LucideIcon name="info" size={14} color="#2EC4B6" />
         <Text style={s.infoTxt}>
           승인된 선생님에게 관리자 권한을 부여할 수 있습니다.{"\n"}
           관리자 권한을 받은 선생님은 선생님↔관리자 역할 전환이 가능합니다.
@@ -109,7 +108,7 @@ export default function AdminGrantScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: TAB_BAR_H + 16 }}
           ListEmptyComponent={
             <View style={s.empty}>
-              <Users size={32} color={C.textMuted} />
+              <LucideIcon name="users" size={32} color={C.textMuted} />
               <Text style={s.emptyTxt}>승인된 선생님이 없습니다</Text>
               <Text style={s.emptyDesc}>먼저 선생님 초대 후 승인해주세요.</Text>
             </View>
@@ -130,7 +129,7 @@ export default function AdminGrantScreen() {
                       ? { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" }
                       : { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }
                   ]}>
-                    {item.is_admin_granted && <Shield size={10} color="#C2410C" />}
+                    {item.is_admin_granted && <LucideIcon name="shield" size={10} color="#C2410C" />}
                     <Text style={[
                       s.roleBadgeTxt,
                       { color: item.is_admin_granted ? "#C2410C" : "#1D4ED8" }
@@ -225,7 +224,7 @@ export default function AdminGrantScreen() {
         <Modal animationType="fade" transparent visible onRequestClose={() => setResultMsg(null)}>
           <View style={s.overlay}>
             <View style={s.dialog}>
-              <CircleCheck size={28} color="#2EC4B6" style={{ alignSelf: "center", marginBottom: 8 }} />
+              <LucideIcon name="check-circle" size={28} color="#2EC4B6" style={{ alignSelf: "center", marginBottom: 8 }} />
               <Text style={[s.dialogTitle, { textAlign: "center" }]}>완료</Text>
               <Text style={[s.dialogBody, { textAlign: "center" }]}>{resultMsg}</Text>
               <Pressable

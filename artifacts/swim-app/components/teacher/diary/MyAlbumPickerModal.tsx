@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Check, CloudUpload, FolderSearch, Video, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
 import Colors from "@/constants/colors";
 import { API_BASE } from "@/context/AuthContext";
@@ -271,17 +271,17 @@ export default function MyAlbumPickerModal({
           />
         ) : (
           <View style={[s.cellEmpty, { backgroundColor: bgColor }]}>
-            <Video size={20} color={color} />
+            <LucideIcon name="video" size={20} color={color} />
           </View>
         )}
         {!isPhoto && (
           <View style={s.videoIcon}>
-            <Video size={12} color="#fff" />
+            <LucideIcon name="video" size={12} color="#fff" />
           </View>
         )}
         {isSel && (
           <View style={[s.checkOverlay, { backgroundColor: color + "CC" }]}>
-            <Check size={22} color="#fff" />
+            <LucideIcon name="check" size={22} color="#fff" />
           </View>
         )}
         <View style={[s.selBorder, { borderColor: isSel ? color : "transparent" }]} />
@@ -295,7 +295,7 @@ export default function MyAlbumPickerModal({
         {/* 헤더 */}
         <View style={s.header}>
           <Pressable onPress={onClose} style={s.headerClose} accessibilityRole="button">
-            <X size={22} color="#374151" />
+            <LucideIcon name="x" size={22} color="#374151" />
           </Pressable>
           <Text style={s.headerTitle}>{title}</Text>
           <Pressable
@@ -315,7 +315,7 @@ export default function MyAlbumPickerModal({
             style={[s.actionBtn, { backgroundColor: bgColor, borderColor: color + "40" }]}
             onPress={() => setShowFullAlbum(true)}
           >
-            <FolderSearch size={15} color={color} />
+            <LucideIcon name="folder-search" size={15} color={color} />
             <Text style={[s.actionBtnText, { color }]}>전체앨범에서 가져오기</Text>
           </Pressable>
           <Pressable
@@ -325,7 +325,7 @@ export default function MyAlbumPickerModal({
           >
             {uploading
               ? <ActivityIndicator size="small" color={color} />
-              : <><CloudUpload size={15} color={color} /><Text style={[s.actionBtnText, { color }]}>직접 업로드</Text></>
+              : <><LucideIcon name="upload-cloud" size={15} color={color} /><Text style={[s.actionBtnText, { color }]}>직접 업로드</Text></>
             }
           </Pressable>
         </View>

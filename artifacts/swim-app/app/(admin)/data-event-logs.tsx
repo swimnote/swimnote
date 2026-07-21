@@ -2,7 +2,6 @@
  * 이벤트 기록 타임라인
  * 카테고리 필터 + 무한 스크롤 FlatList
  */
-import { Clock, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -109,7 +108,7 @@ export default function DataEventLogsScreen() {
             <ActivityIndicator color={themeColor} style={{ marginTop: 40 }} />
           ) : (
             <View style={{ alignItems: "center", paddingTop: 60, gap: 12 }}>
-              <Clock size={40} color={C.textMuted} />
+              <LucideIcon name="clock" size={40} color={C.textMuted} />
               <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textMuted }}>이벤트 기록이 없습니다</Text>
             </View>
           )
@@ -152,7 +151,7 @@ export default function DataEventLogsScreen() {
                 </View>
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                <User size={11} color={C.textMuted} />
+                <LucideIcon name="user" size={11} color={C.textMuted} />
                 <Text style={s.actor}>{actorName}</Text>
               </View>
             </View>

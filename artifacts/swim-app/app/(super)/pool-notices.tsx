@@ -10,7 +10,6 @@
  *  - 전체 공지 → [스윔노트] 공지사항
  *  - 수영장별  → [수영장명] 공지사항
  */
-import { BellOff, Bookmark, Check, ChevronDown, Globe, Home, PenLine, Plus, Send, Trash2 } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View} from "react-native";
@@ -75,7 +74,7 @@ function NoticeRow({
         <View style={r.top}>
           {notice.is_pinned && (
             <View style={r.pinBadge}>
-              <Bookmark size={9} color={P} />
+              <LucideIcon name="bookmark" size={9} color={P} />
               <Text style={r.pinTxt}>고정</Text>
             </View>
           )}
@@ -102,10 +101,10 @@ function NoticeRow({
       </View>
       <View style={r.actions}>
         <Pressable style={r.editBtn} onPress={() => onEdit(notice)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-          <PenLine size={14} color={P} />
+          <LucideIcon name="edit" size={14} color={P} />
         </Pressable>
         <Pressable style={r.delBtn} onPress={() => onDelete(notice.id)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-          <Trash2 size={14} color={RED} />
+          <LucideIcon name="trash-2" size={14} color={RED} />
         </Pressable>
       </View>
     </Pressable>
@@ -293,14 +292,14 @@ export default function PoolNoticesScreen() {
           style={[s.tab, activeScope === "global" && s.tabActive]}
           onPress={() => setActiveScope("global")}
         >
-          <Globe size={14} color={activeScope === "global" ? "#fff" : "#64748B"} />
+          <LucideIcon name="globe" size={14} color={activeScope === "global" ? "#fff" : "#64748B"} />
           <Text style={[s.tabTxt, activeScope === "global" && s.tabTxtActive]}>전체 공지</Text>
         </Pressable>
         <Pressable
           style={[s.tab, activeScope === "pool" && s.tabActive]}
           onPress={() => setActiveScope("pool")}
         >
-          <Home size={14} color={activeScope === "pool" ? "#fff" : "#64748B"} />
+          <LucideIcon name="home" size={14} color={activeScope === "pool" ? "#fff" : "#64748B"} />
           <Text style={[s.tabTxt, activeScope === "pool" && s.tabTxtActive]}>수영장별 공지</Text>
         </Pressable>
       </View>
@@ -308,7 +307,7 @@ export default function PoolNoticesScreen() {
       {/* ── 안내 배너 ── */}
       {activeScope === "global" ? (
         <View style={[s.banner, { backgroundColor: "#EEDDF5", borderBottomColor: "#C4B5FD" }]}>
-          <Globe size={12} color={P} />
+          <LucideIcon name="globe" size={12} color={P} />
           <Text style={[s.bannerTxt, { color: P }]}>
             전체 공지는 모든 수영장의 관리자·선생님·학부모 전체에 자동 발송됩니다.{"\n"}
             푸시 제목: [스윔노트] 공지사항
@@ -316,7 +315,7 @@ export default function PoolNoticesScreen() {
         </View>
       ) : (
         <View style={[s.banner, { backgroundColor: "#E6FFFA", borderBottomColor: "#A7F3D0" }]}>
-          <Home size={12} color={TEAL} />
+          <LucideIcon name="home" size={12} color={TEAL} />
           <Text style={[s.bannerTxt, { color: TEAL }]}>
             수영장별 공지는 선택한 수영장 구성원에게만 발송됩니다.{"\n"}
             푸시 제목: [수영장명] 공지사항
@@ -328,14 +327,14 @@ export default function PoolNoticesScreen() {
       {activeScope === "pool" && (
         <View style={s.poolBar}>
           <Pressable style={s.poolSelect} onPress={() => setShowPoolPicker(true)}>
-            <Home size={14} color={TEAL} />
+            <LucideIcon name="home" size={14} color={TEAL} />
             <Text style={s.poolSelectTxt} numberOfLines={1}>
               {poolsLoading ? "수영장 로딩 중…" : (selectedPool?.name ?? "수영장 선택")}
             </Text>
-            <ChevronDown size={14} color="#64748B" />
+            <LucideIcon name="chevron-down" size={14} color="#64748B" />
           </Pressable>
           <Pressable style={[s.addBtn, { backgroundColor: TEAL }]} onPress={openCreate}>
-            <Plus size={16} color="#fff" />
+            <LucideIcon name="plus" size={16} color="#fff" />
             <Text style={s.addBtnTxt}>공지 등록</Text>
           </Pressable>
         </View>
@@ -346,7 +345,7 @@ export default function PoolNoticesScreen() {
         <View style={s.globalBar}>
           <Text style={s.globalBarLabel}>플랫폼 전체 사용자 대상</Text>
           <Pressable style={[s.addBtn, { backgroundColor: P }]} onPress={openCreate}>
-            <Plus size={16} color="#fff" />
+            <LucideIcon name="plus" size={16} color="#fff" />
             <Text style={s.addBtnTxt}>전체 공지 등록</Text>
           </Pressable>
         </View>
@@ -375,7 +374,7 @@ export default function PoolNoticesScreen() {
           }
           ListEmptyComponent={
             <View style={s.empty}>
-              <BellOff size={32} color="#D1D5DB" />
+              <LucideIcon name="bell-off" size={32} color="#D1D5DB" />
               <Text style={s.emptyTxt}>
                 {activeScope === "pool" && !selectedPool
                   ? "수영장을 선택해주세요"
@@ -401,12 +400,12 @@ export default function PoolNoticesScreen() {
                 <Pressable key={p.id}
                   style={[pm.item, selectedPool?.id === p.id && pm.itemActive]}
                   onPress={() => { setSelectedPool(p); setShowPoolPicker(false); setPoolSearch(""); }}>
-                  <Home size={14} color={selectedPool?.id === p.id ? TEAL : "#64748B"} />
+                  <LucideIcon name="home" size={14} color={selectedPool?.id === p.id ? TEAL : "#64748B"} />
                   <View style={{ flex: 1 }}>
                     <Text style={[pm.itemName, selectedPool?.id === p.id && { color: TEAL }]}>{p.name}</Text>
                     {p.address ? <Text style={pm.itemAddr} numberOfLines={1}>{p.address}</Text> : null}
                   </View>
-                  {selectedPool?.id === p.id && <Check size={14} color={TEAL} />}
+                  {selectedPool?.id === p.id && <LucideIcon name="check" size={14} color={TEAL} />}
                 </Pressable>
               ))}
               {filteredPools.length === 0 && <Text style={pm.empty}>검색 결과 없음</Text>}
@@ -479,7 +478,7 @@ export default function PoolNoticesScreen() {
                 <View style={[fm.infoBanner, {
                   backgroundColor: activeScope === "global" ? "#EEDDF5" : "#E6FFFA",
                 }]}>
-                  <Send size={12} color={activeScope === "global" ? P : TEAL} />
+                  <LucideIcon name="send" size={12} color={activeScope === "global" ? P : TEAL} />
                   <Text style={[fm.infoBannerTxt, { color: activeScope === "global" ? P : TEAL }]}>
                     {activeScope === "global"
                       ? "등록 즉시 모든 수영장 구성원에게 자동 푸시 발송됩니다."

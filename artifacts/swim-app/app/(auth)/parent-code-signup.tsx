@@ -1,5 +1,3 @@
-import { ArrowLeft, AtSign, CircleAlert, Hash, Lock, User, UserCheck } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {ActivityIndicator,
@@ -113,7 +111,7 @@ export default function ParentCodeSignupScreen() {
               else router.back();
             }}
           >
-            <ArrowLeft size={20} color={C.text} />
+            <LucideIcon name="arrow-left" size={20} color={C.text} />
           </Pressable>
           <Text style={[styles.screenTitle, { color: C.text }]}>학부모 가입</Text>
           <View style={{ width: 28 }} />
@@ -123,7 +121,7 @@ export default function ParentCodeSignupScreen() {
         {step === "code" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#FFF3E0" }]}>
-              <Hash size={24} color="#E4A93A" />
+              <LucideIcon name="hash" size={24} color="#E4A93A" />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>초대코드 입력</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
@@ -132,7 +130,7 @@ export default function ParentCodeSignupScreen() {
 
             <View style={styles.field}>
               <View style={[styles.inputRow, { borderColor: code ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Hash size={15} color={code ? C.tint : C.textMuted} />
+                <LucideIcon name="hash" size={15} color={code ? C.tint : C.textMuted} />
                 <TextInput
                   style={[styles.codeInput, { color: C.text }]}
                   value={code}
@@ -150,7 +148,7 @@ export default function ParentCodeSignupScreen() {
 
             {!!error && (
               <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-                <CircleAlert size={14} color={C.error} />
+                <LucideIcon name="alert-circle" size={14} color={C.error} />
                 <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
               </View>
             )}
@@ -172,7 +170,7 @@ export default function ParentCodeSignupScreen() {
         {step === "confirm" && studentInfo && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#DFF3EC" }]}>
-              <UserCheck size={24} color="#2E9B6F" />
+              <LucideIcon name="user-check" size={24} color="#2E9B6F" />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>자녀 정보 확인</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
@@ -212,7 +210,7 @@ export default function ParentCodeSignupScreen() {
         {step === "account" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#EFF4FF" }]}>
-              <Lock size={24} color={C.tint} />
+              <LucideIcon name="lock" size={24} color={C.tint} />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>학부모 계정 설정</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
@@ -222,7 +220,7 @@ export default function ParentCodeSignupScreen() {
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>학부모 이름</Text>
               <View style={[styles.inputRow, { borderColor: parentName ? C.tint : C.border, backgroundColor: C.background }]}>
-                <User size={15} color={parentName ? C.tint : C.textMuted} />
+                <LucideIcon name="user" size={15} color={parentName ? C.tint : C.textMuted} />
                 <TextInput
                   ref={parentNameRef}
                   style={[styles.input, { color: C.text }]}
@@ -240,7 +238,7 @@ export default function ParentCodeSignupScreen() {
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>아이디 (3자 이상)</Text>
               <View style={[styles.inputRow, { borderColor: loginId ? C.tint : C.border, backgroundColor: C.background }]}>
-                <AtSign size={15} color={loginId ? C.tint : C.textMuted} />
+                <LucideIcon name="at-sign" size={15} color={loginId ? C.tint : C.textMuted} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={loginId}
@@ -258,7 +256,7 @@ export default function ParentCodeSignupScreen() {
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 (4자리 이상)</Text>
               <View style={[styles.inputRow, { borderColor: password ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Lock size={15} color={password ? C.tint : C.textMuted} />
+                <LucideIcon name="lock" size={15} color={password ? C.tint : C.textMuted} />
                 <TextInput
                   ref={pwRef}
                   style={[styles.input, { color: C.text }]}
@@ -282,7 +280,7 @@ export default function ParentCodeSignupScreen() {
                 borderColor: passwordConfirm && password !== passwordConfirm ? C.error : (passwordConfirm ? C.tint : C.border),
                 backgroundColor: C.background,
               }]}>
-                <Lock size={15} color={passwordConfirm ? C.tint : C.textMuted} />
+                <LucideIcon name="lock" size={15} color={passwordConfirm ? C.tint : C.textMuted} />
                 <TextInput
                   ref={pw2Ref}
                   style={[styles.input, { color: C.text }]}
@@ -302,7 +300,7 @@ export default function ParentCodeSignupScreen() {
 
             {!!error && (
               <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-                <CircleAlert size={14} color={C.error} />
+                <LucideIcon name="alert-circle" size={14} color={C.error} />
                 <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
               </View>
             )}

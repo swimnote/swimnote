@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { FileCheck, ShieldCheck, ChevronRight } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 
@@ -74,7 +74,7 @@ export default function PolicyAgreementScreen() {
       {/* 헤더 */}
       <View style={s.hero}>
         <View style={s.heroIcon}>
-          <FileCheck size={36} color={PURPLE} />
+          <LucideIcon name="file-check" size={36} color={PURPLE} />
         </View>
         <Text style={s.heroTitle}>환불 정책 확인</Text>
         <Text style={s.heroSub}>
@@ -103,14 +103,14 @@ export default function PolicyAgreementScreen() {
           <Text style={s.policyHeader}>환불 정책 전문</Text>
           {content.split("\n").filter(Boolean).map((line, i) => (
             <View key={i} style={s.line}>
-              <ChevronRight size={13} color={PURPLE} style={{ marginTop: 2 }} />
+              <LucideIcon name="chevron-right" size={13} color={PURPLE} style={{ marginTop: 2 }} />
               <Text style={s.lineText}>{line}</Text>
             </View>
           ))}
         </View>
 
         <View style={s.noticeBox}>
-          <ShieldCheck size={16} color="#0369A1" />
+          <LucideIcon name="shield-check" size={16} color="#0369A1" />
           <Text style={s.noticeTxt}>
             정책 변경 시 재동의가 필요합니다.{"\n"}
             과거 버전 동의는 새 버전에 자동 적용되지 않습니다.

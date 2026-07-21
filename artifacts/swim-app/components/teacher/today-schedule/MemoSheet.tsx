@@ -1,4 +1,3 @@
-import { Lock, Mic, Square, Trash2, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { Audio } from "expo-av";
 import React, { useEffect, useRef, useState } from "react";
@@ -134,7 +133,7 @@ export default function MemoSheet({
                 <Text style={ms.sheetTitle}>개인 메모</Text>
                 <Text style={ms.sheetSub}>{item.name} · {item.schedule_time}</Text>
               </View>
-              <Pressable onPress={onClose} style={ms.closeBtn}><X size={20} color={C.text} /></Pressable>
+              <Pressable onPress={onClose} style={ms.closeBtn}><LucideIcon name="x" size={20} color={C.text} /></Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <TextInput style={[ms.textArea, { borderColor: C.border }]}
@@ -142,14 +141,14 @@ export default function MemoSheet({
                 placeholder="수업 준비 메모, 특이사항 등 자유롭게 작성하세요..."
                 placeholderTextColor={C.textMuted} multiline numberOfLines={5} textAlignVertical="top" />
               <View style={[ms.audioBox, { borderColor: C.border, marginTop: 14 }]}>
-                <Mic size={16} color={themeColor} />
+                <LucideIcon name="mic" size={16} color={themeColor} />
                 <Text style={[ms.audioLabel, { color: C.textSecondary }]}>음성 메모</Text>
                 {isRecording ? (
                   <View style={ms.recRow}>
                     <View style={ms.recDot} />
                     <Text style={[ms.recTime, { color: "#D96C6C" }]}>{recDisplay}</Text>
                     <Pressable style={[ms.recBtn, { backgroundColor: "#D96C6C" }]} onPress={stopRecording}>
-                      <Square size={14} color="#fff" />
+                      <LucideIcon name="square" size={14} color="#fff" />
                       <Text style={ms.recBtnText}>중지</Text>
                     </Pressable>
                   </View>
@@ -165,13 +164,13 @@ export default function MemoSheet({
                           if (sound) { sound.unloadAsync(); setSound(null); }
                           setPlaying(false); setAudioUri(null); setAudioKey(null);
                         }}>
-                          <Trash2 size={14} color={C.error} />
+                          <LucideIcon name="trash-2" size={14} color={C.error} />
                           <Text style={[ms.recBtnText, { color: C.error }]}>삭제</Text>
                         </Pressable>
                       </>
                     ) : (
                       <Pressable style={[ms.recBtn, { backgroundColor: "#F9DEDA" }]} onPress={startRecording}>
-                        <Mic size={14} color="#D96C6C" />
+                        <LucideIcon name="mic" size={14} color="#D96C6C" />
                         <Text style={[ms.recBtnText, { color: "#D96C6C" }]}>녹음 시작</Text>
                       </Pressable>
                     )}
@@ -179,7 +178,7 @@ export default function MemoSheet({
                 )}
               </View>
               <Text style={[ms.privateNote, { marginTop: 14 }]}>
-                <Lock size={11} color={C.textMuted} /> 개인 메모는 선생님 본인만 볼 수 있습니다.
+                <LucideIcon name="lock" size={11} color={C.textMuted} /> 개인 메모는 선생님 본인만 볼 수 있습니다.
               </Text>
             </ScrollView>
             <Pressable style={[ms.saveBtn, { backgroundColor: themeColor, opacity: saving || uploadingAudio ? 0.7 : 1, marginTop: 14 }]}

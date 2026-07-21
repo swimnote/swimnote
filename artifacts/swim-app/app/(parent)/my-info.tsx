@@ -3,7 +3,6 @@
  * - 이름, 휴대폰번호, 자녀 목록, 수영장 정보, 가입일
  * - 수영장이 없으면 직접 검색해서 연결 가능
  */
-import { Check, Pencil, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {ActivityIndicator, Alert, FlatList, Keyboard, Linking, Modal,
@@ -416,10 +415,10 @@ export default function MyInfoScreen() {
                           ? <ActivityIndicator size="small" color={TEAL} />
                           : <>
                               <Pressable hitSlop={10} onPress={() => saveChildName(st.id)} style={[s.editAction, { backgroundColor: TEAL }]}>
-                                <Check size={14} color="#fff" />
+                                <LucideIcon name="check" size={14} color="#fff" />
                               </Pressable>
                               <Pressable hitSlop={10} onPress={() => setEditingChildId(null)} style={[s.editAction, { backgroundColor: "#EEE" }]}>
-                                <X size={14} color={C.textMuted} />
+                                <LucideIcon name="x" size={14} color={C.textMuted} />
                               </Pressable>
                             </>
                         }
@@ -435,7 +434,7 @@ export default function MyInfoScreen() {
 
                     {!isEditing && (
                       <Pressable hitSlop={12} onPress={() => { setEditingChildId(st.id); setEditingChildName(st.name); }}>
-                        <Pencil size={15} color={TEAL} />
+                        <LucideIcon name="edit" size={15} color={TEAL} />
                       </Pressable>
                     )}
                   </View>

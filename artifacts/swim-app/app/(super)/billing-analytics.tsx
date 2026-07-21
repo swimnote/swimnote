@@ -5,7 +5,6 @@
  * - 지출: 인프라 비용 (Supabase, R2, 스토어수수료 등) — 추정치 표시
  * - 순이익: 매출 - 총지출
  */
-import { Info } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -390,7 +389,7 @@ export default function BillingAnalyticsScreen() {
         <View style={s.section}>
           <SectionHeader icon="minus-circle" title="지출 항목" />
           <View style={[s.estimateNoteBanner]}>
-            <Info size={12} color="#0369A1" />
+            <LucideIcon name="info" size={12} color="#0369A1" />
             <Text style={[s.estimateNoteTxt, { color: "#0369A1" }]}>
               스토어 수수료·R2 스토리지는 실데이터 기반. DB·백업·인프라는 실제 계약 고정 비용.
             </Text>

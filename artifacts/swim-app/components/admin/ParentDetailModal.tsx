@@ -2,7 +2,6 @@
  * ParentDetailModal — 학부모 상세 조회 (읽기 전용)
  * 승인은 ParentApproveModal에서 처리
  */
-import { Info, MessageSquare, Phone, RefreshCw, UserX, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -47,14 +46,14 @@ function PDPhoneRow({ label, phone }: { label: string; phone: string | null | un
           disabled={!valid}
           hitSlop={6}
         >
-          <Phone size={13} color={valid ? CALL_COLOR : C.textMuted} />
+          <LucideIcon name="phone" size={13} color={valid ? CALL_COLOR : C.textMuted} />
           <Text style={[pd.infoValue, valid ? { color: CALL_COLOR } : {}]}>
             {phone ? formatPhone(phone) : "미입력"}
           </Text>
         </Pressable>
         {valid && (
           <Pressable onPress={() => sendSms(phone)} hitSlop={8}>
-            <MessageSquare size={13} color={SMS_COLOR} />
+            <LucideIcon name="message-square" size={13} color={SMS_COLOR} />
           </Pressable>
         )}
       </View>
@@ -95,7 +94,7 @@ export function ParentDetailModal({
               </View>
             </View>
             <Pressable onPress={onClose} style={{ padding: 4 }}>
-              <X size={20} color={C.textSecondary} />
+              <LucideIcon name="x" size={20} color={C.textSecondary} />
             </Pressable>
           </View>
 
@@ -137,7 +136,7 @@ export function ParentDetailModal({
             {isPending && (
               <View style={pd.btnRow}>
                 <Pressable style={[pd.btn, pd.btnReject]} onPress={onOpenReject}>
-                  <X size={14} color={C.error} />
+                  <LucideIcon name="x" size={14} color={C.error} />
                   <Text style={[pd.btnTxt, { color: C.error }]}>거절</Text>
                 </Pressable>
                 <Pressable style={[pd.btn, pd.btnApprove]} onPress={onApprove}>
@@ -147,18 +146,18 @@ export function ParentDetailModal({
             )}
             {isApproved && (
               <Pressable style={[pd.btn, pd.btnRevoke, { flex: 1 }]} onPress={onRevoke}>
-                <UserX size={14} color="#D96C6C" />
+                <LucideIcon name="user-x" size={14} color="#D96C6C" />
                 <Text style={[pd.btnTxt, { color: "#D96C6C" }]}>승인 해제</Text>
               </Pressable>
             )}
             {req.status === "rejected" && (
               <>
                 <View style={pd.rejectInfo}>
-                  <Info size={13} color="#D96C6C" />
+                  <LucideIcon name="info" size={13} color="#D96C6C" />
                   <Text style={pd.rejectInfoTxt}>거절 상태입니다. 재승인하면 가입을 허용합니다.</Text>
                 </View>
                 <Pressable style={[pd.btn, pd.btnApprove, { flex: 1 }]} onPress={onReApprove}>
-                  <RefreshCw size={14} color="#fff" />
+                  <LucideIcon name="refresh-cw" size={14} color="#fff" />
                   <Text style={[pd.btnTxt, { color: "#fff" }]}>재승인</Text>
                 </Pressable>
               </>

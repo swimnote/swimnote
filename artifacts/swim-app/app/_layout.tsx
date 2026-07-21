@@ -8,8 +8,7 @@ import Constants from "expo-constants";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Animated, AppState, AppStateStatus, Linking, Modal, Platform, Pressable, Text, View } from "react-native";
 // Modal, Pressable kept for other uses in this file
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { UploadQueueProvider, useUploadQueue } from "@/context/UploadQueueContext";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -186,7 +185,7 @@ function UploadProgressModal() {
               hitSlop={12}
               style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" }}
             >
-              <X size={14} color="#9CA3AF" />
+              <LucideIcon name="x" size={14} color="#9CA3AF" />
             </Pressable>
           )}
         </View>

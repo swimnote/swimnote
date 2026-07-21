@@ -1,7 +1,6 @@
 /**
  * 계정별 사용량 — 선생님 리스트 + 사용량
  */
-import { ChevronRight, Users, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -77,7 +76,7 @@ export default function DataStorageByAccountScreen() {
         >
           {staff.length === 0 ? (
             <View style={{ alignItems: "center", paddingTop: 60, gap: 12 }}>
-              <Users size={40} color={C.textMuted} />
+              <LucideIcon name="users" size={40} color={C.textMuted} />
               <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textMuted }}>계정 정보가 없습니다</Text>
             </View>
           ) : (
@@ -107,7 +106,7 @@ export default function DataStorageByAccountScreen() {
                       </View>
                       <Text style={s.pctText}>전체 대비 {pct.toFixed(1)}%</Text>
                     </View>
-                    <ChevronRight size={14} color={C.textMuted} style={{ marginLeft: 8 }} />
+                    <LucideIcon name="chevron-right" size={14} color={C.textMuted} style={{ marginLeft: 8 }} />
                   </Pressable>
                 );
               })}
@@ -126,7 +125,7 @@ export default function DataStorageByAccountScreen() {
                 <Text style={sm.sub}>{selected?.role === "pool_admin" ? "대표" : selected?.role === "sub_admin" ? "관리자" : "선생님"} · 저장공간 상세</Text>
               </View>
               <Pressable onPress={() => setSelected(null)} hitSlop={8}>
-                <X size={22} color={C.text} />
+                <LucideIcon name="x" size={22} color={C.text} />
               </Pressable>
             </View>
             <View style={{ gap: 10 }}>

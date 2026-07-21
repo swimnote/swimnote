@@ -5,7 +5,6 @@
  * - X 버튼 닫기
  * - 드래그 아래로 닫기
  */
-import { X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useRef } from "react";
 import {
@@ -98,7 +97,7 @@ export function IconPopup({ visible, title, items, onClose }: IconPopupProps) {
           <View style={s.header}>
             <Text style={s.title}>{title}</Text>
             <Pressable onPress={onClose} style={s.closeBtn} hitSlop={10}>
-              <X size={20} color={C.textSecondary} />
+              <LucideIcon name="x" size={20} color={C.textSecondary} />
             </Pressable>
           </View>
         </View>

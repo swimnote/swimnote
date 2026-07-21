@@ -10,7 +10,6 @@
  * POST /super/backups/:id/restore — 복구 기록
  * GET  /super/backups/:id/download — 다운로드
  */
-import { Anchor, Calendar, Check, ChevronLeft, ChevronRight, CircleAlert, CircleCheck, Clock, Download, FileText, HardDrive, Info, Layers, RefreshCw, RotateCcw, Save, Search, Server, Settings, Shield, TriangleAlert, User, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -233,7 +232,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
   if (error || !status) {
     return (
       <View style={dc.errorBox}>
-        <CircleAlert size={16} color={DANGER} />
+        <LucideIcon name="alert-circle" size={16} color={DANGER} />
         <Text style={dc.errorTxt}>{error ?? "상태 조회 실패"}</Text>
         <Pressable onPress={handleRefresh}>
           <Text style={dc.retryTxt}>다시 시도</Text>
@@ -281,10 +280,10 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
     <View style={dc.wrap}>
       {/* 헤더 + 갱신 버튼 */}
       <View style={dc.header}>
-        <Shield size={14} color={P} />
+        <LucideIcon name="shield" size={14} color={P} />
         <Text style={dc.headerTxt}>DB 백업 상태</Text>
         <Pressable onPress={handleRefresh} disabled={refreshing} style={dc.refreshBtn}>
-          <RefreshCw size={13} color={refreshing ? "#D1D5DB" : P} />
+          <LucideIcon name="refresh-cw" size={13} color={refreshing ? "#D1D5DB" : P} />
         </Pressable>
       </View>
 
@@ -374,7 +373,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
         >
           {backingUp
             ? <ActivityIndicator size="small" color="#fff" />
-            : <Save size={13} color="#fff" />}
+            : <LucideIcon name="save" size={13} color="#fff" />}
           <Text style={dc.manualBtnTxt}>{backingUp ? "백업 중..." : "전체 백업 실행"}</Text>
         </Pressable>
         <Pressable
@@ -382,7 +381,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
           onPress={() => onManualBackup("pool_only")}
           disabled={backingUp}
         >
-          <Server size={13} color={P} />
+          <LucideIcon name="server" size={13} color={P} />
           <Text style={dc.poolBtnTxt}>pool만</Text>
         </Pressable>
       </View>
@@ -456,27 +455,27 @@ function BackupCard({
       <View style={bc.meta}>
         {item.total_tables != null && (
           <View style={bc.metaItem}>
-            <Layers size={11} color="#64748B" />
+            <LucideIcon name="layers" size={11} color="#64748B" />
             <Text style={bc.metaVal}>{item.total_tables}개 테이블</Text>
           </View>
         )}
         <View style={bc.metaItem}>
-          <HardDrive size={11} color="#64748B" />
+          <LucideIcon name="hard-drive" size={11} color="#64748B" />
           <Text style={bc.metaVal}>{fmtSize(item.size_bytes)}</Text>
         </View>
         <View style={bc.metaItem}>
-          <Clock size={11} color="#64748B" />
+          <LucideIcon name="clock" size={11} color="#64748B" />
           <Text style={bc.metaVal}>{fmtDateTime(item.created_at)}</Text>
         </View>
         {item.created_by && (
           <View style={bc.metaItem}>
-            <User size={11} color="#64748B" />
+            <LucideIcon name="user" size={11} color="#64748B" />
             <Text style={bc.metaVal}>{item.created_by}</Text>
           </View>
         )}
         {item.note && (
           <View style={bc.metaItem}>
-            <FileText size={11} color="#64748B" />
+            <LucideIcon name="file-text" size={11} color="#64748B" />
             <Text style={bc.metaVal} numberOfLines={1}>{item.note}</Text>
           </View>
         )}
@@ -485,11 +484,11 @@ function BackupCard({
       {item.status === "done" && (
         <View style={bc.actions}>
           <Pressable style={[bc.btn, { backgroundColor: "#E6FAF8" }]} onPress={() => onDownload(item)}>
-            <Download size={12} color="#0284C7" />
+            <LucideIcon name="download" size={12} color="#0284C7" />
             <Text style={[bc.btnTxt, { color: "#0284C7" }]}>다운로드</Text>
           </Pressable>
           <Pressable style={[bc.btn, { backgroundColor: "#F9DEDA" }]} onPress={() => onRestore(item)}>
-            <RotateCcw size={12} color={DANGER} />
+            <LucideIcon name="refresh-ccw" size={12} color={DANGER} />
             <Text style={[bc.btnTxt, { color: DANGER }]}>복구</Text>
           </Pressable>
         </View>
@@ -528,13 +527,13 @@ function CreateModal({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={cr.header}>
-          <Pressable onPress={onClose} disabled={busy}><X size={20} color="#64748B" /></Pressable>
+          <Pressable onPress={onClose} disabled={busy}><LucideIcon name="x" size={20} color="#64748B" /></Pressable>
           <Text style={cr.title}>수동 백업 생성</Text>
           <View style={{ width: 24 }} />
         </View>
         <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
           <View style={cr.infoBox}>
-            <Info size={14} color="#0284C7" />
+            <LucideIcon name="info" size={14} color="#0284C7" />
             <Text style={cr.infoTxt}>
               슈퍼관리자 DB와 수영장 운영 DB 전체를 백업합니다.{"\n"}
               소요 시간: 약 10~30초 (DB 크기에 따라 다름)
@@ -549,7 +548,7 @@ function CreateModal({
           <Pressable style={[cr.confirmBtn, busy && { opacity: 0.5 }]} onPress={() => onCreate(note)} disabled={busy}>
             {busy
               ? <ActivityIndicator color="#fff" size="small" />
-              : <Save size={16} color="#fff" />
+              : <LucideIcon name="save" size={16} color="#fff" />
             }
             <Text style={cr.confirmTxt}>{busy ? "백업 생성 중..." : "백업 생성"}</Text>
           </Pressable>

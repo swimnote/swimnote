@@ -1,4 +1,3 @@
-import { CircleAlert, Pin, User } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -7,6 +6,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
 
@@ -52,20 +52,20 @@ export default function NoticeDetailScreen() {
 
       {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} /> : !notice ? (
         <View style={styles.empty}>
-          <CircleAlert size={40} color={C.textMuted} />
+          <LucideIcon name="alert-circle" size={40} color={C.textMuted} />
           <Text style={[styles.emptyText, { color: C.textMuted }]}>공지를 불러올 수 없습니다</Text>
         </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 40, gap: 16 }}>
           {notice.is_pinned && (
             <View style={[styles.pinnedTag, { backgroundColor: C.tintLight }]}>
-              <Pin size={13} color={C.tint} />
+              <LucideIcon name="pin" size={13} color={C.tint} />
               <Text style={[styles.pinnedText, { color: C.tint }]}>고정 공지</Text>
             </View>
           )}
           {notice.student_name && (
             <View style={[styles.individualTag, { backgroundColor: C.tint + "18" }]}>
-              <User size={13} color={C.tint} />
+              <LucideIcon name="user" size={13} color={C.tint} />
               <Text style={[styles.individualText, { color: C.tint }]}>{notice.student_name} 학생 개별 공지</Text>
             </View>
           )}

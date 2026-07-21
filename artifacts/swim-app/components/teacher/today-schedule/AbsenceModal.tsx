@@ -1,4 +1,3 @@
-import { CircleX, TriangleAlert, Users } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
@@ -104,7 +103,7 @@ export default function AbsenceModal({
           <View style={{ gap: 16 }}>
             <Text style={ab.title}>결근 처리</Text>
             <View style={[ab.warnBox, { backgroundColor: "#FFF1BF" }]}>
-              <TriangleAlert size={16} color="#D97706" />
+              <LucideIcon name="alert-triangle" size={16} color="#D97706" />
               <Text style={[ab.warnText, { color: "#92400E" }]}>
                 {item?.name} 수업을 결근 처리합니다.{"\n"}옆 반 이동 수업하는 학생이 있습니까?
               </Text>
@@ -112,14 +111,14 @@ export default function AbsenceModal({
             <View style={{ flexDirection: "row", gap: 10 }}>
               <Pressable style={[ab.choiceBtn, { backgroundColor: "#FFFFFF", flex: 1 }]} onPress={handleNoTransfer} disabled={loading}>
                 {loading ? <ActivityIndicator size="small" color="#64748B" /> : <>
-                  <CircleX size={18} color="#64748B" />
+                  <LucideIcon name="x-circle" size={18} color="#64748B" />
                   <Text style={[ab.choiceBtnText, { color: "#0F172A" }]}>없음</Text>
                   <Text style={ab.choiceSub}>전원 미실시(선생님)</Text>
                 </>}
               </Pressable>
               <Pressable style={[ab.choiceBtn, { backgroundColor: themeColor + "15", borderColor: themeColor, borderWidth: 1.5, flex: 1 }]} onPress={handleHasTransfer} disabled={loading}>
                 {loading ? <ActivityIndicator size="small" color={themeColor} /> : <>
-                  <Users size={18} color={themeColor} />
+                  <LucideIcon name="users" size={18} color={themeColor} />
                   <Text style={[ab.choiceBtnText, { color: themeColor }]}>있음</Text>
                   <Text style={ab.choiceSub}>학생 선택 → 옆 반 이동</Text>
                 </>}

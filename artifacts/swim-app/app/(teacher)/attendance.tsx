@@ -11,7 +11,7 @@
  * - 정렬: 결석 → 출석
  */
 import { Alert } from "react-native";
-import { ChevronLeft, ChevronRight, CircleCheck, Repeat, RotateCcw, TriangleAlert, Users, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { haptic } from "@/utils/haptic";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -28,10 +28,8 @@ import { WeeklySchedule } from "@/components/teacher/WeeklySchedule";
 import { TeacherClassGroup, SlotStatus } from "@/components/teacher/types";
 
 const C = Colors.light;
-
 type SubTab = "attendance" | "makeup";
 type AttStatus = "present" | "absent";
-
 interface Student {
   id: string;
   name: string;
@@ -50,7 +48,6 @@ interface EligibleClass {
   capacity: number; current_members: number; available_slots: number;
   instructor: string; teacher_user_id: string;
 }
-
 function todayDateStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -58,7 +55,6 @@ function todayDateStr() {
 function daysDiff(dateStr: string) {
   return Math.floor((Date.now() - new Date(dateStr + "T00:00:00").getTime()) / 86400000);
 }
-
 /** 수업 시간이 지났는지 판단 (schedule_time: "10:00~11:00" 형식) */
 function isClassOver(group: TeacherClassGroup, dateStr: string): boolean {
   const today = todayDateStr();
@@ -70,8 +66,6 @@ function isClassOver(group: TeacherClassGroup, dateStr: string): boolean {
   const [hour, min] = endTime.split(":").map(Number);
   const now = new Date();
   return now.getHours() > hour || (now.getHours() === hour && now.getMinutes() >= min);
-}
-
 /* ──────────────────────────────────────────────────
    날짜 선택 전용 인라인 컴포넌트
    ────────────────────────────────────────────────── */
@@ -86,24 +80,22 @@ function DatePicker({ value, onChange }: { value: string; onChange: (d: string) 
   return (
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12, marginVertical: 8 }}>
       <TouchableOpacity onPress={() => add(-1)} style={{ padding: 8 }}>
-        <ChevronLeft size={22} color={C.text} />
+        <LucideIcon name="chevron-left" size={22} color={C.text} />
       </TouchableOpacity>
       <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text }}>
         {y}년 {m}월 {d}일 ({DOW})
       </Text>
       <TouchableOpacity onPress={() => add(1)} style={{ padding: 8 }}>
-        <ChevronRight size={22} color={C.text} />
+        <LucideIcon name="chevron-right" size={22} color={C.text} />
       </TouchableOpacity>
     </View>
   );
 }
-
 export default function TeacherAttendanceScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ classGroupId?: string; defaultTab?: string }>();
-
   const [subTab,         setSubTab]         = useState<SubTab>((params.defaultTab as SubTab) || "attendance");
   const [groups,         setGroups]         = useState<TeacherClassGroup[]>([]);
   const [students,       setStudents]       = useState<Student[]>([]);
@@ -111,7 +103,6 @@ export default function TeacherAttendanceScreen() {
   const [diarySet,       setDiarySet]       = useState<Set<string>>(new Set());
   const [loading,        setLoading]        = useState(true);
   const [refreshing,     setRefreshing]     = useState(false);
-
   /* ─ 출결 체크 ─ */
   const [selectedGroup,  setSelectedGroup]  = useState<TeacherClassGroup | null>(null);
   const [date,           setDate]           = useState(todayDateStr);
@@ -119,14 +110,12 @@ export default function TeacherAttendanceScreen() {
   const [savingId,       setSavingId]       = useState<string | null>(null);
   const [autoSaving,     setAutoSaving]     = useState(false);
   const [classOver,      setClassOver]      = useState(false);
-
   /* ─ 보강 관리 ─ */
   const [makeupList,         setMakeupList]         = useState<MakeupSession[]>([]);
   const [assignedMakeupList, setAssignedMakeupList] = useState<MakeupSession[]>([]);
   const [makeupLoading,      setMakeupLoading]      = useState(false);
   const [makeupRefresh,      setMakeupRefresh]      = useState(false);
   const [revertingId,        setRevertingId]        = useState<string | null>(null);
-
   /* ─ 보강 지정 모달 ─ */
   const [assignTarget,   setAssignTarget]   = useState<MakeupSession | null>(null);
   const [eligibleClasses,setEligibleClasses]= useState<EligibleClass[]>([]);
@@ -135,14 +124,12 @@ export default function TeacherAttendanceScreen() {
   const [assignDate,     setAssignDate]     = useState(todayDateStr);
   const [assigning,      setAssigning]      = useState(false);
   const [assignError,    setAssignError]    = useState("");
-
   /* ─ 결석소멸 모달 ─ */
   const [extTarget,      setExtTarget]      = useState<MakeupSession | null>(null);
   const [extReason,      setExtReason]      = useState("보강원하지않음");
   const [extCustom,      setExtCustom]      = useState("");
   const [extLoading,     setExtLoading]     = useState(false);
   const [extError,       setExtError]       = useState("");
-
   /* ════════════════════ 로드 ════════════════════ */
   const load = useCallback(async () => {
     const today = todayDateStr();
@@ -173,7 +160,6 @@ export default function TeacherAttendanceScreen() {
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
-
   const loadMakeups = useCallback(async () => {
     setMakeupLoading(true);
     try {
@@ -186,7 +172,6 @@ export default function TeacherAttendanceScreen() {
     } catch (e) { console.error(e); }
     finally { setMakeupLoading(false); setMakeupRefresh(false); }
   }, [token]);
-
   async function handleRevert(mk: MakeupSession) {
     Alert.alert(
       "배정 취소",
@@ -215,20 +200,15 @@ export default function TeacherAttendanceScreen() {
         },
       ]
     );
-  }
-
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (subTab === "makeup") loadMakeups(); }, [subTab, loadMakeups]);
-
   /* ════════════════════ 출결 체크 함수 ════════════════════ */
   async function openGroup(group: TeacherClassGroup, dateStr?: string) {
     const d = dateStr || date;
     setSelectedGroup(group);
     setSavingId(null);
-
     const over = isClassOver(group, d);
     setClassOver(over);
-
     setAutoSaving(over);
     try {
       const r = await apiRequest(token, `/attendance?class_group_id=${group.id}&date=${d}`);
@@ -237,7 +217,6 @@ export default function TeacherAttendanceScreen() {
         const arr: any[] = await r.json();
         arr.forEach(a => { map[a.student_id ?? a.member_id] = a.status; });
       }
-
       // 수업 종료 후 → 기록 없는 학생 자동 출석 처리
       if (over) {
         const groupStuds = students.filter(st =>
@@ -261,13 +240,11 @@ export default function TeacherAttendanceScreen() {
     } catch (e) { console.error(e); }
     finally { setAutoSaving(false); }
   }
-
   /* 즉시 저장 (개별) */
   async function saveOne(studentId: string, status: AttStatus) {
     if (savingId === studentId) return;
     const prevStatus = attState[studentId];
     if (prevStatus === status) return; // 같은 상태면 스킵
-
     haptic.light();
     setSavingId(studentId);
     try {
@@ -277,13 +254,11 @@ export default function TeacherAttendanceScreen() {
       });
       const newAttState = { ...attState, [studentId]: status };
       setAttState(newAttState);
-
       // 전원 출석 완료 시 성공 햅틱
       const allPresent = students
         .filter(st => (Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(selectedGroup?.id ?? "")) || st.class_group_id === selectedGroup?.id)
         .every(st => (newAttState[st.id] ?? "present") === "present");
       if (allPresent && status === "present") haptic.success();
-
       // 출결 카운트 갱신
       setAttTodayMap(prev => {
         const cgId = selectedGroup?.id;
@@ -296,7 +271,6 @@ export default function TeacherAttendanceScreen() {
           .filter((_, i) => groupStuds[i]).length;
         return { ...prev, [cgId]: checkedCount };
       });
-
       // 결석 시 보강 목록 갱신 — 출결 API가 완료되면 서버 makeup도 동기 생성됨
       if (status === "absent" && prevStatus !== "absent") {
         loadMakeups(); // 타임아웃 없이 즉시 재조회
@@ -331,9 +305,6 @@ export default function TeacherAttendanceScreen() {
     }
     if (mk) {
       openAssign(mk);
-    }
-  }
-
   /* ════════════════════ 보강 지정 함수 ════════════════════ */
   async function openAssign(mk: MakeupSession) {
     setAssignTarget(mk);
@@ -352,7 +323,6 @@ export default function TeacherAttendanceScreen() {
       }
     } finally { setEligLoading(false); }
   }
-
   async function confirmAssign() {
     if (!assignClassId) { setAssignError("반을 선택해주세요."); return; }
     if (!assignDate)    { setAssignError("날짜를 선택해주세요."); return; }
@@ -372,18 +342,16 @@ export default function TeacherAttendanceScreen() {
       }
     } finally { setAssigning(false); }
   }
-
   /* ════════════════════ 결석소멸 함수 ════════════════════ */
   function openExtinguish(mk: MakeupSession) {
     setExtTarget(mk);
     setExtReason("보강원하지않음"); setExtCustom(""); setExtError("");
   }
-
   async function confirmExtinguish() {
     setExtLoading(true); setExtError("");
     try {
       const res = await apiRequest(token, `/teacher/makeups/${extTarget!.id}/extinguish`, {
-        method: "POST",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cancelled_reason: extReason,
@@ -399,7 +367,6 @@ export default function TeacherAttendanceScreen() {
       }
     } finally { setExtLoading(false); }
   }
-
   /* ════════════════════ 학생 리스트 (정렬) ════════════════════ */
   const groupStudents: Student[] = selectedGroup
     ? students.filter(st =>
@@ -407,169 +374,18 @@ export default function TeacherAttendanceScreen() {
         || st.class_group_id === selectedGroup.id
       )
     : [];
-
   // 결석 우선 → 이름순
   const sortedStudents = [...groupStudents].sort((a, b) => {
     const aAbsent = attState[a.id] === "absent" ? 0 : 1;
     const bAbsent = attState[b.id] === "absent" ? 0 : 1;
     return aAbsent - bAbsent || a.name.localeCompare(b.name, "ko");
   });
-
   /* ════════════════════ statusMap ════════════════════ */
   const statusMap: Record<string, SlotStatus> = {};
   groups.forEach(g => {
     statusMap[g.id] = { attChecked: attTodayMap[g.id] || 0, diaryDone: diarySet.has(g.id), hasPhotos: false };
   });
 
-  /* ════════════════════ 로딩 ════════════════════ */
-  if (loading) {
-    return (
-      <SafeAreaView style={s.safe} edges={[]}>
-        <SubScreenHeader title="출결 관리" homePath="/(teacher)/today-schedule" />
-        <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
-      </SafeAreaView>
-    );
-  }
-
-  /* ════════════════════ 출결 서브뷰 ════════════════════ */
-  if (selectedGroup) {
-    const group = selectedGroup;
-    const presentCnt = sortedStudents.filter(st => attState[st.id] === "present").length;
-    const absentCnt  = sortedStudents.filter(st => attState[st.id] === "absent").length;
-
-    return (
-      <SafeAreaView style={s.safe} edges={[]}>
-        <SubScreenHeader
-          title={`${group.name} 출결`}
-          subtitle={`${date} · ${group.schedule_time}`}
-          onBack={() => {
-            if (params.classGroupId) router.back();
-            else setSelectedGroup(null);
-          }}
-          homePath="/(teacher)/today-schedule"
-        />
-
-        {/* 출결 요약 배너 */}
-        <View style={[s.attSummary, { borderColor: themeColor + "30", backgroundColor: themeColor + "08" }]}>
-          {autoSaving ? (
-            <>
-              <ActivityIndicator size="small" color={themeColor} />
-              <Text style={[s.attSummaryText, { color: themeColor }]}>출석 자동 처리 중...</Text>
-            </>
-          ) : (
-            <>
-              <Text style={[s.attSummaryText, { color: themeColor }]}>
-                전체 {sortedStudents.length}명
-              </Text>
-              <View style={s.summaryDot} />
-              <Text style={s.attSummaryPresent}>출석 {presentCnt}명</Text>
-              {absentCnt > 0 && (
-                <>
-                  <View style={s.summaryDot} />
-                  <Text style={s.attSummaryAbsent}>결석 {absentCnt}명</Text>
-                </>
-              )}
-              {classOver && (
-                <>
-                  <View style={s.summaryDot} />
-                  <Text style={[s.attSummaryText, { color: "#999", fontSize: 12 }]}>수업 완료</Text>
-                </>
-              )}
-            </>
-          )}
-        </View>
-
-        <FlatList
-          data={sortedStudents}
-          keyExtractor={i => i.id}
-          contentContainerStyle={[s.studentList, { paddingBottom: insets.bottom + 20 }]}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={s.emptyBox}>
-              <Users size={32} color={C.textMuted} />
-              <Text style={s.emptyText}>이 반에 배정된 학생이 없습니다</Text>
-            </View>
-          }
-          renderItem={({ item }) => {
-            const cur = attState[item.id];
-            const isAbsent  = cur === "absent";
-            const isPresent = cur === "present";
-            const isSaving  = savingId === item.id;
-
-            return (
-              <View style={[s.attRow, { backgroundColor: C.card, opacity: isSaving ? 0.6 : 1 }]}>
-                {/* 결석 빨간 점 / 출석 여백 */}
-                <View style={s.dotArea}>
-                  {isAbsent && <View style={s.absentDot} />}
-                </View>
-
-                {/* 이름 + 주횟수 */}
-                <View style={{ flex: 1 }}>
-                  <Text style={[
-                    s.attName,
-                    classOver && s.strikethrough,
-                    isAbsent && { color: "#D96C6C" },
-                  ]}>
-                    {item.name}
-                  </Text>
-                  {item.weekly_count ? (
-                    <Text style={[s.attSub, isAbsent && { color: "#D96C6C" }]}>
-                      주 {item.weekly_count}회
-                    </Text>
-                  ) : null}
-                </View>
-
-                {/* 출결 버튼 */}
-                <View style={s.attBtns}>
-                  {isSaving ? (
-                    <ActivityIndicator size="small" color={themeColor} style={{ marginRight: 8 }} />
-                  ) : (
-                    <>
-                      <Pressable
-                        style={({ pressed }) => [s.attBtn, isPresent && { backgroundColor: "#2EC4B6", borderColor: "#2EC4B6" }, pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] }]}
-                        onPress={() => saveOne(item.id, "present")}
-                      >
-                        <Text style={[s.attBtnText, isPresent && { color: "#fff" }]}>출석</Text>
-                      </Pressable>
-                      <Pressable
-                        style={({ pressed }) => [s.attBtn, isAbsent && { backgroundColor: "#D96C6C", borderColor: "#D96C6C" }, pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] }]}
-                        onPress={() => saveOne(item.id, "absent")}
-                      >
-                        <Text style={[s.attBtnText, isAbsent && { color: "#fff" }]}>결석</Text>
-                      </Pressable>
-                      {isAbsent && (
-                        <Pressable
-                          style={[s.attBtn, s.moveBtn]}
-                          onPress={() => handleMove(item)}
-                        >
-                          <Repeat size={13} color={themeColor} />
-                          <Text style={[s.attBtnText, { color: themeColor }]}>반이동</Text>
-                        </Pressable>
-                      )}
-                    </>
-                  )}
-                </View>
-
-                {/* 상세 화살표 */}
-                <Pressable
-                  style={s.arrowBtn}
-                  onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id, backTo: "attendance" } } as any)}
-                >
-                  <ChevronRight size={18} color={C.textMuted} />
-                </Pressable>
-              </View>
-            );
-          }}
-        />
-
-        {/* 보강 지정/소멸 모달은 아래 공통 영역에서 렌더링 */}
-        {renderAssignModal()}
-        {renderExtinguishModal()}
-      </SafeAreaView>
-    );
-  }
-
-  /* ════════════════════ 메인 뷰 ════════════════════ */
   function renderAssignModal() {
     return (
       <Modal visible={!!assignTarget} animationType="slide" transparent presentationStyle="overFullScreen">
@@ -578,16 +394,14 @@ export default function TeacherAttendanceScreen() {
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>보강 지정</Text>
               <Pressable onPress={() => setAssignTarget(null)} hitSlop={8}>
-                <X size={22} color={C.text} />
+                <LucideIcon name="x" size={22} color={C.text} />
               </Pressable>
             </View>
             {assignTarget && (
               <Text style={s.modalSub}>{assignTarget.student_name} · 결석 {assignTarget.absence_date}</Text>
             )}
-
             <Text style={[s.sectionLabel, { marginTop: 14 }]}>보강 날짜</Text>
             <DatePicker value={assignDate} onChange={setAssignDate} />
-
             <Text style={s.sectionLabel}>반 선택</Text>
             {eligLoading ? (
               <ActivityIndicator color={themeColor} style={{ marginTop: 16 }} />
@@ -623,9 +437,7 @@ export default function TeacherAttendanceScreen() {
                 })}
               </KeyboardAwareScrollView>
             )}
-
             {assignError ? <Text style={s.errText}>{assignError}</Text> : null}
-
             <Pressable
               style={[s.confirmBtn, { backgroundColor: C.button, opacity: assigning ? 0.7 : 1, marginTop: 16 }]}
               onPress={confirmAssign}
@@ -649,18 +461,16 @@ export default function TeacherAttendanceScreen() {
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>결석소멸</Text>
               <Pressable onPress={() => setExtTarget(null)} hitSlop={8}>
-                <X size={22} color={C.text} />
+                <LucideIcon name="x" size={22} color={C.text} />
               </Pressable>
             </View>
             {extTarget && (
               <Text style={s.modalSub}>{extTarget.student_name} · 결석 {extTarget.absence_date}</Text>
             )}
-
             <View style={[s.warnBox, { marginTop: 12 }]}>
-              <TriangleAlert size={14} color="#92400E" />
+              <LucideIcon name="alert-triangle" size={14} color="#92400E" />
               <Text style={s.warnText}>결석소멸 처리 시 보강 권리가 사라집니다.</Text>
             </View>
-
             <Text style={[s.sectionLabel, { marginTop: 14 }]}>소멸 사유</Text>
             {(["보강원하지않음", "무단결석", "기타"] as const).map(r => (
               <TouchableOpacity
@@ -681,9 +491,263 @@ export default function TeacherAttendanceScreen() {
                 placeholderTextColor={C.textMuted}
               />
             )}
-
             {extError ? <Text style={s.errText}>{extError}</Text> : null}
+            <Pressable
+              style={[s.confirmBtn, { backgroundColor: "#D96C6C", opacity: extLoading ? 0.7 : 1, marginTop: 16 }]}
+              onPress={confirmExtinguish}
+              disabled={extLoading}
+            >
+              {extLoading
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={s.confirmBtnText}>소멸 처리</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
 
+  /* ════════════════════ 로딩 ════════════════════ */
+  if (loading) {
+    return (
+      <SafeAreaView style={s.safe} edges={[]}>
+        <SubScreenHeader title="출결 관리" homePath="/(teacher)/today-schedule" />
+        <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
+      </SafeAreaView>
+    );
+  }
+  /* ════════════════════ 출결 서브뷰 ════════════════════ */
+  if (selectedGroup) {
+    const group = selectedGroup;
+    const presentCnt = sortedStudents.filter(st => attState[st.id] === "present").length;
+    const absentCnt  = sortedStudents.filter(st => attState[st.id] === "absent").length;
+    return (
+      <SafeAreaView style={s.safe} edges={[]}>
+        <SubScreenHeader
+          title={`${group.name} 출결`}
+          subtitle={`${date} · ${group.schedule_time}`}
+          onBack={() => {
+            if (params.classGroupId) router.back();
+            else setSelectedGroup(null);
+          }}
+          homePath="/(teacher)/today-schedule"
+        />
+        {/* 출결 요약 배너 */}
+        <View style={[s.attSummary, { borderColor: themeColor + "30", backgroundColor: themeColor + "08" }]}>
+          {autoSaving ? (
+            <>
+              <ActivityIndicator size="small" color={themeColor} />
+              <Text style={[s.attSummaryText, { color: themeColor }]}>출석 자동 처리 중...</Text>
+            </>
+          ) : (
+            <>
+              <Text style={[s.attSummaryText, { color: themeColor }]}>
+                전체 {sortedStudents.length}명
+              </Text>
+              <View style={s.summaryDot} />
+              <Text style={s.attSummaryPresent}>출석 {presentCnt}명</Text>
+              {absentCnt > 0 && (
+                <>
+                  <View style={s.summaryDot} />
+                  <Text style={s.attSummaryAbsent}>결석 {absentCnt}명</Text>
+                </>
+              )}
+              {classOver && (
+                <Text style={[s.attSummaryText, { color: "#999", fontSize: 12 }]}>수업 완료</Text>
+              )}
+            </>
+          )}
+        </View>
+        <FlatList
+          data={sortedStudents}
+          keyExtractor={i => i.id}
+          contentContainerStyle={[s.studentList, { paddingBottom: insets.bottom + 20 }]}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={s.emptyBox}>
+              <LucideIcon name="users" size={32} color={C.textMuted} />
+              <Text style={s.emptyText}>이 반에 배정된 학생이 없습니다</Text>
+            </View>
+          }
+          renderItem={({ item }) => {
+            const cur = attState[item.id];
+            const isAbsent  = cur === "absent";
+            const isPresent = cur === "present";
+            const isSaving  = savingId === item.id;
+            return (
+              <View style={[s.attRow, { backgroundColor: C.card, opacity: isSaving ? 0.6 : 1 }]}>
+                {/* 결석 빨간 점 / 출석 여백 */}
+                <View style={s.dotArea}>
+                  {isAbsent && <View style={s.absentDot} />}
+                </View>
+                {/* 이름 + 주횟수 */}
+                <View style={{ flex: 1 }}>
+                  <Text style={[
+                    s.attName,
+                    classOver && s.strikethrough,
+                    isAbsent && { color: "#D96C6C" },
+                  ]}>
+                    {item.name}
+                  </Text>
+                  {item.weekly_count ? (
+                    <Text style={[s.attSub, isAbsent && { color: "#D96C6C" }]}>
+                      주 {item.weekly_count}회
+                    </Text>
+                  ) : null}
+                </View>
+                {/* 출결 버튼 */}
+                <View style={s.attBtns}>
+                  {isSaving ? (
+                    <ActivityIndicator size="small" color={themeColor} style={{ marginRight: 8 }} />
+                  ) : (
+                    <>
+                      <Pressable
+                        style={({ pressed }) => [s.attBtn, isPresent && { backgroundColor: "#2EC4B6", borderColor: "#2EC4B6" }, pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] }]}
+                        onPress={() => saveOne(item.id, "present")}
+                      >
+                        <Text style={[s.attBtnText, isPresent && { color: "#fff" }]}>출석</Text>
+                      </Pressable>
+                      <Pressable
+                        style={({ pressed }) => [s.attBtn, isAbsent && { backgroundColor: "#D96C6C", borderColor: "#D96C6C" }, pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] }]}
+                        onPress={() => saveOne(item.id, "absent")}
+                      >
+                        <Text style={[s.attBtnText, isAbsent && { color: "#fff" }]}>결석</Text>
+                      </Pressable>
+                      {isAbsent && (
+                        <Pressable
+                          style={[s.attBtn, s.moveBtn]}
+                          onPress={() => handleMove(item)}
+                        >
+                          <LucideIcon name="repeat" size={13} color={themeColor} />
+                          <Text style={[s.attBtnText, { color: themeColor }]}>반이동</Text>
+                        </Pressable>
+                      )}
+                    </>
+                  )}
+                </View>
+                {/* 상세 화살표 */}
+                <Pressable
+                  style={s.arrowBtn}
+                  onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id, backTo: "attendance" } } as any)}
+                >
+                  <LucideIcon name="chevron-right" size={18} color={C.textMuted} />
+                </Pressable>
+              </View>
+            );
+          }}
+        />
+        {/* 보강 지정/소멸 모달은 아래 공통 영역에서 렌더링 */}
+        {renderAssignModal()}
+        {renderExtinguishModal()}
+      </SafeAreaView>
+    );
+  }
+  /* ════════════════════ 메인 뷰 ════════════════════ */
+  function renderAssignModal() {
+    return (
+      <Modal visible={!!assignTarget} animationType="slide" transparent presentationStyle="overFullScreen">
+        <View style={s.modalOverlay}>
+          <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>보강 지정</Text>
+              <Pressable onPress={() => setAssignTarget(null)} hitSlop={8}>
+                <LucideIcon name="x" size={22} color={C.text} />
+              </Pressable>
+            </View>
+            {assignTarget && (
+              <Text style={s.modalSub}>{assignTarget.student_name} · 결석 {assignTarget.absence_date}</Text>
+            )}
+            <Text style={[s.sectionLabel, { marginTop: 14 }]}>보강 날짜</Text>
+            <DatePicker value={assignDate} onChange={setAssignDate} />
+            <Text style={s.sectionLabel}>반 선택</Text>
+            {eligLoading ? (
+              <ActivityIndicator color={themeColor} style={{ marginTop: 16 }} />
+            ) : eligibleClasses.length === 0 ? (
+              <Text style={{ textAlign: "center", color: C.textMuted, marginTop: 16, fontFamily: "Pretendard-Regular" }}>
+                보강 가능한 반이 없습니다
+              </Text>
+            ) : (
+              <KeyboardAwareScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
+                {eligibleClasses.map(ec => {
+                  const isSame = assignTarget && ec.teacher_user_id === assignTarget.original_teacher_id;
+                  const sel = assignClassId === ec.id;
+                  return (
+                    <TouchableOpacity
+                      key={ec.id}
+                      style={[s.eligRow, sel && { backgroundColor: themeColor + "15", borderColor: themeColor }]}
+                      onPress={() => setAssignClassId(ec.id)}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <Text style={[s.eligName, { color: sel ? themeColor : C.text }]}>{ec.name}</Text>
+                          {isSame && <View style={s.sameTeacherBadge}><Text style={s.sameTeacherText}>같은 선생님</Text></View>}
+                        </View>
+                        <Text style={s.eligSub}>{ec.schedule_days} {ec.schedule_time} · {ec.instructor}</Text>
+                      </View>
+                      <View style={[s.slotBadge, { backgroundColor: ec.available_slots > 0 ? "#E6FFFA" : "#F9DEDA" }]}>
+                        <Text style={[s.slotText, { color: ec.available_slots > 0 ? "#2EC4B6" : "#D96C6C" }]}>
+                          {ec.current_members}/{ec.capacity}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </KeyboardAwareScrollView>
+            )}
+            {assignError ? <Text style={s.errText}>{assignError}</Text> : null}
+            <Pressable
+              style={[s.confirmBtn, { backgroundColor: C.button, opacity: assigning ? 0.7 : 1, marginTop: 16 }]}
+              onPress={confirmAssign}
+              disabled={assigning}
+            >
+              {assigning
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={s.confirmBtnText}>보강 지정 완료</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+  function renderExtinguishModal() {
+    return (
+      <Modal visible={!!extTarget} animationType="slide" transparent presentationStyle="overFullScreen">
+        <View style={s.modalOverlay}>
+          <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>결석소멸</Text>
+              <Pressable onPress={() => setExtTarget(null)} hitSlop={8}>
+                <LucideIcon name="x" size={22} color={C.text} />
+              </Pressable>
+            </View>
+            {extTarget && (
+              <Text style={s.modalSub}>{extTarget.student_name} · 결석 {extTarget.absence_date}</Text>
+            )}
+            <View style={[s.warnBox, { marginTop: 12 }]}>
+              <LucideIcon name="alert-triangle" size={14} color="#92400E" />
+              <Text style={s.warnText}>결석소멸 처리 시 보강 권리가 사라집니다.</Text>
+            </View>
+            <Text style={[s.sectionLabel, { marginTop: 14 }]}>소멸 사유</Text>
+            {(["보강원하지않음", "무단결석", "기타"] as const).map(r => (
+              <TouchableOpacity
+                key={r}
+                style={[s.reasonRow, extReason === r && { backgroundColor: "#FFF1BF" }]}
+                onPress={() => setExtReason(r)}
+              >
+                <View style={[s.radioCircle, extReason === r && { borderColor: "#E4A93A", backgroundColor: "#E4A93A" }]} />
+                <Text style={[s.reasonText, { color: C.text }]}>{r}</Text>
+              </TouchableOpacity>
+            ))}
+            {extReason === "기타" && (
+              <TextInput
+                style={[s.customInput, { borderColor: C.border, color: C.text }]}
+                value={extCustom}
+                onChangeText={setExtCustom}
+                placeholder="직접 입력..."
+                placeholderTextColor={C.textMuted}
+              />
+            )}
+            {extError ? <Text style={s.errText}>{extError}</Text> : null}
             <Pressable
               style={[s.confirmBtn, { backgroundColor: "#D96C6C", opacity: extLoading ? 0.7 : 1, marginTop: 16 }]}
               onPress={confirmExtinguish}
@@ -702,7 +766,6 @@ export default function TeacherAttendanceScreen() {
   return (
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="출결 관리" homePath="/(teacher)/today-schedule" />
-
       <View style={s.subTabBar}>
         {(["attendance", "makeup"] as SubTab[]).map(t => (
           <Pressable
@@ -740,7 +803,7 @@ export default function TeacherAttendanceScreen() {
       )}
 
       {subTab === "makeup" && (
-        <>
+        <View style={{ flex: 1 }}>
           {makeupLoading ? (
             <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
           ) : (
@@ -757,7 +820,7 @@ export default function TeacherAttendanceScreen() {
               refreshControl={<RefreshControl refreshing={makeupRefresh} onRefresh={() => { setMakeupRefresh(true); loadMakeups(); }} />}
               ListEmptyComponent={
                 <View style={s.emptyBox}>
-                  <CircleCheck size={40} color="#E6FFFA" />
+                  <LucideIcon name="check-circle" size={40} color="#E6FFFA" />
                   <Text style={[s.emptyText, { marginTop: 8 }]}>보강 대기 중인 학생이 없습니다</Text>
                 </View>
               }
@@ -765,7 +828,7 @@ export default function TeacherAttendanceScreen() {
                 if (item._type === "assignedHeader") {
                   return (
                     <View style={[s.mkSectionHeader, { backgroundColor: "#FEF3C7" }]}>
-                      <RotateCcw size={13} color="#D97706" />
+                      <LucideIcon name="rotate-ccw" size={13} color="#D97706" />
                       <Text style={[s.mkSectionTitle, { color: "#D97706" }]}>
                         배정된 보강 ({assignedMakeupList.length}명)
                       </Text>
@@ -835,7 +898,7 @@ export default function TeacherAttendanceScreen() {
               }}
             />
           )}
-        </>
+        </View>
       )}
 
       {renderAssignModal()}
@@ -843,7 +906,6 @@ export default function TeacherAttendanceScreen() {
     </SafeAreaView>
   );
 }
-
 /* ══════════════════════════════════════════════════════
    스타일
 ══════════════════════════════════════════════════════ */
@@ -855,38 +917,31 @@ const s = StyleSheet.create({
   titleRow:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 },
   title:          { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
   dateBadge:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, backgroundColor: C.card, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-
   // 출결 요약
   attSummary:     { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginVertical: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
   attSummaryText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   attSummaryPresent: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
   attSummaryAbsent:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   summaryDot:     { width: 3, height: 3, borderRadius: 2, backgroundColor: C.border },
-
   // 학생 리스트
   studentList:    { paddingHorizontal: 12, gap: 8, paddingTop: 4 },
   attRow:         { flexDirection: "row", alignItems: "center", borderRadius: 12, paddingVertical: 10, paddingHorizontal: 10, gap: 6 },
-
   // 빨간 점
   dotArea:        { width: 16, alignItems: "center" },
   absentDot:      { width: 8, height: 8, borderRadius: 4, backgroundColor: "#D96C6C" },
-
   // 이름
   attName:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
   attSub:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
   strikethrough:  { textDecorationLine: "line-through", color: C.textSecondary },
-
   // 버튼
   attBtns:        { flexDirection: "row", gap: 5 },
   attBtn:         { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7, borderWidth: 1, borderColor: C.border, backgroundColor: C.card, alignItems: "center", minWidth: 44 },
   moveBtn:        { flexDirection: "row", alignItems: "center", gap: 3, minWidth: 60 },
   attBtnText:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.text },
   arrowBtn:       { paddingLeft: 4 },
-
   // 빈 상태
   emptyBox:       { alignItems: "center", paddingTop: 60, gap: 10 },
   emptyText:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" },
-
   // 보강 카드
   mkCard:          { flexDirection: "row", alignItems: "center", borderRadius: 12, padding: 14, gap: 12 },
   mkName:          { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
@@ -895,7 +950,6 @@ const s = StyleSheet.create({
   mkActionBtnText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
   mkSectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
   mkSectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
-
   // 모달
   modalOverlay:   { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   modalBox:       { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "85%" },
@@ -920,3 +974,5 @@ const s = StyleSheet.create({
   reasonText:     { fontSize: 14, fontFamily: "Pretendard-Regular" },
   customInput:    { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 14, fontFamily: "Pretendard-Regular", marginTop: 4 },
 });
+}
+

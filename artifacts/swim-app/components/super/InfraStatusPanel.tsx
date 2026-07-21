@@ -6,7 +6,6 @@
  * - 최근 이상 감지 섹션
  * - 최근 24시간 상태 이력 섹션
  */
-import { CircleAlert, RefreshCw, X, Zap } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState, useCallback } from "react";
 import {
@@ -144,7 +143,7 @@ function CoreCard({
       {/* 응답속도 */}
       {latencyMs !== null && latencyMs !== undefined && (
         <View style={cc.latRow}>
-          <Zap size={11} color={GRAY} />
+          <LucideIcon name="zap" size={11} color={GRAY} />
           <Text style={cc.latTxt}>응답속도 {fmtLatency(latencyMs)}</Text>
         </View>
       )}
@@ -166,7 +165,7 @@ function CoreCard({
           <Pressable style={cc.footBtn} onPress={onRefresh} disabled={refreshing}>
             {refreshing
               ? <ActivityIndicator size="small" color={P} />
-              : <RefreshCw size={12} color={P} />
+              : <LucideIcon name="refresh-cw" size={12} color={P} />
             }
           </Pressable>
           <Pressable style={[cc.footBtn, { paddingHorizontal: 10 }]} onPress={onDetail}>
@@ -210,7 +209,7 @@ function DetailPanel({ title, rows, onClose }: { title: string; rows: DetailRow[
       <View style={dp.header}>
         <Text style={dp.title}>{title} 상세</Text>
         <Pressable onPress={onClose}>
-          <X size={18} color="#0F172A" />
+          <LucideIcon name="x" size={18} color="#0F172A" />
         </Pressable>
       </View>
       {rows.map((r, i) => (
@@ -282,7 +281,7 @@ function ServiceRow({ sv, refreshing, onRefresh }: {
         <Pressable style={[svc.refreshBtn, refreshing && { opacity: 0.5 }]} disabled={refreshing} onPress={onRefresh}>
           {refreshing
             ? <ActivityIndicator size="small" color={P} />
-            : <RefreshCw size={12} color={P} />
+            : <LucideIcon name="refresh-cw" size={12} color={P} />
           }
         </Pressable>
       )}

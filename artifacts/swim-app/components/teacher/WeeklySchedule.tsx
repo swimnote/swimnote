@@ -4,7 +4,6 @@
  * 내반 / 출결 / 수영일지 / 사진 / 영상 5개 화면 모두 재사용
  * 클릭 핸들러만 다르게 주입
  */
-import { Calendar, Camera, Check } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -123,7 +122,7 @@ export function WeeklySchedule({
       {/* ── 시간 슬롯 리스트 ── */}
       {currentClasses.length === 0 ? (
         <View style={ws.empty}>
-          <Calendar size={22} color="#9CA3AF" />
+          <LucideIcon name="calendar" size={22} color="#9CA3AF" />
           <Text style={ws.emptyText}>{selectedDay}요일 수업이 없습니다</Text>
         </View>
       ) : (
@@ -158,7 +157,7 @@ export function WeeklySchedule({
                 {/* 선택 모드 체크박스 */}
                 {selectionMode && !inactive && (
                   <View style={[ws.checkBox, { borderColor: themeColor, backgroundColor: isSelected ? themeColor : "#fff" }]}>
-                    {isSelected && <Check size={9} color="#fff" />}
+                    {isSelected && <LucideIcon name="check" size={9} color="#fff" />}
                   </View>
                 )}
 
@@ -189,11 +188,11 @@ export function WeeklySchedule({
                         <LucideIcon name={attDone ? "check" : "x"} size={7} color={attDone ? "#2EC4B6" : "#D96C6C"} />
                       </View>
                       <View style={[ws.dot, { backgroundColor: diaryDone ? "#E6FFFA" : "#FFF1BF" }]}>
-                        <LucideIcon name={diaryDone ? "check" : "edit-3"} size={7} color={diaryDone ? "#2EC4B6" : "#D97706"} />
+                        <LucideIcon name={diaryDone ? "check" : "edit"} size={7} color={diaryDone ? "#2EC4B6" : "#D97706"} />
                       </View>
                       {hasPhotos && (
                         <View style={[ws.dot, { backgroundColor: "#EEDDF5" }]}>
-                          <Camera size={7} color="#7C3AED" />
+                          <LucideIcon name="camera" size={7} color="#7C3AED" />
                         </View>
                       )}
                     </View>

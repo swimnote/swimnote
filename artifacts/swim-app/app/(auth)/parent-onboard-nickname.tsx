@@ -1,4 +1,4 @@
-import { ArrowRight, Check } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -65,11 +65,11 @@ export default function ParentOnboardNicknameScreen() {
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 68 : 20) }]}>
         <View style={styles.stepRow}>
           <View style={[styles.step, { backgroundColor: "#2E9B6F" }]}>
-            <Check size={14} color="#fff" />
+            <LucideIcon name="check" size={14} color="#fff" />
           </View>
           <View style={[styles.stepLine, { backgroundColor: "#2E9B6F" }]} />
           <View style={[styles.step, { backgroundColor: "#2E9B6F" }]}>
-            <Check size={14} color="#fff" />
+            <LucideIcon name="check" size={14} color="#fff" />
           </View>
           <View style={[styles.stepLine, { backgroundColor: C.tint }]} />
           <View style={[styles.step, { backgroundColor: C.tint }]}>
@@ -164,7 +164,7 @@ export default function ParentOnboardNicknameScreen() {
               : (
                 <>
                   <Text style={styles.confirmBtnText}>완료 — 홈으로</Text>
-                  <ArrowRight size={16} color="#fff" />
+                  <LucideIcon name="arrow-right" size={16} color="#fff" />
                 </>
               )
             }

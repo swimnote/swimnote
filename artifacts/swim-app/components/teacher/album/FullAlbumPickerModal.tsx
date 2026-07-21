@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Check, ImageIcon, Video, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { API_BASE } from "@/context/AuthContext";
 
@@ -143,7 +143,7 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
         {/* 헤더 */}
         <View style={s.header}>
           <Pressable onPress={onClose} style={s.headerClose} accessibilityRole="button">
-            <X size={22} color="#374151" />
+            <LucideIcon name="x" size={22} color="#374151" />
           </Pressable>
           <Text style={s.headerTitle} numberOfLines={1}>{title}</Text>
           <Pressable
@@ -182,8 +182,8 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
         ) : items.length === 0 ? (
           <View style={s.center}>
             {mediaType === "photo"
-              ? <ImageIcon size={44} color="#D1D5DB" />
-              : <Video size={44} color="#D1D5DB" />
+              ? <LucideIcon name="image" size={44} color="#D1D5DB" />
+              : <LucideIcon name="video" size={44} color="#D1D5DB" />
             }
             <Text style={s.emptyTitle}>전체앨범에 {mediaType === "photo" ? "사진" : "영상"}이 없습니다</Text>
             <Text style={s.emptyText}>전체앨범 + 버튼으로 먼저 업로드하세요</Text>
@@ -216,7 +216,7 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
                     />
                   ) : (
                     <View style={s.photoPlaceholder}>
-                      <ImageIcon size={20} color="#D1D5DB" />
+                      <LucideIcon name="image" size={20} color="#D1D5DB" />
                     </View>
                   )}
                   {!!item.created_at && (
@@ -226,7 +226,7 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
                   )}
                   {isSel && (
                     <View style={[s.checkCircle, { backgroundColor: themeColor, borderColor: themeColor }]}>
-                      <Check size={12} color="#fff" />
+                      <LucideIcon name="check" size={12} color="#fff" />
                     </View>
                   )}
                   {!isSel && <View style={s.checkCircleEmpty} />}
@@ -251,7 +251,7 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
                   ]}
                 >
                   <View style={[s.videoThumb, { backgroundColor: themeColor + "1A" }]}>
-                    <Video size={22} color={themeColor} />
+                    <LucideIcon name="video" size={22} color={themeColor} />
                   </View>
                   <View style={{ flex: 1, gap: 3 }}>
                     <Text style={s.videoLabel} numberOfLines={1}>
@@ -263,7 +263,7 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
                     s.checkCircle,
                     isSel && { backgroundColor: themeColor, borderColor: themeColor },
                   ]}>
-                    {isSel && <Check size={12} color="#fff" />}
+                    {isSel && <LucideIcon name="check" size={12} color="#fff" />}
                   </View>
                 </Pressable>
               );

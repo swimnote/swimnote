@@ -3,7 +3,6 @@
  * 테마 색상, 로고 이모지, 로고 URL을 변경한다.
  * 저장 즉시 BrandContext가 업데이트되어 앱 전체에 반영된다.
  */
-import { Check, Info } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState, useEffect, useCallback } from "react";
 import {View, Text, StyleSheet, TouchableOpacity,

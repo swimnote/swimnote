@@ -2,7 +2,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
-import { Calendar, Check, ChevronRight, CirclePlus, CircleStop, FileText, Mic, Pencil, Plus, Trash2, User, Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -207,23 +206,23 @@ export default function DaySheet({
             </View>
             <View style={dy.headerActions}>
               <Pressable style={dy.iconBtnWrap} onPress={() => setShowMemoPanel(p => !p)}>
-                <FileText size={20} color={memo ? "#D97706" : C.textSecondary} />
+                <LucideIcon name="file-text" size={20} color={memo ? "#D97706" : C.textSecondary} />
                 {(memo && memo.trim()) ? <View style={dy.redDot} /> : null}
               </Pressable>
               <Pressable style={dy.iconBtnWrap} onPress={isRecording ? stopAndSaveRecording : startRecording}>
-                <Mic size={20} color={isRecording ? "#D96C6C" : (audioList.length > 0 ? "#4338CA" : C.textSecondary)} />
+                <LucideIcon name="mic" size={20} color={isRecording ? "#D96C6C" : (audioList.length > 0 ? "#4338CA" : C.textSecondary)} />
                 {(audioList.length > 0 && !isRecording) ? <View style={[dy.redDot, { backgroundColor: "#4338CA" }]} /> : null}
               </Pressable>
               <Pressable style={[dy.headerBtn, { backgroundColor: "#EEF2FF", borderWidth: 1, borderColor: "#C7D2FE" }]} onPress={onOpenMakeup}>
-                <Users size={13} color="#4F46E5" />
+                <LucideIcon name="users" size={13} color="#4F46E5" />
                 <Text style={[dy.headerBtnTxt, { color: "#4F46E5" }]}>보충수업</Text>
               </Pressable>
               <Pressable style={[dy.headerBtn, { backgroundColor: C.tint }]} onPress={onAddClass}>
-                <Plus size={13} color="#fff" />
+                <LucideIcon name="plus" size={13} color="#fff" />
                 <Text style={[dy.headerBtnTxt, { color: "#fff" }]}>수업 추가</Text>
               </Pressable>
               <Pressable onPress={onClose} style={dy.closeBtn}>
-                <X size={20} color={C.textSecondary} />
+                <LucideIcon name="x" size={20} color={C.textSecondary} />
               </Pressable>
             </View>
           </View>
@@ -246,11 +245,11 @@ export default function DaySheet({
 
             {!isHoliday && classes.length === 0 && (
               <View style={dy.emptyBox}>
-                <Calendar size={32} color={C.textMuted} />
+                <LucideIcon name="calendar" size={32} color={C.textMuted} />
                 <Text style={dy.emptyTxt}>이 날은 수업이 없습니다</Text>
                 <Pressable style={[dy.emptyAction, { borderColor: C.tint }]}
                   onPress={() => { onClose(); setTimeout(onAddClass, 200); }}>
-                  <CirclePlus size={13} color={C.tint} />
+                  <LucideIcon name="plus-circle" size={13} color={C.tint} />
                   <Text style={[dy.emptyActionTxt, { color: C.tint }]}>수업 추가</Text>
                 </Pressable>
               </View>
@@ -284,13 +283,13 @@ export default function DaySheet({
                           <Text style={[dy.classSub, done && { color: C.textMuted }]}>{capLabel}</Text>
                           {attCnt > 0 && (
                             <View style={dy.attBadge}>
-                              <Check size={9} color="#2EC4B6" />
+                              <LucideIcon name="check" size={9} color="#2EC4B6" />
                               <Text style={dy.attBadgeTxt}>출결 {attCnt}</Text>
                             </View>
                           )}
                           {diarDone && (
                             <View style={dy.diaryBadge}>
-                              <Pencil size={9} color="#7C3AED" />
+                              <LucideIcon name="edit" size={9} color="#7C3AED" />
                               <Text style={dy.diaryBadgeTxt}>일지 완료</Text>
                             </View>
                           )}
@@ -301,12 +300,12 @@ export default function DaySheet({
                             onPress={(e) => { e.stopPropagation?.(); setRosterClass(g); }}
                             hitSlop={4}
                           >
-                            <User size={10} color={themeColor} />
+                            <LucideIcon name="user" size={10} color={themeColor} />
                             <Text style={[dy.teacherChipTxt, { color: themeColor }]}>{g.instructor}</Text>
                           </Pressable>
                         )}
                       </View>
-                      <ChevronRight size={16} color={done ? C.textMuted : C.textSecondary} />
+                      <LucideIcon name="chevron-right" size={16} color={done ? C.textMuted : C.textSecondary} />
                     </Pressable>
                   );
                 })}
@@ -316,7 +315,7 @@ export default function DaySheet({
             {showMemoPanel && (
               <View style={dy.memoSection}>
                 <View style={dy.memoHeader}>
-                  <FileText size={14} color={C.textSecondary} />
+                  <LucideIcon name="file-text" size={14} color={C.textSecondary} />
                   <Text style={dy.memoLabel}>날짜 메모</Text>
                   {!editingMemo && (
                     <Pressable onPress={() => setEditingMemo(true)} style={dy.memoEditBtn}>
@@ -355,17 +354,17 @@ export default function DaySheet({
 
                 <View style={dy.audioDivider} />
                 <View style={dy.audioRow}>
-                  <Mic size={13} color={C.textSecondary} />
+                  <LucideIcon name="mic" size={13} color={C.textSecondary} />
                   <Text style={dy.audioLabel}>음성 메모</Text>
                   <View style={{ flex: 1 }} />
                   {isRecording ? (
                     <Pressable style={[dy.audioBtn, { backgroundColor: "#F9DEDA" }]} onPress={stopAndSaveRecording}>
-                      <CircleStop size={15} color="#D96C6C" />
+                      <LucideIcon name="stop-circle" size={15} color="#D96C6C" />
                       <Text style={[dy.audioBtnTxt, { color: "#D96C6C" }]}>저장</Text>
                     </Pressable>
                   ) : (
                     <Pressable style={[dy.audioBtn, { backgroundColor: C.tintLight }]} onPress={startRecording}>
-                      <Mic size={15} color={C.tint} />
+                      <LucideIcon name="mic" size={15} color={C.tint} />
                       <Text style={[dy.audioBtnTxt, { color: C.tint }]}>녹음</Text>
                     </Pressable>
                   )}
@@ -384,7 +383,7 @@ export default function DaySheet({
                       const timeLabel = `${String(t.getHours()).padStart(2,"0")}:${String(t.getMinutes()).padStart(2,"0")}`;
                       return (
                         <View key={item.uri} style={dy.audioListItem}>
-                          <FileText size={13} color="#92400E" />
+                          <LucideIcon name="file-text" size={13} color="#92400E" />
                           <Text style={dy.audioListLabel}>녹음 {idx + 1}  <Text style={dy.audioListTime}>{timeLabel}</Text></Text>
                           <View style={{ flex: 1 }} />
                           <Pressable
@@ -397,7 +396,7 @@ export default function DaySheet({
                             </Text>
                           </Pressable>
                           <Pressable style={dy.audioDelBtn} onPress={() => deleteAudioItem(item.uri)}>
-                            <Trash2 size={13} color="#D96C6C" />
+                            <LucideIcon name="trash-2" size={13} color="#D96C6C" />
                           </Pressable>
                         </View>
                       );
@@ -428,7 +427,7 @@ export default function DaySheet({
                     <Text style={dy.dateSub}>보강 대기 학생을 선택하세요</Text>
                   </View>
                   <Pressable onPress={() => setShowMakeupPicker(false)} style={dy.closeBtn}>
-                    <X size={20} color={C.textSecondary} />
+                    <LucideIcon name="x" size={20} color={C.textSecondary} />
                   </Pressable>
                 </View>
                 {makeupLoading ? (
@@ -437,7 +436,7 @@ export default function DaySheet({
                   </View>
                 ) : makeupList.length === 0 ? (
                   <View style={{ alignItems: "center", paddingVertical: 40, gap: 10 }}>
-                    <Users size={32} color={C.textMuted} />
+                    <LucideIcon name="users" size={32} color={C.textMuted} />
                     <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted }}>보강 대기 중인 학생이 없습니다</Text>
                   </View>
                 ) : (
@@ -450,7 +449,7 @@ export default function DaySheet({
                         disabled={!!makeupSaving}
                       >
                         <View style={dy.mkBadge}>
-                          <User size={14} color="#4F46E5" />
+                          <LucideIcon name="user" size={14} color="#4F46E5" />
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={dy.mkName}>{mk.student_name}</Text>
@@ -476,7 +475,7 @@ export default function DaySheet({
                     <Text style={dy.dateSub}>{label} · 합류할 반을 선택하세요</Text>
                   </View>
                   <Pressable onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }} style={dy.closeBtn}>
-                    <X size={20} color={C.textSecondary} />
+                    <LucideIcon name="x" size={20} color={C.textSecondary} />
                   </Pressable>
                 </View>
                 {(() => {
@@ -484,7 +483,7 @@ export default function DaySheet({
                   if (pickList.length === 0) {
                     return (
                       <View style={{ alignItems: "center", paddingVertical: 40, gap: 10 }}>
-                        <Users size={32} color={C.textMuted} />
+                        <LucideIcon name="users" size={32} color={C.textMuted} />
                         <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted }}>등록된 수업반이 없습니다</Text>
                       </View>
                     );

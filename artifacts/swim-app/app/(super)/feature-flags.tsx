@@ -3,7 +3,7 @@
  * 롤백 지원 · 위험 플래그 경고 모달 · 변경 사유 필수 · 영향 범위 표시
  * /super/feature-flags API 실데이터 연결
  */
-import { Check, Info, RotateCcw, Target, TriangleAlert, Users } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {ActivityIndicator, Modal, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -228,7 +228,7 @@ export default function FeatureFlagsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P} onRefresh={onRefresh} />}
       >
         <View style={s.infoBanner}>
-          <Info size={13} color="#2EC4B6" />
+          <LucideIcon name="info" size={13} color="#2EC4B6" />
           <Text style={s.infoBannerTxt}>위험 플래그(🔴)는 변경 시 경고 확인 필수. 모든 변경은 사유 입력 후 감사 로그 기록됩니다. 롤백 버튼으로 이전 상태 복원 가능.</Text>
         </View>
 
@@ -274,7 +274,7 @@ export default function FeatureFlagsScreen() {
 
                     {impact && (
                       <View style={s.impactRow}>
-                        <Target size={10} color={impact.riskColor} />
+                        <LucideIcon name="target" size={10} color={impact.riskColor} />
                         <Text style={[s.impactScope, { color: impact.riskColor }]}>{impact.scope}</Text>
                         <View style={[s.riskBadge, { backgroundColor: impact.riskColor + "20" }]}>
                           <Text style={[s.riskBadgeTxt, { color: impact.riskColor }]}>위험도 {impact.risk}</Text>
@@ -293,14 +293,14 @@ export default function FeatureFlagsScreen() {
                           이전 상태: {prevStates[flag.key] ? '활성' : '비활성'} → 현재: {flag.global_enabled ? '활성' : '비활성'}
                         </Text>
                         <Pressable style={s.rollbackBtn} onPress={() => { setRollbackModal(flag); setReason(""); }}>
-                          <RotateCcw size={11} color={P} />
+                          <LucideIcon name="rotate-ccw" size={11} color={P} />
                           <Text style={s.rollbackBtnTxt}>롤백</Text>
                         </Pressable>
                       </View>
                     )}
 
                     <Pressable style={s.overrideBtn} onPress={() => { setOverridePanel(flag); setSelOp(null); setOpReason(""); setOpOverrideEnabled(flag.global_enabled); }}>
-                      <Users size={11} color="#64748B" />
+                      <LucideIcon name="users" size={11} color="#64748B" />
                       <Text style={s.overrideBtnTxt}>운영자별 예외 설정</Text>
                     </Pressable>
                   </View>
@@ -363,7 +363,7 @@ export default function FeatureFlagsScreen() {
                   disabled={!reason.trim() || saving} onPress={() => confirmToggle(dangerModal.flag, dangerModal.newEnabled)}>
                   {saving ? <ActivityIndicator color="#fff" size="small" /> : (
                     <>
-                      <TriangleAlert size={14} color="#fff" />
+                      <LucideIcon name="alert-triangle" size={14} color="#fff" />
                       <Text style={m.dangerBtnTxt}>{dangerModal.newEnabled ? '활성화' : '비활성화'} 확인</Text>
                     </>
                   )}
@@ -399,7 +399,7 @@ export default function FeatureFlagsScreen() {
                   disabled={!reason.trim() || saving} onPress={doRollback}>
                   {saving ? <ActivityIndicator color="#fff" size="small" /> : (
                     <>
-                      <RotateCcw size={14} color="#fff" />
+                      <LucideIcon name="rotate-ccw" size={14} color="#fff" />
                       <Text style={m.confirmTxt}>롤백 실행</Text>
                     </>
                   )}
@@ -427,7 +427,7 @@ export default function FeatureFlagsScreen() {
                     onPress={() => setSelOp({ id: op.id, name: op.name })}>
                     <Text style={[m.opRowTxt, selOp?.id === op.id && { color: P }]}>{op.name}</Text>
                     <Text style={m.opRowCode}>{op.code}</Text>
-                    {selOp?.id === op.id && <Check size={14} color={P} />}
+                    {selOp?.id === op.id && <LucideIcon name="check" size={14} color={P} />}
                   </Pressable>
                 ))}
               </KeyboardAwareScrollView>

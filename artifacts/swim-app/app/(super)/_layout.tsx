@@ -4,7 +4,7 @@
  * 5개 하단 탭: 운영관리·보호통제·감사리스크·지원센터·더보기
  * 진입 가드: super_admin / platform_admin / super_manager 만 허용.
  */
-import { Activity, Briefcase, HeadphonesIcon, MoreHorizontal, Shield } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { Tabs, router } from "expo-router";
 import React, { useEffect } from "react";
 import { Platform } from "react-native";
@@ -92,35 +92,35 @@ export default function SuperLayout() {
         name="dashboard"
         options={{
           title: "운영관리",
-          tabBarIcon: ({ color }) => <Briefcase size={22} color={color} />,
+          tabBarIcon: ({ color }) => <LucideIcon name="briefcase" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="protect-group"
         options={{
           title: "보호통제",
-          tabBarIcon: ({ color }) => <Shield size={22} color={color} />,
+          tabBarIcon: ({ color }) => <LucideIcon name="shield" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="audit-group"
         options={{
           title: "감사리스크",
-          tabBarIcon: ({ color }) => <Activity size={22} color={color} />,
+          tabBarIcon: ({ color }) => <LucideIcon name="activity" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="support-group"
         options={{
           title: "지원센터",
-          tabBarIcon: ({ color }) => <HeadphonesIcon size={22} color={color} />,
+          tabBarIcon: ({ color }) => <LucideIcon name="headphones" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="more"
         options={{
           title: "더보기",
-          tabBarIcon: ({ color }) => <MoreHorizontal size={22} color={color} />,
+          tabBarIcon: ({ color }) => <LucideIcon name="more-horizontal" size={22} color={color} />,
         }}
       />
 

@@ -2,7 +2,6 @@
  * (super)/support-group.tsx — 지원 센터 그룹
  * 스펙 섹션 9: 고객센터 / 정책·컴플라이언스
  */
-import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React from "react";
@@ -79,7 +78,7 @@ export default function SupportGroupScreen() {
               <Text style={s.cardTitle}>{m.title}</Text>
               <Text style={s.cardSub}>{m.sub}</Text>
             </View>
-            <ChevronRight size={16} color="#D1D5DB" />
+            <LucideIcon name="chevron-right" size={16} color="#D1D5DB" />
           </Pressable>
         ))}
       </ScrollView>

@@ -1,4 +1,3 @@
-import { Calendar } from "lucide-react-native";
 import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -7,6 +6,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
@@ -176,7 +176,7 @@ export default function AttendanceHistoryScreen() {
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
       ) : allRecords.length === 0 ? (
         <View style={s.empty}>
-          <Calendar size={40} color={C.textMuted} />
+          <LucideIcon name="calendar" size={40} color={C.textMuted} />
           <Text style={[s.emptyText, { color: C.textMuted }]}>출결 기록이 없습니다</Text>
           <Text style={[s.emptySub, { color: C.textMuted }]}>수업에 참석하면{"\n"}여기에 출결 기록이 표시됩니다</Text>
         </View>

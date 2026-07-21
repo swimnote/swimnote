@@ -6,7 +6,6 @@
  *   parent_conn_status : 학부모미연결 여부 → 우측 별도 배지
  * → 두 배지는 동시에 표시 가능 (미배정 + 학부모미연결)
  */
-import { Check, CircleAlert, Clock, Eye, Mail, MessageSquare, Phone, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
@@ -115,7 +114,7 @@ export function UnifiedMemberCard({
         {selectionMode && (
           <Pressable onPress={onToggle} style={s.checkWrap}>
             <View style={[s.checkbox, isSelected && { backgroundColor: themeColor, borderColor: themeColor }]}>
-              {isSelected && <Check size={12} color="#fff" />}
+              {isSelected && <LucideIcon name="check" size={12} color="#fff" />}
             </View>
           </Pressable>
         )}
@@ -146,7 +145,7 @@ export function UnifiedMemberCard({
             {/* 예약 배지 (다음달 이동 예약 시) */}
             {pending && (
               <View style={[s.badge, { backgroundColor: pending.bg, borderWidth: 1, borderColor: pending.color + "40" }]}>
-                <Clock size={9} color={pending.color} />
+                <LucideIcon name="clock" size={9} color={pending.color} />
                 <Text style={[s.badgeTxt, { color: pending.color }]}>{pending.label}</Text>
               </View>
             )}
@@ -182,11 +181,11 @@ export function UnifiedMemberCard({
                     onPress={() => callPhone(student.parent_phone)}
                     hitSlop={6}
                   >
-                    <Phone size={11} color={CALL_COLOR} />
+                    <LucideIcon name="phone" size={11} color={CALL_COLOR} />
                     <Text style={[s.subTxt, { color: CALL_COLOR }]}>{formatPhone(student.parent_phone)}</Text>
                   </Pressable>
                   <Pressable onPress={() => sendSms(student.parent_phone)} hitSlop={8}>
-                    <MessageSquare size={12} color={SMS_COLOR} />
+                    <LucideIcon name="message-square" size={12} color={SMS_COLOR} />
                   </Pressable>
                 </View>
               ) : null}
@@ -205,19 +204,19 @@ export function UnifiedMemberCard({
         <View style={s.right}>
           {showRightUnassigned && (
             <View style={[s.badge, { backgroundColor: "#FEE2E2", gap: 3 }]}>
-              <CircleAlert size={9} color="#DC2626" />
+              <LucideIcon name="alert-circle" size={9} color="#DC2626" />
               <Text style={[s.badgeTxt, { color: "#DC2626" }]}>미배정</Text>
             </View>
           )}
           {isUnlinked && (
             <View style={[s.badge, { backgroundColor: "#FFF1BF", gap: 3 }]}>
-              <UserX size={9} color="#EA580C" />
+              <LucideIcon name="user-x" size={9} color="#EA580C" />
               <Text style={[s.badgeTxt, { color: "#EA580C" }]}>학부모미연결</Text>
             </View>
           )}
           {showInvite && !student.parent_user_id && (
             <Pressable style={[s.iconBtn, { backgroundColor: themeColor + "15" }]} onPress={onPressInvite}>
-              <Mail size={13} color={themeColor} />
+              <LucideIcon name="mail" size={13} color={themeColor} />
             </Pressable>
           )}
         </View>
@@ -247,7 +246,7 @@ export function UnifiedMemberCard({
               style={[s.actionBtn, { backgroundColor: themeColor + "12", marginLeft: "auto" }]}
               onPress={onPress}
             >
-              <Eye size={12} color={themeColor} />
+              <LucideIcon name="eye" size={12} color={themeColor} />
               <Text style={[s.actionTxt, { color: themeColor }]}>상세</Text>
             </Pressable>
           )}

@@ -4,7 +4,7 @@
  * - 화면 진입 즉시 전화번호 기반 강제 자동연결 실행
  * - 연결된 자녀 목록만 표시
  */
-import { ChevronRight, Info, Phone, RefreshCw, Search, UserX } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
@@ -93,7 +93,7 @@ export default function ChildrenScreen() {
 
         {students.length === 0 ? (
           <View style={[s.emptyBox, { backgroundColor: C.card }]}>
-            <UserX size={40} color={C.textMuted} />
+            <LucideIcon name="user-x" size={40} color={C.textMuted} />
             <Text style={[s.emptyTitle, { color: C.text }]}>연결된 자녀가 없습니다</Text>
             <Text style={[s.emptyDesc, { color: C.textSecondary }]}>
               가입 시 입력한 전화번호로{"\n"}자동 연결됩니다
@@ -106,7 +106,7 @@ export default function ChildrenScreen() {
               {linking
                 ? <ActivityIndicator color="#fff" size="small" />
                 : <>
-                    <RefreshCw size={15} color="#fff" />
+                    <LucideIcon name="refresh-cw" size={15} color="#fff" />
                     <Text style={s.retryTxt}>다시 시도</Text>
                   </>
               }
@@ -115,7 +115,7 @@ export default function ChildrenScreen() {
               style={[s.retryBtn, { backgroundColor: "#6B7280" }]}
               onPress={() => router.push("/(parent)/link-child" as any)}
             >
-              <Search size={15} color="#fff" />
+              <LucideIcon name="search" size={15} color="#fff" />
               <Text style={s.retryTxt}>이름으로 직접 연결</Text>
             </Pressable>
           </View>
@@ -143,7 +143,7 @@ export default function ChildrenScreen() {
                     : <Text style={[s.childClass, { color: C.textMuted }]}>반 배정 전</Text>
                   }
                 </View>
-                <ChevronRight size={18} color={C.textMuted} />
+                <LucideIcon name="chevron-right" size={18} color={C.textMuted} />
               </Pressable>
             );
           })
@@ -151,14 +151,14 @@ export default function ChildrenScreen() {
 
         {/* 연결 안내 */}
         <View style={[s.infoCard, { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0", borderWidth: 1 }]}>
-          <Info size={16} color="#16A34A" style={{ marginTop: 2 }} />
+          <LucideIcon name="info" size={16} color="#16A34A" style={{ marginTop: 2 }} />
           <View style={{ flex: 1, gap: 6 }}>
             <Text style={[s.infoTitle, { color: "#15803D" }]}>자동 연결 방식</Text>
             <Text style={[s.infoDesc, { color: "#166534" }]}>
               가입 시 입력한 전화번호가 수영장에 등록된 학생 정보와 일치하면 자동으로 연결됩니다.
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
-              <Phone size={13} color="#16A34A" />
+              <LucideIcon name="phone" size={13} color="#16A34A" />
               <Text style={[s.infoDesc, { color: "#15803D" }]}>
                 연결이 안 된다면 수영장에 전화번호 등록을 요청하세요
               </Text>

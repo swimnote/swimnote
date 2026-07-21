@@ -1,6 +1,6 @@
-import { Copy, MessageCircle, Share2, X } from "lucide-react-native";
-import * as Clipboard from "expo-clipboard";
 import React from "react";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import * as Clipboard from "expo-clipboard";
 import {
   Alert, Linking, Modal, Platform, Pressable, Share, StyleSheet, Text, View,
 } from "react-native";
@@ -84,7 +84,7 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
         <View style={inv.sheet}>
           <View style={inv.header}>
             <Text style={inv.title}>학부모 앱 초대</Text>
-            <Pressable onPress={onClose}><X size={20} color={C.textSecondary} /></Pressable>
+            <Pressable onPress={onClose}><LucideIcon name="x" size={20} color={C.textSecondary} /></Pressable>
           </View>
 
           {/* 학생 정보 */}
@@ -116,15 +116,15 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
           {/* 문자 / 복사 / 공유 */}
           <View style={inv.btnRow}>
             <Pressable style={[inv.btn, { backgroundColor: C.tintLight }]} onPress={openSms}>
-              <MessageCircle size={14} color={C.tint} />
+              <LucideIcon name="message-circle" size={14} color={C.tint} />
               <Text style={[inv.btnText, { color: C.tint }]}>문자</Text>
             </Pressable>
             <Pressable style={[inv.btn, { backgroundColor: "#F3F4F6" }]} onPress={copyMessage}>
-              <Copy size={14} color={C.textSecondary} />
+              <LucideIcon name="copy" size={14} color={C.textSecondary} />
               <Text style={[inv.btnText, { color: C.textSecondary }]}>복사</Text>
             </Pressable>
             <Pressable style={[inv.btn, { backgroundColor: "#F3F4F6" }]} onPress={() => { addRecord({ ...makeRecordBase() }); Share.share({ message: msg }); }}>
-              <Share2 size={14} color={C.textSecondary} />
+              <LucideIcon name="share-2" size={14} color={C.textSecondary} />
               <Text style={[inv.btnText, { color: C.textSecondary }]}>공유</Text>
             </Pressable>
           </View>

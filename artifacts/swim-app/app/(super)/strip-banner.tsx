@@ -2,7 +2,6 @@
  * (super)/strip-banner.tsx — 가로줄 배너 관리
  * 학부모 홈 상단 가로 스트립 배너 등록/수정/상태 변경/삭제 + 이미지 업로드
  */
-import { Camera, Plus, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useMemo, useState } from "react";
 import {ActivityIndicator, Alert, Image, Modal, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
@@ -327,7 +326,7 @@ export default function StripBannerScreen() {
           </View>
         </KeyboardAwareScrollView>
         <Pressable style={s.addBtn} onPress={openCreate}>
-          <Plus size={16} color="#fff" />
+          <LucideIcon name="plus" size={16} color="#fff" />
           <Text style={s.addTxt}>등록</Text>
         </Pressable>
       </View>
@@ -362,7 +361,7 @@ export default function StripBannerScreen() {
             <View style={m.header}>
               <Text style={m.title}>{editId ? "가로 배너 수정" : "가로 배너 등록"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
-                <X size={20} color="#64748B" />
+                <LucideIcon name="x" size={20} color="#64748B" />
               </Pressable>
             </View>
             <KeyboardAwareScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -386,7 +385,7 @@ export default function StripBannerScreen() {
               {/* 이미지 업로드 */}
               <Text style={m.label}>배너 이미지 (선택)</Text>
               <Pressable style={m.imgBtn} onPress={handlePickImage}>
-                <Camera size={16} color="#7C3AED" />
+                <LucideIcon name="camera" size={16} color="#7C3AED" />
                 <Text style={m.imgBtnTxt}>
                   {previewImg ? "이미지 변경하기" : "이미지 선택하기"}
                 </Text>
@@ -394,7 +393,7 @@ export default function StripBannerScreen() {
               {previewImg ? (
                 <Pressable onPress={() => setForm(f => ({ ...f, imageUri: "", imageKey: "", imageUrl: "" }))}
                   style={m.removeImg}>
-                  <X size={12} color="#DC2626" />
+                  <LucideIcon name="x" size={12} color="#DC2626" />
                   <Text style={m.removeImgTxt}>이미지 제거</Text>
                 </Pressable>
               ) : null}

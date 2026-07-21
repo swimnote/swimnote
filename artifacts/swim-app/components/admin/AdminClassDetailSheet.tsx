@@ -2,7 +2,6 @@
  * AdminClassDetailSheet.tsx
  * 관리자 반 상세 바텀시트
  */
-import { Check, ChevronLeft, Minus, PenLine, Plus, Repeat, RotateCcw, Search, Trash2, User, UserPlus, Users, UserX, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -13,6 +12,7 @@ import {
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
 import PastelColorPicker from "@/components/common/PastelColorPicker";
+import { LucideIcon } from "@/components/common/LucideIcon";
 
 const C = Colors.light;
 
@@ -361,7 +361,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
         <View style={sh.header}>
           {subView ? (
             <Pressable onPress={() => { setSubView(null); setSearch(""); }} style={sh.backBtn}>
-              <ChevronLeft size={22} color={themeColor} />
+              <LucideIcon name="chevron-left" size={22} color={themeColor} />
             </Pressable>
           ) : (
             <View style={{ width: 36 }} />
@@ -379,13 +379,13 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
           </View>
           {!subView && onDeleteClass && (
             <Pressable onPress={onDeleteClass} style={sh.deleteBtn} hitSlop={8}>
-              <Trash2 size={18} color="#E11D48" />
+              <LucideIcon name="trash-2" size={18} color="#E11D48" />
             </Pressable>
           )}
           <Pressable onPress={handleClose} style={sh.closeBtn}>
             {colorSaving
               ? <ActivityIndicator size="small" color={C.textSecondary} />
-              : <X size={20} color={C.textSecondary} />}
+              : <LucideIcon name="x" size={20} color={C.textSecondary} />}
           </Pressable>
         </View>
 
@@ -397,13 +397,13 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
               <View style={sh.summaryCard}>
                 {/* 주담당 선생님 */}
                 <View style={sh.summaryRow}>
-                  <User size={14} color={C.textMuted} />
+                  <LucideIcon name="user" size={14} color={C.textMuted} />
                   <Text style={sh.summaryLabel}>주담당</Text>
                   <Pressable onPress={enterTeacher} style={sh.instructorBtn}>
                     <Text style={[sh.instructorText, !detail?.instructor && { color: C.textMuted, fontStyle: "italic" }]}>
                       {instructorLabel}
                     </Text>
-                    <PenLine size={12} color={themeColor} style={{ marginLeft: 4 }} />
+                    <LucideIcon name="edit-2" size={12} color={themeColor} style={{ marginLeft: 4 }} />
                   </Pressable>
                 </View>
 
@@ -412,14 +412,14 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                   const ct = teachers.find(t => t.id === cid);
                   return (
                     <View key={cid} style={sh.coTeacherRow}>
-                      <User size={14} color={C.textMuted} />
+                      <LucideIcon name="user" size={14} color={C.textMuted} />
                       <Text style={sh.summaryLabel}>추가</Text>
                       <Text style={[sh.instructorText, { flex: 1 }]}>{ct?.name || cid}</Text>
                       {coTeacherSaving ? (
                         <ActivityIndicator size="small" color={C.textMuted} />
                       ) : (
                         <Pressable onPress={() => handleRemoveCoTeacher(cid)} hitSlop={8}>
-                          <Trash2 size={14} color="#EF4444" />
+                          <LucideIcon name="trash-2" size={14} color="#EF4444" />
                         </Pressable>
                       )}
                     </View>
@@ -428,13 +428,13 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
 
                 {/* 선생님 추가 버튼 */}
                 <Pressable style={sh.addCoTeacherBtn} onPress={enterAddCoTeacher}>
-                  <UserPlus size={13} color={themeColor} />
+                  <LucideIcon name="user-plus" size={13} color={themeColor} />
                   <Text style={[sh.addCoTeacherTxt, { color: themeColor }]}>선생님 추가</Text>
                 </Pressable>
 
                 {/* 정원 (편집 가능) */}
                 <View style={sh.summaryRow}>
-                  <Users size={14} color={C.textMuted} />
+                  <LucideIcon name="users" size={14} color={C.textMuted} />
                   {editingCapacity ? (
                     <View style={sh.capacityEditor}>
                       <Pressable
@@ -442,7 +442,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                         onPress={() => setDraftCapacity(v => Math.max(1, v - 1))}
                         hitSlop={6}
                       >
-                        <Minus size={14} color={C.text} />
+                        <LucideIcon name="minus" size={14} color={C.text} />
                       </Pressable>
                       <Text style={sh.capValue}>{draftCapacity}명</Text>
                       <Pressable
@@ -450,7 +450,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                         onPress={() => setDraftCapacity(v => Math.min(50, v + 1))}
                         hitSlop={6}
                       >
-                        <Plus size={14} color={C.text} />
+                        <LucideIcon name="plus" size={14} color={C.text} />
                       </Pressable>
                       <Pressable
                         style={[sh.capSaveBtn, { backgroundColor: themeColor }]}
@@ -462,13 +462,13 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                           : <Text style={sh.capSaveTxt}>저장</Text>}
                       </Pressable>
                       <Pressable onPress={() => { setEditingCapacity(false); setDraftCapacity(detail?.capacity ?? 5); }} hitSlop={6}>
-                        <X size={16} color={C.textMuted} />
+                        <LucideIcon name="x" size={16} color={C.textMuted} />
                       </Pressable>
                     </View>
                   ) : (
                     <Pressable style={sh.instructorBtn} onPress={() => { setDraftCapacity(detail?.capacity ?? 5); setEditingCapacity(true); }}>
                       <Text style={sh.summaryVal}>{capacityLabel}</Text>
-                      <PenLine size={12} color={themeColor} style={{ marginLeft: 4 }} />
+                      <LucideIcon name="edit-2" size={12} color={themeColor} style={{ marginLeft: 4 }} />
                     </Pressable>
                   )}
                   {!editingCapacity && capacityFull && <View style={sh.fullBadge}><Text style={sh.fullBadgeText}>정원 마감</Text></View>}
@@ -479,11 +479,11 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
 
               <View style={sh.actionRow}>
                 <Pressable style={[sh.actionBtn, { backgroundColor: themeColor, flex: 1 }]} onPress={handleAssign}>
-                  <UserPlus size={14} color="#fff" />
+                  <LucideIcon name="user-plus" size={14} color="#fff" />
                   <Text style={sh.actionBtnText}>반배정</Text>
                 </Pressable>
                 <Pressable style={[sh.actionBtn, { backgroundColor: "#E4A93A", flex: 1 }]} onPress={enterTransfer}>
-                  <Repeat size={14} color="#fff" />
+                  <LucideIcon name="repeat" size={14} color="#fff" />
                   <Text style={sh.actionBtnText}>반이동</Text>
                 </Pressable>
               </View>
@@ -516,7 +516,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                 <View style={sh.makeupSection}>
                   <View style={sh.sectionHeader}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <RotateCcw size={13} color="#D97706" />
+                      <LucideIcon name="rotate-ccw" size={13} color="#D97706" />
                       <Text style={[sh.sectionTitle, { color: "#D97706" }]}>배정된 보강학생</Text>
                     </View>
                     <Text style={sh.sectionCount}>{assignedMakeups.length}명</Text>
@@ -554,7 +554,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
         {subView === "transfer" && (
           <View style={{ flex: 1 }}>
             <View style={sh.searchBox}>
-              <Search size={14} color={C.textMuted} />
+              <LucideIcon name="search" size={14} color={C.textMuted} />
               <TextInput
                 style={sh.searchInput}
                 placeholder="이름 또는 연락처 검색"
@@ -565,7 +565,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
             </View>
             {transferable.length === 0 ? (
               <View style={sh.emptyBox}>
-                <Repeat size={32} color={C.textMuted} />
+                <LucideIcon name="repeat" size={32} color={C.textMuted} />
                 <Text style={sh.emptyText}>이동 가능한 학생이 없습니다</Text>
               </View>
             ) : (
@@ -620,7 +620,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
               showsVerticalScrollIndicator={false}
               ListHeaderComponent={
                 <View style={sh.searchBox}>
-                  <Search size={14} color={C.textMuted} />
+                  <LucideIcon name="search" size={14} color={C.textMuted} />
                   <TextInput
                     style={sh.searchInput}
                     placeholder="선생님 이름 검색"
@@ -632,7 +632,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
               }
               ListEmptyComponent={
                 <View style={sh.emptyBox}>
-                  <User size={32} color={C.textMuted} />
+                  <LucideIcon name="user" size={32} color={C.textMuted} />
                   <Text style={sh.emptyText}>추가할 수 있는 선생님이 없습니다</Text>
                 </View>
               }
@@ -645,7 +645,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                     <Text style={sh.teacherName}>{item.name}</Text>
                     <Text style={sh.teacherSub}>{item.position || item.email || ""}</Text>
                   </View>
-                  <UserPlus size={16} color={themeColor} />
+                  <LucideIcon name="user-plus" size={16} color={themeColor} />
                 </Pressable>
               )}
             />
@@ -662,14 +662,14 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
               onPress={() => handleAssignTeacher({ id: "", name: "" } as any)}
             >
               <View style={[sh.teacherAvatar, { backgroundColor: "#F8FAFC" }]}>
-                <UserX size={16} color={C.textMuted} />
+                <LucideIcon name="user-x" size={16} color={C.textMuted} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[sh.teacherName, { color: C.textMuted, fontStyle: "italic" }]}>미지정</Text>
                 <Text style={sh.teacherSub}>담당 선생님 없음</Text>
               </View>
               {!detail?.instructor && (
-                <Check size={18} color={themeColor} />
+                <LucideIcon name="check" size={18} color={themeColor} />
               )}
             </Pressable>
             <FlatList
@@ -693,7 +693,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                     <Text style={sh.teacherSub}>{item.position || item.email || ""}</Text>
                   </View>
                   {detail?.instructor === item.name && (
-                    <Check size={18} color={themeColor} />
+                    <LucideIcon name="check" size={18} color={themeColor} />
                   )}
                 </Pressable>
               )}

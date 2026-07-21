@@ -4,14 +4,12 @@
  *
  * 모든 진입 경로에서 동일한 화면 사용:
  * 회원관리 탭 / 반배정 / 출결 / 수업관리 / 보강관리 등
- *
  * 기능:
  * - 기본정보 / 수업정보 / 출결 현황 섹션
  * - 상태 배지 (대표 상태 + 예약 상태)
  * - 상태 변경 버튼 → MemberStatusChangeModal 공통 팝업
  * - 레벨 뱃지 + 레벨 변경 기능
  */
-import { Check, EyeOff, Layers, MessageSquare, PenLine, Phone, Plus, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -32,9 +30,7 @@ import {
 } from "@/utils/studentUtils";
 
 const C = Colors.light;
-
 const KO_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
-
 interface StudentDetail extends StudentMember {
   phone?: string | null;
   address?: string | null;
@@ -44,37 +40,27 @@ interface StudentDetail extends StudentMember {
     student_count?: number; level?: string | null;
   }[];
 }
-
 interface AttendanceStat {
   total: number; present: number; absent: number; late: number;
-}
-
 interface LevelInfo {
   current_level_order: number | null;
   current_level: LevelDef | null;
   all_levels: LevelDef[];
-}
-
 function getBirthAge(birthYear?: string | null): string {
   if (!birthYear) return "";
   const y = parseInt(birthYear);
   if (isNaN(y)) return birthYear;
   const age = new Date().getFullYear() - y + 1;
   return `${birthYear}년생 (${age}세)`;
-}
-
 function colorFromId(id: string, fallback: string): string {
   const COLORS = ["#4EA7D8", "#2E9B6F", "#E4A93A", "#D96C6C", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16"];
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
   return COLORS[Math.abs(h) % COLORS.length];
-}
-
 export default function StudentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
   const { themeColor } = useBrand();
-
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [attStat, setAttStat] = useState<AttendanceStat | null>(null);
   const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
@@ -85,7 +71,6 @@ export default function StudentDetailScreen() {
   const [levelNote,         setLevelNote]         = useState("");
   const [pendingLevelOrder, setPendingLevelOrder] = useState<number | null>(null);
   const [levelResult, setLevelResult] = useState<{ ok: boolean; msg: string } | null>(null);
-
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -108,9 +93,7 @@ export default function StudentDetailScreen() {
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [id, token]);
-
   useEffect(() => { load(); }, [load]);
-
   async function handleWeeklyChange(newCount: number) {
     if (!id || !student) return;
     const prevCount = student.weekly_count;
@@ -127,21 +110,15 @@ export default function StudentDetailScreen() {
       setStudent(prev => prev ? { ...prev, weekly_count: prevCount } : prev);
     });
   }
-
   async function handleLevelChange() {
     if (!id || pendingLevelOrder == null) return;
     const levelOrder = pendingLevelOrder;
     const prevLevelInfo = levelInfo;
     const newLevel = levelInfo?.all_levels.find(l => l.level_order === levelOrder) ?? null;
-
-    // 즉시 UI 반영
     setShowLevelPicker(false);
     setPendingLevelOrder(null);
     setLevelNote("");
     setLevelInfo(prev => prev ? { ...prev, current_level_order: levelOrder, current_level: newLevel } : prev);
-
-    // 백그라운드 API
-    try {
       const res = await apiRequest(token, `/teacher/students/${id}/level`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -152,14 +129,11 @@ export default function StudentDetailScreen() {
       } else {
         setLevelInfo(prevLevelInfo);
         setLevelResult({ ok: false, msg: "레벨 변경에 실패했습니다. 다시 시도해주세요." });
-      }
     } catch (e) {
       console.error(e);
       setLevelInfo(prevLevelInfo);
       setLevelResult({ ok: false, msg: "레벨 변경 중 오류가 발생했습니다." });
     }
-  }
-
   if (loading) {
     return (
       <View style={s.safe}>
@@ -167,33 +141,21 @@ export default function StudentDetailScreen() {
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </View>
     );
-  }
-
   if (!student) {
-    return (
-      <View style={s.safe}>
-        <SubScreenHeader title="회원 정보" homePath="/(teacher)/today-schedule" />
         <View style={s.emptyBox}>
-          <UserX size={40} color={C.textMuted} />
+          <LucideIcon name="user-x" size={40} color={C.textMuted} />
           <Text style={s.emptyText}>회원 정보를 불러올 수 없습니다</Text>
         </View>
-      </View>
-    );
-  }
-
   const ps = getPrimaryStatus(student as any);
   const primaryBadge = PRIMARY_STATUS_BADGE[ps];
   const pendingBadge = getMemberPendingBadge(student as any);
   const wc = student.weekly_count ? getEffectiveWeekly(student as any) : null;
   const weeklyBadge = wc ? WEEKLY_BADGE[wc] : null;
-
   return (
     <View style={s.safe}>
       <SubScreenHeader title={student.name} homePath="/(teacher)/today-schedule" />
-
       <KeyboardAwareScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
         contentContainerStyle={s.content}>
-
         {/* ── 프로필 헤더 카드 ────────────────────────────────── */}
         <View style={s.profileCard}>
           <View style={{ alignItems: "center", gap: 6 }}>
@@ -203,13 +165,11 @@ export default function StudentDetailScreen() {
             {/* 레벨 뱃지 */}
             <LevelBadge level={levelInfo?.current_level ?? null} size="sm" showName />
           </View>
-
           <View style={{ flex: 1 }}>
             <Text style={s.studentName}>{student.name}</Text>
             {student.birth_year && (
               <Text style={s.studentSub}>{getBirthAge(student.birth_year)}</Text>
             )}
-
             {/* 상태 배지들 */}
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
               <View style={[s.statusBadge, { backgroundColor: primaryBadge.bg }]}>
@@ -221,26 +181,17 @@ export default function StudentDetailScreen() {
                   onPress={() => setShowWeeklyPicker(true)}
                 >
                   <Text style={[s.statusText, { color: weeklyBadge.color }]}>{weeklyBadge.label}</Text>
-                  <PenLine size={9} color={weeklyBadge.color} style={{ marginLeft: 3 }} />
+                  <LucideIcon name="edit-2" size={9} color={weeklyBadge.color} style={{ marginLeft: 3 }} />
                 </Pressable>
               ) : (
-                <Pressable
                   style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#D1D5DB", borderStyle: "dashed" }]}
-                  onPress={() => setShowWeeklyPicker(true)}
-                >
-                  <Plus size={10} color="#64748B" />
+                  <LucideIcon name="plus" size={10} color="#64748B" />
                   <Text style={[s.statusText, { color: "#64748B", marginLeft: 3 }]}>주 횟수</Text>
-                </Pressable>
               )}
               {pendingBadge && (
                 <View style={[s.statusBadge, { backgroundColor: pendingBadge.bg }]}>
                   <Text style={[s.statusText, { color: pendingBadge.color }]}>{pendingBadge.label}</Text>
                 </View>
-              )}
-            </View>
-          </View>
-        </View>
-
         {/* ── 레벨 관리 카드 ────────────────────────────────── */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>수영 레벨</Text>
@@ -255,7 +206,7 @@ export default function StudentDetailScreen() {
                   </Text>
                   {levelInfo?.current_level?.is_active === false && (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
-                      <EyeOff size={11} color="#D97706" />
+                      <LucideIcon name="eye-off" size={11} color="#D97706" />
                       <Text style={{ fontSize: 11, color: "#D97706", fontFamily: "Pretendard-Regular" }}>사용 안 함 레벨</Text>
                     </View>
                   )}
@@ -264,24 +215,15 @@ export default function StudentDetailScreen() {
                       {levelInfo.current_level.level_description}
                     </Text>
                   ) : null}
-                </View>
-              </View>
               <Pressable
                 style={[s.changeBtn, { borderColor: themeColor }]}
                 onPress={() => { setPendingLevelOrder(null); setShowLevelPicker(true); }}
               >
-                <PenLine size={14} color={themeColor} />
+                <LucideIcon name="edit-2" size={14} color={themeColor} />
                 <Text style={[s.changeBtnText, { color: themeColor }]}>레벨 변경</Text>
               </Pressable>
-            </View>
-          </View>
-        </View>
-
         {/* ── 상태 관리 카드 ─────────────────────────────────── */}
-        <View style={s.section}>
           <Text style={s.sectionTitle}>상태 관리</Text>
-          <View style={s.card}>
-            <View style={s.statusRow}>
               <View style={{ gap: 4 }}>
                 <Text style={s.statusRowLabel}>현재 상태</Text>
                 <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
@@ -291,19 +233,10 @@ export default function StudentDetailScreen() {
                   {pendingBadge && (
                     <View style={[s.statusBadgeLg, { backgroundColor: pendingBadge.bg }]}>
                       <Text style={[s.statusBadgeLgText, { color: pendingBadge.color }]}>{pendingBadge.label}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
               <Pressable style={[s.changeBtn, { borderColor: themeColor }]}
                 onPress={() => setShowStatusModal(true)}>
-                <PenLine size={14} color={themeColor} />
                 <Text style={[s.changeBtnText, { color: themeColor }]}>상태 변경</Text>
-              </Pressable>
-            </View>
-
             <View style={s.divider} />
-
             <InfoRow icon="calendar" label="등록일"
               value={student.created_at ? new Date(student.created_at).toLocaleDateString("ko-KR") : "-"} />
             <InfoRow icon="map-pin" label="등록 경로"
@@ -311,51 +244,32 @@ export default function StudentDetailScreen() {
             <InfoRow icon="link" label="학부모 연결"
               value={student.parent_user_id ? "연결됨" : student.status === "pending_parent_link" ? "대기 중" : "학부모미연결"}
               valueColor={student.parent_user_id ? "#2EC4B6" : student.status === "pending_parent_link" ? "#EA580C" : "#64748B"} />
-          </View>
-        </View>
-
         {/* ── 기본 정보 ──────────────────────────────────────── */}
-        <View style={s.section}>
           <Text style={s.sectionTitle}>기본 정보</Text>
-          <View style={s.card}>
             <InfoRow icon="user" label="이름" value={student.name} />
-            {student.birth_year && (
               <InfoRow icon="calendar" label="생년" value={getBirthAge(student.birth_year)} />
-            )}
             {student.gender && (
               <InfoRow icon="users" label="성별"
                 value={student.gender === "male" ? "남" : student.gender === "female" ? "여" : student.gender} />
-            )}
             {student.parent_name && (
               <InfoRow icon="user" label="학부모" value={student.parent_name} />
-            )}
             {student.parent_phone && (
               <View style={s.infoRow}>
-                <Phone size={14} color={CALL_COLOR} style={{ marginTop: 1 }} />
+                <LucideIcon name="phone" size={14} color={CALL_COLOR} style={{ marginTop: 1 }} />
                 <Text style={s.infoLabel}>연락처</Text>
                 <View style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 12 }}>
                   <Pressable onPress={() => callPhone(student.parent_phone)} hitSlop={8}>
                     <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: CALL_COLOR }}>
                       {formatPhone(student.parent_phone)}
-                    </Text>
                   </Pressable>
                   <Pressable onPress={() => sendSms(student.parent_phone)} hitSlop={8}>
-                    <MessageSquare size={14} color={SMS_COLOR} />
-                  </Pressable>
-                </View>
-              </View>
-            )}
-          </View>
-        </View>
-
+                    <LucideIcon name="message-square" size={14} color={SMS_COLOR} />
         {/* ── 수강 반 ──────────────────────────────────────── */}
-        <View style={s.section}>
           <Text style={s.sectionTitle}>수강 반</Text>
           {(!student.assignedClasses || student.assignedClasses.length === 0) ? (
             <View style={[s.card, s.emptyCard]}>
-              <Layers size={24} color={C.textMuted} />
+              <LucideIcon name="layers" size={24} color={C.textMuted} />
               <Text style={s.emptyCardText}>배정된 반이 없습니다</Text>
-            </View>
           ) : (
             <View style={s.card}>
               {student.assignedClasses.map((cls, i) => {
@@ -382,14 +296,9 @@ export default function StudentDetailScreen() {
                         } as any)}>
                         <Text style={[s.goBtnText, { color: themeColor }]}>출결</Text>
                       </Pressable>
-                    </View>
-                  </View>
                 );
               })}
-            </View>
           )}
-        </View>
-
         {/* ── 출결 현황 ─────────────────────────────────────── */}
         {attStat && attStat.total > 0 && (
           <View style={s.section}>
@@ -398,23 +307,16 @@ export default function StudentDetailScreen() {
               <AttBox label="전체" value={attStat.total} color={themeColor} />
               <View style={s.attDivider} />
               <AttBox label="출석" value={attStat.present} color="#2EC4B6" />
-              <View style={s.attDivider} />
               <AttBox label="결석" value={attStat.absent} color="#D96C6C" />
-              <View style={s.attDivider} />
               <AttBox label="지각" value={attStat.late} color="#D97706" />
-              <View style={s.attDivider} />
               <AttBox
                 label="출석률"
                 value={attStat.total > 0 ? `${Math.round((attStat.present / attStat.total) * 100)}%` : "-"}
                 color={attStat.total > 0 && (attStat.present / attStat.total) >= 0.8 ? "#2EC4B6" : "#D97706"}
               />
-            </View>
-          </View>
         )}
-
         <View style={{ height: 100 }} />
       </KeyboardAwareScrollView>
-
       {/* ── 상태 변경 모달 ──────────────────────────────────── */}
       <MemberStatusChangeModal
         visible={showStatusModal}
@@ -440,7 +342,6 @@ export default function StudentDetailScreen() {
           load();
         }}
       />
-
       {/* ── 주 횟수 선택 모달 ──────────────────────────────── */}
       <Modal visible={showWeeklyPicker} transparent animationType="fade" onRequestClose={() => setShowWeeklyPicker(false)}>
         <Pressable style={s.pickerOverlay} onPress={() => setShowWeeklyPicker(false)}>
@@ -451,7 +352,6 @@ export default function StudentDetailScreen() {
               {[1, 2, 3].map(count => {
                 const badge = WEEKLY_BADGE[count as 1 | 2 | 3];
                 const isCurrent = (student.weekly_count || 1) === count;
-                return (
                   <Pressable
                     key={count}
                     style={[s.pickerOption, { borderColor: isCurrent ? badge.color : C.border, backgroundColor: isCurrent ? badge.bg : C.background }]}
@@ -459,19 +359,12 @@ export default function StudentDetailScreen() {
                   >
                     <Text style={[s.pickerOptionText, { color: isCurrent ? badge.color : C.text }]}>
                       주 {count}회
-                    </Text>
-                    {isCurrent && <Check size={16} color={badge.color} />}
-                  </Pressable>
-                );
-              })}
-            </View>
+                    {isCurrent && <LucideIcon name="check" size={16} color={badge.color} />}
             <Pressable style={s.pickerCancel} onPress={() => setShowWeeklyPicker(false)}>
               <Text style={s.pickerCancelText}>취소</Text>
             </Pressable>
-          </View>
         </Pressable>
       </Modal>
-
       {/* ── 레벨 선택 모달 ──────────────────────────────────── */}
       <Modal
         visible={showLevelPicker} transparent animationType="slide"
@@ -489,7 +382,6 @@ export default function StudentDetailScreen() {
                     const isCurrent = lv.level_order === levelInfo?.current_level_order;
                     const isPending = lv.level_order === pendingLevelOrder;
                     return (
-                      <Pressable
                         key={lv.level_order}
                         style={[
                           s.levelPickerItem,
@@ -501,15 +393,11 @@ export default function StudentDetailScreen() {
                         <LevelBadge level={lv} size="sm" />
                         <Text style={[s.levelPickerLabel, isPending && { color: themeColor, fontFamily: "Pretendard-SemiBold" }]}>
                           {lv.level_name}
-                        </Text>
                         {isCurrent && !isPending && <Text style={{ fontSize: 9, color: "#94A3B8" }}>현재</Text>}
-                        {isPending && <Check size={12} color={themeColor} />}
-                      </Pressable>
+                        {isPending && <LucideIcon name="check" size={12} color={themeColor} />}
                     );
                   })}
-                </View>
               </KeyboardAwareScrollView>
-            </View>
             <View style={{ gap: 8, marginTop: 8 }}>
               <Text style={s.pickerSub}>변경 메모 (선택)</Text>
               <TextInput
@@ -518,24 +406,13 @@ export default function StudentDetailScreen() {
                 onChangeText={setLevelNote}
                 placeholder="예: 자유형 25m 완주 달성"
                 placeholderTextColor={C.textMuted}
-              />
-            </View>
             <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
               <Pressable style={[s.pickerCancel, { flex: 1 }]} onPress={() => { setShowLevelPicker(false); setPendingLevelOrder(null); }}>
                 <Text style={s.pickerCancelText}>취소</Text>
-              </Pressable>
-              <Pressable
                 style={[s.levelConfirmBtn, { backgroundColor: pendingLevelOrder != null ? themeColor : "#CBD5E1", flex: 1.5 }]}
                 onPress={handleLevelChange}
                 disabled={pendingLevelOrder == null}
-              >
                 <Text style={s.levelConfirmBtnText}>변경 완료</Text>
-              </Pressable>
-            </View>
-          </View>
-        </Pressable>
-      </Modal>
-
       {/* ── 레벨 변경 결과 모달 ── */}
       <Modal visible={!!levelResult} transparent animationType="fade" onRequestClose={() => setLevelResult(null)}>
         <Pressable style={s.pickerOverlay} onPress={() => setLevelResult(null)}>
@@ -544,43 +421,25 @@ export default function StudentDetailScreen() {
             <Text style={[s.pickerSub, { textAlign: "center", lineHeight: 22 }]}>{levelResult?.msg}</Text>
             <Pressable style={[s.levelConfirmBtn, { backgroundColor: levelResult?.ok ? themeColor : "#EF4444" }]} onPress={() => setLevelResult(null)}>
               <Text style={s.levelConfirmBtnText}>확인</Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Modal>
     </View>
   );
-}
-
 // ── 서브 컴포넌트 ──────────────────────────────────────────────────────
-
 function InfoRow({
   icon, label, value, valueColor,
 }: {
   icon: any; label: string; value: string; valueColor?: string;
 }) {
-  return (
     <View style={s.infoRow}>
       <LucideIcon name={icon} size={14} color={C.textMuted} style={{ marginTop: 1 }} />
       <Text style={s.infoLabel}>{label}</Text>
       <Text style={[s.infoValue, valueColor ? { color: valueColor } : undefined]}>{value}</Text>
-    </View>
-  );
-}
-
 function AttBox({ label, value, color }: { label: string; value: string | number; color: string }) {
-  return (
     <View style={s.attBox}>
       <Text style={[s.attValue, { color }]}>{value}</Text>
       <Text style={s.attLabel}>{label}</Text>
-    </View>
-  );
-}
-
 const s = StyleSheet.create({
   safe:           { flex: 1, backgroundColor: C.background },
   content:        { padding: 16, gap: 16 },
-
   profileCard:    { backgroundColor: C.card, borderRadius: 16, padding: 16,
                     flexDirection: "row", alignItems: "flex-start", gap: 14,
                     shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
@@ -591,7 +450,6 @@ const s = StyleSheet.create({
   statusBadge:    { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   statusText:     { fontSize: 11, fontFamily: "Pretendard-Regular" },
   weeklyBadgeBtn: { flexDirection: "row", alignItems: "center" },
-
   pickerOverlay:  { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 32 },
   pickerSheet:    { width: "100%", borderRadius: 20, padding: 24, gap: 16 },
   pickerTitle:    { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A", textAlign: "center" },
@@ -603,32 +461,23 @@ const s = StyleSheet.create({
   pickerCancel:   { alignItems: "center", paddingVertical: 12, borderRadius: 12,
                     borderWidth: 1.5, borderColor: "#E5E7EB" },
   pickerCancelText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
-
   levelPickerItem: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
     borderWidth: 1.5, borderColor: C.border, backgroundColor: C.background,
   },
   levelPickerLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
-
   noteInput: {
     borderWidth: 1, borderColor: C.border, borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 8,
     fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text,
-  },
-
   levelConfirmBtn: {
     alignItems: "center", paddingVertical: 13, borderRadius: 12,
-  },
   levelConfirmBtnText: {
     fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff",
-  },
-
   section:        { gap: 8 },
   sectionTitle:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, paddingLeft: 4 },
   card:           { backgroundColor: C.card, borderRadius: 16, overflow: "hidden",
-                    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-
   statusRow:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                     paddingHorizontal: 16, paddingVertical: 14 },
   statusRowLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 },
@@ -637,28 +486,23 @@ const s = StyleSheet.create({
   changeBtn:      { flexDirection: "row", alignItems: "center", gap: 5,
                     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5 },
   changeBtnText:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
-
   infoRow:        { flexDirection: "row", alignItems: "center", gap: 8,
                     paddingHorizontal: 16, paddingVertical: 12,
                     borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   infoLabel:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, width: 80 },
   infoValue:      { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "right" },
-
   divider:        { height: 1, backgroundColor: "#FFFFFF", marginHorizontal: 14 },
-
   classRow:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 14 },
   colorBar:       { width: 4, height: 40, borderRadius: 2 },
   className:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   classMeta:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   goBtn:          { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5 },
   goBtnText:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
-
   attRow:         { flexDirection: "row", padding: 16 },
   attBox:         { flex: 1, alignItems: "center", gap: 4 },
   attValue:       { fontSize: 18, fontFamily: "Pretendard-Regular" },
   attLabel:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   attDivider:     { width: 1, backgroundColor: C.border, marginVertical: 4 },
-
   emptyCard:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 24 },
   emptyCardText:  { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" },
   emptyBox:       { alignItems: "center", paddingTop: 80, gap: 10 },

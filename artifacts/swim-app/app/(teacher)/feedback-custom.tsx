@@ -13,7 +13,7 @@ import {ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Check, ChevronDown, Edit2, Eye, EyeOff, Plus, RotateCcw, Search, Trash2 } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
@@ -305,13 +305,13 @@ export default function FeedbackCustomScreen() {
               >
                 {isMyTab || !selectedLevelName ? "레벨 선택" : selectedLevelName}
               </Text>
-              <ChevronDown size={14} color={!isMyTab && selectedLevelName ? "#2EC4B6" : "#94A3B8"} />
+              <LucideIcon name="chevron-down" size={14} color={!isMyTab && selectedLevelName ? "#2EC4B6" : "#94A3B8"} />
             </Pressable>
           </View>
 
           {/* 안내 문구 */}
           <View style={s.hintRow}>
-            <Eye size={12} color="#94A3B8" />
+            <LucideIcon name="eye" size={12} color="#94A3B8" />
             <Text style={s.hintText}>스위치를 끄면 "문장 불러오기"에서 숨겨집니다</Text>
           </View>
 
@@ -352,11 +352,11 @@ export default function FeedbackCustomScreen() {
                             setEditTitle(t.title ?? "");
                             setEditError("");
                           }}>
-                            <Edit2 size={14} color="#64748B" />
+                            <LucideIcon name="edit-2" size={14} color="#64748B" />
                             <Text style={s.editBtnText}>수정</Text>
                           </Pressable>
                           <Pressable style={[s.editBtn, { borderColor: "#FCA5A5" }]} onPress={() => setDeleteTarget(t)}>
-                            <Trash2 size={14} color="#EF4444" />
+                            <LucideIcon name="trash-2" size={14} color="#EF4444" />
                           </Pressable>
                         </View>
                       </View>
@@ -367,7 +367,7 @@ export default function FeedbackCustomScreen() {
                       )}
                       {!t.is_active && (
                         <View style={s.hiddenBadgeRow}>
-                          <EyeOff size={11} color="#94A3B8" />
+                          <LucideIcon name="eye-off" size={11} color="#94A3B8" />
                           <Text style={s.hiddenBadgeText}>문장 불러오기에서 숨겨짐</Text>
                         </View>
                       )}
@@ -412,14 +412,14 @@ export default function FeedbackCustomScreen() {
                             setEditTitle(t.title ?? "");
                             setEditError("");
                           }}>
-                            <Edit2 size={14} color="#64748B" />
+                            <LucideIcon name="edit-2" size={14} color="#64748B" />
                             <Text style={s.editBtnText}>수정</Text>
                           </Pressable>
                         </View>
                       </View>
                       {!t.is_active && (
                         <View style={s.hiddenBadgeRow}>
-                          <EyeOff size={11} color="#94A3B8" />
+                          <LucideIcon name="eye-off" size={11} color="#94A3B8" />
                           <Text style={s.hiddenBadgeText}>문장 불러오기에서 숨겨짐</Text>
                         </View>
                       )}
@@ -427,14 +427,14 @@ export default function FeedbackCustomScreen() {
                         <View style={s.overriddenRow}>
                           <View style={s.myBadge}><Text style={s.myBadgeText}>내 수정</Text></View>
                           <Pressable style={s.resetBtn} onPress={() => setResetTarget(t)}>
-                            <RotateCcw size={11} color="#64748B" />
+                            <LucideIcon name="refresh-ccw" size={11} color="#64748B" />
                             <Text style={s.resetBtnText}>초기화</Text>
                           </Pressable>
                         </View>
                       )}
                       {t.is_overridden && !t.is_active && (
                         <Pressable style={[s.resetBtn, { alignSelf: "flex-start", marginTop: 4 }]} onPress={() => setResetTarget(t)}>
-                          <RotateCcw size={11} color="#64748B" />
+                          <LucideIcon name="refresh-ccw" size={11} color="#64748B" />
                           <Text style={s.resetBtnText}>수정 초기화</Text>
                         </Pressable>
                       )}
@@ -453,7 +453,7 @@ export default function FeedbackCustomScreen() {
           style={[s.fab, { bottom: insets.bottom + 16 }]}
           onPress={() => { setAddVisible(true); setAddText(""); setAddTitle(""); setAddError(""); }}
         >
-          <Plus size={20} color="#fff" />
+          <LucideIcon name="plus" size={20} color="#fff" />
           <Text style={s.fabText}>내 항목 추가</Text>
         </Pressable>
       )}

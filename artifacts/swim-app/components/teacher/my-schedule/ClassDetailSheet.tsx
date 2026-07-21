@@ -1,11 +1,10 @@
-import { ChevronRight, CircleAlert, Pencil, RotateCcw, Trash2, UserX, Users, X } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { apiRequest, clearApiCache } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import PastelColorPicker from "@/components/common/PastelColorPicker";
@@ -329,12 +328,12 @@ export default function ClassDetailSheet({
               </View>
               <Pressable style={cds.deleteBtn}
                 onPress={() => onDeleteClass?.()}>
-                <Trash2 size={15} color="#E11D48" />
+                <LucideIcon name="trash-2" size={15} color="#E11D48" />
               </Pressable>
               <Pressable onPress={handleClose} style={cds.closeBtn}>
                 {colorSaving
                   ? <ActivityIndicator size="small" color={C.textSecondary} />
-                  : <X size={20} color={C.textSecondary} />}
+                  : <LucideIcon name="x" size={20} color={C.textSecondary} />}
               </Pressable>
             </View>
             <View style={cds.actionRow}>
@@ -354,24 +353,24 @@ export default function ClassDetailSheet({
                   }),
                 },
               } as any))}>
-                <Users size={13} color="#4338CA" />
+                <LucideIcon name="users" size={13} color="#4338CA" />
                 <Text style={[cds.actionText, { color: "#4338CA" }]}>반배정</Text>
               </Pressable>
               <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? "#E6FFFA" : "#FFF1BF", flex: 1 }]}
                 onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name} } as any))}>
-                <Pencil size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
+                <LucideIcon name="edit" size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
                 <Text style={[cds.actionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
               </Pressable>
               <Pressable style={[cds.actionBtn, { backgroundColor: "#EEF2FF", flex: 1 }]}
                 onPress={() => onNavigateTo?.(() => router.push("/(teacher)/makeups?backTo=my-schedule" as any))}>
-                <Users size={13} color="#4F46E5" />
+                <LucideIcon name="users" size={13} color="#4F46E5" />
                 <Text style={[cds.actionText, { color: "#4F46E5" }]}>보충수업</Text>
               </Pressable>
             </View>
             <PastelColorPicker selected={draftColor} onSelect={handleColorSelect} />
             <View style={cds.capacityRow}>
               <View style={cds.capacityLabelRow}>
-                <Users size={14} color={C.textSecondary} />
+                <LucideIcon name="users" size={14} color={C.textSecondary} />
                 <Text style={cds.capacityLabel}>정원</Text>
               </View>
               <View style={cds.capacityInputWrap}>
@@ -409,7 +408,7 @@ export default function ClassDetailSheet({
             <ScrollView style={cds.studentScroll} showsVerticalScrollIndicator={false}>
               {groupStudents.length === 0 ? (
                 <View style={cds.empty}>
-                  <Users size={28} color={C.textMuted} />
+                  <LucideIcon name="users" size={28} color={C.textMuted} />
                   <Text style={cds.emptyText}>배정된 학생이 없습니다</Text>
                 </View>
               ) : groupStudents.map(st => {
@@ -454,7 +453,7 @@ export default function ClassDetailSheet({
                       onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/student-detail", params:{id: st.id} } as any))}
                       style={{ padding: 4 }}
                     >
-                      <ChevronRight size={16} color={C.textMuted} />
+                      <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                     </Pressable>
                   </View>
                 );
@@ -498,7 +497,7 @@ export default function ClassDetailSheet({
                             onPress={() => handleRevertMakeup(mk)}
                             disabled={completingMakeupId === mk.id}
                           >
-                            <RotateCcw size={11} color="#D97706" />
+                            <LucideIcon name="rotate-ccw" size={11} color="#D97706" />
                             <Text style={[cds.stBtnTxt, { color: "#D97706" }]}>배정 취소</Text>
                           </Pressable>
                         )}

@@ -3,7 +3,6 @@
  * Zustand 완전 제거 → GET /super/risk-center 실 API 연동
  * 모크 데이터(RECOVERY_FAILURES, SMS) 제거 / external_services API 반환값 사용
  */
-import { CircleCheck, Database, MessageCircle, Shield } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -207,7 +206,7 @@ export default function RiskCenterScreen() {
         {/* 요약 헤더 */}
         <View style={s.summaryCard}>
           <View style={s.summaryRow}>
-            <Shield size={20} color={totalRisk > 0 ? "#F87171" : "#34D399"} />
+            <LucideIcon name="shield" size={20} color={totalRisk > 0 ? "#F87171" : "#34D399"} />
             <Text style={[s.summaryTitle, totalRisk > 0 && { color: "#F87171" }]}>
               {totalRisk > 0 ? `리스크 ${totalRisk}건 처리 필요` : "현재 리스크 없음 ✓"}
             </Text>
@@ -229,7 +228,7 @@ export default function RiskCenterScreen() {
           </View>
           {support.open_count > 0 && (
             <View style={s.supportRow}>
-              <MessageCircle size={13} color="#38BDF8" />
+              <LucideIcon name="message-circle" size={13} color="#38BDF8" />
               <Text style={s.supportTxt}>
                 고객센터 미처리 {support.open_count}건
                 {support.overdue_count > 0 && ` · SLA 초과 ${support.overdue_count}건`}
@@ -384,14 +383,14 @@ export default function RiskCenterScreen() {
             </View>
           ))}
           <View style={s.backupRow}>
-            <Database size={13} color="#64748B" />
+            <LucideIcon name="database" size={13} color="#64748B" />
             <Text style={s.backupTxt}>마지막 백업 이벤트: {fmtAgo(backup.last_at)}</Text>
           </View>
         </View>
 
         {totalRisk === 0 && support.open_count === 0 && (
           <View style={s.allClear}>
-            <CircleCheck size={32} color="#2E9B6F" />
+            <LucideIcon name="check-circle" size={32} color="#2E9B6F" />
             <Text style={s.allClearTxt}>오늘 처리할 리스크가 없습니다</Text>
           </View>
         )}

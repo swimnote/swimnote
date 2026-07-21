@@ -1,4 +1,3 @@
-import { CircleAlert, Info, MapPin, Send, Type } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -84,7 +83,7 @@ export default function PoolApplyScreen() {
       >
         <View style={styles.header}>
           <View style={[styles.iconBox, { backgroundColor: C.tintLight }]}>
-            <MapPin size={28} color={C.tint} />
+            <LucideIcon name="map-pin" size={28} color={C.tint} />
           </View>
           <Text style={[styles.title, { color: C.text }]}>수영장 등록 신청</Text>
           <Text style={[styles.subtitle, { color: C.textSecondary }]}>
@@ -95,7 +94,7 @@ export default function PoolApplyScreen() {
         <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
           {error ? (
             <View style={[styles.errorBox, { backgroundColor: "#F9DEDA" }]}>
-              <CircleAlert size={14} color={C.error} />
+              <LucideIcon name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errorText, { color: C.error }]}>{error}</Text>
             </View>
           ) : null}
@@ -112,7 +111,7 @@ export default function PoolApplyScreen() {
           <View style={styles.fieldWrap}>
             <Text style={[styles.label, { color: C.textSecondary }]}>영문표시명 (파일명용)</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Type size={16} color={C.textMuted} style={styles.inputIcon} />
+              <LucideIcon name="type" size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput style={[styles.input, { color: C.text }]} value={form.name_en}
                 onChangeText={v => setF("name_en")(v.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
                 placeholder="예: toykids_hwajeong" placeholderTextColor={C.textMuted} autoCapitalize="none" />
@@ -159,7 +158,7 @@ export default function PoolApplyScreen() {
           </Field>
 
           <View style={[styles.notice, { backgroundColor: C.tintLight, borderRadius: 10, padding: 12 }]}>
-            <Info size={14} color={C.tint} />
+            <LucideIcon name="info" size={14} color={C.tint} />
             <Text style={[styles.noticeText, { color: C.tint }]}>
               신청 내용은 플랫폼 운영자가 검토 후 승인합니다.{"\n"}승인 후 입력한 아이디로 로그인할 수 있습니다.
             </Text>
@@ -171,7 +170,7 @@ export default function PoolApplyScreen() {
           >
             {loading ? <ActivityIndicator color="#fff" size="small" /> : (
               <View style={styles.btnContent}>
-                <Send size={18} color="#fff" />
+                <LucideIcon name="send" size={18} color="#fff" />
                 <Text style={styles.btnText}>신청서 제출하기</Text>
               </View>
             )}

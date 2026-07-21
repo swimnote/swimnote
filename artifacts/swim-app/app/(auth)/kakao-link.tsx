@@ -3,7 +3,7 @@
  * 카카오/Apple 로그인 후 계정 연결 화면
  * 역할 선택(관리자 / 선생님·코치 / 학부모) → 전화번호 입력 → 연결
  */
-import { ArrowLeft, Phone, Link2 } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {ActivityIndicator, Platform,
@@ -130,12 +130,12 @@ export default function KakaoLinkScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <ArrowLeft size={22} color={C.text} />
+          <LucideIcon name="arrow-left" size={22} color={C.text} />
         </Pressable>
 
         <View style={styles.iconWrap}>
           <View style={[styles.iconBg, { backgroundColor: isApple ? "#000" : "#FEE500" }]}>
-            <Link2 size={28} color={isApple ? "#fff" : "#3C1E1E"} />
+            <LucideIcon name="link-2" size={28} color={isApple ? "#fff" : "#3C1E1E"} />
           </View>
         </View>
 
@@ -184,7 +184,7 @@ export default function KakaoLinkScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>전화번호</Text>
             <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Phone size={16} color={C.textMuted} />
+              <LucideIcon name="phone" size={16} color={C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={phone}

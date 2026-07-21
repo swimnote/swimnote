@@ -1,4 +1,3 @@
-import { BookOpen, CircleAlert, CirclePlus, CircleX, Images, Image, Save, User, Users, Video } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { MutableRefObject, useState } from "react";
 import {
@@ -85,7 +84,7 @@ export default function DiaryWriteView({
 
         {myDiaryExists && (
           <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
-            <CircleAlert size={13} color="#D97706" />
+            <LucideIcon name="alert-circle" size={13} color="#D97706" />
             <Text style={s.infoText}>오늘 이미 일지가 작성되어 있습니다. 수정은 "지난 일지"에서 할 수 있습니다.</Text>
           </View>
         )}
@@ -93,7 +92,7 @@ export default function DiaryWriteView({
         <View style={[s.card, { backgroundColor: C.card }]}>
           <View style={s.cardHeader}>
             <View style={[s.cardIcon, { backgroundColor: themeColor + "20" }]}>
-              <BookOpen size={15} color={themeColor} />
+              <LucideIcon name="book-open" size={15} color={themeColor} />
             </View>
             <Text style={[s.cardTitle, { color: C.text }]}>반 공통 일지</Text>
             <Text style={s.cardSub}>모든 학생에게 공통으로 보이는 내용</Text>
@@ -107,20 +106,20 @@ export default function DiaryWriteView({
           <View style={s.textareaFooter}>
             <Text style={s.charCount}>{commonContent.length}자</Text>
             <TouchableOpacity style={s.sentencePickBtn} onPress={() => setShowPickerFor("common")} activeOpacity={0.7}>
-              <BookOpen size={13} color={C.tint} />
+              <LucideIcon name="book-open" size={13} color={C.tint} />
               <Text style={s.sentencePickBtnText}>템플릿선택</Text>
             </TouchableOpacity>
           </View>
 
           <View style={s.mediaRow}>
             <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={onOpenAlbumPicker}>
-              <Images size={14} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
+              <LucideIcon name="image" size={14} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
             </Pressable>
             <Pressable style={[s.mediaBtn, { backgroundColor: "#FFEDD5" }]} onPress={() => onOpenGroupMyAlbum("photo")}>
-              <Image size={14} color="#C2410C" /><Text style={[s.mediaBtnText, { color: "#C2410C" }]}>내 사진앨범</Text>
+              <LucideIcon name="image" size={14} color="#C2410C" /><Text style={[s.mediaBtnText, { color: "#C2410C" }]}>내 사진앨범</Text>
             </Pressable>
             <Pressable style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]} onPress={() => onOpenGroupMyAlbum("video")}>
-              <Video size={14} color="#5B21B6" /><Text style={[s.mediaBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
+              <LucideIcon name="video" size={14} color="#5B21B6" /><Text style={[s.mediaBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
             </Pressable>
           </View>
           {groupMedia.length > 0 && (
@@ -149,7 +148,7 @@ export default function DiaryWriteView({
                           contentFit="cover"
                         />
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveAlbumPhoto(photo.id)} hitSlop={6}>
-                          <CircleX size={16} color="#fff" fill="#374151" />
+                          <LucideIcon name="x-circle" size={16} color="#fff" fill="#374151" />
                         </Pressable>
                       </View>
                     ))}
@@ -170,14 +169,14 @@ export default function DiaryWriteView({
                           />
                         ) : (
                           <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
-                            <Video size={18} color="#94A3B8" />
+                            <LucideIcon name="video" size={18} color="#94A3B8" />
                           </View>
                         )}
                         <View style={{ position: "absolute", bottom: 3, left: 3, width: 16, height: 16, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center" }}>
-                          <Video size={8} color="#fff" />
+                          <LucideIcon name="video" size={8} color="#fff" />
                         </View>
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveAlbumVideo(video.id)} hitSlop={6}>
-                          <CircleX size={16} color="#fff" fill="#374151" />
+                          <LucideIcon name="x-circle" size={16} color="#fff" fill="#374151" />
                         </Pressable>
                       </View>
                     ))}
@@ -191,7 +190,7 @@ export default function DiaryWriteView({
         <View style={[s.card, { backgroundColor: C.card }]}>
           <View style={s.cardHeader}>
             <View style={[s.cardIcon, { backgroundColor: "#8B5CF620" }]}>
-              <User size={15} color="#8B5CF6" />
+              <LucideIcon name="user" size={15} color="#8B5CF6" />
             </View>
             <Text style={[s.cardTitle, { color: C.text }]}>학생별 추가 일지</Text>
             <Text style={s.cardSub}>필요한 학생만 선택</Text>
@@ -206,19 +205,19 @@ export default function DiaryWriteView({
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                     <Text style={s.noteName}>{note.student_name}</Text>
                     <Pressable onPress={() => onRemoveNote(note.student_id)}>
-                      <CircleX size={18} color={C.textMuted} />
+                      <LucideIcon name="x-circle" size={18} color={C.textMuted} />
                     </Pressable>
                   </View>
                   <Text style={s.noteContent} numberOfLines={2}>{note.note_content}</Text>
                   <View style={[s.mediaRow, { marginTop: 4 }]}>
                     <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={() => onOpenStudentAlbumPicker(st)}>
-                      <Images size={13} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
+                      <LucideIcon name="image" size={13} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
                     </Pressable>
                     <Pressable style={[s.mediaBtn, { backgroundColor: "#FFEDD5" }]} onPress={() => onOpenStudentMyAlbum(st, "photo")}>
-                      <Image size={13} color="#C2410C" /><Text style={[s.mediaBtnText, { color: "#C2410C" }]}>내 사진앨범</Text>
+                      <LucideIcon name="image" size={13} color="#C2410C" /><Text style={[s.mediaBtnText, { color: "#C2410C" }]}>내 사진앨범</Text>
                     </Pressable>
                     <Pressable style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]} onPress={() => onOpenStudentMyAlbum(st, "video")}>
-                      <Video size={13} color="#5B21B6" /><Text style={[s.mediaBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
+                      <LucideIcon name="video" size={13} color="#5B21B6" /><Text style={[s.mediaBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
                     </Pressable>
                   </View>
                   {stMedia.length > 0 && (
@@ -243,7 +242,7 @@ export default function DiaryWriteView({
 
           {classStudents.length === 0 ? (
             <View style={[s.emptyStudents, { backgroundColor: C.background, borderColor: C.border }]}>
-              <Users size={16} color={C.textMuted} />
+              <LucideIcon name="users" size={16} color={C.textMuted} />
               <Text style={[s.emptyStudentsText, { color: C.textMuted }]}>이 수업에 배정된 학생이 없습니다</Text>
             </View>
           ) : (
@@ -254,7 +253,7 @@ export default function DiaryWriteView({
                   style={[s.studentChip, { backgroundColor: C.background, borderColor: C.border }, addNoteStudent?.id === st.id && { borderColor: "#8B5CF6", backgroundColor: "#EEDDF5" }]}
                   onPress={() => { if (addNoteStudent?.id === st.id) { setAddNoteStudent(null); setNoteInput(""); } else { setAddNoteStudent(st); setNoteInput(""); } }}>
                   <Text style={[s.studentChipText, { color: addNoteStudent?.id === st.id ? "#8B5CF6" : C.text }]}>{st.name}</Text>
-                  <CirclePlus size={15} color={addNoteStudent?.id === st.id ? "#8B5CF6" : C.textMuted} />
+                  <LucideIcon name="plus-circle" size={15} color={addNoteStudent?.id === st.id ? "#8B5CF6" : C.textMuted} />
                 </Pressable>
               ))}
             </View>
@@ -270,28 +269,28 @@ export default function DiaryWriteView({
                 placeholderTextColor={C.textMuted} multiline numberOfLines={3} textAlignVertical="top" autoFocus />
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
                 <TouchableOpacity style={[s.sentencePickBtn]} onPress={() => setShowPickerFor("note")} activeOpacity={0.7}>
-                  <BookOpen size={12} color="#8B5CF6" />
+                  <LucideIcon name="book-open" size={12} color="#8B5CF6" />
                   <Text style={[s.sentencePickBtnText, { color: "#8B5CF6" }]}>템플릿</Text>
                 </TouchableOpacity>
                 <Pressable
                   style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]}
                   onPress={() => onOpenStudentAlbumPicker(addNoteStudent)}
                 >
-                  <Images size={12} color="#3B82F6" />
+                  <LucideIcon name="image" size={12} color="#3B82F6" />
                   <Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범선택</Text>
                 </Pressable>
                 <Pressable
                   style={[s.mediaBtn, { backgroundColor: "#FFEDD5" }]}
                   onPress={() => onOpenStudentMyAlbum(addNoteStudent, "photo")}
                 >
-                  <Image size={12} color="#C2410C" />
+                  <LucideIcon name="image" size={12} color="#C2410C" />
                   <Text style={[s.mediaBtnText, { color: "#C2410C" }]}>내 사진앨범</Text>
                 </Pressable>
                 <Pressable
                   style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]}
                   onPress={() => onOpenStudentMyAlbum(addNoteStudent, "video")}
                 >
-                  <Video size={12} color="#5B21B6" />
+                  <LucideIcon name="video" size={12} color="#5B21B6" />
                   <Text style={[s.mediaBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
                 </Pressable>
               </View>
@@ -301,7 +300,7 @@ export default function DiaryWriteView({
                     <Pressable key={p.id} style={s.mediaThumb} onPress={() => onRemoveStudentAlbumPhoto(addNoteStudent.id, p.id)}>
                       <ExpoImage source={{ uri: p.presigned_url || p.file_url }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
                       <View style={{ position: "absolute", top: 2, right: 2, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 8 }}>
-                        <CircleX size={14} color="#fff" />
+                        <LucideIcon name="x-circle" size={14} color="#fff" />
                       </View>
                     </Pressable>
                   ))}
@@ -311,11 +310,11 @@ export default function DiaryWriteView({
                         <ExpoImage source={{ uri: v.thumbnail_presigned_url }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
                       ) : (
                         <View style={{ width: "100%", height: "100%", borderRadius: 8, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
-                          <Video size={14} color="#94A3B8" />
+                          <LucideIcon name="video" size={14} color="#94A3B8" />
                         </View>
                       )}
                       <View style={{ position: "absolute", top: 2, right: 2, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 8 }}>
-                        <CircleX size={14} color="#fff" />
+                        <LucideIcon name="x-circle" size={14} color="#fff" />
                       </View>
                     </Pressable>
                   ))}
@@ -336,7 +335,7 @@ export default function DiaryWriteView({
         <View style={[s.footer, { paddingBottom: insets.bottom }]}>
           {formError && (
             <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
-              <CircleAlert size={13} color={C.error} />
+              <LucideIcon name="alert-circle" size={13} color={C.error} />
               <Text style={[s.inlineErrorText, { color: C.error }]}>{formError}</Text>
             </View>
           )}
@@ -353,7 +352,7 @@ export default function DiaryWriteView({
             </Pressable>
             <Pressable style={[s.saveBtn, { backgroundColor: themeColor, opacity: saving || myDiaryExists ? 0.5 : 1, flex: 2 }]}
               onPress={onSave} disabled={saving || myDiaryExists}>
-              {saving ? <ActivityIndicator color="#fff" size="small" /> : <><Save size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
+              {saving ? <ActivityIndicator color="#fff" size="small" /> : <><LucideIcon name="save" size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
             </Pressable>
           </View>
         </View>

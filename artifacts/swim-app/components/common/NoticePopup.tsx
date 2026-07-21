@@ -22,7 +22,6 @@
  * 자동팝업 숨김과 공지함 열람은 별개.
  * 다시보지않기 해도 공지함에서 계속 확인 가능.
  */
-import { Bell } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -187,7 +186,7 @@ export function NoticePopup() {
           {/* 상단: 카운터 + scope 뱃지 */}
           <View style={s.headerRow}>
             <View style={[s.scopeBadge, { backgroundColor: scopeCfg.bg }]}>
-              <Bell size={12} color={scopeCfg.color} />
+              <LucideIcon name="bell" size={12} color={scopeCfg.color} />
               <Text style={[s.scopeTxt, { color: scopeCfg.color }]}>{scopeCfg.label}</Text>
             </View>
             {showCounter && (

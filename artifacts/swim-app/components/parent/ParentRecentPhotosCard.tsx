@@ -1,5 +1,4 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { ImageIcon } from "lucide-react-native";
 import React, { useState } from "react";
 import { Dimensions, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -32,7 +31,7 @@ function PhotoThumb({ photo, token, totalCount, idx }: { photo: PhotoItem; token
   if (failed) {
     return (
       <View style={[styles.thumb, { alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" }]}>
-        <ImageIcon size={22} color={C.textMuted} />
+        <LucideIcon name="image" size={22} color={C.textMuted} />
       </View>
     );
   }
@@ -66,7 +65,7 @@ export function ParentRecentPhotosCard({ photos, unreadCount, token, onPress }: 
       {/* 헤더 */}
       <View style={styles.header}>
         <View style={[styles.iconBg, { backgroundColor: "#FEF3C7" }]}>
-          <ImageIcon size={16} color="#EA580C" />
+          <LucideIcon name="image" size={16} color="#EA580C" />
         </View>
         <Text style={[styles.title, { color: C.text }]}>최근 사진</Text>
         {hasNew && unreadCount > 0 && (
@@ -92,7 +91,7 @@ export function ParentRecentPhotosCard({ photos, unreadCount, token, onPress }: 
         </View>
       ) : (
         <View style={styles.empty}>
-          <ImageIcon size={22} color={C.textMuted} />
+          <LucideIcon name="image" size={22} color={C.textMuted} />
           <Text style={[styles.emptyTxt, { color: C.textMuted }]}>아직 등록된 사진이 없습니다</Text>
         </View>
       )}

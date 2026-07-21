@@ -3,7 +3,6 @@
  * - 이름, 성별, 출생연도, 소속 수영장, 반 정보 표시
  * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
-import { Clock } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -147,7 +146,7 @@ export default function ChildProfileScreen() {
 
         <View style={{ padding: 20, gap: 12 }}>
           {/* 기본 정보 */}
-          <View style={[s.card, { backgroundColor: C.card }]}>
+            <View style={[s.card, { backgroundColor: C.card }]}>
             <Text style={[s.cardTitle, { color: C.text }]}>기본 정보</Text>
             <View style={[s.divider, { backgroundColor: C.border }]} />
             <InfoRow icon="user" label="이름" value={student.name} accentColor={accentColor} />
@@ -167,7 +166,7 @@ export default function ChildProfileScreen() {
             {scheduleChips.length > 0 && (
               <View style={ir.row}>
                 <View style={[ir.iconBox, { backgroundColor: accentColor + "15" }]}>
-                  <Clock size={16} color={accentColor} />
+                  <LucideIcon name="clock" size={16} color={accentColor} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[ir.label, { color: C.textMuted }]}>수업 일정</Text>

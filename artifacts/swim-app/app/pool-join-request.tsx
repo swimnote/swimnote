@@ -1,4 +1,3 @@
-import { ArrowLeft, AtSign, Check, ChevronRight, CircleAlert, CircleCheck, Info, Lock, Phone, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
@@ -74,7 +73,7 @@ export default function ParentRegisterScreen() {
       {/* 헤더 */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <ArrowLeft size={22} color={C.text} />
+          <LucideIcon name="arrow-left" size={22} color={C.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: C.text }]}>학부모 회원가입</Text>
         <View style={{ width: 40 }} />
@@ -86,7 +85,7 @@ export default function ParentRegisterScreen() {
       >
         {/* 안내 */}
         <View style={[styles.infoBox, { backgroundColor: C.tintLight }]}>
-          <Info size={15} color={C.tint} />
+          <LucideIcon name="info" size={15} color={C.tint} />
           <Text style={[styles.infoText, { color: C.tint }]}>
             가입 후 홈에서 자녀를 수영장과 연결할 수 있습니다.
           </Text>
@@ -94,7 +93,7 @@ export default function ParentRegisterScreen() {
 
         {!!error && (
           <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-            <CircleAlert size={14} color={C.error} />
+            <LucideIcon name="alert-circle" size={14} color={C.error} />
             <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
           </View>
         )}
@@ -104,7 +103,7 @@ export default function ParentRegisterScreen() {
           <View style={{ gap: 6 }}>
             <Text style={[styles.label, { color: C.textSecondary }]}>이름 *</Text>
             <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
-              <User size={16} color={C.textMuted} />
+              <LucideIcon name="user" size={16} color={C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={parentName} onChangeText={setParentName}
@@ -117,7 +116,7 @@ export default function ParentRegisterScreen() {
           <View style={{ gap: 6 }}>
             <Text style={[styles.label, { color: C.textSecondary }]}>전화번호 *</Text>
             <View style={[styles.inputRow, { borderColor: isSocialSignup ? "#2EC4B6" : C.border, backgroundColor: C.card }]}>
-              <Phone size={16} color={isSocialSignup ? "#2EC4B6" : C.textMuted} />
+              <LucideIcon name="phone" size={16} color={isSocialSignup ? "#2EC4B6" : C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={phone} onChangeText={setPhone}
@@ -125,7 +124,7 @@ export default function ParentRegisterScreen() {
                 keyboardType="phone-pad"
                 editable={!isSocialSignup}
               />
-              {isSocialSignup && <CircleCheck size={16} color="#2EC4B6" />}
+              {isSocialSignup && <LucideIcon name="check-circle" size={16} color="#2EC4B6" />}
             </View>
             {isSocialSignup && (
               <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" }}>
@@ -138,7 +137,7 @@ export default function ParentRegisterScreen() {
           <View style={{ gap: 6 }}>
             <Text style={[styles.label, { color: C.textSecondary }]}>아이디 * (로그인에 사용)</Text>
             <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
-              <AtSign size={16} color={C.textMuted} />
+              <LucideIcon name="at-sign" size={16} color={C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={loginId} onChangeText={setLoginId}
@@ -152,7 +151,7 @@ export default function ParentRegisterScreen() {
           <View style={{ gap: 6 }}>
             <Text style={[styles.label, { color: C.textSecondary }]}>비밀번호 * (4자리 이상)</Text>
             <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
-              <Lock size={16} color={C.textMuted} />
+              <LucideIcon name="lock" size={16} color={C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={password} onChangeText={setPassword}
@@ -172,7 +171,7 @@ export default function ParentRegisterScreen() {
               borderColor: passwordConfirm && password !== passwordConfirm ? C.error : C.border,
               backgroundColor: C.card,
             }]}>
-              <Lock size={16} color={C.textMuted} />
+              <LucideIcon name="lock" size={16} color={C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={passwordConfirm} onChangeText={setPasswordConfirm}
@@ -206,7 +205,7 @@ export default function ParentRegisterScreen() {
                 backgroundColor: (termsAgreed && privacyAgreed && refundAgreed) ? C.tint : "transparent",
               }
             ]}>
-              {termsAgreed && privacyAgreed && refundAgreed && <Check size={12} color="#fff" />}
+              {termsAgreed && privacyAgreed && refundAgreed && <LucideIcon name="check" size={12} color="#fff" />}
             </View>
             <Text style={[styles.termsTextBold, { color: C.text }]}>전체 동의</Text>
           </Pressable>
@@ -219,11 +218,11 @@ export default function ParentRegisterScreen() {
               styles.checkbox,
               { borderColor: termsAgreed ? C.tint : C.border, backgroundColor: termsAgreed ? C.tint : "transparent" }
             ]}>
-              {termsAgreed && <Check size={12} color="#fff" />}
+              {termsAgreed && <LucideIcon name="check" size={12} color="#fff" />}
             </View>
             <Text style={[styles.termsText, { color: C.textSecondary, flex: 1 }]}>이용약관 동의 (필수)</Text>
             <Pressable hitSlop={8} onPress={() => router.push("/terms" as any)}>
-              <ChevronRight size={16} color={C.textMuted} />
+              <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
             </Pressable>
           </Pressable>
 
@@ -233,11 +232,11 @@ export default function ParentRegisterScreen() {
               styles.checkbox,
               { borderColor: privacyAgreed ? C.tint : C.border, backgroundColor: privacyAgreed ? C.tint : "transparent" }
             ]}>
-              {privacyAgreed && <Check size={12} color="#fff" />}
+              {privacyAgreed && <LucideIcon name="check" size={12} color="#fff" />}
             </View>
             <Text style={[styles.termsText, { color: C.textSecondary, flex: 1 }]}>개인정보 처리방침 동의 (필수)</Text>
             <Pressable hitSlop={8} onPress={() => router.push("/privacy" as any)}>
-              <ChevronRight size={16} color={C.textMuted} />
+              <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
             </Pressable>
           </Pressable>
 
@@ -247,11 +246,11 @@ export default function ParentRegisterScreen() {
               styles.checkbox,
               { borderColor: refundAgreed ? C.tint : C.border, backgroundColor: refundAgreed ? C.tint : "transparent" }
             ]}>
-              {refundAgreed && <Check size={12} color="#fff" />}
+              {refundAgreed && <LucideIcon name="check" size={12} color="#fff" />}
             </View>
             <Text style={[styles.termsText, { color: C.textSecondary, flex: 1 }]}>환불 및 결제 정책 동의 (필수)</Text>
             <Pressable hitSlop={8} onPress={() => router.push("/refund" as any)}>
-              <ChevronRight size={16} color={C.textMuted} />
+              <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
             </Pressable>
           </Pressable>
         </View>

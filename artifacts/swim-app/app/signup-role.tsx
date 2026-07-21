@@ -1,4 +1,4 @@
-import { ArrowLeft, Briefcase, Award, Heart, Check } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -16,7 +16,7 @@ type RoleKey = "admin" | "teacher" | "parent";
 
 interface RoleItem {
   key: RoleKey;
-  Icon: React.ComponentType<{ size: number; color: string }>;
+  iconName: string;
   iconColor: string;
   label: string;
   desc: string;
@@ -26,7 +26,7 @@ interface RoleItem {
 const ROLES: RoleItem[] = [
   {
     key: "admin",
-    Icon: Briefcase,
+    iconName: "briefcase",
     iconColor: "#4F6EF7",
     label: "수영장 대표",
     desc: "수영장을 직접 운영하는 원장/관리자\n또는 1인 레슨 팀을 운영하는 선생님",
@@ -34,7 +34,7 @@ const ROLES: RoleItem[] = [
   },
   {
     key: "teacher",
-    Icon: Award,
+    iconName: "award",
     iconColor: "#2E9B6F",
     label: "선생님",
     desc: "스윔노트에 가입된 수영장에서 근무 중인 선생님",
@@ -42,7 +42,7 @@ const ROLES: RoleItem[] = [
   },
   {
     key: "parent",
-    Icon: Heart,
+    iconName: "heart",
     iconColor: "#E4A93A",
     label: "학부모",
     desc: "스윔노트에 가입된 수영장에 자녀가 등록된 학부모",
@@ -84,7 +84,7 @@ export default function SignupRoleScreen() {
       >
         <View style={styles.header}>
           <Pressable style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]} onPress={() => router.back()}>
-            <ArrowLeft size={20} color={C.text} />
+            <LucideIcon name="arrow-left" size={20} color={C.text} />
           </Pressable>
         </View>
 
@@ -115,7 +115,7 @@ export default function SignupRoleScreen() {
               >
                 {isSelected && (
                   <View style={styles.checkBadge}>
-                    <Check size={13} color="#fff" strokeWidth={3} />
+                    <LucideIcon name="check" size={13} color="#fff" strokeWidth={3} />
                   </View>
                 )}
 
@@ -126,7 +126,7 @@ export default function SignupRoleScreen() {
                       ? { backgroundColor: "rgba(255,255,255,0.25)" }
                       : { backgroundColor: r.iconColor + "18" },
                   ]}>
-                    <r.Icon size={22} color={isSelected ? "#fff" : r.iconColor} />
+                    <LucideIcon name={r.iconName as any} size={22} color={isSelected ? "#fff" : r.iconColor} />
                   </View>
 
                   <View style={styles.cardText}>

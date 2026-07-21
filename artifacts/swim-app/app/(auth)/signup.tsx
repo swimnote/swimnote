@@ -4,9 +4,6 @@
  * 소셜(카카오 전화있음): Step3(역할선택) → Step4(추가정보)
  * 소셜(애플·전화없음): Step2(휴대폰) → Step3(역할선택) → Step4(추가정보)
  */
-import { ArrowLeft, Check, CircleAlert, CircleCheck, CircleX, Hash, MapPin, Search, Smartphone, Terminal } from "lucide-react-native";
-import { toAsciiOnly } from "@/utils/koreanToQwerty";
-import { validateName, validatePhone } from "@/utils/validation";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
@@ -396,7 +393,7 @@ export default function SignupScreen() {
             <View key={n} style={styles.stepItem}>
               <View style={[styles.stepDot, { backgroundColor: done ? C.tint : active ? C.tint : C.border }]}>
                 {done
-                  ? <Check size={12} color="#fff" />
+                  ? <LucideIcon name="check" size={12} color="#fff" />
                   : <Text style={[styles.stepNum, { color: active ? "#fff" : C.textMuted }]}>{visibleSteps.findIndex(s => s.n === n) + 1}</Text>}
               </View>
               <Text style={[styles.stepLabel, { color: active ? C.tint : C.textMuted }]}>{label}</Text>
@@ -480,7 +477,7 @@ export default function SignupScreen() {
           <Text style={[styles.label, { color: C.textSecondary }]}>휴대폰 번호</Text>
           <View style={styles.phoneRow}>
             <View style={[styles.inputBox, { flex: 1, borderColor: C.border, backgroundColor: C.background }]}>
-              <Smartphone size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+              <LucideIcon name="smartphone" size={15} color={C.textMuted} style={{ marginRight: 8 }} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 placeholder="010-0000-0000"
@@ -511,7 +508,7 @@ export default function SignupScreen() {
             <Text style={[styles.label, { color: C.textSecondary }]}>인증번호</Text>
             <View style={styles.codeRow}>
               <View style={[styles.inputBox, { flex: 1, borderColor: verified ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Hash size={15} color={verified ? C.tint : C.textMuted} style={{ marginRight: 8 }} />
+                <LucideIcon name="hash" size={15} color={verified ? C.tint : C.textMuted} style={{ marginRight: 8 }} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   placeholder="6자리 입력"
@@ -540,7 +537,7 @@ export default function SignupScreen() {
             </View>
             {verified && (
               <View style={styles.verifiedRow}>
-                <CircleCheck size={14} color={C.tint} />
+                <LucideIcon name="check-circle" size={14} color={C.tint} />
                 <Text style={[styles.verifiedTxt, { color: C.tint }]}>인증 완료</Text>
               </View>
             )}
@@ -549,7 +546,7 @@ export default function SignupScreen() {
 
         {devCode && (
           <View style={styles.devCodeBox}>
-            <Terminal size={13} color="#856404" />
+            <LucideIcon name="terminal" size={13} color="#856404" />
             <Text style={styles.devCodeLabel}>개발용 코드:</Text>
             <Text style={styles.devCodeNum}>{devCode}</Text>
           </View>
@@ -580,11 +577,11 @@ export default function SignupScreen() {
                 {/* 우측 상단 체크 */}
                 {selected && (
                   <View style={styles.roleCheckBadge}>
-                    <CircleCheck size={18} color="#fff" />
+                    <LucideIcon name="check-circle" size={18} color="#fff" />
                   </View>
                 )}
                 <View style={[styles.roleIcon, { backgroundColor: selected ? "rgba(255,255,255,0.25)" : r.bg }]}>
-                  <LucideIcon name={r.icon} size={22} color={selected ? "#fff" : r.color} />
+                  <LucideIcon name={r.icon as any} size={22} color={selected ? "#fff" : r.color} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.roleLabel, { color: selected ? "#fff" : C.text }]}>{r.label}</Text>
@@ -646,20 +643,20 @@ export default function SignupScreen() {
             {selectedPool ? (
               <View style={styles.selectedPool}>
                 <View style={[styles.poolIconSm, { backgroundColor: "#FFF3E0" }]}>
-                  <Check size={14} color="#E4A93A" />
+                  <LucideIcon name="check" size={14} color="#E4A93A" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.poolNameSm, { color: C.text }]}>{selectedPool.name}</Text>
                   {selectedPool.address ? <Text style={[styles.poolAddrSm, { color: C.textSecondary }]}>{selectedPool.address}</Text> : null}
                 </View>
                 <Pressable onPress={() => setSelectedPool(null)}>
-                  <CircleX size={18} color={C.textMuted} />
+                  <LucideIcon name="x-circle" size={18} color={C.textMuted} />
                 </Pressable>
               </View>
             ) : (
               <>
                 <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-                  <Search size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+                  <LucideIcon name="search" size={15} color={C.textMuted} style={{ marginRight: 8 }} />
                   <TextInput
                     style={[styles.input, { color: C.text }]}
                     placeholder="수영장 이름 검색"
@@ -681,7 +678,7 @@ export default function SignupScreen() {
                     onPress={() => setSelectedPool(p)}
                   >
                     <View style={[styles.poolIconSm, { backgroundColor: "#FFF3E0" }]}>
-                      <MapPin size={13} color="#E4A93A" />
+                      <LucideIcon name="map-pin" size={13} color="#E4A93A" />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.poolNameSm, { color: C.text }]}>{p.name}</Text>
@@ -723,20 +720,20 @@ export default function SignupScreen() {
             {selectedPool ? (
               <View style={styles.selectedPool}>
                 <View style={[styles.poolIconSm, { backgroundColor: "#E6FAF8" }]}>
-                  <Check size={14} color={C.tint} />
+                  <LucideIcon name="check" size={14} color={C.tint} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.poolNameSm, { color: C.text }]}>{selectedPool.name}</Text>
                   {selectedPool.address ? <Text style={[styles.poolAddrSm, { color: C.textSecondary }]}>{selectedPool.address}</Text> : null}
                 </View>
                 <Pressable onPress={() => setSelectedPool(null)}>
-                  <CircleX size={18} color={C.textMuted} />
+                  <LucideIcon name="x-circle" size={18} color={C.textMuted} />
                 </Pressable>
               </View>
             ) : (
               <>
                 <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-                  <Search size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+                  <LucideIcon name="search" size={15} color={C.textMuted} style={{ marginRight: 8 }} />
                   <TextInput
                     style={[styles.input, { color: C.text }]}
                     placeholder="수영장 이름 검색"
@@ -758,7 +755,7 @@ export default function SignupScreen() {
                     onPress={() => setSelectedPool(p)}
                   >
                     <View style={[styles.poolIconSm, { backgroundColor: "#E6FAF8" }]}>
-                      <MapPin size={13} color={C.tint} />
+                      <LucideIcon name="map-pin" size={13} color={C.tint} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.poolNameSm, { color: C.text }]}>{p.name}</Text>
@@ -791,7 +788,7 @@ export default function SignupScreen() {
           {/* 아이콘 */}
           <View style={{ alignItems: "center", marginBottom: 28 }}>
             <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center" }}>
-              <CircleCheck size={42} color={C.tint} />
+              <LucideIcon name="check-circle" size={42} color={C.tint} />
             </View>
           </View>
 
@@ -855,7 +852,7 @@ export default function SignupScreen() {
         {/* 헤더 */}
         <View style={styles.header}>
           <Pressable style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]} onPress={goBack}>
-            <ArrowLeft size={22} color={C.text} />
+            <LucideIcon name="arrow-left" size={22} color={C.text} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: C.text }]}>회원가입</Text>
           <View style={{ width: 30 }} />

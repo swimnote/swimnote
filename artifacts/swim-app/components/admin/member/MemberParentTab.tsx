@@ -1,4 +1,3 @@
-import { MessageSquare, Phone, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
@@ -51,7 +50,7 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
       <View style={ms.section}>
         <Text style={ms.sectionTitle}>학부모 정보</Text>
         <View style={ms.infoRow}>
-          <User size={13} color={C.textMuted} />
+          <LucideIcon name="user" size={13} color={C.textMuted} />
           <Text style={ms.infoLabel}>이름</Text>
           <Text style={ms.infoValue}>{data.parent_name || "미입력"}</Text>
         </View>
@@ -60,7 +59,7 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
           const hasPhone = !!ph;
           return (
             <View key={label} style={ms.infoRow}>
-              <Phone size={13} color={hasPhone ? CALL_COLOR : C.textMuted} />
+              <LucideIcon name="phone" size={13} color={hasPhone ? CALL_COLOR : C.textMuted} />
               <Text style={ms.infoLabel}>{label}</Text>
               {hasPhone ? (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1, justifyContent: "flex-end" }}>
@@ -72,7 +71,7 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
                     <Text style={[ms.infoValue, { color: CALL_COLOR, flex: 0 }]}>{formatPhone(ph)}</Text>
                   </Pressable>
                   <Pressable onPress={() => sendSms(ph)} hitSlop={8}>
-                    <MessageSquare size={13} color={SMS_COLOR} />
+                    <LucideIcon name="message-square" size={13} color={SMS_COLOR} />
                   </Pressable>
                 </View>
               ) : (

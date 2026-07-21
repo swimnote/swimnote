@@ -5,7 +5,6 @@
  * - 항목 클릭 시 펼치기/접기
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { BookOpen, CircleCheck, Mail, UserRound } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -42,7 +41,7 @@ function Toast({ msg, visible }: { msg: string; visible: boolean }) {
   if (!visible) return null;
   return (
     <View style={[ts.toast, { bottom: insets.bottom + 46 }]} pointerEvents="none">
-      <CircleCheck size={14} color="#fff" />
+      <LucideIcon name="check-circle" size={14} color="#fff" />
       <Text style={ts.toastTxt}>{msg}</Text>
     </View>
   );
@@ -174,7 +173,7 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
           <Text style={[ds.reactionLabel, { color: myReactions.has("thank") ? "#BE185D" : C.textSecondary }]}>감사합니다</Text>
         </Pressable>
         <Pressable onPress={goToMessages} style={ds.reactionBtn}>
-          <Mail size={17} color={C.textSecondary} />
+          <LucideIcon name="mail" size={17} color={C.textSecondary} />
           <Text style={[ds.reactionLabel, { color: C.textSecondary }]}>쪽지달기</Text>
         </Pressable>
       </View>
@@ -252,19 +251,19 @@ export default function ParentDiaryScreen() {
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
       ) : !selectedStudent ? (
         <View style={ds.empty}>
-          <UserRound size={44} color={C.textMuted} />
+          <LucideIcon name="user-round" size={44} color={C.textMuted} />
           <Text style={[ds.emptyTitle, { color: C.text }]}>자녀를 선택해주세요</Text>
           <Text style={[ds.emptySub, { color: C.textSecondary }]}>홈 화면에서 자녀를 선택하세요</Text>
         </View>
       ) : diaryNotFound ? (
         <View style={ds.empty}>
-          <BookOpen size={44} color={C.textMuted} />
+          <LucideIcon name="book-open" size={44} color={C.textMuted} />
           <Text style={[ds.emptyTitle, { color: C.text }]}>일지를 찾을 수 없습니다</Text>
           <Text style={[ds.emptySub, { color: C.textSecondary }]}>요청한 수업일지가 목록에 없습니다{"\n"}아래로 당겨 새로고침해 주세요</Text>
         </View>
       ) : entries.length === 0 ? (
         <View style={ds.empty}>
-          <BookOpen size={44} color={C.textMuted} />
+          <LucideIcon name="book-open" size={44} color={C.textMuted} />
           <Text style={[ds.emptyTitle, { color: C.text }]}>아직 수업 일지가 없습니다</Text>
           <Text style={[ds.emptySub, { color: C.textSecondary }]}>선생님이 수업 후 일지를 작성하면{"\n"}여기에서 확인하실 수 있습니다</Text>
         </View>

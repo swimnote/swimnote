@@ -1,10 +1,10 @@
-import { ArrowLeft, Calendar, ChevronRight, CircleAlert, CircleCheck, Clock, Droplet, Minus, Plus, Search, User } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { apiRequest, API_BASE, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 import { validateName, validateStudentBirthYear } from "@/utils/validation";
@@ -25,7 +25,7 @@ function DoneAutoRedirect({ linkedNames, poolName }: { linkedNames: string[]; po
   return (
     <View style={st.resultBox}>
       <View style={[st.resultIcon, { backgroundColor: "#E6FFFA" }]}>
-        <CircleCheck size={44} color="#2EC4B6" />
+        <LucideIcon name="check-circle" size={44} color="#2EC4B6" />
       </View>
       <Text style={[st.resultTitle, { color: C.text }]}>연결 완료!</Text>
       <Text style={[st.resultSub, { color: C.textSecondary }]}>
@@ -166,7 +166,7 @@ export default function LinkChildScreen() {
       {/* 헤더 */}
       <View style={[st.header, { paddingTop: insets.top + 10 }]}>
         <Pressable style={st.backBtn} onPress={() => router.back()}>
-          <ArrowLeft size={22} color={C.text} />
+          <LucideIcon name="arrow-left" size={22} color={C.text} />
         </Pressable>
         <Text style={[st.title, { color: C.text }]}>자녀 연결하기</Text>
         <View style={{ width: 40 }} />
@@ -181,7 +181,7 @@ export default function LinkChildScreen() {
           <Text style={[st.sectionTitle, { color: C.text }]}>자녀가 다니는 수영장을 찾아주세요</Text>
 
           <View style={[st.searchRow, { borderColor: C.border, backgroundColor: C.card }]}>
-            <Search size={18} color={C.textMuted} />
+            <LucideIcon name="search" size={18} color={C.textMuted} />
             <TextInput
               style={[st.searchInput, { color: C.text }]}
               value={query} onChangeText={setQuery}
@@ -200,7 +200,7 @@ export default function LinkChildScreen() {
 
           {!!error && (
             <View style={[st.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <CircleAlert size={14} color={C.error} />
+              <LucideIcon name="alert-circle" size={14} color={C.error} />
               <Text style={[st.errTxt, { color: C.error }]}>{error}</Text>
             </View>
           )}
@@ -212,19 +212,19 @@ export default function LinkChildScreen() {
               onPress={() => { setSelectedPool(pool); setStep("child"); setError(""); }}
             >
               <View style={[st.poolIcon, { backgroundColor: C.tintLight }]}>
-                <Droplet size={20} color={C.tint} />
+                <LucideIcon name="droplet" size={20} color={C.tint} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[st.poolName, { color: C.text }]}>{pool.name}</Text>
                 {pool.address && <Text style={[st.poolAddr, { color: C.textMuted }]}>{pool.address}</Text>}
               </View>
-              <ChevronRight size={18} color={C.textMuted} />
+              <LucideIcon name="chevron-right" size={18} color={C.textMuted} />
             </Pressable>
           ))}
 
           {results.length === 0 && query && !searching && (
             <View style={st.emptyBox}>
-              <Search size={28} color={C.textMuted} />
+              <LucideIcon name="search" size={28} color={C.textMuted} />
               <Text style={[st.emptyTxt, { color: C.textMuted }]}>검색 결과가 없습니다</Text>
               <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 18 }}>
                 이름을 다르게 검색해보거나{"\n"}수영장에 SwimNote 등록 여부를 확인해주세요
@@ -243,7 +243,7 @@ export default function LinkChildScreen() {
         >
           {/* 선택된 수영장 */}
           <View style={[st.selectedPool, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
-            <Droplet size={16} color={C.tint} />
+            <LucideIcon name="droplet" size={16} color={C.tint} />
             <Text style={[st.selectedPoolName, { color: C.tint }]}>{selectedPool.name}</Text>
             <Pressable onPress={() => { setStep("pool"); setError(""); }}>
               <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Regular" }}>변경</Text>
@@ -258,7 +258,7 @@ export default function LinkChildScreen() {
           {!!error && (
             <View style={[st.errBox, { backgroundColor: "#F9DEDA", flexDirection: "column", gap: 6 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <CircleAlert size={14} color={C.error} />
+                <LucideIcon name="alert-circle" size={14} color={C.error} />
                 <Text style={[st.errTxt, { color: C.error }]}>{error}</Text>
               </View>
               <Text style={{ fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", lineHeight: 17, paddingLeft: 22 }}>
@@ -277,13 +277,13 @@ export default function LinkChildScreen() {
                   <Text style={[st.label, { color: C.textSecondary }]}>자녀 {i + 1}{i === 0 ? " *" : ""}</Text>
                   {i > 0 && (
                     <Pressable onPress={() => removeChild(i)} style={[st.removeBtn, { backgroundColor: "#FEF2F2" }]} hitSlop={8}>
-                      <Minus size={14} color="#DC2626" />
+                      <LucideIcon name="minus" size={14} color="#DC2626" />
                     </Pressable>
                   )}
                 </View>
                 {/* 이름 */}
                 <View style={[st.inputRow, { borderColor: i === 0 && nameError ? C.error : C.border, backgroundColor: C.background }]}>
-                  <User size={16} color={C.textMuted} />
+                  <LucideIcon name="user" size={16} color={C.textMuted} />
                   <TextInput
                     style={[st.input, { color: C.text }]}
                     value={name}
@@ -312,7 +312,7 @@ export default function LinkChildScreen() {
             ))}
             {/* 자녀 추가 버튼 */}
             <Pressable style={[st.addBtn, { borderColor: C.tint }]} onPress={addChild}>
-              <Plus size={16} color={C.tint} />
+              <LucideIcon name="plus" size={16} color={C.tint} />
               <Text style={[st.addBtnTxt, { color: C.tint }]}>자녀 추가</Text>
             </Pressable>
 
@@ -320,7 +320,7 @@ export default function LinkChildScreen() {
             <View style={{ gap: 4, marginTop: 4 }}>
               <Text style={[st.label, { color: C.textSecondary }]}>출생 연도 (선택)</Text>
               <View style={[st.inputRow, { borderColor: birthYearError ? C.error : C.border, backgroundColor: C.card }]}>
-                <Calendar size={16} color={C.textMuted} />
+                <LucideIcon name="calendar" size={16} color={C.textMuted} />
                 <TextInput
                   style={[st.input, { color: C.text }]}
                   value={birthYear}
@@ -357,7 +357,7 @@ export default function LinkChildScreen() {
       {step === "pending" && (
         <View style={st.resultBox}>
           <View style={[st.resultIcon, { backgroundColor: "#FEF2F2" }]}>
-            <Clock size={44} color="#DC2626" />
+            <LucideIcon name="clock" size={44} color="#DC2626" />
           </View>
           <Text style={[st.resultTitle, { color: C.text }]}>학생을 찾지 못했습니다</Text>
           <Text style={[st.resultSub, { color: C.textSecondary }]}>

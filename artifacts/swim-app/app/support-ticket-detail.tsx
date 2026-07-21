@@ -2,7 +2,7 @@
  * support-ticket-detail.tsx — 문의 상세 + 대화
  * 사용자와 슈퍼관리자 모두 이 화면 사용
  */
-import { ChevronLeft, Image as ImageIcon, Send } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
@@ -161,7 +161,7 @@ export default function SupportTicketDetailScreen() {
       {/* 헤더 */}
       <View style={s.header}>
         <Pressable onPress={() => router.back()} style={s.backBtn}>
-          <ChevronLeft size={24} color={C.text} />
+          <LucideIcon name="chevron-left" size={24} color={C.text} />
         </Pressable>
         <Text style={s.headerTitle} numberOfLines={1}>{ticket.subject}</Text>
         <View style={{ width: 36 }} />
@@ -250,7 +250,7 @@ export default function SupportTicketDetailScreen() {
             )}
             <View style={s.inputRow}>
               <Pressable style={s.imgPickBtn} onPress={pickReplyImage}>
-                <ImageIcon size={20} color={C.textMuted} />
+                <LucideIcon name="image" size={20} color={C.textMuted} />
               </Pressable>
               <TextInput
                 style={s.textInput}
@@ -268,7 +268,7 @@ export default function SupportTicketDetailScreen() {
               >
                 {sending
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Send size={18} color="#fff" />
+                  : <LucideIcon name="send" size={18} color="#fff" />
                 }
               </Pressable>
             </View>

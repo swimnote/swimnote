@@ -1,4 +1,3 @@
-import { BookOpen, Calendar, CircleAlert, CirclePlus, CircleX, Images, Layers, Save, Trash2, User, Users } from "lucide-react-native";
 import React, { MutableRefObject } from "react";
 import {
   ActivityIndicator, Pressable,
@@ -8,6 +7,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image as ExpoImage } from "expo-image";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import SentencePicker from "@/components/teacher/SentencePicker";
 import { AlbumPhotoInfo, AlbumVideoInfo, DiaryEntry, ExistingNote, StudentNote, StudentOption } from "./types";
 import { API_BASE } from "@/context/AuthContext";
@@ -84,15 +84,15 @@ export default function DiaryEditView({
 
         <View style={[s.infoCard, { backgroundColor: themeColor + "12", borderColor: themeColor + "30" }]}>
           <View style={s.infoCardRow}>
-            <Layers size={14} color={themeColor} />
+            <LucideIcon name="layers" size={14} color={themeColor} />
             <Text style={[s.infoCardText, { color: themeColor }]}>{group.name}</Text>
           </View>
           <View style={s.infoCardRow}>
-            <Calendar size={14} color={themeColor} />
+            <LucideIcon name="calendar" size={14} color={themeColor} />
             <Text style={[s.infoCardText, { color: themeColor }]}>{editDiary?.lesson_date} · {group.schedule_time}</Text>
           </View>
           <View style={s.infoCardRow}>
-            <User size={14} color={themeColor} />
+            <LucideIcon name="user" size={14} color={themeColor} />
             <Text style={[s.infoCardText, { color: themeColor }]}>{editDiary?.teacher_name} 선생님</Text>
           </View>
         </View>
@@ -100,7 +100,7 @@ export default function DiaryEditView({
         <View style={[s.card, { backgroundColor: C.card }]}>
           <View style={s.cardHeader}>
             <View style={[s.cardIcon, { backgroundColor: themeColor + "20" }]}>
-              <BookOpen size={15} color={themeColor} />
+              <LucideIcon name="book-open" size={15} color={themeColor} />
             </View>
             <Text style={[s.cardTitle, { color: C.text }]}>반 공통 일지</Text>
             <Text style={s.cardSub}>모든 학생에게 공통으로 보이는 내용</Text>
@@ -114,7 +114,7 @@ export default function DiaryEditView({
           <View style={s.textareaFooter}>
             <Text style={s.charCount}>{editContent.length}자</Text>
             <TouchableOpacity style={s.sentencePickBtn} onPress={() => setEditPickerFor("common")} activeOpacity={0.7}>
-              <BookOpen size={13} color={C.tint} />
+              <LucideIcon name="book-open" size={13} color={C.tint} />
               <Text style={s.sentencePickBtnText}>템플릿선택</Text>
             </TouchableOpacity>
           </View>
@@ -133,7 +133,7 @@ export default function DiaryEditView({
                           contentFit="cover"
                         />
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveLinkedPhoto(photo.id)} hitSlop={6}>
-                          <CircleX size={16} color="#fff" fill="#DC2626" />
+                          <LucideIcon name="x-circle" size={16} color="#fff" fill="#DC2626" />
                         </Pressable>
                       </View>
                     ))}
@@ -152,7 +152,7 @@ export default function DiaryEditView({
                           contentFit="cover"
                         />
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveNewAlbumPhoto(photo.id)} hitSlop={6}>
-                          <CircleX size={16} color="#fff" fill="#374151" />
+                          <LucideIcon name="x-circle" size={16} color="#fff" fill="#374151" />
                         </Pressable>
                       </View>
                     ))}
@@ -167,7 +167,7 @@ export default function DiaryEditView({
                       <View key={video.id} style={s.albumThumb}>
                         {video.status === 'expired' ? (
                           <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", padding: 4 }}>
-                            <CircleAlert size={14} color="#94A3B8" />
+                            <LucideIcon name="alert-circle" size={14} color="#94A3B8" />
                             <Text style={{ fontSize: 8, color: "#94A3B8", textAlign: "center", marginTop: 2 }}>보관기간{"\n"}만료</Text>
                           </View>
                         ) : video.thumbnail_presigned_url ? (
@@ -178,11 +178,11 @@ export default function DiaryEditView({
                           />
                         ) : (
                           <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
-                            <Layers size={16} color="#94A3B8" />
+                            <LucideIcon name="layers" size={16} color="#94A3B8" />
                           </View>
                         )}
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveLinkedVideo(video.id)} hitSlop={6}>
-                          <CircleX size={16} color="#fff" fill="#DC2626" />
+                          <LucideIcon name="x-circle" size={16} color="#fff" fill="#DC2626" />
                         </Pressable>
                       </View>
                     ))}
@@ -203,11 +203,11 @@ export default function DiaryEditView({
                           />
                         ) : (
                           <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
-                            <Layers size={16} color="#94A3B8" />
+                            <LucideIcon name="layers" size={16} color="#94A3B8" />
                           </View>
                         )}
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveNewAlbumVideo(video.id)} hitSlop={6}>
-                          <CircleX size={16} color="#fff" fill="#374151" />
+                          <LucideIcon name="x-circle" size={16} color="#fff" fill="#374151" />
                         </Pressable>
                       </View>
                     ))}
@@ -218,7 +218,7 @@ export default function DiaryEditView({
           )}
 
           <Pressable style={s.albumPickerBtn} onPress={onOpenAlbumPicker}>
-            <Images size={14} color="#3B82F6" />
+            <LucideIcon name="image" size={14} color="#3B82F6" />
             <Text style={s.albumPickerBtnText}>앨범에서 선택</Text>
           </Pressable>
         </View>
@@ -226,7 +226,7 @@ export default function DiaryEditView({
         <View style={[s.card, { backgroundColor: C.card }]}>
           <View style={s.cardHeader}>
             <View style={[s.cardIcon, { backgroundColor: "#8B5CF620" }]}>
-              <Users size={15} color="#8B5CF6" />
+              <LucideIcon name="users" size={15} color="#8B5CF6" />
             </View>
             <Text style={[s.cardTitle, { color: C.text }]}>학생별 추가 일지</Text>
             <Text style={s.cardSub}>개별 코멘트 수정</Text>
@@ -241,7 +241,7 @@ export default function DiaryEditView({
                 <View style={s.editNoteHeader}>
                   <Text style={s.noteName}>{note.student_name}</Text>
                   <Pressable onPress={() => onMarkNoteDeleted(note.id)}>
-                    <Trash2 size={15} color={C.error} />
+                    <LucideIcon name="trash-2" size={15} color={C.error} />
                   </Pressable>
                 </View>
                 <TextInput style={[s.noteTextarea, { borderColor: "#C4B5FD", color: C.text }]}
@@ -251,7 +251,7 @@ export default function DiaryEditView({
                   placeholder="개별 코멘트를 입력하세요" placeholderTextColor={C.textMuted} />
                 <View style={s.mediaRow}>
                   <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={() => onOpenStudentAlbumPicker(st)}>
-                    <Images size={13} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
+                    <LucideIcon name="image" size={13} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
                   </Pressable>
                 </View>
                 {(stPhotos.length > 0 || stVideos.length > 0) && (
@@ -260,7 +260,7 @@ export default function DiaryEditView({
                       <View key={photo.id} style={s.albumThumb}>
                         <ExpoImage source={{ uri: photo.presigned_url ?? `${API_BASE.replace(/\/api$/, "")}${photo.file_url}?token=${token}` }} style={{ width: "100%", height: "100%", borderRadius: 6 }} contentFit="cover" />
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveStudentAlbumPhoto(note.student_id, photo.id)} hitSlop={6}>
-                          <CircleX size={16} color="#fff" fill="#374151" />
+                          <LucideIcon name="x-circle" size={16} color="#fff" fill="#374151" />
                         </Pressable>
                       </View>
                     ))}
@@ -270,11 +270,11 @@ export default function DiaryEditView({
                           <ExpoImage source={{ uri: video.thumbnail_presigned_url }} style={{ width: "100%", height: "100%", borderRadius: 6 }} contentFit="cover" />
                         ) : (
                           <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
-                            <Layers size={16} color="#94A3B8" />
+                            <LucideIcon name="layers" size={16} color="#94A3B8" />
                           </View>
                         )}
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveStudentAlbumVideo(note.student_id, video.id)} hitSlop={6}>
-                          <CircleX size={16} color="#fff" fill="#374151" />
+                          <LucideIcon name="x-circle" size={16} color="#fff" fill="#374151" />
                         </Pressable>
                       </View>
                     ))}
@@ -298,13 +298,13 @@ export default function DiaryEditView({
                     <Text style={[s.noteName, { color: "#2EC4B6" }]}>{note.student_name}</Text>
                   </View>
                   <Pressable onPress={() => onRemoveNewNote(idx)}>
-                    <CircleX size={15} color={C.error} />
+                    <LucideIcon name="x-circle" size={15} color={C.error} />
                   </Pressable>
                 </View>
                 <Text style={[s.noteContent, { color: C.text }]}>{note.note_content}</Text>
                 <View style={s.mediaRow}>
                   <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={() => onOpenStudentAlbumPicker(st)}>
-                    <Images size={13} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
+                    <LucideIcon name="image" size={13} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
                   </Pressable>
                 </View>
                 {(stPhotos.length > 0 || stVideos.length > 0) && (
@@ -313,7 +313,7 @@ export default function DiaryEditView({
                       <View key={photo.id} style={s.albumThumb}>
                         <ExpoImage source={{ uri: photo.presigned_url ?? `${API_BASE.replace(/\/api$/, "")}${photo.file_url}?token=${token}` }} style={{ width: "100%", height: "100%", borderRadius: 6 }} contentFit="cover" />
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveStudentAlbumPhoto(note.student_id, photo.id)} hitSlop={6}>
-                          <CircleX size={16} color="#fff" fill="#374151" />
+                          <LucideIcon name="x-circle" size={16} color="#fff" fill="#374151" />
                         </Pressable>
                       </View>
                     ))}
@@ -323,11 +323,11 @@ export default function DiaryEditView({
                           <ExpoImage source={{ uri: video.thumbnail_presigned_url }} style={{ width: "100%", height: "100%", borderRadius: 6 }} contentFit="cover" />
                         ) : (
                           <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
-                            <Layers size={16} color="#94A3B8" />
+                            <LucideIcon name="layers" size={16} color="#94A3B8" />
                           </View>
                         )}
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveStudentAlbumVideo(note.student_id, video.id)} hitSlop={6}>
-                          <CircleX size={16} color="#fff" fill="#374151" />
+                          <LucideIcon name="x-circle" size={16} color="#fff" fill="#374151" />
                         </Pressable>
                       </View>
                     ))}
@@ -339,7 +339,7 @@ export default function DiaryEditView({
 
           {classStudents.length === 0 ? (
             <View style={[s.emptyStudents, { backgroundColor: C.background, borderColor: C.border }]}>
-              <Users size={16} color={C.textMuted} />
+              <LucideIcon name="users" size={16} color={C.textMuted} />
               <Text style={[s.emptyStudentsText, { color: C.textMuted }]}>이 수업에 배정된 학생이 없습니다</Text>
             </View>
           ) : (
@@ -353,7 +353,7 @@ export default function DiaryEditView({
                         editAddStudent?.id === st.id && { borderColor: "#8B5CF6", backgroundColor: "#EEDDF5" }]}
                       onPress={() => { if (editAddStudent?.id === st.id) { setEditAddStudent(null); setEditAddInput(""); } else { setEditAddStudent(st); setEditAddInput(""); } }}>
                       <Text style={[s.studentChipText, { color: editAddStudent?.id === st.id ? "#8B5CF6" : C.text }]}>{st.name}</Text>
-                      <CirclePlus size={15} color={editAddStudent?.id === st.id ? "#8B5CF6" : C.textMuted} />
+                      <LucideIcon name="plus-circle" size={15} color={editAddStudent?.id === st.id ? "#8B5CF6" : C.textMuted} />
                     </Pressable>
                   ))}
                 </View>
@@ -382,7 +382,7 @@ export default function DiaryEditView({
         <View style={[s.footer, { paddingBottom: insets.bottom }]}>
           {editError && (
             <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
-              <CircleAlert size={13} color={C.error} />
+              <LucideIcon name="alert-circle" size={13} color={C.error} />
               <Text style={[s.inlineErrorText, { color: C.error }]}>{editError}</Text>
             </View>
           )}
@@ -392,7 +392,7 @@ export default function DiaryEditView({
             </Pressable>
             <Pressable style={[s.saveBtn, { backgroundColor: themeColor, opacity: editSaving ? 0.5 : 1, flex: 2 }]}
               onPress={onSave} disabled={editSaving}>
-              {editSaving ? <ActivityIndicator color="#fff" size="small" /> : <><Save size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
+              {editSaving ? <ActivityIndicator color="#fff" size="small" /> : <><LucideIcon name="save" size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
             </Pressable>
           </View>
         </View>

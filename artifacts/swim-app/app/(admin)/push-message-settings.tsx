@@ -5,7 +5,7 @@
  *  1. 수업 일정 알림 시간 (전날, 당일 X시간 전)
  *  2. 메시지 템플릿 (공지, 전날, 당일, 일지, 사진)
  */
-import { Clock, PenLine, Save } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {ActivityIndicator, Alert, Pressable, StyleSheet,
   Text, TextInput, View} from "react-native";
@@ -45,11 +45,11 @@ interface PoolSettings {
 const DEFAULTS: PoolSettings = {
   prev_day_push_time: "20:00",
   same_day_push_offset: 1,
-  tpl_notice: "📢 새 공지사항이 등록되었습니다.",
-  tpl_prev_day: "📅 내일 수업이 있습니다. 준비하세요!",
-  tpl_same_day: "⏰ 오늘 수업 {offset}시간 전입니다.",
-  tpl_diary: "📒 새 수업 일지가 작성되었습니다.",
-  tpl_photo: "📸 새 사진이 업로드되었습니다.",
+  tpl_notice: "새 공지사항이 등록되었습니다.",
+  tpl_prev_day: "내일 수업이 있습니다. 준비하세요!",
+  tpl_same_day: "오늘 수업 {offset}시간 전입니다.",
+  tpl_diary: "새 수업 일지가 작성되었습니다.",
+  tpl_photo: "새 사진이 업로드되었습니다.",
 };
 
 export default function AdminPushMessageSettingsScreen() {
@@ -112,7 +112,7 @@ export default function AdminPushMessageSettingsScreen() {
         {/* ── 수업 일정 알림 시간 ── */}
         <View>
           <View style={s.sectionHeader}>
-            <Clock size={14} color={themeColor} />
+            <LucideIcon name="clock" size={14} color={themeColor} />
             <Text style={[s.sectionTitle, { color: themeColor }]}>수업 일정 알림 시간</Text>
           </View>
           <View style={s.card}>
@@ -159,7 +159,7 @@ export default function AdminPushMessageSettingsScreen() {
         {/* ── 메시지 템플릿 ── */}
         <View>
           <View style={s.sectionHeader}>
-            <PenLine size={14} color={themeColor} />
+            <LucideIcon name="edit-2" size={14} color={themeColor} />
             <Text style={[s.sectionTitle, { color: themeColor }]}>메시지 템플릿</Text>
           </View>
           <View style={s.card}>
@@ -191,7 +191,7 @@ export default function AdminPushMessageSettingsScreen() {
           style={[s.saveBtn, { backgroundColor: C.primary }]}
           onPress={() => setConfirmVisible(true)}
         >
-          <Save size={16} color="#fff" />
+          <LucideIcon name="save" size={16} color="#fff" />
           <Text style={s.saveBtnText}>설정 저장</Text>
         </Pressable>
       </KeyboardAwareScrollView>

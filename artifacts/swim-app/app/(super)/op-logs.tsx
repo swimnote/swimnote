@@ -2,7 +2,6 @@
  * (super)/op-logs.tsx — 운영 로그 (감사 로그 뷰어)
  * /super/op-logs API에서 실데이터 로드
  */
-import { Activity, List } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -134,7 +133,7 @@ export default function OpLogsScreen() {
       <SubScreenHeader title="운영 로그" homePath="/(super)/audit-group" />
 
       <View style={s.countBanner}>
-        <Activity size={13} color={P} />
+        <LucideIcon name="activity" size={13} color={P} />
         <Text style={s.countTxt}>
           총 <Text style={{ color: P, fontFamily: "Pretendard-Regular" }}>{logs.length}</Text>건 기록됨
         </Text>
@@ -162,7 +161,7 @@ export default function OpLogsScreen() {
         </View>
       ) : error ? (
         <View style={s.empty}>
-          <List size={32} color="#D1D5DB" />
+          <LucideIcon name="list" size={32} color="#D1D5DB" />
           <Text style={s.emptyTxt}>{error}</Text>
         </View>
       ) : (
@@ -172,7 +171,7 @@ export default function OpLogsScreen() {
 
           {logs.length === 0 && (
             <View style={s.empty}>
-              <List size={32} color="#D1D5DB" />
+              <LucideIcon name="list" size={32} color="#D1D5DB" />
               <Text style={s.emptyTxt}>해당 카테고리의 로그가 없습니다</Text>
             </View>
           )}

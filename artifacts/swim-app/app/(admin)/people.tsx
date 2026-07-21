@@ -2,7 +2,6 @@
  * 인원관리 허브 화면
  * 회원관리 / 학부모관리 / 선생님관리 / 승인·미배정 로 진입하는 허브
  */
-import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -249,7 +248,7 @@ function HubCard({
         <View style={[s.iconBox, { backgroundColor: bg }]}>
           <LucideIcon name={icon} size={22} color={color} />
         </View>
-        <ChevronRight size={16} color={C.textMuted} />
+        <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
       </View>
 
       <Text style={s.cardTitle}>{title}</Text>

@@ -10,7 +10,6 @@
  *
  * ParentScreenHeader (홈 버튼 → 학부모 홈, 관리자 경로 차단)
  */
-import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AppUpdateButton from "@/components/common/AppUpdateButton";
 import { router, useFocusEffect } from "expo-router";
@@ -51,7 +50,7 @@ function MenuItem({
         <Text style={[s.menuLabel, { color: danger ? "#D96C6C" : C.text }]}>{label}</Text>
         {sub ? <Text style={[s.menuSub, { color: C.textMuted }]}>{sub}</Text> : null}
       </View>
-      {!danger && <ChevronRight size={16} color={C.textMuted} />}
+      {!danger && <LucideIcon name="chevron-right" size={16} color={C.textMuted} />}
     </Pressable>
   );
 }
@@ -113,7 +112,7 @@ export default function ParentMoreScreen() {
                 {parentPoolName || (parentAccount as any)?.pool_name || pool?.name || "수영장"} · 자녀 {students.length}명
               </Text>
             </View>
-            <ChevronRight size={16} color={C.textMuted} />
+            <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
           </Pressable>
         )}
 
@@ -186,7 +185,7 @@ export default function ParentMoreScreen() {
               <Text style={s.badgeText}>{inquiryBadge}</Text>
             </View>
           )}
-          <ChevronRight size={16} color={C.textMuted} />
+          <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
         </Pressable>
 
         <MenuItem

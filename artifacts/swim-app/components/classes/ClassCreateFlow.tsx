@@ -2,8 +2,6 @@
  * ClassCreateFlow — 반 등록 단일 스크롤 폼
  * 모든 항목(요일·시간·선생님·색상)을 한 화면에서 입력
  */
-import { Calendar, Check, CircleAlert, CircleCheck, Layers, UserX, X } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Dimensions, KeyboardAvoidingView, Modal, Platform,
@@ -112,7 +110,7 @@ function TeacherRow({ t, selected, onPress }: { t: Teacher; selected: boolean; o
       {!t.is_activated && (
         <View style={tr.badge}><Text style={tr.badgeTxt}>미활성</Text></View>
       )}
-      {selected && <CircleCheck size={18} color={C.tint} />}
+      {selected && <LucideIcon name="check-circle" size={18} color={C.tint} />}
     </Pressable>
   );
 }
@@ -237,14 +235,14 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
           <View style={fl.header}>
             <Text style={fl.title}>반 등록</Text>
             <Pressable onPress={onClose} hitSlop={10}>
-              <X size={22} color={C.textSecondary} />
+              <LucideIcon name="x" size={22} color={C.textSecondary} />
             </Pressable>
           </View>
 
           {/* 에러 */}
           {errorMsg && (
             <View style={fl.errorRow}>
-              <CircleAlert size={14} color={C.error} />
+              <LucideIcon name="alert-circle" size={14} color={C.error} />
               <Text style={fl.errorText}>{errorMsg}</Text>
             </View>
           )}
@@ -277,7 +275,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
             {isOneTime ? (
               <>
                 <View style={fl.dateBox}>
-                  <Calendar size={16} color={C.tint} />
+                  <LucideIcon name="calendar" size={16} color={C.tint} />
                   <TextInput
                     style={fl.dateInput}
                     value={oneTimeDate}
@@ -290,7 +288,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                 </View>
                 {getDayOfWeek(oneTimeDate) ? (
                   <View style={fl.chip}>
-                    <CircleCheck size={12} color="#7C3AED" />
+                    <LucideIcon name="check-circle" size={12} color="#7C3AED" />
                     <Text style={fl.chipTxt}>{oneTimeDate} ({getDayOfWeek(oneTimeDate)}요일)</Text>
                   </View>
                 ) : null}
@@ -342,7 +340,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                   <ActivityIndicator color={C.tint} style={{ marginVertical: 12 }} />
                 ) : teachers.length === 0 ? (
                   <View style={fl.emptyTeacher}>
-                    <UserX size={28} color={C.textMuted} />
+                    <LucideIcon name="user-x" size={28} color={C.textMuted} />
                     <Text style={fl.emptyTeacherTxt}>등록된 선생님이 없습니다</Text>
                   </View>
                 ) : (
@@ -353,10 +351,10 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                         onPress={() => setSelectedTeacher(null)}
                       >
                         <View style={[tr.avatar, { backgroundColor: C.border }]}>
-                          <UserX size={16} color={C.textMuted} />
+                          <LucideIcon name="user-x" size={16} color={C.textMuted} />
                         </View>
                         <Text style={[tr.name, { color: C.textSecondary }]}>미지정</Text>
-                        {selectedTeacher === null && <CircleCheck size={18} color={C.textSecondary} />}
+                        {selectedTeacher === null && <LucideIcon name="check-circle" size={18} color={C.textSecondary} />}
                       </Pressable>
                     )}
                     {teachers.map(t => (
@@ -385,7 +383,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                         <Text style={fl.oneTimeBadgeTxt}>1회성</Text>
                       </View>
                     )}
-                    <Layers size={18} color={isOneTime ? "#7C3AED" : C.tint} />
+                    <LucideIcon name="layers" size={18} color={isOneTime ? "#7C3AED" : C.tint} />
                     <Text style={[fl.summaryNameTxt, { color: isOneTime ? "#7C3AED" : C.tint }]}>{classLabel}</Text>
                   </View>
                   <View style={fl.summaryRows}>
@@ -415,7 +413,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
-                  <Check size={18} color="#fff" />
+                  <LucideIcon name="check" size={18} color="#fff" />
                   <Text style={fl.createBtnTxt}>{isOneTime ? "1회성 반 개설" : "반 개설하기"}</Text>
                 </>
               )}

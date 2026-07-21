@@ -1,10 +1,10 @@
-import { Search, Users, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { apiRequest } from "@/context/AuthContext";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 
@@ -57,14 +57,14 @@ export default function UnregisteredPickerModal({
               <Text style={um.sub}>반에 배정하면 정상회원으로 전환됩니다</Text>
             </View>
             <Pressable onPress={onClose} style={{ padding: 4 }}>
-              <X size={20} color={C.textSecondary} />
+              <LucideIcon name="x" size={20} color={C.textSecondary} />
             </Pressable>
           </View>
           <View style={um.searchBar}>
-            <Search size={14} color={C.textMuted} />
+            <LucideIcon name="search" size={14} color={C.textMuted} />
             <TextInput style={um.searchInput} value={q} onChangeText={setQ}
               placeholder="이름·전화번호 검색" placeholderTextColor={C.textMuted} />
-            {!!q && <Pressable onPress={() => setQ("")}><X size={14} color={C.textMuted} /></Pressable>}
+            {!!q && <Pressable onPress={() => setQ("")}><LucideIcon name="x" size={14} color={C.textMuted} /></Pressable>}
           </View>
           {loading ? (
             <ActivityIndicator style={{ marginTop: 40 }} color={themeColor} />
@@ -72,7 +72,7 @@ export default function UnregisteredPickerModal({
             <ScrollView style={um.list} showsVerticalScrollIndicator={false}>
               {filtered.length === 0 ? (
                 <View style={um.empty}>
-                  <Users size={28} color={C.textMuted} />
+                  <LucideIcon name="users" size={28} color={C.textMuted} />
                   <Text style={um.emptyTxt}>미등록회원이 없습니다</Text>
                 </View>
               ) : filtered.map(item => (

@@ -3,7 +3,6 @@
  * 슈퍼관리자 전용. 학부모 화면에는 광고 슬롯 노출하지 않음.
  * 등록/수정/상태 변경/삭제. 상태: scheduled | active | inactive
  */
-import { Calendar, Camera, Image, Plus, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useMemo, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
@@ -72,7 +71,7 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
       {img ? <RNImage source={{ uri: img }} style={ac.cardImg} resizeMode="cover" /> : null}
       {ad.description ? <Text style={ac.desc} numberOfLines={2}>{ad.description}</Text> : null}
       <View style={ac.dateRow}>
-        <Calendar size={11} color="#64748B" />
+        <LucideIcon name="calendar" size={11} color="#64748B" />
         <Text style={ac.dateTxt}>
           {new Date(ad.displayStart).toLocaleDateString("ko-KR")} ~ {new Date(ad.displayEnd).toLocaleDateString("ko-KR")}
         </Text>
@@ -295,7 +294,7 @@ export default function AdsScreen() {
           </View>
         </KeyboardAwareScrollView>
         <Pressable style={s.addBtn} onPress={openCreate}>
-          <Plus size={16} color="#fff" />
+          <LucideIcon name="plus" size={16} color="#fff" />
           <Text style={s.addTxt}>등록</Text>
         </Pressable>
       </View>
@@ -304,7 +303,7 @@ export default function AdsScreen() {
       <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
         {filtered.length === 0 ? (
           <View style={s.empty}>
-            <Image size={36} color="#D1D5DB" />
+            <LucideIcon name="image" size={36} color="#D1D5DB" />
             <Text style={s.emptyTxt}>이 상태의 광고가 없습니다</Text>
           </View>
         ) : (
@@ -325,7 +324,7 @@ export default function AdsScreen() {
             <View style={m.header}>
               <Text style={m.title}>{editId ? "광고 수정" : "광고 등록"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
-                <X size={20} color="#64748B" />
+                <LucideIcon name="x" size={20} color="#64748B" />
               </Pressable>
             </View>
             <KeyboardAwareScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -339,12 +338,12 @@ export default function AdsScreen() {
                       <RNImage source={{ uri: preview }} style={m.imgPreview} resizeMode="cover" />
                     ) : null}
                     <Pressable style={m.imgBtn} onPress={handlePickImage}>
-                      <Camera size={15} color="#7C3AED" />
+                      <LucideIcon name="camera" size={15} color="#7C3AED" />
                       <Text style={m.imgBtnTxt}>{preview ? "이미지 변경" : "이미지 선택"}</Text>
                     </Pressable>
                     {preview ? (
                       <Pressable onPress={() => setForm(f => ({ ...f, imageUri: "", imageKey: "", imageUrl: "" }))} style={m.removeImg}>
-                        <X size={11} color="#DC2626" />
+                        <LucideIcon name="x" size={11} color="#DC2626" />
                         <Text style={m.removeImgTxt}>이미지 제거</Text>
                       </Pressable>
                     ) : null}

@@ -5,7 +5,6 @@
  *  1. 운영 알림 (구독 만료, 결제, 보강 신청)
  *  2. 메신저 알림
  */
-import { Info } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -152,7 +151,7 @@ export default function AdminPushNotificationSettingsScreen() {
           ))}
 
           <View style={s.infoBox}>
-            <Info size={13} color={C.textMuted} />
+            <LucideIcon name="info" size={13} color={C.textMuted} />
             <Text style={s.infoText}>
               결제 알림은 보안상 항상 발송됩니다. 기기 알림 설정에서 꺼도 서버 로그에 기록됩니다.
             </Text>

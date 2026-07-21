@@ -1,7 +1,7 @@
-import { Check, ChevronLeft, ChevronRight } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import {
@@ -69,13 +69,13 @@ export default function MonthlyCalendar({
     <View style={mc.root}>
       <View style={mc.monthNav}>
         <Pressable style={mc.navBtn} onPress={() => setOffset(o => o - 1)}>
-          <ChevronLeft size={20} color={C.text} />
+          <LucideIcon name="chevron-left" size={20} color={C.text} />
         </Pressable>
         <Pressable onPress={() => setOffset(0)}>
           <Text style={mc.monthTitle}>{year}년 {month}월</Text>
         </Pressable>
         <Pressable style={mc.navBtn} onPress={() => setOffset(o => o + 1)}>
-          <ChevronRight size={20} color={C.text} />
+          <LucideIcon name="chevron-right" size={20} color={C.text} />
         </Pressable>
       </View>
 
@@ -122,7 +122,7 @@ export default function MonthlyCalendar({
                 {isMultiPicked && (
                   <View style={{ position: "absolute", top: 3, right: 3, width: 14, height: 14, borderRadius: 7,
                     backgroundColor: "#2E9B6F", alignItems: "center", justifyContent: "center" }}>
-                    <Check size={9} color="#fff" />
+                    <LucideIcon name="check" size={9} color="#fff" />
                   </View>
                 )}
 
