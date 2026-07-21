@@ -584,8 +584,8 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
       JOIN student_class_history sch
         ON sch.class_group_id = cd.class_group_id
         AND sch.student_id = '${studentIdSafe}'
-        AND sch.enrolled_at <= cd.lesson_date
-        AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date)
+        AND sch.enrolled_at <= cd.lesson_date::date
+        AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
       WHERE cd.class_group_id IN (${idsLiteral})
         AND cd.is_deleted = false
         ${monthFilter}
@@ -672,8 +672,8 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
         JOIN student_class_history sch
           ON sch.class_group_id = cd.class_group_id
           AND sch.student_id = '${sIdSafe}'
-          AND sch.enrolled_at <= cd.lesson_date
-          AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date)
+          AND sch.enrolled_at <= cd.lesson_date::date
+          AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
         WHERE cd.class_group_id IN (${idsLiteral}) AND cd.is_deleted = false
 
         UNION
@@ -1036,8 +1036,8 @@ router.get("/students/:id/news", requireAuth, requireParent, async (req: AuthReq
         JOIN student_class_history sch
           ON sch.class_group_id = cd.class_group_id
           AND sch.student_id = ${req.params.id}
-          AND sch.enrolled_at <= cd.lesson_date
-          AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date)
+          AND sch.enrolled_at <= cd.lesson_date::date
+          AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
         WHERE cd.class_group_id = ${student.class_group_id} AND cd.is_deleted = false
         ORDER BY cd.lesson_date DESC LIMIT 20
       `);
