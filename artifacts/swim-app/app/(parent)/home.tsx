@@ -185,11 +185,16 @@ export default function ParentHomeScreen() {
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList<FeedItem>>(null);
 
-  // Soft Snap — 스냅 포인트 및 velocity 추적
+  // Soft Snap — 스냅 포인트 및 스크롤 세션 추적
   const snapPointsRef     = useRef<number[]>([0]);
   const lastScrollYRef    = useRef(0);
   const lastScrollTimeRef = useRef(Date.now());
-  const scrollVelocityRef = useRef(0);
+  // 세션 단위 속도 — onScrollBeginDrag에서 초기화, onScroll에서 누적 최댓값 기록
+  const maxVelocityRef    = useRef(0);
+  // onScrollEndDrag 시점에 maxVelocityRef 기준으로 확정한 플링 여부
+  const isFastFlingRef    = useRef(false);
+  // scrollToOffset 호출 후 유발되는 재진입 방지
+  const isSnappingRef     = useRef(false);
 
   const { token, parentAccount, pool, parentPoolName, logout } = useAuth();
   const { students, selectedStudent, setSelectedStudentId, loading: ctxLoading, refresh } = useParent();
@@ -350,40 +355,69 @@ export default function ParentHomeScreen() {
   }
 
   // ── Soft Snap 핸들러 ────────────────────────────────────────────────────
-  // onScroll: velocity 실시간 추적 (iOS velocity API 미지원 Android 대응)
+
+  // 1) 드래그 시작 — 세션 초기화
+  const handleScrollBeginDrag = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      lastScrollYRef.current    = e.nativeEvent.contentOffset.y;
+      lastScrollTimeRef.current = Date.now();
+      maxVelocityRef.current    = 0;
+      isFastFlingRef.current    = false;
+      isSnappingRef.current     = false;
+    },
+    [],
+  );
+
+  // 2) onScroll: 세션 내 최대 절댓값 속도를 누적 (px/ms)
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y = e.nativeEvent.contentOffset.y;
+    const y   = e.nativeEvent.contentOffset.y;
     const now = Date.now();
-    const dt = now - lastScrollTimeRef.current;
+    const dt  = now - lastScrollTimeRef.current;
     if (dt > 0) {
-      scrollVelocityRef.current = Math.abs(y - lastScrollYRef.current) / dt;
+      const v = Math.abs(y - lastScrollYRef.current) / dt;
+      if (v > maxVelocityRef.current) maxVelocityRef.current = v;
     }
-    lastScrollYRef.current = y;
+    lastScrollYRef.current    = y;
     lastScrollTimeRef.current = now;
   }, []);
 
-  // onMomentumScrollEnd: 스크롤 정지 후 경계 근처이면 가장 가까운 포인트로 보정
+  // 3) 드래그 손 뗌 — 세션 최대 속도로 플링 여부 확정
+  const handleScrollEndDrag = useCallback(() => {
+    isFastFlingRef.current = maxVelocityRef.current > VELOCITY_CUTOFF;
+  }, []);
+
+  // 4) 관성 스크롤 정지 — 세션 플래그로 보정 여부 결정
   const handleMomentumScrollEnd = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const y = e.nativeEvent.contentOffset.y;
-
-      // 빠른 플링 → 보정 안 함
-      if (scrollVelocityRef.current > VELOCITY_CUTOFF) return;
-
-      const points = snapPointsRef.current;
-      let closest = points[0];
-      let minDist = Math.abs(y - closest);
-
-      for (const point of points) {
-        const dist = Math.abs(y - point);
-        if (dist < minDist) {
-          minDist = dist;
-          closest = point;
-        }
+      // isSnappingRef: scrollToOffset 호출로 인한 재진입 방지
+      if (isSnappingRef.current) {
+        isSnappingRef.current = false;
+        return;
       }
 
-      // SNAP_THRESHOLD 이내이고 현재 위치와 다를 때만 부드럽게 보정
+      // 이번 세션이 빠른 플링 → 보정 안 함
+      if (isFastFlingRef.current) {
+        isFastFlingRef.current = false;
+        return;
+      }
+      isFastFlingRef.current = false;
+
+      const y      = e.nativeEvent.contentOffset.y;
+      const points = snapPointsRef.current;
+
+      // headerHeight가 아직 측정되지 않았으면 [0] 만 사용
+      const validPoints = points.filter((p, i) => i === 0 || p > 0);
+
+      let closest = validPoints[0];
+      let minDist = Math.abs(y - closest);
+      for (const point of validPoints) {
+        const dist = Math.abs(y - point);
+        if (dist < minDist) { minDist = dist; closest = point; }
+      }
+
+      // SNAP_THRESHOLD 이내이고 이미 정확히 있지 않을 때만 보정
       if (minDist > 0 && minDist <= SNAP_THRESHOLD) {
+        isSnappingRef.current = true;
         flatListRef.current?.scrollToOffset({ offset: closest, animated: true });
       }
     },
@@ -545,7 +579,11 @@ export default function ParentHomeScreen() {
   const ListHeader = (
     <View onLayout={e => {
       const h = e.nativeEvent.layout.height;
-      // 스냅 포인트: [맨 위, 피드 시작(헤더 전체 높이)]
+      // headerHeight가 0이거나 이전 측정값과 같으면 갱신 생략
+      if (h <= 0) return;
+      const prev = snapPointsRef.current;
+      if (prev.length === 2 && prev[1] === h) return;
+      // 스냅 포인트: [맨 위(0), 피드 시작(헤더 전체 높이)] — 중복 방지
       snapPointsRef.current = [0, h];
     }}>
       {/* A. Slim Header */}
@@ -748,7 +786,9 @@ export default function ParentHomeScreen() {
         ListFooterComponent={ListFooter}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
+        onScrollBeginDrag={handleScrollBeginDrag}
         onScroll={handleScroll}
+        onScrollEndDrag={handleScrollEndDrag}
         onMomentumScrollEnd={handleMomentumScrollEnd}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />
