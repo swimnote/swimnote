@@ -1039,6 +1039,19 @@ export default function ParentHomeScreen() {
     }, [selectedStudent?.id]),
   );
 
+  const renderItem = useCallback(
+    ({ item }: { item: DiaryEntry }) => (
+      <DiaryFeedItem
+        entry={item}
+        studentId={selectedStudent?.id ?? ""}
+        studentName={selectedStudent?.name ?? ""}
+      />
+    ),
+    [selectedStudent?.id, selectedStudent?.name],
+  );
+
+  const keyExtractor = useCallback((item: DiaryEntry) => item.id, []);
+
   if (ctxLoading) {
     return (
       <View
@@ -1615,19 +1628,6 @@ export default function ParentHomeScreen() {
       </Text>
     </View>
   ) : null;
-
-  const renderItem = useCallback(
-    ({ item }: { item: DiaryEntry }) => (
-      <DiaryFeedItem
-        entry={item}
-        studentId={selectedStudent?.id ?? ""}
-        studentName={selectedStudent?.name ?? ""}
-      />
-    ),
-    [selectedStudent?.id, selectedStudent?.name],
-  );
-
-  const keyExtractor = useCallback((item: DiaryEntry) => item.id, []);
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
