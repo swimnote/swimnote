@@ -11,7 +11,7 @@ import { ActivityIndicator, Alert, Animated, AppState, AppStateStatus, Linking, 
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { UploadQueueProvider, useUploadQueue } from "@/context/UploadQueueContext";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NoticePopup } from "@/components/common/NoticePopup";
