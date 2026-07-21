@@ -216,8 +216,8 @@ export default function ParentDiaryScreen() {
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
-  // diary_id가 전달됐지만 목록에 없을 때 오류 상태
-  const diaryNotFound = !!highlightId && !loading && !refreshing && entries.length > 0
+  // diary_id가 전달됐지만 목록에 없을 때 오류 상태 (빈 목록 포함)
+  const diaryNotFound = !!highlightId && !loading && !refreshing
     && !entries.find(e => e.id === highlightId);
 
   // 하이라이트 항목 스크롤
@@ -256,17 +256,17 @@ export default function ParentDiaryScreen() {
           <Text style={[ds.emptyTitle, { color: C.text }]}>자녀를 선택해주세요</Text>
           <Text style={[ds.emptySub, { color: C.textSecondary }]}>홈 화면에서 자녀를 선택하세요</Text>
         </View>
-      ) : entries.length === 0 ? (
-        <View style={ds.empty}>
-          <BookOpen size={44} color={C.textMuted} />
-          <Text style={[ds.emptyTitle, { color: C.text }]}>아직 수업 일지가 없습니다</Text>
-          <Text style={[ds.emptySub, { color: C.textSecondary }]}>선생님이 수업 후 일지를 작성하면{"\n"}여기에서 확인하실 수 있습니다</Text>
-        </View>
       ) : diaryNotFound ? (
         <View style={ds.empty}>
           <BookOpen size={44} color={C.textMuted} />
           <Text style={[ds.emptyTitle, { color: C.text }]}>일지를 찾을 수 없습니다</Text>
           <Text style={[ds.emptySub, { color: C.textSecondary }]}>요청한 수업일지가 목록에 없습니다{"\n"}아래로 당겨 새로고침해 주세요</Text>
+        </View>
+      ) : entries.length === 0 ? (
+        <View style={ds.empty}>
+          <BookOpen size={44} color={C.textMuted} />
+          <Text style={[ds.emptyTitle, { color: C.text }]}>아직 수업 일지가 없습니다</Text>
+          <Text style={[ds.emptySub, { color: C.textSecondary }]}>선생님이 수업 후 일지를 작성하면{"\n"}여기에서 확인하실 수 있습니다</Text>
         </View>
       ) : (
         <FlatList
