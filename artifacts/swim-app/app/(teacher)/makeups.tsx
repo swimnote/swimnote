@@ -272,7 +272,11 @@ export default function MakeupsScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ class_group_id: selectedClassId, assigned_date: selectedDate }),
       });
-      if (r.ok) {
+      const ct = r.headers?.get?.("content-type") ?? "";
+      const isJson = ct.includes("application/json");
+      const body = isJson ? await r.json().catch(() => ({})) : {};
+      console.log(`[assign] id=${assignTarget.id} http=${r.status} isJson=${isJson}`, JSON.stringify(body));
+      if (r.ok && isJson) {
         setAssignTarget(null);
         setSelectedClassId(null);
         setSelectedDate(null);
@@ -282,8 +286,9 @@ export default function MakeupsScreen() {
         setConfirmMsg(`보강이 ${selectedDate}에 배정되었습니다.`);
       } else if (r.status === 409) {
         setConfirmMsg("이미 해당 날짜에 보강이 배정되어 있습니다.");
+      } else if (!isJson) {
+        setConfirmMsg("서버 응답이 올바르지 않습니다. 잠시 후 다시 시도해주세요.");
       } else {
-        const body = await r.json().catch(() => ({}));
         setConfirmMsg(body.error || "배정에 실패했습니다.");
       }
     } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
@@ -407,11 +412,18 @@ export default function MakeupsScreen() {
   async function handleTeacherComplete(id: string) {
     try {
       const res = await apiRequest(token, `/teacher/makeups/${id}/complete`, { method: "PATCH" });
-      if (res.ok) {
+      const contentType = res.headers?.get?.("content-type") ?? "";
+      const isJson = contentType.includes("application/json");
+      const resBody = isJson ? await res.json().catch(() => ({})) : {};
+      console.log(`[complete] id=${id} http=${res.status} isJson=${isJson}`, JSON.stringify(resBody));
+      if (res.ok && isJson) {
         setAssignedList(prev => prev.filter(m => m.id !== id));
+      } else if (!res.ok && isJson) {
+        setConfirmMsg(resBody.error || "처리에 실패했습니다.");
+      } else if (!res.ok) {
+        setConfirmMsg("처리에 실패했습니다.");
       } else {
-        const d = await res.json().catch(() => ({}));
-        setConfirmMsg(d.error || "처리에 실패했습니다.");
+        setConfirmMsg("서버 응답이 올바르지 않습니다. 잠시 후 다시 시도해주세요.");
       }
     } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
     setCompleteTarget(null);

@@ -1,4 +1,5 @@
 import { BookOpen, CircleAlert, CirclePlus, CircleX, Images, Image, Save, User, Users, Video } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { MutableRefObject, useState } from "react";
 import {
   ActivityIndicator, Platform, Pressable,

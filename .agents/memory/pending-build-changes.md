@@ -7,20 +7,21 @@ description: 마지막 스토어 빌드 이후 코드에 반영됐으나 아직 
 - 앱 버전: 1.5.5 (iOS buildNumber 238 / Android versionCode 229)
 - 이전 바이너리: iOS 빌드 236/237, Android versionCode 227/228 (1.5.1)
 
-## 1.5.5 빌드에 포함된 수정 사항
+## OTA 배포 완료 (1.5.5 이후 코드 변경)
 
-### ① 선생님 모드 — 담당 반만 표시 (my-schedule.tsx)
-- `myGroups` 필터: `groups.filter(g => g.teacher_user_id === adminUser?.id || co_teacher_ids.includes(...))`
-- weekly/monthly/daily 모든 뷰에 `myGroups` 적용
-- daily view 반이동 패널 `otherGroups`도 `myGroups.filter(...)` 로 수정
-- 서버(class-groups.ts): tokenRole=teacher이면 `WHERE teacher_user_id = userId` 자동 필터
+### ① 보강(makeups) 기능 (이전 세션 완료)
+- makeup_sessions 테이블 기반 보강 수업 관리
+- 선생님/관리자 보강 일지 작성 가능
+- 학부모 일지 목록에 보강일지 is_makeup_diary 표시
 
-### ② 관리자 주간뷰 compactMode=false
-- `(admin)/classes.tsx` 724번 줄: `compactMode={false}` 명시
+### ② DiaryWriteView LucideIcon import 누락 수정 (2026-07-21 OTA)
+- `components/teacher/diary/DiaryWriteView.tsx`: `LucideIcon` import 추가
+- 증상: 교사 일지 저장 시 DiaryWriteView 렌더링 중 ReferenceError → ErrorFallback 표시
+- iOS/Android production+preview 4채널 OTA 완료
 
-### ③ 관리자 일지 전체보기 서버 404 수정
-- 프로덕션 서버에 3개 엔드포인트 배포 완료 (Render.com)
-
-### ④ OTA 코드 개선 (_layout.tsx)
-- `useUpdates()` 제거, `checkForUpdateAsync → fetchUpdateAsync → reloadAsync` 단순화
-- 앱 시작 + 포그라운드 복귀 시 체크
+## API 서버 변경 (재배포 후 적용)
+- `parent.ts:732` — 학부모 일지 사진 URL: `/api/photos/` → `/photos/` (swim-diary.tsx 패턴 맞춤)
+- `parent.ts:1236` — 홈 요약 사진 URL: 하드코딩 Render.com URL → `/photos/`
+- `photos.ts:parent-view` — group 사진 쿼리: `sp.class_id` JOIN → `cd.class_group_id` JOIN (class_id=NULL 사진 포함)
+- `photos.ts:diary-attach` — 앨범 사진 연결 시 `class_id` 자동 설정 (diary.class_group_id)
+- DB backfill: 28개 기존 diary-linked 그룹 사진에 class_id 설정 완료

@@ -768,13 +768,13 @@ router.get("/photos/parent-view", requireAuth, requireRole("parent_account"), as
                  cg.name AS class_name, cg.schedule_days, cg.schedule_time
           FROM photo_assets_meta sp
           JOIN class_diaries cd ON cd.id = sp.journal_id AND cd.is_deleted = false
-          JOIN class_groups cg ON cg.id = sp.class_id
+          JOIN class_groups cg ON cg.id = cd.class_group_id
           JOIN student_class_history sch
             ON sch.class_group_id = cd.class_group_id
             AND sch.student_id = ${child.id}
             AND sch.enrolled_at <= cd.lesson_date
             AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date)
-          WHERE sp.album_type = 'group' AND sp.class_id = ${child.class_group_id}
+          WHERE sp.album_type = 'group' AND cd.class_group_id = ${child.class_group_id}
           ORDER BY cd.lesson_date DESC, sp.created_at DESC LIMIT 200
         `)).rows as any[];
         for (const row of groupRows) {
@@ -936,8 +936,14 @@ router.post("/photos/diary-attach", requireAuth, requireRole("teacher", "pool_ad
       res.status(403).json({ error: "일부 사진에 대한 접근 권한이 없습니다." }); return;
     }
 
+    // journal_id 설정 + diary의 class_group_id를 class_id로 채움 (class_id=NULL 방지)
+    const diaryRow = await db.execute(sql`SELECT class_group_id FROM class_diaries WHERE id = ${diary_id}`);
+    const diaryClassId = (diaryRow.rows[0] as any)?.class_group_id ?? null;
+
     await db.execute(sql`
-      UPDATE photo_assets_meta SET journal_id = ${diary_id}
+      UPDATE photo_assets_meta
+      SET journal_id = ${diary_id},
+          class_id = COALESCE(class_id, ${diaryClassId})
       WHERE id = ANY(${diaryPhotoLiteral}::text[]) AND pool_id = ${poolId}
     `);
 

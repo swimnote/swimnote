@@ -13,3 +13,5 @@
 - [JWT role 정규화 버그](jwt-role-normalization.md) — teacher 전환 후 앱 재시작 시 teacher 토큰이 pool_admin API 호출에 사용 → 403 → 대시보드 "—"; loadStored에서 JWT role vs DB role 비교 후 자동 교체로 해결
 - [Optimistic Update 누락 패턴](optimistic-update-pattern.md) — 모달/액션의 onClose·onMoved를 API await 이후 호출하면 딜레이 발생; 반드시 즉시 호출 후 API는 .catch()로 백그라운드 처리
 - [날짜 시스템 통합 완료](date-system-integration.md) — student_class_history(enrolled_at/left_at) 단일 소스 42개 통합 테스트 전체 통과; 핵심 패턴 및 함정 기록
+- [DiaryWriteView LucideIcon 버그](diary-lucide-import.md) — LucideIcon import 누락 → ErrorFallback; 진단은 배포 로그 CRASH_REPORT로 확인
+- [학부모 앨범 사진 URL 패턴](parent-photo-url-pattern.md) — home.tsx/swim-diary.tsx는 API_BASE+file_url; photos.tsx는 API_BASE.replace(/\/api$/,"")+fileUrl; parent.ts는 각 소비처에 맞는 형식 반환 필요
