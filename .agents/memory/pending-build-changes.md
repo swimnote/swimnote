@@ -26,6 +26,15 @@ description: 마지막 스토어 빌드 이후 코드에 반영됐으나 아직 
 - MemberParentTab.tsx: 전화번호별 연결/가입대기 뱃지 + 연결된 학부모 계정 섹션 개선
 - iOS/Android production+preview 4채널 OTA 완료
 
+### ④ 중복 학생 병합 + 학부모 연결 탭 + 서버측 중복 방지 (2026-07-22 OTA)
+- 전하빈(dm210beoo→ch8u651hi), 박찬율(7g71n0l0s→e0qghg3tm) 병합 완료
+- approvals.tsx: 학부모 연결 탭 분리 추가
+- link-child.tsx: pending 상태 UI + 중복 클릭 방지
+- students.ts POST /: phone1/2/3 교차 비교 중복 체크 강화
+- students.ts teacher-request: 이름 중복 체크 신규 추가
+- auth.ts simple-parent-register: 이름 중복 시 신규 학생 생성 금지
+- iOS/Android production+preview 4채널 OTA 완료
+
 ## API 서버 변경 (재배포 후 적용)
 - `parent.ts:732` — 학부모 일지 사진 URL: `/api/photos/` → `/photos/` (swim-diary.tsx 패턴 맞춤)
 - `parent.ts:1236` — 홈 요약 사진 URL: 하드코딩 Render.com URL → `/photos/`
