@@ -90,11 +90,11 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
     return () => { show.remove(); hide.remove(); };
   }, []);
 
-  // 시트 높이 계산 (B-2 지시 기준)
-  const topGap = insets.top + 6;
-  const sheetHeight = Math.max(200, kbHeight > 0
+  // 시트 높이 계산: 키보드 없을 때 85%, 있을 때 SafeArea~키보드 직전까지
+  const topGap = insets.top + 8;
+  const sheetHeight = Math.max(300, kbHeight > 0
     ? SCREEN_H - kbHeight - topGap
-    : SCREEN_H - topGap,
+    : SCREEN_H * 0.85,
   );
 
   // 아래로 스와이프 닫기
@@ -495,10 +495,10 @@ const s = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    flexDirection: "column",
   },
   middleArea: {
     flex: 1,
-    minHeight: Math.max(72, SCREEN_H * 0.17),
     overflow: "hidden",
   },
   handle: {

@@ -562,34 +562,42 @@ export default function TeacherDiaryScreen() {
   async function confirmDelete() {
     if (!deleteTarget || !selectedGroup) return;
     setDeleteLoading(true);
+    // closure로 캡처: setDeleteTarget(null) 이후에도 사용
+    const deletedId = deleteTarget.id;
+    const deletedDate = deleteTarget.lesson_date ?? targetDate;
+    const groupId = selectedGroup.id;
     try {
-      const r = await apiRequest(token, `/diaries/${deleteTarget.id}`, { method: "DELETE" });
+      const r = await apiRequest(token, `/diaries/${deletedId}`, { method: "DELETE" });
       if (r.ok) {
+        // 즉시 모달 닫기 (optimistic)
         setDeleteTarget(null);
-        // 서버에서 최신 일지 목록 재조회 → diarySet 서버 기반 갱신 (soft-delete 반영)
+        // 로컬 상태에서 즉시 제거 (UI 즉각 반응)
+        setDiaries(prev => prev.filter(d => d.id !== deletedId));
+        setDiarySet(prev => {
+          const next = new Set(prev);
+          next.delete(`${groupId}_${deletedDate}`);
+          return next;
+        });
+        // subView 전환: 삭제한 날짜가 targetDate이면 write로
+        if (deletedDate === targetDate) setSubView("write");
+        // 서버 재조회로 최종 동기화 (soft-delete 필터 누락 보완)
         try {
-          const r2 = await apiRequest(token, `/diaries?class_group_id=${selectedGroup.id}`);
+          const r2 = await apiRequest(token, `/diaries?class_group_id=${groupId}`);
           const raw = r2.ok ? await r2.json() : [];
-          const diaryList: DiaryEntry[] = Array.isArray(raw) ? raw : [];
+          // 서버가 soft-deleted 항목을 반환할 경우 클라이언트에서도 명시적으로 제거
+          const diaryList: DiaryEntry[] = Array.isArray(raw)
+            ? raw.filter((d: DiaryEntry) => d.id !== deletedId)
+            : [];
           setDiaries(diaryList);
-          setDiarySet(prev => {
-            const next = new Set(prev);
-            // 삭제된 날짜 키 먼저 제거
-            next.delete(`${selectedGroup.id}_${deleteTarget.lesson_date ?? targetDate}`);
-            // 서버에 실제 남아있는 일지만 추가
+          setDiarySet(() => {
+            const next = new Set<string>();
             diaryList.forEach(d => { if (d.class_group_id && d.lesson_date) next.add(`${d.class_group_id}_${d.lesson_date}`); });
             return next;
           });
           const todayRemains = diaryList.some(d => d.lesson_date === targetDate);
           if (!todayRemains) setSubView("write");
         } catch {
-          // 재조회 실패 시 로컬에서만 처리
-          setDiaries(prev => {
-            const next = prev.filter(d => d.id !== deleteTarget.id);
-            if (!next.some(d => d.lesson_date === targetDate)) setSubView("write");
-            return next;
-          });
-          setDiarySet(prev => { const next = new Set(prev); next.delete(`${selectedGroup.id}_${deleteTarget.lesson_date ?? targetDate}`); return next; });
+          // 재조회 실패해도 로컬 상태로 이미 갱신됨 — 무시
         }
       } else { const d = await r.json(); setDeleteError(d.error || "삭제 실패"); }
     } catch {} finally { setDeleteLoading(false); }
@@ -613,7 +621,7 @@ export default function TeacherDiaryScreen() {
           <SubScreenHeader
             title="일지 수정"
             subtitle={editDiary ? `${editDiary.lesson_date} · ${group.schedule_time}` : ""}
-            onBack={() => { if (params.editDiaryId || params.backTo || params.classGroupId) router.back(); else { setSubView("history"); setEditDiary(null); } }}
+            onBack={() => { if (params.editDiaryId) router.back(); else { setSubView("history"); setEditDiary(null); } }}
             homePath="/(teacher)/today-schedule"
           />
           <DiaryEditView
@@ -628,7 +636,7 @@ export default function TeacherDiaryScreen() {
             editCursorRef={editCursorRef}
             classStudents={classStudents}
             onSave={handleEditSave}
-            onBack={() => { if (params.editDiaryId || params.backTo || params.classGroupId) router.back(); else { setSubView("history"); setEditDiary(null); } }}
+            onBack={() => { if (params.editDiaryId) router.back(); else { setSubView("history"); setEditDiary(null); } }}
             onUpdateNoteContent={(noteId, content) => setEditNotes(prev => prev.map(n => n.id === noteId ? { ...n, note_content: content, _modified: true } : n))}
             onMarkNoteDeleted={(noteId) => setEditNotes(prev => prev.map(n => n.id === noteId ? { ...n, _deleted: true } : n))}
             onEditAddNote={() => {
