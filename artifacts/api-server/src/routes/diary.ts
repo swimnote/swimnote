@@ -2017,5 +2017,96 @@ router.post("/diaries/admin/bulk-delete",
   }
 );
 
+// ════════════════════════════════════════════════════════════════════════
+// RC-2 Media Dashboard (read-only, admin/pool_admin only)
+// GET /diaries/media-dashboard
+// ════════════════════════════════════════════════════════════════════════
+router.get("/diaries/media-dashboard",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId } = req.user!;
+      const poolId = await getUserPoolId(userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보를 찾을 수 없습니다.");
+
+      const [snap, today, audit, cleanup] = await Promise.all([
+        db.execute(sql`
+          SELECT
+            COUNT(*)::int AS total_photos,
+            COUNT(*) FILTER (WHERE media_status='draft')::int AS draft,
+            COUNT(*) FILTER (WHERE media_status='attached')::int AS attached,
+            COUNT(*) FILTER (WHERE media_status='detached')::int AS detached,
+            COUNT(*) FILTER (WHERE media_status='archived')::int AS archived,
+            COALESCE(SUM(file_size), 0)::bigint AS storage_bytes,
+            COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE)::int AS uploaded_today,
+            COUNT(DISTINCT uploaded_by) FILTER (WHERE created_at > NOW() - INTERVAL '7 days')::int AS active_uploaders_7d
+          FROM photo_assets_meta
+          WHERE pool_id = ${poolId}
+        `),
+        db.execute(sql`
+          SELECT
+            COUNT(*) FILTER (WHERE action_type='attach' AND created_at::date = CURRENT_DATE)::int AS attached_today,
+            COUNT(*) FILTER (WHERE action_type IN ('detach','detach_deleted') AND created_at::date = CURRENT_DATE)::int AS detached_today,
+            COUNT(*) FILTER (WHERE action_type='delete' AND created_at::date = CURRENT_DATE)::int AS deleted_today,
+            COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE)::int AS audit_total_today
+          FROM class_diary_audit_logs
+          WHERE swimming_pool_id = ${poolId}
+        `),
+        db.execute(sql`
+          SELECT
+            (SELECT COUNT(*)::int FROM class_diaries WHERE swimming_pool_id=${poolId} AND is_deleted=false) AS active_diaries,
+            (SELECT COUNT(*)::int FROM class_diary_student_notes sn
+             JOIN class_diaries cd ON cd.id=sn.diary_id AND cd.swimming_pool_id=${poolId}
+             WHERE sn.is_deleted=false) AS active_notes
+        `),
+        db.execute(sql`
+          SELECT
+            MAX(created_at) FILTER (WHERE action_type='cleanup')::text AS last_cleanup,
+            COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24h')::int AS errors_24h
+          FROM class_diary_audit_logs
+          WHERE swimming_pool_id = ${poolId}
+        `),
+      ]);
+
+      const s = snap.rows[0] as any;
+      const t = today.rows[0] as any;
+      const a = audit.rows[0] as any;
+      const c = cleanup.rows[0] as any;
+
+      res.json({
+        pool_id: poolId,
+        snapshot: {
+          total_photos: s.total_photos,
+          by_status: {
+            draft: s.draft,
+            attached: s.attached,
+            detached: s.detached,
+            archived: s.archived,
+          },
+          storage_bytes: Number(s.storage_bytes),
+          storage_mb: Math.round(Number(s.storage_bytes) / 1024 / 1024 * 10) / 10,
+          active_uploaders_7d: s.active_uploaders_7d,
+        },
+        today: {
+          uploaded: s.uploaded_today,
+          attached: t.attached_today,
+          detached: t.detached_today,
+          deleted: t.deleted_today,
+          audit_events: t.audit_total_today,
+        },
+        diaries: {
+          active: a.active_diaries,
+          active_notes: a.active_notes,
+        },
+        health: {
+          last_cleanup: c.last_cleanup ?? null,
+          errors_24h: c.errors_24h,
+        },
+        generated_at: new Date().toISOString(),
+      });
+    } catch (e) { console.error("[media-dashboard]", e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
 export default router;
 

@@ -1,0 +1,612 @@
+# SWIMNOTE Media Engine - Final Release Candidate (RC)
+
+현재 상태
+
+Phase A ~ D 완료
+
+Media Engine의 핵심 기능과 데이터 무결성 검증은 완료되었습니다.
+
+이번 단계는
+
+"개발"
+
+이 아니라
+
+"운영 가능한 최종 버전"
+
+을 만드는 단계입니다.
+
+새로운 기능은 절대 추가하지 마세요.
+
+==================================================
+최종 목표
+==================================================
+
+Media Engine을
+
+Release Candidate(RC)
+
+상태로 만들고
+
+이후에는
+
+Media Engine을 Freeze 합니다.
+
+향후 AI, 영상, 공지, 채팅 등은
+
+MediaService API만 사용하며
+
+Media Engine 내부 구조는 변경하지 않습니다.
+
+==================================================
+RC-1 Health Check 시스템
+==================================================
+
+운영자가 언제든 실행 가능한
+
+Media Health Check
+
+구현
+
+검사 항목
+
+photo_assets_meta
+
+- orphan photo
+- media_status 이상
+- journal_id 이상
+- student_note_id 이상
+- student_id 이상
+- duplicate media_uuid
+- duplicate object_key
+- pool 불일치
+- class 불일치
+
+class_diaries
+
+- orphan diary
+- duplicate diary
+- 삭제 diary 참조
+
+student_note
+
+- orphan note
+- 삭제 diary 참조
+- student 불일치
+- diary 불일치
+
+결과
+
+PASS
+
+WARNING
+
+ERROR
+
+각 항목별 개수 출력
+
+==================================================
+RC-2 Media Dashboard
+==================================================
+
+관리자 전용 Dashboard 구현
+
+표시 항목
+
+총 사진
+
+Draft
+
+Attached
+
+Detached
+
+Archived
+
+오늘 업로드 수
+
+오늘 Attach 수
+
+오늘 Detach 수
+
+오늘 Delete 수
+
+오늘 Rollback 수
+
+Storage 사용량
+
+최근 Cleanup 실행일
+
+최근 Health Check 결과
+
+최근 오류 개수
+
+읽기 전용
+
+==================================================
+RC-3 Audit Log
+==================================================
+
+모든 Media 작업 기록
+
+대상
+
+upload
+
+attach
+
+detach
+
+delete
+
+cleanup
+
+rollback
+
+retry
+
+permission deny
+
+기록
+
+시간
+
+사용자
+
+pool
+
+class
+
+diary
+
+photo
+
+action
+
+result
+
+duration
+
+error message
+
+==================================================
+RC-4 Backup & Rollback
+==================================================
+
+운영 문서 작성
+
+포함
+
+백업 절차
+
+복원 절차
+
+Rollback SQL
+
+Cleanup 전 Snapshot
+
+비상복구 절차
+
+==================================================
+RC-5 장애 대응 가이드
+==================================================
+
+다음 상황별 대응 문서 작성
+
+사진이 안보임
+
+사진 중복
+
+학부모 사진 누락
+
+Teacher 사진 누락
+
+Upload 실패
+
+Attach 실패
+
+Detach 실패
+
+Rollback 발생
+
+권한 오류
+
+Storage 오류
+
+Health Check WARNING
+
+각 항목마다
+
+원인
+
+확인 순서
+
+로그 위치
+
+복구 방법
+
+예상 영향
+
+작성
+
+==================================================
+RC-6 부하 테스트
+==================================================
+
+실제 운영 시뮬레이션
+
+Teacher
+
+5명 동시 저장
+
+Parent
+
+30명 동시 조회
+
+사진
+
+동시 업로드
+
+삭제
+
+동시 Attach
+
+동시 Detach
+
+Rollback
+
+동시 발생
+
+측정
+
+CPU
+
+Memory
+
+DB Query
+
+Response Time
+
+실패율
+
+==================================================
+RC-7 회귀 테스트
+==================================================
+
+Bug 1~7
+
+전부 다시 확인
+
+삭제
+
+재작성
+
+Reservation
+
+Draft
+
+Common Photo
+
+Student Photo
+
+Parent
+
+Teacher
+
+Rollback
+
+중복 업로드
+
+동시 저장
+
+모두 PASS 확인
+
+==================================================
+RC-8 MediaService 접근 감사
+==================================================
+
+프로젝트 전체 검사
+
+photo_assets_meta
+
+직접 접근 여부 조사
+
+다음 금지
+
+직접 UPDATE
+
+직접 DELETE
+
+직접 INSERT
+
+직접 SELECT 후 로직 처리
+
+반드시
+
+MediaService
+
+경유
+
+우회 코드 발견 시
+
+위치
+
+파일
+
+라인
+
+이유
+
+수정 여부
+
+보고
+
+==================================================
+RC-9 Upload Queue 최종 검증
+==================================================
+
+다음 확인
+
+Retry
+
+동시 업로드
+
+실패 사진만 Retry
+
+성공 사진 재업로드 금지
+
+순서 유지
+
+Progress 정상
+
+Queue 종료 정상
+
+메모리 누수 없음
+
+==================================================
+RC-10 React Query 최종 검증
+==================================================
+
+확인
+
+cache hit
+
+invalidate
+
+stale
+
+background refetch
+
+optimistic update
+
+중복 fetch
+
+불필요한 invalidate
+
+화면별
+
+Diary
+
+Draft
+
+PhotoStrip
+
+Parent
+
+Teacher
+
+검증
+
+==================================================
+RC-11 문서화
+==================================================
+
+Media Engine 문서 최신화
+
+Architecture
+
+MediaService
+
+Upload Flow
+
+Diary Flow
+
+Parent Flow
+
+Cleanup
+
+Rollback
+
+Health Check
+
+Audit
+
+Status Flow
+
+운영 절차
+
+==================================================
+RC-12 Freeze 준비
+==================================================
+
+Media Engine Freeze 선언 준비
+
+다음 규칙 문서화
+
+1.
+
+MediaService 외
+
+photo_assets_meta
+
+직접 접근 금지
+
+2.
+
+Media Engine DB 구조 변경 금지
+
+3.
+
+AI
+
+영상
+
+공지
+
+채팅
+
+앨범
+
+기타 기능
+
+MediaService API만 사용
+
+4.
+
+Media Engine 수정은
+
+Critical Bug
+
+또는
+
+Security Issue
+
+외에는 금지
+
+5.
+
+새 기능은
+
+Media Engine을 수정하지 말고
+
+Service Layer에서 구현
+
+==================================================
+RC-13 자동 진단 명령
+==================================================
+
+운영자가 버튼 한 번으로
+
+다음 수행
+
+Health Check
+
+Integrity Check
+
+Storage Check
+
+Cleanup 필요 여부
+
+UUID 검사
+
+Student Note 검사
+
+결과를
+
+JSON
+
+및
+
+사람이 읽기 쉬운 Report
+
+두 형태로 출력
+
+==================================================
+RC-14 최종 승인 조건
+==================================================
+
+다음 조건이 모두 만족되면
+
+Media Engine Release 승인
+
+Health Check PASS
+
+Regression PASS
+
+Load Test PASS
+
+Audit PASS
+
+MediaService 우회 없음
+
+DB 무결성 PASS
+
+문서 최신화 완료
+
+Freeze 규칙 작성 완료
+
+==================================================
+최종 보고
+==================================================
+
+1.
+
+Health Check 결과
+
+2.
+
+Dashboard 구현 결과
+
+3.
+
+Audit Log 결과
+
+4.
+
+Backup 문서 결과
+
+5.
+
+장애 대응 문서 결과
+
+6.
+
+Upload Queue 결과
+
+7.
+
+React Query 결과
+
+8.
+
+Load Test 결과
+
+9.
+
+Regression 결과
+
+10.
+
+MediaService 직접 접근 여부
+
+11.
+
+Freeze 준비 완료 여부
+
+12.
+
+Media Engine Release 승인 가능 여부
+
+13.
+
+남아있는 위험 요소
+
+==================================================
+중요
+==================================================
+
+이번 단계에서는
+
+새로운 기능을 절대 추가하지 않습니다.
+
+Media Engine을
+
+출시 가능한 최종 상태로 마무리하고
+
+이후에는
+
+Media Engine을 Freeze 합니다.
+
+향후 모든 기능(AI, 영상, 공지, 채팅, 앨범 등)은
+
+MediaService API를 통해서만 접근하도록 설계합니다.
