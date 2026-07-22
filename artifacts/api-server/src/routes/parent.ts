@@ -1098,6 +1098,8 @@ router.get("/students/:id/unread-counts", requireAuth, requireParent, async (req
       const photoCount = await db.execute(sql`
         SELECT COUNT(*) AS cnt FROM photo_assets_meta sp
         WHERE (sp.class_id = ${student.class_group_id} OR sp.student_id = ${req.params.id})
+          AND sp.media_status = 'attached'
+          AND sp.journal_id IN (SELECT id FROM class_diaries WHERE is_deleted = false)
         ${photoBase}
       `);
       unreadPhotos = Number((photoCount.rows[0] as any).cnt);
@@ -1231,13 +1233,16 @@ router.get("/students/:id/home-summary", requireAuth, requireParent, async (req:
         FROM (
           SELECT sp.id, sp.caption, sp.created_at, sp.album_type
           FROM photo_assets_meta sp
-          WHERE sp.class_id = ${student.class_group_id} OR sp.student_id = ${req.params.id}
+          WHERE (sp.class_id = ${student.class_group_id} OR sp.student_id = ${req.params.id})
+            AND sp.media_status = 'attached'
+            AND sp.journal_id IN (SELECT id FROM class_diaries WHERE is_deleted = false)
           UNION
           SELECT sp.id, sp.caption, sp.created_at, sp.album_type
           FROM photo_assets_meta sp
-          JOIN class_diaries cd ON cd.id = sp.journal_id
+          JOIN class_diaries cd ON cd.id = sp.journal_id AND cd.is_deleted = false
           WHERE cd.class_group_id = ${student.class_group_id}
             AND sp.journal_id IS NOT NULL
+            AND sp.media_status = 'attached'
         ) sub
         ORDER BY created_at DESC
         LIMIT 4

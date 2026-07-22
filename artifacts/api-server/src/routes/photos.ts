@@ -213,7 +213,7 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
 
     const { date } = req.query;
 
-    // 학부모: journal_id / student_note_id 연결 사진만 (일지에 첨부된 것만)
+    // 학부모: attached 사진만 (삭제된 일지 제외, media_status='attached' 필수)
     if (role === "parent_account") {
       const rows = await db.execute(sql`
         SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.pool_id,
@@ -223,22 +223,28 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
         FROM photo_assets_meta sp
         LEFT JOIN students s ON s.id = sp.student_id
         WHERE sp.class_id = ${classId}
+          AND sp.media_status = 'attached'
           AND (
             (
               sp.journal_id IS NOT NULL
               ${date ? sql`AND sp.journal_id IN (
                 SELECT id FROM class_diaries
                 WHERE class_group_id = ${classId} AND lesson_date = ${date as string}
-              )` : sql``}
+                  AND is_deleted = false
+              )` : sql`AND sp.journal_id IN (SELECT id FROM class_diaries WHERE is_deleted = false)`}
             )
             OR (
               sp.student_note_id IS NOT NULL
               ${date ? sql`AND sp.student_note_id IN (
                 SELECT csn.id FROM class_diary_student_notes csn
-                JOIN class_diaries cd ON cd.id = csn.diary_id
+                JOIN class_diaries cd ON cd.id = csn.diary_id AND cd.is_deleted = false
                 WHERE cd.class_group_id = ${classId} AND cd.lesson_date = ${date as string}
                   AND csn.is_deleted = false
-              )` : sql``}
+              )` : sql`AND sp.student_note_id IN (
+                SELECT csn.id FROM class_diary_student_notes csn
+                JOIN class_diaries cd ON cd.id = csn.diary_id AND cd.is_deleted = false
+                WHERE csn.is_deleted = false
+              )`}
             )
           )
         ORDER BY sp.created_at DESC
