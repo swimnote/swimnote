@@ -394,4 +394,83 @@ router.patch("/parent-requests/:id", requireAuth, requireRole("pool_admin", "sub
   }
 );
 
+// ─── 관리자: 학부모 V2 연결 대기 목록 ─────────────────────────────────────
+// GET /admin/parent-v2-pending?status=pending
+router.get("/admin/parent-v2-pending", requireAuth, requireRole("pool_admin", "sub_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      const { getParentV2PendingByPool } = await import("../lib/auto-link-v2.js");
+      const statusFilter = (req.query.status as string) || "pending";
+      const rows = await getParentV2PendingByPool(me.swimming_pool_id, statusFilter);
+
+      res.json({ success: true, data: rows });
+    } catch (e) {
+      console.error("[admin/parent-v2-pending GET]", e);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
+// ─── 관리자: 학부모 V2 연결 승인/거절 ─────────────────────────────────────
+// PATCH /admin/parent-v2-pending/:id  { action: "approve" | "reject", reason?: string }
+router.patch("/admin/parent-v2-pending/:id", requireAuth, requireRole("pool_admin", "sub_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      const { action, reason } = req.body;
+      if (!["approve", "reject"].includes(action)) {
+        res.status(400).json({ success: false, message: "action은 approve 또는 reject여야 합니다." }); return;
+      }
+
+      const { approveParentV2Pending, rejectParentV2Pending } = await import("../lib/auto-link-v2.js");
+      let result: { success: boolean; message: string };
+
+      if (action === "approve") {
+        result = await approveParentV2Pending(req.params.id, me.swimming_pool_id);
+      } else {
+        result = await rejectParentV2Pending(req.params.id, me.swimming_pool_id, reason);
+      }
+
+      if (!result.success) {
+        res.status(400).json({ success: false, message: result.message }); return;
+      }
+
+      // 학부모에게 결과 알림
+      try {
+        const { db: dbClient } = await import("@workspace/db");
+        const { sql: sqlTag } = await import("drizzle-orm");
+        const [pending] = (await dbClient.execute(sqlTag`
+          SELECT parent_id, child_name_raw FROM parent_v2_pending WHERE id = ${req.params.id} LIMIT 1
+        `)).rows as any[];
+
+        if (pending?.parent_id) {
+          const { sendPushToUser } = await import("../lib/push-service.js");
+          if (action === "approve") {
+            await sendPushToUser(pending.parent_id, true, "parent_link_approved",
+              "자녀 연결 완료!", `${pending.child_name_raw}과(와) 연결되었습니다.`,
+              { screen: "home" }, `link_approved_${req.params.id}`);
+          } else {
+            await sendPushToUser(pending.parent_id, true, "parent_link_rejected",
+              "자녀 연결 요청 거절",
+              reason ? `거절 사유: ${reason}` : "수영장 관리자에게 문의해주세요.",
+              { screen: "home" }, `link_rejected_${req.params.id}`);
+          }
+        }
+      } catch {}
+
+      res.json({ success: true, message: result.message });
+    } catch (e) {
+      console.error("[admin/parent-v2-pending PATCH]", e);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
 export default router;

@@ -2565,9 +2565,20 @@ router.post("/v2/parent-register", async (req, res) => {
     }
 
     if (status === "waiting") {
-      // 연결 실패 → pending 저장
-      await upsertParentV2Pending(parentId, poolId, childRaw, childNorm, ph);
-      console.log(`[v2-register] 대기 상태로 저장: child="${childRaw}" pool=${poolId}`);
+      // 연결 실패 → pending 저장 (reason 포함)
+      const pendingReason = matched ? undefined : (await (async () => {
+        // 이름만으로 학생이 있는지 확인해서 reason 결정
+        const nameOnlyRows = await db.execute(sql`
+          SELECT id FROM students
+          WHERE swimming_pool_id = ${poolId}
+            AND REPLACE(LOWER(TRIM(COALESCE(name,''))), ' ', '') = ${childNorm}
+            AND status NOT IN ('withdrawn','archived','deleted')
+          LIMIT 1
+        `);
+        return nameOnlyRows.rows.length > 0 ? "phone_mismatch" : "name_mismatch";
+      })());
+      await upsertParentV2Pending(parentId, poolId, childRaw, childNorm, ph, pendingReason);
+      console.log(`[v2-register] 대기 상태로 저장: child="${childRaw}" pool=${poolId} reason=${pendingReason}`);
       // 수영장 관리자에게 push 알림
       try {
         const { sendPushToPoolAdmins } = await import("../lib/push-service.js");

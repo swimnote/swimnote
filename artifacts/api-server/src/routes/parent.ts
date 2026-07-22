@@ -6,7 +6,7 @@ import { eq, and, ne, or } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword, comparePassword } from "../lib/auth.js";
 import { logChange } from "../utils/change-logger.js";
-import { getParentStatusV2, upsertParentV2Pending, normalizePhone as normPhoneV2, normalizeName as normNameV2 } from "../lib/auto-link-v2.js";
+import { getParentStatusV2, upsertParentV2Pending, tryMatchStudentV2 as tryAutoLinkV2, linkParentToStudentV2 as linkParentToStudentV2Import, normalizePhone as normPhoneV2, normalizeName as normNameV2 } from "../lib/auto-link-v2.js";
 
 const router = Router();
 
@@ -1607,7 +1607,7 @@ router.get("/pool-info", requireAuth, requireParent, async (req: AuthRequest, re
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
-// ── POST /parent/link-child — 자녀 연결 (단순 버전) ─────────────────────
+// ── POST /parent/link-child — 자녀 연결 (자동승인 + 승인대기) ──────────
 router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, res) => {
   const parentId = req.user!.userId;
   const { swimming_pool_id, child_name, child_birth_year, child_phone_last4 } = req.body;
@@ -1620,11 +1620,9 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
       .where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);
     if (!pool) { res.status(400).json({ success: false, message: "존재하지 않는 수영장입니다." }); return; }
 
-    // 이름 정규화: 한글만 추출 (숫자·공백·기호 제거)
-    const normalName = child_name.replace(/[^가-힣]/g, "");
-    if (!normalName) {
-      res.status(400).json({ success: false, message: "이름에 한글을 포함해주세요." }); return;
-    }
+    // 이름 정규화 (공백 제거 + 소문자)
+    const nameRaw  = child_name.trim();
+    const nameNorm = normNameV2(nameRaw);
 
     // 학부모 전화번호 조회 (숫자만)
     const paRows = await db.execute(sql`
@@ -1632,67 +1630,66 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
     `);
     const parentPhone = ((paRows.rows[0] as any)?.phone || "").replace(/[^0-9]/g, "");
 
-    // 관리자 회원목록에서 한글 기준 이름 매칭 (name_korean 컬럼 우선, 없으면 REGEXP_REPLACE 폴백)
-    const found = await db.execute(sql`
-      SELECT id, name, status, parent_phone FROM students
-      WHERE swimming_pool_id = ${swimming_pool_id}
-        AND (
-          name_korean = ${normalName}
-          OR (name_korean IS NULL AND REGEXP_REPLACE(name, '[^가-힣]', '', 'g') = ${normalName})
-        )
-      ORDER BY created_at ASC
-    `);
-
-    if (found.rows.length === 0) {
-      res.json({ success: false, status: "not_found", message: "관리자 회원목록에 해당 학생이 없습니다. 관리자에게 이름 등록을 요청하세요." }); return;
-    }
-
-    let student: any;
-
-    if (found.rows.length >= 2) {
-      // 동명이인: 전화번호 뒷 4자리 우선, 없으면 전체 번호, 없으면 첫 번째
-      const last4 = (child_phone_last4 || "").replace(/[^0-9]/g, "").slice(-4);
-      if (last4.length === 4) {
-        const byLast4 = (found.rows as any[]).filter(r => {
-          const sp = (r.parent_phone || "").replace(/[^0-9]/g, "");
-          return sp.slice(-4) === last4;
-        });
-        student = byLast4.length > 0 ? byLast4[0] : (found.rows as any[])[0];
-      } else if (parentPhone) {
-        const byPhone = (found.rows as any[]).filter(r => {
-          const sp = (r.parent_phone || "").replace(/[^0-9]/g, "");
-          return sp && sp === parentPhone;
-        });
-        student = byPhone.length > 0 ? byPhone[0] : (found.rows as any[])[0];
-      } else {
-        student = (found.rows as any[])[0];
-      }
-    } else {
-      student = found.rows[0] as any;
-      // 단일 매칭: 이름 일치 시 전화번호 무관 연결 허용 (형제 등록 지원)
-    }
-
-    // students 테이블 연결
-    await db.execute(sql`
-      UPDATE students SET parent_user_id = ${parentId}, updated_at = NOW()
-      WHERE id = ${student.id}
-    `);
     // 학부모 계정 수영장 세팅
     await db.execute(sql`
       UPDATE parent_accounts SET swimming_pool_id = ${swimming_pool_id}, updated_at = NOW()
       WHERE id = ${parentId}
     `);
-    // parent_students 링크 — 기존 레코드 삭제 후 approved 상태로 재생성
-    const linkId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await db.execute(sql`
-      DELETE FROM parent_students WHERE parent_id = ${parentId} AND student_id = ${student.id}
-    `);
-    await db.execute(sql`
-      INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at, created_at)
-      VALUES (${linkId}, ${parentId}, ${student.id}, ${swimming_pool_id}, 'approved', NOW(), NOW())
-    `);
 
-    res.json({ success: true, status: "linked", message: "자녀가 연결되었습니다.", student: { id: student.id, name: student.name } });
+    // V2 매칭 시도 (이름 + 전화번호 동시 확인)
+    const { matched, studentId, studentName, reason } = await tryAutoLinkV2(parentId, swimming_pool_id, parentPhone, nameNorm);
+
+    if (matched && studentId) {
+      // 자동 승인
+      const linkResult = await linkParentToStudentV2Import(parentId, studentId, swimming_pool_id);
+      if (linkResult.success) {
+        return res.json({ success: true, status: "linked", message: "자녀가 연결되었습니다.", student: { id: studentId, name: studentName } });
+      }
+    }
+
+    // 이름으로 학생 찾기 (pending 저장에 matched_student_id 사용)
+    const foundRows = (await db.execute(sql`
+      SELECT id, name FROM students
+      WHERE swimming_pool_id = ${swimming_pool_id}
+        AND REPLACE(LOWER(TRIM(COALESCE(name,''))), ' ', '') = ${nameNorm}
+        AND status NOT IN ('withdrawn','archived','deleted')
+      LIMIT 5
+    `)).rows as any[];
+
+    if (foundRows.length === 0) {
+      // 이름조차 없으면 에러 반환
+      return res.json({ success: false, status: "not_found", message: "수영장 회원 목록에 해당 이름의 학생이 없습니다. 관리자에게 이름 등록을 요청하세요." });
+    }
+
+    // 전화번호 불일치 → pending 저장
+    const pendingStudentId = foundRows.length === 1 ? foundRows[0].id : null;
+    const pendingStudentName = foundRows.length === 1 ? foundRows[0].name : foundRows[0].name;
+    const pendingReason = foundRows.length >= 2 ? "duplicate_name" : "phone_mismatch";
+
+    await upsertParentV2Pending(parentId, swimming_pool_id, nameRaw, nameNorm, parentPhone, pendingReason, pendingStudentId ?? undefined);
+
+    // 관리자에게 push 알림
+    try {
+      const { sendPushToPoolAdmins } = await import("../lib/push-service.js");
+      const [pa] = (await db.execute(sql`SELECT name FROM parent_accounts WHERE id=${parentId} LIMIT 1`)).rows as any[];
+      await sendPushToPoolAdmins(
+        swimming_pool_id, "parent_join",
+        "학부모 연결 승인 대기",
+        `${pa?.name || "학부모"}님이 ${pendingStudentName} 연결을 요청했습니다. 전화번호 확인 후 승인해주세요.`,
+        { screen: "approvals" },
+        `parent_link_${parentId}`
+      );
+    } catch {}
+
+    return res.json({
+      success: false,
+      status: "pending",
+      pending_reason: pendingReason,
+      message: pendingReason === "duplicate_name"
+        ? "같은 이름의 학생이 여러 명입니다. 관리자가 확인 후 승인합니다."
+        : "등록된 보호자 전화번호와 일치하지 않습니다. 관리자가 확인 후 승인합니다.",
+      student: { name: pendingStudentName },
+    });
   } catch (e) { console.error(e); res.status(500).json({ success: false, message: "서버 오류가 발생했습니다." }); }
 });
 

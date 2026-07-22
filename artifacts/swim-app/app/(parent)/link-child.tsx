@@ -58,11 +58,14 @@ export default function LinkChildScreen() {
   const [birthYear, setBirthYear]     = useState("");
   const [submitting, setSubmitting]   = useState(false);
   const [linkedNames, setLinkedNames] = useState<string[]>([]);
+  const [pendingStudentName, setPendingStudentName] = useState<string>("");
+  const [pendingReason, setPendingReason] = useState<string>("");
   const [error, setError]             = useState("");
   const [nameError, setNameError]     = useState("");
   const [birthYearError, setBirthYearError] = useState("");
 
-  const childScrollRef = useRef<any>(null);
+  const childScrollRef  = useRef<any>(null);
+  const submittingGuard = useRef(false);  // 중복 제출 방지
 
   async function searchPools() {
     if (!query.trim()) return;
@@ -78,6 +81,7 @@ export default function LinkChildScreen() {
 
   async function handleLink() {
     if (!selectedPool) return;
+    if (submittingGuard.current) return;  // 중복 클릭 방지
 
     const validPairs = childNames
       .map((n, i) => ({ name: n.trim(), phone4: childPhone4s[i]?.replace(/[^0-9]/g, "").slice(-4) || "" }))
@@ -93,10 +97,12 @@ export default function LinkChildScreen() {
       return;
     }
 
+    submittingGuard.current = true;
     setSubmitting(true); setError(""); setNameError(""); setBirthYearError("");
 
     const successNames: string[] = [];
     let lastError = "";
+    let pendingResult: { studentName: string; reason: string } | null = null;
 
     try {
       for (const { name, phone4 } of validPairs) {
@@ -111,8 +117,16 @@ export default function LinkChildScreen() {
             }),
           });
           const d = await r.json();
-          if (r.ok && d.success) {
+          if (r.ok && d.success && d.status === "linked") {
             successNames.push(d.student?.name || name);
+          } else if (d.status === "pending") {
+            // 전화번호 불일치 → 관리자 승인 대기
+            pendingResult = {
+              studentName: d.student?.name || name,
+              reason: d.pending_reason || "phone_mismatch",
+            };
+          } else if (d.status === "not_found") {
+            lastError = d.message || "수영장 회원 목록에 해당 이름이 없습니다.";
           } else {
             lastError = d.message || "일부 자녀 연결에 실패했습니다.";
           }
@@ -126,11 +140,17 @@ export default function LinkChildScreen() {
         await refresh();
         setLinkedNames(successNames);
         setStep("done");
+      } else if (pendingResult) {
+        updateParentProfile({ swimming_pool_id: selectedPool.id, pool_name: selectedPool.name });
+        setPendingStudentName(pendingResult.studentName);
+        setPendingReason(pendingResult.reason);
+        setStep("pending");
       } else {
         setError(lastError || "연결에 실패했습니다.");
       }
     } finally {
       setSubmitting(false);
+      submittingGuard.current = false;
     }
   }
 
@@ -353,16 +373,36 @@ export default function LinkChildScreen() {
         <DoneAutoRedirect linkedNames={linkedNames} poolName={selectedPool?.name ?? ""} />
       )}
 
-      {/* ── 미매칭: 학생 정보 없음 ──────────────────────────── */}
+      {/* ── 승인 대기 중 ─────────────────────────────────── */}
       {step === "pending" && (
         <View style={st.resultBox}>
-          <View style={[st.resultIcon, { backgroundColor: "#FEF2F2" }]}>
-            <LucideIcon name="clock" size={44} color="#DC2626" />
+          <View style={[st.resultIcon, { backgroundColor: "#FFF7ED" }]}>
+            <LucideIcon name="clock" size={44} color="#F59E0B" />
           </View>
-          <Text style={[st.resultTitle, { color: C.text }]}>학생을 찾지 못했습니다</Text>
+          <Text style={[st.resultTitle, { color: C.text }]}>승인 대기 중</Text>
+
+          {/* 연결 대상 학생 */}
+          {!!pendingStudentName && (
+            <View style={[st.pendingInfoBox, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
+              <LucideIcon name="user" size={16} color={C.tint} />
+              <Text style={[st.pendingInfoTxt, { color: C.tint }]}>{pendingStudentName}</Text>
+            </View>
+          )}
+
+          {/* 사유 메시지 */}
           <Text style={[st.resultSub, { color: C.textSecondary }]}>
-            수영장에 등록된 학생 중 일치하는{"\n"}정보를 찾지 못했습니다.{"\n\n"}수영장 관리자에게 학부모 연락처가{"\n"}올바르게 등록되어 있는지 확인해주세요.
+            {pendingReason === "duplicate_name"
+              ? `같은 이름의 학생이 여러 명입니다.\n관리자가 확인 후 연결을 승인합니다.`
+              : `수영장에 등록된 보호자2 전화번호와\n입력하신 번호가 일치하지 않습니다.\n\n관리자가 확인 후 연결을 승인합니다.`}
           </Text>
+
+          <View style={[st.pendingTipBox, { backgroundColor: "#F0FDF4", borderColor: "#86EFAC" }]}>
+            <LucideIcon name="info" size={14} color="#16A34A" />
+            <Text style={[st.pendingTipTxt, { color: "#15803D" }]}>
+              관리자가 승인하면 앱이 자동으로 연결됩니다.{"\n"}홈 화면에서 새로고침하면 바로 확인할 수 있어요.
+            </Text>
+          </View>
+
           <Pressable
             style={[st.submitBtn, { backgroundColor: C.button, alignSelf: "stretch", marginHorizontal: 32 }]}
             onPress={() => router.replace("/(parent)/home" as any)}
@@ -410,4 +450,8 @@ const st = StyleSheet.create({
   removeBtn:        { width: 28, height: 28, borderRadius: 8, justifyContent: "center", alignItems: "center" },
   addBtn:           { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderStyle: "dashed", borderRadius: 12, paddingVertical: 12 },
   addBtnTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  pendingInfoBox:   { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
+  pendingInfoTxt:   { fontSize: 16, fontFamily: "Pretendard-Regular", fontWeight: "600" },
+  pendingTipBox:    { flexDirection: "row", alignItems: "flex-start", gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, alignSelf: "stretch" },
+  pendingTipTxt:    { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
 });
