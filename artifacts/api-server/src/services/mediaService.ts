@@ -146,6 +146,9 @@ export async function attachPhotosToDiary(
 ): Promise<void> {
   if (!photoIds.length) return;
 
+  // 중복 ID 제거
+  const uniqueIds = [...new Set(photoIds)];
+
   const diaryRow = await db.execute(sql`
     SELECT id, class_group_id, is_deleted FROM class_diaries
     WHERE id = ${diaryId} AND swimming_pool_id = ${poolId}
@@ -155,15 +158,25 @@ export async function attachPhotosToDiary(
   if (!diary) throw new Error("일지를 찾을 수 없습니다.");
   if (diary.is_deleted) throw new Error("삭제된 일지에는 사진을 연결할 수 없습니다.");
 
-  const literal = toArray(photoIds);
+  const literal = toArray(uniqueIds);
 
   const checkRow = await db.execute(sql`
     SELECT COUNT(*)::int AS cnt FROM photo_assets_meta
     WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
   `);
   const found = Number((checkRow.rows[0] as any)?.cnt ?? 0);
-  if (found !== photoIds.length) {
+  if (found !== uniqueIds.length) {
     throw new Error("일부 사진에 대한 접근 권한이 없습니다.");
+  }
+
+  // 이미 attached 상태 사진 중복 연결 방지 (TEST F)
+  const alreadyAttached = await db.execute(sql`
+    SELECT id FROM photo_assets_meta
+    WHERE id = ANY(${literal}::text[]) AND media_status = 'attached'
+  `);
+  if ((alreadyAttached.rows as any[]).length > 0) {
+    const ids = (alreadyAttached.rows as any[]).map((r: any) => r.id).join(", ");
+    throw new Error(`이미 다른 일지에 연결된 사진이 포함되어 있습니다: ${ids}`);
   }
 
   await db.execute(sql`
@@ -211,6 +224,16 @@ export async function attachPhotosToStudentNote(
   `);
   if (Number((checkRow.rows[0] as any)?.cnt ?? 0) !== photoIds.length) {
     throw new Error("일부 사진에 대한 접근 권한이 없습니다.");
+  }
+
+  // 이미 attached 상태 사진 중복 연결 방지
+  const alreadyAttached = await db.execute(sql`
+    SELECT id FROM photo_assets_meta
+    WHERE id = ANY(${literal}::text[]) AND media_status = 'attached'
+  `);
+  if ((alreadyAttached.rows as any[]).length > 0) {
+    const ids = (alreadyAttached.rows as any[]).map((r: any) => r.id).join(", ");
+    throw new Error(`이미 다른 일지에 연결된 사진이 포함되어 있습니다: ${ids}`);
   }
 
   await db.execute(sql`

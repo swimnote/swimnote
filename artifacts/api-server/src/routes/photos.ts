@@ -604,9 +604,9 @@ router.post(
         const id = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         const rows = await db.execute(sql`
           INSERT INTO photo_assets_meta
-            (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type)
+            (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, media_status)
           VALUES
-            (${id}, ${student_id}, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${r2Key}, ${file.size}, 'private')
+            (${id}, ${student_id}, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${r2Key}, ${file.size}, 'private', 'draft')
           RETURNING *
         `);
         inserted.push({ ...rows.rows[0], file_url: `/api/photos/${id}/file` });
