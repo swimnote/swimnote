@@ -214,7 +214,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
     >
       <View style={s.kvWrapper}>
         <Pressable style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.45)" }]} onPress={handleClose} />
-        <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, Platform.OS === "ios" ? 20 : 16), height: SCREEN_H * 0.88 - kbHeight }]}>
+        <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, Platform.OS === "ios" ? 20 : 16), height: Math.max(SCREEN_H * 0.55, SCREEN_H * 0.88 - kbHeight) }]}>
           {/* ── 고정 상단 ── */}
           <View style={s.handle} />
 
