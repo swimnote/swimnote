@@ -165,6 +165,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
 
   const handleInsert = useCallback(() => {
     if (preview.length === 0) return;
+    Keyboard.dismiss();
     onInsert(preview.join("\n\n"));
     setPreview([]);
     setSearchQuery("");
@@ -172,6 +173,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
   }, [preview, onInsert, onClose]);
 
   const handleClose = useCallback(() => {
+    Keyboard.dismiss();
     setPreview([]);
     setSearchQuery("");
     onClose();
@@ -212,7 +214,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
     >
       <View style={s.kvWrapper}>
         <Pressable style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.45)" }]} onPress={handleClose} />
-        <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, Platform.OS === "ios" ? 20 : 16), marginBottom: kbHeight }]}>
+        <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, Platform.OS === "ios" ? 20 : 16), height: SCREEN_H * 0.88 - kbHeight }]}>
           {/* ── 고정 상단 ── */}
           <View style={s.handle} />
 
@@ -331,6 +333,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                 contentContainerStyle={s.sentenceListContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
                 ListEmptyComponent={
                   <View style={s.emptyBox}>
                     <LucideIcon name="inbox" size={28} color={C.textMuted} />
@@ -367,7 +370,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                 )}
               </View>
             </View>
-            <ScrollView ref={previewScrollRef} style={s.previewScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView ref={previewScrollRef} style={[s.previewScroll, kbHeight > 0 && { maxHeight: 0 }]} showsVerticalScrollIndicator={false}>
               {preview.length === 0 ? (
                 <Text style={s.previewEmpty}>문장을 선택하면 여기에 쌓입니다.</Text>
               ) : (
