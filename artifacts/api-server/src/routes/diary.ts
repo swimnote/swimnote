@@ -541,7 +541,7 @@ router.get("/diaries/:id",
         SELECT cd.*, cg.name AS class_name
         FROM class_diaries cd
         LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
-        WHERE cd.id = ${req.params.id} AND cd.swimming_pool_id = ${poolId}
+        WHERE cd.id = ${req.params.id} AND cd.swimming_pool_id = ${poolId} AND cd.is_deleted = false
       `);
       const diary = rows.rows[0] as any;
       if (!diary) return apiErr(res, 404, "일지를 찾을 수 없습니다.");

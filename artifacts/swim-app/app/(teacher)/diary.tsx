@@ -171,18 +171,28 @@ export default function TeacherDiaryScreen() {
             const dr = await apiRequest(token, `/diaries/${params.editDiaryId}`);
             if (dr.ok) {
               const diaryData = await dr.json();
-              const group = groupsList.find(g => g.id === diaryData.class_group_id);
-              if (group) {
-                setSelectedGroup(group);
-                setEditDiary(diaryData);
-                setEditContent(diaryData.common_content || "");
-                setEditNotes(Array.isArray(diaryData.student_notes) ? diaryData.student_notes.map((n: any) => ({ ...n })) : []);
-                setEditNewNotes([]); setEditAddStudent(null); setEditAddInput(""); setEditError(null);
-                setSubView("edit");
-                loadClassStudents(group.id);
+              if (diaryData.is_deleted) {
+                setSaveMsg({ type: "error", text: "삭제된 일지는 수정할 수 없습니다." });
+              } else {
+                const group = groupsList.find(g => g.id === diaryData.class_group_id);
+                if (group) {
+                  setSelectedGroup(group);
+                  setEditDiary(diaryData);
+                  setEditContent(diaryData.common_content || "");
+                  setEditNotes(Array.isArray(diaryData.student_notes) ? diaryData.student_notes.map((n: any) => ({ ...n })) : []);
+                  setEditNewNotes([]); setEditAddStudent(null); setEditAddInput(""); setEditError(null);
+                  setSubView("edit");
+                  loadClassStudents(group.id);
+                } else {
+                  setSaveMsg({ type: "error", text: "수업 그룹 정보를 불러올 수 없습니다." });
+                }
               }
+            } else {
+              setSaveMsg({ type: "error", text: "일지를 찾을 수 없습니다. 삭제되었을 수 있습니다." });
             }
-          } catch {}
+          } catch {
+            setSaveMsg({ type: "error", text: "일지를 불러오는 중 오류가 발생했습니다." });
+          }
         } else if (params.classGroupId) {
           const found = groupsList.find(g => g.id === params.classGroupId);
           if (found) {
@@ -462,7 +472,30 @@ export default function TeacherDiaryScreen() {
       // 버그 6 수정: classGroupId만으로 router.back() 실행 금지 — backTo 또는 lessonDate(params) 있을 때만
       const cameFromExternal = !!(params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/)) || !!(params.backTo);
       setTimeout(() => { setSaveMsg(null); if (cameFromExternal) router.back(); else setSelectedGroup(prev => prev?.id === savedGroupId ? null : prev); }, 2000);
-    } catch (e: any) { setSaveMsg({ type: "error", text: e.message || "저장 중 오류가 발생했습니다." }); }
+    } catch (e: any) {
+      setSaveMsg({ type: "error", text: e.message || "저장 중 오류가 발생했습니다." });
+      // 409 등 서버 충돌 후 diaries/diarySet을 서버 기준으로 재동기화
+      if (selectedGroup) {
+        const syncGroupId = selectedGroup.id;
+        apiRequest(token, `/diaries?class_group_id=${syncGroupId}`)
+          .then(r => r.ok ? r.json() : [])
+          .then((list: any[]) => {
+            const diaryList: DiaryEntry[] = Array.isArray(list) ? list : [];
+            setDiaries(diaryList);
+            setDiarySet(prev => {
+              const next = new Set(prev);
+              // 현재 그룹 날짜 항목 제거 후 서버 결과로 재등록
+              prev.forEach(k => { if (k.startsWith(syncGroupId)) next.delete(k); });
+              diaryList.forEach(d => { if (d.class_group_id && d.lesson_date) next.add(`${d.class_group_id}_${d.lesson_date}`); });
+              return next;
+            });
+            // 오늘 날짜에 실제 일지가 있으면 history 뷰로 전환
+            const todayStillExists = diaryList.some(d => d.lesson_date === targetDate);
+            if (todayStillExists) setSubView("history");
+          })
+          .catch(() => {});
+      }
+    }
     finally { setSaving(false); }
   }
   async function openEditDiary(item: DiaryEntry) {
@@ -478,8 +511,9 @@ export default function TeacherDiaryScreen() {
         apiRequest(token, `/photos/diary/${item.id}`),
         apiRequest(token, `/videos/diary/${item.id}`),
       ]);
-      if (!diaryRes.ok) throw new Error("불러오기 실패");
+      if (!diaryRes.ok) throw new Error("일지를 불러올 수 없습니다. 이미 삭제되었을 수 있습니다.");
       const data = await diaryRes.json();
+      if (data.is_deleted) throw new Error("삭제된 일지는 수정할 수 없습니다.");
       setEditDiary(data); setEditContent(data.common_content || "");
       setEditNotes(Array.isArray(data.student_notes) ? data.student_notes.map((n: any) => ({ ...n })) : []);
       if (photoRes.ok) {
