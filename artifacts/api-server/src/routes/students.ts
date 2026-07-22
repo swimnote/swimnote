@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, superAdminDb } from "@workspace/db";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
-import { triggerAutoLinkOnStudentV2 } from "../lib/auto-link-v2.js";
+import { triggerAutoLinkOnStudentV2, linkParentToStudentV2 } from "../lib/auto-link-v2.js";
 import {
   studentsTable, classGroupsTable, parentStudentsTable,
   parentAccountsTable, usersTable, attendanceTable,
@@ -890,9 +890,35 @@ router.patch("/:id/parent-phones", requireAuth, requireRole("super_admin", "pool
         .where(eq(studentsTable.id, req.params.id));
     }
 
-    // 새 번호 등록 시 자동 연결 트리거
+    // ── 새 번호 등록 시 즉시 연결 (await) ─────────────────────────────────
     if (normPhone) {
-      triggerAutoLinkOnStudentV2(req.params.id, ["parent_phone", "parent_phone2"]).catch(e =>
+      // 1) parent_accounts 직접 매칭 (이미 가입된 학부모)
+      const [directMatch] = (await db.execute(sql`
+        SELECT pa.id FROM parent_accounts pa
+        WHERE REGEXP_REPLACE(COALESCE(pa.phone,''),'[^0-9]','','g') = ${normPhone}
+          AND (pa.swimming_pool_id = ${existing.swimming_pool_id} OR pa.swimming_pool_id IS NULL)
+        ORDER BY (pa.swimming_pool_id = ${existing.swimming_pool_id}) DESC NULLS LAST
+        LIMIT 1
+      `)).rows as any[];
+
+      if (directMatch) {
+        // slot=2일 때 기존 parent_user_id(보호자1) 유지 — 덮어쓰지 않음
+        const [currentStudent] = await db.select().from(studentsTable)
+          .where(eq(studentsTable.id, req.params.id)).limit(1);
+        const preservePrimaryId = slot === 2 ? (currentStudent?.parent_user_id || null) : null;
+
+        await linkParentToStudentV2(directMatch.id, req.params.id, existing.swimming_pool_id);
+
+        if (slot === 2 && preservePrimaryId) {
+          await db.execute(sql`
+            UPDATE students SET parent_user_id = ${preservePrimaryId}
+            WHERE id = ${req.params.id}
+          `);
+        }
+      }
+
+      // 2) parent_v2_pending 기반 autolink (await)
+      await triggerAutoLinkOnStudentV2(req.params.id, ["parent_phone", "parent_phone2"]).catch(e =>
         console.error("[parent-phones] auto-link error:", e)
       );
     }
@@ -906,13 +932,38 @@ router.patch("/:id/parent-phones", requireAuth, requireRole("super_admin", "pool
       WHERE ps.student_id = ${req.params.id}
     `)).rows as any[];
 
+    // ── parentPhones 배열 구성 ──────────────────────────────────────────────
+    function fmtPhone(p: string | null): string | null {
+      if (!p) return null;
+      const d = p.replace(/[^0-9]/g, "");
+      if (d.length === 11) return `${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}`;
+      if (d.length === 10) return `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`;
+      return p;
+    }
+    function connStatus(phone: string | null, links: any[]): { status: "connected" | "pending"; parentUserId: string | null } {
+      if (!phone) return { status: "pending", parentUserId: null };
+      const norm = phone.replace(/[^0-9]/g, "");
+      const match = links.find(l => l.phone && l.phone.replace(/[^0-9]/g, "") === norm && l.link_status === "approved");
+      return { status: match ? "connected" : "pending", parentUserId: match?.id || null };
+    }
+    const ph1 = (updated as any).parent_phone as string | null;
+    const ph2 = (updated as any).parent_phone2 as string | null;
+    const cs1 = connStatus(ph1, parentLinks);
+    const cs2 = connStatus(ph2, parentLinks);
+    const parentPhones = [
+      { slot: 1, phone: ph1, formattedPhone: fmtPhone(ph1), connectionStatus: cs1.status, parentUserId: cs1.parentUserId },
+      { slot: 2, phone: ph2, formattedPhone: fmtPhone(ph2), connectionStatus: cs2.status, parentUserId: cs2.parentUserId },
+    ];
+
     logPoolEvent({ pool_id: existing.swimming_pool_id, event_type: "member_update", entity_type: "student", entity_id: req.params.id, actor_id: req.user!.userId, payload: { action: "parent_phone_update", slot, normPhone } }).catch(() => {});
 
     return res.json({
       success: true,
-      parent_phone:  (updated as any).parent_phone,
-      parent_phone2: (updated as any).parent_phone2,
+      studentId: req.params.id,
+      parent_phone:  ph1,
+      parent_phone2: ph2,
       parents: parentLinks,
+      parentPhones,
       unlinked_parent_id: unlinkedParentId,
     });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }

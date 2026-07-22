@@ -104,9 +104,9 @@ export default function StudentDetailScreen() {
     visible: boolean; slot: 1 | 2; phone: string; isLinked: boolean;
   }>({ visible: false, slot: 1, phone: "", isLinked: false });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!id) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const [stRes, attRes, lvRes] = await Promise.all([
         apiRequest(token, `/students/${id}`),
@@ -124,7 +124,7 @@ export default function StudentDetailScreen() {
       }
       if (lvRes.ok) setLevelInfo(await lvRes.json());
     } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   }, [id, token]);
 
   useEffect(() => { load(); }, [load]);
@@ -188,12 +188,33 @@ export default function StudentDetailScreen() {
     return msg || "요청에 실패했습니다.";
   }
 
+  function applyPhoneResponse(body: any) {
+    setStudent(prev => {
+      if (!prev) return prev;
+      if (body.parentPhones && Array.isArray(body.parentPhones)) {
+        const slot1 = body.parentPhones.find((p: any) => p.slot === 1);
+        const slot2 = body.parentPhones.find((p: any) => p.slot === 2);
+        return {
+          ...prev,
+          parent_phone:  slot1 ? slot1.phone  : prev.parent_phone,
+          parent_phone2: slot2 ? slot2.phone  : prev.parent_phone2,
+          parents:       body.parents ?? prev.parents,
+        };
+      }
+      return {
+        ...prev,
+        parent_phone:  "parent_phone"  in body ? body.parent_phone  : prev.parent_phone,
+        parent_phone2: "parent_phone2" in body ? body.parent_phone2 : prev.parent_phone2,
+        parents:       body.parents ?? prev.parents,
+      };
+    });
+  }
+
   async function savePhoneEdit() {
     if (!id || !student) return;
     const prevStudent = student;
     setPhoneEditSaving(true);
     try {
-      // 하이픈 제거 후 전송 (서버도 정규화하지만 클라이언트에서 명시적으로 처리)
       const normPhone = phoneEditModal.value.trim().replace(/[^0-9]/g, "") || null;
       const res = await apiRequest(token, `/students/${id}/parent-phones`, {
         method: "PATCH",
@@ -201,16 +222,10 @@ export default function StudentDetailScreen() {
       });
       const body = await parseApiBody(res);
       if (res.ok && body) {
-        setStudent(prev => prev ? {
-          ...prev,
-          parent_phone:  "parent_phone"  in body ? body.parent_phone  : prev.parent_phone,
-          parent_phone2: "parent_phone2" in body ? body.parent_phone2 : prev.parent_phone2,
-          parents:       body.parents ?? prev.parents,
-        } : prev);
+        applyPhoneResponse(body);
         setPhoneEditModal(m => ({ ...m, visible: false }));
-        load();
+        load(true);
       } else if (res.ok && !body) {
-        // JSON이 아닌 200 응답 (서버 미배포 등)
         setStudent(prevStudent);
         Alert.alert("오류", "서버 응답 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.");
       } else {
@@ -238,14 +253,9 @@ export default function StudentDetailScreen() {
       });
       const body = await parseApiBody(res);
       if (res.ok && body) {
-        setStudent(prev => prev ? {
-          ...prev,
-          parent_phone:  "parent_phone"  in body ? body.parent_phone  : prev.parent_phone,
-          parent_phone2: "parent_phone2" in body ? body.parent_phone2 : prev.parent_phone2,
-          parents:       body.parents ?? prev.parents,
-        } : prev);
+        applyPhoneResponse(body);
         setPhoneDeleteModal(m => ({ ...m, visible: false }));
-        load();
+        load(true);
       } else if (res.ok && !body) {
         setStudent(prevStudent);
         Alert.alert("오류", "서버 응답 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.");
