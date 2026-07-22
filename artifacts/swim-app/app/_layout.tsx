@@ -532,10 +532,9 @@ function RootNav() {
         // OTA 체크 (있으면 자동 재시작)
         checkAndDownloadOta();
 
-        // 백그라운드 복귀 시 세션 갱신 (roles 포함)
-        // RolesPollingGuard가 AppState 복귀를 감지하여 role-status를 별도로 확인하므로
-        // 여기서는 pool 정보 등 나머지 세션 데이터 갱신만 담당
-        refreshSession?.().catch(() => {});
+        // roles 갱신은 RolesPollingGuard의 AppState 리스너가 단독 처리.
+        // 여기서 refreshSession을 동시에 호출하면 role 덮어쓰기 race condition 발생.
+        // (RolesPollingGuard → /auth/role-status → _applyServerRoleState 경로만 사용)
 
         // 미읽은 문의 답변 팝업 — 세션당 1회
         if (!inquiryPopupShownRef.current && tokenRef.current && kindRef.current) {

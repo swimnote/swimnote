@@ -159,15 +159,19 @@ async function _applyServerRoleState(
   const { adminUser, updateAdminProfile, activeRole, switchRole, onLogout } = deps;
 
   // 변경 없으면 early return
+  // serverRole(DB base role)은 adminUser.role(현재 활성 JWT role)과 다를 수 있으므로 비교하지 않음.
+  // roles 배열만 비교하여 실제 권한 변경 여부를 판단.
   const currentRoles = adminUser.roles?.length ? adminUser.roles : [adminUser.role];
   const normalizedServer = [...serverRoles].sort().join(",");
   const normalizedCurrent = [...currentRoles].sort().join(",");
-  if (normalizedServer === normalizedCurrent && serverRole === adminUser.role) return;
+  if (normalizedServer === normalizedCurrent) return;
 
   console.log(`[RoleSync] roles 변경 감지: ${normalizedCurrent} → ${normalizedServer}`);
 
-  // 세션 갱신
-  updateAdminProfile({ role: serverRole as import("./auth/SessionContext").AdminUser["role"], roles: serverRoles });
+  // roles만 갱신. role 필드는 절대 덮어쓰지 않음.
+  // adminUser.role은 switchRole()이 관리하는 현재 활성 JWT role임.
+  // serverRole은 DB base role("teacher")이므로 pool_admin 모드를 덮어쓰면 안 됨.
+  updateAdminProfile({ roles: serverRoles });
 
   // activeRole 유효성 확인
   const currentActive = activeRole ?? adminUser.role;

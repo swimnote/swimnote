@@ -981,9 +981,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (!res.ok) return;
       const user = await res.json();
       if (k === "admin") {
+        const freshRoles: string[] = user.roles?.length ? user.roles : [user.role];
+        // adminUser.role은 현재 활성 JWT role(예: pool_admin)을 추적.
+        // /auth/me 응답의 user.role은 DB base role("teacher")이므로 덮어쓰면 안 됨.
+        // 현재 role이 fresh roles 배열에 포함되면 유지, 포함되지 않으면 DB base role 사용.
+        const currentRole = adminUser?.role;
+        const preservedRole: AdminUser["role"] = (currentRole && freshRoles.includes(currentRole))
+          ? currentRole as AdminUser["role"]
+          : user.role;
         const updated: AdminUser = {
           ...user,
-          roles: user.roles?.length ? user.roles : [user.role],
+          role: preservedRole,
+          roles: freshRoles,
         };
         setAdminUser(updated);
         AsyncStorage.setItem("auth_admin", JSON.stringify(updated)).catch(() => {});
