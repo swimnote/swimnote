@@ -90,11 +90,11 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
     return () => { show.remove(); hide.remove(); };
   }, []);
 
-  // 시트 높이 계산: 키보드 없을 때 85%, 있을 때 SafeArea~키보드 직전까지
+  // 시트 높이 계산: 키보드 없을 때 90%, 있을 때 SafeArea~키보드 직전까지
   const topGap = insets.top + 8;
   const sheetHeight = Math.max(300, kbHeight > 0
     ? SCREEN_H - kbHeight - topGap
-    : SCREEN_H * 0.85,
+    : SCREEN_H * 0.90,
   );
 
   // 아래로 스와이프 닫기
@@ -266,10 +266,23 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
               placeholder="전체 문장 통합 검색..."
               placeholderTextColor={C.textMuted}
               clearButtonMode="while-editing"
+              returnKeyType="done"
+              onSubmitEditing={() => Keyboard.dismiss()}
+              blurOnSubmit={false}
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={8}>
                 <LucideIcon name="x-circle" size={16} color={C.textSecondary} />
+              </TouchableOpacity>
+            )}
+            {kbHeight > 0 && (
+              <TouchableOpacity
+                onPress={() => Keyboard.dismiss()}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                activeOpacity={0.7}
+                style={s.kbDoneBtn}
+              >
+                <Text style={s.kbDoneBtnText}>완료</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -304,7 +317,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
           )}
 
           {/* ── 중간 스크롤 영역 (flex:1 — 남은 공간 전부 차지) ── */}
-          <View style={s.middleArea}>
+          <Pressable style={s.middleArea} onPress={() => Keyboard.dismiss()}>
 
             {/* 레벨 피커 인라인 패널 */}
             {!isSearching && pickerOpen && (
@@ -364,7 +377,8 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                 contentContainerStyle={s.sentenceListContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="interactive"
+                keyboardDismissMode="on-drag"
+                onScrollBeginDrag={() => Keyboard.dismiss()}
                 ListEmptyComponent={
                   <View style={s.emptyBox}>
                     <LucideIcon name="inbox" size={28} color={C.textMuted} />
@@ -379,7 +393,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                 }
               />
             )}
-          </View>
+          </Pressable>
 
           {/* 미리보기 영역 */}
           <View style={s.previewBox}>
@@ -520,6 +534,13 @@ const s = StyleSheet.create({
   searchInput: {
     flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, padding: 0,
   },
+  kbDoneBtn: {
+    marginLeft: 4, paddingHorizontal: 10, paddingVertical: 5,
+    backgroundColor: PRIMARY, borderRadius: 8,
+  },
+  kbDoneBtnText: {
+    fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff",
+  } as any,
   searchHint: {
     fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular",
     marginHorizontal: 16, marginBottom: 8,
