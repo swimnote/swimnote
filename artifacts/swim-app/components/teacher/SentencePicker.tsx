@@ -90,12 +90,8 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
     return () => { show.remove(); hide.remove(); };
   }, []);
 
-  // 시트 높이 계산: 키보드 없을 때 90%, 있을 때 SafeArea~키보드 직전까지
-  const topGap = insets.top + 8;
-  const sheetHeight = Math.max(300, kbHeight > 0
-    ? SCREEN_H - kbHeight - topGap
-    : SCREEN_H * 0.90,
-  );
+  // 모달 높이 고정: 키보드 표시 여부와 무관하게 항상 90%
+  const MODAL_HEIGHT = SCREEN_H * 0.90;
 
   // 아래로 스와이프 닫기
   const swipeY = useRef(new Animated.Value(0)).current;
@@ -245,7 +241,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
     >
       <View style={s.kvWrapper}>
         <Pressable style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.45)" }]} onPress={handleClose} />
-        <Animated.View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, Platform.OS === "ios" ? 20 : 16), height: sheetHeight, transform: [{ translateY: swipeY }] }]}>
+        <Animated.View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, Platform.OS === "ios" ? 20 : 16), height: MODAL_HEIGHT, transform: [{ translateY: swipeY }] }]}>
           {/* ── 고정 상단 (스와이프 핸들) ── */}
           <View style={s.handle} {...panResponder.panHandlers} hitSlop={{ top: 10, bottom: 16, left: 60, right: 60 }} />
 
