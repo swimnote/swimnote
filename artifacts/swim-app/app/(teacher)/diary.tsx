@@ -86,6 +86,7 @@ export default function TeacherDiaryScreen() {
   const editCursorRef = useRef<number>(0);
   const [saveMsg,       setSaveMsg]       = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [formError,     setFormError]     = useState<string | null>(null);
+  const [justSaved,     setJustSaved]     = useState(false);
   const [hasDraft,      setHasDraft]      = useState(false);
   const handledParamKey = useRef<string | undefined>(undefined);
   const draftKey = selectedGroup
@@ -439,11 +440,12 @@ export default function TeacherDiaryScreen() {
       setDiarySet(prev => new Set([...prev, `${selectedGroup!.id}_${targetDate}`]));
       if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => {});
       setHasDraft(false);
+      setJustSaved(true);
       haptic.success();
       setSaveMsg({ type: "success", text: "수업 일지가 저장되었습니다. 학부모에게 알림이 발송됩니다." });
       const cameFromExternal = !!(params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/)) || !!(params.backTo) || !!(params.classGroupId);
       const savedGroupId = selectedGroup!.id;
-      setTimeout(() => { setSaveMsg(null); if (cameFromExternal) router.back(); else setSelectedGroup(prev => prev?.id === savedGroupId ? null : prev); }, 2000);
+      setTimeout(() => { setJustSaved(false); setSaveMsg(null); if (cameFromExternal) router.back(); else setSelectedGroup(prev => prev?.id === savedGroupId ? null : prev); }, 2000);
     } catch (e: any) { setSaveMsg({ type: "error", text: e.message || "저장 중 오류가 발생했습니다." }); }
     finally { setSaving(false); }
   }
@@ -548,7 +550,12 @@ export default function TeacherDiaryScreen() {
     try {
       const r = await apiRequest(token, `/diaries/${deleteTarget.id}`, { method: "DELETE" });
       if (r.ok) {
-        setDiaries(prev => prev.filter(d => d.id !== deleteTarget.id));
+        setDiaries(prev => {
+          const next = prev.filter(d => d.id !== deleteTarget.id);
+          const todayRemains = next.some(d => d.lesson_date === targetDate);
+          if (!todayRemains) setSubView("write");
+          return next;
+        });
         setDiarySet(prev => { const next = new Set(prev); next.delete(`${selectedGroup.id}_${deleteTarget.lesson_date ?? targetDate}`); return next; });
         setDeleteTarget(null);
       } else { const d = await r.json(); setDeleteError(d.error || "삭제 실패"); }
@@ -566,7 +573,7 @@ export default function TeacherDiaryScreen() {
   }
   if (selectedGroup) {
     const group = selectedGroup;
-    const myDiaryExists = diarySet.has(`${group.id}_${targetDate}`);
+    const myDiaryExists = !justSaved && diarySet.has(`${group.id}_${targetDate}`);
     if (subView === "edit") {
       return (
         <SafeAreaView style={s.safe} edges={[]}>

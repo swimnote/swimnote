@@ -8,10 +8,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   FlatList,
   Keyboard,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -87,6 +89,35 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
     const hide = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide", () => setKbHeight(0));
     return () => { show.remove(); hide.remove(); };
   }, []);
+
+  // 시트 높이 계산 (B-2 지시 기준)
+  const topGap = insets.top + 6;
+  const sheetHeight = Math.max(200, kbHeight > 0
+    ? SCREEN_H - kbHeight - topGap
+    : SCREEN_H - topGap,
+  );
+
+  // 아래로 스와이프 닫기
+  const swipeY = useRef(new Animated.Value(0)).current;
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_, g) => { if (g.dy > 0) swipeY.setValue(g.dy); },
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 80 || g.vy > 0.8) {
+          Keyboard.dismiss();
+          swipeY.setValue(0);
+          onClose();
+        } else {
+          Animated.spring(swipeY, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
+        }
+      },
+    }),
+  ).current;
+
+  // visible 변경 시 swipeY 초기화
+  useEffect(() => { if (!visible) swipeY.setValue(0); }, [visible]);
 
   /* ── 데이터 로드 ── */
   useEffect(() => {
@@ -214,9 +245,9 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
     >
       <View style={s.kvWrapper}>
         <Pressable style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.45)" }]} onPress={handleClose} />
-        <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, Platform.OS === "ios" ? 20 : 16), height: Math.max(SCREEN_H * 0.55, SCREEN_H * 0.88 - kbHeight) }]}>
-          {/* ── 고정 상단 ── */}
-          <View style={s.handle} />
+        <Animated.View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, Platform.OS === "ios" ? 20 : 16), height: sheetHeight, transform: [{ translateY: swipeY }] }]}>
+          {/* ── 고정 상단 (스와이프 핸들) ── */}
+          <View style={s.handle} {...panResponder.panHandlers} hitSlop={{ top: 10, bottom: 16, left: 60, right: 60 }} />
 
           <View style={s.header}>
             <Text style={s.title}>문장 불러오기</Text>
@@ -417,7 +448,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
               <Text style={[s.insertBtnText, preview.length === 0 && { color: C.textMuted }]}>완료 · 삽입</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
 
@@ -464,7 +495,6 @@ const s = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    height: SCREEN_H * 0.88,
   },
   middleArea: {
     flex: 1,
