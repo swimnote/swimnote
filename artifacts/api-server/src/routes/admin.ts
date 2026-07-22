@@ -1627,7 +1627,15 @@ router.get("/students/:id/detail", requireAuth, requireRole("super_admin", "pool
         ORDER BY cd.lesson_date DESC LIMIT 10
       `)).rows : [];
 
-      res.json({ ...student, recent_attendance: attendance, recent_diaries: diaries });
+      // 전화번호별 학부모 연결 상태
+      const parentLinks = (await db.execute(sql`
+        SELECT pa.id, pa.name, pa.phone, ps.status AS link_status
+        FROM parent_students ps
+        JOIN parent_accounts pa ON pa.id = ps.parent_id
+        WHERE ps.student_id = ${req.params.id}
+      `)).rows as any[];
+
+      res.json({ ...student, recent_attendance: attendance, recent_diaries: diaries, parents: parentLinks });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );

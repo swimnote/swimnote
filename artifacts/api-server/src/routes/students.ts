@@ -821,6 +821,103 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── PATCH /:id/parent-phones — 보호자 전화번호 슬롯별 수정/삭제 (선생님 + 관리자) ─
+// slot: 1 | 2  /  phone: string(설정) | null(삭제)
+router.patch("/:id/parent-phones", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
+  const { slot, phone } = req.body as { slot: 1 | 2; phone: string | null };
+  if (slot !== 1 && slot !== 2) return err(res, 400, "slot은 1 또는 2여야 합니다.");
+
+  try {
+    const poolId = req.user!.poolId || await getPoolId(req.user!.userId);
+    const [existing] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+    if (!existing) return err(res, 404, "학생을 찾을 수 없습니다.");
+    if (req.user!.role !== "super_admin" && poolId && existing.swimming_pool_id !== poolId) {
+      return err(res, 403, "접근 권한이 없습니다.");
+    }
+
+    const normPhone = phone ? phone.replace(/[^0-9]/g, "") || null : null;
+    const oldPhone  = slot === 1 ? existing.parent_phone : (existing as any).parent_phone2;
+    const oldPhoneNorm = oldPhone ? oldPhone.replace(/[^0-9]/g, "") : null;
+
+    // 중복 체크 — 같은 학생에 동일 번호 등록 방지
+    if (normPhone) {
+      const otherPhone     = slot === 1 ? (existing as any).parent_phone2 : existing.parent_phone;
+      const otherPhoneNorm = otherPhone ? otherPhone.replace(/[^0-9]/g, "") : null;
+      if (otherPhoneNorm && normPhone === otherPhoneNorm) {
+        return err(res, 400, "이미 동일한 보호자 번호가 등록되어 있습니다.");
+      }
+    }
+
+    // 기존 번호로 연결된 학부모 확인 (번호가 실제로 바뀔 때만)
+    let unlinkedParentId: string | null = null;
+    if (oldPhoneNorm && oldPhoneNorm !== normPhone) {
+      const [linkedParent] = (await db.execute(sql`
+        SELECT pa.id FROM parent_accounts pa
+        JOIN parent_students ps ON ps.parent_id = pa.id
+        WHERE ps.student_id = ${req.params.id}
+          AND ps.status = 'approved'
+          AND REGEXP_REPLACE(COALESCE(pa.phone,''),'[^0-9]','','g') = ${oldPhoneNorm}
+        LIMIT 1
+      `)).rows as any[];
+
+      if (linkedParent) {
+        unlinkedParentId = linkedParent.id;
+        await db.execute(sql`
+          DELETE FROM parent_students
+          WHERE parent_id = ${linkedParent.id} AND student_id = ${req.params.id}
+        `);
+        // parent_user_id가 이 학부모를 가리키면 다른 연결로 교체
+        if (existing.parent_user_id === linkedParent.id) {
+          const [otherLink] = (await db.execute(sql`
+            SELECT parent_id FROM parent_students
+            WHERE student_id = ${req.params.id} AND status = 'approved' LIMIT 1
+          `)).rows as any[];
+          await db.update(studentsTable)
+            .set({ parent_user_id: otherLink?.parent_id || null, updated_at: new Date() })
+            .where(eq(studentsTable.id, req.params.id));
+        }
+      }
+    }
+
+    // 전화번호 업데이트
+    if (slot === 1) {
+      await db.update(studentsTable)
+        .set({ parent_phone: normPhone, updated_at: new Date() })
+        .where(eq(studentsTable.id, req.params.id));
+    } else {
+      await db.update(studentsTable)
+        .set({ parent_phone2: normPhone, updated_at: new Date() })
+        .where(eq(studentsTable.id, req.params.id));
+    }
+
+    // 새 번호 등록 시 자동 연결 트리거
+    if (normPhone) {
+      triggerAutoLinkOnStudentV2(req.params.id, ["parent_phone", "parent_phone2"]).catch(e =>
+        console.error("[parent-phones] auto-link error:", e)
+      );
+    }
+
+    const [updated] = await db.select().from(studentsTable)
+      .where(eq(studentsTable.id, req.params.id)).limit(1);
+    const parentLinks = (await db.execute(sql`
+      SELECT pa.id, pa.name, pa.phone, ps.status AS link_status
+      FROM parent_students ps
+      JOIN parent_accounts pa ON pa.id = ps.parent_id
+      WHERE ps.student_id = ${req.params.id}
+    `)).rows as any[];
+
+    logPoolEvent({ pool_id: existing.swimming_pool_id, event_type: "member_update", entity_type: "student", entity_id: req.params.id, actor_id: req.user!.userId, payload: { action: "parent_phone_update", slot, normPhone } }).catch(() => {});
+
+    return res.json({
+      success: true,
+      parent_phone:  (updated as any).parent_phone,
+      parent_phone2: (updated as any).parent_phone2,
+      parents: parentLinks,
+      unlinked_parent_id: unlinkedParentId,
+    });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
 // 날짜 유틸
 function _toDateStr(d: Date): string { return d.toISOString().split("T")[0]; }
 function _getMondayOf(dateStr: string): string {

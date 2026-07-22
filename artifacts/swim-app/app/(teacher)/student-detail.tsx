@@ -5,8 +5,10 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {ActivityIndicator, Modal, Pressable,
-  StyleSheet, Text, TextInput, View} from "react-native";
+import {
+  ActivityIndicator, Alert, Modal, Pressable,
+  StyleSheet, Text, TextInput, View,
+} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Colors from "@/constants/colors";
 import { callPhone, sendSms, formatPhone, CALL_COLOR, SMS_COLOR } from "@/utils/phoneUtils";
@@ -23,10 +25,19 @@ import {
 
 const C = Colors.light;
 const KO_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+interface ParentLink {
+  id: string;
+  name: string;
+  phone: string;
+  link_status: string;
+}
 interface StudentDetail extends StudentMember {
   phone?: string | null;
   address?: string | null;
   gender?: string | null;
+  parent_phone2?: string | null;
+  parents?: ParentLink[];
   assignedClasses?: {
     id: string; name: string; schedule_days: string; schedule_time: string;
     student_count?: number; level?: string | null;
@@ -40,6 +51,7 @@ interface LevelInfo {
   current_level: LevelDef | null;
   all_levels: LevelDef[];
 }
+
 function getBirthAge(birthYear?: string | null): string {
   if (!birthYear) return "";
   const y = parseInt(birthYear);
@@ -53,6 +65,21 @@ function colorFromId(id: string, fallback: string): string {
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
   return COLORS[Math.abs(h) % COLORS.length];
 }
+function normalizePhone(p: string): string {
+  return p.replace(/[^0-9]/g, "");
+}
+function getPhoneConnStatus(
+  phone: string | null | undefined,
+  parents: ParentLink[] | undefined
+): "linked" | "waiting" {
+  if (!phone) return "waiting";
+  const norm = normalizePhone(phone);
+  const linked = parents?.find(
+    p => normalizePhone(p.phone) === norm && p.link_status === "approved"
+  );
+  return linked ? "linked" : "waiting";
+}
+
 export default function StudentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
@@ -67,6 +94,16 @@ export default function StudentDetailScreen() {
   const [levelNote,         setLevelNote]         = useState("");
   const [pendingLevelOrder, setPendingLevelOrder] = useState<number | null>(null);
   const [levelResult, setLevelResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  // 보호자 전화번호 편집 상태
+  const [phoneEditModal, setPhoneEditModal] = useState<{
+    visible: boolean; slot: 1 | 2; value: string;
+  }>({ visible: false, slot: 1, value: "" });
+  const [phoneEditSaving, setPhoneEditSaving] = useState(false);
+  const [phoneDeleteModal, setPhoneDeleteModal] = useState<{
+    visible: boolean; slot: 1 | 2; phone: string; isLinked: boolean;
+  }>({ visible: false, slot: 1, phone: "", isLinked: false });
+
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -89,7 +126,9 @@ export default function StudentDetailScreen() {
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [id, token]);
+
   useEffect(() => { load(); }, [load]);
+
   async function handleWeeklyChange(newCount: number) {
     if (!id || !student) return;
     const prevCount = student.weekly_count;
@@ -104,6 +143,7 @@ export default function StudentDetailScreen() {
       setStudent(prev => prev ? { ...prev, weekly_count: prevCount } : prev);
     });
   }
+
   async function handleLevelChange() {
     if (!id || pendingLevelOrder == null) return;
     const levelOrder = pendingLevelOrder;
@@ -131,6 +171,65 @@ export default function StudentDetailScreen() {
       setLevelResult({ ok: false, msg: "레벨 변경 중 오류가 발생했습니다." });
     }
   }
+
+  async function savePhoneEdit() {
+    if (!id) return;
+    setPhoneEditSaving(true);
+    try {
+      const res = await apiRequest(token, `/students/${id}/parent-phones`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          slot: phoneEditModal.slot,
+          phone: phoneEditModal.value.trim() || null,
+        }),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        setStudent(prev => prev ? {
+          ...prev,
+          parent_phone:  body.parent_phone,
+          parent_phone2: body.parent_phone2,
+          parents:       body.parents ?? prev.parents,
+        } : prev);
+        setPhoneEditModal(m => ({ ...m, visible: false }));
+      } else {
+        const body = await res.json().catch(() => ({}));
+        Alert.alert("저장 실패", body.message || "저장에 실패했습니다.");
+      }
+    } catch {
+      Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+    } finally {
+      setPhoneEditSaving(false);
+    }
+  }
+
+  async function confirmPhoneDelete() {
+    if (!id) return;
+    setPhoneEditSaving(true);
+    try {
+      const res = await apiRequest(token, `/students/${id}/parent-phones`, {
+        method: "PATCH",
+        body: JSON.stringify({ slot: phoneDeleteModal.slot, phone: null }),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        setStudent(prev => prev ? {
+          ...prev,
+          parent_phone:  body.parent_phone,
+          parent_phone2: body.parent_phone2,
+          parents:       body.parents ?? prev.parents,
+        } : prev);
+        setPhoneDeleteModal(m => ({ ...m, visible: false }));
+      } else {
+        Alert.alert("삭제 실패", "삭제에 실패했습니다.");
+      }
+    } catch {
+      Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+    } finally {
+      setPhoneEditSaving(false);
+    }
+  }
+
   if (loading) {
     return (
       <View style={s.safe}>
@@ -150,16 +249,22 @@ export default function StudentDetailScreen() {
       </View>
     );
   }
+
   const ps = getPrimaryStatus(student as any);
   const primaryBadge = PRIMARY_STATUS_BADGE[ps];
   const pendingBadge = getMemberPendingBadge(student as any);
   const wc = student.weekly_count ? getEffectiveWeekly(student as any) : null;
   const weeklyBadge = wc ? WEEKLY_BADGE[wc] : null;
+
+  const phones: (string | null | undefined)[] = [student.parent_phone, student.parent_phone2];
+  const hasSlot1 = !!student.parent_phone;
+
   return (
     <View style={s.safe}>
       <SubScreenHeader title={student.name} homePath="/(teacher)/today-schedule" />
       <KeyboardAwareScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
         contentContainerStyle={s.content}>
+
         {/* ── 프로필 헤더 카드 ────────────────────────────────── */}
         <View style={s.profileCard}>
           <View style={{ alignItems: "center", gap: 6 }}>
@@ -202,6 +307,7 @@ export default function StudentDetailScreen() {
             </View>
           </View>
         </View>
+
         {/* ── 레벨 관리 카드 ────────────────────────────────── */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>수영 레벨</Text>
@@ -237,6 +343,7 @@ export default function StudentDetailScreen() {
             </View>
           </View>
         </View>
+
         {/* ── 상태 관리 카드 ─────────────────────────────────── */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>상태 관리</Text>
@@ -265,11 +372,9 @@ export default function StudentDetailScreen() {
               value={student.created_at ? new Date(student.created_at).toLocaleDateString("ko-KR") : "-"} />
             <InfoRow icon="map-pin" label="등록 경로"
               value={student.registration_path === "admin_created" ? "관리자 직접" : "학부모 요청"} />
-            <InfoRow icon="link" label="학부모 연결"
-              value={student.parent_user_id ? "연결됨" : student.status === "pending_parent_link" ? "대기 중" : "학부모미연결"}
-              valueColor={student.parent_user_id ? "#2EC4B6" : student.status === "pending_parent_link" ? "#EA580C" : "#64748B"} />
           </View>
         </View>
+
         {/* ── 기본 정보 ──────────────────────────────────────── */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>기본 정보</Text>
@@ -285,24 +390,94 @@ export default function StudentDetailScreen() {
             {student.parent_name && (
               <InfoRow icon="user" label="학부모" value={student.parent_name} />
             )}
-            {student.parent_phone && (
-              <View style={s.infoRow}>
-                <LucideIcon name="phone" size={14} color={CALL_COLOR} style={{ marginTop: 1 }} />
-                <Text style={s.infoLabel}>연락처</Text>
-                <View style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 12 }}>
-                  <Pressable onPress={() => callPhone(student.parent_phone)} hitSlop={8}>
-                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: CALL_COLOR }}>
-                      {formatPhone(student.parent_phone)}
-                    </Text>
-                  </Pressable>
-                  <Pressable onPress={() => sendSms(student.parent_phone)} hitSlop={8}>
-                    <LucideIcon name="message-square" size={14} color={SMS_COLOR} />
-                  </Pressable>
-                </View>
-              </View>
-            )}
           </View>
         </View>
+
+        {/* ── 학부모 연락처 ─────────────────────────────────── */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>학부모 연락처</Text>
+          <View style={s.card}>
+            {phones.map((ph, idx) => {
+              const slot = (idx + 1) as 1 | 2;
+              const isSlot2 = idx === 1;
+              // 슬롯 2는 슬롯 1이 있을 때만 표시
+              if (isSlot2 && !hasSlot1) return null;
+
+              if (!ph) {
+                return (
+                  <View key={slot}>
+                    {isSlot2 && <View style={s.divider} />}
+                    <Pressable
+                      style={s.addPhoneRow}
+                      onPress={() => setPhoneEditModal({ visible: true, slot, value: "" })}
+                    >
+                      <LucideIcon name="plus-circle" size={15} color={themeColor} />
+                      <Text style={[s.addPhoneText, { color: themeColor }]}>보호자 {slot} 추가</Text>
+                    </Pressable>
+                  </View>
+                );
+              }
+
+              const connStatus = getPhoneConnStatus(ph, student.parents);
+              return (
+                <View key={slot}>
+                  {isSlot2 && <View style={s.divider} />}
+                  <View style={s.guardianRow}>
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={s.guardianSlotLabel}>보호자 {slot}</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <Pressable onPress={() => callPhone(ph)} hitSlop={8}>
+                          <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: CALL_COLOR }}>
+                            {formatPhone(ph)}
+                          </Text>
+                        </Pressable>
+                        <Pressable onPress={() => sendSms(ph)} hitSlop={8}>
+                          <LucideIcon name="message-square" size={14} color={SMS_COLOR} />
+                        </Pressable>
+                      </View>
+                      <View style={[
+                        s.connBadge,
+                        { backgroundColor: connStatus === "linked" ? "#E6FFFA" : "#FFF7ED" }
+                      ]}>
+                        <LucideIcon
+                          name={connStatus === "linked" ? "check-circle" : "clock"}
+                          size={11}
+                          color={connStatus === "linked" ? "#2EC4B6" : "#EA580C"}
+                        />
+                        <Text style={[
+                          s.connBadgeText,
+                          { color: connStatus === "linked" ? "#2EC4B6" : "#EA580C" }
+                        ]}>
+                          {connStatus === "linked" ? "연결됨" : "가입 대기"}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 6 }}>
+                      <Pressable
+                        style={s.phoneIconBtn}
+                        onPress={() => setPhoneEditModal({ visible: true, slot, value: formatPhone(ph) })}
+                        hitSlop={8}
+                      >
+                        <LucideIcon name="edit-2" size={14} color={themeColor} />
+                      </Pressable>
+                      <Pressable
+                        style={s.phoneIconBtn}
+                        onPress={() => setPhoneDeleteModal({
+                          visible: true, slot, phone: ph,
+                          isLinked: connStatus === "linked",
+                        })}
+                        hitSlop={8}
+                      >
+                        <LucideIcon name="trash-2" size={14} color="#D96C6C" />
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
         {/* ── 수강 반 ──────────────────────────────────────── */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>수강 반</Text>
@@ -344,6 +519,7 @@ export default function StudentDetailScreen() {
             </View>
           )}
         </View>
+
         {/* ── 출결 현황 ─────────────────────────────────────── */}
         {attStat && attStat.total > 0 && (
           <View style={s.section}>
@@ -364,6 +540,7 @@ export default function StudentDetailScreen() {
         )}
         <View style={{ height: 100 }} />
       </KeyboardAwareScrollView>
+
       {/* ── 상태 변경 모달 ──────────────────────────────────── */}
       <MemberStatusChangeModal
         visible={showStatusModal}
@@ -388,6 +565,7 @@ export default function StudentDetailScreen() {
           load();
         }}
       />
+
       {/* ── 주 횟수 선택 모달 ──────────────────────────────── */}
       <Modal visible={showWeeklyPicker} transparent animationType="fade" onRequestClose={() => setShowWeeklyPicker(false)}>
         <Pressable style={s.pickerOverlay} onPress={() => setShowWeeklyPicker(false)}>
@@ -418,6 +596,7 @@ export default function StudentDetailScreen() {
           </View>
         </Pressable>
       </Modal>
+
       {/* ── 레벨 선택 모달 ──────────────────────────────────── */}
       <Modal
         visible={showLevelPicker} transparent animationType="slide"
@@ -481,6 +660,7 @@ export default function StudentDetailScreen() {
           </View>
         </Pressable>
       </Modal>
+
       {/* ── 레벨 변경 결과 모달 ── */}
       <Modal visible={!!levelResult} transparent animationType="fade" onRequestClose={() => setLevelResult(null)}>
         <Pressable style={s.pickerOverlay} onPress={() => setLevelResult(null)}>
@@ -493,9 +673,113 @@ export default function StudentDetailScreen() {
           </View>
         </Pressable>
       </Modal>
+
+      {/* ── 전화번호 추가/수정 모달 ─────────────────────────── */}
+      <Modal
+        visible={phoneEditModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPhoneEditModal(m => ({ ...m, visible: false }))}
+      >
+        <Pressable
+          style={s.pickerOverlay}
+          onPress={() => setPhoneEditModal(m => ({ ...m, visible: false }))}
+        >
+          <View
+            style={[s.pickerSheet, { backgroundColor: C.card }]}
+            onStartShouldSetResponder={() => true}
+          >
+            <Text style={s.pickerTitle}>
+              보호자 {phoneEditModal.slot} {phoneEditModal.value ? "수정" : "추가"}
+            </Text>
+            <Text style={s.pickerSub}>
+              전화번호를 입력하세요 (010-0000-0000 형식)
+            </Text>
+            <TextInput
+              style={s.phoneInput}
+              value={phoneEditModal.value}
+              onChangeText={v => setPhoneEditModal(m => ({ ...m, value: v }))}
+              placeholder="010-0000-0000"
+              placeholderTextColor={C.textMuted}
+              keyboardType="phone-pad"
+              autoFocus
+            />
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                style={[s.pickerCancel, { flex: 1 }]}
+                onPress={() => setPhoneEditModal(m => ({ ...m, visible: false }))}
+              >
+                <Text style={s.pickerCancelText}>취소</Text>
+              </Pressable>
+              <Pressable
+                style={[s.levelConfirmBtn, {
+                  flex: 1.5,
+                  backgroundColor: phoneEditModal.value.trim() ? themeColor : "#CBD5E1",
+                }]}
+                onPress={savePhoneEdit}
+                disabled={phoneEditSaving || !phoneEditModal.value.trim()}
+              >
+                <Text style={s.levelConfirmBtnText}>
+                  {phoneEditSaving ? "저장 중..." : "저장"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* ── 전화번호 삭제 확인 모달 ─────────────────────────── */}
+      <Modal
+        visible={phoneDeleteModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPhoneDeleteModal(m => ({ ...m, visible: false }))}
+      >
+        <Pressable
+          style={s.pickerOverlay}
+          onPress={() => setPhoneDeleteModal(m => ({ ...m, visible: false }))}
+        >
+          <View
+            style={[s.pickerSheet, { backgroundColor: C.card, gap: 12 }]}
+            onStartShouldSetResponder={() => true}
+          >
+            <LucideIcon name="trash-2" size={28} color="#D96C6C" style={{ alignSelf: "center" }} />
+            <Text style={[s.pickerTitle, { fontSize: 16 }]}>보호자 연락처 삭제</Text>
+            <Text style={[s.pickerSub, { textAlign: "center", lineHeight: 20 }]}>
+              {formatPhone(phoneDeleteModal.phone)} 연락처를 삭제하시겠습니까?
+            </Text>
+            {phoneDeleteModal.isLinked && (
+              <View style={s.warnBox}>
+                <LucideIcon name="alert-triangle" size={14} color="#D97706" />
+                <Text style={s.warnText}>
+                  연결된 보호자가 있습니다. 삭제하면 해당 보호자의 학생 연결도 해제됩니다.
+                </Text>
+              </View>
+            )}
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                style={[s.pickerCancel, { flex: 1 }]}
+                onPress={() => setPhoneDeleteModal(m => ({ ...m, visible: false }))}
+              >
+                <Text style={s.pickerCancelText}>취소</Text>
+              </Pressable>
+              <Pressable
+                style={[s.levelConfirmBtn, { flex: 1.5, backgroundColor: "#D96C6C" }]}
+                onPress={confirmPhoneDelete}
+                disabled={phoneEditSaving}
+              >
+                <Text style={s.levelConfirmBtnText}>
+                  {phoneEditSaving ? "삭제 중..." : "삭제"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
+
 // ── 서브 컴포넌트 ──────────────────────────────────────────────────────
 function InfoRow({
   icon, label, value, valueColor,
@@ -518,6 +802,7 @@ function AttBox({ label, value, color }: { label: string; value: string | number
     </View>
   );
 }
+
 const s = StyleSheet.create({
   safe:           { flex: 1, backgroundColor: C.background },
   content:        { padding: 16, gap: 16 },
@@ -575,7 +860,7 @@ const s = StyleSheet.create({
                     borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   infoLabel:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, width: 80 },
   infoValue:      { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "right" },
-  divider:        { height: 1, backgroundColor: "#FFFFFF", marginHorizontal: 14 },
+  divider:        { height: 1, backgroundColor: "#F1F5F9", marginHorizontal: 14 },
   classRow:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 14 },
   colorBar:       { width: 4, height: 40, borderRadius: 2 },
   className:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
@@ -591,4 +876,22 @@ const s = StyleSheet.create({
   emptyCardText:  { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" },
   emptyBox:       { alignItems: "center", paddingTop: 80, gap: 10 },
   emptyText:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  // 학부모 연락처 섹션
+  guardianRow:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
+  guardianSlotLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  connBadge:      { flexDirection: "row", alignItems: "center", gap: 4,
+                    alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  connBadgeText:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  phoneIconBtn:   { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center",
+                    backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E5E7EB" },
+  addPhoneRow:    { flexDirection: "row", alignItems: "center", gap: 8,
+                    paddingHorizontal: 16, paddingVertical: 14 },
+  addPhoneText:   { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  phoneInput:     { borderWidth: 1.5, borderColor: C.border, borderRadius: 12,
+                    paddingHorizontal: 14, paddingVertical: 12,
+                    fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text,
+                    letterSpacing: 1 },
+  warnBox:        { flexDirection: "row", alignItems: "flex-start", gap: 8,
+                    backgroundColor: "#FFFBEB", borderRadius: 10, padding: 12 },
+  warnText:       { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 18 },
 });

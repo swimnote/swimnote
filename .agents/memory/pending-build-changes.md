@@ -19,6 +19,13 @@ description: 마지막 스토어 빌드 이후 코드에 반영됐으나 아직 
 - 증상: 교사 일지 저장 시 DiaryWriteView 렌더링 중 ReferenceError → ErrorFallback 표시
 - iOS/Android production+preview 4채널 OTA 완료
 
+### ③ 학부모 전화번호 관리 UI + 관리자 보호자 연결 상태 개선 (2026-07-22 OTA)
+- teacher student-detail.tsx: "학부모 연락처" 섹션 신설 (보호자1/2 추가·수정·삭제 모달)
+- API: `PATCH /students/:id/parent-phones` 엔드포인트 추가 (teacher+admin 접근 가능)
+- API: `GET /admin/students/:id/detail` → parents 배열 추가 (전화번호별 연결 상태)
+- MemberParentTab.tsx: 전화번호별 연결/가입대기 뱃지 + 연결된 학부모 계정 섹션 개선
+- iOS/Android production+preview 4채널 OTA 완료
+
 ## API 서버 변경 (재배포 후 적용)
 - `parent.ts:732` — 학부모 일지 사진 URL: `/api/photos/` → `/photos/` (swim-diary.tsx 패턴 맞춤)
 - `parent.ts:1236` — 홈 요약 사진 URL: 하드코딩 Render.com URL → `/photos/`
