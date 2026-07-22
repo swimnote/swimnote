@@ -8,10 +8,10 @@
  *   - 역할 데이터만 필요하면 → useRole()
  *   - 기존 코드 그대로 유지 → useAuth()
  */
-import React, { createContext, useContext, useEffect, ReactNode } from "react";
-import { Alert } from "react-native";
+import React, { createContext, useContext, useEffect, useRef, ReactNode } from "react";
+import { Alert, AppState, AppStateStatus } from "react-native";
 import { router } from "expo-router";
-import { SessionProvider, useSession } from "./auth/SessionContext";
+import { SessionProvider, useSession, API_BASE as _ROLES_API_BASE } from "./auth/SessionContext";
 import { RoleProvider, useRole } from "./auth/RoleContext";
 import { AuthErrorCodes } from "@/constants/auth-error-codes";
 
@@ -131,12 +131,182 @@ function WithdrawalGuard({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+// ─── roles 실시간 갱신 로직 ──────────────────────────────────────────────────
+// 폴링 주기: 15초 / 조건: admin 로그인 + active + teacher or pool_admin
+const ROLES_POLL_INTERVAL_MS = 15_000;
+
+/**
+ * applyServerRoleState — 서버 최신 roles 수신 후 세션/라우팅 반영
+ *
+ * 1. roles 변경 없으면 early return
+ * 2. setAdminUser + AsyncStorage 갱신
+ * 3. activeRole이 새 roles에 없으면 → ROLE_REVOKED 처리 (teacher 복귀 + Alert)
+ * 4. activeRole이 새 roles에 있으면 → 세션 갱신만, 강제 이동 없음
+ *
+ * single-flight: _isHandlingRoleRevoked 재사용 (ROLE_REVOKED와 충돌 방지)
+ */
+async function _applyServerRoleState(
+  serverRole: string,
+  serverRoles: string[],
+  deps: {
+    adminUser: import("./auth/SessionContext").AdminUser;
+    updateAdminProfile: (fields: Partial<import("./auth/SessionContext").AdminUser>) => void;
+    activeRole: string | null;
+    switchRole: (role: string) => Promise<void>;
+    onLogout: () => Promise<void>;
+  }
+): Promise<void> {
+  const { adminUser, updateAdminProfile, activeRole, switchRole, onLogout } = deps;
+
+  // 변경 없으면 early return
+  const currentRoles = adminUser.roles?.length ? adminUser.roles : [adminUser.role];
+  const normalizedServer = [...serverRoles].sort().join(",");
+  const normalizedCurrent = [...currentRoles].sort().join(",");
+  if (normalizedServer === normalizedCurrent && serverRole === adminUser.role) return;
+
+  console.log(`[RoleSync] roles 변경 감지: ${normalizedCurrent} → ${normalizedServer}`);
+
+  // 세션 갱신
+  updateAdminProfile({ role: serverRole as import("./auth/SessionContext").AdminUser["role"], roles: serverRoles });
+
+  // activeRole 유효성 확인
+  const currentActive = activeRole ?? adminUser.role;
+  if (currentActive && !serverRoles.includes(currentActive)) {
+    // 현재 역할이 새 roles에 없음 → ROLE_REVOKED 처리
+    if (_isHandlingRoleRevoked) return;
+    _isHandlingRoleRevoked = true;
+    try {
+      await _handleRoleRevokedLogic({ switchRole, onLogout });
+    } finally {
+      setTimeout(() => { _isHandlingRoleRevoked = false; }, 5_000);
+    }
+  }
+  // activeRole이 새 roles에 있으면 → 세션 갱신만 (사용자 강제 이동 없음)
+}
+
+// in-flight 잠금: 폴링과 AppState 복귀가 동시에 오더라도 중복 /auth/role-status 호출 방지
+let _isRefreshingRoles = false;
+
+/**
+ * RolesPollingGuard — roles 실시간 갱신 담당 컴포넌트
+ *
+ * - 15초 폴링: kind=admin, token 있음, teacher 또는 pool_admin 계정
+ * - AppState background→active 복귀 시 즉시 role-status 조회 (임계값 없음)
+ * - 폴링/복귀 동시 발생 시 in-flight 잠금으로 중복 방지
+ */
+function RolesPollingGuard({ children }: { children: ReactNode }) {
+  const session = useSession();
+  const role = useRole();
+
+  const tokenRef = useRef(session.token);
+  const adminUserRef = useRef(session.adminUser);
+  const activeRoleRef = useRef(role.activeRole);
+  const kindRef = useRef(session.kind);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const updateAdminProfileRef = useRef(session.updateAdminProfile);
+  const switchRoleRef = useRef(role.switchRole);
+  const logoutRef = useRef(session.logout);
+  const clearRoleRef = useRef(role.clearRole);
+
+  useEffect(() => { tokenRef.current = session.token; }, [session.token]);
+  useEffect(() => { adminUserRef.current = session.adminUser; }, [session.adminUser]);
+  useEffect(() => { activeRoleRef.current = role.activeRole; }, [role.activeRole]);
+  useEffect(() => { kindRef.current = session.kind; }, [session.kind]);
+  useEffect(() => { updateAdminProfileRef.current = session.updateAdminProfile; }, [session.updateAdminProfile]);
+  useEffect(() => { switchRoleRef.current = role.switchRole; }, [role.switchRole]);
+  useEffect(() => { logoutRef.current = session.logout; }, [session.logout]);
+  useEffect(() => { clearRoleRef.current = role.clearRole; }, [role.clearRole]);
+
+  async function checkRoles() {
+    const t = tokenRef.current;
+    const user = adminUserRef.current;
+    if (!t || !user || kindRef.current !== "admin") return;
+    if (_isRefreshingRoles || _isHandlingRoleRevoked) return;
+
+    // teacher 또는 pool_admin 계정만 폴링 (super 계열·parent 제외)
+    const currentRole = activeRoleRef.current ?? user.role;
+    if (currentRole !== "teacher" && currentRole !== "pool_admin" && currentRole !== "sub_admin") return;
+
+    _isRefreshingRoles = true;
+    try {
+      const res = await fetch(`${_ROLES_API_BASE}/auth/role-status`, {
+        headers: { Authorization: `Bearer ${t}` },
+        cache: "no-store",
+      });
+
+      // 401 → 기존 로그아웃 정책 적용
+      if (res.status === 401) {
+        _globalLogoutHandler?.();
+        return;
+      }
+      // 403 ROLE_REVOKED → 기존 핸들러로 위임
+      if (res.status === 403) {
+        try {
+          const body = await res.clone().json().catch(() => ({}));
+          if (body?.code === AuthErrorCodes.ROLE_REVOKED) {
+            _globalRoleRevokedHandler?.();
+          }
+        } catch {}
+        return;
+      }
+      // 네트워크 오류·5xx → 현재 세션 유지, 다음 주기에 재시도 (로그아웃 금지)
+      if (!res.ok) return;
+
+      const data = await res.json().catch(() => null);
+      if (!data?.success || !data.roles || !adminUserRef.current) return;
+
+      await _applyServerRoleState(data.role, data.roles, {
+        adminUser: adminUserRef.current,
+        updateAdminProfile: updateAdminProfileRef.current,
+        activeRole: activeRoleRef.current,
+        switchRole: switchRoleRef.current,
+        onLogout: async () => {
+          clearApiCache();
+          await logoutRef.current();
+          await clearRoleRef.current();
+        },
+      });
+    } catch {
+      // 네트워크 오류: 현재 세션 유지, Alert 없음
+    } finally {
+      _isRefreshingRoles = false;
+    }
+  }
+
+  // 15초 폴링
+  useEffect(() => {
+    if (session.kind !== "admin" || !session.token) return;
+    const id = setInterval(() => {
+      if (AppState.currentState === "active") {
+        checkRoles();
+      }
+    }, ROLES_POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [session.kind, session.token]);
+
+  // AppState background→active 복귀 시 즉시 확인
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState: AppStateStatus) => {
+      const prev = appStateRef.current;
+      appStateRef.current = nextState;
+      if ((prev === "background" || prev === "inactive") && nextState === "active") {
+        checkRoles();
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  return <>{children}</>;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <SessionProvider>
       <RoleProvider>
         <WithdrawalGuard>
-          {children}
+          <RolesPollingGuard>
+            {children}
+          </RolesPollingGuard>
         </WithdrawalGuard>
       </RoleProvider>
     </SessionProvider>

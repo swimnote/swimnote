@@ -567,6 +567,27 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── 권한 상태 경량 조회 (roles 실시간 폴링용) ────────────────────────
+// /auth/me 대비 최소 컬럼만 SELECT — 15초 폴링에 적합
+// parent_account는 roles 개념 없으므로 400 반환
+router.get("/role-status", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (req.user!.role === "parent_account") {
+      return res.status(400).json({ success: false, message: "parent_account는 role-status를 사용할 수 없습니다." });
+    }
+    const [row] = await superAdminDb
+      .select({ role: usersTable.role, roles: usersTable.roles })
+      .from(usersTable)
+      .where(eq(usersTable.id, req.user!.userId))
+      .limit(1);
+    if (!row) return err(res, 404, "사용자를 찾을 수 없습니다.");
+    const roles: string[] = Array.isArray(row.roles) && row.roles.length > 0
+      ? row.roles
+      : [row.role];
+    return res.json({ success: true, role: row.role, roles });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
 // ── 내 정보 수정 (이름/전화번호) ────────────────────────────────────
 router.patch("/me", requireAuth, async (req: AuthRequest, res) => {
   const { name, phone } = req.body;

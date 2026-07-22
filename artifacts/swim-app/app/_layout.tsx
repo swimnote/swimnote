@@ -532,12 +532,10 @@ function RootNav() {
         // OTA 체크 (있으면 자동 재시작)
         checkAndDownloadOta();
 
-        // 1시간 이상 백그라운드였을 때만 세션 갱신 (teacher 모드 유지)
-        const elapsed = backgroundAtRef.current ? Date.now() - backgroundAtRef.current : Infinity;
-        const BACKGROUND_THRESHOLD_MS = 60 * 60 * 1000;
-        if (elapsed >= BACKGROUND_THRESHOLD_MS) {
-          refreshSession?.().catch(() => {});
-        }
+        // 백그라운드 복귀 시 세션 갱신 (roles 포함)
+        // RolesPollingGuard가 AppState 복귀를 감지하여 role-status를 별도로 확인하므로
+        // 여기서는 pool 정보 등 나머지 세션 데이터 갱신만 담당
+        refreshSession?.().catch(() => {});
 
         // 미읽은 문의 답변 팝업 — 세션당 1회
         if (!inquiryPopupShownRef.current && tokenRef.current && kindRef.current) {
