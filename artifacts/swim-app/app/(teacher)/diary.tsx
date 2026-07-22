@@ -562,29 +562,29 @@ export default function TeacherDiaryScreen() {
   async function confirmDelete() {
     if (!deleteTarget || !selectedGroup) return;
     setDeleteLoading(true);
+    // API 호출 전 상태 스냅샷 저장 (실패 시 rollback용)
+    const snapshotDiaries = diaries;
+    const snapshotDiarySet = new Set(diarySet);
     // closure로 캡처: setDeleteTarget(null) 이후에도 사용
     const deletedId = deleteTarget.id;
     const deletedDate = deleteTarget.lesson_date ?? targetDate;
     const groupId = selectedGroup.id;
+    // 낙관적 제거: 서버 응답 기다리지 않고 즉시 UI 반영
+    setDeleteTarget(null);
+    setDiaries(prev => prev.filter(d => d.id !== deletedId));
+    setDiarySet(prev => {
+      const next = new Set(prev);
+      next.delete(`${groupId}_${deletedDate}`);
+      return next;
+    });
+    if (deletedDate === targetDate) setSubView("write");
     try {
       const r = await apiRequest(token, `/diaries/${deletedId}`, { method: "DELETE" });
       if (r.ok) {
-        // 즉시 모달 닫기 (optimistic)
-        setDeleteTarget(null);
-        // 로컬 상태에서 즉시 제거 (UI 즉각 반응)
-        setDiaries(prev => prev.filter(d => d.id !== deletedId));
-        setDiarySet(prev => {
-          const next = new Set(prev);
-          next.delete(`${groupId}_${deletedDate}`);
-          return next;
-        });
-        // subView 전환: 삭제한 날짜가 targetDate이면 write로
-        if (deletedDate === targetDate) setSubView("write");
-        // 서버 재조회로 최종 동기화 (soft-delete 필터 누락 보완)
+        // 서버 재조회로 최종 동기화 (soft-delete 항목 명시 제거 포함)
         try {
           const r2 = await apiRequest(token, `/diaries?class_group_id=${groupId}`);
           const raw = r2.ok ? await r2.json() : [];
-          // 서버가 soft-deleted 항목을 반환할 경우 클라이언트에서도 명시적으로 제거
           const diaryList: DiaryEntry[] = Array.isArray(raw)
             ? raw.filter((d: DiaryEntry) => d.id !== deletedId)
             : [];
@@ -597,10 +597,25 @@ export default function TeacherDiaryScreen() {
           const todayRemains = diaryList.some(d => d.lesson_date === targetDate);
           if (!todayRemains) setSubView("write");
         } catch {
-          // 재조회 실패해도 로컬 상태로 이미 갱신됨 — 무시
+          // 재조회 실패해도 낙관적 제거로 이미 갱신됨 — 무시
         }
-      } else { const d = await r.json(); setDeleteError(d.error || "삭제 실패"); }
-    } catch {} finally { setDeleteLoading(false); }
+      } else {
+        // API 실패 → 낙관적 제거 rollback
+        const errData = await r.json().catch(() => ({})) as any;
+        setDiaries(snapshotDiaries);
+        setDiarySet(snapshotDiarySet);
+        setDeleteTarget(deleteTarget);
+        setSubView("history");
+        setDeleteError(errData?.error || "삭제 실패");
+      }
+    } catch {
+      // 네트워크 오류 → rollback
+      setDiaries(snapshotDiaries);
+      setDiarySet(snapshotDiarySet);
+      setDeleteTarget(deleteTarget);
+      setSubView("history");
+      setDeleteError("네트워크 오류로 삭제하지 못했습니다. 다시 시도해주세요.");
+    } finally { setDeleteLoading(false); }
   }
   const statusMap: Record<string, SlotStatus> = {};
   groups.forEach(g => { statusMap[g.id] = { attChecked: attMap[g.id] || 0, diaryDone: diarySet.has(`${g.id}_${targetDate}`), hasPhotos: false }; });
