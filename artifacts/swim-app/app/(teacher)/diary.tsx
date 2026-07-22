@@ -86,7 +86,6 @@ export default function TeacherDiaryScreen() {
   const editCursorRef = useRef<number>(0);
   const [saveMsg,       setSaveMsg]       = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [formError,     setFormError]     = useState<string | null>(null);
-  const [justSaved,     setJustSaved]     = useState(false);
   const [hasDraft,      setHasDraft]      = useState(false);
   const handledParamKey = useRef<string | undefined>(undefined);
   const draftKey = selectedGroup
@@ -437,15 +436,31 @@ export default function TeacherDiaryScreen() {
       setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
       setStudentAlbumPhotos({}); setStudentAlbumVideos({});
       setStudentNotes([]); setCommonContent(""); setAddNoteStudent(null); setNoteInput("");
-      setDiarySet(prev => new Set([...prev, `${selectedGroup!.id}_${targetDate}`]));
       if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => {});
       setHasDraft(false);
-      setJustSaved(true);
       haptic.success();
+      // 즉시 history 뷰로 전환 — DiaryWriteView 비표시로 myDiaryExists 경고 원천 차단
+      setSubView("history");
+      // 서버에서 최신 일지 목록 재조회 → diarySet 서버 기반 갱신
+      const savedGroupId = selectedGroup!.id;
+      apiRequest(token, `/diaries?class_group_id=${savedGroupId}`)
+        .then(r2 => r2.ok ? r2.json() : [])
+        .then((list: any[]) => {
+          const diaryList: DiaryEntry[] = Array.isArray(list) ? list : [];
+          setDiaries(diaryList);
+          setDiarySet(prev => {
+            const next = new Set(prev);
+            diaryList.forEach(d => { if (d.class_group_id && d.lesson_date) next.add(`${d.class_group_id}_${d.lesson_date}`); });
+            return next;
+          });
+        })
+        .catch(() => {
+          // 재조회 실패 시 로컬에서만 최소 보장
+          setDiarySet(prev => new Set([...prev, `${savedGroupId}_${targetDate}`]));
+        });
       setSaveMsg({ type: "success", text: "수업 일지가 저장되었습니다. 학부모에게 알림이 발송됩니다." });
       const cameFromExternal = !!(params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/)) || !!(params.backTo) || !!(params.classGroupId);
-      const savedGroupId = selectedGroup!.id;
-      setTimeout(() => { setJustSaved(false); setSaveMsg(null); if (cameFromExternal) router.back(); else setSelectedGroup(prev => prev?.id === savedGroupId ? null : prev); }, 2000);
+      setTimeout(() => { setSaveMsg(null); if (cameFromExternal) router.back(); else setSelectedGroup(prev => prev?.id === savedGroupId ? null : prev); }, 2000);
     } catch (e: any) { setSaveMsg({ type: "error", text: e.message || "저장 중 오류가 발생했습니다." }); }
     finally { setSaving(false); }
   }
@@ -550,14 +565,32 @@ export default function TeacherDiaryScreen() {
     try {
       const r = await apiRequest(token, `/diaries/${deleteTarget.id}`, { method: "DELETE" });
       if (r.ok) {
-        setDiaries(prev => {
-          const next = prev.filter(d => d.id !== deleteTarget.id);
-          const todayRemains = next.some(d => d.lesson_date === targetDate);
-          if (!todayRemains) setSubView("write");
-          return next;
-        });
-        setDiarySet(prev => { const next = new Set(prev); next.delete(`${selectedGroup.id}_${deleteTarget.lesson_date ?? targetDate}`); return next; });
         setDeleteTarget(null);
+        // 서버에서 최신 일지 목록 재조회 → diarySet 서버 기반 갱신 (soft-delete 반영)
+        try {
+          const r2 = await apiRequest(token, `/diaries?class_group_id=${selectedGroup.id}`);
+          const raw = r2.ok ? await r2.json() : [];
+          const diaryList: DiaryEntry[] = Array.isArray(raw) ? raw : [];
+          setDiaries(diaryList);
+          setDiarySet(prev => {
+            const next = new Set(prev);
+            // 삭제된 날짜 키 먼저 제거
+            next.delete(`${selectedGroup.id}_${deleteTarget.lesson_date ?? targetDate}`);
+            // 서버에 실제 남아있는 일지만 추가
+            diaryList.forEach(d => { if (d.class_group_id && d.lesson_date) next.add(`${d.class_group_id}_${d.lesson_date}`); });
+            return next;
+          });
+          const todayRemains = diaryList.some(d => d.lesson_date === targetDate);
+          if (!todayRemains) setSubView("write");
+        } catch {
+          // 재조회 실패 시 로컬에서만 처리
+          setDiaries(prev => {
+            const next = prev.filter(d => d.id !== deleteTarget.id);
+            if (!next.some(d => d.lesson_date === targetDate)) setSubView("write");
+            return next;
+          });
+          setDiarySet(prev => { const next = new Set(prev); next.delete(`${selectedGroup.id}_${deleteTarget.lesson_date ?? targetDate}`); return next; });
+        }
       } else { const d = await r.json(); setDeleteError(d.error || "삭제 실패"); }
     } catch {} finally { setDeleteLoading(false); }
   }
@@ -573,7 +606,7 @@ export default function TeacherDiaryScreen() {
   }
   if (selectedGroup) {
     const group = selectedGroup;
-    const myDiaryExists = !justSaved && diarySet.has(`${group.id}_${targetDate}`);
+    const myDiaryExists = diarySet.has(`${group.id}_${targetDate}`);
     if (subView === "edit") {
       return (
         <SafeAreaView style={s.safe} edges={[]}>
