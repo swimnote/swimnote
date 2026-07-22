@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { verifyToken, TOKEN_VERSION, SUPER_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
+import { AuthErrorCodes } from "../lib/auth-error-codes.js";
 import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
@@ -182,6 +183,38 @@ export function requireRole(...roles: string[]) {
       res.status(403).json({ success: false, message: "권한이 없습니다.", error: "권한이 없습니다." });
       return;
     }
+
+    // ── pool_admin JWT: DB roles 실시간 확인 (캐시 없음, 권한 회수 즉시 반영) ──────
+    // 캐시 없는 이유: 다중 인스턴스 환경에서 인스턴스 간 캐시 무효화가 불가하므로
+    // DB 직접 조회가 유일하게 안전한 방법. pool_admin API는 사용자 직접 탭 요청이라
+    // SELECT 1회 추가 부하는 허용 수준.
+    if (req.user.role === "pool_admin" && roles.includes("pool_admin")) {
+      superAdminDb.execute(sql`SELECT roles FROM users WHERE id = ${req.user.userId} LIMIT 1`)
+        .then(result => {
+          const row = result.rows[0] as any;
+          const dbRoles: string[] = Array.isArray(row?.roles) ? row.roles : [];
+          if (!dbRoles.includes("pool_admin")) {
+            res.status(403).json({
+              success: false,
+              code: AuthErrorCodes.ROLE_REVOKED,
+              message: "관리자 권한이 회수되었습니다.",
+            });
+            return;
+          }
+          next();
+        })
+        .catch(err => {
+          console.error("[requireRole] pool_admin DB 권한 확인 오류:", err);
+          res.status(503).json({
+            success: false,
+            code: AuthErrorCodes.ROLE_CHECK_FAILED,
+            message: "권한 확인에 실패했습니다. 잠시 후 다시 시도해주세요.",
+          });
+        });
+      return;
+    }
+    // ──────────────────────────────────────────────────────────────────────────────
+
     next();
   };
 }

@@ -9,8 +9,11 @@
  *   - 기존 코드 그대로 유지 → useAuth()
  */
 import React, { createContext, useContext, useEffect, ReactNode } from "react";
+import { Alert } from "react-native";
+import { router } from "expo-router";
 import { SessionProvider, useSession } from "./auth/SessionContext";
 import { RoleProvider, useRole } from "./auth/RoleContext";
+import { AuthErrorCodes } from "@/constants/auth-error-codes";
 
 export type {
   SessionKind,
@@ -28,6 +31,38 @@ import { API_BASE as _API_BASE } from "./auth/SessionContext";
 let _globalLogoutHandler: (() => void) | null = null;
 export function setGlobalLogoutHandler(fn: () => void) { _globalLogoutHandler = fn; }
 export function clearGlobalLogoutHandler() { _globalLogoutHandler = null; }
+
+// 전역 권한 회수 핸들러 — ROLE_REVOKED 403 수신 시 호출
+let _globalRoleRevokedHandler: (() => Promise<void>) | null = null;
+export function setGlobalRoleRevokedHandler(fn: () => Promise<void>) { _globalRoleRevokedHandler = fn; }
+export function clearGlobalRoleRevokedHandler() { _globalRoleRevokedHandler = null; }
+
+// single-flight: ROLE_REVOKED 동시 다발 시 중복 실행 방지
+let _isHandlingRoleRevoked = false;
+
+/**
+ * handleRoleRevoked — 관리자 권한 회수 처리 (순수 async 함수)
+ * 의존성을 매개변수로 주입받으므로 향후 RoleManager.ts로 분리 용이
+ */
+async function _handleRoleRevokedLogic(deps: {
+  switchRole: (role: string) => Promise<void>;
+  onLogout: () => Promise<void>;
+}): Promise<void> {
+  const { switchRole, onLogout } = deps;
+  try {
+    await switchRole("teacher");
+    clearApiCache();
+    router.replace("/(teacher)/today-schedule");
+    Alert.alert(
+      "권한 변경 안내",
+      "관리자 권한이 회수되어 선생님 모드로 전환되었습니다.",
+    );
+  } catch (e) {
+    console.error("[RoleRevoked] teacher 전환 실패, 로그아웃 처리:", e);
+    clearApiCache();
+    await onLogout();
+  }
+}
 
 // ─── GET 인메모리 캐시 ────────────────────────────────────────────────────────
 // 규칙: GET 2xx 응답만 캐시 / 쓰기 요청 시 관련 캐시 자동 삭제 / 30초 TTL
@@ -56,18 +91,43 @@ export function clearApiCache() { _apiCache.clear(); }
 
 export const AuthContext = createContext<any>(null);
 
-// 탈퇴 계정 401 감지 시 자동 로그아웃 등록 컴포넌트
+// 탈퇴 계정 401 / 권한 회수 403 감지 시 자동 처리 등록 컴포넌트
 function WithdrawalGuard({ children }: { children: ReactNode }) {
   const session = useSession();
   const role = useRole();
+
   useEffect(() => {
+    // 탈퇴·삭제 계정 → 강제 로그아웃
     setGlobalLogoutHandler(async () => {
       clearApiCache();
       await session.logout();
       await role.clearRole();
     });
-    return () => clearGlobalLogoutHandler();
-  }, [session.logout, role.clearRole]);
+
+    // 관리자 권한 회수 → teacher 모드 강제 복귀 (single-flight)
+    setGlobalRoleRevokedHandler(async () => {
+      if (_isHandlingRoleRevoked) return;
+      _isHandlingRoleRevoked = true;
+      try {
+        await _handleRoleRevokedLogic({
+          switchRole: role.switchRole,
+          onLogout: async () => {
+            await session.logout();
+            await role.clearRole();
+          },
+        });
+      } finally {
+        // 중복 호출 방지 잠금 해제 (약간의 여유 시간 후)
+        setTimeout(() => { _isHandlingRoleRevoked = false; }, 5_000);
+      }
+    });
+
+    return () => {
+      clearGlobalLogoutHandler();
+      clearGlobalRoleRevokedHandler();
+    };
+  }, [session.logout, role.switchRole, role.clearRole]);
+
   return <>{children}</>;
 }
 
@@ -213,5 +273,18 @@ export async function apiRequest(token: string | null, path: string, options: Re
       }
     } catch {}
   }
+
+  // ── ROLE_REVOKED → teacher 모드 강제 복귀 ────────────────────────────────
+  if (res.status === 403) {
+    try {
+      const cloned = res.clone();
+      const body = await cloned.json().catch(() => ({}));
+      if (body?.code === AuthErrorCodes.ROLE_REVOKED) {
+        console.warn("[apiRequest] ROLE_REVOKED 감지 → teacher 모드 강제 복귀");
+        _globalRoleRevokedHandler?.();
+      }
+    } catch {}
+  }
+
   return res;
 }

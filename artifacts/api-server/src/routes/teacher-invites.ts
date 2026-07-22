@@ -258,7 +258,8 @@ router.get("/admin/approved-teachers-for-grant", requireAuth, requireRole("pool_
         JOIN users u ON ti.user_id = u.id
         WHERE ti.swimming_pool_id = ${me.swimming_pool_id}
           AND ti.invite_status = 'approved'
-          AND u.role = 'teacher'
+          AND u.roles @> ARRAY['teacher']::text[]
+          AND u.id != ${req.user!.userId}
         ORDER BY u.name
       `);
       res.json({ success: true, data: result.rows });
@@ -289,7 +290,7 @@ router.post("/admin/grant-pool-admin", requireAuth, requireRole("pool_admin", "s
         WHERE u.id = ${userId}
           AND ti.swimming_pool_id = ${me.swimming_pool_id}
           AND ti.invite_status = 'approved'
-          AND u.role = 'teacher'
+          AND u.roles @> ARRAY['teacher']::text[]
         LIMIT 1
       `);
       if (!targetRow.rows.length) {

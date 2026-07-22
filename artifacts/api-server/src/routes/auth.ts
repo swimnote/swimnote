@@ -1222,8 +1222,9 @@ router.get("/verify-role", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── 역할 전환 ─────────────────────────────────────────────────────────
-// requireDbRoleCheck: 현재 JWT 역할이 DB에 유효한지 먼저 검증
-router.post("/switch-role", requireAuth, requireDbRoleCheck, async (req: AuthRequest, res) => {
+// requireDbRoleCheck 제거: ROLE_REVOKED 후에도 teacher 복귀가 가능해야 함
+// 핸들러 내부에서 targetRole이 DB roles에 있는지 직접 검증하므로 보안 동일하게 유지
+router.post("/switch-role", requireAuth, async (req: AuthRequest, res) => {
   const { role } = req.body;
   if (!role) return err(res, 400, "전환할 역할을 지정해주세요.");
   try {

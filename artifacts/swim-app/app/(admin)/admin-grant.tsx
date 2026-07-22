@@ -64,6 +64,7 @@ export default function AdminGrantScreen() {
   useEffect(() => { load(); }, [load]);
 
   async function handleGrant(userId: string, grant: boolean) {
+    if (processing) return;
     setProcessing(true);
     try {
       const r = await apiRequest(token, "/admin/grant-pool-admin", {
@@ -71,17 +72,32 @@ export default function AdminGrantScreen() {
         body: JSON.stringify({ userId, grant }),
       });
       const d = await r.json();
-      if (!r.ok) { setResultMsg(d.message || "처리 중 오류가 발생했습니다."); return; }
+      if (!r.ok) {
+        setResultMsg(d.message || "처리 중 오류가 발생했습니다.");
+        return;
+      }
+      // 서버 응답의 roles로 상태 갱신 (optimistic update 제거)
+      const serverRoles: string[] = Array.isArray(d.roles) ? d.roles : [];
+      const isAdminGranted = serverRoles.includes("pool_admin");
+      setTeachers(prev =>
+        prev.map(t => t.id === userId ? { ...t, is_admin_granted: isAdminGranted } : t)
+      );
       setResultMsg(d.message || (grant ? "관리자 권한이 부여되었습니다." : "관리자 권한이 회수되었습니다."));
-      // 즉시 반영
-      setTeachers(prev => prev.map(t => t.id === userId ? { ...t, is_admin_granted: grant } : t));
-      // 백그라운드 조용히 갱신 (스피너 없음)
-      apiRequest(token, "/admin/approved-teachers-for-grant").then(async res => {
-        if (res.ok) { const d2 = await res.json(); setTeachers(Array.isArray(d2) ? d2 : (d2.data ?? [])); }
-      }).catch(() => {});
+      // 서버 전체 목록 재조회 (백그라운드, 스피너 없음)
+      apiRequest(token, "/admin/approved-teachers-for-grant")
+        .then(async res => {
+          if (res.ok) {
+            const d2 = await res.json();
+            setTeachers(Array.isArray(d2) ? d2 : (d2.data ?? []));
+          }
+        })
+        .catch(() => {});
+    } catch {
+      // 네트워크 오류 — 로컬 상태 변경 없이 메시지만 표시
+      setResultMsg("네트워크 오류가 발생했습니다. 다시 시도해주세요.");
     } finally {
       setProcessing(false);
-      setConfirmTarget(null); // API 완료 즉시 모달 닫기
+      setConfirmTarget(null);
     }
   }
 
@@ -268,7 +284,7 @@ const s = StyleSheet.create({
   dialogBody:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 22, textAlign: "center" },
   dialogBtns:    { flexDirection: "row", gap: 8, marginTop: 4 },
   dialogBtn:     { flex: 1, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  dialogBtnCancel:   { backgroundColor: "#FFFFFF" },
+  dialogBtnCancel:   { backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#E5E7EB" },
   dialogBtnCancelTxt:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   dialogBtnRevoke:   { backgroundColor: "#D96C6C" },
   dialogBtnTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
