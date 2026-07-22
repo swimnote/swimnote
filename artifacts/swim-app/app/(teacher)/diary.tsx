@@ -711,8 +711,8 @@ export default function TeacherDiaryScreen() {
         <SubScreenHeader
           title={group.name}
           subtitle={`${targetDate} · ${group.schedule_time}`}
-          onBack={() => {
-            if (params.backTo || params.classGroupId) { router.back(); }
+          onBack={params.backTo ? undefined : () => {
+            if (params.classGroupId) { router.back(); }
             else { setSelectedGroup(null); }
           }}
           homePath="/(teacher)/today-schedule"
@@ -752,8 +752,8 @@ export default function TeacherDiaryScreen() {
             showPickerFor={showPickerFor} setShowPickerFor={setShowPickerFor}
             commonCursorRef={commonCursorRef} noteCursorRef={noteCursorRef}
             onSave={handleSave}
-            onBack={() => {
-              if (params.backTo || params.classGroupId) { router.back(); }
+            onBack={params.backTo ? undefined : () => {
+              if (params.classGroupId) { router.back(); }
               else { setSelectedGroup(null); }
             }}
             onUploadGroupMedia={uploadGroupMedia}

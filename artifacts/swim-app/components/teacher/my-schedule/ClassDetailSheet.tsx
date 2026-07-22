@@ -31,7 +31,7 @@ export default function ClassDetailSheet({
   onOpenRemove?: () => void;
   onDeleteClass?: () => void;
   weekChangeLogs?: ChangeLogItem[];
-  onNavigateTo?: (navigate: () => void) => void;
+  onNavigateTo?: (navigate: () => void, groupIdToRestore?: string) => void;
   classGroups?: TeacherClassGroup[];
   onColorChange?: (id: string, color: string) => void;
   onCapacityChange?: (id: string, capacity: number | null) => void;
@@ -358,7 +358,7 @@ export default function ClassDetailSheet({
                 <Text style={[cds.actionText, { color: "#4338CA" }]}>반배정</Text>
               </Pressable>
               <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? "#E6FFFA" : "#FFF1BF", flex: 1 }]}
-                onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name} } as any))}>
+                onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name, backTo: "my-schedule"} } as any), group.id)}>
                 <LucideIcon name="edit" size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
                 <Text style={[cds.actionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
               </Pressable>

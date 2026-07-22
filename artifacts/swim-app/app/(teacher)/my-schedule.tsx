@@ -72,6 +72,7 @@ export default function MyScheduleScreen() {
   const [detailDateStudents, setDetailDateStudents] = useState<StudentItem[]>([]);
   const isMountedRef = useRef(false);
   const pendingRestoreDateRef = useRef<string | null>(null);
+  const pendingRestoreGroupIdRef = useRef<string | null>(null);
   const autoOpenDoneRef = useRef(false);
   const selectedDateRef = useRef<string | null>(null);
   selectedDateRef.current = selectedDate;
@@ -263,8 +264,9 @@ export default function MyScheduleScreen() {
   function handleDaySheetClassPress(g: TeacherClassGroup) {
     setDetailGroup(g);
   }
-  function navigateFromSheet(navigate: () => void) {
+  function navigateFromSheet(navigate: () => void, groupIdToRestore?: string) {
     const dateToRestore = selectedDate;
+    if (groupIdToRestore) pendingRestoreGroupIdRef.current = groupIdToRestore;
     setDetailGroup(null);
     setSelectedDate(null);
     if (dateToRestore) pendingRestoreDateRef.current = dateToRestore;
@@ -273,6 +275,17 @@ export default function MyScheduleScreen() {
   function handleDaySheetMakeup() {
     navigateFromSheet(() => router.push("/(teacher)/makeups?backTo=my-schedule" as any));
   }
+  // diary에서 복귀 시 반 상세 모달 재오픈 (groups 로드 후 처리)
+  useEffect(() => {
+    if (!pendingRestoreGroupIdRef.current || groups.length === 0) return;
+    const gId = pendingRestoreGroupIdRef.current;
+    const found = groups.find(g => g.id === gId);
+    if (found) {
+      pendingRestoreGroupIdRef.current = null;
+      setDetailGroup(found);
+    }
+  }, [groups]);
+
   useFocusEffect(useCallback(() => {
     if (!isMountedRef.current) { isMountedRef.current = true; return; }
     if (pendingRestoreDateRef.current) {
