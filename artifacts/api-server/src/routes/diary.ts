@@ -20,6 +20,7 @@ import { sql, eq, and, desc, or } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
+import { attachPhotosToDiary, attachPhotosToStudentNote, handleDiaryDeleted } from "../services/mediaService.js";
 import { SWIMNOTE_DEFAULT_TEMPLATES, insertDefaultTemplates } from "../lib/defaultTemplates.js";
 
 const router = Router();
@@ -479,15 +480,8 @@ router.post("/diaries",
         VALUES (${diaryId}, ${class_group_id}, ${userId}, ${teacherName}, ${poolId}, ${dateStr}, ${(common_content || "").trim()})
       `);
 
-      // 일지 저장 후 같은 반+날짜에 journal_id 없이 업로드된 그룹 사진 자동 연결
-      await db.execute(sql`
-        UPDATE photo_assets_meta
-        SET journal_id = ${diaryId}
-        WHERE album_type = 'group'
-          AND class_id = ${class_group_id}
-          AND journal_id IS NULL
-          AND DATE(created_at AT TIME ZONE 'Asia/Seoul') = ${dateStr}::date
-      `).catch(() => {});
+      // auto-attach 제거: 선생님이 작성 화면에서 명시적으로 선택한 사진만 연결
+      // (Reservation/draft 시스템: 같은 반+날짜의 draft 사진은 클라이언트에서 후보로 표시)
 
       await logAudit({
         diaryId, targetType: "common", actionType: "create",
@@ -620,11 +614,21 @@ router.delete("/diaries/:id",
       if (role === "teacher" && diary.teacher_id !== userId) return apiErr(res, 403, "본인 일지만 삭제할 수 있습니다.");
 
       const actorName = await getUserName(userId);
-      await db.execute(sql`
-        UPDATE class_diaries
-        SET is_deleted = true, deleted_at = NOW(), deleted_by = ${userId}, updated_at = NOW()
-        WHERE id = ${req.params.id}
-      `);
+      // 일지 삭제 + 연결 사진 detached 처리를 단일 트랜잭션으로
+      await db.execute(sql`BEGIN`);
+      try {
+        await db.execute(sql`
+          UPDATE class_diaries
+          SET is_deleted = true, deleted_at = NOW(), deleted_by = ${userId}, updated_at = NOW()
+          WHERE id = ${req.params.id}
+        `);
+        // Media Engine: 연결 사진 journal_id 해제 + media_status='detached'
+        await handleDiaryDeleted(req.params.id, poolId!);
+        await db.execute(sql`COMMIT`);
+      } catch (txErr) {
+        await db.execute(sql`ROLLBACK`).catch(() => {});
+        throw txErr;
+      }
       await logAudit({
         diaryId: req.params.id, targetType: "common", actionType: "delete",
         beforeContent: diary.common_content,
@@ -642,6 +646,149 @@ router.delete("/diaries/:id",
 
 // ════════════════════════════════════════════════════════════════════════
 // 3. 학생별 추가 일지 CRUD
+// ── POST /diaries/with-media — 일지+사진 통합 저장 (단일 트랜잭션) ──────────
+// 기존 POST /diaries + diary-attach + note-attach 분리 호출 대신 사용
+router.post("/diaries/with-media",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, role } = req.user!;
+      const {
+        class_group_id,
+        lesson_date,
+        common_content,
+        common_photo_ids,
+        student_notes,
+      } = req.body as {
+        class_group_id: string;
+        lesson_date?: string;
+        common_content?: string;
+        common_photo_ids?: string[];
+        student_notes?: Array<{
+          student_id: string;
+          note_content: string;
+          photo_ids?: string[];
+        }>;
+      };
+
+      if (!class_group_id) return apiErr(res, 400, "class_group_id는 필수입니다.");
+
+      const poolId = await getUserPoolId(userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보를 찾을 수 없습니다.");
+
+      const teacherName = await getUserName(userId);
+
+      // 권한 검증
+      if (role === "teacher") {
+        const dbUserRow = await db.execute(sql`SELECT role FROM users WHERE id = ${userId}`);
+        const dbRole = (dbUserRow.rows[0] as any)?.role;
+        if (dbRole !== "pool_admin") {
+          const r = await db.execute(sql`SELECT id FROM class_groups WHERE id = ${class_group_id} AND swimming_pool_id = ${poolId} AND (teacher_user_id = ${userId} OR co_teacher_ids @> to_jsonb(${userId}::text))`);
+          if (r.rows.length === 0) return apiErr(res, 403, "본인 반의 일지만 작성할 수 있습니다.");
+        }
+      } else {
+        const r = await db.execute(sql`SELECT id FROM class_groups WHERE id = ${class_group_id} AND swimming_pool_id = ${poolId} AND is_deleted = false`);
+        if (r.rows.length === 0) return apiErr(res, 403, "해당 반을 찾을 수 없습니다.");
+      }
+
+      const dateStr = lesson_date || new Date().toISOString().slice(0, 10);
+
+      // 중복 방지
+      const dup = await db.execute(sql`
+        SELECT id FROM class_diaries
+        WHERE class_group_id = ${class_group_id} AND lesson_date = ${dateStr} AND is_deleted = false
+      `);
+      if (dup.rows.length > 0) {
+        return apiErr(res, 409, "이미 해당 날짜에 일지가 작성되었습니다. 수정 기능을 사용해주세요.");
+      }
+
+      const diaryId = genId("cd");
+      const savedNotes: any[] = [];
+
+      // 단일 트랜잭션: 일지 + 노트 + 사진 연결
+      await db.execute(sql`BEGIN`);
+      try {
+        // 1. 일지 생성
+        await db.execute(sql`
+          INSERT INTO class_diaries (id, class_group_id, teacher_id, teacher_name, swimming_pool_id, lesson_date, common_content)
+          VALUES (${diaryId}, ${class_group_id}, ${userId}, ${teacherName}, ${poolId}, ${dateStr}, ${(common_content || "").trim()})
+        `);
+
+        // 2. 학생별 노트 생성
+        const notes: any[] = Array.isArray(student_notes) ? student_notes : [];
+        for (const n of notes) {
+          if (!n.student_id || !n.note_content?.trim()) continue;
+          const noteId = genId("csn");
+          await db.execute(sql`
+            INSERT INTO class_diary_student_notes (id, diary_id, student_id, note_content)
+            VALUES (${noteId}, ${diaryId}, ${n.student_id}, ${n.note_content.trim()})
+          `);
+          savedNotes.push({ id: noteId, student_id: n.student_id, note_content: n.note_content.trim() });
+        }
+
+        // 3. 공통 사진 연결
+        const cPhotoIds = Array.isArray(common_photo_ids) ? common_photo_ids : [];
+        if (cPhotoIds.length > 0) {
+          await attachPhotosToDiary(diaryId, cPhotoIds, poolId);
+        }
+
+        // 4. 학생별 개인 사진 연결
+        for (let i = 0; i < savedNotes.length; i++) {
+          const note = savedNotes[i];
+          const origNote = notes.find(n => n.student_id === note.student_id);
+          const photoIds = Array.isArray(origNote?.photo_ids) ? origNote.photo_ids : [];
+          if (photoIds.length > 0) {
+            await attachPhotosToStudentNote(diaryId, note.id, note.student_id, photoIds, poolId);
+          }
+        }
+
+        await db.execute(sql`COMMIT`);
+      } catch (txErr) {
+        await db.execute(sql`ROLLBACK`).catch(() => {});
+        throw txErr;
+      }
+
+      // 5. 감사 로그 (트랜잭션 외부)
+      await logAudit({
+        diaryId, targetType: "common", actionType: "create",
+        afterContent: (common_content || "").trim(),
+        actorId: userId, actorName: teacherName, actorRole: role, poolId,
+      });
+      for (const n of savedNotes) {
+        await logAudit({
+          diaryId, studentNoteId: n.id, targetType: "student_note", actionType: "create",
+          afterContent: n.note_content,
+          actorId: userId, actorName: teacherName, actorRole: role, poolId,
+        });
+      }
+
+      // 6. 학부모 푸시 알림
+      const cgRow = await db.execute(sql`SELECT name FROM class_groups WHERE id = ${class_group_id}`);
+      const className = (cgRow.rows[0] as any)?.name || "수업";
+      if ((common_content || "").trim()) {
+        sendDiaryPush(class_group_id, diaryId, className, poolId, dateStr);
+      } else {
+        const noteStudentIds = savedNotes.map((n: any) => n.student_id);
+        sendDiaryPushToStudents(noteStudentIds, diaryId, className, poolId, dateStr);
+      }
+
+      logPoolEvent({
+        pool_id: poolId, event_type: "journal.create", entity_type: "class_diary",
+        entity_id: diaryId, actor_id: userId,
+        payload: { class_group_id, lesson_date: dateStr, with_media: true },
+      }).catch(() => {});
+
+      res.json({ success: true, diary_id: diaryId, student_notes: savedNotes });
+    } catch (e: any) {
+      console.error(e);
+      if (e.message?.includes("일지를") || e.message?.includes("학생") || e.message?.includes("접근")) {
+        return apiErr(res, 400, e.message);
+      }
+      apiErr(res, 500, "서버 오류");
+    }
+  }
+);
+
 // ════════════════════════════════════════════════════════════════════════
 
 // ── POST /diaries/:id/student-notes ──────────────────────────────────────
@@ -1055,6 +1202,7 @@ router.post("/diary-templates/restore-default",
     try {
       const poolId = await getUserPoolId(req.user!.userId);
       console.log("[restore-default] poolId:", poolId);
+      if (!poolId) { apiErr(res, 403, "수영장 정보를 찾을 수 없습니다."); return; }
       await db.execute(sql`DELETE FROM diary_templates WHERE swimming_pool_id = ${poolId}`);
       await db.execute(sql`DELETE FROM diary_template_levels WHERE swimming_pool_id = ${poolId}`);
       await insertDefaultTemplates(poolId, req.user!.userId);

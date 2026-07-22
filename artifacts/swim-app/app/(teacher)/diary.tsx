@@ -459,7 +459,8 @@ export default function TeacherDiaryScreen() {
           setDiarySet(prev => new Set([...prev, `${savedGroupId}_${targetDate}`]));
         });
       setSaveMsg({ type: "success", text: "수업 일지가 저장되었습니다. 학부모에게 알림이 발송됩니다." });
-      const cameFromExternal = !!(params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/)) || !!(params.backTo) || !!(params.classGroupId);
+      // 버그 6 수정: classGroupId만으로 router.back() 실행 금지 — backTo 또는 lessonDate(params) 있을 때만
+      const cameFromExternal = !!(params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/)) || !!(params.backTo);
       setTimeout(() => { setSaveMsg(null); if (cameFromExternal) router.back(); else setSelectedGroup(prev => prev?.id === savedGroupId ? null : prev); }, 2000);
     } catch (e: any) { setSaveMsg({ type: "error", text: e.message || "저장 중 오류가 발생했습니다." }); }
     finally { setSaving(false); }
@@ -711,10 +712,7 @@ export default function TeacherDiaryScreen() {
         <SubScreenHeader
           title={group.name}
           subtitle={`${targetDate} · ${group.schedule_time}`}
-          onBack={params.backTo ? undefined : () => {
-            if (params.classGroupId) { router.back(); }
-            else { setSelectedGroup(null); }
-          }}
+          onBack={params.backTo ? undefined : () => { setSelectedGroup(null); }}
           homePath="/(teacher)/today-schedule"
         />
         <View style={s.subHeader}>
@@ -752,10 +750,7 @@ export default function TeacherDiaryScreen() {
             showPickerFor={showPickerFor} setShowPickerFor={setShowPickerFor}
             commonCursorRef={commonCursorRef} noteCursorRef={noteCursorRef}
             onSave={handleSave}
-            onBack={params.backTo ? undefined : () => {
-              if (params.classGroupId) { router.back(); }
-              else { setSelectedGroup(null); }
-            }}
+            onBack={params.backTo ? undefined : () => { setSelectedGroup(null); }}
             onUploadGroupMedia={uploadGroupMedia}
             onUploadStudentMedia={uploadStudentMedia}
             onAddNote={handleAddNote}

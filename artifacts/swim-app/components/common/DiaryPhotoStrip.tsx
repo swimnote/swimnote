@@ -8,13 +8,14 @@
 import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import { Image } from "expo-image";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import {
   ActivityIndicator, Alert, Dimensions, Modal, Platform, Pressable,
   ScrollView, StyleSheet, Text, ToastAndroid, View,
 } from "react-native";
 import { apiRequest, API_BASE } from "@/context/AuthContext";
+import { useQuery } from "@tanstack/react-query";
 
 const SCREEN_W = Dimensions.get("window").width;
 const BASE_ORIGIN = API_BASE.replace(/\/api$/, "");
@@ -45,10 +46,6 @@ interface Props {
 }
 
 export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diaryId, studentId, parentMode }: Props) {
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [videos, setVideos] = useState<VideoItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
   // 사진 뷰어: null = 닫힘, 숫자 = 현재 인덱스
   const [viewIdx, setViewIdx] = useState<number | null>(null);
   const [viewVideo, setViewVideo] = useState<VideoItem | null>(null);
@@ -60,61 +57,62 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
 
   const photoScrollRef = useRef<ScrollView>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      // ── 학부모 모드: diaryId 기준 /parent/diary/:diaryId/photos 사용 ──
-      if (parentMode && diaryId) {
-        const [photoRes, videoData] = await Promise.all([
-          apiRequest(token, `/parent/diary/${diaryId}/photos`),
-          fetch(`${API_BASE}/videos/diary/${diaryId}`, { headers: { Authorization: `Bearer ${token}` } })
-            .then(r => r.ok ? r.json() : { videos: [] })
-            .catch(() => ({ videos: [] })),
-        ]);
-        if (photoRes?.ok) {
-          const data = await photoRes.json();
-          const allPhotos: Photo[] = [...(data.common ?? []), ...(data.individual ?? [])];
-          // API는 '/photos/{id}/file' 반환 → photoUrl 헬퍼(BASE_ORIGIN 기준)가 올바른 URL을 만들도록 '/api' 접두사 정규화
-          setPhotos(allPhotos.map(p => ({
-            ...p,
-            file_url: p.file_url?.startsWith("/photos/") ? `/api${p.file_url}` : (p.file_url ?? ""),
-          })));
-        }
-        setVideos(Array.isArray(videoData?.videos) ? videoData.videos : []);
-        return;
+  // ── React Query: 사진 + 영상 통합 조회 ──────────────────────────────────
+  const fetchMedia = useCallback(async () => {
+    // 학부모 모드: diaryId 기준 /parent/diary/:diaryId/photos 사용
+    if (parentMode && diaryId) {
+      const [photoRes, videoData] = await Promise.all([
+        apiRequest(token, `/parent/diary/${diaryId}/photos`),
+        fetch(`${API_BASE}/videos/diary/${diaryId}`, { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.ok ? r.json() : { videos: [] })
+          .catch(() => ({ videos: [] })),
+      ]);
+      let photos: Photo[] = [];
+      if (photoRes?.ok) {
+        const data = await photoRes.json();
+        const allPhotos: Photo[] = [...(data.common ?? []), ...(data.individual ?? [])];
+        photos = allPhotos.map(p => ({
+          ...p,
+          file_url: p.file_url?.startsWith("/photos/") ? `/api${p.file_url}` : (p.file_url ?? ""),
+        }));
       }
-
-      // ── 선생님 모드: classGroupId + lessonDate 기반 기존 API 사용 ──
-      const groupPhotoReq = apiRequest(token, `/photos/group/${classGroupId}?date=${lessonDate}`);
-      const privatePhotoReq = studentId
-        ? apiRequest(token, `/photos/private/${studentId}?date=${lessonDate}`)
-        : Promise.resolve(null);
-      const videoReq = diaryId
-        ? fetch(`${API_BASE}/videos/diary/${diaryId}`, { headers: { Authorization: `Bearer ${token}` } })
-            .then(r => r.ok ? r.json() : { videos: [] })
-            .catch(() => ({ videos: [] }))
-        : Promise.resolve({ videos: [] });
-
-      const [groupRes, privateRes, videoData] = await Promise.all([groupPhotoReq, privatePhotoReq, videoReq]);
-
-      const groupPhotos: Photo[] = groupRes?.ok ? (await groupRes.json()) : [];
-      const privatePhotos: Photo[] = privateRes?.ok ? (await privateRes.json()) : [];
-
-      const seen = new Set<string>();
-      const merged: Photo[] = [];
-      for (const p of [...(Array.isArray(groupPhotos) ? groupPhotos : []), ...(Array.isArray(privatePhotos) ? privatePhotos : [])]) {
-        if (!seen.has(p.id)) { seen.add(p.id); merged.push(p); }
-      }
-      setPhotos(merged);
-      setVideos(Array.isArray(videoData?.videos) ? videoData.videos : []);
-    } catch (e) {
-      console.error(`[DiaryPhotoStrip] catch:`, e);
-    } finally {
-      setLoading(false);
+      return { photos, videos: Array.isArray(videoData?.videos) ? videoData.videos : [] };
     }
+
+    // 선생님 모드: classGroupId + lessonDate 기반
+    const groupPhotoReq = apiRequest(token, `/photos/group/${classGroupId}?date=${lessonDate}`);
+    const privatePhotoReq = studentId
+      ? apiRequest(token, `/photos/private/${studentId}?date=${lessonDate}`)
+      : Promise.resolve(null);
+    const videoReq = diaryId
+      ? fetch(`${API_BASE}/videos/diary/${diaryId}`, { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.ok ? r.json() : { videos: [] })
+          .catch(() => ({ videos: [] }))
+      : Promise.resolve({ videos: [] });
+
+    const [groupRes, privateRes, videoData] = await Promise.all([groupPhotoReq, privatePhotoReq, videoReq]);
+
+    const groupPhotos: Photo[] = groupRes?.ok ? (await groupRes.json()) : [];
+    const privatePhotos: Photo[] = privateRes?.ok ? (await privateRes.json()) : [];
+
+    const seen = new Set<string>();
+    const merged: Photo[] = [];
+    for (const p of [...(Array.isArray(groupPhotos) ? groupPhotos : []), ...(Array.isArray(privatePhotos) ? privatePhotos : [])]) {
+      if (!seen.has(p.id)) { seen.add(p.id); merged.push(p); }
+    }
+    return { photos: merged, videos: Array.isArray(videoData?.videos) ? videoData.videos : [] };
   }, [token, classGroupId, lessonDate, diaryId, studentId, parentMode]);
 
-  useEffect(() => { load(); }, [load]);
+  const { data, isLoading } = useQuery({
+    queryKey: ["diary-media", diaryId ?? `${classGroupId}_${lessonDate}`, studentId, parentMode],
+    queryFn: fetchMedia,
+    enabled: !!(token && (classGroupId || (parentMode && diaryId))),
+    staleTime: 30_000,
+  });
+
+  const photos = data?.photos ?? [];
+  const videos = data?.videos ?? [];
+  const loading = isLoading;
 
   // ── URL 헬퍼 ──────────────────────────────────────────────────────────
   const photoUrl = (photo: Photo) => {

@@ -1230,6 +1230,45 @@ export async function initPoolDb(): Promise<void> {
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_sch_class ON student_class_history(class_group_id)`)).catch(() => {});
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_sch_pool_class_date ON student_class_history(swimming_pool_id, class_group_id, enrolled_at)`)).catch(() => {});
 
+  // ── Media Engine v2: media_status 컬럼 + 인덱스 ──────────────────────────
+  // photo_assets_meta에 media_status 추가 (draft/attached/detached/archived)
+  await db.execute(sql.raw(`ALTER TABLE photo_assets_meta ADD COLUMN IF NOT EXISTS media_status text NOT NULL DEFAULT 'draft'`)).catch(() => {});
+  // 기존 데이터 백필: 삭제된 일지를 참조하는 사진 → detached (journal_id 해제)
+  await db.execute(sql.raw(`
+    UPDATE photo_assets_meta
+    SET media_status = 'detached', journal_id = NULL, student_note_id = NULL
+    WHERE media_status = 'draft'
+      AND journal_id IS NOT NULL
+      AND journal_id IN (SELECT id FROM class_diaries WHERE is_deleted = true)
+  `)).catch(() => {});
+  // 기존 데이터 백필: 유효한 일지에 연결된 사진 → attached
+  await db.execute(sql.raw(`
+    UPDATE photo_assets_meta
+    SET media_status = 'attached'
+    WHERE media_status = 'draft'
+      AND journal_id IS NOT NULL
+  `)).catch(() => {});
+  // Media Engine 인덱스
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_photo_assets_diary_lookup
+    ON photo_assets_meta (journal_id, media_status, created_at)
+    WHERE journal_id IS NOT NULL
+  `)).catch(() => {});
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_photo_assets_student_note_lookup
+    ON photo_assets_meta (student_note_id, student_id, pool_id)
+    WHERE student_note_id IS NOT NULL
+  `)).catch(() => {});
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_photo_assets_draft_lookup
+    ON photo_assets_meta (pool_id, class_id, lesson_date, uploaded_by, media_status, created_at)
+    WHERE journal_id IS NULL
+  `)).catch(() => {});
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_class_diaries_active_lookup
+    ON class_diaries (class_group_id, lesson_date, is_deleted)
+  `)).catch(() => {});
+
   // 기존 학생 히스토리 초기 데이터 채우기 (최초 1회만)
   await db.execute(sql.raw(`
     DO $$

@@ -574,36 +574,37 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
     if (!allClassIds.length) { res.json([]); return; }
     const idsLiteral = allClassIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
 
-    // 공통 일지 조회 — 원래 반 + 보강으로 간 반 일지 모두 포함 (UNION)
+    // 공통 일지 조회 — 원래 반 + 보강으로 간 반 일지 모두 포함
+    // 버그 7 수정: UNION → ROW_NUMBER DISTINCT 방식으로 diary_id 기준 dedup
     const monthFilter = month ? `AND cd.lesson_date LIKE '${(month as string).replace(/'/g, "''")}%'` : "";
     const diaryRows = await db.execute(sql.raw(`
-      SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at,
-             cd.class_group_id, cg.name AS class_group_name, false AS is_makeup_diary
-      FROM class_diaries cd
-      LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
-      JOIN student_class_history sch
-        ON sch.class_group_id = cd.class_group_id
-        AND sch.student_id = '${studentIdSafe}'
-        AND sch.enrolled_at <= cd.lesson_date::date
-        AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
-      WHERE cd.class_group_id IN (${idsLiteral})
-        AND cd.is_deleted = false
-        ${monthFilter}
-
-      UNION
-
-      SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at,
-             cd.class_group_id, cg.name AS class_group_name, true AS is_makeup_diary
-      FROM class_diaries cd
-      LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
-      JOIN makeup_sessions ms
-        ON ms.assigned_class_group_id = cd.class_group_id
-        AND ms.student_id = '${studentIdSafe}'
-        AND ms.assigned_date = cd.lesson_date
-        AND ms.status = 'completed'
-      WHERE cd.is_deleted = false
-        ${monthFilter}
-
+      SELECT id, lesson_date, common_content, teacher_name, is_edited, created_at,
+             class_group_id, class_group_name, is_makeup_diary
+      FROM (
+        SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at,
+               cd.class_group_id, cg.name AS class_group_name,
+               CASE WHEN ms.id IS NOT NULL THEN true ELSE false END AS is_makeup_diary,
+               ROW_NUMBER() OVER (PARTITION BY cd.id ORDER BY ms.id NULLS LAST) AS rn
+        FROM class_diaries cd
+        LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+        LEFT JOIN student_class_history sch
+          ON sch.class_group_id = cd.class_group_id
+          AND sch.student_id = '${studentIdSafe}'
+          AND sch.enrolled_at <= cd.lesson_date::date
+          AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
+        LEFT JOIN makeup_sessions ms
+          ON ms.assigned_class_group_id = cd.class_group_id
+          AND ms.student_id = '${studentIdSafe}'
+          AND ms.assigned_date = cd.lesson_date
+          AND ms.status = 'completed'
+        WHERE cd.is_deleted = false
+          ${monthFilter}
+          AND (
+            (cd.class_group_id IN (${idsLiteral}) AND sch.id IS NOT NULL)
+            OR ms.id IS NOT NULL
+          )
+      ) sub
+      WHERE rn = 1
       ORDER BY lesson_date DESC, created_at DESC
       LIMIT 100
     `));
@@ -665,29 +666,33 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
       if (!allClassIds.length) continue;
       const idsLiteral = allClassIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
 
+      // 버그 7 수정: UNION → ROW_NUMBER DISTINCT 방식으로 diary_id 기준 dedup
       const diaryRows = await db.execute(sql.raw(`
-        SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at,
-               cd.class_group_id, false AS is_makeup_diary
-        FROM class_diaries cd
-        JOIN student_class_history sch
-          ON sch.class_group_id = cd.class_group_id
-          AND sch.student_id = '${sIdSafe}'
-          AND sch.enrolled_at <= cd.lesson_date::date
-          AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
-        WHERE cd.class_group_id IN (${idsLiteral}) AND cd.is_deleted = false
-
-        UNION
-
-        SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at,
-               cd.class_group_id, true AS is_makeup_diary
-        FROM class_diaries cd
-        JOIN makeup_sessions ms
-          ON ms.assigned_class_group_id = cd.class_group_id
-          AND ms.student_id = '${sIdSafe}'
-          AND ms.assigned_date = cd.lesson_date
-          AND ms.status = 'completed'
-        WHERE cd.is_deleted = false
-
+        SELECT id, lesson_date, common_content, teacher_name, is_edited, created_at,
+               class_group_id, is_makeup_diary
+        FROM (
+          SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited, cd.created_at,
+                 cd.class_group_id,
+                 CASE WHEN ms.id IS NOT NULL THEN true ELSE false END AS is_makeup_diary,
+                 ROW_NUMBER() OVER (PARTITION BY cd.id ORDER BY ms.id NULLS LAST) AS rn
+          FROM class_diaries cd
+          LEFT JOIN student_class_history sch
+            ON sch.class_group_id = cd.class_group_id
+            AND sch.student_id = '${sIdSafe}'
+            AND sch.enrolled_at <= cd.lesson_date::date
+            AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
+          LEFT JOIN makeup_sessions ms
+            ON ms.assigned_class_group_id = cd.class_group_id
+            AND ms.student_id = '${sIdSafe}'
+            AND ms.assigned_date = cd.lesson_date
+            AND ms.status = 'completed'
+          WHERE cd.is_deleted = false
+            AND (
+              (cd.class_group_id IN (${idsLiteral}) AND sch.id IS NOT NULL)
+              OR ms.id IS NOT NULL
+            )
+        ) sub
+        WHERE rn = 1
         ORDER BY lesson_date DESC, created_at DESC
         LIMIT 40
       `));
@@ -727,23 +732,11 @@ router.get("/diary/:diaryId/photos", requireAuth, requireParent, async (req: Aut
       ));
     const myStudentIds = new Set(myLinks.map(l => l.student_id));
 
-    const photos = (await db.execute(sql`
-      SELECT id, caption, student_note_id, student_id,
-             '/photos/' || id || '/file' AS file_url
-      FROM photo_assets_meta
-      WHERE journal_id = ${req.params.diaryId}
-        AND pool_id = ${poolId}
-        AND status = 'active'
-      ORDER BY created_at ASC
-    `)).rows as any[];
+    // Media Engine v2: media_status='attached' + is_deleted JOIN (MediaService 경유)
+    const { getDiaryPhotos: getPhotos } = await import("../services/mediaService.js");
+    const result = await getPhotos(req.params.diaryId, poolId, myStudentIds);
 
-    const common = photos.filter((p: any) => !p.student_note_id);
-    // 개인사진: 이 학부모의 자녀 사진만 노출
-    const individual = photos.filter((p: any) =>
-      !!p.student_note_id && myStudentIds.has(p.student_id)
-    );
-
-    res.json({ common, individual, total: common.length + individual.length });
+    res.json({ common: result.common, individual: result.individual, total: result.total });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 

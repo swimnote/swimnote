@@ -21,6 +21,13 @@ import { eq } from "drizzle-orm";
 import { sendPushToClassParents, sendPushToUser } from "../lib/push-service.js";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { genFilename, sanitizePoolName } from "../utils/filename.js";
+import {
+  getDiaryPhotos,
+  getDraftPhotosForClass,
+  attachPhotosToDiary,
+  attachPhotosToStudentNote,
+  detachPhotosFromDiary,
+} from "../services/mediaService.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
@@ -242,40 +249,60 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
       return res.json(photos);
     }
 
-    const rows = await db.execute(sql`
+    // Media Engine v2: attached 사진과 draft 사진을 분리 조회 (OR 혼용 금지)
+    // attached: journal_id 기준 + is_deleted=false JOIN (버그 1 수정)
+    // draft: class_id + lesson_date + media_status='draft' (Reservation 시스템)
+    const dateStr = date as string | undefined;
+    let allPhotos: any[] = [];
+
+    // 1. attached 사진 — 일지에 연결된 사진
+    const attachedRows = await db.execute(sql`
       SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.pool_id,
              sp.uploaded_by, sp.uploaded_by_name, sp.caption, sp.created_at,
-             sp.lesson_date, sp.file_size, sp.object_key,
+             sp.lesson_date, sp.file_size, sp.object_key, sp.media_status,
              s.name AS student_name
       FROM photo_assets_meta sp
+      JOIN class_diaries cd ON cd.id = sp.journal_id AND cd.is_deleted = false
       LEFT JOIN students s ON s.id = sp.student_id
-      WHERE (
-        (
-          sp.album_type = 'group' AND sp.class_id = ${classId}
-          ${date ? sql`AND (
-            (sp.lesson_date IS NOT NULL AND sp.lesson_date = ${date as string})
-            OR (sp.lesson_date IS NULL AND DATE(sp.created_at AT TIME ZONE 'Asia/Seoul') = ${date as string})
-          )` : sql``}
-        )
-        ${date ? sql`OR (
-          sp.journal_id IS NOT NULL AND sp.journal_id IN (
-            SELECT id FROM class_diaries
-            WHERE class_group_id = ${classId} AND lesson_date = ${date as string}
-          )
-        )` : sql``}
-        ${date ? sql`OR (
-          sp.student_note_id IS NOT NULL AND sp.student_note_id IN (
-            SELECT csn.id FROM class_diary_student_notes csn
-            JOIN class_diaries cd ON cd.id = csn.diary_id
-            WHERE cd.class_group_id = ${classId} AND cd.lesson_date = ${date as string}
-              AND csn.is_deleted = false
-          )
-        )` : sql``}
-      )
+      WHERE cd.class_group_id = ${classId}
+        AND sp.media_status = 'attached'
+        ${dateStr ? sql`AND cd.lesson_date = ${dateStr}` : sql``}
       ORDER BY sp.created_at DESC
     `);
+    allPhotos = allPhotos.concat(attachedRows.rows as any[]);
+
+    // 2. draft 사진 — 업로드됐지만 아직 일지 미연결 (Reservation 후보)
+    if (dateStr) {
+      const draftRows = await db.execute(sql`
+        SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.pool_id,
+               sp.uploaded_by, sp.uploaded_by_name, sp.caption, sp.created_at,
+               sp.lesson_date, sp.file_size, sp.object_key, sp.media_status,
+               s.name AS student_name
+        FROM photo_assets_meta sp
+        LEFT JOIN students s ON s.id = sp.student_id
+        WHERE sp.class_id = ${classId}
+          AND sp.media_status = 'draft'
+          AND sp.journal_id IS NULL
+          AND (
+            sp.lesson_date = ${dateStr}
+            OR (sp.lesson_date IS NULL AND DATE(sp.created_at AT TIME ZONE 'Asia/Seoul') = ${dateStr}::date)
+          )
+        ORDER BY sp.created_at DESC
+      `);
+      allPhotos = allPhotos.concat(draftRows.rows as any[]);
+    }
+
+    // mediaUuid(id) 기준 중복 제거
+    const seenIds = new Set<string>();
+    const uniquePhotos = allPhotos.filter(p => {
+      if (seenIds.has(p.id)) return false;
+      seenIds.add(p.id);
+      return true;
+    });
+    uniquePhotos.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
     const photos = await batchPresign(
-      (rows.rows as any[]).map(p => ({ ...p, file_url: `/api/photos/${p.id}/file` }))
+      uniquePhotos.map(p => ({ ...p, file_url: `/api/photos/${p.id}/file` }))
     );
     res.json(photos);
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
@@ -389,9 +416,9 @@ router.post(
         const id = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         const rows = await db.execute(sql`
           INSERT INTO photo_assets_meta
-            (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id, lesson_date)
+            (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id, lesson_date, media_status)
           VALUES
-            (${id}, NULL, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'group', ${class_id || null}, ${lesson_date || null})
+            (${id}, NULL, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'group', ${class_id || null}, ${lesson_date || null}, 'draft')
           RETURNING *
         `);
         console.log(`[photos/group] DB INSERT 완료: id=${id}`);
@@ -492,9 +519,9 @@ router.post(
         const id = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         const rows = await db.execute(sql`
           INSERT INTO photo_assets_meta
-            (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id)
+            (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id, media_status)
           VALUES
-            (${id}, ${student_id}, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'private', ${class_id})
+            (${id}, ${student_id}, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'private', ${class_id}, 'draft')
           RETURNING *
         `);
         inserted.push({ ...rows.rows[0], file_url: `/api/photos/${id}/file` });
@@ -898,7 +925,7 @@ router.get("/photos/picker", requireAuth, requireRole("teacher", "pool_admin", "
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
-// ── POST /photos/diary-attach — 선택 사진 journal_id 연결 ─────────────────────
+// ── POST /photos/diary-attach — 선택 사진 일지 연결 (MediaService 경유) ────────
 router.post("/photos/diary-attach", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.user!;
@@ -907,6 +934,7 @@ router.post("/photos/diary-attach", requireAuth, requireRole("teacher", "pool_ad
     if (!diary_id || !Array.isArray(photo_ids)) {
       res.status(400).json({ error: "diary_id와 photo_ids가 필요합니다." }); return;
     }
+    if (photo_ids.length === 0) { res.json({ updated: 0 }); return; }
     if (photo_ids.length > 20) {
       res.status(400).json({ error: "한 번에 최대 20장까지 연결할 수 있습니다." }); return;
     }
@@ -914,44 +942,28 @@ router.post("/photos/diary-attach", requireAuth, requireRole("teacher", "pool_ad
     const poolId = await getUserPoolId(userId);
     if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
 
-    // 기존 연결 사진 수 확인 (기존 + 신규 합계 20장 초과 방지)
+    // 기존 연결 사진 수 확인 (최대 20장 제한)
     const existingRow = await db.execute(sql`
       SELECT COUNT(*)::int AS cnt FROM photo_assets_meta
-      WHERE journal_id = ${diary_id} AND pool_id = ${poolId}
+      WHERE journal_id = ${diary_id} AND pool_id = ${poolId} AND media_status = 'attached'
     `);
     const existing = Number((existingRow.rows[0] as any)?.cnt ?? 0);
     if (existing + photo_ids.length > 20) {
       res.status(400).json({ error: `최대 20장까지 연결할 수 있습니다. 현재 ${existing}장 연결됨.` }); return;
     }
 
-    if (photo_ids.length === 0) { res.json({ updated: 0 }); return; }
-
-    // pool_id 소속 검증 (타 수영장 접근 차단)
-    const diaryPhotoLiteral = `{${photo_ids.join(',')}}`;
-    const checkRow = await db.execute(sql`
-      SELECT COUNT(*)::int AS cnt FROM photo_assets_meta
-      WHERE id = ANY(${diaryPhotoLiteral}::text[]) AND pool_id = ${poolId}
-    `);
-    if (Number((checkRow.rows[0] as any)?.cnt ?? 0) !== photo_ids.length) {
-      res.status(403).json({ error: "일부 사진에 대한 접근 권한이 없습니다." }); return;
-    }
-
-    // journal_id 설정 + diary의 class_group_id를 class_id로 채움 (class_id=NULL 방지)
-    const diaryRow = await db.execute(sql`SELECT class_group_id FROM class_diaries WHERE id = ${diary_id}`);
-    const diaryClassId = (diaryRow.rows[0] as any)?.class_group_id ?? null;
-
-    await db.execute(sql`
-      UPDATE photo_assets_meta
-      SET journal_id = ${diary_id},
-          class_id = COALESCE(class_id, ${diaryClassId})
-      WHERE id = ANY(${diaryPhotoLiteral}::text[]) AND pool_id = ${poolId}
-    `);
-
+    await attachPhotosToDiary(diary_id, photo_ids, poolId);
     res.json({ updated: photo_ids.length });
-  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  } catch (err: any) {
+    console.error(err);
+    if (err.message?.includes("찾을 수 없") || err.message?.includes("권한")) {
+      res.status(400).json({ error: err.message }); return;
+    }
+    res.status(500).json({ error: "서버 오류" });
+  }
 });
 
-// ── POST /photos/diary-detach — journal_id 해제 (일지 수정 시 사진 제거) ──────
+// ── POST /photos/diary-detach — 사진 일지 분리 (MediaService 경유) ────────────
 router.post("/photos/diary-detach", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.user!;
@@ -964,17 +976,12 @@ router.post("/photos/diary-detach", requireAuth, requireRole("teacher", "pool_ad
     const poolId = await getUserPoolId(userId);
     if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
 
-    const detachLiteral = `{${photo_ids.join(',')}}`;
-    await db.execute(sql`
-      UPDATE photo_assets_meta SET journal_id = NULL
-      WHERE id = ANY(${detachLiteral}::text[]) AND pool_id = ${poolId}
-    `);
-
+    await detachPhotosFromDiary(photo_ids, poolId);
     res.json({ updated: photo_ids.length });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
-// ── GET /photos/diary/:diaryId — 일지 연결 사진 목록 ─────────────────────────
+// ── GET /photos/diary/:diaryId — 일지 연결 사진 목록 (MediaService 경유) ─────
 router.get("/photos/diary/:diaryId", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.user!;
@@ -983,16 +990,34 @@ router.get("/photos/diary/:diaryId", requireAuth, requireRole("teacher", "pool_a
     const poolId = await getUserPoolId(userId);
     if (!poolId) { res.json({ photos: [], total: 0 }); return; }
 
-    const rows = await db.execute(sql`
-      SELECT id, uploaded_by_name, created_at, file_size, class_id, caption,
-             '/api/photos/' || id || '/file' AS file_url
-      FROM photo_assets_meta
-      WHERE journal_id = ${diaryId}
-        AND pool_id = ${poolId}
-      ORDER BY created_at ASC
-    `);
+    const result = await getDiaryPhotos(diaryId, poolId);
+    const allPhotos = [...result.common, ...result.individual];
+    const presigned = await batchPresign(allPhotos);
+    res.json({ photos: presigned, total: presigned.length, common: result.common.length, individual: result.individual.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
 
-    res.json({ photos: rows.rows, total: (rows.rows as any[]).length });
+// ── GET /photos/draft — Reservation draft 사진 목록 (일지 작성 화면 후보) ────
+router.get("/photos/draft", requireAuth, requireRole("teacher", "pool_admin", "super_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId, role } = req.user!;
+    const { class_id, lesson_date } = req.query as { class_id?: string; lesson_date?: string };
+
+    if (!class_id || !lesson_date) {
+      res.status(400).json({ error: "class_id와 lesson_date가 필요합니다." }); return;
+    }
+
+    const poolId = await getUserPoolId(userId);
+    if (!poolId) { res.json([]); return; }
+
+    if (role === "teacher") {
+      const ok = await teacherOwnsClass(userId, class_id);
+      if (!ok) { res.status(403).json({ error: "담당 반이 아닙니다." }); return; }
+    }
+
+    const draftPhotos = await getDraftPhotosForClass(class_id, lesson_date, poolId);
+    const presigned = await batchPresign(draftPhotos);
+    res.json(presigned);
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
@@ -1097,7 +1122,8 @@ router.post(
   }
 );
 
-// ── POST /photos/note-attach — 선택 사진 student_note_id 연결 ──────────────────
+// ── POST /photos/note-attach — 선택 사진 학생 노트 연결 (MediaService 경유) ───
+// 버그 3 수정: student_id + journal_id + student_note_id 동시 설정
 router.post("/photos/note-attach", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.user!;
@@ -1110,22 +1136,24 @@ router.post("/photos/note-attach", requireAuth, requireRole("teacher", "pool_adm
     const poolId = await getUserPoolId(userId);
     if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
 
-    const literal = `{${photo_ids.join(",")}}`;
-    const checkRow = await db.execute(sql`
-      SELECT COUNT(*)::int AS cnt FROM photo_assets_meta
-      WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
+    // note_id로 diary_id와 student_id 조회 (MediaService 호출에 필요)
+    const noteRow = await db.execute(sql`
+      SELECT id, diary_id, student_id FROM class_diary_student_notes
+      WHERE id = ${note_id} AND is_deleted = false
+      LIMIT 1
     `);
-    if (Number((checkRow.rows[0] as any)?.cnt ?? 0) !== photo_ids.length) {
-      res.status(403).json({ error: "일부 사진에 대한 접근 권한이 없습니다." }); return;
-    }
+    const note = noteRow.rows[0] as any;
+    if (!note) { res.status(404).json({ error: "학생 노트를 찾을 수 없습니다." }); return; }
 
-    await db.execute(sql`
-      UPDATE photo_assets_meta SET student_note_id = ${note_id}
-      WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
-    `);
-
+    await attachPhotosToStudentNote(note.diary_id, note_id, note.student_id, photo_ids, poolId);
     res.json({ updated: photo_ids.length });
-  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  } catch (err: any) {
+    console.error(err);
+    if (err.message?.includes("찾을 수 없") || err.message?.includes("권한")) {
+      res.status(400).json({ error: err.message }); return;
+    }
+    res.status(500).json({ error: "서버 오류" });
+  }
 });
 
 export default router;
