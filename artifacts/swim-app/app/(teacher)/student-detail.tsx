@@ -172,59 +172,89 @@ export default function StudentDetailScreen() {
     }
   }
 
+  function parseApiBody(res: Response) {
+    const ct = res.headers.get("content-type") ?? "";
+    if (!ct.includes("application/json")) return Promise.resolve(null);
+    return res.json().catch(() => null);
+  }
+
+  function getApiError(status: number, body: any): string {
+    const msg = body?.error || body?.message;
+    if (status === 400) return msg || "입력값을 확인해주세요.";
+    if (status === 401 || status === 403) return "권한이 없습니다.";
+    if (status === 404) return "학생 정보를 찾을 수 없습니다.";
+    if (status === 409) return msg || "이미 등록된 전화번호입니다.";
+    if (status >= 500) return "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+    return msg || "요청에 실패했습니다.";
+  }
+
   async function savePhoneEdit() {
-    if (!id) return;
+    if (!id || !student) return;
+    const prevStudent = student;
     setPhoneEditSaving(true);
     try {
+      // 하이픈 제거 후 전송 (서버도 정규화하지만 클라이언트에서 명시적으로 처리)
+      const normPhone = phoneEditModal.value.trim().replace(/[^0-9]/g, "") || null;
       const res = await apiRequest(token, `/students/${id}/parent-phones`, {
         method: "PATCH",
-        body: JSON.stringify({
-          slot: phoneEditModal.slot,
-          phone: phoneEditModal.value.trim() || null,
-        }),
+        body: JSON.stringify({ slot: phoneEditModal.slot, phone: normPhone }),
       });
-      if (res.ok) {
-        const body = await res.json();
+      const body = await parseApiBody(res);
+      if (res.ok && body) {
         setStudent(prev => prev ? {
           ...prev,
-          parent_phone:  body.parent_phone,
-          parent_phone2: body.parent_phone2,
+          parent_phone:  "parent_phone"  in body ? body.parent_phone  : prev.parent_phone,
+          parent_phone2: "parent_phone2" in body ? body.parent_phone2 : prev.parent_phone2,
           parents:       body.parents ?? prev.parents,
         } : prev);
         setPhoneEditModal(m => ({ ...m, visible: false }));
+        load();
+      } else if (res.ok && !body) {
+        // JSON이 아닌 200 응답 (서버 미배포 등)
+        setStudent(prevStudent);
+        Alert.alert("오류", "서버 응답 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.");
       } else {
-        const body = await res.json().catch(() => ({}));
-        Alert.alert("저장 실패", body.message || "저장에 실패했습니다.");
+        Alert.alert("저장 실패", getApiError(res.status, body));
       }
-    } catch {
-      Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+    } catch (e: any) {
+      setStudent(prevStudent);
+      const msg = typeof e?.message === "string" && e.message.includes("초과")
+        ? e.message
+        : "네트워크 연결을 확인해주세요.";
+      Alert.alert("네트워크 오류", msg);
     } finally {
       setPhoneEditSaving(false);
     }
   }
 
   async function confirmPhoneDelete() {
-    if (!id) return;
+    if (!id || !student) return;
+    const prevStudent = student;
     setPhoneEditSaving(true);
     try {
       const res = await apiRequest(token, `/students/${id}/parent-phones`, {
         method: "PATCH",
         body: JSON.stringify({ slot: phoneDeleteModal.slot, phone: null }),
       });
-      if (res.ok) {
-        const body = await res.json();
+      const body = await parseApiBody(res);
+      if (res.ok && body) {
         setStudent(prev => prev ? {
           ...prev,
-          parent_phone:  body.parent_phone,
-          parent_phone2: body.parent_phone2,
+          parent_phone:  "parent_phone"  in body ? body.parent_phone  : prev.parent_phone,
+          parent_phone2: "parent_phone2" in body ? body.parent_phone2 : prev.parent_phone2,
           parents:       body.parents ?? prev.parents,
         } : prev);
         setPhoneDeleteModal(m => ({ ...m, visible: false }));
+        load();
+      } else if (res.ok && !body) {
+        setStudent(prevStudent);
+        Alert.alert("오류", "서버 응답 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.");
       } else {
-        Alert.alert("삭제 실패", "삭제에 실패했습니다.");
+        Alert.alert("삭제 실패", getApiError(res.status, body));
       }
-    } catch {
-      Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+    } catch (e: any) {
+      setStudent(prevStudent);
+      Alert.alert("네트워크 오류", "네트워크 연결을 확인해주세요.");
     } finally {
       setPhoneEditSaving(false);
     }
