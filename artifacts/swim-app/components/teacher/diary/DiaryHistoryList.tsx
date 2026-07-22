@@ -33,6 +33,7 @@ export default function DiaryHistoryList({
   userId, refreshing,
   deleteTarget, deleteLoading, deleteError,
   onRefresh, onOpenEdit, onDelete, onDeleteConfirm, onDeleteCancel,
+  onWriteDiary,
   token, classGroupId,
   extraBottomPadding = 0,
 }: {
@@ -49,6 +50,7 @@ export default function DiaryHistoryList({
   onDelete: (item: DiaryEntry) => void;
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
+  onWriteDiary?: () => void;
   token?: string | null;
   classGroupId?: string;
   extraBottomPadding?: number;
@@ -68,7 +70,13 @@ export default function DiaryHistoryList({
           ListEmptyComponent={
             <View style={s.emptyBox}>
               <LucideIcon name="book-open" size={32} color={C.textMuted} />
-              <Text style={s.emptyText}>작성된 일지가 없습니다</Text>
+              <Text style={s.emptyText}>이 날짜에 작성된 일지가 없습니다</Text>
+              {onWriteDiary && (
+                <Pressable style={s.writeBtn} onPress={onWriteDiary}>
+                  <LucideIcon name="pencil" size={13} color="#fff" />
+                  <Text style={s.writeBtnText}>일지 작성</Text>
+                </Pressable>
+              )}
             </View>
           }
           renderItem={({ item }) => {
@@ -182,8 +190,10 @@ const s = StyleSheet.create({
   diaryTeacher:  { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 4 },
   diaryContent:  { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   iconBtn:       { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
-  emptyBox:      { alignItems: "center", paddingTop: 60, gap: 10 },
+  emptyBox:      { alignItems: "center", paddingTop: 60, gap: 14 },
   emptyText:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  writeBtn:      { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#4EA7D8", paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, marginTop: 4 },
+  writeBtnText:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
   delOverlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 24 },
   delSheet:      { width: "100%", borderRadius: 22, padding: 24, alignItems: "center", gap: 14 },
   delIconWrap:   { width: 64, height: 64, borderRadius: 18, alignItems: "center", justifyContent: "center" },

@@ -206,7 +206,8 @@ export default function TeacherDiaryScreen() {
   }, [token, targetDate, params.classGroupId, params.editDiaryId]);
   useEffect(() => { load(); }, [load]);
   async function openGroup(group: TeacherClassGroup) {
-    setSelectedGroup(group); setSubView("write"); setCommonContent(""); setStudentNotes([]);
+    // 항상 history 뷰로 시작 — write 뷰는 사용자가 직접 버튼을 눌렀을 때만 진입
+    setSelectedGroup(group); setSubView("history"); setCommonContent(""); setStudentNotes([]);
     setAddNoteStudent(null); setNoteInput("");
     setGroupMedia([]); setStudentMedia({}); setHasDraft(false);
     setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
@@ -218,10 +219,9 @@ export default function TeacherDiaryScreen() {
         const data = await r.json();
         const list: DiaryEntry[] = Array.isArray(data) ? data : [];
         setDiaries(list);
-        const todayExists = list.some(d => d.lesson_date === targetDate);
-        if (todayExists) { setSubView("history"); return; }
       }
     } catch {}
+    // 드래프트 감지 — 작성 뷰 자동 이동 없이 배너만 표시
     try {
       const key = `@swimnote:diary_draft:${group.id}:${targetDate}`;
       const saved = await AsyncStorage.getItem(key);
@@ -598,31 +598,43 @@ export default function TeacherDiaryScreen() {
     if (!deleteTarget || !selectedGroup) return;
     setDeleteLoading(true);
     const deletedId = deleteTarget.id;
+    const deletedDate = deleteTarget.lesson_date ?? targetDate;
     const groupId = selectedGroup.id;
     try {
-      // 1. API 먼저 호출 — 성공 확인 전까지 UI 변경 없음
+      // 1. DELETE API 호출 — 성공 확인 전 UI 변경 없음
       const r = await apiRequest(token, `/diaries/${deletedId}`, { method: "DELETE" });
       if (!r.ok) {
         const errData = await r.json().catch(() => ({})) as any;
         setDeleteError(errData?.error || "삭제에 실패했습니다. 다시 시도해주세요.");
         return;
       }
-      // 2. 삭제 확정 → 모달 닫기
+      // 2. DELETE 성공 → 즉시 로컬에서 제거 (refetch 완료를 기다리지 않음)
       setDeleteTarget(null);
       setDeleteError(null);
-      // 3. 서버에서 최신 일지 목록 재조회 (is_deleted=false만 반환)
-      const r2 = await apiRequest(token, `/diaries?class_group_id=${groupId}`);
-      const raw = r2.ok ? await r2.json() : [];
-      const diaryList: DiaryEntry[] = Array.isArray(raw) ? raw : [];
-      // 4. 전체 상태를 서버 기준으로 동기화
-      setDiaries(diaryList);
-      setDiarySet(() => {
-        const next = new Set<string>();
-        diaryList.forEach(d => { if (d.class_group_id && d.lesson_date) next.add(`${d.class_group_id}_${d.lesson_date}`); });
+      setDiaries(prev => prev.filter(d => d.id !== deletedId));
+      setDiarySet(prev => {
+        const next = new Set(prev);
+        next.delete(`${groupId}_${deletedDate}`);
         return next;
       });
-      // 5. 항상 히스토리 뷰 유지 — 작성 뷰는 사용자가 직접 버튼을 눌러야만 진입
+      // editDiary가 삭제된 일지이면 초기화
+      if (editDiary?.id === deletedId) setEditDiary(null);
+      // 항상 히스토리 뷰 유지 — write 뷰 자동 이동 없음
       setSubView("history");
+      // 3. 백그라운드 서버 재조회 — flicker 방지: 결과에서도 deletedId 제거
+      apiRequest(token, `/diaries?class_group_id=${groupId}`)
+        .then(r2 => r2.ok ? r2.json() : null)
+        .then((raw) => {
+          if (!Array.isArray(raw)) return;
+          const diaryList = (raw as DiaryEntry[]).filter(d => d.id !== deletedId);
+          setDiaries(diaryList);
+          setDiarySet(() => {
+            const next = new Set<string>();
+            diaryList.forEach(d => { if (d.class_group_id && d.lesson_date) next.add(`${d.class_group_id}_${d.lesson_date}`); });
+            return next;
+          });
+        })
+        .catch(() => {}); // 백그라운드 실패는 무시 — 로컬 제거로 이미 반영됨
     } catch {
       setDeleteError("네트워크 오류로 삭제하지 못했습니다. 다시 시도해주세요.");
     } finally { setDeleteLoading(false); }
@@ -801,6 +813,7 @@ export default function TeacherDiaryScreen() {
             onDelete={(diary) => { setDeleteTarget(diary); setDeleteError(null); }}
             onDeleteConfirm={confirmDelete}
             onDeleteCancel={() => setDeleteTarget(null)}
+            onWriteDiary={() => setSubView("write")}
             token={token}
             classGroupId={group.id}
           />
