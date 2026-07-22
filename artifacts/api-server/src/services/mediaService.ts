@@ -13,6 +13,46 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
+// ── Audit 로그 ────────────────────────────────────────────────────────────────
+
+export interface MediaActorContext {
+  userId: string;
+  userName: string;
+  role: string;
+  poolId: string;
+}
+
+type MediaActionType = "attach" | "detach" | "detach_deleted" | "note_attach" | "cleanup" | "archive";
+
+async function logMediaAudit({
+  action,
+  diaryId,
+  noteId,
+  photoIds,
+  actor,
+}: {
+  action: MediaActionType;
+  diaryId?: string | null;
+  noteId?: string | null;
+  photoIds: string[];
+  actor: MediaActorContext;
+}): Promise<void> {
+  try {
+    await db.execute(sql`
+      INSERT INTO class_diary_audit_logs
+        (diary_id, student_note_id, target_type, action_type,
+         after_content, actor_id, actor_name, actor_role, swimming_pool_id)
+      VALUES
+        (${diaryId ?? null}, ${noteId ?? null},
+         ${"media"}, ${action},
+         ${JSON.stringify({ photo_ids: photoIds, count: photoIds.length })},
+         ${actor.userId}, ${actor.userName}, ${actor.role}, ${actor.poolId})
+    `);
+  } catch (e) {
+    console.warn("[MediaService] audit log 저장 실패:", e);
+  }
+}
+
 export interface PhotoRecord {
   id: string;
   pool_id: string;
@@ -142,7 +182,8 @@ export async function getDraftPhotosForClass(
 export async function attachPhotosToDiary(
   diaryId: string,
   photoIds: string[],
-  poolId: string
+  poolId: string,
+  actor?: MediaActorContext
 ): Promise<void> {
   if (!photoIds.length) return;
 
@@ -186,6 +227,10 @@ export async function attachPhotosToDiary(
         media_status = 'attached'
     WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
   `);
+
+  if (actor) {
+    logMediaAudit({ action: "attach", diaryId, photoIds: uniqueIds, actor }).catch(() => {});
+  }
 }
 
 /**
@@ -197,7 +242,8 @@ export async function attachPhotosToStudentNote(
   noteId: string,
   studentId: string,
   photoIds: string[],
-  poolId: string
+  poolId: string,
+  actor?: MediaActorContext
 ): Promise<void> {
   if (!photoIds.length) return;
 
@@ -245,6 +291,10 @@ export async function attachPhotosToStudentNote(
         media_status = 'attached'
     WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
   `);
+
+  if (actor) {
+    logMediaAudit({ action: "note_attach", diaryId, noteId, photoIds, actor }).catch(() => {});
+  }
 }
 
 /**
@@ -253,7 +303,9 @@ export async function attachPhotosToStudentNote(
  */
 export async function detachPhotosFromDiary(
   photoIds: string[],
-  poolId: string
+  poolId: string,
+  actor?: MediaActorContext,
+  diaryId?: string
 ): Promise<void> {
   if (!photoIds.length) return;
   const literal = toArray(photoIds);
@@ -264,6 +316,10 @@ export async function detachPhotosFromDiary(
         media_status = 'draft'
     WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
   `);
+
+  if (actor) {
+    logMediaAudit({ action: "detach", diaryId, photoIds, actor }).catch(() => {});
+  }
 }
 
 /**
@@ -273,8 +329,18 @@ export async function detachPhotosFromDiary(
  */
 export async function handleDiaryDeleted(
   diaryId: string,
-  poolId: string
+  poolId: string,
+  actor?: MediaActorContext
 ): Promise<void> {
+  // 삭제 전 영향받을 사진 ID 목록 수집 (audit용)
+  let affectedIds: string[] = [];
+  if (actor) {
+    const ids = await db.execute(sql`
+      SELECT id FROM photo_assets_meta WHERE journal_id = ${diaryId} AND pool_id = ${poolId}
+    `);
+    affectedIds = (ids.rows as any[]).map((r: any) => r.id);
+  }
+
   await db.execute(sql`
     UPDATE photo_assets_meta
     SET journal_id = NULL,
@@ -283,6 +349,10 @@ export async function handleDiaryDeleted(
     WHERE journal_id = ${diaryId}
       AND pool_id = ${poolId}
   `);
+
+  if (actor && affectedIds.length > 0) {
+    logMediaAudit({ action: "detach_deleted", diaryId, photoIds: affectedIds, actor }).catch(() => {});
+  }
 }
 
 /**
@@ -290,7 +360,8 @@ export async function handleDiaryDeleted(
  */
 export async function archiveMedia(
   photoIds: string[],
-  poolId: string
+  poolId: string,
+  actor?: MediaActorContext
 ): Promise<void> {
   if (!photoIds.length) return;
   const literal = toArray(photoIds);
@@ -299,6 +370,10 @@ export async function archiveMedia(
     SET media_status = 'archived'
     WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
   `);
+
+  if (actor) {
+    logMediaAudit({ action: "archive", photoIds, actor }).catch(() => {});
+  }
 }
 
 /**

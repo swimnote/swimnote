@@ -20,7 +20,7 @@ import { sql, eq, and, desc, or } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
-import { attachPhotosToDiary, attachPhotosToStudentNote, handleDiaryDeleted } from "../services/mediaService.js";
+import { attachPhotosToDiary, attachPhotosToStudentNote, handleDiaryDeleted, type MediaActorContext } from "../services/mediaService.js";
 import { SWIMNOTE_DEFAULT_TEMPLATES, insertDefaultTemplates } from "../lib/defaultTemplates.js";
 
 const router = Router();
@@ -614,6 +614,7 @@ router.delete("/diaries/:id",
       if (role === "teacher" && diary.teacher_id !== userId) return apiErr(res, 403, "본인 일지만 삭제할 수 있습니다.");
 
       const actorName = await getUserName(userId);
+      const mediaActor: MediaActorContext = { userId, userName: actorName, role, poolId: poolId! };
       // 일지 삭제 + 연결 사진 detached 처리를 단일 트랜잭션으로
       await db.execute(sql`BEGIN`);
       try {
@@ -623,7 +624,7 @@ router.delete("/diaries/:id",
           WHERE id = ${req.params.id}
         `);
         // Media Engine: 연결 사진 journal_id 해제 + media_status='detached'
-        await handleDiaryDeleted(req.params.id, poolId!);
+        await handleDiaryDeleted(req.params.id, poolId!, mediaActor);
         await db.execute(sql`COMMIT`);
       } catch (txErr) {
         await db.execute(sql`ROLLBACK`).catch(() => {});
@@ -677,6 +678,7 @@ router.post("/diaries/with-media",
       if (!poolId) return apiErr(res, 403, "수영장 정보를 찾을 수 없습니다.");
 
       const teacherName = await getUserName(userId);
+      const mediaActor: MediaActorContext = { userId, userName: teacherName, role, poolId };
 
       // 권한 검증
       if (role === "teacher") {
@@ -729,7 +731,7 @@ router.post("/diaries/with-media",
         // 3. 공통 사진 연결
         const cPhotoIds = Array.isArray(common_photo_ids) ? common_photo_ids : [];
         if (cPhotoIds.length > 0) {
-          await attachPhotosToDiary(diaryId, cPhotoIds, poolId);
+          await attachPhotosToDiary(diaryId, cPhotoIds, poolId, mediaActor);
         }
 
         // 4. 학생별 개인 사진 연결
@@ -738,7 +740,7 @@ router.post("/diaries/with-media",
           const origNote = notes.find(n => n.student_id === note.student_id);
           const photoIds = Array.isArray(origNote?.photo_ids) ? origNote.photo_ids : [];
           if (photoIds.length > 0) {
-            await attachPhotosToStudentNote(diaryId, note.id, note.student_id, photoIds, poolId);
+            await attachPhotosToStudentNote(diaryId, note.id, note.student_id, photoIds, poolId, mediaActor);
           }
         }
 
