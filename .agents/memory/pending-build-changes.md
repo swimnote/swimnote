@@ -26,6 +26,11 @@ description: 마지막 스토어 빌드 이후 코드에 반영됐으나 아직 
 - MemberParentTab.tsx: 전화번호별 연결/가입대기 뱃지 + 연결된 학부모 계정 섹션 개선
 - iOS/Android production+preview 4채널 OTA 완료
 
+### ⑤ 수업일지 날짜 버그 수정 (2026-07-22 OTA)
+- ClassDetailSheet.tsx: diary 이동 시 `lessonDate: effectiveDate` params 추가
+- 과거 날짜 수업 선택 후 수업일지 클릭 시 해당 날짜로 diary 화면 열림
+- iOS/Android production+preview 4채널 OTA 완료
+
 ### ④ 중복 학생 병합 + 학부모 연결 탭 + 서버측 중복 방지 (2026-07-22 OTA)
 - 전하빈(dm210beoo→ch8u651hi), 박찬율(7g71n0l0s→e0qghg3tm) 병합 완료
 - approvals.tsx: 학부모 연결 탭 분리 추가
