@@ -621,9 +621,8 @@ export default function TeacherDiaryScreen() {
         diaryList.forEach(d => { if (d.class_group_id && d.lesson_date) next.add(`${d.class_group_id}_${d.lesson_date}`); });
         return next;
       });
-      // 5. 오늘 일지가 없으면 작성 뷰, 남아있으면 히스토리 유지
-      const todayRemains = diaryList.some(d => d.lesson_date === targetDate);
-      setSubView(todayRemains ? "history" : "write");
+      // 5. 항상 히스토리 뷰 유지 — 작성 뷰는 사용자가 직접 버튼을 눌러야만 진입
+      setSubView("history");
     } catch {
       setDeleteError("네트워크 오류로 삭제하지 못했습니다. 다시 시도해주세요.");
     } finally { setDeleteLoading(false); }
