@@ -866,11 +866,33 @@ router.post("/simple-parent-register", async (req, res) => {
     }
 
     // ── 자녀 이름을 제공했지만 이름 매칭이 안 된 경우 → placeholder 생성 ──
-    // (매칭 여부와 무관하게, 이름 미매칭 자녀는 placeholder로 관리자에게 노출)
+    // 단, 이미 같은 이름의 활성 학생이 있으면 새 학생 생성 금지 (중복 방지)
     const unmatchedNames = childNamesArr.filter(n => !matchedByName.has(n));
-    // 전체 매칭이 0명이어도 자녀 이름이 없으면 placeholder를 만들지 않음
     if (unmatchedNames.length > 0 && resolvedPoolId) {
       for (const cName of unmatchedNames) {
+        // 중복 방지: 이름이 같은 active/unregistered 학생이 이미 있으면 placeholder 생성 스킵
+        const [existingByName] = (await db.execute(sql`
+          SELECT id FROM students
+          WHERE swimming_pool_id = ${resolvedPoolId}
+            AND name = ${cName}
+            AND status NOT IN ('withdrawn', 'deleted', 'archived')
+          LIMIT 1
+        `)).rows as any[];
+        if (existingByName) {
+          console.log(`[simple-parent-register] 이름 중복 → placeholder 생성 스킵: ${cName} (기존=${existingByName.id})`);
+          // 해당 학생에 pending 연결 생성 (자동승인은 triggerAutoLinkOnStudentV2 처리)
+          const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          await db.execute(sql`
+            INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status)
+            VALUES (${psId}, ${parentId}, ${existingByName.id}, ${resolvedPoolId}, 'pending')
+            ON CONFLICT DO NOTHING
+          `);
+          const { triggerAutoLinkOnStudentV2 } = await import("../lib/auto-link-v2.js");
+          triggerAutoLinkOnStudentV2(existingByName.id, ["parent_phone", "name"]).catch(() => {});
+          matched.push({ id: existingByName.id, swimming_pool_id: resolvedPoolId });
+          continue;
+        }
+
         const sId = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         await db.execute(sql`
           INSERT INTO students (id, swimming_pool_id, name, name_korean, parent_name, parent_phone, parent_user_id,
@@ -887,7 +909,7 @@ router.post("/simple-parent-register", async (req, res) => {
         `);
         matched.push({ id: sId, swimming_pool_id: resolvedPoolId });
       }
-      console.log(`[simple-parent-register] placeholder ${unmatchedNames.length}명 생성: ${unmatchedNames.join(", ")}`);
+      console.log(`[simple-parent-register] placeholder 처리 완료: ${unmatchedNames.join(", ")}`);
     }
 
     console.log(`[simple-parent-register] 학부모 가입: poolId=${resolvedPoolId} matched=${matched.length}명`);

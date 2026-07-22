@@ -250,6 +250,30 @@ router.post("/teacher-request", requireAuth, requireRole("teacher", "pool_admin"
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
 
+    // 중복 체크: 같은 이름의 활성 학생이 있으면 차단
+    const normPhone = parent_phone ? parent_phone.replace(/[^0-9]/g, "") : null;
+    const sameNameRows = (await db.execute(sql`
+      SELECT id, name, parent_phone, status FROM students
+      WHERE swimming_pool_id = ${poolId}
+        AND status NOT IN ('withdrawn', 'deleted', 'archived')
+        AND name = ${name.trim()}
+    `)).rows as any[];
+    if (sameNameRows.length > 0) {
+      const phoneConflict = normPhone
+        ? sameNameRows.find(r => {
+            const ep = (r.parent_phone || "").replace(/[^0-9]/g, "");
+            return ep && ep === normPhone;
+          })
+        : null;
+      if (phoneConflict || (normPhone === null && sameNameRows.length > 0)) {
+        return res.status(409).json({
+          success: false, duplicate: true,
+          existing: sameNameRows[0],
+          message: "동일한 이름의 학생이 이미 등록되어 있습니다. 기존 학생에 연락처를 추가하세요.",
+        });
+      }
+    }
+
     const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     await db.execute(sql`
       INSERT INTO students (
@@ -609,19 +633,48 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       }
     }
 
-    // ── 중복 체크 (이름+전화번호 조합만; 이름 단독 중복 허용) ────────
-    if (!force_create && normParentPhone) {
-      const dupRows = await db.execute(sql`
-        SELECT id, name, parent_phone, status
+    // ── 중복 체크: 이름 + 전화번호(phone1/2/3 교차 비교) ────────────
+    if (!force_create) {
+      // 이름이 같은 활성 학생 전체를 가져와서 교차 비교
+      const sameNameRows = (await db.execute(sql`
+        SELECT id, name, parent_phone, parent_phone2, parent_phone3, status
         FROM students
         WHERE swimming_pool_id = ${poolId}
           AND status NOT IN ('withdrawn', 'deleted', 'archived')
           AND name = ${name.trim()}
-          AND REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normParentPhone}
-        LIMIT 1
-      `);
-      if (dupRows.rows.length > 0) {
-        return res.status(409).json({ success: false, duplicate: true, existing: dupRows.rows[0], message: "동일한 학생(이름+전화번호)이 이미 등록되어 있습니다." });
+      `)).rows as any[];
+
+      if (sameNameRows.length > 0) {
+        const normPhones = [normParentPhone, normParentPhone2, normParentPhone3].filter(Boolean);
+
+        // 제출된 전화번호 중 하나라도 기존 학생의 phone1/2/3과 겹치면 중복
+        const duplicateStudent = normPhones.length > 0
+          ? sameNameRows.find(r => {
+              const existingPhones = [
+                (r.parent_phone || "").replace(/[^0-9]/g, ""),
+                (r.parent_phone2 || "").replace(/[^0-9]/g, ""),
+                (r.parent_phone3 || "").replace(/[^0-9]/g, ""),
+              ].filter(Boolean);
+              return normPhones.some(p => existingPhones.includes(p!));
+            })
+          : null;
+
+        if (duplicateStudent) {
+          return res.status(409).json({
+            success: false, duplicate: true,
+            existing: duplicateStudent,
+            message: "동일한 학생(이름+전화번호)이 이미 등록되어 있습니다. 기존 학생에 보호자 연락처를 추가하세요.",
+          });
+        }
+
+        // 전화번호 없이 같은 이름만 있는 경우 경고 반환 (force_create로 재요청 가능)
+        if (normPhones.length === 0) {
+          return res.status(409).json({
+            success: false, name_only_duplicate: true,
+            existing: sameNameRows[0],
+            message: `이미 '${name.trim()}' 이름의 학생이 등록되어 있습니다. 기존 학생에 연락처를 추가하거나, 동명이인이면 force_create=true로 재요청하세요.`,
+          });
+        }
       }
     }
 
