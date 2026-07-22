@@ -95,7 +95,9 @@ export default function AdminGrantScreen() {
       setTeachers(prev =>
         prev.map(t => t.id === userId ? { ...t, is_admin_granted: isAdminGranted } : t)
       );
-      successMessage = d.message || (grant ? "관리자 권한이 부여되었습니다." : "관리자 권한이 회수되었습니다.");
+      successMessage = grant
+        ? "관리자 권한이 부여되었습니다.\n대상 선생님 앱에 최대 15초 이내 자동 반영됩니다."
+        : "관리자 권한이 회수되었습니다.\n대상 선생님 앱에 최대 15초 이내 자동 반영됩니다.";
 
       // 확인 다이얼로그 종료 → processing 해제 → 결과 모달 표시 (순서 중요)
       setConfirmTarget(null);
@@ -136,7 +138,8 @@ export default function AdminGrantScreen() {
         <LucideIcon name="info" size={14} color="#2EC4B6" />
         <Text style={s.infoTxt}>
           승인된 선생님에게 관리자 권한을 부여할 수 있습니다.{"\n"}
-          관리자 권한을 받은 선생님은 선생님↔관리자 역할 전환이 가능합니다.
+          관리자 권한을 받은 선생님은 선생님↔관리자 역할 전환이 가능합니다.{"\n"}
+          권한 변경 사항은 대상 선생님 앱에 최대 15초 이내 자동 반영됩니다.
         </Text>
       </View>
 
