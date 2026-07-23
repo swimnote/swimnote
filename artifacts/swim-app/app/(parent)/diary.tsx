@@ -84,13 +84,14 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
     }
   }
 
-  function goToMessages() {
+  function goToComments() {
     router.push({
-      pathname: "/(parent)/messages" as any,
+      pathname: "/(parent)/diary-comments" as any,
       params: {
         diaryId: entry.id,
         diaryDate: entry.lesson_date,
         teacherName: entry.teacher_name,
+        studentId,
         studentName,
       },
     });
@@ -172,9 +173,9 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
           <Text style={[ds.reactionEmoji, myReactions.has("thank") && { transform: [{ scale: 1.2 }] }]}>🙏</Text>
           <Text style={[ds.reactionLabel, { color: myReactions.has("thank") ? "#BE185D" : C.textSecondary }]}>감사합니다</Text>
         </Pressable>
-        <Pressable onPress={goToMessages} style={ds.reactionBtn}>
-          <LucideIcon name="mail" size={17} color={C.textSecondary} />
-          <Text style={[ds.reactionLabel, { color: C.textSecondary }]}>쪽지달기</Text>
+        <Pressable onPress={goToComments} style={ds.reactionBtn}>
+          <LucideIcon name="message-circle" size={17} color={C.textSecondary} />
+          <Text style={[ds.reactionLabel, { color: C.textSecondary }]}>댓글</Text>
         </Pressable>
       </View>
 

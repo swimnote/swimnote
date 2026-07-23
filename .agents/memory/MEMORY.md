@@ -18,3 +18,4 @@
 - [학부모 /auth/me 테이블 분리 구조](parent-auth-me-table-split.md) — parent_account role은 parent_accounts 테이블 소속; /auth/me에서 role 분기 필수, users 테이블 단독 조회 시 항상 404 → 앱 재실행마다 강제 로그아웃
 - [사진 미디어 상태 고아 버그](photo-orphan-media-fix.md) — 삭제된 일지 연결 사진이 'attached' 유지; picker·teacher-all 양쪽 LEFT JOIN으로 해결; repair-orphan-media 엔드포인트로 기존 데이터 정리
 - [앱→서버 배포 흐름](app-server-deploy-flow.md) — iPhone 앱은 swimnote.kr(Render.com) 연결; 서버 코드 변경은 Render.com 재배포 필수; 클라이언트 변경은 OTA 업데이트 필수
+- [일지 댓글 시스템 구조](diary-comments-architecture.md) — diary_messages 테이블 재활용(parent_comment_id/student_id 컬럼 추가); /diaries/:id/comments + /diary-comments/:id/replies API; parent/messages.tsx는 리다이렉트 전용으로 교체됨

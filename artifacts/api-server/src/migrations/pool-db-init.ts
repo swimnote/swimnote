@@ -1269,6 +1269,46 @@ export async function initPoolDb(): Promise<void> {
     ON class_diaries (class_group_id, lesson_date, is_deleted)
   `)).catch(() => {});
 
+  // ─── diary_messages (댓글 backing store) ─────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS diary_messages (
+      id                 text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      diary_id           text        NOT NULL,
+      sender_id          text        NOT NULL,
+      sender_name        text        NOT NULL DEFAULT '',
+      sender_role        text        NOT NULL DEFAULT 'parent',
+      content            text        NOT NULL,
+      image_url          text,
+      read_at            timestamptz,
+      is_deleted         boolean     NOT NULL DEFAULT false,
+      deleted_at         timestamptz,
+      parent_comment_id  text,
+      student_id         text,
+      created_at         timestamptz NOT NULL DEFAULT now()
+    );
+    ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS parent_comment_id text;
+    ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS student_id text;
+    ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+    CREATE INDEX IF NOT EXISTS idx_diary_messages_diary ON diary_messages (diary_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_diary_messages_parent ON diary_messages (parent_comment_id) WHERE parent_comment_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_diary_messages_sender ON diary_messages (sender_id, diary_id);
+  `)).catch((e: any) => console.error('[init] diary_messages:', e.message));
+
+  // ─── diary_reactions ─────────────────────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS diary_reactions (
+      id            text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      diary_id      text        NOT NULL,
+      parent_id     text        NOT NULL,
+      student_id    text,
+      reaction_type text        NOT NULL,
+      created_at    timestamptz NOT NULL DEFAULT now(),
+      UNIQUE(diary_id, parent_id, reaction_type)
+    );
+    ALTER TABLE diary_reactions ADD COLUMN IF NOT EXISTS student_id text;
+    CREATE INDEX IF NOT EXISTS idx_diary_reactions_diary ON diary_reactions (diary_id);
+  `)).catch((e: any) => console.error('[init] diary_reactions:', e.message));
+
   // 기존 학생 히스토리 초기 데이터 채우기 (최초 1회만)
   await db.execute(sql.raw(`
     DO $$

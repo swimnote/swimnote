@@ -23,6 +23,7 @@ export interface DiaryEntry {
   common_content: string; teacher_name: string; teacher_id?: string;
   is_edited: boolean; is_deleted: boolean;
   note_count?: number; class_name?: string;
+  like_count?: number; thank_count?: number; comment_count?: number;
   schedule_time?: string; schedule_days?: string;
   student_notes?: ExistingNote[];
 }

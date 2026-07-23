@@ -138,6 +138,29 @@ export default function DiaryHistoryList({
                     diaryId={item.id}
                   />
                 ) : null}
+                {/* 반응·댓글 카운트 배지 */}
+                {((item.like_count ?? 0) > 0 || (item.thank_count ?? 0) > 0 || (item.comment_count ?? 0) > 0) ? (
+                  <View style={s.countRow}>
+                    {(item.like_count ?? 0) > 0 && (
+                      <View style={s.countBadge}>
+                        <Text style={s.countEmoji}>👍</Text>
+                        <Text style={[s.countText, { color: "#2EC4B6" }]}>{item.like_count}</Text>
+                      </View>
+                    )}
+                    {(item.thank_count ?? 0) > 0 && (
+                      <View style={s.countBadge}>
+                        <Text style={s.countEmoji}>🙏</Text>
+                        <Text style={[s.countText, { color: "#BE185D" }]}>{item.thank_count}</Text>
+                      </View>
+                    )}
+                    {(item.comment_count ?? 0) > 0 && (
+                      <View style={s.countBadge}>
+                        <LucideIcon name="message-circle" size={12} color="#6366F1" />
+                        <Text style={[s.countText, { color: "#6366F1" }]}>{item.comment_count}</Text>
+                      </View>
+                    )}
+                  </View>
+                ) : null}
               </Pressable>
             );
           }}
@@ -205,4 +228,8 @@ const s = StyleSheet.create({
   delBtn:        { height: 48, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   inlineError:   { flexDirection: "row", alignItems: "center", gap: 6, padding: 10, borderRadius: 10 },
   inlineErrorText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 17 },
+  countRow:      { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 2 },
+  countBadge:    { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F8FAFF", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  countEmoji:    { fontSize: 12 },
+  countText:     { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });
