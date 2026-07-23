@@ -60,6 +60,7 @@ export default function MemberDetailScreen() {
   const [editParentPhone, setEditParentPhone]     = useState("");
   const [editParentPhone2, setEditParentPhone2]   = useState("");
   const [editParentPhone3, setEditParentPhone3]   = useState("");
+  const [editParentPhone4, setEditParentPhone4]   = useState("");
   const [editMemo, setEditMemo]                   = useState("");
   const [editNotes, setEditNotes]                 = useState("");
   const [infoChanged, setInfoChanged]             = useState(false);
@@ -90,6 +91,7 @@ export default function MemberDetailScreen() {
         setEditParentPhone(d.parent_phone || "");
         setEditParentPhone2((d as any).parent_phone2 || "");
         setEditParentPhone3((d as any).parent_phone3 || "");
+        setEditParentPhone4((d as any).parent_phone4 || "");
         setEditMemo(d.memo || "");
         setEditNotes(d.notes || "");
         setWeeklyCount((d.weekly_count || 1) as WeeklyCount);
@@ -151,12 +153,13 @@ export default function MemberDetailScreen() {
           parent_phone: editParentPhone,
           parent_phone2: editParentPhone2 || null,
           parent_phone3: editParentPhone3 || null,
+          parent_phone4: editParentPhone4 || null,
           memo: editMemo, notes: editNotes,
         }),
       });
       if (res.ok) {
         const body = await res.json().catch(() => ({}));
-        setData(d => d ? { ...d, name: editName, birth_year: editBirth, parent_name: editParentName, parent_phone: editParentPhone, parent_phone2: editParentPhone2 || null, parent_phone3: editParentPhone3 || null, memo: editMemo, notes: editNotes, parent_user_id: body.parent_user_id ?? d.parent_user_id, parent_account_name: body.parent_account_name ?? (d as any).parent_account_name } as any : d);
+        setData(d => d ? { ...d, name: editName, birth_year: editBirth, parent_name: editParentName, parent_phone: editParentPhone, parent_phone2: editParentPhone2 || null, parent_phone3: editParentPhone3 || null, parent_phone4: editParentPhone4 || null, memo: editMemo, notes: editNotes, parent_user_id: body.parent_user_id ?? d.parent_user_id, parent_account_name: body.parent_account_name ?? (d as any).parent_account_name } as any : d);
         setInfoChanged(false);
         setAlertInfo({ title: "저장 완료", msg: "기본 정보가 업데이트되었습니다." });
       } else {
@@ -295,6 +298,7 @@ export default function MemberDetailScreen() {
           editParentPhone={editParentPhone} setEditParentPhone={setEditParentPhone}
           editParentPhone2={editParentPhone2} setEditParentPhone2={setEditParentPhone2}
           editParentPhone3={editParentPhone3} setEditParentPhone3={setEditParentPhone3}
+          editParentPhone4={editParentPhone4} setEditParentPhone4={setEditParentPhone4}
           infoChanged={infoChanged} setInfoChanged={setInfoChanged}
           onSave={saveInfo}
           onRestoreMember={restoreMember}

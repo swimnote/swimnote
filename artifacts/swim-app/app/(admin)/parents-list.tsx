@@ -238,6 +238,17 @@ function ParentDetailModal({
                             </View>
                           )}
                         </View>
+                        {/* 보호자 번호 전체 */}
+                        {([
+                          { label: "보호자1", val: st.parent_phone },
+                          { label: "보호자2", val: st.parent_phone2 },
+                          { label: "보호자3", val: st.parent_phone3 },
+                          { label: "보호자4", val: st.parent_phone4 },
+                        ] as { label: string; val: string | null }[]).filter(p => p.val).map(p => (
+                          <Text key={p.label} style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                            {p.label}: {formatPhone(p.val)}
+                          </Text>
+                        ))}
                       </View>
                     </View>
                   ))

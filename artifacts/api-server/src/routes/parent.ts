@@ -103,6 +103,7 @@ async function autoLinkParentToStudents(parentId: string, poolId?: string | null
             REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
             OR REGEXP_REPLACE(COALESCE(parent_phone2,''),'[^0-9]','','g') = ${normPhone}
             OR REGEXP_REPLACE(COALESCE(parent_phone3,''),'[^0-9]','','g') = ${normPhone}
+            OR REGEXP_REPLACE(COALESCE(parent_phone4,''),'[^0-9]','','g') = ${normPhone}
           )
             AND swimming_pool_id = ${effectivePoolId}
             AND status NOT IN ('withdrawn','archived','deleted')
@@ -113,6 +114,7 @@ async function autoLinkParentToStudents(parentId: string, poolId?: string | null
             REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
             OR REGEXP_REPLACE(COALESCE(parent_phone2,''),'[^0-9]','','g') = ${normPhone}
             OR REGEXP_REPLACE(COALESCE(parent_phone3,''),'[^0-9]','','g') = ${normPhone}
+            OR REGEXP_REPLACE(COALESCE(parent_phone4,''),'[^0-9]','','g') = ${normPhone}
           )
             AND status NOT IN ('withdrawn','archived','deleted')
           LIMIT 20`);
@@ -1777,6 +1779,174 @@ router.delete("/unlink-child/:studentId", requireAuth, requireParent, async (req
     console.error("[unlink-child] 오류:", e);
     res.status(500).json({ success: false, message: "서버 오류" });
   }
+});
+
+// ─── 추가 보호자 관리 ──────────────────────────────────────────────────────────
+// GET /parent/guardians — 연결된 자녀별 보호자 전화번호 현황
+router.get("/guardians", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const parentId = req.user!.userId;
+    const students = (await db.execute(sql`
+      SELECT s.id, s.name, s.swimming_pool_id,
+             s.parent_phone, s.parent_phone2, s.parent_phone3, s.parent_phone4
+      FROM parent_students ps
+      JOIN students s ON s.id = ps.student_id
+      WHERE ps.parent_id = ${parentId} AND ps.status = 'approved'
+        AND s.status NOT IN ('withdrawn','archived','deleted')
+    `)).rows as any[];
+
+    const result = await Promise.all(students.map(async (s: any) => {
+      const poolId = s.swimming_pool_id;
+      const slots = [
+        { slot: 1, phone: s.parent_phone },
+        { slot: 2, phone: s.parent_phone2 },
+        { slot: 3, phone: s.parent_phone3 },
+        { slot: 4, phone: s.parent_phone4 },
+      ];
+      const phoneInfos = await Promise.all(slots.map(async ({ slot, phone }) => {
+        if (!phone) return { slot, phone: null, status: "empty" };
+        const normP = phone.replace(/[^0-9]/g, "");
+        const [pa] = (await db.execute(sql`
+          SELECT id, name FROM parent_accounts
+          WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normP}
+            AND swimming_pool_id = ${poolId}
+          LIMIT 1
+        `)).rows as any[];
+        return { slot, phone, status: pa ? "connected" : "pending", connected_name: pa?.name || null };
+      }));
+      return { student_id: s.id, student_name: s.name, phones: phoneInfos };
+    }));
+
+    res.json({ success: true, students: result });
+  } catch (e) { console.error("[guardians GET]", e); res.status(500).json({ success: false, message: "서버 오류" }); }
+});
+
+// POST /parent/guardians — 추가 보호자 전화번호 등록
+const MAX_GUARDIAN_SLOTS = 4;
+router.post("/guardians", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const parentId = req.user!.userId;
+    const { studentId, phone } = req.body;
+    if (!studentId || !phone) { res.status(400).json({ success: false, message: "studentId와 phone이 필요합니다." }); return; }
+
+    const normPhone = phone.replace(/[^0-9]/g, "");
+    if (normPhone.length < 9) { res.status(400).json({ success: false, message: "올바른 전화번호를 입력해주세요." }); return; }
+
+    // 연결 확인
+    const [link] = (await db.execute(sql`
+      SELECT ps.id FROM parent_students ps
+      WHERE ps.parent_id = ${parentId} AND ps.student_id = ${studentId} AND ps.status = 'approved'
+      LIMIT 1
+    `)).rows as any[];
+    if (!link) { res.status(403).json({ success: false, message: "해당 자녀와 연결되지 않은 보호자입니다." }); return; }
+
+    const [student] = (await db.execute(sql`
+      SELECT id, name, swimming_pool_id, parent_phone, parent_phone2, parent_phone3, parent_phone4
+      FROM students WHERE id = ${studentId} LIMIT 1
+    `)).rows as any[];
+    if (!student) { res.status(404).json({ success: false, message: "학생을 찾을 수 없습니다." }); return; }
+
+    // 내 번호와 동일 여부 확인
+    const [myAccount] = (await db.execute(sql`SELECT phone FROM parent_accounts WHERE id = ${parentId} LIMIT 1`)).rows as any[];
+    const myNorm = ((myAccount?.phone) || "").replace(/[^0-9]/g, "");
+    if (myNorm && myNorm === normPhone) {
+      res.status(400).json({ success: false, message: "본인 번호는 추가 보호자로 등록할 수 없습니다." }); return;
+    }
+
+    // 이미 등록된 번호인지 확인
+    const existingPhones = [student.parent_phone, student.parent_phone2, student.parent_phone3, student.parent_phone4]
+      .map((p: string | null) => (p || "").replace(/[^0-9]/g, ""))
+      .filter(Boolean);
+    if (existingPhones.includes(normPhone)) {
+      res.status(400).json({ success: false, message: "이미 등록된 전화번호입니다." }); return;
+    }
+
+    // 빈 슬롯 찾기 (phone2/3/4 중 첫 번째) + 저장
+    const studentIdStr = String(studentId);
+    let savedSlot = "";
+    if (!student.parent_phone2) {
+      await db.execute(sql`UPDATE students SET parent_phone2 = ${normPhone}, updated_at = NOW() WHERE id = ${studentIdStr}`);
+      savedSlot = "parent_phone2";
+    } else if (!student.parent_phone3) {
+      await db.execute(sql`UPDATE students SET parent_phone3 = ${normPhone}, updated_at = NOW() WHERE id = ${studentIdStr}`);
+      savedSlot = "parent_phone3";
+    } else if (!student.parent_phone4) {
+      await db.execute(sql`UPDATE students SET parent_phone4 = ${normPhone}, updated_at = NOW() WHERE id = ${studentIdStr}`);
+      savedSlot = "parent_phone4";
+    } else {
+      res.status(400).json({ success: false, message: `보호자 번호는 최대 ${MAX_GUARDIAN_SLOTS}개까지 등록할 수 있습니다.` }); return;
+    }
+    console.log(`[guardians POST] student=${studentIdStr} slot=${savedSlot} phone=${normPhone.slice(0,3)}****${normPhone.slice(-4)}`);
+
+    // 해당 번호로 가입한 학부모가 있으면 즉시 자동 연결
+    const [existingPa] = (await db.execute(sql`
+      SELECT id, name FROM parent_accounts
+      WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normPhone}
+        AND swimming_pool_id = ${student.swimming_pool_id}
+      LIMIT 1
+    `)).rows as any[];
+
+    let autoLinked = false;
+    if (existingPa) {
+      const { success } = await linkParentToStudentV2Import(existingPa.id, studentIdStr, student.swimming_pool_id);
+      if (success) {
+        autoLinked = true;
+        console.log(`[guardians POST] 자동 연결 완료: parent=${existingPa.id} student=${studentIdStr}`);
+      }
+    }
+
+    res.json({ success: true, slot: savedSlot, auto_linked: autoLinked });
+  } catch (e) { console.error("[guardians POST]", e); res.status(500).json({ success: false, message: "서버 오류" }); }
+});
+
+// DELETE /parent/guardians — 추가 보호자 번호 삭제 (미연결 pending 상태만)
+router.delete("/guardians", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const parentId = req.user!.userId;
+    const { studentId, slot } = req.body;
+    const slotNum = Number(slot);
+    if (!studentId || ![2, 3, 4].includes(slotNum)) {
+      res.status(400).json({ success: false, message: "studentId와 slot(2/3/4)이 필요합니다." }); return;
+    }
+
+    const [link] = (await db.execute(sql`
+      SELECT id FROM parent_students WHERE parent_id = ${parentId} AND student_id = ${studentId} AND status = 'approved' LIMIT 1
+    `)).rows as any[];
+    if (!link) { res.status(403).json({ success: false, message: "권한이 없습니다." }); return; }
+
+    const [student] = (await db.execute(sql`
+      SELECT swimming_pool_id, parent_phone2, parent_phone3, parent_phone4
+      FROM students WHERE id = ${studentId} LIMIT 1
+    `)).rows as any[];
+    if (!student) { res.status(404).json({ success: false, message: "학생을 찾을 수 없습니다." }); return; }
+
+    const phone = slotNum === 2 ? student.parent_phone2 : slotNum === 3 ? student.parent_phone3 : student.parent_phone4;
+    if (!phone) { res.json({ success: true, message: "이미 비어있습니다." }); return; }
+
+    const normPhone = phone.replace(/[^0-9]/g, "");
+    // 연결된 학부모 계정이 있으면 삭제 불가
+    const [connected] = (await db.execute(sql`
+      SELECT pa.id FROM parent_accounts pa
+      JOIN parent_students ps ON ps.parent_id = pa.id AND ps.student_id = ${studentId} AND ps.status = 'approved'
+      WHERE REGEXP_REPLACE(COALESCE(pa.phone,''),'[^0-9]','','g') = ${normPhone}
+      LIMIT 1
+    `)).rows as any[];
+
+    if (connected) {
+      res.status(400).json({ success: false, message: "이미 연결된 보호자 번호는 삭제할 수 없습니다." }); return;
+    }
+
+    const studentIdStr = String(studentId);
+    if (slotNum === 2) {
+      await db.execute(sql`UPDATE students SET parent_phone2 = NULL, updated_at = NOW() WHERE id = ${studentIdStr}`);
+    } else if (slotNum === 3) {
+      await db.execute(sql`UPDATE students SET parent_phone3 = NULL, updated_at = NOW() WHERE id = ${studentIdStr}`);
+    } else {
+      await db.execute(sql`UPDATE students SET parent_phone4 = NULL, updated_at = NOW() WHERE id = ${studentIdStr}`);
+    }
+    console.log(`[guardians DELETE] student=${studentIdStr} slot=${slotNum} cleared`);
+    res.json({ success: true });
+  } catch (e) { console.error("[guardians DELETE]", e); res.status(500).json({ success: false, message: "서버 오류" }); }
 });
 
 export default router;

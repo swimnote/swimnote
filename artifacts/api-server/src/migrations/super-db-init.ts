@@ -525,5 +525,11 @@ export async function initSuperDb(): Promise<void> {
   `)).catch(() => {});
   console.log("[super-db-init] 비활성화/삭제 예약 컬럼 준비 완료");
 
+  // ── 추가 보호자 전화번호 (parent_phone4) ──────────────────────────────────
+  await db.execute(sql.raw(`
+    ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_phone4 text;
+  `)).catch((e: any) => console.warn("[super-db-init] students.parent_phone4 추가 건너뜀:", e.message));
+  console.log("[super-db-init] students.parent_phone4 준비 완료");
+
   console.log("[super-db-init] super DB 컬럼 보완 + backup_logs/restore_logs 초기화 완료");
 }

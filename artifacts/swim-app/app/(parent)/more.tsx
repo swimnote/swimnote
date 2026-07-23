@@ -131,6 +131,15 @@ export default function ParentMoreScreen() {
           iconColor={NAVY_C} iconBg={MINT_BG}
           onPress={() => router.push("/(parent)/children?backTo=more" as any)}
         />
+        {students.length > 0 && (
+          <MenuItem
+            icon="user-plus"
+            label="추가 보호자 관리"
+            sub="두 번째·세 번째 보호자 번호 등록"
+            iconColor={MINT_C} iconBg={MINT_BG}
+            onPress={() => router.push("/(parent)/additional-guardians" as any)}
+          />
+        )}
         <MenuItem
           icon="clipboard-list"
           label="수업 요청"

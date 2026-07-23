@@ -21,6 +21,7 @@ export const studentsTable = pgTable("students", {
   parent_phone: text("parent_phone"),
   parent_phone2: text("parent_phone2"),
   parent_phone3: text("parent_phone3"),
+  parent_phone4: text("parent_phone4"),
   parent_user_id: text("parent_user_id"),
   weekly_count: integer("weekly_count").default(1),
   schedule_labels: text("schedule_labels"),

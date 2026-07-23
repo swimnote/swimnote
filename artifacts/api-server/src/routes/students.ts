@@ -767,7 +767,7 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res) => {
 
 // ── PATCH /:id — 기본 정보 수정 ─────────────────────────────────────
 router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
-  const { name, phone, birth_date, birth_year, parent_name, parent_phone, parent_phone2, parent_phone3, class_group_id, memo, weekly_count, status } = req.body;
+  const { name, phone, birth_date, birth_year, parent_name, parent_phone, parent_phone2, parent_phone3, parent_phone4, class_group_id, memo, weekly_count, status } = req.body;
   try {
     const poolId = await getPoolId(req.user!.userId);
     const [existing] = await db.select()
@@ -787,6 +787,9 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
     const normParentPhone3 = parent_phone3 != null
       ? parent_phone3.replace(/[^0-9]/g, "") || null
       : ((existing as any).parent_phone3 ? (existing as any).parent_phone3.replace(/[^0-9]/g, "") || null : null);
+    const normParentPhone4 = parent_phone4 != null
+      ? parent_phone4.replace(/[^0-9]/g, "") || null
+      : ((existing as any).parent_phone4 ? (existing as any).parent_phone4.replace(/[^0-9]/g, "") || null : null);
     const normParentName = parent_name != null
       ? parent_name.replace(/\s+/g, "").toLowerCase() || null
       : (existing.parent_name ? existing.parent_name.replace(/\s+/g, "").toLowerCase() || null : null);
@@ -847,6 +850,7 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
         ...(parent_phone !== undefined && { parent_phone: normParentPhone }),
         ...(parent_phone2 !== undefined && { parent_phone2: normParentPhone2 }),
         ...(parent_phone3 !== undefined && { parent_phone3: normParentPhone3 }),
+        ...(parent_phone4 !== undefined && { parent_phone4: normParentPhone4 }),
         ...(class_group_id !== undefined && { class_group_id: class_group_id || null }),
         ...(memo !== undefined && { memo }),
         ...(weekly_count !== undefined && { weekly_count: Number(weekly_count) }),

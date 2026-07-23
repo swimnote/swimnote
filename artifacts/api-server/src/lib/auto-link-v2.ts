@@ -120,7 +120,7 @@ export async function tryMatchStudentV2(
 
   // 1단계: 이름으로 먼저 검색
   const nameRows = (await db.execute(sql`
-    SELECT id, name, parent_phone, parent_phone2, parent_phone3
+    SELECT id, name, parent_phone, parent_phone2, parent_phone3, parent_phone4
     FROM students
     WHERE swimming_pool_id = ${poolId}
       AND REPLACE(LOWER(TRIM(COALESCE(name,''))), ' ', '') = ${childNameNorm}
@@ -133,12 +133,13 @@ export async function tryMatchStudentV2(
     return { matched: false, reason: "name_mismatch" };
   }
 
-  // 2단계: 전화번호 비교 (phone2 우선, phone1/phone3 포함)
+  // 2단계: 전화번호 비교 (phone1/phone2/phone3/phone4 모두 확인)
   const phoneMatch = nameRows.find(r => {
     const p1 = normalizePhone(r.parent_phone || "");
     const p2 = normalizePhone(r.parent_phone2 || "");
     const p3 = normalizePhone(r.parent_phone3 || "");
-    return (p1 && p1 === phoneNorm) || (p2 && p2 === phoneNorm) || (p3 && p3 === phoneNorm);
+    const p4 = normalizePhone(r.parent_phone4 || "");
+    return (p1 && p1 === phoneNorm) || (p2 && p2 === phoneNorm) || (p3 && p3 === phoneNorm) || (p4 && p4 === phoneNorm);
   });
 
   if (!phoneMatch) {
@@ -285,7 +286,7 @@ export async function getParentStatusV2(parentId: string): Promise<{
 
 // ── 관리자 학생 등록/수정 시 V2 자동연결 트리거 ────────────────────────
 export async function triggerAutoLinkOnStudentV2(studentId: string, changedFields?: string[]): Promise<void> {
-  const relevantFields = ["name", "parent_phone", "parent_phone2", "parent_phone3", "swimming_pool_id", "status"];
+  const relevantFields = ["name", "parent_phone", "parent_phone2", "parent_phone3", "parent_phone4", "swimming_pool_id", "status"];
   if (changedFields && changedFields.length > 0) {
     const hasRelevant = changedFields.some(f => relevantFields.includes(f));
     if (!hasRelevant) {
@@ -295,7 +296,7 @@ export async function triggerAutoLinkOnStudentV2(studentId: string, changedField
   }
 
   const [student] = (await db.execute(sql`
-    SELECT id, name, swimming_pool_id, parent_phone, parent_phone2, parent_phone3 FROM students WHERE id = ${studentId} LIMIT 1
+    SELECT id, name, swimming_pool_id, parent_phone, parent_phone2, parent_phone3, parent_phone4 FROM students WHERE id = ${studentId} LIMIT 1
   `)).rows as any[];
 
   if (!student?.swimming_pool_id) {
@@ -303,7 +304,7 @@ export async function triggerAutoLinkOnStudentV2(studentId: string, changedField
     return;
   }
 
-  const allPhones = [student.parent_phone, student.parent_phone2, student.parent_phone3]
+  const allPhones = [student.parent_phone, student.parent_phone2, student.parent_phone3, student.parent_phone4]
     .map((p: string | null) => normalizePhone(p || ""))
     .filter((p: string) => p.length > 0);
 
