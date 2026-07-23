@@ -232,20 +232,26 @@ export default function TeacherDiaryScreen() {
     try {
       const key = `@swimnote:diary_draft:${group.id}:${targetDate}`;
       const saved = await AsyncStorage.getItem(key);
+      console.log(`[openGroup] draft check key=${key} found=${!!saved}`);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.commonContent?.trim() || parsed.studentNotes?.length > 0) {
+        const hasContent = !!(parsed.commonContent?.trim() || parsed.studentNotes?.length > 0);
+        console.log(`[openGroup] draft hasContent=${hasContent} commonContent="${parsed.commonContent?.slice(0,20)}" notes=${parsed.studentNotes?.length}`);
+        if (hasContent) {
           setHasDraft(true);
+          console.log(`[openGroup] setHasDraft(true) — 배너 표시 예정 (subView가 write일 때만 노출)`);
         }
       }
     } catch {}
   }
   async function restoreDraft() {
+    console.log(`[restoreDraft] CALLED draftKey=${draftKey}`);
     if (!draftKey) return;
     try {
       const saved = await AsyncStorage.getItem(draftKey);
       if (saved) {
         const parsed = JSON.parse(saved);
+        console.log(`[restoreDraft] 복원 commonContent="${(parsed.commonContent ?? "").slice(0,30)}" notes=${parsed.studentNotes?.length}`);
         setCommonContent(parsed.commonContent ?? "");
         setStudentNotes(parsed.studentNotes ?? []);
         setHasDraft(false);
@@ -395,6 +401,7 @@ export default function TeacherDiaryScreen() {
     });
   }
   async function handleSave() {
+    console.log(`[handleSave] ====== CALLED ====== subView=${subView} hasDraft=${hasDraft} commonContent="${commonContent.slice(0,30)}" notes=${studentNotes.length}`);
     const isRetry = !!pendingDiaryId;
     let effectiveNotes = [...studentNotes];
     if (addNoteStudent && noteInput.trim()) {
