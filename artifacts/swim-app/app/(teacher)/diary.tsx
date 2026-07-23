@@ -7,7 +7,7 @@ import * as ImagePicker from "expo-image-picker";
 import { compressImageIfNeeded } from "../../utils/compressImage";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
@@ -413,11 +413,13 @@ export default function TeacherDiaryScreen() {
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error || "저장 실패");
       const savedDiaryId = data.diary_id || data.id;
+      let commonPhotoFailed = false;
       if (selectedAlbumIds.length > 0 && savedDiaryId) {
-        await apiRequest(token, "/photos/diary-attach", {
+        const pr = await apiRequest(token, "/photos/diary-attach", {
           method: "POST",
           body: JSON.stringify({ diary_id: savedDiaryId, photo_ids: selectedAlbumIds }),
-        }).catch(() => {});
+        }).catch(() => null);
+        if (!pr || !pr.ok) commonPhotoFailed = true;
       }
       if (selectedAlbumVideos.length > 0 && savedDiaryId) {
         await apiRequest(token, "/videos/diary-attach", {
@@ -449,6 +451,12 @@ export default function TeacherDiaryScreen() {
       if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => {});
       setHasDraft(false);
       haptic.success();
+      if (commonPhotoFailed) {
+        Alert.alert(
+          "전체일지 사진 미연결",
+          "일지는 저장됐으나 선택한 전체일지 사진을 연결하지 못했습니다.\n이미 다른 일지에 연결된 사진은 사용할 수 없습니다. 새로 업로드한 사진을 선택해 주세요."
+        );
+      }
       // 즉시 history 뷰로 전환 — DiaryWriteView 비표시로 myDiaryExists 경고 원천 차단
       setSubView("history");
       // 서버에서 최신 일지 목록 재조회 → diarySet 서버 기반 갱신
@@ -569,11 +577,13 @@ export default function TeacherDiaryScreen() {
           body: JSON.stringify({ photo_ids: editRemovedPhotoIds }),
         }).catch(() => {});
       }
+      let editCommonPhotoFailed = false;
       if (editNewAlbumIds.length > 0) {
-        await apiRequest(token, "/photos/diary-attach", {
+        const pr = await apiRequest(token, "/photos/diary-attach", {
           method: "POST",
           body: JSON.stringify({ diary_id: editDiary.id, photo_ids: editNewAlbumIds }),
-        }).catch(() => {});
+        }).catch(() => null);
+        if (!pr || !pr.ok) editCommonPhotoFailed = true;
       }
       if (editRemovedVideoIds.length > 0) {
         await apiRequest(token, "/videos/diary-detach", {
@@ -589,6 +599,12 @@ export default function TeacherDiaryScreen() {
       }
       setEditLinkedPhotos([]); setEditRemovedPhotoIds([]); setEditNewAlbumIds([]); setEditNewAlbumPhotos([]);
       setEditLinkedVideos([]); setEditRemovedVideoIds([]); setEditNewAlbumVideos([]);
+      if (editCommonPhotoFailed) {
+        Alert.alert(
+          "전체일지 사진 미연결",
+          "일지는 저장됐으나 선택한 전체일지 사진을 연결하지 못했습니다.\n이미 다른 일지에 연결된 사진은 사용할 수 없습니다. 새로 업로드한 사진을 선택해 주세요."
+        );
+      }
       if (params.editDiaryId) { router.back(); }
       else { setSubView("history"); setEditDiary(null); await loadDiaries(selectedGroup.id); }
     } catch (e: any) { setEditError(e.message || "저장 중 오류가 발생했습니다."); }

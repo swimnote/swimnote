@@ -653,6 +653,7 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
         FROM photo_assets_meta sp
         LEFT JOIN class_groups cg ON cg.id = sp.class_id
         WHERE sp.album_type = 'group'
+          AND sp.media_status != 'attached'
           AND sp.pool_id = ${poolId}
         ORDER BY sp.created_at DESC
       `);
@@ -669,6 +670,7 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
         JOIN photo_assets_meta sp ON sp.id = tsp.photo_id
         LEFT JOIN class_groups cg ON cg.id = sp.class_id
         WHERE tsp.teacher_id = ${userId}
+          AND sp.media_status != 'attached'
         ORDER BY tsp.created_at DESC
       `);
       photos = await batchPresign(rows.rows as any[]);
@@ -901,6 +903,7 @@ router.get("/photos/picker", requireAuth, requireRole("teacher", "pool_admin", "
         FROM photo_assets_meta sp
         LEFT JOIN class_groups cg ON cg.id = sp.class_id
         WHERE sp.album_type = 'group'
+          AND sp.media_status != 'attached'
           AND (
             (sp.class_id IS NOT NULL AND cg.teacher_user_id = ${userId})
             OR
@@ -921,6 +924,7 @@ router.get("/photos/picker", requireAuth, requireRole("teacher", "pool_admin", "
         FROM photo_assets_meta sp
         LEFT JOIN class_groups cg ON cg.id = sp.class_id
         WHERE sp.album_type = 'group'
+          AND sp.media_status != 'attached'
           AND sp.pool_id = ${poolId}
         ORDER BY sp.created_at DESC
       `);

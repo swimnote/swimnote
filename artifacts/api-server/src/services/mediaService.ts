@@ -224,7 +224,9 @@ export async function attachPhotosToDiary(
     UPDATE photo_assets_meta
     SET journal_id = ${diaryId},
         class_id = COALESCE(class_id, ${diary.class_group_id}),
-        media_status = 'attached'
+        media_status = 'attached',
+        student_id = NULL,
+        student_note_id = NULL
     WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
   `);
 
