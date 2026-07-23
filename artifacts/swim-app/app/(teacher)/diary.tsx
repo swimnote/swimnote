@@ -90,6 +90,7 @@ export default function TeacherDiaryScreen() {
   const [pendingNoteIds,  setPendingNoteIds]  = useState<Record<string, string>>({});
   const [hasDraft,      setHasDraft]      = useState(false);
   const handledParamKey = useRef<string | undefined>(undefined);
+  const diariesReqVersion = useRef(0);
   const draftKey = selectedGroup
     ? `@swimnote:diary_draft:${selectedGroup.id}:${targetDate}`
     : null;
@@ -220,12 +221,17 @@ export default function TeacherDiaryScreen() {
     setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
     setStudentAlbumPhotos({}); setStudentAlbumVideos({});
     loadTemplates(); loadClassStudents(group.id);
+    const reqVer = ++diariesReqVersion.current;
     try {
       const r = await apiRequest(token, `/diaries?class_group_id=${group.id}`);
       if (r.ok) {
         const data = await r.json();
+        if (reqVer !== diariesReqVersion.current) {
+          console.log(`[HISTORY LOAD] STALE IGNORED reqVer=${reqVer} current=${diariesReqVersion.current}`);
+          return;
+        }
         const list: DiaryEntry[] = Array.isArray(data) ? data : [];
-        console.log(`[HISTORY AFTER APP RESTART] endpoint=/diaries?class_group_id=${group.id} source=network count=${list.length} items=${JSON.stringify(list.map(d => ({ id: d.id, lesson_date: d.lesson_date, class_group_id: d.class_group_id, is_deleted: d.is_deleted, created_at: (d as any).created_at?.toString?.()?.slice(0,19) })))}`);
+        console.log(`[HISTORY LOAD] endpoint=/diaries?class_group_id=${group.id} count=${list.length} ids=${JSON.stringify(list.map(d => d.id))} isDeleted=${JSON.stringify(list.map(d => d.is_deleted))}`);
         setDiaries(list);
       }
     } catch {}
@@ -310,10 +316,17 @@ export default function TeacherDiaryScreen() {
   }
   async function loadDiaries(classId: string) {
     setDiaryLoading(true);
+    const reqVer = ++diariesReqVersion.current;
     try {
       const r = await apiRequest(token, `/diaries?class_group_id=${classId}`);
-      if (r.ok) { const data = await r.json(); setDiaries(Array.isArray(data) ? data : []); }
-      else { console.error(`[loadDiaries] API 오류 status=${r.status} classId=${classId}`); }
+      if (r.ok) {
+        const data = await r.json();
+        if (reqVer !== diariesReqVersion.current) {
+          console.log(`[loadDiaries] STALE IGNORED reqVer=${reqVer}`);
+          return;
+        }
+        setDiaries(Array.isArray(data) ? data : []);
+      } else { console.error(`[loadDiaries] API 오류 status=${r.status} classId=${classId}`); }
     } catch (e) { console.error('[loadDiaries] 네트워크 오류:', e); }
     finally { setDiaryLoading(false); }
   }
@@ -728,88 +741,93 @@ export default function TeacherDiaryScreen() {
     const groupId = selectedGroup.id;
     const deletedDate = deleteTarget.lesson_date ?? targetDate;
 
-    // [DELETE TARGET] 삭제 직전 대상 기록
-    console.log(`[DELETE TARGET] diary_id=${deletedId} lesson_date=${deletedDate} class_group_id=${groupId} is_deleted=${deleteTarget.is_deleted}`);
+    console.log(`[DELETE TARGET] diary_id=${deletedId} lesson_date=${deletedDate} class_group_id=${groupId}`);
 
     setDeleteLoading(true);
     try {
-      // 1. DELETE API
+      // 1. DELETE API 호출
       const r = await apiRequest(token, `/diaries/${deletedId}`, { method: "DELETE" });
       const deleteBodyText = await r.text().catch(() => "");
       let deleteBodyJson: any = {};
       try { deleteBodyJson = JSON.parse(deleteBodyText); } catch {}
       console.log(`[DELETE RESPONSE] diary_id=${deletedId} status=${r.status} body=${deleteBodyText.slice(0, 200)}`);
 
-      // 멱등 삭제: 200(성공), 404(없음), alreadyDeleted=true, "이미 삭제" 모두 성공으로 처리
-      const isAlreadyDeleted = !r.ok && (
-        r.status === 404 ||
+      // 멱등 삭제: 200 OK 또는 alreadyDeleted/이미삭제 응답 → 성공
+      // 404는 진짜 오류(pool 불일치 등)이므로 성공으로 처리하지 않음
+      const isAlreadyDeleted =
         deleteBodyJson?.alreadyDeleted === true ||
-        (typeof deleteBodyJson?.error === "string" && deleteBodyJson.error.includes("이미 삭제"))
-      );
+        (typeof deleteBodyJson?.error === "string" && deleteBodyJson.error.includes("이미 삭제"));
       const isDeleteSuccess = r.ok || isAlreadyDeleted;
 
       if (!isDeleteSuccess) {
-        setDeleteError(deleteBodyJson?.error || "삭제에 실패했습니다. 다시 시도해주세요.");
+        setDeleteError(deleteBodyJson?.error || `삭제에 실패했습니다 (${r.status}). 다시 시도해주세요.`);
         return;
       }
-      if (isAlreadyDeleted) {
-        console.log(`[DELETE RESPONSE] idempotent — diary already deleted on server, cleaning client state`);
+      if (!r.ok && isAlreadyDeleted) {
+        console.log(`[DELETE RESPONSE] idempotent — diary already deleted, cleaning client state`);
       }
 
-      // 2. 모달 즉시 닫기 → 스케줄러 freeze 방지
+      // 2. 모달 + 로딩 즉시 해제 → 화면 freeze 없음
       setDeleteTarget(null);
       setDeleteError(null);
+      setDeleteLoading(false);   // ← 여기서 즉시 해제 (refetch 전)
       if (editDiary?.id === deletedId) setEditDiary(null);
 
       // 3. 로컬 즉시 UI 업데이트
-      const historySizeBefore = diaries.length;
-      const diaryKeysBefore = Array.from(diarySet);
       setDiaries(prev => prev.filter(d => d.id !== deletedId));
-      setDiarySet(prev => {
-        const next = new Set(prev);
-        next.delete(`${groupId}_${deletedDate}`);
-        return next;
-      });
-      console.log(`[CLIENT DELETE CLEANUP] deletedDiaryId=${deletedId} historyBeforeCount=${historySizeBefore} schedulerKeysBefore=${JSON.stringify(diaryKeysBefore)} keyRemoved=${groupId}_${deletedDate}`);
+      setDiarySet(prev => { const n = new Set(prev); n.delete(`${groupId}_${deletedDate}`); return n; });
+      console.log(`[CLIENT DELETE CLEANUP] deletedId=${deletedId} keyRemoved=${groupId}_${deletedDate}`);
 
-      // 4. draft 제거
-      const ghostDraftKey = `@swimnote:diary_draft:${groupId}:${deletedDate}`;
-      await AsyncStorage.removeItem(ghostDraftKey).catch(() => {});
+      // 4. draft 제거 (sync 불필요 → 비동기 처리)
+      AsyncStorage.removeItem(`@swimnote:diary_draft:${groupId}:${deletedDate}`).catch(() => {});
       setHasDraft(false);
       setCommonContent("");
       setStudentNotes([]);
       setPendingDiaryId(null);
       setPendingNoteIds({});
-
       setSubView("history");
 
-      // 5. 백그라운드 서버 재조회 — 서버 응답으로 배열 전체 교체 (merge 금지)
-      try {
-        const r2 = await apiRequest(token, `/diaries?class_group_id=${groupId}`);
-        const raw = r2.ok ? await r2.json().catch(() => null) : null;
-        if (Array.isArray(raw)) {
-          // 서버 응답 기준 전체 교체 + 클라이언트에서 deletedId 한번 더 제거(안전장치)
+      // 5. 진짜 백그라운드 재조회 — UI 블로킹 없음 (fire-and-forget)
+      const bgVer = ++diariesReqVersion.current;
+      ;(async () => {
+        try {
+          const r2 = await apiRequest(token, `/diaries?class_group_id=${groupId}`);
+          const raw = r2.ok ? await r2.json().catch(() => null) : null;
+          if (!Array.isArray(raw)) {
+            console.log(`[HISTORY AFTER DELETE] re-fetch status=${r2.status} not array`);
+            return;
+          }
+          // 버전 확인 — 더 최신 요청이 있으면 이 결과 무시
+          if (bgVer !== diariesReqVersion.current) {
+            console.log(`[HISTORY AFTER DELETE] STALE IGNORED bgVer=${bgVer} current=${diariesReqVersion.current}`);
+            return;
+          }
+          // 서버 응답 기준 전체 교체 + 클라이언트 deletedId 안전장치 필터
           const diaryList = (raw as DiaryEntry[]).filter(d => !d.is_deleted && d.id !== deletedId);
-          const newKeys = diaryList.map(d => `${d.class_group_id}_${d.lesson_date}`);
-          const deletedIdStillInServer = (raw as DiaryEntry[]).some(d => d.id === deletedId);
-          console.log(`[HISTORY AFTER DELETE] source=network status=${r2.status} count=${diaryList.length} ids=${JSON.stringify(diaryList.map(d => d.id))} deletedIdStillInServer=${deletedIdStillInServer}`);
-          if (deletedIdStillInServer) console.warn(`[HISTORY AFTER DELETE] ⚠️ deletedId=${deletedId} STILL IN SERVER RESPONSE`);
+          const deletedIdStillInServer = (raw as DiaryEntry[]).some(d => d.id === deletedId && !d.is_deleted);
+          console.log(`[HISTORY AFTER DELETE] count=${diaryList.length} ids=${JSON.stringify(diaryList.map(d => d.id))} deletedIdStillInServer=${deletedIdStillInServer}`);
+          if (deletedIdStillInServer) {
+            console.warn(`[HISTORY AFTER DELETE] ⚠️ diary ${deletedId} STILL in server response (is_deleted=false) — DB not updated!`);
+          }
           setDiaries(diaryList);
           setDiarySet(() => {
             const next = new Set<string>();
             diaryList.forEach(d => { if (d.class_group_id && d.lesson_date) next.add(`${d.class_group_id}_${d.lesson_date}`); });
             return next;
           });
-          console.log(`[CLIENT AFTER REFETCH] serverIds=${JSON.stringify(diaryList.map(d => d.id))} schedulerKeys=${JSON.stringify(newKeys)} deletedIdStillRendered=${deletedIdStillInServer} schedulerHasDiary=${newKeys.includes(`${groupId}_${deletedDate}`)}`);
-        } else {
-          console.log(`[HISTORY AFTER DELETE] re-fetch status=${r2.status} raw not array`);
+          console.log(`[CLIENT AFTER REFETCH] serverIds=${JSON.stringify(diaryList.map(d => d.id))} schedulerHasDiary=${diaryList.some(d => d.class_group_id === groupId && d.lesson_date === deletedDate)}`);
+        } catch (e) {
+          console.error(`[HISTORY AFTER DELETE] re-fetch failed:`, e);
         }
-      } catch (e) {
-        console.error(`[HISTORY AFTER DELETE] re-fetch failed:`, e);
-      }
-    } catch {
+      })();
+
+    } catch (e) {
+      console.error(`[DELETE ERROR]`, e);
       setDeleteError("네트워크 오류로 삭제하지 못했습니다. 다시 시도해주세요.");
-    } finally { setDeleteLoading(false); }
+    } finally {
+      // 에러 경로 safety net (setDeleteLoading(false)가 step 2에서 호출되지 않은 경우)
+      setDeleteLoading(false);
+    }
   }
   const statusMap: Record<string, SlotStatus> = {};
   groups.forEach(g => { statusMap[g.id] = { attChecked: attMap[g.id] || 0, diaryDone: diarySet.has(`${g.id}_${targetDate}`), hasPhotos: false }; });

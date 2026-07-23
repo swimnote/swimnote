@@ -1,0 +1,302 @@
+삭제 문제 미해결 — 실제 재현 결과 기반 전면 재조사
+
+이번 배포 후에도 문제가 그대로 재현됩니다.
+
+실제 증상:
+
+1. 지난 일지에 diary_id
+   cd_1784770363546...
+   카드가 표시됨
+
+2. 삭제 버튼을 누르면 모달 안에서 로딩이 계속되고
+   화면 전체 터치가 잠시 막힘
+
+3. 스케줄러로 이동하면
+   같은 일정이 잠시 "일지 완료"로 보였다가
+   "일지 미작성"으로 변경됨
+
+4. 앱이 멈추거나 새로고침 상태에서 반응하지 않아
+   앱을 완전히 종료하고 재실행함
+
+5. 재실행 후
+   스케줄러에는 "일지 미작성"으로 표시되지만
+   지난 일지에는 삭제했던 동일 일지가 다시 표시됨
+
+따라서 현재 수정은 완료되지 않았습니다.
+
+핵심 판단:
+
+- 스케줄러와 지난 일지가 서로 다른 데이터 소스를 사용함
+- 삭제 후 여러 GET/refetch가 동시에 실행됨
+- 오래된 요청 결과가 늦게 도착해 최신 state를 덮어쓰는
+  race condition 가능성이 큼
+- 단순 prev.filter 및 백그라운드 refetch 방식으로 해결되지 않음
+
+==================================================
+
+1. 지난 일지와 스케줄러의 실제 API를 분리해서 기록
+
+지난 일지 화면:
+
+[PAST DIARY REQUEST START]
+requestId=
+endpoint=
+startedAt=
+
+[PAST DIARY REQUEST END]
+requestId=
+finishedAt=
+responseIds=
+responseDeletedFlags=
+
+[PAST DIARY STATE APPLY]
+requestId=
+appliedIds=
+
+스케줄러:
+
+[SCHEDULER DIARY REQUEST START]
+requestId=
+endpoint=
+startedAt=
+
+[SCHEDULER DIARY REQUEST END]
+requestId=
+finishedAt=
+responseDiaryKeys=
+
+[SCHEDULER DIARY STATE APPLY]
+requestId=
+appliedDiaryKeys=
+
+각 요청마다 고유 requestId를 붙여
+어떤 요청 결과가 최종 state를 덮어썼는지 증명하세요.
+
+==================================================
+
+2. 오래된 요청 결과 적용 금지
+
+삭제 직전 또는 삭제 전에 시작된 GET 요청이
+삭제 완료 후 늦게 도착하더라도
+화면 state에 적용되면 안 됩니다.
+
+각 목록 load 함수에 generation 또는 request token을 사용하세요.
+
+예시 원칙:
+
+const requestVersion = ++latestRequestVersion.current
+
+const result = await fetch(...)
+
+if (requestVersion !== latestRequestVersion.current) {
+  console.log("[STALE RESPONSE IGNORED]")
+  return
+}
+
+삭제 성공 시:
+
+latestRequestVersion.current += 1
+
+삭제 전에 시작된 모든 조회 응답을 무효화하세요.
+
+AbortController 사용이 가능하면
+기존 GET 요청도 abort하세요.
+
+==================================================
+
+3. 백그라운드 refetch 경쟁 제거
+
+현재 삭제 성공 후 다음이 동시에 실행되는지 확인하세요.
+
+- 지난 일지 refetch
+- openGroup
+- scheduler refetch
+- navigation focus refetch
+- useEffect refetch
+- AuthContext cache refetch
+- pull-to-refresh
+- 앱 hydration
+
+여러 경로에서 동시에 state를 갱신하지 마세요.
+
+삭제 완료 후 흐름을 하나로 통일하세요.
+
+권장 흐름:
+
+DELETE 완료
+→ 삭제 모달 닫기
+→ 관련 기존 GET 요청 abort/invalidate
+→ 서버에서 지난 일지 재조회 1회
+→ 서버 결과로 지난 일지 전체 교체
+→ 스케줄러 일지 상태 재조회 1회
+→ 서버 결과로 scheduler state 전체 교체
+→ loading 종료
+
+로컬 필터와 백그라운드 GET이 서로 경쟁하면 안 됩니다.
+
+==================================================
+
+4. 삭제 모달 freeze 완전 수정
+
+현재도 삭제 버튼을 누르면
+모달 내부에 spinner가 뜨고 화면 전체가 막힙니다.
+
+확인할 항목:
+
+- DELETE 요청 timeout
+- refetch를 DELETE 모달 loading 안에서 기다리는지
+- modalVisible=false가 실제로 호출되는지
+- InteractionManager 또는 navigation 전환 대기
+- transparent Modal backdrop 잔존
+- deleting state가 finally에서 false가 되는지
+- setState after unmount
+- Promise가 resolve되지 않는 경로
+- Alert와 custom Modal이 중첩되는지
+
+DELETE 성공 또는 alreadyDeleted 응답을 받으면:
+
+1. deleting=false
+2. modalVisible=false
+
+를 즉시 실행하세요.
+
+그 이후 재조회는 화면 전체를 막지 않는 별도 loading으로 처리하세요.
+
+단, 오래된 응답이 state를 덮어쓰지 못하도록
+request version/abort 처리를 먼저 적용해야 합니다.
+
+==================================================
+
+5. 지난 일지 API 응답을 직접 확인
+
+앱 재실행 후 지난 일지 화면에서
+삭제된 동일 ID가 다시 표시됩니다.
+
+앱 재실행 시 호출되는 실제 endpoint와
+실제 response body를 출력하세요.
+
+특히 다음 ID를 확인:
+
+cd_1784770363546...
+
+보고 항목:
+
+- endpoint
+- HTTP status
+- response에 해당 ID 포함 여부
+- 해당 객체의 is_deleted 값
+- 해당 응답이 cache인지 network인지
+- 응답 적용 전 state
+- 응답 적용 후 state
+
+서버 DB에서 해당 ID가 is_deleted=true인데
+API response에 포함된다면 서버 조회 버그입니다.
+
+API response에는 없는데 화면에 표시된다면
+클라이언트 cache/hydration/state 버그입니다.
+
+반드시 둘을 구분하세요.
+
+==================================================
+
+6. API 캐시의 실제 응답 확인
+
+AuthContext 또는 custom api cache가
+GET /diaries 응답을 캐시한다면 다음을 확인하세요.
+
+- cache key 생성 규칙
+- TTL
+- 앱 재실행 후 cache 복원 여부
+- DELETE 시 캐시 삭제 여부
+- query string별 별도 cache
+- 동일 endpoint prefix invalidation 누락
+- stale response가 캐시에 다시 저장되는지
+
+DELETE 성공 후 diary 관련 캐시를 지우는 것만으로 끝내지 말고,
+삭제 전에 시작된 GET 응답이 완료되면서
+캐시에 예전 데이터를 다시 기록하는 것도 막으세요.
+
+캐시 저장 시에도 request version을 검사하세요.
+
+==================================================
+
+7. 앱 시작 hydration 전수 조사
+
+앱 재실행 후 지난 일지만 삭제 전 상태로 복원됩니다.
+
+검색 대상:
+
+- AsyncStorage
+- persist
+- hydrate
+- initialDiaries
+- pastDiaries
+- historyDiaries
+- selectedGroup
+- navigation params
+- route params
+- AuthContext cached data
+
+서버 응답 전에 저장된 목록을 먼저 보여주는 경우,
+서버 응답 이후 반드시 전체 교체되어야 합니다.
+
+삭제된 diary_id가 persisted storage에 있다면
+DELETE 성공 시 제거하세요.
+
+==================================================
+
+8. 단일 source of truth 적용
+
+스케줄러와 지난 일지가 각각 별도의 임시 Set/배열을 유지하면서
+독립적으로 판단하지 않게 하세요.
+
+최소한 다음 규칙을 지키세요.
+
+- 지난 일지: 서버에서 받은 active diary 목록이 기준
+- 스케줄러 작성 여부: 같은 active diary 목록 또는 동일 서버 기준
+- is_deleted=true는 모든 일반 화면에서 제외
+- 화면별 로컬 boolean을 장기간 유지하지 않음
+- 날짜/반 key와 diary_id의 연결을 중앙에서 관리
+
+삭제 후 한쪽은 미작성,
+다른 쪽은 일지 존재 상태가 되어서는 안 됩니다.
+
+==================================================
+
+9. 수정 완료 조건
+
+다음 순서로 실제 기기에서 연속 5회 테스트하세요.
+
+1. 일지 작성
+2. 지난 일지에서 diary_id 기록
+3. 삭제
+4. 삭제 모달 1초 이내 닫힘
+5. 화면 터치 즉시 가능
+6. 지난 일지 카드 즉시 사라짐
+7. 스케줄러 이동
+8. 해당 일정 "일지 미작성"
+9. 작성/미작성 상태가 반복 변경되지 않음
+10. 앱 완전 종료
+11. 앱 재실행
+12. 스케줄러 "일지 미작성"
+13. 지난 일지에 삭제 ID 없음
+
+연속 5회 모두 통과해야 완료로 보고하세요.
+
+==================================================
+
+최종 보고서 필수 항목
+
+1. 지난 일지 실제 endpoint
+2. 스케줄러 실제 endpoint
+3. 앱 재실행 후 지난 일지 response IDs
+4. cd_1784770363546... 포함 여부
+5. 오래된 응답이 적용된 정확한 경로
+6. 요청 시작/종료 순서 로그
+7. stale response 차단 방식
+8. 모달 freeze 원인
+9. 수정 파일과 함수
+10. 실제 기기 5회 테스트 결과
+
+이번에는 OTA 배포만 하고 완료라고 보고하지 마세요.
+실제 재현 시나리오 전체를 통과한 뒤 완료로 보고하세요.
