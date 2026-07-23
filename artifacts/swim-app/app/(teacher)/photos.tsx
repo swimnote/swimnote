@@ -222,6 +222,7 @@ export default function TeacherPhotosScreen() {
       const endpoint = isPhoto
         ? `/photos/teacher-all?scope=${scope}`
         : `/videos/teacher-all?scope=${scope}`;
+      console.log(`[ALBUM LOAD] ▶ REQUEST mediaType=${mediaType} scope=${scope} endpoint=${endpoint}`);
       const res = await apiRequest(token, endpoint);
       const data = await safeJson(res);
       let raw: any[] = [];
@@ -231,10 +232,26 @@ export default function TeacherPhotosScreen() {
         const key = isPhoto ? "photos" : "videos";
         raw = Array.isArray(data[key]) ? data[key] : [];
       }
+      console.log(`[ALBUM LOAD] ◀ RESPONSE raw.length=${raw.length}`);
+      if (raw.length > 0) {
+        const first = raw[0];
+        console.log(`[ALBUM LOAD] first row:`, JSON.stringify({
+          id: first?.id,
+          status: first?.media_status ?? first?.status,
+          diaryId: first?.journal_id ?? first?.diary_id ?? first?.diaryId,
+          studentId: first?.student_id ?? first?.studentId,
+          fileUrl: first?.presigned_url ?? first?.file_url ?? first?.url,
+          thumbnailUrl: first?.thumbnail_presigned_url ?? first?.thumbnail_url,
+        }));
+      }
       const normalized = raw.map((r, i) => normalizeItem(r, i));
-      if (mountedRef.current) setItems(normalized);
+      console.log(`[ALBUM LOAD] normalized.length=${normalized.length}`);
+      if (mountedRef.current) {
+        setItems(normalized);
+        console.log(`[ALBUM LOAD] setItems() 호출 완료 — items will be ${normalized.length}개`);
+      }
     } catch (e) {
-      console.warn("[photos] loadList error:", e);
+      console.warn("[ALBUM LOAD] ERROR:", e);
       if (mountedRef.current) {
         setListError("목록을 불러오는 중 오류가 발생했습니다.");
       }
@@ -678,12 +695,18 @@ export default function TeacherPhotosScreen() {
             contentContainerStyle={{ padding: 2, paddingBottom: insets.bottom + 100 }}
             columnWrapperStyle={{ gap: 2 }}
             removeClippedSubviews
+            onLayout={() => {
+              console.log(`[ALBUM FLATLIST] data.length=${safeItems.length}`);
+            }}
             renderItem={({ item, index }) => {
               if (!item) return null;
               const isSel = selected.has(item.id);
               const isSaved = scope === "group" && mediaType === "photo" && savedPhotoIds.has(item.id);
               const label = safeLabel(item);
               const uri = photoUri(item.file_url, token);
+              if (index === 0) {
+                console.log(`[ALBUM IMAGE RENDER] index=0 mediaId=${item.id} status=${(item as any).media_status ?? "n/a"} fileUrl=${item.file_url} resolvedUri=${uri}`);
+              }
               return (
                 <Pressable
                   onPress={() => selectMode ? toggleSelect(item.id) : setLightboxIdx(items.findIndex(i => i.id === item.id))}
@@ -705,6 +728,7 @@ export default function TeacherPhotosScreen() {
                       source={{ uri }}
                       style={{ width: "100%", height: "100%" }}
                       contentFit="cover"
+                      onError={(e) => console.warn(`[ALBUM IMAGE ERROR] mediaId=${item.id} resolvedUri=${uri} error=${JSON.stringify(e.error)}`)}
                     />
                   ) : (
                     <View style={s.photoPlaceholder}>
