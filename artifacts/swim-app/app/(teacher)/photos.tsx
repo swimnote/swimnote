@@ -214,15 +214,18 @@ export default function TeacherPhotosScreen() {
     return () => { canceled = true; };
   }, [token]);
   // ── 리스트 로드 ──────────────────────────────────────────────────────
-  const loadList = useCallback(async () => {
+  // forceMt/forceSc: openList에서 setMediaType/setScope 직후 직접 호출 시
+  // 상태 업데이트가 아직 반영 안 된 stale closure 문제를 피하기 위해 명시적 파라미터 사용
+  const loadList = useCallback(async (forceMt?: MediaType, forceSc?: AlbumScope) => {
+    const mt = forceMt !== undefined ? forceMt : mediaType;
+    const sc = forceSc !== undefined ? forceSc : scope;
     setListLoading(true);
     setListError(null);
     try {
-      const isPhoto = mediaType === "photo";
+      const isPhoto = mt === "photo";
       const endpoint = isPhoto
-        ? `/photos/teacher-all?scope=${scope}`
-        : `/videos/teacher-all?scope=${scope}`;
-      console.log(`[ALBUM LOAD] ▶ REQUEST mediaType=${mediaType} scope=${scope} endpoint=${endpoint}`);
+        ? `/photos/teacher-all?scope=${sc}`
+        : `/videos/teacher-all?scope=${sc}`;
       const res = await apiRequest(token, endpoint);
       const data = await safeJson(res);
       let raw: any[] = [];
@@ -232,23 +235,9 @@ export default function TeacherPhotosScreen() {
         const key = isPhoto ? "photos" : "videos";
         raw = Array.isArray(data[key]) ? data[key] : [];
       }
-      console.log(`[ALBUM LOAD] ◀ RESPONSE raw.length=${raw.length}`);
-      if (raw.length > 0) {
-        const first = raw[0];
-        console.log(`[ALBUM LOAD] first row:`, JSON.stringify({
-          id: first?.id,
-          status: first?.media_status ?? first?.status,
-          diaryId: first?.journal_id ?? first?.diary_id ?? first?.diaryId,
-          studentId: first?.student_id ?? first?.studentId,
-          fileUrl: first?.presigned_url ?? first?.file_url ?? first?.url,
-          thumbnailUrl: first?.thumbnail_presigned_url ?? first?.thumbnail_url,
-        }));
-      }
       const normalized = raw.map((r, i) => normalizeItem(r, i));
-      console.log(`[ALBUM LOAD] normalized.length=${normalized.length}`);
       if (mountedRef.current) {
         setItems(normalized);
-        console.log(`[ALBUM LOAD] setItems() 호출 완료 — items will be ${normalized.length}개`);
       }
     } catch (e) {
       console.warn("[ALBUM LOAD] ERROR:", e);
@@ -259,21 +248,13 @@ export default function TeacherPhotosScreen() {
       if (mountedRef.current) setListLoading(false);
     }
   }, [token, mediaType, scope]);
-  // 업로드 완료 후 목록 자동 새로고침 (loadList 선언 이후에 배치)
+  // 업로드 완료 후 목록 자동 새로고침
   useEffect(() => {
     if (prevActiveRef.current && !uploadActive && step === "list") {
       loadList();
     }
     prevActiveRef.current = uploadActive;
   }, [uploadActive, step, loadList]);
-  // ── step이 "list"로 변경되거나 loadList(mediaType/scope/token) 변경 시 자동 로드 ──
-  // openList 내부에서 setStep("list")을 호출해도 step 변수는 아직 이전 값이라
-  // if (step === "list") loadList() 조건이 절대 true가 되지 않는 버그를 여기서 해결
-  useEffect(() => {
-    if (step === "list") {
-      loadList();
-    }
-  }, [step, loadList]);
   const openList = useCallback((mt: MediaType, sc: AlbumScope) => {
     setMediaType(mt);
     setScope(sc);
@@ -281,8 +262,9 @@ export default function TeacherPhotosScreen() {
     setSelected(new Set());
     setItems([]);
     setStep("list");
-    // loadList는 위의 useEffect([step, loadList])에서 호출됨
-  }, []);
+    // 상태 업데이트는 비동기 배치이므로, 명시적 파라미터로 즉시 로드
+    loadList(mt, sc);
+  }, [loadList]);
   // 전체앨범 사진 목록 로드 시 내앨범 저장 여부 병렬 로드
   useEffect(() => {
     if (step !== "list" || scope !== "group" || mediaType !== "photo") return;
