@@ -401,7 +401,11 @@ export default function TeacherDiaryScreen() {
     });
   }
   async function handleSave() {
-    console.log(`[handleSave] ====== CALLED ====== subView=${subView} hasDraft=${hasDraft} commonContent="${commonContent.slice(0,30)}" notes=${studentNotes.length}`);
+    const _stack = new Error().stack ?? "(no stack)";
+    const _ts = new Date().toISOString();
+    console.log(
+      `[HANDLE_SAVE]\ntime=${_ts}\ngroup=${selectedGroup?.id ?? "none"}\ndate=${targetDate}\nview=${subView}\ncontentLength=${commonContent.length}\nstudentCount=${studentNotes.length}\npendingDiaryId=${pendingDiaryId ?? "none"}\nstack=${_stack}`
+    );
     const isRetry = !!pendingDiaryId;
     let effectiveNotes = [...studentNotes];
     if (addNoteStudent && noteInput.trim()) {

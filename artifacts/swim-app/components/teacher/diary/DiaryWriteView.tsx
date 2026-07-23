@@ -351,7 +351,10 @@ export default function DiaryWriteView({
               <Text style={[s.cancelBtnFtText, { color: C.textSecondary }]}>나가기</Text>
             </Pressable>
             <Pressable style={[s.saveBtn, { backgroundColor: themeColor, opacity: saving || myDiaryExists ? 0.5 : 1, flex: 2 }]}
-              onPress={onSave} disabled={saving || myDiaryExists}>
+              onPress={() => {
+                console.log(`[PRESS SAVE] timestamp=${new Date().toISOString()}`);
+                onSave();
+              }} disabled={saving || myDiaryExists}>
               {saving ? <ActivityIndicator color="#fff" size="small" /> : <><LucideIcon name="save" size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
             </Pressable>
           </View>
