@@ -9,10 +9,9 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Platform, Pressable, RefreshControl,
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, RefreshControl,
+  ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
@@ -155,7 +154,10 @@ export default function DiaryCommentsScreen() {
   const displayTeacher = diary?.teacher_name ?? teacherName ?? "";
 
   return (
-    <View style={[s.root, { backgroundColor: C.background }]}>
+    <KeyboardAvoidingView
+      style={[s.root, { backgroundColor: C.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <ParentScreenHeader
         title="댓글"
         subtitle={effectiveStudentName ? `${effectiveStudentName} · ${displayDate}` : displayDate}
@@ -175,10 +177,10 @@ export default function DiaryCommentsScreen() {
       {loading ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
       ) : (
-        <KeyboardAwareScrollView
+        <ScrollView
           ref={scrollRef}
           style={s.scroll}
-          contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + 120 }]}
+          contentContainerStyle={[s.scrollContent, { paddingBottom: 16 }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(true); }} />}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -244,11 +246,11 @@ export default function DiaryCommentsScreen() {
               </View>
             ))
           )}
-        </KeyboardAwareScrollView>
+        </ScrollView>
       )}
 
-      {/* 입력창 */}
-      <View style={[s.inputBar, { borderTopColor: C.border, backgroundColor: C.card, paddingBottom: insets.bottom + 8 }]}>
+      {/* 입력창 — KeyboardAvoidingView가 키보드와 함께 올려줌 */}
+      <View style={[s.inputBar, { borderTopColor: C.border, backgroundColor: C.card, paddingBottom: Math.max(insets.bottom, 8) }]}>
         <TextInput
           style={[s.textInput, { color: C.text, backgroundColor: C.background, borderColor: C.border }]}
           placeholder="선생님께 댓글을 남겨보세요"
@@ -270,7 +272,7 @@ export default function DiaryCommentsScreen() {
             : <LucideIcon name="send" size={18} color="#fff" />}
         </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

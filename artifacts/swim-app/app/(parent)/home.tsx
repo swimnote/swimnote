@@ -725,13 +725,14 @@ function DiaryFeedItem({
     }
   }
 
-  function goToMessages() {
+  function goToComments() {
     router.push({
-      pathname: "/(parent)/messages" as any,
+      pathname: "/(parent)/diary-comments" as any,
       params: {
         diaryId: entry.id,
         diaryDate: entry.lesson_date,
         teacherName: entry.teacher_name,
+        studentId,
         studentName,
       },
     });
@@ -842,9 +843,9 @@ function DiaryFeedItem({
             감사합니다
           </Text>
         </Pressable>
-        <Pressable onPress={goToMessages} style={f.reactionBtn}>
-          <LucideIcon name="mail" size={16} color={C.textSecondary} />
-          <Text style={[f.reactionLabel, { color: C.textSecondary }]}>쪽지달기</Text>
+        <Pressable onPress={goToComments} style={f.reactionBtn}>
+          <LucideIcon name="message-circle" size={17} color={C.textSecondary} />
+          <Text style={[f.reactionLabel, { color: C.textSecondary }]}>댓글</Text>
         </Pressable>
       </View>
     </View>

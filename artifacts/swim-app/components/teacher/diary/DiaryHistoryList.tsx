@@ -33,7 +33,7 @@ export default function DiaryHistoryList({
   userId, refreshing,
   deleteTarget, deleteLoading, deleteError,
   onRefresh, onOpenEdit, onDelete, onDeleteConfirm, onDeleteCancel,
-  onWriteDiary,
+  onWriteDiary, onPressReactions,
   token, classGroupId,
   extraBottomPadding = 0,
 }: {
@@ -51,6 +51,7 @@ export default function DiaryHistoryList({
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
   onWriteDiary?: () => void;
+  onPressReactions?: (item: DiaryEntry) => void;
   token?: string | null;
   classGroupId?: string;
   extraBottomPadding?: number;
@@ -116,9 +117,6 @@ export default function DiaryHistoryList({
                       </View>
                     )}
                     <Text style={[s.diaryTeacher, { color: C.textMuted }]}>{item.teacher_name} 선생님</Text>
-                    <Text style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'Pretendard-Regular', marginTop: 2 }}>
-                      {`[DEV] id=${item.id} | del=${item.is_deleted} | ${item.class_group_id?.slice(-8)}`}
-                    </Text>
                   </View>
                   {isMine && (
                     <Pressable style={[s.iconBtn, { backgroundColor: "#FEF2F2" }]}
@@ -138,29 +136,27 @@ export default function DiaryHistoryList({
                     diaryId={item.id}
                   />
                 ) : null}
-                {/* 반응·댓글 카운트 배지 */}
-                {((item.like_count ?? 0) > 0 || (item.thank_count ?? 0) > 0 || (item.comment_count ?? 0) > 0) ? (
-                  <View style={s.countRow}>
-                    {(item.like_count ?? 0) > 0 && (
-                      <View style={s.countBadge}>
-                        <Text style={s.countEmoji}>👍</Text>
-                        <Text style={[s.countText, { color: "#2EC4B6" }]}>{item.like_count}</Text>
-                      </View>
-                    )}
-                    {(item.thank_count ?? 0) > 0 && (
-                      <View style={s.countBadge}>
-                        <Text style={s.countEmoji}>🙏</Text>
-                        <Text style={[s.countText, { color: "#BE185D" }]}>{item.thank_count}</Text>
-                      </View>
-                    )}
-                    {(item.comment_count ?? 0) > 0 && (
-                      <View style={s.countBadge}>
-                        <LucideIcon name="message-circle" size={12} color="#6366F1" />
-                        <Text style={[s.countText, { color: "#6366F1" }]}>{item.comment_count}</Text>
-                      </View>
-                    )}
+                {/* 반응·댓글 카운트 배지 — 항상 표시 */}
+                <Pressable
+                  style={s.countRow}
+                  onPress={e => { e.stopPropagation?.(); onPressReactions?.(item); }}
+                >
+                  <View style={s.countBadge}>
+                    <Text style={s.countEmoji}>👍</Text>
+                    <Text style={[s.countText, { color: "#2EC4B6" }]}>{item.like_count ?? 0}</Text>
                   </View>
-                ) : null}
+                  <View style={s.countBadge}>
+                    <Text style={s.countEmoji}>🙏</Text>
+                    <Text style={[s.countText, { color: "#BE185D" }]}>{item.thank_count ?? 0}</Text>
+                  </View>
+                  <View style={s.countBadge}>
+                    <LucideIcon name="message-circle" size={12} color="#6366F1" />
+                    <Text style={[s.countText, { color: "#6366F1" }]}>{item.comment_count ?? 0}</Text>
+                  </View>
+                  {onPressReactions && (
+                    <LucideIcon name="chevron-right" size={13} color="#94A3B8" />
+                  )}
+                </Pressable>
               </Pressable>
             );
           }}

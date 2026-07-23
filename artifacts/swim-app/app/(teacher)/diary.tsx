@@ -1052,6 +1052,7 @@ export default function TeacherDiaryScreen() {
             onDeleteConfirm={confirmDelete}
             onDeleteCancel={() => setDeleteTarget(null)}
             onWriteDiary={() => setSubView("write")}
+            onPressReactions={(diary) => router.push({ pathname: "/(teacher)/diary-reactions" as any, params: { diaryId: diary.id, lessonDate: diary.lesson_date } })}
             token={token}
             classGroupId={group.id}
           />
