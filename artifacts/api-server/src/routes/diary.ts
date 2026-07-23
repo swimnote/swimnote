@@ -403,7 +403,7 @@ router.get("/diaries",
             cg.schedule_days, cg.schedule_time,
             (SELECT COUNT(*) FROM class_diary_student_notes csn WHERE csn.diary_id = cd.id AND csn.is_deleted = false) AS note_count,
             (SELECT COUNT(*) FROM diary_reactions dr WHERE dr.diary_id = cd.id AND dr.reaction_type = 'like') AS like_count,
-            (SELECT COUNT(*) FROM diary_reactions dr WHERE dr.diary_id = cd.id AND dr.reaction_type = 'thank') AS thank_count,
+            (SELECT COUNT(*) FROM diary_reactions dr WHERE dr.diary_id = cd.id AND dr.reaction_type = 'thanks') AS thank_count,
             (SELECT COUNT(*) FROM diary_messages dm WHERE dm.diary_id = cd.id AND dm.is_deleted = false AND dm.parent_comment_id IS NULL AND dm.message_type = 'diary_comment') AS comment_count
           FROM class_diaries cd
           LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
@@ -428,7 +428,7 @@ router.get("/diaries",
           cg.schedule_days, cg.schedule_time,
           (SELECT COUNT(*) FROM class_diary_student_notes csn WHERE csn.diary_id = cd.id AND csn.is_deleted = false) AS note_count,
           (SELECT COUNT(*) FROM diary_reactions dr WHERE dr.diary_id = cd.id AND dr.reaction_type = 'like') AS like_count,
-          (SELECT COUNT(*) FROM diary_reactions dr WHERE dr.diary_id = cd.id AND dr.reaction_type = 'thank') AS thank_count,
+          (SELECT COUNT(*) FROM diary_reactions dr WHERE dr.diary_id = cd.id AND dr.reaction_type = 'thanks') AS thank_count,
           (SELECT COUNT(*) FROM diary_messages dm WHERE dm.diary_id = cd.id AND dm.is_deleted = false AND dm.parent_comment_id IS NULL AND dm.message_type = 'diary_comment') AS comment_count
         FROM class_diaries cd
         LEFT JOIN class_groups cg ON cg.id = cd.class_group_id

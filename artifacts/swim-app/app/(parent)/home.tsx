@@ -710,7 +710,7 @@ function DiaryFeedItem({
       .catch(() => setVideoCount(0));
   }, []);
 
-  async function toggleReaction(type: "like" | "thank") {
+  async function toggleReaction(type: "like" | "thanks") {
     const res = await apiRequest(token, `/parent/diary/${entry.id}/reactions`, {
       method: "POST",
       body: JSON.stringify({ reaction_type: type }),
@@ -820,16 +820,16 @@ function DiaryFeedItem({
           </Text>
         </Pressable>
         <Pressable
-          onPress={() => toggleReaction("thank")}
+          onPress={() => toggleReaction("thanks")}
           style={[
             f.reactionBtn,
-            myReactions.has("thank") && { backgroundColor: "#F6D8E1" },
+            myReactions.has("thanks") && { backgroundColor: "#F6D8E1" },
           ]}
         >
           <Text
             style={[
               f.emoji,
-              myReactions.has("thank") && { transform: [{ scale: 1.2 }] },
+              myReactions.has("thanks") && { transform: [{ scale: 1.2 }] },
             ]}
           >
             🙏
@@ -837,7 +837,7 @@ function DiaryFeedItem({
           <Text
             style={[
               f.reactionLabel,
-              { color: myReactions.has("thank") ? "#BE185D" : C.textSecondary },
+              { color: myReactions.has("thanks") ? "#BE185D" : C.textSecondary },
             ]}
           >
             감사합니다

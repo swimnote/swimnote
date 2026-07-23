@@ -384,6 +384,10 @@ export async function initSuperDb(): Promise<void> {
     await db.execute(sql.raw(`ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS student_id text`)).catch(() => {});
     await db.execute(sql.raw(`ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS message_type text NOT NULL DEFAULT 'normal'`)).catch(() => {});
     await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS diary_messages_parent_comment_idx ON diary_messages (parent_comment_id) WHERE parent_comment_id IS NOT NULL`)).catch(() => {});
+    // sender_role CHECK 확장 (pool_admin 포함) — 기존 ('parent','teacher','admin') 제약 제거
+    await db.execute(sql.raw(`ALTER TABLE diary_messages DROP CONSTRAINT IF EXISTS diary_messages_sender_role_check`)).catch(() => {});
+    // message_type 기존 'normal' → 'diary_comment' 통일 (구버전 Render.com 코드에서 생성된 댓글)
+    await db.execute(sql.raw(`UPDATE diary_messages SET message_type = 'diary_comment' WHERE message_type = 'normal' OR message_type IS NULL`)).catch(() => {});
     console.log("[super-db-init] diary_messages 테이블 준비 완료");
   } catch (e: any) {
     console.warn("[super-db-init] diary_messages 오류:", e.message);
@@ -404,9 +408,10 @@ export async function initSuperDb(): Promise<void> {
     await db.execute(sql.raw(`
       CREATE INDEX IF NOT EXISTS diary_reactions_diary_idx ON diary_reactions (diary_id);
     `)).catch(() => {});
-    // 기존 잘못된 CHECK 제약 제거 ('thanks' 오타 → 코드에서 'thank' 사용)
+    // reaction_type 'thank' → 'thanks' 통일 마이그레이션 (CHECK 제약 없이 — Render.com 배포 전까지 완화)
     await db.execute(sql.raw(`ALTER TABLE diary_reactions DROP CONSTRAINT IF EXISTS diary_reactions_reaction_type_check`)).catch(() => {});
-    console.log("[super-db-init] diary_reactions 테이블 준비 완료");
+    await db.execute(sql.raw(`UPDATE diary_reactions SET reaction_type = 'thanks' WHERE reaction_type = 'thank'`)).catch(() => {});
+    console.log("[super-db-init] diary_reactions 테이블 준비 완료 (reaction_type 통일 완료, CHECK 제약 완화)");
   } catch (e: any) {
     console.warn("[super-db-init] diary_reactions 오류:", e.message);
   }

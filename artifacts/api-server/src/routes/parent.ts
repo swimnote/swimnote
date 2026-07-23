@@ -809,25 +809,36 @@ router.get("/diary/:diaryId/reactions", requireAuth, requireParent, async (req: 
 });
 
 router.post("/diary/:diaryId/reactions", requireAuth, requireParent, async (req: AuthRequest, res) => {
-  const { reaction_type } = req.body;
-  if (!["like", "thank"].includes(reaction_type)) {
+  const raw_reaction_type = req.body.reaction_type;
+  // 'thank' → 'thanks' 자동 정규화 (하위 호환: 구버전 앱 OTA 전 bridge)
+  const reaction_type = raw_reaction_type === "thank" ? "thanks" : raw_reaction_type;
+  const { userId } = req.user!;
+  const { diaryId } = req.params;
+  console.log(`[REACTION TOGGLE REQUEST] diaryId=${diaryId} parentUserId=${userId} rawType=${raw_reaction_type} normalizedType=${reaction_type}`);
+  if (!["like", "thanks"].includes(reaction_type)) {
+    console.log(`[REACTION TOGGLE ERROR] invalid reactionType=${reaction_type}`);
     res.status(400).json({ error: "유효하지 않은 반응 유형입니다." }); return;
   }
   try {
     const existing = await db.execute(sql`
-      SELECT id FROM diary_reactions WHERE diary_id=${req.params.diaryId} AND parent_id=${req.user!.userId} AND reaction_type=${reaction_type}
+      SELECT id FROM diary_reactions WHERE diary_id=${diaryId} AND parent_id=${userId} AND reaction_type=${reaction_type}
     `);
     if (existing.rows.length > 0) {
-      await db.execute(sql`DELETE FROM diary_reactions WHERE diary_id=${req.params.diaryId} AND parent_id=${req.user!.userId} AND reaction_type=${reaction_type}`);
+      await db.execute(sql`DELETE FROM diary_reactions WHERE diary_id=${diaryId} AND parent_id=${userId} AND reaction_type=${reaction_type}`);
+      console.log(`[REACTION TOGGLE RESPONSE] diaryId=${diaryId} reactionType=${reaction_type} active=false`);
       res.json({ active: false });
     } else {
       await db.execute(sql`
-        INSERT INTO diary_reactions (diary_id, parent_id, reaction_type) VALUES (${req.params.diaryId}, ${req.user!.userId}, ${reaction_type})
+        INSERT INTO diary_reactions (diary_id, parent_id, reaction_type) VALUES (${diaryId}, ${userId}, ${reaction_type})
         ON CONFLICT (diary_id, parent_id, reaction_type) DO NOTHING
       `);
+      console.log(`[REACTION TOGGLE RESPONSE] diaryId=${diaryId} reactionType=${reaction_type} active=true`);
       res.json({ active: true });
     }
-  } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+  } catch (err: any) {
+    console.error(`[REACTION TOGGLE ERROR] diaryId=${diaryId} reactionType=${reaction_type} error=${err?.message} code=${(err?.cause as any)?.code ?? err?.code ?? ''}`);
+    res.status(500).json({ error: "서버 오류" });
+  }
 });
 
 // ── 학부모 쪽지 스레드 목록 ────────────────────────────────────────────────

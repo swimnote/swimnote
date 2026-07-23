@@ -209,8 +209,10 @@ router.post("/diaries/:diaryId/comments",
       const { diaryId } = req.params;
       const { userId } = req.user!;
       const { studentId, body } = req.body as { studentId: string; body: string };
+      console.log(`[COMMENT CREATE START] diaryId=${diaryId} parentUserId=${userId} studentId=${studentId} bodyLen=${body?.length ?? 0}`);
 
       if (!studentId || !body?.trim()) {
+        console.log(`[COMMENT CREATE ERROR] 400 missing studentId or body diaryId=${diaryId}`);
         res.status(400).json({ error: "studentId와 본문이 필요합니다." }); return;
       }
       if (body.trim().length > 1000) {
@@ -229,12 +231,14 @@ router.post("/diaries/:diaryId/comments",
       const [pa] = (await db.execute(sql`SELECT name FROM parent_accounts WHERE id = ${userId} LIMIT 1`)).rows as any[];
       const [st] = (await db.execute(sql`SELECT name FROM students WHERE id = ${studentId} LIMIT 1`)).rows as any[];
       const senderName = `${st?.name ?? "학생"} 보호자`;
+      console.log(`[COMMENT CREATE INSERT] diaryId=${diaryId} senderName=${senderName} senderRole=parent student=${st?.name ?? "?"}`);
 
       const id = `cmt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       await db.execute(sql`
         INSERT INTO diary_messages (id, diary_id, sender_id, sender_name, sender_role, content, student_id, message_type)
         VALUES (${id}, ${diaryId}, ${userId}, ${senderName}, 'parent', ${body.trim()}, ${studentId}, 'diary_comment')
       `);
+      console.log(`[COMMENT CREATE SUCCESS] diaryId=${diaryId} commentId=${id}`);
 
       // 선생님에게 푸시 알림
       const [d] = (await db.execute(sql`
@@ -255,7 +259,11 @@ router.post("/diaries/:diaryId/comments",
         student_id: studentId, student_name: st?.name ?? "", created_at: new Date().toISOString(),
         replies: [],
       });
-    } catch (err) { console.error("[comments POST]", err); res.status(500).json({ error: "서버 오류" }); }
+    } catch (err: any) {
+      const cause = err?.cause as any;
+      console.error(`[COMMENT CREATE ERROR] diaryId=${req.params.diaryId} httpCode=${cause?.code ?? err?.code ?? "?"} constraint=${cause?.constraint ?? ""} detail=${cause?.detail ?? err?.message ?? String(err)}`);
+      res.status(500).json({ error: "서버 오류" });
+    }
   }
 );
 
@@ -289,6 +297,7 @@ router.post("/diary-comments/:commentId/replies",
       const threadRoot = root.parent_comment_id ?? root.id;
 
       const isParent = role === "parent_account";
+      console.log(`[REPLY CREATE START] commentId=${commentId} diaryId=${root.diary_id} userId=${userId} role=${role} isParent=${isParent}`);
 
       // 학부모라면 본인 스레드에만 답글 허용
       if (isParent && root.sender_id !== userId) {
@@ -307,10 +316,12 @@ router.post("/diary-comments/:commentId/replies",
       }
 
       const id = `cmt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      console.log(`[REPLY CREATE INSERT] commentId=${commentId} diaryId=${root.diary_id} senderName=${senderName} senderRole=${senderRole} replyId=${id}`);
       await db.execute(sql`
         INSERT INTO diary_messages (id, diary_id, sender_id, sender_name, sender_role, content, student_id, parent_comment_id, message_type)
         VALUES (${id}, ${root.diary_id}, ${userId}, ${senderName}, ${senderRole}, ${body.trim()}, ${root.student_id}, ${threadRoot}, 'diary_comment')
       `);
+      console.log(`[REPLY CREATE SUCCESS] replyId=${id} senderRole=${senderRole}`);
 
       // 알림
       if (!isParent && root.sender_id) {
@@ -327,7 +338,11 @@ router.post("/diary-comments/:commentId/replies",
         id, body: body.trim(), author_name: senderName, author_role: senderRole,
         created_at: new Date().toISOString(),
       });
-    } catch (err) { console.error("[replies POST]", err); res.status(500).json({ error: "서버 오류" }); }
+    } catch (err: any) {
+      const cause = err?.cause as any;
+      console.error(`[REPLY CREATE ERROR] commentId=${req.params.commentId} httpCode=${cause?.code ?? err?.code ?? "?"} constraint=${cause?.constraint ?? ""} detail=${cause?.detail ?? err?.message ?? String(err)}`);
+      res.status(500).json({ error: "서버 오류" });
+    }
   }
 );
 
@@ -389,7 +404,7 @@ router.get("/diaries/:diaryId/reactions/summary",
       for (const r of rows) {
         const entry = { parent_name: r.parent_name ?? "보호자", student_name: r.student_name ?? "" };
         if (r.reaction_type === "like") like_users.push(entry);
-        if (r.reaction_type === "thank") thank_users.push(entry);
+        if (r.reaction_type === "thanks") thank_users.push(entry);
       }
 
       const [cnt] = (await db.execute(sql`
@@ -446,7 +461,7 @@ router.get("/diaries/:diaryId/comment-count",
         `)).rows as any[];
         for (const r of rRows) {
           if (r.reaction_type === "like") like_count = Number(r.cnt);
-          if (r.reaction_type === "thank") thank_count = Number(r.cnt);
+          if (r.reaction_type === "thanks") thank_count = Number(r.cnt);
         }
       }
 

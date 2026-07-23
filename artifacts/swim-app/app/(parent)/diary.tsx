@@ -69,7 +69,7 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
     setTimeout(() => setToastVisible(false), 1800);
   }
 
-  async function toggleReaction(type: "like" | "thank") {
+  async function toggleReaction(type: "like" | "thanks") {
     const res = await apiRequest(token, `/parent/diary/${entry.id}/reactions`, {
       method: "POST", body: JSON.stringify({ reaction_type: type }),
     });
@@ -167,11 +167,11 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
           <Text style={[ds.reactionLabel, { color: myReactions.has("like") ? "#2EC4B6" : C.textSecondary }]}>좋아요</Text>
         </Pressable>
         <Pressable
-          onPress={() => toggleReaction("thank")}
-          style={[ds.reactionBtn, myReactions.has("thank") && { backgroundColor: "#F6D8E1" }]}
+          onPress={() => toggleReaction("thanks")}
+          style={[ds.reactionBtn, myReactions.has("thanks") && { backgroundColor: "#F6D8E1" }]}
         >
-          <Text style={[ds.reactionEmoji, myReactions.has("thank") && { transform: [{ scale: 1.2 }] }]}>🙏</Text>
-          <Text style={[ds.reactionLabel, { color: myReactions.has("thank") ? "#BE185D" : C.textSecondary }]}>감사합니다</Text>
+          <Text style={[ds.reactionEmoji, myReactions.has("thanks") && { transform: [{ scale: 1.2 }] }]}>🙏</Text>
+          <Text style={[ds.reactionLabel, { color: myReactions.has("thanks") ? "#BE185D" : C.textSecondary }]}>감사합니다</Text>
         </Pressable>
         <Pressable onPress={goToComments} style={ds.reactionBtn}>
           <LucideIcon name="message-circle" size={17} color={C.textSecondary} />

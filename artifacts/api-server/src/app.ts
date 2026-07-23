@@ -12,6 +12,8 @@ import { requireNotDeactivated } from "./lib/deactivationGuard.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+export const DEPLOYMENT_VERSION = `v${new Date().toISOString().slice(0,10).replace(/-/g,"")}.${process.env.NODE_ENV ?? "dev"}`;
+
 const app: Express = express();
 
 // ── CORS ─────────────────────────────────────────────────────────────

@@ -120,7 +120,7 @@ export default function DiaryReactionsScreen() {
   }
 
   const likeGroup = reactions["like"];
-  const thankGroup = reactions["thank"];
+  const thankGroup = reactions["thanks"];
   const displayDate = lessonDate ? fmtDate(lessonDate) : "";
 
   return (
