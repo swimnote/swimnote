@@ -210,10 +210,12 @@ export async function attachPhotosToDiary(
     throw new Error("일부 사진에 대한 접근 권한이 없습니다.");
   }
 
-  // 이미 attached 상태 사진 중복 연결 방지 (TEST F)
+  // 이미 다른 일지에 attached 상태 사진 중복 연결 방지 (동일 diary는 멱등 허용)
   const alreadyAttached = await db.execute(sql`
     SELECT id FROM photo_assets_meta
-    WHERE id = ANY(${literal}::text[]) AND media_status = 'attached'
+    WHERE id = ANY(${literal}::text[])
+      AND media_status = 'attached'
+      AND (journal_id IS NULL OR journal_id != ${diaryId})
   `);
   if ((alreadyAttached.rows as any[]).length > 0) {
     const ids = (alreadyAttached.rows as any[]).map((r: any) => r.id).join(", ");
@@ -274,10 +276,12 @@ export async function attachPhotosToStudentNote(
     throw new Error("일부 사진에 대한 접근 권한이 없습니다.");
   }
 
-  // 이미 attached 상태 사진 중복 연결 방지
+  // 이미 다른 노트에 attached 상태 사진 중복 연결 방지 (동일 note는 멱등 허용)
   const alreadyAttached = await db.execute(sql`
     SELECT id FROM photo_assets_meta
-    WHERE id = ANY(${literal}::text[]) AND media_status = 'attached'
+    WHERE id = ANY(${literal}::text[])
+      AND media_status = 'attached'
+      AND (student_note_id IS NULL OR student_note_id != ${noteId})
   `);
   if ((alreadyAttached.rows as any[]).length > 0) {
     const ids = (alreadyAttached.rows as any[]).map((r: any) => r.id).join(", ");
@@ -315,6 +319,7 @@ export async function detachPhotosFromDiary(
     UPDATE photo_assets_meta
     SET journal_id = NULL,
         student_note_id = NULL,
+        student_id = NULL,
         media_status = 'draft'
     WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
   `);

@@ -7,7 +7,7 @@ import * as ImagePicker from "expo-image-picker";
 import { compressImageIfNeeded } from "../../utils/compressImage";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
@@ -86,11 +86,18 @@ export default function TeacherDiaryScreen() {
   const editCursorRef = useRef<number>(0);
   const [saveMsg,       setSaveMsg]       = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [formError,     setFormError]     = useState<string | null>(null);
+  const [pendingDiaryId,  setPendingDiaryId]  = useState<string | null>(null);
+  const [pendingNoteIds,  setPendingNoteIds]  = useState<Record<string, string>>({});
   const [hasDraft,      setHasDraft]      = useState(false);
   const handledParamKey = useRef<string | undefined>(undefined);
   const draftKey = selectedGroup
     ? `@swimnote:diary_draft:${selectedGroup.id}:${targetDate}`
     : null;
+  // 그룹/날짜 변경 시 pendingDiaryId 초기화 (다른 일지 컨텍스트에서 재시도 방지)
+  useEffect(() => {
+    setPendingDiaryId(null);
+    setPendingNoteIds({});
+  }, [selectedGroup?.id, targetDate]);
   useEffect(() => {
     if (!draftKey || subView !== "write") return;
     const hasContent = commonContent.trim().length > 0 || studentNotes.length > 0;
@@ -386,6 +393,7 @@ export default function TeacherDiaryScreen() {
     });
   }
   async function handleSave() {
+    const isRetry = !!pendingDiaryId;
     let effectiveNotes = [...studentNotes];
     if (addNoteStudent && noteInput.trim()) {
       const idx = effectiveNotes.findIndex(n => n.student_id === addNoteStudent!.id);
@@ -395,71 +403,104 @@ export default function TeacherDiaryScreen() {
         effectiveNotes.push({ student_id: addNoteStudent.id, student_name: addNoteStudent.name, note_content: noteInput.trim() });
       }
     }
-    const hasAnyMedia =
-      groupMedia.some(m => m.uploaded) ||
-      selectedAlbumPhotos.length > 0 ||
-      selectedAlbumVideos.length > 0 ||
-      Object.values(studentMedia).flat().some(m => m.uploaded) ||
-      Object.values(studentAlbumPhotos).some(arr => arr.length > 0) ||
-      Object.values(studentAlbumVideos).some(arr => arr.length > 0);
-    const hasAnyContent = commonContent.trim().length > 0 || effectiveNotes.some(n => n.note_content?.trim()) || hasAnyMedia;
-    if (!hasAnyContent) { setFormError("전체 일지 또는 개인 일지 내용이나 사진/영상을 추가해주세요."); return; }
+    if (!isRetry) {
+      const hasAnyMedia =
+        groupMedia.some(m => m.uploaded) ||
+        selectedAlbumPhotos.length > 0 ||
+        selectedAlbumVideos.length > 0 ||
+        Object.values(studentMedia).flat().some(m => m.uploaded) ||
+        Object.values(studentAlbumPhotos).some(arr => arr.length > 0) ||
+        Object.values(studentAlbumVideos).some(arr => arr.length > 0);
+      const hasAnyContent = commonContent.trim().length > 0 || effectiveNotes.some(n => n.note_content?.trim()) || hasAnyMedia;
+      if (!hasAnyContent) { setFormError("전체 일지 또는 개인 일지 내용이나 사진/영상을 추가해주세요."); return; }
+    }
     setFormError(null); setSaving(true);
     try {
-      const r = await apiRequest(token, "/diaries", {
-        method: "POST",
-        body: JSON.stringify({ class_group_id: selectedGroup!.id, lesson_date: targetDate, common_content: commonContent.trim(), student_notes: effectiveNotes.map(n => ({ student_id: n.student_id, note_content: n.note_content })) }),
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data?.error || "저장 실패");
-      const savedDiaryId = data.diary_id || data.id;
-      let commonPhotoFailed = false;
-      if (selectedAlbumIds.length > 0 && savedDiaryId) {
+      // ── Step 1: 일지 생성 (첫 시도만) ─────────────────────────────────
+      let diaryId = pendingDiaryId;
+      let noteMap = { ...pendingNoteIds };
+      if (!isRetry) {
+        const r = await apiRequest(token, "/diaries", {
+          method: "POST",
+          body: JSON.stringify({ class_group_id: selectedGroup!.id, lesson_date: targetDate, common_content: commonContent.trim(), student_notes: effectiveNotes.map(n => ({ student_id: n.student_id, note_content: n.note_content })) }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data?.error || "저장 실패");
+        diaryId = data.diary_id || data.id;
+        noteMap = {};
+        if (data.student_notes && Array.isArray(data.student_notes)) {
+          for (const n of data.student_notes) { noteMap[n.student_id] = n.id; }
+        }
+        setPendingDiaryId(diaryId!);
+        setPendingNoteIds(noteMap);
+        if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => {});
+        setHasDraft(false);
+      }
+      // ── Step 2: 사진/영상 연결 — 에러 수집 ───────────────────────────
+      const errors: string[] = [];
+      if (selectedAlbumIds.length > 0) {
         const pr = await apiRequest(token, "/photos/diary-attach", {
           method: "POST",
-          body: JSON.stringify({ diary_id: savedDiaryId, photo_ids: selectedAlbumIds }),
+          body: JSON.stringify({ diary_id: diaryId, photo_ids: selectedAlbumIds }),
         }).catch(() => null);
-        if (!pr || !pr.ok) commonPhotoFailed = true;
+        if (!pr?.ok) {
+          const d = pr ? await pr.json().catch(() => ({})) as any : {};
+          errors.push(`전체일지 사진 ${selectedAlbumIds.length}장: ${d?.error || "연결 실패"}`);
+        }
       }
-      if (selectedAlbumVideos.length > 0 && savedDiaryId) {
-        await apiRequest(token, "/videos/diary-attach", {
+      if (selectedAlbumVideos.length > 0) {
+        const pr = await apiRequest(token, "/videos/diary-attach", {
           method: "POST",
-          body: JSON.stringify({ diary_id: savedDiaryId, video_ids: selectedAlbumVideos.map(v => v.id) }),
-        }).catch(() => {});
+          body: JSON.stringify({ diary_id: diaryId, video_ids: selectedAlbumVideos.map(v => v.id) }),
+        }).catch(() => null);
+        if (!pr?.ok) {
+          const d = pr ? await pr.json().catch(() => ({})) as any : {};
+          errors.push(`전체일지 영상 ${selectedAlbumVideos.length}개: ${d?.error || "연결 실패"}`);
+        }
       }
-      if (data.student_notes && Array.isArray(data.student_notes)) {
-        for (const note of data.student_notes) {
-          const photos = studentAlbumPhotos[note.student_id] ?? [];
-          if (photos.length > 0) {
-            await apiRequest(token, "/photos/note-attach", {
-              method: "POST",
-              body: JSON.stringify({ note_id: note.id, photo_ids: photos.map((p: AlbumPhotoInfo) => p.id) }),
-            }).catch(() => {});
+      for (const [studentId, noteId] of Object.entries(noteMap)) {
+        const photos = studentAlbumPhotos[studentId] ?? [];
+        const sName = effectiveNotes.find(n => n.student_id === studentId)?.student_name ?? "학생";
+        if (photos.length > 0) {
+          const pr = await apiRequest(token, "/photos/note-attach", {
+            method: "POST",
+            body: JSON.stringify({ note_id: noteId, photo_ids: photos.map((p: AlbumPhotoInfo) => p.id) }),
+          }).catch(() => null);
+          if (!pr?.ok) {
+            const d = pr ? await pr.json().catch(() => ({})) as any : {};
+            errors.push(`${sName} 개별사진 ${photos.length}장: ${d?.error || "연결 실패"}`);
           }
-          const vids = studentAlbumVideos[note.student_id] ?? [];
-          if (vids.length > 0) {
-            await apiRequest(token, "/videos/note-attach", {
-              method: "POST",
-              body: JSON.stringify({ note_id: note.id, video_ids: vids.map((v: AlbumVideoInfo) => v.id) }),
-            }).catch(() => {});
+        }
+        const vids = studentAlbumVideos[studentId] ?? [];
+        if (vids.length > 0) {
+          const pr = await apiRequest(token, "/videos/note-attach", {
+            method: "POST",
+            body: JSON.stringify({ note_id: noteId, video_ids: vids.map((v: AlbumVideoInfo) => v.id) }),
+          }).catch(() => null);
+          if (!pr?.ok) {
+            const d = pr ? await pr.json().catch(() => ({})) as any : {};
+            errors.push(`${sName} 개별영상 ${vids.length}개: ${d?.error || "연결 실패"}`);
           }
         }
       }
+      // ── Step 3: 결과 처리 ─────────────────────────────────────────────
+      if (errors.length > 0) {
+        setFormError(
+          `일지 본문은 저장됐습니다. 아래 사진/영상 연결에 실패했습니다:\n` +
+          errors.map(e => `• ${e}`).join('\n') +
+          `\n\n저장 버튼을 다시 누르면 재시도합니다.`
+        );
+        return;
+      }
+      // 전체 성공
+      setPendingDiaryId(null);
+      setPendingNoteIds({});
       setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
       setStudentAlbumPhotos({}); setStudentAlbumVideos({});
       setStudentNotes([]); setCommonContent(""); setAddNoteStudent(null); setNoteInput("");
-      if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => {});
-      setHasDraft(false);
       haptic.success();
-      if (commonPhotoFailed) {
-        Alert.alert(
-          "전체일지 사진 미연결",
-          "일지는 저장됐으나 선택한 전체일지 사진을 연결하지 못했습니다.\n이미 다른 일지에 연결된 사진은 사용할 수 없습니다. 새로 업로드한 사진을 선택해 주세요."
-        );
-      }
-      // 즉시 history 뷰로 전환 — DiaryWriteView 비표시로 myDiaryExists 경고 원천 차단
+      // 즉시 history 뷰로 전환
       setSubView("history");
-      // 서버에서 최신 일지 목록 재조회 → diarySet 서버 기반 갱신
       const savedGroupId = selectedGroup!.id;
       apiRequest(token, `/diaries?class_group_id=${savedGroupId}`)
         .then(r2 => r2.ok ? r2.json() : [])
@@ -473,16 +514,13 @@ export default function TeacherDiaryScreen() {
           });
         })
         .catch(() => {
-          // 재조회 실패 시 로컬에서만 최소 보장
-          setDiarySet(prev => new Set([...prev, `${savedGroupId}_${targetDate}`]));
+          setDiarySet(prev => new Set([...prev, `${selectedGroup!.id}_${targetDate}`]));
         });
       setSaveMsg({ type: "success", text: "수업 일지가 저장되었습니다. 학부모에게 알림이 발송됩니다." });
-      // 버그 6 수정: classGroupId만으로 router.back() 실행 금지 — backTo 또는 lessonDate(params) 있을 때만
       const cameFromExternal = !!(params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/)) || !!(params.backTo);
       setTimeout(() => { setSaveMsg(null); if (cameFromExternal) router.back(); else setSelectedGroup(prev => prev?.id === savedGroupId ? null : prev); }, 2000);
     } catch (e: any) {
-      setSaveMsg({ type: "error", text: e.message || "저장 중 오류가 발생했습니다." });
-      // 409 등 서버 충돌 후 diaries/diarySet을 서버 기준으로 재동기화
+      setFormError(e.message || "저장 중 오류가 발생했습니다.");
       if (selectedGroup) {
         const syncGroupId = selectedGroup.id;
         apiRequest(token, `/diaries?class_group_id=${syncGroupId}`)
@@ -492,12 +530,10 @@ export default function TeacherDiaryScreen() {
             setDiaries(diaryList);
             setDiarySet(prev => {
               const next = new Set(prev);
-              // 현재 그룹 날짜 항목 제거 후 서버 결과로 재등록
               prev.forEach(k => { if (k.startsWith(syncGroupId)) next.delete(k); });
               diaryList.forEach(d => { if (d.class_group_id && d.lesson_date) next.add(`${d.class_group_id}_${d.lesson_date}`); });
               return next;
             });
-            // 오늘 날짜에 실제 일지가 있으면 history 뷰로 전환
             const todayStillExists = diaryList.some(d => d.lesson_date === targetDate);
             if (todayStillExists) setSubView("history");
           })
@@ -546,65 +582,100 @@ export default function TeacherDiaryScreen() {
     if (!hasEditContent) { setEditError("전체 일지 또는 개인 일지 내용이나 사진/영상을 추가해주세요."); return; }
     setEditSaving(true); setEditError(null);
     try {
+      // ── 텍스트 수정 및 노트 관리 ─────────────────────────────────────
       const r = await apiRequest(token, `/diaries/${editDiary.id}`, { method: "PUT", body: JSON.stringify({ common_content: editContent.trim() }) });
       if (!r.ok) { const d = await r.json(); throw new Error(d.error || "수정 실패"); }
       for (const note of editNotes) {
         if (note._deleted) await apiRequest(token, `/diaries/student-notes/${note.id}`, { method: "DELETE" });
-        if (!note._deleted && note._modified) await apiRequest(token, `/diaries/student-notes/${note.id}`, { method: "PUT", body: JSON.stringify({ note_content: note.note_content }) });
+        else if (note._modified) await apiRequest(token, `/diaries/student-notes/${note.id}`, { method: "PUT", body: JSON.stringify({ note_content: note.note_content }) });
       }
       const savedEditNoteIds: Record<string, string> = {};
       for (const note of editNewNotes) {
         const r2 = await apiRequest(token, `/diaries/${editDiary.id}/student-notes`, { method: "POST", body: JSON.stringify({ student_id: note.student_id, note_content: note.note_content }) });
         if (r2.ok) { const d2 = await r2.json(); if (d2.note_id) savedEditNoteIds[note.student_id] = d2.note_id; }
       }
-      for (const note of editNotes) {
-        if (!note._deleted) {
-          const photos = studentAlbumPhotos[note.student_id] ?? [];
-          const vids = studentAlbumVideos[note.student_id] ?? [];
-          if (photos.length > 0) await apiRequest(token, "/photos/note-attach", { method: "POST", body: JSON.stringify({ note_id: note.id, photo_ids: photos.map((p: AlbumPhotoInfo) => p.id) }) }).catch(() => {});
-          if (vids.length > 0) await apiRequest(token, "/videos/note-attach", { method: "POST", body: JSON.stringify({ note_id: note.id, video_ids: vids.map((v: AlbumVideoInfo) => v.id) }) }).catch(() => {});
-        }
-      }
-      for (const [studentId, noteId] of Object.entries(savedEditNoteIds)) {
-        const photos = studentAlbumPhotos[studentId] ?? [];
-        if (photos.length > 0) await apiRequest(token, "/photos/note-attach", { method: "POST", body: JSON.stringify({ note_id: noteId, photo_ids: photos.map((p: AlbumPhotoInfo) => p.id) }) }).catch(() => {});
-        const vids = studentAlbumVideos[studentId] ?? [];
-        if (vids.length > 0) await apiRequest(token, "/videos/note-attach", { method: "POST", body: JSON.stringify({ note_id: noteId, video_ids: vids.map((v: AlbumVideoInfo) => v.id) }) }).catch(() => {});
-      }
+      // ── 사진/영상 연결 — 에러 수집 ──────────────────────────────────
+      const errors: string[] = [];
       if (editRemovedPhotoIds.length > 0) {
-        await apiRequest(token, "/photos/diary-detach", {
-          method: "POST",
-          body: JSON.stringify({ photo_ids: editRemovedPhotoIds }),
-        }).catch(() => {});
+        await apiRequest(token, "/photos/diary-detach", { method: "POST", body: JSON.stringify({ photo_ids: editRemovedPhotoIds }) })
+          .catch(() => {});
       }
-      let editCommonPhotoFailed = false;
+      if (editRemovedVideoIds.length > 0) {
+        await apiRequest(token, "/videos/diary-detach", { method: "POST", body: JSON.stringify({ video_ids: editRemovedVideoIds }) })
+          .catch(() => {});
+      }
       if (editNewAlbumIds.length > 0) {
         const pr = await apiRequest(token, "/photos/diary-attach", {
           method: "POST",
           body: JSON.stringify({ diary_id: editDiary.id, photo_ids: editNewAlbumIds }),
         }).catch(() => null);
-        if (!pr || !pr.ok) editCommonPhotoFailed = true;
-      }
-      if (editRemovedVideoIds.length > 0) {
-        await apiRequest(token, "/videos/diary-detach", {
-          method: "POST",
-          body: JSON.stringify({ video_ids: editRemovedVideoIds }),
-        }).catch(() => {});
+        if (!pr?.ok) {
+          const d = pr ? await pr.json().catch(() => ({})) as any : {};
+          errors.push(`전체일지 사진 ${editNewAlbumIds.length}장: ${d?.error || "연결 실패"}`);
+        }
       }
       if (editNewAlbumVideos.length > 0) {
-        await apiRequest(token, "/videos/diary-attach", {
+        const pr = await apiRequest(token, "/videos/diary-attach", {
           method: "POST",
           body: JSON.stringify({ diary_id: editDiary.id, video_ids: editNewAlbumVideos.map(v => v.id) }),
-        }).catch(() => {});
+        }).catch(() => null);
+        if (!pr?.ok) {
+          const d = pr ? await pr.json().catch(() => ({})) as any : {};
+          errors.push(`전체일지 영상 ${editNewAlbumVideos.length}개: ${d?.error || "연결 실패"}`);
+        }
       }
+      for (const note of editNotes) {
+        if (!note._deleted) {
+          const photos = studentAlbumPhotos[note.student_id] ?? [];
+          const vids = studentAlbumVideos[note.student_id] ?? [];
+          if (photos.length > 0) {
+            const pr = await apiRequest(token, "/photos/note-attach", { method: "POST", body: JSON.stringify({ note_id: note.id, photo_ids: photos.map((p: AlbumPhotoInfo) => p.id) }) }).catch(() => null);
+            if (!pr?.ok) {
+              const d = pr ? await pr.json().catch(() => ({})) as any : {};
+              errors.push(`${note.student_name ?? "학생"} 개별사진 ${photos.length}장: ${d?.error || "연결 실패"}`);
+            }
+          }
+          if (vids.length > 0) {
+            const pr = await apiRequest(token, "/videos/note-attach", { method: "POST", body: JSON.stringify({ note_id: note.id, video_ids: vids.map((v: AlbumVideoInfo) => v.id) }) }).catch(() => null);
+            if (!pr?.ok) {
+              const d = pr ? await pr.json().catch(() => ({})) as any : {};
+              errors.push(`${note.student_name ?? "학생"} 개별영상 ${vids.length}개: ${d?.error || "연결 실패"}`);
+            }
+          }
+        }
+      }
+      for (const [studentId, noteId] of Object.entries(savedEditNoteIds)) {
+        const sName = editNewNotes.find(n => n.student_id === studentId)?.student_name ?? "학생";
+        const photos = studentAlbumPhotos[studentId] ?? [];
+        if (photos.length > 0) {
+          const pr = await apiRequest(token, "/photos/note-attach", { method: "POST", body: JSON.stringify({ note_id: noteId, photo_ids: photos.map((p: AlbumPhotoInfo) => p.id) }) }).catch(() => null);
+          if (!pr?.ok) {
+            const d = pr ? await pr.json().catch(() => ({})) as any : {};
+            errors.push(`${sName} 개별사진 ${photos.length}장: ${d?.error || "연결 실패"}`);
+          }
+        }
+        const vids = studentAlbumVideos[studentId] ?? [];
+        if (vids.length > 0) {
+          const pr = await apiRequest(token, "/videos/note-attach", { method: "POST", body: JSON.stringify({ note_id: noteId, video_ids: vids.map((v: AlbumVideoInfo) => v.id) }) }).catch(() => null);
+          if (!pr?.ok) {
+            const d = pr ? await pr.json().catch(() => ({})) as any : {};
+            errors.push(`${sName} 개별영상 ${vids.length}개: ${d?.error || "연결 실패"}`);
+          }
+        }
+      }
+      // ── 결과 처리 ────────────────────────────────────────────────────
+      if (errors.length > 0) {
+        setEditError(
+          `일지 본문은 저장됐습니다. 아래 사진/영상 연결에 실패했습니다:\n` +
+          errors.map(e => `• ${e}`).join('\n') +
+          `\n\n저장 버튼을 다시 누르면 재시도합니다.`
+        );
+        return;
+      }
+      // 전체 성공
       setEditLinkedPhotos([]); setEditRemovedPhotoIds([]); setEditNewAlbumIds([]); setEditNewAlbumPhotos([]);
       setEditLinkedVideos([]); setEditRemovedVideoIds([]); setEditNewAlbumVideos([]);
-      if (editCommonPhotoFailed) {
-        Alert.alert(
-          "전체일지 사진 미연결",
-          "일지는 저장됐으나 선택한 전체일지 사진을 연결하지 못했습니다.\n이미 다른 일지에 연결된 사진은 사용할 수 없습니다. 새로 업로드한 사진을 선택해 주세요."
-        );
-      }
+      haptic.success();
       if (params.editDiaryId) { router.back(); }
       else { setSubView("history"); setEditDiary(null); await loadDiaries(selectedGroup.id); }
     } catch (e: any) { setEditError(e.message || "저장 중 오류가 발생했습니다."); }
