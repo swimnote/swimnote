@@ -116,6 +116,9 @@ export default function DiaryHistoryList({
                       </View>
                     )}
                     <Text style={[s.diaryTeacher, { color: C.textMuted }]}>{item.teacher_name} 선생님</Text>
+                    <Text style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'Pretendard-Regular', marginTop: 2 }}>
+                      {`[DEV] id=${item.id} | del=${item.is_deleted} | ${item.class_group_id?.slice(-8)}`}
+                    </Text>
                   </View>
                   {isMine && (
                     <Pressable style={[s.iconBtn, { backgroundColor: "#FEF2F2" }]}
