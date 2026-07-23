@@ -232,8 +232,8 @@ router.post("/diaries/:diaryId/comments",
 
       const id = `cmt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       await db.execute(sql`
-        INSERT INTO diary_messages (id, diary_id, sender_id, sender_name, sender_role, content, student_id)
-        VALUES (${id}, ${diaryId}, ${userId}, ${senderName}, 'parent', ${body.trim()}, ${studentId})
+        INSERT INTO diary_messages (id, diary_id, sender_id, sender_name, sender_role, content, student_id, message_type)
+        VALUES (${id}, ${diaryId}, ${userId}, ${senderName}, 'parent', ${body.trim()}, ${studentId}, 'diary_comment')
       `);
 
       // 선생님에게 푸시 알림
@@ -308,8 +308,8 @@ router.post("/diary-comments/:commentId/replies",
 
       const id = `cmt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       await db.execute(sql`
-        INSERT INTO diary_messages (id, diary_id, sender_id, sender_name, sender_role, content, student_id, parent_comment_id)
-        VALUES (${id}, ${root.diary_id}, ${userId}, ${senderName}, ${senderRole}, ${body.trim()}, ${root.student_id}, ${threadRoot})
+        INSERT INTO diary_messages (id, diary_id, sender_id, sender_name, sender_role, content, student_id, parent_comment_id, message_type)
+        VALUES (${id}, ${root.diary_id}, ${userId}, ${senderName}, ${senderRole}, ${body.trim()}, ${root.student_id}, ${threadRoot}, 'diary_comment')
       `);
 
       // 알림

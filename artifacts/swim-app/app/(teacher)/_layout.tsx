@@ -187,6 +187,7 @@ export default function TeacherLayout() {
       <Tabs.Screen name="fee-check"        options={{ href: null }} />
       <Tabs.Screen name="messages-inbox"   options={{ href: null }} />
       <Tabs.Screen name="inquiries"        options={{ href: null }} />
+      <Tabs.Screen name="diary-reactions"  options={{ href: null }} />
     </Tabs>
     </FeedbackTemplateProvider>
   );

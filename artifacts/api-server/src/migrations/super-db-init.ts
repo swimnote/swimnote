@@ -380,6 +380,10 @@ export async function initSuperDb(): Promise<void> {
     await db.execute(sql.raw(`ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS read_at timestamptz`)).catch(() => {});
     await db.execute(sql.raw(`ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS deleted_at timestamptz`)).catch(() => {});
     await db.execute(sql.raw(`ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS image_url text`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS parent_comment_id text`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS student_id text`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS message_type text NOT NULL DEFAULT 'normal'`)).catch(() => {});
+    await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS diary_messages_parent_comment_idx ON diary_messages (parent_comment_id) WHERE parent_comment_id IS NOT NULL`)).catch(() => {});
     console.log("[super-db-init] diary_messages 테이블 준비 완료");
   } catch (e: any) {
     console.warn("[super-db-init] diary_messages 오류:", e.message);
@@ -392,7 +396,7 @@ export async function initSuperDb(): Promise<void> {
         id            text        PRIMARY KEY DEFAULT ('dr_' || gen_random_uuid()::text),
         diary_id      text        NOT NULL,
         parent_id     text        NOT NULL,
-        reaction_type text        NOT NULL CHECK (reaction_type IN ('like', 'thanks')),
+        reaction_type text        NOT NULL,
         created_at    timestamptz NOT NULL DEFAULT now(),
         UNIQUE (diary_id, parent_id, reaction_type)
       )
@@ -400,6 +404,8 @@ export async function initSuperDb(): Promise<void> {
     await db.execute(sql.raw(`
       CREATE INDEX IF NOT EXISTS diary_reactions_diary_idx ON diary_reactions (diary_id);
     `)).catch(() => {});
+    // 기존 잘못된 CHECK 제약 제거 ('thanks' 오타 → 코드에서 'thank' 사용)
+    await db.execute(sql.raw(`ALTER TABLE diary_reactions DROP CONSTRAINT IF EXISTS diary_reactions_reaction_type_check`)).catch(() => {});
     console.log("[super-db-init] diary_reactions 테이블 준비 완료");
   } catch (e: any) {
     console.warn("[super-db-init] diary_reactions 오류:", e.message);
