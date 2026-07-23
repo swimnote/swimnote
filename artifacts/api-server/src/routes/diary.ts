@@ -25,6 +25,15 @@ import { SWIMNOTE_DEFAULT_TEMPLATES, insertDefaultTemplates } from "../lib/defau
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
+// ── 배포 식별자 (Render.com 재배포 시 이 값이 변경됨) ─────────────────────────
+const DEPLOY_VERSION = "2026-07-23-v2";
+const DB_HOST = (() => {
+  try {
+    const url = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || "";
+    return new URL(url).hostname || "unknown";
+  } catch { return "unknown"; }
+})();
+
 
 let _client: Client | null = null;
 function getClient() {
@@ -542,6 +551,65 @@ router.post("/diaries",
 );
 
 // ── GET /diaries/:id ─────────────────────────────────────────────────────
+// ── GET /diaries/diagnostic/:id — 운영 DB 실제 상태 진단 (super_admin/pool_admin 전용) ──
+// Issue 1 진단: DELETE 후 is_deleted 실제값, 동일 class+date 중복 row, 고아 row 여부를 반환
+router.get("/diaries/diagnostic/:id",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const diaryId = req.params.id;
+      const { userId, role } = req.user!;
+      const poolId = role === "super_admin" ? null : await getUserPoolId(userId);
+
+      // 1. 해당 diary row 직접 조회 (is_deleted 무관)
+      const diaryRow = await db.execute(sql`
+        SELECT id, is_deleted, deleted_at, updated_at, created_at,
+               class_group_id, lesson_date, teacher_id, swimming_pool_id
+        FROM class_diaries WHERE id = ${diaryId}
+      `);
+      const diary = diaryRow.rows[0] as any;
+      if (!diary) return apiErr(res, 404, "diary_id not found in DB");
+
+      if (poolId && diary.swimming_pool_id !== poolId)
+        return apiErr(res, 403, "pool mismatch");
+
+      // 2. 같은 class_group_id + lesson_date 조합 전체 row
+      const siblings = await db.execute(sql`
+        SELECT id, is_deleted, created_at, updated_at, deleted_at
+        FROM class_diaries
+        WHERE class_group_id = ${diary.class_group_id}
+          AND lesson_date = ${diary.lesson_date}
+        ORDER BY created_at ASC
+      `);
+
+      // 3. 현재 GET /diaries 응답에서 이 ID가 내려올 것인지 확인
+      const activeForDate = await db.execute(sql`
+        SELECT id, is_deleted FROM class_diaries
+        WHERE class_group_id = ${diary.class_group_id}
+          AND lesson_date = ${diary.lesson_date}
+          AND is_deleted = false
+      `);
+
+      res.json({
+        deploymentVersion: DEPLOY_VERSION,
+        dbHost: DB_HOST,
+        targetDiary: diary,
+        siblingRows: siblings.rows,
+        activeRowsForSameClassDate: activeForDate.rows,
+        diagnosis: {
+          isDeletedInDB: diary.is_deleted,
+          totalRowsForClassDate: siblings.rows.length,
+          activeRowsCount: activeForDate.rows.length,
+          targetIdInActiveRows: (activeForDate.rows as any[]).some(r => r.id === diaryId),
+        },
+      });
+    } catch (e) {
+      console.error("[diagnostic]", e);
+      apiErr(res, 500, "서버 오류");
+    }
+  }
+);
+
 router.get("/diaries/:id",
   requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
@@ -617,11 +685,12 @@ router.delete("/diaries/:id",
   requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
     const diaryId = req.params.id;
-    console.log(`[DELETE /diaries] ▶ START — diaryId=${diaryId} userId=${req.user?.userId} role=${req.user?.role}`);
+    const transactionId = genId("tx");
+    console.log(`[DIARY DELETE START] diaryId=${diaryId} deploymentVersion=${DEPLOY_VERSION} dbHost=${DB_HOST} transactionId=${transactionId} userId=${req.user?.userId} role=${req.user?.role}`);
     try {
       const { userId, role } = req.user!;
       const poolId = await getUserPoolId(userId);
-      console.log(`[DELETE /diaries] poolId=${poolId}`);
+      console.log(`[DIARY DELETE START] poolId=${poolId} transactionId=${transactionId}`);
 
       // ── 삭제 대상 조회 ──
       const rows = await db.execute(sql`
@@ -720,14 +789,12 @@ router.delete("/diaries/:id",
         `);
         console.log(`[DELETE /diaries] TX step6: video(note) affectedRows=${(videoRes2 as any).rowCount ?? 0}`);
       });
-      console.log(`[DELETE /diaries] COMMIT success — diaryRows=${diaryRowCount}, photoRows=${photoRowCount}, noteCount=${noteCount}`);
-
       // ── POST-COMMIT 검증: 트랜잭션 커밋 후 실제 DB 상태 확인 ──────────────
       const verifyRow = await db.execute(sql`
         SELECT id, is_deleted, deleted_at, updated_at FROM class_diaries WHERE id = ${diaryId}
       `);
       const verified = verifyRow.rows[0] as any;
-      console.log(`[DELETE /diaries] POST-COMMIT DB verify: id=${verified?.id} is_deleted=${verified?.is_deleted} deleted_at=${verified?.deleted_at} updated_at=${verified?.updated_at}`);
+      console.log(`[DIARY DELETE COMMIT] diaryId=${diaryId} transactionId=${transactionId} isDeletedAfter=${verified?.is_deleted} deletedAtAfter=${verified?.deleted_at} updatedAt=${verified?.updated_at} diaryRows=${diaryRowCount} photoRows=${photoRowCount}`);
 
       // ── photo_assets_meta 검증 ──────────────────────────────────────────────
       const photoVerify = await db.execute(sql`

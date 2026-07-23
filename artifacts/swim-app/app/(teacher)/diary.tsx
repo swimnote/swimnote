@@ -821,6 +821,20 @@ export default function TeacherDiaryScreen() {
       setPendingNoteIds({});
       setSubView("history");
 
+      // Issue 1 Fix: 삭제 후 backTo 파라미터가 있으면 원래 화면으로 복귀
+      // → 사용자가 diary 화면에 남아 있어 실수로 새 일지를 재생성하는 것을 방지
+      const backToAfterDelete = params.backTo as string | undefined;
+      if (backToAfterDelete === "my-schedule") {
+        console.log(`[DELETE NAVIGATE] → my-schedule`);
+        setTimeout(() => router.replace("/(teacher)/my-schedule" as any), 300);
+      } else if (backToAfterDelete === "today-schedule") {
+        console.log(`[DELETE NAVIGATE] → today-schedule`);
+        setTimeout(() => router.replace("/(teacher)/today-schedule" as any), 300);
+      } else if (backToAfterDelete) {
+        console.log(`[DELETE NAVIGATE] → router.back()`);
+        setTimeout(() => router.back(), 300);
+      }
+
       // 5. 진짜 백그라운드 재조회 — UI 블로킹 없음 (fire-and-forget)
       const bgVer = ++diariesReqVersion.current;
       ;(async () => {
