@@ -26,10 +26,12 @@ interface Thread {
   class_name: string;
   parent_msg_count: number;
   unread_count: number;
+  unread_comment_count: number;
   last_msg_at: string;
   last_content: string;
   last_sender_role: string;
   last_sender_name: string;
+  last_message_type?: string;
 }
 
 interface Message {
@@ -400,22 +402,44 @@ export default function MessagesInboxScreen() {
             data={threads}
             keyExtractor={item => item.diary_id}
             contentContainerStyle={{ padding: 16, gap: 8 }}
-            renderItem={({ item }) => (
+            renderItem={({ item }) => {
+              const isComment = item.last_message_type === "diary_comment";
+              const totalUnread = (item.unread_count ?? 0) + (item.unread_comment_count ?? 0);
+              const hasUnread = totalUnread > 0;
+              return (
               <Pressable
                 style={({ pressed }) => [s.threadItem, { opacity: pressed ? 0.85 : 1 }]}
-                onPress={() => openThread(item)}
+                onPress={() => {
+                  if (isComment) {
+                    router.push({
+                      pathname: "/(teacher)/diary-reactions",
+                      params: {
+                        diaryId: item.diary_id,
+                        lessonDate: item.lesson_date ? item.lesson_date.slice(0, 10) : "",
+                        source: "teacher_home_inbox",
+                      },
+                    } as any);
+                  } else {
+                    openThread(item);
+                  }
+                }}
               >
-                <View style={[s.threadIcon, { backgroundColor: item.unread_count > 0 ? themeColor + "20" : "#F1F5F9" }]}>
-                  <LucideIcon name="message-square" size={20} color={item.unread_count > 0 ? themeColor : C.textMuted} />
+                <View style={[s.threadIcon, { backgroundColor: hasUnread ? (isComment ? "#10B98120" : themeColor + "20") : "#F1F5F9" }]}>
+                  <LucideIcon name={isComment ? "message-circle" : "message-square"} size={20} color={hasUnread ? (isComment ? "#10B981" : themeColor) : C.textMuted} />
                 </View>
                 <View style={{ flex: 1, gap: 3 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    {isComment && (
+                      <View style={{ backgroundColor: "#D1FAE5", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                        <Text style={{ fontSize: 10, color: "#059669", fontFamily: "Pretendard-SemiBold" }}>새 댓글</Text>
+                      </View>
+                    )}
                     <Text style={[s.threadClass, { color: C.text }]} numberOfLines={1}>
                       {item.class_name || "반 정보 없음"} · {item.lesson_date ? item.lesson_date.slice(0,10) : ""}
                     </Text>
-                    {item.unread_count > 0 && (
-                      <View style={[s.unreadBadge, { backgroundColor: C.error }]}>
-                        <Text style={s.unreadBadgeTxt}>{item.unread_count}</Text>
+                    {totalUnread > 0 && (
+                      <View style={[s.unreadBadge, { backgroundColor: isComment ? "#10B981" : C.error }]}>
+                        <Text style={s.unreadBadgeTxt}>{totalUnread}</Text>
                       </View>
                     )}
                   </View>
@@ -426,7 +450,8 @@ export default function MessagesInboxScreen() {
                 </View>
                 <Text style={[s.threadTime, { color: C.textMuted }]}>{fmtDate(item.last_msg_at)}</Text>
               </Pressable>
-            )}
+            );
+          }}
           />
         )
       )}

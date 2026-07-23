@@ -55,7 +55,32 @@ async function ensureTables() {
 }
 ensureTables().catch(console.error);
 
-async function getSenderInfo(userId: string) {
+async function getSenderInfo(userId: string, role?: string) {
+  // parent_account → parent_accounts 테이블 + 연결 학생의 수영장 정보
+  if (role === "parent_account") {
+    try {
+      const rows = await db.execute(sql`
+        SELECT pa.name,
+               s.swimming_pool_id,
+               sp.name AS pool_name
+        FROM parent_accounts pa
+        LEFT JOIN parent_students ps ON ps.parent_id = pa.id AND ps.status = 'approved'
+        LEFT JOIN students s ON s.id = ps.student_id
+        LEFT JOIN swimming_pools sp ON sp.id = s.swimming_pool_id
+        WHERE pa.id = ${userId}
+        LIMIT 1
+      `);
+      const row = rows.rows[0] as any;
+      return {
+        name: row?.name || "",
+        pool_id: row?.swimming_pool_id || null,
+        pool_name: row?.pool_name || null,
+      };
+    } catch {
+      return { name: "", pool_id: null, pool_name: null };
+    }
+  }
+  // 일반 users 테이블
   try {
     const rows = await superAdminDb.execute(sql`
       SELECT u.name, u.swimming_pool_id, sp.name AS pool_name
@@ -80,7 +105,7 @@ function roleLabel(role: string): string {
   if (role === "pool_admin") return "관리자";
   if (role === "sub_admin")  return "관리자";
   if (role === "teacher")    return "선생님";
-  if (role === "parent")     return "학부모";
+  if (role === "parent" || role === "parent_account") return "학부모";
   return role;
 }
 
@@ -98,7 +123,7 @@ router.post("/inquiries", requireAuth, async (req: AuthRequest, res) => {
 
     const allowedTargets: string[] = SUPER_ROLES.has(role)
       ? []
-      : role === "parent"
+      : (role === "parent" || role === "parent_account")
         ? ["super", "admin"]
         : ["super"];
 
@@ -107,7 +132,7 @@ router.post("/inquiries", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
-    const { name, pool_id, pool_name } = await getSenderInfo(userId!);
+    const { name, pool_id, pool_name } = await getSenderInfo(userId!, role);
     const id = crypto.randomUUID();
 
     await db.execute(sql`

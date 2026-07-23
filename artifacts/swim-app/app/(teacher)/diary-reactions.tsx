@@ -7,6 +7,7 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import Colors from "@/constants/colors";
+import { parseDateSafe } from "@/domain/formatters";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -60,7 +61,8 @@ function fmtDate(d: string) {
 
 function fmtTime(iso: string) {
   if (!iso) return "";
-  const d = new Date(iso);
+  const d = parseDateSafe(iso);
+  if (!d) return "";
   const hh = d.getHours().toString().padStart(2, "0");
   const mm = d.getMinutes().toString().padStart(2, "0");
   return `${hh}:${mm}`;
@@ -69,7 +71,15 @@ function fmtTime(iso: string) {
 export default function DiaryReactionsScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const { diaryId, lessonDate } = useLocalSearchParams<{ diaryId: string; lessonDate: string }>();
+  const { diaryId, lessonDate, source } = useLocalSearchParams<{ diaryId: string; lessonDate: string; source?: string }>();
+
+  const handleBack = useCallback(() => {
+    if (source === "teacher_home_inbox") {
+      router.replace("/(teacher)/today-schedule" as any);
+    } else {
+      router.back();
+    }
+  }, [source]);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -131,7 +141,7 @@ export default function DiaryReactionsScreen() {
       <SubScreenHeader
         title="반응 & 댓글"
         subtitle={displayDate}
-        onBack={() => router.back()}
+        onBack={handleBack}
       />
 
       {loading ? (

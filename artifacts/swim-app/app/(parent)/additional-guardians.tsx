@@ -218,41 +218,51 @@ export default function AdditionalGuardiansScreen() {
       )}
 
       {/* 전화번호 입력 모달 */}
-      <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-          <Pressable style={overlay} onPress={() => setModalVisible(false)} />
-          <View style={sheet}>
-            <Text style={sheetTitle}>{modalStudentName} — 보호자 추가</Text>
-            <Text style={sheetDesc}>추가할 보호자의 전화번호를 입력해주세요.</Text>
-            <TextInput
-              style={phoneInputStyle}
-              placeholder="010-0000-0000"
-              placeholderTextColor="#94A3B8"
-              keyboardType="phone-pad"
-              value={phoneInput}
-              onChangeText={setPhoneInput}
-              autoFocus
-            />
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
-              <Pressable
-                style={({ pressed }) => [cancelBtn, { opacity: pressed ? 0.7 : 1 }]}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={{ fontSize: 15, color: "#64748B", fontFamily: "Pretendard-Medium" }}>취소</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [confirmBtn, { opacity: pressed ? 0.85 : 1 }]}
-                onPress={submitAdd}
-                disabled={saving}
-              >
-                {saving
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={{ fontSize: 15, color: "#fff", fontFamily: "Pretendard-SemiBold" }}>등록하기</Text>
-                }
-              </Pressable>
+      <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
+        <View style={{ flex: 1 }}>
+          {/* 배경 딤 — 절대 포지션으로 뒤에 깔림 */}
+          <Pressable
+            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.4)" }}
+            onPress={() => setModalVisible(false)}
+          />
+          {/* KAV는 flex-end로 시트를 아래 붙이고, 키보드가 열리면 위로 밀어올림 */}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1, justifyContent: "flex-end" }}
+          >
+            <View style={sheet}>
+              <Text style={sheetTitle}>{modalStudentName} — 보호자 추가</Text>
+              <Text style={sheetDesc}>추가할 보호자의 전화번호를 입력해주세요.</Text>
+              <TextInput
+                style={phoneInputStyle}
+                placeholder="010-0000-0000"
+                placeholderTextColor="#94A3B8"
+                keyboardType="phone-pad"
+                value={phoneInput}
+                onChangeText={setPhoneInput}
+                autoFocus
+              />
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
+                <Pressable
+                  style={({ pressed }) => [cancelBtn, { opacity: pressed ? 0.7 : 1 }]}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={{ fontSize: 15, color: "#64748B", fontFamily: "Pretendard-Medium" }}>취소</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [confirmBtn, { opacity: pressed ? 0.85 : 1 }]}
+                  onPress={submitAdd}
+                  disabled={saving}
+                >
+                  {saving
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={{ fontSize: 15, color: "#fff", fontFamily: "Pretendard-SemiBold" }}>등록하기</Text>
+                  }
+                </Pressable>
+              </View>
             </View>
-          </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </View>
   );
@@ -302,7 +312,6 @@ const overlay: object = {
 };
 
 const sheet: object = {
-  position: "absolute", bottom: 0, left: 0, right: 0,
   backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
   padding: 24, paddingBottom: 40, gap: 12,
 };

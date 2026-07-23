@@ -1995,7 +1995,11 @@ router.get("/teacher/messages/threads",
            ORDER BY dm2.created_at DESC LIMIT 1) AS last_sender_role,
           (SELECT dm2.sender_name FROM diary_messages dm2
            WHERE dm2.diary_id = cd.id AND dm2.is_deleted = false
-           ORDER BY dm2.created_at DESC LIMIT 1) AS last_sender_name
+           ORDER BY dm2.created_at DESC LIMIT 1) AS last_sender_name,
+          (SELECT dm2.message_type FROM diary_messages dm2
+           WHERE dm2.diary_id = cd.id AND dm2.is_deleted = false
+           ORDER BY dm2.created_at DESC LIMIT 1) AS last_message_type,
+          COUNT(dm.id) FILTER (WHERE dm.sender_role = 'parent' AND dm.read_at IS NULL AND dm.is_deleted = false AND dm.message_type = 'diary_comment') AS unread_comment_count
         FROM class_diaries cd
         JOIN class_groups cg ON cg.id = cd.class_group_id
         LEFT JOIN diary_messages dm ON dm.diary_id = cd.id
