@@ -19,6 +19,7 @@ import { useBrand } from "@/context/BrandContext";
 import ScheduleCard from "@/components/teacher/today-schedule/ScheduleCard";
 import { ScheduleCardSkeleton } from "@/components/common/SkeletonBox";
 import { haptic } from "@/utils/haptic";
+import { onDiaryChanged } from "@/utils/diaryEvents";
 import MemoSheet from "@/components/teacher/today-schedule/MemoSheet";
 import AbsenceModal from "@/components/teacher/today-schedule/AbsenceModal";
 import ScheduleMemoModal from "@/components/teacher/today-schedule/ScheduleMemoModal";
@@ -130,6 +131,18 @@ export default function TodayScheduleScreen() {
     overviewTimerRef.current = setInterval(loadOverview, 60_000);
     return () => { if (overviewTimerRef.current) clearInterval(overviewTimerRef.current); };
   }, [load, loadOverview]));
+  // 일지 생성/삭제 이벤트 구독 → items diary_done 즉시 갱신 + overview 카운트 재조회
+  useEffect(() => {
+    return onDiaryChanged(ev => {
+      if (ev.lessonDate !== today) return;
+      setItems(prev => prev.map(item =>
+        item.id === ev.classGroupId
+          ? { ...item, diary_done: ev.type === "created" }
+          : item
+      ));
+      loadOverview();
+    });
+  }, [today, loadOverview]);
   const pendingAtt  = items.filter(i => i.student_count > 0 && i.att_present < i.student_count).length;
   const diaryPending = items.filter(i => !i.diary_done).length;
   const sortedItems  = [...items].sort((a, b) => a.schedule_time.localeCompare(b.schedule_time));

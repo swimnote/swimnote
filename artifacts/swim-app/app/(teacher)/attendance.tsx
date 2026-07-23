@@ -22,6 +22,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { onDiaryChanged } from "@/utils/diaryEvents";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { WeeklySchedule } from "@/components/teacher/WeeklySchedule";
@@ -131,6 +132,19 @@ export default function TeacherAttendanceScreen() {
   const [extCustom,      setExtCustom]      = useState("");
   const [extLoading,     setExtLoading]     = useState(false);
   const [extError,       setExtError]       = useState("");
+  /* ════════════════════ 일지 이벤트 구독 ════════════════════ */
+  useEffect(() => {
+    return onDiaryChanged(ev => {
+      const today = todayDateStr();
+      if (ev.lessonDate !== today) return;
+      setDiarySet(prev => {
+        const next = new Set(prev);
+        if (ev.type === "deleted") next.delete(ev.classGroupId);
+        else next.add(ev.classGroupId);
+        return next;
+      });
+    });
+  }, []);
   /* ════════════════════ 로드 ════════════════════ */
   const load = useCallback(async () => {
     const today = todayDateStr();

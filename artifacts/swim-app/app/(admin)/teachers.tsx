@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { onDiaryChanged } from "@/utils/diaryEvents";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import TeacherPickerList, { TeacherForPicker } from "@/components/admin/TeacherPickerList";
 import ClassDetailPanel, { ClassDetail } from "@/components/admin/ClassDetailPanel";
@@ -101,6 +102,19 @@ export default function TeachersScreen() {
 
   // 화면 진입·재진입 시 최신 선생님 데이터 재조회
   useFocusEffect(useCallback(() => { fetchAll(); }, [fetchAll]));
+  // 일지 생성/삭제 이벤트 구독 → diarySet 즉시 갱신 (오늘 날짜 기준)
+  useEffect(() => {
+    return onDiaryChanged(ev => {
+      const today = todayDateStr();
+      if (ev.lessonDate !== today) return;
+      setDiarySet(prev => {
+        const next = new Set(prev);
+        if (ev.type === "deleted") next.delete(ev.classGroupId);
+        else next.add(ev.classGroupId);
+        return next;
+      });
+    });
+  }, []);
 
   async function fetchClassDetail(classId: string, date: string) {
     setDetailLoading(true); setDetailDate(date);

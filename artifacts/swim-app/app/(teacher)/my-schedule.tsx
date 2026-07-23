@@ -15,6 +15,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { addTabResetListener } from "@/utils/tabReset";
+import { onDiaryChanged } from "@/utils/diaryEvents";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
@@ -123,6 +124,18 @@ export default function MyScheduleScreen() {
     finally { setAssigningMakeupId(null); }
   }
   useEffect(() => { load(); }, [load]);
+  // 일지 생성/삭제 이벤트 구독 → dayDiarySet 즉시 갱신 (선택 날짜 기준)
+  useEffect(() => {
+    return onDiaryChanged(ev => {
+      if (!selectedDate || ev.lessonDate !== selectedDate) return;
+      setDayDiarySet(prev => {
+        const next = new Set(prev);
+        if (ev.type === "deleted") next.delete(ev.classGroupId);
+        else next.add(ev.classGroupId);
+        return next;
+      });
+    });
+  }, [selectedDate]);
   useEffect(() => {
     if (!detailGroup || !selectedDate || !token) {
       setDetailDateStudents([]);

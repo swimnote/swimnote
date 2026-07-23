@@ -28,6 +28,7 @@ import {
   StudentNote, StudentOption, SubView, UploadedMedia, todayStr,
 } from "@/components/teacher/diary/types";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { emitDiaryChanged } from "@/utils/diaryEvents";
 import { haptic } from "@/utils/haptic";
 const C = Colors.light;
 export default function TeacherDiaryScreen() {
@@ -545,6 +546,8 @@ export default function TeacherDiaryScreen() {
       setStudentAlbumPhotos({}); setStudentAlbumVideos({});
       setStudentNotes([]); setCommonContent(""); setAddNoteStudent(null); setNoteInput("");
       haptic.success();
+      // 전 화면에 생성 이벤트 전파 (홈·스케줄러·어드민 즉시 갱신)
+      emitDiaryChanged({ type: "created", diaryId: "", classGroupId: selectedGroup!.id, lessonDate: targetDate });
       // 즉시 history 뷰로 전환
       setSubView("history");
       const savedGroupId = selectedGroup!.id;
@@ -777,6 +780,8 @@ export default function TeacherDiaryScreen() {
       setDiaries(prev => prev.filter(d => d.id !== deletedId));
       setDiarySet(prev => { const n = new Set(prev); n.delete(`${groupId}_${deletedDate}`); return n; });
       console.log(`[CLIENT DELETE CLEANUP] deletedId=${deletedId} keyRemoved=${groupId}_${deletedDate}`);
+      // 전 화면에 삭제 이벤트 전파 (홈·스케줄러·어드민 즉시 갱신)
+      emitDiaryChanged({ type: "deleted", diaryId: deletedId, classGroupId: groupId, lessonDate: deletedDate });
 
       // 4. draft 제거 (sync 불필요 → 비동기 처리)
       AsyncStorage.removeItem(`@swimnote:diary_draft:${groupId}:${deletedDate}`).catch(() => {});
