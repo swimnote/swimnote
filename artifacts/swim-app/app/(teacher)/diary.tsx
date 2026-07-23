@@ -704,43 +704,51 @@ export default function TeacherDiaryScreen() {
     if (!deleteTarget || !selectedGroup) return;
     setDeleteLoading(true);
     const deletedId = deleteTarget.id;
-    const deletedDate = deleteTarget.lesson_date ?? targetDate;
     const groupId = selectedGroup.id;
     try {
-      // 1. DELETE API 호출 — 성공 확인 전 UI 변경 없음
+      // 1. DELETE API — 성공 응답 확인 전 UI 변경 없음
       const r = await apiRequest(token, `/diaries/${deletedId}`, { method: "DELETE" });
       if (!r.ok) {
         const errData = await r.json().catch(() => ({})) as any;
         setDeleteError(errData?.error || "삭제에 실패했습니다. 다시 시도해주세요.");
         return;
       }
-      // 2. DELETE 성공 → 즉시 로컬에서 제거 (refetch 완료를 기다리지 않음)
+
+      // 2. DELETE 성공 → 서버 목록 재조회 (실제 DB 상태 확인)
+      const r2 = await apiRequest(token, `/diaries?class_group_id=${groupId}`);
+      const raw = r2.ok ? await r2.json().catch(() => null) : null;
+
+      if (Array.isArray(raw)) {
+        // 3a. 서버 응답으로 UI 업데이트 — 필터 없이 실제 상태 반영
+        const diaryList = raw as DiaryEntry[];
+        const stillExists = diaryList.some(d => d.id === deletedId);
+        if (stillExists) {
+          // 서버에 여전히 존재 → 삭제 미반영 오류
+          setDeleteError("일지 삭제가 완료되지 않았습니다. 다시 시도해주세요.");
+          return;
+        }
+        setDiaries(diaryList);
+        setDiarySet(() => {
+          const next = new Set<string>();
+          diaryList.forEach(d => { if (d.class_group_id && d.lesson_date) next.add(`${d.class_group_id}_${d.lesson_date}`); });
+          return next;
+        });
+      } else {
+        // 3b. 재조회 실패 시 로컬에서만 제거 (fallback)
+        setDiaries(prev => prev.filter(d => d.id !== deletedId));
+        setDiarySet(prev => {
+          const next = new Set(prev);
+          const deletedDate = deleteTarget.lesson_date ?? targetDate;
+          next.delete(`${groupId}_${deletedDate}`);
+          return next;
+        });
+      }
+
+      // 4. 삭제 완료 처리
       setDeleteTarget(null);
       setDeleteError(null);
-      setDiaries(prev => prev.filter(d => d.id !== deletedId));
-      setDiarySet(prev => {
-        const next = new Set(prev);
-        next.delete(`${groupId}_${deletedDate}`);
-        return next;
-      });
-      // editDiary가 삭제된 일지이면 초기화
       if (editDiary?.id === deletedId) setEditDiary(null);
-      // 항상 히스토리 뷰 유지 — write 뷰 자동 이동 없음
       setSubView("history");
-      // 3. 백그라운드 서버 재조회 — flicker 방지: 결과에서도 deletedId 제거
-      apiRequest(token, `/diaries?class_group_id=${groupId}`)
-        .then(r2 => r2.ok ? r2.json() : null)
-        .then((raw) => {
-          if (!Array.isArray(raw)) return;
-          const diaryList = (raw as DiaryEntry[]).filter(d => d.id !== deletedId);
-          setDiaries(diaryList);
-          setDiarySet(() => {
-            const next = new Set<string>();
-            diaryList.forEach(d => { if (d.class_group_id && d.lesson_date) next.add(`${d.class_group_id}_${d.lesson_date}`); });
-            return next;
-          });
-        })
-        .catch(() => {}); // 백그라운드 실패는 무시 — 로컬 제거로 이미 반영됨
     } catch {
       setDeleteError("네트워크 오류로 삭제하지 못했습니다. 다시 시도해주세요.");
     } finally { setDeleteLoading(false); }

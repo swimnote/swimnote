@@ -20,7 +20,7 @@ import { sql, eq, and, desc, or } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
-import { attachPhotosToDiary, attachPhotosToStudentNote, handleDiaryDeleted, type MediaActorContext } from "../services/mediaService.js";
+import { attachPhotosToDiary, attachPhotosToStudentNote, type MediaActorContext } from "../services/mediaService.js";
 import { SWIMNOTE_DEFAULT_TEMPLATES, insertDefaultTemplates } from "../lib/defaultTemplates.js";
 
 const router = Router();
@@ -613,44 +613,99 @@ router.put("/diaries/:id",
 router.delete("/diaries/:id",
   requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
+    const diaryId = req.params.id;
+    console.log(`[DELETE /diaries] ▶ START — diaryId=${diaryId} userId=${req.user?.userId} role=${req.user?.role}`);
     try {
       const { userId, role } = req.user!;
       const poolId = await getUserPoolId(userId);
-      const rows = await db.execute(sql`SELECT * FROM class_diaries WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
+      console.log(`[DELETE /diaries] poolId=${poolId}`);
+
+      // ── 삭제 대상 조회 ──
+      const rows = await db.execute(sql`
+        SELECT id, is_deleted, teacher_id, class_group_id, common_content, swimming_pool_id
+        FROM class_diaries
+        WHERE id = ${diaryId} AND swimming_pool_id = ${poolId}
+      `);
       const diary = rows.rows[0] as any;
+      console.log(`[DELETE /diaries] SELECT: ${diary
+        ? `found — is_deleted=${diary.is_deleted}, teacher_id=${diary.teacher_id}, pool=${diary.swimming_pool_id}`
+        : "NOT FOUND (id or poolId mismatch)"}`);
+
       if (!diary) return apiErr(res, 404, "일지를 찾을 수 없습니다.");
-      if (diary.is_deleted) return apiErr(res, 400, "이미 삭제된 일지입니다.");
-      if (role === "teacher" && diary.teacher_id !== userId) return apiErr(res, 403, "본인 일지만 삭제할 수 있습니다.");
+      if (diary.is_deleted) {
+        console.log(`[DELETE /diaries] REJECTED — already deleted`);
+        return apiErr(res, 400, "이미 삭제된 일지입니다.");
+      }
+      if (role === "teacher" && diary.teacher_id !== userId) {
+        console.log(`[DELETE /diaries] REJECTED — not owner (diary.teacher_id=${diary.teacher_id} !== userId=${userId})`);
+        return apiErr(res, 403, "본인 일지만 삭제할 수 있습니다.");
+      }
 
       const actorName = await getUserName(userId);
-      const mediaActor: MediaActorContext = { userId, userName: actorName, role, poolId: poolId! };
-      // 일지 삭제 + 연결 사진 detached 처리를 단일 트랜잭션으로
-      await db.execute(sql`BEGIN`);
-      try {
-        await db.execute(sql`
+
+      // ── 트랜잭션: db.transaction() 으로 동일 커넥션 보장 ──────────────────
+      // ⚠️ 이전 방식(db.execute(BEGIN)/COMMIT)은 pg.Pool에서 커넥션이 달라져
+      //    트랜잭션이 무효화되는 버그가 있었음. drizzle 정식 API 사용.
+      let diaryRowCount = 0;
+      let photoRowCount = 0;
+      let noteCount = 0;
+
+      console.log(`[DELETE /diaries] BEGIN transaction`);
+      await db.transaction(async (tx) => {
+        // 1. journals soft-delete
+        console.log(`[DELETE /diaries] TX step1: UPDATE class_diaries SET is_deleted=true`);
+        const diaryRes = await tx.execute(sql`
           UPDATE class_diaries
           SET is_deleted = true, deleted_at = NOW(), deleted_by = ${userId}, updated_at = NOW()
-          WHERE id = ${req.params.id}
+          WHERE id = ${diaryId} AND swimming_pool_id = ${poolId}
         `);
-        // Media Engine: 연결 사진 journal_id 해제 + media_status='detached'
-        await handleDiaryDeleted(req.params.id, poolId!, mediaActor);
-        await db.execute(sql`COMMIT`);
-      } catch (txErr) {
-        await db.execute(sql`ROLLBACK`).catch(() => {});
-        throw txErr;
-      }
+        diaryRowCount = (diaryRes as any).rowCount ?? 0;
+        console.log(`[DELETE /diaries] TX step1: affectedRows=${diaryRowCount}`);
+        if (diaryRowCount === 0) {
+          throw new Error(`UPDATE class_diaries returned 0 rows — diaryId=${diaryId} poolId=${poolId}`);
+        }
+
+        // 2. student_notes 현황 로깅 (삭제는 별도 API, 여기서는 카운트만)
+        const noteRes = await tx.execute(sql`
+          SELECT COUNT(*)::int AS cnt
+          FROM class_diary_student_notes
+          WHERE diary_id = ${diaryId} AND is_deleted = false
+        `);
+        noteCount = (noteRes.rows[0] as any)?.cnt ?? 0;
+        console.log(`[DELETE /diaries] TX step2: student_notes(not deleted) count=${noteCount}`);
+
+        // 3. photo_assets_meta detach
+        console.log(`[DELETE /diaries] TX step3: UPDATE photo_assets_meta SET media_status='detached'`);
+        const photoRes = await tx.execute(sql`
+          UPDATE photo_assets_meta
+          SET journal_id = NULL,
+              student_note_id = NULL,
+              media_status = 'detached'
+          WHERE journal_id = ${diaryId} AND pool_id = ${poolId}
+        `);
+        photoRowCount = (photoRes as any).rowCount ?? 0;
+        console.log(`[DELETE /diaries] TX step3: photo affectedRows=${photoRowCount}`);
+      });
+      console.log(`[DELETE /diaries] COMMIT success — diaryRows=${diaryRowCount}, photoRows=${photoRowCount}, noteCount=${noteCount}`);
+
+      // ── 후처리: audit (트랜잭션 외부) ──────────────────────────────────────
       await logAudit({
-        diaryId: req.params.id, targetType: "common", actionType: "delete",
+        diaryId, targetType: "common", actionType: "delete",
         beforeContent: diary.common_content,
         actorId: userId, actorName, actorRole: role, poolId: poolId!,
-      });
+      }).catch(e => console.error(`[DELETE /diaries] logAudit error:`, e));
       logPoolEvent({
         pool_id: poolId!, event_type: "journal.delete", entity_type: "class_diary",
-        entity_id: req.params.id, actor_id: userId,
+        entity_id: diaryId, actor_id: userId,
         payload: { class_group_id: diary.class_group_id },
       }).catch(() => {});
+
+      console.log(`[DELETE /diaries] ◀ RESPONSE 200 — diaryId=${diaryId}`);
       res.json({ success: true });
-    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+    } catch (e) {
+      console.error(`[DELETE /diaries] ✖ ERROR — diaryId=${diaryId}:`, e);
+      apiErr(res, 500, "서버 오류");
+    }
   }
 );
 
