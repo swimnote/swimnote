@@ -84,7 +84,22 @@ function _setCached(key: string, data: unknown) {
 }
 function _bustRelated(path: string) {
   const base = path.split("?")[0];
-  for (const k of _apiCache.keys()) { if (k.includes(base)) _apiCache.delete(k); }
+  // 경로 계층 prefix 생성: /a/b/c → ['/a/b/c', '/a/b', '/a']
+  // → DELETE /diaries/abc123 시 /diaries?class_group_id=... 캐시도 함께 무효화
+  const parts = base.split("/").filter(Boolean);
+  const prefixes: string[] = [];
+  for (let i = parts.length; i >= 1; i--) {
+    prefixes.push("/" + parts.slice(0, i).join("/"));
+  }
+  for (const k of _apiCache.keys()) {
+    const kPath = k.split("::").slice(1).join("::");
+    for (const prefix of prefixes) {
+      if (kPath === prefix || kPath.startsWith(prefix + "?") || kPath.startsWith(prefix + "/")) {
+        _apiCache.delete(k);
+        break;
+      }
+    }
+  }
 }
 export function clearApiCache() { _apiCache.clear(); }
 // ─────────────────────────────────────────────────────────────────────────────

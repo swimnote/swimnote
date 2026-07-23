@@ -306,7 +306,9 @@ export default function TeacherDiaryScreen() {
     try {
       const r = await apiRequest(token, `/diaries?class_group_id=${classId}`);
       if (r.ok) { const data = await r.json(); setDiaries(Array.isArray(data) ? data : []); }
-    } catch {} finally { setDiaryLoading(false); }
+      else { console.error(`[loadDiaries] API 오류 status=${r.status} classId=${classId}`); }
+    } catch (e) { console.error('[loadDiaries] 네트워크 오류:', e); }
+    finally { setDiaryLoading(false); }
   }
   async function uploadGroupMedia(kind: "photo" | "video") {
     if (!selectedGroup) return;
