@@ -107,7 +107,7 @@ export default function DiaryReactionsScreen() {
     try {
       const r = await apiRequest(token, `/diary-comments/${replyTarget.id}/replies`, {
         method: "POST",
-        body: JSON.stringify({ content: replyInput.trim() }),
+        body: JSON.stringify({ body: replyInput.trim() }),
       });
       if (r.ok) {
         setReplyInput("");
