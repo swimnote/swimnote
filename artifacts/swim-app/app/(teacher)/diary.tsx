@@ -416,35 +416,49 @@ export default function TeacherDiaryScreen() {
     }
     setFormError(null); setSaving(true);
     try {
+      console.log(`[handleSave] START isRetry=${isRetry} pendingDiaryId=${pendingDiaryId}`);
+      console.log(`[handleSave] selectedAlbumIds=${JSON.stringify(selectedAlbumIds)}`);
+      console.log(`[handleSave] studentAlbumPhotos keys=${JSON.stringify(Object.keys(studentAlbumPhotos))}`);
+      console.log(`[handleSave] effectiveNotes=${JSON.stringify(effectiveNotes.map(n => ({ student_id: n.student_id, has_content: !!n.note_content?.trim() })))}`);
+
       // ── Step 1: 일지 생성 (첫 시도만) ─────────────────────────────────
       let diaryId = pendingDiaryId;
       let noteMap = { ...pendingNoteIds };
       if (!isRetry) {
+        console.log(`[handleSave] Step1 - POST /diaries START`);
         const r = await apiRequest(token, "/diaries", {
           method: "POST",
           body: JSON.stringify({ class_group_id: selectedGroup!.id, lesson_date: targetDate, common_content: commonContent.trim(), student_notes: effectiveNotes.map(n => ({ student_id: n.student_id, note_content: n.note_content })) }),
         });
         const data = await r.json();
+        console.log(`[handleSave] Step1 - POST /diaries response ok=${r.ok} status=${r.status} data=${JSON.stringify(data)}`);
         if (!r.ok) throw new Error(data?.error || "저장 실패");
         diaryId = data.diary_id || data.id;
         noteMap = {};
         if (data.student_notes && Array.isArray(data.student_notes)) {
           for (const n of data.student_notes) { noteMap[n.student_id] = n.id; }
         }
+        console.log(`[handleSave] Step1 DONE diaryId=${diaryId} noteMap=${JSON.stringify(noteMap)}`);
         setPendingDiaryId(diaryId!);
         setPendingNoteIds(noteMap);
         if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => {});
         setHasDraft(false);
+      } else {
+        console.log(`[handleSave] RETRY MODE diaryId=${diaryId} noteMap=${JSON.stringify(noteMap)}`);
       }
+
       // ── Step 2: 사진/영상 연결 — 에러 수집 ───────────────────────────
       const errors: string[] = [];
       if (selectedAlbumIds.length > 0) {
+        console.log(`[handleSave] Step2 - diary-attach START diary_id=${diaryId} photo_ids=${JSON.stringify(selectedAlbumIds)}`);
         const pr = await apiRequest(token, "/photos/diary-attach", {
           method: "POST",
           body: JSON.stringify({ diary_id: diaryId, photo_ids: selectedAlbumIds }),
         }).catch(() => null);
+        console.log(`[handleSave] Step2 - diary-attach DONE ok=${pr?.ok} status=${pr?.status}`);
         if (!pr?.ok) {
           const d = pr ? await pr.json().catch(() => ({})) as any : {};
+          console.log(`[handleSave] Step2 - diary-attach ERROR`, d);
           errors.push(`전체일지 사진 ${selectedAlbumIds.length}장: ${d?.error || "연결 실패"}`);
         }
       }
@@ -458,16 +472,21 @@ export default function TeacherDiaryScreen() {
           errors.push(`전체일지 영상 ${selectedAlbumVideos.length}개: ${d?.error || "연결 실패"}`);
         }
       }
+      console.log(`[handleSave] Step3 - student note photos. noteMap=${JSON.stringify(noteMap)}`);
       for (const [studentId, noteId] of Object.entries(noteMap)) {
         const photos = studentAlbumPhotos[studentId] ?? [];
         const sName = effectiveNotes.find(n => n.student_id === studentId)?.student_name ?? "학생";
+        console.log(`[handleSave] note loop studentId=${studentId} noteId=${noteId} photos=${photos.length}`);
         if (photos.length > 0) {
+          console.log(`[handleSave] note-attach START note_id=${noteId} photo_ids=${JSON.stringify(photos.map((p: AlbumPhotoInfo) => p.id))}`);
           const pr = await apiRequest(token, "/photos/note-attach", {
             method: "POST",
             body: JSON.stringify({ note_id: noteId, photo_ids: photos.map((p: AlbumPhotoInfo) => p.id) }),
           }).catch(() => null);
+          console.log(`[handleSave] note-attach DONE ok=${pr?.ok} status=${pr?.status}`);
           if (!pr?.ok) {
             const d = pr ? await pr.json().catch(() => ({})) as any : {};
+            console.log(`[handleSave] note-attach ERROR`, d);
             errors.push(`${sName} 개별사진 ${photos.length}장: ${d?.error || "연결 실패"}`);
           }
         }

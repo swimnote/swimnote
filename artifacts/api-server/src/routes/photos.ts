@@ -941,7 +941,10 @@ router.post("/photos/diary-attach", requireAuth, requireRole("teacher", "pool_ad
     const { userId } = req.user!;
     const { diary_id, photo_ids } = req.body as { diary_id: string; photo_ids: string[] };
 
+    console.log(`[diary-attach] START userId=${userId} diary_id=${diary_id} photo_ids=${JSON.stringify(photo_ids)}`);
+
     if (!diary_id || !Array.isArray(photo_ids)) {
+      console.log(`[diary-attach] INVALID PARAMS diary_id=${diary_id}`);
       res.status(400).json({ error: "diary_id와 photo_ids가 필요합니다." }); return;
     }
     if (photo_ids.length === 0) { res.json({ updated: 0 }); return; }
@@ -950,7 +953,16 @@ router.post("/photos/diary-attach", requireAuth, requireRole("teacher", "pool_ad
     }
 
     const poolId = await getUserPoolId(userId);
+    console.log(`[diary-attach] poolId=${poolId} for userId=${userId}`);
     if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
+
+    // diary 존재 여부 직접 확인 (디버깅)
+    const diaryCheckRow = await db.execute(sql`
+      SELECT id, swimming_pool_id, is_deleted FROM class_diaries WHERE id = ${diary_id} LIMIT 1
+    `);
+    const diaryCheck = diaryCheckRow.rows[0] as any;
+    console.log(`[diary-attach] DB diary check: found=${!!diaryCheck} id=${diaryCheck?.id} swimming_pool_id=${diaryCheck?.swimming_pool_id} is_deleted=${diaryCheck?.is_deleted}`);
+    console.log(`[diary-attach] poolId match: diary.swimming_pool_id=${diaryCheck?.swimming_pool_id} === token poolId=${poolId} → ${diaryCheck?.swimming_pool_id === poolId}`);
 
     // 기존 연결 사진 수 확인 (최대 20장 제한)
     const existingRow = await db.execute(sql`
@@ -963,9 +975,10 @@ router.post("/photos/diary-attach", requireAuth, requireRole("teacher", "pool_ad
     }
 
     await attachPhotosToDiary(diary_id, photo_ids, poolId);
+    console.log(`[diary-attach] SUCCESS diary_id=${diary_id} count=${photo_ids.length}`);
     res.json({ updated: photo_ids.length });
   } catch (err: any) {
-    console.error(err);
+    console.error(`[diary-attach] ERROR:`, err.message);
     if (err.message?.includes("찾을 수 없") || err.message?.includes("권한")) {
       res.status(400).json({ error: err.message }); return;
     }
@@ -1139,26 +1152,41 @@ router.post("/photos/note-attach", requireAuth, requireRole("teacher", "pool_adm
     const { userId } = req.user!;
     const { note_id, photo_ids } = req.body as { note_id: string; photo_ids: string[] };
 
+    console.log(`[note-attach] START userId=${userId} note_id=${note_id} photo_ids=${JSON.stringify(photo_ids)}`);
+
     if (!note_id || !Array.isArray(photo_ids) || photo_ids.length === 0) {
+      console.log(`[note-attach] INVALID PARAMS note_id=${note_id}`);
       res.status(400).json({ error: "note_id와 photo_ids가 필요합니다." }); return;
     }
 
     const poolId = await getUserPoolId(userId);
+    console.log(`[note-attach] poolId=${poolId} for userId=${userId}`);
     if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
 
     // note_id로 diary_id와 student_id 조회 (MediaService 호출에 필요)
     const noteRow = await db.execute(sql`
-      SELECT id, diary_id, student_id FROM class_diary_student_notes
-      WHERE id = ${note_id} AND is_deleted = false
+      SELECT id, diary_id, student_id, is_deleted FROM class_diary_student_notes
+      WHERE id = ${note_id}
       LIMIT 1
     `);
     const note = noteRow.rows[0] as any;
-    if (!note) { res.status(404).json({ error: "학생 노트를 찾을 수 없습니다." }); return; }
+    console.log(`[note-attach] DB note check: found=${!!note} id=${note?.id} diary_id=${note?.diary_id} student_id=${note?.student_id} is_deleted=${note?.is_deleted}`);
+    if (!note) {
+      // note_id로 아무 레코드도 없음 → 전체 count 확인
+      const totalRow = await db.execute(sql`SELECT COUNT(*)::int AS cnt FROM class_diary_student_notes`);
+      console.log(`[note-attach] TOTAL notes in DB: ${(totalRow.rows[0] as any)?.cnt}`);
+      res.status(404).json({ error: "학생 노트를 찾을 수 없습니다." }); return;
+    }
+    if (note.is_deleted) {
+      console.log(`[note-attach] note is_deleted=true`);
+      res.status(404).json({ error: "학생 노트를 찾을 수 없습니다." }); return;
+    }
 
     await attachPhotosToStudentNote(note.diary_id, note_id, note.student_id, photo_ids, poolId);
+    console.log(`[note-attach] SUCCESS note_id=${note_id} count=${photo_ids.length}`);
     res.json({ updated: photo_ids.length });
   } catch (err: any) {
-    console.error(err);
+    console.error(`[note-attach] ERROR:`, err.message);
     if (err.message?.includes("찾을 수 없") || err.message?.includes("권한")) {
       res.status(400).json({ error: err.message }); return;
     }

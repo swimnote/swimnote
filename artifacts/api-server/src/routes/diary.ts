@@ -475,10 +475,12 @@ router.post("/diaries",
         return apiErr(res, 409, "이미 해당 날짜에 일지가 작성되었습니다. 수정 기능을 사용해주세요.");
       }
 
+      console.log(`[diary-create] INSERT class_diaries id=${diaryId} swimming_pool_id=${poolId} lesson_date=${dateStr} class_group_id=${class_group_id}`);
       await db.execute(sql`
         INSERT INTO class_diaries (id, class_group_id, teacher_id, teacher_name, swimming_pool_id, lesson_date, common_content)
         VALUES (${diaryId}, ${class_group_id}, ${userId}, ${teacherName}, ${poolId}, ${dateStr}, ${(common_content || "").trim()})
       `);
+      console.log(`[diary-create] class_diaries INSERT done`);
 
       // auto-attach 제거: 선생님이 작성 화면에서 명시적으로 선택한 사진만 연결
       // (Reservation/draft 시스템: 같은 반+날짜의 draft 사진은 클라이언트에서 후보로 표시)
@@ -491,14 +493,20 @@ router.post("/diaries",
 
       // 학생별 추가 일지 저장
       const notes: any[] = Array.isArray(student_notes) ? student_notes : [];
+      console.log(`[diary-create] student_notes input count=${notes.length}`);
       const savedNotes: any[] = [];
       for (const n of notes) {
-        if (!n.student_id || !n.note_content?.trim()) continue;
+        if (!n.student_id || !n.note_content?.trim()) {
+          console.log(`[diary-create] SKIP note student_id=${n.student_id} note_content=${n.note_content}`);
+          continue;
+        }
         const noteId = genId("csn");
+        console.log(`[diary-create] INSERT student_note id=${noteId} diary_id=${diaryId} student_id=${n.student_id}`);
         await db.execute(sql`
           INSERT INTO class_diary_student_notes (id, diary_id, student_id, note_content)
           VALUES (${noteId}, ${diaryId}, ${n.student_id}, ${n.note_content.trim()})
         `);
+        console.log(`[diary-create] student_note INSERT done id=${noteId}`);
         await logAudit({
           diaryId, studentNoteId: noteId, targetType: "student_note", actionType: "create",
           afterContent: n.note_content.trim(),
@@ -506,6 +514,7 @@ router.post("/diaries",
         });
         savedNotes.push({ id: noteId, student_id: n.student_id, note_content: n.note_content.trim() });
       }
+      console.log(`[diary-create] savedNotes=${JSON.stringify(savedNotes.map(n => ({ id: n.id, student_id: n.student_id })))}`);
 
       // 학부모 푸시 알림
       const cgRow = await db.execute(sql`SELECT name FROM class_groups WHERE id = ${class_group_id}`);
