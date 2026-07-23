@@ -357,39 +357,53 @@ router.get("/teacher/me/stats", requireAuth,
 );
 
 // ── 미디어 사용량 ──────────────────────────────────────────────
+// photo_assets_meta / video_assets_meta 가 실제 사진·영상 저장 테이블
+// (구 student_photos / student_videos 는 사용하지 않음)
+// 집계 기준: uploaded_by = 로그인 선생님, media_status != 'deleted' (삭제 완료 제외)
 router.get("/teacher/me/media-usage", requireAuth,
   async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const photos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes, COUNT(*) as count
-        FROM student_photos WHERE uploader_id = ${userId}
-      `);
-      const videos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes, COUNT(*) as count
-        FROM student_videos WHERE uploader_id = ${userId}
-      `);
-      const photoRow = photos.rows[0] as any;
-      const videoRow = videos.rows[0] as any;
-      const photoBytes  = Number(photoRow?.total_bytes || 0);
-      const videoBytes  = Number(videoRow?.total_bytes || 0);
-      const photoCount  = Number(photoRow?.count || 0);
-      const videoCount  = Number(videoRow?.count || 0);
 
-      // 이번 달
-      const monthPhotos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total
-        FROM student_photos
-        WHERE uploader_id = ${userId}
-          AND date_trunc('month', created_at) = date_trunc('month', now())
-      `);
-      const monthVideos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total
-        FROM student_videos
-        WHERE uploader_id = ${userId}
-          AND date_trunc('month', created_at) = date_trunc('month', now())
-      `);
-      const monthBytes = Number((monthPhotos.rows[0] as any)?.total || 0) + Number((monthVideos.rows[0] as any)?.total || 0);
+      const [photoRow, videoRow, monthPhotoRow, monthVideoRow] = await Promise.all([
+        db.execute(sql`
+          SELECT
+            COALESCE(SUM(file_size), 0)::bigint AS total_bytes,
+            COUNT(*)::int                       AS count
+          FROM photo_assets_meta
+          WHERE uploaded_by = ${userId}
+            AND media_status != 'deleted'
+        `),
+        db.execute(sql`
+          SELECT
+            COALESCE(SUM(file_size), 0)::bigint AS total_bytes,
+            COUNT(*)::int                       AS count
+          FROM video_assets_meta
+          WHERE uploaded_by = ${userId}
+            AND media_status != 'deleted'
+        `),
+        db.execute(sql`
+          SELECT COALESCE(SUM(file_size), 0)::bigint AS total
+          FROM photo_assets_meta
+          WHERE uploaded_by = ${userId}
+            AND media_status != 'deleted'
+            AND created_at >= date_trunc('month', now())
+        `),
+        db.execute(sql`
+          SELECT COALESCE(SUM(file_size), 0)::bigint AS total
+          FROM video_assets_meta
+          WHERE uploaded_by = ${userId}
+            AND media_status != 'deleted'
+            AND created_at >= date_trunc('month', now())
+        `),
+      ]);
+
+      const photoBytes = Number((photoRow.rows[0] as any)?.total_bytes ?? 0);
+      const videoBytes = Number((videoRow.rows[0] as any)?.total_bytes ?? 0);
+      const photoCount = Number((photoRow.rows[0] as any)?.count ?? 0);
+      const videoCount = Number((videoRow.rows[0] as any)?.count ?? 0);
+      const monthBytes = Number((monthPhotoRow.rows[0] as any)?.total ?? 0)
+                       + Number((monthVideoRow.rows[0] as any)?.total ?? 0);
 
       res.json({
         photo_bytes: photoBytes, photo_count: photoCount,

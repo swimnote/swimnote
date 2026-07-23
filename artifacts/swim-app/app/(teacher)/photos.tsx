@@ -494,8 +494,8 @@ export default function TeacherPhotosScreen() {
       { key: "video_album",    mt: "video", sc: "private", icon: "video",   title: "내영상앨범",     sub: "내가 올린 개인 영상", color: "#5B21B6", bg: "#EDE9FE", isPremier: true  },
     ];
     return (
-      <SafeAreaView style={s.safe} edges={[]}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+      <SafeAreaView style={s.safe} edges={["top"]}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}>
           <View style={s.titleRow}><Text style={s.title}>사진 & 영상</Text></View>
           <View style={s.grid}>
             {HOME_TILES.map(tile => (
@@ -548,25 +548,32 @@ export default function TeacherPhotosScreen() {
               <LucideIcon name="hard-drive" size={15} color={themeColor} />
               <Text style={[s.usageCardTitle, { color: themeColor }]}>내 업로드 사용량</Text>
             </View>
-            <View style={s.usageCardBody}>
-              {([
-                { icon: "image" as const, color: "#E4A93A", label: `사진 ${usage?.photo_count ?? 0}개`, bytes: usage?.photo_bytes ?? 0 },
-                { icon: "video" as const, color: "#7C3AED", label: `영상 ${usage?.video_count ?? 0}개`, bytes: usage?.video_bytes ?? 0 },
-              ]).map(row => (
-                <View key={row.label} style={s.usageItem}>
-                  <LucideIcon name={row.icon} size={14} color={row.color} />
-                  <Text style={s.usageItemLabel}>{row.label}</Text>
-                  <Text style={s.usageItemBytes}>{fmtBytes(row.bytes)}</Text>
-                </View>
-              ))}
-              <View style={s.usageDivider} />
-              <View style={[s.usageItem, { backgroundColor: themeColor + "08" }]}>
-                <LucideIcon name="database" size={14} color={themeColor} />
-                <Text style={[s.usageItemLabel, { color: themeColor, fontFamily: "Pretendard-Regular" }]}>총 사용량</Text>
-                <Text style={[s.usageItemBytes, { color: themeColor, fontFamily: "Pretendard-Regular" }]}>{fmtBytes(usage?.total_bytes ?? 0)}</Text>
+            {usage === null ? (
+              <View style={{ paddingVertical: 18, alignItems: "center" }}>
+                <ActivityIndicator size="small" color={themeColor} />
+                <Text style={[s.usageMonthText, { marginTop: 6 }]}>사용량 계산 중…</Text>
               </View>
-              <Text style={s.usageMonthText}>이번 달: {fmtBytes(usage?.month_bytes ?? 0)}</Text>
-            </View>
+            ) : (
+              <View style={s.usageCardBody}>
+                {([
+                  { icon: "image" as const, color: "#E4A93A", label: `사진 ${usage.photo_count}개`, bytes: usage.photo_bytes },
+                  { icon: "video" as const, color: "#7C3AED", label: `영상 ${usage.video_count}개`, bytes: usage.video_bytes },
+                ]).map(row => (
+                  <View key={row.label} style={s.usageItem}>
+                    <LucideIcon name={row.icon} size={14} color={row.color} />
+                    <Text style={s.usageItemLabel}>{row.label}</Text>
+                    <Text style={s.usageItemBytes}>{fmtBytes(row.bytes)}</Text>
+                  </View>
+                ))}
+                <View style={s.usageDivider} />
+                <View style={[s.usageItem, { backgroundColor: themeColor + "08" }]}>
+                  <LucideIcon name="database" size={14} color={themeColor} />
+                  <Text style={[s.usageItemLabel, { color: themeColor, fontFamily: "Pretendard-Regular" }]}>총 사용량</Text>
+                  <Text style={[s.usageItemBytes, { color: themeColor, fontFamily: "Pretendard-Regular" }]}>{fmtBytes(usage.total_bytes)}</Text>
+                </View>
+                <Text style={s.usageMonthText}>이번 달: {fmtBytes(usage.month_bytes)}</Text>
+              </View>
+            )}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -1094,22 +1101,22 @@ export default function TeacherPhotosScreen() {
 // ── 스타일 ────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#FFFFFF" },
-  titleRow: { paddingHorizontal: 16, paddingVertical: 10 },
+  titleRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
   title: { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  grid: { flexDirection: "row", flexWrap: "wrap", padding: 12, gap: 12 },
-  gridBtn: { width: "47%", aspectRatio: 1, borderRadius: 20, borderWidth: 2, alignItems: "center", justifyContent: "center", gap: 8, position: "relative", overflow: "hidden" },
-  gridIcon: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  gridTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", textAlign: "center" },
-  gridSub: { fontSize: 11, fontFamily: "Pretendard-Regular", textAlign: "center", paddingHorizontal: 6 },
-  premierBadge: { position: "absolute", top: 8, right: 0, backgroundColor: "#7C3AED", paddingHorizontal: 8, paddingVertical: 3, borderTopLeftRadius: 8, borderBottomLeftRadius: 8 },
+  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingVertical: 4, gap: 12 },
+  gridBtn: { width: "47%", paddingVertical: 16, borderRadius: 18, borderWidth: 2, alignItems: "center", justifyContent: "center", gap: 6, position: "relative", overflow: "hidden" },
+  gridIcon: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  gridTitle: { fontSize: 14, fontFamily: "Pretendard-SemiBold", textAlign: "center" },
+  gridSub: { fontSize: 10, fontFamily: "Pretendard-Regular", textAlign: "center", paddingHorizontal: 8, lineHeight: 14 },
+  premierBadge: { position: "absolute", top: 6, right: 0, backgroundColor: "#7C3AED", paddingHorizontal: 7, paddingVertical: 2, borderTopLeftRadius: 7, borderBottomLeftRadius: 7 },
   premierBadgeText: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#fff" },
-  limitCard: { marginHorizontal: 12, marginTop: 4, marginBottom: 4, backgroundColor: "#F8FAFC", borderRadius: 16, borderWidth: 1, borderColor: "#E5E7EB", overflow: "hidden" },
+  limitCard: { marginHorizontal: 16, marginTop: 16, marginBottom: 4, backgroundColor: "#F8FAFC", borderRadius: 16, borderWidth: 1, borderColor: "#E5E7EB", overflow: "hidden" },
   limitCardHeader: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   limitCardTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
   limitCardBody: { paddingHorizontal: 14, paddingVertical: 10, gap: 8 },
   limitRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   limitText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18 },
-  usageCard: { marginHorizontal: 12, marginTop: 4, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden" },
+  usageCard: { marginHorizontal: 16, marginTop: 4, marginBottom: 8, backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#F1F5F9", overflow: "hidden" },
   usageCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   usageCardTitle: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   usageCardBody: { padding: 12, gap: 2 },
