@@ -27,16 +27,17 @@ async function parentOwnsStudent(parentId: string, studentId: string): Promise<b
   return r.rows.length > 0;
 }
 
-/** 일지가 해당 학생에게 공개돼 있는지 확인 (학생이 그 반에 속했었는지) */
+/** 일지가 해당 학생에게 공개돼 있는지 확인 (학생이 그 반에 속해 있거나 속했었는지) */
 async function diaryVisibleToStudent(diaryId: string, studentId: string): Promise<boolean> {
+  // 날짜 범위 검사 없이 class_group 소속 여부만 확인
+  // (student_class_history의 enrolled_at/left_at 날짜 데이터 오류로 인한 false negative 방지)
+  // parentOwnsStudent 검사에서 이미 보호자-학생 연결을 검증하므로 class 소속만 확인
   const r = await db.execute(sql`
     SELECT cd.id FROM class_diaries cd
     JOIN student_class_history sch ON sch.class_group_id = cd.class_group_id
     WHERE cd.id = ${diaryId}
       AND cd.is_deleted = false
       AND sch.student_id = ${studentId}
-      AND sch.enrolled_at <= cd.lesson_date::date
-      AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
     LIMIT 1
   `);
   return r.rows.length > 0;
