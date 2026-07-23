@@ -20,7 +20,6 @@ import { sql, eq, and, desc, or } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
-import { attachPhotosToDiary, attachPhotosToStudentNote, type MediaActorContext } from "../services/mediaService.js";
 import { SWIMNOTE_DEFAULT_TEMPLATES, insertDefaultTemplates } from "../lib/defaultTemplates.js";
 
 const router = Router();
@@ -475,46 +474,50 @@ router.post("/diaries",
         return apiErr(res, 409, "이미 해당 날짜에 일지가 작성되었습니다. 수정 기능을 사용해주세요.");
       }
 
-      console.log(`[diary-create] INSERT class_diaries id=${diaryId} swimming_pool_id=${poolId} lesson_date=${dateStr} class_group_id=${class_group_id}`);
-      await db.execute(sql`
-        INSERT INTO class_diaries (id, class_group_id, teacher_id, teacher_name, swimming_pool_id, lesson_date, common_content)
-        VALUES (${diaryId}, ${class_group_id}, ${userId}, ${teacherName}, ${poolId}, ${dateStr}, ${(common_content || "").trim()})
-      `);
-      console.log(`[diary-create] class_diaries INSERT done`);
+      // 학생별 추가 일지 저장
+      const notes: any[] = Array.isArray(student_notes) ? student_notes : [];
+      console.log(`[diary-create] student_notes input count=${notes.length}`);
+      const savedNotes: any[] = [];
 
-      // auto-attach 제거: 선생님이 작성 화면에서 명시적으로 선택한 사진만 연결
-      // (Reservation/draft 시스템: 같은 반+날짜의 draft 사진은 클라이언트에서 후보로 표시)
+      // 트랜잭션: 일지 + 학생별 노트 원자적 생성
+      await db.transaction(async (tx) => {
+        console.log(`[diary-create] INSERT class_diaries id=${diaryId} swimming_pool_id=${poolId} lesson_date=${dateStr} class_group_id=${class_group_id}`);
+        await tx.execute(sql`
+          INSERT INTO class_diaries (id, class_group_id, teacher_id, teacher_name, swimming_pool_id, lesson_date, common_content)
+          VALUES (${diaryId}, ${class_group_id}, ${userId}, ${teacherName}, ${poolId}, ${dateStr}, ${(common_content || "").trim()})
+        `);
+        console.log(`[diary-create] class_diaries INSERT done`);
 
+        for (const n of notes) {
+          if (!n.student_id || !n.note_content?.trim()) {
+            console.log(`[diary-create] SKIP note student_id=${n.student_id} note_content=${n.note_content}`);
+            continue;
+          }
+          const noteId = genId("csn");
+          console.log(`[diary-create] INSERT student_note id=${noteId} diary_id=${diaryId} student_id=${n.student_id}`);
+          await tx.execute(sql`
+            INSERT INTO class_diary_student_notes (id, diary_id, student_id, note_content)
+            VALUES (${noteId}, ${diaryId}, ${n.student_id}, ${n.note_content.trim()})
+          `);
+          console.log(`[diary-create] student_note INSERT done id=${noteId}`);
+          savedNotes.push({ id: noteId, student_id: n.student_id, note_content: n.note_content.trim() });
+        }
+      });
+      console.log(`[diary-create] TX committed. savedNotes=${JSON.stringify(savedNotes.map(n => ({ id: n.id, student_id: n.student_id })))}`);
+
+      // 트랜잭션 외부: 감사 로그 (실패해도 일지 생성에 영향 없음)
       await logAudit({
         diaryId, targetType: "common", actionType: "create",
         afterContent: (common_content || "").trim(),
         actorId: userId, actorName: teacherName, actorRole: role, poolId,
       });
-
-      // 학생별 추가 일지 저장
-      const notes: any[] = Array.isArray(student_notes) ? student_notes : [];
-      console.log(`[diary-create] student_notes input count=${notes.length}`);
-      const savedNotes: any[] = [];
-      for (const n of notes) {
-        if (!n.student_id || !n.note_content?.trim()) {
-          console.log(`[diary-create] SKIP note student_id=${n.student_id} note_content=${n.note_content}`);
-          continue;
-        }
-        const noteId = genId("csn");
-        console.log(`[diary-create] INSERT student_note id=${noteId} diary_id=${diaryId} student_id=${n.student_id}`);
-        await db.execute(sql`
-          INSERT INTO class_diary_student_notes (id, diary_id, student_id, note_content)
-          VALUES (${noteId}, ${diaryId}, ${n.student_id}, ${n.note_content.trim()})
-        `);
-        console.log(`[diary-create] student_note INSERT done id=${noteId}`);
+      for (const n of savedNotes) {
         await logAudit({
-          diaryId, studentNoteId: noteId, targetType: "student_note", actionType: "create",
-          afterContent: n.note_content.trim(),
+          diaryId, studentNoteId: n.id, targetType: "student_note", actionType: "create",
+          afterContent: n.note_content,
           actorId: userId, actorName: teacherName, actorRole: role, poolId,
         });
-        savedNotes.push({ id: noteId, student_id: n.student_id, note_content: n.note_content.trim() });
       }
-      console.log(`[diary-create] savedNotes=${JSON.stringify(savedNotes.map(n => ({ id: n.id, student_id: n.student_id })))}`);
 
       // 학부모 푸시 알림
       const cgRow = await db.execute(sql`SELECT name FROM class_groups WHERE id = ${class_group_id}`);
@@ -674,7 +677,7 @@ router.delete("/diaries/:id",
         noteCount = (noteRes.rows[0] as any)?.cnt ?? 0;
         console.log(`[DELETE /diaries] TX step2: student_notes(not deleted) count=${noteCount}`);
 
-        // 3. photo_assets_meta detach
+        // 3. photo_assets_meta detach — journal_id 직접 연결 사진
         console.log(`[DELETE /diaries] TX step3: UPDATE photo_assets_meta SET media_status='detached'`);
         const photoRes = await tx.execute(sql`
           UPDATE photo_assets_meta
@@ -685,6 +688,37 @@ router.delete("/diaries/:id",
         `);
         photoRowCount = (photoRes as any).rowCount ?? 0;
         console.log(`[DELETE /diaries] TX step3: photo affectedRows=${photoRowCount}`);
+
+        // 4. photo_assets_meta detach — student_note 경유 연결 사진 (journal_id 없이 student_note_id만 있는 경우)
+        await tx.execute(sql`
+          UPDATE photo_assets_meta
+          SET student_note_id = NULL,
+              student_id = NULL,
+              media_status = 'detached'
+          WHERE student_note_id IN (
+            SELECT id FROM class_diary_student_notes WHERE diary_id = ${diaryId}
+          ) AND pool_id = ${poolId}
+        `);
+
+        // 5. video_assets_meta detach — journal_id 직접 연결 영상
+        console.log(`[DELETE /diaries] TX step5: UPDATE video_assets_meta SET journal_id=NULL`);
+        const videoRes1 = await tx.execute(sql`
+          UPDATE video_assets_meta
+          SET journal_id = NULL
+          WHERE journal_id = ${diaryId} AND pool_id = ${poolId}
+        `);
+        console.log(`[DELETE /diaries] TX step5: video(journal) affectedRows=${(videoRes1 as any).rowCount ?? 0}`);
+
+        // 6. video_assets_meta detach — student_note 경유 연결 영상
+        console.log(`[DELETE /diaries] TX step6: UPDATE video_assets_meta SET student_note_id=NULL`);
+        const videoRes2 = await tx.execute(sql`
+          UPDATE video_assets_meta
+          SET student_note_id = NULL
+          WHERE student_note_id IN (
+            SELECT id FROM class_diary_student_notes WHERE diary_id = ${diaryId}
+          ) AND pool_id = ${poolId}
+        `);
+        console.log(`[DELETE /diaries] TX step6: video(note) affectedRows=${(videoRes2 as any).rowCount ?? 0}`);
       });
       console.log(`[DELETE /diaries] COMMIT success — diaryRows=${diaryRowCount}, photoRows=${photoRowCount}, noteCount=${noteCount}`);
 
@@ -742,7 +776,6 @@ router.post("/diaries/with-media",
       if (!poolId) return apiErr(res, 403, "수영장 정보를 찾을 수 없습니다.");
 
       const teacherName = await getUserName(userId);
-      const mediaActor: MediaActorContext = { userId, userName: teacherName, role, poolId };
 
       // 권한 검증
       if (role === "teacher") {
@@ -768,51 +801,86 @@ router.post("/diaries/with-media",
         return apiErr(res, 409, "이미 해당 날짜에 일지가 작성되었습니다. 수정 기능을 사용해주세요.");
       }
 
+      const notes: any[] = Array.isArray(student_notes) ? student_notes : [];
+      const cPhotoIds = Array.isArray(common_photo_ids) ? common_photo_ids : [];
+
+      // 트랜잭션 전 사진 소유권·중복 연결 검증
+      const allPrePhotoIds = [...cPhotoIds];
+      for (const n of notes) {
+        if (Array.isArray(n.photo_ids)) allPrePhotoIds.push(...(n.photo_ids as string[]));
+      }
+      const uniquePrePhotoIds = [...new Set(allPrePhotoIds)];
+      if (uniquePrePhotoIds.length > 0) {
+        const preLiteral = `{${uniquePrePhotoIds.join(",")}}`;
+        const checkRow = await db.execute(sql`
+          SELECT COUNT(*)::int AS cnt FROM photo_assets_meta
+          WHERE id = ANY(${preLiteral}::text[]) AND pool_id = ${poolId}
+        `);
+        if (Number((checkRow.rows[0] as any)?.cnt ?? 0) !== uniquePrePhotoIds.length) {
+          return apiErr(res, 403, "일부 사진에 대한 접근 권한이 없습니다.");
+        }
+        const alreadyAttachedCheck = await db.execute(sql`
+          SELECT id FROM photo_assets_meta
+          WHERE id = ANY(${preLiteral}::text[]) AND media_status = 'attached'
+        `);
+        if ((alreadyAttachedCheck.rows as any[]).length > 0) {
+          const ids = (alreadyAttachedCheck.rows as any[]).map((r: any) => r.id).join(", ");
+          return apiErr(res, 409, `이미 다른 일지에 연결된 사진이 포함되어 있습니다: ${ids}`);
+        }
+      }
+
       const diaryId = genId("cd");
       const savedNotes: any[] = [];
 
-      // 단일 트랜잭션: 일지 + 노트 + 사진 연결
-      await db.execute(sql`BEGIN`);
-      try {
+      // 단일 트랜잭션: 일지 + 노트 + 사진 연결 (db.transaction으로 동일 커넥션 보장)
+      await db.transaction(async (tx) => {
         // 1. 일지 생성
-        await db.execute(sql`
+        await tx.execute(sql`
           INSERT INTO class_diaries (id, class_group_id, teacher_id, teacher_name, swimming_pool_id, lesson_date, common_content)
           VALUES (${diaryId}, ${class_group_id}, ${userId}, ${teacherName}, ${poolId}, ${dateStr}, ${(common_content || "").trim()})
         `);
 
         // 2. 학생별 노트 생성
-        const notes: any[] = Array.isArray(student_notes) ? student_notes : [];
         for (const n of notes) {
           if (!n.student_id || !n.note_content?.trim()) continue;
           const noteId = genId("csn");
-          await db.execute(sql`
+          await tx.execute(sql`
             INSERT INTO class_diary_student_notes (id, diary_id, student_id, note_content)
             VALUES (${noteId}, ${diaryId}, ${n.student_id}, ${n.note_content.trim()})
           `);
           savedNotes.push({ id: noteId, student_id: n.student_id, note_content: n.note_content.trim() });
         }
 
-        // 3. 공통 사진 연결
-        const cPhotoIds = Array.isArray(common_photo_ids) ? common_photo_ids : [];
+        // 3. 공통 사진 연결 (tx 내 인라인 SQL — mediaService db.execute() 대신 tx.execute() 사용)
         if (cPhotoIds.length > 0) {
-          await attachPhotosToDiary(diaryId, cPhotoIds, poolId, mediaActor);
+          const literal = `{${cPhotoIds.join(",")}}`;
+          await tx.execute(sql`
+            UPDATE photo_assets_meta
+            SET journal_id = ${diaryId},
+                class_id = COALESCE(class_id, ${class_group_id}),
+                media_status = 'attached'
+            WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
+          `);
         }
 
-        // 4. 학생별 개인 사진 연결
-        for (let i = 0; i < savedNotes.length; i++) {
-          const note = savedNotes[i];
-          const origNote = notes.find(n => n.student_id === note.student_id);
-          const photoIds = Array.isArray(origNote?.photo_ids) ? origNote.photo_ids : [];
+        // 4. 학생별 개인 사진 연결 (tx 내 인라인 SQL)
+        for (const note of savedNotes) {
+          const origNote = notes.find((n: any) => n.student_id === note.student_id);
+          const photoIds: string[] = Array.isArray(origNote?.photo_ids) ? origNote.photo_ids : [];
           if (photoIds.length > 0) {
-            await attachPhotosToStudentNote(diaryId, note.id, note.student_id, photoIds, poolId, mediaActor);
+            const literal = `{${photoIds.join(",")}}`;
+            await tx.execute(sql`
+              UPDATE photo_assets_meta
+              SET student_note_id = ${note.id},
+                  student_id = ${note.student_id},
+                  journal_id = COALESCE(journal_id, ${diaryId}),
+                  class_id = COALESCE(class_id, ${class_group_id}),
+                  media_status = 'attached'
+              WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
+            `);
           }
         }
-
-        await db.execute(sql`COMMIT`);
-      } catch (txErr) {
-        await db.execute(sql`ROLLBACK`).catch(() => {});
-        throw txErr;
-      }
+      });
 
       // 5. 감사 로그 (트랜잭션 외부)
       await logAudit({
