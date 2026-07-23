@@ -170,7 +170,13 @@ export default function TeacherDiaryScreen() {
       }
       if (dRes.ok) {
         const arr: any[] = await dRes.json();
-        setDiarySet(new Set(arr.map((d: any) => d.class_group_id && d.lesson_date ? `${d.class_group_id}_${d.lesson_date}` : null).filter(Boolean) as string[]));
+        const deletedInLoad = arr.filter((d: any) => d.is_deleted === true);
+        if (deletedInLoad.length > 0) {
+          console.error(`[LOAD] ⚠️ /diaries?lesson_date=${targetDate} returned ${deletedInLoad.length} is_deleted=true entries! ids=${JSON.stringify(deletedInLoad.map((d: any) => d.id))}`);
+        }
+        const keysToSet = arr.map((d: any) => d.class_group_id && d.lesson_date ? `${d.class_group_id}_${d.lesson_date}` : null).filter(Boolean) as string[];
+        console.log(`[LOAD] diarySet update: count=${arr.length} keys=${JSON.stringify(keysToSet)}`);
+        setDiarySet(new Set(keysToSet));
       }
       const paramKey = params.classGroupId ?? params.editDiaryId;
       if (paramKey && paramKey !== handledParamKey.current) {
@@ -753,7 +759,17 @@ export default function TeacherDiaryScreen() {
       const deleteBodyText = await r.text().catch(() => "");
       let deleteBodyJson: any = {};
       try { deleteBodyJson = JSON.parse(deleteBodyText); } catch {}
-      console.log(`[DELETE RESPONSE] diary_id=${deletedId} status=${r.status} body=${deleteBodyText.slice(0, 200)}`);
+      console.log(`[DELETE RESPONSE] diary_id=${deletedId} status=${r.status} body=${deleteBodyText.slice(0, 300)}`);
+      if (deleteBodyJson?._verify) {
+        const v = deleteBodyJson._verify;
+        console.log(`[DELETE DB VERIFY] is_deleted=${v.is_deleted} deleted_at=${v.deleted_at} still_attached_photos=${v.still_attached_photos}`);
+        if (v.is_deleted !== true) {
+          console.error(`[DELETE DB VERIFY] ⚠️ CRITICAL: DB is_deleted is NOT true after DELETE! actual=${v.is_deleted}`);
+        }
+        if (Number(v.still_attached_photos) > 0) {
+          console.error(`[DELETE DB VERIFY] ⚠️ CRITICAL: ${v.still_attached_photos} photos still attached after DELETE!`);
+        }
+      }
 
       // 멱등 삭제: 200 OK 또는 alreadyDeleted/이미삭제 응답 → 성공
       // 404는 진짜 오류(pool 불일치 등)이므로 성공으로 처리하지 않음

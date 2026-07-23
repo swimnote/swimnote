@@ -722,6 +722,22 @@ router.delete("/diaries/:id",
       });
       console.log(`[DELETE /diaries] COMMIT success — diaryRows=${diaryRowCount}, photoRows=${photoRowCount}, noteCount=${noteCount}`);
 
+      // ── POST-COMMIT 검증: 트랜잭션 커밋 후 실제 DB 상태 확인 ──────────────
+      const verifyRow = await db.execute(sql`
+        SELECT id, is_deleted, deleted_at, updated_at FROM class_diaries WHERE id = ${diaryId}
+      `);
+      const verified = verifyRow.rows[0] as any;
+      console.log(`[DELETE /diaries] POST-COMMIT DB verify: id=${verified?.id} is_deleted=${verified?.is_deleted} deleted_at=${verified?.deleted_at} updated_at=${verified?.updated_at}`);
+
+      // ── photo_assets_meta 검증 ──────────────────────────────────────────────
+      const photoVerify = await db.execute(sql`
+        SELECT COUNT(*) AS still_attached
+        FROM photo_assets_meta
+        WHERE journal_id = ${diaryId} AND media_status = 'attached'
+      `);
+      const stillAttached = (photoVerify.rows[0] as any)?.still_attached ?? '?';
+      console.log(`[DELETE /diaries] POST-COMMIT photo verify: still_attached_count=${stillAttached}`);
+
       // ── 후처리: audit (트랜잭션 외부) ──────────────────────────────────────
       await logAudit({
         diaryId, targetType: "common", actionType: "delete",
@@ -735,7 +751,14 @@ router.delete("/diaries/:id",
       }).catch(() => {});
 
       console.log(`[DELETE /diaries] ◀ RESPONSE 200 — diaryId=${diaryId}`);
-      res.json({ success: true });
+      res.json({
+        success: true,
+        _verify: {
+          is_deleted: verified?.is_deleted,
+          deleted_at: verified?.deleted_at,
+          still_attached_photos: stillAttached,
+        },
+      });
     } catch (e) {
       console.error(`[DELETE /diaries] ✖ ERROR — diaryId=${diaryId}:`, e);
       apiErr(res, 500, "서버 오류");
