@@ -643,16 +643,33 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
     let photos: any[];
     if (scope === "group") {
       // 전체앨범 = pool 전체 사진 (class 무관)
+      // Issue 3 Fix: 삭제된 일지에 연결된 사진을 'draft'로 반환 (picker와 동일 로직)
       const poolId = await getUserPoolId(userId);
       if (!poolId) { res.json({ photos: [], total: 0 }); return; }
       const rows = await db.execute(sql`
         SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploaded_by_name,
                sp.caption, sp.created_at, sp.file_size, sp.object_key,
-               sp.media_status, sp.journal_id,
+               CASE
+                 WHEN sp.media_status = 'attached' AND (
+                   (sp.journal_id IS NOT NULL AND COALESCE(cd_j.is_deleted, false) = true)
+                   OR (sp.student_note_id IS NOT NULL AND COALESCE(cd_sn.is_deleted, false) = true)
+                 ) THEN 'draft'
+                 ELSE sp.media_status
+               END AS media_status,
+               CASE
+                 WHEN sp.media_status = 'attached' AND (
+                   (sp.journal_id IS NOT NULL AND COALESCE(cd_j.is_deleted, false) = true)
+                   OR (sp.student_note_id IS NOT NULL AND COALESCE(cd_sn.is_deleted, false) = true)
+                 ) THEN NULL
+                 ELSE sp.journal_id
+               END AS journal_id,
                '/api/photos/' || sp.id || '/file' AS file_url,
                cg.name AS class_name, cg.schedule_days, cg.schedule_time
         FROM photo_assets_meta sp
         LEFT JOIN class_groups cg ON cg.id = sp.class_id
+        LEFT JOIN class_diaries cd_j ON cd_j.id = sp.journal_id
+        LEFT JOIN class_diary_student_notes csn ON csn.id = sp.student_note_id
+        LEFT JOIN class_diaries cd_sn ON cd_sn.id = csn.diary_id
         WHERE sp.album_type = 'group'
           AND sp.pool_id = ${poolId}
         ORDER BY sp.created_at DESC
@@ -895,14 +912,33 @@ router.get("/photos/picker", requireAuth, requireRole("teacher", "pool_admin", "
 
     if (role === "teacher") {
       // 본인 담당 반 사진 + 수영장 공용(class_id=null) 사진 모두 포함
+      // ⚠️ Issue 2/3 Fix: 삭제된 일지에 연결된 사진을 'attached'로 오진하지 않도록
+      //    cd_j(journal_id 경유) + cd_sn(student_note_id 경유) LEFT JOIN으로
+      //    일지 is_deleted 상태를 확인 → 삭제된 일지 사진은 'draft'(사용 가능)로 반환
       const poolId = await getUserPoolId(userId);
       const rows = await db.execute(sql`
         SELECT sp.id, sp.class_id, sp.uploaded_by_name, sp.created_at, sp.file_size, sp.object_key,
-               sp.media_status, sp.journal_id,
+               CASE
+                 WHEN sp.media_status = 'attached' AND (
+                   (sp.journal_id IS NOT NULL AND COALESCE(cd_j.is_deleted, false) = true)
+                   OR (sp.student_note_id IS NOT NULL AND COALESCE(cd_sn.is_deleted, false) = true)
+                 ) THEN 'draft'
+                 ELSE sp.media_status
+               END AS media_status,
+               CASE
+                 WHEN sp.media_status = 'attached' AND (
+                   (sp.journal_id IS NOT NULL AND COALESCE(cd_j.is_deleted, false) = true)
+                   OR (sp.student_note_id IS NOT NULL AND COALESCE(cd_sn.is_deleted, false) = true)
+                 ) THEN NULL
+                 ELSE sp.journal_id
+               END AS journal_id,
                '/api/photos/' || sp.id || '/file' AS file_url,
                cg.name AS class_name
         FROM photo_assets_meta sp
         LEFT JOIN class_groups cg ON cg.id = sp.class_id
+        LEFT JOIN class_diaries cd_j ON cd_j.id = sp.journal_id
+        LEFT JOIN class_diary_student_notes csn ON csn.id = sp.student_note_id
+        LEFT JOIN class_diaries cd_sn ON cd_sn.id = csn.diary_id
         WHERE sp.album_type = 'group'
           AND (
             (sp.class_id IS NOT NULL AND cg.teacher_user_id = ${userId})
@@ -917,13 +953,30 @@ router.get("/photos/picker", requireAuth, requireRole("teacher", "pool_admin", "
     } else {
       const poolId = await getUserPoolId(userId);
       if (!poolId) { res.json({ photos: [], total: 0 }); return; }
+      // pool_admin도 동일하게 삭제된 일지 사진을 'draft'로 반환
       const rows = await db.execute(sql`
         SELECT sp.id, sp.class_id, sp.uploaded_by_name, sp.created_at, sp.file_size, sp.object_key,
-               sp.media_status, sp.journal_id,
+               CASE
+                 WHEN sp.media_status = 'attached' AND (
+                   (sp.journal_id IS NOT NULL AND COALESCE(cd_j.is_deleted, false) = true)
+                   OR (sp.student_note_id IS NOT NULL AND COALESCE(cd_sn.is_deleted, false) = true)
+                 ) THEN 'draft'
+                 ELSE sp.media_status
+               END AS media_status,
+               CASE
+                 WHEN sp.media_status = 'attached' AND (
+                   (sp.journal_id IS NOT NULL AND COALESCE(cd_j.is_deleted, false) = true)
+                   OR (sp.student_note_id IS NOT NULL AND COALESCE(cd_sn.is_deleted, false) = true)
+                 ) THEN NULL
+                 ELSE sp.journal_id
+               END AS journal_id,
                '/api/photos/' || sp.id || '/file' AS file_url,
                cg.name AS class_name
         FROM photo_assets_meta sp
         LEFT JOIN class_groups cg ON cg.id = sp.class_id
+        LEFT JOIN class_diaries cd_j ON cd_j.id = sp.journal_id
+        LEFT JOIN class_diary_student_notes csn ON csn.id = sp.student_note_id
+        LEFT JOIN class_diaries cd_sn ON cd_sn.id = csn.diary_id
         WHERE sp.album_type = 'group'
           AND sp.pool_id = ${poolId}
         ORDER BY sp.created_at DESC

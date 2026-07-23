@@ -14,6 +14,7 @@ import {
   ActivityIndicator, Alert, Dimensions, Modal, Platform, Pressable,
   ScrollView, StyleSheet, Text, ToastAndroid, View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiRequest, API_BASE } from "@/context/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 
@@ -46,6 +47,8 @@ interface Props {
 }
 
 export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diaryId, studentId, parentMode }: Props) {
+  // Safe area insets — 뷰어 헤더가 Dynamic Island/노치 뒤로 숨지 않도록
+  const insets = useSafeAreaInsets();
   // 사진 뷰어: null = 닫힘, 숫자 = 현재 인덱스
   const [viewIdx, setViewIdx] = useState<number | null>(null);
   const [viewVideo, setViewVideo] = useState<VideoItem | null>(null);
@@ -358,8 +361,8 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
         statusBarTranslucent
       >
         <View style={s.viewerBg}>
-          {/* 헤더: 닫기 + 카운터 */}
-          <View style={s.viewerHeader}>
+          {/* 헤더: 닫기 + 카운터 — insets.top으로 Dynamic Island/노치 회피 */}
+          <View style={[s.viewerHeader, { paddingTop: insets.top + 12 }]}>
             <Pressable style={s.viewerCloseBtn} onPress={() => setViewIdx(null)} hitSlop={8}>
               <LucideIcon name="x" size={22} color="#fff" />
             </Pressable>
@@ -557,7 +560,6 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: Platform.OS === "ios" ? 56 : 36,
     paddingHorizontal: 16,
     paddingBottom: 12,
   },

@@ -766,6 +766,90 @@ router.delete("/diaries/:id",
   }
 );
 
+// ── POST /diaries/repair-orphan-media — 삭제된 일지에 연결된 고아 미디어 정리 ──
+// Issue 1: 이전 버전(BEGIN/COMMIT 버그)으로 생성된 고아 레코드를 수동 정리.
+// pool_admin은 자신의 풀만, super_admin은 전체 정리.
+router.post("/diaries/repair-orphan-media",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, role } = req.user!;
+      const poolId = role === "super_admin" ? null : await getUserPoolId(userId);
+      if (role !== "super_admin" && !poolId) return apiErr(res, 403, "수영장 정보를 찾을 수 없습니다.");
+
+      const poolFilter = poolId
+        ? sql`AND pool_id = ${poolId}`
+        : sql``;
+      const diaryPoolFilter = poolId
+        ? sql`AND swimming_pool_id = ${poolId}`
+        : sql``;
+
+      // 1. photo_assets_meta: journal_id 경유 고아 (삭제된 일지 직접 연결)
+      const photo1 = await db.execute(sql`
+        UPDATE photo_assets_meta
+        SET journal_id = NULL, student_note_id = NULL, media_status = 'detached'
+        WHERE media_status = 'attached'
+          AND journal_id IS NOT NULL
+          AND journal_id IN (
+            SELECT id FROM class_diaries WHERE is_deleted = true ${diaryPoolFilter}
+          )
+          ${poolFilter}
+      `);
+
+      // 2. photo_assets_meta: student_note_id 경유 고아 (student_note → 삭제된 일지)
+      const photo2 = await db.execute(sql`
+        UPDATE photo_assets_meta
+        SET student_note_id = NULL, media_status = 'detached'
+        WHERE media_status = 'attached'
+          AND student_note_id IS NOT NULL
+          AND journal_id IS NULL
+          AND student_note_id IN (
+            SELECT csn.id FROM class_diary_student_notes csn
+            JOIN class_diaries cd ON cd.id = csn.diary_id AND cd.is_deleted = true
+            ${poolId ? sql`WHERE cd.swimming_pool_id = ${poolId}` : sql``}
+          )
+          ${poolFilter}
+      `);
+
+      // 3. video_assets_meta: journal_id 경유 고아
+      const video1 = await db.execute(sql`
+        UPDATE video_assets_meta
+        SET journal_id = NULL
+        WHERE journal_id IS NOT NULL
+          AND journal_id IN (
+            SELECT id FROM class_diaries WHERE is_deleted = true ${diaryPoolFilter}
+          )
+          ${poolFilter}
+      `);
+
+      // 4. video_assets_meta: student_note_id 경유 고아
+      const video2 = await db.execute(sql`
+        UPDATE video_assets_meta
+        SET student_note_id = NULL
+        WHERE student_note_id IS NOT NULL
+          AND student_note_id IN (
+            SELECT csn.id FROM class_diary_student_notes csn
+            JOIN class_diaries cd ON cd.id = csn.diary_id AND cd.is_deleted = true
+            ${poolId ? sql`WHERE cd.swimming_pool_id = ${poolId}` : sql``}
+          )
+          ${poolFilter}
+      `);
+
+      const result = {
+        photos_repaired_journal:    (photo1 as any).rowCount ?? 0,
+        photos_repaired_note:       (photo2 as any).rowCount ?? 0,
+        videos_repaired_journal:    (video1 as any).rowCount ?? 0,
+        videos_repaired_note:       (video2 as any).rowCount ?? 0,
+      };
+      console.log(`[repair-orphan-media] pool=${poolId ?? "ALL"} result=${JSON.stringify(result)}`);
+      res.json({ success: true, ...result });
+    } catch (e) {
+      console.error("[repair-orphan-media] ERROR:", e);
+      apiErr(res, 500, "서버 오류");
+    }
+  }
+);
+
 // ════════════════════════════════════════════════════════════════════════
 // 3. 학생별 추가 일지 CRUD
 // ── POST /diaries/with-media — 일지+사진 통합 저장 (단일 트랜잭션) ──────────

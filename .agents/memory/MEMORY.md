@@ -16,3 +16,5 @@
 - [DiaryWriteView LucideIcon 버그](diary-lucide-import.md) — LucideIcon import 누락 → ErrorFallback; 진단은 배포 로그 CRASH_REPORT로 확인
 - [학부모 앨범 사진 URL 패턴](parent-photo-url-pattern.md) — home.tsx/swim-diary.tsx는 API_BASE+file_url; photos.tsx는 API_BASE.replace(/\/api$/,"")+fileUrl; parent.ts는 각 소비처에 맞는 형식 반환 필요
 - [학부모 /auth/me 테이블 분리 구조](parent-auth-me-table-split.md) — parent_account role은 parent_accounts 테이블 소속; /auth/me에서 role 분기 필수, users 테이블 단독 조회 시 항상 404 → 앱 재실행마다 강제 로그아웃
+- [사진 미디어 상태 고아 버그](photo-orphan-media-fix.md) — 삭제된 일지 연결 사진이 'attached' 유지; picker·teacher-all 양쪽 LEFT JOIN으로 해결; repair-orphan-media 엔드포인트로 기존 데이터 정리
+- [앱→서버 배포 흐름](app-server-deploy-flow.md) — iPhone 앱은 swimnote.kr(Render.com) 연결; 서버 코드 변경은 Render.com 재배포 필수; 클라이언트 변경은 OTA 업데이트 필수
