@@ -249,6 +249,14 @@ export default function TeacherPhotosScreen() {
     }
     prevActiveRef.current = uploadActive;
   }, [uploadActive, step, loadList]);
+  // ── step이 "list"로 변경되거나 loadList(mediaType/scope/token) 변경 시 자동 로드 ──
+  // openList 내부에서 setStep("list")을 호출해도 step 변수는 아직 이전 값이라
+  // if (step === "list") loadList() 조건이 절대 true가 되지 않는 버그를 여기서 해결
+  useEffect(() => {
+    if (step === "list") {
+      loadList();
+    }
+  }, [step, loadList]);
   const openList = useCallback((mt: MediaType, sc: AlbumScope) => {
     setMediaType(mt);
     setScope(sc);
@@ -256,8 +264,8 @@ export default function TeacherPhotosScreen() {
     setSelected(new Set());
     setItems([]);
     setStep("list");
-    if (step === "list") loadList();
-  }, [step, loadList]);
+    // loadList는 위의 useEffect([step, loadList])에서 호출됨
+  }, []);
   // 전체앨범 사진 목록 로드 시 내앨범 저장 여부 병렬 로드
   useEffect(() => {
     if (step !== "list" || scope !== "group" || mediaType !== "photo") return;

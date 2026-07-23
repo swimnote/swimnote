@@ -139,7 +139,7 @@ export default function DiaryWriteView({
               {selectedAlbumPhotos.length > 0 && (
                 <View>
                   <Text style={[s.albumLabel, { color: "#3B82F6" }]}>첨부 사진 {selectedAlbumPhotos.length}장</Text>
-                  <View style={s.albumPreviewRow}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.albumPreviewRow} alwaysBounceHorizontal={false}>
                     {selectedAlbumPhotos.map(photo => (
                       <View key={photo.id} style={s.albumThumb}>
                         <ExpoImage
@@ -152,13 +152,13 @@ export default function DiaryWriteView({
                         </Pressable>
                       </View>
                     ))}
-                  </View>
+                  </ScrollView>
                 </View>
               )}
               {selectedAlbumVideos.length > 0 && (
                 <View>
                   <Text style={[s.albumLabel, { color: "#2EC4B6" }]}>첨부 영상 {selectedAlbumVideos.length}개</Text>
-                  <View style={s.albumPreviewRow}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.albumPreviewRow} alwaysBounceHorizontal={false}>
                     {selectedAlbumVideos.map(video => (
                       <View key={video.id} style={s.albumThumb}>
                         {video.thumbnail_presigned_url ? (
@@ -180,7 +180,7 @@ export default function DiaryWriteView({
                         </Pressable>
                       </View>
                     ))}
-                  </View>
+                  </ScrollView>
                 </View>
               )}
             </View>
@@ -295,7 +295,7 @@ export default function DiaryWriteView({
                 </Pressable>
               </View>
               {((studentAlbumPhotos[addNoteStudent.id] ?? []).length > 0 || (studentAlbumVideos[addNoteStudent.id] ?? []).length > 0) && (
-                <View style={[s.mediaPreviewRow, { marginTop: 6 }]}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} alwaysBounceHorizontal={false} contentContainerStyle={[s.mediaPreviewRow, { marginTop: 6 }]}>
                   {(studentAlbumPhotos[addNoteStudent.id] ?? []).map((p) => (
                     <Pressable key={p.id} style={s.mediaThumb} onPress={() => onRemoveStudentAlbumPhoto(addNoteStudent.id, p.id)}>
                       <ExpoImage source={{ uri: p.presigned_url || p.file_url }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
@@ -318,7 +318,7 @@ export default function DiaryWriteView({
                       </View>
                     </Pressable>
                   ))}
-                </View>
+                </ScrollView>
               )}
               <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
                 <Pressable style={[s.noteBtn, { borderColor: C.border }]} onPress={() => { setAddNoteStudent(null); setNoteInput(""); }}>
@@ -418,7 +418,7 @@ export const s = StyleSheet.create({
   mediaPreviewRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 4 },
   mediaThumb:    { width: 36, height: 36, borderRadius: 8, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
   albumLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular", marginBottom: 6 },
-  albumPreviewRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
+  albumPreviewRow: { flexDirection: "row", gap: 6 },
   albumThumb:    { width: 56, height: 56, borderRadius: 8, overflow: "hidden", backgroundColor: "#F1F5F9" },
   albumThumbRemove: { position: "absolute", top: 2, right: 2 },
   footer:        { gap: 8, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
