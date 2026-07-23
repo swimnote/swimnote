@@ -758,6 +758,19 @@ export default function TeacherDiaryScreen() {
       setDeleteTarget(null);
       setDeleteError(null);
       if (editDiary?.id === deletedId) setEditDiary(null);
+
+      // 5. 삭제된 일지의 group+date draft 제거 — 남아있으면 "임시저장 불러오기" 배너가
+      //    표시되어 사용자가 복원+저장 시 동일 내용으로 새 일지가 생성되는 문제 방지
+      const deletedDate = deleteTarget?.lesson_date ?? targetDate;
+      const ghostDraftKey = `@swimnote:diary_draft:${groupId}:${deletedDate}`;
+      await AsyncStorage.removeItem(ghostDraftKey).catch(() => {});
+      setHasDraft(false);
+      setCommonContent("");
+      setStudentNotes([]);
+      setPendingDiaryId(null);
+      setPendingNoteIds({});
+      console.log(`[confirmDelete] draft cleared for group=${groupId} date=${deletedDate}`);
+
       setSubView("history");
     } catch {
       setDeleteError("네트워크 오류로 삭제하지 못했습니다. 다시 시도해주세요.");
