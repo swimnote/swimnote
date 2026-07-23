@@ -39,6 +39,8 @@ export interface AlbumPhotoInfo {
   created_at: string;
   uploaded_by_name?: string;
   class_name?: string;
+  media_status?: string;
+  journal_id?: string;
 }
 
 export interface AlbumVideoInfo {

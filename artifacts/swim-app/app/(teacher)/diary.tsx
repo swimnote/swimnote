@@ -616,12 +616,20 @@ export default function TeacherDiaryScreen() {
       // ── 사진/영상 연결 — 에러 수집 ──────────────────────────────────
       const errors: string[] = [];
       if (editRemovedPhotoIds.length > 0) {
-        await apiRequest(token, "/photos/diary-detach", { method: "POST", body: JSON.stringify({ photo_ids: editRemovedPhotoIds }) })
-          .catch(() => {});
+        const dr = await apiRequest(token, "/photos/diary-detach", { method: "POST", body: JSON.stringify({ photo_ids: editRemovedPhotoIds }) })
+          .catch(() => null);
+        if (!dr?.ok) {
+          const d = dr ? await dr.json().catch(() => ({})) as any : {};
+          errors.push(`사진 ${editRemovedPhotoIds.length}장 제거: ${d?.error || "연결 해제 실패"}`);
+        }
       }
       if (editRemovedVideoIds.length > 0) {
-        await apiRequest(token, "/videos/diary-detach", { method: "POST", body: JSON.stringify({ video_ids: editRemovedVideoIds }) })
-          .catch(() => {});
+        const dr = await apiRequest(token, "/videos/diary-detach", { method: "POST", body: JSON.stringify({ video_ids: editRemovedVideoIds }) })
+          .catch(() => null);
+        if (!dr?.ok) {
+          const d = dr ? await dr.json().catch(() => ({})) as any : {};
+          errors.push(`영상 ${editRemovedVideoIds.length}개 제거: ${d?.error || "연결 해제 실패"}`);
+        }
       }
       if (editNewAlbumIds.length > 0) {
         const pr = await apiRequest(token, "/photos/diary-attach", {

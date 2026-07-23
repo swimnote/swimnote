@@ -648,12 +648,12 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
       const rows = await db.execute(sql`
         SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploaded_by_name,
                sp.caption, sp.created_at, sp.file_size, sp.object_key,
+               sp.media_status, sp.journal_id,
                '/api/photos/' || sp.id || '/file' AS file_url,
                cg.name AS class_name, cg.schedule_days, cg.schedule_time
         FROM photo_assets_meta sp
         LEFT JOIN class_groups cg ON cg.id = sp.class_id
         WHERE sp.album_type = 'group'
-          AND sp.media_status != 'attached'
           AND sp.pool_id = ${poolId}
         ORDER BY sp.created_at DESC
       `);
@@ -663,6 +663,7 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
       const rows = await db.execute(sql`
         SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploaded_by_name,
                sp.caption, sp.created_at, sp.file_size, sp.object_key,
+               sp.media_status, sp.journal_id,
                '/api/photos/' || sp.id || '/file' AS file_url,
                cg.name AS class_name, cg.schedule_days, cg.schedule_time,
                tsp.created_at AS saved_at
@@ -670,7 +671,6 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
         JOIN photo_assets_meta sp ON sp.id = tsp.photo_id
         LEFT JOIN class_groups cg ON cg.id = sp.class_id
         WHERE tsp.teacher_id = ${userId}
-          AND sp.media_status != 'attached'
         ORDER BY tsp.created_at DESC
       `);
       photos = await batchPresign(rows.rows as any[]);
@@ -898,12 +898,12 @@ router.get("/photos/picker", requireAuth, requireRole("teacher", "pool_admin", "
       const poolId = await getUserPoolId(userId);
       const rows = await db.execute(sql`
         SELECT sp.id, sp.class_id, sp.uploaded_by_name, sp.created_at, sp.file_size, sp.object_key,
+               sp.media_status, sp.journal_id,
                '/api/photos/' || sp.id || '/file' AS file_url,
                cg.name AS class_name
         FROM photo_assets_meta sp
         LEFT JOIN class_groups cg ON cg.id = sp.class_id
         WHERE sp.album_type = 'group'
-          AND sp.media_status != 'attached'
           AND (
             (sp.class_id IS NOT NULL AND cg.teacher_user_id = ${userId})
             OR
@@ -919,12 +919,12 @@ router.get("/photos/picker", requireAuth, requireRole("teacher", "pool_admin", "
       if (!poolId) { res.json({ photos: [], total: 0 }); return; }
       const rows = await db.execute(sql`
         SELECT sp.id, sp.class_id, sp.uploaded_by_name, sp.created_at, sp.file_size, sp.object_key,
+               sp.media_status, sp.journal_id,
                '/api/photos/' || sp.id || '/file' AS file_url,
                cg.name AS class_name
         FROM photo_assets_meta sp
         LEFT JOIN class_groups cg ON cg.id = sp.class_id
         WHERE sp.album_type = 'group'
-          AND sp.media_status != 'attached'
           AND sp.pool_id = ${poolId}
         ORDER BY sp.created_at DESC
       `);
