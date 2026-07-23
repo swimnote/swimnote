@@ -740,25 +740,37 @@ export default function TeacherDiaryScreen() {
       try { deleteBodyJson = JSON.parse(deleteBodyText); } catch {}
       console.log(`[DELETE RESPONSE] diary_id=${deletedId} status=${r.status} body=${deleteBodyText.slice(0, 200)}`);
 
-      if (!r.ok) {
+      // 멱등 삭제: 200(성공), 404(없음), alreadyDeleted=true, "이미 삭제" 모두 성공으로 처리
+      const isAlreadyDeleted = !r.ok && (
+        r.status === 404 ||
+        deleteBodyJson?.alreadyDeleted === true ||
+        (typeof deleteBodyJson?.error === "string" && deleteBodyJson.error.includes("이미 삭제"))
+      );
+      const isDeleteSuccess = r.ok || isAlreadyDeleted;
+
+      if (!isDeleteSuccess) {
         setDeleteError(deleteBodyJson?.error || "삭제에 실패했습니다. 다시 시도해주세요.");
         return;
       }
+      if (isAlreadyDeleted) {
+        console.log(`[DELETE RESPONSE] idempotent — diary already deleted on server, cleaning client state`);
+      }
 
-      // 2. DELETE 성공 → 모달 즉시 닫기 (스케줄러 freeze 방지)
-      //    기존: GET 재조회 완료 후에 setDeleteTarget(null) → 1~2초간 모달 배경이 화면 전체를 막음
-      //    수정: DELETE 성공 직후 모달 닫기 → 로컬 즉시 업데이트 → 백그라운드 재조회
+      // 2. 모달 즉시 닫기 → 스케줄러 freeze 방지
       setDeleteTarget(null);
       setDeleteError(null);
       if (editDiary?.id === deletedId) setEditDiary(null);
 
-      // 3. 로컬 즉시 UI 업데이트 (모달 닫힌 직후)
+      // 3. 로컬 즉시 UI 업데이트
+      const historySizeBefore = diaries.length;
+      const diaryKeysBefore = Array.from(diarySet);
       setDiaries(prev => prev.filter(d => d.id !== deletedId));
       setDiarySet(prev => {
         const next = new Set(prev);
         next.delete(`${groupId}_${deletedDate}`);
         return next;
       });
+      console.log(`[CLIENT DELETE CLEANUP] deletedDiaryId=${deletedId} historyBeforeCount=${historySizeBefore} schedulerKeysBefore=${JSON.stringify(diaryKeysBefore)} keyRemoved=${groupId}_${deletedDate}`);
 
       // 4. draft 제거
       const ghostDraftKey = `@swimnote:diary_draft:${groupId}:${deletedDate}`;
@@ -768,30 +780,29 @@ export default function TeacherDiaryScreen() {
       setStudentNotes([]);
       setPendingDiaryId(null);
       setPendingNoteIds({});
-      console.log(`[confirmDelete] draft cleared for group=${groupId} date=${deletedDate}`);
 
       setSubView("history");
 
-      // 5. 백그라운드 서버 재조회 — 모달 이미 닫혔으므로 블로킹 없음
+      // 5. 백그라운드 서버 재조회 — 서버 응답으로 배열 전체 교체 (merge 금지)
       try {
         const r2 = await apiRequest(token, `/diaries?class_group_id=${groupId}`);
         const raw = r2.ok ? await r2.json().catch(() => null) : null;
-        const histItems: Array<{ id: string; lesson_date: string; class_group_id: string; is_deleted: boolean }> =
-          Array.isArray(raw) ? raw.map((d: any) => ({ id: d.id, lesson_date: d.lesson_date, class_group_id: d.class_group_id, is_deleted: d.is_deleted })) : [];
-        console.log(`[HISTORY AFTER DELETE] source=network status=${r2.status} count=${histItems.length} items=${JSON.stringify(histItems)}`);
-        const stillExists = histItems.some(d => d.id === deletedId);
-        if (stillExists) {
-          console.warn(`[HISTORY AFTER DELETE] ⚠️ DELETED ID STILL IN SERVER RESPONSE! diary_id=${deletedId}`);
-        }
         if (Array.isArray(raw)) {
-          // 서버 응답 기준으로 최종 동기화 (deletedId는 안전하게 한번 더 제거)
-          const diaryList = (raw as DiaryEntry[]).filter(d => d.id !== deletedId);
+          // 서버 응답 기준 전체 교체 + 클라이언트에서 deletedId 한번 더 제거(안전장치)
+          const diaryList = (raw as DiaryEntry[]).filter(d => !d.is_deleted && d.id !== deletedId);
+          const newKeys = diaryList.map(d => `${d.class_group_id}_${d.lesson_date}`);
+          const deletedIdStillInServer = (raw as DiaryEntry[]).some(d => d.id === deletedId);
+          console.log(`[HISTORY AFTER DELETE] source=network status=${r2.status} count=${diaryList.length} ids=${JSON.stringify(diaryList.map(d => d.id))} deletedIdStillInServer=${deletedIdStillInServer}`);
+          if (deletedIdStillInServer) console.warn(`[HISTORY AFTER DELETE] ⚠️ deletedId=${deletedId} STILL IN SERVER RESPONSE`);
           setDiaries(diaryList);
           setDiarySet(() => {
             const next = new Set<string>();
             diaryList.forEach(d => { if (d.class_group_id && d.lesson_date) next.add(`${d.class_group_id}_${d.lesson_date}`); });
             return next;
           });
+          console.log(`[CLIENT AFTER REFETCH] serverIds=${JSON.stringify(diaryList.map(d => d.id))} schedulerKeys=${JSON.stringify(newKeys)} deletedIdStillRendered=${deletedIdStillInServer} schedulerHasDiary=${newKeys.includes(`${groupId}_${deletedDate}`)}`);
+        } else {
+          console.log(`[HISTORY AFTER DELETE] re-fetch status=${r2.status} raw not array`);
         }
       } catch (e) {
         console.error(`[HISTORY AFTER DELETE] re-fetch failed:`, e);

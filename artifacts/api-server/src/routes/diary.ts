@@ -633,8 +633,8 @@ router.delete("/diaries/:id",
 
       if (!diary) return apiErr(res, 404, "일지를 찾을 수 없습니다.");
       if (diary.is_deleted) {
-        console.log(`[DELETE /diaries] REJECTED — already deleted`);
-        return apiErr(res, 400, "이미 삭제된 일지입니다.");
+        console.log(`[DELETE /diaries] already deleted — returning 200 idempotent`);
+        return res.json({ success: true, alreadyDeleted: true, id: diaryId });
       }
       if (role === "teacher" && diary.teacher_id !== userId) {
         console.log(`[DELETE /diaries] REJECTED — not owner (diary.teacher_id=${diary.teacher_id} !== userId=${userId})`);
