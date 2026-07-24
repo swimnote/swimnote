@@ -6,6 +6,13 @@ SwimNote is a multi-tenant B2B SaaS platform designed for comprehensive manageme
 ## User Preferences
 I prefer the AI to operate with a clear understanding of the existing system's multi-tenancy and role-based access control. When implementing new features or modifying existing ones, prioritize maintaining data isolation and security across different swimming pools and user roles. I expect the AI to maintain a consistent API response format and to automatically record activity logs for significant actions, especially status changes and data modifications.
 
+**[최우선 원칙] Production 서버에서만 작업**
+- 실제 iOS/Android 앱 API Base URL: `https://swimnote.kr/api` (Render.com)
+- Replit API 서버(artifacts/api-server)는 개발/테스트 전용 — 실제 앱과 무관
+- 서버 코드(routes/*.ts 등) 수정 후 반드시 GitHub push → Render.com 배포 완료까지 진행
+- Replit에서만 수정하고 "완료" 보고 절대 금지
+- 완료 보고 시 필수: Production API Base URL, Render.com 배포 확인, 실제 API 호출 결과 제출
+
 ## System Architecture
 
 ### UI/UX Decisions
