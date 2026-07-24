@@ -12,6 +12,8 @@ import { requireNotDeactivated } from "./lib/deactivationGuard.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+export const DEPLOYMENT_VERSION = `v${new Date().toISOString().slice(0,10).replace(/-/g,"")}.${process.env.NODE_ENV ?? "dev"}`;
+
 const app: Express = express();
 
 // ── CORS ─────────────────────────────────────────────────────────────
@@ -21,9 +23,8 @@ const ALLOWED_ORIGINS = [
   "https://www.swimnote.kr",
   // Render production 서버 (신규)
   /^https:\/\/.*\.onrender\.com$/,
-  // Replit 운영 도메인 (레거시 유지)
-  "https://swimnote-7.replit.app",
-  "https://swimnote-8.pcrskm.replit.app",
+  // Replit 운영 도메인
+  /^https:\/\/[\w-]+\.replit\.app$/,
   // EAS 빌드 / 개발 Expo
   /^https:\/\/.*\.expo\.dev$/,
   /^https:\/\/.*\.replit\.dev$/,
@@ -194,9 +195,18 @@ app.post(["/svg-upload", "/api/svg-upload"], svgUpload.single("svg"), (req: Requ
 
 app.use("/api", router);
 
+// ── 서버 준비 상태 플래그 ─────────────────────────────────────────────────────
+// DB 초기화가 완료되면 index.ts에서 setServerReady()를 호출함
+let _serverReady = false;
+export function setServerReady() { _serverReady = true; }
+
 // 헬스체크 — /api/health, /health, /api/healthz, /healthz 모두 지원
+// DB 초기화 전에는 503 반환 → Render가 초기화 도중 서버를 죽이지 않음
 app.get(["/health", "/api/health", "/healthz", "/api/healthz"], (_req: Request, res: Response) => {
-  res.json({ ok: true, uptime: Math.floor(process.uptime()), timestamp: new Date().toISOString(), version: "v2.2-2026-07-17" });
+  if (!_serverReady) {
+    return res.status(503).json({ ok: false, reason: "initializing", uptime: Math.floor(process.uptime()) });
+  }
+  res.json({ ok: true, uptime: Math.floor(process.uptime()), timestamp: new Date().toISOString(), version: "v2.5-2026-07-24" });
 });
 
 // ── 작업 결과보고서 ─────────────────────────────────────────────────
