@@ -2,7 +2,6 @@
  * 학부모 수업 요청 화면 — 결석/보강/연기/퇴원/상담/문의
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { DatePickerModal } from "@/components/common/DatePickerModal";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {ActivityIndicator, Modal, Platform,
@@ -48,11 +47,9 @@ export default function ParentRequestsScreen() {
 
   const [selStudentId, setSelStudentId] = useState<string>(selectedStudent?.id || "");
   const [reqType, setReqType] = useState<RequestType>("absence");
-  const [reqDate, setReqDate] = useState("");
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  const [datePickerVisible, setDatePickerVisible] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -80,12 +77,12 @@ export default function ParentRequestsScreen() {
     try {
       const r = await apiRequest(token, "/parent/requests", {
         method: "POST",
-        body: JSON.stringify({ student_id: selStudentId, request_type: reqType, request_date: reqDate || null, content: content || null }),
+        body: JSON.stringify({ student_id: selStudentId, request_type: reqType, content: content || null }),
       });
       if (r.ok) {
         const newReq = await r.json().catch(() => null);
         setModalVisible(false);
-        setContent(""); setReqDate("");
+        setContent("");
         const entry = newReq?.request ?? newReq;
         if (entry?.id) {
           setRequests(prev => [entry, ...prev]);
@@ -93,7 +90,6 @@ export default function ParentRequestsScreen() {
           setRequests(prev => [{
             id: `tmp_${Date.now()}`,
             request_type: reqType,
-            request_date: reqDate || null,
             content: content || null,
             status: "pending",
             created_at: new Date().toISOString(),
@@ -222,7 +218,7 @@ export default function ParentRequestsScreen() {
             )}
 
             <Text style={[s.label, { color: C.textSecondary }]}>요청 유형</Text>
-            <View style={s.typeGrid}>
+            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginBottom: 16 }}>
               {REQUEST_TYPES.map(t => (
                 <Pressable
                   key={t.key}
@@ -233,37 +229,12 @@ export default function ParentRequestsScreen() {
                   <Text style={[s.typeBtnText, { color: t.color }]}>{t.label}</Text>
                 </Pressable>
               ))}
-            </View>
+            </KeyboardAwareScrollView>
 
-            <Text style={[s.label, { color: C.textSecondary }]}>신청 날짜 (선택)</Text>
-            <Pressable
-              style={[s.datePicker, { backgroundColor: C.card, borderColor: reqDate ? C.tint : C.border }]}
-              onPress={() => setDatePickerVisible(true)}
-            >
-              <LucideIcon name="calendar-days" size={16} color={reqDate ? C.tint : C.textMuted} />
-              <Text style={[s.datePickerTxt, { color: reqDate ? C.text : C.textMuted }]}>
-                {reqDate || "날짜 선택 (선택사항)"}
-              </Text>
-              {reqDate ? (
-                <Pressable
-                  hitSlop={8}
-                  onPress={() => setReqDate("")}
-                >
-                  <Text style={{ fontSize: 13, color: C.textMuted }}>✕</Text>
-                </Pressable>
-              ) : null}
-            </Pressable>
-            <DatePickerModal
-              visible={datePickerVisible}
-              value={reqDate}
-              onConfirm={setReqDate}
-              onClose={() => setDatePickerVisible(false)}
-            />
-
-            <Text style={[s.label, { color: C.textSecondary }]}>메모 / 사유 (선택)</Text>
+            <Text style={[s.label, { color: C.textSecondary }]}>내용 / 사유</Text>
             <TextInput
               style={[s.input, s.multiline, { backgroundColor: C.card, color: C.text, borderColor: C.border }]}
-              placeholder="선생님께 전달할 내용을 입력하세요"
+              placeholder="선생님께 전달할 내용을 입력하세요 (선택)"
               placeholderTextColor={C.textMuted}
               multiline
               numberOfLines={3}
