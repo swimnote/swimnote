@@ -752,19 +752,41 @@ router.delete("/diaries/:id",
         noteCount = (noteRes.rows[0] as any)?.cnt ?? 0;
         console.log(`[DELETE /diaries] TX step2: student_notes(not deleted) count=${noteCount}`);
 
-        // 3. photo_assets_meta detach — journal_id 직접 연결 사진
-        console.log(`[DELETE /diaries] TX step3: UPDATE photo_assets_meta SET media_status='detached'`);
+        // 3. photo_assets_meta 처리 — clone row는 삭제, 원본 row는 detached
+        console.log(`[DELETE /diaries] TX step3: clone rows DELETE + original rows detach`);
+
+        // 3-a. clone row 삭제 (journal_id 직접 연결)
+        await tx.execute(sql`
+          DELETE FROM photo_assets_meta
+          WHERE journal_id = ${diaryId}
+            AND pool_id = ${poolId}
+            AND is_clone = true
+        `);
+
+        // 3-b. clone row 삭제 (student_note 경유)
+        await tx.execute(sql`
+          DELETE FROM photo_assets_meta
+          WHERE student_note_id IN (
+            SELECT id FROM class_diary_student_notes WHERE diary_id = ${diaryId}
+          )
+            AND pool_id = ${poolId}
+            AND is_clone = true
+        `);
+
+        // 3-c. 원본 row detach (journal_id 직접 연결)
         const photoRes = await tx.execute(sql`
           UPDATE photo_assets_meta
           SET journal_id = NULL,
               student_note_id = NULL,
               media_status = 'detached'
-          WHERE journal_id = ${diaryId} AND pool_id = ${poolId}
+          WHERE journal_id = ${diaryId}
+            AND pool_id = ${poolId}
+            AND is_clone = false
         `);
         photoRowCount = (photoRes as any).rowCount ?? 0;
-        console.log(`[DELETE /diaries] TX step3: photo affectedRows=${photoRowCount}`);
+        console.log(`[DELETE /diaries] TX step3: clone deleted, original detached=${photoRowCount}`);
 
-        // 4. photo_assets_meta detach — student_note 경유 연결 사진 (journal_id 없이 student_note_id만 있는 경우)
+        // 3-d. 원본 row detach (student_note 경유, journal_id 없이 student_note_id만 있는 경우)
         await tx.execute(sql`
           UPDATE photo_assets_meta
           SET student_note_id = NULL,
@@ -772,7 +794,9 @@ router.delete("/diaries/:id",
               media_status = 'detached'
           WHERE student_note_id IN (
             SELECT id FROM class_diary_student_notes WHERE diary_id = ${diaryId}
-          ) AND pool_id = ${poolId}
+          )
+            AND pool_id = ${poolId}
+            AND is_clone = false
         `);
 
         // 5. video_assets_meta detach — journal_id 직접 연결 영상

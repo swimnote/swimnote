@@ -27,6 +27,7 @@ import {
   attachPhotosToDiary,
   attachPhotosToStudentNote,
   detachPhotosFromDiary,
+  canDeleteR2Object,
 } from "../services/mediaService.js";
 
 const router = Router();
@@ -74,7 +75,9 @@ async function checkStorageLimit(poolId: string): Promise<{ blocked: boolean; pc
 
   const [usage] = (await db.execute(sql`
     SELECT COALESCE(SUM(file_size), 0) AS used_bytes
-    FROM photo_assets_meta WHERE pool_id = ${poolId}
+    FROM photo_assets_meta
+    WHERE pool_id = ${poolId}
+      AND is_clone = false
   `)).rows as any[];
   const quotaBytes = (Number(meta?.storage_gb ?? 0.5) + Number(meta?.extra_storage_gb ?? 0)) * 1024 ** 3;
   const usedBytes  = Number(usage?.used_bytes ?? 0);
@@ -780,7 +783,11 @@ router.delete("/photos/bulk", requireAuth, requireRole("pool_admin", "teacher", 
         const photo = rows.rows[0] as any;
         if (!photo) continue;
         if (role === "teacher" && photo.uploaded_by !== userId) continue;
-        await deleteFromR2(photo.object_key, "photo");
+        // clone row거나 object_key를 공유하는 sibling이 있으면 R2 파일은 유지
+        const okToDeleteR2 = await canDeleteR2Object(id, photo.object_key, photo.pool_id);
+        if (okToDeleteR2) {
+          await deleteFromR2(photo.object_key, "photo");
+        }
         await db.execute(sql`DELETE FROM photo_assets_meta WHERE id = ${id}`);
         deletedCount++;
       }
@@ -897,7 +904,11 @@ router.delete("/photos/:photoId", requireAuth,
         if (photo.pool_id !== poolId) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
       }
 
-      await deleteFromR2(photo.object_key, "photo");
+      // clone row거나 object_key를 공유하는 sibling이 있으면 R2 파일은 유지
+      const okToDeleteR2 = await canDeleteR2Object(photoId, photo.object_key, photo.pool_id);
+      if (okToDeleteR2) {
+        await deleteFromR2(photo.object_key, "photo");
+      }
       await db.execute(sql`DELETE FROM photo_assets_meta WHERE id = ${photoId}`);
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "삭제 중 오류" }); }
@@ -1027,9 +1038,21 @@ router.post("/photos/diary-attach", requireAuth, requireRole("teacher", "pool_ad
       res.status(400).json({ error: `최대 20장까지 연결할 수 있습니다. 현재 ${existing}장 연결됨.` }); return;
     }
 
-    await attachPhotosToDiary(diary_id, photo_ids, poolId);
-    console.log(`[diary-attach] SUCCESS diary_id=${diary_id} count=${photo_ids.length}`);
-    res.json({ updated: photo_ids.length });
+    const results = await attachPhotosToDiary(diary_id, photo_ids, poolId);
+    const attached = results.filter(r => r.action === "attached").length;
+    const cloned = results.filter(r => r.action === "cloned").length;
+    const alreadyAttached = results.filter(r => r.action === "already_attached").length;
+    const failed = results.filter(r => r.action === "not_found" || r.action === "failed").length;
+    console.log(`[diary-attach] SUCCESS diary_id=${diary_id} attached=${attached} cloned=${cloned} alreadyAttached=${alreadyAttached} failed=${failed}`);
+    res.json({
+      success: failed === 0,
+      requested: photo_ids.length,
+      attached,
+      cloned,
+      alreadyAttached,
+      failed,
+      results,
+    });
   } catch (err: any) {
     console.error(`[diary-attach] ERROR:`, err.message);
     if (err.message?.includes("찾을 수 없") || err.message?.includes("권한")) {
@@ -1121,12 +1144,14 @@ router.get(
             SELECT COUNT(*)::int AS count, COALESCE(SUM(file_size), 0)::bigint AS total_size
             FROM photo_assets_meta
             WHERE pool_id = ${poolId}
+              AND is_clone = false
               AND created_at < NOW() - INTERVAL '1 year'
           `)).rows[0] as any
         : (await db.execute(sql`
             SELECT COUNT(*)::int AS count, COALESCE(SUM(file_size), 0)::bigint AS total_size
             FROM photo_assets_meta
             WHERE pool_id = ${poolId}
+              AND is_clone = false
               AND created_at < NOW() - INTERVAL '6 months'
           `)).rows[0] as any;
 
@@ -1155,18 +1180,20 @@ router.post(
       const poolId = await getUserPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
 
-      // cleanup 직전 실제 대상 재계산
+      // cleanup 직전 실제 대상 재계산 (clone row 제외: is_clone=false만 대상)
       const targets = before === "1y"
         ? (await db.execute(sql`
             SELECT id, object_key, file_size
             FROM photo_assets_meta
             WHERE pool_id = ${poolId}
+              AND is_clone = false
               AND created_at < NOW() - INTERVAL '1 year'
           `)).rows as any[]
         : (await db.execute(sql`
             SELECT id, object_key, file_size
             FROM photo_assets_meta
             WHERE pool_id = ${poolId}
+              AND is_clone = false
               AND created_at < NOW() - INTERVAL '6 months'
           `)).rows as any[];
 
@@ -1181,9 +1208,12 @@ router.post(
 
       for (const photo of targets) {
         try {
-          // R2 삭제 (실패 시 해당 건 건너뜀 — DB 유지)
-          await deleteFromR2(photo.object_key, "photo");
-          // R2 삭제 완료 후 DB 삭제
+          // object_key를 공유하는 sibling(clone 등)이 있으면 R2 파일 유지
+          const okToDeleteR2 = await canDeleteR2Object(photo.id, photo.object_key, poolId);
+          if (okToDeleteR2) {
+            await deleteFromR2(photo.object_key, "photo");
+          }
+          // DB row 삭제
           await db.execute(sql`DELETE FROM photo_assets_meta WHERE id = ${photo.id}`);
           deletedCount++;
           freedBytes += Number(photo.file_size ?? 0);
@@ -1235,9 +1265,21 @@ router.post("/photos/note-attach", requireAuth, requireRole("teacher", "pool_adm
       res.status(404).json({ error: "학생 노트를 찾을 수 없습니다." }); return;
     }
 
-    await attachPhotosToStudentNote(note.diary_id, note_id, note.student_id, photo_ids, poolId);
-    console.log(`[note-attach] SUCCESS note_id=${note_id} count=${photo_ids.length}`);
-    res.json({ updated: photo_ids.length });
+    const noteResults = await attachPhotosToStudentNote(note.diary_id, note_id, note.student_id, photo_ids, poolId);
+    const nAttached = noteResults.filter(r => r.action === "attached").length;
+    const nCloned   = noteResults.filter(r => r.action === "cloned").length;
+    const nAlready  = noteResults.filter(r => r.action === "already_attached").length;
+    const nFailed   = noteResults.filter(r => r.action === "not_found" || r.action === "failed").length;
+    console.log(`[note-attach] SUCCESS note_id=${note_id} attached=${nAttached} cloned=${nCloned} alreadyAttached=${nAlready} failed=${nFailed}`);
+    res.json({
+      success: nFailed === 0,
+      requested: photo_ids.length,
+      attached: nAttached,
+      cloned: nCloned,
+      alreadyAttached: nAlready,
+      failed: nFailed,
+      results: noteResults,
+    });
   } catch (err: any) {
     console.error(`[note-attach] ERROR:`, err.message);
     if (err.message?.includes("찾을 수 없") || err.message?.includes("권한")) {
