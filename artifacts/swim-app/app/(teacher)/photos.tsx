@@ -495,8 +495,8 @@ export default function TeacherPhotosScreen() {
     ];
     return (
       <SafeAreaView style={s.safe} edges={["top"]}>
+        <SubScreenHeader title="사진 & 영상" homePath="/(teacher)/today-schedule" />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}>
-          <View style={s.titleRow}><Text style={s.title}>사진 & 영상</Text></View>
           <View style={s.grid}>
             {HOME_TILES.map(tile => (
               <Pressable
