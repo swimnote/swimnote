@@ -130,11 +130,31 @@ export default function AdditionalGuardiansScreen() {
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24, gap: 16 }}>
           {/* 안내 */}
-          <View style={{ backgroundColor: TEAL_BG, borderRadius: 12, padding: 14, flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
-            <LucideIcon name="info" size={16} color={TEAL} style={{ marginTop: 1 }} />
-            <Text style={{ flex: 1, fontSize: 13, color: "#0F766E", lineHeight: 20 }}>
-              추가 보호자 번호를 등록하면, 그 번호로 SwimNote에 가입 시 자녀와 자동으로 연결됩니다. 최대 3개까지 추가할 수 있습니다.
-            </Text>
+          <View style={{ backgroundColor: TEAL_BG, borderRadius: 12, padding: 14, gap: 8 }}>
+            <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+              <LucideIcon name="info" size={16} color={TEAL} />
+              <Text style={{ fontSize: 13, color: "#0F766E", fontFamily: "Pretendard-SemiBold" }}>추가 보호자 연결 방법</Text>
+            </View>
+            <View style={{ gap: 6, paddingLeft: 2 }}>
+              <View style={{ flexDirection: "row", gap: 6, alignItems: "flex-start" }}>
+                <Text style={{ fontSize: 13, color: "#0F766E", lineHeight: 20 }}>①</Text>
+                <Text style={{ flex: 1, fontSize: 13, color: "#0F766E", lineHeight: 20 }}>
+                  이 화면에서 추가 보호자의 <Text style={{ fontFamily: "Pretendard-SemiBold" }}>전화번호를 먼저 등록</Text>해주세요.
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 6, alignItems: "flex-start" }}>
+                <Text style={{ fontSize: 13, color: "#0F766E", lineHeight: 20 }}>②</Text>
+                <Text style={{ flex: 1, fontSize: 13, color: "#0F766E", lineHeight: 20 }}>
+                  추가 보호자가 등록된 번호로 SwimNote에 가입하면 <Text style={{ fontFamily: "Pretendard-SemiBold" }}>별도 승인 없이 자동으로 연결</Text>됩니다.
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 6, alignItems: "flex-start" }}>
+                <Text style={{ fontSize: 13, color: "#0F766E", lineHeight: 20 }}>③</Text>
+                <Text style={{ flex: 1, fontSize: 13, color: "#0F766E", lineHeight: 20 }}>
+                  최대 3개까지 추가할 수 있습니다.
+                </Text>
+              </View>
+            </View>
           </View>
 
           {students.map(s => {
@@ -232,7 +252,10 @@ export default function AdditionalGuardiansScreen() {
           >
             <View style={sheet}>
               <Text style={sheetTitle}>{modalStudentName} — 보호자 추가</Text>
-              <Text style={sheetDesc}>추가할 보호자의 전화번호를 입력해주세요.</Text>
+              <Text style={sheetDesc}>
+                추가 보호자의 전화번호를 입력해주세요.{"\n"}
+                입력한 번호로 SwimNote에 가입하면 자동으로 연결됩니다.
+              </Text>
               <TextInput
                 style={phoneInputStyle}
                 placeholder="010-0000-0000"
