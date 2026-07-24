@@ -1,0 +1,1 @@
+- [Misconception Hunter Build](misconception-hunter-build.md) — swimnote-web artifact quirks, missing lib files, wouter v3 Link pattern, DB target, Vite base URL decision

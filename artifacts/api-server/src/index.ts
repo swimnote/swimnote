@@ -5,6 +5,7 @@ import { startAutoAttendanceScheduler } from "./jobs/auto-attendance-scheduler.j
 import { startPushScheduler } from "./jobs/push-scheduler.js";
 import { initPoolDb } from "./migrations/pool-db-init.js";
 import { initSuperDb } from "./migrations/super-db-init.js";
+import { initMisconceptionTables, seedMisconceptionExamples } from "./migrations/misconception-db-init.js";
 import { initV2PendingTable } from "./lib/auto-link-v2.js";
 import { backfillPoolAdminRoles } from "./migrations/roles-backfill.js";
 import { backfillPoolSubscriptionFields } from "./lib/subscriptionService.js";
@@ -44,6 +45,9 @@ if (!IS_WORKER && (Number.isNaN(port) || port <= 0)) {
 // DB 초기화 (CREATE TABLE IF NOT EXISTS / ADD COLUMN IF NOT EXISTS — 멱등)
 initPoolDb().catch((e) => console.error("[pool-db-init] 초기화 오류:", e.message));
 initSuperDb().catch((e) => console.error("[super-db-init] 초기화 오류:", e.message));
+initMisconceptionTables()
+  .then(() => seedMisconceptionExamples())
+  .catch((e) => console.error("[misconception-db-init] 초기화 오류:", e.message));
 initV2PendingTable().catch((e) => console.error("[v2-init] parent_v2_pending 테이블 초기화 오류:", e.message));
 backfillPoolAdminRoles().catch((e) => console.error("[roles-backfill] 오류:", e.message));
 setTimeout(() => {

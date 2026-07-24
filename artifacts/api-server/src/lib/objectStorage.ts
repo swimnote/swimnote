@@ -1,4 +1,5 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID || "53dff4976d55c17ec94ebe6306d0cffc";
 const R2_ENDPOINT = `https://${CF_ACCOUNT_ID}.r2.cloudflarestorage.com`;
@@ -83,4 +84,20 @@ export async function deleteFromR2(key: string, type: StorageBucket = "photo"): 
 export async function uploadFile(buffer: Buffer, key: string, mimeType: string): Promise<string> {
   await uploadToR2(key, buffer, mimeType, "photo");
   return key;
+}
+
+export async function getPresignedUrl(
+  key: string,
+  type: StorageBucket = "photo",
+  expiresIn = 3600
+): Promise<{ ok: boolean; url?: string; error?: string }> {
+  try {
+    const { client, bucket } = getClientAndBucket(type);
+    const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+    const url = await getSignedUrl(client, command, { expiresIn });
+    return { ok: true, url };
+  } catch (e: any) {
+    console.error(`[R2 presign] 실패 key=${key} bucket=${type}:`, e.message);
+    return { ok: false, error: e.message };
+  }
 }

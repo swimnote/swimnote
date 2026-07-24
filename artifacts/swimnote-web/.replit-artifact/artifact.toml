@@ -1,0 +1,21 @@
+kind = "web"
+previewPath = "/ai-admin"
+title = "SWIMNOTE AI 관리자"
+version = "1.0.0"
+id = "swimnote-web"
+
+[[services]]
+localPort = 5174
+name = "web"
+paths = ["/ai-admin"]
+
+[services.env]
+PORT = "5174"
+BASE_PATH = "/ai-admin"
+
+[services.development]
+run = "pnpm --filter @workspace/swimnote-web run dev"
+
+[services.production]
+build = "pnpm --filter @workspace/swimnote-web run build"
+serve = "static"
