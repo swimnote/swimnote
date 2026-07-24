@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import {ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import {ActivityIndicator, Alert, Pressable, Share, StyleSheet, Text, TextInput, View} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -375,13 +375,12 @@ export default function LinkChildScreen() {
 
       {/* ── 승인 대기 중 ─────────────────────────────────── */}
       {step === "pending" && (
-        <View style={st.resultBox}>
+        <View style={[st.resultBox, { paddingHorizontal: 24, gap: 16 }]}>
           <View style={[st.resultIcon, { backgroundColor: "#FFF7ED" }]}>
             <LucideIcon name="clock" size={44} color="#F59E0B" />
           </View>
-          <Text style={[st.resultTitle, { color: C.text }]}>승인 대기 중</Text>
+          <Text style={[st.resultTitle, { color: C.text }]}>추가 보호자 승인 대기</Text>
 
-          {/* 연결 대상 학생 */}
           {!!pendingStudentName && (
             <View style={[st.pendingInfoBox, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
               <LucideIcon name="user" size={16} color={C.tint} />
@@ -389,22 +388,53 @@ export default function LinkChildScreen() {
             </View>
           )}
 
-          {/* 사유 메시지 */}
           <Text style={[st.resultSub, { color: C.textSecondary }]}>
-            {pendingReason === "duplicate_name"
-              ? `같은 이름의 학생이 여러 명입니다.\n관리자가 확인 후 연결을 승인합니다.`
-              : `수영장에 등록된 보호자2 전화번호와\n입력하신 번호가 일치하지 않습니다.\n\n관리자가 확인 후 연결을 승인합니다.`}
+            아직 보호자 연결이 완료되지 않았습니다.
           </Text>
 
-          <View style={[st.pendingTipBox, { backgroundColor: "#F0FDF4", borderColor: "#86EFAC" }]}>
-            <LucideIcon name="info" size={14} color="#16A34A" />
-            <Text style={[st.pendingTipTxt, { color: "#15803D" }]}>
-              관리자가 승인하면 앱이 자동으로 연결됩니다.{"\n"}홈 화면에서 새로고침하면 바로 확인할 수 있어요.
+          {/* 연결 방법 안내 박스 */}
+          <View style={{ backgroundColor: "#EFF6FF", borderRadius: 14, padding: 16, gap: 10, alignSelf: "stretch" }}>
+            <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+              <LucideIcon name="info" size={15} color="#2563EB" />
+              <Text style={{ fontSize: 13, color: "#1D4ED8", fontFamily: "Pretendard-Bold" }}>연결 방법</Text>
+            </View>
+            <Text style={{ fontSize: 13, color: "#1E40AF", lineHeight: 22 }}>
+              가족 중 이미 연결된 보호자가{"\n"}
+              <Text style={{ fontFamily: "Pretendard-Bold" }}>설정 → 추가 보호자 관리</Text>
+              {"\n"}에서 현재 가입한{" "}
+              <Text style={{ fontFamily: "Pretendard-Bold" }}>전화번호를 등록</Text>
+              하면{"\n"}별도의 승인 없이{" "}
+              <Text style={{ fontFamily: "Pretendard-Bold" }}>즉시 연결</Text>
+              됩니다.
             </Text>
           </View>
 
+          {/* 연결 안내 보내기 버튼 */}
           <Pressable
-            style={[st.submitBtn, { backgroundColor: C.button, alignSelf: "stretch", marginHorizontal: 32 }]}
+            style={({ pressed }) => [{
+              flexDirection: "row", alignItems: "center", justifyContent: "center",
+              gap: 8, paddingVertical: 14, borderRadius: 12,
+              backgroundColor: "#2563EB", alignSelf: "stretch",
+              opacity: pressed ? 0.8 : 1,
+            }]}
+            onPress={() => {
+              Share.share({
+                message:
+                  "[SwimNote 추가 보호자 연결 안내]\n\n" +
+                  "제가 먼저 SwimNote에 가입했습니다.\n\n" +
+                  "설정 → 추가 보호자 관리에서\n" +
+                  "제 전화번호를 등록해주시면\n" +
+                  "별도의 승인 없이 자동으로 연결됩니다.\n\n" +
+                  "전화번호 등록 후 바로 사용할 수 있습니다.",
+              });
+            }}
+          >
+            <LucideIcon name="share-2" size={16} color="#fff" />
+            <Text style={{ fontSize: 15, color: "#fff", fontFamily: "Pretendard-SemiBold" }}>연결 안내 보내기</Text>
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [st.submitBtn, { backgroundColor: C.button, alignSelf: "stretch", opacity: pressed ? 0.8 : 1 }]}
             onPress={() => router.replace("/(parent)/home" as any)}
           >
             <Text style={st.submitTxt}>홈으로 이동</Text>

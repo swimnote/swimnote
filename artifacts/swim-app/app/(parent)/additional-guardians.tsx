@@ -77,8 +77,8 @@ export default function AdditionalGuardiansScreen() {
       if (res.ok) {
         setModalVisible(false);
         const msg = body.auto_linked
-          ? "보호자 번호가 등록되었고 해당 보호자 앱과 자동 연결되었습니다."
-          : "보호자 번호가 등록되었습니다. 해당 번호로 가입 시 자동 연결됩니다.";
+          ? "보호자 번호가 등록되었고, 해당 보호자 앱과 즉시 자동 연결되었습니다."
+          : "추가 보호자 전화번호가 등록되었습니다.\n\n등록된 번호로 가입하거나, 이미 승인 대기 중인 계정은 자동으로 연결됩니다.";
         Alert.alert("등록 완료", msg);
         await load();
       } else {
@@ -130,30 +130,49 @@ export default function AdditionalGuardiansScreen() {
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24, gap: 16 }}>
           {/* 안내 */}
-          <View style={{ backgroundColor: TEAL_BG, borderRadius: 12, padding: 14, gap: 8 }}>
+          <View style={{ backgroundColor: TEAL_BG, borderRadius: 14, padding: 16, gap: 10 }}>
             <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
               <LucideIcon name="info" size={16} color={TEAL} />
-              <Text style={{ fontSize: 13, color: "#0F766E", fontFamily: "Pretendard-SemiBold" }}>추가 보호자 연결 방법</Text>
+              <Text style={{ fontSize: 14, color: "#0F766E", fontFamily: "Pretendard-Bold" }}>추가 보호자 연결 방법</Text>
             </View>
-            <View style={{ gap: 6, paddingLeft: 2 }}>
-              <View style={{ flexDirection: "row", gap: 6, alignItems: "flex-start" }}>
-                <Text style={{ fontSize: 13, color: "#0F766E", lineHeight: 20 }}>①</Text>
-                <Text style={{ flex: 1, fontSize: 13, color: "#0F766E", lineHeight: 20 }}>
-                  이 화면에서 추가 보호자의 <Text style={{ fontFamily: "Pretendard-SemiBold" }}>전화번호를 먼저 등록</Text>해주세요.
+            <View style={{ gap: 10, paddingLeft: 2 }}>
+              <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: TEAL, alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                  <Text style={{ fontSize: 12, color: "#fff", fontFamily: "Pretendard-Bold" }}>1</Text>
+                </View>
+                <Text style={{ flex: 1, fontSize: 13, color: "#0F4C46", lineHeight: 21 }}>
+                  이 화면에서 추가 보호자의{" "}
+                  <Text style={{ fontFamily: "Pretendard-Bold", color: "#0F766E" }}>전화번호를 먼저 등록</Text>
+                  해주세요.
                 </Text>
               </View>
-              <View style={{ flexDirection: "row", gap: 6, alignItems: "flex-start" }}>
-                <Text style={{ fontSize: 13, color: "#0F766E", lineHeight: 20 }}>②</Text>
-                <Text style={{ flex: 1, fontSize: 13, color: "#0F766E", lineHeight: 20 }}>
-                  추가 보호자가 등록된 번호로 SwimNote에 가입하면 <Text style={{ fontFamily: "Pretendard-SemiBold" }}>별도 승인 없이 자동으로 연결</Text>됩니다.
+              <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: TEAL, alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                  <Text style={{ fontSize: 12, color: "#fff", fontFamily: "Pretendard-Bold" }}>2</Text>
+                </View>
+                <Text style={{ flex: 1, fontSize: 13, color: "#0F4C46", lineHeight: 21 }}>
+                  추가 보호자가 등록된 번호로 SwimNote에 가입하면{" "}
+                  <Text style={{ fontFamily: "Pretendard-Bold", color: "#0F766E" }}>별도 승인 없이 자동 연결</Text>
+                  됩니다.
                 </Text>
               </View>
-              <View style={{ flexDirection: "row", gap: 6, alignItems: "flex-start" }}>
-                <Text style={{ fontSize: 13, color: "#0F766E", lineHeight: 20 }}>③</Text>
-                <Text style={{ flex: 1, fontSize: 13, color: "#0F766E", lineHeight: 20 }}>
-                  최대 3개까지 추가할 수 있습니다.
+              <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: "#F59E0B", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                  <Text style={{ fontSize: 12, color: "#fff", fontFamily: "Pretendard-Bold" }}>3</Text>
+                </View>
+                <Text style={{ flex: 1, fontSize: 13, color: "#0F4C46", lineHeight: 21 }}>
+                  이미 가입하여{" "}
+                  <Text style={{ fontFamily: "Pretendard-Bold", color: "#B45309" }}>승인 대기 중인 경우에도</Text>
+                  {" "}해당 전화번호를 등록하면{" "}
+                  <Text style={{ fontFamily: "Pretendard-Bold", color: "#B45309" }}>즉시 연결</Text>
+                  됩니다.
                 </Text>
               </View>
+            </View>
+            <View style={{ borderTopWidth: 1, borderTopColor: "#B2E8E2", paddingTop: 8, marginTop: 2 }}>
+              <Text style={{ fontSize: 12, color: "#0F766E", lineHeight: 18 }}>
+                ※ 추가 보호자는 최대 3명까지 등록할 수 있습니다.
+              </Text>
             </View>
           </View>
 
@@ -234,6 +253,28 @@ export default function AdditionalGuardiansScreen() {
               </View>
             );
           })}
+          {/* FAQ */}
+          <View style={{ backgroundColor: "#fff", borderRadius: 14, padding: 16, gap: 12, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <LucideIcon name="help-circle" size={16} color="#64748B" />
+              <Text style={{ fontSize: 14, color: "#0F172A", fontFamily: "Pretendard-Bold" }}>자주 묻는 질문</Text>
+            </View>
+            <View style={{ gap: 4 }}>
+              <View style={{ flexDirection: "row", gap: 6, alignItems: "flex-start" }}>
+                <Text style={{ fontSize: 13, color: TEAL, fontFamily: "Pretendard-Bold", lineHeight: 20 }}>Q.</Text>
+                <Text style={{ flex: 1, fontSize: 13, color: "#0F172A", fontFamily: "Pretendard-SemiBold", lineHeight: 20 }}>
+                  왜 승인 대기 상태인가요?
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 6, alignItems: "flex-start", paddingLeft: 2 }}>
+                <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Bold", lineHeight: 20 }}>A.</Text>
+                <Text style={{ flex: 1, fontSize: 13, color: "#475569", lineHeight: 20 }}>
+                  추가 보호자는 <Text style={{ fontFamily: "Pretendard-SemiBold", color: "#0F172A" }}>연결된 보호자가 전화번호를 등록</Text>하면 자동으로 승인됩니다.{"\n"}
+                  별도의 수영장 승인이나 관리자 승인은 필요하지 않습니다.
+                </Text>
+              </View>
+            </View>
+          </View>
         </ScrollView>
       )}
 
@@ -252,10 +293,17 @@ export default function AdditionalGuardiansScreen() {
           >
             <View style={sheet}>
               <Text style={sheetTitle}>{modalStudentName} — 보호자 추가</Text>
-              <Text style={sheetDesc}>
-                추가 보호자의 전화번호를 입력해주세요.{"\n"}
-                입력한 번호로 SwimNote에 가입하면 자동으로 연결됩니다.
-              </Text>
+              <View style={{ backgroundColor: "#F0FDF4", borderRadius: 10, padding: 12, gap: 6 }}>
+                <Text style={{ fontSize: 13, color: "#166534", lineHeight: 20 }}>
+                  추가 보호자의 전화번호를 입력해주세요.
+                </Text>
+                <Text style={{ fontSize: 13, color: "#166534", lineHeight: 20 }}>
+                  • 등록한 번호로 SwimNote에 가입하면 <Text style={{ fontFamily: "Pretendard-SemiBold" }}>자동으로 연결</Text>됩니다.
+                </Text>
+                <Text style={{ fontSize: 13, color: "#166534", lineHeight: 20 }}>
+                  • 이미 가입하여 <Text style={{ fontFamily: "Pretendard-SemiBold" }}>승인 대기 중인 경우에도 등록 즉시 자동 승인</Text>되어 연결됩니다.
+                </Text>
+              </View>
               <TextInput
                 style={phoneInputStyle}
                 placeholder="010-0000-0000"
