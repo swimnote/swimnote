@@ -2,7 +2,12 @@
  * auto-link-v2.ts — V2 학부모↔학생 자동연결 핵심 모듈
  *
  * 매칭 조건 (3개 모두 일치):
- *   pool_id (exact) + normalizePhone(parent_phone) + normalizeName(student_name)
+ *   pool_id (exact)
+ *   + normalizePhone(parent_phone | parent_phone2) 중 하나
+ *   + normalizeName(student_name)
+ *
+ * 다중 후보 처리:
+ *   같은 tenant 내 동일 전화번호가 복수 학생에 등록된 경우 자동 연결 금지
  *
  * 로그 5종:
  *   [v2-match]         학생 매칭 성공/실패
@@ -103,7 +108,8 @@ async function markPendingMatched(parentId: string, studentId: string): Promise<
 }
 
 // ── V2 매칭 시도 ─────────────────────────────────────────────────────────
-// 3개 모두 일치: pool_id + normalizePhone + normalizeName
+// 조건: pool_id + normalizeName + (parent_phone OR parent_phone2 OR parent_phone3)
+// 다중 후보(2명 이상)이면 임의 연결 금지 → pending 유지
 export async function tryMatchStudentV2(
   parentId: string,
   poolId: string,
@@ -112,21 +118,32 @@ export async function tryMatchStudentV2(
 ): Promise<{ matched: boolean; studentId?: string; studentName?: string }> {
   console.log(`[v2-match] START parent=${parentId} pool=${poolId} phone=${phoneMask(phoneNorm)} child="${childNameNorm}"`);
 
+  // LIMIT 2: 다중 후보 감지를 위해 최대 2개 조회
   const rows = await db.execute(sql`
     SELECT id, name FROM students
     WHERE swimming_pool_id = ${poolId}
-      AND REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${phoneNorm}
+      AND (
+        REGEXP_REPLACE(COALESCE(parent_phone,'') ,'[^0-9]','','g') = ${phoneNorm}
+        OR REGEXP_REPLACE(COALESCE(parent_phone2,''),'[^0-9]','','g') = ${phoneNorm}
+      )
       AND REPLACE(LOWER(TRIM(COALESCE(name,''))), ' ', '') = ${childNameNorm}
       AND status NOT IN ('withdrawn','archived','deleted')
-    LIMIT 1
+    LIMIT 2
   `);
 
-  const student = (rows.rows as any[])[0];
-  if (!student) {
+  const candidates = rows.rows as any[];
+
+  if (candidates.length === 0) {
     console.log(`[v2-match] FAIL — 조건 불일치 pool=${poolId} phone=${phoneMask(phoneNorm)} child="${childNameNorm}"`);
     return { matched: false };
   }
 
+  if (candidates.length > 1) {
+    console.warn(`[v2-match] MULTI-CANDIDATE — 동일 번호가 복수 학생에 등록됨. 자동 연결 금지. pool=${poolId} phone=${phoneMask(phoneNorm)} child="${childNameNorm}" ids=[${candidates.map((c:any)=>c.id).join(",")}]`);
+    return { matched: false };
+  }
+
+  const student = candidates[0];
   console.log(`[v2-match] ✓ 매칭 성공 studentId=${student.id} name="${student.name}"`);
   return { matched: true, studentId: student.id, studentName: student.name };
 }
@@ -268,9 +285,9 @@ export async function getParentStatusV2(parentId: string): Promise<{
 }
 
 // ── 관리자 학생 등록/수정 시 V2 자동연결 트리거 ──────────────────────────
-// 호출 조건: name / parent_phone / pool_id 변경 또는 신규 등록 / 승인 완료 시만
+// 호출 조건: name / parent_phone / parent_phone2 / pool_id 변경 또는 신규 등록 / 승인 완료 시만
 export async function triggerAutoLinkOnStudentV2(studentId: string, changedFields?: string[]): Promise<void> {
-  const relevantFields = ["name", "parent_phone", "swimming_pool_id", "status"];
+  const relevantFields = ["name", "parent_phone", "parent_phone2", "swimming_pool_id", "status"];
   if (changedFields && changedFields.length > 0) {
     const hasRelevant = changedFields.some(f => relevantFields.includes(f));
     if (!hasRelevant) {
@@ -280,23 +297,39 @@ export async function triggerAutoLinkOnStudentV2(studentId: string, changedField
   }
 
   const [student] = (await db.execute(sql`
-    SELECT id, name, swimming_pool_id, parent_phone FROM students WHERE id = ${studentId} LIMIT 1
+    SELECT id, name, swimming_pool_id, parent_phone, parent_phone2
+    FROM students WHERE id = ${studentId} LIMIT 1
   `)).rows as any[];
 
-  if (!student?.swimming_pool_id || !student?.parent_phone) {
-    console.log(`[v2-admin-trigger] SKIP student=${studentId} — pool 또는 phone 미설정`);
+  if (!student?.swimming_pool_id) {
+    console.log(`[v2-admin-trigger] SKIP student=${studentId} — pool 미설정`);
     return;
   }
 
-  const phoneNorm = normalizePhone(student.parent_phone);
-  const nameNorm  = normalizeName(student.name);
+  // 등록된 전화번호 중 비어있지 않은 것만 정규화
+  const phoneNorm1 = normalizePhone(student.parent_phone  || "");
+  const phoneNorm2 = normalizePhone(student.parent_phone2 || "");
+  const validPhones = [...new Set([phoneNorm1, phoneNorm2].filter(p => p.length > 0))];
 
-  console.log(`[v2-admin-trigger] 검색 시작 student=${studentId} pool=${student.swimming_pool_id} phone=${phoneMask(phoneNorm)} name="${nameNorm}"`);
+  if (validPhones.length === 0) {
+    console.log(`[v2-admin-trigger] SKIP student=${studentId} — phone 미설정`);
+    return;
+  }
 
+  const nameNorm = normalizeName(student.name);
+  console.log(`[v2-admin-trigger] 검색 시작 student=${studentId} pool=${student.swimming_pool_id} phones=[${validPhones.map(phoneMask).join(",")}] name="${nameNorm}"`);
+
+  // parent_phone / parent_phone2 모두 OR 조건으로 대기 보호자 검색
+  // 중복 parent_id 제거 (동일 보호자가 여러 phone으로 매칭될 수 있음)
+  // note: Drizzle sql``은 JS 배열을 ANY()에 직접 바인딩할 수 없으므로 명시적 OR 사용
+  const [p1, p2] = [validPhones[0] ?? "", validPhones[1] ?? ""];
   const pendingRows = (await db.execute(sql`
-    SELECT id, parent_id FROM parent_v2_pending
+    SELECT DISTINCT ON (parent_id) id, parent_id FROM parent_v2_pending
     WHERE pool_id = ${student.swimming_pool_id}
-      AND parent_phone_normalized = ${phoneNorm}
+      AND (
+        parent_phone_normalized = ${p1}
+        OR (${p2} <> '' AND parent_phone_normalized = ${p2})
+      )
       AND child_name_normalized = ${nameNorm}
       AND status = 'pending'
   `)).rows as any[];
