@@ -48,3 +48,9 @@ id = "jXlnmc-agVTy34Z4fgzjc"
 uri = "file://screenshots/screenshot2.jpg"
 type = "image"
 title = "스크린샷 2 - 학부모 화면"
+
+[[outputs]]
+id = "mtNiupV2vStBb09J6sXjB"
+uri = "file://misconception-hunter-spec.md"
+type = "text"
+title = "오개념 헌터 구현 스펙 문서"
