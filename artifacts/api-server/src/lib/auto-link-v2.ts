@@ -156,25 +156,22 @@ export async function linkParentToStudentV2(
   studentId: string,
   poolId: string
 ): Promise<{ success: boolean; alreadyLinked?: boolean }> {
-  // 중복 연결 확인
-  const [existing] = (await db.execute(sql`
-    SELECT id FROM parent_students
-    WHERE parent_id = ${parentId} AND student_id = ${studentId} AND status = 'approved'
-    LIMIT 1
-  `)).rows as any[];
-
-  if (existing) {
-    console.log(`[v2-link] SKIP 이미 연결됨: parent=${parentId} student=${studentId}`);
-    return { success: true, alreadyLinked: true };
-  }
-
+  // INSERT ON CONFLICT UPDATE — 동시 호출 시에도 atomic하게 처리
+  // (DELETE+INSERT 패턴을 제거하여 race condition 시 레코드 소실 방지)
   try {
     const psId = `ps_v2_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await db.execute(sql`DELETE FROM parent_students WHERE parent_id=${parentId} AND student_id=${studentId}`);
-    await db.execute(sql`
+    const result = await db.execute(sql`
       INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at, created_at)
       VALUES (${psId}, ${parentId}, ${studentId}, ${poolId}, 'approved', NOW(), NOW())
+      ON CONFLICT (parent_id, student_id) DO UPDATE
+        SET status = 'approved', approved_at = NOW()
+      RETURNING (xmax = 0) AS inserted
     `);
+    const wasInserted = (result.rows[0] as any)?.inserted;
+    if (wasInserted === false) {
+      console.log(`[v2-link] SKIP 이미 연결됨(ON CONFLICT): parent=${parentId} student=${studentId}`);
+      return { success: true, alreadyLinked: true };
+    }
     console.log(`[v2-link] ✓ parent_students 저장 성공: parent=${parentId} student=${studentId} pool=${poolId}`);
 
     await db.execute(sql`
