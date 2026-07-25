@@ -12,6 +12,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NoticePopup } from "@/components/common/NoticePopup";
 import { AuthProvider, apiRequest, useAuth, type AccountEntry, type AdminUser, type SessionKind, type ParentAccount } from "@/context/AuthContext";
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
+import { UploadQueueProvider } from "@/context/UploadQueueContext";
 import { initializeRevenueCat, loginRevenueCat, logoutRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
 
 // Expo Go 환경 여부 — Expo Go SDK 53부터 Android 원격 알림 미지원
@@ -456,14 +457,16 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <BrandProvider>
               <AuthProvider>
-                <SubscriptionProvider>
-                  <BrandSync />
-                  <RcUserSync />
-                  <PushTokenSync />
-                  <PushNavSync />
-                  <NoticePopup />
-                  <RootNav />
-                </SubscriptionProvider>
+                <UploadQueueProvider>
+                  <SubscriptionProvider>
+                    <BrandSync />
+                    <RcUserSync />
+                    <PushTokenSync />
+                    <PushNavSync />
+                    <NoticePopup />
+                    <RootNav />
+                  </SubscriptionProvider>
+                </UploadQueueProvider>
               </AuthProvider>
             </BrandProvider>
           </GestureHandlerRootView>

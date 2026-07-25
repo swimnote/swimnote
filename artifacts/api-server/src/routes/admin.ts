@@ -1617,6 +1617,17 @@ router.get("/makeups", requireAuth, requireRole("super_admin","pool_admin","teac
         }
       }
 
+      // skipCallerFilter=true → 전체 보강 조회 허용
+      // skipCallerFilter=false → 본인 담당 반/교사 필터만 (배열을 sql.join으로 안전하게 바인딩)
+      const skipCallerFilter =
+        callerRole === 'super_admin' || !callerId || !!teacherIdVal || callerClassIds === null;
+      const callerFilter = skipCallerFilter
+        ? sql`TRUE`
+        : sql`(original_teacher_id = ${callerId} OR original_class_group_id = ANY(ARRAY[${sql.join(
+            callerClassIds!.map((id) => sql`${id}`),
+            sql`, `
+          )}]::text[]))`;
+
       const rows = (await db.execute(sql`
         SELECT * FROM makeup_sessions
         WHERE swimming_pool_id = ${poolId}
@@ -1624,11 +1635,7 @@ router.get("/makeups", requireAuth, requireRole("super_admin","pool_admin","teac
           AND (${studentIdVal}::text IS NULL OR student_id = ${studentIdVal})
           AND (${teacherIdVal}::text IS NULL OR original_teacher_id = ${teacherIdVal})
           AND (${assignedTeacher}::text IS NULL OR assigned_teacher_id = ${assignedTeacher} OR transferred_to_teacher_id = ${assignedTeacher})
-          AND (
-            ${callerRole === 'super_admin' || !callerId || !!teacherIdVal || callerClassIds === null} OR
-            original_teacher_id = ${callerId ?? ''}
-            OR original_class_group_id = ANY(${callerClassIds ?? []}::text[])
-          )
+          AND (${callerFilter})
         ORDER BY created_at DESC
       `)).rows;
       res.json(rows);
@@ -2809,7 +2816,7 @@ router.get("/parents/:parentId", requireAuth, requireRole("super_admin","pool_ad
         const stuRows = (await db.execute(sql`
           SELECT s.id, s.name, s.status,
                  cg.name AS class_name,
-                 s.level AS level,
+                 cg.level AS level,
                  ps.id AS link_id
           FROM parent_students ps
           JOIN students s ON s.id = ps.student_id
