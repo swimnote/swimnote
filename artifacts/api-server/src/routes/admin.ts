@@ -2631,10 +2631,12 @@ router.get("/parents", requireAuth, requireRole("super_admin","pool_admin"),
           'app' AS source,
           COALESCE(json_agg(json_build_object(
             'id', s.id, 'name', s.name
-          )) FILTER (WHERE s.id IS NOT NULL), '[]') AS students
+          )) FILTER (WHERE s.id IS NOT NULL), '[]') AS students,
+          pvp.child_name_raw AS pending_child_name
         FROM parent_accounts pa
         LEFT JOIN parent_students ps ON ps.parent_id = pa.id
         LEFT JOIN students s ON s.id = ps.student_id
+        LEFT JOIN parent_v2_pending pvp ON pvp.parent_id = pa.id
         WHERE (
           pa.swimming_pool_id = ${poolId}
           OR (
@@ -2648,7 +2650,7 @@ router.get("/parents", requireAuth, requireRole("super_admin","pool_admin"),
             )
           )
         )
-        GROUP BY pa.id
+        GROUP BY pa.id, pvp.child_name_raw
         ORDER BY pa.created_at DESC
       `)).rows as any[];
 

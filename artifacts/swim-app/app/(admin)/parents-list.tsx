@@ -44,6 +44,7 @@ interface ParentRow {
   source: "app" | "guardian";
   linked: boolean;
   students: { id: string; name: string }[];
+  pending_child_name: string | null;
 }
 
 interface StudentDetail {
@@ -395,14 +396,20 @@ function ParentItem({ item, onPress }: { item: ParentRow; onPress: () => void })
         <Text style={s.date}>{formatDate(item.created_at)}</Text>
       </View>
 
-      {/* 자녀 목록 */}
-      {item.students.length > 0 && (
+      {/* 자녀 목록 / 가입 시 입력 자녀 이름 */}
+      {item.students.length > 0 ? (
         <View style={s.studentsRow}>
           <Users size={11} color={C.textMuted} />
           <Text style={s.studentsLabel}>자녀: </Text>
           <Text style={s.studentsVal}>{item.students.map(st => st.name).join(", ")}</Text>
         </View>
-      )}
+      ) : item.pending_child_name ? (
+        <View style={s.studentsRow}>
+          <Users size={11} color="#F59E0B" />
+          <Text style={[s.studentsLabel, { color: "#B45309" }]}>가입 자녀: </Text>
+          <Text style={[s.studentsVal, { color: "#92400E" }]}>{item.pending_child_name}</Text>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
