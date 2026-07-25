@@ -859,7 +859,11 @@ router.get("/withdrawn-members", requireAuth, requireRole("super_admin", "pool_a
   }
 );
 
-// ── 학생 이름 검색 (부모 승인 연결용) ─────────────────────────────────
+// ── 학생 검색 (관리자 수동 연결용) ────────────────────────────────────
+// GET /admin/students/search?q=검색어
+// - 학생 이름, 보호자 이름, 전화번호 통합 검색
+// - 보호자 전화번호는 끝 4자리만 응답에 포함 (마스킹)
+// - 연결된 보호자 수(linked_count) 포함
 router.get("/students/search", requireAuth, requireRole("super_admin", "pool_admin"),
   async (req: AuthRequest, res) => {
     try {
@@ -868,20 +872,41 @@ router.get("/students/search", requireAuth, requireRole("super_admin", "pool_adm
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       const poolId = me?.swimming_pool_id;
       if (!poolId) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
-      const nameFilter = q ? String(q).trim() : "";
+
+      const raw = q ? String(q).trim() : "";
+      const nameFilter = raw.toLowerCase().replace(/\s+/g, "");
+      const phoneFilter = raw.replace(/[^0-9]/g, "");
+
       const students = await db.execute(sql`
-        SELECT s.id, s.name, s.birth_year, s.status, s.parent_user_id,
-               cg.name AS class_name
+        SELECT
+          s.id, s.name, s.birth_year, s.status, s.parent_user_id,
+          cg.level,
+          s.parent_name,
+          -- 전화번호는 끝 4자리만 노출
+          CASE WHEN s.parent_phone IS NOT NULL AND LENGTH(REGEXP_REPLACE(s.parent_phone,'[^0-9]','','g')) >= 4
+               THEN '****-' || RIGHT(REGEXP_REPLACE(s.parent_phone,'[^0-9]','','g'), 4)
+               ELSE NULL END AS parent_phone_masked,
+          CASE WHEN (s.parent_phone2 IS NOT NULL AND s.parent_phone2 <> '')
+                 OR (s.parent_phone3 IS NOT NULL AND s.parent_phone3 <> '')
+                 OR (s.parent_phone4 IS NOT NULL AND s.parent_phone4 <> '')
+               THEN true ELSE false END AS has_phone2,
+          cg.name AS class_name,
+          (SELECT COUNT(*)::int FROM parent_students ps
+           WHERE ps.student_id = s.id AND ps.status = 'approved') AS linked_count
         FROM students s
         LEFT JOIN class_groups cg ON cg.id = s.class_group_id
         WHERE s.swimming_pool_id = ${poolId}
           AND s.status NOT IN ('withdrawn', 'archived', 'deleted')
           AND (
-            ${nameFilter.length === 0} OR
-            LOWER(REPLACE(s.name, ' ', '')) LIKE ${`%${nameFilter.toLowerCase().replace(/\s+/g, "")}%`}
+            ${raw.length === 0} OR
+            LOWER(REPLACE(s.name, ' ', '')) LIKE ${`%${nameFilter}%`}
+            OR LOWER(REPLACE(COALESCE(s.parent_name,''), ' ', '')) LIKE ${`%${nameFilter}%`}
+            OR (${phoneFilter.length >= 4} AND REGEXP_REPLACE(COALESCE(s.parent_phone,''),'[^0-9]','','g') LIKE ${`%${phoneFilter}%`})
+            OR (${phoneFilter.length >= 4} AND REGEXP_REPLACE(COALESCE(s.parent_phone2,''),'[^0-9]','','g') LIKE ${`%${phoneFilter}%`})
+            OR (${phoneFilter.length >= 4} AND REGEXP_REPLACE(COALESCE(s.parent_phone3,''),'[^0-9]','','g') LIKE ${`%${phoneFilter}%`})
           )
         ORDER BY s.name
-        LIMIT 30
+        LIMIT 20
       `);
       res.json({ success: true, data: students.rows });
     } catch (err) {
@@ -2801,11 +2826,21 @@ router.get("/parents/:parentId", requireAuth, requireRole("super_admin","pool_ad
           ORDER BY created_at DESC LIMIT 1
         `)).rows as any[];
 
+        // parent_v2_pending에서 자녀 이름 (자동 연결 실패 시 저장된 원본 입력값)
+        const [pendingRow] = (await db.execute(sql`
+          SELECT child_name_raw, status
+          FROM parent_v2_pending
+          WHERE parent_id = ${parentId} AND pool_id = ${poolId}
+          ORDER BY created_at DESC LIMIT 1
+        `)).rows as any[];
+
         res.json({
           id: pa.id, name: pa.name, phone: pa.phone, login_id: pa.login_id,
           created_at: pa.created_at, source: "app",
           students: stuRows,
           reg_request: regRows[0] || null,
+          pending_child_name: pendingRow?.child_name_raw || null,
+          pending_status: pendingRow?.status || null,
         });
       } else {
         // 보호자만 (학생 테이블의 parent_phone 기반)
@@ -2919,6 +2954,19 @@ router.post("/parents/:parentId/link-student", requireAuth, requireRole("super_a
       await db.execute(sql`
         UPDATE parent_accounts SET swimming_pool_id = ${poolId}, updated_at = NOW()
         WHERE id = ${parentId} AND swimming_pool_id IS NULL
+      `);
+
+      // parent_v2_pending 완료 처리 (재매칭 대상에서 제외)
+      await db.execute(sql`
+        UPDATE parent_v2_pending
+        SET status = 'matched', matched_student_id = ${student_id}, matched_at = NOW()
+        WHERE parent_id = ${parentId} AND pool_id = ${poolId} AND status = 'pending'
+      `);
+      // 가입 요청도 승인 완료 처리
+      await db.execute(sql`
+        UPDATE student_registration_requests
+        SET status = 'approved', reviewed_at = NOW()
+        WHERE parent_id = ${parentId} AND swimming_pool_id = ${poolId} AND status NOT IN ('approved','rejected')
       `);
 
       res.json({ success: true, student_name: stu.name });

@@ -2,8 +2,10 @@
  * (admin)/parents-list.tsx — 학부모 명단
  * - 카드 누르면 상세 모달 (학생 반·레벨 정보)
  * - 전화걸기 / 문자보내기 버튼
+ * - 미연결 앱 가입자 → "기존 학생과 연결" 수동 연결
  */
-import { HeartHandshake, MessageSquare, Phone, Search, Users, X } from "lucide-react-native";
+import { HeartHandshake, Link2, MessageSquare, Phone, Search, Users, X } from "lucide-react-native";
+import { LinkStudentModal } from "@/components/admin/members/LinkStudentModal";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
@@ -63,6 +65,8 @@ interface ParentDetail {
   source: "app" | "guardian";
   students: StudentDetail[];
   reg_request: { child_names: any; status: string; created_at: string } | null;
+  pending_child_name: string | null;
+  pending_status: string | null;
 }
 
 const FILTERS: { key: FilterKey; label: string }[] = [
@@ -104,31 +108,39 @@ function ParentDetailModal({
   visible,
   onClose,
   token,
+  onRefresh,
 }: {
   item: ParentRow | null;
   visible: boolean;
   onClose: () => void;
   token: string | null;
+  onRefresh: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const [detail, setDetail] = useState<ParentDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [linkModalVisible, setLinkModalVisible] = useState(false);
 
-  React.useEffect(() => {
-    if (!visible || !item) { setDetail(null); return; }
+  const fetchDetail = React.useCallback(() => {
+    if (!item) return;
     setLoading(true);
     apiRequest(token, `/admin/parents/${encodeURIComponent(item.id)}?source=${item.source}`)
       .then(r => r.ok ? r.json() : null)
       .then(d => setDetail(d))
       .catch(() => {})
       .finally(() => setLoading(false));
+  }, [token, item]);
+
+  React.useEffect(() => {
+    if (!visible || !item) { setDetail(null); return; }
+    fetchDetail();
   }, [visible, item]);
 
   if (!item) return null;
   const isApp = item.source === "app";
   const phone = item.phone;
 
-  // 가입 시 입력한 자녀 이름 파싱
+  // 가입 시 입력한 자녀 이름 파싱 (reg_request 우선, 없으면 pending 원본 입력값)
   let regChildNames: string[] = [];
   if (detail?.reg_request?.child_names) {
     try {
@@ -138,73 +150,121 @@ function ParentDetailModal({
       if (Array.isArray(parsed)) regChildNames = parsed.map((c: any) => (typeof c === "string" ? c : c.name || "")).filter(Boolean);
     } catch {}
   }
+  // pending 에서 자녀 이름 보완
+  if (regChildNames.length === 0 && detail?.pending_child_name) {
+    regChildNames = [detail.pending_child_name];
+  }
+
+  // 미연결 앱 가입자 여부
+  const isUnlinked = isApp && (detail?.students?.length ?? item.students.length) === 0;
+  // 수동 연결 시 초기 검색어
+  const initialChildName = regChildNames[0] || null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={md.backdrop} onPress={onClose} />
-      <View style={[md.sheet, { paddingBottom: insets.bottom + 20 }]}>
-        {/* 핸들 */}
-        <View style={md.handle} />
+    <>
+      <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+        <Pressable style={md.backdrop} onPress={onClose} />
+        <View style={[md.sheet, { paddingBottom: insets.bottom + 20 }]}>
+          {/* 핸들 */}
+          <View style={md.handle} />
 
-        {/* 헤더 */}
-        <View style={md.header}>
-          <View style={[md.avatarBox, { backgroundColor: isApp ? "#E0F2FE" : "#F1F5F9" }]}>
-            <LucideIcon name={isApp ? "heart-handshake" : "user"} size={22} color={isApp ? "#0EA5E9" : "#64748B"} />
+          {/* 헤더 */}
+          <View style={md.header}>
+            <View style={[md.avatarBox, { backgroundColor: isApp ? "#E0F2FE" : "#F1F5F9" }]}>
+              <LucideIcon name={isApp ? "heart-handshake" : "user"} size={22} color={isApp ? "#0EA5E9" : "#64748B"} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={md.name}>{item.name || "(이름 없음)"}</Text>
+                <View style={[md.badge, { backgroundColor: isApp ? "#DBEAFE" : "#F1F5F9" }]}>
+                  <Text style={[md.badgeTxt, { color: isApp ? "#1D4ED8" : "#64748B" }]}>
+                    {isApp ? "앱 가입" : "보호자"}
+                  </Text>
+                </View>
+                {isUnlinked && (
+                  <View style={[md.badge, { backgroundColor: "#FEF3C7" }]}>
+                    <Text style={[md.badgeTxt, { color: "#92400E" }]}>미연결</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={md.phoneTxt}>{formatPhone(phone)}</Text>
+            </View>
+            <Pressable onPress={onClose} hitSlop={12}>
+              <X size={20} color={C.textMuted} />
+            </Pressable>
           </View>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Text style={md.name}>{item.name || "(이름 없음)"}</Text>
-              <View style={[md.badge, { backgroundColor: isApp ? "#DBEAFE" : "#F1F5F9" }]}>
-                <Text style={[md.badgeTxt, { color: isApp ? "#1D4ED8" : "#64748B" }]}>
-                  {isApp ? "앱 가입" : "보호자"}
-                </Text>
+
+          {/* 전화 / 문자 버튼 */}
+          <View style={md.actionRow}>
+            <Pressable
+              style={({ pressed }) => [md.actionBtn, { backgroundColor: "#EFF9F8", opacity: pressed ? 0.7 : 1 }]}
+              onPress={() => callPhone(phone)}
+              disabled={!phone}
+            >
+              <Phone size={18} color={TEAL} />
+              <Text style={[md.actionTxt, { color: TEAL }]}>전화걸기</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [md.actionBtn, { backgroundColor: "#F0F4FF", opacity: pressed ? 0.7 : 1 }]}
+              onPress={() => smsPhone(phone)}
+              disabled={!phone}
+            >
+              <MessageSquare size={18} color="#4F6EF7" />
+              <Text style={[md.actionTxt, { color: "#4F6EF7" }]}>문자보내기</Text>
+            </Pressable>
+          </View>
+
+          {/* 기존 학생과 연결 버튼 (미연결 앱 가입자에게만 표시) */}
+          {isApp && !loading && isUnlinked && (
+            <Pressable
+              style={({ pressed }) => [md.linkBtn, { opacity: pressed ? 0.85 : 1 }]}
+              onPress={() => setLinkModalVisible(true)}
+            >
+              <Link2 size={16} color="#fff" />
+              <Text style={md.linkBtnTxt}>기존 학생과 연결</Text>
+            </Pressable>
+          )}
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 16 }}>
+            {/* 기본 정보 */}
+            <View style={md.section}>
+              <Text style={md.sectionTitle}>기본 정보</Text>
+              <View style={md.infoCard}>
+                <InfoLine label="이름" value={item.name || "—"} />
+                <View style={md.divider} />
+                <InfoLine label="전화번호" value={formatPhone(phone)} />
+                {isApp && <><View style={md.divider} /><InfoLine label="가입일" value={formatDate(item.created_at)} /></>}
+                {isApp && item.login_id && <><View style={md.divider} /><InfoLine label="아이디" value={item.login_id} /></>}
               </View>
             </View>
-            <Text style={md.phoneTxt}>{formatPhone(phone)}</Text>
-          </View>
-          <Pressable onPress={onClose} hitSlop={12}>
-            <X size={20} color={C.textMuted} />
-          </Pressable>
-        </View>
 
-        {/* 전화 / 문자 버튼 */}
-        <View style={md.actionRow}>
-          <Pressable
-            style={({ pressed }) => [md.actionBtn, { backgroundColor: "#EFF9F8", opacity: pressed ? 0.7 : 1 }]}
-            onPress={() => callPhone(phone)}
-            disabled={!phone}
-          >
-            <Phone size={18} color={TEAL} />
-            <Text style={[md.actionTxt, { color: TEAL }]}>전화걸기</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [md.actionBtn, { backgroundColor: "#F0F4FF", opacity: pressed ? 0.7 : 1 }]}
-            onPress={() => smsPhone(phone)}
-            disabled={!phone}
-          >
-            <MessageSquare size={18} color="#4F6EF7" />
-            <Text style={[md.actionTxt, { color: "#4F6EF7" }]}>문자보내기</Text>
-          </Pressable>
-        </View>
+            {/* 가입 시 입력한 자녀 이름 — 항상 표시 */}
+            {isApp && (
+              <View style={md.section}>
+                <Text style={md.sectionTitle}>가입 시 입력한 자녀 이름</Text>
+                <View style={md.infoCard}>
+                  {loading ? (
+                    <ActivityIndicator size="small" color={TEAL} style={{ marginVertical: 4 }} />
+                  ) : regChildNames.length > 0 ? (
+                    regChildNames.map((name, i) => (
+                      <React.Fragment key={i}>
+                        {i > 0 && <View style={md.divider} />}
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 2 }}>
+                          <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" }}>{name}</Text>
+                        </View>
+                      </React.Fragment>
+                    ))
+                  ) : (
+                    <Text style={{ fontSize: 13, color: C.textMuted, paddingVertical: 4 }}>정보 없음</Text>
+                  )}
+                </View>
+              </View>
+            )}
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 16 }}>
-          {/* 기본 정보 */}
-          <View style={md.section}>
-            <Text style={md.sectionTitle}>기본 정보</Text>
-            <View style={md.infoCard}>
-              <InfoLine label="이름" value={item.name || "—"} />
-              <View style={md.divider} />
-              <InfoLine label="전화번호" value={formatPhone(phone)} />
-              {isApp && <><View style={md.divider} /><InfoLine label="가입일" value={formatDate(item.created_at)} /></>}
-              {isApp && item.login_id && <><View style={md.divider} /><InfoLine label="아이디" value={item.login_id} /></>}
-            </View>
-          </View>
-
-          {/* 연결된 자녀 */}
-          {loading ? (
-            <ActivityIndicator color={TEAL} style={{ marginTop: 8 }} />
-          ) : (
-            <>
+            {/* 연결된 자녀 */}
+            {loading && !isApp ? (
+              <ActivityIndicator color={TEAL} style={{ marginTop: 8 }} />
+            ) : (
               <View style={md.section}>
                 <Text style={md.sectionTitle}>
                   연결된 자녀 {detail?.students?.length ?? item.students.length}명
@@ -252,28 +312,28 @@ function ParentDetailModal({
                   </View>
                 )}
               </View>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
 
-              {/* 가입 시 입력한 자녀 정보 */}
-              {regChildNames.length > 0 && (
-                <View style={md.section}>
-                  <Text style={md.sectionTitle}>가입 시 입력한 자녀 이름</Text>
-                  <View style={md.infoCard}>
-                    {regChildNames.map((name, i) => (
-                      <React.Fragment key={i}>
-                        {i > 0 && <View style={md.divider} />}
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 2 }}>
-                          <Text style={{ fontSize: 14, color: C.text }}>{name}</Text>
-                        </View>
-                      </React.Fragment>
-                    ))}
-                  </View>
-                </View>
-              )}
-            </>
-          )}
-        </ScrollView>
-      </View>
-    </Modal>
+      {/* 학생 연결 모달 */}
+      {isApp && (
+        <LinkStudentModal
+          visible={linkModalVisible}
+          onClose={() => setLinkModalVisible(false)}
+          parentId={item.id}
+          parentName={item.name}
+          initialChildName={initialChildName}
+          token={token}
+          onLinked={(studentName) => {
+            setLinkModalVisible(false);
+            onRefresh();
+            onClose();
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -480,6 +540,7 @@ export default function ParentsListScreen() {
         visible={!!selected}
         onClose={() => setSelected(null)}
         token={token}
+        onRefresh={() => { fetchParents(); setSelected(null); }}
       />
     </View>
   );
@@ -584,4 +645,12 @@ const md = StyleSheet.create({
 
   tag: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: TEAL_BG },
   tagTxt: { fontSize: 11, color: TEAL, fontWeight: "600" },
+
+  // 기존 학생과 연결 버튼
+  linkBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    marginHorizontal: 20, marginBottom: 4, paddingVertical: 13,
+    backgroundColor: TEAL, borderRadius: 12,
+  },
+  linkBtnTxt: { fontSize: 15, fontWeight: "700", color: "#fff" },
 });

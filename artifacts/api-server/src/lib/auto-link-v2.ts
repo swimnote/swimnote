@@ -3,7 +3,7 @@
  *
  * 매칭 조건 (3개 모두 일치):
  *   pool_id (exact)
- *   + normalizePhone(parent_phone | parent_phone2) 중 하나
+ *   + normalizePhone(parent_phone | parent_phone2 | parent_phone3 | parent_phone4) 중 하나
  *   + normalizeName(student_name)
  *
  * 다중 후보 처리:
@@ -125,6 +125,8 @@ export async function tryMatchStudentV2(
       AND (
         REGEXP_REPLACE(COALESCE(parent_phone,'') ,'[^0-9]','','g') = ${phoneNorm}
         OR REGEXP_REPLACE(COALESCE(parent_phone2,''),'[^0-9]','','g') = ${phoneNorm}
+        OR REGEXP_REPLACE(COALESCE(parent_phone3,''),'[^0-9]','','g') = ${phoneNorm}
+        OR REGEXP_REPLACE(COALESCE(parent_phone4,''),'[^0-9]','','g') = ${phoneNorm}
       )
       AND REPLACE(LOWER(TRIM(COALESCE(name,''))), ' ', '') = ${childNameNorm}
       AND status NOT IN ('withdrawn','archived','deleted')
@@ -285,9 +287,9 @@ export async function getParentStatusV2(parentId: string): Promise<{
 }
 
 // ── 관리자 학생 등록/수정 시 V2 자동연결 트리거 ──────────────────────────
-// 호출 조건: name / parent_phone / parent_phone2 / pool_id 변경 또는 신규 등록 / 승인 완료 시만
+// 호출 조건: name / parent_phone / parent_phone2 / parent_phone3 / parent_phone4 / pool_id 변경 또는 신규 등록 / 승인 완료 시만
 export async function triggerAutoLinkOnStudentV2(studentId: string, changedFields?: string[]): Promise<void> {
-  const relevantFields = ["name", "parent_phone", "parent_phone2", "swimming_pool_id", "status"];
+  const relevantFields = ["name", "parent_phone", "parent_phone2", "parent_phone3", "parent_phone4", "swimming_pool_id", "status"];
   if (changedFields && changedFields.length > 0) {
     const hasRelevant = changedFields.some(f => relevantFields.includes(f));
     if (!hasRelevant) {
@@ -297,7 +299,7 @@ export async function triggerAutoLinkOnStudentV2(studentId: string, changedField
   }
 
   const [student] = (await db.execute(sql`
-    SELECT id, name, swimming_pool_id, parent_phone, parent_phone2
+    SELECT id, name, swimming_pool_id, parent_phone, parent_phone2, parent_phone3, parent_phone4
     FROM students WHERE id = ${studentId} LIMIT 1
   `)).rows as any[];
 
@@ -307,9 +309,13 @@ export async function triggerAutoLinkOnStudentV2(studentId: string, changedField
   }
 
   // 등록된 전화번호 중 비어있지 않은 것만 정규화
-  const phoneNorm1 = normalizePhone(student.parent_phone  || "");
-  const phoneNorm2 = normalizePhone(student.parent_phone2 || "");
-  const validPhones = [...new Set([phoneNorm1, phoneNorm2].filter(p => p.length > 0))];
+  const rawPhones = [
+    student.parent_phone  || "",
+    student.parent_phone2 || "",
+    student.parent_phone3 || "",
+    student.parent_phone4 || "",
+  ];
+  const validPhones = [...new Set(rawPhones.map(normalizePhone).filter(p => p.length > 0))];
 
   if (validPhones.length === 0) {
     console.log(`[v2-admin-trigger] SKIP student=${studentId} — phone 미설정`);
@@ -319,16 +325,21 @@ export async function triggerAutoLinkOnStudentV2(studentId: string, changedField
   const nameNorm = normalizeName(student.name);
   console.log(`[v2-admin-trigger] 검색 시작 student=${studentId} pool=${student.swimming_pool_id} phones=[${validPhones.map(phoneMask).join(",")}] name="${nameNorm}"`);
 
-  // parent_phone / parent_phone2 모두 OR 조건으로 대기 보호자 검색
+  // parent_phone / phone2 / phone3 / phone4 모두 OR 조건으로 대기 보호자 검색
   // 중복 parent_id 제거 (동일 보호자가 여러 phone으로 매칭될 수 있음)
   // note: Drizzle sql``은 JS 배열을 ANY()에 직접 바인딩할 수 없으므로 명시적 OR 사용
-  const [p1, p2] = [validPhones[0] ?? "", validPhones[1] ?? ""];
+  const [p1, p2, p3, p4] = [
+    validPhones[0] ?? "", validPhones[1] ?? "",
+    validPhones[2] ?? "", validPhones[3] ?? "",
+  ];
   const pendingRows = (await db.execute(sql`
     SELECT DISTINCT ON (parent_id) id, parent_id FROM parent_v2_pending
     WHERE pool_id = ${student.swimming_pool_id}
       AND (
         parent_phone_normalized = ${p1}
         OR (${p2} <> '' AND parent_phone_normalized = ${p2})
+        OR (${p3} <> '' AND parent_phone_normalized = ${p3})
+        OR (${p4} <> '' AND parent_phone_normalized = ${p4})
       )
       AND child_name_normalized = ${nameNorm}
       AND status = 'pending'
