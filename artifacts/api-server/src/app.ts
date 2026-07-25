@@ -226,27 +226,6 @@ app.get(["/report", "/api/report"], (_req: Request, res: Response) => {
 });
 
 
-// ── AI Admin SPA 서빙 (/ai-admin/*) ─────────────────────────────────────
-const aiAdminDistDir = path.join(__dirname, "../../swimnote-web/dist/ai-admin");
-const aiAdminIndexPath = path.join(aiAdminDistDir, "index.html");
-if (fs.existsSync(aiAdminDistDir)) {
-  app.use("/ai-admin", express.static(aiAdminDistDir));
-}
-app.get("/ai-admin", (_req: Request, res: Response) => {
-  if (fs.existsSync(aiAdminIndexPath)) {
-    res.sendFile(aiAdminIndexPath);
-  } else {
-    res.status(503).send("AI Admin not built yet. Run: pnpm --filter @workspace/swimnote-web build");
-  }
-});
-app.get("/ai-admin/*splat", (_req: Request, res: Response) => {
-  if (fs.existsSync(aiAdminIndexPath)) {
-    res.sendFile(aiAdminIndexPath);
-  } else {
-    res.status(503).send("AI Admin not built yet. Run: pnpm --filter @workspace/swimnote-web build");
-  }
-});
-
 // ── swimnote-web SPA 서빙 (/api 이외 모든 경로) ─────────────────────────
 const webDistDir = path.join(__dirname, "../../swimnote-web/dist/public");
 const webIndexPath = path.join(webDistDir, "index.html");
