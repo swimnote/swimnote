@@ -80,7 +80,8 @@ export default function AIInputArea({
   useEffect(() => {
     const toWave    = isRecording ? AIThemeLayout.waveformHeight : 0;
     const toOpacity = isRecording ? 0 : 1;
-    const toVoiceH  = isRecording ? 0 : 56;
+    // RECORDING일 때도 "녹음 중단" 버튼이 보여야 하므로 isActive(INPUT/RECORDING/EDITING) → 56
+    const toVoiceH  = isActive ? 56 : 0;
 
     if (reducedMotion) {
       waveformHeight.value = toWave;

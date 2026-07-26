@@ -58,6 +58,16 @@ function getActionConfig(
         onSecondary:    onClose,
         primaryDisabled: !inputText.trim(),
       };
+    case 'RECORDING':
+      // 녹음 중 — "녹음 중단" 버튼은 콘텐츠 영역(AIInputArea)에 표시됨
+      // ActionBar에는 취소만 노출 (AI 작성 비활성)
+      return {
+        primaryLabel:    'AI 작성',
+        secondaryLabel:  '취소',
+        onPrimary:       onSubmit,
+        onSecondary:     onClose,
+        primaryDisabled: true,
+      };
     case 'RESULT':
     case 'EDITING':
       return {
