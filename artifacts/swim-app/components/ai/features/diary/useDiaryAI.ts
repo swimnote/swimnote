@@ -21,6 +21,8 @@ interface UseDiaryAIOptions {
   poolId?:          string;
   /** COMPLETE 시 결과 텍스트를 부모에게 전달하는 콜백 */
   onInsert?:        (text: string) => void;
+  /** 삽입 완료 후 모달을 닫는 콜백 (machine.complete() 대신 직접 닫기) */
+  onClose?:         () => void;
 }
 
 export function useDiaryAI(options: UseDiaryAIOptions = {}) {
@@ -109,11 +111,21 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
   // ─── 일지 삽입 ──────────────────────────────────────────────────────────
 
   const handleInsert = () => {
-    // 부모 컴포넌트의 일지 필드에 resultText 삽입
+    console.log(`[INSERT-1] handleInsert 진입 — state=${machine.state} hasResult=${!!resultText}`);
+
+    // 1. 부모 컴포넌트의 일지 필드에 resultText 삽입
     if (options.onInsert && resultText) {
+      console.log(`[INSERT-2] options.onInsert 호출`);
       options.onInsert(resultText);
+      console.log(`[INSERT-3] options.onInsert 완료`);
     }
-    machine.complete();
+
+    // 2. machine.complete() → COMPLETE state render → AIResultArea의
+    //    useAnimatedReaction이 UI/JS 스레드 race를 일으켜 native crash.
+    //    onClose()로 모달을 직접 닫으면 AIProvider가 unmount되어 state가 리셋됨.
+    console.log(`[INSERT-4] onClose 호출`);
+    options.onClose?.();
+    console.log(`[INSERT-5] onClose 완료`);
   };
 
   return {

@@ -56,13 +56,17 @@ export default function AIResultArea({ result, state }: AIResultAreaProps) {
   }, [result]);
 
   // 배치 기반 reaction: 매 BATCH_SIZE 글자마다 setState
+  // ⚠️ deps 배열 필수: 없으면 COMPLETE re-render 시 Reanimated가 worklet closure를
+  //    재구성하면서 UI/JS 스레드 race → native crash 발생
   useAnimatedReaction(
     () => Math.floor(charIndex.value / BATCH_SIZE),
     (batch, prev) => {
+      'worklet';
       if (batch !== prev) {
         runOnJS(updateDisplayed)(batch * BATCH_SIZE);
       }
     },
+    [updateDisplayed],
   );
 
   // 결과 텍스트가 바뀌거나 visible 전환 시 타이핑 시작

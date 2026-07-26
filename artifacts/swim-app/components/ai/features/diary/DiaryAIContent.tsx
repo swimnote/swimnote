@@ -75,7 +75,7 @@ export default function DiaryAIContent({
     handleSubmit,
     handleInsert,
     machine,
-  } = useDiaryAI({ existingContent, studentId, classId, poolId, onInsert });
+  } = useDiaryAI({ existingContent, studentId, classId, poolId, onInsert, onClose });
 
   // ── 레이아웃 모드 판단 ─────────────────────────────────────────────────────
   const showInput   = ['INPUT', 'RECORDING'].includes(state);
