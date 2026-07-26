@@ -10,7 +10,7 @@
  * TODO: 현재 학생/수업 컨텍스트 수집
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAIStateMachine } from '../../hooks/useAIStateMachine';
 
 interface UseDiaryAIOptions {
@@ -29,6 +29,19 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
   const machine = useAIStateMachine();
   const [inputText, setInputText]   = useState('');
   const [resultText, setResultText] = useState('');
+
+  // "다시 작성" 호출 횟수 — 더미 구분용 (Phase 3 실 API 교체 시 제거)
+  const rewriteCountRef = useRef(0);
+
+  // "삽입 완료" 버튼 피드백 상태 (Stage A 임시)
+  const [insertDone, setInsertDone] = useState(false);
+  const insertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (insertTimerRef.current) clearTimeout(insertTimerRef.current);
+    };
+  }, []);
 
   // ─── 모달 마운트 시 CLOSED → OPENING → INPUT 자동 전환 ──────────────────
   useEffect(() => {
@@ -79,9 +92,10 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
     console.log('[REWRITE-1] 다시 작성/AI작성 클릭 — state:', machine.state, 'inputText길이:', inputText.length);
 
     if (machine.state === 'RESULT' || machine.state === 'EDITING') {
-      // RESULT/EDITING → INPUT → PROCESSING: 먼저 INPUT으로 되돌린 뒤 submit
-      // (machine.submit()은 INPUT에서만 PROCESSING으로 전환 가능)
+      // RESULT/EDITING → INPUT → PROCESSING
       console.log('[REWRITE-2] RESULT 상태 → retry(INPUT) 선행');
+      rewriteCountRef.current += 1;
+      console.log('[REWRITE-2b] 재작성 횟수:', rewriteCountRef.current);
       machine.retry('INPUT');
     } else if (!inputText.trim()) {
       // INPUT 상태에서 inputText 없으면 스킵
@@ -96,11 +110,16 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
   };
 
   const generateDiary = async () => {
-    // 더미 AI 결과 (Phase 3에서 실제 API 교체)
-    const DUMMY_RESULT = '오늘은 자유형 발차기와 호흡 연습을 진행했습니다. 학생들이 발차기 자세를 교정하며 호흡 타이밍을 맞추는 연습을 했고, 전반적으로 좋은 향상을 보였습니다.';
+    // ⚠️ 더미 결과 — Phase 3에서 실제 API 교체 예정
+    const BASE_DUMMY = '오늘은 자유형 발차기와 호흡 연습을 진행했습니다. 학생들이 발차기 자세를 교정하며 호흡 타이밍을 맞추는 연습을 했고, 전반적으로 좋은 향상을 보였습니다.';
+    // 재작성 횟수를 더미 결과 끝에 표시하여 재실행 여부를 눈으로 확인
+    const count = rewriteCountRef.current;
+    const DUMMY_RESULT = count > 0
+      ? `${BASE_DUMMY} (더미 재작성 ${count})`
+      : BASE_DUMMY;
 
     try {
-      console.log('[GENERATE-1] generateDiary 시작');
+      console.log('[GENERATE-1] generateDiary 시작 — rewriteCount:', count);
       console.log('[GENERATE-2] transcript=(더미) result=(생성예정) state:', machine.state);
 
       // TODO Phase 3: 실제 API 호출
@@ -111,7 +130,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       setResultText(DUMMY_RESULT);
       console.log('[GENERATE-4] setResultText 완료 — machine.receiveResult() 직전');
       machine.receiveResult();
-      console.log('[GENERATE-5] machine.receiveResult() 완료 — generatedText=더미 resultText:', DUMMY_RESULT.slice(0, 20));
+      console.log('[GENERATE-5] machine.receiveResult() 완료 — resultText:', DUMMY_RESULT.slice(0, 30));
     } catch (e: any) {
       console.error('[GENERATE-ERR] generateDiary 오류:', e?.message ?? e);
       machine.setError({
@@ -134,11 +153,17 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
     console.log('[INSERT-1] 버튼 클릭 — handleInsert 진입');
     console.log('[INSERT-2] result 확인:', resultText ? `길이=${resultText.length}자` : '(없음)');
 
-    // ── STAGE A: 부모 onInsert만 실행 (모달은 닫지 않음) ─────────────────
+    // ── STAGE A: 부모 onInsert만 실행, 모달은 닫지 않음 ─────────────────
+    // ⚠️ 최종 삽입 위치/정책 미확정 — setCommonContent는 테스트용 임시 삽입
     if (options.onInsert && resultText) {
-      console.log('[INSERT-3] 부모 onInsert 시작');
+      console.log('[INSERT-3] 부모 onInsert 시작 (임시 삽입)');
       options.onInsert(resultText);
       console.log('[INSERT-4] 부모 state 반영 완료');
+
+      // 버튼 피드백: "삽입 완료" 2초 표시 후 원복
+      setInsertDone(true);
+      if (insertTimerRef.current) clearTimeout(insertTimerRef.current);
+      insertTimerRef.current = setTimeout(() => setInsertDone(false), 2000);
     } else {
       console.log('[INSERT-3] onInsert 스킵 — hasOnInsert:', !!options.onInsert, 'hasResult:', !!resultText);
     }
@@ -158,6 +183,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
     setInputText,
     resultText,
     setResultText,
+    insertDone,
     handleVoicePress,
     handleSubmit,
     handleInsert,

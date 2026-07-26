@@ -107,6 +107,7 @@ export default function DiaryWriteView({
             <Text style={s.charCount}>{commonContent.length}자</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <DiaryAIButton
+                // ⚠️ 공통 일지 임시 삽입 — 최종 삽입 위치·덮어쓰기 정책 미확정 (Stage A 테스트용)
                 onInsert={(text) => setCommonContent(prev => prev.trim() ? `${prev.trim()}\n\n${text}` : text)}
                 themeColor={themeColor}
                 existingContent={commonContent}

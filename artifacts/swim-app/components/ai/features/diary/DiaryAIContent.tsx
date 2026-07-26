@@ -71,6 +71,7 @@ export default function DiaryAIContent({
     inputText,
     setInputText,
     resultText,
+    insertDone,
     handleVoicePress,
     handleSubmit,
     handleInsert,
@@ -155,8 +156,15 @@ export default function DiaryAIContent({
 
       {/* 고정 하단 ActionBar (safe area 포함) */}
       <View style={[styles.actionBarWrap, { paddingBottom: insets.bottom + AIThemeSpacing.element }]}>
+        {/* ⚠️ 임시 삽입 안내 — 최종 삽입 정책 확정 전까지 Stage A 테스트용 */}
+        {insertDone && (
+          <View style={styles.insertNotice}>
+            <Text style={styles.insertNoticeText}>공통 일지에 임시 삽입되었습니다</Text>
+          </View>
+        )}
         <DiaryAIActionBar
           inputText={inputText}
+          insertDone={insertDone}
           onSubmit={handleSubmit}
           onInsert={handleInsert}
           onClose={onClose}
@@ -212,5 +220,19 @@ const styles = StyleSheet.create({
     backgroundColor:   AIThemeColor.background,
     borderTopWidth:    1,
     borderTopColor:    AIThemeColor.border,
+  },
+  // ⚠️ 임시 삽입 안내 — Stage A 테스트용, 최종 삽입 정책 확정 후 교체 예정
+  insertNotice: {
+    backgroundColor: '#E8F5E9',
+    borderRadius:    AIThemeRadius.badge,
+    paddingVertical:   6,
+    paddingHorizontal: AIThemeSpacing.element,
+    marginBottom:      AIThemeSpacing.tight,
+    alignItems:        'center',
+  },
+  insertNoticeText: {
+    ...AIThemeTypography.caption,
+    color:      '#2E7D32',
+    fontWeight: '500',
   },
 });

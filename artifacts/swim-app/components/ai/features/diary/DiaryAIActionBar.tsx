@@ -13,14 +13,17 @@ import { useAIStateMachine } from '../../hooks/useAIStateMachine';
 import AIActionBar from '../../components/AIActionBar';
 
 interface DiaryAIActionBarProps {
-  inputText:    string;
-  onSubmit:     () => void;
-  onInsert:     () => void;
-  onClose:      () => void;
+  inputText:   string;
+  /** Stage A 임시 삽입 완료 피드백 — 최종 삽입 정책 확정 후 제거 예정 */
+  insertDone?: boolean;
+  onSubmit:    () => void;
+  onInsert:    () => void;
+  onClose:     () => void;
 }
 
 export default function DiaryAIActionBar({
   inputText,
+  insertDone = false,
   onSubmit,
   onInsert,
   onClose,
@@ -28,7 +31,7 @@ export default function DiaryAIActionBar({
   const { state } = useAIStateMachine();
 
   // State별 버튼 구성
-  const config = getActionConfig(state, inputText, onSubmit, onInsert, onClose);
+  const config = getActionConfig(state, inputText, insertDone, onSubmit, onInsert, onClose);
 
   return (
     <AIActionBar
@@ -45,6 +48,7 @@ export default function DiaryAIActionBar({
 function getActionConfig(
   state: AIState,
   inputText: string,
+  insertDone: boolean,
   onSubmit: () => void,
   onInsert: () => void,
   onClose: () => void,
@@ -52,15 +56,13 @@ function getActionConfig(
   switch (state) {
     case 'INPUT':
       return {
-        primaryLabel:   'AI 작성',
-        secondaryLabel: '취소',
-        onPrimary:      onSubmit,
-        onSecondary:    onClose,
+        primaryLabel:    'AI 작성',
+        secondaryLabel:  '취소',
+        onPrimary:       onSubmit,
+        onSecondary:     onClose,
         primaryDisabled: !inputText.trim(),
       };
     case 'RECORDING':
-      // 녹음 중 — "녹음 중단" 버튼은 콘텐츠 영역(AIInputArea)에 표시됨
-      // ActionBar에는 취소만 노출 (AI 작성 비활성)
       return {
         primaryLabel:    'AI 작성',
         secondaryLabel:  '취소',
@@ -71,22 +73,23 @@ function getActionConfig(
     case 'RESULT':
     case 'EDITING':
       return {
-        primaryLabel:   '일지에 삽입',
-        secondaryLabel: '다시 작성',
-        onPrimary:      onInsert,
-        onSecondary:    onSubmit,
+        // ⚠️ insertDone 시 "삽입 완료 ✓" 표시 — Stage A 임시 피드백
+        primaryLabel:    insertDone ? '삽입 완료 ✓' : '일지에 삽입',
+        secondaryLabel:  '다시 작성',
+        onPrimary:       onInsert,
+        onSecondary:     onSubmit,
         primaryDisabled: false,
       };
     case 'COMPLETE':
       return {
-        primaryLabel:   '닫기',
-        onPrimary:      onClose,
+        primaryLabel:    '닫기',
+        onPrimary:       onClose,
         primaryDisabled: false,
       };
     default:
       return {
-        primaryLabel:   '닫기',
-        onPrimary:      onClose,
+        primaryLabel:    '닫기',
+        onPrimary:       onClose,
         primaryDisabled: false,
       };
   }
