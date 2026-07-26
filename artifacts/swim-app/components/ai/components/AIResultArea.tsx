@@ -37,7 +37,7 @@ const BATCH_SIZE = 4;
 // Stage C (machine.complete() 포함) 테스트에서 크래시 발생 시 true로 변경
 // true → Reanimated 타이핑 애니메이션 + useAnimatedReaction 완전 비활성화
 // (reducedMotion과 동일한 즉시 텍스트 표시 경로 사용)
-const CRASH_TEST_DISABLE_ANIMATION = false;
+const CRASH_TEST_DISABLE_ANIMATION = true;
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
