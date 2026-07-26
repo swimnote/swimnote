@@ -96,6 +96,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       console.log('[REWRITE-2] RESULT 상태 → retry(INPUT) 선행');
       rewriteCountRef.current += 1;
       console.log('[REWRITE-2b] 재작성 횟수:', rewriteCountRef.current);
+      console.log(`[REWRITE-RESULT] 다시 작성 클릭 시점 resultText="${resultText.slice(0, 20)}" length=${resultText.length}`);
       machine.retry('INPUT');
     } else if (!inputText.trim()) {
       // INPUT 상태에서 inputText 없으면 스킵
@@ -127,6 +128,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       // setResultText(resp.text);
 
       console.log('[GENERATE-3] setResultText 직전 — 더미 텍스트 길이:', DUMMY_RESULT.length);
+      console.log(`[RESULT-SET] "${resultText.slice(0, 20) || '(빈값)'}" → "${DUMMY_RESULT.slice(0, 20)}"`);
       setResultText(DUMMY_RESULT);
       console.log('[GENERATE-4] setResultText 완료 — machine.receiveResult() 직전');
       machine.receiveResult();
@@ -156,6 +158,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
     // ── STAGE A + B: onInsert → onClose (모달 닫기) ──────────────────────
     // ⚠️ 최종 삽입 위치/정책 미확정 — setCommonContent는 테스트용 임시 삽입
     if (options.onInsert && resultText) {
+      console.log(`[INSERT-RESULT] 삽입 직전 resultText="${resultText.slice(0, 30)}" length=${resultText.length}`);
       console.log('[INSERT-3] 부모 onInsert 시작');
       options.onInsert(resultText);
       console.log('[INSERT-4] 부모 onInsert 완료');

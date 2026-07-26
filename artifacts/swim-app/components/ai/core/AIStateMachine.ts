@@ -75,6 +75,7 @@ export function aiStateReducer(
         console.log(`[AI-SM ${ts}] OPEN blocked: ${current} → OPENING invalid`);
         return state;
       }
+      console.log(`[STATE] ${current} → OPENING`);
       console.log(`[AI-SM ${ts}] ${current} → OPENING (event: OPEN)`);
       return { ...state, current: 'OPENING', history: [...state.history, current] };
 
@@ -105,11 +106,13 @@ export function aiStateReducer(
 
     case 'SUBMIT':
       if (!canTransition(current, 'PROCESSING')) { console.log(`[AI-SM ${ts}] SUBMIT blocked from ${current}`); return state; }
+      console.log(`[STATE] ${current} → PROCESSING`);
       console.log(`[AI-SM ${ts}] ${current} → PROCESSING (SUBMIT)`);
       return { ...state, current: 'PROCESSING', history: [...state.history, current] };
 
     case 'RESULT_RECEIVED':
       if (!canTransition(current, 'RESULT')) { console.log(`[AI-SM ${ts}] RESULT_RECEIVED blocked from ${current}`); return state; }
+      console.log(`[STATE] ${current} → RESULT`);
       console.log(`[AI-SM ${ts}] ${current} → RESULT`);
       return { ...state, current: 'RESULT', history: [...state.history, current] };
 
@@ -120,6 +123,7 @@ export function aiStateReducer(
 
     case 'COMPLETE':
       if (!canTransition(current, 'COMPLETE')) { console.log(`[AI-SM ${ts}] COMPLETE blocked from ${current}`); return state; }
+      console.log(`[STATE] ${current} → COMPLETE`);
       console.log(`[AI-SM ${ts}] ${current} → COMPLETE`);
       return { ...state, current: 'COMPLETE', history: [...state.history, current] };
 

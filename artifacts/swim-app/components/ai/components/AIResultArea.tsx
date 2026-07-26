@@ -56,6 +56,8 @@ export default function AIResultArea({ result, state }: AIResultAreaProps) {
   const charIndex   = useSharedValue(0);
   const [displayed, setDisplayed] = useState('');
 
+  console.log(`[RESULT-RENDER] state=${state} visible=${visible} result.length=${result.length} displayed.length=${displayed.length}`);
+
   // JS 쪽 텍스트 업데이트 (runOnJS 대상 — 배치 처리)
   const updateDisplayed = useCallback((n: number) => {
     setDisplayed(result.slice(0, Math.min(n, result.length)));
