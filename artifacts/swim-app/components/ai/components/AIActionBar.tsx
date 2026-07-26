@@ -26,25 +26,31 @@ export default function AIActionBar({
 }: AIActionBarProps) {
   return (
     <View style={styles.container}>
-      {/* 보조 버튼 */}
+      {/* 보조 버튼 (RESULT 상태: "다시 작성") */}
       {onSecondary && (
         <Pressable
           style={styles.secondaryButton}
-          onPress={onSecondary}
+          onPress={() => {
+            console.log('[REWRITE CLICK] Pressable touched — label:', secondaryLabel, 'state:', state);
+            onSecondary();
+          }}
           // TODO: Press 애니메이션
         >
           <Text style={styles.secondaryLabel}>{secondaryLabel}</Text>
         </Pressable>
       )}
 
-      {/* 주 버튼 */}
+      {/* 주 버튼 (RESULT 상태: "일지에 삽입") */}
       <Pressable
         style={[
           styles.primaryButton,
           primaryDisabled && styles.primaryButtonDisabled,
           !onSecondary && styles.primaryButtonFull,
         ]}
-        onPress={onPrimary}
+        onPress={() => {
+          console.log('[INSERT CLICK] Pressable touched — label:', primaryLabel, 'state:', state, 'disabled:', primaryDisabled);
+          onPrimary?.();
+        }}
         disabled={primaryDisabled}
         // TODO: Press 애니메이션, 햅틱
       >
