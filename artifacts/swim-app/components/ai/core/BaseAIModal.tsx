@@ -12,7 +12,7 @@
  * 사용: 각 Feature 화면에서 <BaseAIModal content={...} actionBar={...} />
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   Dimensions,
   KeyboardAvoidingView,
@@ -75,8 +75,24 @@ export default function BaseAIModal({
   const insets       = useSafeAreaInsets();
   const reducedMotion = useAIReducedMotion();
 
+  // ── 디버그: 인스턴스 고유 ID ─────────────────────────────────────────────
+  const instanceId = useId();
+
+  // ── 마운트 / 언마운트 로그 ───────────────────────────────────────────────
+  useEffect(() => {
+    console.log(`[UI-LAYER-MOUNT] BaseAIModal id=${instanceId} title="${title}" visible=${visible}`);
+    return () => {
+      console.log(`[UI-LAYER-UNMOUNT] BaseAIModal id=${instanceId} title="${title}"`);
+    };
+  }, []);
+
   // ── 내부 렌더 상태 (애니메이션 완료 후 언마운트) ─────────────────────────
   const [rendered, setRendered] = useState(false);
+
+  // rendered 변경 추적
+  useEffect(() => {
+    console.log(`[UI-LAYER-VISIBLE] BaseAIModal id=${instanceId} rendered=${rendered} (visible prop=${visible})`);
+  }, [rendered]);
 
   // ── Shared Values ─────────────────────────────────────────────────────────
   const translateY    = useSharedValue(SCREEN_HEIGHT);
@@ -180,6 +196,10 @@ export default function BaseAIModal({
               <View style={styles.header}>
                 <View style={styles.handle} />
                 <Text style={styles.title}>{title}</Text>
+                {/* ── DEBUG: 인스턴스 식별 배너 — 원인 파악 후 제거 ── */}
+                <Text style={styles.debugBanner}>
+                  {'DEBUG: BASE_AI_MODAL  id=' + instanceId.slice(-6)}
+                </Text>
               </View>
             </GestureDetector>
 
@@ -256,5 +276,15 @@ const styles = StyleSheet.create({
   actionBar: {
     paddingHorizontal: AIThemeSpacing.section,
     paddingTop:        AIThemeSpacing.element,
+  },
+  debugBanner: {
+    fontSize:        10,
+    fontFamily:      'monospace',
+    color:           '#FF0000',
+    backgroundColor: '#FFEEEE',
+    textAlign:       'center',
+    paddingVertical: 2,
+    marginTop:       4,
+    borderRadius:    4,
   },
 });
