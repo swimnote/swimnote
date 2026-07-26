@@ -1,45 +1,41 @@
 /**
  * DiaryAIContent — SwimNote AI UI Framework V1.0 / Feature: Diary
  * AI 일지 작성 Content 컴포넌트 (State 반응형 레이아웃)
- *
- * 상태별 레이아웃:
- *   INPUT      — 입력창 중심, 결과 없음
- *   RECORDING  — 파형 확장 (AIInputArea 내부)
- *   PROCESSING — Shimmer Skeleton
- *   RESULT     — 상단 요약 + 결과 카드 확장
- *   EDITING    — 결과 카드 편집 모드
- *   COMPLETE   — 결과 카드 + 완료 피드백
- *   ERROR      — AIErrorView
- *   PERMISSION — AIPermissionView
+ * Phase 4: onInsert 콜백 + DiaryAIActionBar 내장
  *
  * 의존: useDiaryAI, AI 컴포넌트들, Reanimated
- * 사용: 일지 화면에서 <BaseAIModal content={<DiaryAIContent />} />
+ * 사용: <BaseAIModal content={<DiaryAIContent onInsert={...} onClose={...} />} />
  */
 
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView } from 'react-native';
 import { useAIContext } from '../../core/AIContext';
 import AIErrorView from '../../components/AIErrorView';
 import AIInputArea from '../../components/AIInputArea';
 import AILoading from '../../components/AILoading';
 import AIPermissionView from '../../components/AIPermissionView';
 import AIResultArea from '../../components/AIResultArea';
+import DiaryAIActionBar from './DiaryAIActionBar';
 import { AIThemeColor, AIThemeDuration, AIThemeRadius, AIThemeSpacing, AIThemeTypography } from '../../theme/AITheme';
 import { useDiaryAI } from './useDiaryAI';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface DiaryAIContentProps {
+  /** COMPLETE 시 결과 텍스트를 부모 textarea에 삽입 */
+  onInsert?:        (text: string) => void;
+  onClose:          () => void;
   existingContent?: string;
   studentId?:       string;
   classId?:         string;
   poolId?:          string;
-  onClose:          () => void;
 }
 
 // ─── 상단 입력 요약 (RESULT/EDITING 상태) ─────────────────────────────────────
@@ -60,13 +56,15 @@ function InputSummary({ text, onEdit }: { text: string; onEdit: () => void }) {
 // ─── DiaryAIContent ───────────────────────────────────────────────────────────
 
 export default function DiaryAIContent({
+  onInsert,
+  onClose,
   existingContent,
   studentId,
   classId,
   poolId,
-  onClose,
 }: DiaryAIContentProps) {
   const { state, error } = useAIContext();
+  const insets = useSafeAreaInsets();
 
   const {
     inputText,
@@ -74,8 +72,9 @@ export default function DiaryAIContent({
     resultText,
     handleVoicePress,
     handleSubmit,
+    handleInsert,
     machine,
-  } = useDiaryAI({ existingContent, studentId, classId, poolId });
+  } = useDiaryAI({ existingContent, studentId, classId, poolId, onInsert });
 
   // ── 레이아웃 모드 판단 ─────────────────────────────────────────────────────
   const showInput   = ['INPUT', 'RECORDING'].includes(state);
@@ -92,64 +91,86 @@ export default function DiaryAIContent({
     );
   }, [showInput]);
   const inputAnimStyle = useAnimatedStyle(() => ({
-    opacity:  inputOpacity.value,
-    display:  inputOpacity.value < 0.05 ? 'none' : 'flex',
+    opacity: inputOpacity.value,
+    display: inputOpacity.value < 0.05 ? 'none' : 'flex',
   }));
 
-  // ── ERROR ─────────────────────────────────────────────────────────────────
-  if (state === 'ERROR' && error) {
-    return <AIErrorView error={error} onClose={onClose} />;
-  }
+  // ── 콘텐츠 영역 렌더링 ────────────────────────────────────────────────────
+  const renderContent = () => {
+    if (state === 'ERROR' && error) {
+      return <AIErrorView error={error} onClose={onClose} />;
+    }
+    if (state === 'PERMISSION') {
+      return <AIPermissionView types={['microphone']} onClose={onClose} />;
+    }
+    if (showLoading) {
+      return <AILoading state={state} message="일지를 작성하고 있습니다..." />;
+    }
+    return (
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* 상단 요약 (RESULT 이후) */}
+        {showSummary && (
+          <InputSummary
+            text={inputText}
+            onEdit={() => machine.retry('INPUT')}
+          />
+        )}
 
-  // ── PERMISSION ────────────────────────────────────────────────────────────
-  if (state === 'PERMISSION') {
-    return <AIPermissionView types={['microphone']} onClose={onClose} />;
-  }
+        {/* 입력 영역 */}
+        <Animated.View style={inputAnimStyle}>
+          <AIInputArea
+            value={inputText}
+            onChangeText={setInputText}
+            state={state}
+            placeholder="수업 내용을 간단히 입력하거나 음성으로 말씀하세요"
+            onVoicePress={handleVoicePress}
+          />
+        </Animated.View>
 
-  // ── PROCESSING / UPLOADING ────────────────────────────────────────────────
-  if (showLoading) {
-    return <AILoading state={state} message="일지를 작성하고 있습니다..." />;
-  }
+        {/* 결과 카드 */}
+        {showResult && (
+          <View style={styles.resultContainer}>
+            <AIResultArea result={resultText} state={state} />
+          </View>
+        )}
+      </ScrollView>
+    );
+  };
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* 상단 요약 (RESULT 이후) */}
-      {showSummary && (
-        <InputSummary
-          text={inputText}
-          onEdit={() => machine.retry('INPUT')}
-        />
-      )}
+    <View style={styles.wrapper}>
+      {/* 스크롤 콘텐츠 */}
+      <View style={styles.contentArea}>
+        {renderContent()}
+      </View>
 
-      {/* 입력 영역 */}
-      <Animated.View style={inputAnimStyle}>
-        <AIInputArea
-          value={inputText}
-          onChangeText={setInputText}
-          state={state}
-          placeholder="수업 내용을 간단히 입력하거나 음성으로 말씀하세요"
-          onVoicePress={handleVoicePress}
+      {/* 고정 하단 ActionBar (safe area 포함) */}
+      <View style={[styles.actionBarWrap, { paddingBottom: insets.bottom + AIThemeSpacing.element }]}>
+        <DiaryAIActionBar
+          inputText={inputText}
+          onSubmit={handleSubmit}
+          onInsert={handleInsert}
+          onClose={onClose}
         />
-      </Animated.View>
-
-      {/* 결과 카드 */}
-      {showResult && (
-        <View style={styles.resultContainer}>
-          <AIResultArea result={resultText} state={state} />
-        </View>
-      )}
-    </ScrollView>
+      </View>
+    </View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
+  contentArea: {
+    flex: 1,
+  },
   scroll: {
     flex: 1,
   },
@@ -180,5 +201,12 @@ const styles = StyleSheet.create({
   resultContainer: {
     flex:      1,
     minHeight: 200,
+  },
+  actionBarWrap: {
+    paddingHorizontal: AIThemeSpacing.section,
+    paddingTop:        AIThemeSpacing.element,
+    backgroundColor:   AIThemeColor.background,
+    borderTopWidth:    1,
+    borderTopColor:    AIThemeColor.border,
   },
 });

@@ -19,6 +19,8 @@ interface UseDiaryAIOptions {
   studentId?:       string;
   classId?:         string;
   poolId?:          string;
+  /** COMPLETE 시 결과 텍스트를 부모에게 전달하는 콜백 */
+  onInsert?:        (text: string) => void;
 }
 
 export function useDiaryAI(options: UseDiaryAIOptions = {}) {
@@ -93,8 +95,10 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
   // ─── 일지 삽입 ──────────────────────────────────────────────────────────
 
   const handleInsert = () => {
-    // TODO: 부모 컴포넌트의 일지 필드에 resultText 삽입
-    // onInsert?.(resultText);
+    // 부모 컴포넌트의 일지 필드에 resultText 삽입
+    if (options.onInsert && resultText) {
+      options.onInsert(resultText);
+    }
     machine.complete();
   };
 

@@ -8,6 +8,7 @@ import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
 import { DiaryEntry, ExistingNote, StudentNote, StudentOption } from "./types";
 import { TeacherClassGroup } from "@/components/teacher/types";
+import DiaryAIButton from "@/components/ai/features/diary/DiaryAIButton";
 
 const C = Colors.light;
 
@@ -90,10 +91,18 @@ export default function DiaryEditView({
             placeholderTextColor={C.textMuted} multiline numberOfLines={6} textAlignVertical="top" />
           <View style={s.textareaFooter}>
             <Text style={s.charCount}>{editContent.length}자</Text>
-            <TouchableOpacity style={s.sentencePickBtn} onPress={() => setEditPickerFor("common")} activeOpacity={0.7}>
-              <BookOpen size={13} color={C.tint} />
-              <Text style={s.sentencePickBtnText}>문장 불러오기</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <DiaryAIButton
+                onInsert={(text) => setEditContent(text)}
+                themeColor={themeColor}
+                existingContent={editContent}
+                classId={group.id}
+              />
+              <TouchableOpacity style={s.sentencePickBtn} onPress={() => setEditPickerFor("common")} activeOpacity={0.7}>
+                <BookOpen size={13} color={C.tint} />
+                <Text style={s.sentencePickBtnText}>문장 불러오기</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
