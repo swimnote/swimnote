@@ -10,6 +10,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -89,6 +90,7 @@ export default function DiaryAIContent({
       showInput ? 1 : 0,
       { duration: AIThemeDuration.fast },
     );
+    return () => cancelAnimation(inputOpacity);
   }, [showInput]);
   // display/pointerEvents는 useAnimatedStyle 안에서 조건부 문자열로 쓰면
   // native crash를 유발할 수 있으므로 opacity만 사용합니다.

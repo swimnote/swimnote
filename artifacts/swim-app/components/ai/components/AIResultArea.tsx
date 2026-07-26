@@ -94,6 +94,10 @@ export default function AIResultArea({ result, state }: AIResultAreaProps) {
       cardTranslateY.value = 16;
       cardOpacity.value    = 0;
     }
+    return () => {
+      cancelAnimation(cardTranslateY);
+      cancelAnimation(cardOpacity);
+    };
   }, [visible, reducedMotion]);
 
   const cardStyle = useAnimatedStyle(() => ({

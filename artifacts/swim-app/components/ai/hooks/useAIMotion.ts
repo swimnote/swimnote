@@ -10,6 +10,7 @@
 
 import { useEffect } from 'react';
 import {
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
 } from 'react-native-reanimated';
@@ -46,6 +47,10 @@ export function useAIMotion() {
     } else {
       animateCardExit(cardTranslateY, cardOpacity, reducedMotion);
     }
+    return () => {
+      cancelAnimation(cardTranslateY);
+      cancelAnimation(cardOpacity);
+    };
   }, [showResult, reducedMotion]);
 
   const cardAnimatedStyle = useAnimatedStyle(() => ({
@@ -62,6 +67,8 @@ export function useAIMotion() {
     } else {
       animateLoadingStop(loadingOpacity);
     }
+    // withRepeat(-1) 무한 애니메이션 → unmount 시 반드시 취소
+    return () => cancelAnimation(loadingOpacity);
   }, [showLoading, reducedMotion]);
 
   const loadingAnimatedStyle = useAnimatedStyle(() => ({
@@ -77,6 +84,7 @@ export function useAIMotion() {
     } else {
       animatePermissionReturn(permissionScale, reducedMotion);
     }
+    return () => cancelAnimation(permissionScale);
   }, [state === 'PERMISSION', reducedMotion]);
 
   const permissionAnimatedStyle = useAnimatedStyle(() => ({
