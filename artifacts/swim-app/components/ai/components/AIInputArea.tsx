@@ -22,6 +22,7 @@ import {
   View,
 } from 'react-native';
 import Animated, {
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -90,12 +91,19 @@ export default function AIInputArea({
       inputOpacity.value    = withTiming(toOpacity, { duration: AIThemeDuration.fast });
       voiceRowHeight.value  = withSpring(toVoiceH, AIThemeSpring.smooth);
     }
+    // RECORDING 중 모달이 닫히면 진행 중인 animation을 안전하게 정리
+    return () => {
+      cancelAnimation(waveformHeight);
+      cancelAnimation(inputOpacity);
+      cancelAnimation(voiceRowHeight);
+    };
   }, [isRecording, reducedMotion]);
 
   // ── 입력창 비활성 시 fade ─────────────────────────────────────────────────
   const containerOpacity = useSharedValue(1);
   useEffect(() => {
     containerOpacity.value = withTiming(isDisabled ? 0.45 : 1, { duration: AIThemeDuration.fast });
+    return () => { cancelAnimation(containerOpacity); };
   }, [isDisabled]);
 
   // ── Animated Styles ───────────────────────────────────────────────────────

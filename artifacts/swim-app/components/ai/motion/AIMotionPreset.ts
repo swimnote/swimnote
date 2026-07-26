@@ -74,13 +74,25 @@ export function animateModalClose(
   if (reducedMotion) {
     translateY.value = screenHeight;
     if (onDone) onDone();
-  } else {
-    const done = onDone ? runOnJS(onDone) : undefined;
+    return;
+  }
+  if (onDone) {
+    // runOnJS로 래핑한 뒤 명시적 'worklet' callback 안에서 호출해야
+    // Reanimated Babel plugin이 안전하게 worklet으로 변환합니다.
+    const jsOnDone = runOnJS(onDone);
     translateY.value = withTiming(
       screenHeight,
       { duration: AIThemeDuration.normal, easing: Easing.in(Easing.quad) },
-      done ? () => { done(); } : undefined,
+      (finished) => {
+        'worklet';
+        if (finished) jsOnDone();
+      },
     );
+  } else {
+    translateY.value = withTiming(screenHeight, {
+      duration: AIThemeDuration.normal,
+      easing: Easing.in(Easing.quad),
+    });
   }
 }
 
@@ -161,12 +173,19 @@ export function animateCardExit(
   onDone?:       MotionCallback,
 ): void {
   // JS 콜백 수신 — 'worklet' 제외, JS 스레드에서만 호출
-  const done = onDone ? runOnJS(onDone) : undefined;
-  opacity.value = withTiming(
-    0,
-    { duration: AIThemeDuration.fast },
-    done ? () => { done(); } : undefined,
-  );
+  if (onDone) {
+    const jsOnDone = runOnJS(onDone);
+    opacity.value = withTiming(
+      0,
+      { duration: AIThemeDuration.fast },
+      (finished) => {
+        'worklet';
+        if (finished) jsOnDone();
+      },
+    );
+  } else {
+    opacity.value = withTiming(0, { duration: AIThemeDuration.fast });
+  }
   if (!reducedMotion) {
     translateY.value = withTiming(16, { duration: AIThemeDuration.fast });
   }
@@ -380,12 +399,23 @@ export function animateSuccessBounce(
     if (onDone) onDone();
     return;
   }
-  const done = onDone ? runOnJS(onDone) : undefined;
-  scale.value = withSequence(
-    withTiming(1.08, { duration: 120 }),
-    withTiming(0.96, { duration:  80 }),
-    withSpring(1, AIThemeSpring.snappy, done ? () => { done(); } : undefined),
-  );
+  if (onDone) {
+    const jsOnDone = runOnJS(onDone);
+    scale.value = withSequence(
+      withTiming(1.08, { duration: 120 }),
+      withTiming(0.96, { duration:  80 }),
+      withSpring(1, AIThemeSpring.snappy, (finished) => {
+        'worklet';
+        if (finished) jsOnDone();
+      }),
+    );
+  } else {
+    scale.value = withSequence(
+      withTiming(1.08, { duration: 120 }),
+      withTiming(0.96, { duration:  80 }),
+      withSpring(1, AIThemeSpring.snappy),
+    );
+  }
 }
 
 /**
@@ -400,16 +430,22 @@ export function animateCompleteTransition(
 ): void {
   // JS 콜백 수신 — 'worklet' 제외, JS 스레드에서만 호출
   const delay = reducedMotion ? 0 : 600;
-  const done  = onDone ? runOnJS(onDone) : undefined;
-  opacity.value    = withDelay(delay, withTiming(0, { duration: AIThemeDuration.fast }));
-  translateY.value = withDelay(
-    delay,
-    withTiming(
-      screenHeight,
-      { duration: AIThemeDuration.normal },
-      done ? () => { done(); } : undefined,
-    ),
-  );
+  opacity.value = withDelay(delay, withTiming(0, { duration: AIThemeDuration.fast }));
+  if (onDone) {
+    const jsOnDone = runOnJS(onDone);
+    translateY.value = withDelay(
+      delay,
+      withTiming(screenHeight, { duration: AIThemeDuration.normal }, (finished) => {
+        'worklet';
+        if (finished) jsOnDone();
+      }),
+    );
+  } else {
+    translateY.value = withDelay(
+      delay,
+      withTiming(screenHeight, { duration: AIThemeDuration.normal }),
+    );
+  }
 }
 
 // ─── Reduce Motion Fallbacks ──────────────────────────────────────────────────
