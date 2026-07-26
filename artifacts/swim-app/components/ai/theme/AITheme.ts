@@ -111,3 +111,25 @@ export const AIThemeEasing = {
   easeOut:  [0, 0, 0.2, 1]  as [number, number, number, number],
   easeIn:   [0.4, 0, 1, 1]  as [number, number, number, number],
 } as const;
+
+// ─── Gesture (Swipe Dismiss 임계값) ──────────────────────────────────────────
+
+export const AIThemeGesture = {
+  /** 이 거리 이상 아래로 드래그 시 닫기 (px) */
+  swipeDismissDistance: 120,
+  /** 이 속도 이상의 플릭 시 닫기 (px/s) */
+  swipeDismissVelocity: 700,
+  /** 닫기 취소 후 원위치 시 사용할 Spring 임계 (px) */
+  swipeCancelDistance:  60,
+} as const;
+
+// ─── Layout (State별 영역 비율) ───────────────────────────────────────────────
+
+export const AIThemeLayout = {
+  /** RECORDING 시 파형 영역 높이 (px) */
+  waveformHeight:    120,
+  /** INPUT 상태 최소 입력창 높이 (px) */
+  inputMinHeight:    160,
+  /** PROCESSING/RESULT 시 상단 요약 높이 (px) */
+  summaryHeight:      56,
+} as const;
