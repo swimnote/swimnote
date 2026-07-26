@@ -33,6 +33,12 @@ import {
 // ─── 배치 크기: setState를 N글자마다 한 번만 ────────────────────────────────
 const BATCH_SIZE = 4;
 
+// ─── Stage D 크래시 격리 테스트 플래그 ───────────────────────────────────────
+// Stage C (machine.complete() 포함) 테스트에서 크래시 발생 시 true로 변경
+// true → Reanimated 타이핑 애니메이션 + useAnimatedReaction 완전 비활성화
+// (reducedMotion과 동일한 즉시 텍스트 표시 경로 사용)
+const CRASH_TEST_DISABLE_ANIMATION = false;
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface AIResultAreaProps {
@@ -56,10 +62,10 @@ export default function AIResultArea({ result, state }: AIResultAreaProps) {
   }, [result]);
 
   // 배치 기반 reaction: 매 BATCH_SIZE 글자마다 setState
-  // ⚠️ deps 배열 필수: 없으면 COMPLETE re-render 시 Reanimated가 worklet closure를
-  //    재구성하면서 UI/JS 스레드 race → native crash 발생
+  // Stage D에서 CRASH_TEST_DISABLE_ANIMATION=true 이면 selector를 고정값(0)으로
+  // 만들어 reaction이 절대 발화하지 않도록 함
   useAnimatedReaction(
-    () => Math.floor(charIndex.value / BATCH_SIZE),
+    () => CRASH_TEST_DISABLE_ANIMATION ? 0 : Math.floor(charIndex.value / BATCH_SIZE),
     (batch, prev) => {
       'worklet';
       if (batch !== prev) {
@@ -70,9 +76,11 @@ export default function AIResultArea({ result, state }: AIResultAreaProps) {
   );
 
   // 결과 텍스트가 바뀌거나 visible 전환 시 타이핑 시작
+  // Stage D: CRASH_TEST_DISABLE_ANIMATION=true 이면 즉시 표시 (animation 없음)
   useEffect(() => {
+    console.log(`[RESULT-EFFECT-1] visible=${visible} result길이=${result.length}`);
     if (visible && result) {
-      if (reducedMotion) {
+      if (reducedMotion || CRASH_TEST_DISABLE_ANIMATION) {
         charIndex.value = result.length;
         setDisplayed(result);
       } else {
@@ -84,7 +92,10 @@ export default function AIResultArea({ result, state }: AIResultAreaProps) {
       charIndex.value = 0;
       setDisplayed('');
     }
-    return () => cancelAnimation(charIndex);
+    return () => {
+      console.log('[RESULT-CLEANUP-1] charIndex cancelAnimation');
+      cancelAnimation(charIndex);
+    };
   }, [result, visible, reducedMotion]);
 
   // ── 카드 등장 애니메이션 ─────────────────────────────────────────────────
@@ -92,6 +103,7 @@ export default function AIResultArea({ result, state }: AIResultAreaProps) {
   const cardOpacity    = useSharedValue(0);
 
   useEffect(() => {
+    console.log(`[RESULT-EFFECT-2] visible=${visible}`);
     if (visible) {
       animateCardEnter(cardTranslateY, cardOpacity, reducedMotion);
     } else {
@@ -99,6 +111,7 @@ export default function AIResultArea({ result, state }: AIResultAreaProps) {
       cardOpacity.value    = 0;
     }
     return () => {
+      console.log('[RESULT-CLEANUP-2] cardTranslateY/cardOpacity cancelAnimation');
       cancelAnimation(cardTranslateY);
       cancelAnimation(cardOpacity);
     };

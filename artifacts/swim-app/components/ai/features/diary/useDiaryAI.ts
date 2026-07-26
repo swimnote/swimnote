@@ -108,24 +108,35 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
     }
   };
 
-  // ─── 일지 삽입 ──────────────────────────────────────────────────────────
+  // ─── 일지 삽입 (단계별 격리 테스트) ────────────────────────────────────
+  //
+  //  ★ 크래시 격리 절차 ★
+  //  Stage A: 현재 상태 — onInsert만 실행, 모달 닫지 않음
+  //  Stage B: A 성공 후 → [STAGE-B] 주석 해제
+  //  Stage C: B 성공 후 → [STAGE-C] 주석 해제
+  //  Stage D: C 크래시 시 → AIResultArea.tsx의 CRASH_TEST_DISABLE_ANIMATION = true
 
   const handleInsert = () => {
-    console.log(`[INSERT-1] handleInsert 진입 — state=${machine.state} hasResult=${!!resultText}`);
+    console.log('[INSERT-1] 버튼 클릭 — handleInsert 진입');
+    console.log('[INSERT-2] result 확인:', resultText ? `길이=${resultText.length}자` : '(없음)');
 
-    // 1. 부모 컴포넌트의 일지 필드에 resultText 삽입
+    // ── STAGE A: 부모 onInsert만 실행 (모달은 닫지 않음) ─────────────────
     if (options.onInsert && resultText) {
-      console.log(`[INSERT-2] options.onInsert 호출`);
+      console.log('[INSERT-3] 부모 onInsert 시작');
       options.onInsert(resultText);
-      console.log(`[INSERT-3] options.onInsert 완료`);
+      console.log('[INSERT-4] 부모 state 반영 완료');
+    } else {
+      console.log('[INSERT-3] onInsert 스킵 — hasOnInsert:', !!options.onInsert, 'hasResult:', !!resultText);
     }
 
-    // 2. machine.complete() → COMPLETE state render → AIResultArea의
-    //    useAnimatedReaction이 UI/JS 스레드 race를 일으켜 native crash.
-    //    onClose()로 모달을 직접 닫으면 AIProvider가 unmount되어 state가 리셋됨.
-    console.log(`[INSERT-4] onClose 호출`);
-    options.onClose?.();
-    console.log(`[INSERT-5] onClose 완료`);
+    // ── STAGE B: A 정상 확인 후 아래 두 줄 주석 해제 ─────────────────────
+    // console.log('[INSERT-6] modal close 시작');
+    // options.onClose?.();
+    // console.log('[INSERT-7] cleanup 완료');
+
+    // ── STAGE C: B 정상 확인 후 아래 두 줄 주석 해제 ─────────────────────
+    // console.log('[INSERT-5] machine complete 시작');
+    // machine.complete();
   };
 
   return {

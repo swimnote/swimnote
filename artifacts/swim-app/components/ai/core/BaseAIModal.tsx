@@ -85,10 +85,11 @@ export default function BaseAIModal({
   // ── 외부 visible 변경 감지 ────────────────────────────────────────────────
   useEffect(() => {
     if (visible && !rendered) {
+      console.log('[MODAL-EFFECT] visible=true → setRendered(true)');
       setRendered(true);
     }
     if (!visible && rendered) {
-      // 외부에서 직접 visible=false로 바꾼 경우 (COMPLETE 등)
+      console.log('[MODAL-EFFECT] visible=false → doClose() 호출');
       doClose();
     }
   }, [visible]);
@@ -103,12 +104,18 @@ export default function BaseAIModal({
 
   // ── 닫기 애니메이션 → 실제 onClose 호출 ──────────────────────────────────
   const doClose = useCallback(() => {
+    console.log('[MODAL-1] doClose 진입');
     cancelAnimation(translateY);
     cancelAnimation(backdropOpacity);
+    console.log('[MODAL-2] animateModalClose 호출 전');
     animateModalClose(translateY, backdropOpacity, SCREEN_HEIGHT, reducedMotion, () => {
+      console.log('[MODAL-3] animation 완료 callback — setRendered(false) 직전');
       setRendered(false);
+      console.log('[MODAL-4] setRendered(false) 완료 — onClose() 직전');
       onClose();
+      console.log('[MODAL-5] onClose() 완료');
     });
+    console.log('[MODAL-6] animateModalClose 반환 (animation 진행 중)');
   }, [reducedMotion, onClose]);
 
   // ── Swipe Down 제스처 (핸들 영역만 — ScrollView 충돌 없음) ───────────────
