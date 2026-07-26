@@ -153,27 +153,22 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
     console.log('[INSERT-1] 버튼 클릭 — handleInsert 진입');
     console.log('[INSERT-2] result 확인:', resultText ? `길이=${resultText.length}자` : '(없음)');
 
-    // ── STAGE A: 부모 onInsert만 실행, 모달은 닫지 않음 ─────────────────
+    // ── STAGE A + B: onInsert → onClose (모달 닫기) ──────────────────────
     // ⚠️ 최종 삽입 위치/정책 미확정 — setCommonContent는 테스트용 임시 삽입
     if (options.onInsert && resultText) {
-      console.log('[INSERT-3] 부모 onInsert 시작 (임시 삽입)');
+      console.log('[INSERT-3] 부모 onInsert 시작');
       options.onInsert(resultText);
-      console.log('[INSERT-4] 부모 state 반영 완료');
+      console.log('[INSERT-4] 부모 onInsert 완료');
 
-      // 버튼 피드백: "삽입 완료" 2초 표시 후 원복
-      setInsertDone(true);
-      if (insertTimerRef.current) clearTimeout(insertTimerRef.current);
-      insertTimerRef.current = setTimeout(() => setInsertDone(false), 2000);
+      // Stage B: 모달 닫기 (삽입 완료 후 DiaryWriteView로 복귀)
+      console.log('[INSERT-6] modal close 시작');
+      options.onClose?.();
+      console.log('[INSERT-7] modal close 호출 완료');
     } else {
       console.log('[INSERT-3] onInsert 스킵 — hasOnInsert:', !!options.onInsert, 'hasResult:', !!resultText);
     }
 
-    // ── STAGE B: A 정상 확인 후 아래 두 줄 주석 해제 ─────────────────────
-    // console.log('[INSERT-6] modal close 시작');
-    // options.onClose?.();
-    // console.log('[INSERT-7] cleanup 완료');
-
-    // ── STAGE C: B 정상 확인 후 아래 두 줄 주석 해제 ─────────────────────
+    // ── STAGE C: B 정상 확인 후 아래 줄 주석 해제 ────────────────────────
     // console.log('[INSERT-5] machine complete 시작');
     // machine.complete();
   };
