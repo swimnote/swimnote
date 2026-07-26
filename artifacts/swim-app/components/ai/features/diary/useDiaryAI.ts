@@ -168,9 +168,9 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       console.log('[INSERT-3] onInsert 스킵 — hasOnInsert:', !!options.onInsert, 'hasResult:', !!resultText);
     }
 
-    // ── STAGE C: machine.complete() 활성화 ───────────────────────────────
-    console.log('[INSERT-5] machine complete 시작');
-    machine.complete();
+    // ── STAGE C: machine.complete() 비활성화 (비교 실험) ─────────────────
+    // console.log('[INSERT-5] machine complete 시작');
+    // machine.complete();
   };
 
   return {
