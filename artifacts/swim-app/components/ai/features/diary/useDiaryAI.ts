@@ -10,7 +10,7 @@
  * TODO: 현재 학생/수업 컨텍스트 수집
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAIStateMachine } from '../../hooks/useAIStateMachine';
 
 interface UseDiaryAIOptions {
@@ -27,6 +27,17 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
   const machine = useAIStateMachine();
   const [inputText, setInputText]   = useState('');
   const [resultText, setResultText] = useState('');
+
+  // ─── 모달 마운트 시 CLOSED → OPENING → INPUT 자동 전환 ──────────────────
+  useEffect(() => {
+    machine.open(); // CLOSED → OPENING
+  }, []);
+
+  useEffect(() => {
+    if (machine.state === 'OPENING') {
+      machine.grantPermission(); // OPENING → INPUT
+    }
+  }, [machine.state]);
 
   // ─── 음성 입력 ──────────────────────────────────────────────────────────
 
