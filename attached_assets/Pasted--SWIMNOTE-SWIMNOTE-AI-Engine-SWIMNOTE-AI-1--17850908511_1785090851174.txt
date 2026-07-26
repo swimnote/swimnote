@@ -1,0 +1,674 @@
+# SWIMNOTE 앱 ↔ SWIMNOTE AI Engine 연결 대비 사전 아키텍처 설계 요청
+
+현재 SWIMNOTE 앱의 일지 AI 1차 구현을 시작하기 전에,
+향후 완성될 SWIMNOTE AI Engine과 즉시 연결할 수 있도록
+앱 측 구조와 API 경계를 미리 준비하려고 합니다.
+
+이번 요청에서는 절대 코드를 수정하거나 구현하지 마세요.
+
+현재 SWIMNOTE 앱 코드베이스와 현재 구축된 AI 관련 구조를 실제로 조사한 뒤,
+기존 앱 기능을 건드리지 않으면서 향후 AI Engine 연결에 필요한
+호환 구조, 타입 계약, Adapter 경계, API 계약을 설계해주세요.
+
+중요 원칙:
+
+- 기존 앱 기능은 변경하지 않습니다.
+- 기존 저장 로직은 변경하지 않습니다.
+- 기존 일지 API는 변경하지 않습니다.
+- AI 기능은 선택형 부가 레이어입니다.
+- AI가 작동하지 않아도 기존 앱은 정상 동작해야 합니다.
+- AI 기능을 제거해도 기존 앱 기능은 남아야 합니다.
+- 이번에는 구현하지 않고 설계 보고서만 작성합니다.
+
+==================================================
+1. 전체 목표
+==================================================
+
+현재 앱에서는 더미 AI를 사용하되,
+향후 SWIMNOTE AI Engine이 준비되면 앱의 화면과 state 적용 코드는 수정하지 않고
+AI Provider 또는 API Adapter만 교체하여 연결하는 것이 목표입니다.
+
+목표 구조:
+
+SWIMNOTE 앱
+→ 기능별 Context Builder
+→ 공통 AI Client
+→ SWIMNOTE AI Engine API
+→ Knowledge Search
+→ Prompt Engine
+→ LLM
+→ 구조화된 JSON 응답
+→ Validator
+→ Parser
+→ 기능별 Apply Adapter
+→ 기존 앱 state
+→ 기존 저장 버튼
+
+현재 단계에서는 SWIMNOTE AI Engine 대신 Dummy Provider를 사용합니다.
+
+향후에는:
+
+Dummy Provider
+→ SwimNote AI Provider
+
+만 교체하는 것을 목표로 합니다.
+
+==================================================
+2. 현재 SWIMNOTE AI Engine 예정 구조
+==================================================
+
+AI Engine은 다음 구조로 운영될 예정입니다.
+
+Knowledge Factory
+- 문서 및 텍스트 업로드
+- 의미 단위 Node/Chunk 생성
+- Claim 추출
+- 중복 및 충돌 검사
+- 근거 연결
+- 버전 관리
+- 검색 인덱스 생성
+
+Knowledge DB
+- 수영 교육 지식
+- 교재
+- 커리큘럼
+- 일지 템플릿
+- DTA
+- 드릴
+- 오류와 원인
+- 교정 방법
+- 어린이/성인 대상별 지식
+
+Search Engine
+- 질문 의도 분석
+- 대상과 영법 분류
+- 학생 Context 반영
+- 관련 Knowledge 검색
+- 관련 Curriculum 및 Template 검색
+
+Prompt Engine
+- 검색 결과만 사용
+- 근거 없는 교육 내용 생성 금지
+- 기능별 출력 형식 강제
+
+AI Response
+- 기능별 구조화 JSON
+- 근거 및 Confidence 포함 가능
+- 정보 부족 및 제한사항 포함
+
+현재 Knowledge Factory에는 이미 대규모 수영 지식 문서와 DTA 자료가 업로드되어
+Chunk/Block 생성이 작동하고 있습니다.
+
+==================================================
+3. 앱에서 미리 준비할 공통 AI 경계
+==================================================
+
+아래 구조가 현재 코드에 적합한지 평가해주세요.
+
+AIClient
+- 실제 HTTP 통신 담당
+- 인증 토큰 전달
+- 요청 ID 생성
+- 타임아웃
+- 재시도 정책
+- 응답 코드 표준화
+- 네트워크 에러 표준화
+
+AIProvider
+- 기능별 요청 함수 제공
+- 현재 DummyAIProvider
+- 향후 SwimNoteAIProvider
+
+예상 인터페이스:
+
+interface AIProvider {
+  generateDiary(
+    request: DiaryAIRequest
+  ): Promise<DiaryAIResponse>;
+
+  answerParentQuestion(
+    request: ParentAIRequest
+  ): Promise<ParentAIResponse>;
+
+  analyzeVideo?(
+    request: VideoAIRequest
+  ): Promise<VideoAIResponse>;
+}
+
+현재 단계에서 모든 함수를 구현할 필요는 없으며,
+일지 AI만 구현하더라도 향후 기능 확장이 가능한 계약인지 검토해주세요.
+
+==================================================
+4. 기능별 Context Builder
+==================================================
+
+Context Builder는 AI 요청 전에
+앱 내부 데이터를 기능 목적에 맞게 구성합니다.
+
+Teacher Diary Context Builder:
+
+입력 가능 데이터:
+- 교사의 텍스트 또는 음성 변환 결과
+- class_id
+- pool_id
+- lesson_date
+- student_id 목록
+- 현재 공통 일지 내용
+- 현재 학생별 일지 존재 여부
+- 선택된 반 정보
+
+외부 AI에 전달하지 않을 데이터:
+- 학생 이름
+- 생년
+- 전화번호
+- 학부모 정보
+- 기타 직접 식별 개인정보
+
+Parent AI Context Builder:
+
+입력 가능 데이터:
+- student_id 또는 익명 student_ref
+- 학부모 질문
+- 현재 레벨
+- 커리큘럼 진행도
+- 최근 수업
+- 최근 일지
+- 반복 피드백
+- AI Memory
+- 질문 목적과 관련된 정보
+
+Parent AI는 질문을 먼저 분석하고,
+질문에 필요한 데이터만 선택적으로 수집해야 합니다.
+
+정보가 없는 신규 회원은
+존재하는 정보만 사용하고 없는 내용을 추측하지 않아야 합니다.
+
+현재 앱 구조에서 이러한 Context Builder를
+화면 컴포넌트와 분리할 수 있는지 평가해주세요.
+
+==================================================
+5. 공통 요청 Envelope 설계
+==================================================
+
+기능마다 완전히 다른 API 형태를 사용하기보다
+공통 요청 Envelope를 사용할 수 있는지 검토해주세요.
+
+예시:
+
+{
+  "request_id": "uuid",
+  "feature": "teacher_diary",
+  "schema_version": "1.0",
+  "locale": "ko-KR",
+  "context": {
+    "class_id": "abc123",
+    "pool_id": "pool01",
+    "lesson_date": "2026-07-27",
+    "student_refs": ["101", "102"]
+  },
+  "input": {
+    "text": "오늘 자유형 호흡과 발차기를 연습함"
+  },
+  "options": {
+    "include_sources": false,
+    "include_confidence": true
+  }
+}
+
+다음 기능에서도 동일한 Envelope를 사용할 수 있는지 평가해주세요.
+
+- teacher_diary
+- parent_question
+- video_analysis
+- lesson_plan
+- drill_recommendation
+- progress_explanation
+
+공통 Envelope가 과도한 추상화라면
+더 안전한 대안을 제안해주세요.
+
+==================================================
+6. 일지 AI 요청 타입 설계
+==================================================
+
+현재 목표 요청 타입 예시:
+
+interface DiaryAIRequest {
+  requestId: string;
+  schemaVersion: '1.0';
+  feature: 'teacher_diary';
+  input: {
+    text: string;
+  };
+  context: {
+    classId?: string;
+    poolId?: string;
+    lessonDate?: string;
+    studentRefs: string[];
+  };
+}
+
+학생 이름은 포함하지 않습니다.
+
+현재 코드의 classId, poolId, student_id 타입과 호환되는지 확인하고,
+실제 현재 코드에 맞는 최종 타입을 제안해주세요.
+
+==================================================
+7. 일지 AI 응답 타입 설계
+==================================================
+
+최소 응답 형식:
+
+interface DiaryAIResponse {
+  schemaVersion: '1.0';
+  requestId: string;
+  common: string;
+  students: {
+    student_id: string;
+    content: string;
+  }[];
+}
+
+확장 가능 응답 형식:
+
+interface DiaryAIResponse {
+  schemaVersion: '1.0';
+  requestId: string;
+  status: 'success' | 'partial' | 'insufficient_context';
+  common: string;
+  students: {
+    student_id: string;
+    content: string;
+    confidence?: number;
+  }[];
+  warnings?: string[];
+  limitations?: string[];
+  sources?: {
+    knowledge_id: string;
+    title?: string;
+  }[];
+}
+
+1차 구현에서 최소 타입과 확장 타입 중
+어느 수준까지 앱에 미리 정의하는 것이 적절한지 평가해주세요.
+
+사용하지 않는 필드를 너무 많이 미리 추가해 복잡해지는 것도 피해야 합니다.
+
+==================================================
+8. Validator와 Parser 분리
+==================================================
+
+다음 역할 분리가 적절한지 평가해주세요.
+
+DiaryAIValidator:
+- raw 객체의 기본 구조 확인
+- schemaVersion 확인
+- requestId 확인
+- common 타입 확인
+- students 배열 타입 확인
+- student_id 및 content 타입 확인
+- 문자열 길이 제한
+- 허용하지 않는 필드 처리
+- 중복 student_id 제거
+- 현재 반에 없는 student_id 제거
+
+DiaryAIParser:
+- 검증된 raw 결과를 앱 내부 DiaryAIResult로 변환
+- 빈 common 제거
+- 빈 학생 content 제거
+- 앱 내부 타입으로 정규화
+
+DiaryApplyAdapter:
+- 기존 state와 병합
+- Write/Edit 분기
+- 기존 내용 보호
+- 기존 저장 로직과 무관
+
+Validator와 Parser를 실제로 분리하는 것이
+현재 규모에서 과도한 구조인지,
+향후 AI Engine 연결을 고려하면 필요한 구조인지 평가해주세요.
+
+==================================================
+9. 버전 관리
+==================================================
+
+AI Engine과 앱이 서로 다른 시점에 업데이트될 수 있으므로
+schema_version을 도입하려고 합니다.
+
+검토할 내용:
+
+- 요청 schemaVersion
+- 응답 schemaVersion
+- 앱이 지원하지 않는 버전을 받았을 때 처리
+- 필드가 추가됐을 때 하위 호환
+- 필드가 제거됐을 때 처리
+- 최소 지원 버전
+- 서버와 앱 버전 불일치 시 사용자 메시지
+
+현재부터 '1.0' 버전을 넣는 것이 적절한지 평가해주세요.
+
+==================================================
+10. 에러 계약
+==================================================
+
+AI Engine 연결 후 다음 오류가 발생할 수 있습니다.
+
+- NETWORK_ERROR
+- TIMEOUT
+- UNAUTHORIZED
+- INSUFFICIENT_CREDITS
+- INVALID_REQUEST
+- INVALID_RESPONSE
+- ENGINE_UNAVAILABLE
+- KNOWLEDGE_NOT_FOUND
+- INSUFFICIENT_CONTEXT
+- RATE_LIMITED
+- INTERNAL_ERROR
+
+공통 AIError 타입을 현재 AIContracts.ts에 확장하는 것이 좋은지,
+기능별 별도 에러 타입이 좋은지 평가해주세요.
+
+예상 응답:
+
+{
+  "request_id": "uuid",
+  "error": {
+    "code": "INSUFFICIENT_CONTEXT",
+    "message": "사용 가능한 수업 기록이 부족합니다.",
+    "retryable": false
+  }
+}
+
+기존 AIStateMachine 및 AIErrorView와 연결 가능한지도 확인해주세요.
+
+==================================================
+11. 인증과 권한
+==================================================
+
+AI 요청은 반드시 백엔드 서버를 경유해야 합니다.
+
+앱에서 OpenAI, Gemini 등 외부 AI API를 직접 호출하지 않습니다.
+
+검토할 내용:
+
+- 기존 JWT 사용 가능 여부
+- teacher 역할과 parent 역할 검증
+- parent가 연결되지 않은 student_id를 요청하지 못하도록 하는 방법
+- teacher가 담당하지 않는 반의 student_id를 요청하지 못하도록 하는 방법
+- class_id와 student_id 관계를 서버에서 다시 검증하는 방법
+- 프론트의 student_id 필터링만 신뢰하면 안 되는 이유
+- 향후 크레딧 차감 시 권한 검증 위치
+
+==================================================
+12. 개인정보 및 로그
+==================================================
+
+다음 개인정보 원칙을 적용하려고 합니다.
+
+- 학생 이름 외부 AI 전달 금지
+- 직접 식별정보 전달 금지
+- 익명 student_ref 사용
+- 서버에서 접근 권한 재검증
+- 로그에 학생 이름 저장 금지
+- 질문 로그와 응답 로그는 request_id 기준 관리
+- 필요한 경우 민감정보 마스킹
+- AI 디버그 로그와 서비스 로그 분리
+
+현재 앱 또는 서버에
+AI 요청 payload 전체를 console.log 하는 코드가 생기지 않도록
+어떤 원칙을 적용해야 하는지 제안해주세요.
+
+==================================================
+13. 네트워크 및 사용자 경험
+==================================================
+
+모달에서 AI가 처리되는 동안 다음 상황을 고려해야 합니다.
+
+- 요청 중 모달 닫기
+- 요청 중 화면 이동
+- 앱 백그라운드 전환
+- 동일 요청 중복 실행
+- 네트워크 끊김
+- 서버 타임아웃
+- 늦게 도착한 이전 응답이 현재 state를 덮는 문제
+- AI 결과 적용 전 사용자 취소
+- AI 결과 적용 후 기존 저장 전 화면 이탈
+
+다음 기술이 필요한지 검토해주세요.
+
+- AbortController
+- request_id 비교
+- isMounted 또는 취소 플래그
+- 중복 제출 방지
+- 요청 상태 잠금
+- 결과 적용 전 최종 요청 ID 확인
+
+현재 AIStateMachine과 어떻게 연결할지 설계해주세요.
+
+==================================================
+14. 실제 AI Engine 연결 전 Mock API
+==================================================
+
+프론트 내부에서 JSON을 직접 반환하는 방식과
+백엔드 Mock API를 사용하는 방식 중 어느 것이 더 적절한지 평가해주세요.
+
+권장 후보:
+
+POST /api/ai/diary/generate
+
+현재:
+- 기존 백엔드가 Dummy JSON 반환
+
+향후:
+- 동일 endpoint가 SWIMNOTE AI Engine을 호출
+
+장점:
+- 앱의 API 주소와 요청 구조 변경 없음
+- 인증 및 권한 흐름을 미리 검증 가능
+- 네트워크 오류와 타임아웃 테스트 가능
+- 크레딧 시스템 연결 위치 확보
+- 실제 AI Engine 교체 시 앱 수정 최소화
+
+현재 프로젝트 구조에서 Mock API를 추가하는 것이
+기존 API를 건드리지 않고 독립적으로 가능한지 확인해주세요.
+
+==================================================
+15. 크레딧 시스템 연결 대비
+==================================================
+
+향후 AI 기능은 크레딧을 사용할 예정입니다.
+
+현재 단계에서 실제 차감은 구현하지 않지만,
+응답 계약에 다음 정보를 넣을 필요가 있는지 검토해주세요.
+
+{
+  "usage": {
+    "estimated_credits": 1,
+    "charged_credits": 0
+  }
+}
+
+또는 AI 요청 전에 별도 Estimate API를 사용할지 검토해주세요.
+
+Teacher Diary처럼 비용이 비교적 일정한 기능과
+Video Analysis처럼 비용 편차가 큰 기능을
+같은 방식으로 처리해야 하는지도 평가해주세요.
+
+이번 구현에서는 실제 과금 기능을 만들지 않습니다.
+
+==================================================
+16. Knowledge 근거 및 Confidence
+==================================================
+
+향후 AI Engine은 Knowledge Factory 검색 결과를 사용합니다.
+
+앱에 다음 정보를 받을 준비를 할 필요가 있는지 평가해주세요.
+
+- answer confidence
+- knowledge source ids
+- 사용된 curriculum ids
+- 사용된 template ids
+- limitations
+- information sufficiency
+- engine version
+- knowledge version
+
+Teacher Diary 화면에서는 이 정보를 숨길 수 있지만,
+Parent AI나 Video AI에서는 표시될 수 있습니다.
+
+공통 metadata 구조를 미리 정의할지,
+기능별로 나중에 추가할지 제안해주세요.
+
+==================================================
+17. 앱 측 신규 파일 구조 제안
+==================================================
+
+아래 구조가 현재 코드에 맞는지 검토해주세요.
+
+components/ai/
+├── core/
+│   ├── AIClient.ts
+│   ├── AIProvider.ts
+│   ├── AIRequestEnvelope.ts
+│   ├── AIResponseEnvelope.ts
+│   ├── AIErrorContracts.ts
+│   └── AISchemaVersion.ts
+├── providers/
+│   ├── DummyAIProvider.ts
+│   └── SwimNoteAIProvider.ts
+├── validators/
+│   └── DiaryAIValidator.ts
+├── parsers/
+│   └── DiaryAIParser.ts
+├── features/
+│   └── diary/
+│       ├── DiaryContextBuilder.ts
+│       ├── DiaryApplyAdapter.ts
+│       ├── DiaryAIButton.tsx
+│       ├── DiaryAIContent.tsx
+│       └── useDiaryAI.ts
+
+기존 구조를 불필요하게 크게 바꾸지 않으면서
+어디까지 지금 만들고,
+어디부터 실제 엔진 연결 시 만드는 것이 적절한지 구분해주세요.
+
+==================================================
+18. 기존 앱 무영향 원칙 검증
+==================================================
+
+다음을 각각 검증해주세요.
+
+1.
+위 공통 AI 경계를 추가해도 AI 미사용 시 기존 앱과 동일한가?
+
+2.
+기존 handleSave / handleEditSave를 수정하지 않아도 되는가?
+
+3.
+기존 일지 API를 수정하지 않아도 되는가?
+
+4.
+Mock AI API는 새로운 독립 endpoint로 추가 가능한가?
+
+5.
+AI Client 또는 Provider가 실패해도 기존 일지 작성은 가능한가?
+
+6.
+AI 기능 파일을 제거하면 기존 기능이 남는가?
+
+7.
+AI 요청 중 오류가 발생해도 기존 state가 손상되지 않는가?
+
+8.
+AI 결과를 사용자가 명시적으로 삽입하기 전에는 state를 변경하지 않게 할 수 있는가?
+
+==================================================
+19. 단계별 구현 범위 재설계
+==================================================
+
+기존 Stage 0~7 계획에
+AI Engine 연결 호환 준비를 반영하여
+가장 안전한 단계 순서를 다시 설계해주세요.
+
+예상 방향:
+
+Stage 0
+- 기존 AI 모달 크래시 테스트 완료
+
+Stage 1
+- 최소 요청/응답 타입과 schemaVersion 정의
+
+Stage 2
+- DummyAIProvider 및 Validator/Parser 구현
+
+Stage 3
+- 공통 일지 적용 검증
+
+Stage 4
+- Write 학생별 적용
+
+Stage 5
+- Edit 학생별 적용
+
+Stage 6
+- 신규 Mock AI API와 AIClient 연결
+
+Stage 7
+- 인증, 권한, 타임아웃, request_id 검증
+
+Stage 8
+- 전체 회귀 테스트
+
+Stage 9
+- SWIMNOTE AI Engine 연결 준비 완료 판정
+
+위 순서를 그대로 따르지 말고
+현재 실제 코드 구조와 위험도를 조사한 뒤 다시 제안해주세요.
+
+각 단계마다:
+
+- 수정 파일
+- 신규 파일
+- 구현 내용
+- 기존 앱 영향
+- 절대 수정 금지 영역
+- 실제 기기 검증 방법
+- 완료 조건
+- 롤백 방법
+
+을 작성해주세요.
+
+==================================================
+20. 최종 보고서 형식
+==================================================
+
+다음 순서로 답해주세요.
+
+1. 전체 호환 가능성 판정
+2. 현재 앱 AI 구조와 AI Engine 예정 구조의 호환성
+3. 지금 반드시 준비할 것
+4. 지금 만들지 말아야 할 것
+5. 최소 공통 타입 계약
+6. Provider 및 AIClient 설계
+7. Context Builder 설계
+8. Validator / Parser / Apply Adapter 역할
+9. Mock API 필요성
+10. 인증 및 권한 검증
+11. 개인정보와 로그 정책
+12. 네트워크 및 요청 취소 설계
+13. schemaVersion 및 하위 호환
+14. 크레딧 연결 대비
+15. Knowledge metadata 연결 대비
+16. 파일별 변경 계획
+17. 수정하지 않을 기존 파일과 기능
+18. 단계별 구현 계획
+19. 단계별 실제 기기 검증 계획
+20. 첫 번째 구현 단계 추천
+
+다시 강조합니다.
+
+이번 요청에서는 절대 구현하지 마세요.
+코드를 수정하지 마세요.
+기존 앱 기능을 건드리지 않는 범위에서
+SWIMNOTE AI Engine과의 향후 연결 호환성을 위한
+사전 작업설계 보고서만 작성해주세요.
