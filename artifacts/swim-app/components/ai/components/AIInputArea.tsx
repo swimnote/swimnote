@@ -73,15 +73,22 @@ export default function AIInputArea({
   const isDisabled    = !isActive;
 
   // ── 파형 높이 (RECORDING 시 확장) ─────────────────────────────────────────
+  // 초기값 0: CLOSED 상태에서 56으로 시작하면 56→0 spring이 불필요하게 실행됨
   const waveformHeight  = useSharedValue(0);
   const inputOpacity    = useSharedValue(1);
-  const voiceRowHeight  = useSharedValue(56);
+  const voiceRowHeight  = useSharedValue(0);
 
   useEffect(() => {
     const toWave    = isRecording ? AIThemeLayout.waveformHeight : 0;
     const toOpacity = isRecording ? 0 : 1;
     // RECORDING일 때도 "녹음 중단" 버튼이 보여야 하므로 isActive(INPUT/RECORDING/EDITING) → 56
     const toVoiceH  = isActive ? 56 : 0;
+
+    console.log(
+      `[AIInputArea] state=${state} isRecording=${isRecording} isActive=${isActive}` +
+      ` → toWave=${toWave} toOpacity=${toOpacity} toVoiceH=${toVoiceH}` +
+      ` (voiceRowHeight.cur=${voiceRowHeight.value})`,
+    );
 
     if (reducedMotion) {
       waveformHeight.value = toWave;
@@ -98,7 +105,9 @@ export default function AIInputArea({
       cancelAnimation(inputOpacity);
       cancelAnimation(voiceRowHeight);
     };
-  }, [isRecording, reducedMotion]);
+    // isActive 반드시 포함: OPENING→INPUT 전환 시 isActive가 false→true로 바뀌어도
+    // isRecording이 false로 유지되면 effect가 재실행되지 않아 voiceRowHeight가 0에 고정됨
+  }, [isActive, isRecording, reducedMotion]);
 
   // ── 입력창 비활성 시 fade ─────────────────────────────────────────────────
   const containerOpacity = useSharedValue(1);

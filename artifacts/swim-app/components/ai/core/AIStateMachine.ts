@@ -66,57 +66,74 @@ export function aiStateReducer(
   event: AIEvent,
 ): AIStateMachineState {
   const { current } = state;
+  const ts = Date.now();
 
   // TODO: 각 이벤트별 세부 전환 로직 구현
   switch (event.type) {
     case 'OPEN':
-      if (!canTransition(current, 'OPENING')) return state;
+      if (!canTransition(current, 'OPENING')) {
+        console.log(`[AI-SM ${ts}] OPEN blocked: ${current} → OPENING invalid`);
+        return state;
+      }
+      console.log(`[AI-SM ${ts}] ${current} → OPENING (event: OPEN)`);
       return { ...state, current: 'OPENING', history: [...state.history, current] };
 
     case 'PERMISSION_REQUIRED':
-      if (!canTransition(current, 'PERMISSION')) return state;
+      if (!canTransition(current, 'PERMISSION')) { console.log(`[AI-SM ${ts}] PERMISSION_REQUIRED blocked from ${current}`); return state; }
+      console.log(`[AI-SM ${ts}] ${current} → PERMISSION`);
       return { ...state, current: 'PERMISSION', history: [...state.history, current] };
 
     case 'PERMISSION_GRANTED':
-      if (!canTransition(current, 'INPUT')) return state;
+      if (!canTransition(current, 'INPUT')) { console.log(`[AI-SM ${ts}] PERMISSION_GRANTED blocked from ${current}`); return state; }
+      console.log(`[AI-SM ${ts}] ${current} → INPUT (PERMISSION_GRANTED)`);
       return { ...state, current: 'INPUT', history: [...state.history, current] };
 
     case 'START_RECORDING':
-      if (!canTransition(current, 'RECORDING')) return state;
+      if (!canTransition(current, 'RECORDING')) { console.log(`[AI-SM ${ts}] START_RECORDING blocked from ${current}`); return state; }
+      console.log(`[AI-SM ${ts}] ${current} → RECORDING`);
       return { ...state, current: 'RECORDING', history: [...state.history, current] };
 
     case 'STOP_RECORDING':
-      if (!canTransition(current, 'PROCESSING')) return state;
+      if (!canTransition(current, 'PROCESSING')) { console.log(`[AI-SM ${ts}] STOP_RECORDING blocked from ${current}`); return state; }
+      console.log(`[AI-SM ${ts}] ${current} → PROCESSING (STOP_RECORDING)`);
       return { ...state, current: 'PROCESSING', history: [...state.history, current] };
 
     case 'START_UPLOAD':
-      if (!canTransition(current, 'UPLOADING')) return state;
+      if (!canTransition(current, 'UPLOADING')) { console.log(`[AI-SM ${ts}] START_UPLOAD blocked from ${current}`); return state; }
+      console.log(`[AI-SM ${ts}] ${current} → UPLOADING`);
       return { ...state, current: 'UPLOADING', history: [...state.history, current] };
 
     case 'SUBMIT':
-      if (!canTransition(current, 'PROCESSING')) return state;
+      if (!canTransition(current, 'PROCESSING')) { console.log(`[AI-SM ${ts}] SUBMIT blocked from ${current}`); return state; }
+      console.log(`[AI-SM ${ts}] ${current} → PROCESSING (SUBMIT)`);
       return { ...state, current: 'PROCESSING', history: [...state.history, current] };
 
     case 'RESULT_RECEIVED':
-      if (!canTransition(current, 'RESULT')) return state;
+      if (!canTransition(current, 'RESULT')) { console.log(`[AI-SM ${ts}] RESULT_RECEIVED blocked from ${current}`); return state; }
+      console.log(`[AI-SM ${ts}] ${current} → RESULT`);
       return { ...state, current: 'RESULT', history: [...state.history, current] };
 
     case 'EDIT':
-      if (!canTransition(current, 'EDITING')) return state;
+      if (!canTransition(current, 'EDITING')) { console.log(`[AI-SM ${ts}] EDIT blocked from ${current}`); return state; }
+      console.log(`[AI-SM ${ts}] ${current} → EDITING`);
       return { ...state, current: 'EDITING', history: [...state.history, current] };
 
     case 'COMPLETE':
-      if (!canTransition(current, 'COMPLETE')) return state;
+      if (!canTransition(current, 'COMPLETE')) { console.log(`[AI-SM ${ts}] COMPLETE blocked from ${current}`); return state; }
+      console.log(`[AI-SM ${ts}] ${current} → COMPLETE`);
       return { ...state, current: 'COMPLETE', history: [...state.history, current] };
 
     case 'RETRY':
-      if (!canTransition(current, event.target)) return state;
+      if (!canTransition(current, event.target)) { console.log(`[AI-SM ${ts}] RETRY blocked: ${current} → ${event.target}`); return state; }
+      console.log(`[AI-SM ${ts}] ${current} → ${event.target} (RETRY)`);
       return { ...state, current: event.target, error: null, history: [...state.history, current] };
 
     case 'ERROR':
+      console.log(`[AI-SM ${ts}] ${current} → ERROR:`, event.error?.origin, event.error?.message);
       return { ...state, current: 'ERROR', error: event.error, history: [...state.history, current] };
 
     case 'CLOSE':
+      console.log(`[AI-SM ${ts}] ${current} → CLOSED (CLOSE)`);
       return { ...initialStateMachineState };
 
     default:

@@ -42,13 +42,16 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
   // ─── 음성 입력 ──────────────────────────────────────────────────────────
 
   const handleVoicePress = async () => {
+    console.log(`[useDiaryAI] handleVoicePress called — current state=${machine.state} isRECORDING=${machine.is('RECORDING')}`);
     if (machine.is('RECORDING')) {
       // 녹음 중지 → 처리 시작
+      console.log(`[useDiaryAI] → stopRecording path`);
       machine.stopRecording();
       await processVoice();
     } else {
       // 녹음 시작 (권한 확인 포함)
       // TODO: 마이크 권한 확인 후 startRecording
+      console.log(`[useDiaryAI] → startRecording path`);
       machine.startRecording();
     }
   };
