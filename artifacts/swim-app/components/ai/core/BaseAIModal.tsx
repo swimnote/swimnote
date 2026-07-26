@@ -104,19 +104,17 @@ export default function BaseAIModal({
 
   // ── 닫기 애니메이션 → 실제 onClose 호출 ──────────────────────────────────
   const doClose = useCallback(() => {
-    console.log('[MODAL-1] doClose 진입');
+    // ── 비교 실험: animateModalClose 우회 — 즉시 닫기 ──────────────────────
+    // 목적: 모달 슬라이드 닫기 애니메이션이 크래시 원인인지 격리
+    // 복원: 실험 완료 후 아래 블록 제거, 원래 코드 복원
+    console.log('[MODAL-BYPASS-1] 즉시 닫기 시작');
     cancelAnimation(translateY);
     cancelAnimation(backdropOpacity);
-    console.log('[MODAL-2] animateModalClose 호출 전');
-    animateModalClose(translateY, backdropOpacity, SCREEN_HEIGHT, reducedMotion, () => {
-      console.log('[MODAL-3] animation 완료 callback — setRendered(false) 직전');
-      setRendered(false);
-      console.log('[MODAL-4] setRendered(false) 완료 — onClose() 직전');
-      onClose();
-      console.log('[MODAL-5] onClose() 완료');
-    });
-    console.log('[MODAL-6] animateModalClose 반환 (animation 진행 중)');
-  }, [reducedMotion, onClose]);
+    console.log('[MODAL-BYPASS-2] setRendered false 호출');
+    setRendered(false);
+    onClose();
+    console.log('[MODAL-BYPASS-3] onClose 호출 완료');
+  }, [onClose]);
 
   // ── Swipe Down 제스처 (핸들 영역만 — ScrollView 충돌 없음) ───────────────
   const panGesture = Gesture.Pan()
