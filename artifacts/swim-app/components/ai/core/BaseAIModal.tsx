@@ -31,6 +31,7 @@ import Animated, {
 import {
   Gesture,
   GestureDetector,
+  GestureHandlerRootView,
 } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AICreditInfo, AIFeatureType } from './AIContracts';
@@ -150,13 +151,20 @@ export default function BaseAIModal({
       statusBarTranslucent
       onRequestClose={doClose}
     >
-      {/* ── 백드롭 ── */}
-      <Animated.View style={[styles.backdrop, backdropStyle]} pointerEvents="none" />
-      <Pressable style={StyleSheet.absoluteFill} onPress={doClose} />
+      {/*
+       * GestureHandlerRootView는 반드시 Modal 내부에도 있어야 합니다.
+       * React Native Modal은 앱 메인 트리와 분리된 별도 native root에서
+       * 렌더링되므로, _layout.tsx의 GestureHandlerRootView가 적용되지 않습니다.
+       * GestureDetector(panGesture)가 이 트리 안에 있으므로 여기서 감싸야 합니다.
+       */}
+      <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+        {/* ── 백드롭 ── */}
+        <Animated.View style={[styles.backdrop, backdropStyle]} pointerEvents="none" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={doClose} />
 
-      {/* ── 모달 시트 ── */}
-      <Animated.View style={[styles.sheet, sheetStyle]}>
-        <AIProvider featureType={featureType} credit={credit}>
+        {/* ── 모달 시트 ── */}
+        <Animated.View style={[styles.sheet, sheetStyle]}>
+          <AIProvider featureType={featureType} credit={credit}>
           <KeyboardAvoidingView
             style={styles.flex}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -188,7 +196,8 @@ export default function BaseAIModal({
             )}
           </KeyboardAvoidingView>
         </AIProvider>
-      </Animated.View>
+        </Animated.View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

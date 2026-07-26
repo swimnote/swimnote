@@ -90,9 +90,11 @@ export default function DiaryAIContent({
       { duration: AIThemeDuration.fast },
     );
   }, [showInput]);
+  // display/pointerEvents는 useAnimatedStyle 안에서 조건부 문자열로 쓰면
+  // native crash를 유발할 수 있으므로 opacity만 사용합니다.
+  // INPUT 상태가 아닐 때는 opacity:0 + 레이아웃 유지로 처리합니다.
   const inputAnimStyle = useAnimatedStyle(() => ({
     opacity: inputOpacity.value,
-    display: inputOpacity.value < 0.05 ? 'none' : 'flex',
   }));
 
   // ── 콘텐츠 영역 렌더링 ────────────────────────────────────────────────────
