@@ -107,7 +107,7 @@ export default function DiaryWriteView({
             <Text style={s.charCount}>{commonContent.length}자</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <DiaryAIButton
-                onInsert={(text) => setCommonContent(text)}
+                onInsert={(text) => setCommonContent(prev => prev.trim() ? `${prev.trim()}\n\n${text}` : text)}
                 themeColor={themeColor}
                 existingContent={commonContent}
                 classId={group.id}

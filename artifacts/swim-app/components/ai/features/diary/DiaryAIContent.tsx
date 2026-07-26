@@ -125,8 +125,8 @@ export default function DiaryAIContent({
           />
         )}
 
-        {/* 입력 영역 */}
-        <Animated.View style={inputAnimStyle}>
+        {/* 입력 영역 — opacity:0 시 pointerEvents="none"으로 하단 버튼 터치 차단 방지 */}
+        <Animated.View style={inputAnimStyle} pointerEvents={showInput ? 'auto' : 'none'}>
           <AIInputArea
             value={inputText}
             onChangeText={setInputText}

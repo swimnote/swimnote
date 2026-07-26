@@ -44,28 +44,27 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
   // ─── 음성 입력 ──────────────────────────────────────────────────────────
 
   const handleVoicePress = async () => {
-    console.log(`[useDiaryAI] handleVoicePress called — current state=${machine.state} isRECORDING=${machine.is('RECORDING')}`);
+    console.log(`[useDiaryAI] handleVoicePress called — state=${machine.state} isRECORDING=${machine.is('RECORDING')}`);
     if (machine.is('RECORDING')) {
-      // 녹음 중지 → 처리 시작
-      console.log(`[useDiaryAI] → stopRecording path`);
+      console.log('[useDiaryAI] → stopRecording path');
       machine.stopRecording();
       await processVoice();
     } else {
-      // 녹음 시작 (권한 확인 포함)
-      // TODO: 마이크 권한 확인 후 startRecording
-      console.log(`[useDiaryAI] → startRecording path`);
+      console.log('[useDiaryAI] → startRecording path');
       machine.startRecording();
     }
   };
 
   const processVoice = async () => {
     try {
-      // TODO: expo-av 녹음 파일 → API Whisper 호출 → 텍스트 반환
-      // const text = await transcribeAudio(audioUri);
-      // setInputText(prev => prev + text);
+      console.log('[GENERATE-0] processVoice 시작 — transcript=(더미, 음성인식 미연결)');
+      // TODO: expo-av 녹음 파일 → Whisper API 호출 → 텍스트 반환
+      // const transcript = await transcribeAudio(audioUri);
+      // setInputText(transcript);
       machine.submit();
       await generateDiary();
-    } catch {
+    } catch (e: any) {
+      console.error('[GENERATE-ERR] processVoice 오류:', e?.message ?? e);
       machine.setError({
         origin:      'NETWORK',
         message:     '음성 인식에 실패했습니다. 다시 시도해주세요.',
@@ -74,32 +73,47 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
     }
   };
 
-  // ─── 텍스트 제출 ────────────────────────────────────────────────────────
+  // ─── 텍스트 제출 / 다시 작성 ────────────────────────────────────────────
 
   const handleSubmit = async () => {
-    if (!inputText.trim()) return;
-    machine.submit();
+    console.log('[REWRITE-1] 다시 작성/AI작성 클릭 — state:', machine.state, 'inputText길이:', inputText.length);
+
+    if (machine.state === 'RESULT' || machine.state === 'EDITING') {
+      // RESULT/EDITING → INPUT → PROCESSING: 먼저 INPUT으로 되돌린 뒤 submit
+      // (machine.submit()은 INPUT에서만 PROCESSING으로 전환 가능)
+      console.log('[REWRITE-2] RESULT 상태 → retry(INPUT) 선행');
+      machine.retry('INPUT');
+    } else if (!inputText.trim()) {
+      // INPUT 상태에서 inputText 없으면 스킵
+      console.log('[REWRITE-1] 스킵 — INPUT 상태이고 inputText 없음');
+      return;
+    }
+
+    console.log('[REWRITE-3] machine.submit() 호출');
+    machine.submit();  // INPUT → PROCESSING
+    console.log('[REWRITE-4] generateDiary() 시작');
     await generateDiary();
   };
 
   const generateDiary = async () => {
-    try {
-      // TODO: API 호출
-      // const result = await apiClient.post('/ai/diary/generate', {
-      //   input:   inputText,
-      //   context: {
-      //     existingContent: options.existingContent,
-      //     studentId:       options.studentId,
-      //     classId:         options.classId,
-      //     poolId:          options.poolId,
-      //   },
-      // });
-      // setResultText(result.text);
+    // 더미 AI 결과 (Phase 3에서 실제 API 교체)
+    const DUMMY_RESULT = '오늘은 자유형 발차기와 호흡 연습을 진행했습니다. 학생들이 발차기 자세를 교정하며 호흡 타이밍을 맞추는 연습을 했고, 전반적으로 좋은 향상을 보였습니다.';
 
-      // 임시 더미 결과
-      setResultText('AI 생성 결과가 여기에 표시됩니다.');
+    try {
+      console.log('[GENERATE-1] generateDiary 시작');
+      console.log('[GENERATE-2] transcript=(더미) result=(생성예정) state:', machine.state);
+
+      // TODO Phase 3: 실제 API 호출
+      // const resp = await apiClient.post('/ai/diary/generate', { input: inputText, ... });
+      // setResultText(resp.text);
+
+      console.log('[GENERATE-3] setResultText 직전 — 더미 텍스트 길이:', DUMMY_RESULT.length);
+      setResultText(DUMMY_RESULT);
+      console.log('[GENERATE-4] setResultText 완료 — machine.receiveResult() 직전');
       machine.receiveResult();
-    } catch {
+      console.log('[GENERATE-5] machine.receiveResult() 완료 — generatedText=더미 resultText:', DUMMY_RESULT.slice(0, 20));
+    } catch (e: any) {
+      console.error('[GENERATE-ERR] generateDiary 오류:', e?.message ?? e);
       machine.setError({
         origin:      'NETWORK',
         message:     'AI 생성에 실패했습니다. 네트워크를 확인해주세요.',

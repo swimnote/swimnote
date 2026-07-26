@@ -93,7 +93,7 @@ export default function DiaryEditView({
             <Text style={s.charCount}>{editContent.length}자</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <DiaryAIButton
-                onInsert={(text) => setEditContent(text)}
+                onInsert={(text) => setEditContent(prev => prev.trim() ? `${prev.trim()}\n\n${text}` : text)}
                 themeColor={themeColor}
                 existingContent={editContent}
                 classId={group.id}
