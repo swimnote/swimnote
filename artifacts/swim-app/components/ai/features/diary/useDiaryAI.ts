@@ -89,12 +89,14 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
   // ─── 텍스트 제출 / 다시 작성 ────────────────────────────────────────────
 
   const handleSubmit = async () => {
+    console.log('[REWRITE-CALL] handleSubmit() 진입 — state:', machine.state, 'inputText길이:', inputText.length);
     console.log('[REWRITE-1] 다시 작성/AI작성 클릭 — state:', machine.state, 'inputText길이:', inputText.length);
 
     if (machine.state === 'RESULT' || machine.state === 'EDITING') {
       // RESULT/EDITING → INPUT → PROCESSING
       console.log('[REWRITE-2] RESULT 상태 → retry(INPUT) 선행');
       rewriteCountRef.current += 1;
+      console.log('[REWRITE-COUNT] rewriteCountRef 증가 →', rewriteCountRef.current);
       console.log('[REWRITE-2b] 재작성 횟수:', rewriteCountRef.current);
       console.log(`[REWRITE-RESULT] 다시 작성 클릭 시점 resultText="${resultText.slice(0, 20)}" length=${resultText.length}`);
       machine.retry('INPUT');
@@ -165,6 +167,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
 
       // Stage B: 모달 닫기 (삽입 완료 후 DiaryWriteView로 복귀)
       console.log('[INSERT-6] modal close 시작');
+      console.log('[MODAL-CLOSE-CALL] handleInsert → options.onClose() 호출');
       options.onClose?.();
       console.log('[INSERT-7] modal close 호출 완료');
     } else {

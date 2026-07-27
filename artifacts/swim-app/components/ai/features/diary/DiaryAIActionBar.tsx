@@ -77,7 +77,10 @@ function getActionConfig(
         primaryLabel:    insertDone ? '삽입 완료 ✓' : '일지에 삽입',
         secondaryLabel:  '다시 작성',
         onPrimary:       onInsert,
-        onSecondary:     onSubmit,
+        onSecondary:     () => {
+          console.log('[REWRITE-CALL] DiaryAIActionBar "다시 작성" → onSubmit(handleSubmit) 호출');
+          onSubmit();
+        },
         primaryDisabled: false,
       };
     case 'COMPLETE':

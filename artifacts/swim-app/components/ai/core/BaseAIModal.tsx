@@ -123,6 +123,7 @@ export default function BaseAIModal({
     // ── 비교 실험: animateModalClose 우회 — 즉시 닫기 ──────────────────────
     // 목적: 모달 슬라이드 닫기 애니메이션이 크래시 원인인지 격리
     // 복원: 실험 완료 후 아래 블록 제거, 원래 코드 복원
+    console.log('[MODAL-CLOSE-CALL] doClose() 진입');
     console.log('[MODAL-BYPASS-1] 즉시 닫기 시작');
     cancelAnimation(translateY);
     cancelAnimation(backdropOpacity);
@@ -144,9 +145,11 @@ export default function BaseAIModal({
         e.translationY > AIThemeGesture.swipeDismissDistance ||
         e.velocityY    > AIThemeGesture.swipeDismissVelocity;
       if (dismissed) {
+        console.log('[BACK-EVENT] panGesture 스와이프 dismiss — translationY:', e.translationY, 'velocityY:', e.velocityY);
         animateModalClose(translateY, backdropOpacity, SCREEN_HEIGHT, reducedMotion, () => {
           setRendered(false);
           // runOnJS 내부에서 호출됐으므로 JS 스레드
+          console.log('[MODAL-CLOSE-CALL] panGesture animateModalClose 콜백');
           onClose();
         });
       } else {
@@ -170,7 +173,10 @@ export default function BaseAIModal({
       animationType="none"
       transparent
       statusBarTranslucent
-      onRequestClose={doClose}
+      onRequestClose={() => {
+          console.log('[BACK-EVENT] onRequestClose 수신 (iOS 하드웨어 back / 시스템 닫기)');
+          doClose();
+        }}
     >
       {/*
        * GestureHandlerRootView는 반드시 Modal 내부에도 있어야 합니다.
@@ -181,7 +187,13 @@ export default function BaseAIModal({
       <GestureHandlerRootView style={StyleSheet.absoluteFill}>
         {/* ── 백드롭 ── */}
         <Animated.View style={[styles.backdrop, backdropStyle]} pointerEvents="none" />
-        <Pressable style={StyleSheet.absoluteFill} onPress={doClose} />
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => {
+            console.log('[BACK-EVENT] 백드롭 탭 — doClose() 호출');
+            doClose();
+          }}
+        />
 
         {/* ── 모달 시트 ── */}
         <Animated.View style={[styles.sheet, sheetStyle]}>
@@ -196,10 +208,6 @@ export default function BaseAIModal({
               <View style={styles.header}>
                 <View style={styles.handle} />
                 <Text style={styles.title}>{title}</Text>
-                {/* ── DEBUG: 인스턴스 식별 배너 — 원인 파악 후 제거 ── */}
-                <Text style={styles.debugBanner}>
-                  {'DEBUG: BASE_AI_MODAL  id=' + instanceId.slice(-6)}
-                </Text>
               </View>
             </GestureDetector>
 
