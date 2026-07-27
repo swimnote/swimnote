@@ -168,7 +168,7 @@ export default function AIInputArea({
         >
           <Text style={styles.voiceIcon}>{isRecording ? '⏹' : '🎤'}</Text>
           <Text style={[styles.voiceLabel, isRecording && styles.voiceLabelActive]}>
-            {isRecording ? '녹음 중단' : '음성 입력'}
+            {isRecording ? '녹음 중단' : '음성'}
           </Text>
         </Pressable>
       </Animated.View>

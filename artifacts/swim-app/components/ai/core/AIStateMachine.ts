@@ -95,9 +95,9 @@ export function aiStateReducer(
       return { ...state, current: 'RECORDING', history: [...state.history, current] };
 
     case 'STOP_RECORDING':
-      if (!canTransition(current, 'PROCESSING')) { console.log(`[AI-SM ${ts}] STOP_RECORDING blocked from ${current}`); return state; }
-      console.log(`[AI-SM ${ts}] ${current} → PROCESSING (STOP_RECORDING)`);
-      return { ...state, current: 'PROCESSING', history: [...state.history, current] };
+      if (!canTransition(current, 'INPUT')) { console.log(`[AI-SM ${ts}] STOP_RECORDING blocked from ${current}`); return state; }
+      console.log(`[AI-SM ${ts}] ${current} → INPUT (STOP_RECORDING — STT 결과 대기, AI 자동 실행 없음)`);
+      return { ...state, current: 'INPUT', history: [...state.history, current] };
 
     case 'START_UPLOAD':
       if (!canTransition(current, 'UPLOADING')) { console.log(`[AI-SM ${ts}] START_UPLOAD blocked from ${current}`); return state; }

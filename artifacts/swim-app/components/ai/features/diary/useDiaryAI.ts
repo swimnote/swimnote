@@ -69,15 +69,17 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
   };
 
   const processVoice = async () => {
+    // STOP_RECORDING 이벤트가 이미 RECORDING → INPUT 전환을 완료한 상태에서 진입
+    // AI 자동 실행 없음 — 사용자가 "AI 작성" 버튼을 눌렀을 때만 generateDiary() 호출
     try {
-      console.log('[GENERATE-0] processVoice 시작 — transcript=(더미, 음성인식 미연결)');
+      console.log('[VOICE-0] processVoice 시작 — STT 변환 단계 (AI 자동 실행 없음)');
       // TODO: expo-av 녹음 파일 → Whisper API 호출 → 텍스트 반환
       // const transcript = await transcribeAudio(audioUri);
       // setInputText(transcript);
-      machine.submit();
-      await generateDiary();
+      // STT 완료 후 INPUT 상태 유지 — 사용자가 텍스트 확인/수정 후 AI 작성 버튼 탭
+      console.log('[VOICE-1] processVoice 완료 — INPUT 상태 대기 중');
     } catch (e: any) {
-      console.error('[GENERATE-ERR] processVoice 오류:', e?.message ?? e);
+      console.error('[VOICE-ERR] processVoice 오류:', e?.message ?? e);
       machine.setError({
         origin:      'NETWORK',
         message:     '음성 인식에 실패했습니다. 다시 시도해주세요.',

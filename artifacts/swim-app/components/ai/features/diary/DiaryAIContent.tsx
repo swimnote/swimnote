@@ -48,7 +48,7 @@ function InputSummary({ text, onEdit }: { text: string; onEdit: () => void }) {
         {text || '(입력 내용)'}
       </Text>
       <Pressable onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <Text style={styles.summaryEdit}>다시 입력</Text>
+        <Text style={styles.summaryEdit}>수정하기</Text>
       </Pressable>
     </View>
   );

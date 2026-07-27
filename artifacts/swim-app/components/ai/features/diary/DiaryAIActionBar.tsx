@@ -75,7 +75,7 @@ function getActionConfig(
       return {
         // ⚠️ insertDone 시 "삽입 완료 ✓" 표시 — Stage A 임시 피드백
         primaryLabel:    insertDone ? '삽입 완료 ✓' : '일지에 삽입',
-        secondaryLabel:  '다시 작성',
+        secondaryLabel:  '다시 생성',
         onPrimary:       onInsert,
         onSecondary:     () => {
           console.log('[REWRITE-CALL] DiaryAIActionBar "다시 작성" → onSubmit(handleSubmit) 호출');
