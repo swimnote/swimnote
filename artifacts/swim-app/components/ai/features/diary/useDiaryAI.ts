@@ -12,6 +12,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useAIStateMachine } from '../../hooks/useAIStateMachine';
+import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
 
 interface UseDiaryAIOptions {
   /** 현재 일지 템플릿에 이미 입력된 내용 */
@@ -26,7 +27,9 @@ interface UseDiaryAIOptions {
 }
 
 export function useDiaryAI(options: UseDiaryAIOptions = {}) {
-  const machine = useAIStateMachine();
+  const machine  = useAIStateMachine();
+  const recorder = useVoiceRecorder();
+
   const [inputText, setInputText]   = useState('');
   const [resultText, setResultText] = useState('');
 
@@ -57,27 +60,89 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
   // ─── 음성 입력 ──────────────────────────────────────────────────────────
 
   const handleVoicePress = async () => {
-    console.log(`[useDiaryAI] handleVoicePress called — state=${machine.state} isRECORDING=${machine.is('RECORDING')}`);
+    console.log(`[SM-QA] State: ${machine.state} | Event: VOICE_BUTTON_TAP | isRecording=${recorder.isRecording}`);
+
     if (machine.is('RECORDING')) {
-      console.log('[useDiaryAI] → stopRecording path');
-      machine.stopRecording();
-      await processVoice();
+      // ── 녹음 중지 → STT 변환 ────────────────────────────────────────────
+      console.log('[SM-QA] State: RECORDING | Event: STOP_RECORDING | Next: INPUT | Function: recorder.stopRecording()');
+      machine.stopRecording();                        // RECORDING → INPUT
+      const uri = await recorder.stopRecording();     // 녹음 파일 URI 획득
+      await processVoice(uri);                        // STT → setInputText
     } else {
-      console.log('[useDiaryAI] → startRecording path');
-      machine.startRecording();
+      // ── 녹음 시작 — 권한 확인 포함 ───────────────────────────────────────
+      console.log('[SM-QA] State: INPUT | Event: START_RECORDING | Function: recorder.startRecording()');
+      const result = await recorder.startRecording();
+
+      if (result === 'permission_denied') {
+        // PERMISSION 상태 → AIPermissionView 표시
+        console.log('[SM-QA] State: INPUT | Event: PERMISSION_REQUIRED | Next: PERMISSION');
+        machine.requirePermission();
+        return;
+      }
+      if (result === 'error') {
+        machine.setError({
+          origin:      'PERMISSION',
+          message:     '마이크를 시작할 수 없습니다. 다시 시도해주세요.',
+          retryTarget: 'INPUT',
+        });
+        return;
+      }
+      // 'ok' → 상태머신 RECORDING으로 전환
+      machine.startRecording();                       // INPUT → RECORDING
     }
   };
 
-  const processVoice = async () => {
-    // STOP_RECORDING 이벤트가 이미 RECORDING → INPUT 전환을 완료한 상태에서 진입
-    // AI 자동 실행 없음 — 사용자가 "AI 작성" 버튼을 눌렀을 때만 generateDiary() 호출
+  /**
+   * processVoice — 녹음 파일 URI를 받아 Whisper STT 변환 후 inputText에 설정
+   *
+   * 동작 원칙:
+   *   - AI 자동 실행 없음 — STT 결과를 inputText에만 채움
+   *   - 사용자가 텍스트 확인 후 "AI 작성" 버튼을 탭해야 generateDiary() 실행
+   *   - 녹음 파일은 업로드 완료(성공/실패) 후 즉시 삭제
+   */
+  const processVoice = async (uri: string | null) => {
+    if (!uri) {
+      console.warn('[VOICE] processVoice: URI 없음 — STT 스킵');
+      return;
+    }
+
+    console.log('[VOICE-0] processVoice 시작 — uri:', uri);
+
     try {
-      console.log('[VOICE-0] processVoice 시작 — STT 변환 단계 (AI 자동 실행 없음)');
-      // TODO: expo-av 녹음 파일 → Whisper API 호출 → 텍스트 반환
-      // const transcript = await transcribeAudio(audioUri);
-      // setInputText(transcript);
-      // STT 완료 후 INPUT 상태 유지 — 사용자가 텍스트 확인/수정 후 AI 작성 버튼 탭
-      console.log('[VOICE-1] processVoice 완료 — INPUT 상태 대기 중');
+      const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'https://swimnote.kr/api';
+      const endpoint = `${API_BASE}/ai/transcribe`;
+
+      // ── multipart/form-data 구성 ─────────────────────────────────────────
+      const formData = new FormData();
+      formData.append('audio', {
+        uri,
+        name: 'recording.m4a',
+        type: 'audio/m4a',
+      } as any);
+
+      console.log('[VOICE-1] Whisper API 요청 → ', endpoint);
+
+      const response = await fetch(endpoint, {
+        method:  'POST',
+        body:    formData,
+        headers: { Accept: 'application/json' },
+        // Content-Type은 FormData가 자동으로 multipart/form-data; boundary=... 설정
+      });
+
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody?.error ?? `HTTP ${response.status}`);
+      }
+
+      const { transcript } = await response.json() as { transcript: string };
+      console.log('[VOICE-2] STT 완료 — transcript:', transcript?.slice(0, 50));
+
+      if (transcript?.trim()) {
+        setInputText(transcript.trim());
+        console.log('[VOICE-3] inputText 설정 완료 — AI 자동 실행 없음, 사용자 확인 후 AI 작성 버튼 탭');
+      } else {
+        console.warn('[VOICE-3] transcript 비어 있음 — 무음 또는 인식 불가');
+      }
     } catch (e: any) {
       console.error('[VOICE-ERR] processVoice 오류:', e?.message ?? e);
       machine.setError({
@@ -85,6 +150,10 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
         message:     '음성 인식에 실패했습니다. 다시 시도해주세요.',
         retryTarget: 'INPUT',
       });
+    } finally {
+      // 성공/실패 무관하게 임시 파일 삭제
+      await recorder.deleteRecording(uri);
+      console.log('[VOICE-4] 임시 녹음 파일 삭제 완료');
     }
   };
 

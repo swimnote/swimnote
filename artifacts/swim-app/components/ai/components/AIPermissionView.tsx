@@ -30,14 +30,30 @@ export default function AIPermissionView({ types, onClose }: AIPermissionViewPro
   const { grantPermission, setError } = useAIStateMachine();
 
   const handleRequest = async () => {
-    // TODO: 실제 권한 요청 구현
-    // const results = await Promise.all(types.map(requestPermission));
-    // const allGranted = results.every(r => r.granted);
-    // if (allGranted) { grantPermission(); }
-    // else { setError({ origin: 'PERMISSION', message: '권한이 거부되었습니다.', retryTarget: 'PERMISSION' }); }
-
-    // 임시: 바로 승인
-    grantPermission();
+    try {
+      // 마이크 권한 요청 (expo-av)
+      if (types.includes('microphone')) {
+        const { Audio } = await import('expo-av');
+        const { granted } = await Audio.requestPermissionsAsync();
+        if (!granted) {
+          setError({
+            origin:      'PERMISSION',
+            message:     '마이크 권한이 거부되었습니다. 설정 앱에서 직접 허용해 주세요.',
+            retryTarget: 'PERMISSION',
+          });
+          return;
+        }
+      }
+      // 카메라/사진 라이브러리 권한은 향후 추가
+      grantPermission();
+    } catch (e: any) {
+      console.error('[AIPermissionView] 권한 요청 오류:', e?.message ?? e);
+      setError({
+        origin:      'PERMISSION',
+        message:     '권한 요청 중 오류가 발생했습니다.',
+        retryTarget: 'PERMISSION',
+      });
+    }
   };
 
   const primary = PERMISSION_LABELS[types[0]] ?? PERMISSION_LABELS.microphone;
