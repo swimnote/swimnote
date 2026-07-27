@@ -8,15 +8,8 @@
  */
 
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, {
-  cancelAnimation,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ScrollView } from 'react-native';
 import { useAIContext } from '../../core/AIContext';
 import AIErrorView from '../../components/AIErrorView';
 import AIInputArea from '../../components/AIInputArea';
@@ -24,7 +17,7 @@ import AILoading from '../../components/AILoading';
 import AIPermissionView from '../../components/AIPermissionView';
 import AIResultArea from '../../components/AIResultArea';
 import DiaryAIActionBar from './DiaryAIActionBar';
-import { AIThemeColor, AIThemeDuration, AIThemeRadius, AIThemeSpacing, AIThemeTypography } from '../../theme/AITheme';
+import { AIThemeColor, AIThemeRadius, AIThemeSpacing, AIThemeTypography } from '../../theme/AITheme';
 import { useDiaryAI } from './useDiaryAI';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -84,22 +77,6 @@ export default function DiaryAIContent({
   const showResult  = ['RESULT', 'EDITING', 'COMPLETE'].includes(state);
   const showLoading = ['PROCESSING', 'UPLOADING'].includes(state);
 
-  // ── 입력 영역 opacity (RESULT 이후 숨김) ──────────────────────────────────
-  const inputOpacity = useSharedValue(1);
-  React.useEffect(() => {
-    inputOpacity.value = withTiming(
-      showInput ? 1 : 0,
-      { duration: AIThemeDuration.fast },
-    );
-    return () => cancelAnimation(inputOpacity);
-  }, [showInput]);
-  // display/pointerEvents는 useAnimatedStyle 안에서 조건부 문자열로 쓰면
-  // native crash를 유발할 수 있으므로 opacity만 사용합니다.
-  // INPUT 상태가 아닐 때는 opacity:0 + 레이아웃 유지로 처리합니다.
-  const inputAnimStyle = useAnimatedStyle(() => ({
-    opacity: inputOpacity.value,
-  }));
-
   // ── 콘텐츠 영역 렌더링 ────────────────────────────────────────────────────
   const renderContent = () => {
     if (state === 'ERROR' && error) {
@@ -127,14 +104,11 @@ export default function DiaryAIContent({
         )}
 
         {/* 입력 영역
-            - opacity 애니메이션: showInput 전환 시 fade in/out
-            - height: 0 + overflow hidden: opacity:0 만으로는 레이아웃 공간이 유지되어
-              RESULT 화면에서 ~160px 빈 공간이 생기는 문제를 방지
-            - Reanimated worklet 외부 일반 스타일로 height를 제어하므로 크래시 없음 */}
-        <Animated.View
-          style={[inputAnimStyle, !showInput && styles.inputCollapsed]}
-          pointerEvents={showInput ? 'auto' : 'none'}
-        >
+            - showInput=false 일 때 완전히 언마운트하여 레이아웃 공간을 없앰
+            - gap 기반 레이아웃에서 height:0 view도 gap을 차지하므로
+              조건부 렌더링이 빈 공간 문제를 완전히 해소
+            - INPUT 복귀(mount) 시 AIInputArea 내부 voiceRowHeight spring이 동작 */}
+        {showInput && (
           <AIInputArea
             value={inputText}
             onChangeText={setInputText}
@@ -142,7 +116,7 @@ export default function DiaryAIContent({
             placeholder="수업 내용을 간단히 입력하거나 음성으로 말씀하세요"
             onVoicePress={handleVoicePress}
           />
-        </Animated.View>
+        )}
 
         {/* 결과 카드 */}
         {showResult && (
@@ -198,10 +172,6 @@ const styles = StyleSheet.create({
     paddingVertical: AIThemeSpacing.tight,
     flexGrow:        1,
   },
-  inputCollapsed: {
-    height:   0,
-    overflow: 'hidden',
-  },
   summaryRow: {
     flexDirection:   'row',
     alignItems:      'center',
@@ -242,7 +212,7 @@ const styles = StyleSheet.create({
     alignItems:        'center',
   },
   insertNoticeText: {
-    ...AIThemeTypography.caption,
+    ...AIThemeTypography.label,
     color:      '#2E7D32',
     fontWeight: '500',
   },
