@@ -70,6 +70,9 @@ export default function AIResultArea({ result, state }: AIResultAreaProps) {
     () => CRASH_TEST_DISABLE_ANIMATION ? 0 : Math.floor(charIndex.value / BATCH_SIZE),
     (batch, prev) => {
       'worklet';
+      // CRASH_TEST_DISABLE_ANIMATION=true 일 때는 reaction이 절대 발화하지 않도록 함
+      // (useEffect의 setDisplayed(result)를 덮어쓰는 버그 방지)
+      if (CRASH_TEST_DISABLE_ANIMATION) return;
       if (batch !== prev) {
         runOnJS(updateDisplayed)(batch * BATCH_SIZE);
       }
