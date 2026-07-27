@@ -1,1 +1,2 @@
 - [Misconception Hunter Build](misconception-hunter-build.md) — swimnote-web artifact quirks, missing lib files, wouter v3 Link pattern, DB target, Vite base URL decision
+- [AI StateMachine Refactoring Candidate](ai-statemachine-debt.md) — handleSubmit() RESULT→INPUT→PROCESSING batching 의존 구조, Phase 3 API 연동 후 리팩터링 예정
