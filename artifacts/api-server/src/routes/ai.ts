@@ -36,12 +36,17 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = ['audio/m4a', 'audio/mp4', 'audio/mpeg', 'audio/wav',
-                     'audio/webm', 'audio/x-m4a', 'video/mp4'];
-    if (allowed.includes(file.mimetype) || file.originalname.match(/\.(m4a|mp4|mp3|wav|webm)$/i)) {
+    const allowedMime = ['audio/m4a', 'audio/mp4', 'audio/mpeg', 'audio/wav',
+                         'audio/webm', 'audio/x-m4a', 'video/mp4'];
+    const allowedExt  = /\.(m4a|mp4|mp3|wav|webm)$/i;
+    // MIME 우선 검사, 이후 확장자 보조 검사 (AND → OR, 단 둘 다 실패 시만 거부)
+    // 실제 앱은 항상 audio/m4a 또는 audio/mpeg를 전송하므로 MIME으로만 통과됨
+    const mimeOk = allowedMime.includes(file.mimetype);
+    const extOk  = allowedExt.test(file.originalname);
+    if (mimeOk || extOk) {
       cb(null, true);
     } else {
-      cb(new Error(`지원하지 않는 오디오 형식입니다: ${file.mimetype}`));
+      cb(new Error(`지원하지 않는 오디오 형식입니다. mime=${file.mimetype}`));
     }
   },
 });
@@ -60,7 +65,10 @@ router.post(
       return;
     }
 
-    console.log(`[AI/transcribe] 수신: ${file.originalname} size=${file.size}bytes mime=${file.mimetype}`);
+    // ── 처리 시작 로그 (API Key / 개인정보 제외) ────────────────────────────
+    const requestId = Math.random().toString(36).slice(2, 10);
+    const startMs   = Date.now();
+    console.log(`[AI/transcribe:${requestId}] 수신 size=${file.size}B mime=${file.mimetype}`);
 
     try {
       const client = getOpenAI();
@@ -79,15 +87,19 @@ router.post(
         language: 'ko',
       });
 
-      const transcript = transcription.text.trim();
-      console.log(`[AI/transcribe] 완료: "${transcript.slice(0, 50)}${transcript.length > 50 ? '...' : ''}"`);
+      const transcript   = transcription.text.trim();
+      const elapsedMs    = Date.now() - startMs;
+      // transcript 내용은 로그에 남기지 않음 — 길이만 기록
+      console.log(`[AI/transcribe:${requestId}] 완료 elapsed=${elapsedMs}ms transcript_len=${transcript.length}chars`);
 
       res.json({ transcript });
     } catch (e: any) {
-      console.error('[AI/transcribe] Whisper API 오류:', e?.message ?? e);
-      const status  = e?.status ?? 500;
-      const message = e?.message ?? 'Whisper API 호출 실패';
-      res.status(status).json({ error: message });
+      const elapsedMs = Date.now() - startMs;
+      // 에러 메시지에서 API Key가 포함된 경우 제거 (OpenAI SDK는 key를 노출하지 않으나 예방)
+      const safeMsg = String(e?.message ?? 'Whisper API 호출 실패').replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED]');
+      console.error(`[AI/transcribe:${requestId}] 오류 elapsed=${elapsedMs}ms status=${e?.status ?? 500} msg=${safeMsg}`);
+      const status = e?.status ?? 500;
+      res.status(status).json({ error: safeMsg });
     }
   },
 );
