@@ -95,9 +95,6 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
     if (machine.state === 'RESULT' || machine.state === 'EDITING') {
       // RESULT/EDITING → INPUT → PROCESSING
       console.log('[REWRITE-2] RESULT 상태 → retry(INPUT) 선행');
-      rewriteCountRef.current += 1;
-      console.log('[REWRITE-COUNT] rewriteCountRef 증가 →', rewriteCountRef.current);
-      console.log('[REWRITE-2b] 재작성 횟수:', rewriteCountRef.current);
       console.log(`[REWRITE-RESULT] 다시 작성 클릭 시점 resultText="${resultText.slice(0, 20)}" length=${resultText.length}`);
       machine.retry('INPUT');
     } else if (!inputText.trim()) {
@@ -116,7 +113,10 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
     // ⚠️ 더미 결과 — Phase 3에서 실제 API 교체 예정
     const BASE_DUMMY = '오늘은 자유형 발차기와 호흡 연습을 진행했습니다. 학생들이 발차기 자세를 교정하며 호흡 타이밍을 맞추는 연습을 했고, 전반적으로 좋은 향상을 보였습니다.';
     // 재작성 횟수를 더미 결과 끝에 표시하여 재실행 여부를 눈으로 확인
+    // ※ count를 먼저 읽고 증가 — "다시 작성" / "다시 입력 → AI 작성" 두 경로 모두 카운트
     const count = rewriteCountRef.current;
+    rewriteCountRef.current += 1;
+    console.log('[REWRITE-COUNT] generateDiary 진입 — 이번 생성 count:', count, '→ 다음 count:', rewriteCountRef.current);
     const DUMMY_RESULT = count > 0
       ? `${BASE_DUMMY} (더미 재작성 ${count})`
       : BASE_DUMMY;
