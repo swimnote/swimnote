@@ -1,11 +1,11 @@
 /**
- * AI 모달 — RESULT 상태 미리보기
+ * AI 모달 — RESULT 상태 (수정본)
  *
  * 검증 포인트:
- * 1. ✅ InputSummary 상단 표시 ("수정하기" 버튼)
+ * 1. ✅ InputSummary: "입력 내용" 라벨 상단 + 텍스트+수정하기 아래줄
  * 2. ✅ AIInputArea 언마운트 → 빈 공간 없음
- * 3. ✅ 결과 카드 InputSummary 바로 아래에 위치
- * 4. ✅ ActionBar에 "다시 생성", "일지에 삽입" 버튼
+ * 3. ✅ 결과 카드 auto height (내용 길이에 맞게)
+ * 4. ✅ ActionBar 하단 고정 유지
  */
 export function ResultState() {
   const sampleResult = `오늘 수업에서 학생들의 자유형 호흡 동작을 집중적으로 연습했습니다.
@@ -22,30 +22,35 @@ export function ResultState() {
         <button className="text-[13px] font-medium text-gray-400">닫기</button>
       </div>
 
-      {/* 콘텐츠 영역 */}
+      {/* 콘텐츠 영역 — 스크롤 가능 */}
       <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
 
-        {/* ① InputSummary — "수정하기" 버튼 확인 */}
-        <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
-          <span className="text-[13px] text-gray-500 flex-1 truncate">오늘 수업 자유형 호흡 연습했습니다</span>
-          <button className="text-[13px] font-medium text-[#00B6A3] ml-2 shrink-0">수정하기</button>
+        {/* ① InputSummary — "입력 내용" 라벨 추가 */}
+        <div className="bg-gray-50 rounded-xl px-3 pt-2 pb-2 flex flex-col gap-1">
+          {/* 섹션 라벨 */}
+          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">입력 내용</span>
+          {/* 텍스트 + 수정하기 */}
+          <div className="flex items-center justify-between">
+            <span className="text-[13px] text-gray-700 flex-1 truncate">오늘 수업 자유형 호흡 연습했습니다</span>
+            <button className="text-[13px] font-medium text-[#00B6A3] ml-2 shrink-0">수정하기</button>
+          </div>
         </div>
 
-        {/* ② AIInputArea 언마운트 → 여기 빈 공간 없어야 함 ✅ */}
-        {/* (아무것도 렌더링 안 됨) */}
+        {/* ② AIInputArea 완전 언마운트 → 빈 공간 없음 */}
 
-        {/* ③ 결과 카드 — InputSummary 바로 아래 */}
-        <div className="flex-1 min-h-[200px] rounded-xl bg-gray-50 border border-gray-200 p-3 flex flex-col">
+        {/* ③ 결과 카드 — auto height (flex:1 제거) */}
+        <div className="rounded-xl bg-gray-50 border border-gray-200 p-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[13px] font-medium text-[#00B6A3]">AI 작성 결과</span>
           </div>
-          <div className="flex-1 overflow-y-auto">
-            <p className="text-[16px] text-gray-800 leading-relaxed whitespace-pre-wrap">{sampleResult}</p>
-          </div>
+          {/* ScrollView 없이 Text 직접 렌더 — 외부 스크롤로 처리 */}
+          <p className="text-[16px] text-gray-800 leading-relaxed whitespace-pre-wrap">{sampleResult}</p>
         </div>
+
+        {/* 텍스트가 짧을 때의 예시 — 카드가 내용만큼만 크기를 가짐 */}
       </div>
 
-      {/* ActionBar — "다시 생성" + "일지에 삽입" */}
+      {/* ActionBar — 하단 고정 (변경 없음) */}
       <div className="border-t border-gray-100 px-4 pt-3 pb-6 bg-white">
         <div className="flex gap-2">
           <button className="flex-1 h-12 rounded-xl bg-gray-100 text-[15px] font-medium text-gray-600">다시 생성</button>

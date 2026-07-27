@@ -36,13 +36,16 @@ interface DiaryAIContentProps {
 
 function InputSummary({ text, onEdit }: { text: string; onEdit: () => void }) {
   return (
-    <View style={styles.summaryRow}>
-      <Text style={styles.summaryText} numberOfLines={1} ellipsizeMode="tail">
-        {text || '(입력 내용)'}
-      </Text>
-      <Pressable onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <Text style={styles.summaryEdit}>수정하기</Text>
-      </Pressable>
+    <View style={styles.summaryBox}>
+      <Text style={styles.summaryLabel}>입력 내용</Text>
+      <View style={styles.summaryRow}>
+        <Text style={styles.summaryText} numberOfLines={1} ellipsizeMode="tail">
+          {text || '(없음)'}
+        </Text>
+        <Pressable onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={styles.summaryEdit}>수정하기</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -118,11 +121,9 @@ export default function DiaryAIContent({
           />
         )}
 
-        {/* 결과 카드 */}
+        {/* 결과 카드 — auto height, 외부 ScrollView가 전체 스크롤 담당 */}
         {showResult && (
-          <View style={styles.resultContainer}>
-            <AIResultArea result={resultText} state={state} />
-          </View>
+          <AIResultArea result={resultText} state={state} />
         )}
       </ScrollView>
     );
@@ -172,29 +173,36 @@ const styles = StyleSheet.create({
     paddingVertical: AIThemeSpacing.tight,
     flexGrow:        1,
   },
-  summaryRow: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    justifyContent:  'space-between',
-    backgroundColor: AIThemeColor.surfaceLight,
-    borderRadius:    AIThemeRadius.badge,
+  summaryBox: {
+    backgroundColor:   AIThemeColor.surfaceLight,
+    borderRadius:      AIThemeRadius.badge,
     paddingHorizontal: AIThemeSpacing.element,
-    paddingVertical:   AIThemeSpacing.tight,
+    paddingTop:        AIThemeSpacing.tight,
+    paddingBottom:     AIThemeSpacing.tight,
+    gap:               4,
+  },
+  summaryLabel: {
+    ...AIThemeTypography.label,
+    color:      AIThemeColor.textSub,
+    fontWeight: '600',
+    opacity:    0.6,
+  },
+  summaryRow: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
   },
   summaryText: {
     ...AIThemeTypography.label,
-    color: AIThemeColor.textSub,
+    color: AIThemeColor.text,
     flex:  1,
   },
   summaryEdit: {
     ...AIThemeTypography.label,
-    color: AIThemeColor.primary,
+    color:      AIThemeColor.primary,
     marginLeft: AIThemeSpacing.tight,
   },
-  resultContainer: {
-    flex:      1,
-    minHeight: 200,
-  },
+  // resultContainer 제거 — auto height는 wrapper View 없이 AIResultArea 직접 렌더
   actionBarWrap: {
     paddingHorizontal: AIThemeSpacing.section,
     paddingTop:        AIThemeSpacing.element,

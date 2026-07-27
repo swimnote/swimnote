@@ -12,7 +12,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import Animated, {
   cancelAnimation,
   useAnimatedReaction,
@@ -151,17 +151,12 @@ export default function AIResultArea({ result, state }: AIResultAreaProps) {
         )}
       </Animated.View>
 
-      <ScrollView
-        style={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-      >
-        <Text style={styles.resultText}>
-          {displayed}
-          {/* 타이핑 커서 */}
-          {!isComplete && <Text style={styles.cursor}>|</Text>}
-        </Text>
-      </ScrollView>
+      {/* 내용 텍스트 — ScrollView 제거, 외부 ScrollView에서 전체 스크롤 처리 */}
+      <Text style={styles.resultText}>
+        {displayed}
+        {/* 타이핑 커서 */}
+        {!isComplete && <Text style={styles.cursor}>|</Text>}
+      </Text>
     </Animated.View>
   );
 }
@@ -170,7 +165,6 @@ export default function AIResultArea({ result, state }: AIResultAreaProps) {
 
 const styles = StyleSheet.create({
   card: {
-    flex:            1,
     borderRadius:    AIThemeRadius.card,
     backgroundColor: AIThemeColor.surfaceLight,
     borderWidth:     1,
@@ -190,9 +184,6 @@ const styles = StyleSheet.create({
   skipLabel: {
     ...AIThemeTypography.label,
     color: AIThemeColor.textSub,
-  },
-  scroll: {
-    flex: 1,
   },
   resultText: {
     ...AIThemeTypography.result,

@@ -127,9 +127,14 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       console.log('[GENERATE-1] generateDiary 시작 — rewriteCount:', count);
       console.log('[GENERATE-2] transcript=(더미) result=(생성예정) state:', machine.state);
 
-      // TODO Phase 3: 실제 API 호출
+      // TODO Phase 3: 실제 API 호출 (아래 더미 지연 및 DUMMY_RESULT 제거)
       // const resp = await apiClient.post('/ai/diary/generate', { input: inputText, ... });
       // setResultText(resp.text);
+
+      // ── 더미 최소 지연 (1500ms) ─────────────────────────────────────────
+      // 실제 API 연결 시 이 줄 제거 — 네트워크 응답 대기가 자연스러운 PROCESSING 시간
+      await new Promise<void>((resolve) => setTimeout(resolve, 1500));
+      // ────────────────────────────────────────────────────────────────────
 
       console.log('[GENERATE-3] setResultText 직전 — 더미 텍스트 길이:', DUMMY_RESULT.length);
       console.log(`[RESULT-SET] "${resultText.slice(0, 20) || '(빈값)'}" → "${DUMMY_RESULT.slice(0, 20)}"`);
