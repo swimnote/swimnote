@@ -50,15 +50,21 @@ const SCREEN_HEIGHT = Dimensions.get('window').height;
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface BaseAIModalProps {
-  visible:     boolean;
-  onClose:     () => void;
-  featureType: AIFeatureType;
-  title:       string;
-  credit?:     AICreditInfo;
+  visible:      boolean;
+  onClose:      () => void;
+  featureType:  AIFeatureType;
+  title:        string;
+  credit?:      AICreditInfo;
   /** Feature별 본문 컴포넌트 */
-  content:     React.ReactNode;
+  content:      React.ReactNode;
   /** Feature별 ActionBar 컴포넌트 */
-  actionBar?:  React.ReactNode;
+  actionBar?:   React.ReactNode;
+  /**
+   * true일 때 백드롭 탭·스와이프 dismiss를 차단합니다.
+   * [원칙 1·5] PROCESSING / RECORDING / RESULT / EDITING 중에는
+   * 작업공간이 사라지지 않도록 Feature 컴포넌트가 제어합니다.
+   */
+  lockDismiss?: boolean;
 }
 
 // ─── BaseAIModal ──────────────────────────────────────────────────────────────
@@ -71,6 +77,7 @@ export default function BaseAIModal({
   credit,
   content,
   actionBar,
+  lockDismiss = false,
 }: BaseAIModalProps) {
   const insets       = useSafeAreaInsets();
   const reducedMotion = useAIReducedMotion();
@@ -134,13 +141,20 @@ export default function BaseAIModal({
   }, [onClose]);
 
   // ── Swipe Down 제스처 (핸들 영역만 — ScrollView 충돌 없음) ───────────────
+  // [원칙 1·5] lockDismiss=true 구간에서는 스와이프 dismiss 차단
   const panGesture = Gesture.Pan()
     .activeOffsetY(8)          // 아래 방향으로 8px 이상 이동 시 활성
     .failOffsetY(-5)           // 위 방향이면 즉시 실패 (스크롤 우선)
     .onUpdate((e) => {
+      if (lockDismiss) return; // 작업 중 스와이프 드래그 자체를 무시
       applySwipeDrag(translateY, backdropOpacity, e.translationY);
     })
     .onEnd((e) => {
+      if (lockDismiss) {
+        console.log('[BACK-EVENT] panGesture 스와이프 — lockDismiss=true, dismiss 차단');
+        animateSwipeCancel(translateY, backdropOpacity);
+        return;
+      }
       const dismissed =
         e.translationY > AIThemeGesture.swipeDismissDistance ||
         e.velocityY    > AIThemeGesture.swipeDismissVelocity;
@@ -187,9 +201,14 @@ export default function BaseAIModal({
       <GestureHandlerRootView style={StyleSheet.absoluteFill}>
         {/* ── 백드롭 ── */}
         <Animated.View style={[styles.backdrop, backdropStyle]} pointerEvents="none" />
+        {/* [원칙 1·5] lockDismiss=true 구간에서는 백드롭 탭으로 닫기 차단 */}
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={() => {
+            if (lockDismiss) {
+              console.log('[BACK-EVENT] 백드롭 탭 — lockDismiss=true, dismiss 차단');
+              return;
+            }
             console.log('[BACK-EVENT] 백드롭 탭 — doClose() 호출');
             doClose();
           }}

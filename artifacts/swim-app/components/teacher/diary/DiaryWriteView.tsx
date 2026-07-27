@@ -10,6 +10,7 @@ import SentencePicker from "@/components/teacher/SentencePicker";
 import { DiaryTemplate, StudentNote, StudentOption, UploadedMedia } from "./types";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import DiaryAIButton from "@/components/ai/features/diary/DiaryAIButton";
+import type { DiaryInsertResult, StudentContext } from "@/components/ai/features/diary/useDiaryAI";
 
 const C = Colors.light;
 
@@ -18,7 +19,7 @@ export default function DiaryWriteView({
   templates, showTemplates, setShowTemplates,
   commonContent, setCommonContent,
   classStudents,
-  studentNotes,
+  studentNotes, setStudentNotes,
   addNoteStudent, setAddNoteStudent,
   noteInput, setNoteInput,
   saving, formError, saveMsg,
@@ -31,12 +32,17 @@ export default function DiaryWriteView({
   onUploadGroupMedia, onUploadStudentMedia,
   onAddNote, onRemoveNote,
   insertAtCursor,
+  // ── [원칙 2] 앱 화면이 공급하는 컨텍스트 데이터 ─────────────────────────
+  token,
+  teacherId,
 }: {
   group: TeacherClassGroup; targetDate: string; themeColor: string; myDiaryExists: boolean;
   templates: DiaryTemplate[]; showTemplates: boolean; setShowTemplates: (v: boolean) => void;
   commonContent: string; setCommonContent: (v: string) => void;
   classStudents: StudentOption[];
   studentNotes: StudentNote[];
+  /** [원칙 6] AI 결과의 학생별 일지 삽입에 필요 */
+  setStudentNotes: (v: StudentNote[] | ((prev: StudentNote[]) => StudentNote[])) => void;
   addNoteStudent: StudentOption | null; setAddNoteStudent: (v: StudentOption | null) => void;
   noteInput: string; setNoteInput: (v: string) => void;
   saving: boolean;
@@ -56,7 +62,44 @@ export default function DiaryWriteView({
   onAddNote: () => void;
   onRemoveNote: (studentId: string) => void;
   insertAtCursor: (current: string, insert: string, cursorPos: number, setter: (v: string) => void) => void;
+  token?: string;
+  teacherId?: string;
 }) {
+  /**
+   * [원칙 6] AI 모달이 최종 삽입 버튼을 누른 시점에만 이 콜백을 호출합니다.
+   * commonDiary → setCommonContent
+   * students[]  → setStudentNotes (studentId 기준 upsert)
+   */
+  function handleAIInsert(result: DiaryInsertResult) {
+    // 공통 일지 삽입 (setCommonContent는 string만 받으므로 현재값 직접 참조)
+    setCommonContent(
+      commonContent.trim()
+        ? `${commonContent.trim()}\n\n${result.commonDiary}`
+        : result.commonDiary
+    );
+
+    // 학생별 일지 삽입 (studentId 기준 upsert)
+    if (result.students.length > 0) {
+      setStudentNotes(prev => {
+        let next = [...prev];
+        for (const s of result.students) {
+          const idx = next.findIndex(n => n.student_id === s.studentId);
+          if (idx >= 0) {
+            // 기존 메모가 있으면 내용 교체
+            next[idx] = { ...next[idx], note_content: s.note };
+          } else {
+            // 없으면 새로 추가
+            next = [...next, {
+              student_id:   s.studentId,
+              student_name: s.studentName,
+              note_content: s.note,
+            }];
+          }
+        }
+        return next;
+      });
+    }
+  }
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <ScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -106,12 +149,16 @@ export default function DiaryWriteView({
           <View style={s.textareaFooter}>
             <Text style={s.charCount}>{commonContent.length}자</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              {/* [원칙 2] 앱이 공급하는 컨텍스트 전달 / [원칙 6] handleAIInsert로 결과 수신 */}
               <DiaryAIButton
-                // ⚠️ 공통 일지 임시 삽입 — 최종 삽입 위치·덮어쓰기 정책 미확정 (Stage A 테스트용)
-                onInsert={(text) => setCommonContent(prev => prev.trim() ? `${prev.trim()}\n\n${text}` : text)}
+                onInsert={handleAIInsert}
                 themeColor={themeColor}
                 existingContent={commonContent}
+                token={token}
+                teacherId={teacherId}
                 classId={group.id}
+                date={targetDate}
+                students={classStudents.map(s => ({ id: s.id, name: s.name }))}
               />
               <TouchableOpacity style={s.sentencePickBtn} onPress={() => setShowPickerFor("common")} activeOpacity={0.7}>
                 <BookOpen size={13} color={C.tint} />

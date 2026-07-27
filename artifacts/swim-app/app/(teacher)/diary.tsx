@@ -451,7 +451,7 @@ export default function TeacherDiaryScreen() {
             group={group} targetDate={targetDate} themeColor={themeColor} myDiaryExists={myDiaryExists}
             templates={templates} showTemplates={showTemplates} setShowTemplates={setShowTemplates}
             commonContent={commonContent} setCommonContent={setCommonContent}
-            classStudents={classStudents} studentNotes={studentNotes}
+            classStudents={classStudents} studentNotes={studentNotes} setStudentNotes={setStudentNotes}
             addNoteStudent={addNoteStudent} setAddNoteStudent={setAddNoteStudent}
             noteInput={noteInput} setNoteInput={setNoteInput}
             saving={saving} formError={formError} saveMsg={saveMsg}
@@ -465,6 +465,8 @@ export default function TeacherDiaryScreen() {
             onAddNote={handleAddNote}
             onRemoveNote={(studentId) => setStudentNotes(prev => prev.filter(n => n.student_id !== studentId))}
             insertAtCursor={insertAtCursor}
+            token={token ?? undefined}
+            teacherId={user?.id}
           />
         ) : (
           <DiaryHistoryList

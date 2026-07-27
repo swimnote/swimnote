@@ -92,9 +92,9 @@ export default function DiaryEditView({
           <View style={s.textareaFooter}>
             <Text style={s.charCount}>{editContent.length}자</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              {/* [원칙 6] DiaryInsertResult 구조체로 수신 — editContent에 commonDiary 삽입 */}
               <DiaryAIButton
-                // ⚠️ 공통 일지 임시 삽입 — 최종 삽입 위치·덮어쓰기 정책 미확정 (Stage A 테스트용)
-                onInsert={(text) => setEditContent(prev => prev.trim() ? `${prev.trim()}\n\n${text}` : text)}
+                onInsert={(result) => setEditContent(editContent.trim() ? `${editContent.trim()}\n\n${result.commonDiary}` : result.commonDiary)}
                 themeColor={themeColor}
                 existingContent={editContent}
                 classId={group.id}

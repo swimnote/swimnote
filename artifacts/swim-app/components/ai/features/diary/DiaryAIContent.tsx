@@ -20,15 +20,27 @@ import DiaryAIActionBar from './DiaryAIActionBar';
 import { AIThemeColor, AIThemeRadius, AIThemeSpacing, AIThemeTypography } from '../../theme/AITheme';
 import { useDiaryAI } from './useDiaryAI';
 
+import type { DiaryInsertResult, StudentContext } from './useDiaryAI';
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface DiaryAIContentProps {
-  /** COMPLETE 시 결과 텍스트를 부모 textarea에 삽입 */
-  onInsert?:        (text: string) => void;
+  /** [원칙 6] 최종 삽입 시 commonDiary + students[] 단일 구조체로 전달 */
+  onInsert?:        (result: DiaryInsertResult) => void;
   onClose:          () => void;
+  /**
+   * [원칙 1·5] machine.state 변화 시 호출됩니다.
+   * true → dismiss 차단 (PROCESSING/RECORDING/RESULT/EDITING)
+   * false → dismiss 허용 (INPUT/PERMISSION/ERROR/COMPLETE)
+   */
+  onLockChange?:    (locked: boolean) => void;
   existingContent?: string;
-  studentId?:       string;
+  // ── [원칙 2] 앱 화면이 공급하는 컨텍스트 데이터 ────────────────────────
+  token?:           string;
+  teacherId?:       string;
   classId?:         string;
+  date?:            string;
+  students?:        StudentContext[];
   poolId?:          string;
 }
 
@@ -55,9 +67,13 @@ function InputSummary({ text, onEdit }: { text: string; onEdit: () => void }) {
 export default function DiaryAIContent({
   onInsert,
   onClose,
+  onLockChange,
   existingContent,
-  studentId,
+  token,
+  teacherId,
   classId,
+  date,
+  students,
   poolId,
 }: DiaryAIContentProps) {
   const { state, error } = useAIContext();
@@ -72,7 +88,18 @@ export default function DiaryAIContent({
     handleSubmit,
     handleInsert,
     machine,
-  } = useDiaryAI({ existingContent, studentId, classId, poolId, onInsert, onClose });
+  } = useDiaryAI({
+    existingContent,
+    token,
+    teacherId,
+    classId,
+    date,
+    students,
+    poolId,
+    onInsert,
+    onClose,
+    onLockChange,
+  });
 
   // ── 레이아웃 모드 판단 ─────────────────────────────────────────────────────
   const showInput   = ['INPUT', 'RECORDING'].includes(state);

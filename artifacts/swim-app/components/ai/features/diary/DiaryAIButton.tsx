@@ -15,24 +15,32 @@
  *   />
  */
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { Sparkles } from 'lucide-react-native';
 import BaseAIModal from '../../core/BaseAIModal';
 import DiaryAIContent from './DiaryAIContent';
+import type { DiaryInsertResult, StudentContext } from './useDiaryAI';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface DiaryAIButtonProps {
-  /** AI 결과 텍스트를 받아 일지 textarea에 삽입하는 콜백 */
-  onInsert:         (text: string) => void;
+  /**
+   * [원칙 6] AI 작업이 완전히 확정된 시점에만 호출됩니다.
+   * commonDiary → 공통 일지, students[] → 학생별 일지 (studentId 기준)
+   */
+  onInsert:         (result: DiaryInsertResult) => void;
   /** 버튼 색상 (수업 테마 컬러) */
   themeColor:       string;
   /** 이미 입력된 일지 내용 (AI 컨텍스트 참고용) */
   existingContent?: string;
-  /** 학생/수업 컨텍스트 (향후 API 연결용) */
-  studentId?:       string;
+  // ── [원칙 2] 앱 화면이 공급하는 데이터 ──────────────────────────────────
+  token?:           string;
+  teacherId?:       string;
   classId?:         string;
+  date?:            string;
+  /** 학생목록 (studentId + studentName) */
+  students?:        StudentContext[];
   poolId?:          string;
 }
 
@@ -42,16 +50,23 @@ export default function DiaryAIButton({
   onInsert,
   themeColor,
   existingContent,
-  studentId,
+  token,
+  teacherId,
   classId,
+  date,
+  students,
   poolId,
 }: DiaryAIButtonProps) {
-  const [visible, setVisible] = useState(false);
+  const [visible,     setVisible]     = useState(false);
+  /**
+   * [원칙 1·5] AI 작업 중 백드롭·스와이프로 작업공간이 사라지지 않도록 제어합니다.
+   * useDiaryAI가 machine.state 변화에 따라 onLockChange를 호출합니다.
+   */
+  const [lockDismiss, setLockDismiss] = useState(false);
 
-  const handleInsert = (text: string) => {
-    onInsert(text);
-    // 모달은 COMPLETE 애니메이션 후 자동으로 닫힘
-  };
+  const handleInsert = useCallback((result: DiaryInsertResult) => {
+    onInsert(result);
+  }, [onInsert]);
 
   return (
     <>
@@ -65,19 +80,24 @@ export default function DiaryAIButton({
         <Text style={[styles.btnText, { color: themeColor }]}>AI 작성</Text>
       </Pressable>
 
-      {/* AI 모달 */}
+      {/* AI 모달 — [원칙 1] lockDismiss=true 구간에서 닫기 차단 */}
       <BaseAIModal
         visible={visible}
         featureType="diary"
         title="AI 일지 작성"
         onClose={() => setVisible(false)}
+        lockDismiss={lockDismiss}
         content={
           <DiaryAIContent
             onInsert={handleInsert}
             onClose={() => setVisible(false)}
+            onLockChange={setLockDismiss}
             existingContent={existingContent}
-            studentId={studentId}
+            token={token}
+            teacherId={teacherId}
             classId={classId}
+            date={date}
+            students={students}
             poolId={poolId}
           />
         }
