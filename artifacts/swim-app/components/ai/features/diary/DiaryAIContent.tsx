@@ -126,8 +126,15 @@ export default function DiaryAIContent({
           />
         )}
 
-        {/* 입력 영역 — opacity:0 시 pointerEvents="none"으로 하단 버튼 터치 차단 방지 */}
-        <Animated.View style={inputAnimStyle} pointerEvents={showInput ? 'auto' : 'none'}>
+        {/* 입력 영역
+            - opacity 애니메이션: showInput 전환 시 fade in/out
+            - height: 0 + overflow hidden: opacity:0 만으로는 레이아웃 공간이 유지되어
+              RESULT 화면에서 ~160px 빈 공간이 생기는 문제를 방지
+            - Reanimated worklet 외부 일반 스타일로 height를 제어하므로 크래시 없음 */}
+        <Animated.View
+          style={[inputAnimStyle, !showInput && styles.inputCollapsed]}
+          pointerEvents={showInput ? 'auto' : 'none'}
+        >
           <AIInputArea
             value={inputText}
             onChangeText={setInputText}
@@ -190,6 +197,10 @@ const styles = StyleSheet.create({
     gap:             AIThemeSpacing.element,
     paddingVertical: AIThemeSpacing.tight,
     flexGrow:        1,
+  },
+  inputCollapsed: {
+    height:   0,
+    overflow: 'hidden',
   },
   summaryRow: {
     flexDirection:   'row',
