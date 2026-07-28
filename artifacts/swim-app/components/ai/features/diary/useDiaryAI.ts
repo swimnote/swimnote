@@ -116,8 +116,8 @@ const MAX_AUTO_RETRY = 1;
 /** [P8] 자동 retry 전 대기 시간 */
 const AUTO_RETRY_DELAY_MS = 800;
 
-/** AI Engine Base URL */
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'https://swimnote.kr/api';
+/** AI Engine Production Base URL — https://swimnote.ai.kr */
+const AI_ENGINE_BASE = process.env.EXPO_PUBLIC_AI_ENGINE_URL ?? 'https://swimnote.ai.kr';
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
@@ -237,7 +237,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
     console.log('[VOICE-0] processVoice 시작 — uri:', uri);
 
     try {
-      const endpoint = `${API_BASE}/ai/whisper/transcribe`;
+      const endpoint = `${AI_ENGINE_BASE}/api/ai/whisper/transcribe`;
       const formData = new FormData();
       formData.append('audio', { uri, name: 'recording.m4a', type: 'audio/m4a' } as any);
 
@@ -363,7 +363,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
     console.log('[GENERATE-2] context — classId:', options.classId, 'date:', options.date, 'students:', options.students?.length ?? 0);
 
     try {
-      const endpoint = `${API_BASE}/ai/diary/generate`;
+      const endpoint = `${AI_ENGINE_BASE}/api/ai/diary/generate`;
 
       const requestBody = {
         teacher_id:       options.teacherId   ?? '',
