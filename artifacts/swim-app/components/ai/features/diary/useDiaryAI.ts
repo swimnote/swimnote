@@ -366,15 +366,18 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       const endpoint = `${AI_ENGINE_BASE}/api/ai/diary/generate`;
 
       const requestBody = {
-        teacher_id:       options.teacherId   ?? '',
-        class_id:         options.classId     ?? '',
-        lesson_date:      options.date        ?? '',
-        input_text:       inputText.trim(),
-        students:         (options.students ?? []).map(s => ({
-          student_id:   s.id,
-          student_name: s.name,
-        })),
-        existing_content: options.existingContent ?? '',
+        schema_version: '1.0',
+        feature:        'teacher_diary',
+        locale:         'ko-KR',
+        input: {
+          text: inputText.trim(),
+        },
+        context: {
+          class_id:     options.classId   ?? '',
+          pool_id:      options.poolId    ?? '',
+          lesson_date:  options.date      ?? '',
+          student_refs: (options.students ?? []).map(s => s.id),
+        },
       };
 
       const headers: Record<string, string> = {
