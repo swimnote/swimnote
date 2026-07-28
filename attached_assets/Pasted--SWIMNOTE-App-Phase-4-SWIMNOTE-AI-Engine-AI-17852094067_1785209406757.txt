@@ -1,0 +1,356 @@
+# SWIMNOTE App Phase 4 최종 작업 지시
+
+이번 작업은 SWIMNOTE 앱 프로젝트만 작업합니다.
+
+AI Engine 저장소는 수정하지 않습니다.
+
+AI Engine은 Teacher Diary Phase 3 COMPLETE 상태이며,
+아래 항목은 이미 완료된 것으로 신뢰하고 그대로 사용합니다.
+
+- POST /api/ai/diary/generate
+- POST /api/ai/whisper/transcribe
+- Response Contract
+- Error Contract
+- request_id
+- usage
+- AI Request Log
+- Knowledge 0건 안전 정책
+
+이번 작업의 목적은 새로운 기능 개발이 아니라,
+현재 SWIMNOTE 앱에 이미 구현된 AI Workspace를
+실제 AI Engine API와 연결하고 검증하는 것입니다.
+
+현재 HEAD 기준으로 이미 존재하는 아래 구조는 새로 만들지 않습니다.
+
+- DiaryWriteView
+- DiaryAIButton
+- BaseAIModal
+- DiaryAIContent
+- useDiaryAI
+- DiaryInsertResult
+- studentNotes Upsert
+- lockDismiss
+- 기존 저장 흐름
+
+==================================================
+
+[P1] 현재 앱 인증 구조 확인
+
+현재 SWIMNOTE 앱의 실제 인증 구조를 확인합니다.
+
+확인 항목
+
+- JWT 또는 Access Token
+- 토큰 저장 위치
+- 로그인 사용자 식별자
+- 운영자/선생님 사용자 구분
+- API 호출 시 Authorization 헤더 생성 방식
+- 토큰 만료 시 처리 방식
+
+중요
+
+AI Engine 인증 구조는 수정하지 않습니다.
+
+현재 앱 인증으로 AI Engine 호출이 가능한지 확인하고,
+불가능하면 정확한 BLOCKED 사유만 보고합니다.
+
+==================================================
+
+[P2] Teacher Diary API 실제 연결
+
+기존 useDiaryAI의 dummy generateDiary 구현을 제거하고,
+아래 API를 실제 호출하도록 연결합니다.
+
+POST /api/ai/diary/generate
+
+확인 항목
+
+- AI Engine Base URL
+- Authorization 헤더
+- Content-Type
+- Request JSON
+- request_id 전송 또는 수신
+- timeout
+- 취소
+- retry
+- Error Contract 처리
+
+새로운 API 함수나 UI 구조를 불필요하게 중복 생성하지 않습니다.
+
+==================================================
+
+[P3] Teacher Diary Response 연결
+
+AI Engine 응답은 아래 구조입니다.
+
+{
+  "request_id": "...",
+  "schema_version": "1.0",
+  "feature": "teacher_diary",
+  "result": {
+    "common": "...",
+    "students": [
+      {
+        "student_id": "...",
+        "content": "..."
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "total_tokens": 0
+  }
+}
+
+기존 앱 구조에 다음과 같이 매핑합니다.
+
+- result.common
+  → DiaryInsertResult.commonDiary
+
+- result.students[].student_id
+  → DiaryInsertResult.students[].studentId
+
+- result.students[].content
+  → DiaryInsertResult.students[].note
+
+- request_id
+  → 앱 내부 상태에 유지
+
+- usage
+  → 앱 내부 상태에 유지
+  → 현재 사용자 화면에는 표시하지 않음
+
+기존 DiaryInsertResult와 studentNotes Upsert 구조는 유지합니다.
+
+==================================================
+
+[P4] Whisper API 실제 연결
+
+기존 음성 입력 구조를 유지하고,
+아래 API를 실제 호출하도록 연결합니다.
+
+POST /api/ai/whisper/transcribe
+
+확인 항목
+
+- 실제 녹음 파일 업로드
+- multipart/form-data 여부
+- Authorization 헤더
+- STT 결과 파싱
+- 텍스트 입력창 반영
+- timeout
+- 취소
+- Error Contract 처리
+
+==================================================
+
+[P5] 기존 AI Workspace 연동 검증
+
+새로운 AI Workspace를 만들지 않습니다.
+
+현재 구현된 흐름이 실제 API와 연결된 상태에서 정상 동작하는지 검증합니다.
+
+흐름
+
+AI 버튼
+
+↓
+
+AI Workspace 열기
+
+↓
+
+텍스트 또는 음성 입력
+
+↓
+
+STT
+
+↓
+
+AI 생성
+
+↓
+
+결과 미리보기
+
+↓
+
+수정
+
+↓
+
+다시 생성
+
+↓
+
+적용
+
+↓
+
+모달 닫기
+
+↓
+
+기존 저장 버튼
+
+↓
+
+기존 저장 API
+
+AI가 직접 일지를 저장하면 안 됩니다.
+
+==================================================
+
+[P6] 학생 매칭 검증
+
+AI Engine의 result.students[]를
+student_id 기준으로 현재 학생 목록과 매칭합니다.
+
+기존 studentNotes Upsert 구조를 사용합니다.
+
+추가 저장 테이블이나 별도 학생 메모 구조를 만들지 않습니다.
+
+다음 상황도 검증합니다.
+
+- 응답에 없는 학생
+- 앱 목록에 없는 student_id
+- 중복 student_id
+- 빈 content
+- students가 빈 배열인 경우
+
+==================================================
+
+[P7] Error 처리
+
+AI Engine Error Contract를 그대로 사용합니다.
+
+{
+  "request_id": "...",
+  "error": {
+    "code": "...",
+    "message": "...",
+    "retryable": false
+  }
+}
+
+확인 항목
+
+- error.code 파싱
+- message 사용자 안내
+- retryable=true일 때 다시 시도 제공
+- 인증 오류
+- timeout
+- 네트워크 오류
+- JSON 형식 오류
+- 서버 오류
+
+원본 request_id를 오류 화면 또는 로그에서 확인할 수 있게 유지합니다.
+
+==================================================
+
+[P8] Timeout / Retry / Cancel
+
+정책을 명확히 구현하고 보고합니다.
+
+권장 기준
+
+- Teacher Diary timeout: 60초
+- Whisper timeout: 60초
+- 자동 retry: 네트워크 오류 또는 retryable=true인 경우 최대 1회
+- 사용자가 직접 다시 시도 가능
+- 모달 취소 또는 화면 이탈 시 진행 중 요청 취소
+- 중복 호출 방지
+
+현재 앱 구조상 다른 기준이 더 적절하면,
+이유를 설명하고 적용합니다.
+
+==================================================
+
+[P9] Loading / Progress
+
+기존 AI Workspace 안에서만 상태를 표시합니다.
+
+최소 상태
+
+- 음성 처리 중
+- AI 생성 중
+- 결과 준비 완료
+- 오류
+- 재시도 가능
+
+새로운 페이지를 만들지 않습니다.
+
+==================================================
+
+[P10] E2E 테스트
+
+실제 운영 또는 테스트 AI Engine URL을 사용하여 다음을 검증합니다.
+
+1. 텍스트 입력 → AI 생성
+2. 음성 입력 → STT → AI 생성
+3. 공통 일지 적용
+4. 학생별 내용 적용
+5. 기존 내용 수정
+6. 다시 생성
+7. 적용 후 모달 닫기
+8. 기존 저장 버튼으로 저장
+9. 네트워크 오류
+10. timeout
+11. 인증 실패
+12. students 빈 배열
+13. 잘못된 student_id
+14. 모달 강제 종료 방지
+15. 진행 중 중복 호출 방지
+
+각 항목을 PASS / WARNING / FAIL로 보고합니다.
+
+==================================================
+
+절대 하지 말 것
+
+- AI Engine 수정
+- Teacher Diary API 수정
+- Whisper API 수정
+- Response Contract 수정
+- Error Contract 수정
+- Prompt 수정
+- Search Engine 수정
+- Knowledge Factory 수정
+- 기존 AI Workspace 재구축
+- 새 독립 AI 페이지 생성
+- 기존 저장 구조 변경
+- AI가 직접 저장하도록 변경
+- 별도 studentNotes 저장 구조 생성
+
+==================================================
+
+완료 보고서
+
+반드시 아래 내용을 작성합니다.
+
+1. 현재 앱 인증 구조
+2. AI Engine Base URL 설정 위치
+3. Teacher Diary API 연결 결과
+4. 실제 Request JSON
+5. 실제 Response 매핑
+6. Whisper API 연결 결과
+7. 기존 AI Workspace 연동 결과
+8. student_id 매칭 결과
+9. 공통 일지 적용 결과
+10. 학생별 Upsert 결과
+11. 기존 저장 결과
+12. Error 처리 방식
+13. Retry 정책
+14. Timeout 정책
+15. Cancel 처리
+16. request_id 유지 방식
+17. usage 유지 방식
+18. E2E 테스트 결과
+19. 변경 파일 목록
+20. 변경 함수 목록
+21. 남은 BLOCKED
+
+작업 완료 후 추측하지 말고,
+실제 코드와 실제 테스트 결과를 기준으로 보고하십시오.
