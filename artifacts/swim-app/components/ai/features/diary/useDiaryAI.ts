@@ -238,9 +238,9 @@ function validateDiaryRequest(
     if (!students[i].name) return `[VALIDATE] students[${i}].name이 없습니다.`;
   }
 
-  // pool_id — swimming_pool_id?: string | null (optional). 없으면 경고만.
+  // pool_id — AI Engine 필수 필드. 없으면 요청 차단.
   if (!opts.poolId) {
-    if (__DEV__) console.warn('[DIARY-AI] validate_warn: pool_id absent, sending empty string');
+    return '[VALIDATE] pool_id(swimming_pool_id)가 없습니다. AI 일지 기능을 사용할 수 없습니다.';
   }
 
   return null;
