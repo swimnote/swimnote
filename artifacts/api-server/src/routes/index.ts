@@ -49,6 +49,7 @@ import appVersionRouter from "./app-version.js";
 import inquiriesRouter from "./inquiries.js";
 import aiEngineDocRouter from "./ai-engine-doc.js";
 import commentsRouter from "./comments.js";
+import aiRouter from "./ai.js";
 
 const router: IRouter = Router();
 
@@ -104,5 +105,6 @@ router.use("/", appVersionRouter);
 router.use("/", inquiriesRouter);
 router.use("/", aiEngineDocRouter);
 router.use("/", commentsRouter);
+router.use("/ai", aiRouter);
 
 export default router;
