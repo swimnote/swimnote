@@ -233,14 +233,14 @@ function validateDiaryRequest(
   const students = opts.students ?? [];
   if (students.length === 0) return '[VALIDATE] students 배열이 비어 있습니다.';
 
-  for (const s of students) {
-    if (!s.id)   return '[VALIDATE] students[].ref가 없습니다.';
-    if (!s.name) return `[VALIDATE] students[].name이 없습니다. ref=${s.id}`;
+  for (let i = 0; i < students.length; i++) {
+    if (!students[i].id)   return `[VALIDATE] students[${i}].ref가 없습니다.`;
+    if (!students[i].name) return `[VALIDATE] students[${i}].name이 없습니다.`;
   }
 
   // pool_id — swimming_pool_id?: string | null (optional). 없으면 경고만.
   if (!opts.poolId) {
-    console.warn('[VALIDATE] pool_id가 없습니다. swimming_pool_id 미설정 가능성 — 빈값으로 전송합니다.');
+    if (__DEV__) console.warn('[DIARY-AI] validate_warn: pool_id absent, sending empty string');
   }
 
   return null;
@@ -250,7 +250,7 @@ function validateDiaryRequest(
 
 type NormalizeResult =
   | { ok: true;  result: NormalizedDiaryResult }
-  | { ok: false; contractError: string };
+  | { ok: false; contractError: string; stale?: true };
 
 /**
  * WP2: AI Engine 응답 전체를 검증하고 NormalizedDiaryResult로 변환합니다.
@@ -292,16 +292,18 @@ function normalizeDiaryResponse(params: {
       return { ok: false, contractError: 'CONTRACT_REQUEST_ID_TYPE: request_id가 문자열이 아닙니다.' };
     }
     if (resp.request_id !== expectedRequestId) {
-      return { ok: false, contractError: `CONTRACT_REQUEST_ID_MISMATCH: expected=${expectedRequestId} got=${resp.request_id}` };
+      // 응답의 request_id가 현재 활성 ID와도 다른지 확인 → stale 판정
+      const isStale = (resp.request_id as string) !== currentRequestId;
+      return { ok: false, contractError: 'CONTRACT_REQUEST_ID_MISMATCH', ...(isStale ? { stale: true as const } : {}) };
     }
   } else {
     // request_id 없음
     if (!ALLOW_LEGACY_RESPONSE_WITHOUT_REQUEST_ID) {
-      return { ok: false, contractError: 'CONTRACT_REQUEST_ID_MISSING: 응답에 request_id가 없습니다.' };
+      return { ok: false, contractError: 'CONTRACT_REQUEST_ID_MISSING' };
     }
     // Legacy 허용 — expectedRequestId가 여전히 현재 활성 ID인지 확인
     if (expectedRequestId !== currentRequestId) {
-      return { ok: false, contractError: `CONTRACT_STALE_LEGACY_RESPONSE: expectedId=${expectedRequestId} currentId=${currentRequestId}` };
+      return { ok: false, contractError: 'CONTRACT_STALE_LEGACY_RESPONSE', stale: true };
     }
   }
 
@@ -360,17 +362,17 @@ function normalizeDiaryResponse(params: {
           : null;
 
     if (content === null) {
-      return { ok: false, contractError: `CONTRACT_STUDENT_CONTENT_TYPE: students[${i}] ref=${studentRef} content/feedback이 문자열이 아닙니다.` };
+      return { ok: false, contractError: `CONTRACT_STUDENT_CONTENT_TYPE: index=${i}` };
     }
 
     // 알 수 없는 student_ref → 전체 오류 (§9)
     if (!validStudentRefs.has(studentRef)) {
-      return { ok: false, contractError: `CONTRACT_UNKNOWN_STUDENT_REF: ref=${studentRef} 는 요청 학생 목록에 없습니다.` };
+      return { ok: false, contractError: `CONTRACT_UNKNOWN_STUDENT_REF: index=${i}` };
     }
 
     // 중복 student_ref → 전체 오류 (§10)
     if (seenRefs.has(studentRef)) {
-      return { ok: false, contractError: `CONTRACT_DUPLICATE_STUDENT_REF: ref=${studentRef} 가 응답에 중복 등장했습니다.` };
+      return { ok: false, contractError: `CONTRACT_DUPLICATE_STUDENT_REF: index=${i}` };
     }
     seenRefs.add(studentRef);
 
@@ -478,15 +480,13 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
   // ─── 음성 입력 ──────────────────────────────────────────────────────────
 
   const handleVoicePress = async () => {
-    console.log(`[SM-QA] State: ${machine.state} | Event: VOICE_BUTTON_TAP | isRecording=${recorder.isRecording}`);
+    if (__DEV__) console.log('[DIARY-AI] voice_tap', { state: machine.state, isRecording: recorder.isRecording });
 
     if (machine.is('RECORDING')) {
-      console.log('[SM-QA] RECORDING | Event: STOP_RECORDING');
       machine.stopRecording();
       const uri = await recorder.stopRecording();
       await processVoice(uri);
     } else {
-      console.log('[SM-QA] INPUT | Event: START_RECORDING');
       const result = await recorder.startRecording();
       if (result === 'permission_denied') {
         machine.requirePermission();
@@ -510,7 +510,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
    */
   const processVoice = async (uri: string | null) => {
     if (!uri) {
-      console.warn('[VOICE] URI 없음 — STT 스킵');
+      if (__DEV__) console.warn('[DIARY-AI] stt_skipped: no_uri');
       return;
     }
 
@@ -521,7 +521,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
 
     const timeoutId = setTimeout(() => controller.abort('timeout'), TIMEOUT_MS);
 
-    console.log('[VOICE-0] processVoice 시작 — uri:', uri);
+    if (__DEV__) console.log('[DIARY-AI] stt_started');
 
     try {
       const endpoint = `${AI_ENGINE_BASE}/api/ai/whisper/transcribe`;
@@ -530,8 +530,6 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
 
       const headers: Record<string, string> = { Accept: 'application/json' };
       if (options.token) headers['Authorization'] = `Bearer ${options.token}`;
-
-      console.log('[VOICE-1] Whisper API 요청 →', endpoint);
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -548,7 +546,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       if (!response.ok || 'error' in body) {
         const err   = (body as AIEngineError).error;
         const reqId = (body as AIEngineError).request_id ?? '?';
-        console.error(`[VOICE-ERR] STT 실패 request_id=${reqId} code=${err?.code} retryable=${err?.retryable}`);
+        if (__DEV__) console.error('[DIARY-AI] stt_failed', { request_id: reqId, code: err?.code, retryable: err?.retryable });
         if (!isMountedRef.current) return;
         machine.setError({
           origin:      'NETWORK',
@@ -559,13 +557,12 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       }
 
       const { request_id, transcript } = body as WhisperTranscribeResponse;
-      console.log(`[VOICE-2] STT 완료 request_id=${request_id} len=${transcript?.length ?? 0}`);
+      if (__DEV__) console.log('[DIARY-AI] stt_completed', { request_id, transcript_length: transcript?.length ?? 0 });
 
       if (transcript?.trim()) {
         setInputText(transcript.trim());
-        console.log('[VOICE-3] inputText 설정 완료 — AI 자동 실행 없음');
       } else {
-        console.warn('[VOICE-3] transcript 비어 있음');
+        if (__DEV__) console.warn('[DIARY-AI] stt_empty_transcript');
       }
     } catch (e: any) {
       clearTimeout(timeoutId);
@@ -574,28 +571,28 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       const reason = (controller.signal as any).reason;
 
       if (e?.name === 'AbortError' && reason === 'unmount') {
-        console.log('[VOICE-ABORT] unmount으로 인한 취소');
+        if (__DEV__) console.log('[DIARY-AI] stt_aborted', { reason: 'unmount' });
         return;
       }
       if (e?.name === 'AbortError' && reason === 'timeout') {
-        console.error('[VOICE-TIMEOUT] 60초 초과');
+        if (__DEV__) console.error('[DIARY-AI] stt_timeout');
         machine.setError({
           origin:      'TIMEOUT',
-          message:     '음성 인식 시간이 초과되었습니다. 다시 시도해주세요.',
+          message:     'AI 응답이 지연되고 있습니다. 다시 시도해주세요.',
           retryTarget: 'INPUT',
         });
         return;
       }
 
-      console.error('[VOICE-ERR] processVoice 예외:', e?.message ?? e);
+      if (__DEV__) console.error('[DIARY-AI] stt_error', { error: e?.message });
       machine.setError({
         origin:      'NETWORK',
-        message:     '음성 인식에 실패했습니다. 다시 시도해주세요.',
+        message:     '네트워크 연결을 확인한 후 다시 시도해주세요.',
         retryTarget: 'INPUT',
       });
     } finally {
       await recorder.deleteRecording(uri);
-      console.log('[VOICE-4] 임시 녹음 파일 삭제 완료');
+      if (__DEV__) console.log('[DIARY-AI] stt_recording_deleted');
     }
   };
 
@@ -604,23 +601,20 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
   const handleSubmit = async () => {
     // [P8] 중복 호출 방지
     if (isInFlightRef.current) {
-      console.log('[REWRITE-CALL] handleSubmit() 스킵 — 이미 진행 중');
+      if (__DEV__) console.log('[DIARY-AI] submit_skipped: already_in_flight');
       return;
     }
 
-    console.log('[REWRITE-CALL] handleSubmit() 진입 — state:', machine.state, 'inputText길이:', inputText.length);
-
     // WP1: 사용자 액션마다 새 request_id 생성 (자동 retry는 생성하지 않음)
     currentRequestIdRef.current = createDiaryRequestId();
-    console.log('[GENERATE-ID] 새 request_id 생성 — id:', currentRequestIdRef.current);
+    if (__DEV__) console.log('[DIARY-AI] submit_started', { request_id: currentRequestIdRef.current, state: machine.state });
 
     if (machine.state === 'RESULT' || machine.state === 'EDITING') {
-      console.log('[REWRITE-2] RESULT/EDITING → retry(INPUT) 선행');
       rewriteCountRef.current  += 1;
       autoRetryCountRef.current = 0; // 새 사용자 요청 → 자동 retry 카운터 초기화
       machine.retry('INPUT');
     } else if (!inputText.trim()) {
-      console.log('[REWRITE-1] 스킵 — inputText 없음');
+      if (__DEV__) console.log('[DIARY-AI] submit_skipped: empty_input');
       return;
     } else {
       autoRetryCountRef.current = 0; // 최초 제출 시도 → 자동 retry 카운터 초기화
@@ -650,8 +644,14 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
 
     const timeoutId = setTimeout(() => controller.abort('timeout'), TIMEOUT_MS);
 
-    console.log('[GENERATE-1] generateDiary 시작 — rewriteCount:', rewriteCountRef.current);
-    console.log('[GENERATE-2] context — classId:', options.classId, 'date:', options.date, 'students:', options.students?.length ?? 0);
+    if (__DEV__) {
+      if (__DEV__) console.log('[DIARY-AI] request_started', {
+        request_id:    currentRequestIdRef.current,
+        retry_count:   rewriteCountRef.current,
+        student_count: options.students?.length ?? 0,
+        input_length:  inputText.trim().length,
+      });
+    }
 
     try {
       const endpoint = `${AI_ENGINE_BASE}/api/ai/diary/generate`;
@@ -679,7 +679,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       // WP1: 사전 검증 — 학생 이름·원문 의미 분석 없음
       const validationError = validateDiaryRequest(currentRequestIdRef.current, inputText, options);
       if (validationError) {
-        console.error('[GENERATE-VALIDATE]', validationError);
+        if (__DEV__) console.error('[DIARY-AI] validate_error', { request_id: currentRequestIdRef.current, code: validationError });
         machine.setError({
           origin:      'UNKNOWN',
           message:     '요청 정보가 올바르지 않습니다. 화면을 새로 고침 후 다시 시도해주세요.',
@@ -688,14 +688,15 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
         return;
       }
 
-      // [LOG] WP1: 개인정보 미포함 구조 확인용 (학생 이름·원문 미출력 — WP3에서 전면 정리)
-      console.log('[GENERATE-REQ] endpoint:', endpoint);
-      console.log('[GENERATE-REQ] request_id:', requestBody.request_id);
-      console.log('[GENERATE-REQ] pool_id:', requestBody.context.pool_id || '(없음 — WP1 경고 확인)');
-      console.log('[GENERATE-REQ] class_id:', requestBody.context.class_id);
-      console.log('[GENERATE-REQ] lesson_date:', requestBody.context.lesson_date);
-      console.log('[GENERATE-REQ] student_count:', studentsList.length);
-      console.log('[GENERATE-REQ] text_length:', requestBody.input.text.length);
+      if (__DEV__) {
+        if (__DEV__) console.log('[DIARY-AI] request_sending', {
+          request_id:        requestBody.request_id,
+          pool_id_present:   Boolean(requestBody.context.pool_id),
+          class_id_present:  Boolean(requestBody.context.class_id),
+          student_count:     studentsList.length,
+          input_length:      requestBody.input.text.length,
+        });
+      }
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -713,57 +714,92 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       clearTimeout(timeoutId);
       if (!isMountedRef.current) return;
 
-      // ── JSON 파싱 오류 처리 ────────────────────────────────────────────
-      let body: unknown;
+      // ── WP3: 응답 텍스트 읽기 (스트림 오류 → 네트워크 retry 대상) ─────
+      let responseText: string;
       try {
-        body = await response.json();
+        responseText = await response.text();
       } catch {
-        throw new Error('PARSE_ERROR');
+        throw new Error('NETWORK_STREAM_ERROR');
       }
 
-      // ── Error Contract 처리 ─────────────────────────────────────────────
-      const bodyIsErrorContract = typeof body === 'object' && body !== null && 'error' in body;
-      if (!response.ok || bodyIsErrorContract) {
-        const err   = (body as AIEngineError).error;
-        const reqId = (body as AIEngineError).request_id ?? '?';
+      // ── HTTP 에러 처리 ───────────────────────────────────────────────────
+      if (!response.ok) {
+        let errorBody: unknown;
+        try { errorBody = JSON.parse(responseText); } catch { /* non-JSON error page */ }
 
-        console.error(`[GENERATE-ERR] AI 실패 request_id=${reqId} code=${err?.code} retryable=${err?.retryable} status=${response.status}`);
+        const bodyIsErrorContract =
+          typeof errorBody === 'object' && errorBody !== null && 'error' in errorBody;
 
-        // 401 — 인증 오류 (retry 불가)
-        if (response.status === 401) {
+        if (bodyIsErrorContract) {
+          const err   = (errorBody as AIEngineError).error;
+          const reqId = (errorBody as AIEngineError).request_id ?? '?';
+          if (__DEV__) console.error('[DIARY-AI] request_failed', { request_id: reqId, code: err?.code, status: response.status });
+
+          if (response.status === 401) {
+            machine.setError({
+              origin:      'UNKNOWN',
+              message:     '로그인 정보가 만료되었습니다. 다시 로그인해주세요.',
+              retryTarget: null,
+            });
+            return;
+          }
+
+          if (err?.retryable && autoRetryCountRef.current < MAX_AUTO_RETRY && isMountedRef.current) {
+            autoRetryCountRef.current += 1;
+            if (__DEV__) console.log('[DIARY-AI] request_retry', { request_id: currentRequestIdRef.current, retry_count: autoRetryCountRef.current, reason: 'retryable' });
+            await new Promise<void>(r => setTimeout(r, AUTO_RETRY_DELAY_MS));
+            if (!isMountedRef.current) return;
+            await generateDiary();
+            return;
+          }
+
+          if (!isMountedRef.current) return;
           machine.setError({
-            origin:      'UNKNOWN',
-            message:     '인증이 만료되었습니다. 다시 로그인해주세요.',
-            retryTarget: null,
+            origin:      'NETWORK',
+            message:     '네트워크 연결을 확인한 후 다시 시도해주세요.',
+            retryTarget: 'INPUT',
           });
           return;
         }
 
-        // retryable=true → 자동 retry 1회
-        if (err?.retryable && autoRetryCountRef.current < MAX_AUTO_RETRY && isMountedRef.current) {
+        // non-JSON 오류 응답 (502 HTML 등) — 네트워크 재시도 대상
+        if (__DEV__) console.error('[DIARY-AI] request_failed', { status: response.status, code: 'HTTP_ERROR_NON_JSON' });
+        if (autoRetryCountRef.current < MAX_AUTO_RETRY && isMountedRef.current) {
           autoRetryCountRef.current += 1;
-          console.log(`[GENERATE-AUTO-RETRY] retryable=true — 자동 재시도 (${autoRetryCountRef.current}/${MAX_AUTO_RETRY})`);
+          if (__DEV__) console.log('[DIARY-AI] request_retry', { request_id: currentRequestIdRef.current, retry_count: autoRetryCountRef.current, reason: 'http_error' });
           await new Promise<void>(r => setTimeout(r, AUTO_RETRY_DELAY_MS));
           if (!isMountedRef.current) return;
           await generateDiary();
           return;
         }
-
         if (!isMountedRef.current) return;
         machine.setError({
           origin:      'NETWORK',
-          message:     err?.message ?? 'AI 생성에 실패했습니다. 다시 시도해주세요.',
+          message:     '네트워크 연결을 확인한 후 다시 시도해주세요.',
+          retryTarget: 'INPUT',
+        });
+        return;
+      }
+
+      // ── WP3: 성공 응답 JSON 파싱 (실패 → Contract 오류, 자동 재시도 없음) ─
+      const expectedRequestId = currentRequestIdRef.current;
+      const validStudentRefs  = new Set((options.students ?? []).map(s => s.id));
+      let body: unknown;
+      try {
+        body = JSON.parse(responseText);
+      } catch {
+        // HTTP 200이지만 JSON 파싱 불가 → Contract 오류
+        if (__DEV__) console.error('[DIARY-AI] contract_error', { request_id: expectedRequestId, code: 'CONTRACT_RESPONSE_PARSE_ERROR', status: response.status });
+        machine.setError({
+          origin:      'UNKNOWN',
+          message:     'AI 일지 결과를 불러오지 못했습니다. 다시 시도해주세요.',
           retryTarget: 'INPUT',
         });
         return;
       }
 
       // ── WP2: 성공 응답 정규화 (원자적) ──────────────────────────────────
-      // generateDiary() 호출 시점의 request_id를 캡처 (ooo 응답 차단용)
-      const expectedRequestId = currentRequestIdRef.current;
-      const validStudentRefs  = new Set((options.students ?? []).map(s => s.id));
-
-      console.log(`[GENERATE-3] HTTP 200 수신 — request_id=${expectedRequestId} student_refs=${validStudentRefs.size}`);
+      if (__DEV__) console.log('[DIARY-AI] response_received', { request_id: expectedRequestId, status: response.status, student_refs: validStudentRefs.size });
 
       const normalized = normalizeDiaryResponse({
         rawResponse:       body,
@@ -773,11 +809,16 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       });
 
       if (!normalized.ok) {
+        if (normalized.stale) {
+          // 오래된 응답 — 조용히 폐기, 현재 State 변경 없음 (§15)
+          if (__DEV__) console.log('[DIARY-AI] stale_response_ignored', { request_id: expectedRequestId, current_id: currentRequestIdRef.current });
+          return;
+        }
         // Contract 오류 — 자동 재시도 없음 (§16)
-        console.error(`[GENERATE-CONTRACT-ERR] ${normalized.contractError}`);
+        if (__DEV__) console.error('[DIARY-AI] contract_error', { request_id: expectedRequestId, code: normalized.contractError });
         machine.setError({
           origin:      'UNKNOWN',
-          message:     'AI 응답 형식이 올바르지 않습니다. 다시 시도해주세요.',
+          message:     'AI 일지 결과를 불러오지 못했습니다. 다시 시도해주세요.',
           retryTarget: 'INPUT',
         });
         return;
@@ -789,7 +830,13 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       lastRequestIdRef.current = norm.requestId ?? expectedRequestId;
       lastUsageRef.current     = norm.usage ?? null;
 
-      console.log(`[GENERATE-4] 정규화 완료 — common_len=${norm.common.length} students=${norm.students.length}`);
+      if (__DEV__) {
+        if (__DEV__) console.log('[DIARY-AI] request_succeeded', {
+          request_id:    lastRequestIdRef.current,
+          has_common:    norm.common.length > 0,
+          student_count: norm.students.length,
+        });
+      }
 
       // WP2: StudentDiaryNote 변환 (studentName은 options.students에서 조회)
       const studentLookup = new Map((options.students ?? []).map(s => [s.id, s.name]));
@@ -802,71 +849,59 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       // 원자적 반영 — 모든 검증 통과 후 한 번에 State 변경 (§7)
       generatedStudentsRef.current = mappedStudents;
       setResultText(norm.common);
-
-      console.log('[GENERATE-5] machine.receiveResult() 호출');
       machine.receiveResult(); // PROCESSING → RESULT
-      console.log('[GENERATE-6] machine.receiveResult() 완료');
+
     } catch (e: any) {
       clearTimeout(timeoutId);
       if (!isMountedRef.current) return;
 
       const reason = (controller.signal as any).reason;
 
-      // 언마운트에 의한 취소 — 상태 업데이트 없음
-      if (e?.name === 'AbortError' && reason === 'unmount') {
-        console.log('[GENERATE-ABORT] unmount으로 인한 취소 — 상태 업데이트 없음');
+      // 새 요청으로 인한 취소 — 조용히 종료, 현재 State 변경 없음
+      if (e?.name === 'AbortError' && reason === 'new-request') {
+        if (__DEV__) console.log('[DIARY-AI] request_aborted', { reason: 'new-request' });
         return;
       }
 
-      // 60초 Timeout
-      if (e?.name === 'AbortError' && reason === 'timeout') {
-        console.error('[GENERATE-TIMEOUT] 60초 초과');
+      // 언마운트에 의한 취소 — State 변경 없음
+      if (e?.name === 'AbortError' && reason === 'unmount') {
+        if (__DEV__) console.log('[DIARY-AI] request_aborted', { reason: 'unmount' });
+        return;
+      }
 
-        // timeout도 retryable 대상 — 1회 자동 retry
+      // 60초 Timeout — 자동 retry 1회
+      if (e?.name === 'AbortError' && reason === 'timeout') {
         if (autoRetryCountRef.current < MAX_AUTO_RETRY && isMountedRef.current) {
           autoRetryCountRef.current += 1;
-          console.log(`[GENERATE-AUTO-RETRY] timeout — 자동 재시도 (${autoRetryCountRef.current}/${MAX_AUTO_RETRY})`);
+          if (__DEV__) console.log('[DIARY-AI] request_retry', { request_id: currentRequestIdRef.current, retry_count: autoRetryCountRef.current, reason: 'timeout' });
           await new Promise<void>(r => setTimeout(r, AUTO_RETRY_DELAY_MS));
           if (!isMountedRef.current) return;
           await generateDiary();
           return;
         }
-
         if (!isMountedRef.current) return;
         machine.setError({
           origin:      'TIMEOUT',
-          message:     'AI 생성 시간이 초과되었습니다. 다시 시도해주세요.',
+          message:     'AI 응답이 지연되고 있습니다. 다시 시도해주세요.',
           retryTarget: 'INPUT',
         });
         return;
       }
 
-      // JSON 파싱 오류
-      if (e?.message === 'PARSE_ERROR') {
-        console.error('[GENERATE-ERR] 응답 JSON 파싱 실패 request_id:', lastRequestIdRef.current);
-        machine.setError({
-          origin:      'UNKNOWN',
-          message:     '서버 응답 형식이 올바르지 않습니다. 다시 시도해주세요.',
-          retryTarget: 'INPUT',
-        });
-        return;
-      }
-
-      // 네트워크 오류 → 자동 retry 1회
+      // 네트워크 오류 (fetch 실패, DNS 실패, NETWORK_STREAM_ERROR 등) — 자동 retry 1회
       if (autoRetryCountRef.current < MAX_AUTO_RETRY && isMountedRef.current) {
         autoRetryCountRef.current += 1;
-        console.log(`[GENERATE-AUTO-RETRY] 네트워크 오류 — 자동 재시도 (${autoRetryCountRef.current}/${MAX_AUTO_RETRY})`);
-        console.error('[GENERATE-ERR] 예외:', e?.message ?? e);
+        if (__DEV__) console.log('[DIARY-AI] request_retry', { request_id: currentRequestIdRef.current, retry_count: autoRetryCountRef.current, reason: 'network', error: e?.message });
         await new Promise<void>(r => setTimeout(r, AUTO_RETRY_DELAY_MS));
         if (!isMountedRef.current) return;
         await generateDiary();
         return;
       }
 
-      console.error('[GENERATE-ERR] 최종 실패 request_id:', lastRequestIdRef.current, 'msg:', e?.message ?? e);
+      if (__DEV__) console.error('[DIARY-AI] request_failed', { request_id: currentRequestIdRef.current, code: 'NETWORK_ERROR', error: e?.message });
       machine.setError({
         origin:      'NETWORK',
-        message:     'AI 생성에 실패했습니다. 네트워크를 확인해주세요.',
+        message:     '네트워크 연결을 확인한 후 다시 시도해주세요.',
         retryTarget: 'INPUT',
       });
     }
@@ -875,9 +910,14 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
   // ─── [원칙 6] 최종 삽입 ────────────────────────────────────────────────
 
   const handleInsert = () => {
-    console.log('[INSERT-1] handleInsert 진입');
-    console.log('[INSERT-2] result 길이:', resultText.length, 'request_id:', lastRequestIdRef.current);
-    console.log('[INSERT-2b] usage:', JSON.stringify(lastUsageRef.current));
+    if (__DEV__) {
+      if (__DEV__) console.log('[DIARY-AI] insert_started', {
+        request_id:     lastRequestIdRef.current,
+        common_length:  resultText.length,
+        student_count:  generatedStudentsRef.current.length,
+        total_tokens:   lastUsageRef.current?.total_tokens ?? 0,
+      });
+    }
 
     if (options.onInsert && resultText) {
       const result: DiaryInsertResult = {
@@ -885,14 +925,11 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
         students:    generatedStudentsRef.current,
       };
 
-      console.log(`[INSERT-RESULT] commonDiary=${result.commonDiary.length}자 students=${result.students.length}명`);
       options.onInsert(result);
-      console.log('[INSERT-3] onInsert 완료');
-
-      console.log('[MODAL-CLOSE-CALL] handleInsert → options.onClose()');
+      if (__DEV__) console.log('[DIARY-AI] insert_completed', { student_count: result.students.length });
       options.onClose?.();
     } else {
-      console.log('[INSERT-SKIP] onInsert 없음 또는 resultText 없음');
+      if (__DEV__) console.log('[DIARY-AI] insert_skipped', { has_onInsert: Boolean(options.onInsert), has_result: Boolean(resultText) });
     }
 
     // STAGE C: machine.complete() 비활성화
