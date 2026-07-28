@@ -292,9 +292,9 @@ function normalizeDiaryResponse(params: {
       return { ok: false, contractError: 'CONTRACT_REQUEST_ID_TYPE: request_id가 문자열이 아닙니다.' };
     }
     if (resp.request_id !== expectedRequestId) {
-      // 응답의 request_id가 현재 활성 ID와도 다른지 확인 → stale 판정
-      const isStale = (resp.request_id as string) !== currentRequestId;
-      return { ok: false, contractError: 'CONTRACT_REQUEST_ID_MISMATCH', ...(isStale ? { stale: true as const } : {}) };
+      // stale 판정은 normalizeDiaryResponse 호출 전 외부에서 이미 완료됩니다.
+      // 여기서는 현재 활성 요청의 응답인데 서버 ID가 다른 경우 → 순수 Contract 오류.
+      return { ok: false, contractError: 'CONTRACT_REQUEST_ID_MISMATCH' };
     }
   } else {
     // request_id 없음
@@ -326,12 +326,8 @@ function normalizeDiaryResponse(params: {
   }
   const studentsArray: TeacherDiaryAIStudentResult[] = Array.isArray(rawStudents) ? rawStudents : [];
 
-  // 6. 빈 결과 검증 — common='' + students=[] 동시 → 오류
-  if (common === '' && studentsArray.length === 0) {
-    return { ok: false, contractError: 'CONTRACT_EMPTY_RESULT: common과 students 모두 비어 있습니다.' };
-  }
-
-  // 7. 각 학생 필드 정상화 + ref/중복 검증
+  // 6. 각 학생 필드 정상화 + ref/중복 검증
+  // 빈 content 학생은 필터 후 제거하므로 CONTRACT_EMPTY_RESULT 검사는 루프 이후에 수행합니다.
   const normalizedStudents: NormalizedDiaryStudentResult[] = [];
   const seenRefs = new Set<string>();
 
@@ -376,7 +372,14 @@ function normalizeDiaryResponse(params: {
     }
     seenRefs.add(studentRef);
 
-    normalizedStudents.push({ studentRef, content: content.trim() });
+    const trimmedContent = content.trim();
+    if (!trimmedContent) continue;   // 빈 content → 이중 방어, 이 학생 결과 skip
+    normalizedStudents.push({ studentRef, content: trimmedContent });
+  }
+
+  // 6-b. 빈 결과 검증 — 빈 content 필터 후 common='' + students=[] 동시 → 오류
+  if (common === '' && normalizedStudents.length === 0) {
+    return { ok: false, contractError: 'CONTRACT_EMPTY_RESULT: common과 students 모두 비어 있습니다.' };
   }
 
   // usage 정규화 (optional — 존재하면 숫자 타입 보장)
@@ -782,7 +785,9 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       }
 
       // ── WP3: 성공 응답 JSON 파싱 (실패 → Contract 오류, 자동 재시도 없음) ─
-      const expectedRequestId = currentRequestIdRef.current;
+      // 요청 전송 시 사용한 request_id를 기준으로 stale 판정합니다.
+      // currentRequestIdRef.current는 응답을 받는 사이에 변경될 수 있습니다.
+      const expectedRequestId = requestBody.request_id;
       const validStudentRefs  = new Set((options.students ?? []).map(s => s.id));
       let body: unknown;
       try {
@@ -795,6 +800,14 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
           message:     'AI 일지 결과를 불러오지 못했습니다. 다시 시도해주세요.',
           retryTarget: 'INPUT',
         });
+        return;
+      }
+
+      // ── §5-A: stale 판정 — 요청 전송 시 ID와 현재 활성 ID 비교 ──────────
+      // 응답을 받는 사이 새 Submit이 발생했으면 현재 요청은 old request → 조용히 폐기.
+      // (resp.request_id 기준이 아닌 expectedRequestId 기준으로 판단합니다.)
+      if (expectedRequestId !== currentRequestIdRef.current) {
+        if (__DEV__) console.log('[DIARY-AI] stale_response_ignored', { request_id: expectedRequestId, current_id: currentRequestIdRef.current });
         return;
       }
 
