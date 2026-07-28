@@ -49,14 +49,25 @@ export interface StudentContext {
 
 // ─── AI Engine Response 타입 ─────────────────────────────────────────────────
 
-/** POST /api/ai/diary/generate 성공 응답 */
+/** POST /api/ai/diary/generate 성공 응답
+ * AI Engine은 student_ref/feedback 또는 student_id/content 필드명을 사용할 수 있습니다.
+ * 양쪽 모두 대응합니다.
+ */
 interface DiaryGenerateResponse {
   request_id:     string;
   schema_version: string;
   feature:        string;
+  status?:        string;
   result: {
     common:   string;
-    students: { student_id: string; content: string }[];
+    students: {
+      /** AI Engine v1 계약 필드 */
+      student_ref?: string;
+      feedback?:    string;
+      /** 구 계약 호환 필드 */
+      student_id?:  string;
+      content?:     string;
+    }[];
   };
   usage: {
     input_tokens:  number;
@@ -380,6 +391,12 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
         },
       };
 
+      // [LOG] 실제 Request JSON 전체 — Production 계약 검증용
+      console.log('[GENERATE-REQ] endpoint:', endpoint);
+      console.log('[GENERATE-REQ] body:', JSON.stringify(requestBody, null, 2));
+      console.log('[GENERATE-REQ] poolId 확인:', options.poolId ?? '(없음 — pool_id 빈값 전송됨)');
+      console.log('[GENERATE-REQ] student_refs:', (options.students ?? []).map(s => `${s.id}(${s.name})`).join(', ') || '(없음)');
+
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'Accept':       'application/json',
@@ -447,49 +464,63 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       lastRequestIdRef.current = data.request_id;
       lastUsageRef.current     = data.usage;
 
+      // [LOG] 실제 Response JSON 전체 — 필드명 검증용 (student_ref vs student_id, feedback vs content)
+      console.log('[GENERATE-RESP] 전체:', JSON.stringify(data, null, 2));
       console.log(`[GENERATE-3] 성공 request_id=${data.request_id} tokens=${data.usage?.total_tokens ?? 0}`);
-      console.log(`[GENERATE-4] result common_len=${data.result.common.length} students_raw=${data.result.students.length}`);
+      console.log(`[GENERATE-4] result common_len=${(data.result?.common ?? '').length} students_raw=${data.result?.students?.length ?? 0}`);
 
-      // ── [P6] students[] 매칭 — 유효성 필터 ───────────────────────────
+      // ── [P6] students[] 매칭 — dual-field 지원 + combine 처리 ────────
+      // AI Engine은 student_ref/feedback 또는 student_id/content 중 하나를 반환합니다.
+      // 같은 student_ref가 여러 번 오면 feedback을 순서대로 결합합니다.
       const validStudentIds = new Set((options.students ?? []).map(s => s.id));
-      const seenStudentIds  = new Set<string>();
+      // studentId → 누적 feedback 문장 배열
+      const feedbackMap = new Map<string, string[]>();
+
+      for (const s of (data.result?.students ?? [])) {
+        // dual-field: student_ref 우선, 없으면 student_id
+        const sid      = s.student_ref ?? s.student_id ?? '';
+        // dual-field: feedback 우선, 없으면 content
+        const feedback = (s.feedback ?? s.content ?? '').trim();
+
+        console.log(`[GENERATE-STUDENT-RAW] student_ref=${s.student_ref ?? '-'} student_id=${s.student_id ?? '-'} feedback_len=${feedback.length}`);
+
+        if (!sid) {
+          console.warn('[GENERATE-STUDENT] student_ref/id 없음 — 건너뜀');
+          continue;
+        }
+        if (!validStudentIds.has(sid)) {
+          console.warn(`[GENERATE-STUDENT] 알 수 없는 id=${sid} — 건너뜀`);
+          continue;
+        }
+        if (!feedback) {
+          console.warn(`[GENERATE-STUDENT] id=${sid} feedback 비어 있음 — 건너뜀`);
+          continue;
+        }
+        // 같은 student_ref 중복 시 결합 (문서 §4)
+        const existing = feedbackMap.get(sid);
+        if (existing) {
+          existing.push(feedback);
+          console.log(`[GENERATE-STUDENT] id=${sid} 중복 — feedback 결합 (${existing.length}번째)`);
+        } else {
+          feedbackMap.set(sid, [feedback]);
+        }
+      }
+
       const mappedStudents: StudentDiaryNote[] = [];
-
-      for (const s of (data.result.students ?? [])) {
-        // student_id 없음
-        if (!s.student_id) {
-          console.warn('[GENERATE-STUDENT] student_id 없음 — 건너뜀');
-          continue;
-        }
-        // 알 수 없는 student_id (현재 수업에 없음)
-        if (!validStudentIds.has(s.student_id)) {
-          console.warn(`[GENERATE-STUDENT] 알 수 없는 student_id=${s.student_id} — 건너뜀`);
-          continue;
-        }
-        // 빈 content
-        if (!s.content?.trim()) {
-          console.warn(`[GENERATE-STUDENT] student_id=${s.student_id} content 비어 있음 — 건너뜀`);
-          continue;
-        }
-        // 중복 student_id (첫 번째만 사용)
-        if (seenStudentIds.has(s.student_id)) {
-          console.warn(`[GENERATE-STUDENT] 중복 student_id=${s.student_id} — 건너뜀`);
-          continue;
-        }
-        seenStudentIds.add(s.student_id);
-
-        const studentName = (options.students ?? []).find(st => st.id === s.student_id)?.name ?? s.student_id;
+      for (const [sid, feedbacks] of feedbackMap) {
+        const studentName = (options.students ?? []).find(st => st.id === sid)?.name ?? sid;
         mappedStudents.push({
-          studentId:   s.student_id,
+          studentId:   sid,
           studentName,
-          note:        s.content.trim(),
+          note:        feedbacks.join(' '),
         });
       }
 
-      console.log(`[GENERATE-STUDENT] 매칭 결과: ${mappedStudents.length}/${data.result.students.length}명 (invalid/unknown/empty/duplicate 제외)`);
+      console.log(`[GENERATE-STUDENT] 매칭 결과: ${mappedStudents.length}/${data.result?.students?.length ?? 0}명`);
       generatedStudentsRef.current = mappedStudents;
 
-      setResultText(data.result.common);
+      // [문서 §2] result.common이 빈 문자열이면 그대로 빈값 유지 (fallback 없음)
+      setResultText(data.result?.common ?? '');
 
       console.log('[GENERATE-5] machine.receiveResult() 호출');
       machine.receiveResult(); // PROCESSING → RESULT
