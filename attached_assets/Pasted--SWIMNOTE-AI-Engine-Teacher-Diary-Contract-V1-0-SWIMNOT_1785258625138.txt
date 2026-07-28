@@ -1,0 +1,567 @@
+# SWIMNOTE AI Engine
+
+## Teacher Diary 앱 연동 Contract 긴급 수정 지시서 V1.0
+
+현재 SWIMNOTE 앱과 실제 AI Engine의 통합 테스트 결과, Teacher Diary 기능을 사용할 수 없게 만드는 Contract 불일치가 확인되었습니다.
+
+이번 작업에서는 아래 항목만 수정합니다.
+
+```text
+E-A1. 외부 request_id 수신 및 그대로 echo
+E-A2. 학생 결과 필드 student_ref 표준화
+E-A3. 빈 학생 결과 출력 정책 확인
+E-A4. Contract 테스트
+```
+
+각 작업 완료 후 결과를 보고하고 멈춥니다.
+
+관련 없는 AI Prompt, 검색, DB, 인증, Curriculum 구조는 변경하지 않습니다.
+
+---
+
+# 1. 현재 확인된 실제 문제
+
+앱이 다음 request_id를 보냅니다.
+
+```json
+{
+  "request_id": "diary_app_generated_id"
+}
+```
+
+그러나 AI Engine은 요청 ID를 사용하지 않고 자체 UUID를 생성해 응답합니다.
+
+현재 응답:
+
+```json
+{
+  "request_id": "server-generated-uuid"
+}
+```
+
+표준 응답:
+
+```json
+{
+  "request_id": "diary_app_generated_id"
+}
+```
+
+현재 상태에서는 앱이 모든 응답을 request_id 불일치로 폐기하므로 AI Diary 기능이 작동하지 않습니다.
+
+---
+
+# 2. 최우선 수정 — 외부 request_id echo
+
+## 요청 처리 원칙
+
+`POST /api/ai/diary/generate`는 Request Body의 `request_id`를 읽어야 합니다.
+
+```ts
+const externalRequestId = req.body.request_id;
+```
+
+정상 응답과 오류 응답 모두 동일한 외부 request_id를 반환해야 합니다.
+
+```text
+Response request_id
+= Request request_id
+```
+
+서버가 자체 생성한 내부 ID가 필요하다면 별도의 내부 필드나 로그 컬럼을 사용합니다.
+
+예:
+
+```text
+external_request_id
+= 앱에서 받은 ID
+
+internal_request_id
+= AI Engine 내부 추적용 UUID
+```
+
+외부 응답의 `request_id`를 내부 UUID로 대체하면 안 됩니다.
+
+---
+
+# 3. request_id Validation
+
+Request Body의 `request_id`는 필수입니다.
+
+검증:
+
+```text
+존재 여부
+string 여부
+빈 문자열 여부
+허용 가능한 최대 길이
+```
+
+권장 최대 길이:
+
+```text
+128자
+```
+
+잘못된 경우:
+
+```json
+{
+  "schema_version": "1.0",
+  "request_id": null,
+  "status": "failed",
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "request_id is required.",
+    "retryable": false
+  }
+}
+```
+
+단, 요청에서 문자열 request_id를 정상적으로 읽은 뒤 다른 필드 검증에서 실패한 경우에는 오류 응답에도 그 request_id를 그대로 반환합니다.
+
+예:
+
+```json
+{
+  "schema_version": "1.0",
+  "request_id": "diary_app_generated_id",
+  "status": "failed",
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "context.pool_id is required.",
+    "retryable": false
+  }
+}
+```
+
+---
+
+# 4. 모든 처리 경로에서 동일 ID 유지
+
+다음 모든 경로에서 요청 request_id가 유지되어야 합니다.
+
+```text
+정상 성공
+400 INVALID_REQUEST
+401 UNAUTHORIZED
+403 FORBIDDEN
+429 RATE_LIMITED
+500 INTERNAL_ERROR
+Timeout 처리
+LLM 오류
+검색 오류
+Output Validator 오류
+Circuit Breaker 오류
+```
+
+인증 단계가 Request Body 파싱보다 먼저 실행되어 request_id를 읽을 수 없는 구조라면, 401 응답에서 request_id가 없을 수 있습니다.
+
+그 경우 실제 Middleware 순서와 이유를 보고합니다.
+
+그러나 정상 인증 요청, 400, 429, 500 및 AI 처리 오류에서는 외부 request_id를 반드시 echo합니다.
+
+---
+
+# 5. 내부 로그 및 DB
+
+서버 내부에 자체 UUID가 필요하면 유지할 수 있습니다.
+
+권장 구조:
+
+```text
+external_request_id
+internal_request_id
+feature
+status
+duration_ms
+error_code
+```
+
+금지:
+
+```text
+외부 request_id를 내부 UUID로 덮어쓰기
+응답에 internal_request_id를 request_id로 반환
+```
+
+기존 `ai_request_log` 또는 관련 테이블이 있다면 현재 컬럼 구조를 확인하고, Migration 필요 여부를 먼저 보고합니다.
+
+이번 수정 때문에 불필요한 Migration을 즉시 만들지 않습니다.
+
+---
+
+# 6. 학생 결과 필드 표준화
+
+현재 AI Engine 실제 응답:
+
+```json
+{
+  "student_id": "student_001",
+  "content": "학생별 일지"
+}
+```
+
+최종 표준:
+
+```json
+{
+  "student_ref": "student_001",
+  "content": "학생별 일지"
+}
+```
+
+AI Engine은 결과에서 `student_ref`를 사용하도록 수정합니다.
+
+전환 기간에 구형 클라이언트 지원이 필요하다면 다음 중 하나를 선택할 수 있습니다.
+
+## 권장안
+
+```json
+{
+  "student_ref": "student_001",
+  "content": "학생별 일지"
+}
+```
+
+표준 필드만 반환합니다.
+
+## 임시 이중 필드
+
+```json
+{
+  "student_ref": "student_001",
+  "student_id": "student_001",
+  "content": "학생별 일지"
+}
+```
+
+단, 이중 필드를 사용할 경우 제거 예정 시점을 보고합니다.
+
+SWIMNOTE 앱은 현재 `student_ref`를 우선하고 `student_id`를 fallback으로 처리합니다.
+
+---
+
+# 7. 학생 식별자 보존 원칙
+
+AI Engine은 앱이 보낸 다음 값만 결과에 사용합니다.
+
+```json
+{
+  "ref": "student_001",
+  "name": "학생 전체 이름"
+}
+```
+
+응답의 `student_ref`는 반드시 요청의 `students[].ref` 중 하나여야 합니다.
+
+금지:
+
+```text
+새 학생 ID 생성
+이름을 student_ref로 사용
+학생 배열 index를 student_ref로 사용
+DB의 다른 내부 ID로 교체
+```
+
+---
+
+# 8. 빈 학생 결과 정책
+
+현재 실측 응답에서는 언급되지 않은 학생까지 다음처럼 반환됩니다.
+
+```json
+{
+  "student_id": "student_002",
+  "content": ""
+}
+```
+
+이 정책을 확인해야 합니다.
+
+권장 정책:
+
+```text
+학생별 유효한 내용이 있는 학생만 result.students에 포함
+```
+
+즉, 학생이 언급되지 않았거나 생성할 내용이 없다면 배열에서 제외합니다.
+
+권장:
+
+```json
+{
+  "result": {
+    "common": "공통 내용",
+    "students": []
+  }
+}
+```
+
+비권장:
+
+```json
+{
+  "result": {
+    "common": "공통 내용",
+    "students": [
+      {
+        "student_ref": "student_001",
+        "content": ""
+      },
+      {
+        "student_ref": "student_002",
+        "content": ""
+      }
+    ]
+  }
+}
+```
+
+이유:
+
+```text
+빈 결과가 기존 교사 입력을 덮어쓸 위험
+응답 크기 증가
+언급된 학생과 언급되지 않은 학생 구분 불가능
+```
+
+Output Validator 단계에서 다음을 적용하는 것을 권장합니다.
+
+```text
+content.trim() === ''
+→ 해당 학생 결과 제거
+```
+
+단, 교사가 학생을 명시적으로 언급했지만 생성 내용이 빈 문자열이 된 경우에는 내부 오류 또는 Validation 실패 여부를 검토합니다.
+
+---
+
+# 9. 최종 성공 Response Contract
+
+```json
+{
+  "request_id": "diary_app_generated_id",
+  "schema_version": "1.0",
+  "feature": "teacher_diary",
+  "result": {
+    "common": "공통 일지 내용",
+    "students": [
+      {
+        "student_ref": "student_001",
+        "content": "학생별 일지 내용"
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "total_tokens": 0
+  }
+}
+```
+
+필수 조건:
+
+```text
+request_id = 요청 ID 그대로
+student_ref = 요청 students[].ref 중 하나
+content = string
+중복 student_ref 없음
+알 수 없는 student_ref 없음
+빈 content 학생은 가능하면 제외
+```
+
+---
+
+# 10. 최종 오류 Response Contract
+
+```json
+{
+  "request_id": "diary_app_generated_id",
+  "schema_version": "1.0",
+  "feature": "teacher_diary",
+  "status": "failed",
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "사용자에게 직접 노출되지 않는 안전한 메시지",
+    "retryable": false
+  }
+}
+```
+
+표준 오류 코드 후보:
+
+```text
+INVALID_REQUEST
+UNAUTHORIZED
+FORBIDDEN
+RATE_LIMITED
+AI_TIMEOUT
+AI_UNAVAILABLE
+OUTPUT_VALIDATION_FAILED
+INTERNAL_ERROR
+```
+
+이번 작업에서 기존 오류 코드 전체를 재설계하지 않습니다.
+
+request_id echo만 모든 가능한 경로에 적용합니다.
+
+---
+
+# 11. 작업 단계
+
+## E-A1 — 실제 request_id 흐름 조사
+
+코드를 수정하기 전에 다음을 확인합니다.
+
+```text
+Route Handler
+Request Schema
+Middleware
+내부 Request ID 생성 위치
+성공 Response Builder
+오류 Response Builder
+ai_request_log 저장 위치
+LLM 호출 Context
+```
+
+보고 내용:
+
+```text
+외부 request_id를 현재 읽고 있는지
+어디에서 자체 UUID로 교체되는지
+성공·실패 응답을 만드는 함수
+수정 예정 파일
+```
+
+E-A1 보고 후 멈춥니다.
+
+---
+
+## E-A2 — request_id echo 구현
+
+승인 후 다음을 구현합니다.
+
+```text
+요청 request_id 수신
+검증
+처리 Context에 보존
+성공 응답 echo
+오류 응답 echo
+내부 UUID와 분리
+```
+
+E-A2 완료 후 테스트 결과를 제출하고 멈춥니다.
+
+---
+
+## E-A3 — student_ref 및 빈 결과 수정
+
+승인 후 다음을 구현합니다.
+
+```text
+student_id → student_ref
+빈 content 학생 제거
+중복 ref 검사
+요청에 없는 ref 차단
+```
+
+E-A3 완료 후 멈춥니다.
+
+---
+
+## E-A4 — Contract 통합 테스트
+
+최소 다음을 테스트합니다.
+
+```text
+정상 요청 3회
+각 응답 request_id 일치
+공통 내용만 있는 요청
+학생 한 명 언급
+학생 여러 명 언급
+400 오류
+401 오류
+500 오류 또는 Mock
+빈 학생 결과
+중복 학생 결과
+알 수 없는 student_ref
+```
+
+---
+
+# 12. 필수 테스트
+
+## 정상 요청
+
+```text
+Request request_id = A
+Response request_id = A
+```
+
+3회 연속 확인합니다.
+
+## 자동 재시도
+
+앱이 같은 request_id로 재시도하면 AI Engine도 같은 request_id를 반환합니다.
+
+내부 처리 시도별 구분이 필요하면 internal_request_id 또는 attempt 번호를 사용합니다.
+
+## 학생 결과
+
+```text
+student_ref 존재
+student_id 사용 여부 보고
+요청에 없는 ref 없음
+중복 ref 없음
+빈 content 학생 없음
+```
+
+## 오류 응답
+
+Request Body를 읽을 수 있는 오류에서는 요청 ID가 유지되어야 합니다.
+
+---
+
+# 13. 수정 금지
+
+```text
+State Parser 전면 수정
+Name Matcher 전면 수정
+Knowledge Search 수정
+Template Search 수정
+Prompt 내용 수정
+Curriculum 구현
+LLM 모델 변경
+토큰 과금 정책 변경
+인증 방식 변경
+새 외부 패키지 추가
+Production DB 임의 Migration
+```
+
+---
+
+# 14. 완료 보고 형식
+
+각 작업 꼭지 완료 후 다음을 제출합니다.
+
+```text
+1. 수정 파일
+2. 기존 request_id 생성 위치
+3. 외부 request_id 수신 위치
+4. 내부 ID와 외부 ID 분리 방식
+5. 성공 응답 코드
+6. 오류 응답 코드
+7. student_ref 변경 내용
+8. 빈 학생 결과 처리
+9. 정상 요청 3회 ID 비교
+10. 오류 응답 ID 비교
+11. TypeScript 검사 결과
+12. 기존 테스트 결과
+13. 발견된 문제
+```
+
+현재는 E-A1만 수행합니다.
+
+코드를 수정하지 말고 request_id 흐름 조사 보고서를 제출한 뒤 멈춥니다.
