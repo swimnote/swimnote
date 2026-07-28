@@ -1,0 +1,801 @@
+# E-A1 검토 결과 및 E-A2 구현 승인서
+
+## 1. E-A1 검토 결과
+
+E-A1은 통과합니다.
+
+확인된 핵심 문제:
+
+```text
+외부 request_id 미수신
+서버 자체 request_id 생성 후 응답
+앱과 서버의 Request Body Contract 불일치
+학생 필드 구조 불일치
+pool_id 미지원
+성공·오류 응답이 인라인으로 분산
+```
+
+현재 상태에서는 앱과 AI Engine이 정상적으로 연동될 수 없습니다.
+
+E-A2에서는 단순 request_id echo만 수정하지 않고, **Teacher Diary 전용 Request Contract 전체를 앱 E1 Contract에 맞춥니다.**
+
+---
+
+# 2. E-A2 수정 대상
+
+기본 수정 파일:
+
+```text
+artifacts/api-server/src/routes/ai.ts
+```
+
+이번 단계에서는 다음 파일을 수정하지 않습니다.
+
+```text
+src/middlewares/auth.ts
+DB Schema
+Migration
+Whisper Route
+공통 API Response 구조
+Prompt 내용
+LLM 모델
+Knowledge Search
+Template Search
+Curriculum
+```
+
+`requireAuth` 공통 미들웨어를 변경하면 다른 API의 401 응답까지 영향을 받을 수 있으므로 E-A2에서는 수정하지 않습니다.
+
+401 AI Contract 통일은 필요하면 별도 작업으로 분리합니다.
+
+---
+
+# 3. E-A2 최종 목표
+
+앱이 보내는 다음 Contract를 AI Engine이 직접 수신하고 처리하도록 수정합니다.
+
+```json
+{
+  "request_id": "diary_xxx",
+  "schema_version": "1.0",
+  "feature": "teacher_diary",
+  "locale": "ko-KR",
+  "input": {
+    "text": "교사 입력 또는 STT 원문"
+  },
+  "context": {
+    "pool_id": "pool_xxx",
+    "class_id": "class_xxx",
+    "lesson_date": "2026-07-29",
+    "student_refs": [
+      "student_001"
+    ],
+    "students": [
+      {
+        "ref": "student_001",
+        "name": "학생 전체 이름"
+      }
+    ]
+  }
+}
+```
+
+---
+
+# 4. 외부 request_id 처리
+
+## 4.1 수신
+
+Route Handler에서 가장 먼저 외부 request_id를 읽습니다.
+
+```ts
+const rawBody = req.body ?? {};
+const externalRequestId = rawBody.request_id;
+```
+
+## 4.2 검증
+
+다음 조건을 만족해야 합니다.
+
+```text
+string
+trim 후 빈 문자열 아님
+128자 이하
+```
+
+권장:
+
+```ts
+function isValidExternalRequestId(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.trim().length > 0 &&
+    value.length <= 128
+  );
+}
+```
+
+request_id의 앞뒤 공백을 임의로 제거한 새 값을 응답하지 않습니다.
+
+검증을 통과한 원본 문자열을 그대로 사용합니다.
+
+---
+
+# 5. 내부 request_id 분리
+
+현재:
+
+```ts
+function newRequestId(): string
+```
+
+는 외부 응답 ID 용도로 사용되고 있습니다.
+
+다음처럼 이름과 역할을 분리합니다.
+
+```ts
+function newInternalRequestId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+```
+
+사용:
+
+```ts
+const internalRequestId = newInternalRequestId();
+```
+
+원칙:
+
+```text
+externalRequestId
+→ 앱 요청과 응답을 연결하는 공개 Contract ID
+
+internalRequestId
+→ 서버 내부 로그와 처리 추적용
+```
+
+외부 응답에는 `internalRequestId`를 넣지 않습니다.
+
+---
+
+# 6. Request Body 파싱
+
+현재 flat 구조 파싱을 제거하거나 Teacher Diary Route에서 더 이상 사용하지 않습니다.
+
+기존:
+
+```ts
+const {
+  teacher_id,
+  class_id,
+  lesson_date,
+  input_text,
+  students = [],
+  existing_content,
+} = req.body ?? {};
+```
+
+변경 방향:
+
+```ts
+const body = req.body ?? {};
+const input = body.input;
+const context = body.context;
+
+const inputText =
+  typeof input?.text === 'string'
+    ? input.text
+    : '';
+
+const poolId =
+  typeof context?.pool_id === 'string'
+    ? context.pool_id
+    : '';
+
+const classId =
+  typeof context?.class_id === 'string'
+    ? context.class_id
+    : '';
+
+const lessonDate =
+  typeof context?.lesson_date === 'string'
+    ? context.lesson_date
+    : '';
+
+const studentRefs = Array.isArray(context?.student_refs)
+  ? context.student_refs
+  : [];
+
+const students = Array.isArray(context?.students)
+  ? context.students
+  : [];
+```
+
+---
+
+# 7. 기본 Contract 검증
+
+다음 순서로 검증합니다.
+
+```text
+request_id
+schema_version
+feature
+input.text
+context
+context.pool_id
+context.class_id
+context.lesson_date
+context.student_refs
+context.students
+학생 구조
+student_refs와 students[].ref 일치
+```
+
+---
+
+# 8. schema_version 검증
+
+현재 허용값:
+
+```text
+"1.0"
+```
+
+다른 값이면:
+
+```text
+400 INVALID_REQUEST
+retryable: false
+```
+
+---
+
+# 9. feature 검증
+
+현재 허용값:
+
+```text
+"teacher_diary"
+```
+
+다른 값이면:
+
+```text
+400 INVALID_REQUEST
+retryable: false
+```
+
+---
+
+# 10. input.text 검증
+
+조건:
+
+```text
+string
+trim 후 빈 문자열 아님
+```
+
+기존 `input_text`는 더 이상 사용하지 않습니다.
+
+Prompt와 LLM에는 다음 값을 사용합니다.
+
+```ts
+const normalizedInputText = inputText.trim();
+```
+
+---
+
+# 11. context 필수값 검증
+
+다음은 필수입니다.
+
+```text
+pool_id
+class_id
+lesson_date
+```
+
+조건:
+
+```text
+string
+trim 후 빈 문자열 아님
+```
+
+임의 값 대체 금지:
+
+```text
+pool_id를 class_id로 대체
+class_id를 teacher_id로 대체
+빈 문자열 허용
+```
+
+---
+
+# 12. 학생 배열 검증
+
+앱 표준 구조:
+
+```json
+{
+  "ref": "student_001",
+  "name": "학생 전체 이름"
+}
+```
+
+각 학생에 대해 다음을 검증합니다.
+
+```text
+ref: string, 빈 값 아님
+name: string, 빈 값 아님
+```
+
+내부 Prompt용 구조로만 필요한 경우 다음처럼 변환할 수 있습니다.
+
+```ts
+const normalizedStudents = students.map((student) => ({
+  studentRef: student.ref,
+  studentName: student.name,
+}));
+```
+
+이 변환은 서버 내부에서만 사용합니다.
+
+외부 응답에는 앱이 보낸 ref를 그대로 반환합니다.
+
+---
+
+# 13. student_refs 검증
+
+`student_refs`와 `students[].ref`는 순서와 값이 정확히 같아야 합니다.
+
+권장:
+
+```ts
+const normalizedRefs = students.map((student) => student.ref);
+
+const refsMatch =
+  studentRefs.length === normalizedRefs.length &&
+  studentRefs.every(
+    (ref, index) => ref === normalizedRefs[index]
+  );
+```
+
+불일치하면:
+
+```text
+400 INVALID_REQUEST
+retryable: false
+```
+
+---
+
+# 14. teacher_id 처리
+
+앱 E1 Contract에는 `teacher_id`가 없습니다.
+
+따라서 Request Body의 teacher_id를 더 이상 요구하지 않습니다.
+
+교사 식별이 필요하면 인증된 JWT 사용자 정보에서 가져옵니다.
+
+예:
+
+```ts
+const authenticatedUser = (req as any).user;
+```
+
+단, 실제 `requireAuth`가 어떤 속성에 사용자 정보를 넣는지 확인한 후 사용합니다.
+
+추측해서 `req.user.id`를 사용하지 않습니다.
+
+교사 ID가 현재 Prompt 또는 처리에 필요하지 않다면 E-A2에서 새로 추가하지 않습니다.
+
+---
+
+# 15. existing_content 처리
+
+앱 E1 Contract에는 `existing_content`가 없습니다.
+
+현재 Teacher Diary AI 생성에 필수가 아니라면 제거합니다.
+
+기존 코드가 Prompt에 사용하고 있다면:
+
+```text
+어디에 사용되는지
+없을 때 어떤 영향이 있는지
+```
+
+를 완료 보고서에 명시합니다.
+
+앱 Contract에 없는 필드를 임의 기본값으로 채워 핵심 판단에 사용하지 않습니다.
+
+---
+
+# 16. 성공 응답
+
+성공 응답의 request_id는 외부 ID를 그대로 사용합니다.
+
+```ts
+res.status(200).json({
+  request_id: externalRequestId,
+  schema_version: '1.0',
+  feature: 'teacher_diary',
+  result: {
+    common,
+    students: studentResults,
+  },
+  usage,
+});
+```
+
+금지:
+
+```ts
+request_id: internalRequestId
+request_id: newInternalRequestId()
+request_id: randomUUID()
+```
+
+---
+
+# 17. 400 오류 응답
+
+request_id가 정상적으로 읽힌 뒤 다른 필드 검증에 실패한 경우:
+
+```ts
+res.status(400).json({
+  request_id: externalRequestId,
+  schema_version: '1.0',
+  feature: 'teacher_diary',
+  status: 'failed',
+  error: {
+    code: 'INVALID_REQUEST',
+    message: 'Invalid teacher diary request.',
+    retryable: false,
+  },
+});
+```
+
+사용자 입력 원문, 학생 이름, 학생 ref를 오류 메시지에 포함하지 않습니다.
+
+---
+
+# 18. request_id 자체가 잘못된 경우
+
+request_id가 없거나 유효하지 않으면 echo할 정상 ID가 없습니다.
+
+권장 응답:
+
+```ts
+res.status(400).json({
+  request_id: null,
+  schema_version: '1.0',
+  feature: 'teacher_diary',
+  status: 'failed',
+  error: {
+    code: 'INVALID_REQUEST',
+    message: 'request_id is required.',
+    retryable: false,
+  },
+});
+```
+
+임의의 외부 request_id를 생성해서 반환하지 않습니다.
+
+내부 로그 추적에는 `internalRequestId`를 사용합니다.
+
+---
+
+# 19. 500 오류 응답
+
+Route Handler 내부 오류에서도 외부 request_id가 유효하게 수신된 경우 그대로 반환합니다.
+
+```ts
+res.status(500).json({
+  request_id: externalRequestId,
+  schema_version: '1.0',
+  feature: 'teacher_diary',
+  status: 'failed',
+  error: {
+    code: 'INTERNAL_ERROR',
+    message: 'Teacher diary generation failed.',
+    retryable: false
+  },
+});
+```
+
+현재 정책상 일시 오류에 `retryable: true`를 사용하는 코드가 있다면 그대로 유지하고 실제 기준을 보고합니다.
+
+이번 작업에서 오류 정책 전체를 재설계하지 않습니다.
+
+---
+
+# 20. 401 응답 처리
+
+이번 E-A2에서는 `requireAuth`를 수정하지 않습니다.
+
+따라서 401은 현재 공통 미들웨어 형식을 유지할 수 있습니다.
+
+완료 보고서에 다음을 명확히 적습니다.
+
+```text
+401 응답은 아직 Teacher Diary AI Contract 형식이 아님
+앱은 HTTP 401 상태 기준으로 정상 처리 가능
+별도 후속 작업 필요 여부
+```
+
+앱이 401에서 response.request_id를 요구하지 않고 HTTP Status로 처리한다면 기능 블로커는 아닙니다.
+
+---
+
+# 21. Endpoint 경로 표기 확인
+
+Route 파일 내부 경로가:
+
+```text
+/ai/diary/generate
+```
+
+이고 앱 호출 경로가:
+
+```text
+/api/ai/diary/generate
+```
+
+인 경우, Express Router가 `/api` Prefix에 Mount되어 있을 수 있습니다.
+
+E-A2 완료 보고서에서 다음을 확인합니다.
+
+```text
+Router 내부 경로
+Mount Prefix
+최종 외부 Endpoint
+```
+
+Endpoint를 중복 `/api/api/...`로 변경하지 않습니다.
+
+---
+
+# 22. 학생 응답 필드
+
+E-A2에서는 최소한 request_id와 Request Contract를 먼저 정상화합니다.
+
+학생 응답 필드가 현재:
+
+```json
+{
+  "student_id": "...",
+  "content": "..."
+}
+```
+
+라면 앱 fallback으로 임시 동작은 가능합니다.
+
+단, E-A2에서 수정 범위가 단순하고 안전하면 다음 표준으로 함께 변경할 수 있습니다.
+
+```json
+{
+  "student_ref": "...",
+  "content": "..."
+}
+```
+
+원칙:
+
+```text
+요청 students[].ref를 그대로 반환
+새 ID 생성 금지
+```
+
+빈 학생 content 제거와 Output Validator 강화는 E-A3에서 수행할 수 있습니다.
+
+---
+
+# 23. 로그 정책
+
+외부 request_id와 내부 request_id는 로그에 남길 수 있습니다.
+
+허용:
+
+```text
+external_request_id
+internal_request_id
+HTTP status
+error code
+student count
+duration
+```
+
+금지:
+
+```text
+학생 이름
+학생 ref 전체
+input.text
+Prompt 전체
+LLM 전체 응답
+Authorization Token
+```
+
+---
+
+# 24. E-A2 필수 테스트
+
+## A. 정상 Contract
+
+```text
+앱 형식 Request 전송
+HTTP 200
+응답 request_id가 요청과 동일
+```
+
+최소 3회 확인합니다.
+
+---
+
+## B. input.text 누락
+
+기대:
+
+```text
+400 INVALID_REQUEST
+응답 request_id = 요청 request_id
+retryable false
+```
+
+---
+
+## C. pool_id 누락
+
+기대:
+
+```text
+400 INVALID_REQUEST
+응답 request_id = 요청 request_id
+```
+
+---
+
+## D. class_id 누락
+
+기대:
+
+```text
+400 INVALID_REQUEST
+응답 request_id = 요청 request_id
+```
+
+---
+
+## E. lesson_date 누락
+
+기대:
+
+```text
+400 INVALID_REQUEST
+응답 request_id = 요청 request_id
+```
+
+---
+
+## F. students 구조 오류
+
+기대:
+
+```text
+400 INVALID_REQUEST
+```
+
+---
+
+## G. student_refs 불일치
+
+기대:
+
+```text
+400 INVALID_REQUEST
+```
+
+---
+
+## H. request_id 누락
+
+기대:
+
+```text
+400
+request_id null
+서버 자체 외부 ID 생성 없음
+```
+
+---
+
+## I. 서버 내부 오류
+
+Mock 또는 안전한 개발 환경에서 확인합니다.
+
+기대:
+
+```text
+500
+응답 request_id = 요청 request_id
+```
+
+---
+
+## J. 기존 flat Contract
+
+기존 형식:
+
+```json
+{
+  "input_text": "...",
+  "class_id": "...",
+  "students": []
+}
+```
+
+처리 정책을 명확히 보고합니다.
+
+권장:
+
+```text
+더 이상 지원하지 않음
+400 INVALID_REQUEST
+```
+
+구형 클라이언트가 실제 운영 중이면 임시 호환 필요 여부를 먼저 보고합니다.
+
+임의로 두 Contract를 장기간 병행하지 않습니다.
+
+---
+
+# 25. E-A2 통과 조건
+
+```text
+앱 E1 Request를 서버가 직접 읽음
+input.text 정상 수신
+context.pool_id 정상 수신
+context.class_id 정상 수신
+context.lesson_date 정상 수신
+context.students 정상 수신
+request_id 정상 수신
+성공 응답에서 request_id echo
+400 응답에서 request_id echo
+500 응답에서 request_id echo
+서버 내부 ID와 외부 ID 분리
+기존 Diary Prompt 실행 가능
+TypeScript 신규 오류 없음
+```
+
+---
+
+# 26. E-A2 완료 보고 형식
+
+작업 완료 후 다음 내용을 제출하고 멈춥니다.
+
+```text
+1. 실제 수정 파일
+2. Router Mount Prefix와 최종 Endpoint
+3. 외부 request_id 수신 코드
+4. 외부 request_id 검증 코드
+5. 내부 ID 생성 및 사용 위치
+6. Request Body 파싱 전후 비교
+7. teacher_id 처리 방식
+8. existing_content 처리 방식
+9. 성공 응답 코드
+10. 400 오류 응답 코드
+11. 500 오류 응답 코드
+12. 401 응답 현황
+13. 학생 배열 변환 방식
+14. 테스트 A~J 결과
+15. 정상 요청 3회 request_id 비교
+16. TypeScript 검사 결과
+17. 기존 오류 수 변화
+18. 발견된 추가 문제
+```
+
+E-A2 완료 후 E-A3을 시작하지 말고 검토를 기다립니다.
