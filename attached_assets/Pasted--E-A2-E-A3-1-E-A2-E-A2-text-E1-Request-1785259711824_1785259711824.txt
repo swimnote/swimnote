@@ -1,0 +1,875 @@
+# E-A2 검토 결과 및 E-A3 구현 승인서
+
+## 1. E-A2 검토 결과
+
+E-A2는 통과합니다.
+
+완료 확인 항목:
+
+```text
+앱 E1 Request Contract 직접 수신
+외부 request_id 필수 검증
+외부 request_id 성공 응답 echo
+외부 request_id 400 응답 echo
+외부 request_id 500 응답 echo
+서버 내부 ID와 외부 ID 분리
+input.text 수신
+context.pool_id 수신
+context.class_id 수신
+context.lesson_date 수신
+context.students 수신
+context.student_refs 검증
+구형 flat Contract 종료
+student_ref 표준 Prompt 적용
+TypeScript 신규 오류 없음
+```
+
+정상 요청 3회에서 요청 ID와 응답 ID가 모두 일치한 것도 확인했습니다.
+
+---
+
+# 2. 현재 상태
+
+현재 수정은 다음 위치에만 반영된 상태입니다.
+
+```text
+artifacts/api-server 로컬 코드
+```
+
+아직 `https://swimnote.ai.kr` 실제 운영 서버에 배포되지 않았습니다.
+
+따라서 현재 앱에서 실제 기능이 작동한다고 판단하면 안 됩니다.
+
+배포는 E-A3과 앱 보완 수정이 모두 끝난 뒤 수행합니다.
+
+---
+
+# 3. E-A3 목적
+
+E-A3에서는 AI Engine이 GPT의 응답을 그대로 신뢰하지 않도록 Teacher Diary 전용 Output Validator를 완성합니다.
+
+처리할 항목:
+
+```text
+1. student_ref 표준화
+2. 요청에 없는 student_ref 차단
+3. 중복 student_ref 차단
+4. 빈 content 학생 제거
+5. 잘못된 학생 결과 제거가 아닌 전체 출력 검증
+6. common과 students가 모두 비어 있는 결과 차단
+7. 안전한 오류 응답
+```
+
+---
+
+# 4. 수정 대상
+
+기본 수정 파일:
+
+```text
+artifacts/api-server/src/routes/ai.ts
+```
+
+새 파일이나 공통 Validator가 꼭 필요하지 않다면 만들지 않습니다.
+
+이번 단계에서 수정하지 않는 항목:
+
+```text
+requireAuth
+Whisper
+앱 코드
+DB
+Migration
+Prompt 지식 내용
+검색 구조
+Curriculum
+Template Search
+Knowledge Search
+LLM 모델
+Production 배포
+```
+
+---
+
+# 5. 현재 studentResults 코드의 문제
+
+현재 구현:
+
+```ts
+const studentResults = rawStudents
+  .filter(s => typeof s === 'object' && s !== null)
+  .map(s => ({
+    student_ref:
+      typeof s.student_ref === 'string' && s.student_ref
+        ? s.student_ref
+        : typeof s.student_id === 'string' && s.student_id
+          ? s.student_id
+          : '',
+    content:
+      typeof s.content === 'string'
+        ? s.content
+        : '',
+  }))
+  .filter(s => s.student_ref !== '');
+```
+
+현재 코드에서는 다음 문제가 남아 있습니다.
+
+```text
+요청에 없는 student_ref 통과 가능
+같은 student_ref 중복 통과 가능
+빈 content 학생 통과 가능
+잘못된 객체가 조용히 삭제됨
+학생 결과가 전부 잘못돼도 common만 있으면 성공 가능
+student_id fallback이 계속 외부 표준으로 변환됨
+```
+
+GPT Output은 외부 입력과 동일하게 신뢰하지 말고 검증해야 합니다.
+
+---
+
+# 6. Output 검증 원칙
+
+검증 순서:
+
+```text
+GPT JSON 파싱
+↓
+최상위 구조 확인
+↓
+common 타입 확인
+↓
+students 배열 확인
+↓
+각 학생 결과 구조 확인
+↓
+student_ref 정상화
+↓
+content 정상화
+↓
+요청 학생 목록 포함 여부
+↓
+중복 여부
+↓
+빈 content 제거
+↓
+최종 결과 비어 있음 확인
+↓
+성공 응답
+```
+
+검증이 완료되기 전에 `res.status(200).json()`을 호출하지 않습니다.
+
+---
+
+# 7. common 검증
+
+허용:
+
+```text
+string
+빈 문자열
+앞뒤 공백이 있는 문자열
+```
+
+권장 정상화:
+
+```ts
+const normalizedCommon =
+  typeof parsed.common === 'string'
+    ? parsed.common.trim()
+    : '';
+```
+
+`parsed.common`이 존재하지만 문자열이 아닌 경우에는 조용히 `String()`으로 변환하지 않습니다.
+
+현재 코드:
+
+```ts
+String(parsed.common ?? '')
+```
+
+는 객체나 배열도 문자열로 바꿀 수 있으므로 수정해야 합니다.
+
+예:
+
+```text
+{...} → "[object Object]"
+[1,2] → "1,2"
+```
+
+권장:
+
+```text
+common 미존재 → 빈 문자열 허용
+common string → trim 후 사용
+common 존재 + non-string → OUTPUT_VALIDATION_FAILED
+```
+
+---
+
+# 8. students 배열 검증
+
+허용:
+
+```text
+students 미존재 → 빈 배열
+students 배열 → 검증 진행
+```
+
+다음은 오류입니다.
+
+```text
+students가 객체
+students가 문자열
+students가 null이지만 명시적으로 잘못된 구조
+```
+
+안전한 권장안:
+
+```ts
+const rawStudents =
+  parsed.students === undefined
+    ? []
+    : Array.isArray(parsed.students)
+      ? parsed.students
+      : null;
+
+if (rawStudents === null) {
+  throw outputValidationError(
+    'STUDENTS_NOT_ARRAY'
+  );
+}
+```
+
+외부 오류 응답에는 내부 세부 코드를 그대로 노출하지 않습니다.
+
+---
+
+# 9. student_ref 표준화
+
+표준 GPT 출력:
+
+```json
+{
+  "student_ref": "student_001",
+  "content": "학생별 내용"
+}
+```
+
+현재 전환 기간에는 GPT가 `student_id`를 반환할 가능성이 있으므로 E-A3에서는 임시 fallback을 유지할 수 있습니다.
+
+우선순위:
+
+```ts
+const studentRef =
+  typeof item.student_ref === 'string' &&
+  item.student_ref.trim()
+    ? item.student_ref
+    : typeof item.student_id === 'string' &&
+      item.student_id.trim()
+      ? item.student_id
+      : null;
+```
+
+최종 외부 응답에서는 반드시:
+
+```json
+{
+  "student_ref": "...",
+  "content": "..."
+}
+```
+
+형식만 사용합니다.
+
+`student_id`를 외부 응답에 다시 포함하지 않습니다.
+
+---
+
+# 10. 요청 학생 목록 검증
+
+유효한 학생 ref는 Request의 다음 배열을 기준으로 합니다.
+
+```ts
+const allowedStudentRefs = new Set(
+  normalizedStudents.map(student => student.ref)
+);
+```
+
+GPT가 반환한 `student_ref`가 이 Set에 없으면 성공 응답을 만들면 안 됩니다.
+
+처리:
+
+```text
+OUTPUT_VALIDATION_FAILED
+HTTP 500 또는 현재 Output 오류 정책에 맞는 Status
+retryable 정책 명시
+```
+
+학생 결과 한 건만 조용히 제거하고 나머지를 성공시키지 않습니다.
+
+이유:
+
+```text
+GPT가 학생 식별자를 잘못 생성했다는 뜻
+잘못된 학생 매핑 가능성
+Output 전체 신뢰성 저하
+```
+
+---
+
+# 11. 중복 student_ref 검증
+
+같은 학생 ref가 두 번 이상 나오면 전체 Output 오류로 처리합니다.
+
+```ts
+const seenRefs = new Set<string>();
+
+if (seenRefs.has(studentRef)) {
+  throw outputValidationError(
+    'DUPLICATE_STUDENT_REF'
+  );
+}
+
+seenRefs.add(studentRef);
+```
+
+금지:
+
+```text
+첫 번째 결과만 사용
+마지막 결과로 덮어쓰기
+두 문장을 자동 결합
+중복 결과 중 하나를 조용히 제거
+```
+
+---
+
+# 12. content 검증
+
+각 학생 결과의 `content`는 문자열이어야 합니다.
+
+```ts
+if (typeof item.content !== 'string') {
+  throw outputValidationError(
+    'STUDENT_CONTENT_NOT_STRING'
+  );
+}
+```
+
+정상화:
+
+```ts
+const normalizedContent = item.content.trim();
+```
+
+빈 문자열이면 해당 학생 결과는 제거합니다.
+
+```ts
+if (!normalizedContent) {
+  continue;
+}
+```
+
+빈 content는 Output 오류로 보지 않고 “학생별 유효한 내용 없음”으로 처리할 수 있습니다.
+
+단, 아래 조건은 최종 빈 결과 오류입니다.
+
+```text
+normalizedCommon === ''
+그리고
+유효한 studentResults.length === 0
+```
+
+---
+
+# 13. 빈 학생 결과 정책
+
+교사가 학생을 언급하지 않았으면 다음처럼 반환합니다.
+
+```json
+{
+  "result": {
+    "common": "공통 내용",
+    "students": []
+  }
+}
+```
+
+다음처럼 모든 학생에게 빈 값을 반환하지 않습니다.
+
+```json
+{
+  "result": {
+    "common": "공통 내용",
+    "students": [
+      {
+        "student_ref": "student_001",
+        "content": ""
+      }
+    ]
+  }
+}
+```
+
+Output Validator에서 `content.trim() === ''`인 항목은 제거합니다.
+
+---
+
+# 14. 전체 빈 결과 처리
+
+다음 상태는 성공으로 반환하면 안 됩니다.
+
+```json
+{
+  "common": "",
+  "students": []
+}
+```
+
+처리:
+
+```text
+OUTPUT_VALIDATION_FAILED
+성공 응답 미생성
+```
+
+앱은 이 오류를 받아 기존 Draft를 유지해야 합니다.
+
+---
+
+# 15. Output 오류 응답
+
+권장 외부 응답:
+
+```ts
+res.status(500).json({
+  request_id: externalRequestId,
+  schema_version: '1.0',
+  feature: 'teacher_diary',
+  status: 'failed',
+  error: {
+    code: 'OUTPUT_VALIDATION_FAILED',
+    message: 'Teacher diary output validation failed.',
+    retryable: false,
+  },
+});
+```
+
+`retryable`은 우선 `false`를 권장합니다.
+
+이유:
+
+```text
+같은 Prompt와 같은 입력을 즉시 재시도하면
+동일한 잘못된 결과가 다시 생성될 가능성이 있음
+앱 자동 재시도로 토큰이 중복 소비될 수 있음
+```
+
+서버 내부에서 별도의 Output Repair 또는 제한된 재생성을 구현할 계획이 있다면 별도 작업으로 진행합니다.
+
+이번 E-A3에서는 앱 자동 재시도 대상으로 만들지 않습니다.
+
+---
+
+# 16. 내부 오류 상세 로그
+
+서버 개발 로그에는 상세 내부 코드를 남길 수 있습니다.
+
+허용:
+
+```text
+internalId
+externalRequestId
+OUTPUT_VALIDATION_FAILED
+validation_reason
+student_index
+student_count
+```
+
+금지:
+
+```text
+학생 이름
+학생 ref 원문
+content 원문
+common 원문
+Prompt 전체
+GPT 전체 출력
+```
+
+예:
+
+```ts
+console.error('[AI-DIARY]', {
+  internal_id: internalId,
+  external_request_id: externalRequestId,
+  code: 'OUTPUT_VALIDATION_FAILED',
+  reason: 'UNKNOWN_STUDENT_REF',
+  student_index: index,
+});
+```
+
+---
+
+# 17. Prompt 보강
+
+현재 System Prompt에서 학생 결과 형식을 `student_ref`로 바꾼 것은 적절합니다.
+
+E-A3에서는 다음 규칙만 명시적으로 추가할 수 있습니다.
+
+```text
+students에는 학생별로 실제 작성할 내용이 있는 학생만 포함한다.
+내용이 없는 학생은 students 배열에 포함하지 않는다.
+student_ref는 제공된 ref 중 하나만 그대로 사용한다.
+같은 student_ref를 두 번 이상 반환하지 않는다.
+```
+
+Prompt 전체 문장과 수영 지식은 변경하지 않습니다.
+
+Output Validator가 핵심이며 Prompt 규칙만으로 안전성을 대체하지 않습니다.
+
+---
+
+# 18. 권장 구현 구조
+
+단일 함수로 분리할 수 있습니다.
+
+```ts
+interface ValidatedStudentResult {
+  student_ref: string;
+  content: string;
+}
+
+interface ValidatedDiaryOutput {
+  common: string;
+  students: ValidatedStudentResult[];
+}
+
+function validateDiaryOutput(
+  parsed: unknown,
+  allowedStudentRefs: Set<string>
+): ValidatedDiaryOutput {
+  // 전체 검증
+}
+```
+
+파일 내부 함수로 두며 새 공통 파일은 만들지 않아도 됩니다.
+
+`any` 사용을 최소화하고 `unknown`에서 검증합니다.
+
+---
+
+# 19. 필수 테스트
+
+## A. 정상 common만
+
+GPT 결과:
+
+```json
+{
+  "common": "공통 내용",
+  "students": []
+}
+```
+
+기대:
+
+```text
+200
+students=[]
+```
+
+---
+
+## B. 정상 학생 한 명
+
+```json
+{
+  "common": "",
+  "students": [
+    {
+      "student_ref": "요청에 포함된 ref",
+      "content": "학생 내용"
+    }
+  ]
+}
+```
+
+기대:
+
+```text
+200
+```
+
+---
+
+## C. 빈 학생 content
+
+```json
+{
+  "common": "공통 내용",
+  "students": [
+    {
+      "student_ref": "요청 ref",
+      "content": ""
+    }
+  ]
+}
+```
+
+기대:
+
+```text
+빈 학생 제거
+200
+students=[]
+```
+
+---
+
+## D. 모든 결과가 빈 값
+
+```json
+{
+  "common": "",
+  "students": [
+    {
+      "student_ref": "요청 ref",
+      "content": "   "
+    }
+  ]
+}
+```
+
+기대:
+
+```text
+OUTPUT_VALIDATION_FAILED
+retryable false
+```
+
+---
+
+## E. 알 수 없는 student_ref
+
+기대:
+
+```text
+OUTPUT_VALIDATION_FAILED
+전체 결과 폐기
+```
+
+---
+
+## F. 중복 student_ref
+
+기대:
+
+```text
+OUTPUT_VALIDATION_FAILED
+전체 결과 폐기
+```
+
+---
+
+## G. student_ref 누락
+
+기대:
+
+```text
+OUTPUT_VALIDATION_FAILED
+```
+
+---
+
+## H. content 타입 오류
+
+```json
+{
+  "content": []
+}
+```
+
+기대:
+
+```text
+OUTPUT_VALIDATION_FAILED
+```
+
+---
+
+## I. common 타입 오류
+
+```json
+{
+  "common": {}
+}
+```
+
+기대:
+
+```text
+OUTPUT_VALIDATION_FAILED
+```
+
+---
+
+## J. students 타입 오류
+
+```json
+{
+  "students": {}
+}
+```
+
+기대:
+
+```text
+OUTPUT_VALIDATION_FAILED
+```
+
+---
+
+## K. 임시 student_id fallback
+
+```json
+{
+  "student_id": "요청 ref",
+  "content": "학생 내용"
+}
+```
+
+기대:
+
+```text
+현재 E-A3에서는 student_ref로 정상화 가능
+외부 응답에는 student_ref만 출력
+```
+
+---
+
+## L. student_ref와 student_id 동시 존재
+
+```json
+{
+  "student_ref": "요청 ref A",
+  "student_id": "요청 ref B",
+  "content": "내용"
+}
+```
+
+기대:
+
+```text
+student_ref 우선
+student_id 무시
+```
+
+---
+
+## M. 요청 학생 3명 중 1명만 유효 내용
+
+기대:
+
+```text
+유효한 1명만 반환
+나머지 학생 빈 결과 생성 없음
+```
+
+---
+
+# 20. 실제 정상 요청 테스트
+
+Mock 테스트 후 실제 LLM 호출로 최소 다음을 확인합니다.
+
+```text
+공통 내용만 입력 1회
+학생 한 명 언급 1회
+학생 여러 명 언급 1회
+```
+
+확인:
+
+```text
+요청에 없는 ref 없음
+중복 ref 없음
+빈 content 없음
+student_ref 필드 사용
+request_id echo 유지
+```
+
+실제 학생 이름과 생성 내용은 보고서에 포함하지 않습니다.
+
+---
+
+# 21. student_id fallback 제거 시점
+
+E-A3에서는 GPT 미준수 방어를 위해 fallback을 유지할 수 있습니다.
+
+하지만 다음 조건이 충족되면 제거를 권장합니다.
+
+```text
+실제 LLM 테스트 다수에서 student_ref만 반환
+Prompt 안정화 확인
+운영 로그에서 student_id fallback 사용 0건
+```
+
+현재 단계에서는 fallback 사용 여부를 내부 boolean 또는 카운트로 확인할 수 있지만 학생 정보를 로그에 출력하지 않습니다.
+
+예:
+
+```text
+legacy_student_id_used: true/false
+```
+
+---
+
+# 22. E-A3 통과 조건
+
+```text
+요청 밖 student_ref 차단
+중복 student_ref 차단
+빈 content 학생 제거
+common non-string 차단
+students non-array 차단
+content non-string 차단
+전체 빈 결과 차단
+student_ref 외부 표준 유지
+request_id echo 유지
+Output 오류 재시도 false
+개인정보 로그 없음
+TypeScript 신규 오류 없음
+```
+
+---
+
+# 23. E-A3 완료 보고 형식
+
+작업 완료 후 다음을 제출하고 멈춥니다.
+
+```text
+1. 실제 수정 파일
+2. 추가한 Output Validator 타입
+3. common 검증 방식
+4. students 배열 검증 방식
+5. student_ref 정상화 방식
+6. allowed student ref 검증
+7. 중복 student_ref 처리
+8. 빈 content 처리
+9. 전체 빈 결과 처리
+10. Output 오류 응답
+11. retryable 정책
+12. Prompt에 추가한 출력 규칙
+13. student_id fallback 상태
+14. 테스트 A~M 결과
+15. 실제 LLM 테스트 결과
+16. request_id echo 재확인
+17. 개인정보 로그 검색
+18. TypeScript 검사 결과
+19. 기존 오류 수 변화
+20. 발견된 추가 문제
+```
+
+E-A3 완료 후 Production 배포를 시작하지 말고 검토를 기다립니다.

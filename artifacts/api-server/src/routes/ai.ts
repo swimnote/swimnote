@@ -62,6 +62,160 @@ function isValidExternalRequestId(value: unknown): value is string {
   );
 }
 
+// ── Output Validation (E-A3) ─────────────────────────────────────────────────
+
+interface ValidatedStudentResult {
+  student_ref: string;
+  content:     string;
+}
+
+interface ValidatedDiaryOutput {
+  common:   string;
+  students: ValidatedStudentResult[];
+}
+
+/**
+ * GPT 출력 전용 내부 오류 클래스.
+ * reason은 서버 로그에만 기록하고 외부 응답에 노출하지 않습니다.
+ */
+class OutputValidationError extends Error {
+  readonly reason: string;
+  readonly studentIndex?: number;
+  constructor(reason: string, studentIndex?: number) {
+    super('OUTPUT_VALIDATION_FAILED');
+    this.name  = 'OutputValidationError';
+    this.reason = reason;
+    this.studentIndex = studentIndex;
+  }
+}
+
+/**
+ * GPT 출력을 검증·정상화합니다.
+ * 검증 실패 시 OutputValidationError를 throw합니다.
+ * 외부 입력과 동일한 수준의 신뢰도로 처리합니다.
+ */
+function validateDiaryOutput(
+  parsed:             unknown,
+  allowedStudentRefs: Set<string>,
+): ValidatedDiaryOutput {
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new OutputValidationError('TOP_LEVEL_NOT_OBJECT');
+  }
+  const obj = parsed as Record<string, unknown>;
+
+  // ── common 검증 ──────────────────────────────────────────────────────────
+  // common이 없으면 빈 문자열 허용; 있는데 string이 아니면 오류
+  const rawCommon = obj.common;
+  if (rawCommon !== undefined && typeof rawCommon !== 'string') {
+    throw new OutputValidationError('COMMON_NOT_STRING');
+  }
+  const normalizedCommon = typeof rawCommon === 'string' ? rawCommon.trim() : '';
+
+  // ── students 배열 검증 ───────────────────────────────────────────────────
+  const rawStudentsField = obj.students;
+  // undefined → 빈 배열 허용; 그 외 non-array → 오류
+  if (rawStudentsField !== undefined && !Array.isArray(rawStudentsField)) {
+    throw new OutputValidationError('STUDENTS_NOT_ARRAY');
+  }
+  const rawStudents: unknown[] = Array.isArray(rawStudentsField) ? rawStudentsField : [];
+
+  const seenRefs:    Set<string>            = new Set();
+  const validResults: ValidatedStudentResult[] = [];
+
+  for (let i = 0; i < rawStudents.length; i++) {
+    const item = rawStudents[i];
+
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      throw new OutputValidationError('STUDENT_ITEM_NOT_OBJECT', i);
+    }
+    const entry = item as Record<string, unknown>;
+
+    // ── student_ref 정상화 (student_ref 우선, student_id fallback) ─────────
+    const rawRef   = entry.student_ref;
+    const rawRefId = entry.student_id;
+    let resolvedRef: string | null = null;
+    let legacyFallbackUsed = false;
+
+    if (typeof rawRef === 'string' && rawRef.trim()) {
+      resolvedRef = rawRef.trim();
+    } else if (typeof rawRefId === 'string' && rawRefId.trim()) {
+      resolvedRef = rawRefId.trim();
+      legacyFallbackUsed = true;
+    }
+
+    if (!resolvedRef) {
+      throw new OutputValidationError('STUDENT_REF_MISSING', i);
+    }
+
+    // ── allowed ref 검증 ─────────────────────────────────────────────────
+    if (!allowedStudentRefs.has(resolvedRef)) {
+      throw new OutputValidationError('UNKNOWN_STUDENT_REF', i);
+    }
+
+    // ── 중복 student_ref 검증 ────────────────────────────────────────────
+    if (seenRefs.has(resolvedRef)) {
+      throw new OutputValidationError('DUPLICATE_STUDENT_REF', i);
+    }
+    seenRefs.add(resolvedRef);
+
+    // ── content 검증 ─────────────────────────────────────────────────────
+    if (typeof entry.content !== 'string') {
+      throw new OutputValidationError('STUDENT_CONTENT_NOT_STRING', i);
+    }
+    const normalizedContent = entry.content.trim();
+
+    // 빈 content는 오류가 아닌 "해당 학생 결과 없음"으로 처리 → skip
+    if (!normalizedContent) {
+      // 내부 디버그 로그용 플래그 (개인정보 없음)
+      if (legacyFallbackUsed) {
+        // student_id fallback + 빈 content 케이스도 카운트만
+      }
+      continue;
+    }
+
+    validResults.push({
+      student_ref: resolvedRef,
+      content:     normalizedContent,
+    });
+
+    if (legacyFallbackUsed) {
+      // fallback 사용 여부만 표시 (ref 원문 로그 금지)
+      // 호출부에서 legacyFallbackCount를 증가시키기 위해
+      // throw는 하지 않음 — 외부 응답은 student_ref 표준으로 정상 출력됨
+    }
+  }
+
+  // ── 전체 빈 결과 검증 ────────────────────────────────────────────────────
+  if (normalizedCommon === '' && validResults.length === 0) {
+    throw new OutputValidationError('ALL_EMPTY_OUTPUT');
+  }
+
+  return { common: normalizedCommon, students: validResults };
+}
+
+/**
+ * GPT 출력에서 legacy student_id fallback 사용 여부를 카운트합니다.
+ * 개인정보(ref 원문) 없이 boolean/count만 반환합니다.
+ */
+function countLegacyStudentIdFallback(
+  parsed:             unknown,
+  allowedStudentRefs: Set<string>,
+): number {
+  if (typeof parsed !== 'object' || parsed === null) return 0;
+  const obj = parsed as Record<string, unknown>;
+  if (!Array.isArray(obj.students)) return 0;
+
+  let count = 0;
+  for (const item of obj.students as unknown[]) {
+    if (typeof item !== 'object' || item === null) continue;
+    const entry = item as Record<string, unknown>;
+    const hasValidRef   = typeof entry.student_ref === 'string' && String(entry.student_ref).trim() !== '' && allowedStudentRefs.has(String(entry.student_ref).trim());
+    const hasValidRefId = typeof entry.student_id  === 'string' && String(entry.student_id ).trim() !== '' && allowedStudentRefs.has(String(entry.student_id ).trim());
+    if (!hasValidRef && hasValidRefId) count++;
+  }
+  return count;
+}
+
 // ── Whisper STT 내부 핸들러 (두 경로에서 공유) ────────────────────────────────
 async function handleWhisper(req: Request, res: Response): Promise<void> {
   const internalId = newInternalRequestId();
@@ -409,7 +563,10 @@ router.post(
   - 강사의 입력에 특정 학생에 대한 언급이 있을 때만 포함합니다.
   - 개별 언급이 없으면 반드시 빈 배열([])을 반환합니다.
   - 학생 메모는 50자 이상 120자 이내로 작성합니다.
-  - student_ref는 제공된 학생 목록의 ref를 그대로 사용합니다.
+  - students에는 학생별로 실제 작성할 내용이 있는 학생만 포함한다.
+  - 내용이 없는 학생은 students 배열에 포함하지 않는다.
+  - student_ref는 제공된 학생 목록의 ref 중 하나만 그대로 사용한다. 목록에 없는 ref는 절대 사용하지 않는다.
+  - 같은 student_ref를 두 번 이상 반환하지 않는다.
 
 [응답 형식]
 {"common":"...","students":[{"student_ref":"...","content":"..."}]}`;
@@ -435,39 +592,37 @@ router.post(
       });
 
       const rawContent = completion.choices[0]?.message?.content ?? '{}';
-      let parsed: any;
+      let parsed: unknown;
       try {
         parsed = JSON.parse(rawContent);
       } catch {
         throw new Error('GPT 응답 JSON 파싱 실패');
       }
 
-      // ── 학생 결과 정규화 — student_ref 표준 필드 사용 ─────────────────────
-      // GPT가 student_ref를 반환하지만, 만약 student_id를 반환할 경우를 위한 fallback
-      const rawStudents: unknown[] = Array.isArray(parsed.students) ? parsed.students : [];
-      const studentResults = rawStudents
-        .filter((s): s is Record<string, unknown> => typeof s === 'object' && s !== null)
-        .map(s => ({
-          student_ref: typeof s.student_ref === 'string' && s.student_ref
-            ? s.student_ref
-            : typeof s.student_id  === 'string' && s.student_id
-              ? s.student_id
-              : '',
-          content: typeof s.content === 'string' ? s.content : '',
-        }))
-        .filter(s => s.student_ref !== '');
+      // ── Output Validation (E-A3) ──────────────────────────────────────────
+      const allowedStudentRefs = new Set(normalizedStudents.map(s => s.ref));
+
+      // legacy fallback 사용 여부 확인 (개인정보 미포함 집계)
+      const legacyFallbackCount = countLegacyStudentIdFallback(parsed, allowedStudentRefs);
+
+      const validatedOutput = validateDiaryOutput(parsed, allowedStudentRefs);
 
       const usage = completion.usage;
       const elapsedMs = Date.now() - startMs;
-      console.log(`[AI/diary:${internalId}] ext_id=${externalRequestId} elapsed=${elapsedMs}ms tokens=${usage?.total_tokens ?? 0} students_out=${studentResults.length}`);
+      console.log(
+        `[AI/diary:${internalId}] ext_id=${externalRequestId}` +
+        ` elapsed=${elapsedMs}ms tokens=${usage?.total_tokens ?? 0}` +
+        ` students_out=${validatedOutput.students.length}` +
+        (legacyFallbackCount > 0 ? ` legacy_student_id_used=${legacyFallbackCount}` : ''),
+      );
 
       res.status(200).json({
         request_id:     externalRequestId,
         schema_version: '1.0',
         feature:        'teacher_diary',
         result: {
-          common:   String(parsed.common ?? ''),
-          students: studentResults,
+          common:   validatedOutput.common,
+          students: validatedOutput.students,
         },
         usage: {
           input_tokens:  usage?.prompt_tokens     ?? 0,
@@ -477,7 +632,33 @@ router.post(
       });
     } catch (e: any) {
       const elapsedMs = Date.now() - startMs;
-      const safeMsg   = String(e?.message ?? '').replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED]');
+
+      // ── OutputValidationError: GPT 출력 검증 실패 ────────────────────────
+      if (e instanceof OutputValidationError) {
+        console.error('[AI/diary]', {
+          internal_id:          internalId,
+          external_request_id:  externalRequestId,
+          code:                 'OUTPUT_VALIDATION_FAILED',
+          reason:               e.reason,
+          ...(e.studentIndex !== undefined && { student_index: e.studentIndex }),
+          elapsed_ms:           elapsedMs,
+        });
+        res.status(500).json({
+          request_id:     externalRequestId,
+          schema_version: '1.0',
+          feature:        'teacher_diary',
+          status:         'failed',
+          error: {
+            code:      'OUTPUT_VALIDATION_FAILED',
+            message:   'Teacher diary output validation failed.',
+            retryable: false,
+          },
+        });
+        return;
+      }
+
+      // ── 일반 오류 (OpenAI API, 네트워크, 기타) ────────────────────────────
+      const safeMsg = String(e?.message ?? '').replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED]');
       console.error(`[AI/diary:${internalId}] ext_id=${externalRequestId} elapsed=${elapsedMs}ms status=${e?.status ?? 500} msg=${safeMsg}`);
       const retryable = !e?.status || e.status >= 500 || e.status === 429;
       res.status(e?.status ?? 500).json({
