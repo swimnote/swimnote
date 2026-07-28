@@ -75,29 +75,53 @@ interface TeacherDiaryAIRequest {
   };
 }
 
-// ─── AI Engine Response 타입 ─────────────────────────────────────────────────
+// ─── WP2: AI Engine Response 타입 ────────────────────────────────────────────
 
-/** POST /api/ai/diary/generate 성공 응답
- * AI Engine은 student_ref/feedback 또는 student_id/content 필드명을 사용할 수 있습니다.
- * 양쪽 모두 대응합니다.
+/**
+ * Legacy 호환 Flag — AI Engine이 request_id를 응답에 포함하지 않는 전환 기간용
+ * - true : response.request_id가 없을 때 구형 응답으로 허용 (expectedRequestId 일치 여부 확인 후 적용)
+ * - false: response.request_id 없음 → Contract 오류
+ * AI Engine이 request_id 반환을 확정하면 false로 변경하거나 조건부 블록 전체를 제거합니다.
  */
-interface DiaryGenerateResponse {
-  request_id:     string;
-  schema_version: string;
-  feature:        string;
-  status?:        string;
-  result: {
-    common:   string;
-    students: {
-      /** AI Engine v1 계약 필드 */
-      student_ref?: string;
-      feedback?:    string;
-      /** 구 계약 호환 필드 */
-      student_id?:  string;
-      content?:     string;
-    }[];
+const ALLOW_LEGACY_RESPONSE_WITHOUT_REQUEST_ID = true;
+
+/**
+ * WP2: AI Engine 외부 응답 타입 — 모든 필드 optional (외부 응답은 신뢰할 수 없음)
+ * Runtime Validation 후 NormalizedDiaryResult로 변환합니다.
+ */
+interface TeacherDiaryAIStudentResult {
+  student_ref?: unknown;
+  student_id?:  unknown;
+  content?:     unknown;
+  feedback?:    unknown;
+}
+
+interface TeacherDiaryAIResponse {
+  request_id?:     unknown;
+  schema_version?: unknown;
+  result?: {
+    common?:   unknown;
+    students?: unknown;
   };
-  usage: {
+  usage?: {
+    input_tokens?:  unknown;
+    output_tokens?: unknown;
+    total_tokens?:  unknown;
+  };
+}
+
+/** WP2: 내부 정규화 타입 — 검증 통과 후 사용 */
+interface NormalizedDiaryStudentResult {
+  studentRef: string;
+  content:    string;
+}
+
+interface NormalizedDiaryResult {
+  common:   string;
+  students: NormalizedDiaryStudentResult[];
+  /** request_id — 응답에 있을 경우 */
+  requestId?: string;
+  usage?: {
     input_tokens:  number;
     output_tokens: number;
     total_tokens:  number;
@@ -222,6 +246,159 @@ function validateDiaryRequest(
   return null;
 }
 
+// ─── WP2: Response 정규화 함수 ────────────────────────────────────────────────
+
+type NormalizeResult =
+  | { ok: true;  result: NormalizedDiaryResult }
+  | { ok: false; contractError: string };
+
+/**
+ * WP2: AI Engine 응답 전체를 검증하고 NormalizedDiaryResult로 변환합니다.
+ *
+ * 처리 순서 (§6):
+ * 1. 기본 구조 검증
+ * 2. request_id 검증 (Legacy Flag 포함)
+ * 3. common 타입 검증
+ * 4. students 배열 검증
+ * 5. 각 학생 필드 정상화 (student_ref ?? student_id, content ?? feedback)
+ * 6. 알 수 없는 student_ref → 전체 오류
+ * 7. 중복 student_ref → 전체 오류
+ * 8. 빈 결과 검증 (common='' + students=[] → 오류)
+ * 9. 전체 통과 → NormalizedDiaryResult 반환
+ *
+ * @param rawResponse   응답 JSON (unknown)
+ * @param expectedRequestId 이 generateDiary() 호출에 사용한 request_id
+ * @param currentRequestId  현재 활성 request_id (ooo request 차단용)
+ * @param validStudentRefs  요청 시 전달한 학생 id Set
+ */
+function normalizeDiaryResponse(params: {
+  rawResponse:        unknown;
+  expectedRequestId:  string;
+  currentRequestId:   string;
+  validStudentRefs:   Set<string>;
+}): NormalizeResult {
+  const { rawResponse, expectedRequestId, currentRequestId, validStudentRefs } = params;
+
+  // 1. 기본 구조
+  if (typeof rawResponse !== 'object' || rawResponse === null) {
+    return { ok: false, contractError: 'CONTRACT_INVALID_STRUCTURE: 응답이 객체가 아닙니다.' };
+  }
+  const resp = rawResponse as TeacherDiaryAIResponse;
+
+  // 2. request_id 검증
+  if (resp.request_id !== undefined) {
+    // 응답에 request_id가 있으면 반드시 예상 ID와 일치해야 합니다.
+    if (typeof resp.request_id !== 'string') {
+      return { ok: false, contractError: 'CONTRACT_REQUEST_ID_TYPE: request_id가 문자열이 아닙니다.' };
+    }
+    if (resp.request_id !== expectedRequestId) {
+      return { ok: false, contractError: `CONTRACT_REQUEST_ID_MISMATCH: expected=${expectedRequestId} got=${resp.request_id}` };
+    }
+  } else {
+    // request_id 없음
+    if (!ALLOW_LEGACY_RESPONSE_WITHOUT_REQUEST_ID) {
+      return { ok: false, contractError: 'CONTRACT_REQUEST_ID_MISSING: 응답에 request_id가 없습니다.' };
+    }
+    // Legacy 허용 — expectedRequestId가 여전히 현재 활성 ID인지 확인
+    if (expectedRequestId !== currentRequestId) {
+      return { ok: false, contractError: `CONTRACT_STALE_LEGACY_RESPONSE: expectedId=${expectedRequestId} currentId=${currentRequestId}` };
+    }
+  }
+
+  // 3. result 구조 검증
+  if (typeof resp.result !== 'object' || resp.result === null) {
+    return { ok: false, contractError: 'CONTRACT_RESULT_MISSING: result 필드가 없거나 잘못된 타입입니다.' };
+  }
+
+  // 4. common 검증
+  const rawCommon = resp.result.common;
+  if (typeof rawCommon !== 'string') {
+    return { ok: false, contractError: `CONTRACT_COMMON_TYPE: common이 문자열이 아닙니다. type=${typeof rawCommon}` };
+  }
+  const common = rawCommon;
+
+  // 5. students 배열 검증
+  const rawStudents = resp.result.students;
+  if (rawStudents !== undefined && !Array.isArray(rawStudents)) {
+    return { ok: false, contractError: 'CONTRACT_STUDENTS_NOT_ARRAY: students가 배열이 아닙니다.' };
+  }
+  const studentsArray: TeacherDiaryAIStudentResult[] = Array.isArray(rawStudents) ? rawStudents : [];
+
+  // 6. 빈 결과 검증 — common='' + students=[] 동시 → 오류
+  if (common === '' && studentsArray.length === 0) {
+    return { ok: false, contractError: 'CONTRACT_EMPTY_RESULT: common과 students 모두 비어 있습니다.' };
+  }
+
+  // 7. 각 학생 필드 정상화 + ref/중복 검증
+  const normalizedStudents: NormalizedDiaryStudentResult[] = [];
+  const seenRefs = new Set<string>();
+
+  for (let i = 0; i < studentsArray.length; i++) {
+    const item = studentsArray[i];
+    if (typeof item !== 'object' || item === null) {
+      return { ok: false, contractError: `CONTRACT_STUDENT_NOT_OBJECT: students[${i}]가 객체가 아닙니다.` };
+    }
+
+    // student_ref 우선, 없으면 student_id
+    const studentRef =
+      typeof item.student_ref === 'string' && item.student_ref
+        ? item.student_ref
+        : typeof item.student_id === 'string' && item.student_id
+          ? item.student_id
+          : null;
+
+    if (!studentRef) {
+      return { ok: false, contractError: `CONTRACT_STUDENT_REF_MISSING: students[${i}]에 student_ref/student_id가 없습니다.` };
+    }
+
+    // content 우선, 없으면 feedback (§4 우선순위 수정)
+    const content =
+      typeof item.content === 'string'
+        ? item.content
+        : typeof item.feedback === 'string'
+          ? item.feedback
+          : null;
+
+    if (content === null) {
+      return { ok: false, contractError: `CONTRACT_STUDENT_CONTENT_TYPE: students[${i}] ref=${studentRef} content/feedback이 문자열이 아닙니다.` };
+    }
+
+    // 알 수 없는 student_ref → 전체 오류 (§9)
+    if (!validStudentRefs.has(studentRef)) {
+      return { ok: false, contractError: `CONTRACT_UNKNOWN_STUDENT_REF: ref=${studentRef} 는 요청 학생 목록에 없습니다.` };
+    }
+
+    // 중복 student_ref → 전체 오류 (§10)
+    if (seenRefs.has(studentRef)) {
+      return { ok: false, contractError: `CONTRACT_DUPLICATE_STUDENT_REF: ref=${studentRef} 가 응답에 중복 등장했습니다.` };
+    }
+    seenRefs.add(studentRef);
+
+    normalizedStudents.push({ studentRef, content: content.trim() });
+  }
+
+  // usage 정규화 (optional — 존재하면 숫자 타입 보장)
+  let usage: NormalizedDiaryResult['usage'];
+  if (resp.usage !== undefined) {
+    const u = resp.usage;
+    usage = {
+      input_tokens:  typeof u.input_tokens  === 'number' ? u.input_tokens  : 0,
+      output_tokens: typeof u.output_tokens === 'number' ? u.output_tokens : 0,
+      total_tokens:  typeof u.total_tokens  === 'number' ? u.total_tokens  : 0,
+    };
+  }
+
+  return {
+    ok:     true,
+    result: {
+      common:    common,
+      students:  normalizedStudents,
+      requestId: typeof resp.request_id === 'string' ? resp.request_id : undefined,
+      usage,
+    },
+  };
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useDiaryAI(options: UseDiaryAIOptions = {}) {
@@ -262,7 +439,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
    * [spec] 마지막 LLM usage — 향후 크레딧 시스템에서 사용 예정.
    * 현재 화면에는 표시하지 않습니다.
    */
-  const lastUsageRef = useRef<DiaryGenerateResponse['usage'] | null>(null);
+  const lastUsageRef = useRef<NormalizedDiaryResult['usage'] | null>(null);
 
   /** AI Engine students[] 결과 보관 — handleInsert 시 DiaryInsertResult.students로 전달 */
   const generatedStudentsRef = useRef<StudentDiaryNote[]>([]);
@@ -537,7 +714,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       if (!isMountedRef.current) return;
 
       // ── JSON 파싱 오류 처리 ────────────────────────────────────────────
-      let body: DiaryGenerateResponse | AIEngineError;
+      let body: unknown;
       try {
         body = await response.json();
       } catch {
@@ -545,7 +722,8 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       }
 
       // ── Error Contract 처리 ─────────────────────────────────────────────
-      if (!response.ok || 'error' in body) {
+      const bodyIsErrorContract = typeof body === 'object' && body !== null && 'error' in body;
+      if (!response.ok || bodyIsErrorContract) {
         const err   = (body as AIEngineError).error;
         const reqId = (body as AIEngineError).request_id ?? '?';
 
@@ -580,70 +758,50 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
         return;
       }
 
-      // ── 성공 응답 파싱 ─────────────────────────────────────────────────
-      const data = body as DiaryGenerateResponse;
+      // ── WP2: 성공 응답 정규화 (원자적) ──────────────────────────────────
+      // generateDiary() 호출 시점의 request_id를 캡처 (ooo 응답 차단용)
+      const expectedRequestId = currentRequestIdRef.current;
+      const validStudentRefs  = new Set((options.students ?? []).map(s => s.id));
 
-      // [spec] request_id / usage 유지
-      lastRequestIdRef.current = data.request_id;
-      lastUsageRef.current     = data.usage;
+      console.log(`[GENERATE-3] HTTP 200 수신 — request_id=${expectedRequestId} student_refs=${validStudentRefs.size}`);
 
-      // [LOG] 실제 Response JSON 전체 — 필드명 검증용 (student_ref vs student_id, feedback vs content)
-      console.log('[GENERATE-RESP] 전체:', JSON.stringify(data, null, 2));
-      console.log(`[GENERATE-3] 성공 request_id=${data.request_id} tokens=${data.usage?.total_tokens ?? 0}`);
-      console.log(`[GENERATE-4] result common_len=${(data.result?.common ?? '').length} students_raw=${data.result?.students?.length ?? 0}`);
+      const normalized = normalizeDiaryResponse({
+        rawResponse:       body,
+        expectedRequestId,
+        currentRequestId:  currentRequestIdRef.current,
+        validStudentRefs,
+      });
 
-      // ── [P6] students[] 매칭 — dual-field 지원 + combine 처리 ────────
-      // AI Engine은 student_ref/feedback 또는 student_id/content 중 하나를 반환합니다.
-      // 같은 student_ref가 여러 번 오면 feedback을 순서대로 결합합니다.
-      const validStudentIds = new Set((options.students ?? []).map(s => s.id));
-      // studentId → 누적 feedback 문장 배열
-      const feedbackMap = new Map<string, string[]>();
-
-      for (const s of (data.result?.students ?? [])) {
-        // dual-field: student_ref 우선, 없으면 student_id
-        const sid      = s.student_ref ?? s.student_id ?? '';
-        // dual-field: feedback 우선, 없으면 content
-        const feedback = (s.feedback ?? s.content ?? '').trim();
-
-        console.log(`[GENERATE-STUDENT-RAW] student_ref=${s.student_ref ?? '-'} student_id=${s.student_id ?? '-'} feedback_len=${feedback.length}`);
-
-        if (!sid) {
-          console.warn('[GENERATE-STUDENT] student_ref/id 없음 — 건너뜀');
-          continue;
-        }
-        if (!validStudentIds.has(sid)) {
-          console.warn(`[GENERATE-STUDENT] 알 수 없는 id=${sid} — 건너뜀`);
-          continue;
-        }
-        if (!feedback) {
-          console.warn(`[GENERATE-STUDENT] id=${sid} feedback 비어 있음 — 건너뜀`);
-          continue;
-        }
-        // 같은 student_ref 중복 시 결합 (문서 §4)
-        const existing = feedbackMap.get(sid);
-        if (existing) {
-          existing.push(feedback);
-          console.log(`[GENERATE-STUDENT] id=${sid} 중복 — feedback 결합 (${existing.length}번째)`);
-        } else {
-          feedbackMap.set(sid, [feedback]);
-        }
-      }
-
-      const mappedStudents: StudentDiaryNote[] = [];
-      for (const [sid, feedbacks] of feedbackMap) {
-        const studentName = (options.students ?? []).find(st => st.id === sid)?.name ?? sid;
-        mappedStudents.push({
-          studentId:   sid,
-          studentName,
-          note:        feedbacks.join(' '),
+      if (!normalized.ok) {
+        // Contract 오류 — 자동 재시도 없음 (§16)
+        console.error(`[GENERATE-CONTRACT-ERR] ${normalized.contractError}`);
+        machine.setError({
+          origin:      'UNKNOWN',
+          message:     'AI 응답 형식이 올바르지 않습니다. 다시 시도해주세요.',
+          retryTarget: 'INPUT',
         });
+        return;
       }
 
-      console.log(`[GENERATE-STUDENT] 매칭 결과: ${mappedStudents.length}/${data.result?.students?.length ?? 0}명`);
-      generatedStudentsRef.current = mappedStudents;
+      const norm = normalized.result;
 
-      // [문서 §2] result.common이 빈 문자열이면 그대로 빈값 유지 (fallback 없음)
-      setResultText(data.result?.common ?? '');
+      // [spec] request_id / usage 기록
+      lastRequestIdRef.current = norm.requestId ?? expectedRequestId;
+      lastUsageRef.current     = norm.usage ?? null;
+
+      console.log(`[GENERATE-4] 정규화 완료 — common_len=${norm.common.length} students=${norm.students.length}`);
+
+      // WP2: StudentDiaryNote 변환 (studentName은 options.students에서 조회)
+      const studentLookup = new Map((options.students ?? []).map(s => [s.id, s.name]));
+      const mappedStudents: StudentDiaryNote[] = norm.students.map(s => ({
+        studentId:   s.studentRef,
+        studentName: studentLookup.get(s.studentRef) ?? s.studentRef,
+        note:        s.content,
+      }));
+
+      // 원자적 반영 — 모든 검증 통과 후 한 번에 State 변경 (§7)
+      generatedStudentsRef.current = mappedStudents;
+      setResultText(norm.common);
 
       console.log('[GENERATE-5] machine.receiveResult() 호출');
       machine.receiveResult(); // PROCESSING → RESULT
