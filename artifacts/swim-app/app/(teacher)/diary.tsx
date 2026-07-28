@@ -408,6 +408,9 @@ export default function TeacherDiaryScreen() {
             }}
             onRemoveNewNote={(idx) => setEditNewNotes(prev => prev.filter((_, i) => i !== idx))}
             insertAtCursor={insertAtCursor}
+            token={token ?? undefined}
+            teacherId={user?.id}
+            poolId={(user as any)?.swimming_pool_id ?? undefined}
           />
         </SafeAreaView>
       );
@@ -467,6 +470,7 @@ export default function TeacherDiaryScreen() {
             insertAtCursor={insertAtCursor}
             token={token ?? undefined}
             teacherId={user?.id}
+            poolId={(user as any)?.swimming_pool_id ?? undefined}
           />
         ) : (
           <DiaryHistoryList

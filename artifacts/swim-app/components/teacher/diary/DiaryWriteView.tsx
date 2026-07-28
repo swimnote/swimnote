@@ -35,6 +35,7 @@ export default function DiaryWriteView({
   // ── [원칙 2] 앱 화면이 공급하는 컨텍스트 데이터 ─────────────────────────
   token,
   teacherId,
+  poolId,
 }: {
   group: TeacherClassGroup; targetDate: string; themeColor: string; myDiaryExists: boolean;
   templates: DiaryTemplate[]; showTemplates: boolean; setShowTemplates: (v: boolean) => void;
@@ -64,6 +65,7 @@ export default function DiaryWriteView({
   insertAtCursor: (current: string, insert: string, cursorPos: number, setter: (v: string) => void) => void;
   token?: string;
   teacherId?: string;
+  poolId?: string;
 }) {
   /**
    * [원칙 6] AI 모달이 최종 삽입 버튼을 누른 시점에만 이 콜백을 호출합니다.
@@ -159,6 +161,7 @@ export default function DiaryWriteView({
                 classId={group.id}
                 date={targetDate}
                 students={classStudents.map(s => ({ id: s.id, name: s.name }))}
+                poolId={poolId}
               />
               <TouchableOpacity style={s.sentencePickBtn} onPress={() => setShowPickerFor("common")} activeOpacity={0.7}>
                 <BookOpen size={13} color={C.tint} />

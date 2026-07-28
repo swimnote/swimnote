@@ -26,6 +26,9 @@ export default function DiaryEditView({
   onUpdateNoteContent, onMarkNoteDeleted,
   onEditAddNote, onRemoveNewNote,
   insertAtCursor,
+  token,
+  teacherId,
+  poolId,
 }: {
   group: TeacherClassGroup; themeColor: string;
   editDiary: DiaryEntry | null;
@@ -45,6 +48,9 @@ export default function DiaryEditView({
   onEditAddNote: () => void;
   onRemoveNewNote: (idx: number) => void;
   insertAtCursor: (current: string, insert: string, cursorPos: number, setter: (v: string) => void) => void;
+  token?: string;
+  teacherId?: string;
+  poolId?: string;
 }) {
   const activeNotes = editNotes.filter(n => !n._deleted);
   const usedStudentIds = new Set([
@@ -97,7 +103,10 @@ export default function DiaryEditView({
                 onInsert={(result) => setEditContent(editContent.trim() ? `${editContent.trim()}\n\n${result.commonDiary}` : result.commonDiary)}
                 themeColor={themeColor}
                 existingContent={editContent}
+                token={token}
+                teacherId={teacherId}
                 classId={group.id}
+                poolId={poolId}
               />
               <TouchableOpacity style={s.sentencePickBtn} onPress={() => setEditPickerFor("common")} activeOpacity={0.7}>
                 <BookOpen size={13} color={C.tint} />
