@@ -47,6 +47,34 @@ export interface StudentContext {
   name: string;
 }
 
+// ─── WP1: Request Contract 타입 ──────────────────────────────────────────────
+
+/**
+ * POST /api/ai/diary/generate 요청 구조 (V1.0 Contract)
+ * WP1: request_id + context.students[{ref,name}] 추가
+ */
+interface TeacherDiaryAIRequest {
+  request_id:     string;
+  schema_version: '1.0';
+  feature:        'teacher_diary';
+  locale:         'ko-KR';
+  input: {
+    text: string;
+  };
+  context: {
+    pool_id:      string;
+    class_id:     string;
+    lesson_date:  string;
+    /** V1 하위 호환 유지 — students[].ref 목록과 항상 동일 */
+    student_refs: string[];
+    /** WP1 신규: 학생 ref + 전체 이름 배열 (이름 변형 금지) */
+    students: Array<{
+      ref:  string;
+      name: string;
+    }>;
+  };
+}
+
 // ─── AI Engine Response 타입 ─────────────────────────────────────────────────
 
 /** POST /api/ai/diary/generate 성공 응답
@@ -130,6 +158,70 @@ const AUTO_RETRY_DELAY_MS = 800;
 /** AI Engine Production Base URL — https://swimnote.ai.kr */
 const AI_ENGINE_BASE = process.env.EXPO_PUBLIC_AI_ENGINE_URL ?? 'https://swimnote.ai.kr';
 
+// ─── WP1: Request ID 생성 ─────────────────────────────────────────────────────
+
+/** fallback 카운터 — 모듈 수명 동안 단조 증가 */
+let _diaryReqSeq = 0;
+
+/**
+ * Fallback ID: 시각 + 단조 카운터 + 충분한 난수 조합
+ * crypto.randomUUID() 를 사용할 수 없는 환경에서만 호출됩니다.
+ */
+function _fallbackDiaryRequestId(): string {
+  _diaryReqSeq += 1;
+  const time = Date.now().toString(36);
+  const seq  = _diaryReqSeq.toString(36).padStart(4, '0');
+  const rand = Math.random().toString(36).slice(2, 12);
+  return `diary_${time}_${seq}_${rand}`;
+}
+
+/**
+ * WP1: 사용자 요청마다 고유한 request_id 생성
+ * - Expo SDK 54 + Hermes: globalThis.crypto.randomUUID() 우선 사용
+ * - 미지원 환경: 시각 + 카운터 + 난수 조합 fallback
+ */
+function createDiaryRequestId(): string {
+  if (
+    typeof globalThis.crypto !== 'undefined' &&
+    typeof (globalThis.crypto as Crypto).randomUUID === 'function'
+  ) {
+    return `diary_${(globalThis.crypto as Crypto).randomUUID()}`;
+  }
+  return _fallbackDiaryRequestId();
+}
+
+// ─── WP1: Request 사전 검증 ────────────────────────────────────────────────────
+
+/**
+ * AI 호출 전 최소 필드 검증 (이름·원문 의미 분석 금지)
+ * @returns null = 정상 / string = 오류 메시지
+ */
+function validateDiaryRequest(
+  requestId: string,
+  text:      string,
+  opts:      UseDiaryAIOptions,
+): string | null {
+  if (!requestId)    return '[VALIDATE] request_id가 비어 있습니다.';
+  if (!text.trim())  return '[VALIDATE] input.text가 비어 있습니다.';
+  if (!opts.classId) return '[VALIDATE] class_id가 없습니다.';
+  if (!opts.date)    return '[VALIDATE] lesson_date가 없습니다.';
+
+  const students = opts.students ?? [];
+  if (students.length === 0) return '[VALIDATE] students 배열이 비어 있습니다.';
+
+  for (const s of students) {
+    if (!s.id)   return '[VALIDATE] students[].ref가 없습니다.';
+    if (!s.name) return `[VALIDATE] students[].name이 없습니다. ref=${s.id}`;
+  }
+
+  // pool_id — swimming_pool_id?: string | null (optional). 없으면 경고만.
+  if (!opts.poolId) {
+    console.warn('[VALIDATE] pool_id가 없습니다. swimming_pool_id 미설정 가능성 — 빈값으로 전송합니다.');
+  }
+
+  return null;
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useDiaryAI(options: UseDiaryAIOptions = {}) {
@@ -159,6 +251,13 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
    * [spec] 마지막 AI 요청 ID — 오류 추적·문의·로그 확인에 사용됩니다.
    */
   const lastRequestIdRef = useRef<string | null>(null);
+
+  /**
+   * WP1: 현재 사용자 요청의 request_id
+   * - handleSubmit() 호출마다 새로 생성 (사용자 액션 기준)
+   * - generateDiary() 내부 자동 재시도에서는 동일 값 유지
+   */
+  const currentRequestIdRef = useRef<string>('');
   /**
    * [spec] 마지막 LLM usage — 향후 크레딧 시스템에서 사용 예정.
    * 현재 화면에는 표시하지 않습니다.
@@ -334,6 +433,10 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
 
     console.log('[REWRITE-CALL] handleSubmit() 진입 — state:', machine.state, 'inputText길이:', inputText.length);
 
+    // WP1: 사용자 액션마다 새 request_id 생성 (자동 retry는 생성하지 않음)
+    currentRequestIdRef.current = createDiaryRequestId();
+    console.log('[GENERATE-ID] 새 request_id 생성 — id:', currentRequestIdRef.current);
+
     if (machine.state === 'RESULT' || machine.state === 'EDITING') {
       console.log('[REWRITE-2] RESULT/EDITING → retry(INPUT) 선행');
       rewriteCountRef.current  += 1;
@@ -376,7 +479,11 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
     try {
       const endpoint = `${AI_ENGINE_BASE}/api/ai/diary/generate`;
 
-      const requestBody = {
+      // WP1: Request Body — TeacherDiaryAIRequest V1.0
+      const studentsList = (options.students ?? []).map(s => ({ ref: s.id, name: s.name }));
+
+      const requestBody: TeacherDiaryAIRequest = {
+        request_id:     currentRequestIdRef.current,
         schema_version: '1.0',
         feature:        'teacher_diary',
         locale:         'ko-KR',
@@ -384,18 +491,34 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
           text: inputText.trim(),
         },
         context: {
-          class_id:     options.classId   ?? '',
           pool_id:      options.poolId    ?? '',
+          class_id:     options.classId   ?? '',
           lesson_date:  options.date      ?? '',
-          student_refs: (options.students ?? []).map(s => s.id),
+          student_refs: studentsList.map(s => s.ref),
+          students:     studentsList,
         },
       };
 
-      // [LOG] 실제 Request JSON 전체 — Production 계약 검증용
+      // WP1: 사전 검증 — 학생 이름·원문 의미 분석 없음
+      const validationError = validateDiaryRequest(currentRequestIdRef.current, inputText, options);
+      if (validationError) {
+        console.error('[GENERATE-VALIDATE]', validationError);
+        machine.setError({
+          origin:      'UNKNOWN',
+          message:     '요청 정보가 올바르지 않습니다. 화면을 새로 고침 후 다시 시도해주세요.',
+          retryTarget: 'INPUT',
+        });
+        return;
+      }
+
+      // [LOG] WP1: 개인정보 미포함 구조 확인용 (학생 이름·원문 미출력 — WP3에서 전면 정리)
       console.log('[GENERATE-REQ] endpoint:', endpoint);
-      console.log('[GENERATE-REQ] body:', JSON.stringify(requestBody, null, 2));
-      console.log('[GENERATE-REQ] poolId 확인:', options.poolId ?? '(없음 — pool_id 빈값 전송됨)');
-      console.log('[GENERATE-REQ] student_refs:', (options.students ?? []).map(s => `${s.id}(${s.name})`).join(', ') || '(없음)');
+      console.log('[GENERATE-REQ] request_id:', requestBody.request_id);
+      console.log('[GENERATE-REQ] pool_id:', requestBody.context.pool_id || '(없음 — WP1 경고 확인)');
+      console.log('[GENERATE-REQ] class_id:', requestBody.context.class_id);
+      console.log('[GENERATE-REQ] lesson_date:', requestBody.context.lesson_date);
+      console.log('[GENERATE-REQ] student_count:', studentsList.length);
+      console.log('[GENERATE-REQ] text_length:', requestBody.input.text.length);
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
