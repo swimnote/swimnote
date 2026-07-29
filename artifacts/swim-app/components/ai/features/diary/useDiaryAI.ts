@@ -568,7 +568,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
         // UPLOADING → ERROR (UPLOADING: ['PROCESSING','INPUT','ERROR'] 유효)
         machine.setError({
           origin:      'NETWORK',
-          message:     err?.message ?? '음성 인식에 실패했습니다. 다시 시도해주세요.',
+          message:     '음성 인식에 실패했습니다. 다시 시도해 주세요.',
           retryTarget: 'INPUT',
         });
         return;
@@ -587,7 +587,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
         if (!isMountedRef.current) return;
         machine.setError({
           origin:      'UNKNOWN',
-          message:     '음성이 인식되지 않았습니다. 다시 녹음해주세요.',
+          message:     '음성이 인식되지 않았습니다. 조금 더 크게 다시 말씀해 주세요.',
           retryTarget: 'INPUT',
         });
       }
@@ -611,7 +611,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
         if (__DEV__) console.error('[DIARY-AI] stt_timeout');
         machine.setError({
           origin:      'TIMEOUT',
-          message:     'AI 응답이 지연되고 있습니다. 다시 시도해주세요.',
+          message:     '음성 변환 시간이 초과되었습니다. 다시 시도해 주세요.',
           retryTarget: 'INPUT',
         });
         return;
@@ -620,7 +620,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       if (__DEV__) console.error('[DIARY-AI] stt_error', { error: e?.message });
       machine.setError({
         origin:      'NETWORK',
-        message:     '네트워크 연결을 확인한 후 다시 시도해주세요.',
+        message:     '서버에 연결하지 못했습니다. 인터넷 연결을 확인한 후 다시 시도해 주세요.',
         retryTarget: 'INPUT',
       });
     } finally {
@@ -768,11 +768,20 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
           const reqId = (errorBody as AIEngineError).request_id ?? '?';
           if (__DEV__) console.error('[DIARY-AI] request_failed', { request_id: reqId, code: err?.code, status: response.status });
 
-          if (response.status === 401) {
+          if (response.status === 401 || response.status === 403) {
             machine.setError({
               origin:      'UNKNOWN',
-              message:     '로그인 정보가 만료되었습니다. 다시 로그인해주세요.',
+              message:     '로그인 정보가 만료되었습니다. 다시 로그인해 주세요.',
               retryTarget: null,
+            });
+            return;
+          }
+
+          if (response.status === 429) {
+            machine.setError({
+              origin:      'NETWORK',
+              message:     '요청이 많아 처리가 지연되고 있습니다. 잠시 후 다시 시도해 주세요.',
+              retryTarget: 'INPUT',
             });
             return;
           }
@@ -926,7 +935,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
         if (!isMountedRef.current) return;
         machine.setError({
           origin:      'TIMEOUT',
-          message:     'AI 응답이 지연되고 있습니다. 다시 시도해주세요.',
+          message:     '일지 작성 시간이 초과되었습니다. 다시 시도해 주세요.',
           retryTarget: 'INPUT',
         });
         return;

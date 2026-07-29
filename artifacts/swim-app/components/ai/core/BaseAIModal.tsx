@@ -87,9 +87,9 @@ export default function BaseAIModal({
 
   // ── 마운트 / 언마운트 로그 ───────────────────────────────────────────────
   useEffect(() => {
-    console.log(`[UI-LAYER-MOUNT] BaseAIModal id=${instanceId} title="${title}" visible=${visible}`);
+    if (__DEV__) console.log(`[UI-LAYER-MOUNT] BaseAIModal id=${instanceId} title="${title}" visible=${visible}`);
     return () => {
-      console.log(`[UI-LAYER-UNMOUNT] BaseAIModal id=${instanceId} title="${title}"`);
+      if (__DEV__) console.log(`[UI-LAYER-UNMOUNT] BaseAIModal id=${instanceId} title="${title}"`);
     };
   }, []);
 
@@ -116,7 +116,7 @@ export default function BaseAIModal({
 
   // rendered 변경 추적
   useEffect(() => {
-    console.log(`[UI-LAYER-VISIBLE] BaseAIModal id=${instanceId} rendered=${rendered} nativeVisible=${nativeVisible} (visible prop=${visible})`);
+    if (__DEV__) console.log(`[UI-LAYER-VISIBLE] BaseAIModal id=${instanceId} rendered=${rendered} nativeVisible=${nativeVisible} (visible prop=${visible})`);
   }, [rendered]);
 
   // ── Shared Values ─────────────────────────────────────────────────────────
@@ -126,12 +126,12 @@ export default function BaseAIModal({
   // ── 외부 visible 변경 감지 ────────────────────────────────────────────────
   useEffect(() => {
     if (visible && !rendered) {
-      console.log('[MODAL-EFFECT] visible=true → setRendered(true) + setNativeVisible(true)');
+      if (__DEV__) console.log('[MODAL-EFFECT] visible=true → setRendered(true) + setNativeVisible(true)');
       setRendered(true);
       setNativeVisible(true);
     }
     if (!visible && rendered) {
-      console.log('[MODAL-EFFECT] visible=false → doClose() 호출');
+      if (__DEV__) console.log('[MODAL-EFFECT] visible=false → doClose() 호출');
       doClose();
     }
   }, [visible]);
@@ -145,7 +145,7 @@ export default function BaseAIModal({
 
   useEffect(() => {
     if (!nativeVisible && rendered) {
-      console.log('[MODAL-EFFECT] nativeVisible=false → setRendered(false) + onClose()');
+      if (__DEV__) console.log('[MODAL-EFFECT] nativeVisible=false → setRendered(false) + onClose()');
       setRendered(false);
       onCloseRef.current();
     }
@@ -183,7 +183,7 @@ export default function BaseAIModal({
     })
     .onEnd((e) => {
       if (lockDismiss) {
-        console.log('[BACK-EVENT] panGesture 스와이프 — lockDismiss=true, dismiss 차단');
+        if (__DEV__) console.log('[BACK-EVENT] panGesture 스와이프 — lockDismiss=true, dismiss 차단');
         animateSwipeCancel(translateY, backdropOpacity);
         return;
       }
@@ -191,7 +191,7 @@ export default function BaseAIModal({
         e.translationY > AIThemeGesture.swipeDismissDistance ||
         e.velocityY    > AIThemeGesture.swipeDismissVelocity;
       if (dismissed) {
-        console.log('[BACK-EVENT] panGesture 스와이프 dismiss — translationY:', e.translationY, 'velocityY:', e.velocityY);
+        if (__DEV__) console.log('[BACK-EVENT] panGesture 스와이프 dismiss');
         // panGesture.onEnd는 worklet 컨텍스트 — non-worklet 함수는 runOnJS로 호출
         runOnJS(doClose)();
       } else {
@@ -225,7 +225,7 @@ export default function BaseAIModal({
       transparent
       statusBarTranslucent
       onRequestClose={() => {
-        console.log('[BACK-EVENT] onRequestClose 수신 (iOS 하드웨어 back / 시스템 닫기)');
+        if (__DEV__) console.log('[BACK-EVENT] onRequestClose 수신');
         doClose();
       }}
     >
@@ -242,10 +242,8 @@ export default function BaseAIModal({
           style={StyleSheet.absoluteFill}
           onPress={() => {
             if (lockDismiss) {
-              console.log('[BACK-EVENT] 백드롭 탭 — lockDismiss=true, dismiss 차단');
               return;
             }
-            console.log('[BACK-EVENT] 백드롭 탭 — doClose() 호출');
             doClose();
           }}
         />

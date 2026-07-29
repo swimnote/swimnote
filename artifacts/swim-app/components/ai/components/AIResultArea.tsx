@@ -58,7 +58,6 @@ export default function AIResultArea({ result, state, onChangeText }: AIResultAr
   const charIndex   = useSharedValue(0);
   const [displayed, setDisplayed] = useState('');
 
-  console.log(`[RESULT-RENDER] state=${state} visible=${visible} result.length=${result.length} displayed.length=${displayed.length}`);
 
   // JS 쪽 텍스트 업데이트 (runOnJS 대상 — 배치 처리)
   const updateDisplayed = useCallback((n: number) => {
@@ -85,7 +84,6 @@ export default function AIResultArea({ result, state, onChangeText }: AIResultAr
   // 결과 텍스트가 바뀌거나 visible 전환 시 타이핑 시작
   // Stage D: CRASH_TEST_DISABLE_ANIMATION=true 이면 즉시 표시 (animation 없음)
   useEffect(() => {
-    console.log(`[RESULT-EFFECT-1] visible=${visible} result길이=${result.length}`);
     if (visible && result) {
       if (reducedMotion || CRASH_TEST_DISABLE_ANIMATION) {
         charIndex.value = result.length;
@@ -100,7 +98,6 @@ export default function AIResultArea({ result, state, onChangeText }: AIResultAr
       setDisplayed('');
     }
     return () => {
-      console.log('[RESULT-CLEANUP-1] charIndex cancelAnimation');
       cancelAnimation(charIndex);
     };
   }, [result, visible, reducedMotion]);
@@ -110,7 +107,6 @@ export default function AIResultArea({ result, state, onChangeText }: AIResultAr
   const cardOpacity    = useSharedValue(0);
 
   useEffect(() => {
-    console.log(`[RESULT-EFFECT-2] visible=${visible}`);
     if (visible) {
       animateCardEnter(cardTranslateY, cardOpacity, reducedMotion);
     } else {
@@ -118,7 +114,6 @@ export default function AIResultArea({ result, state, onChangeText }: AIResultAr
       cardOpacity.value    = 0;
     }
     return () => {
-      console.log('[RESULT-CLEANUP-2] cardTranslateY/cardOpacity cancelAnimation');
       cancelAnimation(cardTranslateY);
       cancelAnimation(cardOpacity);
     };

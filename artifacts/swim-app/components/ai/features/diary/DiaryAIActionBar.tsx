@@ -78,7 +78,7 @@ function getActionConfig(
         secondaryLabel:  '다시 생성',
         onPrimary:       onInsert,
         onSecondary:     () => {
-          console.log('[REWRITE-CALL] DiaryAIActionBar "다시 작성" → onSubmit(handleSubmit) 호출');
+          if (__DEV__) console.log('[REWRITE-CALL] DiaryAIActionBar "다시 작성" → onSubmit 호출');
           onSubmit();
         },
         primaryDisabled: false,

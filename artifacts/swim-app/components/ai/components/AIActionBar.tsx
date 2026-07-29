@@ -31,7 +31,7 @@ export default function AIActionBar({
         <Pressable
           style={styles.secondaryButton}
           onPress={() => {
-            console.log('[REWRITE CLICK] Pressable touched — label:', secondaryLabel, 'state:', state);
+            if (__DEV__) console.log('[REWRITE CLICK] Pressable touched — state:', state);
             onSecondary();
           }}
           // TODO: Press 애니메이션
@@ -48,7 +48,7 @@ export default function AIActionBar({
           !onSecondary && styles.primaryButtonFull,
         ]}
         onPress={() => {
-          console.log('[INSERT CLICK] Pressable touched — label:', primaryLabel, 'state:', state, 'disabled:', primaryDisabled);
+          if (__DEV__) console.log('[INSERT CLICK] Pressable touched — state:', state, 'disabled:', primaryDisabled);
           onPrimary?.();
         }}
         disabled={primaryDisabled}

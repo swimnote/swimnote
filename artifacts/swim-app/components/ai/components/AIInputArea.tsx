@@ -84,10 +84,9 @@ export default function AIInputArea({
     // RECORDING일 때도 "녹음 중단" 버튼이 보여야 하므로 isActive(INPUT/RECORDING/EDITING) → 56
     const toVoiceH  = isActive ? 56 : 0;
 
-    console.log(
+    if (__DEV__) console.log(
       `[AIInputArea] state=${state} isRecording=${isRecording} isActive=${isActive}` +
-      ` → toWave=${toWave} toOpacity=${toOpacity} toVoiceH=${toVoiceH}` +
-      ` (voiceRowHeight.cur=${voiceRowHeight.value})`,
+      ` → toWave=${toWave} toOpacity=${toOpacity} toVoiceH=${toVoiceH}`,
     );
 
     if (reducedMotion) {

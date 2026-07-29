@@ -47,7 +47,7 @@ export default function AIPermissionView({ types, onClose }: AIPermissionViewPro
       // 카메라/사진 라이브러리 권한은 향후 추가
       grantPermission();
     } catch (e: any) {
-      console.error('[AIPermissionView] 권한 요청 오류:', e?.message ?? e);
+      if (__DEV__) console.error('[AIPermissionView] 권한 요청 오류:', e?.message ?? e);
       setError({
         origin:      'PERMISSION',
         message:     '권한 요청 중 오류가 발생했습니다.',

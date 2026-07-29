@@ -110,15 +110,15 @@ export function useVoiceRecorder(): VoiceRecorderResult {
   const startRecording = useCallback(async (): Promise<'ok' | 'permission_denied' | 'error'> => {
     // ① 중복 호출 방지 — 이미 녹음 중이면 무시
     if (recordingRef.current) {
-      console.warn('[VoiceRecorder] startRecording: 이미 녹음 중 — 무시');
+      if (__DEV__) console.warn('[VoiceRecorder] startRecording: 이미 녹음 중 — 무시');
       return 'error';
     }
 
     try {
-      console.log('[VoiceRecorder] 권한 요청');
+      if (__DEV__) console.log('[VoiceRecorder] 권한 요청');
       const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) {
-        console.log('[VoiceRecorder] 권한 거부 — permission_denied');
+        if (__DEV__) console.log('[VoiceRecorder] 권한 거부 — permission_denied');
         return 'permission_denied';
       }
 
@@ -130,7 +130,7 @@ export function useVoiceRecorder(): VoiceRecorderResult {
         playsInSilentModeIOS: true,
       });
 
-      console.log('[VoiceRecorder] 녹음 시작 (m4a 포맷)');
+      if (__DEV__) console.log('[VoiceRecorder] 녹음 시작 (m4a 포맷)');
       const { recording } = await Audio.Recording.createAsync(WHISPER_RECORDING_OPTIONS);
 
       // 언마운트 확인 (createAsync 대기 중 언마운트 가능)
@@ -147,22 +147,22 @@ export function useVoiceRecorder(): VoiceRecorderResult {
       maxTimerRef.current = setTimeout(async () => {
         const rec = recordingRef.current;
         if (!rec) return;
-        console.log('[VoiceRecorder] 최대 녹음 시간(120s) 도달 — 자동 중지');
+        if (__DEV__) console.log('[VoiceRecorder] 최대 녹음 시간(120s) 도달 — 자동 중지');
         recordingRef.current = null;
         if (timerRef.current)    { clearInterval(timerRef.current); timerRef.current = null; }
         if (isMountedRef.current) { setIsRecording(false); setDurationMs(0); }
         try {
           await rec.stopAndUnloadAsync();
           await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-          console.log('[VoiceRecorder] 자동 중지 완료 — URI:', rec.getURI());
+          if (__DEV__) console.log('[VoiceRecorder] 자동 중지 완료');
         } catch (e: any) {
-          console.error('[VoiceRecorder] 자동 중지 오류:', e?.message ?? e);
+          if (__DEV__) console.error('[VoiceRecorder] 자동 중지 오류:', e?.message ?? e);
         }
       }, MAX_RECORDING_MS);
 
       return 'ok';
     } catch (e: any) {
-      console.error('[VoiceRecorder] startRecording 오류:', e?.message ?? e);
+      if (__DEV__) console.error('[VoiceRecorder] startRecording 오류:', e?.message ?? e);
       if (isMountedRef.current) setIsRecording(false);
       return 'error';
     }
@@ -172,7 +172,7 @@ export function useVoiceRecorder(): VoiceRecorderResult {
   const stopRecording = useCallback(async (): Promise<string | null> => {
     const rec = recordingRef.current;
     if (!rec) {
-      console.warn('[VoiceRecorder] stopRecording: recording 없음');
+      if (__DEV__) console.warn('[VoiceRecorder] stopRecording: recording 없음');
       return null;
     }
 
@@ -186,10 +186,10 @@ export function useVoiceRecorder(): VoiceRecorderResult {
       await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
 
       const uri = rec.getURI();
-      console.log('[VoiceRecorder] 녹음 완료 — URI:', uri);
+      if (__DEV__) console.log('[VoiceRecorder] 녹음 완료');
       return uri ?? null;
     } catch (e: any) {
-      console.error('[VoiceRecorder] stopRecording 오류:', e?.message ?? e);
+      if (__DEV__) console.error('[VoiceRecorder] stopRecording 오류:', e?.message ?? e);
       return null;
     }
   }, [stopTimer]);
@@ -198,9 +198,9 @@ export function useVoiceRecorder(): VoiceRecorderResult {
   const deleteRecording = useCallback(async (uri: string): Promise<void> => {
     try {
       await FileSystem.deleteAsync(uri, { idempotent: true });
-      console.log('[VoiceRecorder] 임시 파일 삭제 완료:', uri);
+      if (__DEV__) console.log('[VoiceRecorder] 임시 파일 삭제 완료');
     } catch (e: any) {
-      console.warn('[VoiceRecorder] 임시 파일 삭제 실패 (무시):', e?.message ?? e);
+      if (__DEV__) console.warn('[VoiceRecorder] 임시 파일 삭제 실패 (무시):', e?.message ?? e);
     }
   }, []);
 
