@@ -55,12 +55,14 @@ Replit 환경에서 `eas update`는 bash tool 120초 제한 때문에 직접 완
 - 명시 안 하면 "platform not found in metadata.json" 오류 발생
 - iOS와 Android를 **별도로 export** 해야 함 (`--platform all`로 생성해도 iOS 배포 후 Android 배포 시 metadata가 ios만으로 업데이트될 수 있음) → iOS용 dir / Android용 dir 분리 권장
 
-## 배포 원칙 (비용 절감)
+## 배포 원칙 (WP 테스트 중)
 
-- **iOS production 채널만** 배포 (사용자 명시 지시)
-- preview 채널 별도 배포 금지 — eas.json preview 프로필이 channel:production이라 동일 번들 수신
-- Android 배포 금지 — iOS 검증 후 사용자가 명시적으로 요청할 때만
+- **iOS preview 채널만** 배포 (사용자 명시 지시)
+- production 채널 배포는 사용자 명시 승인 후에만
+- Android 배포 금지 — 사용자가 명시적으로 요청할 때만
+- preview 배포 후 사용자 검증 → 이상 없으면 production 별도 진행
 - 두 플랫폼 동시 export 시 Metro OOM → 순차 실행 원칙은 유지
+- eas.json preview 프로필 channel: "production" → 설치된 앱은 production OTA만 수신. preview 배포는 실기기 확인 불가. 실기기 확인이 필요하면 사용자가 production 배포 명시 승인.
 
 ## OTA 앱 적용
 
