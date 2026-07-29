@@ -7,8 +7,8 @@
  * 사용: <BaseAIModal content={<DiaryAIContent onInsert={...} onClose={...} />} />
  */
 
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useCallback } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAIContext } from '../../core/AIContext';
 import AIErrorView from '../../components/AIErrorView';
@@ -140,6 +140,23 @@ export default function DiaryAIContent({
     onLockChange,
   });
 
+  // [WP12] §2-B: INPUT 상태에서 입력 내용이 있을 때 닫기 확인
+  const handleClose = useCallback(() => {
+    const hasDirtyInput = state === 'INPUT' && inputText.trim().length > 0;
+    if (!hasDirtyInput) {
+      onClose();
+      return;
+    }
+    Alert.alert(
+      '작성 내용이 있습니다',
+      '화면을 닫으면 입력한 내용이 사라집니다.',
+      [
+        { text: '계속 작성', style: 'cancel' },
+        { text: '닫기', style: 'destructive', onPress: onClose },
+      ],
+    );
+  }, [state, inputText, onClose]);
+
   // ── 레이아웃 모드 판단 ─────────────────────────────────────────────────────
   const showInput   = ['INPUT', 'RECORDING'].includes(state);
   const showSummary = ['RESULT', 'EDITING', 'COMPLETE'].includes(state);
@@ -229,7 +246,7 @@ export default function DiaryAIContent({
           insertDone={insertDone}
           onSubmit={handleSubmit}
           onInsert={handleInsert}
-          onClose={onClose}
+          onClose={handleClose}
         />
       </View>
     </View>

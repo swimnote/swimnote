@@ -225,6 +225,11 @@ export default function BaseAIModal({
       transparent
       statusBarTranslucent
       onRequestClose={() => {
+        // [WP12] Android Back Button — lockDismiss=true 구간에서 차단
+        if (lockDismiss) {
+          if (__DEV__) console.log('[BACK-EVENT] onRequestClose — lockDismiss=true, dismiss 차단');
+          return;
+        }
         if (__DEV__) console.log('[BACK-EVENT] onRequestClose 수신');
         doClose();
       }}
