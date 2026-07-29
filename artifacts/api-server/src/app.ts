@@ -227,13 +227,14 @@ app.get(["/report", "/api/report"], (_req: Request, res: Response) => {
 
 
 // ── /audit — AI 작업지시·완료보고 감사 문서 ─────────────────────────────
-app.get("/audit", (_req: Request, res: Response) => {
+app.get(["/audit", "/api/audit"], (_req: Request, res: Response) => {
   const mdPath = path.join(__dirname, "../../../swimnote_AI_작업지시_완료보고_전체내역.md");
   if (!fs.existsSync(mdPath)) {
     res.status(404).send("감사 문서를 찾을 수 없습니다.");
     return;
   }
-  const md = fs.readFileSync(mdPath, "utf-8").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const md = fs.readFileSync(mdPath, "utf-8");
+  const mdJson = JSON.stringify(md);
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(`<!DOCTYPE html>
 <html lang="ko">
@@ -279,7 +280,7 @@ app.get("/audit", (_req: Request, res: Response) => {
 <div id="toc"><p>📋 목차</p></div>
 <div id="content"></div>
 <script>
-const raw = \`${md}\`;
+const raw = ${mdJson};
 document.getElementById('content').innerHTML = marked.parse(raw);
 
 // 목차 자동 생성
