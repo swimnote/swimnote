@@ -1,0 +1,745 @@
+SWIMNOTE Teacher Diary AI
+WP1~WP6 독립 코드 감사(AUDIT) 실행 지시서
+
+중요:
+
+이번 작업은 기능 추가 작업이 아니다.
+
+기존 WP1~WP6 보고가 실제 Git·현재 코드·실행 구조와 일치하는지 검증하는 감사 작업이다.
+
+기존 보고서를 증거로 사용하지 않는다.
+
+반드시 아래를 직접 확인한다.
+
+- Git commit
+- Git diff
+- 현재 파일
+- 실제 함수
+- 실제 호출 경로
+- 실제 OTA 기록
+- 실제 수행한 테스트
+
+추측 금지.
+
+확인하지 못한 내용은 반드시 “미확인”이라고 보고한다.
+
+허위·과장·모호한 보고가 하나라도 발견되면 즉시 명시한다.
+
+작업 중 코드 수정 금지.
+
+감사가 끝날 때까지 commit, push, OTA, EAS Build, production 배포를 절대 수행하지 않는다.
+
+──────────────────────────────────
+0. 감사 시작 전 Git 상태
+──────────────────────────────────
+
+다음 명령의 실제 출력을 제출한다.
+
+git status
+git branch --show-current
+git rev-parse HEAD
+git branch -vv
+git log --oneline --decorate -20
+
+다음을 명확히 구분한다.
+
+- 현재 HEAD
+- 마지막 의미 있는 코드 커밋
+- 문서·첨부파일만 추가한 자동 커밋
+- untracked 파일
+- 로컬 전용 커밋
+- 원격에 push된 커밋
+
+──────────────────────────────────
+1. 감사 대상 커밋 검증
+──────────────────────────────────
+
+최소 다음 커밋을 직접 검증한다.
+
+38002b9
+4794485
+9e47b3a
+0b31494
+eb4a09a
+
+각 커밋마다 실제로 실행한다.
+
+git show --stat --oneline <commit>
+git show --format=fuller --name-status <commit>
+git show <commit>
+
+각 커밋에 대해 표로 보고한다.
+
+- 커밋 해시
+- 커밋 메시지
+- 작성 시각
+- 수정 파일
+- 추가 라인
+- 삭제 라인
+- 실제 변경 내용
+- 해당 WP 보고서 내용과 일치 여부
+- TRUE / PARTIAL / FALSE
+- 불일치 근거
+
+보고서의 설명을 복사하지 말고 실제 diff를 기준으로 작성한다.
+
+──────────────────────────────────
+2. 현재 코드 존재 여부 검증
+──────────────────────────────────
+
+다음 파일과 구현이 현재 HEAD에 실제로 존재하는지 확인한다.
+
+WP1
+
+- BaseAIModal
+- nativeVisible
+- rendered
+- 2-phase close
+- doClose
+- cancel
+- backdrop close
+- swipe close
+- Android back close
+
+WP2
+
+- useVoiceRecorder
+- microphone permission
+- startRecording
+- stopRecording
+- getURI
+- isMountedRef
+- duplicate recording guard
+- 120초 제한
+- app.json의 NSMicrophoneUsageDescription
+- expo-av plugin 설정
+
+WP3
+
+- processVoice
+- machine.startUpload()
+- Whisper FormData
+- audio 필드
+- Authorization Bearer
+- 60초 timeout
+- AbortController
+- 빈 transcript 오류
+- UPLOADING 메시지
+
+WP4
+
+- createDiaryRequestId
+- validateDiaryRequest
+- generateDiary
+- TeacherDiaryAIRequest
+- normalizeDiaryResponse
+- request_id 검증
+- stale response 차단
+- generatedStudentsRef
+- resultText
+- generatedStudents
+
+WP5
+
+- AIResultArea
+- Common Draft TextInput
+- onChangeText
+- setResultText
+- Student Draft TextInput
+- student_ref 기반 매칭
+- unknown student_ref 정책
+- duplicate student_ref 정책
+- legacy student_id
+- legacy feedback
+
+WP6
+
+- handleInsert
+- hasContent 조건
+- commonDiary
+- generatedStudents
+- onInsert
+- handleAIInsert
+- setCommonContent
+- setStudentNotes
+- handleSave
+- 기존 POST /diaries 저장 경로
+- AI 전용 Save API 부재
+
+각 항목마다 다음을 보고한다.
+
+- 파일 경로
+- 실제 함수명 또는 변수명
+- 현재 줄번호
+- 핵심 코드 일부
+- 존재 여부
+- 보고서 일치 여부
+
+“파일에 있음”만 쓰지 않는다.
+
+실제 코드 구조가 무엇인지 설명한다.
+
+──────────────────────────────────
+3. 실제 전체 호출 경로 감사
+──────────────────────────────────
+
+현재 HEAD의 실제 코드만 기준으로 다음 전체 호출 경로를 작성한다.
+
+Teacher Diary AI 버튼
+
+↓
+
+모달 열기
+
+↓
+
+텍스트 입력 또는 음성 녹음
+
+↓
+
+Whisper 업로드
+
+↓
+
+Transcript 반영
+
+↓
+
+Generate
+
+↓
+
+Request Contract 생성
+
+↓
+
+POST /api/ai/diary/generate
+
+↓
+
+서버 인증
+
+↓
+
+AI Engine 응답
+
+↓
+
+normalizeDiaryResponse
+
+↓
+
+Common Draft
+
+↓
+
+Student Draft
+
+↓
+
+Teacher Review
+
+↓
+
+Insert
+
+↓
+
+Teacher Diary State
+
+↓
+
+기존 Save 버튼
+
+↓
+
+POST /diaries
+
+↓
+
+DB 저장 요청
+
+각 단계에 반드시 실제 정보를 붙인다.
+
+- 파일
+- 함수
+- 다음 함수로 전달되는 값
+- state 또는 ref
+- API endpoint
+- 자동 처리인지 사용자 동작인지
+
+추정으로 연결하지 않는다.
+
+코드상 끊긴 경로가 있으면 반드시 “연결 끊김”으로 보고한다.
+
+──────────────────────────────────
+4. Request Contract 실제 검증
+──────────────────────────────────
+
+현재 앱 코드가 실제로 생성하는 JSON 구조를 그대로 재구성한다.
+
+반드시 확인한다.
+
+request_id
+schema_version
+feature
+locale
+input.text
+context.pool_id
+context.class_id
+context.lesson_date
+student_refs
+students[].ref
+students[].name
+
+다음을 조사한다.
+
+- organization_ref 포함 여부
+- lesson_ref 포함 여부
+- student_id를 request에 쓰는지
+- 빈 pool_id 허용 여부
+- 빈 class_id 허용 여부
+- 빈 date 허용 여부
+- 학생 0명 허용 여부
+- Authorization 헤더
+- Content-Type
+- endpoint
+
+서버가 실제로 요구하는 계약과 앱 계약이 일치하는지 직접 비교한다.
+
+──────────────────────────────────
+5. Response Contract 실제 검증
+──────────────────────────────────
+
+현재 normalizeDiaryResponse가 실제로 처리하는 구조를 검증한다.
+
+확인 대상
+
+result.common
+result.students
+student_ref
+student_id fallback
+content
+feedback fallback
+request_id
+unknown student_ref
+duplicate student_ref
+missing student_ref
+missing content
+빈 common
+빈 students
+partial response
+invalid JSON
+legacy response without request_id
+
+각 조건에 대해
+
+- 허용
+- 부분 허용
+- 전체 거부
+- 오류 코드
+- 사용자 UI 동작
+
+을 실제 코드 기준으로 보고한다.
+
+──────────────────────────────────
+6. 상태 머신 감사
+──────────────────────────────────
+
+AIStateMachine의 실제 전환 맵을 제출한다.
+
+최소 상태
+
+IDLE 또는 초기 상태
+INPUT
+RECORDING
+UPLOADING
+PROCESSING
+RESULT
+ERROR
+COMPLETE
+
+각 상태에서 가능한 다음 상태를 실제 코드 기준으로 작성한다.
+
+다음 호출이 실제로 유효한지 검증한다.
+
+- startRecording
+- stopRecording
+- startUpload
+- submit
+- receiveResult
+- setError
+- retry
+- complete
+- reset
+
+보고서에서 사용한 상태명과 실제 코드 상태명이 다르면 반드시 지적한다.
+
+불가능한 전환을 보고서에서 가능하다고 적은 기록이 있으면 허위 또는 오류로 분류한다.
+
+──────────────────────────────────
+7. Draft 편집·Insert·Save 감사
+──────────────────────────────────
+
+다음 값을 추적한다.
+
+- inputText
+- resultText
+- generatedStudents
+- generatedStudentsRef
+- commonContent
+- studentNotes
+
+각 값이
+
+- 어디에서 생성되는지
+- 어디에서 수정되는지
+- 어디로 전달되는지
+- 언제 초기화되는지
+- Save payload에 어떻게 반영되는지
+
+확인한다.
+
+특히 다음을 직접 검증한다.
+
+1. Common Draft 수정값이 실제 Insert에 사용되는가
+2. Student Draft 수정값이 실제 Insert에 사용되는가
+3. student_ref가 student_id로 안전하게 연결되는가
+4. 이름 기준 매칭 코드가 없는가
+5. Insert가 자동 Save를 호출하지 않는가
+6. AI가 직접 /diaries를 호출하지 않는가
+7. 기존 Save 버튼만 POST /diaries를 호출하는가
+8. Common만 존재할 때 Insert 가능한가
+9. Student만 존재할 때 Insert 가능한가
+10. 둘 다 비었을 때 Insert가 어떻게 되는가
+11. 기존 학생 메모가 유지되는가
+12. 동일 학생 메모는 덮어쓰는가
+13. Common 기존 내용은 교체인지 병합인지
+
+──────────────────────────────────
+8. Git 범위 외 변경 감사
+──────────────────────────────────
+
+기준 브랜치가 명확히 존재한다면 다음을 실행한다.
+
+git diff --stat <production-or-last-known-good>..HEAD
+git diff --name-status <production-or-last-known-good>..HEAD
+
+production 브랜치 이름이 불명확하면 추측하지 말고 실제 브랜치 목록을 조사한다.
+
+git branch -a
+git remote -v
+
+AI 작업과 무관한 변경을 분류한다.
+
+- Parent
+- Admin
+- Auth
+- Router
+- Photos
+- Attendance
+- Album
+- Messages
+- Subscription
+- Database schema
+- Deployment config
+- app.json
+- package files
+
+각 변경에 대해
+
+- 의도된 변경
+- 자동 생성 파일
+- 문서 파일
+- 예상하지 못한 변경
+- 위험 변경
+
+으로 분류한다.
+
+──────────────────────────────────
+9. 네이티브 설정 감사
+──────────────────────────────────
+
+app.json 또는 app.config 파일을 실제 확인한다.
+
+확인
+
+- NSMicrophoneUsageDescription
+- expo-av plugin
+- iOS 권한 설정
+- Android RECORD_AUDIO 권한
+- EAS Build가 필요한 변경인지
+- OTA로 반영 가능한 변경인지
+- 현재 설치된 Preview 바이너리에 해당 설정이 포함됐는지 확인 가능한 증거가 있는지
+
+증거가 없으면 “현재 바이너리 포함 여부 미확인”이라고 적는다.
+
+“새 바이너리 필요”와 “현재 바이너리에서 작동 불가”를 동일하게 쓰지 않는다.
+
+현재 바이너리에 이미 포함되어 있을 가능성이 있으면 코드만으로 단정하지 않는다.
+
+──────────────────────────────────
+10. OTA 감사
+──────────────────────────────────
+
+WP별 보고된 Update ID를 실제 EAS CLI 또는 프로젝트 기록에서 확인한다.
+
+최소 확인 대상
+
+019fad75 계열 WP2
+019fadd9-626f-74aa-8ef8-35a6284ba616
+019fadf1-9039-7fd5-89d5-0bb5c235a89c
+019fadfe-2106-78fb-a8d5-b9f513c39544
+
+가능한 실제 명령을 사용한다.
+
+예:
+
+eas update:list
+eas update:view <update-id>
+
+각 Update ID에 대해
+
+- 존재 여부
+- 채널
+- 브랜치
+- 플랫폼
+- commit
+- 생성 시각
+- 메시지
+- 변경 내용과 보고 일치 여부
+
+를 확인한다.
+
+EAS 인증이나 네트워크 문제로 확인할 수 없으면 “미확인”으로 보고한다.
+
+보고서에 ID가 있다는 이유만으로 실제 OTA로 인정하지 않는다.
+
+──────────────────────────────────
+11. 테스트 수행 여부 감사
+──────────────────────────────────
+
+WP1~WP6 보고서에서 테스트 관련 문장을 모두 분류한다.
+
+분류
+
+A. 실제 실기기에서 수행
+B. Expo Preview에서 수행
+C. 정적 코드 검토
+D. TypeScript 검사
+E. OTA 배포만 수행
+F. 수행 가능하다고만 설명
+G. 미수행
+H. 증거 없음
+
+특히 다음을 검증한다.
+
+- WP1 실기기 모달 검증
+- WP2 실제 녹음
+- WP3 실제 Whisper 업로드
+- WP4 실제 Generate
+- WP5 실제 Draft 편집
+- WP6 실제 Insert
+- WP6 실제 Save
+- DB 저장 확인
+
+“가능”을 “완료”로 분류하지 않는다.
+
+“코드상 확인”을 “실행 테스트”로 분류하지 않는다.
+
+──────────────────────────────────
+12. 허위·과장·모호한 보고 감사
+──────────────────────────────────
+
+다음 유형을 모두 찾는다.
+
+- 실제 코드가 없는데 있다고 보고
+- 다른 브랜치 코드인데 현재 코드라고 보고
+- 커밋에 없는 변경을 했다고 보고
+- 테스트하지 않았는데 통과라고 보고
+- OTA 존재를 확인하지 않고 완료라고 보고
+- Preview 배포와 실기기 검증을 혼동
+- TypeScript 일부 파일 검사와 전체 프로젝트 통과를 혼동
+- 정적 호출 경로 검토와 실제 API 성공을 혼동
+- Save 코드 존재와 실제 DB 저장 성공을 혼동
+- EAS Build 필요성을 근거 없이 단정
+- “회귀 없음”을 실행 없이 단정
+- “앱 크래시 없음”을 실행 없이 단정
+
+각 문제마다 다음 형식으로 작성한다.
+
+WP 번호:
+원래 보고:
+실제 확인:
+판정:
+- TRUE
+- PARTIAL
+- FALSE
+- MISLEADING
+- UNVERIFIED
+
+근거:
+수정된 정확한 표현:
+
+사소해 보여도 숨기지 않는다.
+
+──────────────────────────────────
+13. TypeScript 감사
+──────────────────────────────────
+
+실제로 실행한 명령을 제출한다.
+
+예:
+
+npx tsc --noEmit
+
+프로젝트 구조상 별도 명령이면 실제 명령을 적는다.
+
+다음을 구분한다.
+
+- 전체 프로젝트 검사 결과
+- 수정 파일만 검사한 결과
+- 기존 오류
+- 새 오류
+- 실행하지 못한 검사
+
+“수정 파일 에러 없음”을 “TypeScript 전체 통과”로 쓰지 않는다.
+
+──────────────────────────────────
+14. 개인정보·보안 감사
+──────────────────────────────────
+
+실제 코드에서 다음 로그를 검색한다.
+
+grep 또는 ripgrep 등을 사용한다.
+
+검색 대상
+
+console.log
+console.warn
+console.error
+Authorization
+Bearer
+transcript
+studentName
+student_ref
+student_id
+commonContent
+resultText
+generatedStudents
+effectiveNotes
+JWT
+token
+OPENAI_API_KEY
+sk-
+
+다음을 보고한다.
+
+- 파일
+- 줄번호
+- 로그 내용
+- production 실행 여부
+- 개인정보 포함 여부
+- 위험도
+- 수정 필요 여부
+
+이번 감사 중에는 수정하지 않는다.
+
+특히 AIResultArea와 handleSave의 production console.log 존재 여부를 확인한다.
+
+──────────────────────────────────
+15. 최종 판정표
+──────────────────────────────────
+
+아래 표를 반드시 제출한다.
+
+| WP | 실제 코드 | Git 증거 | OTA 증거 | 정적 검증 | 실기기 검증 | 허위/과장 | 최종 판정 |
+|----|-----------|----------|----------|-----------|--------------|-----------|-----------|
+| WP1 | PASS/FAIL | PASS/FAIL | PASS/FAIL/NA | PASS/FAIL | PASS/FAIL/UNVERIFIED | 없음/있음 | 완료/조건부/실패 |
+| WP2 | ... |
+| WP3 | ... |
+| WP4 | ... |
+| WP5 | ... |
+| WP6 | ... |
+
+최종 판정은 다음 중 하나만 사용한다.
+
+- 실제 완료
+- 코드 완료 / 실기기 미검증
+- 부분 완료
+- 보고 오류 있음
+- 허위보고 확인
+- 구현 실패
+- 확인 불가
+
+──────────────────────────────────
+16. 감사 최종 보고 형식
+──────────────────────────────────
+
+다음 순서 그대로 보고한다.
+
+1. 감사 시작 Git 상태
+2. 감사 기준 브랜치와 기준 커밋
+3. WP별 커밋 검증
+4. 현재 파일 존재 검증
+5. 실제 전체 호출 경로
+6. Request Contract
+7. Response Contract
+8. State Machine
+9. Draft·Insert·Save 데이터 흐름
+10. AI 외 변경 파일
+11. 네이티브 설정
+12. OTA 실제 확인
+13. TypeScript 실제 결과
+14. 개인정보·보안 로그
+15. 실제 수행 테스트
+16. 미수행 테스트
+17. 허위·과장·모호한 보고 목록
+18. WP별 최종 판정표
+19. 수정이 필요한 문제 목록
+20. 다음 작업 전 필수 조치
+21. 감사 결론
+
+──────────────────────────────────
+17. 감사 작업 금지사항
+──────────────────────────────────
+
+감사 중 절대 하지 않는다.
+
+- 코드 수정
+- 파일 삭제
+- 리팩터링
+- commit
+- push
+- preview OTA
+- production OTA
+- EAS Build
+- DB migration
+- dependency 변경
+- package 설치
+- 브랜치 병합
+- production 브랜치 checkout 후 수정
+
+문제를 발견해도 수정하지 말고 증거와 함께 보고만 한다.
+
+──────────────────────────────────
+18. 최우선 원칙
+──────────────────────────────────
+
+이번 감사의 목적은 좋은 평가를 만드는 것이 아니다.
+
+실제 상태를 밝히는 것이다.
+
+기존 보고가 맞으면 맞다고 증명한다.
+
+기존 보고가 틀리면 틀렸다고 보고한다.
+
+코드가 존재해도 실행하지 않았다면 “실기기 미검증”이다.
+
+호출 경로가 있어도 서버 성공 응답을 받지 않았다면 “E2E 미검증”이다.
+
+Save 함수가 있어도 실제 DB 저장을 확인하지 않았다면 “DB 저장 미검증”이다.
+
+확인하지 못한 것은 반드시 “미확인”이라고 쓴다.
+
+감사 완료 후 반드시 멈추고 사용자 승인을 기다린다.
