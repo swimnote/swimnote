@@ -476,7 +476,7 @@ export default function TeacherDiaryScreen() {
         if (__DEV__) console.log(`[handleSave] Step1 - POST /diaries START`);
         const r = await apiRequest(token, "/diaries", {
           method: "POST",
-          body: JSON.stringify({ class_group_id: selectedGroup!.id, lesson_date: targetDate, common_content: commonContent.trim(), student_notes: effectiveNotes.map(n => ({ student_id: n.student_id, note_content: n.note_content })) }),
+          body: JSON.stringify({ class_group_id: selectedGroup!.id, lesson_date: targetDate, common_content: commonContent.trim(), student_notes: effectiveNotes.map(n => ({ student_id: n.student_id, note_content: n.note_content.trim() })) }),
         });
         const data = await r.json();
         if (__DEV__) console.log(`[handleSave] Step1 - POST /diaries response ok=${r.ok} status=${r.status}`);
