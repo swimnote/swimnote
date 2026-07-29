@@ -127,18 +127,11 @@ export default function BaseAIModal({
 
   // ── 닫기 애니메이션 → 실제 onClose 호출 ──────────────────────────────────
   const doClose = useCallback(() => {
-    // ── 비교 실험: animateModalClose 우회 — 즉시 닫기 ──────────────────────
-    // 목적: 모달 슬라이드 닫기 애니메이션이 크래시 원인인지 격리
-    // 복원: 실험 완료 후 아래 블록 제거, 원래 코드 복원
-    console.log('[MODAL-CLOSE-CALL] doClose() 진입');
-    console.log('[MODAL-BYPASS-1] 즉시 닫기 시작');
-    cancelAnimation(translateY);
-    cancelAnimation(backdropOpacity);
-    console.log('[MODAL-BYPASS-2] setRendered false 호출');
-    setRendered(false);
-    onClose();
-    console.log('[MODAL-BYPASS-3] onClose 호출 완료');
-  }, [onClose]);
+    animateModalClose(translateY, backdropOpacity, SCREEN_HEIGHT, reducedMotion, () => {
+      setRendered(false);
+      onClose();
+    });
+  }, [onClose, reducedMotion]);
 
   // ── Swipe Down 제스처 (핸들 영역만 — ScrollView 충돌 없음) ───────────────
   // [원칙 1·5] lockDismiss=true 구간에서는 스와이프 dismiss 차단
