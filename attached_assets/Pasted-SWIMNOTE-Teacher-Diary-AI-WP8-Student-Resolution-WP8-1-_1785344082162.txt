@@ -1,0 +1,354 @@
+SWIMNOTE Teacher Diary AI
+WP8 — Student Resolution 안정화 및 학생 매칭 검증
+
+이번 작업은 WP8만 수행한다.
+
+목표
+
+1. Teacher Diary AI의 Student Resolution 전체 흐름을 실제 코드 기준으로 검증한다.
+2. 학생 매칭(student_ref → student_id)이 모든 상황에서 안전하게 동작하도록 보강한다.
+3. 중복 학생, 누락 학생, 잘못된 student_ref 처리 정책을 명확히 한다.
+4. WP1~WP7 기능을 절대 변경하지 않는다.
+5. 구현 후 실제 Git 근거만 보고한다.
+
+──────────────────────────────────
+0. Git 시작 확인
+──────────────────────────────────
+
+실제 실행
+
+git status
+git branch --show-current
+git rev-parse HEAD
+git branch -vv
+git log --oneline --decorate -10
+
+보고
+
+- Branch
+- HEAD
+- origin 차이
+- 마지막 코드 커밋
+- untracked
+- 작업 시작 상태
+
+──────────────────────────────────
+1. Student Resolution 전체 조사
+──────────────────────────────────
+
+실제 코드에서 다음을 조사한다.
+
+- normalizeDiaryResponse()
+- generatedStudents 생성
+- generatedStudentsRef
+- handleInsert()
+- handleAIInsert()
+- Diary Save
+- StudentDraftSection
+
+다음 흐름을 실제 코드로 증명한다.
+
+AI 응답
+
+↓
+
+student_ref
+
+↓
+
+student_id
+
+↓
+
+generatedStudents
+
+↓
+
+Insert
+
+↓
+
+Diary studentNotes
+
+↓
+
+POST /diaries
+
+각 단계
+
+- 파일
+- 함수
+- 줄번호
+- 실제 코드
+- 전달 데이터
+
+제출
+
+──────────────────────────────────
+2. Student Resolution 정책 검증
+──────────────────────────────────
+
+다음을 실제 코드로 확인한다.
+
+1.
+student_ref 존재
+
+↓
+
+정상 매핑
+
+2.
+student_ref 없음
+
+↓
+
+student_id fallback
+
+3.
+student_ref 중복
+
+↓
+
+CONTRACT_DUPLICATE_STUDENT_REF
+
+4.
+존재하지 않는 student_ref
+
+↓
+
+CONTRACT_UNKNOWN_STUDENT_REF
+
+5.
+학생 일부 누락
+
+↓
+
+허용 여부
+
+6.
+학생 순서 변경
+
+↓
+
+순서 의존 여부
+
+7.
+이름 기준 매칭 존재 여부
+
+8.
+student_id 직접 비교 여부
+
+9.
+배열 index 의존 여부
+
+10.
+학생 0명
+
+허용 여부
+
+각 항목
+
+PASS / FAIL / UNVERIFIED
+
+근거 제출
+
+──────────────────────────────────
+3. 누락 케이스 조사
+──────────────────────────────────
+
+다음을 실제 실행 경로 기준으로 조사
+
+Case A
+
+AI
+
+학생 10명
+
+↓
+
+5명만 반환
+
+Case B
+
+학생 10명
+
+↓
+
+11명 반환
+
+Case C
+
+student_ref 잘못됨
+
+Case D
+
+student_ref 중복
+
+Case E
+
+common만 존재
+
+Case F
+
+students만 존재
+
+Case G
+
+common/student 모두 없음
+
+Case H
+
+student content 빈 문자열
+
+Case I
+
+student_ref 공백
+
+Case J
+
+student_ref null
+
+각 항목
+
+현재 처리
+
+오류 코드
+
+상태 머신
+
+UI
+
+수정 필요 여부
+
+──────────────────────────────────
+4. 필요한 수정
+──────────────────────────────────
+
+실제 조사 후
+
+필요한 수정만 한다.
+
+허용
+
+- Student Resolution
+- normalizeDiaryResponse
+- Student Validation
+
+금지
+
+- Request Contract
+- Response Contract 구조 변경
+- Save 구조 변경
+- Diary API
+- Whisper
+- WP1~WP7
+
+새 기능 추가 금지
+
+──────────────────────────────────
+5. 회귀 방지
+──────────────────────────────────
+
+다음 확인
+
+WP1
+
+2-phase close
+
+WP2
+
+Voice
+
+WP3
+
+Whisper
+
+WP4
+
+Request
+
+Response
+
+WP5
+
+Draft Edit
+
+WP6
+
+Insert
+
+WP7
+
+Privacy Log
+
+변경 없음
+
+증명
+
+──────────────────────────────────
+6. TypeScript
+
+실행
+
+pnpm --filter @workspace/swim-app exec tsc --noEmit
+
+구분
+
+- 전체 오류
+- 기존 오류
+- WP8 신규 오류
+
+혼동 금지
+
+──────────────────────────────────
+7. Git
+
+완료 후
+
+git diff --stat
+git diff
+git diff --check
+
+문제 없으면
+
+Commit
+
+fix(WP8): strengthen student resolution validation
+
+Push
+
+deploy-photo-clone만
+
+OTA 금지
+
+──────────────────────────────────
+8. 최종 보고
+
+1. Git 시작 상태
+2. Student Resolution 구조
+3. 현재 정책
+4. 발견 문제
+5. 수정 내용
+6. 변경 파일
+7. Student Resolution 검증표
+8. 회귀 여부
+9. TypeScript
+10. 정적 검증
+11. 수행 테스트
+12. 미수행 테스트
+13. Git 종료
+14. Commit
+15. Push
+16. OTA
+17. WP8 판정
+
+판정
+
+PASS
+CONDITIONAL PASS
+FAIL
+UNVERIFIED
+
+실기기 테스트는 수행하지 않았으면 반드시 미수행으로 적는다.
+
+완료 후 멈추고 사용자 승인 대기.
