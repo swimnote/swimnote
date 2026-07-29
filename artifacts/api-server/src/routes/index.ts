@@ -105,6 +105,6 @@ router.use("/", appVersionRouter);
 router.use("/", inquiriesRouter);
 router.use("/", aiEngineDocRouter);
 router.use("/", commentsRouter);
-router.use("/ai", aiRouter);
+router.use("/", aiRouter);
 
 export default router;
