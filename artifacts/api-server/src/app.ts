@@ -226,6 +226,66 @@ app.get(["/report", "/api/report"], (_req: Request, res: Response) => {
 });
 
 
+// ── /audit — AI 작업지시·완료보고 감사 문서 ─────────────────────────────
+app.get("/audit", (_req: Request, res: Response) => {
+  const mdPath = path.join(__dirname, "../../../swimnote_AI_작업지시_완료보고_전체내역.md");
+  if (!fs.existsSync(mdPath)) {
+    res.status(404).send("감사 문서를 찾을 수 없습니다.");
+    return;
+  }
+  const md = fs.readFileSync(mdPath, "utf-8").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SWIMNOTE AI 작업지시·완료보고 전체 내역</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  :root { --bg:#0f1117; --card:#1a1d27; --border:#2a2d3e; --text:#e2e8f0; --muted:#8892a4; --accent:#60a5fa; --green:#34d399; --red:#f87171; --yellow:#fbbf24; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:15px; line-height:1.7; padding:16px; }
+  #content { max-width:860px; margin:0 auto; }
+  h1 { font-size:1.5rem; color:var(--accent); border-bottom:2px solid var(--border); padding-bottom:12px; margin:24px 0 16px; }
+  h2 { font-size:1.2rem; color:var(--accent); margin:28px 0 12px; border-left:4px solid var(--accent); padding-left:10px; }
+  h3 { font-size:1.05rem; color:var(--yellow); margin:20px 0 10px; }
+  p { margin:8px 0; color:var(--text); }
+  table { width:100%; border-collapse:collapse; margin:12px 0; font-size:13px; display:block; overflow-x:auto; }
+  th { background:#232638; color:var(--accent); padding:8px 10px; text-align:left; border:1px solid var(--border); white-space:nowrap; }
+  td { padding:7px 10px; border:1px solid var(--border); vertical-align:top; }
+  tr:nth-child(even) td { background:#161923; }
+  code { background:#1e2235; color:#93c5fd; padding:2px 6px; border-radius:4px; font-size:12.5px; font-family:'SF Mono','Fira Code',monospace; word-break:break-all; }
+  pre { background:#161923; border:1px solid var(--border); border-radius:8px; padding:14px; overflow-x:auto; margin:12px 0; }
+  pre code { background:none; padding:0; color:#a5b4fc; font-size:12px; word-break:normal; }
+  blockquote { border-left:3px solid var(--yellow); padding:8px 14px; background:#1e1f2e; margin:12px 0; color:var(--muted); border-radius:0 6px 6px 0; }
+  ul, ol { padding-left:20px; margin:8px 0; }
+  li { margin:4px 0; }
+  strong { color:#f1f5f9; }
+  em { color:var(--muted); }
+  hr { border:none; border-top:1px solid var(--border); margin:20px 0; }
+  a { color:var(--accent); }
+  /* 상태 색상 */
+  td:contains('✅'), li:contains('✅') { }
+  .badge-red { color:var(--red); font-weight:700; }
+  .badge-green { color:var(--green); font-weight:700; }
+</style>
+</head>
+<body>
+<div id="content"></div>
+<script>
+const raw = \`${md}\`;
+document.getElementById('content').innerHTML = marked.parse(raw);
+// ✅ ❌ ⚠️ 강조
+document.querySelectorAll('td, li').forEach(el => {
+  if (el.innerHTML.includes('❌')) el.style.color = '#f87171';
+  if (el.innerHTML.includes('⚠️')) el.style.color = '#fbbf24';
+});
+</script>
+</body>
+</html>`);
+});
+
 // ── swimnote-web SPA 서빙 (/api 이외 모든 경로) ─────────────────────────
 const webDistDir = path.join(__dirname, "../../swimnote-web/dist/public");
 const webIndexPath = path.join(webDistDir, "index.html");
