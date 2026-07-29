@@ -1,0 +1,234 @@
+SWIMNOTE Teacher Diary AI
+실제 설치 앱 긴급 런타임 수정
+
+실제 운영 앱에서 다음 3개 문제가 재현됐다.
+
+문제 1
+AI 작성 실행 시:
+
+“오류가 발생했습니다.
+AI 일지 결과를 불러오지 못했습니다. 다시 시도해주세요.”
+
+문제 2
+기존 일지가 있는 일지 작성 화면에서
+하단 “나가기” 버튼이 눌리지 않음.
+
+문제 3
+음성 녹음 실행 시:
+
+“마이크를 시작할 수 없습니다. 다시 시도해주세요.”
+
+이번 작업은 Preview 검증이 아니다.
+실제 설치 앱과 실제 Production API를 기준으로 원인을 찾고 수정한다.
+
+새 기능 추가 금지.
+추측 수정 금지.
+원인 확인 전 코드 수정 금지.
+각 문제를 섞지 말고 독립적으로 조사한다.
+
+================================
+1. AI Generate 실제 실패 조사
+================================
+
+실제 오류가 발생한 시각:
+
+2026-07-30 한국시간 약 05:42
+
+Production 서버:
+
+https://swimnote-api.onrender.com
+
+Render 로그에서 해당 시각 전후의
+
+POST /api/ai/diary/generate
+
+요청을 찾아라.
+
+반드시 기록:
+
+- HTTP status
+- requestId
+- 오류 category
+- 서버 stack의 핵심 원인
+- OpenAI API 호출 도달 여부
+- OpenAI 응답 status
+- 앱 request body의 schema 요약
+- 서버 validation 실패 여부
+- 학생·반·pool context 누락 여부
+- 응답 JSON이 실제 Contract와 일치하는지
+- 앱 normalizeDiaryResponse 실패 여부
+
+JWT, 이름, 전화번호, API key, 전체 prompt는 출력하지 마라.
+
+다음 중 실제 원인을 하나 이상 확정한다.
+
+A. 앱 요청 Contract 오류
+B. 서버 validation 오류
+C. 인증 또는 권한 오류
+D. OpenAI SDK/API 오류
+E. 모델명 오류
+F. 응답 JSON parsing 오류
+G. 앱 normalize 오류
+H. 기타
+
+원인 확정 후 최소 수정한다.
+
+수정 후 Production API에서
+인증된 Generate 요청을 최소 2회 성공시킨다.
+
+성공 조건:
+
+- HTTP 200
+- application/json
+- request_id 일치
+- common 결과 존재
+- 학생별 결과 존재
+- student ref/id 매칭
+- 앱에서 오류 화면이 아닌 결과 화면 표시
+
+================================
+2. 나가기 버튼 터치 불가 조사
+================================
+
+재현 화면:
+
+- 기존 일지가 이미 작성된 수업
+- “오늘 이미 일지가 작성되어 있습니다” 경고 표시
+- 하단 나가기 버튼 터치 무반응
+
+추적 대상:
+
+- 나가기 버튼 onPress
+- disabled 조건
+- saving 상태
+- existing diary 조건
+- 화면 overlay
+- Modal
+- BaseAIModal
+- backdrop
+- pointerEvents
+- absolute positioned View
+- zIndex/elevation
+- 하단 탭바와 footer 겹침
+- AI 오류 모달 종료 후 overlay 잔존 여부
+
+반드시 실제 터치 경로를 추적한다.
+
+확인 시나리오:
+
+A. AI 모달을 한 번도 열지 않고 나가기
+B. AI 모달 열기 → 닫기 → 나가기
+C. AI 오류 발생 → 닫기 → 나가기
+D. 기존 일지 경고가 있는 상태에서 나가기
+
+어떤 시나리오에서 막히는지 구분한다.
+
+나가기 버튼은 저장 여부와 무관하게
+정상적으로 이전 화면으로 이동해야 한다.
+
+단, 작성 중인 미저장 내용이 있으면
+기존 정책에 따른 확인만 표시한다.
+
+최소 수정 후 실제 설치 앱에서 확인할 수 있도록 준비한다.
+
+================================
+3. 마이크 실패 원인 조사
+================================
+
+먼저 현재 설치 앱 바이너리 정보를 확인한다.
+
+- 앱 version
+- iOS buildNumber 또는 Android versionCode
+- runtimeVersion
+- OTA update ID
+- 현재 바이너리에 expo-av 네이티브 모듈 포함 여부
+- iOS Info.plist에 NSMicrophoneUsageDescription 존재 여부
+- Android RECORD_AUDIO 권한 존재 여부
+
+중요:
+
+OTA는 다음을 추가할 수 없다.
+
+- 새로운 네이티브 모듈
+- Info.plist 권한 문구
+- AndroidManifest 권한
+- Expo config plugin의 네이티브 변경
+
+현재 설치 바이너리가
+expo-av와 마이크 권한이 추가되기 전 빌드라면,
+마이크 오류를 JavaScript 수정으로 해결하려 하지 마라.
+
+그 경우 정확한 판정:
+
+NEW NATIVE BUILD REQUIRED
+
+로 보고한다.
+
+새 빌드가 필요한 경우:
+
+- iOS buildNumber
+- Android versionCode
+- runtimeVersion
+- expo-av plugin
+- NSMicrophoneUsageDescription
+- Android RECORD_AUDIO
+- EAS production profile
+- 운영 channel
+
+을 확인하고 새 Production 빌드 계획을 작성한다.
+
+권한이 이미 포함된 바이너리라면 다음을 조사한다.
+
+- requestPermissionsAsync 결과
+- permission status
+- canAskAgain
+- iOS 설정에서 마이크 권한 상태
+- Audio.setAudioModeAsync 오류
+- Recording.createAsync 오류
+- 실제 caught error name/message
+- 녹음 세션 정리 상태
+
+================================
+4. 수정 및 배포 순서
+================================
+
+순서는 고정한다.
+
+1. AI Generate 서버·앱 오류 수정
+2. 나가기 버튼 UI 오류 수정
+3. TypeScript 및 서버 build 검증
+4. 수정 commit 및 Production 서버 배포
+5. 인증된 Generate 2회 검증
+6. 모바일 JS 수정 OTA 게시
+7. 실제 앱에서 Generate와 나가기 재검증
+8. 마이크가 네이티브 빌드 필요하면 새 EAS build
+9. TestFlight/App Store 또는 Android 테스트 배포
+10. 새 앱 설치 후 음성 E2E 검증
+
+네이티브 빌드가 필요한 마이크 문제를
+OTA 완료로 보고하지 마라.
+
+================================
+5. 최종 보고
+================================
+
+1. Generate 실패 실제 원인
+2. Render 로그 증거
+3. Generate 수정 파일
+4. 인증된 Generate 1차·2차 결과
+5. 나가기 버튼 실패 원인
+6. 나가기 수정 파일
+7. 마이크 실패 원인
+8. 현재 바이너리의 마이크 권한·모듈 상태
+9. OTA로 해결 가능 여부
+10. 새 네이티브 빌드 필요 여부
+11. 배포 결과
+12. 실기기 재검증 결과
+
+최종 판정:
+
+- RUNTIME FIX FAILED
+- GENERATE/EXIT FIXED, NATIVE BUILD REQUIRED
+- FULLY FIXED AND VERIFIED
+
+증거 없이 FULLY FIXED 금지.
