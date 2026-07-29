@@ -448,6 +448,8 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
 
   /** AI Engine students[] 결과 보관 — handleInsert 시 DiaryInsertResult.students로 전달 */
   const generatedStudentsRef = useRef<StudentDiaryNote[]>([]);
+  /** [WP갭1] 학생별 Draft 표시용 state — DiaryAIContent에서 교사 수정 가능 */
+  const [generatedStudents, setGeneratedStudents] = useState<StudentDiaryNote[]>([]);
 
   /** "삽입 완료" 버튼 피드백 (Stage A 임시) */
   const [insertDone, setInsertDone] = useState(false);
@@ -861,6 +863,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
 
       // 원자적 반영 — 모든 검증 통과 후 한 번에 State 변경 (§7)
       generatedStudentsRef.current = mappedStudents;
+      if (isMountedRef.current) setGeneratedStudents(mappedStudents);
       setResultText(norm.common);
       machine.receiveResult(); // PROCESSING → RESULT
 
@@ -935,18 +938,16 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
     if (options.onInsert && resultText) {
       const result: DiaryInsertResult = {
         commonDiary: resultText,
-        students:    generatedStudentsRef.current,
+        students:    generatedStudents, // state 사용 — 교사가 수정한 값 반영
       };
 
       options.onInsert(result);
       if (__DEV__) console.log('[DIARY-AI] insert_completed', { student_count: result.students.length });
+      machine.complete(); // RESULT/EDITING → COMPLETE (State Machine 흐름 완성)
       options.onClose?.();
     } else {
       if (__DEV__) console.log('[DIARY-AI] insert_skipped', { has_onInsert: Boolean(options.onInsert), has_result: Boolean(resultText) });
     }
-
-    // STAGE C: machine.complete() 비활성화
-    // machine.complete();
   };
 
   return {
@@ -954,6 +955,9 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
     setInputText,
     resultText,
     setResultText,
+    /** [WP갭1] 학생별 Draft state — DiaryAIContent 표시 및 교사 수정용 */
+    generatedStudents,
+    setGeneratedStudents,
     insertDone,
     handleVoicePress,
     handleSubmit,

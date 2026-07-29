@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAIContext } from '../../core/AIContext';
 import AIErrorView from '../../components/AIErrorView';
@@ -20,7 +20,7 @@ import DiaryAIActionBar from './DiaryAIActionBar';
 import { AIThemeColor, AIThemeRadius, AIThemeSpacing, AIThemeTypography } from '../../theme/AITheme';
 import { useDiaryAI } from './useDiaryAI';
 
-import type { DiaryInsertResult, StudentContext } from './useDiaryAI';
+import type { DiaryInsertResult, StudentContext, StudentDiaryNote } from './useDiaryAI';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -62,6 +62,41 @@ function InputSummary({ text, onEdit }: { text: string; onEdit: () => void }) {
   );
 }
 
+// ─── 학생별 Draft 섹션 ────────────────────────────────────────────────────────
+
+function StudentDraftSection({
+  students,
+  onUpdate,
+}: {
+  students: StudentDiaryNote[];
+  onUpdate: (updated: StudentDiaryNote[]) => void;
+}) {
+  if (students.length === 0) return null;
+  return (
+    <View style={styles.studentSection}>
+      <Text style={styles.studentSectionLabel}>학생별 일지</Text>
+      {students.map((s, i) => (
+        <View key={s.studentId} style={styles.studentCard}>
+          <Text style={styles.studentName}>{s.studentName}</Text>
+          <TextInput
+            style={styles.studentInput}
+            value={s.note}
+            onChangeText={(text) => {
+              const next = [...students];
+              next[i] = { ...next[i], note: text };
+              onUpdate(next);
+            }}
+            multiline
+            textAlignVertical="top"
+            placeholder="학생 일지 없음"
+            placeholderTextColor={AIThemeColor.textSub}
+          />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 // ─── DiaryAIContent ───────────────────────────────────────────────────────────
 
 export default function DiaryAIContent({
@@ -83,6 +118,8 @@ export default function DiaryAIContent({
     inputText,
     setInputText,
     resultText,
+    generatedStudents,
+    setGeneratedStudents,
     insertDone,
     handleVoicePress,
     handleSubmit,
@@ -151,6 +188,14 @@ export default function DiaryAIContent({
         {/* 결과 카드 — auto height, 외부 ScrollView가 전체 스크롤 담당 */}
         {showResult && (
           <AIResultArea result={resultText} state={state} />
+        )}
+
+        {/* [WP갭1] 학생별 Draft — 교사 확인 및 수정 */}
+        {showResult && (
+          <StudentDraftSection
+            students={generatedStudents}
+            onUpdate={setGeneratedStudents}
+          />
         )}
       </ScrollView>
     );
@@ -236,6 +281,36 @@ const styles = StyleSheet.create({
     backgroundColor:   AIThemeColor.background,
     borderTopWidth:    1,
     borderTopColor:    AIThemeColor.border,
+  },
+  // ── 학생별 Draft 섹션 ────────────────────────────────────────────────────
+  studentSection: {
+    gap: AIThemeSpacing.tight,
+  },
+  studentSectionLabel: {
+    ...AIThemeTypography.label,
+    color:             AIThemeColor.textSub,
+    fontWeight:        '600' as const,
+    opacity:           0.6,
+    paddingHorizontal: AIThemeSpacing.element,
+  },
+  studentCard: {
+    backgroundColor:   AIThemeColor.surfaceLight,
+    borderRadius:      AIThemeRadius.badge,
+    paddingHorizontal: AIThemeSpacing.element,
+    paddingTop:        AIThemeSpacing.tight,
+    paddingBottom:     AIThemeSpacing.tight,
+    gap:               4,
+  },
+  studentName: {
+    ...AIThemeTypography.label,
+    color:      AIThemeColor.textSub,
+    fontWeight: '600' as const,
+  },
+  studentInput: {
+    ...AIThemeTypography.result,
+    color:     AIThemeColor.text,
+    minHeight: 56,
+    paddingTop: 0,
   },
   // ⚠️ 임시 삽입 안내 — Stage A 테스트용, 최종 삽입 정책 확정 후 교체 예정
   insertNotice: {
