@@ -93,29 +93,64 @@ export default function BaseAIModal({
     };
   }, []);
 
-  // ── 내부 렌더 상태 (애니메이션 완료 후 언마운트) ─────────────────────────
-  const [rendered, setRendered] = useState(false);
+  // ── 2-phase 닫기 상태 ────────────────────────────────────────────────────
+  //
+  // rendered     : JS 트리 존재 여부 — false 시 if(!rendered) return null
+  // nativeVisible: RN Modal의 visible prop — iOS 네이티브 UIWindow 제어
+  //
+  // [문제] rendered만 사용하면 두 가지 버그가 동시에 발생:
+  //   • if (!rendered) return null  → Modal JS 트리 제거 → 네이티브 UIWindow
+  //     정리가 느려 탭바 터치 차단 (iOS 투명 Modal 버그)
+  //   • {rendered && <Modal>} 유지 → cancel 버튼 동작 불가
+  //
+  // [해결] 2단계 분리:
+  //   Phase 1 — doClose() → nativeVisible=false
+  //             React 한 사이클: <Modal visible={false}> 상태로 렌더
+  //             → iOS가 네이티브 UIWindow를 먼저 제거
+  //   Phase 2 — useEffect([nativeVisible]) → setRendered(false) + onClose()
+  //             if (!rendered) return null → JS 트리에서 Modal 완전 제거
+  //             이 시점엔 네이티브 UIWindow가 이미 사라진 상태이므로 탭바 정상
+
+  const [rendered,      setRendered]      = useState(false);
+  const [nativeVisible, setNativeVisible] = useState(false);
 
   // rendered 변경 추적
   useEffect(() => {
-    console.log(`[UI-LAYER-VISIBLE] BaseAIModal id=${instanceId} rendered=${rendered} (visible prop=${visible})`);
+    console.log(`[UI-LAYER-VISIBLE] BaseAIModal id=${instanceId} rendered=${rendered} nativeVisible=${nativeVisible} (visible prop=${visible})`);
   }, [rendered]);
 
   // ── Shared Values ─────────────────────────────────────────────────────────
-  const translateY    = useSharedValue(SCREEN_HEIGHT);
+  const translateY      = useSharedValue(SCREEN_HEIGHT);
   const backdropOpacity = useSharedValue(0);
 
   // ── 외부 visible 변경 감지 ────────────────────────────────────────────────
   useEffect(() => {
     if (visible && !rendered) {
-      console.log('[MODAL-EFFECT] visible=true → setRendered(true)');
+      console.log('[MODAL-EFFECT] visible=true → setRendered(true) + setNativeVisible(true)');
       setRendered(true);
+      setNativeVisible(true);
     }
     if (!visible && rendered) {
       console.log('[MODAL-EFFECT] visible=false → doClose() 호출');
       doClose();
     }
   }, [visible]);
+
+  // ── Phase 2: nativeVisible=false 후 JS 트리 제거 ─────────────────────────
+  // doClose()가 nativeVisible=false만 설정한 뒤 이 Effect가 다음 사이클에서
+  // rendered=false + onClose()를 실행한다.
+  // onClose = () => setVisible(false) (setVisible은 stable state setter)
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
+
+  useEffect(() => {
+    if (!nativeVisible && rendered) {
+      console.log('[MODAL-EFFECT] nativeVisible=false → setRendered(false) + onClose()');
+      setRendered(false);
+      onCloseRef.current();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nativeVisible]);
 
   // ── 모달 진입 애니메이션 ──────────────────────────────────────────────────
   useEffect(() => {
@@ -125,15 +160,17 @@ export default function BaseAIModal({
     animateModalOpen(translateY, backdropOpacity, reducedMotion);
   }, [rendered]);
 
-  // ── 닫기 — 애니메이션 취소 후 즉시 언마운트 ──────────────────────────────
+  // ── 닫기 — Phase 1: 네이티브 오버레이 먼저 제거 ──────────────────────────
   // animateModalClose(withTiming 콜백)는 실기기 Hermes에서 크래시를 유발함.
-  // cancelAnimation 후 즉시 닫는 방식이 안정적으로 동작하는 것이 확인됨.
+  // Phase 1에서 nativeVisible=false만 설정하면 RN이 네이티브 UIWindow를 제거.
+  // Phase 2(useEffect[nativeVisible])에서 rendered=false + onClose() 처리.
   const doClose = useCallback(() => {
     cancelAnimation(translateY);
     cancelAnimation(backdropOpacity);
-    setRendered(false);
-    onClose();
-  }, [onClose]);
+    backdropOpacity.value = 0;   // 백드롭 즉시 투명으로
+    setNativeVisible(false);      // Phase 1 — 네이티브 오버레이 제거 요청
+    // Phase 2는 useEffect([nativeVisible])가 처리
+  }, []);
 
   // ── Swipe Down 제스처 (핸들 영역만 — ScrollView 충돌 없음) ───────────────
   // [원칙 1·5] lockDismiss=true 구간에서는 스와이프 dismiss 차단
@@ -176,9 +213,14 @@ export default function BaseAIModal({
   // 영구 차단된다. visible={rendered}를 유지해 RN이 직접 네이티브 레이어를
   // 관리하도록 한다.
 
+  // ── rendered=false 시 null 반환 ─────────────────────────────────────────
+  // Phase 2가 setRendered(false)를 완료한 뒤에 도달하는 경로.
+  // 이 시점엔 nativeVisible=false로 iOS 네이티브 UIWindow가 이미 제거됨.
+  if (!rendered) return null;
+
   return (
     <Modal
-      visible={rendered}
+      visible={nativeVisible}
       animationType="none"
       transparent
       statusBarTranslucent
@@ -191,62 +233,59 @@ export default function BaseAIModal({
        * GestureHandlerRootView는 반드시 Modal 내부에도 있어야 합니다.
        * React Native Modal은 앱 메인 트리와 분리된 별도 native root에서
        * 렌더링되므로, _layout.tsx의 GestureHandlerRootView가 적용되지 않습니다.
-       * rendered=false 일 때는 visible=false Modal 안에 있으므로 터치 차단 없음.
        */}
-      {rendered && (
-        <GestureHandlerRootView style={StyleSheet.absoluteFill}>
-          {/* ── 백드롭 ── */}
-          <Animated.View style={[styles.backdrop, backdropStyle]} pointerEvents="none" />
-          {/* [원칙 1·5] lockDismiss=true 구간에서는 백드롭 탭으로 닫기 차단 */}
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => {
-              if (lockDismiss) {
-                console.log('[BACK-EVENT] 백드롭 탭 — lockDismiss=true, dismiss 차단');
-                return;
-              }
-              console.log('[BACK-EVENT] 백드롭 탭 — doClose() 호출');
-              doClose();
-            }}
-          />
+      <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+        {/* ── 백드롭 ── */}
+        <Animated.View style={[styles.backdrop, backdropStyle]} pointerEvents="none" />
+        {/* [원칙 1·5] lockDismiss=true 구간에서는 백드롭 탭으로 닫기 차단 */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => {
+            if (lockDismiss) {
+              console.log('[BACK-EVENT] 백드롭 탭 — lockDismiss=true, dismiss 차단');
+              return;
+            }
+            console.log('[BACK-EVENT] 백드롭 탭 — doClose() 호출');
+            doClose();
+          }}
+        />
 
-          {/* ── 모달 시트 ── */}
-          <Animated.View style={[styles.sheet, sheetStyle]}>
-            <AIProvider featureType={featureType} credit={credit}>
-              <KeyboardAvoidingView
-                style={styles.flex}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={0}
-              >
-                {/* 핸들 + 타이틀 — 여기에만 Swipe 제스처 적용 */}
-                <GestureDetector gesture={panGesture}>
-                  <View style={styles.header}>
-                    <View style={styles.handle} />
-                    <Text style={styles.title}>{title}</Text>
-                  </View>
-                </GestureDetector>
-
-                {/* Content 영역 — Feature별 컴포넌트 */}
-                <View style={styles.content}>
-                  {content}
+        {/* ── 모달 시트 ── */}
+        <Animated.View style={[styles.sheet, sheetStyle]}>
+          <AIProvider featureType={featureType} credit={credit}>
+            <KeyboardAvoidingView
+              style={styles.flex}
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              keyboardVerticalOffset={0}
+            >
+              {/* 핸들 + 타이틀 — 여기에만 Swipe 제스처 적용 */}
+              <GestureDetector gesture={panGesture}>
+                <View style={styles.header}>
+                  <View style={styles.handle} />
+                  <Text style={styles.title}>{title}</Text>
                 </View>
+              </GestureDetector>
 
-                {/* ActionBar — Feature별 */}
-                {actionBar && (
-                  <View
-                    style={[
-                      styles.actionBar,
-                      { paddingBottom: insets.bottom + AIThemeSpacing.element },
-                    ]}
-                  >
-                    {actionBar}
-                  </View>
-                )}
-              </KeyboardAvoidingView>
-            </AIProvider>
-          </Animated.View>
-        </GestureHandlerRootView>
-      )}
+              {/* Content 영역 — Feature별 컴포넌트 */}
+              <View style={styles.content}>
+                {content}
+              </View>
+
+              {/* ActionBar — Feature별 */}
+              {actionBar && (
+                <View
+                  style={[
+                    styles.actionBar,
+                    { paddingBottom: insets.bottom + AIThemeSpacing.element },
+                  ]}
+                >
+                  {actionBar}
+                </View>
+              )}
+            </KeyboardAvoidingView>
+          </AIProvider>
+        </Animated.View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
