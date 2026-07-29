@@ -179,8 +179,13 @@ const MAX_AUTO_RETRY = 1;
 /** [P8] 자동 retry 전 대기 시간 */
 const AUTO_RETRY_DELAY_MS = 800;
 
-/** AI Engine Production Base URL — swimnote.kr (Render.com API 서버) */
-const AI_ENGINE_BASE = process.env.EXPO_PUBLIC_AI_ENGINE_URL ?? 'https://swimnote.kr';
+/** AI Engine Production Base URL — swimnote-api.onrender.com (Render.com API 서버)
+ *  우선순위: EXPO_PUBLIC_AI_ENGINE_URL > EXPO_PUBLIC_API_URL(/api 제거) > 하드코딩 fallback
+ *  EXPO_PUBLIC_API_URL = "https://swimnote-api.onrender.com/api" → base = "https://swimnote-api.onrender.com"
+ */
+const AI_ENGINE_BASE =
+  process.env.EXPO_PUBLIC_AI_ENGINE_URL ??
+  (process.env.EXPO_PUBLIC_API_URL?.replace(/\/api\/?$/, '') ?? 'https://swimnote-api.onrender.com');
 
 // ─── WP1: Request ID 생성 ─────────────────────────────────────────────────────
 

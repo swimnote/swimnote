@@ -207,16 +207,19 @@ export default function BaseAIModal({
     opacity: backdropOpacity.value,
   }));
 
-  // ── rendered=false 시 null 반환을 하지 않음 ──────────────────────────────
-  // "if (!rendered) return null"로 Modal을 JS 트리에서 제거하면 iOS 투명
-  // Modal의 네이티브 터치 레이어가 해제되지 않아 탭바를 포함한 하위 터치가
-  // 영구 차단된다. visible={rendered}를 유지해 RN이 직접 네이티브 레이어를
-  // 관리하도록 한다.
-
-  // ── rendered=false 시 null 반환 ─────────────────────────────────────────
-  // Phase 2가 setRendered(false)를 완료한 뒤에 도달하는 경로.
-  // 이 시점엔 nativeVisible=false로 iOS 네이티브 UIWindow가 이미 제거됨.
-  if (!rendered) return null;
+  // ── Modal은 항상 트리에 유지 ──────────────────────────────────────────────
+  //
+  // [수정 이유] 기존 "if (!rendered) return null"은 iOS 투명 Modal의 네이티브
+  // UIWindow가 완전히 해제되기 전에 JS 트리에서 Modal이 제거될 수 있어,
+  // 하위 화면(나가기 버튼 등) 터치가 영구 차단되는 버그를 유발했다.
+  //
+  // [해결] Modal 컴포넌트를 항상 트리에 유지하되:
+  //   - visible={nativeVisible} → iOS/Android가 네이티브 레이어를 직접 관리
+  //   - 내부 콘텐츠는 {rendered && ...} 조건부 렌더로 제어
+  //   Phase 1 (nativeVisible=false): iOS UIWindow 먼저 해제
+  //   Phase 2 (rendered=false):      내부 콘텐츠 JS 트리에서 제거
+  //
+  // [보존] backdrop, swipe, lockDismiss, Android Back 동작 동일
 
   return (
     <Modal
@@ -234,61 +237,63 @@ export default function BaseAIModal({
         doClose();
       }}
     >
-      {/*
-       * GestureHandlerRootView는 반드시 Modal 내부에도 있어야 합니다.
-       * React Native Modal은 앱 메인 트리와 분리된 별도 native root에서
-       * 렌더링되므로, _layout.tsx의 GestureHandlerRootView가 적용되지 않습니다.
-       */}
-      <GestureHandlerRootView style={StyleSheet.absoluteFill}>
-        {/* ── 백드롭 ── */}
-        <Animated.View style={[styles.backdrop, backdropStyle]} pointerEvents="none" />
-        {/* [원칙 1·5] lockDismiss=true 구간에서는 백드롭 탭으로 닫기 차단 */}
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={() => {
-            if (lockDismiss) {
-              return;
-            }
-            doClose();
-          }}
-        />
+      {rendered && (
+        /*
+         * GestureHandlerRootView는 반드시 Modal 내부에도 있어야 합니다.
+         * React Native Modal은 앱 메인 트리와 분리된 별도 native root에서
+         * 렌더링되므로, _layout.tsx의 GestureHandlerRootView가 적용되지 않습니다.
+         */
+        <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+          {/* ── 백드롭 ── */}
+          <Animated.View style={[styles.backdrop, backdropStyle]} pointerEvents="none" />
+          {/* [원칙 1·5] lockDismiss=true 구간에서는 백드롭 탭으로 닫기 차단 */}
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              if (lockDismiss) {
+                return;
+              }
+              doClose();
+            }}
+          />
 
-        {/* ── 모달 시트 ── */}
-        <Animated.View style={[styles.sheet, sheetStyle]}>
-          <AIProvider featureType={featureType} credit={credit}>
-            <KeyboardAvoidingView
-              style={styles.flex}
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              keyboardVerticalOffset={0}
-            >
-              {/* 핸들 + 타이틀 — 여기에만 Swipe 제스처 적용 */}
-              <GestureDetector gesture={panGesture}>
-                <View style={styles.header}>
-                  <View style={styles.handle} />
-                  <Text style={styles.title}>{title}</Text>
+          {/* ── 모달 시트 ── */}
+          <Animated.View style={[styles.sheet, sheetStyle]}>
+            <AIProvider featureType={featureType} credit={credit}>
+              <KeyboardAvoidingView
+                style={styles.flex}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={0}
+              >
+                {/* 핸들 + 타이틀 — 여기에만 Swipe 제스처 적용 */}
+                <GestureDetector gesture={panGesture}>
+                  <View style={styles.header}>
+                    <View style={styles.handle} />
+                    <Text style={styles.title}>{title}</Text>
+                  </View>
+                </GestureDetector>
+
+                {/* Content 영역 — Feature별 컴포넌트 */}
+                <View style={styles.content}>
+                  {content}
                 </View>
-              </GestureDetector>
 
-              {/* Content 영역 — Feature별 컴포넌트 */}
-              <View style={styles.content}>
-                {content}
-              </View>
-
-              {/* ActionBar — Feature별 */}
-              {actionBar && (
-                <View
-                  style={[
-                    styles.actionBar,
-                    { paddingBottom: insets.bottom + AIThemeSpacing.element },
-                  ]}
-                >
-                  {actionBar}
-                </View>
-              )}
-            </KeyboardAvoidingView>
-          </AIProvider>
-        </Animated.View>
-      </GestureHandlerRootView>
+                {/* ActionBar — Feature별 */}
+                {actionBar && (
+                  <View
+                    style={[
+                      styles.actionBar,
+                      { paddingBottom: insets.bottom + AIThemeSpacing.element },
+                    ]}
+                  >
+                    {actionBar}
+                  </View>
+                )}
+              </KeyboardAvoidingView>
+            </AIProvider>
+          </Animated.View>
+        </GestureHandlerRootView>
+      )}
     </Modal>
   );
 }
