@@ -443,6 +443,8 @@ export default function TeacherDiaryScreen() {
     }
   }, []);
   async function handleSave() {
+    // [WP11] Save 중복 요청 차단
+    if (saving) return;
     if (__DEV__) console.log(`[HANDLE_SAVE] contentLength=${commonContent.length} studentCount=${studentNotes.length} isRetry=${!!pendingDiaryId}`);
     const isRetry = !!pendingDiaryId;
     let effectiveNotes = [...studentNotes];

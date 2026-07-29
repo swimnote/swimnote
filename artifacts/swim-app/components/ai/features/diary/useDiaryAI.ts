@@ -454,6 +454,8 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
   /** "삽입 완료" 버튼 피드백 (Stage A 임시) */
   const [insertDone, setInsertDone] = useState(false);
   const insertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** [WP11] Insert 중복 실행 방지 */
+  const isInsertingRef = useRef(false);
 
   // ── [P8] 언마운트 시 진행 중 요청 전부 취소 ───────────────────────────
   useEffect(() => {
@@ -963,6 +965,12 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
   // ─── [원칙 6] 최종 삽입 ────────────────────────────────────────────────
 
   const handleInsert = () => {
+    // [WP11] 중복 Insert 방지
+    if (isInsertingRef.current) {
+      if (__DEV__) console.log('[DIARY-AI] insert_skipped: duplicate');
+      return;
+    }
+
     if (__DEV__) {
       if (__DEV__) console.log('[DIARY-AI] insert_started', {
         request_id:     lastRequestIdRef.current,
@@ -977,6 +985,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
     const hasContent = Boolean(resultText) || generatedStudents.length > 0;
 
     if (options.onInsert && hasContent) {
+      isInsertingRef.current = true;
       const result: DiaryInsertResult = {
         commonDiary: resultText,
         students:    generatedStudents, // state 사용 — 교사가 수정한 값 반영

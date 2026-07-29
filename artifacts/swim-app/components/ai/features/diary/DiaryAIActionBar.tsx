@@ -70,6 +70,16 @@ function getActionConfig(
         onSecondary:     onClose,
         primaryDisabled: true,
       };
+    // [WP11] Generate/Upload 진행 중 버튼 비활성화
+    case 'PROCESSING':
+    case 'UPLOADING':
+      return {
+        primaryLabel:    'AI 작성',
+        secondaryLabel:  '취소',
+        onPrimary:       onSubmit,
+        onSecondary:     onClose,
+        primaryDisabled: true,
+      };
     case 'RESULT':
     case 'EDITING':
       return {
@@ -81,7 +91,8 @@ function getActionConfig(
           if (__DEV__) console.log('[REWRITE-CALL] DiaryAIActionBar "다시 작성" → onSubmit 호출');
           onSubmit();
         },
-        primaryDisabled: false,
+        // [WP11] insertDone 시 중복 Insert 방지
+        primaryDisabled: insertDone,
       };
     case 'COMPLETE':
       return {
