@@ -511,7 +511,14 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
 
   /**
    * processVoice — 녹음 URI → POST /api/ai/whisper/transcribe → inputText 설정
+   *
+   * [WP3] 상태 전환:
+   *   INPUT → UPLOADING (fetch 전) — 로딩 UI 표시 + Submit 버튼 차단
+   *   UPLOADING → INPUT  (성공)   — machine.retry('INPUT') 후 transcript 반영
+   *   UPLOADING → ERROR  (실패)   — machine.setError() (UPLOADING → ERROR 유효)
+   *
    * [P8] 60초 timeout, 언마운트 취소
+   * [WP3] new-request abort → 새 processVoice가 machine state를 관리, 조용히 return
    */
   const processVoice = async (uri: string | null) => {
     if (!uri) {
@@ -519,10 +526,14 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       return;
     }
 
-    // 이전 voice 요청 취소
+    // 이전 voice 요청 취소 (new-request)
     voiceAbortRef.current?.abort('new-request');
     const controller = new AbortController();
     voiceAbortRef.current = controller;
+
+    // [WP3] INPUT → UPLOADING: 로딩 shimmer 표시, Submit 버튼 차단
+    // RECORDING 상태가 아직 INPUT으로 전환 전이면 no-op (전환 후 재시도 필요 없음 — 이후 경로에서 처리)
+    machine.startUpload();
 
     const timeoutId = setTimeout(() => controller.abort('timeout'), TIMEOUT_MS);
 
@@ -533,6 +544,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       const formData = new FormData();
       formData.append('audio', { uri, name: 'recording.m4a', type: 'audio/m4a' } as any);
 
+      // Content-Type 수동 지정 금지 — React Native가 FormData boundary를 자동 생성
       const headers: Record<string, string> = { Accept: 'application/json' };
       if (options.token) headers['Authorization'] = `Bearer ${options.token}`;
 
@@ -553,6 +565,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
         const reqId = (body as AIEngineError).request_id ?? '?';
         if (__DEV__) console.error('[DIARY-AI] stt_failed', { request_id: reqId, code: err?.code, retryable: err?.retryable });
         if (!isMountedRef.current) return;
+        // UPLOADING → ERROR (UPLOADING: ['PROCESSING','INPUT','ERROR'] 유효)
         machine.setError({
           origin:      'NETWORK',
           message:     err?.message ?? '음성 인식에 실패했습니다. 다시 시도해주세요.',
@@ -565,9 +578,18 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       if (__DEV__) console.log('[DIARY-AI] stt_completed', { request_id, transcript_length: transcript?.length ?? 0 });
 
       if (transcript?.trim()) {
+        // [WP3] 성공: UPLOADING → INPUT 복귀 후 transcript 반영
+        machine.retry('INPUT');
         setInputText(transcript.trim());
       } else {
+        // [WP3] 빈 transcript — 사용자 피드백 표시 (기존: console.warn만 → 피드백 없음)
         if (__DEV__) console.warn('[DIARY-AI] stt_empty_transcript');
+        if (!isMountedRef.current) return;
+        machine.setError({
+          origin:      'UNKNOWN',
+          message:     '음성이 인식되지 않았습니다. 다시 녹음해주세요.',
+          retryTarget: 'INPUT',
+        });
       }
     } catch (e: any) {
       clearTimeout(timeoutId);
@@ -577,6 +599,12 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
 
       if (e?.name === 'AbortError' && reason === 'unmount') {
         if (__DEV__) console.log('[DIARY-AI] stt_aborted', { reason: 'unmount' });
+        return;
+      }
+      // [WP3] new-request abort — 조용히 return. 새 processVoice가 machine state를 관리.
+      // setError 금지: 새 요청의 UPLOADING 상태를 덮어쓰면 안 됨.
+      if (e?.name === 'AbortError' && reason === 'new-request') {
+        if (__DEV__) console.log('[DIARY-AI] stt_aborted', { reason: 'new-request' });
         return;
       }
       if (e?.name === 'AbortError' && reason === 'timeout') {

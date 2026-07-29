@@ -153,7 +153,12 @@ export default function DiaryAIContent({
       return <AIPermissionView types={['microphone']} onClose={onClose} />;
     }
     if (showLoading) {
-      return <AILoading state={state} message="일지를 작성하고 있습니다..." />;
+      return (
+        <AILoading
+          state={state}
+          message={state === 'UPLOADING' ? '음성을 변환하고 있습니다...' : '일지를 작성하고 있습니다...'}
+        />
+      );
     }
     return (
       <ScrollView
