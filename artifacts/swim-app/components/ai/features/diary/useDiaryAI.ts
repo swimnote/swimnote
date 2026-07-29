@@ -963,7 +963,11 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       });
     }
 
-    if (options.onInsert && resultText) {
+    // [WP6] Common이 비어도 Student Draft가 있으면 Insert 허용
+    // WP5에서 TextInput 편집이 가능해져 교사가 Common을 지운 경우에도 Student 노트를 삽입할 수 있어야 함
+    const hasContent = Boolean(resultText) || generatedStudents.length > 0;
+
+    if (options.onInsert && hasContent) {
       const result: DiaryInsertResult = {
         commonDiary: resultText,
         students:    generatedStudents, // state 사용 — 교사가 수정한 값 반영
@@ -974,7 +978,7 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       machine.complete(); // RESULT/EDITING → COMPLETE (State Machine 흐름 완성)
       options.onClose?.();
     } else {
-      if (__DEV__) console.log('[DIARY-AI] insert_skipped', { has_onInsert: Boolean(options.onInsert), has_result: Boolean(resultText) });
+      if (__DEV__) console.log('[DIARY-AI] insert_skipped', { has_onInsert: Boolean(options.onInsert), has_content: hasContent });
     }
   };
 
