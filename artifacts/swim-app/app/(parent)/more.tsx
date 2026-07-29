@@ -10,14 +10,15 @@
  *
  * ParentScreenHeader (홈 버튼 → 학부모 홈, 관리자 경로 차단)
  */
-import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router } from "expo-router";
-import React, { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import AppUpdateButton from "@/components/common/AppUpdateButton";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
+import { WithdrawalModal } from "@/components/common/WithdrawalModal";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
@@ -49,7 +50,7 @@ function MenuItem({
         <Text style={[s.menuLabel, { color: danger ? "#D96C6C" : C.text }]}>{label}</Text>
         {sub ? <Text style={[s.menuSub, { color: C.textMuted }]}>{sub}</Text> : null}
       </View>
-      {!danger && <ChevronRight size={16} color={C.textMuted} />}
+      {!danger && <LucideIcon name="chevron-right" size={16} color={C.textMuted} />}
     </Pressable>
   );
 }
@@ -61,29 +62,31 @@ export default function ParentMoreScreen() {
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [inquiryBadge, setInquiryBadge] = useState(0);
 
-  async function handleDeleteAccount() {
+  const fetchBadge = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await apiRequest(token, "/inquiries/unread-count");
+      if (res.ok) { const d = await res.json(); setInquiryBadge(d.count ?? 0); }
+    } catch { /* ignore */ }
+  }, [token]);
+
+  useEffect(() => { fetchBadge(); }, [fetchBadge]);
+  useFocusEffect(useCallback(() => { fetchBadge(); }, [fetchBadge]));
+
+  async function handleDeleteAccount(immediate: boolean) {
     setDeleteLoading(true);
     try {
-      const res = await apiRequest(token, "/auth/account", { method: "DELETE" });
+      const res = await apiRequest(token, "/auth/account", {
+        method: "DELETE",
+        body: JSON.stringify({ immediate }),
+      });
       if (res.ok) {
         setDeleteConfirm(false);
         await logout();
-      } else {
-        let msg = "계정 삭제 중 오류가 발생했습니다.";
-        try {
-          const body = await res.json();
-          if (body?.message) msg = body.message;
-        } catch {}
-        setDeleteConfirm(false);
-        Alert.alert("탈퇴 실패", msg);
       }
-    } catch {
-      setDeleteConfirm(false);
-      Alert.alert("탈퇴 실패", "네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
-    } finally {
-      setDeleteLoading(false);
-    }
+    } catch { } finally { setDeleteLoading(false); }
   }
 
   return (
@@ -109,7 +112,7 @@ export default function ParentMoreScreen() {
                 {parentPoolName || (parentAccount as any)?.pool_name || pool?.name || "수영장"} · 자녀 {students.length}명
               </Text>
             </View>
-            <ChevronRight size={16} color={C.textMuted} />
+            <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
           </Pressable>
         )}
 
@@ -128,6 +131,15 @@ export default function ParentMoreScreen() {
           iconColor={NAVY_C} iconBg={MINT_BG}
           onPress={() => router.push("/(parent)/children?backTo=more" as any)}
         />
+        {students.length > 0 && (
+          <MenuItem
+            icon="user-plus"
+            label="추가 보호자 관리"
+            sub="두 번째·세 번째 보호자 번호 등록"
+            iconColor={MINT_C} iconBg={MINT_BG}
+            onPress={() => router.push("/(parent)/additional-guardians" as any)}
+          />
+        )}
         <MenuItem
           icon="clipboard-list"
           label="수업 요청"
@@ -162,10 +174,28 @@ export default function ParentMoreScreen() {
           iconColor={NAVY_C} iconBg={NAVY_BG}
           onPress={() => router.push("/privacy" as any)}
         />
-        {/* 앱 버전 */}
-        <View style={[s.versionRow]}>
-          <Text style={[s.versionTxt, { color: C.textMuted }]}>SwimNote v1.0.0</Text>
-        </View>
+        {/* 앱 업데이트 */}
+        <AppUpdateButton />
+
+        {/* 문의하기 — 목록 최하단 */}
+        <Pressable
+          style={({ pressed }) => [s.menuItem, { backgroundColor: C.card, opacity: pressed ? 0.8 : 1 }]}
+          onPress={() => router.push("/(parent)/inquiries" as any)}
+        >
+          <View style={[s.menuIcon, { backgroundColor: "#E6FAF8" }]}>
+            <LucideIcon name="help-circle" size={18} color={MINT_C} />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[s.menuLabel, { color: C.text }]}>문의하기</Text>
+            <Text style={[s.menuSub, { color: C.textMuted }]}>스윔노트 · 원장님에게 문의</Text>
+          </View>
+          {inquiryBadge > 0 && (
+            <View style={s.badge}>
+              <Text style={s.badgeText}>{inquiryBadge}</Text>
+            </View>
+          )}
+          <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+        </Pressable>
 
         <MenuItem
           icon="log-out"
@@ -191,15 +221,12 @@ export default function ParentMoreScreen() {
         onConfirm={async () => { setLogoutConfirm(false); await logout(); }}
         onCancel={() => setLogoutConfirm(false)}
       />
-      <ConfirmModal
+      <WithdrawalModal
         visible={deleteConfirm}
-        title="회원 탈퇴"
-        message={"계정을 삭제하면 모든 데이터가 영구적으로\n삭제되며 복구할 수 없습니다.\n정말 탈퇴하시겠습니까?"}
-        confirmText="탈퇴하기"
-        loading={deleteLoading}
-        destructive
+        onClose={() => setDeleteConfirm(false)}
         onConfirm={handleDeleteAccount}
-        onCancel={deleteLoading ? undefined : () => setDeleteConfirm(false)}
+        loading={deleteLoading}
+        isPaidPlan={false}
       />
     </View>
   );
@@ -230,7 +257,9 @@ const s = StyleSheet.create({
   menuIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   menuLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   menuSub: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-
-  versionRow: { paddingVertical: 4, alignItems: "center" },
-  versionTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  badge: {
+    minWidth: 22, height: 22, borderRadius: 11, backgroundColor: "#D96C6C",
+    alignItems: "center", justifyContent: "center", paddingHorizontal: 5, marginRight: 4,
+  },
+  badgeText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

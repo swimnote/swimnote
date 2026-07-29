@@ -2,13 +2,9 @@
  * (super)/users.tsx — 플랫폼 관리자 계정 관리
  * 실 API 연결: GET/POST/PATCH /super/platform-users
  */
-import { Shield, SlidersHorizontal, UserPlus, Users } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Switch, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth, apiRequest } from "@/context/AuthContext";
@@ -210,7 +206,7 @@ export default function UsersScreen() {
         {isSuperAdmin && (
           <Pressable style={[styles.addBtn, { backgroundColor: C.button }]}
             onPress={() => { setShowCreate(true); setError(""); }}>
-            <UserPlus size={16} color="#fff" />
+            <LucideIcon name="user-plus" size={16} color="#fff" />
             <Text style={styles.addBtnText}>추가</Text>
           </Pressable>
         )}
@@ -234,7 +230,7 @@ export default function UsersScreen() {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Users size={40} color={C.textMuted} />
+            <LucideIcon name="users" size={40} color={C.textMuted} />
             <Text style={[styles.emptyText, { color: C.textMuted }]}>등록된 관리자가 없습니다</Text>
           </View>
         }
@@ -260,13 +256,13 @@ export default function UsersScreen() {
                   <Pressable
                     style={({ pressed }) => [styles.editBtn, { opacity: pressed ? 0.6 : 1 }]}
                     onPress={() => openEdit(item)}>
-                    <SlidersHorizontal size={16} color="#4EA7D8" />
+                    <LucideIcon name="sliders" size={16} color="#4EA7D8" />
                   </Pressable>
                 )}
               </View>
               {isSelf ? (
                 <View style={ps.superTag}>
-                  <Shield size={12} color="#7C3AED" />
+                  <LucideIcon name="shield" size={12} color="#7C3AED" />
                   <Text style={[ps.superTagText, { color: "#7C3AED" }]}>모든 권한 보유</Text>
                 </View>
               ) : (

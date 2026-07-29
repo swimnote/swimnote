@@ -43,6 +43,12 @@ import infraUsageRouter from "./infra-usage.js";
 import backupStatusRouter from "./backup-status.js";
 import restoreRouter from "./restore.js";
 import platformBannersRouter from "./platform-banners.js";
+import systemHealthRouter from "./system-health.js";
+import crashReportRouter from "./crash-report.js";
+import appVersionRouter from "./app-version.js";
+import inquiriesRouter from "./inquiries.js";
+import aiEngineDocRouter from "./ai-engine-doc.js";
+import commentsRouter from "./comments.js";
 import aiRouter from "./ai.js";
 
 const router: IRouter = Router();
@@ -93,6 +99,12 @@ router.use("/", backupStatusRouter);
 router.use("/", restoreRouter);
 router.use("/", privacyPageRouter);
 router.use("/", platformBannersRouter);
-router.use("/", aiRouter);
+router.use("/", systemHealthRouter);
+router.use("/", crashReportRouter);
+router.use("/", appVersionRouter);
+router.use("/", inquiriesRouter);
+router.use("/", aiEngineDocRouter);
+router.use("/", commentsRouter);
+router.use("/ai", aiRouter);
 
 export default router;

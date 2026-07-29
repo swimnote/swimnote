@@ -6,12 +6,12 @@
  *   섹션 배지 없음 / 선 최소화 / 흰 배경
  *   기능·로직·클릭이벤트는 기존 그대로 유지
  */
-import { Check, ChevronLeft, ChevronRight } from "lucide-react-native";
 import React, { useMemo } from "react";
 import {
   Dimensions, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { SlotStatus, TeacherClassGroup } from "@/components/teacher/types";
 import {
   ChangeLogItem, StudentItem, WT_ROW_H,
@@ -98,10 +98,10 @@ export default function WeeklyTimetableV2({
   /* ── 카드 렌더 (기존 로직 그대로) ── */
   function renderCard(g: TeacherClassGroup, isToday: boolean) {
     const selected  = selectedIds.has(g.id);
-    const accent    = classColor(g.id);
+    const accent    = classColor(g.id, g.color);
     const hasDot    = changedClassIds.has(g.id);
-    const cardBg    = g.color && g.color !== "#FFFFFF" ? g.color : "#FFFFFF";
-    const cardBdr   = cardBg === "#FFFFFF" ? "#E5E7EB" : "transparent";
+    const cardBg    = accent + "18";
+    const cardBdr   = accent + "55";
 
     const names     = classStudentMap[g.id] ?? [];
     const namesLine = names.length > 0 ? names.join(" · ") : null;
@@ -127,7 +127,7 @@ export default function WeeklyTimetableV2({
             borderColor:     "#374151",
             backgroundColor: selected ? "#374151" : "transparent",
           }]}>
-            {selected && <Check size={6} color="#fff" />}
+            {selected && <LucideIcon name="check" size={6} color="#fff" />}
           </View>
         )}
         <View style={[wt.accentBar, { backgroundColor: accent }]} />
@@ -151,7 +151,7 @@ export default function WeeklyTimetableV2({
       {/* 주간 네비게이션 */}
       <View style={wt.weekNav}>
         <Pressable style={wt.weekNavBtn} onPress={onPrevWeek}>
-          <ChevronLeft size={18} color="#9CA3AF" />
+          <LucideIcon name="chevron-left" size={18} color="#9CA3AF" />
         </Pressable>
         <Text style={wt.weekNavTitle}>
           {(() => {
@@ -162,7 +162,7 @@ export default function WeeklyTimetableV2({
           })()}
         </Text>
         <Pressable style={wt.weekNavBtn} onPress={onNextWeek}>
-          <ChevronRight size={18} color="#9CA3AF" />
+          <LucideIcon name="chevron-right" size={18} color="#9CA3AF" />
         </Pressable>
       </View>
 
@@ -248,7 +248,7 @@ const wt = StyleSheet.create({
     borderRightWidth: 0.5, borderRightColor: "#E5E7EB",
     alignItems: "center", justifyContent: "flex-start", paddingTop: 4,
   },
-  timeText: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#D1D5DB" },
+  timeText: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
 
   dayHeader: {
     alignItems: "center", justifyContent: "center",
@@ -256,8 +256,8 @@ const wt = StyleSheet.create({
     backgroundColor: "#FFFFFF", paddingVertical: 6,
   },
   dayHeaderToday: { backgroundColor: "#F0FFFE" },
-  dayHeaderDate:  { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#D1D5DB", lineHeight: 12 },
-  dayHeaderText:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", lineHeight: 15 },
+  dayHeaderDate:  { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#9CA3AF", lineHeight: 12 },
+  dayHeaderText:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", lineHeight: 15 },
 
   cell: {
     borderLeftWidth: 0.5, borderLeftColor: "#E5E7EB",

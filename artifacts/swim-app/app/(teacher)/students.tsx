@@ -7,7 +7,7 @@
  * 연기/퇴원 → MemberStatusChangeModal (기존 API 재사용)
  * 반 배정 → student-detail 이동
  */
-import { ChevronRight, CircleCheck, CirclePause, Search, UserCheck, Users, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -208,7 +208,7 @@ export default function WaitingListScreen() {
 
       {/* 검색 */}
       <View style={s.searchRow}>
-        <Search size={15} color={C.textMuted} style={{ marginLeft: 10 }} />
+        <LucideIcon name="search" size={15} color={C.textMuted} style={{ marginLeft: 10 }} />
         <TextInput
           style={s.searchInput}
           value={search}
@@ -218,7 +218,7 @@ export default function WaitingListScreen() {
         />
         {search.length > 0 && (
           <Pressable onPress={() => setSearch("")} style={{ paddingRight: 10 }}>
-            <X size={15} color={C.textMuted} />
+            <LucideIcon name="x" size={15} color={C.textMuted} />
           </Pressable>
         )}
       </View>
@@ -240,7 +240,7 @@ export default function WaitingListScreen() {
           }
           ListEmptyComponent={
             <View style={s.emptyBox}>
-              <Users size={36} color={C.textMuted} />
+              <LucideIcon name="users" size={36} color={C.textMuted} />
               <Text style={s.emptyText}>{getEmptyText()}</Text>
               {!search.trim() && tab === "all" && (
                 <Text style={[s.emptyHint, { color: C.textMuted }]}>
@@ -301,7 +301,7 @@ export default function WaitingListScreen() {
       {/* Toast */}
       {toastMsg.length > 0 && (
         <Animated.View style={[s.toast, { opacity: toastOpacity, bottom: insets.bottom + 28 }]}>
-          <CircleCheck size={14} color="#fff" />
+          <LucideIcon name="check-circle" size={14} color="#fff" />
           <Text style={s.toastText}>{toastMsg}</Text>
         </Animated.View>
       )}
@@ -339,25 +339,25 @@ function WaitingActionSheet({
           {/* 회원 정보보기 */}
           <Pressable style={[sh.option, { borderColor: "#2EC4B620" }]} onPress={onAssign}>
             <View style={[sh.optIcon, { backgroundColor: "#E6F9F7" }]}>
-              <UserCheck size={20} color="#2EC4B6" />
+              <LucideIcon name="user-check" size={20} color="#2EC4B6" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[sh.optLabel, { color: "#2EC4B6" }]}>회원 정보보기</Text>
               <Text style={sh.optSub}>학생 상세 페이지로 이동합니다</Text>
             </View>
-            <ChevronRight size={16} color="#64748B" />
+            <LucideIcon name="chevron-right" size={16} color="#64748B" />
           </Pressable>
 
           {/* 회원상태변경 */}
           <Pressable style={[sh.option, { borderColor: "#B4530920" }]} onPress={onStatusChange}>
             <View style={[sh.optIcon, { backgroundColor: "#FFF1BF" }]}>
-              <CirclePause size={20} color="#B45309" />
+              <LucideIcon name="pause-circle" size={20} color="#B45309" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[sh.optLabel, { color: "#B45309" }]}>회원상태변경</Text>
               <Text style={sh.optSub}>연기 · 퇴원 · 정상 복귀 등 상태 선택</Text>
             </View>
-            <ChevronRight size={16} color="#64748B" />
+            <LucideIcon name="chevron-right" size={16} color="#64748B" />
           </Pressable>
         </View>
 
@@ -372,8 +372,8 @@ function WaitingActionSheet({
 const s = StyleSheet.create({
   tabRow:      { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
   tabBtn:      { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
-  tabTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  tabCount:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  tabTxt:      { fontSize: 12, lineHeight: 17, color: C.textSecondary },
+  tabCount:    { fontSize: 12, lineHeight: 17, color: C.textMuted },
   searchRow:   { flexDirection: "row", alignItems: "center", backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
   searchInput: { flex: 1, height: 42, paddingHorizontal: 8, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   emptyBox:    { alignItems: "center", gap: 10, paddingVertical: 60 },

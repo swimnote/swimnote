@@ -1,4 +1,3 @@
-import { CheckCircle2, Droplet, Lock, Tag } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -86,7 +85,7 @@ export default function WhiteLabelScreen() {
         >
           {/* 설명 카드 */}
           <View style={[styles.descCard, { backgroundColor: "#E6FAF8", borderColor: "#E6FAF8" }]}>
-            <Tag size={18} color="#1D4ED8" />
+            <LucideIcon name="tag" size={18} color="#1D4ED8" />
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={[styles.descTitle, { color: "#1D4ED8" }]}>화이트라벨이란?</Text>
               <Text style={[styles.descBody, { color: "#1E40AF" }]}>
@@ -97,7 +96,7 @@ export default function WhiteLabelScreen() {
 
           {/* 현재 수영장 */}
           <View style={[styles.poolChip, { backgroundColor: C.card, borderColor: C.border }]}>
-            <Droplet size={14} color={TINT} />
+            <LucideIcon name="droplet" size={14} color={TINT} />
             <Text style={[styles.poolChipTxt, { color: C.textSecondary }]}>적용 수영장</Text>
             <Text style={[styles.poolChipName, { color: C.text }]}>{pool?.name ?? "—"}</Text>
           </View>
@@ -105,7 +104,7 @@ export default function WhiteLabelScreen() {
           {/* 구독 상태별 안내 */}
           {pool?.subscription_status === "trial" ? (
             <View style={[styles.lockCard, { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" }]}>
-              <Lock size={16} color="#C2410C" />
+              <LucideIcon name="lock" size={16} color="#C2410C" />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.lockTitle, { color: "#C2410C" }]}>구독 전용 기능</Text>
                 <Text style={[styles.lockBody, { color: "#9A3412" }]}>
@@ -115,7 +114,7 @@ export default function WhiteLabelScreen() {
             </View>
           ) : (
             <View style={[styles.lockCard, { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" }]}>
-              <CheckCircle2 size={16} color="#15803D" />
+              <LucideIcon name="check-circle" size={16} color="#15803D" />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.lockTitle, { color: "#15803D" }]}>구독 활성 — 자동 적용됨</Text>
                 <Text style={[styles.lockBody, { color: "#166534" }]}>

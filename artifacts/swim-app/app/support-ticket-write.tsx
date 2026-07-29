@@ -5,15 +5,14 @@
  *   type  = general | emergency | security | refund  (없으면 관리자용 선택)
  *   showTypeSelect = true  → 수영장관리자용 유형 선택 먼저
  */
-import { Camera, ChevronLeft, MessageCircle, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import React, { useState } from "react";
-import {
-  ActivityIndicator, Alert, Image, KeyboardAvoidingView,
-  Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Image,
+  Platform, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -73,7 +72,7 @@ export default function SupportTicketWriteScreen() {
     if (status !== "granted") { Alert.alert("사진 접근 권한이 필요합니다."); return; }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       quality: 0.35,
       base64: false,
     });
@@ -125,15 +124,15 @@ export default function SupportTicketWriteScreen() {
       {/* 헤더 */}
       <View style={s.header}>
         <Pressable onPress={() => router.back()} style={s.backBtn}>
-          <ChevronLeft size={24} color={C.text} />
+          <LucideIcon name="chevron-left" size={24} color={C.text} />
         </Pressable>
         <Text style={s.headerTitle}>문의하기</Text>
         <View style={{ width: 36 }} />
       </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: insets.bottom + 80 }}
+      <View style={{ flex: 1 }}>
+        <KeyboardAwareScrollView
+          contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: insets.bottom + 16 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -208,13 +207,13 @@ export default function SupportTicketWriteScreen() {
                 <View key={idx} style={s.imageWrap}>
                   <Image source={{ uri }} style={s.thumbImg} />
                   <Pressable style={s.removeImg} onPress={() => removeImage(idx)}>
-                    <X size={12} color="#fff" />
+                    <LucideIcon name="x" size={12} color="#fff" />
                   </Pressable>
                 </View>
               ))}
               {images.length < 2 && (
                 <Pressable style={s.addImgBtn} onPress={pickImage}>
-                  <Camera size={22} color={C.textMuted} />
+                  <LucideIcon name="camera" size={22} color={C.textMuted} />
                   <Text style={s.addImgTxt}>사진 추가</Text>
                 </Pressable>
               )}
@@ -235,21 +234,20 @@ export default function SupportTicketWriteScreen() {
             </View>
           </Pressable>
 
-        </ScrollView>
-      </KeyboardAvoidingView>
-
-      {/* 제출 버튼 */}
-      <View style={[s.submitWrap, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable
-          style={[s.submitBtn, { opacity: submitting ? 0.7 : 1 }]}
-          onPress={handleSubmit}
-          disabled={submitting}
-        >
-          {submitting
-            ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={s.submitTxt}>문의 접수하기</Text>
-          }
-        </Pressable>
+          {/* 제출 버튼 */}
+          <View style={[s.submitWrap, { paddingBottom: insets.bottom + 12 }]}>
+            <Pressable
+              style={[s.submitBtn, { opacity: submitting ? 0.7 : 1 }]}
+              onPress={handleSubmit}
+              disabled={submitting}
+            >
+              {submitting
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={s.submitTxt}>문의 접수하기</Text>
+              }
+            </Pressable>
+          </View>
+        </KeyboardAwareScrollView>
       </View>
     </SafeAreaView>
   );

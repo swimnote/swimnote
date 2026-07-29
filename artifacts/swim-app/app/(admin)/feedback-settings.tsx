@@ -7,7 +7,7 @@
  * - 카테고리 이름 수정
  * - 카테고리 초기화 / 전체 초기화
  */
-import { Inbox, Info, PenLine, Plus, RefreshCcw, RotateCcw, Tag, Trash2 } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -131,10 +131,10 @@ export default function FeedbackSettingsScreen() {
         <Text style={[s.rowText, { color: C.text }]} numberOfLines={3}>{item.template_text}</Text>
         <View style={s.rowActions}>
           <Pressable style={[s.rowBtn, { backgroundColor: activeColor + "15" }]} onPress={() => openEdit(item)} hitSlop={6}>
-            <PenLine size={15} color={activeColor} />
+            <LucideIcon name="edit-2" size={15} color={activeColor} />
           </Pressable>
           <Pressable style={[s.rowBtn, { backgroundColor: "#FEF2F2" }]} onPress={() => setDeleteTarget(item)} hitSlop={6}>
-            <Trash2 size={15} color="#D96C6C" />
+            <LucideIcon name="trash-2" size={15} color="#D96C6C" />
           </Pressable>
         </View>
       </View>
@@ -148,7 +148,7 @@ export default function FeedbackSettingsScreen() {
         homePath="/(admin)/dashboard"
         rightSlot={
           <Pressable style={s.resetAllBtn} onPress={() => setResetAllVisible(true)}>
-            <RefreshCcw size={13} color="#D96C6C" />
+            <LucideIcon name="refresh-ccw" size={13} color="#D96C6C" />
             <Text style={s.resetAllBtnText}>전체 초기화</Text>
           </Pressable>
         }
@@ -156,7 +156,7 @@ export default function FeedbackSettingsScreen() {
 
       {/* 안내 문구 */}
       <View style={[s.descBox, { backgroundColor: activeColor + "0D" }]}>
-        <Info size={13} color={activeColor} />
+        <LucideIcon name="info" size={13} color={activeColor} />
         <Text style={[s.descText, { color: C.text }]}>
           수업 일지 작성 시 선생님들이 사용할 기본 피드백 문구를 설정합니다. 변경 내용은 즉시 반영됩니다.
         </Text>
@@ -192,11 +192,11 @@ export default function FeedbackSettingsScreen() {
         </Text>
         <View style={s.catBtns}>
           <Pressable style={[s.catBtn, { borderColor: activeColor + "50" }]} onPress={openLabel}>
-            <Tag size={13} color={activeColor} />
+            <LucideIcon name="tag" size={13} color={activeColor} />
             <Text style={[s.catBtnText, { color: C.text }]}>이름 변경</Text>
           </Pressable>
           <Pressable style={[s.catBtn, { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" }]} onPress={() => setResetCatVisible(true)}>
-            <RotateCcw size={13} color="#D96C6C" />
+            <LucideIcon name="rotate-ccw" size={13} color="#D96C6C" />
             <Text style={[s.catBtnText, { color: "#D96C6C" }]}>초기화</Text>
           </Pressable>
         </View>
@@ -207,11 +207,11 @@ export default function FeedbackSettingsScreen() {
         data={currentList}
         keyExtractor={item => item.id}
         renderItem={renderItem}
-        contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 16 }]}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={s.emptyBox}>
-            <Inbox size={36} color={C.textMuted} />
+            <LucideIcon name="inbox" size={36} color={C.textMuted} />
             <Text style={s.emptyText}>
               {activeTab === "custom"
                 ? "기본 문구를 추가해 보세요."
@@ -219,20 +219,20 @@ export default function FeedbackSettingsScreen() {
             </Text>
           </View>
         }
+        ListFooterComponent={
+          <View style={[s.addBtnWrap, { paddingBottom: insets.bottom + 16 }]}>
+            <Pressable
+              style={[s.addBtn, { backgroundColor: isFull ? "#64748B" : activeColor }]}
+              onPress={openAdd}
+              disabled={isFull}
+            >
+              <LucideIcon name="plus" size={18} color="#fff" />
+              <Text style={s.addBtnText}>문구 추가</Text>
+              {isFull && <Text style={[s.addBtnText, { fontSize: 11, opacity: 0.8 }]}>(최대 도달)</Text>}
+            </Pressable>
+          </View>
+        }
       />
-
-      {/* 문장 추가 버튼 */}
-      <View style={[s.addBtnWrap, { paddingBottom: insets.bottom + 16 }]}>
-        <Pressable
-          style={[s.addBtn, { backgroundColor: isFull ? "#64748B" : activeColor }]}
-          onPress={openAdd}
-          disabled={isFull}
-        >
-          <Plus size={18} color="#fff" />
-          <Text style={s.addBtnText}>문구 추가</Text>
-          {isFull && <Text style={[s.addBtnText, { fontSize: 11, opacity: 0.8 }]}>(최대 도달)</Text>}
-        </Pressable>
-      </View>
 
       {/* ════ 문장 추가 모달 ════ */}
       <Modal visible={addVisible} transparent animationType="slide" onRequestClose={() => setAddVisible(false)}>
@@ -392,7 +392,7 @@ const s = StyleSheet.create({
     gap: 4, paddingVertical: 8, borderRadius: 12,
     borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
-  tabText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  tabText: { fontSize: 12, lineHeight: 17 },
   tabBadge: { borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 },
   tabBadgeText: { fontSize: 10, fontFamily: "Pretendard-Regular" },
 

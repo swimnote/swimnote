@@ -2,14 +2,12 @@
  * 삭제·보존 정책 허브
  * A. 복구 가능 데이터   B. 보존 기간 정책   C. 원본 데이터 삭제 (킬 스위치)
  */
-import { ChevronRight, CircleCheck, Info, Search, Trash2, TriangleAlert, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import {
-  ActivityIndicator, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Pressable,
+  StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -123,7 +121,7 @@ export default function DataDeleteScreen() {
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader title="삭제·보존 정책" />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: insets.bottom + 40, gap: 28 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -144,17 +142,17 @@ export default function DataDeleteScreen() {
               onPress={() => router.push("/(admin)/withdrawn-members?backTo=data-delete" as any)}
             >
               <View style={[s.menuIcon, { backgroundColor: "#E6FFFA" }]}>
-                <UserX size={20} color="#2EC4B6" />
+              <LucideIcon name="user-x" size={20} color="#2EC4B6" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.menuLabel}>탈퇴·삭제 회원</Text>
                 <Text style={s.menuSub}>소프트 삭제 상태 — 원본 데이터 복구 가능</Text>
               </View>
-              <ChevronRight size={16} color={C.textMuted} />
+              <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
             </Pressable>
           </View>
           <View style={s.infoBox}>
-            <Info size={13} color="#2EC4B6" />
+            <LucideIcon name="info" size={13} color="#2EC4B6" />
             <Text style={s.infoText}>탈퇴 후 보존 기간 안에는 관리자가 데이터를 복구할 수 있습니다. 보존 기간 초과 시 자동 파기됩니다.</Text>
           </View>
         </View>
@@ -217,7 +215,7 @@ export default function DataDeleteScreen() {
           </View>
 
           <View style={s.warnBanner}>
-            <TriangleAlert size={16} color="#D96C6C" />
+            <LucideIcon name="alert-triangle" size={16} color="#D96C6C" />
             <Text style={s.warnText}>삭제된 원본 파일은 복구할 수 없습니다. 이벤트 로그는 보존됩니다.</Text>
           </View>
 
@@ -235,7 +233,7 @@ export default function DataDeleteScreen() {
                     <LucideIcon name={kt.icon} size={20} color={kt.color} />
                   </View>
                   <Text style={[s.menuLabel, { color: ksType === kt.key ? kt.color : C.text }]}>{kt.label}</Text>
-                  {ksType === kt.key && <CircleCheck size={20} color={kt.color} style={{ marginLeft: "auto" }} />}
+                  {ksType === kt.key && <LucideIcon name="check-circle" size={20} color={kt.color} style={{ marginLeft: "auto" }} />}
                 </Pressable>
               ))}
 
@@ -259,7 +257,7 @@ export default function DataDeleteScreen() {
               >
                 {previewLoading
                   ? <ActivityIndicator color="#fff" />
-                  : <><Search size={16} color="#fff" /><Text style={s.primaryBtnText}>미리보기</Text></>
+                  : <><LucideIcon name="search" size={16} color="#fff" /><Text style={s.primaryBtnText}>미리보기</Text></>
                 }
               </Pressable>
             </View>
@@ -308,7 +306,7 @@ export default function DataDeleteScreen() {
                 >
                   {execLoading
                     ? <ActivityIndicator color="#fff" />
-                    : <><Trash2 size={16} color="#fff" /><Text style={s.primaryBtnText}>영구 삭제</Text></>
+                    : <><LucideIcon name="trash-2" size={16} color="#fff" /><Text style={s.primaryBtnText}>영구 삭제</Text></>
                   }
                 </Pressable>
               </View>
@@ -331,7 +329,7 @@ export default function DataDeleteScreen() {
           )}
         </View>
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }

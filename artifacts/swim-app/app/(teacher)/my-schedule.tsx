@@ -3,11 +3,11 @@
  * 컴포넌트: components/teacher/my-schedule/
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { BookOpen, ChevronRight, Pencil, Plus, SquareCheck, Trash2, Users } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Modal,
+  ActivityIndicator, Alert, FlatList, Modal,
   Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,6 +15,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { addTabResetListener } from "@/utils/tabReset";
+import { onDiaryChanged } from "@/utils/diaryEvents";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
@@ -34,23 +35,18 @@ import {
 } from "@/components/teacher/my-schedule/utils";
 import { useMyScheduleData } from "@/components/teacher/my-schedule/hooks/useMyScheduleData";
 import { useMyScheduleActions } from "@/components/teacher/my-schedule/hooks/useMyScheduleActions";
-
 const C = Colors.light;
-
 type ViewMode = "monthly" | "weekly" | "daily";
-
 export default function MyScheduleScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
   const params = useLocalSearchParams<{ openDate?: string }>();
   const selfTeacher = adminUser ? { id: adminUser.id, name: adminUser.name || "나" } : undefined;
   const poolId = (adminUser as any)?.swimming_pool_id || "";
-
   const [viewMode,      setViewMode]      = useState<ViewMode>("monthly");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set());
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
-
   const [showCreate, setShowCreate] = useState(false);
   const [createInitialDays, setCreateInitialDays] = useState<string[]>([]);
   const [createInitialStep, setCreateInitialStep] = useState<1|2|3|4>(1);
@@ -58,30 +54,29 @@ export default function MyScheduleScreen() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteFailCount,   setDeleteFailCount]   = useState(0);
   const [showManagement, setShowManagement] = useState(false);
-
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [dayAttMap, setDayAttMap] = useState<Record<string, number>>({});
   const [dayDiarySet, setDayDiarySet] = useState<Set<string>>(new Set());
   const [dayMemo, setDayMemo] = useState("");
-  const [memoDateSet, setMemoDateSet] = useState<Set<string>>(new Set());
-
+  const [memoDateSet,   setMemoDateSet]   = useState<Set<string>>(new Set());
+  const [makeupDateSet, setMakeupDateSet] = useState<Set<string>>(new Set());
+  const [holidaySet,    setHolidaySet]    = useState<Set<string>>(new Set());
   const [detailGroup,       setDetailGroup]       = useState<TeacherClassGroup | null>(null);
-  const [showDeleteClassConfirm, setShowDeleteClassConfirm] = useState(false);
-  const [deletingClass,         setDeletingClass]          = useState<TeacherClassGroup | null>(null);
+  const [showDeleteClassConfirm,  setShowDeleteClassConfirm]  = useState(false);
+  const [deletingClass,          setDeletingClass]           = useState<TeacherClassGroup | null>(null);
+  const [deletingClassLoading,   setDeletingClassLoading]    = useState(false);
   const [unregClassId,          setUnregClassId]           = useState<string | null>(null);
   const [removeClassGroup,  setRemoveClassGroup]  = useState<TeacherClassGroup | null>(null);
-
   const [selectedGroup, setSelectedGroup] = useState<TeacherClassGroup | null>(null);
-
   const [weeklyViewStart, setWeeklyViewStart] = useState<string>(() => getMondayStr(todayDateStr()));
   const [weekChangeLogs, setWeekChangeLogs] = useState<ChangeLogItem[]>([]);
-
+  const [detailDateStudents, setDetailDateStudents] = useState<StudentItem[]>([]);
   const isMountedRef = useRef(false);
   const pendingRestoreDateRef = useRef<string | null>(null);
+  const pendingRestoreGroupIdRef = useRef<string | null>(null);
   const autoOpenDoneRef = useRef(false);
   const selectedDateRef = useRef<string | null>(null);
   selectedDateRef.current = selectedDate;
-
   const {
     groups, setGroups,
     students, setStudents,
@@ -90,7 +85,13 @@ export default function MyScheduleScreen() {
     todayAttMap, todayDiarySet,
     load,
   } = useMyScheduleData(token);
-
+  const myUserId = adminUser?.id;
+  const myGroups = myUserId
+    ? groups.filter(g =>
+        g.teacher_user_id === myUserId ||
+        (Array.isArray((g as any).co_teacher_ids) && (g as any).co_teacher_ids.includes(myUserId))
+      )
+    : groups;
   const {
     dayViewAttState, setDayViewAttState,
     dayViewAttSaving,
@@ -102,22 +103,112 @@ export default function MyScheduleScreen() {
     markDayAtt,
     handleMoveToClass,
   } = useMyScheduleActions({ token, selectedGroup, load });
-
-  useEffect(() => { load(); }, [load]);
-
-  const handleDeleteClass = useCallback(async () => {
-    if (!deletingClass) return;
+  const [assigningMakeupId, setAssigningMakeupId] = useState<string | null>(null);
+  async function assignMakeupToCurrentClass(mk: typeof dayMakeups[0]) {
+    if (!selectedGroup || assigningMakeupId) return;
+    setAssigningMakeupId(mk.id);
     try {
-      const res = await apiRequest(token, `/class-groups/${deletingClass.id}`, { method: "DELETE" });
-      if (res.ok) {
-        setSelectedGroup(null);
-        setDeletingClass(null);
-        setShowDeleteClassConfirm(false);
-        load();
+      const today = todayDateStr();
+      const assignRes = await apiRequest(token, `/teacher/makeups/${mk.id}/assign`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ class_group_id: selectedGroup.id, assigned_date: today }),
+      });
+      if (!assignRes.ok) return;
+      await apiRequest(token, `/admin/makeups/${mk.id}/complete`, {
+        method: "PATCH",
+        body: JSON.stringify({}),
+      });
+      await loadDayMakeups(selectedGroup.id);
+    } catch {}
+    finally { setAssigningMakeupId(null); }
+  }
+  useEffect(() => { load(); }, [load]);
+  // 일지 생성/삭제 이벤트 구독 → dayDiarySet 즉시 갱신 (선택 날짜 기준)
+  useEffect(() => {
+    return onDiaryChanged(ev => {
+      if (!selectedDate || ev.lessonDate !== selectedDate) return;
+      setDayDiarySet(prev => {
+        const next = new Set(prev);
+        if (ev.type === "deleted") next.delete(ev.classGroupId);
+        else next.add(ev.classGroupId);
+        return next;
+      });
+    });
+  }, [selectedDate]);
+  useEffect(() => {
+    if (!detailGroup || !selectedDate || !token) {
+      setDetailDateStudents([]);
+      return;
+    }
+    let cancelled = false;
+    apiRequest(token, `/today-schedule?date=${selectedDate}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((list: any[]) => {
+        if (cancelled) return;
+        const found = list.find((g: any) => g.id === detailGroup.id);
+        setDetailDateStudents(found?.students ?? []);
+      })
+      .catch(() => { if (!cancelled) setDetailDateStudents([]); });
+    return () => { cancelled = true; };
+  }, [detailGroup, selectedDate, token]);
+  const loadHolidays = useCallback(async (dateStr: string) => {
+    if (!token || !poolId) return;
+    const [y, m] = dateStr.split("-");
+    const mm = m.padStart(2, "0");
+    try {
+      const r = await apiRequest(token, `/holidays?pool_id=${poolId}&month=${y}-${mm}`);
+      if (r.ok) {
+        const d = await r.json();
+        if (d?.holidays) {
+          setHolidaySet(prev => {
+            const next = new Set(prev);
+            d.holidays.forEach((h: any) => next.add(h.holiday_date));
+            return next;
+          });
+        }
       }
     } catch {}
-  }, [token, deletingClass, load]);
-
+  }, [token, poolId]);
+  const loadMakeupDates = useCallback(async () => {
+    if (!token) return;
+    try {
+      const r = await apiRequest(token, "/teacher/makeups/assigned");
+      if (r.ok) {
+        const list: any[] = await r.json();
+        const dates = new Set(list.map((m: any) => m.assigned_date).filter(Boolean) as string[]);
+        setMakeupDateSet(dates);
+      }
+    } catch {}
+  }, [token]);
+  useEffect(() => { loadMakeupDates(); }, [loadMakeupDates]);
+  useFocusEffect(useCallback(() => {
+    setDeletingClassLoading(false);
+    load();
+  }, [load]));
+  const handleDeleteClass = useCallback(async () => {
+    if (!deletingClass || deletingClassLoading) return;
+    const target = deletingClass;
+    setDeletingClassLoading(true);
+    try {
+      const res = await apiRequest(token, `/class-groups/${target.id}`, { method: "DELETE" });
+      setShowDeleteClassConfirm(false);
+      setDeletingClass(null);
+      if (res.ok) {
+        setGroups(prev => prev.filter(g => g.id !== target.id));
+        setDetailGroup(null);
+        setSelectedDate(null);
+        setSelectedGroup(null);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        Alert.alert("삭제 실패", body?.error ?? "반 삭제 중 오류가 발생했습니다.");
+      }
+    } catch {
+      Alert.alert("오류", "반 삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeletingClassLoading(false);
+    }
+  }, [token, deletingClass, deletingClassLoading, load]);
   useEffect(() => {
     if (!loading && params.openDate && typeof params.openDate === "string" && !autoOpenDoneRef.current) {
       autoOpenDoneRef.current = true;
@@ -125,7 +216,6 @@ export default function MyScheduleScreen() {
       handleDatePress(params.openDate);
     }
   }, [loading, params.openDate]);
-
   useEffect(() => {
     if (!token || viewMode !== "weekly") return;
     apiRequest(token, `/class-change-logs?week_start=${weeklyViewStart}`)
@@ -133,7 +223,6 @@ export default function MyScheduleScreen() {
       .then(d => { if (d?.logs) setWeekChangeLogs(d.logs); })
       .catch(() => {});
   }, [token, weeklyViewStart, viewMode]);
-
   async function loadDayData(dateStr: string) {
     try {
       const [attRes, dRes] = await Promise.all([
@@ -152,7 +241,6 @@ export default function MyScheduleScreen() {
       }
     } catch {}
   }
-
   async function loadMemo(dateStr: string) {
     const key = `scheduleMemo_${poolId}_${dateStr}`;
     const v = await AsyncStorage.getItem(key).catch(() => null);
@@ -168,7 +256,6 @@ export default function MyScheduleScreen() {
       setMemoDateSet(prev => { const n = new Set(prev); n.delete(dateStr); return n; });
     }
   }
-
   function handleDatePress(dateStr: string) {
     if (selectionMode) {
       setSelectedDates(prev => {
@@ -184,38 +271,46 @@ export default function MyScheduleScreen() {
       setSelectedDate(dateStr);
       loadDayData(dateStr);
       loadMemo(dateStr);
+      loadHolidays(dateStr);
     }
   }
-
   function handleDaySheetClassPress(g: TeacherClassGroup) {
     setDetailGroup(g);
   }
-
-  function navigateFromSheet(navigate: () => void) {
+  function navigateFromSheet(navigate: () => void, groupIdToRestore?: string) {
     const dateToRestore = selectedDate;
+    if (groupIdToRestore) pendingRestoreGroupIdRef.current = groupIdToRestore;
     setDetailGroup(null);
     setSelectedDate(null);
     if (dateToRestore) pendingRestoreDateRef.current = dateToRestore;
     setTimeout(navigate, 350);
   }
-
   function handleDaySheetMakeup() {
     navigateFromSheet(() => router.push("/(teacher)/makeups?backTo=my-schedule" as any));
   }
+  // diary에서 복귀 시 반 상세 모달 재오픈 (groups 로드 후 처리)
+  useEffect(() => {
+    if (!pendingRestoreGroupIdRef.current || groups.length === 0) return;
+    const gId = pendingRestoreGroupIdRef.current;
+    const found = groups.find(g => g.id === gId);
+    if (found) {
+      pendingRestoreGroupIdRef.current = null;
+      setDetailGroup(found);
+    }
+  }, [groups]);
 
   useFocusEffect(useCallback(() => {
     if (!isMountedRef.current) { isMountedRef.current = true; return; }
-
     if (pendingRestoreDateRef.current) {
       const d = pendingRestoreDateRef.current;
       pendingRestoreDateRef.current = null;
-      setViewMode("monthly");
       setSelectedDate(d);
       loadDayData(d);
       loadMemo(d);
-      return;
     }
-
+    apiRequest(token, "/class-groups").then(r => r.ok && r.json()).then(data => {
+      if (Array.isArray(data)) setGroups(data);
+    }).catch(() => {});
     apiRequest(token, "/students").then(r => r.ok && r.json()).then(data => {
       if (Array.isArray(data)) setStudents(data);
     }).catch(() => {});
@@ -225,23 +320,21 @@ export default function MyScheduleScreen() {
       loadMemo(cur);
     }
   }, [token]));
-
   useEffect(() => {
     return addTabResetListener("my-schedule", () => {
       setSelectedGroup(null);
       setDetailGroup(null);
-      setSelectedDate(null);
       setSelectionMode(false);
       setSelectedIds(new Set());
       setSelectedDates(new Set());
-      setViewMode("monthly");
     });
   }, []);
-
   const groupStudents = selectedGroup
     ? students.filter(st =>
-        (Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(selectedGroup.id))
-        || st.class_group_id === selectedGroup.id
+        ((Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(selectedGroup.id))
+        || st.class_group_id === selectedGroup.id)
+        && (!(st as any).class_enrolled_at || (st as any).class_enrolled_at <= todayDateStr())
+        && (!st.status || st.status === "active")
       ).sort((a, b) => {
         const aAbs = dayViewAttState[a.id] === "absent";
         const bAbs = dayViewAttState[b.id] === "absent";
@@ -249,7 +342,6 @@ export default function MyScheduleScreen() {
         return a.name.localeCompare(b.name);
       })
     : [];
-
   const statusMap: Record<string, SlotStatus> = {};
   groups.forEach(g => {
     statusMap[g.id] = {
@@ -258,20 +350,22 @@ export default function MyScheduleScreen() {
       hasPhotos:  false,
     };
   });
-
   function toggleSelect(id: string) {
     setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
   }
   async function confirmDelete() {
     setShowDeleteConfirm(false); setDeleting(true);
     const ids = Array.from(selectedIds); let failed = 0;
-    for (const id of ids) { const res = await apiRequest(token, `/class-groups/${id}`, { method: "DELETE" }); if (!res.ok) failed++; }
+    const deleted: string[] = [];
+    for (const id of ids) {
+      const res = await apiRequest(token, `/class-groups/${id}`, { method: "DELETE" });
+      if (!res.ok) failed++; else deleted.push(id);
+    }
     setDeleting(false); setSelectionMode(false); setSelectedIds(new Set());
+    if (deleted.length > 0) setGroups(prev => prev.filter(g => !deleted.includes(g.id)));
     if (failed > 0) setDeleteFailCount(failed);
-    load();
   }
   async function confirmDeleteMemos() {
-    setShowDeleteConfirm(false); setDeleting(true);
     for (const dateStr of Array.from(selectedDates)) {
       await AsyncStorage.removeItem(`scheduleMemo_${poolId}_${dateStr}`).catch(() => {});
       await AsyncStorage.removeItem(`scheduleAudioList_${poolId}_${dateStr}`).catch(() => {});
@@ -283,7 +377,6 @@ export default function MyScheduleScreen() {
     });
     setDeleting(false); setSelectionMode(false); setSelectedDates(new Set());
   }
-
   if (loading) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
@@ -292,46 +385,41 @@ export default function MyScheduleScreen() {
       </SafeAreaView>
     );
   }
-
   if (viewMode === "daily" && selectedGroup) {
     const g = selectedGroup;
     const diarDone = todayDiarySet.has(g.id);
-
     const classDone = (() => {
       const m = g.schedule_time?.match(/(\d+):(\d+)\s*[-~]\s*(\d+):(\d+)/);
       if (!m) return false;
       const now = new Date();
       return now.getHours() * 60 + now.getMinutes() > parseInt(m[3]) * 60 + parseInt(m[4]);
     })();
-
-    const otherGroups = groups.filter(og => og.id !== g.id);
-
+    const otherGroups = myGroups.filter(og => og.id !== g.id);
     return (
-      <SafeAreaView style={s.safe} edges={[]}>
+      <>
         <SubScreenHeader title={g.name} subtitle={`${g.schedule_days} · ${g.schedule_time}`}
           onBack={() => setSelectedGroup(null)} homePath="/(teacher)/today-schedule"
           rightSlot={
             <Pressable style={{ padding: 8 }} onPress={() => { setDeletingClass(g); setShowDeleteClassConfirm(true); }}>
-              <Trash2 size={18} color="#E11D48" />
+              <LucideIcon name="trash-2" size={18} color="#E11D48" />
             </Pressable>
           } />
         <View style={s.subHeader}>
           <Pressable style={[s.subActionBtn, { backgroundColor: C.tintLight, flex: 1 }]}
-            onPress={() => router.push(`/class-assign?classId=${g.id}` as any)}>
-            <Users size={13} color={C.tint} />
+            onPress={() => router.push(`/class-assign?classId=${g.id}&backTo=my-schedule` as any)}>
+            <LucideIcon name="users" size={13} color={C.tint} />
             <Text style={[s.subActionText, { color: C.tint }]}>반배정</Text>
           </Pressable>
           <Pressable style={[s.subActionBtn, { backgroundColor: diarDone ? "#E6FFFA" : "#FFF1BF", flex: 1 }]}
             onPress={() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: g.id, className: g.name, backTo:"my-schedule"} } as any)}>
-            <Pencil size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
+            <LucideIcon name="edit" size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
             <Text style={[s.subActionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
           </Pressable>
         </View>
-
         <FlatList data={groupStudents} keyExtractor={i => i.id}
           contentContainerStyle={s.studentList} showsVerticalScrollIndicator={false}
           extraData={[dayViewAttState, dayMakeups]}
-          ListEmptyComponent={<View style={s.emptyBox}><Users size={32} color={C.textMuted} /><Text style={s.emptyText}>배정된 학생이 없습니다</Text></View>}
+          ListEmptyComponent={<View style={s.emptyBox}><LucideIcon name="users" size={32} color={C.textMuted} /><Text style={s.emptyText}>배정된 학생이 없습니다</Text></View>}
           ListHeaderComponent={<Text style={s.listHeader}>학생 {groupStudents.length}명</Text>}
           ListFooterComponent={
             <View style={{ marginTop: 16 }}>
@@ -350,9 +438,16 @@ export default function MyScheduleScreen() {
                     <Text style={[s.studentName, { color: "#D96C6C" }]}>{mk.student_name}</Text>
                     <Text style={s.studentSub}>결석일 {mk.absence_date} · 보강 대기 중</Text>
                   </View>
-                  <View style={[s.stBtn, { backgroundColor: "#FDEAEA", borderColor: "#D96C6C" }]}>
-                    <Text style={[s.stBtnTxt, { color: "#D96C6C" }]}>대기</Text>
-                  </View>
+                  <Pressable
+                    style={[s.stBtn, { backgroundColor: "#4F46E5", borderColor: "#4F46E5", opacity: assigningMakeupId === mk.id ? 0.6 : 1 }]}
+                    onPress={() => assignMakeupToCurrentClass(mk)}
+                    disabled={!!assigningMakeupId}
+                  >
+                    {assigningMakeupId === mk.id
+                      ? <ActivityIndicator size="small" color="#fff" style={{ width: 40 }} />
+                      : <Text style={[s.stBtnTxt, { color: "#fff" }]}>보충수업</Text>
+                    }
+                  </Pressable>
                 </View>
               ))}
             </View>
@@ -362,7 +457,6 @@ export default function MyScheduleScreen() {
             const isAbsent  = attStatus === "absent";
             const isPresent = attStatus === "present";
             const saving    = dayViewAttSaving.has(item.id);
-
             return (
               <View style={[s.studentRow, { backgroundColor: C.card }]}>
                 <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -374,7 +468,6 @@ export default function MyScheduleScreen() {
                     <Text style={s.studentSub}>주 {item.weekly_count || 1}회</Text>
                   </View>
                 </View>
-
                 <View style={{ flexDirection: "row", gap: 4 }}>
                   <Pressable
                     disabled={saving}
@@ -385,7 +478,6 @@ export default function MyScheduleScreen() {
                       : <Text style={[s.stBtnTxt, { color: isPresent ? "#2EC4B6" : C.textMuted }]}>출석</Text>}
                   </Pressable>
                   <Pressable
-                    disabled={saving}
                     style={[s.stBtn, isAbsent && { backgroundColor: "#FDEAEA", borderColor: "#D96C6C" }]}
                     onPress={() => markDayAtt(item.id, "absent")}>
                     {saving && !isAbsent
@@ -397,16 +489,14 @@ export default function MyScheduleScreen() {
                     <Text style={[s.stBtnTxt, { color: C.textSecondary }]}>반이동</Text>
                   </Pressable>
                 </View>
-
-                <Pressable onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id, backTo:"my-schedule"} } as any)}
+                <Pressable onPress={() => navigateFromSheet(() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id, backTo:"my-schedule"} } as any))}
                   style={{ padding: 4 }}>
-                  <ChevronRight size={16} color={C.textMuted} />
+                  <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                 </Pressable>
               </View>
             );
           }}
         />
-
         <Modal visible={showMoveSheet} transparent animationType="slide"
           onRequestClose={() => { setShowMoveSheet(false); setMoveStudent(null); }}>
           <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)" }}
@@ -432,21 +522,25 @@ export default function MyScheduleScreen() {
                 </View>
                 {moveSheetSaving
                   ? <ActivityIndicator size="small" color={C.tint} />
-                  : <ChevronRight size={16} color={C.textMuted} />}
+                  : <LucideIcon name="chevron-right" size={16} color={C.textMuted} />}
               </Pressable>
             ))}
           </View>
         </Modal>
-      </SafeAreaView>
+        <ConfirmModal visible={showDeleteClassConfirm} title="반 삭제"
+          message={`이 반을 삭제하면 다음 주부터 시간표에서 사라집니다.\n현재 소속 회원은 미배정으로 이동하며,\n기록과 일지는 유지됩니다.`}
+          confirmText="반 삭제" cancelText="취소" destructive
+          loading={deletingClassLoading}
+          onConfirm={handleDeleteClass}
+          onCancel={() => { setShowDeleteClassConfirm(false); setDeletingClass(null); }} />
+      </>
     );
   }
-
-  const dayClasses = selectedDate ? classesForDate(groups, selectedDate) : [];
-
+  const isSelectedHoliday = !!(selectedDate && holidaySet.has(selectedDate));
+  const dayClasses = selectedDate && !isSelectedHoliday ? classesForDate(myGroups, selectedDate) : [];
   return (
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="스케줄러" homePath="/(teacher)/today-schedule" />
-
       <View style={s.titleArea}>
         <View style={s.titleRow}>
           <View style={{ flex: 1 }}>
@@ -463,7 +557,7 @@ export default function MyScheduleScreen() {
                   disabled={deleting || selectedDates.size === 0}>
                   {deleting
                     ? <ActivityIndicator size="small" color="#fff" />
-                    : <><Trash2 size={13} color="#fff" /><Text style={s.selBtnText}>메모삭제{selectedDates.size > 0 ? ` (${selectedDates.size})` : ""}</Text></>}
+                    : <><LucideIcon name="trash-2" size={13} color="#fff" /><Text style={s.selBtnText}>메모삭제{selectedDates.size > 0 ? ` (${selectedDates.size})` : ""}</Text></>}
                 </Pressable>
                 <Pressable style={[s.selBtn, { backgroundColor: "#6B7280" }]}
                   onPress={() => { setSelectionMode(false); setSelectedIds(new Set()); setSelectedDates(new Set()); }}>
@@ -473,22 +567,21 @@ export default function MyScheduleScreen() {
             ) : (
               <>
                 <Pressable style={[s.selBtn, { backgroundColor: C.card }]} onPress={() => setSelectionMode(true)}>
-                  <SquareCheck size={13} color={C.textSecondary} />
+                  <LucideIcon name="check-square" size={13} color={C.textSecondary} />
                   <Text style={[s.selBtnText, { color: C.textSecondary }]}>선택</Text>
                 </Pressable>
                 <Pressable style={[s.mgmtBtn, { borderColor: C.tint }]} onPress={() => setShowManagement(true)}>
-                  <Users size={13} color={C.tint} />
+                  <LucideIcon name="users" size={13} color={C.tint} />
                   <Text style={[s.mgmtBtnText, { color: C.tint }]}>수강생관리</Text>
                 </Pressable>
                 <Pressable style={[s.createBtn, { backgroundColor: C.button }]} onPress={() => { setCreateInitialDays([]); setCreateInitialStep(1); setShowCreate(true); }}>
-                  <Plus size={14} color="#fff" />
+                  <LucideIcon name="plus" size={14} color="#fff" />
                   <Text style={s.createBtnText}>반 등록</Text>
                 </Pressable>
               </>
             )}
           </View>
         </View>
-
         <View style={s.controlRow}>
           <View style={s.viewToggle}>
             {(["monthly","weekly","daily"] as ViewMode[]).map(mode => {
@@ -505,39 +598,38 @@ export default function MyScheduleScreen() {
           </View>
           <Pressable style={[s.diaryIndexBtn, { borderColor: C.tint, backgroundColor: C.tintLight }]}
             onPress={() => router.push("/(teacher)/diary-index?backTo=my-schedule" as any)}>
-            <BookOpen size={13} color={C.tint} />
+            <LucideIcon name="book-open" size={13} color={C.tint} />
             <Text style={[s.diaryIndexBtnText, { color: C.tint }]}>수업 일지</Text>
           </Pressable>
         </View>
       </View>
-
       {viewMode === "monthly" && (
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
           <MonthlyCalendar
-            groups={groups}
+            groups={myGroups}
             themeColor={themeColor}
             selectedDate={selectedDate}
             onSelectDate={handleDatePress}
             memoDateSet={memoDateSet}
+            makeupDateSet={makeupDateSet}
             selectionMode={selectionMode}
             selectedDates={selectedDates}
           />
           <View style={{ height: 120 }} />
         </ScrollView>
       )}
-
       {viewMode === "weekly" && (
         <View style={{ flex: 1 }}>
-          {groups.length === 0 && (
+          {myGroups.length === 0 && (
             <View style={s.emptyHintBanner}>
               <Text style={s.emptyHintText}>등록된 수업이 없습니다</Text>
             </View>
           )}
           <WeeklyTimetable
-            groups={groups}
-            onSelectClass={g => setDetailGroup(g)}
+            groups={myGroups}
             selectionMode={selectionMode}
+            onSelectClass={g => setDetailGroup(g)}
             selectedIds={selectedIds}
             toggleSelect={toggleSelect}
             weekStart={weeklyViewStart}
@@ -549,22 +641,20 @@ export default function MyScheduleScreen() {
           />
         </View>
       )}
-
       {viewMode === "daily" && !selectedGroup && (
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
+        <>
           <WeeklySchedule
-            classGroups={groups} statusMap={statusMap} onSelectClass={setSelectedGroup}
+            classGroups={myGroups} statusMap={statusMap} onSelectClass={setSelectedGroup}
             themeColor={themeColor} selectionMode={selectionMode}
             selectedIds={selectedIds} onToggleSelect={toggleSelect} />
           <View style={{ height: 80 }} />
-        </ScrollView>
+        </>
       )}
-
       {viewMode === "monthly" && selectedDate && !detailGroup && !unregClassId && !removeClassGroup && (
         <DaySheet
           dateStr={selectedDate}
           classes={dayClasses}
+          allClasses={myGroups}
           attMap={dayAttMap}
           diarySet={dayDiarySet}
           themeColor={themeColor}
@@ -575,6 +665,13 @@ export default function MyScheduleScreen() {
           onClose={() => setSelectedDate(null)}
           onSelectClass={handleDaySheetClassPress}
           onOpenMakeup={handleDaySheetMakeup}
+          token={token}
+          isHoliday={isSelectedHoliday}
+          isAdminTeacher={
+            (adminUser as any)?.role === "pool_admin" ||
+            (adminUser as any)?.role === "super_admin"
+          }
+          allStudents={students}
           onAddClass={() => {
             const koDay = selectedDate ? getKoDay(selectedDate) : null;
             const validDay = koDay && koDay !== "일" ? koDay : null;
@@ -585,36 +682,45 @@ export default function MyScheduleScreen() {
           }}
         />
       )}
-
       {detailGroup && (
         <ClassDetailSheet
           group={detailGroup}
-          students={students}
+          students={selectedDate ? detailDateStudents : students}
           attMap={selectedDate ? dayAttMap : todayAttMap}
           diarySet={selectedDate ? dayDiarySet : todayDiarySet}
-          themeColor={themeColor}
           date={selectedDate}
-          token={token}
           classGroups={groups}
+          themeColor={themeColor}
+          token={token}
           onClose={() => setDetailGroup(null)}
-          onDeleteClass={() => { const g = detailGroup; setDetailGroup(null); setSelectedDate(null); setTimeout(() => { setDeletingClass(g); setShowDeleteClassConfirm(true); }, 200); }}
+          onDeleteClass={() => {
+            const target = detailGroup;
+            setDetailGroup(null);
+            setTimeout(() => {
+              setDeletingClass(target);
+              setShowDeleteClassConfirm(true);
+            }, 350);
+          }}
           onNavigateTo={navigateFromSheet}
           weekChangeLogs={viewMode === "weekly" ? weekChangeLogs : undefined}
           onColorChange={(id, color) =>
             setGroups(prev => prev.map(g => g.id === id ? { ...g, color } : g))
           }
+          onCapacityChange={(id, capacity) =>
+            setGroups(prev => prev.map(g => g.id === id ? { ...g, capacity } : g))
+          }
         />
       )}
-
       <StudentManagementSheet
         visible={showManagement}
         token={token}
-        groups={groups}
+        groups={myGroups}
         themeColor={themeColor}
+        selfTeacher={selfTeacher}
         onClose={() => setShowManagement(false)}
         onAssignDone={() => { setShowManagement(false); setDetailGroup(null); setSelectedGroup(null); load(); }}
+        onRefreshGroups={load}
       />
-
       {showCreate && (
         <ClassCreateFlow
           token={token}
@@ -631,37 +737,33 @@ export default function MyScheduleScreen() {
           onClose={() => setShowCreate(false)}
         />
       )}
-
       <ConfirmModal visible={showDeleteConfirm} title="메모 삭제"
         message={`선택한 날짜 ${selectedDates.size}일의 텍스트·음성 메모를 삭제하시겠습니까?\n수업·출결 데이터는 삭제되지 않습니다.`}
         confirmText="삭제" cancelText="취소" destructive
         onConfirm={confirmDeleteMemos} onCancel={() => setShowDeleteConfirm(false)} />
       <ConfirmModal visible={deleteFailCount > 0} title="일부 실패"
         message={`${deleteFailCount}개 반 삭제에 실패했습니다.`}
-        confirmText="확인" onConfirm={() => setDeleteFailCount(0)} />
-
+        confirmText="확인" onConfirm={() => setDeleteFailCount(0)} onCancel={() => setDeleteFailCount(0)} />
       {unregClassId && (
         <UnregisteredPickerModal token={token} classGroupId={unregClassId} themeColor={themeColor}
           onClose={() => setUnregClassId(null)}
           onAssigned={() => { setUnregClassId(null); load(); }} />
       )}
-
       {removeClassGroup && (
         <MoveToClassModal token={token} classGroup={removeClassGroup} classGroups={groups}
           students={students} themeColor={themeColor}
           onClose={() => setRemoveClassGroup(null)}
           onMoved={() => { setRemoveClassGroup(null); load(); }} />
       )}
-
       <ConfirmModal visible={showDeleteClassConfirm} title="반 삭제"
-        message={`이 반을 삭제하면 다음 주부터 시간표에서 사라집니다.\n현재 소속 회원은 미배정으로 이동하며,\n기존 수업 기록과 일지는 유지됩니다.`}
+        message={`이 반을 삭제하면 다음 주부터 시간표에서 사라집니다.\n현재 소속 회원은 미배정으로 이동하며,\n기록과 일지는 유지됩니다.`}
         confirmText="반 삭제" cancelText="취소" destructive
+        loading={deletingClassLoading}
         onConfirm={handleDeleteClass}
         onCancel={() => { setShowDeleteClassConfirm(false); setDeletingClass(null); }} />
     </SafeAreaView>
   );
 }
-
 const s = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: C.background },
   titleArea:    { backgroundColor: C.card, borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB",

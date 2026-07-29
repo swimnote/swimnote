@@ -1,7 +1,6 @@
 /**
  * (parent)/push-settings.tsx — 학부모 푸시 알림 설정
  */
-import { Info } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -113,7 +112,7 @@ export default function ParentPushSettingsScreen() {
           </View>
 
           <View style={s.infoBox}>
-            <Info size={13} color={C.textMuted} />
+            <LucideIcon name="info" size={13} color={C.textMuted} />
             <Text style={s.infoText}>
               알림을 완전히 끄려면 기기의 알림 설정에서도 꺼주세요.
             </Text>

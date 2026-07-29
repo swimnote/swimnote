@@ -5,15 +5,14 @@
  * 탭2: 학부모 요청 — 결석/보강/퇴원 등 학부모가 보낸 요청
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView,
-  Platform, Pressable, ScrollView, StyleSheet, Text,
-  TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Image,
+  Platform, Pressable, StyleSheet, Text,
+  TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { ChevronLeft, ClipboardList, Image as ImageIcon, Mail, MessageSquare, Send, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
@@ -27,10 +26,12 @@ interface Thread {
   class_name: string;
   parent_msg_count: number;
   unread_count: number;
+  unread_comment_count: number;
   last_msg_at: string;
   last_content: string;
   last_sender_role: string;
   last_sender_name: string;
+  last_message_type?: string;
 }
 
 interface Message {
@@ -54,6 +55,7 @@ interface ParentRequest {
   content: string | null;
   status: string;
   created_at: string;
+  is_read_by_teacher: boolean;
 }
 
 const REQUEST_TYPE_LABEL: Record<string, string> = {
@@ -105,7 +107,7 @@ export default function MessagesInboxScreen() {
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<any>(null);
 
   const fetchThreads = useCallback(async () => {
     setLoadingThreads(true);
@@ -158,15 +160,23 @@ export default function MessagesInboxScreen() {
     }
   }, [params.diaryId, loadingThreads, threads]);
 
+  async function markAsRead(id: string) {
+    // 낙관적 업데이트: 즉시 읽음으로 표시
+    setParentRequests(prev => prev.map(r => r.id === id ? { ...r, is_read_by_teacher: true } : r));
+    apiRequest(token, `/teacher/parent-requests/${id}/read`, { method: "PATCH" }).catch(() => {});
+  }
+
   async function updateRequestStatus(id: string, status: "done" | "rejected") {
     setUpdatingId(id);
+    // 상태 변경 시 읽음도 함께 처리 (낙관적)
+    setParentRequests(prev => prev.map(r => r.id === id ? { ...r, is_read_by_teacher: true } : r));
     try {
       const res = await apiRequest(token, `/parent-requests/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ status }),
       });
       if (res.ok) {
-        setParentRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+        setParentRequests(prev => prev.map(r => r.id === id ? { ...r, status, is_read_by_teacher: true } : r));
       } else {
         Alert.alert("오류", "상태 변경에 실패했습니다.");
       }
@@ -196,7 +206,7 @@ export default function MessagesInboxScreen() {
         const data = await uploadRes.json();
         const key = data.urls?.[0] || data.url || null;
         const url = key ? `${API_BASE}/uploads/${key}` : null;
-        setReplyImage({ uri: asset.uri, url });
+        setReplyImage({ uri: asset.uri, url: url ?? undefined });
       } else {
         Alert.alert("업로드 실패", "사진 업로드에 실패했습니다."); setReplyImage(null);
       }
@@ -245,7 +255,7 @@ export default function MessagesInboxScreen() {
     return `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   }
 
-  const pendingCount = parentRequests.filter(r => r.status === "pending").length;
+  const unreadRequestCount = parentRequests.filter(r => !r.is_read_by_teacher).length;
   const unreadMsgCount = threads.reduce((sum, t) => sum + (t.unread_count ?? 0), 0);
 
   // ── 대화 화면 (thread view) ──
@@ -254,7 +264,7 @@ export default function MessagesInboxScreen() {
       <SafeAreaView style={s.safe} edges={["top"]}>
         <View style={s.header}>
           <Pressable onPress={() => { setView("list"); setActiveThread(null); setReplyText(""); setReplyImage(null); }} style={s.backBtn}>
-            <ChevronLeft size={22} color={C.text} />
+            <LucideIcon name="chevron-left" size={22} color={C.text} />
           </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={s.headerTitle} numberOfLines={1}>{activeThread?.class_name || "쪽지"}</Text>
@@ -265,15 +275,15 @@ export default function MessagesInboxScreen() {
           <View style={{ width: 40 }} />
         </View>
 
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={0}>
+        <View style={{ flex: 1 }}>
           {loadingMsgs ? (
             <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
           ) : (
-            <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }}
+            <KeyboardAwareScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }}
               onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })} showsVerticalScrollIndicator={false}>
               {messages.length === 0 ? (
                 <View style={s.empty}>
-                  <MessageSquare size={40} color={C.textMuted} />
+                  <LucideIcon name="message-square" size={40} color={C.textMuted} />
                   <Text style={[s.emptyTxt, { color: C.textMuted }]}>메시지가 없습니다</Text>
                 </View>
               ) : (
@@ -301,7 +311,7 @@ export default function MessagesInboxScreen() {
                   );
                 })
               )}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           )}
 
           <View style={s.inputWrap}>
@@ -310,13 +320,13 @@ export default function MessagesInboxScreen() {
                 <Image source={{ uri: replyImage.uri }} style={s.imagePreview} />
                 {uploading && <ActivityIndicator size="small" color={themeColor} style={StyleSheet.absoluteFill} />}
                 <Pressable style={s.removeImageBtn} onPress={() => setReplyImage(null)}>
-                  <X size={12} color="#fff" />
+                  <LucideIcon name="x" size={12} color="#fff" />
                 </Pressable>
               </View>
             )}
             <View style={s.inputRow}>
               <Pressable style={s.imageBtn} onPress={pickImage} disabled={uploading || sending}>
-                <ImageIcon size={20} color={uploading ? C.textMuted : themeColor} />
+                <LucideIcon name="image" size={20} color={uploading ? C.textMuted : themeColor} />
               </Pressable>
               <TextInput
                 style={s.input}
@@ -333,11 +343,11 @@ export default function MessagesInboxScreen() {
                 onPress={sendReply}
                 disabled={sending || (!replyText.trim() && !replyImage?.url)}
               >
-                {sending ? <ActivityIndicator size="small" color="#fff" /> : <Send size={16} color="#fff" />}
+                {sending ? <ActivityIndicator size="small" color="#fff" /> : <LucideIcon name="send" size={16} color="#fff" />}
               </Pressable>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </SafeAreaView>
     );
   }
@@ -347,7 +357,7 @@ export default function MessagesInboxScreen() {
     <SafeAreaView style={s.safe} edges={["top"]}>
       <View style={s.header}>
         <Pressable onPress={() => router.back()} style={s.backBtn}>
-          <ChevronLeft size={22} color={C.text} />
+          <LucideIcon name="chevron-left" size={22} color={C.text} />
         </Pressable>
         <Text style={s.headerTitle}>쪽지보관함</Text>
         <View style={{ width: 40 }} />
@@ -357,7 +367,7 @@ export default function MessagesInboxScreen() {
       <View style={s.tabRow}>
         <Pressable style={[s.tab, activeTab === "messages" && { borderBottomColor: themeColor, borderBottomWidth: 2 }]}
           onPress={() => setActiveTab("messages")}>
-          <MessageSquare size={16} color={activeTab === "messages" ? themeColor : C.textMuted} />
+          <LucideIcon name="message-square" size={16} color={activeTab === "messages" ? themeColor : C.textMuted} />
           <Text style={[s.tabTxt, { color: activeTab === "messages" ? themeColor : C.textMuted }]}>쪽지함</Text>
           {unreadMsgCount > 0 && (
             <View style={[s.tabBadge, { backgroundColor: C.error }]}>
@@ -367,11 +377,11 @@ export default function MessagesInboxScreen() {
         </Pressable>
         <Pressable style={[s.tab, activeTab === "requests" && { borderBottomColor: themeColor, borderBottomWidth: 2 }]}
           onPress={() => setActiveTab("requests")}>
-          <ClipboardList size={16} color={activeTab === "requests" ? themeColor : C.textMuted} />
+          <LucideIcon name="clipboard-list" size={16} color={activeTab === "requests" ? themeColor : C.textMuted} />
           <Text style={[s.tabTxt, { color: activeTab === "requests" ? themeColor : C.textMuted }]}>학부모 요청</Text>
-          {pendingCount > 0 && (
+          {unreadRequestCount > 0 && (
             <View style={[s.tabBadge, { backgroundColor: C.error }]}>
-              <Text style={s.tabBadgeTxt}>{pendingCount}</Text>
+              <Text style={s.tabBadgeTxt}>{unreadRequestCount}</Text>
             </View>
           )}
         </Pressable>
@@ -383,7 +393,7 @@ export default function MessagesInboxScreen() {
           <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
         ) : threads.length === 0 ? (
           <View style={s.empty}>
-            <Mail size={48} color={C.textMuted} />
+            <LucideIcon name="mail" size={48} color={C.textMuted} />
             <Text style={[s.emptyTxt, { color: C.textMuted }]}>받은 쪽지가 없습니다</Text>
             <Text style={[s.emptySubTxt, { color: C.textMuted }]}>학부모가 수업일지에 쪽지를 보내면{"\n"}여기에 표시됩니다</Text>
           </View>
@@ -392,22 +402,44 @@ export default function MessagesInboxScreen() {
             data={threads}
             keyExtractor={item => item.diary_id}
             contentContainerStyle={{ padding: 16, gap: 8 }}
-            renderItem={({ item }) => (
+            renderItem={({ item }) => {
+              const isComment = item.last_message_type === "diary_comment";
+              const totalUnread = (item.unread_count ?? 0) + (item.unread_comment_count ?? 0);
+              const hasUnread = totalUnread > 0;
+              return (
               <Pressable
                 style={({ pressed }) => [s.threadItem, { opacity: pressed ? 0.85 : 1 }]}
-                onPress={() => openThread(item)}
+                onPress={() => {
+                  if (isComment) {
+                    router.push({
+                      pathname: "/(teacher)/diary-reactions",
+                      params: {
+                        diaryId: item.diary_id,
+                        lessonDate: item.lesson_date ? item.lesson_date.slice(0, 10) : "",
+                        source: "teacher_home_inbox",
+                      },
+                    } as any);
+                  } else {
+                    openThread(item);
+                  }
+                }}
               >
-                <View style={[s.threadIcon, { backgroundColor: item.unread_count > 0 ? themeColor + "20" : "#F1F5F9" }]}>
-                  <MessageSquare size={20} color={item.unread_count > 0 ? themeColor : C.textMuted} />
+                <View style={[s.threadIcon, { backgroundColor: hasUnread ? (isComment ? "#10B98120" : themeColor + "20") : "#F1F5F9" }]}>
+                  <LucideIcon name={isComment ? "message-circle" : "message-square"} size={20} color={hasUnread ? (isComment ? "#10B981" : themeColor) : C.textMuted} />
                 </View>
                 <View style={{ flex: 1, gap: 3 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    {isComment && (
+                      <View style={{ backgroundColor: "#D1FAE5", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                        <Text style={{ fontSize: 10, color: "#059669", fontFamily: "Pretendard-SemiBold" }}>새 댓글</Text>
+                      </View>
+                    )}
                     <Text style={[s.threadClass, { color: C.text }]} numberOfLines={1}>
                       {item.class_name || "반 정보 없음"} · {item.lesson_date ? item.lesson_date.slice(0,10) : ""}
                     </Text>
-                    {item.unread_count > 0 && (
-                      <View style={[s.unreadBadge, { backgroundColor: C.error }]}>
-                        <Text style={s.unreadBadgeTxt}>{item.unread_count}</Text>
+                    {totalUnread > 0 && (
+                      <View style={[s.unreadBadge, { backgroundColor: isComment ? "#10B981" : C.error }]}>
+                        <Text style={s.unreadBadgeTxt}>{totalUnread}</Text>
                       </View>
                     )}
                   </View>
@@ -418,7 +450,8 @@ export default function MessagesInboxScreen() {
                 </View>
                 <Text style={[s.threadTime, { color: C.textMuted }]}>{fmtDate(item.last_msg_at)}</Text>
               </Pressable>
-            )}
+            );
+          }}
           />
         )
       )}
@@ -429,7 +462,7 @@ export default function MessagesInboxScreen() {
           <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
         ) : parentRequests.length === 0 ? (
           <View style={s.empty}>
-            <ClipboardList size={48} color={C.textMuted} />
+            <LucideIcon name="clipboard-list" size={48} color={C.textMuted} />
             <Text style={[s.emptyTxt, { color: C.textMuted }]}>받은 요청이 없습니다</Text>
             <Text style={[s.emptySubTxt, { color: C.textMuted }]}>학부모가 결석/보강 등을 신청하면{"\n"}여기에 표시됩니다</Text>
           </View>
@@ -443,8 +476,23 @@ export default function MessagesInboxScreen() {
               const typeLabel = REQUEST_TYPE_LABEL[item.request_type] || item.request_type;
               const statusStyle = STATUS_COLOR[item.status] || STATUS_COLOR.pending;
               const isUpdating = updatingId === item.id;
+              const isUnread = !item.is_read_by_teacher;
               return (
-                <View style={s.reqCard}>
+                <Pressable
+                  style={({ pressed }) => [
+                    s.reqCard,
+                    isUnread && { borderColor: "#3B82F6", borderWidth: 1.5, backgroundColor: "#F0F7FF" },
+                    { opacity: pressed ? 0.92 : 1 },
+                  ]}
+                  onPress={() => { if (isUnread) markAsRead(item.id); }}
+                >
+                  {/* 미읽음 표시 */}
+                  {isUnread && (
+                    <View style={s.unreadDotRow}>
+                      <View style={s.unreadDot} />
+                      <Text style={s.unreadLabel}>새 요청</Text>
+                    </View>
+                  )}
                   {/* 상단: 타입 뱃지 + 날짜 */}
                   <View style={s.reqCardTop}>
                     <View style={[s.reqTypeBadge, { backgroundColor: typeColor + "18" }]}>
@@ -492,7 +540,7 @@ export default function MessagesInboxScreen() {
                       </View>
                     )}
                   </View>
-                </View>
+                </Pressable>
               );
             }}
           />
@@ -511,9 +559,9 @@ const s = StyleSheet.create({
 
   tabRow:         { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border },
   tab:            { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 },
-  tabTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  tabTxt:         { fontSize: 14, lineHeight: 19 },
   tabBadge:       { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 },
-  tabBadgeTxt:    { color: "#fff", fontSize: 11, fontFamily: "Pretendard-Regular" },
+  tabBadgeTxt:    { color: "#fff", fontSize: 11, lineHeight: 15 },
 
   empty:          { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingTop: 80 },
   emptyTxt:       { fontSize: 16, fontFamily: "Pretendard-Regular" },
@@ -528,6 +576,9 @@ const s = StyleSheet.create({
   unreadBadgeTxt: { color: "#fff", fontSize: 11, fontFamily: "Pretendard-Regular" },
 
   reqCard:        { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: C.border },
+  unreadDotRow:   { flexDirection: "row", alignItems: "center", gap: 6 },
+  unreadDot:      { width: 8, height: 8, borderRadius: 4, backgroundColor: "#3B82F6" },
+  unreadLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#3B82F6", fontWeight: "700" },
   reqCardTop:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   reqTypeBadge:   { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   reqTypeLabel:   { fontSize: 13, fontFamily: "Pretendard-Regular", fontWeight: "600" },

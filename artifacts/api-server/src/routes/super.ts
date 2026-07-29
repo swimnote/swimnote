@@ -22,6 +22,7 @@ const db = superAdminDb;
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
+import { logEvent } from "../lib/event-logger.js";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
 import { runRealBackup } from "../lib/backup.js";
 import { resolveSubscription, applySubscriptionState, normalizeTier, backfillPoolSubscriptionFields } from "../lib/subscriptionService.js";
@@ -130,14 +131,19 @@ router.get(
             AND subscription_end_at <= NOW() + INTERVAL '24 hours'
           ORDER BY subscription_end_at ASC LIMIT 10
         `),
-        // 정책 미확인 (refund_policy 미동의)
+        // 정책 미확인 (refund_policy 현재 활성 버전 미동의)
         superAdminDb.execute(sql`
           SELECT sp.id, sp.name, sp.owner_name, sp.created_at, 'policy_unsigned' AS todo_type
           FROM swimming_pools sp
           WHERE sp.approval_status = 'approved'
             AND NOT EXISTS (
               SELECT 1 FROM policy_consents pc
-              WHERE pc.pool_id = sp.id AND pc.policy_key = 'refund_policy'
+              WHERE pc.pool_id = sp.id
+                AND pc.policy_key = 'refund_policy'
+                AND pc.version = COALESCE(
+                  (SELECT version FROM policy_versions WHERE policy_key = 'refund_policy' AND is_active = TRUE ORDER BY created_at DESC LIMIT 1),
+                  'v1.0'
+                )
             )
           ORDER BY sp.created_at DESC LIMIT 10
         `).catch(() => ({ rows: [] })),
@@ -570,6 +576,18 @@ router.delete(
 
       const poolName = poolCheck.name;
 
+      // 삭제 대상 사용자 phone 수집 (phone_verifications 정리용)
+      const userRows = (await superAdminDb.execute(sql`
+        SELECT phone FROM users WHERE swimming_pool_id = ${id}
+      `)).rows as any[];
+      const phones = userRows.map((u: any) => u.phone).filter(Boolean);
+
+      // 학부모 phone 수집
+      const parentRows = (await superAdminDb.execute(sql`
+        SELECT phone FROM parent_accounts WHERE swimming_pool_id = ${id}
+      `)).rows as any[];
+      const parentPhones = parentRows.map((p: any) => p.phone).filter(Boolean);
+
       // 연관 데이터 순차 삭제 (FK 참조 순서 고려)
       await superAdminDb.execute(sql`DELETE FROM attendance WHERE swimming_pool_id = ${id}`).catch(() => {});
       await superAdminDb.execute(sql`DELETE FROM supplements WHERE swimming_pool_id = ${id}`).catch(() => {});
@@ -582,10 +600,19 @@ router.delete(
       await superAdminDb.execute(sql`DELETE FROM parent_accounts WHERE swimming_pool_id = ${id}`).catch(() => {});
       await db.execute(sql`DELETE FROM support_tickets WHERE pool_id = ${id}`).catch(() => {});
       await db.execute(sql`DELETE FROM event_logs WHERE pool_id = ${id}`).catch(() => {});
-      // 사용자(스태프) 삭제
+
+      // 사용자(스태프) 완전 삭제 — 역할 무관, withdrawal_requested_at 무시, 즉시 영구삭제
       await superAdminDb.execute(sql`
-        DELETE FROM users WHERE swimming_pool_id = ${id} AND role IN ('pool_admin','sub_admin','teacher')
+        DELETE FROM users WHERE swimming_pool_id = ${id}
       `).catch(() => {});
+
+      // phone_verifications 잔여 기록 삭제 (아이디 중복 방지)
+      for (const phone of [...phones, ...parentPhones]) {
+        await superAdminDb.execute(sql`
+          DELETE FROM phone_verifications WHERE phone = ${phone}
+        `).catch(() => {});
+      }
+
       // 수영장 최종 삭제
       await superAdminDb.execute(sql`DELETE FROM swimming_pools WHERE id = ${id}`);
 
@@ -1035,10 +1062,30 @@ async function ensureExtraTables() {
       policy_key  TEXT NOT NULL,
       version     TEXT NOT NULL,
       value       TEXT NOT NULL,
+      is_active   BOOLEAN DEFAULT FALSE,
       created_at  TIMESTAMPTZ DEFAULT NOW(),
       created_by  TEXT
     )
   `);
+  // is_active 컬럼 마이그레이션 (기존 테이블 보완)
+  await db.execute(sql`ALTER TABLE policy_versions ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT FALSE`).catch(() => {});
+  // DB 레벨 제약: policy_key 당 is_active=TRUE 는 최대 1개 (Partial Unique Index)
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS uidx_policy_versions_active_key
+    ON policy_versions (policy_key)
+    WHERE is_active = TRUE
+  `).catch(() => {});
+  // 각 policy_key 중 최신 버전을 is_active=TRUE로 설정
+  await db.execute(sql`
+    UPDATE policy_versions pv
+    SET is_active = TRUE
+    WHERE is_active = FALSE
+      AND id = (
+        SELECT id FROM policy_versions pv2
+        WHERE pv2.policy_key = pv.policy_key
+        ORDER BY created_at DESC LIMIT 1
+      )
+  `).catch(() => {});
   await superAdminDb.execute(sql`
     CREATE TABLE IF NOT EXISTS policy_consents (
       id          TEXT PRIMARY KEY,
@@ -1059,9 +1106,13 @@ async function ensureExtraTables() {
       category    TEXT DEFAULT 'general',
       global_enabled BOOLEAN DEFAULT FALSE,
       updated_at  TIMESTAMPTZ DEFAULT NOW(),
-      updated_by  TEXT
+      updated_by  TEXT,
+      reason      TEXT
     )
   `);
+  await superAdminDb.execute(sql`
+    ALTER TABLE feature_flags ADD COLUMN IF NOT EXISTS reason TEXT
+  `).catch(() => {});
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS feature_flag_overrides (
       id          TEXT PRIMARY KEY,
@@ -1091,6 +1142,30 @@ async function ensureExtraTables() {
       ON CONFLICT (key) DO NOTHING
     `).catch(() => {});
   }
+  // event_logs — 운영 감사 로그 (로그인·보안·결제·권한 등 모든 이벤트)
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS event_logs (
+      id          TEXT PRIMARY KEY,
+      pool_id     TEXT,
+      category    TEXT NOT NULL DEFAULT '시스템',
+      actor_id    TEXT,
+      actor_name  TEXT,
+      target      TEXT,
+      description TEXT NOT NULL DEFAULT '',
+      metadata    JSONB NOT NULL DEFAULT '{}',
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_event_logs_created_at  ON event_logs (created_at DESC)
+  `).catch(() => {});
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_event_logs_category    ON event_logs (category)
+  `).catch(() => {});
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_event_logs_pool_id     ON event_logs (pool_id)
+  `).catch(() => {});
+
   _ensureDone = true;
 }
 
@@ -1302,9 +1377,12 @@ router.post(
       if (!version || !value) { res.status(400).json({ error: "버전·내용을 입력해주세요." }); return; }
       const id = `pv_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
       const actorName = req.user?.name ?? "슈퍼관리자";
+      // 기존 활성 버전 비활성화
+      await db.execute(sql`UPDATE policy_versions SET is_active = FALSE WHERE policy_key = ${key}`);
+      // 새 버전 is_active=TRUE로 삽입
       await db.execute(sql`
-        INSERT INTO policy_versions (id, policy_key, version, value, created_by)
-        VALUES (${id}, ${key}, ${version}, ${value}, ${actorName})
+        INSERT INTO policy_versions (id, policy_key, version, value, is_active, created_by)
+        VALUES (${id}, ${key}, ${version}, ${value}, TRUE, ${actorName})
       `);
       res.json({ ok: true, id });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
@@ -1417,6 +1495,253 @@ router.post(
       `).catch(() => {});
       res.json({ ok: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// POST /super/operators/:id/purge — 운영자 데이터 영구 삭제 (슈퍼관리자 전용)
+// Body: {
+//   mode: "full" | "period" | "item",
+//   fromDate?: string,  // YYYY-MM-DD (period 모드)
+//   toDate?: string,    // YYYY-MM-DD (period 모드)
+//   items?: string[],   // ["수업 영상","사진","일지","출석 기록","결제 기록"] (item 모드)
+//   deletionReason: "operator_terminated"|"manual_by_admin"|"policy_violation",
+//   reasonDetail: string,
+//   password: string,
+// }
+// ════════════════════════════════════════════════════════════════
+router.post(
+  "/super/operators/:id/purge",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { id: poolId } = req.params;
+      const {
+        mode, fromDate, toDate, items = [],
+        deletionReason, reasonDetail, password,
+      } = req.body as {
+        mode: "full" | "period" | "item";
+        fromDate?: string; toDate?: string; items?: string[];
+        deletionReason: string; reasonDetail: string; password: string;
+      };
+
+      if (!mode || !["full","period","item"].includes(mode)) {
+        res.status(400).json({ error: "삭제 방식을 선택해주세요." }); return;
+      }
+      if (!deletionReason) {
+        res.status(400).json({ error: "삭제 사유를 선택해주세요." }); return;
+      }
+      if (!reasonDetail || reasonDetail.trim().length < 5) {
+        res.status(400).json({ error: "상세 사유를 5자 이상 입력해주세요." }); return;
+      }
+      if (!password) {
+        res.status(400).json({ error: "비밀번호를 입력해주세요." }); return;
+      }
+      if (mode === "period" && (!fromDate || !toDate)) {
+        res.status(400).json({ error: "기간 지정 삭제는 시작일/종료일이 필요합니다." }); return;
+      }
+      if (mode === "item" && items.length === 0) {
+        res.status(400).json({ error: "항목별 삭제는 최소 1개 항목을 선택해야 합니다." }); return;
+      }
+
+      const userId = req.user!.userId;
+
+      // ── 슈퍼관리자 비밀번호 검증 ────────────────────────────
+      const [userRow] = (await superAdminDb.execute(sql`
+        SELECT password_hash, name FROM users WHERE id = ${userId} LIMIT 1
+      `)).rows as any[];
+      if (!userRow) { res.status(403).json({ error: "사용자 정보 없음" }); return; }
+
+      const { comparePassword: cmpPwd } = await import("../lib/auth.js");
+      const valid = await cmpPwd(password, userRow.password_hash);
+      if (!valid) {
+        res.status(401).json({ error: "비밀번호가 일치하지 않습니다." }); return;
+      }
+
+      const actorName = userRow.name || "슈퍼관리자";
+
+      // ── 수영장 존재 확인 ─────────────────────────────────────
+      const [poolRow] = (await superAdminDb.execute(sql`
+        SELECT id, name FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+      `)).rows as any[];
+      if (!poolRow) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
+
+      const deleted = {
+        videos: 0, photos: 0, class_records: 0,
+        attendance: 0, payment_logs: 0, members: 0,
+      };
+
+      // ── 날짜 범위 조건 결정 ──────────────────────────────────
+      let dateCondition = "";
+      if (mode === "period" && fromDate && toDate) {
+        dateCondition = `AND created_at >= '${fromDate}'::date AND created_at < ('${toDate}'::date + INTERVAL '1 day')`;
+      }
+
+      const shouldDelete = (itemLabel: string) =>
+        mode === "full" ||
+        mode === "period" ||
+        (mode === "item" && items.includes(itemLabel));
+
+      // ── 영상 삭제 ────────────────────────────────────────────
+      if (shouldDelete("수업 영상")) {
+        const [r] = (await db.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM student_videos
+          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `))).rows as any[];
+        await db.execute(sql.raw(`
+          DELETE FROM student_videos
+          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `));
+        deleted.videos = Number(r?.cnt ?? 0);
+      }
+
+      // ── 사진 삭제 ────────────────────────────────────────────
+      if (shouldDelete("사진")) {
+        const [r] = (await db.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM student_photos
+          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `))).rows as any[];
+        await db.execute(sql.raw(`
+          DELETE FROM student_photos
+          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `));
+        deleted.photos = Number(r?.cnt ?? 0);
+      }
+
+      // ── 수업기록/일지 삭제 ──────────────────────────────────
+      if (shouldDelete("일지")) {
+        const [cd] = (await db.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM class_diaries
+          WHERE swimming_pool_id = '${poolId}' AND is_deleted = false ${dateCondition}
+        `))).rows as any[];
+        const diaries = (await db.execute(sql.raw(`
+          SELECT id FROM class_diaries
+          WHERE swimming_pool_id = '${poolId}' AND is_deleted = false ${dateCondition}
+        `))).rows as any[];
+        if (diaries.length > 0) {
+          const ids = diaries.map((d: any) => `'${d.id}'`).join(",");
+          await db.execute(sql.raw(`DELETE FROM class_diary_student_notes WHERE diary_id IN (${ids})`));
+          await db.execute(sql.raw(`DELETE FROM class_diaries WHERE id IN (${ids})`));
+        }
+        const [sd] = (await db.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM swim_diary
+          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `))).rows as any[];
+        await db.execute(sql.raw(`
+          DELETE FROM swim_diary WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `));
+        const [tm] = (await db.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM teacher_daily_memos
+          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `))).rows as any[];
+        await db.execute(sql.raw(`
+          DELETE FROM teacher_daily_memos WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `));
+        deleted.class_records = Number(cd?.cnt ?? 0) + Number(sd?.cnt ?? 0) + Number(tm?.cnt ?? 0);
+      }
+
+      // ── 출석 기록 삭제 ──────────────────────────────────────
+      if (shouldDelete("출석 기록")) {
+        const [r] = (await db.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM attendances
+          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `))).rows as any[];
+        await db.execute(sql.raw(`
+          DELETE FROM attendances WHERE swimming_pool_id = '${poolId}' ${dateCondition}
+        `));
+        deleted.attendance = Number(r?.cnt ?? 0);
+      }
+
+      // ── 결제 기록 삭제 ──────────────────────────────────────
+      if (shouldDelete("결제 기록")) {
+        const [r] = (await superAdminDb.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM payment_logs
+          WHERE pool_id = '${poolId}' ${dateCondition.replace(/created_at/g, 'paid_at')}
+        `))).rows as any[];
+        await superAdminDb.execute(sql.raw(`
+          DELETE FROM payment_logs WHERE pool_id = '${poolId}'
+          ${dateCondition.replace(/created_at/g, 'paid_at')}
+        `));
+        deleted.payment_logs = Number(r?.cnt ?? 0);
+      }
+
+      // ── 전체 삭제 전용: 회원 정보, 일정, 기타 ──────────────
+      if (mode === "full") {
+        const [mr] = (await db.execute(sql.raw(`
+          SELECT COUNT(*)::int AS cnt FROM students
+          WHERE swimming_pool_id = '${poolId}'
+        `))).rows as any[];
+        // 회원 연관 데이터 순서대로 삭제
+        await db.execute(sql.raw(`
+          DELETE FROM student_tag_assignments WHERE swimming_pool_id = '${poolId}'
+        `)).catch(() => {});
+        await db.execute(sql.raw(`
+          DELETE FROM student_lesson_count WHERE student_id IN (
+            SELECT id FROM students WHERE swimming_pool_id = '${poolId}'
+          )
+        `)).catch(() => {});
+        await db.execute(sql.raw(`
+          DELETE FROM students WHERE swimming_pool_id = '${poolId}'
+        `)).catch(() => {});
+        deleted.members = Number(mr?.cnt ?? 0);
+
+        // 수영장 자체 상태 업데이트
+        await superAdminDb.execute(sql.raw(`
+          UPDATE swimming_pools
+          SET subscription_status = 'cancelled',
+              subscription_end_at = NOW(),
+              is_readonly = true,
+              upload_blocked = true,
+              used_storage_bytes = 0
+          WHERE id = '${poolId}'
+        `));
+      }
+
+      const totalDeleted =
+        deleted.videos + deleted.photos + deleted.class_records +
+        deleted.attendance + deleted.payment_logs + deleted.members;
+
+      const modeLabel = mode === "full" ? "전체 삭제" :
+                        mode === "period" ? `기간 삭제 (${fromDate}~${toDate})` :
+                        `항목별 삭제 (${items.join(", ")})`;
+
+      const reasonLabel = deletionReason === "operator_terminated" ? "운영자 해지 확정" :
+                          deletionReason === "manual_by_admin" ? "슈퍼관리자 수동 삭제" : "정책 위반";
+
+      // ── 감사 이벤트 로그 ────────────────────────────────────
+      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      await superAdminDb.execute(sql.raw(`
+        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+        VALUES (
+          '${logId}',
+          '${poolId}',
+          '삭제',
+          '${userId}',
+          '${actorName}',
+          '${poolRow.name.replace(/'/g, "''")}',
+          '[킬스위치] ${modeLabel} — ${reasonLabel} — 총 ${totalDeleted}건 영구삭제',
+          '${JSON.stringify({
+            mode, deletionReason, reasonDetail,
+            fromDate: fromDate ?? null, toDate: toDate ?? null, items,
+            deleted, poolName: poolRow.name,
+          }).replace(/'/g, "''")}'::jsonb
+        )
+      `)).catch(() => {});
+
+      res.json({
+        ok: true,
+        pool_id: poolId,
+        pool_name: poolRow.name,
+        mode,
+        deleted,
+        total_deleted: totalDeleted,
+        message: `${poolRow.name} — ${totalDeleted}건 영구 삭제 완료`,
+      });
+    } catch (err) {
+      console.error("[purge]", err);
+      res.status(500).json({ error: "서버 오류" });
+    }
   }
 );
 
@@ -1695,19 +2020,27 @@ router.patch(
     try {
       await ensureExtraTables();
       const { key } = req.params;
-      const { global_enabled } = req.body as any;
+      const { global_enabled, reason } = req.body as any;
       const actorName = req.user?.name ?? "슈퍼관리자";
       await superAdminDb.execute(sql`
         UPDATE feature_flags SET global_enabled = ${!!global_enabled},
-          updated_at = NOW(), updated_by = ${actorName}
+          updated_at = NOW(), updated_by = ${actorName},
+          reason = ${reason ?? null}
         WHERE key = ${key}
       `);
-      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-      await db.execute(sql`
-        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
-        VALUES (${logId}, NULL, '기능 플래그', ${req.user!.userId}, ${actorName},
-                ${key}, ${`기능 플래그 ${global_enabled ? "활성화" : "비활성화"}: ${key}`}, '{}'::jsonb)
-      `).catch(() => {});
+      const { invalidateFlagCache } = await import("../lib/featureFlags.js");
+      invalidateFlagCache(key);
+
+      await logEvent({
+        pool_id:    "system",
+        category:   "기능 플래그",
+        actor_id:   req.user?.userId,
+        actor_name: actorName,
+        target:     key,
+        description: `기능 플래그 ${global_enabled ? "활성화" : "비활성화"}: ${key}${reason ? ` — ${reason}` : ""}`,
+        metadata:   { flag_key: key, enabled: !!global_enabled, reason: reason ?? null },
+      }).catch(() => {});
+
       res.json({ ok: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
@@ -1929,6 +2262,55 @@ router.post("/super/plans", requireAuth, requireRole("super_admin"), async (req:
       VALUES (${logId}, NULL, '구독', ${req.user!.userId}, ${actor}, ${tier}, ${`구독 상품 생성: ${name}`}, '{}'::jsonb)
     `).catch(() => {});
     res.json({ ok: true, tier });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /super/plans/reinit — 확정 기준값으로 플랜 강제 초기화 (슈퍼관리자 전용)
+router.post("/super/plans/reinit", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensurePlansTables();
+    // ── 확정 기준값 (pool-db-init.ts 와 동일하게 유지) ──
+    const PLAN_ROWS: [string, string, string, number, number, number, number, string][] = [
+      ['free',       'free_10',     'Free',         0,       10,   102,    0.1,  '100MB'],
+      ['starter',    'solo_30',     'Coach 30',     1900,    30,   307,    0.3,  '300MB'],
+      ['basic',      'solo_50',     'Coach 50',     2900,    50,   512,    0.5,  '500MB'],
+      ['standard',   'solo_100',    'Coach 100',    5900,    100,  1024,   1,    '1GB'  ],
+      ['center_200', 'center_200',  'Premier 200',  19000,   200,  5120,   5,    '5GB'  ],
+      ['advance',    'center_300',  'Premier 300',  27000,   300,  10240,  10,   '10GB' ],
+      ['pro',        'center_500',  'Premier 500',  43000,   500,  20480,  20,   '20GB' ],
+      ['max',        'center_1000', 'Premier 1000', 79000,   1000, 51200,  50,   '50GB' ],
+    ];
+    let upserted = 0;
+    for (const [tier, plan_id, name, price, member_limit, storage_mb, storage_gb, display] of PLAN_ROWS) {
+      await superAdminDb.execute(sql.raw(`
+        INSERT INTO subscription_plans
+          (tier, plan_id, name, price_per_month, member_limit, storage_mb, storage_gb, display_storage)
+        VALUES
+          ('${tier}','${plan_id}','${name}',${price},${member_limit},${storage_mb},${storage_gb},'${display}')
+        ON CONFLICT (tier) DO UPDATE SET
+          plan_id         = EXCLUDED.plan_id,
+          name            = EXCLUDED.name,
+          price_per_month = EXCLUDED.price_per_month,
+          member_limit    = EXCLUDED.member_limit,
+          storage_mb      = EXCLUDED.storage_mb,
+          storage_gb      = EXCLUDED.storage_gb,
+          display_storage = EXCLUDED.display_storage
+      `));
+      upserted++;
+    }
+    // 폐기 티어 삭제
+    const delResult = await superAdminDb.execute(sql.raw(
+      `DELETE FROM subscription_plans WHERE tier IN ('enterprise_2000','enterprise_3000','swimnote_2000','swimnote_3000') RETURNING tier`
+    ));
+    const deleted = delResult.rows.length;
+    const actor = req.user?.name ?? "슈퍼관리자";
+    const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await superAdminDb.execute(sql`
+      INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+      VALUES (${logId}, NULL, '구독', ${req.user!.userId}, ${actor}, 'plans', '구독 플랜 강제 초기화 (확정 기준값)', '{}'::jsonb)
+    `).catch(() => {});
+    console.log(`[super/plans/reinit] upserted=${upserted}, deleted=${deleted}`);
+    res.json({ ok: true, upserted, deleted, message: `플랜 ${upserted}개 초기화, 폐기 ${deleted}개 삭제 완료` });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
@@ -2234,7 +2616,15 @@ router.get("/super/risk-summary", requireAuth, requireRole("super_admin"), async
       superAdminDb.execute(sql`
         SELECT COUNT(*)::int AS cnt FROM swimming_pools sp
         WHERE sp.approval_status = 'approved'
-          AND NOT EXISTS (SELECT 1 FROM policy_consents pc WHERE pc.pool_id = sp.id AND pc.policy_key = 'refund_policy')
+          AND NOT EXISTS (
+            SELECT 1 FROM policy_consents pc
+            WHERE pc.pool_id = sp.id
+              AND pc.policy_key = 'refund_policy'
+              AND pc.version = COALESCE(
+                (SELECT version FROM policy_versions WHERE policy_key = 'refund_policy' AND is_active = TRUE ORDER BY created_at DESC LIMIT 1),
+                'v1.0'
+              )
+          )
       `).catch(() => ({ rows: [{ cnt: 0 }] })),
       db.execute(sql`
         SELECT COUNT(*)::int AS cnt FROM support_tickets
@@ -2267,16 +2657,33 @@ router.get("/super/risk-summary", requireAuth, requireRole("super_admin"), async
 
 router.get("/super/recent-audit-logs", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
   try {
+    await ensureExtraTables();
     const limit = Math.min(parseInt((req.query.limit as string) ?? "10", 10), 50);
-    const rows = (await superAdminDb.execute(sql`
-      SELECT el.id, el.category, el.description, el.actor_name, el.pool_id, el.target,
-             el.created_at, sp.name AS pool_name
-      FROM event_logs el
-      LEFT JOIN swimming_pools sp ON sp.id = el.pool_id
-      ORDER BY el.created_at DESC
-      LIMIT ${limit}
-    `)).rows;
-    res.json({ logs: rows });
+    const [rows, countRow, criticalRow, todayRow] = await Promise.all([
+      superAdminDb.execute(sql`
+        SELECT el.id, el.category, el.description, el.actor_name, el.pool_id, el.target,
+               el.created_at, sp.name AS pool_name
+        FROM event_logs el
+        LEFT JOIN swimming_pools sp ON sp.id = el.pool_id
+        ORDER BY el.created_at DESC
+        LIMIT ${limit}
+      `),
+      superAdminDb.execute(sql`SELECT COUNT(*)::int AS total FROM event_logs`),
+      superAdminDb.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM event_logs
+        WHERE category IN ('보안', '삭제', '해지', '킬스위치')
+      `),
+      superAdminDb.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM event_logs
+        WHERE created_at >= CURRENT_DATE
+      `),
+    ]);
+    res.json({
+      logs:           rows.rows,
+      total:          Number((countRow.rows[0] as any)?.total ?? 0),
+      critical_count: Number((criticalRow.rows[0] as any)?.cnt ?? 0),
+      today_count:    Number((todayRow.rows[0] as any)?.cnt ?? 0),
+    });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
@@ -2366,9 +2773,9 @@ router.get(
       const subRes = await db.execute(sql`
         SELECT COUNT(*)::int AS active_subs
         FROM swimming_pools
-        WHERE plan_id IS NOT NULL
-          AND plan_id != 'free'
-          AND subscription_status NOT IN ('deleted','cancelled')
+        WHERE subscription_tier IS NOT NULL
+          AND subscription_tier != 'free'
+          AND subscription_status NOT IN ('deleted','cancelled','expired')
       `);
       const activeSubs = Number(subRes.rows[0]?.active_subs ?? 0);
 
@@ -2385,6 +2792,195 @@ router.get(
     }
   }
 );
+
+// ── GET /super/scheduler-heartbeat — 스케줄러 상태 조회 ─────────────────────
+// 예상 주기 × 3 초과 시 warning, 기록 없으면 empty
+const JOB_EXPECTED_SECONDS: Record<string, number> = {
+  "push-minute":       60,
+  "parent-link":       60,
+  "auto-attendance":   15 * 60,
+  "push-makeup":       24 * 60 * 60,
+  "backup-auto":       60 * 60,
+  "backup-incremental": 24 * 60 * 60,
+};
+
+router.get(
+  "/super/scheduler-heartbeat",
+  requireAuth,
+  requireRole("super_admin", "platform_admin", "super_manager"),
+  async (_req, res) => {
+    try {
+      const rows = (await db.execute(sql`
+        SELECT job_name, last_run_at, result
+        FROM scheduler_heartbeat
+        ORDER BY last_run_at DESC
+      `)).rows as Array<{ job_name: string; last_run_at: string; result: any }>;
+
+      const now = Date.now();
+      const items = rows.map(r => {
+        const expectedSec = JOB_EXPECTED_SECONDS[r.job_name] ?? 300;
+        const lastMs = new Date(r.last_run_at).getTime();
+        const elapsed = (now - lastMs) / 1000;
+        const status: "ok" | "warning" = elapsed > expectedSec * 3 ? "warning" : "ok";
+        return {
+          job_name: r.job_name,
+          last_run_at: r.last_run_at,
+          elapsed_seconds: Math.round(elapsed),
+          expected_seconds: expectedSec,
+          result: r.result,
+          status,
+        };
+      });
+
+      // JOB_EXPECTED_SECONDS에 정의된 잡 중 기록 없는 것 추가 (empty)
+      const recordedNames = new Set(rows.map(r => r.job_name));
+      for (const jobName of Object.keys(JOB_EXPECTED_SECONDS)) {
+        if (!recordedNames.has(jobName)) {
+          items.push({
+            job_name: jobName,
+            last_run_at: "",
+            elapsed_seconds: -1,
+            expected_seconds: JOB_EXPECTED_SECONDS[jobName],
+            result: null,
+            status: "warning" as "ok" | "warning",
+          });
+        }
+      }
+
+      res.json({ items });
+    } catch (err) {
+      console.error("[super/scheduler-heartbeat]", err);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
+// ── GET /super/ops-alerts — 슈퍼관리자 운영 알림 피드 (최신 10개) ────────────
+router.get(
+  "/super/ops-alerts",
+  requireAuth,
+  requireRole("super_admin", "platform_admin", "super_manager"),
+  async (_req, res) => {
+    try {
+      const rows = (await db.execute(sql`
+        SELECT id, type, title, message, severity, related_pool_id, related_user_id, is_read, created_at
+        FROM ops_alerts
+        ORDER BY created_at DESC
+        LIMIT 10
+      `)).rows as any[];
+
+      res.json({ items: rows });
+    } catch (err) {
+      console.error("[super/ops-alerts]", err);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// GET  /super/pools/:id/credits — 수영장 크레딧 잔액 조회
+// POST /super/pools/:id/credits — 크레딧 추가/설정 (슈퍼관리자)
+// ════════════════════════════════════════════════════════════════
+async function ensureCreditTable() {
+  await superAdminDb.execute(sql`
+    CREATE TABLE IF NOT EXISTS pool_credits (
+      pool_id    TEXT PRIMARY KEY,
+      balance    INTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(() => {});
+}
+
+router.get("/super/pools/:id/credits", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensureCreditTable();
+    const [row] = (await superAdminDb.execute(sql`
+      SELECT pc.balance, pc.updated_at, sp.name AS pool_name
+      FROM pool_credits pc
+      LEFT JOIN swimming_pools sp ON sp.id = pc.pool_id
+      WHERE pc.pool_id = ${req.params.id}
+      LIMIT 1
+    `)).rows as any[];
+    res.json({ pool_id: req.params.id, balance: row?.balance ?? 0, updated_at: row?.updated_at ?? null, pool_name: row?.pool_name ?? null });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+router.post("/super/pools/:id/credits", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensureCreditTable();
+    const { amount, reason, mode } = req.body as { amount: number; reason?: string; mode?: "add" | "set" };
+    if (typeof amount !== "number") { res.status(400).json({ error: "amount 필요" }); return; }
+
+    const actorName = req.user?.name ?? "슈퍼관리자";
+
+    if (mode === "set") {
+      await superAdminDb.execute(sql`
+        INSERT INTO pool_credits (pool_id, balance, updated_at)
+        VALUES (${req.params.id}, ${amount}, NOW())
+        ON CONFLICT (pool_id) DO UPDATE SET balance = ${amount}, updated_at = NOW()
+      `);
+    } else {
+      await superAdminDb.execute(sql`
+        INSERT INTO pool_credits (pool_id, balance, updated_at)
+        VALUES (${req.params.id}, ${amount}, NOW())
+        ON CONFLICT (pool_id) DO UPDATE
+          SET balance = pool_credits.balance + ${amount}, updated_at = NOW()
+      `);
+    }
+
+    const [updated] = (await superAdminDb.execute(sql`
+      SELECT balance FROM pool_credits WHERE pool_id = ${req.params.id}
+    `)).rows as any[];
+
+    await logEvent({
+      pool_id:    req.params.id,
+      category:   "크레딧",
+      actor_name: actorName,
+      description: `크레딧 ${mode === "set" ? "설정" : "추가"}: ${amount.toLocaleString()}원${reason ? ` (${reason})` : ""} (잔액: ${updated?.balance ?? 0}원)`,
+      metadata:   { amount, mode: mode ?? "add", reason: reason ?? null, new_balance: updated?.balance ?? 0 },
+    }).catch(() => {});
+
+    res.json({ ok: true, balance: updated?.balance ?? 0 });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 매출 기록 정리 (super 경로 — billing 경로 장애 대비) ──────────────────
+// DELETE /super/revenue-logs/purge-test — 샌드박스/날짜없음/가격불일치 삭제
+router.delete("/super/revenue-logs/purge-test", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    const result = await superAdminDb.execute(sql`
+      DELETE FROM revenue_logs
+      WHERE COALESCE(is_sandbox, FALSE) = TRUE
+         OR occurred_at IS NULL
+         OR (
+           charged_amount > 0
+           AND plan_id IS NOT NULL
+           AND EXISTS (
+             SELECT 1 FROM subscription_plans sp
+             WHERE sp.tier = plan_id
+               AND sp.price_per_month > 0
+               AND charged_amount != sp.price_per_month
+           )
+         )
+      RETURNING id
+    `);
+    const count = result.rows.length;
+    res.json({ ok: true, deleted: count, message: `테스트/불일치 기록 ${count}건 삭제 완료` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /super/revenue-logs/purge-all — 전체 삭제
+router.delete("/super/revenue-logs/purge-all", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    const result = await superAdminDb.execute(sql`DELETE FROM revenue_logs RETURNING id`);
+    const count = result.rows.length;
+    res.json({ ok: true, deleted: count, message: `전체 매출 기록 ${count}건 삭제 완료` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // 앱 시작 시 비동기로 테이블/컬럼 보장
 ensureExtraTables().catch(err => console.error("[super] ensureExtraTables 오류:", err));

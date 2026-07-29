@@ -1,80 +1,114 @@
-/**
- * UploadQueueContext — 백그라운드 사진 업로드 큐
- *
- * 사진 압축 후 큐에 추가(addJobs)하면 백그라운드에서 순차 업로드.
- * 화면 이동 시에도 업로드가 계속 진행됨.
- */
-import React, { createContext, useContext, useRef, useState, useCallback } from "react";
-import { API_BASE } from "@/context/AuthContext";
+import React, { createContext, useCallback, useContext, useRef, useState } from "react";
 
 export interface PhotoUploadJob {
   uri: string;
-  endpoint: string;          // e.g. "/photos/group" | "/photos/private"
-  params: Record<string, string>; // class_id, student_id, etc.
+  endpoint: string;
+  params: Record<string, string>;
   token: string;
 }
 
-interface UploadQueueState {
-  pending: number;
+interface UploadQueueCtxType {
+  total: number;
   done: number;
   failed: number;
-}
-
-interface UploadQueueContextValue {
+  isActive: boolean;
   addJobs: (jobs: PhotoUploadJob[]) => void;
-  state: UploadQueueState;
+  dismiss: () => void;
 }
 
-const UploadQueueContext = createContext<UploadQueueContextValue>({
-  addJobs: () => {},
-  state: { pending: 0, done: 0, failed: 0 },
+const UploadQueueCtx = createContext<UploadQueueCtxType>({
+  total: 0, done: 0, failed: 0, isActive: false,
+  addJobs: () => {}, dismiss: () => {},
 });
 
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
+const CONCURRENCY = 3;
+
+async function uploadOnce(job: PhotoUploadJob): Promise<boolean> {
+  try {
+    const form = new FormData();
+    // 파일 첨부 (React Native FormData 방식)
+    const fieldName = job.endpoint.includes("batch") ? "photos" : "photos";
+    form.append(fieldName, {
+      uri: job.uri,
+      name: "photo.jpg",
+      type: "image/jpeg",
+    } as any);
+    // 추가 파라미터
+    for (const [key, val] of Object.entries(job.params)) {
+      if (val) form.append(key, val);
+    }
+    const res = await fetch(`${API_BASE_URL}${job.endpoint}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${job.token}` },
+      body: form,
+    });
+    return res.status >= 200 && res.status < 300;
+  } catch (e) {
+    console.warn("[UploadQueue] uploadOnce 실패:", e);
+    return false;
+  }
+}
+
 export function UploadQueueProvider({ children }: { children: React.ReactNode }) {
-  const queueRef = useRef<PhotoUploadJob[]>([]);
-  const runningRef = useRef(false);
-  const [state, setState] = useState<UploadQueueState>({ pending: 0, done: 0, failed: 0 });
+  const [total,    setTotal]    = useState(0);
+  const [done,     setDone]     = useState(0);
+  const [failed,   setFailed]   = useState(0);
+  const [isActive, setIsActive] = useState(false);
 
-  const runNext = useCallback(async () => {
-    if (runningRef.current) return;
-    const job = queueRef.current.shift();
-    if (!job) { runningRef.current = false; return; }
+  const queueRef      = useRef<(PhotoUploadJob & { id: string })[]>([]);
+  const activeCountRef = useRef(0);
 
-    runningRef.current = true;
-    try {
-      const form = new FormData();
-      // React Native: uri as file-like object
-      form.append("photo", { uri: job.uri, name: "photo.jpg", type: "image/jpeg" } as any);
-      Object.entries(job.params).forEach(([k, v]) => form.append(k, v));
+  async function uploadOne(job: PhotoUploadJob & { id: string }) {
+    // 최대 2회 시도
+    let ok = await uploadOnce(job);
+    if (!ok) {
+      await new Promise(r => setTimeout(r, 2000));
+      ok = await uploadOnce(job);
+    }
+    if (ok) setDone(d => d + 1);
+    else setFailed(f => f + 1);
+  }
 
-      await fetch(`${API_BASE}${job.endpoint}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${job.token}` },
-        body: form,
-      });
-      setState(s => ({ ...s, pending: Math.max(0, s.pending - 1), done: s.done + 1 }));
-    } catch {
-      setState(s => ({ ...s, pending: Math.max(0, s.pending - 1), failed: s.failed + 1 }));
-    } finally {
-      runningRef.current = false;
-      // Process next job
-      if (queueRef.current.length > 0) runNext();
+  async function runWorker() {
+    while (queueRef.current.length > 0) {
+      const job = queueRef.current.shift();
+      if (!job) break;
+      await uploadOne(job);
+    }
+    activeCountRef.current -= 1;
+    if (activeCountRef.current === 0) setIsActive(false);
+  }
+
+  const addJobs = useCallback((jobs: PhotoUploadJob[]) => {
+    if (!jobs.length) return;
+    const tagged = jobs.map((j, i) => ({ ...j, id: `${Date.now()}_${i}` }));
+    queueRef.current.push(...tagged);
+    setTotal(t => t + jobs.length);
+    setIsActive(true);
+
+    const toStart = Math.max(0, CONCURRENCY - activeCountRef.current);
+    const actualStart = Math.min(toStart, tagged.length);
+    for (let i = 0; i < actualStart; i++) {
+      activeCountRef.current += 1;
+      runWorker();
     }
   }, []);
 
-  const addJobs = useCallback((jobs: PhotoUploadJob[]) => {
-    queueRef.current.push(...jobs);
-    setState(s => ({ ...s, pending: s.pending + jobs.length }));
-    runNext();
-  }, [runNext]);
+  const dismiss = useCallback(() => {
+    if (activeCountRef.current > 0) return;
+    setTotal(0);
+    setDone(0);
+    setFailed(0);
+    setIsActive(false);
+    queueRef.current = [];
+  }, []);
 
   return (
-    <UploadQueueContext.Provider value={{ addJobs, state }}>
+    <UploadQueueCtx.Provider value={{ total, done, failed, isActive, addJobs, dismiss }}>
       {children}
-    </UploadQueueContext.Provider>
+    </UploadQueueCtx.Provider>
   );
 }
 
-export function useUploadQueue() {
-  return useContext(UploadQueueContext);
-}
+export const useUploadQueue = () => useContext(UploadQueueCtx);

@@ -57,6 +57,9 @@ export const swimmingPoolsTable = pgTable("swimming_pools", {
   is_readonly:     boolean("is_readonly").default(false),
   readonly_reason: text("readonly_reason"),
 
+  homepage_slug:    text("homepage_slug"),
+  homepage_enabled: boolean("homepage_enabled").default(false),
+
   white_label_enabled: boolean("white_label_enabled").default(false),
   hide_platform_name:  boolean("hide_platform_name").default(false),
 

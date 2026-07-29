@@ -2,13 +2,11 @@
  * (super)/pools.tsx — 운영자 관리 (대규모 운영 콘솔)
  * 14개 실데이터 · 13개 필터칩 · 다중선택 · 일괄처리
  */
-import { Check, Inbox, Search, SquareCheck, X } from "lucide-react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useMemo, useRef, useState, useEffect, useCallback } from "react";
-import {
-  FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE } from "@/context/auth/SessionContext";
@@ -111,13 +109,17 @@ export default function SuperPoolsScreen() {
 
   const { token } = useAuth();
 
-  // API에서 실데이터 로드
+  // API에서 실데이터 로드 (화면 포커스 복귀 시 재조회)
   const loadOperators = useCallback(async () => {
     if (!token) return;
     await fetchOperators(token, API_BASE);
   }, [token, fetchOperators]);
 
   useEffect(() => { loadOperators(); }, [loadOperators]);
+
+  useFocusEffect(useCallback(() => {
+    loadOperators();
+  }, [loadOperators]));
 
   // sync local filter to store
   useEffect(() => {
@@ -215,7 +217,7 @@ export default function SuperPoolsScreen() {
         {/* 체크박스 */}
         {multiSelect && (
           <View style={[s.checkbox, isSelected && s.checkboxChecked]}>
-            {isSelected && <Check size={12} color="#fff" />}
+            {isSelected && <LucideIcon name="check" size={12} color="#fff" />}
           </View>
         )}
 
@@ -322,23 +324,23 @@ export default function SuperPoolsScreen() {
       {/* 검색 + 정렬 */}
       <View style={s.searchRow}>
         <View style={s.searchBox}>
-          <Search size={14} color="#64748B" />
+          <LucideIcon name="search" size={14} color="#64748B" />
           <TextInput style={s.searchInput} value={search} onChangeText={setSearch}
             placeholder="운영자명, 코드, 담당자 검색" placeholderTextColor="#64748B" />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch("")}>
-              <X size={14} color="#64748B" />
+              <LucideIcon name="x" size={14} color="#64748B" />
             </Pressable>
           )}
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}>
           {SORT_OPTS.map(o => (
             <Pressable key={o.key} style={[s.sortChip, sort === o.key && s.sortChipActive]}
               onPress={() => setSort(o.key)}>
               <Text style={[s.sortChipTxt, sort === o.key && s.sortChipTxtActive]}>{o.label}</Text>
             </Pressable>
           ))}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
 
       {/* 필터 칩 — 전체 표시 (wrap) */}
@@ -360,18 +362,18 @@ export default function SuperPoolsScreen() {
         </Text>
         <View style={s.listHeaderRight}>
           {multiSelect && selected.size > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}>
               {BULK_ACTIONS.map(a => (
                 <Pressable key={a.key} style={[s.bulkBtn, { backgroundColor: a.bg }]}
                   onPress={() => setBulkModal(a.key)}>
                   <Text style={[s.bulkTxt, { color: a.color }]}>{a.label}</Text>
                 </Pressable>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           )}
           <Pressable style={[s.multiBtn, multiSelect && s.multiBtnActive]}
             onPress={() => { setMultiSelect(!multiSelect); setSelected(new Set()); }}>
-            <SquareCheck size={14} color={multiSelect ? P : "#64748B"} />
+            <LucideIcon name="check-square" size={14} color={multiSelect ? P : "#64748B"} />
             <Text style={[s.multiBtnTxt, multiSelect && { color: P }]}>
               {multiSelect ? "완료" : "다중선택"}
             </Text>
@@ -389,7 +391,7 @@ export default function SuperPoolsScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={s.empty}>
-            <Inbox size={40} color="#D1D5DB" />
+            <LucideIcon name="inbox" size={40} color="#D1D5DB" />
             <Text style={s.emptyTxt}>해당 조건의 운영자가 없습니다</Text>
           </View>
         }

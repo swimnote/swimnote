@@ -12,6 +12,8 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { AtSign, BellOff, Calendar, CircleCheck, Layers, Lock as LockIcon, Paperclip, Phone, Plus, Send, Smile, User, Users, X } from "lucide-react-native";
+const Lock = LockIcon as React.ComponentType<any>;
 import {
   ActivityIndicator,
   Alert,
@@ -28,11 +30,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { AtSign, Bell, BellOff, Calendar, CircleCheck, Layers, Lock, Paperclip, Phone, Plus, Send, Smile, User, Users, X } from "lucide-react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import * as DocumentPicker from "expo-document-picker";
 import { useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { parseDateSafe } from "@/domain/formatters";
 
 const C = Colors.light;
@@ -188,6 +190,18 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
 
   useEffect(() => { loadMessages(); }, [loadMessages]);
 
+  /* ── 화면 진입 시 talk 읽음 처리 (백그라운드 복귀 포함) ── */
+  useFocusEffect(
+    useCallback(() => {
+      if (token && poolId) {
+        apiRequest(token, "/messenger/read-state", {
+          method: "POST",
+          body: JSON.stringify({ pool_id: poolId, channel_type: "talk" }),
+        }).catch(() => {});
+      }
+    }, [token, poolId])
+  );
+
   /* ── 탭 이탈 시에만 지정 대상 초기화 ── */
   useFocusEffect(
     useCallback(() => {
@@ -224,40 +238,70 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
   const sendTalk = useCallback(async () => {
     const text = talkInput.trim();
     if (!text || sending || !token) return;
+
+    const tempId = Date.now();
+    const optimistic: WorkMessage = {
+      id: tempId,
+      pool_id: poolId,
+      sender_id: myUserId,
+      sender_name: null,
+      content: text,
+      msg_type: "normal",
+      channel_type: "talk",
+      message_type: targetUser ? "directed_message" : "normal",
+      extra_data: targetUser ? { target_user_id: targetUser.id, target_user_name: targetUser.name } : null,
+      created_at: new Date().toISOString(),
+    };
+
+    // 즉시 UI 반영
+    setTalkMessages(prev => [optimistic, ...prev]);
+    setTalkInput("");
     setSending(true);
+
     try {
       const body: Record<string, any> = {
-        pool_id: poolId,
-        content: text,
-        channel_type: "talk",
-        message_type: "normal",
+        pool_id: poolId, content: text, channel_type: "talk", message_type: "normal",
       };
-      if (targetUser) {
-        body.target_user_id = targetUser.id;
-        body.target_user_name = targetUser.name;
-      }
-      const res = await apiRequest(token, "/messenger/messages", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      if (targetUser) { body.target_user_id = targetUser.id; body.target_user_name = targetUser.name; }
+      const res = await apiRequest(token, "/messenger/messages", { method: "POST", body: JSON.stringify(body) });
       if (res.ok) {
         const d = await res.json();
-        if (d.message) setTalkMessages((prev) => [d.message, ...prev]);
+        if (d.message) setTalkMessages(prev => prev.map(m => m.id === tempId ? d.message : m));
+      } else {
+        setTalkMessages(prev => prev.filter(m => m.id !== tempId));
       }
-      setTalkInput("");
-      // targetUser는 여기서 초기화하지 않음 — X 버튼 또는 탭 이탈 시에만 초기화
     } catch (e) {
       console.error("[messenger] sendTalk error", e);
+      setTalkMessages(prev => prev.filter(m => m.id !== tempId));
     } finally {
       setSending(false);
     }
-  }, [talkInput, sending, poolId, token, targetUser]);
+  }, [talkInput, sending, poolId, token, targetUser, myUserId]);
 
   /* ── 공지 전송 ── */
   const sendNotice = useCallback(async () => {
     const text = noticeInput.trim();
     if (!text || sending || !isAdmin || !token) return;
+
+    const tempId = Date.now();
+    const optimistic: WorkMessage = {
+      id: tempId,
+      pool_id: poolId,
+      sender_id: myUserId,
+      sender_name: null,
+      content: text,
+      msg_type: "notice",
+      channel_type: "notice",
+      message_type: "notice",
+      extra_data: null,
+      created_at: new Date().toISOString(),
+    };
+
+    // 즉시 UI 반영
+    setNoticeMessages(prev => [optimistic, ...prev]);
+    setNoticeInput("");
     setSending(true);
+
     try {
       const res = await apiRequest(token, "/messenger/notice", {
         method: "POST",
@@ -265,15 +309,17 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
       });
       if (res.ok) {
         const d = await res.json();
-        if (d.message) setNoticeMessages((prev) => [d.message, ...prev]);
+        if (d.message) setNoticeMessages(prev => prev.map(m => m.id === tempId ? d.message : m));
+      } else {
+        setNoticeMessages(prev => prev.filter(m => m.id !== tempId));
       }
-      setNoticeInput("");
     } catch (e) {
       console.error("[messenger] sendNotice error", e);
+      setNoticeMessages(prev => prev.filter(m => m.id !== tempId));
     } finally {
       setSending(false);
     }
-  }, [noticeInput, sending, poolId, isAdmin, token]);
+  }, [noticeInput, sending, poolId, isAdmin, token, myUserId]);
 
   /* ── + 버튼: 첨부 메뉴 열기 ── */
   const handlePlusBtn = useCallback(() => {
@@ -285,38 +331,64 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
   const handleFileAttach = useCallback(async () => {
     setShowAttachMenu(false);
     if (!token) return;
+
+    let result: DocumentPicker.DocumentPickerResult;
     try {
-      const result = await DocumentPicker.getDocumentAsync({
+      result = await DocumentPicker.getDocumentAsync({
         type: "*/*",
         copyToCacheDirectory: true,
+        multiple: false,
       });
-      if (result.canceled || !result.assets?.[0]) return;
-      const asset = result.assets[0];
+    } catch (pickerErr: any) {
+      console.error("[messenger] DocumentPicker error", pickerErr);
+      Alert.alert("파일 선택 오류", "파일을 선택할 수 없습니다. 다시 시도해주세요.");
+      return;
+    }
 
-      setSending(true);
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+
+    if (!asset.uri) {
+      Alert.alert("오류", "파일 경로를 읽을 수 없습니다.");
+      return;
+    }
+
+    setSending(true);
+    try {
       const formData = new FormData();
       formData.append("pool_id", poolId);
       formData.append("file", {
         uri: asset.uri,
-        name: asset.name,
+        name: asset.name ?? "attachment",
         type: asset.mimeType || "application/octet-stream",
       } as any);
 
-      const res = await apiRequest(token, "/messenger/send-attachment", {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      const res = await fetch(`${API_BASE}/messenger/send-attachment`, {
         method: "POST",
-        headers: { "Content-Type": "multipart/form-data" },
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
       if (res.ok) {
         const d = await res.json();
         if (d.message) setTalkMessages((prev) => [d.message, ...prev]);
       } else {
-        const d = await res.json();
-        Alert.alert("오류", d.message || "파일 전송에 실패했습니다.");
+        let errMsg = "파일 전송에 실패했습니다.";
+        try { const d = await res.json(); errMsg = d.message || errMsg; } catch {}
+        Alert.alert("오류", errMsg);
       }
     } catch (e: any) {
-      console.error("[messenger] fileAttach error", e);
-      Alert.alert("오류", "파일 전송 중 문제가 발생했습니다.");
+      console.error("[messenger] fileAttach upload error", e);
+      if (e?.name === "AbortError") {
+        Alert.alert("연결 시간 초과", "서버 응답이 없습니다. 잠시 후 다시 시도해주세요.");
+      } else {
+        Alert.alert("오류", "파일 전송 중 문제가 발생했습니다. 네트워크 상태를 확인해주세요.");
+      }
     } finally {
       setSending(false);
     }
@@ -453,11 +525,11 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
               )}
               {isDirected && (
                 <View style={[s.directedTag, isMine ? s.directedTagRight : s.directedTagLeft]}>
-                  <AtSign size={10} color="#64748B" />
+                  <LucideIcon name="at-sign" size={10} color="#64748B" />
                   <Text style={s.directedTagText}>
                     {isMine
-                      ? `${extra.target_user_name}에게만`
-                      : "나에게만"}
+                      ? `@${extra.target_user_name} 언급`
+                      : `@나 언급`}
                   </Text>
                 </View>
               )}
@@ -503,7 +575,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
             <View style={s.noticeCardWrap}>
               <View style={s.noticeCard}>
                 <View style={s.noticeCardHeader}>
-                  <Bell size={13} color={AMBER_TEXT} />
+                  <LucideIcon name="bell" size={13} color={AMBER_TEXT} />
                   <Text style={s.noticeCardSender}>{item.sender_name || "관리자"}</Text>
                   <Text style={s.noticeCardTime}>{fmtTime(item.created_at)}</Text>
                 </View>
@@ -578,7 +650,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
           {targetUser && (
             <View style={s.targetBadge}>
               <AtSign size={13} color={PRIMARY} />
-              <Text style={s.targetBadgeText}>{targetUser.name}에게만 보냄</Text>
+              <Text style={s.targetBadgeText}>@{targetUser.name} 언급</Text>
               <TouchableOpacity onPress={() => setTargetUser(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <X size={14} color={C.textSecondary} />
               </TouchableOpacity>
@@ -717,7 +789,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
               </TouchableOpacity>
             </View>
             <Text style={s.modalSub}>정보를 공유할 회원을 선택하세요</Text>
-            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
               {myStudents.map((st) => (
                 <TouchableOpacity
                   key={st.id}
@@ -737,7 +809,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                   <Send size={16} color={PRIMARY} />
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -752,8 +824,8 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                 <X size={20} color={C.text} />
               </TouchableOpacity>
             </View>
-            <Text style={s.modalSub}>메시지를 보낼 대상을 선택하면 지정 메시지를 보낼 수 있습니다.</Text>
-            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+            <Text style={s.modalSub}>선택한 선생님을 @태그로 언급합니다. 메시지는 <Text style={{ fontFamily: "Pretendard-SemiBold", color: "#0F172A" }}>전체 공개</Text>이며, 비밀 개인톡이 아닙니다. 특정 선생님이 꼭 확인해야 할 내용을 보낼 때 사용하세요.</Text>
+            <KeyboardAwareScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
               {staff.map((member) => {
                 const isMe = member.id === myUserId;
                 const isSelected = targetUser?.id === member.id;
@@ -784,7 +856,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                   </TouchableOpacity>
                 );
               })}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </Pressable>
         </Pressable>
       </Modal>

@@ -1,7 +1,6 @@
 /**
  * help.tsx — 앱 내 도움말 / FAQ
  */
-import { ChevronDown, ChevronUp } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState } from "react";
 import {
@@ -78,7 +77,7 @@ function FaqRow({ item }: { item: FaqItem }) {
     <Pressable onPress={() => setOpen(p => !p)}>
       <View style={f.qRow}>
         <Text style={f.q}>{item.q}</Text>
-        {open ? <ChevronUp size={16} color={C.textMuted} /> : <ChevronDown size={16} color={C.textMuted} />}
+        {open ? <LucideIcon name="chevron-up" size={16} color={C.textMuted} /> : <LucideIcon name="chevron-down" size={16} color={C.textMuted} />}
       </View>
       {open && <Text style={f.a}>{item.a}</Text>}
     </Pressable>
@@ -161,3 +160,4 @@ const f = StyleSheet.create({
   a: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#475569", lineHeight: 21, paddingBottom: 14, paddingRight: 24 },
   divider: { height: 1, backgroundColor: C.border },
 });
+

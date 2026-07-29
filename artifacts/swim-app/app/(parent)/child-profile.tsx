@@ -3,18 +3,18 @@
  * - 이름, 성별, 출생연도, 소속 수영장, 반 정보 표시
  * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
-import { Clock } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
+import { normalizeKoreanName } from "@/utils/validation";
 
 const C = Colors.light;
 const CHILD_COLORS = [C.tint, "#2EC4B6", "#7C3AED", "#D97706", "#0EA5E9"];
@@ -51,12 +51,36 @@ const ir = StyleSheet.create({
 
 export default function ChildProfileScreen() {
   const { token, parentAccount } = useAuth();
-  const { students, setSelectedStudentId } = useParent();
+  const { students, setSelectedStudentId, refresh } = useParent();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [student, setStudent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [unlinking, setUnlinking] = useState(false);
+
+  function handleUnlink() {
+    if (!student) return;
+    Alert.alert(
+      "자녀 연결 삭제",
+      `${student.name}의 연결을 삭제할까요?\n삭제 후 홈 화면에서 다시 추가할 수 있습니다.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제",
+          style: "destructive",
+          onPress: async () => {
+            setUnlinking(true);
+            try {
+              await apiRequest(token, `/parent/unlink-child/${id}`, { method: "DELETE" });
+            } catch {}
+            router.replace("/(parent)/home" as any);
+            refresh().catch(() => {});
+          },
+        },
+      ]
+    );
+  }
 
   const studentIdx = students.findIndex(s => s.id === id);
   const accentColor = CHILD_COLORS[Math.max(0, studentIdx) % CHILD_COLORS.length];
@@ -66,7 +90,10 @@ export default function ChildProfileScreen() {
     (async () => {
       try {
         const r = await apiRequest(token, `/parent/students/${id}`);
-        if (r.ok) setStudent(await r.json());
+        if (r.ok) {
+          const data = await r.json();
+          setStudent({ ...data, name: normalizeKoreanName(data.name) });
+        }
       } catch {}
       finally { setLoading(false); }
     })();
@@ -119,7 +146,7 @@ export default function ChildProfileScreen() {
 
         <View style={{ padding: 20, gap: 12 }}>
           {/* 기본 정보 */}
-          <View style={[s.card, { backgroundColor: C.card }]}>
+            <View style={[s.card, { backgroundColor: C.card }]}>
             <Text style={[s.cardTitle, { color: C.text }]}>기본 정보</Text>
             <View style={[s.divider, { backgroundColor: C.border }]} />
             <InfoRow icon="user" label="이름" value={student.name} accentColor={accentColor} />
@@ -139,7 +166,7 @@ export default function ChildProfileScreen() {
             {scheduleChips.length > 0 && (
               <View style={ir.row}>
                 <View style={[ir.iconBox, { backgroundColor: accentColor + "15" }]}>
-                  <Clock size={16} color={accentColor} />
+                  <LucideIcon name="clock" size={16} color={accentColor} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[ir.label, { color: C.textMuted }]}>수업 일정</Text>
@@ -180,6 +207,18 @@ export default function ChildProfileScreen() {
               ))}
             </View>
           </View>
+          {/* 연결 삭제 */}
+          <Pressable
+            style={({ pressed }) => [s.unlinkBtn, { opacity: pressed || unlinking ? 0.7 : 1 }]}
+            onPress={handleUnlink}
+            disabled={unlinking}
+          >
+            {unlinking
+              ? <ActivityIndicator size="small" color="#DC2626" />
+              : <LucideIcon name="user-minus" size={16} color="#DC2626" />
+            }
+            <Text style={s.unlinkTxt}>자녀 연결 삭제</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </View>
@@ -214,4 +253,10 @@ const s = StyleSheet.create({
 
   empty: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyTxt: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  unlinkBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: "#FECACA", backgroundColor: "#FEF2F2" },
+  unlinkTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#DC2626" },
+  unlinkLocked: { borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#F8FAFC", padding: 14, gap: 6 },
+  unlinkLockedRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  unlinkLockedTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  unlinkLockedDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8", lineHeight: 18 },
 });

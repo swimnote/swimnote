@@ -4,10 +4,11 @@
  * 분리 책임: class-groups / students / 오늘 출결·일지 fetch + state 관리
  * JSX / 렌더 흐름 / UI 로직은 건드리지 않음
  */
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import { StudentItem, todayDateStr } from "../utils";
+import { onDiaryChanged } from "@/utils/diaryEvents";
 
 export function useMyScheduleData(token: string | null) {
   const [groups,        setGroups]        = useState<TeacherClassGroup[]>([]);
@@ -41,6 +42,20 @@ export function useMyScheduleData(token: string | null) {
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
+
+  // 일지 생성/삭제 이벤트 구독 → todayDiarySet 즉시 갱신 (re-focus 없이도 동기화)
+  useEffect(() => {
+    return onDiaryChanged(ev => {
+      const today = todayDateStr();
+      if (ev.lessonDate !== today) return;
+      setTodayDiarySet(prev => {
+        const next = new Set(prev);
+        if (ev.type === "deleted") next.delete(ev.classGroupId);
+        else next.add(ev.classGroupId);
+        return next;
+      });
+    });
+  }, []);
 
   return {
     groups,        setGroups,

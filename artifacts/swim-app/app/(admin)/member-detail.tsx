@@ -5,7 +5,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -51,15 +51,19 @@ export default function MemberDetailScreen() {
   const [alertInfo, setAlertInfo]         = useState<{ title: string; msg: string } | null>(null);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
+  const [showForceDeleteConfirm, setShowForceDeleteConfirm] = useState(false);
 
   // 편집 상태
-  const [editName, setEditName]               = useState("");
-  const [editBirth, setEditBirth]             = useState("");
-  const [editParentName, setEditParentName]   = useState("");
-  const [editParentPhone, setEditParentPhone] = useState("");
-  const [editMemo, setEditMemo]               = useState("");
-  const [editNotes, setEditNotes]             = useState("");
-  const [infoChanged, setInfoChanged]         = useState(false);
+  const [editName, setEditName]                   = useState("");
+  const [editBirth, setEditBirth]                 = useState("");
+  const [editParentName, setEditParentName]       = useState("");
+  const [editParentPhone, setEditParentPhone]     = useState("");
+  const [editParentPhone2, setEditParentPhone2]   = useState("");
+  const [editParentPhone3, setEditParentPhone3]   = useState("");
+  const [editParentPhone4, setEditParentPhone4]   = useState("");
+  const [editMemo, setEditMemo]                   = useState("");
+  const [editNotes, setEditNotes]                 = useState("");
+  const [infoChanged, setInfoChanged]             = useState(false);
 
   // 수업 편집
   const [weeklyCount, setWeeklyCount]   = useState<WeeklyCount>(1);
@@ -85,6 +89,9 @@ export default function MemberDetailScreen() {
         setEditBirth(d.birth_year || "");
         setEditParentName(d.parent_name || "");
         setEditParentPhone(d.parent_phone || "");
+        setEditParentPhone2((d as any).parent_phone2 || "");
+        setEditParentPhone3((d as any).parent_phone3 || "");
+        setEditParentPhone4((d as any).parent_phone4 || "");
         setEditMemo(d.memo || "");
         setEditNotes(d.notes || "");
         setWeeklyCount((d.weekly_count || 1) as WeeklyCount);
@@ -144,12 +151,15 @@ export default function MemberDetailScreen() {
         body: JSON.stringify({
           name: editName, birth_year: editBirth, parent_name: editParentName,
           parent_phone: editParentPhone,
+          parent_phone2: editParentPhone2 || null,
+          parent_phone3: editParentPhone3 || null,
+          parent_phone4: editParentPhone4 || null,
           memo: editMemo, notes: editNotes,
         }),
       });
       if (res.ok) {
         const body = await res.json().catch(() => ({}));
-        setData(d => d ? { ...d, name: editName, birth_year: editBirth, parent_name: editParentName, parent_phone: editParentPhone, memo: editMemo, notes: editNotes, parent_user_id: body.parent_user_id ?? d.parent_user_id, parent_account_name: body.parent_account_name ?? (d as any).parent_account_name } as any : d);
+        setData(d => d ? { ...d, name: editName, birth_year: editBirth, parent_name: editParentName, parent_phone: editParentPhone, parent_phone2: editParentPhone2 || null, parent_phone3: editParentPhone3 || null, parent_phone4: editParentPhone4 || null, memo: editMemo, notes: editNotes, parent_user_id: body.parent_user_id ?? d.parent_user_id, parent_account_name: body.parent_account_name ?? (d as any).parent_account_name } as any : d);
         setInfoChanged(false);
         setAlertInfo({ title: "저장 완료", msg: "기본 정보가 업데이트되었습니다." });
       } else {
@@ -192,6 +202,22 @@ export default function MemberDetailScreen() {
       }
     } catch { setAlertInfo({ title: "오류", msg: "네트워크 오류" }); }
     finally { setSaving(false); setShowPurgeConfirm(false); }
+  }
+
+  async function doForceDelete() {
+    if (!id) return;
+    setShowForceDeleteConfirm(false);
+    setSaving(true);
+    try {
+      const res = await apiRequest(token, `/admin/students/${id}/force-delete`, { method: "DELETE" });
+      if (res.ok) {
+        router.back();
+      } else {
+        const e = await res.json();
+        setAlertInfo({ title: "오류", msg: e.error || "삭제에 실패했습니다." });
+      }
+    } catch { setAlertInfo({ title: "오류", msg: "네트워크 오류" }); }
+    finally { setSaving(false); }
   }
 
   async function saveAssignment() {
@@ -238,7 +264,7 @@ export default function MemberDetailScreen() {
   const isArchived    = ["withdrawn", "deleted"].includes(data.status);
 
   return (
-    <View style={s.safe}>
+    <KeyboardAvoidingView style={s.safe} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <SubScreenHeader
         title={data.name}
         subtitle={statusMeta.label}
@@ -270,6 +296,9 @@ export default function MemberDetailScreen() {
           editBirth={editBirth} setEditBirth={setEditBirth}
           editParentName={editParentName} setEditParentName={setEditParentName}
           editParentPhone={editParentPhone} setEditParentPhone={setEditParentPhone}
+          editParentPhone2={editParentPhone2} setEditParentPhone2={setEditParentPhone2}
+          editParentPhone3={editParentPhone3} setEditParentPhone3={setEditParentPhone3}
+          editParentPhone4={editParentPhone4} setEditParentPhone4={setEditParentPhone4}
           infoChanged={infoChanged} setInfoChanged={setInfoChanged}
           onSave={saveInfo}
           onRestoreMember={restoreMember}
@@ -278,6 +307,7 @@ export default function MemberDetailScreen() {
           statusMeta={statusMeta}
           isPoolAdmin={isPoolAdmin}
           onPurgeMember={() => setShowPurgeConfirm(true)}
+          onForceDelete={() => setShowForceDeleteConfirm(true)}
         />
       )}
 
@@ -380,13 +410,22 @@ export default function MemberDetailScreen() {
         onConfirm={purgeMember}
         onCancel={() => setShowPurgeConfirm(false)}
       />
-    </View>
+      <ConfirmModal
+        visible={showForceDeleteConfirm}
+        title="⚠️ 회원 즉시 삭제"
+        message={`${data?.name}님의 모든 데이터(출결·수영일지·학부모 가입정보)를 즉시 완전 삭제합니다.\n\n이 작업은 절대 되돌릴 수 없습니다.\n\n정말 삭제하시겠습니까?`}
+        confirmText="즉시 삭제"
+        cancelText="취소"
+        onConfirm={doForceDelete}
+        onCancel={() => setShowForceDeleteConfirm(false)}
+      />
+    </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#FFFFFF" },
-  tabScroll: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0 },
-  tabBtn: { paddingHorizontal: 14, paddingVertical: 13 },
-  tabText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  tabScroll: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0, minHeight: 46 },
+  tabBtn: { paddingHorizontal: 14, height: 46, overflow: "visible", alignItems: "center", justifyContent: "center" },
+  tabText: { fontSize: 13, lineHeight: 18 },
 });

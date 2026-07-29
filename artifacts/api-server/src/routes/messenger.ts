@@ -138,10 +138,11 @@ router.post(
       if (target_user_id && target_user_id !== userId) {
         sendPushToUser(
           target_user_id, false, "messenger",
-          `💬 ${senderName}님의 메시지`,
+          senderName,
           content.trim().slice(0, 100),
           { type: "messenger", poolId: pool_id },
-          `msg_${pool_id}`
+          `msg_${pool_id}`,
+          { subtitle: "SwimNote", channelId: "messenger", priority: "high" }
         ).catch(() => {});
       }
 

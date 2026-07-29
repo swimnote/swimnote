@@ -1,470 +1,828 @@
 /**
- * (teacher)/feedback-custom.tsx — 피드백커스텀
+ * (teacher)/feedback-custom.tsx — 일지 템플릿 (선생님)
  *
- * 선생님 개인의 일지 자동완성 문장 세트를 관리하는 화면
- * - 카테고리 탭 (초급/중급/상급/커스텀) — 레벨별 고유 색상 적용
- * - 문장 추가/수정/삭제
- * - 카테고리 이름 수정
- * - 카테고리 초기화 / 전체 초기화
+ * Override 패턴:
+ *   - 관리자 원본을 기본 목록으로 표시
+ *   - 선생님이 수정 → 해당 항목만 개인 override 저장
+ *   - 초기화 → override 삭제, 관리자 원본으로 복귀
+ *   - 선생님 신규 추가 → source_template_id=NULL 별도 항목
+ *   - 활성/비활성 토글 → toggle-active API (문장 불러오기에서 표시 여부 조절)
  */
-import { Inbox, Info, PenLine, Plus, RefreshCcw, RotateCcw, Tag, Trash2 } from "lucide-react-native";
-import { router } from "expo-router";
-import React, { useState } from "react";
-import {
-  FlatList, KeyboardAvoidingView, Modal, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform,
+  Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { Check, Plus, Search } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
-import {
-  useFeedbackTemplates,
-  SentenceLevel,
-  FeedbackTemplate,
-  DEFAULT_LABELS,
-} from "@/context/FeedbackTemplateContext";
+import { apiRequest, useAuth } from "@/context/AuthContext";
+import { DiaryTemplateLevel, DiaryTemplate } from "@/components/teacher/diary/types";
 
 const C = Colors.light;
 
-const MAX_PER_CATEGORY = 100;
-
-const LEVEL_COLORS: Record<SentenceLevel, string> = {
-  beginner:     "#2E9B6F",
-  intermediate: "#4EA7D8",
-  advanced:     "#8B5CF6",
-  custom:       "#E4A93A",
-};
-
-const LEVEL_KEYS: SentenceLevel[] = ["beginner", "intermediate", "advanced", "custom"];
+const MY_TAB_ID = "__my__";
 
 export default function FeedbackCustomScreen() {
+  const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const {
-    templates, labels,
-    addTemplate, updateTemplate, deleteTemplate,
-    updateLabel, resetCategory, resetAll,
-  } = useFeedbackTemplates();
 
-  const [activeTab, setActiveTab] = useState<SentenceLevel>("beginner");
+  const [levels, setLevels] = useState<DiaryTemplateLevel[]>([]);
+  const [selectedLevelId, setSelectedLevelId] = useState<string | null>(null);
+  const [levelsLoading, setLevelsLoading] = useState(true);
 
-  /* ── 문장 추가 모달 ── */
-  const [addVisible, setAddVisible]   = useState(false);
-  const [addText,    setAddText]      = useState("");
-  const [addError,   setAddError]     = useState("");
+  const [templates, setTemplates] = useState<DiaryTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
 
-  /* ── 문장 수정 모달 ── */
-  const [editItem,    setEditItem]    = useState<FeedbackTemplate | null>(null);
-  const [editText,    setEditText]    = useState("");
-  const [editError,   setEditError]   = useState("");
+  // "내 항목" 탭 전용: 전체 커스텀 템플릿
+  const [allMyTemplates, setAllMyTemplates] = useState<DiaryTemplate[]>([]);
 
-  /* ── 문장 삭제 확인 ── */
-  const [deleteTarget, setDeleteTarget] = useState<FeedbackTemplate | null>(null);
+  // 추가 모달에서 "내 항목" 탭일 때 레벨 선택
+  const [addLevelId, setAddLevelId] = useState<string | null>(null);
 
-  /* ── 카테고리 이름 수정 모달 ── */
-  const [labelVisible, setLabelVisible] = useState(false);
-  const [labelText,    setLabelText]    = useState("");
-  const [labelError,   setLabelError]   = useState("");
+  // 레벨 피커 바텀시트
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
 
-  /* ── 카테고리 초기화 확인 ── */
-  const [resetCatVisible, setResetCatVisible] = useState(false);
+  // 피커 내 새 카테고리 인라인 입력
+  const [newCatMode, setNewCatMode] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatError, setNewCatError] = useState("");
+  const [newCatSaving, setNewCatSaving] = useState(false);
 
-  /* ── 전체 초기화 확인 ── */
-  const [resetAllVisible, setResetAllVisible] = useState(false);
+  // 토글 로딩 (templateId → boolean)
+  const [toggling, setToggling] = useState<Record<string, boolean>>({});
 
-  const activeColor = LEVEL_COLORS[activeTab];
-  const currentList = templates.filter(t => t.level === activeTab);
-  const currentCount = currentList.length;
-  const isFull = currentCount >= MAX_PER_CATEGORY;
+  // 수정 모달 (global override + teacher 신규 모두)
+  const [editTarget, setEditTarget] = useState<DiaryTemplate | null>(null);
+  const [editText, setEditText] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editError, setEditError] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
-  /* ──────── 문장 추가 ──────── */
-  function openAdd() {
-    setAddText(""); setAddError(""); setAddVisible(true);
-  }
-  function handleAdd() {
-    const t = addText.trim();
-    if (!t) { setAddError("문장을 입력해주세요."); return; }
-    if (t.length > 100) { setAddError("최대 100자까지 입력 가능합니다."); return; }
-    if (isFull) { setAddError(`카테고리당 최대 ${MAX_PER_CATEGORY}개까지 추가할 수 있습니다.`); return; }
-    addTemplate(activeTab, t);
-    setAddVisible(false);
-  }
+  // 신규 추가 모달 (teacher-only, source=null)
+  const [addVisible, setAddVisible] = useState(false);
+  const [addText, setAddText] = useState("");
+  const [addTitle, setAddTitle] = useState("");
+  const [addError, setAddError] = useState("");
+  const [addSaving, setAddSaving] = useState(false);
 
-  /* ──────── 문장 수정 ──────── */
-  function openEdit(item: FeedbackTemplate) {
-    setEditItem(item); setEditText(item.template_text); setEditError(""); 
-  }
-  function handleEdit() {
-    if (!editItem) return;
-    const t = editText.trim();
-    if (!t) { setEditError("문장을 입력해주세요."); return; }
-    if (t.length > 100) { setEditError("최대 100자까지 입력 가능합니다."); return; }
-    updateTemplate(editItem.id, t);
-    setEditItem(null);
-  }
+  // 키보드 높이 추적 (Modal 내 완료 버튼용)
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", e => setKbHeight(e.endCoordinates.height));
+    const hide = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide", () => setKbHeight(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
-  /* ──────── 문장 삭제 ──────── */
-  function handleDelete() {
+  // 초기화 확인
+  const [resetTarget, setResetTarget] = useState<DiaryTemplate | null>(null);
+  // 삭제 확인 (teacher 신규 항목)
+  const [deleteTarget, setDeleteTarget] = useState<DiaryTemplate | null>(null);
+
+  // ── 레벨 로드 ──────────────────────────────────────
+  const loadLevels = useCallback(async () => {
+    setLevelsLoading(true);
+    try {
+      const r = await apiRequest(token, "/diary-template-levels");
+      if (r.ok) {
+        const lvs: DiaryTemplateLevel[] = await r.json();
+        setLevels(lvs);
+        if (lvs.length > 0 && !selectedLevelId) setSelectedLevelId(lvs[0].id);
+      }
+    } catch { /* ignore */ }
+    setLevelsLoading(false);
+  }, [token, selectedLevelId]);
+
+  // ── 카테고리(레벨) 신규 생성 ────────────────────────
+  const createLevel = useCallback(async () => {
+    const name = newCatName.trim();
+    if (!name) { setNewCatError("이름을 입력해주세요."); return; }
+    if (name.length > 50) { setNewCatError("50자 이내로 입력해주세요."); return; }
+    setNewCatSaving(true);
+    setNewCatError("");
+    try {
+      const r = await apiRequest(token, "/diary-template-levels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ level_name: name }),
+      });
+      const data = await r.json();
+      if (!r.ok) { setNewCatError(data.message ?? "오류가 발생했습니다."); setNewCatSaving(false); return; }
+      // 레벨 목록 다시 로드 후 새 레벨 선택
+      const r2 = await apiRequest(token, "/diary-template-levels");
+      if (r2.ok) {
+        const lvs: DiaryTemplateLevel[] = await r2.json();
+        setLevels(lvs);
+        setSelectedLevelId(data.id);
+      }
+      setNewCatMode(false);
+      setNewCatName("");
+      setPickerVisible(false);
+      setPickerSearch("");
+    } catch { setNewCatError("네트워크 오류가 발생했습니다."); }
+    setNewCatSaving(false);
+  }, [token, newCatName]);
+
+  // ── 템플릿 로드 (include_inactive=true → 비활성 항목도 관리 화면에 표시)
+  const loadTemplates = useCallback(async (levelId: string) => {
+    setTemplatesLoading(true);
+    try {
+      const r = await apiRequest(token, `/diary-templates?level_id=${levelId}&include_inactive=true`);
+      if (r.ok) setTemplates(await r.json());
+    } catch { /* ignore */ }
+    setTemplatesLoading(false);
+  }, [token]);
+
+  // ── "내 항목" 탭: 전체 커스텀 템플릿 로드
+  const loadMyTemplates = useCallback(async () => {
+    setTemplatesLoading(true);
+    try {
+      const r = await apiRequest(token, "/diary-templates?include_inactive=true");
+      if (r.ok) {
+        const all: DiaryTemplate[] = await r.json();
+        setAllMyTemplates(all.filter(t => !t.global_id));
+      }
+    } catch { /* ignore */ }
+    setTemplatesLoading(false);
+  }, [token]);
+
+  useEffect(() => { loadLevels(); }, []);
+  useEffect(() => {
+    if (!selectedLevelId) return;
+    if (selectedLevelId === MY_TAB_ID) loadMyTemplates();
+    else loadTemplates(selectedLevelId);
+  }, [selectedLevelId]);
+
+  // ── 활성/비활성 토글 ────────────────────────────────
+  const handleToggleActive = async (t: DiaryTemplate, newValue: boolean) => {
+    const id = t.global_id ?? t.id;
+    setToggling(prev => ({ ...prev, [t.id]: true }));
+    // 낙관적 업데이트
+    setTemplates(prev => prev.map(item => item.id === t.id ? { ...item, is_active: newValue } : item));
+    try {
+      const r = await apiRequest(token, `/diary-templates/${id}/toggle-active`, {
+        method: "POST",
+        body: JSON.stringify({ is_active: newValue }),
+      });
+      if (!r.ok) {
+        // 롤백
+        setTemplates(prev => prev.map(item => item.id === t.id ? { ...item, is_active: !newValue } : item));
+      }
+    } catch {
+      setTemplates(prev => prev.map(item => item.id === t.id ? { ...item, is_active: !newValue } : item));
+    }
+    setToggling(prev => { const next = { ...prev }; delete next[t.id]; return next; });
+  };
+
+  // ── override 저장 (global 항목 수정) ───────────────
+  const saveOverride = async () => {
+    if (!editTarget || !editText.trim()) { setEditError("내용을 입력해주세요."); return; }
+    setEditSaving(true);
+    setEditError("");
+    try {
+      let r: Response;
+      if (editTarget.global_id) {
+        r = await apiRequest(token, `/diary-templates/${editTarget.global_id}/override`, {
+          method: "POST",
+          body: JSON.stringify({ template_text: editText.trim(), title: editTitle.trim() || null }),
+        });
+      } else {
+        r = await apiRequest(token, `/diary-templates/${editTarget.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ template_text: editText.trim(), title: editTitle.trim() || null }),
+        });
+      }
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        setEditError(j.error ?? "저장 실패");
+        setEditSaving(false);
+        return;
+      }
+      setEditTarget(null);
+      if (selectedLevelId) loadTemplates(selectedLevelId);
+    } catch (e: any) {
+      setEditError(e?.message ?? "저장 실패");
+    }
+    setEditSaving(false);
+  };
+
+  // ── override 초기화 ─────────────────────────────────
+  const confirmReset = async () => {
+    if (!resetTarget?.global_id) return;
+    try {
+      await apiRequest(token, `/diary-templates/${resetTarget.global_id}/override`, { method: "DELETE" });
+    } catch { /* ignore */ }
+    setResetTarget(null);
+    if (selectedLevelId && selectedLevelId !== MY_TAB_ID) loadTemplates(selectedLevelId);
+  };
+
+  // ── 신규 추가 ──────────────────────────────────────
+  const saveAdd = async () => {
+    if (!addText.trim()) { setAddError("내용을 입력해주세요."); return; }
+    const targetLevelId = selectedLevelId === MY_TAB_ID ? addLevelId : selectedLevelId;
+    if (!targetLevelId) { setAddError("레벨을 선택해주세요."); return; }
+    setAddSaving(true);
+    setAddError("");
+    try {
+      const r = await apiRequest(token, "/diary-templates", {
+        method: "POST",
+        body: JSON.stringify({ level_id: targetLevelId, template_text: addText.trim(), title: addTitle.trim() || null }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        setAddError(j.error ?? "저장 실패");
+        setAddSaving(false);
+        return;
+      }
+      setAddVisible(false);
+      setAddText(""); setAddTitle(""); setAddLevelId(null);
+      if (selectedLevelId === MY_TAB_ID) loadMyTemplates();
+      else loadTemplates(selectedLevelId!);
+    } catch (e: any) {
+      setAddError(e?.message ?? "저장 실패");
+    }
+    setAddSaving(false);
+  };
+
+  // ── 삭제 (teacher 신규 항목만) ──────────────────────
+  const confirmDelete = async () => {
     if (!deleteTarget) return;
-    deleteTemplate(deleteTarget.id);
+    try {
+      await apiRequest(token, `/diary-templates/${deleteTarget.id}`, { method: "DELETE" });
+    } catch { /* ignore */ }
     setDeleteTarget(null);
-  }
+    if (selectedLevelId === MY_TAB_ID) loadMyTemplates();
+    else if (selectedLevelId) loadTemplates(selectedLevelId);
+  };
 
-  /* ──────── 카테고리 이름 수정 ──────── */
-  function openLabel() {
-    setLabelText(labels[activeTab]); setLabelError(""); setLabelVisible(true);
-  }
-  function handleLabelSave() {
-    const t = labelText.trim();
-    if (!t) { setLabelError("카테고리 이름을 입력해주세요."); return; }
-    if (t.length > 20) { setLabelError("최대 20자까지 입력 가능합니다."); return; }
-    updateLabel(activeTab, t);
-    setLabelVisible(false);
-  }
+  // ── 항목 분류 (일반 레벨 탭용) ──────────────────────
+  const baseItems = templates.filter(t => t.global_id !== null && t.global_id !== undefined);
+  const isMyTab   = selectedLevelId === MY_TAB_ID;
 
-  /* ──────── 렌더 ──────── */
-  function renderItem({ item, index }: { item: FeedbackTemplate; index: number }) {
-    return (
-      <View style={[s.row, { backgroundColor: C.card }]}>
-        <View style={[s.rowIndex, { backgroundColor: activeColor + "18" }]}>
-          <Text style={[s.rowIndexText, { color: C.text }]}>{index + 1}</Text>
-        </View>
-        <Text style={[s.rowText, { color: C.text }]} numberOfLines={3}>{item.template_text}</Text>
-        <View style={s.rowActions}>
-          <Pressable style={[s.rowBtn, { backgroundColor: activeColor + "15" }]} onPress={() => openEdit(item)} hitSlop={6}>
-            <PenLine size={15} color={activeColor} />
-          </Pressable>
-          <Pressable style={[s.rowBtn, { backgroundColor: "#FEF2F2" }]} onPress={() => setDeleteTarget(item)} hitSlop={6}>
-            <Trash2 size={15} color="#D96C6C" />
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
+  // ── 피커 검색 필터 ──────────────────────────────────
+  const filteredLevels = useMemo(() => {
+    const q = pickerSearch.trim().toLowerCase();
+    if (!q) return levels;
+    return levels.filter(lv => lv.level_name.toLowerCase().includes(q));
+  }, [levels, pickerSearch]);
+
+  // ── 현재 선택된 레벨 이름 ──────────────────────────
+  const selectedLevelName = isMyTab ? null : levels.find(lv => lv.id === selectedLevelId)?.level_name ?? null;
 
   return (
-    <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader
-        title="피드백 커스텀"
-        
-        homePath="/(teacher)/today-schedule"
-        rightSlot={
-          <Pressable style={s.resetAllBtn} onPress={() => setResetAllVisible(true)}>
-            <RefreshCcw size={13} color="#D96C6C" />
-            <Text style={s.resetAllBtnText}>전체 초기화</Text>
-          </Pressable>
-        }
-      />
+    <View style={{ flex: 1, backgroundColor: C.background }}>
+      <SubScreenHeader title="일지 템플릿" />
 
-      {/* 안내 문구 */}
-      <View style={[s.descBox, { backgroundColor: activeColor + "0D" }]}>
-        <Info size={13} color={activeColor} />
-        <Text style={[s.descText, { color: C.text }]}>
-          일지 작성 시 불러올 문장을 직접 수정하고 관리할 수 있습니다. 변경 내용은 즉시 반영됩니다.
-        </Text>
-      </View>
-
-      {/* 카테고리 탭 */}
-      <View style={s.tabBar}>
-        {LEVEL_KEYS.map(key => {
-          const active = activeTab === key;
-          const color  = LEVEL_COLORS[key];
-          const cnt    = templates.filter(t => t.level === key).length;
-          return (
+      {/* ── 레벨 탭 ── */}
+      {levelsLoading ? (
+        <ActivityIndicator style={{ marginTop: 24 }} color={C.primary} />
+      ) : levels.length === 0 ? (
+        <View style={s.emptyBox}>
+          <Text style={s.emptyText}>관리자가 설정한 레벨이 없습니다.</Text>
+        </View>
+      ) : (
+        <>
+          <View style={s.tabBarWrapper}>
+            {/* "내 항목" 탭 — 항상 고정 */}
             <Pressable
-              key={key}
-              style={[s.tabBtn, active && { backgroundColor: color, borderColor: color }]}
-              onPress={() => setActiveTab(key)}
+              style={[s.tab, s.tabMine, isMyTab && s.tabMineActive]}
+              onPress={() => setSelectedLevelId(MY_TAB_ID)}
             >
-              <Text style={[s.tabText, { color: active ? "#fff" : C.textSecondary }]}>{labels[key]}</Text>
-              {cnt > 0 && (
-                <View style={[s.tabBadge, { backgroundColor: active ? "rgba(255,255,255,0.25)" : color + "20" }]}>
-                  <Text style={[s.tabBadgeText, { color: active ? "#fff" : color }]}>{cnt}</Text>
+              <Text style={[s.tabText, s.tabMineText, isMyTab && s.tabMineTextActive]}>✦ 내 항목</Text>
+            </Pressable>
+            {/* 세로 구분선 */}
+            <View style={s.tabDivider} />
+            {/* 레벨 피커 버튼 */}
+            <Pressable
+              style={[s.pickerBtn, !isMyTab && !!selectedLevelId && s.pickerBtnActive]}
+              onPress={() => { setPickerSearch(""); setPickerVisible(true); }}
+            >
+              <Text
+                style={[s.pickerBtnText, !isMyTab && !!selectedLevelId && s.pickerBtnTextActive]}
+                numberOfLines={1}
+              >
+                {isMyTab || !selectedLevelName ? "레벨 선택" : selectedLevelName}
+              </Text>
+              <LucideIcon name="chevron-down" size={14} color={!isMyTab && selectedLevelName ? "#2EC4B6" : "#94A3B8"} />
+            </Pressable>
+          </View>
+
+          {/* 안내 문구 */}
+          <View style={s.hintRow}>
+            <LucideIcon name="eye" size={12} color="#94A3B8" />
+            <Text style={s.hintText}>스위치를 끄면 "문장 불러오기"에서 숨겨집니다</Text>
+          </View>
+
+          <KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 80 }]}>
+            {templatesLoading ? (
+              <ActivityIndicator style={{ marginTop: 32 }} color={C.primary} />
+            ) : isMyTab ? (
+              /* ── "내 항목" 탭 ── */
+              allMyTemplates.length === 0 ? (
+                <View style={s.emptyBox}>
+                  <Text style={s.emptyText}>{"내가 추가한 항목이 없습니다.\n하단 버튼으로 추가해보세요."}</Text>
+                </View>
+              ) : (
+                allMyTemplates.map((t) => {
+                  const levelName = levels.find(lv => lv.id === t.level_id)?.level_name;
+                  return (
+                    <View key={t.id} style={[s.card, s.cardMine, !t.is_active && s.cardInactive]}>
+                      <View style={s.cardTop}>
+                        {!!t.title && <Text style={s.cardTitle}>{t.title}</Text>}
+                        <Text style={[s.cardText, { flex: 1 }, !t.is_active && s.cardTextInactive]} numberOfLines={3}>
+                          {t.template_text}
+                        </Text>
+                        <View style={s.cardActions}>
+                          {toggling[t.id] ? (
+                            <ActivityIndicator size="small" color={C.primary} style={{ width: 44 }} />
+                          ) : (
+                            <Switch
+                              value={!!t.is_active}
+                              onValueChange={v => handleToggleActive(t, v)}
+                              trackColor={{ false: "#E2E8F0", true: "#2EC4B640" }}
+                              thumbColor={t.is_active ? "#2EC4B6" : "#94A3B8"}
+                              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                            />
+                          )}
+                          <Pressable style={s.editBtn} onPress={() => {
+                            setEditTarget(t);
+                            setEditText(t.template_text);
+                            setEditTitle(t.title ?? "");
+                            setEditError("");
+                          }}>
+                            <LucideIcon name="edit-2" size={14} color="#64748B" />
+                            <Text style={s.editBtnText}>수정</Text>
+                          </Pressable>
+                          <Pressable style={[s.editBtn, { borderColor: "#FCA5A5" }]} onPress={() => setDeleteTarget(t)}>
+                            <LucideIcon name="trash-2" size={14} color="#EF4444" />
+                          </Pressable>
+                        </View>
+                      </View>
+                      {levelName && (
+                        <View style={s.levelTagRow}>
+                          <View style={s.levelTag}><Text style={s.levelTagText}>{levelName}</Text></View>
+                        </View>
+                      )}
+                      {!t.is_active && (
+                        <View style={s.hiddenBadgeRow}>
+                          <LucideIcon name="eye-off" size={11} color="#94A3B8" />
+                          <Text style={s.hiddenBadgeText}>문장 불러오기에서 숨겨짐</Text>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })
+              )
+            ) : (
+              /* ── 일반 레벨 탭: 관리자 원본만 표시 ── */
+              <>
+                {baseItems.length === 0 ? (
+                  <View style={s.emptyBox}>
+                    <Text style={s.emptyText}>이 레벨에 등록된 공통 템플릿이 없습니다.</Text>
+                  </View>
+                ) : (
+                  baseItems.map((t, i) => (
+                    <View key={t.global_id} style={[
+                      s.card,
+                      t.is_overridden && s.cardOverridden,
+                      !t.is_active && s.cardInactive,
+                    ]}>
+                      <View style={s.cardTop}>
+                        <Text style={[s.cardNum, !t.is_active && s.cardNumInactive]}>{i + 1}</Text>
+                        <Text style={[s.cardText, !t.is_active && s.cardTextInactive]} numberOfLines={3}>
+                          {t.template_text}
+                        </Text>
+                        <View style={s.cardActions}>
+                          {toggling[t.id] ? (
+                            <ActivityIndicator size="small" color={C.primary} style={{ width: 44 }} />
+                          ) : (
+                            <Switch
+                              value={!!t.is_active}
+                              onValueChange={v => handleToggleActive(t, v)}
+                              trackColor={{ false: "#E2E8F0", true: "#2EC4B640" }}
+                              thumbColor={t.is_active ? "#2EC4B6" : "#94A3B8"}
+                              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                            />
+                          )}
+                          <Pressable style={s.editBtn} onPress={() => {
+                            setEditTarget(t);
+                            setEditText(t.template_text);
+                            setEditTitle(t.title ?? "");
+                            setEditError("");
+                          }}>
+                            <LucideIcon name="edit-2" size={14} color="#64748B" />
+                            <Text style={s.editBtnText}>수정</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                      {!t.is_active && (
+                        <View style={s.hiddenBadgeRow}>
+                          <LucideIcon name="eye-off" size={11} color="#94A3B8" />
+                          <Text style={s.hiddenBadgeText}>문장 불러오기에서 숨겨짐</Text>
+                        </View>
+                      )}
+                      {t.is_overridden && t.is_active && (
+                        <View style={s.overriddenRow}>
+                          <View style={s.myBadge}><Text style={s.myBadgeText}>내 수정</Text></View>
+                          <Pressable style={s.resetBtn} onPress={() => setResetTarget(t)}>
+                            <LucideIcon name="refresh-ccw" size={11} color="#64748B" />
+                            <Text style={s.resetBtnText}>초기화</Text>
+                          </Pressable>
+                        </View>
+                      )}
+                      {t.is_overridden && !t.is_active && (
+                        <Pressable style={[s.resetBtn, { alignSelf: "flex-start", marginTop: 4 }]} onPress={() => setResetTarget(t)}>
+                          <LucideIcon name="refresh-ccw" size={11} color="#64748B" />
+                          <Text style={s.resetBtnText}>수정 초기화</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  ))
+                )}
+              </>
+            )}
+          </KeyboardAwareScrollView>
+        </>
+      )}
+
+      {/* ── 신규 추가 FAB ── */}
+      {selectedLevelId && (
+        <Pressable
+          style={[s.fab, { bottom: insets.bottom + 16 }]}
+          onPress={() => { setAddVisible(true); setAddText(""); setAddTitle(""); setAddError(""); }}
+        >
+          <LucideIcon name="plus" size={20} color="#fff" />
+          <Text style={s.fabText}>내 항목 추가</Text>
+        </Pressable>
+      )}
+
+      {/* ── 수정 모달 ── */}
+      <Modal visible={!!editTarget} transparent animationType="fade" onRequestClose={() => setEditTarget(null)}>
+        <View style={s.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+          {kbHeight > 0 && (
+            <View style={{ position: "absolute", bottom: kbHeight, left: 0, right: 0, zIndex: 100, flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingVertical: 8, backgroundColor: "#F1F5F9", borderTopWidth: 1, borderTopColor: "#E2E8F0" }}>
+              <Pressable onPress={Keyboard.dismiss} hitSlop={12}>
+                <Text style={{ color: "#2A9D8F", fontWeight: "600", fontSize: 16 }}>완료</Text>
+              </Pressable>
+            </View>
+          )}
+          <View style={s.modalBox}>
+            <KeyboardAwareScrollView
+              bounces={false}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 140 }}
+            >
+              <Text style={s.modalTitle}>템플릿 수정</Text>
+              {editTarget?.global_id && !editTarget.is_overridden && (
+                <Text style={[s.modalHint, { marginBottom: 12 }]}>수정하면 이 항목만 내 버전으로 저장됩니다.</Text>
+              )}
+              <TextInput
+                style={[s.input, { marginBottom: 10 }]}
+                placeholder="제목 (선택)"
+                value={editTitle}
+                onChangeText={setEditTitle}
+                placeholderTextColor="#94A3B8"
+                returnKeyType="next"
+              />
+              <TextInput
+                style={[s.input, s.textArea]}
+                placeholder="내용을 입력하세요"
+                value={editText}
+                onChangeText={setEditText}
+                multiline
+                scrollEnabled
+                placeholderTextColor="#94A3B8"
+              />
+              {!!editError && <Text style={s.errorText}>{editError}</Text>}
+              <View style={[s.modalBtns, { marginTop: 12 }]}>
+                <Pressable style={s.cancelBtn} onPress={() => setEditTarget(null)}>
+                  <Text style={s.cancelBtnText}>취소</Text>
+                </Pressable>
+                <Pressable style={[s.saveBtn, editSaving && { opacity: 0.6 }]} onPress={saveOverride} disabled={editSaving}>
+                  {editSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.saveBtnText}>저장</Text>}
+                </Pressable>
+              </View>
+            </KeyboardAwareScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── 신규 추가 모달 ── */}
+      <Modal visible={addVisible} transparent animationType="fade" onRequestClose={() => setAddVisible(false)}>
+        <View style={s.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+          {kbHeight > 0 && (
+            <View style={{ position: "absolute", bottom: kbHeight, left: 0, right: 0, zIndex: 100, flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingVertical: 8, backgroundColor: "#F1F5F9", borderTopWidth: 1, borderTopColor: "#E2E8F0" }}>
+              <Pressable onPress={Keyboard.dismiss} hitSlop={12}>
+                <Text style={{ color: "#2A9D8F", fontWeight: "600", fontSize: 16 }}>완료</Text>
+              </Pressable>
+            </View>
+          )}
+          <View style={s.modalBox}>
+            <KeyboardAwareScrollView
+              bounces={false}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 140 }}
+            >
+              <Text style={s.modalTitle}>내 항목 추가</Text>
+              <Text style={[s.modalHint, { marginBottom: 12 }]}>나에게만 표시되는 항목입니다.</Text>
+              {/* "내 항목" 탭에서 추가 시 레벨 선택 필요 */}
+              {isMyTab && (
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={[s.modalHint, { marginBottom: 6, color: "#475569" }]}>레벨 선택 *</Text>
+                  <View style={s.levelPickerRow}>
+                    {levels.map(lv => (
+                      <Pressable
+                        key={lv.id}
+                        style={[s.levelPickerBtn, addLevelId === lv.id && s.levelPickerBtnActive]}
+                        onPress={() => setAddLevelId(lv.id)}
+                      >
+                        <Text style={[s.levelPickerText, addLevelId === lv.id && s.levelPickerTextActive]} numberOfLines={1}>
+                          {lv.level_name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
                 </View>
               )}
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {/* 카테고리 컨트롤 */}
-      <View style={s.catControl}>
-        <Text style={[s.countText, { color: isFull ? "#D96C6C" : C.textSecondary }]}>
-          현재 {currentCount} / {MAX_PER_CATEGORY}
-        </Text>
-        <View style={s.catBtns}>
-          <Pressable style={[s.catBtn, { borderColor: activeColor + "50" }]} onPress={openLabel}>
-            <Tag size={13} color={activeColor} />
-            <Text style={[s.catBtnText, { color: C.text }]}>이름 변경</Text>
-          </Pressable>
-          <Pressable style={[s.catBtn, { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" }]} onPress={() => setResetCatVisible(true)}>
-            <RotateCcw size={13} color="#D96C6C" />
-            <Text style={[s.catBtnText, { color: "#D96C6C" }]}>초기화</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      {/* 문장 리스트 */}
-      <FlatList
-        data={currentList}
-        keyExtractor={item => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 100 }]}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={s.emptyBox}>
-            <Inbox size={36} color={C.textMuted} />
-            <Text style={s.emptyText}>
-              {activeTab === "custom"
-                ? "문장을 추가해 보세요."
-                : "초기화하면 기본 문장이 복구됩니다."}
-            </Text>
+              <TextInput
+                style={[s.input, { marginBottom: 10 }]}
+                placeholder="제목 (선택)"
+                value={addTitle}
+                onChangeText={setAddTitle}
+                placeholderTextColor="#94A3B8"
+                returnKeyType="next"
+              />
+              <TextInput
+                style={[s.input, s.textArea]}
+                placeholder="내용을 입력하세요"
+                value={addText}
+                onChangeText={setAddText}
+                multiline
+                scrollEnabled
+                placeholderTextColor="#94A3B8"
+              />
+              {!!addError && <Text style={s.errorText}>{addError}</Text>}
+              <View style={[s.modalBtns, { marginTop: 12 }]}>
+                <Pressable style={s.cancelBtn} onPress={() => { setAddVisible(false); setAddLevelId(null); }}>
+                  <Text style={s.cancelBtnText}>취소</Text>
+                </Pressable>
+                <Pressable style={[s.saveBtn, addSaving && { opacity: 0.6 }]} onPress={saveAdd} disabled={addSaving}>
+                  {addSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.saveBtnText}>추가</Text>}
+                </Pressable>
+              </View>
+            </KeyboardAwareScrollView>
           </View>
-        }
+        </View>
+      </Modal>
+
+      {/* ── 레벨 피커 바텀시트 ── */}
+      <Modal
+        visible={pickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPickerVisible(false)}
+      >
+        <Pressable style={s.pickerBackdrop} onPress={() => setPickerVisible(false)} />
+        <View style={[s.pickerSheet, { paddingBottom: Math.max(insets.bottom + 12, kbHeight + 12) }]}>
+          {/* 핸들 */}
+          <View style={s.pickerHandle} />
+          {/* 타이틀 + 새 카테고리 버튼 */}
+          <View style={s.pickerTitleRow}>
+            <Text style={s.pickerTitle}>카테고리 선택</Text>
+            <Pressable
+              style={s.pickerAddCatBtn}
+              onPress={() => {
+                setNewCatMode(v => !v);
+                setNewCatName("");
+                setNewCatError("");
+              }}
+            >
+              <Plus size={14} color="#2EC4B6" />
+              <Text style={s.pickerAddCatBtnText}>새 카테고리</Text>
+            </Pressable>
+          </View>
+          {/* 새 카테고리 인라인 입력 */}
+          {newCatMode && (
+            <View style={s.newCatBox}>
+              <TextInput
+                style={s.newCatInput}
+                value={newCatName}
+                onChangeText={t => { setNewCatName(t); setNewCatError(""); }}
+                placeholder="카테고리 이름 (50자 이내)"
+                placeholderTextColor="#94A3B8"
+                autoFocus
+                maxLength={50}
+                returnKeyType="done"
+                onSubmitEditing={createLevel}
+              />
+              {!!newCatError && <Text style={s.newCatError}>{newCatError}</Text>}
+              <View style={s.newCatActions}>
+                <Pressable style={s.newCatCancelBtn} onPress={() => { setNewCatMode(false); setNewCatName(""); setNewCatError(""); }}>
+                  <Text style={s.newCatCancelText}>취소</Text>
+                </Pressable>
+                <Pressable style={[s.newCatSaveBtn, newCatSaving && { opacity: 0.6 }]} onPress={createLevel} disabled={newCatSaving}>
+                  {newCatSaving
+                    ? <ActivityIndicator size={14} color="#fff" />
+                    : <Text style={s.newCatSaveText}>추가</Text>
+                  }
+                </Pressable>
+              </View>
+            </View>
+          )}
+          {/* 검색 */}
+          {!newCatMode && (
+            <View style={s.pickerSearchRow}>
+              <Search size={15} color="#94A3B8" />
+              <TextInput
+                style={s.pickerSearchInput}
+                value={pickerSearch}
+                onChangeText={setPickerSearch}
+                placeholder="카테고리 검색..."
+                placeholderTextColor="#94A3B8"
+                autoFocus
+                clearButtonMode="while-editing"
+              />
+            </View>
+          )}
+          {/* 레벨 목록 */}
+          <ScrollView
+            style={s.pickerList}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {filteredLevels.length === 0 ? (
+              <View style={s.pickerEmpty}>
+                <Text style={s.pickerEmptyText}>검색 결과가 없습니다.</Text>
+              </View>
+            ) : (
+              filteredLevels.map(lv => {
+                const isSelected = selectedLevelId === lv.id;
+                return (
+                  <Pressable
+                    key={lv.id}
+                    style={[s.pickerRow, isSelected && s.pickerRowSelected]}
+                    onPress={() => {
+                      setSelectedLevelId(lv.id);
+                      setPickerVisible(false);
+                      setPickerSearch("");
+                      setNewCatMode(false);
+                    }}
+                  >
+                    <Text style={[s.pickerRowText, isSelected && s.pickerRowTextSelected]} numberOfLines={2}>
+                      {lv.level_name}
+                    </Text>
+                    {isSelected && <Check size={16} color="#2EC4B6" />}
+                  </Pressable>
+                );
+              })
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* ── 초기화 확인 ── */}
+      <ConfirmModal
+        visible={!!resetTarget}
+        title="내 수정 초기화"
+        message={`이 항목을 관리자 원본으로 되돌립니다.\n내가 수정한 내용은 삭제됩니다.`}
+        confirmText="초기화"
+        confirmColor="#EF4444"
+        onConfirm={confirmReset}
+        onCancel={() => setResetTarget(null)}
       />
 
-      {/* 문장 추가 버튼 */}
-      <View style={[s.addBtnWrap, { paddingBottom: insets.bottom + 16 }]}>
-        <Pressable
-          style={[s.addBtn, { backgroundColor: isFull ? "#64748B" : activeColor }]}
-          onPress={openAdd}
-          disabled={isFull}
-        >
-          <Plus size={18} color="#fff" />
-          <Text style={s.addBtnText}>문장 추가</Text>
-          {isFull && <Text style={[s.addBtnText, { fontSize: 11, opacity: 0.8 }]}>(최대 도달)</Text>}
-        </Pressable>
-      </View>
-
-      {/* ════ 문장 추가 모달 ════ */}
-      <Modal visible={addVisible} transparent animationType="slide" onRequestClose={() => setAddVisible(false)}>
-        <Pressable style={s.modalOverlay} onPress={() => setAddVisible(false)} />
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={s.modalKV}>
-          <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
-            <Text style={s.modalTitle}>문장 추가</Text>
-            <Text style={s.modalSub}>{labels[activeTab]} 카테고리에 추가됩니다.</Text>
-            <TextInput
-              style={[s.textInput, { borderColor: addError ? "#D96C6C" : C.border }]}
-              value={addText}
-              onChangeText={t => { setAddText(t); setAddError(""); }}
-              placeholder="문장을 입력하세요 (최대 100자)"
-              placeholderTextColor={C.textMuted}
-              multiline
-              maxLength={100}
-              autoFocus
-            />
-            <Text style={s.charCount}>{addText.length} / 100</Text>
-            {addError ? <Text style={s.errorText}>{addError}</Text> : null}
-            <View style={s.modalBtns}>
-              <Pressable style={[s.modalBtn, s.modalBtnCancel]} onPress={() => setAddVisible(false)}>
-                <Text style={s.modalBtnCancelText}>취소</Text>
-              </Pressable>
-              <Pressable style={[s.modalBtn, { backgroundColor: activeColor }]} onPress={handleAdd}>
-                <Text style={s.modalBtnText}>추가</Text>
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* ════ 문장 수정 모달 ════ */}
-      <Modal visible={editItem !== null} transparent animationType="slide" onRequestClose={() => setEditItem(null)}>
-        <Pressable style={s.modalOverlay} onPress={() => setEditItem(null)} />
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={s.modalKV}>
-          <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
-            <Text style={s.modalTitle}>문장 수정</Text>
-            <TextInput
-              style={[s.textInput, { borderColor: editError ? "#D96C6C" : C.border }]}
-              value={editText}
-              onChangeText={t => { setEditText(t); setEditError(""); }}
-              placeholder="문장을 입력하세요 (최대 100자)"
-              placeholderTextColor={C.textMuted}
-              multiline
-              maxLength={100}
-              autoFocus
-            />
-            <Text style={s.charCount}>{editText.length} / 100</Text>
-            {editError ? <Text style={s.errorText}>{editError}</Text> : null}
-            <View style={s.modalBtns}>
-              <Pressable style={[s.modalBtn, s.modalBtnCancel]} onPress={() => setEditItem(null)}>
-                <Text style={s.modalBtnCancelText}>취소</Text>
-              </Pressable>
-              <Pressable style={[s.modalBtn, { backgroundColor: activeColor }]} onPress={handleEdit}>
-                <Text style={s.modalBtnText}>저장</Text>
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* ════ 카테고리 이름 수정 모달 ════ */}
-      <Modal visible={labelVisible} transparent animationType="slide" onRequestClose={() => setLabelVisible(false)}>
-        <Pressable style={s.modalOverlay} onPress={() => setLabelVisible(false)} />
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={s.modalKV}>
-          <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
-            <Text style={s.modalTitle}>카테고리 이름 변경</Text>
-            <Text style={s.modalSub}>내부 분류 키는 변경되지 않으며, 표시 이름만 바뀝니다.</Text>
-            <TextInput
-              style={[s.textInput, { borderColor: labelError ? "#D96C6C" : C.border }]}
-              value={labelText}
-              onChangeText={t => { setLabelText(t); setLabelError(""); }}
-              placeholder="카테고리 이름 (최대 20자)"
-              placeholderTextColor={C.textMuted}
-              maxLength={20}
-              autoFocus
-            />
-            {labelError ? <Text style={s.errorText}>{labelError}</Text> : null}
-            <View style={s.modalBtns}>
-              <Pressable style={[s.modalBtn, s.modalBtnCancel]} onPress={() => setLabelVisible(false)}>
-                <Text style={s.modalBtnCancelText}>취소</Text>
-              </Pressable>
-              <Pressable style={[s.modalBtn, { backgroundColor: activeColor }]} onPress={handleLabelSave}>
-                <Text style={s.modalBtnText}>저장</Text>
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* ════ 문장 삭제 확인 ════ */}
+      {/* ── 삭제 확인 ── */}
       <ConfirmModal
-        visible={deleteTarget !== null}
-        title="문장 삭제"
-        message={`이 문장을 삭제하시겠습니까?\n\n"${deleteTarget?.template_text ?? ""}"`}
+        visible={!!deleteTarget}
+        title="항목 삭제"
+        message="내가 추가한 이 항목을 삭제합니다."
         confirmText="삭제"
-        cancelText="취소"
-        destructive
-        onConfirm={handleDelete}
+        confirmColor="#EF4444"
+        onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
-
-      {/* ════ 카테고리 초기화 확인 ════ */}
-      <ConfirmModal
-        visible={resetCatVisible}
-        title={`${labels[activeTab]} 초기화`}
-        message={
-          activeTab === "custom"
-            ? `커스텀 카테고리의 모든 문장이 삭제됩니다.\n계속하시겠습니까?`
-            : `${labels[activeTab]} 카테고리를 기본 문장으로 되돌립니다.\n현재 수정 내용은 사라집니다.`
-        }
-        confirmText="초기화"
-        cancelText="취소"
-        destructive
-        onConfirm={() => { resetCategory(activeTab); setResetCatVisible(false); }}
-        onCancel={() => setResetCatVisible(false)}
-      />
-
-      {/* ════ 전체 초기화 확인 ════ */}
-      <ConfirmModal
-        visible={resetAllVisible}
-        title="전체 초기화"
-        message="현재 수정한 모든 피드백 문장이 삭제되고 기본값으로 복구됩니다.\n이 작업은 되돌릴 수 없습니다."
-        confirmText="전체 초기화"
-        cancelText="취소"
-        destructive
-        onConfirm={() => { resetAll(); setResetAllVisible(false); }}
-        onCancel={() => setResetAllVisible(false)}
-      />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.background },
+  // ── 탭 바 ──
+  tabBarWrapper:     { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  tabDivider:        { width: 1, height: 22, backgroundColor: "#E2E8F0" },
+  tab:               { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14, borderWidth: 1.5, borderColor: "#E2E8F0" },
+  tabActive:         { backgroundColor: "#2EC4B620", borderColor: "#2EC4B6" },
+  tabText:           { fontSize: 11, lineHeight: 16, color: "#64748B" },
+  tabTextActive:     { color: "#2EC4B6" },
+  tabMine:           { borderColor: "#6B5BCD", backgroundColor: "#F5F3FF" },
+  tabMineActive:     { backgroundColor: "#6B5BCD", borderColor: "#6B5BCD" },
+  tabMineText:       { color: "#6B5BCD" } as any,
+  tabMineTextActive: { color: "#fff" } as any,
 
-  resetAllBtn: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 8, borderWidth: 1, borderColor: "#FCA5A5", backgroundColor: "#FEF2F2",
-  },
-  resetAllBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
+  // ── 레벨 피커 버튼 ──
+  pickerBtn:          { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "#fff" },
+  pickerBtnActive:    { borderColor: "#2EC4B6", backgroundColor: "#F0FAFB" },
+  pickerBtnText:      { flex: 1, fontSize: 12, color: "#94A3B8", fontFamily: "Pretendard-Regular" } as any,
+  pickerBtnTextActive:{ color: "#2EC4B6", fontFamily: "Pretendard-SemiBold" } as any,
 
-  descBox: {
-    flexDirection: "row", alignItems: "flex-start", gap: 8,
-    marginHorizontal: 14, marginTop: 10, marginBottom: 4,
-    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
+  // ── 레벨 피커 바텀시트 ──
+  pickerBackdrop:    { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+  pickerSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: "80%",
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 0,
   },
-  descText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
+  pickerHandle:      { width: 36, height: 4, borderRadius: 2, backgroundColor: "#E2E8F0", alignSelf: "center", marginBottom: 14 },
+  pickerTitleRow:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  pickerTitle:       { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  pickerAddCatBtn:   { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1, borderColor: "#2EC4B6", backgroundColor: "#F0FAFB" },
+  pickerAddCatBtnText:{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#2EC4B6" } as any,
+  newCatBox:         { backgroundColor: "#F8FAFC", borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", padding: 12, marginBottom: 8 },
+  newCatInput:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#fff", marginBottom: 6 },
+  newCatError:       { fontSize: 12, color: "#EF4444", marginBottom: 6, fontFamily: "Pretendard-Regular" },
+  newCatActions:     { flexDirection: "row", gap: 8, justifyContent: "flex-end" },
+  newCatCancelBtn:   { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#fff" },
+  newCatCancelText:  { fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular" },
+  newCatSaveBtn:     { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8, backgroundColor: "#2EC4B6", minWidth: 52, alignItems: "center" },
+  newCatSaveText:    { fontSize: 13, color: "#fff", fontFamily: "Pretendard-SemiBold" } as any,
+  pickerSearchRow:   { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", paddingHorizontal: 10, paddingVertical: 9, marginBottom: 8 },
+  pickerSearchInput: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", padding: 0 },
+  pickerList:        { flex: 1 },
+  pickerRow:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  pickerRowSelected: { backgroundColor: "#F0FAFB" },
+  pickerRowText:     { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#334155", lineHeight: 20 },
+  pickerRowTextSelected: { color: "#2EC4B6", fontFamily: "Pretendard-SemiBold" } as any,
+  pickerEmpty:       { alignItems: "center", paddingVertical: 32 },
+  pickerEmptyText:   { fontSize: 13, color: "#94A3B8", fontFamily: "Pretendard-Regular" },
 
-  tabBar: {
-    flexDirection: "row", paddingHorizontal: 14, gap: 8, marginTop: 10, marginBottom: 4,
-  },
-  tabBtn: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 4, paddingVertical: 8, borderRadius: 12,
-    borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
-  },
-  tabText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  tabBadge: { borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 },
-  tabBadgeText: { fontSize: 10, fontFamily: "Pretendard-Regular" },
+  hintRow:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingBottom: 6 },
+  hintText:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
 
-  catControl: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: C.border,
-  },
-  countText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  catBtns: { flexDirection: "row", gap: 8 },
-  catBtn: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
-    borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
-  },
-  catBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  listContent:  { paddingHorizontal: 16, paddingTop: 4, gap: 14 },
 
-  listContent: { paddingHorizontal: 14, paddingTop: 8, gap: 8 },
+  card:           { backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+  cardOverridden: { backgroundColor: "#FFF8EC", borderColor: "#FCD34D" },
+  cardMine:       { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" },
+  cardInactive:   { backgroundColor: "#F1F5F9", borderColor: "#E2E8F0", opacity: 0.7 },
+  cardTop:        { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  cardNum:        { width: 22, height: 22, borderRadius: 11, backgroundColor: "#E2E8F0", textAlign: "center", lineHeight: 22, fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
+  cardNumInactive:{ backgroundColor: "#CBD5E1", color: "#94A3B8" },
+  cardTitle:      { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#7C3AED", marginBottom: 2 },
+  cardText:       { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
+  cardTextInactive:{ color: "#94A3B8" },
+  cardActions:    { flexDirection: "row", alignItems: "center", gap: 4 },
+  editBtn:        { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#fff" },
+  editBtnText:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
-  row: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    borderRadius: 12, paddingVertical: 12, paddingHorizontal: 12,
-  },
-  rowIndex: {
-    width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center",
-    flexShrink: 0,
-  },
-  rowIndexText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  rowText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 19 },
-  rowActions: { flexDirection: "row", gap: 6, flexShrink: 0 },
-  rowBtn: {
-    width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center",
-  },
+  hiddenBadgeRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: "#E2E8F0" },
+  hiddenBadgeText:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
 
-  emptyBox: { alignItems: "center", justifyContent: "center", paddingVertical: 60, gap: 10 },
-  emptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center" },
+  overriddenRow:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#FDE68A" },
+  myBadge:        { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: "#FCD34D" },
+  myBadgeText:    { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#92400E" },
+  resetBtn:       { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#fff" },
+  resetBtnText:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
-  addBtnWrap: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
-    paddingHorizontal: 14, paddingTop: 10,
-    backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: C.border,
-  },
-  addBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    height: 50, borderRadius: 14,
-  },
-  addBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
+  sectionDivider: { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 10 },
+  sectionLine:    { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
+  sectionLabel:   { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#94A3B8" },
 
-  /* 모달 공통 */
-  modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
-  modalKV:  { flex: 1, justifyContent: "flex-end" },
-  modalBox: {
-    backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    paddingHorizontal: 20, paddingTop: 20, gap: 12,
-  },
-  modalTitle: { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
-  modalSub:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -4 },
-  textInput: {
-    borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text,
-    minHeight: 80, textAlignVertical: "top",
-    backgroundColor: C.background,
-  },
-  charCount: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "right", marginTop: -6 },
-  errorText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
-  modalBtns: { flexDirection: "row", gap: 10, marginTop: 4 },
-  modalBtn: {
-    flex: 1, height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center",
-  },
-  modalBtnCancel: { borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
-  modalBtnCancelText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  modalBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
+  levelTagRow:  { flexDirection: "row", marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: "#EDE9FE" },
+  levelTag:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "#EDE9FE" },
+  levelTagText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B5BCD" },
+
+  levelPickerRow:        { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  levelPickerBtn:        { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "#F8FAFC" },
+  levelPickerBtnActive:  { borderColor: "#6B5BCD", backgroundColor: "#F5F3FF" },
+  levelPickerText:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" } as any,
+  levelPickerTextActive: { color: "#6B5BCD", fontFamily: "Pretendard-SemiBold" } as any,
+
+  emptyBox:   { paddingTop: 48, alignItems: "center" },
+  emptyText:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+
+  fab:        { position: "absolute", right: 16, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#2EC4B6", paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24, elevation: 4, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  fabText:    { color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center", padding: 24 },
+  modalBox:     { width: "100%", backgroundColor: "#fff", borderRadius: 16, padding: 20, maxHeight: "85%" },
+  modalTitle:   { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  modalHint:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  input:        { borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  textArea:     { minHeight: 90, textAlignVertical: "top" },
+  errorText:    { fontSize: 12, color: "#EF4444", fontFamily: "Pretendard-Regular" },
+  modalBtns:    { flexDirection: "row", gap: 10, marginTop: 4 },
+  cancelBtn:    { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", alignItems: "center" },
+  cancelBtnText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  saveBtn:      { flex: 2, paddingVertical: 12, borderRadius: 10, backgroundColor: "#2EC4B6", alignItems: "center" },
+  saveBtnText:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });

@@ -214,9 +214,13 @@ export async function initPoolDb(): Promise<void> {
       created_at                  timestamptz NOT NULL DEFAULT now(),
       updated_at                  timestamptz NOT NULL DEFAULT now()
     );
-    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS absence_id   text;
-    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS source_type  text;
-    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS can_expire   boolean DEFAULT true;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS absence_id           text;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS source_type          text;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS can_expire           boolean DEFAULT true;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS expire_at            timestamptz;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS weekly_frequency     integer DEFAULT 1;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS handed_to_teacher_id   text;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS handed_to_teacher_name text;
   `));
 
   // ─── 7. notices ──────────────────────────────────────────────────────────
@@ -1047,6 +1051,9 @@ export async function initPoolDb(): Promise<void> {
 
   // ── 사진/영상에 수업 날짜 컬럼 추가 (일지 연결용) ──────────────────────
   await db.execute(sql.raw(`ALTER TABLE photo_assets_meta ADD COLUMN IF NOT EXISTS lesson_date text`)).catch(() => {});
+  // ── 개인 일지 노트 사진 연결 컬럼 추가 ──────────────────────────────────
+  await db.execute(sql.raw(`ALTER TABLE photo_assets_meta ADD COLUMN IF NOT EXISTS student_note_id text`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE video_assets_meta ADD COLUMN IF NOT EXISTS student_note_id text`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE video_assets_meta ADD COLUMN IF NOT EXISTS lesson_date text`)).catch(() => {});
 
   // ── 영상 썸네일 키 컬럼 추가 (Expo 클라이언트에서 썸네일 생성 후 R2에 저장) ──
@@ -1202,4 +1209,134 @@ export async function initPoolDb(): Promise<void> {
     )
   `)).catch(() => {});
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_holiday_confirmations_pool ON holiday_confirmations(pool_id, target_month)`)).catch(() => {});
+
+  // ── students.class_enrolled_at — 반 배정일 컬럼 ─────────────────────────────
+  await db.execute(sql.raw(`ALTER TABLE students ADD COLUMN IF NOT EXISTS class_enrolled_at text`)).catch(() => {});
+
+  // ── student_class_history — 반 입퇴장 이력 (날짜 기반 스케쥴 필터링) ─────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS student_class_history (
+      id               text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      student_id       text        NOT NULL,
+      class_group_id   text        NOT NULL,
+      swimming_pool_id text        NOT NULL,
+      enrolled_at      date        NOT NULL,
+      left_at          date,
+      reason           text        DEFAULT 'assign',
+      created_at       timestamptz NOT NULL DEFAULT now()
+    )
+  `)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_sch_student ON student_class_history(student_id)`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_sch_class ON student_class_history(class_group_id)`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_sch_pool_class_date ON student_class_history(swimming_pool_id, class_group_id, enrolled_at)`)).catch(() => {});
+
+  // ── Media Engine v2: media_status 컬럼 + 인덱스 ──────────────────────────
+  // photo_assets_meta에 media_status 추가 (draft/attached/detached/archived)
+  await db.execute(sql.raw(`ALTER TABLE photo_assets_meta ADD COLUMN IF NOT EXISTS media_status text NOT NULL DEFAULT 'draft'`)).catch(() => {});
+  // 기존 데이터 백필: 삭제된 일지를 참조하는 사진 → detached (journal_id 해제)
+  await db.execute(sql.raw(`
+    UPDATE photo_assets_meta
+    SET media_status = 'detached', journal_id = NULL, student_note_id = NULL
+    WHERE media_status = 'draft'
+      AND journal_id IS NOT NULL
+      AND journal_id IN (SELECT id FROM class_diaries WHERE is_deleted = true)
+  `)).catch(() => {});
+  // 기존 데이터 백필: 유효한 일지에 연결된 사진 → attached
+  await db.execute(sql.raw(`
+    UPDATE photo_assets_meta
+    SET media_status = 'attached'
+    WHERE media_status = 'draft'
+      AND journal_id IS NOT NULL
+  `)).catch(() => {});
+  // Media Engine 인덱스
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_photo_assets_diary_lookup
+    ON photo_assets_meta (journal_id, media_status, created_at)
+    WHERE journal_id IS NOT NULL
+  `)).catch(() => {});
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_photo_assets_student_note_lookup
+    ON photo_assets_meta (student_note_id, student_id, pool_id)
+    WHERE student_note_id IS NOT NULL
+  `)).catch(() => {});
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_photo_assets_draft_lookup
+    ON photo_assets_meta (pool_id, class_id, lesson_date, uploaded_by, media_status, created_at)
+    WHERE journal_id IS NULL
+  `)).catch(() => {});
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_class_diaries_active_lookup
+    ON class_diaries (class_group_id, lesson_date, is_deleted)
+  `)).catch(() => {});
+
+  // ─── diary_messages (댓글 backing store) ─────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS diary_messages (
+      id                 text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      diary_id           text        NOT NULL,
+      sender_id          text        NOT NULL,
+      sender_name        text        NOT NULL DEFAULT '',
+      sender_role        text        NOT NULL DEFAULT 'parent',
+      content            text        NOT NULL,
+      image_url          text,
+      read_at            timestamptz,
+      is_deleted         boolean     NOT NULL DEFAULT false,
+      deleted_at         timestamptz,
+      parent_comment_id  text,
+      student_id         text,
+      created_at         timestamptz NOT NULL DEFAULT now()
+    );
+    ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS parent_comment_id text;
+    ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS student_id text;
+    ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+    CREATE INDEX IF NOT EXISTS idx_diary_messages_diary ON diary_messages (diary_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_diary_messages_parent ON diary_messages (parent_comment_id) WHERE parent_comment_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_diary_messages_sender ON diary_messages (sender_id, diary_id);
+  `)).catch((e: any) => console.error('[init] diary_messages:', e.message));
+
+  // ─── diary_reactions ─────────────────────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS diary_reactions (
+      id            text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      diary_id      text        NOT NULL,
+      parent_id     text        NOT NULL,
+      student_id    text,
+      reaction_type text        NOT NULL,
+      created_at    timestamptz NOT NULL DEFAULT now(),
+      UNIQUE(diary_id, parent_id, reaction_type)
+    );
+    ALTER TABLE diary_reactions ADD COLUMN IF NOT EXISTS student_id text;
+    CREATE INDEX IF NOT EXISTS idx_diary_reactions_diary ON diary_reactions (diary_id);
+  `)).catch((e: any) => console.error('[init] diary_reactions:', e.message));
+
+  // 기존 학생 히스토리 초기 데이터 채우기 (최초 1회만)
+  await db.execute(sql.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM student_class_history LIMIT 1) THEN
+        INSERT INTO student_class_history (id, student_id, class_group_id, swimming_pool_id, enrolled_at, left_at, reason)
+        SELECT
+          gen_random_uuid()::text,
+          s.id,
+          elem,
+          s.swimming_pool_id,
+          COALESCE(s.class_enrolled_at::date, s.created_at::date, '2024-01-01'::date),
+          NULL,
+          'backfill'
+        FROM students s,
+             jsonb_array_elements_text(
+               COALESCE(
+                 CASE
+                   WHEN jsonb_typeof(s.assigned_class_ids::jsonb) = 'array' THEN s.assigned_class_ids::jsonb
+                   ELSE '[]'::jsonb
+                 END,
+                 '[]'::jsonb
+               )
+             ) AS elem
+        WHERE s.deleted_at IS NULL
+          AND s.status NOT IN ('deleted')
+          AND elem IS NOT NULL AND elem != '';
+      END IF;
+    END $$;
+  `)).catch((e: any) => console.error('[backfill] student_class_history:', e));
 }

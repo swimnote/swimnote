@@ -2,8 +2,8 @@
  * 더보기 탭 — 프로필 + 활동 로그 (최소화 버전)
  * 대부분의 메뉴는 홈 대시보드 5대 카테고리 팝업으로 이동됨
  */
-import { Activity, ChevronRight, Info, Repeat, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Activity, ChevronRight, User } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -45,6 +45,7 @@ const TYPE_LABEL: Record<string, string> = {
 const N = "#0F172A"; const N_BG = "#E6FAF8";
 
 const SHORTCUTS = [
+  { label: "일지 템플릿",      icon: "file-text"  as const, color: N, bg: N_BG, route: "/(admin)/diary-template-settings"     },
   { label: "공지함",           icon: "bell"       as const, color: N, bg: N_BG, route: "/(admin)/notices"                     },
   { label: "휴무일 관리",      icon: "x-square"   as const, color: N, bg: N_BG, route: "/(admin)/holidays"                    },
   { label: "데이터 관리",      icon: "hard-drive" as const, color: N, bg: N_BG, route: "/(admin)/data-management"             },
@@ -144,7 +145,7 @@ export default function MoreScreen() {
                 style={[s.switchBtn, { borderColor: themeColor }]}
                 onPress={() => setSwitchModalVisible(true)}
               >
-                <Repeat size={14} color={themeColor} />
+                <LucideIcon name="repeat" size={14} color={themeColor} />
                 <Text style={[s.switchBtnText, { color: themeColor }]}>역할 전환</Text>
               </Pressable>
             )}
@@ -152,7 +153,7 @@ export default function MoreScreen() {
 
           {/* 안내 배너 */}
           <View style={s.infoBanner}>
-            <Info size={14} color="#2EC4B6" />
+            <LucideIcon name="info" size={14} color="#2EC4B6" />
             <Text style={s.infoBannerText}>
               메뉴 대부분은 홈 화면 아이콘(운영 관리·데이터 관리·수업 설정·운영 설정)에서 바로 접근할 수 있습니다.
             </Text>
@@ -346,7 +347,7 @@ const sm = StyleSheet.create({
 const s = StyleSheet.create({
   tabBar:   { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tabItem:  { flex: 1, paddingVertical: 14, alignItems: "center" },
-  tabText:  { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  tabText:  { fontSize: 14, lineHeight: 20 },
 
   profileCard:    { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 18, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   profileAvatar:  { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },

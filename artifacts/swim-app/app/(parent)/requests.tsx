@@ -1,14 +1,12 @@
 /**
  * 학부모 수업 요청 화면 — 결석/보강/연기/퇴원/상담/문의
  */
-import { ChevronLeft, ClipboardList, Plus, Send } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Modal, Platform,
+  Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -49,7 +47,6 @@ export default function ParentRequestsScreen() {
 
   const [selStudentId, setSelStudentId] = useState<string>(selectedStudent?.id || "");
   const [reqType, setReqType] = useState<RequestType>("absence");
-  const [reqDate, setReqDate] = useState("");
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -80,12 +77,24 @@ export default function ParentRequestsScreen() {
     try {
       const r = await apiRequest(token, "/parent/requests", {
         method: "POST",
-        body: JSON.stringify({ student_id: selStudentId, request_type: reqType, request_date: reqDate || null, content: content || null }),
+        body: JSON.stringify({ student_id: selStudentId, request_type: reqType, content: content || null }),
       });
       if (r.ok) {
+        const newReq = await r.json().catch(() => null);
         setModalVisible(false);
-        setContent(""); setReqDate("");
-        await load();
+        setContent("");
+        const entry = newReq?.request ?? newReq;
+        if (entry?.id) {
+          setRequests(prev => [entry, ...prev]);
+        } else {
+          setRequests(prev => [{
+            id: `tmp_${Date.now()}`,
+            request_type: reqType,
+            content: content || null,
+            status: "pending",
+            created_at: new Date().toISOString(),
+          }, ...prev]);
+        }
       } else {
         const d = await r.json();
         setErrorMsg(d.message || "요청 전송 실패");
@@ -103,20 +112,20 @@ export default function ParentRequestsScreen() {
       {/* 헤더 */}
       <View style={[s.header, { paddingTop: PT }]}>
         <Pressable onPress={() => router.back()} style={s.backBtn} hitSlop={8}>
-          <ChevronLeft size={24} color={C.text} />
+          <LucideIcon name="chevron-left" size={24} color={C.text} />
         </Pressable>
         <Text style={[s.headerTitle, { color: C.text }]}>수업 요청</Text>
         <Pressable
           style={[s.addBtn, { backgroundColor: C.tint }]}
           onPress={() => { setReqType("absence"); setModalVisible(true); }}
         >
-          <Plus size={18} color="#fff" />
+          <LucideIcon name="plus" size={18} color="#fff" />
         </Pressable>
       </View>
 
       {/* 자녀 탭 */}
       {students.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.studentTabs}>
+        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.studentTabs}>
           {students.map(st => (
             <Pressable
               key={st.id}
@@ -128,16 +137,16 @@ export default function ParentRequestsScreen() {
               </Text>
             </Pressable>
           ))}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {/* 요청 목록 */}
-      <ScrollView contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 32 }]} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 32 }]} showsVerticalScrollIndicator={false}>
         {loading ? (
           <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
         ) : requests.length === 0 ? (
           <View style={s.emptyWrap}>
-            <ClipboardList size={48} color={C.textMuted} />
+            <LucideIcon name="clipboard-list" size={48} color={C.textMuted} />
             <Text style={[s.emptyText, { color: C.textMuted }]}>요청 내역이 없습니다</Text>
             <Text style={{ fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center" }}>
               + 버튼을 눌러 새 요청을 보내세요
@@ -178,11 +187,11 @@ export default function ParentRequestsScreen() {
             </View>
           );
         })}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* 요청 작성 모달 */}
       <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.modalOverlay}>
+        <View style={s.modalOverlay}>
           <View style={[s.modalSheet, { backgroundColor: C.background, paddingBottom: insets.bottom + 24 }]}>
             <View style={s.modalHeader}>
               <Text style={[s.modalTitle, { color: C.text }]}>새 요청 보내기</Text>
@@ -194,7 +203,7 @@ export default function ParentRequestsScreen() {
             {students.length > 1 && (
               <>
                 <Text style={[s.label, { color: C.textSecondary }]}>자녀 선택</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginBottom: 16 }}>
+                <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginBottom: 16 }}>
                   {students.map(st => (
                     <Pressable
                       key={st.id}
@@ -204,12 +213,12 @@ export default function ParentRequestsScreen() {
                       <Text style={{ fontSize: 13, color: selStudentId === st.id ? "#fff" : C.text, fontFamily: "Pretendard-Regular" }}>{st.name}</Text>
                     </Pressable>
                   ))}
-                </ScrollView>
+                </KeyboardAwareScrollView>
               </>
             )}
 
             <Text style={[s.label, { color: C.textSecondary }]}>요청 유형</Text>
-            <View style={s.typeGrid}>
+            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginBottom: 16 }}>
               {REQUEST_TYPES.map(t => (
                 <Pressable
                   key={t.key}
@@ -220,21 +229,12 @@ export default function ParentRequestsScreen() {
                   <Text style={[s.typeBtnText, { color: t.color }]}>{t.label}</Text>
                 </Pressable>
               ))}
-            </View>
+            </KeyboardAwareScrollView>
 
-            <Text style={[s.label, { color: C.textSecondary }]}>신청 날짜 (선택)</Text>
-            <TextInput
-              style={[s.input, { backgroundColor: C.card, color: C.text, borderColor: C.border }]}
-              placeholder="예: 2026-04-10"
-              placeholderTextColor={C.textMuted}
-              value={reqDate}
-              onChangeText={setReqDate}
-            />
-
-            <Text style={[s.label, { color: C.textSecondary }]}>메모 / 사유 (선택)</Text>
+            <Text style={[s.label, { color: C.textSecondary }]}>내용 / 사유</Text>
             <TextInput
               style={[s.input, s.multiline, { backgroundColor: C.card, color: C.text, borderColor: C.border }]}
-              placeholder="선생님께 전달할 내용을 입력하세요"
+              placeholder="선생님께 전달할 내용을 입력하세요 (선택)"
               placeholderTextColor={C.textMuted}
               multiline
               numberOfLines={3}
@@ -253,13 +253,13 @@ export default function ParentRequestsScreen() {
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
-                  <Send size={16} color="#fff" />
+                  <LucideIcon name="send" size={16} color="#fff" />
                   <Text style={s.submitBtnText}>요청 보내기</Text>
                 </>
               )}
             </Pressable>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </View>
   );
@@ -295,6 +295,8 @@ const s = StyleSheet.create({
   typeBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12 },
   typeBtnText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Pretendard-Regular", marginBottom: 14 },
+  datePicker:    { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 14 },
+  datePickerTxt: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
   multiline: { minHeight: 80, textAlignVertical: "top" },
   error: { color: "#EF4444", fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 8 },
   submitBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16, borderRadius: 16, marginTop: 4 },

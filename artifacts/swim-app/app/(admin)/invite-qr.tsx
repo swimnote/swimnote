@@ -2,7 +2,6 @@
  * invite-qr.tsx — 학부모 QR 초대 화면
  * QR 코드를 생성하여 출력하거나 카카오/링크로 공유
  */
-import { Share2, Printer } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -33,12 +32,16 @@ export default function InviteQrScreen() {
   const teacherUrl = `https://swimnote.app/join?pool=${poolId}&role=teacher`;
   const currentUrl = tab === "parent" ? parentUrl : teacherUrl;
 
+  const IOS_STORE     = 'https://apps.apple.com/kr/app/%EC%8A%A4%EC%9C%94%EB%85%B8%ED%8A%B8/id6761360360';
+  const ANDROID_STORE = 'https://play.google.com/store/apps/details?id=com.swimnote.app';
+
   async function handleShare() {
     try {
+      const baseMsg = tab === "parent"
+        ? `${displayName} 학부모 앱 가입 링크입니다.`
+        : `${displayName} 선생님 앱 가입 링크입니다.`;
       await Share.share({
-        message: tab === "parent"
-          ? `${displayName} 학부모 앱 가입 링크입니다.\n\n${parentUrl}\n\n스윔노트 앱을 설치하고 위 링크를 통해 가입해 주세요.`
-          : `${displayName} 선생님 앱 가입 링크입니다.\n\n${teacherUrl}\n\n스윔노트 앱을 설치하고 위 링크를 통해 가입해 주세요.`,
+        message: `${baseMsg}\n\n${currentUrl}\n\n▶ iOS: ${IOS_STORE}\n\n▶ 안드로이드: ${ANDROID_STORE}`,
         url: currentUrl,
       });
     } catch {}
@@ -129,11 +132,11 @@ export default function InviteQrScreen() {
         {/* 버튼 그룹 */}
         <View style={s.btnGroup}>
           <Pressable style={[s.btnMain, { backgroundColor: themeColor }]} onPress={handleShare}>
-            <Share2 size={18} color="#fff" />
+            <LucideIcon name="share-2" size={18} color="#fff" />
             <Text style={s.btnMainTxt}>링크 공유 (카카오·문자)</Text>
           </Pressable>
           <Pressable style={s.btnSub} onPress={handlePrintGuide}>
-            <Printer size={16} color={C.textSecondary} />
+            <LucideIcon name="printer" size={16} color={C.textSecondary} />
             <Text style={s.btnSubTxt}>인쇄 방법 안내</Text>
           </Pressable>
         </View>
@@ -148,7 +151,7 @@ const s = StyleSheet.create({
 
   tabRow: { flexDirection: "row", gap: 8 },
   tab: { flex: 1, height: 40, borderRadius: 12, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center", backgroundColor: C.background },
-  tabTxt: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  tabTxt: { fontSize: 14, lineHeight: 19 },
 
   qrCard: { backgroundColor: "#fff", borderRadius: 20, padding: 24, alignItems: "center", gap: 10, shadowColor: "#00000015", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 4 },
   qrHeader: { width: "100%", alignItems: "center" },

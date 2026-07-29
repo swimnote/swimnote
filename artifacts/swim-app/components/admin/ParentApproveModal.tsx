@@ -5,8 +5,8 @@
  * - 관리자가 수정 가능
  * - 확인 후 승인 → 일치 학생 있으면 연결, 없으면 신규 생성
  */
-import { Check, X, User, Calendar } from "lucide-react-native";
 import React, { useState } from "react";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
   Pressable, StyleSheet, Text, TextInput, View,
@@ -49,7 +49,7 @@ export function ParentApproveModal({ req, loading, onClose, onConfirm }: ParentA
               <Text style={m.subtitle}>{req.parentName} 학부모 가입 승인</Text>
             </View>
             <Pressable onPress={onClose} hitSlop={8} disabled={loading}>
-              <X size={20} color={C.textSecondary} />
+              <LucideIcon name="x" size={20} color={C.textSecondary} />
             </Pressable>
           </View>
 
@@ -65,7 +65,7 @@ export function ParentApproveModal({ req, loading, onClose, onConfirm }: ParentA
           <View style={m.field}>
             <Text style={m.label}>학생 이름 *</Text>
             <View style={[m.inputBox, !!nameError && { borderColor: C.error }]}>
-              <User size={15} color={C.textMuted} />
+              <LucideIcon name="user" size={15} color={C.textMuted} />
               <TextInput
                 style={m.input}
                 value={childName}
@@ -83,7 +83,7 @@ export function ParentApproveModal({ req, loading, onClose, onConfirm }: ParentA
           <View style={m.field}>
             <Text style={m.label}>출생년도 (선택)</Text>
             <View style={m.inputBox}>
-              <Calendar size={15} color={C.textMuted} />
+              <LucideIcon name="calendar" size={15} color={C.textMuted} />
               <TextInput
                 style={m.input}
                 value={birthYear}
@@ -108,7 +108,7 @@ export function ParentApproveModal({ req, loading, onClose, onConfirm }: ParentA
             >
               {loading
                 ? <ActivityIndicator size="small" color="#fff" />
-                : <><Check size={15} color="#fff" /><Text style={m.btnConfirmTxt}>승인 완료</Text></>
+                : <><LucideIcon name="check" size={15} color="#fff" /><Text style={m.btnConfirmTxt}>승인 완료</Text></>
               }
             </Pressable>
           </View>

@@ -3,13 +3,11 @@
  * - 이름, 휴대폰번호, 자녀 목록, 수영장 정보, 가입일
  * - 수영장이 없으면 직접 검색해서 연결 가능
  */
-import { Check, Pencil, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Alert, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal,
-  Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Keyboard, Linking, Modal,
+  Platform, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
@@ -143,10 +141,7 @@ function PoolSelectModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={s.modalBackdrop} onPress={onClose} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={[s.modalSheet, { paddingBottom: insets.bottom + 16 }]}
-      >
+      <View style={[s.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
         {/* 핸들 */}
         <View style={s.modalHandle} />
         <View style={s.modalHeader}>
@@ -212,7 +207,7 @@ function PoolSelectModal({
             )}
           />
         )}
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -348,7 +343,7 @@ export default function MyInfoScreen() {
           <ActivityIndicator color={TEAL} />
         </View>
       ) : (
-        <ScrollView
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: insets.bottom + 40, gap: 12 }}
         >
@@ -420,10 +415,10 @@ export default function MyInfoScreen() {
                           ? <ActivityIndicator size="small" color={TEAL} />
                           : <>
                               <Pressable hitSlop={10} onPress={() => saveChildName(st.id)} style={[s.editAction, { backgroundColor: TEAL }]}>
-                                <Check size={14} color="#fff" />
+                                <LucideIcon name="check" size={14} color="#fff" />
                               </Pressable>
                               <Pressable hitSlop={10} onPress={() => setEditingChildId(null)} style={[s.editAction, { backgroundColor: "#EEE" }]}>
-                                <X size={14} color={C.textMuted} />
+                                <LucideIcon name="x" size={14} color={C.textMuted} />
                               </Pressable>
                             </>
                         }
@@ -439,7 +434,7 @@ export default function MyInfoScreen() {
 
                     {!isEditing && (
                       <Pressable hitSlop={12} onPress={() => { setEditingChildId(st.id); setEditingChildName(st.name); }}>
-                        <Pencil size={15} color={TEAL} />
+                        <LucideIcon name="edit" size={15} color={TEAL} />
                       </Pressable>
                     )}
                   </View>
@@ -545,7 +540,7 @@ export default function MyInfoScreen() {
             <LucideIcon name="pencil" size={16} color="#fff" />
             <Text style={s.editBtnTxt}>내 정보 수정</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       <PoolSelectModal

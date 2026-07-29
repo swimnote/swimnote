@@ -9,6 +9,7 @@ import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.
 import { sanitizePoolName } from "../utils/filename.js";
 import { signToken } from "../lib/auth.js";
 import { resolveSubscription } from "../lib/subscriptionService.js";
+import { insertDefaultTemplates } from "../lib/defaultTemplates.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -87,6 +88,27 @@ router.get("/public-search", async (req, res) => {
     `);
     res.json({ success: true, data: rows.rows });
   } catch (e) { console.error(e); res.status(500).json({ success: false, data: [] }); }
+});
+
+// ── 수영장 공개 페이지 조회 (인증 불필요) ─────────────────────────────
+router.get("/:id/public", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const rows = await superAdminDb.execute(sql`
+      SELECT id, name, address, phone, owner_name, approval_status, subscription_status
+      FROM swimming_pools
+      WHERE id = ${id}
+      LIMIT 1
+    `);
+    if (!rows.rows.length) {
+      res.status(404).json({ error: "수영장을 찾을 수 없습니다." });
+      return;
+    }
+    res.json(rows.rows[0]);
+  } catch (e) {
+    console.error("[pools/:id/public]", e);
+    res.status(500).json({ error: "서버 오류" });
+  }
 });
 
 // ── 수영장 등록 신청 (기본 정보만 입력, JSON) ─────────────────────────
@@ -241,9 +263,8 @@ router.put("/settings", requireAuth, requireRole("pool_admin", "super_admin"),
           address    = COALESCE(NULLIF(${address?.trim() || ''}, ''), address),
           phone      = COALESCE(NULLIF(${phone?.trim() || ''}, ''), phone),
           owner_name = COALESCE(NULLIF(${owner_name?.trim() || ''}, ''), owner_name),
-          business_reg_number    = COALESCE(${cleanBizNum ?? null}, business_reg_number),
-          business_reg_image_key = COALESCE(${imageKey ?? null}, business_reg_image_key),
-          updated_at = NOW()
+          business_reg_number = CASE WHEN ${cleanBizNum} IS NOT NULL THEN ${cleanBizNum} ELSE business_reg_number END,
+          business_reg_image_key = CASE WHEN ${imageKey} IS NOT NULL THEN ${imageKey} ELSE business_reg_image_key END
         WHERE id = ${user.swimming_pool_id}
         RETURNING *
       `);
@@ -415,6 +436,9 @@ router.post("/create-pool", requireAuth, requireRole("pool_admin", "super_admin"
         `);
       }
     }
+    // ── 기본 일지 템플릿 자동 삽입 ──────────────────────────────────────
+    insertDefaultTemplates(id, userId).catch((e: any) => console.error("[insertDefaultTemplates] create-pool:", e));
+
     const poolRow = await superAdminDb.execute(sql`SELECT * FROM swimming_pools WHERE id = ${id} LIMIT 1`);
     res.status(201).json(poolRow.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
@@ -447,6 +471,127 @@ router.put("/white-label", requireAuth, requireRole("pool_admin", "super_admin")
     `);
     res.json(row.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 수영장 홈페이지 슬러그로 공개 조회 (인증 불필요) ──────────────────
+router.get("/by-slug/:slug", async (req, res) => {
+  const slug = decodeURIComponent(req.params.slug);
+  try {
+    const rows = await superAdminDb.execute(sql`
+      SELECT id, name, name_en, address, phone, owner_name,
+             theme_color, logo_url, logo_emoji,
+             introduction, tuition_info, level_test_info, event_info, equipment_info,
+             homepage_slug, homepage_enabled,
+             approval_status, subscription_status
+      FROM swimming_pools
+      WHERE homepage_slug = ${slug} AND homepage_enabled = TRUE
+      LIMIT 1
+    `);
+    if (!rows.rows.length) {
+      res.status(404).json({ error: "수영장 홈페이지를 찾을 수 없습니다." });
+      return;
+    }
+    res.json(rows.rows[0]);
+  } catch (e) {
+    console.error("[pools/by-slug]", e);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
+// ── 홈페이지 슬러그 중복 확인 (인증 필요) ────────────────────────────
+router.get("/homepage/check-slug", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  const { slug } = req.query as { slug: string };
+  if (!slug) { res.status(400).json({ error: "슬러그를 입력해주세요." }); return; }
+
+  // 슬러그 유효성 검사: 한글, 영문, 숫자, 하이픈만 허용
+  if (!/^[가-힣a-zA-Z0-9-]+$/.test(slug)) {
+    res.json({ available: false, message: "한글, 영문, 숫자, 하이픈(-)만 사용할 수 있습니다." }); return;
+  }
+
+  // 예약어 체크
+  const reserved = ["login", "super-admin", "pool", "education", "app", "support", "api", "admin"];
+  if (reserved.includes(slug.toLowerCase())) {
+    res.json({ available: false, message: "사용할 수 없는 주소입니다." }); return;
+  }
+
+  try {
+    const existing = await superAdminDb.execute(sql`
+      SELECT id FROM swimming_pools
+      WHERE homepage_slug = ${slug} AND id != ${req.user!.poolId ?? ""}
+      LIMIT 1
+    `);
+    if (existing.rows.length) {
+      res.json({ available: false, message: "이미 사용 중인 주소입니다." });
+    } else {
+      res.json({ available: true, message: "사용 가능한 주소입니다." });
+    }
+  } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 홈페이지 슬러그 조회 (내 수영장) ────────────────────────────────
+router.get("/homepage/settings", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  try {
+    const poolId = req.user!.poolId;
+    if (!poolId) { res.status(404).json({ error: "수영장 없음" }); return; }
+    const row = await superAdminDb.execute(sql`
+      SELECT homepage_slug, homepage_enabled,
+             introduction, tuition_info, level_test_info, event_info, equipment_info,
+             theme_color, logo_url, logo_emoji, name, phone, address
+      FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `);
+    res.json(row.rows[0] ?? {});
+  } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 홈페이지 슬러그 설정 ──────────────────────────────────────────
+router.patch("/homepage/settings", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  const { homepage_slug, homepage_enabled } = req.body;
+  try {
+    const poolId = req.user!.poolId;
+    if (!poolId) { res.status(404).json({ error: "수영장 없음" }); return; }
+
+    if (homepage_slug !== undefined && homepage_slug !== null && homepage_slug !== "") {
+      if (!/^[가-힣a-zA-Z0-9-]+$/.test(homepage_slug)) {
+        res.status(400).json({ error: "한글, 영문, 숫자, 하이픈(-)만 사용할 수 있습니다." }); return;
+      }
+      const reserved = ["login", "super-admin", "pool", "education", "app", "support", "api", "admin"];
+      if (reserved.includes(homepage_slug.toLowerCase())) {
+        res.status(400).json({ error: "사용할 수 없는 주소입니다." }); return;
+      }
+      const dup = await superAdminDb.execute(sql`
+        SELECT id FROM swimming_pools WHERE homepage_slug = ${homepage_slug} AND id != ${poolId} LIMIT 1
+      `);
+      if (dup.rows.length) {
+        res.status(409).json({ error: "이미 사용 중인 주소입니다." }); return;
+      }
+    }
+
+    const slug = homepage_slug === "" ? null : (homepage_slug ?? undefined);
+    const enabledVal = homepage_enabled !== undefined ? homepage_enabled : undefined;
+
+    if (slug !== undefined && enabledVal !== undefined) {
+      await superAdminDb.execute(sql`
+        UPDATE swimming_pools SET homepage_slug = ${slug}, homepage_enabled = ${enabledVal}, updated_at = NOW()
+        WHERE id = ${poolId}
+      `);
+    } else if (slug !== undefined) {
+      await superAdminDb.execute(sql`
+        UPDATE swimming_pools SET homepage_slug = ${slug}, updated_at = NOW() WHERE id = ${poolId}
+      `);
+    } else if (enabledVal !== undefined) {
+      await superAdminDb.execute(sql`
+        UPDATE swimming_pools SET homepage_enabled = ${enabledVal}, updated_at = NOW() WHERE id = ${poolId}
+      `);
+    }
+
+    const updated = await superAdminDb.execute(sql`
+      SELECT homepage_slug, homepage_enabled FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `);
+    res.json({ success: true, ...(updated.rows[0] ?? {}) });
+  } catch (e: any) {
+    if (e?.code === "23505") { res.status(409).json({ error: "이미 사용 중인 주소입니다." }); return; }
+    console.error(e); res.status(500).json({ error: "서버 오류" });
+  }
 });
 
 export default router;

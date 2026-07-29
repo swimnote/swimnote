@@ -10,11 +10,19 @@ export interface ClassGroup {
   student_count: number;
 }
 
+export interface ParentLink {
+  id: string;
+  name: string;
+  phone: string;
+  link_status: string;
+}
+
 export interface DetailData extends StudentMember {
   class_name: string | null;
   teacher_name: string | null;
   parent_account_name: string | null;
   parent_link_status: string | null;
+  parents?: ParentLink[];
   recent_attendance: { date: string; status: string }[];
   recent_diaries: {
     id: string;

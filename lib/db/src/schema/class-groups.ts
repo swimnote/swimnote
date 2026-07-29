@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -16,6 +16,7 @@ export const classGroupsTable = pgTable("class_groups", {
   is_one_time: boolean("is_one_time").notNull().default(false),
   one_time_date: text("one_time_date"),
   color: text("color").notNull().default("#FFFFFF"),
+  co_teacher_ids: jsonb("co_teacher_ids").$type<string[]>().notNull().default([]),
   is_deleted: boolean("is_deleted").notNull().default(false),
   deleted_at: timestamp("deleted_at"),
   created_at: timestamp("created_at").notNull().defaultNow(),

@@ -1,5 +1,5 @@
-import { ArrowLeft, Heart, Link2, MessageCircle } from "lucide-react-native";
 import { router } from "expo-router";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import {
   Pressable, ScrollView, StyleSheet, Text, View,
@@ -29,13 +29,13 @@ export default function ParentInviteInfoScreen() {
           style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}
           onPress={() => router.back()}
         >
-          <ArrowLeft size={20} color={C.text} />
+          <LucideIcon name="arrow-left" size={20} color={C.text} />
         </Pressable>
       </View>
 
       <View style={styles.heroArea}>
         <View style={[styles.heroIcon, { backgroundColor: "#FFFBEB" }]}>
-          <Heart size={32} color="#E4A93A" />
+          <LucideIcon name="heart" size={32} color="#E4A93A" />
         </View>
         <Text style={[styles.heroTitle, { color: C.text }]}>학부모 가입 안내</Text>
         <Text style={[styles.heroDesc, { color: C.textSecondary }]}>
@@ -57,9 +57,9 @@ export default function ParentInviteInfoScreen() {
               <Text style={[styles.stepNumText, { color: s.color }]}>{i + 1}</Text>
             </View>
             <View style={[styles.stepIconBox, { backgroundColor: s.bg }]}>
-              {s.icon === "message-circle" && <MessageCircle size={20} color={s.color} />}
-              {s.icon === "link-2"         && <Link2 size={20} color={s.color} />}
-              {s.icon === "heart"          && <Heart size={20} color={s.color} />}
+              {s.icon === "message-circle" && <LucideIcon name="message-circle" size={20} color={s.color} />}
+              {s.icon === "link-2"         && <LucideIcon name="link-2" size={20} color={s.color} />}
+              {s.icon === "heart"          && <LucideIcon name="heart" size={20} color={s.color} />}
             </View>
             <View style={styles.stepInfo}>
               <Text style={[styles.stepTitle, { color: C.text }]}>{s.title}</Text>

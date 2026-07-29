@@ -1,4 +1,4 @@
-import { Bell, ChevronRight, CircleX, Layers, Search, User } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -48,12 +48,12 @@ export function SearchModal({ visible, onClose, token }: SearchModalProps) {
       <View style={[sm.container, { paddingTop: insets.top + (Platform.OS === "web" ? 70 : 16) }]}>
         <View style={sm.header}>
           <View style={sm.searchBar}>
-            <Search size={18} color={C.textMuted} />
+            <LucideIcon name="search" size={18} color={C.textMuted} />
             <TextInput style={sm.input} placeholder="회원, 반, 선생님, 공지 검색..." placeholderTextColor={C.textMuted}
               value={q} onChangeText={handleChange} autoFocus returnKeyType="search" />
             {q.length > 0 && (
               <Pressable onPress={() => { setQ(""); setResult(null); }}>
-                <CircleX size={16} color={C.textMuted} />
+                <LucideIcon name="x-circle" size={16} color={C.textMuted} />
               </Pressable>
             )}
           </View>
@@ -66,7 +66,7 @@ export function SearchModal({ visible, onClose, token }: SearchModalProps) {
         ) : result ? (
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 60 }}>
             {total === 0 ? (
-              <View style={sm.empty}><Search size={40} color={C.textMuted} /><Text style={sm.emptyText}>검색 결과가 없습니다</Text></View>
+              <View style={sm.empty}><LucideIcon name="search" size={40} color={C.textMuted} /><Text style={sm.emptyText}>검색 결과가 없습니다</Text></View>
             ) : (
               <>
                 {(result.students ?? []).length > 0 && (
@@ -76,7 +76,7 @@ export function SearchModal({ visible, onClose, token }: SearchModalProps) {
                       <Pressable key={s.id} style={sm.row} onPress={() => { onClose(); router.push({ pathname: "/(admin)/member-detail", params: { id: s.id } }); }}>
                         <View style={[sm.avatar, { backgroundColor: C.tint + "20" }]}><Text style={[sm.avatarText, { color: C.tint }]}>{s.name[0]}</Text></View>
                         <View style={{ flex: 1 }}><Text style={sm.rowTitle}>{s.name}</Text><Text style={sm.rowSub}>{s.class_name || "미배정"}</Text></View>
-                        <ChevronRight size={16} color={C.textMuted} />
+                        <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                       </Pressable>
                     ))}
                   </View>
@@ -86,9 +86,9 @@ export function SearchModal({ visible, onClose, token }: SearchModalProps) {
                     <Text style={sm.sectionLabel}>반 ({result.classes.length})</Text>
                     {result.classes.map((c: any) => (
                       <Pressable key={c.id} style={sm.row} onPress={() => { onClose(); router.push("/(admin)/classes"); }}>
-                        <View style={[sm.avatar, { backgroundColor: "#7C3AED20" }]}><Layers size={16} color="#7C3AED" /></View>
+                        <View style={[sm.avatar, { backgroundColor: "#7C3AED20" }]}><LucideIcon name="grid" size={16} color="#7C3AED" /></View>
                         <View style={{ flex: 1 }}><Text style={sm.rowTitle}>{c.name}</Text><Text style={sm.rowSub}>{c.schedule_days}</Text></View>
-                        <ChevronRight size={16} color={C.textMuted} />
+                        <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                       </Pressable>
                     ))}
                   </View>
@@ -98,9 +98,9 @@ export function SearchModal({ visible, onClose, token }: SearchModalProps) {
                     <Text style={sm.sectionLabel}>공지 ({result.notices.length})</Text>
                     {result.notices.map((n: any) => (
                       <Pressable key={n.id} style={sm.row} onPress={() => { onClose(); router.push("/(admin)/community"); }}>
-                        <View style={[sm.avatar, { backgroundColor: "#D9770620" }]}><Bell size={16} color="#D97706" /></View>
+                        <View style={[sm.avatar, { backgroundColor: "#D9770620" }]}><LucideIcon name="bell" size={16} color="#D97706" /></View>
                         <View style={{ flex: 1 }}><Text style={sm.rowTitle}>{n.title}</Text></View>
-                        <ChevronRight size={16} color={C.textMuted} />
+                        <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                       </Pressable>
                     ))}
                   </View>
@@ -110,7 +110,7 @@ export function SearchModal({ visible, onClose, token }: SearchModalProps) {
                     <Text style={sm.sectionLabel}>선생님 ({result.teachers.length})</Text>
                     {result.teachers.map((t: any) => (
                       <View key={t.id} style={sm.row}>
-                        <View style={[sm.avatar, { backgroundColor: "#1F8F8620" }]}><User size={16} color="#2EC4B6" /></View>
+                        <View style={[sm.avatar, { backgroundColor: "#1F8F8620" }]}><LucideIcon name="user" size={16} color="#2EC4B6" /></View>
                         <View style={{ flex: 1 }}><Text style={sm.rowTitle}>{t.name}</Text><Text style={sm.rowSub}>{t.phone || "연락처 없음"}</Text></View>
                       </View>
                     ))}
@@ -120,7 +120,7 @@ export function SearchModal({ visible, onClose, token }: SearchModalProps) {
             )}
           </ScrollView>
         ) : (
-          <View style={sm.empty}><Search size={50} color={C.border} /><Text style={sm.emptyText}>이름, 반 이름, 공지 제목으로 검색</Text></View>
+          <View style={sm.empty}><LucideIcon name="search" size={50} color={C.border} /><Text style={sm.emptyText}>이름, 반 이름, 공지 제목으로 검색</Text></View>
         )}
       </View>
     </Modal>

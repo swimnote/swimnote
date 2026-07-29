@@ -2,7 +2,6 @@
  * pending.tsx — 수영장 등록 신청 대기 화면 (pool_admin 전용)
  * 학부모는 회원가입 후 홈 화면에서 자동 연결됩니다.
  */
-import { Info, RefreshCw } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -80,7 +79,7 @@ export default function PendingScreen() {
         )}
 
         <View style={[styles.waitBanner, { backgroundColor: isRejected ? "#FEF2F2" : C.tintLight }]}>
-          <Info size={14} color={isRejected ? "#D96C6C" : C.tint} />
+          <LucideIcon name="info" size={14} color={isRejected ? "#D96C6C" : C.tint} />
           <Text style={[styles.waitTxt, { color: isRejected ? "#D96C6C" : C.tint }]}>
             {isRejected ? "문의: 플랫폼 운영팀에 연락해 주세요" : "승인 후 자동으로 홈 화면으로 이동합니다"}
           </Text>
@@ -91,7 +90,7 @@ export default function PendingScreen() {
           onPress={handleCheckStatus}
           disabled={checking}
         >
-          {checking ? <ActivityIndicator size="small" color={C.tint} /> : <RefreshCw size={16} color={C.tint} />}
+          {checking ? <ActivityIndicator size="small" color={C.tint} /> : <LucideIcon name="refresh-cw" size={16} color={C.tint} />}
           <Text style={[styles.refreshText, { color: C.tint }]}>승인 상태 확인</Text>
         </Pressable>
 

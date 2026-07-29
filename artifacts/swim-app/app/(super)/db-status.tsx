@@ -2,8 +2,8 @@
  * (super)/db-status.tsx — DB 이원화 모니터링 (4탭)
  * 탭: DB 개요 / 수영장별 / 이벤트 로그 / 서비스 상태
  */
-import { CircleAlert, CircleCheck, CircleX, Database, Inbox, RefreshCw, TriangleAlert } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { CircleAlert, CircleCheck, Inbox, TriangleAlert } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, Pressable, RefreshControl,
@@ -110,7 +110,7 @@ function DbCard({ info, accent }: { info: DbInfo; accent: string }) {
     <View style={[s.card, { borderLeftColor: accent, borderLeftWidth: 4 }]}>
       <View style={s.cardHeader}>
         <View style={[s.dbIcon, { backgroundColor: accent + "18" }]}>
-          <Database size={18} color={accent} />
+          <LucideIcon name="database" size={18} color={accent} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={s.cardTitle}>{info.label}</Text>
@@ -194,7 +194,7 @@ function DlqCard({ item, onResend }: { item: DlqItem; onResend: (id: string) => 
           style={s.resendBtn}
           onPress={() => onResend(item.id)}
         >
-          <RefreshCw size={13} color={P} />
+          <LucideIcon name="refresh-cw" size={13} color={P} />
           <Text style={s.resendTxt}>재전송</Text>
         </Pressable>
       </View>
@@ -319,7 +319,7 @@ export default function DbStatusScreen() {
         <View style={s.center}><ActivityIndicator color={P} size="large" /></View>
       ) : error ? (
         <View style={s.center}>
-          <CircleAlert size={40} color={RED} />
+          <LucideIcon name="alert-circle" size={40} color={RED} />
           <Text style={s.errTxt}>{error}</Text>
           <Pressable style={s.retryBtn} onPress={onRefresh}>
             <Text style={s.retryTxt}>다시 시도</Text>
@@ -399,13 +399,13 @@ export default function DbStatusScreen() {
 
               {status.retry_queue.pending > 0 && (
                 <View style={s.warnBanner}>
-                  <TriangleAlert size={14} color={ORANGE} />
+                  <LucideIcon name="alert-triangle" size={14} color={ORANGE} />
                   <Text style={s.warnTxt}>재시도 대기 {status.retry_queue.pending}건 — 백그라운드에서 자동 재처리됩니다.</Text>
                 </View>
               )}
               {status.dead_letter_queue.pending > 0 && (
                 <View style={[s.warnBanner, { backgroundColor: "#FDE8E8" }]}>
-                  <CircleX size={14} color={RED} />
+                  <LucideIcon name="x-circle" size={14} color={RED} />
                   <Text style={[s.warnTxt, { color: RED }]}>
                     Dead-letter queue {status.dead_letter_queue.pending}건 — 서비스 상태 탭에서 수동 재전송하세요.
                   </Text>
@@ -634,8 +634,8 @@ const s = StyleSheet.create({
   tabBar:    { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tab:       { flex: 1, paddingVertical: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 4 },
   tabActive: { borderBottomWidth: 2, borderBottomColor: P },
-  tabTxt:    { fontSize: 12, color: GRAY, fontFamily: "Pretendard-Regular" },
-  tabTxtActive: { color: P, fontFamily: "Pretendard-Regular" },
+  tabTxt:    { fontSize: 12, lineHeight: 17, color: GRAY },
+  tabTxtActive: { color: P },
   badge:     { backgroundColor: RED, borderRadius: 8, minWidth: 16, height: 16, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
   badgeTxt:  { color: "#fff", fontSize: 9, fontFamily: "Pretendard-Regular" },
 

@@ -1,4 +1,4 @@
-import { Award } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
@@ -50,7 +50,7 @@ export function LevelBadge({ level, size = "md", showName = false }: Props) {
         { width: s.badge, height: s.badge, borderRadius: s.radius, backgroundColor: badgeColor }
       ]}>
         {badgeType === "icon" ? (
-          <Award size={s.font} color={textColor} />
+          <LucideIcon name="award" size={s.font} color={textColor} />
         ) : (
           <Text style={[styles.label, { fontSize: s.font, color: textColor }]} numberOfLines={1}>
             {badgeLabel}

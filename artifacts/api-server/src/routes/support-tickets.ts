@@ -10,6 +10,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { isFeatureEnabled } from "../lib/featureFlags.js";
 
 const router = Router();
 
@@ -48,6 +49,16 @@ ensureTicketTables().catch(console.error);
 router.post("/support/tickets", requireAuth, async (req: AuthRequest, res) => {
   try {
     await ensureTicketTables();
+
+    // 기능 플래그: support_center가 비활성화된 경우 새 문의 차단
+    const supportEnabled = await isFeatureEnabled("support_center").catch(() => true);
+    if (!supportEnabled) {
+      res.status(503).json({
+        error: "현재 고객센터 문의 기능이 점검 중입니다. 잠시 후 다시 시도해주세요.",
+        code: "SUPPORT_CENTER_DISABLED",
+      });
+      return;
+    }
 
     const { ticket_type, subject, description, image_urls, consultation_requested, pool_id } = req.body as any;
     if (!subject) { res.status(400).json({ error: "제목을 입력해주세요." }); return; }

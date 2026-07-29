@@ -1,0 +1,212 @@
+현재 수정은 완료되지 않았습니다.
+
+실제 앱에서 확인된 문제:
+
+1. 학부모 홈에 "새 사진 2장"은 표시되지만 썸네일이 비어 있음
+2. 일지 상세에 "수업 미디어 사진 1장"이라고 나오지만 실제 사진이 표시되지 않음
+3. 앨범에 들어가면 사진/영상이 없다고 나옴
+4. 학부모 홈의 최근 수업일지 요약에는 새 내용이 보임
+5. 해당 일지를 누르면 새 일지가 아니라 이전 일지만 표시됨
+6. 일지는 각 수업마다 별도의 일지 1개로 계속 누적되어야 하는데,
+   현재 수업별 분류와 상세 연결이 되지 않음
+
+이번 작업은 URL 문자열 수정이 아니라
+일지 데이터 모델과 조회 연결을 복구하는 작업입니다.
+
+아래 순서대로 조사하고 수정하세요.
+
+[1. 실제 신규 일지 레코드 확인]
+
+방금 작성한 신규 일지의 production DB row를 찾으세요.
+
+다음 필드를 출력하세요.
+
+- diary_id
+- student_id
+- class_group_id
+- lesson_date
+- lesson_time
+- attendance_id 또는 lesson_session_id
+- teacher_id
+- common_content
+- individual_content
+- created_at
+- published_at
+- parent_visible
+- status
+
+신규 일지가 기존 일지를 UPDATE한 것인지,
+새 row로 INSERT된 것인지 확인하세요.
+
+정상 조건:
+각 수업마다 새로운 diary_id가 생성되어야 합니다.
+과거 일지 row를 덮어쓰면 안 됩니다.
+
+[2. 홈 최근일지와 상세페이지 ID 연결 확인]
+
+학부모 홈 최근일지 API가 반환한 JSON에서
+다음 값을 출력하세요.
+
+- diary_id
+- lesson_date
+- preview_content
+
+그리고 사용자가 해당 카드를 눌렀을 때
+상세 화면으로 전달되는 route param을 출력하세요.
+
+- 전달된 diary_id
+- 실제 상세 API에 요청한 diary_id
+- 상세 API가 반환한 diary_id
+
+세 값이 모두 같아야 합니다.
+
+현재 증상상
+홈은 신규 diary를 표시하지만
+상세 화면은 student_id 또는 class_id 기준으로 이전 일지를 조회하는 것으로 의심됩니다.
+
+상세 화면은 반드시 선택한 diary_id 하나를 기준으로 조회하도록 수정하세요.
+
+[3. 수업별 일지 분류 구조 수정]
+
+일지는 학생별 최신 1개만 보이는 구조가 아니라
+수업별로 개별 누적되어야 합니다.
+
+정상 데이터 관계:
+
+student
+  → lesson_session 1
+      → diary 1
+  → lesson_session 2
+      → diary 1
+  → lesson_session 3
+      → diary 1
+
+각 diary는 최소한 아래 식별값을 가져야 합니다.
+
+- diary_id
+- student_id
+- class_group_id
+- lesson_date
+- lesson_session_id 또는 attendance_id
+
+동일 학생의 과거 일지를 덮어쓰지 말고
+수업마다 새로운 diary row를 INSERT하세요.
+
+학부모 일지 목록은
+lesson_date DESC, created_at DESC
+순으로 모든 일지를 반환하세요.
+
+[4. 사진 원본과 미디어 연결 확인]
+
+방금 저장한 사진 2장의 production DB row를 출력하세요.
+
+- photo_id
+- diary_id
+- student_id
+- class_group_id
+- lesson_session_id
+- storage_key
+- original_url
+- thumbnail_url
+- created_at
+- parent_visible
+
+그리고 diary-photo 연결 테이블이 있다면
+실제 연결 row도 출력하세요.
+
+다음 조건을 확인하세요.
+
+- 홈 recent photos API가 같은 photo_id를 반환하는가
+- 일지 상세 API가 같은 photo_id를 반환하는가
+- 앨범 API가 같은 photo_id를 반환하는가
+
+세 API가 서로 다른 기준으로 조회하면 안 됩니다.
+
+[5. 이미지 URL 실제 접근 검증]
+
+반환된 photo URL과 thumbnail URL에 대해
+프로덕션에서 실제 HTTP 요청을 실행하세요.
+
+다음 결과를 제출하세요.
+
+- HTTP status
+- Content-Type
+- Content-Length
+- 최종 URL
+- 인증 필요 여부
+
+정상 조건:
+
+- HTTP 200
+- Content-Type image/*
+- HTML 응답 금지
+- 403/404 금지
+
+앱에 URL 문자열만 내려주는 것으로 완료 처리하지 마세요.
+실제로 이미지 바이너리가 열려야 합니다.
+
+[6. 사진 표시 필드 통일]
+
+홈, 일지 상세, 앨범에서
+각각 다른 필드명을 사용하지 않도록 통일하세요.
+
+예:
+
+{
+  "id": "...",
+  "type": "photo",
+  "url": "https://...",
+  "thumbnailUrl": "https://...",
+  "diaryId": "...",
+  "studentId": "...",
+  "lessonDate": "..."
+}
+
+클라이언트는 아래 우선순위로 표시하세요.
+
+thumbnailUrl ?? url
+
+빈 문자열, null, 상대경로 오류가 있으면
+이미지 개수에 포함하지 마세요.
+
+[7. 홈 카운트와 실제 사진 일치]
+
+현재 홈에는 "새 사진 2장"이라고 나오지만
+실제 이미지는 0장입니다.
+
+카운트는 별도 DB COUNT 결과가 아니라
+실제로 렌더링 가능한 media 배열 길이를 기준으로 표시하세요.
+
+정상 조건:
+
+표시 개수 = 실제 조회된 유효 사진 개수
+
+[8. 완료 조건]
+
+다음이 실제 앱에서 모두 정상이어야 완료입니다.
+
+1. 새 수업마다 새로운 diary_id가 생성됨
+2. 홈 최근일지 카드를 누르면 정확히 해당 신규 diary 상세가 열림
+3. 과거 일지와 신규 일지가 날짜별로 각각 따로 누적됨
+4. 일지 상세 사진이 실제로 보임
+5. 홈 최근 사진 썸네일이 실제로 보임
+6. 앨범에도 동일 사진이 보임
+7. 홈의 사진 개수와 실제 표시 개수가 일치함
+8. 앱 재실행 후에도 동일하게 유지됨
+9. 이전 일지가 덮어써지지 않음
+10. 신규 일지를 눌렀는데 과거 일지가 열리는 현상이 없음
+
+먼저 수정하지 말고 아래 증거를 제출하세요.
+
+- 신규 diary DB row
+- 홈 recent diary API JSON
+- 카드 클릭 시 전달되는 diary_id
+- 상세 API 요청 diary_id
+- 상세 API 응답 diary_id
+- 신규 사진 DB row
+- 홈 사진 API JSON
+- 상세 사진 API JSON
+- 앨범 API JSON
+- 실제 사진 URL HTTP 검사 결과
+
+증거 확인 후 최소 수정으로 데이터 연결을 바로잡으세요.

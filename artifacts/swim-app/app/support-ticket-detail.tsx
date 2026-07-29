@@ -2,16 +2,15 @@
  * support-ticket-detail.tsx — 문의 상세 + 대화
  * 사용자와 슈퍼관리자 모두 이 화면 사용
  */
-import { ChevronLeft, Image as ImageIcon, Send } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Image, KeyboardAvoidingView, Modal,
-  Platform, Pressable, RefreshControl, ScrollView,
-  StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Image, Modal,
+  Platform, Pressable, RefreshControl,
+  StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -64,7 +63,7 @@ export default function SupportTicketDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token, kind, adminUser } = useAuth();
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<any>(null);
 
   const [ticket,     setTicket]     = useState<Ticket | null>(null);
   const [loading,    setLoading]    = useState(true);
@@ -111,7 +110,7 @@ export default function SupportTicketDetailScreen() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") return;
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.35, base64: false,
+      mediaTypes: ["images"], quality: 0.35, base64: false,
     });
     if (result.canceled || !result.assets[0]) return;
     const base64 = await FileSystem.readAsStringAsync(result.assets[0].uri, {
@@ -162,14 +161,14 @@ export default function SupportTicketDetailScreen() {
       {/* 헤더 */}
       <View style={s.header}>
         <Pressable onPress={() => router.back()} style={s.backBtn}>
-          <ChevronLeft size={24} color={C.text} />
+          <LucideIcon name="chevron-left" size={24} color={C.text} />
         </Pressable>
         <Text style={s.headerTitle} numberOfLines={1}>{ticket.subject}</Text>
         <View style={{ width: 36 }} />
       </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView
+      <View style={{ flex: 1 }}>
+        <KeyboardAwareScrollView
           ref={scrollRef}
           contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: insets.bottom + 80 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
@@ -232,7 +231,7 @@ export default function SupportTicketDetailScreen() {
             );
           })}
 
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         {/* 답변 입력 */}
         {ticket.status !== "resolved" && ticket.status !== "closed" && (
@@ -251,7 +250,7 @@ export default function SupportTicketDetailScreen() {
             )}
             <View style={s.inputRow}>
               <Pressable style={s.imgPickBtn} onPress={pickReplyImage}>
-                <ImageIcon size={20} color={C.textMuted} />
+                <LucideIcon name="image" size={20} color={C.textMuted} />
               </Pressable>
               <TextInput
                 style={s.textInput}
@@ -269,13 +268,13 @@ export default function SupportTicketDetailScreen() {
               >
                 {sending
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Send size={18} color="#fff" />
+                  : <LucideIcon name="send" size={18} color="#fff" />
                 }
               </Pressable>
             </View>
           </View>
         )}
-      </KeyboardAvoidingView>
+      </View>
 
       {/* 이미지 미리보기 모달 */}
       <Modal visible={!!previewImg} transparent animationType="fade" onRequestClose={() => setPreviewImg(null)}>

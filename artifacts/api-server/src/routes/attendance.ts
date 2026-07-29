@@ -94,17 +94,18 @@ router.get("/makeup-students", requireAuth, async (req: AuthRequest, res) => {
 
     const attendedIds = new Set(attRows.map((r: any) => r.id));
 
-    // ② 배정됐지만 아직 출석 처리 안 된 보충수업 학생 (makeup_sessions 테이블)
+    // ② 배정됐거나 완료된 보충수업 학생 (makeup_sessions 테이블)
+    // completed도 포함: 출석 처리 없이 complete만 된 케이스 대비
     const msRows = (await db.execute(sql`
       SELECT ms.student_id AS id, s.name, s.birth_year, s.weekly_count,
-             'makeup' AS session_type, 'assigned' AS att_status,
-             true AS is_pending, ms.id AS makeup_session_id
+             'makeup' AS session_type, ms.status AS att_status,
+             (ms.status = 'assigned') AS is_pending, ms.id AS makeup_session_id
       FROM makeup_sessions ms
       JOIN students s ON s.id = ms.student_id
       WHERE ms.swimming_pool_id = ${poolId}
         AND ms.assigned_class_group_id = ${class_group_id as string}
         AND ms.assigned_date = ${date as string}
-        AND ms.status = 'assigned'
+        AND ms.status IN ('assigned', 'completed')
         AND ms.cancelled_at IS NULL
     `)).rows as any[];
 
@@ -134,39 +135,63 @@ router.get("/weekly", requireAuth, async (req: AuthRequest, res) => {
     if (!start_date) { res.status(400).json({ success: false, message: "start_date가 필요합니다." }); return; }
 
     const endDate = addDays(start_date as string, 6);
+    const startDateStr = start_date as string;
+    const cgIdStr = class_group_id as string | undefined;
 
-    const allStudents = await db.select().from(studentsTable)
-      .where(eq(studentsTable.swimming_pool_id, poolId));
-
-    const filteredStudents = class_group_id
-      ? allStudents.filter(s => s.class_group_id === class_group_id)
-      : allStudents;
+    // student_class_history 기반으로 해당 주에 한 번이라도 active한 회원 조회
+    // DISTINCT ON 제거: 연기→복귀 학생의 각 기간을 모두 반영
+    const histRows = (await db.execute(sql.raw(`
+      SELECT s.id, s.name, h.class_group_id, h.enrolled_at, h.left_at
+      FROM student_class_history h
+      JOIN students s ON s.id = h.student_id
+      WHERE h.swimming_pool_id = '${poolId}'
+        ${cgIdStr ? `AND h.class_group_id = '${cgIdStr}'` : ""}
+        AND h.enrolled_at <= '${endDate}'
+        AND (h.left_at IS NULL OR h.left_at > '${startDateStr}')
+        AND s.deleted_at IS NULL
+      ORDER BY s.id, h.class_group_id, h.enrolled_at
+    `))).rows as any[];
 
     const allRecords = await db.select().from(attendanceTable)
       .where(and(
         eq(attendanceTable.swimming_pool_id, poolId),
-        gte(attendanceTable.date, start_date as string),
+        gte(attendanceTable.date, startDateStr),
         lte(attendanceTable.date, endDate)
       ));
 
-    const classGroupIds = [...new Set(filteredStudents.map(s => s.class_group_id).filter(Boolean))];
     const classGroups = await db.select().from(classGroupsTable)
       .where(eq(classGroupsTable.swimming_pool_id, poolId));
     const cgMap: Record<string, string> = {};
     classGroups.forEach(cg => { cgMap[cg.id] = cg.name; });
 
-    const result = filteredStudents.map(s => {
-      const studentRecords = allRecords.filter(r => r.student_id === s.id);
-      const days: Record<string, string> = {};
-      studentRecords.forEach(r => { days[r.date] = r.status; });
-      return {
-        student_id: s.id,
-        student_name: s.name,
-        class_group_id: s.class_group_id,
-        class_name: s.class_group_id ? (cgMap[s.class_group_id] || null) : null,
-        days,
-      };
-    });
+    // date 타입 안전 변환 (pg가 Date 객체 또는 문자열로 반환할 수 있음)
+    const toDateStr = (v: any): string | null => {
+      if (!v) return null;
+      if (typeof v === "string") return v.slice(0, 10);
+      if (v instanceof Date) return v.toISOString().slice(0, 10);
+      return String(v).slice(0, 10);
+    };
+
+    // (student_id, class_group_id)별로 days 집계 — hist row별로 해당 기간 출결만 포함
+    const aggregated: Record<string, { student_id: string; student_name: string; class_group_id: string; class_name: string | null; days: Record<string, string> }> = {};
+    for (const s of histRows) {
+      const key = `${s.id}__${s.class_group_id}`;
+      if (!aggregated[key]) {
+        aggregated[key] = { student_id: s.id, student_name: s.name, class_group_id: s.class_group_id, class_name: s.class_group_id ? (cgMap[s.class_group_id] || null) : null, days: {} };
+      }
+      const enrStr = toDateStr(s.enrolled_at)!;
+      const lftStr = toDateStr(s.left_at);
+      const studentRecords = allRecords.filter(r => {
+        if (r.student_id !== s.id) return false;
+        if (r.class_group_id === null || r.class_group_id !== s.class_group_id) return false;
+        const rDate = toDateStr(r.date)!;
+        if (rDate < enrStr) return false;
+        if (lftStr !== null && rDate >= lftStr) return false;
+        return true;
+      });
+      studentRecords.forEach(r => { aggregated[key].days[toDateStr(r.date)!] = r.status; });
+    }
+    const result = Object.values(aggregated);
 
     res.json({ success: true, data: result, start_date, end_date: endDate });
   } catch (err) {
@@ -191,19 +216,29 @@ router.get("/monthly-summary", requireAuth, async (req: AuthRequest, res) => {
     if (!year || !month) { res.status(400).json({ success: false, message: "year와 month가 필요합니다." }); return; }
 
     const monthStr = `${year}-${String(month).padStart(2, "0")}`;
+    const monthStart = `${monthStr}-01`;
+    const monthEnd = `${monthStr}-31`;
+    const cgIdStr = class_group_id as string | undefined;
 
-    const allStudents = await db.select().from(studentsTable)
-      .where(eq(studentsTable.swimming_pool_id, poolId));
-
-    const filteredStudents = class_group_id
-      ? allStudents.filter(s => s.class_group_id === class_group_id)
-      : allStudents;
+    // student_class_history 기반으로 해당 월에 한 번이라도 active한 회원 조회
+    // DISTINCT ON 제거: 연기→복귀 학생의 각 기간을 모두 반영
+    const histRows = (await db.execute(sql.raw(`
+      SELECT s.id, s.name, h.class_group_id, h.enrolled_at, h.left_at
+      FROM student_class_history h
+      JOIN students s ON s.id = h.student_id
+      WHERE h.swimming_pool_id = '${poolId}'
+        ${cgIdStr ? `AND h.class_group_id = '${cgIdStr}'` : ""}
+        AND h.enrolled_at <= '${monthEnd}'
+        AND (h.left_at IS NULL OR h.left_at > '${monthStart}')
+        AND s.deleted_at IS NULL
+      ORDER BY s.id, h.class_group_id, h.enrolled_at
+    `))).rows as any[];
 
     const allRecords = await db.select().from(attendanceTable)
       .where(and(
         eq(attendanceTable.swimming_pool_id, poolId),
-        gte(attendanceTable.date, `${monthStr}-01`),
-        lte(attendanceTable.date, `${monthStr}-31`)
+        gte(attendanceTable.date, monthStart),
+        lte(attendanceTable.date, monthEnd)
       ));
 
     const classGroups = await db.select().from(classGroupsTable)
@@ -211,25 +246,48 @@ router.get("/monthly-summary", requireAuth, async (req: AuthRequest, res) => {
     const cgMap: Record<string, string> = {};
     classGroups.forEach(cg => { cgMap[cg.id] = cg.name; });
 
-    const result = filteredStudents.map(s => {
-      const studentRecords = allRecords.filter(r => r.student_id === s.id);
-      let present = 0, absent = 0, late = 0;
-      studentRecords.forEach(r => {
-        if (r.status === "present") present++;
-        else if (r.status === "absent") absent++;
-        else if (r.status === "late") late++;
+    // date 타입 안전 변환
+    const toDateStr = (v: any): string | null => {
+      if (!v) return null;
+      if (typeof v === "string") return v.slice(0, 10);
+      if (v instanceof Date) return v.toISOString().slice(0, 10);
+      return String(v).slice(0, 10);
+    };
+
+    // (student_id, class_group_id)별로 집계 — hist row별로 해당 기간 출결만 포함
+    const aggregated: Record<string, { student_id: string; student_name: string; class_group_id: string; class_name: string | null; present: number; absent: number; late: number; total: number }> = {};
+    for (const s of histRows) {
+      const key = `${s.id}__${s.class_group_id}`;
+      if (!aggregated[key]) {
+        aggregated[key] = { student_id: s.id, student_name: s.name, class_group_id: s.class_group_id, class_name: s.class_group_id ? (cgMap[s.class_group_id] || null) : null, present: 0, absent: 0, late: 0, total: 0 };
+      }
+      const enrStr = toDateStr(s.enrolled_at)!;
+      const lftStr = toDateStr(s.left_at);
+      const studentRecords = allRecords.filter(r => {
+        if (r.student_id !== s.id) return false;
+        if (r.class_group_id === null || r.class_group_id !== s.class_group_id) return false;
+        const rDate = toDateStr(r.date)!;
+        if (rDate < enrStr) return false;
+        if (lftStr !== null && rDate >= lftStr) return false;
+        return true;
       });
-      return {
-        student_id: s.id,
-        student_name: s.name,
-        class_group_id: s.class_group_id,
-        class_name: s.class_group_id ? (cgMap[s.class_group_id] || null) : null,
-        present,
-        absent,
-        late,
-        total: studentRecords.length,
-      };
-    });
+      studentRecords.forEach(r => {
+        if (r.status === "present") aggregated[key].present++;
+        else if (r.status === "absent") aggregated[key].absent++;
+        else if (r.status === "late") aggregated[key].late++;
+        aggregated[key].total++;
+      });
+    }
+    const result = Object.values(aggregated).map(s => ({
+      student_id: s.student_id,
+      student_name: s.student_name,
+      class_group_id: s.class_group_id,
+      class_name: s.class_name,
+      present: s.present,
+      absent: s.absent,
+      late: s.late,
+      total: s.total,
+    }));
 
     res.json({ success: true, data: result, year, month });
   } catch (err) {
@@ -330,16 +388,22 @@ async function autoCreateMakeup(
   classGroupId: string | null | undefined,
   attendanceId: string,
   previousStatus?: string | null
-) {
+): Promise<{ created: boolean; reason?: string }> {
   // previousStatus 가 absent 여도 기존 세션이 cancelled/expired 면 새로 생성해야 함
   const [student] = await db.select().from(studentsTable).where(eq(studentsTable.id, studentId)).limit(1);
-  if (!student) return;
+  if (!student) {
+    console.warn(`[autoCreateMakeup] student not found: ${studentId}`);
+    return { created: false, reason: "student_not_found" };
+  }
   const [existing] = ((await (db as any).execute(sql`
-    SELECT id FROM makeup_sessions
+    SELECT id, status FROM makeup_sessions
     WHERE student_id = ${studentId} AND absence_date = ${date} AND status NOT IN ('cancelled','expired')
     LIMIT 1
   `)) as any).rows as any[];
-  if (existing) return;
+  if (existing) {
+    console.log(`[autoCreateMakeup] 이미 보강세션 존재 (id=${existing.id}, status=${existing.status}) → 스킵`);
+    return { created: false, reason: "already_exists" };
+  }
 
   // 풀 정책 조회 (swimming_pools는 superAdminDb) — 컬럼 누락 시 기본값으로 폴백
   let poolRow: any = null;
@@ -377,7 +441,10 @@ async function autoCreateMakeup(
       AND status NOT IN ('cancelled','expired')
   `)) as any).rows as any[];
   const currentCount: number = countRow?.cnt ?? 0;
-  if (currentCount >= maxPerMonth) return; // 한도 초과 시 자동 생성 안함
+  if (currentCount >= maxPerMonth) {
+    console.warn(`[autoCreateMakeup] 월간 보강 한도 초과 → 스킵. student=${studentId}, month=${monthPrefix}, current=${currentCount}, max=${maxPerMonth}`);
+    return { created: false, reason: "monthly_limit_exceeded" };
+  }
 
   let teacherId: string | null = null;
   let teacherName: string | null = null;
@@ -416,8 +483,13 @@ async function autoCreateMakeup(
       ${expireAt}, ${weeklyCount}
     )
   `);
+  console.log(`[autoCreateMakeup] 보강세션 생성 완료: id=${mkId}, student=${student.name}, date=${date}`);
+  return { created: true };
 }
 
+// TODO: 향후 출결 생성 시 student_class_history 서버 검증 추가 필요
+//   - student_id + class_group_id + date가 history 유효기간 내인지 확인
+//   - 현재는 today-schedule(history 기반)을 통해서만 생성되어 간접 보호됨
 router.post("/", requireAuth, async (req: AuthRequest, res) => {
   const { class_group_id, student_id, date, status } = req.body;
   if (!student_id || !date || !status) {
@@ -441,9 +513,10 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
         .where(eq(attendanceTable.id, existing.id))
         .returning();
       const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
+      let makeupResult: { created: boolean; reason?: string } | null = null;
       if (status === "absent") {
         try {
-          await autoCreateMakeup(poolId, student_id, date, class_group_id || existing.class_group_id, existing.id, prevStatus);
+          makeupResult = await autoCreateMakeup(poolId, student_id, date, class_group_id || existing.class_group_id, existing.id, prevStatus);
         } catch(e) { console.error("[autoCreateMakeup] 보강세션 생성 실패:", e); }
       } else if ((status === "present" || status === "late") && prevStatus === "absent") {
         db.execute(sql`
@@ -453,7 +526,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
             AND status IN ('waiting', 'assigned', 'transferred')
         `).catch(e => console.error("[cancelMakeup] 취소 실패:", e));
       }
-      res.json({ success: true, data: { ...updated, student_name: s?.name || null } }); return;
+      res.json({ success: true, data: { ...updated, student_name: s?.name || null }, makeup_queued: makeupResult?.created ?? null, makeup_skip_reason: makeupResult?.reason ?? null }); return;
     }
 
     const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -461,9 +534,10 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       id, swimming_pool_id: poolId, class_group_id: class_group_id || null, student_id, date, status,
     }).returning();
     const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
+    let makeupResult2: { created: boolean; reason?: string } | null = null;
     if (status === "absent") {
       try {
-        await autoCreateMakeup(poolId, student_id, date, class_group_id, id, null);
+        makeupResult2 = await autoCreateMakeup(poolId, student_id, date, class_group_id, id, null);
       } catch(e) { console.error("[autoCreateMakeup] 보강세션 생성 실패:", e); }
     }
     logPoolEvent({
@@ -471,7 +545,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       entity_id: id, actor_id: req.user!.userId,
       payload: { student_id, student_name: s?.name, date, status },
     }).catch(() => {});
-    res.status(201).json({ success: true, data: { ...record, student_name: s?.name || null } });
+    res.status(201).json({ success: true, data: { ...record, student_name: s?.name || null }, makeup_queued: makeupResult2?.created ?? null, makeup_skip_reason: makeupResult2?.reason ?? null });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "서버 오류가 발생했습니다." });

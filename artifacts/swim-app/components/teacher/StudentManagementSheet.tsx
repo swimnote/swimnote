@@ -4,8 +4,10 @@
  * 탭2: 보강대기리스트     (status=pending 보강 세션)
  *
  * 배정/보강배정 완료 후 → onAssignDone() 호출 → 주간뷰 복귀 + 데이터 갱신
+ * export: StudentManagementSheet
  */
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, CircleCheck, Eye, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { Check, CircleCheck, Plus } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
@@ -15,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
+import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 
 const C = Colors.light;
 
@@ -94,13 +97,13 @@ function DatePicker({ value, onChange }: { value: string; onChange: (d: string) 
   return (
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12, paddingVertical: 8 }}>
       <TouchableOpacity onPress={() => add(-1)} style={{ padding: 8 }}>
-        <ChevronLeft size={20} color={C.text} />
+        <LucideIcon name="chevron-left" size={20} color={C.text} />
       </TouchableOpacity>
       <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }}>
         {y}년 {m}월 {d}일 ({DOW})
       </Text>
       <TouchableOpacity onPress={() => add(1)} style={{ padding: 8 }}>
-        <ChevronRight size={20} color={C.text} />
+        <LucideIcon name="chevron-right" size={20} color={C.text} />
       </TouchableOpacity>
     </View>
   );
@@ -113,18 +116,21 @@ interface Props {
   groups: TeacherClassGroup[];
   themeColor: string;
   readOnly?: boolean;
+  selfTeacher?: { id: string; name: string };
   onClose: () => void;
   onAssignDone: () => void;
+  onRefreshGroups?: () => void;
 }
 
 export default function StudentManagementSheet({
-  visible, token, groups, themeColor, readOnly = false, onClose, onAssignDone,
+  visible, token, groups, themeColor, readOnly = false, selfTeacher, onClose, onAssignDone, onRefreshGroups,
 }: Props) {
   const insets = useSafeAreaInsets();
 
   /* ── 공통 상태 ── */
   const [tab, setTab]       = useState<ManagementTab>("unassigned");
   const [view, setView]     = useState<SheetView>("tabs");
+  const [classCreateVisible, setClassCreateVisible] = useState(false);
 
   /* ── 미배정회원 ── */
   const [allStudents,  setAllStudents]  = useState<UnassignedStudent[]>([]);
@@ -147,6 +153,7 @@ export default function StudentManagementSheet({
   const [assignDate,        setAssignDate]        = useState(todayDateStr);
   const [assigning,         setAssigning]         = useState(false);
   const [assignError,       setAssignError]       = useState("");
+  const [showAllClasses,    setShowAllClasses]    = useState(false);
 
   /* ── 미배정 학생 계산 ── */
   const unassigned = allStudents
@@ -202,21 +209,17 @@ export default function StudentManagementSheet({
   /* ── 반 배정 실행 ── */
   async function doAssignToClass(classId: string) {
     if (!pickedStudent) return;
-    setClassSaving(classId);
-    try {
-      const currentIds = Array.isArray(pickedStudent.assigned_class_ids)
-        ? pickedStudent.assigned_class_ids : [];
-      if (currentIds.includes(classId)) return;
-      const newIds = [...currentIds, classId];
-      const res = await apiRequest(token, `/students/${pickedStudent.id}/assign`, {
-        method: "PATCH",
-        body: JSON.stringify({ assigned_class_ids: newIds, weekly_count: pickedWeekly }),
-      });
-      if (res.ok) {
-        onAssignDone();
-      }
-    } catch (e) { console.error(e); }
-    finally { setClassSaving(null); }
+    const currentIds = Array.isArray(pickedStudent.assigned_class_ids)
+      ? pickedStudent.assigned_class_ids : [];
+    if (currentIds.includes(classId)) return;
+    const newIds = [...currentIds, classId];
+    // 즉시 완료 처리
+    onAssignDone();
+    // 백그라운드 API
+    apiRequest(token, `/students/${pickedStudent.id}/assign`, {
+      method: "PATCH",
+      body: JSON.stringify({ assigned_class_ids: newIds, weekly_count: pickedWeekly }),
+    }).catch(e => console.error(e));
   }
 
   /* ── 보강 → 배정 시작 ── */
@@ -225,10 +228,17 @@ export default function StudentManagementSheet({
     setAssignClassId("");
     setAssignDate(todayDateStr());
     setAssignError("");
-    setEligLoading(true);
+    setShowAllClasses(false);
     setView("makeup-pick");
+    await loadEligibleClasses(false);
+  }
+
+  async function loadEligibleClasses(all: boolean) {
+    setEligLoading(true);
+    setAssignClassId("");
     try {
-      const res = await apiRequest(token, "/teacher/makeups/eligible-classes");
+      const url = all ? "/teacher/makeups/eligible-classes?all=true" : "/teacher/makeups/eligible-classes";
+      const res = await apiRequest(token, url);
       if (res.ok) {
         const list: EligibleClass[] = await res.json();
         list.sort((a, b) => a.schedule_days.localeCompare(b.schedule_days));
@@ -241,21 +251,14 @@ export default function StudentManagementSheet({
   /* ── 보강 배정 실행 ── */
   async function doAssignMakeup() {
     if (!pickedMakeup || !assignClassId) { setAssignError("반을 선택해주세요."); return; }
-    setAssigning(true); setAssignError("");
-    try {
-      const res = await apiRequest(token, `/teacher/makeups/${pickedMakeup.id}/assign`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ class_group_id: assignClassId, assigned_date: assignDate }),
-      });
-      if (res.ok) {
-        onAssignDone();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        setAssignError(d.error || "배정에 실패했습니다.");
-      }
-    } catch (e) { setAssignError("배정에 실패했습니다."); }
-    finally { setAssigning(false); }
+    // 즉시 완료 처리
+    onAssignDone();
+    // 백그라운드 API
+    apiRequest(token, `/teacher/makeups/${pickedMakeup.id}/assign`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ class_group_id: assignClassId, assigned_date: assignDate }),
+    }).catch(e => console.error(e));
   }
 
   /* ── 공통 헤더 ── */
@@ -264,12 +267,12 @@ export default function StudentManagementSheet({
       <View style={st.header}>
         {onBack ? (
           <Pressable onPress={onBack} style={{ padding: 4, marginRight: 8 }}>
-            <ArrowLeft size={20} color={C.textSecondary} />
+            <LucideIcon name="arrow-left" size={20} color={C.textSecondary} />
           </Pressable>
         ) : null}
         <Text style={st.headerTitle}>{title}</Text>
         <Pressable onPress={onClose} style={{ padding: 4 }}>
-          <X size={20} color={C.textSecondary} />
+          <LucideIcon name="x" size={20} color={C.textSecondary} />
         </Pressable>
       </View>
     );
@@ -284,7 +287,7 @@ export default function StudentManagementSheet({
     );
     if (unassigned.length === 0) return (
       <View style={st.emptyBox}>
-        <CircleCheck size={32} color={C.textMuted} />
+        <LucideIcon name="check-circle" size={32} color={C.textMuted} />
         <Text style={st.emptyText}>현재 미배정 회원이 없습니다.</Text>
       </View>
     );
@@ -292,11 +295,12 @@ export default function StudentManagementSheet({
       <FlatList
         data={unassigned}
         keyExtractor={i => i.id}
+        style={{ flex: 1 }}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={readOnly ? (
           <View style={[st.readOnlyBanner, { marginTop: 8 }]}>
-            <Eye size={12} color="#64748B" />
+            <LucideIcon name="eye" size={12} color="#64748B" />
             <Text style={st.readOnlyText}>조회 전용 — 배정 기능은 선생님 계정에서 사용하세요</Text>
           </View>
         ) : null}
@@ -369,11 +373,12 @@ export default function StudentManagementSheet({
       <FlatList
         data={makeups}
         keyExtractor={i => i.id}
+        style={{ flex: 1 }}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={readOnly ? (
           <View style={[st.readOnlyBanner, { marginTop: 8 }]}>
-            <Eye size={12} color="#64748B" />
+            <LucideIcon name="eye" size={12} color="#64748B" />
             <Text style={st.readOnlyText}>조회 전용 — 배정 기능은 선생님 계정에서 사용하세요</Text>
           </View>
         ) : null}
@@ -462,6 +467,15 @@ export default function StudentManagementSheet({
           {available.length === 0 ? (
             <View style={st.emptyBox}>
               <Text style={st.emptyText}>배정 가능한 반이 없습니다.</Text>
+              {selfTeacher && (
+                <Pressable
+                  style={[st.createClassBtn, { backgroundColor: themeColor }]}
+                  onPress={() => setClassCreateVisible(true)}
+                >
+                  <Plus size={15} color="#fff" />
+                  <Text style={st.createClassBtnTxt}>반 개설하기</Text>
+                </Pressable>
+              )}
             </View>
           ) : available.map(g => {
             const isSaving = classSaving === g.id;
@@ -513,7 +527,23 @@ export default function StudentManagementSheet({
           <Text style={st.pickLabel}>보강 날짜를 선택하세요</Text>
         </View>
         <DatePicker value={assignDate} onChange={setAssignDate} />
-        <Text style={[st.pickLabel, { marginHorizontal: 16, marginBottom: 4 }]}>보강 가능한 반 선택</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", marginHorizontal: 16, marginBottom: 4, gap: 8 }}>
+          <Text style={[st.pickLabel, { flex: 1 }]}>
+            {showAllClasses ? "전체 반 선택 (다른 선생님 포함)" : "보강 가능한 반 선택 (내 반)"}
+          </Text>
+          <TouchableOpacity
+            onPress={async () => {
+              const next = !showAllClasses;
+              setShowAllClasses(next);
+              await loadEligibleClasses(next);
+            }}
+            style={{ paddingVertical: 4, paddingHorizontal: 10, borderRadius: 12, backgroundColor: showAllClasses ? "#EEF2FF" : "#F3F4F6", borderWidth: 1, borderColor: showAllClasses ? "#6366F1" : "#D1D5DB" }}
+          >
+            <Text style={{ fontSize: 11, color: showAllClasses ? "#4F46E5" : "#6B7280", fontFamily: "Pretendard-Regular" }}>
+              {showAllClasses ? "✓ 다른 선생님 반 포함" : "다른 선생님 반에서 보강"}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {eligLoading ? (
           <View style={st.center}>
@@ -523,7 +553,7 @@ export default function StudentManagementSheet({
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 32 }}>
             {eligibleClasses.length === 0 ? (
               <View style={st.emptyBox}>
-                <Text style={st.emptyText}>보강 가능한 반이 없습니다.</Text>
+                <Text style={st.emptyText}>{showAllClasses ? "보강 가능한 반이 없습니다." : "내 반에 보강 가능한 자리가 없습니다."}</Text>
               </View>
             ) : eligibleClasses.map(ec => {
               const isFull = ec.available_slots <= 0;
@@ -587,8 +617,9 @@ export default function StudentManagementSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={st.backdrop} onPress={onClose} />
-      <View style={[st.sheet, { paddingBottom: insets.bottom }]}>
+      <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" }}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[st.sheet, { paddingBottom: insets.bottom }]}>
         <View style={st.handle} />
 
         {/* ── 탭 리스트 뷰 ── */}
@@ -627,6 +658,23 @@ export default function StudentManagementSheet({
         {view === "class-pick"  && <ClassPickView />}
         {view === "makeup-pick" && <MakeupPickView />}
       </View>
+
+      {/* 반 개설 팝업 */}
+      {classCreateVisible && selfTeacher && (
+        <Modal visible animationType="slide" onRequestClose={() => setClassCreateVisible(false)}>
+          <ClassCreateFlow
+            token={token}
+            role="teacher"
+            selfTeacher={selfTeacher}
+            onSuccess={() => {
+              setClassCreateVisible(false);
+              onRefreshGroups?.();
+            }}
+            onClose={() => setClassCreateVisible(false)}
+          />
+        </Modal>
+      )}
+      </View>
     </Modal>
   );
 }
@@ -636,10 +684,9 @@ const st = StyleSheet.create({
     flex: 1, backgroundColor: "rgba(0,0,0,0.4)",
   },
   sheet: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
     backgroundColor: "#fff",
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
-    maxHeight: "90%", minHeight: "60%",
+    height: "88%",
   },
   handle: {
     width: 36, height: 4, borderRadius: 2,
@@ -703,8 +750,10 @@ const st = StyleSheet.create({
   actionBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   center:   { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 40 },
-  emptyBox: { alignItems: "center", justifyContent: "center", paddingVertical: 40, gap: 10 },
-  emptyText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  emptyBox:          { alignItems: "center", justifyContent: "center", paddingVertical: 40, gap: 12 },
+  emptyText:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  createClassBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, marginTop: 4 },
+  createClassBtnTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   pickLabel: {
     fontSize: 13, fontFamily: "Pretendard-Regular",

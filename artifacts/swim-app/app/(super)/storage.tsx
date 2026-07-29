@@ -3,13 +3,12 @@
  * 80%경고 / 95%차단예정(CTA) / 100%차단 — 과금 유도형 흐름
  * /super/storage-list API 실데이터 연결
  */
-import { CircleAlert, CircleArrowUp, CirclePlus, Clock, DollarSign, HardDrive, Lock, Settings, TrendingUp } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { CircleAlert } from "lucide-react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -234,7 +233,7 @@ export default function StorageScreen() {
         rightSlot={
           <Pressable onPress={() => router.push("/(super)/storage-policy?backTo=storage" as any)}
             style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
-            <Settings size={18} color="#64748B" />
+            <LucideIcon name="settings" size={18} color="#64748B" />
           </Pressable>
         }
       />
@@ -245,7 +244,7 @@ export default function StorageScreen() {
         </Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.tabBar} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 6, gap: 4 }}>
         {TABS.map(t => {
           const isActive = tab === t.key;
@@ -261,11 +260,11 @@ export default function StorageScreen() {
             </Pressable>
           );
         })}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {tab === "blocked95" && (
         <View style={[s.spikeBanner, { backgroundColor: "#FFF3CD" }]}>
-          <CircleAlert size={13} color={WARN} />
+          <LucideIcon name="alert-circle" size={13} color={WARN} />
           <Text style={[s.spikeBannerTxt, { color: "#7C2D12" }]}>95% 초과 — 추가 용량 구매 또는 플랜 업그레이드를 유도하세요. 차단 예정 상태입니다.</Text>
         </View>
       )}
@@ -284,7 +283,7 @@ export default function StorageScreen() {
           ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#FFFFFF" }} />}
           ListEmptyComponent={
             <View style={s.empty}>
-              <HardDrive size={30} color="#D1D5DB" />
+              <LucideIcon name="hard-drive" size={30} color="#D1D5DB" />
               <Text style={s.emptyTxt}>{TABS.find(t2 => t2.key === tab)?.label} 운영자 없음</Text>
             </View>
           }
@@ -319,7 +318,7 @@ export default function StorageScreen() {
                   keyboardType="decimal-pad" placeholder="직접 입력 (GB)" placeholderTextColor="#64748B" />
                 {parseFloat(newStorageGb) > 0 && (
                   <View style={m.costEstimate}>
-                    <DollarSign size={13} color={GREEN} />
+                    <LucideIcon name="dollar-sign" size={13} color={GREEN} />
                     <Text style={m.costTxt}>예상 추가 비용: {estimateCost(parseFloat(newStorageGb))}</Text>
                   </View>
                 )}
@@ -332,7 +331,7 @@ export default function StorageScreen() {
                 <Pressable style={[m.saveBtn, { opacity: saving ? 0.6 : 1 }]} onPress={() => setOtpVisible(true)} disabled={saving}>
                   {saving ? <ActivityIndicator color="#fff" size="small" /> : (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Lock size={13} color="#fff" />
+                      <LucideIcon name="lock" size={13} color="#fff" />
                       <Text style={m.saveTxt}>용량 추가</Text>
                     </View>
                   )}
@@ -361,7 +360,7 @@ export default function StorageScreen() {
               <Text style={m.sub}>{ctaModal.usage_pct.toFixed(0)}% 사용 — 차단 예정 상태</Text>
 
               <View style={m.ctaOption}>
-                <CirclePlus size={20} color={GREEN} />
+                <LucideIcon name="plus-circle" size={20} color={GREEN} />
                 <View style={{ flex: 1 }}>
                   <Text style={m.ctaOptionTitle}>추가 용량 구매</Text>
                   <Text style={m.ctaOptionDesc}>10GB 단위 추가 · 예상 ₩9,900/월 ~</Text>
@@ -373,7 +372,7 @@ export default function StorageScreen() {
               </View>
 
               <View style={m.ctaOption}>
-                <CircleArrowUp size={20} color="#7C3AED" />
+                <LucideIcon name="arrow-up-circle" size={20} color="#7C3AED" />
                 <View style={{ flex: 1 }}>
                   <Text style={m.ctaOptionTitle}>상위 플랜 업그레이드</Text>
                   <Text style={m.ctaOptionDesc}>더 많은 저장공간 · 추가 기능 포함</Text>
@@ -385,7 +384,7 @@ export default function StorageScreen() {
               </View>
 
               <View style={m.ctaOption}>
-                <Clock size={20} color="#2EC4B6" />
+                <LucideIcon name="clock" size={20} color="#2EC4B6" />
                 <View style={{ flex: 1 }}>
                   <Text style={m.ctaOptionTitle}>긴급 업로드 허용 24h</Text>
                   <Text style={m.ctaOptionDesc}>임시 1GB 추가 · 관리자 override</Text>
@@ -414,10 +413,10 @@ const s = StyleSheet.create({
   tabBar:         { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
   tab:            { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
   tabActive:      { backgroundColor: "#E6FFFA" },
-  tabTxt:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  tabTxtActive:   { color: GREEN, fontFamily: "Pretendard-Regular" },
+  tabTxt:         { fontSize: 13, lineHeight: 18, color: "#64748B" },
+  tabTxtActive:   { color: GREEN },
   tabBadge:       { backgroundColor: "#F9DEDA", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 7 },
-  tabBadgeTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: DANGER },
+  tabBadgeTxt:    { fontSize: 10, lineHeight: 14, color: DANGER },
   spikeBanner:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF1BF", paddingHorizontal: 14, paddingVertical: 9 },
   spikeBannerTxt: { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 16 },
   row:            { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff" },

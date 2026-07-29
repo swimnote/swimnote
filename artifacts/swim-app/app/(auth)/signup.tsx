@@ -1,28 +1,25 @@
 /**
- * signup.tsx — 통합 회원가입 (4단계)
- * Step 1: 아이디 + 비밀번호
- * Step 2: 휴대폰 SMS 인증
- * Step 3: 역할 선택
- * Step 4: 역할별 추가정보 → 가입 → 자동 로그인
+ * signup.tsx — 통합 회원가입 (최대 4단계)
+ * 일반: Step1(기본정보) → Step2(휴대폰) → Step3(역할선택) → Step4(추가정보)
+ * 소셜(카카오 전화있음): Step3(역할선택) → Step4(추가정보)
+ * 소셜(애플·전화없음): Step2(휴대폰) → Step3(역할선택) → Step4(추가정보)
  */
-import { ArrowLeft, Check, CircleAlert, CircleCheck, CircleX, Hash, MapPin, Search, Smartphone, Terminal } from "lucide-react-native";
-import { toAsciiOnly } from "@/utils/koreanToQwerty";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { CircleAlert } from "lucide-react-native";
+import { validateName, validatePhone } from "@/utils/validation";
+import { toAsciiOnly } from "@/utils/koreanToQwerty";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
+import {ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
-} from "react-native";
+  View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { API_BASE, safeJson, useAuth } from "@/context/AuthContext";
@@ -37,17 +34,41 @@ interface Pool { id: string; name: string; address?: string; }
 
 const STEP_LABELS = ["기본정보", "휴대폰", "역할선택", "추가정보"];
 
-const ROLE_CARDS: Array<{ role: Role; label: string; desc: string; icon: any; bg: string; color: string }> = [
-  { role: "admin",   label: "수영장 대표",  desc: "수영장을 직접 운영하는 원장님·원감님\n선생님·학부모 관리 및 전체 운영 담당",     icon: "briefcase", bg: "#EFF4FF", color: "#4F6EF7" },
-  { role: "teacher", label: "선생님",       desc: "수영장 대표로부터 초대코드를 받은\n선생님만 가입 가능합니다",                    icon: "award",     bg: "#DFF3EC", color: "#2E9B6F" },
-  { role: "parent",  label: "학부모",       desc: "수영장에 회원 등록이 완료된\n학부모님만 가입 가능합니다",                    icon: "heart",     bg: "#FFF3E0", color: "#E4A93A" },
+const ROLE_CARDS: Array<{ role: Role; label: string; desc: string; condition: string | null; icon: any; bg: string; color: string }> = [
+  { role: "admin",   label: "수영장 대표", desc: "수영장을 직접 운영하는 원장/관리자\n또는 1인 레슨 팀을 운영하는 선생님",           condition: null,                                   icon: "briefcase", bg: "#EFF4FF", color: "#4F6EF7" },
+  { role: "teacher", label: "선생님",      desc: "스윔노트에 가입된 수영장에서 근무 중인 선생님",                                    condition: "(수영장 대표의 초대 후 가입 가능)",    icon: "award",     bg: "#DFF3EC", color: "#2E9B6F" },
+  { role: "parent",  label: "학부모",      desc: "스윔노트에 가입된 수영장에 자녀가 등록된 학부모",                                  condition: "(회원 등록 완료 후 이용 가능)",        icon: "heart",     bg: "#FFF3E0", color: "#E4A93A" },
 ];
+
+function genRandomPassword() {
+  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + "Aa1!";
+}
 
 export default function SignupScreen() {
   const insets = useSafeAreaInsets();
-  const { unifiedLogin, setParentSession, setAdminSession } = useAuth();
+  const { unifiedLogin, setParentSession, setAdminSession, finishLogin } = useAuth();
 
-  const [step, setStep] = useState<Step>(1);
+  // 소셜 가입 파라미터 (Apple 또는 카카오 인증 후 전달됨)
+  const params = useLocalSearchParams<{
+    appleId?: string; appleEmail?: string; appleName?: string;
+    kakaoId?: string; kakaoPhone?: string; kakaoName?: string;
+  }>();
+  const appleId    = params.appleId    || "";
+  const appleEmail = params.appleEmail || "";
+  const appleName  = params.appleName  || "";
+  const kakaoId    = params.kakaoId    || "";
+  const kakaoPhone = params.kakaoPhone || "";
+  const kakaoName  = params.kakaoName  || "";
+
+  const isSocial       = !!(appleId || kakaoId);
+  const socialPhone    = kakaoPhone || "";              // 카카오는 전화번호 제공, 애플은 없음
+  const hasSocialPhone = isSocial && !!socialPhone;    // 전화 이미 알면 Step2 건너뜀
+  const socialName     = appleName || kakaoName || "";  // 이름 미리채움용
+
+  // 소셜: 전화있으면 Step3, 전화없으면 Step2, 일반은 Step1
+  const initialStep: Step = isSocial ? (hasSocialPhone ? 3 : 2) : 1;
+
+  const [step, setStep] = useState<Step>(initialStep);
 
   /* ── Step 1 ── */
   const [loginId, setLoginId] = useState("");
@@ -57,8 +78,8 @@ export default function SignupScreen() {
   const [showPwc, setShowPwc] = useState(false);
 
   /* ── Step 2 ── */
-  const [phone, setPhone]       = useState("");
-  const [smsState, setSmsState] = useState<SmsState>("idle");
+  const [phone, setPhone]       = useState(socialPhone);  // 카카오 전화번호 미리 채움
+  const [smsState, setSmsState] = useState<SmsState>(hasSocialPhone ? "verified" : "idle");
   const [smsCode, setSmsCode]   = useState("");
   const [smsError, setSmsError] = useState("");
   const [timer, setTimer]       = useState(0);
@@ -69,7 +90,7 @@ export default function SignupScreen() {
   const [role, setRole] = useState<Role | null>(null);
 
   /* ── Step 4 ── */
-  const [name, setName]             = useState("");
+  const [name, setName]             = useState(socialName);  // 소셜 이름 미리채움
   const [childName, setChildName]   = useState("");   // V2: 학부모 자녀 이름
   const [poolSearch, setPoolSearch] = useState("");
   const [pools, setPools]           = useState<Pool[]>([]);
@@ -85,6 +106,9 @@ export default function SignupScreen() {
   const [error, setError]           = useState("");
   const [loading, setLoading]       = useState(false);
   const [isPendingTeacher, setIsPendingTeacher] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({ pw: "", pwc: "", name: "", poolName: "" });
+  const scrollRef = useRef<any>(null);
+  const hasFieldErrors = Object.values(fieldErrors).some(v => !!v);
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
@@ -162,16 +186,31 @@ export default function SignupScreen() {
   /*  Step navigation                                  */
   /* ──────────────────────────────────────────────── */
   function goBack() {
-    if (step === 1) { router.back(); return; }
+    if (step === initialStep) { router.back(); return; }
     setError("");
     setStep((s) => (s - 1) as Step);
   }
 
-  function validateStep1(): string | null {
-    if (loginId.trim().length < 4) return "아이디는 4자 이상이어야 합니다.";
-    if (pw.length < 4)             return "비밀번호는 4자 이상이어야 합니다.";
-    if (pw !== pwc)                return "비밀번호가 일치하지 않습니다.";
-    return null;
+  function validateStep1(): boolean {
+    setError("");
+    const errs = { pw: "", pwc: "", name: "", poolName: "" };
+    let hasError = false;
+
+    if (loginId.trim().length < 4) {
+      setError("아이디는 4자 이상이어야 합니다.");
+      hasError = true;
+    }
+    if (pw.length < 6) {
+      errs.pw = "비밀번호는 6자 이상이어야 합니다";
+      hasError = true;
+    }
+    if (!errs.pw && pw !== pwc) {
+      errs.pwc = "비밀번호가 일치하지 않습니다";
+      hasError = true;
+    }
+
+    setFieldErrors(errs);
+    return !hasError;
   }
 
   function validateStep2(): string | null {
@@ -187,7 +226,7 @@ export default function SignupScreen() {
   function nextStep() {
     setError("");
     if (step === 1) {
-      const e = validateStep1(); if (e) { setError(e); return; }
+      if (!validateStep1()) { scrollRef.current?.scrollTo({ y: 0, animated: true }); return; }
       setStep(2); return;
     }
     if (step === 2) {
@@ -205,11 +244,27 @@ export default function SignupScreen() {
   /* ──────────────────────────────────────────────── */
   async function handleSubmit() {
     setError("");
-    if (!name.trim()) { setError("실명을 입력해주세요."); return; }
+    const errs = { pw: "", pwc: "", name: "", poolName: "" };
+
+    if (!validateName(name)) {
+      errs.name = "이름을 입력해주세요";
+    }
 
     if (role === "admin") {
-      if (!poolName.trim())    { setError("수영장 이름을 입력해주세요."); return; }
+      if (!validateName(poolName)) {
+        errs.poolName = "수영장명을 입력해주세요";
+      }
+    }
+
+    setFieldErrors(errs);
+    if (errs.name || errs.poolName) {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+
+    if (role === "admin") {
       if (!poolAddress.trim()) { setError("수영장 주소를 입력해주세요."); return; }
+      if (poolPhone && !validatePhone(poolPhone)) { setError("수영장 전화번호 형식이 올바르지 않습니다."); return; }
       if (!poolPhone.trim())   { setError("수영장 전화번호를 입력해주세요."); return; }
     } else if (role === "teacher") {
       if (!selectedPool) { setError("수영장을 선택해주세요."); return; }
@@ -222,6 +277,16 @@ export default function SignupScreen() {
     setLoading(true);
     try {
       const cleaned = phone.replace(/[-\s]/g, "");
+
+      // 소셜 가입 시 loginId/password 자동 생성
+      const effectiveLoginId = isSocial
+        ? (appleEmail || `user_${Date.now().toString(36)}`)
+        : loginId.trim().toLowerCase();
+      const effectivePw = isSocial ? genRandomPassword() : pw;
+
+      // 소셜 ID 파라미터
+      const socialBody = appleId ? { apple_id: appleId } : kakaoId ? { kakao_id: kakaoId } : {};
+
       let res: Response;
       let data: any;
 
@@ -229,8 +294,8 @@ export default function SignupScreen() {
         res = await fetch(`${API_BASE}/auth/register`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            email: loginId.trim().toLowerCase(),
-            password: pw,
+            email: effectiveLoginId,
+            password: effectivePw,
             name: name.trim(),
             phone: cleaned,
             role: "pool_admin",
@@ -238,6 +303,7 @@ export default function SignupScreen() {
             pool_address: poolAddress.trim(),
             pool_phone: poolPhone.trim(),
             pool_owner_name: name.trim(),
+            ...socialBody,
           }),
         });
         data = await safeJson(res);
@@ -248,10 +314,11 @@ export default function SignupScreen() {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: name.trim(),
-            loginId: loginId.trim().toLowerCase(),
-            password: pw,
+            loginId: effectiveLoginId,
+            password: effectivePw,
             phone: cleaned,
             pool_id: selectedPool!.id,
+            ...socialBody,
           }),
         });
         data = await safeJson(res);
@@ -270,10 +337,11 @@ export default function SignupScreen() {
           body: JSON.stringify({
             parent_name: name.trim(),
             phone: cleaned,
-            loginId: loginId.trim().toLowerCase() || undefined,
-            password: pw,
+            loginId: isSocial ? undefined : (loginId.trim().toLowerCase() || undefined),
+            password: effectivePw,
             pool_id: selectedPool!.id,
             child_name: childName.trim(),
+            ...socialBody,
           }),
         });
         data = await safeJson(res);
@@ -287,11 +355,18 @@ export default function SignupScreen() {
         }
         if (data.token) {
           await setParentSession(data.token, data.parent);
+          finishLogin("parent", null, data.parent, data.token);
           return;
         }
       }
 
-      await unifiedLogin(loginId.trim().toLowerCase(), pw);
+      // 서버가 token을 바로 반환하면 바로 세션 설정, 아니면 일반 로그인
+      if (data?.token && data?.user) {
+        await setAdminSession(data.token, data.user);
+        finishLogin("admin", data.user, null, data.token);
+      } else {
+        await unifiedLogin(effectiveLoginId, effectivePw);
+      }
     } catch (e: any) {
       setError(e.message || "서버 오류가 발생했습니다.");
     } finally {
@@ -303,18 +378,26 @@ export default function SignupScreen() {
   /*  Render helpers                                   */
   /* ──────────────────────────────────────────────── */
   function StepDots() {
+    // 소셜: 보여줄 스텝만 필터링
+    const visibleSteps: Array<{ n: Step; label: string }> = isSocial
+      ? hasSocialPhone
+        ? [{ n: 3, label: "역할선택" }, { n: 4, label: "추가정보" }]
+        : [{ n: 2, label: "휴대폰" }, { n: 3, label: "역할선택" }, { n: 4, label: "추가정보" }]
+      : [
+          { n: 1, label: "기본정보" }, { n: 2, label: "휴대폰" },
+          { n: 3, label: "역할선택" }, { n: 4, label: "추가정보" },
+        ];
     return (
       <View style={styles.stepRow}>
-        {STEP_LABELS.map((label, i) => {
-          const n = (i + 1) as Step;
+        {visibleSteps.map(({ n, label }) => {
           const active = n === step;
           const done   = n < step;
           return (
             <View key={n} style={styles.stepItem}>
               <View style={[styles.stepDot, { backgroundColor: done ? C.tint : active ? C.tint : C.border }]}>
                 {done
-                  ? <Check size={12} color="#fff" />
-                  : <Text style={[styles.stepNum, { color: active ? "#fff" : C.textMuted }]}>{n}</Text>}
+                  ? <LucideIcon name="check" size={12} color="#fff" />
+                  : <Text style={[styles.stepNum, { color: active ? "#fff" : C.textMuted }]}>{visibleSteps.findIndex(s => s.n === n) + 1}</Text>}
               </View>
               <Text style={[styles.stepLabel, { color: active ? C.tint : C.textMuted }]}>{label}</Text>
             </View>
@@ -346,36 +429,38 @@ export default function SignupScreen() {
           />
         </InputField>
 
-        <InputField label="비밀번호" icon="lock">
+        <InputField label="비밀번호" icon="lock" error={fieldErrors.pw}>
           <TextInput
             style={[styles.input, { color: C.text }]}
-            placeholder="4자 이상"
+            placeholder="6자 이상"
             placeholderTextColor={C.textMuted}
             value={pw}
-            onChangeText={v => setPw(toAsciiOnly(v))}
+            onChangeText={v => { setPw(toAsciiOnly(v)); setFieldErrors(e => ({ ...e, pw: "" })); }}
             secureTextEntry={!showPw}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="ascii-capable"
             returnKeyType="next"
+            textContentType="oneTimeCode"
           />
           <Pressable onPress={() => setShowPw(v => !v)}>
             <LucideIcon name={showPw ? "eye-off" : "eye"} size={18} color={C.textMuted} />
           </Pressable>
         </InputField>
 
-        <InputField label="비밀번호 확인" icon="lock">
+        <InputField label="비밀번호 확인" icon="lock" error={fieldErrors.pwc}>
           <TextInput
             style={[styles.input, { color: C.text }]}
             placeholder="비밀번호 재입력"
             placeholderTextColor={C.textMuted}
             value={pwc}
-            onChangeText={v => setPwc(toAsciiOnly(v))}
+            onChangeText={v => { setPwc(toAsciiOnly(v)); setFieldErrors(e => ({ ...e, pwc: "" })); }}
             secureTextEntry={!showPwc}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="ascii-capable"
             returnKeyType="done"
+            textContentType="oneTimeCode"
           />
           <Pressable onPress={() => setShowPwc(v => !v)}>
             <LucideIcon name={showPwc ? "eye-off" : "eye"} size={18} color={C.textMuted} />
@@ -395,7 +480,7 @@ export default function SignupScreen() {
           <Text style={[styles.label, { color: C.textSecondary }]}>휴대폰 번호</Text>
           <View style={styles.phoneRow}>
             <View style={[styles.inputBox, { flex: 1, borderColor: C.border, backgroundColor: C.background }]}>
-              <Smartphone size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+              <LucideIcon name="smartphone" size={15} color={C.textMuted} style={{ marginRight: 8 }} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 placeholder="010-0000-0000"
@@ -426,7 +511,7 @@ export default function SignupScreen() {
             <Text style={[styles.label, { color: C.textSecondary }]}>인증번호</Text>
             <View style={styles.codeRow}>
               <View style={[styles.inputBox, { flex: 1, borderColor: verified ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Hash size={15} color={verified ? C.tint : C.textMuted} style={{ marginRight: 8 }} />
+                <LucideIcon name="hash" size={15} color={verified ? C.tint : C.textMuted} style={{ marginRight: 8 }} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   placeholder="6자리 입력"
@@ -455,7 +540,7 @@ export default function SignupScreen() {
             </View>
             {verified && (
               <View style={styles.verifiedRow}>
-                <CircleCheck size={14} color={C.tint} />
+                <LucideIcon name="check-circle" size={14} color={C.tint} />
                 <Text style={[styles.verifiedTxt, { color: C.tint }]}>인증 완료</Text>
               </View>
             )}
@@ -464,7 +549,7 @@ export default function SignupScreen() {
 
         {devCode && (
           <View style={styles.devCodeBox}>
-            <Terminal size={13} color="#856404" />
+            <LucideIcon name="terminal" size={13} color="#856404" />
             <Text style={styles.devCodeLabel}>개발용 코드:</Text>
             <Text style={styles.devCodeNum}>{devCode}</Text>
           </View>
@@ -478,22 +563,40 @@ export default function SignupScreen() {
       <View style={styles.card}>
         <Text style={[styles.cardTitle, { color: C.text }]}>역할 선택</Text>
         <Text style={[styles.cardDesc, { color: C.textSecondary }]}>어떤 역할로 가입하시겠어요?</Text>
-        {ROLE_CARDS.map(r => (
-          <Pressable
-            key={r.role}
-            style={[styles.roleCard, { borderColor: role === r.role ? C.tint : C.border, borderWidth: role === r.role ? 2 : 1.5 }]}
-            onPress={() => setRole(r.role)}
-          >
-            <View style={[styles.roleIcon, { backgroundColor: r.bg }]}>
-              <LucideIcon name={r.icon} size={22} color={r.color} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.roleLabel, { color: C.text }]}>{r.label}</Text>
-              <Text style={[styles.roleDesc, { color: C.textSecondary }]}>{r.desc}</Text>
-            </View>
-            {role === r.role && <CircleCheck size={18} color={C.tint} />}
-          </Pressable>
-        ))}
+        <View style={{ gap: 12, marginTop: 4 }}>
+          {ROLE_CARDS.map(r => {
+            const selected = role === r.role;
+            return (
+              <Pressable
+                key={r.role}
+                style={[
+                  styles.roleCard,
+                  selected
+                    ? { backgroundColor: C.tint, borderColor: "#0099AA", borderWidth: 2 }
+                    : { backgroundColor: "#fff", borderColor: "#E5E5E5", borderWidth: 1.5 },
+                ]}
+                onPress={() => setRole(r.role)}
+              >
+                {/* 우측 상단 체크 */}
+                {selected && (
+                  <View style={styles.roleCheckBadge}>
+                    <LucideIcon name="check-circle" size={18} color="#fff" />
+                  </View>
+                )}
+                <View style={[styles.roleIcon, { backgroundColor: selected ? "rgba(255,255,255,0.25)" : r.bg }]}>
+                  <LucideIcon name={r.icon as any} size={22} color={selected ? "#fff" : r.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.roleLabel, { color: selected ? "#fff" : C.text }]}>{r.label}</Text>
+                  <Text style={[styles.roleDesc, { color: selected ? "rgba(255,255,255,0.85)" : C.textSecondary }]}>{r.desc}</Text>
+                  {r.condition && (
+                    <Text style={[styles.roleCond, { color: selected ? "rgba(255,255,255,0.7)" : "#999" }]}>{r.condition}</Text>
+                  )}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
     );
   }
@@ -506,13 +609,13 @@ export default function SignupScreen() {
           <Text style={[styles.cardTitle, { color: C.text }]}>
             {role === "admin" ? "운영자 정보" : role === "teacher" ? "선생님 정보" : "학부모 정보"}
           </Text>
-          <InputField label="실명" icon="user">
+          <InputField label="실명" icon="user" error={fieldErrors.name}>
             <TextInput
               style={[styles.input, { color: C.text }]}
               placeholder="실명을 입력해주세요 (한글)"
               placeholderTextColor={C.textMuted}
               value={name}
-              onChangeText={v => setName(v.replace(/[^가-힣ㄱ-ㅎㅏ-ㅣ\s]/g, ""))}
+              onChangeText={v => { setName(v); setFieldErrors(e => ({ ...e, name: "" })); }}
               keyboardType="default"
               autoCorrect={false}
               autoCapitalize="none"
@@ -524,8 +627,8 @@ export default function SignupScreen() {
         {role === "admin" && (
           <View style={styles.card}>
             <Text style={[styles.cardTitle, { color: C.text }]}>수영장 정보</Text>
-            <InputField label="수영장 이름" icon="map-pin">
-              <TextInput style={[styles.input, { color: C.text }]} placeholder="예: 스윔노트 수영장" placeholderTextColor={C.textMuted} value={poolName} onChangeText={setPoolName} />
+            <InputField label="수영장 이름" icon="map-pin" error={fieldErrors.poolName}>
+              <TextInput style={[styles.input, { color: C.text }]} placeholder="예: 스윔노트 수영장" placeholderTextColor={C.textMuted} value={poolName} onChangeText={v => { setPoolName(v); setFieldErrors(e => ({ ...e, poolName: "" })); }} />
             </InputField>
             <InputField label="수영장 주소" icon="map">
               <TextInput style={[styles.input, { color: C.text }]} placeholder="도로명 주소" placeholderTextColor={C.textMuted} value={poolAddress} onChangeText={setPoolAddress} />
@@ -543,20 +646,20 @@ export default function SignupScreen() {
             {selectedPool ? (
               <View style={styles.selectedPool}>
                 <View style={[styles.poolIconSm, { backgroundColor: "#FFF3E0" }]}>
-                  <Check size={14} color="#E4A93A" />
+                  <LucideIcon name="check" size={14} color="#E4A93A" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.poolNameSm, { color: C.text }]}>{selectedPool.name}</Text>
                   {selectedPool.address ? <Text style={[styles.poolAddrSm, { color: C.textSecondary }]}>{selectedPool.address}</Text> : null}
                 </View>
                 <Pressable onPress={() => setSelectedPool(null)}>
-                  <CircleX size={18} color={C.textMuted} />
+                  <LucideIcon name="x-circle" size={18} color={C.textMuted} />
                 </Pressable>
               </View>
             ) : (
               <>
                 <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-                  <Search size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+                  <LucideIcon name="search" size={15} color={C.textMuted} style={{ marginRight: 8 }} />
                   <TextInput
                     style={[styles.input, { color: C.text }]}
                     placeholder="수영장 이름 검색"
@@ -578,7 +681,7 @@ export default function SignupScreen() {
                     onPress={() => setSelectedPool(p)}
                   >
                     <View style={[styles.poolIconSm, { backgroundColor: "#FFF3E0" }]}>
-                      <MapPin size={13} color="#E4A93A" />
+                      <LucideIcon name="map-pin" size={13} color="#E4A93A" />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.poolNameSm, { color: C.text }]}>{p.name}</Text>
@@ -620,20 +723,20 @@ export default function SignupScreen() {
             {selectedPool ? (
               <View style={styles.selectedPool}>
                 <View style={[styles.poolIconSm, { backgroundColor: "#E6FAF8" }]}>
-                  <Check size={14} color={C.tint} />
+                  <LucideIcon name="check" size={14} color={C.tint} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.poolNameSm, { color: C.text }]}>{selectedPool.name}</Text>
                   {selectedPool.address ? <Text style={[styles.poolAddrSm, { color: C.textSecondary }]}>{selectedPool.address}</Text> : null}
                 </View>
                 <Pressable onPress={() => setSelectedPool(null)}>
-                  <CircleX size={18} color={C.textMuted} />
+                  <LucideIcon name="x-circle" size={18} color={C.textMuted} />
                 </Pressable>
               </View>
             ) : (
               <>
                 <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-                  <Search size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+                  <LucideIcon name="search" size={15} color={C.textMuted} style={{ marginRight: 8 }} />
                   <TextInput
                     style={[styles.input, { color: C.text }]}
                     placeholder="수영장 이름 검색"
@@ -655,7 +758,7 @@ export default function SignupScreen() {
                     onPress={() => setSelectedPool(p)}
                   >
                     <View style={[styles.poolIconSm, { backgroundColor: "#E6FAF8" }]}>
-                      <MapPin size={13} color={C.tint} />
+                      <LucideIcon name="map-pin" size={13} color={C.tint} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.poolNameSm, { color: C.text }]}>{p.name}</Text>
@@ -681,14 +784,14 @@ export default function SignupScreen() {
   if (isPendingTeacher) {
     return (
       <View style={{ flex: 1, backgroundColor: C.background, paddingTop: insets.top, paddingBottom: insets.bottom + 24 }}>
-        <ScrollView
+        <KeyboardAwareScrollView
           contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
         >
           {/* 아이콘 */}
           <View style={{ alignItems: "center", marginBottom: 28 }}>
             <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center" }}>
-              <CircleCheck size={42} color={C.tint} />
+              <LucideIcon name="check-circle" size={42} color={C.tint} />
             </View>
           </View>
 
@@ -726,23 +829,33 @@ export default function SignupScreen() {
           >
             <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" }}>로그인 화면으로 이동</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
     );
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView
+    <View style={{ flex: 1 }}>
+      <KeyboardAwareScrollView
+        ref={scrollRef}
         style={[styles.root, { backgroundColor: C.background }]}
         contentContainerStyle={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* 에러 요약 배너 (필드 오류 있을 때) */}
+        {hasFieldErrors && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", padding: 12, borderRadius: 10 }}>
+            <CircleAlert size={15} color="#DC2626" />
+            <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>
+              입력 오류가 있습니다. 아래 항목을 확인해주세요.
+            </Text>
+          </View>
+        )}
         {/* 헤더 */}
         <View style={styles.header}>
           <Pressable style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]} onPress={goBack}>
-            <ArrowLeft size={22} color={C.text} />
+            <LucideIcon name="arrow-left" size={22} color={C.text} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: C.text }]}>회원가입</Text>
           <View style={{ width: 30 }} />
@@ -765,9 +878,12 @@ export default function SignupScreen() {
 
         {/* 버튼 */}
         <Pressable
-          style={({ pressed }) => [styles.primaryBtn, { backgroundColor: C.tint, opacity: pressed || loading ? 0.8 : 1 }]}
+          style={({ pressed }) => [
+            styles.primaryBtn,
+            { backgroundColor: (step === 3 && !role) ? "#CCC" : C.tint, opacity: pressed || loading ? 0.8 : 1 },
+          ]}
           onPress={isLastStep ? handleSubmit : nextStep}
-          disabled={loading}
+          disabled={loading || (step === 3 && !role)}
         >
           {loading
             ? <ActivityIndicator color="#fff" />
@@ -780,21 +896,22 @@ export default function SignupScreen() {
             <Text style={{ color: C.tint, fontFamily: "Pretendard-Regular" }}>로그인</Text>
           </Text>
         </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 
 /* ── Sub-component ── */
-function InputField({ label, icon, children }: { label: string; icon: any; children: React.ReactNode }) {
+function InputField({ label, icon, children, error }: { label: string; icon: any; children: React.ReactNode; error?: string }) {
   const C = Colors.light;
   return (
     <View style={styles.field}>
       <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
-      <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+      <View style={[styles.inputBox, { borderColor: error ? "#D96C6C" : C.border, backgroundColor: C.background }]}>
         <LucideIcon name={icon} size={15} color={C.textMuted} style={{ marginRight: 8 }} />
         {children}
       </View>
+      {error ? <Text style={styles.fieldErrTxt}>{error}</Text> : null}
     </View>
   );
 }
@@ -834,10 +951,12 @@ const styles = StyleSheet.create({
   devCodeLabel:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#856404" },
   devCodeNum:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#856404" },
 
-  roleCard:  { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, padding: 14, backgroundColor: "#fff" },
-  roleIcon:  { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  roleLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
-  roleDesc:  { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
+  roleCard:       { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, padding: 16, position: "relative" },
+  roleCheckBadge: { position: "absolute", top: 10, right: 10 },
+  roleIcon:       { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  roleLabel:      { fontSize: 15, fontFamily: "Pretendard-SemiBold", fontWeight: "600" },
+  roleDesc:       { fontSize: 14, fontFamily: "Pretendard-Regular", marginTop: 3, lineHeight: 20 },
+  roleCond:       { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 4 },
 
   selectedPool: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, backgroundColor: "#F0FAF9" },
   poolItem:     { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, borderWidth: 1, marginTop: 4 },
@@ -855,4 +974,5 @@ const styles = StyleSheet.create({
   primaryBtnTxt: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
   loginLink:     { alignItems: "center", paddingVertical: 4 },
   loginLinkTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  fieldErrTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 2 },
 });

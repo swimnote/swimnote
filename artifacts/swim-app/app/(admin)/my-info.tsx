@@ -1,10 +1,10 @@
-import { ChevronRight, Key, Lock, PenLine, Trash2, User, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { WithdrawalModal } from "@/components/common/WithdrawalModal";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Alert, Modal, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Modal, Pressable,
+  RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ROLE_CONFIGS } from "@/constants/auth";
@@ -19,7 +19,8 @@ interface Profile {
 }
 
 export default function AdminMyInfoScreen() {
-  const { token, adminUser, updateAdminProfile, logout } = useAuth();
+  const { token, adminUser, updateAdminProfile, logout, pool } = useAuth();
+  const isPaidPlan = adminUser?.role === "pool_admin" && !!pool?.subscription_tier && pool.subscription_tier !== "free";
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
@@ -40,10 +41,8 @@ export default function AdminMyInfoScreen() {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg, setPwMsg] = useState("");
 
-  const [deleteVisible, setDeleteVisible] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [deleteMsg, setDeleteMsg] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -75,22 +74,18 @@ export default function AdminMyInfoScreen() {
     } finally { setEditSaving(false); }
   }
 
-  async function deleteAccount() {
-    if (deleteConfirmText !== "탈퇴") { setDeleteMsg("'탈퇴'를 정확히 입력해주세요."); return; }
-    setDeleteLoading(true); setDeleteMsg("");
+  async function deleteAccount(immediate: boolean) {
+    setDeleteLoading(true);
     try {
-      const res = await apiRequest(token, "/auth/account", { method: "DELETE" });
+      const res = await apiRequest(token, "/auth/account", {
+        method: "DELETE",
+        body: JSON.stringify({ immediate }),
+      });
       if (res.ok) {
-        setDeleteVisible(false);
-        Alert.alert("계정 탈퇴 완료", "계정이 삭제되었습니다. 이용해 주셔서 감사합니다.", [
-          { text: "확인", onPress: () => { logout(); router.replace("/"); } },
-        ]);
-      } else {
-        const d = await res.json().catch(() => ({}));
-        setDeleteMsg(d.message || d.error || "탈퇴 처리에 실패했습니다.");
+        setDeleteConfirm(false);
+        await logout();
       }
-    } catch { setDeleteMsg("오류가 발생했습니다. 다시 시도해주세요."); }
-    finally { setDeleteLoading(false); }
+    } catch { } finally { setDeleteLoading(false); }
   }
 
   async function submitPasswordChange() {
@@ -125,7 +120,7 @@ export default function AdminMyInfoScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="내 정보" />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 60 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
@@ -145,7 +140,7 @@ export default function AdminMyInfoScreen() {
             <Pressable style={[s.editBtn, { borderColor: themeColor }]} onPress={() => {
               setEditName(profile?.name || ""); setEditPhone(profile?.phone || ""); setEditMsg(""); setEditVisible(true);
             }}>
-              <PenLine size={14} color={themeColor} />
+              <LucideIcon name="edit-2" size={14} color={themeColor} />
               <Text style={[s.editBtnText, { color: themeColor }]}>편집</Text>
             </Pressable>
           </View>
@@ -154,7 +149,7 @@ export default function AdminMyInfoScreen() {
         {/* ── 계정 정보 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <User size={15} color={themeColor} />
+            <LucideIcon name="user" size={15} color={themeColor} />
             <Text style={s.cardTitle}>계정 정보</Text>
           </View>
           <View style={{ padding: 16, gap: 10 }}>
@@ -175,7 +170,7 @@ export default function AdminMyInfoScreen() {
         {/* ── 보안 설정 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <Lock size={15} color={themeColor} />
+            <LucideIcon name="lock" size={15} color={themeColor} />
             <Text style={s.cardTitle}>보안 설정</Text>
           </View>
           <Pressable
@@ -183,17 +178,17 @@ export default function AdminMyInfoScreen() {
             onPress={() => { setPwCurrent(""); setPwNew(""); setPwConfirm(""); setPwMsg(""); setPwVisible(true); }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Key size={14} color={C.textSecondary} />
+              <LucideIcon name="key" size={14} color={C.textSecondary} />
               <Text style={[s.secItemLabel, { color: C.text }]}>비밀번호 변경</Text>
             </View>
-            <ChevronRight size={16} color={C.textMuted} />
+            <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
           </Pressable>
         </View>
 
         {/* ── 계정 탈퇴 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <Trash2 size={15} color="#D96C6C" />
+            <LucideIcon name="trash-2" size={15} color="#D96C6C" />
             <Text style={[s.cardTitle, { color: "#D96C6C" }]}>계정 탈퇴</Text>
           </View>
           <View style={{ paddingHorizontal: 16, paddingBottom: 14, gap: 8 }}>
@@ -202,14 +197,14 @@ export default function AdminMyInfoScreen() {
             </Text>
             <Pressable
               style={({ pressed }) => [s.deleteBtn, { opacity: pressed ? 0.7 : 1 }]}
-              onPress={() => { setDeleteConfirmText(""); setDeleteMsg(""); setDeleteVisible(true); }}
+              onPress={() => setDeleteConfirm(true)}
             >
               <Text style={s.deleteBtnText}>계정 탈퇴하기</Text>
             </Pressable>
           </View>
         </View>
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ═══ 정보 편집 모달 ═══ */}
       <Modal visible={editVisible} animationType="slide" transparent presentationStyle="overFullScreen">
@@ -218,7 +213,7 @@ export default function AdminMyInfoScreen() {
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>내 정보 수정</Text>
               <Pressable onPress={() => setEditVisible(false)} hitSlop={8}>
-                <X size={22} color={C.text} />
+                <LucideIcon name="x" size={22} color={C.text} />
               </Pressable>
             </View>
             <Text style={s.inputLabel}>이름</Text>
@@ -243,7 +238,7 @@ export default function AdminMyInfoScreen() {
           <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>비밀번호 변경</Text>
-              <Pressable onPress={() => setPwVisible(false)} hitSlop={8}><X size={22} color={C.text} /></Pressable>
+              <Pressable onPress={() => setPwVisible(false)} hitSlop={8}><LucideIcon name="x" size={22} color={C.text} /></Pressable>
             </View>
             <Text style={s.inputLabel}>현재 비밀번호</Text>
             <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={pwCurrent} onChangeText={setPwCurrent} placeholder="현재 비밀번호" placeholderTextColor={C.textMuted} secureTextEntry />
@@ -263,44 +258,13 @@ export default function AdminMyInfoScreen() {
         </View>
       </Modal>
 
-      {/* ═══ 계정 탈퇴 확인 모달 ═══ */}
-      <Modal visible={deleteVisible} animationType="slide" transparent presentationStyle="overFullScreen">
-        <View style={s.overlay}>
-          <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
-            <View style={s.modalHeader}>
-              <Text style={[s.modalTitle, { color: "#D96C6C" }]}>계정 탈퇴</Text>
-              <Pressable onPress={() => setDeleteVisible(false)} hitSlop={8}>
-                <X size={22} color={C.text} />
-              </Pressable>
-            </View>
-            <View style={[s.msgBox, { backgroundColor: "#FEF2F2", marginBottom: 4 }]}>
-              <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C", lineHeight: 20 }}>
-                ⚠️ 탈퇴 시 모든 계정 정보가 즉시 삭제되며{"\n"}복구가 불가능합니다.
-              </Text>
-            </View>
-            <Text style={s.inputLabel}>확인을 위해 아래에 <Text style={{ color: "#D96C6C" }}>'탈퇴'</Text>를 입력하세요</Text>
-            <TextInput
-              style={[s.input, { borderColor: "#D96C6C", color: C.text, marginTop: 4 }]}
-              value={deleteConfirmText}
-              onChangeText={(t) => { setDeleteConfirmText(t); setDeleteMsg(""); }}
-              placeholder="탈퇴"
-              placeholderTextColor={C.textMuted}
-            />
-            {deleteMsg ? (
-              <View style={[s.msgBox, { backgroundColor: "#F9DEDA" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C" }}>{deleteMsg}</Text>
-              </View>
-            ) : null}
-            <Pressable
-              style={[s.confirmBtn, { backgroundColor: "#D96C6C", opacity: (deleteLoading || deleteConfirmText !== "탈퇴") ? 0.5 : 1, marginTop: 16 }]}
-              onPress={deleteAccount}
-              disabled={deleteLoading || deleteConfirmText !== "탈퇴"}
-            >
-              {deleteLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnText}>계정 영구 삭제</Text>}
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      <WithdrawalModal
+        visible={deleteConfirm}
+        onClose={() => setDeleteConfirm(false)}
+        onConfirm={deleteAccount}
+        loading={deleteLoading}
+        isPaidPlan={isPaidPlan}
+      />
 
     </SafeAreaView>
   );

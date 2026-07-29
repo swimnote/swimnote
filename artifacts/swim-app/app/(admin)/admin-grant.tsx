@@ -4,9 +4,7 @@
  * - 선생님에게 관리자 권한 부여/회수 가능
  * - 관리자 수 제한 없음 (여러 명 가능)
  */
-import { CircleCheck, Info, Shield, Users } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Platform, Pressable,
@@ -48,6 +46,13 @@ export default function AdminGrantScreen() {
   const [processing, setProcessing]         = useState(false);
   const [resultMsg, setResultMsg]           = useState<string | null>(null);
 
+  // ── 결과 모달 닫기 공통 함수 ─────────────────────────────────────────────
+  function closeResultModal() {
+    setResultMsg(null);
+    setConfirmTarget(null);
+    setProcessing(false);
+  }
+
   const load = useCallback(async (isRefresh = false) => {
     if (!token) return;
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -65,19 +70,62 @@ export default function AdminGrantScreen() {
   useEffect(() => { load(); }, [load]);
 
   async function handleGrant(userId: string, grant: boolean) {
+    if (processing) return;
     setProcessing(true);
+    let successMessage: string | null = null;
+
     try {
       const r = await apiRequest(token, "/admin/grant-pool-admin", {
         method: "POST",
         body: JSON.stringify({ userId, grant }),
       });
       const d = await r.json();
-      if (!r.ok) { setResultMsg(d.message || "처리 중 오류가 발생했습니다."); return; }
-      setResultMsg(d.message || (grant ? "관리자 권한이 부여되었습니다." : "관리자 권한이 회수되었습니다."));
-      await load();
-    } finally {
-      setProcessing(false);
+
+      if (!r.ok) {
+        // 실패: 확인 다이얼로그 먼저 닫고 → processing 해제 → 오류 메시지
+        setConfirmTarget(null);
+        setProcessing(false);
+        setResultMsg(d.message || "처리 중 오류가 발생했습니다.");
+        return;
+      }
+
+      // 성공: 서버 roles 기준으로 목록 즉시 갱신
+      const serverRoles: string[] = Array.isArray(d.roles) ? d.roles : [];
+      const isAdminGranted = serverRoles.includes("pool_admin");
+      setTeachers(prev =>
+        prev.map(t => t.id === userId ? { ...t, is_admin_granted: isAdminGranted } : t)
+      );
+      successMessage = grant
+        ? "관리자 권한이 부여되었습니다.\n대상 선생님 앱에 최대 15초 이내 자동 반영됩니다."
+        : "관리자 권한이 회수되었습니다.\n대상 선생님 앱에 최대 15초 이내 자동 반영됩니다.";
+
+      // 확인 다이얼로그 종료 → processing 해제 → 결과 모달 표시 (순서 중요)
       setConfirmTarget(null);
+      setProcessing(false);
+      setResultMsg(successMessage);
+
+      // 목록 전체 재조회는 백그라운드로 (결과 모달 닫힘과 무관하게 실행)
+      void apiRequest(token, "/admin/approved-teachers-for-grant")
+        .then(async res => {
+          if (res.ok) {
+            const d2 = await res.json();
+            setTeachers(Array.isArray(d2) ? d2 : (d2.data ?? []));
+          }
+        })
+        .catch(() => {});
+
+    } catch {
+      // 네트워크 오류: 목록 상태 변경 없이 오류 메시지만 표시
+      setConfirmTarget(null);
+      setProcessing(false);
+      setResultMsg("네트워크 오류가 발생했습니다. 다시 시도해주세요.");
+    } finally {
+      // finally는 processing / confirmTarget 정리만 담당
+      // resultMsg는 절대 건드리지 않음 (이미 위에서 명시적으로 처리)
+      if (successMessage === null) {
+        setProcessing(false);
+        setConfirmTarget(null);
+      }
     }
   }
 
@@ -87,10 +135,11 @@ export default function AdminGrantScreen() {
 
       {/* 안내 배너 */}
       <View style={s.infoBanner}>
-        <Info size={14} color="#2EC4B6" />
+        <LucideIcon name="info" size={14} color="#2EC4B6" />
         <Text style={s.infoTxt}>
           승인된 선생님에게 관리자 권한을 부여할 수 있습니다.{"\n"}
-          관리자 권한을 받은 선생님은 선생님↔관리자 역할 전환이 가능합니다.
+          관리자 권한을 받은 선생님은 선생님↔관리자 역할 전환이 가능합니다.{"\n"}
+          권한 변경 사항은 대상 선생님 앱에 최대 15초 이내 자동 반영됩니다.
         </Text>
       </View>
 
@@ -104,7 +153,7 @@ export default function AdminGrantScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: TAB_BAR_H + 16 }}
           ListEmptyComponent={
             <View style={s.empty}>
-              <Users size={32} color={C.textMuted} />
+              <LucideIcon name="users" size={32} color={C.textMuted} />
               <Text style={s.emptyTxt}>승인된 선생님이 없습니다</Text>
               <Text style={s.emptyDesc}>먼저 선생님 초대 후 승인해주세요.</Text>
             </View>
@@ -125,7 +174,7 @@ export default function AdminGrantScreen() {
                       ? { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" }
                       : { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }
                   ]}>
-                    {item.is_admin_granted && <Shield size={10} color="#C2410C" />}
+                    {item.is_admin_granted && <LucideIcon name="shield" size={10} color="#C2410C" />}
                     <Text style={[
                       s.roleBadgeTxt,
                       { color: item.is_admin_granted ? "#C2410C" : "#1D4ED8" }
@@ -164,9 +213,14 @@ export default function AdminGrantScreen() {
         />
       )}
 
-      {/* 확인 모달 */}
-      {!!confirmTarget && (
-        <Modal animationType="fade" transparent visible onRequestClose={() => setConfirmTarget(null)}>
+      {/* 확인 모달 — resultMsg가 있으면 표시하지 않음 (두 모달 동시 visible 방지) */}
+      {confirmTarget !== null && resultMsg === null && (
+        <Modal
+          animationType="fade"
+          transparent
+          visible
+          onRequestClose={() => !processing && setConfirmTarget(null)}
+        >
           <View style={s.overlay}>
             <View style={s.dialog}>
               <View style={[s.dialogIcon, confirmTarget.is_admin_granted ? s.dialogIconRevoke : { backgroundColor: themeColor + "20" }]}>
@@ -215,22 +269,29 @@ export default function AdminGrantScreen() {
         </Modal>
       )}
 
-      {/* 결과 안내 모달 */}
-      {!!resultMsg && (
-        <Modal animationType="fade" transparent visible onRequestClose={() => setResultMsg(null)}>
-          <View style={s.overlay}>
-            <View style={s.dialog}>
-              <CircleCheck size={28} color="#2EC4B6" style={{ alignSelf: "center", marginBottom: 8 }} />
+      {/* 결과 안내 모달 — 배경 터치 / 뒤로가기 / 확인 버튼 모두 closeResultModal */}
+      {resultMsg !== null && (
+        <Modal
+          animationType="fade"
+          transparent
+          visible
+          onRequestClose={closeResultModal}
+        >
+          {/* 배경: 터치 시 닫힘 */}
+          <Pressable style={s.overlay} onPress={closeResultModal}>
+            {/* 다이얼로그 내부: 터치 전파 차단 */}
+            <Pressable style={s.dialog} onPress={e => e.stopPropagation()}>
+              <LucideIcon name="check-circle" size={28} color="#2EC4B6" style={{ alignSelf: "center", marginBottom: 8 }} />
               <Text style={[s.dialogTitle, { textAlign: "center" }]}>완료</Text>
               <Text style={[s.dialogBody, { textAlign: "center" }]}>{resultMsg}</Text>
               <Pressable
                 style={[s.dialogBtn, { backgroundColor: C.button, alignSelf: "center", paddingHorizontal: 40 }]}
-                onPress={() => setResultMsg(null)}
+                onPress={closeResultModal}
               >
                 <Text style={s.dialogBtnTxt}>확인</Text>
               </Pressable>
-            </View>
-          </View>
+            </Pressable>
+          </Pressable>
         </Modal>
       )}
     </View>
@@ -264,7 +325,7 @@ const s = StyleSheet.create({
   dialogBody:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 22, textAlign: "center" },
   dialogBtns:    { flexDirection: "row", gap: 8, marginTop: 4 },
   dialogBtn:     { flex: 1, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  dialogBtnCancel:   { backgroundColor: "#FFFFFF" },
+  dialogBtnCancel:   { backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#E5E7EB" },
   dialogBtnCancelTxt:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   dialogBtnRevoke:   { backgroundColor: "#D96C6C" },
   dialogBtnTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },

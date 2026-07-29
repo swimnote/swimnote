@@ -1,10 +1,11 @@
-import { BookOpen, CircleAlert, Clock, PenLine, Trash2, User } from "lucide-react-native";
 import React from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
   RefreshControl, StyleSheet, Text, View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { DiaryEntry } from "./types";
 import DiaryPhotoStrip from "@/components/common/DiaryPhotoStrip";
 
@@ -32,7 +33,9 @@ export default function DiaryHistoryList({
   userId, refreshing,
   deleteTarget, deleteLoading, deleteError,
   onRefresh, onOpenEdit, onDelete, onDeleteConfirm, onDeleteCancel,
+  onWriteDiary, onPressReactions,
   token, classGroupId,
+  extraBottomPadding = 0,
 }: {
   diaries: DiaryEntry[];
   diaryLoading: boolean;
@@ -47,9 +50,13 @@ export default function DiaryHistoryList({
   onDelete: (item: DiaryEntry) => void;
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
+  onWriteDiary?: () => void;
+  onPressReactions?: (item: DiaryEntry) => void;
   token?: string | null;
   classGroupId?: string;
+  extraBottomPadding?: number;
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <>
       {diaryLoading ? (
@@ -58,13 +65,19 @@ export default function DiaryHistoryList({
         <FlatList
           data={diaries}
           keyExtractor={i => i.id}
-          contentContainerStyle={s.diaryList}
+          contentContainerStyle={[s.diaryList, { paddingBottom: insets.bottom + extraBottomPadding + 60 }]}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListEmptyComponent={
             <View style={s.emptyBox}>
-              <BookOpen size={32} color={C.textMuted} />
-              <Text style={s.emptyText}>작성된 일지가 없습니다</Text>
+              <LucideIcon name="book-open" size={32} color={C.textMuted} />
+              <Text style={s.emptyText}>이 날짜에 작성된 일지가 없습니다</Text>
+              {onWriteDiary && (
+                <Pressable style={s.writeBtn} onPress={onWriteDiary}>
+                  <LucideIcon name="pencil" size={13} color="#fff" />
+                  <Text style={s.writeBtnText}>일지 작성</Text>
+                </Pressable>
+              )}
             </View>
           }
           renderItem={({ item }) => {
@@ -81,13 +94,13 @@ export default function DiaryHistoryList({
                   )}
                   {item.note_count && Number(item.note_count) > 0 && (
                     <View style={[s.statusBadge, { backgroundColor: "#EEDDF5" }]}>
-                      <User size={10} color="#7C3AED" />
+                      <LucideIcon name="user" size={10} color="#7C3AED" />
                       <Text style={[s.statusBadgeText, { color: "#7C3AED" }]}>개별 {item.note_count}명</Text>
                     </View>
                   )}
                   {isMine && (
                     <View style={[s.statusBadge, { backgroundColor: "#E6FFFA", marginLeft: "auto" }]}>
-                      <PenLine size={10} color="#4EA7D8" />
+                      <LucideIcon name="edit-2" size={10} color="#4EA7D8" />
                       <Text style={[s.statusBadgeText, { color: "#4EA7D8" }]}>탭하여 수정</Text>
                     </View>
                   )}
@@ -97,7 +110,7 @@ export default function DiaryHistoryList({
                     <Text style={[s.diaryCardDate, { color: C.text }]}>{formatLessonDate(item.lesson_date)}</Text>
                     {(item.schedule_days || item.schedule_time) && (
                       <View style={s.scheduleRow}>
-                        <Clock size={11} color={C.textMuted} />
+                        <LucideIcon name="clock" size={11} color={C.textMuted} />
                         <Text style={[s.scheduleText, { color: C.textMuted }]}>
                           {[item.schedule_days ? formatScheduleDays(item.schedule_days) : null, item.schedule_time].filter(Boolean).join(" · ")}
                         </Text>
@@ -108,7 +121,7 @@ export default function DiaryHistoryList({
                   {isMine && (
                     <Pressable style={[s.iconBtn, { backgroundColor: "#FEF2F2" }]}
                       onPress={e => { e.stopPropagation?.(); onDelete(item); }}>
-                      <Trash2 size={13} color={C.error} />
+                      <LucideIcon name="trash-2" size={13} color={C.error} />
                     </Pressable>
                   )}
                 </View>
@@ -120,8 +133,30 @@ export default function DiaryHistoryList({
                     token={token}
                     classGroupId={classGroupId}
                     lessonDate={item.lesson_date}
+                    diaryId={item.id}
                   />
                 ) : null}
+                {/* 반응·댓글 카운트 배지 — 항상 표시 */}
+                <Pressable
+                  style={s.countRow}
+                  onPress={e => { e.stopPropagation?.(); onPressReactions?.(item); }}
+                >
+                  <View style={s.countBadge}>
+                    <Text style={s.countEmoji}>👍</Text>
+                    <Text style={[s.countText, { color: "#2EC4B6" }]}>{item.like_count ?? 0}</Text>
+                  </View>
+                  <View style={s.countBadge}>
+                    <Text style={s.countEmoji}>🙏</Text>
+                    <Text style={[s.countText, { color: "#BE185D" }]}>{item.thank_count ?? 0}</Text>
+                  </View>
+                  <View style={s.countBadge}>
+                    <LucideIcon name="message-circle" size={12} color="#6366F1" />
+                    <Text style={[s.countText, { color: "#6366F1" }]}>{item.comment_count ?? 0}</Text>
+                  </View>
+                  {onPressReactions && (
+                    <LucideIcon name="chevron-right" size={13} color="#94A3B8" />
+                  )}
+                </Pressable>
               </Pressable>
             );
           }}
@@ -132,7 +167,7 @@ export default function DiaryHistoryList({
         <View style={s.delOverlay}>
           <View style={[s.delSheet, { backgroundColor: C.card }]}>
             <View style={[s.delIconWrap, { backgroundColor: "#F9DEDA" }]}>
-              <Trash2 size={26} color={C.error} />
+              <LucideIcon name="trash-2" size={26} color={C.error} />
             </View>
             <Text style={[s.delTitle, { color: C.text }]}>일지 삭제</Text>
             <Text style={[s.delDesc, { color: C.textSecondary }]}>
@@ -140,7 +175,7 @@ export default function DiaryHistoryList({
             </Text>
             {deleteError && (
               <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
-                <CircleAlert size={13} color={C.error} />
+                <LucideIcon name="alert-circle" size={13} color={C.error} />
                 <Text style={[s.inlineErrorText, { color: C.error }]}>{deleteError}</Text>
               </View>
             )}
@@ -164,7 +199,7 @@ export default function DiaryHistoryList({
 }
 
 const s = StyleSheet.create({
-  diaryList:     { padding: 12, gap: 10, paddingBottom: 120 },
+  diaryList:     { padding: 12, gap: 10 },
   diaryCard:     { borderRadius: 14, padding: 14, gap: 8 },
   diaryCardEditable: { borderWidth: 1.5, borderColor: "#E6FFFA" },
   badgeRow:      { flexDirection: "row", gap: 6, flexWrap: "wrap" },
@@ -177,8 +212,10 @@ const s = StyleSheet.create({
   diaryTeacher:  { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 4 },
   diaryContent:  { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   iconBtn:       { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
-  emptyBox:      { alignItems: "center", paddingTop: 60, gap: 10 },
+  emptyBox:      { alignItems: "center", paddingTop: 60, gap: 14 },
   emptyText:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  writeBtn:      { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#4EA7D8", paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, marginTop: 4 },
+  writeBtnText:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
   delOverlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 24 },
   delSheet:      { width: "100%", borderRadius: 22, padding: 24, alignItems: "center", gap: 14 },
   delIconWrap:   { width: 64, height: 64, borderRadius: 18, alignItems: "center", justifyContent: "center" },
@@ -187,4 +224,8 @@ const s = StyleSheet.create({
   delBtn:        { height: 48, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   inlineError:   { flexDirection: "row", alignItems: "center", gap: 6, padding: 10, borderRadius: 10 },
   inlineErrorText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 17 },
+  countRow:      { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 2 },
+  countBadge:    { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F8FAFF", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  countEmoji:    { fontSize: 12 },
+  countText:     { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });

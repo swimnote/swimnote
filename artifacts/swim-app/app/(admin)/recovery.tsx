@@ -2,8 +2,8 @@
  * (admin)/recovery.tsx — 백업·복구
  * 스냅샷 목록 보기 → 시점 선택 → 영향 범위 확인 → 복구 실행
  */
-import { Activity, Archive, CircleAlert, CircleCheck, Clock, GitBranch, Info, RotateCcw, Save, Trash2, TriangleAlert, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Activity, Archive, CircleCheck, Clock, Info, Save, Trash2 } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
@@ -92,9 +92,9 @@ function SnapshotDeleteModal({
       <Pressable style={rm.backdrop} onPress={onClose} />
       <View style={rm.sheet}>
         <View style={rm.header}>
-          <Trash2 size={20} color="#D96C6C" />
+          <LucideIcon name="trash-2" size={20} color="#D96C6C" />
           <Text style={rm.title}>스냅샷 삭제</Text>
-          <Pressable onPress={onClose}><X size={20} color={C.textSecondary} /></Pressable>
+          <LucideIcon name="x" size={20} color={C.textSecondary} />
         </View>
 
         <View style={[rm.targetBox, { backgroundColor: "#F9DEDA" }]}>
@@ -109,7 +109,7 @@ function SnapshotDeleteModal({
         {step === 1 ? (
           <>
             <View style={[rm.checkRow, { backgroundColor: "#FEF2F2" }]}>
-              <TriangleAlert size={14} color="#D96C6C" />
+              <LucideIcon name="alert-triangle" size={14} color="#D96C6C" />
               <Text style={[rm.checkTxt, { color: "#991B1B" }]}>
                 데이터 유지를 위하여 백업 데이터를 삭제할 경우 이전 데이터는 영원히 복구할 수 없습니다.
               </Text>
@@ -119,7 +119,7 @@ function SnapshotDeleteModal({
                 <Text style={[rm.btnTxt, { color: C.textSecondary }]}>취소</Text>
               </Pressable>
               <Pressable style={[rm.btn, { backgroundColor: "#F9DEDA", flex: 1.5 }]} onPress={() => setStep(2)}>
-                <Trash2 size={14} color="#D96C6C" />
+                <LucideIcon name="trash-2" size={14} color="#D96C6C" />
                 <Text style={[rm.btnTxt, { color: "#D96C6C" }]}>계속 (2/2)</Text>
               </Pressable>
             </View>
@@ -141,7 +141,7 @@ function SnapshotDeleteModal({
                 onPress={execDelete}
                 disabled={!confirmed}
               >
-                <Trash2 size={14} color="#fff" />
+                <LucideIcon name="trash-2" size={14} color="#fff" />
                 <Text style={[rm.btnTxt, { color: "#fff" }]}>영구 삭제</Text>
               </Pressable>
             </View>
@@ -200,7 +200,7 @@ function SnapshotCard({
             ))}
           </View>
           <View style={s.excludeBox}>
-            <CircleAlert size={12} color="#D97706" />
+            <LucideIcon name="alert-circle" size={12} color="#D97706" />
             <Text style={s.excludeTxt}>사진·영상 원본 복구 미보장</Text>
           </View>
           {/* 액션 버튼: 복구 / 비교 / 삭제 */}
@@ -209,21 +209,21 @@ function SnapshotCard({
               style={[s.restoreBtn, { backgroundColor: C.button, flex: 1 }]}
               onPress={() => onRestore(snap)}
             >
-              <RotateCcw size={14} color="#fff" />
+              <LucideIcon name="rotate-ccw" size={14} color="#fff" />
               <Text style={s.restoreBtnTxt}>이 시점으로 복구</Text>
             </Pressable>
             <Pressable
               style={[s.restoreBtn, { backgroundColor: "#E6FFFA", flex: 0.65 }]}
               onPress={handleCompare}
             >
-              <GitBranch size={14} color="#2EC4B6" />
+              <LucideIcon name="git-branch" size={14} color="#2EC4B6" />
               <Text style={[s.restoreBtnTxt, { color: "#2EC4B6" }]}>비교</Text>
             </Pressable>
             <Pressable
               style={[s.restoreBtn, { backgroundColor: "#F9DEDA", flex: 0.55 }]}
               onPress={() => onDelete(snap)}
             >
-              <Trash2 size={14} color="#D96C6C" />
+              <LucideIcon name="trash-2" size={14} color="#D96C6C" />
               <Text style={[s.restoreBtnTxt, { color: "#D96C6C" }]}>삭제</Text>
             </Pressable>
           </View>
@@ -292,9 +292,9 @@ function RestoreModal({
       <Pressable style={rm.backdrop} onPress={onClose} />
       <View style={rm.sheet}>
         <View style={rm.header}>
-          <TriangleAlert size={20} color="#D96C6C" />
+          <LucideIcon name="alert-triangle" size={20} color="#D96C6C" />
           <Text style={rm.title}>복구 실행 확인</Text>
-          <Pressable onPress={onClose}><X size={20} color={C.textSecondary} /></Pressable>
+          <LucideIcon name="x" size={20} color={C.textSecondary} />
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
@@ -322,7 +322,7 @@ function RestoreModal({
 
           {/* 전체 복구 안내 */}
           <View style={[rm.policyBox, { marginTop: 10 }]}>
-            <CircleAlert size={13} color="#D97706" />
+            <LucideIcon name="alert-circle" size={13} color="#D97706" />
             <Text style={rm.policyTxt}>
               전체 시점 복구만 허용됩니다. 부분 복구(항목별 선택 복구)는 지원하지 않습니다.
             </Text>
@@ -330,7 +330,7 @@ function RestoreModal({
 
           {/* 덮어쓰기 경고 */}
           <View style={[rm.overwriteBox, { marginTop: 8 }]}>
-            <TriangleAlert size={13} color="#D96C6C" />
+            <LucideIcon name="alert-triangle" size={13} color="#D96C6C" />
             <Text style={rm.overwriteTxt}>
               복구 실행 시 현재 데이터가 모두 이 시점으로 덮어쓰여집니다. 이 시점 이후 입력·수정된 데이터는 복구되지 않습니다.
             </Text>
@@ -387,7 +387,7 @@ function RestoreModal({
             {running
               ? <ActivityIndicator color="#fff" size="small" />
               : <>
-                  <RotateCcw size={14} color="#fff" />
+                  <LucideIcon name="rotate-ccw" size={14} color="#fff" />
                   <Text style={[rm.btnTxt, { color: "#fff" }]}>복구 실행</Text>
                 </>
             }

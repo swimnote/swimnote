@@ -2,13 +2,12 @@
  * 커뮤니케이션 탭
  * 서브탭: 공지사항 / 선생님 전달
  */
-import { Bookmark, Plus, Trash2 } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
+  RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
@@ -95,14 +94,14 @@ export default function CommunicationScreen() {
               onPress={() => setShowCreate(true)}
               style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#FFFFFF" }}
             >
-              <Plus size={20} color={themeColor} />
+              <LucideIcon name="plus" size={20} color={themeColor} />
             </Pressable>
           ) : undefined
         }
       />
 
       {/* 탭 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipRow}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipRow}
         contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
         {TABS.map(t => (
           <Pressable key={t} onPress={() => setTab(t)}
@@ -110,7 +109,7 @@ export default function CommunicationScreen() {
             <Text style={[s.chipTxt, tab === t && { color: "#fff" }]}>{t}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {loading ? (
         <ActivityIndicator style={{ flex: 1 }} color={themeColor} />
@@ -130,14 +129,14 @@ export default function CommunicationScreen() {
                 <View style={s.row}>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      {item.is_pinned && <Bookmark size={13} color={themeColor} />}
+                      {item.is_pinned && <LucideIcon name="bookmark" size={13} color={themeColor} />}
                       <Text style={s.name} numberOfLines={1}>{item.title}</Text>
                     </View>
                     <Text style={s.sub}>{item.author_name || "관리자"}  {new Date(item.created_at).toLocaleDateString("ko-KR")}</Text>
                     {item.content ? <Text style={s.sub2} numberOfLines={2}>{item.content}</Text> : null}
                   </View>
                   <Pressable onPress={() => deleteNotice(item.id)} style={{ padding: 6 }}>
-                    <Trash2 size={16} color="#D96C6C" />
+                    <LucideIcon name="trash-2" size={16} color="#D96C6C" />
                   </Pressable>
                 </View>
               </View>

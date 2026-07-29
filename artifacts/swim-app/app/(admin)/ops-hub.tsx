@@ -1,7 +1,6 @@
 /**
  * 운영관리 허브 — 하단탭 3번째 (기존 회원관리 탭 자리)
  */
-import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React from "react";
@@ -73,7 +72,7 @@ export default function OpsHubScreen() {
                     <Text style={s.label}>{item.label}</Text>
                     <Text style={s.desc}>{item.desc}</Text>
                   </View>
-                  <ChevronRight size={16} color={C.textMuted} />
+                  <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                 </Pressable>
               ))}
             </View>

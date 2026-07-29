@@ -3,14 +3,12 @@
  * 슈퍼관리자 전용. 학부모 화면에는 광고 슬롯 노출하지 않음.
  * 등록/수정/상태 변경/삭제. 상태: scheduled | active | inactive
  */
-import { Calendar, Camera, Image, Plus, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useMemo, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
-import {
-  ActivityIndicator, Alert, Image as RNImage, Modal, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import { compressImageIfNeeded } from "../../utils/compressImage";
+import {ActivityIndicator, Alert, Image as RNImage, Modal, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { API_BASE } from "@/context/AuthContext";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -73,7 +71,7 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
       {img ? <RNImage source={{ uri: img }} style={ac.cardImg} resizeMode="cover" /> : null}
       {ad.description ? <Text style={ac.desc} numberOfLines={2}>{ad.description}</Text> : null}
       <View style={ac.dateRow}>
-        <Calendar size={11} color="#64748B" />
+        <LucideIcon name="calendar" size={11} color="#64748B" />
         <Text style={ac.dateTxt}>
           {new Date(ad.displayStart).toLocaleDateString("ko-KR")} ~ {new Date(ad.displayEnd).toLocaleDateString("ko-KR")}
         </Text>
@@ -117,6 +115,16 @@ const ac = StyleSheet.create({
   cardImg:    { width: "100%", height: 120, borderRadius: 8, marginBottom: 8 },
 });
 
+// ── 배너 제목 검증 (서버와 동일한 규칙) ──────────────────────────────────
+function validateBannerTitle(title: string, bannerType: "strip" | "slider"): string | null {
+  const newlineCount = (title.match(/\n/g) || []).length;
+  if (bannerType === "slider") {
+    if (newlineCount > 1)  return "제목에는 줄바꿈을 최대 1회만 허용합니다.";
+    if (title.length > 30) return "제목은 최대 30자입니다.";
+  }
+  return null;
+}
+
 interface FormState {
   title: string; description: string; linkUrl: string; linkLabel: string;
   displayStart: string; displayEnd: string;
@@ -154,6 +162,7 @@ export default function AdsScreen() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [titleError, setTitleError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (filter === "all") return ads;
@@ -163,11 +172,13 @@ export default function AdsScreen() {
   function openCreate() {
     setEditId(null);
     setForm(BLANK_FORM);
+    setTitleError(null);
     setShowModal(true);
   }
 
   function openEdit(ad: Ad) {
     setEditId(ad.id);
+    setTitleError(null);
     setForm({
       title: ad.title, description: ad.description,
       linkUrl: ad.linkUrl, linkLabel: ad.linkLabel,
@@ -183,19 +194,23 @@ export default function AdsScreen() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) { Alert.alert("권한 필요", "사진 라이브러리 접근 권한이 필요합니다."); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [4, 3],
       quality: 0.85,
     });
     if (!result.canceled && result.assets?.[0]) {
       const asset = result.assets[0];
-      setForm(f => ({ ...f, imageUri: asset.uri, imageKey: "", imageUrl: "" }));
+      const uri = await compressImageIfNeeded(asset.uri, asset.fileSize ?? undefined);
+      setForm(f => ({ ...f, imageUri: uri, imageKey: "", imageUrl: "" }));
     }
   }
 
   async function handleSave() {
     if (!form.title.trim() || !token) return;
+    const validationError = validateBannerTitle(form.title.trim(), "slider");
+    if (validationError) { setTitleError(validationError); return; }
+    setTitleError(null);
     setSaving(true);
     try {
       let finalKey = form.imageKey;
@@ -269,7 +284,7 @@ export default function AdsScreen() {
 
       {/* 필터 + 등록 버튼 */}
       <View style={s.filterRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", gap: 6 }}>
             {FILTERS.map(f => (
               <Pressable key={f.key} style={[s.filterBtn, filter === f.key && s.filterBtnActive]} onPress={() => setFilter(f.key)}>
@@ -277,18 +292,18 @@ export default function AdsScreen() {
               </Pressable>
             ))}
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
         <Pressable style={s.addBtn} onPress={openCreate}>
-          <Plus size={16} color="#fff" />
+          <LucideIcon name="plus" size={16} color="#fff" />
           <Text style={s.addTxt}>등록</Text>
         </Pressable>
       </View>
 
       {/* 목록 */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
+      <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
         {filtered.length === 0 ? (
           <View style={s.empty}>
-            <Image size={36} color="#D1D5DB" />
+            <LucideIcon name="image" size={36} color="#D1D5DB" />
             <Text style={s.emptyTxt}>이 상태의 광고가 없습니다</Text>
           </View>
         ) : (
@@ -300,7 +315,7 @@ export default function AdsScreen() {
             />
           ))
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* 등록/수정 모달 */}
       <Modal visible={showModal} transparent animationType="slide">
@@ -309,10 +324,10 @@ export default function AdsScreen() {
             <View style={m.header}>
               <Text style={m.title}>{editId ? "광고 수정" : "광고 등록"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
-                <X size={20} color="#64748B" />
+                <LucideIcon name="x" size={20} color="#64748B" />
               </Pressable>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <KeyboardAwareScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {/* 이미지 업로드 */}
               <Text style={m.label}>배너 이미지 (선택)</Text>
               {(() => {
@@ -323,12 +338,12 @@ export default function AdsScreen() {
                       <RNImage source={{ uri: preview }} style={m.imgPreview} resizeMode="cover" />
                     ) : null}
                     <Pressable style={m.imgBtn} onPress={handlePickImage}>
-                      <Camera size={15} color="#7C3AED" />
+                      <LucideIcon name="camera" size={15} color="#7C3AED" />
                       <Text style={m.imgBtnTxt}>{preview ? "이미지 변경" : "이미지 선택"}</Text>
                     </Pressable>
                     {preview ? (
                       <Pressable onPress={() => setForm(f => ({ ...f, imageUri: "", imageKey: "", imageUrl: "" }))} style={m.removeImg}>
-                        <X size={11} color="#DC2626" />
+                        <LucideIcon name="x" size={11} color="#DC2626" />
                         <Text style={m.removeImgTxt}>이미지 제거</Text>
                       </Pressable>
                     ) : null}
@@ -336,8 +351,20 @@ export default function AdsScreen() {
                 );
               })()}
 
-              <Text style={m.label}>제목 *</Text>
-              <TextInput style={m.input} value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))} placeholder="카드 배너 제목" />
+              <View style={m.labelRow}>
+                <Text style={m.label}>제목 *</Text>
+                <Text style={[m.charCount, form.title.length > 30 && m.charCountOver]}>
+                  {form.title.length}/30
+                </Text>
+              </View>
+              <TextInput
+                style={[m.input, titleError ? m.inputError : null]}
+                value={form.title}
+                onChangeText={v => { setForm(f => ({ ...f, title: v })); setTitleError(null); }}
+                placeholder="카드 배너 제목"
+                maxLength={30}
+              />
+              {titleError ? <Text style={m.errorTxt}>{titleError}</Text> : null}
               <Text style={m.label}>설명</Text>
               <TextInput style={[m.input, { height: 80, textAlignVertical: "top" }]} value={form.description}
                 onChangeText={v => setForm(f => ({ ...f, description: v }))} placeholder="카드 배너 내용 설명" multiline />
@@ -387,7 +414,7 @@ export default function AdsScreen() {
                   }
                 </Pressable>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </View>
       </Modal>
@@ -459,4 +486,9 @@ const m = StyleSheet.create({
   colorChip:    { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   colorDot:     { width: 10, height: 10, borderRadius: 5 },
   colorLabel:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  labelRow:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4, marginTop: 10 },
+  charCount:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  charCountOver:{ color: "#DC2626" },
+  inputError:   { borderColor: "#DC2626" },
+  errorTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#DC2626", marginTop: 2, marginBottom: 4 },
 });

@@ -1,3 +1,4 @@
+import Colors from "@/constants/colors";
 import React, { useState } from "react";
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
@@ -5,8 +6,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ChevronLeft, UserPlus } from "lucide-react-native";
-import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { API_BASE, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
@@ -93,7 +93,7 @@ export default function AddChildScreen() {
       {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + 12 }]}>
         <Pressable style={s.backBtn} onPress={() => router.back()} hitSlop={12}>
-          <ChevronLeft size={22} color={C.text} />
+          <LucideIcon name="chevron-left" size={22} color={C.text} />
         </Pressable>
         <Text style={[s.headerTitle, { color: C.text }]}>우리 아이 추가</Text>
         <View style={{ width: 40 }} />
@@ -103,7 +103,7 @@ export default function AddChildScreen() {
         {/* 아이콘 + 설명 */}
         <View style={s.iconWrap}>
           <View style={[s.iconCircle, { backgroundColor: ORANGE + "20" }]}>
-            <UserPlus size={32} color={ORANGE} />
+            <LucideIcon name="user-plus" size={32} color={ORANGE} />
           </View>
         </View>
 

@@ -121,7 +121,7 @@ router.post("/absences", requireAuth, requireRole("pool_admin", "teacher"), asyn
 
     // 해당 반 학생 모두 조회
     const studentRows = await db.execute(sql`
-      SELECT id, name FROM students WHERE class_group_id = ${class_group_id} AND status = 'active'
+      SELECT id, name FROM students WHERE class_group_id = ${class_group_id} AND status IN ('active', 'pending_parent_link', 'unregistered')
     `);
     const students = studentRows.rows as any[];
 

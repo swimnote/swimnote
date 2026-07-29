@@ -3,11 +3,10 @@
  * GET /billing/revenue-logs → 실제 revenue_logs DB 기반 집계
  * 탭: 주간 / 월간 / 연간
  */
-import { ChevronRight, CreditCard, Inbox, Info } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -102,6 +101,15 @@ function SectionHeader({ title, icon }: { title: string; icon: string }) {
   );
 }
 
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "날짜 없음";
+  // PostgreSQL이 "2026-04-23 01:37:00.123+00" 포맷으로 반환할 수 있어 정규화
+  const normalized = String(iso).replace(" ", "T").replace(/\+00:00$/, "Z").replace(/\+00$/, "Z");
+  const d = new Date(normalized);
+  if (isNaN(d.getTime())) return "날짜 없음";
+  return d.toLocaleDateString("ko-KR");
+}
+
 export default function RevenueAnalyticsScreen() {
   if (!billingEnabled) return null;
   const { token } = useAuth();
@@ -113,6 +121,29 @@ export default function RevenueAnalyticsScreen() {
   const [prevSummary, setPrevSummary] = useState<RevenueSummary | null>(null);
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
+  const [testCount,   setTestCount]   = useState(0);
+  const [totalCount,  setTotalCount]  = useState(0);
+  const [cleaning,    setCleaning]    = useState(false);
+  const [cleanModal,  setCleanModal]  = useState(false);
+  const [cleanAllConfirm, setCleanAllConfirm] = useState(false);
+
+  const fetchTestCount = useCallback(async () => {
+    try {
+      const res = await apiRequest(token, "/billing/revenue-logs/test-count");
+      if (res.ok) { const d = await res.json(); setTestCount(Number(d.count ?? 0)); }
+    } catch (_) {}
+  }, [token]);
+
+  const fetchTotalCount = useCallback(async () => {
+    try {
+      const [tcRes, allRes] = await Promise.all([
+        apiRequest(token, "/billing/revenue-logs/test-count"),
+        apiRequest(token, "/billing/revenue-logs?start=2020-01-01&end=2099-12-31&limit=1000"),
+      ]);
+      if (tcRes.ok) { const d = await tcRes.json(); setTestCount(Number(d.count ?? 0)); }
+      if (allRes.ok) { const d = await allRes.json(); setTotalCount(Number(d.summary?.count ?? 0)); }
+    } catch (_) {}
+  }, [token]);
 
   const fetchLogs = useCallback(async (p: Period) => {
     const { start, end, prevStart, prevEnd } = getPeriodDates(p);
@@ -129,12 +160,60 @@ export default function RevenueAnalyticsScreen() {
     } catch (e) { console.error("revenue-logs fetch:", e); }
   }, [token]);
 
+  const cleanupTestData = useCallback(async () => {
+    setCleaning(true);
+    try {
+      // super 경로 우선 시도, 실패 시 billing 폴백
+      let res = await apiRequest(token, "/super/revenue-logs/purge-test", { method: "DELETE" });
+      if (res.status === 404) {
+        res = await apiRequest(token, "/billing/revenue-logs/cleanup-test", { method: "DELETE" });
+      }
+      const d = await res.json();
+      if (d.ok) {
+        setCleanModal(false);
+        setTestCount(0);
+        Alert.alert("완료", d.message ?? "테스트 데이터 삭제 완료");
+        await Promise.all([fetchLogs(period), fetchTotalCount()]);
+      } else {
+        Alert.alert("오류", d.error ?? "삭제 실패");
+      }
+    } catch (_) {
+      Alert.alert("오류", "서버 오류가 발생했습니다.");
+    }
+    setCleaning(false);
+  }, [token, period, fetchLogs, fetchTotalCount]);
+
+  const cleanAllData = useCallback(async () => {
+    setCleaning(true);
+    try {
+      // super 경로 우선 시도, 실패 시 billing 폴백
+      let res = await apiRequest(token, "/super/revenue-logs/purge-all", { method: "DELETE" });
+      if (res.status === 404) {
+        res = await apiRequest(token, "/billing/revenue-logs/all", { method: "DELETE" });
+      }
+      const d = await res.json();
+      if (d.ok) {
+        setCleanModal(false);
+        setCleanAllConfirm(false);
+        setTestCount(0);
+        setTotalCount(0);
+        Alert.alert("완료", d.message ?? "전체 삭제 완료");
+        await fetchLogs(period);
+      } else {
+        Alert.alert("오류", d.error ?? "삭제 실패");
+      }
+    } catch (_) {
+      Alert.alert("오류", "서버 오류가 발생했습니다.");
+    }
+    setCleaning(false);
+  }, [token, period, fetchLogs]);
+
   const load = useCallback(async (p?: Period) => {
     const target = p ?? period;
     setLoading(true);
-    await fetchLogs(target);
+    await Promise.all([fetchLogs(target), fetchTotalCount()]);
     setLoading(false);
-  }, [fetchLogs, period]);
+  }, [fetchLogs, period, fetchTotalCount]);
 
   useEffect(() => { load(period); }, [period]);
 
@@ -195,9 +274,21 @@ export default function RevenueAnalyticsScreen() {
           onRefresh={async () => { setRefreshing(true); await fetchLogs(period); setRefreshing(false); }} />}
       >
         <View style={st.noticeBox}>
-          <Info size={12} color="#2EC4B6" />
+          <LucideIcon name="info" size={12} color="#2EC4B6" />
           <Text style={st.noticeTxt}>revenue_logs DB 실측 기반. 추정·미결제 금액 제외.</Text>
         </View>
+
+        {/* 테스트/샌드박스 데이터 정리 배너 */}
+        {(testCount > 0 || totalCount > 0) && (
+          <Pressable style={st.testBanner} onPress={() => setCleanModal(true)}>
+            <LucideIcon name="trash-2" size={13} color="#D97706" />
+            <Text style={st.testBannerTxt}>
+              {testCount > 0
+                ? `샌드박스/테스트 기록 ${testCount}건이 포함되어 있습니다. 탭하여 정리`
+                : `현재 실 매출 없음 — ${totalCount}건은 TestFlight 샌드박스 결제입니다. 탭하여 초기화`}
+            </Text>
+          </Pressable>
+        )}
 
         {/* 핵심 지표 */}
         <SectionHeader title="핵심 지표" icon="bar-chart-2" />
@@ -241,7 +332,7 @@ export default function RevenueAnalyticsScreen() {
         <SectionHeader title="기간 내 결제 내역" icon="list" />
         {logs.length === 0 ? (
           <View style={st.empty}>
-            <Inbox size={32} color="#D1D5DB" />
+            <LucideIcon name="inbox" size={32} color="#D1D5DB" />
             <Text style={st.emptyTxt}>이 기간의 결제 내역이 없습니다</Text>
           </View>
         ) : (
@@ -251,8 +342,8 @@ export default function RevenueAnalyticsScreen() {
                 <Text style={st.recordName}>{r.pool_name ?? r.pool_id}</Text>
                 <Text style={st.recordSub}>
                   {r.plan_name ?? r.plan_id}
-                  {r.event_type ? ` · ${r.event_type === "first_payment" ? "첫 결제" : r.event_type === "renewal" ? "갱신" : r.event_type === "upgrade" ? "업그레이드" : r.event_type}` : ""}
-                  {" · "}{new Date(r.occurred_at).toLocaleDateString("ko-KR")}
+                  {r.event_type ? ` · ${r.event_type === "first_payment" ? "첫 결제" : r.event_type === "renewal" ? "갱신" : r.event_type === "upgrade" ? "업그레이드" : r.event_type === "new_subscription" ? "신규 구독" : r.event_type}` : ""}
+                  {" · "}{fmtDate(r.occurred_at)}
                 </Text>
                 {r.intro_discount_amount > 0 && (
                   <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#DC2626", marginTop: 1 }}>
@@ -273,11 +364,69 @@ export default function RevenueAnalyticsScreen() {
         )}
 
         <Pressable style={st.linkBtn} onPress={() => router.push("/(super)/subscriptions?backTo=revenue-analytics" as any)}>
-          <CreditCard size={14} color={P} />
+          <LucideIcon name="credit-card" size={14} color={P} />
           <Text style={[st.linkTxt, { color: P }]}>구독·결제 관리로 이동</Text>
-          <ChevronRight size={14} color={P} />
+          <LucideIcon name="chevron-right" size={14} color={P} />
         </Pressable>
       </ScrollView>
+
+      {/* 테스트 데이터 정리 확인 모달 */}
+      <Modal visible={cleanModal} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setCleanModal(false)}>
+        <Pressable style={st.backdrop} onPress={() => !cleaning && setCleanModal(false)}>
+          <Pressable style={st.sheet} onPress={() => {}}>
+            <View style={{ width: 36, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <LucideIcon name="trash-2" size={18} color="#D97706" />
+              <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" }}>매출 기록 정리</Text>
+            </View>
+
+            {!cleanAllConfirm ? (
+              <>
+                <View style={{ backgroundColor: "#FFF1BF", borderRadius: 8, padding: 12, marginBottom: 16 }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 20 }}>
+                    {testCount > 0
+                      ? `샌드박스/테스트 기록 ${testCount}건을 삭제합니다.\n실 매출 데이터는 유지됩니다.`
+                      : `TestFlight/샌드박스 결제 기록 ${totalCount}건이 있습니다.\n실제 결제가 없으므로 전체 초기화를 권장합니다.`}
+                  </Text>
+                </View>
+                <View style={{ gap: 8 }}>
+                  {testCount > 0 && (
+                    <Pressable style={[st.modalBtn, { backgroundColor: "#D97706", opacity: cleaning ? 0.6 : 1 }]} onPress={cleanupTestData} disabled={cleaning}>
+                      {cleaning
+                        ? <ActivityIndicator color="#fff" size="small" />
+                        : <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" }}>샌드박스만 삭제 ({testCount}건)</Text>}
+                    </Pressable>
+                  )}
+                  <Pressable style={[st.modalBtn, { backgroundColor: "#DC2626", opacity: cleaning ? 0.6 : 1 }]} onPress={() => setCleanAllConfirm(true)} disabled={cleaning}>
+                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" }}>전체 초기화 ({totalCount}건)</Text>
+                  </Pressable>
+                  <Pressable style={[st.modalBtn, { backgroundColor: "#F1F5F9" }]} onPress={() => setCleanModal(false)} disabled={cleaning}>
+                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" }}>취소</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={{ backgroundColor: "#FEE2E2", borderRadius: 8, padding: 12, marginBottom: 16 }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#991B1B", lineHeight: 20 }}>
+                    {`⚠️ 전체 매출 기록 ${totalCount}건을 삭제합니다.\n이 작업은 복구할 수 없습니다.\n실 매출 데이터가 없을 때만 사용하세요.`}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <Pressable style={[st.modalBtn, { backgroundColor: "#F1F5F9" }]} onPress={() => setCleanAllConfirm(false)} disabled={cleaning}>
+                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" }}>뒤로</Text>
+                  </Pressable>
+                  <Pressable style={[st.modalBtn, { backgroundColor: "#DC2626", flex: 1.5, opacity: cleaning ? 0.6 : 1 }]} onPress={cleanAllData} disabled={cleaning}>
+                    {cleaning
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" }}>전체 삭제 확인</Text>}
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -288,7 +437,7 @@ const st = StyleSheet.create({
                    borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tab:           { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: "#FFFFFF" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt:        { fontSize: 13, lineHeight: 18, color: "#64748B" },
   tabTxtActive:  { color: "#fff" },
   noticeBox:     { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#E6FFFA",
                    borderRadius: 8, padding: 10, marginTop: 4 },
@@ -311,4 +460,10 @@ const st = StyleSheet.create({
   linkBtn:       { flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "center",
                    backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12 },
   linkTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  testBanner:    { flexDirection: "row", gap: 8, alignItems: "center", backgroundColor: "#FFF1BF",
+                   borderRadius: 8, padding: 10, borderWidth: 1, borderColor: "#FCD34D" },
+  testBannerTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", flex: 1 },
+  backdrop:      { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  sheet:         { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+  modalBtn:      { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center", justifyContent: "center" },
 });

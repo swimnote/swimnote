@@ -2,16 +2,14 @@
  * (super)/operator-detail.tsx — 수영장 상세 관리 콘솔
  * 기본정보 / 구독·결제 / 저장공간 / 정책·동의 / 로그 / 강제조치
  */
-import { ChevronRight, CircleCheck, CreditCard, FileText, HardDrive, Lock, Trash2, TriangleAlert } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Alert, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
+import { useOperatorsStore } from "@/store/operatorsStore";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
 import Colors from "@/constants/colors";
@@ -99,6 +97,7 @@ function StatBox({ label, value, color }: { label: string; value: string | numbe
 export default function OperatorDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth() as any;
+  const removeOperator = useOperatorsStore(s => s.removeOperator);
 
   const [pool,     setPool]     = useState<any>(null);
   const [teachers, setTeachers] = useState<any[]>([]);
@@ -127,9 +126,8 @@ export default function OperatorDetailScreen() {
   const [subSaving,  setSubSaving]  = useState(false);
 
   // 삭제 확인 모달
-  const [deleteModal,   setDeleteModal]   = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState("");
-  const [deleting,      setDeleting]      = useState(false);
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [deleting,    setDeleting]    = useState(false);
 
   const SENSITIVE_ACTIONS = ["approve", "reject", "restrict"];
 
@@ -229,14 +227,13 @@ export default function OperatorDetailScreen() {
   }
 
   async function doDelete() {
-    if (deleteConfirm !== pool?.name) {
-      Alert.alert("확인 실패", "수영장 이름을 정확히 입력해주세요."); return;
-    }
     setDeleting(true);
     try {
       const res  = await apiRequest(token, `/super/operators/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (res.ok) {
+        removeOperator(id);
+        setDeleteModal(false);
         Alert.alert("삭제 완료", data.message ?? "수영장이 삭제되었습니다.", [
           { text: "확인", onPress: () => router.replace("/(super)/pools" as any) },
         ]);
@@ -247,7 +244,6 @@ export default function OperatorDetailScreen() {
       Alert.alert("오류", "서버 오류가 발생했습니다.");
     }
     setDeleting(false);
-    setDeleteModal(false);
   }
 
   if (loading) {
@@ -319,22 +315,22 @@ export default function OperatorDetailScreen() {
 
       {!!feedback && (
         <View style={d.feedbackBanner}>
-          <CircleCheck size={14} color="#2EC4B6" />
+          <LucideIcon name="check-circle" size={14} color="#2EC4B6" />
           <Text style={d.feedbackTxt}>{feedback}</Text>
         </View>
       )}
 
       {/* 탭 바 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
         style={d.tabBar} contentContainerStyle={d.tabContent}>
         {TABS.map(t => (
           <Pressable key={t} style={[d.tab, tab === t && d.tabActive]} onPress={() => setTab(t)}>
             <Text style={[d.tabTxt, tab === t && d.tabActiveTxt]}>{t}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
+      <KeyboardAwareScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 80 }}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
           onRefresh={() => { setRefreshing(true); load(true); }} />}>
@@ -429,7 +425,7 @@ export default function OperatorDetailScreen() {
               <InfoRow label="결제 플랫폼" value={pool.payment_platform ?? "—"} />
               {isPaymentIssue && (
                 <View style={d.alertBox}>
-                  <TriangleAlert size={14} color="#D96C6C" />
+                  <LucideIcon name="alert-triangle" size={14} color="#D96C6C" />
                   <Text style={d.alertTxt}>결제 이슈가 있습니다. 아래 구독 조정 버튼으로 직접 처리할 수 있습니다.</Text>
                 </View>
               )}
@@ -441,7 +437,7 @@ export default function OperatorDetailScreen() {
               setSubTier(pool.subscription_tier ?? "");
               setSubModal(true);
             }}>
-              <CreditCard size={18} color="#fff" />
+              <LucideIcon name="credit-card" size={18} color="#fff" />
               <Text style={d.primaryBtnTxt}>구독 직접 조정</Text>
             </Pressable>
 
@@ -481,15 +477,15 @@ export default function OperatorDetailScreen() {
               </View>
               {storageAlert && (
                 <View style={d.alertBox}>
-                  <TriangleAlert size={14} color="#D96C6C" />
+                  <LucideIcon name="alert-triangle" size={14} color="#D96C6C" />
                   <Text style={d.alertTxt}>저장공간이 95% 이상 사용되었습니다.</Text>
                 </View>
               )}
             </View>
             <Pressable style={d.actionCard} onPress={() => router.push(`/(super)/storage?operatorId=${id}&backTo=operator-detail` as any)}>
-              <HardDrive size={18} color={P} />
+              <LucideIcon name="hard-drive" size={18} color={P} />
               <Text style={d.actionCardTxt}>추가 용량 부여</Text>
-              <ChevronRight size={16} color="#64748B" style={{ marginLeft: "auto" }} />
+              <LucideIcon name="chevron-right" size={16} color="#64748B" style={{ marginLeft: "auto" }} />
             </Pressable>
           </>
         )}
@@ -506,9 +502,9 @@ export default function OperatorDetailScreen() {
             {policy.terms && <InfoRow label="약관 동의일" value={fmtDate(policy.terms)} />}
             <Pressable style={[d.actionCard, { marginTop: 8 }]}
               onPress={() => router.push("/(super)/policy?backTo=operator-detail" as any)}>
-              <FileText size={18} color={P} />
+              <LucideIcon name="file-text" size={18} color={P} />
               <Text style={d.actionCardTxt}>정책 편집</Text>
-              <ChevronRight size={16} color="#64748B" style={{ marginLeft: "auto" }} />
+              <LucideIcon name="chevron-right" size={16} color="#64748B" style={{ marginLeft: "auto" }} />
             </Pressable>
           </View>
         )}
@@ -553,21 +549,21 @@ export default function OperatorDetailScreen() {
                   <Text style={d.forceTxt}>{item.label}</Text>
                   <Text style={d.forceSub}>{item.sub}</Text>
                 </View>
-                <ChevronRight size={16} color="#D1D5DB" />
+                <LucideIcon name="chevron-right" size={16} color="#D1D5DB" />
               </Pressable>
             ))}
 
             <View style={d.card}>
               <Text style={d.cardTitle}>빠른 링크</Text>
               <Pressable style={d.quickLink} onPress={() => router.push("/(super)/kill-switch?backTo=operator-detail" as any)}>
-                <TriangleAlert size={15} color="#D96C6C" />
+                <LucideIcon name="alert-triangle" size={15} color="#D96C6C" />
                 <Text style={[d.quickLinkTxt, { color: "#D96C6C" }]}>킬스위치 (데이터 삭제)</Text>
-                <ChevronRight size={14} color="#64748B" style={{ marginLeft: "auto" }} />
+                <LucideIcon name="chevron-right" size={14} color="#64748B" style={{ marginLeft: "auto" }} />
               </Pressable>
               <Pressable style={d.quickLink} onPress={() => router.push(`/(super)/storage?operatorId=${id}&backTo=operator-detail` as any)}>
-                <HardDrive size={15} color={P} />
+                <LucideIcon name="hard-drive" size={15} color={P} />
                 <Text style={[d.quickLinkTxt, { color: P }]}>저장공간 조정</Text>
-                <ChevronRight size={14} color="#64748B" style={{ marginLeft: "auto" }} />
+                <LucideIcon name="chevron-right" size={14} color="#64748B" style={{ marginLeft: "auto" }} />
               </Pressable>
             </View>
 
@@ -578,13 +574,13 @@ export default function OperatorDetailScreen() {
                 수영장을 완전히 삭제합니다. 회원, 수업, 출결, 스태프 등 모든 데이터가 영구 삭제되며 복구할 수 없습니다.
               </Text>
               <Pressable style={d.deleteBtn} onPress={() => setDeleteModal(true)}>
-                <Trash2 size={16} color="#fff" />
+                <LucideIcon name="trash-2" size={16} color="#fff" />
                 <Text style={d.deleteBtnTxt}>수영장 완전 삭제</Text>
               </Pressable>
             </View>
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ─────── 강제조치 확인 모달 ─────── */}
       {action && (
@@ -618,7 +614,7 @@ export default function OperatorDetailScreen() {
                   {processing ? <ActivityIndicator color="#fff" size="small" />
                     : SENSITIVE_ACTIONS.includes(action!) ? (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Lock size={13} color="#fff" />
+                        <LucideIcon name="lock" size={13} color="#fff" />
                         <Text style={m.confirmTxt}>OTP 인증 후 실행</Text>
                       </View>
                     ) : <Text style={m.confirmTxt}>확인</Text>}
@@ -633,7 +629,7 @@ export default function OperatorDetailScreen() {
       <Modal visible={subModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setSubModal(false)}>
         <Pressable style={m.backdrop} onPress={() => setSubModal(false)}>
           <Pressable style={[m.sheet, { maxHeight: "85%" }]} onPress={() => {}}>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
               <View style={m.handle} />
               <Text style={m.title}>구독 직접 조정</Text>
               <Text style={{ fontSize: 12, color: "#64748B", fontFamily: "Pretendard-Regular", marginBottom: 12 }}>
@@ -687,34 +683,40 @@ export default function OperatorDetailScreen() {
                     : <Text style={m.confirmTxt}>저장</Text>}
                 </Pressable>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </Pressable>
         </Pressable>
       </Modal>
 
       {/* ─────── 수영장 삭제 확인 모달 ─────── */}
       <Modal visible={deleteModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setDeleteModal(false)}>
-        <Pressable style={m.backdrop} onPress={() => setDeleteModal(false)}>
+        <Pressable style={m.backdrop} onPress={() => !deleting && setDeleteModal(false)}>
           <Pressable style={m.sheet} onPress={() => {}}>
             <View style={m.handle} />
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              <Trash2 size={20} color="#D96C6C" />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <LucideIcon name="trash-2" size={20} color="#D96C6C" />
               <Text style={[m.title, { color: "#D96C6C" }]}>수영장 완전 삭제</Text>
             </View>
-            <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular", lineHeight: 20, marginBottom: 16 }}>
-              {`회원, 수업, 출결, 선생님 등 모든 데이터가 영구 삭제됩니다.\n아래에 수영장 이름을 정확히 입력해야 삭제됩니다.`}
+            <View style={{ backgroundColor: "#FFF5F5", borderRadius: 10, padding: 14, marginBottom: 16, gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: "#B91C1C" }}>⚠ 이 작업은 되돌릴 수 없습니다</Text>
+              <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular", lineHeight: 20 }}>
+                {`· 수영장: `}<Text style={{ fontWeight: "700", color: "#0F172A" }}>{pool.name}</Text>{`\n· 회원, 수업, 출결, 선생님 등 모든 데이터 영구 삭제\n· 삭제 후 복구 불가`}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 13, color: "#374151", fontFamily: "Pretendard-SemiBold", marginBottom: 16 }}>
+              정말로 이 수영장을 삭제하시겠습니까?
             </Text>
-            <Text style={[m.fieldLabel, { color: "#D96C6C" }]}>수영장 이름 입력: <Text style={{ fontFamily: "Pretendard-Regular" }}>{pool.name}</Text></Text>
-            <TextInput style={[m.input, { borderColor: "#FCA5A5" }]}
-              value={deleteConfirm} onChangeText={setDeleteConfirm}
-              placeholder={pool.name} placeholderTextColor="#94A3B8" />
             <View style={m.btnRow}>
-              <Pressable style={m.cancelBtn} onPress={() => { setDeleteModal(false); setDeleteConfirm(""); }}>
+              <Pressable style={m.cancelBtn} onPress={() => setDeleteModal(false)} disabled={deleting}>
                 <Text style={m.cancelTxt}>취소</Text>
               </Pressable>
-              <Pressable style={[m.confirmBtn, { backgroundColor: "#D96C6C", opacity: deleting ? 0.6 : 1 }]}
-                onPress={doDelete} disabled={deleting || deleteConfirm !== pool.name}>
-                {deleting ? <ActivityIndicator color="#fff" size="small" />
+              <Pressable
+                style={[m.confirmBtn, { backgroundColor: "#D96C6C", opacity: deleting ? 0.6 : 1 }]}
+                onPress={doDelete}
+                disabled={deleting}
+              >
+                {deleting
+                  ? <ActivityIndicator color="#fff" size="small" />
                   : <Text style={m.confirmTxt}>삭제 확인</Text>}
               </Pressable>
             </View>
@@ -763,7 +765,7 @@ const d = StyleSheet.create({
   tab:            { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
                     borderWidth: 1.5, borderColor: "#E5E7EB" },
   tabActive:      { backgroundColor: P, borderColor: P },
-  tabTxt:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt:         { fontSize: 12, lineHeight: 17, color: "#64748B" },
   tabActiveTxt:   { color: "#fff" },
   card:           { backgroundColor: "#fff", borderRadius: 14, padding: 16,
                     borderWidth: 1, borderColor: "#E5E7EB", gap: 8 },

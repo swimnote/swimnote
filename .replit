@@ -1,4 +1,4 @@
-modules = ["nodejs-24", "postgresql-16"]
+modules = ["nodejs-24", "python-3.11", "postgresql-16"]
 
 [[artifacts]]
 id = "artifacts/api-server"
@@ -15,6 +15,7 @@ args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
 [workflows]
+runButton = "Project"
 
 [agent]
 stack = "PNPM_WORKSPACE"
@@ -27,6 +28,7 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+packages = ["eas-cli", "pm2"]
 
 [userenv]
 
@@ -43,10 +45,26 @@ EXPO_PUBLIC_REVENUECAT_IOS_API_KEY = "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo"
 EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY = "goog_iOSUEXOdIktvMemPmJEbTDelJXu"
 EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY = "aeafd08cc53e41b28efa52498136efa7"
 SMS_PROVIDER = "sens"
-EXPO_PUBLIC_AI_ENGINE_URL = "https://swimnote.ai.kr"
+VITE_API_BASE = "https://swimnote-api.onrender.com/api"
 
 [userenv.development]
 SMS_DEV_EXPOSE_CODE = "true"
 
 [userenv.production]
 SMS_DEV_EXPOSE_CODE = "false"
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 20219
+externalPort = 80
+
+[[ports]]
+localPort = 22317
+externalPort = 3000

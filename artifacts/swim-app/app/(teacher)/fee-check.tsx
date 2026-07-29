@@ -8,7 +8,7 @@
  * - AsyncStorage 로컬 저장 (개인 메모 성격)
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ChevronLeft, ChevronRight, CircleCheck, CircleDollarSign, CircleMinus } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -172,11 +172,11 @@ export default function FeeCheckScreen() {
       {/* 월 선택 */}
       <View style={s.monthRow}>
         <Pressable style={s.monthArrow} onPress={() => changeMonth(-1)}>
-          <ChevronLeft size={20} color={C.text} />
+          <LucideIcon name="chevron-left" size={20} color={C.text} />
         </Pressable>
         <Text style={s.monthLabel}>{monthLabel(month)}</Text>
         <Pressable style={s.monthArrow} onPress={() => changeMonth(1)}>
-          <ChevronRight size={20} color={C.text} />
+          <LucideIcon name="chevron-right" size={20} color={C.text} />
         </Pressable>
       </View>
 
@@ -216,7 +216,7 @@ export default function FeeCheckScreen() {
           }
           ListEmptyComponent={
             <View style={s.empty}>
-              <CircleDollarSign size={40} color={C.textMuted} />
+              <LucideIcon name="circle-dollar-sign" size={40} color={C.textMuted} />
               <Text style={[s.emptyText, { color: C.textMuted }]}>담당 학생이 없습니다</Text>
             </View>
           }
@@ -269,9 +269,9 @@ export default function FeeCheckScreen() {
                   onPress={() => togglePaid(item.id)}
                 >
                   {paid ? (
-                    <CircleCheck size={15} color="#fff" />
+                    <LucideIcon name="check-circle" size={15} color="#fff" />
                   ) : (
-                    <CircleMinus size={15} color={C.textMuted} />
+                    <LucideIcon name="circle-minus" size={15} color={C.textMuted} />
                   )}
                   <Text style={[s.paidBtnText, { color: paid ? "#fff" : C.textMuted }]}>
                     {paid ? "납부" : "미납"}

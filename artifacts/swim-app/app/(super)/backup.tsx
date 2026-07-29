@@ -10,15 +10,14 @@
  * POST /super/backups/:id/restore — 복구 기록
  * GET  /super/backups/:id/download — 다운로드
  */
-import { Anchor, Calendar, Check, ChevronLeft, ChevronRight, CircleAlert, CircleCheck, Clock, Download, FileText, HardDrive, Info, Layers, RefreshCw, RotateCcw, Save, Search, Server, Settings, Shield, TriangleAlert, User, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Anchor, Calendar, Check, ChevronLeft, ChevronRight, CircleCheck, Clock, HardDrive, Layers, RefreshCw, RotateCcw, Save, Search, Settings, TriangleAlert, X } from "lucide-react-native";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, Alert, FlatList, Modal, Pressable,
-  RefreshControl, ScrollView, Share, StyleSheet, Switch,
-  Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Modal, Pressable,
+  RefreshControl, Share, StyleSheet, Switch,
+  Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -160,6 +159,21 @@ interface BackupStatusData {
       pool_configured: boolean;
       protect_configured: boolean;
     };
+    hot_standby: {
+      label: string;
+      configured: boolean;
+      connected: boolean;
+      latency_ms: number | null;
+      status: CardStatus;
+      status_label: string;
+      last_sync_at: string | null;
+      last_sync_status: string | null;
+      lag_minutes: number | null;
+      lag_label: string | null;
+      error: string | null;
+      sync_schedule: string;
+      tables_synced: number;
+    };
   };
 }
 
@@ -219,7 +233,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
   if (error || !status) {
     return (
       <View style={dc.errorBox}>
-        <CircleAlert size={16} color={DANGER} />
+        <LucideIcon name="alert-circle" size={16} color={DANGER} />
         <Text style={dc.errorTxt}>{error ?? "상태 조회 실패"}</Text>
         <Pressable onPress={handleRefresh}>
           <Text style={dc.retryTxt}>다시 시도</Text>
@@ -228,7 +242,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
     );
   }
 
-  const { operational_db, pool_backup, protect_backup, summary } = status.cards;
+  const { operational_db, pool_backup, protect_backup, summary, hot_standby } = status.cards;
 
   function DbCard({ label, status: st, statusLabel, sub1, sub2, errorMsg, icon }: {
     label: string;
@@ -267,10 +281,10 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
     <View style={dc.wrap}>
       {/* 헤더 + 갱신 버튼 */}
       <View style={dc.header}>
-        <Shield size={14} color={P} />
+        <LucideIcon name="shield" size={14} color={P} />
         <Text style={dc.headerTxt}>DB 백업 상태</Text>
         <Pressable onPress={handleRefresh} disabled={refreshing} style={dc.refreshBtn}>
-          <RefreshCw size={13} color={refreshing ? "#D1D5DB" : P} />
+          <LucideIcon name="refresh-cw" size={13} color={refreshing ? "#D1D5DB" : P} />
         </Pressable>
       </View>
 
@@ -322,6 +336,35 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
         sub2={`pool ${summary.pool_configured ? "✓" : "✗"}  보호백업 ${summary.protect_configured ? "✓" : "✗"}`}
       />
 
+      {/* 카드 5: 핫 스탠바이 DB */}
+      {hot_standby && (
+        <DbCard
+          label="핫 스탠바이 DB"
+          status={hot_standby.status}
+          statusLabel={hot_standby.status_label}
+          icon="radio"
+          sub1={
+            !hot_standby.configured
+              ? "POOL_DATABASE_URL 미설정"
+              : !hot_standby.connected
+              ? `연결 실패${hot_standby.error ? ` — ${hot_standby.error.slice(0, 40)}` : ""}`
+              : hot_standby.lag_label
+              ? `${hot_standby.lag_label}${hot_standby.latency_ms !== null ? ` · ${hot_standby.latency_ms}ms` : ""}`
+              : "싱크 기록 없음"
+          }
+          sub2={
+            hot_standby.configured
+              ? `5분 헬스체크 · 30분 핫싱크 · 6시간 풀싱크 · ${hot_standby.tables_synced}개 테이블`
+              : undefined
+          }
+          errorMsg={
+            hot_standby.status === "error" && hot_standby.error
+              ? hot_standby.error.slice(0, 80)
+              : null
+          }
+        />
+      )}
+
       {/* 수동 백업 버튼 */}
       <View style={dc.btnRow}>
         <Pressable
@@ -331,7 +374,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
         >
           {backingUp
             ? <ActivityIndicator size="small" color="#fff" />
-            : <Save size={13} color="#fff" />}
+            : <LucideIcon name="save" size={13} color="#fff" />}
           <Text style={dc.manualBtnTxt}>{backingUp ? "백업 중..." : "전체 백업 실행"}</Text>
         </Pressable>
         <Pressable
@@ -339,7 +382,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
           onPress={() => onManualBackup("pool_only")}
           disabled={backingUp}
         >
-          <Server size={13} color={P} />
+          <LucideIcon name="server" size={13} color={P} />
           <Text style={dc.poolBtnTxt}>pool만</Text>
         </Pressable>
       </View>
@@ -413,27 +456,27 @@ function BackupCard({
       <View style={bc.meta}>
         {item.total_tables != null && (
           <View style={bc.metaItem}>
-            <Layers size={11} color="#64748B" />
+            <LucideIcon name="layers" size={11} color="#64748B" />
             <Text style={bc.metaVal}>{item.total_tables}개 테이블</Text>
           </View>
         )}
         <View style={bc.metaItem}>
-          <HardDrive size={11} color="#64748B" />
+          <LucideIcon name="hard-drive" size={11} color="#64748B" />
           <Text style={bc.metaVal}>{fmtSize(item.size_bytes)}</Text>
         </View>
         <View style={bc.metaItem}>
-          <Clock size={11} color="#64748B" />
+          <LucideIcon name="clock" size={11} color="#64748B" />
           <Text style={bc.metaVal}>{fmtDateTime(item.created_at)}</Text>
         </View>
         {item.created_by && (
           <View style={bc.metaItem}>
-            <User size={11} color="#64748B" />
+            <LucideIcon name="user" size={11} color="#64748B" />
             <Text style={bc.metaVal}>{item.created_by}</Text>
           </View>
         )}
         {item.note && (
           <View style={bc.metaItem}>
-            <FileText size={11} color="#64748B" />
+            <LucideIcon name="file-text" size={11} color="#64748B" />
             <Text style={bc.metaVal} numberOfLines={1}>{item.note}</Text>
           </View>
         )}
@@ -442,11 +485,11 @@ function BackupCard({
       {item.status === "done" && (
         <View style={bc.actions}>
           <Pressable style={[bc.btn, { backgroundColor: "#E6FAF8" }]} onPress={() => onDownload(item)}>
-            <Download size={12} color="#0284C7" />
+            <LucideIcon name="download" size={12} color="#0284C7" />
             <Text style={[bc.btnTxt, { color: "#0284C7" }]}>다운로드</Text>
           </Pressable>
           <Pressable style={[bc.btn, { backgroundColor: "#F9DEDA" }]} onPress={() => onRestore(item)}>
-            <RotateCcw size={12} color={DANGER} />
+            <LucideIcon name="refresh-ccw" size={12} color={DANGER} />
             <Text style={[bc.btnTxt, { color: DANGER }]}>복구</Text>
           </Pressable>
         </View>
@@ -485,13 +528,13 @@ function CreateModal({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={cr.header}>
-          <Pressable onPress={onClose} disabled={busy}><X size={20} color="#64748B" /></Pressable>
+          <Pressable onPress={onClose} disabled={busy}><LucideIcon name="x" size={20} color="#64748B" /></Pressable>
           <Text style={cr.title}>수동 백업 생성</Text>
           <View style={{ width: 24 }} />
         </View>
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
+        <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
           <View style={cr.infoBox}>
-            <Info size={14} color="#0284C7" />
+            <LucideIcon name="info" size={14} color="#0284C7" />
             <Text style={cr.infoTxt}>
               슈퍼관리자 DB와 수영장 운영 DB 전체를 백업합니다.{"\n"}
               소요 시간: 약 10~30초 (DB 크기에 따라 다름)
@@ -506,11 +549,11 @@ function CreateModal({
           <Pressable style={[cr.confirmBtn, busy && { opacity: 0.5 }]} onPress={() => onCreate(note)} disabled={busy}>
             {busy
               ? <ActivityIndicator color="#fff" size="small" />
-              : <Save size={16} color="#fff" />
+              : <LucideIcon name="save" size={16} color="#fff" />
             }
             <Text style={cr.confirmTxt}>{busy ? "백업 생성 중..." : "백업 생성"}</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </Modal>
   );
@@ -544,7 +587,7 @@ function RestoreModal({ target, onClose, onConfirm, busy }: {
           <Text style={rm.title}>데이터 복구</Text>
           <View style={{ width: 24 }} />
         </View>
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
+        <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
           <View style={rm.warningBox}>
             <TriangleAlert size={20} color={WARN} />
             <Text style={rm.warningTxt}>
@@ -575,7 +618,7 @@ function RestoreModal({ target, onClose, onConfirm, busy }: {
             {busy ? <ActivityIndicator color="#fff" size="small" /> : <RotateCcw size={16} color="#fff" />}
             <Text style={rm.confirmTxt}>{busy ? "처리 중..." : "복구 실행"}</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </Modal>
   );
@@ -808,7 +851,7 @@ function FullRestoreModal({
             </Pressable>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
+          <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
             {/* 1단계: 백업 시점 선택 */}
             <Text style={fr.stepTitle}>1단계 — 복구할 백업 시점 선택</Text>
             {backups.length === 0 ? (
@@ -816,7 +859,7 @@ function FullRestoreModal({
                 <Text style={fr.emptyTxt}>백업 기록이 없습니다. 먼저 백업을 생성하세요.</Text>
               </View>
             ) : (
-              <ScrollView style={fr.backupList} nestedScrollEnabled showsVerticalScrollIndicator>
+              <KeyboardAwareScrollView style={fr.backupList} nestedScrollEnabled showsVerticalScrollIndicator>
                 {backups.map(bk => (
                   <Pressable key={bk.id} style={[fr.backupItem, selectedBackup?.id === bk.id && fr.backupItemSel]}
                     onPress={() => setSelectedBackup(bk)}>
@@ -834,7 +877,7 @@ function FullRestoreModal({
                     )}
                   </Pressable>
                 ))}
-              </ScrollView>
+              </KeyboardAwareScrollView>
             )}
 
             {/* 선택된 백업 요약 */}
@@ -878,7 +921,7 @@ function FullRestoreModal({
               }
               <Text style={fr.execTxt}>{busy ? "복구 실행 중..." : "전체 복구 실행"}</Text>
             </Pressable>
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
       </SafeAreaView>
     </Modal>
@@ -1035,7 +1078,7 @@ function PoolRestoreModal({
             </Pressable>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}
+          <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}
             keyboardShouldPersistTaps="handled">
 
             {/* Step 1: 수영장 검색 */}
@@ -1092,7 +1135,7 @@ function PoolRestoreModal({
                 <Text style={fr.emptyTxt}>백업 기록이 없습니다.</Text>
               </View>
             ) : (
-              <ScrollView style={pr.backupList} nestedScrollEnabled showsVerticalScrollIndicator>
+              <KeyboardAwareScrollView style={pr.backupList} nestedScrollEnabled showsVerticalScrollIndicator>
                 {backups.map(bk => (
                   <Pressable key={bk.id}
                     style={[pr.backupItem, selectedBackup?.id === bk.id && pr.backupItemSel]}
@@ -1110,7 +1153,7 @@ function PoolRestoreModal({
                     )}
                   </Pressable>
                 ))}
-              </ScrollView>
+              </KeyboardAwareScrollView>
             )}
 
             {selectedBackup && (
@@ -1157,7 +1200,7 @@ function PoolRestoreModal({
               }
               <Text style={fr.execTxt}>{busy ? "복구 중..." : "수영장별 복구 실행"}</Text>
             </Pressable>
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
       </SafeAreaView>
     </Modal>
@@ -1396,7 +1439,7 @@ export default function BackupScreen() {
             {showSettings && <AutoBackupPanel token={token} />}
 
             {/* 탭 */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: 8, paddingHorizontal: 0 }}>
               {TABS.map(t => (
                 <Pressable key={t.key} style={[s.tab, activeTab === t.key && s.tabActive]}
@@ -1404,7 +1447,7 @@ export default function BackupScreen() {
                   <Text style={[s.tabTxt, activeTab === t.key && s.tabActiveTxt]}>{t.label}</Text>
                 </Pressable>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         }
         ListEmptyComponent={
@@ -1464,7 +1507,7 @@ const s = StyleSheet.create({
   outlineBtnTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: P },
   tab:           { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#FFFFFF" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt:        { fontSize: 12, lineHeight: 17, color: "#64748B" },
   tabActiveTxt:  { color: "#fff" },
   empty:         { alignItems: "center", paddingTop: 60, gap: 10 },
   emptyTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },

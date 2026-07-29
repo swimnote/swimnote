@@ -1,0 +1,71 @@
+Search
+Ctrl+
+K
+
+New
+
+Upgrade
+
+
+s
+Dashboard
+swimnote-api
+Events
+Settings
+Monitor
+Logs
+Metrics
+Manage
+Environment
+Shell
+Scaling
+Previews
+Disk
+One-Off Jobs
+
+Changelog
+Invite a friend
+
+Contact support
+Render Status
+
+All logs
+Search
+Search
+
+Last hour
+
+
+
+[standby-sync] hot_sync 시작 — 테이블: swimming_pools, users, subscription_plans, backup_settings, platform_banners, feature_flag_overrides, pool_credits
+[billing-cron] 타임라인/다운그레이드 업데이트 완료
+[standby-sync] swimming_pools 복제 실패: Failed query: INSERT INTO "swimming_pools" ("id", "name", "address", "phone", "owner_name", "owner_email", "approval_status", "rejection_reason", "subscription_status", "subscription_start_at", "subscription_end_at", "default_capacity", "make_up_expiry_type", "make_up_expiry_days", "make_up_limit_weekly_1", "make_up_limit_weekly_2", "make_up_limit_weekly_3", "created_at", "updated_at", "pool_type", "used_storage_bytes", "base_storage_gb", "extra_storage_gb", "credit_balance", "is_readonly", "upload_blocked", "readonly_reason", "trial_end_at", "subscription_tier", "first_payment_used", "video_storage_limit_mb", "name_en", "business_reg_number", "business_reg_image_key", "business_license_status", "bank_account_verification_status", "admin_name", "admin_email", "admin_phone", "storage_warning_sent_at", "white_label_enabled", "hide_platform_name", "payment_failed_at", "group_id", "logo_url", "logo_emoji", "theme_color", "introduction", "tuition_info", "level_test_info", "event_info", "equipment_info", "subscription_source", "member_limit", "subscription_plan_name", "storage_mb", "display_storage", "admin_user_id", "deactivated_at", "deletion_scheduled_at") VALUES ('pool_1775118427405_xs80lcdmo', '스윔노트 데모 수영장', '서울시 강남구 테헤란로 123', '02-0000-0000', '심사용', 'demo@swimnote.app', 'approved', NULL, 'active', NULL, NULL, 20, 'end_of_month', NULL, 2, 4, 5, '2026-04-02 08:27:07.52339', '2026-04-07 12:03:28.288733', 'swimming_pool', '0', 0.5, 0, 0, FALSE, FALSE, NULL, '2026-05-02 08:27:07.52339+00', 'free', FALSE, 0, 'pool_1775118427406', NULL, NULL, 'notUploaded', 'notUploaded', '심사용 관리자', 'demo@swimnote.app', '01099990000', NULL, FALSE, FALSE, NULL, NULL, NULL, NULL, '#1A5CFF', NULL, NULL, NULL, NULL, NULL, 'revenuecat', 10, 'Free', 512, '500MB', 'user_1775118427405_ey2qbn6is', NULL, NULL), ('pool_1776843401575_ikczt8q5m', '토이키즈스윔클럽', '성사동 707-10', '0319663232', '서경민', 'toykidsswimclub', 'approved', NULL, 'trial', NULL, NULL, 20, 'end_of_month', NULL, 2, 4, 5, '2026-04-22 07:36:41.600447', '2026-04-22 07:42:23.518385', 'swimming_pool', '0', 0.099609375, 0, 0, FALSE, FALSE, NULL, '2026-05-22 07:36:41.600447+00', 'free', FALSE, 0, 'pool_1776843401575', NULL, NULL, 'notUploaded', 'notUploaded', '서경민', 'toykidsswimclub', '01072121507', NULL, FALSE, FALSE, NULL, NULL, NULL, NULL, '#1A5CFF', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Free', 102, '100MB', 'user_1776843401575_xwfo2zdla', NULL, NULL) ON CONFLICT DO NOTHING
+params: 
+[standby-sync] users 복제 실패: Failed query: INSERT INTO "users" ("id", "email", "password_hash", "name", "phone", "role", "swimming_pool_id", "is_activated", "is_admin_self_teacher", "phone_verified", "created_by", "permissions", "roles", "created_at", "updated_at", "totp_secret", "totp_enabled", "position", "last_login_at", "kakao_id", "kakao_profile_image", "apple_id", "withdrawal_requested_at") VALUES ('user_super_1775303066795_yial5wvrm', 'swimnote.admin@gmail.com', '$2b$10$3ZsjBB8gUDKNUJ1kfcKTze9k3R0rquEt8EK5eugTEfLZHhVEH6Qma', '스윔노트 슈퍼관리자', NULL, 'super_admin', NULL, TRUE, FALSE, FALSE, NULL, NULL, '', '2026-04-04 11:44:26.796631', '2026-04-04 11:44:26.796631', NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL), ('user_1775118427405_ey2qbn6is', 'demo@swimnote.app', '$2b$10$CD6SPxHJVZY/QG6KdCgl4uMOvBSFnPIIFfcICtHviBXxan2TOopBe', '심사용 관리자', '01099990000', 'pool_admin', 'pool_1775118427405_xs80lcdmo', TRUE, TRUE, TRUE, NULL, NULL, 'pool_admin,teacher', '2026-04-02 08:27:07.773905', '2026-04-02 08:27:07.773905', NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL), ('u_teacher_1775275735088_o4l51vu8a', 'teacher_tst9', '$2b$10$Tsc2qB6XYcvD/Lc.CIEcDOkiEehQ1pJ/Bg9T0lJUBZaW2kwGnBTmW', '선생님테스트', '01011112222', 'teacher', 'pool_1775118427405_xs80lcdmo', FALSE, FALSE, FALSE, NULL, NULL, '', '2026-04-04 04:08:55.090911', '2026-04-04 04:08:55.090911', NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL), ('u_teacher_1775275877618_r1fysjyo0', 'teacher_b_test99', '$2b$10$IUpMp0kAoibZpx/sPG13meVIcm0tsOrjpRxQo54aMXTLEcOgBmcdq', '선생님B', '01055556666', 'teacher', 'pool_1775118427405_xs80lcdmo', FALSE, FALSE, FALSE, NULL, NULL, '', '2026-04-04 04:11:17.985005', '2026-04-04 04:11:17.985005', NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL), ('user_1776843401575_xwfo2zdla', 'toykidsswimclub', '$2b$10$hTVSSts8DNRJRtLGHulITeqVHrZYXb1dZVgCR7ur2TgKl4/QtOUoO', '서경민', '01072121507', 'pool_admin', 'pool_1776843401575_ikczt8q5m', TRUE, TRUE, TRUE, NULL, NULL, 'pool_admin,teacher', '2026-04-22 07:36:41.667683', '2026-04-22 07:36:41.667683', NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL) ON CONFLICT DO NOTHING
+params: 
+[standby-sync] subscription_plans 복제 실패: Failed query: INSERT INTO "subscription_plans" ("tier", "plan_id", "name", "price_per_month", "member_limit", "storage_gb", "storage_mb", "display_storage", "is_active") VALUES ('free', 'free_10', 'Free', 0, 10, '0.1', 102, '100MB', TRUE), ('starter', 'solo_30', 'Coach 30', 1900, 30, '0.3', 307, '300MB', TRUE), ('basic', 'solo_50', 'Coach 50', 2900, 50, '0.5', 512, '500MB', TRUE), ('standard', 'solo_100', 'Coach 100', 5900, 100, '1', 1024, '1GB', TRUE), ('center_200', 'center_200', 'Premier 200', 19000, 200, '5', 5120, '5GB', TRUE), ('advance', 'center_300', 'Premier 300', 27000, 300, '10', 10240, '10GB', TRUE), ('pro', 'center_500', 'Premier 500', 43000, 500, '20', 20480, '20GB', TRUE), ('max', 'center_1000', 'Premier 1000', 79000, 1000, '50', 51200, '50GB', TRUE) ON CONFLICT DO NOTHING
+params: 
+[standby-sync] backup_settings 복제 실패: Failed query: INSERT INTO "backup_settings" ("id", "auto_enabled", "schedule_type", "run_hour", "run_minute", "retention_days", "updated_at", "updated_by") VALUES ('default', TRUE, 'daily', 3, 0, 7, '2026-03-26 06:12:09.076882+00', NULL) ON CONFLICT DO NOTHING
+params: 
+[standby-sync] platform_banners → 0행 복제
+[standby-sync] feature_flag_overrides → 0행 복제
+[standby-sync] pool_credits 복제 실패: Failed query: SELECT * FROM "pool_credits"
+params: 
+[standby-sync] 🚨 OPS ALERT (warning): 🟡 스탠바이 동기화 반복 실패 — 최근 5회 연속 스탠바이 싱크 실패. 장애 시 데이터 복구 불완전.
+[standby-sync] hot_sync 완료 — 0행 / 7테이블 / 3124ms / 오류 5개
+[standby-sync] hot_sync 시작 — 테이블: swimming_pools, users, subscription_plans, backup_settings, platform_banners, feature_flag_overrides, pool_credits
+[standby-sync] swimming_pools 복제 실패: Failed query: INSERT INTO "swimming_pools" ("id", "name", "address", "phone", "owner_name", "owner_email", "approval_status", "rejection_reason", "subscription_status", "subscription_start_at", "subscription_end_at", "default_capacity", "make_up_expiry_type", "make_up_expiry_days", "make_up_limit_weekly_1", "make_up_limit_weekly_2", "make_up_limit_weekly_3", "created_at", "updated_at", "pool_type", "used_storage_bytes", "base_storage_gb", "extra_storage_gb", "credit_balance", "is_readonly", "upload_blocked", "readonly_reason", "trial_end_at", "subscription_tier", "first_payment_used", "video_storage_limit_mb", "name_en", "business_reg_number", "business_reg_image_key", "business_license_status", "bank_account_verification_status", "admin_name", "admin_email", "admin_phone", "storage_warning_sent_at", "white_label_enabled", "hide_platform_name", "payment_failed_at", "group_id", "logo_url", "logo_emoji", "theme_color", "introduction", "tuition_info", "level_test_info", "event_info", "equipment_info", "subscription_source", "member_limit", "subscription_plan_name", "storage_mb", "display_storage", "admin_user_id", "deactivated_at", "deletion_scheduled_at") VALUES ('pool_1775118427405_xs80lcdmo', '스윔노트 데모 수영장', '서울시 강남구 테헤란로 123', '02-0000-0000', '심사용', 'demo@swimnote.app', 'approved', NULL, 'active', NULL, NULL, 20, 'end_of_month', NULL, 2, 4, 5, '2026-04-02 08:27:07.52339', '2026-04-07 12:03:28.288733', 'swimming_pool', '0', 0.5, 0, 0, FALSE, FALSE, NULL, '2026-05-02 08:27:07.52339+00', 'free', FALSE, 0, 'pool_1775118427406', NULL, NULL, 'notUploaded', 'notUploaded', '심사용 관리자', 'demo@swimnote.app', '01099990000', NULL, FALSE, FALSE, NULL, NULL, NULL, NULL, '#1A5CFF', NULL, NULL, NULL, NULL, NULL, 'revenuecat', 10, 'Free', 512, '500MB', 'user_1775118427405_ey2qbn6is', NULL, NULL), ('pool_1776843401575_ikczt8q5m', '토이키즈스윔클럽', '성사동 707-10', '0319663232', '서경민', 'toykidsswimclub', 'approved', NULL, 'trial', NULL, NULL, 20, 'end_of_month', NULL, 2, 4, 5, '2026-04-22 07:36:41.600447', '2026-04-22 07:42:23.518385', 'swimming_pool', '0', 0.099609375, 0, 0, FALSE, FALSE, NULL, '2026-05-22 07:36:41.600447+00', 'free', FALSE, 0, 'pool_1776843401575', NULL, NULL, 'notUploaded', 'notUploaded', '서경민', 'toykidsswimclub', '01072121507', NULL, FALSE, FALSE, NULL, NULL, NULL, NULL, '#1A5CFF', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Free', 102, '100MB', 'user_1776843401575_xwfo2zdla', NULL, NULL) ON CONFLICT DO NOTHING
+Menu
+params: 
+[standby-sync] users 복제 실패: Failed query: INSERT INTO "users" ("id", "email", "password_hash", "name", "phone", "role", "swimming_pool_id", "is_activated", "is_admin_self_teacher", "phone_verified", "created_by", "permissions", "roles", "created_at", "updated_at", "totp_secret", "totp_enabled", "position", "last_login_at", "kakao_id", "kakao_profile_image", "apple_id", "withdrawal_requested_at") VALUES ('user_super_1775303066795_yial5wvrm', 'swimnote.admin@gmail.com', '$2b$10$3ZsjBB8gUDKNUJ1kfcKTze9k3R0rquEt8EK5eugTEfLZHhVEH6Qma', '스윔노트 슈퍼관리자', NULL, 'super_admin', NULL, TRUE, FALSE, FALSE, NULL, NULL, '', '2026-04-04 11:44:26.796631', '2026-04-04 11:44:26.796631', NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL), ('user_1775118427405_ey2qbn6is', 'demo@swimnote.app', '$2b$10$CD6SPxHJVZY/QG6KdCgl4uMOvBSFnPIIFfcICtHviBXxan2TOopBe', '심사용 관리자', '01099990000', 'pool_admin', 'pool_1775118427405_xs80lcdmo', TRUE, TRUE, TRUE, NULL, NULL, 'pool_admin,teacher', '2026-04-02 08:27:07.773905', '2026-04-02 08:27:07.773905', NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL), ('u_teacher_1775275735088_o4l51vu8a', 'teacher_tst9', '$2b$10$Tsc2qB6XYcvD/Lc.CIEcDOkiEehQ1pJ/Bg9T0lJUBZaW2kwGnBTmW', '선생님테스트', '01011112222', 'teacher', 'pool_1775118427405_xs80lcdmo', FALSE, FALSE, FALSE, NULL, NULL, '', '2026-04-04 04:08:55.090911', '2026-04-04 04:08:55.090911', NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL), ('u_teacher_1775275877618_r1fysjyo0', 'teacher_b_test99', '$2b$10$IUpMp0kAoibZpx/sPG13meVIcm0tsOrjpRxQo54aMXTLEcOgBmcdq', '선생님B', '01055556666', 'teacher', 'pool_1775118427405_xs80lcdmo', FALSE, FALSE, FALSE, NULL, NULL, '', '2026-04-04 04:11:17.985005', '2026-04-04 04:11:17.985005', NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL), ('user_1776843401575_xwfo2zdla', 'toykidsswimclub', '$2b$10$hTVSSts8DNRJRtLGHulITeqVHrZYXb1dZVgCR7ur2TgKl4/QtOUoO', '서경민', '01072121507', 'pool_admin', 'pool_1776843401575_ikczt8q5m', TRUE, TRUE, TRUE, NULL, NULL, 'pool_admin,teacher', '2026-04-22 07:36:41.667683', '2026-04-22 07:36:41.667683', NULL, FALSE, NULL, NULL, NULL, NULL, NULL, NULL) ON CONFLICT DO NOTHING
+params: 
+[standby-sync] subscription_plans 복제 실패: Failed query: INSERT INTO "subscription_plans" ("tier", "plan_id", "name", "price_per_month", "member_limit", "storage_gb", "storage_mb", "display_storage", "is_active") VALUES ('free', 'free_10', 'Free', 0, 10, '0.1', 102, '100MB', TRUE), ('starter', 'solo_30', 'Coach 30', 1900, 30, '0.3', 307, '300MB', TRUE), ('basic', 'solo_50', 'Coach 50', 2900, 50, '0.5', 512, '500MB', TRUE), ('standard', 'solo_100', 'Coach 100', 5900, 100, '1', 1024, '1GB', TRUE), ('center_200', 'center_200', 'Premier 200', 19000, 200, '5', 5120, '5GB', TRUE), ('advance', 'center_300', 'Premier 300', 27000, 300, '10', 10240, '10GB', TRUE), ('pro', 'center_500', 'Premier 500', 43000, 500, '20', 20480, '20GB', TRUE), ('max', 'center_1000', 'Premier 1000', 79000, 1000, '50', 51200, '50GB', TRUE) ON CONFLICT DO NOTHING
+params: 
+[standby-sync] backup_settings 복제 실패: Failed query: INSERT INTO "backup_settings" ("id", "auto_enabled", "schedule_type", "run_hour", "run_minute", "retention_days", "updated_at", "updated_by") VALUES ('default', TRUE, 'daily', 3, 0, 7, '2026-03-26 06:12:09.076882+00', NULL) ON CONFLICT DO NOTHING
+params: 
+[standby-sync] platform_banners → 0행 복제
+[standby-sync] feature_flag_overrides → 0행 복제
+[standby-sync] pool_credits 복제 실패: Failed query: SELECT * FROM "pool_credits"
+params: 
+[standby-sync] 🚨 OPS ALERT (warning): 🟡 스탠바이 동기화 반복 실패 — 최근 5회 연속 스탠바이 싱크 실패. 장애 시 데이터 복구 불완전.
+[standby-sync] hot_sync 완료 — 0행 / 7테이블 / 3270ms / 오류 5개

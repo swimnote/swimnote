@@ -3,11 +3,11 @@
  * 실 DB: GET /admin/teacher-hub/:id
  * 탭: 담당회원 / 출결 / 수업일지 / 보강
  */
-import { ChevronRight, Trash2 } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Platform, Pressable,
+  ActivityIndicator, Alert, FlatList, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -45,6 +45,7 @@ export default function TeacherHubScreen() {
   const [data, setData]       = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [deleteDiaryId, setDeleteDiaryId] = useState<string | null>(null);
+  const [deleteTeacherLoading, setDeleteTeacherLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (!params.id) return;
@@ -57,15 +58,49 @@ export default function TeacherHubScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  function handleDeleteTeacher() {
+    const name = data?.teacher?.name || params.name || "선생님";
+    Alert.alert(
+      "선생님 삭제",
+      `${name} 계정을 삭제하시겠습니까?\n삭제된 계정은 복구할 수 없습니다.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제", style: "destructive",
+          onPress: async () => {
+            setDeleteTeacherLoading(true);
+            try {
+              const r = await apiRequest(token, `/teachers/${params.id}`, { method: "DELETE" });
+              if (r.ok) {
+                router.back();
+              } else {
+                const body = await r.json().catch(() => ({}));
+                Alert.alert("삭제 실패", body?.error ?? "삭제 중 오류가 발생했습니다.");
+              }
+            } catch {
+              Alert.alert("오류", "삭제 중 오류가 발생했습니다.");
+            } finally {
+              setDeleteTeacherLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   const deleteDiary = (id: string) => {
     setDeleteDiaryId(id);
   };
 
   async function confirmDeleteDiary() {
     if (!deleteDiaryId) return;
+    const targetId = deleteDiaryId;
     setDeleteDiaryId(null);
-    await apiRequest(token, `/class-diaries/${deleteDiaryId}`, { method: "DELETE" });
-    load();
+    await apiRequest(token, `/class-diaries/${targetId}`, { method: "DELETE" });
+    setData((prev: any) => prev ? {
+      ...prev,
+      recent_diaries: (prev.recent_diaries ?? []).filter((d: any) => d.id !== targetId),
+    } : prev);
   }
 
   if (loading && !data) return (
@@ -83,7 +118,17 @@ export default function TeacherHubScreen() {
 
   return (
     <View style={s.root}>
-      <SubScreenHeader title={`${data?.teacher?.name || params.name} 운영현황`} />
+      <SubScreenHeader
+        title={`${data?.teacher?.name || params.name} 운영현황`}
+        rightSlot={
+          <Pressable onPress={handleDeleteTeacher} disabled={deleteTeacherLoading} hitSlop={10}
+            style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#FEF2F2" }}>
+            {deleteTeacherLoading
+              ? <ActivityIndicator size="small" color="#E11D48" />
+              : <LucideIcon name="trash-2" size={18} color="#E11D48" />}
+          </Pressable>
+        }
+      />
 
       {/* 요약 통계 카드 */}
       <View style={s.statsCard}>
@@ -120,7 +165,7 @@ export default function TeacherHubScreen() {
                   <Text style={s.name}>{item.name}</Text>
                   <Text style={s.sub}>{item.class_name || "반 미배정"}</Text>
                 </View>
-                <ChevronRight size={16} color={C.textSecondary} />
+                <LucideIcon name="chevron-right" size={16} color={C.textSecondary} />
               </View>
             </Pressable>
           );
@@ -149,7 +194,7 @@ export default function TeacherHubScreen() {
                   {item.is_edited && <Text style={[s.sub, { color: "#D97706" }]}>수정됨</Text>}
                 </View>
                 <Pressable onPress={() => deleteDiary(item.id)} style={{ padding: 6 }}>
-                  <Trash2 size={16} color="#D96C6C" />
+                  <LucideIcon name="trash-2" size={16} color="#D96C6C" />
                 </Pressable>
               </View>
             </View>
@@ -205,8 +250,8 @@ const s = StyleSheet.create({
   statVal:   { fontSize: 22, fontWeight: "700", color: C.text },
   statLabel: { fontSize: 11, color: C.textSecondary, marginTop: 2 },
   chipRow:   { flexGrow: 0, paddingVertical: 8 },
-  chip:      { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
-  chipTxt:   { fontSize: 13, fontWeight: "600", color: C.textSecondary },
+  chip:      { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, borderWidth: 1.5, borderColor: "#94A3B8", backgroundColor: "#fff" },
+  chipTxt:   { fontSize: 13, fontWeight: "600", color: C.text },
   card:      { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 8, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   row:       { flexDirection: "row", alignItems: "center" },
   name:      { fontSize: 14, fontWeight: "700", color: C.text },

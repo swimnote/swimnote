@@ -6,11 +6,11 @@
  *  2. 알림 설정
  *  3. 앱 설정
  *  4. 피드백 기본 설정
- *  5. 사진·영상 앨범 바로가기
+ *  5. 사진·영상 업로드/앨범 바로가기
  *  6. 기타
  */
-import { Bell, Camera, ChevronRight, CircleDollarSign, FileText, HardDrive, Mail, Pencil, UserCog } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import AppUpdateButton from "@/components/common/AppUpdateButton";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -23,6 +23,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
+import { WithdrawalModal } from "@/components/common/WithdrawalModal";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
@@ -61,10 +62,13 @@ export default function TeacherSettingsScreen() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  async function handleDeleteAccount() {
+  async function handleDeleteAccount(immediate: boolean) {
     setDeleteLoading(true);
     try {
-      const res = await apiRequest(token, "/auth/account", { method: "DELETE" });
+      const res = await apiRequest(token, "/auth/account", {
+        method: "DELETE",
+        body: JSON.stringify({ immediate }),
+      });
       if (res.ok) { setDeleteConfirm(false); await logout(); }
     } catch { } finally { setDeleteLoading(false); }
   }
@@ -145,9 +149,9 @@ export default function TeacherSettingsScreen() {
           style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/notices?backTo=settings" as any)}
         >
-          <Bell size={18} color="#0F172A" />
+          <LucideIcon name="bell" size={18} color="#0F172A" />
           <Text style={[s.actionBtnText, { color: "#0F172A" }]}>공지함</Text>
-          <ChevronRight size={16} color="#0F172A" />
+          <LucideIcon name="chevron-right" size={16} color="#0F172A" />
         </Pressable>
 
         {/* ── 선생님 설정 ── */}
@@ -155,19 +159,19 @@ export default function TeacherSettingsScreen() {
           style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/my-info?backTo=settings" as any)}
         >
-          <UserCog size={18} color="#0F172A" />
+          <LucideIcon name="user-cog" size={18} color="#0F172A" />
           <Text style={[s.actionBtnText, { color: "#0F172A" }]}>선생님 설정</Text>
-          <ChevronRight size={16} color="#0F172A" />
+          <LucideIcon name="chevron-right" size={16} color="#0F172A" />
         </Pressable>
 
-        {/* ── 피드백 기본 설정 ── */}
+        {/* ── 일지 템플릿 ── */}
         <Pressable
           style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/feedback-custom?backTo=settings" as any)}
         >
-          <Pencil size={18} color="#0F172A" />
-          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>피드백 기본 설정</Text>
-          <ChevronRight size={16} color="#0F172A" />
+          <LucideIcon name="edit" size={18} color="#0F172A" />
+          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>일지 템플릿</Text>
+          <LucideIcon name="chevron-right" size={16} color="#0F172A" />
         </Pressable>
 
         {/* ── 쪽지보관함 ── */}
@@ -175,25 +179,25 @@ export default function TeacherSettingsScreen() {
           style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/messages-inbox" as any)}
         >
-          <Mail size={18} color="#0F172A" />
+          <LucideIcon name="mail" size={18} color="#0F172A" />
           <Text style={[s.actionBtnText, { color: "#0F172A" }]}>쪽지보관함</Text>
-          <ChevronRight size={16} color="#0F172A" />
+          <LucideIcon name="chevron-right" size={16} color="#0F172A" />
         </Pressable>
 
-        {/* ── 사진·영상 앨범 ── */}
+        {/* ── 사진·영상 업로드/앨범 ── */}
         <Pressable
           style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/photos?backTo=settings" as any)}
         >
-          <Camera size={18} color="#0F172A" />
-          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>사진·영상 앨범</Text>
-          <ChevronRight size={16} color="#0F172A" />
+          <LucideIcon name="camera" size={18} color="#0F172A" />
+          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>사진·영상 업로드/앨범</Text>
+          <LucideIcon name="chevron-right" size={16} color="#0F172A" />
         </Pressable>
 
         {/* ── 수업료 납부 관리 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <CircleDollarSign size={15} color={themeColor} />
+            <LucideIcon name="circle-dollar-sign" size={15} color={themeColor} />
             <Text style={s.cardTitle}>수업료 납부 관리</Text>
           </View>
           <View style={s.switchSection}>
@@ -214,9 +218,9 @@ export default function TeacherSettingsScreen() {
                 style={[s.feeBtn, { borderColor: themeColor, borderTopWidth: 1, borderTopColor: C.border }]}
                 onPress={() => router.push("/(teacher)/fee-check?backTo=settings" as any)}
               >
-                <CircleDollarSign size={16} color={themeColor} />
+                <LucideIcon name="circle-dollar-sign" size={16} color={themeColor} />
                 <Text style={[s.feeBtnText, { color: themeColor }]}>납부 현황 보기</Text>
-                <ChevronRight size={16} color={themeColor} />
+                <LucideIcon name="chevron-right" size={16} color={themeColor} />
               </Pressable>
             )}
           </View>
@@ -225,7 +229,7 @@ export default function TeacherSettingsScreen() {
         {/* ── 알림 설정 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <Bell size={15} color={themeColor} />
+            <LucideIcon name="bell" size={15} color={themeColor} />
             <Text style={s.cardTitle}>알림 설정</Text>
           </View>
           <View style={s.switchSection}>
@@ -271,7 +275,7 @@ export default function TeacherSettingsScreen() {
         {/* ── 저장공간 (데이터 정보) ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <HardDrive size={15} color={themeColor} />
+            <LucideIcon name="hard-drive" size={15} color={themeColor} />
             <Text style={s.cardTitle}>저장공간</Text>
           </View>
           <View style={{ padding: 16, gap: 14 }}>
@@ -320,14 +324,14 @@ export default function TeacherSettingsScreen() {
         {/* ── 약관 및 정책 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <FileText size={15} color={themeColor} />
+            <LucideIcon name="file-text" size={15} color={themeColor} />
             <Text style={s.cardTitle}>약관 및 정책</Text>
           </View>
-          {[
+          {([
             { label: "이용약관",          path: "/terms"   },
             { label: "개인정보처리방침",   path: "/privacy" },
             { label: "환불 및 결제 정책", path: "/refund"  },
-          ].map((item, i) => (
+          ]).map((item, i) => (
             <Pressable
               key={item.label}
               style={[
@@ -337,10 +341,23 @@ export default function TeacherSettingsScreen() {
               onPress={() => router.push((item.path + "?backTo=settings") as any)}
             >
               <Text style={s.policyLabel}>{item.label}</Text>
-              <ChevronRight size={16} color={C.textMuted} />
+              <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
             </Pressable>
           ))}
         </View>
+
+        {/* ── 문의하기 — 목록 최하단 ── */}
+        <Pressable
+          style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#2EC4B6" }]}
+          onPress={() => router.push("/(teacher)/inquiries" as any)}
+        >
+          <LucideIcon name="message-circle" size={18} color="#2EC4B6" />
+          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>문의하기</Text>
+          <LucideIcon name="chevron-right" size={16} color="#0F172A" />
+        </Pressable>
+
+        {/* 앱 업데이트 */}
+        <AppUpdateButton themeColor={themeColor} />
 
         {/* 회원 탈퇴 */}
         <Pressable
@@ -350,16 +367,15 @@ export default function TeacherSettingsScreen() {
           <Text style={s.deleteBtnText}>회원 탈퇴</Text>
         </Pressable>
 
+
       </ScrollView>
 
-      <ConfirmModal
+      <WithdrawalModal
         visible={deleteConfirm}
-        title="회원 탈퇴"
-        message={"계정을 삭제하면 모든 데이터가 익명 처리되며\n복구할 수 없습니다. 정말 탈퇴하시겠습니까?"}
-        confirmText={deleteLoading ? "처리 중..." : "탈퇴하기"}
-        destructive
+        onClose={() => setDeleteConfirm(false)}
         onConfirm={handleDeleteAccount}
-        onCancel={() => setDeleteConfirm(false)}
+        loading={deleteLoading}
+        isPaidPlan={false}
       />
     </SafeAreaView>
   );

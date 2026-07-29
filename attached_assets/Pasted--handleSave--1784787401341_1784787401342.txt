@@ -1,0 +1,307 @@
+긴급 재조사 요청 — 삭제된 기존 일지가 지난일지에 다시 표시되는 문제
+
+이전 작업에서 저장 버튼 및 handleSave 로그를 추가했지만,
+현재 사용자가 보고하는 실제 증상은 다음과 같습니다.
+
+핵심 증상
+
+1. 기존 일지를 삭제
+2. 삭제 직후 화면에서는 사라짐
+3. 일지 화면을 나가면 스케줄러가 잠시 멈추고 터치가 안 됨
+4. 잠시 후 스케줄러 정상화
+5. 앱 완전 종료
+6. 앱 재실행
+7. 삭제했던 기존 일지가 지난일지 화면에 다시 원래 상태로 표시됨
+
+중요:
+
+사용자는 새 일지를 작성하거나 저장 버튼을 누른 것이 아니라,
+삭제했던 기존 일지가 다시 보인다고 말하고 있습니다.
+
+따라서 이번 작업에서는
+“새 일지 생성”을 전제로 하지 말고
+화면에 표시된 diary_id를 기준으로 조사하세요.
+
+==================================================
+
+1. 화면에 diary_id 표시
+
+지난일지 목록의 각 카드에 개발용으로 다음 값을 표시하세요.
+
+- diary_id
+- lesson_date
+- class_group_id
+- is_deleted
+- created_at
+
+예:
+
+ID: cd_1784739237420
+DATE: 2026-07-23
+DELETED: false
+
+테스트가 끝난 뒤 개발용 표시는 제거할 수 있습니다.
+
+==================================================
+
+2. 삭제 전 데이터 기록
+
+삭제 버튼을 누르기 직전에 다음 로그를 남기세요.
+
+[DELETE TARGET]
+
+diary_id=
+lesson_date=
+class_group_id=
+currentView=
+listSource=
+is_deleted=
+
+삭제 대상 ID를 반드시 저장하세요.
+
+==================================================
+
+3. DELETE 응답 기록
+
+DELETE 요청 직후 다음을 로그로 남기세요.
+
+[DELETE RESPONSE]
+
+requestDiaryId=
+status=
+responseBody=
+
+그리고 DB에서 동일 ID를 직접 조회하세요.
+
+SELECT
+  id,
+  is_deleted,
+  deleted_at,
+  created_at,
+  updated_at
+FROM class_diaries
+WHERE id = :requestDiaryId;
+
+==================================================
+
+4. 삭제 직후 지난일지 재조회 결과
+
+삭제 성공 후 실행되는 GET 응답 전체에서
+각 일지의 ID를 로그로 출력하세요.
+
+[HISTORY AFTER DELETE]
+
+source=cache 또는 network
+items=[
+  {
+    id,
+    lesson_date,
+    class_group_id,
+    is_deleted
+  }
+]
+
+삭제한 diary_id가 응답에 포함되는지 확인하세요.
+
+==================================================
+
+5. 스케줄러로 나갈 때 멈추는 원인 추적
+
+일지 화면 종료 시 스케줄러가 잠시 멈추고
+터치가 안 먹는 현상을 별도 조사하세요.
+
+다음 항목을 로그로 남기세요.
+
+- diary 화면 unmount 시각
+- navigation 시작 시각
+- scheduler mount 시각
+- scheduler data load 시작/종료
+- 전역 loading overlay 시작/종료
+- pointerEvents가 none으로 변경되는 위치
+- modal 또는 transparent overlay가 남는지
+- 삭제 loading state가 false로 복구되는지
+
+특히 다음을 확인하세요.
+
+- confirmDelete의 finally가 항상 실행되는지
+- deleteLoading이 남아 있는지
+- full-screen overlay가 닫히지 않는지
+- Alert/Modal의 backdrop이 남아 있는지
+- refetch Promise가 navigation을 막는지
+
+==================================================
+
+6. 앱 재실행 후 지난일지 응답 기록
+
+앱 완전 종료 후 재실행 시
+지난일지 GET 응답을 반드시 로그로 남기세요.
+
+[HISTORY AFTER APP RESTART]
+
+source=cache 또는 network
+endpoint=
+items=[
+  {
+    id,
+    lesson_date,
+    class_group_id,
+    is_deleted,
+    created_at
+  }
+]
+
+그리고 화면에 실제 표시된 카드의 diary_id와 비교하세요.
+
+==================================================
+
+7. 판별 기준
+
+A.
+
+삭제한 ID와 재실행 후 화면 ID가 동일함
+
+예:
+
+삭제 ID:
+cd_1784739237420
+
+재실행 후 화면 ID:
+cd_1784739237420
+
+이 경우:
+
+삭제된 기존 일지를 조회하거나 표시하는 버그입니다.
+
+확인 대상:
+
+- 서버 SQL에서 is_deleted=false 누락
+- 다른 지난일지 API 사용
+- 앱 영구 저장 캐시
+- Zustand/Context persisted state
+- AsyncStorage에 저장된 일지 목록
+- scheduler에서 넘긴 stale object
+- 삭제 전 route params
+- React Query/자체 캐시 hydration
+- 화면 로컬 state 복원
+
+B.
+
+삭제한 ID와 재실행 후 화면 ID가 다름
+
+이 경우에만 새 일지 생성 문제로 판단하세요.
+
+그때 기존에 추가한 로그를 사용하세요.
+
+- [PRESS SAVE]
+- [HANDLE_SAVE]
+- POST /diaries
+
+==================================================
+
+8. 캐시 전수 확인
+
+메모리 캐시만 보지 말고 다음을 모두 조사하세요.
+
+- _apiCache
+- AsyncStorage
+- persisted Context
+- Zustand persist
+- React Query persist
+- scheduler local state
+- route params
+- navigation state
+- previously loaded diary list
+- admin/teacher 별도 캐시
+- 앱 시작 시 hydration 데이터
+
+검색 키워드:
+
+diaries
+pastDiaries
+history
+diaryList
+cachedDiaries
+AsyncStorage
+persist
+hydrate
+initialState
+
+삭제한 ID가 클라이언트 저장소에 남아 있는지 확인하세요.
+
+==================================================
+
+9. 서버 조회 API 전수 확인
+
+지난일지 화면이 실제로 어떤 endpoint를 호출하는지 확인하세요.
+
+가능한 모든 조회 API에서 삭제 조건을 확인하세요.
+
+- GET /diaries
+- GET /diaries/:id
+- GET /diaries?class_group_id=
+- GET /diaries?lesson_date=
+- GET /diaries/admin/all-entries
+- scheduler diary endpoint
+- teacher history endpoint
+- parent diary endpoint
+
+각 API의 실제 SQL과 반환 JSON을 보고하세요.
+
+단순히 “코드에 조건이 있다”고 말하지 말고,
+재현 당시 응답에 삭제 ID가 포함됐는지 증명하세요.
+
+==================================================
+
+10. 저장 로그 유지
+
+기존 배포에 포함된 다음 로그는 유지하세요.
+
+[PRESS SAVE]
+[HANDLE_SAVE]
+
+그러나 이 로그가 없으면
+“사용자가 저장 버튼을 눌렀다”고 추정하지 마세요.
+
+새로운 ID가 실제 DB에 생성된 경우에만
+저장 로그와 연결해서 판단하세요.
+
+==================================================
+
+11. 임시 UI 숨김 금지
+
+다음 방식으로 증상을 덮지 마세요.
+
+- deletedIds 배열로 로컬 필터
+- 화면에서만 카드 제거
+- 앱 재실행 전까지만 숨김
+- lesson_date 기준 강제 제외
+- 동일 날짜 전체 숨김
+
+반드시 화면 ID, 서버 응답 ID, DB ID를 비교해
+실제 데이터 흐름을 수정하세요.
+
+==================================================
+
+12. 최종 보고서 형식
+
+1. 삭제 대상 diary_id
+2. DELETE 응답
+3. DELETE 직후 DB 상태
+4. 삭제 직후 GET 응답의 ID 목록
+5. 스케줄러 멈춤 원인
+6. 앱 재실행 후 GET 응답의 ID 목록
+7. 앱 재실행 후 화면에 표시된 diary_id
+8. 삭제 ID와 재표시 ID가 동일한지
+9. 캐시 또는 영구 저장 위치
+10. 실제 수정 파일
+11. 수정 전후 흐름
+12. 재현 테스트 결과
+
+완료 기준
+
+- 삭제한 기존 diary_id가 DB에서 is_deleted=true 유지
+- 모든 일반 조회 응답에서 해당 ID 제외
+- 지난일지 화면에서도 해당 ID 미표시
+- 앱 완전 종료 후 재실행해도 미표시
+- 스케줄러 이동 중 터치 불가 현상 없음
+- 새로운 diary_id도 사용자 저장 없이 생성되지 않음

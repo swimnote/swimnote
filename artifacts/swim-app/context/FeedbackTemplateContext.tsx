@@ -43,7 +43,7 @@ export const DEFAULT_TEMPLATES: FeedbackTemplate[] = [
   { id: "b09", level: "beginner",     template_text: "자유형 팔 동작 기초를 배웠습니다." },
   { id: "b10", level: "beginner",     template_text: "수업 중 적극적으로 참여해 주었습니다." },
   { id: "b11", level: "beginner",     template_text: "물을 무서워하지 않고 잘 따라와 주었습니다." },
-  { id: "b12", level: "beginner",     template_text: "오늘은 물 익히기와 호흡에 집중했습니다." },
+  { id: "b12", level: "beginner",     template_text: "물 익히기와 호흡에 집중했습니다." },
   { id: "b13", level: "beginner",     template_text: "누워 뜨기 자세가 점점 안정적으로 변하고 있습니다." },
   { id: "b14", level: "beginner",     template_text: "입수 자세를 익히는 연습을 했습니다." },
   { id: "b15", level: "beginner",     template_text: "다음 수업에서는 자유형 기초를 이어갈 예정입니다." },
@@ -58,7 +58,7 @@ export const DEFAULT_TEMPLATES: FeedbackTemplate[] = [
   { id: "i08", level: "intermediate", template_text: "자유형 풀링 동작을 집중 교정했습니다." },
   { id: "i09", level: "intermediate", template_text: "배영 팔 동작의 궤적을 교정했습니다." },
   { id: "i10", level: "intermediate", template_text: "평영 글라이드 동작이 많이 향상되었습니다." },
-  { id: "i11", level: "intermediate", template_text: "오늘은 접영 기초 동작을 처음 연습했습니다." },
+  { id: "i11", level: "intermediate", template_text: "접영 기초 동작을 처음 연습했습니다." },
   { id: "i12", level: "intermediate", template_text: "수업 집중도가 매우 높았습니다." },
   { id: "i13", level: "intermediate", template_text: "체력이 꾸준히 향상되고 있습니다." },
   { id: "i14", level: "intermediate", template_text: "다음 수업에서는 평영 완성도를 높일 예정입니다." },
@@ -133,7 +133,15 @@ export function FeedbackTemplateProvider({ children }: { children: React.ReactNo
           AsyncStorage.getItem(storageKey(userId, "templates")),
           AsyncStorage.getItem(storageKey(userId, "labels")),
         ]);
-        if (tRaw) setTemplates(JSON.parse(tRaw));
+        if (tRaw) {
+          const parsed: FeedbackTemplate[] = JSON.parse(tRaw);
+          const migrated = parsed.map(t => ({
+            ...t,
+            template_text: t.template_text.replace(/^오늘은\s+/, ""),
+          }));
+          setTemplates(migrated);
+          AsyncStorage.setItem(storageKey(userId, "templates"), JSON.stringify(migrated)).catch(() => {});
+        }
         if (lRaw) setLabels(JSON.parse(lRaw));
       } catch {}
       setLoaded(true);

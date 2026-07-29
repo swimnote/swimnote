@@ -136,6 +136,7 @@ interface OperatorsState {
   selectAll: () => void
   clearSelected: () => void
   updateOperator: (id: string, patch: Partial<Operator>) => void
+  removeOperator: (id: string) => void
 
   // actions
   approveOperator: (id: string, actorName: string) => void
@@ -217,6 +218,10 @@ export const useOperatorsStore = create<OperatorsState>((set, get) => ({
 
   updateOperator: (id, patch) => set(s => ({
     operators: s.operators.map(o => o.id === id ? { ...o, ...patch } : o),
+  })),
+
+  removeOperator: (id) => set(s => ({
+    operators: s.operators.filter(o => o.id !== id),
   })),
 
   approveOperator: (id, _actorName) => {

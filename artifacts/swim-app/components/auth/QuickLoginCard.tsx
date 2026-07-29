@@ -1,4 +1,3 @@
-import { LogIn } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -42,7 +41,7 @@ export function QuickLoginCard({ id, pw, label, roleKey, color, disabled, onPres
         <Text style={styles.label} numberOfLines={1}>{label}</Text>
         <Text style={styles.cred}>ID {id} / PW {pw}</Text>
       </View>
-      <LogIn size={13} color={color} />
+      <LucideIcon name="log-in" size={13} color={color} />
     </Pressable>
   );
 }

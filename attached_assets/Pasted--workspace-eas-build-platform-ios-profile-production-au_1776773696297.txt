@@ -1,0 +1,37 @@
+~/workspace$ eas build --platform ios --profile production --auto-submit
+
+⚠️ Detected that your app uses Expo Go for development, this is not recommended when building production apps.
+Learn more: https://expo.fyi/why-not-build-expo-go-for-production
+To suppress this warning, set EAS_BUILD_NO_EXPO_GO_WARNING=true.
+
+Resolved "production" environment for the build. Learn more: https://docs.expo.dev/eas/environment-variables/#setting-the-environment-for-your-builds
+No environment variables with visibility "Plain text" and "Sensitive" found for the "production" environment on EAS.
+
+Failed to read the app config from the project using "npx expo config" command: npx expo config --json --type introspect exited with non-zero code: 127.
+Falling back to the version of "@expo/config" shipped with the EAS CLI.
+Cannot find 'expo-modules-autolinking' package in your project, make sure that you have 'expo' package installed
+    Error: build command failed.
+~/workspace$ eas build --platform android --profile production --no-wait
+
+⚠️ Detected that your app uses Expo Go for development, this is not recommended when building production apps.
+Learn more: https://expo.fyi/why-not-build-expo-go-for-production
+To suppress this warning, set EAS_BUILD_NO_EXPO_GO_WARNING=true.
+
+Resolved "production" environment for the build. Learn more: https://docs.expo.dev/eas/environment-variables/#setting-the-environment-for-your-builds
+No environment variables with visibility "Plain text" and "Sensitive" found for the "production" environment on EAS.
+
+✔ Incremented versionCode from 2 to 3.
+
+You've used 100% of your included build credits for this month.
+Additional usage beyond your limit will be charged at pay-as-you-go rates. See usage in billing.: https://expo.dev/accounts/swimnote/settings/billing
+
+✔ EAS Build does not officially support building managed project with Expo SDK < 41. Do you want to proceed? … yes
+✔ Using remote Android credentials (Expo server)
+✔ Using Keystore from configuration: Build Credentials a_sDJyCfD9 (default)
+
+Compressing project files and uploading to EAS Build. Learn more: https://expo.fyi/eas-build-archive
+✖ Compressing project files
+Failed to upload the project tarball to EAS Build
+
+Reason: Unknown system error -122: Unknown system error -122, copyfile '/home/runner/workspace/.local/state/replit/agent/.agent_state_5256436fd8065e171623df03d7b53c48fa8ed63b.bin' -> '/tmp/runner/eas-cli-nodejs/aa8323e2-4586-4a12-88e4-09f905d4d6db-shallow-clone/.local/state/replit/agent/.agent_state_5256436fd8065e171623df03d7b53c48fa8ed63b.bin'
+    Error: build command failed.

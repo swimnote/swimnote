@@ -15,6 +15,7 @@ import { superAdminDb, getBackupDb, backupProtectDb, isDbSeparated, isProtectDbC
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { runBackupToTarget } from "../lib/backup-target.js";
+import { getStandbyStatus } from "../jobs/standby-sync.js";
 
 const router = Router();
 
@@ -94,11 +95,12 @@ router.get(
   requireRole("super_admin"),
   async (_req: AuthRequest, res) => {
     try {
-      const [superPing, poolLog, protectLog, failCount] = await Promise.all([
+      const [superPing, poolLog, protectLog, failCount, standby] = await Promise.all([
         pingSuperDb(),
         getLastBackupLog("pool"),
         getLastBackupLog("super_protect"),
         getRecentFailureCount(),
+        getStandbyStatus(),
       ]);
 
       const poolStatus    = calcBackupCardStatus(poolLog, isDbSeparated);
@@ -107,6 +109,26 @@ router.get(
       const recentSuccess =
         (poolLog?.status === "success" || !isDbSeparated) &&
         (protectLog?.status === "success" || !isProtectDbConfigured);
+
+      // 스탠바이 카드 상태 계산
+      const standbyStatus: "normal" | "warning" | "error" | "not_configured" = (() => {
+        if (!standby.configured) return "not_configured";
+        if (!standby.connected) return "error";
+        if (standby.lag_minutes !== null && standby.lag_minutes > 120) return "error";
+        if (standby.lag_minutes !== null && standby.lag_minutes > 60)  return "warning";
+        if (standby.latency_ms !== null && standby.latency_ms > 800)   return "warning";
+        if (standby.last_sync_status === "failed") return "warning";
+        return "normal";
+      })();
+
+      const standbyLagLabel = (() => {
+        if (!standby.configured) return null;
+        if (!standby.connected) return "연결 불가";
+        if (standby.lag_minutes === null) return "싱크 기록 없음";
+        if (standby.lag_minutes < 1) return "방금 싱크";
+        if (standby.lag_minutes < 60) return `${standby.lag_minutes}분 전 싱크`;
+        return `${Math.floor(standby.lag_minutes / 60)}시간 전 싱크`;
+      })();
 
       res.json({
         checked_at: new Date().toISOString(),
@@ -120,7 +142,7 @@ router.get(
             status:       superPing.ok ? (superPing.latency_ms > 500 ? "warning" : "normal") : "error",
             status_label: superPing.ok ? (superPing.latency_ms > 500 ? "응답 지연" : "정상") : "연결 실패",
           },
-          // 카드 2: pool 백업
+          // 카드 2: pool 백업 (핫 스탠바이)
           pool_backup: {
             label:           "pool 백업 DB",
             configured:      isDbSeparated,
@@ -153,6 +175,25 @@ router.get(
             failure_count_24h:    failCount,
             pool_configured:      isDbSeparated,
             protect_configured:   isProtectDbConfigured,
+          },
+          // 카드 5: 핫 스탠바이 DB 실시간 상태 (신규)
+          hot_standby: {
+            label:            "핫 스탠바이 DB",
+            configured:       standby.configured,
+            connected:        standby.connected,
+            latency_ms:       standby.latency_ms,
+            status:           standbyStatus,
+            status_label:     standbyStatus === "normal"   ? "동기화 정상" :
+                              standbyStatus === "warning"  ? "지연 주의" :
+                              standbyStatus === "error"    ? "싱크 오류" : "미설정",
+            last_sync_at:     standby.last_sync_at,
+            last_sync_status: standby.last_sync_status,
+            lag_minutes:      standby.lag_minutes,
+            lag_label:        standbyLagLabel,
+            error:            standby.error,
+            // 설명 텍스트
+            sync_schedule:    "매 5분 헬스체크 / 30분 핫싱크 / 6시간 풀싱크",
+            tables_synced:    isDbSeparated ? 7 : 0,
           },
         },
       });

@@ -3,13 +3,11 @@
  * 구독 플랜 관리 (Coach30/50/100, Premier200/300/500/1000)
  * API 연동: GET/POST/PUT/PATCH /super/plans
  */
-import { CirclePlus, Lock, Package, PenLine, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
-import {
-  Alert, FlatList, KeyboardAvoidingView, Modal, Platform,
-  Pressable, RefreshControl, ScrollView,
-  StyleSheet, Switch, Text, TextInput, View,
-} from "react-native";
+import {Alert, FlatList, Modal, Platform,
+  Pressable, RefreshControl,
+  StyleSheet, Switch, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -86,7 +84,7 @@ function PlanCard({ plan, onEdit, onToggle }: {
       {plan.note ? <View style={pc.noteBox}><Text style={pc.noteTxt}>{plan.note}</Text></View> : null}
       <View style={pc.actions}>
         <Pressable style={[pc.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => onEdit(plan)}>
-          <PenLine size={13} color={P} />
+          <LucideIcon name="edit-2" size={13} color={P} />
           <Text style={[pc.btnTxt, { color: P }]}>수정</Text>
         </Pressable>
         <Pressable
@@ -160,12 +158,12 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={fm.header}>
-          <Pressable onPress={onClose} style={fm.close}><X size={20} color="#64748B" /></Pressable>
+          <Pressable onPress={onClose} style={fm.close} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}><LucideIcon name="x" size={22} color="#64748B" /></Pressable>
           <Text style={fm.title}>{isEdit ? "구독 플랜 수정" : "구독 플랜 생성"}</Text>
           <View style={{ width: 28 }} />
         </View>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 24 }}>
+        <View style={{ flex: 1 }}>
+          <KeyboardAwareScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 24 }}>
             {textFields.map(f => (
               <View key={f.key}>
                 <Text style={fm.label}>{f.label}</Text>
@@ -185,14 +183,14 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
               <Switch value={form.includesVideo} onValueChange={v => setVal("includesVideo", v)}
                 trackColor={{ false: "#E5E7EB", true: "#C4B5FD" }} thumbColor={form.includesVideo ? P : "#64748B"} />
             </View>
-          </ScrollView>
+          </KeyboardAwareScrollView>
           <View style={fm.bottomBar}>
             <Pressable style={fm.bottomSaveBtn} onPress={() => setOtpVisible(true)}>
-              <Lock size={14} color="#fff" />
+              <LucideIcon name="lock" size={14} color="#fff" />
               <Text style={fm.saveTxt}>{isEdit ? "수정 후 저장" : "생성하기"}</Text>
             </Pressable>
           </View>
-        </KeyboardAvoidingView>
+        </View>
         <OtpGateModal
           visible={otpVisible}
           token={token}
@@ -208,7 +206,7 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
 
 const fm = StyleSheet.create({
   header:        { flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  close:         { padding: 4 },
+  close:         { padding: 10 },
   title:         { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   saveTxt:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
   label:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 6 },
@@ -248,15 +246,15 @@ function rowToSubscriptionPlan(row: ApiPlanRow): SubscriptionPlan {
 // ── 확정 플랜 정보 (DB 초기값 기준) ─────────────────────────────
 const PLAN_GUIDE = [
   { group: "Coach (개인 선생님)", color: P, plans: [
-    { name: "Coach30",  price: "₩3,500", members: "30명",    storage: "3GB",   video: false },
-    { name: "Coach50",  price: "₩6,500", members: "50명",    storage: "5GB",   video: false },
-    { name: "Coach100", price: "₩9,500", members: "100명",   storage: "10GB",  video: false },
+    { name: "Coach30",  price: "₩1,900", members: "30명",    storage: "300MB", video: false },
+    { name: "Coach50",  price: "₩2,900", members: "50명",    storage: "500MB", video: false },
+    { name: "Coach100", price: "₩5,900", members: "100명",   storage: "1GB",   video: false },
   ]},
   { group: "Premier (수영장/센터)", color: "#F59E0B", plans: [
-    { name: "Premier200",  price: "₩69,000",  members: "200명",  storage: "50GB",  video: true },
-    { name: "Premier300",  price: "₩99,000",  members: "300명",  storage: "80GB",  video: true },
-    { name: "Premier500",  price: "₩149,000", members: "500명",  storage: "130GB", video: true },
-    { name: "Premier1000", price: "₩249,000", members: "1000명", storage: "500GB", video: true },
+    { name: "Premier200",  price: "₩19,000",  members: "200명",  storage: "5GB",  video: true },
+    { name: "Premier300",  price: "₩27,000",  members: "300명",  storage: "10GB", video: true },
+    { name: "Premier500",  price: "₩43,000",  members: "500명",  storage: "20GB", video: true },
+    { name: "Premier1000", price: "₩79,000",  members: "1000명", storage: "50GB", video: true },
   ]},
 ];
 
@@ -270,6 +268,31 @@ export default function SubscriptionProductsScreen() {
   const [plansLoading, setPlansLoading] = useState(false);
   const [showPlanForm, setShowPlanForm] = useState(false);
   const [editPlan,     setEditPlan]     = useState<SubscriptionPlan | null>(null);
+  const [reiniting,    setReiniting]    = useState(false);
+
+  async function handleReinit() {
+    Alert.alert(
+      "플랜 기준값 초기화",
+      "모든 플랜을 확정 기준값(Coach 30/50/100 · Premier 200/300/500/1000)으로 덮어씁니다.\n폐기 플랜(엔터프라이즈 등)은 삭제됩니다.\n계속하시겠습니까?",
+      [
+        { text: "취소", style: "cancel" },
+        { text: "초기화", style: "destructive", onPress: async () => {
+          try {
+            setReiniting(true);
+            const r = await apiRequest(token, "/super/plans/reinit", { method: "POST" });
+            const d = await r.json();
+            if (r.ok) {
+              Alert.alert("완료", d.message ?? "플랜 초기화 완료");
+              await loadPlans();
+            } else {
+              Alert.alert("오류", d.error ?? "초기화 실패");
+            }
+          } catch { Alert.alert("오류", "서버 통신에 실패했습니다."); }
+          finally { setReiniting(false); }
+        }},
+      ]
+    );
+  }
 
   async function loadPlans() {
     setPlansLoading(true);
@@ -326,10 +349,19 @@ export default function SubscriptionProductsScreen() {
     <SafeAreaView style={s.safe} edges={["top"]}>
       <SubScreenHeader title="구독 플랜 설정" subtitle="Coach · Premier 플랜 관리" homePath="/(super)/more" />
 
-      <Pressable style={s.createBtn} onPress={() => { setEditPlan(null); setShowPlanForm(true); }}>
-        <CirclePlus size={16} color="#fff" />
-        <Text style={s.createBtnTxt}>새 구독 플랜 생성</Text>
-      </Pressable>
+      <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 8 }}>
+        <Pressable style={[s.createBtn, { flex: 1 }]} onPress={() => { setEditPlan(null); setShowPlanForm(true); }}>
+          <LucideIcon name="plus-circle" size={16} color="#fff" />
+          <Text style={s.createBtnTxt}>새 구독 플랜 생성</Text>
+        </Pressable>
+        <Pressable
+          style={[s.createBtn, { flex: 0, paddingHorizontal: 14, backgroundColor: reiniting ? "#999" : "#DC2626" }]}
+          onPress={handleReinit}
+          disabled={reiniting}
+        >
+          <Text style={[s.createBtnTxt, { fontSize: 12 }]}>{reiniting ? "초기화 중…" : "기준값으로\n초기화"}</Text>
+        </Pressable>
+      </View>
 
       <FlatList
         data={plans}
@@ -369,7 +401,7 @@ export default function SubscriptionProductsScreen() {
         }
         ListEmptyComponent={
           <View style={s.empty}>
-            <Package size={36} color="#D1D5DB" />
+            <LucideIcon name="package" size={36} color="#D1D5DB" />
             <Text style={s.emptyTxt}>등록된 구독 플랜이 없습니다</Text>
             <Text style={[s.emptyTxt, { fontSize: 12, marginTop: 4 }]}>위 "새 구독 플랜 생성"으로 추가하세요</Text>
           </View>

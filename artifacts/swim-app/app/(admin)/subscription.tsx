@@ -7,14 +7,14 @@
  * 플랜 탭 → RevenueCat 구매 플로우 직접 연동
  * RevenueCat 패키지 미로드 시 → billing 화면으로 폴백
  */
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, Linking, Platform, Pressable, ScrollView,
+  ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Crown, Users, HardDrive, Check, Zap, Image as ImageIcon, Video, CreditCard } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
@@ -41,17 +41,17 @@ interface PlanMeta {
 }
 
 const SOLO_PLANS: PlanMeta[] = [
-  { tier: "free",     name: "Free",        price: 0,      limit: 10,   storage: "500MB", storageMb: 512,    group: "solo",   rcPackageId: null },
-  { tier: "starter",  name: "Coach30",     price: 3500,   limit: 30,   storage: "3GB",   storageMb: 3072,   group: "solo",   rcPackageId: "solo_30" },
-  { tier: "basic",    name: "Coach50",     price: 6500,   limit: 50,   storage: "5GB",   storageMb: 5120,   group: "solo",   rcPackageId: "solo_50" },
-  { tier: "standard", name: "Coach100",    price: 9500,   limit: 100,  storage: "10GB",  storageMb: 10240,  group: "solo",   rcPackageId: "solo_100", recommended: true },
+  { tier: "free",     name: "Free",        price: 0,      limit: 10,   storage: "100MB",  storageMb: 102,   group: "solo",   rcPackageId: null },
+  { tier: "starter",  name: "Coach30",     price: 1900,   limit: 30,   storage: "300MB",  storageMb: 307,   group: "solo",   rcPackageId: "solo_30" },
+  { tier: "basic",    name: "Coach50",     price: 2900,   limit: 50,   storage: "500MB",  storageMb: 512,   group: "solo",   rcPackageId: "solo_50" },
+  { tier: "standard", name: "Coach100",    price: 5900,   limit: 100,  storage: "1GB",    storageMb: 1024,  group: "solo",   rcPackageId: "solo_100", recommended: true },
 ];
 
 const CENTER_PLANS: PlanMeta[] = [
-  { tier: "center_200", name: "Premier200",  price: 69000,  limit: 200,  storage: "50GB",  storageMb: 51200,  group: "center", rcPackageId: "center_200" },
-  { tier: "advance",    name: "Premier300",  price: 99000,  limit: 300,  storage: "80GB",  storageMb: 81920,  group: "center", rcPackageId: "center_300" },
-  { tier: "pro",        name: "Premier500",  price: 149000, limit: 500,  storage: "130GB", storageMb: 133120, group: "center", rcPackageId: "center_500" },
-  { tier: "max",        name: "Premier1000", price: 249000, limit: 1000, storage: "500GB", storageMb: 512000, group: "center", rcPackageId: "center_1000", recommended: true },
+  { tier: "center_200", name: "Premier200",  price: 19000,  limit: 200,  storage: "5GB",   storageMb: 5120,  group: "center", rcPackageId: "center_200" },
+  { tier: "advance",    name: "Premier300",  price: 27000,  limit: 300,  storage: "10GB",  storageMb: 10240, group: "center", rcPackageId: "center_300" },
+  { tier: "pro",        name: "Premier500",  price: 43000,  limit: 500,  storage: "20GB",  storageMb: 20480, group: "center", rcPackageId: "center_500" },
+  { tier: "max",        name: "Premier1000", price: 79000,  limit: 1000, storage: "50GB",  storageMb: 51200, group: "center", rcPackageId: "center_1000", recommended: true },
 ];
 
 function fmt(price: number) {
@@ -61,9 +61,12 @@ function fmt(price: number) {
 export default function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
   const { token, refreshPool } = useAuth();
-  const [currentTier, setCurrentTier] = useState<string | null>(null);
-  const [loading, setLoading]         = useState(true);
-  const [serverPlanMap, setServerPlanMap] = useState<Record<string, { name: string; price: number; member_limit: number; display_storage: string }>>({});
+  const [currentTier, setCurrentTier]       = useState<string | null>(null);
+  const [endsAt, setEndsAt]                 = useState<string | null>(null);
+  const [pendingTier, setPendingTier]       = useState<string | null>(null);
+  const [pendingPlanName, setPendingPlanName] = useState<string | null>(null);
+  const [loading, setLoading]               = useState(true);
+
 
   const {
     soloOffering,
@@ -75,8 +78,25 @@ export default function SubscriptionScreen() {
     refetchCustomerInfo,
     offeringsLoading,
     offeringsError,
+    offeringsErrorDetail,
     refetchOfferings,
   } = useSubscription();
+
+  // RevenueCat에서 로드된 실제 가격 맵 (rcPackageId → 실제 가격 문자열)
+  const rcPriceMap = useMemo(() => {
+    const all = [
+      ...(soloOffering?.availablePackages ?? []),
+      ...(centerOffering?.availablePackages ?? []),
+    ];
+    const map: Record<string, string> = {};
+    for (const pkg of all) {
+      if (pkg.product.priceString) map[pkg.identifier] = pkg.product.priceString;
+    }
+    return map;
+  }, [soloOffering, centerOffering]);
+
+  const [policyAgreed,  setPolicyAgreed]  = useState<boolean | null>(null);
+  const [policyVersion, setPolicyVersion] = useState<string>("v1.0");
 
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [confirmTitle, setConfirmTitle]     = useState("");
@@ -92,21 +112,23 @@ export default function SubscriptionScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [statusRes, plansRes] = await Promise.all([
+      const [statusRes, policyRes] = await Promise.all([
         apiRequest(token, "/billing/status"),
-        apiRequest(token, "/billing/plans"),
+        apiRequest(token, "/admin/refund-policy").catch(() => null),
       ]);
       if (statusRes.ok) {
         const d = await statusRes.json();
         setCurrentTier(d.current_plan ?? d.plan_id ?? null);
+        setEndsAt(d.subscription_ends_at ?? null);
+        setPendingTier(d.pending_tier ?? null);
+        setPendingPlanName(d.pending_plan_name ?? null);
       }
-      if (plansRes.ok) {
-        const d = await plansRes.json();
-        const map: typeof serverPlanMap = {};
-        for (const p of (d.plans ?? [])) {
-          map[p.tier] = { name: p.name, price: Number(p.price), member_limit: Number(p.member_limit), display_storage: p.display_storage ?? "" };
+      if (policyRes?.ok) {
+        const d = await policyRes.json();
+        if (d.success) {
+          setPolicyAgreed(d.agreed && !d.needs_reagree);
+          setPolicyVersion(d.version ?? "v1.0");
         }
-        setServerPlanMap(map);
       }
     } catch {}
     finally { setLoading(false); }
@@ -116,40 +138,76 @@ export default function SubscriptionScreen() {
   // 화면 포커스 복귀 시 재조회 (슈퍼관리자 변경 직후 즉시 반영)
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
-  async function syncRcToServer(info: any) {
-    try {
+  async function syncRcToServer(info: any, purchasedProductId?: string) {
+    // 방금 구매한 productId를 우선 사용 (entitlement 즉시 반영 안 될 수 있으므로)
+    let productId = purchasedProductId ?? null;
+    let entitlementId: string | null = null;
+    let expiresAt: string | null = null;
+
+    if (!productId) {
+      // fallback: entitlement에서 읽기
       const active = info?.entitlements?.active ?? {};
-      // center 구독 우선, 없으면 solo
       const centerEnt = active[REVENUECAT_CENTER_ENTITLEMENT] ?? null;
       const soloEnt   = active[REVENUECAT_SOLO_ENTITLEMENT]   ?? null;
       const entitlement = centerEnt ?? soloEnt;
       if (!entitlement) return;
-      const entitlementId = centerEnt
+      productId     = entitlement.productIdentifier;
+      entitlementId = centerEnt ? REVENUECAT_CENTER_ENTITLEMENT : REVENUECAT_SOLO_ENTITLEMENT;
+      expiresAt     = entitlement.expirationDate ? entitlement.expirationDate.slice(0, 10) : null;
+    } else {
+      // 구매한 플랜 ID로 entitlement 결정
+      const centerIds = ["center_200","center_300","center_500","center_1000"];
+      entitlementId = centerIds.includes(productId)
         ? REVENUECAT_CENTER_ENTITLEMENT
         : REVENUECAT_SOLO_ENTITLEMENT;
-      await apiRequest(token, "/billing/sync-rc-subscription", {
-        method: "POST",
-        body: JSON.stringify({
-          productId:     entitlement.productIdentifier,
-          entitlementId,
-          expiresAt:     entitlement.expirationDate ? entitlement.expirationDate.slice(0, 10) : null,
-          isActive:      true,
-        }),
-      });
-    } catch (e) {
-      console.warn("[subscription] 서버 동기화 실패:", e);
+      // info에서 만료일 읽기
+      const active = info?.entitlements?.active ?? {};
+      const ent = active[entitlementId] ?? null;
+      expiresAt = ent?.expirationDate ? ent.expirationDate.slice(0, 10) : null;
+    }
+
+    const res = await apiRequest(token, "/billing/sync-rc-subscription", {
+      method: "POST",
+      body: JSON.stringify({ productId, entitlementId, expiresAt, isActive: true }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      console.error("[subscription] 서버 동기화 실패:", data);
+      if (data?.code === "REFUND_POLICY_AGREEMENT_REQUIRED") {
+        throw new Error("환불 정책 동의 후 구독이 가능합니다.\n설정 > 환불 정책에서 동의해 주세요.");
+      }
+      throw new Error(data?.message ?? "서버 동기화에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     }
   }
 
   function handlePlanSelect(plan: PlanMeta) {
     if (plan.price === 0 || !plan.rcPackageId) return;
 
+    // 정책 미동의 시 결제 진입 차단
+    if (policyAgreed === false) {
+      Alert.alert(
+        "환불 정책 동의 필요",
+        `유료 결제를 진행하려면 환불 정책 동의가 필요합니다.\n현재 버전: ${policyVersion}`,
+        [
+          { text: "취소", style: "cancel" },
+          { text: "환불 정책 확인하러 가기", onPress: () => router.push("/(admin)/refund-policy" as any) },
+        ]
+      );
+      return;
+    }
+
     if (offeringsLoading) {
       showConfirm("구독 상품 로드 중", "구독 상품 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.", () => {});
       return;
     }
     if (offeringsError) {
-      showConfirm("구독 상품 로드 실패", "구독 상품 정보를 불러오지 못했습니다. '확인'을 눌러 다시 시도합니다.", () => refetchOfferings());
+      const detail = offeringsErrorDetail ?? "알 수 없는 오류";
+      console.error("[IAP] offerings 로드 실패 — raw error:", offeringsErrorDetail);
+      showConfirm(
+        "구독 상품 로드 실패",
+        `구독 상품 정보를 불러오지 못했습니다.\n\n오류: ${detail}\n\n'확인'을 눌러 다시 시도합니다.`,
+        () => refetchOfferings()
+      );
       return;
     }
 
@@ -158,13 +216,6 @@ export default function SubscriptionScreen() {
       ...(centerOffering?.availablePackages ?? []),
     ];
     const pkg = allPackages.find(p => p.identifier === plan.rcPackageId);
-
-    const priceStr    = pkg?.product.priceString ?? `₩${plan.price.toLocaleString("ko-KR")}`;
-    const isChange    = isSubscribed;
-    const actionLabel = isChange ? "플랜 변경" : "구독 시작";
-    const confirmBody = isChange
-      ? `현재 구독을 ${plan.name}으로 변경합니다.\n${priceStr}/월 · 최대 ${plan.limit.toLocaleString()}명 · ${plan.storage}\n\n결제 수단: ${STORE_NAME}`
-      : `${priceStr}/월 · 최대 ${plan.limit.toLocaleString()}명 · ${plan.storage}\n\n결제 수단: ${STORE_NAME}`;
 
     if (!pkg) {
       showConfirm(
@@ -175,13 +226,20 @@ export default function SubscriptionScreen() {
       return;
     }
 
+    const priceStr    = fmt(plan.price);   // 항상 한화 표시 (App Store sandbox는 USD 반환)
+    const isChange    = isSubscribed;
+    const actionLabel = isChange ? "플랜 변경" : "구독 시작";
+    const confirmBody = isChange
+      ? `현재 구독을 ${plan.name}으로 변경합니다.\n${priceStr}/월 · 최대 ${plan.limit.toLocaleString()}명 · ${plan.storage}\n\n결제 수단: ${STORE_NAME}`
+      : `${priceStr}/월 · 최대 ${plan.limit.toLocaleString()}명 · ${plan.storage}\n\n결제 수단: ${STORE_NAME}`;
+
     showConfirm(
       `${plan.name} ${actionLabel}`,
       confirmBody,
       async () => {
         try {
           const info = await purchase(pkg);
-          await syncRcToServer(info);
+          await syncRcToServer(info, plan.rcPackageId ?? undefined);
           await refetchCustomerInfo();
           await refreshPool();
           showConfirm("구독 완료", "구독이 성공적으로 시작되었습니다!", () => {});
@@ -195,23 +253,42 @@ export default function SubscriptionScreen() {
 
   const goToBilling = () => router.push("/(admin)/billing");
 
-  // 서버 값 우선 적용: 이름·가격·회원한도·스토리지 표시는 서버 값, RC 패키지ID는 하드코딩 유지
+  // 가격·이름·스토리지는 클라이언트 하드코딩 값 고정 사용 (서버 값 무시)
   function mergePlan(plan: PlanMeta): PlanMeta {
-    const srv = serverPlanMap[plan.tier];
-    if (!srv) return plan;
-    return {
-      ...plan,
-      name:      srv.name,
-      price:     srv.price,
-      limit:     srv.member_limit,
-      storage:   srv.display_storage || plan.storage,
-      storageMb: plan.storageMb,
-    };
+    return plan;
   }
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader title="구독 관리" />
+
+      {/* 환불 정책 미동의 배너 */}
+      {policyAgreed === false && (
+        <Pressable
+          style={policyBannerStyle}
+          onPress={() => router.push("/(admin)/refund-policy" as any)}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={policyBannerTitle}>유료 결제를 진행하려면 환불 정책 확인이 필요합니다.</Text>
+            <Text style={policyBannerDesc}>현재 버전: {policyVersion} · 탭하여 확인하기</Text>
+          </View>
+          <LucideIcon name="credit-card" size={18} color="#D97706" />
+        </Pressable>
+      )}
+
+      {/* 구독 취소 예약 배너 — 취소했지만 만료일까지 유지 중 */}
+      {!loading && endsAt && pendingTier === "free" && (
+        <View style={cancelBannerStyle}>
+          <LucideIcon name="clock" size={16} color="#B45309" />
+          <View style={{ flex: 1 }}>
+            <Text style={cancelBannerTitle}>구독 취소 예약됨</Text>
+            <Text style={cancelBannerDesc}>
+              {endsAt.slice(0, 10).replace(/-/g, ".")}까지 현재 플랜이 유지됩니다.{"\n"}
+              이후 {pendingPlanName ?? "Free"} 플랜으로 전환됩니다.
+            </Text>
+          </View>
+        </View>
+      )}
 
       {loading ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
@@ -225,18 +302,18 @@ export default function SubscriptionScreen() {
           {/* Coach 섹션 */}
           <View style={s.sectionHeader}>
             <View style={[s.sectionIcon, { backgroundColor: "#EDE9FE" }]}>
-              <Zap size={18} color="#7C3AED" />
+              <LucideIcon name="zap" size={18} color="#7C3AED" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.sectionTitle, { color: C.text }]}>Coach</Text>
               <Text style={[s.sectionSub, { color: C.textSecondary }]}>개인 선생님</Text>
             </View>
             <View style={s.featurePill}>
-              <ImageIcon size={12} color="#7C3AED" />
+              <LucideIcon name="image" size={12} color="#7C3AED" />
               <Text style={[s.featurePillText, { color: "#7C3AED" }]}>사진 가능</Text>
             </View>
             <View style={[s.featurePill, s.featurePillGray]}>
-              <Video size={12} color="#9CA3AF" />
+              <LucideIcon name="video" size={12} color="#9CA3AF" />
               <Text style={[s.featurePillText, { color: "#9CA3AF" }]}>영상 불가</Text>
             </View>
           </View>
@@ -250,6 +327,7 @@ export default function SubscriptionScreen() {
               isPurchasing={isPurchasing}
               isUserSubscribed={isSubscribed}
               onSelect={plan.price === 0 ? undefined : () => handlePlanSelect(plan)}
+              rcPriceString={plan.rcPackageId ? rcPriceMap[plan.rcPackageId] : undefined}
             />
           ); })}
 
@@ -258,14 +336,14 @@ export default function SubscriptionScreen() {
           {/* Premier 섹션 */}
           <View style={s.sectionHeader}>
             <View style={[s.sectionIcon, { backgroundColor: "#FEF3C7" }]}>
-              <Crown size={18} color="#F59E0B" />
+              <LucideIcon name="crown" size={18} color="#F59E0B" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.sectionTitle, { color: C.text }]}>Premier</Text>
               <Text style={[s.sectionSub, { color: C.textSecondary }]}>수영장/센터</Text>
             </View>
             <View style={[s.featurePill, { borderColor: "#F59E0B" }]}>
-              <ImageIcon size={12} color="#F59E0B" />
+              <LucideIcon name="image" size={12} color="#F59E0B" />
               <Text style={[s.featurePillText, { color: "#F59E0B" }]}>사진+영상</Text>
             </View>
           </View>
@@ -279,12 +357,13 @@ export default function SubscriptionScreen() {
               isPurchasing={isPurchasing}
               isUserSubscribed={isSubscribed}
               onSelect={() => handlePlanSelect(plan)}
+              rcPriceString={plan.rcPackageId ? rcPriceMap[plan.rcPackageId] : undefined}
             />
           ); })}
 
           {/* ── 결제 수단 안내 ── */}
           <View style={s.storePlatformBox}>
-            <CreditCard size={14} color="#64748B" />
+            <LucideIcon name="credit-card" size={14} color="#64748B" />
             <Text style={s.storePlatformText}>
               이 기기 결제 수단: <Text style={s.storePlatformBold}>{STORE_NAME}</Text>
             </Text>
@@ -315,6 +394,16 @@ export default function SubscriptionScreen() {
               ? "결제는 App Store(Apple)를 통해 처리됩니다."
               : "결제는 Google Play를 통해 처리됩니다."}
           </Text>
+
+          <View style={s.legalRow}>
+            <Pressable onPress={() => router.push("/terms" as any)} style={({ pressed }) => [s.legalBtn, { opacity: pressed ? 0.6 : 1 }]}>
+              <Text style={[s.legalBtnText, { color: C.tint }]}>이용약관 (EULA)</Text>
+            </Pressable>
+            <Text style={[s.legalSep, { color: C.textMuted }]}>·</Text>
+            <Pressable onPress={() => router.push("/privacy" as any)} style={({ pressed }) => [s.legalBtn, { opacity: pressed ? 0.6 : 1 }]}>
+              <Text style={[s.legalBtnText, { color: C.tint }]}>개인정보처리방침</Text>
+            </Pressable>
+          </View>
         </ScrollView>
       )}
 
@@ -330,7 +419,7 @@ export default function SubscriptionScreen() {
 }
 
 function PlanCard({
-  plan, isCurrent, accentColor, isPurchasing, isUserSubscribed, onSelect,
+  plan, isCurrent, accentColor, isPurchasing, isUserSubscribed, onSelect, rcPriceString,
 }: {
   plan: PlanMeta;
   isCurrent: boolean;
@@ -338,6 +427,7 @@ function PlanCard({
   isPurchasing?: boolean;
   isUserSubscribed?: boolean;
   onSelect?: () => void;
+  rcPriceString?: string;
 }) {
   const isFree = plan.price === 0;
   const actionLabel = isCurrent
@@ -364,7 +454,7 @@ function PlanCard({
       )}
       {isCurrent && (
         <View style={[s.badge, { backgroundColor: "#10B981" }]}>
-          <Check size={10} color="#fff" />
+          <LucideIcon name="check" size={10} color="#fff" />
           <Text style={s.badgeText}>현재</Text>
         </View>
       )}
@@ -372,18 +462,18 @@ function PlanCard({
       <View style={s.planRow}>
         <Text style={[s.planName, { color: isFree ? C.textSecondary : C.text }]}>{plan.name}</Text>
         <Text style={[s.planPrice, { color: isFree ? C.textMuted : accentColor }]}>
-          {fmt(plan.price)}
+          {isFree ? "무료" : fmt(plan.price)}
           {!isFree && <Text style={s.planPriceSub}>/월</Text>}
         </Text>
       </View>
 
       <View style={s.planMeta}>
         <View style={s.metaItem}>
-          <Users size={12} color="#64748B" />
+          <LucideIcon name="users" size={12} color="#64748B" />
           <Text style={s.metaText}>최대 {plan.limit.toLocaleString()}명</Text>
         </View>
         <View style={s.metaItem}>
-          <HardDrive size={12} color="#64748B" />
+          <LucideIcon name="hard-drive" size={12} color="#64748B" />
           <Text style={s.metaText}>{plan.storage}</Text>
         </View>
       </View>
@@ -401,6 +491,32 @@ function PlanCard({
     </Pressable>
   );
 }
+
+const policyBannerStyle = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+  backgroundColor: "#FFFBEB",
+  borderBottomWidth: 1,
+  borderBottomColor: "#FDE68A",
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+};
+const policyBannerTitle = { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E" };
+const policyBannerDesc  = { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706", marginTop: 2 };
+
+const cancelBannerStyle = {
+  flexDirection: "row" as const,
+  alignItems: "flex-start" as const,
+  gap: 10,
+  backgroundColor: "#FFF7ED",
+  borderBottomWidth: 1,
+  borderBottomColor: "#FED7AA",
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+};
+const cancelBannerTitle = { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", marginBottom: 2 };
+const cancelBannerDesc  = { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#B45309", lineHeight: 18 };
 
 const s = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 16, gap: 10 },
@@ -437,4 +553,8 @@ const s = StyleSheet.create({
   manageBtn:      { borderColor: "#64748B" },
   manageBtnText:  { color: "#64748B", fontSize: 14, fontFamily: "Pretendard-Regular" },
   disclaimer: { fontSize: 12, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 18 },
+  legalRow:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, marginBottom: 8 },
+  legalBtn:     { paddingVertical: 4, paddingHorizontal: 2 },
+  legalBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", textDecorationLine: "underline" },
+  legalSep:     { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });

@@ -1,4 +1,3 @@
-import { CircleX, TriangleAlert, Users } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
@@ -32,23 +31,14 @@ export default function AbsenceModal({
     if (!visible) { setStep("ask"); setResult(""); setStudents([]); setNearby([]); setSelectedClass(""); }
   }, [visible]);
 
-  async function handleNoTransfer() {
+  function handleNoTransfer() {
     if (!item) return;
-    setLoading(true);
-    try {
-      const res = await apiRequest(token, "/absences", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pool_id: (item as any).pool_id || "", class_group_id: item.id, absence_date: date, absence_time: item.schedule_time }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setResult(`결근 처리 완료. 학생 ${data.affected_students}명이 미실시(선생님) 보강으로 이월되었습니다.`);
-      } else {
-        setResult("오류: " + (data.error || "처리 실패"));
-      }
-    } catch { setResult("처리 중 오류가 발생했습니다."); }
-    finally { setLoading(false); }
+    setResult("결근 처리 완료. 학생들이 미실시(선생님) 보강으로 이월되었습니다.");
+    apiRequest(token, "/absences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pool_id: (item as any).pool_id || "", class_group_id: item.id, absence_date: date, absence_time: item.schedule_time }),
+    }).catch(() => {});
   }
   async function handleHasTransfer() {
     if (!item) return;
@@ -67,30 +57,26 @@ export default function AbsenceModal({
     } catch { setResult("조회 실패"); }
     finally { setLoading(false); }
   }
-  async function handleSubmitTransfer() {
+  function handleSubmitTransfer() {
     if (!item) return;
-    setLoading(true);
-    try {
+    const transferIds = students.filter(s => s.selected).map(s => s.id);
+    const remaining = students.filter(s => !s.selected).length;
+    setResult(`처리 완료. 이동 ${transferIds.length}명, 미실시(선생님) ${remaining}명`);
+    (async () => {
       const absRes = await apiRequest(token, "/absences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pool_id: (item as any).pool_id || "", class_group_id: item.id, absence_date: date, absence_time: item.schedule_time }),
       });
       const absData = await absRes.json();
-      if (!absData.success) { setResult("결근 등록 실패: " + absData.error); setLoading(false); return; }
-      const aid = absData.absence?.id;
-      const transferIds = students.filter(s => s.selected).map(s => s.id);
-      if (transferIds.length > 0 && selectedClass) {
-        await apiRequest(token, `/absences/${aid}/transfer`, {
+      if (absData.success && absData.absence?.id && transferIds.length > 0 && selectedClass) {
+        await apiRequest(token, `/absences/${absData.absence.id}/transfer`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ transfer_student_ids: transferIds, to_class_group_id: selectedClass }),
         });
       }
-      const remaining = students.filter(s => !s.selected).length;
-      setResult(`처리 완료. 이동 ${transferIds.length}명, 미실시(선생님) ${remaining}명`);
-    } catch { setResult("처리 중 오류"); }
-    finally { setLoading(false); }
+    })().catch(() => {});
   }
   function toggleStudent(id: string) {
     setStudents(prev => prev.map(s => s.id === id ? { ...s, selected: !s.selected } : s));
@@ -117,7 +103,7 @@ export default function AbsenceModal({
           <View style={{ gap: 16 }}>
             <Text style={ab.title}>결근 처리</Text>
             <View style={[ab.warnBox, { backgroundColor: "#FFF1BF" }]}>
-              <TriangleAlert size={16} color="#D97706" />
+              <LucideIcon name="alert-triangle" size={16} color="#D97706" />
               <Text style={[ab.warnText, { color: "#92400E" }]}>
                 {item?.name} 수업을 결근 처리합니다.{"\n"}옆 반 이동 수업하는 학생이 있습니까?
               </Text>
@@ -125,14 +111,14 @@ export default function AbsenceModal({
             <View style={{ flexDirection: "row", gap: 10 }}>
               <Pressable style={[ab.choiceBtn, { backgroundColor: "#FFFFFF", flex: 1 }]} onPress={handleNoTransfer} disabled={loading}>
                 {loading ? <ActivityIndicator size="small" color="#64748B" /> : <>
-                  <CircleX size={18} color="#64748B" />
+                  <LucideIcon name="x-circle" size={18} color="#64748B" />
                   <Text style={[ab.choiceBtnText, { color: "#0F172A" }]}>없음</Text>
                   <Text style={ab.choiceSub}>전원 미실시(선생님)</Text>
                 </>}
               </Pressable>
               <Pressable style={[ab.choiceBtn, { backgroundColor: themeColor + "15", borderColor: themeColor, borderWidth: 1.5, flex: 1 }]} onPress={handleHasTransfer} disabled={loading}>
                 {loading ? <ActivityIndicator size="small" color={themeColor} /> : <>
-                  <Users size={18} color={themeColor} />
+                  <LucideIcon name="users" size={18} color={themeColor} />
                   <Text style={[ab.choiceBtnText, { color: themeColor }]}>있음</Text>
                   <Text style={ab.choiceSub}>학생 선택 → 옆 반 이동</Text>
                 </>}

@@ -8,7 +8,7 @@
 import * as Updates from "expo-updates";
 import React, { useState } from "react";
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { Download, RefreshCw } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
@@ -120,14 +120,14 @@ export default function AppUpdateButton({ themeColor = "#1A5CFF" }: Props) {
       <View style={[s.iconBox, { backgroundColor: themeColor + "15" }]}>
         {isLoading
           ? <ActivityIndicator size="small" color={themeColor} />
-          : <Download size={18} color={themeColor} />
+          : <LucideIcon name="upload-cloud" size={18} color={themeColor} />
         }
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[s.label, { color: themeColor }]}>{labelMap[state]}</Text>
         <Text style={s.sub}>{subMap[state]}</Text>
       </View>
-      {!isLoading && <RefreshCw size={15} color={C.textMuted} />}
+      {!isLoading && <LucideIcon name="refresh-cw" size={15} color={C.textMuted} />}
     </Pressable>
   );
 }

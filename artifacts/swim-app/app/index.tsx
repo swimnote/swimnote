@@ -4,16 +4,13 @@
  * 중단: 아이디/비밀번호 입력 + 로그인 버튼 + 비밀번호 찾기
  * 하단: or 구분선 + 카카오 가입 / 일반 가입
  */
-console.log("[INDEX_SCREEN] login screen loaded");
-import { CircleAlert, Key, Lock, User, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import Svg, { Ellipse, Path } from "react-native-svg";
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Alert, Dimensions, Image, Keyboard, Modal,
-  Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Dimensions, Image, Keyboard, Modal,
+  Platform, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
@@ -36,8 +33,15 @@ function KakaoIcon({ size = 22 }: { size?: number }) {
   );
 }
 
+function AppleIcon({ size = 22 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="#fff">
+      <Path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+    </Svg>
+  );
+}
+
 export default function LoginScreen() {
-  console.log("[LOGIN] RENDER_START");
   const { unifiedLogin, kakaoSocialLogin, appleSocialLogin } = useAuth();
   const insets = useSafeAreaInsets();
   const pwRef  = useRef<TextInput>(null);
@@ -48,7 +52,7 @@ export default function LoginScreen() {
   const [loading,    setLoading]          = useState(false);
   const [kakaoLoading, setKakaoLoading]   = useState(false);
   const [appleLoading, setAppleLoading]   = useState(false);
-  const [appleAvailable, setAppleAvailable] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(Platform.OS === "ios");
   const [error,      setError]            = useState("");
   const [failCount,  setFailCount]        = useState(0);
   const [showNotFoundModal, setShowNotFoundModal] = useState(false);
@@ -56,17 +60,19 @@ export default function LoginScreen() {
   const [focusedField, setFocusedField]           = useState<"id" | "pw" | null>(null);
 
   useEffect(() => {
-    console.log("[LOGIN] useEffect:apple-check start platform=" + Platform.OS);
     if (Platform.OS === "ios") {
       AppleAuthentication.isAvailableAsync().then(available => {
         console.log("[LOGIN] apple available=" + available);
-        setAppleAvailable(available);
-      }).catch((e: any) => { console.log("[LOGIN] apple check error=" + e?.message); setAppleAvailable(false); });
+        // false가 확실히 확인될 때만 버튼 숨김. true 응답은 현재 상태 유지.
+        if (!available) setAppleAvailable(false);
+      }).catch((e: any) => {
+        // 체크 에러는 버튼 숨김으로 처리하지 않음 — 실기기에서는 정상 동작하므로 유지
+        console.log("[LOGIN] apple check error (버튼 유지)=" + e?.message);
+      });
     }
   }, []);
 
   useEffect(() => {
-    console.log("[LOGIN] useEffect:keyboard registered");
     const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvt = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
     const onShow = Keyboard.addListener(showEvt, (e) => {
@@ -91,9 +97,22 @@ export default function LoginScreen() {
       const e = err as Error & {
         needs_activation?: boolean; teacher_id?: string;
         error_code?: string; totp_required?: boolean; totp_session?: string;
+        days_until_deletion?: number; deletion_scheduled_at?: string; deactivated_at?: string;
       };
       if (e.totp_required && e.totp_session) {
         router.push({ pathname: "/otp-verify", params: { session: e.totp_session } } as any); return;
+      }
+      if (e.error_code === "pool_deactivated") {
+        router.push({
+          pathname: "/(auth)/pool-deactivated",
+          params: {
+            days_until_deletion:   String(e.days_until_deletion ?? 0),
+            deletion_scheduled_at: e.deletion_scheduled_at ?? "",
+            pool_name:             "",
+            is_teacher:            "false",
+          },
+        } as any);
+        return;
       }
       if (e.error_code === "pending_pool_request") {
         setError("가입 요청이 승인 대기 중입니다.\n수영장 관리자 승인 후 로그인 가능합니다."); return;
@@ -109,58 +128,68 @@ export default function LoginScreen() {
         setFailCount(n => n + 1);
         setError("아이디 또는 비밀번호가 올바르지 않습니다."); return;
       }
+      if (e.error_code === "withdrawal_in_progress") {
+        const daysLeft = (e as any).days_until_deletion;
+        setError(daysLeft != null
+          ? `탈퇴 처리 중인 계정입니다. ${daysLeft}일 후 완전히 삭제됩니다.\n재구독하시면 탈퇴 신청이 자동으로 취소됩니다.`
+          : "탈퇴 처리 중인 계정입니다.");
+        return;
+      }
       setError(e.message || "아이디 또는 비밀번호를 확인해주세요.");
     } finally { setLoading(false); }
   }
 
   async function handleAppleLogin() {
-    if (!appleAvailable) { setError("이 기기에서는 Apple 로그인을 사용할 수 없습니다."); return; }
-    setAppleLoading(true); setError("");
+    if (appleLoading) return;
+    const tid = "AL-" + Date.now().toString(36).toUpperCase();
+    console.log(`[AppleLogin][STEP1] 버튼 탭 traceId=${tid}`);
+    setAppleLoading(true);
+    setError("");
     try {
+      console.log(`[AppleLogin][STEP2 START] traceId=${tid} signInAsync 호출`);
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
+      console.log(`[AppleLogin][STEP2 OK] traceId=${tid} user=${credential.user?.substring(0,8)}*** hasToken=${!!credential.identityToken} hasFullName=${!!credential.fullName}`);
+      if (!credential.identityToken) {
+        console.log(`[AppleLogin][STEP2 FAIL] traceId=${tid} identityToken 없음`);
+        setError("Apple 인증 토큰을 받지 못했습니다. 다시 시도해주세요.");
+        return;
+      }
       const fullName = credential.fullName
         ? [credential.fullName.familyName, credential.fullName.givenName].filter(Boolean).join("")
         : null;
-      // identityToken이 null이면 Apple 인증 자체가 실패한 것
-      if (!credential.identityToken) {
-        setError("Apple 인증에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      console.log(`[AppleLogin][STEP3 START] traceId=${tid} appleSocialLogin 호출 fullName=${fullName ?? "없음"}`);
+      const loginKind = await appleSocialLogin(credential.identityToken, fullName, tid);
+      console.log(`[AppleLogin][STEP5 OK] traceId=${tid} appleSocialLogin 정상 완료 kind=${loginKind} → finishLogin이 라우팅 처리`);
+    } catch (e: any) {
+      const code = e?.code ?? "";
+      const errCode = e?.error_code ?? "";
+      console.log(`[AppleLogin][CATCH] traceId=${tid} code=${code} errCode=${errCode} msg=${e?.message}`);
+      if (code === "ERR_REQUEST_CANCELED" || code === "ERR_CANCELED") {
+        console.log(`[AppleLogin][STEP2 CANCEL] traceId=${tid} 사용자 취소`);
         return;
       }
-      await appleSocialLogin(credential.identityToken, fullName);
-    } catch (err: unknown) {
-      const e = err as any;
-      // 사용자가 직접 취소한 경우 → 무시
-      if (e?.code === "ERR_REQUEST_CANCELED" || e?.code === "ERR_CANCELED") return;
-      const code = e?.error_code;
-      if (code === "apple_no_account") {
-        Alert.alert(
-          "연결된 계정 없음",
-          "이 Apple ID에 연결된 SwimNote 계정이 없습니다.\n\n수영장 관리자에게 전화번호 등록을 요청한 후 '계정 연결하기'를 눌러주세요.",
-          [
-            { text: "닫기", style: "cancel" },
-            {
-              text: "계정 연결하기",
-              onPress: () => router.push({
-                pathname: "/(auth)/kakao-link",
-                params: {
-                  kakaoId: e.apple_info?.apple_id ?? "",
-                  kakaoName: e.apple_info?.name ?? "",
-                  kakaoProfileImage: "",
-                  loginType: "apple",
-                },
-              } as any),
-            },
-          ]
-        );
+      if (errCode === "apple_no_account") {
+        console.log(`[AppleLogin][STEP4 NO_ACCOUNT] traceId=${tid} 계정 없음 → 가입 화면`);
+        router.push({
+          pathname: "/(auth)/signup",
+          params: {
+            appleId:    e.apple_info?.apple_id ?? "",
+            appleEmail: e.apple_info?.email    ?? "",
+            appleName:  e.apple_info?.name     ?? "",
+          },
+        } as any);
         return;
       }
-      setError(e?.message || "Apple 로그인에 실패했습니다. 다시 시도해주세요.");
-    } finally { setAppleLoading(false); }
+      setError(e?.message || "Apple 로그인에 실패했습니다. 카카오 또는 일반 로그인을 이용해주세요.");
+    } finally {
+      console.log(`[AppleLogin][FINALLY] traceId=${tid} appleLoading=false`);
+      setAppleLoading(false);
+    }
   }
 
   async function handleKakaoLogin() {
@@ -170,16 +199,27 @@ export default function LoginScreen() {
       return;
     }
     setKakaoLoading(true); setError("");
+    const ktid = "KL-" + Date.now().toString(36).toUpperCase();
     try {
+      console.log(`[KakaoLogin][INDEX STEP1] traceId=${ktid} kakaoLogin 호출`);
       const result = await kakaoLogin();
-      await kakaoSocialLogin(result.accessToken);
+      console.log(`[KakaoLogin][INDEX STEP2] traceId=${ktid} accessToken 수신 → kakaoSocialLogin 호출`);
+      const loginKind = await kakaoSocialLogin(result.accessToken);
+      console.log(`[KakaoLogin][INDEX STEP3] traceId=${ktid} kakaoSocialLogin 완료 kind=${loginKind} → finishLogin이 라우팅 처리`);
     } catch (err: unknown) {
-      const e = err as Error & { error_code?: string; kakao_info?: any };
+      const e = err as Error & { error_code?: string; kakao_info?: any; needs_activation?: boolean; teacher_id?: string };
       if (e.error_code === "kakao_no_account" && e.kakao_info) {
         router.push({
-          pathname: "/(auth)/kakao-link",
-          params: { kakaoId: e.kakao_info.kakao_id, kakaoProfileImage: e.kakao_info.profile_image || "", kakaoName: e.kakao_info.name || "" },
+          pathname: "/(auth)/signup",
+          params: {
+            kakaoId:    e.kakao_info.kakao_id ?? "",
+            kakaoPhone: e.kakao_info.phone    ?? "",
+            kakaoName:  e.kakao_info.name     ?? "",
+          },
         } as any); return;
+      }
+      if (e.needs_activation && e.teacher_id) {
+        router.push({ pathname: "/teacher-activate", params: { teacher_id: e.teacher_id } } as any); return;
       }
       if ((err as any)?.code === "E_CANCELLED_OPERATION" || (e as any)?.message?.includes("cancel")) return;
       setError(e.message || "카카오 로그인에 실패했습니다.");
@@ -188,10 +228,9 @@ export default function LoginScreen() {
 
   const isTablet = Dimensions.get("window").width >= 768;
 
-  console.log("[LOGIN] RETURN_JSX");
   return (
     <View style={[s.root, { backgroundColor: "#fff" }]}>
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={[s.scroll, { paddingTop: insets.top + (isTablet ? 60 : 24), paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -199,22 +238,18 @@ export default function LoginScreen() {
         {/* ── 전체 콘텐츠 (로고 + 폼 + 가입 버튼) ── */}
         <View style={[s.bottomSection, isTablet && s.bottomSectionTablet]}>
         {/* ── 로고 ── */}
-        {(() => { console.log("[LOGIN] JSX:logo"); return null; })()}
         <Image
           source={require("../assets/images/swimnote-logo.png")}
           style={[s.logoImg, isTablet && s.logoImgTablet]}
           resizeMode="contain"
         />
         {/* ── 로그인 폼 ── */}
-        {(() => { console.log("[LOGIN] JSX:form"); return null; })()}
         <View style={s.form}>
           {/* 아이디 */}
-          {(() => { console.log("[LOGIN] JSX:id-field"); return null; })()}
           <View style={s.fieldWrap}>
             <Text style={s.fieldLabel}>아이디</Text>
             <View style={[s.inputRow, { borderColor: identifier ? BRAND : "#E2E8F0" }]}>
-              <User size={16} color={identifier ? BRAND : "#94A3B8"} />
-              {(() => { console.log("[LOGIN] JSX:id-textinput"); return null; })()}
+              <LucideIcon name="user" size={16} color={identifier ? BRAND : "#94A3B8"} />
               <TextInput
                 style={s.input}
                 value={identifier}
@@ -224,6 +259,7 @@ export default function LoginScreen() {
                 placeholderTextColor="#CBD5E1"
                 autoCapitalize="none"
                 autoCorrect={false}
+                autoComplete="username"
                 keyboardType="ascii-capable"
                 returnKeyType="next"
                 onSubmitEditing={() => pwRef.current?.focus()}
@@ -233,11 +269,10 @@ export default function LoginScreen() {
           </View>
 
           {/* 비밀번호 */}
-          {(() => { console.log("[LOGIN] JSX:pw-field"); return null; })()}
           <View style={s.fieldWrap}>
             <Text style={s.fieldLabel}>비밀번호</Text>
             <View style={[s.inputRow, { borderColor: password ? BRAND : "#E2E8F0" }]}>
-              <Lock size={16} color={password ? BRAND : "#94A3B8"} />
+              <LucideIcon name="lock" size={16} color={password ? BRAND : "#94A3B8"} />
               <TextInput
                 ref={pwRef}
                 style={s.input}
@@ -261,13 +296,12 @@ export default function LoginScreen() {
           {/* 오류 메시지 */}
           {!!error && (
             <View style={s.errBox}>
-              <CircleAlert size={14} color="#EF4444" />
+              <LucideIcon name="alert-circle" size={14} color="#EF4444" />
               <Text style={s.errText}>{error}</Text>
             </View>
           )}
 
           {/* 로그인 버튼 */}
-          {(() => { console.log("[LOGIN] JSX:login-btn"); return null; })()}
           <Pressable
             style={({ pressed }) => [s.loginBtn, { opacity: pressed || loading ? 0.85 : 1 }]}
             onPress={handleLogin}
@@ -284,60 +318,60 @@ export default function LoginScreen() {
             style={s.forgotRow}
             onPress={() => router.push({ pathname: "/forgot-password", params: { identifier } } as any)}
           >
-            <Key size={12} color="#94A3B8" />
+            <LucideIcon name="key" size={12} color="#94A3B8" />
             <Text style={s.forgotText}>비밀번호를 잊으셨나요?</Text>
           </Pressable>
         </View>
 
         {/* ── 소셜 / 가입 버튼 ── */}
-        {(() => { console.log("[LOGIN] JSX:social-section"); return null; })()}
         <View style={s.signupCol}>
-          {/* Sign in with Apple (iOS/iPadOS — isAvailableAsync 체크) */}
-          {appleAvailable && (
-            <AppleAuthentication.AppleAuthenticationButton
-              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-              cornerRadius={14}
-              style={s.appleBtn}
-              onPress={handleAppleLogin}
-            />
-          )}
+          {/* 일반 가입 — 메인 CTA */}
+          <Pressable
+            style={({ pressed }) => [s.signupMainBtn, { opacity: pressed || loading ? 0.85 : 1 }]}
+            onPress={() => router.push("/(auth)/signup" as any)}
+            disabled={loading}
+          >
+            <LucideIcon name="user-plus" size={18} color="#0a2540" />
+            <Text style={s.signupMainBtnText}>회원가입</Text>
+          </Pressable>
 
-          <View style={s.signupRow}>
-            {/* 카카오 가입 */}
+          {/* 소셜 아이콘 — 아이콘만, 중앙 배치 */}
+          <View style={s.socialIconRow}>
+            {appleAvailable && (
+              <Pressable
+                style={[s.socialIconBtn, s.appleIconBtn, (appleLoading || loading) && { opacity: 0.5 }]}
+                onPress={handleAppleLogin}
+                disabled={appleLoading || loading}
+              >
+                {appleLoading
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <AppleIcon size={20} />
+                }
+              </Pressable>
+            )}
             <Pressable
-              style={({ pressed }) => [s.socialBtn, s.kakaoBtn, { opacity: pressed || kakaoLoading ? 0.85 : 1 }]}
+              style={[s.socialIconBtn, s.kakaoIconBtn, (kakaoLoading || loading) && { opacity: 0.5 }]}
               onPress={handleKakaoLogin}
               disabled={kakaoLoading || loading}
             >
               {kakaoLoading
                 ? <ActivityIndicator color="#3C1E1E" size="small" />
-                : (
-                  <>
-                    <KakaoIcon size={22} />
-                    <Text style={s.kakaoBtnText}>카카오 가입</Text>
-                  </>
-                )
+                : <KakaoIcon size={22} />
               }
-            </Pressable>
-
-            {/* 일반 가입 */}
-            <Pressable
-              style={({ pressed }) => [s.socialBtn, s.regularBtn, { opacity: pressed ? 0.85 : 1 }]}
-              onPress={() => router.push("/signup" as any)}
-              disabled={loading}
-            >
-              <LucideIcon name="user-plus" size={18} color="#475569" />
-              <Text style={s.regularBtnText}>일반 가입</Text>
             </Pressable>
           </View>
         </View>
 
+        <View style={{ alignItems: "center", paddingVertical: 14 }}>
+          <Text style={{ fontSize: 10, color: "#CBD5E1", fontFamily: "Pretendard-Regular" }}>
+            SwimNote
+          </Text>
+        </View>
+
         </View>{/* ── 하단 그룹 끝 ── */}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ── 계정 없음 모달 ── */}
-      {(() => { console.log("[LOGIN] JSX:modal"); return null; })()}
       <Modal
         transparent
         visible={showNotFoundModal}
@@ -347,7 +381,7 @@ export default function LoginScreen() {
         <Pressable style={s.overlay} onPress={() => setShowNotFoundModal(false)}>
           <Pressable style={s.modalCard} onPress={e => e.stopPropagation()}>
             <View style={s.modalIconWrap}>
-              <UserX size={26} color="#D97706" />
+              <LucideIcon name="user-x" size={26} color="#D97706" />
             </View>
             <Text style={s.modalTitle}>가입된 계정이 없습니다</Text>
             <Text style={s.modalDesc}>
@@ -363,7 +397,7 @@ export default function LoginScreen() {
               </Pressable>
               <Pressable
                 style={[s.modalBtn, { backgroundColor: BRAND }]}
-                onPress={() => { setShowNotFoundModal(false); router.push("/signup" as any); }}
+                onPress={() => { setShowNotFoundModal(false); router.push("/(auth)/signup" as any); }}
               >
                 <Text style={s.modalBtnText}>회원가입</Text>
               </Pressable>
@@ -373,7 +407,6 @@ export default function LoginScreen() {
       </Modal>
 
       {/* ── 키보드 위 입력 미리보기 말풍선 ── */}
-      {(() => { console.log("[LOGIN] JSX:keyboard-bubble-check focused=" + focusedField + " kbH=" + keyboardHeight); return null; })()}
       {focusedField !== null && keyboardHeight > 0 && (
         <View style={[s.inputBubble, { bottom: keyboardHeight + 10 }]}>
           <Text style={s.inputBubbleLabel}>
@@ -395,6 +428,11 @@ const SCREEN_W = Dimensions.get("window").width;
 const s = StyleSheet.create({
   root:    { flex: 1 },
   scroll:  { flexGrow: 1, paddingHorizontal: 24, justifyContent: "flex-end" },
+
+  /* 앱 소개 이미지 */
+  appImgRow: { flexDirection: "row", justifyContent: "center", alignItems: "flex-end", gap: 8, marginBottom: 16 },
+  appImg: { width: SCREEN_W * 0.26, height: SCREEN_W * 0.46, borderRadius: 14, overflow: "hidden" },
+  appImgCenter: { width: SCREEN_W * 0.30, height: SCREEN_W * 0.53, marginBottom: -4 },
 
   /* iPad: 가운데 정렬 + 최대 폭 제한 */
   bottomSection: { gap: 0 },
@@ -447,21 +485,27 @@ const s = StyleSheet.create({
   dividerLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
 
   /* 가입 버튼 영역 */
-  signupCol: { gap: 10 },
-  appleBtn:  { width: "100%", height: 52 },
-  signupRow: { flexDirection: "row", gap: 12 },
-  socialBtn: {
-    flex: 1, height: 52, borderRadius: 14,
+  signupCol: { gap: 14 },
+
+  signupMainBtn: {
+    height: 54, borderRadius: 14, backgroundColor: "#a1f7da",
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    shadowColor: "#a1f7da", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 10, elevation: 4,
   },
-  kakaoBtn:  {
-    backgroundColor: KAKAO,
-    shadowColor: KAKAO, shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25, shadowRadius: 6, elevation: 3,
+  signupMainBtnText: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0a2540" },
+
+  socialIconRow: {
+    flexDirection: "row", justifyContent: "center", gap: 16,
   },
-  kakaoBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#3C1E1E" },
-  regularBtn:   { backgroundColor: "#97cdf7", borderWidth: 1.5, borderColor: "#97cdf7" },
-  regularBtnText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0a2540" },
+  socialIconBtn: {
+    width: 52, height: 52, borderRadius: 26,
+    alignItems: "center", justifyContent: "center",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2, shadowRadius: 6, elevation: 3,
+  },
+  appleIconBtn: { backgroundColor: "#000", shadowColor: "#000" },
+  kakaoIconBtn: { backgroundColor: KAKAO, shadowColor: KAKAO },
 
   /* 키보드 위 입력 미리보기 */
   inputBubble: {

@@ -2,7 +2,6 @@
  * (super)/op-logs.tsx — 운영 로그 (감사 로그 뷰어)
  * /super/op-logs API에서 실데이터 로드
  */
-import { Activity, List } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -134,7 +133,7 @@ export default function OpLogsScreen() {
       <SubScreenHeader title="운영 로그" homePath="/(super)/audit-group" />
 
       <View style={s.countBanner}>
-        <Activity size={13} color={P} />
+        <LucideIcon name="activity" size={13} color={P} />
         <Text style={s.countTxt}>
           총 <Text style={{ color: P, fontFamily: "Pretendard-Regular" }}>{logs.length}</Text>건 기록됨
         </Text>
@@ -162,7 +161,7 @@ export default function OpLogsScreen() {
         </View>
       ) : error ? (
         <View style={s.empty}>
-          <List size={32} color="#D1D5DB" />
+          <LucideIcon name="list" size={32} color="#D1D5DB" />
           <Text style={s.emptyTxt}>{error}</Text>
         </View>
       ) : (
@@ -172,7 +171,7 @@ export default function OpLogsScreen() {
 
           {logs.length === 0 && (
             <View style={s.empty}>
-              <List size={32} color="#D1D5DB" />
+              <LucideIcon name="list" size={32} color="#D1D5DB" />
               <Text style={s.emptyTxt}>해당 카테고리의 로그가 없습니다</Text>
             </View>
           )}
@@ -277,7 +276,7 @@ const s = StyleSheet.create({
   tab:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7,
                   borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
   tabAllActive: { backgroundColor: P, borderColor: P },
-  tabTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt:       { fontSize: 12, lineHeight: 17, color: "#64748B" },
   dateDivider:  { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 6 },
   dateLine:     { flex: 1, height: 1, backgroundColor: "#E5E7EB" },
   dateLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },

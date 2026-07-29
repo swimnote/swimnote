@@ -86,6 +86,7 @@ export async function uploadFile(buffer: Buffer, key: string, mimeType: string):
   return key;
 }
 
+/** R2 presigned GET URL 생성 (기본 유효시간 3600초) */
 export async function getPresignedUrl(
   key: string,
   type: StorageBucket = "photo",

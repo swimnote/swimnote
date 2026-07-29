@@ -3,7 +3,6 @@
  * 플랫폼은 문자 전송 성공/실패를 추적하지 않음.
  * "문자 앱 호출 횟수"만 기록하며, 재안내 버튼으로 문자 앱을 다시 열 수 있음.
  */
-import { Info, MessageCircle, PhoneCall, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -78,7 +77,7 @@ function InviteCard({ record }: { record: InviteRecord }) {
               <Text style={[s.typeBadgeTxt, { color: tc.color }]}>{tc.label}</Text>
             </View>
             <View style={[s.countBadge, { backgroundColor: record.callCount >= 3 ? "#F9DEDA" : "#F1F5F9" }]}>
-              <PhoneCall size={10} color={record.callCount >= 3 ? "#D96C6C" : C.textMuted} />
+              <LucideIcon name="phone-call" size={10} color={record.callCount >= 3 ? "#D96C6C" : C.textMuted} />
               <Text style={[s.countTxt, { color: record.callCount >= 3 ? "#D96C6C" : C.textMuted }]}>
                 {record.callCount}회
               </Text>
@@ -88,7 +87,7 @@ function InviteCard({ record }: { record: InviteRecord }) {
           {/* 학생 이름 (학부모 안내인 경우) */}
           {record.targetType === "guardian" && record.studentName && (
             <Text style={s.studentLine}>
-              <User size={11} color={C.textMuted} /> 자녀: {record.studentName}
+              <LucideIcon name="user" size={11} color={C.textMuted} /> 자녀: {record.studentName}
             </Text>
           )}
 
@@ -130,7 +129,7 @@ function InviteCard({ record }: { record: InviteRecord }) {
 
           {/* 재안내 버튼 */}
           <Pressable style={[s.reNotifyBtn, { backgroundColor: C.tintLight }]} onPress={handleReNotify}>
-            <MessageCircle size={14} color={C.tint} />
+            <LucideIcon name="message-circle" size={14} color={C.tint} />
             <Text style={[s.reNotifyTxt, { color: C.tint }]}>재안내 (문자 앱 열기)</Text>
           </Pressable>
 
@@ -172,7 +171,7 @@ export default function InviteRecordsScreen() {
 
       {/* 안내 배너 */}
       <View style={[s.infoBanner, { backgroundColor: "#E6FAF8" }]}>
-        <Info size={13} color="#0F172A" />
+        <LucideIcon name="info" size={13} color="#0F172A" />
         <Text style={s.infoTxt}>
           플랫폼은 문자 전송 성공·실패를 추적하지 않습니다. "재안내" 버튼으로 문자 앱을 다시 열 수 있습니다.
         </Text>

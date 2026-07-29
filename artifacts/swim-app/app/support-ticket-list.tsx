@@ -1,7 +1,7 @@
 /**
  * support-ticket-list.tsx — 내 문의 목록
  */
-import { ChevronLeft, ChevronRight, MessageCircle, Plus } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -117,7 +117,7 @@ export default function SupportTicketListScreen() {
             <Text style={s.consultBadge}>📞 상담예약</Text>
           )}
         </View>
-        <ChevronRight size={14} color={C.textMuted} style={{ position: "absolute", right: 14, top: "50%" }} />
+        <LucideIcon name="chevron-right" size={14} color={C.textMuted} style={{ position: "absolute", right: 14, top: "50%" }} />
       </Pressable>
     );
   }
@@ -126,11 +126,11 @@ export default function SupportTicketListScreen() {
     <SafeAreaView style={s.safe} edges={["top"]}>
       <View style={s.header}>
         <Pressable onPress={goHome} style={s.backBtn}>
-          <ChevronLeft size={24} color={C.text} />
+          <LucideIcon name="chevron-left" size={24} color={C.text} />
         </Pressable>
         <Text style={s.headerTitle}>내 문의 내역</Text>
         <Pressable style={s.addBtn} onPress={goWrite}>
-          <Plus size={20} color={P} />
+          <LucideIcon name="plus" size={20} color={P} />
         </Pressable>
       </View>
 
@@ -147,7 +147,7 @@ export default function SupportTicketListScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
           ListEmptyComponent={
             <View style={s.empty}>
-              <MessageCircle size={40} color="#E2E8F0" />
+              <LucideIcon name="message-circle" size={40} color="#E2E8F0" />
               <Text style={s.emptyTxt}>아직 문의 내역이 없습니다</Text>
               <Pressable style={s.emptyBtn} onPress={goWrite}>
                 <Text style={s.emptyBtnTxt}>문의하기</Text>

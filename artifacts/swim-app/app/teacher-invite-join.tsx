@@ -3,14 +3,11 @@
  * - 초대 코드 입력 → 검증
  * - 이메일/비밀번호/이름 입력 → 가입 완료 → 승인 대기 안내
  */
-import { ArrowLeft, CircleAlert, CircleCheck, Droplet, Info, Key, Lock, Send, UserPlus } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { API_BASE, useAuth } from "@/context/AuthContext";
@@ -21,7 +18,7 @@ interface InviteInfo { id: string; name: string; phone: string; position: string
 
 export default function TeacherInviteJoinScreen() {
   const insets = useSafeAreaInsets();
-  const { setAdminSession } = useAuth();
+  const { finishLogin } = useAuth();
   const params = useLocalSearchParams();
   const [step, setStep] = useState<"token" | "form">("token");
   const [token, setToken] = useState(String(params.token || ""));
@@ -73,18 +70,17 @@ export default function TeacherInviteJoinScreen() {
       const data = await res.json();
       if (!res.ok) { setFormError(data.message || "가입 중 오류가 발생했습니다."); return; }
       // 자동 로그인 후 선생님 홈(승인 대기 화면)으로 이동
-      await setAdminSession(data.token, data.user);
-      router.replace("/(teacher)/today-schedule" as any);
+      await finishLogin("admin", data.user, null, data.token);
     } catch { setFormError("네트워크 오류가 발생했습니다."); }
     finally { setSubmitting(false); }
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.background }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+    <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 헤더 */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <ArrowLeft size={22} color={C.text} />
+          <LucideIcon name="arrow-left" size={22} color={C.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: C.text }]}>선생님 초대 가입</Text>
         <View style={{ width: 40 }} />
@@ -92,9 +88,9 @@ export default function TeacherInviteJoinScreen() {
 
       {/* ── 토큰 입력 단계 ────────────────────────────────────── */}
       {step === "token" && (
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
           <View style={[styles.illustBox, { backgroundColor: C.tintLight }]}>
-            <Send size={40} color={C.tint} />
+            <LucideIcon name="send" size={40} color={C.tint} />
           </View>
           <Text style={[styles.sectionTitle, { color: C.text }]}>초대 코드를 입력하세요</Text>
           <Text style={[styles.sectionSub, { color: C.textSecondary }]}>
@@ -103,13 +99,13 @@ export default function TeacherInviteJoinScreen() {
 
           {tokenError ? (
             <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <CircleAlert size={14} color={C.error} />
+              <LucideIcon name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{tokenError}</Text>
             </View>
           ) : null}
 
           <View style={[styles.tokenInputRow, { borderColor: token ? C.tint : C.border, backgroundColor: C.card }]}>
-            <Key size={18} color={token ? C.tint : C.textMuted} />
+            <LucideIcon name="key" size={18} color={token ? C.tint : C.textMuted} />
             <TextInput
               style={[styles.tokenInput, { color: C.text }]}
               value={token}
@@ -127,27 +123,27 @@ export default function TeacherInviteJoinScreen() {
             disabled={verifying}
           >
             {verifying ? <ActivityIndicator color="#fff" /> : (
-              <><CircleCheck size={18} color="#fff" />
+              <><LucideIcon name="check-circle" size={18} color="#fff" />
               <Text style={styles.primaryBtnText}>코드 확인</Text></>
             )}
           </Pressable>
 
           <View style={[styles.infoBox, { backgroundColor: "#F0F9FF", borderColor: "#BAE6FD" }]}>
-            <Info size={14} color="#0284C7" />
+            <LucideIcon name="info" size={14} color="#0284C7" />
             <Text style={[styles.infoText, { color: "#0369A1" }]}>
               초대 코드는 관리자가 생성한 고유 코드입니다.{"\n"}
               코드를 분실한 경우 관리자에게 문의해주세요.
             </Text>
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {/* ── 폼 단계 ───────────────────────────────────────────── */}
       {step === "form" && inviteInfo && (
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
           {/* 수영장/초대 정보 */}
           <View style={[styles.inviteInfoCard, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
-            <Droplet size={20} color={C.tint} />
+            <LucideIcon name="droplet" size={20} color={C.tint} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.invitePoolName, { color: C.tint }]}>{inviteInfo.pool_name}</Text>
               {inviteInfo.position && <Text style={[styles.invitePosition, { color: C.tint }]}>{inviteInfo.position}</Text>}
@@ -160,7 +156,7 @@ export default function TeacherInviteJoinScreen() {
 
           {formError ? (
             <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <CircleAlert size={14} color={C.error} />
+              <LucideIcon name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{formError}</Text>
             </View>
           ) : null}
@@ -188,7 +184,7 @@ export default function TeacherInviteJoinScreen() {
             <View style={{ gap: 6 }}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 * (6자 이상)</Text>
               <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
-                <Lock size={16} color={C.textMuted} />
+                <LucideIcon name="lock" size={16} color={C.textMuted} />
                 <TextInput
                   style={[styles.textInput, { color: C.text }]}
                   value={password} onChangeText={setPassword}
@@ -206,7 +202,7 @@ export default function TeacherInviteJoinScreen() {
                 borderColor: passwordConfirm && password !== passwordConfirm ? C.error : C.border,
                 backgroundColor: C.card,
               }]}>
-                <Lock size={16} color={C.textMuted} />
+                <LucideIcon name="lock" size={16} color={C.textMuted} />
                 <TextInput
                   style={[styles.textInput, { color: C.text }]}
                   value={passwordConfirm} onChangeText={setPasswordConfirm}
@@ -226,14 +222,14 @@ export default function TeacherInviteJoinScreen() {
             disabled={submitting}
           >
             {submitting ? <ActivityIndicator color="#fff" /> : (
-              <><UserPlus size={18} color="#fff" />
+              <><LucideIcon name="user-plus" size={18} color="#fff" />
               <Text style={styles.primaryBtnText}>가입 완료</Text></>
             )}
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

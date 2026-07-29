@@ -1,19 +1,46 @@
-import { ArrowLeft, Calendar, ChevronRight, CircleAlert, CircleCheck, Clock, Droplet, Search, User } from "lucide-react-native";
 import { router } from "expo-router";
-import React, { useState } from "react";
-import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import {ActivityIndicator, Alert, Pressable, Share, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { apiRequest, API_BASE, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
+import { validateName, validateStudentBirthYear } from "@/utils/validation";
 
 const C = Colors.light;
 
 interface PoolResult { id: string; name: string; address: string | null; }
 type Step = "pool" | "child" | "done" | "pending";
+
+function DoneAutoRedirect({ linkedNames, poolName }: { linkedNames: string[]; poolName: string }) {
+  const [countdown, setCountdown] = useState(2);
+  useEffect(() => {
+    const t = setTimeout(() => router.replace("/(parent)/home" as any), 2000);
+    const c = setInterval(() => setCountdown(p => p - 1), 1000);
+    return () => { clearTimeout(t); clearInterval(c); };
+  }, []);
+  const nameStr = linkedNames.join(", ");
+  return (
+    <View style={st.resultBox}>
+      <View style={[st.resultIcon, { backgroundColor: "#E6FFFA" }]}>
+        <LucideIcon name="check-circle" size={44} color="#2EC4B6" />
+      </View>
+      <Text style={[st.resultTitle, { color: C.text }]}>연결 완료!</Text>
+      <Text style={[st.resultSub, { color: C.textSecondary }]}>
+        {nameStr}이(가) {poolName}과{"\n"}성공적으로 연결되었습니다.{"\n\n"}이제 자녀의 수업 기록을 확인할 수 있습니다.
+      </Text>
+      <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted }}>{countdown}초 후 홈으로 이동합니다</Text>
+      <Pressable
+        style={[st.submitBtn, { backgroundColor: C.button, alignSelf: "stretch", marginHorizontal: 32 }]}
+        onPress={() => router.replace("/(parent)/home" as any)}
+      >
+        <Text style={st.submitTxt}>지금 홈으로 이동</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 export default function LinkChildScreen() {
   const insets = useSafeAreaInsets();
@@ -26,11 +53,19 @@ export default function LinkChildScreen() {
   const [searching, setSearching]     = useState(false);
   const [selectedPool, setSelectedPool] = useState<PoolResult | null>(null);
 
-  const [childName, setChildName]     = useState("");
+  const [childNames, setChildNames]   = useState<string[]>([""]);
+  const [childPhone4s, setChildPhone4s] = useState<string[]>([""]);
   const [birthYear, setBirthYear]     = useState("");
   const [submitting, setSubmitting]   = useState(false);
-  const [linkedName, setLinkedName]   = useState("");
+  const [linkedNames, setLinkedNames] = useState<string[]>([]);
+  const [pendingStudentName, setPendingStudentName] = useState<string>("");
+  const [pendingReason, setPendingReason] = useState<string>("");
   const [error, setError]             = useState("");
+  const [nameError, setNameError]     = useState("");
+  const [birthYearError, setBirthYearError] = useState("");
+
+  const childScrollRef  = useRef<any>(null);
+  const submittingGuard = useRef(false);  // 중복 제출 방지
 
   async function searchPools() {
     if (!query.trim()) return;
@@ -45,38 +80,113 @@ export default function LinkChildScreen() {
   }
 
   async function handleLink() {
-    if (!childName.trim()) { setError("자녀 이름을 입력해주세요."); return; }
     if (!selectedPool) return;
-    setSubmitting(true); setError("");
-    try {
-      const r = await apiRequest(token, "/parent/link-child", {
-        method: "POST",
-        body: JSON.stringify({
-          swimming_pool_id: selectedPool.id,
-          child_name: childName.trim(),
-          child_birth_year: birthYear ? Number(birthYear) : null,
-        }),
-      });
-      const d = await r.json();
-      if (!r.ok || !d.success) { setError(d.message || "오류가 발생했습니다."); return; }
+    if (submittingGuard.current) return;  // 중복 클릭 방지
 
-      setLinkedName(d.student?.name || childName.trim());
-      setStep("done");
-      updateParentProfile({ swimming_pool_id: selectedPool.id, pool_name: selectedPool.name });
-      await refresh();
-    } catch { setError("네트워크 오류가 발생했습니다."); }
-    finally { setSubmitting(false); }
+    const validPairs = childNames
+      .map((n, i) => ({ name: n.trim(), phone4: childPhone4s[i]?.replace(/[^0-9]/g, "").slice(-4) || "" }))
+      .filter(p => p.name);
+    if (validPairs.length === 0) {
+      setNameError("자녀 이름을 최소 한 명 입력해주세요");
+      childScrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+
+    if (birthYear && !validateStudentBirthYear(birthYear)) {
+      setBirthYearError("출생년도 형식이 올바르지 않습니다");
+      return;
+    }
+
+    submittingGuard.current = true;
+    setSubmitting(true); setError(""); setNameError(""); setBirthYearError("");
+
+    const successNames: string[] = [];
+    let lastError = "";
+    let pendingResult: { studentName: string; reason: string } | null = null;
+
+    try {
+      for (const { name, phone4 } of validPairs) {
+        try {
+          const r = await apiRequest(token, "/parent/link-child", {
+            method: "POST",
+            body: JSON.stringify({
+              swimming_pool_id: selectedPool.id,
+              child_name: name,
+              child_phone_last4: phone4 || undefined,
+              child_birth_year: birthYear ? Number(birthYear) : null,
+            }),
+          });
+          const d = await r.json();
+          if (r.ok && d.success && d.status === "linked") {
+            successNames.push(d.student?.name || name);
+          } else if (d.status === "pending") {
+            // 전화번호 불일치 → 관리자 승인 대기
+            pendingResult = {
+              studentName: d.student?.name || name,
+              reason: d.pending_reason || "phone_mismatch",
+            };
+          } else if (d.status === "not_found") {
+            lastError = d.message || "수영장 회원 목록에 해당 이름이 없습니다.";
+          } else {
+            lastError = d.message || "일부 자녀 연결에 실패했습니다.";
+          }
+        } catch {
+          lastError = "네트워크 오류가 발생했습니다.";
+        }
+      }
+
+      if (successNames.length > 0) {
+        updateParentProfile({ swimming_pool_id: selectedPool.id, pool_name: selectedPool.name });
+        await refresh();
+        setLinkedNames(successNames);
+        setStep("done");
+      } else if (pendingResult) {
+        updateParentProfile({ swimming_pool_id: selectedPool.id, pool_name: selectedPool.name });
+        setPendingStudentName(pendingResult.studentName);
+        setPendingReason(pendingResult.reason);
+        setStep("pending");
+      } else {
+        setError(lastError || "연결에 실패했습니다.");
+      }
+    } finally {
+      setSubmitting(false);
+      submittingGuard.current = false;
+    }
+  }
+
+  function updateName(index: number, value: string) {
+    setChildNames(prev => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+    if (index === 0) setNameError("");
+  }
+
+  function updatePhone4(index: number, value: string) {
+    setChildPhone4s(prev => {
+      const next = [...prev];
+      next[index] = value.replace(/[^0-9]/g, "").slice(0, 4);
+      return next;
+    });
+  }
+
+  function addChild() {
+    setChildNames(prev => [...prev, ""]);
+    setChildPhone4s(prev => [...prev, ""]);
+  }
+
+  function removeChild(index: number) {
+    setChildNames(prev => prev.filter((_, i) => i !== index));
+    setChildPhone4s(prev => prev.filter((_, i) => i !== index));
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: C.background }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 헤더 */}
       <View style={[st.header, { paddingTop: insets.top + 10 }]}>
         <Pressable style={st.backBtn} onPress={() => router.back()}>
-          <ArrowLeft size={22} color={C.text} />
+          <LucideIcon name="arrow-left" size={22} color={C.text} />
         </Pressable>
         <Text style={[st.title, { color: C.text }]}>자녀 연결하기</Text>
         <View style={{ width: 40 }} />
@@ -84,14 +194,14 @@ export default function LinkChildScreen() {
 
       {/* ── 1단계: 수영장 검색 ─────────────────────────────────── */}
       {step === "pool" && (
-        <ScrollView
+        <KeyboardAwareScrollView
           contentContainerStyle={[st.content, { paddingBottom: insets.bottom + 40 }]}
           keyboardShouldPersistTaps="handled"
         >
           <Text style={[st.sectionTitle, { color: C.text }]}>자녀가 다니는 수영장을 찾아주세요</Text>
 
           <View style={[st.searchRow, { borderColor: C.border, backgroundColor: C.card }]}>
-            <Search size={18} color={C.textMuted} />
+            <LucideIcon name="search" size={18} color={C.textMuted} />
             <TextInput
               style={[st.searchInput, { color: C.text }]}
               value={query} onChangeText={setQuery}
@@ -110,7 +220,7 @@ export default function LinkChildScreen() {
 
           {!!error && (
             <View style={[st.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <CircleAlert size={14} color={C.error} />
+              <LucideIcon name="alert-circle" size={14} color={C.error} />
               <Text style={[st.errTxt, { color: C.error }]}>{error}</Text>
             </View>
           )}
@@ -122,34 +232,38 @@ export default function LinkChildScreen() {
               onPress={() => { setSelectedPool(pool); setStep("child"); setError(""); }}
             >
               <View style={[st.poolIcon, { backgroundColor: C.tintLight }]}>
-                <Droplet size={20} color={C.tint} />
+                <LucideIcon name="droplet" size={20} color={C.tint} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[st.poolName, { color: C.text }]}>{pool.name}</Text>
                 {pool.address && <Text style={[st.poolAddr, { color: C.textMuted }]}>{pool.address}</Text>}
               </View>
-              <ChevronRight size={18} color={C.textMuted} />
+              <LucideIcon name="chevron-right" size={18} color={C.textMuted} />
             </Pressable>
           ))}
 
           {results.length === 0 && query && !searching && (
             <View style={st.emptyBox}>
-              <Search size={28} color={C.textMuted} />
+              <LucideIcon name="search" size={28} color={C.textMuted} />
               <Text style={[st.emptyTxt, { color: C.textMuted }]}>검색 결과가 없습니다</Text>
+              <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 18 }}>
+                이름을 다르게 검색해보거나{"\n"}수영장에 SwimNote 등록 여부를 확인해주세요
+              </Text>
             </View>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {/* ── 2단계: 자녀 정보 입력 ─────────────────────────────── */}
       {step === "child" && selectedPool && (
-        <ScrollView
+        <KeyboardAwareScrollView
+          ref={childScrollRef}
           contentContainerStyle={[st.content, { paddingBottom: insets.bottom + 40 }]}
           keyboardShouldPersistTaps="handled"
         >
           {/* 선택된 수영장 */}
           <View style={[st.selectedPool, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
-            <Droplet size={16} color={C.tint} />
+            <LucideIcon name="droplet" size={16} color={C.tint} />
             <Text style={[st.selectedPoolName, { color: C.tint }]}>{selectedPool.name}</Text>
             <Pressable onPress={() => { setStep("pool"); setError(""); }}>
               <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Regular" }}>변경</Text>
@@ -158,40 +272,86 @@ export default function LinkChildScreen() {
 
           <Text style={[st.sectionTitle, { color: C.text }]}>자녀 정보를 입력해주세요</Text>
           <Text style={[st.sectionSub, { color: C.textSecondary }]}>
-            수영장에 등록된 이름과 일치하면 바로 연결됩니다.
+            수영장에 등록된 이름과 일치하면 바로 연결됩니다.{"\n"}형제가 여러 명이면 이름을 모두 입력해주세요.
           </Text>
 
           {!!error && (
-            <View style={[st.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <CircleAlert size={14} color={C.error} />
-              <Text style={[st.errTxt, { color: C.error }]}>{error}</Text>
+            <View style={[st.errBox, { backgroundColor: "#F9DEDA", flexDirection: "column", gap: 6 }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <LucideIcon name="alert-circle" size={14} color={C.error} />
+                <Text style={[st.errTxt, { color: C.error }]}>{error}</Text>
+              </View>
+              <Text style={{ fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", lineHeight: 17, paddingLeft: 22 }}>
+                · 이름이 수영장 등록 정보와 정확히 일치하는지 확인하세요{"\n"}
+                · 동명이인이라면 전화번호 뒷 4자리를 입력하세요{"\n"}
+                · 모두 확인했다면 수영장에 직접 문의해주세요
+              </Text>
             </View>
           )}
 
-          <View style={{ gap: 14 }}>
-            <View style={{ gap: 6 }}>
-              <Text style={[st.label, { color: C.textSecondary }]}>자녀 이름 *</Text>
-              <View style={[st.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
-                <User size={16} color={C.textMuted} />
-                <TextInput
-                  style={[st.input, { color: C.text }]}
-                  value={childName} onChangeText={setChildName}
-                  placeholder="홍길동" placeholderTextColor={C.textMuted}
-                />
+          <View style={{ gap: 12 }}>
+            {childNames.map((name, i) => (
+              <View key={i} style={[st.childCard, { borderColor: C.border, backgroundColor: C.card }]}>
+                {/* 슬롯 헤더 */}
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <Text style={[st.label, { color: C.textSecondary }]}>자녀 {i + 1}{i === 0 ? " *" : ""}</Text>
+                  {i > 0 && (
+                    <Pressable onPress={() => removeChild(i)} style={[st.removeBtn, { backgroundColor: "#FEF2F2" }]} hitSlop={8}>
+                      <LucideIcon name="minus" size={14} color="#DC2626" />
+                    </Pressable>
+                  )}
+                </View>
+                {/* 이름 */}
+                <View style={[st.inputRow, { borderColor: i === 0 && nameError ? C.error : C.border, backgroundColor: C.background }]}>
+                  <LucideIcon name="user" size={16} color={C.textMuted} />
+                  <TextInput
+                    style={[st.input, { color: C.text }]}
+                    value={name}
+                    onChangeText={v => updateName(i, v)}
+                    placeholder="이름 입력"
+                    placeholderTextColor={C.textMuted}
+                    returnKeyType="next"
+                  />
+                </View>
+                {i === 0 && nameError ? <Text style={st.fieldErr}>{nameError}</Text> : null}
+                {/* 전화번호 뒷 4자리 */}
+                <View style={[st.inputRow, { borderColor: C.border, backgroundColor: C.background, marginTop: 8 }]}>
+                  <Text style={{ fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>📞</Text>
+                  <TextInput
+                    style={[st.input, { color: C.text }]}
+                    value={childPhone4s[i]}
+                    onChangeText={v => updatePhone4(i, v)}
+                    placeholder="전화번호 뒷 4자리 (동명이인 구분)"
+                    placeholderTextColor={C.textMuted}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    returnKeyType="done"
+                  />
+                </View>
               </View>
-            </View>
+            ))}
+            {/* 자녀 추가 버튼 */}
+            <Pressable style={[st.addBtn, { borderColor: C.tint }]} onPress={addChild}>
+              <LucideIcon name="plus" size={16} color={C.tint} />
+              <Text style={[st.addBtnTxt, { color: C.tint }]}>자녀 추가</Text>
+            </Pressable>
 
-            <View style={{ gap: 6 }}>
+            {/* 출생 연도 (공통) */}
+            <View style={{ gap: 4, marginTop: 4 }}>
               <Text style={[st.label, { color: C.textSecondary }]}>출생 연도 (선택)</Text>
-              <View style={[st.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
-                <Calendar size={16} color={C.textMuted} />
+              <View style={[st.inputRow, { borderColor: birthYearError ? C.error : C.border, backgroundColor: C.card }]}>
+                <LucideIcon name="calendar" size={16} color={C.textMuted} />
                 <TextInput
                   style={[st.input, { color: C.text }]}
-                  value={birthYear} onChangeText={setBirthYear}
-                  placeholder="예: 2015" placeholderTextColor={C.textMuted}
-                  keyboardType="number-pad" maxLength={4}
+                  value={birthYear}
+                  onChangeText={v => { setBirthYear(v); setBirthYearError(""); }}
+                  placeholder="예: 2015"
+                  placeholderTextColor={C.textMuted}
+                  keyboardType="number-pad"
+                  maxLength={4}
                 />
               </View>
+              {birthYearError ? <Text style={st.fieldErr}>{birthYearError}</Text> : null}
             </View>
           </View>
 
@@ -205,47 +365,83 @@ export default function LinkChildScreen() {
               : <Text style={st.submitTxt}>연결하기</Text>
             }
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {/* ── 완료: 자동 연결 ───────────────────────────────────── */}
       {step === "done" && (
-        <View style={st.resultBox}>
-          <View style={[st.resultIcon, { backgroundColor: "#E6FFFA" }]}>
-            <CircleCheck size={44} color="#2EC4B6" />
-          </View>
-          <Text style={[st.resultTitle, { color: C.text }]}>연결 완료!</Text>
-          <Text style={[st.resultSub, { color: C.textSecondary }]}>
-            {linkedName}이(가) {selectedPool?.name}과{"\n"}성공적으로 연결되었습니다.
-          </Text>
-          <Pressable
-            style={[st.submitBtn, { backgroundColor: C.button, alignSelf: "stretch", marginHorizontal: 32 }]}
-            onPress={() => router.replace("/(parent)/home" as any)}
-          >
-            <Text style={st.submitTxt}>홈으로 이동</Text>
-          </Pressable>
-        </View>
+        <DoneAutoRedirect linkedNames={linkedNames} poolName={selectedPool?.name ?? ""} />
       )}
 
-      {/* ── 미매칭: 학생 정보 없음 ──────────────────────────── */}
+      {/* ── 승인 대기 중 ─────────────────────────────────── */}
       {step === "pending" && (
-        <View style={st.resultBox}>
-          <View style={[st.resultIcon, { backgroundColor: "#FEF2F2" }]}>
-            <Clock size={44} color="#DC2626" />
+        <View style={[st.resultBox, { paddingHorizontal: 24, gap: 16 }]}>
+          <View style={[st.resultIcon, { backgroundColor: "#FFF7ED" }]}>
+            <LucideIcon name="clock" size={44} color="#F59E0B" />
           </View>
-          <Text style={[st.resultTitle, { color: C.text }]}>학생을 찾지 못했습니다</Text>
+          <Text style={[st.resultTitle, { color: C.text }]}>추가 보호자 승인 대기</Text>
+
+          {!!pendingStudentName && (
+            <View style={[st.pendingInfoBox, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
+              <LucideIcon name="user" size={16} color={C.tint} />
+              <Text style={[st.pendingInfoTxt, { color: C.tint }]}>{pendingStudentName}</Text>
+            </View>
+          )}
+
           <Text style={[st.resultSub, { color: C.textSecondary }]}>
-            수영장에 등록된 학생 중 일치하는{"\n"}정보를 찾지 못했습니다.{"\n\n"}수영장 관리자에게 학부모 연락처가{"\n"}올바르게 등록되어 있는지 확인해주세요.
+            아직 보호자 연결이 완료되지 않았습니다.
           </Text>
+
+          {/* 연결 방법 안내 박스 */}
+          <View style={{ backgroundColor: "#EFF6FF", borderRadius: 14, padding: 16, gap: 10, alignSelf: "stretch" }}>
+            <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+              <LucideIcon name="info" size={15} color="#2563EB" />
+              <Text style={{ fontSize: 13, color: "#1D4ED8", fontFamily: "Pretendard-Bold" }}>연결 방법</Text>
+            </View>
+            <Text style={{ fontSize: 13, color: "#1E40AF", lineHeight: 22 }}>
+              가족 중 이미 연결된 보호자가{"\n"}
+              <Text style={{ fontFamily: "Pretendard-Bold" }}>설정 → 추가 보호자 관리</Text>
+              {"\n"}에서 현재 가입한{" "}
+              <Text style={{ fontFamily: "Pretendard-Bold" }}>전화번호를 등록</Text>
+              하면{"\n"}별도의 승인 없이{" "}
+              <Text style={{ fontFamily: "Pretendard-Bold" }}>즉시 연결</Text>
+              됩니다.
+            </Text>
+          </View>
+
+          {/* 연결 안내 보내기 버튼 */}
           <Pressable
-            style={[st.submitBtn, { backgroundColor: C.button, alignSelf: "stretch", marginHorizontal: 32 }]}
+            style={({ pressed }) => [{
+              flexDirection: "row", alignItems: "center", justifyContent: "center",
+              gap: 8, paddingVertical: 14, borderRadius: 12,
+              backgroundColor: "#2563EB", alignSelf: "stretch",
+              opacity: pressed ? 0.8 : 1,
+            }]}
+            onPress={() => {
+              Share.share({
+                message:
+                  "[SwimNote 추가 보호자 연결 안내]\n\n" +
+                  "제가 먼저 SwimNote에 가입했습니다.\n\n" +
+                  "설정 → 추가 보호자 관리에서\n" +
+                  "제 전화번호를 등록해주시면\n" +
+                  "별도의 승인 없이 자동으로 연결됩니다.\n\n" +
+                  "전화번호 등록 후 바로 사용할 수 있습니다.",
+              });
+            }}
+          >
+            <LucideIcon name="share-2" size={16} color="#fff" />
+            <Text style={{ fontSize: 15, color: "#fff", fontFamily: "Pretendard-SemiBold" }}>연결 안내 보내기</Text>
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [st.submitBtn, { backgroundColor: C.button, alignSelf: "stretch", opacity: pressed ? 0.8 : 1 }]}
             onPress={() => router.replace("/(parent)/home" as any)}
           >
             <Text style={st.submitTxt}>홈으로 이동</Text>
           </Pressable>
         </View>
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -279,4 +475,13 @@ const st = StyleSheet.create({
   resultIcon:       { width: 88, height: 88, borderRadius: 44, justifyContent: "center", alignItems: "center" },
   resultTitle:      { fontSize: 22, fontFamily: "Pretendard-Regular" },
   resultSub:        { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
+  fieldErr:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 2 },
+  childCard:        { borderWidth: 1, borderRadius: 12, padding: 14 },
+  removeBtn:        { width: 28, height: 28, borderRadius: 8, justifyContent: "center", alignItems: "center" },
+  addBtn:           { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderStyle: "dashed", borderRadius: 12, paddingVertical: 12 },
+  addBtnTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  pendingInfoBox:   { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
+  pendingInfoTxt:   { fontSize: 16, fontFamily: "Pretendard-Regular", fontWeight: "600" },
+  pendingTipBox:    { flexDirection: "row", alignItems: "flex-start", gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, alignSelf: "stretch" },
+  pendingTipTxt:    { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
 });

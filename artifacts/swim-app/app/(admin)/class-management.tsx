@@ -1,4 +1,3 @@
-import { Calendar, CircleAlert, Grid2x2, Inbox, List, RefreshCw, RotateCcw } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
@@ -103,7 +102,7 @@ export default function ClassManagementScreen() {
         title="수업 관리"
         rightSlot={
           <Pressable onPress={load} style={s.refreshBtn} hitSlop={8}>
-            <RefreshCw size={18} color={C.textSecondary} />
+            <LucideIcon name="refresh-cw" size={18} color={C.textSecondary} />
           </Pressable>
         }
       />
@@ -115,7 +114,7 @@ export default function ClassManagementScreen() {
 
       {error ? (
         <View style={[s.errBox, { backgroundColor: "#F9DEDA", marginHorizontal: 16 }]}>
-          <CircleAlert size={14} color={C.error} />
+          <LucideIcon name="alert-circle" size={14} color={C.error} />
           <Text style={[s.errText, { color: C.error }]}>{error}</Text>
         </View>
       ) : null}
@@ -124,7 +123,7 @@ export default function ClassManagementScreen() {
         <>
           {/* 반 현황 */}
           <View style={s.sectionHeader}>
-            <Grid2x2 size={15} color={C.tint} />
+            <LucideIcon name="grid" size={15} color={C.tint} />
             <Text style={[s.sectionTitle, { color: C.text }]}>반 현황</Text>
           </View>
           <View style={s.statsRow}>
@@ -136,7 +135,7 @@ export default function ClassManagementScreen() {
 
           {/* 이달 출결 */}
           <View style={s.sectionHeader}>
-            <Calendar size={15} color="#2EC4B6" />
+            <LucideIcon name="calendar" size={15} color="#2EC4B6" />
             <Text style={[s.sectionTitle, { color: C.text }]}>{monthLabel} 출결</Text>
           </View>
           <View style={s.statsRow}>
@@ -148,7 +147,7 @@ export default function ClassManagementScreen() {
 
           {/* 보강 현황 */}
           <View style={s.sectionHeader}>
-            <RotateCcw size={15} color="#D97706" />
+            <LucideIcon name="rotate-ccw" size={15} color="#D97706" />
             <Text style={[s.sectionTitle, { color: C.text }]}>{monthLabel} 보강</Text>
           </View>
           <View style={s.statsRow}>
@@ -160,7 +159,7 @@ export default function ClassManagementScreen() {
 
           {/* 반 목록 */}
           <View style={[s.sectionHeader, { marginTop: 4 }]}>
-            <List size={15} color={C.tint} />
+            <LucideIcon name="list" size={15} color={C.tint} />
             <Text style={[s.sectionTitle, { color: C.text }]}>반별 현황</Text>
           </View>
 
@@ -204,7 +203,7 @@ export default function ClassManagementScreen() {
 
           {sortedClasses.length === 0 ? (
             <View style={s.empty}>
-              <Inbox size={36} color={C.textMuted} />
+              <LucideIcon name="inbox" size={36} color={C.textMuted} />
               <Text style={[s.emptyText, { color: C.textMuted }]}>등록된 반이 없습니다</Text>
             </View>
           ) : sortedClasses.map(cls => {

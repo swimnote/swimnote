@@ -2,9 +2,11 @@
  * 설정 탭 — 수업설정 / 운영설정 / 수영장설정 / 계정
  * U: 복수 역할 보유 시 "로그인 기본 모드" 토글 표시
  */
-import { ChevronRight, Check, Repeat } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { ChevronRight } from "lucide-react-native";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
+import { WithdrawalModal } from "@/components/common/WithdrawalModal";
+import AppUpdateButton from "@/components/common/AppUpdateButton";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -25,11 +27,12 @@ const NB = "#E6FAF8";
 
 const DEFAULT_LOGIN_MODE_KEY = "@swimnote:default_login_mode";
 
-type MenuItem = { label: string; icon: string; color: string; bg: string; route: string; desc?: string };
+type MenuItem = { label: string; icon: string; color: string; bg: string; route: string; desc?: string; badge?: string; badgeColor?: string };
 
 const CLASS_SETTINGS: MenuItem[] = [
   { label: "수영레벨/테스트기준설정", icon: "award",      color: "#CA8A04", bg: NB, route: "/(admin)/level-settings",             desc: "수영 레벨 기준 및 테스트 관리" },
-  { label: "피드백 작성 목록 설정", icon: "message-circle", color: "#7C3AED", bg: NB, route: "/(admin)/feedback-settings",       desc: "수업 일지 피드백 기본값" },
+  { label: "일지 템플릿 관리",     icon: "file-text",     color: "#7C3AED", bg: NB, route: "/(admin)/diary-template-settings", desc: "레벨별 일지 템플릿 관리" },
+  { label: "반 개설 관리",        icon: "users",          color: "#0891B2", bg: NB, route: "/(admin)/class-capacity-settings",   desc: "반 정원 및 개설 기본값 설정" },
   { label: "수업단가표",          icon: "dollar-sign",    color: "#059669", bg: NB, route: "/(admin)/unit-pricing",               desc: "주1회·주2회·주3회 수업료 단가 설정" },
   { label: "권한 설정",          icon: "shield",         color: "#1D4ED8", bg: NB, route: "/(admin)/admin-grant",                desc: "관리자 / 선생님 권한" },
   { label: "보강 정책",          icon: "refresh-cw",     color: "#EA580C", bg: NB, route: "/(admin)/makeup-policy",             desc: "보강 가능 기간 및 규칙" },
@@ -39,6 +42,7 @@ const CLASS_SETTINGS: MenuItem[] = [
 const OPS_SETTINGS: MenuItem[] = [
   { label: "공지사항 발송",      icon: "file-text",      color: "#0369A1", bg: NB, route: "/(admin)/notices",                   desc: "학부모 / 선생님 공지 관리" },
   { label: "구독 관리",          icon: "credit-card",    color: "#7C3AED", bg: NB, route: "/(admin)/subscription",              desc: "플랜 선택 및 구독 결제" },
+  { label: "환불 정책 확인",     icon: "file-check",     color: "#059669", bg: NB, route: "/(admin)/refund-policy",             desc: "환불 정책 확인 및 동의" },
   { label: "휴무일 관리",        icon: "x-square",       color: N,         bg: NB, route: "/(admin)/holidays",                  desc: "수영장 휴무 / 공휴일 설정" },
   { label: "푸시 발송 설정",     icon: "send",           color: N,         bg: NB, route: "/(admin)/push-message-settings",     desc: "단체 푸시 발송 규칙" },
   { label: "학부모 QR 초대",     icon: "qr-code",        color: "#0EA5E9", bg: NB, route: "/(admin)/invite-qr",                 desc: "QR 코드로 학부모·선생님 초대" },
@@ -55,11 +59,13 @@ const POOL_SETTINGS: MenuItem[] = [
 
 const MY_SETTINGS: MenuItem[] = [
   { label: "내 정보",            icon: "user",           color: N,         bg: NB, route: "/(admin)/my-info",                   desc: "프로필 및 계정 정보" },
+  { label: "웹 접속 비밀번호",   icon: "globe",          color: "#0369A1", bg: NB, route: "/(admin)/web-pin-settings",          desc: "swimnote.kr 웹 관리자 로그인 전용 비밀번호" },
   { label: "앱 사용 도움말",     icon: "life-buoy",      color: "#0EA5E9", bg: NB, route: "/(admin)/help",                      desc: "FAQ 및 기능 사용 가이드" },
 ];
 
 export default function SettingsScreen() {
-  const { adminUser, switchRole, token, logout } = useAuth();
+  const { adminUser, switchRole, token, logout, pool } = useAuth();
+  const isPaidPlan = adminUser?.role === "pool_admin" && !!pool?.subscription_tier && pool.subscription_tier !== "free";
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("settings");
@@ -69,11 +75,16 @@ export default function SettingsScreen() {
   const [defaultTeacher, setDefaultTeacher] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [policyAgreed,     setPolicyAgreed]     = useState<boolean | null>(null);
+  const [policyNeedsReagree, setPolicyNeedsReagree] = useState(false);
 
-  async function handleDeleteAccount() {
+  async function handleDeleteAccount(immediate: boolean) {
     setDeleteLoading(true);
     try {
-      const res = await apiRequest(token, "/auth/account", { method: "DELETE" });
+      const res = await apiRequest(token, "/auth/account", {
+        method: "DELETE",
+        body: JSON.stringify({ immediate }),
+      });
       if (res.ok) { setDeleteConfirm(false); await logout(); }
     } catch { } finally { setDeleteLoading(false); }
   }
@@ -85,6 +96,13 @@ export default function SettingsScreen() {
     if (!token) return;
     apiRequest(token, "/admin/dashboard-stats").then(r => r.ok ? r.json() : null).then(d => {
       if (d) setSettingsStats({ total_members: d.total_members ?? 0, total_teachers: d.total_teachers ?? 0, total_parents: d.total_parents ?? 0 });
+    }).catch(() => {});
+    // 환불 정책 동의 여부 조회 (현재 활성 버전 기준)
+    apiRequest(token, "/admin/refund-policy").then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.success) {
+        setPolicyAgreed(d.agreed === true && d.needs_reagree === false);
+        setPolicyNeedsReagree(d.needs_reagree === true && d.agreed === true);
+      }
     }).catch(() => {});
   }, [token]);
 
@@ -117,26 +135,48 @@ export default function SettingsScreen() {
       <View style={s.section}>
         <Text style={s.sectionTitle}>{title}</Text>
         <View style={[s.sectionCard, { backgroundColor: C.card }]}>
-          {items.map((item, idx) => (
-            <Pressable
-              key={item.label}
-              style={({ pressed }) => [
-                s.menuRow,
-                idx < items.length - 1 && s.menuRowBorder,
-                { opacity: pressed ? 0.7 : 1 },
-              ]}
-              onPress={() => router.push((item.route + "?backTo=settings") as any)}
-            >
-              <View style={[s.menuIcon, { backgroundColor: item.bg }]}>
-                <LucideIcon name={item.icon as any} size={18} color={item.color} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.menuLabel}>{item.label}</Text>
-                {item.desc ? <Text style={s.menuDesc}>{item.desc}</Text> : null}
-              </View>
-              <ChevronRight size={16} color={C.textMuted} />
-            </Pressable>
-          ))}
+          {items.map((item, idx) => {
+            // 환불 정책 확인 — 상태별 배지
+            const isPolicy   = item.route.includes("refund-policy");
+            const showDone   = isPolicy && policyAgreed === true && !policyNeedsReagree;
+            const showReagree = isPolicy && policyNeedsReagree;
+            const showUnread = isPolicy && policyAgreed === false && !policyNeedsReagree;
+            return (
+              <Pressable
+                key={item.label}
+                style={({ pressed }) => [
+                  s.menuRow,
+                  idx < items.length - 1 && s.menuRowBorder,
+                  { opacity: pressed ? 0.7 : 1 },
+                ]}
+                onPress={() => router.push((item.route + "?backTo=settings") as any)}
+              >
+                <View style={[s.menuIcon, { backgroundColor: item.bg }]}>
+                  <LucideIcon name={item.icon as any} size={18} color={item.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.menuLabel}>{item.label}</Text>
+                  {item.desc ? <Text style={s.menuDesc}>{item.desc}</Text> : null}
+                </View>
+                {showUnread && (
+                  <View style={{ backgroundColor: "#FEF2F2", borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, marginRight: 4 }}>
+                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D96C6C" }}>미확인</Text>
+                  </View>
+                )}
+                {showReagree && (
+                  <View style={{ backgroundColor: "#FFFBEB", borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, marginRight: 4 }}>
+                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D97706" }}>재동의 필요</Text>
+                  </View>
+                )}
+                {showDone && (
+                  <View style={{ backgroundColor: "#F0FDF4", borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, marginRight: 4 }}>
+                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#16A34A" }}>동의 완료</Text>
+                  </View>
+                )}
+                <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+              </Pressable>
+            );
+          })}
         </View>
       </View>
     );
@@ -171,7 +211,7 @@ export default function SettingsScreen() {
               style={[s.switchBtn, { borderColor: themeColor }]}
               onPress={() => setSwitchModalVisible(true)}
             >
-              <Repeat size={14} color={themeColor} />
+              <LucideIcon name="repeat" size={14} color={themeColor} />
               <Text style={[s.switchBtnText, { color: themeColor }]}>역할 전환</Text>
             </Pressable>
           )}
@@ -200,7 +240,7 @@ export default function SettingsScreen() {
                 {items.map(item => (
                   <Pressable key={item.label} style={sc.row} onPress={() => router.push((item.route + "?backTo=settings") as any)}>
                     <View style={[sc.dot, { backgroundColor: item.done ? "#D1FAE5" : C.border }]}>
-                      {item.done && <Check size={11} color="#16A34A" />}
+                      {item.done && <LucideIcon name="check" size={11} color="#16A34A" />}
                     </View>
                     <Text style={[sc.rowLabel, { color: item.done ? C.textSecondary : C.text }]}>{item.label}</Text>
                     {!item.done && <Text style={[sc.rowTag, { color: themeColor }]}>설정하기</Text>}
@@ -244,6 +284,17 @@ export default function SettingsScreen() {
         {adminUser?.role !== "sub_admin" && renderSection("수영장 설정", POOL_SETTINGS)}
         {renderSection("계정 / 기타", MY_SETTINGS)}
 
+        {/* 앱 업데이트 */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>앱 업데이트</Text>
+          <AppUpdateButton themeColor={themeColor} />
+        </View>
+
+        {/* 문의하기 — 목록 최하단 */}
+        {renderSection("문의하기", [
+          { label: "문의하기", icon: "help-circle", color: "#2EC4B6", bg: "#E6FAF8", route: "/(admin)/inquiries", desc: "스윔노트 · 학부모 문의 관리" },
+        ])}
+
         {/* 계정 삭제 */}
         <Pressable
           style={({ pressed }) => [s.deleteBtn, { opacity: pressed ? 0.7 : 1 }]}
@@ -252,26 +303,15 @@ export default function SettingsScreen() {
           <Text style={s.deleteBtnText}>회원 탈퇴</Text>
         </Pressable>
 
-        {/* 문의하기 — 설정 최하단 */}
-        <Pressable
-          style={({ pressed }) => [s.inquiryBtn, { opacity: pressed ? 0.8 : 1 }]}
-          onPress={() => router.push("/support-ticket-list" as any)}
-        >
-          <LucideIcon name="message-circle" size={16} color="#7C3AED" />
-          <Text style={s.inquiryBtnText}>문의하기</Text>
-          <Text style={s.inquiryBtnDesc}>스윔노트 고객센터 문의</Text>
-        </Pressable>
 
       </ScrollView>
 
-      <ConfirmModal
+      <WithdrawalModal
         visible={deleteConfirm}
-        title="회원 탈퇴"
-        message={"계정을 삭제하면 모든 데이터가 익명 처리되며\n복구할 수 없습니다. 정말 탈퇴하시겠습니까?"}
-        confirmText={deleteLoading ? "처리 중..." : "탈퇴하기"}
-        destructive
+        onClose={() => setDeleteConfirm(false)}
         onConfirm={handleDeleteAccount}
-        onCancel={() => setDeleteConfirm(false)}
+        loading={deleteLoading}
+        isPaidPlan={isPaidPlan}
       />
 
       {/* 역할 전환 모달 */}

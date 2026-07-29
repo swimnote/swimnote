@@ -3,7 +3,8 @@
  * - 전체공지 / 우리반공지 태그 분리
  * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
-import { Bookmark } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Pressable, RefreshControl,
@@ -55,10 +56,19 @@ export default function ParentNoticesScreen() {
   const [filter, setFilter] = useState<FilterKey>("all");
 
   async function fetchNotices() {
+    let hasCached = false;
     try {
-      setLoading(true);
+      const raw = await AsyncStorage.getItem("@sn:parent_notices");
+      if (raw) { setNotices(JSON.parse(raw)); hasCached = true; setLoading(false); }
+    } catch {}
+    if (!hasCached) setLoading(true);
+    try {
       const res = await apiRequest(token, "/parent/notices");
-      if (res.ok) setNotices(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setNotices(data);
+        AsyncStorage.setItem("@sn:parent_notices", JSON.stringify(data)).catch(() => {});
+      }
     } finally { setLoading(false); }
   }
 
@@ -111,8 +121,8 @@ export default function ParentNoticesScreen() {
         >
           {filtered.length === 0 ? (
             <View style={[s.emptyBox, { backgroundColor: C.card }]}>
-              <Text style={s.emptyEmoji}>📋</Text>
-              <Text style={[s.emptyTitle, { color: C.text }]}>공지사항이 없습니다</Text>
+              <LucideIcon name="clipboard-list" size={40} color={C.textMuted} />
+              <Text style={[s.emptyTitle, { color: C.textMuted }]}>공지사항이 없습니다</Text>
             </View>
           ) : filtered.map(n => {
             const isExpanded = expanded === n.id;
@@ -126,7 +136,7 @@ export default function ParentNoticesScreen() {
                   <TypeBadge type={n.notice_type} scope={n.audience_scope} />
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     {!n.is_read && <View style={[s.dot, { backgroundColor: C.tint }]} />}
-                    {n.is_pinned && <Bookmark size={13} color={C.tint} />}
+                    {n.is_pinned && <LucideIcon name="bookmark" size={13} color={C.tint} />}
                   </View>
                 </View>
                 <Text style={[s.title, { color: C.text }]}>{n.title}</Text>
@@ -172,7 +182,6 @@ const s = StyleSheet.create({
   cardBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 },
   meta: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   expandHint: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  emptyBox: { borderRadius: 16, padding: 40, alignItems: "center", gap: 8, marginTop: 20 },
-  emptyEmoji: { fontSize: 44 },
+  emptyBox: { borderRadius: 16, padding: 40, alignItems: "center", gap: 10, marginTop: 20 },
   emptyTitle: { fontSize: 15, fontFamily: "Pretendard-Regular" },
 });

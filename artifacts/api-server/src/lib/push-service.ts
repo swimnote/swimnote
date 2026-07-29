@@ -19,10 +19,21 @@ const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 export interface PushMessage {
   to: string;
   title: string;
+  subtitle?: string;
   body: string;
   data?: Record<string, unknown>;
   sound?: "default" | null;
   badge?: number;
+  channelId?: string;
+  priority?: "default" | "normal" | "high";
+  ttl?: number;
+}
+
+export interface PushOptions {
+  subtitle?: string;
+  channelId?: string;
+  priority?: "default" | "normal" | "high";
+  ttl?: number;
 }
 
 /** Expo Push API로 실제 발송 */
@@ -30,11 +41,16 @@ export async function sendRawPush(
   tokens: string[],
   title: string,
   body: string,
-  data: Record<string, unknown> = {}
+  data: Record<string, unknown> = {},
+  options: PushOptions = {}
 ): Promise<void> {
   if (!tokens.length) return;
   const messages: PushMessage[] = tokens.map(to => ({
     to, title, body, data, sound: "default",
+    ...(options.subtitle   && { subtitle: options.subtitle }),
+    ...(options.channelId  && { channelId: options.channelId }),
+    ...(options.priority   && { priority: options.priority }),
+    ...(options.ttl != null && { ttl: options.ttl }),
   }));
   try {
     await fetch(EXPO_PUSH_URL, {
@@ -124,7 +140,8 @@ export async function sendPushToUser(
   title: string,
   body: string,
   data: Record<string, unknown> = {},
-  triggeredBy?: string
+  triggeredBy?: string,
+  options: PushOptions = {}
 ): Promise<void> {
   try {
     const enabled = await checkPushEnabled(userId, notifType, isParent);
@@ -136,7 +153,7 @@ export async function sendPushToUser(
       ? await getTokensByParentId(userId)
       : await getTokensByUserId(userId);
     if (!tokens.length) return;
-    await sendRawPush(tokens, title, body, data);
+    await sendRawPush(tokens, title, body, data, options);
     await logPush(userId, isParent ? "parent" : "user", notifType, "sent", body, triggeredBy);
   } catch (e) {
     console.error("[push-service] sendPushToUser 오류:", e);
@@ -156,7 +173,8 @@ export async function sendPushToClassParents(
   body: string,
   data: Record<string, unknown> = {},
   triggeredBy?: string,
-  skipIfDiaryRecentlySent = false
+  skipIfDiaryRecentlySent = false,
+  options: PushOptions = {}
 ): Promise<void> {
   try {
     if (skipIfDiaryRecentlySent) {
@@ -186,7 +204,7 @@ export async function sendPushToClassParents(
       if (!enabled) continue;
       const tokens = await getTokensByParentId(pid);
       if (!tokens.length) continue;
-      await sendRawPush(tokens, title, body, data);
+      await sendRawPush(tokens, title, body, data, options);
       await logPush(pid, "parent", notifType, "sent", body, triggeredBy);
     }
   } catch (e) {
@@ -347,6 +365,40 @@ export async function sendPushToAllUsers(
   }
 }
 
+// ── 슈퍼관리자 푸시 ──────────────────────────────────────────────────
+
+/**
+ * 슈퍼관리자 전원에게 푸시 발송 (운영 알림용)
+ * superAdminDb에서 super_admin 역할 유저 ID 조회 → pool DB에서 토큰 조회 → 발송
+ */
+export async function sendPushToSuperAdmins(
+  title: string,
+  body: string,
+  data: Record<string, unknown> = {}
+): Promise<void> {
+  try {
+    const superRows = await superAdminDb.execute(sql`
+      SELECT id FROM users
+      WHERE role IN ('super_admin', 'platform_admin')
+    `);
+    const superIds = (superRows.rows as any[]).map(r => r.id).filter(Boolean);
+    if (!superIds.length) return;
+
+    const tokens: string[] = [];
+    for (const uid of superIds) {
+      const rows = await db.execute(sql`
+        SELECT DISTINCT token FROM push_tokens
+        WHERE user_id = ${uid} AND token IS NOT NULL AND token != ''
+      `);
+      tokens.push(...(rows.rows as any[]).map(r => r.token));
+    }
+    if (!tokens.length) return;
+    await sendRawPush(tokens, title, body, data);
+  } catch (e) {
+    console.error("[push-service] sendPushToSuperAdmins 오류:", e);
+  }
+}
+
 // ── DB 테이블 자동 생성 ───────────────────────────────────────────────
 
 export async function initPushTables(): Promise<void> {
@@ -376,11 +428,11 @@ export async function initPushTables(): Promise<void> {
         pool_id                TEXT NOT NULL UNIQUE,
         prev_day_push_time     TEXT NOT NULL DEFAULT '20:00',
         same_day_push_offset   INTEGER NOT NULL DEFAULT 1,
-        tpl_notice             TEXT DEFAULT '📢 새 공지사항이 등록되었습니다.',
-        tpl_prev_day           TEXT DEFAULT '📅 내일 수업이 있습니다. 준비하세요!',
-        tpl_same_day           TEXT DEFAULT '⏰ 오늘 수업 {offset}시간 전입니다.',
-        tpl_diary              TEXT DEFAULT '📒 새 수업 일지가 작성되었습니다.',
-        tpl_photo              TEXT DEFAULT '📸 새 사진이 업로드되었습니다.',
+        tpl_notice             TEXT DEFAULT '새 공지사항이 등록되었습니다.',
+        tpl_prev_day           TEXT DEFAULT '내일 수업이 있습니다. 준비하세요!',
+        tpl_same_day           TEXT DEFAULT '오늘 수업 {offset}시간 전입니다.',
+        tpl_diary              TEXT DEFAULT '새 수업 일지가 작성되었습니다.',
+        tpl_photo              TEXT DEFAULT '새 사진이 업로드되었습니다.',
         updated_at             TIMESTAMPTZ DEFAULT now()
       )
     `);
@@ -394,6 +446,22 @@ export async function initPushTables(): Promise<void> {
         message         TEXT,
         triggered_by    TEXT,
         created_at      TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    // 일지 푸시 예약 큐 (22시 이후 작성 → 다음날 10시 발송)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS diary_push_queue (
+        id            TEXT PRIMARY KEY,
+        pool_id       TEXT NOT NULL,
+        class_id      TEXT,
+        diary_id      TEXT NOT NULL,
+        student_ids   JSONB,
+        class_name    TEXT NOT NULL,
+        lesson_date   TEXT,
+        is_individual BOOLEAN NOT NULL DEFAULT false,
+        scheduled_at  TIMESTAMPTZ NOT NULL,
+        sent_at       TIMESTAMPTZ,
+        created_at    TIMESTAMPTZ DEFAULT now()
       )
     `);
     // 예약 발송 중복 방지용 테이블

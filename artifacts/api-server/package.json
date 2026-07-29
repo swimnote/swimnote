@@ -10,12 +10,14 @@
     "start": "node dist/index.mjs",
     "start:worker": "WORKER_MODE=true node dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "pre-backup": "tsx ./src/scripts/pre-backup.ts"
+    "pre-backup": "tsx ./src/scripts/pre-backup.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1014.0",
     "@aws-sdk/lib-storage": "^3.1014.0",
-    "@aws-sdk/s3-request-presigner": "^3.1094.0",
+    "@aws-sdk/s3-request-presigner": "^3.1070.0",
     "@replit/object-storage": "^1.0.0",
     "@types/multer": "^2.1.0",
     "@types/node-cron": "^3.0.11",
@@ -30,7 +32,7 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
     "node-cron": "^4.2.1",
-    "openai": "^6.49.0",
+    "openai": "^7.0.0",
     "otplib": "^13.4.0",
     "qrcode": "^1.5.4"
   },
@@ -42,6 +44,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "catalog:",
     "esbuild": "^0.27.3",
-    "tsx": "catalog:"
+    "tsx": "catalog:",
+    "vitest": "^4.1.10"
   }
 }

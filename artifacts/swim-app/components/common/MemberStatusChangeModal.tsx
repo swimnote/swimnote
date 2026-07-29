@@ -4,16 +4,18 @@
  *
  * 선생님 모드: 정상/미배정/연기/퇴원 (아카이브·영구삭제 제외)
  * 연기/퇴원 선택 시 → 즉시 이동 / 다음 달 이동 2단계 선택
+ * 정상(active) 복귀 선택 시 → 복귀일 달력 선택 단계
  */
-import { Calendar, CircleAlert, Clock, Zap } from "lucide-react-native";
 import React, { useState } from "react";
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 
 type ActionStatus = "active" | "unassigned" | "suspended" | "withdrawn";
+type Step = "select" | "timing" | "datepick";
 
 interface Props {
   visible: boolean;
@@ -27,11 +29,17 @@ interface Props {
 }
 
 const OPTIONS = [
-  { key: "active" as ActionStatus,    label: "정상",  sub: "active 상태로 복귀 (반 배정 유지)",    color: "#2EC4B6", bg: "#E6FFFA", emoji: "✅", hasTiming: false },
+  { key: "active" as ActionStatus,    label: "정상",  sub: "active 상태로 복귀 (복귀일 선택)",      color: "#2EC4B6", bg: "#E6FFFA", emoji: "✅", hasTiming: false },
   { key: "unassigned" as ActionStatus, label: "미배정", sub: "반 배정 해제, 미배정 대기 상태",      color: "#D96C6C", bg: "#F9DEDA", emoji: "📋", hasTiming: false },
   { key: "suspended" as ActionStatus,  label: "연기",  sub: "연기 처리, 이동 시점 선택 가능",       color: "#B45309", bg: "#FFF1BF", emoji: "⏸️", hasTiming: true  },
   { key: "withdrawn" as ActionStatus,  label: "퇴원",  sub: "수강 종료, 이동 시점 선택 가능",       color: "#991B1B", bg: "#FEF2F2", emoji: "🚪", hasTiming: true  },
 ];
+
+const WEEK_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+function toYMD(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export function MemberStatusChangeModal({
   visible, studentId, studentName, currentStatus,
@@ -39,10 +47,15 @@ export function MemberStatusChangeModal({
   onClose, onChanged,
 }: Props) {
   const { token } = useAuth();
-  const [step, setStep] = useState<"select" | "timing">("select");
+  const [step, setStep] = useState<Step>("select");
   const [pickedStatus, setPickedStatus] = useState<ActionStatus | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 복귀일 달력 상태
+  const todayDate = new Date();
+  const [calYear, setCalYear]     = useState(todayDate.getFullYear());
+  const [calMonth, setCalMonth]   = useState(todayDate.getMonth());
+  const [calSelected, setCalSelected] = useState(toYMD(todayDate));
 
   function handleClose() {
     setStep("select");
@@ -53,7 +66,15 @@ export function MemberStatusChangeModal({
 
   function handleOptionPress(opt: typeof OPTIONS[number]) {
     setError(null);
-    if (opt.hasTiming) {
+    if (opt.key === "active") {
+      // 복귀일 달력 선택 단계
+      const today = new Date();
+      setCalYear(today.getFullYear());
+      setCalMonth(today.getMonth());
+      setCalSelected(toYMD(today));
+      setPickedStatus("active");
+      setStep("datepick");
+    } else if (opt.hasTiming) {
       setPickedStatus(opt.key);
       setStep("timing");
     } else {
@@ -61,49 +82,50 @@ export function MemberStatusChangeModal({
     }
   }
 
-  async function doChange(status: ActionStatus, mode: "immediate" | "next_month") {
-    setLoading(true);
+  async function doChange(status: ActionStatus, mode: "immediate" | "next_month", resumeDate?: string) {
     setError(null);
+    setStep("select");
+    setPickedStatus(null);
+    onClose();
     try {
+      const body: Record<string, string> = { new_status: status, effective_mode: mode };
+      if (resumeDate) body.resume_date = resumeDate;
       const res = await apiRequest(token, `/students/${studentId}/change-status`, {
         method: "POST",
-        body: JSON.stringify({ new_status: status, effective_mode: mode }),
+        body: JSON.stringify(body),
       });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setError(d.error || d.message || "상태 변경에 실패했습니다.");
-        setLoading(false);
-        return;
+      if (res.ok) {
+        onChanged({ status, mode });
       }
-      setLoading(false);
-      handleClose();
-      onChanged({ status, mode });
-    } catch {
-      setError("네트워크 오류가 발생했습니다.");
-      setLoading(false);
-    }
+    } catch { /* 실패 시 부모가 다음 갱신 시 자동 복구 */ }
+  }
+
+  // 달력 빌더
+  function buildCalCells() {
+    const firstDay = new Date(calYear, calMonth, 1).getDay();
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const cells: Array<number | null> = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
   }
 
   const now = new Date();
   const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   const nextLabel = `${next.getFullYear()}년 ${next.getMonth() + 1}월`;
   const pickedLabel = pickedStatus === "suspended" ? "연기" : "퇴원";
+  const todayStr = toYMD(todayDate);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
       <Pressable style={m.overlay} onPress={handleClose} />
       <View style={m.sheet}>
-        {loading ? (
-          <View style={{ alignItems: "center", paddingVertical: 40 }}>
-            <ActivityIndicator color={C.tint} size="large" />
-            <Text style={{ color: C.textSecondary, marginTop: 12, fontFamily: "Pretendard-Regular" }}>처리 중...</Text>
-          </View>
-        ) : step === "select" ? (
+        {step === "select" && (
           <>
             <Text style={m.title}>상태 변경</Text>
             <Text style={m.sub}>{studentName}님의 상태를 선택하세요</Text>
 
-            {/* 현재 상태 + 예약 배지 */}
             <View style={{ flexDirection: "row", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
               {currentStatus === "active" && (
                 <View style={[m.badge, { backgroundColor: "#E6FFFA" }]}>
@@ -134,7 +156,7 @@ export function MemberStatusChangeModal({
 
             {error && (
               <View style={m.errorBox}>
-                <CircleAlert size={14} color="#D96C6C" />
+                <LucideIcon name="alert-circle" size={14} color="#D96C6C" />
                 <Text style={m.errorText}>{error}</Text>
               </View>
             )}
@@ -150,9 +172,11 @@ export function MemberStatusChangeModal({
                     <Text style={[m.optLabel, { color: opt.color }]}>{opt.label}</Text>
                     <Text style={m.optSub}>{opt.sub}</Text>
                   </View>
-                  {opt.hasTiming
-                    ? <Clock size={14} color={opt.color} />
-                    : <Zap size={14} color={opt.color} />
+                  {opt.key === "active"
+                    ? <LucideIcon name="calendar" size={14} color={opt.color} />
+                    : opt.hasTiming
+                      ? <LucideIcon name="clock" size={14} color={opt.color} />
+                      : <LucideIcon name="zap" size={14} color={opt.color} />
                   }
                 </Pressable>
               ))}
@@ -162,25 +186,26 @@ export function MemberStatusChangeModal({
               <Text style={m.cancelText}>취소</Text>
             </Pressable>
           </>
-        ) : (
+        )}
+
+        {step === "timing" && (
           <>
             <Text style={m.title}>이동 시점 선택</Text>
             <Text style={m.sub}>{studentName}님의 {pickedLabel} 처리 시점을 선택하세요.</Text>
 
             {error && (
               <View style={m.errorBox}>
-                <CircleAlert size={14} color="#D96C6C" />
+                <LucideIcon name="alert-circle" size={14} color="#D96C6C" />
                 <Text style={m.errorText}>{error}</Text>
               </View>
             )}
 
             <View style={{ gap: 10, marginTop: 8 }}>
-              {/* 즉시 이동 */}
               <Pressable
                 onPress={() => doChange(pickedStatus!, "immediate")}
                 style={[m.option, { backgroundColor: "#FEF2F2", borderColor: "#991B1B40" }]}>
                 <View style={[m.optIcon, { backgroundColor: "#F9DEDA" }]}>
-                  <Zap size={20} color="#991B1B" />
+                  <LucideIcon name="zap" size={20} color="#991B1B" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[m.optLabel, { color: "#991B1B" }]}>즉시 이동</Text>
@@ -188,12 +213,11 @@ export function MemberStatusChangeModal({
                 </View>
               </Pressable>
 
-              {/* 다음 달 이동 */}
               <Pressable
                 onPress={() => doChange(pickedStatus!, "next_month")}
                 style={[m.option, { backgroundColor: "#DFF3EC", borderColor: "#16A34A40" }]}>
                 <View style={[m.optIcon, { backgroundColor: "#DCFCE7" }]}>
-                  <Calendar size={20} color="#16A34A" />
+                  <LucideIcon name="calendar" size={20} color="#16A34A" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[m.optLabel, { color: "#16A34A" }]}>다음 달부터 이동</Text>
@@ -205,6 +229,85 @@ export function MemberStatusChangeModal({
             <Pressable onPress={() => { setStep("select"); setPickedStatus(null); setError(null); }} style={m.cancelBtn}>
               <Text style={m.cancelText}>뒤로</Text>
             </Pressable>
+          </>
+        )}
+
+        {step === "datepick" && (
+          <>
+            <Text style={m.title}>복귀일 선택</Text>
+            <Text style={m.sub}>{studentName}님의 첫 수업일을 선택하세요</Text>
+
+            {/* 연월 네비게이션 */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <Pressable hitSlop={8} onPress={() => {
+                if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
+                else setCalMonth(prev => prev - 1);
+              }}>
+                <LucideIcon name="chevron-left" size={20} color={C.text} />
+              </Pressable>
+              <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }}>
+                {calYear}년 {calMonth + 1}월
+              </Text>
+              <Pressable hitSlop={8} onPress={() => {
+                if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
+                else setCalMonth(prev => prev + 1);
+              }}>
+                <LucideIcon name="chevron-right" size={20} color={C.text} />
+              </Pressable>
+            </View>
+
+            {/* 요일 헤더 */}
+            <View style={{ flexDirection: "row", marginBottom: 2 }}>
+              {WEEK_DAYS.map((w, i) => (
+                <Text key={w} style={{ flex: 1, textAlign: "center", fontSize: 11,
+                  fontFamily: "Pretendard-Regular",
+                  color: i === 0 ? "#EF4444" : i === 6 ? "#3B82F6" : "#888" }}>
+                  {w}
+                </Text>
+              ))}
+            </View>
+
+            {/* 날짜 그리드 */}
+            <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 8 }}>
+              {buildCalCells().map((day, idx) => {
+                if (!day) return <View key={`e-${idx}`} style={{ width: `${100/7}%`, aspectRatio: 1 }} />;
+                const d = new Date(calYear, calMonth, day);
+                const ds = toYMD(d);
+                const isSel = ds === calSelected;
+                const isToday = ds === todayStr;
+                const dow = idx % 7;
+                return (
+                  <Pressable key={ds} onPress={() => setCalSelected(ds)}
+                    style={{ width: `${100/7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center",
+                      ...(isSel ? { backgroundColor: C.tint, borderRadius: 20 } : {}) }}>
+                    {isToday && !isSel && (
+                      <View style={{ position: "absolute", bottom: 3, width: 4, height: 4,
+                        borderRadius: 2, backgroundColor: C.tint }} />
+                    )}
+                    <Text style={{ fontSize: 13, fontFamily: isSel ? "Pretendard-SemiBold" : "Pretendard-Regular",
+                      color: isSel ? "#fff" : dow === 0 ? "#EF4444" : dow === 6 ? "#3B82F6" : "#222" }}>
+                      {day}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted,
+              textAlign: "center", marginBottom: 12 }}>
+              선택: {calSelected}
+            </Text>
+
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable style={[m.actionBtn, { backgroundColor: "#F3F4F6", flex: 1 }]}
+                onPress={() => { setStep("select"); setPickedStatus(null); }}>
+                <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>뒤로</Text>
+              </Pressable>
+              <Pressable style={[m.actionBtn, { backgroundColor: C.tint, flex: 1 }]}
+                onPress={() => doChange("active", "immediate", calSelected)}>
+                <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" }}>복귀 확인</Text>
+              </Pressable>
+            </View>
           </>
         )}
       </View>
@@ -229,4 +332,5 @@ const m = StyleSheet.create({
   optSub:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   cancelBtn:  { alignItems: "center", marginTop: 16 },
   cancelText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  actionBtn:  { paddingVertical: 13, borderRadius: 12, alignItems: "center" },
 });

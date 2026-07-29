@@ -5,7 +5,7 @@
  * Coach (개인 선생님, 사진만): Free / Coach 30 / Coach 50 / Coach 100
  * Premier (수영장/센터, 사진+영상): Premier 200 / Premier 300 / Premier 500 / Premier 1000
  *
- * 이 파일의 값을 기준으로 모든 화면·로직·DB 시드가 동작한다.
+ * DB(subscription_plans) 실제값과 반드시 일치해야 함
  */
 
 export interface SubscriptionPlanDef {
@@ -29,8 +29,8 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     plan_id: "free_10",
     name: "Free",
     max_members: 10,
-    storage_limit_mb: 512,
-    display_storage: "500MB",
+    storage_limit_mb: 102,
+    display_storage: "100MB",
     price_monthly_krw: 0,
     sort_order: 0,
     is_enterprise: false,
@@ -45,7 +45,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 30,
     storage_limit_mb: 3072,
     display_storage: "3GB",
-    price_monthly_krw: 3500,
+    price_monthly_krw: 1900,
     sort_order: 1,
     is_enterprise: false,
     tier_group: "coach",
@@ -59,7 +59,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 50,
     storage_limit_mb: 5120,
     display_storage: "5GB",
-    price_monthly_krw: 6500,
+    price_monthly_krw: 2900,
     sort_order: 2,
     is_enterprise: false,
     tier_group: "coach",
@@ -73,7 +73,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 100,
     storage_limit_mb: 10240,
     display_storage: "10GB",
-    price_monthly_krw: 9500,
+    price_monthly_krw: 5900,
     sort_order: 3,
     is_enterprise: false,
     tier_group: "coach",
@@ -87,7 +87,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 200,
     storage_limit_mb: 51200,
     display_storage: "50GB",
-    price_monthly_krw: 69000,
+    price_monthly_krw: 19000,
     sort_order: 4,
     is_enterprise: false,
     tier_group: "premier",
@@ -101,7 +101,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 300,
     storage_limit_mb: 81920,
     display_storage: "80GB",
-    price_monthly_krw: 99000,
+    price_monthly_krw: 27000,
     sort_order: 5,
     is_enterprise: false,
     tier_group: "premier",
@@ -115,7 +115,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 500,
     storage_limit_mb: 133120,
     display_storage: "130GB",
-    price_monthly_krw: 149000,
+    price_monthly_krw: 43000,
     sort_order: 6,
     is_enterprise: false,
     tier_group: "premier",
@@ -129,7 +129,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 1000,
     storage_limit_mb: 512000,
     display_storage: "500GB",
-    price_monthly_krw: 249000,
+    price_monthly_krw: 79000,
     sort_order: 7,
     is_enterprise: false,
     tier_group: "premier",

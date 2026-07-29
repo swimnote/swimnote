@@ -3,12 +3,11 @@
  * - 만료 유형: 당월 말일 / 다음달 말일 / 지정 일수
  * - 주간 횟수별 보강 한도 (1회/2회/3회 이상)
  */
-import { Save } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Pressable,
+  StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -108,7 +107,7 @@ export default function MakeupPolicyScreen() {
   return (
     <View style={s.root}>
       <SubScreenHeader title="보강 정책 설정" />
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
@@ -187,12 +186,12 @@ export default function MakeupPolicyScreen() {
           {saving
             ? <ActivityIndicator color="#fff" />
             : <>
-                <Save size={16} color="#fff" />
+                <LucideIcon name="save" size={16} color="#fff" />
                 <Text style={s.saveBtnTxt}>정책 저장</Text>
               </>
           }
         </Pressable>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <ConfirmModal
         visible={showConfirm}

@@ -1,4 +1,3 @@
-import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -27,7 +26,7 @@ export function AuthEntryLinks({ links }: Props) {
             <LucideIcon name={item.icon as any} size={12} color={C.textMuted} />
             <Text style={styles.label}>{item.label}</Text>
             <Text style={styles.action}>{item.action}</Text>
-            <ChevronRight size={12} color={C.tint} />
+            <LucideIcon name="chevron-right" size={12} color={C.tint} />
           </Pressable>
         </React.Fragment>
       ))}

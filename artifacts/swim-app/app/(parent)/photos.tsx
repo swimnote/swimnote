@@ -14,8 +14,8 @@ import {
 } from "react-native";
 import { Image as ExpoImage } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
-import { BookOpen, ChevronLeft, ChevronRight, Download, ImageIcon, Play, Video, X } from "lucide-react-native";
 import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import Colors from "@/constants/colors";
@@ -282,7 +282,7 @@ export default function ParentAlbumScreen() {
           <View style={[st.cellImg, st.videoPlaceholder]} />
         )}
         <View style={st.playBadge}>
-          <Play size={14} color="#fff" fill="#fff" />
+          <LucideIcon name="play" size={14} color="#fff" fill="#fff" />
         </View>
       </Pressable>
     );
@@ -333,7 +333,7 @@ export default function ParentAlbumScreen() {
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
       ) : rows.length === 0 ? (
         <View style={st.empty}>
-          <ImageIcon size={44} color={C.textMuted} />
+          <LucideIcon name="image" size={44} color={C.textMuted} />
           <Text style={[st.emptyTitle, { color: C.text }]}>
             {tab === "video" ? "영상이 없습니다" : tab === "photo" ? "사진이 없습니다" : "사진/영상이 없습니다"}
           </Text>
@@ -359,11 +359,11 @@ export default function ParentAlbumScreen() {
         animationType="fade"
         onRequestClose={closeLightbox}
       >
-        <View style={st.lbBg} {...panResponderFixed.panHandlers}>
-          {/* 닫기 */}
+        <View style={st.lbBg}>
+          {/* 닫기 — panHandlers 밖에 배치해야 터치 정상 작동 */}
           <View style={[st.lbTop, { paddingTop: insets.top + 14 }]}>
             <Pressable onPress={closeLightbox} style={st.lbClose} hitSlop={10}>
-              <X size={26} color="#fff" />
+              <LucideIcon name="x" size={26} color="#fff" />
             </Pressable>
             {/* 인덱스 표시 */}
             {photoOnlyItems.length > 1 && lightboxIdx !== null && (
@@ -373,14 +373,16 @@ export default function ParentAlbumScreen() {
             )}
           </View>
 
-          {/* 이미지 */}
-          {lightboxItem ? (
-            <ExpoImage
-              source={{ uri: photoFileUri(lightboxItem.file_url), headers: { Authorization: `Bearer ${token}` } }}
-              style={st.lbImage}
-              contentFit="contain"
-            />
-          ) : null}
+          {/* 이미지 영역에만 panHandlers 적용 */}
+          <View style={st.lbImageWrap} {...panResponderFixed.panHandlers}>
+            {lightboxItem ? (
+              <ExpoImage
+                source={{ uri: photoFileUri(lightboxItem.file_url), headers: { Authorization: `Bearer ${token}` } }}
+                style={st.lbImage}
+                contentFit="contain"
+              />
+            ) : null}
+          </View>
 
           {lightboxItem?.source_label ? (
             <Text style={st.lbSource}>{lightboxItem.source_label}</Text>
@@ -395,7 +397,7 @@ export default function ParentAlbumScreen() {
                 hitSlop={16}
                 disabled={!hasPrev}
               >
-                <ChevronLeft size={28} color={hasPrev ? "#fff" : "rgba(255,255,255,0.25)"} />
+                <LucideIcon name="chevron-left" size={28} color={hasPrev ? "#fff" : "rgba(255,255,255,0.25)"} />
               </Pressable>
               <Pressable
                 onPress={goNext}
@@ -403,7 +405,7 @@ export default function ParentAlbumScreen() {
                 hitSlop={16}
                 disabled={!hasNext}
               >
-                <ChevronRight size={28} color={hasNext ? "#fff" : "rgba(255,255,255,0.25)"} />
+                <LucideIcon name="chevron-right" size={28} color={hasNext ? "#fff" : "rgba(255,255,255,0.25)"} />
               </Pressable>
             </View>
           )}
@@ -417,14 +419,14 @@ export default function ParentAlbumScreen() {
             >
               {lbSaving
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <><Download size={16} color="#fff" /><Text style={st.lbBtnTxt}>다운로드</Text></>}
+                : <><LucideIcon name="download" size={16} color="#fff" /><Text style={st.lbBtnTxt}>다운로드</Text></>}
             </Pressable>
             {lightboxItem?.journal_id && (
               <Pressable
                 style={[st.lbBtn, { backgroundColor: "#0F172A" }]}
                 onPress={() => goToDiary(lightboxItem?.journal_id)}
               >
-                <BookOpen size={16} color="#fff" />
+                <LucideIcon name="book-open" size={16} color="#fff" />
                 <Text style={st.lbBtnTxt}>해당 일지 보기</Text>
               </Pressable>
             )}
@@ -446,12 +448,12 @@ export default function ParentAlbumScreen() {
                   contentFit="cover"
                 />
                 <View style={st.vdPlayOverlay}>
-                  <Play size={36} color="#fff" fill="#fff" />
+                  <LucideIcon name="play" size={36} color="#fff" fill="#fff" />
                 </View>
               </View>
             ) : (
               <View style={[st.vdThumbWrap, st.vdThumbEmpty]}>
-                <Video size={40} color="#64748B" />
+                <LucideIcon name="video" size={40} color="#64748B" />
                 <Text style={st.vdThumbEmptyTxt}>썸네일 없음</Text>
               </View>
             )}
@@ -468,14 +470,14 @@ export default function ParentAlbumScreen() {
               >
                 {vdSaving
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <><Download size={16} color="#fff" /><Text style={st.vdBtnTxt}>영상 다운로드</Text></>}
+                  : <><LucideIcon name="download" size={16} color="#fff" /><Text style={st.vdBtnTxt}>영상 다운로드</Text></>}
               </Pressable>
               {videoDetail?.journal_id && (
                 <Pressable
                   style={[st.vdBtn, { backgroundColor: "#0F172A" }]}
                   onPress={() => goToDiary(videoDetail?.journal_id)}
                 >
-                  <BookOpen size={16} color="#fff" />
+                  <LucideIcon name="book-open" size={16} color="#fff" />
                   <Text style={st.vdBtnTxt}>해당 일지 보기</Text>
                 </Pressable>
               )}
@@ -496,7 +498,7 @@ const st = StyleSheet.create({
   tabRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   tabBtn: { paddingHorizontal: 18, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F8FAFC" },
   tabBtnActive: { borderColor: "#2EC4B6", backgroundColor: "#E6FFFA" },
-  tabTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt: { fontSize: 13, lineHeight: 18, color: "#64748B" },
   tabTxtActive: { color: "#2EC4B6" },
 
   monthHeader: { paddingHorizontal: 14, paddingTop: 18, paddingBottom: 8 },
@@ -529,7 +531,8 @@ const st = StyleSheet.create({
     color: "rgba(255,255,255,0.75)", fontSize: 14, fontFamily: "Pretendard-Regular",
     marginRight: 44,
   },
-  lbImage: { width: "100%", height: "60%" },
+  lbImageWrap: { width: "100%", height: "60%" },
+  lbImage: { width: "100%", height: "100%" },
   lbSource: { color: "#E6FFFA", fontSize: 13, textAlign: "center", paddingHorizontal: 24, paddingTop: 16, fontFamily: "Pretendard-Regular" },
 
   lbArrowRow: {

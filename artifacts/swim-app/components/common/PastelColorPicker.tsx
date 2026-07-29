@@ -8,7 +8,6 @@
  * - 선택된 색상에 체크 + 굵은 테두리
  * - 흰색은 회색 테두리로 구분
  */
-import { Check, Droplet } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState } from "react";
 import {
@@ -46,7 +45,7 @@ export default function PastelColorPicker({ selected, onSelect, label = "반 색
     <View>
       <Pressable style={pc.row} onPress={() => setOpen(v => !v)}>
         <View style={pc.labelRow}>
-          <Droplet size={14} color={C.textSecondary} />
+          <LucideIcon name="droplet" size={14} color={C.textSecondary} />
           <Text style={pc.label}>{label}</Text>
         </View>
         <View style={pc.previewRow}>
@@ -78,7 +77,7 @@ export default function PastelColorPicker({ selected, onSelect, label = "반 색
                   onPress={() => { onSelect(col); setOpen(false); }}
                 >
                   {isSelected && (
-                    <Check size={13} color="#0F172A" />
+                    <LucideIcon name="check" size={13} color="#0F172A" />
                   )}
                 </Pressable>
               );

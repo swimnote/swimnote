@@ -8,13 +8,13 @@
  * F. 세션·접속 관리 (SessionsSection)
  * G. 보안 정책 (SecurityPolicySection) + 로그인 이력 (LoginHistorySection)
  */
-import { AtSign, ChevronRight, CircleAlert, CircleCheck, Eye, Info, Key, Lock, PenLine, RefreshCw, Save, Shield, ShieldOff, Trash2, TriangleAlert, Unlock, UserPlus } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { ChevronRight, CircleAlert, CircleCheck, Eye, Key, Lock as LockIcon, RefreshCw, Save, TriangleAlert, Unlock } from "lucide-react-native";
+const Lock = LockIcon as React.ComponentType<any>;
 import React, { useMemo, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet,
-  Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Image, Modal, Pressable, StyleSheet,
+  Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -274,7 +274,7 @@ export default function SecuritySettingsScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="보안·설정" homePath="/(super)/more" />
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 60 }}>
+      <KeyboardAwareScrollView contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 60 }}>
 
         {/* ══ A. 계정 목록 ══ */}
         <View style={s.section}>
@@ -301,13 +301,13 @@ export default function SecuritySettingsScreen() {
                       </View>
                       {isSuperManager && (
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F0FDF4", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 }}>
-                          <Eye size={9} color="#16A34A" />
+                          <LucideIcon name="eye" size={9} color="#16A34A" />
                           <Text style={{ fontSize: 9, fontFamily: "Pretendard-Regular", color: "#16A34A" }}>읽기전용</Text>
                         </View>
                       )}
                       {!isSuperManager && (acc.twoFactorEnabled
-                        ? <View style={s.twoFaBadgeOn}><Shield size={9} color={GREEN} /><Text style={s.twoFaTxtOn}>2FA</Text></View>
-                        : <View style={s.twoFaBadgeOff}><ShieldOff size={9} color="#64748B" /><Text style={s.twoFaTxtOff}>2FA 없음</Text></View>)}
+                        ? <View style={s.twoFaBadgeOn}><LucideIcon name="shield" size={9} color={GREEN} /><Text style={s.twoFaTxtOn}>2FA</Text></View>
+                        : <View style={s.twoFaBadgeOff}><LucideIcon name="shield-off" size={9} color="#64748B" /><Text style={s.twoFaTxtOff}>2FA 없음</Text></View>)}
                       {acc.loginFailCount > 0 && (
                         <View style={s.failBadge}><Text style={s.failTxt}>실패 {acc.loginFailCount}회</Text></View>
                       )}
@@ -315,9 +315,9 @@ export default function SecuritySettingsScreen() {
                   </View>
                   {acc.role !== "super_admin"
                     ? <Pressable style={s.smDeleteBtn} onPress={() => setSmDeleteId(acc.id)}>
-                        <Trash2 size={14} color={DANGER} />
+                        <LucideIcon name="trash-2" size={14} color={DANGER} />
                       </Pressable>
-                    : <ChevronRight size={14} color="#D1D5DB" />}
+                    : <LucideIcon name="chevron-right" size={14} color="#D1D5DB" />}
                 </Pressable>
               </View>
             );
@@ -325,11 +325,11 @@ export default function SecuritySettingsScreen() {
 
           {/* 슈퍼매니저 추가 버튼 */}
           <Pressable style={s.smAddBtn} onPress={() => setSmAddModal(true)}>
-            <UserPlus size={15} color="#0284C7" />
+            <LucideIcon name="user-plus" size={15} color="#0284C7" />
             <Text style={s.smAddBtnTxt}>슈퍼매니저 추가</Text>
           </Pressable>
           <View style={s.smInfoBox}>
-            <Info size={12} color="#0284C7" />
+            <LucideIcon name="info" size={12} color="#0284C7" />
             <Text style={s.smInfoTxt}>슈퍼매니저는 운영콘솔 전체를 읽기 전용으로 열람할 수 있습니다. 수정·삭제·승인 등 쓰기 작업은 불가합니다. 회원가입 화면에서 직접 가입할 수 없습니다.</Text>
           </View>
         </View>
@@ -338,19 +338,19 @@ export default function SecuritySettingsScreen() {
         <View style={s.section}>
           <SectionTitle title="B. 1차 인증 — 비밀번호" />
           <View style={s.infoRow}>
-            <Lock size={14} color={P} />
+            <LucideIcon name="lock" size={14} color={P} />
             <Text style={s.infoLabel}>마지막 비밀번호 변경</Text>
             <Text style={s.infoValue}>{lastPwChange}</Text>
           </View>
           <View style={s.infoRow}>
-            <Info size={14} color="#64748B" />
+            <LucideIcon name="info" size={14} color="#64748B" />
             <Text style={s.infoLabel}>비밀번호 정책</Text>
             <Text style={s.infoValue}>8자 이상 · 영문+숫자+특수문자</Text>
           </View>
           <Pressable style={s.actionBtn} onPress={() => setPwModal(true)}>
-            <Key size={15} color={P} />
+            <LucideIcon name="key" size={15} color={P} />
             <Text style={s.actionBtnTxt}>비밀번호 변경</Text>
-            <ChevronRight size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
+            <LucideIcon name="chevron-right" size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
           </Pressable>
         </View>
 
@@ -358,14 +358,14 @@ export default function SecuritySettingsScreen() {
         <View style={s.section}>
           <SectionTitle title="B-2. 관리자 ID 변경" sub="이메일 형식의 로그인 ID" />
           <View style={s.infoRow}>
-            <AtSign size={14} color={P} />
+            <LucideIcon name="at-sign" size={14} color={P} />
             <Text style={s.infoLabel}>현재 ID</Text>
             <Text style={s.infoValue}>{currentId}</Text>
           </View>
           <Pressable style={s.actionBtn} onPress={() => setIdModal(true)}>
-            <PenLine size={15} color={P} />
+            <LucideIcon name="edit-2" size={15} color={P} />
             <Text style={s.actionBtnTxt}>ID 변경</Text>
-            <ChevronRight size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
+            <LucideIcon name="chevron-right" size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
           </Pressable>
         </View>
 
@@ -395,7 +395,7 @@ export default function SecuritySettingsScreen() {
           <View style={s.currentTwoFa}>
             <Text style={s.currentTwoFaLabel}>현재 방식</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-              <Shield size={14} color={twoFAMode === "disabled" ? DANGER : GREEN} />
+              <LucideIcon name="shield" size={14} color={twoFAMode === "disabled" ? DANGER : GREEN} />
               <Text style={[s.currentTwoFaTxt, { color: twoFAMode === "disabled" ? DANGER : GREEN }]}>
                 {TWO_FA_OPTIONS.find(o => o.key === twoFAMode)?.label}
               </Text>
@@ -412,7 +412,7 @@ export default function SecuritySettingsScreen() {
                 <Text style={[s.twoFaOptLabel, twoFAMode === opt.key && { color: P }]}>{opt.label}</Text>
                 <Text style={s.twoFaOptDesc}>{opt.desc}</Text>
               </View>
-              {opt.key === "disabled" && <TriangleAlert size={14} color={WARN} />}
+              {opt.key === "disabled" && <LucideIcon name="alert-triangle" size={14} color={WARN} />}
             </Pressable>
           ))}
           <View style={s.triggerSection}>
@@ -441,7 +441,7 @@ export default function SecuritySettingsScreen() {
                   </Text>
                 )}
               </View>
-              <ChevronRight size={14} color="#D1D5DB" />
+              <LucideIcon name="chevron-right" size={14} color="#D1D5DB" />
             </Pressable>
           )}
 
@@ -450,7 +450,7 @@ export default function SecuritySettingsScreen() {
             setShowRecoveryCodes(v => !v);
             if (!showRecoveryCodes) createLog({ category: "보안", title: "복구 코드 조회", detail: "백업 코드 목록 열람", actorName, impact: "medium" });
           }}>
-            <Key size={15} color={P} />
+            <LucideIcon name="key" size={15} color={P} />
             <Text style={s.actionBtnTxt}>{showRecoveryCodes ? "복구 코드 숨기기" : "복구 코드 보기"}</Text>
             <LucideIcon name={showRecoveryCodes ? "chevron-up" : "chevron-down"} size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
           </Pressable>
@@ -531,7 +531,7 @@ export default function SecuritySettingsScreen() {
         {/* ══ G. 로그인 이력 ══ */}
         <LoginHistorySection />
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ══ 계정 상세 모달 ══ */}
       {detailAcc && (

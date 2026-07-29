@@ -1,0 +1,441 @@
+SWIMNOTE 댓글·반응 기능 Production 서버 실제 저장 실패 긴급 수정
+
+현재 실제 production 앱 테스트 결과:
+
+- 학부모가 좋아요를 눌렀지만 선생님 화면은 좋아요 0명
+- 학부모가 감사합니다를 눌렀지만 선생님 화면은 감사합니다 0명
+- 댓글 전송은 계속 “전송에 실패했습니다”
+- 선생님 댓글 화면은 댓글 0개
+- 프론트 UI는 보이지만 서버 저장과 조회가 전혀 연결되지 않음
+
+이번에는 코드 수정 보고가 아니라
+실제 production API 요청, production DB row, 선생님 조회까지 증명하세요.
+
+==================================================
+1. Production API host 확인
+==================================================
+
+학부모 앱의 댓글·반응 요청이 실제 어느 서버로 가는지 로그로 출력하세요.
+
+필수 로그:
+
+[CLIENT API REQUEST]
+apiHost=
+endpoint=
+method=
+diaryId=
+studentId=
+reactionType=
+tokenExists=
+
+확인:
+
+- preview 서버로 요청하는지
+- localhost 또는 Replit 주소를 호출하는지
+- swimnote.kr/api production 서버를 호출하는지
+- /api prefix 중복 여부
+- OTA 환경변수가 production 값을 쓰는지
+
+실제 앱의 API host를 보고하세요.
+
+==================================================
+2. 댓글 실패 응답 원문 확인
+==================================================
+
+현재 앱은 “전송에 실패했습니다”만 보여서 원인을 숨기고 있습니다.
+
+클라이언트에서 다음을 로그로 남기세요.
+
+[PARENT COMMENT ERROR]
+endpoint=
+httpStatus=
+responseBody=
+errorMessage=
+diaryId=
+studentId=
+
+서버에서도:
+
+[COMMENT CREATE START]
+deploymentVersion=
+userId=
+role=
+diaryId=
+studentId=
+body=
+
+[COMMENT CREATE ERROR]
+httpStatus=
+dbCode=
+constraint=
+column=
+query=
+error=
+stack=
+
+실제 500 응답 body와 서버 stack trace를 제출하세요.
+
+추측으로 수정하지 마세요.
+
+==================================================
+3. Production 서버에 새 라우터가 실제 배포됐는지 확인
+==================================================
+
+다음 production endpoint를 직접 호출해 확인하세요.
+
+POST /api/diaries/:id/comments
+POST /api/diaries/:id/reactions
+GET /api/diaries/:id/comments
+GET /api/diaries/:id/reactions/summary
+
+확인 항목:
+
+- 404인지
+- 401/403인지
+- 500인지
+- route 등록 여부
+- production deploymentVersion
+
+Render 로그에 다음이 보여야 합니다.
+
+commentsRouter registered
+deploymentVersion=
+migration completed=
+
+로컬 서버에서만 동작하고 production Render에 반영되지 않은 상태인지 확인하세요.
+
+==================================================
+4. Production DB 스키마 직접 확인
+==================================================
+
+Production DB에서 실제로 확인하세요.
+
+diary_messages:
+
+- parent_comment_id 존재
+- student_id 존재
+- message_type 존재
+- nullable/default 확인
+- 기존 NOT NULL 컬럼 확인
+
+diary_reactions:
+
+- 테이블 존재
+- reaction_type 컬럼
+- CHECK constraint
+- unique constraint
+- diary_id
+- student_id
+- parent_user_id
+
+다음 SQL 결과를 보고하세요.
+
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_name IN ('diary_messages', 'diary_reactions');
+
+SELECT conname, pg_get_constraintdef(oid)
+FROM pg_constraint
+WHERE conrelid IN (
+  'diary_messages'::regclass,
+  'diary_reactions'::regclass
+);
+
+“마이그레이션 코드가 있다”가 아니라
+production DB에 실제 적용됐는지 증명하세요.
+
+==================================================
+5. reactionType 전수 통일
+==================================================
+
+좋아요와 감사합니다의 값을 전체 코드에서 통일하세요.
+
+허용값:
+
+like
+thanks
+
+전수 검색:
+
+thank
+thanks
+like
+gratitude
+appreciation
+
+프론트 요청:
+reactionType: "thanks"
+
+DB:
+reaction_type = 'thanks'
+
+집계 SQL:
+WHERE reaction_type = 'thanks'
+
+summary API:
+thankCount 또는 thanksCount 중 하나로 통일
+
+현재 CHECK constraint를 삭제하는 방식으로만 해결하지 말고,
+프론트·API·DB·집계 SQL 값을 완전히 일치시키세요.
+
+==================================================
+6. 반응 클릭이 실제 서버 성공인지 확인
+==================================================
+
+현재 학부모 화면에서 선택 상태가 보이는 것은
+optimistic UI만 바뀐 것일 수 있습니다.
+
+반응 클릭 후 서버 응답을 확인하세요.
+
+[REACTION TOGGLE REQUEST]
+diaryId=
+studentId=
+parentUserId=
+reactionType=
+
+[REACTION TOGGLE RESPONSE]
+httpStatus=
+active=
+reactionId=
+likeCount=
+thankCount=
+
+서버가 실패했는데 UI만 선택 상태로 남지 않도록
+실패 시 반드시 롤백하세요.
+
+현재 앱에서 좋아요·감사합니다 버튼을 누른 뒤
+실제 HTTP status를 제출하세요.
+
+==================================================
+7. Production DB row 직접 확인
+==================================================
+
+실제 테스트 일지에 대해 production DB에서 확인하세요.
+
+SELECT *
+FROM diary_reactions
+WHERE diary_id = :testedDiaryId;
+
+SELECT *
+FROM diary_messages
+WHERE diary_id = :testedDiaryId
+AND message_type = 'diary_comment';
+
+보고:
+
+testedDiaryId=
+reaction row count=
+comment row count=
+
+좋아요 row:
+id=
+diary_id=
+student_id=
+parent_user_id=
+reaction_type=
+
+감사합니다 row:
+id=
+diary_id=
+student_id=
+parent_user_id=
+reaction_type=
+
+댓글 row:
+id=
+diary_id=
+student_id=
+sender/author=
+body=
+message_type=
+
+row가 없다면 프론트 선택 상태를 성공으로 표시하지 마세요.
+
+==================================================
+8. diaryId 일치 확인
+==================================================
+
+학부모가 보고 있는 일지 ID와
+선생님 지난 일지 카드 ID가 같은지 비교하세요.
+
+학부모 화면 로그:
+
+[PARENT DIARY]
+diaryId=
+
+선생님 화면 로그:
+
+[TEACHER DIARY CARD]
+diaryId=
+
+반응 DB row:
+
+diaryId=
+
+세 값이 정확히 같아야 합니다.
+
+같은 날짜·같은 반인데 diary row가 여러 개 존재하면
+학부모는 A diary에 반응하고 선생님은 B diary를 보고 있을 수 있습니다.
+
+Production DB에서 동일 class_group_id + lesson_date의 active diary row를 조회하세요.
+
+SELECT id, class_group_id, lesson_date, is_deleted, created_at
+FROM class_diaries
+WHERE class_group_id = :classGroupId
+AND lesson_date = :lessonDate
+ORDER BY created_at;
+
+active row가 여러 개면 반응과 댓글이 다른 diaryId로 분산될 수 있으므로
+중복 active diary 문제를 먼저 해결하세요.
+
+==================================================
+9. 선생님 집계 API 실제 응답 확인
+==================================================
+
+선생님 지난 일지 API의 실제 production 응답을 제출하세요.
+
+해당 diary row 예시:
+
+{
+  "id": "...",
+  "like_count": 1,
+  "thank_count": 1,
+  "comment_count": 1
+}
+
+DB에 row가 있는데 API가 0이면 집계 SQL 문제입니다.
+
+DB에도 row가 없으면 reaction/comment POST 문제입니다.
+
+두 경우를 구분해서 보고하세요.
+
+==================================================
+10. 댓글 INSERT 기존 컬럼 충돌 확인
+==================================================
+
+diary_messages가 기존 쪽지 테이블이라면
+student_id, parent_comment_id, message_type만 추가해도
+기존 NOT NULL 컬럼 때문에 INSERT가 실패할 수 있습니다.
+
+특히 확인:
+
+- sender_id NOT NULL
+- receiver_id NOT NULL
+- sender_role
+- receiver_role
+- content/message/body 컬럼명
+- teacher_id
+- parent_id
+- read_at
+- center_id
+- diary_id
+
+댓글 INSERT가 실제 스키마의 모든 필수 컬럼을 채우는지 확인하세요.
+
+필요하면 기존 쪽지 테이블 재사용을 중단하고
+별도 diary_comments 테이블을 생성하세요.
+
+댓글 시스템이 핵심 기능이므로,
+기존 쪽지 스키마를 억지로 재사용해 계속 오류가 나면 안 됩니다.
+
+권장 별도 테이블:
+
+diary_comments
+
+- id
+- center_id
+- diary_id
+- student_id
+- author_user_id
+- author_role
+- parent_comment_id
+- body
+- is_deleted
+- created_at
+- updated_at
+
+==================================================
+11. 실제 완료 테스트
+==================================================
+
+다음 테스트를 production에서 직접 수행하세요.
+
+테스트 1
+
+학부모 좋아요 클릭
+
+결과:
+- HTTP 200
+- production DB like row 생성
+- 학부모 선택 상태 유지
+- 선생님 좋아요 1명
+
+테스트 2
+
+학부모 감사합니다 클릭
+
+결과:
+- HTTP 200
+- production DB thanks row 생성
+- 학부모 선택 상태 유지
+- 선생님 감사합니다 1명
+
+테스트 3
+
+학부모 댓글 작성
+
+결과:
+- HTTP 200/201
+- production DB comment row 생성
+- 학부모 화면에 댓글 표시
+- 선생님 댓글 1개 표시
+
+테스트 4
+
+선생님 답글 작성
+
+결과:
+- production DB reply row 생성
+- 해당 학부모에게 답글 표시
+
+테스트 5
+
+앱 종료 후 재실행
+
+결과:
+- 좋아요·감사합니다 상태 유지
+- 댓글 유지
+- 선생님 집계 유지
+
+==================================================
+12. 완료 보고 필수 증거
+==================================================
+
+완료 보고서에 반드시 제출:
+
+1. 실제 production API host
+2. 댓글 POST 실제 status/response
+3. 좋아요 POST 실제 status/response
+4. 감사합니다 POST 실제 status/response
+5. production deploymentVersion
+6. production DB schema 결과
+7. production like row
+8. production thanks row
+9. production comment row
+10. 학부모 diaryId
+11. 선생님 diaryId
+12. DB reaction/comment diaryId
+13. 선생님 목록 API 실제 JSON
+14. 선생님 화면 좋아요 1명 스크린샷
+15. 선생님 화면 감사합니다 1명 스크린샷
+16. 선생님 화면 댓글 1개 스크린샷
+
+완료 기준:
+
+- UI만 선택되는 optimistic fake 상태 없음
+- 좋아요 실제 DB 저장
+- 감사합니다 실제 DB 저장
+- 댓글 실제 DB 저장
+- 학부모와 선생님이 같은 diaryId 사용
+- 선생님 집계 실제 반영
+- production 서버와 production DB에서 검증 완료

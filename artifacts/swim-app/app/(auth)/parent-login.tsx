@@ -1,11 +1,8 @@
-import { ArrowLeft, ChevronRight, CircleAlert, Lock, LogIn, User, UserPlus } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
@@ -38,16 +35,16 @@ export default function ParentLoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={[styles.root, { backgroundColor: C.background }]} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 24), paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
+    <View style={[styles.root, { backgroundColor: C.background }]}>
+      <KeyboardAwareScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 24), paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
 
         <Pressable onPress={() => router.back()} style={styles.back}>
-          <ArrowLeft size={22} color={C.text} />
+          <LucideIcon name="arrow-left" size={22} color={C.text} />
         </Pressable>
 
         <View style={styles.header}>
           <View style={[styles.iconBox, { backgroundColor: "#E6FFFA" }]}>
-            <User size={30} color={C.success} />
+            <LucideIcon name="user" size={30} color={C.success} />
           </View>
           <Text style={[styles.title, { color: C.text }]}>학부모 로그인</Text>
           <Text style={[styles.sub, { color: C.textSecondary }]}>
@@ -58,7 +55,7 @@ export default function ParentLoginScreen() {
         <View style={[styles.card, { backgroundColor: C.card }]}>
           {!!error && (
             <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <CircleAlert size={14} color={C.error} />
+              <LucideIcon name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
             </View>
           )}
@@ -66,7 +63,7 @@ export default function ParentLoginScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>아이디 또는 전화번호</Text>
             <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.background }]}>
-              <User size={16} color={C.textMuted} />
+              <LucideIcon name="user" size={16} color={C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={identifier}
@@ -83,7 +80,7 @@ export default function ParentLoginScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>비밀번호</Text>
             <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Lock size={16} color={C.textMuted} />
+              <LucideIcon name="lock" size={16} color={C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={password}
@@ -107,7 +104,7 @@ export default function ParentLoginScreen() {
           >
             {loading ? <ActivityIndicator color="#fff" size="small" /> : (
               <View style={styles.btnContent}>
-                <LogIn size={18} color="#fff" />
+                <LucideIcon name="log-in" size={18} color="#fff" />
                 <Text style={styles.btnText}>로그인</Text>
               </View>
             )}
@@ -116,19 +113,19 @@ export default function ParentLoginScreen() {
 
         <Pressable
           style={({ pressed }) => [styles.joinRequestBtn, { backgroundColor: C.card, borderColor: C.border, opacity: pressed ? 0.8 : 1 }]}
-          onPress={() => router.push("/(auth)/signup")}
+          onPress={() => router.push("/pool-join-request" as any)}
         >
           <View style={[styles.joinIconBox, { backgroundColor: C.tintLight }]}>
-            <UserPlus size={18} color={C.tint} />
+            <LucideIcon name="user-plus" size={18} color={C.tint} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.joinBtnTitle, { color: C.text }]}>수영장 가입 요청</Text>
             <Text style={[styles.joinBtnSub, { color: C.textSecondary }]}>수영장을 검색하고 가입 요청을 보내세요</Text>
           </View>
-          <ChevronRight size={18} color={C.textMuted} />
+          <LucideIcon name="chevron-right" size={18} color={C.textMuted} />
         </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 

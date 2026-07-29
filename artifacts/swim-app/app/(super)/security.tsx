@@ -2,13 +2,10 @@
  * (super)/security.tsx — 슈퍼관리자 보안관리
  * 계정/역할/2FA/세션/디바이스/잠금
  */
-import { Check, Lock, Monitor } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useMemo, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable,
-  ScrollView, StyleSheet, Switch, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -152,7 +149,7 @@ export default function SecurityScreen() {
       <SubScreenHeader title="슈퍼관리자 보안관리" homePath="/(super)/more" />
 
       {/* KPI 요약 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.kpiBar} contentContainerStyle={{ paddingHorizontal: 14, paddingVertical: 10, gap: 8 }}>
         {[
           { label: '전체', val: stats.total, color: P },
@@ -166,7 +163,7 @@ export default function SecurityScreen() {
             <Text style={s.kpiLabel}>{k.label}</Text>
           </View>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <FlatList
         data={accounts}
@@ -182,7 +179,7 @@ export default function SecurityScreen() {
           <Pressable style={m.backdrop} onPress={() => setSelected(null)}>
             <Pressable style={m.sheet} onPress={() => {}}>
               <View style={m.handle} />
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
                 <View style={m.titleRow}>
                   <Text style={m.title}>{selected.name}</Text>
                   <View style={[m.roleBadge, { backgroundColor: ROLE_CFG[selected.role].bg }]}>
@@ -230,7 +227,7 @@ export default function SecurityScreen() {
                     <Text style={m.sectionTitle}>디바이스 기록</Text>
                     {selected.devices.map(d => (
                       <View key={d.id} style={m.devRow}>
-                        <Monitor size={14} color="#64748B" />
+                        <LucideIcon name="monitor" size={14} color="#64748B" />
                         <View style={{ flex: 1 }}>
                           <Text style={m.devLabel}>{d.label} {d.isCurrent && <Text style={m.devCurrent}>(현재)</Text>}</Text>
                           <Text style={m.devMeta}>{d.os} · {d.browser} · {fmtDate(d.lastUsedAt)}</Text>
@@ -268,7 +265,7 @@ export default function SecurityScreen() {
                     )}
                   </View>
                 </View>
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </Pressable>
           </Pressable>
         </Modal>
@@ -292,7 +289,7 @@ export default function SecurityScreen() {
                     {r === 'senior_admin' && <Text style={m.roleDesc}>대부분 기능 · 킬스위치 제외</Text>}
                     {r === 'read_only_admin' && <Text style={m.roleDesc}>읽기만 가능 · 변경 불가</Text>}
                   </View>
-                  {selected.role === r && <Check size={16} color={ROLE_CFG[r].color} />}
+                  {selected.role === r && <LucideIcon name="check" size={16} color={ROLE_CFG[r].color} />}
                 </Pressable>
               ))}
             </Pressable>
@@ -323,7 +320,7 @@ export default function SecurityScreen() {
                   <Text style={m.cancelTxt}>취소</Text>
                 </Pressable>
                 <Pressable style={m.dangerBtn} onPress={doLock}>
-                  <Lock size={14} color="#fff" />
+                  <LucideIcon name="lock" size={14} color="#fff" />
                   <Text style={m.dangerTxt}>잠금 실행</Text>
                 </Pressable>
               </View>

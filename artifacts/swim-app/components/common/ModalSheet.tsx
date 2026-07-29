@@ -8,7 +8,7 @@
  * - 내부 ScrollView (스크롤바 표시)
  * - KeyboardAvoidingView (입력형 팝업 대응)
  */
-import { X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useRef } from "react";
 import {
   Animated,
@@ -124,7 +124,7 @@ export function ModalSheet({ visible, onClose, title, children }: ModalSheetProp
             {title}
           </Text>
           <Pressable onPress={() => hide(onClose)} style={s.closeBtn} hitSlop={10}>
-            <X size={20} color={C.textSecondary} />
+            <LucideIcon name="x" size={20} color={C.textSecondary} />
           </Pressable>
         </View>
 

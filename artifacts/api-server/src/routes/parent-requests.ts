@@ -198,7 +198,7 @@ router.post("/parent/requests", requireAuth,
       `);
       const newReq = result.rows[0] as any;
 
-      // 담당 선생님에게 푸시 알림
+      // 담당 선생님에게 푸시 알림 + 메시지함(notice 채널) 삽입
       if (teacherUserId) {
         try {
           const { sendPushToUser } = await import("../lib/push-service.js");
@@ -207,7 +207,7 @@ router.post("/parent/requests", requireAuth,
             : `${studentName}`;
           await sendPushToUser(
             teacherUserId, false, "parent_request",
-            `📋 ${parentName}님의 ${typeLabel}`,
+            `${parentName}님의 ${typeLabel}`,
             pushContent,
             { type: "parent_request", poolId, requestId: newReq.id },
             `preq_${poolId}`
@@ -215,6 +215,33 @@ router.post("/parent/requests", requireAuth,
         } catch (pushErr) {
           console.error("[parent-requests push error]", pushErr);
         }
+      }
+
+      // 선생님 메시지함(notice 채널)에 요청 내용 삽입
+      try {
+        const msgContent = [
+          `[${typeLabel}] ${parentName}님 (${studentName})`,
+          content?.trim() ? content.trim() : null,
+          request_date ? `요청일: ${request_date}` : null,
+        ].filter(Boolean).join("\n");
+
+        const extraData = JSON.stringify({
+          type: "parent_request",
+          requestId: newReq.id,
+          requestType: request_type,
+          studentName,
+          parentName,
+        });
+
+        await db.execute(sql`
+          INSERT INTO work_messages
+            (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, extra_data)
+          VALUES
+            (${poolId}, ${req.user!.userId}, ${parentName}, 'parent_account',
+             'text', 'notice', 'parent_request', ${msgContent}, ${extraData}::jsonb)
+        `);
+      } catch (msgErr) {
+        console.error("[parent-requests work_messages error]", msgErr);
       }
 
       res.status(201).json({ success: true, data: newReq });
@@ -257,9 +284,16 @@ router.get("/teacher/parent-requests", requireAuth, requireRole("teacher", "pool
         .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
+      // is_read_by_teacher 컬럼 없으면 자동 추가
+      await db.execute(sql`
+        ALTER TABLE parent_student_requests
+        ADD COLUMN IF NOT EXISTS is_read_by_teacher BOOLEAN DEFAULT false
+      `).catch(() => {});
+
       const rows = await db.execute(sql`
         SELECT
           psr.*,
+          COALESCE(psr.is_read_by_teacher, false) AS is_read_by_teacher,
           s.name AS student_name,
           pa.name AS parent_name
         FROM parent_student_requests psr
@@ -268,9 +302,35 @@ router.get("/teacher/parent-requests", requireAuth, requireRole("teacher", "pool
         WHERE psr.swimming_pool_id = ${me.swimming_pool_id}
           AND psr.teacher_user_id = ${userId}
         ORDER BY psr.created_at DESC
-        LIMIT 50
+        LIMIT 100
       `);
-      res.json({ success: true, data: rows.rows });
+      res.json(rows.rows);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
+// ─── 선생님: 요청 읽음 처리 ──────────────────────────────────────────────
+// PATCH /teacher/parent-requests/:id/read
+router.patch("/teacher/parent-requests/:id/read", requireAuth, requireRole("teacher", "pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId } = req.user!;
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+      if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      await db.execute(sql`
+        UPDATE parent_student_requests
+        SET is_read_by_teacher = true,
+            updated_at = NOW()
+        WHERE id = ${req.params.id}
+          AND swimming_pool_id = ${me.swimming_pool_id}
+          AND teacher_user_id = ${userId}
+      `);
+      res.json({ success: true });
     } catch (err) {
       console.error(err);
       res.status(500).json({ success: false, message: "서버 오류" });
@@ -291,15 +351,123 @@ router.patch("/parent-requests/:id", requireAuth, requireRole("pool_admin", "sub
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
+      // 요청 정보 조회 (알림 발송용)
+      const [reqRow] = await db.execute(sql`
+        SELECT parent_id, request_type, student_id FROM parent_student_requests
+        WHERE id = ${req.params.id} AND swimming_pool_id = ${me.swimming_pool_id}
+        LIMIT 1
+      `).then(r => r.rows as any[]);
+
+      // 컬럼 보장 (GET보다 PATCH가 먼저 호출될 경우 대비)
+      await db.execute(sql`
+        ALTER TABLE parent_student_requests
+        ADD COLUMN IF NOT EXISTS is_read_by_teacher BOOLEAN DEFAULT false
+      `).catch(() => {});
+
+      // 상태 변경 시 읽음 처리도 함께
       await db.execute(sql`
         UPDATE parent_student_requests
         SET status = ${status},
+            is_read_by_teacher = true,
             updated_at = NOW()
         WHERE id = ${req.params.id} AND swimming_pool_id = ${me.swimming_pool_id}
       `);
+
+      // 학부모에게 처리 결과 push 알림
+      if (reqRow?.parent_id && status !== "pending") {
+        try {
+          const { sendPushToUser } = await import("../lib/push-service.js");
+          const typeLabel = reqRow.request_type === "absence" ? "결석" : reqRow.request_type === "makeup" ? "보강" : "수업";
+          const pushTitle = status === "done" ? `${typeLabel} 요청이 처리됐습니다` : `${typeLabel} 요청이 거절됐습니다`;
+          const pushBody = status === "done"
+            ? "선생님이 요청을 확인하고 처리했습니다."
+            : (admin_note ? `거절 사유: ${admin_note}` : "요청이 거절됐습니다. 수영장에 문의해주세요.");
+          await sendPushToUser(reqRow.parent_id, true, "parent_request_result", pushTitle, pushBody, { requestId: req.params.id }, `req_result_${req.params.id}`);
+        } catch (pushErr) { console.error("[parent-requests PATCH push error]", pushErr); }
+      }
+
       res.json({ success: true });
     } catch (err) {
       console.error(err);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
+// ─── 관리자: 학부모 V2 연결 대기 목록 ─────────────────────────────────────
+// GET /admin/parent-v2-pending?status=pending
+router.get("/admin/parent-v2-pending", requireAuth, requireRole("pool_admin", "sub_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      const { getParentV2PendingByPool } = await import("../lib/auto-link-v2.js");
+      const statusFilter = (req.query.status as string) || "pending";
+      const rows = await getParentV2PendingByPool(me.swimming_pool_id, statusFilter);
+
+      res.json({ success: true, data: rows });
+    } catch (e) {
+      console.error("[admin/parent-v2-pending GET]", e);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
+// ─── 관리자: 학부모 V2 연결 승인/거절 ─────────────────────────────────────
+// PATCH /admin/parent-v2-pending/:id  { action: "approve" | "reject", reason?: string }
+router.patch("/admin/parent-v2-pending/:id", requireAuth, requireRole("pool_admin", "sub_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      const { action, reason } = req.body;
+      if (!["approve", "reject"].includes(action)) {
+        res.status(400).json({ success: false, message: "action은 approve 또는 reject여야 합니다." }); return;
+      }
+
+      const { approveParentV2Pending, rejectParentV2Pending } = await import("../lib/auto-link-v2.js");
+      let result: { success: boolean; message: string };
+
+      if (action === "approve") {
+        result = await approveParentV2Pending(req.params.id, me.swimming_pool_id);
+      } else {
+        result = await rejectParentV2Pending(req.params.id, me.swimming_pool_id, reason);
+      }
+
+      if (!result.success) {
+        res.status(400).json({ success: false, message: result.message }); return;
+      }
+
+      // 학부모에게 결과 알림
+      try {
+        const { db: dbClient } = await import("@workspace/db");
+        const { sql: sqlTag } = await import("drizzle-orm");
+        const [pending] = (await dbClient.execute(sqlTag`
+          SELECT parent_id, child_name_raw FROM parent_v2_pending WHERE id = ${req.params.id} LIMIT 1
+        `)).rows as any[];
+
+        if (pending?.parent_id) {
+          const { sendPushToUser } = await import("../lib/push-service.js");
+          if (action === "approve") {
+            await sendPushToUser(pending.parent_id, true, "parent_link_approved",
+              "자녀 연결 완료!", `${pending.child_name_raw}과(와) 연결되었습니다.`,
+              { screen: "home" }, `link_approved_${req.params.id}`);
+          } else {
+            await sendPushToUser(pending.parent_id, true, "parent_link_rejected",
+              "자녀 연결 요청 거절",
+              reason ? `거절 사유: ${reason}` : "수영장 관리자에게 문의해주세요.",
+              { screen: "home" }, `link_rejected_${req.params.id}`);
+          }
+        }
+      } catch {}
+
+      res.json({ success: true, message: result.message });
+    } catch (e) {
+      console.error("[admin/parent-v2-pending PATCH]", e);
       res.status(500).json({ success: false, message: "서버 오류" });
     }
   }

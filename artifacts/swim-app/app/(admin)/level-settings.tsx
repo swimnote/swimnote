@@ -1,10 +1,8 @@
-import { Check, Info } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Pressable,
+  StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -138,13 +136,13 @@ export default function LevelSettingsScreen() {
       {loading ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
       ) : (
-        <ScrollView
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 24, paddingTop: 12 }}
         >
           {/* 안내 카드 */}
           <View style={[s.infoCard, { backgroundColor: "#EEF9F8", borderColor: "#C2E8E5" }]}>
-            <Info size={16} color={C.tint} />
+            <LucideIcon name="info" size={16} color={C.tint} />
             <Text style={[s.infoTxt, { color: C.tint }]}>
               레벨 1~10의 표시명·설명·뱃지를 자유롭게 설정할 수 있습니다.{"\n"}설정하지 않은 항목은 기본값(숫자)으로 표시됩니다.
             </Text>
@@ -173,7 +171,7 @@ export default function LevelSettingsScreen() {
               }
             </Pressable>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       <ConfirmModal
@@ -375,7 +373,7 @@ function LevelCard({ lv, expanded, onToggle, onUpdate, onBadgeLabelUpdate, onTog
                   onPress={() => setBadgeColor(col.value)}
                 >
                   {lv.badge_color === col.value && (
-                    <Check size={12} color={isDarkColor(col.value) ? "#fff" : "#333"} />
+                    <LucideIcon name="check" size={12} color={isDarkColor(col.value) ? "#fff" : "#333"} />
                   )}
                 </Pressable>
               ))}

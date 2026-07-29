@@ -4,7 +4,6 @@
  * 내반 / 출결 / 수영일지 / 사진 / 영상 5개 화면 모두 재사용
  * 클릭 핸들러만 다르게 주입
  */
-import { Calendar, Camera, Check } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -12,6 +11,7 @@ import {
 } from "react-native";
 import Colors from "@/constants/colors";
 import { TeacherClassGroup, SlotStatus, DayBarProps } from "@/components/teacher/types";
+import { classColor } from "@/utils/classColor";
 
 const C = Colors.light;
 
@@ -44,14 +44,6 @@ function getDayClasses(groups: TeacherClassGroup[], day: string) {
     .sort((a, b) => parseHour(a.schedule_time) - parseHour(b.schedule_time));
 }
 
-const CLASS_COLORS = [
-  "#2EC4B6","#EC4899","#14B8A6","#E4A93A","#8B5CF6",
-  "#2E9B6F","#4EA7D8","#D96C6C","#F97316","#06B6D4",
-];
-function classColor(id: string) {
-  let n = 0; for (let i = 0; i < id.length; i++) n += id.charCodeAt(i);
-  return CLASS_COLORS[n % CLASS_COLORS.length];
-}
 
 export function WeeklySchedule({
   classGroups, statusMap, onSelectClass, themeColor,
@@ -130,7 +122,7 @@ export function WeeklySchedule({
       {/* ── 시간 슬롯 리스트 ── */}
       {currentClasses.length === 0 ? (
         <View style={ws.empty}>
-          <Calendar size={22} color="#9CA3AF" />
+          <LucideIcon name="calendar" size={22} color="#9CA3AF" />
           <Text style={ws.emptyText}>{selectedDay}요일 수업이 없습니다</Text>
         </View>
       ) : (
@@ -143,8 +135,8 @@ export function WeeklySchedule({
             const diaryDone = status?.diaryDone ?? true;
             const hasPhotos = status?.hasPhotos ?? false;
             const inactive  = total === 0;
-            const barColor  = classColor(g.id);
-            const bgColor   = g.color && g.color !== "#FFFFFF" ? g.color : "#FFFFFF";
+            const barColor  = classColor(g.id, g.color);
+            const bgColor   = barColor + "18";
             const isSelected = selectedIds.has(g.id);
 
             return (
@@ -165,7 +157,7 @@ export function WeeklySchedule({
                 {/* 선택 모드 체크박스 */}
                 {selectionMode && !inactive && (
                   <View style={[ws.checkBox, { borderColor: themeColor, backgroundColor: isSelected ? themeColor : "#fff" }]}>
-                    {isSelected && <Check size={9} color="#fff" />}
+                    {isSelected && <LucideIcon name="check" size={9} color="#fff" />}
                   </View>
                 )}
 
@@ -196,11 +188,11 @@ export function WeeklySchedule({
                         <LucideIcon name={attDone ? "check" : "x"} size={7} color={attDone ? "#2EC4B6" : "#D96C6C"} />
                       </View>
                       <View style={[ws.dot, { backgroundColor: diaryDone ? "#E6FFFA" : "#FFF1BF" }]}>
-                        <LucideIcon name={diaryDone ? "check" : "edit-3"} size={7} color={diaryDone ? "#2EC4B6" : "#D97706"} />
+                        <LucideIcon name={diaryDone ? "check" : "edit"} size={7} color={diaryDone ? "#2EC4B6" : "#D97706"} />
                       </View>
                       {hasPhotos && (
                         <View style={[ws.dot, { backgroundColor: "#EEDDF5" }]}>
-                          <Camera size={7} color="#7C3AED" />
+                          <LucideIcon name="camera" size={7} color="#7C3AED" />
                         </View>
                       )}
                     </View>

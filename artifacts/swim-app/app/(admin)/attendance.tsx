@@ -1,10 +1,10 @@
-import { Calendar, ChevronLeft, ChevronRight, CircleCheck, CircleX, Clock, Info, Lock, RefreshCw, Search, TriangleAlert, Users, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Clock, Lock as LockIcon } from "lucide-react-native";
+const Lock = LockIcon as React.ComponentType<any>;
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Platform, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
+  StyleSheet, Text, TextInput, TouchableOpacity, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -16,7 +16,7 @@ const C = Colors.light;
 
 // ── 타입 ───────────────────────────────────────────────────────
 interface ClassGroup { id: string; name: string; }
-interface Student    { id: string; name: string; class_group_id: string | null; }
+interface Student    { id: string; name: string; class_group_id: string | null; class_enrolled_at?: string | null; }
 interface WeeklyRow {
   student_id: string; student_name: string;
   class_group_id: string | null; class_name: string | null;
@@ -123,8 +123,10 @@ export default function AttendanceScreen() {
   const [searchTriggered, setSearchTriggered] = useState(false);
 
   // 보강관리 상태
-  const [makeupList,    setMakeupList]    = useState<MakeupSession[]>([]);
-  const [loadingMakeup, setLoadingMakeup] = useState(false);
+  const [makeupList,         setMakeupList]         = useState<MakeupSession[]>([]);
+  const [assignedMakeupList, setAssignedMakeupList] = useState<MakeupSession[]>([]);
+  const [loadingMakeup,      setLoadingMakeup]      = useState(false);
+  const [revertingId,        setRevertingId]        = useState<string | null>(null);
 
   // 보강 지정 모달
   const [assignTarget,    setAssignTarget]    = useState<MakeupSession | null>(null);
@@ -225,16 +227,60 @@ export default function AttendanceScreen() {
     finally { setLoadingSearch(false); }
   }
 
-  // ── 보강 대기 목록 ────────────────────────────────────────────
+  // ── 보강 대기 + 배정됨 목록 ───────────────────────────────────
   const fetchMakeup = useCallback(async () => {
     setLoadingMakeup(true);
     try {
-      const res  = await apiRequest(token, "/admin/makeups/pending");
-      const data = await res.json();
-      setMakeupList(Array.isArray(data) ? data : []);
+      const [pendingRes, assignedRes] = await Promise.all([
+        apiRequest(token, "/admin/makeups/pending"),
+        apiRequest(token, "/admin/makeups?status=assigned"),
+      ]);
+      const pendingData = await pendingRes.json();
+      const serverList: MakeupSession[] = Array.isArray(pendingData) ? pendingData : [];
+      setMakeupList(prev => {
+        const serverKeys = new Set(serverList.map(m => `${m.student_id}_${m.absence_date}`));
+        const tempItems = prev.filter(m =>
+          m.id.startsWith("temp_") && !serverKeys.has(`${m.student_id}_${m.absence_date}`)
+        );
+        return [...serverList, ...tempItems];
+      });
+      if (assignedRes.ok) {
+        const assignedData = await assignedRes.json();
+        setAssignedMakeupList(Array.isArray(assignedData) ? assignedData : []);
+      }
     } catch (e) { console.error(e); }
     finally { setLoadingMakeup(false); }
   }, [token]);
+
+  async function handleRevert(mk: MakeupSession) {
+    Alert.alert(
+      "배정 취소",
+      `${mk.student_name}의 보강 배정을 취소하고 보강대기로 되돌리시겠습니까?\n\n결석 기록과 보강 권리는 유지되며, 현재 스케줄 배정만 취소됩니다.`,
+      [
+        { text: "닫기", style: "cancel" },
+        {
+          text: "배정 취소",
+          style: "destructive",
+          onPress: async () => {
+            setRevertingId(mk.id);
+            try {
+              const res = await apiRequest(token, `/admin/makeups/${mk.id}/revert`, { method: "PATCH" });
+              if (res.ok) {
+                setAssignedMakeupList(prev => prev.filter(m => m.id !== mk.id));
+                setMakeupList(prev => [...prev, { ...mk, status: "waiting" }]);
+              } else {
+                const err = await res.json().catch(() => ({}));
+                Alert.alert("오류", err.error || "배정 취소에 실패했습니다.");
+              }
+            } catch (e) {
+              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+            }
+            finally { setRevertingId(null); }
+          },
+        },
+      ]
+    );
+  }
 
   useEffect(() => {
     if (viewMode === "makeup") fetchMakeup();
@@ -306,18 +352,56 @@ export default function AttendanceScreen() {
     setSavingId(studentId);
     try {
       const prevStatus = dailyAtt[studentId] ?? null;
-      await apiRequest(token, "/attendance", {
+
+      // 1. 결석으로 변경 시 즉시 보강대기 목록에 반영 (낙관적 UI)
+      if (status === "absent" && prevStatus !== "absent") {
+        const st = students.find(s => s.id === studentId);
+        const cg = classGroups.find(g => g.id === selectedClass);
+        const tempId = `temp_${studentId}_${baseDate}`;
+        const tempSession: MakeupSession = {
+          id: tempId,
+          student_id: studentId,
+          student_name: st?.name ?? "",
+          original_class_group_id: selectedClass,
+          original_class_group_name: cg?.name ?? "",
+          original_teacher_id: null,
+          original_teacher_name: "",
+          absence_date: baseDate,
+          status: "waiting",
+        };
+        setMakeupList(prev => {
+          // 이미 같은 날짜의 항목이 있으면 추가 안함
+          const alreadyExists = prev.some(m => m.student_id === studentId && m.absence_date === baseDate);
+          if (alreadyExists) return prev;
+          return [...prev, tempSession];
+        });
+      }
+
+      // 2. 출결 취소(결석→출석/지각) 시 보강대기에서 즉시 제거
+      if (status !== "absent" && prevStatus === "absent") {
+        setMakeupList(prev => prev.filter(m => !(m.student_id === studentId && m.absence_date === baseDate)));
+      }
+
+      // 3. 서버에 출결 저장
+      const attRes = await apiRequest(token, "/attendance", {
         method: "POST",
         body: JSON.stringify({ student_id: studentId, class_group_id: selectedClass, date: baseDate, status }),
       });
+      const attData = attRes.ok ? await attRes.json().catch(() => ({})) : {};
       setDailyAtt(prev => ({ ...prev, [studentId]: status }));
-      // 결석 처리 → 보강대기 즉시 갱신
+
+      // 4. 서버에 보강세션 생성 요청 (백그라운드) + 서버 목록 동기화
       if (status === "absent" && prevStatus !== "absent") {
-        fetchMakeup();
+        const attId = attData?.data?.id ?? null;
+        apiRequest(token, "/admin/makeups/ensure", {
+          method: "POST",
+          body: JSON.stringify({ student_id: studentId, date: baseDate, class_group_id: selectedClass, attendance_id: attId }),
+        })
+          .then(() => fetchMakeup())   // 서버 확정 후 실제 ID로 갱신
+          .catch(() => fetchMakeup()); // 실패해도 서버 목록 갱신 시도
       }
-      // 결석 취소 → 보강대기에서 제거됨 → 즉시 갱신
       if (status !== "absent" && prevStatus === "absent") {
-        fetchMakeup();
+        fetchMakeup(); // 서버와 동기화
       }
     } finally { setSavingId(null); }
   }
@@ -341,14 +425,17 @@ export default function AttendanceScreen() {
     if (tab === "search") setTimeout(() => searchInputRef.current?.focus(), 100);
   }
 
-  const classStudents = students.filter(s => s.class_group_id === selectedClass);
+  const classStudents = students.filter(s =>
+    s.class_group_id === selectedClass &&
+    (!s.class_enrolled_at || s.class_enrolled_at <= baseDate)
+  );
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(getMonday(baseDate), i));
 
   // ── 날짜 탐색 바 ─────────────────────────────────────────────
   const DateNav = (
     <View style={[a.dateNav, { backgroundColor: C.card, borderColor: C.border }]}>
       <Pressable style={a.navArrow} onPress={() => navigateDate(-1)}>
-        <ChevronLeft size={20} color={C.textSecondary} />
+        <LucideIcon name="chevron-left" size={20} color={C.textSecondary} />
       </Pressable>
       <Text style={[a.dateLabel, { color: C.text }]}>
         {viewMode === "daily"   && formatDateLabel(baseDate)}
@@ -356,14 +443,14 @@ export default function AttendanceScreen() {
         {viewMode === "monthly" && formatMonthLabel(baseDate)}
       </Text>
       <Pressable style={a.navArrow} onPress={() => navigateDate(1)}>
-        <ChevronRight size={20} color={C.textSecondary} />
+        <LucideIcon name="chevron-right" size={20} color={C.textSecondary} />
       </Pressable>
     </View>
   );
 
   // ── 반 선택 탭 ───────────────────────────────────────────────
   const ClassTabs = (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}
+    <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 8 }}>
       {viewMode !== "monthly" && (
         <Pressable
@@ -382,7 +469,7 @@ export default function AttendanceScreen() {
           <Text style={[a.classTabText, { color: selectedClass === cg.id ? "#fff" : C.textSecondary }]}>{cg.name}</Text>
         </Pressable>
       ))}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 
   // ── 고정 상단 헤더 ───────────────────────────────────────────
@@ -414,7 +501,7 @@ export default function AttendanceScreen() {
               <View style={a.modalHeader}>
                 <Text style={[a.modalTitle, { color: C.text }]}>보강 반 지정</Text>
                 <Pressable onPress={() => setAssignTarget(null)}>
-                  <X size={22} color={C.textSecondary} />
+                  <LucideIcon name="x" size={22} color={C.textSecondary} />
                 </Pressable>
               </View>
               {assignTarget && (
@@ -425,7 +512,7 @@ export default function AttendanceScreen() {
               {/* 날짜 선택 */}
               <Text style={[a.fieldLabel, { color: C.textSecondary }]}>보강 날짜</Text>
               <View style={[a.dateInput, { borderColor: C.border, backgroundColor: C.background }]}>
-                <Calendar size={16} color={C.textSecondary} style={{ marginRight: 8 }} />
+                <LucideIcon name="calendar" size={16} color={C.textSecondary} style={{ marginRight: 8 }} />
                 <TextInput
                   style={[{ flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }]}
                   value={assignDate}
@@ -439,7 +526,7 @@ export default function AttendanceScreen() {
               {loadingEligible ? (
                 <ActivityIndicator color={C.tint} style={{ marginTop: 16 }} />
               ) : (
-                <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
+                <KeyboardAwareScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
                   {eligibleClasses.length === 0 ? (
                     <Text style={[{ color: C.textMuted, textAlign: "center", marginTop: 24, fontFamily: "Pretendard-Regular" }]}>
                       보강 가능한 반이 없습니다
@@ -477,11 +564,11 @@ export default function AttendanceScreen() {
                             {ec.current_members}/{ec.capacity ?? "∞"}명
                           </Text>
                         </View>
-                        {selected && <CircleCheck size={20} color={C.tint} style={{ marginLeft: 8 }} />}
+                        {selected && <LucideIcon name="check-circle" size={20} color={C.tint} style={{ marginLeft: 8 }} />}
                       </TouchableOpacity>
                     );
                   })}
-                </ScrollView>
+                </KeyboardAwareScrollView>
               )}
               <Pressable
                 style={[a.confirmBtn, { backgroundColor: assignClassId ? C.tint : C.border, opacity: assigning ? 0.6 : 1 }]}
@@ -504,7 +591,7 @@ export default function AttendanceScreen() {
               <View style={a.modalHeader}>
                 <Text style={[a.modalTitle, { color: C.text }]}>결석 소멸</Text>
                 <Pressable onPress={() => setExtinguishTarget(null)}>
-                  <X size={22} color={C.textSecondary} />
+                  <LucideIcon name="x" size={22} color={C.textSecondary} />
                 </Pressable>
               </View>
               {extinguishTarget && (
@@ -540,7 +627,7 @@ export default function AttendanceScreen() {
                 />
               )}
               <View style={[a.warnBox, { backgroundColor: "#FFF1BF" }]}>
-                <TriangleAlert size={14} color="#D97706" />
+                <LucideIcon name="alert-triangle" size={14} color="#D97706" />
                 <Text style={[{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", flex: 1 }]}>
                   소멸 처리 후 보강 기회가 사라집니다. 신중히 처리하세요.
                 </Text>
@@ -559,44 +646,92 @@ export default function AttendanceScreen() {
           </View>
         </Modal>
 
-        {/* 보강 대기 목록 */}
+        {/* 보강 대기 + 배정됨 목록 */}
         {loadingMakeup ? (
           <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
         ) : (
           <FlatList
-            data={makeupList}
-            keyExtractor={item => item.id}
+            data={[
+              ...(assignedMakeupList.length > 0 ? [{ _type: "assignedHeader" as const, id: "__ah" }] : []),
+              ...assignedMakeupList.map(m => ({ ...m, _type: "assigned" as const })),
+              ...[{ _type: "pendingHeader" as const, id: "__ph" }],
+              ...makeupList.map(m => ({ ...m, _type: "pending" as const })),
+            ]}
+            keyExtractor={(item: any) => item._type === "assignedHeader" ? "__ah" : item._type === "pendingHeader" ? "__ph" : item.id}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 100, paddingTop: 12, gap: 10 }}
             showsVerticalScrollIndicator={false}
-            ListHeaderComponent={
-              <View style={[a.makeupSummary, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
-                <Clock size={16} color={C.tint} />
-                <Text style={[{ fontFamily: "Pretendard-Regular", fontSize: 14, color: C.tint }]}>
-                  보강 대기 {makeupList.length}명
-                </Text>
-                <Pressable style={[a.refreshBtn]} onPress={fetchMakeup}>
-                  <RefreshCw size={14} color={C.tint} />
-                </Pressable>
-              </View>
-            }
-            ListEmptyComponent={
-              <View style={a.empty}>
-                <CircleCheck size={40} color={C.textMuted} />
-                <Text style={[a.emptyText, { color: C.textMuted }]}>보강 대기 중인 회원이 없습니다</Text>
-              </View>
-            }
-            renderItem={({ item }) => {
-              const days = daysSince(item.absence_date);
+            renderItem={({ item }: any) => {
+              if (item._type === "assignedHeader") {
+                return (
+                  <View style={[a.makeupSummary, { backgroundColor: "#FEF3C7", borderColor: "#D97706" }]}>
+                    <LucideIcon name="rotate-ccw" size={16} color="#D97706" />
+                    <Text style={[{ fontFamily: "Pretendard-Regular", fontSize: 14, color: "#D97706", flex: 1 }]}>
+                      배정된 보강 {assignedMakeupList.length}명
+                    </Text>
+                  </View>
+                );
+              }
+              if (item._type === "pendingHeader") {
+                return (
+                  <View style={[a.makeupSummary, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
+                    <Clock size={16} color={C.tint} />
+                    <Text style={[{ fontFamily: "Pretendard-Regular", fontSize: 14, color: C.tint, flex: 1 }]}>
+                      보강 대기 {makeupList.length}명
+                    </Text>
+                    <Pressable style={[a.refreshBtn]} onPress={fetchMakeup}>
+                      <LucideIcon name="refresh-cw" size={14} color={C.tint} />
+                    </Pressable>
+                  </View>
+                );
+              }
+              if (item._type === "assigned") {
+                const mk: MakeupSession = item;
+                return (
+                  <View style={[a.mkCard, { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <View style={[a.avatar, { backgroundColor: "#FEF3C7" }]}>
+                        <Text style={[a.avatarText, { color: "#D97706" }]}>{mk.student_name?.[0] ?? "?"}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[a.memberName, { color: C.text }]}>{mk.student_name}</Text>
+                        <Text style={[a.mkSub, { color: C.textSecondary }]}>
+                          {mk.original_class_group_name} · {(mk as any).assigned_class_group_name || "반 배정됨"}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[a.absDate, { color: C.textMuted }]}>
+                      결석일: {mk.absence_date}{(mk as any).assigned_date ? `  →  보강: ${(mk as any).assigned_date}` : ""}
+                    </Text>
+                    <View style={a.mkActions}>
+                      <Pressable
+                        style={[a.mkBtn, { backgroundColor: "#FFF8EE", borderWidth: 1.5, borderColor: "#D97706", opacity: revertingId === mk.id ? 0.5 : 1 }]}
+                        disabled={revertingId === mk.id}
+                        onPress={() => handleRevert(mk)}
+                      >
+                        {revertingId === mk.id
+                          ? <ActivityIndicator size="small" color="#D97706" />
+                          : <>
+                              <LucideIcon name="rotate-ccw" size={14} color="#D97706" />
+                              <Text style={[a.mkBtnText, { color: "#D97706" }]}>배정 취소</Text>
+                            </>}
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              }
+              // pending
+              const mk: MakeupSession = item;
+              const days = daysSince(mk.absence_date);
               return (
                 <View style={[a.mkCard, { backgroundColor: C.card, borderColor: days >= 14 ? "#FCA5A5" : C.border }]}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
                     <View style={[a.avatar, { backgroundColor: C.tintLight }]}>
-                      <Text style={[a.avatarText, { color: C.tint }]}>{item.student_name?.[0] ?? "?"}</Text>
+                      <Text style={[a.avatarText, { color: C.tint }]}>{mk.student_name?.[0] ?? "?"}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[a.memberName, { color: C.text }]}>{item.student_name}</Text>
+                      <Text style={[a.memberName, { color: C.text }]}>{mk.student_name}</Text>
                       <Text style={[a.mkSub, { color: C.textSecondary }]}>
-                        {item.original_class_group_name} · {item.original_teacher_name}
+                        {mk.original_class_group_name} · {mk.original_teacher_name}
                       </Text>
                     </View>
                     <View style={[a.daysTag, { backgroundColor: days >= 14 ? "#F9DEDA" : "#FFFFFF" }]}>
@@ -605,26 +740,34 @@ export default function AttendanceScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Text style={[a.absDate, { color: C.textMuted }]}>결석일: {item.absence_date}</Text>
-                  <View style={a.mkActions}>
-                    <Pressable
-                      style={[a.mkBtn, { backgroundColor: C.button }]}
-                      onPress={() => openAssign(item)}
-                    >
-                      <Calendar size={14} color="#fff" />
-                      <Text style={a.mkBtnText}>보강 지정</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[a.mkBtn, { backgroundColor: "#F9DEDA", borderWidth: 1, borderColor: "#FCA5A5" }]}
-                      onPress={() => openExtinguish(item)}
-                    >
-                      <CircleX size={14} color="#D96C6C" />
-                      <Text style={[a.mkBtnText, { color: "#D96C6C" }]}>결석 소멸</Text>
-                    </Pressable>
-                  </View>
+                  <Text style={[a.absDate, { color: C.textMuted }]}>결석일: {mk.absence_date}</Text>
+                  {mk.id.startsWith("temp_") ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
+                      <ActivityIndicator size="small" color={C.tint} />
+                      <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>서버 등록 중...</Text>
+                    </View>
+                  ) : (
+                    <View style={a.mkActions}>
+                      <Pressable
+                        style={[a.mkBtn, { backgroundColor: C.button }]}
+                        onPress={() => openAssign(mk)}
+                      >
+                        <LucideIcon name="calendar" size={14} color="#fff" />
+                        <Text style={a.mkBtnText}>보강 지정</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[a.mkBtn, { backgroundColor: "#F9DEDA", borderWidth: 1, borderColor: "#FCA5A5" }]}
+                        onPress={() => openExtinguish(mk)}
+                      >
+                        <LucideIcon name="x-circle" size={14} color="#D96C6C" />
+                        <Text style={[a.mkBtnText, { color: "#D96C6C" }]}>결석 소멸</Text>
+                      </Pressable>
+                    </View>
+                  )}
                 </View>
               );
             }}
+            ListEmptyComponent={null}
           />
         )}
       </ScreenLayout>
@@ -637,7 +780,7 @@ export default function AttendanceScreen() {
       <ScreenLayout header={header}>
         {/* 검색창 */}
         <View style={[a.searchBox, { backgroundColor: C.card, borderColor: C.border, marginTop: 10 }]}>
-          <Search size={16} color={C.textMuted} style={{ marginLeft: 12 }} />
+          <LucideIcon name="search" size={16} color={C.textMuted} style={{ marginLeft: 12 }} />
           <TextInput
             ref={searchInputRef}
             style={[a.searchInput, { color: C.text }]}
@@ -650,13 +793,13 @@ export default function AttendanceScreen() {
           />
           {searchName.length > 0 && (
             <Pressable onPress={() => { setSearchName(""); setSearchResults([]); setSearchTriggered(false); }} style={{ padding: 8 }}>
-              <X size={16} color={C.textMuted} />
+              <LucideIcon name="x" size={16} color={C.textMuted} />
             </Pressable>
           )}
         </View>
 
         {/* 날짜 범위 필터 */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 10 }}>
           {SEARCH_DAY_OPTIONS.map(opt => (
             <Pressable
@@ -670,13 +813,13 @@ export default function AttendanceScreen() {
           <Pressable style={[a.chip, { backgroundColor: C.button, borderColor: C.button }]} onPress={runSearch}>
             <Text style={[a.chipText, { color: "#fff" }]}>검색</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         {loadingSearch ? (
           <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
         ) : searchTriggered && searchResults.length === 0 ? (
           <View style={a.empty}>
-            <Search size={36} color={C.textMuted} />
+            <LucideIcon name="search" size={36} color={C.textMuted} />
             <Text style={[a.emptyText, { color: C.textMuted }]}>검색 결과가 없습니다</Text>
           </View>
         ) : (
@@ -733,7 +876,7 @@ export default function AttendanceScreen() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={a.empty}>
-                <Users size={40} color={C.textMuted} />
+                <LucideIcon name="users" size={40} color={C.textMuted} />
                 <Text style={[a.emptyText, { color: C.textMuted }]}>
                   {classGroups.length === 0 ? "등록된 반이 없습니다" : "반에 배정된 회원이 없습니다"}
                 </Text>
@@ -741,7 +884,7 @@ export default function AttendanceScreen() {
             }
             ListHeaderComponent={
               <View style={a.readonlyBanner}>
-                <Info size={13} color="#64748B" />
+                <LucideIcon name="info" size={13} color="#64748B" />
                 <Text style={a.readonlyBannerTxt}>출결 체크는 선생님 모드에서만 처리 가능합니다 (관리자: 읽기 전용)</Text>
               </View>
             }
@@ -783,8 +926,8 @@ export default function AttendanceScreen() {
         {loadingWeekly ? (
           <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
         ) : (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
+            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View>
                 <View style={[a.weekHeaderRow, { borderColor: C.border }]}>
                   <View style={[a.weekNameCell, { borderColor: C.border }]}>
@@ -830,8 +973,8 @@ export default function AttendanceScreen() {
                   </View>
                 ))}
               </View>
-            </ScrollView>
-          </ScrollView>
+            </KeyboardAwareScrollView>
+          </KeyboardAwareScrollView>
         )}
       </ScreenLayout>
     );
@@ -850,7 +993,7 @@ export default function AttendanceScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={a.empty}>
-              <Calendar size={40} color={C.textMuted} />
+              <LucideIcon name="calendar" size={40} color={C.textMuted} />
               <Text style={[a.emptyText, { color: C.textMuted }]}>이 달의 출결 데이터가 없습니다</Text>
             </View>
           }

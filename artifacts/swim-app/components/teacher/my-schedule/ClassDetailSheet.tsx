@@ -1,12 +1,12 @@
-import { ChevronRight, CircleAlert, Pencil, Trash2, UserX, Users, X } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
-import { apiRequest } from "@/context/AuthContext";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { ChevronRight, CircleAlert, Users, UserX, X } from "lucide-react-native";
+import { apiRequest, clearApiCache } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import PastelColorPicker from "@/components/common/PastelColorPicker";
 import { WEEKLY_BADGE } from "@/utils/studentUtils";
@@ -31,7 +31,7 @@ export default function ClassDetailSheet({
   onOpenRemove?: () => void;
   onDeleteClass?: () => void;
   weekChangeLogs?: ChangeLogItem[];
-  onNavigateTo?: (navigate: () => void) => void;
+  onNavigateTo?: (navigate: () => void, groupIdToRestore?: string) => void;
   classGroups?: TeacherClassGroup[];
   onColorChange?: (id: string, color: string) => void;
   onCapacityChange?: (id: string, capacity: number | null) => void;
@@ -63,6 +63,7 @@ export default function ClassDetailSheet({
   // 이 반/날짜에 배정된 보강 학생
   const [makeupStudents,       setMakeupStudents]       = useState<any[]>([]);
   const [completingMakeupId,   setCompletingMakeupId]   = useState<string | null>(null);
+  const [revertingMakeupId,    setRevertingMakeupId]    = useState<string | null>(null);
 
   const originalColorRef = useRef<string>(group.color || "#FFFFFF");
   const [draftColor, setDraftColor] = useState<string>(group.color || "#FFFFFF");
@@ -123,12 +124,16 @@ export default function ClassDetailSheet({
       .catch(() => {});
   }, [group.id, effectiveDate, token]);
 
-  useEffect(() => {
+  function loadMakeupStudents() {
     if (!token) return;
     apiRequest(token, `/teacher/makeups/by-class?class_group_id=${group.id}&date=${effectiveDate}`)
       .then(r => r.ok ? r.json() : [])
       .then(setMakeupStudents)
       .catch(() => {});
+  }
+
+  useEffect(() => {
+    loadMakeupStudents();
   }, [group.id, effectiveDate, token]);
 
   async function completeMakeupDirect(mkId: string) {
@@ -144,6 +149,43 @@ export default function ClassDetailSheet({
       }
     } catch {}
     setCompletingMakeupId(null);
+  }
+
+  function handleRevertMakeup(mk: any) {
+    Alert.alert(
+      "배정 취소",
+      `${mk.student_name}의 보강 배정을 취소하고 보강 대기로 되돌리시겠습니까?\n\n결석 기록과 보강 권리는 유지됩니다.`,
+      [
+        { text: "닫기", style: "cancel" },
+        {
+          text: "배정 취소",
+          style: "destructive",
+          onPress: async () => {
+            setRevertingMakeupId(mk.id);
+            try {
+              const res = await apiRequest(token, `/teacher/makeups/${mk.id}/revert`, { method: "PATCH" });
+              const contentType = res.headers?.get?.("content-type") ?? "";
+              const isJson = contentType.includes("application/json");
+              const resBody = isJson ? await res.json().catch(() => ({})) : {};
+              console.log(`[revert] id=${mk.id} http=${res.status} isJson=${isJson}`, JSON.stringify(resBody));
+              if (res.ok && isJson && resBody?.success === true) {
+                clearApiCache();
+                setMakeupStudents(prev => prev.filter(m => m.id !== mk.id));
+                setTimeout(() => loadMakeupStudents(), 300);
+              } else if (!res.ok && isJson) {
+                Alert.alert("오류", resBody?.error || "배정 취소에 실패했습니다.");
+              } else {
+                Alert.alert("오류", "서버 응답이 올바르지 않습니다. 잠시 후 다시 시도해주세요.");
+              }
+            } catch {
+              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+            } finally {
+              setRevertingMakeupId(null);
+            }
+          },
+        },
+      ]
+    );
   }
 
   async function openMakeupPicker() {
@@ -206,6 +248,10 @@ export default function ClassDetailSheet({
       });
       setStudentAttState(prev => ({ ...prev, [studentId]: newStatus }));
       setSavingStudentId(null);
+      // 결석 처리 시 보강 학생 목록 즉시 새로고침
+      if (newStatus === "absent") {
+        loadMakeupStudents();
+      }
       return true;
     } catch {
       setSavingStudentId(null);
@@ -283,12 +329,12 @@ export default function ClassDetailSheet({
               </View>
               <Pressable style={cds.deleteBtn}
                 onPress={() => onDeleteClass?.()}>
-                <Trash2 size={15} color="#E11D48" />
+                <LucideIcon name="trash-2" size={15} color="#E11D48" />
               </Pressable>
               <Pressable onPress={handleClose} style={cds.closeBtn}>
                 {colorSaving
                   ? <ActivityIndicator size="small" color={C.textSecondary} />
-                  : <X size={20} color={C.textSecondary} />}
+                  : <LucideIcon name="x" size={20} color={C.textSecondary} />}
               </Pressable>
             </View>
             <View style={cds.actionRow}>
@@ -308,24 +354,24 @@ export default function ClassDetailSheet({
                   }),
                 },
               } as any))}>
-                <Users size={13} color="#4338CA" />
+                <LucideIcon name="users" size={13} color="#4338CA" />
                 <Text style={[cds.actionText, { color: "#4338CA" }]}>반배정</Text>
               </Pressable>
               <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? "#E6FFFA" : "#FFF1BF", flex: 1 }]}
-                onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name} } as any))}>
-                <Pencil size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
+                onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name, lessonDate: effectiveDate, backTo: "my-schedule"} } as any), group.id)}>
+                <LucideIcon name="edit" size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
                 <Text style={[cds.actionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
               </Pressable>
               <Pressable style={[cds.actionBtn, { backgroundColor: "#EEF2FF", flex: 1 }]}
                 onPress={() => onNavigateTo?.(() => router.push("/(teacher)/makeups?backTo=my-schedule" as any))}>
-                <Users size={13} color="#4F46E5" />
+                <LucideIcon name="users" size={13} color="#4F46E5" />
                 <Text style={[cds.actionText, { color: "#4F46E5" }]}>보충수업</Text>
               </Pressable>
             </View>
             <PastelColorPicker selected={draftColor} onSelect={handleColorSelect} />
             <View style={cds.capacityRow}>
               <View style={cds.capacityLabelRow}>
-                <Users size={14} color={C.textSecondary} />
+                <LucideIcon name="users" size={14} color={C.textSecondary} />
                 <Text style={cds.capacityLabel}>정원</Text>
               </View>
               <View style={cds.capacityInputWrap}>
@@ -363,7 +409,7 @@ export default function ClassDetailSheet({
             <ScrollView style={cds.studentScroll} showsVerticalScrollIndicator={false}>
               {groupStudents.length === 0 ? (
                 <View style={cds.empty}>
-                  <Users size={28} color={C.textMuted} />
+                  <LucideIcon name="users" size={28} color={C.textMuted} />
                   <Text style={cds.emptyText}>배정된 학생이 없습니다</Text>
                 </View>
               ) : groupStudents.map(st => {
@@ -408,7 +454,7 @@ export default function ClassDetailSheet({
                       onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/student-detail", params:{id: st.id} } as any))}
                       style={{ padding: 4 }}
                     >
-                      <ChevronRight size={16} color={C.textMuted} />
+                      <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                     </Pressable>
                   </View>
                 );
@@ -420,26 +466,43 @@ export default function ClassDetailSheet({
                     <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#7C3AED" }}>보강 학생</Text>
                   </View>
                   {makeupStudents.map(mk => (
-                    <View key={mk.id} style={[cds.studentRow, { backgroundColor: "#F5F3FF" }]}>
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <Text style={cds.studentName}>{mk.student_name}</Text>
-                          <View style={{ backgroundColor: "#7C3AED", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                            <Text style={{ fontSize: 9, color: "#fff", fontFamily: "Pretendard-SemiBold" }}>보강</Text>
+                    <View key={mk.id} style={[cds.studentRow, { backgroundColor: "#F5F3FF", flexDirection: "column", alignItems: "stretch", paddingVertical: 10 }]}>
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Text style={cds.studentName}>{mk.student_name}</Text>
+                            <View style={{ backgroundColor: "#7C3AED", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                              <Text style={{ fontSize: 9, color: "#fff", fontFamily: "Pretendard-SemiBold" }}>보강</Text>
+                            </View>
                           </View>
+                          <Text style={cds.studentSub}>결석일: {mk.absence_date}</Text>
                         </View>
-                        <Text style={cds.studentSub}>결석일: {mk.absence_date}</Text>
                       </View>
-                      {completingMakeupId === mk.id ? (
-                        <ActivityIndicator size="small" color="#7C3AED" style={{ marginHorizontal: 8 }} />
-                      ) : (
-                        <Pressable
-                          style={[cds.stBtn, { backgroundColor: "#EDE9FE", borderColor: "#7C3AED" }]}
-                          onPress={() => completeMakeupDirect(mk.id)}
-                        >
-                          <Text style={[cds.stBtnTxt, { color: "#7C3AED" }]}>완료</Text>
-                        </Pressable>
-                      )}
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        {completingMakeupId === mk.id ? (
+                          <ActivityIndicator size="small" color="#7C3AED" style={{ marginHorizontal: 8 }} />
+                        ) : (
+                          <Pressable
+                            style={[cds.stBtn, { backgroundColor: "#EDE9FE", borderColor: "#7C3AED", flex: 1 }]}
+                            onPress={() => completeMakeupDirect(mk.id)}
+                            disabled={revertingMakeupId === mk.id}
+                          >
+                            <Text style={[cds.stBtnTxt, { color: "#7C3AED" }]}>완료</Text>
+                          </Pressable>
+                        )}
+                        {revertingMakeupId === mk.id ? (
+                          <ActivityIndicator size="small" color="#D97706" style={{ marginHorizontal: 8 }} />
+                        ) : (
+                          <Pressable
+                            style={[cds.stBtn, { backgroundColor: "#FFF8EE", borderColor: "#D97706", flex: 1 }]}
+                            onPress={() => handleRevertMakeup(mk)}
+                            disabled={completingMakeupId === mk.id}
+                          >
+                            <LucideIcon name="rotate-ccw" size={11} color="#D97706" />
+                            <Text style={[cds.stBtnTxt, { color: "#D97706" }]}>배정 취소</Text>
+                          </Pressable>
+                        )}
+                      </View>
                     </View>
                   ))}
                 </>

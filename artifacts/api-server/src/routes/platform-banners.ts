@@ -39,6 +39,26 @@ function requireSuper(req: AuthRequest, res: any): boolean {
   return true;
 }
 
+// ── 배너 제목 공통 검증 ─────────────────────────────────────────────────────
+// 클라이언트(ads.tsx, strip-banner.tsx)와 동일한 규칙을 사용합니다.
+//   strip : 최대 15자, 줄바꿈 금지
+//   slider: 최대 30자, 줄바꿈 최대 1회(2줄)
+function validateBannerTitle(
+  title: string,
+  bannerType: "strip" | "slider",
+): { ok: boolean; message?: string } {
+  const newlineCount = (title.match(/\n/g) || []).length;
+  if (bannerType === "strip") {
+    if (newlineCount > 0)   return { ok: false, message: "가로 배너 제목에는 줄바꿈을 사용할 수 없습니다." };
+    if (title.length > 15)  return { ok: false, message: "가로 배너 제목은 최대 15자입니다." };
+  }
+  if (bannerType === "slider") {
+    if (newlineCount > 1)   return { ok: false, message: "카드 배너 제목은 줄바꿈을 최대 1회(2줄)만 허용합니다." };
+    if (title.length > 30)  return { ok: false, message: "카드 배너 제목은 최대 30자입니다." };
+  }
+  return { ok: true };
+}
+
 // ── SUPER: 배너 이미지 업로드 ──────────────────────────────────────────
 router.post("/super/banner-upload", requireAuth, upload.single("image"), async (req: AuthRequest, res) => {
   if (!requireSuper(req, res)) return;
@@ -115,6 +135,9 @@ router.post("/super/banners", requireAuth, async (req: AuthRequest, res) => {
           color_theme, target, status, display_start, display_end, sort_order, banner_type } = req.body;
   if (!title) return err(res, 400, "제목이 필요합니다.");
   if (!display_start || !display_end) return err(res, 400, "노출 기간이 필요합니다.");
+  const finalType = (banner_type ?? "slider") as "strip" | "slider";
+  const titleCheck = validateBannerTitle(title.trim(), finalType);
+  if (!titleCheck.ok) return err(res, 400, titleCheck.message!);
   try {
     const id = `banner_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
     const [row] = await superAdminDb.insert(platformBannersTable).values({
@@ -148,6 +171,22 @@ router.put("/super/banners/:id", requireAuth, async (req: AuthRequest, res) => {
   const { title, description, image_url, image_key, link_url, link_label,
           color_theme, target, status, display_start, display_end, sort_order, banner_type } = req.body;
   try {
+    // title이 변경되는 경우 최종 banner_type 기준으로 검증
+    // banner_type이 body에 없으면 DB에서 기존 값을 조회합니다.
+    if (title !== undefined) {
+      let resolvedType: string | undefined = banner_type;
+      if (resolvedType === undefined) {
+        const [existing] = await superAdminDb
+          .select({ banner_type: platformBannersTable.banner_type })
+          .from(platformBannersTable)
+          .where(eq(platformBannersTable.id, id));
+        if (!existing) return err(res, 404, "배너를 찾을 수 없습니다.");
+        resolvedType = existing.banner_type as string;
+      }
+      const check = validateBannerTitle(title.trim(), (resolvedType ?? "slider") as "strip" | "slider");
+      if (!check.ok) return err(res, 400, check.message!);
+    }
+
     const patch: any = { updated_at: new Date() };
     if (title !== undefined)         patch.title = title.trim();
     if (description !== undefined)   patch.description = description?.trim() ?? null;

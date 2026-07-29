@@ -1,14 +1,15 @@
-import { Camera, Check, Info, Plus, Search, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
+import { compressImageIfNeeded } from "../../utils/compressImage";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Image, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Image, Platform,
+  Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
+import { useUploadQueue, PhotoUploadJob } from "@/context/UploadQueueContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal }   from "@/components/common/ConfirmModal";
 
@@ -19,13 +20,15 @@ interface Student { id: string; name: string; phone: string; class_name?: string
 export default function PhotoUploadScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
+  const { addJobs } = useUploadQueue();
 
   const [students, setStudents] = useState<Student[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(true);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [images, setImages] = useState<{ uri: string; file?: File }[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const [compressing, setCompressing] = useState(false);
+  const [compressProgress, setCompressProgress] = useState(0);
   const [step, setStep] = useState<"students" | "photos">("students");
   const [infoMsg,    setInfoMsg]    = useState<{ title: string; msg: string } | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -67,8 +70,8 @@ export default function PhotoUploadScreen() {
       setInfoMsg({ title: "권한 필요", msg: "사진 접근 권한이 필요합니다. 설정에서 허용해주세요." }); return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true, quality: 0.85, selectionLimit: 20,
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true, quality: 0.85, selectionLimit: 100,
     });
     if (!result.canceled) setImages(result.assets.map(a => ({ uri: a.uri })));
   }
@@ -76,27 +79,32 @@ export default function PhotoUploadScreen() {
   async function handleUpload() {
     if (!selected.size) { setInfoMsg({ title: "알림", msg: "학생을 선택해주세요." }); return; }
     if (!images.length) { setInfoMsg({ title: "알림", msg: "사진을 선택해주세요." }); return; }
-    setUploading(true);
+    setCompressing(true);
+    setCompressProgress(0);
     try {
-      const fd = new FormData();
-      fd.append("student_ids", JSON.stringify([...selected]));
-      for (const img of images) {
-        if (img.file) {
-          fd.append("photos", img.file, img.file.name);
-        } else {
-          const filename = img.uri.split("/").pop() || "photo.jpg";
-          const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
-          fd.append("photos", { uri: img.uri, name: filename, type: ext === "png" ? "image/png" : "image/jpeg" } as any);
-        }
+      const jobs: PhotoUploadJob[] = [];
+      const studentIds = JSON.stringify([...selected]);
+      const BATCH = 5;
+      for (let i = 0; i < images.length; i += BATCH) {
+        const batch = images.slice(i, i + BATCH);
+        const uris = await Promise.all(
+          batch.map(async (img) => {
+            if (img.file) return img.uri;
+            return compressImageIfNeeded(img.uri);
+          })
+        );
+        uris.forEach(uri => jobs.push({
+          uri,
+          endpoint: "/photos/batch",
+          params: { student_ids: studentIds },
+          token: token ?? "",
+        }));
+        setCompressProgress(Math.min(i + BATCH, images.length));
       }
-      const res = await fetch(`${API_BASE}/photos/batch`, {
-        method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "업로드 실패");
-      setSuccessMsg(`${selected.size}명의 사진첩에 ${images.length}장이 업로드되었습니다.`);
+      addJobs(jobs);
+      setSuccessMsg(`${images.length}장 업로드 시작!\n화면을 이동해도 계속 업로드됩니다.`);
     } catch (err: any) { setErrorMsg(err.message || "업로드 중 오류가 발생했습니다."); }
-    finally { setUploading(false); }
+    finally { setCompressing(false); setCompressProgress(0); }
   }
 
   const filtered = students.filter(s => s.name.includes(search) || s.phone.includes(search));
@@ -122,7 +130,7 @@ export default function PhotoUploadScreen() {
         />
 
         <View style={[styles.searchBox, { borderColor: C.border, backgroundColor: C.card, marginHorizontal: 20, marginBottom: 8 }]}>
-          <Search size={16} color={C.textMuted} />
+          <LucideIcon name="search" size={16} color={C.textMuted} />
           <TextInput style={[styles.searchInput, { color: C.text }]} value={search} onChangeText={setSearch} placeholder="이름 또는 전화번호 검색" placeholderTextColor={C.textMuted} />
         </View>
 
@@ -130,7 +138,7 @@ export default function PhotoUploadScreen() {
         {filtered.length > 0 && (
           <Pressable style={[styles.selectAllRow, { borderColor: C.border }]} onPress={() => toggleAll(filtered)}>
             <View style={[styles.checkbox, { borderColor: allFiltered ? C.tint : C.border, backgroundColor: allFiltered ? C.tint : "transparent" }]}>
-              {allFiltered && <Check size={12} color="#fff" />}
+              {allFiltered && <LucideIcon name="check" size={12} color="#fff" />}
             </View>
             <Text style={[styles.selectAllText, { color: C.textSecondary }]}>전체 선택 ({filtered.length}명)</Text>
           </Pressable>
@@ -149,10 +157,10 @@ export default function PhotoUploadScreen() {
                   onPress={() => toggleStudent(s.id)}
                 >
                   <View style={[styles.checkbox, { borderColor: sel ? C.tint : C.border, backgroundColor: sel ? C.tint : "transparent" }]}>
-                    {sel && <Check size={12} color="#fff" />}
+                    {sel && <LucideIcon name="check" size={12} color="#fff" />}
                   </View>
                   <View style={[styles.avatar, { backgroundColor: C.tintLight }]}>
-                    <Text style={[styles.avatarText, { color: C.tint }]}>{s.name[0]}</Text>
+                    <Text style={[styles.avatarText, { color: C.tint }]}>{(s.name || "?")[0]}</Text>
                   </View>
                   <View style={styles.studentInfo}>
                     <Text style={[styles.studentName, { color: C.text }]}>{s.name}</Text>
@@ -182,20 +190,23 @@ export default function PhotoUploadScreen() {
         onBack={() => setStep("students")}
         rightSlot={
           <Pressable
-            style={[styles.nextBtn, { backgroundColor: images.length > 0 ? "#2EC4B6" : C.border, opacity: uploading ? 0.6 : 1 }]}
+            style={[styles.nextBtn, { backgroundColor: images.length > 0 ? "#2EC4B6" : C.border, opacity: compressing ? 0.6 : 1 }]}
             onPress={handleUpload}
-            disabled={uploading || images.length === 0}
+            disabled={compressing || images.length === 0}
           >
-            {uploading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.nextBtnText}>업로드</Text>}
+            {compressing
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={styles.nextBtnText}>업로드</Text>
+            }
           </Pressable>
         }
       />
 
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: insets.bottom + 40 }}>
+      <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: insets.bottom + 40 }}>
         {/* 선택된 학생 칩 */}
         <View>
           <Text style={[styles.sectionTitle, { color: C.textSecondary }]}>선택된 학생</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 8 }}>
+          <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 8 }}>
             {[...selected].map(id => {
               const s = students.find(s => s.id === id);
               return s ? (
@@ -204,7 +215,7 @@ export default function PhotoUploadScreen() {
                 </View>
               ) : null;
             })}
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </View>
 
         {/* 사진 선택 */}
@@ -212,24 +223,24 @@ export default function PhotoUploadScreen() {
           <Text style={[styles.sectionTitle, { color: C.textSecondary }]}>업로드할 사진 ({images.length}장)</Text>
           {images.length > 0 ? (
             <>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingTop: 12 }}>
+              <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingTop: 12 }}>
                 {images.map((img, i) => (
                   <View key={i} style={styles.previewWrap}>
                     <Image source={{ uri: img.uri }} style={styles.previewImg} resizeMode="cover" />
                     <Pressable style={[styles.removeBtn, { backgroundColor: C.error }]} onPress={() => setImages(prev => prev.filter((_, j) => j !== i))}>
-                      <X size={12} color="#fff" />
+                      <LucideIcon name="x" size={12} color="#fff" />
                     </Pressable>
                   </View>
                 ))}
-              </ScrollView>
+              </KeyboardAwareScrollView>
               <Pressable style={[styles.addMoreBtn, { borderColor: C.border, marginTop: 12 }]} onPress={pickImages}>
-                <Plus size={16} color={C.textSecondary} />
+                <LucideIcon name="plus" size={16} color={C.textSecondary} />
                 <Text style={[styles.addMoreText, { color: C.textSecondary }]}>사진 추가</Text>
               </Pressable>
             </>
           ) : (
             <Pressable style={[styles.pickBtn, { borderColor: C.border, backgroundColor: C.card, marginTop: 12 }]} onPress={pickImages}>
-              <Camera size={28} color={C.tint} />
+              <LucideIcon name="camera" size={28} color={C.tint} />
               <Text style={[styles.pickText, { color: C.text }]}>사진 선택하기</Text>
               <Text style={[styles.pickSub, { color: C.textMuted }]}>갤러리에서 여러 장 선택 가능</Text>
             </Pressable>
@@ -238,13 +249,13 @@ export default function PhotoUploadScreen() {
 
         {images.length > 0 && (
           <View style={[styles.infoBox, { backgroundColor: C.tintLight, borderRadius: 12, padding: 14 }]}>
-            <Info size={14} color={C.tint} />
+            <LucideIcon name="info" size={14} color={C.tint} />
             <Text style={[styles.infoText, { color: C.tint }]}>
               {selected.size}명의 사진첩에 {images.length}장씩{"\n"}총 {selected.size * images.length}장이 업로드됩니다
             </Text>
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
     )}
 

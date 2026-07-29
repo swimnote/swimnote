@@ -50,7 +50,61 @@ type = "image"
 title = "스크린샷 2 - 학부모 화면"
 
 [[outputs]]
-id = "mtNiupV2vStBb09J6sXjB"
-uri = "file://misconception-hunter-spec.md"
+id = "ZiAk_4zO8ZniyMgCcZcbh"
+uri = "file://attached_assets/KakaoTalk_20260417_111740413_1776392331681.jpg"
+type = "image"
+title = "회원가입 Step1 - 기본정보 입력"
+
+[[outputs]]
+id = "sYvEEaUP7YleLBAJ0IgBL"
+uri = "file://attached_assets/KakaoTalk_20260417_111740413_01_1776392331681.jpg"
+type = "image"
+title = "회원가입 Step2 - 휴대폰 인증"
+
+[[outputs]]
+id = "cGYypCsOOCeu9bkOgRRrg"
+uri = "file://attached_assets/IMG_1504_1776356970629.png"
+type = "image"
+title = "구독 관리 화면"
+
+[[outputs]]
+id = "0SYM_IKoVCZ6CAE-eaqEJ"
+uri = "file://artifacts/swim-app/assets/images/splash-new.png"
+type = "image"
+title = "새 스플래시 화면 (교체됨)"
+
+[[outputs]]
+id = "d0494CEHXfyhHY_0uIZpl"
+uri = "file://swimnote-structure.md"
 type = "text"
-title = "오개념 헌터 구현 스펙 문서"
+title = "SwimNote 앱 기능 구조도"
+
+[[outputs]]
+id = "cycuVHWXILlOt1DPDAwwS"
+uri = "file://swimnote-pricing.md"
+type = "text"
+title = "SwimNote 플랜 가격표"
+
+[[outputs]]
+id = "Y5azGzoQvmdo5E_RfrV8L"
+uri = "file://swimnote_작업감사보고서.txt"
+type = "text"
+title = "SwimNote 작업 감사 보고서"
+
+[[outputs]]
+id = "Mi0V03QOwov6sVneSkDsc"
+uri = "file://swimnote_templates_export.txt"
+type = "text"
+title = "스윔노트 일지 템플릿 전체 (10개 카테고리 · 350개)"
+
+[[outputs]]
+id = "SDWbnK9OVkj3TQq5OUHkm"
+uri = "file://swimnote_x_design.txt"
+type = "text"
+title = "스윔노트 X 전체 설계 문서"
+
+[[outputs]]
+id = "E6r-JnY2fw0KBGO4udbQD"
+uri = "file://swimnote_작업로그_20260719.txt"
+type = "text"
+title = "SwimNote 오늘 작업 로그 (2026-07-19)"

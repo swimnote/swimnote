@@ -2,15 +2,13 @@
  * (super)/strip-banner.tsx — 가로줄 배너 관리
  * 학부모 홈 상단 가로 스트립 배너 등록/수정/상태 변경/삭제 + 이미지 업로드
  */
-import { Camera, Plus, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, Alert, Image, Modal, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Image, Modal, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
+import { compressImageIfNeeded } from "../../utils/compressImage";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useAdsStore, type Ad, type AdStatus } from "@/store/adsStore";
 import { useAuth } from "@/context/AuthContext";
@@ -136,6 +134,16 @@ const ac = StyleSheet.create({
   btnTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });
 
+// ── 배너 제목 검증 (서버와 동일한 규칙) ──────────────────────────────────
+function validateBannerTitle(title: string, bannerType: "strip" | "slider"): string | null {
+  const newlineCount = (title.match(/\n/g) || []).length;
+  if (bannerType === "strip") {
+    if (newlineCount > 0)  return "가로 배너 제목에는 줄바꿈을 사용할 수 없습니다.";
+    if (title.length > 15) return "제목은 최대 15자입니다.";
+  }
+  return null;
+}
+
 interface FormState {
   title: string; description: string; linkUrl: string; linkLabel: string;
   displayStart: string; displayEnd: string;
@@ -173,6 +181,7 @@ export default function StripBannerScreen() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [titleError, setTitleError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (filter === "all") return stripAds;
@@ -188,11 +197,13 @@ export default function StripBannerScreen() {
   function openCreate() {
     setEditId(null);
     setForm(BLANK);
+    setTitleError(null);
     setShowModal(true);
   }
 
   function openEdit(ad: Ad) {
     setEditId(ad.id);
+    setTitleError(null);
     setForm({
       title: ad.title, description: ad.description,
       linkUrl: ad.linkUrl, linkLabel: ad.linkLabel,
@@ -211,19 +222,23 @@ export default function StripBannerScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [8, 1],
       quality: 0.85,
     });
     if (!result.canceled && result.assets?.[0]) {
       const asset = result.assets[0];
-      setForm(f => ({ ...f, imageUri: asset.uri, imageKey: "", imageUrl: "" }));
+      const uri = await compressImageIfNeeded(asset.uri, asset.fileSize ?? undefined);
+      setForm(f => ({ ...f, imageUri: uri, imageKey: "", imageUrl: "" }));
     }
   }
 
   async function handleSave() {
     if (!form.title.trim() || !token) return;
+    const validationError = validateBannerTitle(form.title.trim(), "strip");
+    if (validationError) { setTitleError(validationError); return; }
+    setTitleError(null);
     setSaving(true);
     try {
       let finalKey = form.imageKey;
@@ -301,7 +316,7 @@ export default function StripBannerScreen() {
 
       {/* 안내 + 필터 */}
       <View style={s.filterRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", gap: 6 }}>
             {FILTERS.map(f => (
               <Pressable key={f.key} style={[s.filterBtn, filter === f.key && s.filterBtnActive]} onPress={() => setFilter(f.key)}>
@@ -309,15 +324,15 @@ export default function StripBannerScreen() {
               </Pressable>
             ))}
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
         <Pressable style={s.addBtn} onPress={openCreate}>
-          <Plus size={16} color="#fff" />
+          <LucideIcon name="plus" size={16} color="#fff" />
           <Text style={s.addTxt}>등록</Text>
         </Pressable>
       </View>
 
       {/* 목록 */}
-      <ScrollView showsVerticalScrollIndicator={false}
+      <KeyboardAwareScrollView showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
         {loading && filtered.length === 0 ? (
           <View style={{ padding: 40, alignItems: "center" }}>
@@ -337,7 +352,7 @@ export default function StripBannerScreen() {
             />
           ))
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* 등록/수정 모달 */}
       <Modal visible={showModal} transparent animationType="slide">
@@ -346,10 +361,10 @@ export default function StripBannerScreen() {
             <View style={m.header}>
               <Text style={m.title}>{editId ? "가로 배너 수정" : "가로 배너 등록"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
-                <X size={20} color="#64748B" />
+                <LucideIcon name="x" size={20} color="#64748B" />
               </Pressable>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <KeyboardAwareScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
               {/* 미리보기 */}
               <Text style={m.label}>미리보기</Text>
@@ -370,7 +385,7 @@ export default function StripBannerScreen() {
               {/* 이미지 업로드 */}
               <Text style={m.label}>배너 이미지 (선택)</Text>
               <Pressable style={m.imgBtn} onPress={handlePickImage}>
-                <Camera size={16} color="#7C3AED" />
+                <LucideIcon name="camera" size={16} color="#7C3AED" />
                 <Text style={m.imgBtnTxt}>
                   {previewImg ? "이미지 변경하기" : "이미지 선택하기"}
                 </Text>
@@ -378,13 +393,29 @@ export default function StripBannerScreen() {
               {previewImg ? (
                 <Pressable onPress={() => setForm(f => ({ ...f, imageUri: "", imageKey: "", imageUrl: "" }))}
                   style={m.removeImg}>
-                  <X size={12} color="#DC2626" />
+                  <LucideIcon name="x" size={12} color="#DC2626" />
                   <Text style={m.removeImgTxt}>이미지 제거</Text>
                 </Pressable>
               ) : null}
 
-              <Text style={m.label}>제목 *</Text>
-              <TextInput style={m.input} value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))} placeholder="배너 제목" />
+              <View style={m.labelRow}>
+                <Text style={m.label}>제목 *</Text>
+                <Text style={[m.charCount, form.title.length > 15 && m.charCountOver]}>
+                  {form.title.length}/15
+                </Text>
+              </View>
+              <TextInput
+                style={[m.input, titleError ? m.inputError : null]}
+                value={form.title}
+                onChangeText={v => {
+                  const stripped = v.replace(/\n/g, "");
+                  setForm(f => ({ ...f, title: stripped }));
+                  setTitleError(null);
+                }}
+                placeholder="배너 제목 (최대 15자)"
+                maxLength={15}
+              />
+              {titleError ? <Text style={m.errorTxt}>{titleError}</Text> : null}
 
               <Text style={m.label}>설명 (선택)</Text>
               <TextInput style={[m.input, { height: 64, textAlignVertical: "top" }]}
@@ -443,7 +474,7 @@ export default function StripBannerScreen() {
                   : <Text style={m.saveTxt}>{editId ? "수정 완료" : "등록하기"}</Text>
                 }
               </Pressable>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </View>
       </Modal>
@@ -512,4 +543,9 @@ const m = StyleSheet.create({
   previewTxt:  { flex: 1, fontSize: 12, fontFamily: "Pretendard-SemiBold" },
   saveBtn:     { backgroundColor: P, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   saveTxt:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
+  labelRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4, marginTop: 8 },
+  charCount:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  charCountOver:{ color: "#DC2626" },
+  inputError:  { borderColor: "#DC2626" },
+  errorTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#DC2626", marginTop: 2, marginBottom: 4 },
 });

@@ -357,39 +357,53 @@ router.get("/teacher/me/stats", requireAuth,
 );
 
 // ── 미디어 사용량 ──────────────────────────────────────────────
+// photo_assets_meta / video_assets_meta 가 실제 사진·영상 저장 테이블
+// (구 student_photos / student_videos 는 사용하지 않음)
+// 집계 기준: uploaded_by = 로그인 선생님, media_status != 'deleted' (삭제 완료 제외)
 router.get("/teacher/me/media-usage", requireAuth,
   async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const photos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes, COUNT(*) as count
-        FROM student_photos WHERE uploader_id = ${userId}
-      `);
-      const videos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes, COUNT(*) as count
-        FROM student_videos WHERE uploader_id = ${userId}
-      `);
-      const photoRow = photos.rows[0] as any;
-      const videoRow = videos.rows[0] as any;
-      const photoBytes  = Number(photoRow?.total_bytes || 0);
-      const videoBytes  = Number(videoRow?.total_bytes || 0);
-      const photoCount  = Number(photoRow?.count || 0);
-      const videoCount  = Number(videoRow?.count || 0);
 
-      // 이번 달
-      const monthPhotos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total
-        FROM student_photos
-        WHERE uploader_id = ${userId}
-          AND date_trunc('month', created_at) = date_trunc('month', now())
-      `);
-      const monthVideos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total
-        FROM student_videos
-        WHERE uploader_id = ${userId}
-          AND date_trunc('month', created_at) = date_trunc('month', now())
-      `);
-      const monthBytes = Number((monthPhotos.rows[0] as any)?.total || 0) + Number((monthVideos.rows[0] as any)?.total || 0);
+      const [photoRow, videoRow, monthPhotoRow, monthVideoRow] = await Promise.all([
+        db.execute(sql`
+          SELECT
+            COALESCE(SUM(file_size), 0)::bigint AS total_bytes,
+            COUNT(*)::int                       AS count
+          FROM photo_assets_meta
+          WHERE uploaded_by = ${userId}
+            AND media_status != 'deleted'
+        `),
+        db.execute(sql`
+          SELECT
+            COALESCE(SUM(file_size), 0)::bigint AS total_bytes,
+            COUNT(*)::int                       AS count
+          FROM video_assets_meta
+          WHERE uploaded_by = ${userId}
+            AND media_status != 'deleted'
+        `),
+        db.execute(sql`
+          SELECT COALESCE(SUM(file_size), 0)::bigint AS total
+          FROM photo_assets_meta
+          WHERE uploaded_by = ${userId}
+            AND media_status != 'deleted'
+            AND created_at >= date_trunc('month', now())
+        `),
+        db.execute(sql`
+          SELECT COALESCE(SUM(file_size), 0)::bigint AS total
+          FROM video_assets_meta
+          WHERE uploaded_by = ${userId}
+            AND media_status != 'deleted'
+            AND created_at >= date_trunc('month', now())
+        `),
+      ]);
+
+      const photoBytes = Number((photoRow.rows[0] as any)?.total_bytes ?? 0);
+      const videoBytes = Number((videoRow.rows[0] as any)?.total_bytes ?? 0);
+      const photoCount = Number((photoRow.rows[0] as any)?.count ?? 0);
+      const videoCount = Number((videoRow.rows[0] as any)?.count ?? 0);
+      const monthBytes = Number((monthPhotoRow.rows[0] as any)?.total ?? 0)
+                       + Number((monthVideoRow.rows[0] as any)?.total ?? 0);
 
       res.json({
         photo_bytes: photoBytes, photo_count: photoCount,
@@ -437,6 +451,20 @@ router.get("/teacher/makeups", requireAuth,
         WHERE ms.swimming_pool_id = ${poolId}
           AND ms.status = ${dbStatus}
           AND ms.cancelled_at IS NULL
+          AND (
+            ms.handed_to_teacher_id = ${userId}
+            OR (
+              ms.handed_to_teacher_id IS NULL
+              AND (
+                ms.original_teacher_id = ${userId}
+                OR EXISTS (
+                  SELECT 1 FROM class_groups cg
+                  WHERE cg.id = ms.original_class_group_id
+                    AND cg.co_teacher_ids @> to_jsonb(${userId}::text)
+                )
+              )
+            )
+          )
         ORDER BY ms.absence_date ASC, ms.created_at ASC
       `);
       res.json(rows.rows);
@@ -544,6 +572,68 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
         }
       } catch (e) { console.error("[makeup-assign] 푸시 알림 오류:", e); }
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ── 보강 인계 (담당선생님 → 다른 선생님) ─────────────────────
+router.post("/teacher/makeups/:id/handover", requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const { receiver_teacher_id } = req.body as { receiver_teacher_id: string };
+      if (!receiver_teacher_id) { res.status(400).json({ error: "receiver_teacher_id 필수" }); return; }
+
+      const poolId = await getMyPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
+
+      // 보강 세션 확인
+      const mkRows = (await db.execute(sql`
+        SELECT id, student_name, absence_date, status, swimming_pool_id, original_teacher_id, original_class_group_id
+        FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
+      `)).rows as any[];
+      const mk = mkRows[0];
+      if (!mk)                          { res.status(404).json({ error: "보강 건을 찾을 수 없습니다." }); return; }
+      if (mk.swimming_pool_id !== poolId){ res.status(403).json({ error: "접근 권한 없음" }); return; }
+      if (mk.status !== "waiting")       { res.status(409).json({ error: "이미 처리된 보강 건입니다." }); return; }
+
+      // 권한 확인: 내가 담당 또는 co-teacher인지
+      const isOriginal = mk.original_teacher_id === userId;
+      let isCo = false;
+      if (!isOriginal && mk.original_class_group_id) {
+        const coRows = (await superAdminDb.execute(sql`
+          SELECT 1 FROM class_groups WHERE id = ${mk.original_class_group_id}
+            AND co_teacher_ids @> to_jsonb(${userId}::text) LIMIT 1
+        `)).rows;
+        isCo = coRows.length > 0;
+      }
+      if (!isOriginal && !isCo) { res.status(403).json({ error: "담당 선생님만 인계할 수 있습니다." }); return; }
+
+      // 수신 선생님 정보
+      const [receiverRow] = (await superAdminDb.execute(sql`
+        SELECT id, name FROM users WHERE id = ${receiver_teacher_id} AND swimming_pool_id = ${poolId} LIMIT 1
+      `)).rows as any[];
+      if (!receiverRow) { res.status(404).json({ error: "선생님을 찾을 수 없습니다." }); return; }
+
+      // 인계 처리 — status 유지(waiting), handed_to 업데이트
+      await db.execute(sql`
+        UPDATE makeup_sessions SET
+          handed_to_teacher_id   = ${receiver_teacher_id},
+          handed_to_teacher_name = ${receiverRow.name as string},
+          updated_at             = now()
+        WHERE id = ${req.params.id}
+      `);
+
+      // 메신저 자동 알림
+      const [actorRow] = (await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId} LIMIT 1`)).rows as any[];
+      const actorName: string = (actorRow as any)?.name || "선생님";
+      await db.execute(sql`
+        INSERT INTO work_messages (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content)
+        VALUES (${poolId}, ${userId}, ${actorName}, ${req.user!.role}, 'text', 'talk', 'normal',
+          ${`보강 인계\n학생: ${mk.student_name || "미상"}\n결석일: ${mk.absence_date || "-"}\n인계 → ${receiverRow.name as string} 선생님`})
+      `);
+
+      res.json({ success: true, handed_to_teacher_name: receiverRow.name as string });
+    } catch (err) { console.error("[teacher/makeups/handover]", err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
 
@@ -655,6 +745,101 @@ router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
   }
 );
 
+// ── 보강 배정 취소 (assigned → waiting) ──────────────────────────────
+// 담당 수업(assigned_teacher_id 일치)의 보강 건만 취소 가능
+router.patch("/teacher/makeups/:id/revert", requireAuth,
+  requireRole("teacher", "pool_admin", "sub_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const userId   = req.user!.userId;
+      const userRole = req.user!.role;
+      const poolId   = await getMyPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
+
+      console.log(`[teacher/makeups/revert] userId=${userId} role=${userRole} poolId=${poolId} mkId=${req.params.id}`);
+
+      const rows = (await db.execute(sql`
+        SELECT id, status, swimming_pool_id,
+               assigned_class_group_id, assigned_class_group_name,
+               assigned_teacher_id, assigned_teacher_name,
+               assigned_date, absence_date, absence_time,
+               student_name, created_at, updated_at
+        FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
+      `)).rows as any[];
+      if (!rows.length) { res.status(404).json({ error: "보강 건을 찾을 수 없습니다." }); return; }
+      const mk = rows[0];
+      console.log(`[teacher/makeups/revert] BEFORE:`, JSON.stringify(mk));
+
+      console.log(`[teacher/makeups/revert] mk.status=${mk.status} mk.swimming_pool_id=${mk.swimming_pool_id} mk.assigned_teacher_id=${mk.assigned_teacher_id}`);
+
+      // 다른 센터 데이터 접근 차단
+      if (mk.swimming_pool_id !== poolId) {
+        console.log(`[teacher/makeups/revert] pool mismatch: mk=${mk.swimming_pool_id} user=${poolId}`);
+        res.status(403).json({ error: "접근 권한이 없습니다." }); return;
+      }
+
+      // 상태 검사
+      if (mk.status === "completed") {
+        res.status(400).json({ error: "완료된 보강은 배정 취소할 수 없습니다." }); return;
+      }
+      if (mk.status === "waiting") {
+        res.status(400).json({ error: "이미 보강대기 상태입니다." }); return;
+      }
+      if (!["assigned", "transferred"].includes(mk.status)) {
+        res.status(400).json({ error: "배정 취소할 수 없는 상태입니다." }); return;
+      }
+
+      // pool_admin / sub_admin: 소속 수영장 확인만으로 충분 (소유권 검사 면제)
+      const isAdmin = userRole === "pool_admin" || userRole === "sub_admin";
+      if (!isAdmin) {
+        // teacher: assigned_teacher_id가 본인이거나 co-teacher여야 함
+        const isAssignedTeacher = mk.assigned_teacher_id === userId;
+        let isCo = false;
+        if (!isAssignedTeacher && mk.assigned_class_group_id) {
+          const coRows = (await superAdminDb.execute(sql`
+            SELECT 1 FROM class_groups WHERE id = ${mk.assigned_class_group_id}
+              AND co_teacher_ids @> to_jsonb(${userId}::text) LIMIT 1
+          `)).rows;
+          isCo = coRows.length > 0;
+        }
+        if (!isAssignedTeacher && !isCo) {
+          console.log(`[teacher/makeups/revert] ownership fail: assigned_teacher=${mk.assigned_teacher_id} user=${userId}`);
+          res.status(403).json({ error: "담당 수업의 보강만 취소할 수 있습니다." }); return;
+        }
+      }
+
+      const updated = (await db.execute(sql`
+        UPDATE makeup_sessions SET
+          status                      = 'waiting',
+          assigned_class_group_id     = NULL,
+          assigned_class_group_name   = NULL,
+          assigned_teacher_id         = NULL,
+          assigned_teacher_name       = NULL,
+          assigned_date               = NULL,
+          transferred_to_teacher_id   = NULL,
+          transferred_to_teacher_name = NULL,
+          is_substitute               = FALSE,
+          substitute_teacher_id       = NULL,
+          substitute_teacher_name     = NULL,
+          updated_at                  = now()
+        WHERE id = ${req.params.id}
+        RETURNING id, status,
+                  assigned_class_group_id, assigned_class_group_name,
+                  assigned_teacher_id, assigned_teacher_name,
+                  assigned_date, updated_at
+      `)).rows as any[];
+
+      console.log(`[teacher/makeups/revert] rowCount=${updated.length} AFTER:`, JSON.stringify(updated[0] || null));
+
+      if (!updated.length) {
+        res.status(500).json({ error: "업데이트 실패 (0 rows affected)" }); return;
+      }
+
+      res.json({ success: true, rowCount: updated.length, before: mk, after: updated[0] });
+    } catch (err) { console.error("[teacher/makeups/revert]", err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 router.patch("/teacher/makeups/:id/complete", requireAuth,
   async (req: AuthRequest, res) => {
     try {
@@ -762,6 +947,14 @@ router.get("/teacher/makeup-requests", requireAuth,
         FROM makeup_sessions
         WHERE swimming_pool_id = ${poolId}
           AND cancelled_at IS NULL
+          AND (
+            original_teacher_id = ${userId}
+            OR EXISTS (
+              SELECT 1 FROM class_groups cg
+              WHERE cg.id = original_class_group_id
+                AND cg.co_teacher_ids @> to_jsonb(${userId}::text)
+            )
+          )
         ORDER BY absence_date DESC, created_at DESC
       `)).rows as any[];
 

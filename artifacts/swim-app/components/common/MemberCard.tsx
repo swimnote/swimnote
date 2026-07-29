@@ -6,7 +6,6 @@
  *   parent_conn_status : 학부모미연결 여부 → 우측 별도 배지
  * → 두 배지는 동시에 표시 가능 (미배정 + 학부모미연결)
  */
-import { Check, CircleAlert, Clock, Eye, Mail, MessageSquare, Phone, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
@@ -50,6 +49,8 @@ interface UnifiedMemberCardProps {
   showWithdrawnDate?: boolean;
   /** 선생님 정보 표시 여부 (반배정 화면에서 불필요할 때 false) */
   showTeacher?: boolean;
+  /** 동명이인 구분용 스케줄 힌트 (이름 아래 작게 표시) */
+  scheduleHint?: string;
 }
 
 export function UnifiedMemberCard({
@@ -64,6 +65,7 @@ export function UnifiedMemberCard({
   onToggle,
   showWithdrawnDate,
   showTeacher = true,
+  scheduleHint,
 }: UnifiedMemberCardProps) {
   const ps       = getPrimaryStatus(student);
   const wc       = getEffectiveWeekly(student);
@@ -112,7 +114,7 @@ export function UnifiedMemberCard({
         {selectionMode && (
           <Pressable onPress={onToggle} style={s.checkWrap}>
             <View style={[s.checkbox, isSelected && { backgroundColor: themeColor, borderColor: themeColor }]}>
-              {isSelected && <Check size={12} color="#fff" />}
+              {isSelected && <LucideIcon name="check" size={12} color="#fff" />}
             </View>
           </Pressable>
         )}
@@ -143,11 +145,18 @@ export function UnifiedMemberCard({
             {/* 예약 배지 (다음달 이동 예약 시) */}
             {pending && (
               <View style={[s.badge, { backgroundColor: pending.bg, borderWidth: 1, borderColor: pending.color + "40" }]}>
-                <Clock size={9} color={pending.color} />
+                <LucideIcon name="clock" size={9} color={pending.color} />
                 <Text style={[s.badgeTxt, { color: pending.color }]}>{pending.label}</Text>
               </View>
             )}
           </View>
+
+          {/* 동명이인 구분 스케줄 힌트 */}
+          {scheduleHint ? (
+            <View style={s.scheduleHintTag}>
+              <Text style={s.scheduleHintTxt}>{scheduleHint}</Text>
+            </View>
+          ) : null}
 
           {/* 배정 반 (배정된 경우만 표시) */}
           {classNames ? (
@@ -172,11 +181,11 @@ export function UnifiedMemberCard({
                     onPress={() => callPhone(student.parent_phone)}
                     hitSlop={6}
                   >
-                    <Phone size={11} color={CALL_COLOR} />
+                    <LucideIcon name="phone" size={11} color={CALL_COLOR} />
                     <Text style={[s.subTxt, { color: CALL_COLOR }]}>{formatPhone(student.parent_phone)}</Text>
                   </Pressable>
                   <Pressable onPress={() => sendSms(student.parent_phone)} hitSlop={8}>
-                    <MessageSquare size={12} color={SMS_COLOR} />
+                    <LucideIcon name="message-square" size={12} color={SMS_COLOR} />
                   </Pressable>
                 </View>
               ) : null}
@@ -195,19 +204,19 @@ export function UnifiedMemberCard({
         <View style={s.right}>
           {showRightUnassigned && (
             <View style={[s.badge, { backgroundColor: "#FEE2E2", gap: 3 }]}>
-              <CircleAlert size={9} color="#DC2626" />
+              <LucideIcon name="alert-circle" size={9} color="#DC2626" />
               <Text style={[s.badgeTxt, { color: "#DC2626" }]}>미배정</Text>
             </View>
           )}
           {isUnlinked && (
             <View style={[s.badge, { backgroundColor: "#FFF1BF", gap: 3 }]}>
-              <UserX size={9} color="#EA580C" />
+              <LucideIcon name="user-x" size={9} color="#EA580C" />
               <Text style={[s.badgeTxt, { color: "#EA580C" }]}>학부모미연결</Text>
             </View>
           )}
           {showInvite && !student.parent_user_id && (
             <Pressable style={[s.iconBtn, { backgroundColor: themeColor + "15" }]} onPress={onPressInvite}>
-              <Mail size={13} color={themeColor} />
+              <LucideIcon name="mail" size={13} color={themeColor} />
             </Pressable>
           )}
         </View>
@@ -237,7 +246,7 @@ export function UnifiedMemberCard({
               style={[s.actionBtn, { backgroundColor: themeColor + "12", marginLeft: "auto" }]}
               onPress={onPress}
             >
-              <Eye size={12} color={themeColor} />
+              <LucideIcon name="eye" size={12} color={themeColor} />
               <Text style={[s.actionTxt, { color: themeColor }]}>상세</Text>
             </Pressable>
           )}
@@ -269,8 +278,10 @@ const s = StyleSheet.create({
   name:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
   badge:      { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   badgeTxt:   { fontSize: 10, fontFamily: "Pretendard-Regular" },
-  classTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
-  subTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  classTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
+  subTxt:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  scheduleHintTag: { alignSelf: "flex-start", backgroundColor: "#F1F5F9", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+  scheduleHintTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   right:      { alignItems: "flex-end", gap: 6 },
   iconBtn:    { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   bottom:     { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: C.border },

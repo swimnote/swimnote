@@ -11,17 +11,15 @@
  * 필터 탭: 전체 | 긴급 | SLA초과 | 결제 | 보안 | 환불
  * — 상태 기반 8칩 + 유형 기반 10칩 두 줄 구조 제거
  */
-import { ChevronRight, CircleAlert, CreditCard, MessageCircle, OctagonAlert, Plus } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { CreditCard } from "lucide-react-native";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import type { SupportTicket, SupportStatus } from "@/domain/types";
 import Colors from "@/constants/colors";
@@ -348,7 +346,7 @@ export default function SupportScreen() {
           <View style={s.rowTop}>
             {isEmergency && (
               <View style={s.emergencyBadge}>
-                <OctagonAlert size={9} color={RED} />
+                <LucideIcon name="alert-octagon" size={9} color={RED} />
                 <Text style={s.emergencyBadgeTxt}>긴급</Text>
               </View>
             )}
@@ -393,11 +391,11 @@ export default function SupportScreen() {
           style={s.slaBanner}
           onPress={() => setActiveFilter("sla")}
           hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}>
-          <CircleAlert size={14} color="#991B1B" />
+          <LucideIcon name="alert-circle" size={14} color="#991B1B" />
           <Text style={s.slaBannerTxt}>
             SLA 초과 <Text style={{ fontFamily: "Pretendard-Regular" }}>{slaCount}건</Text> — 즉시 처리 필요
           </Text>
-          <ChevronRight size={14} color="#991B1B" />
+          <LucideIcon name="chevron-right" size={14} color="#991B1B" />
         </Pressable>
       )}
 
@@ -427,7 +425,7 @@ export default function SupportScreen() {
 
       {/* 필터 탭 1줄 (6개 의미 기반, 명확한 높이) */}
       <View style={s.tabBarWrapper}>
-        <ScrollView
+        <KeyboardAwareScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.tabContent}
@@ -451,7 +449,7 @@ export default function SupportScreen() {
               </Pressable>
             );
           })}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
 
       {/* 티켓 리스트 (flex:1 — 나머지 공간 전체) */}
@@ -471,7 +469,7 @@ export default function SupportScreen() {
         ItemSeparatorComponent={() => <View style={s.separator} />}
         ListEmptyComponent={
           <View style={s.empty}>
-            <MessageCircle size={32} color="#D1D5DB" />
+            <LucideIcon name="message-circle" size={32} color="#D1D5DB" />
             <Text style={s.emptyTxt}>해당 조건의 문의가 없습니다</Text>
           </View>
         }
@@ -479,7 +477,7 @@ export default function SupportScreen() {
 
       {/* 등록 FAB */}
       <Pressable style={s.fab} onPress={() => setCreateModal(true)}>
-        <Plus size={20} color="#fff" />
+        <LucideIcon name="plus" size={20} color="#fff" />
       </Pressable>
 
       {/* 처리 모달 */}
@@ -526,7 +524,7 @@ export default function SupportScreen() {
 
               <View style={m.section}>
                 <Text style={m.label}>처리 상태</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                   {STATUS_KEYS.map(k => {
                     const sc = STATUS_CFG[k];
                     return (
@@ -537,7 +535,7 @@ export default function SupportScreen() {
                       </Pressable>
                     );
                   })}
-                </ScrollView>
+                </KeyboardAwareScrollView>
               </View>
 
               <View style={m.section}>
@@ -582,10 +580,10 @@ export default function SupportScreen() {
               <View style={m.handle} />
               <Text style={m.title}>문의 등록</Text>
 
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+              <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
                 <View style={m.section}>
                   <Text style={m.label}>문의 유형</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                     {TICKET_TYPES.map(t => {
                       const tc = TYPE_CFG[t];
                       return (
@@ -596,12 +594,12 @@ export default function SupportScreen() {
                         </Pressable>
                       );
                     })}
-                  </ScrollView>
+                  </KeyboardAwareScrollView>
                 </View>
 
                 <View style={m.section}>
                   <Text style={m.label}>요청자 유형</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                     {["operator", "teacher", "parent"].map(t => (
                       <Pressable key={t}
                         style={[m.optChip, form.requesterRole === t && { backgroundColor: P, borderColor: P }]}
@@ -611,7 +609,7 @@ export default function SupportScreen() {
                         </Text>
                       </Pressable>
                     ))}
-                  </ScrollView>
+                  </KeyboardAwareScrollView>
                 </View>
 
                 <View style={m.section}>
@@ -648,7 +646,7 @@ export default function SupportScreen() {
                       : <Text style={m.saveTxt}>등록</Text>}
                   </Pressable>
                 </View>
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </Pressable>
           </Pressable>
         </Modal>

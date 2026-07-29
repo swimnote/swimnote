@@ -1,0 +1,189 @@
+# 관리자 권한 부여·회수 최종 승인 (마지막 보완 후 구현)
+
+현재 제출한 계획서는 전체적으로 승인합니다.
+
+특히 다음 사항은 적절하게 개선되었습니다.
+
+- Fail Closed (ROLE_CHECK_FAILED)
+- pool_admin 캐시 제거
+- users.roles 기준 조회
+- requireRole 실시간 DB 확인
+- ROLE_REVOKED 공통 오류 코드
+- handleRoleRevoked 분리 구조
+- optimistic update 제거
+- SWIMNOTE X 확장을 고려한 권한 구조
+
+위 내용은 그대로 구현을 진행해도 됩니다.
+
+단, 코드 수정 전에 아래 2가지를 반드시 추가 반영하세요.
+
+==================================================
+1. switch-role 자동복귀 동작 검증 (필수)
+==================================================
+
+현재 자동 복귀 흐름은
+
+ROLE_REVOKED
+↓
+
+기존 pool_admin JWT
+↓
+
+POST /auth/switch-role
+{ role: "teacher" }
+
+↓
+
+teacher JWT 발급
+
+입니다.
+
+반드시 실제 코드를 확인하여
+
+requireDbRoleCheck가
+
+현재 JWT의 role(pool_admin)
+
+을 검사하는지,
+
+아니면
+
+요청한 targetRole(teacher)이
+DB users.roles에 존재하는지를
+
+검사하는지 확인하세요.
+
+정상 동작 기준은 다음과 같습니다.
+
+예)
+
+현재 JWT
+role = pool_admin
+
+DB roles
+
+["teacher"]
+
+요청
+
+role = teacher
+
+↓
+
+200 OK
+
+teacher JWT 발급
+
+즉,
+
+pool_admin 권한은 회수되었더라도
+
+teacher 권한이 DB에 존재하면
+
+teacher JWT는 정상 발급되어야 합니다.
+
+반대로
+
+targetRole이 DB roles에 없으면
+
+403으로 거부되어야 합니다.
+
+이 내용을 실제 코드로 검증하고
+
+테스트 항목에도 반드시 포함하세요.
+
+==================================================
+2. ROLE_REVOKED 중복 실행 방지
+==================================================
+
+관리자 화면에서는
+
+여러 API가 동시에 호출됩니다.
+
+권한 회수 순간
+
+여러 API가 동시에
+
+ROLE_REVOKED
+
+를 반환할 수 있습니다.
+
+이 경우
+
+- switch-role
+- Alert
+- router.replace
+- logout
+
+등이 여러 번 실행되면 안 됩니다.
+
+따라서
+
+ROLE_REVOKED 처리에는
+
+single-flight(중복 실행 방지)
+
+구조를 추가하세요.
+
+예)
+
+roleRevokedHandling = true
+
+상태에서는
+
+추가 ROLE_REVOKED는 무시합니다.
+
+teacher 전환 완료
+
+또는
+
+fallback logout 완료 후
+
+잠금을 적절히 해제하세요.
+
+ROLE_REVOKED 처리는
+항상 한 번만 실행되어야 합니다.
+
+==================================================
+최종 구현 범위
+==================================================
+
+아래 항목은 그대로 구현하세요.
+
+- Fail Closed (ROLE_CHECK_FAILED)
+- pool_admin 캐시 제거
+- users.roles 기준 조회
+- requireRole DB 권한 확인
+- ROLE_REVOKED 반환
+- AuthErrorCodes 공통 상수
+- handleRoleRevoked 분리
+- teacher 자동 복귀
+- 취소 버튼 UI 수정
+- handleGrant try/catch/finally
+- optimistic update 제거
+- 서버 배포 후 OTA 배포
+- 테스트 계획
+
+==================================================
+구현 완료 후 보고
+==================================================
+
+구현 완료 후 아래 항목만 보고하세요.
+
+1.
+switch-role 검증 결과
+(teacher 자동 전환 성공 여부)
+
+2.
+ROLE_REVOKED single-flight 적용 여부
+
+3.
+최종 수정 파일 목록
+
+4.
+서버 배포 완료 여부
+
+5.
+OTA 배포 완료 여부
+
+위 내용까지 반영되면 코드 구현을 시작하세요.

@@ -3,13 +3,12 @@
  * 안전장치 보강: 해지 확정 조건 + 비밀번호 재입력 + 체크박스 2개 + 스냅샷 강제 생성
  * 실 API 연결 완료 — useAuditLogStore / useBackupStore 완전 제거
  */
-import { Archive, Check, CircleCheck, Lock, OctagonAlert, Trash2, TriangleAlert } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Lock as LockIcon } from "lucide-react-native";
+const Lock = LockIcon as React.ComponentType<any>;
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, Alert, FlatList, Modal, Pressable,
-  ScrollView, StyleSheet, Switch, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -116,10 +115,10 @@ export default function KillSwitchScreen() {
     if (!token) return;
     setLoadingLogs(true);
     try {
-      const res = await apiRequest(token, '/super/op-logs?category=%EC%82%AD%EC%A0%9C&limit=50');
+      const res = await apiRequest(token, '/super/kill-switch-logs');
       if (res.ok) {
         const data = await res.json();
-        setDeleteLogs(Array.isArray(data?.logs) ? data.logs : []);
+        setDeleteLogs(Array.isArray(data) ? data : []);
       }
     } catch (e) {
       console.error('fetchDeleteLogs error:', e);
@@ -201,13 +200,28 @@ export default function KillSwitchScreen() {
     if (!poolId || !canExecute || !token) return;
     setDeleting(true);
     try {
-      await apiRequest(token, `/super/operators/${poolId}/subscription`, {
-        method: 'PATCH',
+      const res = await apiRequest(token, `/super/operators/${poolId}/purge`, {
+        method: 'POST',
         body: JSON.stringify({
-          subscription_status: 'cancelled',
-          subscription_end_at: new Date().toISOString(),
+          mode: deleteMode,
+          fromDate: fromDate || undefined,
+          toDate: toDate || undefined,
+          items: selectedItems.length > 0 ? selectedItems : undefined,
+          deletionReason,
+          reasonDetail: reason,
+          password: adminPassword,
         }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        Alert.alert('삭제 실패', data.error ?? '오류가 발생했습니다.');
+        return;
+      }
+      const total = data.total_deleted ?? 0;
+      Alert.alert(
+        '영구 삭제 완료',
+        `${poolName}: 총 ${total}건 영구 삭제되었습니다.`,
+      );
       await Promise.all([fetchOperators(), fetchDeleteLogs()]);
       setConfirmModal(false);
       setDeleteMode(null); setPoolId(""); setPoolName(""); setReason("");
@@ -215,6 +229,7 @@ export default function KillSwitchScreen() {
       setDeletionReason(null);
     } catch (e) {
       console.error('executeDelete error:', e);
+      Alert.alert('오류', '네트워크 오류가 발생했습니다.');
     } finally {
       setDeleting(false);
     }
@@ -227,7 +242,7 @@ export default function KillSwitchScreen() {
     (deleteMode === "full" || (deleteMode === "period" && fromDate && toDate) ||
      (deleteMode === "item" && selectedItems.length > 0));
 
-  const canExecute = confirmText === "영구삭제" && adminPassword === "admin1234" &&
+  const canExecute = confirmText === "영구삭제" && adminPassword.length >= 6 &&
     check1 && check2 && snapshotCreated;
 
   return (
@@ -235,11 +250,11 @@ export default function KillSwitchScreen() {
       <SubScreenHeader title="데이터·킬스위치" homePath="/(super)/protect-group" />
 
       <View style={s.dangerBanner}>
-        <OctagonAlert size={14} color="#fff" />
+        <LucideIcon name="alert-octagon" size={14} color="#fff" />
         <Text style={s.bannerTxt}>삭제는 해지 확정 + 정책 동의 + 유예 완료 후에만 가능합니다. 결제 실패·저장공간 초과만으로는 자동삭제 금지.</Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.tabBar} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 6, gap: 4 }}>
         {[
           { key: "exec",  label: "삭제 실행" },
@@ -250,16 +265,16 @@ export default function KillSwitchScreen() {
             <Text style={[s.tabTxt, tab === t.key && s.tabTxtActive]}>{t.label}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ── 삭제 실행 탭 ── */}
       {tab === "exec" && (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 80 }}>
+        <KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 80 }}>
 
           <StepCard step="1" title="운영자 선택 (해지 확정된 운영자만 가능)">
             {loadingOps
               ? <ActivityIndicator color={DANGER} />
-              : <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              : <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
                   contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
                   {operators.map(op => {
                     const terminated = confirmedIds.has(op.id);
@@ -280,17 +295,17 @@ export default function KillSwitchScreen() {
                   {operators.length === 0 && (
                     <Text style={{ color: "#64748B", fontSize: 13, padding: 8 }}>결제 이상 운영자 없음</Text>
                   )}
-                </ScrollView>
+                </KeyboardAwareScrollView>
             }
             {poolId && !isTerminated && (
               <View style={s.warnBox}>
-                <TriangleAlert size={13} color={WARN} />
+                <LucideIcon name="alert-triangle" size={13} color={WARN} />
                 <Text style={s.warnTxt}>이 운영자는 해지 미확정 상태입니다. 삭제를 실행하려면 먼저 해지를 확정해야 합니다.</Text>
               </View>
             )}
             {poolId && isTerminated && (
               <View style={[s.warnBox, { backgroundColor: "#E6FFFA" }]}>
-                <CircleCheck size={13} color="#2EC4B6" />
+                <LucideIcon name="check-circle" size={13} color="#2EC4B6" />
                 <Text style={[s.warnTxt, { color: "#065F46" }]}>해지 확정 완료 — 삭제 실행 가능합니다.</Text>
               </View>
             )}
@@ -361,10 +376,10 @@ export default function KillSwitchScreen() {
               setCheck1(false); setCheck2(false); setSnapshotCreated(false);
               setConfirmModal(true);
             }}>
-            <OctagonAlert size={16} color="#fff" />
+            <LucideIcon name="alert-octagon" size={16} color="#fff" />
             <Text style={s.execTxt}>안전장치 확인 후 삭제 진행</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {/* ── 삭제 예정 탭 ── */}
@@ -410,7 +425,7 @@ export default function KillSwitchScreen() {
             loadingOps
               ? <ActivityIndicator color={DANGER} style={{ marginTop: 40 }} />
               : <View style={s.empty}>
-                  <CircleCheck size={30} color="#D1D5DB" />
+                  <LucideIcon name="check-circle" size={30} color="#D1D5DB" />
                   <Text style={s.emptyTxt}>삭제 예정 운영자 없음</Text>
                 </View>
           }
@@ -426,7 +441,7 @@ export default function KillSwitchScreen() {
           renderItem={({ item: l }) => (
             <View style={s.logCard}>
               <View style={s.logLeft}>
-                <Trash2 size={14} color={DANGER} />
+                <LucideIcon name="trash-2" size={14} color={DANGER} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.logTitle}>{l.description}</Text>
@@ -454,11 +469,11 @@ export default function KillSwitchScreen() {
             <View style={m.sheet}>
               <View style={m.handle} />
               <View style={m.dangerHeader}>
-                <OctagonAlert size={22} color="#fff" />
+                <LucideIcon name="alert-octagon" size={22} color="#fff" />
                 <Text style={m.dangerHeaderTxt}>최종 삭제 안전장치 확인</Text>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+              <KeyboardAwareScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
                 <View style={m.confirmInfo}>
                   <Text style={m.confirmInfoTxt}>
                     대상: <Text style={{ fontFamily: "Pretendard-Regular", color: DANGER }}>{poolName}</Text>{"\n"}
@@ -472,9 +487,9 @@ export default function KillSwitchScreen() {
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>A. 삭제 전 스냅샷 강제 생성 (필수)</Text>
                   {snapshotCreated
-                    ? <View style={m.snapshotDone}><CircleCheck size={14} color="#2EC4B6" /><Text style={m.snapshotDoneTxt}>스냅샷 생성 완료</Text></View>
+                    ? <View style={m.snapshotDone}><LucideIcon name="check-circle" size={14} color="#2EC4B6" /><Text style={m.snapshotDoneTxt}>스냅샷 생성 완료</Text></View>
                     : <Pressable style={m.snapshotBtn} onPress={doCreateSnapshot}>
-                        <Archive size={14} color="#2EC4B6" />
+                        <LucideIcon name="archive" size={14} color="#2EC4B6" />
                         <Text style={m.snapshotBtnTxt}>지금 스냅샷 생성</Text>
                       </Pressable>
                   }
@@ -484,13 +499,13 @@ export default function KillSwitchScreen() {
                   <Text style={m.safeTitle}>B. 복구 불가 확인 (2개 필수)</Text>
                   <Pressable style={m.checkRow} onPress={() => setCheck1(v => !v)}>
                     <View style={[m.checkbox, check1 && m.checkboxActive]}>
-                      {check1 && <Check size={12} color="#fff" />}
+                      {check1 && <LucideIcon name="check" size={12} color="#fff" />}
                     </View>
                     <Text style={m.checkTxt}>삭제된 데이터는 복구가 불가능하며, 이를 충분히 인지하였습니다.</Text>
                   </Pressable>
                   <Pressable style={m.checkRow} onPress={() => setCheck2(v => !v)}>
                     <View style={[m.checkbox, check2 && m.checkboxActive]}>
-                      {check2 && <Check size={12} color="#fff" />}
+                      {check2 && <LucideIcon name="check" size={12} color="#fff" />}
                     </View>
                     <Text style={m.checkTxt}>본 삭제 액션의 모든 결과에 대한 책임이 실행자({actorName})에게 있음을 동의합니다.</Text>
                   </Pressable>
@@ -499,8 +514,7 @@ export default function KillSwitchScreen() {
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>C. 관리자 비밀번호 재입력</Text>
                   <TextInput style={m.pwInput} value={adminPassword} onChangeText={setAdminPassword}
-                    secureTextEntry placeholder="비밀번호 입력" placeholderTextColor="#64748B" />
-                  <Text style={m.pwHint}>* 테스트 환경: 'admin1234'</Text>
+                    secureTextEntry placeholder="로그인 비밀번호 입력" placeholderTextColor="#64748B" />
                 </View>
 
                 <View style={m.safeSection}>
@@ -521,7 +535,7 @@ export default function KillSwitchScreen() {
                       : <><Lock size={13} color="#fff" /><Text style={m.deleteTxt}>OTP 인증 후 영구 삭제</Text></>}
                   </Pressable>
                 </View>
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </View>
           </Pressable>
         </Modal>
@@ -559,7 +573,7 @@ const s = StyleSheet.create({
   tab:              { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
                       backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E7EB" },
   tabActive:        { backgroundColor: DANGER, borderColor: DANGER },
-  tabTxt:           { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt:           { fontSize: 13, lineHeight: 18, color: "#64748B" },
   tabTxtActive:     { color: "#fff" },
 
   stepCard:         { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#E5E7EB",
