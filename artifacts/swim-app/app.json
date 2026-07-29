@@ -29,6 +29,7 @@
         "NSPhotoLibraryUsageDescription": "SwimNote accesses your photo library to attach photos to class lesson diaries and progress reports. For example, a teacher can attach a photo from the gallery to document a student's swimming technique during a lesson.",
         "NSPhotoLibraryAddUsageDescription": "SwimNote saves photos to your photo library when you download lesson diary images or class photos shared by your swimming instructor.",
         "NSCameraUsageDescription": "SwimNote uses the camera to take photos directly for lesson diaries and class progress documentation. For example, a teacher can photograph a student's swimming form to include in the lesson record.",
+        "NSMicrophoneUsageDescription": "SwimNote uses the microphone to record short voice memos for lesson diaries. A teacher can speak lesson notes aloud and have them transcribed automatically.",
         "LSApplicationQueriesSchemes": [
           "kakaokompassauth",
           "storekvstore",
@@ -132,6 +133,12 @@
           "photosPermission": "SwimNote saves photos to your photo library.",
           "savePhotosPermission": "SwimNote saves photos to your photo library.",
           "isAccessMediaLocationEnabled": false
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "SwimNote uses the microphone to record short voice memos for lesson diaries. A teacher can speak lesson notes aloud and have them transcribed automatically."
         }
       ],
       "./plugins/withRemoveMediaPermissions"

@@ -75,13 +75,17 @@ export function useVoiceRecorder(): VoiceRecorderResult {
   const recordingRef   = useRef<Audio.Recording | null>(null);
   const timerRef       = useRef<ReturnType<typeof setInterval> | null>(null);
   const maxTimerRef    = useRef<ReturnType<typeof setTimeout>  | null>(null);
+  /** 언마운트 후 setState 방지 */
+  const isMountedRef   = useRef(true);
 
   const [isRecording, setIsRecording] = useState(false);
   const [durationMs,  setDurationMs]  = useState(0);
 
   // ── 언마운트 시 리소스 정리 ────────────────────────────────────────────────
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       if (timerRef.current)    clearInterval(timerRef.current);
       if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
       recordingRef.current?.stopAndUnloadAsync().catch(() => {});
@@ -92,18 +96,24 @@ export function useVoiceRecorder(): VoiceRecorderResult {
   const startTimer = useCallback(() => {
     setDurationMs(0);
     timerRef.current = setInterval(() => {
-      setDurationMs(prev => prev + 200);
+      if (isMountedRef.current) setDurationMs(prev => prev + 200);
     }, 200);
   }, []);
 
   const stopTimer = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     if (maxTimerRef.current) { clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
-    setDurationMs(0);
+    if (isMountedRef.current) setDurationMs(0);
   }, []);
 
   // ── 녹음 시작 ─────────────────────────────────────────────────────────────
   const startRecording = useCallback(async (): Promise<'ok' | 'permission_denied' | 'error'> => {
+    // ① 중복 호출 방지 — 이미 녹음 중이면 무시
+    if (recordingRef.current) {
+      console.warn('[VoiceRecorder] startRecording: 이미 녹음 중 — 무시');
+      return 'error';
+    }
+
     try {
       console.log('[VoiceRecorder] 권한 요청');
       const { granted } = await Audio.requestPermissionsAsync();
@@ -112,6 +122,9 @@ export function useVoiceRecorder(): VoiceRecorderResult {
         return 'permission_denied';
       }
 
+      // 언마운트 확인 (권한 요청 대기 중 언마운트 가능)
+      if (!isMountedRef.current) return 'error';
+
       await Audio.setAudioModeAsync({
         allowsRecordingIOS:  true,
         playsInSilentModeIOS: true,
@@ -119,21 +132,38 @@ export function useVoiceRecorder(): VoiceRecorderResult {
 
       console.log('[VoiceRecorder] 녹음 시작 (m4a 포맷)');
       const { recording } = await Audio.Recording.createAsync(WHISPER_RECORDING_OPTIONS);
-      recordingRef.current = recording;
 
+      // 언마운트 확인 (createAsync 대기 중 언마운트 가능)
+      if (!isMountedRef.current) {
+        recording.stopAndUnloadAsync().catch(() => {});
+        return 'error';
+      }
+
+      recordingRef.current = recording;
       setIsRecording(true);
       startTimer();
 
-      // 최대 녹음 시간 초과 시 자동 중지 (stopRecording은 외부에서 호출되므로 로그만)
-      maxTimerRef.current = setTimeout(() => {
+      // ② 최대 녹음 시간 초과 시 자동 중지
+      maxTimerRef.current = setTimeout(async () => {
+        const rec = recordingRef.current;
+        if (!rec) return;
         console.log('[VoiceRecorder] 최대 녹음 시간(120s) 도달 — 자동 중지');
-        // 실제 중지는 stopRecording()으로 처리. 여기서는 상태만 알림용.
+        recordingRef.current = null;
+        if (timerRef.current)    { clearInterval(timerRef.current); timerRef.current = null; }
+        if (isMountedRef.current) { setIsRecording(false); setDurationMs(0); }
+        try {
+          await rec.stopAndUnloadAsync();
+          await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+          console.log('[VoiceRecorder] 자동 중지 완료 — URI:', rec.getURI());
+        } catch (e: any) {
+          console.error('[VoiceRecorder] 자동 중지 오류:', e?.message ?? e);
+        }
       }, MAX_RECORDING_MS);
 
       return 'ok';
     } catch (e: any) {
       console.error('[VoiceRecorder] startRecording 오류:', e?.message ?? e);
-      setIsRecording(false);
+      if (isMountedRef.current) setIsRecording(false);
       return 'error';
     }
   }, [startTimer]);
@@ -146,9 +176,10 @@ export function useVoiceRecorder(): VoiceRecorderResult {
       return null;
     }
 
-    setIsRecording(false);
-    stopTimer();
+    // 중지 전에 ref를 null로 — 중복 호출 방지
     recordingRef.current = null;
+    if (isMountedRef.current) setIsRecording(false);
+    stopTimer();
 
     try {
       await rec.stopAndUnloadAsync();
