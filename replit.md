@@ -6,6 +6,14 @@ SwimNote is a multi-tenant B2B SaaS platform designed for comprehensive manageme
 ## User Preferences
 I prefer the AI to operate with a clear understanding of the existing system's multi-tenancy and role-based access control. When implementing new features or modifying existing ones, prioritize maintaining data isolation and security across different swimming pools and user roles. I expect the AI to maintain a consistent API response format and to automatically record activity logs for significant actions, especially status changes and data modifications.
 
+---
+
+### ★ 작업 규칙 헌법 (모든 작업지시 맨 위에 항상 적용)
+
+이번 작업은 지정된 feature 브랜치와 개발 환경에서만 수행한다. Production 코드, Production 배포, Production DB를 직접 수정하지 않는다. 작업 시작 전 현재 branch, HEAD, git status를 보고한다. 작업 완료 후 변경 파일 목록, 전체 git diff 요약, 타입 검사, 테스트 결과, 실제 실행 결과, commit hash, remote push 결과를 제출한다. 원격 저장소에 push되지 않은 작업은 완료로 인정하지 않는다. 한 단계가 승인되기 전 다음 단계 작업을 시작하지 않는다. 기존 파일 삭제, 디렉터리 이동, merge, rebase, reset, force push는 별도 승인 없이 금지한다.
+
+---
+
 **[최우선 원칙] Production 서버에서만 작업**
 - 실제 iOS/Android 앱 API Base URL: `https://swimnote.kr/api` (Render.com)
 - Replit API 서버(artifacts/api-server)는 개발/테스트 전용 — 실제 앱과 무관
