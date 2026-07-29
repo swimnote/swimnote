@@ -1,0 +1,99 @@
+=== WP10 FINAL EVIDENCE — GIT STATE ===
+captured_at: 2026-07-29T18:25:27Z
+
+--- git status ---
+On branch deploy-photo-clone
+Your branch is ahead of 'origin/main' by 126 commits.
+  (use "git push" to publish your local commits)
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	artifacts/audit/
+	attached_assets/Pasted-WP10-WP11--1785349500387_1785349500387.txt
+
+nothing added to commit but untracked files present (use "git add" to track)
+
+--- git rev-parse HEAD ---
+99c4bfdfea5f13e0560c33bf66e017bdc033ba4e
+
+--- git branch -vv ---
+  backup/pre-ai-recovery-376fa37 376fa37 feat: AI diary safety guards — pipeline mode, GPT timeout, MODEL_TIMEOUT 504, STUDENT_RESOLUTION_REQUIRED, tenant isolation, structured log
+* deploy-photo-clone             99c4bfd [origin/main: ahead 126] Add forensic audit workpaper 10 documentation
+  master                         d56cef3 [origin/master] feat: AI Engine E1 Contract — request_id echo, validateDiaryOutput, student_ref
+  replit-agent                   381ef9e Add forensic audit workpaper 10 documentation
+
+--- git log -5 --oneline --decorate ---
+99c4bfd (HEAD -> deploy-photo-clone) Add forensic audit workpaper 10 documentation
+80030bc Add teacher diary audit asset
+62442aa Remove obsolete wp10 test script
+c8d3225 Add WP10 AI API end-to-end test script and supporting documentation assets
+65d171f Add WP10 AI API end-to-end test script and supporting documentation assets
+
+
+=== SCRIPT EXECUTION OUTPUT ===
+executed_at: 2026-07-29T18:26:16Z
+
+[EVIDENCE] SCRIPT_START_UTC: 2026-07-29T18:26:18.001Z
+[EVIDENCE] BASE_URL: https://swimnote.kr
+[EVIDENCE] TEST_USER_ID: wp10_evid_teacher_20260729
+[EVIDENCE] TEST_POOL_ID: wp10_evid_pool_20260729
+[EVIDENCE] TEST_EMAIL: wp10evidence@swimnote.test
+[EVIDENCE] A_before_insert_record_exists: false
+[EVIDENCE] INSERT_START_UTC: 2026-07-29T18:26:18.150Z
+[EVIDENCE] INSERT_END_UTC: 2026-07-29T18:26:18.258Z
+[EVIDENCE] A_after_insert_record_exists: true
+[EVIDENCE] A_after_insert_test_user_id: wp10_evid_teacher_20260729
+[EVIDENCE] A_after_insert_role: teacher
+[EVIDENCE] A_after_insert_created_at: 2026-07-29 18:26:18.242843
+[EVIDENCE] B_login_url: https://swimnote.kr/api/auth/login
+[EVIDENCE] B_login_method: POST
+[EVIDENCE] B_login_request_start: 2026-07-29T18:26:18.263Z
+[EVIDENCE] B_login_status: 200
+[EVIDENCE] B_login_content_type: application/json; charset=utf-8
+[EVIDENCE] B_login_success: true
+[EVIDENCE] B_login_duration_ms: 1070
+[EVIDENCE] B_login_request_end: 2026-07-29T18:26:19.333Z
+[EVIDENCE] B_login_token_present: true
+[EVIDENCE] C_me_url: https://swimnote.kr/api/auth/me
+[EVIDENCE] C_me_method: GET
+[EVIDENCE] C_me_request_start: 2026-07-29T18:26:19.334Z
+[EVIDENCE] C_me_status: 200
+[EVIDENCE] C_me_content_type: application/json; charset=utf-8
+[EVIDENCE] C_me_duration_ms: 899
+[EVIDENCE] C_me_request_end: 2026-07-29T18:26:20.233Z
+[EVIDENCE] C_me_returned_user_id_matches: true
+[EVIDENCE] C_me_returned_role: teacher
+[EVIDENCE] C_me_returned_user_id: wp10_evid_teacher_20260729
+[EVIDENCE] D_cleanup_start_utc: 2026-07-29T18:26:20.234Z
+[EVIDENCE] D_cleanup_end_utc: 2026-07-29T18:26:20.243Z
+[EVIDENCE] D_after_cleanup_record_exists: false
+[EVIDENCE] D_cleanup_success: true
+[EVIDENCE] SCRIPT_END_UTC: 2026-07-29T18:26:20.246Z
+[EVIDENCE] ALL_CHECKS_PASSED: true
+
+SCRIPT_EXIT_CODE: 0
+
+=== POST-EXECUTION GIT STATE ===
+captured_at: 2026-07-29T18:26:30Z
+
+--- git status ---
+On branch deploy-photo-clone
+Your branch is ahead of 'origin/main' by 126 commits.
+  (use "git push" to publish your local commits)
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	artifacts/api-server/src/scripts/wp10-final-evidence-test.ts
+	artifacts/audit/
+	attached_assets/Pasted-WP10-WP11--1785349500387_1785349500387.txt
+
+nothing added to commit but untracked files present (use "git add" to track)
+
+--- git diff --stat ---
+
+--- git diff ---
+
+--- git rev-parse HEAD ---
+99c4bfdfea5f13e0560c33bf66e017bdc033ba4e
+
+=== END OF EVIDENCE FILE ===
