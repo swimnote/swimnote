@@ -19,6 +19,7 @@ import { TeacherClassGroup, SlotStatus } from "@/components/teacher/types";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import AuditModal from "@/components/teacher/diary/AuditModal";
 import DiaryWriteView from "@/components/teacher/diary/DiaryWriteView";
+import type { DiaryInsertResult } from "@/components/ai/features/diary/useDiaryAI";
 import DiaryEditView from "@/components/teacher/diary/DiaryEditView";
 import DiaryHistoryList from "@/components/teacher/diary/DiaryHistoryList";
 import AlbumPickerModal from "@/components/teacher/diary/AlbumPickerModal";
@@ -421,6 +422,26 @@ export default function TeacherDiaryScreen() {
       return [...prev, { student_id: addNoteStudent!.id, student_name: addNoteStudent!.name, note_content: noteInput.trim() }];
     });
   }
+
+  const handleAIInsert = useCallback((result: DiaryInsertResult) => {
+    // 공통 일지 교체
+    setCommonContent(result.commonDiary);
+    // 학생별 메모 병합 (기존 유지 + AI 결과 추가/덮어쓰기)
+    if (result.students.length > 0) {
+      setStudentNotes(prev => {
+        const next = [...prev];
+        for (const s of result.students) {
+          const idx = next.findIndex(n => n.student_id === s.studentId);
+          if (idx >= 0) {
+            next[idx] = { ...next[idx], note_content: s.note };
+          } else {
+            next.push({ student_id: s.studentId, student_name: s.studentName, note_content: s.note });
+          }
+        }
+        return next;
+      });
+    }
+  }, []);
   async function handleSave() {
     const _stack = new Error().stack ?? "(no stack)";
     const _ts = new Date().toISOString();
@@ -1010,6 +1031,9 @@ export default function TeacherDiaryScreen() {
             commonCursorRef={commonCursorRef} noteCursorRef={noteCursorRef}
             onSave={handleSave}
             onBack={params.backTo ? undefined : () => { setSelectedGroup(null); }}
+            poolId={user?.swimming_pool_id ?? ""}
+            teacherId={user?.id ?? ""}
+            onAIInsert={handleAIInsert}
             onUploadGroupMedia={uploadGroupMedia}
             onUploadStudentMedia={uploadStudentMedia}
             onAddNote={handleAddNote}

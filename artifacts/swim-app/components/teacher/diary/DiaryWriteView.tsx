@@ -1,5 +1,7 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { MutableRefObject, useState } from "react";
+import DiaryAIButton from "@/components/ai/features/diary/DiaryAIButton";
+import type { DiaryInsertResult } from "@/components/ai/features/diary/useDiaryAI";
 import {
   ActivityIndicator, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
@@ -37,6 +39,7 @@ export default function DiaryWriteView({
   onOpenStudentAlbumPicker, studentAlbumPhotos, onRemoveStudentAlbumPhoto,
   studentAlbumVideos, onRemoveStudentAlbumVideo,
   onOpenGroupMyAlbum, onOpenStudentMyAlbum, videoEnabled,
+  poolId, teacherId, onAIInsert,
 }: {
   group: TeacherClassGroup; targetDate: string; themeColor: string; myDiaryExists: boolean;
 
@@ -76,6 +79,10 @@ export default function DiaryWriteView({
   onOpenGroupMyAlbum: (kind: "photo" | "video") => void;
   onOpenStudentMyAlbum: (student: StudentOption, kind: "photo" | "video") => void;
   videoEnabled: boolean;
+  // AI 연결
+  poolId?: string;
+  teacherId?: string;
+  onAIInsert?: (result: DiaryInsertResult) => void;
 }) {
   const insets = useSafeAreaInsets();
   return (
@@ -94,8 +101,23 @@ export default function DiaryWriteView({
             <View style={[s.cardIcon, { backgroundColor: themeColor + "20" }]}>
               <LucideIcon name="book-open" size={15} color={themeColor} />
             </View>
-            <Text style={[s.cardTitle, { color: C.text }]}>반 공통 일지</Text>
-            <Text style={s.cardSub}>모든 학생에게 공통으로 보이는 내용</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.cardTitle, { color: C.text }]}>반 공통 일지</Text>
+              <Text style={s.cardSub}>모든 학생에게 공통으로 보이는 내용</Text>
+            </View>
+            {onAIInsert && (
+              <DiaryAIButton
+                token={token}
+                teacherId={teacherId}
+                classId={group.id}
+                date={targetDate}
+                students={classStudents}
+                poolId={poolId}
+                themeColor={themeColor}
+                existingContent={commonContent}
+                onInsert={onAIInsert}
+              />
+            )}
           </View>
 
           <TextInput style={[s.textarea, { borderColor: C.border, color: C.text }]}
