@@ -1,0 +1,443 @@
+SWIMNOTE Teacher Diary AI
+WP12 독립 감사 (AUDIT)
+
+목적
+
+이번 작업은 WP12 구현이 아니다.
+
+WP12 최종 보고서가 실제 Git, 실제 코드, 실제 저장 상태와 일치하는지 검증하는 독립 감사이다.
+
+보고서를 사실로 전제하지 않는다.
+
+반드시 다음만 근거로 판단한다.
+
+- Git
+- 실제 코드
+- TypeScript 실행 결과
+- 저장 상태
+- 가능한 실행 증거
+
+코드 수정, 리팩터링, push, 배포는 금지한다.
+
+================================
+감사 운영 원칙
+================================
+
+감사 항목은 정확히 12개이다.
+
+임의로 감사 항목을 추가하거나 확장하지 않는다.
+
+어느 한 항목이라도 FAIL이면:
+
+1. 즉시 감사 중단
+2. 해당 문제를 명확히 기록
+3. 코드 수정은 하지 않음
+4. 사용자에게 수정 필요 사항 보고
+5. 수정 후 동일 항목부터 재감사
+
+모든 항목이 통과해야 최종 감사 종료가 가능하다.
+
+================================
+1. Git 상태 감사
+================================
+
+다음 명령을 실행한다.
+
+git status
+git branch -vv
+git rev-parse HEAD
+git log --oneline --decorate -20
+git show 8122430 --stat
+git show 8122430 --name-status
+git diff origin/deploy-photo-clone...HEAD --stat
+
+확인 항목:
+
+- 현재 브랜치가 deploy-photo-clone인지
+- HEAD가 8122430b4c003137fdac17412397e22791b53f0f인지
+- WP12 커밋이 실제로 존재하는지
+- working tree가 clean인지
+- origin에는 push되지 않았는지
+- WP10~WP12 커밋이 로컬에만 존재하는지
+
+untracked 파일이 있으면 파일명과 성격을 기록한다.
+
+판정:
+
+- PASS
+- FAIL
+
+================================
+2. 변경 파일 및 줄 수 감사
+================================
+
+WP12 보고서 주장:
+
+수정 파일 2개
+
+- artifacts/swim-app/components/ai/core/BaseAIModal.tsx
+- artifacts/swim-app/components/ai/features/diary/DiaryAIContent.tsx
+
+보고서 줄 수:
+
+- BaseAIModal.tsx: +5 / -0
+- DiaryAIContent.tsx: +20 / -3
+- 합계: +25 / -3
+
+다음으로 실제 수치를 확인한다.
+
+git show --numstat 8122430
+git show --stat 8122430
+
+기록:
+
+- 실제 수정 파일 수
+- 실제 파일명
+- 실제 삽입 줄 수
+- 실제 삭제 줄 수
+- 보고서와 일치 여부
+
+줄 수가 다르면 단순 계산 오류인지, 보고 내용 불일치인지 구분한다.
+
+판정:
+
+- PASS
+- FAIL
+
+================================
+3. BaseAIModal Android Back 감사
+================================
+
+실제 diff와 현재 코드를 확인한다.
+
+확인 항목:
+
+- onRequestClose가 존재하는지
+- lockDismiss가 true일 때 return하는지
+- lockDismiss가 false일 때 doClose()가 호출되는지
+- Android Back Button에만 필요한 최소 변경인지
+- 기존 backdrop 탭 처리와 swipe 처리에 손상이 없는지
+- lockDismiss 의미가 기존과 동일하게 유지되는지
+
+반드시 실제 코드 줄을 인용하여 기록한다.
+
+판정:
+
+- PASS
+- FAIL
+
+================================
+4. DiaryAIContent 닫기 확인 감사
+================================
+
+실제 handleClose 구현을 확인한다.
+
+확인 항목:
+
+- useCallback으로 구현됐는지
+- 조건이 state === 'INPUT'인지
+- inputText.trim().length > 0인지
+- 입력이 없을 때 즉시 onClose()인지
+- 입력이 있을 때 Alert가 표시되는지
+- 취소 버튼이 실제로 닫지 않는지
+- destructive 닫기 버튼이 onClose를 호출하는지
+- dependency 배열이 실제 참조값과 일치하는지
+
+단순히 함수가 존재하는지만 보지 말고 실제 호출 흐름까지 확인한다.
+
+판정:
+
+- PASS
+- FAIL
+
+================================
+5. ActionBar 연결 감사
+================================
+
+DiaryAIActionBar에 전달되는 onClose가 실제로 handleClose로 교체됐는지 확인한다.
+
+확인 항목:
+
+- 기존 onClose 직접 전달이 제거됐는지
+- 새로운 handleClose가 실제 ActionBar에 연결됐는지
+- 다른 닫기 경로가 handleClose를 우회하는지
+- PROCESSING 또는 UPLOADING 상태의 취소 버튼이 어떤 닫기 함수를 호출하는지
+- 이 연결이 의도치 않게 진행 중 취소를 막거나 Alert를 띄우지 않는지
+
+특히 다음을 구분한다.
+
+- INPUT 상태의 작성 내용 보호
+- PROCESSING/UPLOADING 상태의 요청 취소
+- RESULT/EDITING 상태의 닫기
+
+판정:
+
+- PASS
+- FAIL
+
+================================
+6. 이탈 조건 감사
+================================
+
+보고서가 주장한 A/B/C/D 조건을 실제 코드 기준으로 검증한다.
+
+A. 입력 없음
+→ 즉시 닫기
+
+B. INPUT 상태에서 텍스트 입력 있음
+→ Alert 표시
+
+C. AI 진행 중
+→ backdrop, swipe, Android Back 차단 또는 취소 경로 유지
+
+D. 저장 중
+→ WP11의 saving guard가 유지됨
+
+각 조건에 대해 다음 중 하나로 판정한다.
+
+- VERIFIED
+- CONSISTENT
+- EVIDENCE INSUFFICIENT
+- FALSE
+
+실기기 실행 없이 코드만 확인한 항목을 런타임 VERIFIED로 과장하지 않는다.
+
+감사 항목 전체 판정:
+
+- PASS
+- FAIL
+
+================================
+7. Abort 및 Cancel 처리 감사
+================================
+
+실제 코드에서 다음을 확인한다.
+
+- generateAbortRef
+- voiceAbortRef
+- timeout 정리
+- unmount cleanup
+- abort reason 처리
+- unmount abort가 일반 오류로 표시되지 않는지
+- stale response 차단
+- 취소 후 state 복구 가능 여부
+- 재시도 가능 여부
+
+WP12에서 해당 코드를 수정하지 않았더라도 현재 코드에 실제로 존재하는지 확인한다.
+
+보고서의 “기존 완료” 주장을 실제 코드로 검증한다.
+
+판정:
+
+- PASS
+- FAIL
+
+================================
+8. 입력 보존 및 재시도 감사
+================================
+
+실패 또는 취소 후 입력 보존 흐름을 확인한다.
+
+확인 항목:
+
+- machine.setError 호출 시 inputText를 초기화하지 않는지
+- retry('INPUT') 시 inputText가 유지되는지
+- 학생 선택 또는 options context가 유지되는지
+- 새 요청 시 requestId가 갱신되는지
+- 이전 응답이 새 요청을 덮어쓰지 않는지
+- 오류 발생만으로 전체 AI 화면이 초기화되지 않는지
+
+보고서의 주장과 실제 상태 머신 동작을 비교한다.
+
+판정:
+
+- PASS
+- FAIL
+
+================================
+9. 오류 메시지 및 중복 피드백 감사
+================================
+
+실제 사용자 오류 표시 경로를 추적한다.
+
+확인 항목:
+
+- 오류가 AIErrorView 또는 단일 경로로 표시되는지
+- 동일 오류에서 Alert, Toast, inline error가 중복되지 않는지
+- 닫기 확인 Alert가 오류 Alert와 혼동되지 않는지
+- 인터넷 연결 실패 메시지
+- timeout 메시지
+- 인증 만료 메시지
+- 서버 오류 메시지
+- invalid response 메시지
+- stack trace, JWT, 개인정보가 노출되지 않는지
+
+보고서의 메시지 문구가 실제 코드와 일치하는지 확인한다.
+
+판정:
+
+- PASS
+- FAIL
+
+================================
+10. WP11 안정성 및 Contract 보존 감사
+================================
+
+WP12 변경으로 다음이 손상되지 않았는지 확인한다.
+
+WP11 안정성 로직:
+
+- isInFlightRef
+- isInsertingRef
+- if (saving) return
+- requestId stale 차단
+- AbortController cleanup
+- timeout cleanup
+- isMountedRef
+- Generate / Insert / Save 독립 상태
+
+Contract:
+
+- AI Request Contract
+- AI Response Contract
+- DiaryInsertResult
+- Student Resolution
+- Save Payload
+- Teacher Diary 저장 구조
+
+다음 명령과 실제 diff를 근거로 판단한다.
+
+git show 8122430
+git diff 8122430^ 8122430 -- artifacts/swim-app/components/ai/core/AIContracts.ts
+git diff 8122430^ 8122430 -- artifacts/swim-app/app/\(teacher\)/diary.tsx
+git diff 8122430^ 8122430 -- artifacts/swim-app/components/ai/features/diary/useDiaryAI.ts
+
+변경이 없다고 주장할 때는 반드시 Git 출력 0줄 또는 diff 부재를 증거로 기록한다.
+
+판정:
+
+- PASS
+- FAIL
+
+================================
+11. TypeScript 및 런타임 증거 감사
+================================
+
+TypeScript 검사를 실제 실행한다.
+
+기록:
+
+- 실행 명령
+- 전체 오류 수
+- 오류 파일 수
+- 각 오류 위치
+- 기존 오류인지
+- WP12 신규 오류인지
+
+보고서 주장:
+
+- 전체 오류 8
+- 기존 오류 8
+- WP12 신규 오류 0
+
+과 실제 결과를 비교한다.
+
+또한 런타임 시나리오 A~H는 실제 실행 증거가 없다면 모두 UNVERIFIED로 유지한다.
+
+코드 경로 확인과 실제 런타임 검증을 혼동하지 않는다.
+
+판정:
+
+- PASS
+- FAIL
+
+================================
+12. 허위보고 및 최종 판정
+================================
+
+아래 표를 작성한다.
+
+열:
+
+- 보고서 주장
+- 실제 코드
+- Git 증거
+- 실행 증거
+- 일치 여부
+- 판정
+
+판정 값은 다음만 사용한다.
+
+- VERIFIED
+- CONSISTENT
+- EVIDENCE INSUFFICIENT
+- FALSE
+
+반드시 포함할 주장:
+
+- HEAD
+- 브랜치
+- 수정 파일 2개
+- 줄 수 +25/-3
+- Android Back lockDismiss
+- handleClose Alert
+- ActionBar 연결
+- WP11 로직 보존
+- Contract 무변경
+- TypeScript 8개
+- 신규 오류 0
+- push 없음
+- production 영향 없음
+- 런타임 전 항목 UNVERIFIED
+
+최종 판정은 다음 중 하나만 선택한다.
+
+1. WP12 허위보고 발견
+
+2. 허위보고 정황 없음 / 일부 실행 증거 부족
+
+3. WP12 허위보고 없음
+
+추가로 다음 상태를 별도로 기록한다.
+
+- WP12 코드 감사: CLOSED 또는 OPEN
+- WP12 런타임 검증: VERIFIED 또는 UNVERIFIED
+- Production 배포 준비: READY 또는 NOT READY
+
+================================
+최종 보고 형식
+================================
+
+1. Git 감사 결과
+
+2. 변경 파일 및 줄 수 결과
+
+3. BaseAIModal 감사 결과
+
+4. DiaryAIContent 감사 결과
+
+5. ActionBar 연결 결과
+
+6. 이탈 조건 결과
+
+7. Abort / Cancel 결과
+
+8. 입력 보존 및 재시도 결과
+
+9. 오류 메시지 결과
+
+10. WP11 안정성 및 Contract 결과
+
+11. TypeScript 및 런타임 증거 결과
+
+12. 허위보고 표 및 최종 판정
+
+중요:
+
+- 코드 수정 금지
+- commit 금지
+- push 금지
+- Render 배포 금지
+- OTA 배포 금지
+- 감사 중 문제를 발견해도 임의 수정 금지
+- 증거 없이 PASS 금지
