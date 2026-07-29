@@ -12,7 +12,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput } from 'react-native';
 import Animated, {
   cancelAnimation,
   useAnimatedReaction,
@@ -42,13 +42,15 @@ const CRASH_TEST_DISABLE_ANIMATION = true;
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface AIResultAreaProps {
-  result: string;
-  state:  AIState;
+  result:        string;
+  state:         AIState;
+  /** [WP5] 제공 시 Common Draft를 TextInput으로 표시하여 교사 수정 가능 */
+  onChangeText?: (text: string) => void;
 }
 
 // ─── AIResultArea ─────────────────────────────────────────────────────────────
 
-export default function AIResultArea({ result, state }: AIResultAreaProps) {
+export default function AIResultArea({ result, state, onChangeText }: AIResultAreaProps) {
   const visible       = ['RESULT', 'EDITING', 'COMPLETE'].includes(state);
   const reducedMotion = useAIReducedMotion();
 
@@ -151,12 +153,24 @@ export default function AIResultArea({ result, state }: AIResultAreaProps) {
         )}
       </Animated.View>
 
-      {/* 내용 텍스트 — ScrollView 제거, 외부 ScrollView에서 전체 스크롤 처리 */}
-      <Text style={styles.resultText}>
-        {displayed}
-        {/* 타이핑 커서 */}
-        {!isComplete && <Text style={styles.cursor}>|</Text>}
-      </Text>
+      {/* 내용 텍스트 — [WP5] onChangeText 제공 시 TextInput(편집 가능), 없으면 Text(타이핑 애니메이션) */}
+      {onChangeText ? (
+        <TextInput
+          style={[styles.resultText, styles.resultInput]}
+          value={result}
+          onChangeText={onChangeText}
+          multiline
+          textAlignVertical="top"
+          placeholder="(AI 작성 결과 없음)"
+          placeholderTextColor={AIThemeColor.textSub}
+        />
+      ) : (
+        <Text style={styles.resultText}>
+          {displayed}
+          {/* 타이핑 커서 */}
+          {!isComplete && <Text style={styles.cursor}>|</Text>}
+        </Text>
+      )}
     </Animated.View>
   );
 }
@@ -188,6 +202,12 @@ const styles = StyleSheet.create({
   resultText: {
     ...AIThemeTypography.result,
     color: AIThemeColor.text,
+  },
+  /** [WP5] Common Draft 편집 시 TextInput 최소 높이 */
+  resultInput: {
+    minHeight: 80,
+    paddingTop: 0,
+    paddingBottom: 4,
   },
   cursor: {
     color:    AIThemeColor.primary,

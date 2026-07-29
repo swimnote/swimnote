@@ -118,6 +118,7 @@ export default function DiaryAIContent({
     inputText,
     setInputText,
     resultText,
+    setResultText,        // [WP5] Common Draft 편집용
     generatedStudents,
     setGeneratedStudents,
     insertDone,
@@ -192,7 +193,8 @@ export default function DiaryAIContent({
 
         {/* 결과 카드 — auto height, 외부 ScrollView가 전체 스크롤 담당 */}
         {showResult && (
-          <AIResultArea result={resultText} state={state} />
+          // [WP5] onChangeText 전달 → TextInput으로 전환하여 교사가 Common Draft 직접 수정 가능
+          <AIResultArea result={resultText} state={state} onChangeText={setResultText} />
         )}
 
         {/* [WP갭1] 학생별 Draft — 교사 확인 및 수정 */}
