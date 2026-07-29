@@ -75,16 +75,17 @@ function StudentDraftSection({
   return (
     <View style={styles.studentSection}>
       <Text style={styles.studentSectionLabel}>학생별 일지</Text>
-      {students.map((s, i) => (
+      {students.map((s) => (
         <View key={s.studentId} style={styles.studentCard}>
           <Text style={styles.studentName}>{s.studentName}</Text>
           <TextInput
             style={styles.studentInput}
             value={s.note}
             onChangeText={(text) => {
-              const next = [...students];
-              next[i] = { ...next[i], note: text };
-              onUpdate(next);
+              // studentId 기반 업데이트 — index 의존 없이 올바른 학생 노트만 변경
+              onUpdate(students.map(student =>
+                student.studentId === s.studentId ? { ...student, note: text } : student
+              ));
             }}
             multiline
             textAlignVertical="top"
