@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import Animated, {
   cancelAnimation,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
 } from 'react-native-reanimated';
@@ -37,7 +38,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AICreditInfo, AIFeatureType } from './AIContracts';
 import { AIProvider } from './AIContext';
 import {
-  animateModalClose,
   animateModalOpen,
   animateSwipeCancel,
   applySwipeDrag,
@@ -125,13 +125,15 @@ export default function BaseAIModal({
     animateModalOpen(translateY, backdropOpacity, reducedMotion);
   }, [rendered]);
 
-  // ── 닫기 애니메이션 → 실제 onClose 호출 ──────────────────────────────────
+  // ── 닫기 — 애니메이션 취소 후 즉시 언마운트 ──────────────────────────────
+  // animateModalClose(withTiming 콜백)는 실기기 Hermes에서 크래시를 유발함.
+  // cancelAnimation 후 즉시 닫는 방식이 안정적으로 동작하는 것이 확인됨.
   const doClose = useCallback(() => {
-    animateModalClose(translateY, backdropOpacity, SCREEN_HEIGHT, reducedMotion, () => {
-      setRendered(false);
-      onClose();
-    });
-  }, [onClose, reducedMotion]);
+    cancelAnimation(translateY);
+    cancelAnimation(backdropOpacity);
+    setRendered(false);
+    onClose();
+  }, [onClose]);
 
   // ── Swipe Down 제스처 (핸들 영역만 — ScrollView 충돌 없음) ───────────────
   // [원칙 1·5] lockDismiss=true 구간에서는 스와이프 dismiss 차단
@@ -153,12 +155,8 @@ export default function BaseAIModal({
         e.velocityY    > AIThemeGesture.swipeDismissVelocity;
       if (dismissed) {
         console.log('[BACK-EVENT] panGesture 스와이프 dismiss — translationY:', e.translationY, 'velocityY:', e.velocityY);
-        animateModalClose(translateY, backdropOpacity, SCREEN_HEIGHT, reducedMotion, () => {
-          setRendered(false);
-          // runOnJS 내부에서 호출됐으므로 JS 스레드
-          console.log('[MODAL-CLOSE-CALL] panGesture animateModalClose 콜백');
-          onClose();
-        });
+        // panGesture.onEnd는 worklet 컨텍스트 — non-worklet 함수는 runOnJS로 호출
+        runOnJS(doClose)();
       } else {
         animateSwipeCancel(translateY, backdropOpacity);
       }
