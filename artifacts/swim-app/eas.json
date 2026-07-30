@@ -36,6 +36,9 @@
         "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_iOSUEXOdIktvMemPmJEbTDelJXu",
         "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo"
       },
+      "ios": {
+        "image": "latest"
+      },
       "android": {
         "buildType": "app-bundle"
       }
