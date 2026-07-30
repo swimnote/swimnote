@@ -4,7 +4,7 @@
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 
@@ -24,7 +24,7 @@ export default function OnboardingTooltip({
   accentColor = C.tint,
 }: Props) {
   const [visible, setVisible] = useState(false);
-  const opacity = useState(new Animated.Value(0))[0];
+  const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     AsyncStorage.getItem(storageKey).then(val => {
