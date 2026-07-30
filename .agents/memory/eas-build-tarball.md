@@ -51,3 +51,13 @@ node_modules/.bin/eas submit --platform ios --profile production --latest --non-
 
 ## .npmrc (swim-app 루트)
 `frozen-lockfile=false` 유지 필수
+
+## Node 버전 호환성 (2026-07-30 추가)
+
+metro-file-map@0.83.3이 Node >=20.19.4 요구함. EAS 빌드 서버 기본 Node(20.18.3)와 불일치 시 `yarn install` 실패.
+
+해결: `.nvmrc`에 `20.19.4` + `.yarnrc`에 `--ignore-engines true` 동시 적용.
+
+**Why:** `.nvmrc`만으로 EAS가 올바른 Node를 선택하지만, 만약 지원 안 되는 버전일 경우 `.yarnrc --ignore-engines`가 안전망 역할.
+
+`node_modules/.bin/eas`는 swim-app에 없음 — 반드시 `/nix/store/spvnxml8f61qy1jrnlfz9p1yhjyh0f4j-eas-cli-14.7.1/bin/eas` 사용.
