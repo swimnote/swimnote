@@ -233,22 +233,26 @@ export default function DiaryAIContent({
         {renderContent()}
       </View>
 
-      {/* 고정 하단 ActionBar (safe area 포함) */}
-      <View style={[styles.actionBarWrap, { paddingBottom: insets.bottom + AIThemeSpacing.element }]}>
-        {/* ⚠️ 임시 삽입 안내 — 최종 삽입 정책 확정 전까지 Stage A 테스트용 */}
-        {insertDone && (
-          <View style={styles.insertNotice}>
-            <Text style={styles.insertNoticeText}>공통 일지에 임시 삽입되었습니다</Text>
-          </View>
-        )}
-        <DiaryAIActionBar
-          inputText={inputText}
-          insertDone={insertDone}
-          onSubmit={handleSubmit}
-          onInsert={handleInsert}
-          onClose={handleClose}
-        />
-      </View>
+      {/* 고정 하단 ActionBar (safe area 포함)
+          - ERROR 상태는 AIErrorView 자체에 닫기·재시도 버튼이 있으므로 ActionBar 숨김
+          - KeyboardAvoidingView 압축 환경(iPad 가로 + 키보드)에서 두 영역이 겹치는 현상 방지 */}
+      {state !== 'ERROR' && state !== 'PERMISSION' && (
+        <View style={[styles.actionBarWrap, { paddingBottom: insets.bottom + AIThemeSpacing.element }]}>
+          {/* ⚠️ 임시 삽입 안내 — 최종 삽입 정책 확정 전까지 Stage A 테스트용 */}
+          {insertDone && (
+            <View style={styles.insertNotice}>
+              <Text style={styles.insertNoticeText}>공통 일지에 임시 삽입되었습니다</Text>
+            </View>
+          )}
+          <DiaryAIActionBar
+            inputText={inputText}
+            insertDone={insertDone}
+            onSubmit={handleSubmit}
+            onInsert={handleInsert}
+            onClose={handleClose}
+          />
+        </View>
+      )}
     </View>
   );
 }
