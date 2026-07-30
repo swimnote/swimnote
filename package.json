@@ -23,6 +23,9 @@
           "@expo/config-plugins": "*"
         }
       }
+    },
+    "patchedDependencies": {
+      "expo-av@16.0.8": "patches/expo-av@16.0.8.patch"
     }
   }
 }
