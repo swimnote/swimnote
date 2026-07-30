@@ -1,0 +1,197 @@
+사용자에게 Xcode·Metro 콘솔 로그 수집을 요구하지 마세요.
+
+저는 실기기에서 발생한 증상과 화면을 이미 제공했습니다.
+코드와 실행 환경에 접근할 수 있는 개발 Agent가 직접 원인을 조사하고 해결해야 합니다.
+
+현재 문제:
+
+- AI 일지에서 텍스트 입력 후 오류 발생
+- ERROR 화면과 버튼이 중복되거나 잔상처럼 겹침
+- 화면이 심하게 깜빡임
+- 잠시 기다리면 일부가 정상으로 돌아오기도 함
+- 정적 코드 분석에서는 Modal과 Content 중복 구조가 확인되지 않음
+- 따라서 OTA 적용 여부, Modal lifecycle, 애니메이션 경합, 상태 전환을 런타임에서 조사해야 함
+
+다음 작업을 직접 수행하세요.
+
+1. 현재 실행 가능한 환경을 확인하세요.
+
+- Expo 개발 실행
+- iOS Simulator 또는 사용 가능한 테스트 환경
+- 서버 연결 상태
+- AI 요청을 실제로 발생시킬 수 있는지
+- 실제 ERROR를 만들 수 있는 테스트 방법
+
+실기기만 있어야 재현된다고 단정하지 말고,
+우선 Simulator와 자동화된 상태 재현으로 조사하세요.
+
+2. 사용자 조작 없이 ERROR 상태를 재현할 수 있는 개발용 테스트 경로를 만드세요.
+
+예:
+
+- 개발 환경에서 AI 요청을 강제로 실패시키는 mock
+- 특정 입력일 때 ERROR를 반환하는 debug flag
+- 네트워크 오류 mock
+- API 500 mock
+- timeout mock
+- reducer에 테스트 ERROR event를 전달하는 개발 전용 장치
+
+운영 코드에 노출되지 않도록 development 환경에서만 사용하세요.
+
+3. 다음 로그를 코드에 직접 추가하세요.
+
+- BaseAIModal mount/unmount
+- DiaryAIContent mount/unmount
+- Modal render
+- visible prop
+- nativeVisible
+- rendered
+- isClosing
+- AI state
+- error 유무
+- ERROR dispatch 횟수
+- Modal onShow
+- Modal onDismiss
+- open animation start/finish
+- close animation start/finish
+- animation cancellation
+- keyboard show/hide
+- retry event
+- close event
+
+모든 로그에 다음을 포함하세요.
+
+- timestamp
+- component instance ID
+- requestId
+- 이전 state
+- 다음 state
+
+4. OTA 여부를 사용자에게 확인시키지 말고 코드와 배포 설정에서 직접 확인하세요.
+
+확인 항목:
+
+- 현재 production channel
+- runtimeVersion
+- 배포된 updateId
+- OTA commit 또는 bundle marker
+- 앱 버전과 runtimeVersion 호환성
+- 해당 수정이 실제 production/preview 어느 채널에 배포됐는지
+- 이전 OTA가 캐시될 가능성
+- 개발 빌드가 어떤 채널을 읽는지
+
+DIARY_ERROR_ACTIONBAR_FIX_9642537 문자열이 실제 배포 번들에 들어 있는지도 직접 확인하세요.
+
+5. 자동화 테스트 또는 컴포넌트 테스트를 추가하세요.
+
+반드시 검사:
+
+A.
+ERROR 상태에서 AIErrorView는 정확히 1개
+
+B.
+ERROR 상태에서 DiaryAIActionBar는 0개
+
+C.
+재시도 후 ERROR가 다시 발생해도 AIErrorView는 1개
+
+D.
+닫기 후 재진입해도 Modal instance가 중복되지 않음
+
+E.
+open/close animation이 동시에 실행되지 않음
+
+F.
+nativeVisible=false 전환 전에 새 open animation이 시작되지 않음
+
+G.
+빠르게 닫기·재시도·재진입해도 중복 UI가 생기지 않음
+
+6. 다음 원인 후보를 실제 로그와 테스트로 하나씩 배제하세요.
+
+A. OTA 미적용
+B. Modal 중복 mount
+C. visible/nativeVisible/rendered 상태 경합
+D. open/close animation overlap
+E. onDismiss 이전 재오픈
+F. ERROR 중복 dispatch
+G. React StrictMode 개발 중복 effect
+H. KeyboardAvoidingView 레이아웃 잔상
+I. Animated.View의 이전 opacity/translate 상태 잔존
+J. Modal transparent 배경과 이전 sheet 잔상
+K. retry 요청의 이전 상태 미초기화
+L. 동일 AI 모달이 다른 화면 또는 Portal에 중복 존재
+
+7. 원인을 찾으면 최소 범위로 수정하세요.
+
+임시로 버튼을 숨기는 방식만 반복하지 마세요.
+실제 원인이 상태 경합이면 상태 경합을 고치고,
+애니메이션 문제면 애니메이션 lifecycle을 고치고,
+중복 mount면 mount 원인을 제거하세요.
+
+권장 구조를 검토하세요.
+
+- Modal 표시 상태의 단일 소스
+- visible/nativeVisible/rendered의 불필요한 다중 상태 제거
+- close 완료 전 재오픈 차단
+- animation ref 취소 후 새 animation 시작
+- ERROR 진입 시 키보드 dismiss
+- retry 전에 error와 request 상태 초기화
+- onDismiss 후에만 rendered=false 처리
+
+단, 실제 코드 구조와 로그를 확인한 후 필요한 변경만 적용하세요.
+
+8. 수정 후 직접 검증하세요.
+
+다음 순서로 최소 10회 반복하세요.
+
+- 모달 열기
+- 텍스트 입력
+- 강제 ERROR
+- 다시 시도
+- 재ERROR
+- 닫기
+- 재진입
+
+검증 기준:
+
+- 깜빡임 없음
+- ERROR UI 1개
+- 닫기 버튼 1개
+- 재시도 버튼 1개
+- 배경 잔상 없음
+- 터치 잠김 없음
+- 닫기 정상 작동
+- 재진입 정상
+- 중복 Modal 없음
+- 콘솔 warning/error 없음
+
+9. 완료 보고에는 반드시 실제 증거를 포함하세요.
+
+- 정확한 원인
+- 재현 방법
+- 수정 파일
+- 수정 함수
+- 수정 전 상태 흐름
+- 수정 후 상태 흐름
+- 테스트 결과
+- 반복 테스트 횟수
+- 관련 로그 발췌
+- OTA 배포 필요 여부
+- 네이티브 재빌드 필요 여부
+- commit ID
+
+“사용자가 실기기 로그를 제출해야 판정 가능”이라는 답변으로 종료하지 마세요.
+
+Agent가 접근 가능한 코드, 테스트, Simulator, mock 환경을 먼저 모두 사용해야 합니다.
+
+정말로 특정 실기기에서만 발생하고 Agent 환경에서는 재현할 수 없다면,
+그 사실을 다음 증거와 함께 보고하세요.
+
+- Simulator에서 수행한 재현 횟수
+- 자동화 테스트 결과
+- 코드 계측 결과
+- 배제된 원인 목록
+- 실기기에서만 가능하다고 판단한 기술적 근거
+
+그 전에는 사용자에게 로그 수집을 요청하지 마세요.
