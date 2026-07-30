@@ -1,15 +1,24 @@
 /**
- * DiaryAIButton — SwimNote AI UI Framework V1.0 / Phase 4
+ * DiaryAIButton — SwimNote AI UI Framework V2.0 / Phase 4
  * 일지 작성/수정 화면에 주입되는 자기완결형 AI 버튼
  *
  * 역할:
  *   - "AI 작성" 버튼 렌더링
- *   - 탭 시 BaseAIModal 오픈
- *   - AI 결과 COMPLETE 시 onInsert(text) 콜백 호출
+ *   - 탭 시 DiaryAIModalV2 오픈
+ *   - AI 결과 삽입 시 onInsert(DiaryInsertResult) 콜백 호출
+ *
+ * V2 변경 사항:
+ *   - BaseAIModal + DiaryAIContent → DiaryAIModalV2 (단일 컴포넌트)
+ *   - lockDismiss 상태 불필요 (DiaryAIModalV2 내부 isLocked로 처리)
+ *   - AIProvider / AIContext 불필요
+ *
+ * 롤백 방법:
+ *   - V1 섹션 주석 해제, V2 섹션 주석 처리
+ *   - 기존 파일(BaseAIModal, DiaryAIContent 등)은 삭제되지 않음
  *
  * 사용:
  *   <DiaryAIButton
- *     onInsert={(text) => setCommonContent(text)}
+ *     onInsert={(result) => { setCommonContent(result.commonDiary); ... }}
  *     themeColor={themeColor}
  *     existingContent={commonContent}
  *   />
@@ -18,9 +27,15 @@
 import React, { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { Sparkles } from 'lucide-react-native';
-import BaseAIModal from '../../core/BaseAIModal';
-import DiaryAIContent from './DiaryAIContent';
-import type { DiaryInsertResult, StudentContext } from './useDiaryAI';
+
+// ── V2 (현재 활성) ─────────────────────────────────────────────────────────────
+import DiaryAIModalV2 from './DiaryAIModalV2';
+import type { DiaryInsertResult, StudentContext } from '../../services/DiaryAIService';
+
+// ── V1 (보존 — 검증 완료 후 제거) ──────────────────────────────────────────────
+// import BaseAIModal    from '../../core/BaseAIModal';
+// import DiaryAIContent from './DiaryAIContent';
+// import type { DiaryInsertResult, StudentContext } from './useDiaryAI';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -57,12 +72,7 @@ export default function DiaryAIButton({
   students,
   poolId,
 }: DiaryAIButtonProps) {
-  const [visible,     setVisible]     = useState(false);
-  /**
-   * [원칙 1·5] AI 작업 중 백드롭·스와이프로 작업공간이 사라지지 않도록 제어합니다.
-   * useDiaryAI가 machine.state 변화에 따라 onLockChange를 호출합니다.
-   */
-  const [lockDismiss, setLockDismiss] = useState(false);
+  const [visible, setVisible] = useState(false);
 
   const handleInsert = useCallback((result: DiaryInsertResult) => {
     onInsert(result);
@@ -80,8 +90,22 @@ export default function DiaryAIButton({
         <Text style={[styles.btnText, { color: themeColor }]}>AI 작성</Text>
       </Pressable>
 
-      {/* AI 모달 — [원칙 1] lockDismiss=true 구간에서 닫기 차단 */}
-      <BaseAIModal
+      {/* ── V2 모달 (현재 활성) ────────────────────────────────────────────── */}
+      <DiaryAIModalV2
+        visible={visible}
+        onInsert={handleInsert}
+        onClose={() => setVisible(false)}
+        existingContent={existingContent}
+        token={token}
+        teacherId={teacherId}
+        classId={classId}
+        date={date}
+        students={students}
+        poolId={poolId}
+      />
+
+      {/* ── V1 모달 (보존 — 검증 완료 후 제거) ────────────────────────────── */}
+      {/* <BaseAIModal
         visible={visible}
         featureType="diary"
         title="AI 일지 작성"
@@ -101,8 +125,7 @@ export default function DiaryAIButton({
             poolId={poolId}
           />
         }
-        // actionBar는 DiaryAIContent 내부에 포함됨
-      />
+      /> */}
     </>
   );
 }
@@ -111,17 +134,17 @@ export default function DiaryAIButton({
 
 const styles = StyleSheet.create({
   btn: {
-    flexDirection:    'row',
-    alignItems:       'center',
-    gap:              4,
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               4,
     paddingHorizontal: 10,
     paddingVertical:   5,
-    borderRadius:     8,
-    borderWidth:      1.5,
-    backgroundColor:  '#F0FDF4',
+    borderRadius:      8,
+    borderWidth:       1.5,
+    backgroundColor:   '#F0FDF4',
   },
   btnText: {
-    fontSize:    12,
-    fontFamily:  'Pretendard-Regular',
+    fontSize:   12,
+    fontFamily: 'Pretendard-Regular',
   },
 });

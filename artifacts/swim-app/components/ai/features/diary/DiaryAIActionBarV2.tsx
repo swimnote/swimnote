@@ -32,7 +32,6 @@ export interface DiaryAIActionBarV2Props {
   inputText:     string;
   insertDone:    boolean;
   onSubmit:      () => void;
-  onVoicePress:  () => void;
   onInsert:      () => void;
   onRewrite:     () => void;
   onEditResult:  () => void;
@@ -44,21 +43,18 @@ export default function DiaryAIActionBarV2({
   inputText,
   insertDone,
   onSubmit,
-  onVoicePress,
   onInsert,
   onRewrite,
   onEditResult,
   onClose,
 }: DiaryAIActionBarV2Props) {
   switch (v2State) {
-    // ── INPUT: 음성 입력 + AI 작성 ──────────────────────────────────────────
+    // ── INPUT: AI 작성 버튼만 표시
+    // 음성 버튼은 AIInputArea 내장 버튼이 담당하므로 여기에 중복 배치하지 않습니다.
     case 'INPUT': {
       const hasText = inputText.trim().length > 0;
       return (
         <View style={styles.row}>
-          <Pressable style={styles.secondaryButton} onPress={onVoicePress}>
-            <Text style={styles.secondaryLabel}>🎤 음성 입력</Text>
-          </Pressable>
           <Pressable
             style={[styles.primaryButton, !hasText && styles.primaryDisabled]}
             onPress={onSubmit}
@@ -70,17 +66,9 @@ export default function DiaryAIActionBarV2({
       );
     }
 
-    // ── RECORDING: 녹음 중지 ───────────────────────────────────────────────
-    case 'RECORDING': {
-      return (
-        <View style={styles.row}>
-          <Pressable style={styles.stopButton} onPress={onVoicePress}>
-            <View style={styles.stopIcon} />
-            <Text style={styles.stopLabel}>녹음 중지</Text>
-          </Pressable>
-        </View>
-      );
-    }
+    // ── RECORDING: AIInputArea 내장 "녹음 중단" 버튼이 담당 → ActionBar 없음
+    case 'RECORDING':
+      return null;
 
     // ── TRANSCRIBING / SEARCHING / GENERATING: 진행 중, 버튼 없음 ───────────
     case 'TRANSCRIBING':

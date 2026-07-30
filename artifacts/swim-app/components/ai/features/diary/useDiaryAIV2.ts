@@ -295,13 +295,18 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
 
     if (__DEV__) console.log('[useDiaryAIV2] submit_started', { reqId, state: v2State });
 
-    // SEARCHING → GENERATING 자동 전환 타이머
-    // 서버가 onProgress 콜백을 보내오면 이 타이머보다 먼저 전환됩니다
+    // TEMP: SEARCHING → GENERATING 클라이언트 타이머 (임시 구현)
+    // ─────────────────────────────────────────────────────────────────
+    // 최종 구조: AI Engine → onProgress('GENERATING') → GENERATING 전환
+    // 서버에서 onProgress 이벤트를 전송하면 아래 타이머 블록 전체 제거 가능.
+    // 타이머 로직은 이 블록에만 격리되어 있으며 다른 코드와 결합되지 않습니다.
+    // ─────────────────────────────────────────────────────────────────
     const generatingTimer = setTimeout(() => {
       if (isMountedRef.current && requestIdRef.current === reqId) {
         setV2State(prev => prev === 'SEARCHING' ? 'GENERATING' : prev);
       }
     }, SEARCHING_TO_GENERATING_MS);
+    // TEMP END ─────────────────────────────────────────────────────────
 
     try {
       await _executeGenerate(reqId, controller, 0);

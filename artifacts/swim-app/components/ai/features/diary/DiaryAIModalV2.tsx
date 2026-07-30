@@ -276,7 +276,6 @@ export default function DiaryAIModalV2({
               inputText={hook.inputText}
               insertDone={hook.insertDone}
               onSubmit={hook.handleSubmit}
-              onVoicePress={hook.handleVoicePress}
               onInsert={hook.handleInsert}
               onRewrite={hook.handleSubmit}
               onEditResult={hook.handleEditInput}
