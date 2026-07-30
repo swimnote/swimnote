@@ -62,6 +62,16 @@ metro-file-map@0.83.3이 Node >=20.19.4 요구함. EAS 빌드 서버 기본 Node
 
 `node_modules/.bin/eas`는 swim-app에 없음 — 반드시 `/nix/store/spvnxml8f61qy1jrnlfz9p1yhjyh0f4j-eas-cli-14.7.1/bin/eas` 사용.
 
+## app.json 플러그인 ↔ package.json 누락 패턴 (2026-07-30)
+
+EAS_NO_VCS=1로 swim-app만 업로드 시, **app.json의 plugins 배열에 나열된 모든 패키지**가 swim-app/package.json에 있어야 함. workspace root package.json에만 있으면 EAS 서버 yarn install 후 expo config 실행 시 "Failed to resolve plugin" 오류 발생.
+
+발생한 사례:
+- `expo-apple-authentication` (1차 오류)
+- `@react-native-seoul/kakao-login` (2차 오류)
+
+**How to apply:** 새 빌드 시작 전, app.json plugins 배열을 전체 스캔해 swim-app/package.json에 없는 패키지 없는지 확인.
+
 ## expo-apple-authentication 플러그인 누락 오류 (2026-07-30 추가)
 
 `expo-apple-authentication`이 app.json plugin에 있지만 swim-app/package.json에 없으면 EAS 빌드 서버에서 expo config 실행 시 "Failed to resolve plugin" 오류 발생.
