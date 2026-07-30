@@ -30,8 +30,9 @@ async function runPrevDaySchedule(): Promise<void> {
   const currentTime = kstTimeStr(now);
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowDayKr = DAY_NAMES_KR[tomorrow.getDay()];
-  const todayDateStr  = kstDateStr(now);
+  const tomorrowDayKr    = DAY_NAMES_KR[tomorrow.getDay()];
+  const todayDateStr     = kstDateStr(now);
+  const tomorrowDateStr  = kstDateStr(tomorrow); // 휴무일 체크용
 
   try {
     // 전날 알림 설정이 있는 수영장 목록 (설정 없으면 기본값 20:00)
@@ -48,6 +49,14 @@ async function runPrevDaySchedule(): Promise<void> {
       const { pool_id, push_time, template } = pool;
       if (push_time !== currentTime) continue;
 
+      // 내일이 휴무일이면 전체 건너뜀 (pool별 1회 조회)
+      const holidayCheck = await db.execute(sql`
+        SELECT id FROM pool_holidays
+        WHERE pool_id = ${pool_id} AND holiday_date = ${tomorrowDateStr}
+        LIMIT 1
+      `);
+      if (holidayCheck.rows.length > 0) continue;
+
       // 중복 발송 방지
       const alreadySent = await superAdminDb.execute(sql`
         SELECT id FROM push_scheduled_sent
@@ -57,7 +66,7 @@ async function runPrevDaySchedule(): Promise<void> {
       `);
       if (alreadySent.rows.length > 0) continue;
 
-      // 내일 요일에 수업이 있는 반 목록
+      // 내일 요일에 수업이 있는 반 목록 (삭제되지 않은 반만)
       const classes = await db.execute(sql`
         SELECT DISTINCT cg.id AS class_id, cg.name AS class_name
         FROM class_groups cg
@@ -96,7 +105,7 @@ async function runPrevDaySchedule(): Promise<void> {
 // ── 당일 수업 알림 (매 분 체크, 수업 X시간 전) ───────────────────────
 async function runSameDaySchedule(): Promise<void> {
   const now = getKSTNow();
-  const todayDayKr  = DAY_NAMES_KR[now.getDay()];
+  const todayDayKr   = DAY_NAMES_KR[now.getDay()];
   const todayDateStr = kstDateStr(now);
 
   try {
@@ -112,7 +121,15 @@ async function runSameDaySchedule(): Promise<void> {
     for (const pool of pools.rows as any[]) {
       const { pool_id, offset_hours, template } = pool;
 
-      // 오늘 이 수영장의 수업 목록 (시작 시간)
+      // 오늘이 휴무일이면 전체 건너뜀 (pool별 1회 조회)
+      const holidayCheck = await db.execute(sql`
+        SELECT id FROM pool_holidays
+        WHERE pool_id = ${pool_id} AND holiday_date = ${todayDateStr}
+        LIMIT 1
+      `);
+      if (holidayCheck.rows.length > 0) continue;
+
+      // 오늘 이 수영장의 수업 목록 (시작 시간) — 삭제되지 않은 반만
       const classes = await db.execute(sql`
         SELECT DISTINCT cg.id AS class_id, cg.name AS class_name,
                cg.schedule_time AS start_time
@@ -133,11 +150,21 @@ async function runSameDaySchedule(): Promise<void> {
         // X시간 전 ±1분 이내
         if (Math.abs(diffMinutes - targetMinutes) > 1) continue;
 
-        const sendTime = kstTimeStr(now);
+        // ── 중복 방지 핵심 수정 ──────────────────────────────────────────
+        // sent_time을 현재 분(cron 실행 시각)이 아니라 예정 발송 시각(수업시각 - offset)으로 고정.
+        // 예: 15:00 수업, offset=1h → scheduledSendTime='14:00'
+        //   13:59 실행 → scheduledSendTime='14:00'  ← 동일 키
+        //   14:00 실행 → scheduledSendTime='14:00'  ← 동일 키 → UNIQUE 충돌 → 차단
+        //   14:01 실행 → scheduledSendTime='14:00'  ← 동일 키 → UNIQUE 충돌 → 차단
+        const scheduledSendTime = kstTimeStr(
+          new Date(classTime.getTime() - offset_hours * 60 * 60 * 1000)
+        );
+
         const alreadySent = await superAdminDb.execute(sql`
           SELECT id FROM push_scheduled_sent
           WHERE pool_id = ${pool_id} AND class_id = ${cls.class_id}
-            AND type = 'same_day' AND sent_date = ${todayDateStr} AND sent_time = ${sendTime}
+            AND type = 'same_day' AND sent_date = ${todayDateStr}
+            AND sent_time = ${scheduledSendTime}
           LIMIT 1
         `);
         if (alreadySent.rows.length > 0) continue;
@@ -155,10 +182,11 @@ async function runSameDaySchedule(): Promise<void> {
           { subtitle: "SwimNote", channelId: "class_reminder", priority: "high", ttl: 3600 }
         );
 
+        // scheduledSendTime으로 기록 → UNIQUE 제약이 세 번의 실행을 모두 차단
         const sentId = `pss_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         await superAdminDb.execute(sql`
           INSERT INTO push_scheduled_sent (id, pool_id, class_id, type, sent_date, sent_time)
-          VALUES (${sentId}, ${pool_id}, ${cls.class_id}, 'same_day', ${todayDateStr}, ${sendTime})
+          VALUES (${sentId}, ${pool_id}, ${cls.class_id}, 'same_day', ${todayDateStr}, ${scheduledSendTime})
           ON CONFLICT ON CONSTRAINT push_scheduled_unique DO NOTHING
         `);
       }
