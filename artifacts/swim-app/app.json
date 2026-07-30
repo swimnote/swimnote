@@ -136,6 +136,12 @@
         }
       ],
       [
+        "expo-audio",
+        {
+          "microphonePermission": "SwimNote uses the microphone to record short voice memos for lesson diaries. A teacher can speak lesson notes aloud and have them transcribed automatically."
+        }
+      ],
+      [
         "expo-av",
         {
           "microphonePermission": "SwimNote uses the microphone to record short voice memos for lesson diaries. A teacher can speak lesson notes aloud and have them transcribed automatically."

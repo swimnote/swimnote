@@ -1,6 +1,6 @@
 /**
  * useVoiceRecorder — SwimNote AI UI Framework V1.0
- * expo-av 기반 녹음 로직 캡슐화
+ * expo-audio 기반 녹음 로직 캡슐화
  *
  * 책임:
  *   1. 마이크 권한 요청
@@ -9,38 +9,40 @@
  *   4. 녹음 완료 후 URI 반환
  *   5. 녹음 상태 노출 (isRecording, durationMs)
  *
- * 향후 OCR / 영상분석 등 다른 AI 기능에서도 재사용 가능
- *
- * 의존: expo-av, expo-file-system
+ * 의존: expo-audio, expo-file-system
  * 사용: useDiaryAI (processVoice 전 단계)
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Audio }       from 'expo-av';
+import {
+  useAudioRecorder,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  IOSOutputFormat,
+  AudioQuality,
+  type RecordingOptions,
+} from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 
 // ─── Whisper API 호환 녹음 옵션 ───────────────────────────────────────────────
-// HIGH_QUALITY preset은 Android에서 3gp/amr을 반환하므로 Whisper API 미지원.
-// iOS/Android 모두 m4a(AAC)로 명시 지정.
-const WHISPER_RECORDING_OPTIONS: Audio.RecordingOptions = {
+// expo-audio에서는 extension/sampleRate/numberOfChannels/bitRate가 top-level로 이동.
+// HIGH_QUALITY preset은 Android에서 stereo/2ch이므로 Whisper용으로 mono(1ch) 명시.
+// iOS/Android 모두 m4a(AAC)로 강제.
+const WHISPER_RECORDING_OPTIONS: RecordingOptions = {
+  extension:        '.m4a',
+  sampleRate:       44100,
+  numberOfChannels: 1,
+  bitRate:          128000,
   android: {
-    extension:        '.m4a',
-    outputFormat:     Audio.AndroidOutputFormat.MPEG_4,
-    audioEncoder:     Audio.AndroidAudioEncoder.AAC,
-    sampleRate:       44100,
-    numberOfChannels: 1,
-    bitRate:          128000,
+    outputFormat: 'mpeg4',
+    audioEncoder: 'aac',
   },
   ios: {
-    extension:    '.m4a',
-    outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-    audioQuality: Audio.IOSAudioQuality.HIGH,
-    sampleRate:       44100,
-    numberOfChannels: 1,
-    bitRate:          128000,
+    outputFormat: IOSOutputFormat.MPEG4AAC,
+    audioQuality: AudioQuality.HIGH,
   },
   web: {
-    mimeType:     'audio/webm',
+    mimeType:      'audio/webm',
     bitsPerSecond: 128000,
   },
 };
@@ -72,23 +74,24 @@ export interface VoiceRecorderResult {
 // ─── useVoiceRecorder ─────────────────────────────────────────────────────────
 
 export function useVoiceRecorder(): VoiceRecorderResult {
-  const recordingRef   = useRef<Audio.Recording | null>(null);
-  const timerRef       = useRef<ReturnType<typeof setInterval> | null>(null);
-  const maxTimerRef    = useRef<ReturnType<typeof setTimeout>  | null>(null);
+  // useAudioRecorder: useReleasingSharedObject 기반으로 언마운트 시 자동 해제
+  const recorder      = useAudioRecorder(WHISPER_RECORDING_OPTIONS);
+  const timerRef      = useRef<ReturnType<typeof setInterval> | null>(null);
+  const maxTimerRef   = useRef<ReturnType<typeof setTimeout>  | null>(null);
   /** 언마운트 후 setState 방지 */
-  const isMountedRef   = useRef(true);
+  const isMountedRef  = useRef(true);
 
   const [isRecording, setIsRecording] = useState(false);
   const [durationMs,  setDurationMs]  = useState(0);
 
-  // ── 언마운트 시 리소스 정리 ────────────────────────────────────────────────
+  // ── 언마운트 시 타이머 정리 ───────────────────────────────────────────────
+  // recorder 자체는 useAudioRecorder 내부 useReleasingSharedObject가 자동 해제
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       if (timerRef.current)    clearInterval(timerRef.current);
       if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
-      recordingRef.current?.stopAndUnloadAsync().catch(() => {});
     };
   }, []);
 
@@ -101,7 +104,7 @@ export function useVoiceRecorder(): VoiceRecorderResult {
   }, []);
 
   const stopTimer = useCallback(() => {
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (timerRef.current)    { clearInterval(timerRef.current);  timerRef.current = null; }
     if (maxTimerRef.current) { clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
     if (isMountedRef.current) setDurationMs(0);
   }, []);
@@ -109,14 +112,14 @@ export function useVoiceRecorder(): VoiceRecorderResult {
   // ── 녹음 시작 ─────────────────────────────────────────────────────────────
   const startRecording = useCallback(async (): Promise<'ok' | 'permission_denied' | 'error'> => {
     // ① 중복 호출 방지 — 이미 녹음 중이면 무시
-    if (recordingRef.current) {
+    if (recorder.isRecording) {
       if (__DEV__) console.warn('[VoiceRecorder] startRecording: 이미 녹음 중 — 무시');
       return 'error';
     }
 
     try {
       if (__DEV__) console.log('[VoiceRecorder] 권한 요청');
-      const { granted } = await Audio.requestPermissionsAsync();
+      const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) {
         if (__DEV__) console.log('[VoiceRecorder] 권한 거부 — permission_denied');
         return 'permission_denied';
@@ -125,35 +128,33 @@ export function useVoiceRecorder(): VoiceRecorderResult {
       // 언마운트 확인 (권한 요청 대기 중 언마운트 가능)
       if (!isMountedRef.current) return 'error';
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS:  true,
-        playsInSilentModeIOS: true,
+      await setAudioModeAsync({
+        allowsRecording:  true,
+        playsInSilentMode: true,
       });
 
-      if (__DEV__) console.log('[VoiceRecorder] 녹음 시작 (m4a 포맷)');
-      const { recording } = await Audio.Recording.createAsync(WHISPER_RECORDING_OPTIONS);
+      if (__DEV__) console.log('[VoiceRecorder] 녹음 준비 (m4a 포맷)');
+      await recorder.prepareToRecordAsync();
 
-      // 언마운트 확인 (createAsync 대기 중 언마운트 가능)
+      // 언마운트 확인 (prepareToRecordAsync 대기 중 언마운트 가능)
       if (!isMountedRef.current) {
-        recording.stopAndUnloadAsync().catch(() => {});
+        recorder.stop().catch(() => {});
         return 'error';
       }
 
-      recordingRef.current = recording;
+      recorder.record();
       setIsRecording(true);
       startTimer();
 
       // ② 최대 녹음 시간 초과 시 자동 중지
       maxTimerRef.current = setTimeout(async () => {
-        const rec = recordingRef.current;
-        if (!rec) return;
+        if (!recorder.isRecording) return;
         if (__DEV__) console.log('[VoiceRecorder] 최대 녹음 시간(120s) 도달 — 자동 중지');
-        recordingRef.current = null;
-        if (timerRef.current)    { clearInterval(timerRef.current); timerRef.current = null; }
+        if (timerRef.current)    { clearInterval(timerRef.current);  timerRef.current = null; }
         if (isMountedRef.current) { setIsRecording(false); setDurationMs(0); }
         try {
-          await rec.stopAndUnloadAsync();
-          await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+          await recorder.stop();
+          await setAudioModeAsync({ allowsRecording: false });
           if (__DEV__) console.log('[VoiceRecorder] 자동 중지 완료');
         } catch (e: any) {
           if (__DEV__) console.error('[VoiceRecorder] 자동 중지 오류:', e?.message ?? e);
@@ -166,33 +167,31 @@ export function useVoiceRecorder(): VoiceRecorderResult {
       if (isMountedRef.current) setIsRecording(false);
       return 'error';
     }
-  }, [startTimer]);
+  }, [recorder, startTimer]);
 
   // ── 녹음 중지 ─────────────────────────────────────────────────────────────
   const stopRecording = useCallback(async (): Promise<string | null> => {
-    const rec = recordingRef.current;
-    if (!rec) {
-      if (__DEV__) console.warn('[VoiceRecorder] stopRecording: recording 없음');
+    if (!recorder.isRecording) {
+      if (__DEV__) console.warn('[VoiceRecorder] stopRecording: 녹음 중이 아님');
       return null;
     }
 
-    // 중지 전에 ref를 null로 — 중복 호출 방지
-    recordingRef.current = null;
     if (isMountedRef.current) setIsRecording(false);
     stopTimer();
 
     try {
-      await rec.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false });
 
-      const uri = rec.getURI();
-      if (__DEV__) console.log('[VoiceRecorder] 녹음 완료');
+      // expo-audio: recorder.uri 프로퍼티 (stop() 이후 설정됨)
+      const uri = recorder.uri;
+      if (__DEV__) console.log('[VoiceRecorder] 녹음 완료, uri:', uri);
       return uri ?? null;
     } catch (e: any) {
       if (__DEV__) console.error('[VoiceRecorder] stopRecording 오류:', e?.message ?? e);
       return null;
     }
-  }, [stopTimer]);
+  }, [recorder, stopTimer]);
 
   // ── 임시 파일 삭제 ────────────────────────────────────────────────────────
   const deleteRecording = useCallback(async (uri: string): Promise<void> => {

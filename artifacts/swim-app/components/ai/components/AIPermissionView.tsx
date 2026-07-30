@@ -31,10 +31,10 @@ export default function AIPermissionView({ types, onClose }: AIPermissionViewPro
 
   const handleRequest = async () => {
     try {
-      // 마이크 권한 요청 (expo-av)
+      // 마이크 권한 요청 (expo-audio)
       if (types.includes('microphone')) {
-        const { Audio } = await import('expo-av');
-        const { granted } = await Audio.requestPermissionsAsync();
+        const { requestRecordingPermissionsAsync } = await import('expo-audio');
+        const { granted } = await requestRecordingPermissionsAsync();
         if (!granted) {
           setError({
             origin:      'PERMISSION',
