@@ -41,9 +41,60 @@ const _CRASH_API = process.env.EXPO_PUBLIC_API_URL
   ? `${process.env.EXPO_PUBLIC_API_URL}/crash-report`
   : null;
 
+// ── Updates 진단 스냅샷 (항목 6-9) ─────────────────────────────────
+// expo-updates v29: currentlyRunning 제거됨 — 직접 export된 API 사용
+function getUpdatesDiagnostics() {
+  try {
+    return {
+      updateId: Updates.updateId ?? null,
+      isEmbeddedLaunch: Updates.isEmbeddedLaunch ?? null,
+      isEmergencyLaunch: Updates.isEmergencyLaunch ?? null,
+      emergencyLaunchReason: Updates.emergencyLaunchReason ?? null,
+      runtimeVersion: Updates.runtimeVersion ?? null,
+      channel: Updates.channel ?? null,
+    };
+  } catch (_) {
+    return {
+      updateId: null,
+      isEmbeddedLaunch: null,
+      isEmergencyLaunch: null,
+      emergencyLaunchReason: null,
+      runtimeVersion: null,
+      channel: null,
+    };
+  }
+}
+
+// ── 앱 시작 시 진단 정보 전송 (항목 10) ─────────────────────────────
+function sendAppLaunchDiagnostics() {
+  if (!_CRASH_API) return;
+  try {
+    const updates = getUpdatesDiagnostics();
+    const diagnostics = {
+      timestamp: new Date().toISOString(),
+      isFatal: false,
+      source: "app_launch",
+      message: "APP_LAUNCH_DIAGNOSTICS",
+      stack: "",
+      platform: Platform.OS,
+      version: Constants.expoConfig?.version ?? "unknown",
+      buildNumber: (Constants.expoConfig as any)?.ios?.buildNumber ?? null,
+      versionCode: (Constants.expoConfig as any)?.android?.versionCode ?? null,
+      ...updates,
+    };
+    console.log("[APP_LAUNCH_DIAGNOSTICS]", JSON.stringify(diagnostics));
+    fetch(_CRASH_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(diagnostics),
+    }).catch(() => {});
+  } catch (_) {}
+}
+
 function sendCrashReport(error: any, isFatal: boolean, source: string) {
   if (!_CRASH_API) return;
   try {
+    const updates = getUpdatesDiagnostics();
     fetch(_CRASH_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -57,6 +108,7 @@ function sendCrashReport(error: any, isFatal: boolean, source: string) {
         versionCode: (Constants.expoConfig as any)?.android?.versionCode ?? null,
         buildNumber: (Constants.expoConfig as any)?.ios?.buildNumber ?? null,
         source,
+        ...updates,
       }),
     }).catch(() => {});
   } catch (_) {}
@@ -77,6 +129,8 @@ try {
   console.warn("[LAYOUT] failed to install global error handler:", handlerErr?.message);
 }
 
+// 앱 시작 시 즉시 진단 정보 전송 (isEmergencyLaunch 포함)
+sendAppLaunchDiagnostics();
 
 function AppLoadingScreen() {
   return (
