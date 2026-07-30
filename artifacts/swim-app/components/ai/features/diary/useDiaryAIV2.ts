@@ -56,9 +56,14 @@ const AUTO_RETRY_DELAY_MS = 800;
  */
 const SEARCHING_TO_GENERATING_MS = 2_500;
 
-/** dismiss 잠금 대상 상태 */
+/**
+ * dismiss 잠금 대상 상태 — 백드롭·헤더 닫기·Android Back 차단
+ * RESULT는 포함하지 않습니다.
+ * 결과 확인 후 삽입 없이 닫고 싶은 경우를 허용합니다.
+ * (handleClose에서 RESULT 상태에서 닫기 시 확인 Alert 표시)
+ */
 const LOCK_STATES: DiaryAIStateV2[] = [
-  'RECORDING', 'TRANSCRIBING', 'SEARCHING', 'GENERATING', 'RESULT',
+  'RECORDING', 'TRANSCRIBING', 'SEARCHING', 'GENERATING',
 ];
 
 // ─── Hook 옵션 ────────────────────────────────────────────────────────────────
@@ -184,6 +189,19 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
 
   // ── handleClose ────────────────────────────────────────────────────────────
   const handleClose = useCallback(() => {
+    // RESULT 상태 — 삽입하지 않고 닫기 확인
+    if (v2State === 'RESULT') {
+      Alert.alert(
+        '일지에 삽입하지 않고 닫으시겠습니까?',
+        '생성된 내용은 저장되지 않습니다.',
+        [
+          { text: '계속 확인', style: 'cancel' },
+          { text: '닫기', style: 'destructive', onPress: () => options.onClose?.() },
+        ],
+      );
+      return;
+    }
+    // INPUT 상태 — 입력 내용이 있을 때만 Alert
     const hasDirtyInput = v2State === 'INPUT' && inputText.trim().length > 0;
     if (!hasDirtyInput) {
       options.onClose?.();
