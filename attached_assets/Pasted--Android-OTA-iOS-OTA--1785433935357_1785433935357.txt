@@ -1,0 +1,103 @@
+현재 비교 결과상 Android OTA 적용과 문제 발생의 인과관계를 배제할 수 없습니다.
+
+동일한 토이키즈스윔클럽 메인 계정에서:
+
+- iOS: 아직 신규 OTA 미적용, 정상 로그인
+- Android: 신규 OTA 적용 직후 서비스 이용 중단/구독 만료 화면 발생
+- 서버 DB 현재 상태: manual, active, Premier 1000, 2035.12.31
+- deactivated_at: null
+- deletion_scheduled_at: null
+
+따라서 “OTA 수정 파일이 AI UI뿐이므로 OTA와 무관하다”는 결론은 인정할 수 없습니다.
+
+OTA가 구독 DB를 직접 변경하지 않았더라도 reloadAsync() 이후 새 JS 번들이 실행되면서 세션 복원, 로그인 요청, API 주소, 요청 헤더, 403 처리, 라우팅 경로 중 하나가 달라졌을 수 있습니다.
+
+현재부터 추측을 중단하고 iOS 미적용 상태와 Android 적용 상태를 직접 비교 조사하십시오.
+
+중요:
+아직 코드 수정, DB 수정, 서버 배포, 추가 OTA 배포를 하지 마십시오.
+
+반드시 조사할 내용:
+
+1. Android OTA에 실제 포함된 전체 번들이 커밋 8a29b4a의 코드와 정확히 일치하는지
+2. 배포 당시 git status에 커밋되지 않은 변경사항이 있었는지
+3. eas update 실행 당시 HEAD SHA와 working tree 상태
+4. --environment production으로 주입된 환경변수 전체 중 인증/API 관련 값
+5. Android OTA 번들이 사용하는 EXPO_PUBLIC_API_URL
+6. iOS 기존 번들이 사용하는 API URL과 Android 신규 OTA의 API URL 비교
+7. Android와 iOS가 동일한 서버와 동일한 DB를 보고 있는지
+8. OTA 전후 SessionContext.tsx 번들 코드 차이
+9. OTA 전후 _layout.tsx 번들 코드 차이
+10. OTA 전후 로그인 화면 index.tsx 코드 차이
+11. OTA 전후 unifiedLogin() 코드 차이
+12. OTA 전후 loadStored() 및 /auth/me 처리 코드 차이
+13. OTA 전후 401, 403, 404 처리 방식 차이
+14. Android에서 실제로 어떤 API 요청이 403을 반환했는지
+15. 해당 403 응답의 URL, status, response body, error_code
+16. pool-deactivated 화면으로 이동하기 직전의 실제 로그
+17. Android에서 로그인 시 서버가 pool_deactivated를 명시적으로 반환했는지
+18. 서버는 정상 응답했지만 클라이언트의 일반 403 fallback이 실행된 것인지
+19. Android OTA 적용 전 버전으로 되돌렸을 때 동일 계정이 즉시 정상 로그인되는지
+20. iOS에 동일 OTA를 적용했을 때 같은 문제가 재현되는지
+
+17:32 DB 업데이트도 반드시 조사하십시오.
+
+확인할 내용:
+
+1. 2026-07-30 17:32:09에 swimming_pools와 pool_subscriptions를 동시에 수정한 API
+2. 해당 요청의 서버 로그
+3. 요청자 userId, role, IP, user-agent
+4. 슈퍼관리자 직접 조정 API가 호출됐는지
+5. 앱 시작 또는 RevenueCat 초기화 과정에서 구독 동기화 API가 호출됐는지
+6. 업데이트 전 각 컬럼의 값
+7. 업데이트 후 각 컬럼의 값
+8. RevenueCat Webhook 요청이 있었다면 정확한 event type과 payload
+9. 수동 승인 계정인데 RevenueCat 동기화가 실행된 이유
+10. 로그가 없다면 updated_at을 변경하는 모든 코드 경로 목록
+
+재현 비교 테스트:
+
+A. Android 신규 OTA 상태
+- 앱 데이터 삭제 또는 로그아웃 후 로그인
+- 요청 URL과 응답 body 기록
+- pool-deactivated 화면 재현 여부 기록
+
+B. Android 이전 OTA 상태
+- 최신 Android OTA 이전 버전으로 롤백
+- 동일 계정과 동일 네트워크로 로그인
+- 정상 로그인 여부 확인
+
+C. iOS 기존 OTA 상태
+- 현재 상태 그대로 동일 계정 로그인
+- 요청 URL과 응답 기록
+
+판정 기준:
+
+- Android 신규 OTA에서만 같은 요청이 403이면 새 번들 또는 환경 설정 회귀입니다.
+- 서버 응답에 error_code가 없는데 클라이언트가 pool_deactivated로 전환하면 403 fallback 버그입니다.
+- Android 신규 OTA만 다른 API 서버를 호출하면 배포 환경변수 오류입니다.
+- 이전 Android OTA로 롤백하자마자 정상화되면 신규 OTA 회귀가 확정됩니다.
+- 17:32에 앱 또는 RevenueCat 코드가 manual 계정을 갱신했다면 수동 권한 보호 실패입니다.
+
+긴급 임시 조치 계획도 함께 제출하십시오.
+
+사용자가 메인 수영장 계정을 즉시 사용해야 하므로, 원인 분석과 별개로 안전한 Android 롤백 방법을 제시하십시오.
+
+롤백은 이전 정상 Android Update Group을 production branch의 최신 상태로 다시 배포하는 방식으로 계획하되, 실제 실행은 승인 후 진행하십시오.
+
+이전 정상 후보:
+Android Group ID 9598cc3a
+Runtime Version 1.6.1
+
+롤백 계획에는 반드시 포함:
+
+- 기존 정상 Android 그룹을 재게시하는 정확한 방법
+- 신규 코드를 다시 빌드하지 않고 이전 번들을 재사용할 수 있는지
+- 롤백 후 업데이트 적용 모달 동작
+- 사용자 데이터와 AsyncStorage 보존 여부
+- 롤백 후 동일 계정 로그인 검증
+- 롤백 과정에서 iOS에 영향이 없는지
+
+현재는 “DB가 정상이라 재로그인하면 된다”고 끝내지 마십시오.
+
+Android 신규 OTA에서만 발생하고 iOS 미적용 버전은 정상이라는 실제 비교 증거가 있으므로, 신규 Android OTA 회귀로 취급하고 조사하십시오.
