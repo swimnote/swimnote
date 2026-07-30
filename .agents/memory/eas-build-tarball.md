@@ -61,3 +61,17 @@ metro-file-map@0.83.3이 Node >=20.19.4 요구함. EAS 빌드 서버 기본 Node
 **Why:** `.nvmrc`만으로 EAS가 올바른 Node를 선택하지만, 만약 지원 안 되는 버전일 경우 `.yarnrc --ignore-engines`가 안전망 역할.
 
 `node_modules/.bin/eas`는 swim-app에 없음 — 반드시 `/nix/store/spvnxml8f61qy1jrnlfz9p1yhjyh0f4j-eas-cli-14.7.1/bin/eas` 사용.
+
+## expo-apple-authentication 플러그인 누락 오류 (2026-07-30 추가)
+
+`expo-apple-authentication`이 app.json plugin에 있지만 swim-app/package.json에 없으면 EAS 빌드 서버에서 expo config 실행 시 "Failed to resolve plugin" 오류 발생.
+
+**Why:** EAS_NO_VCS=1로 swim-app만 업로드 → EAS 서버에서 swim-app/package.json 기준으로 yarn install → workspace root에만 있던 패키지 누락.
+
+해결: `expo-apple-authentication: "~8.0.8"`을 swim-app/package.json dependencies에 추가.
+
+## Xcode 26 요구사항 (2026-07-30 추가)
+
+2026-04-28부터 Apple App Store 제출에 Xcode 26 이상 필요. eas.json production iOS에 `"image": "latest"` 추가 필수.
+
+**Why:** EAS 기본 이미지가 Xcode 16이면 빌드는 성공하지만 App Store 제출 불가.
