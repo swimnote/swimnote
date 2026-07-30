@@ -10,6 +10,7 @@
 import React, { useCallback } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Updates from 'expo-updates';
 import { useAIContext } from '../../core/AIContext';
 import AIErrorView from '../../components/AIErrorView';
 import AIInputArea from '../../components/AIInputArea';
@@ -262,6 +263,19 @@ export default function DiaryAIContent({
           />
         </View>
       )}
+
+      {/* ── OTA 배포 식별자 배너 (__DEV__ 조건 없음 — 실제 배포 앱에서도 항상 표시) ── */}
+      <View style={styles.otaBanner}>
+        <Text style={styles.otaBannerText}>
+          {[
+            `BUILD: 243`,
+            `RUNTIME: ${Updates.runtimeVersion ?? '?'}`,
+            `CHANNEL: ${Updates.channel ?? 'embedded'}`,
+            `UPDATE: ${(Updates.updateId ?? 'embedded').slice(0, 8)}`,
+            `FIX: MODAL-FLICKER-V3`,
+          ].join('  |  ')}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -379,5 +393,18 @@ const styles = StyleSheet.create({
     ...AIThemeTypography.label,
     color:      '#2E7D32',
     fontWeight: '500',
+  },
+  // OTA 배포 식별자 배너 (항상 표시, __DEV__ 조건 없음)
+  otaBanner: {
+    backgroundColor: '#0A0A0A',
+    paddingVertical:   3,
+    paddingHorizontal: AIThemeSpacing.element,
+    alignItems: 'center' as const,
+  },
+  otaBannerText: {
+    fontFamily:  'monospace',
+    fontSize:    9,
+    color:       '#00FF88',
+    letterSpacing: 0.3,
   },
 });
