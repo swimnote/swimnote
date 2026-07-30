@@ -160,15 +160,21 @@ async function runSameDaySchedule(): Promise<void> {
           new Date(classTime.getTime() - offset_hours * 60 * 60 * 1000)
         );
 
-        const alreadySent = await superAdminDb.execute(sql`
-          SELECT id FROM push_scheduled_sent
-          WHERE pool_id = ${pool_id} AND class_id = ${cls.class_id}
-            AND type = 'same_day' AND sent_date = ${todayDateStr}
-            AND sent_time = ${scheduledSendTime}
-          LIMIT 1
+        // ── INSERT 선점 후 발송 (INSERT-first 패턴) ─────────────────────
+        // SELECT → 발송 → INSERT 구조는 두 실행이 동시에 SELECT를 통과하면
+        // DB 기록은 1건이어도 실제 푸시가 2회 발송될 수 있는 경쟁 조건이 있음.
+        // INSERT RETURNING 결과가 있을 때만 발송하여 원자적으로 처리.
+        const sentId = `pss_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        const claimResult = await superAdminDb.execute(sql`
+          INSERT INTO push_scheduled_sent (id, pool_id, class_id, type, sent_date, sent_time)
+          VALUES (${sentId}, ${pool_id}, ${cls.class_id}, 'same_day', ${todayDateStr}, ${scheduledSendTime})
+          ON CONFLICT ON CONSTRAINT push_scheduled_unique DO NOTHING
+          RETURNING id
         `);
-        if (alreadySent.rows.length > 0) continue;
+        // 0행 반환 = 이미 다른 실행이 선점 → 발송 없이 skip
+        if (claimResult.rows.length === 0) continue;
 
+        // 선점 성공 → 실제 발송
         const hourLabel = offset_hours === 1 ? "1시간" : `${offset_hours}시간`;
         const body = `${cls.class_name} 수업 시작까지 ${hourLabel} 남았어요`;
         await sendPushToClassParents(
@@ -181,14 +187,6 @@ async function runSameDaySchedule(): Promise<void> {
           false,
           { subtitle: "SwimNote", channelId: "class_reminder", priority: "high", ttl: 3600 }
         );
-
-        // scheduledSendTime으로 기록 → UNIQUE 제약이 세 번의 실행을 모두 차단
-        const sentId = `pss_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-        await superAdminDb.execute(sql`
-          INSERT INTO push_scheduled_sent (id, pool_id, class_id, type, sent_date, sent_time)
-          VALUES (${sentId}, ${pool_id}, ${cls.class_id}, 'same_day', ${todayDateStr}, ${scheduledSendTime})
-          ON CONFLICT ON CONSTRAINT push_scheduled_unique DO NOTHING
-        `);
       }
     }
   } catch (e) {
