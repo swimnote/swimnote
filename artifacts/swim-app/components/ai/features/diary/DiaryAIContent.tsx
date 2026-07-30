@@ -7,7 +7,7 @@
  * 사용: <BaseAIModal content={<DiaryAIContent onInsert={...} onClose={...} />} />
  */
 
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAIContext } from '../../core/AIContext';
@@ -114,23 +114,6 @@ export default function DiaryAIContent({
 }: DiaryAIContentProps) {
   const { state, error } = useAIContext();
   const insets = useSafeAreaInsets();
-
-  // ── [TRACE] OTA 적용 증명 marker ─────────────────────────────────────────
-  useEffect(() => {
-    if (__DEV__) console.log('DIARY_ERROR_ACTIONBAR_FIX_9642537');
-  }, []);
-
-  // ── [TRACE] AI state / error 변화 추적 ────────────────────────────────────
-  useEffect(() => {
-    if (__DEV__) console.log(
-      `[AI-CONTENT-STATE]` +
-      ` time=${Date.now()}` +
-      ` aiState=${state}` +
-      ` hasError=${!!error}` +
-      ` errorOrigin=${error?.origin ?? '?'}` +
-      ` retryTarget=${error?.retryTarget ?? '?'}`
-    );
-  }, [state, error]);
 
   const {
     inputText,
@@ -245,6 +228,15 @@ export default function DiaryAIContent({
 
   return (
     <View style={styles.wrapper}>
+      {/* [DEV] 강제 ERROR 버튼 — 개발 빌드에서 ERROR 화면 즉시 재현용 */}
+      {__DEV__ && state === 'INPUT' && (
+        <Pressable
+          style={styles.devErrorBtn}
+          onPress={() => machine.setError({ origin: 'NETWORK', message: '[DEV] 강제 오류 테스트 — ERROR 화면 깜빡임 재현', retryTarget: 'INPUT' })}
+        >
+          <Text style={styles.devErrorBtnText}>🔴 [DEV] 강제 ERROR 재현</Text>
+        </Pressable>
+      )}
       {/* 스크롤 콘텐츠 */}
       <View style={styles.contentArea}>
         {renderContent()}
@@ -357,6 +349,22 @@ const styles = StyleSheet.create({
     color:     AIThemeColor.text,
     minHeight: 56,
     paddingTop: 0,
+  },
+  // [DEV] 강제 ERROR 버튼 (개발 빌드 전용)
+  devErrorBtn: {
+    backgroundColor: '#FFF0F0',
+    borderWidth:     1,
+    borderColor:     '#FF4444',
+    borderRadius:    AIThemeRadius.badge,
+    paddingVertical:   6,
+    paddingHorizontal: AIThemeSpacing.element,
+    marginBottom:      AIThemeSpacing.tight,
+    alignItems:        'center' as const,
+  },
+  devErrorBtnText: {
+    ...AIThemeTypography.label,
+    color:      '#CC0000',
+    fontWeight: '600' as const,
   },
   // ⚠️ 임시 삽입 안내 — Stage A 테스트용, 최종 삽입 정책 확정 후 교체 예정
   insertNotice: {

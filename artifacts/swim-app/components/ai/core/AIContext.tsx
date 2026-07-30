@@ -7,7 +7,7 @@
  * 사용: useAIModal, useAIStateMachine, AI 컴포넌트들
  */
 
-import React, { createContext, useCallback, useContext, useReducer, useRef } from 'react';
+import React, { createContext, useContext, useReducer } from 'react';
 import type { AICreditInfo, AIErrorInfo, AIFeatureType, AIState } from './AIContracts';
 import {
   aiStateReducer,
@@ -43,26 +43,7 @@ interface AIProviderProps {
 }
 
 export function AIProvider({ children, featureType, credit }: AIProviderProps) {
-  const [machineState, rawDispatch] = useReducer(aiStateReducer, initialStateMachineState);
-
-  // ── [TRACE] ERROR dispatch 카운터 ────────────────────────────────────────
-  const errorDispatchCountRef = useRef(0);
-
-  const dispatch = useCallback((event: AIEvent) => {
-    if (__DEV__ && event.type === 'ERROR') {
-      errorDispatchCountRef.current += 1;
-      console.log(
-        `[ERROR-DISPATCH] #${errorDispatchCountRef.current}` +
-        ` prevState=${machineState.current}` +
-        ` code=${(event as any).error?.code ?? '?'}` +
-        ` message=${(event as any).error?.message ?? '?'}` +
-        ` retryTarget=${(event as any).error?.retryTarget ?? '?'}` +
-        ` retryable=${(event as any).error?.retryable ?? '?'}` +
-        ` time=${Date.now()}`
-      );
-    }
-    rawDispatch(event);
-  }, [rawDispatch, machineState.current]);
+  const [machineState, dispatch] = useReducer(aiStateReducer, initialStateMachineState);
 
   const value: AIContextValue = {
     machineState,

@@ -15,7 +15,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   Dimensions,
-  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -86,14 +85,11 @@ export default function BaseAIModal({
   // ── 디버그: 인스턴스 고유 ID ─────────────────────────────────────────────
   const instanceId = useId();
 
-  // ── [TRACE] isClosing 추적 ref ────────────────────────────────────────────
-  const isClosingRef = useRef(false);
-
   // ── 마운트 / 언마운트 로그 ───────────────────────────────────────────────
   useEffect(() => {
-    if (__DEV__) console.log(`[AI-NATIVE-MODAL] event=mount id=${instanceId} title="${title}" time=${Date.now()}`);
+    if (__DEV__) console.log(`[UI-LAYER-MOUNT] BaseAIModal id=${instanceId} title="${title}" visible=${visible}`);
     return () => {
-      if (__DEV__) console.log(`[AI-NATIVE-MODAL] event=unmount id=${instanceId} title="${title}" time=${Date.now()}`);
+      if (__DEV__) console.log(`[UI-LAYER-UNMOUNT] BaseAIModal id=${instanceId} title="${title}"`);
     };
   }, []);
 
@@ -118,34 +114,7 @@ export default function BaseAIModal({
   const [rendered,      setRendered]      = useState(false);
   const [nativeVisible, setNativeVisible] = useState(false);
 
-  // ── [TRACE] 키보드 상태 추적 ──────────────────────────────────────────────
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-  useEffect(() => {
-    const show = Keyboard.addListener('keyboardDidShow', () => {
-      setKeyboardVisible(true);
-      if (__DEV__) console.log(`[AI-KEYBOARD] event=keyboardDidShow time=${Date.now()}`);
-    });
-    const hide = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardVisible(false);
-      if (__DEV__) console.log(`[AI-KEYBOARD] event=keyboardDidHide time=${Date.now()}`);
-    });
-    return () => { show.remove(); hide.remove(); };
-  }, []);
-
-  // ── [TRACE] [AI-MODAL-STATE] 통합 상태 로그 ──────────────────────────────
-  useEffect(() => {
-    if (__DEV__) console.log(
-      `[AI-MODAL-STATE]` +
-      ` time=${Date.now()}` +
-      ` visible=${visible}` +
-      ` nativeVisible=${nativeVisible}` +
-      ` rendered=${rendered}` +
-      ` isClosing=${isClosingRef.current}` +
-      ` keyboardVisible=${keyboardVisible}`
-    );
-  }, [visible, nativeVisible, rendered, keyboardVisible]);
-
-  // rendered 변경 추적 (기존 로그 유지)
+  // rendered 변경 추적
   useEffect(() => {
     if (__DEV__) console.log(`[UI-LAYER-VISIBLE] BaseAIModal id=${instanceId} rendered=${rendered} nativeVisible=${nativeVisible} (visible prop=${visible})`);
   }, [rendered]);
@@ -178,30 +147,35 @@ export default function BaseAIModal({
     if (!nativeVisible && rendered) {
       if (__DEV__) console.log('[MODAL-EFFECT] nativeVisible=false → setRendered(false) + onClose()');
       setRendered(false);
-      isClosingRef.current = false;  // [TRACE] closing 완료 리셋
       onCloseRef.current();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nativeVisible]);
 
   // ── 모달 진입 애니메이션 ──────────────────────────────────────────────────
+  //
+  // [수정] rendered와 nativeVisible 둘 다 true일 때만 실행.
+  // 이전: rendered 변화만 감지 → rendered=true 유지 채로 nativeVisible만
+  // false→true 변경 시(빠른 닫기/재오픈) animation이 미실행되어 sheet가
+  // translateY=0 위치에서 즉시 나타나는 flicker 발생.
   useEffect(() => {
-    if (!rendered) return;
-    if (__DEV__) console.log(`[AI-SHEET-ANIMATION] type=open event=start time=${Date.now()}`);
+    if (!rendered || !nativeVisible) return;
     translateY.value = SCREEN_HEIGHT;
     backdropOpacity.value = 0;
     animateModalOpen(translateY, backdropOpacity, reducedMotion);
-  }, [rendered]);
+  }, [rendered, nativeVisible]);
 
   // ── 닫기 — Phase 1: 네이티브 오버레이 먼저 제거 ──────────────────────────
   // animateModalClose(withTiming 콜백)는 실기기 Hermes에서 크래시를 유발함.
   // Phase 1에서 nativeVisible=false만 설정하면 RN이 네이티브 UIWindow를 제거.
   // Phase 2(useEffect[nativeVisible])에서 rendered=false + onClose() 처리.
   const doClose = useCallback(() => {
-    if (__DEV__) console.log(`[AI-SHEET-ANIMATION] type=close event=start time=${Date.now()}`);
-    isClosingRef.current = true;  // [TRACE] closing 시작 마킹
     cancelAnimation(translateY);
     cancelAnimation(backdropOpacity);
+    // [수정] translateY를 SCREEN_HEIGHT로 즉시 리셋.
+    // 이전 버그: doClose() 후 translateY=0(열린 위치)에서 freeze → 다음 open 시
+    // useEffect animation 실행 전 한 프레임 동안 sheet가 translateY=0으로 노출.
+    translateY.value = SCREEN_HEIGHT;
     backdropOpacity.value = 0;   // 백드롭 즉시 투명으로
     setNativeVisible(false);      // Phase 1 — 네이티브 오버레이 제거 요청
     // Phase 2는 useEffect([nativeVisible])가 처리
@@ -262,12 +236,6 @@ export default function BaseAIModal({
       animationType="none"
       transparent
       statusBarTranslucent
-      onShow={() => {
-        if (__DEV__) console.log(`[AI-NATIVE-MODAL] event=onShow nativeVisible=true rendered=${rendered} time=${Date.now()}`);
-      }}
-      onDismiss={() => {
-        if (__DEV__) console.log(`[AI-NATIVE-MODAL] event=onDismiss nativeVisible=false rendered=${rendered} time=${Date.now()}`);
-      }}
       onRequestClose={() => {
         // [WP12] Android Back Button — lockDismiss=true 구간에서 차단
         if (lockDismiss) {
