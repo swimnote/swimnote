@@ -141,7 +141,8 @@
           "microphonePermission": "SwimNote uses the microphone to record short voice memos for lesson diaries. A teacher can speak lesson notes aloud and have them transcribed automatically."
         }
       ],
-      "./plugins/withRemoveMediaPermissions"
+      "./plugins/withRemoveMediaPermissions",
+      "./plugins/withPatchExpoAv"
     ],
     "experiments": {
       "typedRoutes": true

@@ -28,7 +28,6 @@
     "production": {
       "autoIncrement": false,
       "channel": "production",
-      "postInstallCommand": "node scripts/patch-expo-av.cjs",
       "pnpm": "9.15.4",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://swimnote-api.onrender.com/api",
