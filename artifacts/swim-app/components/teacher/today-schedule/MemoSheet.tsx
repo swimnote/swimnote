@@ -1,5 +1,8 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { Audio } from "expo-av";
+import {
+  useAudioRecorder, useAudioPlayer, useAudioPlayerStatus,
+  requestRecordingPermissionsAsync, setAudioModeAsync, RecordingPresets,
+} from 'expo-audio';
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
@@ -21,12 +24,12 @@ export default function MemoSheet({
 }) {
   const [text, setText]         = useState("");
   const [saving, setSaving]     = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const recorder     = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const player       = useAudioPlayer(null);
+  const playerStatus = useAudioPlayerStatus(player);
   const [isRecording, setIsRecording] = useState(false);
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [audioKey, setAudioKey] = useState<string | null>(null);
-  const [sound, setSound]       = useState<Audio.Sound | null>(null);
-  const [playing, setPlaying]   = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [memoErrMsg, setMemoErrMsg] = useState<string | null>(null);
   const recSecs = useRef(0);
@@ -38,21 +41,20 @@ export default function MemoSheet({
       setText(item.note_text || "");
       setAudioKey(item.audio_file_url || null);
       setAudioUri(null); setIsRecording(false);
-      setRecording(null); setPlaying(false);
     }
     if (!visible) {
-      sound?.unloadAsync().catch(() => {});
-      setSound(null);
+      player.pause();
       if (recTimer.current) { clearInterval(recTimer.current); recTimer.current = null; }
     }
   }, [visible, item]);
 
   async function startRecording() {
     try {
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording: rec } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      setRecording(rec); setIsRecording(true);
+      await requestRecordingPermissionsAsync();
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setIsRecording(true);
       recSecs.current = 0; setRecDisplay("0:00");
       recTimer.current = setInterval(() => {
         recSecs.current += 1;
@@ -63,11 +65,11 @@ export default function MemoSheet({
     } catch { setMemoErrMsg("녹음을 시작할 수 없습니다."); }
   }
   async function stopRecording() {
-    if (!recording) return;
+    if (!recorder.isRecording) return;
     if (recTimer.current) clearInterval(recTimer.current);
-    await recording.stopAndUnloadAsync();
-    const uri = recording.getURI();
-    setRecording(null); setIsRecording(false); setAudioUri(uri || null);
+    await recorder.stop();
+    const uri = recorder.uri;
+    setIsRecording(false); setAudioUri(uri || null);
   }
   async function uploadAudio(): Promise<string | null> {
     if (!audioUri) return audioKey;
@@ -87,16 +89,13 @@ export default function MemoSheet({
   async function playAudio() {
     const key = audioKey;
     if (!key && !audioUri) return;
-    if (playing) { await sound?.pauseAsync(); setPlaying(false); return; }
+    if (playerStatus.playing) { player.pause(); return; }
     try {
       let playUri = audioUri;
       if (!playUri && key) playUri = `${API_BASE}/api/schedule-notes/audio?key=${encodeURIComponent(key)}`;
       if (!playUri) return;
-      const { sound: s } = await Audio.Sound.createAsync({ uri: playUri }, { shouldPlay: true });
-      setSound(s); setPlaying(true);
-      s.setOnPlaybackStatusUpdate(status => {
-        if ((status as any).didJustFinish) { setPlaying(false); s.unloadAsync(); setSound(null); }
-      });
+      player.replace(playUri);
+      player.play();
     } catch { setMemoErrMsg("재생에 실패했습니다."); }
   }
   async function handleSave() {
@@ -157,12 +156,12 @@ export default function MemoSheet({
                     {(audioUri || audioKey) ? (
                       <>
                         <Pressable style={[ms.recBtn, { backgroundColor: themeColor }]} onPress={playAudio}>
-                          <LucideIcon name={playing ? "pause" : "play"} size={14} color="#fff" />
-                          <Text style={ms.recBtnText}>{playing ? "일시정지" : "재생"}</Text>
+                          <LucideIcon name={playerStatus.playing ? "pause" : "play"} size={14} color="#fff" />
+                          <Text style={ms.recBtnText}>{playerStatus.playing ? "일시정지" : "재생"}</Text>
                         </Pressable>
                         <Pressable style={[ms.recBtn, { backgroundColor: "#FFFFFF" }]} onPress={() => {
-                          if (sound) { sound.unloadAsync(); setSound(null); }
-                          setPlaying(false); setAudioUri(null); setAudioKey(null);
+                          player.pause();
+                          setAudioUri(null); setAudioKey(null);
                         }}>
                           <LucideIcon name="trash-2" size={14} color={C.error} />
                           <Text style={[ms.recBtnText, { color: C.error }]}>삭제</Text>

@@ -1,5 +1,8 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { Audio } from "expo-av";
+import {
+  useAudioRecorder, useAudioPlayer, useAudioPlayerStatus,
+  requestRecordingPermissionsAsync, setAudioModeAsync, RecordingPresets,
+} from 'expo-audio';
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -25,12 +28,10 @@ export default function DailyMemoPage({
   const [text, setText]       = useState("");
   const [audioKey, setAudioKey]   = useState<string | null>(null);
   const [audioUri, setAudioUri]   = useState<string | null>(null);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const recorder      = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const player        = useAudioPlayer(null);
+  const playerStatus  = useAudioPlayerStatus(player);
   const [isRecording, setIsRecording] = useState(false);
-  const [sound, setSound]     = useState<Audio.Sound | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [playPos, setPlayPos] = useState(0);
-  const [playDur, setPlayDur] = useState(0);
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [saving, setSaving]   = useState(false);
   const recSecs = useRef(0);
@@ -52,18 +53,19 @@ export default function DailyMemoPage({
       finally { setLoading(false); }
     })();
     return () => {
-      sound?.unloadAsync();
+      player.pause();
       if (recTimer.current) clearInterval(recTimer.current);
     };
   }, [date]);
 
   async function startRecording() {
     try {
-      const { granted } = await Audio.requestPermissionsAsync();
+      const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) { Alert.alert("권한 필요", "마이크 권한이 필요합니다."); return; }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording: rec } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      setRecording(rec); setIsRecording(true);
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setIsRecording(true);
       recSecs.current = 0; setRecDisplay("0:00");
       recTimer.current = setInterval(() => {
         recSecs.current += 1;
@@ -74,32 +76,27 @@ export default function DailyMemoPage({
     } catch (e) { setErrMsg("녹음을 시작할 수 없습니다."); }
   }
   async function stopRecording() {
-    if (!recording) return;
+    if (!recorder.isRecording) return;
     if (recTimer.current) clearInterval(recTimer.current);
-    await recording.stopAndUnloadAsync();
-    const uri = recording.getURI();
-    setRecording(null); setIsRecording(false);
+    await recorder.stop();
+    const uri = recorder.uri;
+    setIsRecording(false);
     setAudioUri(uri || null);
   }
   async function playAudio() {
-    if (playing) { await sound?.pauseAsync(); setPlaying(false); return; }
+    if (playerStatus.playing) { player.pause(); return; }
     try {
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
       let playUri = audioUri;
       if (!playUri && audioKey) playUri = `${API_BASE}/api/daily-memos/audio?key=${encodeURIComponent(audioKey)}`;
       if (!playUri) return;
-      const { sound: s } = await Audio.Sound.createAsync({ uri: playUri }, { shouldPlay: true });
-      setSound(s); setPlaying(true);
-      s.setOnPlaybackStatusUpdate(status => {
-        const st = status as any;
-        if (st.isLoaded) { setPlayPos(st.positionMillis || 0); setPlayDur(st.durationMillis || 0); }
-        if (st.didJustFinish) { setPlaying(false); setPlayPos(0); s.unloadAsync(); setSound(null); }
-      });
+      player.replace(playUri);
+      player.play();
     } catch { setErrMsg("재생에 실패했습니다."); }
   }
   function deleteAudio() {
-    if (sound) { sound.unloadAsync(); setSound(null); }
-    setPlaying(false); setPlayPos(0); setPlayDur(0); setAudioUri(null); setAudioKey(null);
+    player.pause();
+    setAudioUri(null); setAudioKey(null);
   }
   async function uploadAudio(): Promise<string | null> {
     if (!audioUri) return audioKey;
@@ -135,7 +132,10 @@ export default function DailyMemoPage({
     } finally { setSaving(false); }
   }
 
-  const hasAudio = !!(audioUri || audioKey);
+  const hasAudio    = !!(audioUri || audioKey);
+  const playing     = playerStatus.playing;
+  const playDur     = Math.round(playerStatus.duration * 1000);
+  const playPos     = Math.round(playerStatus.currentTime * 1000);
   const progPercent = playDur > 0 ? (playPos / playDur) * 100 : 0;
 
   if (loading) {

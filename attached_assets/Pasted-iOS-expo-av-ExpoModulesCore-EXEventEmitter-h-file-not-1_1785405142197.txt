@@ -1,0 +1,105 @@
+iOS 빌드 결과 확인.
+
+판정:
+expo-av 완전 제거 타이밍 확정.
+
+현재 오류:
+- 'ExpoModulesCore/EXEventEmitter.h' file not found
+- could not build Objective-C module 'EXAV'
+
+1단계에서 AI 녹음은 expo-audio로 교체됐지만,
+아래 3개 파일이 아직 expo-av를 사용하므로
+iOS가 EXAV를 계속 네이티브 컴파일하고 있다.
+
+- components/teacher/my-schedule/DaySheet.tsx
+- components/teacher/today-schedule/DailyMemoPage.tsx
+- components/teacher/today-schedule/MemoSheet.tsx
+
+이제 2단계 전체 마이그레이션을 진행한다.
+
+1. 위 3개 파일의 녹음 기능을 expo-audio로 교체
+- Audio.requestPermissionsAsync
+  → requestRecordingPermissionsAsync
+- Audio.setAudioModeAsync
+  → setAudioModeAsync
+- Audio.Recording.createAsync
+  → AudioRecorder prepareToRecordAsync + record
+- stopAndUnloadAsync
+  → stop
+- getURI()
+  → uri 프로퍼티
+- RecordingOptionsPresets.HIGH_QUALITY
+  → RecordingPresets.HIGH_QUALITY
+
+2. 위 3개 파일의 재생 기능 교체
+- Audio.Sound.createAsync
+  → useAudioPlayer 또는 expo-audio 공식 지원 방식
+- pauseAsync
+  → player.pause()
+- unloadAsync
+  → expo-audio lifecycle에 맞게 제거
+- didJustFinish
+  → useAudioPlayerStatus 기반 처리
+
+3. 기존 사용자 동작 보존
+- 녹음 시작
+- 녹음 중지
+- 녹음 파일 저장
+- 녹음 재생
+- 일시정지
+- 재생 완료 상태
+- 화면 닫기 시 리소스 정리
+- 기존 UI/버튼/문구 변경 금지
+- 기존 서버 업로드 contract 변경 금지
+
+4. expo-av 완전 제거
+- package.json에서 expo-av 제거
+- app.json에서 expo-av plugin 제거
+- expo-audio plugin만 유지
+- plugins/withPatchExpoAv.js 삭제
+- patches/expo-av@16.0.8.patch 삭제
+- 프로젝트 전체에서 "expo-av", "EXAV", "Audio.Sound", "Audio.Recording" 검색 결과 0개 확인
+- pnpm-lock.yaml 정리
+
+5. 금지
+- Podfile patch 금지
+- node_modules 직접 수정 금지
+- ExpoModulesCore 수정 금지
+- EXPO_USE_PRECOMPILED_MODULES 비활성화 금지
+- Expo 54 롤백 금지
+- UI 구조 변경 금지
+- 서버 API 변경 금지
+
+6. 검증
+- pnpm install
+- npx expo install --check
+- expo doctor
+- TypeScript 신규 오류 0개
+- Android production export/bundle 검증
+- iOS prebuild 또는 config plugin 검증
+- project-wide expo-av import 0개
+- expo-audio import/use 정상 확인
+- 변경 diff 보고
+
+7. 빌드 순서
+- Android 빌드 결과가 아직 진행 중이면 결과 확인
+- 2단계 수정 완료 후 Android production 재빌드
+- Android 성공 후 iOS production 재빌드
+- iOS에서 EXAV 관련 오류가 완전히 사라졌는지 확인
+
+8. 실기기 검증
+- AI Whisper 녹음
+- DaySheet 녹음/재생
+- DailyMemoPage 녹음/재생/일시정지
+- MemoSheet 녹음/재생/일시정지
+- 백그라운드 복귀
+- 화면 종료 후 오디오 리소스 정리
+- AI Generate
+- AI 모달 닫기 후 나가기
+
+최종 판정은 다음 중 하나만 사용:
+
+- MIGRATION FAILED
+- ANDROID PASSED / IOS FAILED
+- BOTH BUILDS PASSED, RUNTIME UNVERIFIED
+- FULLY VERIFIED

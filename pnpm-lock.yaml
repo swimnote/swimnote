@@ -155,11 +155,6 @@ overrides:
 
 packageExtensionsChecksum: sha256-EqUX7s3tY0idUZifBi0p+vnV9kUMEPICCYAYeVzXjeo=
 
-patchedDependencies:
-  expo-av@16.0.8:
-    hash: f85fc8770161ef713d9fcdbff6d0c7be01a9438ba1484954a6bc91753e4b0043
-    path: patches/expo-av@16.0.8.patch
-
 importers:
 
   .:
@@ -488,9 +483,6 @@ importers:
       expo-audio:
         specifier: ~55.0.16
         version: 55.0.16(expo-asset@55.0.18(expo@55.0.28)(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(expo@55.0.28)(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
-      expo-av:
-        specifier: ~16.0.8
-        version: 16.0.8(patch_hash=f85fc8770161ef713d9fcdbff6d0c7be01a9438ba1484954a6bc91753e4b0043)(expo@55.0.28)(react-native-web@0.21.2(react-dom@19.1.0(react@19.2.0))(react@19.2.0))(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
       expo-blur:
         specifier: ~55.0.16
         version: 55.0.16(expo@55.0.28)(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
@@ -4572,17 +4564,6 @@ packages:
       expo-asset: '*'
       react: '*'
       react-native: '*'
-
-  expo-av@16.0.8:
-    resolution: {integrity: sha512-cmVPftGR/ca7XBgs7R6ky36lF3OC0/MM/lpgX/yXqfv0jASTsh7AYX9JxHCwFmF+Z6JEB1vne9FDx4GiLcGreQ==}
-    peerDependencies:
-      expo: '*'
-      react: '*'
-      react-native: '*'
-      react-native-web: '*'
-    peerDependenciesMeta:
-      react-native-web:
-        optional: true
 
   expo-blur@55.0.16:
     resolution: {integrity: sha512-VOJecx4ETnAdOyFcNfLPqVAd9i1br+Xu9AJHyGuVmoDH9W9MPxmzXc40+GELW3Ez+KlwG0I3ThWDS/yyZybM5A==}
@@ -12099,14 +12080,6 @@ snapshots:
       expo-asset: 55.0.18(expo@55.0.28)(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
       react: 19.2.0
       react-native: 0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0)
-
-  expo-av@16.0.8(patch_hash=f85fc8770161ef713d9fcdbff6d0c7be01a9438ba1484954a6bc91753e4b0043)(expo@55.0.28)(react-native-web@0.21.2(react-dom@19.1.0(react@19.2.0))(react@19.2.0))(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0):
-    dependencies:
-      expo: 55.0.28(@babel/core@7.29.0)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.12)(expo-router@55.0.17)(react-dom@19.1.0(react@19.2.0))(react-native-worklets@0.7.4(@babel/core@7.29.0)(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
-      react: 19.2.0
-      react-native: 0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0)
-    optionalDependencies:
-      react-native-web: 0.21.2(react-dom@19.1.0(react@19.2.0))(react@19.2.0)
 
   expo-blur@55.0.16(expo@55.0.28)(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0):
     dependencies:

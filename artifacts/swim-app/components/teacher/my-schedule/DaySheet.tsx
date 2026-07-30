@@ -1,7 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { Check, ChevronRight, User, X } from "lucide-react-native";
-import { Audio } from "expo-av";
+import {
+  useAudioRecorder, useAudioPlayer, useAudioPlayerStatus,
+  requestRecordingPermissionsAsync, setAudioModeAsync, RecordingPresets,
+} from 'expo-audio';
 import * as FileSystem from "expo-file-system/legacy";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -110,11 +113,12 @@ export default function DaySheet({
     finally { setMakeupSaving(null); }
   }
 
+  const recorder     = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const player       = useAudioPlayer(null);
+  const playerStatus = useAudioPlayerStatus(player);
   const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [audioList, setAudioList] = useState<AudioItem[]>([]);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [playingUri, setPlayingUri] = useState<string | null>(null);
+  const [audioList, setAudioList]     = useState<AudioItem[]>([]);
+  const [playingUri, setPlayingUri]   = useState<string | null>(null);
 
   const AUDIO_LIST_KEY = `scheduleAudioList_${poolId}_${dateStr}`;
 
@@ -122,8 +126,12 @@ export default function DaySheet({
     AsyncStorage.getItem(AUDIO_LIST_KEY)
       .then(raw => setAudioList(raw ? JSON.parse(raw) : []))
       .catch(() => setAudioList([]));
-    return () => { sound?.unloadAsync().catch(() => {}); };
   }, [dateStr, poolId]);
+
+  // 재생 완료 감지
+  useEffect(() => {
+    if (playerStatus.didJustFinish) setPlayingUri(null);
+  }, [playerStatus.didJustFinish]);
 
   async function saveAudioList(list: AudioItem[]) {
     setAudioList(list);
@@ -132,59 +140,57 @@ export default function DaySheet({
 
   async function startRecording() {
     try {
-      const { granted } = await Audio.requestPermissionsAsync();
+      const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) return;
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording: rec } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      setRecording(rec);
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setIsRecording(true);
     } catch {}
   }
 
   async function stopAndSaveRecording() {
-    if (!recording) return;
+    if (!recorder.isRecording) return;
     setIsRecording(false);
-    let tempUri: string | null = null;
     try {
-      await recording.stopAndUnloadAsync();
-      tempUri = recording.getURI();
-    } catch {}
-    setRecording(null);
-    if (!tempUri) return;
+      await recorder.stop();
+      const tempUri = recorder.uri;
+      if (!tempUri) return;
 
-    const ts = Date.now();
-    let finalUri = tempUri;
-    try {
-      if (FileSystem.documentDirectory) {
-        const dest = `${FileSystem.documentDirectory}scheduleAudio_${poolId}_${dateStr}_${ts}.m4a`;
-        await FileSystem.copyAsync({ from: tempUri, to: dest });
-        finalUri = dest;
-      }
-    } catch {}
+      const ts = Date.now();
+      let finalUri = tempUri;
+      try {
+        if (FileSystem.documentDirectory) {
+          const dest = `${FileSystem.documentDirectory}scheduleAudio_${poolId}_${dateStr}_${ts}.m4a`;
+          await FileSystem.copyAsync({ from: tempUri, to: dest });
+          finalUri = dest;
+        }
+      } catch {}
 
-    const newItem: AudioItem = { uri: finalUri, createdAt: new Date(ts).toISOString() };
-    await saveAudioList([...audioList, newItem]);
+      const newItem: AudioItem = { uri: finalUri, createdAt: new Date(ts).toISOString() };
+      await saveAudioList([...audioList, newItem]);
+    } catch {}
   }
 
   async function playAudio(uri: string) {
     try {
-      if (sound) { await sound.unloadAsync(); setSound(null); setPlayingUri(null); }
-      if (playingUri === uri) return;
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-      const { sound: s } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
-      setSound(s); setPlayingUri(uri);
-      s.setOnPlaybackStatusUpdate(status => {
-        if ("didJustFinish" in status && status.didJustFinish) {
-          setPlayingUri(null); setSound(null);
-        }
-      });
+      if (playingUri === uri) {
+        player.pause();
+        setPlayingUri(null);
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      player.replace(uri);
+      player.play();
+      setPlayingUri(uri);
     } catch {}
   }
 
   async function deleteAudioItem(uri: string) {
     await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
     if (playingUri === uri) {
-      await sound?.unloadAsync().catch(() => {}); setSound(null); setPlayingUri(null);
+      player.pause();
+      setPlayingUri(null);
     }
     await saveAudioList(audioList.filter(a => a.uri !== uri));
   }
