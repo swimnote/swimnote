@@ -4,7 +4,7 @@ services:
     runtime: node
     region: singapore
     plan: starter
-    buildCommand: npm install -g pnpm@10 && pnpm install --no-frozen-lockfile
+    buildCommand: npm install -g pnpm@10 && pnpm install --no-frozen-lockfile && pnpm --filter @workspace/swimnote-web run build
     startCommand: node_modules/.bin/tsx artifacts/api-server/src/index.ts
     healthCheckPath: /api/healthz
     envVars:
