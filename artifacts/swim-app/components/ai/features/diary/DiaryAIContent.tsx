@@ -7,7 +7,7 @@
  * 사용: <BaseAIModal content={<DiaryAIContent onInsert={...} onClose={...} />} />
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAIContext } from '../../core/AIContext';
@@ -114,6 +114,23 @@ export default function DiaryAIContent({
 }: DiaryAIContentProps) {
   const { state, error } = useAIContext();
   const insets = useSafeAreaInsets();
+
+  // ── [TRACE] OTA 적용 증명 marker ─────────────────────────────────────────
+  useEffect(() => {
+    if (__DEV__) console.log('DIARY_ERROR_ACTIONBAR_FIX_9642537');
+  }, []);
+
+  // ── [TRACE] AI state / error 변화 추적 ────────────────────────────────────
+  useEffect(() => {
+    if (__DEV__) console.log(
+      `[AI-CONTENT-STATE]` +
+      ` time=${Date.now()}` +
+      ` aiState=${state}` +
+      ` hasError=${!!error}` +
+      ` errorOrigin=${error?.origin ?? '?'}` +
+      ` retryTarget=${error?.retryTarget ?? '?'}`
+    );
+  }, [state, error]);
 
   const {
     inputText,

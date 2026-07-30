@@ -15,6 +15,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   Dimensions,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -85,11 +86,14 @@ export default function BaseAIModal({
   // ── 디버그: 인스턴스 고유 ID ─────────────────────────────────────────────
   const instanceId = useId();
 
+  // ── [TRACE] isClosing 추적 ref ────────────────────────────────────────────
+  const isClosingRef = useRef(false);
+
   // ── 마운트 / 언마운트 로그 ───────────────────────────────────────────────
   useEffect(() => {
-    if (__DEV__) console.log(`[UI-LAYER-MOUNT] BaseAIModal id=${instanceId} title="${title}" visible=${visible}`);
+    if (__DEV__) console.log(`[AI-NATIVE-MODAL] event=mount id=${instanceId} title="${title}" time=${Date.now()}`);
     return () => {
-      if (__DEV__) console.log(`[UI-LAYER-UNMOUNT] BaseAIModal id=${instanceId} title="${title}"`);
+      if (__DEV__) console.log(`[AI-NATIVE-MODAL] event=unmount id=${instanceId} title="${title}" time=${Date.now()}`);
     };
   }, []);
 
@@ -114,7 +118,34 @@ export default function BaseAIModal({
   const [rendered,      setRendered]      = useState(false);
   const [nativeVisible, setNativeVisible] = useState(false);
 
-  // rendered 변경 추적
+  // ── [TRACE] 키보드 상태 추적 ──────────────────────────────────────────────
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
+      if (__DEV__) console.log(`[AI-KEYBOARD] event=keyboardDidShow time=${Date.now()}`);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+      if (__DEV__) console.log(`[AI-KEYBOARD] event=keyboardDidHide time=${Date.now()}`);
+    });
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+
+  // ── [TRACE] [AI-MODAL-STATE] 통합 상태 로그 ──────────────────────────────
+  useEffect(() => {
+    if (__DEV__) console.log(
+      `[AI-MODAL-STATE]` +
+      ` time=${Date.now()}` +
+      ` visible=${visible}` +
+      ` nativeVisible=${nativeVisible}` +
+      ` rendered=${rendered}` +
+      ` isClosing=${isClosingRef.current}` +
+      ` keyboardVisible=${keyboardVisible}`
+    );
+  }, [visible, nativeVisible, rendered, keyboardVisible]);
+
+  // rendered 변경 추적 (기존 로그 유지)
   useEffect(() => {
     if (__DEV__) console.log(`[UI-LAYER-VISIBLE] BaseAIModal id=${instanceId} rendered=${rendered} nativeVisible=${nativeVisible} (visible prop=${visible})`);
   }, [rendered]);
@@ -147,6 +178,7 @@ export default function BaseAIModal({
     if (!nativeVisible && rendered) {
       if (__DEV__) console.log('[MODAL-EFFECT] nativeVisible=false → setRendered(false) + onClose()');
       setRendered(false);
+      isClosingRef.current = false;  // [TRACE] closing 완료 리셋
       onCloseRef.current();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -155,6 +187,7 @@ export default function BaseAIModal({
   // ── 모달 진입 애니메이션 ──────────────────────────────────────────────────
   useEffect(() => {
     if (!rendered) return;
+    if (__DEV__) console.log(`[AI-SHEET-ANIMATION] type=open event=start time=${Date.now()}`);
     translateY.value = SCREEN_HEIGHT;
     backdropOpacity.value = 0;
     animateModalOpen(translateY, backdropOpacity, reducedMotion);
@@ -165,6 +198,8 @@ export default function BaseAIModal({
   // Phase 1에서 nativeVisible=false만 설정하면 RN이 네이티브 UIWindow를 제거.
   // Phase 2(useEffect[nativeVisible])에서 rendered=false + onClose() 처리.
   const doClose = useCallback(() => {
+    if (__DEV__) console.log(`[AI-SHEET-ANIMATION] type=close event=start time=${Date.now()}`);
+    isClosingRef.current = true;  // [TRACE] closing 시작 마킹
     cancelAnimation(translateY);
     cancelAnimation(backdropOpacity);
     backdropOpacity.value = 0;   // 백드롭 즉시 투명으로
@@ -227,6 +262,12 @@ export default function BaseAIModal({
       animationType="none"
       transparent
       statusBarTranslucent
+      onShow={() => {
+        if (__DEV__) console.log(`[AI-NATIVE-MODAL] event=onShow nativeVisible=true rendered=${rendered} time=${Date.now()}`);
+      }}
+      onDismiss={() => {
+        if (__DEV__) console.log(`[AI-NATIVE-MODAL] event=onDismiss nativeVisible=false rendered=${rendered} time=${Date.now()}`);
+      }}
       onRequestClose={() => {
         // [WP12] Android Back Button — lockDismiss=true 구간에서 차단
         if (lockDismiss) {
