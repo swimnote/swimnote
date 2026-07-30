@@ -14,6 +14,7 @@ import SuperAdmin from "@/pages/SuperAdmin";
 import PoolPage from "@/pages/PoolPage";
 import PoolAdmin from "@/pages/PoolAdmin";
 import PoolHomepage from "@/pages/PoolHomepage";
+import DeleteAccount from "@/pages/DeleteAccount";
 import NotFound from "@/pages/not-found";
 
 import AdminGuard from "@/components/admin/AdminGuard";
@@ -77,6 +78,9 @@ function Router() {
       </Route>
       <Route path="/support">
         <PublicLayout><Support /></PublicLayout>
+      </Route>
+      <Route path="/delete-account">
+        <PublicLayout><DeleteAccount /></PublicLayout>
       </Route>
 
       {/* 인증 */}
