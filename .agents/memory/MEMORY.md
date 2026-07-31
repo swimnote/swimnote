@@ -1,0 +1,26 @@
+- [★ 작업 규칙 헌법](task-constitution.md) — 모든 작업 시작 전 branch/HEAD/status 보고, push 없으면 완료 불인정, 파일삭제·merge·reset 별도 승인 필수
+- [앱·웹 운영 헌법](app-web-constitution.md) — 앱 우선 원칙·공유 콘텐츠 단일 소스·홈페이지 업데이트 범위·테스트 환경 규칙
+- [Production 서버 작업 원칙](production-server-rule.md) — 최우선 원칙: 실제 앱은 swimnote.kr(Render.com) 연결, Replit API 서버는 개발 전용, 서버 수정은 반드시 GitHub push→Render.com 배포 완료까지
+- [API_BASE 소스 규칙](api-base-source.md) — 실기기에서 /api fallback 사용 금지; 반드시 AuthContext에서 import
+- [서버 핫리로드 실패 패턴](server-hotreload.md) — tsx watch가 라우트 변경을 놓칠 때 404 발생; 재시작으로 해결
+- [영상 다운로드 302 리다이렉트 패턴](video-download-redirect.md) — FileSystem.downloadAsync는 302 불가; fetch로 URL resolve 후 다운로드
+- [OTA 배포 패턴](ota-deploy-pattern.md) — Replit RAM 부족으로 Metro OOM; 2단계(115s 번들→skip-bundler 업로드) 우회법; package.json dev 스크립트에 큰따옴표 금지(JSON 파싱 오류), 반드시 작은따옴표+escaped 큰따옴표 사용
+- [OTA 채널 패턴](ota-channel-pattern.md) — production+preview 브랜치 둘 다 배포 필수; 동시 실행 금지(순차), eas.json preview에 channel:production 추가됨
+- [다음 빌드 포함 변경 사항](pending-build-changes.md) — 1.3.11 빌드 이후 코드 반영됐으나 미배포 변경 목록 (엑셀 업로드 개선, capacity API)
+- [탭 텍스트 Pretendard 금지](tab-font-clipping.md) — 탭 바 Text에 fontFamily Pretendard 사용 시 iOS에서 한글 받침 세로 클리핑 발생; lineHeight 명시로 해결
+- [API 서버 DB 구성](api-server-db-config.md) — executeSql≠운영DB; tsx 스크립트(@workspace/db)로만 실제 데이터 접근; swimnote.kr=Render.com 동일 외부DB 확인
+- [학생 목록 성능 최적화](students-perf.md) — getPoolId DB 조회 → 토큰 poolId 우선 사용; SQL ORDER BY 추가로 JS sort 제거; pool_status/pool_created 복합 인덱스 추가
+- [EAS 빌드 tarball 구조 및 패치](eas-build-tarball.md) — tarball은 workspace root 기준 project/artifacts/swim-app/ 구조; git.js 3개 메서드 no-op 패치; lockfile 없음+.npmrc frozen-lockfile=false가 안정적
+- [_layout.tsx otaReady 미선언 크래시](layout-otaReady-bug.md) — RootNav에서 otaReady 변수 선언 없이 참조 → ReferenceError → 앱 크래시; const otaReady = false 추가로 해결
+- [JWT role 정규화 버그](jwt-role-normalization.md) — teacher 전환 후 앱 재시작 시 teacher 토큰이 pool_admin API 호출에 사용 → 403 → 대시보드 "—"; loadStored에서 JWT role vs DB role 비교 후 자동 교체로 해결
+- [Optimistic Update 누락 패턴](optimistic-update-pattern.md) — 모달/액션의 onClose·onMoved를 API await 이후 호출하면 딜레이 발생; 반드시 즉시 호출 후 API는 .catch()로 백그라운드 처리
+- [날짜 시스템 통합 완료](date-system-integration.md) — student_class_history(enrolled_at/left_at) 단일 소스 42개 통합 테스트 전체 통과; 핵심 패턴 및 함정 기록
+- [DiaryWriteView LucideIcon 버그](diary-lucide-import.md) — LucideIcon import 누락 → ErrorFallback; 진단은 배포 로그 CRASH_REPORT로 확인
+- [학부모 앨범 사진 URL 패턴](parent-photo-url-pattern.md) — home.tsx/swim-diary.tsx는 API_BASE+file_url; photos.tsx는 API_BASE.replace(/\/api$/,"")+fileUrl; parent.ts는 각 소비처에 맞는 형식 반환 필요
+- [학부모 /auth/me 테이블 분리 구조](parent-auth-me-table-split.md) — parent_account role은 parent_accounts 테이블 소속; /auth/me에서 role 분기 필수, users 테이블 단독 조회 시 항상 404 → 앱 재실행마다 강제 로그아웃
+- [사진 미디어 상태 고아 버그](photo-orphan-media-fix.md) — 삭제된 일지 연결 사진이 'attached' 유지; picker·teacher-all 양쪽 LEFT JOIN으로 해결; repair-orphan-media 엔드포인트로 기존 데이터 정리
+- [앱→서버 배포 흐름](app-server-deploy-flow.md) — iPhone 앱은 swimnote.kr(Render.com) 연결; 서버 코드 변경은 Render.com 재배포 필수; 클라이언트 변경은 OTA 업데이트 필수
+- [Render.com 배포 및 reaction 마이그레이션](render-deploy-and-thank-migration.md) — DB CHECK 변경 전 서버 코드 우선 배포 필수; 구버전 bridge용 server-side normalization 패턴; GitHub push로 Render.com 자동 배포
+- [일지 댓글 시스템 구조](diary-comments-architecture.md) — diary_messages 테이블 재활용(parent_comment_id/student_id 컬럼 추가); /diaries/:id/comments + /diary-comments/:id/replies API; parent/messages.tsx는 리다이렉트 전용으로 교체됨
+- [일지 댓글 diaryVisibleToStudent 날짜 범위 버그](diary-comment-visibility-fix.md) — student_class_history 날짜 오류로 인한 403; 날짜 범위 검사 제거로 해결
+- [AI Engine Template Pipeline 구조](ai-engine-template-pipeline.md) — /api/v1/teacher-diary/generate = api-server의 새 라우트; App은 raw text만 전송, Engine이 파싱; diary_templates 1050개 global 존재; relaxed candidate(score≥1) + strict top-5 ranking

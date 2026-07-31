@@ -1,0 +1,138 @@
+
+
+스윔노트 계정 아이콘
+수영노트
+
+
+수영 앱
+
+
+프로젝트
+
+
+
+
+개발하다
+
+
+
+배포
+
+
+
+
+무선 업데이트
+
+
+
+엔티티
+
+
+프로젝트 설정
+
+
+
+
+
+
+제출물
+
+65113978
+
+iOS 앱 스토어 제출
+
+상태
+
+제작자:
+
+생성일:
+
+실패한
+
+스윔노트 계정 아이콘
+수영노트
+
+2026년 4월 21일 오전 3시 4분
+제출된 빌드
+빌드 보기
+
+윤곽
+
+
+환경
+
+SDK 버전
+
+버전
+
+지문
+
+저지르다
+
+제작자:
+
+생산
+
+생산
+
+54.0.0
+
+1.3.5 (102)
+
+2cce420
+
+aa48a54*
+
+스윔노트 계정 아이콘
+수영노트
+
+로그
+
+제출 작업자 시작
+
+36초
+
+
+앱스토어에 제출하기
+
+1분 0초
+
+
+Starting the submit process
+Downloading archive
+Preparing artifact
+Verifying archive
+Creating ascApiJsonKey.json file with ASC credentials
+Submitting iOS app to TestFlight...
+Submitting the app with fastlane pilot
+-------------------
+--- Step: pilot ---
+-------------------
+Creating authorization token for App Store Connect API
+Ready to upload new build to TestFlight (App: 6761360360)...
+Going to upload updated app to App Store Connect
+This might take a few minutes. Please don't interrupt the script.
+[altool] 2026-04-20 11:12:49.713 *** Error: Validation failed This bundle is invalid. The value for key CFBundleShortVersionString [1.3.5] in the Info.plist file must contain a higher version than that of the previously approved version [1.3.5]. Please find more information about CFBundleShortVersionString at https://developer.apple.com/documentation/bundleresources/information_property_list/cfbundleshortversionstring (ID: 3805664d-4fab-4d05-8e08-3a83a2dc827c) (409)
+[altool]  {
+[altool]     NSLocalizedDescription = "Validation failed";
+[altool]     NSLocalizedFailureReason = "This bundle is invalid. The value for key CFBundleShortVersionString [1.3.5] in the Info.plist file must contain a higher version than that of the previously approved version [1.3.5]. Please find more information about CFBundleShortVersionString at https://developer.apple.com/documentation/bundleresources/information_property_list/cfbundleshortversionstring (ID: 3805664d-4fab-4d05-8e08-3a83a2dc827c)";
+[altool]     NSUnderlyingError = "Error Domain=IrisAPI Code=-19241 \"Validation failed\" UserInfo={status=409, detail=This bundle is invalid. The value for key CFBundleShortVersionString [1.3.5] in the Info.plist file must contain a higher version than that of the previously approved version [1.3.5]. Please find more information about CFBundleShortVersionString at https://developer.apple.com/documentation/bundleresources/information_property_list/cfbundleshortversionstring, id=3805664d-4fab-4d05-8e08-3a83a2dc827c, code=STATE_ERROR.VALIDATION_ERROR, title=Validation failed, NSLocalizedFailureReason=This bundle is invalid. The value for key CFBundleShortVersionString [1.3.5] in the Info.plist file must contain a higher version than that of the previously approved version [1.3.5]. Please find more information about CFBundleShortVersionString at https://developer.apple.com/documentation/bundleresources/information_property_list/cfbundleshortversionstring, NSLocalizedDescription=Validation failed}";
+[altool]     "iris-code" = "STATE_ERROR.VALIDATION_ERROR";
+[altool] }
+Application Loader output above ^
+[ContentDelivery.Uploader.600001BE8140] Validation failed (409) Invalid Pre-Release Train. The train version '1.3.5' is closed for new build submissions (ID: f0d46175-1c9f-4088-b37d-1a9fbe521261)
+[ContentDelivery.Uploader.600001BE8140] Validation failed (409) This bundle is invalid. The value for key CFBundleShortVersionString [1.3.5] in the Info.plist file must contain a higher version than that of the previously approved version [1.3.5]. Please find more information about CFBundleShortVersionString at https://developer.apple.com/documentation/bundleresources/information_property_list/cfbundleshortversionstring (ID: 3805664d-4fab-4d05-8e08-3a83a2dc827c)
+Error uploading '/var/folders/m1/8_w9962s3b79dqm00nnlm85m0000gn/T/1fb3f18e-d4ec-4671-acc7-6e35f613fd82.ipa'.
+Validation failed Invalid Pre-Release Train. The train version '1.3.5' is closed for new build submissions (ID: f0d46175-1c9f-4088-b37d-1a9fbe521261) (409)
+Validation failed This bundle is invalid. The value for key CFBundleShortVersionString [1.3.5] in the Info.plist file must contain a higher version than that of the previously approved version [1.3.5]. Please find more information about CFBundleShortVersionString at https://developer.apple.com/documentation/bundleresources/information_property_list/cfbundleshortversionstring (ID: 3805664d-4fab-4d05-8e08-3a83a2dc827c) (409)
+The call to the altool completed with a non-zero exit status: 1. This indicates a failure.
+Could not download/upload from App Store Connect!
+[!] Error uploading ipa file: 
+ [Application Loader Error Output]: [ContentDelivery.Uploader.600001BE8140] Validation failed (409) Invalid Pre-Release Train. The train version '1.3.5' is closed for new build submissions (ID: f0d46175-1c9f-4088-b37d-1a9fbe521261)
+[Application Loader Error Output]: [ContentDelivery.Uploader.600001BE8140] Validation failed (409) This bundle is invalid. The value for key CFBundleShortVersionString [1.3.5] in the Info.plist file must contain a higher version than that of the previously approved version [1.3.5]. Please find more information about CFBundleShortVersionString at https://developer.apple.com/documentation/bundleresources/information_property_list/cfbundleshortversionstring (ID: 3805664d-4fab-4d05-8e08-3a83a2dc827c)
+[Application Loader Error Output]: Error uploading '/var/folders/m1/8_w9962s3b79dqm00nnlm85m0000gn/T/1fb3f18e-d4ec-4671-acc7-6e35f613fd82.ipa'.
+[Application Loader Error Output]: Validation failed Invalid Pre-Release Train. The train version '1.3.5' is closed for new build submissions (ID: f0d46175-1c9f-4088-b37d-1a9fbe521261) (409)
+[Application Loader Error Output]: Validation failed This bundle is invalid. The value for key CFBundleShortVersionString [1.3.5] in the Info.plist file must contain a higher version than that of the previously approved version [1.3.5]. Please find more information about CFBundleShortVersionString at https://developer.apple.com/documentation/bundleresources/information_property_list/cfbundleshortversionstring (ID: 3805664d-4fab-4d05-8e08-3a83a2dc827c) (409)
+[Application Loader Error Output]: The call to the altool completed with a non-zero exit status: 1. This indicates a failure.
+Failed to submit the app to the store
+제출물 — @swimnote/swim-app — 엑스포

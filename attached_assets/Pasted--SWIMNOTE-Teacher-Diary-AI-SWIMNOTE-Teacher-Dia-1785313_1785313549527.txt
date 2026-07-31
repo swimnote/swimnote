@@ -1,0 +1,641 @@
+# SWIMNOTE Teacher Diary AI 최종 구현 및 검증 작업 지시
+
+이번 작업은 새로운 기능 개발 프로젝트가 아닙니다.
+
+목표는 SWIMNOTE Teacher Diary AI 설계도(V1.0)를 기준으로 현재 Repository를 끝까지 검증하여
+
+- 설계와 코드가 일치하고
+- 코드와 실제 동작이 일치하며
+- 기존 기능을 깨뜨리지 않고
+- SWIMNOTE 앱이 담당하는 범위를 100% 완성
+
+하는 것입니다.
+
+AI Engine은 별도 프로젝트이며 절대 수정하지 않습니다.
+
+──────────────────────────────────
+0. 절대 원칙
+──────────────────────────────────
+
+기존 설계 변경 금지
+
+기존 UX 변경 금지
+
+AI Engine 수정 금지
+
+Prompt 수정 금지
+
+Knowledge 수정 금지
+
+Parser 구현 금지
+
+Name Matcher 구현 금지
+
+Curriculum Resolver 구현 금지
+
+Validator 구현 금지
+
+새 기능 추가 금지
+
+관련 없는 리팩터링 금지
+
+Production 배포 금지
+
+설계도 범위를 벗어난 구현 금지
+
+──────────────────────────────────
+1. 역할 분리
+──────────────────────────────────
+
+SWIMNOTE APP 담당
+
+- Teacher Diary UI
+- Voice Recorder
+- Whisper STT
+- Teacher Text
+- request_id
+- pool_id
+- class_id
+- lesson_date
+- students(ref,name)
+- AI Engine 호출
+- Loading
+- Draft 표시
+- Teacher Review
+- 기존 Diary 입력
+- 기존 Save
+
+AI ENGINE 담당
+
+- Parser
+- Name Matcher
+- Observation
+- Curriculum Resolver
+- Template Search
+- Knowledge Search
+- Prompt Builder
+- GPT
+- Output Validator
+
+앱은 AI Engine을 호출만 한다.
+
+AI Engine 내부를 절대 수정하지 않는다.
+
+──────────────────────────────────
+2. 작업 원칙
+──────────────────────────────────
+
+이번 작업은
+
+구현
+
+↓
+
+검증
+
+↓
+
+수정
+
+이 아니다.
+
+반드시
+
+설계 검증
+
+↓
+
+현재 코드 검증
+
+↓
+
+실제 동작 검증
+
+↓
+
+설계와 다른 경우만 수정
+
+↓
+
+다시 테스트
+
+↓
+
+보고
+
+↓
+
+승인
+
+↓
+
+다음 WP
+
+순서로 진행한다.
+
+이미 구현되어 있는 기능은
+
+"구현되어 있다"
+
+로 끝내지 않는다.
+
+반드시
+
+설계
+
+↓
+
+코드
+
+↓
+
+실행
+
+이 모두 일치해야 완료이다.
+
+──────────────────────────────────
+3. Work Package 진행 방식
+──────────────────────────────────
+
+WP 하나씩만 진행한다.
+
+각 WP마다
+
+작업 전
+
+반드시
+
+1. 설계 요구사항
+
+2. 현재 구현
+
+3. 차이점
+
+4. 수정 필요 여부
+
+를 먼저 보고한다.
+
+이후
+
+필요한 경우만 수정한다.
+
+완료 후 반드시 멈춘다.
+
+승인 없이 다음 WP 진행 금지.
+
+──────────────────────────────────
+4. WP0
+현재 구조 검증
+──────────────────────────────────
+
+코드 수정 금지
+
+조사
+
+StudentOption
+
+DiaryAIButton
+
+DiaryAIContent
+
+DiaryWriteView
+
+diary.tsx
+
+useDiaryAI
+
+Voice Recorder
+
+Whisper
+
+Draft
+
+Insert
+
+Save
+
+Authorization
+
+Base URL
+
+Request 생성
+
+Response 처리
+
+실제 Sequence 작성
+
+Button
+
+↓
+
+Voice/Text
+
+↓
+
+STT
+
+↓
+
+Request
+
+↓
+
+AI
+
+↓
+
+Response
+
+↓
+
+Draft
+
+↓
+
+Insert
+
+↓
+
+Save
+
+추가 확인
+
+동시 요청
+
+중복 클릭
+
+AbortController
+
+request_id
+
+Unmount
+
+Stale Response
+
+보고 후 종료
+
+──────────────────────────────────
+5. WP1
+Request Contract
+──────────────────────────────────
+
+먼저
+
+설계 확인
+
+↓
+
+현재 코드 확인
+
+↓
+
+실제 Request 확인
+
+↓
+
+설계와 다를 경우 수정
+
+↓
+
+테스트
+
+↓
+
+보고
+
+확인 항목
+
+request_id
+
+pool_id
+
+class_id
+
+lesson_date
+
+student_refs
+
+students(ref,name)
+
+Whisper 원문
+
+STT 원문 변경 여부
+
+절대 하면 안 되는 것
+
+학생 이름 수정
+
+조사 제거
+
+이름 분석
+
+학생 분리
+
+Knowledge 전달
+
+Template 생성
+
+Curriculum 생성
+
+──────────────────────────────────
+6. WP2
+Response Contract
+──────────────────────────────────
+
+동일한 방식으로 진행
+
+확인
+
+student_ref
+
+student_id fallback
+
+content
+
+feedback fallback
+
+request_id
+
+invalid_ref
+
+duplicate
+
+missing student
+
+기존 입력 보존
+
+Draft 적용
+
+Teacher Review
+
+Insert
+
+Save
+
+──────────────────────────────────
+7. WP3
+안전성
+──────────────────────────────────
+
+확인
+
+AbortController
+
+Timeout
+
+isMounted
+
+activeRequestId
+
+stale response
+
+중복 요청
+
+개인정보 로그
+
+Authorization 로그
+
+Token 로그
+
+사용자 Error
+
+개발 Error
+
+──────────────────────────────────
+8. WP4
+Teacher Diary UI
+──────────────────────────────────
+
+가장 중요한 단계
+
+설계 요구사항
+
+공통 Draft 표시
+
+학생별 Draft 표시
+
+Teacher Review
+
+공통 수정
+
+학생별 수정
+
+Insert
+
+기존 입력 보존
+
+기존 Save 연결
+
+현재 코드가
+
+설계와 다르면 수정한다.
+
+설계에 없는 UI 추가 금지
+
+UX 변경 금지
+
+──────────────────────────────────
+9. WP5
+통합 테스트
+──────────────────────────────────
+
+실제 기기 테스트
+
+반드시
+
+Voice
+
+↓
+
+Whisper
+
+↓
+
+AI 호출
+
+↓
+
+Draft
+
+↓
+
+Teacher Review
+
+↓
+
+Insert
+
+↓
+
+Save
+
+↓
+
+DB 저장
+
+까지 확인한다.
+
+테스트
+
+공통만
+
+학생 1명
+
+학생 여러명
+
+공통+학생
+
+AI 실패
+
+Network Error
+
+Timeout
+
+중복 클릭
+
+늦은 응답
+
+Request mismatch
+
+학생 누락
+
+Unknown ref
+
+──────────────────────────────────
+10. WP6
+최종 회귀 테스트
+──────────────────────────────────
+
+기존 기능이 하나도 깨지지 않았는지 확인
+
+Voice
+
+Whisper
+
+Diary
+
+Draft
+
+Insert
+
+Save
+
+Student Notes
+
+Teacher Diary
+
+Build
+
+Expo
+
+TypeScript
+
+API
+
+──────────────────────────────────
+11. 완료 조건
+──────────────────────────────────
+
+아래가 모두 만족되어야 프로젝트 종료
+
+설계 100% 일치
+
+코드 100% 일치
+
+실제 실행 100% 확인
+
+기존 기능 유지
+
+TypeScript 오류 없음
+
+Build 성공
+
+Expo 정상
+
+AI 호출 정상
+
+공통 Draft 정상
+
+학생별 Draft 정상
+
+Teacher Review 정상
+
+Insert 정상
+
+Save 정상
+
+Diary 정상
+
+Student Notes 정상
+
+──────────────────────────────────
+12. 보고 규칙
+──────────────────────────────────
+
+각 Work Package 종료 후 반드시 멈춘다.
+
+보고 형식
+
+1. 이번 WP 목표
+
+2. 설계 검증 결과
+
+3. 코드 검증 결과
+
+4. 실제 동작 검증 결과
+
+5. 수정 내용
+
+6. 수정 파일
+
+7. 테스트 결과
+
+8. 회귀 테스트
+
+9. 남은 문제
+
+10. 다음 WP 진행 가능 여부
+
+승인 전 다음 WP 진행 금지.
+
+──────────────────────────────────
+13. 최종 목표
+──────────────────────────────────
+
+이번 프로젝트는 기능을 새로 만드는 프로젝트가 아니다.
+
+설계도 V1.0을 기준으로
+
+기존 구현을 끝까지 검증하고
+
+설계와 다른 부분만 수정하며
+
+SWIMNOTE 앱이 담당하는 범위를
+
+100% 완성하고
+
+실제 동작까지 검증하는 것이 최종 목표이다.
+
+AI Engine은 별도 프로젝트이며 수정하지 않는다.
+
+앱은
+
+UI
+
+Voice
+
+STT
+
+Request
+
+Response
+
+Draft
+
+Teacher Review
+
+Insert
+
+Save
+
+까지만 담당한다.

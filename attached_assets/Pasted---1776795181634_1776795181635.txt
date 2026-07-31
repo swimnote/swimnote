@@ -1,0 +1,135 @@
+지금 라우팅 구조는 단일화 방향으로 거의 맞습니다. 다만 최종 확정을 위해 구조 설명만 하지 말고, 아래 항목을 실제 코드 기준으로 점검해서 결과를 보고해 주세요. 추측 말고 “파일명 / 함수명 / 실제 분기 / 호출 순서 / 남아 있는 예외” 기준으로 답변해 주세요.
+
+[목표]
+로그인 완료, 소셜 로그인, 앱 재실행 복원, 신규 회원가입, 승인 대기 상태까지 포함해서
+라우팅 진입점 1개 / 목적지 계산 1개 / 이동 트리거 1개 구조가 실제 코드에서도 완전히 유지되는지 검증.
+중복 라우팅, 잘못된 role 주입, 세션 없음 리다이렉트 충돌, 승인 대기 누락 가능성을 전부 확인.
+
+[반드시 확인할 질문]
+1. computeLoginDest()는 최종 목적지를 무엇으로 판단하나요?
+- finishLogin()의 첫 번째 인자 문자열(role/kind)
+- user 내부 실제 role 값
+- 둘 다 섞어서 판단
+위 셋 중 정확히 무엇인지 코드로 설명해 주세요.
+특히 finishLogin("admin", user)로 호출해도 teacher가 /(teacher)/today-schedule 로 가는 이유를 실제 조건문 기준으로 보여 주세요.
+
+2. finishLogin()의 호출 위치를 전부 나열해 주세요.
+- 일반 로그인
+- 카카오 로그인
+- 애플 로그인
+- 앱 재실행 복원
+- signup.tsx
+- teacher-signup.tsx
+- kakao-link.tsx
+각 파일에서 어떤 인자로 호출되는지 실제 코드 한 줄 수준으로 정리해 주세요.
+
+3. RootNav에서 라우팅을 실제로 발생시키는 코드는 pendingRoute useEffect 하나만 남았나요?
+- router.replace 호출이 프로젝트 전체에 어디에 남아 있는지 검색해서
+- 로그인/복원 관련 흐름에서 아직 직접 router.replace 하는 코드가 남아 있는지
+- 남아 있다면 파일명과 용도까지 보고해 주세요.
+회원가입 완료 후 직접 이동하는 의도된 코드와, 중복 라우팅 위험 코드는 구분해서 설명해 주세요.
+
+4. kind useEffect의 “세션 없음이면 / 로 이동” 로직이 pendingRoute 처리와 충돌하지 않나요?
+다음을 각각 점검해 주세요.
+- isAuthenticating=true일 때는 건너뛰는지
+- pendingRoute가 이미 세팅된 상태에서도 / 리다이렉트가 먼저 실행될 가능성이 없는지
+- 앱 복원 초기에 loadStored()보다 먼저 세션 없음 분기가 타지 않는지
+실제 조건문과 실행 순서를 설명해 주세요.
+
+5. clearPendingRoute() 호출 타이밍이 안전한가요?
+- router.replace(pendingRoute) 직후 바로 clearPendingRoute() 하는 구조인지
+- 이때 렌더 타이밍상 route 유실이나 깜빡임 가능성은 없는지
+- AppLoadingScreen 해제 시점과 Stack 렌더 시점이 논리적으로 안전한지
+실제 useEffect 흐름으로 설명해 주세요.
+
+6. 승인 대기 teacher 흐름이 앱 재실행 시에도 일관적인가요?
+- 승인 대기 상태에서 finishLogin()을 호출하지 않는 것이 맞는지
+- 앱을 껐다 켜면 loadStored() 또는 세션 복원 로직에서 어떤 화면으로 가는지
+- 승인 대기 사용자가 잘못 teacher 홈 또는 admin 홈으로 들어갈 가능성이 없는지
+실제 상태값과 조건문 기준으로 답해 주세요.
+
+7. 로그인 후 role 캐시/세션 캐시가 꼬일 가능성은 없나요?
+다음을 확인해 주세요.
+- 로그아웃 시 pendingRoute 초기화 여부
+- 로그아웃 시 세션/user/kind 초기화 여부
+- 이전 사용자 role이 남아서 다음 로그인에 영향 주는지 여부
+- 다른 역할 계정으로 연속 로그인 시 올바른 홈으로 가는지
+관련 함수와 초기화 코드를 함께 보여 주세요.
+
+8. computeLoginDest()의 전체 매핑을 실제 코드와 함께 보여 주세요.
+아래가 실제 코드와 100% 일치하는지 확인해 주세요.
+- super_admin / platform_admin / super_manager → /(super)/dashboard
+- teacher → /(teacher)/today-schedule
+- pool_admin with pool → /(admin)/dashboard
+- pool_admin without pool → /pool-apply
+- sub_admin → /(admin)/dashboard
+- parent → /(parent)/home
+누락 role, default fallback, 예외 분기까지 같이 보여 주세요.
+
+9. 앱 재실행 복원도 정말 같은 경로를 타나요?
+- loadStored()가 finishLogin()을 어떻게 호출하는지
+- 로그인 직후와 앱 복원 시 computeLoginDest()를 똑같이 타는지
+- 앱 복원에서만 별도 분기나 우회 코드가 남아 있지 않은지
+실제 호출 체인으로 설명해 주세요.
+
+10. 기존 구 라우팅 잔재가 정말 없는지 검색 결과를 보여 주세요.
+아래 키워드 전체 검색해서 남아 있는 파일/라인을 보고해 주세요.
+- doRoute
+- hasRouted
+- didRoute
+- checkOnboarding
+- clearPoolTimers
+- ROLE_HOME_MAP
+- computeRoleKeys
+- APP_ROOTS
+- firstWaitTimerRef
+- retryTimerRef
+- poolRetryRef
+- authingTimerRef
+남아 있으면 왜 남아 있는지 설명해 주세요.
+
+[코드 구조도 같이 보내 주세요]
+최종 검증을 위해 아래 코드 블록을 그대로 가져와 주세요.
+1. _layout.tsx 전체
+2. SessionContext.tsx에서
+- pendingRoute state 정의
+- finishLogin()
+- clearPendingRoute()
+- loadStored() 또는 앱 복원 관련 부분
+- Provider value 반환부
+3. AuthContext.tsx에서 finishLogin 노출 부분
+4. computeLoginDest() 전체 함수
+5. signup.tsx / teacher-signup.tsx / kakao-link.tsx에서 finishLogin 호출 부분
+6. unifiedLogin / kakaoSocialLogin / appleSocialLogin 관련 finishLogin 연결 부분
+7. 로그아웃 함수 전체
+8. 승인 대기 teacher 관련 상태 분기 코드 전체
+
+[보고 형식]
+반드시 아래 형식으로 답변해 주세요.
+
+1. 최종 결론
+- 구조 통과 / 조건부 통과 / 미통과
+
+2. 실제 호출 체인
+- 일반 로그인
+- 카카오 로그인
+- 애플 로그인
+- 앱 재실행
+- 신규 parent 가입
+- 신규 pool_admin 가입
+- 신규 teacher 즉시 승인
+- teacher 승인 대기
+
+3. 위험 지점
+- 파일명
+- 코드 위치
+- 왜 위험한지
+- 수정 필요 여부
+
+4. 잔재 검색 결과
+- 키워드별 존재 여부
+
+5. 코드 첨부
+- 요청한 코드 그대로
+
+추측하지 말고 실제 코드 기준으로만 답변해 주세요.

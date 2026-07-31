@@ -1,0 +1,215 @@
+SWIMNOTE AI 앱 개발 자산 전수 회수 작업지시
+
+이번 작업은 코드 수정이나 기능 구현이 아니다.
+과거 Expo Go에서 실제 실행되었던 AI 일지 UI와 음성인식 기능을 포함해, 모든 개발 자산을 읽기 전용으로 조사·백업하는 작업이다.
+
+절대 금지
+현재 HEAD에 파일 복원 금지
+기존 파일 덮어쓰기 금지
+코드 수정 금지
+merge, rebase, reset 금지
+삭제 금지
+새 구현 금지
+“현재 HEAD에 없으므로 존재하지 않는다”는 결론 금지
+
+사용자는 과거 Expo Go에서 AI 일지 UI와 음성인식 기능이 실제 동작하는 것을 확인했다. 따라서 현재 HEAD뿐 아니라 개발 서버, 작업 브랜치, Git 객체, 체크포인트, 배포 기록 전체를 조사해야 한다.
+
+1. 현재 상태 동결
+
+다음을 원문 그대로 제출한다.
+
+git status --short --branch
+git rev-parse HEAD
+git branch -a -vv
+git remote -v
+git stash list
+git worktree list
+git tag --list
+
+현재 HEAD를 가리키는 백업 브랜치를 생성하되 다른 변경은 하지 않는다.
+
+git branch backup/pre-ai-recovery-376fa37 376fa37
+2. 모든 Git 이력 조사
+
+다음 파일과 디렉터리가 존재하는 모든 커밋·브랜치·태그를 조사한다.
+
+artifacts/swim-app/components/ai/
+artifacts/swim-app/components/ai/core/AIContracts.ts
+artifacts/swim-app/components/ai/core/BaseAIModal.tsx
+artifacts/swim-app/components/ai/components/AIPermissionView.tsx
+artifacts/swim-app/components/ai/components/AIResultArea.tsx
+artifacts/swim-app/components/ai/features/diary/useDiaryAI.ts
+artifacts/swim-app/components/ai/features/diary/DiaryAIButton.tsx
+artifacts/swim-app/components/ai/features/diary/DiaryAIContent.tsx
+artifacts/swim-app/components/ai/hooks/useAIStateMachine.ts
+artifacts/swim-app/components/ai/hooks/useVoiceRecorder.ts
+artifacts/api-server/scripts/test-whisper.mjs
+artifacts/api-server/src/routes/ai.ts
+
+아래 명령을 포함해 조사한다.
+
+git log --all --full-history --date=iso --name-status -- artifacts/swim-app/components/ai
+git log --all --diff-filter=D --date=iso --summary -- artifacts/swim-app/components/ai
+git rev-list --all --objects | grep -E 'components/ai|useDiaryAI|useVoiceRecorder|useAIStateMachine|BaseAIModal|DiaryAIButton|DiaryAIContent|AIResultArea|AIPermissionView'
+git branch -a --contains dfeddc1
+git branch -a --contains 6c0ea18
+git branch -a --contains a63c7ee
+git branch -a --contains 5f0be03
+git branch -a --contains d56cef3
+git rev-list --parents -n 1 dfeddc1
+git rev-list --parents -n 1 f99819f
+git merge-base dfeddc1 376fa37
+git diff --name-status dfeddc1..376fa37 -- artifacts/swim-app/components/ai
+3. Expo Go 실행본의 출처 조사
+
+과거 Expo Go에서 실행된 코드가 어떤 브랜치·커밋·작업 디렉터리에서 시작됐는지 조사한다.
+
+확인 대상:
+
+Expo 개발 서버 실행 로그
+Replit run/development workflow 설정
+.replit
+replit.nix
+package.json scripts
+Expo Metro 캐시 경로
+EAS Update 설정
+app.json
+eas.json
+update branch/channel
+당시 QR 코드가 가리킨 개발 서버
+deployment/checkpoint/snapshot
+Replit Agent 작업 브랜치
+미추적 파일 또는 과거 working tree
+
+다음을 확인해 제출한다.
+
+find . -maxdepth 4 \( -name '.replit' -o -name 'replit.nix' -o -name 'eas.json' -o -name 'app.json' -o -name 'package.json' \) -print
+git log --all --date=iso --oneline -- .replit replit.nix eas.json app.json
+git fsck --full --no-reflogs --unreachable --lost-found
+git reflog show --all --date=iso
+
+git fsck에서 발견된 dangling commit/blob도 AI 관련 경로와 내용인지 확인한다. 절대 삭제하거나 정리하지 않는다.
+
+4. 개발 서버 및 체크포인트 회수
+
+Replit에 접근 가능한 범위에서 다음을 모두 확인한다.
+
+이전 Agent checkpoint
+rollback snapshot
+workspace history
+이전 development deployment
+미병합 브랜치
+삭제된 브랜치
+autosave snapshot
+실행 당시 파일시스템
+현재 Git에 포함되지 않은 서버 파일
+Expo 개발 서버가 마지막으로 사용한 소스
+
+각 자산에 대해 다음을 기록한다.
+
+자산 종류	ID/이름	생성 시각	기준 커밋	AI 파일 존재	음성인식 존재	실행 가능성
+
+접근할 수 없는 Replit 내부 기록은 “없음”이라고 단정하지 말고 지원팀 확인 필요라고 표시한다.
+
+5. 후보 코드 별도 백업
+
+발견한 앱 AI 코드 후보는 현재 프로젝트에 넣지 말고 다음과 같은 별도 디렉터리에 추출한다.
+
+/recovery-evidence/
+  /git-dfeddc1/
+  /git-6c0ea18/
+  /git-a63c7ee/
+  /git-5f0be03/
+  /checkpoint-[id]/
+  /development-server-[id]/
+  manifest.json
+
+각 후보는 원본 경로 구조를 유지한다.
+
+manifest.json에는 다음을 기록한다.
+
+{
+  "source_type": "git_commit | branch | checkpoint | development_server | dangling_object",
+  "source_id": "",
+  "source_time": "",
+  "base_commit": "",
+  "files": [],
+  "sha256": {},
+  "notes": ""
+}
+
+후보 파일의 SHA-256도 계산한다.
+
+6. 실행 기능 대조
+
+각 후보 코드에 대해 다음 기능이 실제로 포함돼 있는지 정적 분석한다.
+
+AI 버튼
+AI Modal
+입력 상태
+처리 상태
+결과 상태
+오류 상태
+음성 권한 요청
+녹음 시작
+녹음 종료
+녹음 취소
+Whisper multipart 업로드
+STT 텍스트 표시
+/api/ai/diary/generate 호출
+JWT 첨부
+학생 목록 전달
+student_ref 결과 매핑
+기존 일지 필드 적용
+기존 일지 저장 흐름 유지
+화면 종료 시 recorder cleanup
+
+다음 표로 제출한다.
+
+기능	후보 소스	파일·함수	존재 여부	완성도	현재 API와 호환 여부
+7. 삭제·누락 원인 특정
+
+components/ai/가 마지막으로 존재한 커밋과 처음 사라진 커밋을 정확히 특정한다.
+
+보고 항목:
+
+마지막 존재 커밋
+최초 누락 커밋
+삭제 diff
+해당 커밋 작성자/시간
+merge parent
+삭제가 직접 삭제인지
+다른 parent 선택으로 사라진 것인지
+브랜치 병합 누락인지
+index/working tree 불일치인지
+
+추측과 사실을 분리한다.
+
+8. 최종 제출물
+
+완료 답변만 하지 말고 다음을 제출한다.
+
+전체 조사 보고서
+Git 명령 원문 출력
+발견된 모든 브랜치·체크포인트 목록
+recovery-evidence 전체 파일 목록
+후보별 SHA-256
+AI 기능 비교표
+Expo Go 실행본의 가장 유력한 출처
+삭제·누락 최초 커밋
+복구 가능 파일과 재구현 필요 파일 분류
+조사하지 못한 Replit 내부 자산 목록
+현재 코드 변경 여부 확인
+생성한 백업 브랜치 이름
+완료 판정 금지
+
+아래 표현은 증거 없이 사용하지 않는다.
+
+전부 복구 완료
+100% 복구 가능
+파일이 존재하지 않음
+테스트 완료
+Expo Go 정상 실행
+음성인식 정상 작동
+
+이번 단계의 완료는 자산을 찾고 원본 그대로 보존한 것까지만 의미한다.

@@ -1,0 +1,326 @@
+[Apple 로그인 후 RootNav 라우팅 코드 정밀 분석 — race condition / navigate 미호출 가능성 지적]
+
+지금 코드 기준으로 보면,
+“Apple 로그인 성공 후 setKind('admin'/'parent') → RootNav useEffect 트리거 → doRoute() 실행”
+이 흐름 자체는 맞습니다.
+
+하지만 현재 구현에는
+1) race condition 가능성
+2) navigate 미호출 가능성
+3) 잘못된 강제 이동 가능성
+이 실제로 존재합니다.
+
+아래를 코드 기준으로 정확히 지적합니다.
+
+━━━━━━━━━━━━━━━━━━
+1. Apple 로그인 함수(handleAppleLogin) 분석
+━━━━━━━━━━━━━━━━━━
+
+코드:
+- signInAsync 성공
+- identityToken 있으면 appleSocialLogin(...)
+- 성공 후 별도 라우팅 없음
+- “RootNav가 자동 라우팅”에 전적으로 의존
+
+문제점:
+1) handleAppleLogin 자체는 로그인 성공 후 아무 보장도 하지 않음
+- appleSocialLogin이 resolve되어도
+- setKind / setUser / storage save / route가 모두 끝났는지 확인하지 않음
+- 즉, 로그인 성공 후 “다음 화면 이동 책임”이 전부 RootNav useEffect에 몰려 있음
+
+2) catch 분기에서 에러 메시지만 처리하고 흐름 보장은 없음
+- 로그인 시트 닫힘
+- error 표시
+- 사용자는 같은 화면에 남음
+
+이 함수 자체는 “로그인 시작” 역할만 하고,
+로그인 완료 후 안정적인 진입 보장은 하지 않음.
+따라서 실제 문제는 SessionContext + RootNav 조합에서 봐야 함.
+
+━━━━━━━━━━━━━━━━━━
+2. RootNav useEffect 전체 구조 분석
+━━━━━━━━━━━━━━━━━━
+
+핵심 코드:
+
+if (isLoading) return;
+
+if (!kind) {
+  didRoute.current = false;
+  setHasRouted(false);
+  router.replace("/");
+  return;
+}
+
+if (didRoute.current) return;
+
+function navigate(path: string) {
+  if (didRoute.current) return;
+  didRoute.current = true;
+  setHasRouted(true);
+  router.replace(path as any);
+}
+
+async function doRoute() {
+  ...
+  if (role === "pool_admin") {
+    if (!adminUser?.swimming_pool_id) { navigate("/pool-apply"); return; }
+
+    if (!pool) {
+      if (!poolTimeoutRef.current) {
+        poolTimeoutRef.current = setTimeout(() => {
+          poolTimeoutRef.current = null;
+          if (didRoute.current) return;
+          poolRetryRef.current = 1;
+          refreshPool();
+          poolTimeoutRef.current = setTimeout(() => {
+            poolTimeoutRef.current = null;
+            if (didRoute.current) return;
+            navigate("/(admin)/dashboard");
+          }, 4000);
+        }, 4000);
+      }
+      return;
+    }
+
+    if (pool.approval_status === "pending") { navigate("/pending"); return; }
+    if (pool.approval_status === "rejected") { navigate("/rejected"); return; }
+  }
+  ...
+}
+doRoute();
+
+━━━━━━━━━━━━━━━━━━
+3. 실제로 race condition이 발생하는 지점
+━━━━━━━━━━━━━━━━━━
+
+[문제 A] useEffect가 여러 번 재실행될 수 있음
+dependency:
+[kind, isLoading, adminUser?.role, adminUser?.swimming_pool_id, pool?.id, pool?.approval_status, activeRole, lastUsedTenant]
+
+즉 아래 값이 바뀔 때마다 doRoute()가 다시 돈다:
+- kind
+- adminUser
+- pool
+- activeRole
+- lastUsedTenant
+
+로그인 직후엔 이 값들이 순차적으로 들어오기 때문에
+useEffect가 짧은 시간에 여러 번 실행될 수 있음.
+
+그런데 didRoute.current는 “최종 navigate”가 일어나기 전까지 false 상태로 남기 때문에,
+대기 중인 동안 같은 doRoute() 로직이 반복 실행될 수 있음.
+
+결론:
+- pool이 아직 없을 때
+- activeRole이 아직 없을 때
+- adminUser는 왔지만 pool은 안 왔을 때
+
+이 상태 조합에서 doRoute가 중첩 실행될 수 있고,
+타이머/refreshPool/분기 판단이 여러 번 얽힐 가능성이 있음.
+
+━━━━━━━━━━━━━━━━━━
+[문제 B] poolTimeoutRef.current 하나로 2단계 타이머를 덮어씀
+━━━━━━━━━━━━━━━━━━
+
+현재 코드:
+- 첫 4초 타이머 저장
+- 실행되면 current = null
+- refreshPool()
+- 다시 4초 타이머 저장
+
+즉 같은 ref 하나로
+1차 타이머
+2차 타이머
+를 모두 관리하고 있음.
+
+이 구조 문제:
+- 중간에 useEffect가 다시 돌면서 pool이 들어오거나 상태가 바뀌어도
+  기존 타이머 정리가 명시적으로 안 보임
+- route가 이미 결정됐어도 늦게 남은 타이머가 다시 navigate 시도할 가능성이 있음
+  (didRoute.current 가드가 있긴 하지만, 타이머 정리 없는 건 여전히 불안정)
+
+더 큰 문제:
+- pool이 4~8초 사이 어중간한 시점에 들어오면
+  effect 재실행 / 기존 타이머 / 새 분기 판단이 꼬일 수 있음
+
+결론:
+- 타이머 기반 라우팅은 state machine 없이 사용하면 race condition 위험 높음
+
+━━━━━━━━━━━━━━━━━━
+[문제 C] pool이 null인 동안 navigate가 호출되지 않는 “무조건 대기 구간” 존재
+━━━━━━━━━━━━━━━━━━
+
+현재 로직:
+if (!pool) {
+  if (!poolTimeoutRef.current) { ...타이머설정... }
+  return;
+}
+
+즉 pool이 없으면 즉시 navigate를 하지 않고 return한다.
+
+이게 뜻하는 것:
+- useEffect가 돌았지만
+- navigate는 호출되지 않음
+- hasRouted는 false
+- didRoute.current도 false
+- 화면은 AppLoadingScreen 유지
+
+즉 navigate 미호출 케이스는 실제로 존재한다.
+
+이건 의도된 대기일 수 있지만,
+문제는 그 뒤 흐름이 타이머 + refreshPool + 재실행에 전적으로 의존한다는 점이다.
+
+즉 “navigate가 반드시 결국 호출된다”는 보장이 코드상 약하다.
+
+━━━━━━━━━━━━━━━━━━
+4. navigate가 아예 호출되지 않을 수 있는 실제 케이스
+━━━━━━━━━━━━━━━━━━
+
+[케이스 1] kind는 생겼지만 adminUser가 아직 덜 들어온 상태
+- kind === "admin"
+- adminUser?.role undefined
+- role === "pool_admin" 분기 진입 안 함
+- activeRole도 아직 없음
+- roleKeys 계산이 기대와 다르게 나오면 org-role-select로 갈 수도 있고
+  경우에 따라 기대하지 않은 fallback으로 빠질 수 있음
+
+[케이스 2] pool_admin + swimming_pool_id 있음 + pool 영원히 null
+- 타이머는 돌지만
+- refreshPool()가 실패해도 별도 성공/실패 상태 추적이 없음
+- 결국 8초 후 dashboard 강제 이동
+- 그런데 dashboard가 pool 전제면 다시 내부에서 꼬일 수 있음
+
+[케이스 3] setActiveRole / checkRolePermission / checkOnboarding 비동기 중 값 변동
+- doRoute() 도는 동안 activeRole, allAccounts, adminUser가 바뀔 수 있음
+- 이전 호출의 결과와 새 호출의 상태가 섞일 수 있음
+
+[케이스 4] !kind 분기가 너무 공격적
+- 로그인 직후 setKind 전/중간에 effect가 실행되면
+  router.replace("/") 호출
+- 이 타이밍이 로그인 성공 직후 상태 반영과 엇갈리면
+  “로그인 화면으로 돌아간 것처럼 보이는” 현상 가능
+
+이건 특히 중요함.
+현재 코드:
+if (!kind) {
+  didRoute.current = false;
+  setHasRouted(false);
+  router.replace("/");
+  return;
+}
+
+즉 kind가 잠깐 비는 순간마다
+로그인 화면으로 강하게 보내버림.
+
+로그인 성공 직후 상태가 완전히 settle되기 전
+kind가 아직 비어 있으면 로그인 화면 복귀 체감이 발생할 수 있음.
+
+━━━━━━━━━━━━━━━━━━
+5. 현재 구조의 가장 큰 설계 문제
+━━━━━━━━━━━━━━━━━━
+
+RootNav가 너무 많은 걸 동시에 판단함:
+- 인증 여부
+- 계정 종류
+- pool 존재 여부
+- approval status
+- activeRole
+- permission
+- onboarding
+
+이걸 useEffect 1개에서 비동기로 다 처리하니까
+로그인 직후 상태가 순차적으로 들어오는 과정에서 흔들릴 수밖에 없음.
+
+특히 pool_admin 흐름은
+“로그인 성공 → adminUser 도착 → pool fetch → approval 판정 → dashboard 이동”
+인데,
+현재는 이 흐름이 명시적 상태머신이 아니라
+“값 들어오면 재실행되는 useEffect”에 기대고 있음.
+
+이 구조는 간헐 버그를 만들기 좋다.
+
+━━━━━━━━━━━━━━━━━━
+6. 결론 — 질문에 대한 직접 답
+━━━━━━━━━━━━━━━━━━
+
+질문:
+“Apple 로그인 성공 후 setKind(...)가 호출되면 RootNav useEffect가 트리거되어 doRoute()가 실행된다. pool_admin의 경우 pool이 null이면 최대 8초 대기 후 대시보드로 이동하는데, 이 흐름에 race condition이나 navigate가 호출되지 않는 경우가 있는가?”
+
+답:
+예. 둘 다 있습니다.
+
+1) race condition 있다
+- dependency가 많고
+- 로그인 직후 상태가 순차적으로 변하고
+- useEffect가 여러 번 재실행되며
+- 타이머와 refreshPool까지 섞여 있어서
+- 간헐적으로 흐름 꼬일 수 있음
+
+2) navigate가 호출되지 않는 경우 있다
+- !pool 분기에서 즉시 return
+- 이 구간은 navigate 미호출 상태가 실제로 존재
+- 이후 타이머/refreshPool/재실행이 정상 동작해야만 최종 navigate가 보장됨
+
+3) 추가로 !kind 분기가 로그인 직후 루트를 다시 “/”로 보내는 문제도 있어
+- 로그인 성공 후 상태 settle 전 잠깐 kind 비면
+- 로그인 화면 복귀 체감 가능
+
+━━━━━━━━━━━━━━━━━━
+7. 권장 수정 방향
+━━━━━━━━━━━━━━━━━━
+
+임시 패치 말고 아래로 구조 정리 권장:
+
+A. !kind 즉시 router.replace("/") 제거 또는 지연
+- 로그인 직후 auth settling 상태를 따로 둬서
+- 잠깐 kind 비는 구간에서 로그인 화면으로 보내지 않게
+
+B. pool_admin 라우팅을 useEffect 재실행 + 타이머 조합이 아니라 상태머신처럼 분리
+예:
+- authReady
+- userReady
+- poolLoading
+- poolLoaded
+- poolLoadError
+- routed
+
+C. pool timeout 후 dashboard 강제 이동보다
+- poolLoadError 화면
+- 재시도 버튼
+- 또는 dashboard가 pool 없는 상태도 안전하게 렌더 가능해야 함
+
+D. 타이머 2개를 하나의 ref로 관리하지 말고
+- firstWaitTimeoutRef
+- retryTimeoutRef
+분리
+
+E. doRoute 내부에서 사용하는 스냅샷 값 고정
+- 함수 시작 시점의 kind/adminUser/pool/activeRole 값을 로컬 변수로 캡처
+- 실행 도중 외부 state 변경과 섞이지 않게
+
+━━━━━━━━━━━━━━━━━━
+8. 지금 당장 해야 할 디버깅 로그 추가
+━━━━━━━━━━━━━━━━━━
+
+반드시 추가:
+- useEffect 진입 시점마다 route cycle id 생성
+- doRoute 시작/종료 로그
+- !kind 분기 진입 로그
+- !pool 분기 진입 로그
+- 타이머 1차 시작/실행 로그
+- refreshPool 시작/완료 로그
+- 타이머 2차 시작/실행 로그
+- navigate(path) 호출 로그 + cycle id
+- router.replace(path) 직전 로그
+
+이거 없으면 “왜 가끔 안 넘어가는지” 또 못 잡음
+
+━━━━━━━━━━━━━━━━━━
+최종 한 줄 판단
+━━━━━━━━━━━━━━━━━━
+
+현재 코드는 “항상 틀린 코드”는 아니지만,
+로그인 직후 상태가 순차적으로 들어오는 상황에서
+간헐적으로 꼬일 수 있는 구조가 맞습니다.
+즉, 재현이 들쭉날쭉한 Apple 로그인 후 미진입 문제를 설명할 수 있는 코드입니다.

@@ -1,0 +1,98 @@
+B로 진행하십시오.
+
+단, 이전 세션의 허위 완료 보고를 기준으로 하지 말고 현재 저장소의 실제 구조를 기준으로 최소 구현하십시오.
+
+목표는 Production 배포 전에 아래 5개 안전장치를 실제 코드에 구현하는 것입니다.
+
+1. DIARY_PIPELINE_MODE
+- env var 지원
+- 허용값: legacy, parser_v1
+- 잘못된 값이면 warning 로그 후 legacy
+- 요청마다 또는 런타임에서 읽어 Kill Switch로 사용 가능하게 구현
+- 기존 legacy 경로는 유지
+
+2. OpenAI Timeout
+- DIARY_GPT_TIMEOUT_MS env var
+- 기본값 30000ms
+- 숫자가 아니거나 0 이하이면 기본값 사용
+- 잘못된 설정값은 warning 로그
+- 실제 GPT 호출에 timeout 적용
+
+3. MODEL_TIMEOUT
+- GPT timeout 발생 시 내부 태그 또는 오류 코드 MODEL_TIMEOUT으로 구분
+- API 응답은 HTTP 504
+- retryable=true
+- 일반 INTERNAL_ERROR와 분리
+
+4. STUDENT_RESOLUTION_REQUIRED
+- 학생을 확정하지 못해 생성이 차단되는 경우 별도 오류 코드 사용
+- retryable=false
+- HTTP status는 현재 오류 계약과 호환되게 유지 가능
+- 일반 INTERNAL_ERROR와 반드시 구분
+
+5. parser_v1 Tenant 격리
+- JWT poolId와 diary.context.pool_id 비교
+- parser_v1에서 JWT poolId가 null 또는 없으면 403
+- 불일치하면 403
+- 일치하면 통과
+- legacy는 하위 호환 유지 가능
+- role 기반 자동 예외는 만들지 말 것
+
+6. 비식별 로그
+parser_v1 성공/실패 로그에 아래 필드 추가:
+- request_id
+- feature_flag
+- engine_version
+- prompt_version
+- validator_result
+- error_code
+- latency_ms
+- pool_id는 필요 시 해시 또는 내부 식별자 형태
+다음은 로그 금지:
+- 교사 원문
+- 학생 이름
+- prompt 전문
+- GPT 응답 전문
+- JWT
+- Authorization header
+
+7. 테스트
+새 테스트 파일을 실제 저장소 경로에 추가하십시오.
+
+필수 테스트:
+- parser_v1 정상 성공
+- invalid DIARY_PIPELINE_MODE fallback
+- JWT poolId 없음 + parser_v1 → 403
+- JWT poolId null + parser_v1 → 403
+- JWT poolId 불일치 → 403
+- JWT poolId 일치 → 성공
+- STUDENT_RESOLUTION_REQUIRED
+- GPT timeout → MODEL_TIMEOUT
+- MODEL_TIMEOUT → 504
+- request_id echo
+- legacy 하위 호환
+
+8. 구현 원칙
+- 현재 artifacts/api-server 구조를 기준으로 작업
+- 존재하지 않는 DiaryPipelineAdapterV1 구조를 억지로 새로 만들지 말고 현재 코드 구조에 맞게 구현
+- 과도한 리팩터링 금지
+- 새 아키텍처 도입 금지
+- 기존 E1 Contract 유지
+- 기존 request_id echo, output validation, student_ref 처리 보존
+- 구현 후 실제 파일 경로와 diff를 보고
+- 테스트 통과 수치를 실제 실행 결과로만 보고
+- 구현하지 않은 항목을 완료 처리하지 말 것
+
+완료 후 다음 형식으로 보고하십시오.
+
+1. 변경 파일
+2. 각 기능의 실제 구현 위치
+3. 환경변수
+4. 오류 코드와 HTTP status
+5. Tenant 격리 규칙
+6. 신규 테스트 목록
+7. 전체 테스트 결과
+8. 남은 실패와 원인
+9. Production 배포 가능 여부
+
+구현과 테스트 완료 전에는 Production Publish와 Expo OTA를 진행하지 마십시오.

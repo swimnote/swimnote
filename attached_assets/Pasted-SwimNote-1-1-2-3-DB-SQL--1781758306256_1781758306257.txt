@@ -1,0 +1,470 @@
+SwimNote 사진 시스템 1차 작업 — 최종 승인 지시문
+
+중요:
+
+바로 코딩하지 말고
+
+1. 최종 계획 검토
+2. 수정 파일 목록 출력
+3. DB 변경 SQL 출력
+4. 신규 API 스펙 출력
+5. 예상 영향 범위 출력
+
+후 작업 시작
+
+---
+
+## 작업 목표
+
+현재:
+
+사진 업로드
+→ 일지에 직접 업로드
+
+구조가 섞여 있음
+
+목표:
+
+전체앨범사진
+↓
+선생님 또는 관리자 업로드
+↓
+일지 작성 시 선택
+↓
+journal_id 연결
+↓
+학부모에게 노출
+
+사진은 한 번만 저장
+
+파일 복제 없음
+
+재업로드 없음
+
+journal_id 연결만 사용
+
+---
+
+1단계
+storage.ts 버그 수정
+----------------
+
+현재:
+
+student_photos
+student_videos
+
+참조
+
+실제:
+
+photo_assets_meta
+video_assets_meta
+
+사용
+
+수정:
+
+student_photos
+→ photo_assets_meta
+
+student_videos
+→ video_assets_meta
+
+file_size_bytes
+→ file_size
+
+목표:
+
+* 관리자 저장공간 정상 표시
+* 선생님 저장공간 정상 표시
+* 대시보드 저장공간 정상 표시
+
+주의:
+
+업로드 제한 로직은 수정 금지
+
+현재 정상 동작 중
+
+---
+
+2단계
+photo_assets_meta journal_id 인덱스 추가
+-----------------------------------
+
+확인 결과:
+
+photo_assets_meta
+
+journal_id 컬럼 존재
+
+인덱스 없음
+
+실행:
+
+CREATE INDEX IF NOT EXISTS idx_photo_assets_journal_id
+ON photo_assets_meta(journal_id);
+
+---
+
+3단계
+전체앨범 → 일지 연결 구조 구현
+------------------
+
+핵심 목표:
+
+사진은 전체앨범에만 업로드
+
+일지에는 복사 저장 금지
+
+journal_id 연결만 사용
+
+---
+
+## 업로드 권한
+
+teacher
+→ 업로드 가능
+
+pool_admin
+→ 업로드 가능
+
+sub_admin
+→ 기존 권한 정책에 따라 가능
+
+super_admin
+→ 기존 정책 유지
+
+---
+
+## 전체앨범 개념
+
+전체앨범은
+
+수영장 운영 과정에서 쌓이는 공용 사진 저장소
+
+관리자와 선생님 모두 업로드 가능
+
+---
+
+4단계
+신규 API 추가
+---------
+
+GET /photos/picker
+
+역할:
+
+일지 작성 시 사용할 전체앨범 사진 조회
+
+---
+
+## 권한별 조회 범위
+
+teacher
+
+* 본인이 담당하는 전체 반의 group 사진
+
+조건:
+
+album_type = 'group'
+
+AND
+
+class_groups.teacher_user_id = 로그인 사용자
+
+---
+
+pool_admin / sub_admin
+
+* 해당 수영장 전체 group 사진
+
+조건:
+
+album_type = 'group'
+
+AND
+
+pool_id = 현재 수영장
+
+---
+
+super_admin
+
+* 기존 정책 유지
+
+---
+
+## 반환값
+
+id
+
+file_url
+
+created_at
+
+uploaded_by_name
+
+class_name
+
+정렬:
+
+created_at DESC
+
+---
+
+POST /photos/diary-attach
+
+body
+
+{
+diary_id: string,
+photo_ids: string[]
+}
+
+동작
+
+선택된 사진들의
+
+journal_id = diary_id
+
+업데이트
+
+---
+
+GET /photos/diary/:diaryId
+
+반환
+
+해당 일지에 연결된 사진 목록
+
+---
+
+5단계
+AlbumPickerModal 추가
+-------------------
+
+신규 파일:
+
+AlbumPickerModal.tsx
+
+기능:
+
+* 3열 그리드
+* 다중 선택
+* 최대 20장
+* 확인
+* 취소
+
+---
+
+6단계
+일지 작성 화면 수정
+-----------
+
+대상:
+
+DiaryWriteView.tsx
+
+diary.tsx
+
+---
+
+기존:
+
+반 사진 추가
+
+→ 갤러리 직접 업로드
+
+유지
+
+---
+
+추가:
+
+앨범에서 선택
+
+버튼
+
+---
+
+동작
+
+전체앨범 조회
+
+↓
+
+사진 선택
+
+↓
+
+선택 사진 미리보기
+
+↓
+
+일지 저장
+
+↓
+
+diary-attach 호출
+
+---
+
+조건:
+
+최대 20장
+
+---
+
+7단계
+일지 수정 화면 수정
+-----------
+
+대상:
+
+DiaryEditView.tsx
+
+---
+
+기존 연결 사진 조회
+
+GET /photos/diary/:diaryId
+
+---
+
+가능 기능
+
+* 기존 연결 사진 표시
+* 사진 추가
+* 사진 제거
+
+---
+
+제거 시:
+
+파일 삭제 금지
+
+사진 재업로드 금지
+
+journal_id = NULL
+
+처리
+
+---
+
+## 확장성 검토 결과
+
+현재 SwimNote 운영 방식 기준
+
+사진 1개
+→ 일지 1개
+
+구조가 적합
+
+photo_diary_links
+
+매핑 테이블은
+
+현재 요구사항 기준 불필요
+
+---
+
+향후
+
+"사진 1개를 여러 일지에 사용"
+
+요구가 실제 발생할 경우
+
+그 시점에 매핑 테이블 구조 검토
+
+---
+
+## 향후 영상 확장 대비
+
+이번 작업은 사진만 구현
+
+video 관련 작업 제외
+
+---
+
+다만
+
+향후
+
+videos picker
+
+videos diary attach
+
+구조 추가 가능하도록
+
+내부 로직은 함수 분리
+
+---
+
+URL은 photos 전용 유지
+
+GET /photos/picker
+
+POST /photos/diary-attach
+
+GET /photos/diary/:diaryId
+
+---
+
+## 이번 작업 제외
+
+보류:
+
+* 부모앱 앨범 UI 개편
+* 선생님앨범 사용이력 UI
+* 영상 14일 만료
+* video journal_id
+* 영상 정책 변경
+* 다운로드 로그
+* 즐겨찾기
+* 200MB 변경
+* 영상 자동 압축
+
+---
+
+## 작업 완료 기준
+
+① 저장공간 수치 정상 표시
+
+② journal_id 인덱스 생성
+
+③ GET /photos/picker 동작
+
+④ POST /photos/diary-attach 동작
+
+⑤ GET /photos/diary/:diaryId 동작
+
+⑥ 전체앨범 사진 조회 가능
+
+⑦ 일지에서 앨범 선택 가능
+
+⑧ 최대 20장 선택 가능
+
+⑨ 선택 사진 journal_id 연결
+
+⑩ 사진 이중 저장 없음
+
+⑪ 기존 업로드 기능 영향 없음
+
+---
+
+## 작업 시작 전 출력
+
+반드시 먼저 출력:
+
+1. 수정 파일 최종 목록
+
+2. 신규 파일 목록
+
+3. DB 변경 SQL
+
+4. 신규 API 목록
+
+5. 예상 영향 범위
+
+출력 후 작업 시작

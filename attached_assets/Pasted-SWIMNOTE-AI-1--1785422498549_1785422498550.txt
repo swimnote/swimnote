@@ -1,0 +1,221 @@
+SWIMNOTE AI 일지 실기기 긴급 런타임 버그 조사
+
+실기기에서 다음 문제가 동시에 발생한다.
+
+1. 어떤 입력을 넣어도 입력과 상관없는 고정된 수영 일지 문구가 생성됨
+2. AI 결과 화면과 오류 화면과 삽입 화면이 여러 겹으로 중복 렌더링됨
+3. 화면이 계속 깜빡임
+4. “일지에 삽입” 버튼이 두 줄 또는 중복으로 표시됨
+5. 닫기 버튼이 작동하지 않음
+6. 뒤로가기도 작동하지 않음
+7. 오류 화면에서 다시 시도/닫기 영역도 중복 표시됨
+
+현재 상태는 배포 완료가 아니며,
+AI 일지 기능은 RUNTIME BROKEN 상태다.
+
+추측 수정 금지.
+먼저 아래를 조사한다.
+
+================================
+1. 실제 입력 payload 검증
+================================
+
+AI 작성 버튼을 눌렀을 때 서버로 보내는 실제 request body를 확인한다.
+
+반드시 확인:
+
+- teacher_input
+- common_text
+- student_refs
+- students
+- pool_id
+- class_id
+- lesson_date
+- requestId
+
+민감정보는 마스킹한다.
+
+사용자가 입력한 문장이 실제 payload에 그대로 포함되는지 확인한다.
+
+다음 가능성을 각각 확인:
+
+- 입력값 누락
+- 빈 문자열 전송
+- 테스트용 기본값 사용
+- 이전 입력 캐시 사용
+- 이전 결과 재사용
+- fallback 문구 자동 삽입
+
+================================
+2. 서버 실제 응답 확인
+================================
+
+Render 로그에서 같은 requestId의 응답을 확인한다.
+
+기록:
+
+- HTTP status
+- response JSON 전체 구조
+- common_diary
+- students
+- studentId
+- generated_text
+- fallback 여부
+- OpenAI 호출 여부
+- OpenAI 원문 응답
+- normalize 전 응답
+- normalize 후 응답
+
+서버가 실제로 고정 문구를 반환하는지,
+앱이 잘못 표시하는지 구분한다.
+
+================================
+3. 상태 머신 조사
+================================
+
+useDiaryAI 상태를 모두 확인한다.
+
+가능 상태:
+
+- IDLE
+- INPUT
+- PROCESSING
+- RESULT
+- ERROR
+- INSERTING
+- INSERTED
+- UPLOADING
+
+한 시점에 하나의 화면 상태만 렌더링되는지 확인한다.
+
+다음 값을 로그로 기록:
+
+- machine.state
+- nativeVisible
+- rendered
+- lockDismiss
+- insertDone
+- isInsertingRef
+- processing
+- error
+- result 존재 여부
+
+상태 변경 시점마다 로그를 남긴다.
+
+================================
+4. 중복 렌더링 원인 조사
+================================
+
+확인:
+
+- BaseAIModal이 한 번만 mount되는지
+- DiaryAIContent가 한 번만 mount되는지
+- parent에서 Modal을 두 번 렌더링하는지
+- ERROR와 RESULT가 독립 if문으로 동시에 렌더링되는지
+- rendered && children 구조가 중복 호출되는지
+- React StrictMode/Expo Router 재마운트 영향
+- key 변경으로 Modal이 재생성되는지
+- 동일 컴포넌트가 두 route layer에 존재하는지
+- nested Modal이 존재하는지
+
+실기기에서 mount/unmount count를 로그로 남긴다.
+
+================================
+5. 깜빡임 루프 조사
+================================
+
+다음 useEffect를 모두 조사한다.
+
+- nativeVisible 관련 effect
+- rendered 관련 effect
+- result/error 관련 effect
+- retry 관련 effect
+- onClose 관련 effect
+- 상태 reset 관련 effect
+- 입력 변경 시 자동 generate effect
+- 앱 foreground 복귀 effect
+
+각 effect가 어떤 dependency로 반복 실행되는지 확인한다.
+
+특히 다음 패턴을 찾는다.
+
+setNativeVisible(false)
+→ setRendered(false)
+→ onClose()
+→ parent state 변경
+→ visible true
+→ 다시 mount
+
+또는
+
+ERROR
+→ retry
+→ PROCESSING
+→ ERROR
+
+자동 반복 여부 확인.
+
+================================
+6. 닫기/뒤로가기 차단 조사
+================================
+
+확인:
+
+- ERROR 상태에서 lockDismiss가 false인지
+- RESULT 상태에서 lockDismiss가 false인지
+- PROCESSING 종료 후 lockDismiss가 반드시 해제되는지
+- onRequestClose 호출 여부
+- 닫기 버튼 onPress 호출 여부
+- handleClose 호출 여부
+- doClose 호출 여부
+- parent onClose 호출 여부
+- router.back/navigation.goBack 호출 여부
+
+버튼이 눌리지 않는 것인지,
+콜백은 실행되지만 상태가 다시 열리는 것인지 구분한다.
+
+================================
+7. 임시 안전장치
+================================
+
+원인 확정 전 운영 안전장치가 필요하면
+아래만 최소 적용 가능:
+
+- ERROR 상태에서는 lockDismiss 강제 false
+- RESULT 상태에서는 lockDismiss 강제 false
+- Modal 중복 mount 방지
+- 같은 requestId 중복 generate 차단
+- 자동 retry 금지
+- Close 시 모든 AI state 단일 reset 함수로 초기화
+
+단, 사용자 승인 없이 OTA 배포 금지.
+
+================================
+8. 최종 판정
+================================
+
+다음 중 하나 이상으로 명확히 판정한다.
+
+A. INPUT PAYLOAD BROKEN
+B. SERVER RESPONSE BROKEN
+C. RESPONSE NORMALIZATION BROKEN
+D. DUPLICATE MODAL MOUNT
+E. STATE MACHINE LOOP
+F. DISMISS LOCK NOT RELEASED
+G. MULTIPLE CAUSES
+H. EVIDENCE INSUFFICIENT
+
+최종 보고:
+
+- 실제 입력 payload
+- 실제 서버 응답
+- mount count
+- 상태 전환 순서
+- 깜빡임 발생 루프
+- 닫기 버튼 onPress 호출 여부
+- lockDismiss 상태
+- 중복 렌더링 위치
+- 최소 수정 파일
+- OTA 가능 여부
+
+증거 없이 “수정 완료” 금지.

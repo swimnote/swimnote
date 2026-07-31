@@ -1,0 +1,21 @@
+kind = "web"
+  previewPath = "/swimnote-web/"
+  title = "SwimNote 홈페이지"
+  version = "1.0.0"
+  id = "artifacts/swimnote-web"
+  router = "path"
+
+  [[integratedSkills]]
+  name = "react-vite"
+  version = "1.0.0"
+
+  [[services]]
+  name = "web"
+  paths = [ "/swimnote-web/" ]
+  localPort = 20219
+
+  [services.development]
+  run = "pnpm --filter @workspace/swimnote-web run dev"
+
+  [services.env]
+  PORT = "20219"

@@ -1,0 +1,830 @@
+# SWIMNOTE Media Engine Refactoring 최종 구현 지시문
+
+이번 작업은 단순 버그 패치가 아니라
+SWIMNOTE의 사진·미디어 구조를 장기적으로 안정화하는 핵심 리팩토링입니다.
+
+기존 조사 보고서와 Media Engine 설계안을 기준으로 구현하되,
+아래 수정 원칙을 반드시 반영하세요.
+
+이번 작업의 목표는 다음과 같습니다.
+
+1. 사진 중복, 누락, 삭제 사진 재표시를 완전히 제거
+2. Teacher와 Parent가 동일한 Media Engine을 사용
+3. 사진 업로드와 일지 작성이 거의 동시에 체감되도록 응답속도 개선
+4. 일지 작성 중 UI가 멈추지 않도록 비동기 구조 개선
+5. 일지뿐 아니라 앨범, 공지, 쪽지, 영상까지 확장 가능한 범용 Media Engine 구축
+6. 기존 앱 기능과 현재 사용자 흐름을 최대한 유지하면서 안전하게 전환
+
+==================================================
+0. 작업 원칙
+==================================================
+
+- 증상만 개별 수정하지 마세요.
+- photo_assets_meta를 미디어의 단일 Source of Truth로 사용하세요.
+- 기존 데이터를 손상시키지 마세요.
+- DB 변경과 API 변경은 하위 호환성을 고려하세요.
+- 기존 화면이 갑자기 동작하지 않도록 단계적으로 전환하세요.
+- 중간 실패로 일지만 저장되거나 사진만 연결되는 불완전 상태가 생기지 않도록 하세요.
+- 구현 전 현재 코드 기준으로 변경 영향 범위를 다시 확인하세요.
+- 구현 후 반드시 회귀 테스트와 성능 측정을 수행하세요.
+
+==================================================
+1. 최종 Media 데이터 규칙
+==================================================
+
+photo_assets_meta를 모든 미디어 연결의 기준으로 사용합니다.
+
+공통 일지 사진:
+
+journal_id = diary_id
+student_note_id = NULL
+student_id = NULL
+media_status = 'attached'
+
+학생 개인 일지 사진:
+
+journal_id = diary_id
+student_note_id = note_id
+student_id = student_id
+media_status = 'attached'
+
+업로드 완료 후 아직 일지에 연결되지 않은 사진:
+
+journal_id = NULL
+student_note_id = NULL
+media_status = 'draft'
+
+일지에서 분리됐지만 파일은 유지하는 사진:
+
+journal_id = NULL
+student_note_id = NULL
+media_status = 'detached'
+
+삭제 또는 장기 미사용 사진:
+
+media_status = 'archived'
+
+모든 Teacher·Parent 일지 조회는
+media_status = 'attached'인 사진만 반환해야 합니다.
+
+status 컬럼을 이미 다른 용도로 사용 중이면
+충돌 여부를 확인한 뒤 media_status 컬럼을 별도로 추가하세요.
+
+==================================================
+2. Media UUID
+==================================================
+
+모든 미디어 레코드는 변경되지 않는 고유 식별자를 가져야 합니다.
+
+기존 photo_assets_meta.id가 이미 전역적으로 유일하고
+업로드·재연결·삭제·복구 과정에서도 절대 변경되지 않는다면
+그 값을 media_uuid로 사용해도 됩니다.
+
+그 조건이 보장되지 않으면 media_uuid 컬럼을 추가하세요.
+
+media_uuid는 다음에 사용합니다.
+
+- 중복 제거
+- Optimistic UI와 서버 응답 매칭
+- 재시도
+- 삭제
+- 복구
+- 캐시 업데이트
+- 업로드 중복 방지
+
+동일 media_uuid가 동일 일지 조회 결과에 두 번 포함되지 않도록 보장하세요.
+
+==================================================
+3. Reservation 방식의 임시 사진 구조
+==================================================
+
+기존 auto-attach를 단순 제거하지 마세요.
+
+SWIMNOTE 현장에서는 선생님이 수업 중 사진을 여러 번 촬영한 뒤
+수업이 끝난 후 일지를 작성할 수 있습니다.
+
+따라서 업로드된 사진을 임시 예약 상태로 보관하세요.
+
+업로드 시 다음 정보를 저장하세요.
+
+- pool_id
+- class_id
+- lesson_date
+- uploaded_by
+- media_status = 'draft'
+- reservation_key 또는 동일 목적의 식별 정보
+- created_at
+
+일지 작성 화면에서는 해당 조건에 맞는 draft 사진을 즉시 불러옵니다.
+
+조건 예시:
+
+- 동일 pool_id
+- 동일 class_id
+- 동일 lesson_date
+- 동일 업로더 또는 해당 반 접근 권한
+- media_status = 'draft'
+
+단, 자동으로 일지에 강제 연결하지 마세요.
+
+작성 화면에서 자동으로 후보 사진을 보여주되,
+선생님이 제외하거나 선택을 확인할 수 있어야 합니다.
+
+일지 저장 시 실제 선택된 사진만 attached 상태로 전환하세요.
+
+==================================================
+4. MediaService 구현
+==================================================
+
+다음 파일을 생성하세요.
+
+artifacts/api-server/src/services/mediaService.ts
+
+모든 일지 사진 관련 API는 직접 SQL을 작성하지 말고
+MediaService를 통하도록 변경하세요.
+
+필수 인터페이스 예시:
+
+getDiaryPhotos(
+  diaryId,
+  poolId,
+  actorContext
+)
+
+getDraftPhotosForClass(
+  classId,
+  lessonDate,
+  poolId,
+  actorContext
+)
+
+attachPhotosToDiary(
+  diaryId,
+  photoIds,
+  poolId,
+  actorContext
+)
+
+attachPhotosToStudentNote(
+  diaryId,
+  noteId,
+  studentId,
+  photoIds,
+  poolId,
+  actorContext
+)
+
+detachPhotosFromDiary(
+  diaryId,
+  photoIds,
+  poolId,
+  actorContext
+)
+
+handleDiaryDeleted(
+  diaryId,
+  poolId,
+  actorContext
+)
+
+archiveMedia(
+  photoIds,
+  poolId,
+  actorContext
+)
+
+MediaService 내부에서 반드시 검증할 사항:
+
+- pool_id 일치
+- diary가 삭제되지 않았는지
+- diary와 class_group의 관계
+- student_note와 diary의 관계
+- student_id와 student_note의 관계
+- 요청 사용자의 접근 권한
+- 중복 photo ID
+- 이미 다른 일지에 연결된 사진인지
+- media_status가 연결 가능한 상태인지
+
+==================================================
+5. 사진 조회 규칙 통일
+==================================================
+
+Teacher와 Parent는 동일한 getDiaryPhotos 결과를 사용하세요.
+
+기본 조회:
+
+SELECT pam.*
+FROM photo_assets_meta pam
+JOIN class_diaries cd
+  ON cd.id = pam.journal_id
+ AND cd.is_deleted = false
+WHERE pam.journal_id = $diaryId
+  AND pam.pool_id = $poolId
+  AND pam.media_status = 'attached'
+
+공통사진:
+
+student_note_id IS NULL
+AND student_id IS NULL
+
+개인사진:
+
+student_note_id IS NOT NULL
+AND student_id IS NOT NULL
+
+Teacher:
+
+- 해당 반 또는 일지에 접근 권한이 있으면 공통+개인 전체 조회 가능
+
+Parent:
+
+- 공통사진 전체
+- 개인사진은 자신의 자녀 student_id에 해당하는 것만 반환
+
+Parent 필터는 student_note_id만 보지 말고
+student_id와 note/diary 관계를 함께 검증하세요.
+
+==================================================
+6. 일지 삭제 규칙
+==================================================
+
+일지 삭제 시 연결된 사진을 그대로 attached 상태로 남기지 마세요.
+
+권장 규칙:
+
+- class_diaries.is_deleted = true
+- 해당 diary_id의 photo_assets_meta:
+  - journal_id = NULL
+  - student_note_id = NULL
+  - media_status = 'detached'
+- student_id는 원본 개인앨범 소속 보존이 필요하면 유지 가능
+- 일지 조회 API에서는 detached 사진을 절대 반환하지 않음
+- 앨범에서는 detached 사진을 다시 선택 가능
+
+삭제 작업과 사진 해제는 하나의 DB transaction 안에서 처리하세요.
+
+중간 실패 시 전체 rollback해야 합니다.
+
+==================================================
+7. 일지 저장 Transaction
+==================================================
+
+기존의
+
+POST /diaries
+→ diary-attach
+→ note-attach
+
+분리 구조에서 발생할 수 있는 불완전 상태를 제거하세요.
+
+가능하면 서버에 통합 저장 서비스 또는 통합 endpoint를 만드세요.
+
+예시:
+
+POST /diaries/with-media
+
+Body:
+
+{
+  class_group_id,
+  lesson_date,
+  common_content,
+  student_notes: [
+    {
+      student_id,
+      note_content,
+      photo_ids
+    }
+  ],
+  common_photo_ids
+}
+
+서버 transaction:
+
+1. class_diaries INSERT
+2. student notes INSERT
+3. common photo attach
+4. student photo attach
+5. audit log 기록
+6. commit
+
+어느 단계에서든 실패하면 전체 rollback하세요.
+
+기존 POST /diaries는 하위 호환을 위해 유지할 수 있지만,
+신규 클라이언트는 통합 저장 방식을 사용하도록 전환하세요.
+
+==================================================
+8. 업로드 성능 구조
+==================================================
+
+사용자는 사진 업로드가 끝날 때까지 화면이 멈추는 느낌을 받아서는 안 됩니다.
+
+최종 흐름:
+
+1. 사진 선택 또는 촬영
+2. localUri로 즉시 미리보기 표시
+3. 백그라운드 presign 요청
+4. 여러 사진 병렬 업로드
+5. 업로드 완료 후 서버 photo record 확정
+6. 일지 저장 시 batch attach
+7. React Query cache 즉시 업데이트
+8. 백그라운드 서버 재검증
+
+여러 장 업로드 시 순차 업로드하지 말고
+적절한 동시성 제한을 둔 병렬 업로드를 사용하세요.
+
+권장 동시 업로드 수:
+
+- 3~5개
+
+네트워크가 느린 경우에도
+텍스트 입력과 화면 조작은 계속 가능해야 합니다.
+
+==================================================
+9. Optimistic UI
+==================================================
+
+사진 선택 즉시 MediaItem을 로컬 상태에 추가하세요.
+
+MediaItem 예시:
+
+{
+  mediaUuid,
+  localUri,
+  serverPhotoId,
+  source: 'camera' | 'device' | 'album',
+  targetType: 'common' | 'student',
+  studentId,
+  uploadStatus: 'pending' | 'uploading' | 'uploaded' | 'attached' | 'error',
+  progress
+}
+
+화면에서는 localUri를 먼저 사용하고,
+서버 업로드가 완료되면 server URL로 교체하세요.
+
+업로드 실패 시:
+
+- 해당 사진에 실패 상태 표시
+- 전체 작성 내용을 잃지 않음
+- 사진 한 장만 재시도 가능
+- 중복 업로드 방지를 위해 동일 mediaUuid 사용
+
+==================================================
+10. React Query 기반 캐시 통합
+==================================================
+
+직접 Map 기반 캐시를 새로 만들지 마세요.
+
+기존 앱이 React Query를 사용 중이면
+queryClient를 단일 캐시 계층으로 사용하세요.
+
+권장 query key:
+
+['diary-media', diaryId]
+
+['draft-media', poolId, classId, lessonDate]
+
+['student-diary-media', diaryId, studentId]
+
+필수 사용:
+
+- queryClient.setQueryData
+- queryClient.invalidateQueries
+- mutation onMutate
+- mutation onError
+- mutation onSettled
+
+attach 성공 직후 setQueryData로 화면을 즉시 갱신하고,
+백그라운드 invalidate로 서버 상태를 확인하세요.
+
+Teacher와 Parent가 같은 query key를 무조건 공유할 필요는 없지만,
+같은 Media DTO와 동일한 MediaService 결과를 기반으로 해야 합니다.
+
+권한에 따라 응답 범위가 다르므로
+Parent 캐시는 studentId를 포함해 분리하세요.
+
+==================================================
+11. 클라이언트 상태 통합
+==================================================
+
+현재 다음 상태를 제거 또는 통합하세요.
+
+- selectedAlbumIds
+- selectedAlbumPhotos
+- studentAlbumPhotos
+- groupMedia
+- studentMedia
+
+새 훅:
+
+artifacts/swim-app/hooks/useDiaryMedia.ts
+
+하나의 MediaItem 배열을 기준으로 관리하세요.
+
+필수 기능:
+
+- addCommonMedia
+- addStudentMedia
+- removeMedia
+- replaceLocalMediaWithServerMedia
+- markUploadError
+- retryUpload
+- getCommonMedia
+- getStudentMedia
+- resetDraft
+- restoreDraft
+
+ID 배열과 객체 배열을 따로 관리하지 마세요.
+
+하나의 MediaItem 객체 배열에서
+필요한 ID만 파생 계산하세요.
+
+==================================================
+12. AsyncStorage Draft
+==================================================
+
+기존 diary_draft_{groupId} 구조를 유지하되,
+텍스트와 미디어 draft를 함께 저장하세요.
+
+저장 대상:
+
+- commonContent
+- student notes
+- mediaUuid
+- localUri
+- serverPhotoId
+- uploadStatus
+- classGroupId
+- lessonDate
+- updatedAt
+
+앱 종료 또는 화면 이탈 후 복원할 수 있어야 합니다.
+
+단, localUri가 더 이상 유효하지 않을 수 있으므로
+복원 시 파일 존재 여부를 확인하고,
+서버 업로드 완료 사진은 server URL을 우선 사용하세요.
+
+==================================================
+13. DiaryPhotoStrip
+==================================================
+
+DiaryPhotoStrip은 단순 표시 컴포넌트로 정리하세요.
+
+컴포넌트 내부에서 복잡한 attach 상태를 관리하지 마세요.
+
+입력:
+
+- diaryId
+- studentId
+- parentMode
+- optimisticMedia
+- onRetry
+- onRemove
+
+동작:
+
+- React Query 캐시 데이터 우선 표시
+- optimisticMedia 병합
+- mediaUuid 기준 중복 제거
+- 썸네일 우선 표시
+- 실패 이미지만 재시도
+- 화면 전체 reload 금지
+
+==================================================
+14. Thumbnail 정책
+==================================================
+
+목록과 스트립에서는 원본 이미지를 바로 불러오지 마세요.
+
+우선순위:
+
+1. thumbnail_url
+2. preview_url
+3. original_url
+
+회색 placeholder 문제를 해결하기 위해 다음을 확인하세요.
+
+- R2 thumbnail object 존재 여부
+- content-type
+- signed URL 만료
+- URL 필드명 일치
+- Image onError 로그
+- 잘못된 로컬 URI
+- 캐시된 실패 URL
+
+thumbnail이 없으면 서버에서 비동기 생성하거나
+원본의 축소 URL을 반환하도록 하세요.
+
+==================================================
+15. 기존 버그 수정
+==================================================
+
+반드시 아래 7개 버그를 모두 해결하세요.
+
+버그 1:
+GET /photos/group/:classId?date=의 삭제 일지 필터 누락
+
+조치:
+- class_diaries.is_deleted = false 필수
+- attached 사진은 journal_id 기준으로 조회
+- draft 사진은 class_id + lesson_date + media_status='draft'로 별도 조회
+- OR 조건으로 attached와 draft를 섞지 말 것
+
+버그 2:
+일지 삭제 후 photo_assets_meta.journal_id 유지
+
+조치:
+- transaction 안에서 detached 처리
+
+버그 3:
+note-attach 시 student_id 미설정
+
+조치:
+- student_note_id, student_id, journal_id 동시 설정
+- note와 student 관계 검증
+
+버그 4:
+selectedAlbumIds와 selectedAlbumPhotos 상태 불일치
+
+조치:
+- useDiaryMedia 단일 상태로 통합
+
+버그 5:
+attach 완료 후 PhotoStrip 즉시 갱신 안 됨
+
+조치:
+- mutation 성공 즉시 React Query setQueryData
+- 이후 background invalidate
+
+버그 6:
+classGroupId 파라미터만으로 router.back 실행
+
+조치:
+- classGroupId 존재 여부를 외부 진입 판단 기준에서 제거
+- 명시적 backTo 또는 returnTo 파라미터만 사용
+- 기본 저장 후 history 화면 유지
+
+버그 7:
+Parent UNION 중복
+
+조치:
+- diary_id 기준 dedup
+- DISTINCT ON 또는 ROW_NUMBER 사용
+- 같은 diary_id는 한 번만 반환
+- is_makeup_diary는 별도 계산
+
+==================================================
+16. Parent 일지 쿼리 성능 개선
+==================================================
+
+현재 자녀 × 일지별 N+1 쿼리를 제거하세요.
+
+가능하면 한 번의 쿼리 또는 제한된 수의 batch 쿼리로 다음을 반환하세요.
+
+- diary
+- common content
+- 해당 학생 note
+- 공통사진 수
+- 개인사진 수
+- reaction
+- unread message count
+
+필요하지 않은 원본 URL 전체를 목록 API에서 반환하지 마세요.
+
+목록에서는 thumbnail과 count만 반환하고,
+상세 진입 시 전체 사진을 조회하세요.
+
+==================================================
+17. DB 인덱스
+==================================================
+
+실제 쿼리 실행계획을 확인한 후 필요한 인덱스를 추가하세요.
+
+후보:
+
+CREATE INDEX IF NOT EXISTS idx_photo_assets_diary_lookup
+ON photo_assets_meta (journal_id, media_status, created_at)
+WHERE journal_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_photo_assets_student_note_lookup
+ON photo_assets_meta (student_note_id, student_id, pool_id)
+WHERE student_note_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_photo_assets_draft_lookup
+ON photo_assets_meta (pool_id, class_id, lesson_date, uploaded_by, media_status, created_at)
+WHERE journal_id IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_class_diaries_active_lookup
+ON class_diaries (class_group_id, lesson_date, is_deleted);
+
+인덱스 추가 전후 EXPLAIN ANALYZE 결과를 비교하세요.
+
+==================================================
+18. 범용 Media Engine 구조
+==================================================
+
+MediaService를 일지 전용 이름과 구조로 제한하지 마세요.
+
+향후 아래 기능에서 재사용 가능하도록 설계하세요.
+
+- 일지 사진
+- 개인앨범
+- 공지사항 사진
+- 쪽지 이미지
+- 동영상 첨부
+- 관리자 자료
+- 향후 AI 분석 이미지·영상
+
+권장 공통 필드:
+
+- media_uuid
+- media_type: image | video
+- owner_type
+- owner_id
+- pool_id
+- uploaded_by
+- object_key
+- thumbnail_key
+- file_size
+- mime_type
+- media_status
+- created_at
+
+단, 이번 작업에서 대규모 테이블 전면 교체는 하지 마세요.
+
+현재 photo_assets_meta를 안정화한 뒤
+향후 범용화가 가능하도록 서비스 인터페이스만 일반화하세요.
+
+==================================================
+19. 하위 호환성과 배포
+==================================================
+
+기존 API를 즉시 삭제하지 마세요.
+
+단계적 전환:
+
+Phase 1:
+- MediaService 도입
+- 기존 API 내부 구현만 교체
+- DB 인덱스 및 media_status migration
+- 기존 앱 영향 없음
+
+Phase 2:
+- 통합 저장 API 추가
+- 신규 클라이언트에서 사용
+- 기존 API 유지
+
+Phase 3:
+- useDiaryMedia 적용
+- Optimistic UI
+- React Query 캐시 적용
+
+Phase 4:
+- 기존 auto-attach 로직 제거
+- Reservation 방식 적용
+- 오래된 레거시 경로 정리
+
+서버와 앱 버전이 잠시 다를 수 있으므로
+구버전 앱에서도 치명적 오류가 발생하지 않아야 합니다.
+
+==================================================
+20. 기존 데이터 Cleanup
+==================================================
+
+구현 전에 수정하지 말고 먼저 dry-run 보고서를 만드세요.
+
+찾아야 할 데이터:
+
+- 삭제된 diary를 journal_id로 참조하는 사진
+- student_note_id는 있으나 student_id가 NULL인 사진
+- journal_id와 student_note의 diary_id가 불일치하는 사진
+- 동일 object_key 또는 media_uuid 중복
+- status 값이 잘못된 사진
+- 존재하지 않는 diary 또는 note를 참조하는 사진
+
+dry-run 결과:
+
+- 유형별 개수
+- 실제 ID 샘플
+- 수정 예정 값
+- 복구 가능 여부
+
+승인 후 transaction 기반 cleanup을 실행하세요.
+
+==================================================
+21. 성능 목표
+==================================================
+
+개발 환경과 실제 네트워크 차이를 구분해서 측정하세요.
+
+목표 체감 성능:
+
+- 사진 선택 후 local preview: 100ms 이내
+- 일지 저장 버튼 후 history 화면 전환: 300ms 이내
+- 텍스트 일지 서버 저장: 일반 조건 1초 이내
+- attach 완료 후 UI 반영: 완료 즉시 또는 200ms 이내
+- 사진 4장 업로드: 네트워크 제외 앱 UI 블로킹 없음
+- 목록 API: 일반 데이터 기준 500ms 내외 목표
+- PhotoStrip 캐시 hit: 즉시 표시
+
+사진 파일 실제 업로드 시간은 네트워크와 파일 크기에 따라 달라질 수 있으므로,
+업로드가 진행 중이어도 사용자는 일지 작성과 화면 이동을 계속할 수 있어야 합니다.
+
+==================================================
+22. 테스트 시나리오
+==================================================
+
+아래 시나리오를 모두 자동 또는 수동 테스트하세요.
+
+1.
+공통사진 2장 + 개인사진 2장 저장
+→ Teacher 총 4장
+→ 해당 Parent는 공통 2장 + 본인 자녀 개인사진만 표시
+
+2.
+일지 삭제
+→ 기존 일지 화면에서 사진 미노출
+→ 같은 날짜 새 일지 작성 시 이전 사진 자동 혼입 없음
+→ detached 사진은 앨범에서 재선택 가능
+
+3.
+그룹사진을 특정 학생 개인사진으로 연결
+→ student_id와 student_note_id 모두 설정
+→ 해당 학부모에게 표시
+→ 다른 학부모에게 미표시
+
+4.
+앨범 선택 모달 여러 번 진입
+→ 기존 선택 유지
+→ 선택 해제 정확
+→ ID와 객체 상태 불일치 없음
+
+5.
+사진 attach 완료
+→ 화면 재진입 없이 PhotoStrip 즉시 갱신
+
+6.
+미작성 일지 화면에서 진입
+→ 저장 후 history 유지
+→ 명시적 backTo가 있을 때만 지정 화면 복귀
+
+7.
+정규 수업과 보강이 같은 diary를 참조
+→ Parent 목록에 한 번만 표시
+
+8.
+업로드 중 앱 화면 이동
+→ draft 유지
+→ 복귀 시 진행 상태 복원
+
+9.
+사진 10장 동시 업로드
+→ UI 멈춤 없음
+→ 실패한 사진만 재시도 가능
+→ 중복 레코드 없음
+
+10.
+서버 저장 중 한 단계 실패
+→ transaction rollback
+→ 불완전 diary/media 연결 없음
+
+==================================================
+23. 최종 제출물
+==================================================
+
+구현 후 다음을 제출하세요.
+
+1. 변경된 전체 파일 목록
+2. 각 파일의 핵심 변경 내용
+3. DB migration 내용
+4. 데이터 cleanup dry-run 결과
+5. 실제 cleanup 결과
+6. API 변경 전후 비교
+7. 버그 1~7 해결 증거
+8. 성능 측정 결과
+9. 회귀 테스트 결과
+10. 서버 배포 필요 여부
+11. OTA 업데이트 가능 범위
+12. 앱스토어 새 빌드 필요 여부
+13. 남아 있는 위험 요소
+14. 롤백 방법
+
+==================================================
+24. 구현 승인
+==================================================
+
+위 방향으로 구현을 진행하세요.
+
+최종 결정:
+
+- 일지 삭제 시 사진은 제거하지 않고 detached 상태로 보존
+- 기존 단순 auto-attach는 제거
+- 대신 class_id + lesson_date 기반 Reservation/draft 후보 시스템 적용
+- 사진은 선생님이 작성 화면에서 확인한 항목만 실제 일지에 연결
+- 캐시는 직접 Map이 아니라 React Query 사용
+- 일지·노트·사진 연결은 가능한 한 단일 DB transaction으로 처리
+- MediaService는 일지 전용이 아니라 향후 확장 가능한 범용 구조로 설계
+- 현재 앱의 사용자 흐름은 유지하되 저장 후 history 화면을 기본값으로 사용
+
+Phase 1부터 순서대로 구현하고,
+각 Phase 완료 시 변경사항과 테스트 결과를 보고한 뒤 다음 단계로 진행하세요.

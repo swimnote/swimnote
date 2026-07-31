@@ -1,0 +1,174 @@
+긴급 작업입니다.
+
+현재 일지 저장 기능 전체가 깨져 있습니다.
+
+확인된 실제 증상:
+
+1. 선생님이 일지 작성 후 저장 버튼을 누르는 즉시
+   ErrorFallback 화면이 나타남
+
+2. 학부모 홈의 최근 수업일지에는 NEW 표시와 항목은 생성되지만
+   실제 본문 내용이 비어 있음
+
+3. 학부모 일지 상세 화면에서
+   선생님이 첨부한 사진이 표시되지 않음
+
+4. 학부모 홈의 최근 사진 썸네일도 비어 있음
+
+5. 학부모 앨범 화면에도 사진/영상이 없음
+
+이번 작업은 화면 디자인 수정이 아니라
+"일지 저장 → DB 저장 → 미디어 연결 → 학부모 조회 → 홈 썸네일 표시"
+전체 파이프라인 복구 작업입니다.
+
+추측으로 수정하지 말고 아래 순서대로 증거를 수집하세요.
+
+[1단계: 저장 요청 추적]
+
+1. 저장 버튼 onPress 시작 지점 확인
+2. 저장 시 실제 호출되는 API URL, method, request body 출력
+3. 공통일지, 학생별일지, 사진, 영상 데이터가 각각 어떤 필드로 전송되는지 출력
+4. API 응답의 HTTP status, Content-Type, JSON body 출력
+5. 저장 직후 발생하는 실제 JavaScript error message와 stack trace 출력
+6. ErrorFallback으로 전달된 error 객체의
+   - message
+   - stack
+   - component stack
+   - 발생 파일
+   - 발생 라인
+   을 제출
+
+[2단계: 프로덕션 DB 검증]
+
+실제 방금 작성한 일지 레코드를 프로덕션 DB에서 직접 조회하세요.
+
+다음 항목을 출력하세요.
+
+- diary id
+- swimming_pool_id
+- class_group_id
+- teacher_id
+- student_id 또는 대상 학생 목록
+- common_content
+- individual_content
+- title
+- created_at
+- status
+- published 여부
+- parent_visible 여부
+- media 관련 id
+- photo/video URL 또는 storage key
+
+본문이 어느 컬럼에 저장됐는지,
+빈 문자열인지,
+null인지,
+다른 테이블에 분리 저장됐는지 명확히 확인하세요.
+
+[3단계: 미디어 저장 검증]
+
+사진 업로드 흐름을 별도로 추적하세요.
+
+1. 사진 원본 업로드 요청
+2. 업로드 성공 응답
+3. 반환된 storage URL/key
+4. diary-media 연결 테이블 INSERT 여부
+5. 해당 diary id와 media id 연결 여부
+6. parent 조회 API에서 media 배열 포함 여부
+7. 홈 recent photos API에서 동일 media 반환 여부
+
+파일 업로드는 성공했지만 DB 연결만 실패했는지,
+DB에는 연결됐지만 조회 API가 누락하는지,
+URL이 잘못 생성되는지 각각 구분하세요.
+
+[4단계: 학부모 조회 API 검증]
+
+다음 API들의 실제 JSON을 제출하세요.
+
+- 학부모 최근 수업일지
+- 학부모 일지 상세
+- 학부모 최근 사진
+- 학부모 앨범
+
+각 응답에 아래 필드가 있는지 확인하세요.
+
+- diary content
+- student content
+- photos
+- videos
+- thumbnail
+- createdAt
+- teacherName
+- className
+
+NEW 표시용 레코드만 있고 content/media가 빠지는 이유를 찾으세요.
+
+[5단계: 저장 성공 처리 검증]
+
+클라이언트는 아래 조건을 모두 만족할 때만 저장 성공으로 처리하세요.
+
+- HTTP 2xx
+- Content-Type application/json
+- 정상 success payload
+- diary id 반환
+- 본문 저장 확인
+- 첨부 미디어 연결 성공 확인
+
+본문 저장 또는 미디어 연결 중 하나라도 실패하면
+성공 화면 전환이나 NEW 표시를 하지 마세요.
+
+부분 저장을 허용하지 마세요.
+
+[6단계: 트랜잭션 처리]
+
+일지 본문 저장과 미디어 연결이 여러 DB 작업이라면
+가능한 경우 하나의 DB transaction으로 묶으세요.
+
+다음 중 하나라도 실패하면 전체 rollback:
+
+- diary 생성
+- 학생별 내용 생성
+- media row 생성
+- diary-media 연결
+- parent-visible publish 처리
+
+[7단계: 캐시 및 화면 갱신]
+
+저장 성공 후 다음 캐시/상태를 모두 갱신하세요.
+
+- teacher diary list
+- parent recent diary
+- parent diary detail
+- parent recent photos
+- parent album
+- home dashboard
+
+잘못된 optimistic update로 NEW만 먼저 표시하지 마세요.
+서버 저장 성공 후 refetch된 실제 데이터로 표시하세요.
+
+[8단계: 완료 조건]
+
+아래가 실제 앱에서 모두 통과해야만 완료입니다.
+
+1. 저장 버튼을 눌러도 ErrorFallback이 뜨지 않음
+2. 선생님 화면에서 저장된 본문이 다시 열었을 때 그대로 보임
+3. 학부모 홈 최근 수업일지에 본문 일부가 보임
+4. 학부모 일지 상세에 전체 본문이 보임
+5. 첨부 사진이 일지 상세에 표시됨
+6. 첨부 사진이 홈 최근 사진 썸네일에 표시됨
+7. 첨부 사진이 앨범에도 표시됨
+8. 앱을 완전히 종료 후 재실행해도 그대로 유지됨
+9. 동일 일지가 중복 생성되지 않음
+10. 실패 시 사용자에게 오류가 표시되고 부분 데이터가 남지 않음
+
+이번에는 먼저 아래 증거만 제출하세요.
+
+- 실제 error stack
+- 저장 API request/response
+- 생성된 production DB diary row
+- 생성된 media row
+- diary-media 연결 row
+- parent detail API JSON
+- parent recent photos API JSON
+
+증거 제출 전에는 수정 완료라고 보고하지 마세요.
+레이아웃, 디자인, AI 기능은 건드리지 마세요.

@@ -1,0 +1,460 @@
+SWIMNOTE Teacher Diary AI
+PRODUCTION SERVER PATH FORENSIC AUDIT
+프리뷰 코드 저장경로·운영서버 경로 강제 검증
+
+중요
+
+지금부터 절대로 코드 수정하지 마라.
+
+특히 다음 행동 금지:
+
+- 파일 이동
+- 파일 복사
+- 새 폴더 생성
+- package.json 수정
+- dependency 설치
+- routes/index.ts 수정
+- ai.ts 수정
+- commit
+- push
+- Render 재배포
+- main 병합
+- “일단 옮겨보고 확인” 방식
+- 프리뷰 경로를 운영 경로라고 추정
+- artifacts 폴더를 production이라고 가정
+
+이번 작업은 오직
+“실제 Production 서버가 어디인지”
+“Teacher Diary AI 코드가 어디에 저장됐는지”
+“둘이 같은 서버인지”
+를 증거로 확정하는 작업이다.
+
+================================
+핵심 질문
+================================
+
+반드시 아래 4개 질문에 답해야 한다.
+
+1. 현재 swimnote.kr API를 실제로 실행하는 Production 서버 소스 경로는 어디인가?
+
+2. Replit Preview에서 Teacher Diary AI를 실행한 소스 경로는 어디인가?
+
+3. artifacts/api-server는
+   - 실제 Production 서버인가
+   - 프리뷰/복제/작업용 서버인가
+   - 혼합 구조인가
+
+4. 현재 Render가 artifacts/api-server를 빌드하는 것이
+   - 원래 의도된 운영 배포인가
+   - 잘못된 경로 배포인가
+
+추정으로 답하지 마라.
+Git, package.json, workspace, Render 설정, 실행 명령, entrypoint를 근거로 답한다.
+
+================================
+1. 저장소 전체 서버 후보 경로 조사
+================================
+
+저장소 전체에서 서버 프로젝트 후보를 찾는다.
+
+반드시 조사:
+
+- package.json이 있는 모든 서버 후보 디렉터리
+- src/server.ts
+- src/index.ts
+- server.ts
+- app.ts
+- routes/index.ts
+- Express 초기화 코드
+- /api/health 등록 코드
+- /api/auth/login 등록 코드
+- /api/auth/me 등록 코드
+- /api/diaries 등록 코드
+- build script
+- start script
+
+다음 명령 또는 동등한 방식으로 조사한다.
+
+find . -name package.json
+find . -path "*/src/server.ts"
+find . -path "*/src/index.ts"
+find . -path "*/routes/index.ts"
+grep -R '"/api/health"' .
+grep -R '"/api/auth/login"' .
+grep -R '"/api/auth/me"' .
+grep -R 'router.use' .
+grep -R 'app.use("/api"' .
+
+결과를 서버 후보별로 표로 작성한다.
+
+열:
+
+- 경로
+- package name
+- build command
+- start command
+- API route 존재
+- DB 연결 존재
+- auth 존재
+- production 가능성
+
+================================
+2. 실제 Production entrypoint 확정
+================================
+
+현재 swimnote.kr에서 실행되는 API 서버의 entrypoint를 확정한다.
+
+반드시 확인:
+
+- Render Root Directory
+- Render Build Command
+- Render Start Command
+- Render 연결 branch
+- Render service name
+- 실행 중인 Node entry file
+- 현재 배포된 commit SHA
+- 현재 health route를 제공하는 파일
+- 현재 version v2.4-2026-07-20 문자열이 정의된 파일
+
+코드에서 다음 문자열 위치를 찾는다.
+
+v2.4-2026-07-20
+
+이 문자열을 반환하는 파일이
+현재 Production health endpoint의 실제 코드인지 확인한다.
+
+반드시 기록:
+
+- 실제 파일 경로
+- 해당 파일을 실행하는 start command
+- 해당 파일이 속한 package.json 경로
+
+이 세 가지가 연결돼야 Production 서버로 인정한다.
+
+================================
+3. Preview 실행 경로 확정
+================================
+
+Replit Preview가 어떤 프로젝트를 실행했는지 확인한다.
+
+반드시 확인:
+
+- .replit
+- replit.nix
+- workflows
+- run command
+- preview command
+- development script
+- ports 설정
+- proxy 설정
+- Replit deployment 설정
+- workspace root script
+- pnpm filter 사용 여부
+
+다음 질문에 답한다.
+
+- Preview에서 실행된 서버 경로
+- Preview가 호출한 port
+- Preview 앱의 API base URL
+- Preview AI route가 실제 어느 서버에 등록됐는지
+- Preview에서 사용한 DB 연결
+- Preview에서 사용한 환경변수 위치
+
+================================
+4. artifacts 디렉터리 성격 확정
+================================
+
+artifacts/api-server가 왜 artifacts 아래에 있는지 조사한다.
+
+반드시 확인:
+
+- Git 최초 생성 commit
+- 생성 시각
+- 누가/어떤 작업에서 만들었는지
+- 기존 서버 복사본인지
+- 독립 신규 서버인지
+- production server를 복제한 것인지
+- preview 전용 산출물인지
+- build/deploy 대상에 원래 포함돼 있었는지
+
+다음을 확인한다.
+
+git log --follow -- artifacts/api-server
+git log --stat -- artifacts/api-server
+git blame artifacts/api-server/package.json
+git blame artifacts/api-server/src/routes/index.ts
+git blame artifacts/api-server/src/routes/ai.ts
+
+결론은 아래 중 하나만 선택한다.
+
+A. 원래 Production 서버
+B. Production 서버 복제본
+C. Preview/개발 전용 서버
+D. 성격 불명확
+
+================================
+5. 현재 Render 빌드 경로 감사
+================================
+
+Render 로그:
+
+/opt/render/project/src/artifacts/api-server
+
+이 경로가 왜 선택됐는지 추적한다.
+
+반드시 확인:
+
+- Render Root Directory 설정값
+- monorepo workspace 설정
+- pnpm workspace package name
+- build command가 어떤 package를 대상으로 하는지
+- start command가 어떤 파일을 실행하는지
+- Root Directory가 수동으로 artifacts/api-server로 지정됐는지
+- 최근 설정 변경 이력 확인 가능 여부
+
+다음 중 하나로 판정한다.
+
+A. Render가 원래부터 artifacts/api-server를 운영 서버로 사용
+B. 최근 잘못된 Root Directory 설정으로 artifacts/api-server를 사용
+C. build command만 잘못됨
+D. 확인 불가
+
+================================
+6. Production 기존 API와 코드 경로 대조
+================================
+
+현재 production에서 살아 있는 API를 기준으로
+어느 코드가 실제 운영 코드인지 역추적한다.
+
+확인 endpoint:
+
+- /api/health
+- /api/auth/login
+- /api/auth/me
+- 일지 저장 API
+- 사진 업로드 API
+- 기존 production 기능 API
+
+각 endpoint마다 기록:
+
+- route 정의 파일
+- router mount 파일
+- controller/service 파일
+- package root
+- build output
+- start entrypoint
+
+artifacts/api-server가 이 기존 API 전체를 포함하지 않는다면
+Production 서버로 인정하지 마라.
+
+================================
+7. Teacher Diary AI 코드 실제 저장 위치
+================================
+
+Teacher Diary AI 관련 파일 전체 목록을 작성한다.
+
+반드시 포함:
+
+- ai.ts
+- AIContracts.ts
+- useDiaryAI.ts
+- DiaryAIContent.tsx
+- DiaryAIActionBar.tsx
+- BaseAIModal.tsx
+- diary.tsx
+- Whisper route
+- Generate route
+- OpenAI client
+- auth middleware 연결
+- DB access 코드
+- test scripts
+
+각 파일마다 기록:
+
+- 현재 경로
+- frontend/backend 구분
+- preview 전용 여부
+- production 포함 여부
+- 실제 import 경로
+- 실제 build 대상 여부
+
+================================
+8. 경로 중복 및 잘못된 복제 감사
+================================
+
+동일하거나 유사한 서버 파일이 여러 곳에 있는지 조사한다.
+
+예:
+
+- src/routes/ai.ts가 여러 개
+- routes/index.ts가 여러 개
+- package.json이 여러 개
+- db.ts가 여러 개
+- auth middleware가 여러 개
+- server entrypoint가 여러 개
+
+각 중복 파일에 대해 비교한다.
+
+- 동일 파일인지
+- 오래된 복사본인지
+- preview 수정본인지
+- production 원본인지
+- 어느 쪽이 최신인지
+
+단순 수정시간만 믿지 말고 Git history와 import chain을 본다.
+
+================================
+9. 절대 수정 금지 상태에서 통합 방식만 설계
+================================
+
+현재 단계에서는 파일을 옮기지 않는다.
+
+대신 아래 두 경우로 나눠 통합 계획을 작성한다.
+
+CASE A
+artifacts/api-server가 실제 Production 서버인 경우
+
+- 필요한 dependency
+- 필요한 env
+- route mount
+- build/start
+- 배포 순서
+
+CASE B
+artifacts/api-server가 Preview/복제 서버인 경우
+
+- 실제 Production 서버 경로
+- 옮겨야 할 backend 파일
+- 옮기면 안 되는 test/audit 파일
+- 기존 auth middleware에 연결할 위치
+- 기존 DB client를 재사용할 위치
+- 기존 error handler에 연결할 위치
+- 기존 route index에 등록할 위치
+- package.json 변경 위치
+- lockfile 변경 위치
+- Render Root Directory 유지 여부
+
+중요:
+
+“폴더 전체 복사” 금지.
+필요 파일 단위로만 제안한다.
+
+================================
+10. 현재 openai 오류의 진짜 의미 판정
+================================
+
+현재 오류:
+
+src/routes/ai.ts:18:19
+Could not resolve "openai"
+
+다음 중 무엇인지 판정한다.
+
+A. 실제 Production 서버에 openai dependency만 빠짐
+B. Preview 서버를 잘못 Production 빌드 중
+C. Production 서버 복제본의 package.json이 불완전
+D. workspace dependency 선언이 잘못됨
+E. 복합 원인
+
+openai 패키지 설치를 해결책으로 제시하기 전에
+서버 경로 판정을 먼저 완료한다.
+
+================================
+11. 잘못된 배포 위험 판정
+================================
+
+현재 상태로 dependency만 추가하고 배포할 경우 위험을 평가한다.
+
+항목:
+
+- 잘못된 서버 전체가 production으로 올라갈 위험
+- 기존 API 누락 위험
+- 인증 체계 불일치
+- DB schema 불일치
+- preview DB 연결
+- production DB 오염
+- route 중복
+- SPA fallback 충돌
+- 환경변수 누락
+- 기존 기능 장애
+- rollback 어려움
+
+각 항목을 HIGH / MEDIUM / LOW로 판정한다.
+
+================================
+12. 최종 판정
+================================
+
+다음 중 하나만 선택한다.
+
+1. ARTIFACTS/API-SERVER IS VERIFIED PRODUCTION SERVER
+
+의미:
+artifacts/api-server가 실제 운영 서버이며,
+현재 Render 경로가 맞다.
+
+다음 단계:
+dependency 수정 → build → push → Render 재배포
+
+2. PRODUCTION SERVER MIGRATION REQUIRED
+
+의미:
+Teacher Diary AI backend가 Preview/복제 경로에 저장되어 있으며,
+실제 운영 서버에 정식 이전해야 한다.
+
+다음 단계:
+운영 서버 경로 기준 파일 단위 이전 계획 수립 후 구현
+
+3. RENDER PATH MISCONFIGURED
+
+의미:
+코드는 운영 서버에 있지만 Render Root/Build/Start 설정이 잘못됐다.
+
+다음 단계:
+Render 설정 수정 후 재배포
+
+4. EVIDENCE INSUFFICIENT
+
+의미:
+Render 설정 또는 entrypoint 증거 부족
+
+다음 단계:
+필요한 화면과 설정값을 정확히 요청
+
+================================
+최종 보고 형식
+================================
+
+1. 서버 후보 전체 목록
+
+2. 실제 Production 서버 경로
+
+3. Production entrypoint
+
+4. Render Root/Build/Start 설정
+
+5. Preview 서버 경로
+
+6. artifacts/api-server의 정체
+
+7. Teacher Diary AI 파일 실제 저장 위치
+
+8. 기존 Production API와 정합성
+
+9. 중복·복제 파일 분석
+
+10. openai 오류의 진짜 원인
+
+11. 잘못된 배포 위험 분석
+
+12. 최종 판정
+
+추가로 반드시 출력:
+
+- 수정한 파일: 0개
+- 설치한 패키지: 0개
+- commit: 없음
+- push: 없음
+- 배포: 없음
+
+한 줄이라도 수정했으면 감사 실패로 보고한다.
