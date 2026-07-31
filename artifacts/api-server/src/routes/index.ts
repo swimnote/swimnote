@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import aiV1Router from "./ai-v1.js";
 import { requireWritable } from "../lib/readonlyGuard.js";
 import healthRouter from "./health";
 import authRouter from "./auth.js";
@@ -106,5 +107,6 @@ router.use("/", inquiriesRouter);
 router.use("/", aiEngineDocRouter);
 router.use("/", commentsRouter);
 router.use("/", aiRouter);
+router.use("/", aiV1Router);
 
 export default router;
