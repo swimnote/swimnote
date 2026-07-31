@@ -25,10 +25,22 @@
  */
 
 // ─── AI 엔진 기본 URL ─────────────────────────────────────────────────────────
+//
+// ★ 주의: EXPO_PUBLIC_API_URL(swimnote.kr)을 기반으로 계산하지 않습니다.
+//   swimnote.kr은 /api/ai/* 경로를 API 서버로 프록시하지 않으며,
+//   HTML(SPA fallback)을 반환하여 JSON 파싱 오류를 유발합니다.
+//   AI 엔진 URL은 반드시 Render.com 직접 URL이어야 합니다.
+//
+// 우선순위:
+//   1. EXPO_PUBLIC_AI_ENGINE_URL (명시적 지정 시 사용)
+//   2. 하드코딩 fallback: swimnote-api.onrender.com (Render.com 직접)
+//
+// (구) 두 번째 옵션이었던 EXPO_PUBLIC_API_URL.replace('/api','') 제거됨.
+//   이 옵션이 swimnote.kr을 AI 엔진 주소로 사용하게 만든 근본 원인이었음.
 
 const AI_ENGINE_BASE: string =
   (process.env.EXPO_PUBLIC_AI_ENGINE_URL as string | undefined) ??
-  ((process.env.EXPO_PUBLIC_API_URL as string | undefined)?.replace(/\/api\/?$/, '') ?? 'https://swimnote-api.onrender.com');
+  'https://swimnote-api.onrender.com';
 
 // ─── 타임아웃 ─────────────────────────────────────────────────────────────────
 
@@ -412,7 +424,20 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
   // onProgress 호출 — 현재는 진입 즉시 SEARCHING 알림 (서버 이벤트 대기 없음)
   onProgress?.('SEARCHING');
 
-  if (__DEV__) console.log('[DiaryAIService] generate_started', { requestId, student_count: students.length });
+  // ── 요청 시작 로그 (프로덕션 포함) ──────────────────────────────────────────
+  // 개인정보·토큰 값은 존재 여부(boolean)만 로깅합니다
+  console.log('[DiaryAIService] generate_request', {
+    request_id:      requestId,
+    endpoint:        `${AI_ENGINE_BASE}/api/ai/diary/generate`,
+    method:          'POST',
+    has_auth_token:  !!token,
+    has_pool_id:     !!poolId,
+    has_class_id:    !!classId,
+    has_students:    students.length > 0,
+    student_count:   students.length,
+    text_length:     inputText.trim().length,
+    ai_engine_base:  AI_ENGINE_BASE,
+  });
 
   try {
     const headers: Record<string, string> = {
@@ -430,6 +455,16 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
 
     clearTimeout(timeoutId);
     signal.removeEventListener('abort', onAbort);
+
+    // ── 응답 수신 로그 (프로덕션 포함) ──────────────────────────────────────
+    const contentType = response.headers.get('content-type') ?? '';
+    console.log('[DiaryAIService] generate_response', {
+      request_id:   requestId,
+      status:       response.status,
+      ok:           response.ok,
+      content_type: contentType,
+      is_json:      contentType.includes('application/json'),
+    });
 
     // 응답 텍스트 읽기
     let responseText: string;
@@ -449,17 +484,21 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
       if (isErrorContract) {
         const err   = (errorBody as AIEngineError).error;
         const reqId = (errorBody as AIEngineError).request_id ?? '?';
-        if (__DEV__) console.error('[DiaryAIService] generate_failed', { request_id: reqId, code: err?.code, status: response.status });
+        console.error('[DiaryAIService] generate_failed', {
+          request_id: reqId,
+          error_code: err?.code,
+          status:     response.status,
+        });
 
         if (response.status === 401 || response.status === 403) {
           return {
             ok:    false,
             error: {
               origin:      'UNKNOWN',
-              message:     '로그인 정보가 만료되었습니다. 다시 로그인해 주세요.',
+              message:     '인증이 만료되었습니다. 앱을 재시작한 후 다시 로그인해 주세요.',
               retryable:   false,
               retryTarget: null,
-              causeCode:   err?.code,
+              causeCode:   `AUTH_${response.status}_${err?.code ?? ''}`,
             },
           };
         }
@@ -469,8 +508,21 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
             ok:    false,
             error: {
               origin:      'NETWORK',
-              message:     '요청이 많아 처리가 지연되고 있습니다. 잠시 후 다시 시도해 주세요.',
-              retryable:   false,
+              message:     '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.',
+              retryable:   true,
+              retryTarget: 'INPUT',
+              causeCode:   err?.code,
+            },
+          };
+        }
+
+        if (response.status >= 500) {
+          return {
+            ok:    false,
+            error: {
+              origin:      'UNKNOWN',
+              message:     `서버 오류가 발생했습니다 (${response.status}). 잠시 후 다시 시도해 주세요.`,
+              retryable:   err?.retryable ?? true,
               retryTarget: 'INPUT',
               causeCode:   err?.code,
             },
@@ -481,7 +533,7 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
           ok:    false,
           error: {
             origin:      'NETWORK',
-            message:     '네트워크 연결을 확인한 후 다시 시도해주세요.',
+            message:     `요청 처리 실패 (${response.status}). 다시 시도해주세요.`,
             retryable:   err?.retryable ?? false,
             retryTarget: 'INPUT',
             causeCode:   err?.code,
@@ -489,16 +541,36 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
         };
       }
 
-      // non-JSON 오류 응답 (502 HTML 등)
-      if (__DEV__) console.error('[DiaryAIService] generate_failed', { status: response.status, code: 'HTTP_ERROR_NON_JSON' });
+      // non-JSON 오류 응답 (502 HTML 등 — swimnote.kr SPA fallback 포함)
+      const preview = responseText.slice(0, 120).replace(/\s+/g, ' ');
+      console.error('[DiaryAIService] generate_failed_non_json', {
+        request_id:    requestId,
+        status:        response.status,
+        content_type:  contentType,
+        body_preview:  preview,
+      });
+
+      if (response.status >= 500 || response.status === 0) {
+        return {
+          ok:    false,
+          error: {
+            origin:      'NETWORK',
+            message:     `서버 오류가 발생했습니다 (${response.status || 'CONN'}). 다시 시도해주세요.`,
+            retryable:   true,
+            retryTarget: 'INPUT',
+            causeCode:   `HTTP_${response.status}_NON_JSON`,
+          },
+        };
+      }
+
       return {
         ok:    false,
         error: {
           origin:      'NETWORK',
-          message:     '네트워크 연결을 확인한 후 다시 시도해주세요.',
+          message:     `응답 형식 오류 (${response.status}). 다시 시도해주세요.`,
           retryable:   true,
           retryTarget: 'INPUT',
-          causeCode:   `HTTP_${response.status}`,
+          causeCode:   `HTTP_${response.status}_NON_JSON`,
         },
       };
     }
@@ -508,14 +580,21 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
     try {
       body = JSON.parse(responseText);
     } catch {
+      const preview = responseText.slice(0, 120).replace(/\s+/g, ' ');
+      console.error('[DiaryAIService] generate_parse_error', {
+        request_id:   requestId,
+        body_preview: preview,
+        status:       response.status,
+        content_type: contentType,
+      });
       return {
         ok:    false,
         error: {
           origin:      'UNKNOWN',
-          message:     'AI 일지 결과를 불러오지 못했습니다. 다시 시도해주세요.',
+          message:     '응답 형식 오류가 발생했습니다. 다시 시도해주세요.',
           retryable:   false,
           retryTarget: 'INPUT',
-          causeCode:   'CONTRACT_RESPONSE_PARSE_ERROR',
+          causeCode:   'RESPONSE_PARSE_ERROR',
         },
       };
     }
@@ -542,12 +621,15 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
           },
         };
       }
-      if (__DEV__) console.error('[DiaryAIService] contract_error', { requestId, code: normalized.contractError });
+      console.error('[DiaryAIService] contract_error', {
+        request_id: requestId,
+        code:       normalized.contractError,
+      });
       return {
         ok:    false,
         error: {
           origin:      'UNKNOWN',
-          message:     'AI 일지 결과를 불러오지 못했습니다. 다시 시도해주세요.',
+          message:     '결과 생성에 실패했습니다. 다시 시도해주세요.',
           retryable:   false,
           retryTarget: 'INPUT',
           causeCode:   normalized.contractError,
