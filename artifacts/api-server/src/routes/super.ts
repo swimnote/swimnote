@@ -2386,6 +2386,86 @@ router.get(
   }
 );
 
+// ════════════════════════════════════════════════════════════════
+// GET  /super/app-version-policy          — 전체 플랫폼 버전 정책 조회
+// PUT  /super/app-version-policy/:platform — iOS / android 정책 수정
+// ════════════════════════════════════════════════════════════════
+
+router.get(
+  "/super/app-version-policy",
+  requireAuth,
+  requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    try {
+      const rows = await db.execute(sql.raw(
+        `SELECT * FROM app_version_policy ORDER BY platform ASC`
+      ));
+      res.json({ policies: (rows as any).rows ?? rows });
+    } catch (err: any) {
+      console.error("[super/app-version-policy GET]", err.message);
+      res.status(500).json({ error: "정책 조회 실패" });
+    }
+  }
+);
+
+router.put(
+  "/super/app-version-policy/:platform",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const platform = req.params.platform;
+    if (platform !== "ios" && platform !== "android") {
+      res.status(400).json({ error: "platform은 ios 또는 android만 허용" });
+      return;
+    }
+    const {
+      minimum_supported_version,
+      latest_version,
+      force_update,
+      store_url,
+      message,
+      ota_required,
+    } = req.body;
+
+    if (!minimum_supported_version || !latest_version) {
+      res.status(400).json({ error: "minimum_supported_version, latest_version 필수" });
+      return;
+    }
+
+    const updatedBy = (req as any).user?.id ?? "super_admin";
+
+    try {
+      await db.execute(sql.raw(`
+        INSERT INTO app_version_policy
+          (platform, minimum_supported_version, latest_version, force_update, store_url, message, ota_required, updated_at, updated_by)
+        VALUES
+          ('${platform}',
+           '${minimum_supported_version}',
+           '${latest_version}',
+           ${force_update ? "TRUE" : "FALSE"},
+           '${(store_url ?? "").replace(/'/g, "''")}',
+           '${(message ?? "").replace(/'/g, "''")}',
+           ${ota_required ? "TRUE" : "FALSE"},
+           NOW(),
+           '${updatedBy}')
+        ON CONFLICT (platform) DO UPDATE SET
+          minimum_supported_version = EXCLUDED.minimum_supported_version,
+          latest_version            = EXCLUDED.latest_version,
+          force_update              = EXCLUDED.force_update,
+          store_url                 = EXCLUDED.store_url,
+          message                   = EXCLUDED.message,
+          ota_required              = EXCLUDED.ota_required,
+          updated_at                = NOW(),
+          updated_by                = EXCLUDED.updated_by
+      `));
+      res.json({ success: true, platform });
+    } catch (err: any) {
+      console.error("[super/app-version-policy PUT]", err.message);
+      res.status(500).json({ error: "정책 저장 실패" });
+    }
+  }
+);
+
 // 앱 시작 시 비동기로 테이블/컬럼 보장
 ensureExtraTables().catch(err => console.error("[super] ensureExtraTables 오류:", err));
 ensurePlansTables().catch(err => console.error("[super] ensurePlansTables 오류:", err));

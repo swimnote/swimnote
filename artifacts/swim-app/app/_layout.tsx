@@ -13,6 +13,10 @@ import { NoticePopup } from "@/components/common/NoticePopup";
 import { AuthProvider, apiRequest, useAuth, type AccountEntry, type AdminUser, type SessionKind, type ParentAccount } from "@/context/AuthContext";
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 import { initializeRevenueCat, loginRevenueCat, logoutRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
+import { useAppVersionPolicy } from "@/hooks/useAppVersionPolicy";
+import { useOTAUpdate } from "@/hooks/useOTAUpdate";
+import ForceUpdateModal from "@/components/common/ForceUpdateModal";
+import OTAUpdateModal from "@/components/common/OTAUpdateModal";
 
 // Expo Go 환경 여부 — Expo Go SDK 53부터 Android 원격 알림 미지원
 const IS_EXPO_GO = Constants.appOwnership === "expo";
@@ -97,6 +101,45 @@ function computeRoleKeys(
     }
   }
   return Array.from(result);
+}
+
+/**
+ * UpdateManager — 앱 버전 정책 체크 및 OTA 업데이트 모달 관리
+ *
+ * 마운트 순서:
+ *  1. useAppVersionPolicy: 서버에서 버전 정책 fetch (인증 불필요)
+ *  2. useOTAUpdate: 인증 로딩 완료 + 강제 업데이트 없음 확인 후 OTA 체크 시작
+ *  3. ForceUpdateModal: 네이티브 강제 업데이트 (닫기 불가)
+ *  4. OTAUpdateModal: OTA 업데이트 (optional/required)
+ */
+function UpdateManager() {
+  const { isLoading: authLoading } = useAuth();
+  const { policy, isForceUpdate, isLoading: policyLoading } = useAppVersionPolicy();
+
+  // OTA 체크: 인증 완료 + 정책 로드 완료 + 강제 업데이트 없음 조건에서만 활성화
+  const otaEnabled = !authLoading && !policyLoading && !isForceUpdate;
+  const { isAvailable, isDownloading, isError, applyUpdate, dismiss, retry } = useOTAUpdate(otaEnabled);
+
+  return (
+    <>
+      {/* 강제 업데이트 모달: 최상단, 닫기 불가 */}
+      <ForceUpdateModal
+        visible={!policyLoading && isForceUpdate}
+        storeUrl={policy?.store_url}
+        message={policy?.message}
+      />
+      {/* OTA 업데이트 모달: 인증 완료 후 표시 */}
+      <OTAUpdateModal
+        visible={!authLoading && isAvailable}
+        required={policy?.ota_required ?? false}
+        isDownloading={isDownloading}
+        isError={isError}
+        onUpdate={applyUpdate}
+        onDismiss={dismiss}
+        onRetry={retry}
+      />
+    </>
+  );
 }
 
 function BrandSync() {
@@ -457,6 +500,7 @@ export default function RootLayout() {
             <BrandProvider>
               <AuthProvider>
                 <SubscriptionProvider>
+                  <UpdateManager />
                   <BrandSync />
                   <RcUserSync />
                   <PushTokenSync />

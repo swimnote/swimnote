@@ -4,7 +4,12 @@
  * 동작:
  *  1. OTA 업데이트 확인 → 있으면 즉시 다운로드 후 앱 재시작
  *  2. OTA 없으면 앱스토어 / 플레이스토어 열기
+ *
+ * SHOW_MANUAL_UPDATE_BUTTON = false:
+ *  설정 화면에서 버튼을 숨깁니다. Hook과 로직은 유지됩니다.
+ *  자동 OTA 모달(OTAUpdateModal)이 대신 업데이트를 처리합니다.
  */
+export const SHOW_MANUAL_UPDATE_BUTTON = false;
 import * as Updates from "expo-updates";
 import React, { useState } from "react";
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
