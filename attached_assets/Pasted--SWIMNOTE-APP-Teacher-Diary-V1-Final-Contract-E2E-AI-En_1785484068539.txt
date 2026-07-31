@@ -1,0 +1,341 @@
+[SWIMNOTE APP — Teacher Diary V1 Final Contract 적용 및 실기기 E2E]
+
+AI Engine V1 Contract가 최종 확정되었습니다.
+
+이번 작업은 기능 추가가 아닙니다.
+
+Teacher Diary를 Production 수준으로 마무리하기 위한
+최종 Contract 정렬과 Preview 실기기 검증만 수행하십시오.
+
+Production OTA는 절대 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. V1 Contract 반영
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AI Engine 최종 Contract
+
+Request
+
+contract_version
+schema_version
+feature
+request_id(UUID v4)
+locale
+input.text
+
+context
+- pool_id
+- class_id
+- lesson_date
+- student_refs
+- students[{ref,name}]
+
+Response
+
+contract_version
+schema_version
+feature
+request_id
+engine_version
+
+result.common
+
+result.students[
+    student_ref,
+    content
+]
+
+meta
+
+pipeline_mode
+engine_build
+template_ids
+knowledge_ids
+generation_mode
+fallback_used
+grounding_validation
+
+usage.latency_ms
+
+앱 Normalize를 이 구조 기준으로 수정하십시오.
+
+student_id는 더 이상 신규 Contract로 사용하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. UUID v4 request_id
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+모든 Teacher Diary 요청은
+
+UUID v4
+
+만 사용하십시오.
+
+예시
+
+550e8400-e29b-41d4-a716-446655440000
+
+다음 형식은 제거하십시오.
+
+diary_xxx
+
+teacher_xxx
+
+probe_xxx
+
+UUID 생성은 하나의 Utility로 통일하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Response 검증
+
+성공(2xx) 응답에서는 반드시 검사하십시오.
+
+response.request_id
+
+==
+
+request.request_id
+
+다르면
+
+CONTRACT_REQUEST_ID_MISMATCH
+
+로 처리하십시오.
+
+검사 항목
+
+contract_version
+
+schema_version
+
+engine_version
+
+request_id
+
+student_ref
+
+모두 정상일 때만
+
+Diary 저장을 진행하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Grounding 오류 처리
+
+AI Engine은
+
+Grounding FAIL
+
+↓
+
+HTTP 422
+
+GROUNDING_VALIDATION_FAILED
+
+를 반환합니다.
+
+앱 동작
+
+- 자동 저장 금지
+
+- 학생 일지 삽입 금지
+
+- 사용자에게
+
+"근거 검증을 통과하지 못했습니다.
+입력을 조금 더 구체적으로 작성한 후 다시 시도해주세요."
+
+표시
+
+retryable=true면
+
+다시 시도 버튼 제공
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. POLISH_ONLY
+
+generation_mode
+
+=
+
+POLISH_ONLY
+
+이면
+
+정상 결과로 처리하십시오.
+
+단
+
+Preview에서는
+
+Developer Log에
+
+generation_mode
+
+를 표시하십시오.
+
+사용자 안내는
+
+"입력 내용을 중심으로 문장을 정리했습니다."
+
+정도로만 표시하십시오.
+
+경고창은 띄우지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Legacy 제거 금지
+
+현재 Legacy Endpoint는
+
+삭제하지 마십시오.
+
+Feature Flag
+
+legacy
+
+grounded
+
+유지하십시오.
+
+Grounded 실패 시
+
+자동 Legacy 우회는 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Timeout
+
+AI Engine
+
+45초
+
+앱
+
+60초
+
+유지하십시오.
+
+504
+
+↓
+
+TIMEOUT
+
+으로 변환하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. Preview 실기기 E2E
+
+반드시 실제 기기에서 테스트하십시오.
+
+① 텍스트 입력
+
+② Whisper 입력
+
+③ 학생 1명
+
+④ 학생 여러명
+
+⑤ 공통 일지
+
+⑥ 긴 입력
+
+⑦ UUID request_id 동일 여부
+
+⑧ Grounded PASS
+
+⑨ Grounding FAIL(422)
+
+⑩ POLISH_ONLY
+
+⑪ timeout
+
+⑫ 인증 만료
+
+⑬ 네트워크 오류
+
+⑭ 결과 수정
+
+⑮ 기존 저장
+
+⑯ student_ref 정상 매칭
+
+⑰ 중복 student_ref 차단
+
+⑱ 알 수 없는 student_ref 차단
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 로그 정책
+
+허용 로그
+
+request_id
+
+pipeline_mode
+
+generation_mode
+
+latency
+
+template_ids 개수
+
+knowledge_ids 개수
+
+status
+
+error_code
+
+출력 금지
+
+학생 이름
+
+교사 원문
+
+JWT
+
+학생별 일지 내용
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 완료 보고
+
+작업 완료 후 아래만 제출하십시오.
+
+1. 변경 파일
+
+2. Preview Build ID
+
+3. Preview OTA ID
+
+4. 실제 성공 Request (PII 제거)
+
+5. 실제 성공 Response (PII 제거)
+
+6. Grounded PASS 결과
+
+7. Grounding FAIL(422) 결과
+
+8. POLISH_ONLY 결과
+
+9. UUID request_id 동일 여부
+
+10. student_ref 정상 매칭 여부
+
+11. Diary 저장 성공 여부
+
+12. 실기기 E2E 결과
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 이번 작업 범위
+
+이번 작업에서는
+
+UI 개편
+
+새 기능
+
+새 AI 기능
+
+추가 개발
+
+을 하지 마십시오.
+
+Teacher Diary V1을 Production 수준으로 안정화하는 것만 목표입니다.

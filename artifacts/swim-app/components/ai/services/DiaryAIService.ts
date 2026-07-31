@@ -52,9 +52,9 @@ const SWIMNOTE_API_SERVER_BASE: string =
 const TIMEOUT_MS = 60_000;
 
 // ─── Legacy 호환 Flag ─────────────────────────────────────────────────────────
-// AI Engine이 request_id를 응답에 포함하지 않는 전환 기간용 허용 플래그
-// AI Engine 응답에 request_id가 확정되면 false로 변경합니다.
-const ALLOW_LEGACY_RESPONSE_WITHOUT_REQUEST_ID = true;
+// AI Engine V1 Contract 확정: 응답에 request_id 에코가 보장됩니다.
+// ★ false로 고정 — request_id 없는 응답은 즉시 CONTRACT_REQUEST_ID_MISSING 반환
+const ALLOW_LEGACY_RESPONSE_WITHOUT_REQUEST_ID = false;
 
 // ─── Contract 버전 관리 ───────────────────────────────────────────────────────
 //
@@ -80,24 +80,34 @@ export const SUPPORTED_ENGINE_VERSIONS   = new Set<string>(['v1', 'grounded_v1',
 
 // ─── requestId 생성 ───────────────────────────────────────────────────────────
 
-let _diaryReqSeq = 0;
-
-function _fallbackDiaryRequestId(): string {
-  _diaryReqSeq += 1;
-  const time = Date.now().toString(36);
-  const seq  = _diaryReqSeq.toString(36).padStart(4, '0');
-  const rand = Math.random().toString(36).slice(2, 12);
-  return `diary_${time}_${seq}_${rand}`;
+/**
+ * UUID v4 폴백 생성기 (crypto.randomUUID 미지원 환경용)
+ * RFC 4122 v4 포맷: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+ */
+function _fallbackUUIDv4(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
+/**
+ * Teacher Diary 요청용 UUID v4 생성기.
+ *
+ * AI Engine V1 Contract: 순수 UUID v4만 허용합니다.
+ * 형식 예시: 550e8400-e29b-41d4-a716-446655440000
+ *
+ * ★ 금지: diary_xxx / teacher_xxx / probe_xxx 등 모든 prefix 형식
+ */
 export function createDiaryRequestId(): string {
   if (
     typeof globalThis.crypto !== 'undefined' &&
     typeof (globalThis.crypto as Crypto).randomUUID === 'function'
   ) {
-    return `diary_${(globalThis.crypto as Crypto).randomUUID()}`;
+    return (globalThis.crypto as Crypto).randomUUID();
   }
-  return _fallbackDiaryRequestId();
+  return _fallbackUUIDv4();
 }
 
 // ─── 공개 타입 ────────────────────────────────────────────────────────────────
@@ -185,10 +195,23 @@ export interface NormalizedDiaryResult {
   common:    string;
   students:  NormalizedDiaryStudentResult[];
   requestId?: string;
+  /** AI Engine V1 pipeline 메타 정보 (로깅·POLISH_ONLY 처리·grounding 검증용) */
+  meta?: {
+    pipelineMode?:        string;
+    engineBuild?:         string;
+    templateIds?:         string[];
+    knowledgeIds?:        string[];
+    /** POLISH_ONLY 일 때 사용자 안내 표시 */
+    generationMode?:      string;
+    fallbackUsed?:        boolean;
+    groundingValidation?: string;
+  };
   usage?: {
-    input_tokens:  number;
-    output_tokens: number;
-    total_tokens:  number;
+    input_tokens?:  number;
+    output_tokens?: number;
+    total_tokens?:  number;
+    /** AI Engine V1: 서버 측 생성 레이턴시 (ms) */
+    latency_ms?:    number;
   };
 }
 
@@ -213,27 +236,37 @@ interface TeacherDiaryAIRequest {
   };
 }
 
+/** AI Engine V1 Contract: student_ref + content 전용. student_id / feedback 제거됨. */
 interface TeacherDiaryAIStudentResult {
   student_ref?: unknown;
-  student_id?:  unknown;
   content?:     unknown;
-  feedback?:    unknown;
 }
 
 interface TeacherDiaryAIResponse {
-  contract_version?: unknown;  // AI Engine이 포함할 때 검증 (부재 시 legacy 허용)
+  contract_version?: unknown;
   request_id?:       unknown;
   schema_version?:   unknown;
-  engine_version?:   unknown;  // AI Engine이 포함할 때 검증 (부재 시 허용)
+  engine_version?:   unknown;
+  feature?:          unknown;
   result?: {
     common?:   unknown;
     students?: unknown;
   };
-  meta?:  unknown;  // AI Engine grounded pipeline 메타 정보 (향후 활용)
+  /** AI Engine V1 pipeline 메타 정보 */
+  meta?: {
+    pipeline_mode?:        unknown;
+    engine_build?:         unknown;
+    template_ids?:         unknown;
+    knowledge_ids?:        unknown;
+    generation_mode?:      unknown;
+    fallback_used?:        unknown;
+    grounding_validation?: unknown;
+  };
   usage?: {
     input_tokens?:  unknown;
     output_tokens?: unknown;
     total_tokens?:  unknown;
+    latency_ms?:    unknown;   // AI Engine V1: 서버 측 생성 레이턴시
   };
 }
 
@@ -384,23 +417,17 @@ export function normalizeDiaryResponse(params: {
       return { ok: false, contractError: `CONTRACT_STUDENT_NOT_OBJECT: students[${i}]` };
     }
 
+    // V1 Contract: student_ref 필수. student_id / feedback 더 이상 지원하지 않습니다.
     const studentRef =
       typeof item.student_ref === 'string' && item.student_ref
         ? item.student_ref
-        : typeof item.student_id === 'string' && item.student_id
-          ? item.student_id
-          : null;
+        : null;
 
     if (!studentRef) {
       return { ok: false, contractError: `CONTRACT_STUDENT_REF_MISSING: students[${i}]` };
     }
 
-    const content =
-      typeof item.content === 'string'
-        ? item.content
-        : typeof item.feedback === 'string'
-          ? item.feedback
-          : null;
+    const content = typeof item.content === 'string' ? item.content : null;
 
     if (content === null) {
       return { ok: false, contractError: `CONTRACT_STUDENT_CONTENT_TYPE: index=${i}` };
@@ -431,6 +458,33 @@ export function normalizeDiaryResponse(params: {
       input_tokens:  typeof u.input_tokens  === 'number' ? u.input_tokens  : 0,
       output_tokens: typeof u.output_tokens === 'number' ? u.output_tokens : 0,
       total_tokens:  typeof u.total_tokens  === 'number' ? u.total_tokens  : 0,
+      latency_ms:    typeof u.latency_ms    === 'number' ? u.latency_ms    : undefined,
+    };
+  }
+
+  // ── meta 추출 (pipeline 정보 / POLISH_ONLY 처리 / grounding 검증용) ─────────
+  let meta: NormalizedDiaryResult['meta'];
+  if (resp.meta !== undefined && typeof resp.meta === 'object' && resp.meta !== null) {
+    const m = resp.meta;
+    meta = {
+      pipelineMode:
+        typeof m.pipeline_mode === 'string' ? m.pipeline_mode : undefined,
+      engineBuild:
+        typeof m.engine_build === 'string' ? m.engine_build : undefined,
+      templateIds:
+        Array.isArray(m.template_ids)
+          ? (m.template_ids as unknown[]).filter((x): x is string => typeof x === 'string')
+          : undefined,
+      knowledgeIds:
+        Array.isArray(m.knowledge_ids)
+          ? (m.knowledge_ids as unknown[]).filter((x): x is string => typeof x === 'string')
+          : undefined,
+      generationMode:
+        typeof m.generation_mode === 'string' ? m.generation_mode : undefined,
+      fallbackUsed:
+        typeof m.fallback_used === 'boolean' ? m.fallback_used : undefined,
+      groundingValidation:
+        typeof m.grounding_validation === 'string' ? m.grounding_validation : undefined,
     };
   }
 
@@ -440,6 +494,7 @@ export function normalizeDiaryResponse(params: {
       common:    rawCommon,
       students:  normalizedStudents,
       requestId: typeof resp.request_id === 'string' ? resp.request_id : undefined,
+      meta,
       usage,
     },
   };
@@ -534,6 +589,34 @@ function translateClientError(
           retryable:   false,
           retryTarget: null,
           causeCode:   `AUTH_${httpStatus}_${serverCode}`,
+        },
+      };
+    }
+
+    // ── 422 GROUNDING_VALIDATION_FAILED ────────────────────────────────────
+    // AI Engine이 grounding 검증 실패 시 반환. 자동 저장·삽입 금지.
+    // retryable=true면 "다시 시도" 버튼을 제공합니다.
+    if (httpStatus === 422) {
+      if (serverCode === 'GROUNDING_VALIDATION_FAILED') {
+        return {
+          ok:    false,
+          error: {
+            origin:      'UNKNOWN',
+            message:     '근거 검증을 통과하지 못했습니다. 입력을 조금 더 구체적으로 작성한 후 다시 시도해주세요.',
+            retryable:   errorBody?.error?.retryable ?? true,
+            retryTarget: 'INPUT',
+            causeCode:   'GROUNDING_VALIDATION_FAILED',
+          },
+        };
+      }
+      return {
+        ok:    false,
+        error: {
+          origin:      'NETWORK',
+          message:     '요청을 처리할 수 없습니다. 다시 시도해주세요.',
+          retryable:   errorBody?.error?.retryable ?? false,
+          retryTarget: 'INPUT',
+          causeCode:   serverCode,
         },
       };
     }
@@ -769,12 +852,25 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
     };
   }
 
-  if (__DEV__) console.log('[DiaryAIService] generate_succeeded', {
-    request_id:    requestId,
-    has_common:    normalized.result.common.length > 0,
-    student_count: normalized.result.students.length,
-    pipeline_mode: mode,
-  });
+  // ── 성공 로그 (허용 필드만: PII 금지) ──────────────────────────────────────
+  const resMeta = normalized.result.meta;
+  if (__DEV__) {
+    console.log('[DiaryAIService] generate_succeeded', {
+      request_id:          requestId,
+      pipeline_mode:       mode,
+      generation_mode:     resMeta?.generationMode,
+      grounding_validation: resMeta?.groundingValidation,
+      template_ids_count:  resMeta?.templateIds?.length ?? 0,
+      knowledge_ids_count: resMeta?.knowledgeIds?.length ?? 0,
+      latency_ms:          normalized.result.usage?.latency_ms,
+      has_common:          normalized.result.common.length > 0,
+      student_count:       normalized.result.students.length,
+    });
+    // POLISH_ONLY 전용 안내 (Developer Log)
+    if (resMeta?.generationMode === 'POLISH_ONLY') {
+      console.log('[DiaryAIService] POLISH_ONLY: 입력 내용을 중심으로 문장을 정리했습니다.');
+    }
+  }
 
   return { ok: true, result: normalized.result };
 }
