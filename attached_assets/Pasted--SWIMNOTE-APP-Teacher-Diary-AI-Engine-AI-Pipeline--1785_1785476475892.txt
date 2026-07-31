@@ -1,0 +1,365 @@
+[SWIMNOTE APP — Teacher Diary AI Engine 연결 준비 작업]
+
+이번 작업은 앱 내부에 AI Pipeline을 만드는 작업이 아닙니다.
+
+앱의 책임:
+
+- 교사 텍스트/음성 입력
+- Whisper STT
+- 수영장·반·수업일·학생 Context 수집
+- AI Engine API 호출
+- 응답 검증 및 정규화
+- Draft 표시
+- 교사 수정
+- 기존 Diary 입력란 적용
+- 기존 Diary 저장
+
+AI Engine의 책임:
+
+- 입력 의미 분석
+- 공통/학생별 내용 분리
+- 학생 이름 매칭
+- Template 검색
+- Knowledge 검색
+- 관련성 판단
+- 생성 Mode 결정
+- Grounded Prompt
+- GPT 문장화
+- Grounding 검증
+
+앱에는 수영 지식 분석, Template 검색, Knowledge 검색, GPT Prompt를 구현하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 지금 즉시 할 일
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI Engine의 최종 API 정보가 도착하기 전까지
+Production 연결이나 OTA 배포를 하지 마십시오.
+
+현재 앱의 일반 GPT 직접 호출 경로를 다시 확장하지 마십시오.
+
+앱 쪽에서는 연결 준비와 Adapter 경계만 점검하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 호출 경로 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구조:
+
+DiaryAIModalV2
+→ useDiaryAIV2
+→ DiaryAIService.generateDiary()
+→ SWIMNOTE API Server의 일반 GPT Endpoint
+
+목표 구조:
+
+DiaryAIModalV2
+→ useDiaryAIV2
+→ DiaryAIService.generateDiary()
+→ TeacherDiaryAIClient
+→ SWIMNOTE AI Engine Teacher Diary API
+
+Modal과 Hook은 AI Engine의 세부 구현을 몰라야 합니다.
+
+변경 대상은 Service/API Client 계층으로 제한하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. AI Client 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+DiaryAIService 안에 URL과 Contract를 복잡하게 하드코딩하지 말고,
+Teacher Diary AI 전용 Client 또는 공통 AI Client를 사용하십시오.
+
+권장 구조:
+
+components/ai/services/DiaryAIService.ts
+        ↓
+components/ai/clients/TeacherDiaryAIClient.ts
+        ↓
+SWIMNOTE AI Engine API
+
+책임:
+
+DiaryAIService
+- 앱 파라미터 검증
+- request_id 수신
+- AbortSignal 수신
+- Client 호출
+- 오류를 DiaryServiceError로 변환
+- 응답 정규화
+
+TeacherDiaryAIClient
+- Base URL 조합
+- Authorization Header
+- HTTP POST
+- timeout
+- Content-Type 검증
+- Contract Parse
+- HTTP Error Parse
+
+UI 상태와 React 상태를 Client에 넣지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 앱 Request Contract
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 전송 구조:
+
+{
+  "request_id": "diary_<UUID>",
+  "schema_version": "1.0",
+  "feature": "teacher_diary",
+  "locale": "ko-KR",
+  "input": {
+    "text": "<trim 처리한 교사 원문>"
+  },
+  "context": {
+    "pool_id": "<swimming_pool_id>",
+    "class_id": "<class_group_id>",
+    "lesson_date": "<YYYY-MM-DD>",
+    "student_refs": [
+      "<student.id>"
+    ],
+    "students": [
+      {
+        "ref": "<student.id>",
+        "name": "<student.name 전체>"
+      }
+    ]
+  }
+}
+
+원칙:
+
+- name 전체를 그대로 보냅니다.
+- given_name을 생성하지 않습니다.
+- 이름에서 성을 제거하지 않습니다.
+- 교사 입력에서 학생 이름을 앱이 찾지 않습니다.
+- 공통/학생별 문장을 앱이 분리하지 않습니다.
+- 앱에서 수영 용어를 보충하지 않습니다.
+- curriculum/template/knowledge를 앱이 추측하여 넣지 않습니다.
+- student_refs와 students[].ref의 집합 일치 여부만 검증합니다.
+
+현재 보고상 이 Payload는 이미 대부분 구현되어 있으므로,
+AI Engine Contract와 정확히 일치하는지만 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Response Contract
+━━━━━━━━━━━━━━━━━━━━━━
+
+목표 응답:
+
+{
+  "request_id": "diary_<UUID>",
+  "schema_version": "1.0",
+  "feature": "teacher_diary",
+  "result": {
+    "common": "공통 일지",
+    "students": [
+      {
+        "student_ref": "student_xxx",
+        "content": "학생별 일지"
+      }
+    ]
+  },
+  "meta": {},
+  "usage": {}
+}
+
+앱 정규화 결과:
+
+{
+  commonContent: string,
+  studentNotes: [
+    {
+      studentId: string,
+      content: string
+    }
+  ]
+}
+
+검증:
+
+- response.request_id === request.request_id
+- schema_version 지원 여부
+- result.common string
+- result.students array
+- student_ref가 요청 student_refs에 존재
+- student_ref 중복 없음
+- content string
+- common과 students 모두 비어 있으면 오류
+- 알 수 없는 학생 ref가 하나라도 있으면 정상 삽입 금지
+
+AI Engine 최종 Contract가 확정되면
+dual-field 임시 호환 처리보다 정식 단일 Contract를 우선하십시오.
+
+단, Production 전환 완료 전까지 rollback을 위해 기존 normalize 로직을 삭제하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Endpoint 설정
+━━━━━━━━━━━━━━━━━━━━━━
+
+URL을 컴포넌트에 하드코딩하지 마십시오.
+
+환경변수 예시:
+
+EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL
+EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH
+
+Preview와 Production을 분리하십시오.
+
+Preview:
+- AI Engine 개발/Preview Endpoint
+
+Production:
+- 승인된 Production Endpoint
+
+앱 API Server URL과 AI Engine URL을 혼동하지 마십시오.
+
+실제 Base URL은 AI Engine 리플릿의 최종 보고를 받은 뒤 설정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 인증 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 앱 JWT를 그대로 AI Engine에 보낼지,
+SWIMNOTE API Server를 Proxy로 사용할지는
+AI Engine 리플릿의 인증 조사 결과 후 확정합니다.
+
+직접 호출 방식:
+
+App
+→ Authorization: Bearer App JWT
+→ AI Engine
+
+Proxy 방식:
+
+App
+→ SWIMNOTE API Server
+→ 인증 및 권한 검증
+→ Server-to-Server Token
+→ AI Engine
+
+AI Engine이 앱 JWT를 검증할 수 없는 상태라면
+직접 호출을 강행하지 마십시오.
+
+보안상 기본 권장안은 Proxy 방식이지만,
+현재 Repository와 인증 구조 조사 후 최종 결정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 구형 일반 GPT Endpoint
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 SWIMNOTE API Server의 일반 GPT 직접 호출은
+즉시 삭제하지 마십시오.
+
+대신 다음 상태로 분리하십시오.
+
+- legacy endpoint: rollback 전용
+- grounded endpoint: 신규 AI Engine 연결
+- feature flag로 선택
+- 기본값은 Preview에서만 grounded
+- Production은 실기기 E2E 승인 후 전환
+
+금지:
+
+- 새 Engine 실패 시 사용자에게 알리지 않고 legacy GPT로 자동 우회
+- Grounded 실패를 정상 AI 결과로 위장
+- fallback 결과에 pipeline_mode를 grounded로 표시
+
+Fallback이 필요한 경우 명시적으로 로그에 남기고,
+Production 정책은 별도 승인받으십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 진행 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 앱의 SEARCHING/GENERATING은 서버 실제 이벤트와 연결되지 않은 UI 상태일 수 있습니다.
+
+초기 연결에서는 거짓 단계 표시를 하지 마십시오.
+
+서버가 단일 HTTP 응답만 제공한다면:
+
+GENERATING 또는 PROCESSING 단일 상태
+
+서버가 SSE/WebSocket/진행 이벤트를 실제 제공하면:
+
+SEARCHING
+→ GENERATING
+
+으로 표시하십시오.
+
+화면 문구와 실제 서버 단계가 일치해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 개인정보와 로그
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production 앱 로그에 다음을 출력하지 마십시오.
+
+- 학생 이름
+- 교사 입력 원문
+- 생성된 학생별 일지 원문
+- JWT
+- 전체 Request/Response Payload
+
+허용 로그:
+
+- request_id
+- endpoint host
+- status
+- latency
+- student_count
+- text_length
+- pipeline_mode
+- error_code
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 앱 완료 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI Engine에서 아래 정보가 도착한 후 연결하십시오.
+
+- 최종 API URL
+- 인증 방식
+- Request Contract
+- Response Contract
+- 오류 Contract
+- timeout 기준
+- Preview Base URL
+- Grounded Pipeline 식별 정보
+
+연결 후 테스트:
+
+A. 텍스트 입력
+B. 음성→STT→생성
+C. 공통 내용
+D. 학생 한 명
+E. 학생 여러 명
+F. 긴 입력
+G. 알 수 없는 student_ref 응답 차단
+H. timeout
+I. 인증 만료
+J. 네트워크 중단
+K. 재시도
+L. 결과 편집
+M. 기존 일지 입력란 적용
+N. 기존 Diary Save
+O. 모달 닫기·재열기
+P. Abort 후 늦은 응답 무시
+
+완료 보고:
+
+1. 변경 파일
+2. 최종 호출 URL
+3. 실제 Payload 마스킹본
+4. 실제 Response 마스킹본
+5. 동일 request_id 앱/AI 서버 로그
+6. pipeline_mode=grounded_v1 확인
+7. template_ids 확인
+8. knowledge_ids 확인
+9. grounding_validation=pass 확인
+10. 실기기 테스트 결과
+11. Preview OTA ID
+
+Production OTA는 승인 전 하지 마십시오.

@@ -14,31 +14,36 @@
  *   - 오류 변환 (DiaryServiceError 구조체 반환)
  *
  * 비담당:
- *   - GPT 직접 호출, DB 직접 검색, 프롬프트 생성
- *     → SWIMNOTE AI Engine이 담당
- *   - AbortController 생성·관리 → Hook이 담당
- *   - 자동 retry 결정 → Hook이 담당
- *   - React 상태 변경 → Modal/Hook이 담당
+ *   - HTTP 전송·URL·헤더·timeout → TeacherDiaryAIClient 담당
+ *   - GPT 직접 호출, DB 검색, 프롬프트 생성 → AI Engine 담당
+ *   - AbortController 생성·관리 → Hook 담당
+ *   - 자동 retry 결정 → Hook 담당
+ *   - React 상태 변경 → Modal/Hook 담당
  *
- * 의존: 없음 (leaf node — React, Expo 미사용)
+ * 호출 경로:
+ *   DiaryAIModalV2 → useDiaryAIV2 → DiaryAIService → TeacherDiaryAIClient → AI Engine
+ *
+ * 의존: TeacherDiaryAIClient (HTTP 계층만), leaf node for React/Expo
  * 사용: useDiaryAIV2
  */
 
-// ─── AI 엔진 기본 URL ─────────────────────────────────────────────────────────
-//
-// ★ 주의: EXPO_PUBLIC_API_URL(swimnote.kr)을 기반으로 계산하지 않습니다.
-//   swimnote.kr은 /api/ai/* 경로를 API 서버로 프록시하지 않으며,
-//   HTML(SPA fallback)을 반환하여 JSON 파싱 오류를 유발합니다.
-//   AI 엔진 URL은 반드시 Render.com 직접 URL이어야 합니다.
-//
-// 우선순위:
-//   1. EXPO_PUBLIC_AI_ENGINE_URL (명시적 지정 시 사용)
-//   2. 하드코딩 fallback: swimnote-api.onrender.com (Render.com 직접)
-//
-// (구) 두 번째 옵션이었던 EXPO_PUBLIC_API_URL.replace('/api','') 제거됨.
-//   이 옵션이 swimnote.kr을 AI 엔진 주소로 사용하게 만든 근본 원인이었음.
+import {
+  sendRequest,
+  getAIDiaryMode,
+  getDiaryEndpoint,
+  type AIDiaryMode,
+  type AIClientFailure,
+  type AIClientResult,
+} from '../clients/TeacherDiaryAIClient';
 
-const AI_ENGINE_BASE: string =
+// ─── Whisper STT API 기반 URL ─────────────────────────────────────────────────
+//
+// ★ 앱 API Server URL과 AI Engine URL을 혼동하지 마십시오.
+//   Whisper STT는 SWIMNOTE API Server(Render.com)의 책임입니다.
+//   AI Engine URL(TeacherDiaryAIClient)과 별도로 관리합니다.
+//
+// EXPO_PUBLIC_AI_ENGINE_URL 설정이 있으면 사용하고, 없으면 Render.com 직접 연결.
+const SWIMNOTE_API_SERVER_BASE: string =
   (process.env.EXPO_PUBLIC_AI_ENGINE_URL as string | undefined) ??
   'https://swimnote-api.onrender.com';
 
@@ -129,9 +134,9 @@ export interface DiaryGenerateParams {
   students:     StudentContext[];
   signal:       AbortSignal;
   /**
-   * 진행 단계 콜백 — 서버가 진행 이벤트를 전송하면 Hook이 상태 전환에 사용.
-   * 현재는 서버가 이벤트를 전송하지 않으므로 Hook 측 타이머로 대체.
-   * 향후 SSE/WebSocket 연결 시 이 콜백을 통해 SEARCHING→GENERATING 전환 가능.
+   * 진행 단계 콜백 — 서버가 SSE/진행 이벤트를 전송하면 Hook이 상태 전환에 사용.
+   * 현재는 서버가 단일 HTTP 응답만 제공하므로 즉시 호출됩니다.
+   * 향후 AI Engine SSE 연결 시 실제 서버 이벤트에 맞춰 호출 시점을 변경하십시오.
    */
   onProgress?:  (phase: 'SEARCHING' | 'GENERATING') => void;
 }
@@ -199,6 +204,7 @@ interface TeacherDiaryAIResponse {
     common?:   unknown;
     students?: unknown;
   };
+  meta?:  unknown;  // AI Engine grounded pipeline 메타 정보 (향후 활용)
   usage?: {
     input_tokens?:  unknown;
     output_tokens?: unknown;
@@ -368,6 +374,169 @@ export function normalizeDiaryResponse(params: {
   };
 }
 
+// ─── translateClientError ─────────────────────────────────────────────────────
+//
+// AIClientFailure → DiaryGenerateResult 변환
+// HTTP 상태 코드 / 실패 이유별로 사용자 메시지와 retryable 여부를 결정합니다.
+
+function translateClientError(
+  failure:   AIClientFailure,
+  requestId: string,
+): DiaryGenerateResult {
+  const { reason, httpStatus, body, mode, endpointHost } = failure;
+
+  // ── timeout ─────────────────────────────────────────────────────────────
+  if (reason === 'TIMEOUT') {
+    return {
+      ok:    false,
+      error: {
+        origin:      'TIMEOUT',
+        message:     '일지 작성 시간이 초과되었습니다. 다시 시도해 주세요.',
+        retryable:   true,
+        retryTarget: 'INPUT',
+        causeCode:   'CLIENT_TIMEOUT',
+      },
+    };
+  }
+
+  // ── content-type mismatch (HTML SPA fallback 등) ─────────────────────────
+  if (reason === 'CONTENT_TYPE') {
+    console.error('[DiaryAIService] content_type_error', {
+      request_id:    requestId,
+      error_code:    reason,
+      http_status:   httpStatus,
+      endpoint_host: endpointHost,
+      pipeline_mode: mode,
+    });
+    return {
+      ok:    false,
+      error: {
+        origin:      'NETWORK',
+        message:     '응답 형식 오류가 발생했습니다. 다시 시도해주세요.',
+        retryable:   true,
+        retryTarget: 'INPUT',
+        causeCode:   `CONTENT_TYPE_${httpStatus ?? 0}`,
+      },
+    };
+  }
+
+  // ── JSON parse 실패 ─────────────────────────────────────────────────────
+  if (reason === 'PARSE_ERROR') {
+    console.error('[DiaryAIService] parse_error', {
+      request_id:    requestId,
+      error_code:    reason,
+      http_status:   httpStatus,
+      endpoint_host: endpointHost,
+      pipeline_mode: mode,
+    });
+    return {
+      ok:    false,
+      error: {
+        origin:      'UNKNOWN',
+        message:     '응답 형식 오류가 발생했습니다. 다시 시도해주세요.',
+        retryable:   false,
+        retryTarget: 'INPUT',
+        causeCode:   'RESPONSE_PARSE_ERROR',
+      },
+    };
+  }
+
+  // ── HTTP 오류 (4xx / 5xx) ────────────────────────────────────────────────
+  if (reason === 'HTTP_ERROR' && httpStatus !== null) {
+    const errorBody  = body as Partial<AIEngineError> | null;
+    const serverCode = errorBody?.error?.code ?? `HTTP_${httpStatus}`;
+
+    console.error('[DiaryAIService] http_error', {
+      request_id:    requestId,
+      error_code:    serverCode,
+      http_status:   httpStatus,
+      endpoint_host: endpointHost,
+      pipeline_mode: mode,
+    });
+
+    if (httpStatus === 401 || httpStatus === 403) {
+      return {
+        ok:    false,
+        error: {
+          origin:      'UNKNOWN',
+          message:     '인증이 만료되었습니다. 앱을 재시작한 후 다시 로그인해 주세요.',
+          retryable:   false,
+          retryTarget: null,
+          causeCode:   `AUTH_${httpStatus}_${serverCode}`,
+        },
+      };
+    }
+
+    if (httpStatus === 429) {
+      return {
+        ok:    false,
+        error: {
+          origin:      'NETWORK',
+          message:     '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.',
+          retryable:   true,
+          retryTarget: 'INPUT',
+          causeCode:   serverCode,
+        },
+      };
+    }
+
+    if (httpStatus === 504) {
+      return {
+        ok:    false,
+        error: {
+          origin:      'TIMEOUT',
+          message:     '일지 생성이 너무 오래 걸렸습니다. 다시 시도해 주세요.',
+          retryable:   true,
+          retryTarget: 'INPUT',
+          causeCode:   serverCode,
+        },
+      };
+    }
+
+    if (httpStatus >= 500) {
+      return {
+        ok:    false,
+        error: {
+          origin:      'UNKNOWN',
+          message:     `서버 오류가 발생했습니다 (${httpStatus}). 잠시 후 다시 시도해 주세요.`,
+          retryable:   errorBody?.error?.retryable ?? true,
+          retryTarget: 'INPUT',
+          causeCode:   serverCode,
+        },
+      };
+    }
+
+    return {
+      ok:    false,
+      error: {
+        origin:      'NETWORK',
+        message:     `요청 처리 실패 (${httpStatus}). 다시 시도해주세요.`,
+        retryable:   false,
+        retryTarget: 'INPUT',
+        causeCode:   serverCode,
+      },
+    };
+  }
+
+  // ── 네트워크 오류 (fetch throw) ─────────────────────────────────────────
+  console.error('[DiaryAIService] network_error', {
+    request_id:    requestId,
+    error_code:    failure.errorDetail,
+    endpoint_host: endpointHost,
+    pipeline_mode: mode,
+  });
+  return {
+    ok:    false,
+    error: {
+      origin:      'NETWORK',
+      message:     '서버에 연결하지 못했습니다. 인터넷 연결을 확인한 후 다시 시도해 주세요.',
+      retryable:   true,
+      retryTarget: 'INPUT',
+      causeCode:   failure.errorDetail ?? 'NETWORK_ERROR',
+    },
+  };
+}
+
 // ─── generateDiary ────────────────────────────────────────────────────────────
 
 export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenerateResult> {
@@ -376,12 +545,12 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
     students, signal, onProgress,
   } = p;
 
-  // 사전 검증
+  // ── 1. 앱 파라미터 검증 ──────────────────────────────────────────────────
   const validationError = validateDiaryRequest(requestId, inputText, {
     classId, date, students, poolId,
   });
   if (validationError) {
-    if (__DEV__) console.error('[DiaryAIService] validate_error', { requestId, code: validationError });
+    if (__DEV__) console.error('[DiaryAIService] validate_error', { requestId, error_code: validationError });
     return {
       ok:    false,
       error: {
@@ -394,6 +563,7 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
     };
   }
 
+  // ── 2. Request body 조립 ─────────────────────────────────────────────────
   const validStudentRefs = new Set(students.map(s => s.id));
   const studentsList     = students.map(s => ({ ref: s.id, name: s.name }));
 
@@ -412,283 +582,114 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
     },
   };
 
-  // 타임아웃 — signal과 결합
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  const timeoutController = new AbortController();
-  timeoutId = setTimeout(() => timeoutController.abort('timeout'), TIMEOUT_MS);
+  // ── 3. Feature flag 결정 ─────────────────────────────────────────────────
+  const mode: AIDiaryMode = getAIDiaryMode();
 
-  // signal을 직접 넘길 수 없는 경우 abort 이벤트로 연결
-  const onAbort = () => timeoutController.abort(signal.reason ?? 'external');
-  signal.addEventListener('abort', onAbort, { once: true });
+  // ── 4. 엔드포인트 host (로깅용) ──────────────────────────────────────────
+  let endpointHost = '(unknown)';
+  try {
+    endpointHost = getDiaryEndpoint(mode).host;
+  } catch { /* grounded + URL 미설정 — sendRequest에서 처리 */ }
 
-  // onProgress 호출 — 현재는 진입 즉시 SEARCHING 알림 (서버 이벤트 대기 없음)
-  onProgress?.('SEARCHING');
-
-  // ── 요청 시작 로그 (프로덕션 포함) ──────────────────────────────────────────
-  // 개인정보·토큰 값은 존재 여부(boolean)만 로깅합니다
+  // ── 5. 요청 시작 로그 (PII 미포함) ──────────────────────────────────────
+  // 금지: 학생 이름, 교사 입력 원문, JWT, 전체 payload
+  // 허용: request_id, endpoint_host, status, student_count, text_length, pipeline_mode
   console.log('[DiaryAIService] generate_request', {
-    request_id:      requestId,
-    endpoint:        `${AI_ENGINE_BASE}/api/ai/diary/generate`,
-    method:          'POST',
-    has_auth_token:  !!token,
-    has_pool_id:     !!poolId,
-    has_class_id:    !!classId,
-    has_students:    students.length > 0,
-    student_count:   students.length,
-    text_length:     inputText.trim().length,
-    ai_engine_base:  AI_ENGINE_BASE,
+    request_id:    requestId,
+    endpoint_host: endpointHost,
+    student_count: students.length,
+    text_length:   inputText.trim().length,
+    pipeline_mode: mode,
   });
 
+  // ── 6. 진행 상태 알림 ────────────────────────────────────────────────────
+  // 현재 서버는 단일 HTTP 응답만 제공 (SSE 미지원).
+  // AI Engine SSE 연결 시 실제 이벤트에 맞춰 onProgress 호출 시점을 변경하십시오.
+  onProgress?.('SEARCHING');
+
+  // ── 7. HTTP 전송 (TeacherDiaryAIClient 위임) ─────────────────────────────
+  let clientResult: AIClientResult;
   try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Accept':       'application/json',
-    };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    const response = await fetch(`${AI_ENGINE_BASE}/api/ai/diary/generate`, {
-      method:  'POST',
-      headers,
-      body:    JSON.stringify(requestBody),
-      signal:  timeoutController.signal,
+    clientResult = await sendRequest({
+      body:      requestBody,
+      token,
+      signal,
+      timeoutMs: TIMEOUT_MS,
+      mode,
     });
+  } catch (e) {
+    // AbortError (unmount / new-request) — Hook으로 re-throw
+    throw e;
+  }
 
-    clearTimeout(timeoutId);
-    signal.removeEventListener('abort', onAbort);
+  // ── 8. 응답 수신 로그 (PII 미포함) ──────────────────────────────────────
+  console.log('[DiaryAIService] generate_response', {
+    request_id:    requestId,
+    endpoint_host: clientResult.endpointHost,
+    ok:            clientResult.ok,
+    http_status:   clientResult.ok ? clientResult.httpStatus : (clientResult.httpStatus ?? 'N/A'),
+    pipeline_mode: mode,
+    ...(clientResult.ok ? {} : { error_code: clientResult.reason }),
+  });
 
-    // ── 응답 수신 로그 (프로덕션 포함) ──────────────────────────────────────
-    const contentType = response.headers.get('content-type') ?? '';
-    console.log('[DiaryAIService] generate_response', {
-      request_id:   requestId,
-      status:       response.status,
-      ok:           response.ok,
-      content_type: contentType,
-      is_json:      contentType.includes('application/json'),
-    });
+  // ── 9. Client 오류 변환 ──────────────────────────────────────────────────
+  if (!clientResult.ok) {
+    return translateClientError(clientResult, requestId);
+  }
 
-    // 응답 텍스트 읽기
-    let responseText: string;
-    try {
-      responseText = await response.text();
-    } catch {
-      throw new Error('NETWORK_STREAM_ERROR');
-    }
+  // ── 10. 응답 Contract 검증 ───────────────────────────────────────────────
+  const normalized = normalizeDiaryResponse({
+    rawResponse:       clientResult.body,
+    expectedRequestId: requestId,
+    currentRequestId:  requestId,
+    validStudentRefs,
+  });
 
-    if (!response.ok) {
-      let errorBody: unknown;
-      try { errorBody = JSON.parse(responseText); } catch { /* non-JSON */ }
-
-      const isErrorContract =
-        typeof errorBody === 'object' && errorBody !== null && 'error' in errorBody;
-
-      if (isErrorContract) {
-        const err   = (errorBody as AIEngineError).error;
-        const reqId = (errorBody as AIEngineError).request_id ?? '?';
-        console.error('[DiaryAIService] generate_failed', {
-          request_id: reqId,
-          error_code: err?.code,
-          status:     response.status,
-        });
-
-        if (response.status === 401 || response.status === 403) {
-          return {
-            ok:    false,
-            error: {
-              origin:      'UNKNOWN',
-              message:     '인증이 만료되었습니다. 앱을 재시작한 후 다시 로그인해 주세요.',
-              retryable:   false,
-              retryTarget: null,
-              causeCode:   `AUTH_${response.status}_${err?.code ?? ''}`,
-            },
-          };
-        }
-
-        if (response.status === 429) {
-          return {
-            ok:    false,
-            error: {
-              origin:      'NETWORK',
-              message:     '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.',
-              retryable:   true,
-              retryTarget: 'INPUT',
-              causeCode:   err?.code,
-            },
-          };
-        }
-
-        if (response.status >= 500) {
-          return {
-            ok:    false,
-            error: {
-              origin:      'UNKNOWN',
-              message:     `서버 오류가 발생했습니다 (${response.status}). 잠시 후 다시 시도해 주세요.`,
-              retryable:   err?.retryable ?? true,
-              retryTarget: 'INPUT',
-              causeCode:   err?.code,
-            },
-          };
-        }
-
-        return {
-          ok:    false,
-          error: {
-            origin:      'NETWORK',
-            message:     `요청 처리 실패 (${response.status}). 다시 시도해주세요.`,
-            retryable:   err?.retryable ?? false,
-            retryTarget: 'INPUT',
-            causeCode:   err?.code,
-          },
-        };
-      }
-
-      // non-JSON 오류 응답 (502 HTML 등 — swimnote.kr SPA fallback 포함)
-      const preview = responseText.slice(0, 120).replace(/\s+/g, ' ');
-      console.error('[DiaryAIService] generate_failed_non_json', {
-        request_id:    requestId,
-        status:        response.status,
-        content_type:  contentType,
-        body_preview:  preview,
-      });
-
-      if (response.status >= 500 || response.status === 0) {
-        return {
-          ok:    false,
-          error: {
-            origin:      'NETWORK',
-            message:     `서버 오류가 발생했습니다 (${response.status || 'CONN'}). 다시 시도해주세요.`,
-            retryable:   true,
-            retryTarget: 'INPUT',
-            causeCode:   `HTTP_${response.status}_NON_JSON`,
-          },
-        };
-      }
-
-      return {
-        ok:    false,
-        error: {
-          origin:      'NETWORK',
-          message:     `응답 형식 오류 (${response.status}). 다시 시도해주세요.`,
-          retryable:   true,
-          retryTarget: 'INPUT',
-          causeCode:   `HTTP_${response.status}_NON_JSON`,
-        },
-      };
-    }
-
-    // 성공 응답 파싱
-    let body: unknown;
-    try {
-      body = JSON.parse(responseText);
-    } catch {
-      const preview = responseText.slice(0, 120).replace(/\s+/g, ' ');
-      console.error('[DiaryAIService] generate_parse_error', {
-        request_id:   requestId,
-        body_preview: preview,
-        status:       response.status,
-        content_type: contentType,
-      });
+  if (!normalized.ok) {
+    if (normalized.stale) {
+      if (__DEV__) console.log('[DiaryAIService] stale_response', { request_id: requestId });
       return {
         ok:    false,
         error: {
           origin:      'UNKNOWN',
-          message:     '응답 형식 오류가 발생했습니다. 다시 시도해주세요.',
+          message:     '이전 요청의 응답입니다. 다시 시도해주세요.',
           retryable:   false,
           retryTarget: 'INPUT',
-          causeCode:   'RESPONSE_PARSE_ERROR',
+          causeCode:   'STALE_RESPONSE',
         },
       };
     }
-
-    const normalized = normalizeDiaryResponse({
-      rawResponse:       body,
-      expectedRequestId: requestId,
-      currentRequestId:  requestId, // Hook이 stale 판정도 하지만 Service도 1차 방어
-      validStudentRefs,
+    console.error('[DiaryAIService] contract_error', {
+      request_id:    requestId,
+      error_code:    normalized.contractError,
+      pipeline_mode: mode,
     });
-
-    if (!normalized.ok) {
-      if (normalized.stale) {
-        if (__DEV__) console.log('[DiaryAIService] stale_response', { requestId });
-        // stale은 Hook이 처리하도록 특별 오류 코드로 반환
-        return {
-          ok:    false,
-          error: {
-            origin:      'UNKNOWN',
-            message:     '이전 요청의 응답입니다. 다시 시도해주세요.',
-            retryable:   false,
-            retryTarget: 'INPUT',
-            causeCode:   'STALE_RESPONSE',
-          },
-        };
-      }
-      console.error('[DiaryAIService] contract_error', {
-        request_id: requestId,
-        code:       normalized.contractError,
-      });
-      return {
-        ok:    false,
-        error: {
-          origin:      'UNKNOWN',
-          message:     '결과 생성에 실패했습니다. 다시 시도해주세요.',
-          retryable:   false,
-          retryTarget: 'INPUT',
-          causeCode:   normalized.contractError,
-        },
-      };
-    }
-
-    if (__DEV__) console.log('[DiaryAIService] generate_succeeded', {
-      requestId,
-      has_common:    normalized.result.common.length > 0,
-      student_count: normalized.result.students.length,
-    });
-
-    return { ok: true, result: normalized.result };
-
-  } catch (e: any) {
-    clearTimeout(timeoutId);
-    signal.removeEventListener('abort', onAbort);
-
-    const reason = (timeoutController.signal as any).reason ?? signal.reason;
-
-    if (e?.name === 'AbortError' && reason === 'unmount') {
-      if (__DEV__) console.log('[DiaryAIService] generate_aborted', { reason: 'unmount' });
-      // AbortError를 그대로 throw해서 Hook의 catch로 전달
-      throw e;
-    }
-    if (e?.name === 'AbortError' && reason === 'new-request') {
-      if (__DEV__) console.log('[DiaryAIService] generate_aborted', { reason: 'new-request' });
-      throw e;
-    }
-    if (e?.name === 'AbortError' && reason === 'timeout') {
-      if (__DEV__) console.error('[DiaryAIService] generate_timeout', { requestId });
-      return {
-        ok:    false,
-        error: {
-          origin:      'TIMEOUT',
-          message:     '일지 작성 시간이 초과되었습니다. 다시 시도해 주세요.',
-          retryable:   true,
-          retryTarget: 'INPUT',
-          causeCode:   'TIMEOUT',
-        },
-      };
-    }
-
-    if (__DEV__) console.error('[DiaryAIService] generate_error', { requestId, error: e?.message });
     return {
       ok:    false,
       error: {
-        origin:      'NETWORK',
-        message:     '서버에 연결하지 못했습니다. 인터넷 연결을 확인한 후 다시 시도해 주세요.',
-        retryable:   true,
+        origin:      'UNKNOWN',
+        message:     '결과 생성에 실패했습니다. 다시 시도해주세요.',
+        retryable:   false,
         retryTarget: 'INPUT',
-        causeCode:   e?.message ?? 'NETWORK_ERROR',
+        causeCode:   normalized.contractError,
       },
     };
   }
+
+  if (__DEV__) console.log('[DiaryAIService] generate_succeeded', {
+    request_id:    requestId,
+    has_common:    normalized.result.common.length > 0,
+    student_count: normalized.result.students.length,
+    pipeline_mode: mode,
+  });
+
+  return { ok: true, result: normalized.result };
 }
 
 // ─── processVoice (Whisper STT) ───────────────────────────────────────────────
+//
+// ★ Whisper STT는 SWIMNOTE API Server(Render.com)의 책임입니다.
+//   AI Engine URL(TeacherDiaryAIClient)과 별도로 SWIMNOTE_API_SERVER_BASE를 사용합니다.
 
 export async function processVoice(p: DiaryVoiceParams): Promise<DiaryVoiceResult> {
   const { uri, token, signal } = p;
@@ -722,7 +723,7 @@ export async function processVoice(p: DiaryVoiceParams): Promise<DiaryVoiceResul
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const response = await fetch(`${AI_ENGINE_BASE}/api/ai/whisper/transcribe`, {
+    const response = await fetch(`${SWIMNOTE_API_SERVER_BASE}/api/ai/whisper/transcribe`, {
       method:  'POST',
       body:    formData,
       headers,
@@ -738,7 +739,7 @@ export async function processVoice(p: DiaryVoiceParams): Promise<DiaryVoiceResul
     if (!response.ok || 'error' in body) {
       const err   = (body as AIEngineError).error;
       const reqId = (body as AIEngineError).request_id ?? '?';
-      if (__DEV__) console.error('[DiaryAIService] stt_failed', { request_id: reqId, code: err?.code });
+      if (__DEV__) console.error('[DiaryAIService] stt_failed', { request_id: reqId, error_code: err?.code });
       return {
         ok:    false,
         error: {
@@ -791,7 +792,7 @@ export async function processVoice(p: DiaryVoiceParams): Promise<DiaryVoiceResul
       };
     }
 
-    if (__DEV__) console.error('[DiaryAIService] stt_error', { error: e?.message });
+    if (__DEV__) console.error('[DiaryAIService] stt_error', { error_code: e?.message });
     return {
       ok:    false,
       error: {
