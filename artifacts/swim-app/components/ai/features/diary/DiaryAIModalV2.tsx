@@ -111,8 +111,10 @@ export default function DiaryAIModalV2({
 
   const aiState = V2_TO_AI_STATE[hook.v2State];
 
-  // Sheet 높이: 화면의 약 88%, 상단 Safe Area를 침범하지 않는 범위로 제한
-  // ★ maxHeight만으로는 flex:1 자식(KASV)이 0px로 붕괴됨 → 명시적 height 필수
+  // TEMP: screenH * 0.88 — 레이아웃 복구 목적의 임시 고정 비율.
+  // flex:1 KASV 자식이 높이를 확보하려면 부모(sheet)에 명시적 height가 필요함.
+  // 최종 목표: 콘텐츠 기반 자연스러운 Sheet 높이 + 키보드 대응을 함께 만족하는 구조.
+  // 이 값을 영구 기준으로 사용하지 말 것.
   const sheetHeight = Math.min(
     Math.round(screenH * 0.88),
     screenH - insets.top - 16,
