@@ -40,6 +40,15 @@ description: 마지막 스토어 빌드 이후 코드에 반영됐으나 아직 
 - auth.ts simple-parent-register: 이름 중복 시 신규 학생 생성 금지
 - iOS/Android production+preview 4채널 OTA 완료
 
+## OTA 배포 필요 (앱 코드 변경, 미배포)
+
+### ⑥ STT 즉시 전송 + AI Engine V1 파이프라인 연동
+- useDiaryAIV2.ts: `_runGenerate()` 추출, `_processVoice` STT 완료 후 자동 제출
+  - 상태 흐름: RECORDING → TRANSCRIBING → SEARCHING → GENERATING → RESULT
+  - 이전: TRANSCRIBING → INPUT (사용자가 "AI 작성" 버튼 수동 클릭 필요)
+- API Server: `/api/v1/teacher-diary/generate` Template-Grounded Pipeline 추가
+  - deploy-photo-clone 브랜치: 9001ae7 push 완료, Render.com 자동 배포 중
+
 ## API 서버 변경 (재배포 후 적용)
 - `parent.ts:732` — 학부모 일지 사진 URL: `/api/photos/` → `/photos/` (swim-diary.tsx 패턴 맞춤)
 - `parent.ts:1236` — 홈 요약 사진 URL: 하드코딩 Render.com URL → `/photos/`
