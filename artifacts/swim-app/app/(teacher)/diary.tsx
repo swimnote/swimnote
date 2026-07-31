@@ -291,17 +291,30 @@ export default function TeacherDiaryScreen() {
   }
   async function loadClassStudents(classId: string) {
     try {
-      const [scheduleRes, makeupRes] = await Promise.all([
+      const [scheduleRes, makeupRes, attRes] = await Promise.all([
         apiRequest(token, `/today-schedule?date=${targetDate}`),
         apiRequest(token, `/attendance/makeup-students?class_group_id=${classId}&date=${targetDate}`),
+        // 결석 학생 조회 — 전체일지 대상에서 제외하기 위해 사전 로드
+        apiRequest(token, `/attendance?class_group_id=${classId}&date=${targetDate}`),
       ]);
+
+      // 결석(absent) 학생 ID Set 구성
+      const attList: any[] = attRes.ok ? (await attRes.json().catch(() => [])) : [];
+      const absentIds = new Set<string>(
+        attList.filter((a: any) => a.status === "absent").map((a: any) => a.student_id)
+      );
+      if (__DEV__ && absentIds.size > 0) {
+        console.log(`[loadClassStudents] 결석 제외 student_count=${absentIds.size}`, [...absentIds]);
+      }
+
       let regularStudents: any[] = [];
       if (scheduleRes.ok) {
         const scheduleData: any[] = await scheduleRes.json().catch(() => []);
         const classData = scheduleData.find((g: any) => g.id === classId);
         if (classData?.students?.length > 0) {
           regularStudents = classData.students.filter((s: any) =>
-            !["deleted", "archived"].includes(s.status)
+            !["deleted", "archived"].includes(s.status) &&
+            !absentIds.has(s.id)   // 결석 학생 제외
           );
         }
       }
@@ -310,6 +323,7 @@ export default function TeacherDiaryScreen() {
         const list: any[] = studentsRes.ok ? (await studentsRes.json().catch(() => [])) : [];
         regularStudents = list.filter((s: any) =>
           !["deleted", "archived"].includes(s.status) &&
+          !absentIds.has(s.id) &&   // 결석 학생 제외
           (s.class_group_id === classId ||
             (Array.isArray(s.assigned_class_ids) && s.assigned_class_ids.includes(classId)))
         );

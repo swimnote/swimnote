@@ -305,6 +305,8 @@ async function runDiaryPushQueue(): Promise<void> {
           } else {
             const classIdSafe = (item.class_id || "").replace(/'/g, "''");
             const lessonDateSafe = item.lesson_date.replace(/'/g, "''");
+            // student_class_history 기준 유효 학부모 조회
+            // — 해당 날짜 결석(absent) 학생의 학부모는 발송 제외
             const parentRows2 = (await db.execute(sql.raw(`
               SELECT DISTINCT pa.id AS parent_account_id
               FROM parent_students ps
@@ -316,6 +318,13 @@ async function runDiaryPushQueue(): Promise<void> {
                 AND (sch.left_at IS NULL OR sch.left_at > '${lessonDateSafe}')
               JOIN students s ON s.id = ps.student_id
               WHERE ps.status = 'approved' AND s.deleted_at IS NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM attendance a
+                  WHERE a.student_id = ps.student_id
+                    AND a.class_group_id = '${classIdSafe}'
+                    AND a.date = '${lessonDateSafe}'
+                    AND a.status = 'absent'
+                )
             `))).rows as any[];
             const notifBody = `${item.class_name}${dateLabel} 수업 일지가 도착했어요. 지금 확인해보세요`;
             for (const p of parentRows2) {

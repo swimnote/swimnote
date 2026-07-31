@@ -126,7 +126,8 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
     const classIdSafe = classId.replace(/'/g, "''");
     const lessonDateSafe = lessonDate.replace(/'/g, "''");
 
-    // lesson_date 기준 student_class_history에 유효한 학부모만 대상
+    // lesson_date 기준 student_class_history에 유효한 학부모 대상
+    // — 해당 날짜 결석(absent) 학생의 학부모는 발송 제외
     const parentRows = await db.execute(sql.raw(`
       SELECT DISTINCT pa.id AS parent_account_id
       FROM parent_students ps
@@ -138,6 +139,13 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
         AND (sch.left_at IS NULL OR sch.left_at > '${lessonDateSafe}')
       JOIN students s ON s.id = ps.student_id
       WHERE ps.status = 'approved' AND s.deleted_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM attendance a
+          WHERE a.student_id = ps.student_id
+            AND a.class_group_id = '${classIdSafe}'
+            AND a.date = '${lessonDateSafe}'
+            AND a.status = 'absent'
+        )
     `));
 
     // 인앱 알림 생성 (시간대 무관 즉시)
@@ -489,8 +497,26 @@ router.post("/diaries",
         return apiErr(res, 409, "이미 해당 날짜에 일지가 작성되었습니다. 수정 기능을 사용해주세요.");
       }
 
-      // 학생별 추가 일지 저장
-      const notes: any[] = Array.isArray(student_notes) ? student_notes : [];
+      // 결석(absent) 학생 ID 조회 — 결석자는 개인 일지 저장 및 발송 대상에서 제외
+      const absentRowsForDate = await db.execute(sql`
+        SELECT student_id FROM attendance
+        WHERE class_group_id = ${class_group_id}
+          AND date = ${dateStr}
+          AND status = 'absent'
+      `);
+      const absentStudentIds = new Set((absentRowsForDate.rows as any[]).map((r: any) => r.student_id));
+      if (absentStudentIds.size > 0) {
+        console.log(`[diary-create] 결석 학생 제외 count=${absentStudentIds.size} ids=[${[...absentStudentIds].join(",")}]`);
+      }
+
+      // 학생별 추가 일지 저장 — 결석 학생 제외
+      const allNotes: any[] = Array.isArray(student_notes) ? student_notes : [];
+      const notes: any[] = absentStudentIds.size > 0
+        ? allNotes.filter((n: any) => !absentStudentIds.has(n.student_id))
+        : allNotes;
+      if (notes.length < allNotes.length) {
+        console.log(`[diary-create] student_notes: input=${allNotes.length} after_absent_filter=${notes.length}`);
+      }
       console.log(`[diary-create] student_notes input count=${notes.length}`);
       const savedNotes: any[] = [];
 

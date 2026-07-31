@@ -53,9 +53,10 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
     const targetDayKO = ["일", "월", "화", "수", "목", "금", "토"][targetDate.getUTCDay()];
 
     // 항상 자신이 담당하는 반만 반환 (role 무관)
+    // 주 담당(teacher_user_id) + 보조 담당(co_teacher_ids) 모두 포함
     const rows = await db.execute(sql`
       SELECT * FROM class_groups
-      WHERE teacher_user_id = ${user.userId}
+      WHERE (teacher_user_id = ${user.userId} OR co_teacher_ids @> to_jsonb(${user.userId}::text))
       AND schedule_days LIKE ${"%" + targetDayKO + "%"}
       AND is_deleted = false
       ORDER BY schedule_time ASC
