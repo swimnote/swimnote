@@ -284,23 +284,36 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
     if (__DEV__) console.log('[useDiaryAIV2] generate_succeeded', { reqId, student_count: students.length });
   }, [options.token, options.poolId, options.classId, options.date, options.students]);
 
-  // ── handleSubmit ──────────────────────────────────────────────────────────
-  const handleSubmit = useCallback(async () => {
+  // ── _runGenerate (내부 공통 실행 함수) ────────────────────────────────────
+  /**
+   * text를 AI Engine으로 즉시 전송하는 공통 실행 함수.
+   *
+   * 호출 경로:
+   *   handleSubmit  — inputText React state에서 호출
+   *   _processVoice — STT transcript에서 직접 호출
+   *                   (React state 업데이트 비동기성 우회 — setInputText와 동시 호출 가능)
+   *
+   * STT 즉시 전송 원칙:
+   *   setInputText(transcript) 직후 이 함수를 transcript 값으로 바로 호출하므로
+   *   React state가 아직 커밋되지 않아도 올바른 텍스트로 AI Engine에 전송합니다.
+   *   짧은 메모("태웅 자유형 발차기", "무릎 많이 굽힘" 등)도 추가 필터 없이 그대로 전달합니다.
+   */
+  const _runGenerate = useCallback(async (text: string) => {
     if (isInFlightRef.current) {
-      if (__DEV__) console.log('[useDiaryAIV2] submit_skipped: already_in_flight');
+      if (__DEV__) console.log('[useDiaryAIV2] _runGenerate_skipped: already_in_flight');
       return;
     }
 
-    const text = inputText.trim();
-    if (!text) {
-      if (__DEV__) console.log('[useDiaryAIV2] submit_skipped: empty_input');
+    const trimmed = text.trim();
+    if (!trimmed) {
+      if (__DEV__) console.log('[useDiaryAIV2] _runGenerate_skipped: empty_text');
       return;
     }
 
     // 새 requestId 발급
     const reqId = createDiaryRequestId();
     requestIdRef.current     = reqId;
-    submittedTextRef.current = text;
+    submittedTextRef.current = trimmed;
 
     // 이전 요청 취소
     generateAbortRef.current?.abort('new-request');
@@ -311,13 +324,15 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
     setCurrentError(null);
     setV2State('SEARCHING');
 
-    if (__DEV__) console.log('[useDiaryAIV2] submit_started', { reqId, state: v2State });
+    if (__DEV__) console.log('[useDiaryAIV2] _runGenerate_started', {
+      reqId,
+      text_length: trimmed.length,
+    });
 
     // TEMP: SEARCHING → GENERATING 클라이언트 타이머 (임시 구현)
     // ─────────────────────────────────────────────────────────────────
     // 최종 구조: AI Engine → onProgress('GENERATING') → GENERATING 전환
     // 서버에서 onProgress 이벤트를 전송하면 아래 타이머 블록 전체 제거 가능.
-    // 타이머 로직은 이 블록에만 격리되어 있으며 다른 코드와 결합되지 않습니다.
     // ─────────────────────────────────────────────────────────────────
     const generatingTimer = setTimeout(() => {
       if (isMountedRef.current && requestIdRef.current === reqId) {
@@ -331,13 +346,19 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
     } catch (e: any) {
       // AbortError(unmount/new-request) — 상태 변경 없이 조용히 종료
       if (__DEV__ && e?.name !== 'AbortError') {
-        console.error('[useDiaryAIV2] handleSubmit unexpected error:', e?.message);
+        console.error('[useDiaryAIV2] _runGenerate unexpected error:', e?.message);
       }
     } finally {
       clearTimeout(generatingTimer);
       isInFlightRef.current = false;
     }
-  }, [inputText, v2State, _executeGenerate]);
+  }, [_executeGenerate]);
+
+  // ── handleSubmit ──────────────────────────────────────────────────────────
+  const handleSubmit = useCallback(async () => {
+    if (__DEV__) console.log('[useDiaryAIV2] submit_started', { state: v2State });
+    await _runGenerate(inputText);
+  }, [inputText, v2State, _runGenerate]);
 
   // ── _processVoice (내부) ──────────────────────────────────────────────────
   const _processVoice = useCallback(async (uri: string | null) => {
@@ -361,9 +382,13 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
         return;
       }
 
-      setInputText(result.transcript);
-      setV2State('INPUT');
-      if (__DEV__) console.log('[useDiaryAIV2] stt_completed', { transcript_length: result.transcript.length });
+      const transcript = result.transcript;
+      setInputText(transcript);
+      if (__DEV__) console.log('[useDiaryAIV2] stt_completed', { transcript_length: transcript.length });
+
+      // STT 즉시 전송: INPUT으로 돌아가지 않고 transcript를 바로 AI Engine으로 전송합니다.
+      // _runGenerate는 transcript 값을 직접 받으므로 React state 비동기 업데이트에 무관합니다.
+      await _runGenerate(transcript);
 
     } catch (e: any) {
       if (!isMountedRef.current) return;
@@ -377,7 +402,7 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
       await recorder.deleteRecording(uri);
       if (__DEV__) console.log('[useDiaryAIV2] stt_recording_deleted');
     }
-  }, [options.token, recorder]);
+  }, [options.token, recorder, _runGenerate]);
 
   // ── handleVoicePress ──────────────────────────────────────────────────────
   const handleVoicePress = useCallback(async () => {
