@@ -155,6 +155,8 @@ export default function AIResultArea({ result, state, onChangeText }: AIResultAr
           value={result}
           onChangeText={onChangeText}
           multiline
+          scrollEnabled={false}
+          autoFocus={false}
           textAlignVertical="top"
           placeholder="(AI 작성 결과 없음)"
           placeholderTextColor={AIThemeColor.textSub}
