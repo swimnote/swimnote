@@ -360,7 +360,12 @@ export default function ClassDetailSheet({
               </View>
             </View>
             <Text style={cds.sectionLabel}>학생 목록 · {effectiveDate}</Text>
-            <ScrollView style={cds.studentScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={cds.studentScroll}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+              contentContainerStyle={{ paddingBottom: 32 }}
+            >
               {groupStudents.length === 0 ? (
                 <View style={cds.empty}>
                   <Users size={28} color={C.textMuted} />
@@ -463,7 +468,6 @@ export default function ClassDetailSheet({
                   })}
                 </View>
               )}
-              <View style={{ height: 20 }} />
             </ScrollView>
           </Pressable>
         </Pressable>
@@ -687,10 +691,9 @@ export default function ClassDetailSheet({
 }
 
 const cds = StyleSheet.create({
-  backdrop:        { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet:           { position: "absolute", bottom: 0, left: 0, right: 0,
-                     backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
-                     maxHeight: "75%", paddingBottom: 32 },
+  backdrop:        { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  sheet:           { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
+                     maxHeight: "75%" },
   handle:          { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
                      alignSelf: "center", marginTop: 10, marginBottom: 4 },
   sheetHeader:     { flexDirection: "row", alignItems: "flex-start", padding: 16, paddingTop: 8 },
@@ -704,7 +707,7 @@ const cds = StyleSheet.create({
   actionText:      { fontSize: 13, fontFamily: "Pretendard-Regular" },
   sectionLabel:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted,
                      paddingHorizontal: 16, marginBottom: 6 },
-  studentScroll:   { flexShrink: 1 },
+  studentScroll:   { flex: 1 },
   studentRow:      { flexDirection: "row", alignItems: "center", gap: 8,
                      paddingHorizontal: 16, paddingVertical: 10,
                      borderTopWidth: 1, borderTopColor: "#F8FAFC" },
