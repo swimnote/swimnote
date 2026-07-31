@@ -109,9 +109,14 @@ export default function DiaryAIModalV2({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
-  const aiState  = V2_TO_AI_STATE[hook.v2State];
-  // Sheet 최대 높이: 상단 Safe Area + 여유 16px를 제외한 화면 높이
-  const sheetMaxH = screenH - insets.top - 16;
+  const aiState = V2_TO_AI_STATE[hook.v2State];
+
+  // Sheet 높이: 화면의 약 88%, 상단 Safe Area를 침범하지 않는 범위로 제한
+  // ★ maxHeight만으로는 flex:1 자식(KASV)이 0px로 붕괴됨 → 명시적 height 필수
+  const sheetHeight = Math.min(
+    Math.round(screenH * 0.88),
+    screenH - insets.top - 16,
+  );
 
   // ── 콘텐츠 영역 (KeyboardAwareScrollView 안에 위치) ──────────────────────
   const renderContent = () => {
@@ -277,8 +282,9 @@ export default function DiaryAIModalV2({
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.kavWrapper}
         >
-          {/* Sheet */}
-          <View style={[styles.sheet, { maxHeight: sheetMaxH }]}>
+          {/* Sheet — height 명시 필수: flex:1인 KASV 자식이 높이를 확보하려면
+               부모(sheet)에 확정된 height가 있어야 함. maxHeight 단독 사용 시 KASV 붕괴 */}
+          <View style={[styles.sheet, { height: sheetHeight }]}>
 
             {/* 핸들 바 */}
             <View style={styles.handleContainer}>
@@ -420,11 +426,11 @@ const styles = StyleSheet.create({
   },
 
   // 모달 시트
-  // flex: 0 — 콘텐츠 높이만큼 자연스럽게 성장, maxHeight 초과 불가
-  // maxHeight는 컴포넌트에서 동적으로 적용 (screenH - safeTop - 16)
+  // height는 컴포넌트에서 동적으로 적용 (screenH * 0.88, safeTop 기반 제한)
+  // ★ flex: 0 제거 — 명시적 height가 있을 때 flex:0은 불필요하며
+  //    flex:1 자식(KASV)이 높이를 계산하는 데 방해가 됨
   // paddingBottom 없음 — actionBarContainer에만 insets.bottom 적용
   sheet: {
-    flex:            0,
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius:  AIThemeRadius.modal ?? 20,
     borderTopRightRadius: AIThemeRadius.modal ?? 20,
