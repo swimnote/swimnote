@@ -1,0 +1,229 @@
+현재 AI 일지 작성 모달 수정이 잘못됐다.
+
+새 기능을 추가하거나 구조를 임의로 변경하지 말고 아래 UI 오류만 정확히 수정해.
+
+현재 오류:
+1. AI 작성 버튼과 음성 버튼이 서로 겹친다.
+2. AI 작성 버튼이 반투명하게 표시된다.
+3. 키보드를 열면 버튼과 입력창의 배치가 무너진다.
+4. 모달 높이가 일관되지 않고 다시 낮아진다.
+
+반드시 아래 구조로 수정한다.
+
+[최종 화면 구조]
+
+AI 일지 작성 헤더
+↓
+입력창
+↓
+AI 작성 버튼
+↓
+음성 입력 버튼
+↓
+필요한 추가 콘텐츠
+↓
+하단 여백
+
+버튼은 절대로 서로 겹치면 안 된다.
+
+1. 모든 absolute 배치 제거
+
+AI 작성 버튼과 음성 버튼에서 아래 속성이 있으면 제거한다.
+
+position: 'absolute'
+bottom
+top
+left
+right
+transform
+zIndex를 이용한 강제 겹침
+
+두 버튼은 일반 세로 레이아웃 안에 순서대로 배치한다.
+
+예시:
+
+<View style={styles.actionContainer}>
+  <Pressable style={styles.aiButton}>
+    <Text style={styles.aiButtonText}>✨ AI 작성</Text>
+  </Pressable>
+
+  <Pressable style={styles.voiceButton}>
+    <Text style={styles.voiceButtonText}>🎤 음성</Text>
+  </Pressable>
+</View>
+
+actionContainer:
+{
+  width: '100%',
+  gap: 12,
+  marginTop: 16,
+}
+
+2. AI 작성 버튼 반투명 제거
+
+AI 작성 버튼 및 모든 부모 View에서 다음을 확인한다.
+
+- opacity 제거
+- rgba 배경색 제거
+- disabled 상태가 아닌데 disabled 스타일이 적용되지 않도록 수정
+- 로딩 중이 아닐 때 opacity는 반드시 1
+- 버튼 배경은 불투명한 단색 사용
+
+예시:
+
+aiButton: {
+  width: '100%',
+  minHeight: 56,
+  borderRadius: 14,
+  backgroundColor: '#4F8EF7',
+  alignItems: 'center',
+  justifyContent: 'center',
+  opacity: 1,
+}
+
+disabled일 때만 별도 스타일을 적용한다.
+
+style={[
+  styles.aiButton,
+  isLoading && styles.aiButtonDisabled,
+]}
+
+aiButtonDisabled: {
+  opacity: 0.5,
+}
+
+부모 컨테이너에는 절대로 opacity를 적용하지 않는다.
+
+3. 음성 버튼 독립 배치
+
+음성 버튼은 AI 작성 버튼 위에 글자만 겹쳐 보이는 형태가 아니라
+완전히 분리된 별도 버튼으로 만든다.
+
+voiceButton: {
+  width: '100%',
+  minHeight: 52,
+  borderRadius: 14,
+  backgroundColor: '#FFFFFF',
+  borderWidth: 1,
+  borderColor: '#D9E1EC',
+  alignItems: 'center',
+  justifyContent: 'center',
+}
+
+4. 모달 높이 고정
+
+AI 일지 작성 모달은 열릴 때 항상 화면 높이의 92~95%를 사용한다.
+
+콘텐츠 길이에 따라 높이가 줄어들지 않게 한다.
+
+예시:
+
+const screenHeight = Dimensions.get('window').height;
+
+modalContainer: {
+  height: screenHeight * 0.94,
+  maxHeight: screenHeight * 0.94,
+  backgroundColor: '#FFFFFF',
+  borderTopLeftRadius: 28,
+  borderTopRightRadius: 28,
+  overflow: 'hidden',
+}
+
+BottomSheet 라이브러리를 쓰는 경우:
+
+snapPoints={['94%']}
+enableDynamicSizing={false}
+
+동적 높이 계산이나 contentHeight 기반 자동 축소는 사용하지 않는다.
+
+5. 헤더와 본문 분리
+
+헤더는 고정한다.
+
+본문만 세로 스크롤되게 한다.
+
+구조:
+
+<View style={styles.modalContainer}>
+  <View style={styles.header}>
+    ...
+  </View>
+
+  <ScrollView
+    style={styles.scrollView}
+    contentContainerStyle={styles.scrollContent}
+    keyboardShouldPersistTaps="handled"
+    showsVerticalScrollIndicator={true}
+  >
+    입력창
+    AI 작성 버튼
+    음성 버튼
+    추가 콘텐츠
+  </ScrollView>
+</View>
+
+scrollView:
+{
+  flex: 1,
+}
+
+scrollContent:
+{
+  paddingHorizontal: 20,
+  paddingTop: 20,
+  paddingBottom: 60,
+}
+
+ScrollView 자식의 최상위 View에 flex: 1을 넣어서
+스크롤이 막히게 하지 않는다.
+
+6. 키보드 처리
+
+키보드가 열려도 버튼을 입력창 위에 띄우거나 겹치게 만들지 않는다.
+
+KeyboardAvoidingView를 사용할 경우:
+
+<KeyboardAvoidingView
+  style={{ flex: 1 }}
+  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+>
+  ...
+</KeyboardAvoidingView>
+
+버튼은 키보드 위에 absolute로 고정하지 않는다.
+사용자가 아래로 스크롤해서 버튼을 볼 수 있도록 한다.
+
+7. 입력창
+
+입력창은 다음 범위로 제한한다.
+
+input: {
+  width: '100%',
+  minHeight: 180,
+  maxHeight: 260,
+  textAlignVertical: 'top',
+  backgroundColor: '#FFFFFF',
+  borderWidth: 1,
+  borderColor: '#D9E1EC',
+  borderRadius: 14,
+  padding: 16,
+}
+
+입력창 높이가 모달 전체를 밀어내지 않게 한다.
+
+8. 최종 검수 조건
+
+수정 완료 전 반드시 실제 화면에서 확인한다.
+
+- AI 작성 버튼이 완전한 불투명 단색이다.
+- AI 작성 버튼 위에 음성 글자나 아이콘이 겹치지 않는다.
+- AI 작성 버튼과 음성 버튼 사이에 최소 12px 간격이 있다.
+- 키보드를 열어도 입력창과 버튼이 겹치지 않는다.
+- 모달은 항상 화면 상단 가까이까지 열린다.
+- 키보드를 닫은 상태와 연 상태 모두 위아래 스크롤이 된다.
+- 기존 AI 요청 로직과 음성 입력 로직은 변경하지 않는다.
+- UI 레이아웃과 스타일만 수정한다.
+
+수정 후에는 추측성 설명만 하지 말고,
+실제로 변경한 파일명과 제거한 absolute/opacity 코드,
+최종 버튼 JSX 구조를 그대로 보고해.
