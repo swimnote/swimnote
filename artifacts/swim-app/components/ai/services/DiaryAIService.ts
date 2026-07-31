@@ -56,6 +56,28 @@ const TIMEOUT_MS = 60_000;
 // AI Engine 응답에 request_id가 확정되면 false로 변경합니다.
 const ALLOW_LEGACY_RESPONSE_WITHOUT_REQUEST_ID = true;
 
+// ─── Contract 버전 관리 ───────────────────────────────────────────────────────
+//
+// 앱이 전송하는 contract_version — Request에 포함됩니다.
+export const APP_CONTRACT_VERSION = '1.0' as const;
+
+/**
+ * 앱이 수락하는 버전 집합.
+ *
+ * AI Engine이 발전해 새 버전을 추가할 경우 이 집합에 등록하십시오.
+ * 집합에 없는 버전은 즉시 UNSUPPORTED_CONTRACT 오류를 반환합니다.
+ *
+ * ★ 금지: 미검증 버전을 조용히 통과시키거나 강제 캐스팅하지 마십시오.
+ */
+export const SUPPORTED_CONTRACT_VERSIONS = new Set<string>(['1.0']);
+export const SUPPORTED_SCHEMA_VERSIONS   = new Set<string>(['1.0']);
+/**
+ * engine_version은 AI Engine 연결 후 실제 값 확인 후 추가하십시오.
+ * legacy 서버는 engine_version을 응답에 포함하지 않으므로 현재는 부재 시 통과.
+ * AI Engine 응답에 포함되면 이 집합에 등록해야 앱이 수락합니다.
+ */
+export const SUPPORTED_ENGINE_VERSIONS   = new Set<string>(['v1', 'grounded_v1', 'legacy_v1']);
+
 // ─── requestId 생성 ───────────────────────────────────────────────────────────
 
 let _diaryReqSeq = 0;
@@ -176,10 +198,11 @@ interface NormalizedDiaryStudentResult {
 }
 
 interface TeacherDiaryAIRequest {
-  request_id:     string;
-  schema_version: '1.0';
-  feature:        'teacher_diary';
-  locale:         'ko-KR';
+  contract_version: '1.0';    // 앱이 사용하는 Contract 버전
+  request_id:       string;
+  schema_version:   '1.0';
+  feature:          'teacher_diary';
+  locale:           'ko-KR';
   input: { text: string };
   context: {
     pool_id:      string;
@@ -198,8 +221,10 @@ interface TeacherDiaryAIStudentResult {
 }
 
 interface TeacherDiaryAIResponse {
-  request_id?:     unknown;
-  schema_version?: unknown;
+  contract_version?: unknown;  // AI Engine이 포함할 때 검증 (부재 시 legacy 허용)
+  request_id?:       unknown;
+  schema_version?:   unknown;
+  engine_version?:   unknown;  // AI Engine이 포함할 때 검증 (부재 시 허용)
   result?: {
     common?:   unknown;
     students?: unknown;
@@ -223,7 +248,7 @@ interface AIEngineError {
 
 type NormalizeResult =
   | { ok: true;  result: NormalizedDiaryResult }
-  | { ok: false; contractError: string; stale?: true };
+  | { ok: false; contractError: string; stale?: true; unsupported?: true };
 
 // ─── 사전 검증 ────────────────────────────────────────────────────────────────
 
@@ -272,7 +297,53 @@ export function normalizeDiaryResponse(params: {
   }
   const resp = rawResponse as TeacherDiaryAIResponse;
 
-  // request_id 검증
+  // ── contract_version 검증 (응답에 포함된 경우) ─────────────────────────────
+  // 응답에 contract_version이 없으면 legacy 허용 (전환 기간 호환성).
+  // AI Engine이 발전해 새 버전을 추가하면 SUPPORTED_CONTRACT_VERSIONS에 등록하십시오.
+  if (resp.contract_version !== undefined) {
+    if (
+      typeof resp.contract_version !== 'string' ||
+      !SUPPORTED_CONTRACT_VERSIONS.has(resp.contract_version)
+    ) {
+      return {
+        ok:            false,
+        contractError: 'UNSUPPORTED_CONTRACT',
+        unsupported:   true,
+      };
+    }
+  }
+
+  // ── schema_version 검증 (응답에 포함된 경우) ──────────────────────────────
+  if (resp.schema_version !== undefined) {
+    if (
+      typeof resp.schema_version !== 'string' ||
+      !SUPPORTED_SCHEMA_VERSIONS.has(resp.schema_version)
+    ) {
+      return {
+        ok:            false,
+        contractError: 'UNSUPPORTED_CONTRACT',
+        unsupported:   true,
+      };
+    }
+  }
+
+  // ── engine_version 검증 (응답에 포함된 경우) ──────────────────────────────
+  // AI Engine 연결 후 실제 engine_version 값을 SUPPORTED_ENGINE_VERSIONS에 등록하십시오.
+  // legacy 서버는 engine_version을 포함하지 않으므로 부재 시 허용합니다.
+  if (resp.engine_version !== undefined) {
+    if (
+      typeof resp.engine_version !== 'string' ||
+      !SUPPORTED_ENGINE_VERSIONS.has(resp.engine_version)
+    ) {
+      return {
+        ok:            false,
+        contractError: 'UNSUPPORTED_CONTRACT',
+        unsupported:   true,
+      };
+    }
+  }
+
+  // ── request_id 검증 ───────────────────────────────────────────────────────
   if (resp.request_id !== undefined) {
     if (typeof resp.request_id !== 'string') {
       return { ok: false, contractError: 'CONTRACT_REQUEST_ID_TYPE' };
@@ -568,9 +639,10 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
   const studentsList     = students.map(s => ({ ref: s.id, name: s.name }));
 
   const requestBody: TeacherDiaryAIRequest = {
-    request_id:     requestId,
-    schema_version: '1.0',
-    feature:        'teacher_diary',
+    contract_version: APP_CONTRACT_VERSION,  // 앱이 지원하는 Contract 버전
+    request_id:       requestId,
+    schema_version:   '1.0',
+    feature:          'teacher_diary',
     locale:         'ko-KR',
     input:   { text: inputText.trim() },
     context: {
@@ -659,6 +731,27 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
         },
       };
     }
+
+    // UNSUPPORTED_CONTRACT — 앱이 지원하지 않는 버전의 응답
+    // 사용자에게 앱 업데이트를 안내하고 retry를 차단합니다.
+    if (normalized.unsupported) {
+      console.error('[DiaryAIService] unsupported_contract', {
+        request_id:    requestId,
+        error_code:    normalized.contractError,
+        pipeline_mode: mode,
+      });
+      return {
+        ok:    false,
+        error: {
+          origin:      'UNKNOWN',
+          message:     '앱이 이 버전의 AI 응답을 지원하지 않습니다. 앱을 최신 버전으로 업데이트해 주세요.',
+          retryable:   false,
+          retryTarget: null,
+          causeCode:   'UNSUPPORTED_CONTRACT',
+        },
+      };
+    }
+
     console.error('[DiaryAIService] contract_error', {
       request_id:    requestId,
       error_code:    normalized.contractError,

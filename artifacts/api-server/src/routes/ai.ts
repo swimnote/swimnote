@@ -154,36 +154,57 @@ router.post(
     if (!isValidExternalRequestId(externalRequestId)) {
       console.warn(`[AI/diary:${internalId}] invalid_request_id mode=${effectiveMode}`);
       res.status(400).json({
-        request_id:     null,
-        schema_version: '1.0',
-        feature:        'teacher_diary',
-        status:         'failed',
+        contract_version: '1.0',
+        request_id:       null,
+        schema_version:   '1.0',
+        feature:          'teacher_diary',
+        status:           'failed',
         error: { code: 'INVALID_REQUEST', message: 'request_id is required.', retryable: false },
       });
       return;
     }
 
-    // ── 2. schema_version ────────────────────────────────────────────────────
+    // ── 2. contract_version ─────────────────────────────────────────────────
+    // 앱이 전송하는 contract_version을 검증합니다.
+    // 지원하지 않는 버전의 요청은 즉시 거부하여 하위 호환성을 강제합니다.
+    const contractVersion = rawBody.contract_version;
+    const SUPPORTED_REQUEST_CONTRACT_VERSIONS = new Set(['1.0']);
+    if (typeof contractVersion !== 'string' || !SUPPORTED_REQUEST_CONTRACT_VERSIONS.has(contractVersion)) {
+      console.warn(`[AI/diary:${internalId}] unsupported_contract_version version=${contractVersion} ext_id=${externalRequestId}`);
+      res.status(400).json({
+        contract_version: '1.0',
+        request_id:       externalRequestId,
+        schema_version:   '1.0',
+        feature:          'teacher_diary',
+        status:           'failed',
+        error: { code: 'UNSUPPORTED_CONTRACT', message: `Unsupported contract_version: ${contractVersion ?? '(missing)'}. Supported: 1.0`, retryable: false },
+      });
+      return;
+    }
+
+    // ── 3. schema_version ────────────────────────────────────────────────────
     if (rawBody.schema_version !== '1.0') {
       console.warn(`[AI/diary:${internalId}] invalid_schema_version ext_id=${externalRequestId}`);
       res.status(400).json({
-        request_id:     externalRequestId,
-        schema_version: '1.0',
-        feature:        'teacher_diary',
-        status:         'failed',
+        contract_version: '1.0',
+        request_id:       externalRequestId,
+        schema_version:   '1.0',
+        feature:          'teacher_diary',
+        status:           'failed',
         error: { code: 'INVALID_REQUEST', message: 'Invalid teacher diary request.', retryable: false },
       });
       return;
     }
 
-    // ── 3. feature ───────────────────────────────────────────────────────────
+    // ── 4. feature ───────────────────────────────────────────────────────────
     if (rawBody.feature !== 'teacher_diary') {
       console.warn(`[AI/diary:${internalId}] invalid_feature ext_id=${externalRequestId}`);
       res.status(400).json({
-        request_id:     externalRequestId,
-        schema_version: '1.0',
-        feature:        'teacher_diary',
-        status:         'failed',
+        contract_version: '1.0',
+        request_id:       externalRequestId,
+        schema_version:   '1.0',
+        feature:          'teacher_diary',
+        status:           'failed',
         error: { code: 'INVALID_REQUEST', message: 'Invalid teacher diary request.', retryable: false },
       });
       return;
@@ -197,10 +218,11 @@ router.post(
     if (!normalizedInputText) {
       console.warn(`[AI/diary:${internalId}] invalid_input_text ext_id=${externalRequestId}`);
       res.status(400).json({
-        request_id:     externalRequestId,
-        schema_version: '1.0',
-        feature:        'teacher_diary',
-        status:         'failed',
+        contract_version: '1.0',
+        request_id:       externalRequestId,
+        schema_version:   '1.0',
+        feature:          'teacher_diary',
+        status:           'failed',
         error: { code: 'INVALID_REQUEST', message: 'Invalid teacher diary request.', retryable: false },
       });
       return;
@@ -218,10 +240,11 @@ router.post(
     // ── 6. context 필수값 검증 ───────────────────────────────────────────────
     if (!poolId.trim()) {
       res.status(400).json({
-        request_id:     externalRequestId,
-        schema_version: '1.0',
-        feature:        'teacher_diary',
-        status:         'failed',
+        contract_version: '1.0',
+        request_id:       externalRequestId,
+        schema_version:   '1.0',
+        feature:          'teacher_diary',
+        status:           'failed',
         error: { code: 'INVALID_REQUEST', message: 'context.pool_id is required.', retryable: false },
       });
       return;
@@ -229,10 +252,11 @@ router.post(
 
     if (!classId.trim()) {
       res.status(400).json({
-        request_id:     externalRequestId,
-        schema_version: '1.0',
-        feature:        'teacher_diary',
-        status:         'failed',
+        contract_version: '1.0',
+        request_id:       externalRequestId,
+        schema_version:   '1.0',
+        feature:          'teacher_diary',
+        status:           'failed',
         error: { code: 'INVALID_REQUEST', message: 'context.class_id is required.', retryable: false },
       });
       return;
@@ -240,10 +264,11 @@ router.post(
 
     if (!lessonDate.trim()) {
       res.status(400).json({
-        request_id:     externalRequestId,
-        schema_version: '1.0',
-        feature:        'teacher_diary',
-        status:         'failed',
+        contract_version: '1.0',
+        request_id:       externalRequestId,
+        schema_version:   '1.0',
+        feature:          'teacher_diary',
+        status:           'failed',
         error: { code: 'INVALID_REQUEST', message: 'context.lesson_date is required.', retryable: false },
       });
       return;
@@ -257,10 +282,11 @@ router.post(
       if (!jwtPoolId) {
         console.warn(`[AI/diary:${internalId}] tenant_isolation_fail: jwt_pool_id=null mode=parser_v1 ext_id=${externalRequestId}`);
         res.status(403).json({
-          request_id:     externalRequestId,
-          schema_version: '1.0',
-          feature:        'teacher_diary',
-          status:         'failed',
+          contract_version: '1.0',
+          request_id:       externalRequestId,
+          schema_version:   '1.0',
+          feature:          'teacher_diary',
+          status:           'failed',
           error: { code: 'TENANT_MISMATCH', message: '수영장 인증 정보가 없습니다.', retryable: false },
         });
         return;
@@ -269,10 +295,11 @@ router.post(
       if (jwtPoolId !== poolId) {
         console.warn(`[AI/diary:${internalId}] tenant_isolation_fail: pool_mismatch mode=parser_v1 ext_id=${externalRequestId}`);
         res.status(403).json({
-          request_id:     externalRequestId,
-          schema_version: '1.0',
-          feature:        'teacher_diary',
-          status:         'failed',
+          contract_version: '1.0',
+          request_id:       externalRequestId,
+          schema_version:   '1.0',
+          feature:          'teacher_diary',
+          status:           'failed',
           error: { code: 'TENANT_MISMATCH', message: '수영장 정보가 일치하지 않습니다.', retryable: false },
         });
         return;
@@ -326,10 +353,11 @@ router.post(
 
     if (!refsMatch) {
       res.status(400).json({
-        request_id:     externalRequestId,
-        schema_version: '1.0',
-        feature:        'teacher_diary',
-        status:         'failed',
+        contract_version: '1.0',
+        request_id:       externalRequestId,
+        schema_version:   '1.0',
+        feature:          'teacher_diary',
+        status:           'failed',
         error: { code: 'INVALID_REQUEST', message: 'Invalid teacher diary request.', retryable: false },
       });
       return;
@@ -340,10 +368,11 @@ router.post(
     if (effectiveMode === 'parser_v1' && normalizedStudents.length === 0) {
       console.warn(`[AI/diary:${internalId}] student_resolution_required: no students mode=parser_v1 ext_id=${externalRequestId}`);
       res.status(422).json({
-        request_id:     externalRequestId,
-        schema_version: '1.0',
-        feature:        'teacher_diary',
-        status:         'failed',
+        contract_version: '1.0',
+        request_id:       externalRequestId,
+        schema_version:   '1.0',
+        feature:          'teacher_diary',
+        status:           'failed',
         error: { code: 'STUDENT_RESOLUTION_REQUIRED', message: '학생 정보를 확인할 수 없습니다.', retryable: false },
       });
       return;
@@ -451,13 +480,16 @@ router.post(
       );
 
       res.status(200).json({
-        request_id:     externalRequestId,
-        schema_version: '1.0',
-        feature:        'teacher_diary',
+        contract_version: '1.0',
+        request_id:       externalRequestId,
+        schema_version:   '1.0',
+        engine_version:   'v1',
+        feature:          'teacher_diary',
         result: {
           common:   validatedOutput.common,
           students: validatedOutput.students,
         },
+        meta:  {},
         usage: {
           input_tokens:  usage?.prompt_tokens     ?? 0,
           output_tokens: usage?.completion_tokens ?? 0,
@@ -483,10 +515,12 @@ router.post(
         });
         console.error(`[AI/diary:${internalId}] MODEL_TIMEOUT ext_id=${externalRequestId} elapsed=${elapsedMs}ms timeout_ms=${gptTimeoutMs}`);
         res.status(504).json({
-          request_id:     externalRequestId,
-          schema_version: '1.0',
-          feature:        'teacher_diary',
-          status:         'failed',
+          contract_version: '1.0',
+          request_id:       externalRequestId,
+          schema_version:   '1.0',
+          engine_version:   'v1',
+          feature:          'teacher_diary',
+          status:           'failed',
           error: { code: 'MODEL_TIMEOUT', message: 'Teacher diary generation timed out.', retryable: true },
         });
         return;
@@ -514,10 +548,12 @@ router.post(
           elapsed_ms:          elapsedMs,
         });
         res.status(500).json({
-          request_id:     externalRequestId,
-          schema_version: '1.0',
-          feature:        'teacher_diary',
-          status:         'failed',
+          contract_version: '1.0',
+          request_id:       externalRequestId,
+          schema_version:   '1.0',
+          engine_version:   'v1',
+          feature:          'teacher_diary',
+          status:           'failed',
           error: { code: 'OUTPUT_VALIDATION_FAILED', message: 'Teacher diary output validation failed.', retryable: false },
         });
         return;
@@ -539,10 +575,12 @@ router.post(
       console.error(`[AI/diary:${internalId}] ext_id=${externalRequestId} elapsed=${elapsedMs}ms status=${e?.status ?? 500} msg=${safeMsg}`);
       const retryable = !e?.status || e.status >= 500 || e.status === 429;
       res.status(e?.status ?? 500).json({
-        request_id:     externalRequestId,
-        schema_version: '1.0',
-        feature:        'teacher_diary',
-        status:         'failed',
+        contract_version: '1.0',
+        request_id:       externalRequestId,
+        schema_version:   '1.0',
+        engine_version:   'v1',
+        feature:          'teacher_diary',
+        status:           'failed',
         error: { code: e?.code ?? 'INTERNAL_ERROR', message: 'Teacher diary generation failed.', retryable },
       });
     }
