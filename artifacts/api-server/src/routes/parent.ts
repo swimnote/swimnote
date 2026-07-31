@@ -602,7 +602,17 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
         WHERE cd.is_deleted = false
           ${monthFilter}
           AND (
-            (cd.class_group_id IN (${idsLiteral}) AND sch.id IS NOT NULL)
+            -- 일반 수업: 재원 이력이 있고, 해당 날짜 결석(absent)이 아닌 경우만 표시
+            (cd.class_group_id IN (${idsLiteral}) AND sch.id IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM attendance a
+                WHERE a.student_id = '${studentIdSafe}'
+                  AND a.class_group_id = cd.class_group_id
+                  AND a.date = cd.lesson_date
+                  AND a.status = 'absent'
+              )
+            )
+            -- 보강 수업: 결석 여부와 무관하게 표시 (보강 출석 완료)
             OR ms.id IS NOT NULL
           )
       ) sub

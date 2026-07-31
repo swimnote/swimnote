@@ -471,6 +471,11 @@ export default function TeacherDiaryScreen() {
       }
     }
     if (!isRetry) {
+      // 전체 결석: 출석 학생이 없으면 일지 저장 불가
+      if (classStudents.length === 0) {
+        setFormError("출석한 학생이 없어 일지를 저장할 수 없습니다. 출결을 먼저 확인해주세요.");
+        return;
+      }
       const hasAnyMedia =
         groupMedia.some(m => m.uploaded) ||
         selectedAlbumPhotos.length > 0 ||
