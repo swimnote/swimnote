@@ -26,7 +26,7 @@
  *
  * Grounded URL 환경변수:
  *   EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL   — AI Engine base (예: https://ai.swimnote.kr)
- *   EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH — diary generate path (기본: /api/ai/diary/generate)
+ *   EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH — diary generate path (기본: /api/v1/teacher-diary/generate)
  *
  * ★ 금지:
  *   - 신규 Engine 실패 시 사용자에게 알리지 않고 legacy로 자동 우회
@@ -69,7 +69,10 @@ const LEGACY_PATH = '/api/ai/diary/generate';
  *   grounded 모드에서 URL이 미설정이면 getDiaryEndpoint()가 오류를 throw합니다.
  */
 const GROUNDED_BASE  = (process.env.EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL   as string | undefined) ?? '';
-const GROUNDED_PATH  = (process.env.EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH as string | undefined) ?? '/api/ai/diary/generate';
+// ★ 정식 V1 엔드포인트: /api/v1/teacher-diary/generate
+// EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH 미설정 시 이 기본값이 사용됩니다.
+// 구형 기본값 /api/ai/diary/generate 는 잘못된 응답 구조를 반환합니다.
+const GROUNDED_PATH  = (process.env.EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH as string | undefined) ?? '/api/v1/teacher-diary/generate';
 
 export interface DiaryEndpoint {
   base: string;

@@ -7,7 +7,8 @@
  *   UI 상태 변경은 이 파일의 책임이 아닙니다.
  *
  * 담당:
- *   - POST /api/ai/diary/generate  (일지 생성)
+ *   - POST /api/v1/teacher-diary/generate  (일지 생성 — grounded V1 정식 엔드포인트)
+ *   - POST /api/ai/diary/generate          (legacy fallback — rollback 전용)
  *   - POST /api/ai/whisper/transcribe (STT)
  *   - 요청 사전 검증 (validateDiaryRequest)
  *   - 응답 정규화 (normalizeDiaryResponse)
@@ -248,10 +249,17 @@ interface TeacherDiaryAIResponse {
   schema_version?:   unknown;
   engine_version?:   unknown;
   feature?:          unknown;
+  /** 신형 V1 Contract: 이 필드가 있으면 신형 구조로 처리 */
   result?: {
     common?:   unknown;
     students?: unknown;
   };
+  /**
+   * 구형 Contract 보조 필드 (legacy 모드 명시적 허용만)
+   * grounded 모드에서는 이 필드를 직접 사용하지 않습니다.
+   */
+  common?:   unknown;
+  students?: unknown;
   /** AI Engine V1 pipeline 메타 정보 */
   meta?: {
     pipeline_mode?:        unknown;
@@ -322,8 +330,15 @@ export function normalizeDiaryResponse(params: {
   expectedRequestId: string;
   currentRequestId:  string;
   validStudentRefs:  Set<string>;
+  /**
+   * 파이프라인 모드 — 정규화 전략 결정 및 로깅에 사용.
+   * 'grounded': 신형 Contract만 허용 (resp.result.common + student_ref 필수)
+   * 'legacy'  : 신형 우선, 구형 보조 허용 (resp.common / student_id 폴백)
+   * 기본: 'grounded'
+   */
+  mode?: AIDiaryMode;
 }): NormalizeResult {
-  const { rawResponse, expectedRequestId, currentRequestId, validStudentRefs } = params;
+  const { rawResponse, expectedRequestId, currentRequestId, validStudentRefs, mode = 'grounded' } = params;
 
   if (typeof rawResponse !== 'object' || rawResponse === null) {
     return { ok: false, contractError: 'CONTRACT_INVALID_STRUCTURE' };
@@ -393,20 +408,48 @@ export function normalizeDiaryResponse(params: {
     }
   }
 
-  if (typeof resp.result !== 'object' || resp.result === null) {
+  // ── result 추출 (신형 우선, legacy 보조) ─────────────────────────────────
+  // §4 임시 호환 범위:
+  //   신형: resp.result.common  + resp.result.students[].student_ref
+  //   구형: resp.common         + resp.students[].student_id  (legacy 모드에서만)
+  //
+  // 금지: 신형 응답 실패 시 조용히 구형으로 위장 (grounded 모드는 엄격 적용)
+  let rawCommon: unknown;
+  let rawStudentsRaw: unknown;
+  let usedLegacyCompat = false;
+
+  if (typeof resp.result === 'object' && resp.result !== null) {
+    // 신형 Contract (grounded V1 및 legacy V1 모두 이 경로 사용)
+    rawCommon      = resp.result.common;
+    rawStudentsRaw = resp.result.students;
+  } else if (mode === 'legacy') {
+    // 구형 보조: legacy 모드에서 명시적으로 허용
+    // grounded 모드에서는 절대 이 분기 사용 금지
+    const legacyResp = resp as Record<string, unknown>;
+    if ('common' in legacyResp) {
+      usedLegacyCompat = true;
+      rawCommon      = legacyResp['common'];
+      rawStudentsRaw = legacyResp['students'];
+      console.log('[DiaryAIService] normalizeDiaryResponse: legacy_compat_used', {
+        pipeline_mode: mode,
+        has_common:    typeof rawCommon === 'string',
+      });
+    } else {
+      return { ok: false, contractError: 'CONTRACT_RESULT_MISSING' };
+    }
+  } else {
+    // grounded 모드 — resp.result 없음은 즉시 실패 (조용한 위장 금지)
     return { ok: false, contractError: 'CONTRACT_RESULT_MISSING' };
   }
 
-  const rawCommon = resp.result.common;
   if (typeof rawCommon !== 'string') {
     return { ok: false, contractError: `CONTRACT_COMMON_TYPE: type=${typeof rawCommon}` };
   }
 
-  const rawStudents = resp.result.students;
-  if (rawStudents !== undefined && !Array.isArray(rawStudents)) {
+  if (rawStudentsRaw !== undefined && !Array.isArray(rawStudentsRaw)) {
     return { ok: false, contractError: 'CONTRACT_STUDENTS_NOT_ARRAY' };
   }
-  const studentsArray: TeacherDiaryAIStudentResult[] = Array.isArray(rawStudents) ? rawStudents : [];
+  const studentsArray: TeacherDiaryAIStudentResult[] = Array.isArray(rawStudentsRaw) ? rawStudentsRaw : [];
 
   const normalizedStudents: NormalizedDiaryStudentResult[] = [];
   const seenRefs = new Set<string>();
@@ -417,14 +460,22 @@ export function normalizeDiaryResponse(params: {
       return { ok: false, contractError: `CONTRACT_STUDENT_NOT_OBJECT: students[${i}]` };
     }
 
-    // V1 Contract: student_ref 필수. student_id / feedback 더 이상 지원하지 않습니다.
+    // V1 Contract (grounded): student_ref 필수. student_id 허용 안 함.
+    // 구형 호환 (legacy):     student_ref 없으면 student_id 폴백 허용.
     const studentRef =
       typeof item.student_ref === 'string' && item.student_ref
         ? item.student_ref
-        : null;
+        : (usedLegacyCompat && typeof (item as any).student_id === 'string' && (item as any).student_id)
+          ? (item as any).student_id as string
+          : null;
 
     if (!studentRef) {
-      return { ok: false, contractError: `CONTRACT_STUDENT_REF_MISSING: students[${i}]` };
+      return {
+        ok: false,
+        contractError: usedLegacyCompat
+          ? `CONTRACT_STUDENT_REF_OR_ID_MISSING: students[${i}]`
+          : `CONTRACT_STUDENT_REF_MISSING: students[${i}]`,
+      };
     }
 
     const content = typeof item.content === 'string' ? item.content : null;
@@ -798,6 +849,7 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
     expectedRequestId: requestId,
     currentRequestId:  requestId,
     validStudentRefs,
+    mode,   // pipeline_mode 전달: grounded=신형 전용, legacy=구형 폴백 허용
   });
 
   if (!normalized.ok) {
