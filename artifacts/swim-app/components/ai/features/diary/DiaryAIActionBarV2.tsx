@@ -56,7 +56,7 @@ export default function DiaryAIActionBarV2({
       return (
         <View style={styles.row}>
           <Pressable
-            style={[styles.primaryButton, !hasText && styles.primaryDisabled]}
+            style={styles.primaryButton}
             onPress={onSubmit}
             disabled={!hasText}
           >

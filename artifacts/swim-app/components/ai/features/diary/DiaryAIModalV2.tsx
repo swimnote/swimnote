@@ -1,40 +1,54 @@
 /**
- * DiaryAIModalV2 — SwimNote AI UI Framework V2.3
+ * DiaryAIModalV2 — SwimNote AI UI Framework V2.4
  * 일지 AI 작성 모달 (레이아웃·렌더링 전담)
  *
- * ── 레이아웃 구조 (V2.3) ─────────────────────────────────────────────────────
+ * ── 레이아웃 구조 (V2.4) ─────────────────────────────────────────────────────
  *
  *   Modal (transparent, slide)
  *   └─ View [overlay] (flex:1)
  *      ├─ Pressable [backdrop] (absoluteFill)
- *      └─ View [sheet] (position:absolute, bottom:0, height:screenH×0.94)
- *         ├─ Handle                  고정
- *         ├─ Header                  고정
- *         └─ ScrollView (flex:1)     단일 스크롤 소유자
- *            ├─ INPUT 상태: TextInput + AI작성버튼 + 음성버튼 (인라인)
- *            ├─ 기타 상태: renderContent() + DiaryAIActionBarV2
- *            └─ 하단 여백
+ *      └─ KeyboardAvoidingView (flex:1, pointerEvents:"box-none")
+ *         │   behavior="padding"(iOS) / "height"(Android)
+ *         │   역할: 키보드 올라올 때 가용 공간 축소 → Sheet 자동 수축
+ *         ├─ View [spacer] (flex:1, pointerEvents:"none")
+ *         │   역할: Sheet 위 투명 공간. 터치 패스스루(backdrop에 도달)
+ *         └─ View [sheet] (flexBasis:maxSheetH, flexShrink:1, maxHeight:maxSheetH)
+ *            │   - 키보드 닫힘: spacer가 잉여 공간 흡수 → sheet = maxSheetH
+ *            │   - 키보드 열림: 가용 공간 < maxSheetH → sheet 수축 (flexShrink:1)
+ *            │   - 고정 height 없음 — KAV 가용 공간에 의해 결정
+ *            ├─ Handle                   고정
+ *            ├─ Header                   고정 (flex 없음)
+ *            ├─ KeyboardAwareScrollView  (flex:1, minHeight:0) — 단일 스크롤 소유자
+ *            │  │   역할: 포커스된 TextInput을 키보드 위로 자동 스크롤
+ *            │  └─ renderContent() — INPUT/RECORDING/RESULT/TRANSCRIBING 등
+ *            └─ actionBarContainer       고정 푸터 (flex 없음, KASV 외부)
+ *               paddingBottom = insets.bottom
+ *               └─ DiaryAIActionBarV2
  *
- * ── V2.2 → V2.3 변경 ─────────────────────────────────────────────────────────
- *   - useReanimatedKeyboardAnimation 제거
- *     (height SharedValue가 음수로 전달돼 시트 높이가 오히려 증가하는 버그)
- *   - Animated.View → 일반 View (고정 height: screenH × 0.94)
- *   - KeyboardAwareScrollView → 일반 RN ScrollView
- *   - actionBarContainer(고정 하단 푸터) 제거 → ScrollView 내부로 이동
- *   - INPUT 상태: TextInput + AI작성 + 음성 버튼을 순서대로 인라인 배치
- *     (AIInputArea 내부 음성 버튼과 ActionBar 버튼의 겹침/레이아웃 충돌 원천 제거)
- *   - AI 작성 버튼: opacity 항상 1 (disabled는 기능만 막음, 시각적 반투명 없음)
+ * ── V2.3 → V2.4 변경 ─────────────────────────────────────────────────────────
+ *   - V2.3의 고정 height(94%) 제거 → flexBasis+flexShrink 방식
+ *   - KeyboardAvoidingView 복원 (RNKC, behavior="padding"/"height")
+ *   - KeyboardAwareScrollView 복원 (RNKC, flex:1, bottomOffset:16)
+ *   - ActionBar 복원: KASV 외부 고정 푸터
+ *   - INPUT 상태: AIInputArea 복원 (TextInput + 음성 버튼 포함)
+ *   - V2.3의 inline TextInput 접근 제거 (AIInputArea 재활용)
+ *   - spacer View 추가 (Sheet 위, KAV 안): 터치 패스스루 + Sheet 하단 고정
+ *   - DiaryAIActionBarV2 INPUT 버튼 opacity:1 항상 (반투명 수정)
  *
  * ★ 비즈니스 로직 없음. 모든 동작은 useDiaryAIV2로 위임합니다.
  *
+ * 의존: useDiaryAIV2, AIProgressMessages, AIInputArea, AILoading,
+ *       AIResultArea, AIPermissionViewV2, AIErrorViewV2,
+ *       DiaryAIActionBarV2, AITheme,
+ *       react-native-keyboard-controller
  * 수정 금지: useDiaryAIV2, DiaryAIService, API, 상태 전이, retry, requestId, AbortController
  */
 
 import React, { useEffect, useState } from 'react';
 import {
   Modal,
+  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -42,6 +56,10 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  KeyboardAvoidingView,
+  KeyboardAwareScrollView,
+} from 'react-native-keyboard-controller';
 
 import AIInputArea        from '../../components/AIInputArea';
 import AILoading          from '../../components/AILoading';
@@ -101,61 +119,20 @@ export default function DiaryAIModalV2({
 
   const aiState = V2_TO_AI_STATE[hook.v2State];
 
-  // 시트 고정 높이: 화면의 94%
-  // 콘텐츠 길이에 따라 높이가 줄어들지 않도록 고정값 사용
-  const sheetHeight = Math.round(screenH * 0.94);
+  // Sheet 최대 높이 — 상태바 + 여백 제외
+  // ★ 고정 height 없음. Sheet의 실제 높이는 flexBasis + flexShrink + KAV가 결정.
+  //   키보드가 열리면 KAV 가용 공간이 줄어 Sheet가 자동으로 수축함.
+  const maxSheetH = Math.min(
+    screenH - insets.top - 16,
+    Math.round(screenH * 0.95),
+  );
 
-  // ── INPUT 상태 인라인 렌더 ─────────────────────────────────────────────────
-  // AI작성 버튼과 음성 버튼을 순서대로 배치 (겹침 방지)
-  // AIInputArea 내장 음성 버튼과 ActionBar 버튼의 레이아웃 충돌 원천 제거
-  const renderInputState = () => {
-    const hasText = hook.inputText.trim().length > 0;
-    return (
-      <View style={styles.contentPad}>
-        {/* 텍스트 입력창 */}
-        <TextInput
-          style={styles.mainInput}
-          value={hook.inputText}
-          onChangeText={hook.setInputText}
-          multiline
-          placeholder="수업에서 있었던 일, 학생들의 특징이나 개선점 등을 자유롭게 입력해주세요."
-          placeholderTextColor={AIThemeColor.textSub}
-          textAlignVertical="top"
-          autoCorrect={false}
-        />
-
-        {/* 버튼 영역 — 순서: AI작성 → 음성 (절대 겹치지 않음) */}
-        <View style={styles.inputActionContainer}>
-          {/* AI 작성 버튼 — 항상 불투명, disabled는 기능만 막음 */}
-          <Pressable
-            style={styles.aiSubmitButton}
-            onPress={hook.handleSubmit}
-            disabled={!hasText}
-          >
-            <Text style={styles.aiSubmitLabel}>✨ AI 작성</Text>
-          </Pressable>
-
-          {/* 음성 버튼 — AI 작성 버튼과 별도, 아래에 독립 배치 */}
-          <Pressable
-            style={styles.voiceInputButton}
-            onPress={hook.handleVoicePress}
-          >
-            <Text style={styles.voiceInputLabel}>🎤 음성</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  };
-
-  // ── 기타 상태 렌더 ────────────────────────────────────────────────────────
+  // ── 콘텐츠 영역 (KeyboardAwareScrollView 안에 위치) ──────────────────────
   const renderContent = () => {
     switch (hook.v2State) {
 
-      // INPUT: 인라인 렌더 사용 (위 renderInputState)
+      // ── INPUT / RECORDING ─────────────────────────────────────────────────
       case 'INPUT':
-        return renderInputState();
-
-      // RECORDING: AIInputArea 내장 파형+중단 버튼
       case 'RECORDING':
         return (
           <View style={styles.contentPad}>
@@ -169,7 +146,7 @@ export default function DiaryAIModalV2({
           </View>
         );
 
-      // TRANSCRIBING
+      // ── TRANSCRIBING ───────────────────────────────────────────────────────
       case 'TRANSCRIBING':
         return (
           <View style={styles.loadingCenter}>
@@ -180,7 +157,7 @@ export default function DiaryAIModalV2({
           </View>
         );
 
-      // SEARCHING
+      // ── SEARCHING ─────────────────────────────────────────────────────────
       case 'SEARCHING':
         return (
           <View style={styles.loadingCenter}>
@@ -196,7 +173,7 @@ export default function DiaryAIModalV2({
           </View>
         );
 
-      // GENERATING
+      // ── GENERATING ────────────────────────────────────────────────────────
       case 'GENERATING':
         return (
           <View style={styles.loadingCenter}>
@@ -212,7 +189,8 @@ export default function DiaryAIModalV2({
           </View>
         );
 
-      // RESULT — 중첩 ScrollView 없음
+      // ── RESULT ────────────────────────────────────────────────────────────
+      // 중첩 ScrollView 없음 — KeyboardAwareScrollView가 단일 스크롤 소유자
       case 'RESULT':
         return (
           <View style={styles.contentPad}>
@@ -246,7 +224,7 @@ export default function DiaryAIModalV2({
           </View>
         );
 
-      // PERMISSION
+      // ── PERMISSION ────────────────────────────────────────────────────────
       case 'PERMISSION':
         return (
           <View style={styles.contentPad}>
@@ -259,7 +237,7 @@ export default function DiaryAIModalV2({
           </View>
         );
 
-      // ERROR
+      // ── ERROR ─────────────────────────────────────────────────────────────
       case 'ERROR':
         return (
           <View style={styles.contentPad}>
@@ -290,77 +268,109 @@ export default function DiaryAIModalV2({
     >
       <View style={styles.overlay}>
 
-        {/* 백드롭 */}
+        {/* 백드롭 — 잠금 중 탭 무시 */}
         <Pressable
           style={styles.backdrop}
           onPress={() => { if (!hook.isLocked) hook.handleClose(); }}
         />
 
         {/*
-         * Sheet — position:absolute, bottom:0, height:94%
-         * 고정 높이: 콘텐츠 길이에 따라 줄어들지 않음
-         * 키보드가 열리면 키보드가 시트 하단을 가리고, 내부 ScrollView로 스크롤 가능
+         * KeyboardAvoidingView (react-native-keyboard-controller)
+         *   - behavior="padding" (iOS): 키보드 높이만큼 paddingBottom 증가
+         *     → KAV 내부 가용 공간 축소 → Sheet (flexShrink:1) 자동 수축
+         *   - behavior="height" (Android): KAV 자체 height 축소
+         *   - pointerEvents="box-none": KAV 자체는 터치 미감지, 자식만 감지
+         *     → spacer 영역 터치 → backdrop에 도달 (닫기)
+         *   - flex:1: overlay를 꽉 채워 spacer가 Sheet 위 공간을 흡수
          */}
-        <View style={[styles.sheet, { height: sheetHeight }]}>
-
-          {/* 핸들 바 */}
-          <View style={styles.handleContainer}>
-            <View style={styles.handle} />
-          </View>
-
-          {/* 헤더 — 고정 (스크롤되지 않음) */}
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>AI 일지 작성</Text>
-            {!hook.isLocked && (
-              <Pressable
-                style={styles.closeButton}
-                onPress={hook.handleClose}
-                hitSlop={8}
-              >
-                <Text style={styles.closeButtonText}>✕</Text>
-              </Pressable>
-            )}
-          </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.kav}
+          pointerEvents="box-none"
+        >
+          {/*
+           * 투명 Spacer — Sheet 위의 빈 공간을 흡수
+           * - flex:1: 남은 공간 전부 차지 → Sheet가 자동으로 하단에 고정
+           * - pointerEvents="none": 터치 패스스루 → backdrop Pressable에 도달
+           */}
+          <View style={styles.spacer} pointerEvents="none" />
 
           {/*
-           * ScrollView — 단일 세로 스크롤 소유자
-           * - INPUT: renderContent() = TextInput + AI작성버튼 + 음성버튼 (인라인)
-           * - 기타: renderContent() + DiaryAIActionBarV2 (순서대로, 겹침 없음)
-           * - 키보드가 열려 버튼이 가려지면 아래로 스크롤해서 확인 가능
+           * Sheet — 바텀 시트 본체
+           *   flexBasis: maxSheetH  → 기본적으로 maxSheetH 높이를 원함
+           *   flexShrink: 1         → KAV 가용 공간 < maxSheetH 이면 수축
+           *   maxHeight: maxSheetH  → 안전망 (절대 maxSheetH 초과 금지)
+           *   ★ 고정 height 없음: KAV + flexShrink + spacer(flex:1)가 높이 결정
+           *
+           *   동작 원리:
+           *   키보드 닫힘: KAV가용=screenH → spacer가 잉여(screenH-maxSheetH) 흡수
+           *               → Sheet = maxSheetH ✓
+           *   키보드 열림: KAV가용=screenH-kbH < maxSheetH
+           *               → Sheet가 flexShrink:1로 수축 = screenH-kbH ✓
+           *               → ActionBar가 키보드 위에 항상 노출 ✓
            */}
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={[
-              styles.scrollContent,
-              { paddingBottom: insets.bottom + 40 },
-            ]}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator
-            nestedScrollEnabled
-          >
-            {renderContent()}
+          {/* flexBasis:maxSheetH 인라인 적용 — StyleSheet에서는 동적값 불가 */}
+          <View style={[styles.sheet, { flexBasis: maxSheetH, maxHeight: maxSheetH }]}>
 
-            {/* ActionBar — INPUT 제외한 상태에서 ScrollView 내에 배치
-                INPUT: renderContent()에 이미 버튼 포함
-                RECORDING: DiaryAIActionBarV2(RECORDING)=null
-                기타: 각 상태별 버튼 표시 */}
-            {hook.v2State !== 'INPUT' && (
-              <View style={styles.actionBarInScroll}>
-                <DiaryAIActionBarV2
-                  v2State={hook.v2State}
-                  inputText={hook.inputText}
-                  insertDone={hook.insertDone}
-                  onSubmit={hook.handleSubmit}
-                  onInsert={hook.handleInsert}
-                  onRewrite={hook.handleSubmit}
-                  onEditResult={hook.handleEditInput}
-                  onClose={hook.handleClose}
-                />
-              </View>
-            )}
-          </ScrollView>
+            {/* 핸들 바 */}
+            <View style={styles.handleContainer}>
+              <View style={styles.handle} />
+            </View>
 
-        </View>
+            {/* 헤더 — 고정 (flex 없음, 자연 높이) */}
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>AI 일지 작성</Text>
+              {!hook.isLocked && (
+                <Pressable
+                  style={styles.closeButton}
+                  onPress={hook.handleClose}
+                  hitSlop={8}
+                >
+                  <Text style={styles.closeButtonText}>✕</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {/*
+             * KeyboardAwareScrollView (react-native-keyboard-controller)
+             * - flex:1, minHeight:0: Sheet가 flexBasis로 사이즈 확정 → KASV가 남은 공간 차지
+             * - 단일 세로 스크롤 소유자: 내부에 ScrollView 중첩 금지
+             * - bottomOffset:16: 포커스된 TextInput과 키보드 사이 여백
+             */}
+            <KeyboardAwareScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+              showsVerticalScrollIndicator
+              bottomOffset={16}
+              extraKeyboardSpace={0}
+              nestedScrollEnabled
+            >
+              {renderContent()}
+            </KeyboardAwareScrollView>
+
+            {/*
+             * ActionBar 컨테이너 — 고정 푸터 (KASV 외부, flex 없음)
+             * - paddingBottom = insets.bottom: 홈 인디케이터 겹침 방지
+             * - Sheet가 키보드 높이만큼 수축하므로 ActionBar는 항상 키보드 위에 위치
+             * - RESULT 긴 콘텐츠에서도 항상 접근 가능
+             */}
+            <View style={[styles.actionBarContainer, { paddingBottom: insets.bottom }]}>
+              <DiaryAIActionBarV2
+                v2State={hook.v2State}
+                inputText={hook.inputText}
+                insertDone={hook.insertDone}
+                onSubmit={hook.handleSubmit}
+                onInsert={hook.handleInsert}
+                onRewrite={hook.handleSubmit}
+                onEditResult={hook.handleEditInput}
+                onClose={hook.handleClose}
+              />
+            </View>
+
+          </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -423,34 +433,47 @@ const cardStyles = StyleSheet.create({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  // 전체 오버레이
+  // 전체 오버레이 — Modal 내 전체 화면
   overlay: {
     flex:            1,
     backgroundColor: 'transparent',
   },
 
-  // 백드롭
+  // 백드롭 — Sheet 뒤 반투명 어두운 배경
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
 
-  // 시트 — position:absolute로 하단 고정, height는 인라인으로 screenH×0.94 적용
-  // paddingBottom 없음 — scrollContent의 paddingBottom(insets.bottom+40)에서 처리
+  // KeyboardAvoidingView — overlay를 꽉 채움
+  // Sheet가 하단 고정되도록 flex:1 필수
+  kav: {
+    flex: 1,
+  },
+
+  // 투명 Spacer — Sheet 위 빈 공간
+  // flex:1로 잉여 공간을 흡수하여 Sheet가 항상 하단에 위치
+  spacer: {
+    flex: 1,
+  },
+
+  // Sheet — 바텀 시트 본체
+  // flexBasis: 코드에서 인라인으로 maxSheetH 적용
+  // flexShrink:1: KAV 가용 공간 < maxSheetH 이면 자동 수축
+  // maxHeight: 인라인으로 maxSheetH 적용 (안전망)
+  // ★ height 고정값 없음
   sheet: {
-    position:             'absolute',
-    bottom:               0,
-    left:                 0,
-    right:                0,
+    flexShrink:           1,
+    flexBasis:            'auto',
     backgroundColor:      '#FFFFFF',
     borderTopLeftRadius:  AIThemeRadius.modal ?? 20,
     borderTopRightRadius: AIThemeRadius.modal ?? 20,
     overflow:             'hidden',
     // iOS 그림자
-    shadowColor:    '#000',
-    shadowOffset:   { width: 0, height: -2 },
-    shadowOpacity:  0.12,
-    shadowRadius:   8,
+    shadowColor:   '#000',
+    shadowOffset:  { width: 0, height: -2 },
+    shadowOpacity: 0.12,
+    shadowRadius:  8,
     // Android 그림자
     elevation: 8,
   },
@@ -468,7 +491,7 @@ const styles = StyleSheet.create({
     backgroundColor: AIThemeColor.border ?? '#E0E0E0',
   },
 
-  // 헤더 (고정)
+  // 헤더 (고정, flex 없음)
   header: {
     flexDirection:     'row',
     alignItems:        'center',
@@ -491,83 +514,24 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 
-  // ScrollView
+  // KeyboardAwareScrollView
+  // flex:1 + minHeight:0: Sheet가 flexBasis로 사이즈 확정 시 남은 공간 차지
   scroll: {
-    flex: 1,
+    flex:      1,
+    minHeight: 0,
   },
   scrollContent: {
     flexGrow:      1,
-    paddingTop:    AIThemeSpacing.element,
+    paddingBottom: AIThemeSpacing.section,
   },
 
   // 콘텐츠 공통 패딩
   contentPad: {
     paddingHorizontal: AIThemeSpacing.section,
+    paddingTop:        AIThemeSpacing.element,
   },
 
-  // ── INPUT 상태 전용 스타일 ─────────────────────────────────────────────────
-
-  // 텍스트 입력창
-  // minHeight:180, maxHeight:260 — 모달 전체 높이를 밀어내지 않음
-  mainInput: {
-    width:             '100%',
-    minHeight:         180,
-    maxHeight:         260,
-    borderRadius:      14,
-    backgroundColor:   '#FFFFFF',
-    borderWidth:       1,
-    borderColor:       '#D9E1EC',
-    padding:           16,
-    ...AIThemeTypography.input,
-    color:             AIThemeColor.text,
-    textAlignVertical: 'top',
-  },
-
-  // 버튼 컨테이너 — 세로 순서: AI작성 → 음성 (절대 겹치지 않음)
-  // position:absolute/transform/zIndex 없음
-  inputActionContainer: {
-    width:     '100%',
-    gap:       12,
-    marginTop: 16,
-  },
-
-  // AI 작성 버튼 — 항상 불투명(opacity:1), disabled 상태도 시각적 투명 없음
-  // disabled 기능(hasText=false)은 Pressable disabled prop으로만 처리
-  aiSubmitButton: {
-    width:           '100%',
-    minHeight:       56,
-    borderRadius:    14,
-    backgroundColor: AIThemeColor.primary,
-    alignItems:      'center',
-    justifyContent:  'center',
-    opacity:         1,
-  },
-  aiSubmitLabel: {
-    ...AIThemeTypography.label,
-    color:      '#FFFFFF',
-    fontWeight: '700',
-    fontSize:   15,
-  },
-
-  // 음성 버튼 — AI 작성 버튼과 완전히 분리된 독립 버튼
-  voiceInputButton: {
-    width:           '100%',
-    minHeight:       52,
-    borderRadius:    14,
-    backgroundColor: '#FFFFFF',
-    borderWidth:     1,
-    borderColor:     '#D9E1EC',
-    alignItems:      'center',
-    justifyContent:  'center',
-  },
-  voiceInputLabel: {
-    ...AIThemeTypography.label,
-    color: AIThemeColor.textSub,
-  },
-
-  // ── 기타 상태 스타일 ────────────────────────────────────────────────────────
-
-  // 로딩 상태: 세로 중앙 정렬
+  // 로딩 상태
   loadingCenter: {
     alignItems:        'center',
     justifyContent:    'center',
@@ -583,11 +547,10 @@ const styles = StyleSheet.create({
     opacity:   0.75,
   },
 
-  // RESULT 내 섹션
+  // RESULT 섹션
   resultSection: {
     gap:          AIThemeSpacing.tight,
     marginBottom: AIThemeSpacing.element,
-    paddingHorizontal: AIThemeSpacing.section,
   },
   sectionLabel: {
     ...AIThemeTypography.label,
@@ -596,8 +559,11 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 
-  // ActionBar (ScrollView 내부, INPUT 제외)
-  actionBarInScroll: {
-    marginTop: AIThemeSpacing.element,
+  // ActionBar 컨테이너 (고정 푸터, KASV 외부, flex 없음)
+  // paddingBottom은 컴포넌트에서 insets.bottom으로 동적 적용
+  actionBarContainer: {
+    borderTopWidth:  1,
+    borderTopColor:  AIThemeColor.border ?? '#F0F0F0',
+    backgroundColor: '#FFFFFF',
   },
 });
