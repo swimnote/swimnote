@@ -1,36 +1,39 @@
 /**
- * DiaryAIModalV2 — SwimNote AI UI Framework V2.1
+ * DiaryAIModalV2 — SwimNote AI UI Framework V2.2
  * 일지 AI 작성 모달 (레이아웃·렌더링 전담)
  *
- * ── 레이아웃 구조 (V2.1 재구성) ─────────────────────────────────────────────
+ * ── 레이아웃 구조 (V2.2) ─────────────────────────────────────────────────────
  *
  *   Modal
- *   └─ Overlay (flex:1, justify:flex-end)
- *      ├─ Backdrop (absoluteFill)
- *      └─ KeyboardAvoidingView [react-native-keyboard-controller]
- *         │   behavior="padding" (iOS) / "height" (Android)
- *         │   역할: Sheet 전체를 키보드 위로 올림
- *         └─ Sheet (flex:0, maxHeight = screenH - safeTop - 16)
- *            ├─ Handle                    고정
- *            ├─ Header                    고정
- *            ├─ KeyboardAwareScrollView   단일 세로 스크롤 소유자
- *            │  │   역할: 포커스된 TextInput을 키보드 위로 자동 스크롤
- *            │  └─ 모든 상태 콘텐츠 (RESULT 포함 — 중첩 ScrollView 없음)
- *            └─ actionBarContainer        고정, paddingBottom = insets.bottom
- *               └─ DiaryAIActionBarV2
+ *   └─ Overlay (flex:1, backgroundColor dim)
+ *      ├─ Backdrop (absoluteFill, Pressable)
+ *      └─ Animated.View [sheet] — 위치: absolute, bottom:0, left:0, right:0
+ *         │   height: min(screenH×0.93, screenH-safeTop-8) − keyboardHeight
+ *         │   keyboardHeight: useReanimatedKeyboardAnimation().height (SharedValue)
+ *         │   → 키보드 올라오면 sheet가 부드럽게 수축 → ActionBar 항상 가시
+ *         ├─ Handle                    고정
+ *         ├─ Header                    고정
+ *         ├─ KeyboardAwareScrollView   단일 세로 스크롤 소유자
+ *         │  │   역할: 포커스된 TextInput을 키보드 위로 자동 스크롤
+ *         │  │   contentContainerStyle.flexGrow=1 → 콘텐츠 짧아도 스크롤 가능
+ *         │  └─ 모든 상태 콘텐츠 (RESULT 포함 — 중첩 ScrollView 없음)
+ *         └─ actionBarContainer        고정, paddingBottom = insets.bottom
+ *            └─ DiaryAIActionBarV2
  *
- * ── 제거된 패턴 (V2.0 → V2.1) ───────────────────────────────────────────────
- *   - content 영역 maxHeight: 460 하드코딩
- *   - RESULT 전용 중첩 ScrollView
- *   - sheet.paddingBottom: insets.bottom (→ actionBarContainer로 이동)
- *   - RN 기본 KeyboardAvoidingView
+ * ── V2.1 → V2.2 변경 ─────────────────────────────────────────────────────────
+ *   - KeyboardAvoidingView 제거
+ *     (KAV+fixedHeight 조합: 키보드 열리면 sheet 상단이 화면 밖으로 나가는 버그)
+ *   - useReanimatedKeyboardAnimation으로 keyboardHeight SharedValue 추적
+ *   - Animated.View로 sheet height를 Reanimated worklet에서 직접 계산
+ *   - scrollContent: flexGrow=1 추가 (콘텐츠 짧아도 스크롤 활성화)
+ *   - sheet height: 88% → 93% (화면 최대 활용)
  *
  * ★ 비즈니스 로직 없음. 모든 동작은 useDiaryAIV2로 위임합니다.
  *
  * 의존: useDiaryAIV2, AIProgressMessages, AIInputArea, AILoading,
  *       AIResultArea, AIPermissionViewV2, AIErrorViewV2,
  *       DiaryAIActionBarV2, AITheme,
- *       react-native-keyboard-controller
+ *       react-native-keyboard-controller, react-native-reanimated
  * 수정 금지: useDiaryAIV2, DiaryAIService, API, 상태 전이, retry, requestId, AbortController
  */
 
@@ -45,10 +48,11 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  KeyboardAvoidingView,
   KeyboardAwareScrollView,
+  useReanimatedKeyboardAnimation,
 } from 'react-native-keyboard-controller';
 
 import AIInputArea        from '../../components/AIInputArea';
@@ -111,14 +115,26 @@ export default function DiaryAIModalV2({
 
   const aiState = V2_TO_AI_STATE[hook.v2State];
 
-  // TEMP: screenH * 0.88 — 레이아웃 복구 목적의 임시 고정 비율.
-  // flex:1 KASV 자식이 높이를 확보하려면 부모(sheet)에 명시적 height가 필요함.
-  // 최종 목표: 콘텐츠 기반 자연스러운 Sheet 높이 + 키보드 대응을 함께 만족하는 구조.
-  // 이 값을 영구 기준으로 사용하지 말 것.
-  const sheetHeight = Math.min(
-    Math.round(screenH * 0.88),
-    screenH - insets.top - 16,
+  // ── 시트 높이 ──────────────────────────────────────────────────────────────
+  // useReanimatedKeyboardAnimation: 키보드 높이를 Reanimated SharedValue로 추적.
+  // height.value 는 키보드가 올라오는 동안 0 → keyboardH 로 부드럽게 증가.
+  // useAnimatedStyle worklet에서 직접 읽어 KeyboardAvoidingView 없이도
+  // 시트가 키보드 위에 자연스럽게 위치함.
+  const { height: kbHeight } = useReanimatedKeyboardAnimation();
+
+  // 기본 시트 높이 (화면 93%, 상태바+여백 제외 상한)
+  const baseSheetH = Math.min(
+    Math.round(screenH * 0.93),
+    screenH - insets.top - 8,
   );
+
+  const sheetAnimatedStyle = useAnimatedStyle(() => {
+    'worklet';
+    // kbHeight.value: 키보드가 닫혀있으면 0, 열려있으면 키보드 높이(양수)
+    // 시트를 수축시켜 ActionBar가 항상 화면에 보이도록 유지
+    const h = Math.max(baseSheetH - kbHeight.value, 260);
+    return { height: h };
+  });
 
   // ── 콘텐츠 영역 (KeyboardAwareScrollView 안에 위치) ──────────────────────
   const renderContent = () => {
@@ -270,82 +286,73 @@ export default function DiaryAIModalV2({
         />
 
         {/*
-         * KeyboardAvoidingView (react-native-keyboard-controller)
-         * 역할: 키보드가 올라올 때 Sheet 전체를 키보드 위로 올림
-         * behavior="padding": iOS에서 KAV 하단에 키보드 높이만큼 padding 추가 → Sheet 상승
-         * behavior="height": Android에서 KAV 자체 높이 축소
-         *
-         * ⚠️ 이 KAV와 KeyboardAwareScrollView의 역할은 분리됨:
-         *    KAV = Sheet 위치 조정
-         *    KASV = 포커스된 TextInput 자동 스크롤
-         *    중복 보정 금지
+         * Animated.View [sheet] — position: absolute, bottom:0
+         * height: useAnimatedStyle 로 계산 (baseSheetH - kbHeight.value)
+         *   - 키보드 닫힘: height = baseSheetH (화면의 ~93%)
+         *   - 키보드 열림: height = baseSheetH - keyboardH → ActionBar가 키보드 위에 노출
+         * KeyboardAvoidingView 없음: KAV+fixedHeight 조합은 키보드 열릴 때
+         * 시트 상단이 화면 밖으로 밀려나가는 버그가 있어 제거함.
          */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.kavWrapper}
-        >
-          {/* Sheet — height 명시 필수: flex:1인 KASV 자식이 높이를 확보하려면
-               부모(sheet)에 확정된 height가 있어야 함. maxHeight 단독 사용 시 KASV 붕괴 */}
-          <View style={[styles.sheet, { height: sheetHeight }]}>
+        <Animated.View style={[styles.sheet, sheetAnimatedStyle]}>
 
-            {/* 핸들 바 */}
-            <View style={styles.handleContainer}>
-              <View style={styles.handle} />
-            </View>
-
-            {/* 헤더 — 고정 (스크롤되지 않음) */}
-            <View style={styles.header}>
-              <Text style={styles.headerTitle}>AI 일지 작성</Text>
-              {!hook.isLocked && (
-                <Pressable
-                  style={styles.closeButton}
-                  onPress={hook.handleClose}
-                  hitSlop={8}
-                >
-                  <Text style={styles.closeButtonText}>✕</Text>
-                </Pressable>
-              )}
-            </View>
-
-            {/*
-             * KeyboardAwareScrollView (react-native-keyboard-controller)
-             * 역할: 포커스된 TextInput이 키보드 위에 보이도록 자동 스크롤
-             * — 단일 세로 스크롤 소유자: 내부에 ScrollView 중첩 금지
-             * — bottomOffset: TextInput과 키보드 사이 여백
-             * — extraKeyboardSpace: 0 (ActionBar가 Sheet 외부에 있으므로 추가 공간 불필요)
-             */}
-            <KeyboardAwareScrollView
-              style={styles.scroll}
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-              showsVerticalScrollIndicator={false}
-              bottomOffset={16}
-              extraKeyboardSpace={0}
-            >
-              {renderContent()}
-            </KeyboardAwareScrollView>
-
-            {/*
-             * ActionBar 컨테이너 — 고정 (스크롤되지 않음)
-             * paddingBottom = insets.bottom: 홈 인디케이터와 겹침 방지
-             * ⚠️ sheet에는 paddingBottom 없음 (이곳에만 적용)
-             */}
-            <View style={[styles.actionBarContainer, { paddingBottom: insets.bottom }]}>
-              <DiaryAIActionBarV2
-                v2State={hook.v2State}
-                inputText={hook.inputText}
-                insertDone={hook.insertDone}
-                onSubmit={hook.handleSubmit}
-                onInsert={hook.handleInsert}
-                onRewrite={hook.handleSubmit}
-                onEditResult={hook.handleEditInput}
-                onClose={hook.handleClose}
-              />
-            </View>
-
+          {/* 핸들 바 */}
+          <View style={styles.handleContainer}>
+            <View style={styles.handle} />
           </View>
-        </KeyboardAvoidingView>
+
+          {/* 헤더 — 고정 (스크롤되지 않음) */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>AI 일지 작성</Text>
+            {!hook.isLocked && (
+              <Pressable
+                style={styles.closeButton}
+                onPress={hook.handleClose}
+                hitSlop={8}
+              >
+                <Text style={styles.closeButtonText}>✕</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {/*
+           * KeyboardAwareScrollView (react-native-keyboard-controller)
+           * 역할: 포커스된 TextInput이 키보드 위에 보이도록 자동 스크롤
+           * — 단일 세로 스크롤 소유자: 내부에 ScrollView 중첩 금지
+           * — bottomOffset: TextInput과 키보드 사이 여백 (ActionBar 높이 고려)
+           * — flexGrow:1 in contentContainerStyle: 짧은 콘텐츠도 스크롤 활성화
+           */}
+          <KeyboardAwareScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            showsVerticalScrollIndicator
+            bottomOffset={72}
+            extraKeyboardSpace={0}
+            nestedScrollEnabled
+          >
+            {renderContent()}
+          </KeyboardAwareScrollView>
+
+          {/*
+           * ActionBar 컨테이너 — 고정 (스크롤되지 않음)
+           * paddingBottom = insets.bottom: 홈 인디케이터와 겹침 방지
+           * 시트가 키보드 높이만큼 수축하므로 ActionBar는 항상 키보드 위에 위치
+           */}
+          <View style={[styles.actionBarContainer, { paddingBottom: insets.bottom }]}>
+            <DiaryAIActionBarV2
+              v2State={hook.v2State}
+              inputText={hook.inputText}
+              insertDone={hook.insertDone}
+              onSubmit={hook.handleSubmit}
+              onInsert={hook.handleInsert}
+              onRewrite={hook.handleSubmit}
+              onEditResult={hook.handleEditInput}
+              onClose={hook.handleClose}
+            />
+          </View>
+
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -409,10 +416,9 @@ const cardStyles = StyleSheet.create({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  // 전체 오버레이
+  // 전체 오버레이 — flex:1로 화면 채움, 자식(sheet)은 absolute로 하단 고정
   overlay: {
     flex:            1,
-    justifyContent:  'flex-end',
     backgroundColor: 'transparent',
   },
 
@@ -422,17 +428,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
 
-  // KeyboardAvoidingView 래퍼: Sheet를 flex-end로 유지
-  kavWrapper: {
-    justifyContent: 'flex-end',
-  },
-
-  // 모달 시트
-  // height는 컴포넌트에서 동적으로 적용 (screenH * 0.88, safeTop 기반 제한)
-  // ★ flex: 0 제거 — 명시적 height가 있을 때 flex:0은 불필요하며
-  //    flex:1 자식(KASV)이 높이를 계산하는 데 방해가 됨
+  // 모달 시트 — absolute로 하단 고정
+  // height는 sheetAnimatedStyle (useAnimatedStyle worklet)에서 동적으로 계산:
+  //   height = min(screenH×0.93, screenH-safeTop-8) - kbHeight.value
+  // 키보드가 올라오면 시트가 자동으로 수축 → ActionBar 항상 키보드 위에 노출
   // paddingBottom 없음 — actionBarContainer에만 insets.bottom 적용
   sheet: {
+    position:        'absolute',
+    bottom:          0,
+    left:            0,
+    right:           0,
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius:  AIThemeRadius.modal ?? 20,
     borderTopRightRadius: AIThemeRadius.modal ?? 20,
@@ -489,8 +494,10 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   scrollContent: {
-    // 하단 여백: ActionBar 위 내용이 잘리지 않도록 여유 공간
-    paddingBottom: AIThemeSpacing.section,
+    // flexGrow: 1 — 콘텐츠가 짧아도 스크롤 컨테이너가 남은 공간을 채움.
+    // paddingBottom — ActionBar(~60px) + safe area 여유분 확보.
+    flexGrow:      1,
+    paddingBottom: 32,
   },
 
   // 콘텐츠 공통 패딩 (모든 상태에서 동일)

@@ -191,6 +191,7 @@ const styles = StyleSheet.create({
   },
   input: {
     minHeight:       AIThemeLayout.inputMinHeight,
+    maxHeight:       AIThemeLayout.inputMaxHeight,
     borderRadius:    AIThemeRadius.input,
     backgroundColor: AIThemeColor.surfaceLight,
     borderWidth:     1,

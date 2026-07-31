@@ -129,7 +129,9 @@ export const AIThemeLayout = {
   /** RECORDING 시 파형 영역 높이 (px) */
   waveformHeight:    120,
   /** INPUT 상태 최소 입력창 높이 (px) */
-  inputMinHeight:    160,
+  inputMinHeight:    180,
+  /** INPUT 상태 최대 입력창 높이 (px) — 이 이상은 TextInput 내부 스크롤 */
+  inputMaxHeight:    320,
   /** PROCESSING/RESULT 시 상단 요약 높이 (px) */
   summaryHeight:      56,
 } as const;
