@@ -137,21 +137,21 @@ export default function MyScheduleScreen() {
     });
   }, [selectedDate]);
   useEffect(() => {
-    if (!detailGroup || !selectedDate || !token) {
+    // 주담당/보조교사 모두 허용 — today-schedule 의존 제거 (보조교사 미반환 문제 방지)
+    // /class-groups/:id/students: pool 체크만 하므로 co_teacher_ids 제한 없음
+    if (!detailGroup || !token) {
       setDetailDateStudents([]);
       return;
     }
     let cancelled = false;
-    apiRequest(token, `/today-schedule?date=${selectedDate}`)
+    apiRequest(token, `/class-groups/${detailGroup.id}/students`)
       .then(r => r.ok ? r.json() : [])
-      .then((list: any[]) => {
-        if (cancelled) return;
-        const found = list.find((g: any) => g.id === detailGroup.id);
-        setDetailDateStudents(found?.students ?? []);
+      .then((data: any[]) => {
+        if (!cancelled) setDetailDateStudents(Array.isArray(data) ? data : []);
       })
       .catch(() => { if (!cancelled) setDetailDateStudents([]); });
     return () => { cancelled = true; };
-  }, [detailGroup, selectedDate, token]);
+  }, [detailGroup?.id, token]);
   const loadHolidays = useCallback(async (dateStr: string) => {
     if (!token || !poolId) return;
     const [y, m] = dateStr.split("-");
@@ -685,7 +685,7 @@ export default function MyScheduleScreen() {
       {detailGroup && (
         <ClassDetailSheet
           group={detailGroup}
-          students={selectedDate ? detailDateStudents : students}
+          students={detailDateStudents.length > 0 ? detailDateStudents : students}
           attMap={selectedDate ? dayAttMap : todayAttMap}
           diarySet={selectedDate ? dayDiarySet : todayDiarySet}
           date={selectedDate}
