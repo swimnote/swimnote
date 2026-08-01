@@ -19,7 +19,7 @@ import { TeacherClassGroup, SlotStatus } from "@/components/teacher/types";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import AuditModal from "@/components/teacher/diary/AuditModal";
 import DiaryWriteView from "@/components/teacher/diary/DiaryWriteView";
-import type { DiaryInsertResult } from "@/components/ai/features/diary/useDiaryAI";
+import type { DiaryInsertResult } from "@/components/ai/services/DiaryAIService";
 import DiaryEditView from "@/components/teacher/diary/DiaryEditView";
 import DiaryHistoryList from "@/components/teacher/diary/DiaryHistoryList";
 import AlbumPickerModal from "@/components/teacher/diary/AlbumPickerModal";

@@ -1,7 +1,7 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { MutableRefObject, useState } from "react";
 import DiaryAIButton from "@/components/ai/features/diary/DiaryAIButton";
-import type { DiaryInsertResult } from "@/components/ai/features/diary/useDiaryAI";
+import type { DiaryInsertResult } from "@/components/ai/services/DiaryAIService";
 import {
   ActivityIndicator, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
