@@ -90,6 +90,66 @@ export interface DiaryGroundingResult {
   invented_technique_count:         number;
 }
 
+// ── 강제 정제 함수 ────────────────────────────────────────────────────────────
+
+/**
+ * common 텍스트에서 학생 이름이 포함된 문장을 코드에서 강제 제거합니다.
+ *
+ * GPT 판단에 의존하지 않으며, 학생 이름 변형(전체 이름·성 제외 이름) 중
+ * 하나라도 포함된 문장은 무조건 삭제합니다.
+ *
+ * 이름 변형 규칙:
+ *   - 3자 이름(서태웅) → ['서태웅', '태웅']
+ *   - 4자 이름(남궁민준) → ['남궁민준', '궁민준']
+ *   - 2자 이름(민준) → ['민준']
+ *
+ * @param common       GPT가 생성한 공통 일지 원문
+ * @param studentNames 수업 학생 이름 목록 (DB 등록 이름 기준)
+ * @returns            { purged: 정제된 텍스트, removedSentenceCount: 제거된 문장 수 }
+ */
+export function purgeStudentLeaksFromCommon(
+  common: string,
+  studentNames: string[],
+): { purged: string; removedSentenceCount: number } {
+  if (!common || studentNames.length === 0) {
+    return { purged: common, removedSentenceCount: 0 };
+  }
+
+  // ── 1. 이름 변형 목록 빌드 ─────────────────────────────────────────────
+  const variants = new Set<string>();
+  for (const name of studentNames) {
+    const n = name.trim();
+    if (!n) continue;
+    variants.add(n);                        // 전체 이름: '서태웅'
+    if (n.length >= 3) variants.add(n.slice(1)); // 성 제외: '태웅'
+    if (n.length >= 4) variants.add(n.slice(2)); // 긴 이름: '민준' (남궁민준)
+  }
+  const nameList = [...variants].filter(v => v.length > 0);
+
+  // ── 2. 문장 분리 ────────────────────────────────────────────────────────
+  // 마침표/!/?/~ 뒤 공백 기준으로 분리 (한국어 문장 끝 패턴)
+  const sentences = common
+    .split(/(?<=[.!?~])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+
+  // ── 3. 학생 이름 포함 문장 제거 ─────────────────────────────────────────
+  let removedSentenceCount = 0;
+  const kept = sentences.filter(sentence => {
+    const hasLeak = nameList.some(v => sentence.includes(v));
+    if (hasLeak) {
+      removedSentenceCount++;
+      return false;
+    }
+    return true;
+  });
+
+  return {
+    purged: kept.join(' ').trim(),
+    removedSentenceCount,
+  };
+}
+
 // ── 검증 함수 ─────────────────────────────────────────────────────────────────
 
 /**
