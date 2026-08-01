@@ -24,3 +24,4 @@
 - [일지 댓글 시스템 구조](diary-comments-architecture.md) — diary_messages 테이블 재활용(parent_comment_id/student_id 컬럼 추가); /diaries/:id/comments + /diary-comments/:id/replies API; parent/messages.tsx는 리다이렉트 전용으로 교체됨
 - [일지 댓글 diaryVisibleToStudent 날짜 범위 버그](diary-comment-visibility-fix.md) — student_class_history 날짜 오류로 인한 403; 날짜 범위 검사 제거로 해결
 - [AI Engine Template Pipeline 구조](ai-engine-template-pipeline.md) — /api/v1/teacher-diary/generate = api-server의 새 라우트; App은 raw text만 전송, Engine이 파싱; diary_templates 1050개 global 존재; relaxed candidate(score≥1) + strict top-5 ranking
+- [student_class_history API 통합 패턴](class-history-api-pattern.md) — move-class/remove/assign에 effective_date+트랜잭션+history 추가; GET /class-groups/:id/students?date= 신설; backfill 완료(이미 244개 완비)
