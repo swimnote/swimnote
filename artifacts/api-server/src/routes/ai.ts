@@ -24,6 +24,7 @@ import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
 import OpenAI from 'openai';
 import { requireAuth, type AuthRequest } from '../middlewares/auth.js';
+import { purgeStudentLeaksFromCommon, purgeInventedEvaluations } from '../lib/diary-grounding.js';
 import {
   getEffectivePipelineMode,
   getGptTimeoutMs,
@@ -458,7 +459,50 @@ router.post(
 
       const allowedStudentRefs = new Set(normalizedStudents.map(s => s.ref));
       const legacyFallbackCount = countLegacyStudentIdFallback(parsed, allowedStudentRefs);
-      const validatedOutput = validateDiaryOutput(parsed, allowedStudentRefs);
+      const rawValidated = validateDiaryOutput(parsed, allowedStudentRefs);
+
+      // ── Phase P1: Common 학생 누출 문장 강제 제거 ─────────────────────────
+      // GPT가 공통 일지에 학생 이름을 포함한 문장을 삽입하는 버그 코드 레벨 차단
+      const studentNames = normalizedStudents.map(s => s.name);
+      const { purged: purgedCommon, removedSentenceCount: leakRemovedCount } =
+        purgeStudentLeaksFromCommon(rawValidated.common, studentNames);
+
+      if (leakRemovedCount > 0) {
+        console.log(
+          `[AI/diary:${internalId}] COMMON_LEAK_PURGED` +
+          ` removed=${leakRemovedCount}` +
+          ` before_len=${rawValidated.common.length}` +
+          ` after_len=${purgedCommon.length}` +
+          ` students=${studentNames.join(',')}`,
+        );
+      }
+
+      // ── Phase P2: 발명된 태도·평가 표현 강제 제거 ─────────────────────────
+      // 강사 원문에 없는 평가 키워드(집중·적극·응원·즐겁·발전 등) 포함 문장 삭제
+      const { purged: evalPurgedCommon, removedSentenceCount: evalRemovedCommon } =
+        purgeInventedEvaluations(purgedCommon, inputText);
+
+      const evalPurgedStudents = rawValidated.students.map(s => {
+        const studentEntry = normalizedStudents.find(ns => ns.ref === s.student_ref);
+        const nameVariants: string[] = [];
+        if (studentEntry?.name) {
+          const n = studentEntry.name.trim();
+          nameVariants.push(n);
+          if (n.length >= 3) nameVariants.push(n.slice(1));
+          if (n.length >= 4) nameVariants.push(n.slice(2));
+        }
+        const { purged } = purgeInventedEvaluations(s.content, inputText, nameVariants);
+        return { ...s, content: purged };
+      });
+
+      if (evalRemovedCommon > 0) {
+        console.log(
+          `[AI/diary:${internalId}] EVAL_PURGED` +
+          ` common_removed=${evalRemovedCommon}`,
+        );
+      }
+
+      const validatedOutput = { common: evalPurgedCommon, students: evalPurgedStudents };
 
       const usage     = completion.usage;
       const elapsedMs = Date.now() - startMs;
