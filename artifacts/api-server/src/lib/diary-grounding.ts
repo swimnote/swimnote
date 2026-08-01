@@ -41,17 +41,30 @@ const TECHNIQUE_KEYWORDS = [
 ];
 
 /**
- * 태도·평가 키워드.
+ * 태도·평가·참여 키워드.
  * 강사 메모에 없는데 생성 결과에 등장하면 invented_student_evaluation 카운트.
+ * purgeInventedEvaluations()에서도 동일하게 사용됨.
  */
 const EVALUATION_KEYWORDS = [
+  // ── 향상·발전 ──────────────────────────────────────────────────────────
   '향상', '발전', '성장', '개선',
+  // ── 기대 ───────────────────────────────────────────────────────────────
   '기대', '기대됩니다', '기대돼',
+  // ── 잘함·훌륭 ──────────────────────────────────────────────────────────
   '잘하', '잘 하', '훌륭',
+  // ── 좋아짐 ─────────────────────────────────────────────────────────────
   '좋아지', '나아지', '늘었',
+  // ── 실력·능력 ──────────────────────────────────────────────────────────
   '실력', '능력',
-  '태도', '집중', '노력',
-  '의욕', '적극',
+  // ── 태도·집중·노력 ─────────────────────────────────────────────────────
+  '태도', '집중', '노력', '의욕', '적극',
+  // ── 참여 (단독 '참여'는 중립적이므로 복합 형태만 금지) ─────────────────
+  '적극적으로 참여', '집중해서 참여', '즐겁게 참여', '열심히 참여',
+  '최선을 다해 참여', '진지하게 참여', '성실하게 참여',
+  // ── 인상·감동 ──────────────────────────────────────────────────────────
+  '인상적', '감동',
+  // ── 응원·격려·즐거움 ────────────────────────────────────────────────────
+  '응원', '즐겁', '서로의 발전',
 ];
 
 /**
@@ -142,6 +155,63 @@ export function purgeStudentLeaksFromCommon(
       return false;
     }
     return true;
+  });
+
+  return {
+    purged: kept.join(' ').trim(),
+    removedSentenceCount,
+  };
+}
+
+// ── 평가 표현 강제 제거 함수 ──────────────────────────────────────────────────
+
+/**
+ * common/student 텍스트에서 강사 입력에 없는 태도·평가·참여 표현이 포함된 문장을
+ * 코드에서 강제 제거합니다.
+ *
+ * 규칙:
+ *   - EVALUATION_KEYWORDS 중 하나라도 포함된 문장을 검사
+ *   - 해당 키워드가 inputText(강사 원문)에도 있으면 → 허용 (원문에 있으면 정당)
+ *   - 해당 키워드가 inputText에 없으면 → 제거 대상
+ *     - 단, 문장에 protectedNames(학생 고유 이름) 중 하나라도 포함되면 → 보호 (유지)
+ *       → 학생별 content 정제 시 사용: "태웅이는 ~집중하며"처럼 학생 관찰이
+ *          섞인 문장을 통째로 삭제하지 않도록 방지
+ *
+ * @param text           정제 대상 텍스트 (common 또는 student content)
+ * @param inputText      강사가 입력한 원문 메모
+ * @param protectedNames 이름 변형 목록 (포함 시 문장 보호). student 섹션에서 사용.
+ */
+export function purgeInventedEvaluations(
+  text: string,
+  inputText: string,
+  protectedNames: string[] = [],
+): { purged: string; removedSentenceCount: number } {
+  if (!text) return { purged: text, removedSentenceCount: 0 };
+
+  // ── 문장 분리 ────────────────────────────────────────────────────────────
+  const sentences = text
+    .split(/(?<=[.!?~])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+
+  // ── 키워드 기반 문장 필터 ────────────────────────────────────────────────
+  let removedSentenceCount = 0;
+  const kept = sentences.filter(sentence => {
+    // 이 문장 안에 평가 키워드가 있고, 원문에도 없으면 → 제거 후보
+    const hasInvented = EVALUATION_KEYWORDS.some(
+      kw => sentence.includes(kw) && !inputText.includes(kw),
+    );
+    if (!hasInvented) return true;
+
+    // 제거 후보라도 학생 고유 이름이 포함된 문장이면 → 보호 (유지)
+    // 이유: "태웅이는 배영을 예쁘게 하는 연습에 집중하며 참여했습니다." 처럼
+    //       학생 관찰과 평가가 같은 문장에 있을 때 통째 삭제 방지
+    const isProtected = protectedNames.length > 0 &&
+      protectedNames.some(name => name.length > 0 && sentence.includes(name));
+    if (isProtected) return true;
+
+    removedSentenceCount++;
+    return false;
   });
 
   return {
