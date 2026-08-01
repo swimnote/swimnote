@@ -1,10 +1,15 @@
 /**
  * AIFeatureModal — AI 커리큘럼 / AI 성장 리포트 안내 모달
  *
- * - type prop으로 두 기능 분기
- * - fixedHeader + ScrollView(flex:1) + fixedFooter 구조
- * - modalContainer에 position:absolute 없음 (flex 레이아웃)
- * - 모달 열릴 때 스크롤 최상단 초기화
+ * ▶ 진단된 원인
+ *   이전 구현의 modalContainer(m.container)에 명시적 height가 없고
+ *   maxHeight만 있었음. React Native에서 height 미지정 컨테이너 안
+ *   ScrollView(flex:1)는 height:0으로 붕괴 → 본문 전체 미표시.
+ *
+ * ▶ 수정 핵심
+ *   container에 width:"92%" + height:screenHeight*0.82 + min/maxHeight 명시
+ *   Header(flexShrink:0) + BodyWrapper(flex:1, minHeight:0)
+ *     └─ ScrollView(flex:1) + Footer(flexShrink:0) 구조 확립
  */
 import React, { useRef } from "react";
 import {
@@ -32,42 +37,39 @@ interface Props {
   onClose: () => void;
 }
 
-// ── 인라인 강조 헬퍼 ─────────────────────────────────────────────────────────
+// ── 강조 텍스트 헬퍼 ────────────────────────────────────────────────────────
 function Em({ children }: { children: string }) {
   return <Text style={m.emText}>{children}</Text>;
 }
 
-// ── 단락 헬퍼 ────────────────────────────────────────────────────────────────
+// ── 단락 헬퍼 ───────────────────────────────────────────────────────────────
 function Para({
   children,
-  bold,
   first,
 }: {
   children: React.ReactNode;
-  bold?: boolean;
   first?: boolean;
 }) {
   return (
-    <Text style={[m.bodyText, bold && m.bodyBold, first && { marginTop: 0 }]}>
-      {children}
-    </Text>
+    <Text style={[m.bodyText, first && m.bodyFirstPara]}>{children}</Text>
   );
 }
 
-// ── AI 커리큘럼 본문 ─────────────────────────────────────────────────────────
+// ── AI 커리큘럼 본문 ────────────────────────────────────────────────────────
 function CurriculumContent() {
   return (
     <>
-      <Para bold first>
+      <Para first>
         세계 최초 수영 전문 AI 엔진 <Em>SWIMNOTE AI</Em>와{" "}
         <Em>OpenAI GPT</Em>가 결합된 차세대 AI 검색 서비스입니다.
       </Para>
       <Para>
-        우리 수영장의 실제 교육 커리큘럼과 수영 전문 데이터베이스를 기반으로
-        영법, 진도, 레벨 기준, 연습 방법 등을 쉽고 빠르게 검색할 수 있습니다.
+        우리 수영장의 실제 교육 커리큘럼과{" "}
+        <Em>수영 전문 데이터베이스</Em>를 기반으로 영법, 진도, 레벨 기준,
+        연습 방법 등을 쉽고 빠르게 검색할 수 있습니다.
       </Para>
       <Para>
-        현재 토이키즈스윔클럽에서 SWIMNOTE AI와 OpenAI GPT{" "}
+        현재 토이키즈스윔클럽에서 SWIMNOTE AI와 OpenAI GPT의{" "}
         <Em>독점 시범 서비스</Em>를 준비 중이며, 정식 출시 후 순차적으로
         확대될 예정입니다.
       </Para>
@@ -75,11 +77,11 @@ function CurriculumContent() {
   );
 }
 
-// ── AI 성장 리포트 본문 ──────────────────────────────────────────────────────
+// ── AI 성장 리포트 본문 ─────────────────────────────────────────────────────
 function ReportContent() {
   return (
     <>
-      <Para bold first>
+      <Para first>
         세계 최초 수영 전문 AI 엔진 <Em>SWIMNOTE AI</Em>와{" "}
         <Em>OpenAI GPT</Em>가 결합된 차세대 AI 성장 분석 서비스입니다.
       </Para>
@@ -89,7 +91,7 @@ function ReportContent() {
       </Para>
       <Para>
         수영 과정에서 축적된 다양한 학습 데이터를 바탕으로 운동 능력뿐 아니라
-        일반 학습과 관련된 <Em>집중력</Em>, <Em>논리적 사고</Em>,{" "}
+        일반학습과 관련된 <Em>집중력</Em>, <Em>논리적 사고</Em>,{" "}
         <Em>문제 해결 과정</Em> 등{" "}
         <Em>학습에도 도움이 될 수 있는 성장 지표</Em>를 함께 분석하여 아이의
         강점과 성장 방향을 확인할 수 있습니다.
@@ -99,10 +101,10 @@ function ReportContent() {
         통해 부모님이 이해하기 쉬운 최종 분석 보고서를 제공합니다.
       </Para>
       <Para>
-        성장평가분석 리포트 라이센스 최종 체결 후 서비스가 제공됩니다.
+        성장분석평가 리포트 라이센스는 최종 체결 후 서비스 제공예정입니다.
       </Para>
       <Para>
-        현재 토이키즈스윔클럽에서 SWIMNOTE AI와 OpenAI GPT{" "}
+        현재 토이키즈스윔클럽에서 SWIMNOTE AI와 OpenAI GPT의{" "}
         <Em>독점 시범 서비스</Em>를 준비 중이며, 정식 출시 후 순차적으로
         확대될 예정입니다.
       </Para>
@@ -122,6 +124,20 @@ export function AIFeatureModal({ visible, type, onClose }: Props) {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }
 
+  // Safe area 여백 고려한 실제 가용 높이
+  const safeTop = insets.top;
+  const safeBottom = insets.bottom;
+  const availableHeight = screenHeight - safeTop - safeBottom;
+
+  const containerHeight = Math.min(
+    availableHeight * 0.88,       // 가용 높이 88%
+    screenHeight * 0.82           // 화면 높이 82% 상한
+  );
+  const containerMinHeight = Math.max(
+    availableHeight * 0.72,
+    screenHeight * 0.68
+  );
+
   return (
     <Modal
       visible={visible}
@@ -130,14 +146,28 @@ export function AIFeatureModal({ visible, type, onClose }: Props) {
       onRequestClose={onClose}
       onShow={handleShow}
     >
-      {/* backdrop — 터치 시 닫기 */}
+      {/*
+        backdrop: flex:1 + justifyContent/alignItems center
+        - paddingHorizontal 제거, alignItems:"center"로 92% container 가로 중앙 배치
+      */}
       <Pressable style={m.backdrop} onPress={onClose}>
-        {/* modalContainer — 내부 터치 흡수 */}
+        {/*
+          modalContainer: 명시적 height + width:"92%"
+          - flexDirection:"column" 으로 header/body/footer 수직 배치
+          - NO position:absolute
+        */}
         <Pressable
-          style={[m.container, { maxHeight: screenHeight * 0.85 }]}
+          style={[
+            m.container,
+            {
+              height: containerHeight,
+              maxHeight: screenHeight * 0.85,
+              minHeight: containerMinHeight,
+            },
+          ]}
           onPress={() => {}}
         >
-          {/* ── 고정 헤더 ── */}
+          {/* ── 고정 헤더 (flexShrink:0) ── */}
           <View style={m.header}>
             <Image
               source={
@@ -153,32 +183,44 @@ export function AIFeatureModal({ visible, type, onClose }: Props) {
             </Text>
             <Pressable
               onPress={onClose}
-              hitSlop={12}
-              style={({ pressed }) => [m.closeBtn, { opacity: pressed ? 0.5 : 1 }]}
+              hitSlop={16}
+              style={({ pressed }) => [
+                m.closeBtn,
+                { opacity: pressed ? 0.5 : 1 },
+              ]}
             >
-              <LucideIcon name="x" size={20} color={C.textSecondary} />
+              <LucideIcon name="x" size={22} color={C.textSecondary} />
             </Pressable>
           </View>
 
-          {/* ── 스크롤 본문 ── */}
-          <ScrollView
-            ref={scrollRef}
-            style={m.scroll}
-            contentContainerStyle={m.scrollContent}
-            showsVerticalScrollIndicator={false}
-            nestedScrollEnabled
-          >
-            {isCurriculum ? <CurriculumContent /> : <ReportContent />}
-            <Text style={m.powered}>
-              Powered by SWIMNOTE AI + OpenAI GPT
-            </Text>
-          </ScrollView>
+          {/*
+            BodyWrapper: flex:1 + minHeight:0
+            - 헤더와 푸터 사이 남은 공간 전부 차지
+            - minHeight:0 은 flex child가 content 크기로 수축하는 것 방지
+          */}
+          <View style={m.bodyWrapper}>
+            <ScrollView
+              ref={scrollRef}
+              style={m.scroll}
+              contentContainerStyle={m.scrollContent}
+              showsVerticalScrollIndicator={true}
+              bounces={true}
+              alwaysBounceVertical={false}
+              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
+            >
+              {isCurriculum ? <CurriculumContent /> : <ReportContent />}
+              <Text style={m.powered}>
+                Powered by SWIMNOTE AI + OpenAI GPT
+              </Text>
+            </ScrollView>
+          </View>
 
-          {/* ── 고정 푸터 ── */}
+          {/* ── 고정 푸터 (flexShrink:0) ── */}
           <View
             style={[
               m.footer,
-              { paddingBottom: Math.max(insets.bottom + 4, 20) },
+              { paddingBottom: Math.max(insets.bottom + 4, 16) },
             ]}
           >
             <Pressable
@@ -199,62 +241,81 @@ export function AIFeatureModal({ visible, type, onClose }: Props) {
 
 // ── 스타일 ───────────────────────────────────────────────────────────────────
 const m = StyleSheet.create({
+  // ── Backdrop ──
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.48)",
+    backgroundColor: "rgba(0,0,0,0.50)",
     justifyContent: "center",
-    paddingHorizontal: 20,
+    alignItems: "center",          // container 가로 중앙 정렬
   },
+
+  // ── ModalContainer ──
   container: {
+    width: "92%",
+    // height는 인라인으로 (useWindowDimensions 값 사용)
     backgroundColor: "#fff",
     borderRadius: 20,
     overflow: "hidden",
-    // position:absolute 없음 — flex 레이아웃으로 높이 결정
+    display: "flex",
+    flexDirection: "column",       // 수직 배치 명시
   },
-  // ── 헤더 ──
+
+  // ── 헤더 (flexShrink:0, ~72-80px) ──
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 22,
-    paddingTop: 22,
+    paddingHorizontal: 20,
+    paddingTop: 18,
     paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#E5E7EB",
     flexShrink: 0,
   },
   headerIcon: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     marginRight: 10,
   },
   title: {
     flex: 1,
-    fontSize: 20,
+    fontSize: 22,
     fontFamily: "Pretendard-Bold",
     color: "#111827",
   },
   closeBtn: {
     marginLeft: 8,
-    padding: 4,
+    padding: 6,
+    // 44px 터치 영역 확보 (hitSlop:16 추가로 처리)
   },
-  // ── 본문 ──
+
+  // ── BodyWrapper (flex:1, minHeight:0) ──
+  bodyWrapper: {
+    flex: 1,
+    minHeight: 0,                  // flex child 수축 방지 핵심
+  },
+
+  // ── ScrollView ──
   scroll: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 40,
+    paddingTop: 24,
+    paddingBottom: 48,
+    flexGrow: 0,                   // 내용 높이로만 결정, ScrollView 채우기 금지
   },
+
+  // ── 본문 텍스트 ──
   bodyText: {
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: "Pretendard-Regular",
-    color: "#374151",
-    lineHeight: 25,
-    marginTop: 16,
+    color: "#1F2937",              // 진한 본문색 (너무 연하지 않게)
+    lineHeight: 26,
+    marginBottom: 22,
+    textAlign: "left",
   },
-  bodyBold: {
-    fontFamily: "Pretendard-SemiBold",
+  bodyFirstPara: {
+    fontFamily: "Pretendard-Bold",
     color: "#111827",
   },
   emText: {
@@ -262,13 +323,15 @@ const m = StyleSheet.create({
     color: TEAL,
   },
   powered: {
-    marginTop: 28,
-    fontSize: 11,
+    marginTop: 8,
+    marginBottom: 8,
+    fontSize: 12,
     fontFamily: "Pretendard-Regular",
     color: "#AAAAAA",
     textAlign: "center",
   },
-  // ── 푸터 ──
+
+  // ── Footer (flexShrink:0, ~88-100px) ──
   footer: {
     paddingHorizontal: 24,
     paddingTop: 12,
@@ -278,7 +341,7 @@ const m = StyleSheet.create({
   },
   confirmBtn: {
     borderRadius: 12,
-    paddingVertical: 14,
+    height: 54,
     alignItems: "center",
     justifyContent: "center",
   },
