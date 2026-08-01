@@ -59,6 +59,16 @@ const SUPPORTED_CONTRACT_VERSIONS = new Set(['1.0']);
 const ENGINE_VERSION              = 'grounded_v1';
 const PIPELINE_MODE               = 'template_v1';
 
+// ── Generation mode 기준 ──────────────────────────────────────────────────────
+/** 이 점수 이상이어야 템플릿을 프롬프트에 포함하고 TEMPLATE_ASSISTED로 판정 */
+const TEMPLATE_USE_MIN_SCORE = 4;
+
+// ── Grounding validation 임계값 ───────────────────────────────────────────────
+/** parser_confidence 기반 grounding_validation 상태 결정 */
+const GROUNDING_PASS_THRESHOLD    = 0.7;   // ≥ 0.7 → PASS
+const GROUNDING_WARNING_THRESHOLD = 0.4;   // 0.4 ≤ x < 0.7 → WARNING
+// < 0.4 → FAIL
+
 // ── POST /v1/teacher-diary/generate ──────────────────────────────────────────
 router.post(
   '/v1/teacher-diary/generate',
@@ -192,15 +202,24 @@ router.post(
       console.log(`[AI/v1:${internalId}] KNOWLEDGE_SEARCH_COMPLETED knowledge_count=0 note=template_v1_pipeline`);
 
       // ── Trace: MODE_DECIDED ────────────────────────────────────────────────
-      const generation_mode = searchResult.usedCount > 0 ? 'TEMPLATE_ASSISTED' : 'INPUT_ONLY';
-      console.log(`[AI/v1:${internalId}] MODE_DECIDED generation_mode=${generation_mode} template_used=${searchResult.usedCount}`);
+      // TEMPLATE_ASSISTED: 후보 존재 + topScore >= TEMPLATE_USE_MIN_SCORE
+      // INPUT_ONLY: 후보 없거나 score 미달 (템플릿 프롬프트 미포함)
+      const generation_mode =
+        (searchResult.usedCount > 0 && searchResult.topScore >= TEMPLATE_USE_MIN_SCORE)
+          ? 'TEMPLATE_ASSISTED'
+          : 'INPUT_ONLY';
+      console.log(`[AI/v1:${internalId}] MODE_DECIDED generation_mode=${generation_mode} template_used=${searchResult.usedCount} top_score=${searchResult.topScore} threshold=${TEMPLATE_USE_MIN_SCORE}`);
 
       // ── Phase 4: Prompt Build ─────────────────────────────────────────────
+      // INPUT_ONLY 모드에서는 템플릿을 프롬프트에 포함하지 않음
+      const templatesForPrompt = generation_mode === 'TEMPLATE_ASSISTED'
+        ? searchResult.usedTemplates
+        : [];
       const { systemPrompt, userPrompt } = buildPrompt({
         lessonDate,
         normalizedStudents,
         inputText,
-        templates: searchResult.usedTemplates,
+        templates: templatesForPrompt,
       });
 
       // ── Phase 5: GPT 호출 (Naturalizer) ──────────────────────────────────
@@ -291,13 +310,26 @@ router.post(
           generation_mode:          generation_mode,
           parser_confidence:        meaning.confidence,
           template_candidate_count: searchResult.candidateCount,
-          template_used_count:      searchResult.usedCount,
+          template_used_count:      generation_mode === 'TEMPLATE_ASSISTED' ? searchResult.usedCount : 0,
           top_score:                searchResult.topScore,
           fallback_pool_used:       searchResult.usedFallbackPool,
-          grounding_validation:     { status: 'PASS', score: meaning.confidence },
-          knowledge_ids:            [],
-          template_ids:             searchResult.usedTemplates.map((_t, i) => `tpl_${i}`),
-          fallback_used:            searchResult.usedFallbackPool,
+          grounding_validation: {
+            status: meaning.confidence >= GROUNDING_PASS_THRESHOLD
+              ? 'PASS'
+              : meaning.confidence >= GROUNDING_WARNING_THRESHOLD
+                ? 'WARNING'
+                : 'FAIL',
+            score:              meaning.confidence,
+            pass_threshold:     GROUNDING_PASS_THRESHOLD,
+            warning_threshold:  GROUNDING_WARNING_THRESHOLD,
+          },
+          knowledge_ids:             [],
+          // 실제 DB template IDs — 후보 vs 사용 분리
+          template_candidate_ids:    searchResult.candidateIds,
+          template_ids:              generation_mode === 'TEMPLATE_ASSISTED'
+            ? searchResult.usedTemplates.map(t => t.id)
+            : [],
+          fallback_used:             searchResult.usedFallbackPool,
         },
         usage: {
           input_tokens:  usage?.prompt_tokens     ?? 0,
@@ -351,29 +383,37 @@ function buildPrompt(p: BuildPromptParams): { systemPrompt: string; userPrompt: 
   const templateBlock = templates.length > 0
     ? [
         '',
-        '[수영 수업 일지 참고 예문]',
-        '아래 예문들을 참고하여 자연스럽고 전문적인 수업 일지를 작성하십시오.',
-        '각 예문의 문체와 전문 용어를 활용하되, 교사의 실제 메모 내용을 반드시 반영하십시오.',
+        '[수업 일지 문체 참고 예문]',
+        '아래 예문들은 문체와 수영 전문 용어 참고 전용입니다.',
+        '예문의 구체적 내용(기술·동작·평가)은 강사 메모에 없으면 절대 사용하지 않습니다.',
         '',
         ...templates.map((t, i) => `예문 ${i + 1} (${t.level_name || '일반'}):\n${t.template_text}`),
       ].join('\n')
     : '';
 
-  const systemPrompt = `당신은 수영 강사를 위한 AI 수업 일지 작성 도우미입니다.
-강사가 제공하는 수업 메모를 바탕으로 자연스럽고 전문적인 수영 수업 일지를 작성합니다.
+  const systemPrompt = `당신은 수영 강사의 수업 메모를 일지로 변환하는 도우미입니다.
+강사의 메모에 적힌 내용만 일지로 작성합니다.
 ${templateBlock}
+[핵심 원칙]
+- 강사 메모에 없는 내용은 절대 생성하지 않습니다.
+- 발차기, 호흡, 자세, 턴, 스트로크, 태도, 향상, 다음 수업 계획 등은 메모에 명시된 경우에만 사용합니다.
+- 특정 학생에 대한 관찰은 common에 포함하지 않습니다.
+- 학생 칭찬·격려·추론·교정 방법은 메모에 없으면 생성하지 않습니다.
+
 [응답 규칙]
 - 반드시 JSON 형식으로만 응답합니다. 마크다운이나 다른 텍스트를 포함하지 않습니다.
 - common: 모든 학생에게 공통으로 보이는 수업 일지입니다.
   - 100자 이상 300자 이내로 작성합니다.
-  - 자연스럽고 따뜻한 한국어로 작성합니다.
-  - 수영 수업 특성(발차기, 호흡, 자세, 턴, 스트로크 등)을 적절히 반영합니다.
+  - 자연스럽고 전문적인 한국어로 작성합니다.
+  - 강사 메모에 있는 내용만 반영합니다.
+  - 특정 학생 이름이나 개인 관찰 내용을 포함하지 않습니다.
 - students: 개별 학생 메모 배열입니다.
-  - 강사의 입력에 특정 학생에 대한 언급이 있을 때만 포함합니다.
-  - 개별 언급이 없으면 반드시 빈 배열([])을 반환합니다.
+  - 강사의 메모에 특정 학생 이름과 함께 관찰 내용이 명시된 경우에만 포함합니다.
+  - 학생 이름이 메모에 없으면 반드시 빈 배열([])을 반환합니다.
   - 학생 메모는 50자 이상 120자 이내로 작성합니다.
-  - students에는 학생별로 실제 작성할 내용이 있는 학생만 포함합니다.
-  - 내용이 없는 학생은 students 배열에 포함하지 않습니다.
+  - 메모에 있는 관찰 내용만 사용합니다. 추론·교정 방법·다음 계획은 생성하지 않습니다.
+  - students에는 실제 작성할 내용이 있는 학생만 포함합니다.
+  - 내용이 없는 학생은 포함하지 않습니다.
   - student_ref는 제공된 학생 목록의 ref 중 하나만 그대로 사용합니다.
   - 목록에 없는 ref는 절대 사용하지 않습니다.
   - 같은 student_ref를 두 번 이상 반환하지 않습니다.

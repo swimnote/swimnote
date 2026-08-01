@@ -86,6 +86,8 @@ export interface TemplateSearchResult {
   topScore:         number;
   /** pool에 템플릿이 존재하지 않아 전역 fallback 사용 여부 */
   usedFallbackPool: boolean;
+  /** 후보 템플릿 실제 DB ID 목록 (meta candidate_ids 용) */
+  candidateIds:     string[];
 }
 
 // ── 내부 타입 ─────────────────────────────────────────────────────────────────
@@ -174,6 +176,7 @@ export async function searchTemplates(
       usedCount:        0,
       topScore:         0,
       usedFallbackPool: false,
+      candidateIds:     [],
     };
   }
 
@@ -219,6 +222,7 @@ export async function searchTemplates(
     usedCount:        usedTemplates.length,
     topScore,
     usedFallbackPool,
+    candidateIds:     candidates.map(t => t.id),
   };
 }
 
