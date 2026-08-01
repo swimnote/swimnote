@@ -871,6 +871,7 @@ export default function ParentHomeScreen() {
   const [linking, setLinking] = useState(false);
   const [confirmedPool, setConfirmedPool] = useState<PoolResult | null>(null);
 
+  const [comingSoonModal, setComingSoonModal] = useState(false);
   const [v2Status, setV2Status] = useState<
     "no_pool" | "waiting" | "linked" | null
   >("no_pool");
@@ -1396,6 +1397,24 @@ export default function ParentHomeScreen() {
         </View>
       </View>
 
+      {/* AI 버튼 행 */}
+      <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 20, paddingBottom: 4, gap: 6 }}>
+        <Pressable
+          onPress={() => setComingSoonModal(true)}
+          style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 5, opacity: pressed ? 0.6 : 1 })}
+        >
+          <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 26, height: 26 }} resizeMode="contain" />
+          <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>AI 리포트</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setComingSoonModal(true)}
+          style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 5, opacity: pressed ? 0.6 : 1, marginLeft: 10 })}
+        >
+          <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 26, height: 26 }} resizeMode="contain" />
+          <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>AI 커리큘럼</Text>
+        </Pressable>
+      </View>
+
       {/* B. 자녀 선택 탭 */}
       <ScrollView
         horizontal
@@ -1637,7 +1656,7 @@ export default function ParentHomeScreen() {
             tintColor={C.tint}
           />
         }
-        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 72 }}
         maxToRenderPerBatch={8}
         windowSize={12}
         initialNumToRender={5}
@@ -1648,6 +1667,41 @@ export default function ParentHomeScreen() {
         onClose={() => setPoolModal(false)}
         onSelect={handlePoolSelect}
       />
+
+      {/* 하단 고정 문구 */}
+      <View style={[s.bottomBar, { paddingBottom: insets.bottom + 6 }]}>
+        <Text style={s.bottomBarTxt}>Powered by SWIMNOTE AI + OpenAI GPT</Text>
+      </View>
+
+      {/* 준비중 모달 */}
+      <Modal
+        visible={comingSoonModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setComingSoonModal(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" }}
+          onPress={() => setComingSoonModal(false)}
+        >
+          <Pressable
+            style={{ backgroundColor: "#fff", borderRadius: 22, padding: 36, alignItems: "center", marginHorizontal: 40, gap: 10 }}
+            onPress={() => {}}
+          >
+            <Text style={{ fontSize: 44 }}>🚀</Text>
+            <Text style={{ fontSize: 19, fontFamily: "Pretendard-Bold", color: C.text, marginTop: 4 }}>준비 중입니다</Text>
+            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 }}>
+              더 나은 서비스로{"\n"}곧 찾아올게요!
+            </Text>
+            <Pressable
+              onPress={() => setComingSoonModal(false)}
+              style={({ pressed }) => ({ backgroundColor: pressed ? "#27B8AC" : TEAL, borderRadius: 12, paddingHorizontal: 36, paddingVertical: 13, marginTop: 6 })}
+            >
+              <Text style={{ fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" }}>확인</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -1735,6 +1789,22 @@ const s = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Pretendard-Regular",
     lineHeight: 18,
+  },
+  bottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    paddingTop: 8,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
+  },
+  bottomBarTxt: {
+    fontSize: 11,
+    fontFamily: "Pretendard-Regular",
+    color: "#AAAAAA",
   },
 });
 
