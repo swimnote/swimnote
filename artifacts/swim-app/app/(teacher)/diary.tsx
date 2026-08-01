@@ -30,8 +30,7 @@ import {
 } from "@/components/teacher/diary/types";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { emitDiaryChanged } from "@/utils/diaryEvents";
-import type { DiaryInsertResult } from "@/components/ai/services/DiaryAIService";
-import { BookOpen, Clock, RotateCcw } from "lucide-react-native";
+import { BookOpen, Clock } from "lucide-react-native";
 import { haptic } from "@/utils/haptic";
 const C = Colors.light;
 export default function TeacherDiaryScreen() {
