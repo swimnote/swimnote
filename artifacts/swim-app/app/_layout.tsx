@@ -35,7 +35,7 @@ try {
 }
 
 // ── 빌드 식별 로그 ──────────────────────────────────────
-const BUILD_TAG = "SwimNote-20260407-pools-summary-v3";
+const BUILD_TAG = "SwimNote-20260407-pools-summary-v3 | AI-FIX-d3b6db3";
 console.log(`[BUILD_TAG] ${BUILD_TAG}`);
 console.log(`[BUILD_TAG] API_BASE=${process.env.EXPO_PUBLIC_API_URL || "https://" + (process.env.EXPO_PUBLIC_DOMAIN || "unknown") + "/api"}`);
 

@@ -33,6 +33,13 @@ export interface AIErrorInfo {
   message: string;
   /** 재시도 시 복귀할 State. null이면 CLOSED */
   retryTarget: AIState | null;
+  // ── 진단 필드 (화면에 표시, 사용자 입력/JWT/생성 내용 제외) ─────────────
+  causeCode?:       string;   // 오류 코드 (e.g. 'CONTRACT_RESPONSE_PARSE_ERROR')
+  httpStatus?:      number;   // HTTP 상태 코드
+  endpoint?:        string;   // 요청 엔드포인트 경로
+  responseKeys?:    string[]; // 응답 body의 최상위 key 목록
+  requestId?:       string;   // 이 요청의 request_id
+  validationStage?: string;   // 사전 검증 실패 단계
 }
 
 // ─── Feature 타입 ────────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@
  * U: 복수 역할 보유 시 "로그인 기본 모드" 토글 표시
  */
 import { ChevronRight, Check, Repeat } from "lucide-react-native";
+import OTADiagnosticPanel from "@/components/common/OTADiagnosticPanel";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -243,6 +244,9 @@ export default function SettingsScreen() {
         {adminUser?.role !== "sub_admin" && renderSection("운영 설정", OPS_SETTINGS)}
         {adminUser?.role !== "sub_admin" && renderSection("수영장 설정", POOL_SETTINGS)}
         {renderSection("계정 / 기타", MY_SETTINGS)}
+
+        {/* 앱 진단 정보 */}
+        <OTADiagnosticPanel />
 
         {/* 계정 삭제 */}
         <Pressable

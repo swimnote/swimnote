@@ -10,6 +10,7 @@
  *  6. 기타
  */
 import { Bell, Camera, ChevronRight, CircleDollarSign, FileText, HardDrive, Mail, Pencil, UserCog } from "lucide-react-native";
+import OTADiagnosticPanel from "@/components/common/OTADiagnosticPanel";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
@@ -341,6 +342,9 @@ export default function TeacherSettingsScreen() {
             </Pressable>
           ))}
         </View>
+
+        {/* ── 앱 진단 정보 ── */}
+        <OTADiagnosticPanel />
 
         {/* 회원 탈퇴 */}
         <Pressable

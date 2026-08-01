@@ -721,9 +721,13 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
       if (validationError) {
         if (__DEV__) console.error('[DIARY-AI] validate_error', { request_id: currentRequestIdRef.current, code: validationError });
         machine.setError({
-          origin:      'UNKNOWN',
-          message:     '요청 정보가 올바르지 않습니다. 화면을 새로 고침 후 다시 시도해주세요.',
-          retryTarget: 'INPUT',
+          origin:          'UNKNOWN',
+          message:         '요청 정보가 올바르지 않습니다. 화면을 새로 고침 후 다시 시도해주세요.',
+          retryTarget:     'INPUT',
+          causeCode:       validationError,
+          requestId:       currentRequestIdRef.current,
+          endpoint:        endpoint,
+          validationStage: 'pre-send',
         });
         return;
       }
@@ -777,9 +781,13 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
 
           if (response.status === 401 || response.status === 403) {
             machine.setError({
-              origin:      'UNKNOWN',
-              message:     '로그인 정보가 만료되었습니다. 다시 로그인해 주세요.',
-              retryTarget: null,
+              origin:       'UNKNOWN',
+              message:      '로그인 정보가 만료되었습니다. 다시 로그인해 주세요.',
+              retryTarget:  null,
+              causeCode:    'AUTH_ERROR',
+              httpStatus:   response.status,
+              endpoint:     endpoint,
+              requestId:    reqId,
             });
             return;
           }
@@ -789,6 +797,10 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
               origin:      'NETWORK',
               message:     '요청이 많아 처리가 지연되고 있습니다. 잠시 후 다시 시도해 주세요.',
               retryTarget: 'INPUT',
+              causeCode:   'RATE_LIMIT',
+              httpStatus:  429,
+              endpoint:    endpoint,
+              requestId:   reqId,
             });
             return;
           }
@@ -804,9 +816,14 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
 
           if (!isMountedRef.current) return;
           machine.setError({
-            origin:      'NETWORK',
-            message:     '네트워크 연결을 확인한 후 다시 시도해주세요.',
-            retryTarget: 'INPUT',
+            origin:       'NETWORK',
+            message:      '네트워크 연결을 확인한 후 다시 시도해주세요.',
+            retryTarget:  'INPUT',
+            causeCode:    err?.code ?? 'RETRYABLE_FAILED',
+            httpStatus:   response.status,
+            endpoint:     endpoint,
+            requestId:    reqId,
+            responseKeys: typeof errorBody === 'object' && errorBody !== null ? Object.keys(errorBody) : [],
           });
           return;
         }
@@ -826,6 +843,9 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
           origin:      'NETWORK',
           message:     '네트워크 연결을 확인한 후 다시 시도해주세요.',
           retryTarget: 'INPUT',
+          causeCode:   'HTTP_ERROR_NON_JSON',
+          httpStatus:  response.status,
+          endpoint:    endpoint,
         });
         return;
       }
@@ -845,6 +865,10 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
           origin:      'UNKNOWN',
           message:     'AI 일지 결과를 불러오지 못했습니다. 다시 시도해주세요.',
           retryTarget: 'INPUT',
+          causeCode:   'CONTRACT_RESPONSE_PARSE_ERROR',
+          httpStatus:  response.status,
+          endpoint:    endpoint,
+          requestId:   expectedRequestId,
         });
         return;
       }
@@ -876,9 +900,13 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
         // Contract 오류 — 자동 재시도 없음 (§16)
         if (__DEV__) console.error('[DIARY-AI] contract_error', { request_id: expectedRequestId, code: normalized.contractError });
         machine.setError({
-          origin:      'UNKNOWN',
-          message:     'AI 일지 결과를 불러오지 못했습니다. 다시 시도해주세요.',
-          retryTarget: 'INPUT',
+          origin:        'UNKNOWN',
+          message:       'AI 일지 결과를 불러오지 못했습니다. 다시 시도해주세요.',
+          retryTarget:   'INPUT',
+          causeCode:     normalized.contractError,
+          endpoint:      endpoint,
+          requestId:     expectedRequestId,
+          responseKeys:  typeof body === 'object' && body !== null ? Object.keys(body) : [],
         });
         return;
       }
@@ -944,6 +972,9 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
           origin:      'TIMEOUT',
           message:     '일지 작성 시간이 초과되었습니다. 다시 시도해 주세요.',
           retryTarget: 'INPUT',
+          causeCode:   'TIMEOUT',
+          endpoint:    endpoint,
+          requestId:   currentRequestIdRef.current,
         });
         return;
       }
@@ -963,6 +994,9 @@ export function useDiaryAI(options: UseDiaryAIOptions = {}) {
         origin:      'NETWORK',
         message:     '네트워크 연결을 확인한 후 다시 시도해주세요.',
         retryTarget: 'INPUT',
+        causeCode:   `NETWORK_ERROR: ${e?.message ?? 'unknown'}`,
+        endpoint:    endpoint,
+        requestId:   currentRequestIdRef.current,
       });
     }
   };
