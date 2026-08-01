@@ -320,7 +320,8 @@ export default function DiaryAIModalV2({
             {/* 헤더 — 고정 (flex 없음, 자연 높이) */}
             <View style={styles.header}>
               <Text style={styles.headerTitle}>AI 일지 작성</Text>
-              {!hook.isLocked && (
+              {/* ERROR 상태에서는 헤더 X 숨김 — AIErrorViewV2 내부 닫기 버튼 1개만 유지 */}
+              {!hook.isLocked && hook.v2State !== 'ERROR' && (
                 <Pressable
                   style={styles.closeButton}
                   onPress={hook.handleClose}
