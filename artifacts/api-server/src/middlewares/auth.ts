@@ -18,6 +18,13 @@ export interface AuthRequest extends Omit<Request, "params" | "query"> {
 }
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
+  const path = req.path ?? req.url ?? '';
+  const isAiPath = path.includes('/v1/teacher-diary') || path.includes('/ai/diary');
+  if (isAiPath) {
+    const authHeader = req.headers.authorization;
+    const hasToken = Boolean(authHeader?.startsWith('Bearer '));
+    console.log(`[requireAuth] AI_REQUEST path=${path} method=${req.method} has_token=${hasToken}`);
+  }
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
     res.status(401).json({ success: false, message: "인증이 필요합니다.", error: "인증이 필요합니다." });
@@ -27,12 +34,14 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   try {
     const payload = verifyToken(token);
     if (payload.tv !== TOKEN_VERSION) {
+      if (isAiPath) console.log(`[requireAuth] AI_REQUEST token_version_mismatch path=${path}`);
       res.status(401).json({ success: false, message: "세션이 만료되었습니다. 다시 로그인해주세요.", error: "token_version_mismatch" });
       return;
     }
     req.user = payload;
     next();
   } catch {
+    if (isAiPath) console.log(`[requireAuth] AI_REQUEST invalid_token path=${path}`);
     res.status(401).json({ success: false, message: "유효하지 않은 토큰입니다.", error: "유효하지 않은 토큰입니다." });
   }
 }
