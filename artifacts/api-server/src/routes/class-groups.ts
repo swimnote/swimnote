@@ -346,4 +346,74 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin", "tea
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── GET /:id/students?date=YYYY-MM-DD — 날짜 기준 학생 목록 ─────────────────
+// student_class_history 기반 날짜 JOIN. 앱의 client-side 필터링 대신 사용.
+router.get("/:id/students", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
+  try {
+    const classGroupId = req.params.id;
+    const targetDate = ((req.query.date as string) || new Date().toISOString().slice(0, 10));
+
+    const poolId = await getPoolId(req.user!.userId);
+
+    // 반 존재 + 소속 풀 확인
+    const [cls] = await db.select({
+      swimming_pool_id: classGroupsTable.swimming_pool_id,
+      teacher_user_id:  (classGroupsTable as any).teacher_user_id,
+    }).from(classGroupsTable).where(eq(classGroupsTable.id, classGroupId)).limit(1);
+
+    if (!cls) return err(res, 404, "반을 찾을 수 없습니다.");
+    const clsPoolId = (cls as any).swimming_pool_id as string;
+    if (req.user!.role !== "super_admin" && poolId && clsPoolId !== poolId) {
+      return err(res, 403, "접근 권한 없음");
+    }
+
+    // 선생님은 본인 담당 반 또는 pool_admin-as-teacher만 조회 가능
+    if (req.user!.role === "teacher") {
+      const teacherId = (cls as any).teacher_user_id as string | null;
+      if (teacherId !== req.user!.userId) {
+        const dbRole = await getUserDbRole(req.user!.userId);
+        if (dbRole !== "pool_admin") {
+          return err(res, 403, "본인이 담당하는 반만 조회할 수 있습니다.");
+        }
+      }
+    }
+
+    const effectivePoolId = poolId || clsPoolId;
+
+    const result = await db.execute(sql`
+      SELECT DISTINCT ON (s.id)
+             s.id,
+             s.name,
+             s.status,
+             s.birth_year,
+             s.phone,
+             s.parent_name,
+             s.parent_user_id,
+             s.weekly_count,
+             s.class_group_id,
+             s.assigned_class_ids,
+             s.schedule_labels,
+             s.updated_at,
+             s.pending_status_change,
+             s.pending_effective_mode,
+             s.pending_effective_month,
+             h.enrolled_at  AS class_enrolled_at,
+             h.left_at      AS class_left_at
+      FROM students s
+      JOIN student_class_history h ON h.student_id = s.id
+      WHERE h.class_group_id = ${classGroupId}
+        AND h.enrolled_at::text <= ${targetDate}
+        AND (h.left_at IS NULL OR h.left_at::text > ${targetDate})
+        AND s.deleted_at IS NULL
+        AND s.swimming_pool_id = ${effectivePoolId}
+      ORDER BY s.id, h.enrolled_at DESC
+    `);
+
+    return res.json((result.rows as any[]).sort((a: any, b: any) => (a.name || "").localeCompare(b.name || "")));
+  } catch (e) {
+    console.error("[class-groups/:id/students]", e);
+    return err(res, 500, "서버 오류");
+  }
+});
+
 export default router;

@@ -809,6 +809,7 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
     }
 
     // 즉시 제거: 특정 반만 제거
+    const remEffectiveDate = (req.body as any).effective_date || today;
     const newIds = currentIds.filter((id: string) => id !== class_group_id);
     const newPrimaryId = newIds[0] || null;
 
@@ -828,12 +829,27 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
       }).join("·");
     }
 
-    await db.update(studentsTable).set({
-      assigned_class_ids: newIds as any,
-      class_group_id: newPrimaryId,
-      schedule_labels: labels || null,
-      updated_at: new Date(),
-    }).where(eq(studentsTable.id, req.params.id));
+    // ── 단일 트랜잭션: history 기록 + students 갱신 ──────────────────────
+    await db.transaction(async (tx) => {
+      // 1) history left_at 설정
+      await tx.execute(sql`
+        UPDATE student_class_history
+        SET left_at = ${remEffectiveDate}::date
+        WHERE student_id = ${req.params.id}
+          AND class_group_id = ${class_group_id}
+          AND left_at IS NULL
+      `);
+
+      // 2) students 캐시 갱신
+      await tx.execute(sql`
+        UPDATE students SET
+          assigned_class_ids = ${JSON.stringify(newIds)}::jsonb,
+          class_group_id     = ${newPrimaryId},
+          schedule_labels    = ${labels || null},
+          updated_at         = NOW()
+        WHERE id = ${req.params.id}
+      `);
+    });
 
     // change_log 생성 (즉시 적용)
     try {
@@ -845,16 +861,16 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
         class_group_id,
         target_student_id: req.params.id,
         change_type: "remove_from_class",
-        effective_date: today,
+        effective_date: remEffectiveDate,
         display_week_start: thisMonday,
-        note: `${studentName} 반 제외 → 미배정 이동 (${cgName})`,
+        note: `${studentName} 반 제외 → 미배정 이동 (${cgName}) effective=${remEffectiveDate}`,
         created_by: req.user!.userId,
         is_applied: true,
         created_at: new Date(),
       });
     } catch (logErr) { console.error("[change_log] write error:", logErr); }
 
-    return res.json({ success: true, remaining_classes: newIds.length });
+    return res.json({ success: true, remaining_classes: newIds.length, effective_date: remEffectiveDate });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
 });
 
@@ -992,9 +1008,16 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
 });
 
 router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { from_class_id, to_class_id } = req.body as { from_class_id: string; to_class_id: string };
+  const { from_class_id, to_class_id, effective_date } = req.body as {
+    from_class_id: string;
+    to_class_id: string;
+    effective_date?: string;
+  };
   if (!from_class_id || !to_class_id) return err(res, 400, "from_class_id, to_class_id 모두 필요");
   if (from_class_id === to_class_id) return err(res, 400, "출발반과 도착반이 같습니다");
+
+  // effective_date 기본값: 오늘
+  const effectiveDate = effective_date || new Date().toISOString().slice(0, 10);
 
   try {
     const poolId = await getPoolId(req.user!.userId);
@@ -1018,10 +1041,25 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
       : (typeof existing.assigned_class_ids === "string"
           ? JSON.parse(existing.assigned_class_ids || "[]") : []);
 
-    if (!currentIds.includes(from_class_id)) return err(res, 400, "학생이 출발반에 배정되어 있지 않습니다");
-    if (currentIds.includes(to_class_id)) return err(res, 400, "이미 현재 반에 배정되어 있습니다");
+    // ── 이동 자격 검증: assigned_class_ids 또는 student_class_history 기준 ──────
+    // assigned_class_ids는 현재 캐시, history는 날짜 기준 진실 소스
+    const inCurrentIds = currentIds.includes(from_class_id);
+    const histCheck = await db.execute(sql`
+      SELECT id FROM student_class_history
+      WHERE student_id = ${req.params.id}
+        AND class_group_id = ${from_class_id}
+        AND enrolled_at::text <= ${effectiveDate}
+        AND (left_at IS NULL OR left_at::text > ${effectiveDate})
+      LIMIT 1
+    `);
+    const inHistory = (histCheck.rows as any[]).length > 0;
 
-    // 제거 후 추가
+    if (!inCurrentIds && !inHistory) {
+      return err(res, 400, "학생이 출발반에 배정되어 있지 않습니다 (현재 배정 및 history 모두 확인)");
+    }
+    if (currentIds.includes(to_class_id)) return err(res, 400, "이미 도착반에 배정되어 있습니다");
+
+    // 제거 후 추가 (assigned_class_ids 캐시 갱신)
     const newIds = currentIds.filter((id: string) => id !== from_class_id).concat(to_class_id);
 
     // schedule_labels 재계산
@@ -1041,40 +1079,73 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
       return days.map((d: string) => `${d}${hour}`).join("·");
     }).join("·");
 
-    const [moved] = await db.update(studentsTable).set({
-      assigned_class_ids: newIds as any,
-      class_group_id: newIds[0] || null,
-      schedule_labels: labels || null,
-      status: "active",
-      updated_at: new Date(),
-    }).where(eq(studentsTable.id, req.params.id)).returning({ id: studentsTable.id });
+    const studentPoolId = existing.swimming_pool_id || poolId || "";
+
+    // ── 단일 트랜잭션: history + students 동시 갱신 ──────────────────────────
+    await db.transaction(async (tx) => {
+      // 1) 출발반 history left_at 설정 (열린 row만)
+      await tx.execute(sql`
+        UPDATE student_class_history
+        SET left_at = ${effectiveDate}::date
+        WHERE student_id = ${req.params.id}
+          AND class_group_id = ${from_class_id}
+          AND left_at IS NULL
+      `);
+
+      // 2) 도착반 history INSERT (이미 없는 경우만)
+      const histId = `sch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      await tx.execute(sql`
+        INSERT INTO student_class_history (id, student_id, class_group_id, swimming_pool_id, enrolled_at, created_at)
+        VALUES (
+          ${histId},
+          ${req.params.id},
+          ${to_class_id},
+          ${studentPoolId},
+          ${effectiveDate}::date,
+          NOW()
+        )
+        ON CONFLICT DO NOTHING
+      `);
+
+      // 3) students 캐시 갱신
+      await tx.execute(sql`
+        UPDATE students SET
+          assigned_class_ids = ${JSON.stringify(newIds)}::jsonb,
+          class_group_id     = ${newIds[0] || null},
+          schedule_labels    = ${labels || null},
+          status             = 'active',
+          updated_at         = NOW()
+        WHERE id = ${req.params.id}
+      `);
+    });
 
     // 출발반/도착반 이름 조회 (메신저 메시지용)
     const [fromCls] = await db.select({ name: classGroupsTable.name })
       .from(classGroupsTable).where(eq(classGroupsTable.id, from_class_id)).limit(1);
-    const [toCls] = await db.select({ name: classGroupsTable.name })
+    const [toCls2] = await db.select({ name: classGroupsTable.name })
       .from(classGroupsTable).where(eq(classGroupsTable.id, to_class_id)).limit(1);
 
     // 메신저 공지 자동 메시지
-    if (poolId && fromCls && toCls) {
+    if (poolId && fromCls && toCls2) {
       await createSystemMessage({
         poolId,
         msgType: "system_move",
-        content: `${existing.name} 회원이 ${fromCls.name}에서 ${toCls.name}으로 이동되었습니다.`,
+        content: `${existing.name} 회원이 ${fromCls.name}에서 ${toCls2.name}으로 이동되었습니다. (${effectiveDate})`,
       });
     }
 
-    return res.json({ success: true, assigned_class_ids: newIds });
+    return res.json({ success: true, assigned_class_ids: newIds, effective_date: effectiveDate });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
 });
 
 // ── PATCH /:id/assign — 반 배정 (관리자 + 선생님 허용) ─────────────
 router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { assigned_class_ids: rawIds, weekly_count } = req.body;
+  const { assigned_class_ids: rawIds, weekly_count, effective_date } = req.body;
   if (!Array.isArray(rawIds)) return err(res, 400, "assigned_class_ids는 배열이어야 합니다.");
 
   // null·undefined 제거 + 중복 제거
   const assigned_class_ids: string[] = [...new Set(rawIds.filter((id: any) => typeof id === "string" && id.trim()))];
+  const effectiveDate = effective_date || new Date().toISOString().slice(0, 10);
 
   try {
     const poolId = await getPoolId(req.user!.userId);
@@ -1118,27 +1189,68 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
       return days.map((d: string) => `${d}${hour}`).join("·");
     }).join("·");
 
-    // students에 first class_group_id도 업데이트 (하위 호환)
     const firstClassId = assigned_class_ids[0] || null;
+    const studentPoolId = existing.swimming_pool_id || poolId || "";
 
-    const [student] = await db.update(studentsTable)
-      .set({
-        assigned_class_ids: assigned_class_ids as any,
-        weekly_count: wc,
-        schedule_labels: labels || null,
-        class_group_id: firstClassId,
-        status: "active",
-        updated_at: new Date(),
-      })
-      .where(eq(studentsTable.id, req.params.id))
-      .returning();
+    // 이전/새 배정 diff 계산 (history 갱신용)
+    const prevIds: string[] = Array.isArray(existing.assigned_class_ids)
+      ? existing.assigned_class_ids
+      : (typeof existing.assigned_class_ids === "string"
+          ? JSON.parse(existing.assigned_class_ids || "[]") : []);
+    const prevSet = new Set(prevIds);
+    const newSet  = new Set(assigned_class_ids);
+    const addedIds   = assigned_class_ids.filter(id => !prevSet.has(id));
+    const removedIds = prevIds.filter(id => !newSet.has(id));
 
-    // class_groups의 student_count는 GET 때 집계이므로 별도 업데이트 불필요
-    const enriched = await enrichWithClasses({ ...student, assignedClasses: validClasses });
+    // ── 단일 트랜잭션: history + students 동시 갱신 ──────────────────────────
+    await db.transaction(async (tx) => {
+      // 1) 제거된 반 → history left_at 설정
+      for (const classId of removedIds) {
+        await tx.execute(sql`
+          UPDATE student_class_history
+          SET left_at = ${effectiveDate}::date
+          WHERE student_id = ${req.params.id}
+            AND class_group_id = ${classId}
+            AND left_at IS NULL
+        `);
+      }
+
+      // 2) 추가된 반 → history INSERT
+      for (const classId of addedIds) {
+        const histId = `sch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        await tx.execute(sql`
+          INSERT INTO student_class_history (id, student_id, class_group_id, swimming_pool_id, enrolled_at, created_at)
+          VALUES (
+            ${histId},
+            ${req.params.id},
+            ${classId},
+            ${studentPoolId},
+            ${effectiveDate}::date,
+            NOW()
+          )
+          ON CONFLICT DO NOTHING
+        `);
+      }
+
+      // 3) students 캐시 갱신
+      await tx.execute(sql`
+        UPDATE students SET
+          assigned_class_ids = ${JSON.stringify(assigned_class_ids)}::jsonb,
+          weekly_count       = ${wc},
+          schedule_labels    = ${labels || null},
+          class_group_id     = ${firstClassId},
+          status             = 'active',
+          updated_at         = NOW()
+        WHERE id = ${req.params.id}
+      `);
+    });
+
+    const [updated] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+    const enriched = await enrichWithClasses({ ...updated, assignedClasses: validClasses });
     logPoolEvent({
       pool_id: poolId!, event_type: "class_assign", entity_type: "student",
       entity_id: req.params.id, actor_id: req.user!.userId,
-      payload: { assigned_class_ids, student_name: existing.name },
+      payload: { assigned_class_ids, student_name: existing.name, effective_date: effectiveDate },
     }).catch(() => {});
     res.json({ success: true, ...enriched });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }

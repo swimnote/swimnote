@@ -17,7 +17,8 @@ const C = Colors.light;
 export default function ClassDetailSheet({
   group, students, attMap, diarySet, themeColor, date, onClose,
   onOpenUnreg, onOpenRemove, onNavigateTo, onDeleteClass, weekChangeLogs, token,
-  classGroups, onColorChange, onCapacityChange,
+  classGroups, onColorChange, onCapacityChange, onStudentsChanged,
+  studentsByDate,
 }: {
   group: TeacherClassGroup;
   students: StudentItem[];
@@ -35,6 +36,10 @@ export default function ClassDetailSheet({
   classGroups?: TeacherClassGroup[];
   onColorChange?: (id: string, color: string) => void;
   onCapacityChange?: (id: string, capacity: number | null) => void;
+  /** 서버 날짜 API로 사전 필터된 학생 목록 (있으면 내부 filter 대신 사용) */
+  studentsByDate?: StudentItem[];
+  /** 반이동/미배정 성공 후 부모가 학생 목록을 재조회하도록 호출 */
+  onStudentsChanged?: () => void;
 }) {
   const myLogs = useMemo(() =>
     (weekChangeLogs || []).filter(l => l.class_group_id === group.id),
@@ -223,13 +228,21 @@ export default function ClassDetailSheet({
         body: JSON.stringify({
           from_class_id: group.id,
           to_class_id: movingToClassId,
+          effective_date: effectiveDate,
         }),
       });
       if (res.ok) {
         setMoveStudent(null);
         setMovingToClassId(null);
+        onStudentsChanged?.();
+      } else {
+        const body = await res.json().catch(() => ({}));
+        const msg = body?.message || body?.error || `반이동 실패 (${res.status})`;
+        Alert.alert("반이동 실패", msg);
       }
-    } catch {}
+    } catch (e: any) {
+      Alert.alert("오류", e?.message || "네트워크 오류가 발생했습니다.");
+    }
     setMovingStudent(false);
   }
 
@@ -237,35 +250,50 @@ export default function ClassDetailSheet({
     if (!unassignStudent) return;
     setUnassigningStudent(true);
     try {
+      const body: Record<string, string> = {
+        class_group_id: group.id,
+        effective_timing: timing,
+      };
+      // "now" 케이스에는 effective_date 전달 (history 기록용)
+      if (timing === "now") body.effective_date = effectiveDate;
+
       const res = await apiRequest(token, `/students/${unassignStudent.id}/remove-from-class`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          class_group_id: group.id,
-          effective_timing: timing,
-        }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         setShowUnassignTiming(false);
         setUnassignStudent(null);
         setMoveStudent(null);
+        onStudentsChanged?.();
+      } else {
+        const errBody = await res.json().catch(() => ({}));
+        const msg = errBody?.message || errBody?.error || `미배정 실패 (${res.status})`;
+        Alert.alert("미배정 실패", msg);
       }
-    } catch {}
+    } catch (e: any) {
+      Alert.alert("오류", e?.message || "네트워크 오류가 발생했습니다.");
+    }
     setUnassigningStudent(false);
   }
 
-  const groupStudents = students
-    .filter(st =>
-      ((Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(group.id))
-      || st.class_group_id === group.id)
-      && (!st.class_enrolled_at || st.class_enrolled_at <= todayDateStr())
-    )
-    .sort((a, b) => {
-      const aAbs = studentAttState[a.id] === "absent" ? 0 : 1;
-      const bAbs = studentAttState[b.id] === "absent" ? 0 : 1;
-      if (aAbs !== bAbs) return aAbs - bAbs;
-      return a.name.localeCompare(b.name);
-    });
+  // studentsByDate가 있으면 서버 사전 필터 결과를 사용, 없으면 기존 client-side 필터
+  const groupStudents = (
+    studentsByDate
+      ? [...studentsByDate]
+      : students
+        .filter(st =>
+          ((Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(group.id))
+          || st.class_group_id === group.id)
+          && (!st.class_enrolled_at || st.class_enrolled_at <= todayDateStr())
+        )
+  ).sort((a, b) => {
+    const aAbs = studentAttState[a.id] === "absent" ? 0 : 1;
+    const bAbs = studentAttState[b.id] === "absent" ? 0 : 1;
+    if (aAbs !== bAbs) return aAbs - bAbs;
+    return a.name.localeCompare(b.name);
+  });
 
   const diarDone = diarySet.has(group.id);
   const moveTargetClasses = (classGroups || []).filter(g => g.id !== group.id);

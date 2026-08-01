@@ -71,6 +71,9 @@ export default function MyScheduleScreen() {
   const [unregClassId,          setUnregClassId]           = useState<string | null>(null);
   const [removeClassGroup,  setRemoveClassGroup]  = useState<TeacherClassGroup | null>(null);
 
+  // 날짜 기준 학생 목록 (ClassDetailSheet용 - history JOIN API)
+  const [detailStudentsByDate, setDetailStudentsByDate] = useState<StudentItem[] | null>(null);
+
   const [selectedGroup, setSelectedGroup] = useState<TeacherClassGroup | null>(null);
 
   const [weeklyViewStart, setWeeklyViewStart] = useState<string>(() => getMondayStr(todayDateStr()));
@@ -235,8 +238,33 @@ export default function MyScheduleScreen() {
       setSelectedIds(new Set());
       setSelectedDates(new Set());
       setViewMode("monthly");
+      setDetailStudentsByDate(null);
     });
   }, []);
+
+  // 날짜 + 반이 모두 선택된 경우 → 서버에서 날짜 기준 학생 목록 조회
+  useEffect(() => {
+    if (!detailGroup || !selectedDate || !token) {
+      setDetailStudentsByDate(null);
+      return;
+    }
+    let cancelled = false;
+    apiRequest(token, `/class-groups/${detailGroup.id}/students?date=${selectedDate}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!cancelled) setDetailStudentsByDate(Array.isArray(data) ? data : null);
+      })
+      .catch(() => { if (!cancelled) setDetailStudentsByDate(null); });
+    return () => { cancelled = true; };
+  }, [detailGroup?.id, selectedDate, token]);
+
+  const reloadDetailStudents = useCallback(() => {
+    if (!detailGroup || !selectedDate || !token) { load(); return; }
+    apiRequest(token, `/class-groups/${detailGroup.id}/students?date=${selectedDate}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (Array.isArray(data)) setDetailStudentsByDate(data); })
+      .catch(() => {});
+  }, [token, detailGroup?.id, selectedDate, load]);
 
   const groupStudents = selectedGroup
     ? students.filter(st =>
@@ -596,13 +624,18 @@ export default function MyScheduleScreen() {
           date={selectedDate}
           token={token}
           classGroups={groups}
-          onClose={() => setDetailGroup(null)}
-          onDeleteClass={() => { const g = detailGroup; setDetailGroup(null); setSelectedDate(null); setTimeout(() => { setDeletingClass(g); setShowDeleteClassConfirm(true); }, 200); }}
+          onClose={() => { setDetailGroup(null); setDetailStudentsByDate(null); }}
+          onDeleteClass={() => { const g = detailGroup; setDetailGroup(null); setSelectedDate(null); setDetailStudentsByDate(null); setTimeout(() => { setDeletingClass(g); setShowDeleteClassConfirm(true); }, 200); }}
           onNavigateTo={navigateFromSheet}
           weekChangeLogs={viewMode === "weekly" ? weekChangeLogs : undefined}
           onColorChange={(id, color) =>
             setGroups(prev => prev.map(g => g.id === id ? { ...g, color } : g))
           }
+          onCapacityChange={(id, capacity) =>
+            setGroups(prev => prev.map(g => g.id === id ? { ...g, capacity } : g))
+          }
+          studentsByDate={selectedDate ? (detailStudentsByDate ?? undefined) : undefined}
+          onStudentsChanged={reloadDetailStudents}
         />
       )}
 
