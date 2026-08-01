@@ -186,6 +186,30 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
+  // ── 진단: 서버 도달 여부 확인용 pre-flight log (fire-and-forget) ──────────
+  const _reqId = (body as any)?.request_id ?? 'unknown';
+  console.log('[TeacherDiaryAIClient] fetch_start', {
+    request_id:    _reqId,
+    mode,
+    endpoint_url:  endpoint.url,
+    endpoint_host: endpoint.host,
+    has_token:     Boolean(token),
+  });
+  try {
+    fetch('https://swimnote-api.onrender.com/api/ai/diary/diagnose', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ts:            Date.now(),
+        request_id:    _reqId,
+        pipeline_mode: mode,
+        endpoint_host: endpoint.host,
+        endpoint_path: endpoint.path,
+        client_reason: 'PRE_FLIGHT',
+      }),
+    }).catch(() => {});
+  } catch { /* 무시 */ }
+
   // ── fetch ────────────────────────────────────────────────────────────────
   let response: Response;
   try {
@@ -221,6 +245,28 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
 
     // 일반 네트워크 오류
     const safeMsg = String(e?.message ?? 'fetch_failed').replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED]');
+    console.error('[TeacherDiaryAIClient] fetch_failed', {
+      request_id:    _reqId,
+      error_name:    e?.name,
+      error_message: safeMsg,
+      error_stack:   String(e?.stack ?? '').slice(0, 200),
+      endpoint_url:  endpoint.url,
+    });
+    try {
+      fetch('https://swimnote-api.onrender.com/api/ai/diary/diagnose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ts:            Date.now(),
+          request_id:    _reqId,
+          pipeline_mode: mode,
+          endpoint_host: endpoint.host,
+          endpoint_path: endpoint.path,
+          client_reason: 'NETWORK',
+          cause_code:    safeMsg.slice(0, 100),
+        }),
+      }).catch(() => {});
+    } catch { /* 무시 */ }
     return {
       ok:           false,
       reason:       'NETWORK',
