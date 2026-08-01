@@ -301,8 +301,7 @@ const m = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 48,
-    flexGrow: 0,                   // 내용 높이로만 결정, ScrollView 채우기 금지
+    paddingBottom: 56,
   },
 
   // ── 본문 텍스트 ──
