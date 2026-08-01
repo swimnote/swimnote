@@ -1403,7 +1403,7 @@ export default function ParentHomeScreen() {
           onPress={() => setComingSoonModal(true)}
           style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 5, opacity: pressed ? 0.6 : 1 })}
         >
-          <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 33, height: 33 }} resizeMode="contain" />
+          <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 50, height: 50 }} resizeMode="contain" />
           <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>AI 커리큘럼</Text>
         </Pressable>
       </View>
@@ -1480,9 +1480,9 @@ export default function ParentHomeScreen() {
           <View style={{ flex: 1 }} />
           <Pressable
             onPress={() => setComingSoonModal(true)}
-            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, marginRight: 10, opacity: pressed ? 0.6 : 1 })}
+            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 6, marginRight: 10, opacity: pressed ? 0.6 : 1 })}
           >
-            <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 28, height: 28 }} resizeMode="contain" />
+            <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 42, height: 42 }} resizeMode="contain" />
             <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>AI 성장 리포트</Text>
           </Pressable>
           <Pressable
