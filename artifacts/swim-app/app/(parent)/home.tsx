@@ -1366,7 +1366,7 @@ export default function ParentHomeScreen() {
           >
             <Image
               source={require("@/assets/images/swimnote-logo.png")}
-              style={{ width: 19, height: 19 }}
+              style={{ width: 26, height: 26 }}
               resizeMode="contain"
             />
           </Pressable>
