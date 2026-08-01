@@ -36,10 +36,13 @@ export interface AIErrorInfo {
   // ── 진단 필드 (화면에 표시, 사용자 입력/JWT/생성 내용 제외) ─────────────
   causeCode?:       string;   // 오류 코드 (e.g. 'CONTRACT_RESPONSE_PARSE_ERROR')
   httpStatus?:      number;   // HTTP 상태 코드
-  endpoint?:        string;   // 요청 엔드포인트 경로
-  responseKeys?:    string[]; // 응답 body의 최상위 key 목록
+  endpoint?:        string;   // 실제 요청 URL 전체
+  contentType?:     string;   // 응답 Content-Type 헤더
+  responseBody?:    string;   // 응답 body 원문 (최대 2000자)
+  responseKeys?:    string[]; // 응답 JSON 최상위 key 목록
   requestId?:       string;   // 이 요청의 request_id
   validationStage?: string;   // 사전 검증 실패 단계
+  contractCheck?:   string;   // 실패한 Contract 검사 이름
 }
 
 // ─── Feature 타입 ────────────────────────────────────────────────────────────

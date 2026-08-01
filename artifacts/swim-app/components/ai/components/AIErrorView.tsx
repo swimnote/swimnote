@@ -1,13 +1,15 @@
 /**
- * AIErrorView — SwimNote AI UI Framework V1.0
- * ERROR State 표시 + 재시도 / 닫기 액션
- * + 진단 정보 표시 (causeCode / httpStatus / endpoint / responseKeys / requestId / validationStage)
- *
- * 의존: AITheme, useAIStateMachine
- * 사용: Feature Content 컴포넌트
+ * AIErrorView — AI 오류 화면
+ * 6개 진단 항목을 즉시 표시:
+ *   1. 실제 Request URL
+ *   2. HTTP Status
+ *   3. Content-Type
+ *   4. Response Body (JSON 전체, 최대 2000자)
+ *   5. JSON 최상위 key 목록
+ *   6. 실패한 Contract 검사 이름
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { AIErrorInfo } from '../core/AIContracts';
 import { useAIStateMachine } from '../hooks/useAIStateMachine';
@@ -20,17 +22,16 @@ interface AIErrorViewProps {
 
 export default function AIErrorView({ error, onClose }: AIErrorViewProps) {
   const { retry } = useAIStateMachine();
-  const [showDiag, setShowDiag] = useState(false);
-
   const canRetry = error.retryTarget !== null;
 
   const hasDiag =
-    error.causeCode !== undefined ||
-    error.httpStatus !== undefined ||
-    error.endpoint !== undefined ||
-    error.responseKeys !== undefined ||
-    error.requestId !== undefined ||
-    error.validationStage !== undefined;
+    error.endpoint      !== undefined ||
+    error.httpStatus    !== undefined ||
+    error.contentType   !== undefined ||
+    error.responseBody  !== undefined ||
+    error.responseKeys  !== undefined ||
+    error.contractCheck !== undefined ||
+    error.causeCode     !== undefined;
 
   return (
     <View style={styles.container}>
@@ -39,36 +40,39 @@ export default function AIErrorView({ error, onClose }: AIErrorViewProps) {
       <Text style={styles.message}>{error.message}</Text>
 
       {hasDiag && (
-        <Pressable
-          style={styles.diagToggle}
-          onPress={() => setShowDiag(v => !v)}
-        >
-          <Text style={styles.diagToggleLabel}>
-            {showDiag ? '진단 정보 닫기 ▲' : '진단 정보 보기 ▼'}
-          </Text>
-        </Pressable>
-      )}
-
-      {showDiag && hasDiag && (
         <ScrollView style={styles.diagBox} contentContainerStyle={styles.diagContent}>
-          {error.causeCode !== undefined && (
-            <DiagRow label="causeCode" value={error.causeCode} />
-          )}
-          {error.httpStatus !== undefined && (
-            <DiagRow label="HTTP status" value={String(error.httpStatus)} />
-          )}
-          {error.endpoint !== undefined && (
-            <DiagRow label="endpoint" value={endpointPath(error.endpoint)} />
-          )}
-          {error.responseKeys !== undefined && (
-            <DiagRow label="response keys" value={error.responseKeys.join(', ') || '(empty)'} />
-          )}
-          {error.requestId !== undefined && (
-            <DiagRow label="request_id" value={error.requestId} />
-          )}
-          {error.validationStage !== undefined && (
-            <DiagRow label="validation" value={error.validationStage} />
-          )}
+
+          {/* 1. Request URL */}
+          <DiagRow index={1} label="Request URL" value={error.endpoint ?? '—'} />
+
+          {/* 2. HTTP Status */}
+          <DiagRow index={2} label="HTTP Status" value={error.httpStatus !== undefined ? String(error.httpStatus) : '—'} />
+
+          {/* 3. Content-Type */}
+          <DiagRow index={3} label="Content-Type" value={error.contentType ?? '—'} />
+
+          {/* 4. Response Body */}
+          <View style={styles.diagSection}>
+            <Text style={styles.diagIndexLabel}>④ Response Body</Text>
+            <Text style={styles.diagBodyText} selectable>
+              {error.responseBody ?? '—'}
+            </Text>
+          </View>
+
+          {/* 5. JSON 최상위 key 목록 */}
+          <DiagRow
+            index={5}
+            label="JSON keys"
+            value={
+              error.responseKeys !== undefined
+                ? (error.responseKeys.length > 0 ? error.responseKeys.join(', ') : '(empty)')
+                : '—'
+            }
+          />
+
+          {/* 6. 실패한 Contract 검사 이름 */}
+          <DiagRow index={6} label="Contract check" value={error.contractCheck ?? error.causeCode ?? '—'} />
+
         </ScrollView>
       )}
 
@@ -90,89 +94,96 @@ export default function AIErrorView({ error, onClose }: AIErrorViewProps) {
   );
 }
 
-function DiagRow({ label, value }: { label: string; value: string }) {
+function DiagRow({ index, label, value }: { index: number; label: string; value: string }) {
   return (
     <View style={styles.diagRow}>
+      <Text style={styles.diagIndex}>{'①②③④⑤⑥'.charAt(index - 1)}</Text>
       <Text style={styles.diagLabel}>{label}</Text>
-      <Text style={styles.diagValue} selectable>{value}</Text>
+      <Text style={styles.diagValue} selectable numberOfLines={3} ellipsizeMode="tail">
+        {value}
+      </Text>
     </View>
   );
-}
-
-/** URL에서 path 부분만 추출 (민감 정보 없음) */
-function endpointPath(url: string): string {
-  try {
-    return new URL(url).pathname;
-  } catch {
-    return url;
-  }
 }
 
 const styles = StyleSheet.create({
   container: {
     flex:           1,
-    alignItems:     'center',
+    alignItems:     'stretch',
     justifyContent: 'center',
     gap:            AIThemeSpacing.element,
     padding:        AIThemeSpacing.section,
   },
   icon: {
-    fontSize: 48,
+    fontSize: 40,
+    textAlign: 'center',
   },
   title: {
     ...AIThemeTypography.heading,
-    color: AIThemeColor.error,
+    color:     AIThemeColor.error,
+    textAlign: 'center',
   },
   message: {
     ...AIThemeTypography.result,
     color:     AIThemeColor.textSub,
     textAlign: 'center',
   },
-  diagToggle: {
-    marginTop: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-  },
-  diagToggleLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    fontFamily: 'Pretendard-Regular',
-  },
   diagBox: {
-    maxHeight: 160,
-    width: '100%',
+    maxHeight:       220,
     backgroundColor: '#0F172A',
-    borderRadius: 10,
-    marginTop: 2,
+    borderRadius:    10,
+    marginTop:       4,
   },
   diagContent: {
     padding: 12,
-    gap: 6,
+    gap:     8,
   },
   diagRow: {
     flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
+    gap:           6,
+    alignItems:    'flex-start',
+  },
+  diagSection: {
+    gap: 4,
+  },
+  diagIndex: {
+    fontSize:    12,
+    color:       '#64748B',
+    width:       16,
+    marginTop:   1,
   },
   diagLabel: {
-    fontSize: 11,
-    color: '#94A3B8',
-    fontFamily: 'Pretendard-Regular',
-    minWidth: 90,
+    fontSize:    11,
+    color:       '#94A3B8',
+    fontFamily:  'Pretendard-Regular',
+    width:       90,
+    marginTop:   1,
   },
   diagValue: {
-    fontSize: 11,
-    color: '#E2E8F0',
-    fontFamily: 'Pretendard-Regular',
-    flex: 1,
+    fontSize:    11,
+    color:       '#E2E8F0',
+    fontFamily:  'Pretendard-Regular',
+    flex:        1,
+  },
+  diagIndexLabel: {
+    fontSize:    11,
+    color:       '#94A3B8',
+    fontFamily:  'Pretendard-Regular',
+    marginBottom: 2,
+  },
+  diagBodyText: {
+    fontSize:        10,
+    color:           '#CBD5E1',
+    fontFamily:      'Pretendard-Regular',
+    backgroundColor: '#1E293B',
+    borderRadius:    6,
+    padding:         8,
+    lineHeight:      15,
   },
   buttonRow: {
     flexDirection: 'row',
     gap:           AIThemeSpacing.tight,
-    marginTop:     AIThemeSpacing.element,
-    width:         '100%',
+    marginTop:     4,
   },
   closeButton: {
     flex:            1,
