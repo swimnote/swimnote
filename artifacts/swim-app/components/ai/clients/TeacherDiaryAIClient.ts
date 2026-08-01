@@ -40,36 +40,37 @@
 export type AIDiaryMode = 'legacy' | 'grounded';
 
 /**
- * 현재 활성 AI diary 모드를 반환합니다.
- * EXPO_PUBLIC_SWIMNOTE_AI_MODE 환경변수로 제어합니다.
+ * ★ Teacher Diary 운영 모드: 코드 수준 고정 = 'grounded'
+ *
+ * 환경변수(EXPO_PUBLIC_SWIMNOTE_AI_MODE)와 무관하게 항상 grounded를 반환합니다.
+ * legacy로 바뀌는 모든 경로(env var, 누락, OTA baked-in 값)를 차단합니다.
  */
 export function getAIDiaryMode(): AIDiaryMode {
-  const raw = (process.env.EXPO_PUBLIC_SWIMNOTE_AI_MODE ?? '').trim().toLowerCase();
-  if (raw === 'grounded') return 'grounded';
-  if (raw === '' || raw === 'legacy') return 'legacy';
-  console.warn(
-    `[TeacherDiaryAIClient] EXPO_PUBLIC_SWIMNOTE_AI_MODE="${process.env.EXPO_PUBLIC_SWIMNOTE_AI_MODE}" ` +
-    `알 수 없는 값 — legacy로 폴백`,
-  );
-  return 'legacy';
+  return 'grounded';
 }
 
 // ── URL 설정 ──────────────────────────────────────────────────────────────────
 
 /**
- * Legacy: 현재 SWIMNOTE API Server (Render.com)
- * rollback 전용 — AI Engine 전환 후에도 삭제하지 않음
+ * Legacy path — Teacher Diary에서 절대 호출 금지.
+ * 이 경로로의 요청은 LEGACY_PATH_BLOCKED 오류를 throw합니다.
  */
 const LEGACY_BASE = 'https://swimnote-api.onrender.com';
 const LEGACY_PATH = '/api/ai/diary/generate';
 
 /**
- * Grounded: SWIMNOTE AI Engine
- * ★ AI Engine 최종 URL 확정 전까지 GROUNDED_BASE는 빈 문자열.
- *   grounded 모드에서 URL이 미설정이면 getDiaryEndpoint()가 오류를 throw합니다.
+ * ★ Grounded V1 고정 엔드포인트
+ *
+ * 운영 Teacher Diary의 유일한 권한 경로입니다.
+ * 환경변수로 override 불가 — 코드 수준 고정값이 우선합니다.
  */
-const GROUNDED_BASE  = (process.env.EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL   as string | undefined) ?? '';
-const GROUNDED_PATH  = (process.env.EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH as string | undefined) ?? '/api/ai/diary/generate';
+const GROUNDED_BASE = 'https://swimnote-api.onrender.com';
+const GROUNDED_PATH = '/api/v1/teacher-diary/generate';
+
+/** Teacher Diary에서 절대 호출해서는 안 되는 legacy path 목록 */
+const BLOCKED_LEGACY_PATHS = new Set([
+  '/api/ai/diary/generate',
+]);
 
 export interface DiaryEndpoint {
   base: string;
@@ -80,26 +81,38 @@ export interface DiaryEndpoint {
 
 /**
  * mode에 따라 엔드포인트 정보를 반환합니다.
- * grounded 모드인데 Base URL이 미설정이면 throw합니다.
+ *
+ * ★ legacy path가 결과 URL에 포함되면 즉시 LEGACY_PATH_BLOCKED를 throw합니다.
+ *   자동 fallback 없음. 네트워크 실패 시 legacy fallback 없음.
  */
 export function getDiaryEndpoint(mode: AIDiaryMode): DiaryEndpoint {
+  let base: string;
+  let path: string;
+
   if (mode === 'grounded') {
-    if (!GROUNDED_BASE) {
+    base = GROUNDED_BASE.replace(/\/+$/, '');
+    path = GROUNDED_PATH.startsWith('/') ? GROUNDED_PATH : `/${GROUNDED_PATH}`;
+  } else {
+    // legacy — 정상 실행 경로에서는 절대 도달하지 않아야 함
+    base = LEGACY_BASE;
+    path = LEGACY_PATH;
+  }
+
+  const url  = `${base}${path}`;
+  const host = base.replace(/^https?:\/\//, '').split('/')[0]!;
+
+  // ★ legacy path 차단: URL 생성 단계에서 즉시 throw
+  for (const blocked of BLOCKED_LEGACY_PATHS) {
+    if (path === blocked || url.includes(blocked)) {
       throw new Error(
-        '[TeacherDiaryAIClient] EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL이 설정되지 않았습니다. ' +
-        'grounded 모드를 사용하려면 AI Engine Base URL이 필요합니다.',
+        `[TeacherDiaryAIClient] LEGACY_PATH_BLOCKED: Teacher Diary는 ` +
+        `${blocked} 경로를 호출할 수 없습니다. ` +
+        `운영 경로: ${GROUNDED_BASE}${GROUNDED_PATH}`,
       );
     }
-    const base = GROUNDED_BASE.replace(/\/+$/, '');
-    const path = GROUNDED_PATH.startsWith('/') ? GROUNDED_PATH : `/${GROUNDED_PATH}`;
-    const url  = `${base}${path}`;
-    const host = base.replace(/^https?:\/\//, '').split('/')[0]!;
-    return { base, path, url, host };
   }
-  // legacy
-  const url  = `${LEGACY_BASE}${LEGACY_PATH}`;
-  const host = LEGACY_BASE.replace(/^https?:\/\//, '').split('/')[0]!;
-  return { base: LEGACY_BASE, path: LEGACY_PATH, url, host };
+
+  return { base, path, url, host };
 }
 
 // ── Client I/O 타입 ───────────────────────────────────────────────────────────
@@ -209,6 +222,15 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
       }),
     }).catch(() => {});
   } catch { /* 무시 */ }
+
+  // ── fetch 직전 legacy path 최종 차단 ────────────────────────────────────
+  // getDiaryEndpoint에서 이미 throw되지만, 방어적 이중 차단
+  if (endpoint.path === '/api/ai/diary/generate' || endpoint.url.includes('/api/ai/diary/generate')) {
+    throw new Error(
+      `[TeacherDiaryAIClient] LEGACY_PATH_BLOCKED: fetch 직전 차단. ` +
+      `Teacher Diary는 /api/ai/diary/generate를 호출할 수 없습니다.`,
+    );
+  }
 
   // ── fetch ────────────────────────────────────────────────────────────────
   let response: Response;
