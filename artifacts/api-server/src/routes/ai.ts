@@ -461,8 +461,22 @@ router.post(
       // ── Phase P1: Common 학생 누출 문장 강제 제거 ─────────────────────────
       // GPT가 공통 일지에 학생 이름을 포함한 문장을 삽입하는 버그 코드 레벨 차단
       const studentNames = normalizedStudents.map(s => s.name);
+
+      // ★ PROOF LOG: purge 전 GPT raw common 출력 (운영 로그 증명용)
+      console.log(
+        `[AI/diary:${internalId}] PURGE_TRACE ext_id=${externalRequestId}` +
+        ` step=P0_GPT_RAW_COMMON len=${rawValidated.common.length}` +
+        ` value=${JSON.stringify(rawValidated.common.slice(0, 120))}`,
+      );
+
       const { purged: purgedCommon, removedSentenceCount: leakRemovedCount } =
         purgeStudentLeaksFromCommon(rawValidated.common, studentNames);
+
+      console.log(
+        `[AI/diary:${internalId}] PURGE_TRACE ext_id=${externalRequestId}` +
+        ` step=P1_AFTER_LEAK_PURGE removed=${leakRemovedCount}` +
+        ` value=${JSON.stringify(purgedCommon.slice(0, 120))}`,
+      );
 
       if (leakRemovedCount > 0) {
         console.log(
@@ -491,6 +505,19 @@ router.post(
         const { purged } = purgeInventedEvaluations(s.content, inputText, nameVariants);
         return { ...s, content: purged };
       });
+
+      console.log(
+        `[AI/diary:${internalId}] PURGE_TRACE ext_id=${externalRequestId}` +
+        ` step=P2_AFTER_EVAL_PURGE eval_removed=${evalRemovedCommon}` +
+        ` value=${JSON.stringify(evalPurgedCommon.slice(0, 120))}`,
+      );
+
+      // ★ PROOF LOG: 최종 HTTP response에 실려가는 common (운영 로그 증명용)
+      console.log(
+        `[AI/diary:${internalId}] PURGE_TRACE ext_id=${externalRequestId}` +
+        ` step=P_FINAL_RESPONSE_COMMON` +
+        ` value=${JSON.stringify(evalPurgedCommon.slice(0, 120))}`,
+      );
 
       if (evalRemovedCommon > 0) {
         console.log(
