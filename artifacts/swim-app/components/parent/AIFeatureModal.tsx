@@ -152,11 +152,11 @@ export function AIFeatureModal({ visible, type, onClose }: Props) {
       */}
       <Pressable style={m.backdrop} onPress={onClose}>
         {/*
-          modalContainer: 명시적 height + width:"92%"
-          - flexDirection:"column" 으로 header/body/footer 수직 배치
-          - NO position:absolute
+          modalContainer: Pressable 대신 View 사용
+          - onStartShouldSetResponder/onMoveShouldSetResponder로 backdrop 터치 흡수
+          - Pressable onPress={() => {}} 는 ScrollView 제스처를 가로채므로 금지
         */}
-        <Pressable
+        <View
           style={[
             m.container,
             {
@@ -165,7 +165,8 @@ export function AIFeatureModal({ visible, type, onClose }: Props) {
               minHeight: containerMinHeight,
             },
           ]}
-          onPress={() => {}}
+          onStartShouldSetResponder={() => true}
+          onMoveShouldSetResponder={() => true}
         >
           {/* ── 고정 헤더 (flexShrink:0) ── */}
           <View style={m.header}>
@@ -233,7 +234,7 @@ export function AIFeatureModal({ visible, type, onClose }: Props) {
               <Text style={m.confirmTxt}>확인</Text>
             </Pressable>
           </View>
-        </Pressable>
+        </View>
       </Pressable>
     </Modal>
   );
