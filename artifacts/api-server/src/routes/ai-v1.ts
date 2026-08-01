@@ -52,7 +52,7 @@ import {
   USAGE_MIN_SCORE,
   TOP_K_USAGE,
 } from '../lib/diary-template-search.js';
-import { validateGrounding } from '../lib/diary-grounding.js';
+import { validateGrounding, purgeStudentLeaksFromCommon } from '../lib/diary-grounding.js';
 
 const router = Router();
 
@@ -285,10 +285,26 @@ router.post(
       const legacyFallbackCount = countLegacyStudentIdFallback(parsed, allowedRefs);
       const validated           = validateDiaryOutput(parsed, allowedRefs);
 
+      // ── Phase 6.5: Common 학생 누출 문장 강제 제거 (코드 레벨 강제, GPT 판단 불사용) ──
+      // studentDrafts에 포함된 학생 이름이 common에 등장하면 해당 문장을 무조건 삭제
+      const studentNames = normalizedStudents.map(s => s.name);
+      const { purged: purgedCommon, removedSentenceCount } = purgeStudentLeaksFromCommon(
+        validated.common,
+        studentNames,
+      );
+      if (removedSentenceCount > 0) {
+        console.log(
+          `[AI/v1:${internalId}] COMMON_LEAK_PURGED` +
+          ` removed_sentences=${removedSentenceCount}` +
+          ` names=[${studentNames.join(',')}]`,
+        );
+      }
+      // purgedCommon을 이후 모든 단계에서 사용 (validated.common 대체)
+      const finalResult = { ...validated, common: purgedCommon };
+
       // ── Phase 7: Grounding 검증 (GPT 출력 실제 분석) ─────────────────────
       // parser_confidence와 완전 분리 — GPT 생성 결과가 입력 범위를 벗어났는지 검사
-      const studentNames = normalizedStudents.map(s => s.name);
-      const groundingResult = validateGrounding(validated, inputText, studentNames);
+      const groundingResult = validateGrounding(finalResult, inputText, studentNames);
 
       // ── Trace: GROUNDING_VALIDATED ────────────────────────────────────────
       console.log(
@@ -300,7 +316,7 @@ router.post(
         ` evaluation=${groundingResult.invented_student_evaluation_count}` +
         ` next_plan=${groundingResult.invented_next_plan_count}` +
         ` student_leak=${groundingResult.student_to_common_leak_count}` +
-        ` students_out=${validated.students.length}` +
+        ` students_out=${finalResult.students.length}` +
         ` legacy_fallback=${legacyFallbackCount}`,
       );
 
@@ -322,7 +338,7 @@ router.post(
         `[AI/v1:${internalId}] success` +
         ` elapsed=${elapsedMs}ms` +
         ` tokens=${usage?.total_tokens ?? 0}` +
-        ` students_out=${validated.students.length}` +
+        ` students_out=${finalResult.students.length}` +
         ` pipeline=${PIPELINE_MODE}` +
         ` generation_mode=${generation_mode}` +
         ` template_used=${searchResult.usedCount}` +
@@ -338,8 +354,8 @@ router.post(
         engine_version:   ENGINE_VERSION,
         feature:          'teacher_diary',
         result: {
-          common:   validated.common,
-          students: validated.students,
+          common:   finalResult.common,
+          students: finalResult.students,
         },
         meta: {
           pipeline_mode:            PIPELINE_MODE,
@@ -386,7 +402,7 @@ router.post(
       };
 
       // ── Trace: RESPONSE_SENT ────────────────────────────────────────────────
-      console.log(`[AI/v1:${internalId}] RESPONSE_SENT request_id=${externalRequestId} http_status=200 generation_mode=${generation_mode} student_count=${validated.students.length} grounding=${groundingResult.status} total_latency_ms=${elapsedMs}`);
+      console.log(`[AI/v1:${internalId}] RESPONSE_SENT request_id=${externalRequestId} http_status=200 generation_mode=${generation_mode} student_count=${finalResult.students.length} grounding=${groundingResult.status} total_latency_ms=${elapsedMs}`);
 
       res.status(200).json(responseBody);
 
