@@ -147,15 +147,16 @@ export function AIFeatureModal({ visible, type, onClose }: Props) {
       onShow={handleShow}
     >
       {/*
-        backdrop: flex:1 + justifyContent/alignItems center
-        - paddingHorizontal 제거, alignItems:"center"로 92% container 가로 중앙 배치
+        backdrop: 순수 View — Pressable 사용 금지 (ScrollView 스크롤 제스처 차단됨)
+        닫기 터치는 absoluteFillObject Pressable을 모달 container 뒤에 배치해서 처리.
+        모달 container는 렌더 순서상 나중(z-order 위)에 있으므로
+        모달 위 터치는 container가, 모달 밖 터치는 뒤 Pressable이 받는다.
       */}
-      <Pressable style={m.backdrop} onPress={onClose}>
-        {/*
-          modalContainer: Pressable 대신 View 사용
-          - onStartShouldSetResponder/onMoveShouldSetResponder로 backdrop 터치 흡수
-          - Pressable onPress={() => {}} 는 ScrollView 제스처를 가로채므로 금지
-        */}
+      <View style={m.backdrop}>
+        {/* 모달 바깥 터치 → 닫기 (모달 뒤에 absolute로 배치) */}
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
+
+        {/* 모달 container — 순수 View, 터치 핸들러 없음 */}
         <View
           style={[
             m.container,
@@ -165,8 +166,6 @@ export function AIFeatureModal({ visible, type, onClose }: Props) {
               minHeight: containerMinHeight,
             },
           ]}
-          onStartShouldSetResponder={() => true}
-          onMoveShouldSetResponder={() => true}
         >
           {/* ── 고정 헤더 (flexShrink:0) ── */}
           <View style={m.header}>
@@ -235,7 +234,7 @@ export function AIFeatureModal({ visible, type, onClose }: Props) {
             </Pressable>
           </View>
         </View>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
