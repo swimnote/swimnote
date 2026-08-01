@@ -26,7 +26,7 @@
  *
  * Grounded URL 환경변수:
  *   EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL   — AI Engine base (예: https://ai.swimnote.kr)
- *   EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH — diary generate path (기본: /api/v1/teacher-diary/generate)
+ *   EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH — diary generate path (기본: /api/ai/diary/generate)
  *
  * ★ 금지:
  *   - 신규 Engine 실패 시 사용자에게 알리지 않고 legacy로 자동 우회
@@ -40,46 +40,37 @@
 export type AIDiaryMode = 'legacy' | 'grounded';
 
 /**
- * 현재 활성 AI diary 모드를 반환합니다.
- * EXPO_PUBLIC_SWIMNOTE_AI_MODE 환경변수로 제어합니다.
+ * ★ Teacher Diary 운영 모드: 코드 수준 고정 = 'grounded'
  *
- * ★ 기본값: 'grounded' — 정식 V1 엔드포인트 사용
- *   'legacy'는 rollback 전용 (EXPO_PUBLIC_SWIMNOTE_AI_MODE=legacy 명시 시에만 활성화)
+ * 환경변수(EXPO_PUBLIC_SWIMNOTE_AI_MODE)와 무관하게 항상 grounded를 반환합니다.
+ * legacy로 바뀌는 모든 경로(env var, 누락, OTA baked-in 값)를 차단합니다.
  */
 export function getAIDiaryMode(): AIDiaryMode {
-  const raw = (process.env.EXPO_PUBLIC_SWIMNOTE_AI_MODE ?? '').trim().toLowerCase();
-  if (raw === 'legacy') return 'legacy';
-  if (raw === '' || raw === 'grounded') return 'grounded';
-  console.warn(
-    `[TeacherDiaryAIClient] EXPO_PUBLIC_SWIMNOTE_AI_MODE="${process.env.EXPO_PUBLIC_SWIMNOTE_AI_MODE}" ` +
-    `알 수 없는 값 — grounded로 폴백`,
-  );
   return 'grounded';
 }
 
 // ── URL 설정 ──────────────────────────────────────────────────────────────────
 
 /**
- * Legacy: SWIMNOTE API Server (Render.com) — 구형 엔드포인트
- * rollback 전용 — EXPO_PUBLIC_SWIMNOTE_AI_MODE=legacy 명시 시에만 사용
+ * Legacy path — Teacher Diary에서 절대 호출 금지.
+ * 이 경로로의 요청은 LEGACY_PATH_BLOCKED 오류를 throw합니다.
  */
 const LEGACY_BASE = 'https://swimnote-api.onrender.com';
 const LEGACY_PATH = '/api/ai/diary/generate';
 
 /**
- * Grounded: SWIMNOTE API Server (Render.com) — 정식 V1 엔드포인트
+ * ★ Grounded V1 고정 엔드포인트
  *
- * ★ 기본값 고정: 'https://swimnote-api.onrender.com'
- *   환경변수 EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL이 있으면 우선 사용하고,
- *   없으면 운영 서버 URL로 자동 연결됩니다.
- *   환경변수 미설정이라도 grounded 모드가 정상 동작합니다.
+ * 운영 Teacher Diary의 유일한 권한 경로입니다.
+ * 환경변수로 override 불가 — 코드 수준 고정값이 우선합니다.
  */
-const GROUNDED_BASE  =
-  (process.env.EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL as string | undefined)?.trim() || 'https://swimnote-api.onrender.com';
-// ★ 정식 V1 엔드포인트: /api/v1/teacher-diary/generate
-// EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH 미설정 시 이 기본값이 사용됩니다.
-// 구형 기본값 /api/ai/diary/generate 는 잘못된 응답 구조를 반환합니다.
-const GROUNDED_PATH  = (process.env.EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH as string | undefined) ?? '/api/v1/teacher-diary/generate';
+const GROUNDED_BASE = 'https://swimnote-api.onrender.com';
+const GROUNDED_PATH = '/api/v1/teacher-diary/generate';
+
+/** Teacher Diary에서 절대 호출해서는 안 되는 legacy path 목록 */
+const BLOCKED_LEGACY_PATHS = new Set([
+  '/api/ai/diary/generate',
+]);
 
 export interface DiaryEndpoint {
   base: string;
@@ -90,38 +81,38 @@ export interface DiaryEndpoint {
 
 /**
  * mode에 따라 엔드포인트 정보를 반환합니다.
- * grounded 모드인데 Base URL이 미설정이면 throw합니다.
+ *
+ * ★ legacy path가 결과 URL에 포함되면 즉시 LEGACY_PATH_BLOCKED를 throw합니다.
+ *   자동 fallback 없음. 네트워크 실패 시 legacy fallback 없음.
  */
 export function getDiaryEndpoint(mode: AIDiaryMode): DiaryEndpoint {
-  if (mode === 'grounded') {
-    // GROUNDED_BASE는 기본값이 하드코딩되어 있어 항상 유효합니다.
-    const base = GROUNDED_BASE.replace(/\/+$/, '');
-    const path = GROUNDED_PATH.startsWith('/') ? GROUNDED_PATH : `/${GROUNDED_PATH}`;
-    const url  = `${base}${path}`;
-    const host = base.replace(/^https?:\/\//, '').split('/')[0]!;
-    return { base, path, url, host };
-  }
-  // legacy (rollback 전용)
-  const url  = `${LEGACY_BASE}${LEGACY_PATH}`;
-  const host = LEGACY_BASE.replace(/^https?:\/\//, '').split('/')[0]!;
-  return { base: LEGACY_BASE, path: LEGACY_PATH, url, host };
-}
+  let base: string;
+  let path: string;
 
-// ── 시작 로그 (모듈 로드 시 1회) ───────────────────────────────────────────────
-// 앱 시작 시 실제 런타임 AI 설정값을 확인합니다. PII 미포함.
-try {
-  const _startMode = getAIDiaryMode();
-  const _startEp   = getDiaryEndpoint(_startMode);
-  console.log('[TeacherDiaryAIClient] init', {
-    mode:          _startMode,
-    endpoint_host: _startEp.host,
-    endpoint_path: _startEp.path,
-    endpoint_url:  _startEp.url,
-    grounded_base_env_set: Boolean(process.env.EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL),
-    ai_mode_env:   process.env.EXPO_PUBLIC_SWIMNOTE_AI_MODE ?? '(not set)',
-  });
-} catch (e: any) {
-  console.warn('[TeacherDiaryAIClient] init_log_error', e?.message);
+  if (mode === 'grounded') {
+    base = GROUNDED_BASE.replace(/\/+$/, '');
+    path = GROUNDED_PATH.startsWith('/') ? GROUNDED_PATH : `/${GROUNDED_PATH}`;
+  } else {
+    // legacy — 정상 실행 경로에서는 절대 도달하지 않아야 함
+    base = LEGACY_BASE;
+    path = LEGACY_PATH;
+  }
+
+  const url  = `${base}${path}`;
+  const host = base.replace(/^https?:\/\//, '').split('/')[0]!;
+
+  // ★ legacy path 차단: URL 생성 단계에서 즉시 throw
+  for (const blocked of BLOCKED_LEGACY_PATHS) {
+    if (path === blocked || url.includes(blocked)) {
+      throw new Error(
+        `[TeacherDiaryAIClient] LEGACY_PATH_BLOCKED: Teacher Diary는 ` +
+        `${blocked} 경로를 호출할 수 없습니다. ` +
+        `운영 경로: ${GROUNDED_BASE}${GROUNDED_PATH}`,
+      );
+    }
+  }
+
+  return { base, path, url, host };
 }
 
 // ── Client I/O 타입 ───────────────────────────────────────────────────────────
@@ -152,25 +143,19 @@ export interface AIClientSuccess {
   body:         unknown;      // JSON.parse 성공 body
   mode:         AIDiaryMode;
   endpointHost: string;       // 로깅용
-  endpointPath: string;       // 진단용
 }
 
 export interface AIClientFailure {
-  ok:              false;
-  reason:          AIClientFailureReason;
+  ok:           false;
+  reason:       AIClientFailureReason;
   /** 네트워크 오류(fetch throw) 시 null */
-  httpStatus:      number | null;
+  httpStatus:   number | null;
   /** JSON parse 성공 시 오류 body, 아니면 null */
-  body:            unknown | null;
-  mode:            AIDiaryMode;
-  endpointHost:    string;
-  endpointPath:    string;       // 진단용
+  body:         unknown | null;
+  mode:         AIDiaryMode;
+  endpointHost: string;
   /** 로깅용 상세 — PII 미포함 */
-  errorDetail:     string;
-  /** CONTENT_TYPE 케이스: 실제 Content-Type 헤더 값 */
-  contentTypeRaw?: string;
-  /** CONTENT_TYPE / PARSE_ERROR 케이스: 응답 body 앞 300자 */
-  responsePreview?: string;
+  errorDetail:  string;
 }
 
 export type AIClientResult = AIClientSuccess | AIClientFailure;
@@ -186,29 +171,6 @@ export type AIClientResult = AIClientSuccess | AIClientFailure;
 export async function sendRequest(req: AIClientRequest): Promise<AIClientResult> {
   const { body, token, signal, timeoutMs, mode } = req;
 
-  // ── 토큰 사전 검증 — 요청 전 차단 ───────────────────────────────────────
-  // 토큰이 없으면 네트워크 요청 없이 즉시 AUTH_TOKEN_MISSING 반환합니다.
-  // 401 HTTP 응답과 구분하여 AUTH_TOKEN_MISSING으로 정확히 분류합니다.
-  if (!token) {
-    let endpoint2: DiaryEndpoint;
-    try { endpoint2 = getDiaryEndpoint(mode); } catch { endpoint2 = { base: '', path: '', url: '', host: '(unknown)' }; }
-    console.error('[TeacherDiaryAIClient] auth_token_missing', {
-      mode,
-      endpoint_host: endpoint2.host,
-      endpoint_path: endpoint2.path,
-    });
-    return {
-      ok:           false,
-      reason:       'NETWORK',
-      httpStatus:   null,
-      body:         null,
-      mode,
-      endpointHost: endpoint2.host,
-      endpointPath: endpoint2.path,
-      errorDetail:  'AUTH_TOKEN_MISSING',
-    };
-  }
-
   // ── 엔드포인트 결정 ──────────────────────────────────────────────────────
   let endpoint: DiaryEndpoint;
   try {
@@ -221,7 +183,6 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
       body:         null,
       mode,
       endpointHost: '(config_error)',
-      endpointPath: '(config_error)',
       errorDetail:  e.message ?? 'ENDPOINT_CONFIG_ERROR',
     };
   }
@@ -237,6 +198,39 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
     'Accept':       'application/json',
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  // ── 진단: 서버 도달 여부 확인용 pre-flight log (fire-and-forget) ──────────
+  const _reqId = (body as any)?.request_id ?? 'unknown';
+  console.log('[TeacherDiaryAIClient] fetch_start', {
+    request_id:    _reqId,
+    mode,
+    endpoint_url:  endpoint.url,
+    endpoint_host: endpoint.host,
+    has_token:     Boolean(token),
+  });
+  try {
+    fetch('https://swimnote-api.onrender.com/api/ai/diary/diagnose', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ts:            Date.now(),
+        request_id:    _reqId,
+        pipeline_mode: mode,
+        endpoint_host: endpoint.host,
+        endpoint_path: endpoint.path,
+        client_reason: 'PRE_FLIGHT',
+      }),
+    }).catch(() => {});
+  } catch { /* 무시 */ }
+
+  // ── fetch 직전 legacy path 최종 차단 ────────────────────────────────────
+  // getDiaryEndpoint에서 이미 throw되지만, 방어적 이중 차단
+  if (endpoint.path === '/api/ai/diary/generate' || endpoint.url.includes('/api/ai/diary/generate')) {
+    throw new Error(
+      `[TeacherDiaryAIClient] LEGACY_PATH_BLOCKED: fetch 직전 차단. ` +
+      `Teacher Diary는 /api/ai/diary/generate를 호출할 수 없습니다.`,
+    );
+  }
 
   // ── fetch ────────────────────────────────────────────────────────────────
   let response: Response;
@@ -267,13 +261,34 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
         body:         null,
         mode,
         endpointHost: endpoint.host,
-        endpointPath: endpoint.path,
         errorDetail:  'fetch_timeout',
       };
     }
 
     // 일반 네트워크 오류
     const safeMsg = String(e?.message ?? 'fetch_failed').replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED]');
+    console.error('[TeacherDiaryAIClient] fetch_failed', {
+      request_id:    _reqId,
+      error_name:    e?.name,
+      error_message: safeMsg,
+      error_stack:   String(e?.stack ?? '').slice(0, 200),
+      endpoint_url:  endpoint.url,
+    });
+    try {
+      fetch('https://swimnote-api.onrender.com/api/ai/diary/diagnose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ts:            Date.now(),
+          request_id:    _reqId,
+          pipeline_mode: mode,
+          endpoint_host: endpoint.host,
+          endpoint_path: endpoint.path,
+          client_reason: 'NETWORK',
+          cause_code:    safeMsg.slice(0, 100),
+        }),
+      }).catch(() => {});
+    } catch { /* 무시 */ }
     return {
       ok:           false,
       reason:       'NETWORK',
@@ -281,7 +296,6 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
       body:         null,
       mode,
       endpointHost: endpoint.host,
-      endpointPath: endpoint.path,
       errorDetail:  safeMsg,
     };
   }
@@ -301,7 +315,6 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
       body:         null,
       mode,
       endpointHost: endpoint.host,
-      endpointPath: endpoint.path,
       errorDetail:  'response_stream_error',
     };
   }
@@ -315,16 +328,13 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
     // body_preview에 학생 이름/일지 원문이 들어갈 가능성 없음 (서버 자체 HTML)
     const snippet = responseText.slice(0, 40).replace(/\s+/g, ' ').trim();
     return {
-      ok:              false,
-      reason:          'CONTENT_TYPE',
-      httpStatus:      response.status,
-      body:            null,
+      ok:           false,
+      reason:       'CONTENT_TYPE',
+      httpStatus:   response.status,
+      body:         null,
       mode,
-      endpointHost:    endpoint.host,
-      endpointPath:    endpoint.path,
-      errorDetail:     `ct=${contentType} status=${response.status} preview=[${snippet}]`,
-      contentTypeRaw:  contentType,
-      responsePreview: responseText.slice(0, 300),
+      endpointHost: endpoint.host,
+      errorDetail:  `ct=${contentType} status=${response.status} preview=[${snippet}]`,
     };
   }
 
@@ -340,16 +350,13 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
 
   if (!parseOk) {
     return {
-      ok:              false,
-      reason:          'PARSE_ERROR',
-      httpStatus:      response.status,
-      body:            null,
+      ok:           false,
+      reason:       'PARSE_ERROR',
+      httpStatus:   response.status,
+      body:         null,
       mode,
-      endpointHost:    endpoint.host,
-      endpointPath:    endpoint.path,
-      errorDetail:     `json_parse_failed status=${response.status}`,
-      contentTypeRaw:  contentType,
-      responsePreview: responseText.slice(0, 300),
+      endpointHost: endpoint.host,
+      errorDetail:  `json_parse_failed status=${response.status}`,
     };
   }
 
@@ -362,7 +369,6 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
       body:         parsedBody,   // 오류 body (error.code 등)
       mode,
       endpointHost: endpoint.host,
-      endpointPath: endpoint.path,
       errorDetail:  `http_${response.status}`,
     };
   }
@@ -374,6 +380,5 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
     body:         parsedBody,
     mode,
     endpointHost: endpoint.host,
-    endpointPath: endpoint.path,
   };
 }
