@@ -25,7 +25,7 @@ import {
   StudentNote, StudentOption, SubView, UploadedMedia, todayStr,
 } from "@/components/teacher/diary/types";
 import type { DiaryInsertResult } from "@/components/ai/services/DiaryAIService";
-import { Clock, RotateCcw } from "lucide-react-native";
+import { BookOpen, Clock, RotateCcw } from "lucide-react-native";
 import { haptic } from "@/utils/haptic";
 
 const C = Colors.light;
@@ -443,10 +443,14 @@ export default function TeacherDiaryScreen() {
         <View style={s.subHeader}>
           <View style={{ flex: 1 }} />
           <Pressable
-            style={[s.tabBtn, { backgroundColor: subView === "history" ? themeColor : C.background, borderColor: themeColor }]}
+            style={[s.tabBtn, { backgroundColor: C.background, borderColor: themeColor }]}
             onPress={() => setSubView(v => v === "history" ? "write" : "history")}>
-            <Clock size={13} color={subView === "history" ? "#fff" : themeColor} />
-            <Text style={[s.tabBtnText, { color: subView === "history" ? "#fff" : themeColor }]}>지난 일지</Text>
+            {subView === "history"
+              ? <BookOpen size={13} color={themeColor} />
+              : <Clock    size={13} color={themeColor} />}
+            <Text style={[s.tabBtnText, { color: themeColor }]}>
+              {subView === "history" ? "일지작성" : "지난 일지"}
+            </Text>
           </Pressable>
         </View>
 
