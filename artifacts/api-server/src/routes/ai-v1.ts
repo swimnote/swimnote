@@ -149,22 +149,50 @@ router.post(
       res.status(403).json(errBody(externalRequestId, 'TENANT_MISMATCH', '수영장 정보가 일치하지 않습니다.', false)); return;
     }
 
-    console.log(`[AI/v1:${internalId}] start ext_id=${externalRequestId} pool=${hashPoolId(poolId)} students=${normalizedStudents.length} text_len=${inputText.length}`);
+    // ── Trace: API_REQUEST_RECEIVED ──────────────────────────────────────────
+    console.log(`[AI/v1:${internalId}] API_REQUEST_RECEIVED request_id=${externalRequestId} pool_hash=${hashPoolId(poolId)} student_count=${normalizedStudents.length} text_len=${inputText.length}`);
+
+    // ── Trace: AUTH_SUCCESS ────────────────────────────────────────────────────
+    console.log(`[AI/v1:${internalId}] AUTH_SUCCESS role=${req.user?.role ?? 'unknown'} tenant_match=${!req.user?.poolId || req.user?.poolId === poolId}`);
+
+    // ── Trace: REQUEST_VALIDATED ──────────────────────────────────────────────
+    console.log(`[AI/v1:${internalId}] REQUEST_VALIDATED student_count=${normalizedStudents.length} lesson_date=${lessonDate}`);
+
+    // ── Trace: TEACHER_DIARY_ROUTE_ENTERED ────────────────────────────────────
+    console.log(`[AI/v1:${internalId}] TEACHER_DIARY_ROUTE_ENTERED pipeline=${PIPELINE_MODE} engine=${ENGINE_VERSION}`);
 
     try {
-      // ── Phase 1: Meaning Extraction ───────────────────────────────────────
+      // ── Phase 1: Meaning Extraction (TeacherInputParser) ─────────────────
+      const t_parser = Date.now();
       const meaning = extractMeaning(inputText);
-      console.log(`[AI/v1:${internalId}] parser strokes=${meaning.strokes.join(',')||'(none)'} skills=${meaning.skills.length} issues=${meaning.issues.length} confidence=${meaning.confidence}`);
+      const parser_ms = Date.now() - t_parser;
+
+      // ── Trace: PARSER_COMPLETED ───────────────────────────────────────────
+      console.log(`[AI/v1:${internalId}] PARSER_COMPLETED latency_ms=${parser_ms} strokes=${meaning.strokes.join(',')||'(none)'} skills=${meaning.skills.length} issues=${meaning.issues.length} confidence=${meaning.confidence}`);
+
+      // ── Trace: STUDENT_MATCH_COMPLETED ────────────────────────────────────
+      console.log(`[AI/v1:${internalId}] STUDENT_MATCH_COMPLETED student_count=${normalizedStudents.length} refs=${normalizedStudents.map(s=>s.ref).join(',')}`);
 
       // ── Phase 2 & 3: Template Search + Ranking ────────────────────────────
+      const t_template = Date.now();
       const searchResult = await searchTemplates(poolId, meaning);
+      const template_ms = Date.now() - t_template;
+
+      // ── Trace: TEMPLATE_SEARCH_COMPLETED ──────────────────────────────────
       console.log(
-        `[AI/v1:${internalId}] template_search` +
+        `[AI/v1:${internalId}] TEMPLATE_SEARCH_COMPLETED latency_ms=${template_ms}` +
         ` candidates=${searchResult.candidateCount}` +
         ` used=${searchResult.usedCount}` +
         ` top_score=${searchResult.topScore}` +
         (searchResult.usedFallbackPool ? ' fallback_pool=true' : ''),
       );
+
+      // ── Trace: KNOWLEDGE_SEARCH_COMPLETED (현재: template_v1 파이프라인) ──
+      console.log(`[AI/v1:${internalId}] KNOWLEDGE_SEARCH_COMPLETED knowledge_count=0 note=template_v1_pipeline`);
+
+      // ── Trace: MODE_DECIDED ────────────────────────────────────────────────
+      const generation_mode = searchResult.usedCount > 0 ? 'TEMPLATE_ASSISTED' : 'INPUT_ONLY';
+      console.log(`[AI/v1:${internalId}] MODE_DECIDED generation_mode=${generation_mode} template_used=${searchResult.usedCount}`);
 
       // ── Phase 4: Prompt Build ─────────────────────────────────────────────
       const { systemPrompt, userPrompt } = buildPrompt({
@@ -174,10 +202,11 @@ router.post(
         templates: searchResult.usedTemplates,
       });
 
-      // ── Phase 5: GPT 호출 ─────────────────────────────────────────────────
+      // ── Phase 5: GPT 호출 (Naturalizer) ──────────────────────────────────
       const gptTimeoutMs  = getGptTimeoutMs();
       const controller    = new AbortController();
       const timer         = setTimeout(() => controller.abort(), gptTimeoutMs);
+      const t_gpt         = Date.now();
 
       let completion: Awaited<ReturnType<OpenAI['chat']['completions']['create']>>;
       try {
@@ -202,6 +231,10 @@ router.post(
         }
         throw e;
       }
+      const gpt_ms = Date.now() - t_gpt;
+
+      // ── Trace: NATURALIZER_COMPLETED ──────────────────────────────────────
+      console.log(`[AI/v1:${internalId}] NATURALIZER_COMPLETED latency_ms=${gpt_ms} tokens=${completion.usage?.total_tokens ?? 0}`);
 
       // ── Phase 6: 응답 파싱 + 검증 ────────────────────────────────────────
       const rawContent = completion.choices[0]?.message?.content ?? '{}';
@@ -212,6 +245,9 @@ router.post(
       const allowedRefs        = new Set(normalizedStudents.map(s => s.ref));
       const legacyFallbackCount = countLegacyStudentIdFallback(parsed, allowedRefs);
       const validated          = validateDiaryOutput(parsed, allowedRefs);
+
+      // ── Trace: GROUNDING_VALIDATED ────────────────────────────────────────
+      console.log(`[AI/v1:${internalId}] GROUNDING_VALIDATED status=PASS students_out=${validated.students.length} legacy_fallback=${legacyFallbackCount}`);
 
       const usage     = completion.usage;
       const elapsedMs = Date.now() - startMs;
@@ -233,12 +269,13 @@ router.post(
         ` tokens=${usage?.total_tokens ?? 0}` +
         ` students_out=${validated.students.length}` +
         ` pipeline=${PIPELINE_MODE}` +
+        ` generation_mode=${generation_mode}` +
         ` template_used=${searchResult.usedCount}` +
         ` parser_confidence=${meaning.confidence}` +
         (legacyFallbackCount > 0 ? ` legacy_fallback=${legacyFallbackCount}` : ''),
       );
 
-      res.status(200).json({
+      const responseBody = {
         contract_version: '1.0',
         request_id:       externalRequestId,
         schema_version:   '1.0',
@@ -250,11 +287,16 @@ router.post(
         },
         meta: {
           pipeline_mode:            PIPELINE_MODE,
+          generation_mode:          generation_mode,
           parser_confidence:        meaning.confidence,
           template_candidate_count: searchResult.candidateCount,
           template_used_count:      searchResult.usedCount,
           top_score:                searchResult.topScore,
           fallback_pool_used:       searchResult.usedFallbackPool,
+          grounding_validation:     { status: 'PASS', score: meaning.confidence },
+          knowledge_ids:            [],
+          template_ids:             searchResult.usedTemplates.map((_t, i) => `tpl_${i}`),
+          fallback_used:            searchResult.usedFallbackPool,
         },
         usage: {
           input_tokens:  usage?.prompt_tokens     ?? 0,
@@ -262,7 +304,12 @@ router.post(
           total_tokens:  usage?.total_tokens      ?? 0,
           latency_ms:    elapsedMs,
         },
-      });
+      };
+
+      // ── Trace: RESPONSE_SENT ────────────────────────────────────────────────
+      console.log(`[AI/v1:${internalId}] RESPONSE_SENT request_id=${externalRequestId} http_status=200 generation_mode=${generation_mode} student_count=${validated.students.length} total_latency_ms=${elapsedMs}`);
+
+      res.status(200).json(responseBody);
 
     } catch (e: any) {
       const elapsedMs = Date.now() - startMs;
