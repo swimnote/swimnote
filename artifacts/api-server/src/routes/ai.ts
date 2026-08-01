@@ -166,10 +166,13 @@ router.post(
 
     // ── 2. contract_version ─────────────────────────────────────────────────
     // 앱이 전송하는 contract_version을 검증합니다.
-    // 지원하지 않는 버전의 요청은 즉시 거부하여 하위 호환성을 강제합니다.
-    const contractVersion = rawBody.contract_version;
+    // undefined/missing 은 '1.0'으로 허용 (구버전 앱 하위 호환).
+    const contractVersionRaw = rawBody.contract_version;
+    const contractVersion = (typeof contractVersionRaw === 'string' && contractVersionRaw)
+      ? contractVersionRaw
+      : '1.0';
     const SUPPORTED_REQUEST_CONTRACT_VERSIONS = new Set(['1.0']);
-    if (typeof contractVersion !== 'string' || !SUPPORTED_REQUEST_CONTRACT_VERSIONS.has(contractVersion)) {
+    if (!SUPPORTED_REQUEST_CONTRACT_VERSIONS.has(contractVersion)) {
       console.warn(`[AI/diary:${internalId}] unsupported_contract_version version=${contractVersion} ext_id=${externalRequestId}`);
       res.status(400).json({
         contract_version: '1.0',
@@ -177,7 +180,7 @@ router.post(
         schema_version:   '1.0',
         feature:          'teacher_diary',
         status:           'failed',
-        error: { code: 'UNSUPPORTED_CONTRACT', message: `Unsupported contract_version: ${contractVersion ?? '(missing)'}. Supported: 1.0`, retryable: false },
+        error: { code: 'UNSUPPORTED_CONTRACT', message: `Unsupported contract_version: ${contractVersion}. Supported: 1.0`, retryable: false },
       });
       return;
     }
