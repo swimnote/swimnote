@@ -797,54 +797,36 @@ function DiaryFeedItem({
       <View style={[f.reactions, { borderTopColor: C.border }]}>
         <Pressable
           onPress={() => toggleReaction("like")}
-          style={[
+          style={({ pressed }) => [
             f.reactionBtn,
-            myReactions.has("like") && { backgroundColor: "#E6FFFA" },
+            myReactions.has("like") && f.reactionBtnActive,
+            { opacity: pressed ? 0.7 : 1 },
           ]}
         >
-          <Text
-            style={[
-              f.emoji,
-              myReactions.has("like") && { transform: [{ scale: 1.2 }] },
-            ]}
-          >
+          <Text style={[f.emoji, myReactions.has("like") && { transform: [{ scale: 1.15 }] }]}>
             👍
           </Text>
-          <Text
-            style={[
-              f.reactionLabel,
-              { color: myReactions.has("like") ? TEAL : C.textSecondary },
-            ]}
-          >
+          <Text style={[f.reactionLabel, { color: myReactions.has("like") ? TEAL : C.textSecondary }]}>
             좋아요
           </Text>
         </Pressable>
         <Pressable
           onPress={() => toggleReaction("thanks")}
-          style={[
+          style={({ pressed }) => [
             f.reactionBtn,
-            myReactions.has("thanks") && { backgroundColor: "#F6D8E1" },
+            myReactions.has("thanks") && f.reactionBtnThanks,
+            { opacity: pressed ? 0.7 : 1 },
           ]}
         >
-          <Text
-            style={[
-              f.emoji,
-              myReactions.has("thanks") && { transform: [{ scale: 1.2 }] },
-            ]}
-          >
+          <Text style={[f.emoji, myReactions.has("thanks") && { transform: [{ scale: 1.15 }] }]}>
             🙏
           </Text>
-          <Text
-            style={[
-              f.reactionLabel,
-              { color: myReactions.has("thanks") ? "#BE185D" : C.textSecondary },
-            ]}
-          >
+          <Text style={[f.reactionLabel, { color: myReactions.has("thanks") ? "#BE185D" : C.textSecondary }]}>
             감사합니다
           </Text>
         </Pressable>
-        <Pressable onPress={goToComments} style={f.reactionBtn}>
-          <LucideIcon name="message-circle" size={17} color={C.textSecondary} />
+        <Pressable onPress={goToComments} style={({ pressed }) => [f.reactionBtn, { opacity: pressed ? 0.7 : 1 }]}>
+          <LucideIcon name="message-circle" size={16} color={C.textSecondary} />
           <Text style={[f.reactionLabel, { color: C.textSecondary }]}>댓글</Text>
         </Pressable>
       </View>
@@ -1494,8 +1476,7 @@ export default function ParentHomeScreen() {
               { opacity: pressed ? 0.7 : 1 },
             ]}
           >
-            <Text style={[s.albumBtnTxt, { color: C.textSecondary }]}>앨범 보기</Text>
-            <LucideIcon name="chevron-right" size={13} color={C.textSecondary} />
+            <LucideIcon name="images" size={20} color={C.textSecondary} />
           </Pressable>
         </View>
       )}
@@ -1852,18 +1833,21 @@ const f = StyleSheet.create({
     flexDirection: "row",
     borderTopWidth: 1,
     marginTop: 16,
-    paddingTop: 4,
+    paddingTop: 8,
     paddingBottom: 4,
+    paddingHorizontal: 4,
+    gap: 4,
   },
   reactionBtn: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: 4,
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 20,
   },
-  emoji: { fontSize: 16 },
+  reactionBtnActive: { backgroundColor: "#E6FFFA" },
+  reactionBtnThanks: { backgroundColor: "#F6D8E1" },
+  emoji: { fontSize: 15 },
   reactionLabel: { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });
