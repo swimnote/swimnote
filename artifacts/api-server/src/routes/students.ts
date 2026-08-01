@@ -1,13 +1,13 @@
 import { Router } from "express";
 import { db, superAdminDb } from "@workspace/db";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
-import { triggerAutoLinkOnStudentV2, linkParentToStudentV2 } from "../lib/auto-link-v2.js";
+import { triggerAutoLinkOnStudentV2 } from "../lib/auto-link-v2.js";
 import {
   studentsTable, classGroupsTable, parentStudentsTable,
   parentAccountsTable, usersTable, attendanceTable,
   classChangeLogsTable,
 } from "@workspace/db/schema";
-import { eq, and, or, sql, desc } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
 import { logChange } from "../utils/change-logger.js";
@@ -21,33 +21,6 @@ function err(res: any, status: number, message: string) {
 async function getPoolId(userId: string): Promise<string | null> {
   const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   return user?.swimming_pool_id || null;
-}
-
-// ── 반 이력 기록 헬퍼 (날짜 기반 스케쥴 필터링용) ─────────────────────────────
-async function openClassHistory(studentId: string, classGroupId: string, poolId: string, enrolledAt: string): Promise<void> {
-  await db.execute(sql`
-    INSERT INTO student_class_history (id, student_id, class_group_id, swimming_pool_id, enrolled_at, left_at, reason)
-    VALUES (gen_random_uuid()::text, ${studentId}, ${classGroupId}, ${poolId}, ${enrolledAt}::date, NULL, 'assign')
-  `).catch((e: any) => console.error('[classHistory] open error:', e));
-}
-
-async function closeClassHistory(studentId: string, classGroupId: string, leftAt: string): Promise<void> {
-  await db.execute(sql`
-    UPDATE student_class_history
-    SET left_at = ${leftAt}::date
-    WHERE student_id = ${studentId}
-      AND class_group_id = ${classGroupId}
-      AND left_at IS NULL
-  `).catch((e: any) => console.error('[classHistory] close error:', e));
-}
-
-async function closeAllClassHistory(studentId: string, leftAt: string): Promise<void> {
-  await db.execute(sql`
-    UPDATE student_class_history
-    SET left_at = ${leftAt}::date
-    WHERE student_id = ${studentId}
-      AND left_at IS NULL
-  `).catch((e: any) => console.error('[classHistory] closeAll error:', e));
 }
 
 // 회원 수 한도 체크 헬퍼
@@ -64,7 +37,7 @@ async function getEffectiveMemberLimit(poolId: string): Promise<{ limit: number;
     SELECT COUNT(*) AS cnt FROM students
     WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
   `)).rows as any[];
-  const limit = Number(planRow?.effective_member_limit ?? 10);
+  const limit = Number(planRow?.effective_member_limit ?? 5);
   const current = Number(cntRow?.cnt ?? 0);
   const overrideActive = planRow?.pool_override != null;
   console.log(`[member-limit] poolId=${poolId} limit=${limit} (override=${overrideActive ? planRow?.pool_override : 'none'}) current=${current}`);
@@ -108,58 +81,24 @@ async function enrichWithClasses(student: any) {
   return { ...student, assignedClasses: validClasses, schedule_labels: labels };
 }
 
-// ── GET /capacity — 회원 수 한도 조회 ──────────────────────────────
-router.get("/capacity", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
-  try {
-    const poolId = await getPoolId(req.user!.userId);
-    if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
-    const { limit, current } = await getEffectiveMemberLimit(poolId);
-    const available = Math.max(0, limit - current);
-    return res.json({ limit, current, available });
-  } catch (e: any) {
-    return err(res, 500, e?.message ?? "서버 오류");
-  }
-});
-
 // ── GET / ──────────────────────────────────────────────────────────
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
-    // 토큰에 poolId가 있으면 DB 조회 생략 (빠른 경로)
-    const poolId = req.user!.poolId || await getPoolId(req.user!.userId);
+    const poolId = await getPoolId(req.user!.userId);
     if (!poolId && req.user!.role !== "super_admin") return err(res, 403, "소속된 수영장이 없습니다.");
 
     // pool_all=true: 반배정 목적으로 선생님도 pool 전체 학생 조회 가능
     const poolAll = req.query.pool_all === "true";
-    // class_group_id=xxx: 특정 반 학생만 빠르게 조회 (AdminClassDetailSheet용)
-    const filterClassId = typeof req.query.class_group_id === "string" ? req.query.class_group_id : null;
 
     let students: any[];
 
-    if (filterClassId) {
-      // 특정 반 학생만 조회 — 전체 로드 없이 빠른 응답
-      students = await db.select().from(studentsTable)
-        .where(and(
-          eq(studentsTable.swimming_pool_id, poolId!),
-          sql`status NOT IN ('archived', 'deleted', 'unregistered')`,
-          sql`(
-            class_group_id = ${filterClassId}
-            OR EXISTS (
-              SELECT 1 FROM jsonb_array_elements_text(COALESCE(assigned_class_ids, '[]'::jsonb)) AS cid
-              WHERE cid = ${filterClassId}
-            )
-          )`
-        ))
-        .orderBy(desc(studentsTable.created_at));
-    } else if (req.user!.role === "teacher" && !poolAll) {
-      // teacher (일반): 본인이 담당하는 반에 배정된 학생만 반환 (co_teacher 포함, 삭제된 반 제외)
+    if (req.user!.role === "teacher" && !poolAll) {
+      // teacher (일반): 본인이 담당하는 반에 배정된 학생만 반환 (삭제된 반 제외)
       const teacherClasses = await db.select({ id: classGroupsTable.id })
         .from(classGroupsTable)
         .where(and(
           eq(classGroupsTable.swimming_pool_id, poolId!),
-          or(
-            eq(classGroupsTable.teacher_user_id, req.user!.userId),
-            sql`co_teacher_ids @> to_jsonb(${req.user!.userId}::text)`
-          ),
+          eq(classGroupsTable.teacher_user_id, req.user!.userId),
           eq(classGroupsTable.is_deleted, false)
         ));
       const classIds = teacherClasses.map(c => c.id);
@@ -178,8 +117,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
               WHERE cid = ANY(ARRAY[${sql.raw(classIdsLiteral)}])
             )
           )`
-        ))
-        .orderBy(desc(studentsTable.created_at));
+        ));
     } else {
       // admin / super_admin / teacher(pool_all=true): 해당 수영장의 모든 학생 반환
       // archived/deleted 제외, suspended/withdrawn 포함 (회원 목록에서 필터로 구분)
@@ -187,57 +125,20 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         .where(and(
           eq(studentsTable.swimming_pool_id, poolId!),
           sql`status NOT IN ('archived', 'deleted')`
-        ))
-        .orderBy(desc(studentsTable.created_at));
+        ));
     }
 
-    // ── 배치 enrichment: N+1 쿼리 → 1개 IN 쿼리 ────────────────────
-    // 모든 class_group_id 수집 → 한 번에 조회
-    const allClassIds = new Set<string>();
-    students.forEach(s => {
-      if (s.class_group_id) allClassIds.add(s.class_group_id);
-      const ids: string[] = Array.isArray(s.assigned_class_ids)
-        ? s.assigned_class_ids
-        : (typeof s.assigned_class_ids === "string" ? JSON.parse(s.assigned_class_ids || "[]") : []);
-      ids.forEach((id: string) => allClassIds.add(id));
-    });
+    const enriched = await Promise.all(students.map(async (s) => {
+      let class_group_name: string | null = null;
+      if (s.class_group_id) {
+        const [grp] = await db.select({ name: classGroupsTable.name }).from(classGroupsTable).where(eq(classGroupsTable.id, s.class_group_id)).limit(1);
+        class_group_name = grp?.name || null;
+      }
+      const withClasses = await enrichWithClasses({ ...s, class_group_name });
+      return withClasses;
+    }));
 
-    const classInfoMap = new Map<string, any>();
-    if (allClassIds.size > 0) {
-      const idList = [...allClassIds].map(id => `'${id.replace(/'/g, "''")}'`).join(",");
-      const cgRows = await db.execute(sql`
-        SELECT id, name, schedule_days, schedule_time, instructor
-        FROM class_groups WHERE id = ANY(ARRAY[${sql.raw(idList)}]::text[])
-      `);
-      (cgRows.rows as any[]).forEach(r => classInfoMap.set(r.id, r));
-    }
-
-    const enriched = students.map(s => {
-      const class_group_name = s.class_group_id ? (classInfoMap.get(s.class_group_id)?.name || null) : null;
-      const assignedIds: string[] = Array.isArray(s.assigned_class_ids)
-        ? s.assigned_class_ids
-        : (typeof s.assigned_class_ids === "string" ? JSON.parse(s.assigned_class_ids || "[]") : []);
-      const assignedClasses = assignedIds.map(id => classInfoMap.get(id)).filter(Boolean);
-      const schedule_labels = assignedClasses.map((c: any) => {
-        const days = c.schedule_days.split(",").map((d: string) => d.trim());
-        const hour = c.schedule_time.split(":")[0];
-        return days.map((d: string) => `${d}${hour}`).join("·");
-      }).filter(Boolean).join("·");
-      return { ...s, class_group_name, assignedClasses, schedule_labels };
-    });
-
-    // SQL ORDER BY 적용됐으므로 JS 재정렬 불필요
-    const result = enriched;
-
-    // pool_all=true(반배정 목적): unregistered 학생을 pending_parent_link로 노출
-    // → 구버전 앱 필터(active|pending_parent_link)도 통과하게 함
-    if (poolAll) {
-      result.forEach((s: any) => {
-        if (s.status === 'unregistered') s.status = 'pending_parent_link';
-      });
-    }
-
-    res.json(result);
+    res.json(enriched.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
@@ -250,37 +151,13 @@ router.post("/teacher-request", requireAuth, requireRole("teacher", "pool_admin"
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
 
-    // 중복 체크: 같은 이름의 활성 학생이 있으면 차단
-    const normPhone = parent_phone ? parent_phone.replace(/[^0-9]/g, "") : null;
-    const sameNameRows = (await db.execute(sql`
-      SELECT id, name, parent_phone, status FROM students
-      WHERE swimming_pool_id = ${poolId}
-        AND status NOT IN ('withdrawn', 'deleted', 'archived')
-        AND name = ${name.trim()}
-    `)).rows as any[];
-    if (sameNameRows.length > 0) {
-      const phoneConflict = normPhone
-        ? sameNameRows.find(r => {
-            const ep = (r.parent_phone || "").replace(/[^0-9]/g, "");
-            return ep && ep === normPhone;
-          })
-        : null;
-      if (phoneConflict || (normPhone === null && sameNameRows.length > 0)) {
-        return res.status(409).json({
-          success: false, duplicate: true,
-          existing: sameNameRows[0],
-          message: "동일한 이름의 학생이 이미 등록되어 있습니다. 기존 학생에 연락처를 추가하세요.",
-        });
-      }
-    }
-
     const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     await db.execute(sql`
       INSERT INTO students (
-        id, swimming_pool_id, name, name_korean, birth_year, parent_name, parent_phone,
+        id, swimming_pool_id, name, birth_year, parent_name, parent_phone,
         weekly_count, status, registration_path, invite_code, created_at, updated_at
       ) VALUES (
-        ${id}, ${poolId}, ${name.trim()}, ${name.trim().replace(/[^가-힣]/g, "")},
+        ${id}, ${poolId}, ${name.trim()},
         ${birth_year || null}, ${parent_name || null},
         ${parent_phone ? parent_phone.replace(/[^0-9]/g, "") : null},
         ${weekly_count}, 'pending_approval', 'teacher_request',
@@ -347,15 +224,13 @@ router.delete("/teacher-requests/:id/reject", requireAuth, requireRole("pool_adm
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
-// ── POST /batch — 학생 일괄 등록 (전체 거부 방식) ─────────────────
+// ── POST /batch — 학생 일괄 등록 ─────────────────────────────────
 router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   const items: Array<{
     name: string;
     birth_year?: string | null;
     parent_name?: string | null;
     parent_phone?: string | null;
-    parent_phone2?: string | null;
-    parent_phone3?: string | null;
     weekly_count?: number;
     memo?: string | null;
   }> = req.body;
@@ -363,22 +238,16 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
   if (!Array.isArray(items) || items.length === 0)
     return err(res, 400, "등록할 학생 데이터가 없습니다.");
 
-  // ── 업로드 인원수 제한 (300명) ─────────────────────────────────
-  if (items.length > 300) {
-    return res.status(400).json({
-      success: false,
-      code: "LIMIT_EXCEEDED",
-      message: "한 번에 최대 300명까지 업로드할 수 있습니다.",
-    });
-  }
-
   try {
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
 
-    // ── 회원 수 한도 조회 ───────────────────────────────────────
+    // 회원 수 한도 체크 (배치 전체)
+    // effective_member_limit = p.member_limit(개별 override) 우선, 없으면 sp.member_limit(플랜 기본값)
     const [planRow] = (await superAdminDb.execute(sql`
-      SELECT COALESCE(p.member_limit, sp.member_limit) AS effective_member_limit
+      SELECT COALESCE(p.member_limit, sp.member_limit) AS effective_member_limit,
+             p.member_limit AS pool_override,
+             sp.member_limit AS plan_default
       FROM swimming_pools p
       LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
       WHERE p.id = ${poolId} LIMIT 1
@@ -387,86 +256,42 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
       SELECT COUNT(*) AS cnt FROM students
       WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
     `)).rows as any[];
-    const memberLimit   = Number(planRow?.effective_member_limit ?? 10);
-    const currentCount  = Number(cntRow?.cnt ?? 0);
-    const available     = Math.max(0, memberLimit - currentCount);
+    const limit   = Number(planRow?.effective_member_limit ?? 5);
+    const current = Number(cntRow?.cnt ?? 0);
+    const available = Math.max(0, limit - current);
+    console.log(`[members] poolId=${poolId} limit=${limit} (override=${planRow?.pool_override ?? 'none'}, plan=${planRow?.plan_default}) current=${current}`);
 
-    // ── 1단계: 전체 유효성 검사 (INSERT 없음) ──────────────────
-    const errMissingName:  number[] = [];
-    const errMissingPhone: number[] = [];
-    const errInvalidPhone: number[] = [];
+    const succeeded: string[] = [];
+    const failed: Array<{ name: string; reason: string; code?: string }> = [];
 
-    // 정규화 전화번호 → 행 번호(1-indexed) 목록
-    const phoneBatchMap = new Map<string, number[]>();
-
-    for (let i = 0; i < items.length; i++) {
-      const s   = items[i];
-      const row = i + 1; // 1-indexed (사람이 읽기 편하게)
-
-      if (!s.name?.trim())  errMissingName.push(row);
-
-      const rawPhone = s.parent_phone ?? "";
-      if (!rawPhone.trim()) {
-        errMissingPhone.push(row);
-      } else {
-        const normPhone = rawPhone.replace(/[^0-9]/g, "");
-        const phoneValid = /^(010|011|016|017|018|019)\d{7,8}$/.test(normPhone);
-        if (!phoneValid) {
-          errInvalidPhone.push(row);
-        } else {
-          const existing = phoneBatchMap.get(normPhone) ?? [];
-          existing.push(row);
-          phoneBatchMap.set(normPhone, existing);
-        }
+    let registeredCount = 0;
+    for (const s of items) {
+      if (!s.name?.trim()) {
+        failed.push({ name: "(이름없음)", reason: "이름 누락" });
+        continue;
       }
-    }
-
-    // 회원 수 한도 초과 검사
-    const errMemberLimit = items.length > available
-      ? { available, limit: memberLimit, current: currentCount, requested: items.length }
-      : null;
-
-    // ── 2단계: 오류 존재 시 전체 거부 ──────────────────────────
-    const hasErrors =
-      errMissingName.length   > 0 ||
-      errMissingPhone.length  > 0 ||
-      errInvalidPhone.length  > 0 ||
-      errMemberLimit !== null;
-
-    if (hasErrors) {
-      return res.status(400).json({
-        success: false,
-        code: "BULK_UPLOAD_VALIDATION_FAILED",
-        message: "엑셀 업로드 실패: 오류를 수정 후 다시 업로드해주세요.",
-        errors: {
-          missing_name:       errMissingName.length   > 0 ? errMissingName   : undefined,
-          missing_phone:      errMissingPhone.length  > 0 ? errMissingPhone  : undefined,
-          invalid_phone:      errInvalidPhone.length  > 0 ? errInvalidPhone  : undefined,
-          member_limit:       errMemberLimit ?? undefined,
-        },
-      });
-    }
-
-    // ── 3단계: 오류 없음 → 트랜잭션으로 전체 INSERT ────────────
-    let inserted = 0;
-    await db.transaction(async (tx) => {
-      for (const s of items) {
-        const normPhone = s.parent_phone!.replace(/[^0-9]/g, "");
-        const normPName = s.parent_name  ? s.parent_name.replace(/\s+/g, "").toLowerCase() : null;
-
-        // 학부모 계정 매칭 (전화번호 우선, 이름 폴백)
+      // 한도 초과 시 개별 실패 처리 (전체 차단 대신)
+      if (registeredCount >= available) {
+        failed.push({ name: s.name.trim(), reason: `회원 수 한도 초과 (플랜 최대 ${limit}명)`, code: "MEMBER_LIMIT_EXCEEDED" });
+        continue;
+      }
+      try {
+        const normPhone     = s.parent_phone ? s.parent_phone.replace(/[^0-9]/g, "") : null;
+        const normPName     = s.parent_name  ? s.parent_name.replace(/\s+/g, "").toLowerCase() : null;
         let resolvedParentUserId: string | null = null;
-        const matched = await tx.execute(sql`
-          SELECT id FROM parent_accounts
-          WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normPhone}
-            AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
-          ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
-          LIMIT 1
-        `);
-        if ((matched.rows as any[]).length > 0) {
-          resolvedParentUserId = (matched.rows[0] as any).id;
-        } else if (normPName) {
-          const matched2 = await tx.execute(sql`
+        if (normPhone) {
+          const matched = await db.execute(sql`
+            SELECT id FROM parent_accounts
+            WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normPhone}
+              AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
+            ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
+            LIMIT 1
+          `);
+          if ((matched.rows as any[]).length > 0)
+            resolvedParentUserId = (matched.rows[0] as any).id;
+        }
+        if (!resolvedParentUserId && normPName) {
+          const matched2 = await db.execute(sql`
             SELECT id FROM parent_accounts
             WHERE REPLACE(LOWER(COALESCE(name,'')),' ','') = ${normPName}
               AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
@@ -477,34 +302,31 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
             resolvedParentUserId = (matched2.rows[0] as any).id;
         }
 
-        const id          = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const invite_code = generateInviteCode();
-        await tx.insert(studentsTable).values({
+        await db.insert(studentsTable).values({
           id,
           swimming_pool_id: poolId,
-          name:             s.name.trim(),
-          name_korean:      s.name.trim().replace(/[^가-힣]/g, ""),
-          birth_year:       s.birth_year   || null,
-          parent_name:      s.parent_name  || null,
-          parent_phone:     normPhone,
-          parent_phone2:    s.parent_phone2 ? s.parent_phone2.replace(/[^0-9]/g, "") || null : null,
-          parent_phone3:    s.parent_phone3 ? s.parent_phone3.replace(/[^0-9]/g, "") || null : null,
-          parent_user_id:   resolvedParentUserId,
-          memo:             s.memo         || null,
-          status:           resolvedParentUserId ? "active" : "unregistered",
+          name: s.name.trim(),
+          birth_year: s.birth_year || null,
+          parent_name: s.parent_name || null,
+          parent_phone: normPhone ? normPhone : null,
+          parent_user_id: resolvedParentUserId,
+          memo: s.memo || null,
+          status: resolvedParentUserId ? "active" : "unregistered",
           registration_path: "admin_created",
-          weekly_count:     Number(s.weekly_count) > 0 ? Number(s.weekly_count) : 1,
+          weekly_count: Number(s.weekly_count) > 0 ? Number(s.weekly_count) : 1,
           invite_code,
           assigned_class_ids: [],
-          schedule_labels:  null,
-          class_group_id:   null,
-          phone:            null,
-          birth_date:       null,
+          schedule_labels: null,
+          class_group_id: null,
+          phone: null,
+          birth_date: null,
         });
 
         if (resolvedParentUserId) {
           const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          await tx.execute(sql`
+          await db.execute(sql`
             INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
             VALUES (${psId}, ${resolvedParentUserId}, ${id}, ${poolId}, 'approved', NOW())
             ON CONFLICT DO NOTHING
@@ -512,11 +334,14 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
         }
 
         logPoolEvent({ pool_id: poolId, event_type: "student.create", entity_type: "student", entity_id: id, actor_id: req.user!.userId, payload: { name: s.name.trim() } }).catch(() => {});
-        inserted++;
+        succeeded.push(s.name.trim());
+        registeredCount++;
+      } catch (innerErr: any) {
+        failed.push({ name: s.name.trim(), reason: innerErr?.message ?? "오류" });
       }
-    });
+    }
 
-    return res.json({ success: true, inserted });
+    return res.json({ success: true, succeeded: succeeded.length, failed, available, limit, current });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
@@ -524,7 +349,6 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
 router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   const {
     name, phone, birth_date, birth_year, parent_name, parent_phone,
-    parent_phone2, parent_phone3,
     parent_user_id, class_group_id, memo, weekly_count = 1,
     registration_path = "admin_created", force_create = false,
   } = req.body;
@@ -550,7 +374,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
         SELECT COUNT(*) AS cnt FROM students
         WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
       `)).rows as any[];
-      const limit = Number(planRow?.effective_member_limit ?? 10);
+      const limit = Number(planRow?.effective_member_limit ?? 5);
       const current = Number(cntRow?.cnt ?? 0);
       console.log(`[members] poolId=${poolId} limit=${limit} (override=${planRow?.pool_override ?? 'none'}, plan=${planRow?.plan_default}) current=${current}`);
       if (current >= limit) {
@@ -567,18 +391,14 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
 
     // ── 학부모 전화번호/이름으로 기존 계정 찾기 (자동 연결용) ─────────
     // 같은 수영장 우선, 없으면 수영장 미선택(NULL) 학부모도 매칭
-    const normParentPhone  = parent_phone  ? parent_phone.replace(/[^0-9]/g, "")  : null;
-    const normParentPhone2 = parent_phone2 ? parent_phone2.replace(/[^0-9]/g, "") : null;
-    const normParentPhone3 = parent_phone3 ? parent_phone3.replace(/[^0-9]/g, "") : null;
-    const normParentName   = parent_name   ? parent_name.replace(/\s+/g, "").toLowerCase() : null;
+    const normParentPhone = parent_phone ? parent_phone.replace(/[^0-9]/g, "") : null;
+    const normParentName  = parent_name  ? parent_name.replace(/\s+/g, "").toLowerCase() : null;
 
     let resolvedParentUserId = parent_user_id || null;
-    // 전화번호1 → 전화번호2 → 전화번호3 → 이름 순으로 매칭 시도
-    for (const tryPhone of [normParentPhone, normParentPhone2, normParentPhone3]) {
-      if (resolvedParentUserId || !tryPhone) continue;
+    if (!resolvedParentUserId && normParentPhone) {
       const matchedPa = await db.execute(sql`
         SELECT id FROM parent_accounts
-        WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${tryPhone}
+        WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normParentPhone}
           AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
         ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
         LIMIT 1
@@ -633,48 +453,28 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       }
     }
 
-    // ── 중복 체크: 이름 + 전화번호(phone1/2/3 교차 비교) ────────────
-    if (!force_create) {
-      // 이름이 같은 활성 학생 전체를 가져와서 교차 비교
-      const sameNameRows = (await db.execute(sql`
-        SELECT id, name, parent_phone, parent_phone2, parent_phone3, status
+    // ── 중복 체크 ──────────────────────────────────────────────────
+    if (!force_create && (birth_year || normParentPhone)) {
+      const dupRows = await db.execute(sql`
+        SELECT id, name, birth_year, parent_phone, status
         FROM students
         WHERE swimming_pool_id = ${poolId}
           AND status NOT IN ('withdrawn', 'deleted', 'archived')
           AND name = ${name.trim()}
-      `)).rows as any[];
-
-      if (sameNameRows.length > 0) {
-        const normPhones = [normParentPhone, normParentPhone2, normParentPhone3].filter(Boolean);
-
-        // 제출된 전화번호 중 하나라도 기존 학생의 phone1/2/3과 겹치면 중복
-        const duplicateStudent = normPhones.length > 0
-          ? sameNameRows.find(r => {
-              const existingPhones = [
-                (r.parent_phone || "").replace(/[^0-9]/g, ""),
-                (r.parent_phone2 || "").replace(/[^0-9]/g, ""),
-                (r.parent_phone3 || "").replace(/[^0-9]/g, ""),
-              ].filter(Boolean);
-              return normPhones.some(p => existingPhones.includes(p!));
-            })
-          : null;
-
-        if (duplicateStudent) {
-          return res.status(409).json({
-            success: false, duplicate: true,
-            existing: duplicateStudent,
-            message: "동일한 학생(이름+전화번호)이 이미 등록되어 있습니다. 기존 학생에 보호자 연락처를 추가하세요.",
-          });
-        }
-
-        // 전화번호 없이 같은 이름만 있는 경우 경고 반환 (force_create로 재요청 가능)
-        if (normPhones.length === 0) {
-          return res.status(409).json({
-            success: false, name_only_duplicate: true,
-            existing: sameNameRows[0],
-            message: `이미 '${name.trim()}' 이름의 학생이 등록되어 있습니다. 기존 학생에 연락처를 추가하거나, 동명이인이면 force_create=true로 재요청하세요.`,
-          });
-        }
+          AND (
+            ${birth_year ? sql`birth_year = ${birth_year}` : sql`FALSE`}
+            OR ${normParentPhone ? sql`REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normParentPhone}` : sql`FALSE`}
+          )
+        LIMIT 5
+      `);
+      if (dupRows.rows.length > 0) {
+        const exact = (dupRows.rows as any[]).find((r: any) =>
+          r.name === name.trim() &&
+          (!birth_year || r.birth_year === birth_year) &&
+          (!normParentPhone || (r.parent_phone || "").replace(/[^0-9]/g, "") === normParentPhone)
+        );
+        if (exact) return res.status(409).json({ success: false, duplicate: true, existing: exact, message: "동일한 학생이 이미 등록되어 있습니다." });
+        return res.status(200).json({ success: false, possible_duplicate: true, candidates: dupRows.rows, message: "유사한 학생 정보가 있습니다. 계속 등록하시겠습니까?" });
       }
     }
 
@@ -689,14 +489,11 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       id,
       swimming_pool_id: poolId,
       name: name.trim(),
-      name_korean: name.trim().replace(/[^가-힣]/g, ""),
       phone: phone || null,
       birth_date: birth_date || null,
       birth_year: birth_year || null,
       parent_name: parent_name || null,
       parent_phone: normParentPhone || null,
-      parent_phone2: normParentPhone2 || null,
-      parent_phone3: normParentPhone3 || null,
       parent_user_id: resolvedParentUserId,
       class_group_id: class_group_id || null,
       memo: memo || null,
@@ -767,7 +564,7 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res) => {
 
 // ── PATCH /:id — 기본 정보 수정 ─────────────────────────────────────
 router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
-  const { name, phone, birth_date, birth_year, parent_name, parent_phone, parent_phone2, parent_phone3, parent_phone4, class_group_id, memo, weekly_count, status } = req.body;
+  const { name, phone, birth_date, birth_year, parent_name, parent_phone, class_group_id, memo, weekly_count, status } = req.body;
   try {
     const poolId = await getPoolId(req.user!.userId);
     const [existing] = await db.select()
@@ -781,15 +578,6 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
     const normParentPhone = parent_phone != null
       ? parent_phone.replace(/[^0-9]/g, "") || null
       : (existing.parent_phone ? existing.parent_phone.replace(/[^0-9]/g, "") || null : null);
-    const normParentPhone2 = parent_phone2 != null
-      ? parent_phone2.replace(/[^0-9]/g, "") || null
-      : ((existing as any).parent_phone2 ? (existing as any).parent_phone2.replace(/[^0-9]/g, "") || null : null);
-    const normParentPhone3 = parent_phone3 != null
-      ? parent_phone3.replace(/[^0-9]/g, "") || null
-      : ((existing as any).parent_phone3 ? (existing as any).parent_phone3.replace(/[^0-9]/g, "") || null : null);
-    const normParentPhone4 = parent_phone4 != null
-      ? parent_phone4.replace(/[^0-9]/g, "") || null
-      : ((existing as any).parent_phone4 ? (existing as any).parent_phone4.replace(/[^0-9]/g, "") || null : null);
     const normParentName = parent_name != null
       ? parent_name.replace(/\s+/g, "").toLowerCase() || null
       : (existing.parent_name ? existing.parent_name.replace(/\s+/g, "").toLowerCase() || null : null);
@@ -842,15 +630,12 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
 
     const [student] = await db.update(studentsTable)
       .set({
-        ...(name !== undefined && { name, name_korean: String(name).replace(/[^가-힣]/g, "") }),
+        ...(name !== undefined && { name }),
         ...(phone !== undefined && { phone }),
         ...(birth_date !== undefined && { birth_date }),
         ...(birth_year !== undefined && { birth_year }),
         ...(parent_name !== undefined && { parent_name }),
         ...(parent_phone !== undefined && { parent_phone: normParentPhone }),
-        ...(parent_phone2 !== undefined && { parent_phone2: normParentPhone2 }),
-        ...(parent_phone3 !== undefined && { parent_phone3: normParentPhone3 }),
-        ...(parent_phone4 !== undefined && { parent_phone4: normParentPhone4 }),
         ...(class_group_id !== undefined && { class_group_id: class_group_id || null }),
         ...(memo !== undefined && { memo }),
         ...(weekly_count !== undefined && { weekly_count: Number(weekly_count) }),
@@ -875,154 +660,6 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
     await logChange({ tenantId: existing.swimming_pool_id, tableName: "students", recordId: student.id, changeType: "update", payload: { name: student.name, status: student.status, class_group_id: student.class_group_id, auto_linked: !!resolvedParentUserId } });
     logPoolEvent({ pool_id: existing.swimming_pool_id, event_type: "member_update", entity_type: "student", entity_id: student.id, actor_id: req.user!.userId, payload: { name: student.name, status: student.status } }).catch(console.error);
     res.json({ success: true, ...enriched, parent_auto_linked: !existing.parent_user_id && !!resolvedParentUserId });
-  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
-});
-
-// ── PATCH /:id/parent-phones — 보호자 전화번호 슬롯별 수정/삭제 (선생님 + 관리자) ─
-// slot: 1 | 2  /  phone: string(설정) | null(삭제)
-router.patch("/:id/parent-phones", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { slot, phone } = req.body as { slot: 1 | 2; phone: string | null };
-  if (slot !== 1 && slot !== 2) return err(res, 400, "slot은 1 또는 2여야 합니다.");
-
-  try {
-    const poolId = req.user!.poolId || await getPoolId(req.user!.userId);
-    const [existing] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
-    if (!existing) return err(res, 404, "학생을 찾을 수 없습니다.");
-    if (req.user!.role !== "super_admin" && poolId && existing.swimming_pool_id !== poolId) {
-      return err(res, 403, "접근 권한이 없습니다.");
-    }
-
-    const normPhone = phone ? phone.replace(/[^0-9]/g, "") || null : null;
-    const oldPhone  = slot === 1 ? existing.parent_phone : (existing as any).parent_phone2;
-    const oldPhoneNorm = oldPhone ? oldPhone.replace(/[^0-9]/g, "") : null;
-
-    // 중복 체크 — 같은 학생에 동일 번호 등록 방지
-    if (normPhone) {
-      const otherPhone     = slot === 1 ? (existing as any).parent_phone2 : existing.parent_phone;
-      const otherPhoneNorm = otherPhone ? otherPhone.replace(/[^0-9]/g, "") : null;
-      if (otherPhoneNorm && normPhone === otherPhoneNorm) {
-        return err(res, 400, "이미 동일한 보호자 번호가 등록되어 있습니다.");
-      }
-    }
-
-    // 기존 번호로 연결된 학부모 확인 (번호가 실제로 바뀔 때만)
-    let unlinkedParentId: string | null = null;
-    if (oldPhoneNorm && oldPhoneNorm !== normPhone) {
-      const [linkedParent] = (await db.execute(sql`
-        SELECT pa.id FROM parent_accounts pa
-        JOIN parent_students ps ON ps.parent_id = pa.id
-        WHERE ps.student_id = ${req.params.id}
-          AND ps.status = 'approved'
-          AND REGEXP_REPLACE(COALESCE(pa.phone,''),'[^0-9]','','g') = ${oldPhoneNorm}
-        LIMIT 1
-      `)).rows as any[];
-
-      if (linkedParent) {
-        unlinkedParentId = linkedParent.id;
-        await db.execute(sql`
-          DELETE FROM parent_students
-          WHERE parent_id = ${linkedParent.id} AND student_id = ${req.params.id}
-        `);
-        // parent_user_id가 이 학부모를 가리키면 다른 연결로 교체
-        if (existing.parent_user_id === linkedParent.id) {
-          const [otherLink] = (await db.execute(sql`
-            SELECT parent_id FROM parent_students
-            WHERE student_id = ${req.params.id} AND status = 'approved' LIMIT 1
-          `)).rows as any[];
-          await db.update(studentsTable)
-            .set({ parent_user_id: otherLink?.parent_id || null, updated_at: new Date() })
-            .where(eq(studentsTable.id, req.params.id));
-        }
-      }
-    }
-
-    // 전화번호 업데이트
-    if (slot === 1) {
-      await db.update(studentsTable)
-        .set({ parent_phone: normPhone, updated_at: new Date() })
-        .where(eq(studentsTable.id, req.params.id));
-    } else {
-      await db.update(studentsTable)
-        .set({ parent_phone2: normPhone, updated_at: new Date() })
-        .where(eq(studentsTable.id, req.params.id));
-    }
-
-    // ── 새 번호 등록 시 즉시 연결 (await) ─────────────────────────────────
-    if (normPhone) {
-      // 1) parent_accounts 직접 매칭 (이미 가입된 학부모)
-      const [directMatch] = (await db.execute(sql`
-        SELECT pa.id FROM parent_accounts pa
-        WHERE REGEXP_REPLACE(COALESCE(pa.phone,''),'[^0-9]','','g') = ${normPhone}
-          AND (pa.swimming_pool_id = ${existing.swimming_pool_id} OR pa.swimming_pool_id IS NULL)
-        ORDER BY (pa.swimming_pool_id = ${existing.swimming_pool_id}) DESC NULLS LAST
-        LIMIT 1
-      `)).rows as any[];
-
-      if (directMatch) {
-        // slot=2일 때 기존 parent_user_id(보호자1) 유지 — 덮어쓰지 않음
-        const [currentStudent] = await db.select().from(studentsTable)
-          .where(eq(studentsTable.id, req.params.id)).limit(1);
-        const preservePrimaryId = slot === 2 ? (currentStudent?.parent_user_id || null) : null;
-
-        await linkParentToStudentV2(directMatch.id, req.params.id, existing.swimming_pool_id);
-
-        if (slot === 2 && preservePrimaryId) {
-          await db.execute(sql`
-            UPDATE students SET parent_user_id = ${preservePrimaryId}
-            WHERE id = ${req.params.id}
-          `);
-        }
-      }
-
-      // 2) parent_v2_pending 기반 autolink (await)
-      await triggerAutoLinkOnStudentV2(req.params.id, ["parent_phone", "parent_phone2"]).catch(e =>
-        console.error("[parent-phones] auto-link error:", e)
-      );
-    }
-
-    const [updated] = await db.select().from(studentsTable)
-      .where(eq(studentsTable.id, req.params.id)).limit(1);
-    const parentLinks = (await db.execute(sql`
-      SELECT pa.id, pa.name, pa.phone, ps.status AS link_status
-      FROM parent_students ps
-      JOIN parent_accounts pa ON pa.id = ps.parent_id
-      WHERE ps.student_id = ${req.params.id}
-    `)).rows as any[];
-
-    // ── parentPhones 배열 구성 ──────────────────────────────────────────────
-    function fmtPhone(p: string | null): string | null {
-      if (!p) return null;
-      const d = p.replace(/[^0-9]/g, "");
-      if (d.length === 11) return `${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}`;
-      if (d.length === 10) return `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`;
-      return p;
-    }
-    function connStatus(phone: string | null, links: any[]): { status: "connected" | "pending"; parentUserId: string | null } {
-      if (!phone) return { status: "pending", parentUserId: null };
-      const norm = phone.replace(/[^0-9]/g, "");
-      const match = links.find(l => l.phone && l.phone.replace(/[^0-9]/g, "") === norm && l.link_status === "approved");
-      return { status: match ? "connected" : "pending", parentUserId: match?.id || null };
-    }
-    const ph1 = (updated as any).parent_phone as string | null;
-    const ph2 = (updated as any).parent_phone2 as string | null;
-    const cs1 = connStatus(ph1, parentLinks);
-    const cs2 = connStatus(ph2, parentLinks);
-    const parentPhones = [
-      { slot: 1, phone: ph1, formattedPhone: fmtPhone(ph1), connectionStatus: cs1.status, parentUserId: cs1.parentUserId },
-      { slot: 2, phone: ph2, formattedPhone: fmtPhone(ph2), connectionStatus: cs2.status, parentUserId: cs2.parentUserId },
-    ];
-
-    logPoolEvent({ pool_id: existing.swimming_pool_id, event_type: "member_update", entity_type: "student", entity_id: req.params.id, actor_id: req.user!.userId, payload: { action: "parent_phone_update", slot, normPhone } }).catch(() => {});
-
-    return res.json({
-      success: true,
-      studentId: req.params.id,
-      parent_phone:  ph1,
-      parent_phone2: ph2,
-      parents: parentLinks,
-      parentPhones,
-      unlinked_parent_id: unlinkedParentId,
-    });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
@@ -1135,9 +772,6 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
         extraFields.archived_reason = new_status === "suspended" ? "suspended" : "pending";
       }
       await db.update(studentsTable).set(extraFields).where(eq(studentsTable.id, req.params.id));
-      // 전체 반 이력 닫기
-      const todayForHistory = new Date().toISOString().slice(0, 10);
-      await closeAllClassHistory(req.params.id, todayForHistory);
       return res.json({ success: true, new_status, remaining_classes: 0 });
     }
 
@@ -1175,6 +809,7 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
     }
 
     // 즉시 제거: 특정 반만 제거
+    const remEffectiveDate = (req.body as any).effective_date || today;
     const newIds = currentIds.filter((id: string) => id !== class_group_id);
     const newPrimaryId = newIds[0] || null;
 
@@ -1194,18 +829,27 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
       }).join("·");
     }
 
-    await db.update(studentsTable).set({
-      assigned_class_ids: newIds as any,
-      class_group_id: newPrimaryId,
-      schedule_labels: labels || null,
-      updated_at: new Date(),
-    }).where(eq(studentsTable.id, req.params.id));
-    // 이력 닫기: 마지막 반이면 전체 이력 닫기, 아니면 해당 반만
-    if (newIds.length === 0) {
-      await closeAllClassHistory(req.params.id, today);
-    } else {
-      await closeClassHistory(req.params.id, class_group_id, today);
-    }
+    // ── 단일 트랜잭션: history 기록 + students 갱신 ──────────────────────
+    await db.transaction(async (tx) => {
+      // 1) history left_at 설정
+      await tx.execute(sql`
+        UPDATE student_class_history
+        SET left_at = ${remEffectiveDate}::date
+        WHERE student_id = ${req.params.id}
+          AND class_group_id = ${class_group_id}
+          AND left_at IS NULL
+      `);
+
+      // 2) students 캐시 갱신
+      await tx.execute(sql`
+        UPDATE students SET
+          assigned_class_ids = ${JSON.stringify(newIds)}::jsonb,
+          class_group_id     = ${newPrimaryId},
+          schedule_labels    = ${labels || null},
+          updated_at         = NOW()
+        WHERE id = ${req.params.id}
+      `);
+    });
 
     // change_log 생성 (즉시 적용)
     try {
@@ -1217,16 +861,16 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
         class_group_id,
         target_student_id: req.params.id,
         change_type: "remove_from_class",
-        effective_date: today,
+        effective_date: remEffectiveDate,
         display_week_start: thisMonday,
-        note: `${studentName} 반 제외 → 미배정 이동 (${cgName})`,
+        note: `${studentName} 반 제외 → 미배정 이동 (${cgName}) effective=${remEffectiveDate}`,
         created_by: req.user!.userId,
         is_applied: true,
         created_at: new Date(),
       });
     } catch (logErr) { console.error("[change_log] write error:", logErr); }
 
-    return res.json({ success: true, remaining_classes: newIds.length });
+    return res.json({ success: true, remaining_classes: newIds.length, effective_date: remEffectiveDate });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
 });
 
@@ -1269,9 +913,6 @@ router.post("/:id/apply-pending-now", requireAuth, requireRole("super_admin", "p
     }
 
     await db.update(studentsTable).set(updateData).where(eq(studentsTable.id, req.params.id));
-    // 전체 반 이력 닫기
-    const todayPAN = new Date().toISOString().slice(0, 10);
-    await closeAllClassHistory(req.params.id, todayPAN);
     return res.json({ success: true, new_status: newStatus });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
 });
@@ -1279,14 +920,10 @@ router.post("/:id/apply-pending-now", requireAuth, requireRole("super_admin", "p
 // ── POST /:id/change-status — 선생님/관리자용 상태 변경 ─────────────────
 // new_status: "active" | "unassigned" | "suspended" | "withdrawn"
 // effective_mode: "immediate"(기본) | "next_month" (suspended/withdrawn 전용)
-// resume_date: "YYYY-MM-DD" — active 복귀 시 첫 수업일 (없으면 오늘)
-// resume_class_id: 복귀 시 다른 반으로 이동할 경우 해당 반 ID (없으면 마지막 소속 반)
 router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { new_status, effective_mode = "immediate", resume_date, resume_class_id } = req.body as {
+  const { new_status, effective_mode = "immediate" } = req.body as {
     new_status: string;
     effective_mode?: "immediate" | "next_month";
-    resume_date?: string;
-    resume_class_id?: string;
   };
   const valid = ["active", "unassigned", "suspended", "withdrawn"];
   if (!new_status || !valid.includes(new_status)) return err(res, 400, "new_status 값이 올바르지 않습니다.");
@@ -1348,7 +985,6 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
       update.status = "active";
       update.archived_reason = null;
     } else if (new_status === "unassigned") {
-      // ↑ active 복귀 후처리는 아래 await db.update 이후에 처리
       update.status = "active";
       update.assigned_class_ids = [] as any;
       update.class_group_id = null;
@@ -1365,54 +1001,6 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
     }
 
     await db.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
-
-    // 반 배정 해제 시 전체 이력 닫기
-    if (new_status === "unassigned" || new_status === "suspended" || new_status === "withdrawn") {
-      const todayCS = new Date().toISOString().slice(0, 10);
-      await closeAllClassHistory(req.params.id, todayCS);
-    }
-
-    // active 복귀 시 마지막 소속 반으로 새 history row 생성
-    if (new_status === "active") {
-      const resumeOn = (resume_date && /^\d{4}-\d{2}-\d{2}$/.test(resume_date))
-        ? resume_date
-        : new Date().toISOString().slice(0, 10);
-
-      let targetClassId: string | null = resume_class_id || null;
-      if (!targetClassId) {
-        const lastRow = (await db.execute(sql`
-          SELECT class_group_id FROM student_class_history
-          WHERE student_id = ${req.params.id}
-            AND left_at IS NOT NULL
-          ORDER BY left_at DESC, enrolled_at DESC
-          LIMIT 1
-        `)).rows[0] as any;
-        targetClassId = lastRow?.class_group_id || null;
-      }
-
-      if (targetClassId && existing.swimming_pool_id) {
-        const [cg] = await db.select({
-          id: classGroupsTable.id, name: classGroupsTable.name,
-          schedule_days: classGroupsTable.schedule_days, schedule_time: classGroupsTable.schedule_time,
-        }).from(classGroupsTable).where(eq(classGroupsTable.id, targetClassId)).limit(1);
-
-        if (cg) {
-          await openClassHistory(req.params.id, targetClassId, existing.swimming_pool_id, resumeOn);
-          const days = (cg.schedule_days || "").split(",").map((d: string) => d.trim());
-          const hour = (cg.schedule_time || "").split(":")[0];
-          const label = days.map((d: string) => `${d}${hour}`).join("·");
-          await db.update(studentsTable).set({
-            class_group_id: targetClassId,
-            assigned_class_ids: [targetClassId] as any,
-            schedule_labels: label || null,
-            class_enrolled_at: resumeOn,
-            updated_at: new Date(),
-          }).where(eq(studentsTable.id, req.params.id));
-          console.log(`[change-status] ✅ 복귀 history 생성 → class: ${cg.name}, resume_on: ${resumeOn}`);
-        }
-      }
-    }
-
     const [updated] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
     console.log(`[change-status] ✅ 즉시 변경 완료 → status: ${(updated as any).status}`);
     return res.json({ success: true, new_status, student: updated });
@@ -1420,9 +1008,16 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
 });
 
 router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { from_class_id, to_class_id, first_lesson_date } = req.body as { from_class_id: string; to_class_id: string; first_lesson_date?: string };
+  const { from_class_id, to_class_id, effective_date } = req.body as {
+    from_class_id: string;
+    to_class_id: string;
+    effective_date?: string;
+  };
   if (!from_class_id || !to_class_id) return err(res, 400, "from_class_id, to_class_id 모두 필요");
   if (from_class_id === to_class_id) return err(res, 400, "출발반과 도착반이 같습니다");
+
+  // effective_date 기본값: 오늘
+  const effectiveDate = effective_date || new Date().toISOString().slice(0, 10);
 
   try {
     const poolId = await getPoolId(req.user!.userId);
@@ -1446,10 +1041,25 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
       : (typeof existing.assigned_class_ids === "string"
           ? JSON.parse(existing.assigned_class_ids || "[]") : []);
 
-    if (!currentIds.includes(from_class_id)) return err(res, 400, "학생이 출발반에 배정되어 있지 않습니다");
-    if (currentIds.includes(to_class_id)) return err(res, 400, "이미 현재 반에 배정되어 있습니다");
+    // ── 이동 자격 검증: assigned_class_ids 또는 student_class_history 기준 ──────
+    // assigned_class_ids는 현재 캐시, history는 날짜 기준 진실 소스
+    const inCurrentIds = currentIds.includes(from_class_id);
+    const histCheck = await db.execute(sql`
+      SELECT id FROM student_class_history
+      WHERE student_id = ${req.params.id}
+        AND class_group_id = ${from_class_id}
+        AND enrolled_at::text <= ${effectiveDate}
+        AND (left_at IS NULL OR left_at::text > ${effectiveDate})
+      LIMIT 1
+    `);
+    const inHistory = (histCheck.rows as any[]).length > 0;
 
-    // 제거 후 추가
+    if (!inCurrentIds && !inHistory) {
+      return err(res, 400, "학생이 출발반에 배정되어 있지 않습니다 (현재 배정 및 history 모두 확인)");
+    }
+    if (currentIds.includes(to_class_id)) return err(res, 400, "이미 도착반에 배정되어 있습니다");
+
+    // 제거 후 추가 (assigned_class_ids 캐시 갱신)
     const newIds = currentIds.filter((id: string) => id !== from_class_id).concat(to_class_id);
 
     // schedule_labels 재계산
@@ -1469,48 +1079,73 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
       return days.map((d: string) => `${d}${hour}`).join("·");
     }).join("·");
 
-    const todayMC = new Date().toISOString().slice(0, 10);
-    const moveEnrolledAt = (first_lesson_date && /^\d{4}-\d{2}-\d{2}$/.test(first_lesson_date))
-      ? first_lesson_date
-      : todayMC;
-    const [moved] = await db.update(studentsTable).set({
-      assigned_class_ids: newIds as any,
-      class_group_id: newIds[0] || null,
-      schedule_labels: labels || null,
-      status: "active",
-      class_enrolled_at: moveEnrolledAt,
-      updated_at: new Date(),
-    }).where(eq(studentsTable.id, req.params.id)).returning({ id: studentsTable.id });
-    // 출발반 이력 닫기 + 도착반 이력 열기
-    await closeClassHistory(req.params.id, from_class_id, todayMC);
-    await openClassHistory(req.params.id, to_class_id, poolId!, moveEnrolledAt);
+    const studentPoolId = existing.swimming_pool_id || poolId || "";
+
+    // ── 단일 트랜잭션: history + students 동시 갱신 ──────────────────────────
+    await db.transaction(async (tx) => {
+      // 1) 출발반 history left_at 설정 (열린 row만)
+      await tx.execute(sql`
+        UPDATE student_class_history
+        SET left_at = ${effectiveDate}::date
+        WHERE student_id = ${req.params.id}
+          AND class_group_id = ${from_class_id}
+          AND left_at IS NULL
+      `);
+
+      // 2) 도착반 history INSERT (이미 없는 경우만)
+      const histId = `sch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      await tx.execute(sql`
+        INSERT INTO student_class_history (id, student_id, class_group_id, swimming_pool_id, enrolled_at, created_at)
+        VALUES (
+          ${histId},
+          ${req.params.id},
+          ${to_class_id},
+          ${studentPoolId},
+          ${effectiveDate}::date,
+          NOW()
+        )
+        ON CONFLICT DO NOTHING
+      `);
+
+      // 3) students 캐시 갱신
+      await tx.execute(sql`
+        UPDATE students SET
+          assigned_class_ids = ${JSON.stringify(newIds)}::jsonb,
+          class_group_id     = ${newIds[0] || null},
+          schedule_labels    = ${labels || null},
+          status             = 'active',
+          updated_at         = NOW()
+        WHERE id = ${req.params.id}
+      `);
+    });
 
     // 출발반/도착반 이름 조회 (메신저 메시지용)
     const [fromCls] = await db.select({ name: classGroupsTable.name })
       .from(classGroupsTable).where(eq(classGroupsTable.id, from_class_id)).limit(1);
-    const [toCls] = await db.select({ name: classGroupsTable.name })
+    const [toCls2] = await db.select({ name: classGroupsTable.name })
       .from(classGroupsTable).where(eq(classGroupsTable.id, to_class_id)).limit(1);
 
     // 메신저 공지 자동 메시지
-    if (poolId && fromCls && toCls) {
+    if (poolId && fromCls && toCls2) {
       await createSystemMessage({
         poolId,
         msgType: "system_move",
-        content: `${existing.name} 회원이 ${fromCls.name}에서 ${toCls.name}으로 이동되었습니다.`,
+        content: `${existing.name} 회원이 ${fromCls.name}에서 ${toCls2.name}으로 이동되었습니다. (${effectiveDate})`,
       });
     }
 
-    return res.json({ success: true, assigned_class_ids: newIds });
+    return res.json({ success: true, assigned_class_ids: newIds, effective_date: effectiveDate });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
 });
 
 // ── PATCH /:id/assign — 반 배정 (관리자 + 선생님 허용) ─────────────
 router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { assigned_class_ids: rawIds, weekly_count, first_lesson_date } = req.body;
+  const { assigned_class_ids: rawIds, weekly_count, effective_date } = req.body;
   if (!Array.isArray(rawIds)) return err(res, 400, "assigned_class_ids는 배열이어야 합니다.");
 
   // null·undefined 제거 + 중복 제거
   const assigned_class_ids: string[] = [...new Set(rawIds.filter((id: any) => typeof id === "string" && id.trim()))];
+  const effectiveDate = effective_date || new Date().toISOString().slice(0, 10);
 
   try {
     const poolId = await getPoolId(req.user!.userId);
@@ -1554,41 +1189,68 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
       return days.map((d: string) => `${d}${hour}`).join("·");
     }).join("·");
 
-    // students에 first class_group_id도 업데이트 (하위 호환)
     const firstClassId = assigned_class_ids[0] || null;
+    const studentPoolId = existing.swimming_pool_id || poolId || "";
 
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const enrolledAtStr = (first_lesson_date && /^\d{4}-\d{2}-\d{2}$/.test(first_lesson_date))
-      ? first_lesson_date
-      : todayStr;
-    const [student] = await db.update(studentsTable)
-      .set({
-        assigned_class_ids: assigned_class_ids as any,
-        weekly_count: wc,
-        schedule_labels: labels || null,
-        class_group_id: firstClassId,
-        status: "active",
-        class_enrolled_at: enrolledAtStr,
-        updated_at: new Date(),
-      })
-      .where(eq(studentsTable.id, req.params.id))
-      .returning();
-
-    // 반 이력 업데이트: 제거된 반 닫기 + 새 반 열기
+    // 이전/새 배정 diff 계산 (history 갱신용)
     const prevIds: string[] = Array.isArray(existing.assigned_class_ids)
       ? existing.assigned_class_ids
-      : (typeof existing.assigned_class_ids === "string" ? JSON.parse(existing.assigned_class_ids || "[]") : []);
-    const removedFromClass = prevIds.filter((id: string) => !assigned_class_ids.includes(id));
-    const addedToClass = assigned_class_ids.filter((id: string) => !prevIds.includes(id));
-    for (const cid of removedFromClass) await closeClassHistory(req.params.id, cid, todayStr);
-    for (const cid of addedToClass) await openClassHistory(req.params.id, cid, poolId!, enrolledAtStr);
+      : (typeof existing.assigned_class_ids === "string"
+          ? JSON.parse(existing.assigned_class_ids || "[]") : []);
+    const prevSet = new Set(prevIds);
+    const newSet  = new Set(assigned_class_ids);
+    const addedIds   = assigned_class_ids.filter(id => !prevSet.has(id));
+    const removedIds = prevIds.filter(id => !newSet.has(id));
 
-    // class_groups의 student_count는 GET 때 집계이므로 별도 업데이트 불필요
-    const enriched = await enrichWithClasses({ ...student, assignedClasses: validClasses });
+    // ── 단일 트랜잭션: history + students 동시 갱신 ──────────────────────────
+    await db.transaction(async (tx) => {
+      // 1) 제거된 반 → history left_at 설정
+      for (const classId of removedIds) {
+        await tx.execute(sql`
+          UPDATE student_class_history
+          SET left_at = ${effectiveDate}::date
+          WHERE student_id = ${req.params.id}
+            AND class_group_id = ${classId}
+            AND left_at IS NULL
+        `);
+      }
+
+      // 2) 추가된 반 → history INSERT
+      for (const classId of addedIds) {
+        const histId = `sch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        await tx.execute(sql`
+          INSERT INTO student_class_history (id, student_id, class_group_id, swimming_pool_id, enrolled_at, created_at)
+          VALUES (
+            ${histId},
+            ${req.params.id},
+            ${classId},
+            ${studentPoolId},
+            ${effectiveDate}::date,
+            NOW()
+          )
+          ON CONFLICT DO NOTHING
+        `);
+      }
+
+      // 3) students 캐시 갱신
+      await tx.execute(sql`
+        UPDATE students SET
+          assigned_class_ids = ${JSON.stringify(assigned_class_ids)}::jsonb,
+          weekly_count       = ${wc},
+          schedule_labels    = ${labels || null},
+          class_group_id     = ${firstClassId},
+          status             = 'active',
+          updated_at         = NOW()
+        WHERE id = ${req.params.id}
+      `);
+    });
+
+    const [updated] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+    const enriched = await enrichWithClasses({ ...updated, assignedClasses: validClasses });
     logPoolEvent({
       pool_id: poolId!, event_type: "class_assign", entity_type: "student",
       entity_id: req.params.id, actor_id: req.user!.userId,
-      payload: { assigned_class_ids, student_name: existing.name },
+      payload: { assigned_class_ids, student_name: existing.name, effective_date: effectiveDate },
     }).catch(() => {});
     res.json({ success: true, ...enriched });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
@@ -1832,7 +1494,6 @@ router.post("/:id/purge", requireAuth, requireRole("super_admin", "pool_admin"),
       UPDATE students
       SET
         name         = ${"탈퇴_" + date},
-        name_korean  = '',
         parent_name  = NULL,
         parent_phone = NULL,
         birth_year   = NULL,
@@ -1847,7 +1508,6 @@ router.post("/:id/purge", requireAuth, requireRole("super_admin", "pool_admin"),
       UPDATE students
       SET
         name         = ${"탈퇴_" + date},
-        name_korean  = '',
         parent_name  = NULL,
         parent_phone = NULL,
         birth_year   = NULL,

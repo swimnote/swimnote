@@ -86,16 +86,18 @@ export async function uploadFile(buffer: Buffer, key: string, mimeType: string):
   return key;
 }
 
-/** R2 presigned GET URL 생성 (기본 유효시간 3600초) */
 export async function getPresignedUrl(
   key: string,
   type: StorageBucket = "photo",
-  expiresIn = 3600
+  expiresIn: number = 3600,
 ): Promise<{ ok: boolean; url?: string; error?: string }> {
   try {
     const { client, bucket } = getClientAndBucket(type);
-    const command = new GetObjectCommand({ Bucket: bucket, Key: key });
-    const url = await getSignedUrl(client, command, { expiresIn });
+    const url = await getSignedUrl(
+      client as any,
+      new GetObjectCommand({ Bucket: bucket, Key: key }) as any,
+      { expiresIn },
+    );
     return { ok: true, url };
   } catch (e: any) {
     console.error(`[R2 presign] 실패 key=${key} bucket=${type}:`, e.message);
