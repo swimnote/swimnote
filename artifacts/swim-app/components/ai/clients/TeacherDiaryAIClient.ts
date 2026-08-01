@@ -20,18 +20,17 @@
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * Feature Flag: EXPO_PUBLIC_SWIMNOTE_AI_MODE
- *   'legacy'   — 현재 SWIMNOTE API Server (Render.com) → rollback 전용
- *   'grounded' — SWIMNOTE AI Engine → 실기기 E2E 승인 후 Production 전환
- *   기본값: 'legacy' (AI Engine 최종 URL 수신 전까지)
+ *   'grounded' — SWIMNOTE Grounded Pipeline (기본값, 정식 운영)
+ *   'legacy'   — 구형 GPT 직접 생성 → 비활성화됨, 호출 시 LEGACY_BLOCKED 에러
  *
  * Grounded URL 환경변수:
- *   EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL   — AI Engine base (예: https://ai.swimnote.kr)
- *   EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH — diary generate path (기본: /api/ai/diary/generate)
+ *   EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL   — AI Engine base (기본: https://swimnote-api.onrender.com)
+ *   EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH — diary generate path (기본: /api/v1/teacher-diary/generate)
  *
  * ★ 금지:
- *   - 신규 Engine 실패 시 사용자에게 알리지 않고 legacy로 자동 우회
+ *   - legacy 모드로의 자동 우회 (EXPO_PUBLIC_SWIMNOTE_AI_MODE=legacy → LEGACY_BLOCKED 에러)
  *   - grounded 실패를 정상 AI 결과로 위장
- *   - fallback 결과에 pipeline_mode=grounded 표시
+ *   - /api/ai/diary/generate (legacy path) 호출
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -45,31 +44,39 @@ export type AIDiaryMode = 'legacy' | 'grounded';
  */
 export function getAIDiaryMode(): AIDiaryMode {
   const raw = (process.env.EXPO_PUBLIC_SWIMNOTE_AI_MODE ?? '').trim().toLowerCase();
-  if (raw === 'grounded') return 'grounded';
-  if (raw === '' || raw === 'legacy') return 'legacy';
+  // 미설정('') 또는 명시적 grounded → grounded
+  if (raw === '' || raw === 'grounded') return 'grounded';
+  // legacy 명시 → 차단 (비활성화됨)
+  if (raw === 'legacy') {
+    console.error(
+      '[TeacherDiaryAIClient] LEGACY_MODE_DISABLED: ' +
+      'EXPO_PUBLIC_SWIMNOTE_AI_MODE=legacy는 비활성화됨. grounded로 강제 적용.',
+    );
+    return 'grounded';
+  }
+  // 알 수 없는 값 → grounded로 안전 처리
   console.warn(
     `[TeacherDiaryAIClient] EXPO_PUBLIC_SWIMNOTE_AI_MODE="${process.env.EXPO_PUBLIC_SWIMNOTE_AI_MODE}" ` +
-    `알 수 없는 값 — legacy로 폴백`,
+    `알 수 없는 값 — grounded로 강제 적용`,
   );
-  return 'legacy';
+  return 'grounded';
 }
 
 // ── URL 설정 ──────────────────────────────────────────────────────────────────
 
 /**
- * Legacy: 현재 SWIMNOTE API Server (Render.com)
- * rollback 전용 — AI Engine 전환 후에도 삭제하지 않음
+ * Legacy path — 비활성화됨. 이 경로로의 호출은 sendRequest에서 차단됨.
+ * rollback 참조용으로만 보존.
  */
 const LEGACY_BASE = 'https://swimnote-api.onrender.com';
 const LEGACY_PATH = '/api/ai/diary/generate';
 
 /**
- * Grounded: SWIMNOTE AI Engine
- * ★ AI Engine 최종 URL 확정 전까지 GROUNDED_BASE는 빈 문자열.
- *   grounded 모드에서 URL이 미설정이면 getDiaryEndpoint()가 오류를 throw합니다.
+ * Grounded 엔드포인트 — Render.com 운영 서버 V1 Grounded Pipeline
+ * EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL / EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH 로 오버라이드 가능
  */
-const GROUNDED_BASE  = (process.env.EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL   as string | undefined) ?? '';
-const GROUNDED_PATH  = (process.env.EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH as string | undefined) ?? '/api/ai/diary/generate';
+const GROUNDED_BASE  = (process.env.EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL   as string | undefined) ?? 'https://swimnote-api.onrender.com';
+const GROUNDED_PATH  = (process.env.EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH as string | undefined) ?? '/api/v1/teacher-diary/generate';
 
 export interface DiaryEndpoint {
   base: string;
@@ -171,6 +178,20 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
       mode,
       endpointHost: '(config_error)',
       errorDetail:  e.message ?? 'ENDPOINT_CONFIG_ERROR',
+    };
+  }
+
+  // ── legacy path 차단 — /api/ai/diary/generate 호출 금지 ──────────────────
+  if (endpoint.url.includes(LEGACY_PATH)) {
+    console.error('[TeacherDiaryAIClient] LEGACY_PATH_BLOCKED:', endpoint.url);
+    return {
+      ok:           false,
+      reason:       'NETWORK',
+      httpStatus:   null,
+      body:         null,
+      mode,
+      endpointHost: endpoint.host,
+      errorDetail:  `LEGACY_PATH_BLOCKED: ${endpoint.url} — /api/ai/diary/generate 호출 금지`,
     };
   }
 
