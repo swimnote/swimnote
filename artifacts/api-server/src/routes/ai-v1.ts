@@ -6,23 +6,29 @@
  * Pipeline:
  *   1. Request 검증 (V1 Contract)
  *   2. Meaning Extraction — 키워드 기반 파싱, GPT 불필요
- *   3. Template Search  — diary_templates DB 검색 (relaxed candidate)
- *   4. Ranking          — top 5 엄격 선택
+ *   3. Template Search  — diary_templates DB 검색 (CANDIDATE_MIN_CONCEPT_OVERLAP=0.30)
+ *   4. Ranking          — USAGE_MIN_SCORE=1.40 통과, TOP_K_USAGE=1 선택
  *   5. Prompt Build     — 선택된 템플릿을 참고 예문으로 포함
  *   6. GPT 호출         — gpt-4o-mini
- *   7. Response         — V1 Contract + meta 메타데이터
+ *   7. Grounding 검증   — GPT 출력의 미지원 주장 검출 (parser_confidence와 완전 분리)
+ *   8. Response         — V1 Contract + meta 메타데이터
  *
  * V1 Contract:
  *   Request:  { contract_version, request_id, schema_version, feature, locale, input, context }
  *   Response: { contract_version, request_id, schema_version, engine_version, feature, result, meta, usage }
  *   Error:    { contract_version, request_id, schema_version, feature, status:'failed', error }
  *
- * meta 필드 (이번 버전 추가):
- *   pipeline_mode:           "template_v1"
- *   parser_confidence:       0.0 ~ 1.0
- *   template_candidate_count: 후보 수
- *   template_used_count:      실제 사용 수
- *   top_score:               최고 점수
+ * meta 필드:
+ *   pipeline_mode:            "template_v1"
+ *   generation_mode:          "TEMPLATE_ASSISTED" | "INPUT_ONLY"
+ *   parser_confidence:        TeacherInputParser 입력 해석 신뢰도 (grounding과 별개)
+ *   template_candidate_count: conceptOverlap >= 0.30 통과 후보 수
+ *   template_used_count:      score >= 1.40 통과 실제 사용 수 (최대 1)
+ *   top_score:                상위 template score (최대 3.0)
+ *   top_breakdown:            상위 template 점수 구성 {strokeMatch, focusMatch, conceptOverlap, observationMatch}
+ *   grounding_validation:     GPT 출력 실제 검증 결과 (parser_confidence 미사용)
+ *   template_candidate_ids:   후보 실제 DB ID 목록
+ *   template_ids:             사용된 실제 DB ID 목록 (최대 1)
  */
 
 import { Router, type Response }          from 'express';
@@ -40,7 +46,13 @@ import {
   countLegacyStudentIdFallback,
 } from '../lib/ai-diary-utils.js';
 import { extractMeaning }    from '../lib/diary-parser.js';
-import { searchTemplates }   from '../lib/diary-template-search.js';
+import {
+  searchTemplates,
+  CANDIDATE_MIN_CONCEPT_OVERLAP,
+  USAGE_MIN_SCORE,
+  TOP_K_USAGE,
+} from '../lib/diary-template-search.js';
+import { validateGrounding } from '../lib/diary-grounding.js';
 
 const router = Router();
 
@@ -58,16 +70,6 @@ function getOpenAI(): OpenAI {
 const SUPPORTED_CONTRACT_VERSIONS = new Set(['1.0']);
 const ENGINE_VERSION              = 'grounded_v1';
 const PIPELINE_MODE               = 'template_v1';
-
-// ── Generation mode 기준 ──────────────────────────────────────────────────────
-/** 이 점수 이상이어야 템플릿을 프롬프트에 포함하고 TEMPLATE_ASSISTED로 판정 */
-const TEMPLATE_USE_MIN_SCORE = 4;
-
-// ── Grounding validation 임계값 ───────────────────────────────────────────────
-/** parser_confidence 기반 grounding_validation 상태 결정 */
-const GROUNDING_PASS_THRESHOLD    = 0.7;   // ≥ 0.7 → PASS
-const GROUNDING_WARNING_THRESHOLD = 0.4;   // 0.4 ≤ x < 0.7 → WARNING
-// < 0.4 → FAIL
 
 // ── POST /v1/teacher-diary/generate ──────────────────────────────────────────
 router.post(
@@ -162,10 +164,10 @@ router.post(
     // ── Trace: API_REQUEST_RECEIVED ──────────────────────────────────────────
     console.log(`[AI/v1:${internalId}] API_REQUEST_RECEIVED request_id=${externalRequestId} pool_hash=${hashPoolId(poolId)} student_count=${normalizedStudents.length} text_len=${inputText.length}`);
 
-    // ── Trace: AUTH_SUCCESS ────────────────────────────────────────────────────
+    // ── Trace: AUTH_SUCCESS ───────────────────────────────────────────────────
     console.log(`[AI/v1:${internalId}] AUTH_SUCCESS role=${req.user?.role ?? 'unknown'} tenant_match=${!req.user?.poolId || req.user?.poolId === poolId}`);
 
-    // ── Trace: REQUEST_VALIDATED ──────────────────────────────────────────────
+    // ── Trace: REQUEST_VALIDATED ─────────────────────────────────────────────
     console.log(`[AI/v1:${internalId}] REQUEST_VALIDATED student_count=${normalizedStudents.length} lesson_date=${lessonDate}`);
 
     // ── Trace: TEACHER_DIARY_ROUTE_ENTERED ────────────────────────────────────
@@ -178,39 +180,57 @@ router.post(
       const parser_ms = Date.now() - t_parser;
 
       // ── Trace: PARSER_COMPLETED ───────────────────────────────────────────
-      console.log(`[AI/v1:${internalId}] PARSER_COMPLETED latency_ms=${parser_ms} strokes=${meaning.strokes.join(',')||'(none)'} skills=${meaning.skills.length} issues=${meaning.issues.length} confidence=${meaning.confidence}`);
+      console.log(
+        `[AI/v1:${internalId}] PARSER_COMPLETED latency_ms=${parser_ms}` +
+        ` strokes=${meaning.strokes.join(',') || '(none)'}` +
+        ` skills=${meaning.skills.length}` +
+        ` issues=${meaning.issues.length}` +
+        ` confidence=${meaning.confidence}` +
+        ` allKeywords=${meaning.allKeywords.length}`,
+      );
 
-      // ── Trace: STUDENT_MATCH_COMPLETED ────────────────────────────────────
-      console.log(`[AI/v1:${internalId}] STUDENT_MATCH_COMPLETED student_count=${normalizedStudents.length} refs=${normalizedStudents.map(s=>s.ref).join(',')}`);
+      // ── Trace: STUDENT_MATCH_COMPLETED ───────────────────────────────────
+      console.log(`[AI/v1:${internalId}] STUDENT_MATCH_COMPLETED student_count=${normalizedStudents.length} refs=${normalizedStudents.map(s => s.ref).join(',')}`);
 
       // ── Phase 2 & 3: Template Search + Ranking ────────────────────────────
+      // diary-template-search.ts 단일 경로 사용
+      // CANDIDATE_MIN_CONCEPT_OVERLAP=0.30, USAGE_MIN_SCORE=1.40, TOP_K_USAGE=1
       const t_template = Date.now();
       const searchResult = await searchTemplates(poolId, meaning);
       const template_ms = Date.now() - t_template;
 
       // ── Trace: TEMPLATE_SEARCH_COMPLETED ──────────────────────────────────
+      const topBd = searchResult.topBreakdown;
       console.log(
         `[AI/v1:${internalId}] TEMPLATE_SEARCH_COMPLETED latency_ms=${template_ms}` +
         ` candidates=${searchResult.candidateCount}` +
         ` used=${searchResult.usedCount}` +
-        ` top_score=${searchResult.topScore}` +
+        ` top_score=${searchResult.topScore.toFixed(2)}` +
+        (topBd
+          ? ` strokeMatch=${topBd.strokeMatch} focusMatch=${topBd.focusMatch}` +
+            ` conceptOverlap=${topBd.conceptOverlap.toFixed(2)} observationMatch=${topBd.observationMatch}`
+          : '') +
         (searchResult.usedFallbackPool ? ' fallback_pool=true' : ''),
       );
 
-      // ── Trace: KNOWLEDGE_SEARCH_COMPLETED (현재: template_v1 파이프라인) ──
+      // ── Trace: KNOWLEDGE_SEARCH_COMPLETED (N/A) ───────────────────────────
       console.log(`[AI/v1:${internalId}] KNOWLEDGE_SEARCH_COMPLETED knowledge_count=0 note=template_v1_pipeline`);
 
       // ── Trace: MODE_DECIDED ────────────────────────────────────────────────
-      // TEMPLATE_ASSISTED: 후보 존재 + topScore >= TEMPLATE_USE_MIN_SCORE
-      // INPUT_ONLY: 후보 없거나 score 미달 (템플릿 프롬프트 미포함)
+      // TEMPLATE_ASSISTED: usedCount > 0 (score >= USAGE_MIN_SCORE=1.40 통과)
+      // INPUT_ONLY: 후보 없거나 모든 후보 score < USAGE_MIN_SCORE
       const generation_mode =
-        (searchResult.usedCount > 0 && searchResult.topScore >= TEMPLATE_USE_MIN_SCORE)
-          ? 'TEMPLATE_ASSISTED'
-          : 'INPUT_ONLY';
-      console.log(`[AI/v1:${internalId}] MODE_DECIDED generation_mode=${generation_mode} template_used=${searchResult.usedCount} top_score=${searchResult.topScore} threshold=${TEMPLATE_USE_MIN_SCORE}`);
+        searchResult.usedCount > 0 ? 'TEMPLATE_ASSISTED' : 'INPUT_ONLY';
+      console.log(
+        `[AI/v1:${internalId}] MODE_DECIDED generation_mode=${generation_mode}` +
+        ` template_used=${searchResult.usedCount}` +
+        ` top_score=${searchResult.topScore.toFixed(2)}` +
+        ` usage_min_score=${USAGE_MIN_SCORE}` +
+        ` candidate_min_overlap=${CANDIDATE_MIN_CONCEPT_OVERLAP}` +
+        ` top_k=${TOP_K_USAGE}`,
+      );
 
       // ── Phase 4: Prompt Build ─────────────────────────────────────────────
-      // INPUT_ONLY 모드에서는 템플릿을 프롬프트에 포함하지 않음
       const templatesForPrompt = generation_mode === 'TEMPLATE_ASSISTED'
         ? searchResult.usedTemplates
         : [];
@@ -255,18 +275,34 @@ router.post(
       // ── Trace: NATURALIZER_COMPLETED ──────────────────────────────────────
       console.log(`[AI/v1:${internalId}] NATURALIZER_COMPLETED latency_ms=${gpt_ms} tokens=${completion.usage?.total_tokens ?? 0}`);
 
-      // ── Phase 6: 응답 파싱 + 검증 ────────────────────────────────────────
+      // ── Phase 6: 응답 파싱 + 구조 검증 ───────────────────────────────────
       const rawContent = completion.choices[0]?.message?.content ?? '{}';
       let parsed: unknown;
       try { parsed = JSON.parse(rawContent); }
       catch { throw new Error('GPT 응답 JSON 파싱 실패'); }
 
-      const allowedRefs        = new Set(normalizedStudents.map(s => s.ref));
+      const allowedRefs         = new Set(normalizedStudents.map(s => s.ref));
       const legacyFallbackCount = countLegacyStudentIdFallback(parsed, allowedRefs);
-      const validated          = validateDiaryOutput(parsed, allowedRefs);
+      const validated           = validateDiaryOutput(parsed, allowedRefs);
+
+      // ── Phase 7: Grounding 검증 (GPT 출력 실제 분석) ─────────────────────
+      // parser_confidence와 완전 분리 — GPT 생성 결과가 입력 범위를 벗어났는지 검사
+      const studentNames = normalizedStudents.map(s => s.name);
+      const groundingResult = validateGrounding(validated, inputText, studentNames);
 
       // ── Trace: GROUNDING_VALIDATED ────────────────────────────────────────
-      console.log(`[AI/v1:${internalId}] GROUNDING_VALIDATED status=PASS students_out=${validated.students.length} legacy_fallback=${legacyFallbackCount}`);
+      console.log(
+        `[AI/v1:${internalId}] GROUNDING_VALIDATED` +
+        ` status=${groundingResult.status}` +
+        ` score=${groundingResult.score.toFixed(2)}` +
+        ` unsupported_claims=${groundingResult.unsupported_claim_count}` +
+        ` technique=${groundingResult.invented_technique_count}` +
+        ` evaluation=${groundingResult.invented_student_evaluation_count}` +
+        ` next_plan=${groundingResult.invented_next_plan_count}` +
+        ` student_leak=${groundingResult.student_to_common_leak_count}` +
+        ` students_out=${validated.students.length}` +
+        ` legacy_fallback=${legacyFallbackCount}`,
+      );
 
       const usage     = completion.usage;
       const elapsedMs = Date.now() - startMs;
@@ -276,8 +312,8 @@ router.post(
         external_request_id: externalRequestId,
         feature_flag:        'parser_v1',
         engine_version:      ENGINE_VERSION,
-        prompt_version:      'p_template_v1',
-        validator_result:    'pass',
+        prompt_version:      'p_template_v2',
+        validator_result:    groundingResult.status === 'FAIL' ? 'grounding_fail' : 'pass',
         latency_ms:          elapsedMs,
         pool_id_hash:        hashPoolId(poolId),
       });
@@ -291,6 +327,7 @@ router.post(
         ` generation_mode=${generation_mode}` +
         ` template_used=${searchResult.usedCount}` +
         ` parser_confidence=${meaning.confidence}` +
+        ` grounding=${groundingResult.status}` +
         (legacyFallbackCount > 0 ? ` legacy_fallback=${legacyFallbackCount}` : ''),
       );
 
@@ -307,28 +344,38 @@ router.post(
         meta: {
           pipeline_mode:            PIPELINE_MODE,
           generation_mode:          generation_mode,
+          // parser_confidence: TeacherInputParser 입력 해석 신뢰도 (grounding과 별개)
           parser_confidence:        meaning.confidence,
           template_candidate_count: searchResult.candidateCount,
           template_used_count:      generation_mode === 'TEMPLATE_ASSISTED' ? searchResult.usedCount : 0,
-          top_score:                searchResult.topScore,
+          top_score:                Number(searchResult.topScore.toFixed(2)),
+          // 상위 template 점수 구성 (strokeMatch/focusMatch/conceptOverlap/observationMatch)
+          top_breakdown:            searchResult.topBreakdown
+            ? {
+                strokeMatch:      searchResult.topBreakdown.strokeMatch,
+                focusMatch:       searchResult.topBreakdown.focusMatch,
+                conceptOverlap:   Number(searchResult.topBreakdown.conceptOverlap.toFixed(3)),
+                observationMatch: searchResult.topBreakdown.observationMatch,
+              }
+            : null,
           fallback_pool_used:       searchResult.usedFallbackPool,
+          // grounding_validation: GPT 출력 실제 검증 결과 (parser_confidence 미사용)
           grounding_validation: {
-            status: meaning.confidence >= GROUNDING_PASS_THRESHOLD
-              ? 'PASS'
-              : meaning.confidence >= GROUNDING_WARNING_THRESHOLD
-                ? 'WARNING'
-                : 'FAIL',
-            score:              meaning.confidence,
-            pass_threshold:     GROUNDING_PASS_THRESHOLD,
-            warning_threshold:  GROUNDING_WARNING_THRESHOLD,
+            status:                            groundingResult.status,
+            score:                             groundingResult.score,
+            unsupported_claim_count:           groundingResult.unsupported_claim_count,
+            student_to_common_leak_count:      groundingResult.student_to_common_leak_count,
+            invented_student_evaluation_count: groundingResult.invented_student_evaluation_count,
+            invented_next_plan_count:          groundingResult.invented_next_plan_count,
+            invented_technique_count:          groundingResult.invented_technique_count,
           },
-          knowledge_ids:             [],
+          knowledge_ids:          [],
           // 실제 DB template IDs — 후보 vs 사용 분리
-          template_candidate_ids:    searchResult.candidateIds,
-          template_ids:              generation_mode === 'TEMPLATE_ASSISTED'
+          template_candidate_ids: searchResult.candidateIds,
+          template_ids:           generation_mode === 'TEMPLATE_ASSISTED'
             ? searchResult.usedTemplates.map(t => t.id)
             : [],
-          fallback_used:             searchResult.usedFallbackPool,
+          fallback_used:          searchResult.usedFallbackPool,
         },
         usage: {
           input_tokens:  usage?.prompt_tokens     ?? 0,
@@ -339,7 +386,7 @@ router.post(
       };
 
       // ── Trace: RESPONSE_SENT ────────────────────────────────────────────────
-      console.log(`[AI/v1:${internalId}] RESPONSE_SENT request_id=${externalRequestId} http_status=200 generation_mode=${generation_mode} student_count=${validated.students.length} total_latency_ms=${elapsedMs}`);
+      console.log(`[AI/v1:${internalId}] RESPONSE_SENT request_id=${externalRequestId} http_status=200 generation_mode=${generation_mode} student_count=${validated.students.length} grounding=${groundingResult.status} total_latency_ms=${elapsedMs}`);
 
       res.status(200).json(responseBody);
 
@@ -347,18 +394,18 @@ router.post(
       const elapsedMs = Date.now() - startMs;
 
       if (e instanceof ModelTimeoutError) {
-        logDiaryStructured({ internal_id: internalId, external_request_id: externalRequestId, feature_flag: 'parser_v1', engine_version: ENGINE_VERSION, prompt_version: 'p_template_v1', validator_result: 'timeout', error_code: 'MODEL_TIMEOUT', latency_ms: elapsedMs, pool_id_hash: hashPoolId(poolId) });
+        logDiaryStructured({ internal_id: internalId, external_request_id: externalRequestId, feature_flag: 'parser_v1', engine_version: ENGINE_VERSION, prompt_version: 'p_template_v2', validator_result: 'timeout', error_code: 'MODEL_TIMEOUT', latency_ms: elapsedMs, pool_id_hash: hashPoolId(poolId) });
         res.status(504).json(errBody(externalRequestId, 'MODEL_TIMEOUT', 'Teacher diary generation timed out.', true)); return;
       }
 
       if (e instanceof OutputValidationError) {
-        logDiaryStructured({ internal_id: internalId, external_request_id: externalRequestId, feature_flag: 'parser_v1', engine_version: ENGINE_VERSION, prompt_version: 'p_template_v1', validator_result: `fail:${e.reason}`, error_code: 'OUTPUT_VALIDATION_FAILED', latency_ms: elapsedMs, pool_id_hash: hashPoolId(poolId) });
+        logDiaryStructured({ internal_id: internalId, external_request_id: externalRequestId, feature_flag: 'parser_v1', engine_version: ENGINE_VERSION, prompt_version: 'p_template_v2', validator_result: `fail:${e.reason}`, error_code: 'OUTPUT_VALIDATION_FAILED', latency_ms: elapsedMs, pool_id_hash: hashPoolId(poolId) });
         console.error(`[AI/v1:${internalId}] output_validation_failed reason=${e.reason}`);
         res.status(500).json(errBody(externalRequestId, 'OUTPUT_VALIDATION_FAILED', 'Teacher diary output validation failed.', false)); return;
       }
 
       const safeMsg = String(e?.message ?? '').replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED]');
-      logDiaryStructured({ internal_id: internalId, external_request_id: externalRequestId, feature_flag: 'parser_v1', engine_version: ENGINE_VERSION, prompt_version: 'p_template_v1', validator_result: 'error', error_code: e?.code ?? 'INTERNAL_ERROR', latency_ms: elapsedMs, pool_id_hash: hashPoolId(poolId) });
+      logDiaryStructured({ internal_id: internalId, external_request_id: externalRequestId, feature_flag: 'parser_v1', engine_version: ENGINE_VERSION, prompt_version: 'p_template_v2', validator_result: 'error', error_code: e?.code ?? 'INTERNAL_ERROR', latency_ms: elapsedMs, pool_id_hash: hashPoolId(poolId) });
       console.error(`[AI/v1:${internalId}] error elapsed=${elapsedMs}ms msg=${safeMsg}`);
       const retryable = !e?.status || e.status >= 500 || e.status === 429;
       res.status(e?.status ?? 500).json(errBody(externalRequestId, e?.code ?? 'INTERNAL_ERROR', 'Teacher diary generation failed.', retryable));
