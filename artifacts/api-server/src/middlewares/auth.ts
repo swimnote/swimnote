@@ -58,6 +58,13 @@ function isRetainModeAllowed(req: Request): boolean {
 }
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
+  const path = req.path ?? req.url ?? '';
+  const isAiPath = path.includes('/v1/teacher-diary') || path.includes('/ai/diary');
+  if (isAiPath) {
+    const authHeader = req.headers.authorization;
+    const hasToken = Boolean(authHeader?.startsWith('Bearer '));
+    console.log(`[requireAuth] AI_REQUEST path=${path} method=${req.method} has_token=${hasToken}`);
+  }
   const authHeader = req.headers.authorization;
   // Expo Go 등 환경에서 Image 컴포넌트가 Authorization 헤더를 전송 못할 때
   // ?token= 쿼리 파라미터를 폴백으로 허용 (GET 전용 파일 서빙 엔드포인트)
@@ -71,6 +78,7 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   try {
     const payload = verifyToken(token);
     if (payload.tv !== TOKEN_VERSION) {
+      if (isAiPath) console.log(`[requireAuth] AI_REQUEST token_version_mismatch path=${path}`);
       res.status(401).json({ success: false, message: "세션이 만료되었습니다. 다시 로그인해주세요.", error: "token_version_mismatch" });
       return;
     }
@@ -169,6 +177,7 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
       next(); // DB 오류 시 통과 (서비스 안정성 우선)
     });
   } catch {
+    if (isAiPath) console.log(`[requireAuth] AI_REQUEST invalid_token path=${path}`);
     res.status(401).json({ success: false, message: "유효하지 않은 토큰입니다.", error: "유효하지 않은 토큰입니다." });
   }
 }
