@@ -888,6 +888,34 @@ function translateClientError(
     };
   }
 
+  // ── AUTH_TOKEN_MISSING — 토큰 없이 요청 시도 ──────────────────────────
+  if (failure.errorDetail === 'AUTH_TOKEN_MISSING') {
+    return {
+      ok:    false,
+      error: {
+        origin:      'UNKNOWN',
+        message:     '로그인 정보가 없습니다. 앱을 재시작한 후 다시 로그인해 주세요.',
+        retryable:   false,
+        retryTarget: null,
+        causeCode:   'AUTH_TOKEN_MISSING',
+        diagInfo: {
+          causeCode:      'AUTH_TOKEN_MISSING',
+          httpStatus:     null,
+          endpointHost,
+          endpointPath:   endpointPath ?? '(unknown)',
+          contentTypeRaw: '',
+          responseKeys:   '—',
+          contractVersion: '—',
+          schemaVersion:   '—',
+          engineVersion:   '—',
+          hasResult:       false,
+          commonType:      '—',
+          studentsType:    '—',
+        },
+      },
+    };
+  }
+
   // ── 네트워크 오류 (fetch throw) ─────────────────────────────────────────
   console.error('[DiaryAIService] network_error', {
     request_id:    requestId,

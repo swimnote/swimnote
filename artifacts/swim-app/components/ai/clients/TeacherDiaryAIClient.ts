@@ -42,33 +42,40 @@ export type AIDiaryMode = 'legacy' | 'grounded';
 /**
  * 현재 활성 AI diary 모드를 반환합니다.
  * EXPO_PUBLIC_SWIMNOTE_AI_MODE 환경변수로 제어합니다.
+ *
+ * ★ 기본값: 'grounded' — 정식 V1 엔드포인트 사용
+ *   'legacy'는 rollback 전용 (EXPO_PUBLIC_SWIMNOTE_AI_MODE=legacy 명시 시에만 활성화)
  */
 export function getAIDiaryMode(): AIDiaryMode {
   const raw = (process.env.EXPO_PUBLIC_SWIMNOTE_AI_MODE ?? '').trim().toLowerCase();
-  if (raw === 'grounded') return 'grounded';
-  if (raw === '' || raw === 'legacy') return 'legacy';
+  if (raw === 'legacy') return 'legacy';
+  if (raw === '' || raw === 'grounded') return 'grounded';
   console.warn(
     `[TeacherDiaryAIClient] EXPO_PUBLIC_SWIMNOTE_AI_MODE="${process.env.EXPO_PUBLIC_SWIMNOTE_AI_MODE}" ` +
-    `알 수 없는 값 — legacy로 폴백`,
+    `알 수 없는 값 — grounded로 폴백`,
   );
-  return 'legacy';
+  return 'grounded';
 }
 
 // ── URL 설정 ──────────────────────────────────────────────────────────────────
 
 /**
- * Legacy: 현재 SWIMNOTE API Server (Render.com)
- * rollback 전용 — AI Engine 전환 후에도 삭제하지 않음
+ * Legacy: SWIMNOTE API Server (Render.com) — 구형 엔드포인트
+ * rollback 전용 — EXPO_PUBLIC_SWIMNOTE_AI_MODE=legacy 명시 시에만 사용
  */
 const LEGACY_BASE = 'https://swimnote-api.onrender.com';
 const LEGACY_PATH = '/api/ai/diary/generate';
 
 /**
- * Grounded: SWIMNOTE AI Engine
- * ★ AI Engine 최종 URL 확정 전까지 GROUNDED_BASE는 빈 문자열.
- *   grounded 모드에서 URL이 미설정이면 getDiaryEndpoint()가 오류를 throw합니다.
+ * Grounded: SWIMNOTE API Server (Render.com) — 정식 V1 엔드포인트
+ *
+ * ★ 기본값 고정: 'https://swimnote-api.onrender.com'
+ *   환경변수 EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL이 있으면 우선 사용하고,
+ *   없으면 운영 서버 URL로 자동 연결됩니다.
+ *   환경변수 미설정이라도 grounded 모드가 정상 동작합니다.
  */
-const GROUNDED_BASE  = (process.env.EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL   as string | undefined) ?? '';
+const GROUNDED_BASE  =
+  (process.env.EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL as string | undefined)?.trim() || 'https://swimnote-api.onrender.com';
 // ★ 정식 V1 엔드포인트: /api/v1/teacher-diary/generate
 // EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH 미설정 시 이 기본값이 사용됩니다.
 // 구형 기본값 /api/ai/diary/generate 는 잘못된 응답 구조를 반환합니다.
@@ -87,22 +94,34 @@ export interface DiaryEndpoint {
  */
 export function getDiaryEndpoint(mode: AIDiaryMode): DiaryEndpoint {
   if (mode === 'grounded') {
-    if (!GROUNDED_BASE) {
-      throw new Error(
-        '[TeacherDiaryAIClient] EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL이 설정되지 않았습니다. ' +
-        'grounded 모드를 사용하려면 AI Engine Base URL이 필요합니다.',
-      );
-    }
+    // GROUNDED_BASE는 기본값이 하드코딩되어 있어 항상 유효합니다.
     const base = GROUNDED_BASE.replace(/\/+$/, '');
     const path = GROUNDED_PATH.startsWith('/') ? GROUNDED_PATH : `/${GROUNDED_PATH}`;
     const url  = `${base}${path}`;
     const host = base.replace(/^https?:\/\//, '').split('/')[0]!;
     return { base, path, url, host };
   }
-  // legacy
+  // legacy (rollback 전용)
   const url  = `${LEGACY_BASE}${LEGACY_PATH}`;
   const host = LEGACY_BASE.replace(/^https?:\/\//, '').split('/')[0]!;
   return { base: LEGACY_BASE, path: LEGACY_PATH, url, host };
+}
+
+// ── 시작 로그 (모듈 로드 시 1회) ───────────────────────────────────────────────
+// 앱 시작 시 실제 런타임 AI 설정값을 확인합니다. PII 미포함.
+try {
+  const _startMode = getAIDiaryMode();
+  const _startEp   = getDiaryEndpoint(_startMode);
+  console.log('[TeacherDiaryAIClient] init', {
+    mode:          _startMode,
+    endpoint_host: _startEp.host,
+    endpoint_path: _startEp.path,
+    endpoint_url:  _startEp.url,
+    grounded_base_env_set: Boolean(process.env.EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL),
+    ai_mode_env:   process.env.EXPO_PUBLIC_SWIMNOTE_AI_MODE ?? '(not set)',
+  });
+} catch (e: any) {
+  console.warn('[TeacherDiaryAIClient] init_log_error', e?.message);
 }
 
 // ── Client I/O 타입 ───────────────────────────────────────────────────────────
@@ -166,6 +185,29 @@ export type AIClientResult = AIClientSuccess | AIClientFailure;
  */
 export async function sendRequest(req: AIClientRequest): Promise<AIClientResult> {
   const { body, token, signal, timeoutMs, mode } = req;
+
+  // ── 토큰 사전 검증 — 요청 전 차단 ───────────────────────────────────────
+  // 토큰이 없으면 네트워크 요청 없이 즉시 AUTH_TOKEN_MISSING 반환합니다.
+  // 401 HTTP 응답과 구분하여 AUTH_TOKEN_MISSING으로 정확히 분류합니다.
+  if (!token) {
+    let endpoint2: DiaryEndpoint;
+    try { endpoint2 = getDiaryEndpoint(mode); } catch { endpoint2 = { base: '', path: '', url: '', host: '(unknown)' }; }
+    console.error('[TeacherDiaryAIClient] auth_token_missing', {
+      mode,
+      endpoint_host: endpoint2.host,
+      endpoint_path: endpoint2.path,
+    });
+    return {
+      ok:           false,
+      reason:       'NETWORK',
+      httpStatus:   null,
+      body:         null,
+      mode,
+      endpointHost: endpoint2.host,
+      endpointPath: endpoint2.path,
+      errorDetail:  'AUTH_TOKEN_MISSING',
+    };
+  }
 
   // ── 엔드포인트 결정 ──────────────────────────────────────────────────────
   let endpoint: DiaryEndpoint;
