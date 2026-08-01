@@ -55,20 +55,3 @@ SMS_DEV_EXPOSE_CODE = "true"
 
 [userenv.production]
 SMS_DEV_EXPOSE_CODE = "false"
-
-[[ports]]
-localPort = 8080
-externalPort = 8080
-
-[[ports]]
-localPort = 8081
-externalPort = 8081
-
-[[ports]]
-localPort = 20219
-externalPort = 80
-
-[[ports]]
-localPort = 22317
-externalPort = 3000
-exposeLocalhost = true
