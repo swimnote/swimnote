@@ -11,6 +11,7 @@
  *     각 일지: 날짜 · 선생님 · 본문 · 개별메모 · 사진 · 영상 · 반응
  */
 import { ParentPromoStrip } from "@/components/parent/ParentPromoStrip";
+import { AIFeatureModal, AIModalType } from "@/components/parent/AIFeatureModal";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -853,7 +854,7 @@ export default function ParentHomeScreen() {
   const [linking, setLinking] = useState(false);
   const [confirmedPool, setConfirmedPool] = useState<PoolResult | null>(null);
 
-  const [comingSoonModal, setComingSoonModal] = useState(false);
+  const [aiModalType, setAiModalType] = useState<AIModalType | null>(null);
   const [v2Status, setV2Status] = useState<
     "no_pool" | "waiting" | "linked" | null
   >("no_pool");
@@ -1382,13 +1383,14 @@ export default function ParentHomeScreen() {
       {/* AI 커리큘럼 버튼 (헤더 아래 우측) */}
       <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 20, paddingBottom: 4 }}>
         <Pressable
-          onPress={() => setComingSoonModal(true)}
+          onPress={() => setAiModalType("curriculum")}
           style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 5, opacity: pressed ? 0.6 : 1 })}
         >
           <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 43, height: 43 }} resizeMode="contain" />
           <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>AI 커리큘럼</Text>
         </Pressable>
       </View>
+
 
       {/* B. 자녀 선택 탭 */}
       <ScrollView
@@ -1461,7 +1463,7 @@ export default function ParentHomeScreen() {
           )}
           <View style={{ flex: 1 }} />
           <Pressable
-            onPress={() => setComingSoonModal(true)}
+            onPress={() => setAiModalType("report")}
             style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 6, marginRight: 10, opacity: pressed ? 0.6 : 1 })}
           >
             <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 40, height: 40 }} resizeMode="contain" />
@@ -1654,35 +1656,14 @@ export default function ParentHomeScreen() {
         <Text style={s.bottomBarTxt}>Powered by SWIMNOTE AI + OpenAI GPT</Text>
       </View>
 
-      {/* 준비중 모달 */}
-      <Modal
-        visible={comingSoonModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setComingSoonModal(false)}
-      >
-        <Pressable
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" }}
-          onPress={() => setComingSoonModal(false)}
-        >
-          <Pressable
-            style={{ backgroundColor: "#fff", borderRadius: 22, padding: 36, alignItems: "center", marginHorizontal: 40, gap: 10 }}
-            onPress={() => {}}
-          >
-            <Text style={{ fontSize: 44 }}>🚀</Text>
-            <Text style={{ fontSize: 19, fontFamily: "Pretendard-Bold", color: C.text, marginTop: 4 }}>준비 중입니다</Text>
-            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 }}>
-              더 나은 서비스로{"\n"}곧 찾아올게요!
-            </Text>
-            <Pressable
-              onPress={() => setComingSoonModal(false)}
-              style={({ pressed }) => ({ backgroundColor: pressed ? "#27B8AC" : TEAL, borderRadius: 12, paddingHorizontal: 36, paddingVertical: 13, marginTop: 6 })}
-            >
-              <Text style={{ fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" }}>확인</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      {/* AI 기능 안내 모달 */}
+      {aiModalType !== null && (
+        <AIFeatureModal
+          visible={aiModalType !== null}
+          type={aiModalType}
+          onClose={() => setAiModalType(null)}
+        />
+      )}
     </View>
   );
 }
