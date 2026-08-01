@@ -48,8 +48,25 @@ export default function AIErrorViewV2({ error, onRetry, onClose }: AIErrorViewV2
       <Text style={styles.title}>오류가 발생했습니다</Text>
       <Text style={styles.message}>{error.message}</Text>
 
-      {__DEV__ && error.causeCode ? (
-        <Text style={styles.debugCode}>[DEV] {error.causeCode}</Text>
+      {__DEV__ && (error.causeCode || error.diagInfo) ? (
+        <View style={styles.debugBlock}>
+          {error.causeCode ? (
+            <Text style={styles.debugCode}>오류 코드: {error.causeCode}</Text>
+          ) : null}
+          {error.diagInfo ? (
+            <>
+              <Text style={styles.debugCode}>HTTP: {error.diagInfo.httpStatus ?? '-'}</Text>
+              <Text style={styles.debugCode}>경로: {error.diagInfo.endpointHost}{error.diagInfo.endpointPath}</Text>
+              {error.diagInfo.contentTypeRaw ? (
+                <Text style={styles.debugCode}>Content-Type: {error.diagInfo.contentTypeRaw}</Text>
+              ) : null}
+              <Text style={styles.debugCode}>응답키: {error.diagInfo.responseKeys}</Text>
+              {error.diagInfo.responsePreview ? (
+                <Text style={styles.debugCode} numberOfLines={3}>미리보기: {error.diagInfo.responsePreview}</Text>
+              ) : null}
+            </>
+          ) : null}
+        </View>
       ) : null}
 
       <View style={styles.buttonRow}>
@@ -86,11 +103,19 @@ const styles = StyleSheet.create({
     color:     AIThemeColor.textSub,
     textAlign: 'center',
   },
+  debugBlock: {
+    width:           '100%',
+    backgroundColor: '#f5f5f5',
+    borderRadius:    6,
+    padding:         8,
+    gap:             2,
+  },
   debugCode: {
     fontSize:  11,
     color:     AIThemeColor.textSub,
-    opacity:   0.5,
-    textAlign: 'center',
+    opacity:   0.7,
+    textAlign: 'left',
+    fontFamily: 'monospace',
   },
   buttonRow: {
     flexDirection: 'row',

@@ -44,6 +44,7 @@ import backupStatusRouter from "./backup-status.js";
 import restoreRouter from "./restore.js";
 import platformBannersRouter from "./platform-banners.js";
 import appVersionRouter from "./app-version.js";
+import aiDiagRouter from "./ai-diag.js";
 
 const router: IRouter = Router();
 
@@ -94,5 +95,6 @@ router.use("/", restoreRouter);
 router.use("/", privacyPageRouter);
 router.use("/", platformBannersRouter);
 router.use("/", appVersionRouter);
+router.use("/", aiDiagRouter);
 
 export default router;

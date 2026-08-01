@@ -143,6 +143,23 @@ export interface DiaryInsertResult {
   students:    StudentDiaryNote[];
 }
 
+/** 진단 정보 — __DEV__ UI 표시 및 서버 전송용 (PII 절대 포함 금지) */
+export interface DiagInfo {
+  causeCode:        string;
+  httpStatus:       number | null;
+  endpointHost:     string;
+  endpointPath:     string;
+  responseKeys:     string;
+  responsePreview:  string;
+  contentTypeRaw:   string;
+  contractVersion:  string;
+  schemaVersion:    string;
+  engineVersion:    string;
+  hasResult:        boolean;
+  commonType:       string;
+  studentsType:     string;
+}
+
 /** Service 오류 구조체 — Hook이 상태 전환에 사용 */
 export interface DiaryServiceError {
   origin:      'NETWORK' | 'TIMEOUT' | 'PERMISSION' | 'UNKNOWN';
@@ -153,6 +170,8 @@ export interface DiaryServiceError {
   retryTarget: DiaryAIStateV2 | null;
   /** 디버그용 내부 코드 */
   causeCode?:  string;
+  /** 진단 정보 — __DEV__ UI 표시 및 서버 전송용 */
+  diagInfo?:   DiagInfo;
 }
 
 // ─── 생성 API 파라미터 / 결과 ─────────────────────────────────────────────────
@@ -551,6 +570,53 @@ export function normalizeDiaryResponse(params: {
   };
 }
 
+// ─── 진단 헬퍼 ────────────────────────────────────────────────────────────────
+
+/** body 객체에서 PII 없는 진단 필드를 추출합니다. */
+function extractBodyInfo(body: unknown): Pick<DiagInfo, 'responseKeys' | 'responsePreview' | 'contractVersion' | 'schemaVersion' | 'engineVersion' | 'hasResult' | 'commonType' | 'studentsType'> {
+  if (body === null || body === undefined) {
+    return { responseKeys: '(null)', responsePreview: '', contractVersion: '-', schemaVersion: '-', engineVersion: '-', hasResult: false, commonType: '-', studentsType: '-' };
+  }
+  if (typeof body !== 'object' || Array.isArray(body)) {
+    return { responseKeys: '(non-object)', responsePreview: String(body).slice(0, 200), contractVersion: '-', schemaVersion: '-', engineVersion: '-', hasResult: false, commonType: '-', studentsType: '-' };
+  }
+  const b         = body as Record<string, unknown>;
+  const keys      = Object.keys(b).join(',');
+  const preview   = JSON.stringify(b).slice(0, 200);
+  const result    = b.result;
+  const hasResult = typeof result === 'object' && result !== null && !Array.isArray(result);
+  const r         = hasResult ? (result as Record<string, unknown>) : null;
+  const commonType   = r ? typeof r.common   : '-';
+  const studentsType = r
+    ? (Array.isArray(r.students) ? `Array(${(r.students as unknown[]).length})` : typeof r.students)
+    : '-';
+  return {
+    responseKeys:    keys,
+    responsePreview: preview,
+    contractVersion: typeof b.contract_version === 'string' ? b.contract_version : '-',
+    schemaVersion:   typeof b.schema_version   === 'string' ? b.schema_version   : '-',
+    engineVersion:   typeof b.engine_version   === 'string' ? b.engine_version   : '-',
+    hasResult,
+    commonType,
+    studentsType,
+  };
+}
+
+/** 진단 로그를 서버에 fire-and-forget으로 전송 (실패해도 앱 동작에 영향 없음) */
+function sendDiagLog(payload: Omit<DiagInfo, 'responsePreview'> & {
+  request_id:      string;
+  pipeline_mode:   string;
+  response_preview: string;
+}): void {
+  try {
+    fetch(`${SWIMNOTE_API_SERVER_BASE}/api/ai/diary/diagnose`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ ts: Date.now(), ...payload }),
+    }).catch(() => { /* silent */ });
+  } catch { /* silent */ }
+}
+
 // ─── translateClientError ─────────────────────────────────────────────────────
 //
 // AIClientFailure → DiaryGenerateResult 변환
@@ -560,7 +626,8 @@ function translateClientError(
   failure:   AIClientFailure,
   requestId: string,
 ): DiaryGenerateResult {
-  const { reason, httpStatus, body, mode, endpointHost } = failure;
+  const { reason, httpStatus, body, mode, endpointHost, endpointPath,
+          contentTypeRaw, responsePreview } = failure;
 
   // ── timeout ─────────────────────────────────────────────────────────────
   if (reason === 'TIMEOUT') {
@@ -578,12 +645,48 @@ function translateClientError(
 
   // ── content-type mismatch (HTML SPA fallback 등) ─────────────────────────
   if (reason === 'CONTENT_TYPE') {
+    const causeCode = `CONTENT_TYPE_${httpStatus ?? 0}`;
+    const di: DiagInfo = {
+      causeCode,
+      httpStatus,
+      endpointHost,
+      endpointPath:    endpointPath ?? '(unknown)',
+      responseKeys:    '(non-JSON)',
+      responsePreview: responsePreview ?? '',
+      contentTypeRaw:  contentTypeRaw ?? '',
+      contractVersion: '-',
+      schemaVersion:   '-',
+      engineVersion:   '-',
+      hasResult:       false,
+      commonType:      '-',
+      studentsType:    '-',
+    };
     console.error('[DiaryAIService] content_type_error', {
-      request_id:    requestId,
-      error_code:    reason,
-      http_status:   httpStatus,
-      endpoint_host: endpointHost,
-      pipeline_mode: mode,
+      request_id:       requestId,
+      error_code:       reason,
+      http_status:      httpStatus,
+      endpoint_host:    endpointHost,
+      endpoint_path:    endpointPath,
+      content_type_raw: contentTypeRaw,
+      response_preview: (responsePreview ?? '').slice(0, 80),
+      pipeline_mode:    mode,
+    });
+    sendDiagLog({
+      request_id:       requestId,
+      pipeline_mode:    mode,
+      causeCode,
+      httpStatus,
+      endpointHost,
+      endpointPath:     endpointPath ?? '(unknown)',
+      responseKeys:     '(non-JSON)',
+      response_preview: responsePreview ?? '',
+      contentTypeRaw:   contentTypeRaw ?? '',
+      contractVersion:  '-',
+      schemaVersion:    '-',
+      engineVersion:    '-',
+      hasResult:        false,
+      commonType:       '-',
+      studentsType:     '-',
     });
     return {
       ok:    false,
@@ -592,19 +695,56 @@ function translateClientError(
         message:     '응답 형식 오류가 발생했습니다. 다시 시도해주세요.',
         retryable:   true,
         retryTarget: 'INPUT',
-        causeCode:   `CONTENT_TYPE_${httpStatus ?? 0}`,
+        causeCode,
+        diagInfo:    di,
       },
     };
   }
 
   // ── JSON parse 실패 ─────────────────────────────────────────────────────
   if (reason === 'PARSE_ERROR') {
+    const causeCode = 'RESPONSE_PARSE_ERROR';
+    const di: DiagInfo = {
+      causeCode,
+      httpStatus,
+      endpointHost,
+      endpointPath:    endpointPath ?? '(unknown)',
+      responseKeys:    '(parse-failed)',
+      responsePreview: responsePreview ?? '',
+      contentTypeRaw:  contentTypeRaw ?? '',
+      contractVersion: '-',
+      schemaVersion:   '-',
+      engineVersion:   '-',
+      hasResult:       false,
+      commonType:      '-',
+      studentsType:    '-',
+    };
     console.error('[DiaryAIService] parse_error', {
-      request_id:    requestId,
-      error_code:    reason,
-      http_status:   httpStatus,
-      endpoint_host: endpointHost,
-      pipeline_mode: mode,
+      request_id:       requestId,
+      error_code:       reason,
+      http_status:      httpStatus,
+      endpoint_host:    endpointHost,
+      endpoint_path:    endpointPath,
+      content_type_raw: contentTypeRaw,
+      response_preview: (responsePreview ?? '').slice(0, 80),
+      pipeline_mode:    mode,
+    });
+    sendDiagLog({
+      request_id:       requestId,
+      pipeline_mode:    mode,
+      causeCode,
+      httpStatus,
+      endpointHost,
+      endpointPath:     endpointPath ?? '(unknown)',
+      responseKeys:     '(parse-failed)',
+      response_preview: responsePreview ?? '',
+      contentTypeRaw:   contentTypeRaw ?? '',
+      contractVersion:  '-',
+      schemaVersion:    '-',
+      engineVersion:    '-',
+      hasResult:        false,
+      commonType:       '-',
+      studentsType:     '-',
     });
     return {
       ok:    false,
@@ -613,7 +753,8 @@ function translateClientError(
         message:     '응답 형식 오류가 발생했습니다. 다시 시도해주세요.',
         retryable:   false,
         retryTarget: 'INPUT',
-        causeCode:   'RESPONSE_PARSE_ERROR',
+        causeCode,
+        diagInfo:    di,
       },
     };
   }
@@ -631,7 +772,31 @@ function translateClientError(
       pipeline_mode: mode,
     });
 
-    if (httpStatus === 401 || httpStatus === 403) {
+    // ── 401 인증 만료 ─────────────────────────────────────────────────────
+    if (httpStatus === 401) {
+      const bodyInfo = extractBodyInfo(body);
+      return {
+        ok:    false,
+        error: {
+          origin:      'UNKNOWN',
+          message:     '로그인 정보가 만료되었습니다. 다시 로그인해 주세요.',
+          retryable:   false,
+          retryTarget: null,
+          causeCode:   'AUTH_401',
+          diagInfo: {
+            causeCode:       'AUTH_401',
+            httpStatus:      401,
+            endpointHost,
+            endpointPath:    endpointPath ?? '(unknown)',
+            contentTypeRaw:  '',
+            ...bodyInfo,
+          },
+        },
+      };
+    }
+
+    // ── 403 권한 없음 ──────────────────────────────────────────────────────
+    if (httpStatus === 403) {
       return {
         ok:    false,
         error: {
@@ -639,7 +804,7 @@ function translateClientError(
           message:     '인증이 만료되었습니다. 앱을 재시작한 후 다시 로그인해 주세요.',
           retryable:   false,
           retryTarget: null,
-          causeCode:   `AUTH_${httpStatus}_${serverCode}`,
+          causeCode:   `FORBIDDEN_${serverCode}`,
         },
       };
     }
@@ -791,21 +956,29 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
   // ── 3. Feature flag 결정 ─────────────────────────────────────────────────
   const mode: AIDiaryMode = getAIDiaryMode();
 
-  // ── 4. 엔드포인트 host (로깅용) ──────────────────────────────────────────
+  // ── 4. 엔드포인트 host / path (로깅 및 진단용) ────────────────────────────
   let endpointHost = '(unknown)';
+  let endpointPath = '(unknown)';
+  let endpointUrl  = '(unknown)';
   try {
-    endpointHost = getDiaryEndpoint(mode).host;
+    const ep = getDiaryEndpoint(mode);
+    endpointHost = ep.host;
+    endpointPath = ep.path;
+    endpointUrl  = ep.url;
   } catch { /* grounded + URL 미설정 — sendRequest에서 처리 */ }
 
   // ── 5. 요청 시작 로그 (PII 미포함) ──────────────────────────────────────
   // 금지: 학생 이름, 교사 입력 원문, JWT, 전체 payload
-  // 허용: request_id, endpoint_host, status, student_count, text_length, pipeline_mode
+  // 허용: request_id, endpoint_host, endpoint_path, mode, student_count, text_length
   console.log('[DiaryAIService] generate_request', {
-    request_id:    requestId,
-    endpoint_host: endpointHost,
-    student_count: students.length,
-    text_length:   inputText.trim().length,
-    pipeline_mode: mode,
+    request_id:             requestId,
+    SWIMNOTE_AI_MODE_env:   process.env.EXPO_PUBLIC_SWIMNOTE_AI_MODE ?? '(not set)',
+    pipeline_mode:          mode,
+    endpoint_host:          endpointHost,
+    endpoint_path:          endpointPath,
+    endpoint_url:           endpointUrl,
+    student_count:          students.length,
+    text_length:            inputText.trim().length,
   });
 
   // ── 6. 진행 상태 알림 ────────────────────────────────────────────────────
@@ -832,6 +1005,7 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
   console.log('[DiaryAIService] generate_response', {
     request_id:    requestId,
     endpoint_host: clientResult.endpointHost,
+    endpoint_path: clientResult.endpointPath,
     ok:            clientResult.ok,
     http_status:   clientResult.ok ? clientResult.httpStatus : (clientResult.httpStatus ?? 'N/A'),
     pipeline_mode: mode,
@@ -887,10 +1061,26 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
       };
     }
 
+    const contractCause = normalized.contractError ?? 'CONTRACT_UNKNOWN';
+    const bodyInfo      = extractBodyInfo(clientResult.body);
     console.error('[DiaryAIService] contract_error', {
       request_id:    requestId,
-      error_code:    normalized.contractError,
+      error_code:    contractCause,
+      endpoint_host: endpointHost,
+      endpoint_path: endpointPath,
       pipeline_mode: mode,
+      response_keys: bodyInfo.responseKeys,
+    });
+    sendDiagLog({
+      request_id:       requestId,
+      pipeline_mode:    mode,
+      causeCode:        contractCause,
+      httpStatus:       clientResult.httpStatus,
+      endpointHost,
+      endpointPath,
+      contentTypeRaw:   '',
+      response_preview: bodyInfo.responsePreview,
+      ...bodyInfo,
     });
     return {
       ok:    false,
@@ -899,7 +1089,15 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
         message:     '결과 생성에 실패했습니다. 다시 시도해주세요.',
         retryable:   false,
         retryTarget: 'INPUT',
-        causeCode:   normalized.contractError,
+        causeCode:   contractCause,
+        diagInfo: {
+          causeCode:      contractCause,
+          httpStatus:     clientResult.httpStatus,
+          endpointHost,
+          endpointPath,
+          contentTypeRaw: '',
+          ...bodyInfo,
+        },
       },
     };
   }

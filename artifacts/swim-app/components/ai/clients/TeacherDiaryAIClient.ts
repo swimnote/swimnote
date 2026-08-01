@@ -133,19 +133,25 @@ export interface AIClientSuccess {
   body:         unknown;      // JSON.parse 성공 body
   mode:         AIDiaryMode;
   endpointHost: string;       // 로깅용
+  endpointPath: string;       // 진단용
 }
 
 export interface AIClientFailure {
-  ok:           false;
-  reason:       AIClientFailureReason;
+  ok:              false;
+  reason:          AIClientFailureReason;
   /** 네트워크 오류(fetch throw) 시 null */
-  httpStatus:   number | null;
+  httpStatus:      number | null;
   /** JSON parse 성공 시 오류 body, 아니면 null */
-  body:         unknown | null;
-  mode:         AIDiaryMode;
-  endpointHost: string;
+  body:            unknown | null;
+  mode:            AIDiaryMode;
+  endpointHost:    string;
+  endpointPath:    string;       // 진단용
   /** 로깅용 상세 — PII 미포함 */
-  errorDetail:  string;
+  errorDetail:     string;
+  /** CONTENT_TYPE 케이스: 실제 Content-Type 헤더 값 */
+  contentTypeRaw?: string;
+  /** CONTENT_TYPE / PARSE_ERROR 케이스: 응답 body 앞 300자 */
+  responsePreview?: string;
 }
 
 export type AIClientResult = AIClientSuccess | AIClientFailure;
@@ -173,6 +179,7 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
       body:         null,
       mode,
       endpointHost: '(config_error)',
+      endpointPath: '(config_error)',
       errorDetail:  e.message ?? 'ENDPOINT_CONFIG_ERROR',
     };
   }
@@ -218,6 +225,7 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
         body:         null,
         mode,
         endpointHost: endpoint.host,
+        endpointPath: endpoint.path,
         errorDetail:  'fetch_timeout',
       };
     }
@@ -231,6 +239,7 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
       body:         null,
       mode,
       endpointHost: endpoint.host,
+      endpointPath: endpoint.path,
       errorDetail:  safeMsg,
     };
   }
@@ -250,6 +259,7 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
       body:         null,
       mode,
       endpointHost: endpoint.host,
+      endpointPath: endpoint.path,
       errorDetail:  'response_stream_error',
     };
   }
@@ -263,13 +273,16 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
     // body_preview에 학생 이름/일지 원문이 들어갈 가능성 없음 (서버 자체 HTML)
     const snippet = responseText.slice(0, 40).replace(/\s+/g, ' ').trim();
     return {
-      ok:           false,
-      reason:       'CONTENT_TYPE',
-      httpStatus:   response.status,
-      body:         null,
+      ok:              false,
+      reason:          'CONTENT_TYPE',
+      httpStatus:      response.status,
+      body:            null,
       mode,
-      endpointHost: endpoint.host,
-      errorDetail:  `ct=${contentType} status=${response.status} preview=[${snippet}]`,
+      endpointHost:    endpoint.host,
+      endpointPath:    endpoint.path,
+      errorDetail:     `ct=${contentType} status=${response.status} preview=[${snippet}]`,
+      contentTypeRaw:  contentType,
+      responsePreview: responseText.slice(0, 300),
     };
   }
 
@@ -285,13 +298,16 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
 
   if (!parseOk) {
     return {
-      ok:           false,
-      reason:       'PARSE_ERROR',
-      httpStatus:   response.status,
-      body:         null,
+      ok:              false,
+      reason:          'PARSE_ERROR',
+      httpStatus:      response.status,
+      body:            null,
       mode,
-      endpointHost: endpoint.host,
-      errorDetail:  `json_parse_failed status=${response.status}`,
+      endpointHost:    endpoint.host,
+      endpointPath:    endpoint.path,
+      errorDetail:     `json_parse_failed status=${response.status}`,
+      contentTypeRaw:  contentType,
+      responsePreview: responseText.slice(0, 300),
     };
   }
 
@@ -304,6 +320,7 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
       body:         parsedBody,   // 오류 body (error.code 등)
       mode,
       endpointHost: endpoint.host,
+      endpointPath: endpoint.path,
       errorDetail:  `http_${response.status}`,
     };
   }
@@ -315,5 +332,6 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
     body:         parsedBody,
     mode,
     endpointHost: endpoint.host,
+    endpointPath: endpoint.path,
   };
 }
