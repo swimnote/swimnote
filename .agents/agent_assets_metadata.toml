@@ -115,3 +115,10 @@ uri = "file://attached_assets/ui_mockup_two_buttons.png"
 type = "image"
 title = "학부모 홈 UI 시안 — AI 리포트 + AI 커리큘럼 버튼"
 description = "헤더 우측에 버튼 2개 배치 시안"
+
+[[outputs]]
+id = "E1_Soa3ouvAgwRmFvNpdb"
+uri = "file://attached_assets/ui_mockup_v3.png"
+type = "image"
+title = "학부모 홈 UI 시안 v3"
+description = "원본 UI 그대로 + AI 리포트/AI 커리큘럼 버튼 2개 삽입"
