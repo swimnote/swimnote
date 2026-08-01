@@ -563,7 +563,21 @@ router.post(
           common:   validatedOutput.common,
           students: validatedOutput.students,
         },
-        meta:  {},
+        meta:  {
+          // ★ PROOF_TRACE: purge 전후 common 문자열 (운영 증명용 임시 필드)
+          // 검증 완료 후 제거 예정
+          proof_trace: {
+            commit:                   'b64389ad+TRACE',
+            p0_gpt_raw_common:        rawValidated.common,
+            p1_after_leak_purge:      purgedCommon,
+            p1_leak_removed_count:    leakRemovedCount,
+            p2_after_eval_purge:      evalPurgedCommon,
+            p2_eval_removed_count:    evalRemovedCommon,
+            p_final_response_common:  validatedOutput.common,
+            student_names_checked:    studentNames,
+            input_text_snippet:       inputText.slice(0, 80),
+          },
+        },
         usage: {
           input_tokens:  usage?.prompt_tokens     ?? 0,
           output_tokens: usage?.completion_tokens ?? 0,
