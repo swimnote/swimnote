@@ -1397,18 +1397,11 @@ export default function ParentHomeScreen() {
         </View>
       </View>
 
-      {/* AI 버튼 행 */}
-      <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 20, paddingBottom: 4, gap: 6 }}>
+      {/* AI 커리큘럼 버튼 (헤더 아래 우측) */}
+      <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 20, paddingBottom: 4 }}>
         <Pressable
           onPress={() => setComingSoonModal(true)}
           style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 5, opacity: pressed ? 0.6 : 1 })}
-        >
-          <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 26, height: 26 }} resizeMode="contain" />
-          <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>AI 리포트</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setComingSoonModal(true)}
-          style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 5, opacity: pressed ? 0.6 : 1, marginLeft: 10 })}
         >
           <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 26, height: 26 }} resizeMode="contain" />
           <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>AI 커리큘럼</Text>
@@ -1485,6 +1478,13 @@ export default function ParentHomeScreen() {
             </Text>
           )}
           <View style={{ flex: 1 }} />
+          <Pressable
+            onPress={() => setComingSoonModal(true)}
+            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, marginRight: 10, opacity: pressed ? 0.6 : 1 })}
+          >
+            <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 22, height: 22 }} resizeMode="contain" />
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>AI 성장 리포트</Text>
+          </Pressable>
           <Pressable
             onPress={() =>
               router.push("/(parent)/photos?backTo=home" as any)
