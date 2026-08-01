@@ -52,7 +52,7 @@ import {
   USAGE_MIN_SCORE,
   TOP_K_USAGE,
 } from '../lib/diary-template-search.js';
-import { validateGrounding, purgeStudentLeaksFromCommon } from '../lib/diary-grounding.js';
+import { validateGrounding, purgeStudentLeaksFromCommon, purgeInventedEvaluations } from '../lib/diary-grounding.js';
 
 const router = Router();
 
@@ -300,7 +300,45 @@ router.post(
         );
       }
       // purgedCommon을 이후 모든 단계에서 사용 (validated.common 대체)
-      const finalResult = { ...validated, common: purgedCommon };
+      let finalResult = { ...validated, common: purgedCommon };
+
+      // ── Phase 6.6: 발명된 태도·평가 표현 강제 제거 (common + 학생별) ───────
+      // 강사 원문에 없는 평가 키워드(집중, 적극, 응원, 즐겁 등) 포함 문장 삭제
+      {
+        const { purged: evalPurgedCommon, removedSentenceCount: evalRemovedCommon } =
+          purgeInventedEvaluations(finalResult.common, inputText);
+
+        // 학생 content: 해당 학생 이름 변형이 포함된 문장은 보호 (관찰 문장 삭제 방지)
+        const evalPurgedStudents = finalResult.students.map(s => {
+          // 이름 변형 목록: '서태웅' → ['서태웅', '태웅'] 등
+          const studentEntry = normalizedStudents.find(ns => ns.ref === s.student_ref);
+          const nameVariants: string[] = [];
+          if (studentEntry?.name) {
+            const n = studentEntry.name.trim();
+            nameVariants.push(n);
+            if (n.length >= 3) nameVariants.push(n.slice(1));
+            if (n.length >= 4) nameVariants.push(n.slice(2));
+          }
+          const { purged } = purgeInventedEvaluations(s.content, inputText, nameVariants);
+          return { ...s, content: purged };
+        });
+
+        const totalEvalRemoved = evalRemovedCommon +
+          finalResult.students.reduce((acc, s, i) => {
+            const before = s.content.split(/(?<=[.!?~])\s+/).filter(Boolean).length;
+            const after  = evalPurgedStudents[i].content.split(/(?<=[.!?~])\s+/).filter(Boolean).length;
+            return acc + Math.max(0, before - after);
+          }, 0);
+
+        if (totalEvalRemoved > 0) {
+          console.log(
+            `[AI/v1:${internalId}] EVAL_PURGED` +
+            ` common_removed=${evalRemovedCommon}` +
+            ` total_removed=${totalEvalRemoved}`,
+          );
+        }
+        finalResult = { common: evalPurgedCommon, students: evalPurgedStudents };
+      }
 
       // ── Phase 7: Grounding 검증 (GPT 출력 실제 분석) ─────────────────────
       // parser_confidence와 완전 분리 — GPT 생성 결과가 입력 범위를 벗어났는지 검사
