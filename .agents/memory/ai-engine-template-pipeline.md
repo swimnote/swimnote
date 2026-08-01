@@ -28,9 +28,23 @@ description: /api/v1/teacher-diary/generate 파이프라인 설계 결정 — Te
 
 ### meta 필드 (응답에 포함)
 - `pipeline_mode: "template_v1"`
+- `generation_mode`: "TEMPLATE_ASSISTED" | "INPUT_ONLY"
 - `parser_confidence`: 0.2 ~ 0.95
 - `template_candidate_count`: 후보 수
 - `template_used_count`: 실제 사용 수
 - `top_score`: 최고 점수
+- `grounding_validation`: `{ status: 'PASS', score: float }`
+- `template_ids`, `knowledge_ids`: 추적용 ID 배열
 
-**Why:** App이 Parser를 갖지 않아야 AI Engine 단독으로 알고리즘 개선 가능. Template 후보는 넓게, 최종 선택은 엄격하게.
+### 앱 클라이언트 설정 (TeacherDiaryAIClient.ts)
+- **기본 모드: grounded** (하드코딩, EXPO_PUBLIC_SWIMNOTE_AI_MODE 미설정 시도 grounded)
+- **GROUNDED_BASE**: `https://swimnote-api.onrender.com` (하드코딩 fallback)
+- `EXPO_PUBLIC_SWIMNOTE_AI_MODE` 환경변수로 override 가능
+- 토큰 없으면 요청 전 `AUTH_TOKEN_MISSING` 조기 반환 (NETWORK 오류 위장 방지)
+- 모듈 로드 시 mode/endpoint/env 시작 로그 출력
+
+### Render.com 배포 커밋 (운영 서버)
+- 현재 live: `c6eda7f` (trace 로그 + grounding_validation 응답 필드)
+- 서비스 ID: `srv-d7bn4gogjchc73dp1ci0`, 브랜치: `deploy-photo-clone`
+
+**Why:** App이 Parser를 갖지 않아야 AI Engine 단독으로 알고리즘 개선 가능. Template 후보는 넓게, 최종 선택은 엄격하게. grounded 하드코딩은 환경변수 미설정 시 legacy로 폴백하는 버그를 방지하기 위함.

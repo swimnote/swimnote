@@ -1,0 +1,536 @@
+[최종 긴급 작업 지시 — Teacher Diary AI 연결 완성 및 운영 실증]
+
+현재 작업의 목적은 원인 추정, 진단 UI 추가, OTA 반복 배포가 아닙니다.
+
+SWIMNOTE 설계대로 Teacher Diary AI 연결을 실제로 완성하십시오.
+
+반드시 아래 전체 경로를 하나의 기능으로 정상 작동시킨 뒤 결과를 보고하십시오.
+
+교사 텍스트 또는 STT 입력
+→ SWIMNOTE 앱
+→ 운영 API 서버 인증
+→ Teacher Diary V1 Route
+→ SWIMNOTE AI Engine
+→ TeacherInputParser
+→ COMMON/STUDENT 분리
+→ Student Matcher
+→ Template Search
+→ Knowledge Search
+→ Generation Mode 결정
+→ Naturalizer
+→ Grounding Validator
+→ 공통·학생별 결과 반환
+→ 앱 결과 표시
+→ 일지에 삽입
+→ 기존 Diary 저장
+→ 저장 후 재조회
+
+==================================================
+0. 작업 기준과 금지 사항
+==================================================
+
+기준 브랜치:
+deploy-photo-clone
+
+운영 API:
+https://swimnote-api.onrender.com
+
+Teacher Diary 정식 Endpoint:
+POST /api/v1/teacher-diary/generate
+
+Grounded 모드:
+grounded
+
+운영 Runtime:
+1.6.1
+
+금지:
+
+- main 브랜치 분석
+- legacy Endpoint를 운영 기본 경로로 사용
+- /api/ai/diary/generate를 grounded 경로로 호출
+- 추가 진단 UI 작업만 하고 종료
+- EAS CLI, pnpm, bun, Metro, package 설정 변경
+- AI Engine 재설계
+- 모달 레이아웃 수정
+- 정적 코드 분석만으로 성공 선언
+- 임의 생성한 JWT만으로 앱 연결 완료 선언
+- DNS/TLS 문제라고 추정하고 종료
+- Xcode나 Mac 로그 요구
+- 서버가 정상이라는 이유로 앱 연결도 정상이라고 보고
+- 실제 실기기 검증 없이 E2E 통과라고 보고
+
+이번 작업에서는 필요한 앱·운영 서버·AI Engine 연결 코드 수정까지 모두 수행하십시오.
+
+==================================================
+1. 실제 운영 호출 경로를 하나로 고정
+==================================================
+
+TeacherDiaryAIClient의 grounded 경로를 반드시 다음으로 고정하십시오.
+
+Base URL:
+https://swimnote-api.onrender.com
+
+Path:
+/api/v1/teacher-diary/generate
+
+Final URL:
+https://swimnote-api.onrender.com/api/v1/teacher-diary/generate
+
+운영 앱에서 환경변수가 누락돼도 legacy 경로로 내려가지 않도록 하십시오.
+
+허용:
+
+GROUNDED_PATH 기본값
+= /api/v1/teacher-diary/generate
+
+금지:
+
+GROUNDED_PATH 기본값
+= /api/ai/diary/generate
+
+grounded 실패 시 자동 legacy fallback도 금지합니다.
+
+앱 시작 시 실제 런타임 값을 서버 안전 로그에 남기십시오.
+
+- mode
+- endpoint host
+- endpoint path
+- runtimeVersion
+- updateId
+- app version
+- build number
+
+민감정보는 남기지 마십시오.
+
+==================================================
+2. 실제 앱 인증 토큰 연결 완성
+==================================================
+
+TeacherDiaryAIClient가 현재 로그인한 앱 사용자의 실제 JWT를 받아
+Authorization Header에 정확히 넣도록 확인하고 수정하십시오.
+
+Authorization:
+Bearer <현재 앱 JWT>
+
+확인할 것:
+
+- AuthContext에서 실제 토큰 로드
+- SecureStore 또는 기존 저장소에서 토큰 복원
+- DiaryAIService까지 토큰 전달
+- TeacherDiaryAIClient Header 반영
+- 업데이트 또는 reload 후 토큰 유지
+- 토큰 누락 시 요청 전 AUTH_TOKEN_MISSING으로 차단
+- 401 응답은 NETWORK 오류로 표시하지 않음
+- 실제 401일 때만 인증 오류로 분류
+
+실제 앱 JWT 원문을 로그나 보고서에 노출하지 마십시오.
+
+다음 값만 확인하십시오.
+
+- token_present
+- exp
+- role
+- token_version
+- swimming_pool_id 또는 tenant claim
+- 서버 서명 검증 성공 여부
+
+==================================================
+3. Request Contract를 설계대로 고정
+==================================================
+
+앱이 전송할 Request:
+
+{
+  "contract_version": "1.0",
+  "schema_version": "1.0",
+  "feature": "teacher_diary",
+  "request_id": "<UUID v4>",
+  "locale": "ko-KR",
+  "input": {
+    "text": "<교사 텍스트 또는 STT 원문>"
+  },
+  "context": {
+    "pool_id": "<실제 swimming_pool_id>",
+    "class_id": "<실제 class_group_id>",
+    "lesson_date": "YYYY-MM-DD",
+    "student_refs": ["<실제 student.id>"],
+    "students": [
+      {
+        "ref": "<실제 student.id>",
+        "name": "<DB 정식 학생 이름>"
+      }
+    ]
+  }
+}
+
+반드시 검증:
+
+- request_id UUID v4
+- student_refs와 students[].ref 집합 동일
+- 학생 이름은 DB 정식 이름
+- 교사 원문 임의 변형 금지
+- 앱에서 공통·학생 내용을 다시 분류하지 않음
+- 앱에서 Template, Knowledge, Curriculum 추정 금지
+
+==================================================
+4. AI Engine 내부 파이프라인 실제 연결 확인 및 수정
+==================================================
+
+정식 V1 Route가 반드시 기존 GroundedPipelineRunner를 호출해야 합니다.
+
+실제 경로:
+
+POST /api/v1/teacher-diary/generate
+→ 인증
+→ Request Contract 검증
+→ TeacherDiaryAdapter 또는 기존 Contract Adapter
+→ GroundedPipelineRunner.run()
+→ TeacherInputParser
+→ parseDiaryState
+→ StudentRepository / Student Matcher
+→ DiaryTemplateModule
+→ KnowledgeModule
+→ GroundedDraftBuilder
+→ Naturalizer
+→ GroundingValidator 또는 PolishOnlyValidator
+→ TeacherDiaryAdapter.toV1Response()
+
+Route에서 OpenAI를 직접 호출하는 별도 legacy 생성기를 사용하지 마십시오.
+
+기존 설계대로 다음 기능이 실제 호출 경로에 포함돼야 합니다.
+
+- STT 정규화
+- 의미 추출
+- COMMON/STUDENT 규칙 기반 분리
+- 등록 학생 이름 확정
+- 템플릿 30% 후보 진입
+- 최종 사용 점수 1.40
+- 동의어 확장
+- Center/Tenant 격리
+- INPUT_ONLY
+- TEMPLATE_ASSISTED
+- KNOWLEDGE_GROUNDED
+- CENTER_CUSTOMIZED
+- 섹션 간 내용 이동 금지
+- GPT 이름 변경 금지
+- student_ref 유지
+
+구현은 되어 있지만 정식 Route에 연결되지 않은 모듈이 있다면 이번 작업에서 연결하십시오.
+
+==================================================
+5. Response Contract를 하나로 고정
+==================================================
+
+정식 성공 Response:
+
+{
+  "contract_version": "1.0",
+  "schema_version": "1.0",
+  "engine_version": "grounded_v1",
+  "request_id": "<요청 UUID 그대로>",
+  "feature": "teacher_diary",
+  "result": {
+    "common": "...",
+    "students": [
+      {
+        "student_ref": "<요청 student ref>",
+        "content": "..."
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "total_tokens": 0,
+    "latency_ms": 0
+  },
+  "meta": {
+    "pipeline_mode": "grounded_v1",
+    "generation_mode": "INPUT_ONLY | TEMPLATE_ASSISTED | KNOWLEDGE_GROUNDED | CENTER_CUSTOMIZED",
+    "template_ids": [],
+    "knowledge_ids": [],
+    "grounding_validation": {
+      "status": "PASS | FAIL | UNKNOWN",
+      "score": 0
+    },
+    "fallback_used": false
+  }
+}
+
+반드시 보장:
+
+- request_id echo
+- student_ref만 사용
+- student_id 금지
+- unknown ref 금지
+- duplicate ref 금지
+- common과 students가 모두 비어 있으면 성공 금지
+- Teacher Diary 품질 FAIL/UNKNOWN은 HTTP 200 + meta 기록
+- 시스템 실패만 오류 status 반환
+
+==================================================
+6. 앱 Response Normalizer 확정
+==================================================
+
+DiaryAIService.normalizeDiaryResponse()는 grounded 모드에서 신형 V1 Contract만 허용하십시오.
+
+매핑:
+
+resp.result.common
+→ normalized.common
+
+resp.result.students[].student_ref
+→ normalized.students[].studentRef
+
+resp.result.students[].content
+→ normalized.students[].content
+
+resp.request_id
+→ normalized.requestId
+
+resp.meta
+→ normalized.meta
+
+resp.usage
+→ normalized.usage
+
+grounded 모드에서 다음 구형 구조로 자동 fallback하지 마십시오.
+
+- resp.common
+- resp.students[].student_id
+- resp.status
+- resp.warnings
+
+HTTP 상태 처리 순서:
+
+1. fetch 완료
+2. Content-Type 확인
+3. JSON parse
+4. HTTP status가 2xx인지 확인
+5. 2xx가 아니면 서버 오류 분류
+6. 2xx일 때만 V1 Contract 정규화
+7. Contract 검증
+8. 결과 반환
+
+401·403·422·500을 Contract 오류나 NETWORK 오류로 위장하지 마십시오.
+
+==================================================
+7. 오류 분류 정상화
+==================================================
+
+실제 오류별 causeCode:
+
+- fetch 자체 실패 → NETWORK_ERROR
+- AbortController → ABORTED
+- timeout → TIMEOUT
+- 401 → AUTH_401
+- 403 → AUTH_403
+- 404 → HTTP_404
+- 422 → HTTP_422 또는 서버 code
+- 500 → HTTP_500
+- 비 JSON → CONTENT_TYPE_ERROR
+- JSON parse 실패 → PARSE_ERROR
+- result 없음 → CONTRACT_RESULT_MISSING
+- request_id 불일치 → CONTRACT_REQUEST_ID_MISMATCH
+- unknown student_ref → CONTRACT_UNKNOWN_STUDENT_REF
+- 중복 ref → CONTRACT_DUPLICATE_STUDENT_REF
+
+“네트워크 연결을 확인해주세요”는 fetch 자체 실패일 때만 표시하십시오.
+
+==================================================
+8. 동일 request_id 전체 Trace
+==================================================
+
+실제 실기기 요청 한 건을 같은 request_id로 끝까지 추적하십시오.
+
+필수 서버 로그 단계:
+
+APP_REQUEST_PREPARED
+API_REQUEST_RECEIVED
+AUTH_SUCCESS
+REQUEST_VALIDATED
+TEACHER_DIARY_ROUTE_ENTERED
+PARSER_COMPLETED
+STUDENT_MATCH_COMPLETED
+TEMPLATE_SEARCH_COMPLETED
+KNOWLEDGE_SEARCH_COMPLETED
+MODE_DECIDED
+NATURALIZER_COMPLETED
+GROUNDING_VALIDATED
+RESPONSE_SENT
+APP_RESPONSE_RECEIVED
+APP_NORMALIZE_COMPLETED
+APP_INSERT_COMPLETED
+DIARY_SAVE_COMPLETED
+
+각 로그에 포함:
+
+- request_id
+- 단계
+- status
+- latency
+- student_count
+- generation_mode
+- template count
+- knowledge count
+- error_code
+
+금지 로그:
+
+- JWT 원문
+- 학생 이름
+- 교사 원문
+- 생성 일지 내용
+
+==================================================
+9. 실제 서버 배포까지 수행
+==================================================
+
+앱 코드만 수정하고 종료하지 마십시오.
+
+필요한 변경이 있는 곳을 모두 반영하십시오.
+
+- SWIMNOTE 앱
+- SWIMNOTE 운영 API 서버
+- SWIMNOTE AI Engine
+
+운영 서버 기준:
+
+- deploy-photo-clone 브랜치
+- Render 감시 브랜치 확인
+- Render 배포 완료
+- 서버 부팅 확인
+- Route mount 확인
+- 실제 운영 URL curl 확인
+
+AI Engine이 별도 Replit 서버라면:
+
+- 실제 운영 Base URL 확인
+- 운영 API 서버의 AI Engine Client URL 확인
+- Preview URL이 아닌 안정된 Production URL 사용
+- 서버 sleep 또는 임시 개발 URL 사용 금지
+- 인증 방식 확인
+
+==================================================
+10. 실제 E2E 테스트
+==================================================
+
+정적 코드 분석이 아니라 실제 실행으로 테스트하십시오.
+
+테스트 1:
+텍스트 입력, 공통 내용만
+
+테스트 2:
+텍스트 입력, 공통 + 학생 1명
+
+테스트 3:
+텍스트 입력, 공통 + 학생 여러 명
+
+테스트 4:
+약칭 이름 “태웅” → DB 정식명 “서태웅” 매칭
+
+테스트 5:
+공통 입력 후 이름 호출 → 학생 내용이 common에 섞이지 않음
+
+테스트 6:
+STT 녹음 종료 → 자동 생성
+
+테스트 7:
+INPUT_ONLY
+
+테스트 8:
+TEMPLATE_ASSISTED
+
+테스트 9:
+KNOWLEDGE_GROUNDED
+
+테스트 10:
+일지에 삽입
+
+테스트 11:
+저장
+
+테스트 12:
+저장 후 재조회
+
+각 테스트에서 실제 HTTP status, request_id, generation_mode, 결과 존재 여부를 확인하십시오.
+
+==================================================
+11. OTA 배포와 적용 검증
+==================================================
+
+모든 코드와 서버 검증이 끝난 뒤에만 Production OTA를 배포하십시오.
+
+필수:
+
+- platform: ios
+- branch/channel: production
+- runtimeVersion: 1.6.1
+- 실제 운영 Expo projectId
+- 변경 commit 포함
+
+앱 실행 중인 updateId와 배포 Update ID가 일치하는지 확인하십시오.
+
+업데이트 모달도 실제로 확인하십시오.
+
+- 업데이트 감지
+- 모달 표시
+- 다운로드
+- reloadAsync
+- 로그인 유지
+- 최신 updateId 실행
+
+OTA 배포 완료만으로 작업 완료 처리하지 마십시오.
+
+==================================================
+12. 최종 완료 보고서
+==================================================
+
+반드시 실제 증거를 포함하여 제출하십시오.
+
+1. 최종 앱 URL
+2. 실제 운영 API URL
+3. 실제 AI Engine URL
+4. 앱→API 성공 여부
+5. 실제 앱 JWT 인증 성공 여부
+6. API→AI Engine 성공 여부
+7. GroundedPipelineRunner 진입 증거
+8. Parser 결과 요약
+9. Student Matcher 결과 요약
+10. Template Search 결과
+11. Knowledge Search 결과
+12. generation_mode
+13. grounding_validation
+14. 동일 request_id 전체 로그
+15. 실제 Response JSON 마스킹본
+16. 앱 정규화 객체
+17. 일지 삽입 성공
+18. 저장 성공
+19. 저장 후 재조회 성공
+20. 수정 파일 목록
+21. Git commit
+22. Render Deploy ID 및 live 상태
+23. Production OTA Group ID
+24. iOS Update ID
+25. runtimeVersion
+26. 실기기 실행 updateId
+27. 로그인 유지 확인
+28. 남은 오류 없음 확인
+
+완료 판정:
+
+- 실제 실기기에서 AI 생성 성공
+- 결과 표시
+- 이름 정확
+- 공통/학생 분리 정확
+- 삽입 성공
+- 저장 성공
+- 저장 후 재조회 성공
+- 동일 request_id 로그 확인
+
+위 조건을 하나라도 실제로 확인하지 못했으면
+“완료”라고 보고하지 마십시오.
+
+이번 작업을 끝까지 수행하고 실제 결과를 제출하십시오.
+중간 승인 요청이나 추가 질문 없이 완료까지 진행하십시오.
