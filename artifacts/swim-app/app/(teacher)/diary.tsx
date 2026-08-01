@@ -24,6 +24,7 @@ import {
   API_BASE, DiaryEntry, DiaryTemplate, ExistingNote,
   StudentNote, StudentOption, SubView, UploadedMedia, todayStr,
 } from "@/components/teacher/diary/types";
+import type { DiaryInsertResult } from "@/components/ai/services/DiaryAIService";
 import { Clock, RotateCcw } from "lucide-react-native";
 import { haptic } from "@/utils/haptic";
 
@@ -280,6 +281,24 @@ export default function TeacherDiaryScreen() {
     setter(before + glue + insert + after);
   }
 
+  const handleAIInsert = useCallback((result: DiaryInsertResult) => {
+    setCommonContent(result.commonDiary);
+    if (result.students.length > 0) {
+      setStudentNotes(prev => {
+        const next = [...prev];
+        for (const s of result.students) {
+          const idx = next.findIndex(n => n.student_id === s.studentId);
+          if (idx >= 0) {
+            next[idx] = { ...next[idx], note_content: s.note };
+          } else {
+            next.push({ student_id: s.studentId, student_name: s.studentName, note_content: s.note });
+          }
+        }
+        return next;
+      });
+    }
+  }, []);
+
   function handleAddNote() {
     if (!addNoteStudent || !noteInput.trim()) return;
     setStudentNotes(prev => {
@@ -465,6 +484,10 @@ export default function TeacherDiaryScreen() {
             onAddNote={handleAddNote}
             onRemoveNote={(studentId) => setStudentNotes(prev => prev.filter(n => n.student_id !== studentId))}
             insertAtCursor={insertAtCursor}
+            token={token}
+            teacherId={user?.id ?? ''}
+            poolId={user?.swimming_pool_id ?? ''}
+            onAIInsert={handleAIInsert}
           />
         ) : (
           <DiaryHistoryList

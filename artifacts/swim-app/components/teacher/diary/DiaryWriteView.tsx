@@ -9,6 +9,8 @@ import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
 import { DiaryTemplate, StudentNote, StudentOption, UploadedMedia } from "./types";
 import { TeacherClassGroup } from "@/components/teacher/types";
+import DiaryAIButton from "@/components/ai/features/diary/DiaryAIButton";
+import type { DiaryInsertResult } from "@/components/ai/services/DiaryAIService";
 
 const C = Colors.light;
 
@@ -30,6 +32,7 @@ export default function DiaryWriteView({
   onUploadGroupMedia, onUploadStudentMedia,
   onAddNote, onRemoveNote,
   insertAtCursor,
+  token, teacherId, poolId, onAIInsert,
 }: {
   group: TeacherClassGroup; targetDate: string; themeColor: string; myDiaryExists: boolean;
   templates: DiaryTemplate[]; showTemplates: boolean; setShowTemplates: (v: boolean) => void;
@@ -55,6 +58,10 @@ export default function DiaryWriteView({
   onAddNote: () => void;
   onRemoveNote: (studentId: string) => void;
   insertAtCursor: (current: string, insert: string, cursorPos: number, setter: (v: string) => void) => void;
+  token?: string;
+  teacherId?: string;
+  poolId?: string;
+  onAIInsert?: (result: DiaryInsertResult) => void;
 }) {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -72,8 +79,23 @@ export default function DiaryWriteView({
             <View style={[s.cardIcon, { backgroundColor: themeColor + "20" }]}>
               <BookOpen size={15} color={themeColor} />
             </View>
-            <Text style={[s.cardTitle, { color: C.text }]}>반 공통 일지</Text>
-            <Text style={s.cardSub}>모든 학생에게 공통으로 보이는 내용</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.cardTitle, { color: C.text }]}>반 공통 일지</Text>
+              <Text style={s.cardSub}>모든 학생에게 공통으로 보이는 내용</Text>
+            </View>
+            {onAIInsert && (
+              <DiaryAIButton
+                token={token}
+                teacherId={teacherId}
+                classId={group.id}
+                date={targetDate}
+                students={classStudents}
+                poolId={poolId}
+                themeColor={themeColor}
+                existingContent={commonContent}
+                onInsert={onAIInsert}
+              />
+            )}
           </View>
 
           {templates.length > 0 && (
