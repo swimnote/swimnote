@@ -168,26 +168,6 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res) => {
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
-router.get("/:id/students", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const poolId = await getPoolId(req.user!.userId);
-    const [group] = await db.select({ swimming_pool_id: classGroupsTable.swimming_pool_id })
-      .from(classGroupsTable)
-      .where(and(eq(classGroupsTable.id, req.params.id), eq(classGroupsTable.is_deleted, false)))
-      .limit(1);
-    if (!group) return err(res, 404, "수업 그룹을 찾을 수 없습니다.");
-    if (req.user!.role !== "super_admin" && poolId && group.swimming_pool_id !== poolId) {
-      return err(res, 403, "접근 권한이 없습니다.");
-    }
-    const students = await db.select().from(studentsTable)
-      .where(and(
-        eq(studentsTable.class_group_id, req.params.id),
-        sql`status NOT IN ('withdrawn', 'deleted')`
-      ));
-    res.json(students);
-  } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
-});
-
 router.get("/:id/attendance", requireAuth, async (req: AuthRequest, res) => {
   const { date } = req.query;
   if (!date) return err(res, 400, "date 파라미터가 필요합니다.");
