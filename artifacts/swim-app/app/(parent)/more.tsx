@@ -104,7 +104,7 @@ export default function ParentMoreScreen() {
             onPress={() => router.push("/(parent)/my-info?backTo=more" as any)}
           >
             <View style={[s.accountAvatar, { backgroundColor: C.tintLight }]}>
-              <Text style={[s.accountAvatarTxt, { color: C.tint }]}>{parentAccount.name?.[0] ?? "P"}</Text>
+              <LucideIcon name="user-round" size={26} color={C.tint} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.accountName, { color: C.text }]}>{parentAccount.name}님</Text>
@@ -161,28 +161,13 @@ export default function ParentMoreScreen() {
           iconColor={NAVY_C} iconBg={NAVY_BG}
           onPress={() => router.push("/(parent)/push-settings?backTo=more" as any)}
         />
-        {/* 약관 및 정책 */}
-        <MenuItem
-          icon="file-text"
-          label="이용약관"
-          iconColor={NAVY_C} iconBg={NAVY_BG}
-          onPress={() => router.push("/terms" as any)}
-        />
-        <MenuItem
-          icon="lock"
-          label="개인정보처리방침"
-          iconColor={NAVY_C} iconBg={NAVY_BG}
-          onPress={() => router.push("/privacy" as any)}
-        />
-        {/* 앱 업데이트 */}
-        <AppUpdateButton />
 
-        {/* 문의하기 — 목록 최하단 */}
+        {/* 문의하기 */}
         <Pressable
           style={({ pressed }) => [s.menuItem, { backgroundColor: C.card, opacity: pressed ? 0.8 : 1 }]}
           onPress={() => router.push("/(parent)/inquiries" as any)}
         >
-          <View style={[s.menuIcon, { backgroundColor: "#E6FAF8" }]}>
+          <View style={s.menuIcon}>
             <LucideIcon name="help-circle" size={18} color={MINT_C} />
           </View>
           <View style={{ flex: 1, gap: 2 }}>
@@ -196,6 +181,22 @@ export default function ParentMoreScreen() {
           )}
           <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
         </Pressable>
+
+        {/* 약관 및 정책 */}
+        <MenuItem
+          icon="file-text"
+          label="이용약관"
+          iconColor={NAVY_C} iconBg={NAVY_BG}
+          onPress={() => router.push("/terms" as any)}
+        />
+        <MenuItem
+          icon="lock"
+          label="개인정보처리방침"
+          iconColor={NAVY_C} iconBg={NAVY_BG}
+          onPress={() => router.push("/privacy" as any)}
+        />
+        {/* 앱 업데이트 — 학부모 메뉴에서 숨김 (OTA 자동 모달로 처리) */}
+        {/* <AppUpdateButton /> */}
 
         <MenuItem
           icon="log-out"
@@ -254,7 +255,7 @@ const s = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03, shadowRadius: 3, elevation: 1,
   },
-  menuIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  menuIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "transparent" },
   menuLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   menuSub: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   badge: {
