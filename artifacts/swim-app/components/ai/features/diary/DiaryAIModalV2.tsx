@@ -140,7 +140,18 @@ export default function DiaryAIModalV2({
               value={hook.inputText}
               onChangeText={hook.setInputText}
               state={aiState}
-              placeholder="수업에서 있었던 일, 학생들의 특징이나 개선점 등을 자유롭게 입력해주세요."
+              placeholder={
+                '💡 AI 일지 작성 방법\n\n' +
+                '• 전체 + 내용\n→ 공통 일지 작성\n\n' +
+                '• 학생이름 + 내용\n→ 해당 학생 일지 작성\n\n' +
+                '• 다시 "전체" + 내용\n→ 공통 일지로 전환\n\n' +
+                '예)\n\n' +
+                '전체\n오늘은 자유형 호흡 연습\n\n' +
+                '서태웅\n호흡 타이밍이 많이 좋아졌어요.\n\n' +
+                '전체\n마무리 스트레칭 진행\n\n' +
+                '─────────────────\n' +
+                '템플릿에 없는 내용은\n선생님의 입력을 자연스러운 문장으로만 완성합니다.'
+              }
               onVoicePress={hook.handleVoicePress}
             />
           </View>
