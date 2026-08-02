@@ -65,7 +65,7 @@ export default function OpsHubScreen() {
                   ]}
                   onPress={() => router.push((item.route + "?backTo=ops-hub") as any)}
                 >
-                  <View style={[s.iconBox, { backgroundColor: NB }]}>
+                  <View style={s.iconBox}>
                     <LucideIcon name={item.icon as any} size={20} color={item.color} />
                   </View>
                   <View style={{ flex: 1 }}>

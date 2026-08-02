@@ -67,7 +67,7 @@ export default function ClassHubScreen() {
                   ]}
                   onPress={() => router.push((item.route + "?backTo=class-hub") as any)}
                 >
-                  <View style={[s.iconBox, { backgroundColor: NB }]}>
+                  <View style={s.iconBox}>
                     <LucideIcon name={item.icon as any} size={20} color={item.color} />
                   </View>
                   <View style={{ flex: 1 }}>
