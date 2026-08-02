@@ -20,7 +20,7 @@ interface Banner {
 }
 
 const THEME_MAP: Record<string, { bg: string; accent: string; text: string }> = {
-  teal:   { bg: "#E6FAF8", accent: "#2EC4B6", text: "#065F46" },
+  teal:   { bg: "#1B3A70", accent: "#2EC4B6", text: "#FFFFFF" },
   purple: { bg: "#EDE9FE", accent: "#7C3AED", text: "#4C1D95" },
   orange: { bg: "#FFF7ED", accent: "#F97316", text: "#9A3412" },
   blue:   { bg: "#DBEAFE", accent: "#2563EB", text: "#1E40AF" },
