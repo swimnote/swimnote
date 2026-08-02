@@ -254,8 +254,8 @@ export default function MyInfoScreen() {
         {/* ── 프로필 카드 ── */}
         <View style={[s.card, { padding: 18 }]}>
           <View style={s.cardRow}>
-            <View style={[s.avatarLg, { backgroundColor: themeColor + "20" }]}>
-              <Text style={[s.avatarLgText, { color: themeColor }]}>{profile?.name?.[0] || "T"}</Text>
+            <View style={s.avatarLg}>
+              <LucideIcon name="user-round" size={26} color="#1B3A70" />
             </View>
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={s.profileName}>{profile?.name || "-"}</Text>
@@ -377,7 +377,7 @@ export default function MyInfoScreen() {
         {/* ── 관리자 모드 전환 ── */}
         {hasMultipleRoles && (
           <Pressable
-            style={[s.actionBtn, { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" }]}
+            style={[s.actionBtn, { borderColor: "#2EC4B6" }]}
             onPress={() => setSwitchModalVisible(true)}
           >
             <LucideIcon name="refresh-ccw" size={18} color="#2EC4B6" />

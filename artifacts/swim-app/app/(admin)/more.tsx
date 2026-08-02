@@ -3,7 +3,7 @@
  * 대부분의 메뉴는 홈 대시보드 5대 카테고리 팝업으로 이동됨
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { Activity, ChevronRight, User } from "lucide-react-native";
+import { Activity, ChevronRight, User, UserRound } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -133,8 +133,8 @@ export default function MoreScreen() {
         >
           {/* 프로필 카드 */}
           <View style={[s.profileCard, { backgroundColor: C.card }]}>
-            <View style={[s.profileAvatar, { backgroundColor: themeColor + "20" }]}>
-              <Text style={[s.profileInitial, { color: themeColor }]}>{adminUser?.name?.[0] || "A"}</Text>
+            <View style={s.profileAvatar}>
+              <UserRound size={26} color="#1B3A70" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.profileName}>{adminUser?.name || "관리자"}</Text>
@@ -173,7 +173,7 @@ export default function MoreScreen() {
                   ]}
                   onPress={() => router.push((item.route + "?backTo=more") as any)}
                 >
-                  <View style={[s.menuIcon, { backgroundColor: item.bg }]}>
+                  <View style={s.menuIcon}>
                     <LucideIcon name={item.icon} size={18} color={item.color} />
                   </View>
                   <Text style={s.menuLabel}>{item.label}</Text>
@@ -197,7 +197,7 @@ export default function MoreScreen() {
                   ]}
                   onPress={() => router.push((item.route + "?backTo=more") as any)}
                 >
-                  <View style={[s.menuIcon, { backgroundColor: item.bg }]}>
+                  <View style={s.menuIcon}>
                     <LucideIcon name={item.icon} size={18} color={item.color} />
                   </View>
                   <Text style={s.menuLabel}>{item.label}</Text>
@@ -244,7 +244,7 @@ export default function MoreScreen() {
             return (
               <View style={[s.logCard, { backgroundColor: C.card }]}>
                 <View style={s.logHeader}>
-                  <View style={[s.logIcon, { backgroundColor: meta.color + "15" }]}>
+                  <View style={s.logIcon}>
                     <LucideIcon name={meta.icon as any} size={16} color={meta.color} />
                   </View>
                   <View style={{ flex: 1 }}>

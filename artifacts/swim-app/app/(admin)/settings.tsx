@@ -3,7 +3,7 @@
  * U: 복수 역할 보유 시 "로그인 기본 모드" 토글 표시
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { ChevronRight } from "lucide-react-native";
+import { ChevronRight, UserRound } from "lucide-react-native";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { WithdrawalModal } from "@/components/common/WithdrawalModal";
 import AppUpdateButton from "@/components/common/AppUpdateButton";
@@ -151,7 +151,7 @@ export default function SettingsScreen() {
                 ]}
                 onPress={() => router.push((item.route + "?backTo=settings") as any)}
               >
-                <View style={[s.menuIcon, { backgroundColor: item.bg }]}>
+                <View style={s.menuIcon}>
                   <LucideIcon name={item.icon as any} size={18} color={item.color} />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -195,10 +195,8 @@ export default function SettingsScreen() {
       >
         {/* 프로필 카드 */}
         <View style={[s.profileCard, { backgroundColor: C.card }]}>
-          <View style={[s.profileAvatar, { backgroundColor: themeColor + "20" }]}>
-            <Text style={[s.profileInitial, { color: themeColor }]}>
-              {adminUser?.name?.[0] || "A"}
-            </Text>
+          <View style={s.profileAvatar}>
+            <UserRound size={26} color="#1B3A70" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.profileName}>{adminUser?.name || "관리자"}</Text>
@@ -257,7 +255,7 @@ export default function SettingsScreen() {
             <Text style={s.sectionTitle}>로그인 설정</Text>
             <View style={[s.sectionCard, { backgroundColor: C.card }]}>
               <View style={s.toggleRow}>
-                <View style={[s.menuIcon, { backgroundColor: NB }]}>
+                <View style={s.menuIcon}>
                   <LucideIcon name="log-in" size={18} color={N} />
                 </View>
                 <View style={{ flex: 1 }}>

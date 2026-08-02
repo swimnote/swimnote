@@ -128,8 +128,8 @@ export default function AdminMyInfoScreen() {
         {/* ── 프로필 카드 ── */}
         <View style={[s.card, { padding: 18 }]}>
           <View style={s.cardRow}>
-            <View style={[s.avatar, { backgroundColor: themeColor + "20" }]}>
-              <Text style={[s.avatarText, { color: themeColor }]}>{profile?.name?.[0] || "A"}</Text>
+            <View style={s.avatar}>
+              <LucideIcon name="user-round" size={26} color="#1B3A70" />
             </View>
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={s.profileName}>{profile?.name || "-"}</Text>

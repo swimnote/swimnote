@@ -146,7 +146,7 @@ export default function TeacherSettingsScreen() {
 
         {/* ── 공지함 ── */}
         <Pressable
-          style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
+          style={[s.actionBtn, { borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/notices?backTo=settings" as any)}
         >
           <LucideIcon name="bell" size={18} color="#0F172A" />
@@ -156,7 +156,7 @@ export default function TeacherSettingsScreen() {
 
         {/* ── 선생님 설정 ── */}
         <Pressable
-          style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
+          style={[s.actionBtn, { borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/my-info?backTo=settings" as any)}
         >
           <LucideIcon name="user-cog" size={18} color="#0F172A" />
@@ -166,7 +166,7 @@ export default function TeacherSettingsScreen() {
 
         {/* ── 일지 템플릿 ── */}
         <Pressable
-          style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
+          style={[s.actionBtn, { borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/feedback-custom?backTo=settings" as any)}
         >
           <LucideIcon name="edit" size={18} color="#0F172A" />
@@ -176,7 +176,7 @@ export default function TeacherSettingsScreen() {
 
         {/* ── 쪽지보관함 ── */}
         <Pressable
-          style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
+          style={[s.actionBtn, { borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/messages-inbox" as any)}
         >
           <LucideIcon name="mail" size={18} color="#0F172A" />
@@ -186,7 +186,7 @@ export default function TeacherSettingsScreen() {
 
         {/* ── 사진·영상 업로드/앨범 ── */}
         <Pressable
-          style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
+          style={[s.actionBtn, { borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/photos?backTo=settings" as any)}
         >
           <LucideIcon name="camera" size={18} color="#0F172A" />
@@ -300,15 +300,15 @@ export default function TeacherSettingsScreen() {
             </View>
 
             {([
-              { icon: "image"          as const, bg: "#E6FAF8", color: "#EA580C", label: "사진",     sub: `${storageUsage?.photo_count||0}개`,   bytes: storageUsage?.photo_bytes    ?? 0 },
-              { icon: "video"          as const, bg: "#E6FAF8", color: "#7C3AED", label: "영상",     sub: `${storageUsage?.video_count||0}개`,   bytes: storageUsage?.video_bytes    ?? 0 },
-              { icon: "message-square" as const, bg: "#E6FAF8", color: "#7C3AED", label: "메신저",   sub: "텍스트 데이터",                         bytes: storageUsage?.messenger_bytes ?? 0 },
-              { icon: "book-open"      as const, bg: "#E6FAF8", color: "#16A34A", label: "수영일지", sub: "일지·메모 데이터",                       bytes: storageUsage?.diary_bytes    ?? 0 },
-              { icon: "bell"           as const, bg: "#E6FAF8", color: "#F59E0B", label: "공지",     sub: "공지 본문 데이터",                       bytes: storageUsage?.notice_bytes   ?? 0 },
-              { icon: "cpu"            as const, bg: "#E6FAF8", color: "#0369A1", label: "시스템",   sub: "기본 계정 데이터",                       bytes: storageUsage?.system_bytes   ?? 0 },
+              { icon: "image"          as const, color: "#EA580C", label: "사진",     sub: `${storageUsage?.photo_count||0}개`,   bytes: storageUsage?.photo_bytes    ?? 0 },
+              { icon: "video"          as const, color: "#7C3AED", label: "영상",     sub: `${storageUsage?.video_count||0}개`,   bytes: storageUsage?.video_bytes    ?? 0 },
+              { icon: "message-square" as const, color: "#7C3AED", label: "메신저",   sub: "텍스트 데이터",                         bytes: storageUsage?.messenger_bytes ?? 0 },
+              { icon: "book-open"      as const, color: "#16A34A", label: "수영일지", sub: "일지·메모 데이터",                       bytes: storageUsage?.diary_bytes    ?? 0 },
+              { icon: "bell"           as const, color: "#F59E0B", label: "공지",     sub: "공지 본문 데이터",                       bytes: storageUsage?.notice_bytes   ?? 0 },
+              { icon: "cpu"            as const, color: "#0369A1", label: "시스템",   sub: "기본 계정 데이터",                       bytes: storageUsage?.system_bytes   ?? 0 },
             ]).map(item => (
               <View key={item.label} style={s.usageRow}>
-                <View style={[s.usageIcon, { backgroundColor: item.bg }]}>
+                <View style={s.usageIcon}>
                   <LucideIcon name={item.icon} size={16} color={item.color} />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -348,7 +348,7 @@ export default function TeacherSettingsScreen() {
 
         {/* ── 문의하기 — 목록 최하단 ── */}
         <Pressable
-          style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#2EC4B6" }]}
+          style={[s.actionBtn, { borderColor: "#2EC4B6" }]}
           onPress={() => router.push("/(teacher)/inquiries" as any)}
         >
           <LucideIcon name="message-circle" size={18} color="#2EC4B6" />

@@ -492,7 +492,7 @@ export default function DashboardScreen() {
             {stats && (
               <View style={s.splitStatRow}>
                 <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unassigned&backTo=dashboard" as any)}>
-                  <View style={[s.splitStatIcon, { backgroundColor: "#E6FAF8" }]}>
+                  <View style={s.splitStatIcon}>
                     <LucideIcon name="alert-circle" size={14} color="#0F172A" />
                   </View>
                   <View>
@@ -502,7 +502,7 @@ export default function DashboardScreen() {
                 </Pressable>
                 <View style={s.splitStatDivider} />
                 <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unlinked&backTo=dashboard" as any)}>
-                  <View style={[s.splitStatIcon, { backgroundColor: "#E6FAF8" }]}>
+                  <View style={s.splitStatIcon}>
                     <LucideIcon name="user-x" size={14} color="#0F172A" />
                   </View>
                   <View>
@@ -580,7 +580,7 @@ export default function DashboardScreen() {
                 style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
                 onPress={() => setShowRegister(true)}
               >
-                <View style={[s.quickBtnIcon, { backgroundColor: "#E6FAF8" }]}>
+                <View style={s.quickBtnIcon}>
                   <LucideIcon name="user-plus" size={18} color="#1D4ED8" />
                 </View>
                 <Text style={s.quickBtnLabel}>회원등록</Text>
@@ -590,7 +590,7 @@ export default function DashboardScreen() {
                 style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
                 onPress={() => router.push("/(admin)/admin-revenue?backTo=dashboard")}
               >
-                <View style={[s.quickBtnIcon, { backgroundColor: "#FFFBEB" }]}>
+                <View style={s.quickBtnIcon}>
                   <LucideIcon name="trending-up" size={18} color="#CA8A04" />
                 </View>
                 <Text style={s.quickBtnLabel}>매출 확인</Text>
@@ -600,7 +600,7 @@ export default function DashboardScreen() {
                 style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
                 onPress={() => router.push("/(admin)/classes?backTo=dashboard")}
               >
-                <View style={[s.quickBtnIcon, { backgroundColor: "#F0FDF4" }]}>
+                <View style={s.quickBtnIcon}>
                   <LucideIcon name="calendar" size={18} color="#16A34A" />
                 </View>
                 <Text style={s.quickBtnLabel}>스케줄러</Text>
@@ -610,7 +610,7 @@ export default function DashboardScreen() {
                 style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
                 onPress={() => router.push("/(admin)/holidays" as any)}
               >
-                <View style={[s.quickBtnIcon, { backgroundColor: !holidayConfirmed && confirmTargetMonth ? "#FEE2E2" : "#FFF1F2" }]}>
+                <View style={s.quickBtnIcon}>
                   <LucideIcon name="calendar-off" size={18} color={!holidayConfirmed && confirmTargetMonth ? "#DC2626" : "#E11D48"} />
                 </View>
                 <Text style={s.quickBtnLabel}>휴무일</Text>
