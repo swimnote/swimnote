@@ -1,0 +1,500 @@
+[SWIMNOTE X V3.3.1 — WP1 승인 전 최종 정합성 수정서]
+
+전체 아키텍처는 유지한다.
+
+현재 V3.3.1에는 실제 Migration 실패 또는 데이터 모델 혼동으로 이어지는 충돌이 남아 있다.
+아래 9개를 정정한 V3.3.2 변경분만 제출한다.
+
+코드 수정, Migration 실행, Commit, Push, OTA, 배포는 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+FIX-A. global_template_sets ACTIVE 인덱스 오류
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 SQL:
+
+CREATE UNIQUE INDEX uniq_global_template_sets_active
+ON global_template_sets (pool_id)
+WHERE status = 'ACTIVE';
+
+문제:
+
+global_template_sets 테이블에는 pool_id 컬럼이 없다.
+Global Template Set은 전체 SWIMNOTE 공용 세트이므로 전역 ACTIVE가 최대 1개다.
+
+수정:
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_global_template_sets_active
+ON global_template_sets ((1))
+WHERE status = 'ACTIVE';
+
+또는 기존에 설계했던 다음 방식도 가능하다.
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_global_template_sets_active
+ON global_template_sets (status)
+WHERE status = 'ACTIVE';
+
+둘 중 실제 PostgreSQL Migration에 적합한 하나를 채택한다.
+
+pool_id는 추가하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+FIX-B. X모드 컬럼 저장 테이블 통일
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 확정 구조에서는 다음 컬럼이 swimming_pools에 있었다.
+
+- xmode_entitlement
+- xmode_config_status
+- xmode_subscription_end_at
+- xmode_purchased_at
+- xmode_payment_failed_at
+
+그런데 V3.3.1 M-H-6에서는 갑자기 pool_subscriptions에 추가하도록 변경됐다.
+
+하나로 확정해야 한다.
+
+권장:
+
+교육 준비 상태는 수영장 단위이므로 swimming_pools에 저장한다.
+
+ALTER TABLE swimming_pools
+  ADD COLUMN IF NOT EXISTS xmode_entitlement BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS xmode_config_status xmode_config_status_enum
+    NOT NULL DEFAULT 'NOT_CONFIGURED',
+  ADD COLUMN IF NOT EXISTS xmode_subscription_end_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS xmode_purchased_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS xmode_payment_failed_at TIMESTAMPTZ;
+
+RevenueCat 결제 원본은 기존 구독 구조에서 검증하되,
+X 기능 사용 권한의 현재 투영값은 swimming_pools에 저장한다.
+
+pool_subscriptions로 변경하려면 기존 확정안과 모든 API·Webhook·조회 경로를 함께 다시 수정해야 하므로 임의 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+FIX-C. Parent AI 사용량 테이블과 단위 통일
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 확정 테이블:
+
+parent_ai_daily_usage
+
+기존 확정 키:
+
+parent_account_id
+usage_date
+UNIQUE(parent_account_id, usage_date)
+
+그런데 V3.3.1에서는 다음으로 바뀌었다.
+
+ai_daily_usage
+parent_id
+usage_month
+monthly_limit
+
+이는 기존 일일 제한 정책과 충돌한다.
+
+V1에서는 일일 구조를 유지한다.
+
+parent_ai_daily_usage:
+
+- parent_account_id
+- usage_date (Asia/Seoul)
+- reserved_count
+- completed_count
+- failed_count
+- intent_blocked_count
+- token/cost 컬럼
+
+한도 계산:
+
+completed_count + reserved_count < daily_question_limit
+
+월간 사용량은 일별 데이터를 SUM하여 조회한다.
+별도 usage_month 컬럼을 사용하지 않는다.
+
+Intent Guard 처리 순서도 명확히 한다.
+
+권장 흐름:
+
+1. 입력 길이와 기본 권한 검증
+2. 일일 한도 reservation 확보
+3. Intent Guard 실행
+4. 비수영 질문이면 reservation 반환
+5. intent_blocked_count 증가
+6. 정상 질문이면 본 AI 호출
+7. 성공 시 reserved → completed
+8. 실패 시 reserved 반환 + failed 증가
+9. 실제 사용 토큰과 비용은 차단·실패 여부와 무관하게 기록
+
+모든 reservation에는 request_id를 사용하여 중복 완료·중복 반환을 막는다.
+필요하면 parent_ai_usage_reservations 또는 동등한 멱등성 구조를 제안한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+FIX-D. Global Hidden Template와 Curriculum 데이터 혼동 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+V3.3.1 WP4-B, WP5, WP15에서 다음과 같이 잘못 작성됐다.
+
+- global template 50개를 curriculum_items에 생성
+- global_template_sets의 curriculum_items를 검색
+- 2,000개 curriculum_items를 ACTIVE 처리
+
+Global Hidden Template는 AI 일지용이며 diary_templates에 저장한다.
+
+정확한 구조:
+
+global_template_sets
+  ↓
+diary_templates
+  - template_scope = 'global'
+  - global_template_set_id = 해당 set
+  - swimming_pool_id = NULL
+
+curriculum_items는 수영장 전용 교육과정이며
+성장판과 학부모 AI 검색에 사용한다.
+
+수정 Phase:
+
+WP4-B:
+- DRAFT global_template_set 생성
+- diary_templates 50개 생성
+- template_scope='global'
+- global_template_set_id 지정
+
+WP5:
+- 수영장 전용 diary_templates 우선 검색
+- 관련성 미달 시 ACTIVE global_template_set의 diary_templates 검색
+
+WP15:
+- 검증 통과 후 global diary_templates 2,000개 생성
+- curriculum_items에 넣지 않음
+
+AI 일지 Template Search와 Curriculum Candidate Search를 다시 혼합하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+FIX-E. DB Transaction은 동일 Connection에서 실행
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 예시:
+
+db.execute(BEGIN)
+db.execute(...)
+db.execute(COMMIT)
+
+Connection Pool 구조에서는 각 execute가 서로 다른 connection을 사용할 가능성이 있다.
+
+반드시 Repository의 실제 DB 라이브러리에서 제공하는 transaction callback 또는 전용 client를 사용한다.
+
+예시 개념:
+
+await db.transaction(async (tx) => {
+  await tx.execute(advisory lock);
+  await tx.execute(select for update);
+  await tx.execute(archive current);
+  await tx.execute(activate target);
+  await writeAuditLog(tx, ...);
+});
+
+BEGIN/COMMIT 문자열을 일반 pooled db.execute로 직접 호출하지 않는다.
+
+Global Template 활성화, Audit Version 증가, 상태 변경, Audit Insert는 동일 Transaction과 동일 Connection 안에서 처리한다.
+
+Repository의 Drizzle transaction API 실제 사용 예를 찾아 파일·함수 기준으로 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+FIX-F. global_template_sets 컬럼 계약 정합성
+━━━━━━━━━━━━━━━━━━━━━━
+
+활성화 코드에서 다음 컬럼을 사용한다.
+
+- version
+- updated_at
+
+하지만 기존 global_template_sets DDL에는 다음만 존재한다.
+
+- version_name
+- created_at
+- activated_at
+- archived_at
+
+따라서 코드를 DDL에 맞춘다.
+
+SELECT:
+
+SELECT id, status, version_name
+FROM global_template_sets
+WHERE id = ...
+FOR UPDATE
+
+UPDATE:
+
+기존 ACTIVE:
+- status='ARCHIVED'
+- archived_at=NOW()
+
+대상:
+- status='ACTIVE'
+- activated_at=NOW()
+- archived_at=NULL
+
+updated_at이 필요하면 DDL에 명시적으로 추가한다.
+필요하지 않으면 활성화 코드에서 사용하지 않는다.
+
+존재하지 않는 version 컬럼을 조회하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+FIX-G. Audit Log 코드와 실제 스키마 통일
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 audit_logs 설계 컬럼:
+
+- actor_type
+- actor_id
+- pool_id
+- action
+- entity_type
+- entity_id
+- before_data
+- after_data
+- reason
+- request_id
+- correlation_id
+- entity_version
+- ip_hash
+- created_at
+
+V3.3.1 writeAuditLog 예시는 다음 잘못된 이름을 사용한다.
+
+- actor_role
+- diff
+
+실제 스키마와 코드 이름을 통일한다.
+
+권장 함수 입력:
+
+writeAuditLog(tx, {
+  actor_type,
+  actor_id,
+  pool_id,
+  action,
+  entity_type,
+  entity_id,
+  before_data,
+  after_data,
+  reason,
+  request_id,
+  correlation_id,
+  ip_hash
+});
+
+함수 내부에서 audit_entity_versions를 원자적으로 증가시키고,
+반환된 entity_version과 함께 audit_logs에 INSERT한다.
+
+writeAuditLog는 반드시 호출자의 Transaction tx를 받아 사용한다.
+내부에서 별도 connection이나 별도 transaction을 열지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+FIX-H. match_token 재사용 공격 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 signed match_token은 서명·만료·학생 검증은 가능하지만,
+같은 토큰을 24시간 동안 서로 다른 diary_note에 반복 사용할 수 있다.
+
+이 경우 같은 수업에서 생성된 match를 여러 일지에 재사용하여
+성장 횟수를 부당하게 증가시킬 수 있다.
+
+토큰에 다음을 추가한다.
+
+- token_id 또는 jti
+- pool_id
+- request_id
+- student_ref
+- curriculum_item_id
+- curriculum_version_id
+- candidate_id
+- confidence
+- issued_at
+- expires_at
+
+최종 저장 시 다음을 보장한다.
+
+1. 토큰 서명 검증
+2. token.pool_id = 저장 대상 pool
+3. token.request_id = 저장 요청의 AI request_id
+4. token.student_ref = 저장 학생
+5. item/version 재검증
+6. token_id의 최초 사용 여부 검증
+
+권장안:
+
+growth_events에 match_token_id 컬럼을 추가하고 UNIQUE 처리한다.
+
+ALTER TABLE growth_events
+ADD COLUMN match_token_id TEXT;
+
+CREATE UNIQUE INDEX uq_growth_events_match_token_id
+ON growth_events(match_token_id)
+WHERE match_token_id IS NOT NULL;
+
+토큰이 한 번 growth_event 또는 pending review에 사용되면 재사용을 거부한다.
+
+같은 token을 여러 번 포함한 재시도 요청은 멱등 응답으로 처리하되,
+다른 diary_note에 사용하려 하면 409 MATCH_TOKEN_ALREADY_USED를 반환한다.
+
+JWT_SECRET을 재사용하지 않는다.
+
+별도 환경변수:
+
+MATCH_TOKEN_SECRET
+
+정책:
+
+- Secret rotation이 필요한 경우 kid(key id) 포함 검토
+- 최소한 현재 버전에서는 별도 MATCH_TOKEN_SECRET 필수
+- Secret 미설정 시 서버 시작 실패 또는 AI match 기능 비활성화
+- JWT_SECRET fallback 금지
+
+timingSafeEqual 사용 전 HMAC 문자열 길이를 검증한다.
+길이가 다르면 즉시 INVALID_MATCH_TOKEN 처리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+FIX-I. Teacher Diary AI Contract 기존 호환성 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+V3.3.1 AIGenerateResponse에서 기존 확정 필드 일부가 사라지고
+student_ref가 student_id로 변경됐다.
+
+기존 앱·엔진 계약을 유지한다.
+
+최종 Contract V1.3:
+
+{
+  contract_version: "1.3",
+  schema_version: "curriculum_match_schema_v1",
+  request_id: string,
+  engine_version: string,
+  prompt_version: string,
+  knowledge_version: string | null,
+  template_set_version: string | null,
+  feature: "teacher_diary",
+
+  result: {
+    common: string,
+    students: [
+      {
+        student_ref: string,
+        content: string,
+        curriculum_matches: [
+          {
+            match_token: string,
+            display_label: string,
+            concept_tags: string[],
+            growth_match_status:
+              "AUTO_ACCEPTED" |
+              "PENDING_REVIEW"
+          }
+        ]
+      }
+    ]
+  },
+
+  meta: {
+    generation_mode:
+      "TEMPLATE_ASSISTED" |
+      "INPUT_ONLY" |
+      "POLISH_ONLY",
+    parser_confidence: number,
+    template_used: boolean,
+    candidate_count: number,
+    selected_candidate_count: number,
+    grounding_validation:
+      "pass" |
+      "fail" |
+      "skipped"
+  }
+}
+
+기존 필드:
+
+- result.common
+- result.students[].student_ref
+- result.students[].content
+
+는 그대로 유지한다.
+
+앱은 curriculum_matches를 지원하지 않는 구버전에서도 기존 content 저장이 가능해야 한다.
+
+단, curriculum_matches가 저장 요청에 없으면 growth_event는 생성하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+Migration 추가 정합성 검사
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP1 전에 다음 실제 객체를 재확인한다.
+
+1. X모드 컬럼 대상이 swimming_pools인지 pool_subscriptions인지
+2. parent_ai_daily_usage가 신규인지 기존 테이블인지
+3. global_template_sets에 pool_id가 없는지
+4. global_template_sets의 실제 timestamp 컬럼
+5. audit_logs 컬럼명
+6. growth_events에 match_token_id 추가 위치
+7. PostgreSQL enum을 Drizzle schema에서 어떻게 매핑할지
+8. Migration Runner가 여러 SQL statement와 DO block을 정상 실행하는지
+
+검증되지 않은 DDL은 실행하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+수정된 Phase
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP4-A
+- Global Template Set DB/API
+- Advisory lock
+- 동일 DB transaction
+- Audit Log
+- ACTIVE 최대 1개
+
+WP4-B
+- diary_templates 기반 global 파일럿 50개 생성
+- curriculum_items 사용 금지
+
+WP5
+- pool diary_templates 우선
+- ACTIVE global set diary_templates 보완 검색
+
+WP6
+- Curriculum Candidate Search
+- Contract V1.3
+- signed one-time match_token
+- MATCH_TOKEN_SECRET
+- token 재사용 방지
+
+WP6-B
+- 파일럿 50개 기반 품질·latency·threshold 검증
+
+WP15
+- global diary_templates 2,000개 확대
+
+━━━━━━━━━━━━━━━━━━━━━━
+제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+V3.3.2에서는 아래 변경분만 제출한다.
+
+1. 수정 ERD 일부
+2. 실제 실행 가능한 Migration 일부
+3. Match Token V2 계약
+4. Parent AI reservation 구조
+5. Global Template Transaction 실제 Drizzle 코드
+6. Audit Log 실제 스키마·함수
+7. Template와 Curriculum 분리 Phase
+8. 기존 AI Contract 호환성
+9. 테스트
+10. Rollback
+11. 남은 NEEDS_VERIFICATION
+
+설계서 제출 후 멈춘다.
+
+코드 수정, Migration 실행, Commit, Push, OTA, 배포,
+RevenueCat 상품 생성, 샘플 데이터 생성은 승인 전 금지한다.
