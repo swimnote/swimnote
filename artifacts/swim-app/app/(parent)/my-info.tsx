@@ -20,6 +20,7 @@ const C = Colors.light;
 const TEAL = "#2EC4B6";
 const TEAL_BG = "#E6FAF8";
 const GRAY_BG = "#F4F6FA";
+const NAVY = "#1B3A70";
 
 interface MeData {
   id: string;
@@ -61,12 +62,12 @@ function formatDate(dateStr: string | null) {
 function InfoRow({ icon, label, value, onPress }: { icon: string; label: string; value: string; onPress?: () => void }) {
   const inner = (
     <View style={s.row}>
-      <View style={s.rowIcon}><LucideIcon name={icon} size={16} color={TEAL} /></View>
+      <View style={s.rowIcon}><LucideIcon name={icon} size={16} color={NAVY} /></View>
       <View style={{ flex: 1 }}>
         <Text style={[s.rowLabel, { color: C.textMuted }]}>{label}</Text>
         <Text style={[s.rowValue, { color: onPress ? TEAL : C.text }]}>{value}</Text>
       </View>
-      {onPress && <LucideIcon name="phone-call" size={15} color={TEAL} />}
+      {onPress && <LucideIcon name="phone-call" size={15} color={NAVY} />}
     </View>
   );
   if (onPress) {
@@ -85,8 +86,8 @@ function SectionCard({ title, icon, right, children }: {
   return (
     <View style={[s.card, { backgroundColor: C.card }]}>
       <View style={s.cardHeader}>
-        <View style={[s.cardIconWrap, { backgroundColor: TEAL_BG }]}>
-          <LucideIcon name={icon} size={15} color={TEAL} />
+        <View style={s.cardIconWrap}>
+          <LucideIcon name={icon} size={15} color={NAVY} />
         </View>
         <Text style={[s.cardTitle, { color: C.text }]}>{title}</Text>
         {right ? <View style={{ marginLeft: "auto" }}>{right}</View> : null}
@@ -348,12 +349,12 @@ export default function MyInfoScreen() {
           contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: insets.bottom + 40, gap: 12 }}
         >
           {/* 아바타 헤더 */}
-          <View style={[s.avatarCard, { backgroundColor: TEAL }]}>
-            <View style={s.avatar}>
-              <Text style={s.avatarTxt}>{me?.name?.[0] ?? "?"}</Text>
+          <View style={[s.avatarCard, { backgroundColor: "#fff", borderWidth: 1.5, borderColor: TEAL }]}>
+            <View style={[s.avatar, { backgroundColor: TEAL_BG }]}>
+              <LucideIcon name="user-round" size={32} color={NAVY} />
             </View>
-            <Text style={s.avatarName}>{me?.name ?? ""}님</Text>
-            <Text style={s.avatarSub}>{poolName ?? "수영장 미연결"}</Text>
+            <Text style={[s.avatarName, { color: NAVY }]}>{me?.name ?? ""}님</Text>
+            <Text style={[s.avatarSub, { color: C.textSecondary }]}>{poolName ?? "수영장 미연결"}</Text>
           </View>
 
           {/* 연결 결과 메시지 */}
@@ -379,8 +380,8 @@ export default function MyInfoScreen() {
           <View style={[s.card, { backgroundColor: C.card }]}>
             {/* 카드 헤더 */}
             <View style={s.cardHeader}>
-              <View style={[s.cardIconWrap, { backgroundColor: TEAL_BG }]}>
-                <LucideIcon name="users" size={15} color={TEAL} />
+              <View style={s.cardIconWrap}>
+                <LucideIcon name="users" size={15} color={NAVY} />
               </View>
               <Text style={[s.cardTitle, { color: C.text }]}>등록된 자녀</Text>
             </View>
@@ -392,10 +393,8 @@ export default function MyInfoScreen() {
                 <React.Fragment key={st.id}>
                   <View style={[s.divider, { marginBottom: 8 }]} />
                   <View style={s.childRow}>
-                    <View style={[s.childBadge, { backgroundColor: TEAL_BG }]}>
-                      <Text style={[s.childBadgeTxt, { color: TEAL }]}>
-                        {(isEditing ? editingChildName : st.name)?.[0] ?? "?"}
-                      </Text>
+                    <View style={s.childBadge}>
+                      <LucideIcon name="user-round" size={18} color={NAVY} />
                     </View>
 
                     {isEditing ? (
@@ -414,7 +413,7 @@ export default function MyInfoScreen() {
                         {savingChild
                           ? <ActivityIndicator size="small" color={TEAL} />
                           : <>
-                              <Pressable hitSlop={10} onPress={() => saveChildName(st.id)} style={[s.editAction, { backgroundColor: TEAL }]}>
+                              <Pressable hitSlop={10} onPress={() => saveChildName(st.id)} style={[s.editAction, { backgroundColor: NAVY }]}>
                                 <LucideIcon name="check" size={14} color="#fff" />
                               </Pressable>
                               <Pressable hitSlop={10} onPress={() => setEditingChildId(null)} style={[s.editAction, { backgroundColor: "#EEE" }]}>
@@ -434,7 +433,7 @@ export default function MyInfoScreen() {
 
                     {!isEditing && (
                       <Pressable hitSlop={12} onPress={() => { setEditingChildId(st.id); setEditingChildName(st.name); }}>
-                        <LucideIcon name="edit" size={15} color={TEAL} />
+                        <LucideIcon name="edit" size={15} color={NAVY} />
                       </Pressable>
                     )}
                   </View>
@@ -460,13 +459,13 @@ export default function MyInfoScreen() {
                 onSubmitEditing={linkChildByName}
               />
               <Pressable
-                style={({ pressed }) => [s.addChildBtn, { backgroundColor: TEAL, opacity: pressed ? 0.8 : 1 }]}
+                style={({ pressed }) => [s.addChildBtn, { backgroundColor: "#fff", borderWidth: 1.5, borderColor: TEAL, opacity: pressed ? 0.8 : 1 }]}
                 onPress={linkChildByName}
                 disabled={addingChild}
               >
                 {addingChild
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <Text style={s.addChildBtnTxt}>연결</Text>
+                  ? <ActivityIndicator size="small" color={NAVY} />
+                  : <Text style={[s.addChildBtnTxt, { color: NAVY }]}>연결</Text>
                 }
               </Pressable>
             </View>
@@ -518,15 +517,15 @@ export default function MyInfoScreen() {
               </>
             ) : (
               <Pressable
-                style={({ pressed }) => [s.connectBtn, { backgroundColor: TEAL, opacity: pressed ? 0.8 : 1 }]}
+                style={({ pressed }) => [s.connectBtn, { backgroundColor: "#fff", borderWidth: 1.5, borderColor: TEAL, opacity: pressed ? 0.8 : 1 }]}
                 onPress={() => setPoolModal(true)}
                 disabled={linking}
               >
                 {linking
-                  ? <ActivityIndicator color="#fff" />
+                  ? <ActivityIndicator color={NAVY} />
                   : <>
-                    <LucideIcon name="plus" size={18} color="#fff" />
-                    <Text style={s.connectBtnTxt}>수영장 검색해서 연결하기</Text>
+                    <LucideIcon name="plus" size={18} color={NAVY} />
+                    <Text style={[s.connectBtnTxt, { color: NAVY }]}>수영장 검색해서 연결하기</Text>
                   </>}
               </Pressable>
             )}
@@ -534,11 +533,11 @@ export default function MyInfoScreen() {
 
           {/* 내 정보 수정 버튼 */}
           <Pressable
-            style={({ pressed }) => [s.editBtn, { backgroundColor: TEAL, opacity: pressed ? 0.8 : 1 }]}
+            style={({ pressed }) => [s.editBtn, { backgroundColor: "#fff", borderWidth: 1.5, borderColor: TEAL, opacity: pressed ? 0.8 : 1 }]}
             onPress={() => router.push("/(parent)/parent-profile?backTo=my-info" as any)}
           >
-            <LucideIcon name="pencil" size={16} color="#fff" />
-            <Text style={s.editBtnTxt}>내 정보 수정</Text>
+            <LucideIcon name="pencil" size={16} color={NAVY} />
+            <Text style={[s.editBtnTxt, { color: NAVY }]}>내 정보 수정</Text>
           </Pressable>
         </KeyboardAwareScrollView>
       )}
@@ -580,8 +579,8 @@ const s = StyleSheet.create({
   cardIconWrap: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   cardTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
 
-  changePoolBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: "#E6FAF8" },
-  changePoolTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  changePoolBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: "#fff", borderWidth: 1, borderColor: TEAL },
+  changePoolTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: NAVY },
 
   connectBtn: {
     borderRadius: 12, paddingVertical: 14, flexDirection: "row",
