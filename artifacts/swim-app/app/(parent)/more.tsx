@@ -43,7 +43,7 @@ function MenuItem({
       style={({ pressed }) => [s.menuItem, { backgroundColor: C.card, opacity: pressed ? 0.8 : 1 }]}
       onPress={onPress}
     >
-      <View style={[s.menuIcon, { backgroundColor: bg }]}>
+      <View style={s.menuIcon}>
         <LucideIcon name={icon} size={18} color={ic} />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
@@ -103,7 +103,7 @@ export default function ParentMoreScreen() {
             style={({ pressed }) => [s.accountCard, { backgroundColor: C.card, opacity: pressed ? 0.85 : 1 }]}
             onPress={() => router.push("/(parent)/my-info?backTo=more" as any)}
           >
-            <View style={[s.accountAvatar, { backgroundColor: C.tintLight }]}>
+            <View style={s.accountAvatar}>
               <LucideIcon name="user-round" size={26} color={C.tint} />
             </View>
             <View style={{ flex: 1 }}>
