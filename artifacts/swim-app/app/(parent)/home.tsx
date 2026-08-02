@@ -1349,7 +1349,7 @@ export default function ParentHomeScreen() {
     <View>
       {/* A. Slim Header */}
       <View style={[s.header, { paddingTop: PT }]}>
-        <Text style={[s.poolName, { color: C.textMuted }]} numberOfLines={1}>
+        <Text style={[s.poolName, { color: C.textSecondary }]} numberOfLines={1}>
           {parentPoolName ||
             (parentAccount as any)?.pool_name ||
             pool?.name ||
@@ -1357,13 +1357,13 @@ export default function ParentHomeScreen() {
         </Text>
         <View style={s.headerBtns}>
           <Pressable
-            style={[s.headerBtn, { backgroundColor: C.card }]}
+            style={s.headerBtn}
             onPress={() => router.push("/(parent)/notifications" as any)}
           >
             <LucideIcon name="bell" size={19} color={C.textSecondary} />
           </Pressable>
           <Pressable
-            style={[s.headerBtn, { backgroundColor: C.card }]}
+            style={s.headerBtn}
             onPress={() => Linking.openURL("https://swimnote.kr")}
           >
             <Image
@@ -1373,7 +1373,7 @@ export default function ParentHomeScreen() {
             />
           </Pressable>
           <Pressable
-            style={[s.headerBtn, { backgroundColor: C.card }]}
+            style={s.headerBtn}
             onPress={() => router.push("/(parent)/more" as any)}
           >
             <LucideIcon name="settings" size={19} color={C.textSecondary} />
@@ -1387,7 +1387,7 @@ export default function ParentHomeScreen() {
           onPress={() => setAiModalType("curriculum")}
           style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 5, opacity: pressed ? 0.6 : 1 })}
         >
-          <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 43, height: 43 }} resizeMode="contain" />
+          <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 37, height: 37 }} resizeMode="contain" />
           <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>AI 커리큘럼</Text>
         </Pressable>
       </View>
@@ -1467,7 +1467,7 @@ export default function ParentHomeScreen() {
             onPress={() => setAiModalType("report")}
             style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 6, marginRight: 10, opacity: pressed ? 0.6 : 1 })}
           >
-            <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 40, height: 40 }} resizeMode="contain" />
+            <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 36, height: 36 }} resizeMode="contain" />
             <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>AI 성장 리포트</Text>
           </Pressable>
           <Pressable
@@ -1727,7 +1727,6 @@ const s = StyleSheet.create({
     gap: 2,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    backgroundColor: IB,
     borderRadius: 8,
   },
   albumBtnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
@@ -1828,8 +1827,8 @@ const f = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 20,
   },
-  reactionBtnActive: { backgroundColor: "#E6FFFA" },
-  reactionBtnThanks: { backgroundColor: "#F6D8E1" },
+  reactionBtnActive: {},
+  reactionBtnThanks: {},
   emoji: { fontSize: 15 },
   reactionLabel: { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });

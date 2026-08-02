@@ -29,7 +29,7 @@ const THEME_MAP: Record<string, { bg: string; accent: string; text: string }> = 
   pink:   { bg: "#FCE7F3", accent: "#DB2777", text: "#831843" },
 };
 
-const DEFAULT = { bg: "#E6FAF8", accent: "#2EC4B6", text: "#065F46" };
+const DEFAULT = { bg: "#1B3A70", accent: "#2EC4B6", text: "#FFFFFF" };
 
 const FALLBACK = {
   title: "스윔노트 — 우리 아이 수영 성장을 기록해보세요",
@@ -104,6 +104,8 @@ const s = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 12,
     gap: 8,
+    borderWidth: 1.5,
+    borderColor: "#2EC4B6",
   },
   stripImg: {
     marginHorizontal: 20,
