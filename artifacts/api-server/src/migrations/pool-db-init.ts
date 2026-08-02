@@ -7,9 +7,15 @@
  * DB 단일화 이후:
  * - superAdminDb (운영 원본) — 모든 테이블 생성
  * - poolDb (백업 DB, POOL_DATABASE_URL 설정 시) — 백업 스키마 동기화
+ *
+ * SWIMNOTE X WP1:
+ * - initXModeSchema() 호출 (pool-db-x-init.ts)
+ * - 실패 시 throw → initPoolDb 전체 실패 → index.ts catch에서 로그
+ * - ⚠️  프로덕션 Migration 실행은 별도 승인 후 진행
  */
 import { superAdminDb, getBackupDb, isDbSeparated } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { initXModeSchema } from "./pool-db-x-init.js";
 
 export async function initPoolDb(): Promise<void> {
   // 운영 DB (superAdminDb)에 모든 테이블 초기화
@@ -1339,4 +1345,12 @@ export async function initPoolDb(): Promise<void> {
       END IF;
     END $$;
   `)).catch((e: any) => console.error('[backfill] student_class_history:', e));
+
+  // ─── SWIMNOTE X WP1 Migration ─────────────────────────────────────────────
+  //
+  // 실패 시 throw → initPoolDb 전체 실패.
+  // ⚠️  현재 index.ts(54)는 .catch()로 오류를 삼키므로 서버 기동이 중단되지 않음.
+  //     완전한 "서버 기동 중단" 보장이 필요하면 index.ts 호출부를 .catch() 없이 변경 필요.
+  // ⚠️  프로덕션 실행 전 반드시 별도 승인 필요.
+  await initXModeSchema();
 }
