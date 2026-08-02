@@ -20,7 +20,7 @@ interface Banner {
 }
 
 const THEME_MAP: Record<string, { bg: string; accent: string; text: string }> = {
-  teal:   { bg: "#1B3A70", accent: "#2EC4B6", text: "#FFFFFF" },
+  teal:   { bg: "#F8F9FA", accent: "#2EC4B6", text: "#1B3A70" },
   purple: { bg: "#EDE9FE", accent: "#7C3AED", text: "#4C1D95" },
   orange: { bg: "#FFF7ED", accent: "#F97316", text: "#9A3412" },
   blue:   { bg: "#DBEAFE", accent: "#2563EB", text: "#1E40AF" },
@@ -29,7 +29,7 @@ const THEME_MAP: Record<string, { bg: string; accent: string; text: string }> = 
   pink:   { bg: "#FCE7F3", accent: "#DB2777", text: "#831843" },
 };
 
-const DEFAULT = { bg: "#1B3A70", accent: "#2EC4B6", text: "#FFFFFF" };
+const DEFAULT = { bg: "#F8F9FA", accent: "#2EC4B6", text: "#1B3A70" };
 
 const FALLBACK = {
   title: "스윔노트 — 우리 아이 수영 성장을 기록해보세요",
