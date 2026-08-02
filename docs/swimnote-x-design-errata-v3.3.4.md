@@ -18,19 +18,46 @@
 
 ## 1. 최종 `diary_templates.scope` CHECK SQL
 
-### 1-1. Migration 전 사전 검증 쿼리 (필수)
+### 1-1. Migration 전 사전 검증 쿼리 (2단계 — 시점 분리)
 
-> WP1 실행 전 아래 쿼리를 수동 실행. 결과가 1행 이상이면 **Migration 중단 후 원인 보고**.
+> `global_template_set_id` 컬럼은 M-E-2에서 신규 추가되므로 M-E 실행 전에는 존재하지 않음.
+> 따라서 사전 검증을 **1차(M-E 전)** 와 **2차(M-E-2 이후 M-E-3 전)** 로 분리한다.
+
+#### 1차 검증 — M-E-1 실행 전 (필수)
 
 ```sql
--- 기존 데이터에 CHECK 위반 가능성 확인
-SELECT id, scope, swimming_pool_id, global_template_set_id
+-- global_template_set_id 없이 기존 컬럼만 검증
+SELECT id, scope, swimming_pool_id
 FROM diary_templates
 WHERE scope NOT IN ('global', 'teacher')
    OR swimming_pool_id IS NULL;
 
 -- 예상 결과: 0 rows
--- 1행 이상이면 원인 분석 후 Migration 진행 여부 결정
+-- 1행 이상이면 Migration 중단 후 원인 보고
+```
+
+#### 2차 검증 — M-E-2 완료 직후, M-E-3(CHECK 추가) 직전
+
+```sql
+-- global_template_set_id 컬럼 추가 후 전체 정합성 검증
+SELECT id, scope, swimming_pool_id, global_template_set_id
+FROM diary_templates
+WHERE NOT (
+  (
+    scope = 'x_global'
+    AND swimming_pool_id IS NULL
+    AND global_template_set_id IS NOT NULL
+  )
+  OR
+  (
+    scope IN ('global', 'teacher')
+    AND swimming_pool_id IS NOT NULL
+    AND global_template_set_id IS NULL
+  )
+);
+
+-- 예상 결과: 0 rows (기존 데이터는 모두 global/teacher이므로 통과)
+-- 1행 이상이면 Migration 중단 후 원인 보고
 ```
 
 ### 1-2. 최종 scope CHECK (V3.3.4 확정)
@@ -292,7 +319,104 @@ async function expireStaleReservationsForParent(
 }
 ```
 
-### 4-3. API 요청 전체 처리 순서 (V3.3.4 확정)
+### 4-3. Reservation 생성 — ON CONFLICT DO NOTHING + 소유권 검증
+
+```typescript
+// reserveParentAiInTx — 동일 tx 안에서 실행
+async function reserveParentAiInTx(
+  tx:              DrizzleTx,
+  requestId:       string,
+  parentAccountId: string,
+  usageDate:       string,
+  dailyLimit:      number,
+): Promise<void> {
+
+  // ① INSERT ON CONFLICT DO NOTHING — PK 충돌(동시 요청) 시 0 rows 반환
+  const insertResult = await tx.execute(sql`
+    INSERT INTO parent_ai_usage_reservations
+      (request_id, parent_account_id, usage_date, status)
+    VALUES
+      (${requestId}, ${parentAccountId}, ${usageDate}::date, 'RESERVED')
+    ON CONFLICT (request_id) DO NOTHING
+    RETURNING request_id
+  `);
+
+  if ((insertResult.rowCount ?? 0) === 0) {
+    // ② CONFLICT 발생 — 기존 reservation 조회
+    const [existing] = await tx.execute(sql`
+      SELECT request_id, parent_account_id, usage_date, status
+      FROM parent_ai_usage_reservations
+      WHERE request_id = ${requestId}
+    `);
+
+    if (!existing) {
+      throw new AppError(500, 'RESERVATION_CONFLICT_UNRESOLVABLE');
+    }
+
+    // ③ 소유권 검증 — 다른 parent의 request_id 재사용 차단
+    if (existing.parent_account_id !== parentAccountId) {
+      throw new AppError(409, 'REQUEST_ID_OWNERSHIP_MISMATCH');
+    }
+
+    // ④ 상태별 재시도 정책
+    switch (existing.status) {
+      case 'RESERVED':
+        // 동일 요청이 아직 처리 중
+        throw new AppError(409, 'REQUEST_ALREADY_IN_PROGRESS');
+
+      case 'COMPLETED':
+        // 이미 완료 — 멱등 응답 신호 (호출자가 캐시된 결과 반환)
+        throw new AppError(200, 'ALREADY_COMPLETED');
+
+      case 'FAILED':
+      case 'BLOCKED':
+      case 'EXPIRED':
+        // 종료된 request_id 재사용 금지
+        throw new AppError(409, 'REQUEST_ID_ALREADY_TERMINAL', {
+          hint: '새 request_id를 발급하여 다시 요청하세요',
+          previous_status: existing.status,
+        });
+    }
+  }
+
+  // ⑤ INSERT 성공 — reserved_count 집계 증가
+  // 한도 검사: FOR UPDATE로 daily_usage 행 잠금 후 실효값 확인
+  const [usage] = await tx.execute(sql`
+    SELECT reserved_count, completed_count
+    FROM parent_ai_daily_usage
+    WHERE parent_account_id = ${parentAccountId}
+      AND usage_date = ${usageDate}::date
+    FOR UPDATE
+  `);
+  const current = usage
+    ? (usage.reserved_count as number) + (usage.completed_count as number)
+    : 0;
+
+  if (current >= dailyLimit) {
+    // 한도 초과 — 방금 INSERT한 reservation 즉시 취소
+    await tx.execute(sql`
+      UPDATE parent_ai_usage_reservations
+      SET status = 'EXPIRED', completed_at = NOW()
+      WHERE request_id = ${requestId}
+    `);
+    throw new AppError(429, 'AI_USAGE_LIMIT_REACHED');
+  }
+
+  // ⑥ reserved_count 증가
+  await tx.execute(sql`
+    INSERT INTO parent_ai_daily_usage
+      (parent_account_id, usage_date, reserved_count)
+    VALUES
+      (${parentAccountId}, ${usageDate}::date, 1)
+    ON CONFLICT (parent_account_id, usage_date)
+    DO UPDATE SET
+      reserved_count = parent_ai_daily_usage.reserved_count + 1,
+      updated_at     = NOW()
+  `);
+}
+```
+
+### 4-4. API 요청 전체 처리 순서 (V3.3.4 확정)
 
 ```typescript
 async function handleParentAiRequest(
@@ -303,29 +427,21 @@ async function handleParentAiRequest(
   aiCall:          () => Promise<AiResult>,
 ): Promise<AiResult> {
   const usageDate = getKSTDate();
-
-  // ── 동일 request_id 재시도: 기존 상태 확인
-  const [existing] = await db.execute(sql`
-    SELECT status FROM parent_ai_usage_reservations
-    WHERE request_id = ${requestId}
-  `);
-  if (existing?.status === 'COMPLETED') {
-    // 이미 완료된 요청 — 멱등 응답 (결과 재조회 또는 캐시)
-    throw new AppError(200, 'ALREADY_COMPLETED');
-  }
-
   let tokens = { prompt: 0, completion: 0, costKrw: 0 };
 
   await db.transaction(async (tx) => {
-    // ① 만료 Reservation 정리 (API 진입 경로)
+    // ① 만료 Reservation 정리 (API 진입 이중 복구)
     await expireStaleReservationsForParent(tx, parentAccountId, usageDate);
 
-    // ② 일일 한도 검사 + 신규 Reservation 생성
+    // ② Reservation 생성 + 소유권·한도 검증
+    //    ALREADY_COMPLETED(200) / REQUEST_ALREADY_IN_PROGRESS(409) /
+    //    REQUEST_ID_ALREADY_TERMINAL(409) / REQUEST_ID_OWNERSHIP_MISMATCH(409) 등 throw
     await reserveParentAiInTx(tx, requestId, parentAccountId, usageDate, dailyLimit);
   });
+  // tx COMMIT 후 아래 진행
 
   try {
-    // ③ Intent Guard (같은 tx 밖 — 네트워크 호출)
+    // ③ Intent Guard (네트워크 호출 — tx 밖)
     const intentOk = await checkSwimmingIntent(aiCall.inputText);
     if (!intentOk) {
       await blockParentAiIntent(db, requestId, parentAccountId, usageDate, tokens);
@@ -341,7 +457,8 @@ async function handleParentAiRequest(
     return result;
 
   } catch (err) {
-    if (err instanceof AppError && err.code === 'NON_SWIMMING_INTENT') throw err;
+    if (err instanceof AppError &&
+        ['NON_SWIMMING_INTENT', 'ALREADY_COMPLETED'].includes(err.code)) throw err;
     // ⑥ AI 오류 → 실패 완료
     await failParentAi(db, requestId, parentAccountId, usageDate, String(err), tokens);
     throw err;
@@ -349,28 +466,71 @@ async function handleParentAiRequest(
 }
 ```
 
+**상태별 재시도 응답 요약:**
+
+| 기존 status | 반환 |
+|-------------|------|
+| `RESERVED` (진행 중) | 409 `REQUEST_ALREADY_IN_PROGRESS` |
+| `COMPLETED` (완료) | 200 `ALREADY_COMPLETED` (멱등) |
+| `FAILED` / `BLOCKED` / `EXPIRED` | 409 `REQUEST_ID_ALREADY_TERMINAL` — 새 request_id 요구 |
+| 다른 parent 소유 | 409 `REQUEST_ID_OWNERSHIP_MISMATCH` |
+
 ---
 
 ## 5. 변경 Migration (V3.3.3 M-E 대체 + 추가 없음)
 
 V3.3.4에서 Migration DDL 변경은 **M-E의 scope CHECK만 영향**. 나머지 M-A~M-J는 V3.3.3과 동일.
 
-### M-E 최종본 (V3.3.4)
+### M-E 최종본 (V3.3.4) — 실패 즉시 중단 구조
+
+> `.catch(() => {})` 로 오류를 삼키지 않는다. 각 Group은 하나라도 실패하면 이후 단계 실행 금지.
 
 ```typescript
-// pool-db-init.ts에 추가 (M-E 전체)
+// pool-db-init.ts — Group 2: M-C, M-D, M-E (의존성 묶음)
+// 어떤 단계든 throw 하면 Group 전체 실패 → 서버 시작 중단
+
+// ── M-E: diary_templates 변경 (Group 2 내 순서 유지) ──────────────────────
+
+// [1차 사전 검증] M-E-1 실행 전 — 결과가 1행 이상이면 throw
+const preCheckRows = await db.execute(sql.raw(`
+  SELECT id, scope, swimming_pool_id
+  FROM diary_templates
+  WHERE scope NOT IN ('global', 'teacher')
+     OR swimming_pool_id IS NULL
+`));
+if ((preCheckRows.rowCount ?? 0) > 0) {
+  console.error('[X-init] M-E 1차 검증 실패 — 기존 데이터 정합성 오류:', preCheckRows.rows);
+  throw new Error('[X-init] diary_templates 사전 검증 실패: Migration 중단');
+}
 
 // M-E-1: swimming_pool_id NOT NULL 해제
 await db.execute(sql.raw(`
   ALTER TABLE diary_templates ALTER COLUMN swimming_pool_id DROP NOT NULL;
-`)).catch((e: any) => console.error('[X-init] M-E-1:', e.message));
+`));
+console.log('[X-init] M-E-1 완료: swimming_pool_id DROP NOT NULL');
 
 // M-E-2: global_template_set_id 컬럼 추가
 await db.execute(sql.raw(`
   ALTER TABLE diary_templates ADD COLUMN IF NOT EXISTS global_template_set_id text;
-`)).catch((e: any) => console.error('[X-init] M-E-2:', e.message));
+`));
+console.log('[X-init] M-E-2 완료: global_template_set_id 컬럼 추가');
 
-// M-E-3: scope 정합성 CHECK (V3.3.4 최종 — scope 허용값 완전 제한 포함)
+// [2차 사전 검증] M-E-2 완료 후, M-E-3 전 — 결과가 1행 이상이면 throw
+const postColCheckRows = await db.execute(sql.raw(`
+  SELECT id, scope, swimming_pool_id, global_template_set_id
+  FROM diary_templates
+  WHERE NOT (
+    (scope = 'x_global' AND swimming_pool_id IS NULL AND global_template_set_id IS NOT NULL)
+    OR
+    (scope IN ('global','teacher') AND swimming_pool_id IS NOT NULL AND global_template_set_id IS NULL)
+  )
+`));
+if ((postColCheckRows.rowCount ?? 0) > 0) {
+  console.error('[X-init] M-E 2차 검증 실패:', postColCheckRows.rows);
+  throw new Error('[X-init] diary_templates 2차 검증 실패: Migration 중단');
+}
+
+// M-E-3: scope 정합성 CHECK (허용값: global, teacher, x_global만)
 await db.execute(sql.raw(`
   DO $$
   BEGIN
@@ -396,7 +556,8 @@ await db.execute(sql.raw(`
       );
     END IF;
   END $$;
-`)).catch((e: any) => console.error('[X-init] M-E-3:', e.message));
+`));
+console.log('[X-init] M-E-3 완료: scope 정합성 CHECK 추가');
 
 // M-E-4: global_template_set_id FK
 await db.execute(sql.raw(`
@@ -414,17 +575,74 @@ await db.execute(sql.raw(`
       ON DELETE RESTRICT;
     END IF;
   END $$;
-`)).catch((e: any) => console.error('[X-init] M-E-4:', e.message));
+`));
+console.log('[X-init] M-E-4 완료: global_template_set_id FK 추가');
 
 // M-E-5: x_global 검색 인덱스
 await db.execute(sql.raw(`
   CREATE INDEX IF NOT EXISTS idx_diary_templates_xglobal
     ON diary_templates (global_template_set_id, is_active)
     WHERE scope = 'x_global';
-`)).catch(() => {});
+`));
+console.log('[X-init] M-E-5 완료: idx_diary_templates_xglobal 인덱스');
 ```
 
-> **M-E 실행 전 선행 조건:** 사전 검증 쿼리(§1-1) 결과 0 rows 확인 필수. M-C(global_template_sets 생성) 이후에 실행.
+### Migration Group 구조 (실패 즉시 중단)
+
+```typescript
+// pool-db-init.ts — WP1 X모드 Migration 진입점
+// 각 Group은 try/catch로 감싸고, 실패 시 throw → 서버 시작 중단
+
+async function initXModeSchema(db: Db): Promise<void> {
+  // Group 1: ENUM + swimming_pools 컬럼
+  try {
+    await runGroup1_EnumAndPools(db);      // M-A, M-B
+  } catch (err) {
+    console.error('[SWIMNOTE X WP1] Group 1 실패', err);
+    throw err;  // 서버 시작 중단
+  }
+
+  // Group 2: Global Template 구조
+  try {
+    await runGroup2_GlobalTemplate(db);    // M-C, M-D, M-E
+  } catch (err) {
+    console.error('[SWIMNOTE X WP1] Group 2 실패', err);
+    throw err;
+  }
+
+  // Group 3: Audit
+  try {
+    await runGroup3_Audit(db);             // M-F, M-G
+  } catch (err) {
+    console.error('[SWIMNOTE X WP1] Group 3 실패', err);
+    throw err;
+  }
+
+  // Group 4: Parent AI Usage
+  try {
+    await runGroup4_ParentAiUsage(db);     // M-H, M-H2
+  } catch (err) {
+    console.error('[SWIMNOTE X WP1] Group 4 실패', err);
+    throw err;
+  }
+
+  // Group 5: Growth
+  try {
+    await runGroup5_Growth(db);            // M-I, M-J
+  } catch (err) {
+    console.error('[SWIMNOTE X WP1] Group 5 실패', err);
+    throw err;
+  }
+
+  console.log('[SWIMNOTE X WP1] Migration 전체 완료');
+}
+```
+
+> **금지:** `.catch(() => {})` 또는 `.catch((e) => console.error(...))` 후 계속 진행.
+> 부분 Migration 상태에서 서버가 시작되면 안 됨.
+> 멱등성(`IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, DO $$ 블록)은 재실행 안전성을 위한 것이지 오류 은폐용이 아님.
+
+> **M-E 실행 전 선행 조건:** 1차 검증 코드가 내부에 포함됨. M-C(global_template_sets 생성) 이후에 실행.
 
 ---
 
@@ -505,22 +723,54 @@ test('is_invalidated=true 행 이후 동일 note/item → 신규 허용', async 
 
 ### T-4: key_id 포함 Token 검증
 
+> **검증 순서:** key_id 지원 여부(①) → HMAC 길이(②) → 서명(③). 따라서 key_id 변조는 항상 KEY_NOT_SUPPORTED가 먼저 반환됨. INVALID_MATCH_TOKEN 테스트는 key_id를 유지하고 payload 값을 변조해야 함.
+
 ```typescript
+// 케이스 1: 지원되지 않는 key_id
 test('지원되지 않는 key_id → MATCH_TOKEN_KEY_NOT_SUPPORTED', async () => {
   const tokenWithBadKey = createTokenWithKeyId('match_key_v99', payload);
   await expect(verifyMatchToken(tokenWithBadKey, studentId, poolId, requestId))
     .rejects.toMatchObject({ code: 'MATCH_TOKEN_KEY_NOT_SUPPORTED' });
 });
 
-test('key_id 변조 → INVALID_MATCH_TOKEN', async () => {
+// 케이스 2: key_id 변조 (지원되지 않는 key로 변경)
+// → key_id 검사가 HMAC 검사보다 먼저 실행되므로 KEY_NOT_SUPPORTED 반환
+test('key_id를 지원되지 않는 값으로 변조 → MATCH_TOKEN_KEY_NOT_SUPPORTED', async () => {
   const token  = createMatchToken(payload); // key_id='match_key_v1'
   const parsed = JSON.parse(Buffer.from(token, 'base64url').toString());
-  parsed.key_id = 'match_key_v2'; // 변조
+  parsed.key_id = 'match_key_v2'; // 변조 (지원 안 됨)
+  const tampered = Buffer.from(JSON.stringify(parsed)).toString('base64url');
+  await expect(verifyMatchToken(tampered, studentId, poolId, requestId))
+    .rejects.toMatchObject({ code: 'MATCH_TOKEN_KEY_NOT_SUPPORTED' });
+  // INVALID_MATCH_TOKEN이 아님 — key_id 검사가 HMAC 검사보다 선행
+});
+
+// 케이스 3: 서명 변조 (key_id는 유효, payload 값 변경)
+// → key_id 검사 통과 → HMAC 불일치 → INVALID_MATCH_TOKEN
+test('payload 값 변조(confidence) → INVALID_MATCH_TOKEN', async () => {
+  const token  = createMatchToken(payload); // key_id='match_key_v1'
+  const parsed = JSON.parse(Buffer.from(token, 'base64url').toString());
+  parsed.confidence = 0.99; // 서명 덮어쓰기 없이 값만 변조
   const tampered = Buffer.from(JSON.stringify(parsed)).toString('base64url');
   await expect(verifyMatchToken(tampered, studentId, poolId, requestId))
     .rejects.toMatchObject({ code: 'INVALID_MATCH_TOKEN' });
 });
+
+// 케이스 4: malformed token (base64url 디코딩 불가)
+test('malformed token → INVALID_MATCH_TOKEN', async () => {
+  await expect(verifyMatchToken('not.a.valid.token', studentId, poolId, requestId))
+    .rejects.toMatchObject({ code: 'INVALID_MATCH_TOKEN' });
+});
 ```
+
+**정책 요약:**
+
+| 케이스 | 반환 코드 |
+|--------|----------|
+| 지원되지 않는 key_id | `MATCH_TOKEN_KEY_NOT_SUPPORTED` |
+| key_id 변조 (지원 안 되는 값으로) | `MATCH_TOKEN_KEY_NOT_SUPPORTED` |
+| 지원되는 key_id + payload/hmac 변조 | `INVALID_MATCH_TOKEN` |
+| malformed token | `INVALID_MATCH_TOKEN` |
 
 ### T-5: API 진입 시 만료 Reservation 복구
 
