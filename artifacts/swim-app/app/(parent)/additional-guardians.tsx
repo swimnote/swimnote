@@ -130,15 +130,15 @@ export default function AdditionalGuardiansScreen() {
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24, gap: 16 }}>
           {/* 안내 */}
-          <View style={{ backgroundColor: TEAL_BG, borderRadius: 14, padding: 16, gap: 10 }}>
+          <View style={{ backgroundColor: "transparent", borderRadius: 14, borderWidth: 1, borderColor: "#B2E8E2", padding: 16, gap: 10 }}>
             <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
               <LucideIcon name="info" size={16} color={TEAL} />
               <Text style={{ fontSize: 14, color: "#0F766E", fontFamily: "Pretendard-Bold" }}>추가 보호자 연결 방법</Text>
             </View>
             <View style={{ gap: 10, paddingLeft: 2 }}>
               <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
-                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: TEAL, alignItems: "center", justifyContent: "center", marginTop: 1 }}>
-                  <Text style={{ fontSize: 12, color: "#fff", fontFamily: "Pretendard-Bold" }}>1</Text>
+                <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: TEAL, alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                  <Text style={{ fontSize: 12, color: TEAL, fontFamily: "Pretendard-Bold" }}>1</Text>
                 </View>
                 <Text style={{ flex: 1, fontSize: 13, color: "#0F4C46", lineHeight: 21 }}>
                   이 화면에서 추가 보호자의{" "}
@@ -147,8 +147,8 @@ export default function AdditionalGuardiansScreen() {
                 </Text>
               </View>
               <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
-                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: TEAL, alignItems: "center", justifyContent: "center", marginTop: 1 }}>
-                  <Text style={{ fontSize: 12, color: "#fff", fontFamily: "Pretendard-Bold" }}>2</Text>
+                <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: TEAL, alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                  <Text style={{ fontSize: 12, color: TEAL, fontFamily: "Pretendard-Bold" }}>2</Text>
                 </View>
                 <Text style={{ flex: 1, fontSize: 13, color: "#0F4C46", lineHeight: 21 }}>
                   추가 보호자가 등록된 번호로 SwimNote에 가입하면{" "}
@@ -157,7 +157,7 @@ export default function AdditionalGuardiansScreen() {
                 </Text>
               </View>
               <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
-                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: "#F59E0B", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: "#F59E0B", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
                   <Text style={{ fontSize: 12, color: "#fff", fontFamily: "Pretendard-Bold" }}>3</Text>
                 </View>
                 <Text style={{ flex: 1, fontSize: 13, color: "#0F4C46", lineHeight: 21 }}>
@@ -184,7 +184,7 @@ export default function AdditionalGuardiansScreen() {
               <View key={s.student_id} style={{ backgroundColor: "#fff", borderRadius: 14, padding: 16, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 }}>
                 {/* 자녀 이름 */}
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                  <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: TEAL_BG, alignItems: "center", justifyContent: "center" }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" }}>
                     <Text style={{ fontSize: 14, color: TEAL, fontFamily: "Pretendard-SemiBold" }}>{s.student_name[0]}</Text>
                   </View>
                   <Text style={{ fontSize: 16, color: NAVY, fontFamily: "Pretendard-SemiBold" }}>{s.student_name}</Text>
@@ -348,10 +348,9 @@ function formatPhone(phone: string | null | undefined): string {
 }
 
 function dotBadge(status: string) {
-  const bg = status === "connected" ? "#E6FAF8" : status === "pending" ? "#FFF8E1" : "#F1F5F9";
   return {
     width: 30, height: 30, borderRadius: 15,
-    backgroundColor: bg, alignItems: "center" as const, justifyContent: "center" as const,
+    alignItems: "center" as const, justifyContent: "center" as const,
     marginRight: 10,
   };
 }

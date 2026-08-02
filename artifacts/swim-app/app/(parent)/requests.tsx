@@ -245,16 +245,16 @@ export default function ParentRequestsScreen() {
             {errorMsg ? <Text style={s.error}>{errorMsg}</Text> : null}
 
             <Pressable
-              style={({ pressed }) => [s.submitBtn, { backgroundColor: C.tint, opacity: pressed || submitting ? 0.8 : 1 }]}
+              style={({ pressed }) => [s.submitBtn, { backgroundColor: "#fff", borderWidth: 1.5, borderColor: C.tint, opacity: pressed || submitting ? 0.8 : 1 }]}
               onPress={handleSubmit}
               disabled={submitting}
             >
               {submitting ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color="#1B3A70" size="small" />
               ) : (
                 <>
-                  <LucideIcon name="send" size={16} color="#fff" />
-                  <Text style={s.submitBtnText}>요청 보내기</Text>
+                  <LucideIcon name="send" size={16} color="#1B3A70" />
+                  <Text style={[s.submitBtnText, { color: "#1B3A70" }]}>요청 보내기</Text>
                 </>
               )}
             </Pressable>

@@ -128,7 +128,7 @@ export default function ChildrenScreen() {
                 style={({ pressed }) => [s.childCard, { backgroundColor: C.card, opacity: pressed ? 0.9 : 1 }]}
                 onPress={() => router.push({ pathname: "/(parent)/child-profile" as any, params: { id: st.id, backTo: "children" } })}
               >
-                <View style={[s.childAvatar, { backgroundColor: color + "22" }]}>
+                <View style={s.childAvatar}>
                   <Text style={[s.childAvatarTxt, { color }]}>{st.name[0]}</Text>
                 </View>
                 <View style={{ flex: 1, gap: 3 }}>
@@ -150,7 +150,7 @@ export default function ChildrenScreen() {
         )}
 
         {/* 연결 안내 */}
-        <View style={[s.infoCard, { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0", borderWidth: 1 }]}>
+        <View style={[s.infoCard, { backgroundColor: "transparent", borderColor: "#BBF7D0", borderWidth: 1 }]}>
           <LucideIcon name="info" size={16} color="#16A34A" style={{ marginTop: 2 }} />
           <View style={{ flex: 1, gap: 6 }}>
             <Text style={[s.infoTitle, { color: "#15803D" }]}>자동 연결 방식</Text>

@@ -93,7 +93,7 @@ export default function ParentPushSettingsScreen() {
           <View style={s.card}>
             {ITEMS.map((item, idx) => (
               <View key={item.key} style={[s.row, idx > 0 && { borderTopWidth: 1, borderTopColor: C.border }]}>
-                <View style={[s.iconBox, { backgroundColor: themeColor + "15" }]}>
+                <View style={s.iconBox}>
                   <LucideIcon name={item.icon as any} size={16} color={themeColor} />
                 </View>
                 <View style={s.textBox}>
