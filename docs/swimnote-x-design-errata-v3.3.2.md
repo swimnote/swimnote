@@ -1,4 +1,4 @@
-# SWIMNOTE X — 설계 정정서 v3.3.2
+#SWIMNOTE  X — 설계 정정서 v3.3.2
 > V3.3.1 대비 구현 차단 요소 9개 정정
 > 코드 수정·Migration 실행·Commit·Push·OTA·배포·RevenueCat 상품 생성·샘플 데이터 생성은 승인 전 금지
 
