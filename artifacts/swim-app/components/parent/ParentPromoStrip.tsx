@@ -83,7 +83,7 @@ export function ParentPromoStrip() {
       }}
     >
       <View style={[s.iconWrap, { backgroundColor: th.accent + "22" }]}>
-        <LucideIcon name="megaphone" size={14} color={th.accent} />
+        <LucideIcon name="waves" size={14} color={th.accent} />
       </View>
       <Text style={[s.txt, { color: th.text }]} numberOfLines={1}>{src.title}</Text>
       {src.link_url ? (
