@@ -21,6 +21,8 @@ import * as AppleAuthentication from "expo-apple-authentication";
 const C = Colors.light;
 const BRAND   = "#F97316";
 const KAKAO   = "#FEE500";
+const NAVY    = "#1B3A70";   // 네이비 기본색 (버튼 fill)
+const MINT    = "#2EC4B6";   // 민트 테두리·액센트
 
 function KakaoIcon({ size = 22 }: { size?: number }) {
   return (
@@ -248,8 +250,8 @@ export default function LoginScreen() {
           {/* 아이디 */}
           <View style={s.fieldWrap}>
             <Text style={s.fieldLabel}>아이디</Text>
-            <View style={[s.inputRow, { borderColor: identifier ? BRAND : "#E2E8F0" }]}>
-              <LucideIcon name="user" size={16} color={identifier ? BRAND : "#94A3B8"} />
+            <View style={[s.inputRow, { borderColor: identifier ? MINT : "#E2E8F0" }]}>
+              <LucideIcon name="user" size={16} color={identifier ? MINT : "#94A3B8"} />
               <TextInput
                 style={s.input}
                 value={identifier}
@@ -271,8 +273,8 @@ export default function LoginScreen() {
           {/* 비밀번호 */}
           <View style={s.fieldWrap}>
             <Text style={s.fieldLabel}>비밀번호</Text>
-            <View style={[s.inputRow, { borderColor: password ? BRAND : "#E2E8F0" }]}>
-              <LucideIcon name="lock" size={16} color={password ? BRAND : "#94A3B8"} />
+            <View style={[s.inputRow, { borderColor: password ? MINT : "#E2E8F0" }]}>
+              <LucideIcon name="lock" size={16} color={password ? MINT : "#94A3B8"} />
               <TextInput
                 ref={pwRef}
                 style={s.input}
@@ -396,7 +398,7 @@ export default function LoginScreen() {
                 <Text style={s.modalBtnOutlineText}>다시 입력</Text>
               </Pressable>
               <Pressable
-                style={[s.modalBtn, { backgroundColor: BRAND }]}
+                style={[s.modalBtn, { backgroundColor: NAVY }]}
                 onPress={() => { setShowNotFoundModal(false); router.push("/(auth)/signup" as any); }}
               >
                 <Text style={s.modalBtnText}>회원가입</Text>
@@ -468,13 +470,13 @@ const s = StyleSheet.create({
   errText:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#EF4444", flex: 1 },
 
   loginBtn:  {
-    height: 54, borderRadius: 14, backgroundColor: "#a1f7da",
+    height: 54, borderRadius: 14, backgroundColor: NAVY,
     alignItems: "center", justifyContent: "center",
-    shadowColor: "#a1f7da", shadowOffset: { width: 0, height: 4 },
+    shadowColor: NAVY, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35, shadowRadius: 10, elevation: 5,
     marginTop: 4,
   },
-  loginBtnText: { color: "#0a2540", fontSize: 16, fontFamily: "Pretendard-Regular" },
+  loginBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
 
   forgotRow: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-end", paddingVertical: 2 },
   forgotText:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
@@ -488,10 +490,11 @@ const s = StyleSheet.create({
   signupCol: { gap: 14 },
 
   signupMainBtn: {
-    height: 54, borderRadius: 14, backgroundColor: "#a1f7da",
+    height: 54, borderRadius: 14, backgroundColor: "#fff",
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    shadowColor: "#a1f7da", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 10, elevation: 4,
+    borderWidth: 1.5, borderColor: MINT,
+    shadowColor: "rgba(0,0,0,0.08)", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1, shadowRadius: 6, elevation: 2,
   },
   signupMainBtnText: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0a2540" },
 

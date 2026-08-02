@@ -46,6 +46,7 @@ import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
 const TEAL = "#2EC4B6";
+const NAVY = "#1B3A70";   // 네이비 기본색 (버튼 fill, 선택된 탭)
 const IB = "#E6FAF8";
 
 // ── 타입 ──────────────────────────────────────────────────────────────────
@@ -641,7 +642,7 @@ function PhotosGrid({
                   accessibilityLabel="이 수업 사진 모두 저장"
                   style={{
                     flex: 1.6,
-                    backgroundColor: savingAll ? "#555" : TEAL,
+                    backgroundColor: savingAll ? "#555" : NAVY,
                     borderRadius: 10,
                     paddingVertical: 13,
                     alignItems: "center",
@@ -1294,7 +1295,7 @@ export default function ParentHomeScreen() {
             onPress={() => setPoolModal(true)}
             disabled={linking}
             style={({ pressed }) => ({
-              backgroundColor: pressed ? "#27B8AC" : TEAL,
+              backgroundColor: pressed ? "#163260" : NAVY,
               borderRadius: 14,
               paddingVertical: 16,
               alignItems: "center",
@@ -1411,7 +1412,7 @@ export default function ParentHomeScreen() {
               style={[
                 s.childTab,
                 isSel
-                  ? { backgroundColor: C.tint, borderColor: C.tint }
+                  ? { backgroundColor: NAVY, borderColor: NAVY }
                   : { backgroundColor: C.card, borderColor: C.border },
               ]}
               onPress={() => setSelectedStudentId(st.id)}
@@ -1526,7 +1527,7 @@ export default function ParentHomeScreen() {
               justifyContent: "center",
             }}
           >
-            <LucideIcon name="user-plus" size={38} color={TEAL} />
+            <LucideIcon name="user-plus" size={38} color={NAVY} />
           </View>
           <Text
             style={{
@@ -1553,7 +1554,7 @@ export default function ParentHomeScreen() {
             onPress={() => router.push("/(parent)/link-child" as any)}
             style={({ pressed }) => ({
               marginTop: 8,
-              backgroundColor: pressed ? "#27B8AC" : TEAL,
+              backgroundColor: pressed ? "#163260" : NAVY,
               borderRadius: 14,
               paddingVertical: 14,
               paddingHorizontal: 32,
