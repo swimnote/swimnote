@@ -385,7 +385,7 @@ export default function DashboardScreen() {
                   style={({ pressed }) => [s.bannerCard, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
                   onPress={() => router.push("/(admin)/admin-revenue?backTo=dashboard")}
                 >
-                  <View style={[s.bannerIcon, { backgroundColor: _BIB }]}>
+                  <View style={s.bannerIcon}>
                     <LucideIcon name="trending-up" size={18} color="#CA8A04" />
                   </View>
                   <Text style={[s.bannerValue, { color: "#CA8A04" }]}>
@@ -398,7 +398,7 @@ export default function DashboardScreen() {
                   style={({ pressed }) => [s.bannerCard, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
                   onPress={() => router.push("/(admin)/members?backTo=dashboard")}
                 >
-                  <View style={[s.bannerIcon, { backgroundColor: _BIB }]}>
+                  <View style={s.bannerIcon}>
                     <LucideIcon name="users" size={18} color="#1D4ED8" />
                   </View>
                   <Text style={[s.bannerValue, { color: "#1D4ED8" }]}>
@@ -417,7 +417,7 @@ export default function DashboardScreen() {
                   onPress={() => router.push("/(admin)/makeups?backTo=dashboard")}
                 >
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                    <View style={[s.bannerIcon, { backgroundColor: _BIB }]}>
+                    <View style={s.bannerIcon}>
                       <LucideIcon name="rotate-ccw" size={18} color="#EA580C" />
                     </View>
                     <Text style={s.bannerLabel}>보강 상태</Text>
@@ -444,7 +444,7 @@ export default function DashboardScreen() {
                   style={({ pressed }) => [s.bannerWide, { flex: 1, opacity: pressed ? 0.85 : 1, justifyContent: "center", alignItems: "center", gap: 8 }]}
                   onPress={() => router.push("/(admin)/people?backTo=dashboard")}
                 >
-                  <View style={[s.bannerIcon, { backgroundColor: "#EFF6FF", marginBottom: 0 }]}>
+                  <View style={[s.bannerIcon, { marginBottom: 0 }]}>
                     <LucideIcon name="users" size={22} color="#1D4ED8" />
                   </View>
                   <Text style={[s.bannerLabel, { fontFamily: "Pretendard-Regular" }]}>인원관리</Text>
@@ -458,7 +458,7 @@ export default function DashboardScreen() {
                 onPress={() => router.push("/(admin)/data-storage-overview?backTo=dashboard")}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <View style={[s.bannerIcon, { backgroundColor: _BIB }]}>
+                  <View style={s.bannerIcon}>
                     <LucideIcon name="hard-drive" size={18} color="#0369A1" />
                   </View>
                   <Text style={s.bannerLabel}>통합 사용량</Text>
