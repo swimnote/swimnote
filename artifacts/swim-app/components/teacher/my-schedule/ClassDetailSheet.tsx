@@ -1,5 +1,21 @@
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+
+/** eligible-occurrences API 응답 단일 회차 */
+interface MakeupOccurrence {
+  class_group_id: string;
+  class_name: string;
+  occurrence_date: string;   // YYYY-MM-DD (서버 계약 필드명 고정)
+  schedule_time: string;
+  teacher_id?: string | null;
+  teacher_name?: string | null;
+  is_mine: boolean;
+  available_slots: number;
+  is_full: boolean;
+  is_past: boolean;
+  is_today: boolean;
+  is_future: boolean;
+}
 import {
   ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
@@ -83,9 +99,11 @@ export default function ClassDetailSheet({
   const [selectedMakeupStudent,   setSelectedMakeupStudent]   = useState<any | null>(null);
   // 보강 회차 선택 (단계 3)
   const [selectedMakeupClassId,   setSelectedMakeupClassId]   = useState<string | null>(null);
-  const [makeupOccurrences,       setMakeupOccurrences]       = useState<any[]>([]);
+  const [makeupOccurrences,       setMakeupOccurrences]       = useState<MakeupOccurrence[]>([]);
   const [makeupOccLoading,        setMakeupOccLoading]        = useState(false);
   const [makeupOccError,          setMakeupOccError]          = useState(false);
+  // sequence ID — 늦게 도착한 이전 반 응답이 현재 반을 덮어쓰지 않도록
+  const occSeqRef = useRef(0);
 
   // 이 반/날짜에 배정된 보강 학생
   const [makeupStudents,       setMakeupStudents]       = useState<any[]>([]);
@@ -215,8 +233,17 @@ export default function ClassDetailSheet({
     );
   }
 
-  async function openMakeupPicker() {
+  /** 보강 피커 관련 모든 상태를 초기화 (7가지 경로 공통) */
+  function resetMakeupPickerState() {
     setSelectedMakeupStudent(null);
+    setSelectedMakeupClassId(null);
+    setMakeupOccurrences([]);
+    setMakeupOccLoading(false);
+    setMakeupOccError(false);
+  }
+
+  async function openMakeupPicker() {
+    resetMakeupPickerState();
     setShowMakeupPicker(true);
     setMakeupLoading(true);
     try {
@@ -226,30 +253,34 @@ export default function ClassDetailSheet({
     finally { setMakeupLoading(false); }
   }
 
-  /** 단계 2→3: 반 선택 후 eligible-occurrences 조회 */
+  /** 단계 2→3: 반 선택 후 eligible-occurrences 조회 (sequence ID로 경쟁 방지) */
   async function selectMakeupClass(mk: any, targetClassId: string) {
+    occSeqRef.current += 1;
+    const mySeq = occSeqRef.current;
     setSelectedMakeupClassId(targetClassId);
     setMakeupOccLoading(true);
     setMakeupOccError(false);
     setMakeupOccurrences([]);
     try {
       const res = await apiRequest(token, `/teacher/makeups/${mk.id}/eligible-occurrences?class_group_id=${targetClassId}`);
+      if (occSeqRef.current !== mySeq) return; // 늦게 도착한 이전 반 응답 무시
       if (res.ok) {
         const data = await res.json();
-        setMakeupOccurrences(data.occurrences || []);
+        setMakeupOccurrences((data.occurrences || []) as MakeupOccurrence[]);
       } else {
         setMakeupOccError(true);
       }
     } catch {
-      setMakeupOccError(true);
+      if (occSeqRef.current === mySeq) setMakeupOccError(true);
     } finally {
-      setMakeupOccLoading(false);
+      if (occSeqRef.current === mySeq) setMakeupOccLoading(false);
     }
   }
 
   /** 단계 3: 날짜 선택 후 저장 (미래=assign, 당일·과거=complete-direct) */
-  async function completeMakeupWithDate(mk: any, targetClassId: string, occurrenceDate: string, isFull: boolean, isFuture: boolean) {
+  async function completeMakeupWithDate(mk: any, targetClassId: string, occ: MakeupOccurrence) {
     if (makeupSaving) return;
+    const { occurrence_date: occurrenceDate, is_full: isFull, is_future: isFuture } = occ;
 
     const doSave = async () => {
       setMakeupSaving(mk.id);
@@ -753,7 +784,7 @@ export default function ClassDetailSheet({
       {showMakeupPicker && (
         <SubSheetModal
           visible
-          onClose={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); setSelectedMakeupClassId(null); }}
+          onClose={() => { setShowMakeupPicker(false); resetMakeupPickerState(); }}
           height="60%"
         >
           {selectedMakeupStudent === null ? (
@@ -764,7 +795,7 @@ export default function ClassDetailSheet({
                   <Text style={cds.sheetTitle}>보충수업</Text>
                   <Text style={cds.sheetSub}>보강 대기 학생을 선택하세요</Text>
                 </View>
-                <Pressable onPress={() => setShowMakeupPicker(false)} style={cds.closeBtn}>
+                <Pressable onPress={() => { setShowMakeupPicker(false); resetMakeupPickerState(); }} style={cds.closeBtn}>
                   <X size={20} color={C.textSecondary} />
                 </Pressable>
               </View>
@@ -812,7 +843,7 @@ export default function ClassDetailSheet({
                   <Text style={cds.sheetTitle}>{selectedMakeupStudent.student_name}</Text>
                   <Text style={cds.sheetSub}>합류할 반을 선택하세요</Text>
                 </View>
-                <Pressable onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); setSelectedMakeupClassId(null); }} style={cds.closeBtn}>
+                <Pressable onPress={() => { setShowMakeupPicker(false); resetMakeupPickerState(); }} style={cds.closeBtn}>
                   <X size={20} color={C.textSecondary} />
                 </Pressable>
               </View>
@@ -863,7 +894,7 @@ export default function ClassDetailSheet({
                   <Text style={cds.sheetTitle}>{selectedMakeupStudent.student_name}</Text>
                   <Text style={cds.sheetSub}>보강 날짜를 선택하세요</Text>
                 </View>
-                <Pressable onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); setSelectedMakeupClassId(null); }} style={cds.closeBtn}>
+                <Pressable onPress={() => { setShowMakeupPicker(false); resetMakeupPickerState(); }} style={cds.closeBtn}>
                   <X size={20} color={C.textSecondary} />
                 </Pressable>
               </View>
@@ -899,19 +930,19 @@ export default function ClassDetailSheet({
                       const d = new Date(dateStr + "T00:00:00");
                       return `${d.getMonth()+1}/${d.getDate()} (${days[d.getDay()]})`;
                     }
-                    function renderOccRow(occ: any) {
+                    function renderOccRow(occ: MakeupOccurrence) {
                       const isSaving = makeupSaving === selectedMakeupStudent.id;
                       return (
                         <Pressable
-                          key={occ.date}
+                          key={occ.occurrence_date}
                           style={({ pressed }) => [cds.moveClassRow, pressed && { opacity: 0.7 }]}
-                          onPress={() => completeMakeupWithDate(selectedMakeupStudent, selectedMakeupClassId!, occ.date, occ.is_full, occ.is_future)}
+                          onPress={() => completeMakeupWithDate(selectedMakeupStudent, selectedMakeupClassId!, occ)}
                           disabled={isSaving || (occ.is_full && occ.is_future)}
                         >
                           <LucideIcon name="calendar" size={16} color={occ.is_full && occ.is_future ? C.textMuted : "#4F46E5"} />
                           <View style={{ flex: 1 }}>
                             <Text style={[cds.moveClassName, (occ.is_full && occ.is_future) && { color: C.textMuted }]}>
-                              {fmtOcc(occ.date)}
+                              {fmtOcc(occ.occurrence_date)}
                             </Text>
                           </View>
                           {occ.is_full && (

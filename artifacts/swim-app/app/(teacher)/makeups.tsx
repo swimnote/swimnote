@@ -2,7 +2,7 @@
  * (teacher)/makeups.tsx — 결석자 리스트 / 배정된 보강 / 보강 현황
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView,
   StyleSheet, Text, View,
@@ -16,6 +16,23 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 
 const C = Colors.light;
+
+/** eligible-occurrences API 응답 단일 회차 */
+interface MakeupOccurrence {
+  class_group_id: string;
+  class_name: string;
+  occurrence_date: string;   // YYYY-MM-DD (서버 계약 필드명 고정)
+  schedule_time: string;
+  teacher_id?: string | null;
+  teacher_name?: string | null;
+  is_mine: boolean;
+  available_slots: number;
+  is_full: boolean;
+  is_past: boolean;
+  is_today: boolean;
+  is_future: boolean;
+}
+
 interface MakeupSession {
   id: string;
   student_id: string;
@@ -143,10 +160,12 @@ export default function MakeupsScreen() {
   const [directCompleting,     setDirectCompleting]     = useState(false);
   const [confirmMsg, setConfirmMsg] = useState<string | null>(null);
   // eligible-occurrences 기반 날짜 선택
-  const [occurrences,    setOccurrences]    = useState<any[]>([]);
+  const [occurrences,    setOccurrences]    = useState<MakeupOccurrence[]>([]);
   const [occLoading,     setOccLoading]     = useState(false);
   const [occError,       setOccError]       = useState(false);
-  const [selectedOccurrence, setSelectedOccurrence] = useState<any | null>(null);
+  const [selectedOccurrence, setSelectedOccurrence] = useState<MakeupOccurrence | null>(null);
+  // sequence ID — 늦게 도착한 이전 반 응답이 현재 반을 덮어쓰지 않도록
+  const occSeqRef = useRef(0);
   const loadWaiting = useCallback(async () => {
     try {
       const res = await apiRequest(token, `/teacher/makeups?status=waiting`);
@@ -229,6 +248,8 @@ export default function MakeupsScreen() {
   };
   const selectClass = async (classId: string) => {
     if (!assignTarget) return;
+    occSeqRef.current += 1;
+    const mySeq = occSeqRef.current;
     setSelectedClassId(classId);
     setSelectedDate(null);
     setSelectedOccurrence(null);
@@ -237,57 +258,61 @@ export default function MakeupsScreen() {
     setOccLoading(true);
     try {
       const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/eligible-occurrences?class_group_id=${classId}`);
+      if (occSeqRef.current !== mySeq) return; // 늦게 도착한 이전 반 응답 무시
       if (r.ok) {
         const data = await r.json();
-        setOccurrences(data.occurrences || []);
+        setOccurrences((data.occurrences || []) as MakeupOccurrence[]);
       } else {
         setOccError(true);
       }
     } catch {
-      setOccError(true);
+      if (occSeqRef.current === mySeq) setOccError(true);
     } finally {
-      setOccLoading(false);
+      if (occSeqRef.current === mySeq) setOccLoading(false);
     }
   };
   const doAssign = async () => {
-    if (!assignTarget || !selectedClassId || !selectedDate || !selectedOccurrence) return;
+    if (!assignTarget || !selectedClassId || !selectedOccurrence) return;
+    // occurrence_date를 신뢰 (selectedDate는 동기화 보조값)
+    const occDate = selectedOccurrence.occurrence_date;
     setAssigning(true);
-    const isFuture: boolean = selectedOccurrence.is_future;
     try {
-      if (isFuture) {
+      if (selectedOccurrence.is_future) {
         const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/assign`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ class_group_id: selectedClassId, assigned_date: selectedDate }),
+          body: JSON.stringify({ class_group_id: selectedClassId, assigned_date: occDate }),
         });
         const ct = r.headers?.get?.("content-type") ?? "";
         const isJson = ct.includes("application/json");
         const body = isJson ? await r.json().catch(() => ({})) : {};
         if (r.ok && isJson) {
           setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); setSelectedOccurrence(null);
+          setOccurrences([]); setOccError(false);
           loadWaiting(); loadAssigned(); setTab("assigned");
-          setConfirmMsg(`보강이 ${selectedDate}에 배정되었습니다.`);
+          setConfirmMsg(`보강이 ${occDate}에 배정되었습니다.`);
         } else if (r.status === 409) {
           setConfirmMsg("이미 해당 날짜에 보강이 배정되어 있습니다.");
         } else {
-          setConfirmMsg(body?.error || "배정에 실패했습니다.");
+          setConfirmMsg(body?.message || body?.error || "배정에 실패했습니다.");
         }
       } else {
         // 당일 또는 과거 — complete-direct
         const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/complete-direct`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ date: selectedDate, class_group_id: selectedClassId }),
+          body: JSON.stringify({ date: occDate, class_group_id: selectedClassId }),
         });
         const ct = r.headers?.get?.("content-type") ?? "";
         const isJson = ct.includes("application/json");
         const body = isJson ? await r.json().catch(() => ({})) : {};
         if (r.ok) {
           setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); setSelectedOccurrence(null);
+          setOccurrences([]); setOccError(false);
           loadWaiting(); loadAssigned();
-          setConfirmMsg(`${selectedDate} 보강 완료 처리되었습니다.`);
+          setConfirmMsg(`${occDate} 보강 완료 처리되었습니다.`);
         } else {
-          setConfirmMsg(body?.error || "처리에 실패했습니다.");
+          setConfirmMsg(body?.message || body?.error || "처리에 실패했습니다.");
         }
       }
     } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
@@ -362,19 +387,37 @@ export default function MakeupsScreen() {
     if (!directCompleteTarget || !directCompleteDate) return;
     setDirectCompleting(true);
     const targetId = directCompleteTarget.id;
+    // original_class_group_id: 학생의 원래 반 (complete-direct는 반 필수)
+    const classGroupId = directCompleteTarget.original_class_group_id ?? null;
+    if (!classGroupId) {
+      setConfirmMsg("원래 반 정보가 없어 처리할 수 없습니다.");
+      setDirectCompleting(false);
+      return;
+    }
     setWaitingList(prev => prev.filter(m => m.id !== targetId));
     setDirectCompleteTarget(null);
     try {
       const r = await apiRequest(token, `/teacher/makeups/${targetId}/complete-direct`, {
         method: "PATCH",
-        body: JSON.stringify({ date: directCompleteDate }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: directCompleteDate, class_group_id: classGroupId }),
       });
+      const ct = r.headers?.get?.("content-type") ?? "";
+      const isJson = ct.includes("application/json");
+      const body = isJson ? await r.json().catch(() => ({})) : {};
       if (r.ok) {
         setDirectCompleteDate(null);
         setConfirmMsg(`${directCompleteDate} 보강 완료 처리되었습니다.`);
+      } else {
+        setConfirmMsg(body?.message || body?.error || "처리에 실패했습니다.");
+        // 실패 시 목록 복원
+        setWaitingList(prev => {
+          if (prev.some(m => m.id === targetId)) return prev;
+          return [{ ...directCompleteTarget }, ...prev];
+        });
       }
       loadWaiting();
-    } catch {}
+    } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
     setDirectCompleting(false);
     setDirectCompleteDate(null);
   }
@@ -777,29 +820,29 @@ export default function MakeupsScreen() {
                     <Text style={s.emptyTxt}>배정 가능한 날짜가 없습니다</Text>
                   </View>
                 );
-                const past   = occurrences.filter((o: any) => o.is_past);
-                const today  = occurrences.filter((o: any) => o.is_today);
-                const future = occurrences.filter((o: any) => o.is_future);
+                const past   = occurrences.filter((o: MakeupOccurrence) => o.is_past);
+                const today  = occurrences.filter((o: MakeupOccurrence) => o.is_today);
+                const future = occurrences.filter((o: MakeupOccurrence) => o.is_future);
                 const days = ["일","월","화","수","목","금","토"];
                 function fmtOcc(dateStr: string) {
                   const d = new Date(dateStr + "T00:00:00");
                   return `${d.getMonth()+1}/${d.getDate()} (${days[d.getDay()]})`;
                 }
-                function renderOccRow(occ: any) {
+                function renderOccRow(occ: MakeupOccurrence) {
                   return (
                     <Pressable
-                      key={occ.date}
+                      key={occ.occurrence_date}
                       style={[s.classRow, (occ.is_full && occ.is_future) && { opacity: 0.4 }]}
                       onPress={() => {
                         if (occ.is_full && occ.is_future) return;
-                        setSelectedDate(occ.date);
+                        setSelectedDate(occ.occurrence_date);
                         setSelectedOccurrence(occ);
                       }}
                       disabled={occ.is_full && occ.is_future}
                     >
                       <LucideIcon name="check-circle" size={16} color="#7C3AED" />
                       <View style={{ flex: 1 }}>
-                        <Text style={[s.className, { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }]}>{fmtOcc(occ.date)}</Text>
+                        <Text style={[s.className, { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }]}>{fmtOcc(occ.occurrence_date)}</Text>
                       </View>
                       {occ.is_full && (
                         <View style={{ backgroundColor: occ.is_future ? "#F9DEDA" : "#FFF1BF", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginRight: 4 }}>
