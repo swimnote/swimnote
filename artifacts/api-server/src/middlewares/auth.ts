@@ -293,3 +293,90 @@ export function requirePlatformRole(...roles: string[]) {
     next();
   };
 }
+
+// ── requireXMode ──────────────────────────────────────────────────────────
+//
+// SWIMNOTE X 전용 Route에 배치하는 Guard.
+// 요청 사용자의 실제 DB 기준 pool X 상태를 확인하고
+// mode === "x"일 때만 다음 미들웨어로 진행한다.
+//
+// poolId 결정 방식 (JWT poolId 신뢰 금지):
+//   pool_admin / teacher   → users.swimming_pool_id DB 직접 조회
+//   parent_account         → parent_accounts.swimming_pool_id DB 직접 조회
+//   super_admin            → req.query.pool_id 또는 req.params.id
+//   그 외                   → fail-closed 403
+//
+// 주의:
+//   - super_admin도 X 상태를 우회하지 않음
+//   - 앱 전달 mode 신뢰 금지
+//   - 기존 일반 API에 적용 금지
+//
+import { resolvePoolMode } from "../lib/xmode.js";
+
+export function requireXMode(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): void {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: "인증이 필요합니다.", error: "인증이 필요합니다." });
+    return;
+  }
+
+  const role = req.user.role;
+  const userId = req.user.userId;
+
+  const resolvePoolId = async (): Promise<string | null> => {
+    if (role === "pool_admin" || role === "teacher") {
+      const row = await superAdminDb.execute(
+        sql`SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1`,
+      );
+      return (row.rows[0] as any)?.swimming_pool_id ?? null;
+    }
+    if (role === "parent_account") {
+      const row = await superAdminDb.execute(
+        sql`SELECT swimming_pool_id FROM parent_accounts WHERE id = ${userId} LIMIT 1`,
+      );
+      return (row.rows[0] as any)?.swimming_pool_id ?? null;
+    }
+    if (role === "super_admin") {
+      const qid = (req.query as any).pool_id as string | undefined;
+      const pid = (req.params as any).id as string | undefined;
+      return qid ?? pid ?? null;
+    }
+    return null;
+  };
+
+  resolvePoolId()
+    .then(async (poolId) => {
+      if (!poolId) {
+        const isUnknownRole = !["pool_admin", "teacher", "parent_account", "super_admin"].includes(role);
+        if (isUnknownRole) {
+          res.status(403).json({ success: false, message: "권한이 없습니다.", error: "권한이 없습니다." });
+        } else {
+          res.status(400).json({ success: false, error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." });
+        }
+        return;
+      }
+
+      const result = await resolvePoolMode(poolId);
+
+      if (!result) {
+        res.status(404).json({ success: false, error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." });
+        return;
+      }
+      if (!result.xmode_entitlement) {
+        res.status(403).json({ success: false, error: "XMODE_NOT_ENTITLED", message: "X 모드가 활성화되지 않은 수영장입니다." });
+        return;
+      }
+      if (result.mode !== "x") {
+        res.status(403).json({ success: false, error: "XMODE_NOT_READY", message: "X 모드 설정이 완료되지 않았습니다." });
+        return;
+      }
+      next();
+    })
+    .catch((err) => {
+      console.error("[requireXMode] DB 오류:", err);
+      res.status(500).json({ success: false, error: "서버 오류가 발생했습니다." });
+    });
+}

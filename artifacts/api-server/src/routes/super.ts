@@ -21,6 +21,7 @@ import { superAdminDb } from "@workspace/db";
 const db = superAdminDb;
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { computeMode, type XModeStatus, type PoolModeResult } from "../lib/xmode.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
 import { logEvent } from "../lib/event-logger.js";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
@@ -1966,6 +1967,181 @@ router.patch(
       `).catch(() => {});
       res.json({ ok: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// PATCH /super/operators/:id/xmode — X 모드 상태 변경 (super_admin 전용)
+//
+// :id = swimming_pool_id
+// Transaction 순서:
+//   1. SELECT FOR UPDATE (pool 확인 + beforeData 확보)
+//   2. pool 미존재 → throw isPoolNotFound
+//   3. UPDATE RETURNING → afterData 확보
+//   4. SELECT next_audit_version('swimming_pool_xmode', :id)
+//   5. INSERT INTO audit_logs
+//   6. Commit
+// audit INSERT 실패 시 Transaction Rollback으로 UPDATE도 함께 취소된다.
+// ════════════════════════════════════════════════════════════════
+router.patch(
+  "/super/operators/:id/xmode",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const {
+      xmode_entitlement,
+      xmode_config_status,
+      xmode_purchased_at,
+      xmode_subscription_end_at,
+      reason,
+    } = req.body as {
+      xmode_entitlement?: boolean;
+      xmode_config_status?: XModeStatus;
+      xmode_purchased_at?: string | null;
+      xmode_subscription_end_at?: string | null;
+      reason?: string;
+    };
+
+    // ── Transaction 밖: 입력 검증 ────────────────────────────────
+    const hasEntitlement      = xmode_entitlement      !== undefined;
+    const hasConfigStatus     = xmode_config_status    !== undefined;
+    const hasPurchasedAt      = xmode_purchased_at     !== undefined;
+    const hasSubscriptionEnd  = xmode_subscription_end_at !== undefined;
+
+    if (!hasEntitlement && !hasConfigStatus && !hasPurchasedAt && !hasSubscriptionEnd) {
+      res.status(400).json({ error: "변경 항목이 없습니다." }); return;
+    }
+    if (hasEntitlement && typeof xmode_entitlement !== "boolean") {
+      res.status(400).json({ error: "xmode_entitlement는 boolean이어야 합니다." }); return;
+    }
+    const validStatuses: XModeStatus[] = ["NOT_CONFIGURED", "CURRICULUM_PENDING", "READY"];
+    if (hasConfigStatus && !validStatuses.includes(xmode_config_status!)) {
+      res.status(400).json({ error: "xmode_config_status가 올바르지 않습니다." }); return;
+    }
+    if (hasPurchasedAt && xmode_purchased_at !== null) {
+      if (isNaN(new Date(xmode_purchased_at!).getTime())) {
+        res.status(400).json({ error: "xmode_purchased_at이 올바른 날짜가 아닙니다." }); return;
+      }
+    }
+    if (hasSubscriptionEnd && xmode_subscription_end_at !== null) {
+      if (isNaN(new Date(xmode_subscription_end_at!).getTime())) {
+        res.status(400).json({ error: "xmode_subscription_end_at이 올바른 날짜가 아닙니다." }); return;
+      }
+    }
+
+    const actorId = req.user!.userId;
+    let responseResult: PoolModeResult;
+
+    // ── Transaction ────────────────────────────────────────────────
+    try {
+      await db.transaction(async (tx) => {
+        // 1. SELECT FOR UPDATE — pool 확인 + row lock + beforeData 확보
+        const poolRows = await tx.execute(sql`
+          SELECT id, xmode_entitlement, xmode_config_status,
+                 xmode_purchased_at, xmode_subscription_end_at
+          FROM swimming_pools
+          WHERE id = ${poolId}
+          LIMIT 1
+          FOR UPDATE
+        `);
+        if (!poolRows.rows.length) {
+          const err: any = new Error("POOL_NOT_FOUND");
+          err.isPoolNotFound = true;
+          throw err;
+        }
+        const pool = poolRows.rows[0] as any;
+
+        // 2. beforeData 구성
+        const beforeData = {
+          xmode_entitlement:         Boolean(pool.xmode_entitlement),
+          xmode_config_status:       pool.xmode_config_status as XModeStatus,
+          xmode_purchased_at:        pool.xmode_purchased_at
+            ? new Date(pool.xmode_purchased_at).toISOString() : null,
+          xmode_subscription_end_at: pool.xmode_subscription_end_at
+            ? new Date(pool.xmode_subscription_end_at).toISOString() : null,
+        };
+
+        // 3. UPDATE — 승인된 필드만, 제공되지 않은 필드는 기존 값 유지
+        const entitlementFrag = hasEntitlement
+          ? sql`xmode_entitlement = ${xmode_entitlement}`
+          : sql`xmode_entitlement = xmode_entitlement`;
+        const configStatusFrag = hasConfigStatus
+          ? sql`xmode_config_status = ${xmode_config_status}`
+          : sql`xmode_config_status = xmode_config_status`;
+        const purchasedAtFrag = hasPurchasedAt
+          ? sql`xmode_purchased_at = ${xmode_purchased_at ?? null}`
+          : sql`xmode_purchased_at = xmode_purchased_at`;
+        const subscriptionEndFrag = hasSubscriptionEnd
+          ? sql`xmode_subscription_end_at = ${xmode_subscription_end_at ?? null}`
+          : sql`xmode_subscription_end_at = xmode_subscription_end_at`;
+
+        const updatedRows = await tx.execute(sql`
+          UPDATE swimming_pools SET
+            ${entitlementFrag},
+            ${configStatusFrag},
+            ${purchasedAtFrag},
+            ${subscriptionEndFrag}
+          WHERE id = ${poolId}
+          RETURNING id, xmode_entitlement, xmode_config_status,
+                    xmode_purchased_at, xmode_subscription_end_at
+        `);
+        const updated = updatedRows.rows[0] as any;
+
+        // 4. afterData 구성
+        const afterData = {
+          xmode_entitlement:         Boolean(updated.xmode_entitlement),
+          xmode_config_status:       updated.xmode_config_status as XModeStatus,
+          xmode_purchased_at:        updated.xmode_purchased_at
+            ? new Date(updated.xmode_purchased_at).toISOString() : null,
+          xmode_subscription_end_at: updated.xmode_subscription_end_at
+            ? new Date(updated.xmode_subscription_end_at).toISOString() : null,
+        };
+
+        // 5. next_audit_version 발급
+        const versionResult = await tx.execute(sql`
+          SELECT next_audit_version('swimming_pool_xmode', ${poolId}) AS v
+        `);
+        const entityVersion = (versionResult.rows[0] as any).v;
+
+        // 6. audit_logs INSERT
+        // (audit INSERT 실패 시 Transaction Rollback으로 UPDATE도 함께 취소된다)
+        await tx.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason,
+            request_id, correlation_id, ip_hash
+          ) VALUES (
+            'swimming_pool_xmode', ${poolId}, ${entityVersion},
+            'update', 'super_admin', ${actorId}, ${poolId},
+            ${JSON.stringify(beforeData)}::jsonb,
+            ${JSON.stringify(afterData)}::jsonb,
+            ${reason ?? null},
+            NULL, NULL, NULL
+          )
+        `);
+
+        // 7. PoolModeResult 구성 (RETURNING 결과 사용, resolvePoolMode 재조회 안 함)
+        const mode = computeMode(
+          Boolean(updated.xmode_entitlement),
+          updated.xmode_config_status as XModeStatus,
+        );
+        responseResult = {
+          pool_id:             updated.id,
+          mode,
+          xmode_entitlement:   Boolean(updated.xmode_entitlement),
+          xmode_config_status: updated.xmode_config_status as XModeStatus,
+        };
+      });
+    } catch (e: any) {
+      if (e.isPoolNotFound) {
+        res.status(404).json({ error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." }); return;
+      }
+      console.error("[PATCH /super/operators/:id/xmode]", e);
+      res.status(500).json({ error: "서버 오류" }); return;
+    }
+
+    res.json({ ok: true, ...responseResult! });
   }
 );
 

@@ -6,6 +6,7 @@ const db = superAdminDb;
 import { swimmingPoolsTable, usersTable, parentAccountsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { resolvePoolMode } from "../lib/xmode.js";
 import { sanitizePoolName } from "../utils/filename.js";
 import { signToken } from "../lib/auth.js";
 import { resolveSubscription } from "../lib/subscriptionService.js";
@@ -380,6 +381,68 @@ router.get("/my-pools", requireAuth, async (req: AuthRequest, res) => {
     `);
     res.json(rows.rows);
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+// ── X 모드 상태 조회 ─────────────────────────────────────────────────────
+// GET /pools/x-mode
+//
+// 허용 역할: pool_admin, teacher, parent_account, super_admin (fail-closed)
+// poolId 결정: JWT poolId 신뢰 금지 — DB 직접 조회
+//   pool_admin / teacher   → users.swimming_pool_id
+//   parent_account         → parent_accounts.swimming_pool_id
+//   super_admin            → ?pool_id= query param 필수
+//
+// /pools/x-mode는 현재 Route path를 유지하기 위해 query parameter를 선택하였다.
+// (super.ts /super/event-logs의 pool_id query param 패턴과 동일)
+//
+router.get("/x-mode", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const role = req.user!.role;
+    const userId = req.user!.userId;
+    let poolId: string | null = null;
+
+    if (role === "pool_admin" || role === "teacher") {
+      const userRow = await superAdminDb.execute(sql`
+        SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1
+      `);
+      poolId = (userRow.rows[0] as any)?.swimming_pool_id ?? null;
+      if (!poolId) {
+        res.status(404).json({ success: false, error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." });
+        return;
+      }
+    } else if (role === "parent_account") {
+      const paRow = await superAdminDb.execute(sql`
+        SELECT swimming_pool_id FROM parent_accounts WHERE id = ${userId} LIMIT 1
+      `);
+      poolId = (paRow.rows[0] as any)?.swimming_pool_id ?? null;
+      if (!poolId) {
+        res.status(404).json({ success: false, error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." });
+        return;
+      }
+    } else if (role === "super_admin") {
+      const qPoolId = req.query.pool_id as string | undefined;
+      if (!qPoolId) {
+        res.status(400).json({ error: "pool_id 파라미터가 필요합니다." });
+        return;
+      }
+      poolId = qPoolId;
+    } else {
+      // fail-closed: platform_admin, super_manager, 레거시 parent, 미확인 역할 모두 차단
+      res.status(403).json({ success: false, message: "권한이 없습니다.", error: "권한이 없습니다." });
+      return;
+    }
+
+    const result = await resolvePoolMode(poolId);
+    if (!result) {
+      res.status(404).json({ success: false, error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." });
+      return;
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error("[GET /pools/x-mode]", err);
+    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+  }
 });
 
 // ── 수영장 전환 (새 토큰 발급, users.swimming_pool_id 기반) ──────────
