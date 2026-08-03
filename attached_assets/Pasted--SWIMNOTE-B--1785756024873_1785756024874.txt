@@ -1,0 +1,274 @@
+[SWIMNOTE 긴급 오류 수정 — 최종 구현 범위 승인 전 보완]
+
+최종 보고서 확인.
+
+오류 B의 직접 원인과 별도 서버 결함 분리는 승인한다.
+
+다만 구현 전에 아래 누락 사항을 반영한 최종 실행계획을 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 오류 A 구현 범위 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 확정된 부분만 먼저 수정한다.
+
+승인 대상:
+- today-schedule에서 ClassDetailSheet에 당일 반 목록이 아니라
+  담당 선생님의 전체 반 목록을 전달
+- 기존 전체 반 query/state/cache가 있으면 반드시 재사용
+- 이동 대상은 현재 반만 제외
+- 이동 가능한 반이 실제로 0개일 때만
+  “이동 가능한 반이 없습니다” 표시
+
+아직 수정 금지:
+- ClassDetailSheet의 responder 구조
+- mainSheet의 onStartShouldSetResponder
+- my-schedule 반이동 버튼 로직
+
+my-schedule 버튼 미작동은 런타임 로그를 수집한 뒤 수정한다.
+
+즉 오류 A는 두 단계로 진행한다.
+
+A-1:
+today-schedule 전체 반 목록 공급 오류 수정
+
+A-2:
+my-schedule 실제 버튼 미작동 로그 확인
+→ 원인 확정
+→ 별도 수정 승인
+
+추정으로 responder 코드를 제거하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 오류 B 클라이언트 수정 승인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 구조는 승인한다.
+
+ClassDetailSheet:
+- studentListMode?: "historical" | "current"
+- 기본값은 "current"
+
+historical:
+- studentsByDate === undefined → 로딩
+- studentsByDate === [] → 실제 빈 명단
+- 현재 students fallback 절대 금지
+
+current:
+- 기존 students 기반 목록 사용
+- 기존 동작 유지
+
+수정 대상:
+- ClassDetailSheet.tsx
+- my-schedule.tsx
+- today-schedule.tsx
+
+today-schedule:
+- 오늘 날짜라도 date API 결과를 사용
+- 로딩 중 현재 학생 목록으로 fallback 금지
+- 반을 바꿀 때 이전 반의 studentsByDate가 잠깐 표시되지 않도록 초기화
+- 요청 경쟁 방지 필요
+  - 빠르게 다른 반을 선택했을 때 이전 요청 응답이 새 반에 덮어쓰지 않도록
+    requestId 또는 AbortController 사용 여부 확인
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 서버 history 누락 경로 전체 반영
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 확인된 누락 경로:
+
+1. students.ts
+   - change-status immediate
+   - remove-from-class immediate + new_status
+
+2. admin.ts
+   - 관리자 학생 상태 변경 경로
+   - history 종료 처리 없음
+
+관리자 경로를 제외하면 동일 오류가 남으므로
+이번 긴급 수정에 반드시 포함한다.
+
+최종 수정 대상 표를 다시 제출한다.
+
+| 역할 | 파일 | 엔드포인트/함수 | 상태 변경 | history 처리 |
+|---|---|---|---|---|
+| 선생님/공통 | students.ts | change-status immediate | suspended/withdrawn/unassigned | 추가 |
+| 선생님/공통 | students.ts | remove-from-class + new_status | 즉시 미배정/상태변경 | 추가 |
+| 관리자 | admin.ts | 실제 상태 변경 handler | 해당 상태 전체 | 추가 |
+
+admin.ts의 실제 요청 body와 effective date 규칙을 확인한 후
+students.ts와 동일한 날짜 경계로 맞춘다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 긴급 범위 내 중복 코드 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 리팩터링은 하지 않는다.
+
+다만 history 종료 SQL을 세 군데 복사하면
+향후 날짜 규칙이 다시 달라질 수 있다.
+
+이번 범위에서 다음 중 더 안전한 안을 선택해 보고한다.
+
+안 1:
+students.ts와 admin.ts가 함께 호출할 수 있는
+작은 내부 유틸 함수 1개만 추가
+
+역할:
+- 활성 반 ID 정리
+- student_class_history.left_at 종료
+- 전달받은 tx 안에서만 실행
+
+안 2:
+각 handler에 동일 SQL을 직접 추가
+
+선택 기준:
+- 기존 import 구조
+- 순환 참조 위험
+- 긴급 수정 안정성
+- 테스트 용이성
+
+대규모 서비스 계층 리팩터링은 금지한다.
+작은 유틸 하나로 안전하게 공통화할 수 있으면 안 1을 권장한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. KST 날짜 정책 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+`toISOString().split("T")[0]`을 즉시 처리 날짜에 사용하지 않는다.
+
+즉시 처리 effective date:
+- Asia/Seoul 기준 오늘
+- 형식 YYYY-MM-DD
+
+다음 경로를 동일 기준으로 맞춘다.
+
+- change-status immediate
+- remove-from-class immediate
+- 관리자 immediate status change
+
+클라이언트가 effective_date를 명시적으로 보낸 경로:
+- 기존 의미를 유지
+- 서버에서 유효한 YYYY-MM-DD인지 검증
+- 값이 없을 때만 KST 오늘 사용
+
+`left_at = N` 의미:
+- N일부터 해당 반에서 제외
+- 조회 조건은 `left_at > targetDate`
+
+이 정책은 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Transaction 필수 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+상태 변경과 history 종료는 반드시 동일 transaction에서 처리한다.
+
+순서:
+
+1. students row SELECT ... FOR UPDATE
+2. transaction 안에서 최신 assigned_class_ids / class_group_id 취득
+3. 활성 history 종료
+4. students 상태 및 배정값 변경
+5. 성공 시 commit
+6. 실패 시 전체 rollback
+
+주의:
+transaction 시작 전에 읽어둔 `existing` 값만 사용하지 않는다.
+동시 변경을 막기 위해 잠금 후 조회한 최신 row를 기준으로 classIds를 계산한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 기존 데이터 처리 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 수정은 향후 발생하는 오류를 막는 작업이다.
+
+기존 운영 데이터의 history를 임의로 일괄 보정하지 않는다.
+
+김안 사례:
+- history.left_at이 이미 정상
+- DB 수정 불필요
+- 클라이언트 historical fallback 수정으로 해결
+
+기존 누락 데이터 보정이 필요하면:
+- 별도 조회 보고서
+- 대상 학생
+- 추정 effective date
+- 근거 로그
+- 보정 SQL
+
+을 제출한 뒤 별도 승인받는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 로그 보완은 이번 긴급 수정에서 제외
+━━━━━━━━━━━━━━━━━━━━━━
+
+pool_event_logs 및 class_change_logs 누락은 별도 결함으로 기록한다.
+
+이번 구현에서는:
+- 기능 정합성 수정만 진행
+- 새로운 감사로그 정책 추가 금지
+- 기존 로그 구조 리팩터링 금지
+
+단, 수정 코드의 오류를 숨기는 빈 catch는 새로 추가하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 최종 구현 단계
+━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 1
+최종 변경 파일·함수·transaction 설계 제출
+
+STEP 2
+승인 후 코드 수정
+
+STEP 3
+서버 타입체크 및 API 테스트
+
+STEP 4
+서버 배포 전 git diff 제출
+
+STEP 5
+승인 후 서버 배포
+
+STEP 6
+클라이언트 타입체크 및 git diff 제출
+
+STEP 7
+승인 후 OTA
+
+STEP 8
+실기기 검증
+
+검증 시나리오:
+
+1. 7월 25일에 소속된 학생
+2. 8월 3일 연기 처리
+3. 7월 25일 명단에는 계속 표시
+4. 8월 3일부터는 제외
+5. 선생님 경로
+6. 관리자 경로
+7. today-schedule
+8. my-schedule
+9. 로딩 중 현재 학생 fallback 없음
+10. 빠르게 반을 바꿔도 이전 API 응답이 섞이지 않음
+11. 반이동 대상에 담당 전체 반 표시
+12. my-schedule 반이동 버튼은 로그로 별도 판정
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 현재 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 실행계획 승인 전:
+
+- 코드 수정 금지
+- Commit 금지
+- Push 금지
+- 서버 배포 금지
+- OTA 금지
+- 운영 DB 보정 금지
+- responder 임의 수정 금지
+- X모드 작업 재개 금지
+
+위 누락 사항을 반영한
+“최종 변경 파일·함수·트랜잭션 실행계획”만 제출하고 멈춘다.
