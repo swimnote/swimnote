@@ -180,6 +180,14 @@ router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "p
       }
       const withdrawEffDate = kstTodayStr();
       await db.transaction(async (tx) => {
+        // 1. 잠금 후 최신 row 확보
+        const lockedRows = await tx.execute(sql`
+          SELECT id, status, class_group_id, assigned_class_ids
+          FROM students WHERE id = ${studentId} LIMIT 1 FOR UPDATE
+        `);
+        const locked = lockedRows.rows[0];
+        if (!locked) throw new Error("STUDENT_NOT_FOUND");
+        // 2. history 종료 + 3. students 갱신
         await closeAllActiveClassHistory(tx, studentId, withdrawEffDate);
         await tx.execute(sql`
           UPDATE students
@@ -215,8 +223,11 @@ router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "p
       }
 
       res.json({ success: true, message: `${student.name} 학생이 탈퇴 처리되었습니다.` });
-    } catch (err) {
-      console.error(err);
+    } catch (e: any) {
+      if (e?.message === "STUDENT_NOT_FOUND") {
+        res.status(404).json({ error: "학생을 찾을 수 없습니다." }); return;
+      }
+      console.error(e);
       res.status(500).json({ error: "서버 오류가 발생했습니다." });
     }
   }
@@ -1218,6 +1229,14 @@ router.patch("/students/:id/status", requireAuth, requireRole("super_admin", "po
       if (isClassDepartureStatus) {
         const effDate = kstTodayStr();
         await db.transaction(async (tx) => {
+          // 1. 잠금 후 최신 row 확보
+          const lockedRows = await tx.execute(sql`
+            SELECT id, status, class_group_id, assigned_class_ids
+            FROM students WHERE id = ${req.params.id} LIMIT 1 FOR UPDATE
+          `);
+          const locked = lockedRows.rows[0];
+          if (!locked) throw new Error("STUDENT_NOT_FOUND");
+          // 2. history 종료 + 3. students 갱신
           await closeAllActiveClassHistory(tx, req.params.id, effDate);
           if (status === 'withdrawn') {
             await tx.execute(sql`UPDATE students SET status = ${status}, archived_reason = ${reason ?? null}, class_group_id = NULL, assigned_class_ids = '[]'::jsonb, schedule_labels = NULL, withdrawn_at = NOW(), updated_at = NOW() WHERE id = ${req.params.id}`);
@@ -1240,7 +1259,10 @@ router.patch("/students/:id/status", requireAuth, requireRole("super_admin", "po
         note: reason,
       });
       res.json({ success: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+    } catch (e: any) {
+      if (e?.message === "STUDENT_NOT_FOUND") return res.status(404).json({ error: "학생을 찾을 수 없습니다." });
+      console.error(e); res.status(500).json({ error: "서버 오류" });
+    }
   }
 );
 

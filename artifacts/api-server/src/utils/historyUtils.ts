@@ -24,10 +24,21 @@ export interface HistoryTx {
  * 코드베이스 동일 패턴: today-schedule.ts 의 todayKST() (UTC+9 offset 방식)
  * → 동일 결과. Intl 방식이 DST-safe하므로 통일
  */
-export function kstTodayStr(): string {
-  return new Intl.DateTimeFormat("en-CA", {
+export function kstTodayStr(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Seoul",
-  }).format(new Date());
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+
+  const map = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+
+  return `${map.year}-${map.month}-${map.day}`;
 }
 
 /**

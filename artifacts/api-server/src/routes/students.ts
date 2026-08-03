@@ -777,6 +777,14 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
       }
       const effDate = kstTodayStr();
       await db.transaction(async (tx) => {
+        // 1. 잠금 후 최신 row 확보
+        const lockedRows = await tx.execute(sql`
+          SELECT id, status, class_group_id, assigned_class_ids
+          FROM students WHERE id = ${req.params.id} LIMIT 1 FOR UPDATE
+        `);
+        const locked = lockedRows.rows[0];
+        if (!locked) throw new Error("STUDENT_NOT_FOUND");
+        // 2. history 종료 + 3. students 갱신
         await closeAllActiveClassHistory(tx, req.params.id, effDate);
         await tx.update(studentsTable).set(extraFields).where(eq(studentsTable.id, req.params.id));
       });
@@ -843,10 +851,17 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
 
     // ── 단일 트랜잭션: history 기록 + students 갱신 ──────────────────────
     await db.transaction(async (tx) => {
-      // 1) history left_at 설정 (특정 반 이탈)
+      // 1. 잠금 후 최신 row 확보
+      const lockedRows = await tx.execute(sql`
+        SELECT id, status, class_group_id, assigned_class_ids
+        FROM students WHERE id = ${req.params.id} LIMIT 1 FOR UPDATE
+      `);
+      const locked = lockedRows.rows[0];
+      if (!locked) throw new Error("STUDENT_NOT_FOUND");
+      // 2) history left_at 설정 (특정 반 이탈)
       await closeClassHistory(tx, req.params.id, class_group_id, remEffectiveDate);
 
-      // 2) students 캐시 갱신
+      // 3) students 캐시 갱신
       await tx.execute(sql`
         UPDATE students SET
           assigned_class_ids = ${JSON.stringify(newIds)}::jsonb,
@@ -1012,6 +1027,14 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
     if (needsClassClear) {
       const effDate = kstTodayStr();
       await db.transaction(async (tx) => {
+        // 1. 잠금 후 최신 row 확보
+        const lockedRows = await tx.execute(sql`
+          SELECT id, status, class_group_id, assigned_class_ids
+          FROM students WHERE id = ${req.params.id} LIMIT 1 FOR UPDATE
+        `);
+        const locked = lockedRows.rows[0];
+        if (!locked) throw new Error("STUDENT_NOT_FOUND");
+        // 2. history 종료 + 3. students 갱신
         await closeAllActiveClassHistory(tx, req.params.id, effDate);
         await tx.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
       });
@@ -1021,7 +1044,10 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
     const [updated] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
     console.log(`[change-status] ✅ 즉시 변경 완료 → status: ${(updated as any).status}`);
     return res.json({ success: true, new_status, student: updated });
-  } catch (e) { console.error("[change-status] ❌ 오류:", e); return err(res, 500, "서버 오류"); }
+  } catch (e: any) {
+    if (e?.message === "STUDENT_NOT_FOUND") return err(res, 404, "학생 없음");
+    console.error("[change-status] ❌ 오류:", e); return err(res, 500, "서버 오류");
+  }
 });
 
 router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
