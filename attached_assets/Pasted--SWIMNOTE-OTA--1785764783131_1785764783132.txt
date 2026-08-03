@@ -1,0 +1,278 @@
+[SWIMNOTE 긴급 오류 수정 — 서버 배포 + 운영 앱 OTA 즉시 배포 승인]
+
+테스트 환경이 별도로 없으므로 현재 실제 사용 중인 운영 앱에 바로 배포해서 확인한다.
+
+이번 단계에서 서버와 클라이언트를 연속 배포한다.
+
+문제가 발생하면 즉시 직전 정상 버전으로 롤백한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 승인 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+승인:
+
+1. 현재 최종 서버 수정분 반영
+2. origin/deploy-photo-clone Push
+3. Render 서버 배포
+4. 서버 정상 기동 확인
+5. 현재 운영 앱 대상 OTA 배포
+6. 실제 운영 앱에서 즉시 검증
+7. 문제 발생 시 즉시 롤백 OTA
+8. 필요 시 서버도 직전 정상 커밋으로 롤백
+
+이번 배포 대상:
+
+서버:
+- artifacts/api-server/src/utils/historyUtils.ts
+- artifacts/api-server/src/routes/students.ts
+- artifacts/api-server/src/routes/admin.ts
+
+클라이언트:
+- artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+- artifacts/swim-app/app/(teacher)/my-schedule.tsx
+- artifacts/swim-app/app/(teacher)/today-schedule.tsx
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 배포 순서
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 아래 순서대로 진행한다.
+
+STEP 1
+현재 Git 상태와 배포 기준점 기록
+
+기록:
+
+- 현재 로컬 HEAD SHA
+- 현재 origin/deploy-photo-clone SHA
+- 서버 직전 정상 배포 SHA
+- 현재 운영 OTA update ID
+- 현재 운영 OTA runtimeVersion
+- 현재 운영 OTA channel 또는 branch
+- rollback 대상 OTA update ID
+
+이 값을 보고서에 남긴 후 진행한다.
+
+STEP 2
+현재 unstaged students.ts 최종 보완분을 반영한다.
+
+Replit 자동 checkpoint가 생성되면:
+- 생성된 SHA 기록
+- 임의 squash/rebase/reset 금지
+
+STEP 3
+origin/deploy-photo-clone으로 일반 Push한다.
+
+금지:
+
+- force push
+- main/master Push
+- 다른 브랜치 Push
+- 커밋 이력 재작성
+
+STEP 4
+Render 배포 완료까지 확인한다.
+
+확인:
+
+- Build 성공
+- 서버 시작 성공
+- historyUtils import 성공
+- DB 연결 성공
+- Health API 정상
+- 기존 인증 API 정상
+- Migration 없음 확인
+
+서버가 정상 기동하지 않으면 OTA 진행 금지.
+서버 실패 로그를 제출하고 멈춘다.
+
+STEP 5
+서버 정상 확인 즉시 현재 운영 앱 channel/branch에 OTA를 배포한다.
+
+별도 테스트 channel을 만들지 않는다.
+현재 실제 사용자가 받는 운영 channel에 배포한다.
+
+단, 반드시 현재 앱 빌드와 동일한 runtimeVersion에만 배포한다.
+
+runtimeVersion이 다르면:
+- 억지로 배포하지 않는다.
+- 새 빌드가 필요한지 즉시 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. OTA 배포 전 최종 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA 직전에 아래를 확인한다.
+
+1. 네이티브 모듈 추가 없음
+2. app.json/app.config 네이티브 설정 변경 없음
+3. Expo SDK/runtimeVersion 변경 없음
+4. 신규 패키지 설치 없음
+5. DB Migration 없음
+6. 서버 API 응답 Contract 변경 없음
+7. 기존 앱이 신규 optional props 없이도 crash하지 않음
+8. OTA 대상 channel이 실제 운영 channel인지 확인
+
+하나라도 조건이 맞지 않으면 OTA를 중단하고 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. OTA 메시지
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA update 메시지는 아래처럼 명확하게 작성한다.
+
+SWIMNOTE 긴급 수정:
+- 스케줄러 과거 날짜 학생명단 오류 수정
+- 연기·퇴원·미배정 시 과거 명단 유지
+- 오늘 스케줄 날짜별 학생명단 수정
+- 반이동 전체 담당 반 목록 적용
+- 학생명단 로딩·오류 상태 분리
+- 스케줄러 상세 모달 스크롤 보완
+
+실제 OTA 명령과 다음 정보를 보고한다.
+
+- 사용한 명령
+- channel/branch
+- runtimeVersion
+- update ID
+- 배포 시각
+- 적용된 commit SHA
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 운영 앱 즉시 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA 완료 후 사용자에게 앱 완전 종료 후 재실행을 요청할 수 있도록
+배포 완료 사실을 먼저 보고한다.
+
+운영 앱에서 다음 순서로 확인한다.
+
+1. 앱 완전 종료
+2. 앱 재실행
+3. 업데이트 적용 대기
+4. 다시 한 번 완전 종료 후 재실행
+5. 선생님 스케줄러 진입
+6. 반 상세 모달 스크롤 확인
+7. 학생 수가 많은 반에서 마지막 학생까지 이동 확인
+8. today-schedule 반 상세 진입
+9. 학생명단 로딩 표시 확인
+10. 학생명단 정상 표시 확인
+11. 반이동 클릭
+12. 담당 전체 반 목록 표시 확인
+13. 빠르게 다른 반을 연속 선택
+14. 이전 반 학생이 새 반에 섞이지 않는지 확인
+15. 과거 날짜 반 명단 확인
+16. 연기·퇴원 처리 전 날짜에는 학생이 남아 있는지 확인
+17. 처리일 당일부터 학생이 제외되는지 확인
+
+운영 회원의 상태를 테스트 목적으로 임의 변경하지 않는다.
+
+사용자가 실제 처리하려는 학생 또는 이미 확인 가능한 과거 사례로 검증한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 롤백 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나라도 발생하면 즉시 롤백한다.
+
+- 앱 실행 crash
+- 로그인 불가
+- 스케줄러 진입 불가
+- 반 상세 모달 열리지 않음
+- 학생명단 전체 미표시
+- 반이동 기능 악화
+- 스크롤 여전히 불가하거나 화면 터치 불가
+- 과거 명단이 더 잘못 표시됨
+- 서버 5xx 증가
+- 학생 상태 변경 실패
+- history SQL 오류
+- 다른 핵심 화면 회귀
+
+사소한 UI 간격 문제가 아니라
+운영 기능에 영향을 주는 오류면 즉시 롤백한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. OTA 롤백 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA 문제 발생 시 새 코드를 현장에서 즉흥 수정하지 않는다.
+
+우선순위:
+
+1. 직전 정상 OTA update로 즉시 rollback 또는 republish
+2. 앱 완전 종료·재실행 후 정상 복귀 확인
+3. rollback update ID 기록
+4. 오류 로그와 재현 절차 제출
+5. 수정은 별도 승인 후 진행
+
+Rollback 보고 항목:
+
+- 문제 발생 시각
+- 문제 화면
+- 재현 절차
+- 문제 OTA update ID
+- rollback 대상 update ID
+- rollback 명령
+- rollback 완료 시각
+- 정상 복귀 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 서버 롤백 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 문제일 경우:
+
+1. Render에서 직전 정상 배포 SHA로 rollback
+2. force push 금지
+3. Git 이력 reset 금지
+4. 운영 DB 수동 수정 금지
+5. 서버 정상 기동과 health check 확인
+6. OTA가 서버 변경에 의존하면 OTA도 함께 rollback
+
+현재 전체 수정 전 기준선:
+9185e164
+
+하지만 이 SHA로 직접 reset하지 않는다.
+실제 서버 롤백은 Render의 직전 정상 배포 또는 별도 revert 승인 방식으로 처리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 배포 후 제출 보고서
+━━━━━━━━━━━━━━━━━━━━━━
+
+배포 후 아래를 제출한다.
+
+1. 최종 로컬 HEAD
+2. origin SHA
+3. Push 성공 로그
+4. Render 배포 SHA
+5. Render Build 결과
+6. 서버 Health 결과
+7. OTA channel/branch
+8. runtimeVersion
+9. OTA update ID
+10. OTA 배포 성공 로그
+11. 앱 적용 확인 방법
+12. 실제 운영 앱 검증 결과
+13. 오류 발생 여부
+14. rollback 필요 여부
+15. 남은 미검증 항목
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 이번 단계에서 계속 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 운영 DB 수동 보정
+- 기존 누락 history 일괄 수정
+- force push
+- rebase
+- reset
+- squash
+- main/master 직접 Push
+- responder 추정 수정
+- my-schedule 미확정 버튼 로직 수정
+- X모드 개발 재개
+- 이번 승인 범위 밖 코드 수정
+
+서버 정상 기동 확인 후 운영 앱 OTA까지 연속으로 진행하고,
+배포 완료 보고 후 멈춘다.
