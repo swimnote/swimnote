@@ -1,0 +1,393 @@
+# SWIMNOTE X — WP2 개발 서버 재시작 및 최종 API 검증 승인
+
+WP2 구현 완료 보고서를 검수했습니다.
+
+현재 상태:
+
+* WP2 코드 작성 완료
+* `computeMode` 단위 테스트 6/6 통과
+* WP2 수정 파일 관련 TypeScript 오류 0건
+* DB 변경 없음
+* 수영장 X 상태 변경 없음
+* Commit 없음
+* Push 없음
+* 배포 없음
+* 신규 Route API 테스트 미실행
+
+WP2 최종 승인 전, **Replit 개발 서버에서 신규 코드 활성화 및 API 검증만 진행하도록 승인합니다.**
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 이번 승인 범위
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+* 현재 Replit 개발 API Server 재시작
+* 신규 Route 로딩 확인
+* 읽기 전용 API 테스트
+* 존재하지 않는 pool_id를 이용한 PATCH 404 테스트
+* 변경 필드 없는 PATCH 400 테스트
+* 인증·권한 실패 테스트
+* 서버 로그 확인
+* 읽기 전용 DB row count 확인
+
+불허:
+
+* Render 프로덕션 배포
+* Push
+* OTA
+* 실제 존재하는 수영장 X 상태 변경
+* 토이키즈 상태 변경
+* 테스트 수영장 생성
+* DB 스키마 변경
+* Migration 직접 실행
+* 신규 코드 수정
+* WP3 작업
+* RevenueCat 변경
+
+이번 승인에서 말하는 서버 재시작은 **Replit 개발 API Server만** 해당합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 재시작 전 상태 기록
+━━━━━━━━━━━━━━━━━━━━━━
+
+재시작 전에 다음을 기록하십시오.
+
+```text
+git status
+git diff --stat
+현재 HEAD commit
+현재 실행 중인 서버 시작 시각
+```
+
+신규 파일 상태도 포함하십시오.
+
+```text
+artifacts/api-server/src/lib/xmode.ts
+```
+
+이 파일이 untracked 상태라는 사실을 명확히 기록하십시오.
+
+Commit하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 개발 서버 재시작
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Replit API Server workflow만 재시작하십시오.
+
+재시작 후 확인:
+
+1. DB 초기화 성공
+2. `initXModeSchema()` 성공
+3. 서버 Ready 상태 진입
+4. health check 200
+5. Migration 실패 로그 없음
+6. 예상하지 않은 DB 객체 생성 없음
+7. PART 2 Migration 진입점 미호출
+8. Render 서버에는 영향 없음
+
+재시작 로그 원문을 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 신규 Route 등록 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+재시작 후 다음 Route가 실제로 등록되고 응답하는지 확인하십시오.
+
+```text
+GET /api/pools/x-mode
+PATCH /api/super/operators/:id/xmode
+```
+
+404 Route Not Found가 나오면 구현 오류로 처리하십시오.
+
+그 경우 임의 수정하지 말고 실제 응답과 로그를 제출하고 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. GET /pools/x-mode API 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+## TC-01 — 인증 없음
+
+```text
+GET /api/pools/x-mode
+Authorization 없음
+```
+
+기대:
+
+```text
+HTTP 401
+```
+
+응답 원문 제출.
+
+## TC-02 — super_admin pool_id 누락
+
+안전한 기존 super_admin 토큰이 있는 경우만 실행.
+
+```text
+GET /api/pools/x-mode
+```
+
+기대:
+
+```text
+HTTP 400
+pool_id 파라미터 필요
+```
+
+## TC-03 — 존재하지 않는 pool_id
+
+안전한 기존 super_admin 토큰이 있는 경우만 실행.
+
+```text
+GET /api/pools/x-mode?pool_id=pool_wp2_nonexistent
+```
+
+기대:
+
+```text
+HTTP 404
+error = POOL_NOT_FOUND
+```
+
+## TC-04 — 일반모드 수영장 읽기
+
+안전한 기존 테스트 계정 또는 읽기 전용 super_admin 조회가 가능한 경우만 실행.
+
+기대:
+
+```json
+{
+  "pool_id": "...",
+  "mode": "normal",
+  "xmode_entitlement": false,
+  "xmode_config_status": "NOT_CONFIGURED"
+}
+```
+
+실제 수영장 상태를 수정하지 마십시오.
+
+안전한 인증정보가 없으면 TC-02~04는 `미실행`으로 기록하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. PATCH API 안전 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 존재하는 pool_id는 사용하지 마십시오.
+
+## TC-05 — 인증 없음
+
+```text
+PATCH /api/super/operators/pool_wp2_nonexistent/xmode
+Body: {}
+```
+
+기대:
+
+```text
+HTTP 401
+```
+
+## TC-06 — 변경 필드 없음
+
+안전한 super_admin 토큰이 있는 경우:
+
+```text
+PATCH /api/super/operators/pool_wp2_nonexistent/xmode
+Body: { "reason": "test" }
+```
+
+기대:
+
+```text
+HTTP 400
+변경 항목이 없습니다.
+```
+
+이 테스트는 pool 조회 전에 400이 반환돼야 합니다.
+
+## TC-07 — 존재하지 않는 pool
+
+안전한 super_admin 토큰이 있는 경우:
+
+```json
+{
+  "xmode_entitlement": true
+}
+```
+
+대상:
+
+```text
+pool_wp2_nonexistent
+```
+
+기대:
+
+```text
+HTTP 404
+error = POOL_NOT_FOUND
+```
+
+DB UPDATE와 audit INSERT가 발생하면 안 됩니다.
+
+## TC-08 — 잘못된 타입
+
+```json
+{
+  "xmode_entitlement": "true"
+}
+```
+
+기대:
+
+```text
+HTTP 400
+```
+
+## TC-09 — 잘못된 상태값
+
+```json
+{
+  "xmode_config_status": "ACTIVE"
+}
+```
+
+기대:
+
+```text
+HTTP 400
+```
+
+## TC-10 — 잘못된 날짜 타입·값
+
+다음을 각각 확인하십시오.
+
+```json
+{ "xmode_purchased_at": "not-a-date" }
+```
+
+```json
+{ "xmode_purchased_at": 12345 }
+```
+
+Contract상 날짜는 `string | null`입니다.
+
+숫자 값이 통과하면 입력 검증이 설계와 일치하지 않는 것으로 보고하십시오. 임의 수정하지 말고 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. DB 무변경 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+테스트 전후 다음 값을 읽기 전용으로 비교하십시오.
+
+```sql
+SELECT COUNT(*) FROM audit_logs
+WHERE entity_type = 'swimming_pool_xmode';
+
+SELECT COUNT(*) FROM swimming_pools
+WHERE xmode_entitlement = true
+   OR xmode_config_status <> 'NOT_CONFIGURED';
+```
+
+제출:
+
+* 테스트 전 건수
+* 테스트 후 건수
+* 차이
+
+이번 테스트에서는 실제 존재하는 pool을 수정하지 않으므로 두 결과에 신규 변화가 없어야 합니다.
+
+기존 X 상태 데이터가 이미 있다면 전체 건수가 아니라 테스트 시간 이후 생성된 Audit 행이 없는지 추가 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 일반모드 영향 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+재시작 후 최소 확인:
+
+* health check 200
+* 기존 로그인 Route 접근 가능
+* 기존 `/api/pools/my` Route가 Route Not Found가 아님
+* 기존 `/api/pools/my-pools` Route가 Route Not Found가 아님
+* 기존 일반 Route 등록 오류 없음
+* 서버 시작 중 import/circular dependency 오류 없음
+* `requireXMode`가 기존 일반 Route에 연결되지 않았는지 코드 검색
+
+인증정보가 없으면 기존 Route의 인증 실패 401까지 확인하고, 정상 기능 통과라고 과장하지 마십시오.
+
+정확한 상태는 다음처럼 구분하십시오.
+
+```text
+Route 등록 정상
+인증 미보유로 기능 본문 미검증
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 구현 코드 자체 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 보고서에는 요약이 아니라 다음 실제 코드를 포함하십시오.
+
+1. `git diff` 원문
+2. `lib/xmode.ts` 전체
+3. `GET /pools/x-mode` 전체
+4. `requireXMode` 전체
+5. `PATCH /super/operators/:id/xmode` 전체
+
+특히 확인:
+
+* PATCH 날짜 필드가 실제로 `string | null`만 허용하는지
+* `result`가 Transaction 종료 후 항상 할당되는지
+* `beforeData`와 `afterData` 변수명이 일치하는지
+* `requireXMode`에서 `next()` 중복 호출 가능성이 없는지
+* Promise `.then().catch()`에서 응답 후 실행이 계속되지 않는지
+* parent_account 조회 테이블과 사용자 ID 연결 방식이 기존 코드와 일치하는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 중단 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나라도 발생하면 코드 수정 없이 중단하십시오.
+
+* 서버 기동 실패
+* 신규 Route 미등록
+* import 또는 circular dependency 오류
+* 실제 수영장 상태 변경
+* audit_logs 신규 행 생성
+* 숫자 날짜값이 유효한 날짜로 통과
+* 권한 없는 사용자가 PATCH 접근
+* `requireXMode`가 기존 Route에 연결됨
+* 예상하지 않은 Commit 발생
+* Render 또는 원격 브랜치 변경
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 최종 제출 항목
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 재시작 전 git 상태
+2. Replit 개발 서버 재시작 여부
+3. 서버 기동 로그
+4. health check
+5. GET API 테스트 결과
+6. PATCH API 테스트 결과
+7. 날짜 타입 검증 결과
+8. DB 전후 건수
+9. 일반 Route 확인
+10. 실제 git diff
+11. 미실행 테스트
+12. 코드 추가 수정 여부
+13. DB 변경 여부
+14. 수영장 상태 변경 여부
+15. Commit 여부
+16. Push 여부
+17. Render 배포 여부
+18. WP2 최종 승인 가능 여부 자체 판단
+
+결과를 제출하고 멈추십시오.
+
+WP3로 진입하지 마십시오.
