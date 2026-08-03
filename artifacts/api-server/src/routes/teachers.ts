@@ -990,6 +990,37 @@ router.get("/teacher/makeups/by-class", requireAuth,
       if (!class_group_id || !date) {
         res.status(400).json({ error: "class_group_id와 date가 필요합니다." }); return;
       }
+
+      // 1. 날짜 형식 검증: YYYY-MM-DD 실존 날짜만 허용
+      const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRe.test(date)) {
+        res.status(400).json({ error: "INVALID_DATE", message: "날짜는 YYYY-MM-DD 형식이어야 합니다." }); return;
+      }
+      const [y, m, d] = date.split("-").map(Number);
+      const parsed = new Date(y, m - 1, d);
+      if (parsed.getFullYear() !== y || parsed.getMonth() !== m - 1 || parsed.getDate() !== d) {
+        res.status(400).json({ error: "INVALID_DATE", message: "존재하지 않는 날짜입니다." }); return;
+      }
+
+      // 2. 요청자의 poolId 확인
+      const poolId = await getMyPoolId(req.user!.userId);
+      if (!poolId) {
+        res.status(403).json({ error: "POOL_MISMATCH", message: "소속 수영장이 없습니다." }); return;
+      }
+
+      // 3. class_group이 해당 풀 소속인지 검증
+      const cgRows = (await db.execute(sql`
+        SELECT id FROM class_groups
+        WHERE id = ${class_group_id}
+          AND swimming_pool_id = ${poolId}
+          AND is_deleted = false
+        LIMIT 1
+      `)).rows;
+      if (!cgRows.length) {
+        res.status(404).json({ error: "CLASS_NOT_FOUND", message: "해당 수영장에서 찾을 수 없는 반입니다." }); return;
+      }
+
+      // 4. 동일 풀 소속 보강 세션만 조회
       const rows = (await db.execute(sql`
         SELECT ms.*
         FROM makeup_sessions ms
@@ -997,10 +1028,11 @@ router.get("/teacher/makeups/by-class", requireAuth,
           AND ms.assigned_date = ${date}
           AND ms.status = 'assigned'
           AND ms.cancelled_at IS NULL
+          AND ms.swimming_pool_id = ${poolId}
         ORDER BY ms.student_name ASC
       `)).rows;
       res.json(rows);
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+    } catch (err) { console.error(err); res.status(500).json({ error: "SERVER_ERROR", message: "서버 오류" }); }
   }
 );
 

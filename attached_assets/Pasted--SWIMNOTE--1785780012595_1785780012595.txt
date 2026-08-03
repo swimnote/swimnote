@@ -1,0 +1,113 @@
+[SWIMNOTE 보강 회차 선택 — 배포 전 최종 보안 수정 승인]
+
+현재 보강 회차 기능의 클라이언트·서버 검수는 완료됐다.
+
+단, 다음 보안 결함이 남아 있으므로 이것만 수정한다.
+
+대상:
+GET /teacher/makeups/by-class
+
+현재 쿼리:
+
+SELECT ms.*
+FROM makeup_sessions ms
+WHERE ms.assigned_class_group_id = ${class_group_id}
+  AND ms.assigned_date = ${date}
+  AND ms.status = 'assigned'
+  AND ms.cancelled_at IS NULL
+
+문제:
+
+- swimming_pool_id 조건이 없음
+- 타 수영장의 class_group_id와 date를 알면
+  다른 수영장의 보강 세션·학생 이름이 조회될 수 있음
+- complete-direct에서 403으로 차단해도
+  조회 단계 개인정보 노출은 이미 발생함
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 수정 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+requireAuth에서 확인된 사용자의 poolId를 기준으로
+조회 쿼리에 반드시 다음 조건을 추가한다.
+
+AND ms.swimming_pool_id = ${poolId}
+
+또한 class_group_id 자체가 해당 pool 소속인지 검증한다.
+
+권장 순서:
+
+1. requireAuth
+2. user poolId 확인
+3. class_groups 조회:
+   - id = class_group_id
+   - swimming_pool_id = poolId
+   - is_deleted = false
+4. 반이 없으면 404 또는 403
+5. makeup_sessions 조회:
+   - assigned_class_group_id = class_group_id
+   - assigned_date = date
+   - status = 'assigned'
+   - cancelled_at IS NULL
+   - swimming_pool_id = poolId
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 날짜 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+date query도 서버에서 YYYY-MM-DD 실존 날짜인지 검증한다.
+
+유효하지 않으면:
+
+400 INVALID_DATE
+
+예:
+
+- 2026-08-04 → 허용
+- 2026-02-30 → 거부
+- 2026/08/04 → 거부
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 응답 Contract
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 성공 응답 배열 구조는 변경하지 않는다.
+
+에러만 명확히 구분한다.
+
+- 400 INVALID_DATE
+- 404 CLASS_NOT_FOUND
+- 403 POOL_MISMATCH 또는 권한 없음
+- 500 SERVER_ERROR
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 같은 수영장 반 + 정상 날짜 → assigned 세션 반환
+2. 다른 수영장 class_group_id → 결과 반환 금지
+3. 다른 수영장 makeup_sessions가 같은 날짜여도 반환 금지
+4. completed 세션 제외
+5. cancelled 세션 제외
+6. 잘못된 날짜 형식 → 400
+7. 삭제된 반 → 404
+8. 기존 ClassDetailSheet completeMakeupDirect 정상 동작
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료 후 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+제출:
+
+1. teachers.ts 실제 diff
+2. poolId 취득 코드
+3. class_group 소속 검증 코드
+4. 최종 SQL
+5. 타입체크
+6. git status
+7. HEAD/origin SHA
+
+이 수정 완료 후에는 추가 설계 확장 없이
+바로 배포 승인 단계로 이동한다.
+
+아직 Push·Render 배포·OTA는 금지한다.
