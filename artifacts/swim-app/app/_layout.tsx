@@ -16,6 +16,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NoticePopup } from "@/components/common/NoticePopup";
 import { AuthProvider, useAuth, apiRequest } from "@/context/AuthContext";
+import { ModeProvider, useMode } from "@/context/ModeContext";
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 import { initializeRevenueCat, loginRevenueCat, logoutRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
 
@@ -821,6 +822,54 @@ function RootNav() {
   );
 }
 
+/**
+ * ModeForegroundRefresh — foreground 복귀 시 Mode 재조회 (WP3)
+ *
+ * ModeProvider 하위에서 렌더링되므로 useMode() 접근 가능.
+ * UI 없음(return null). 기존 AppState 리스너 동작을 변경하지 않음.
+ */
+function ModeForegroundRefresh() {
+  const { refreshMode } = useMode();
+  const { token, pool, isLoading } = useAuth();
+
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const didGoBackgroundRef = useRef(false);
+
+  // 최신 값을 비동기 listener에서 읽기 위한 Ref
+  const tokenRef = useRef(token);
+  const poolIdRef = useRef(pool?.id ?? null);
+  const isLoadingRef = useRef(isLoading);
+
+  useEffect(() => { tokenRef.current = token; }, [token]);
+  useEffect(() => { poolIdRef.current = pool?.id ?? null; }, [pool?.id]);
+  useEffect(() => { isLoadingRef.current = isLoading; }, [isLoading]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState: AppStateStatus) => {
+      const prev = appStateRef.current;
+      appStateRef.current = nextState;
+
+      if (nextState === "background") {
+        didGoBackgroundRef.current = true;
+      }
+
+      // background를 실제로 거친 경우에만 재조회
+      if ((prev === "background" || prev === "inactive") && nextState === "active") {
+        if (!didGoBackgroundRef.current) return;
+        didGoBackgroundRef.current = false;
+
+        if (tokenRef.current && poolIdRef.current && !isLoadingRef.current) {
+          // refreshMode 내부에서 isRefreshingRef lock으로 중복 호출 차단
+          refreshMode();
+        }
+      }
+    });
+    return () => sub.remove();
+  }, []); // 한 번만 등록 — 값은 ref로 읽음, refreshMode는 안정적
+
+  return null;
+}
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     "Pretendard-Regular":  require("../assets/fonts/Pretendard-Regular.otf"),
@@ -867,15 +916,18 @@ export default function RootLayout() {
             <BrandProvider>
               <UploadQueueProvider>
                 <AuthProvider>
-                  <SubscriptionProvider>
-                    <BrandSync />
-                    <RcUserSync />
-                    <PushTokenSync />
-                    <PushNavSync />
-                    <NoticePopup />
-                    <RootNav />
-                    <UploadProgressModal />
-                  </SubscriptionProvider>
+                  <ModeProvider>
+                    <SubscriptionProvider>
+                      <BrandSync />
+                      <RcUserSync />
+                      <PushTokenSync />
+                      <PushNavSync />
+                      <NoticePopup />
+                      <ModeForegroundRefresh />
+                      <RootNav />
+                      <UploadProgressModal />
+                    </SubscriptionProvider>
+                  </ModeProvider>
                 </AuthProvider>
               </UploadQueueProvider>
             </BrandProvider>

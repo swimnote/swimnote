@@ -1,0 +1,496 @@
+# SWIMNOTE X — WP3 구현 최종 승인 지시
+
+WP3 앱 전역 Mode Context 설계서를 검수했습니다.
+
+**WP3 구현을 승인합니다.**
+
+이번에는 설계서를 다시 작성하지 말고, 아래 확정사항을 반영하여 WP3 코드만 구현하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 구현 범위
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+신규 파일:
+
+```text
+artifacts/swim-app/context/ModeContext.tsx
+```
+
+수정 파일:
+
+```text
+artifacts/swim-app/app/_layout.tsx
+```
+
+원칙적으로 위 두 파일만 수정하십시오.
+
+금지:
+
+* AuthContext 수정
+* SessionContext 수정
+* RoleContext 수정
+* ParentContext 수정
+* 서버 코드 수정
+* DB 변경
+* Navigation Route 변경
+* X 로고·색상·메뉴 적용
+* WP4 작업
+
+설계 외 파일 수정이 반드시 필요하면 구현을 중단하고 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. ModeContext 공개 타입
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 타입을 사용하십시오.
+
+```typescript
+export type XModeStatus =
+  | "NOT_CONFIGURED"
+  | "CURRICULUM_PENDING"
+  | "READY";
+
+export type PoolMode =
+  | "normal"
+  | "x_pending"
+  | "x";
+
+export interface PoolModeResult {
+  pool_id: string;
+  mode: PoolMode;
+  xmode_entitlement: boolean;
+  xmode_config_status: XModeStatus;
+}
+
+export type ModeLoadState =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "error";
+
+export interface ModeContextValue {
+  mode: PoolMode | null;
+  xmode_entitlement: boolean;
+  xmode_config_status: XModeStatus | null;
+  status: ModeLoadState;
+  error: string | null;
+  refreshMode: () => Promise<void>;
+}
+```
+
+기본값:
+
+```text
+mode = null
+xmode_entitlement = false
+xmode_config_status = null
+status = idle
+error = null
+```
+
+오류가 발생해도 `mode="normal"`을 실제 서버 결과처럼 저장하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 조회 대상 역할
+━━━━━━━━━━━━━━━━━━━━━━
+
+ModeProvider 자동 조회 대상:
+
+* pool_admin
+* teacher
+* parent_account
+
+제외:
+
+* super_admin
+* platform_admin
+* super_manager
+* 레거시 parent
+* 미확인 역할
+
+super_admin의 특정 수영장 조회는 전역 Mode Context에서 처리하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 조회 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 조건이 모두 충족될 때만 호출하십시오.
+
+```text
+token 존재
+currentPool.id 존재
+세션 초기화 완료
+지원 역할
+```
+
+poolId가 확정되기 전에 `/pools/x-mode`를 호출하지 마십시오.
+
+JWT payload의 poolId는 사용하지 마십시오.
+
+서버가 현재 계정의 수영장을 판정하도록 다음만 호출합니다.
+
+```text
+GET /pools/x-mode
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. API 캐시 처리 정정
+━━━━━━━━━━━━━━━━━━━━━━
+
+설계서에는 `_bustRelated("/pools/x-mode")` 호출이 포함돼 있지만 `_bustRelated`는 AuthContext 공개 API가 아닙니다.
+
+이번 WP에서 `_bustRelated`를 외부로 노출하거나 AuthContext를 수정하지 마십시오.
+
+다음 방식으로 확정합니다.
+
+```typescript
+apiRequest(token, "/pools/x-mode", {
+  method: "GET",
+  cache: "no-store",
+});
+```
+
+실제 `apiRequest` 인자 형태가 다르면 기존 `fetchPool()`의 `cache: "no-store"` 사용 방식을 그대로 재사용하십시오.
+
+목표:
+
+* `_apiCache`에 기존 Mode 응답이 있어도 사용하지 않음
+* foreground 복귀 시 서버에 실제 재조회
+* AuthContext 공개 인터페이스 변경 없음
+* 전체 `clearApiCache()` 호출 금지
+
+`cache: "no-store"`가 현재 `apiRequest`에서 지원되지 않는다면 임의 우회하지 말고 중단하여 실제 함수 시그니처를 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. refreshMode 동시 호출 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+React state의 `status === "loading"`만으로 중복 호출을 막으면 비동기 closure에서 동시에 두 요청이 시작될 수 있습니다.
+
+`useRef<boolean>` 기반 요청 잠금을 사용하십시오.
+
+예시 의미:
+
+```typescript
+const isRefreshingRef = useRef(false);
+
+const refreshMode = useCallback(async () => {
+  if (isRefreshingRef.current) return;
+  if (!token || !poolId || !isSupportedRole) return;
+
+  isRefreshingRef.current = true;
+  setState({
+    status: "loading",
+    result: null,
+    error: null,
+  });
+
+  try {
+    // no-store 서버 조회
+  } finally {
+    isRefreshingRef.current = false;
+  }
+}, [token, poolId, isSupportedRole, apiRequest]);
+```
+
+새로운 전역 Lock이나 별도 파일은 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 이전 수영장 Mode 즉시 폐기
+━━━━━━━━━━━━━━━━━━━━━━
+
+`token`, `poolId`, `role` 중 Mode 식별에 필요한 값이 변경되면 이전 결과를 즉시 폐기하십시오.
+
+처리 순서:
+
+```text
+token 또는 poolId 또는 지원 역할 변경
+→ 기존 result=null
+→ status=idle
+→ error=null
+→ 조건 충족 시 새 Mode 조회
+```
+
+이전 수영장의 `mode="x"`가 새 수영장에서 잠시라도 유지되지 않아야 합니다.
+
+비동기 요청 응답 순서가 뒤바뀌는 경우도 막으십시오.
+
+권장 방식:
+
+* 요청 시작 시 현재 token과 poolId 캡처
+* 응답 시 현재 token·poolId와 일치할 때만 상태 적용
+* 또는 request sequence ref 사용
+
+이 처리는 ModeContext 내부에서만 구현하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 로그아웃 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 로그아웃 코드는 수정하지 않습니다.
+
+ModeProvider가 다음 변화를 감지하여 상태를 초기화합니다.
+
+```text
+token = null
+또는
+currentPool = null
+또는
+지원 역할 아님
+```
+
+초기화 결과:
+
+```text
+status = idle
+result = null
+error = null
+mode = null
+```
+
+기존 `AuthContext.logout()`의 `clearApiCache()` 동작은 그대로 유지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. foreground 리스너 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+`_layout.tsx`에서 `<ModeProvider>`를 렌더링하는 같은 컴포넌트는 `useMode()`로 그 Provider 값을 읽을 수 없습니다.
+
+따라서 다음 구조를 사용하십시오.
+
+```tsx
+<AuthProvider>
+  <ModeProvider>
+    <ModeForegroundRefresh />
+    <기존 앱 트리 />
+  </ModeProvider>
+</AuthProvider>
+```
+
+`ModeForegroundRefresh`는 `_layout.tsx` 내부의 작은 컴포넌트로 작성할 수 있습니다.
+
+역할:
+
+* 기존 공통 AppState listener 구조 재사용
+* background/inactive → active 전환 시 `refreshMode()` 호출
+* UI 렌더링 없음 (`return null`)
+* 별도 파일 생성 없음
+
+기존 foreground listener 안에 직접 합치는 것이 구조상 가능하면 합치되, 반드시 Provider 아래에서 `useMode()`가 호출돼야 합니다.
+
+기존 OTA 및 문의 조회 동작을 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 자동 최초 조회
+━━━━━━━━━━━━━━━━━━━━━━
+
+ModeProvider의 effect에서 다음 변화에 반응하십시오.
+
+* token
+* currentPool.id
+* 역할
+
+조건 충족 시 자동 `refreshMode()` 실행.
+
+다만 effect가 초기화와 조회를 반복 실행하지 않도록 callback dependency를 확인하십시오.
+
+금지:
+
+* render 중 API 호출
+* Navigation 진입 차단
+* Mode ready 전까지 Splash 유지
+* 폴링 추가
+* 15초 주기 호출 추가
+
+Mode 조회는 기존 로그인과 Navigation을 차단하지 않는 비동기 작업입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 오류 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능한 범위에서 응답 상태를 다음처럼 저장하십시오.
+
+```text
+401 → unauthorized
+403 → forbidden
+404 → pool_not_found
+500 이상 → server_error
+timeout → timeout
+JSON 파싱 실패 → parse_error
+기타 네트워크 예외 → network_error
+```
+
+기존 `apiRequest`가 401을 전역 처리하고 throw하거나 응답을 반환하는 실제 방식에 맞추십시오.
+
+중요:
+
+* 이전 result는 유지하지 않음
+* error 시 result=null
+* error 시 mode=null
+* 오류를 숨기고 ready/normal로 처리 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 학부모 자녀 전환
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP3에서는 자녀 선택 변경을 Mode 재조회 조건으로 사용하지 않습니다.
+
+현재 기준:
+
+```text
+parent_account
+→ parent_accounts.swimming_pool_id
+→ 단일 수영장 Mode
+```
+
+`selectedStudentId`를 Mode cache key나 effect dependency에 넣지 마십시오.
+
+다중 수영장 자녀 문제는 해결 완료로 표시하지 말고 다음 상태로 남깁니다.
+
+```text
+NEEDS_VERIFICATION — 향후 선택 자녀별 pool Contract가 확정될 때 재검토
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 테스트 방식 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 수영장 X 상태를 변경하지 마십시오.
+
+설계서의 다음 테스트 방식은 승인하지 않습니다.
+
+```text
+개발 DB 직접 UPDATE
+WP2 PATCH로 기존 pool 상태 변경
+테스트 후 원복
+```
+
+T-02~T-04는 API 응답 Mock으로 검증하십시오.
+
+Mock 응답:
+
+```json
+{
+  "pool_id": "pool_test",
+  "mode": "x_pending",
+  "xmode_entitlement": true,
+  "xmode_config_status": "NOT_CONFIGURED"
+}
+```
+
+```json
+{
+  "pool_id": "pool_test",
+  "mode": "x_pending",
+  "xmode_entitlement": true,
+  "xmode_config_status": "CURRICULUM_PENDING"
+}
+```
+
+```json
+{
+  "pool_id": "pool_test",
+  "mode": "x",
+  "xmode_entitlement": true,
+  "xmode_config_status": "READY"
+}
+```
+
+DB 직접 UPDATE·PATCH·원복 테스트 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 필수 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 검증:
+
+1. 일반 응답 → ready/normal
+2. NOT_CONFIGURED 응답 → ready/x_pending
+3. CURRICULUM_PENDING 응답 → ready/x_pending
+4. READY 응답 → ready/x
+5. 로그아웃 → idle/null
+6. poolId 변경 즉시 이전 result 제거
+7. 이전 pool 요청이 늦게 완료돼도 새 pool 상태를 덮어쓰지 않음
+8. foreground 복귀 → no-store 재조회
+9. loading 중 refresh 중복 호출 차단
+10. 401 → error/unauthorized/null
+11. 403 → error/forbidden/null
+12. 404 → error/pool_not_found/null
+13. 500 → error/server_error/null
+14. 네트워크 실패 → error/network_error/null
+15. 파싱 실패 → error/parse_error/null
+16. unsupported role → API 미호출
+17. super_admin → API 미호출
+18. 자녀 변경 → Mode 재조회 없음
+19. 기존 Navigation 변화 없음
+20. 기존 AppState 동작 유지
+
+테스트를 위해 실제 계정·수영장·학생을 생성하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 금지사항
+━━━━━━━━━━━━━━━━━━━━━━
+
+* 설계서 재작성
+* AuthContext 수정
+* SessionContext 수정
+* ParentContext 수정
+* RoleContext 수정
+* 서버 코드 수정
+* DB 변경
+* 실제 X 상태 변경
+* 기존 pool PATCH
+* 신규 테스트 데이터
+* X 화면 분기
+* X 메뉴·로고·색상
+* WP4 작업
+* Commit
+* Push
+* OTA
+* Render 배포
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 구현 중 중단 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음이면 임의 수정하지 말고 중단하십시오.
+
+* `apiRequest`가 `cache: "no-store"`를 지원하지 않음
+* `useAuth()`에서 token/currentPool/role을 가져올 수 없음
+* Provider 구조상 `_layout.tsx` 외 파일 수정이 필요함
+* AuthContext 공개 인터페이스 수정이 필요함
+* 기존 AppState listener 제거·재설계가 필요함
+* 실제 서버·DB 상태 변경 없이는 테스트할 수 없음
+* 설계 외 파일 수정 필요
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 구현 후 제출 증거
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 제출하고 멈추십시오.
+
+1. 실제 수정 파일
+2. 실제 신규 파일
+3. git diff 원문
+4. ModeContext.tsx 전체 코드
+5. _layout.tsx 변경 코드
+6. Provider 실제 중첩 구조
+7. foreground refresh 연결 구조
+8. no-store 요청 코드
+9. 중복 요청 차단 코드
+10. stale response 차단 코드
+11. 로그아웃·pool 전환 초기화 코드
+12. 타입체크 결과
+13. Mock 테스트 결과
+14. 실제 API 호출 여부
+15. DB 변경 여부
+16. 실제 수영장 상태 변경 여부
+17. 일반 Navigation 영향
+18. Commit 여부
+19. Push 여부
+20. OTA 여부
+21. Render 배포 여부
+22. WP3 완료 가능 여부
+
+WP4로 넘어가지 마십시오.
