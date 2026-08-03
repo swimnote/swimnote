@@ -1,0 +1,162 @@
+# SWIMNOTE X — WP3 역할 불일치 최종 수정 승인
+
+WP3 구현 보고서를 검수했습니다.
+
+Mode Context 구조, stale 응답 차단, 중복 요청 방지, foreground 재조회, 로그아웃·pool 전환 초기화는 승인 설계와 일치합니다.
+
+다만 앱의 자동 조회 역할과 WP2 서버의 허용 역할이 다르므로, 역할 판정 1건만 수정한 뒤 WP3를 종료합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 확인된 결함
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+WP2 서버 `GET /pools/x-mode` 허용 역할:
+
+```text
+pool_admin
+teacher
+parent_account
+super_admin
+```
+
+WP3 ModeProvider 현재 자동 조회 역할:
+
+```text
+pool_admin
+teacher
+sub_admin
+parent
+```
+
+문제:
+
+* `parent_account` 누락
+* 서버가 허용하지 않는 `sub_admin` 포함
+* 레거시 `parent` 포함
+* 앱과 서버의 역할 Contract 불일치
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 파일:
+
+```text
+artifacts/swim-app/context/ModeContext.tsx
+```
+
+허용 변경:
+
+* `_isSupportedRole()` 또는 동일 역할 판정 함수만 수정
+* 관련 Mock 테스트 수정·재실행
+
+그 외 코드 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 역할 판정 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+ModeProvider 자동 조회 허용:
+
+```text
+pool_admin
+teacher
+parent_account
+```
+
+자동 조회 제외:
+
+```text
+super_admin
+platform_admin
+super_manager
+sub_admin
+parent
+기타 미확인 역할
+```
+
+확정 코드 의미:
+
+```typescript
+function isSupportedRole(role: string | null | undefined): boolean {
+  return (
+    role === "pool_admin" ||
+    role === "teacher" ||
+    role === "parent_account"
+  );
+}
+```
+
+실제 앱에서 역할 값이 `kind`, `activeRole`, `adminUser.role` 중 어디에서 결정되는지는 현재 구현 흐름을 유지하십시오.
+
+새로운 역할 변환이나 fallback을 추가하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 다시 확인:
+
+```text
+pool_admin → API 호출
+teacher → API 호출
+parent_account → API 호출
+
+sub_admin → API 미호출
+parent → API 미호출
+super_admin → API 미호출
+platform_admin → API 미호출
+super_manager → API 미호출
+null → API 미호출
+알 수 없는 역할 → API 미호출
+```
+
+기존 테스트도 다시 실행:
+
+* 일반 응답 → ready/normal
+* x_pending 응답
+* x 응답
+* 로그아웃 초기화
+* pool 변경 초기화
+* stale 응답 차단
+* foreground 재조회
+* 중복 요청 차단
+* 오류 시 mode=null
+
+실제 DB나 수영장 상태를 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 제출 항목
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 수정 코드
+2. git diff
+3. 역할별 호출 테스트 결과
+4. 전체 WP3 Mock 테스트 결과
+5. TypeScript 오류 여부
+6. 실제 API 호출 여부
+7. DB 변경 여부
+8. Commit 여부
+9. Push 여부
+10. OTA 여부
+11. WP3 최종 완료 가능 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 금지사항
+━━━━━━━━━━━━━━━━━━━━━━
+
+* 다른 파일 수정
+* 서버 역할 변경
+* WP2 API 수정
+* `sub_admin` 서버 허용 추가
+* 레거시 `parent` 지원 추가
+* AuthContext 수정
+* DB 변경
+* 실제 수영장 상태 변경
+* Commit
+* Push
+* OTA
+* WP4 작업
+
+역할 판정만 수정하고 결과를 제출한 뒤 멈추십시오.
