@@ -1,0 +1,129 @@
+[SWIMNOTE 긴급 수정 — 일지 하단 ‘나가기’ 버튼 OTA 배포 승인]
+
+수정 검수 완료.
+
+확정 수정:
+
+- 파일: artifacts/swim-app/app/(teacher)/diary.tsx
+- 하단 나가기 버튼의 undefined onBack 제거
+- 상단 뒤로가기와 하단 나가기가 동일한 handleExitDiary 사용
+- params.backTo가 있으면 해당 teacher route로 replace
+- params.backTo가 없으면 setSelectedGroup(null)
+- 저장·AI·학생별 일지 로직 변경 없음
+- 서버 변경 없음
+
+아래 순서대로 진행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. git diff로 diary.tsx 변경만 재확인
+2. attached_assets의 미추적 txt는 커밋 대상에서 제외
+3. 현재 브랜치 확인
+4. force push, reset, rebase 금지
+5. 운영 앱이 사용하는 EAS channel과 branch 확인
+
+현재 기준:
+
+HEAD: 8bb82774
+origin/deploy-photo-clone: dbd8f886
+수정 파일: diary.tsx 1개
+서버 변경: 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 커밋 및 Push
+━━━━━━━━━━━━━━━━━━━━━━
+
+diary.tsx만 커밋한다.
+
+권장 메시지:
+
+fix: enable diary exit button for backTo routes
+
+미추적 attached_assets txt는 포함하지 않는다.
+
+정상 Push 후 확인:
+
+- origin 브랜치 최종 SHA
+- Push된 커밋 SHA
+- git status가 의도한 상태인지
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. OTA 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 배포는 하지 않는다.
+
+현재 운영 앱이 실제로 구독 중인 정확한 EAS channel/branch에 OTA를 배포한다.
+
+권장 메시지:
+
+fix: diary bottom exit navigation
+
+OTA 후 제출:
+
+- update ID
+- channel
+- branch
+- runtime version
+- commit SHA
+- 배포 시각
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 운영 앱 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱을 완전히 종료한 뒤 다시 실행하여 OTA를 적용한다.
+
+확인 항목:
+
+1. today-schedule → 일지 → 하단 나가기
+2. today-schedule → 일지 → 상단 뒤로가기
+3. my-schedule → 일지 → 하단 나가기
+4. my-schedule → 일지 → 상단 뒤로가기
+5. diary-index → 일지 → 하단 나가기
+6. diary 내부 반 선택 → 하단 나가기
+7. 이미 작성된 일지에서도 나가기
+8. 신규 일지에서도 나가기
+9. 저장 버튼 정상
+10. AI 작성 버튼 정상
+11. 일지 내용과 학생별 내용 유지
+12. 잘못된 화면으로 이동하지 않음
+
+상단과 하단 버튼의 최종 이동 위치가 같아야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 문제 발생 시 롤백
+━━━━━━━━━━━━━━━━━━━━━━
+
+문제가 있으면 직전 정상 commit 기준으로 같은 운영 channel에 새 OTA를 발행한다.
+
+기록:
+
+- 문제 진입 경로
+- backTo 값
+- 이동된 화면
+- 현재 update ID
+- 현재 commit SHA
+
+서버 롤백은 필요 없다.
+DB 변경도 없다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+제출:
+
+1. Push 결과
+2. origin 최종 SHA
+3. OTA update ID
+4. channel / branch / runtime
+5. 운영 앱 적용 여부
+6. 각 진입 경로 테스트 결과
+7. 남은 문제
+8. 롤백 기준점
+
+배포 완료 후 멈춘다.
+X모드 작업은 자동 재개하지 않는다.
