@@ -567,7 +567,7 @@ export default function ClassDetailSheet({
       {moveStudent && (
         <Modal visible animationType="slide" transparent onRequestClose={() => setMoveStudent(null)} statusBarTranslucent>
           <Pressable style={cds.backdrop} onPress={() => setMoveStudent(null)}>
-            <View style={[cds.sheet, { maxHeight: "55%" }]} onStartShouldSetResponder={() => true}>
+            <Pressable style={[cds.sheet, { height: "55%" }]} onPress={() => {}}>
               <View style={cds.handle} />
               <View style={cds.sheetHeader}>
                 <View style={{ flex: 1 }}>
@@ -586,7 +586,11 @@ export default function ClassDetailSheet({
                 <Text style={cds.unassignBtnTxt}>미배정으로 이동</Text>
               </Pressable>
 
-              <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+              <ScrollView
+                style={{ flex: 1, minHeight: 0 }}
+                contentContainerStyle={{ paddingBottom: 20 }}
+                showsVerticalScrollIndicator={false}
+              >
                 {moveTargetClasses.length === 0 ? (
                   <View style={cds.empty}>
                     <CircleAlert size={24} color={C.textMuted} />
@@ -613,7 +617,6 @@ export default function ClassDetailSheet({
                     </Pressable>
                   );
                 })}
-                <View style={{ height: 20 }} />
               </ScrollView>
               {movingToClassId && (
                 <View style={{ paddingHorizontal: 16, paddingBottom: 16, paddingTop: 8 }}>
@@ -629,7 +632,7 @@ export default function ClassDetailSheet({
                   </Pressable>
                 </View>
               )}
-            </View>
+            </Pressable>
           </Pressable>
         </Modal>
       )}
@@ -638,7 +641,7 @@ export default function ClassDetailSheet({
       {showMakeupPicker && (
         <Modal visible animationType="slide" transparent onRequestClose={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }} statusBarTranslucent>
           <Pressable style={cds.backdrop} onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }}>
-            <View style={[cds.sheet, { minHeight: "50%" }]} onStartShouldSetResponder={() => true}>
+            <Pressable style={[cds.sheet, { height: "60%" }]} onPress={() => {}}>
               <View style={cds.handle} />
               {selectedMakeupStudent === null ? (
                 /* 단계 1: 보강 대기 학생 선택 */
@@ -662,7 +665,11 @@ export default function ClassDetailSheet({
                       <Text style={cds.emptyText}>보강 대기 중인 학생이 없습니다</Text>
                     </View>
                   ) : (
-                    <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                    <ScrollView
+                      style={{ flex: 1, minHeight: 0 }}
+                      contentContainerStyle={{ paddingBottom: 20 }}
+                      showsVerticalScrollIndicator={false}
+                    >
                       {makeupList.map((mk: any) => (
                         <Pressable
                           key={mk.id}
@@ -678,7 +685,6 @@ export default function ClassDetailSheet({
                           <ChevronRight size={14} color={C.textMuted} />
                         </Pressable>
                       ))}
-                      <View style={{ height: 20 }} />
                     </ScrollView>
                   )}
                 </>
@@ -697,7 +703,11 @@ export default function ClassDetailSheet({
                       <X size={20} color={C.textSecondary} />
                     </Pressable>
                   </View>
-                  <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                  <ScrollView
+                    style={{ flex: 1, minHeight: 0 }}
+                    contentContainerStyle={{ paddingBottom: 20 }}
+                    showsVerticalScrollIndicator={false}
+                  >
                     {/* 현재 반을 첫 번째로 표시 */}
                     {[group, ...(classGroups || []).filter(g => g.id !== group.id)].map((cls, idx) => {
                       const isSaving = makeupSaving === selectedMakeupStudent.id;
@@ -727,11 +737,10 @@ export default function ClassDetailSheet({
                         </Pressable>
                       );
                     })}
-                    <View style={{ height: 20 }} />
                   </ScrollView>
                 </>
               )}
-            </View>
+            </Pressable>
           </Pressable>
         </Modal>
       )}
@@ -739,7 +748,7 @@ export default function ClassDetailSheet({
       {showUnassignTiming && unassignStudent && (
         <Modal visible animationType="slide" transparent onRequestClose={() => setShowUnassignTiming(false)} statusBarTranslucent>
           <Pressable style={cds.backdrop} onPress={() => setShowUnassignTiming(false)}>
-            <View style={[cds.sheet, { maxHeight: "45%" }]} onStartShouldSetResponder={() => true}>
+            <Pressable style={[cds.sheet, { maxHeight: "45%" }]} onPress={() => {}}>
               <View style={cds.handle} />
               <View style={[cds.sheetHeader, { paddingBottom: 12 }]}>
                 <View style={{ flex: 1 }}>
@@ -772,7 +781,7 @@ export default function ClassDetailSheet({
                 </Pressable>
               ))}
               <View style={{ height: 20 }} />
-            </View>
+            </Pressable>
           </Pressable>
         </Modal>
       )}
