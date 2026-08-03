@@ -457,6 +457,15 @@ export default function TeacherDiaryScreen() {
       });
     }
   }, []);
+
+  const handleExitDiary = useCallback(() => {
+    if (params.backTo) {
+      router.replace((`/(teacher)/${params.backTo}`) as any);
+      return;
+    }
+    setSelectedGroup(null);
+  }, [params.backTo]);
+
   async function handleSave() {
     // [WP11] Save 중복 요청 차단
     if (saving) return;
@@ -1004,7 +1013,7 @@ export default function TeacherDiaryScreen() {
         <SubScreenHeader
           title={group.name}
           subtitle={`${targetDate} · ${group.schedule_time}`}
-          onBack={params.backTo ? undefined : () => { setSelectedGroup(null); }}
+          onBack={handleExitDiary}
           homePath="/(teacher)/today-schedule"
         />
         <View style={s.subHeader}>
@@ -1046,7 +1055,7 @@ export default function TeacherDiaryScreen() {
             showPickerFor={showPickerFor} setShowPickerFor={setShowPickerFor}
             commonCursorRef={commonCursorRef} noteCursorRef={noteCursorRef}
             onSave={handleSave}
-            onBack={params.backTo ? undefined : () => { setSelectedGroup(null); }}
+            onBack={handleExitDiary}
             poolId={user?.swimming_pool_id ?? ""}
             teacherId={user?.id ?? ""}
             onAIInsert={handleAIInsert}
