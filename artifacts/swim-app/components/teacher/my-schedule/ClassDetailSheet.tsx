@@ -81,6 +81,11 @@ export default function ClassDetailSheet({
   const [makeupLoading,           setMakeupLoading]           = useState(false);
   const [makeupSaving,            setMakeupSaving]            = useState<string | null>(null);
   const [selectedMakeupStudent,   setSelectedMakeupStudent]   = useState<any | null>(null);
+  // 보강 회차 선택 (단계 3)
+  const [selectedMakeupClassId,   setSelectedMakeupClassId]   = useState<string | null>(null);
+  const [makeupOccurrences,       setMakeupOccurrences]       = useState<any[]>([]);
+  const [makeupOccLoading,        setMakeupOccLoading]        = useState(false);
+  const [makeupOccError,          setMakeupOccError]          = useState(false);
 
   // 이 반/날짜에 배정된 보강 학생
   const [makeupStudents,       setMakeupStudents]       = useState<any[]>([]);
@@ -221,37 +226,81 @@ export default function ClassDetailSheet({
     finally { setMakeupLoading(false); }
   }
 
-  async function completeMakeupWithClass(mk: any, targetClassId: string) {
-    if (makeupSaving) return;
-    setMakeupSaving(mk.id);
+  /** 단계 2→3: 반 선택 후 eligible-occurrences 조회 */
+  async function selectMakeupClass(mk: any, targetClassId: string) {
+    setSelectedMakeupClassId(targetClassId);
+    setMakeupOccLoading(true);
+    setMakeupOccError(false);
+    setMakeupOccurrences([]);
     try {
-      const assignRes = await apiRequest(token, `/teacher/makeups/${mk.id}/assign`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ class_group_id: targetClassId, assigned_date: effectiveDate }),
-      });
-      if (!assignRes.ok) {
-        const body = await assignRes.json().catch(() => ({}));
-        Alert.alert("처리 실패", body?.error || "보충수업 배정 중 오류가 발생했습니다.");
-        return;
-      }
-      const completeRes = await apiRequest(token, `/admin/makeups/${mk.id}/complete`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      if (completeRes.ok) {
-        setMakeupList(prev => prev.filter(m => m.id !== mk.id));
-        setSelectedMakeupStudent(null);
-        setShowMakeupPicker(false);
+      const res = await apiRequest(token, `/teacher/makeups/${mk.id}/eligible-occurrences?class_group_id=${targetClassId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMakeupOccurrences(data.occurrences || []);
       } else {
-        const body = await completeRes.json().catch(() => ({}));
-        Alert.alert("처리 실패", body?.error || "보충수업 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
+        setMakeupOccError(true);
       }
     } catch {
-      Alert.alert("오류", "네트워크 오류가 발생했습니다. 다시 시도해주세요.");
+      setMakeupOccError(true);
+    } finally {
+      setMakeupOccLoading(false);
     }
-    finally { setMakeupSaving(null); }
+  }
+
+  /** 단계 3: 날짜 선택 후 저장 (미래=assign, 당일·과거=complete-direct) */
+  async function completeMakeupWithDate(mk: any, targetClassId: string, occurrenceDate: string, isFull: boolean, isFuture: boolean) {
+    if (makeupSaving) return;
+
+    const doSave = async () => {
+      setMakeupSaving(mk.id);
+      try {
+        if (isFuture) {
+          const res = await apiRequest(token, `/teacher/makeups/${mk.id}/assign`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ class_group_id: targetClassId, assigned_date: occurrenceDate }),
+          });
+          if (res.ok) {
+            setMakeupList(prev => prev.filter(m => m.id !== mk.id));
+            setSelectedMakeupStudent(null); setSelectedMakeupClassId(null); setShowMakeupPicker(false);
+            onStudentsChanged?.();
+          } else {
+            const body = await res.json().catch(() => ({}));
+            Alert.alert("처리 실패", body?.message || body?.error || "보강 배정 중 오류가 발생했습니다.");
+          }
+        } else {
+          const res = await apiRequest(token, `/teacher/makeups/${mk.id}/complete-direct`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ date: occurrenceDate, class_group_id: targetClassId }),
+          });
+          if (res.ok) {
+            setMakeupList(prev => prev.filter(m => m.id !== mk.id));
+            setSelectedMakeupStudent(null); setSelectedMakeupClassId(null); setShowMakeupPicker(false);
+            onStudentsChanged?.();
+          } else {
+            const body = await res.json().catch(() => ({}));
+            Alert.alert("처리 실패", body?.message || body?.error || "보강 처리 중 오류가 발생했습니다.");
+          }
+        }
+      } catch {
+        Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+      } finally { setMakeupSaving(null); }
+    };
+
+    if (isFuture && isFull) {
+      Alert.alert("정원 부족", "이 반의 정원이 가득 찼습니다.\n미래 수업은 정원 여유가 있을 때 배정할 수 있습니다.");
+      return;
+    }
+    if (!isFuture && isFull) {
+      Alert.alert(
+        "정원 초과",
+        "정원을 초과한 반입니다.\n실제로 보강 수업에 참여한 경우에만 처리해 주세요.",
+        [{ text: "취소", style: "cancel" }, { text: "그래도 처리", onPress: doSave }],
+      );
+      return;
+    }
+    await doSave();
   }
 
   async function markAtt(studentId: string, newStatus: "present" | "absent"): Promise<boolean> {
@@ -700,11 +749,11 @@ export default function ClassDetailSheet({
         </SubSheetModal>
       )}
 
-      {/* 보충수업 모달 (2단계) — 헤더가 단계별로 달라 title 생략, 각 단계 헤더를 children 으로 제공 */}
+      {/* 보충수업 모달 (3단계) — 헤더가 단계별로 달라 title 생략, 각 단계 헤더를 children 으로 제공 */}
       {showMakeupPicker && (
         <SubSheetModal
           visible
-          onClose={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }}
+          onClose={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); setSelectedMakeupClassId(null); }}
           height="60%"
         >
           {selectedMakeupStudent === null ? (
@@ -752,7 +801,7 @@ export default function ClassDetailSheet({
                 </ScrollView>
               )}
             </>
-          ) : (
+          ) : selectedMakeupClassId === null ? (
             /* 단계 2: 합류할 반 선택 */
             <>
               <View style={cds.sheetHeader}>
@@ -763,7 +812,7 @@ export default function ClassDetailSheet({
                   <Text style={cds.sheetTitle}>{selectedMakeupStudent.student_name}</Text>
                   <Text style={cds.sheetSub}>합류할 반을 선택하세요</Text>
                 </View>
-                <Pressable onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }} style={cds.closeBtn}>
+                <Pressable onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); setSelectedMakeupClassId(null); }} style={cds.closeBtn}>
                   <X size={20} color={C.textSecondary} />
                 </Pressable>
               </View>
@@ -773,7 +822,7 @@ export default function ClassDetailSheet({
                 showsVerticalScrollIndicator={false}
               >
                 {/* 현재 반을 첫 번째로 표시 */}
-                {[group, ...(classGroups || []).filter(g => g.id !== group.id)].map((cls, idx) => {
+                {[group, ...(classGroups || []).filter(g => g.id !== group.id)].map((cls) => {
                   const isSaving = makeupSaving === selectedMakeupStudent.id;
                   const isCurrentClass = cls.id === group.id;
                   return (
@@ -784,7 +833,7 @@ export default function ClassDetailSheet({
                         isCurrentClass && { backgroundColor: "#EEF2FF", borderColor: "#C7D2FE" },
                         pressed && { opacity: 0.7 },
                       ]}
-                      onPress={() => completeMakeupWithClass(selectedMakeupStudent, cls.id)}
+                      onPress={() => selectMakeupClass(selectedMakeupStudent, cls.id)}
                       disabled={isSaving}
                     >
                       <LucideIcon name={isCurrentClass ? "check-circle" : "circle"} size={16} color={isCurrentClass ? "#4F46E5" : C.textMuted} />
@@ -802,6 +851,108 @@ export default function ClassDetailSheet({
                   );
                 })}
               </ScrollView>
+            </>
+          ) : (
+            /* 단계 3: 날짜 선택 (eligible-occurrences 기반) */
+            <>
+              <View style={cds.sheetHeader}>
+                <Pressable onPress={() => setSelectedMakeupClassId(null)} style={{ padding: 4, marginRight: 8 }}>
+                  <Text style={{ fontSize: 14, color: "#4F46E5", fontFamily: "Pretendard-Regular" }}>← 뒤로</Text>
+                </Pressable>
+                <View style={{ flex: 1 }}>
+                  <Text style={cds.sheetTitle}>{selectedMakeupStudent.student_name}</Text>
+                  <Text style={cds.sheetSub}>보강 날짜를 선택하세요</Text>
+                </View>
+                <Pressable onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); setSelectedMakeupClassId(null); }} style={cds.closeBtn}>
+                  <X size={20} color={C.textSecondary} />
+                </Pressable>
+              </View>
+              {makeupOccLoading ? (
+                <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                  <ActivityIndicator color="#4F46E5" />
+                </View>
+              ) : makeupOccError ? (
+                <View style={cds.empty}>
+                  <LucideIcon name="circle-alert" size={28} color={C.textMuted} />
+                  <Text style={cds.emptyText}>수업 회차를 불러오지 못했습니다</Text>
+                  <Pressable onPress={() => selectMakeupClass(selectedMakeupStudent, selectedMakeupClassId)} style={{ marginTop: 8 }}>
+                    <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
+                  </Pressable>
+                </View>
+              ) : makeupOccurrences.length === 0 ? (
+                <View style={cds.empty}>
+                  <LucideIcon name="calendar-x" size={28} color={C.textMuted} />
+                  <Text style={cds.emptyText}>배정 가능한 날짜가 없습니다</Text>
+                </View>
+              ) : (
+                <ScrollView
+                  style={{ flex: 1, minHeight: 0 }}
+                  contentContainerStyle={{ paddingBottom: 20 }}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {(() => {
+                    const past    = makeupOccurrences.filter((o: any) => o.is_past);
+                    const today   = makeupOccurrences.filter((o: any) => o.is_today);
+                    const future  = makeupOccurrences.filter((o: any) => o.is_future);
+                    const days = ["일","월","화","수","목","금","토"];
+                    function fmtOcc(dateStr: string) {
+                      const d = new Date(dateStr + "T00:00:00");
+                      return `${d.getMonth()+1}/${d.getDate()} (${days[d.getDay()]})`;
+                    }
+                    function renderOccRow(occ: any) {
+                      const isSaving = makeupSaving === selectedMakeupStudent.id;
+                      return (
+                        <Pressable
+                          key={occ.date}
+                          style={({ pressed }) => [cds.moveClassRow, pressed && { opacity: 0.7 }]}
+                          onPress={() => completeMakeupWithDate(selectedMakeupStudent, selectedMakeupClassId!, occ.date, occ.is_full, occ.is_future)}
+                          disabled={isSaving || (occ.is_full && occ.is_future)}
+                        >
+                          <LucideIcon name="calendar" size={16} color={occ.is_full && occ.is_future ? C.textMuted : "#4F46E5"} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[cds.moveClassName, (occ.is_full && occ.is_future) && { color: C.textMuted }]}>
+                              {fmtOcc(occ.date)}
+                            </Text>
+                          </View>
+                          {occ.is_full && (
+                            <View style={{ backgroundColor: occ.is_future ? "#F9DEDA" : "#FFF1BF", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginRight: 4 }}>
+                              <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: occ.is_future ? "#D96C6C" : "#D97706" }}>
+                                {occ.is_future ? "정원마감" : "정원초과"}
+                              </Text>
+                            </View>
+                          )}
+                          {isSaving
+                            ? <ActivityIndicator size="small" color="#4F46E5" />
+                            : <ChevronRight size={14} color={occ.is_full && occ.is_future ? C.textMuted : C.textMuted} />
+                          }
+                        </Pressable>
+                      );
+                    }
+                    return (
+                      <>
+                        {past.length > 0 && (
+                          <>
+                            <Text style={[cds.moveClassSub, { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, fontSize: 11, color: C.textMuted }]}>지난 수업</Text>
+                            {past.map(renderOccRow)}
+                          </>
+                        )}
+                        {today.length > 0 && (
+                          <>
+                            <Text style={[cds.moveClassSub, { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, fontSize: 11, color: "#2EC4B6" }]}>오늘</Text>
+                            {today.map(renderOccRow)}
+                          </>
+                        )}
+                        {future.length > 0 && (
+                          <>
+                            <Text style={[cds.moveClassSub, { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, fontSize: 11, color: C.textMuted }]}>예정 수업</Text>
+                            {future.map(renderOccRow)}
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
+                </ScrollView>
+              )}
             </>
           )}
         </SubSheetModal>

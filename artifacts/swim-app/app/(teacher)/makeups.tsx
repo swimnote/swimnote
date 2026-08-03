@@ -142,6 +142,11 @@ export default function MakeupsScreen() {
   const [directCompleteDate,   setDirectCompleteDate]   = useState<string | null>(null);
   const [directCompleting,     setDirectCompleting]     = useState(false);
   const [confirmMsg, setConfirmMsg] = useState<string | null>(null);
+  // eligible-occurrences 기반 날짜 선택
+  const [occurrences,    setOccurrences]    = useState<any[]>([]);
+  const [occLoading,     setOccLoading]     = useState(false);
+  const [occError,       setOccError]       = useState(false);
+  const [selectedOccurrence, setSelectedOccurrence] = useState<any | null>(null);
   const loadWaiting = useCallback(async () => {
     try {
       const res = await apiRequest(token, `/teacher/makeups?status=waiting`);
@@ -212,6 +217,9 @@ export default function MakeupsScreen() {
     setAssignTarget(mk);
     setSelectedClassId(null);
     setSelectedDate(null);
+    setSelectedOccurrence(null);
+    setOccurrences([]);
+    setOccError(false);
     setClassLoading(true);
     try {
       const r = await apiRequest(token, `/teacher/makeups/eligible-classes?all=true`);
@@ -219,33 +227,68 @@ export default function MakeupsScreen() {
     } catch {}
     setClassLoading(false);
   };
-  const doAssign = async () => {
-    if (!assignTarget || !selectedClassId || !selectedDate) return;
-    setAssigning(true);
+  const selectClass = async (classId: string) => {
+    if (!assignTarget) return;
+    setSelectedClassId(classId);
+    setSelectedDate(null);
+    setSelectedOccurrence(null);
+    setOccurrences([]);
+    setOccError(false);
+    setOccLoading(true);
     try {
-      const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/assign`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ class_group_id: selectedClassId, assigned_date: selectedDate }),
-      });
-      const ct = r.headers?.get?.("content-type") ?? "";
-      const isJson = ct.includes("application/json");
-      const body = isJson ? await r.json().catch(() => ({})) : {};
-      console.log(`[assign] id=${assignTarget.id} http=${r.status} isJson=${isJson}`, JSON.stringify(body));
-      if (r.ok && isJson) {
-        setAssignTarget(null);
-        setSelectedClassId(null);
-        setSelectedDate(null);
-        loadWaiting();
-        loadAssigned();
-        setTab("assigned");
-        setConfirmMsg(`보강이 ${selectedDate}에 배정되었습니다.`);
-      } else if (r.status === 409) {
-        setConfirmMsg("이미 해당 날짜에 보강이 배정되어 있습니다.");
-      } else if (!isJson) {
-        setConfirmMsg("서버 응답이 올바르지 않습니다. 잠시 후 다시 시도해주세요.");
+      const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/eligible-occurrences?class_group_id=${classId}`);
+      if (r.ok) {
+        const data = await r.json();
+        setOccurrences(data.occurrences || []);
       } else {
-        setConfirmMsg(body.error || "배정에 실패했습니다.");
+        setOccError(true);
+      }
+    } catch {
+      setOccError(true);
+    } finally {
+      setOccLoading(false);
+    }
+  };
+  const doAssign = async () => {
+    if (!assignTarget || !selectedClassId || !selectedDate || !selectedOccurrence) return;
+    setAssigning(true);
+    const isFuture: boolean = selectedOccurrence.is_future;
+    try {
+      if (isFuture) {
+        const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/assign`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ class_group_id: selectedClassId, assigned_date: selectedDate }),
+        });
+        const ct = r.headers?.get?.("content-type") ?? "";
+        const isJson = ct.includes("application/json");
+        const body = isJson ? await r.json().catch(() => ({})) : {};
+        if (r.ok && isJson) {
+          setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); setSelectedOccurrence(null);
+          loadWaiting(); loadAssigned(); setTab("assigned");
+          setConfirmMsg(`보강이 ${selectedDate}에 배정되었습니다.`);
+        } else if (r.status === 409) {
+          setConfirmMsg("이미 해당 날짜에 보강이 배정되어 있습니다.");
+        } else {
+          setConfirmMsg(body?.error || "배정에 실패했습니다.");
+        }
+      } else {
+        // 당일 또는 과거 — complete-direct
+        const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/complete-direct`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date: selectedDate, class_group_id: selectedClassId }),
+        });
+        const ct = r.headers?.get?.("content-type") ?? "";
+        const isJson = ct.includes("application/json");
+        const body = isJson ? await r.json().catch(() => ({})) : {};
+        if (r.ok) {
+          setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); setSelectedOccurrence(null);
+          loadWaiting(); loadAssigned();
+          setConfirmMsg(`${selectedDate} 보강 완료 처리되었습니다.`);
+        } else {
+          setConfirmMsg(body?.error || "처리에 실패했습니다.");
+        }
       }
     } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
     setAssigning(false);
@@ -645,7 +688,7 @@ export default function MakeupsScreen() {
                     <>
                       <Text style={s.sheetTitle}>보강 날짜 선택</Text>
                       <Text style={s.sheetSub}>
-                        {eligibleClasses.find(c => c.id === selectedClassId)?.name} · 앞으로 4주
+                        {eligibleClasses.find(c => c.id === selectedClassId)?.name} · 날짜를 선택하세요
                       </Text>
                     </>
                   ) : (
@@ -682,7 +725,7 @@ export default function MakeupsScreen() {
                       <Pressable
                         key={cg.id}
                         style={s.classRow}
-                        onPress={() => { setSelectedClassId(cg.id); setSelectedDate(null); }}
+                        onPress={() => selectClass(cg.id)}
                       >
                         <LucideIcon name="calendar" size={16} color={cg.is_mine ? themeColor : "#9CA3AF"} />
                         <View style={{ flex: 1 }}>
@@ -714,30 +757,81 @@ export default function MakeupsScreen() {
                   <View style={{ height: 16 }} />
                 </ScrollView>
               )}
-              {/* 단계 2: 날짜 선택 */}
+              {/* 단계 2: 날짜 선택 (eligible-occurrences 기반) */}
               {selectedClassId && !selectedDate && (() => {
-                const selClass = eligibleClasses.find(c => c.id === selectedClassId);
-                const dates = selClass ? getNextDates(selClass.schedule_days || "") : [];
+                if (occLoading) return (
+                  <ActivityIndicator color="#7C3AED" style={{ marginVertical: 40 }} />
+                );
+                if (occError) return (
+                  <View style={s.empty}>
+                    <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
+                    <Text style={s.emptyTxt}>수업 회차를 불러오지 못했습니다</Text>
+                    <Pressable onPress={() => selectClass(selectedClassId)} style={{ marginTop: 8 }}>
+                      <Text style={{ color: C.textSecondary, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
+                    </Pressable>
+                  </View>
+                );
+                if (occurrences.length === 0) return (
+                  <View style={s.empty}>
+                    <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
+                    <Text style={s.emptyTxt}>배정 가능한 날짜가 없습니다</Text>
+                  </View>
+                );
+                const past   = occurrences.filter((o: any) => o.is_past);
+                const today  = occurrences.filter((o: any) => o.is_today);
+                const future = occurrences.filter((o: any) => o.is_future);
+                const days = ["일","월","화","수","목","금","토"];
+                function fmtOcc(dateStr: string) {
+                  const d = new Date(dateStr + "T00:00:00");
+                  return `${d.getMonth()+1}/${d.getDate()} (${days[d.getDay()]})`;
+                }
+                function renderOccRow(occ: any) {
+                  return (
+                    <Pressable
+                      key={occ.date}
+                      style={[s.classRow, (occ.is_full && occ.is_future) && { opacity: 0.4 }]}
+                      onPress={() => {
+                        if (occ.is_full && occ.is_future) return;
+                        setSelectedDate(occ.date);
+                        setSelectedOccurrence(occ);
+                      }}
+                      disabled={occ.is_full && occ.is_future}
+                    >
+                      <LucideIcon name="check-circle" size={16} color="#7C3AED" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.className, { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }]}>{fmtOcc(occ.date)}</Text>
+                      </View>
+                      {occ.is_full && (
+                        <View style={{ backgroundColor: occ.is_future ? "#F9DEDA" : "#FFF1BF", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginRight: 4 }}>
+                          <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: occ.is_future ? "#D96C6C" : "#D97706" }}>
+                            {occ.is_future ? "정원마감" : "정원초과"}
+                          </Text>
+                        </View>
+                      )}
+                      <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+                    </Pressable>
+                  );
+                }
                 return (
                   <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
-                    {dates.length === 0 ? (
-                      <View style={s.empty}>
-                        <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
-                        <Text style={s.emptyTxt}>앞으로 4주간 해당 요일이 없습니다</Text>
-                      </View>
-                    ) : dates.map(({ date, label }) => (
-                      <Pressable
-                        key={date}
-                        style={[s.classRow, { justifyContent: "space-between" }]}
-                        onPress={() => setSelectedDate(date)}
-                      >
-                        <LucideIcon name="check-circle" size={16} color="#7C3AED" />
-                        <View style={{ flex: 1 }}>
-                          <Text style={[s.className, { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }]}>{label}</Text>
-                        </View>
-                        <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
-                      </Pressable>
-                    ))}
+                    {past.length > 0 && (
+                      <>
+                        <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12 }]}>지난 수업</Text>
+                        {past.map(renderOccRow)}
+                      </>
+                    )}
+                    {today.length > 0 && (
+                      <>
+                        <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: "#2EC4B6" }]}>오늘</Text>
+                        {today.map(renderOccRow)}
+                      </>
+                    )}
+                    {future.length > 0 && (
+                      <>
+                        <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12 }]}>예정 수업</Text>
+                        {future.map(renderOccRow)}
+                      </>
+                    )}
                     <View style={{ height: 16 }} />
                   </ScrollView>
                 );

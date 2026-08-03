@@ -253,6 +253,25 @@ router.delete("/teachers/:id", requireAuth, requireRole("pool_admin", "super_adm
 //  선생님 자기관리 API (teacher 본인 전용)
 // ══════════════════════════════════════════════════════════════════
 
+/** KST 기준 오늘 날짜 YYYY-MM-DD */
+function kstTodayStr(): string {
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const y = parts.find(p => p.type === "year")!.value;
+  const m = parts.find(p => p.type === "month")!.value;
+  const d = parts.find(p => p.type === "day")!.value;
+  return `${y}-${m}-${d}`;
+}
+
+/** schedule_days("월,수,금") → 요일 번호 Set */
+function parseDayNums(scheduleDays: string): Set<number> {
+  const map: Record<string, number> = { 일: 0, 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6 };
+  const nums = new Set<number>();
+  scheduleDays.split(",").map(d => d.trim()).forEach(d => { if (map[d] !== undefined) nums.add(map[d]); });
+  return nums;
+}
+
 /** 현재 로그인한 사용자의 pool_id 조회 */
 async function getMyPoolId(userId: string): Promise<string | null> {
   const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
@@ -507,6 +526,121 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
   }
 );
 
+// ── 보강 가능 수업 회차 목록 (teacher용) ──────────────────────
+// GET /teacher/makeups/:makeupId/eligible-occurrences?class_group_id=...&include_full=true
+router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const { makeupId } = req.params;
+      const { class_group_id } = req.query as { class_group_id?: string };
+      const userId = req.user!.userId;
+      const poolId = await getMyPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
+      if (!class_group_id) { res.status(400).json({ error: "class_group_id가 필요합니다." }); return; }
+
+      // 1. 보강 세션 조회
+      const mkRows = (await db.execute(sql`
+        SELECT absence_date, expire_at, swimming_pool_id
+        FROM makeup_sessions WHERE id = ${makeupId} LIMIT 1
+      `)).rows as any[];
+      if (!mkRows.length) { res.status(404).json({ error: "보강 건을 찾을 수 없습니다." }); return; }
+      const mk = mkRows[0];
+      if (mk.swimming_pool_id !== poolId) { res.status(403).json({ error: "접근 권한 없음" }); return; }
+
+      // 2. 반 정보 조회 (수영장 소속·삭제되지 않은 반)
+      const cgRows = (await superAdminDb.execute(sql`
+        SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity,
+          cg.teacher_user_id, u.name AS instructor,
+          (cg.teacher_user_id = ${userId} OR cg.co_teacher_ids @> to_jsonb(${userId}::text)) AS is_mine
+        FROM class_groups cg
+        LEFT JOIN users u ON cg.teacher_user_id = u.id
+        WHERE cg.id = ${class_group_id}
+          AND cg.swimming_pool_id = ${poolId}
+          AND cg.is_deleted = false
+          AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
+        LIMIT 1
+      `)).rows as any[];
+      if (!cgRows.length) { res.status(404).json({ error: "반을 찾을 수 없습니다." }); return; }
+      const cg = cgRows[0];
+
+      // 3. 정원 계산 (현재 등록 학생 기준 — 보강 배정생은 포함 안 됨)
+      const memberRows = (await db.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM students
+        WHERE class_group_id = ${class_group_id}
+          AND status IN ('active', 'pending_parent_link', 'unregistered')
+          AND deleted_at IS NULL
+      `)).rows as any[];
+      const currentMembers = (memberRows[0] as any)?.cnt ?? 0;
+      const capacity: number = cg.capacity ?? 0;
+      const availableSlots = capacity > 0 ? Math.max(0, capacity - currentMembers) : 999;
+      const isFull = capacity > 0 && availableSlots <= 0;
+
+      // 4. 범위 계산 (결석일 다음 날 ~ expire_at or 오늘+56일)
+      const absenceDate: string = mk.absence_date; // YYYY-MM-DD
+      const kstToday = kstTodayStr();
+      const expireAtDate = mk.expire_at ? new Date(mk.expire_at).toISOString().slice(0, 10) : null;
+      const endDate = expireAtDate || (() => {
+        const d = new Date(`${kstToday}T00:00:00`);
+        d.setDate(d.getDate() + 56);
+        return d.toISOString().slice(0, 10);
+      })();
+
+      // 5. 풀 휴일 조회
+      const holidayRows = (await db.execute(sql`
+        SELECT TO_CHAR(holiday_date, 'YYYY-MM-DD') AS hd
+        FROM pool_holidays
+        WHERE pool_id = ${poolId}
+          AND holiday_date >= ${absenceDate}::date
+          AND holiday_date <= ${endDate}::date
+      `)).rows as any[];
+      const holidaySet = new Set(holidayRows.map((r: any) => r.hd as string));
+
+      // 6. 요일 파싱 및 occurrence 생성
+      const targetDays = parseDayNums((cg.schedule_days as string) || "");
+      const occurrences: any[] = [];
+      const cursor = new Date(`${absenceDate}T00:00:00`);
+      cursor.setDate(cursor.getDate() + 1); // 결석일 다음 날부터
+      const endD = new Date(`${endDate}T00:00:00`);
+
+      while (cursor <= endD) {
+        if (targetDays.has(cursor.getDay())) {
+          const yyyy = cursor.getFullYear();
+          const mm = String(cursor.getMonth() + 1).padStart(2, "0");
+          const dd = String(cursor.getDate()).padStart(2, "0");
+          const dateStr = `${yyyy}-${mm}-${dd}`;
+          if (!holidaySet.has(dateStr)) {
+            occurrences.push({
+              class_group_id: cg.id,
+              class_name: cg.name,
+              occurrence_date: dateStr,
+              schedule_time: cg.schedule_time,
+              teacher_id: cg.teacher_user_id,
+              teacher_name: cg.instructor,
+              is_mine: Boolean(cg.is_mine),
+              available_slots: availableSlots,
+              is_full: isFull,
+              is_past: dateStr < kstToday,
+              is_today: dateStr === kstToday,
+              is_future: dateStr > kstToday,
+            });
+          }
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      res.json({
+        makeup_id: makeupId,
+        absence_date: absenceDate,
+        expire_at: mk.expire_at,
+        class_group_id: cg.id,
+        class_name: cg.name,
+        is_mine: Boolean(cg.is_mine),
+        occurrences,
+      });
+    } catch (err) { console.error("[eligible-occurrences]", err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 // ── 보강 지정 (teacher용) ──────────────────────────────────────
 router.patch("/teacher/makeups/:id/assign", requireAuth,
   async (req: AuthRequest, res) => {
@@ -519,20 +653,54 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
 
       // 기존 보강 세션 조회 (신규 배정 vs 변경 판단)
       const prevRows = (await db.execute(sql`
-        SELECT student_id, student_name, status, assigned_class_group_id
+        SELECT student_id, student_name, status, assigned_class_group_id,
+               absence_date, expire_at, swimming_pool_id
         FROM makeup_sessions WHERE id = ${sessionId} LIMIT 1
       `)).rows as any[];
       if (!prevRows.length) { res.status(404).json({ error: "보강 세션을 찾을 수 없습니다." }); return; }
       const prev = prevRows[0];
+
+      // 날짜 검증
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(assigned_date)) {
+        res.status(400).json({ error: "INVALID_ASSIGNED_DATE", message: "날짜 형식이 올바르지 않습니다." }); return;
+      }
+      if (prev.absence_date && assigned_date < prev.absence_date) {
+        res.status(400).json({ error: "DATE_BEFORE_ABSENCE", message: "결석일보다 이전 날짜는 선택할 수 없습니다." }); return;
+      }
+      if (prev.expire_at) {
+        const expireStr = new Date(prev.expire_at).toISOString().slice(0, 10);
+        if (assigned_date > expireStr) {
+          res.status(400).json({ error: "MAKEUP_EXPIRED", message: "보강 유효기간이 지난 날짜입니다." }); return;
+        }
+      }
+      if (["completed", "cancelled", "expired"].includes(prev.status)) {
+        res.status(409).json({ error: "MAKEUP_ALREADY_COMPLETED", message: "이미 처리된 보강 건입니다." }); return;
+      }
+
       const isChange = prev.status === "assigned" && !!prev.assigned_class_group_id;
 
       const cls = await superAdminDb.execute(sql`
-        SELECT cg.name, u.name AS teacher_name, cg.teacher_user_id
+        SELECT cg.name, u.name AS teacher_name, cg.teacher_user_id, cg.schedule_days,
+               cg.swimming_pool_id
         FROM class_groups cg LEFT JOIN users u ON cg.teacher_user_id = u.id
-        WHERE cg.id = ${class_group_id}
+        WHERE cg.id = ${class_group_id} AND cg.is_deleted = false
       `);
       if (!cls.rows.length) { res.status(404).json({ error: "반을 찾을 수 없습니다." }); return; }
       const clsRow = cls.rows[0] as any;
+
+      // 수영장 소속 검증
+      if (clsRow.swimming_pool_id && prev.swimming_pool_id && clsRow.swimming_pool_id !== prev.swimming_pool_id) {
+        res.status(400).json({ error: "반이 같은 수영장 소속이 아닙니다." }); return;
+      }
+
+      // 해당 날짜가 반의 수업 요일인지 검증
+      if (clsRow.schedule_days) {
+        const targetDays = parseDayNums(clsRow.schedule_days);
+        const assignedDow = new Date(`${assigned_date}T00:00:00`).getDay();
+        if (!targetDays.has(assignedDow)) {
+          res.status(400).json({ error: "CLASS_NOT_SCHEDULED_ON_DATE", message: "해당 날짜는 반의 수업 요일이 아닙니다." }); return;
+        }
+      }
 
       await db.execute(sql`
         UPDATE makeup_sessions SET
