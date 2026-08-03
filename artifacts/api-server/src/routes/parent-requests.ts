@@ -27,39 +27,47 @@ function generateInviteCode(): string {
 }
 
 // ─── 공개: 수영장 이름 검색 ───────────────────────────────────────────
-// name 없으면 전체 목록(반려 제외) 반환, name 있으면 이름 검색
+// 정책: 검색어 없음 → [], 이름 전방일치만 허용, phone 반환 금지, 최대 20개
+// 주소는 최소 지역 단위로 축약하여 반환 (상세 주소 노출 금지)
+function _abbreviateAddr(address: string | null | undefined): string {
+  if (!address) return "";
+  const parts = address.trim().split(/\s+/);
+  if (parts.length === 0) return "";
+  const first = parts[0];
+  if (first.endsWith("도")) return parts.slice(0, Math.min(3, parts.length)).join(" ");
+  if (first.endsWith("시")) return parts.slice(0, Math.min(2, parts.length)).join(" ");
+  return parts.slice(0, Math.min(2, parts.length)).join(" ");
+}
+
 router.get("/pools/public-search", async (req, res) => {
+  const q = (req.query.name as string || "").trim();
+  if (!q) { res.json({ success: true, data: [] }); return; }
   try {
-    const { name } = req.query;
-    const nameStr = name ? String(name).trim() : "";
+    const results = await superAdminDb.select({
+      id: swimmingPoolsTable.id,
+      name: swimmingPoolsTable.name,
+      address: swimmingPoolsTable.address,
+    }).from(swimmingPoolsTable)
+      .where(and(
+        sql`approval_status = 'approved'`,
+        ilike(swimmingPoolsTable.name, `${q}%`)
+      ))
+      .orderBy(
+        sql`CASE WHEN LOWER(name) = LOWER(${q}) THEN 0 ELSE 1 END`,
+        sql`LENGTH(name)`,
+        swimmingPoolsTable.name
+      )
+      .limit(20);
 
-    const results = nameStr.length > 0
-      ? await superAdminDb.select({
-          id: swimmingPoolsTable.id,
-          name: swimmingPoolsTable.name,
-          address: swimmingPoolsTable.address,
-          phone: swimmingPoolsTable.phone,
-        }).from(swimmingPoolsTable)
-          .where(and(
-            sql`approval_status != 'rejected'`,
-            ilike(swimmingPoolsTable.name, `%${nameStr}%`)
-          ))
-          .orderBy(swimmingPoolsTable.name)
-          .limit(50)
-      : await superAdminDb.select({
-          id: swimmingPoolsTable.id,
-          name: swimmingPoolsTable.name,
-          address: swimmingPoolsTable.address,
-          phone: swimmingPoolsTable.phone,
-        }).from(swimmingPoolsTable)
-          .where(sql`approval_status != 'rejected'`)
-          .orderBy(swimmingPoolsTable.name)
-          .limit(100);
-
-    res.json({ success: true, data: results });
+    const data = results.map(r => ({
+      id: r.id,
+      name: r.name,
+      address: _abbreviateAddr(r.address),
+    }));
+    res.json({ success: true, data });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: "서버 오류" });
+    res.status(500).json({ success: false, data: [] });
   }
 });
 
