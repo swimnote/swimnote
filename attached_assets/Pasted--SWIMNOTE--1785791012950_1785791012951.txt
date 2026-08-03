@@ -1,0 +1,555 @@
+[SWIMNOTE 긴급 수정 — 반 상세 모달 스크롤·터치 반응 최종 개선 구현 지시]
+
+현재 운영 앱에서 확인된 현상:
+
+- 반 상세 모달 스크롤은 작동하지만 버벅임
+- 손가락을 움직여도 스크롤이 바로 반응하지 않는 경우가 있음
+- 출석·결석·반이동 버튼이 눌릴 때도 있고 무반응일 때도 있음
+- 학생 수가 많을수록 증상이 두드러짐
+
+이번 작업은 추가 추측 보고가 아니라 아래 구조로 확정 수정한다.
+
+Commit·Push·Render 배포·OTA는 구현 보고 및 승인 전 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 수정 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 양쪽 모두 수정·검수한다.
+
+선생님:
+
+artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+
+관리자:
+
+artifacts/swim-app/components/admin/AdminClassDetailSheet.tsx
+
+호출부 영향 확인:
+
+- artifacts/swim-app/app/(teacher)/my-schedule.tsx
+- artifacts/swim-app/app/(teacher)/today-schedule.tsx
+- artifacts/swim-app/app/(admin)/classes.tsx
+
+서버 API:
+
+- 출석 처리 API
+- 결석 처리 API
+- 반이동 API
+- 날짜별 학생 명단 조회 API
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. responder 가로채기 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+메인 시트에서 아래 구조를 전부 검색한다.
+
+- onStartShouldSetResponder={() => true}
+- onMoveShouldSetResponder
+- onResponderGrant
+- 빈 onPress를 가진 상위 Pressable
+- 전체 시트를 감싸는 Pressable
+- 투명 absolute overlay
+- pointerEvents="auto"인 불필요한 View
+
+학생 목록과 버튼 위에서 상위 View가 responder를 선점하지 않도록 수정한다.
+
+확정 원칙:
+
+- backdrop만 바깥 터치 닫기 담당
+- 메인 시트는 일반 View
+- 학생 목록 제스처는 FlatList가 담당
+- 학생 버튼 터치는 각 Pressable이 담당
+- 상위 시트가 onStartShouldSetResponder=true로 터치를 선점하면 안 됨
+
+권장 구조:
+
+<Modal transparent>
+  <View style={styles.backdrop}>
+    <Pressable
+      style={StyleSheet.absoluteFill}
+      onPress={onClose}
+    />
+
+    <View
+      style={styles.mainSheet}
+      pointerEvents="auto"
+    >
+      {header}
+      {fixedControls}
+      {studentList}
+    </View>
+  </View>
+</Modal>
+
+금지:
+
+<Pressable style={backdrop}>
+  <Pressable style={mainSheet} onPress={() => {}}>
+    ...
+  </Pressable>
+</Pressable>
+
+빈 onPress로 이벤트 전파를 막는 중첩 Pressable 구조를 사용하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. ScrollView + map → FlatList 교체
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생 목록은 일반 ScrollView 안에서 map으로 전체 렌더하지 않는다.
+
+선생님·관리자 양쪽 모두 FlatList로 교체한다.
+
+권장 기본 구조:
+
+<FlatList
+  data={sortedStudents}
+  keyExtractor={(item) => item.id}
+  renderItem={renderStudentRow}
+  style={styles.studentList}
+  contentContainerStyle={styles.studentListContent}
+  keyboardShouldPersistTaps="always"
+  keyboardDismissMode="on-drag"
+  showsVerticalScrollIndicator={false}
+  initialNumToRender={12}
+  maxToRenderPerBatch={8}
+  updateCellsBatchingPeriod={40}
+  windowSize={7}
+  removeClippedSubviews={Platform.OS === "android"}
+  ListEmptyComponent={...}
+/>
+
+스타일:
+
+studentList: {
+  flex: 1,
+  minHeight: 0,
+},
+
+studentListContent: {
+  paddingBottom: 64,
+},
+
+주의:
+
+- iOS에서는 removeClippedSubviews=false
+- FlatList를 ScrollView 안에 넣지 않음
+- 세로 FlatList를 다른 세로 ScrollView로 감싸지 않음
+- 학생 목록 위의 헤더·버튼은 고정 영역으로 FlatList 밖에 둠
+- 학생 목록 아래 임시 spacer View 사용 금지
+- contentContainerStyle paddingBottom으로 하단 여백 처리
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 학생 Row 분리 및 memo 적용
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생 한 명의 행을 별도 컴포넌트로 분리한다.
+
+예:
+
+const StudentAttendanceRow = React.memo(function StudentAttendanceRow({
+  student,
+  pendingAction,
+  attendanceStatus,
+  onAttendance,
+  onAbsence,
+  onMove,
+  onOpenDetail,
+}) {
+  ...
+});
+
+부모에서 renderItem은 useCallback을 사용한다.
+
+const renderStudentRow = useCallback(
+  ({ item }) => (
+    <StudentAttendanceRow
+      student={item}
+      pendingAction={pendingStudentActions[item.id]}
+      attendanceStatus={attendanceByStudent[item.id]}
+      onAttendance={handleAttendance}
+      onAbsence={handleAbsence}
+      onMove={handleMoveStudent}
+      onOpenDetail={handleOpenStudent}
+    />
+  ),
+  [
+    pendingStudentActions,
+    attendanceByStudent,
+    handleAttendance,
+    handleAbsence,
+    handleMoveStudent,
+    handleOpenStudent,
+  ],
+);
+
+금지:
+
+- map 안에 대형 JSX 전체 작성
+- row마다 새로운 inline object 생성
+- row마다 익명 async onPress 함수 여러 개 생성
+- 전체 students 배열 변경 시 모든 행을 무조건 다시 렌더
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 정렬·필터 계산 useMemo
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 값은 렌더마다 새로 계산하지 않는다.
+
+- groupStudents
+- sortedStudents
+- makeupStudents
+- myLogs
+- moveTargetClasses
+
+useMemo로 고정한다.
+
+예:
+
+const groupStudents = useMemo(() => {
+  if (studentListMode === "historical") {
+    if (studentsByDate === undefined) return null;
+    return studentsByDate;
+  }
+
+  return students.filter(...);
+}, [
+  studentListMode,
+  studentsByDate,
+  students,
+  group.id,
+]);
+
+const sortedStudents = useMemo(() => {
+  if (!groupStudents) return [];
+  return [...groupStudents].sort(compareStudents);
+}, [groupStudents]);
+
+원본 배열 직접 sort 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 전체 UI 잠금 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+출석·결석·반이동 API 요청 중 전체 모달을 잠그지 않는다.
+
+금지:
+
+- 전체 sheet pointerEvents="none"
+- 전체 FlatList scrollEnabled=false
+- 전체 학생 버튼 disabled
+- 전체 화면 투명 ActivityIndicator overlay
+- 전역 isLoading 하나로 모든 행 잠금
+
+학생별 pending state를 사용한다.
+
+예:
+
+type StudentAction =
+  | "attendance"
+  | "absence"
+  | "move"
+  | "unassign";
+
+const [pendingStudentActions, setPendingStudentActions] =
+  useState<Record<string, StudentAction | undefined>>({});
+
+학생 A 처리 중:
+
+- 학생 A 버튼만 disabled
+- 학생 A 행에 작은 ActivityIndicator 표시
+- 학생 B 버튼 사용 가능
+- 목록 스크롤 가능
+- 모달 닫기 가능
+
+동일 학생의 중복 요청만 막는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 버튼 터치 영역 확장
+━━━━━━━━━━━━━━━━━━━━━━
+
+출석·결석·반이동 버튼에 충분한 hitSlop을 적용한다.
+
+예:
+
+hitSlop={{
+  top: 8,
+  bottom: 8,
+  left: 6,
+  right: 6,
+}}
+
+최소 터치 높이:
+
+minHeight: 40
+
+Pressable의 실제 터치 영역과 시각 영역이 일치하도록 한다.
+
+버튼 위에 투명 View가 겹치지 않는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. API 처리 즉시 반응
+━━━━━━━━━━━━━━━━━━━━━━
+
+버튼을 누르면 서버 응답 전에 즉시 시각 반응을 표시한다.
+
+출석·결석:
+
+1. 해당 학생 pending 표시
+2. 가능하면 해당 학생 상태를 optimistic 변경
+3. API 성공 시 확정
+4. API 실패 시 이전 상태 복구
+5. 오류 Alert 또는 toast
+6. pending 해제
+
+반이동:
+
+1. 버튼 onPress 즉시 서브시트 표시
+2. 반 목록 로딩은 서브시트 내부에서 처리
+3. 반 목록 API 때문에 메인 학생 목록을 잠그지 않음
+
+버튼 터치 후 아무 표시 없이 서버 응답을 기다리는 구조를 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. API 중복 호출 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+출석·결석 처리 시 실제 네트워크 호출 흐름을 확인한다.
+
+확인 대상:
+
+- 처리 API 1회
+- 처리 후 학생 명단 전체 재조회
+- 스케줄 전체 재조회
+- 출결 현황 재조회
+- 부모 callback에 의한 중복 refetch
+
+동일 버튼 1회 클릭 기준으로 API 호출 횟수를 기록한다.
+
+목표:
+
+출석·결석:
+
+- 쓰기 API 1회
+- 필요한 경우 명단 재조회 최대 1회
+- 같은 명단 API 중복 호출 0회
+
+반이동:
+
+- 이동 API 1회
+- 이동 성공 후 필요한 명단 갱신 최대 1회
+
+가능하면 로컬 상태에서 해당 학생만 변경하고 전체 명단 재조회는 줄인다.
+
+단, historical 날짜 명단의 정합성을 훼손하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 서버 응답시간 로그
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버에는 개발·진단용 elapsed time 로그를 추가한다.
+
+각 API:
+
+- 출석
+- 결석
+- 반이동
+- 학생 명단 조회
+
+예:
+
+const startedAt = Date.now();
+
+try {
+  ...
+} finally {
+  console.log("[PERF][attendance]", {
+    elapsed_ms: Date.now() - startedAt,
+    pool_id: poolId,
+    class_group_id: classGroupId,
+  });
+}
+
+개인정보 로그 금지:
+
+- 학생 이름
+- 전화번호
+- 일지 내용
+
+허용:
+
+- request_id
+- student_id 앞 일부 또는 내부 ID
+- class_group_id
+- elapsed_ms
+- status code
+
+API가 1초 이상 걸리면 DB 쿼리별 시간을 분리해 보고한다.
+
+서버 API Contract는 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 터치·API 진단 로그
+━━━━━━━━━━━━━━━━━━━━━━
+
+개발 환경에서만 다음 로그를 추가한다.
+
+버튼 터치:
+
+if (__DEV__) {
+  console.log("[CLASS-DETAIL-TOUCH]", {
+    action: "attendance",
+    studentId: student.id,
+    at: Date.now(),
+  });
+}
+
+API:
+
+if (__DEV__) {
+  console.log("[CLASS-DETAIL-API-START]", {
+    action,
+    studentId,
+    at: startedAt,
+  });
+}
+
+if (__DEV__) {
+  console.log("[CLASS-DETAIL-API-END]", {
+    action,
+    studentId,
+    elapsedMs: Date.now() - startedAt,
+  });
+}
+
+운영 로그에 학생 이름 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 관리자 컴포넌트 동일 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+AdminClassDetailSheet.tsx도 아래 항목을 동일하게 확인하고 적용한다.
+
+- responder 선점 제거
+- FlatList 사용
+- student row memo
+- 학생별 pending
+- 전체 overlay 제거
+- 터치 hitSlop
+- useMemo/useCallback
+- API 중복 호출 확인
+
+관리자와 선생님 컴포넌트의 기능이 다르면 억지로 공통 컴포넌트로 합치지 않는다.
+
+이번 긴급 수정에서 대규모 공통화 리팩터링 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 서브모달 구조 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 iOS에서 반이동·보충수업·미배정 서브모달이 작동하도록 수정된 구조를 유지한다.
+
+금지:
+
+- 서브모달을 다시 메인 Modal 바깥 sibling으로 이동
+- 별도 React Native Modal 중첩으로 되돌림
+- 현재 작동하는 반이동 구조 훼손
+
+FlatList 전환 후에도 다음이 정상이어야 한다.
+
+- 반이동
+- 보충수업
+- 미배정
+- 적용 시점 선택
+- 서브시트 닫기
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 구현 후 측정
+━━━━━━━━━━━━━━━━━━━━━━
+
+구현 전후를 비교한다.
+
+필수 측정:
+
+1. 모달 최초 렌더 횟수
+2. 학생 1명 버튼 처리 시 부모 컴포넌트 렌더 횟수
+3. 전체 StudentRow 재렌더 수
+4. API 호출 횟수
+5. API 응답시간
+6. 버튼 터치부터 pending 표시까지 시간
+7. 학생 10명·20명·50명 목록 렌더 상태
+
+목표:
+
+- 버튼 터치 즉시 pending 표시
+- 한 학생 변경 시 모든 학생 row 재렌더 금지
+- 스크롤 중 setState 호출 없음
+- 학생 50명에서도 스크롤 제스처 누락 없음
+- 터치 로그 누락 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+선생님·관리자 양쪽에서 테스트한다.
+
+1. 학생 5명
+2. 학생 10명
+3. 학생 20명
+4. 학생 50명
+5. 빠르게 위아래 스크롤
+6. 스크롤 도중 손을 떼고 즉시 출석
+7. 연속으로 서로 다른 학생 출석
+8. 학생 A 요청 중 학생 B 결석
+9. 반이동 버튼 연속 터치
+10. API 응답 2초 지연 상황
+11. API 실패 후 재시도
+12. 마지막 학생 접근
+13. 모달 닫기
+14. 반이동 서브시트
+15. 보충수업 서브시트
+16. 미배정 처리
+17. 과거 날짜 학생 명단
+18. 오늘 학생 명단
+19. iOS
+20. Android
+21. 일반모드
+22. X모드
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+제출:
+
+1. 실제 직접 원인
+2. responder 제거 내역
+3. FlatList 전환 내역
+4. StudentRow memo 구조
+5. 학생별 pending 구조
+6. 전체 UI 잠금 제거 내역
+7. API 호출 횟수 전후
+8. 서버 응답시간
+9. 렌더 횟수 전후
+10. 실제 수정 파일
+11. 실제 diff
+12. 타입체크
+13. git status
+14. HEAD/origin SHA
+15. 실기기에서만 확인 가능한 항목
+16. Rollback 방법
+
+보고 후 멈춘다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- Push 금지
+- Render 배포 금지
+- OTA 금지
+- 운영 DB 수정 금지
+- API Contract 변경 금지
+- 학생 명단 날짜 정책 변경 금지
+- 기존 반이동 서브모달 구조 변경 금지
+- X모드 작업 재개 금지

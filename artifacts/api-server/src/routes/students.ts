@@ -87,6 +87,7 @@ async function enrichWithClasses(student: any) {
 
 // ── GET / ──────────────────────────────────────────────────────────
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
+  const _stuListStartedAt = Date.now();
   try {
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId && req.user!.role !== "super_admin") return err(res, 403, "소속된 수영장이 없습니다.");
@@ -142,7 +143,9 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       return withClasses;
     }));
 
-    res.json(enriched.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+    const sorted = enriched.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    console.log("[PERF][students-list]", { elapsed_ms: Date.now() - _stuListStartedAt, pool_id: poolId, count: sorted.length });
+    res.json(sorted);
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
@@ -700,6 +703,7 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
   if (new_status && !validNewStatuses.includes(new_status)) {
     return err(res, 400, "new_status는 pending, suspended, withdrawn 중 하나여야 합니다.");
   }
+  const _removeStartedAt = Date.now();
 
   try {
     const poolId = await getPoolId(req.user!.userId);
@@ -906,6 +910,7 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
     } catch (logErr) { console.error("[change_log] write error:", logErr); }
 
     // 응답값도 잠금 후 계산한 txNewIds 기준 (잠금 전 계산값 반환 금지)
+    console.log("[PERF][remove-from-class]", { elapsed_ms: Date.now() - _removeStartedAt, student_id: req.params.id, effective_timing });
     return res.json({ success: true, remaining_classes: txNewIds.length, effective_date: remEffectiveDate });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
 });
@@ -1076,6 +1081,7 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
 
   // effective_date 기본값: 오늘
   const effectiveDate = effective_date || new Date().toISOString().slice(0, 10);
+  const _moveStartedAt = Date.now();
 
   try {
     const poolId = await getPoolId(req.user!.userId);
@@ -1192,6 +1198,7 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
       });
     }
 
+    console.log("[PERF][move-class]", { elapsed_ms: Date.now() - _moveStartedAt, student_id: req.params.id });
     return res.json({ success: true, assigned_class_ids: newIds, effective_date: effectiveDate });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
 });

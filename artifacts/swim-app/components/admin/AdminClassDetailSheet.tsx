@@ -3,7 +3,7 @@
  * 관리자 반 상세 바텀시트
  */
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, FlatList, Modal,
   Pressable, ScrollView, StyleSheet, Text,
@@ -502,55 +502,67 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                   <Users size={32} color={C.textMuted} />
                   <Text style={sh.emptyText}>아직 배정된 학생이 없습니다</Text>
                 </View>
-              ) : students.map(s => (
-                <View key={s.id} style={sh.studentRow}>
-                  <View style={sh.studentAvatar}>
-                    <Text style={sh.studentAvatarText}>{s.name[0]}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={sh.studentName}>{s.name}</Text>
-                    <Text style={sh.studentSub}>
-                      {s.parent_phone ? s.parent_phone.slice(-4) : ""}{s.weekly_count ? ` · 주${s.weekly_count}회` : ""}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-
-              {/* ── 배정된 보강학생 ── */}
-              {(makeupLoading || assignedMakeups.length > 0) && (
-                <View style={sh.makeupSection}>
-                  <View style={sh.sectionHeader}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <LucideIcon name="rotate-ccw" size={13} color="#D97706" />
-                      <Text style={[sh.sectionTitle, { color: "#D97706" }]}>배정된 보강학생</Text>
-                    </View>
-                    <Text style={sh.sectionCount}>{assignedMakeups.length}명</Text>
-                  </View>
-                  {makeupLoading ? (
-                    <ActivityIndicator size="small" color="#D97706" style={{ marginVertical: 10 }} />
-                  ) : assignedMakeups.map(mk => (
-                    <View key={mk.id} style={sh.makeupRow}>
-                      <View style={sh.makeupAvatar}>
-                        <Text style={sh.makeupAvatarText}>{mk.student_name[0]}</Text>
+              ) : (
+                <FlatList
+                  data={students}
+                  keyExtractor={s => s.id}
+                  keyboardShouldPersistTaps="always"
+                  keyboardDismissMode="on-drag"
+                  showsVerticalScrollIndicator={false}
+                  initialNumToRender={12}
+                  maxToRenderPerBatch={8}
+                  windowSize={7}
+                  style={{ flex: 1, minHeight: 0 }}
+                  contentContainerStyle={{ paddingBottom: 48 }}
+                  renderItem={({ item: s }) => (
+                    <View style={sh.studentRow}>
+                      <View style={sh.studentAvatar}>
+                        <Text style={sh.studentAvatarText}>{s.name[0]}</Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={sh.makeupName}>{mk.student_name}</Text>
-                        <Text style={sh.makeupSub}>
-                          결석일: {mk.absence_date}{mk.assigned_date ? `  →  보강: ${mk.assigned_date}` : ""}
+                        <Text style={sh.studentName}>{s.name}</Text>
+                        <Text style={sh.studentSub}>
+                          {s.parent_phone ? s.parent_phone.slice(-4) : ""}{s.weekly_count ? ` · 주${s.weekly_count}회` : ""}
                         </Text>
                       </View>
-                      <Pressable
-                        style={[sh.revertBtn, revertingId === mk.id && { opacity: 0.5 }]}
-                        disabled={revertingId === mk.id}
-                        onPress={() => handleRevert(mk)}
-                      >
-                        {revertingId === mk.id
-                          ? <ActivityIndicator size="small" color="#D97706" />
-                          : <Text style={sh.revertBtnText}>배정 취소</Text>}
-                      </Pressable>
                     </View>
-                  ))}
-                </View>
+                  )}
+                  ListFooterComponent={(makeupLoading || assignedMakeups.length > 0) ? (
+                    <View style={sh.makeupSection}>
+                      <View style={sh.sectionHeader}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <LucideIcon name="rotate-ccw" size={13} color="#D97706" />
+                          <Text style={[sh.sectionTitle, { color: "#D97706" }]}>배정된 보강학생</Text>
+                        </View>
+                        <Text style={sh.sectionCount}>{assignedMakeups.length}명</Text>
+                      </View>
+                      {makeupLoading ? (
+                        <ActivityIndicator size="small" color="#D97706" style={{ marginVertical: 10 }} />
+                      ) : assignedMakeups.map(mk => (
+                        <View key={mk.id} style={sh.makeupRow}>
+                          <View style={sh.makeupAvatar}>
+                            <Text style={sh.makeupAvatarText}>{mk.student_name[0]}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={sh.makeupName}>{mk.student_name}</Text>
+                            <Text style={sh.makeupSub}>
+                              결석일: {mk.absence_date}{mk.assigned_date ? `  →  보강: ${mk.assigned_date}` : ""}
+                            </Text>
+                          </View>
+                          <Pressable
+                            style={[sh.revertBtn, revertingId === mk.id && { opacity: 0.5 }]}
+                            disabled={revertingId === mk.id}
+                            onPress={() => handleRevert(mk)}
+                          >
+                            {revertingId === mk.id
+                              ? <ActivityIndicator size="small" color="#D97706" />
+                              : <Text style={sh.revertBtnText}>배정 취소</Text>}
+                          </Pressable>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+                />
               )}
             </ScrollView>
           )

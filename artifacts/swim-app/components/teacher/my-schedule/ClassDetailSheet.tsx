@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /** eligible-occurrences API 응답 단일 회차 */
 interface MakeupOccurrence {
@@ -17,7 +17,7 @@ interface MakeupOccurrence {
   is_future: boolean;
 }
 import {
-  ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
 import { LucideIcon } from "@/components/common/LucideIcon";
@@ -31,6 +31,142 @@ import { ChangeLogItem, StudentItem, todayDateStr } from "./utils";
 
 const C = Colors.light;
 
+// ── StyleSheet (컴포넌트보다 먼저 정의 — StudentAttendanceRow가 참조) ──────────
+const cds = StyleSheet.create({
+  backdrop:        { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+  mainSheet:       { position: "absolute", bottom: 0, left: 0, right: 0,
+                     backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
+                     height: "75%" },
+  handle:          { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
+                     alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  sheetHeader:     { flexDirection: "row", alignItems: "flex-start", padding: 16, paddingTop: 8 },
+  sheetTitle:      { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
+  sheetSub:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
+  closeBtn:        { padding: 4 },
+  deleteBtn:       { padding: 8, marginRight: 4 },
+  actionRow:       { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 12 },
+  actionBtn:       { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5,
+                     paddingHorizontal: 10, paddingVertical: 10, borderRadius: 10 },
+  actionText:      { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  sectionLabel:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted,
+                     paddingHorizontal: 16, marginBottom: 6 },
+  studentList:     { flex: 1, minHeight: 0 },
+  studentListContent: { paddingBottom: 64 },
+  studentRow:      { flexDirection: "row", alignItems: "center", gap: 8,
+                     paddingHorizontal: 16, paddingVertical: 10,
+                     borderTopWidth: 1, borderTopColor: "#F8FAFC" },
+  absentDot:       { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#D96C6C" },
+  absentStrike:    { color: "#D96C6C", textDecorationLine: "line-through" },
+  studentName:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
+  studentSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
+  stBtn:           { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, minHeight: 32,
+                     backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2DDD9",
+                     alignItems: "center", justifyContent: "center" },
+  stBtnTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  empty:           { alignItems: "center", paddingVertical: 32, gap: 8 },
+  emptyText:       { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" },
+  moveClassRow:    { flexDirection: "row", alignItems: "center", gap: 10,
+                     paddingHorizontal: 16, paddingVertical: 12,
+                     borderTopWidth: 1, borderTopColor: "#F8FAFC",
+                     borderWidth: 1, borderColor: "transparent", marginHorizontal: 12,
+                     marginBottom: 4, borderRadius: 10 },
+  moveClassName:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
+  moveClassSub:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
+  moveConfirmBtn:  { height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  moveConfirmTxt:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
+  unassignBtn:     { flexDirection: "row", alignItems: "center", gap: 8,
+                     marginHorizontal: 12, marginBottom: 8,
+                     paddingHorizontal: 14, paddingVertical: 12,
+                     backgroundColor: "#FFF8EE", borderRadius: 10,
+                     borderWidth: 1, borderColor: "#FCD34D" },
+  unassignBtnTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D97706" },
+  timingRow:       { flexDirection: "row", alignItems: "center", gap: 10,
+                     paddingHorizontal: 16, paddingVertical: 14,
+                     borderTopWidth: 1, borderTopColor: "#F8FAFC" },
+  timingLabel:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
+  timingSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  capacityRow:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                     paddingHorizontal: 16, paddingVertical: 10,
+                     borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+  capacityLabelRow:{ flexDirection: "row", alignItems: "center", gap: 6 },
+  capacityLabel:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  capacityInputWrap:{ flexDirection: "row", alignItems: "center", gap: 6 },
+  capacityBtn:     { width: 28, height: 28, borderRadius: 8, backgroundColor: "#F1F5F9",
+                     alignItems: "center", justifyContent: "center" },
+  capacityBtnTxt:  { fontSize: 16, color: C.textSecondary, lineHeight: 20 },
+  capacityInput:   { minWidth: 36, textAlign: "center", fontSize: 15,
+                     fontFamily: "Pretendard-Regular", color: C.text, padding: 0 },
+  capacityUnit:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+});
+
+// ── StudentAttendanceRow — memo로 분리하여 다른 학생 변경 시 재렌더 방지 ───────
+const StudentAttendanceRow = React.memo(function StudentAttendanceRow({
+  student,
+  isPending,
+  isPresent,
+  isAbsent,
+  themeColor,
+  onAttendance,
+  onAbsence,
+  onMove,
+  onNavigate,
+}: {
+  student: StudentItem;
+  isPending: boolean;
+  isPresent: boolean;
+  isAbsent: boolean;
+  themeColor: string;
+  onAttendance: (id: string) => void;
+  onAbsence: (id: string) => void;
+  onMove: (student: StudentItem) => void;
+  onNavigate: (id: string) => void;
+}) {
+  return (
+    <View style={[cds.studentRow, isAbsent && { backgroundColor: "#FFF5F5" }]}>
+      {isAbsent && <View style={cds.absentDot} />}
+      <View style={{ flex: 1 }}>
+        <Text style={[cds.studentName, isAbsent && cds.absentStrike]}>{student.name}</Text>
+        <Text style={cds.studentSub}>주 {student.weekly_count || 1}회</Text>
+      </View>
+      {isPending ? (
+        <ActivityIndicator size="small" color={themeColor} style={{ marginHorizontal: 8 }} />
+      ) : (
+        <View style={{ flexDirection: "row", gap: 4 }}>
+          <Pressable
+            style={[cds.stBtn, isPresent && { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" }]}
+            onPress={() => onAttendance(student.id)}
+            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+          >
+            <Text style={[cds.stBtnTxt, { color: isPresent ? "#2EC4B6" : C.textMuted }]}>출석</Text>
+          </Pressable>
+          <Pressable
+            style={[cds.stBtn, isAbsent && { backgroundColor: "#F9DEDA", borderColor: "#D96C6C" }]}
+            onPress={() => onAbsence(student.id)}
+            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+          >
+            <Text style={[cds.stBtnTxt, { color: isAbsent ? "#D96C6C" : C.textMuted }]}>결석</Text>
+          </Pressable>
+          <Pressable
+            style={[cds.stBtn, { backgroundColor: "#F0F0FF" }]}
+            onPress={() => onMove(student)}
+            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+          >
+            <Text style={[cds.stBtnTxt, { color: "#4338CA" }]}>반이동</Text>
+          </Pressable>
+        </View>
+      )}
+      <Pressable
+        onPress={() => onNavigate(student.id)}
+        style={{ padding: 4 }}
+        hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+      >
+        <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+      </Pressable>
+    </View>
+  );
+});
+
+// ── 메인 컴포넌트 ──────────────────────────────────────────────────────────────
 export default function ClassDetailSheet({
   group, students, attMap, diarySet, themeColor, date, onClose,
   onOpenUnreg, onOpenRemove, onNavigateTo, onDeleteClass, weekChangeLogs, token,
@@ -80,8 +216,11 @@ export default function ClassDetailSheet({
   );
 
   const effectiveDate = date || todayDateStr();
+
+  // ── 출석 상태 ──
   const [studentAttState, setStudentAttState] = useState<Record<string, "present" | "absent">>({});
-  const [savingStudentId, setSavingStudentId] = useState<string | null>(null);
+  // 학생별 pending: 여러 학생 동시 처리 가능 (단일 savingStudentId 대신 Record 사용)
+  const [pendingStudents, setPendingStudents] = useState<Record<string, boolean>>({});
 
   const [moveStudent, setMoveStudent] = useState<StudentItem | null>(null);
   const [movingToClassId, setMovingToClassId] = useState<string | null>(null);
@@ -280,7 +419,6 @@ export default function ClassDetailSheet({
   /** 단계 3: 날짜 선택 후 저장 (미래=assign, 당일·과거=complete-direct) */
   async function completeMakeupWithDate(mk: any, _targetClassId: string, occ: MakeupOccurrence) {
     if (makeupSaving) return;
-    // 서버 응답 occ의 class_group_id/occurrence_date를 신뢰 (_targetClassId는 화면 표시용)
     const { occurrence_date: occurrenceDate, class_group_id: occClassId, is_full: isFull, is_future: isFuture } = occ;
 
     const doSave = async () => {
@@ -335,11 +473,28 @@ export default function ClassDetailSheet({
     await doSave();
   }
 
+  // ── 출석/결석 처리 — optimistic update ────────────────────────────────────
   async function markAtt(studentId: string, newStatus: "present" | "absent"): Promise<boolean> {
     if (studentAttState[studentId] === newStatus) return true;
-    setSavingStudentId(studentId);
+    // 중복 요청 방지
+    if (pendingStudents[studentId]) return false;
+
+    if (__DEV__) {
+      console.log("[CLASS-DETAIL-TOUCH]", { action: newStatus, studentId, at: Date.now() });
+    }
+
+    const prevStatus = studentAttState[studentId];
+    // 1. 즉시 pending 표시 + optimistic 상태 변경
+    setPendingStudents(prev => ({ ...prev, [studentId]: true }));
+    setStudentAttState(prev => ({ ...prev, [studentId]: newStatus }));
+
+    const startedAt = Date.now();
+    if (__DEV__) {
+      console.log("[CLASS-DETAIL-API-START]", { action: newStatus, studentId, at: startedAt });
+    }
+
     try {
-      await apiRequest(token, "/attendance", {
+      const res = await apiRequest(token, "/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -349,16 +504,46 @@ export default function ClassDetailSheet({
           status: newStatus,
         }),
       });
-      setStudentAttState(prev => ({ ...prev, [studentId]: newStatus }));
-      setSavingStudentId(null);
+
+      if (__DEV__) {
+        console.log("[CLASS-DETAIL-API-END]", { action: newStatus, studentId, elapsedMs: Date.now() - startedAt, ok: res.ok });
+      }
+
+      if (!res.ok) {
+        // 실패 시 롤백
+        setStudentAttState(prev => {
+          const next = { ...prev };
+          if (prevStatus) next[studentId] = prevStatus;
+          else delete next[studentId];
+          return next;
+        });
+        Alert.alert("오류", "출결 처리에 실패했습니다. 다시 시도해주세요.");
+        return false;
+      }
+
       // 결석 처리 시 보강 학생 목록 즉시 새로고침
       if (newStatus === "absent") {
         loadMakeupStudents();
       }
       return true;
     } catch {
-      setSavingStudentId(null);
+      // 네트워크 오류 — 롤백
+      setStudentAttState(prev => {
+        const next = { ...prev };
+        if (prevStatus) next[studentId] = prevStatus;
+        else delete next[studentId];
+        return next;
+      });
+      if (__DEV__) {
+        console.log("[CLASS-DETAIL-API-END]", { action: newStatus, studentId, elapsedMs: Date.now() - startedAt, error: true });
+      }
       return false;
+    } finally {
+      setPendingStudents(prev => {
+        const next = { ...prev };
+        delete next[studentId];
+        return next;
+      });
     }
   }
 
@@ -398,7 +583,6 @@ export default function ClassDetailSheet({
         class_group_id: group.id,
         effective_timing: timing,
       };
-      // "now" 케이스에는 effective_date 전달 (history 기록용)
       if (timing === "now") body.effective_date = effectiveDate;
 
       const res = await apiRequest(token, `/students/${unassignStudent.id}/remove-from-class`, {
@@ -422,50 +606,194 @@ export default function ClassDetailSheet({
     setUnassigningStudent(false);
   }
 
-  // groupStudents:
-  //   historical 모드:
-  //     studentsByDateError=true → null (에러, 별도 렌더)
-  //     studentsByDate===undefined → null (로딩 중)
-  //     studentsByDate!==undefined → 목록 사용 (fallback 금지)
-  //   current 모드 / 미지정: 기존 client-side 필터
-  const groupStudents: StudentItem[] | null = (() => {
-    let list: StudentItem[];
+  // ── 데이터 계산 — useMemo로 렌더마다 재계산 방지 ──────────────────────────
+  // groupStudents: 필터만, 정렬은 sortedStudents에서
+  const groupStudents: StudentItem[] | null = useMemo(() => {
     if (studentListMode === "historical") {
-      if (studentsByDateError) return null; // 에러 상태
-      if (studentsByDate === undefined) return null; // 로딩 중
-      list = [...studentsByDate];
-    } else {
-      // current 모드 또는 미지정 (기존 호환)
-      list = studentsByDate
-        ? [...studentsByDate]
-        : students.filter(st =>
-            ((Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(group.id))
-            || st.class_group_id === group.id)
-            && (!st.class_enrolled_at || st.class_enrolled_at <= todayDateStr())
-          );
+      if (studentsByDateError) return null;
+      if (studentsByDate === undefined) return null;
+      return [...studentsByDate];
     }
-    return list.sort((a, b) => {
+    // current 모드 또는 미지정 (기존 호환)
+    return studentsByDate
+      ? [...studentsByDate]
+      : students.filter(st =>
+          ((Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(group.id))
+          || st.class_group_id === group.id)
+          && (!st.class_enrolled_at || st.class_enrolled_at <= todayDateStr())
+        );
+  }, [studentListMode, studentsByDateError, studentsByDate, students, group.id]);
+
+  // sortedStudents: 결석 학생 상단 + 이름순 — studentAttState 변경 시 재계산
+  const sortedStudents: StudentItem[] = useMemo(() => {
+    if (!groupStudents) return [];
+    return [...groupStudents].sort((a, b) => {
       const aAbs = studentAttState[a.id] === "absent" ? 0 : 1;
       const bAbs = studentAttState[b.id] === "absent" ? 0 : 1;
       if (aAbs !== bAbs) return aAbs - bAbs;
       return a.name.localeCompare(b.name);
     });
-  })();
+  }, [groupStudents, studentAttState]);
 
-  const diarDone = diarySet.has(group.id);
-  // moveTargetClasses:
-  //   null = 아직 로딩 중 또는 에러 (classGroupsLoadState !== "loaded" 또는 classGroups === null)
-  //   []   = 로드 완료, 이동 가능한 다른 반 없음
   const moveTargetClasses: TeacherClassGroup[] | null =
     classGroupsLoadState !== "loaded" || classGroups == null
       ? null
       : classGroups.filter(g => g.id !== group.id);
 
+  // ── 안정적인 콜백 — useCallback으로 StudentAttendanceRow 불필요 재렌더 방지 ──
+  const handleAttendancePress = useCallback((id: string) => {
+    markAtt(id, "present");
+  }, [studentAttState, pendingStudents, token, group.id, effectiveDate]);
+
+  const handleAbsencePress = useCallback((id: string) => {
+    markAtt(id, "absent");
+  }, [studentAttState, pendingStudents, token, group.id, effectiveDate]);
+
+  const handleMovePress = useCallback((student: StudentItem) => {
+    setMoveStudent(student);
+  }, []);
+
+  const handleNavigateStudent = useCallback((id: string) => {
+    onNavigateTo?.(() => router.push({ pathname: "/(teacher)/student-detail", params: { id } } as any));
+  }, [onNavigateTo]);
+
+  // ── FlatList renderItem ────────────────────────────────────────────────────
+  const renderStudentRow = useCallback(({ item }: { item: StudentItem }) => {
+    const attStatus = studentAttState[item.id];
+    return (
+      <StudentAttendanceRow
+        student={item}
+        isPending={!!pendingStudents[item.id]}
+        isPresent={attStatus === "present"}
+        isAbsent={attStatus === "absent"}
+        themeColor={themeColor}
+        onAttendance={handleAttendancePress}
+        onAbsence={handleAbsencePress}
+        onMove={handleMovePress}
+        onNavigate={handleNavigateStudent}
+      />
+    );
+  }, [studentAttState, pendingStudents, themeColor, handleAttendancePress, handleAbsencePress, handleMovePress, handleNavigateStudent]);
+
+  const diarDone = diarySet.has(group.id);
+
+  // ── FlatList ListFooterComponent — 보강학생 + 변경이력 ────────────────────
+  const listFooter = useMemo(() => (
+    <>
+      {makeupStudents.length > 0 && (
+        <>
+          <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#7C3AED" }} />
+            <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#7C3AED" }}>보강 학생</Text>
+          </View>
+          {makeupStudents.map(mk => (
+            <View key={mk.id} style={[cds.studentRow, { backgroundColor: "#F5F3FF", flexDirection: "column", alignItems: "stretch", paddingVertical: 10 }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={cds.studentName}>{mk.student_name}</Text>
+                    <View style={{ backgroundColor: "#7C3AED", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                      <Text style={{ fontSize: 9, color: "#fff", fontFamily: "Pretendard-SemiBold" }}>보강</Text>
+                    </View>
+                  </View>
+                  <Text style={cds.studentSub}>결석일: {mk.absence_date}</Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {completingMakeupId === mk.id ? (
+                  <ActivityIndicator size="small" color="#7C3AED" style={{ marginHorizontal: 8 }} />
+                ) : (
+                  <Pressable
+                    style={[cds.stBtn, { backgroundColor: "#EDE9FE", borderColor: "#7C3AED", flex: 1 }]}
+                    onPress={() => completeMakeupDirect(mk.id)}
+                    disabled={revertingMakeupId === mk.id}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  >
+                    <Text style={[cds.stBtnTxt, { color: "#7C3AED" }]}>완료</Text>
+                  </Pressable>
+                )}
+                {revertingMakeupId === mk.id ? (
+                  <ActivityIndicator size="small" color="#D97706" style={{ marginHorizontal: 8 }} />
+                ) : (
+                  <Pressable
+                    style={[cds.stBtn, { backgroundColor: "#FFF8EE", borderColor: "#D97706", flex: 1 }]}
+                    onPress={() => handleRevertMakeup(mk)}
+                    disabled={completingMakeupId === mk.id}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  >
+                    <LucideIcon name="rotate-ccw" size={11} color="#D97706" />
+                    <Text style={[cds.stBtnTxt, { color: "#D97706" }]}>배정 취소</Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+          ))}
+        </>
+      )}
+      {myLogs.length > 0 && (
+        <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D97706", marginBottom: 4 }}>
+            변경 이력
+          </Text>
+          {myLogs.map(log => {
+            const d = new Date(log.effective_date + "T12:00:00Z");
+            const dateLabel = `${d.getUTCMonth()+1}월 ${d.getUTCDate()}일`;
+            return (
+              <View key={log.id} style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, marginBottom: 4 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#FCD34D", marginTop: 5, borderWidth: 1, borderColor: "#D97706" }} />
+                <Text style={{ flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 18 }}>
+                  {dateLabel}: {log.note || log.change_type}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
+    </>
+  ), [makeupStudents, myLogs, completingMakeupId, revertingMakeupId]);
+
+  // ── FlatList ListHeaderComponent — 로딩/에러 상태 ─────────────────────────
+  const listHeader = useMemo(() => {
+    if (groupStudents === null && studentsByDateError) {
+      return (
+        <View style={cds.empty}>
+          <LucideIcon name="circle-alert" size={28} color={C.textMuted} />
+          <Text style={cds.emptyText}>학생 명단을 불러오지 못했습니다</Text>
+          {onRetryStudentsByDate && (
+            <Pressable onPress={onRetryStudentsByDate} style={{ marginTop: 8 }}>
+              <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
+            </Pressable>
+          )}
+        </View>
+      );
+    }
+    if (groupStudents === null) {
+      return (
+        <View style={[cds.empty, { flexDirection: "row", gap: 8 }]}>
+          <ActivityIndicator size="small" color={C.tint} />
+          <Text style={cds.emptyText}>학생 목록 불러오는 중...</Text>
+        </View>
+      );
+    }
+    return null;
+  }, [groupStudents, studentsByDateError, onRetryStudentsByDate]);
+
+  // ListEmptyComponent — 학생 없음
+  const listEmpty = useMemo(() => (
+    groupStudents !== null ? (
+      <View style={cds.empty}>
+        <LucideIcon name="users" size={28} color={C.textMuted} />
+        <Text style={cds.emptyText}>배정된 학생이 없습니다</Text>
+      </View>
+    ) : null
+  ), [groupStudents]);
+
   return (
     <>
       <Modal visible animationType="slide" transparent onRequestClose={handleClose} statusBarTranslucent>
+        {/* backdrop: 바깥 터치만 닫기 담당. mainSheet는 일반 View (responder 선점 없음) */}
         <Pressable style={cds.backdrop} onPress={handleClose}>
-          <View style={cds.mainSheet} onStartShouldSetResponder={() => true}>
+          <View style={cds.mainSheet}>
             <View style={cds.handle} />
             <View style={cds.sheetHeader}>
               <View style={{ flex: 1 }}>
@@ -551,151 +879,26 @@ export default function ClassDetailSheet({
               </View>
             </View>
             <Text style={cds.sectionLabel}>학생 목록 · {effectiveDate}</Text>
-            <ScrollView
-              style={cds.studentScroll}
-              contentContainerStyle={cds.studentScrollContent}
+
+            {/* FlatList — ScrollView+map 대체. mainSheet가 이미 고정 높이이므로 flex:1로 남은 공간 차지 */}
+            <FlatList
+              data={sortedStudents}
+              keyExtractor={(item) => item.id}
+              renderItem={renderStudentRow}
+              style={cds.studentList}
+              contentContainerStyle={cds.studentListContent}
+              keyboardShouldPersistTaps="always"
+              keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {groupStudents === null && studentsByDateError ? (
-                // historical 모드 — 에러 (로딩 중과 구분)
-                <View style={cds.empty}>
-                  <LucideIcon name="circle-alert" size={28} color={C.textMuted} />
-                  <Text style={cds.emptyText}>학생 명단을 불러오지 못했습니다</Text>
-                  {onRetryStudentsByDate && (
-                    <Pressable onPress={onRetryStudentsByDate} style={{ marginTop: 8 }}>
-                      <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
-                    </Pressable>
-                  )}
-                </View>
-              ) : groupStudents === null ? (
-                // historical 모드 — 로딩 중
-                <View style={[cds.empty, { flexDirection: "row", gap: 8 }]}>
-                  <ActivityIndicator size="small" color={C.tint} />
-                  <Text style={cds.emptyText}>학생 목록 불러오는 중...</Text>
-                </View>
-              ) : groupStudents.length === 0 ? (
-                <View style={cds.empty}>
-                  <LucideIcon name="users" size={28} color={C.textMuted} />
-                  <Text style={cds.emptyText}>배정된 학생이 없습니다</Text>
-                </View>
-              ) : groupStudents.map(st => {
-                const wc = Math.min(st.weekly_count || 1, 3) as 1 | 2 | 3;
-                const wb = WEEKLY_BADGE[wc];
-                const attStatus = studentAttState[st.id];
-                const isAbsent  = attStatus === "absent";
-                const isPresent = attStatus === "present";
-                const isSaving  = savingStudentId === st.id;
-                return (
-                  <View key={st.id} style={[cds.studentRow, isAbsent && { backgroundColor: "#FFF5F5" }]}>
-                    {isAbsent && <View style={cds.absentDot} />}
-                    <View style={{ flex: 1 }}>
-                      <Text style={[cds.studentName, isAbsent && cds.absentStrike]}>{st.name}</Text>
-                      <Text style={cds.studentSub}>주 {st.weekly_count || 1}회</Text>
-                    </View>
-                    {isSaving ? (
-                      <ActivityIndicator size="small" color={themeColor} style={{ marginHorizontal: 8 }} />
-                    ) : (
-                      <View style={{ flexDirection: "row", gap: 4 }}>
-                        <Pressable
-                          style={[cds.stBtn, isPresent && { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" }]}
-                          onPress={() => markAtt(st.id, "present")}
-                        >
-                          <Text style={[cds.stBtnTxt, { color: isPresent ? "#2EC4B6" : C.textMuted }]}>출석</Text>
-                        </Pressable>
-                        <Pressable
-                          style={[cds.stBtn, isAbsent && { backgroundColor: "#F9DEDA", borderColor: "#D96C6C" }]}
-                          onPress={() => markAtt(st.id, "absent")}
-                        >
-                          <Text style={[cds.stBtnTxt, { color: isAbsent ? "#D96C6C" : C.textMuted }]}>결석</Text>
-                        </Pressable>
-                        <Pressable
-                          style={[cds.stBtn, { backgroundColor: "#F0F0FF" }]}
-                          onPress={() => {
-                            setMoveStudent(st);
-                          }}
-                        >
-                          <Text style={[cds.stBtnTxt, { color: "#4338CA" }]}>반이동</Text>
-                        </Pressable>
-                      </View>
-                    )}
-                    <Pressable
-                      onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/student-detail", params:{id: st.id} } as any))}
-                      style={{ padding: 4 }}
-                    >
-                      <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
-                    </Pressable>
-                  </View>
-                );
-              })}
-              {makeupStudents.length > 0 && (
-                <>
-                  <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#7C3AED" }} />
-                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#7C3AED" }}>보강 학생</Text>
-                  </View>
-                  {makeupStudents.map(mk => (
-                    <View key={mk.id} style={[cds.studentRow, { backgroundColor: "#F5F3FF", flexDirection: "column", alignItems: "stretch", paddingVertical: 10 }]}>
-                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
-                        <View style={{ flex: 1 }}>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                            <Text style={cds.studentName}>{mk.student_name}</Text>
-                            <View style={{ backgroundColor: "#7C3AED", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                              <Text style={{ fontSize: 9, color: "#fff", fontFamily: "Pretendard-SemiBold" }}>보강</Text>
-                            </View>
-                          </View>
-                          <Text style={cds.studentSub}>결석일: {mk.absence_date}</Text>
-                        </View>
-                      </View>
-                      <View style={{ flexDirection: "row", gap: 8 }}>
-                        {completingMakeupId === mk.id ? (
-                          <ActivityIndicator size="small" color="#7C3AED" style={{ marginHorizontal: 8 }} />
-                        ) : (
-                          <Pressable
-                            style={[cds.stBtn, { backgroundColor: "#EDE9FE", borderColor: "#7C3AED", flex: 1 }]}
-                            onPress={() => completeMakeupDirect(mk.id)}
-                            disabled={revertingMakeupId === mk.id}
-                          >
-                            <Text style={[cds.stBtnTxt, { color: "#7C3AED" }]}>완료</Text>
-                          </Pressable>
-                        )}
-                        {revertingMakeupId === mk.id ? (
-                          <ActivityIndicator size="small" color="#D97706" style={{ marginHorizontal: 8 }} />
-                        ) : (
-                          <Pressable
-                            style={[cds.stBtn, { backgroundColor: "#FFF8EE", borderColor: "#D97706", flex: 1 }]}
-                            onPress={() => handleRevertMakeup(mk)}
-                            disabled={completingMakeupId === mk.id}
-                          >
-                            <LucideIcon name="rotate-ccw" size={11} color="#D97706" />
-                            <Text style={[cds.stBtnTxt, { color: "#D97706" }]}>배정 취소</Text>
-                          </Pressable>
-                        )}
-                      </View>
-                    </View>
-                  ))}
-                </>
-              )}
-              {myLogs.length > 0 && (
-                <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
-                  <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D97706", marginBottom: 4 }}>
-                    변경 이력
-                  </Text>
-                  {myLogs.map(log => {
-                    const d = new Date(log.effective_date + "T12:00:00Z");
-                    const dateLabel = `${d.getUTCMonth()+1}월 ${d.getUTCDate()}일`;
-                    return (
-                      <View key={log.id} style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, marginBottom: 4 }}>
-                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#FCD34D", marginTop: 5, borderWidth: 1, borderColor: "#D97706" }} />
-                        <Text style={{ flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 18 }}>
-                          {dateLabel}: {log.note || log.change_type}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
-            </ScrollView>
+              initialNumToRender={12}
+              maxToRenderPerBatch={8}
+              updateCellsBatchingPeriod={40}
+              windowSize={7}
+              removeClippedSubviews={Platform.OS === "android"}
+              ListHeaderComponent={listHeader}
+              ListEmptyComponent={listEmpty}
+              ListFooterComponent={listFooter}
+            />
           </View>
         </Pressable>
 
@@ -781,7 +984,7 @@ export default function ClassDetailSheet({
         </SubSheetModal>
       )}
 
-      {/* 보충수업 모달 (3단계) — 헤더가 단계별로 달라 title 생략, 각 단계 헤더를 children 으로 제공 */}
+      {/* 보충수업 모달 (3단계) */}
       {showMakeupPicker && (
         <SubSheetModal
           visible
@@ -853,7 +1056,6 @@ export default function ClassDetailSheet({
                 contentContainerStyle={{ paddingBottom: 20 }}
                 showsVerticalScrollIndicator={false}
               >
-                {/* 현재 반을 첫 번째로 표시 */}
                 {[group, ...(classGroups || []).filter(g => g.id !== group.id)].map((cls) => {
                   const isSaving = makeupSaving === selectedMakeupStudent.id;
                   const isCurrentClass = cls.id === group.id;
@@ -955,7 +1157,7 @@ export default function ClassDetailSheet({
                           )}
                           {isSaving
                             ? <ActivityIndicator size="small" color="#4F46E5" />
-                            : <ChevronRight size={14} color={occ.is_full && occ.is_future ? C.textMuted : C.textMuted} />
+                            : <ChevronRight size={14} color={C.textMuted} />
                           }
                         </Pressable>
                       );
@@ -1029,69 +1231,3 @@ export default function ClassDetailSheet({
     </>
   );
 }
-
-const cds = StyleSheet.create({
-  backdrop:        { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-  mainSheet:       { position: "absolute", bottom: 0, left: 0, right: 0,
-                     backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
-                     height: "75%" },
-  handle:          { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
-                     alignSelf: "center", marginTop: 10, marginBottom: 4 },
-  sheetHeader:     { flexDirection: "row", alignItems: "flex-start", padding: 16, paddingTop: 8 },
-  sheetTitle:      { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
-  sheetSub:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
-  closeBtn:        { padding: 4 },
-  deleteBtn:       { padding: 8, marginRight: 4 },
-  actionRow:       { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 12 },
-  actionBtn:       { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5,
-                     paddingHorizontal: 10, paddingVertical: 10, borderRadius: 10 },
-  actionText:      { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  sectionLabel:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted,
-                     paddingHorizontal: 16, marginBottom: 6 },
-  studentScroll:      { flex: 1, minHeight: 0 },
-  studentScrollContent: { paddingBottom: 48 },
-  studentRow:      { flexDirection: "row", alignItems: "center", gap: 8,
-                     paddingHorizontal: 16, paddingVertical: 10,
-                     borderTopWidth: 1, borderTopColor: "#F8FAFC" },
-  absentDot:       { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#D96C6C" },
-  absentStrike:    { color: "#D96C6C", textDecorationLine: "line-through" },
-  studentName:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
-  studentSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
-  stBtn:           { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8,
-                     backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2DDD9" },
-  stBtnTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  empty:           { alignItems: "center", paddingVertical: 32, gap: 8 },
-  emptyText:       { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" },
-  moveClassRow:    { flexDirection: "row", alignItems: "center", gap: 10,
-                     paddingHorizontal: 16, paddingVertical: 12,
-                     borderTopWidth: 1, borderTopColor: "#F8FAFC",
-                     borderWidth: 1, borderColor: "transparent", marginHorizontal: 12,
-                     marginBottom: 4, borderRadius: 10 },
-  moveClassName:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
-  moveClassSub:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
-  moveConfirmBtn:  { height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  moveConfirmTxt:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
-  unassignBtn:     { flexDirection: "row", alignItems: "center", gap: 8,
-                     marginHorizontal: 12, marginBottom: 8,
-                     paddingHorizontal: 14, paddingVertical: 12,
-                     backgroundColor: "#FFF8EE", borderRadius: 10,
-                     borderWidth: 1, borderColor: "#FCD34D" },
-  unassignBtnTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D97706" },
-  timingRow:       { flexDirection: "row", alignItems: "center", gap: 10,
-                     paddingHorizontal: 16, paddingVertical: 14,
-                     borderTopWidth: 1, borderTopColor: "#F8FAFC" },
-  timingLabel:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
-  timingSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
-  capacityRow:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                     paddingHorizontal: 16, paddingVertical: 10,
-                     borderTopWidth: 1, borderTopColor: "#F1F5F9" },
-  capacityLabelRow:{ flexDirection: "row", alignItems: "center", gap: 6 },
-  capacityLabel:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  capacityInputWrap:{ flexDirection: "row", alignItems: "center", gap: 6 },
-  capacityBtn:     { width: 28, height: 28, borderRadius: 8, backgroundColor: "#F1F5F9",
-                     alignItems: "center", justifyContent: "center" },
-  capacityBtnTxt:  { fontSize: 16, color: C.textSecondary, lineHeight: 20 },
-  capacityInput:   { minWidth: 36, textAlign: "center", fontSize: 15,
-                     fontFamily: "Pretendard-Regular", color: C.text, padding: 0 },
-  capacityUnit:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-});

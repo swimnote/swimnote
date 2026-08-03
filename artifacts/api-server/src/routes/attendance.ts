@@ -498,6 +498,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
   if (!["present", "absent", "late"].includes(status)) {
     res.status(400).json({ success: false, message: "status는 present, absent, late 중 하나여야 합니다." }); return;
   }
+  const _attStartedAt = Date.now();
   try {
     const role = (req.user as { role: string }).role;
     const poolId = await getPoolId(req.user!.userId, role, req.user!.poolId);
@@ -526,6 +527,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
             AND status IN ('waiting', 'assigned', 'transferred')
         `).catch(e => console.error("[cancelMakeup] 취소 실패:", e));
       }
+      console.log("[PERF][attendance-post]", { elapsed_ms: Date.now() - _attStartedAt, op: "update", status });
       res.json({ success: true, data: { ...updated, student_name: s?.name || null }, makeup_queued: makeupResult?.created ?? null, makeup_skip_reason: makeupResult?.reason ?? null }); return;
     }
 
@@ -545,6 +547,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       entity_id: id, actor_id: req.user!.userId,
       payload: { student_id, student_name: s?.name, date, status },
     }).catch(() => {});
+    console.log("[PERF][attendance-post]", { elapsed_ms: Date.now() - _attStartedAt, op: "insert", status });
     res.status(201).json({ success: true, data: { ...record, student_name: s?.name || null }, makeup_queued: makeupResult2?.created ?? null, makeup_skip_reason: makeupResult2?.reason ?? null });
   } catch (err) {
     console.error(err);
