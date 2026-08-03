@@ -1,0 +1,305 @@
+SWIMNOTE X — WP0 검수 결과 및 WP1 설계서 제출 지시
+
+WP0 보고서를 확인했습니다.
+
+현재는 아직 코드 수정이나 Migration 실행을 승인하지 않습니다.
+
+마지막에 요청한 두 결정은 이미 SWIMNOTE X 최종 실행순서에서 확정된 사항이므로 아래 기준대로 진행하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 확정 결정
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+결정 1
+
+PART 1 WP1에서 다음 항목은 제외합니다.
+
+* parent_ai_daily_usage
+* parent_ai_usage_reservations
+* growth_reports
+
+위 항목은 삭제하거나 폐기하는 것이 아닙니다.
+
+SWIMNOTE X 최종 설계서 v3.3.4의 기술 설계를 유지한 상태로 PART 2 Migration에서 실행합니다.
+
+다음 방식은 금지합니다.
+
+* 멱등성이 있으므로 WP1에서 같이 실행
+* 향후 필요하므로 미리 실행
+* 설계 변경 없이 실행해도 된다는 자의적 판단
+* PART 1 진입점에서 실행 가능 상태로 방치
+
+WP1 설계서에는 PART 1 Migration을 실행했을 때 위 세 테이블이 절대로 생성되지 않는 구조를 제시하십시오.
+
+구현은 아직 하지 마십시오.
+
+결정 2
+
+다음 커리큘럼 테이블 5개는 PART 1 WP1 Migration에 포함합니다.
+
+* curriculum_versions
+* curriculum_items
+* student_curriculum_assignments
+* curriculum_requests
+* curriculum_request_files
+
+WP9는 해당 테이블을 처음 생성하는 단계가 아닙니다.
+
+WP9는 WP1에서 만들어진 DB 기반 위에 다음 기능을 구현하는 단계입니다.
+
+* 커리큘럼 버전 관리
+* 커리큘럼 항목 관리
+* 학생별 커리큘럼 배정
+* 활성 배정
+* 과거 버전 보존
+* 성장판 분모 기반 연결
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. WP0 보고서 추가 확인 사항
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 내용은 현재 보고만으로 확정할 수 없으므로 WP1 설계서 제출 전에 추가 조사하십시오.
+
+현재 보고:
+
+* pool-db-init.ts 마지막에서 initXModeSchema() 호출
+* index.ts 서버 기동 시 initPoolDb() 실행
+* pool-db-x-init.ts 실제 존재
+* 그러나 DB에는 X 컬럼·테이블 없음
+
+위 상태가 동시에 발생한 정확한 이유를 실제 코드·환경 기준으로 확인하십시오.
+
+가능성을 추정해서 선택하지 말고 다음을 조사하십시오.
+
+1. 현재 Repository 코드가 실제 실행 환경에 배포된 상태인지
+2. 코드 추가 이후 서버가 재시작된 적이 있는지
+3. 조사한 DB와 실행 서버가 사용하는 DB가 동일한지
+4. DATABASE_URL 또는 DB 연결 분기
+5. isDbSeparated 조건
+6. getPoolDb(), getBackupDb(), getSuperDb() 실제 연결 대상
+7. initXModeSchema()가 환경 조건에 따라 건너뛰어지는지
+8. 과거 Migration 실패 로그가 있는지
+9. 현재 서버 기동 로그에 initXModeSchema 관련 기록이 있는지
+10. 실제 DB에서 아래 컬럼·테이블을 직접 조회했는지
+
+결과는 다음 중 하나로 표시하십시오.
+
+* REPOSITORY_VERIFIED
+* ENVIRONMENT_VERIFIED
+* NOT_FOUND
+* NEEDS_VERIFICATION
+
+운영 DB 조회 권한이 없으면 추정하지 말고 NEEDS_VERIFICATION으로 유지하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 Template fallback 기준선
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 확인된 다음 동작은 일반모드 기준선으로 기록하십시오.
+
+해당 pool에 템플릿이 없으면 loadTemplatesAnyPool() 실행
+
+이 동작은 현재 Repository의 기존 동작으로만 기록합니다.
+
+WP1에서는 변경하지 마십시오.
+
+WP12 AI 일지 검색 분기 단계에서 설계에 따라 다룹니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 지금 제출할 WP1 설계서
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 코드를 수정하지 말고 다음 항목을 포함한 설계서만 제출하십시오.
+
+4-1. 현재 코드 상태
+
+* pool-db-x-init.ts 실제 Group 구성
+* 각 Group의 실제 함수명
+* 각 Group이 생성하는 ENUM·컬럼·테이블
+* pool-db-init.ts의 실제 호출 위치
+* 현재 코드 그대로 실행할 경우 생성되는 전체 객체
+* PART 1 범위를 위반하는 객체
+
+4-2. WP1 목표 상태
+
+PART 1 WP1 실행 시 포함:
+
+* xmode_config_status_enum
+* global_template_status_enum
+* growth_match_status_enum
+* swimming_pools X모드 5개 컬럼
+* global_template_sets
+* diary_templates x_global 확장
+* curriculum_versions
+* curriculum_items
+* student_curriculum_assignments
+* curriculum_requests
+* curriculum_request_files
+* audit_entity_versions
+* next_audit_version()
+* audit_logs
+* growth_events
+
+PART 1 WP1 실행 시 제외:
+
+* parent_ai_daily_usage
+* parent_ai_usage_reservations
+* growth_reports
+* Parent AI 관련 기타 구조
+* 성장리포트 관련 기타 구조
+* PPT 관련 구조
+* 학부모 결제 관련 구조
+
+4-3. 수정 예정 파일
+
+각 파일마다 다음을 제출하십시오.
+
+* 실제 경로
+* 현재 역할
+* 변경 예정 내용
+* 변경 이유
+* PART 1 범위
+* 일반모드 영향
+* PART 2 영향
+
+4-4. Migration Group 최종 설계
+
+다음 순서를 기준으로 실제 함수 구성을 제시하십시오.
+
+1. ENUM + swimming_pools
+2. Global Template + diary_templates
+3. Curriculum
+4. Audit
+5. Growth Event
+
+각 Group에 대해 제출:
+
+* 함수명
+* 실행 SQL
+* 선행조건
+* 사전 검증
+* 실패 처리
+* 멱등성
+* Rollback
+* 다음 Group 진입 조건
+
+4-5. 기존 pool-db-x-init.ts 처리 방식
+
+현재 파일에 PART 2 구조가 이미 섞여 있으므로 다음을 설계서에 제시하십시오.
+
+* PART 1 실행 진입점에서 Group 4 Parent AI가 실행되지 않는 방법
+* M-J growth_reports가 실행되지 않는 방법
+* PART 2에서 기존 v3.3.4 설계를 다시 사용할 방법
+* 중복 코드 없이 분리하는 방법
+* 실수로 PART 2 Migration이 선행 실행되지 않도록 하는 방법
+
+아직 어느 방식을 적용하지 마십시오.
+
+4-6. Curriculum 테이블 상세 설계
+
+각 테이블마다 제출:
+
+* 목적
+* 컬럼
+* 타입
+* PK
+* FK
+* UNIQUE
+* CHECK
+* INDEX
+* 삭제 정책
+* 버전 보존 정책
+* 수영장 데이터 격리
+* 일반모드 영향
+
+임의 컬럼이나 기능을 추가하지 마십시오.
+
+확정된 실행순서에 필요한 최소 구조만 제출하십시오.
+
+4-7. diary_templates 사전 검증
+
+운영 DB에서 다음 검증이 실제로 가능한지 확인하십시오.
+
+SELECT id, scope, swimming_pool_id
+FROM diary_templates
+WHERE scope NOT IN ('global', 'teacher')
+   OR swimming_pool_id IS NULL;
+
+제출:
+
+* 실행 여부
+* 실행 환경
+* 결과 행 수
+* 미실행이면 이유
+* 위반 행 발생 시 중단 방식
+* DB 변경이 시작되기 전에 검증되는지 여부
+
+검증하지 못했으면 통과했다고 말하지 마십시오.
+
+4-8. 일반모드 영향 분석
+
+반드시 확인:
+
+* 기존 diary_templates INSERT
+* 기존 template 조회
+* 기존 AI 일지
+* 기존 Diary Save
+* 기존 swimming_pools 조회
+* 기존 백업 DB 초기화
+* 기존 서버 기동
+* 기존 구독
+* 기존 테스트
+
+4-9. 테스트 계획
+
+최소 포함:
+
+* Migration 미실행 상태 검증
+* Migration 1회 실행
+* Migration 재실행
+* Group 중간 실패
+* 이후 Group 미실행
+* 기존 데이터 유지
+* diary_templates CHECK 정상 조합
+* diary_templates CHECK 위반 조합
+* 일반 AI 일지
+* 기존 Template 검색
+* 일반 Diary Save
+* Rollback 사전조건
+* Rollback 역순
+
+4-10. 설계·코드 상태 구분
+
+다음 항목을 명확히 나누십시오.
+
+* 이미 코드가 존재하는 항목
+* 코드 수정이 필요한 항목
+* 신규 작성이 필요한 항목
+* DB에 적용된 항목
+* DB에 미적용된 항목
+* 실제 환경 확인이 안 된 항목
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 제출 후 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP1 설계서만 제출하고 멈추십시오.
+
+사용자 승인 전 금지:
+
+* pool-db-x-init.ts 수정
+* curriculum Migration 코드 작성
+* 신규 파일 생성
+* Migration 실행
+* DB 쿼리 변경 실행
+* 서버 재시작
+* Commit
+* Push
+* OTA
+* Render 배포
+* 샘플 데이터 생성
+
+이번 답변에서는 추가 선택지를 요구하지 마십시오.
+
+확정된 범위를 기준으로 WP1 설계서만 제출하십시오.
