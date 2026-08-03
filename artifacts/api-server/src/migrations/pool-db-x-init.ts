@@ -475,10 +475,10 @@ async function runGroup4_ParentAiUsage(db: Db): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Group 5: 성장판
+// Group 5a: growth_events (PART 1)
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function runGroup5_Growth(db: Db): Promise<void> {
+async function runGroup5a_GrowthEvents(db: Db): Promise<void> {
   // ── M-I: growth_events ──────────────────────────────────────────────────
   //
   // growth_match_status_enum은 M-A에서 생성됨.
@@ -587,7 +587,13 @@ async function runGroup5_Growth(db: Db): Promise<void> {
   `));
 
   console.log("[X-init] M-I: growth_events + 인덱스 5개 OK");
+}
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Group 5b: growth_reports (PART 2 전용 — initXModePart2Schema에서만 호출)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function runGroup5b_GrowthReports(db: Db): Promise<void> {
   // ── M-J: growth_reports ──────────────────────────────────────────────────
   //
   // 버전 컬럼 7개: 재다운로드 시 동일 버전이면 재분석 없이 cached 응답.
@@ -653,14 +659,270 @@ async function runGroup5_Growth(db: Db): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Group 6: Curriculum (PART 1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function runGroup6_Curriculum(db: Db): Promise<void> {
+  // ── curriculum_versions ─────────────────────────────────────────────────
+  //
+  // swimming_pool별 커리큘럼 버전. is_active = true인 버전은 풀당 1개만 허용.
+  // Partial UNIQUE: (swimming_pool_id) WHERE is_active = true
+
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS curriculum_versions (
+      id               text        PRIMARY KEY
+                         DEFAULT ('cv_' || replace(gen_random_uuid()::text,'-','')),
+      swimming_pool_id text        NOT NULL,
+      version_name     text        NOT NULL,
+      is_active        boolean     NOT NULL DEFAULT false,
+      activated_at     timestamptz,
+      archived_at      timestamptz,
+      created_by       text,
+      created_at       timestamptz NOT NULL DEFAULT now(),
+      updated_at       timestamptz NOT NULL DEFAULT now()
+    );
+  `));
+
+  await db.execute(sql.raw(`
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_curriculum_versions_name
+      ON curriculum_versions (swimming_pool_id, version_name);
+  `));
+
+  await db.execute(sql.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relname = 'uniq_curriculum_versions_one_active'
+          AND n.nspname = 'public'
+      ) THEN
+        CREATE UNIQUE INDEX uniq_curriculum_versions_one_active
+          ON curriculum_versions (swimming_pool_id)
+          WHERE is_active = true;
+      END IF;
+    END $$;
+  `));
+
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_curriculum_versions_pool
+      ON curriculum_versions (swimming_pool_id, created_at DESC);
+  `));
+
+  console.log("[X-init] Group 6-1: curriculum_versions OK");
+
+  // ── curriculum_items ─────────────────────────────────────────────────────
+  //
+  // 버전 내 항목. (curriculum_version_id, sort_order) UNIQUE.
+  // ON DELETE RESTRICT: 버전 삭제 시 항목이 있으면 차단.
+
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS curriculum_items (
+      id                    text        PRIMARY KEY
+                              DEFAULT ('ci_' || replace(gen_random_uuid()::text,'-','')),
+      curriculum_version_id text        NOT NULL
+        REFERENCES curriculum_versions(id) ON DELETE RESTRICT,
+      swimming_pool_id      text        NOT NULL,
+      sort_order            integer     NOT NULL DEFAULT 0,
+      title                 text        NOT NULL,
+      description           text,
+      is_active             boolean     NOT NULL DEFAULT true,
+      created_at            timestamptz NOT NULL DEFAULT now()
+    );
+  `));
+
+  await db.execute(sql.raw(`
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_curriculum_items_sort
+      ON curriculum_items (curriculum_version_id, sort_order);
+  `));
+
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_curriculum_items_version
+      ON curriculum_items (curriculum_version_id, sort_order);
+  `));
+
+  console.log("[X-init] Group 6-2: curriculum_items OK");
+
+  // ── student_curriculum_assignments ──────────────────────────────────────
+  //
+  // 학생별 커리큘럼 버전 배정. is_active=true는 (student_id, swimming_pool_id)당 1개.
+  // curriculum_item_id 없음 — 진행도는 growth_events로 계산.
+  // ON DELETE RESTRICT: 배정된 학생이 있으면 버전 삭제 차단.
+
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS student_curriculum_assignments (
+      id                    text        PRIMARY KEY
+                              DEFAULT ('sca_' || replace(gen_random_uuid()::text,'-','')),
+      student_id            text        NOT NULL,
+      swimming_pool_id      text        NOT NULL,
+      curriculum_version_id text        NOT NULL
+        REFERENCES curriculum_versions(id) ON DELETE RESTRICT,
+      assigned_at           timestamptz NOT NULL DEFAULT now(),
+      assigned_by           text,
+      is_active             boolean     NOT NULL DEFAULT true,
+      deactivated_at        timestamptz,
+      created_at            timestamptz NOT NULL DEFAULT now()
+    );
+  `));
+
+  await db.execute(sql.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relname = 'uniq_sca_one_active'
+          AND n.nspname = 'public'
+      ) THEN
+        CREATE UNIQUE INDEX uniq_sca_one_active
+          ON student_curriculum_assignments (student_id, swimming_pool_id)
+          WHERE is_active = true;
+      END IF;
+    END $$;
+  `));
+
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_sca_student_pool
+      ON student_curriculum_assignments (student_id, swimming_pool_id, is_active);
+  `));
+
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_sca_version
+      ON student_curriculum_assignments (curriculum_version_id, is_active);
+  `));
+
+  console.log("[X-init] Group 6-3: student_curriculum_assignments OK");
+
+  // ── curriculum_requests ──────────────────────────────────────────────────
+  //
+  // 수영장이 슈퍼어드민에게 커리큘럼 제작을 요청하는 테이블.
+  // result_version_id: 승인 완료 후 연결된 curriculum_versions.id
+  // ON DELETE RESTRICT: 결과 버전 삭제 시 요청 기록 보호.
+
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS curriculum_requests (
+      id                text        PRIMARY KEY
+                          DEFAULT ('cr_' || replace(gen_random_uuid()::text,'-','')),
+      swimming_pool_id  text        NOT NULL,
+      request_status    text        NOT NULL DEFAULT 'pending'
+        CHECK (request_status IN
+          ('pending','reviewing','approved','rejected','cancelled')),
+      title             text        NOT NULL,
+      description       text,
+      requested_by      text        NOT NULL,
+      reviewed_by       text,
+      reviewed_at       timestamptz,
+      review_note       text,
+      result_version_id text
+        REFERENCES curriculum_versions(id) ON DELETE RESTRICT,
+      created_at        timestamptz NOT NULL DEFAULT now(),
+      updated_at        timestamptz NOT NULL DEFAULT now()
+    );
+  `));
+
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_curriculum_requests_pool
+      ON curriculum_requests (swimming_pool_id, request_status, created_at DESC);
+  `));
+
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_curriculum_requests_status
+      ON curriculum_requests (request_status, created_at DESC);
+  `));
+
+  console.log("[X-init] Group 6-4: curriculum_requests OK");
+
+  // ── curriculum_request_files ─────────────────────────────────────────────
+  //
+  // 요청에 첨부된 파일 목록. ON DELETE CASCADE: 요청 삭제 시 파일 기록도 삭제.
+
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS curriculum_request_files (
+      id               text        PRIMARY KEY
+                         DEFAULT ('crf_' || replace(gen_random_uuid()::text,'-','')),
+      request_id       text        NOT NULL
+        REFERENCES curriculum_requests(id) ON DELETE CASCADE,
+      swimming_pool_id text        NOT NULL,
+      file_key         text        NOT NULL,
+      file_name        text        NOT NULL,
+      file_size_bytes  bigint,
+      mime_type        text,
+      uploaded_by      text        NOT NULL,
+      uploaded_at      timestamptz NOT NULL DEFAULT now()
+    );
+  `));
+
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_curriculum_request_files_req
+      ON curriculum_request_files (request_id);
+  `));
+
+  console.log("[X-init] Group 6-5: curriculum_request_files OK");
+
+  // ── growth_events Curriculum FK 2개 ─────────────────────────────────────
+  //
+  // curriculum_versions / curriculum_items 생성 완료 후 추가.
+  // ON DELETE RESTRICT: curriculum_item 또는 curriculum_version 삭제 시 growth_events 보호.
+  // growth_events.curriculum_item_id / curriculum_version_id 는 NOT NULL 유지.
+
+  await db.execute(sql.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'fk_ge_curriculum_item'
+          AND conrelid = 'growth_events'::regclass
+      ) THEN
+        ALTER TABLE growth_events
+          ADD CONSTRAINT fk_ge_curriculum_item
+          FOREIGN KEY (curriculum_item_id)
+          REFERENCES curriculum_items(id)
+          ON DELETE RESTRICT;
+      END IF;
+    END $$;
+  `));
+
+  await db.execute(sql.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'fk_ge_curriculum_version'
+          AND conrelid = 'growth_events'::regclass
+      ) THEN
+        ALTER TABLE growth_events
+          ADD CONSTRAINT fk_ge_curriculum_version
+          FOREIGN KEY (curriculum_version_id)
+          REFERENCES curriculum_versions(id)
+          ON DELETE RESTRICT;
+      END IF;
+    END $$;
+  `));
+
+  console.log("[X-init] Group 6-6: growth_events FK 2개 OK");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 진입점: initXModeSchema
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * initXModeSchema
+ * initXModeSchema — PART 1 진입점
  *
  * SWIMNOTE X 모드 WP1 Migration 진입점.
  * pool-db-init.ts의 initPoolDb() 마지막 단계에서 호출됨.
+ *
+ * PART 1 실행 순서:
+ *   Group 1: ENUM + swimming_pools
+ *   Group 2: global_template_sets + diary_templates
+ *   Group 3: Audit 인프라
+ *   Group 5a: growth_events
+ *   Group 6:  curriculum 5개 테이블 + growth_events FK 2개
+ *
+ * PART 2 (initXModePart2Schema):
+ *   Group 4: parent_ai_daily_usage / parent_ai_usage_reservations
+ *   Group 5b: growth_reports
+ *   → 별도 승인 후 연결. 이번 WP에서 미호출.
  *
  * 실패 정책:
  *   - 각 Group 실패 시 throw → 호출 스택으로 전파 → 서버 기동 중단
@@ -704,25 +966,62 @@ export async function initXModeSchema(): Promise<void> {
     throw err;
   }
 
+  // Group 5a: growth_events (Group 4 Parent AI는 PART 2로 분리됨)
+  try {
+    await runGroup5a_GrowthEvents(db);
+    console.log("[SWIMNOTE X WP1] Group 5a 완료: growth_events");
+  } catch (err) {
+    console.error("[SWIMNOTE X WP1] Group 5a 실패 — 이후 Migration 중단:", err);
+    throw err;
+  }
+
+  // Group 6: curriculum 5개 테이블 + growth_events FK 2개
+  try {
+    await runGroup6_Curriculum(db);
+    console.log("[SWIMNOTE X WP1] Group 6 완료: curriculum + growth_events FK");
+  } catch (err) {
+    console.error("[SWIMNOTE X WP1] Group 6 실패 — 이후 Migration 중단:", err);
+    throw err;
+  }
+
+  console.log("[SWIMNOTE X WP1] ✅ PART 1 Migration 완료 (Group 1·2·3·5a·6)");
+}
+
+/**
+ * initXModePart2Schema — PART 2 진입점
+ *
+ * SWIMNOTE X 모드 PART 2 Migration 진입점.
+ * 이번 WP에서는 어디에도 연결하지 않음.
+ * 별도 승인 후 pool-db-init.ts에서 호출 예정.
+ *
+ * PART 2 실행 순서:
+ *   Group 4:  parent_ai_daily_usage + parent_ai_usage_reservations
+ *   Group 5b: growth_reports
+ *
+ * 금지: pool-db-init.ts / index.ts / Worker / Route에서 호출 금지
+ */
+export async function initXModePart2Schema(): Promise<void> {
+  const db = superAdminDb;
+
   // Group 4: Parent AI 사용량 추적
   try {
     await runGroup4_ParentAiUsage(db);
-    console.log("[SWIMNOTE X WP1] Group 4 완료: parent AI usage");
+    console.log("[SWIMNOTE X PART2] Group 4 완료: parent AI usage");
   } catch (err) {
-    console.error("[SWIMNOTE X WP1] Group 4 실패 — 이후 Migration 중단:", err);
+    console.error("[SWIMNOTE X PART2] Group 4 실패 — 이후 Migration 중단:", err);
     throw err;
   }
 
-  // Group 5: 성장판
+  // Group 5b: growth_reports
   try {
-    await runGroup5_Growth(db);
-    console.log("[SWIMNOTE X WP1] Group 5 완료: 성장판");
+    await runGroup5b_GrowthReports(db);
+    console.log("[SWIMNOTE X PART2] Group 5b 완료: growth_reports");
   } catch (err) {
-    console.error("[SWIMNOTE X WP1] Group 5 실패 — 이후 Migration 중단:", err);
+    console.error("[SWIMNOTE X PART2] Group 5b 실패 — 이후 Migration 중단:", err);
     throw err;
   }
 
-  console.log("[SWIMNOTE X WP1] ✅ 전체 Migration 완료 (M-A ~ M-J)");
+  console.log("[SWIMNOTE X PART2] ✅ PART 2 Migration 완료 (Group 4·5b)");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

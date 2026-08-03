@@ -50,13 +50,19 @@ if (!IS_WORKER && (Number.isNaN(port) || port <= 0)) {
 
 // DB 초기화 (CREATE TABLE IF NOT EXISTS / ADD COLUMN IF NOT EXISTS — 멱등)
 // 핵심 2개 완료 시 헬스체크를 200으로 전환 (Render 헬스체크 실패 방지)
+// 헌법 원칙: 필수 DB Migration 실패 시 setServerReady() 미호출 + 프로세스 종료
 Promise.all([
-  initPoolDb().catch((e) => console.error("[pool-db-init] 초기화 오류:", e.message)),
-  initSuperDb().catch((e) => console.error("[super-db-init] 초기화 오류:", e.message)),
-]).then(() => {
-  setServerReady();
-  console.log("[server] DB 초기화 완료 — 헬스체크 200 응답 시작");
-});
+  initPoolDb(),
+  initSuperDb(),
+])
+  .then(() => {
+    setServerReady();
+    console.log("[server] DB 초기화 완료 — 헬스체크 200 응답 시작");
+  })
+  .catch((error) => {
+    console.error("[FATAL] DB 초기화 실패 — 서버 기동 중단:", error);
+    process.exit(1);
+  });
 initV2PendingTable().catch((e) => console.error("[v2-init] parent_v2_pending 테이블 초기화 오류:", e.message));
 backfillPoolAdminRoles().catch((e) => console.error("[roles-backfill] 오류:", e.message));
 // 일회성: diary_templates에서 "오늘은 " 접두사 제거
