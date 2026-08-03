@@ -1,0 +1,287 @@
+SWIMNOTE X — WP1 구현 승인 전 최종 차단사항 정정 지시
+
+WP1 증거 제출 보고서를 검수했습니다.
+
+다음 항목은 확인됐습니다.
+
+* 운영 DB X 스키마는 v3.3.4와 일치
+* PART 2 테이블 3개는 데이터 0건
+* PART 2 기능 코드 참조 없음
+* curriculum 5개 테이블은 미생성
+* Migration 오류가 index.ts에서 삼켜짐
+* 백업 DB에는 X 스키마가 없음
+* 백업 DB의 일반 스키마도 운영 DB보다 오래된 상태
+
+그러나 현재 제안한 백업 DB 적용 방식에는 실행 불가능한 문제가 있으므로 아직 구현을 승인하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 확인된 차단 문제
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+제안한 방식:
+
+await initXModeSchema(superAdminDb);
+if (backupDb) {
+  await initXModeSchema(backupDb);
+}
+
+현재 백업 DB의 diary_templates에는 다음 컬럼이 없습니다.
+
+* scope
+* global_template_set_id
+* level_id
+* title
+* sort_order
+* teacher_id
+* source_template_id
+
+반면 현재 runGroup2_GlobalTemplate()의 M-E 사전 검증은 다음 쿼리를 먼저 실행합니다.
+
+SELECT id, scope, swimming_pool_id
+FROM diary_templates
+WHERE scope NOT IN ('global', 'teacher')
+   OR swimming_pool_id IS NULL;
+
+백업 DB에는 scope 컬럼이 없으므로 현재 함수 그대로 실행하면 Group 2에서 실패합니다.
+
+따라서 다음 문장은 현재 상태에서 성립하지 않습니다.
+
+initXModeSchema(backupDb)
+→ 백업 DB X 스키마 전체 적용
+→ standby sync 복구
+
+이 문제를 해결하기 전에는 WP1 코드를 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 이번 작업 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 코드 수정 없이 다음 조사와 정정 설계만 제출하십시오.
+
+새 기능이나 새 테이블을 추가하지 마십시오.
+
+조사 대상:
+
+1. pool-db-init.ts가 백업 DB에 실제로 적용하는 일반 스키마 범위
+2. 운영 DB에는 있고 백업 DB에는 없는 기존 일반 컬럼
+3. diary_templates 일반 스키마를 백업 DB에 맞추는 기존 초기화 코드 존재 여부
+4. users.web_pin_hash를 생성하는 기존 Migration 위치
+5. standby sync 대상 테이블별 운영/백업 스키마 차이
+6. initXModeSchema(backupDb) 실행 전 필요한 최소 선행조건
+7. 현재 코드만 재사용해 백업 DB를 최신 일반 스키마로 만들 수 있는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 코드 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 파일과 함수를 실제로 확인하십시오.
+
+* artifacts/api-server/src/migrations/pool-db-init.ts
+* artifacts/api-server/src/migrations/super-db-init.ts
+* artifacts/api-server/src/migrations/pool-db-x-init.ts
+* artifacts/api-server/src/jobs/standby-sync.ts
+* @workspace/db의 getBackupDb
+* diary_templates 생성·확장 SQL 전체
+* users.web_pin_hash 생성 SQL
+* backupDb 대상 DDL 실행 함수
+
+각 결과는 다음 중 하나로 표시하십시오.
+
+* REPOSITORY_VERIFIED
+* ENVIRONMENT_VERIFIED
+* NOT_FOUND
+* NEEDS_VERIFICATION
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 반드시 답할 질문
+━━━━━━━━━━━━━━━━━━━━━━
+
+질문 1
+
+pool-db-init.ts가 백업 DB를 초기화한다고 보고했는데, 왜 백업 DB의 diary_templates는 초기 스키마 상태입니까?
+
+다음을 실제 코드와 로그로 설명하십시오.
+
+* backupDb 초기화 대상 테이블
+* backupDb DDL 실행 범위
+* diary_templates 최신 컬럼이 누락된 원인
+* 초기화 도중 오류 발생 여부
+* 오류가 삼켜졌는지 여부
+
+질문 2
+
+현재 Repository 안에 백업 DB의 diary_templates를 운영 DB 구조로 올리는 기존 SQL이 있습니까?
+
+있으면:
+
+* 파일
+* 함수
+* 라인
+* 실행 조건
+* 실제 적용 여부
+
+없으면 NOT_FOUND로 보고하십시오.
+
+질문 3
+
+현재 initXModeSchema(backupDb)를 그대로 실행하면 정확히 어느 SQL에서 실패합니까?
+
+실행하지 말고 코드 흐름으로 증명하십시오.
+
+최소 확인:
+
+* Group 1
+* Group 2 M-C
+* Group 2 M-D
+* M-E 1차 검증
+* 예상 PostgreSQL 오류
+
+질문 4
+
+백업 DB의 일반 스키마를 운영 DB와 맞추지 않고 X Migration만 부분 적용할 경우 standby sync가 정상화됩니까?
+
+다음 테이블을 구분하십시오.
+
+* swimming_pools
+* users
+* diary_templates
+* subscription_plans
+* backup_settings
+* platform_banners
+* pool_credits
+
+각 테이블별로:
+
+* 현재 실패 여부
+* X와 관련 있는지
+* WP1에서 해결되는지
+* WP1 후에도 남는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 정정 설계안 제출 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 Repository 구조상 가능한 방식을 조사해서 제출하십시오.
+
+임의 적용하지 마십시오.
+
+방식 A
+
+기존 일반 백업 DB 초기화 코드를 먼저 정상 실행한 뒤:
+
+일반 스키마 최신화
+→ initXModeSchema(backupDb)
+
+방식 B
+
+백업 DB 전용 기존 Migration 진입점이 있다면 해당 진입점을 사용:
+
+기존 백업 Migration
+→ X Migration
+
+방식 C
+
+기존 코드로 해결 불가능하다면:
+
+WP1에서는 운영 DB curriculum과 Migration 분리만 구현
+백업 DB 스키마 복구는 별도 WP 또는 별도 승인 작업으로 분리
+
+새로운 백업 DB 전체 Migration 시스템을 임의로 만들지 마십시오.
+
+각 방식에 대해 다음만 제출하십시오.
+
+* 실제 Repository에서 가능한지
+* 수정 파일
+* 장점
+* 위험
+* WP1 범위 충돌 여부
+* 일반모드 영향
+* 권장 방식
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Migration 실패 정책 정정
+━━━━━━━━━━━━━━━━━━━━━━
+
+운영 DB Migration 실패 시 서버 기동 중단 원칙은 유지합니다.
+
+필수 운영 DB Migration 실패
+→ 서버 기동 중단
+
+백업 DB 실패 시 처리 정책은 아직 확정하지 않았습니다.
+
+따라서 다음을 임의 구현하지 마십시오.
+
+백업 DB 실패
+→ console.warn
+→ 서버 계속 기동
+
+백업 DB가 현재 운영상 필수인지, 선택적 장애로 취급되는지는 기존 서비스 구조와 데이터 보호 정책을 조사한 뒤 보고하십시오.
+
+이번 정정 설계서에 다음을 제출하십시오.
+
+* 백업 DB 장애 시 현재 서비스 영향
+* standby sync 역할
+* 백업 DB 실패를 무시할 경우 데이터 보호 영향
+* 서버 기동 중단과 계속 기동의 각각의 위험
+* 기존 운영 정책
+* 권장안
+
+사용자 승인 전 정책을 코드에 넣지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Curriculum DDL은 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 정정 설계서 v2에 제출한 curriculum 5개 테이블 DDL은 이번 작업에서 다시 설계하지 마십시오.
+
+다음 구조는 그대로 유지합니다.
+
+* curriculum_versions
+* curriculum_items
+* student_curriculum_assignments
+* curriculum_requests
+* curriculum_request_files
+* growth_events FK RESTRICT
+* student_curriculum_assignments에 curriculum_item_id 없음
+
+이번 답변에서는 Curriculum 설계를 추가하거나 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 최종 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 백업 DB 일반 스키마 초기화 실제 흐름
+2. diary_templates 스키마 드리프트 원인
+3. users.web_pin_hash 드리프트 원인
+4. initXModeSchema(backupDb) 예상 실패 지점
+5. standby sync 테이블별 실패 분류
+6. 기존 코드 재사용 가능 여부
+7. 방식 A·B·C 검토 결과
+8. 백업 DB 실패 정책 검토
+9. 최종 권장 실행안
+10. 수정 예정 파일
+11. 일반모드 영향
+12. WP1 구현 승인 가능 여부 자체 판단
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 제출 후 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번에도 조사와 정정 설계만 제출하고 멈추십시오.
+
+금지:
+
+* 코드 수정
+* Migration 수정
+* DB 변경
+* 백업 DB 컬럼 생성
+* curriculum 테이블 생성
+* index.ts 수정
+* 서버 재시작
+* Commit
+* Push
+* OTA
+* Render 배포
+
+추가 기능이나 추가 설계는 제안하지 마십시오.
