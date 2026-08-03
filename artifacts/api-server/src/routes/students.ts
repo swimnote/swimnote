@@ -830,44 +830,57 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
       if (!validateEffectiveDate(rawRemEffDate)) return err(res, 400, "INVALID_EFFECTIVE_DATE");
     }
     const remEffectiveDate = rawRemEffDate || today;
-    const newIds = currentIds.filter((id: string) => id !== class_group_id);
-    const newPrimaryId = newIds[0] || null;
-
-    let labels = "";
-    if (newIds.length > 0) {
-      const classes = await Promise.all(newIds.map(async (id: string) => {
-        const [cg] = await db.select({
-          schedule_days: classGroupsTable.schedule_days,
-          schedule_time: classGroupsTable.schedule_time,
-        }).from(classGroupsTable).where(eq(classGroupsTable.id, id)).limit(1);
-        return cg || null;
-      }));
-      labels = classes.filter(Boolean).map((c: any) => {
-        const days = c.schedule_days.split(",").map((d: string) => d.trim());
-        const hour = c.schedule_time.split(":")[0];
-        return days.map((d: string) => `${d}${hour}`).join("·");
-      }).join("·");
-    }
 
     // ── 단일 트랜잭션: history 기록 + students 갱신 ──────────────────────
+    // 안 A: 동시 요청 시 lost update 방지를 위해 locked row 기준으로 모든 값 계산
+    // currentIds / newIds / newPrimaryId / schedule_labels 는 모두 tx 내에서 결정한다.
+    let txNewIds: string[] = []; // 응답 및 change_log에 사용하기 위해 외부로 전달
     await db.transaction(async (tx) => {
-      // SELECT FOR UPDATE: 동일 학생에 대한 동시 반 이탈 요청을 직렬화하기 위한 잠금 목적이다.
-      // 실제 업데이트 데이터(newIds, remEffectiveDate 등)는 tx 진입 전 결정된 값을 사용한다.
+      // 1. SELECT FOR UPDATE: 잠금 확보 + 최신 row 읽기
       const lockedRows = await tx.execute(sql`
         SELECT id, status, class_group_id, assigned_class_ids
         FROM students WHERE id = ${req.params.id} LIMIT 1 FOR UPDATE
       `);
-      const locked = lockedRows.rows[0];
+      const locked = lockedRows.rows[0] as any;
       if (!locked) throw new Error("STUDENT_NOT_FOUND");
-      // history left_at 설정 (특정 반 이탈)
+
+      // 2. locked row 기준 currentIds 파싱
+      const lockedCurrentIds: string[] = Array.isArray(locked.assigned_class_ids)
+        ? locked.assigned_class_ids
+        : (typeof locked.assigned_class_ids === "string"
+            ? JSON.parse(locked.assigned_class_ids || "[]") : []);
+
+      // 3. 제거 대상 반 반영 → newIds / newPrimaryId
+      const lockedNewIds = lockedCurrentIds.filter((id: string) => id !== class_group_id);
+      const lockedNewPrimaryId = lockedNewIds[0] || null;
+      txNewIds = lockedNewIds;
+
+      // 4. 남은 반의 schedule_labels 재계산 (tx 내에서 class_groups 조회)
+      let lockedLabels = "";
+      if (lockedNewIds.length > 0) {
+        const cgDataList: Array<{ schedule_days: string; schedule_time: string }> = [];
+        for (const cid of lockedNewIds) {
+          const cgResult = await tx.execute(sql`
+            SELECT schedule_days, schedule_time FROM class_groups WHERE id = ${cid} LIMIT 1
+          `);
+          if (cgResult.rows[0]) cgDataList.push(cgResult.rows[0] as any);
+        }
+        lockedLabels = cgDataList.map((c: any) => {
+          const days = (c.schedule_days || "").split(",").map((d: string) => d.trim());
+          const hour = (c.schedule_time || "").split(":")[0];
+          return days.map((d: string) => `${d}${hour}`).join("·");
+        }).join("·");
+      }
+
+      // 5. history left_at 설정 (특정 반 이탈)
       await closeClassHistory(tx, req.params.id, class_group_id, remEffectiveDate);
 
-      // 3) students 캐시 갱신
+      // 6. students 캐시 갱신 (locked row 기준 계산값 사용)
       await tx.execute(sql`
         UPDATE students SET
-          assigned_class_ids = ${JSON.stringify(newIds)}::jsonb,
-          class_group_id     = ${newPrimaryId},
-          schedule_labels    = ${labels || null},
+          assigned_class_ids = ${JSON.stringify(lockedNewIds)}::jsonb,
+          class_group_id     = ${lockedNewPrimaryId},
+          schedule_labels    = ${lockedLabels || null},
           updated_at         = NOW()
         WHERE id = ${req.params.id}
       `);
@@ -892,7 +905,8 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
       });
     } catch (logErr) { console.error("[change_log] write error:", logErr); }
 
-    return res.json({ success: true, remaining_classes: newIds.length, effective_date: remEffectiveDate });
+    // 응답값도 잠금 후 계산한 txNewIds 기준 (잠금 전 계산값 반환 금지)
+    return res.json({ success: true, remaining_classes: txNewIds.length, effective_date: remEffectiveDate });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
 });
 
