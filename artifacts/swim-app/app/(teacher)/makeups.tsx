@@ -277,11 +277,13 @@ export default function MakeupsScreen() {
     const occDate = selectedOccurrence.occurrence_date;
     setAssigning(true);
     try {
+      // 서버 응답 occ 기준 class_group_id 사용 (selectedClassId는 화면 표시용)
+      const occClassId = selectedOccurrence.class_group_id;
       if (selectedOccurrence.is_future) {
         const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/assign`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ class_group_id: selectedClassId, assigned_date: occDate }),
+          body: JSON.stringify({ class_group_id: occClassId, assigned_date: occDate }),
         });
         const ct = r.headers?.get?.("content-type") ?? "";
         const isJson = ct.includes("application/json");
@@ -301,7 +303,7 @@ export default function MakeupsScreen() {
         const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/complete-direct`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ date: occDate, class_group_id: selectedClassId }),
+          body: JSON.stringify({ date: occDate, class_group_id: occClassId }),
         });
         const ct = r.headers?.get?.("content-type") ?? "";
         const isJson = ct.includes("application/json");

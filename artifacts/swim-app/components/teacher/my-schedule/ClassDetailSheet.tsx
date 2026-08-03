@@ -278,9 +278,10 @@ export default function ClassDetailSheet({
   }
 
   /** 단계 3: 날짜 선택 후 저장 (미래=assign, 당일·과거=complete-direct) */
-  async function completeMakeupWithDate(mk: any, targetClassId: string, occ: MakeupOccurrence) {
+  async function completeMakeupWithDate(mk: any, _targetClassId: string, occ: MakeupOccurrence) {
     if (makeupSaving) return;
-    const { occurrence_date: occurrenceDate, is_full: isFull, is_future: isFuture } = occ;
+    // 서버 응답 occ의 class_group_id/occurrence_date를 신뢰 (_targetClassId는 화면 표시용)
+    const { occurrence_date: occurrenceDate, class_group_id: occClassId, is_full: isFull, is_future: isFuture } = occ;
 
     const doSave = async () => {
       setMakeupSaving(mk.id);
@@ -289,11 +290,11 @@ export default function ClassDetailSheet({
           const res = await apiRequest(token, `/teacher/makeups/${mk.id}/assign`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ class_group_id: targetClassId, assigned_date: occurrenceDate }),
+            body: JSON.stringify({ class_group_id: occClassId, assigned_date: occurrenceDate }),
           });
           if (res.ok) {
             setMakeupList(prev => prev.filter(m => m.id !== mk.id));
-            setSelectedMakeupStudent(null); setSelectedMakeupClassId(null); setShowMakeupPicker(false);
+            resetMakeupPickerState(); setShowMakeupPicker(false);
             onStudentsChanged?.();
           } else {
             const body = await res.json().catch(() => ({}));
@@ -303,11 +304,11 @@ export default function ClassDetailSheet({
           const res = await apiRequest(token, `/teacher/makeups/${mk.id}/complete-direct`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ date: occurrenceDate, class_group_id: targetClassId }),
+            body: JSON.stringify({ date: occurrenceDate, class_group_id: occClassId }),
           });
           if (res.ok) {
             setMakeupList(prev => prev.filter(m => m.id !== mk.id));
-            setSelectedMakeupStudent(null); setSelectedMakeupClassId(null); setShowMakeupPicker(false);
+            resetMakeupPickerState(); setShowMakeupPicker(false);
             onStudentsChanged?.();
           } else {
             const body = await res.json().catch(() => ({}));
