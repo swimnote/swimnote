@@ -9,6 +9,7 @@ import { ChevronRight, CircleAlert, Users, UserX, X } from "lucide-react-native"
 import { apiRequest, clearApiCache } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import PastelColorPicker from "@/components/common/PastelColorPicker";
+import { SubSheetModal } from "@/components/common/SubSheetModal";
 import { WEEKLY_BADGE } from "@/utils/studentUtils";
 import { ChangeLogItem, StudentItem, todayDateStr } from "./utils";
 
@@ -565,225 +566,209 @@ export default function ClassDetailSheet({
       </Modal>
 
       {moveStudent && (
-        <Modal visible animationType="slide" transparent onRequestClose={() => setMoveStudent(null)} statusBarTranslucent>
-          <Pressable style={cds.backdrop} onPress={() => setMoveStudent(null)}>
-            <Pressable style={[cds.sheet, { height: "55%" }]} onPress={() => {}}>
-              <View style={cds.handle} />
+        <SubSheetModal
+          visible
+          onClose={() => { setMoveStudent(null); setMovingToClassId(null); }}
+          height="55%"
+          title="반이동"
+          subtitle={`${moveStudent.name} · 이동할 반을 선택하세요`}
+        >
+          <Pressable
+            style={cds.unassignBtn}
+            onPress={() => { setUnassignStudent(moveStudent); setShowUnassignTiming(true); }}
+          >
+            <UserX size={14} color="#D97706" />
+            <Text style={cds.unassignBtnTxt}>미배정으로 이동</Text>
+          </Pressable>
+
+          <ScrollView
+            style={{ flex: 1, minHeight: 0 }}
+            contentContainerStyle={{ paddingBottom: 20 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {moveTargetClasses.length === 0 ? (
+              <View style={cds.empty}>
+                <CircleAlert size={24} color={C.textMuted} />
+                <Text style={cds.emptyText}>이동 가능한 다른 반이 없습니다</Text>
+              </View>
+            ) : moveTargetClasses.map(g => {
+              const isSelected = movingToClassId === g.id;
+              return (
+                <Pressable
+                  key={g.id}
+                  style={[cds.moveClassRow, isSelected && { backgroundColor: themeColor + "15", borderColor: themeColor }]}
+                  onPress={() => setMovingToClassId(g.id)}
+                >
+                  <LucideIcon
+                    name={isSelected ? "check-circle" : "circle"}
+                    size={16}
+                    color={isSelected ? themeColor : C.textMuted}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[cds.moveClassName, isSelected && { color: themeColor }]}>{g.name}</Text>
+                    <Text style={cds.moveClassSub}>{g.schedule_days.split(",").join("·")} · {g.schedule_time}</Text>
+                  </View>
+                  <ChevronRight size={14} color={C.textMuted} />
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          {movingToClassId && (
+            <View style={{ paddingHorizontal: 16, paddingBottom: 16, paddingTop: 8 }}>
+              <Pressable
+                style={[cds.moveConfirmBtn, { backgroundColor: themeColor, opacity: movingStudent ? 0.6 : 1 }]}
+                onPress={doMoveStudent}
+                disabled={movingStudent}
+              >
+                {movingStudent
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={cds.moveConfirmTxt}>이동 확정</Text>
+                }
+              </Pressable>
+            </View>
+          )}
+        </SubSheetModal>
+      )}
+
+      {/* 보충수업 모달 (2단계) — 헤더가 단계별로 달라 title 생략, 각 단계 헤더를 children 으로 제공 */}
+      {showMakeupPicker && (
+        <SubSheetModal
+          visible
+          onClose={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }}
+          height="60%"
+        >
+          {selectedMakeupStudent === null ? (
+            /* 단계 1: 보강 대기 학생 선택 */
+            <>
               <View style={cds.sheetHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={cds.sheetTitle}>반이동</Text>
-                  <Text style={cds.sheetSub}>{moveStudent.name} · 이동할 반을 선택하세요</Text>
+                  <Text style={cds.sheetTitle}>보충수업</Text>
+                  <Text style={cds.sheetSub}>보강 대기 학생을 선택하세요</Text>
                 </View>
-                <Pressable onPress={() => { setMoveStudent(null); setMovingToClassId(null); }} style={cds.closeBtn}>
+                <Pressable onPress={() => setShowMakeupPicker(false)} style={cds.closeBtn}>
                   <X size={20} color={C.textSecondary} />
                 </Pressable>
               </View>
-              <Pressable
-                style={cds.unassignBtn}
-                onPress={() => { setUnassignStudent(moveStudent); setShowUnassignTiming(true); }}
-              >
-                <UserX size={14} color="#D97706" />
-                <Text style={cds.unassignBtnTxt}>미배정으로 이동</Text>
-              </Pressable>
-
+              {makeupLoading ? (
+                <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                  <ActivityIndicator color="#4F46E5" />
+                </View>
+              ) : makeupList.length === 0 ? (
+                <View style={cds.empty}>
+                  <Users size={32} color={C.textMuted} />
+                  <Text style={cds.emptyText}>보강 대기 중인 학생이 없습니다</Text>
+                </View>
+              ) : (
+                <ScrollView
+                  style={{ flex: 1, minHeight: 0 }}
+                  contentContainerStyle={{ paddingBottom: 20 }}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {makeupList.map((mk: any) => (
+                    <Pressable
+                      key={mk.id}
+                      style={({ pressed }) => [cds.moveClassRow, pressed && { opacity: 0.7 }]}
+                      onPress={() => setSelectedMakeupStudent(mk)}
+                      disabled={!!makeupSaving}
+                    >
+                      <LucideIcon name="user" size={16} color={C.textMuted} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={cds.moveClassName}>{mk.student_name}</Text>
+                        <Text style={cds.moveClassSub}>결석일 {mk.absence_date}{mk.original_class_group_name ? ` · ${mk.original_class_group_name}` : ""}</Text>
+                      </View>
+                      <ChevronRight size={14} color={C.textMuted} />
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+            </>
+          ) : (
+            /* 단계 2: 합류할 반 선택 */
+            <>
+              <View style={cds.sheetHeader}>
+                <Pressable onPress={() => setSelectedMakeupStudent(null)} style={{ padding: 4, marginRight: 8 }}>
+                  <Text style={{ fontSize: 14, color: "#4F46E5", fontFamily: "Pretendard-Regular" }}>← 뒤로</Text>
+                </Pressable>
+                <View style={{ flex: 1 }}>
+                  <Text style={cds.sheetTitle}>{selectedMakeupStudent.student_name}</Text>
+                  <Text style={cds.sheetSub}>합류할 반을 선택하세요</Text>
+                </View>
+                <Pressable onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }} style={cds.closeBtn}>
+                  <X size={20} color={C.textSecondary} />
+                </Pressable>
+              </View>
               <ScrollView
                 style={{ flex: 1, minHeight: 0 }}
                 contentContainerStyle={{ paddingBottom: 20 }}
                 showsVerticalScrollIndicator={false}
               >
-                {moveTargetClasses.length === 0 ? (
-                  <View style={cds.empty}>
-                    <CircleAlert size={24} color={C.textMuted} />
-                    <Text style={cds.emptyText}>이동 가능한 다른 반이 없습니다</Text>
-                  </View>
-                ) : moveTargetClasses.map(g => {
-                  const isSelected = movingToClassId === g.id;
+                {/* 현재 반을 첫 번째로 표시 */}
+                {[group, ...(classGroups || []).filter(g => g.id !== group.id)].map((cls, idx) => {
+                  const isSaving = makeupSaving === selectedMakeupStudent.id;
+                  const isCurrentClass = cls.id === group.id;
                   return (
                     <Pressable
-                      key={g.id}
-                      style={[cds.moveClassRow, isSelected && { backgroundColor: themeColor + "15", borderColor: themeColor }]}
-                      onPress={() => setMovingToClassId(g.id)}
+                      key={cls.id}
+                      style={({ pressed }) => [
+                        cds.moveClassRow,
+                        isCurrentClass && { backgroundColor: "#EEF2FF", borderColor: "#C7D2FE" },
+                        pressed && { opacity: 0.7 },
+                      ]}
+                      onPress={() => completeMakeupWithClass(selectedMakeupStudent, cls.id)}
+                      disabled={isSaving}
                     >
-                      <LucideIcon
-                        name={isSelected ? "check-circle" : "circle"}
-                        size={16}
-                        color={isSelected ? themeColor : C.textMuted}
-                      />
+                      <LucideIcon name={isCurrentClass ? "check-circle" : "circle"} size={16} color={isCurrentClass ? "#4F46E5" : C.textMuted} />
                       <View style={{ flex: 1 }}>
-                        <Text style={[cds.moveClassName, isSelected && { color: themeColor }]}>{g.name}</Text>
-                        <Text style={cds.moveClassSub}>{g.schedule_days.split(",").join("·")} · {g.schedule_time}</Text>
+                        <Text style={[cds.moveClassName, isCurrentClass && { color: "#4F46E5" }]}>
+                          {cls.name}{isCurrentClass ? " (현재 반)" : ""}
+                        </Text>
+                        <Text style={cds.moveClassSub}>{(cls.schedule_days || "").split(",").join("·")} {cls.schedule_time || ""}</Text>
                       </View>
-                      <ChevronRight size={14} color={C.textMuted} />
+                      {isSaving
+                        ? <ActivityIndicator size="small" color="#4F46E5" />
+                        : <ChevronRight size={14} color={C.textMuted} />
+                      }
                     </Pressable>
                   );
                 })}
               </ScrollView>
-              {movingToClassId && (
-                <View style={{ paddingHorizontal: 16, paddingBottom: 16, paddingTop: 8 }}>
-                  <Pressable
-                    style={[cds.moveConfirmBtn, { backgroundColor: themeColor, opacity: movingStudent ? 0.6 : 1 }]}
-                    onPress={doMoveStudent}
-                    disabled={movingStudent}
-                  >
-                    {movingStudent
-                      ? <ActivityIndicator color="#fff" />
-                      : <Text style={cds.moveConfirmTxt}>이동 확정</Text>
-                    }
-                  </Pressable>
-                </View>
-              )}
-            </Pressable>
-          </Pressable>
-        </Modal>
-      )}
-
-      {/* 보충수업 모달 (2단계) */}
-      {showMakeupPicker && (
-        <Modal visible animationType="slide" transparent onRequestClose={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }} statusBarTranslucent>
-          <Pressable style={cds.backdrop} onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }}>
-            <Pressable style={[cds.sheet, { height: "60%" }]} onPress={() => {}}>
-              <View style={cds.handle} />
-              {selectedMakeupStudent === null ? (
-                /* 단계 1: 보강 대기 학생 선택 */
-                <>
-                  <View style={cds.sheetHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={cds.sheetTitle}>보충수업</Text>
-                      <Text style={cds.sheetSub}>보강 대기 학생을 선택하세요</Text>
-                    </View>
-                    <Pressable onPress={() => setShowMakeupPicker(false)} style={cds.closeBtn}>
-                      <X size={20} color={C.textSecondary} />
-                    </Pressable>
-                  </View>
-                  {makeupLoading ? (
-                    <View style={{ alignItems: "center", paddingVertical: 40 }}>
-                      <ActivityIndicator color="#4F46E5" />
-                    </View>
-                  ) : makeupList.length === 0 ? (
-                    <View style={cds.empty}>
-                      <Users size={32} color={C.textMuted} />
-                      <Text style={cds.emptyText}>보강 대기 중인 학생이 없습니다</Text>
-                    </View>
-                  ) : (
-                    <ScrollView
-                      style={{ flex: 1, minHeight: 0 }}
-                      contentContainerStyle={{ paddingBottom: 20 }}
-                      showsVerticalScrollIndicator={false}
-                    >
-                      {makeupList.map((mk: any) => (
-                        <Pressable
-                          key={mk.id}
-                          style={({ pressed }) => [cds.moveClassRow, pressed && { opacity: 0.7 }]}
-                          onPress={() => setSelectedMakeupStudent(mk)}
-                          disabled={!!makeupSaving}
-                        >
-                          <LucideIcon name="user" size={16} color={C.textMuted} />
-                          <View style={{ flex: 1 }}>
-                            <Text style={cds.moveClassName}>{mk.student_name}</Text>
-                            <Text style={cds.moveClassSub}>결석일 {mk.absence_date}{mk.original_class_group_name ? ` · ${mk.original_class_group_name}` : ""}</Text>
-                          </View>
-                          <ChevronRight size={14} color={C.textMuted} />
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  )}
-                </>
-              ) : (
-                /* 단계 2: 합류할 반 선택 */
-                <>
-                  <View style={cds.sheetHeader}>
-                    <Pressable onPress={() => setSelectedMakeupStudent(null)} style={{ padding: 4, marginRight: 8 }}>
-                      <Text style={{ fontSize: 14, color: "#4F46E5", fontFamily: "Pretendard-Regular" }}>← 뒤로</Text>
-                    </Pressable>
-                    <View style={{ flex: 1 }}>
-                      <Text style={cds.sheetTitle}>{selectedMakeupStudent.student_name}</Text>
-                      <Text style={cds.sheetSub}>합류할 반을 선택하세요</Text>
-                    </View>
-                    <Pressable onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }} style={cds.closeBtn}>
-                      <X size={20} color={C.textSecondary} />
-                    </Pressable>
-                  </View>
-                  <ScrollView
-                    style={{ flex: 1, minHeight: 0 }}
-                    contentContainerStyle={{ paddingBottom: 20 }}
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {/* 현재 반을 첫 번째로 표시 */}
-                    {[group, ...(classGroups || []).filter(g => g.id !== group.id)].map((cls, idx) => {
-                      const isSaving = makeupSaving === selectedMakeupStudent.id;
-                      const isCurrentClass = cls.id === group.id;
-                      return (
-                        <Pressable
-                          key={cls.id}
-                          style={({ pressed }) => [
-                            cds.moveClassRow,
-                            isCurrentClass && { backgroundColor: "#EEF2FF", borderColor: "#C7D2FE" },
-                            pressed && { opacity: 0.7 },
-                          ]}
-                          onPress={() => completeMakeupWithClass(selectedMakeupStudent, cls.id)}
-                          disabled={isSaving}
-                        >
-                          <LucideIcon name={isCurrentClass ? "check-circle" : "circle"} size={16} color={isCurrentClass ? "#4F46E5" : C.textMuted} />
-                          <View style={{ flex: 1 }}>
-                            <Text style={[cds.moveClassName, isCurrentClass && { color: "#4F46E5" }]}>
-                              {cls.name}{isCurrentClass ? " (현재 반)" : ""}
-                            </Text>
-                            <Text style={cds.moveClassSub}>{(cls.schedule_days || "").split(",").join("·")} {cls.schedule_time || ""}</Text>
-                          </View>
-                          {isSaving
-                            ? <ActivityIndicator size="small" color="#4F46E5" />
-                            : <ChevronRight size={14} color={C.textMuted} />
-                          }
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                </>
-              )}
-            </Pressable>
-          </Pressable>
-        </Modal>
+            </>
+          )}
+        </SubSheetModal>
       )}
 
       {showUnassignTiming && unassignStudent && (
-        <Modal visible animationType="slide" transparent onRequestClose={() => setShowUnassignTiming(false)} statusBarTranslucent>
-          <Pressable style={cds.backdrop} onPress={() => setShowUnassignTiming(false)}>
-            <Pressable style={[cds.sheet, { maxHeight: "45%" }]} onPress={() => {}}>
-              <View style={cds.handle} />
-              <View style={[cds.sheetHeader, { paddingBottom: 12 }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={cds.sheetTitle}>적용 시점 선택</Text>
-                  <Text style={cds.sheetSub}>{unassignStudent.name} · 미배정으로 이동</Text>
-                </View>
-                <Pressable onPress={() => setShowUnassignTiming(false)} style={cds.closeBtn}>
-                  <X size={20} color={C.textSecondary} />
-                </Pressable>
+        <SubSheetModal
+          visible
+          onClose={() => setShowUnassignTiming(false)}
+          maxHeight="45%"
+          title="적용 시점 선택"
+          subtitle={`${unassignStudent.name} · 미배정으로 이동`}
+          headerPaddingBottom={12}
+        >
+          {([
+            { timing: "now"        as const, label: "오늘부터",     sub: "즉시 반 소속 해제" },
+            { timing: "next_week"  as const, label: "다음 주부터",  sub: "다음 주 월요일부터 적용" },
+            { timing: "week_after" as const, label: "다다음 주부터",sub: "다다음 주 월요일부터 적용" },
+          ]).map(opt => (
+            <Pressable
+              key={opt.timing}
+              style={[cds.timingRow, unassigningStudent && { opacity: 0.5 }]}
+              onPress={() => doUnassignStudent(opt.timing)}
+              disabled={unassigningStudent}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={cds.timingLabel}>{opt.label}</Text>
+                <Text style={cds.timingSub}>{opt.sub}</Text>
               </View>
-              {([
-                { timing: "now"        as const, label: "오늘부터",     sub: "즉시 반 소속 해제" },
-                { timing: "next_week"  as const, label: "다음 주부터",  sub: "다음 주 월요일부터 적용" },
-                { timing: "week_after" as const, label: "다다음 주부터",sub: "다다음 주 월요일부터 적용" },
-              ]).map(opt => (
-                <Pressable
-                  key={opt.timing}
-                  style={[cds.timingRow, unassigningStudent && { opacity: 0.5 }]}
-                  onPress={() => doUnassignStudent(opt.timing)}
-                  disabled={unassigningStudent}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={cds.timingLabel}>{opt.label}</Text>
-                    <Text style={cds.timingSub}>{opt.sub}</Text>
-                  </View>
-                  {unassigningStudent
-                    ? <ActivityIndicator size="small" color="#D97706" />
-                    : <ChevronRight size={16} color={C.textMuted} />
-                  }
-                </Pressable>
-              ))}
-              <View style={{ height: 20 }} />
+              {unassigningStudent
+                ? <ActivityIndicator size="small" color="#D97706" />
+                : <ChevronRight size={16} color={C.textMuted} />
+              }
             </Pressable>
-          </Pressable>
-        </Modal>
+          ))}
+          <View style={{ height: 20 }} />
+        </SubSheetModal>
       )}
 
     </>
@@ -795,9 +780,6 @@ const cds = StyleSheet.create({
   mainSheet:       { position: "absolute", bottom: 0, left: 0, right: 0,
                      backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
                      height: "75%" },
-  sheet:           { position: "absolute", bottom: 0, left: 0, right: 0,
-                     backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
-                     maxHeight: "75%", paddingBottom: 32 },
   handle:          { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
                      alignSelf: "center", marginTop: 10, marginBottom: 4 },
   sheetHeader:     { flexDirection: "row", alignItems: "flex-start", padding: 16, paddingTop: 8 },
