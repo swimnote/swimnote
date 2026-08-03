@@ -1,0 +1,205 @@
+[SWIMNOTE 보강 회차 선택 — 배포 전 최종 검수 지시]
+
+현재 완료 보고서는 클라이언트 파일 2개만 수정되어 있어 배포 승인하지 않는다.
+
+코드 추가 수정 전에 아래 사실부터 실제 Repository 기준으로 검증해 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. eligible-occurrences API 실존 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+클라이언트가 호출하는 정확한 URL을 제출한다.
+
+예:
+GET /teacher/makeups/:makeupId/eligible-occurrences?class_group_id=...
+
+다음을 실제 코드로 제출:
+
+- 서버 라우트 파일
+- 라우트 등록 위치
+- 함수 시작·종료 라인
+- Request query
+- Response JSON
+- 인증·pool 권한 검증
+- 해당 API가 언제 구현됐는지 git SHA
+
+API가 존재하지 않으면 현재 구현은 미완성이므로 즉시 보고하고 멈춘다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. occurrence 생성 로직 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 또는 클라이언트 중 어디서 회차를 생성하는지 명확히 제출한다.
+
+각 occurrence가 다음 조건을 만족하는지 확인:
+
+- occurrence_date >= absence_date
+- occurrence_date <= expire_at
+- 선택 반의 schedule_days와 실제 요일 일치
+- Asia/Seoul 날짜 기준
+- 오늘 포함
+- 과거 포함
+- 미래 포함
+- 동일 class_group_id + occurrence_date 중복 제거
+- 비활성·삭제된 반 제외
+- 다른 수영장 반 제외
+
+실제 생성 함수와 날짜 비교식을 원문으로 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 정원 마감 반 반환 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 eligible-classes에는
+
+HAVING available_slots > 0
+
+조건이 있었다.
+
+eligible-occurrences 또는 반 목록 조회에서 정원 마감 반이 실제로 반환되는지 확인한다.
+
+필수 결과:
+
+- 미래 회차 + available_slots <= 0:
+  기존 정책대로 저장 차단
+- 오늘·과거 회차 + available_slots <= 0:
+  목록 표시
+  경고 후 complete-direct 허용
+
+단순히 클라이언트에서 is_full 배지만 표시하고
+서버 응답에서 정원 마감 반이 빠진다면 구현 실패다.
+
+실제 SQL의 HAVING/WHERE 조건을 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 저장 API 서버 검증 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 API의 실제 서버 코드를 확인한다.
+
+- PATCH /teacher/makeups/:id/assign
+- PATCH /teacher/makeups/:id/complete-direct
+
+다음 조건을 서버가 검증하는지 표로 제출:
+
+1. 날짜 형식
+2. 결석일 이전 차단
+3. 만료일 이후 차단
+4. 해당 반 수업 요일인지
+5. 같은 swimming_pool 소속인지
+6. 반 active 여부
+7. completed/cancelled 상태 재처리 차단
+8. 미래 정원 마감 저장 차단
+9. 오늘·과거 정원 초과 사후 처리 허용
+10. 동일 요청 재시도 중복 방지
+
+클라이언트 분기만으로 처리하고 서버 검증이 없다면 미완성이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. ClassDetailSheet 실제 흐름 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 실제 함수명과 diff로 제출:
+
+- selectMakeupClass()
+- eligible-occurrences 요청
+- occurrence 상태 초기화
+- 날짜 선택
+- completeMakeupWithDate()
+- 미래면 assign
+- 오늘·과거면 complete-direct
+- 성공 후 보강 대기 목록 갱신
+- 서브모달 닫을 때 모든 상태 초기화
+
+특히 아래 state가 닫기·재열기·다른 학생 선택 시 남지 않는지 확인:
+
+- selectedMakeupClassId
+- occurrences
+- occLoading
+- occError
+- selectedOccurrence
+- 선택한 makeup session
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. makeups.tsx 실제 흐름 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+doAssign() 분기 원문을 제출한다.
+
+다음 기준이어야 한다.
+
+selectedOccurrence.is_future === true
+→ /assign
+
+selectedOccurrence.is_today === true
+또는 selectedOccurrence.is_past === true
+→ /complete-direct
+
+클라이언트의 is_future 값을 무조건 신뢰하지 않고
+서버가 assigned_date 기준으로 다시 검증하는지 함께 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. API 실패 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+두 화면 모두 다음 상태를 구분해야 한다.
+
+- loading
+- loaded + empty
+- error
+- retry
+
+API 실패를 빈 배열로 바꿔
+“보강 가능한 회차가 없습니다”라고 표시하면 안 된다.
+
+실제 JSX 분기를 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 타입체크와 실제 diff
+━━━━━━━━━━━━━━━━━━━━━━
+
+제출:
+
+1. git diff --stat
+2. 두 클라이언트 파일 전체 관련 diff
+3. 서버 eligible-occurrences 관련 diff 또는 기존 구현 코드
+4. 앱 타입체크
+5. 서버 타입체크
+6. git status --short
+7. 현재 HEAD
+8. origin SHA
+9. 자동 checkpoint 발생 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 테스트 결과
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 다음 테스트를 실제 코드 또는 API 호출로 검증:
+
+1. 오늘 회차 반환
+2. 어제 회차 반환
+3. 미래 회차 반환
+4. 결석일 이전 회차 제외
+5. 만료일 이후 회차 제외
+6. 수업 요일이 아닌 날짜 제외
+7. 오늘 정원 마감 반 표시
+8. 과거 정원 초과 반 표시
+9. 미래 정원 마감 저장 차단
+10. 오늘·과거 정원 초과 경고 후 완료
+11. 동일 보강 세션 중복 완료 차단
+12. 다른 수영장 반 ID 전달 차단
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+검수 완료 전:
+
+- Push 금지
+- Render 배포 금지
+- OTA 금지
+- 운영 DB 수정 금지
+- 임의 추가 리팩터링 금지
+- X모드 작업 재개 금지
+
+위 검수 결과를 제출하고 멈춘다.
