@@ -7,6 +7,9 @@ import { requireAuth, requireRole, requirePermission, type AuthRequest } from ".
 import { hashPassword, DEFAULT_PLATFORM_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
+import {
+  kstTodayStr, closeAllActiveClassHistory,
+} from "../utils/historyUtils.js";
 import { getPoolOperators, countPoolOperators } from "../lib/poolOperatorService.js";
 
 const router = Router();
@@ -175,12 +178,17 @@ router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "p
         `);
         lastClassName = (cgResult.rows[0] as any)?.name ?? null;
       }
-      await db.execute(sql`
-        UPDATE students
-        SET status = 'withdrawn', class_group_id = NULL, updated_at = now(),
-            last_class_group_name = ${lastClassName}, withdrawn_at = now()
-        WHERE id = ${studentId}
-      `);
+      const withdrawEffDate = kstTodayStr();
+      await db.transaction(async (tx) => {
+        await closeAllActiveClassHistory(tx, studentId, withdrawEffDate);
+        await tx.execute(sql`
+          UPDATE students
+          SET status = 'withdrawn', class_group_id = NULL,
+              assigned_class_ids = '[]'::jsonb, schedule_labels = NULL,
+              last_class_group_name = ${lastClassName}, withdrawn_at = now(), updated_at = now()
+          WHERE id = ${studentId}
+        `);
+      });
 
       // 3. 부모-학생 연결 해제
       await db.execute(sql`
@@ -1205,10 +1213,21 @@ router.patch("/students/:id/status", requireAuth, requireRole("super_admin", "po
       const [actor] = (await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
       const actorName = actor?.name || req.user!.userId;
 
-      if (status === 'withdrawn') {
-        await db.execute(sql`UPDATE students SET status = ${status}, archived_reason = ${reason ?? null}, withdrawn_at = NOW(), updated_at = NOW() WHERE id = ${req.params.id}`);
-      } else if (status === 'archived') {
-        await db.execute(sql`UPDATE students SET status = 'archived', archived_reason = COALESCE(${reason ?? null}, 'archived'), class_group_id = NULL, assigned_class_ids = '[]'::jsonb, schedule_labels = NULL, updated_at = NOW() WHERE id = ${req.params.id}`);
+      // suspended / withdrawn / archived → 전체 반 이탈 (history 종료 + 배정 필드 NULL)
+      const isClassDepartureStatus = status === 'suspended' || status === 'withdrawn' || status === 'archived';
+      if (isClassDepartureStatus) {
+        const effDate = kstTodayStr();
+        await db.transaction(async (tx) => {
+          await closeAllActiveClassHistory(tx, req.params.id, effDate);
+          if (status === 'withdrawn') {
+            await tx.execute(sql`UPDATE students SET status = ${status}, archived_reason = ${reason ?? null}, class_group_id = NULL, assigned_class_ids = '[]'::jsonb, schedule_labels = NULL, withdrawn_at = NOW(), updated_at = NOW() WHERE id = ${req.params.id}`);
+          } else if (status === 'archived') {
+            await tx.execute(sql`UPDATE students SET status = 'archived', archived_reason = COALESCE(${reason ?? null}, 'archived'), class_group_id = NULL, assigned_class_ids = '[]'::jsonb, schedule_labels = NULL, updated_at = NOW() WHERE id = ${req.params.id}`);
+          } else {
+            // suspended
+            await tx.execute(sql`UPDATE students SET status = ${status}, archived_reason = ${reason ?? null}, class_group_id = NULL, assigned_class_ids = '[]'::jsonb, schedule_labels = NULL, updated_at = NOW() WHERE id = ${req.params.id}`);
+          }
+        });
       } else {
         await db.execute(sql`UPDATE students SET status = ${status}, archived_reason = ${reason ?? null}, updated_at = NOW() WHERE id = ${req.params.id}`);
       }

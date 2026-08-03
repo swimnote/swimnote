@@ -70,6 +70,13 @@ export default function TodayScheduleScreen() {
   const [chipStudents,       setChipStudents]       = useState<StudentItem[]>([]);
   const [loadingChipStudents,setLoadingChipStudents]= useState(false);
   const [itemStudentsMap,    setItemStudentsMap]    = useState<Record<string, StudentItem[]>>({});
+  // 전체 반 목록 (반이동 버튼용)
+  const [allGroups,          setAllGroups]          = useState<TeacherClassGroup[]>([]);
+  const [allGroupsStatus,    setAllGroupsStatus]    = useState<"idle" | "loading" | "loaded" | "error">("idle");
+  // 칩 클릭 시 날짜 기준 학생 명단 (undefined = 로딩 중)
+  const [chipStudentsByDate, setChipStudentsByDate] = useState<StudentItem[] | undefined>(undefined);
+  // 오래된 응답 차단용 sequence ID
+  const chipSeqRef = useRef(0);
   const canSwitchToAdmin = !!(adminUser?.roles?.includes("pool_admin"));
   async function handleSwitchToAdmin() {
     if (switching || !canSwitchToAdmin) return;
@@ -85,6 +92,24 @@ export default function TodayScheduleScreen() {
       setSwitching(false);
     }
   }
+  // 전체 담당 반 목록 조회 (반이동 버튼 데이터 소스)
+  const loadAllGroups = useCallback(async () => {
+    if (!token) return;
+    setAllGroupsStatus("loading");
+    try {
+      const res = await apiRequest(token, "/class-groups");
+      if (res.ok) {
+        const data = await res.json();
+        setAllGroups(Array.isArray(data) ? data : (data.groups ?? []));
+        setAllGroupsStatus("loaded");
+      } else {
+        setAllGroupsStatus("error");
+      }
+    } catch {
+      setAllGroupsStatus("error");
+    }
+  }, [token]);
+
   const overviewTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const loadOverview = useCallback(async () => {
     if (!token) return;
@@ -131,9 +156,10 @@ export default function TodayScheduleScreen() {
   }, [token, today, adminUser]);
   useFocusEffect(useCallback(() => {
     load();
+    loadAllGroups();
     overviewTimerRef.current = setInterval(loadOverview, 60_000);
     return () => { if (overviewTimerRef.current) clearInterval(overviewTimerRef.current); };
-  }, [load, loadOverview]));
+  }, [load, loadAllGroups, loadOverview]));
   // 일지 생성/삭제 이벤트 구독 → items diary_done 즉시 갱신 + overview 카운트 재조회
   useEffect(() => {
     return onDiaryChanged(ev => {
@@ -172,16 +198,42 @@ export default function TodayScheduleScreen() {
     };
     setActiveChipGroup(group);
     setChipStudents([]);
-    setLoadingChipStudents(true);
+    // 반 전환 즉시 이전 학생명단 초기화 → undefined = 로딩 중
+    setChipStudentsByDate(undefined);
+    chipSeqRef.current += 1;
+    const seq = chipSeqRef.current;
     try {
-      const res = await apiRequest(token, `/class-groups/${item.id}/students`);
+      const res = await apiRequest(token, `/class-groups/${item.id}/students?date=${today}`);
+      if (chipSeqRef.current !== seq) return; // 오래된 응답 차단
       if (res.ok) {
         const data = await res.json();
-        setChipStudents(Array.isArray(data) ? data : (data.students ?? []));
+        setChipStudentsByDate(Array.isArray(data) ? data : (data.students ?? []));
+      } else {
+        setChipStudentsByDate([]); // 오류 시 빈 목록
       }
-    } catch {}
-    setLoadingChipStudents(false);
+    } catch {
+      if (chipSeqRef.current === seq) setChipStudentsByDate([]);
+    }
   }
+  // 반이동/미배정 성공 후 날짜 기준 학생명단 재조회
+  const reloadChipStudents = useCallback(async () => {
+    if (!token || !activeChipGroup) return;
+    chipSeqRef.current += 1;
+    const seq = chipSeqRef.current;
+    setChipStudentsByDate(undefined);
+    try {
+      const res = await apiRequest(token, `/class-groups/${activeChipGroup.id}/students?date=${today}`);
+      if (chipSeqRef.current !== seq) return;
+      if (res.ok) {
+        const data = await res.json();
+        setChipStudentsByDate(Array.isArray(data) ? data : (data.students ?? []));
+      } else {
+        setChipStudentsByDate([]);
+      }
+    } catch {
+      if (chipSeqRef.current === seq) setChipStudentsByDate([]);
+    }
+  }, [token, activeChipGroup, today]);
   function navigateFromChip(navigate: () => void) {
     setActiveChipGroup(null);
     setTimeout(navigate, 200);
@@ -515,15 +567,20 @@ export default function TodayScheduleScreen() {
           attMap={Object.fromEntries(items.map(it => [it.id, it.att_present]))}
           diarySet={new Set(items.filter(it => it.diary_done).map(it => it.id))}
           date={today}
-          classGroups={sortedItems.map(it => ({
-            id: it.id, name: it.name,
-            schedule_days: it.schedule_days, schedule_time: it.schedule_time,
-            student_count: it.student_count, level: it.level,
-          }))}
+          studentsByDate={chipStudentsByDate}
+          studentListMode="historical"
+          classGroups={allGroupsStatus === "loaded" ? allGroups : null}
+          classGroupsLoadState={
+            allGroupsStatus === "idle" || allGroupsStatus === "loading" ? "loading"
+            : allGroupsStatus === "error" ? "error"
+            : "loaded"
+          }
+          onRetryClassGroups={loadAllGroups}
           themeColor={themeColor}
           token={token}
-          onClose={() => { setActiveChipGroup(null); load(); }}
+          onClose={() => { setActiveChipGroup(null); setChipStudentsByDate(undefined); load(); }}
           onNavigateTo={navigateFromChip}
+          onStudentsChanged={reloadChipStudents}
         />
       )}
       <Pressable

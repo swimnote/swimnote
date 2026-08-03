@@ -11,6 +11,10 @@ import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
 import { logChange } from "../utils/change-logger.js";
+import {
+  kstTodayStr, validateEffectiveDate,
+  closeAllActiveClassHistory, closeClassHistory,
+} from "../utils/historyUtils.js";
 
 const router = Router();
 
@@ -771,12 +775,16 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
       } else if (new_status === "pending" || new_status === "suspended") {
         extraFields.archived_reason = new_status === "suspended" ? "suspended" : "pending";
       }
-      await db.update(studentsTable).set(extraFields).where(eq(studentsTable.id, req.params.id));
+      const effDate = kstTodayStr();
+      await db.transaction(async (tx) => {
+        await closeAllActiveClassHistory(tx, req.params.id, effDate);
+        await tx.update(studentsTable).set(extraFields).where(eq(studentsTable.id, req.params.id));
+      });
       return res.json({ success: true, new_status, remaining_classes: 0 });
     }
 
     // ── 제외 시점 계산 ───────────────────────────────────────────
-    const today = _toDateStr(new Date());
+    const today = kstTodayStr();
     const thisMonday = _getMondayOf(today);
     let effectiveDate = today;
     if (effective_timing === "next_week") effectiveDate = _addDays(thisMonday, 7);
@@ -809,7 +817,11 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
     }
 
     // 즉시 제거: 특정 반만 제거
-    const remEffectiveDate = (req.body as any).effective_date || today;
+    const rawRemEffDate = (req.body as any).effective_date;
+    if (rawRemEffDate !== undefined) {
+      if (!validateEffectiveDate(rawRemEffDate)) return err(res, 400, "INVALID_EFFECTIVE_DATE");
+    }
+    const remEffectiveDate = rawRemEffDate || today;
     const newIds = currentIds.filter((id: string) => id !== class_group_id);
     const newPrimaryId = newIds[0] || null;
 
@@ -831,14 +843,8 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
 
     // ── 단일 트랜잭션: history 기록 + students 갱신 ──────────────────────
     await db.transaction(async (tx) => {
-      // 1) history left_at 설정
-      await tx.execute(sql`
-        UPDATE student_class_history
-        SET left_at = ${remEffectiveDate}::date
-        WHERE student_id = ${req.params.id}
-          AND class_group_id = ${class_group_id}
-          AND left_at IS NULL
-      `);
+      // 1) history left_at 설정 (특정 반 이탈)
+      await closeClassHistory(tx, req.params.id, class_group_id, remEffectiveDate);
 
       // 2) students 캐시 갱신
       await tx.execute(sql`
@@ -981,6 +987,9 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
       updated_at: new Date(),
     };
 
+    // 전체 반 이탈 대상 상태 (history 종료 + 배정 필드 NULL 처리 필요)
+    const needsClassClear = new_status === "suspended" || new_status === "withdrawn" || new_status === "unassigned";
+
     if (new_status === "active") {
       update.status = "active";
       update.archived_reason = null;
@@ -1000,7 +1009,15 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
       }
     }
 
-    await db.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
+    if (needsClassClear) {
+      const effDate = kstTodayStr();
+      await db.transaction(async (tx) => {
+        await closeAllActiveClassHistory(tx, req.params.id, effDate);
+        await tx.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
+      });
+    } else {
+      await db.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
+    }
     const [updated] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
     console.log(`[change-status] ✅ 즉시 변경 완료 → status: ${(updated as any).status}`);
     return res.json({ success: true, new_status, student: updated });

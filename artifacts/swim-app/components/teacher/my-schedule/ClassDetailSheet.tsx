@@ -19,7 +19,7 @@ export default function ClassDetailSheet({
   group, students, attMap, diarySet, themeColor, date, onClose,
   onOpenUnreg, onOpenRemove, onNavigateTo, onDeleteClass, weekChangeLogs, token,
   classGroups, onColorChange, onCapacityChange, onStudentsChanged,
-  studentsByDate,
+  studentsByDate, studentListMode, classGroupsLoadState, onRetryClassGroups,
 }: {
   group: TeacherClassGroup;
   students: StudentItem[];
@@ -34,11 +34,22 @@ export default function ClassDetailSheet({
   onDeleteClass?: () => void;
   weekChangeLogs?: ChangeLogItem[];
   onNavigateTo?: (navigate: () => void, groupIdToRestore?: string) => void;
-  classGroups?: TeacherClassGroup[];
+  /** null = 아직 로딩 중 또는 에러 */
+  classGroups?: TeacherClassGroup[] | null;
   onColorChange?: (id: string, color: string) => void;
   onCapacityChange?: (id: string, capacity: number | null) => void;
   /** 서버 날짜 API로 사전 필터된 학생 목록 (있으면 내부 filter 대신 사용) */
   studentsByDate?: StudentItem[];
+  /**
+   * "historical": studentsByDate===undefined → 로딩, fallback 금지
+   * "current"   : students prop 기반 client-side 필터
+   * (미지정)    : 기존 호환 동작
+   */
+  studentListMode?: "historical" | "current";
+  /** 전체 반 목록 로드 상태 */
+  classGroupsLoadState?: "loading" | "loaded" | "error";
+  /** 반 목록 로드 실패 시 재시도 콜백 */
+  onRetryClassGroups?: () => void;
   /** 반이동/미배정 성공 후 부모가 학생 목록을 재조회하도록 호출 */
   onStudentsChanged?: () => void;
 }) {
@@ -325,25 +336,40 @@ export default function ClassDetailSheet({
     setUnassigningStudent(false);
   }
 
-  // studentsByDate가 있으면 서버 사전 필터 결과를 사용, 없으면 기존 client-side 필터
-  const groupStudents = (
-    studentsByDate
-      ? [...studentsByDate]
-      : students
-        .filter(st =>
-          ((Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(group.id))
-          || st.class_group_id === group.id)
-          && (!st.class_enrolled_at || st.class_enrolled_at <= todayDateStr())
-        )
-  ).sort((a, b) => {
-    const aAbs = studentAttState[a.id] === "absent" ? 0 : 1;
-    const bAbs = studentAttState[b.id] === "absent" ? 0 : 1;
-    if (aAbs !== bAbs) return aAbs - bAbs;
-    return a.name.localeCompare(b.name);
-  });
+  // groupStudents:
+  //   historical 모드: studentsByDate===undefined → null(로딩), 있으면 그대로 사용 (fallback 금지)
+  //   current 모드 / 미지정: 기존 client-side 필터
+  const groupStudents: StudentItem[] | null = (() => {
+    let list: StudentItem[];
+    if (studentListMode === "historical") {
+      if (studentsByDate === undefined) return null; // 로딩 중
+      list = [...studentsByDate];
+    } else {
+      // current 모드 또는 미지정 (기존 호환)
+      list = studentsByDate
+        ? [...studentsByDate]
+        : students.filter(st =>
+            ((Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(group.id))
+            || st.class_group_id === group.id)
+            && (!st.class_enrolled_at || st.class_enrolled_at <= todayDateStr())
+          );
+    }
+    return list.sort((a, b) => {
+      const aAbs = studentAttState[a.id] === "absent" ? 0 : 1;
+      const bAbs = studentAttState[b.id] === "absent" ? 0 : 1;
+      if (aAbs !== bAbs) return aAbs - bAbs;
+      return a.name.localeCompare(b.name);
+    });
+  })();
 
   const diarDone = diarySet.has(group.id);
-  const moveTargetClasses = (classGroups || []).filter(g => g.id !== group.id);
+  // moveTargetClasses:
+  //   null = 아직 로딩 중 또는 에러 (classGroupsLoadState !== "loaded" 또는 classGroups === null)
+  //   []   = 로드 완료, 이동 가능한 다른 반 없음
+  const moveTargetClasses: TeacherClassGroup[] | null =
+    classGroupsLoadState !== "loaded" || classGroups == null
+      ? null
+      : classGroups.filter(g => g.id !== group.id);
 
   return (
     <>
@@ -441,7 +467,13 @@ export default function ClassDetailSheet({
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              {groupStudents.length === 0 ? (
+              {groupStudents === null ? (
+                // historical 모드 로딩 중
+                <View style={[cds.empty, { flexDirection: "row", gap: 8 }]}>
+                  <ActivityIndicator size="small" color={C.tint} />
+                  <Text style={cds.emptyText}>학생 목록 불러오는 중...</Text>
+                </View>
+              ) : groupStudents.length === 0 ? (
                 <View style={cds.empty}>
                   <LucideIcon name="users" size={28} color={C.textMuted} />
                   <Text style={cds.emptyText}>배정된 학생이 없습니다</Text>
@@ -586,7 +618,24 @@ export default function ClassDetailSheet({
             contentContainerStyle={{ paddingBottom: 20 }}
             showsVerticalScrollIndicator={false}
           >
-            {moveTargetClasses.length === 0 ? (
+            {moveTargetClasses === null ? (
+              classGroupsLoadState === "error" ? (
+                <View style={cds.empty}>
+                  <CircleAlert size={24} color={C.textMuted} />
+                  <Text style={cds.emptyText}>반 목록을 불러오지 못했습니다</Text>
+                  {onRetryClassGroups && (
+                    <Pressable onPress={onRetryClassGroups} style={{ marginTop: 8 }}>
+                      <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
+                    </Pressable>
+                  )}
+                </View>
+              ) : (
+                <View style={[cds.empty, { flexDirection: "row", gap: 8 }]}>
+                  <ActivityIndicator size="small" color={C.tint} />
+                  <Text style={cds.emptyText}>반 목록 불러오는 중...</Text>
+                </View>
+              )
+            ) : moveTargetClasses.length === 0 ? (
               <View style={cds.empty}>
                 <CircleAlert size={24} color={C.textMuted} />
                 <Text style={cds.emptyText}>이동 가능한 다른 반이 없습니다</Text>

@@ -635,6 +635,8 @@ export default function MyScheduleScreen() {
             setGroups(prev => prev.map(g => g.id === id ? { ...g, capacity } : g))
           }
           studentsByDate={selectedDate ? (detailStudentsByDate ?? undefined) : undefined}
+          studentListMode={selectedDate ? "historical" : "current"}
+          classGroupsLoadState="loaded"
           onStudentsChanged={reloadDetailStudents}
         />
       )}
