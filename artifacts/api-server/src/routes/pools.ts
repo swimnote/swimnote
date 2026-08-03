@@ -74,9 +74,36 @@ router.get("/search", async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
 });
 
+// ── 주소 최소 지역 축약 (화면 표시용 — DB 저장값 변경 없음) ─────────────
+// swimming_pools.address 에는 city/district 별도 컬럼이 없으므로
+// address 문자열을 공백 split하여 시·군·구 단위까지만 반환한다.
+//
+// 패턴:
+//   "서울특별시 강남구 테헤란로 123"   → "서울특별시 강남구"
+//   "경기도 고양시 덕양구 화정로 10"   → "경기도 고양시 덕양구"
+//   "제주특별자치도 제주시 한림읍 ..."  → "제주특별자치도 제주시 한림읍"
+//   "인천광역시 남동구 ..."             → "인천광역시 남동구"
+//   파싱 불확실 → 처음 2토큰 (이름만보다 낫고 상세주소보다 안전)
+function abbreviateAddress(address: string | null | undefined): string {
+  if (!address) return "";
+  const parts = address.trim().split(/\s+/);
+  if (parts.length === 0) return "";
+  const first = parts[0];
+  // "도"·"특별자치도"로 끝나는 광역 단위 → 첫 3토큰 (도 + 시/군 + 구/면)
+  if (first.endsWith("도")) {
+    return parts.slice(0, Math.min(3, parts.length)).join(" ");
+  }
+  // "시"로 끝나는 단위 (서울특별시·광역시·특별자치시·일반시) → 첫 2토큰
+  if (first.endsWith("시")) {
+    return parts.slice(0, Math.min(2, parts.length)).join(" ");
+  }
+  // 그 외 (해외 주소 등 예외) → 첫 2토큰
+  return parts.slice(0, Math.min(2, parts.length)).join(" ");
+}
+
 // ── 수영장 이름 검색 (public-search — pool-join-request 호환) ────────────
 // 정책: 검색어가 없으면 빈 배열 반환. 전방일치(name ILIKE q%)만 허용.
-// 반환 필드: id, name, address (phone 등 개인정보 제외)
+// 반환 필드: id, name, address (최소 지역 정보만 — phone·상세주소 제외)
 router.get("/public-search", async (req, res) => {
   const q = (req.query.name as string || "").trim();
   // 검색어 없음 → 전체 목록 반환 금지
@@ -96,7 +123,13 @@ router.get("/public-search", async (req, res) => {
         name
       LIMIT 20
     `);
-    res.json({ success: true, data: rows.rows });
+    // address를 최소 지역 단위로 축약하여 반환 (화면 표시용)
+    const data = (rows.rows as Array<{ id: string; name: string; address: string | null }>).map(r => ({
+      id: r.id,
+      name: r.name,
+      address: abbreviateAddress(r.address),
+    }));
+    res.json({ success: true, data });
   } catch (e) { console.error(e); res.status(500).json({ success: false, data: [] }); }
 });
 

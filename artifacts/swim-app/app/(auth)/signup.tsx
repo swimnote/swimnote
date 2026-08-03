@@ -213,6 +213,7 @@ export default function SignupScreen() {
 
     return () => {
       if (poolSearchTimerRef.current) clearTimeout(poolSearchTimerRef.current);
+      if (poolSearchAbortRef.current) { poolSearchAbortRef.current.abort(); poolSearchAbortRef.current = null; }
     };
   }, [poolSearch, step, role]);
 
@@ -301,10 +302,10 @@ export default function SignupScreen() {
       if (poolPhone && !validatePhone(poolPhone)) { setError("수영장 전화번호 형식이 올바르지 않습니다."); return; }
       if (!poolPhone.trim())   { setError("수영장 전화번호를 입력해주세요."); return; }
     } else if (role === "teacher") {
-      if (!selectedPool) { setError("수영장을 선택해주세요."); return; }
+      if (!selectedPool) { setError("검색 결과에서 수영장을 선택해 주세요."); return; }
     } else if (role === "parent") {
       // V2: 가입 시 수영장 + 자녀 이름 필수
-      if (!selectedPool) { setError("수영장을 선택해주세요."); return; }
+      if (!selectedPool) { setError("검색 결과에서 수영장을 선택해 주세요."); return; }
       if (!childName.trim()) { setError("우리 아이 이름을 입력해주세요."); return; }
     }
 
