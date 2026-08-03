@@ -219,12 +219,15 @@ export default function MakeupsScreen() {
     loadWaiting();
     if (tab === "assigned") loadAssigned();
   }, [loadWaiting, loadAssigned, tab]));
-  /** occurrence 관련 공유 상태 초기화 헬퍼 */
+  /** occurrence 관련 공유 상태 초기화 헬퍼
+   *  occSeqRef를 올려 진행 중인 모든 eligible-occurrences 요청을 무효화한다. */
   const resetOccState = () => {
+    occSeqRef.current += 1;       // in-flight 요청 무효화
     setSelectedClassId(null);
     setSelectedDate(null);
     setSelectedOccurrence(null);
     setOccurrences([]);
+    setOccLoading(false);
     setOccError(false);
   };
 
@@ -257,7 +260,9 @@ export default function MakeupsScreen() {
     resetOccState();
   };
   const selectClass = async (classId: string) => {
-    if (!assignTarget) return;
+    // 배정 모달(assignTarget) 또는 직접 완료 모달(directCompleteTarget) 어느 쪽이든 처리
+    const activeTarget = assignTarget ?? directCompleteTarget;
+    if (!activeTarget) return;
     occSeqRef.current += 1;
     const mySeq = occSeqRef.current;
     setSelectedClassId(classId);
@@ -267,7 +272,7 @@ export default function MakeupsScreen() {
     setOccError(false);
     setOccLoading(true);
     try {
-      const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/eligible-occurrences?class_group_id=${classId}`);
+      const r = await apiRequest(token, `/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`);
       if (occSeqRef.current !== mySeq) return; // 늦게 도착한 이전 반 응답 무시
       if (r.ok) {
         const data = await r.json();
@@ -299,8 +304,7 @@ export default function MakeupsScreen() {
         const isJson = ct.includes("application/json");
         const body = isJson ? await r.json().catch(() => ({})) : {};
         if (r.ok && isJson) {
-          setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); setSelectedOccurrence(null);
-          setOccurrences([]); setOccError(false);
+          resetOccState(); setAssignTarget(null);
           loadWaiting(); loadAssigned(); setTab("assigned");
           setConfirmMsg(`보강이 ${occDate}에 배정되었습니다.`);
         } else if (r.status === 409) {
@@ -319,8 +323,7 @@ export default function MakeupsScreen() {
         const isJson = ct.includes("application/json");
         const body = isJson ? await r.json().catch(() => ({})) : {};
         if (r.ok) {
-          setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); setSelectedOccurrence(null);
-          setOccurrences([]); setOccError(false);
+          resetOccState(); setAssignTarget(null);
           loadWaiting(); loadAssigned();
           setConfirmMsg(`${occDate} 보강 완료 처리되었습니다.`);
         } else {
@@ -727,8 +730,8 @@ export default function MakeupsScreen() {
       )}
       {/* ── 보강반 배정 모달 ──────────────────────────────────────────────── */}
       {assignTarget && (
-        <Modal visible animationType="slide" transparent onRequestClose={() => { setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); }} statusBarTranslucent>
-          <Pressable style={s.backdrop} onPress={() => { setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); }}>
+        <Modal visible animationType="slide" transparent onRequestClose={() => { resetOccState(); setAssignTarget(null); }} statusBarTranslucent>
+          <Pressable style={s.backdrop} onPress={() => { resetOccState(); setAssignTarget(null); }}>
             <Pressable style={s.sheet} onPress={() => {}}>
               <View style={s.sheetHandle} />
               <View style={s.sheetHeader}>
@@ -748,11 +751,11 @@ export default function MakeupsScreen() {
                   )}
                 </View>
                 {selectedClassId && !selectedDate ? (
-                  <Pressable onPress={() => setSelectedClassId(null)} style={{ padding: 4 }}>
+                  <Pressable onPress={resetOccState} style={{ padding: 4 }}>
                     <LucideIcon name="arrow-left" size={20} color={C.textSecondary} />
                   </Pressable>
                 ) : (
-                  <Pressable onPress={() => { setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); }} style={{ padding: 4 }}>
+                  <Pressable onPress={() => { resetOccState(); setAssignTarget(null); }} style={{ padding: 4 }}>
                     <LucideIcon name="x" size={20} color={C.textSecondary} />
                   </Pressable>
                 )}
@@ -941,7 +944,7 @@ export default function MakeupsScreen() {
                 </View>
                 {selectedClassId ? (
                   <Pressable
-                    onPress={() => { setSelectedClassId(null); setOccurrences([]); setOccError(false); setSelectedOccurrence(null); }}
+                    onPress={resetOccState}
                     style={{ padding: 4 }}
                   >
                     <LucideIcon name="arrow-left" size={20} color={C.textSecondary} />
