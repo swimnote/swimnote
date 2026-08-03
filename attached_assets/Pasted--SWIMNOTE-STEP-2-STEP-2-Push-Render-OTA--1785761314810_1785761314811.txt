@@ -1,0 +1,190 @@
+[SWIMNOTE 긴급 수정 — STEP 2 코드 검수 제출 지시]
+
+STEP 2 구현 보고서 확인.
+
+현재 코드는 아직 Push·Render 배포·OTA 승인 전이다.
+아래 최종 검수자료만 제출하고 멈춘다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 전체 diff 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+요약이 아니라 다음 7개 파일의 실제 git diff 원문을 제출한다.
+
+서버:
+- artifacts/api-server/src/utils/historyUtils.ts
+- artifacts/api-server/src/routes/students.ts
+- artifacts/api-server/src/routes/admin.ts
+
+클라이언트:
+- artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+- artifacts/swim-app/app/(teacher)/my-schedule.tsx
+- artifacts/swim-app/app/(teacher)/today-schedule.tsx
+
+삭제:
+- artifacts/api-server/src/scripts/query-kiman-tmp.ts
+
+각 diff 앞에 파일명을 명확히 표시한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. KST 날짜 함수 안정성 재검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 kstTodayStr()이 아래 방식이면 재검토한다.
+
+new Date(
+  new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
+)
+
+서버 로케일 문자열을 다시 Date로 파싱하는 구조는 피한다.
+
+우선순위:
+
+1. Repository에 이미 존재하는 KST YYYY-MM-DD 유틸 재사용
+2. 없으면 Intl.DateTimeFormat(...).formatToParts() 방식
+3. 외부 라이브러리가 이미 설치되어 있으면 기존 라이브러리 재사용
+
+요구 결과:
+- 서버 실행 지역·로케일과 무관
+- 00:00~08:59 KST에도 정확한 한국 날짜
+- 반환 형식 YYYY-MM-DD
+- 테스트 케이스 제출
+
+임의 신규 패키지 설치 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. today-schedule 학생명단 오류 상태 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 날짜별 학생 API 실패 시 빈 배열 []을 넣으면
+실제 빈 명단과 조회 실패가 구분되지 않는다.
+
+다음 상태를 분리한다.
+
+chipStudentsStatus:
+- idle
+- loading
+- loaded
+- error
+
+정책:
+
+loading:
+- ActivityIndicator
+- 현재 학생 fallback 금지
+
+loaded + []:
+- “배정된 학생이 없습니다”
+
+error:
+- “학생 명단을 불러오지 못했습니다”
+- 재시도 버튼
+- 빈 명단으로 표시 금지
+
+빠른 반 전환 request sequence 보호는 그대로 유지한다.
+
+ClassDetailSheet에 필요한 최소 props만 추가하고,
+다른 화면에는 기존 동작이 유지되도록 optional/default 처리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 상태 변경 서버 로직 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 endpoint 실제 diff에서 아래를 확인해 표로 제출한다.
+
+- transaction 안에서 SELECT FOR UPDATE 수행 여부
+- 잠금 후 최신 row를 사용하는지
+- history 종료와 students UPDATE가 동일 transaction인지
+- 전체 반 이탈 경로에서 closeAllActiveClassHistory 사용 여부
+- 특정 반 이탈에서 closeClassHistory 사용 여부
+- suspended / withdrawn / archived / unassigned 처리 결과
+- inactive / pending / active 배정값 유지 여부
+- 응답 Contract가 바뀌지 않았는지
+
+특히 remove-from-class + new_status가
+허용되지 않은 new_status까지 전체 반 이탈 처리하지 않도록
+기존 validation/allowlist를 실제 코드에서 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. effective_date 실제 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+함수 설명이 아니라 테스트 실행 결과를 제출한다.
+
+최소 케이스:
+
+- 2026-08-03 → 통과
+- 2026-02-29 → 실패
+- 2028-02-29 → 통과
+- 2026-13-01 → 실패
+- 2026-02-30 → 실패
+- 2026/08/03 → 실패
+- 빈 문자열 → 실패
+- undefined → KST 오늘 사용
+
+유효하지 않은 명시값은:
+HTTP 400
+code = INVALID_EFFECTIVE_DATE
+
+로 반환되는 실제 route 결과를 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 타입체크 증빙
+━━━━━━━━━━━━━━━━━━━━━━
+
+프로젝트 전체에 기존 오류가 있으므로
+단순히 “수정 파일 오류 없음”이라고만 쓰지 않는다.
+
+제출:
+
+1. 실행 명령
+2. 전체 출력 또는 오류 파일 목록
+3. 이번 수정 6개 코드 파일이 오류 목록에 없는지
+4. 수정 전 기준 오류와 수정 후 기준 오류 비교
+5. 신규 오류 수: 0인지
+
+가능하면 기존 오류 baseline과 diff를 비교한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Git 상태와 Rollback 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 명령 결과를 제출한다.
+
+git status --short
+
+그 결과를 기준으로 Rollback을 작성한다.
+
+- tracked 수정 파일: git restore <file>
+- untracked 신규 파일: rm <file>
+- tracked 삭제 파일: git restore <file>
+
+아직 Commit 전이므로
+git rm --cached를 무조건 사용하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 검수 후 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+제출 항목:
+
+1. 전체 실제 diff
+2. KST 날짜 구현 최종 코드
+3. 학생명단 loading/loaded/error 구조
+4. 서버 endpoint별 transaction 검수표
+5. effective_date 테스트 결과
+6. 타입체크 원문
+7. git status
+8. 정확한 Rollback 명령
+9. 남은 미검증 사항
+
+현재 금지:
+
+- Commit
+- Push
+- Render 배포
+- OTA
+- 운영 DB 수정
+- X모드 작업 재개
+
+검수자료 제출 후 멈춘다.

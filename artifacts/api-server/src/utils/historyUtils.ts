@@ -14,13 +14,20 @@ export interface HistoryTx {
 
 /**
  * KST 기준 오늘 날짜 YYYY-MM-DD 반환
- * new Date().toISOString() 은 UTC 기준이므로 사용 금지
+ *
+ * 구현: Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format()
+ * - en-CA locale은 YYYY-MM-DD 형식을 직접 반환하므로 파싱 불필요
+ * - KST = UTC+9, DST 없음 → UTC+9 고정 오프셋도 동일하나 Intl이 더 명시적
+ * - 서버 로케일·시스템 시간대에 무관
+ * - 00:00~08:59 KST(= UTC 전날 15:00~23:59)에도 정확한 한국 날짜 반환
+ *
+ * 코드베이스 동일 패턴: today-schedule.ts 의 todayKST() (UTC+9 offset 방식)
+ * → 동일 결과. Intl 방식이 DST-safe하므로 통일
  */
 export function kstTodayStr(): string {
-  const now = new Date();
-  // KST = UTC+9
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  return kst.toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+  }).format(new Date());
 }
 
 /**

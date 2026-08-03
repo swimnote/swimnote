@@ -73,8 +73,10 @@ export default function TodayScheduleScreen() {
   // 전체 반 목록 (반이동 버튼용)
   const [allGroups,          setAllGroups]          = useState<TeacherClassGroup[]>([]);
   const [allGroupsStatus,    setAllGroupsStatus]    = useState<"idle" | "loading" | "loaded" | "error">("idle");
-  // 칩 클릭 시 날짜 기준 학생 명단 (undefined = 로딩 중)
+  // 칩 클릭 시 날짜 기준 학생 명단
   const [chipStudentsByDate, setChipStudentsByDate] = useState<StudentItem[] | undefined>(undefined);
+  // 학생명단 로드 상태 — loading/loaded/error 명시 분리 ([] 빈 배열과 에러 구분)
+  const [chipStudentsStatus, setChipStudentsStatus] = useState<"idle" | "loading" | "loaded" | "error">("idle");
   // 오래된 응답 차단용 sequence ID
   const chipSeqRef = useRef(0);
   const canSwitchToAdmin = !!(adminUser?.roles?.includes("pool_admin"));
@@ -198,8 +200,9 @@ export default function TodayScheduleScreen() {
     };
     setActiveChipGroup(group);
     setChipStudents([]);
-    // 반 전환 즉시 이전 학생명단 초기화 → undefined = 로딩 중
+    // 반 전환 즉시 이전 학생명단 초기화
     setChipStudentsByDate(undefined);
+    setChipStudentsStatus("loading");
     chipSeqRef.current += 1;
     const seq = chipSeqRef.current;
     try {
@@ -208,11 +211,12 @@ export default function TodayScheduleScreen() {
       if (res.ok) {
         const data = await res.json();
         setChipStudentsByDate(Array.isArray(data) ? data : (data.students ?? []));
+        setChipStudentsStatus("loaded");
       } else {
-        setChipStudentsByDate([]); // 오류 시 빈 목록
+        setChipStudentsStatus("error"); // 에러 — 빈 배열로 대체 금지
       }
     } catch {
-      if (chipSeqRef.current === seq) setChipStudentsByDate([]);
+      if (chipSeqRef.current === seq) setChipStudentsStatus("error");
     }
   }
   // 반이동/미배정 성공 후 날짜 기준 학생명단 재조회
@@ -221,17 +225,19 @@ export default function TodayScheduleScreen() {
     chipSeqRef.current += 1;
     const seq = chipSeqRef.current;
     setChipStudentsByDate(undefined);
+    setChipStudentsStatus("loading");
     try {
       const res = await apiRequest(token, `/class-groups/${activeChipGroup.id}/students?date=${today}`);
       if (chipSeqRef.current !== seq) return;
       if (res.ok) {
         const data = await res.json();
         setChipStudentsByDate(Array.isArray(data) ? data : (data.students ?? []));
+        setChipStudentsStatus("loaded");
       } else {
-        setChipStudentsByDate([]);
+        setChipStudentsStatus("error");
       }
     } catch {
-      if (chipSeqRef.current === seq) setChipStudentsByDate([]);
+      if (chipSeqRef.current === seq) setChipStudentsStatus("error");
     }
   }, [token, activeChipGroup, today]);
   function navigateFromChip(navigate: () => void) {
@@ -567,7 +573,9 @@ export default function TodayScheduleScreen() {
           attMap={Object.fromEntries(items.map(it => [it.id, it.att_present]))}
           diarySet={new Set(items.filter(it => it.diary_done).map(it => it.id))}
           date={today}
-          studentsByDate={chipStudentsByDate}
+          studentsByDate={chipStudentsStatus === "loaded" ? chipStudentsByDate : undefined}
+          studentsByDateError={chipStudentsStatus === "error"}
+          onRetryStudentsByDate={reloadChipStudents}
           studentListMode="historical"
           classGroups={allGroupsStatus === "loaded" ? allGroups : null}
           classGroupsLoadState={
@@ -578,7 +586,7 @@ export default function TodayScheduleScreen() {
           onRetryClassGroups={loadAllGroups}
           themeColor={themeColor}
           token={token}
-          onClose={() => { setActiveChipGroup(null); setChipStudentsByDate(undefined); load(); }}
+          onClose={() => { setActiveChipGroup(null); setChipStudentsByDate(undefined); setChipStudentsStatus("idle"); load(); }}
           onNavigateTo={navigateFromChip}
           onStudentsChanged={reloadChipStudents}
         />

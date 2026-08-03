@@ -19,7 +19,8 @@ export default function ClassDetailSheet({
   group, students, attMap, diarySet, themeColor, date, onClose,
   onOpenUnreg, onOpenRemove, onNavigateTo, onDeleteClass, weekChangeLogs, token,
   classGroups, onColorChange, onCapacityChange, onStudentsChanged,
-  studentsByDate, studentListMode, classGroupsLoadState, onRetryClassGroups,
+  studentsByDate, studentsByDateError, onRetryStudentsByDate,
+  studentListMode, classGroupsLoadState, onRetryClassGroups,
 }: {
   group: TeacherClassGroup;
   students: StudentItem[];
@@ -40,8 +41,12 @@ export default function ClassDetailSheet({
   onCapacityChange?: (id: string, capacity: number | null) => void;
   /** 서버 날짜 API로 사전 필터된 학생 목록 (있으면 내부 filter 대신 사용) */
   studentsByDate?: StudentItem[];
+  /** true = 날짜 기준 학생명단 API 조회 실패 (로딩 중과 구분) */
+  studentsByDateError?: boolean;
+  /** 학생명단 조회 실패 시 재시도 콜백 */
+  onRetryStudentsByDate?: () => void;
   /**
-   * "historical": studentsByDate===undefined → 로딩, fallback 금지
+   * "historical": studentsByDate===undefined → 로딩, fallback 금지; studentsByDateError=true → 에러 UI
    * "current"   : students prop 기반 client-side 필터
    * (미지정)    : 기존 호환 동작
    */
@@ -337,11 +342,15 @@ export default function ClassDetailSheet({
   }
 
   // groupStudents:
-  //   historical 모드: studentsByDate===undefined → null(로딩), 있으면 그대로 사용 (fallback 금지)
+  //   historical 모드:
+  //     studentsByDateError=true → null (에러, 별도 렌더)
+  //     studentsByDate===undefined → null (로딩 중)
+  //     studentsByDate!==undefined → 목록 사용 (fallback 금지)
   //   current 모드 / 미지정: 기존 client-side 필터
   const groupStudents: StudentItem[] | null = (() => {
     let list: StudentItem[];
     if (studentListMode === "historical") {
+      if (studentsByDateError) return null; // 에러 상태
       if (studentsByDate === undefined) return null; // 로딩 중
       list = [...studentsByDate];
     } else {
@@ -467,8 +476,19 @@ export default function ClassDetailSheet({
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              {groupStudents === null ? (
-                // historical 모드 로딩 중
+              {groupStudents === null && studentsByDateError ? (
+                // historical 모드 — 에러 (로딩 중과 구분)
+                <View style={cds.empty}>
+                  <LucideIcon name="circle-alert" size={28} color={C.textMuted} />
+                  <Text style={cds.emptyText}>학생 명단을 불러오지 못했습니다</Text>
+                  {onRetryStudentsByDate && (
+                    <Pressable onPress={onRetryStudentsByDate} style={{ marginTop: 8 }}>
+                      <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
+                    </Pressable>
+                  )}
+                </View>
+              ) : groupStudents === null ? (
+                // historical 모드 — 로딩 중
                 <View style={[cds.empty, { flexDirection: "row", gap: 8 }]}>
                   <ActivityIndicator size="small" color={C.tint} />
                   <Text style={cds.emptyText}>학생 목록 불러오는 중...</Text>
