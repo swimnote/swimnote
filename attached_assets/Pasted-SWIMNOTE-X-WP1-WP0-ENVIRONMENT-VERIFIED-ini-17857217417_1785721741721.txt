@@ -1,0 +1,438 @@
+SWIMNOTE X — WP1 설계서 반려 및 정정 제출 지시
+
+WP0 추가 환경조사는 확인했습니다.
+
+다음 사실은 ENVIRONMENT_VERIFIED로 인정합니다.
+
+* initXModeSchema()가 운영 서버에서 이미 실행됨
+* 운영 DB에 M-A~M-J가 이미 적용됨
+* PART 2 대상인 parent_ai_daily_usage, parent_ai_usage_reservations, growth_reports도 이미 생성됨
+* curriculum 관련 5개 테이블은 아직 없음
+* 백업 DB에 X 스키마가 적용되지 않아 standby sync가 실패 중임
+
+그러나 제출한 WP1 설계서는 SWIMNOTE X 최종 설계서 v3.3.4와 다른 기술 구조를 다수 포함하므로 승인하지 않습니다.
+
+코드는 수정하지 말고 아래 기준으로 WP1 설계서를 정정 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 최우선 원칙
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE X 최종 설계서 v3.3.4의 기존 기술 설계를 변경하지 마십시오.
+
+이번 작업은 설계를 새로 만드는 작업이 아닙니다.
+
+금지:
+
+* ENUM 값 변경
+* 컬럼 타입 변경
+* 상태값 추가
+* 컬럼 임의 추가
+* 기존 컬럼 삭제
+* 기존 Constraint 의미 변경
+* FK 삭제 정책 임의 변경
+* Audit 구조 재설계
+* Growth Event 구조 단순화
+* 새로운 진행 상태 저장 구조 추가
+* 기존 Contract 변경
+
+Repository 실제 코드가 v3.3.4와 다르면 두 구조 중 하나를 임의 선택하지 말고 불일치로 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 이미 적용된 DB 상태 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+운영 DB에 이미 생성된 다음 PART 2 테이블은 현재 WP1에서 DROP하지 않습니다.
+
+* parent_ai_daily_usage
+* parent_ai_usage_reservations
+* growth_reports
+
+이유:
+
+* 현재 데이터가 없는 것으로 보고됨
+* 아직 기능 코드에서 사용하지 않음
+* DROP은 새로운 운영 DB 변경과 위험을 발생시킴
+
+처리 원칙:
+
+* 테이블은 그대로 유지
+* PART 1 코드에서 사용 금지
+* PART 1 API에서 접근 금지
+* PART 1 Worker에서 접근 금지
+* PART 2 승인 전 관련 기능 연결 금지
+* initXModeSchema() 재실행 시 위 테이블을 다시 다루지 않도록 실행 경계 분리
+
+단, 실제 테이블 데이터 유무와 참조 코드 유무는 직접 확인하여 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. v3.3.4 확정 ENUM
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 값을 그대로 사용하십시오.
+
+xmode_config_status_enum:
+
+* NOT_CONFIGURED
+* CURRICULUM_PENDING
+* READY
+
+global_template_status_enum:
+
+* DRAFT
+* ACTIVE
+* ARCHIVED
+
+growth_match_status_enum:
+
+* AUTO_ACCEPTED
+* PENDING_REVIEW
+* TEACHER_ACCEPTED
+* TEACHER_REJECTED
+* DISCARDED
+
+현재 실제 DB ENUM 값이 위와 다르면 다음 형식으로 보고하십시오.
+
+* 설계 문서 값
+* 실제 DB 값
+* 실제 코드 값
+* 불일치 영향
+* 데이터 존재 여부
+* 정정 필요 여부
+* 정정 Migration 위험
+* 권장 처리
+
+아직 정정 SQL을 실행하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. xmode_entitlement 확정 타입
+━━━━━━━━━━━━━━━━━━━━━━
+
+v3.3.4 확정 타입:
+
+xmode_entitlement boolean NOT NULL DEFAULT false
+
+다음 구조는 승인하지 않습니다.
+
+text DEFAULT 'none'
+CHECK ('none','trial','active','suspended')
+
+실제 DB 타입을 직접 확인하십시오.
+
+판정식은 다음 그대로 유지합니다.
+
+xmode_entitlement = true
+AND
+xmode_config_status = READY
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Global Template 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+v3.3.4를 그대로 유지하십시오.
+
+global_template_sets 상태:
+
+* DRAFT
+* ACTIVE
+* ARCHIVED
+
+ACTIVE 최대 1개:
+
+CREATE UNIQUE INDEX ...
+ON global_template_sets ((1))
+WHERE status = 'ACTIVE';
+
+diary_templates FK:
+
+ON DELETE RESTRICT
+
+x_global 조건:
+
+scope = x_global
+swimming_pool_id IS NULL
+global_template_set_id IS NOT NULL
+
+일반 global/teacher 조건:
+
+swimming_pool_id IS NOT NULL
+global_template_set_id IS NULL
+
+x_global 검색 인덱스:
+
+(global_template_set_id, is_active)
+WHERE scope = 'x_global'
+
+설계에 없는 다음 컬럼을 임의 추가하지 마십시오.
+
+* description
+* created_by
+* updated_at
+
+실제 DB에 이미 존재한다면 추가된 경위를 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Audit 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+v3.3.4 확정 구조를 유지하십시오.
+
+audit_entity_versions:
+
+entity_type
+entity_id
+version
+
+audit_logs:
+
+id
+entity_type
+entity_id
+entity_version
+action
+actor_type
+actor_id
+pool_id
+before_data
+after_data
+reason
+request_id
+correlation_id
+ip_hash
+created_at
+
+action:
+
+* create
+* update
+* delete
+
+actor_type:
+
+* super_admin
+* pool_admin
+* teacher
+* parent
+* system
+
+다음 신규 구조는 승인하지 않습니다.
+
+* version_seq
+* changed_by
+* snapshot
+* diff
+* RESTORE
+* evidence_validation
+* note
+
+실제 DB가 v3.3.4와 다른 경우 직접 스키마를 조회하여 불일치 보고서를 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Growth Event 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+v3.3.4의 growth_events 전체 구조를 유지하십시오.
+
+필수 포함:
+
+* student_id
+* swimming_pool_id
+* curriculum_item_id
+* curriculum_version_id
+* diary_note_id
+* source
+* match_token_id
+* growth_match_status
+* confidence
+* matching_algorithm_version
+* confidence_config_version
+* engine_version
+* prompt_version
+* knowledge_version
+* template_set_version
+* contract_version
+* evidence_source_type
+* evidence_sentence_index
+* evidence_text
+* evidence_metadata
+* evidence_validation
+* reviewed_by
+* reviewed_at
+* review_reason
+* is_invalidated
+* invalidated_at
+* request_id
+* created_at
+* updated_at
+
+필수 중복 방지:
+
+* match_token_id partial unique
+* diary_note_id + student_id + curriculum_item_id + source partial unique
+* is_invalidated=false 조건
+
+현재 실제 DB가 이 구조와 다르면 새 구조를 덮어쓰지 말고 차이표를 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Curriculum 설계 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 WP1에서 신규 생성할 테이블:
+
+* curriculum_versions
+* curriculum_items
+* student_curriculum_assignments
+* curriculum_requests
+* curriculum_request_files
+
+임의 기능 추가 금지.
+
+student_curriculum_assignments에는 학생에게 배정된 커리큘럼 버전과 배정 이력을 저장합니다.
+
+현재 진행 중인 curriculum_item을 별도 상태로 저장하는 구조는 승인되지 않았습니다.
+
+따라서 다음 컬럼을 임의 추가하지 마십시오.
+
+curriculum_item_id
+
+진행도와 완료 여부는 growth_events를 기준으로 계산합니다.
+
+학생 배정 테이블 최소 책임:
+
+* student_id
+* swimming_pool_id
+* curriculum_version_id
+* 배정 시점
+* 배정 주체
+* 활성 여부
+* 종료 또는 비활성화 시점
+* 이력 보존
+
+정확한 컬럼명은 기존 Repository naming convention을 확인하여 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Curriculum FK 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+DB 무결성 보장을 위해 FK를 사용합니다.
+
+원칙:
+
+* curriculum_items → curriculum_versions
+* student_curriculum_assignments → curriculum_versions
+* curriculum_requests.result_version_id → curriculum_versions
+* curriculum_request_files → curriculum_requests
+* growth_events.curriculum_item_id → curriculum_items
+* growth_events.curriculum_version_id → curriculum_versions
+
+삭제 정책:
+
+* 커리큘럼 버전과 항목은 과거 이력 보존을 위해 물리 삭제하지 않음
+* 참조 데이터가 있으면 삭제 차단
+* 기본적으로 ON DELETE RESTRICT
+* SET NULL 사용 금지
+* CASCADE는 request_files처럼 요청 자체에 종속되는 첨부 메타에만 검토
+
+growth_events의 curriculum_item_id와 curriculum_version_id는 NOT NULL 유지가 원칙입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Migration 실패와 서버 기동
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 index.ts의 다음 구조를 직접 확인하십시오.
+
+Promise.all([
+  initPoolDb().catch(...),
+  initSuperDb().catch(...)
+])
+
+Migration 실패가 catch 처리된 뒤 서버가 계속 기동할 수 있다면 헌법 위반입니다.
+
+WP1 설계서에 다음을 제출하십시오.
+
+* 실제 catch 코드
+* 오류 재throw 여부
+* initPoolDb 실패 시 HTTP 서버가 시작되는지
+* initXModeSchema 실패 시 서버가 시작되는지
+* Worker 모드도 같은지
+* 백업 DB 초기화 실패 시 운영 서버가 시작되는지
+
+목표:
+
+필수 운영 DB Migration 실패
+→ 서버 기동 중단
+
+백업 DB 실패 정책은 운영 DB와 분리하여 실제 현재 정책과 위험을 보고하십시오.
+
+아직 코드를 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 백업 DB standby sync 실패
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 확인된 문제:
+
+* 운영 DB에는 X 컬럼 존재
+* 백업 DB에는 X 컬럼이 없는 것으로 추정
+* standby sync가 swimming_pools 복제에 실패
+
+직접 확인할 항목:
+
+* 백업 DB의 swimming_pools 실제 컬럼
+* 백업 DB에 global_template_sets 존재 여부
+* 백업 DB diary_templates 구조
+* 백업 DB에 audit/growth/parent AI/report 테이블 존재 여부
+* standby sync가 어느 테이블에서 몇 회 실패했는지
+* 기존 백업 데이터 누락 범위
+
+WP1 설계서에는 운영 DB와 백업 DB의 스키마를 동일하게 만드는 정확한 실행 경로를 제시하십시오.
+
+단순 주석 추가는 해결책이 아닙니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 정정 설계서 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 제출하십시오.
+
+1. 실제 운영 DB 스키마 조회 결과
+2. 실제 백업 DB 스키마 조회 결과
+3. v3.3.4와 실제 DB 차이표
+4. v3.3.4와 pool-db-x-init.ts 차이표
+5. 이미 적용된 PART 2 테이블 데이터 건수
+6. PART 2 테이블을 참조하는 코드 검색 결과
+7. curriculum 5개 테이블 최소 DDL
+8. 모든 FK와 삭제 정책
+9. Migration Group 순서
+10. 운영 DB 적용 경로
+11. 백업 DB 적용 경로
+12. 실패 시 서버 기동 중단 설계
+13. 멱등성
+14. Rollback
+15. 일반모드 영향
+16. 테스트
+17. 실제 수정 예정 파일과 함수
+18. 미해결 항목
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 제출 후 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+정정된 WP1 설계서만 제출하고 멈추십시오.
+
+아직 금지:
+
+* 코드 수정
+* Migration 수정
+* 신규 DDL 작성 파일 저장
+* DB 변경
+* ENUM 변경
+* 테이블 DROP
+* 서버 재시작
+* Commit
+* Push
+* OTA
+* Render 배포
+
+추가 선택지를 요청하지 말고 v3.3.4 기준으로 정정 설계서를 제출하십시오.
