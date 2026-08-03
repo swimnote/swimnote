@@ -356,7 +356,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
   return (
     <Modal visible animationType="slide" transparent onRequestClose={handleClose}>
       <Pressable style={sh.backdrop} onPress={handleClose} />
-      <View style={[sh.sheet, subView && { height: "88%" }]}>
+      <View style={sh.sheet}>
         <View style={sh.handle} />
 
         <View style={sh.header}>
@@ -394,7 +394,11 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
           loading ? (
             <ActivityIndicator color={themeColor} style={{ marginTop: 40 }} />
           ) : (
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+            <ScrollView
+              style={{ flex: 1, minHeight: 0 }}
+              contentContainerStyle={{ paddingBottom: 48 }}
+              showsVerticalScrollIndicator={false}
+            >
               <View style={sh.summaryCard}>
                 {/* 주담당 선생님 */}
                 <View style={sh.summaryRow}>
@@ -709,7 +713,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
 const sh = StyleSheet.create({
   backdrop:   { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" },
   sheet:      { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
-                borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "88%", minHeight: "55%" },
+                borderTopLeftRadius: 24, borderTopRightRadius: 24, height: "88%" },
   handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
                 alignSelf: "center", marginTop: 10, marginBottom: 2 },
 

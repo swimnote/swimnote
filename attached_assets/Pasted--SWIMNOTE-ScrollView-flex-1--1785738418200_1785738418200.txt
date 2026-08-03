@@ -1,0 +1,227 @@
+[SWIMNOTE 긴급 수정 승인 — 스케줄러 반 상세 모달 스크롤]
+
+원인조사 수정본 확인 완료.
+
+수정 방향은 승인하되,
+ScrollView에 flex: 1만 추가하고 sheet의 maxHeight만 유지하는 방식은 승인하지 않는다.
+
+이유:
+부모 sheet가 maxHeight만 가지고 실제 height가 확정되지 않으면
+일부 기기에서 ScrollView가 bounded height를 안정적으로 계산하지 못할 가능성이 남는다.
+
+이번 수정의 목표는 임시로 스크롤만 살리는 것이 아니라,
+학생 수가 0명·5명·20명·50명·100명이어도
+항상 동일하게 안정적인 스크롤 구조를 만드는 것이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 최종 수정 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+1)
+artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+
+2)
+artifacts/swim-app/components/admin/AdminClassDetailSheet.tsx
+
+다른 화면과 서브모달은 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 선생님 ClassDetailSheet 최종 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+sheet:
+- maxHeight: "75%"
+- paddingBottom: 32
+
+studentScroll:
+- flexShrink: 1
+
+변경:
+
+sheet:
+- height: "75%"
+- maxHeight 제거 또는 height와 중복 사용하지 않음
+- paddingBottom 제거
+- overflow: "hidden" 추가 검토
+  단, borderRadius 내부 콘텐츠 클리핑에 필요한 경우만 적용
+
+studentScroll:
+- flex: 1
+- minHeight: 0 추가
+
+ScrollView:
+- contentContainerStyle에 paddingBottom 적용
+- 기존 마지막 <View style={{ height: 20 }} /> 제거
+- keyboardShouldPersistTaps="handled" 추가 여부 확인
+- Android에서 필요하면 nestedScrollEnabled={true} 적용하되,
+  현재 중첩 스크롤 구조가 아니므로 불필요하면 넣지 않는다
+
+권장 형태:
+
+<ScrollView
+  style={cds.studentScroll}
+  contentContainerStyle={cds.studentScrollContent}
+  showsVerticalScrollIndicator={false}
+  keyboardShouldPersistTaps="handled"
+>
+  ...
+</ScrollView>
+
+studentScroll: {
+  flex: 1,
+  minHeight: 0,
+},
+
+studentScrollContent: {
+  paddingBottom: 48,
+},
+
+sheet: {
+  position: "absolute",
+  bottom: 0,
+  left: 0,
+  right: 0,
+  height: "75%",
+  backgroundColor: "#fff",
+  borderTopLeftRadius: 20,
+  borderTopRightRadius: 20,
+},
+
+하단 여백은 기존 보고서의 32px보다 여유 있게
+48px로 적용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 관리자 AdminClassDetailSheet 최종 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자 화면도 동일한 원칙으로 수정한다.
+
+현재:
+
+sheet:
+- maxHeight: "88%"
+- minHeight: "55%"
+
+ScrollView:
+- style 없음
+- contentContainerStyle paddingBottom: 32
+
+변경 권장:
+
+기본 상세 시트:
+- height: "88%"
+- maxHeight/minHeight 조합 제거
+
+ScrollView:
+- style={{ flex: 1, minHeight: 0 }}
+- contentContainerStyle paddingBottom: 48
+
+단, AdminClassDetailSheet의 subView 상태에서
+기존 height: "88%" override가 이미 사용되고 있다면
+중복 height 지정과 화면 전환 영향을 먼저 확인한다.
+
+관리자 컴포넌트가 일반 상세와 subView에서 같은 sheet 스타일을 공유한다면:
+
+- 기본 상태와 subView 모두 height: "88%"로 통일 가능한지 확인
+- 통일할 수 없다면 공통 sheet에는 maxHeight/minHeight를 임의로 유지하지 말고
+  상태별 명시적 height 스타일을 분리한다
+
+예:
+
+<View
+  style={[
+    sh.sheet,
+    subView ? sh.sheetSubView : sh.sheetDetail,
+  ]}
+/>
+
+sheetDetail: {
+  height: "88%",
+},
+
+sheetSubView: {
+  height: "88%",
+},
+
+같은 값이면 별도 분리 없이 공통 height로 단순화한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 반드시 지킬 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 반 상세 모달의 고정 상단 영역은 그대로 유지
+- 학생 목록 영역만 남은 공간에서 스크롤
+- 마지막 학생 아래 48px 여백 확보
+- 학생 수가 적어도 빈 공간이나 레이아웃 깨짐 없음
+- 학생 수가 많아도 마지막 학생까지 접근 가능
+- 출석·결석·반이동 버튼 터치 정상
+- 모달 바깥 영역 터치 시 기존 닫기 동작 유지
+- 내부 스크롤 제스처가 backdrop 닫기 동작으로 전달되지 않음
+- Android 시스템 내비게이션 영역과 마지막 학생이 겹치지 않음
+- Safe Area 하단 inset이 이미 별도로 적용되는지 확인
+- 적용 중이라면 48px과 중복되어 과도한 여백이 생기지 않도록 조정
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 테스트 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+선생님과 관리자 화면을 각각 테스트한다.
+
+학생 수:
+- 0명
+- 5명
+- 20명
+- 50명
+- 100명
+
+확인:
+1. 모달 열림
+2. 위아래 스크롤
+3. 마지막 학생 접근
+4. 마지막 학생 아래 여백
+5. 출석 버튼
+6. 결석 버튼
+7. 반이동 버튼
+8. 수업일지 버튼
+9. 보충수업 버튼
+10. 삭제 버튼
+11. 닫기 버튼
+12. backdrop 닫기
+13. 스크롤 중 모달이 닫히지 않음
+14. Android 확인
+15. iOS 확인
+16. 월·주·일 스케줄러 진입별 확인
+17. 반이동·보충수업 서브모달 회귀 확인
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 구현 후 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+구현 후 다음을 제출한다.
+
+1. 실제 수정 파일
+2. 실제 수정 라인
+3. git diff 원문
+4. 선생님 모달 수정 전·후 구조
+5. 관리자 모달 수정 전·후 구조
+6. height를 명시적으로 지정한 이유
+7. Safe Area 처리 결과
+8. 학생 수별 테스트 결과
+9. Android 테스트 결과
+10. iOS 테스트 결과
+11. 다른 모달 회귀 결과
+12. 타입체크 결과
+
+이 긴급 수정만 구현한다.
+
+금지:
+- X모드 작업 재개
+- 다른 화면 일괄 수정
+- Commit
+- Push
+- OTA
+- 배포
+
+구현 후 보고하고 멈춘다.

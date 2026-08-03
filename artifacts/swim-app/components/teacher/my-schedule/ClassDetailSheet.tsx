@@ -348,7 +348,7 @@ export default function ClassDetailSheet({
     <>
       <Modal visible animationType="slide" transparent onRequestClose={handleClose} statusBarTranslucent>
         <Pressable style={cds.backdrop} onPress={handleClose}>
-          <Pressable style={cds.sheet} onPress={() => {}}>
+          <Pressable style={cds.mainSheet} onPress={() => {}}>
             <View style={cds.handle} />
             <View style={cds.sheetHeader}>
               <View style={{ flex: 1 }}>
@@ -434,7 +434,12 @@ export default function ClassDetailSheet({
               </View>
             </View>
             <Text style={cds.sectionLabel}>학생 목록 · {effectiveDate}</Text>
-            <ScrollView style={cds.studentScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={cds.studentScroll}
+              contentContainerStyle={cds.studentScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
               {groupStudents.length === 0 ? (
                 <View style={cds.empty}>
                   <LucideIcon name="users" size={28} color={C.textMuted} />
@@ -554,7 +559,6 @@ export default function ClassDetailSheet({
                   })}
                 </View>
               )}
-              <View style={{ height: 20 }} />
             </ScrollView>
           </Pressable>
         </Pressable>
@@ -779,6 +783,9 @@ export default function ClassDetailSheet({
 
 const cds = StyleSheet.create({
   backdrop:        { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+  mainSheet:       { position: "absolute", bottom: 0, left: 0, right: 0,
+                     backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
+                     height: "75%" },
   sheet:           { position: "absolute", bottom: 0, left: 0, right: 0,
                      backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
                      maxHeight: "75%", paddingBottom: 32 },
@@ -795,7 +802,8 @@ const cds = StyleSheet.create({
   actionText:      { fontSize: 13, fontFamily: "Pretendard-Regular" },
   sectionLabel:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted,
                      paddingHorizontal: 16, marginBottom: 6 },
-  studentScroll:   { flexShrink: 1 },
+  studentScroll:      { flex: 1, minHeight: 0 },
+  studentScrollContent: { paddingBottom: 48 },
   studentRow:      { flexDirection: "row", alignItems: "center", gap: 8,
                      paddingHorizontal: 16, paddingVertical: 10,
                      borderTopWidth: 1, borderTopColor: "#F8FAFC" },
