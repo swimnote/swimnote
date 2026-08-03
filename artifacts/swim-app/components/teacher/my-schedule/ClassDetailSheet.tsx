@@ -71,14 +71,6 @@ export default function ClassDetailSheet({
   const [movingToClassId, setMovingToClassId] = useState<string | null>(null);
   const [movingStudent, setMovingStudent] = useState(false);
 
-  // MOVE-3: moveStudent 상태 변화 감시
-  useEffect(() => {
-    console.log("[MOVE-3] moveStudent changed", {
-      studentId: moveStudent ? moveStudent.id.slice(-6) : null,
-      studentName: moveStudent ? moveStudent.name.slice(0, 1) : null,
-    });
-  }, [moveStudent]);
-
   const [unassignStudent,    setUnassignStudent]    = useState<StudentItem | null>(null);
   const [showUnassignTiming, setShowUnassignTiming] = useState(false);
   const [unassigningStudent, setUnassigningStudent] = useState(false);
@@ -539,17 +531,7 @@ export default function ClassDetailSheet({
                         <Pressable
                           style={[cds.stBtn, { backgroundColor: "#F0F0FF" }]}
                           onPress={() => {
-                            // MOVE-1
-                            console.log("[MOVE-1] button pressed", {
-                              studentId: st.id.slice(-6),
-                              studentName: st.name.slice(0, 1),
-                              groupId: group.id.slice(-6),
-                            });
                             setMoveStudent(st);
-                            // MOVE-2
-                            console.log("[MOVE-2] setMoveStudent called", {
-                              studentId: st.id.slice(-6),
-                            });
                           }}
                         >
                           <Text style={[cds.stBtnTxt, { color: "#4338CA" }]}>반이동</Text>
@@ -635,10 +617,7 @@ export default function ClassDetailSheet({
             </ScrollView>
           </View>
         </Pressable>
-      </Modal>
 
-      {/* MOVE-4 */}
-      {(() => { console.log("[MOVE-4] sub modal render", { visible: Boolean(moveStudent), targetCount: moveTargetClasses === null ? null : moveTargetClasses.length }); return null; })()}
       {moveStudent && (
         <SubSheetModal
           visible
@@ -861,6 +840,8 @@ export default function ClassDetailSheet({
           <View style={{ height: 20 }} />
         </SubSheetModal>
       )}
+
+      </Modal>
 
     </>
   );
