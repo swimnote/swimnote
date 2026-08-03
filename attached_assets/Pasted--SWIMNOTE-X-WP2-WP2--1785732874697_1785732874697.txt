@@ -1,0 +1,459 @@
+# SWIMNOTE X — WP2 최종 정정 지시
+
+WP2 정정 설계서를 검수했습니다.
+
+전체 방향은 대부분 정리됐지만, 아직 구현 승인 전 마지막으로 통일해야 할 항목이 5개 남아 있습니다.
+
+이번 작업은 코드 수정이 아니라 **설계 최종 정정 제출만** 진행합니다.
+
+다음 작업은 금지합니다.
+
+* 코드 수정
+* 신규 파일 생성
+* DB 변경
+* 수영장 상태 변경
+* Commit
+* Push
+* 서버 재시작
+* 배포
+* WP3 선행 작업
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. XModeError 생성 여부 통일
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+현재 문서에는 서로 충돌하는 내용이 있습니다.
+
+한쪽에서는:
+
+```text
+새 AppError / XModeError 클래스 생성하지 않음
+```
+
+이라고 되어 있고,
+
+다른 쪽에서는:
+
+```text
+src/lib/xmode.ts
+- computeMode
+- resolvePoolMode
+- XModeError 타입
+```
+
+이라고 되어 있습니다.
+
+최종 설계에서는 다음 기준으로 통일하십시오.
+
+## 확정
+
+별도 `XModeError` 클래스나 타입을 만들지 않습니다.
+
+이유:
+
+* Repository에 공통 AppError 구조가 없음
+* 기존 Route와 Middleware가 직접 HTTP 응답을 반환하는 패턴
+* WP2에서 새로운 오류 계층을 도입할 필요 없음
+* 변경 범위 최소화
+
+따라서 `src/lib/xmode.ts`에는 다음만 포함합니다.
+
+```text
+XModeStatus 타입
+PoolMode 타입
+PoolModeResult 타입
+computeMode()
+resolvePoolMode()
+```
+
+`resolvePoolMode()`는 pool 미존재 시 예외 클래스를 던지지 말고, 호출자가 구분할 수 있는 기존 Repository 방식으로 처리하는 설계를 제시하십시오.
+
+다음 중 실제 코드 구조에 가장 맞는 방법을 선택해서 제출하십시오.
+
+* `null` 반환
+* `{ found: false }` 형태 반환
+* 일반 `Error` throw 후 호출부에서 처리
+
+새 오류 클래스를 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. X모드 상태 변경 Audit 방식 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 설계는 `event_logs` 사용으로 결론 냈지만, WP1에서 이미 다음 Audit 구조가 생성됐습니다.
+
+```text
+audit_entity_versions
+audit_logs
+next_audit_version()
+```
+
+SWIMNOTE X 최종 설계 v3.3.4에서는 X 관련 상태 변경을 Audit 구조로 기록하는 방향이 이미 포함돼 있습니다.
+
+따라서 WP2에서는 `event_logs`가 아니라 **audit_logs를 사용하도록 설계를 정정하십시오.**
+
+## 확정 정책
+
+X모드 상태 변경:
+
+```text
+swimming_pools UPDATE
++
+audit_logs INSERT
+```
+
+두 작업은 같은 DB Transaction 안에서 실행합니다.
+
+Audit 기록 실패 시 상태 변경도 함께 Rollback합니다.
+
+## Audit 기록값
+
+```text
+entity_type: "swimming_pool_xmode"
+entity_id: swimming_pool_id
+action: "update"
+actor_type: "super_admin"
+actor_id: req.user.userId
+pool_id: swimming_pool_id
+before_data:
+  xmode_entitlement
+  xmode_config_status
+  xmode_purchased_at
+  xmode_subscription_end_at
+after_data:
+  동일 필드의 변경 후 값
+reason:
+  요청 Body에 reason이 있으면 사용
+request_id:
+  기존 request_id가 있으면 사용
+correlation_id:
+  기존 생성 규칙이 없으면 이번 WP에서 임의 시스템을 만들지 말고
+  최소 랜덤 ID 생성 방식만 설계서에 명시
+ip_hash:
+  기존 IP hash 함수가 있으면 재사용
+  없으면 null
+```
+
+## 구현 전 조사
+
+다음을 실제 Repository에서 확인하여 제출하십시오.
+
+1. `next_audit_version()` 호출 방식
+2. Drizzle Transaction 내부에서 PostgreSQL 함수 호출 가능 여부
+3. 기존 request_id 생성 방식
+4. correlation_id 생성 helper 존재 여부
+5. IP hash helper 존재 여부
+
+공유 `writeAuditLog()` helper가 없다면 WP2에서 최소 helper를 새로 만드는지, Route 내부 Transaction SQL로 직접 처리하는지 비교하십시오.
+
+다만 Audit 구조 자체를 바꾸면 안 됩니다.
+
+`event_logs`는 기존 운영 이벤트 기록용으로 유지하되, 이번 X모드 상태 변경에는 사용하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 슈퍼어드민 Route의 pool 미존재 처리 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 기존 Route에는 두 패턴이 혼재합니다.
+
+* subscription Route: SELECT 후 없으면 404
+* readonly/block-upload Route: UPDATE 0 rows 가능
+
+WP2 X모드 상태 변경은 잘못된 pool_id 수정 위험이 있으므로 다음으로 확정합니다.
+
+```text
+PATCH /super/operators/:id/xmode
+:id = swimming_pool_id
+```
+
+처리 순서:
+
+```text
+1. SELECT swimming_pools WHERE id=:id FOR UPDATE
+2. row 없음 → 404
+3. 입력 검증
+4. UPDATE
+5. audit_logs 기록
+6. Transaction commit
+7. 변경 후 resolvePoolMode 결과 반환
+```
+
+404 응답:
+
+```json
+{
+  "error": "POOL_NOT_FOUND",
+  "message": "수영장을 찾을 수 없습니다."
+}
+```
+
+기존 `"운영자 없음"` 문구는 이 Route에서 사용하지 않습니다.
+
+X모드 상태는 운영자 계정이 아니라 수영장 상태이므로 오류 메시지도 수영장 기준으로 통일합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. platform_admin 정책 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+Repository에 `requirePlatformRole()`이 존재한다는 사실과, WP2에서 어떤 역할을 허용할지는 별개입니다.
+
+WP2 역할 정책은 다음으로 확정합니다.
+
+## GET /pools/x-mode
+
+허용:
+
+* pool_admin
+* teacher
+* parent_account
+* super_admin
+
+불허:
+
+* platform_admin
+* super_manager
+* 레거시 parent
+* 그 외 미확인 역할
+
+## PATCH /super/operators/:id/xmode
+
+허용:
+
+* super_admin만
+
+`platform_admin`은 현재 WP2에서 허용하지 않습니다.
+
+이유:
+
+* X모드 entitlement 및 config 상태는 플랫폼 전체 운영 권한 중에서도 최고 관리자 변경사항
+* 기존 확정 실행순서에서 슈퍼어드민 관리로 정의됨
+* 권한 확대는 별도 승인 없이 불가
+
+fail-closed로 처리하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. parent_account 다중 pool 처리 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+조사 결과:
+
+* parent_students에는 swimming_pool_id가 존재
+* 기술적으로 여러 수영장의 학생 연결 가능
+* 현재 parent_accounts.swimming_pool_id는 단일 값
+* 기존 Parent API는 실질적으로 단일 pool 기준
+
+따라서 WP2에서는 현재 구조를 변경하지 않습니다.
+
+## WP2 확정 동작
+
+```text
+parent_account
+→ parent_accounts.swimming_pool_id 기준
+→ GET /pools/x-mode 단일 pool 상태 반환
+```
+
+다만 다음 문장을 반드시 설계서에 남기십시오.
+
+```text
+현재 Contract는 기존 Parent API의 단일 pool 구조를 따른다.
+parent_students 기반 자녀별 다중 pool 분리는 WP3 App Mode Context 설계에서
+선택된 자녀 식별 흐름과 함께 다시 검토한다.
+```
+
+새 `child_id` 파라미터를 WP2에 추가하지 마십시오.
+
+다중 pool 문제가 해결됐다고 표시하지 말고 다음 상태로 유지하십시오.
+
+```text
+NEEDS_VERIFICATION — WP3에서 재검토
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. computeMode 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+`computeMode()`는 허용합니다.
+
+이유:
+
+* DB를 변경하지 않고 판정식 테스트 가능
+* 판정 로직 중복 방지
+* 운영 수영장 상태를 변경하지 않고 단위 테스트 가능
+* 구현 범위가 작고 resolvePoolMode 내부 책임을 분리함
+
+확정 판정식:
+
+```typescript
+function computeMode(
+  entitlement: boolean,
+  configStatus: XModeStatus
+): PoolMode {
+  if (!entitlement) return "normal";
+  if (configStatus === "READY") return "x";
+  return "x_pending";
+}
+```
+
+다른 조건이나 fallback을 추가하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 오류 코드 파일 위치
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서는 별도 오류 코드 파일을 만들지 않습니다.
+
+다음 오류 문자열을 Middleware와 Route 내부 상수로 사용하십시오.
+
+```text
+POOL_NOT_FOUND
+POOL_ACCESS_DENIED
+XMODE_NOT_ENTITLED
+XMODE_NOT_READY
+```
+
+중복이 많아지는 시점에 별도 공통 파일로 이동하는 것은 추후 별도 승인 대상입니다.
+
+현재 WP에서는 파일 수를 늘리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. pools.ts 미확인 Route 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 남아 있는 다음 라인을 실제로 확인하십시오.
+
+```text
+pools.ts line 317
+pools.ts line 336
+```
+
+제출:
+
+* HTTP method
+* 실제 경로
+* 역할
+* `/x-mode`와 충돌 여부
+
+이 두 Route를 확인한 뒤 GET `/x-mode` 삽입 위치를 최종 확정하십시오.
+
+코드는 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 최종 파일 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 예상 수정 파일:
+
+```text
+artifacts/api-server/src/routes/pools.ts
+artifacts/api-server/src/routes/super.ts
+```
+
+최종 예상 신규 파일:
+
+```text
+artifacts/api-server/src/lib/xmode.ts
+artifacts/api-server/src/middlewares/xmode-guard.ts
+```
+
+추가 파일 생성 금지:
+
+* xmode-error-codes.ts
+* audit 전용 신규 테이블
+* capability 파일
+* cache 파일
+* parent multi-pool helper
+* 새로운 권한 시스템 파일
+
+Audit helper가 반드시 필요하다고 판단되면 임의 생성하지 말고 설계서에서만 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 최종 API Contract
+━━━━━━━━━━━━━━━━━━━━━━
+
+## GET /pools/x-mode
+
+응답:
+
+```json
+{
+  "pool_id": "pool_xxx",
+  "mode": "normal",
+  "xmode_entitlement": false,
+  "xmode_config_status": "NOT_CONFIGURED"
+}
+```
+
+capabilities 필드 없음.
+
+## PATCH /super/operators/:id/xmode
+
+요청 Body:
+
+```json
+{
+  "xmode_entitlement": true,
+  "xmode_config_status": "READY",
+  "xmode_purchased_at": null,
+  "xmode_subscription_end_at": null,
+  "reason": "수동 활성화"
+}
+```
+
+모든 필드는 optional이지만 최소 1개 변경 필드는 필수입니다.
+
+`reason`은 Audit용 optional 문자열입니다.
+
+`xmode_payment_failed_at`은 현재 Body에서 받지 않습니다.
+
+응답:
+
+```json
+{
+  "ok": true,
+  "pool_id": "pool_xxx",
+  "mode": "x",
+  "xmode_entitlement": true,
+  "xmode_config_status": "READY"
+}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 최종 정정본 제출 항목
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출하십시오.
+
+1. XModeError 제거 반영
+2. resolvePoolMode 오류 반환 방식
+3. audit_logs Transaction 설계
+4. next_audit_version 호출 SQL
+5. before_data / after_data 구조
+6. request_id / correlation_id / ip_hash 처리
+7. 슈퍼어드민 pool 404 처리
+8. platform_admin 차단 반영
+9. parent_account 단일 pool + WP3 재검토 명시
+10. pools.ts line 317/336 실제 Route
+11. 최종 수정 파일
+12. 최종 신규 파일
+13. 최종 API Contract
+14. 테스트 계획
+15. 구현 승인 가능 여부 자체 판단
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 제출 후 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 정정 설계서만 제출하고 멈추십시오.
+
+금지:
+
+* 코드 수정
+* DB 변경
+* 수영장 상태 변경
+* 신규 테스트 데이터
+* Commit
+* Push
+* 서버 재시작
+* 배포
+* WP3 작업
