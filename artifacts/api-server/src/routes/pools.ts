@@ -75,17 +75,26 @@ router.get("/search", async (req, res) => {
 });
 
 // ── 수영장 이름 검색 (public-search — pool-join-request 호환) ────────────
+// 정책: 검색어가 없으면 빈 배열 반환. 전방일치(name ILIKE q%)만 허용.
+// 반환 필드: id, name, address (phone 등 개인정보 제외)
 router.get("/public-search", async (req, res) => {
-  const name = (req.query.name as string || "").trim();
+  const q = (req.query.name as string || "").trim();
+  // 검색어 없음 → 전체 목록 반환 금지
+  if (!q) {
+    res.json({ success: true, data: [] });
+    return;
+  }
   try {
-    const q = name.length >= 1 ? name : "";
     const rows = await superAdminDb.execute(sql`
-      SELECT id, name, address, phone
+      SELECT id, name, address
       FROM swimming_pools
       WHERE approval_status = 'approved'
-        ${q ? sql`AND (name ILIKE ${"%" + q + "%"} OR address ILIKE ${"%" + q + "%"})` : sql``}
-      ORDER BY name
-      LIMIT 30
+        AND name ILIKE ${q + "%"}
+      ORDER BY
+        CASE WHEN LOWER(name) = LOWER(${q}) THEN 0 ELSE 1 END,
+        LENGTH(name),
+        name
+      LIMIT 20
     `);
     res.json({ success: true, data: rows.rows });
   } catch (e) { console.error(e); res.status(500).json({ success: false, data: [] }); }

@@ -94,9 +94,12 @@ export default function SignupScreen() {
   const [childName, setChildName]   = useState("");   // V2: 학부모 자녀 이름
   const [poolSearch, setPoolSearch] = useState("");
   const [pools, setPools]           = useState<Pool[]>([]);
-  const [allPools, setAllPools]     = useState<Pool[]>([]);
   const [selectedPool, setSelectedPool] = useState<Pool | null>(null);
-  const [poolsLoaded, setPoolsLoaded]   = useState(false);
+  type PoolSearchState = "idle" | "loading" | "loaded" | "empty" | "error";
+  const [poolSearchState, setPoolSearchState] = useState<PoolSearchState>("idle");
+  const [poolSearchError, setPoolSearchError] = useState("");
+  const poolSearchAbortRef = useRef<AbortController | null>(null);
+  const poolSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Admin-only
   const [poolName, setPoolName]       = useState("");
   const [poolAddress, setPoolAddress] = useState("");
@@ -161,26 +164,57 @@ export default function SignupScreen() {
   }
 
   /* ──────────────────────────────────────────────── */
-  /*  Pool search (teacher & parent)                    */
+  /*  Pool search (teacher & parent) — debounce + 전방일치 */
   /* ──────────────────────────────────────────────── */
   useEffect(() => {
-    if (step === 4 && (role === "teacher" || role === "parent") && !poolsLoaded) {
-      (async () => {
-        try {
-          const res = await fetch(`${API_BASE}/pools/public-search`);
-          const d   = await res.json();
-          if (d.success && Array.isArray(d.data)) { setAllPools(d.data); setPools(d.data); }
-        } catch {}
-        setPoolsLoaded(true);
-      })();
-    }
-  }, [step, role, poolsLoaded]);
+    if (step !== 4 || (role !== "teacher" && role !== "parent")) return;
 
-  useEffect(() => {
-    if (!poolSearch.trim()) { setPools(allPools); return; }
-    const q = poolSearch.trim().toLowerCase();
-    setPools(allPools.filter(p => p.name.toLowerCase().includes(q) || (p.address ?? "").toLowerCase().includes(q)));
-  }, [poolSearch, allPools]);
+    const q = poolSearch.trim();
+
+    // 검색어 없음 → idle 상태, API 호출 금지
+    if (!q) {
+      if (poolSearchAbortRef.current) { poolSearchAbortRef.current.abort(); poolSearchAbortRef.current = null; }
+      if (poolSearchTimerRef.current) clearTimeout(poolSearchTimerRef.current);
+      setPools([]);
+      setPoolSearchState("idle");
+      setPoolSearchError("");
+      return;
+    }
+
+    // 새 검색어 입력 → 즉시 loading 전환 (이전 결과 보이지 않도록)
+    setPoolSearchState("loading");
+
+    if (poolSearchTimerRef.current) clearTimeout(poolSearchTimerRef.current);
+    poolSearchTimerRef.current = setTimeout(async () => {
+      if (poolSearchAbortRef.current) poolSearchAbortRef.current.abort();
+      const ctrl = new AbortController();
+      poolSearchAbortRef.current = ctrl;
+      try {
+        const res = await fetch(`${API_BASE}/pools/public-search?name=${encodeURIComponent(q)}`, { signal: ctrl.signal });
+        if (ctrl.signal.aborted) return;
+        const d = await res.json();
+        if (ctrl.signal.aborted) return;
+        if (d.success && Array.isArray(d.data)) {
+          setPools(d.data);
+          setPoolSearchState(d.data.length > 0 ? "loaded" : "empty");
+          setPoolSearchError("");
+        } else {
+          setPools([]);
+          setPoolSearchState("error");
+          setPoolSearchError("검색 결과를 불러오지 못했습니다.");
+        }
+      } catch (e: any) {
+        if (e?.name === "AbortError") return;
+        setPools([]);
+        setPoolSearchState("error");
+        setPoolSearchError("네트워크 오류가 발생했습니다. 다시 시도해주세요.");
+      }
+    }, 300);
+
+    return () => {
+      if (poolSearchTimerRef.current) clearTimeout(poolSearchTimerRef.current);
+    };
+  }, [poolSearch, step, role]);
 
   /* ──────────────────────────────────────────────── */
   /*  Step navigation                                  */
@@ -668,17 +702,28 @@ export default function SignupScreen() {
                     onChangeText={setPoolSearch}
                   />
                 </View>
-                {!poolsLoaded && (
+                {poolSearchState === "idle" && (
+                  <Text style={[styles.emptyTxt, { color: C.textMuted }]}>등록된 수영장 이름을 입력해 주세요.</Text>
+                )}
+                {poolSearchState === "loading" && (
                   <ActivityIndicator size="small" color="#E4A93A" style={{ marginTop: 8 }} />
                 )}
-                {poolsLoaded && pools.length === 0 && (
-                  <Text style={[styles.emptyTxt, { color: C.textMuted }]}>검색 결과가 없습니다.</Text>
+                {poolSearchState === "empty" && (
+                  <Text style={[styles.emptyTxt, { color: C.textMuted }]}>일치하는 수영장이 없습니다.</Text>
                 )}
-                {pools.slice(0, 6).map(p => (
+                {poolSearchState === "error" && (
+                  <View style={{ marginTop: 8, gap: 6 }}>
+                    <Text style={[styles.emptyTxt, { color: C.error }]}>{poolSearchError}</Text>
+                    <Pressable onPress={() => { setPoolSearchState("idle"); setPoolSearch(p => p + " "); setTimeout(() => setPoolSearch(p => p.trimEnd()), 0); }}>
+                      <Text style={{ fontSize: 12, color: "#E4A93A", fontFamily: "Pretendard-Regular", textDecorationLine: "underline" }}>다시 시도</Text>
+                    </Pressable>
+                  </View>
+                )}
+                {poolSearchState === "loaded" && pools.map(p => (
                   <Pressable
                     key={p.id}
                     style={({ pressed }) => [styles.poolItem, { backgroundColor: pressed ? "#FFF8F0" : C.background, borderColor: C.border }]}
-                    onPress={() => setSelectedPool(p)}
+                    onPress={() => { setSelectedPool(p); setPoolSearch(""); setPools([]); setPoolSearchState("idle"); }}
                   >
                     <View style={[styles.poolIconSm, { backgroundColor: "#FFF3E0" }]}>
                       <LucideIcon name="map-pin" size={13} color="#E4A93A" />
@@ -745,17 +790,28 @@ export default function SignupScreen() {
                     onChangeText={setPoolSearch}
                   />
                 </View>
-                {!poolsLoaded && (
+                {poolSearchState === "idle" && (
+                  <Text style={[styles.emptyTxt, { color: C.textMuted }]}>등록된 수영장 이름을 입력해 주세요.</Text>
+                )}
+                {poolSearchState === "loading" && (
                   <ActivityIndicator size="small" color={C.tint} style={{ marginTop: 8 }} />
                 )}
-                {poolsLoaded && pools.length === 0 && (
-                  <Text style={[styles.emptyTxt, { color: C.textMuted }]}>검색 결과가 없습니다.</Text>
+                {poolSearchState === "empty" && (
+                  <Text style={[styles.emptyTxt, { color: C.textMuted }]}>일치하는 수영장이 없습니다.</Text>
                 )}
-                {pools.slice(0, 6).map(p => (
+                {poolSearchState === "error" && (
+                  <View style={{ marginTop: 8, gap: 6 }}>
+                    <Text style={[styles.emptyTxt, { color: C.error }]}>{poolSearchError}</Text>
+                    <Pressable onPress={() => { setPoolSearchState("idle"); setPoolSearch(p => p + " "); setTimeout(() => setPoolSearch(p => p.trimEnd()), 0); }}>
+                      <Text style={{ fontSize: 12, color: C.tint, fontFamily: "Pretendard-Regular", textDecorationLine: "underline" }}>다시 시도</Text>
+                    </Pressable>
+                  </View>
+                )}
+                {poolSearchState === "loaded" && pools.map(p => (
                   <Pressable
                     key={p.id}
                     style={({ pressed }) => [styles.poolItem, { backgroundColor: pressed ? "#F0FAF9" : C.background, borderColor: C.border }]}
-                    onPress={() => setSelectedPool(p)}
+                    onPress={() => { setSelectedPool(p); setPoolSearch(""); setPools([]); setPoolSearchState("idle"); }}
                   >
                     <View style={[styles.poolIconSm, { backgroundColor: "#E6FAF8" }]}>
                       <LucideIcon name="map-pin" size={13} color={C.tint} />
