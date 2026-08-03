@@ -567,7 +567,7 @@ export default function ClassDetailSheet({
       {moveStudent && (
         <Modal visible animationType="slide" transparent onRequestClose={() => setMoveStudent(null)} statusBarTranslucent>
           <Pressable style={cds.backdrop} onPress={() => setMoveStudent(null)}>
-            <Pressable style={[cds.sheet, { maxHeight: "55%" }]} onPress={() => {}}>
+            <View style={[cds.sheet, { maxHeight: "55%" }]} onStartShouldSetResponder={() => true}>
               <View style={cds.handle} />
               <View style={cds.sheetHeader}>
                 <View style={{ flex: 1 }}>
@@ -629,7 +629,7 @@ export default function ClassDetailSheet({
                   </Pressable>
                 </View>
               )}
-            </Pressable>
+            </View>
           </Pressable>
         </Modal>
       )}
@@ -638,7 +638,7 @@ export default function ClassDetailSheet({
       {showMakeupPicker && (
         <Modal visible animationType="slide" transparent onRequestClose={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }} statusBarTranslucent>
           <Pressable style={cds.backdrop} onPress={() => { setShowMakeupPicker(false); setSelectedMakeupStudent(null); }}>
-            <Pressable style={[cds.sheet, { minHeight: "50%" }]} onPress={() => {}}>
+            <View style={[cds.sheet, { minHeight: "50%" }]} onStartShouldSetResponder={() => true}>
               <View style={cds.handle} />
               {selectedMakeupStudent === null ? (
                 /* 단계 1: 보강 대기 학생 선택 */
@@ -731,7 +731,7 @@ export default function ClassDetailSheet({
                   </ScrollView>
                 </>
               )}
-            </Pressable>
+            </View>
           </Pressable>
         </Modal>
       )}
@@ -739,7 +739,7 @@ export default function ClassDetailSheet({
       {showUnassignTiming && unassignStudent && (
         <Modal visible animationType="slide" transparent onRequestClose={() => setShowUnassignTiming(false)} statusBarTranslucent>
           <Pressable style={cds.backdrop} onPress={() => setShowUnassignTiming(false)}>
-            <Pressable style={[cds.sheet, { maxHeight: "45%" }]} onPress={() => {}}>
+            <View style={[cds.sheet, { maxHeight: "45%" }]} onStartShouldSetResponder={() => true}>
               <View style={cds.handle} />
               <View style={[cds.sheetHeader, { paddingBottom: 12 }]}>
                 <View style={{ flex: 1 }}>
@@ -772,7 +772,7 @@ export default function ClassDetailSheet({
                 </Pressable>
               ))}
               <View style={{ height: 20 }} />
-            </Pressable>
+            </View>
           </Pressable>
         </Modal>
       )}
