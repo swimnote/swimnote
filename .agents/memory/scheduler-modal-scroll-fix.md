@@ -34,6 +34,21 @@ sheet: { position:"absolute", bottom:0, left:0, right:0,
 - `cds.sheet`는 서브모달용으로 기존 maxHeight+paddingBottom 유지
 - 메인 Pressable에만 `cds.mainSheet` 적용
 
+## 서브모달 ScrollView 스크롤 차단 — iOS Pressable Responder 패턴
+`<Pressable onPress={() => {}}>` 를 backdrop 버블링 차단용 시트 컨테이너로 쓰면
+iOS에서 `onResponderTerminationRequest=false` 를 반환 → ScrollView가 Responder를 획득하지 못함 → 스크롤 불가.
+
+**확정 수정 패턴 (메인 시트·서브모달 공통):**
+```tsx
+// 변경 전
+<Pressable style={styles.sheet} onPress={() => {}}>
+
+// 변경 후
+<View style={styles.sheet} onStartShouldSetResponder={() => true}>
+```
+- `onStartShouldSetResponder={() => true}` → backdrop 터치 이벤트가 View에서 소비됨(버블링 차단), ScrollView responder 양보 허용
+- ClassDetailSheet.tsx 서브모달 3개(반이동·보충수업·적용시점) 모두 동일 패턴 적용 완료
+
 ## 수정 파일
 - `components/teacher/my-schedule/ClassDetailSheet.tsx` — mainSheet 분리, studentScroll flex:1
 - `components/admin/AdminClassDetailSheet.tsx` — height:"88%", ScrollView flex:1
