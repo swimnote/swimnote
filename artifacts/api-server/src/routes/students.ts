@@ -777,14 +777,14 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
       }
       const effDate = kstTodayStr();
       await db.transaction(async (tx) => {
-        // 1. 잠금 후 최신 row 확보
+        // SELECT FOR UPDATE: 최신 row 값 파생보다 동일 학생에 대한 동시 상태 변경을 직렬화하기
+        // 위한 잠금 목적이다. 실제 업데이트 데이터(extraFields)는 tx 진입 전 결정된 값을 사용한다.
         const lockedRows = await tx.execute(sql`
           SELECT id, status, class_group_id, assigned_class_ids
           FROM students WHERE id = ${req.params.id} LIMIT 1 FOR UPDATE
         `);
         const locked = lockedRows.rows[0];
         if (!locked) throw new Error("STUDENT_NOT_FOUND");
-        // 2. history 종료 + 3. students 갱신
         await closeAllActiveClassHistory(tx, req.params.id, effDate);
         await tx.update(studentsTable).set(extraFields).where(eq(studentsTable.id, req.params.id));
       });
@@ -851,14 +851,15 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
 
     // ── 단일 트랜잭션: history 기록 + students 갱신 ──────────────────────
     await db.transaction(async (tx) => {
-      // 1. 잠금 후 최신 row 확보
+      // SELECT FOR UPDATE: 동일 학생에 대한 동시 반 이탈 요청을 직렬화하기 위한 잠금 목적이다.
+      // 실제 업데이트 데이터(newIds, remEffectiveDate 등)는 tx 진입 전 결정된 값을 사용한다.
       const lockedRows = await tx.execute(sql`
         SELECT id, status, class_group_id, assigned_class_ids
         FROM students WHERE id = ${req.params.id} LIMIT 1 FOR UPDATE
       `);
       const locked = lockedRows.rows[0];
       if (!locked) throw new Error("STUDENT_NOT_FOUND");
-      // 2) history left_at 설정 (특정 반 이탈)
+      // history left_at 설정 (특정 반 이탈)
       await closeClassHistory(tx, req.params.id, class_group_id, remEffectiveDate);
 
       // 3) students 캐시 갱신
@@ -1027,14 +1028,14 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
     if (needsClassClear) {
       const effDate = kstTodayStr();
       await db.transaction(async (tx) => {
-        // 1. 잠금 후 최신 row 확보
+        // SELECT FOR UPDATE: 동일 학생에 대한 동시 상태 변경을 직렬화하기 위한 잠금 목적이다.
+        // 실제 업데이트 데이터(update 객체)는 tx 진입 전 new_status 기준으로 결정된 값을 사용한다.
         const lockedRows = await tx.execute(sql`
           SELECT id, status, class_group_id, assigned_class_ids
           FROM students WHERE id = ${req.params.id} LIMIT 1 FOR UPDATE
         `);
         const locked = lockedRows.rows[0];
         if (!locked) throw new Error("STUDENT_NOT_FOUND");
-        // 2. history 종료 + 3. students 갱신
         await closeAllActiveClassHistory(tx, req.params.id, effDate);
         await tx.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
       });

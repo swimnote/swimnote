@@ -180,14 +180,14 @@ router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "p
       }
       const withdrawEffDate = kstTodayStr();
       await db.transaction(async (tx) => {
-        // 1. 잠금 후 최신 row 확보
+        // SELECT FOR UPDATE: 동일 학생에 대한 동시 탈퇴 요청을 직렬화하기 위한 잠금 목적이다.
+        // 실제 업데이트 데이터(status=withdrawn, lastClassName 등)는 tx 진입 전 결정된 값을 사용한다.
         const lockedRows = await tx.execute(sql`
           SELECT id, status, class_group_id, assigned_class_ids
           FROM students WHERE id = ${studentId} LIMIT 1 FOR UPDATE
         `);
         const locked = lockedRows.rows[0];
         if (!locked) throw new Error("STUDENT_NOT_FOUND");
-        // 2. history 종료 + 3. students 갱신
         await closeAllActiveClassHistory(tx, studentId, withdrawEffDate);
         await tx.execute(sql`
           UPDATE students
@@ -1229,14 +1229,14 @@ router.patch("/students/:id/status", requireAuth, requireRole("super_admin", "po
       if (isClassDepartureStatus) {
         const effDate = kstTodayStr();
         await db.transaction(async (tx) => {
-          // 1. 잠금 후 최신 row 확보
+          // SELECT FOR UPDATE: 동일 학생에 대한 동시 상태 변경을 직렬화하기 위한 잠금 목적이다.
+          // 실제 업데이트 데이터(status, reason)는 요청 body에서 결정된 값을 사용한다.
           const lockedRows = await tx.execute(sql`
             SELECT id, status, class_group_id, assigned_class_ids
             FROM students WHERE id = ${req.params.id} LIMIT 1 FOR UPDATE
           `);
           const locked = lockedRows.rows[0];
           if (!locked) throw new Error("STUDENT_NOT_FOUND");
-          // 2. history 종료 + 3. students 갱신
           await closeAllActiveClassHistory(tx, req.params.id, effDate);
           if (status === 'withdrawn') {
             await tx.execute(sql`UPDATE students SET status = ${status}, archived_reason = ${reason ?? null}, class_group_id = NULL, assigned_class_ids = '[]'::jsonb, schedule_labels = NULL, withdrawn_at = NOW(), updated_at = NOW() WHERE id = ${req.params.id}`);
