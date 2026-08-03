@@ -348,7 +348,7 @@ export default function ClassDetailSheet({
     <>
       <Modal visible animationType="slide" transparent onRequestClose={handleClose} statusBarTranslucent>
         <Pressable style={cds.backdrop} onPress={handleClose}>
-          <Pressable style={cds.mainSheet} onPress={() => {}}>
+          <View style={cds.mainSheet} onStartShouldSetResponder={() => true}>
             <View style={cds.handle} />
             <View style={cds.sheetHeader}>
               <View style={{ flex: 1 }}>
@@ -560,7 +560,7 @@ export default function ClassDetailSheet({
                 </View>
               )}
             </ScrollView>
-          </Pressable>
+          </View>
         </Pressable>
       </Modal>
 
