@@ -1,0 +1,421 @@
+SWIMNOTE X — WP4 구현 승인 지시
+
+WP4 수정 설계서를 검수했습니다.
+
+WP4 구현을 승인합니다.
+
+추가 설계서를 다시 작성하지 말고, 아래 확정사항을 반영하여 WP4 외형·메뉴 분기만 구현하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. WP4 구현 목표
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+같은 SWIMNOTE 앱 안에서 ModeContext의 상태에 따라 다음을 구분합니다.
+
+* normal: 기존 SWIMNOTE 외형과 기능 유지
+* x_pending: X 준비 중 상태 표시
+* x: SWIMNOTE X 명칭·표시·메뉴 노출
+
+이번 WP에서는 실제 기능을 연결하지 않습니다.
+
+금지:
+
+* 커리큘럼 API 연결
+* Growth Event 연결
+* 성장판 API 연결
+* X 글로벌 템플릿 연결
+* 학부모 AI 검색 실제 연결
+* 성장리포트 실제 연결
+* RevenueCat 연결
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 일반모드 학부모 버튼 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+설계서의 다음 내용은 적용하지 마십시오.
+
+normal 학부모
+→ AI 커리큘럼 검색 버튼 숨김
+→ AI 성장 리포트 버튼 숨김
+→ Powered by SWIMNOTE AI 문구 숨김
+
+이유:
+
+* 현재 일반모드 앱에 이미 존재하는 UI임
+* 기존 확정안에서 두 버튼을 유지하도록 정해짐
+* 버튼은 실제 기능이 아니라 기존 출시 예정 안내 모달만 표시함
+* 일반모드 변화 0 원칙을 지켜야 함
+
+최종 확정:
+
+normal
+→ AI 커리큘럼 검색 버튼 기존 그대로 유지
+→ AI 성장 리포트 버튼 기존 그대로 유지
+→ 기존 AIFeatureModal 연결 유지
+→ Powered by SWIMNOTE AI 기존 노출 유지
+x_pending
+→ 두 버튼 유지
+→ 기존 AIFeatureModal 연결 유지
+→ X 준비 중 표시 추가 가능
+x
+→ 두 버튼 유지
+→ 기존 AIFeatureModal 연결 유지
+→ XModeBadge 또는 SWIMNOTE X 표시 추가
+
+학부모 home.tsx에서는 기존 버튼을 제거하거나 조건부로 숨기지 마십시오.
+
+허용 변경은 XModeBadge와 X 준비 상태 표시뿐입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 구현 파일 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 파일:
+
+artifacts/swim-app/components/mode/XModeBadge.tsx
+
+수정 파일:
+
+artifacts/swim-app/app/(admin)/dashboard.tsx
+artifacts/swim-app/app/(admin)/settings.tsx
+artifacts/swim-app/app/(teacher)/today-schedule.tsx
+artifacts/swim-app/app/(teacher)/settings.tsx
+artifacts/swim-app/app/(parent)/home.tsx
+
+원칙적으로 위 6개 파일만 작업하십시오.
+
+다음 파일은 이번 WP에서 수정하지 마십시오.
+
+artifacts/swim-app/app/(admin)/mode.tsx
+
+이유:
+
+* 현재 기존 /org-role-select 이동 역할을 정확히 대체할 필요가 확인되지 않음
+* 숨겨진 기존 Route의 의미를 이번 WP에서 바꾸면 일반모드 직접 접근 흐름이 달라질 수 있음
+* X모드 현황 화면은 현재 WP4 완료에 필수 아님
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. XModeGuard 이번 WP 제외
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 파일은 이번 WP에서 만들지 마십시오.
+
+components/mode/XModeGuard.tsx
+
+이유:
+
+* WP4에서는 X 전용 신규 Route를 생성하지 않음
+* Guard를 실제 적용할 화면이 없음
+* 미사용 컴포넌트는 테스트할 수 없는 Dead Code가 됨
+
+처리 원칙:
+
+첫 X 전용 Route가 실제 생성되는 WP
+→ 해당 Route와 XModeGuard를 동시에 구현
+→ normal / x_pending / error / Deep Link 차단 검증
+
+기존 일반 Route에는 X Guard를 연결하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. XModeBadge 구현
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+components/mode/XModeBadge.tsx
+
+기존 색상만 재사용하십시오.
+
+mode = x
+→ Colors.light.navy 또는 실제 navy 상수
+→ 흰색 X
+mode = x_pending
+→ Colors.light.warning 또는 실제 warning 상수
+→ 흰색 X
+mode = normal 또는 null
+→ null 반환
+
+주의:
+
+* 실제 theme/colors.ts의 export 구조와 상수명을 다시 확인
+* 존재하지 않는 상수명을 추정해 사용 금지
+* 신규 색상 상수 추가 금지
+* 보라색 사용 금지
+* 새 이미지 asset 추가 금지
+* 기존 레이아웃 크기 변경 금지
+
+뱃지는 기존 로고나 수영장 이름 옆에 작게 배치하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 관리자 외형·메뉴
+━━━━━━━━━━━━━━━━━━━━━━
+
+dashboard.tsx
+
+mode가 x일 때:
+
+* 수영장 이름 옆 XModeBadge
+* 기존 카드 스타일을 재사용한 SWIMNOTE X 섹션
+* 항목:
+    * 커리큘럼 의뢰
+    * 커리큘럼 관리
+    * 성장판 관리
+
+세 항목은 실제 Route나 API에 연결하지 않습니다.
+
+기존 화면에 사용 가능한 안내 Modal 또는 Alert 패턴이 있으면 재사용하십시오.
+
+새 Modal 시스템을 만들지 마십시오.
+
+mode가 x_pending일 때:
+
+* 수영장 이름 옆 준비 상태 Badge
+* SWIMNOTE X 설정 진행 중 안내
+* X 항목은 disabled 또는 준비 중 표시
+* onPress로 실제 기능 진입 금지
+
+mode가 normal, null 또는 Mode 오류일 때:
+
+* 기존 dashboard와 완전히 동일
+* X 섹션 없음
+* X Badge 없음
+
+settings.tsx
+
+실제 배열과 renderSection() 구조를 확인한 뒤 기존 방식으로만 추가하십시오.
+
+mode가 x일 때만 활성 X 항목 표시.
+
+mode가 x_pending일 때는 동일 항목을 준비 중 상태로 표시하되 실제 이동 없음.
+
+mode가 normal 또는 null이면 기존 배열 결과와 완전히 같아야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 교사 외형·메뉴
+━━━━━━━━━━━━━━━━━━━━━━
+
+today-schedule.tsx
+
+기존 swimnote-logo.png는 유지합니다.
+
+mode가 x 또는 x_pending일 때만 로고 옆에 XModeBadge를 추가합니다.
+
+기존 링크·헤더 높이·터치 영역을 변경하지 마십시오.
+
+settings.tsx
+
+구현 전에 실제 파일 구조를 확인하십시오.
+
+설계서의 “관리자와 동일 패턴으로 가정”을 그대로 사용하면 안 됩니다.
+
+실제 배열 기반 구조가 확인되면 기존 렌더링 방식을 재사용하여 다음만 추가합니다.
+
+mode가 x일 때:
+
+* 커리큘럼 확인
+* 성장 확인
+
+mode가 x_pending일 때:
+
+* 동일 항목 준비 중
+* 실제 이동 없음
+
+mode가 normal 또는 null일 때:
+
+* 기존 메뉴 결과와 완전히 동일
+
+교사 settings.tsx가 설계서와 다른 구조라면 임의 개편하지 말고 중단하여 실제 구조를 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 학부모 외형
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+app/(parent)/home.tsx
+
+기존 AI 버튼과 Modal은 변경하지 않습니다.
+
+유지:
+
+* AI 커리큘럼 검색 버튼
+* AI 성장 리포트 버튼
+* AIFeatureModal
+* Powered by SWIMNOTE AI 문구
+* 기존 onPress
+* 기존 레이아웃
+
+추가만 허용:
+
+mode = x
+→ 헤더 로고 옆 XModeBadge
+mode = x_pending
+→ 헤더 로고 옆 준비 상태 XModeBadge
+→ 필요하면 기존 레이아웃을 깨지 않는 짧은 준비 중 안내
+mode = normal 또는 null
+→ Badge 없음
+→ 나머지 기존 UI 그대로
+
+학부모 버튼의 표시 조건이나 실제 기능은 이번 WP에서 바꾸지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 준비 중 안내 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 공통 Modal을 만들지 마십시오.
+
+우선순위:
+
+기존 Alert 패턴
+→ 기존 화면 내 안내 Text
+→ 기존 Modal 재사용
+
+관리자·교사 X 메뉴의 placeholder는 실제 기능으로 이동하지 않아야 합니다.
+
+준비 중 항목은 다음 중 Repository 기존 방식 하나를 사용하십시오.
+
+* disabled: true
+* onPress 없음
+* 기존 Alert로 준비 중 안내
+
+새 Route 생성은 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 상태별 안전 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+mode = normal
+→ 기존 UI 유지
+→ X 추가 UI 없음
+mode = x_pending
+→ X 준비 상태 표시
+→ 실제 X 기능 진입 금지
+mode = x
+→ X 명칭·Badge·메뉴 표시
+→ 미구현 기능은 준비 중 안내만 제공
+mode = null
+status = idle/loading/error
+→ 기존 일반 UI 유지
+→ X UI 미노출
+→ 과거 X 상태 재사용 금지
+
+Mode 오류 때문에 기존 앱 화면을 차단하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 구현 전 확인 사항
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 파일을 실제로 열어 다음을 확인한 뒤 수정하십시오.
+
+* 실제 Colors export 이름
+* 관리자 settings 배열과 render 함수
+* 교사 settings 실제 구조
+* dashboard에 재사용할 기존 Card·Banner 패턴
+* 기존 Alert 또는 준비 중 처리 패턴
+* 학부모 헤더 로고의 실제 flex 구조
+* useMode() import 경로
+* mode와 status 사용 방식
+
+확인되지 않은 구조를 추정하여 화면을 다시 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 수영장 상태를 바꾸지 마십시오.
+
+ModeContext 값을 Mock하여 검증합니다.
+
+normal
+
+* 관리자 dashboard 기존 결과 유지
+* 관리자 settings 기존 메뉴 개수 유지
+* 교사 헤더 변화 없음
+* 교사 settings 기존 메뉴 유지
+* 학부모 AI 버튼 2개 유지
+* 학부모 Powered 문구 유지
+* X Badge 없음
+
+x_pending
+
+* 관리자 준비 중 표시
+* 관리자 X 항목 비활성
+* 교사 준비 Badge
+* 교사 X 항목 비활성
+* 학부모 기존 AI 버튼 유지
+* 학부모 준비 Badge
+* 실제 Route 이동 없음
+
+x
+
+* 관리자 X Badge·섹션·메뉴 표시
+* 교사 X Badge·메뉴 표시
+* 학부모 X Badge 표시
+* 기존 학부모 AI 버튼과 Modal 정상
+* 커리큘럼·성장판 API 호출 없음
+
+회귀검증
+
+* 기존 관리자 탭 변화 없음
+* 기존 교사 탭 변화 없음
+* 기존 학부모 Stack 변화 없음
+* Navigation Route 추가 없음
+* 서버 API 수정 없음
+* DB 변경 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 금지사항
+━━━━━━━━━━━━━━━━━━━━━━
+
+* 일반모드 학부모 AI 버튼 숨김
+* Powered by SWIMNOTE AI 숨김
+* app/(admin)/mode.tsx 수정
+* XModeGuard 생성
+* 신규 X Route 생성
+* 새 로고 asset
+* 새 색상 상수
+* 새 Modal 시스템
+* 앱 화면 복제
+* Navigation 변경
+* 서버 수정
+* DB 변경
+* 실제 X 상태 변경
+* 커리큘럼 API 연결
+* 성장판 API 연결
+* Commit
+* Push
+* OTA
+* Render 배포
+* WP5 작업
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 구현 후 제출 증거
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 실제 수정 파일
+2. 실제 신규 파일
+3. git diff 원문
+4. XModeBadge 전체 코드
+5. 관리자 dashboard 변경 코드
+6. 관리자 settings 변경 코드
+7. 교사 today-schedule 변경 코드
+8. 교사 settings 변경 코드
+9. 학부모 home 변경 코드
+10. normal Mock 결과
+11. x_pending Mock 결과
+12. x Mock 결과
+13. 기존 AI 버튼 유지 증거
+14. 신규 Route 0개 확인
+15. API 호출 추가 0개 확인
+16. TypeScript 결과
+17. 일반모드 회귀검증
+18. DB 변경 여부
+19. 실제 수영장 상태 변경 여부
+20. Commit 여부
+21. Push 여부
+22. OTA 여부
+23. Render 배포 여부
+24. WP4 완료 가능 여부
+
+결과 제출 후 멈추십시오.
