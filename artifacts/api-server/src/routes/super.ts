@@ -2019,12 +2019,18 @@ router.patch(
       res.status(400).json({ error: "xmode_config_status가 올바르지 않습니다." }); return;
     }
     if (hasPurchasedAt && xmode_purchased_at !== null) {
-      if (isNaN(new Date(xmode_purchased_at!).getTime())) {
+      if (typeof xmode_purchased_at !== "string") {
+        res.status(400).json({ error: "xmode_purchased_at은 문자열 또는 null이어야 합니다." }); return;
+      }
+      if (isNaN(new Date(xmode_purchased_at).getTime())) {
         res.status(400).json({ error: "xmode_purchased_at이 올바른 날짜가 아닙니다." }); return;
       }
     }
     if (hasSubscriptionEnd && xmode_subscription_end_at !== null) {
-      if (isNaN(new Date(xmode_subscription_end_at!).getTime())) {
+      if (typeof xmode_subscription_end_at !== "string") {
+        res.status(400).json({ error: "xmode_subscription_end_at은 문자열 또는 null이어야 합니다." }); return;
+      }
+      if (isNaN(new Date(xmode_subscription_end_at).getTime())) {
         res.status(400).json({ error: "xmode_subscription_end_at이 올바른 날짜가 아닙니다." }); return;
       }
     }

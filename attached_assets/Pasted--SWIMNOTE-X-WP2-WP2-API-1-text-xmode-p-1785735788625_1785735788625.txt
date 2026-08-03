@@ -1,0 +1,276 @@
+# SWIMNOTE X — WP2 최종 수정 승인 지시
+
+WP2 API 검증 결과를 확인했습니다.
+
+현재 남은 결함은 다음 1건뿐입니다.
+
+```text
+xmode_purchased_at 또는 xmode_subscription_end_at에 숫자가 들어오면
+new Date(number)가 유효한 날짜로 처리되어 400 검증을 통과함
+```
+
+이번 작업에서는 **날짜 필드 런타임 타입 검증만 수정**하십시오.
+
+그 외 설계·코드·파일은 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 수정 승인 범위
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+수정 파일:
+
+```text
+artifacts/api-server/src/routes/super.ts
+```
+
+수정 대상:
+
+```text
+PATCH /super/operators/:id/xmode
+```
+
+허용 변경:
+
+* `xmode_purchased_at` 타입 검증 추가
+* `xmode_subscription_end_at` 타입 검증 추가
+* 관련 테스트 재실행
+
+금지:
+
+* 다른 파일 수정
+* API Contract 변경
+* 오류 메시지 변경
+* Transaction 변경
+* Audit 변경
+* `resolvePoolMode` 변경
+* `requireXMode` 변경
+* Route 위치 변경
+* 리팩터링
+* 공통 날짜 helper 생성
+* 신규 파일 생성
+* WP3 작업
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 날짜 검증 확정 규칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+두 필드는 다음 값만 허용합니다.
+
+```text
+string
+null
+undefined
+```
+
+의미:
+
+* `undefined`: 요청에서 미제공, 기존 값 유지
+* `null`: DB 값을 null로 변경
+* `string`: 유효한 날짜 문자열일 때만 허용
+* 숫자·boolean·object·array: 400
+
+검증 순서:
+
+```text
+필드 제공 여부 확인
+→ null이면 허용
+→ string이 아니면 400
+→ string이지만 유효한 날짜가 아니면 400
+→ 유효하면 UPDATE에 사용
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 구현 형태
+━━━━━━━━━━━━━━━━━━━━━━
+
+`xmode_purchased_at` 검증:
+
+```typescript
+if (hasPurchasedAt && xmode_purchased_at !== null) {
+  if (typeof xmode_purchased_at !== "string") {
+    res.status(400).json({
+      error: "xmode_purchased_at은 문자열 또는 null이어야 합니다.",
+    });
+    return;
+  }
+
+  if (Number.isNaN(new Date(xmode_purchased_at).getTime())) {
+    res.status(400).json({
+      error: "xmode_purchased_at이 올바른 날짜가 아닙니다.",
+    });
+    return;
+  }
+}
+```
+
+`xmode_subscription_end_at`에도 동일한 순서로 적용하십시오.
+
+기존 오류 메시지 형식을 유지할 필요가 있다면 Repository의 현재 메시지를 사용하되, 숫자 입력이 반드시 400으로 차단되어야 합니다.
+
+공통 함수나 별도 validation 파일은 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+Replit 개발 서버에 코드가 자동 반영되지 않는다면 개발 서버 재시작은 허용합니다.
+
+Render 배포는 금지합니다.
+
+반드시 실행:
+
+## xmode_purchased_at
+
+```json
+{ "xmode_purchased_at": 12345 }
+```
+
+기대:
+
+```text
+HTTP 400
+```
+
+```json
+{ "xmode_purchased_at": true }
+```
+
+기대:
+
+```text
+HTTP 400
+```
+
+```json
+{ "xmode_purchased_at": {} }
+```
+
+기대:
+
+```text
+HTTP 400
+```
+
+```json
+{ "xmode_purchased_at": "not-a-date" }
+```
+
+기대:
+
+```text
+HTTP 400
+```
+
+```json
+{ "xmode_purchased_at": null }
+```
+
+존재하지 않는 pool_id를 사용하면 날짜 검증 통과 후:
+
+```text
+HTTP 404 POOL_NOT_FOUND
+```
+
+## xmode_subscription_end_at
+
+위와 동일하게 최소 다음을 확인:
+
+```json
+{ "xmode_subscription_end_at": 12345 }
+```
+
+기대:
+
+```text
+HTTP 400
+```
+
+```json
+{ "xmode_subscription_end_at": "not-a-date" }
+```
+
+기대:
+
+```text
+HTTP 400
+```
+
+```json
+{ "xmode_subscription_end_at": null }
+```
+
+존재하지 않는 pool_id 기준:
+
+```text
+HTTP 404 POOL_NOT_FOUND
+```
+
+## 기존 회귀
+
+다음도 다시 확인:
+
+* 변경 필드 없음 → 400
+* `xmode_entitlement="true"` → 400
+* `xmode_config_status="ACTIVE"` → 400
+* 존재하지 않는 pool + `xmode_entitlement=true` → 404
+* audit_logs 신규 행 0건
+* 실제 수영장 상태 변경 0건
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. DB 무변경 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+테스트 전후 확인:
+
+```sql
+SELECT COUNT(*)
+FROM audit_logs
+WHERE entity_type = 'swimming_pool_xmode';
+
+SELECT COUNT(*)
+FROM swimming_pools
+WHERE xmode_entitlement = true
+   OR xmode_config_status <> 'NOT_CONFIGURED';
+```
+
+테스트 전후 차이가 없어야 합니다.
+
+실제 존재하는 수영장 상태 변경은 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 구현 후 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출하십시오.
+
+1. 수정 파일
+2. 실제 수정 코드
+3. git diff
+4. 실행한 테스트
+5. 각 HTTP 상태와 응답
+6. DB 전후 건수
+7. 실제 수영장 상태 변경 여부
+8. 추가 코드 수정 여부
+9. Commit 여부
+10. Push 여부
+11. Render 배포 여부
+12. WP2 최종 완료 가능 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 금지사항
+━━━━━━━━━━━━━━━━━━━━━━
+
+* 다른 코드 수정
+* 신규 파일 생성
+* Migration 실행
+* 실제 수영장 상태 변경
+* 샘플 데이터 생성
+* Commit
+* Push
+* Render 배포
+* OTA
+* WP3 작업
+* 추가 설계 제안
+
+TC-10b 수정과 검증만 완료한 뒤 멈추십시오.
