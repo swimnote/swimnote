@@ -1,0 +1,725 @@
+SWIMNOTE X 및 최근 앱 작업 — 전면 증거 감사 지시서
+
+다음 작업을 시작하기 전에 지금까지 완료했다고 보고된 작업 전체를 전면 재검증합니다.
+
+목적은 설명을 다시 듣는 것이 아니라 다음 세 가지를 잡아내는 것입니다.
+
+1. 실제 코드에 저장되지 않은 작업
+2. Commit·Push·배포 여부를 잘못 보고한 작업
+3. 테스트하지 않았는데 완료했다고 표시한 작업
+
+이번 감사에서는 구현·수정·복구를 하지 않습니다.
+
+읽기 전용 조사와 증거 제출만 허용합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 감사 대상
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE X
+
+* WP1
+* WP2
+* WP3
+
+최근 앱 작업
+
+* Task #6
+* Task #9
+
+배포·Git
+
+* 관련 Commit
+* 현재 브랜치
+* 원격 Push 상태
+* Replit 자동 Checkpoint Commit
+* iOS production OTA
+* 현재 작업 트리
+* 저장되지 않은 변경
+* 덮어쓰기 또는 되돌림 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 감사 중 금지:
+
+* 코드 수정
+* 자동 포맷
+* 파일 저장
+* Import 정리
+* Migration 실행
+* DB UPDATE·INSERT·DELETE
+* 서버 재시작
+* 앱 빌드
+* Commit
+* Reset
+* Revert
+* Checkout
+* Merge
+* Rebase
+* Cherry-pick
+* Push
+* Pull
+* OTA
+* Render 배포
+* 테스트 데이터 생성
+* 기존 수영장 상태 변경
+* 누락 코드 임의 복원
+
+누락·오류·불일치를 발견해도 고치지 말고 증거만 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 증거 등급
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 결과에 다음 중 하나를 붙이십시오.
+
+CODE_VERIFIED
+현재 작업 트리의 실제 파일 원문으로 확인
+GIT_VERIFIED
+Commit 객체·diff·branch·remote 상태로 확인
+DB_VERIFIED
+읽기 전용 SQL 원문과 결과로 확인
+RUNTIME_VERIFIED
+현재 실행 중인 서버 또는 앱 응답으로 확인
+OTA_VERIFIED
+Expo/EAS의 실제 Update 조회 결과로 확인
+REPORTED_ONLY
+이전 보고에만 있고 현재 증거 없음
+CONTRADICTED
+이전 보고와 현재 증거가 충돌함
+NOT_FOUND
+현재 코드·Git·DB·배포에서 찾을 수 없음
+NOT_TESTED
+실제 테스트 증거 없음
+
+완료, 정상, 적용됨이라는 표현은 위 증거가 있을 때만 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Git 전체 상태 원문
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 명령을 읽기 전용으로 실행하고 원문을 제출하십시오.
+
+pwd
+git rev-parse --show-toplevel
+git branch --show-current
+git rev-parse HEAD
+git status --short
+git status
+git log --oneline --decorate -30
+git remote -v
+git branch -vv
+git log --oneline --all --decorate --graph -40
+
+추가 제출:
+
+* 현재 HEAD Commit ID
+* 현재 브랜치
+* upstream branch
+* 로컬이 원격보다 ahead/behind인지
+* untracked 파일
+* staged 파일
+* unstaged 파일
+* 자동 Checkpoint Commit 여부
+* 아직 Commit되지 않은 WP3·Task #9 코드 존재 여부
+
+어떤 파일도 추가하거나 staging하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 관련 Commit 실제 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+지금까지 보고된 Commit을 전부 실제 조회하십시오.
+
+확인 대상:
+
+1459d6cf
+9a3cc63e
+f9e076ab
+d8e4b4dd
+a2839289
+
+현재 Repository에 존재하는 추가 관련 Commit도 찾아 제출하십시오.
+
+각 Commit마다 실행:
+
+git cat-file -t <commit>
+git show --stat --oneline --decorate <commit>
+git show --name-status --format=fuller <commit>
+
+제출 표:
+
+Commit ID
+존재 여부
+작성 시각
+작성자
+Commit 메시지
+포함 파일
+실제 변경 내용
+현재 HEAD 조상인지
+현재 브랜치에 포함됐는지
+원격 브랜치에 포함됐는지
+이후 Commit에서 되돌려졌는지
+
+Commit이 존재한다고 현재 코드에 남아 있는 것으로 판단하지 마십시오.
+
+반드시 현재 HEAD와 비교하십시오.
+
+git diff <commit>..HEAD -- <관련 파일>
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. WP1 코드 감사
+━━━━━━━━━━━━━━━━━━━━━━
+
+검증 파일:
+
+artifacts/api-server/src/migrations/pool-db-x-init.ts
+artifacts/api-server/src/migrations/pool-db-init.ts
+artifacts/api-server/src/index.ts
+
+실제 원문으로 확인:
+
+* initXModeSchema() 존재
+* PART 1 실행 Group
+* Group 4 Parent AI 미호출
+* M-J Growth Reports 미호출
+* initXModePart2Schema() 존재
+* runGroup5a_GrowthEvents() 존재
+* runGroup5b_GrowthReports() 존재
+* runGroup6_Curriculum() 존재
+* Curriculum 테이블 5개 DDL
+* Growth Event FK 2개
+* Group 실패 시 throw
+* index.ts DB 초기화 실패 시 process.exit(1)
+* 오류를 삼키는 .catch(() => {})가 WP1 실행경로에 남아 있는지
+
+다음 검색 원문 제출:
+
+grep -RIn "initXModeSchema\|initXModePart2Schema\|runGroup5a\|runGroup5b\|runGroup6_Curriculum" artifacts/api-server/src
+grep -RIn "parent_ai_daily_usage\|parent_ai_usage_reservations\|growth_reports" artifacts/api-server/src
+grep -RIn "process.exit(1)\|setServerReady" artifacts/api-server/src/index.ts
+
+WP1의 이전 보고와 현재 코드 차이를 표로 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. WP1 운영 DB 감사
+━━━━━━━━━━━━━━━━━━━━━━
+
+운영 DB에서 읽기 전용 SQL만 실행하십시오.
+
+확인 대상:
+
+* X ENUM 3개
+* swimming_pools X 컬럼 5개
+* global_template_sets
+* diary_templates X 확장
+* audit_entity_versions
+* audit_logs
+* growth_events
+* Curriculum 테이블 5개
+* Growth Event FK 2개
+* PART 2 테이블
+* 데이터 건수
+
+제출해야 할 SQL 원문과 결과:
+
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema='public'
+AND table_name IN (
+  'global_template_sets',
+  'audit_entity_versions',
+  'audit_logs',
+  'growth_events',
+  'curriculum_versions',
+  'curriculum_items',
+  'student_curriculum_assignments',
+  'curriculum_requests',
+  'curriculum_request_files',
+  'parent_ai_daily_usage',
+  'parent_ai_usage_reservations',
+  'growth_reports'
+)
+ORDER BY table_name;
+
+각 테이블:
+
+SELECT column_name, data_type, udt_name, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_schema='public'
+AND table_name='<TABLE>'
+ORDER BY ordinal_position;
+
+Constraint:
+
+SELECT conname, contype, pg_get_constraintdef(oid)
+FROM pg_constraint
+WHERE conrelid='public.<TABLE>'::regclass
+ORDER BY conname;
+
+Index:
+
+SELECT indexname, indexdef
+FROM pg_indexes
+WHERE schemaname='public'
+AND tablename='<TABLE>'
+ORDER BY indexname;
+
+Row count:
+
+SELECT 'curriculum_versions', COUNT(*) FROM curriculum_versions
+UNION ALL SELECT 'curriculum_items', COUNT(*) FROM curriculum_items
+UNION ALL SELECT 'student_curriculum_assignments', COUNT(*) FROM student_curriculum_assignments
+UNION ALL SELECT 'curriculum_requests', COUNT(*) FROM curriculum_requests
+UNION ALL SELECT 'curriculum_request_files', COUNT(*) FROM curriculum_request_files
+UNION ALL SELECT 'growth_events', COUNT(*) FROM growth_events
+UNION ALL SELECT 'audit_logs', COUNT(*) FROM audit_logs
+UNION ALL SELECT 'parent_ai_daily_usage', COUNT(*) FROM parent_ai_daily_usage
+UNION ALL SELECT 'parent_ai_usage_reservations', COUNT(*) FROM parent_ai_usage_reservations
+UNION ALL SELECT 'growth_reports', COUNT(*) FROM growth_reports;
+
+이전 보고와 다르면 CONTRADICTED로 표시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. WP2 코드 감사
+━━━━━━━━━━━━━━━━━━━━━━
+
+검증 파일:
+
+artifacts/api-server/src/lib/xmode.ts
+artifacts/api-server/src/middlewares/auth.ts
+artifacts/api-server/src/routes/pools.ts
+artifacts/api-server/src/routes/super.ts
+
+실제 확인:
+
+* computeMode()
+* resolvePoolMode()
+* GET /pools/x-mode
+* requireXMode
+* PATCH /super/operators/:id/xmode
+* SELECT FOR UPDATE
+* next_audit_version()
+* audit_logs INSERT
+* 날짜 타입 검증
+* 숫자·boolean·object 차단
+* xmode_payment_failed_at Body 미수용
+* requireXMode가 기존 일반 Route에 연결되지 않음
+* capabilities 없음
+* JWT poolId를 최종 권한 근거로 사용하지 않음
+
+검색 원문:
+
+grep -RIn "computeMode\|resolvePoolMode\|requireXMode\|/x-mode\|operators/:id/xmode" artifacts/api-server/src
+grep -RIn "xmode_payment_failed_at" artifacts/api-server/src/routes artifacts/api-server/src/lib artifacts/api-server/src/middlewares
+grep -RIn "requireXMode" artifacts/api-server/src/routes
+
+이전 요약이 아니라 실제 함수 전체 원문을 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. WP2 런타임 감사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실행 서버가 WP2 코드를 실제로 포함하는지 확인하십시오.
+
+읽기 전용 또는 DB 무변경 테스트만 수행:
+
+GET /api/health
+GET /api/pools/x-mode 인증 없음
+PATCH /api/super/operators/pool_wp_audit_nonexistent/xmode 인증 없음
+
+안전한 기존 super_admin 토큰이 이미 환경에 있을 때만:
+
+* pool_id 누락 400
+* 존재하지 않는 pool 404
+* 숫자 날짜 400
+* 잘못된 상태값 400
+
+실제 존재하는 수영장은 PATCH하지 마십시오.
+
+런타임 코드가 이전 버전이면 CODE_VERIFIED와 RUNTIME_VERIFIED를 구분하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. WP3 코드 감사
+━━━━━━━━━━━━━━━━━━━━━━
+
+검증 파일:
+
+artifacts/swim-app/context/ModeContext.tsx
+artifacts/swim-app/app/_layout.tsx
+
+실제 원문으로 확인:
+
+* ModeProvider
+* useMode
+* PoolModeResult
+* cache: "no-store"
+* isRefreshingRef
+* seqRef
+* stale response 차단
+* token/pool 변경 초기화
+* foreground refresh
+* Provider 아래에서 useMode() 호출
+* 지원 역할 판정
+* sub_admin 제외
+* parent kind가 parent_account에 대응
+* super 역할 자동조회 제외
+* 기존 Navigation 차단 없음
+
+검색:
+
+grep -RIn "ModeProvider\|useMode\|ModeForegroundRefresh\|isRefreshingRef\|seqRef\|no-store" artifacts/swim-app
+grep -RIn "sub_admin\|parent_account\|kind === \"parent\"" artifacts/swim-app/context/ModeContext.tsx
+
+특히 이전 WP3 보고 이후 다른 Commit이 이 코드를 덮어썼는지 확인하십시오.
+
+git log -p -- artifacts/swim-app/context/ModeContext.tsx
+git log -p -- artifacts/swim-app/app/_layout.tsx
+
+현재 HEAD에 코드가 없으면 NOT_FOUND 또는 CONTRADICTED로 표시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Task #6 감사
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고된 내용:
+
+Commit: d8e4b4dd
+OTA: af817a08
+
+검증:
+
+* Commit 실제 존재
+* Commit에 포함된 파일
+* Pressable → View 변경 실제 포함 여부
+* scripts/post-merge.sh의 drizzle-kit push 제거 포함 여부
+* 해당 Commit이 현재 HEAD에 포함되는지
+* 이후 a2839289 또는 다른 Commit이 변경을 되돌렸는지
+
+검색:
+
+git show d8e4b4dd --stat
+git show d8e4b4dd -- artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+git show d8e4b4dd -- scripts/post-merge.sh
+git log -p -- artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+grep -RIn "onStartShouldSetResponder\|onPress={() => {}}" artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx artifacts/swim-app/components/common/SubSheetModal.tsx
+grep -RIn "drizzle-kit push" scripts package.json artifacts
+
+판정은 두 개로 분리하십시오.
+
+Task #6 당시 Commit에 존재했는지
+현재 HEAD에도 유지되는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Task #9 감사
+━━━━━━━━━━━━━━━━━━━━━━
+
+검증 파일:
+
+artifacts/swim-app/components/common/SubSheetModal.tsx
+artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+
+확인:
+
+* 신규 파일 실제 존재
+* Git tracked 여부
+* 현재 HEAD Commit 포함 여부
+* 세 서브모달 모두 SubSheetModal 사용
+* 반이동 55%
+* 보충수업 60%
+* 적용시점 maxHeight 45%
+* View + onStartShouldSetResponder
+* 기존 Pressable onPress={() => {}} 잔존 여부
+* cds.sheet 참조 0건
+* 다른 모달 변경 여부
+* Commit·Push·OTA 실제 여부
+
+명령:
+
+ls -l artifacts/swim-app/components/common/SubSheetModal.tsx
+git ls-files artifacts/swim-app/components/common/SubSheetModal.tsx
+git status --short artifacts/swim-app/components/common/SubSheetModal.tsx
+git log --oneline -- artifacts/swim-app/components/common/SubSheetModal.tsx
+grep -n "SubSheetModal" artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+grep -n "height=\"55%\"\|height=\"60%\"\|maxHeight=\"45%\"" artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+grep -n "onStartShouldSetResponder\|Pressable.*onPress={() => {}}" artifacts/swim-app/components/common/SubSheetModal.tsx artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+grep -n "cds.sheet" artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+
+Task #9은 이전 보고 당시 Commit·Push·OTA가 없었습니다.
+
+현재 실제 상태를 다시 확인하여 다음으로 구분하십시오.
+
+작업 트리에만 존재
+Commit됨
+원격 Push됨
+OTA 포함됨
+어디에도 저장되지 않음
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. OTA 전면 감사
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고된 OTA:
+
+Update ID: af817a08
+Channel: production
+Platform: iOS
+
+Expo/EAS 실제 조회 명령을 사용하여 확인하십시오.
+
+가능한 기존 명령을 Repository에서 먼저 찾으십시오.
+
+예:
+
+eas update:view af817a08
+eas channel:view production
+eas update:list --channel production --limit 20
+
+실제 CLI 명령 형식은 설치된 EAS 버전에 맞추십시오.
+
+제출:
+
+* Update ID 존재 여부
+* branch
+* channel
+* platform
+* runtime version
+* createdAt
+* message
+* group ID
+* Commit hash 또는 metadata
+* 포함된 코드가 어느 Git 상태에서 생성됐는지
+* Task #6 파일이 OTA bundle에 포함됐다고 확인할 수 있는지
+* Task #9가 해당 OTA에 포함되지 않았는지
+
+OTA ID 앞 8자리만 보고된 경우 전체 ID를 제출하십시오.
+
+조회 불가하면 OTA_VERIFIED라고 하지 말고 REPORTED_ONLY로 표시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 원격 Push 감사
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 관련 Commit이 원격에 실제 존재하는지 확인하십시오.
+
+git fetch --all --prune
+
+주의: git fetch는 작업 트리를 변경하지 않는 읽기성 네트워크 조회로 허용합니다.
+Pull·merge·checkout은 금지합니다.
+
+그 후:
+
+git branch -r --contains <commit>
+git merge-base --is-ancestor <commit> <remote-branch>
+
+각 Commit:
+
+* 로컬만 존재
+* 원격 포함
+* 현재 배포 브랜치 포함
+* 다른 브랜치에만 존재
+* 어디에도 없음
+
+을 구분하십시오.
+
+단순히 git push 명령 로그가 있다는 이유로 성공 처리하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 현재 실행 코드와 Git HEAD 일치 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+Replit 개발 서버가 현재 어느 Commit·작업 트리 코드를 실행하는지 확인하십시오.
+
+제출:
+
+* 서버 Process 시작 시각
+* HEAD Commit 시각
+* 마지막 파일 수정 시각
+* 서버 재시작 이후 변경 파일 존재 여부
+* watch mode 여부
+* 현재 서버에 WP2 Route 반영 여부
+* 현재 앱 번들에 WP3·Task #9 반영 여부
+
+구분:
+
+파일에는 존재하지만 실행 프로세스 미반영
+개발 서버에는 반영
+OTA production에는 반영
+Git에는 저장됐지만 배포 안 됨
+작업 트리에만 존재
+
+이 상태들을 하나로 섞지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 자동 Commit 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+Replit이 사용자의 승인 없이 자동 Checkpoint Commit을 만든 사례가 있었습니다.
+
+다음을 조사하십시오.
+
+* 자동 Commit 생성 조건
+* WP2 Commit f9e076ab의 작성 주체
+* WP3 이후 자동 Commit 발생 여부
+* Task #9 이후 자동 Commit 발생 여부
+* Commit Author
+* Committer
+* Replit-Commit-Author 메타데이터
+* Commit에 의도하지 않은 파일 포함 여부
+
+관련 Commit의 전체 파일 목록을 제출하십시오.
+
+Task별 파일이 다른 작업과 한 Commit에 섞였으면 CONTRADICTED 또는 MIXED_COMMIT으로 표시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 이전 보고와 현재 증거 대조표
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 표를 반드시 작성하십시오.
+
+작업
+이전 완료 보고
+현재 파일 존재
+현재 HEAD 포함
+원격 Push
+개발 서버 반영
+iOS OTA 반영
+DB 반영
+실제 테스트 증거
+최종 판정
+
+행:
+
+* WP1
+* WP2
+* WP3
+* Task #6
+* Task #9
+
+최종 판정 허용값:
+
+완전 확인
+코드만 확인
+Commit만 확인
+배포만 확인
+부분 확인
+미저장
+덮어써짐
+허위 또는 과장 보고
+증거 부족
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 불일치 보고 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 상황은 숨기지 말고 첫 페이지에 표시하십시오.
+
+* 파일이 없음
+* 보고한 Commit이 없음
+* Commit은 있지만 현재 HEAD에 없음
+* 현재 HEAD에 있지만 원격에 없음
+* 원격에 있지만 OTA에 없음
+* OTA ID 조회 불가
+* 테스트 스크립트가 실제 앱 코드를 import하지 않은 가짜 Mock 테스트
+* 테스트 숫자가 이전 보고와 달라짐
+* 실제 서버는 이전 코드 실행 중
+* 다른 Commit이 수정사항을 되돌림
+* untracked 파일로만 존재
+* 신규 파일이 Commit에서 누락
+* 자동 Commit에 예상 외 파일 포함
+* DB 구조가 보고와 다름
+
+발견 즉시 중대 불일치 항목으로 분리하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 테스트 신뢰성 감사
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP2·WP3·Task #9 테스트가 실제 구현 코드를 검사했는지 확인하십시오.
+
+각 테스트에 대해 제출:
+
+* 테스트 파일 경로
+* Git tracked 여부
+* 테스트가 실제 소스 파일을 import하는지
+* 구현을 복사한 별도 함수만 테스트한 것은 아닌지
+* Mock이 실제 Context/Route를 통과하는지
+* 테스트 실행 명령
+* 실제 출력
+* 생성 시각
+* 현재도 재실행 가능한지
+
+구현 코드를 복사하여 별도 스크립트에서 같은 결과를 냈다면 단위 테스트 통과로 인정하지 말고:
+
+복제 로직 테스트
+실제 구현 미검증
+
+으로 표시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. 최종 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+첫 페이지: 중대 불일치
+
+* 허위 또는 과장 가능성
+* 미저장 코드
+* 덮어써진 코드
+* 원격 미Push
+* OTA 미포함
+* 실행 서버 미반영
+* 테스트 증거 부족
+
+없으면 중대 불일치 없음이라고 쓰되 근거를 붙이십시오.
+
+본문
+
+1. Git 전체 상태
+2. Commit 감사
+3. WP1 코드 감사
+4. WP1 DB 감사
+5. WP2 코드 감사
+6. WP2 런타임 감사
+7. WP3 코드 감사
+8. Task #6 감사
+9. Task #9 감사
+10. OTA 감사
+11. 원격 Push 감사
+12. 실행 코드와 HEAD 비교
+13. 자동 Commit 감사
+14. 테스트 신뢰성 감사
+15. 이전 보고 대조표
+16. 발견된 누락
+17. 발견된 과장
+18. 수정이 필요한 항목
+19. 다음 작업 시작 가능 여부
+
+증거 첨부
+
+* 실행 명령 원문
+* 출력 원문
+* SQL 원문
+* 파일 경로와 라인
+* Commit ID
+* OTA 전체 ID
+* HTTP 응답
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. 제출 후 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+감사 보고서만 제출하고 멈추십시오.
+
+누락이나 오류를 발견해도 수정하지 마십시오.
+
+다음 작업 시작 금지:
+
+* WP4
+* Task #10
+* Task #9 배포
+* 기타 앱 수정
+
+사용자가 감사 결과를 검수한 뒤 별도 승인합니다.
