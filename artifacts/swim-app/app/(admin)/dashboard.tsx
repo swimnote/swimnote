@@ -5,6 +5,7 @@
  * SearchModal, AdminQuickRegisterModal → components/admin/ 로 이동됨
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { XModeBadge } from "@/components/common/XModeBadge";
 import { Crown, Zap } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
@@ -17,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useMode } from "@/context/ModeContext";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 import { PaymentBanner } from "@/components/common/PaymentBanner";
 import { SearchModal } from "@/components/admin/SearchModal";
@@ -51,6 +53,7 @@ const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }>
 export default function DashboardScreen() {
   const { adminUser, pool, logout, token, switchRole, setLastUsedRole } = useAuth();
   const { themeColor } = useBrand();
+  const { mode } = useMode();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("dashboard");
 
@@ -239,6 +242,7 @@ export default function DashboardScreen() {
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Text style={s.poolName} numberOfLines={1}>{pool?.name || "수영장"}</Text>
+            <XModeBadge />
             {canSwitchToTeacher && (
               <Pressable
                 style={({ pressed }) => [
@@ -620,6 +624,55 @@ export default function DashboardScreen() {
               </Pressable>
             </View>
 
+            {/* ── SWIMNOTE X 섹션 (mode === "x" | "x_pending" 일 때만 표시) ── */}
+            {(mode === "x" || mode === "x_pending") && (
+              <View style={{
+                backgroundColor: "#fff",
+                borderRadius: 14,
+                padding: 14,
+                borderWidth: 1,
+                borderColor: "#E6FAF8",
+              }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center" }}>
+                    <LucideIcon name="trending-up" size={15} color="#2EC4B6" />
+                  </View>
+                  <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" }}>
+                    SWIMNOTE X
+                  </Text>
+                  <View style={{ backgroundColor: "#E6FAF8", borderRadius: 7, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#2EC4B6" }}>
+                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#0F172A" }}>
+                      {mode === "x" ? "활성" : "준비중"}
+                    </Text>
+                  </View>
+                </View>
+                {mode === "x" ? (
+                  <Pressable
+                    style={({ pressed }) => ({
+                      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                      backgroundColor: "#E6FAF8", borderRadius: 10, padding: 12,
+                      opacity: pressed ? 0.75 : 1,
+                    })}
+                    onPress={() => router.push("/(admin)/x-growth" as any)}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <LucideIcon name="bar-chart-2" size={15} color="#0F172A" />
+                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" }}>
+                        성장 추적 관리
+                      </Text>
+                    </View>
+                    <LucideIcon name="chevron-right" size={14} color="#64748B" />
+                  </Pressable>
+                ) : (
+                  <View style={{ backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <LucideIcon name="lock" size={13} color="#94A3B8" />
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" }}>
+                      X 설정을 완료하면 이용할 수 있어요
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
 
           </>
         )}

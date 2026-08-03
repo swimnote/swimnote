@@ -41,8 +41,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { XModeBadge } from "@/components/common/XModeBadge";
 import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
+import { useMode } from "@/context/ModeContext";
 
 const C = Colors.light;
 const TEAL = "#2EC4B6";
@@ -840,6 +842,7 @@ function DiaryFeedItem({
 export default function ParentHomeScreen() {
   const insets = useSafeAreaInsets();
   const { token, parentAccount, pool, parentPoolName, logout } = useAuth();
+  const { mode } = useMode();
   const {
     students,
     selectedStudent,
@@ -1349,12 +1352,15 @@ export default function ParentHomeScreen() {
     <View>
       {/* A. Slim Header */}
       <View style={[s.header, { paddingTop: PT }]}>
-        <Text style={[s.poolName, { color: C.textSecondary }]} numberOfLines={1}>
-          {parentPoolName ||
-            (parentAccount as any)?.pool_name ||
-            pool?.name ||
-            "수영장"}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+          <Text style={[s.poolName, { color: C.textSecondary, flex: 0, flexShrink: 1 }]} numberOfLines={1}>
+            {parentPoolName ||
+              (parentAccount as any)?.pool_name ||
+              pool?.name ||
+              "수영장"}
+          </Text>
+          <XModeBadge />
+        </View>
         <View style={s.headerBtns}>
           <Pressable
             style={s.headerBtn}
@@ -1392,6 +1398,34 @@ export default function ParentHomeScreen() {
         </Pressable>
       </View>
 
+      {/* SWIMNOTE X 성장 리포트 (mode === "x" | "x_pending" 일 때만) */}
+      {(mode === "x" || mode === "x_pending") && (
+        <Pressable
+          style={({ pressed }) => ({
+            marginHorizontal: 20, marginBottom: 6,
+            flexDirection: "row", alignItems: "center", gap: 10,
+            backgroundColor: mode === "x" ? "#E6FAF8" : "#F8FAFC",
+            borderRadius: 12, padding: 12,
+            borderWidth: 1, borderColor: mode === "x" ? "#2EC4B6" : "#E2E8F0",
+            opacity: pressed && mode === "x" ? 0.75 : 1,
+          })}
+          onPress={() => mode === "x" && router.push("/(parent)/x-growth" as any)}
+          disabled={mode !== "x"}
+        >
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: mode === "x" ? "#fff" : "#F1F5F9", alignItems: "center", justifyContent: "center" }}>
+            <LucideIcon name="activity" size={17} color={mode === "x" ? "#2EC4B6" : "#94A3B8"} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: mode === "x" ? "#0F172A" : "#94A3B8" }}>
+              {mode === "x" ? "성장 리포트 보기" : "X 설정 완료 후 이용 가능"}
+            </Text>
+            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: mode === "x" ? "#64748B" : "#94A3B8", marginTop: 1 }}>
+              {mode === "x" ? "AI가 분석한 수영 성장 현황" : "SWIMNOTE X 기능 준비중"}
+            </Text>
+          </View>
+          {mode === "x" && <LucideIcon name="chevron-right" size={16} color="#64748B" />}
+        </Pressable>
+      )}
 
       {/* B. 자녀 선택 탭 */}
       <ScrollView

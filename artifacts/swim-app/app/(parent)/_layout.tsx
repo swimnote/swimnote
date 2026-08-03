@@ -118,6 +118,8 @@ function ParentStack() {
       <Stack.Screen name="requests" />
       <Stack.Screen name="growth-report" />
       <Stack.Screen name="add-child" />
+      {/* SWIMNOTE X — push로만 접근, XModeGuard로 보호 (WP4) */}
+      <Stack.Screen name="x-growth" />
     </Stack>
   );
 }

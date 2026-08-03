@@ -237,6 +237,8 @@ export default function AdminLayout() {
       <Tabs.Screen name="parents-list"            options={{ href: null }} />
       <Tabs.Screen name="refund-policy"           options={{ href: null }} />
       <Tabs.Screen name="web-pin-settings"        options={{ href: null }} />
+      {/* SWIMNOTE X — 탭 노출 없이 push로만 접근 (WP4) */}
+      <Tabs.Screen name="x-growth"               options={{ href: null }} />
     </Tabs>
     </View>
   );

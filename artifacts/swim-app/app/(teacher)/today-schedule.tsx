@@ -3,6 +3,7 @@
  * 컴포넌트: components/teacher/today-schedule/
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { XModeBadge } from "@/components/common/XModeBadge";
 import { router, useFocusEffect } from "expo-router";
 import { Image, Linking, Platform, Pressable } from "react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -15,6 +16,7 @@ import { LogOut, PenLine, Repeat, Sun, X } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useMode } from "@/context/ModeContext";
 
 import ScheduleCard from "@/components/teacher/today-schedule/ScheduleCard";
 import { ScheduleCardSkeleton } from "@/components/common/SkeletonBox";
@@ -40,6 +42,7 @@ interface TeacherOverview {
 export default function TodayScheduleScreen() {
   const { token, logout, adminUser, pool, switchRole, setLastUsedRole } = useAuth();
   const { themeColor } = useBrand();
+  const { mode } = useMode();
   const insets = useSafeAreaInsets();
   const today = todayStr();
   const [items, setItems]           = useState<ScheduleItem[]>([]);
@@ -254,9 +257,12 @@ export default function TodayScheduleScreen() {
     <SafeAreaView style={h.safe} edges={[]}>
       <View style={[h.header, { paddingTop: topPad }]}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[h.poolName, { color: C.text }]} numberOfLines={1}>
-            {pool?.name ?? "수영장"}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={[h.poolName, { color: C.text }]} numberOfLines={1}>
+              {pool?.name ?? "수영장"}
+            </Text>
+            <XModeBadge />
+          </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
             <Text style={h.greeting} numberOfLines={1}>{adminUser?.name ?? "선생님"}선생님</Text>
             {canSwitchToAdmin && (
@@ -376,6 +382,31 @@ export default function TodayScheduleScreen() {
             <Pressable onPress={(e) => { e.stopPropagation(); dismissDiaryBanner(); }} hitSlop={10} style={h.feedbackBannerClose}>
               <X size={15} color="rgba(255,255,255,0.85)" />
             </Pressable>
+          </Pressable>
+        )}
+
+        {/* SWIMNOTE X 빠른 진입 (mode === "x" | "x_pending" 일 때만) */}
+        {(mode === "x" || mode === "x_pending") && (
+          <Pressable
+            style={({ pressed }) => ({
+              flexDirection: "row", alignItems: "center", gap: 8,
+              backgroundColor: mode === "x" ? "#E6FAF8" : "#F8FAFC",
+              borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
+              borderWidth: 1, borderColor: mode === "x" ? "#2EC4B6" : "#E2E8F0",
+              opacity: pressed && mode === "x" ? 0.75 : 1,
+            })}
+            onPress={() => mode === "x" && router.push("/(teacher)/x-growth" as any)}
+            disabled={mode !== "x"}
+          >
+            <LucideIcon name="trending-up" size={14} color={mode === "x" ? "#2EC4B6" : "#94A3B8"} />
+            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: mode === "x" ? "#0F172A" : "#94A3B8", flex: 1 }}>
+              {mode === "x" ? "성장 추적 →" : "X 설정 완료 후 이용 가능"}
+            </Text>
+            <View style={{ backgroundColor: mode === "x" ? "#fff" : "#E2E8F0", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, borderWidth: 1, borderColor: mode === "x" ? "#2EC4B6" : "#CBD5E1" }}>
+              <Text style={{ fontSize: 9, fontFamily: "Pretendard-SemiBold", color: mode === "x" ? "#0F172A" : "#94A3B8" }}>
+                SWIMNOTE X
+              </Text>
+            </View>
           </Pressable>
         )}
       </View>

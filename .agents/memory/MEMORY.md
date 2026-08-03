@@ -27,4 +27,4 @@
 - [AI Engine Template Pipeline 구조](ai-engine-template-pipeline.md) — /api/v1/teacher-diary/generate = api-server의 새 라우트; App은 raw text만 전송, Engine이 파싱; diary_templates 1050개 global 존재; relaxed candidate(score≥1) + strict top-5 ranking
 - [ScrollView contentContainerStyle flexGrow:0 버그](scrollview-flexgrow-bug.md) — contentContainerStyle에 flexGrow:0 넣으면 스크롤 불가; padding 값만 넣을 것
 - [스케줄러 모달 스크롤 구조 수정](scheduler-modal-scroll-fix.md) — Modal bottom sheet: maxHeight→height(confirmed), flexShrink:1→flex:1+minHeight:0, paddingBottom→contentContainerStyle; 서브모달 공유 시 mainSheet 분리 패턴
-- [WP3 일시정지 상태](wp3-pause-state.md) — ModeContext.tsx+_layout.tsx 완료(40/40 통과), 긴급 수정 OTA 후 WP4로 재개
+- [WP4 완료 상태](wp4-done-state.md) — XModeBadge 신규+3개 화면 삽입(dashboard/today-schedule/home), WP5 격리검증으로 이어짐

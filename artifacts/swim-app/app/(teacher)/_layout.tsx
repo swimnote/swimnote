@@ -188,6 +188,8 @@ export default function TeacherLayout() {
       <Tabs.Screen name="messages-inbox"   options={{ href: null }} />
       <Tabs.Screen name="inquiries"        options={{ href: null }} />
       <Tabs.Screen name="diary-reactions"  options={{ href: null }} />
+      {/* SWIMNOTE X — 탭 노출 없이 push로만 접근 (WP4) */}
+      <Tabs.Screen name="x-growth"         options={{ href: null }} />
     </Tabs>
     </FeedbackTemplateProvider>
   );
