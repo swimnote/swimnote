@@ -95,18 +95,6 @@ function formatExpireAt(expire_at: string | null) {
   const label = diffDays < 0 ? `만료됨(${ds})` : diffDays <= 14 ? `만료 D-${diffDays}(${ds})` : `만료일: ${ds}`;
   return { text: label, color: col };
 }
-function getPastDates(days = 30): { date: string; label: string }[] {
-  const labels = ["일", "월", "화", "수", "목", "금", "토"];
-  const results: { date: string; label: string }[] = [];
-  for (let i = 0; i < days; i++) {
-    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i);
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    results.push({ date: `${yyyy}-${mm}-${dd}`, label: `${d.getMonth()+1}/${d.getDate()} (${labels[d.getDay()]})${i === 0 ? " · 오늘" : ""}` });
-  }
-  return results;
-}
 function getNextDates(scheduleDays: string): { date: string; label: string }[] {
   const dayMap: Record<string, number> = { 일: 0, 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6 };
   const labels = ["일", "월", "화", "수", "목", "금", "토"];
@@ -156,7 +144,6 @@ export default function MakeupsScreen() {
   const [historyList,    setHistoryList]    = useState<MakeupRequest[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [directCompleteTarget, setDirectCompleteTarget] = useState<MakeupSession | null>(null);
-  const [directCompleteDate,   setDirectCompleteDate]   = useState<string | null>(null);
   const [directCompleting,     setDirectCompleting]     = useState(false);
   const [confirmMsg, setConfirmMsg] = useState<string | null>(null);
   // eligible-occurrences 기반 날짜 선택
@@ -232,19 +219,42 @@ export default function MakeupsScreen() {
     loadWaiting();
     if (tab === "assigned") loadAssigned();
   }, [loadWaiting, loadAssigned, tab]));
-  const openAssignModal = async (mk: MakeupSession) => {
-    setAssignTarget(mk);
+  /** occurrence 관련 공유 상태 초기화 헬퍼 */
+  const resetOccState = () => {
     setSelectedClassId(null);
     setSelectedDate(null);
     setSelectedOccurrence(null);
     setOccurrences([]);
     setOccError(false);
+  };
+
+  const openAssignModal = async (mk: MakeupSession) => {
+    setAssignTarget(mk);
+    resetOccState();
     setClassLoading(true);
     try {
       const r = await apiRequest(token, `/teacher/makeups/eligible-classes?all=true`);
       if (r.ok) setEligibleClasses(await r.json());
     } catch {}
     setClassLoading(false);
+  };
+
+  /** 지난 보강 직접 완료 모달 열기 */
+  const openDirectCompleteModal = async (mk: MakeupSession) => {
+    setDirectCompleteTarget(mk);
+    resetOccState();
+    setClassLoading(true);
+    try {
+      const r = await apiRequest(token, `/teacher/makeups/eligible-classes?all=true`);
+      if (r.ok) setEligibleClasses(await r.json());
+    } catch {}
+    setClassLoading(false);
+  };
+
+  /** 지난 보강 직접 완료 모달 닫기 */
+  const closeDirectCompleteModal = () => {
+    setDirectCompleteTarget(null);
+    resetOccState();
   };
   const selectClass = async (classId: string) => {
     if (!assignTarget) return;
@@ -385,43 +395,37 @@ export default function MakeupsScreen() {
     setHandoverTarget(null);
     setHandoverStep("menu");
   };
-  async function doDirectComplete() {
-    if (!directCompleteTarget || !directCompleteDate) return;
-    setDirectCompleting(true);
-    const targetId = directCompleteTarget.id;
-    // original_class_group_id: 학생의 원래 반 (complete-direct는 반 필수)
-    const classGroupId = directCompleteTarget.original_class_group_id ?? null;
-    if (!classGroupId) {
-      setConfirmMsg("원래 반 정보가 없어 처리할 수 없습니다.");
-      setDirectCompleting(false);
-      return;
-    }
+  /** 지난 보강 직접 완료 실행 (occ = 서버 응답 회차 기준) */
+  async function doDirectComplete(occ: MakeupOccurrence) {
+    if (!directCompleteTarget) return;
+    const snapshot = { ...directCompleteTarget }; // 모달 닫기 전 캡처
+    const targetId = snapshot.id;
+    // 모달 즉시 닫고 목록에서 낙관적 제거
+    closeDirectCompleteModal();
     setWaitingList(prev => prev.filter(m => m.id !== targetId));
-    setDirectCompleteTarget(null);
+    setDirectCompleting(true);
     try {
       const r = await apiRequest(token, `/teacher/makeups/${targetId}/complete-direct`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: directCompleteDate, class_group_id: classGroupId }),
+        body: JSON.stringify({ date: occ.occurrence_date, class_group_id: occ.class_group_id }),
       });
       const ct = r.headers?.get?.("content-type") ?? "";
       const isJson = ct.includes("application/json");
       const body = isJson ? await r.json().catch(() => ({})) : {};
       if (r.ok) {
-        setDirectCompleteDate(null);
-        setConfirmMsg(`${directCompleteDate} 보강 완료 처리되었습니다.`);
+        setConfirmMsg(`${occ.occurrence_date} 보강 완료 처리되었습니다.`);
       } else {
         setConfirmMsg(body?.message || body?.error || "처리에 실패했습니다.");
         // 실패 시 목록 복원
         setWaitingList(prev => {
           if (prev.some(m => m.id === targetId)) return prev;
-          return [{ ...directCompleteTarget }, ...prev];
+          return [{ ...snapshot }, ...prev];
         });
       }
       loadWaiting();
     } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
     setDirectCompleting(false);
-    setDirectCompleteDate(null);
   }
   async function handleTeacherComplete(id: string) {
     try {
@@ -605,7 +609,7 @@ export default function MakeupsScreen() {
                   </View>
                   <Pressable
                     style={[s.actionBtn, { backgroundColor: "#ECFDF5", marginTop: 2 }]}
-                    onPress={() => { setDirectCompleteTarget(mk); setDirectCompleteDate(null); }}
+                    onPress={() => openDirectCompleteModal(mk)}
                   >
                     <LucideIcon name="check-circle" size={14} color="#059669" />
                     <Text style={[s.actionTxt, { color: "#059669" }]}>지난 보강 직접 완료</Text>
@@ -913,68 +917,169 @@ export default function MakeupsScreen() {
           </Pressable>
         </Modal>
       )}
-      {/* ── 지난 보강 직접 완료 모달 ────────────────────────────────────── */}
+      {/* ── 지난 보강 직접 완료 모달 (새 3단계 흐름) ─────────────────────── */}
       {directCompleteTarget && (
-        <Modal visible animationType="slide" transparent onRequestClose={() => setDirectCompleteTarget(null)} statusBarTranslucent>
-          <Pressable style={s.backdrop} onPress={() => setDirectCompleteTarget(null)}>
+        <Modal visible animationType="slide" transparent onRequestClose={closeDirectCompleteModal} statusBarTranslucent>
+          <Pressable style={s.backdrop} onPress={closeDirectCompleteModal}>
             <Pressable style={[s.sheet, { maxHeight: "70%" }]} onPress={() => {}}>
               <View style={s.sheetHandle} />
               <View style={s.sheetHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.sheetTitle}>지난 보강 직접 완료</Text>
-                  <Text style={s.sheetSub}>{directCompleteTarget.student_name} · {directCompleteTarget.original_class_group_name || "미배정"}</Text>
+                  {selectedClassId ? (
+                    <>
+                      <Text style={s.sheetTitle}>보강 날짜 선택</Text>
+                      <Text style={s.sheetSub}>
+                        {eligibleClasses.find((c: any) => c.id === selectedClassId)?.name} · 지난 수업 / 오늘
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={s.sheetTitle}>지난 보강 직접 완료</Text>
+                      <Text style={s.sheetSub}>{directCompleteTarget.student_name} · 결석일: {fmtDate(directCompleteTarget.absence_date)}</Text>
+                    </>
+                  )}
                 </View>
-                <Pressable onPress={() => setDirectCompleteTarget(null)} style={{ padding: 4 }}>
-                  <LucideIcon name="x" size={20} color={C.textSecondary} />
-                </Pressable>
+                {selectedClassId ? (
+                  <Pressable
+                    onPress={() => { setSelectedClassId(null); setOccurrences([]); setOccError(false); setSelectedOccurrence(null); }}
+                    style={{ padding: 4 }}
+                  >
+                    <LucideIcon name="arrow-left" size={20} color={C.textSecondary} />
+                  </Pressable>
+                ) : (
+                  <Pressable onPress={closeDirectCompleteModal} style={{ padding: 4 }}>
+                    <LucideIcon name="x" size={20} color={C.textSecondary} />
+                  </Pressable>
+                )}
               </View>
-              {!directCompleteDate ? (
-                <>
-                  <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 4 }]}>이미 진행한 보강 날짜를 선택하세요</Text>
-                  <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
-                    {getPastDates(30).map(({ date, label }) => (
-                      <Pressable
-                        key={date}
-                        style={s.classRow}
-                        onPress={() => setDirectCompleteDate(date)}
-                      >
-                        <LucideIcon name="check-circle" size={16} color="#059669" />
-                        <Text style={[s.className, { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text, flex: 1 }]}>{label}</Text>
+
+              {/* 단계 1: 반 선택 */}
+              {!selectedClassId && (
+                <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                  {classLoading ? (
+                    <ActivityIndicator color="#059669" style={{ marginVertical: 32 }} />
+                  ) : eligibleClasses.length === 0 ? (
+                    <View style={s.empty}>
+                      <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
+                      <Text style={s.emptyTxt}>배정 가능한 반이 없습니다</Text>
+                    </View>
+                  ) : (() => {
+                    const myClasses    = eligibleClasses.filter((cg: any) => cg.is_mine);
+                    const otherClasses = eligibleClasses.filter((cg: any) => !cg.is_mine);
+                    const renderDcClassRow = (cg: any) => (
+                      <Pressable key={cg.id} style={s.classRow} onPress={() => selectClass(cg.id)}>
+                        <LucideIcon name="calendar" size={16} color={cg.is_mine ? "#059669" : "#9CA3AF"} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[s.className, { fontSize: 14, color: C.text }]}>{cg.name}</Text>
+                          <Text style={s.infoTxt}>{cg.schedule_days?.split(",").join("·")} · {cg.schedule_time}</Text>
+                        </View>
                         <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                       </Pressable>
-                    ))}
-                  </ScrollView>
-                </>
-              ) : (
-                <>
-                  <View style={{ padding: 16 }}>
-                    <View style={[s.assignedInfo, { backgroundColor: "#ECFDF5" }]}>
-                      <LucideIcon name="check-circle" size={18} color="#059669" />
-                      <Text style={[s.assignedInfoTxt, { color: "#059669" }]}>
-                        {`${directCompleteTarget.student_name}\n${fmtDate(directCompleteDate)} 보강 완료 처리`}
-                      </Text>
-                    </View>
+                    );
+                    return (
+                      <>
+                        {myClasses.length > 0 && (
+                          <>
+                            <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12 }]}>내 반</Text>
+                            {myClasses.map(renderDcClassRow)}
+                          </>
+                        )}
+                        {otherClasses.length > 0 && (
+                          <>
+                            <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: "#9CA3AF" }]}>
+                              다른 선생님 반 (인계 처리)
+                            </Text>
+                            {otherClasses.map(renderDcClassRow)}
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
+                  <View style={{ height: 16 }} />
+                </ScrollView>
+              )}
+
+              {/* 단계 2: 회차 선택 (과거·오늘만 표시, 미래 제외) */}
+              {selectedClassId && (() => {
+                if (occLoading) return (
+                  <ActivityIndicator color="#059669" style={{ marginVertical: 40 }} />
+                );
+                if (occError) return (
+                  <View style={s.empty}>
+                    <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
+                    <Text style={s.emptyTxt}>수업 회차를 불러오지 못했습니다</Text>
+                    <Pressable onPress={() => selectClass(selectedClassId)} style={{ marginTop: 8 }}>
+                      <Text style={{ color: C.textSecondary, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
+                    </Pressable>
                   </View>
-                  <View style={{ paddingHorizontal: 16, paddingBottom: 24, paddingTop: 4, gap: 8 }}>
+                );
+                const pastAndToday = occurrences.filter(o => o.is_past || o.is_today);
+                if (pastAndToday.length === 0) return (
+                  <View style={s.empty}>
+                    <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
+                    <Text style={s.emptyTxt}>완료 처리 가능한 날짜가 없습니다</Text>
+                  </View>
+                );
+                const days = ["일","월","화","수","목","금","토"];
+                function fmtOcc(dateStr: string) {
+                  const d = new Date(dateStr + "T00:00:00");
+                  return `${d.getMonth()+1}/${d.getDate()} (${days[d.getDay()]})`;
+                }
+                const todayOccs = pastAndToday.filter(o => o.is_today);
+                const pastOccs  = pastAndToday.filter(o => o.is_past);
+                function renderDcOccRow(occ: MakeupOccurrence) {
+                  const onConfirm = () => doDirectComplete(occ);
+                  const onPress = () => {
+                    if (occ.is_full) {
+                      Alert.alert(
+                        "정원 초과",
+                        "정원을 초과한 반입니다.\n실제로 보강 수업에 참여한 경우에만 처리해 주세요.",
+                        [{ text: "취소", style: "cancel" }, { text: "그래도 처리", onPress: onConfirm }],
+                      );
+                      return;
+                    }
+                    onConfirm();
+                  };
+                  return (
                     <Pressable
-                      style={[s.confirmBtn, { backgroundColor: "#059669", opacity: directCompleting ? 0.6 : 1 }]}
-                      onPress={doDirectComplete}
+                      key={occ.occurrence_date}
+                      style={[s.classRow, directCompleting && { opacity: 0.5 }]}
+                      onPress={onPress}
                       disabled={directCompleting}
                     >
-                      {directCompleting
-                        ? <ActivityIndicator color="#fff" />
-                        : <Text style={s.confirmTxt}>완료 처리</Text>
-                      }
+                      <LucideIcon name="check-circle" size={16} color="#059669" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.className, { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }]}>
+                          {fmtOcc(occ.occurrence_date)}{occ.is_today ? " · 오늘" : ""}
+                        </Text>
+                      </View>
+                      {occ.is_full && (
+                        <View style={{ backgroundColor: "#FFF1BF", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginRight: 4 }}>
+                          <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D97706" }}>정원초과</Text>
+                        </View>
+                      )}
+                      <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                     </Pressable>
-                    <Pressable
-                      style={[s.confirmBtn, { backgroundColor: C.card, borderWidth: 1, borderColor: C.border }]}
-                      onPress={() => setDirectCompleteDate(null)}
-                    >
-                      <Text style={[s.confirmTxt, { color: C.textSecondary }]}>날짜 다시 선택</Text>
-                    </Pressable>
-                  </View>
-                </>
-              )}
+                  );
+                }
+                return (
+                  <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                    {todayOccs.length > 0 && (
+                      <>
+                        <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: "#2EC4B6" }]}>오늘</Text>
+                        {todayOccs.map(renderDcOccRow)}
+                      </>
+                    )}
+                    {pastOccs.length > 0 && (
+                      <>
+                        <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12 }]}>지난 수업</Text>
+                        {pastOccs.map(renderDcOccRow)}
+                      </>
+                    )}
+                    <View style={{ height: 16 }} />
+                  </ScrollView>
+                );
+              })()}
             </Pressable>
           </Pressable>
         </Modal>

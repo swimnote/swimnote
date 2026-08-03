@@ -1,0 +1,265 @@
+[SWIMNOTE 보강 회차 선택 — 구 직접 완료 기능 통합 최종 지시]
+
+현재 새 3단계 보강 흐름은 다음 기준으로 수정 완료됐다.
+
+- 선택한 서버 occurrence의 class_group_id 사용
+- 선택한 occurrence_date 사용
+- 미래 → /assign
+- 오늘·과거 → /complete-direct
+- 서버에서 날짜·요일·수영장·반 상태·정원 정책 재검증
+
+남은 문제는 makeups.tsx의 구 직접 완료 기능이다.
+
+현재 구 직접 완료:
+
+- 원래 결석 반 original_class_group_id 사용
+- 사용자가 임의 날짜 선택
+- /complete-direct 호출
+
+서버는 이제 실제 수업 요일을 검증하므로,
+임의 날짜가 원래 반의 schedule_days와 다르면
+CLASS_NOT_SCHEDULED_ON_DATE가 발생한다.
+
+서버 검증을 완화하지 않는다.
+
+구 직접 완료 기능도 실제 반과 실제 수업 회차를 선택하는
+새 3단계 흐름으로 통합한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 확정 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+직접 완료도 다음 순서를 따른다.
+
+보강 대기 학생 선택
+→ 실제 보강한 반 선택
+→ 해당 반의 실제 수업 회차 선택
+→ 오늘·과거 회차 완료 처리
+
+미래 회차는 직접 완료가 아니라 기존 /assign 예약 흐름을 사용한다.
+
+임의 달력 날짜 선택 기능은 제거한다.
+
+original_class_group_id는 결석 원반 정보로만 유지한다.
+보강 실시 반으로 자동 사용하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 수정 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상 파일:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+
+대상 함수·상태:
+
+- doDirectComplete()
+- directCompleteTarget
+- directCompleteDate
+- 직접 완료 모달 JSX
+- 직접 완료 버튼을 여는 함수
+- 관련 날짜 생성 함수 getPastDates()
+
+먼저 실제 사용 위치 전체를 확인하고 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 직접 완료 UI 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+학생 선택
+→ 과거 날짜 선택
+→ original_class_group_id로 complete-direct
+
+수정:
+
+학생 선택
+→ 보강한 반 선택
+→ GET /teacher/makeups/:id/eligible-occurrences?class_group_id=...
+→ 과거 또는 오늘 회차만 표시
+→ 회차 선택
+→ /complete-direct 호출
+
+직접 완료 화면에서는 미래 회차를 표시하지 않거나 선택 불가 처리한다.
+
+표시 섹션:
+
+- 지난 수업
+- 오늘
+
+예정 수업 섹션은 직접 완료 화면에서 제외한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 저장 요청
+━━━━━━━━━━━━━━━━━━━━━━
+
+PATCH /teacher/makeups/:id/complete-direct
+
+Body:
+
+{
+  class_group_id: selectedOccurrence.class_group_id,
+  date: selectedOccurrence.occurrence_date
+}
+
+금지:
+
+- original_class_group_id 자동 전송
+- 사용자가 임의 입력한 날짜 전송
+- selectedClassId만 신뢰
+- occurrence가 없는 날짜 저장
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 새 3단계 흐름 재사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 이미 구현된 아래 로직을 재사용한다.
+
+- MakeupOccurrence 타입
+- eligible-occurrences 조회 함수
+- occurrence loading/error/empty 상태
+- request sequence ID
+- 지난수업/오늘 렌더 함수
+- 정원 초과 경고
+- complete-direct 호출 함수
+
+같은 기능을 별도 코드로 복제하지 않는다.
+
+권장:
+
+직접 완료 모달도 기존 occurrence 선택 컴포넌트 또는 helper를 공유한다.
+
+대규모 리팩터링은 금지하고,
+현재 makeups.tsx 내부에서 최소 중복 제거만 허용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 정원 초과
+━━━━━━━━━━━━━━━━━━━━━━
+
+과거·오늘 직접 완료는 실제 참여 기록이므로:
+
+- is_full=true도 목록에 표시
+- 정원초과 배지 표시
+- 확인 Alert 후 저장 가능
+
+경고:
+
+정원을 초과한 반입니다.
+실제로 보강 수업에 참여한 경우에만 처리해 주세요.
+
+[취소] [그래도 처리]
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. ClassDetailSheet 기존 완료 버튼
+━━━━━━━━━━━━━━━━━━━━━━
+
+ClassDetailSheet.tsx의 completeMakeupDirect(mkId)는
+이미 특정 반과 특정 스케줄 날짜 화면에서 호출된다.
+
+다음을 확인한다.
+
+- group.id가 실제 assigned_class_group_id와 일치
+- effectiveDate가 해당 반의 실제 occurrence 날짜
+- 이미 배정된 보강 세션만 완료 대상으로 표시
+
+세 조건이 모두 참이면 기존 구조 유지한다.
+
+한 조건이라도 보장되지 않으면 임의로 서버 검증을 완화하지 말고,
+발견 내용을 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 서버 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 validateMakeupOccurrence 검증은 유지한다.
+
+완화 금지 항목:
+
+- 수업 요일 검증
+- 결석일 이후 검증
+- 만료일 검증
+- 수영장 소속 검증
+- 삭제 반 검증
+- 휴일 검증
+- 오늘·과거/미래 API 분리
+
+이번 단계에서 서버 변경은 원칙적으로 하지 않는다.
+
+클라이언트 통합 과정에서 서버 Contract 결함이 새로 확인될 때만
+수정 전 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 원래 결석 반과 다른 반에서 보강한 사례
+   - 원반: 월 18시
+   - 실제 보강 반: 금 19시
+   - 금 19시 occurrence 선택
+   - assigned_class_group_id가 금 19시로 저장
+
+2. 오늘 보강 후 직접 완료
+   - 오늘 회차 표시
+   - 완료 성공
+
+3. 지난주 보강 사후 완료
+   - 실제 수업 회차만 표시
+   - 완료 성공
+
+4. 수업 없는 날짜
+   - 목록에 표시되지 않음
+   - 임의 전송 시 서버 차단
+
+5. 미래 회차
+   - 직접 완료에서 선택 불가
+   - 일반 보강 배정에서 /assign 가능
+
+6. 정원 초과 과거·오늘 회차
+   - 경고 후 완료 가능
+
+7. 다른 학생으로 모달 재열기
+   - 이전 반·회차 상태 잔존 없음
+
+8. 빠르게 반 변경
+   - 이전 API 응답이 현재 반 회차를 덮어쓰지 않음
+
+9. 기존 보강 대기·배정·완료 목록 회귀 없음
+
+10. ClassDetailSheet 기존 완료 버튼 정상
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 전체 검색
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 다음을 제출한다.
+
+- original_class_group_id를 complete-direct body에 보내는 코드 검색 결과
+- directCompleteDate 사용 검색 결과
+- getPastDates 사용 검색 결과
+- complete-direct 호출 전체
+- occ.date 검색 결과 0건
+- occurrence_date 사용 위치
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+제출 항목:
+
+1. 실제 수정 파일
+2. 구 직접 완료 변경 전·후
+3. 재사용한 기존 occurrence 함수
+4. complete-direct body
+5. 상태 초기화
+6. 요청 경쟁 방지
+7. 테스트 결과
+8. 타입체크
+9. 실제 diff
+10. git status
+11. HEAD/origin SHA
+12. 미검증 항목
+
+보고 후 멈춘다.
+
+Push·Render 배포·OTA 금지.
