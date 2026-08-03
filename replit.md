@@ -6,6 +6,8 @@ SwimNote is a multi-tenant B2B SaaS platform designed for comprehensive manageme
 ## User Preferences
 I prefer the AI to operate with a clear understanding of the existing system's multi-tenancy and role-based access control. When implementing new features or modifying existing ones, prioritize maintaining data isolation and security across different swimming pools and user roles. I expect the AI to maintain a consistent API response format and to automatically record activity logs for significant actions, especially status changes and data modifications.
 
+- 설계서·보고서·조사 결과는 항상 전체 내용을 코드 블록(``` ```) 하나에 담아 제출한다. 섹션별 분리 블록 금지. 블록 하나에 전부 넣어야 한다.
+
 ---
 
 ### ★ 작업 규칙 헌법 (모든 작업지시 맨 위에 항상 적용)
