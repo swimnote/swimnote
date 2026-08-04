@@ -1,0 +1,222 @@
+[SWIMNOTE 긴급 분리 복구 — 보강 수정은 보존하고 구독 정상 기준에 재적용]
+
+현재 문제 버전:
+
+- 문제 commit: 293fa658
+- production OTA: 88bb0b60
+- preview OTA: 5d179a61
+- 증상: 실제 구독 계정이 “구독이 취소되었습니다” 화면으로 진입
+
+직전 구독 정상 기준:
+
+- commit: 651b1a95
+- 정상 production rollback update: 2c52db66
+
+목표:
+
+문제 버전 전체를 단순 폐기하지 않는다.
+293fa658에서 보강 관련 변경만 분리하여,
+구독 정상 기준 651b1a95 위에 다시 적용할 수 있는지 검증한다.
+
+추가 배포는 승인 전 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 1. 문제 커밋의 부모 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+원문 제출:
+
+git show -s --format="%H%n%P%n%s" 293fa658
+git merge-base 651b1a95 293fa658
+git log --graph --oneline --decorate --all -20
+
+판정:
+
+A.
+293fa658의 직접 부모가 651b1a95
+→ 정상 기준 위에 보강 변경만 추가됐을 가능성
+
+B.
+직접 부모가 다른 커밋
+→ 잘못된 기준선에서 OTA 생성된 것
+
+C.
+작업 트리에 다른 자동 checkpoint 변경이 섞임
+→ 보강 외 회귀가 함께 포함된 것
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 2. 전체 변경 파일 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+실행:
+
+git diff --name-status 651b1a95..293fa658
+git diff --stat 651b1a95..293fa658
+git diff 651b1a95..293fa658 -- \
+  "artifacts/swim-app/app/(teacher)/makeups.tsx" \
+  "artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx" \
+  "artifacts/api-server/src/routes/teachers.ts"
+
+그리고 보강 외 변경:
+
+git diff --name-status 651b1a95..293fa658 -- \
+  . \
+  ":(exclude)artifacts/swim-app/app/(teacher)/makeups.tsx" \
+  ":(exclude)artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx" \
+  ":(exclude)artifacts/api-server/src/routes/teachers.ts"
+
+제출:
+
+- 보강 관련 변경 파일
+- 보강과 무관한 변경 파일
+- 자동 생성 파일
+- 설정 파일
+- 구독 관련 파일
+- API_BASE 관련 파일
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 3. 구독 회귀 diff 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+651b1a95와 293fa658 사이에서 다음 검색어가 포함된 파일과 diff를 전부 제출한다.
+
+검색어:
+
+- 구독이 취소되었습니다
+- subscription
+- entitlement
+- cancelled
+- subscription_status
+- subscription_expires
+- grace
+- billing
+- service-suspended
+- router.replace
+- router.push
+- API_BASE
+- SessionContext
+- AuthContext
+
+명령 예:
+
+git diff 651b1a95..293fa658 -- \
+  "artifacts/swim-app/**/*Session*" \
+  "artifacts/swim-app/**/*Auth*" \
+  "artifacts/swim-app/**/*subscription*" \
+  "artifacts/swim-app/**/*billing*" \
+  "artifacts/swim-app/app.config.*" \
+  "artifacts/swim-app/app.json" \
+  "artifacts/swim-app/eas.json"
+
+구독 관련 파일 diff가 없다면
+문제는 코드 변경이 아니라 잘못된 기준 커밋·번들 캐시·OTA 대상 문제일 수 있다.
+
+“구독 코드를 안 건드렸다”는 설명만 금지한다.
+실제 diff 0 결과를 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 4. 구독 취소 화면 진입 조건 원문
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 문제 버전 293fa658과 정상 기준 651b1a95에서
+구독 취소 화면으로 보내는 코드를 각각 추출한다.
+
+제출:
+
+- 화면 파일
+- 진입 조건
+- 사용하는 상태값
+- 상태값 데이터 원본
+- API 응답
+- 초기 로딩값
+- null/undefined 처리
+- 캐시 복원 전 화면 전환 여부
+- router.replace/push 조건
+
+특히 다음 형태가 있는지 확인한다.
+
+if (!subscription)
+if (!isActive)
+if (subscriptionStatus === "cancelled")
+if (!entitlement)
+if (loading === false && !subscription)
+
+정상 구독 데이터를 불러오기 전에
+기본값 false/null 때문에 취소 화면으로 이동하는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 5. 보강 수정만 패치로 추출
+━━━━━━━━━━━━━━━━━━━━━━
+
+293fa658에서 실제 보강 관련 변경만 patch로 추출한다.
+
+파일:
+
+makeup_fix_only_293fa658.patch
+
+포함 허용:
+
+- makeups.tsx의 보강 회차 조회 관련 변경
+- ClassDetailSheet.tsx의 동일 관련 변경
+- 필요한 경우 teachers.ts의 관련 서버 변경
+
+포함 금지:
+
+- SessionContext
+- AuthContext
+- 구독 화면
+- API_BASE
+- app config
+- package 변경
+- 기타 기능
+- 첨부파일
+- 진단용 공개 endpoint
+- 관리자 비밀번호 query 코드
+
+patch 적용은 아직 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 6. 안전한 재구성 계획
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 목표 브랜치 구조:
+
+구독 정상 기준 651b1a95
++
+검수된 보강 변경만
+=
+신규 안전 커밋
+
+절대 현재 293fa658 위에서 구독 화면만 숨기지 않는다.
+
+금지:
+
+- 구독 취소 화면 강제 우회
+- isActive=true 하드코딩
+- 만료일 임의 연장
+- entitlement 강제 활성
+- DB 구독 상태 수정
+- 삭제 경고만 숨기기
+
+구독 문제는 정상 기준 코드를 유지함으로써 해결하고,
+보강 변경만 별도로 재적용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 7. 정적 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+재구성 전 제출:
+
+1. 651b1a95 → 293fa658 전체 파일 diff
+2. 보강 관련 diff
+3. 보강 외 diff
+4. 구독 관련 diff
+5. 문제 commit 부모 SHA
+6. OTA가 생성된 실제 working tree SHA
+7. makeup_fix_only patch
+8. 구독 회귀 직접 원인
+9. 안전 재구성 예상 파일 목록
+
+여기까지 보고 후 멈춘다.
+
+Commit / Push / Render / OTA / native build 금지.

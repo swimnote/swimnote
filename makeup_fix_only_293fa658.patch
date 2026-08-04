@@ -1,0 +1,393 @@
+diff --git a/artifacts/api-server/src/routes/teachers.ts b/artifacts/api-server/src/routes/teachers.ts
+index c5162048..1af6a79c 100644
+--- a/artifacts/api-server/src/routes/teachers.ts
++++ b/artifacts/api-server/src/routes/teachers.ts
+@@ -698,27 +698,52 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
+ );
+ 
+ // ── 보강 가능 수업 회차 목록 (teacher용) ──────────────────────
+-// GET /teacher/makeups/:makeupId/eligible-occurrences?class_group_id=...&include_full=true
++// in-memory 요청/오류 저장소 (최근 30건)
++const _occErrLog: Array<{ts: string; stage: string; code: string|null; message: string|null; makeup_id: string; class_group_id: string|null; user_id: string}> = [];
++const _occReqLog: Array<{ts: string; makeup_id: string; class_group_id: string|null; user_id: string; status: number; elapsed_ms: number; error?: string}> = [];
++
++// 인증 없이 super admin 비밀번호로 조회
++router.get("/teacher/makeups/debug-occ-log", (req, res) => {
++  const pw = req.query.pw as string | undefined;
++  if (!pw || pw !== process.env.SUPER_ADMIN_PASSWORD) {
++    res.status(401).json({ error: "unauthorized" }); return;
++  }
++  res.json({ requests: _occReqLog.slice(-30), errors: _occErrLog.slice(-20) });
++});
++
++router.get("/teacher/makeups/debug-occ-errors", requireAuth, (req, res) => {
++  res.json(_occErrLog.slice(-20));
++});
++
++// GET /teacher/makeups/:makeupId/eligible-occurrences?class_group_id=...
+ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
+   async (req: AuthRequest, res) => {
++    const requestId = String(req.headers["x-request-id"] || crypto.randomUUID());
++    const startedAt = Date.now();
++    let stage = "start";
++    const { makeupId } = req.params;
++    const { class_group_id } = req.query as { class_group_id?: string };
++    const userId = req.user!.userId;
+     try {
+-      const { makeupId } = req.params;
+-      const { class_group_id } = req.query as { class_group_id?: string };
+-      const userId = req.user!.userId;
++
++      // STEP 3: 오류 코드 명확화
++      stage = "get_pool";
+       const poolId = await getMyPoolId(userId);
+-      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
++      if (!poolId) { res.status(403).json({ error: "POOL_NOT_FOUND" }); return; }
+       if (!class_group_id) { res.status(400).json({ error: "class_group_id가 필요합니다." }); return; }
+ 
+       // 1. 보강 세션 조회
++      stage = "load_makeup";
+       const mkRows = (await db.execute(sql`
+         SELECT absence_date, expire_at, swimming_pool_id
+         FROM makeup_sessions WHERE id = ${makeupId} LIMIT 1
+       `)).rows as any[];
+       if (!mkRows.length) { res.status(404).json({ error: "보강 건을 찾을 수 없습니다." }); return; }
+       const mk = mkRows[0];
+-      if (mk.swimming_pool_id !== poolId) { res.status(403).json({ error: "접근 권한 없음" }); return; }
++      if (mk.swimming_pool_id !== poolId) { res.status(403).json({ error: "MAKEUP_POOL_MISMATCH" }); return; }
+ 
+       // 2. 반 정보 조회 (수영장 소속·삭제되지 않은 반)
++      stage = "load_class";
+       const cgRows = (await superAdminDb.execute(sql`
+         SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity,
+           cg.teacher_user_id, u.name AS instructor,
+@@ -731,10 +756,11 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
+           AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
+         LIMIT 1
+       `)).rows as any[];
+-      if (!cgRows.length) { res.status(404).json({ error: "반을 찾을 수 없습니다." }); return; }
++      if (!cgRows.length) { res.status(404).json({ error: "CLASS_NOT_FOUND" }); return; }
+       const cg = cgRows[0];
+ 
+       // 3. 정원 계산 (eligible-classes 표준 — class_group_id + assigned_class_ids 모두 포함)
++      stage = "count_members";
+       const memberRows = (await db.execute(sql`
+         SELECT COUNT(s.id)::int AS cnt FROM students s
+         WHERE (s.class_group_id = ${class_group_id} OR s.assigned_class_ids @> to_jsonb(${class_group_id}::text))
+@@ -763,6 +789,7 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
+       })();
+ 
+       // 5. 풀 휴일 조회
++      stage = "load_holidays";
+       const holidayRows = (await db.execute(sql`
+         SELECT TO_CHAR(holiday_date, 'YYYY-MM-DD') AS hd
+         FROM pool_holidays
+@@ -805,6 +832,20 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
+         cursor.setDate(cursor.getDate() + 1);
+       }
+ 
++      const elapsed = Date.now() - startedAt;
++      console.log("[PERF][eligible-occurrences]", {
++        request_id: requestId,
++        user_id: userId,
++        pool_id: poolId,
++        makeup_id: makeupId,
++        class_group_id,
++        occurrences_count: occurrences.length,
++        status: 200,
++        elapsed_ms: elapsed,
++      });
++      _occReqLog.push({ ts: new Date().toISOString(), makeup_id: makeupId, class_group_id: class_group_id ?? null, user_id: userId, status: 200, elapsed_ms: elapsed });
++      if (_occReqLog.length > 30) _occReqLog.shift();
++
+       res.json({
+         makeup_id: makeupId,
+         absence_date: absenceDate,
+@@ -814,7 +855,38 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
+         is_mine: Boolean(cg.is_mine),
+         occurrences,
+       });
+-    } catch (err) { console.error("[eligible-occurrences]", err); res.status(500).json({ error: "서버 오류" }); }
++    } catch (err: any) {
++      // STEP 3: DB 연결 한도 오류 구별
++      const isDbConnLimit =
++        err?.code === "EMAXCONNSESSION" ||
++        (typeof err?.message === "string" && (
++          err.message.includes("max clients reached") ||
++          err.message.includes("EMAXCONNSESSION")
++        ));
++      const errEntry = {
++        ts: new Date().toISOString(),
++        stage,
++        code: err?.code ?? null,
++        message: err?.message ?? null,
++        makeup_id: makeupId,
++        class_group_id: class_group_id ?? null,
++        user_id: userId,
++      };
++      _occErrLog.push(errEntry);
++      if (_occErrLog.length > 20) _occErrLog.shift();
++      _occReqLog.push({ ts: new Date().toISOString(), makeup_id: makeupId, class_group_id: class_group_id ?? null, user_id: userId, status: 500, elapsed_ms: Date.now() - startedAt, error: err?.message ?? "unknown" });
++      if (_occReqLog.length > 30) _occReqLog.shift();
++      console.error("[ERROR][eligible-occurrences]", {
++        request_id: requestId,
++        ...errEntry,
++        elapsed_ms: Date.now() - startedAt,
++      });
++      if (isDbConnLimit) {
++        res.status(503).json({ error: "DB_CONNECTION_LIMIT", message: "잠시 후 다시 시도해 주세요." });
++      } else {
++        res.status(500).json({ error: "ELIGIBLE_OCCURRENCES_FAILED" });
++      }
++    }
+   }
+ );
+ 
+diff --git a/artifacts/swim-app/app/(teacher)/makeups.tsx b/artifacts/swim-app/app/(teacher)/makeups.tsx
+index 3f6de9ed..6af352f1 100644
+--- a/artifacts/swim-app/app/(teacher)/makeups.tsx
++++ b/artifacts/swim-app/app/(teacher)/makeups.tsx
+@@ -152,9 +152,11 @@ export default function MakeupsScreen() {
+   const [occurrences,    setOccurrences]    = useState<MakeupOccurrence[]>([]);
+   const [occLoading,     setOccLoading]     = useState(false);
+   const [occError,       setOccError]       = useState(false);
++  const [occErrorDetail, setOccErrorDetail] = useState<{ status: number; code: string } | null>(null);
+   const [selectedOccurrence, setSelectedOccurrence] = useState<MakeupOccurrence | null>(null);
+   // sequence ID — 늦게 도착한 이전 반 응답이 현재 반을 덮어쓰지 않도록
+-  const occSeqRef = useRef(0);
++  const occSeqRef     = useRef(0);
++  const occPendingRef = useRef<Set<string>>(new Set());
+   const loadWaiting = useCallback(async () => {
+     try {
+       const res = await apiRequest(token, `/teacher/makeups?status=waiting`);
+@@ -225,12 +227,14 @@ export default function MakeupsScreen() {
+    *  occSeqRef를 올려 진행 중인 모든 eligible-occurrences 요청을 무효화한다. */
+   const resetOccState = () => {
+     occSeqRef.current += 1;       // in-flight 요청 무효화
++    occPendingRef.current.clear(); // pending key 모두 해제
+     setSelectedClassId(null);
+     setSelectedDate(null);
+     setSelectedOccurrence(null);
+     setOccurrences([]);
+     setOccLoading(false);
+     setOccError(false);
++    setOccErrorDetail(null);
+   };
+ 
+   const openAssignModal = async (mk: MakeupSession) => {
+@@ -264,7 +268,21 @@ export default function MakeupsScreen() {
+   const selectClass = async (classId: string) => {
+     // 배정 모달(assignTarget) 또는 직접 완료 모달(directCompleteTarget) 어느 쪽이든 처리
+     const activeTarget = assignTarget ?? directCompleteTarget;
+-    if (!activeTarget) return;
++    // ── [LOG 1] 함수 시작 ──────────────────────────────────────────────────
++    console.log(`[selectClass] START classId=${classId} activeTarget=${activeTarget?.id ?? 'NULL'} token=${token ? 'EXISTS' : 'NULL'}`);
++    if (!activeTarget) {
++      // ── [LOG 2] return 지점: activeTarget 없음 ──────────────────────────
++      console.log('[selectClass] RETURN: activeTarget is null — assignTarget/directCompleteTarget 모두 null');
++      return;
++    }
++    // STEP 5: 동일 반+보강 조합 요청 진행 중 재호출 방지
++    const occKey = `${activeTarget.id}:${classId}`;
++    if (occPendingRef.current.has(occKey)) {
++      // ── [LOG 3] return 지점: 중복 요청 차단 ────────────────────────────
++      console.log(`[selectClass] RETURN: duplicate request occKey=${occKey}`);
++      return;
++    }
++    occPendingRef.current.add(occKey);
+     occSeqRef.current += 1;
+     const mySeq = occSeqRef.current;
+     setSelectedClassId(classId);
+@@ -272,19 +290,73 @@ export default function MakeupsScreen() {
+     setSelectedOccurrence(null);
+     setOccurrences([]);
+     setOccError(false);
++    setOccErrorDetail(null);
+     setOccLoading(true);
++    const _doRequest = async () => {
++      const reqUrl = `/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`;
++      // ── [LOG 4] apiRequest 호출 직전 ──────────────────────────────────
++      console.log(`[selectClass] apiRequest 직전 makeupId=${activeTarget.id} classGroupId=${classId} url=${reqUrl}`);
++      const r = await apiRequest(token, reqUrl);
++      // ── [LOG 5] apiRequest 응답 ────────────────────────────────────────
++      console.log(`[selectClass] apiRequest 응답 status=${r.status} ok=${r.ok}`);
++      return r;
++    };
+     try {
+-      const r = await apiRequest(token, `/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`);
+-      if (occSeqRef.current !== mySeq) return; // 늦게 도착한 이전 반 응답 무시
++      let r = await _doRequest();
++      // 실패 시 1회 자동 재시도 (500ms 후)
++      if (!r.ok) {
++        console.log(`[selectClass] 재시도 status=${r.status} — 500ms 후 재요청`);
++        await new Promise(resolve => setTimeout(resolve, 500));
++        r = await _doRequest();
++      }
++      if (occSeqRef.current !== mySeq) return;
+       if (r.ok) {
+         const data = await r.json();
++        console.log(`[selectClass] OK occurrences=${data.occurrences?.length ?? 0}`);
+         setOccurrences((data.occurrences || []) as MakeupOccurrence[]);
+       } else {
+-        setOccError(true);
++        const status = r.status;
++        const rawText = await r.text();
++        let body: any = null;
++        try { body = rawText ? JSON.parse(rawText) : null; } catch { body = { raw: rawText }; }
++        const errorCode: string = body?.error ?? body?.message ?? "UNKNOWN";
++        // ── [LOG 6] NOT_OK — 실제 HTTP status + response body ─────────────
++        console.log(`[selectClass] NOT_OK status=${status} errorCode=${errorCode} body=${rawText?.slice(0, 300)}`);
++        // 서버에 오류 보고 (CRASH_REPORT 형식) — /crash-report 경로 수정
++        try {
++          apiRequest(token, `/crash-report`, {
++            method: "POST",
++            body: JSON.stringify({
++              message: "ELIGIBLE_OCCURRENCES_FAILED",
++              stack: `status:${status} code:${errorCode} mkId:${activeTarget.id} cgId:${classId} body:${rawText?.slice(0, 500)}`,
++              isFatal: false,
++              source: "selectClass",
++            }),
++          }).catch(() => {});
++        } catch {}
++        if (occSeqRef.current === mySeq) {
++          setOccError(true);
++          setOccErrorDetail({ status, code: errorCode });
++        }
+       }
+-    } catch {
++    } catch (e: any) {
++      // ── [LOG 7] catch — 네트워크/타임아웃 오류 ────────────────────────
++      console.log(`[selectClass] CATCH e.name=${e?.name} e.message=${e?.message} mkId=${activeTarget.id} cgId=${classId}`);
++      // 네트워크/타임아웃 오류도 서버에 보고
++      try {
++        apiRequest(token, `/crash-report`, {
++          method: "POST",
++          body: JSON.stringify({
++            message: "ELIGIBLE_OCCURRENCES_NETWORK_ERROR",
++            stack: `${e?.name}:${e?.message ?? "unknown"} mkId:${activeTarget.id} cgId:${classId}`,
++            isFatal: false,
++            source: "selectClass",
++          }),
++        }).catch(() => {});
++      } catch {}
+       if (occSeqRef.current === mySeq) setOccError(true);
+     } finally {
++      occPendingRef.current.delete(occKey);
+       if (occSeqRef.current === mySeq) setOccLoading(false);
+     }
+   };
+@@ -860,7 +932,10 @@ export default function MakeupsScreen() {
+                 if (occError) return (
+                   <View style={s.empty}>
+                     <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
+-                    <Text style={s.emptyTxt}>수업 회차를 불러오지 못했습니다</Text>
++                    <Text style={s.emptyTxt}>
++                      {"수업 회차를 불러오지 못했습니다"}
++                      {occErrorDetail ? `\n오류 코드: ${occErrorDetail.status} / ${occErrorDetail.code}` : ""}
++                    </Text>
+                     <Pressable onPress={() => selectClass(selectedClassId)} style={{ marginTop: 8 }}>
+                       <Text style={{ color: C.textSecondary, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
+                     </Pressable>
+@@ -1053,7 +1128,10 @@ export default function MakeupsScreen() {
+                 if (occError) return (
+                   <View style={s.empty}>
+                     <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
+-                    <Text style={s.emptyTxt}>수업 회차를 불러오지 못했습니다</Text>
++                    <Text style={s.emptyTxt}>
++                      {"수업 회차를 불러오지 못했습니다"}
++                      {occErrorDetail ? `\n오류 코드: ${occErrorDetail.status} / ${occErrorDetail.code}` : ""}
++                    </Text>
+                     <Pressable onPress={() => selectClass(selectedClassId)} style={{ marginTop: 8 }}>
+                       <Text style={{ color: C.textSecondary, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
+                     </Pressable>
+diff --git a/artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx b/artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+index 7f89ddf8..bf8786f4 100644
+--- a/artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
++++ b/artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+@@ -274,8 +274,10 @@ export default function ClassDetailSheet({
+   const [makeupOccurrences,       setMakeupOccurrences]       = useState<MakeupOccurrence[]>([]);
+   const [makeupOccLoading,        setMakeupOccLoading]        = useState(false);
+   const [makeupOccError,          setMakeupOccError]          = useState(false);
++  const [makeupOccErrorDetail,    setMakeupOccErrorDetail]    = useState<{ status: number; code: string } | null>(null);
+   // sequence ID — 늦게 도착한 이전 반 응답이 현재 반을 덮어쓰지 않도록
+-  const occSeqRef = useRef(0);
++  const occSeqRef     = useRef(0);
++  const occPendingRef = useRef<Set<string>>(new Set());
+ 
+   // 이 반/날짜에 배정된 보강 학생
+   const [makeupStudents,       setMakeupStudents]       = useState<any[]>([]);
+@@ -481,11 +483,13 @@ export default function ClassDetailSheet({
+ 
+   /** 보강 피커 관련 모든 상태를 초기화 (7가지 경로 공통) */
+   function resetMakeupPickerState() {
++    occPendingRef.current.clear();
+     setSelectedMakeupStudent(null);
+     setSelectedMakeupClassId(null);
+     setMakeupOccurrences([]);
+     setMakeupOccLoading(false);
+     setMakeupOccError(false);
++    setMakeupOccErrorDetail(null);
+   }
+ 
+   async function openMakeupPicker() {
+@@ -501,11 +505,16 @@ export default function ClassDetailSheet({
+ 
+   /** 단계 2→3: 반 선택 후 eligible-occurrences 조회 (sequence ID로 경쟁 방지) */
+   async function selectMakeupClass(mk: any, targetClassId: string) {
++    // STEP 5: 동일 반+보강 조합 요청 진행 중 재호출 방지
++    const occKey = `${mk.id}:${targetClassId}`;
++    if (occPendingRef.current.has(occKey)) return;
++    occPendingRef.current.add(occKey);
+     occSeqRef.current += 1;
+     const mySeq = occSeqRef.current;
+     setSelectedMakeupClassId(targetClassId);
+     setMakeupOccLoading(true);
+     setMakeupOccError(false);
++    setMakeupOccErrorDetail(null);
+     setMakeupOccurrences([]);
+     try {
+       const res = await apiRequest(token, `/teacher/makeups/${mk.id}/eligible-occurrences?class_group_id=${targetClassId}`);
+@@ -514,11 +523,30 @@ export default function ClassDetailSheet({
+         const data = await res.json();
+         setMakeupOccurrences((data.occurrences || []) as MakeupOccurrence[]);
+       } else {
+-        setMakeupOccError(true);
++        // STEP 1: 오류 응답 원문 파싱
++        const status = res.status;
++        const rawText = await res.text();
++        let body: any = null;
++        try { body = rawText ? JSON.parse(rawText) : null; } catch { body = { raw: rawText }; }
++        const errorCode: string = body?.error ?? "UNKNOWN";
++        if (__DEV__) {
++          console.error("[MAKEUP-OCCURRENCES-ERROR]", {
++            status,
++            error: body?.error ?? null,
++            message: body?.message ?? null,
++            makeupId: mk.id,
++            classGroupId: targetClassId,
++          });
++        }
++        if (occSeqRef.current === mySeq) {
++          setMakeupOccError(true);
++          setMakeupOccErrorDetail({ status, code: errorCode });
++        }
+       }
+     } catch {
+       if (occSeqRef.current === mySeq) setMakeupOccError(true);
+     } finally {
++      occPendingRef.current.delete(occKey);
+       if (occSeqRef.current === mySeq) setMakeupOccLoading(false);
+     }
+   }
+@@ -1267,7 +1295,10 @@ export default function ClassDetailSheet({
+               ) : makeupOccError ? (
+                 <View style={cds.empty}>
+                   <LucideIcon name="circle-alert" size={28} color={C.textMuted} />
+-                  <Text style={cds.emptyText}>수업 회차를 불러오지 못했습니다</Text>
++                  <Text style={cds.emptyText}>
++                    {"수업 회차를 불러오지 못했습니다"}
++                    {makeupOccErrorDetail ? `\n오류 코드: ${makeupOccErrorDetail.status} / ${makeupOccErrorDetail.code}` : ""}
++                  </Text>
+                   <Pressable onPress={() => selectMakeupClass(selectedMakeupStudent, selectedMakeupClassId)} style={{ marginTop: 8 }}>
+                     <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
+                   </Pressable>
