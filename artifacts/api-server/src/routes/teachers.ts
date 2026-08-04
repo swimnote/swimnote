@@ -706,7 +706,7 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
       const { class_group_id } = req.query as { class_group_id?: string };
       const userId = req.user!.userId;
       const poolId = await getMyPoolId(userId);
-      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
+      if (!poolId) { res.status(403).json({ error: "POOL_NOT_FOUND" }); return; }
       if (!class_group_id) { res.status(400).json({ error: "class_group_id가 필요합니다." }); return; }
 
       // 1. 보강 세션 조회
@@ -716,7 +716,7 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
       `)).rows as any[];
       if (!mkRows.length) { res.status(404).json({ error: "보강 건을 찾을 수 없습니다." }); return; }
       const mk = mkRows[0];
-      if (mk.swimming_pool_id !== poolId) { res.status(403).json({ error: "접근 권한 없음" }); return; }
+      if (mk.swimming_pool_id !== poolId) { res.status(403).json({ error: "MAKEUP_POOL_MISMATCH" }); return; }
 
       // 2. 반 정보 조회 (수영장 소속·삭제되지 않은 반)
       const cgRows = (await superAdminDb.execute(sql`
@@ -731,7 +731,7 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
           AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
         LIMIT 1
       `)).rows as any[];
-      if (!cgRows.length) { res.status(404).json({ error: "반을 찾을 수 없습니다." }); return; }
+      if (!cgRows.length) { res.status(404).json({ error: "CLASS_NOT_FOUND" }); return; }
       const cg = cgRows[0];
 
       // 3. 정원 계산 (eligible-classes 표준 — class_group_id + assigned_class_ids 모두 포함)

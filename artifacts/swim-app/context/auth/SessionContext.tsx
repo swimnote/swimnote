@@ -648,19 +648,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           needs_activation: true, error_code: "needs_activation", teacher_id: data.teacher_id,
         });
       }
-      // 서버가 비-JSON 403을 반환한 경우 (구버전 서버 또는 네트워크 장비 차단)
-      // → 구독 만료로 처리하여 안내 화면으로 이동
-      if (res.status === 403 && !data.error_code) {
-        throw Object.assign(
-          new Error("서비스 이용이 중단되었습니다.\n구독 상태를 확인해주세요."),
-          {
-            error_code:            "pool_deactivated",
-            days_until_deletion:   0,
-            deletion_scheduled_at: "",
-            deactivated_at:        new Date().toISOString(),
-          }
-        );
-      }
+      // 구독 취소 화면은 서버가 명시적으로 pool_deactivated를 반환한 경우에만 표시한다.
+      // error_code 없는 일반 403은 일반 권한 오류로 처리 (아래 throw로 전달).
       throw Object.assign(new Error(data.message || data.error || "로그인에 실패했습니다."), {
         error_code:            data.error_code || "unknown",
         days_until_deletion:   data.days_until_deletion ?? null,

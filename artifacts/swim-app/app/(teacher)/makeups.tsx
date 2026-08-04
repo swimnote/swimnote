@@ -152,9 +152,11 @@ export default function MakeupsScreen() {
   const [occurrences,    setOccurrences]    = useState<MakeupOccurrence[]>([]);
   const [occLoading,     setOccLoading]     = useState(false);
   const [occError,       setOccError]       = useState(false);
+  const [occErrorDetail, setOccErrorDetail] = useState<{ status: number; code: string } | null>(null);
   const [selectedOccurrence, setSelectedOccurrence] = useState<MakeupOccurrence | null>(null);
   // sequence ID — 늦게 도착한 이전 반 응답이 현재 반을 덮어쓰지 않도록
-  const occSeqRef = useRef(0);
+  const occSeqRef     = useRef(0);
+  const occPendingRef = useRef<Set<string>>(new Set());
   const loadWaiting = useCallback(async () => {
     try {
       const res = await apiRequest(token, `/teacher/makeups?status=waiting`);
@@ -225,12 +227,14 @@ export default function MakeupsScreen() {
    *  occSeqRef를 올려 진행 중인 모든 eligible-occurrences 요청을 무효화한다. */
   const resetOccState = () => {
     occSeqRef.current += 1;       // in-flight 요청 무효화
+    occPendingRef.current.clear(); // pending key 모두 해제
     setSelectedClassId(null);
     setSelectedDate(null);
     setSelectedOccurrence(null);
     setOccurrences([]);
     setOccLoading(false);
     setOccError(false);
+    setOccErrorDetail(null);
   };
 
   const openAssignModal = async (mk: MakeupSession) => {
@@ -265,6 +269,10 @@ export default function MakeupsScreen() {
     // 배정 모달(assignTarget) 또는 직접 완료 모달(directCompleteTarget) 어느 쪽이든 처리
     const activeTarget = assignTarget ?? directCompleteTarget;
     if (!activeTarget) return;
+    // 동일 반+보강 조합 요청 진행 중 재호출 방지
+    const occKey = `${activeTarget.id}:${classId}`;
+    if (occPendingRef.current.has(occKey)) return;
+    occPendingRef.current.add(occKey);
     occSeqRef.current += 1;
     const mySeq = occSeqRef.current;
     setSelectedClassId(classId);
@@ -272,19 +280,36 @@ export default function MakeupsScreen() {
     setSelectedOccurrence(null);
     setOccurrences([]);
     setOccError(false);
+    setOccErrorDetail(null);
     setOccLoading(true);
+    const _doRequest = async () =>
+      apiRequest(token, `/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`);
     try {
-      const r = await apiRequest(token, `/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`);
+      let r = await _doRequest();
+      // 실패 시 1회 자동 재시도 (500ms 후)
+      if (!r.ok) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        r = await _doRequest();
+      }
       if (occSeqRef.current !== mySeq) return; // 늦게 도착한 이전 반 응답 무시
       if (r.ok) {
         const data = await r.json();
         setOccurrences((data.occurrences || []) as MakeupOccurrence[]);
       } else {
-        setOccError(true);
+        const status = r.status;
+        const rawText = await r.text().catch(() => "");
+        let body: any = null;
+        try { body = rawText ? JSON.parse(rawText) : null; } catch {}
+        const errorCode: string = body?.error ?? body?.message ?? "UNKNOWN";
+        if (occSeqRef.current === mySeq) {
+          setOccError(true);
+          setOccErrorDetail({ status, code: errorCode });
+        }
       }
     } catch {
       if (occSeqRef.current === mySeq) setOccError(true);
     } finally {
+      occPendingRef.current.delete(occKey);
       if (occSeqRef.current === mySeq) setOccLoading(false);
     }
   };
@@ -860,7 +885,10 @@ export default function MakeupsScreen() {
                 if (occError) return (
                   <View style={s.empty}>
                     <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
-                    <Text style={s.emptyTxt}>수업 회차를 불러오지 못했습니다</Text>
+                    <Text style={s.emptyTxt}>
+                      {"수업 회차를 불러오지 못했습니다"}
+                      {occErrorDetail ? `\n오류 코드: ${occErrorDetail.status} / ${occErrorDetail.code}` : ""}
+                    </Text>
                     <Pressable onPress={() => selectClass(selectedClassId)} style={{ marginTop: 8 }}>
                       <Text style={{ color: C.textSecondary, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
                     </Pressable>
@@ -1053,7 +1081,10 @@ export default function MakeupsScreen() {
                 if (occError) return (
                   <View style={s.empty}>
                     <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
-                    <Text style={s.emptyTxt}>수업 회차를 불러오지 못했습니다</Text>
+                    <Text style={s.emptyTxt}>
+                      {"수업 회차를 불러오지 못했습니다"}
+                      {occErrorDetail ? `\n오류 코드: ${occErrorDetail.status} / ${occErrorDetail.code}` : ""}
+                    </Text>
                     <Pressable onPress={() => selectClass(selectedClassId)} style={{ marginTop: 8 }}>
                       <Text style={{ color: C.textSecondary, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
                     </Pressable>
