@@ -1,0 +1,560 @@
+[SWIMNOTE 보강 시스템 전체 증거자료 추출 — 분석·수정 금지]
+
+목적:
+
+외부 검수자가 SWIMNOTE 보강 시스템의 전체 실행 경로를 직접 분석한다.
+
+이번 작업에서 Replit은 원인 판정이나 해결책을 작성하지 않는다.
+관련 코드·스키마·라우트·배포 기준만 원문 그대로 추출한다.
+
+절대 금지:
+
+- 코드 수정
+- 자동 수정
+- 리팩터링
+- Commit
+- Push
+- Render 배포
+- OTA
+- 운영 DB INSERT/UPDATE/DELETE
+- reset/revert
+- 구독 코드 변경
+- X모드 작업
+- “정상”, “원인 확정” 등의 자체 판정
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 정상 기준점 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 명령 결과를 원문 그대로 저장한다.
+
+git branch --show-current
+git rev-parse HEAD
+git rev-parse origin/deploy-photo-clone
+git status --short
+git log -20 --oneline --decorate
+
+추가:
+
+- 현재 Render live deployment ID
+- Render live commit SHA
+- 현재 production OTA Update Group ID
+- 현재 preview OTA Update Group ID
+- 현재 OTA 기준 commit SHA
+- runtimeVersion
+- API_BASE
+- 롤백 기준 commit 651b1a95과 현재 HEAD 관계
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 보강 관련 서버 코드 전체
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 파일은 원본 파일 그대로 수집한다.
+
+필수:
+
+artifacts/api-server/src/routes/teachers.ts
+artifacts/api-server/src/routes/admin.ts
+artifacts/api-server/src/routes/attendance.ts
+artifacts/api-server/src/routes/students.ts
+artifacts/api-server/src/routes/class-groups.ts
+
+추가로 Repository 전체 검색 후 아래 기능이 들어 있는 파일을 전부 포함한다.
+
+검색어:
+
+makeup_sessions
+autoCreateMakeup
+calcExpireAt
+eligible-classes
+eligible-occurrences
+complete-direct
+by-class
+handed_to_teacher
+handover
+expire_at
+status = 'expired'
+status='expired'
+MAKEUP_EXPIRED
+monthly_limit_exceeded
+make_up_expiry
+make_up_limit
+session_type = 'makeup'
+session_type='makeup'
+
+포함 대상:
+
+- 보강 자동 생성 함수
+- 만료 Worker
+- cron/scheduler
+- cleanup job
+- push scheduler
+- 보강 상태 변경 helper
+- KST 날짜 helper
+- DB connection helper
+- getMyPoolId
+- requireAuth
+- tenant/pool middleware
+
+큰 파일을 요약하지 않는다.
+파일 원문 그대로 ZIP에 넣는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 보강 관련 앱 코드 전체
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 파일을 원본 그대로 수집한다.
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+artifacts/swim-app/app/(admin)/makeups.tsx
+artifacts/swim-app/app/(admin)/makeup-policy.tsx
+
+artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+artifacts/swim-app/components/admin/AdminClassDetailSheet.tsx
+artifacts/swim-app/components/common/SubSheetModal.tsx
+
+artifacts/swim-app/app/(teacher)/my-schedule.tsx
+artifacts/swim-app/app/(teacher)/today-schedule.tsx
+artifacts/swim-app/app/(admin)/classes.tsx
+
+artifacts/swim-app/context/AuthContext.tsx
+artifacts/swim-app/utils 또는 lib의 날짜 관련 파일
+
+Repository 검색 후 다음 문자열을 호출하는 클라이언트 파일도 모두 포함한다.
+
+- /teacher/makeups
+- /admin/makeups
+- eligible-classes
+- eligible-occurrences
+- complete-direct
+- /assign
+- /cancel
+- /expire
+- by-class
+- allow_expired
+- 기간 지난 보강
+- 소멸
+- 보강반 배정
+- 보강 확정
+- 보강 취소
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. DB 스키마 전체
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 테이블의 실제 schema 원문을 포함한다.
+
+- makeup_sessions
+- attendance
+- students
+- class_groups
+- swimming_pools
+- pool_holidays
+- users
+- class_change_logs
+- pool_event_logs
+
+각 테이블에서 반드시 확인 가능한 내용:
+
+- 컬럼명
+- 데이터 타입
+- nullable
+- default
+- CHECK
+- enum
+- foreign key
+- unique constraint
+- index
+- cascade 정책
+
+Migration 파일에서 해당 테이블·컬럼을 생성하거나 변경한 파일도 전부 포함한다.
+
+특히:
+
+- makeup_sessions.status 허용값
+- expire_at
+- can_expire
+- cancelled_at
+- cancelled_reason
+- assigned_date
+- assigned_class_group_id
+- handed_to_teacher_id
+- absence_attendance_id
+- attendance unique key
+- students.deleted_at
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. API 라우트 자동 목록 생성
+━━━━━━━━━━━━━━━━━━━━━━
+
+보강 관련 모든 API를 Repository 검색으로 추출한다.
+
+표 형식:
+
+METHOD
+PATH
+SERVER FILE
+LINE
+AUTH
+POOL CHECK
+CLIENT CALLER
+READ TABLE
+WRITE TABLE
+
+예:
+
+GET
+/teacher/makeups/:makeupId/eligible-occurrences
+teachers.ts
+531
+requireAuth
+getMyPoolId
+makeups.tsx, ClassDetailSheet.tsx
+makeup_sessions, class_groups, students, pool_holidays
+없음
+
+누락 없이 작성한다.
+
+최소 포함 대상:
+
+- 보강 대기 조회
+- 관리자 보강 조회
+- eligible classes
+- eligible occurrences
+- assign
+- complete
+- complete-direct
+- cancel
+- expire
+- handover
+- by-class
+- direct complete
+- 정책 GET/PUT
+- 출결 결석 처리
+- 자동 보강 생성
+- 만료 처리
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 클라이언트 호출 경로 표
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 화면 버튼에서 서버 API까지 연결한다.
+
+표 형식:
+
+화면
+버튼/이벤트
+CLIENT FILE
+FUNCTION
+STATE INPUT
+API METHOD/PATH
+REQUEST BODY
+SUCCESS STATE CHANGE
+FAILURE STATE CHANGE
+REFETCH API
+
+최소 경로:
+
+1. 결석 버튼 → 보강 생성
+2. 보강 대기 화면 열기
+3. 보강반 선택
+4. 수업 회차 조회
+5. 미래 회차 배정
+6. 오늘·과거 직접 완료
+7. 보강 확정
+8. 보강 취소
+9. 소멸
+10. 기간 지난 보강 처리
+11. 반 상세 모달 보강 처리
+12. 관리자 보강 처리
+13. 인계
+14. 삭제 회원 처리
+
+판정하지 말고 코드에 나타난 값 그대로 작성한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 상태 전이표
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 코드 기준으로 makeup_sessions 상태 전이를 전부 추출한다.
+
+형식:
+
+TRIGGER
+ENDPOINT/WORKER
+BEFORE STATUS
+AFTER STATUS
+UPDATED COLUMNS
+LIST WHERE IT APPEARS
+
+필수 상태:
+
+waiting
+assigned
+completed
+cancelled
+expired
+
+추가 상태가 있으면 모두 포함한다.
+
+별도로 다음 두 사건이 실제로 같은 상태를 사용하는지 원문 기준으로 기록한다.
+
+- 정책 기간 자동 만료
+- 사용자가 누르는 소멸
+
+판정은 하지 말고 실제 UPDATE 코드만 연결한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. DB 인스턴스·연결 관계
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 정의 파일을 원문 포함한다.
+
+- db
+- superAdminDb
+- pool DB
+- tenant DB
+- DATABASE_URL 선택
+- DB_POOL_MAX
+- Pool 생성
+- Drizzle 초기화
+
+그리고 각 보강 라우트가 사용하는 DB 객체를 표로 작성한다.
+
+예:
+
+eligible-occurrences:
+getMyPoolId → db
+makeup_sessions → db
+class_groups → superAdminDb
+students count → db
+pool_holidays → db
+
+실제로 같은 객체인지 다른 객체인지 판정하지 말고
+각 import 원문과 정의를 제출한다.
+
+환경변수 값은 노출하지 않는다.
+변수 이름만 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 최근 보강 관련 Git 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 저장한다.
+
+git log --all --oneline --decorate -- \
+  artifacts/api-server/src/routes/teachers.ts \
+  artifacts/api-server/src/routes/admin.ts \
+  artifacts/api-server/src/routes/attendance.ts \
+  "artifacts/swim-app/app/(teacher)/makeups.tsx" \
+  "artifacts/swim-app/app/(admin)/makeups.tsx" \
+  "artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx"
+
+최근 보강 관련 커밋 15개의:
+
+- SHA
+- 메시지
+- 변경 파일
+- diff stat
+
+그리고 아래 기준 간 diff를 별도 파일로 저장한다.
+
+- 구독 정상 기준 651b1a95
+- 현재 HEAD
+- 현재 Render live SHA
+- 현재 production OTA SHA
+
+명령 예:
+
+git diff 651b1a95..HEAD -- <보강 관련 파일들>
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 문제 재현 대상 DB SELECT 자료
+━━━━━━━━━━━━━━━━━━━━━━
+
+운영 DB 수정 금지.
+SELECT만 수행한다.
+
+실패한 보강 세션 ID와 선택한 class_group_id가 확보돼 있다면:
+
+A. makeup_sessions
+
+SELECT *
+FROM makeup_sessions
+WHERE id = :makeupId;
+
+B. class_groups
+
+SELECT *
+FROM class_groups
+WHERE id = :classGroupId;
+
+C. 로그인 user
+
+SELECT id, role, swimming_pool_id
+FROM users
+WHERE id = :userId;
+
+D. holidays
+
+SELECT *
+FROM pool_holidays
+WHERE swimming_pool_id = :poolId
+ORDER BY holiday_date;
+
+E. 학생 정원 대상
+
+SELECT id, status, class_group_id, assigned_class_ids, deleted_at
+FROM students
+WHERE swimming_pool_id = :poolId
+  AND (
+    class_group_id = :classGroupId
+    OR assigned_class_ids @> to_jsonb(:classGroupId::text)
+  );
+
+F. 삭제 학생 잔존 보강
+
+SELECT
+  ms.*,
+  s.status AS student_status,
+  s.deleted_at AS student_deleted_at
+FROM makeup_sessions ms
+LEFT JOIN students s ON s.id = ms.student_id
+WHERE ms.status IN ('waiting','expired','assigned')
+ORDER BY ms.created_at DESC;
+
+이름·이메일·전화번호는 출력 자료에서 마스킹한다.
+
+DB 접속 불가 시 임의 결과를 작성하지 말고
+“미수집”으로 표시한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 실행 로그 원문
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 키워드의 기존 로그를 수정 없이 수집한다.
+
+- eligible-occurrences
+- 수업 회차
+- EMAXCONNSESSION
+- CLASS_NOT_FOUND
+- POOL_NOT_FOUND
+- MAKEUP_POOL_MISMATCH
+- DB_CONNECTION_LIMIT
+- complete-direct
+- makeup assign
+- makeup expire
+
+가능한 범위:
+
+- Render 로그
+- Replit 로그
+- 앱 로그
+- Expo/EAS 로그
+
+로그가 없으면 없다고 명시한다.
+새 진단 OTA를 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 산출물 3개 생성
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. 원본 코드 ZIP
+
+파일명:
+
+swimnote_makeup_schedule_full_source.zip
+
+포함:
+
+- 위에서 지정한 서버 파일
+- 앱 파일
+- DB schema/Migration
+- Worker
+- DB 초기화 정의
+- 관련 helper
+
+제외:
+
+- .env
+- secrets
+- token
+- DB URL
+- node_modules
+- build 산출물
+- 캐시
+- 사용자 업로드 파일
+
+B. 분석용 텍스트
+
+파일명:
+
+swimnote_makeup_schedule_evidence.txt
+
+포함 순서:
+
+1. Git/Render/EAS 기준
+2. API 라우트 표
+3. 클라이언트 호출 경로 표
+4. 상태 전이표
+5. DB 객체 사용표
+6. DB SELECT 결과
+7. 기존 로그
+8. 파일 목록
+9. SHA별 diff 요약
+
+C. Git diff 파일
+
+파일명:
+
+swimnote_makeup_schedule_changes.patch
+
+포함:
+
+구독 정상 기준 651b1a95부터 현재 HEAD까지의
+보강 관련 파일 diff.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 무결성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 산출물에 SHA-256을 계산한다.
+
+sha256sum swimnote_makeup_schedule_full_source.zip
+sha256sum swimnote_makeup_schedule_evidence.txt
+sha256sum swimnote_makeup_schedule_changes.patch
+
+ZIP 파일 목록도 저장한다.
+
+unzip -l swimnote_makeup_schedule_full_source.zip
+
+제출:
+
+- 파일 크기
+- SHA-256
+- ZIP 포함 파일 수
+- 제외 항목 확인
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자에게 다음 파일 3개를 다운로드 가능하게 전달한다.
+
+1. swimnote_makeup_schedule_full_source.zip
+2. swimnote_makeup_schedule_evidence.txt
+3. swimnote_makeup_schedule_changes.patch
+
+채팅에는 파일 링크와 다음 정보만 작성한다.
+
+- 기준 HEAD
+- Render live SHA
+- production OTA SHA
+- ZIP 포함 파일 수
+- 각 파일 SHA-256
+- DB SELECT 수집 여부
+- 실행 로그 수집 여부
+
+원인 분석이나 수정안은 작성하지 않는다.
+
+파일 제출 후 멈춘다.
