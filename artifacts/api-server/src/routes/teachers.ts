@@ -698,6 +698,12 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
 );
 
 // ── 보강 가능 수업 회차 목록 (teacher용) ──────────────────────
+// in-memory 오류 저장소 (최근 20건)
+const _occErrLog: Array<{ts: string; stage: string; code: string|null; message: string|null; makeup_id: string; class_group_id: string|null; user_id: string}> = [];
+router.get("/teacher/makeups/debug-occ-errors", requireAuth, (req, res) => {
+  res.json(_occErrLog.slice(-20));
+});
+
 // GET /teacher/makeups/:makeupId/eligible-occurrences?class_group_id=...
 router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
   async (req: AuthRequest, res) => {
@@ -844,11 +850,20 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
           err.message.includes("max clients reached") ||
           err.message.includes("EMAXCONNSESSION")
         ));
-      console.error("[ERROR][eligible-occurrences]", {
-        request_id: requestId,
+      const errEntry = {
+        ts: new Date().toISOString(),
         stage,
         code: err?.code ?? null,
         message: err?.message ?? null,
+        makeup_id: makeupId,
+        class_group_id: class_group_id ?? null,
+        user_id: userId,
+      };
+      _occErrLog.push(errEntry);
+      if (_occErrLog.length > 20) _occErrLog.shift();
+      console.error("[ERROR][eligible-occurrences]", {
+        request_id: requestId,
+        ...errEntry,
         elapsed_ms: Date.now() - startedAt,
       });
       if (isDbConnLimit) {
