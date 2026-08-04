@@ -1,0 +1,622 @@
+SWIMNOTE X — WP5 일반/X 1차 격리검증 설계 조사 지시
+
+WP4는 코드·Origin 저장·정적 검증 완료로 승인합니다.
+
+현재 미검증 상태:
+
+자동화 테스트: NOT_TESTED
+실기기 X UI: NOT_TESTED
+Direct Link 차단: NOT_TESTED
+일반/X 실제 전환: NOT_TESTED
+
+이 항목들은 WP5 일반/X 1차 격리검증에서 확인합니다.
+
+이번에는 WP5를 구현하지 말고, 실제 Repository와 현재 환경을 조사하여 WP5 실행 설계서만 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. WP5 목표
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+두 수영장을 분리하여 일반모드와 X모드를 동시에 검증합니다.
+
+POOL_A
+- 일반모드
+- xmode_entitlement = false
+- 기존 SWIMNOTE 기능 유지
+POOL_B
+- X 샘플 수영장
+- xmode_entitlement = true
+- xmode_config_status = READY
+- SWIMNOTE X 외형·메뉴·Route 확인
+
+검증 대상:
+
+* UI
+* API
+* DB
+* Route
+* 캐시
+* ModeContext
+* 권한
+* 계정 전환
+* 수영장 전환
+* 일반/X 데이터 격리
+
+WP5 통과 조건:
+
+일반모드 변화 0
++
+X 샘플 수영장에서 X 외형 정상
++
+일반모드에서 X Route 접근 차단
++
+수영장 전환 시 이전 Mode 잔존 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 이번 단계에서 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 요청은 조사·설계 전용입니다.
+
+금지:
+
+* 코드 수정
+* DB UPDATE
+* X 상태 변경
+* 샘플 수영장 생성
+* 샘플 계정 생성
+* 실제 사용자 상태 변경
+* 실제 토이키즈 X 전환
+* Commit
+* Push
+* OTA
+* Render 배포
+* 서버 재시작
+* WP6 선행 구현
+
+현재 존재하는 계정·수영장·테스트 수단을 읽기 전용으로 조사하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 현재 Git 기준선 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 제출하십시오.
+
+git branch --show-current
+git rev-parse HEAD
+git status --short
+git branch -vv
+git log --oneline origin/deploy-photo-clone..HEAD
+
+현재 알려진 상태:
+
+WP4 Commit: 3f5a265e
+origin 포함: 확인
+로컬 ahead 문서 Commit: 2개
+코드 변경: 없음
+
+다르면 실제 상태를 보고하십시오.
+
+문서 Commit을 이번 WP에서 Push·삭제·수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실제 테스트 가능한 수영장 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+읽기 전용으로 현재 수영장 목록과 X 상태를 확인하십시오.
+
+필요 정보:
+
+* pool_id
+* 수영장명
+* xmode_entitlement
+* xmode_config_status
+* 활성 사용자 수
+* 테스트 계정 존재 여부
+* 운영 중 실제 수영장 여부
+* 테스트용으로 사용 가능한지
+* 토이키즈 여부
+
+절대 금지:
+
+* 실제 운영 수영장을 임의로 X모드 전환
+* 기존 상태 수정
+* 토이키즈를 POOL_B로 사용
+* 고객 수영장을 테스트용으로 사용
+
+현재 안전한 샘플 수영장이 없다면:
+
+SAFE_TEST_POOL_NOT_FOUND
+
+로 보고하고 생성 설계만 제출하십시오.
+
+샘플 생성은 별도 승인 후에만 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 테스트 계정 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+역할별 테스트 가능 계정을 조사하십시오.
+
+POOL_A 일반모드
+
+* pool_admin
+* teacher
+* parent_account
+
+POOL_B X모드
+
+* pool_admin
+* teacher
+* parent_account
+
+각 계정에 대해:
+
+* 계정 ID
+* role
+* swimming_pool_id
+* 활성 여부
+* 실제 고객 계정인지
+* 테스트 계정인지
+* 로그인 가능 여부
+* 비밀번호를 새로 바꿔야 하는지
+* 개인정보 포함 여부
+
+비밀번호·전화번호·실명은 보고서에 출력하지 마십시오.
+
+테스트 계정이 없다면 생성 필요 여부만 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Mode API 검증 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+검증 API:
+
+GET /api/pools/x-mode
+
+상태별 기대 결과:
+
+POOL_A
+
+{
+  "mode": "normal",
+  "xmode_entitlement": false,
+  "xmode_config_status": "NOT_CONFIGURED"
+}
+
+POOL_B READY
+
+{
+  "mode": "x",
+  "xmode_entitlement": true,
+  "xmode_config_status": "READY"
+}
+
+추가 상태:
+
+xmode_entitlement=true
+xmode_config_status=NOT_CONFIGURED
+→ x_pending
+xmode_entitlement=true
+xmode_config_status=CURRICULUM_PENDING
+→ x_pending
+
+이번 설계서에는 상태 변경 방법만 작성하고 실제 PATCH를 실행하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. X 상태 변경 안전 절차 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+별도 승인 후 POOL_B 상태를 바꿀 경우의 안전 절차를 설계하십시오.
+
+필수 절차:
+
+1. 대상이 샘플 pool인지 재확인
+2. 변경 전 DB 상태 캡처
+3. audit_logs 건수 확인
+4. PATCH /super/operators/:id/xmode 사용
+5. 응답 확인
+6. DB 상태 재조회
+7. audit_logs 생성 확인
+8. 앱 Mode 재조회
+9. 테스트 완료 후 원복 필요 여부 판단
+
+DB 직접 UPDATE 대신 WP2의 PATCH API 사용을 우선하십시오.
+
+단, 이번 단계에서는 실행 금지입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 관리자 UI 검증 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+일반모드 관리자
+
+확인:
+
+* 기존 대시보드 레이아웃 동일
+* XModeBadge 미노출
+* SWIMNOTE X 섹션 미노출
+* 기존 탭 4개 유지
+* 기존 메뉴 순서 유지
+* /admin/x-growth 직접 접근 시 홈으로 차단
+* 일반 기능 정상
+
+X모드 관리자
+
+확인:
+
+* SWIMNOTE X 뱃지
+* X 섹션 노출
+* 성장 추적 관리 버튼
+* x-growth placeholder 진입
+* 뒤로가기 정상
+* 기존 관리자 기능 정상
+* X placeholder가 실제 데이터를 표시하지 않음
+
+x_pending 관리자
+
+확인:
+
+* X 준비중
+* 잠금 안내
+* 진입 불가
+* 직접 Route 접근 차단
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 선생님 UI 검증 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+일반모드 선생님
+
+* 기존 오늘 스케줄 동일
+* X 뱃지 미노출
+* X 빠른 진입 미노출
+* 기존 탭 6개 유지
+* 기존 일지·스케줄 정상
+
+X모드 선생님
+
+* SWIMNOTE X 뱃지
+* 성장 추적 진입
+* x-growth placeholder
+* 기존 오늘 스케줄 정상
+* 일반 AI 일지 동작 불변
+
+x_pending 선생님
+
+* 준비중 표시
+* disabled 버튼
+* 직접 Route 접근 차단
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 학부모 UI 검증 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+일반모드 학부모
+
+* X 뱃지 미노출
+* X 성장 버튼 미노출
+* 기존 AI 커리큘럼 버튼 유지
+* 기존 AI 성장리포트 버튼 유지
+* 기존 출시 예정 모달 정상
+* 자녀 선택 정상
+
+X모드 학부모
+
+* SWIMNOTE X 뱃지
+* X 성장 버튼 노출
+* x-growth placeholder 진입
+* 기존 AI 버튼은 실제 연결되지 않음
+* 자녀 선택 및 기존 피드 정상
+
+x_pending 학부모
+
+* X 준비중 표시
+* 성장 버튼 disabled
+* 직접 Route 접근 차단
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Route·Deep Link 격리 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+검증 Route:
+
+/(admin)/x-growth
+/(teacher)/x-growth
+/(parent)/x-growth
+
+각 Route마다 검증:
+
+* normal + 올바른 역할
+* x_pending + 올바른 역할
+* x + 올바른 역할
+* x + 잘못된 역할
+* 로그인 없음
+* Mode loading
+* Mode error
+* Deep Link 직접 진입
+* 뒤로가기
+* redirect loop
+
+기대:
+
+normal → 역할 홈
+x_pending → 역할 홈
+x → placeholder 허용
+잘못된 역할 → 해당 역할 홈
+로그인 없음 → 인증 흐름
+
+실제 Route 문자열과 Redirect 목적지는 Repository 코드 기준으로 작성하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 수영장 전환 격리 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 앱의 수영장 전환 기능을 다시 조사하십시오.
+
+검증 순서:
+
+POOL_A normal 로그인
+→ mode=normal 확인
+→ POOL_B X 전환
+→ 이전 normal Mode 폐기
+→ mode=x 재조회
+→ X UI 노출
+→ 다시 POOL_A 전환
+→ 이전 x Mode 즉시 폐기
+→ X UI 비노출
+
+확인:
+
+* token 교체
+* currentPool 교체
+* ModeContext reset
+* _apiCache
+* cache: no-store
+* stale response
+* Navigation reset
+* React Query cache
+* 기존 화면 데이터가 다른 pool에 잔존하는지
+
+현재 앱이 실제로 여러 pool 전환을 지원하지 않으면 그 사실을 명확히 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 계정 전환 격리 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 순서를 설계하십시오.
+
+일반 pool 관리자 로그아웃
+→ X pool 교사 로그인
+→ 일반 pool Mode·데이터 잔존 여부 확인
+→ X pool 학부모 로그인
+→ 교사 데이터 잔존 여부 확인
+→ 다시 일반 pool 계정 로그인
+
+확인:
+
+* AsyncStorage 토큰
+* AuthContext
+* ModeContext
+* API cache
+* Query cache
+* selected child
+* 역할별 Navigation
+* 이전 X 메뉴 잔존 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. DB 격리 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP5에서 실제 기능 데이터는 아직 생성하지 않습니다.
+
+확인 대상:
+
+* swimming_pools X 상태가 해당 pool 1개에만 적용
+* 다른 pool X 상태 불변
+* global_template_sets 데이터 없음 또는 기존 상태
+* growth_events 0건 유지
+* curriculum 데이터 불변
+* 일반 diary_templates 불변
+* x_global 템플릿 없음 또는 기존 상태
+* audit_logs에는 X 상태 변경 기록만 생성
+
+실행 전후 row count를 설계하십시오.
+
+실제 SQL은 읽기 전용 기준으로 작성하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 일반모드 회귀검증 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+POOL_A에서 최소 확인:
+
+* 로그인
+* 회원 목록
+* 학생 목록
+* 반 목록
+* 선생님 화면
+* 학부모 연결
+* 출결
+* 일정
+* 공지
+* 앨범
+* 사진
+* 보강
+* 수업피드
+* 음성 입력 진입
+* 기존 AI 일지 생성
+* 기존 일지 저장
+* 기존 템플릿 검색
+* 구독 조회
+* 저장공간 조회
+* 푸시 토큰 등록
+* 로그아웃
+
+WP5에서 전부 실제 실행할지, 핵심 Smoke Test만 실행하고 나머지를 WP19로 미룰지 구분해 제안하십시오.
+
+추천 구분:
+
+WP5:
+모드 분기 때문에 영향을 받을 수 있는 핵심 Smoke Test
+WP19:
+일반모드 전체 최종 회귀검증
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 앱 테스트 방식 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+* Expo 개발 실행 방식
+* iOS Simulator 사용 가능 여부
+* Android Emulator 사용 가능 여부
+* 실제 기기 연결 가능 여부
+* Expo Go 또는 Development Build 여부
+* 현재 runtime version
+* 현재 production OTA 반영 상태
+* Mock 테스트 프레임워크
+* React Native Testing Library 설치 여부
+* Jest/Vitest 설정
+* expo-router 테스트 가능 여부
+
+검증 불가능한 항목은 NOT_TESTABLE_IN_CURRENT_ENVIRONMENT로 표시하십시오.
+
+테스트했다고 꾸미지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 자동화 테스트 최소 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능한 경우 다음 자동화 테스트를 설계하십시오.
+
+* XModeBadge normal/null 비렌더
+* XModeBadge x_pending
+* XModeBadge x
+* XModeGuard normal redirect
+* XModeGuard x_pending redirect
+* XModeGuard x 통과
+* wrong role redirect
+* loading 중 redirect 없음
+* error 상태 redirect
+* 관리자 X 섹션 조건
+* 선생님 X 섹션 조건
+* 학부모 X 섹션 조건
+
+실제 컴포넌트를 import하는 테스트만 인정합니다.
+
+구현 로직을 복사한 별도 스크립트 테스트는 인정하지 않습니다.
+
+이번 설계 단계에서는 테스트 파일 생성 금지입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. WP5 실행 단계 제안
+━━━━━━━━━━━━━━━━━━━━━━
+
+실행은 최소 단계로 나누십시오.
+
+예시:
+
+WP5-A
+안전한 POOL_A·POOL_B와 계정 확정
+WP5-B
+읽기 전용 기준선 캡처
+WP5-C
+사용자 승인 후 POOL_B X 상태 변경
+WP5-D
+Mode API·앱 역할별 검증
+WP5-E
+수영장·계정 전환 격리 검증
+WP5-F
+일반모드 핵심 Smoke Test
+WP5-G
+DB·Audit 사후 검증
+WP5-H
+상태 원복 또는 샘플 유지 결정
+
+더 단순한 단계가 가능하면 제안하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 실패 시 중단 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나라도 발생하면 이후 테스트를 중단하도록 설계하십시오.
+
+* 실제 운영 pool이 테스트 대상으로 선택됨
+* POOL_A 상태가 변경됨
+* 다른 pool의 X 상태가 변경됨
+* 일반모드에서 X 메뉴 노출
+* normal에서 x-growth 접근 허용
+* x_pending에서 x-growth 접근 허용
+* pool 전환 후 이전 X UI 잔존
+* 다른 pool 데이터 노출
+* DB 예상 외 row 생성
+* audit 누락
+* 앱 크래시
+* 로그인 불가
+* 기존 AI 일지 실패
+
+실패 후 임의 수정하지 말고 증거를 제출하게 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. WP5 설계서 제출 목차
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. WP5 목표
+2. 포함 범위
+3. 제외 범위
+4. 현재 Git 기준선
+5. 현재 앱·서버 실행환경
+6. 안전한 POOL_A 후보
+7. 안전한 POOL_B 후보
+8. 테스트 계정 후보
+9. 개인정보 보호
+10. 상태 변경 안전 절차
+11. Mode API 테스트
+12. 관리자 UI 테스트
+13. 선생님 UI 테스트
+14. 학부모 UI 테스트
+15. Route·Deep Link 테스트
+16. 수영장 전환 테스트
+17. 계정 전환 테스트
+18. 캐시 격리 테스트
+19. DB 격리 테스트
+20. 일반모드 Smoke Test
+21. 자동화 테스트 가능 여부
+22. 실기기 테스트 가능 여부
+23. 실행 단계
+24. 실패 중단 조건
+25. Rollback
+26. 수정 예정 파일
+27. 신규 파일
+28. DB 변경 계획
+29. 일반모드 영향
+30. 위험요소
+31. NEEDS_VERIFICATION
+32. 더 단순한 대안
+33. 구현·실행 후 제출 증거
+34. 실행 승인 가능 여부 자체 판단
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. 제출 후 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP5 설계서만 제출하고 멈추십시오.
+
+아직 금지:
+
+* 샘플 수영장 생성
+* 계정 생성
+* X 상태 변경
+* PATCH 실행
+* 앱 코드 수정
+* 서버 코드 수정
+* DB 변경
+* Commit
+* Push
+* OTA
+* Render 배포
+* WP6 작업
+
+사용자가 안전한 테스트 대상과 실행계획을 검수한 뒤 별도 승인합니다.
