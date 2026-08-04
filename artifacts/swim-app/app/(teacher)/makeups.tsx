@@ -775,7 +775,7 @@ export default function MakeupsScreen() {
       {assignTarget && (
         <Modal visible animationType="slide" transparent onRequestClose={() => { resetOccState(); setAssignTarget(null); }} statusBarTranslucent>
           <Pressable style={s.backdrop} onPress={() => { resetOccState(); setAssignTarget(null); }}>
-            <Pressable style={s.sheet} onPress={() => {}}>
+            <View style={s.sheet} onStartShouldSetResponder={() => true}>
               <View style={s.sheetHandle} />
               <View style={s.sheetHeader}>
                 <View style={{ flex: 1 }}>
@@ -805,7 +805,7 @@ export default function MakeupsScreen() {
               </View>
               {/* 단계 1: 반 선택 */}
               {!selectedClassId && (
-                <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
                   {classLoading ? (
                     <ActivityIndicator color={themeColor} style={{ marginVertical: 32 }} />
                   ) : eligibleClasses.length === 0 ? (
@@ -908,7 +908,7 @@ export default function MakeupsScreen() {
                   );
                 }
                 return (
-                  <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                  <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
                     {past.length > 0 && (
                       <>
                         <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12 }]}>지난 수업</Text>
@@ -959,7 +959,7 @@ export default function MakeupsScreen() {
                   </View>
                 </>
               )}
-            </Pressable>
+            </View>
           </Pressable>
         </Modal>
       )}
@@ -967,7 +967,7 @@ export default function MakeupsScreen() {
       {directCompleteTarget && (
         <Modal visible animationType="slide" transparent onRequestClose={closeDirectCompleteModal} statusBarTranslucent>
           <Pressable style={s.backdrop} onPress={closeDirectCompleteModal}>
-            <Pressable style={[s.sheet, { maxHeight: "70%" }]} onPress={() => {}}>
+            <View style={[s.sheet, { height: "70%" }]} onStartShouldSetResponder={() => true}>
               <View style={s.sheetHandle} />
               <View style={s.sheetHeader}>
                 <View style={{ flex: 1 }}>
@@ -1001,7 +1001,7 @@ export default function MakeupsScreen() {
 
               {/* 단계 1: 반 선택 */}
               {!selectedClassId && (
-                <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
                   {classLoading ? (
                     <ActivityIndicator color="#059669" style={{ marginVertical: 32 }} />
                   ) : eligibleClasses.length === 0 ? (
@@ -1109,7 +1109,7 @@ export default function MakeupsScreen() {
                   );
                 }
                 return (
-                  <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                  <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
                     {todayOccs.length > 0 && (
                       <>
                         <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: "#2EC4B6" }]}>오늘</Text>
@@ -1126,7 +1126,7 @@ export default function MakeupsScreen() {
                   </ScrollView>
                 );
               })()}
-            </Pressable>
+            </View>
           </Pressable>
         </Modal>
       )}
@@ -1134,7 +1134,7 @@ export default function MakeupsScreen() {
       {handoverTarget && (
         <Modal visible animationType="slide" transparent onRequestClose={closeHandover} statusBarTranslucent>
           <Pressable style={s.backdrop} onPress={closeHandover}>
-            <Pressable style={s.sheet} onPress={() => {}}>
+            <View style={s.sheet} onStartShouldSetResponder={() => true}>
               <View style={s.sheetHandle} />
               {/* ── 선생님 선택 단계 ── */}
               {handoverStep === "teacher_select" && (
@@ -1151,7 +1151,7 @@ export default function MakeupsScreen() {
                       <LucideIcon name="x" size={20} color={C.textSecondary} />
                     </Pressable>
                   </View>
-                  <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                  <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
                     {teachersLoading ? (
                       <ActivityIndicator color={themeColor} style={{ marginVertical: 32 }} />
                     ) : teachers.length === 0 ? (
@@ -1211,7 +1211,7 @@ export default function MakeupsScreen() {
                   </Pressable>
                 </View>
               )}
-            </Pressable>
+            </View>
           </Pressable>
         </Modal>
       )}
@@ -1272,7 +1272,7 @@ const s = StyleSheet.create({
   assignedInfo:    { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 10, marginBottom: 10 },
   assignedInfoTxt: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED", lineHeight: 18 },
   backdrop:        { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet:           { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "65%", paddingBottom: 32 },
+  sheet:           { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, height: "65%" },
   sheetHandle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginTop: 10, marginBottom: 4 },
   sheetHeader:     { flexDirection: "row", alignItems: "flex-start", padding: 16, paddingTop: 8 },
   sheetTitle:      { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },

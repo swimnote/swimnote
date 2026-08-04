@@ -140,7 +140,7 @@ const s = StyleSheet.create({
   /**
    * 시트. absolute 배치로 화면 하단에 고정.
    * height / maxHeight 는 prop 으로 override.
-   * paddingBottom: 32 유지 (기존 cds.sheet 와 동일).
+   * paddingBottom 없음 — children ScrollView 의 contentContainerStyle 로 처리.
    */
   sheet: {
     position: "absolute",
@@ -150,7 +150,6 @@ const s = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingBottom: 32,
   },
   handle: {
     width: 36,
