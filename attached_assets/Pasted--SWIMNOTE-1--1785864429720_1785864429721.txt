@@ -1,0 +1,431 @@
+[SWIMNOTE 긴급 포렌식 자료 제출 — 삭제 회원 보강 잔존 및 소멸 후 재등장]
+
+현재 운영 앱에서 두 오류가 발생한다.
+
+오류 1:
+이미 계정을 삭제한 학생이 보강 대기 목록에 계속 나타난다.
+
+오류 2:
+보강 대기에서 ‘소멸’을 눌러도 잠시 사라진 뒤 다시 보강 대기 목록에 나타난다.
+
+최근 정책 변경으로 GET waiting 조회가
+status IN ('waiting', 'expired')를 반환하도록 변경되었으므로,
+‘기간 만료’와 ‘사용자 직접 소멸’ 상태가 충돌했을 가능성이 높다.
+
+이번 단계에서는 절대 수정하지 않는다.
+아래 코드·SQL 결과·배포 SHA를 원문 그대로 제출한다.
+
+Push / Render / OTA / DB UPDATE·DELETE 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 운영 배포 버전 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 제출한다.
+
+git branch --show-current
+git rev-parse HEAD
+git log -10 --oneline
+git status --short
+git rev-parse origin/deploy-photo-clone
+
+Render:
+
+- 현재 live deployment ID
+- 실제 배포 commit SHA
+- 배포 완료 시각
+
+EAS:
+
+- production 최신 Update Group ID
+- preview 최신 Update Group ID
+- 각 OTA 포함 commit SHA
+- runtimeVersion
+- 앱에서 실제 적용된 update ID를 확인할 수 있는 코드 또는 로그
+
+“배포했다”는 설명만 하지 말고 SHA를 전부 비교한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 보강 대기 조회 코드 원문
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 라우트 전체를 함수 시작부터 끝까지 제출한다.
+
+파일:
+artifacts/api-server/src/routes/teachers.ts
+
+대상:
+GET /teacher/makeups
+
+파일:
+artifacts/api-server/src/routes/admin.ts
+
+대상:
+GET /admin/makeups
+
+반드시 포함:
+
+- status query 처리
+- WHERE 전체
+- JOIN 전체
+- expire_at 조건
+- cancelled_at 조건
+- completed_at 조건
+- swimming_pool_id 조건
+- teacher/handover 조건
+- ORDER BY
+- LIMIT / OFFSET
+- is_expired 계산
+
+특히 아래 실제 조건을 정확히 보여준다.
+
+status = 'waiting'
+
+또는
+
+status IN ('waiting', 'expired')
+
+또는 동적 query 조합.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. ‘소멸’ 버튼 클라이언트 코드 원문
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 파일에서 소멸 버튼 관련 코드를 모두 제출한다.
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+artifacts/swim-app/app/(admin)/makeups.tsx
+artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+
+제출 범위:
+
+- 버튼 JSX
+- onPress
+- Alert
+- 호출 함수
+- API endpoint
+- request body
+- 성공 처리
+- 실패 처리
+- 목록 재조회
+- optimistic update
+- rollback
+- filter
+
+검색어:
+
+소멸
+expire
+expired
+cancel
+cancelled
+dismiss
+remove
+delete
+handleExpire
+handleCancel
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. ‘소멸’ 서버 API 코드 원문
+━━━━━━━━━━━━━━━━━━━━━━
+
+소멸 버튼이 실제 호출하는 서버 endpoint 전체를 제출한다.
+
+예상 후보:
+
+PATCH /teacher/makeups/:id/expire
+PATCH /teacher/makeups/:id/cancel
+DELETE /teacher/makeups/:id
+PATCH /admin/makeups/:id/...
+
+반드시 제출:
+
+- 허용 status
+- UPDATE SQL
+- 변경되는 status 값
+- expired_at
+- cancelled_at
+- cancelled_reason
+- DELETE 여부
+- 응답 body
+- pool 권한 검증
+
+핵심 판정:
+
+소멸 버튼이 status='expired'로 바꾸면서,
+waiting API가 expired를 다시 포함하면
+소멸 직후 목록 재등장은 코드상 필연이다.
+
+이 조건이 실제 코드에 있는지 명확히 답한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 삭제 회원 보강 잔존 코드 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+회원 삭제 endpoint 전체를 제출한다.
+
+검색:
+
+DELETE /students
+final-withdraw
+withdraw
+archive
+deleted_at
+student delete
+parent delete
+
+확인:
+
+1. students 행을 실제 DELETE하는지
+2. deleted_at만 기록하는지
+3. status를 withdrawn/archived로 바꾸는지
+4. makeup_sessions를 함께 처리하는지
+5. waiting/assigned 보강을 cancelled로 변경하는지
+6. 아무 처리도 하지 않는지
+
+회원 삭제 시 makeup_sessions 처리 코드가 없다면 그대로 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 삭제 학생 필터 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+GET /teacher/makeups와 GET /admin/makeups에서
+students 테이블을 JOIN하는지 확인한다.
+
+최종 SQL이 아래처럼 makeup_sessions 단독 조회라면:
+
+SELECT ms.*
+FROM makeup_sessions ms
+WHERE ...
+
+삭제 학생 필터가 전혀 없는 것이다.
+
+필요한 확인 대상:
+
+LEFT JOIN students s ON s.id = ms.student_id
+
+그리고 다음 조건 존재 여부:
+
+s.id IS NOT NULL
+s.deleted_at IS NULL
+s.status NOT IN ('withdrawn', 'archived')
+
+현재 어떤 조건도 없다면 명확히 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 문제 학생 DB 조회
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 제보한 삭제 학생을 이름 일부 마스킹하여 조회한다.
+
+학생 테이블:
+
+SELECT
+  id,
+  name,
+  status,
+  deleted_at,
+  withdrawn_at,
+  archived_reason,
+  swimming_pool_id,
+  class_group_id,
+  assigned_class_ids
+FROM students
+WHERE name ILIKE '%서동%'
+ORDER BY updated_at DESC;
+
+보강 테이블:
+
+SELECT
+  id,
+  student_id,
+  student_name,
+  swimming_pool_id,
+  status,
+  absence_date,
+  expire_at,
+  assigned_date,
+  completed_at,
+  cancelled_at,
+  cancelled_reason,
+  handed_to_teacher_id,
+  created_at,
+  updated_at
+FROM makeup_sessions
+WHERE student_name ILIKE '%서동%'
+   OR student_id IN (
+     SELECT id FROM students WHERE name ILIKE '%서동%'
+   )
+ORDER BY created_at DESC;
+
+attendance:
+
+SELECT
+  id,
+  student_id,
+  date,
+  status,
+  session_type,
+  class_group_id,
+  created_at,
+  updated_at
+FROM attendance
+WHERE student_id IN (
+  SELECT id FROM students WHERE name ILIKE '%서동%'
+)
+ORDER BY date DESC;
+
+보고서에서 이름은 마스킹한다.
+운영 DB 조회만 허용하며 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 소멸 전·후 DB 변화 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+테스트용으로 운영 데이터를 새로 수정하지 않는다.
+
+이미 사용자가 소멸을 누른 해당 보강 세션의 현재 데이터를 조회한다.
+
+SELECT
+  id,
+  student_id,
+  student_name,
+  status,
+  expire_at,
+  cancelled_at,
+  cancelled_reason,
+  completed_at,
+  updated_at
+FROM makeup_sessions
+WHERE id = :reportedMakeupId;
+
+가능하면 서버 로그에서 해당 요청을 찾는다.
+
+제출:
+
+- 요청 endpoint
+- HTTP status
+- 요청 body
+- 응답 body
+- UPDATE 전 status
+- UPDATE 후 status
+- 재조회 API 결과에 다시 포함된 이유
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Worker 코드 원문
+━━━━━━━━━━━━━━━━━━━━━━
+
+자동 만료 Worker 전체를 제출한다.
+
+검색:
+
+UPDATE makeup_sessions
+SET status = 'expired'
+
+확인:
+
+- 실행 파일
+- 실행 주기
+- 조건
+- expire_at 기준
+- waiting만 expired로 바꾸는지
+- assigned도 바꾸는지
+- DELETE는 없는지
+- KST/UTC 기준
+
+자동 만료와 직접 소멸이 같은 status='expired'를 쓰는지도 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 상태 의미표 작성
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 코드 기준으로 아래 표를 작성한다.
+
+status | 생성 원인 | 보강 대기 표시 | 처리 가능 | 의미
+waiting
+assigned
+completed
+cancelled
+expired
+
+특히 expired가 아래 두 의미를 동시에 갖는지 확인한다.
+
+A. 정책 기간이 자연스럽게 지남
+B. 사용자가 소멸 버튼으로 명시적으로 제거함
+
+두 의미를 동시에 가진다면 직접 설계 결함으로 판정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 예상 직접 원인 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 두 가설을 코드로 참/거짓 판정한다.
+
+가설 A:
+
+소멸 버튼
+→ status='expired'
+→ GET waiting에서 IN ('waiting','expired')
+→ 다시 목록 반환
+
+가설 B:
+
+회원 삭제
+→ students만 삭제/withdrawn
+→ makeup_sessions는 그대로 유지
+→ GET makeups가 students.deleted_at/status를 확인하지 않음
+→ 삭제 회원 보강 계속 표시
+
+각각:
+
+확정
+부분 확정
+해당 없음
+
+중 하나로 판정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 제출 파일
+━━━━━━━━━━━━━━━━━━━━━━
+
+채팅 요약만 하지 말고 다음 원문을 한 개의 텍스트 파일로 저장한다.
+
+파일명:
+
+swimnote_makeup_orphan_expire_forensics.txt
+
+포함 순서:
+
+1. HEAD/origin/Render/OTA SHA
+2. teacher waiting GET 전체 코드
+3. admin waiting GET 전체 코드
+4. 소멸 클라이언트 코드
+5. 소멸 서버 API 전체 코드
+6. 회원 삭제 API 전체 코드
+7. 자동 만료 Worker 전체 코드
+8. 문제 학생 DB 조회 결과
+9. 보강 DB 조회 결과
+10. 상태 의미표
+11. 가설 A/B 판정
+12. 정확한 수정 후보 파일·함수
+
+코드 일부를 생략하거나 “정상”이라고 요약하지 않는다.
+실제 원문을 포함한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 코드 수정 금지
+- 운영 DB UPDATE 금지
+- 운영 DB DELETE 금지
+- 보강 임의 INSERT 금지
+- 소멸 버튼 의미 임의 변경 금지
+- expired 데이터를 일괄 cancelled로 변경 금지
+- Push 금지
+- Render 배포 금지
+- OTA 금지
+- reset/revert 금지
+- X모드 재개 금지
+
+자료 제출 후 멈춘다.
