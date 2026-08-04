@@ -1,6 +1,9 @@
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+// ── 학생별 pending 액션 타입 (출석·결석·반이동 구분) ────────────────────────
+type PendingAction = "attendance" | "absence" | "move";
+
 /** eligible-occurrences API 응답 단일 회차 */
 interface MakeupOccurrence {
   class_group_id: string;
@@ -100,9 +103,10 @@ const cds = StyleSheet.create({
 });
 
 // ── StudentAttendanceRow — memo로 분리하여 다른 학생 변경 시 재렌더 방지 ───────
+// props는 모두 primitive / 안정적 레퍼런스여야 memo가 실질 동작함
 const StudentAttendanceRow = React.memo(function StudentAttendanceRow({
   student,
-  isPending,
+  pendingAction,
   isPresent,
   isAbsent,
   themeColor,
@@ -112,7 +116,8 @@ const StudentAttendanceRow = React.memo(function StudentAttendanceRow({
   onNavigate,
 }: {
   student: StudentItem;
-  isPending: boolean;
+  /** 이 학생에 진행 중인 API 요청 종류. undefined = idle */
+  pendingAction: PendingAction | undefined;
   isPresent: boolean;
   isAbsent: boolean;
   themeColor: string;
@@ -121,6 +126,10 @@ const StudentAttendanceRow = React.memo(function StudentAttendanceRow({
   onMove: (student: StudentItem) => void;
   onNavigate: (id: string) => void;
 }) {
+  // 출결 API 요청 중이면 출석·결석 버튼만 비활성(같은 학생 중복 차단)
+  // 반이동은 API 없이 즉시 서브시트 열리므로 항상 활성
+  const attBusy = pendingAction === "attendance" || pendingAction === "absence";
+
   return (
     <View style={[cds.studentRow, isAbsent && { backgroundColor: "#FFF5F5" }]}>
       {isAbsent && <View style={cds.absentDot} />}
@@ -128,33 +137,48 @@ const StudentAttendanceRow = React.memo(function StudentAttendanceRow({
         <Text style={[cds.studentName, isAbsent && cds.absentStrike]}>{student.name}</Text>
         <Text style={cds.studentSub}>주 {student.weekly_count || 1}회</Text>
       </View>
-      {isPending ? (
-        <ActivityIndicator size="small" color={themeColor} style={{ marginHorizontal: 8 }} />
-      ) : (
-        <View style={{ flexDirection: "row", gap: 4 }}>
-          <Pressable
-            style={[cds.stBtn, isPresent && { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" }]}
-            onPress={() => onAttendance(student.id)}
-            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-          >
-            <Text style={[cds.stBtnTxt, { color: isPresent ? "#2EC4B6" : C.textMuted }]}>출석</Text>
-          </Pressable>
-          <Pressable
-            style={[cds.stBtn, isAbsent && { backgroundColor: "#F9DEDA", borderColor: "#D96C6C" }]}
-            onPress={() => onAbsence(student.id)}
-            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-          >
-            <Text style={[cds.stBtnTxt, { color: isAbsent ? "#D96C6C" : C.textMuted }]}>결석</Text>
-          </Pressable>
-          <Pressable
-            style={[cds.stBtn, { backgroundColor: "#F0F0FF" }]}
-            onPress={() => onMove(student)}
-            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-          >
-            <Text style={[cds.stBtnTxt, { color: "#4338CA" }]}>반이동</Text>
-          </Pressable>
-        </View>
-      )}
+      <View style={{ flexDirection: "row", gap: 4 }}>
+        {/* 출석 버튼 */}
+        <Pressable
+          style={[
+            cds.stBtn,
+            isPresent && { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" },
+            attBusy && { opacity: 0.45 },
+          ]}
+          onPress={() => onAttendance(student.id)}
+          disabled={attBusy}
+          hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+        >
+          {pendingAction === "attendance"
+            ? <ActivityIndicator size="small" color="#2EC4B6" style={{ width: 18 }} />
+            : <Text style={[cds.stBtnTxt, { color: isPresent ? "#2EC4B6" : C.textMuted }]}>출석</Text>
+          }
+        </Pressable>
+        {/* 결석 버튼 */}
+        <Pressable
+          style={[
+            cds.stBtn,
+            isAbsent && { backgroundColor: "#F9DEDA", borderColor: "#D96C6C" },
+            attBusy && { opacity: 0.45 },
+          ]}
+          onPress={() => onAbsence(student.id)}
+          disabled={attBusy}
+          hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+        >
+          {pendingAction === "absence"
+            ? <ActivityIndicator size="small" color="#D96C6C" style={{ width: 18 }} />
+            : <Text style={[cds.stBtnTxt, { color: isAbsent ? "#D96C6C" : C.textMuted }]}>결석</Text>
+          }
+        </Pressable>
+        {/* 반이동 — pending 없음, 항상 즉시 응답 */}
+        <Pressable
+          style={[cds.stBtn, { backgroundColor: "#F0F0FF" }]}
+          onPress={() => onMove(student)}
+          hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+        >
+          <Text style={[cds.stBtnTxt, { color: "#4338CA" }]}>반이동</Text>
+        </Pressable>
+      </View>
       <Pressable
         onPress={() => onNavigate(student.id)}
         style={{ padding: 4 }}
@@ -219,8 +243,15 @@ export default function ClassDetailSheet({
 
   // ── 출석 상태 ──
   const [studentAttState, setStudentAttState] = useState<Record<string, "present" | "absent">>({});
-  // 학생별 pending: 여러 학생 동시 처리 가능 (단일 savingStudentId 대신 Record 사용)
-  const [pendingStudents, setPendingStudents] = useState<Record<string, boolean>>({});
+  /**
+   * 학생별 pending 액션 Record.
+   * - 키: studentId  /  값: 진행 중인 PendingAction | undefined(idle)
+   * - 학생 A 요청 중 학생 B는 완전히 독립 동작 (다른 키)
+   * - 같은 학생 중복 요청은 markAtt 진입부에서 차단
+   * - 반이동(move)은 API 없이 즉시 서브시트 → 이 Record에 저장하지 않음
+   */
+  const [pendingStudentActions, setPendingStudentActions] =
+    useState<Record<string, PendingAction | undefined>>({});
 
   const [moveStudent, setMoveStudent] = useState<StudentItem | null>(null);
   const [movingToClassId, setMovingToClassId] = useState<string | null>(null);
@@ -475,17 +506,20 @@ export default function ClassDetailSheet({
 
   // ── 출석/결석 처리 — optimistic update ────────────────────────────────────
   async function markAtt(studentId: string, newStatus: "present" | "absent"): Promise<boolean> {
+    // 이미 같은 상태 → no-op
     if (studentAttState[studentId] === newStatus) return true;
-    // 중복 요청 방지
-    if (pendingStudents[studentId]) return false;
+    // 같은 학생 중복 요청 차단 (출석 pending 중 결석 버튼도 차단)
+    if (pendingStudentActions[studentId] !== undefined) return false;
 
     if (__DEV__) {
       console.log("[CLASS-DETAIL-TOUCH]", { action: newStatus, studentId, at: Date.now() });
     }
 
+    const pendingValue: PendingAction = newStatus === "present" ? "attendance" : "absence";
     const prevStatus = studentAttState[studentId];
-    // 1. 즉시 pending 표시 + optimistic 상태 변경
-    setPendingStudents(prev => ({ ...prev, [studentId]: true }));
+
+    // 1. 즉시 pending 표시(action 종류 포함) + optimistic 상태 변경
+    setPendingStudentActions(prev => ({ ...prev, [studentId]: pendingValue }));
     setStudentAttState(prev => ({ ...prev, [studentId]: newStatus }));
 
     const startedAt = Date.now();
@@ -510,7 +544,7 @@ export default function ClassDetailSheet({
       }
 
       if (!res.ok) {
-        // 실패 시 롤백
+        // 실패 시 해당 학생 attState만 롤백 — 다른 학생 pending에 영향 없음
         setStudentAttState(prev => {
           const next = { ...prev };
           if (prevStatus) next[studentId] = prevStatus;
@@ -527,7 +561,7 @@ export default function ClassDetailSheet({
       }
       return true;
     } catch {
-      // 네트워크 오류 — 롤백
+      // 네트워크 오류 — 해당 학생만 롤백
       setStudentAttState(prev => {
         const next = { ...prev };
         if (prevStatus) next[studentId] = prevStatus;
@@ -539,13 +573,24 @@ export default function ClassDetailSheet({
       }
       return false;
     } finally {
-      setPendingStudents(prev => {
+      // 해당 학생 pending 제거만 — 다른 학생 pending 절대 건드리지 않음
+      setPendingStudentActions(prev => {
         const next = { ...prev };
         delete next[studentId];
         return next;
       });
     }
   }
+
+  /**
+   * markAttRef: stable-ref 패턴
+   * handleAttendancePress / handleAbsencePress가 deps=[]로 선언 가능해짐
+   * → useCallback 결과가 마운트 내내 동일 레퍼런스 유지
+   * → StudentAttendanceRow memo의 onAttendance/onAbsence props가 변경되지 않음
+   * → 무관한 다른 학생 행 재렌더 방지
+   */
+  const markAttRef = useRef(markAtt);
+  useEffect(() => { markAttRef.current = markAtt; });
 
   async function doMoveStudent() {
     if (!moveStudent || !movingToClassId) return;
@@ -640,14 +685,17 @@ export default function ClassDetailSheet({
       ? null
       : classGroups.filter(g => g.id !== group.id);
 
-  // ── 안정적인 콜백 — useCallback으로 StudentAttendanceRow 불필요 재렌더 방지 ──
+  // ── 안정적인 콜백 — markAttRef를 통해 deps=[] 달성 ─────────────────────────
+  // deps에 studentAttState/pendingStudentActions 없음 → 마운트 내내 동일 레퍼런스
+  // → StudentAttendanceRow memo가 onAttendance/onAbsence 변경을 감지하지 않음
+  // → 무관한 다른 학생 행 재렌더 차단 (React.memo 실질 동작)
   const handleAttendancePress = useCallback((id: string) => {
-    markAtt(id, "present");
-  }, [studentAttState, pendingStudents, token, group.id, effectiveDate]);
+    markAttRef.current(id, "present");
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAbsencePress = useCallback((id: string) => {
-    markAtt(id, "absent");
-  }, [studentAttState, pendingStudents, token, group.id, effectiveDate]);
+    markAttRef.current(id, "absent");
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleMovePress = useCallback((student: StudentItem) => {
     setMoveStudent(student);
@@ -658,12 +706,15 @@ export default function ClassDetailSheet({
   }, [onNavigateTo]);
 
   // ── FlatList renderItem ────────────────────────────────────────────────────
+  // deps: studentAttState·pendingStudentActions 변경 시 renderItem 재생성은 불가피하나
+  // StudentAttendanceRow에 전달되는 onAttendance/onAbsence/onMove/onNavigate는
+  // 모두 stable(deps=[])이므로 memo가 prop 변경 없는 행을 건너뜀
   const renderStudentRow = useCallback(({ item }: { item: StudentItem }) => {
     const attStatus = studentAttState[item.id];
     return (
       <StudentAttendanceRow
         student={item}
-        isPending={!!pendingStudents[item.id]}
+        pendingAction={pendingStudentActions[item.id]}
         isPresent={attStatus === "present"}
         isAbsent={attStatus === "absent"}
         themeColor={themeColor}
@@ -673,7 +724,7 @@ export default function ClassDetailSheet({
         onNavigate={handleNavigateStudent}
       />
     );
-  }, [studentAttState, pendingStudents, themeColor, handleAttendancePress, handleAbsencePress, handleMovePress, handleNavigateStudent]);
+  }, [studentAttState, pendingStudentActions, themeColor, handleAttendancePress, handleAbsencePress, handleMovePress, handleNavigateStudent]);
 
   const diarDone = diarySet.has(group.id);
 
