@@ -1,0 +1,149 @@
+[SWIMNOTE 기간 지난 보강 — 배포 전 최종 경로 검수]
+
+현재 구현 방향은 승인한다.
+
+다만 Push·Render·OTA 전에 기간 지난 보강을 처리할 수 있는 모든 클라이언트 진입 경로를 최종 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. ClassDetailSheet 경로 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+
+확인:
+
+1. 이 컴포넌트가 waiting 또는 expired 보강을 조회하는지
+2. 기간 지난 보강이 목록에 나타나는지
+3. 다음 API를 호출하는 경로가 있는지
+   - /teacher/makeups/:id/assign
+   - /teacher/makeups/:id/complete-direct
+4. expired 항목 처리 시 allow_expired:true가 전달되는지
+5. 전달되지 않는다면 409 MAKEUP_EXPIRED_CONFIRM_REQUIRED를 정상 처리하는지
+6. 기간 지난 보강임을 확인하는 Alert가 있는지
+
+ClassDetailSheet에서도 expired 보강을 처리할 수 있다면 다음 정책을 동일 적용한다.
+
+- “기간 지난 보강” 표시
+- 처리 전 확인 Alert
+- 확인 후 allow_expired:true 전송
+- 취소 시 API 호출 없음
+
+ClassDetailSheet에서 expired 보강이 절대 노출되지 않는 구조라면 코드 근거를 제출하고 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 서버 처리 경로 전체 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 API별 expired 정책을 표로 제출한다.
+
+- GET /teacher/makeups
+- GET /admin/makeups
+- PATCH /teacher/makeups/:id/assign
+- PATCH /teacher/makeups/:id/complete-direct
+- PATCH /admin/makeups/:id/assign
+- 기존 complete 또는 cancel API
+- 만료 Worker
+
+확인 기준:
+
+1. expired 행 DELETE 없음
+2. expired → waiting으로 자동 복구하지 않음
+3. allow_expired 없는 예약·완료는 409
+4. allow_expired=true인 경우에만 처리
+5. completed/cancelled는 계속 재처리 차단
+6. 다른 수영장 보강 처리 차단 유지
+7. 날짜·요일·휴일·반 소속 검증 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. is_expired 계산 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+is_expired가 다음 두 경우 모두 true인지 확인한다.
+
+- status = 'expired'
+- status = 'waiting'이지만 expire_at이 현재 KST보다 과거
+
+이유:
+
+Worker가 아직 expired 상태로 전환하지 않았더라도
+만료 시각이 지난 항목은 즉시 “기간 지난 보강”으로 보여야 한다.
+
+Asia/Seoul 기준으로 계산한다.
+
+만료일 당일 23:59:59까지는 정상 보강,
+다음 날 00:00부터 기간 지난 보강으로 판정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 정렬 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+보강 대기 목록:
+
+1. 정상 보강
+2. 기간 지난 보강
+
+각 그룹 안에서는 기존 정렬 정책을 유지하거나,
+만료일이 빠른 순으로 정렬한다.
+
+기간 지난 보강이 목록 최하단에 계속 누적되더라도
+정상 보강을 찾는 데 방해되지 않아야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. waiting + 만료 전
+   → 정상 보강 대기
+
+2. waiting + expire_at 경과
+   → 기간 지난 보강 표시
+
+3. status=expired
+   → 기간 지난 보강 표시
+
+4. 기간 지난 보강 선택 후 취소
+   → API 호출 없음
+
+5. 기간 지난 보강 예약 확인
+   → allow_expired:true
+   → 성공
+
+6. 기간 지난 보강 직접 완료
+   → allow_expired:true
+   → 성공
+
+7. allow_expired 없이 직접 API 호출
+   → 409 MAKEUP_EXPIRED_CONFIRM_REQUIRED
+
+8. completed/cancelled 재처리
+   → 차단
+
+9. 월 변경 후 앱 재실행
+   → 이전 달 미처리 보강 계속 표시
+
+10. ClassDetailSheet 처리 경로
+   → 409 없이 정상 처리 또는 해당 경로에 미노출임을 확인
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. ClassDetailSheet 기간 지난 보강 처리 여부
+2. 모든 API별 expired 정책표
+3. is_expired 최종 계산 코드
+4. Worker의 DELETE 여부
+5. 추가 수정 파일과 diff
+6. 타입체크
+7. git status
+8. HEAD/origin SHA
+
+검수에 이상이 없으면 이어서:
+
+Push
+→ Render 배포
+→ 운영 API 확인
+→ iOS production·preview OTA
+
+순서로 진행한다.
