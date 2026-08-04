@@ -28,3 +28,4 @@
 - [ScrollView contentContainerStyle flexGrow:0 버그](scrollview-flexgrow-bug.md) — contentContainerStyle에 flexGrow:0 넣으면 스크롤 불가; padding 값만 넣을 것
 - [스케줄러 모달 스크롤 구조 수정](scheduler-modal-scroll-fix.md) — Modal bottom sheet: maxHeight→height(confirmed), flexShrink:1→flex:1+minHeight:0, paddingBottom→contentContainerStyle; 서브모달 공유 시 mainSheet 분리 패턴
 - [WP4 완료 상태](wp4-done-state.md) — XModeBadge 신규+3개 화면 삽입(dashboard/today-schedule/home), WP5 격리검증으로 이어짐
+- [WP5 진행 상태](wp5-progress.md) — WP5-D/E/F 완료; 다음: WP5-C(teacher/parent 생성) 후 동적 재검증, foreground Mode 재조회 미구현(F-01) 기록
