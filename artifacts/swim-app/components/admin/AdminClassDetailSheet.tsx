@@ -6,7 +6,7 @@ import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated, ActivityIndicator, Alert, Dimensions, FlatList, Modal,
-  PanResponder, Pressable, ScrollView, StyleSheet, Text,
+  PanResponder, Platform, Pressable, StyleSheet, Text,
   TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
@@ -141,6 +141,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
   const admSheetCombinedY    = useRef(Animated.add(admSheetTranslateY, admSheetDragY)).current;
   const admSubSheetActiveRef = useRef(false);
   const admHandleCloseRef    = useRef(handleClose);
+  const admDismissingRef     = useRef(false);
   useEffect(() => { admHandleCloseRef.current = handleClose; });
 
   // subView 열림 여부 동기화 — panResponder에서 참조
@@ -172,12 +173,15 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
       onPanResponderRelease: (_, gs) => {
         if (__DEV__) console.log("[ADMIN-CLASS-SHEET-GESTURE-START]", { source: "drag-handle", at: Date.now() });
         if (gs.dy > 100 || gs.vy > 0.9) {
+          if (admDismissingRef.current) return;
+          admDismissingRef.current = true;
           Animated.timing(admSheetTranslateY, {
             toValue: SCREEN_H_ADM,
             duration: 200,
             useNativeDriver: true,
           }).start(() => {
             admSheetDragY.setValue(0);
+            admDismissingRef.current = false;
             admHandleCloseRef.current();
           });
         } else {
@@ -189,12 +193,15 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
 
   // X 버튼 / 바깥 터치 / onRequestClose 용 dismiss
   function handleDismiss() {
+    if (admDismissingRef.current) return;
+    admDismissingRef.current = true;
     Animated.timing(admSheetTranslateY, {
       toValue: SCREEN_H_ADM,
       duration: 220,
       useNativeDriver: true,
     }).start(() => {
       admSheetDragY.setValue(0);
+      admDismissingRef.current = false;
       admHandleCloseRef.current();
     });
   }
@@ -465,177 +472,175 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
           loading ? (
             <ActivityIndicator color={themeColor} style={{ marginTop: 40 }} />
           ) : (
-            <ScrollView
+            <FlatList
+              data={students}
+              keyExtractor={s => s.id}
               style={{ flex: 1, minHeight: 0 }}
-              contentContainerStyle={{ paddingBottom: 48 }}
+              contentContainerStyle={{ paddingBottom: 64 }}
+              keyboardShouldPersistTaps="always"
+              keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
-            >
-              <View style={sh.summaryCard}>
-                {/* 주담당 선생님 */}
-                <View style={sh.summaryRow}>
-                  <LucideIcon name="user" size={14} color={C.textMuted} />
-                  <Text style={sh.summaryLabel}>주담당</Text>
-                  <Pressable onPress={enterTeacher} style={sh.instructorBtn}>
-                    <Text style={[sh.instructorText, !detail?.instructor && { color: C.textMuted, fontStyle: "italic" }]}>
-                      {instructorLabel}
-                    </Text>
-                    <LucideIcon name="edit-2" size={12} color={themeColor} style={{ marginLeft: 4 }} />
-                  </Pressable>
-                </View>
-
-                {/* 추가 선생님 목록 */}
-                {coTeacherIds.length > 0 && coTeacherIds.map(cid => {
-                  const ct = teachers.find(t => t.id === cid);
-                  return (
-                    <View key={cid} style={sh.coTeacherRow}>
+              initialNumToRender={12}
+              maxToRenderPerBatch={8}
+              windowSize={7}
+              removeClippedSubviews={Platform.OS === "android"}
+              ListHeaderComponent={
+                <>
+                  <View style={sh.summaryCard}>
+                    {/* 주담당 선생님 */}
+                    <View style={sh.summaryRow}>
                       <LucideIcon name="user" size={14} color={C.textMuted} />
-                      <Text style={sh.summaryLabel}>추가</Text>
-                      <Text style={[sh.instructorText, { flex: 1 }]}>{ct?.name || cid}</Text>
-                      {coTeacherSaving ? (
-                        <ActivityIndicator size="small" color={C.textMuted} />
+                      <Text style={sh.summaryLabel}>주담당</Text>
+                      <Pressable onPress={enterTeacher} style={sh.instructorBtn}>
+                        <Text style={[sh.instructorText, !detail?.instructor && { color: C.textMuted, fontStyle: "italic" }]}>
+                          {instructorLabel}
+                        </Text>
+                        <LucideIcon name="edit-2" size={12} color={themeColor} style={{ marginLeft: 4 }} />
+                      </Pressable>
+                    </View>
+
+                    {/* 추가 선생님 목록 */}
+                    {coTeacherIds.length > 0 && coTeacherIds.map(cid => {
+                      const ct = teachers.find(t => t.id === cid);
+                      return (
+                        <View key={cid} style={sh.coTeacherRow}>
+                          <LucideIcon name="user" size={14} color={C.textMuted} />
+                          <Text style={sh.summaryLabel}>추가</Text>
+                          <Text style={[sh.instructorText, { flex: 1 }]}>{ct?.name || cid}</Text>
+                          {coTeacherSaving ? (
+                            <ActivityIndicator size="small" color={C.textMuted} />
+                          ) : (
+                            <Pressable onPress={() => handleRemoveCoTeacher(cid)} hitSlop={8}>
+                              <LucideIcon name="trash-2" size={14} color="#EF4444" />
+                            </Pressable>
+                          )}
+                        </View>
+                      );
+                    })}
+
+                    {/* 선생님 추가 버튼 */}
+                    <Pressable style={sh.addCoTeacherBtn} onPress={enterAddCoTeacher}>
+                      <LucideIcon name="user-plus" size={13} color={themeColor} />
+                      <Text style={[sh.addCoTeacherTxt, { color: themeColor }]}>선생님 추가</Text>
+                    </Pressable>
+
+                    {/* 정원 (편집 가능) */}
+                    <View style={sh.summaryRow}>
+                      <LucideIcon name="users" size={14} color={C.textMuted} />
+                      {editingCapacity ? (
+                        <View style={sh.capacityEditor}>
+                          <Pressable
+                            style={sh.capBtn}
+                            onPress={() => setDraftCapacity(v => Math.max(1, v - 1))}
+                            hitSlop={6}
+                          >
+                            <LucideIcon name="minus" size={14} color={C.text} />
+                          </Pressable>
+                          <Text style={sh.capValue}>{draftCapacity}명</Text>
+                          <Pressable
+                            style={sh.capBtn}
+                            onPress={() => setDraftCapacity(v => Math.min(50, v + 1))}
+                            hitSlop={6}
+                          >
+                            <LucideIcon name="plus" size={14} color={C.text} />
+                          </Pressable>
+                          <Pressable
+                            style={[sh.capSaveBtn, { backgroundColor: themeColor }]}
+                            onPress={handleSaveCapacity}
+                            disabled={capacitySaving}
+                          >
+                            {capacitySaving
+                              ? <ActivityIndicator size="small" color="#fff" />
+                              : <Text style={sh.capSaveTxt}>저장</Text>}
+                          </Pressable>
+                          <Pressable onPress={() => { setEditingCapacity(false); setDraftCapacity(detail?.capacity ?? 5); }} hitSlop={6}>
+                            <LucideIcon name="x" size={16} color={C.textMuted} />
+                          </Pressable>
+                        </View>
                       ) : (
-                        <Pressable onPress={() => handleRemoveCoTeacher(cid)} hitSlop={8}>
-                          <LucideIcon name="trash-2" size={14} color="#EF4444" />
+                        <Pressable style={sh.instructorBtn} onPress={() => { setDraftCapacity(detail?.capacity ?? 5); setEditingCapacity(true); }}>
+                          <Text style={sh.summaryVal}>{capacityLabel}</Text>
+                          <LucideIcon name="edit-2" size={12} color={themeColor} style={{ marginLeft: 4 }} />
                         </Pressable>
                       )}
+                      {!editingCapacity && capacityFull && <View style={sh.fullBadge}><Text style={sh.fullBadgeText}>정원 마감</Text></View>}
                     </View>
-                  );
-                })}
 
-                {/* 선생님 추가 버튼 */}
-                <Pressable style={sh.addCoTeacherBtn} onPress={enterAddCoTeacher}>
-                  <LucideIcon name="user-plus" size={13} color={themeColor} />
-                  <Text style={[sh.addCoTeacherTxt, { color: themeColor }]}>선생님 추가</Text>
-                </Pressable>
+                    <PastelColorPicker selected={draftColor} onSelect={handleColorSelect} />
+                  </View>
 
-                {/* 정원 (편집 가능) */}
-                <View style={sh.summaryRow}>
-                  <LucideIcon name="users" size={14} color={C.textMuted} />
-                  {editingCapacity ? (
-                    <View style={sh.capacityEditor}>
-                      <Pressable
-                        style={sh.capBtn}
-                        onPress={() => setDraftCapacity(v => Math.max(1, v - 1))}
-                        hitSlop={6}
-                      >
-                        <LucideIcon name="minus" size={14} color={C.text} />
-                      </Pressable>
-                      <Text style={sh.capValue}>{draftCapacity}명</Text>
-                      <Pressable
-                        style={sh.capBtn}
-                        onPress={() => setDraftCapacity(v => Math.min(50, v + 1))}
-                        hitSlop={6}
-                      >
-                        <LucideIcon name="plus" size={14} color={C.text} />
-                      </Pressable>
-                      <Pressable
-                        style={[sh.capSaveBtn, { backgroundColor: themeColor }]}
-                        onPress={handleSaveCapacity}
-                        disabled={capacitySaving}
-                      >
-                        {capacitySaving
-                          ? <ActivityIndicator size="small" color="#fff" />
-                          : <Text style={sh.capSaveTxt}>저장</Text>}
-                      </Pressable>
-                      <Pressable onPress={() => { setEditingCapacity(false); setDraftCapacity(detail?.capacity ?? 5); }} hitSlop={6}>
-                        <LucideIcon name="x" size={16} color={C.textMuted} />
-                      </Pressable>
-                    </View>
-                  ) : (
-                    <Pressable style={sh.instructorBtn} onPress={() => { setDraftCapacity(detail?.capacity ?? 5); setEditingCapacity(true); }}>
-                      <Text style={sh.summaryVal}>{capacityLabel}</Text>
-                      <LucideIcon name="edit-2" size={12} color={themeColor} style={{ marginLeft: 4 }} />
+                  <View style={sh.actionRow}>
+                    <Pressable style={[sh.actionBtn, { backgroundColor: themeColor, flex: 1 }]} onPress={handleAssign}>
+                      <LucideIcon name="user-plus" size={14} color="#fff" />
+                      <Text style={sh.actionBtnText}>반배정</Text>
                     </Pressable>
-                  )}
-                  {!editingCapacity && capacityFull && <View style={sh.fullBadge}><Text style={sh.fullBadgeText}>정원 마감</Text></View>}
-                </View>
+                    <Pressable style={[sh.actionBtn, { backgroundColor: "#E4A93A", flex: 1 }]} onPress={enterTransfer}>
+                      <LucideIcon name="repeat" size={14} color="#fff" />
+                      <Text style={sh.actionBtnText}>반이동</Text>
+                    </Pressable>
+                  </View>
 
-                <PastelColorPicker selected={draftColor} onSelect={handleColorSelect} />
-              </View>
-
-              <View style={sh.actionRow}>
-                <Pressable style={[sh.actionBtn, { backgroundColor: themeColor, flex: 1 }]} onPress={handleAssign}>
-                  <LucideIcon name="user-plus" size={14} color="#fff" />
-                  <Text style={sh.actionBtnText}>반배정</Text>
-                </Pressable>
-                <Pressable style={[sh.actionBtn, { backgroundColor: "#E4A93A", flex: 1 }]} onPress={enterTransfer}>
-                  <LucideIcon name="repeat" size={14} color="#fff" />
-                  <Text style={sh.actionBtnText}>반이동</Text>
-                </Pressable>
-              </View>
-
-              <View style={sh.sectionHeader}>
-                <Text style={sh.sectionTitle}>학생 목록</Text>
-                <Text style={sh.sectionCount}>{students.length}명</Text>
-              </View>
-              {students.length === 0 ? (
+                  <View style={sh.sectionHeader}>
+                    <Text style={sh.sectionTitle}>학생 목록</Text>
+                    <Text style={sh.sectionCount}>{students.length}명</Text>
+                  </View>
+                </>
+              }
+              ListEmptyComponent={
                 <View style={sh.emptyBox}>
                   <Users size={32} color={C.textMuted} />
                   <Text style={sh.emptyText}>아직 배정된 학생이 없습니다</Text>
                 </View>
-              ) : (
-                <FlatList
-                  data={students}
-                  keyExtractor={s => s.id}
-                  keyboardShouldPersistTaps="always"
-                  keyboardDismissMode="on-drag"
-                  showsVerticalScrollIndicator={false}
-                  initialNumToRender={12}
-                  maxToRenderPerBatch={8}
-                  windowSize={7}
-                  style={{ flex: 1, minHeight: 0 }}
-                  contentContainerStyle={{ paddingBottom: 48 }}
-                  renderItem={({ item: s }) => (
-                    <View style={sh.studentRow}>
-                      <View style={sh.studentAvatar}>
-                        <Text style={sh.studentAvatarText}>{s.name[0]}</Text>
+              }
+              renderItem={({ item: s }) => (
+                <View style={sh.studentRow}>
+                  <View style={sh.studentAvatar}>
+                    <Text style={sh.studentAvatarText}>{s.name[0]}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={sh.studentName}>{s.name}</Text>
+                    <Text style={sh.studentSub}>
+                      {s.parent_phone ? s.parent_phone.slice(-4) : ""}{s.weekly_count ? ` · 주${s.weekly_count}회` : ""}
+                    </Text>
+                  </View>
+                </View>
+              )}
+              ListFooterComponent={(makeupLoading || assignedMakeups.length > 0) ? (
+                <View style={sh.makeupSection}>
+                  <View style={sh.sectionHeader}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <LucideIcon name="rotate-ccw" size={13} color="#D97706" />
+                      <Text style={[sh.sectionTitle, { color: "#D97706" }]}>배정된 보강학생</Text>
+                    </View>
+                    <Text style={sh.sectionCount}>{assignedMakeups.length}명</Text>
+                  </View>
+                  {makeupLoading ? (
+                    <ActivityIndicator size="small" color="#D97706" style={{ marginVertical: 10 }} />
+                  ) : assignedMakeups.map(mk => (
+                    <View key={mk.id} style={sh.makeupRow}>
+                      <View style={sh.makeupAvatar}>
+                        <Text style={sh.makeupAvatarText}>{mk.student_name[0]}</Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={sh.studentName}>{s.name}</Text>
-                        <Text style={sh.studentSub}>
-                          {s.parent_phone ? s.parent_phone.slice(-4) : ""}{s.weekly_count ? ` · 주${s.weekly_count}회` : ""}
+                        <Text style={sh.makeupName}>{mk.student_name}</Text>
+                        <Text style={sh.makeupSub}>
+                          결석일: {mk.absence_date}{mk.assigned_date ? `  →  보강: ${mk.assigned_date}` : ""}
                         </Text>
                       </View>
+                      <Pressable
+                        style={[sh.revertBtn, revertingId === mk.id && { opacity: 0.5 }]}
+                        disabled={revertingId === mk.id}
+                        onPress={() => handleRevert(mk)}
+                      >
+                        {revertingId === mk.id
+                          ? <ActivityIndicator size="small" color="#D97706" />
+                          : <Text style={sh.revertBtnText}>배정 취소</Text>}
+                      </Pressable>
                     </View>
-                  )}
-                  ListFooterComponent={(makeupLoading || assignedMakeups.length > 0) ? (
-                    <View style={sh.makeupSection}>
-                      <View style={sh.sectionHeader}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <LucideIcon name="rotate-ccw" size={13} color="#D97706" />
-                          <Text style={[sh.sectionTitle, { color: "#D97706" }]}>배정된 보강학생</Text>
-                        </View>
-                        <Text style={sh.sectionCount}>{assignedMakeups.length}명</Text>
-                      </View>
-                      {makeupLoading ? (
-                        <ActivityIndicator size="small" color="#D97706" style={{ marginVertical: 10 }} />
-                      ) : assignedMakeups.map(mk => (
-                        <View key={mk.id} style={sh.makeupRow}>
-                          <View style={sh.makeupAvatar}>
-                            <Text style={sh.makeupAvatarText}>{mk.student_name[0]}</Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={sh.makeupName}>{mk.student_name}</Text>
-                            <Text style={sh.makeupSub}>
-                              결석일: {mk.absence_date}{mk.assigned_date ? `  →  보강: ${mk.assigned_date}` : ""}
-                            </Text>
-                          </View>
-                          <Pressable
-                            style={[sh.revertBtn, revertingId === mk.id && { opacity: 0.5 }]}
-                            disabled={revertingId === mk.id}
-                            onPress={() => handleRevert(mk)}
-                          >
-                            {revertingId === mk.id
-                              ? <ActivityIndicator size="small" color="#D97706" />
-                              : <Text style={sh.revertBtnText}>배정 취소</Text>}
-                          </Pressable>
-                        </View>
-                      ))}
-                    </View>
-                  ) : null}
-                />
-              )}
-            </ScrollView>
+                  ))}
+                </View>
+              ) : null}
+            />
           )
         )}
 

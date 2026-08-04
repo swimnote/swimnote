@@ -335,6 +335,7 @@ export default function ClassDetailSheet({
   const sheetCombinedY    = useRef(Animated.add(sheetTranslateY, sheetDragY)).current;
   const subSheetActiveRef = useRef(false);
   const handleCloseRef    = useRef(handleClose);
+  const dismissingRef     = useRef(false);
   useEffect(() => { handleCloseRef.current = handleClose; });
 
   // subSheet(반이동·보충수업·미배정) 열림 여부 동기화 — panResponder에서 참조
@@ -367,12 +368,15 @@ export default function ClassDetailSheet({
       onPanResponderRelease: (_, gs) => {
         if (__DEV__) console.log("[CLASS-SHEET-GESTURE-START]", { source: "drag-handle", at: Date.now() });
         if (gs.dy > 100 || gs.vy > 0.9) {
+          if (dismissingRef.current) return;
+          dismissingRef.current = true;
           Animated.timing(sheetTranslateY, {
             toValue: SCREEN_H,
             duration: 200,
             useNativeDriver: true,
           }).start(() => {
             sheetDragY.setValue(0);
+            dismissingRef.current = false;
             handleCloseRef.current();
           });
         } else {
@@ -384,12 +388,15 @@ export default function ClassDetailSheet({
 
   // X 버튼 / 바깥 터치 / onRequestClose 용 dismiss (animation 포함)
   function handleDismiss() {
+    if (dismissingRef.current) return;
+    dismissingRef.current = true;
     Animated.timing(sheetTranslateY, {
       toValue: SCREEN_H,
       duration: 220,
       useNativeDriver: true,
     }).start(() => {
       sheetDragY.setValue(0);
+      dismissingRef.current = false;
       handleCloseRef.current();
     });
   }
