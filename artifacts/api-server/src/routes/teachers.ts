@@ -721,10 +721,10 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
     const requestId = String(req.headers["x-request-id"] || crypto.randomUUID());
     const startedAt = Date.now();
     let stage = "start";
+    const { makeupId } = req.params;
+    const { class_group_id } = req.query as { class_group_id?: string };
+    const userId = req.user!.userId;
     try {
-      const { makeupId } = req.params;
-      const { class_group_id } = req.query as { class_group_id?: string };
-      const userId = req.user!.userId;
 
       // STEP 3: 오류 코드 명확화
       stage = "get_pool";

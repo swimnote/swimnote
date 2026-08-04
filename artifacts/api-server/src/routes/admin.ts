@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, RequestHandler } from "express";
 import { db, superAdminDb } from "@workspace/db";
 import { swimmingPoolsTable, usersTable, subscriptionsTable, membersTable, parentAccountsTable, parentStudentsTable, studentsTable, studentRegistrationRequestsTable, classGroupsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
@@ -2263,65 +2263,66 @@ router.post("/makeups/:id/handover", requireAuth, requireRole("super_admin","poo
   }
 );
 
-// POST /admin/makeups/:id/self-extinguish — 보강 소멸 (현재 선생님 정산 +1)
-router.post("/makeups/:id/self-extinguish", requireAuth, requireRole("super_admin","pool_admin","teacher"),
-  async (req: AuthRequest, res) => {
-    try {
-      const poolId = await getAdminPoolId(req);
-      if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
-      const actor = req.user!;
+// POST|PATCH /admin/makeups/:id/self-extinguish — 보강 소멸 (현재 선생님 정산 +1)
+// 앱이 PATCH로 호출하므로 두 메서드 모두 처리
+const handleSelfExtinguish: RequestHandler = async (req: AuthRequest, res) => {
+  try {
+    const poolId = await getAdminPoolId(req);
+    if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
+    const actor = req.user!;
 
-      // makeup 상태 확인 (중복 처리 방지)
-      const mkRows = (await db.execute(sql`
-        SELECT id, student_name, absence_date, status, swimming_pool_id
-        FROM makeup_sessions WHERE id = ${req.params.id}
-      `)).rows as any[];
-      const mk = mkRows[0];
-      if (!mk) return res.status(404).json({ error: "보강 건을 찾을 수 없습니다." });
-      if (mk.swimming_pool_id !== poolId) return res.status(403).json({ error: "접근 권한 없음" });
-      if (mk.status !== "waiting") return res.status(409).json({ error: "이미 처리된 보강 건입니다." });
+    // makeup 상태 확인 (중복 처리 방지)
+    const mkRows = (await db.execute(sql`
+      SELECT id, student_name, absence_date, status, swimming_pool_id
+      FROM makeup_sessions WHERE id = ${req.params.id}
+    `)).rows as any[];
+    const mk = mkRows[0];
+    if (!mk) { res.status(404).json({ error: "보강 건을 찾을 수 없습니다." }); return; }
+    if (mk.swimming_pool_id !== poolId) { res.status(403).json({ error: "접근 권한 없음" }); return; }
+    if (mk.status !== "waiting") { res.status(409).json({ error: "이미 처리된 보강 건입니다." }); return; }
 
-      // 현재 선생님 이름
-      const [actorRow] = (await superAdminDb.execute(sql`
-        SELECT name FROM users WHERE id = ${actor.userId} LIMIT 1
-      `)).rows as any[];
-      const actorName = actorRow?.name || "선생님";
+    // 현재 선생님 이름
+    const [actorRow] = (await superAdminDb.execute(sql`
+      SELECT name FROM users WHERE id = ${actor.userId} LIMIT 1
+    `)).rows as any[];
+    const actorName = actorRow?.name || "선생님";
 
-      // makeup 상태 소멸 처리
-      await db.execute(sql`
-        UPDATE makeup_sessions SET status = 'extinguished', updated_at = now()
-        WHERE id = ${req.params.id}
-      `);
+    // makeup 상태 소멸 처리
+    await db.execute(sql`
+      UPDATE makeup_sessions SET status = 'extinguished', updated_at = now()
+      WHERE id = ${req.params.id}
+    `);
 
-      // 현재 선생님 정산 기타 +1 (이번 달) — monthly_settlements는 superAdminDb에 있음
-      const month = new Date().toISOString().slice(0, 7); // YYYY-MM
-      await superAdminDb.execute(sql`
-        INSERT INTO monthly_settlements
-          (pool_id, teacher_user_id, teacher_name, settlement_month, extra_manual_amount, extra_manual_memo)
-        VALUES (${poolId}, ${actor.userId}, ${actorName}, ${month}, 1, '기타 보강 소멸')
-        ON CONFLICT (pool_id, teacher_user_id, settlement_month) DO UPDATE SET
-          extra_manual_amount = monthly_settlements.extra_manual_amount + 1,
-          updated_at = now()
-      `);
+    // 현재 선생님 정산 기타 +1 (이번 달) — monthly_settlements는 superAdminDb에 있음
+    const month = new Date().toISOString().slice(0, 7); // YYYY-MM
+    await superAdminDb.execute(sql`
+      INSERT INTO monthly_settlements
+        (pool_id, teacher_user_id, teacher_name, settlement_month, extra_manual_amount, extra_manual_memo)
+      VALUES (${poolId}, ${actor.userId}, ${actorName}, ${month}, 1, '기타 보강 소멸')
+      ON CONFLICT (pool_id, teacher_user_id, settlement_month) DO UPDATE SET
+        extra_manual_amount = monthly_settlements.extra_manual_amount + 1,
+        updated_at = now()
+    `);
 
-      // 메신저 자동 문구
-      const msgContent = `기타 보강 소멸\n학생: ${mk.student_name || "미상"}\n결석일: ${mk.absence_date || "-"}\n처리: ${actorName} 기타 처리\n정산: 기타 1시수 반영`;
-      await db.execute(sql`
-        INSERT INTO work_messages
-          (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content)
-        VALUES (${poolId}, ${actor.userId}, ${actorName}, ${actor.role}, 'text', 'talk', 'normal', ${msgContent})
-      `);
+    // 메신저 자동 문구
+    const msgContent = `기타 보강 소멸\n학생: ${mk.student_name || "미상"}\n결석일: ${mk.absence_date || "-"}\n처리: ${actorName} 기타 처리\n정산: 기타 1시수 반영`;
+    await db.execute(sql`
+      INSERT INTO work_messages
+        (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content)
+      VALUES (${poolId}, ${actor.userId}, ${actorName}, ${actor.role}, 'text', 'talk', 'normal', ${msgContent})
+    `);
 
-      logPoolEvent({
-        pool_id: poolId, event_type: "makeup_self_extinguish",
-        entity_type: "makeup_session", entity_id: req.params.id, actor_id: actor.userId,
-        payload: { student_name: mk.student_name, month, reason: "self_credit" },
-      }).catch(console.error);
+    logPoolEvent({
+      pool_id: poolId, event_type: "makeup_self_extinguish",
+      entity_type: "makeup_session", entity_id: req.params.id, actor_id: actor.userId,
+      payload: { student_name: mk.student_name, month, reason: "self_credit" },
+    }).catch(console.error);
 
-      res.json({ success: true });
-    } catch (err) { console.error("[makeups/self-extinguish]", err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
+    res.json({ success: true });
+  } catch (err) { console.error("[makeups/self-extinguish]", err); res.status(500).json({ error: "서버 오류" }); }
+};
+router.post("/makeups/:id/self-extinguish", requireAuth, requireRole("super_admin","pool_admin","teacher"), handleSelfExtinguish);
+router.patch("/makeups/:id/self-extinguish", requireAuth, requireRole("super_admin","pool_admin","teacher"), handleSelfExtinguish);
 
 // POST /admin/makeups/ensure — 결석 시 보강 대기 강제 등록 (클라이언트에서 직접 호출)
 // 이미 waiting/assigned/transferred 상태 있으면 스킵, cancelled/expired면 새로 생성
