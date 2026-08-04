@@ -698,27 +698,36 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
 );
 
 // ── 보강 가능 수업 회차 목록 (teacher용) ──────────────────────
-// GET /teacher/makeups/:makeupId/eligible-occurrences?class_group_id=...&include_full=true
+// GET /teacher/makeups/:makeupId/eligible-occurrences?class_group_id=...
 router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
   async (req: AuthRequest, res) => {
+    // STEP 2: request_id + 단계 추적
+    const requestId = String(req.headers["x-request-id"] || crypto.randomUUID());
+    const startedAt = Date.now();
+    let stage = "start";
     try {
       const { makeupId } = req.params;
       const { class_group_id } = req.query as { class_group_id?: string };
       const userId = req.user!.userId;
+
+      // STEP 3: 오류 코드 명확화
+      stage = "get_pool";
       const poolId = await getMyPoolId(userId);
-      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
+      if (!poolId) { res.status(403).json({ error: "POOL_NOT_FOUND" }); return; }
       if (!class_group_id) { res.status(400).json({ error: "class_group_id가 필요합니다." }); return; }
 
       // 1. 보강 세션 조회
+      stage = "load_makeup";
       const mkRows = (await db.execute(sql`
         SELECT absence_date, expire_at, swimming_pool_id
         FROM makeup_sessions WHERE id = ${makeupId} LIMIT 1
       `)).rows as any[];
       if (!mkRows.length) { res.status(404).json({ error: "보강 건을 찾을 수 없습니다." }); return; }
       const mk = mkRows[0];
-      if (mk.swimming_pool_id !== poolId) { res.status(403).json({ error: "접근 권한 없음" }); return; }
+      if (mk.swimming_pool_id !== poolId) { res.status(403).json({ error: "MAKEUP_POOL_MISMATCH" }); return; }
 
       // 2. 반 정보 조회 (수영장 소속·삭제되지 않은 반)
+      stage = "load_class";
       const cgRows = (await superAdminDb.execute(sql`
         SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity,
           cg.teacher_user_id, u.name AS instructor,
@@ -731,10 +740,11 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
           AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
         LIMIT 1
       `)).rows as any[];
-      if (!cgRows.length) { res.status(404).json({ error: "반을 찾을 수 없습니다." }); return; }
+      if (!cgRows.length) { res.status(404).json({ error: "CLASS_NOT_FOUND" }); return; }
       const cg = cgRows[0];
 
       // 3. 정원 계산 (eligible-classes 표준 — class_group_id + assigned_class_ids 모두 포함)
+      stage = "count_members";
       const memberRows = (await db.execute(sql`
         SELECT COUNT(s.id)::int AS cnt FROM students s
         WHERE (s.class_group_id = ${class_group_id} OR s.assigned_class_ids @> to_jsonb(${class_group_id}::text))
@@ -763,6 +773,7 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
       })();
 
       // 5. 풀 휴일 조회
+      stage = "load_holidays";
       const holidayRows = (await db.execute(sql`
         SELECT TO_CHAR(holiday_date, 'YYYY-MM-DD') AS hd
         FROM pool_holidays
@@ -805,6 +816,17 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
         cursor.setDate(cursor.getDate() + 1);
       }
 
+      console.log("[PERF][eligible-occurrences]", {
+        request_id: requestId,
+        user_id: userId,
+        pool_id: poolId,
+        makeup_id: makeupId,
+        class_group_id,
+        occurrences_count: occurrences.length,
+        status: 200,
+        elapsed_ms: Date.now() - startedAt,
+      });
+
       res.json({
         makeup_id: makeupId,
         absence_date: absenceDate,
@@ -814,7 +836,27 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
         is_mine: Boolean(cg.is_mine),
         occurrences,
       });
-    } catch (err) { console.error("[eligible-occurrences]", err); res.status(500).json({ error: "서버 오류" }); }
+    } catch (err: any) {
+      // STEP 3: DB 연결 한도 오류 구별
+      const isDbConnLimit =
+        err?.code === "EMAXCONNSESSION" ||
+        (typeof err?.message === "string" && (
+          err.message.includes("max clients reached") ||
+          err.message.includes("EMAXCONNSESSION")
+        ));
+      console.error("[ERROR][eligible-occurrences]", {
+        request_id: requestId,
+        stage,
+        code: err?.code ?? null,
+        message: err?.message ?? null,
+        elapsed_ms: Date.now() - startedAt,
+      });
+      if (isDbConnLimit) {
+        res.status(503).json({ error: "DB_CONNECTION_LIMIT", message: "잠시 후 다시 시도해 주세요." });
+      } else {
+        res.status(500).json({ error: "ELIGIBLE_OCCURRENCES_FAILED" });
+      }
+    }
   }
 );
 

@@ -274,8 +274,10 @@ export default function ClassDetailSheet({
   const [makeupOccurrences,       setMakeupOccurrences]       = useState<MakeupOccurrence[]>([]);
   const [makeupOccLoading,        setMakeupOccLoading]        = useState(false);
   const [makeupOccError,          setMakeupOccError]          = useState(false);
+  const [makeupOccErrorDetail,    setMakeupOccErrorDetail]    = useState<{ status: number; code: string } | null>(null);
   // sequence ID — 늦게 도착한 이전 반 응답이 현재 반을 덮어쓰지 않도록
-  const occSeqRef = useRef(0);
+  const occSeqRef     = useRef(0);
+  const occPendingRef = useRef<Set<string>>(new Set());
 
   // 이 반/날짜에 배정된 보강 학생
   const [makeupStudents,       setMakeupStudents]       = useState<any[]>([]);
@@ -481,11 +483,13 @@ export default function ClassDetailSheet({
 
   /** 보강 피커 관련 모든 상태를 초기화 (7가지 경로 공통) */
   function resetMakeupPickerState() {
+    occPendingRef.current.clear();
     setSelectedMakeupStudent(null);
     setSelectedMakeupClassId(null);
     setMakeupOccurrences([]);
     setMakeupOccLoading(false);
     setMakeupOccError(false);
+    setMakeupOccErrorDetail(null);
   }
 
   async function openMakeupPicker() {
@@ -501,11 +505,16 @@ export default function ClassDetailSheet({
 
   /** 단계 2→3: 반 선택 후 eligible-occurrences 조회 (sequence ID로 경쟁 방지) */
   async function selectMakeupClass(mk: any, targetClassId: string) {
+    // STEP 5: 동일 반+보강 조합 요청 진행 중 재호출 방지
+    const occKey = `${mk.id}:${targetClassId}`;
+    if (occPendingRef.current.has(occKey)) return;
+    occPendingRef.current.add(occKey);
     occSeqRef.current += 1;
     const mySeq = occSeqRef.current;
     setSelectedMakeupClassId(targetClassId);
     setMakeupOccLoading(true);
     setMakeupOccError(false);
+    setMakeupOccErrorDetail(null);
     setMakeupOccurrences([]);
     try {
       const res = await apiRequest(token, `/teacher/makeups/${mk.id}/eligible-occurrences?class_group_id=${targetClassId}`);
@@ -514,11 +523,30 @@ export default function ClassDetailSheet({
         const data = await res.json();
         setMakeupOccurrences((data.occurrences || []) as MakeupOccurrence[]);
       } else {
-        setMakeupOccError(true);
+        // STEP 1: 오류 응답 원문 파싱
+        const status = res.status;
+        const rawText = await res.text();
+        let body: any = null;
+        try { body = rawText ? JSON.parse(rawText) : null; } catch { body = { raw: rawText }; }
+        const errorCode: string = body?.error ?? "UNKNOWN";
+        if (__DEV__) {
+          console.error("[MAKEUP-OCCURRENCES-ERROR]", {
+            status,
+            error: body?.error ?? null,
+            message: body?.message ?? null,
+            makeupId: mk.id,
+            classGroupId: targetClassId,
+          });
+        }
+        if (occSeqRef.current === mySeq) {
+          setMakeupOccError(true);
+          setMakeupOccErrorDetail({ status, code: errorCode });
+        }
       }
     } catch {
       if (occSeqRef.current === mySeq) setMakeupOccError(true);
     } finally {
+      occPendingRef.current.delete(occKey);
       if (occSeqRef.current === mySeq) setMakeupOccLoading(false);
     }
   }
@@ -1267,7 +1295,10 @@ export default function ClassDetailSheet({
               ) : makeupOccError ? (
                 <View style={cds.empty}>
                   <LucideIcon name="circle-alert" size={28} color={C.textMuted} />
-                  <Text style={cds.emptyText}>수업 회차를 불러오지 못했습니다</Text>
+                  <Text style={cds.emptyText}>
+                    {"수업 회차를 불러오지 못했습니다"}
+                    {makeupOccErrorDetail ? `\n오류 코드: ${makeupOccErrorDetail.status} / ${makeupOccErrorDetail.code}` : ""}
+                  </Text>
                   <Pressable onPress={() => selectMakeupClass(selectedMakeupStudent, selectedMakeupClassId)} style={{ marginTop: 8 }}>
                     <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
                   </Pressable>
