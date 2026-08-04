@@ -832,6 +832,7 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
         cursor.setDate(cursor.getDate() + 1);
       }
 
+      const elapsed = Date.now() - startedAt;
       console.log("[PERF][eligible-occurrences]", {
         request_id: requestId,
         user_id: userId,
@@ -840,8 +841,10 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
         class_group_id,
         occurrences_count: occurrences.length,
         status: 200,
-        elapsed_ms: Date.now() - startedAt,
+        elapsed_ms: elapsed,
       });
+      _occReqLog.push({ ts: new Date().toISOString(), makeup_id: makeupId, class_group_id: class_group_id ?? null, user_id: userId, status: 200, elapsed_ms: elapsed });
+      if (_occReqLog.length > 30) _occReqLog.shift();
 
       res.json({
         makeup_id: makeupId,
@@ -871,6 +874,8 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
       };
       _occErrLog.push(errEntry);
       if (_occErrLog.length > 20) _occErrLog.shift();
+      _occReqLog.push({ ts: new Date().toISOString(), makeup_id: makeupId, class_group_id: class_group_id ?? null, user_id: userId, status: 500, elapsed_ms: Date.now() - startedAt, error: err?.message ?? "unknown" });
+      if (_occReqLog.length > 30) _occReqLog.shift();
       console.error("[ERROR][eligible-occurrences]", {
         request_id: requestId,
         ...errEntry,
