@@ -698,8 +698,19 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
 );
 
 // ── 보강 가능 수업 회차 목록 (teacher용) ──────────────────────
-// in-memory 오류 저장소 (최근 20건)
+// in-memory 요청/오류 저장소 (최근 30건)
 const _occErrLog: Array<{ts: string; stage: string; code: string|null; message: string|null; makeup_id: string; class_group_id: string|null; user_id: string}> = [];
+const _occReqLog: Array<{ts: string; makeup_id: string; class_group_id: string|null; user_id: string; status: number; elapsed_ms: number; error?: string}> = [];
+
+// 인증 없이 super admin 비밀번호로 조회
+router.get("/teacher/makeups/debug-occ-log", (req, res) => {
+  const pw = req.query.pw as string | undefined;
+  if (!pw || pw !== process.env.SUPER_ADMIN_PASSWORD) {
+    res.status(401).json({ error: "unauthorized" }); return;
+  }
+  res.json({ requests: _occReqLog.slice(-30), errors: _occErrLog.slice(-20) });
+});
+
 router.get("/teacher/makeups/debug-occ-errors", requireAuth, (req, res) => {
   res.json(_occErrLog.slice(-20));
 });
@@ -707,7 +718,6 @@ router.get("/teacher/makeups/debug-occ-errors", requireAuth, (req, res) => {
 // GET /teacher/makeups/:makeupId/eligible-occurrences?class_group_id=...
 router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
   async (req: AuthRequest, res) => {
-    // STEP 2: request_id + 단계 추적
     const requestId = String(req.headers["x-request-id"] || crypto.randomUUID());
     const startedAt = Date.now();
     let stage = "start";
