@@ -524,9 +524,22 @@ export default function ClassDetailSheet({
   }
 
   /** 단계 3: 날짜 선택 후 저장 (미래=assign, 당일·과거=complete-direct) */
-  async function completeMakeupWithDate(mk: any, _targetClassId: string, occ: MakeupOccurrence) {
+  async function completeMakeupWithDate(mk: any, _targetClassId: string, occ: MakeupOccurrence, allowExpired = false) {
     if (makeupSaving) return;
     const { occurrence_date: occurrenceDate, class_group_id: occClassId, is_full: isFull, is_future: isFuture } = occ;
+
+    // 기간 지난 보강: 최초 시도 시 확인 Alert
+    if (mk.is_expired && !allowExpired) {
+      Alert.alert(
+        "기간 지난 보강",
+        `${mk.student_name}의 보강 가능 기간이 지났습니다.\n그래도 처리하시겠습니까?`,
+        [
+          { text: "취소", style: "cancel" },
+          { text: "처리하기", onPress: () => completeMakeupWithDate(mk, _targetClassId, occ, true) },
+        ]
+      );
+      return;
+    }
 
     const doSave = async () => {
       setMakeupSaving(mk.id);
@@ -535,7 +548,7 @@ export default function ClassDetailSheet({
           const res = await apiRequest(token, `/teacher/makeups/${mk.id}/assign`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ class_group_id: occClassId, assigned_date: occurrenceDate }),
+            body: JSON.stringify({ class_group_id: occClassId, assigned_date: occurrenceDate, allow_expired: allowExpired }),
           });
           if (res.ok) {
             setMakeupList(prev => prev.filter(m => m.id !== mk.id));
@@ -549,7 +562,7 @@ export default function ClassDetailSheet({
           const res = await apiRequest(token, `/teacher/makeups/${mk.id}/complete-direct`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ date: occurrenceDate, class_group_id: occClassId }),
+            body: JSON.stringify({ date: occurrenceDate, class_group_id: occClassId, allow_expired: allowExpired }),
           });
           if (res.ok) {
             setMakeupList(prev => prev.filter(m => m.id !== mk.id));
@@ -1148,16 +1161,32 @@ export default function ClassDetailSheet({
                   contentContainerStyle={{ paddingBottom: 20 }}
                   showsVerticalScrollIndicator={false}
                 >
-                  {makeupList.map((mk: any) => (
+                  {[...makeupList]
+                    .sort((a: any, b: any) => {
+                      if (!!a.is_expired !== !!b.is_expired) return a.is_expired ? 1 : -1;
+                      return 0;
+                    })
+                    .map((mk: any) => (
                     <Pressable
                       key={mk.id}
-                      style={({ pressed }) => [cds.moveClassRow, pressed && { opacity: 0.7 }]}
+                      style={({ pressed }) => [
+                        cds.moveClassRow,
+                        pressed && { opacity: 0.7 },
+                        mk.is_expired && { borderLeftWidth: 3, borderLeftColor: "#94A3B8" },
+                      ]}
                       onPress={() => setSelectedMakeupStudent(mk)}
                       disabled={!!makeupSaving}
                     >
-                      <LucideIcon name="user" size={16} color={C.textMuted} />
+                      <LucideIcon name="user" size={16} color={mk.is_expired ? "#94A3B8" : C.textMuted} />
                       <View style={{ flex: 1 }}>
-                        <Text style={cds.moveClassName}>{mk.student_name}</Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <Text style={[cds.moveClassName, mk.is_expired && { color: "#64748B" }]}>{mk.student_name}</Text>
+                          {mk.is_expired && (
+                            <View style={{ backgroundColor: "#F1F5F9", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                              <Text style={{ fontSize: 9, color: "#64748B", fontFamily: "Pretendard-Regular" }}>기간 지난 보강</Text>
+                            </View>
+                          )}
+                        </View>
                         <Text style={cds.moveClassSub}>결석일 {mk.absence_date}{mk.original_class_group_name ? ` · ${mk.original_class_group_name}` : ""}</Text>
                       </View>
                       <ChevronRight size={14} color={C.textMuted} />
