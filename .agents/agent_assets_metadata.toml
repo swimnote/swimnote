@@ -143,3 +143,10 @@ uri = "file://swimnote_makeup_schedule_changes.patch"
 type = "unspecified"
 title = "swimnote_makeup_schedule_changes.patch"
 description = "Git diff: 651b1a95 → HEAD (보강 관련 파일 10개)"
+
+[[outputs]]
+id = "q92Yr1wO4B4ugv_B38LEb"
+uri = "file://swimnote_makeup_occurrence_actual_failure.txt"
+type = "text"
+title = "swimnote_makeup_occurrence_actual_failure.txt"
+description = "보강반 선택 실패 실제 데이터 확보 보고서"
