@@ -268,10 +268,20 @@ export default function MakeupsScreen() {
   const selectClass = async (classId: string) => {
     // 배정 모달(assignTarget) 또는 직접 완료 모달(directCompleteTarget) 어느 쪽이든 처리
     const activeTarget = assignTarget ?? directCompleteTarget;
-    if (!activeTarget) return;
+    // ── [LOG 1] 함수 시작 ──────────────────────────────────────────────────
+    console.log(`[selectClass] START classId=${classId} activeTarget=${activeTarget?.id ?? 'NULL'} token=${token ? 'EXISTS' : 'NULL'}`);
+    if (!activeTarget) {
+      // ── [LOG 2] return 지점: activeTarget 없음 ──────────────────────────
+      console.log('[selectClass] RETURN: activeTarget is null — assignTarget/directCompleteTarget 모두 null');
+      return;
+    }
     // STEP 5: 동일 반+보강 조합 요청 진행 중 재호출 방지
     const occKey = `${activeTarget.id}:${classId}`;
-    if (occPendingRef.current.has(occKey)) return;
+    if (occPendingRef.current.has(occKey)) {
+      // ── [LOG 3] return 지점: 중복 요청 차단 ────────────────────────────
+      console.log(`[selectClass] RETURN: duplicate request occKey=${occKey}`);
+      return;
+    }
     occPendingRef.current.add(occKey);
     occSeqRef.current += 1;
     const mySeq = occSeqRef.current;
@@ -283,34 +293,44 @@ export default function MakeupsScreen() {
     setOccErrorDetail(null);
     setOccLoading(true);
     const _doRequest = async () => {
-      const r = await apiRequest(token, `/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`);
+      const reqUrl = `/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`;
+      // ── [LOG 4] apiRequest 호출 직전 ──────────────────────────────────
+      console.log(`[selectClass] apiRequest 직전 makeupId=${activeTarget.id} classGroupId=${classId} url=${reqUrl}`);
+      const r = await apiRequest(token, reqUrl);
+      // ── [LOG 5] apiRequest 응답 ────────────────────────────────────────
+      console.log(`[selectClass] apiRequest 응답 status=${r.status} ok=${r.ok}`);
       return r;
     };
     try {
       let r = await _doRequest();
       // 실패 시 1회 자동 재시도 (500ms 후)
       if (!r.ok) {
+        console.log(`[selectClass] 재시도 status=${r.status} — 500ms 후 재요청`);
         await new Promise(resolve => setTimeout(resolve, 500));
         r = await _doRequest();
       }
       if (occSeqRef.current !== mySeq) return;
       if (r.ok) {
         const data = await r.json();
+        console.log(`[selectClass] OK occurrences=${data.occurrences?.length ?? 0}`);
         setOccurrences((data.occurrences || []) as MakeupOccurrence[]);
       } else {
         const status = r.status;
         const rawText = await r.text();
         let body: any = null;
         try { body = rawText ? JSON.parse(rawText) : null; } catch { body = { raw: rawText }; }
-        const errorCode: string = body?.error ?? "UNKNOWN";
-        // 서버에 오류 보고 (CRASH_REPORT 형식)
+        const errorCode: string = body?.error ?? body?.message ?? "UNKNOWN";
+        // ── [LOG 6] NOT_OK — 실제 HTTP status + response body ─────────────
+        console.log(`[selectClass] NOT_OK status=${status} errorCode=${errorCode} body=${rawText?.slice(0, 300)}`);
+        // 서버에 오류 보고 (CRASH_REPORT 형식) — /crash-report 경로 수정
         try {
-          apiRequest(token, `/logs/crash-report`, {
+          apiRequest(token, `/crash-report`, {
             method: "POST",
             body: JSON.stringify({
               message: "ELIGIBLE_OCCURRENCES_FAILED",
-              stack: `status:${status} code:${errorCode} mkId:${activeTarget.id} cgId:${classId}`,
+              stack: `status:${status} code:${errorCode} mkId:${activeTarget.id} cgId:${classId} body:${rawText?.slice(0, 500)}`,
               isFatal: false,
+              source: "selectClass",
             }),
           }).catch(() => {});
         } catch {}
@@ -320,14 +340,17 @@ export default function MakeupsScreen() {
         }
       }
     } catch (e: any) {
+      // ── [LOG 7] catch — 네트워크/타임아웃 오류 ────────────────────────
+      console.log(`[selectClass] CATCH e.name=${e?.name} e.message=${e?.message} mkId=${activeTarget.id} cgId=${classId}`);
       // 네트워크/타임아웃 오류도 서버에 보고
       try {
-        apiRequest(token, `/logs/crash-report`, {
+        apiRequest(token, `/crash-report`, {
           method: "POST",
           body: JSON.stringify({
             message: "ELIGIBLE_OCCURRENCES_NETWORK_ERROR",
-            stack: `${e?.message ?? "unknown"} mkId:${activeTarget.id} cgId:${classId}`,
+            stack: `${e?.name}:${e?.message ?? "unknown"} mkId:${activeTarget.id} cgId:${classId}`,
             isFatal: false,
+            source: "selectClass",
           }),
         }).catch(() => {});
       } catch {}
