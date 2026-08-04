@@ -1,0 +1,609 @@
+SWIMNOTE X 개발 재개 — 기준선 확정 및 WP4 설계 조사 지시
+
+SWIMNOTE 일반 앱 버그 수정 작업을 마치고 SWIMNOTE X 개발을 재개합니다.
+
+기존 설계를 다시 만들지 않습니다.
+
+현재까지 확정된 흐름과 마지막 감사 결과를 기준으로 이어서 진행합니다.
+
+이번 작업은 다음 두 단계만 수행합니다.
+
+1. 현재 Repository 재개 기준선 확인
+2. WP4 외형·메뉴·화면 분기 설계서 제출
+
+아직 WP4 코드를 구현하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 현재 확정 진행 상태
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+완료된 WP:
+
+WP0 — 일반모드 기준선 및 Repository 조사
+WP1 — X모드 최소 DB 기반
+WP2 — X모드 상태·권한 Backend
+WP3 — 앱 전역 ModeContext
+
+현재 WP3까지 구현된 핵심 기반:
+
+서버:
+- computeMode()
+- resolvePoolMode()
+- GET /pools/x-mode
+- PATCH /super/operators/:id/xmode
+- requireXMode Guard 준비
+- Audit Transaction
+앱:
+- ModeProvider
+- useMode()
+- mode: normal | x_pending | x
+- foreground 재조회
+- pool·token 변경 시 이전 상태 폐기
+- 중복 요청 차단
+- stale response 차단
+
+requireXMode는 아직 실제 X 전용 Route에 연결하지 않은 것이 정상입니다.
+
+GET /pools/x-mode에는 requireXMode를 적용하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 마지막 감사에서 확인된 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+마지막 감사에서 다음 상태가 보고됐습니다.
+
+현재 브랜치:
+deploy-photo-clone
+확인 당시 origin HEAD:
+d8e4b4dd
+확인 당시 local HEAD:
+a3e460ab
+로컬이 origin보다 3 commits ahead:
+64925e41
+a2839289
+a3e460ab
+
+보고된 내용:
+
+64925e41
+- scheduler modal scroll 관련
+a2839289
+- Task #6 일부 변경을 되돌린 이력 존재
+a3e460ab
+- Task #9 SubSheetModal
+- Replit Agent 자동 Commit
+- attached_assets 혼입
+- 당시 origin 미Push
+
+이번 재개 시점에 위 상태가 그대로인지 다시 확인해야 합니다.
+
+이전 감사 보고를 그대로 믿지 말고 현재 Repository를 직접 조회하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 금지:
+
+* 코드 수정
+* 파일 저장
+* 자동 포맷
+* Commit
+* Push
+* Pull
+* Merge
+* Rebase
+* Reset
+* Revert
+* Cherry-pick
+* OTA
+* Render 배포
+* 서버 재시작
+* DB 변경
+* Migration 실행
+* 수영장 X 상태 변경
+* 테스트 데이터 생성
+* WP4 구현
+* WP5 선행 작업
+
+Repository 조사와 설계서 제출만 허용합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 재개 기준선 Git 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 명령을 읽기 전용으로 실행하고 원문을 제출하십시오.
+
+pwd
+git rev-parse --show-toplevel
+git branch --show-current
+git rev-parse HEAD
+git status --short
+git status
+git log --oneline --decorate -20
+git remote -v
+git branch -vv
+git log --oneline --all --decorate --graph -30
+
+필수 확인:
+
+1. 현재 HEAD
+2. 현재 브랜치
+3. 원격 브랜치
+4. ahead / behind
+5. staged 파일
+6. unstaged 파일
+7. untracked 파일
+8. 자동 Commit 존재 여부
+9. 이전 3개 로컬 Commit의 현재 존재 여부
+10. 현재 origin에 포함됐는지
+11. SWIMNOTE 일반 앱 버그 수정 Commit이 추가됐는지
+12. X 관련 코드가 일반 앱 버그 수정 과정에서 덮어써졌는지
+
+다음 Commit을 현재 Repository에서 확인하십시오.
+
+d8e4b4dd
+64925e41
+a2839289
+a3e460ab
+f9e076ab
+
+각 Commit:
+
+git cat-file -t <commit>
+git show --stat --oneline <commit>
+git show --name-status --format=fuller <commit>
+git branch -r --contains <commit>
+
+결과는 설명이 아니라 실제 출력 근거로 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. WP1~WP3 현재 코드 생존 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 파일이 현재 HEAD에 실제 존재하는지 확인하십시오.
+
+artifacts/api-server/src/migrations/pool-db-x-init.ts
+artifacts/api-server/src/lib/xmode.ts
+artifacts/api-server/src/middlewares/auth.ts
+artifacts/api-server/src/routes/pools.ts
+artifacts/api-server/src/routes/super.ts
+artifacts/swim-app/context/ModeContext.tsx
+artifacts/swim-app/app/_layout.tsx
+
+다음 검색 원문을 제출하십시오.
+
+grep -RIn "initXModeSchema\|initXModePart2Schema\|runGroup6_Curriculum" artifacts/api-server/src
+grep -RIn "computeMode\|resolvePoolMode\|requireXMode\|/x-mode\|operators/:id/xmode" artifacts/api-server/src
+grep -RIn "ModeProvider\|useMode\|ModeForegroundRefresh\|isRefreshingRef\|seqRef\|no-store" artifacts/swim-app
+
+각 항목을 다음 상태로 구분하십시오.
+
+CODE_VERIFIED
+현재 HEAD 파일 원문에서 확인
+NOT_FOUND
+현재 HEAD에서 없음
+CONTRADICTED
+이전 보고와 현재 코드가 다름
+
+코드가 없거나 달라도 복원하지 말고 보고만 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 승인 전 WP4 선행 구현 여부 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 감사에서 다음 파일에 useMode() 소비처가 존재한다는 보고가 있었습니다.
+
+app/(admin)/dashboard.tsx
+app/(teacher)/today-schedule.tsx
+app/(parent)/home.tsx
+
+하지만 WP3 승인 범위는 원래 다음 두 파일이었습니다.
+
+context/ModeContext.tsx
+app/_layout.tsx
+
+따라서 위 3개 화면의 실제 상태를 반드시 확인하십시오.
+
+각 파일마다 제출:
+
+1. useMode import 존재 여부
+2. 실제 사용 코드
+3. XModeBadge 또는 SWIMNOTE X 문자열 존재 여부
+4. 최초 추가 Commit
+5. Commit 작성자
+6. origin 포함 여부
+7. 현재 HEAD 포함 여부
+8. 승인 없이 WP4를 선행 구현한 것인지
+9. 단순 기존 코드인지
+
+명령 예:
+
+grep -n "useMode\|XModeBadge\|SWIMNOTE X\|X 준비중" \
+  artifacts/swim-app/app/\(admin\)/dashboard.tsx \
+  artifacts/swim-app/app/\(teacher\)/today-schedule.tsx \
+  artifacts/swim-app/app/\(parent\)/home.tsx
+git log -p -- artifacts/swim-app/app/\(admin\)/dashboard.tsx
+git log -p -- artifacts/swim-app/app/\(teacher\)/today-schedule.tsx
+git log -p -- artifacts/swim-app/app/\(parent\)/home.tsx
+
+승인되지 않은 WP4 코드가 있어도 삭제·수정하지 마십시오.
+
+WP4 설계서에 현재 코드 상태로 반영해 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. WP4 확정 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP4는 단순 뱃지 작업이 아닙니다.
+
+WP4의 확정 범위는 다음입니다.
+
+- X 로고 또는 X 명칭
+- X 색상 규칙
+- X 전용 메뉴
+- 관리자 화면 분기
+- 선생님 화면 분기
+- 학부모 화면 분기
+- 일반모드에서 X 전용 Route 차단
+
+단, 아직 실제 기능은 연결하지 않습니다.
+
+연결 금지:
+
+- 커리큘럼 의뢰 Backend
+- 커리큘럼 관리 Backend
+- X AI 일지 검색 분기
+- Growth Event
+- 성장판 Backend
+- 성장판 실제 데이터
+- 학부모 AI 검색
+- 성장리포트
+- 결제
+
+WP4는 기존 앱에서 외형·메뉴·진입 구조만 분기하는 단계입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 상태별 UI 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+normal
+
+- 기존 SWIMNOTE 외형 그대로
+- 기존 메뉴 그대로
+- X 표시 없음
+- X 전용 메뉴 비노출
+- X 전용 Route 접근 차단
+- 일반기능 변화 없음
+
+x_pending
+
+- 일반 SWIMNOTE 기능 유지
+- X 준비 중 상태 표시
+- X 기능이 활성화된 것처럼 보여서는 안 됨
+- X 메뉴 또는 진입 시 준비 중 안내
+- 실제 기능 연결 금지
+
+x
+
+- SWIMNOTE X 명칭 또는 로고 표시
+- 확정된 네이비·민트 디자인 규칙 적용
+- 역할별 X 전용 메뉴 노출
+- 아직 구현되지 않은 기능은 준비 중 또는 출시 예정 처리
+- 실제 Backend 연결 금지
+
+loading / error / null
+
+- 이전 X 상태 재사용 금지
+- X 메뉴 비노출
+- 일반 앱 구조를 깨지 않음
+- 오류를 X 활성 상태로 처리 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 브랜드·색상 Repository 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 확인:
+
+1. 현재 SWIMNOTE 로고 asset
+2. 앱 내 로고 사용 위치
+3. 브랜드명 문자열 위치
+4. 관리자 헤더
+5. 선생님 헤더
+6. 학부모 헤더
+7. 공통 Header 컴포넌트
+8. 색상 상수 파일
+9. Theme Provider 존재 여부
+10. 네이비·민트 현재 값
+11. 기존 앱 디자인 시스템
+12. 아이콘 색상 규칙
+
+확정 디자인 원칙:
+
+- 기본 네이비
+- 테두리 또는 강조 민트
+- 글자 흰색
+- 기존 레이아웃 변경 금지
+- 보라색 신규 테마 금지
+- 화면 전체 복제 금지
+
+X 로고 asset을 새로 만들지 말고 다음 대안을 비교하십시오.
+
+A. 기존 로고 + 텍스트 X
+B. 텍스트 “SWIMNOTE X”
+C. 기존 헤더에 작은 X 표시
+
+가장 단순한 방식을 우선 제안하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 관리자 메뉴·화면 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+* 관리자 Root Route
+* 관리자 홈
+* 관리자 Tab
+* Drawer 또는 메뉴
+* 메뉴 배열 또는 하드코딩 위치
+* 관리자 헤더
+* 현재 메뉴 전체
+* 커리큘럼 의뢰 placeholder 위치
+* 커리큘럼 관리 placeholder 위치
+* 성장판 관리 placeholder 위치
+* X 설정 placeholder 위치
+* normal에서 비노출 처리 위치
+* x_pending 준비 중 처리 위치
+* x에서 노출 처리 위치
+
+새 관리자 화면을 대량 생성하지 마십시오.
+
+기존 메뉴 구조 안에 최소 분기로 설계하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 선생님 메뉴·화면 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+* 선생님 Root Route
+* 선생님 홈
+* 오늘 스케줄
+* 일지 진입
+* 탭 또는 메뉴
+* 공통 헤더
+* X AI 일지 표시 위치
+* 커리큘럼 placeholder 위치
+* 성장 확인 placeholder 위치
+* 일반 AI 일지와 X AI 일지의 현재 코드 관계
+
+주의:
+
+WP4에서는 실제 AI 일지 Pipeline을 분기하지 않습니다.
+
+외형과 메뉴만 준비합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 학부모 메뉴·화면 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+* 학부모 Root Route
+* 학부모 홈
+* 학부모 탭
+* 현재 메뉴 목록
+* AI 커리큘럼 검색 버튼 위치
+* AI 성장 리포트 버튼 위치
+* 기존 출시 예정 모달
+* 성장판 placeholder 필요 위치
+* normal / x_pending / x 노출 정책
+* 자녀 선택 구조 영향
+
+확정:
+
+AI 커리큘럼 검색
+AI 성장 리포트
+
+두 버튼은 실제 기능을 연결하지 않고 기존 출시 예정 모달만 유지합니다.
+
+PART 2 기능을 선행 구현하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Route 구조와 차단 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+1. expo-router Route 그룹
+2. 관리자 Route 그룹
+3. 선생님 Route 그룹
+4. 학부모 Route 그룹
+5. Deep Link 처리
+6. Redirect 기존 패턴
+7. Route Guard 기존 패턴
+8. 직접 URL 접근 시 처리
+9. loading 중 Redirect 루프 가능성
+10. normal 상태에서 X Route 차단 위치
+11. x_pending 상태 처리
+12. x 상태 접근 허용
+
+WP4에서 실제 Route가 필요한지 최소 범위로 제안하십시오.
+
+불필요한 placeholder Route를 대량 생성하지 마십시오.
+
+가능하면:
+
+기존 화면 내 조건부 메뉴
++
+최소 공통 준비 중 화면
+
+방식을 우선 검토하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. X 전용 메뉴 후보
+━━━━━━━━━━━━━━━━━━━━━━
+
+Repository 조사 후 역할별 최소 메뉴를 제안하십시오.
+
+관리자 후보
+
+- X 설정
+- 커리큘럼 의뢰
+- 커리큘럼 관리
+- 성장판 관리
+
+선생님 후보
+
+- X AI 일지
+- 커리큘럼
+- 성장 확인
+
+학부모 후보
+
+- 수영 성장판
+- AI 커리큘럼 검색
+- AI 성장 리포트
+
+이 메뉴명은 임의 확정하지 말고 기존 앱 용어와 확정 설계서를 비교해 제출하십시오.
+
+실제 기능 연결은 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 더 단순한 구현 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+우선순위:
+
+기존 헤더 재사용
+→ 기존 메뉴 배열에 mode 조건 추가
+→ 기존 출시 예정 모달 재사용
+→ 최소 공통 준비 중 화면
+
+금지:
+
+* 일반모드 화면 전체 복제
+* X모드 화면 전체 복제
+* 새 Navigation 시스템
+* 새 Theme Provider
+* 새 상태관리 라이브러리
+* 대량 placeholder 화면
+* WP5 이후 기능 선행 구현
+* 관리자·교사·학부모별 중복 컴포넌트 대량 생성
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 일반모드 보호 분석
+━━━━━━━━━━━━━━━━━━━━━━
+
+설계서에 반드시 제출:
+
+* normal에서 기존 UI 변화 여부
+* loading/error에서 기존 UI 영향
+* 기존 Navigation 영향
+* 기존 메뉴 순서 영향
+* 기존 Deep Link 영향
+* 기존 로그인 영향
+* 기존 역할 분기 영향
+* 기존 학부모 자녀 선택 영향
+* 기존 AI 일지 영향
+* 기존 출시 예정 모달 영향
+
+원칙:
+
+일반모드 변화 0
+
+기존 화면을 X 구조에 맞추기 위해 재구성하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 테스트 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 테스트 설계:
+
+1. normal 관리자 → 기존 UI·메뉴 동일
+2. normal 선생님 → 기존 UI·메뉴 동일
+3. normal 학부모 → 기존 UI·메뉴 동일
+4. x_pending 관리자 → 준비 중 표시, 실제 기능 진입 차단
+5. x_pending 선생님 → 준비 중 표시
+6. x_pending 학부모 → 기존 출시 예정 모달
+7. x 관리자 → X 명칭·메뉴 노출
+8. x 선생님 → X 명칭·메뉴 노출
+9. x 학부모 → X 명칭·메뉴 노출
+10. loading → X 메뉴 비노출
+11. error → X 메뉴 비노출
+12. direct route 접근 normal → 차단
+13. direct route 접근 x_pending → 준비 중
+14. direct route 접근 x → 허용
+15. 뒤로가기 루프 없음
+16. Deep Link 우회 없음
+17. 기존 일반 기능 회귀 없음
+
+실제 DB나 수영장 X 상태를 변경하지 말고 Mock 기반 테스트 설계를 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. WP4 설계서 제출 목차
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 순서로 제출하십시오.
+
+1. 재개 기준선 Git 상태
+2. WP1~WP3 코드 생존 확인
+3. 승인 전 WP4 선행 구현 여부
+4. WP4 목표
+5. 포함 범위
+6. 제외 범위
+7. Repository 조사 결과
+8. 현재 브랜드·색상 구조
+9. 관리자 메뉴 구조
+10. 선생님 메뉴 구조
+11. 학부모 메뉴 구조
+12. Route·Deep Link 구조
+13. normal UI
+14. x_pending UI
+15. x UI
+16. X 명칭·로고
+17. 색상 적용
+18. 관리자 분기
+19. 선생님 분기
+20. 학부모 분기
+21. X Route 차단
+22. 준비 중 처리
+23. 수정 예정 파일
+24. 신규 파일
+25. 삭제 파일
+26. 기존 API 영향
+27. 일반모드 영향
+28. 테스트
+29. 위험요소
+30. NEEDS_VERIFICATION
+31. 더 단순한 대안
+32. 구현 후 제출 증거
+33. 구현 승인 가능 여부 자체 판단
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 제출 후 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출하고 멈추십시오.
+
+재개 기준선 보고서
++
+WP4 최종 설계서
+
+아직 금지:
+
+* 코드 수정
+* 기존 선행 코드 삭제
+* XModeBadge 생성
+* 메뉴 추가
+* Route 추가
+* 로고 asset 추가
+* DB 변경
+* Commit
+* Push
+* OTA
+* Render 배포
+* WP5 작업
+
+사용자가 설계서를 검수하고 별도 구현 승인을 내립니다.
