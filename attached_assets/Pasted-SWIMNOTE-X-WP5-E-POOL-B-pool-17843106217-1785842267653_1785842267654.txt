@@ -1,0 +1,414 @@
+SWIMNOTE X — WP5-E 공식 로그인 최종 재검증 실행 지시
+
+공식 로그인 복구 경로 조사 결과를 승인합니다.
+
+확정 사항:
+
+POOL_B:
+pool_1784310621737_qryl1x79s
+현재 X 상태:
+xmode_entitlement = true
+xmode_config_status = READY
+POOL_B 생성 파일:
+artifacts/api-server/src/scripts/create-sample-pool.ts
+테스트 비밀번호:
+KNOWN_TEST_PASSWORD_FOUND
+비밀번호 변경:
+불필요
+계정 생성:
+불필요
+JWT 직접 생성:
+금지
+
+이번 작업의 목적은 POOL_B 기존 pool_admin 계정으로 공식 로그인 API를 통과한 뒤, 그 로그인 응답으로 발급된 JWT만 사용하여 GET /pools/x-mode를 재검증하는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 이번 승인 범위
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+* create-sample-pool.ts에서 POOL_B 테스트 로그인 정보 확인
+* POST /api/auth/login 1회
+* 로그인 성공 시 반환된 공식 JWT 사용
+* GET /api/pools/x-mode 1회
+* 읽기 전용 DB 상태 확인
+* 결과 보고
+
+금지:
+
+* signToken() 직접 호출
+* jwt.sign() 직접 호출
+* gen-super-token.ts 실행
+* JWT 직접 생성
+* DB에서 토큰 생성
+* 비밀번호 변경
+* reset-password 호출
+* 계정 생성
+* 계정 삭제
+* DB INSERT
+* DB UPDATE
+* DB DELETE
+* PATCH 실행
+* POOL_B X 상태 변경
+* POOL_B 원복
+* 코드 수정
+* Commit
+* Push
+* OTA
+* Render 배포
+* teacher 생성
+* parent_account 생성
+* WP5-F 진행
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 민감정보 출력 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 정보는 터미널 출력 또는 최종 보고서에 원문으로 포함하지 마십시오.
+
+테스트 비밀번호
+관리자 이메일
+관리자 전화번호
+password_hash
+JWT 원문
+Authorization 헤더 원문
+JWT_SECRET
+
+보고서에는 아래 표기만 허용합니다.
+
+KNOWN_TEST_IDENTIFIER_USED
+KNOWN_TEST_PASSWORD_USED
+OFFICIAL_LOGIN_TOKEN_ISSUED
+
+로그인 요청 명령을 보고서에 붙일 때에도 실제 값은 반드시 마스킹하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실행 전 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Git 상태를 읽기 전용으로 확인하십시오.
+
+git branch --show-current
+git rev-parse HEAD
+git status --short
+
+API Health:
+
+GET https://swimnote-api.onrender.com/api/health
+
+기대:
+
+HTTP 200
+
+Health가 200이 아니면 즉시 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. POOL_B 상태 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+운영 DB SUPABASE_DATABASE_URL에서 SELECT만 실행하십시오.
+
+SELECT
+  id,
+  name,
+  xmode_entitlement,
+  xmode_config_status,
+  xmode_purchased_at,
+  xmode_subscription_end_at,
+  xmode_payment_failed_at
+FROM swimming_pools
+WHERE id = 'pool_1784310621737_qryl1x79s';
+
+기대:
+
+xmode_entitlement = true
+xmode_config_status = READY
+날짜 필드 = null
+
+Audit:
+
+SELECT COUNT(*) AS cnt
+FROM audit_logs
+WHERE entity_type = 'swimming_pool_xmode'
+  AND entity_id = 'pool_1784310621737_qryl1x79s';
+
+기대:
+
+cnt = 1
+
+기준선이 다르면 로그인하지 말고 즉시 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 테스트 자격증명 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 파일을 읽기 전용으로 확인하십시오.
+
+artifacts/api-server/src/scripts/create-sample-pool.ts
+
+확인할 것:
+
+POOL_B 샘플 관리자 identifier
+POOL_B 샘플 관리자 비밀번호
+
+다음 조건을 모두 확인하십시오.
+
+스크립트의 pool 이름 또는 생성 구조가 현재 POOL_B와 일치
+현재 POOL_B 관리자가 해당 스크립트로 생성된 계정임
+테스트 비밀번호가 상수로 정의되어 있음
+
+비밀번호와 identifier 원문은 보고서에 출력하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 공식 로그인 실행
+━━━━━━━━━━━━━━━━━━━━━━
+
+공식 Route만 사용하십시오.
+
+POST https://swimnote-api.onrender.com/api/auth/login
+
+Body 구조:
+
+{
+  "email": "<KNOWN_TEST_IDENTIFIER>",
+  "password": "<KNOWN_TEST_PASSWORD>"
+}
+
+실제 값은 파일에서 읽어 요청에만 사용하고 출력하지 마십시오.
+
+허용된 로그인 시도 횟수:
+
+최대 1회
+
+로그인이 실패하면 다음을 금지합니다.
+
+다른 비밀번호 추측
+두 번째 로그인 시도
+reset-password 호출
+DB password_hash 확인
+signToken 대체
+JWT 직접 생성
+계정 수정
+
+실패 시 즉시 중단하고 HTTP 상태와 마스킹된 오류만 제출하십시오.
+
+기대:
+
+HTTP 200
+success = true
+token 존재
+user.role = pool_admin
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 공식 JWT 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+로그인 응답으로 받은 JWT만 사용하십시오.
+
+JWT 원문은 출력하지 마십시오.
+
+토큰을 decode만 하여 다음 항목을 확인하십시오.
+
+userId
+role
+poolId
+tv
+exp
+
+보고서에는 다음만 제출하십시오.
+
+role = pool_admin
+poolId = pool_1784310621737_qryl1x79s
+tv = 1
+exp 존재 여부
+
+기대와 다르면 즉시 중단하십시오.
+
+토큰 서명을 다시 만들거나 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. GET /pools/x-mode 공식 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+방금 공식 로그인으로 발급된 JWT만 사용하십시오.
+
+GET https://swimnote-api.onrender.com/api/pools/x-mode
+Authorization: Bearer <OFFICIAL_LOGIN_TOKEN>
+Cache-Control: no-cache
+
+기대 응답:
+
+{
+  "pool_id": "pool_1784310621737_qryl1x79s",
+  "mode": "x",
+  "xmode_entitlement": true,
+  "xmode_config_status": "READY"
+}
+
+검증 항목:
+
+HTTP 200
+pool_id 정확히 일치
+mode = x
+xmode_entitlement = true
+xmode_config_status = READY
+capabilities 필드 없음
+다른 pool 데이터 없음
+
+하나라도 다르면 즉시 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 공식 로그인과 직접 생성 토큰 구분
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 보고서에 반드시 다음을 명시하십시오.
+
+이번 GET /pools/x-mode 요청은
+POST /api/auth/login 응답으로 발급된 JWT를 사용했다.
+signToken 직접 호출 없음.
+jwt.sign 직접 호출 없음.
+gen-super-token.ts 실행 없음.
+
+이 문장이 없으면 WP5-E 완료로 인정하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 사후 DB 무변경 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+공식 로그인과 Mode 조회 후 다음을 SELECT로 확인하십시오.
+
+SELECT
+  xmode_entitlement,
+  xmode_config_status,
+  xmode_purchased_at,
+  xmode_subscription_end_at,
+  xmode_payment_failed_at
+FROM swimming_pools
+WHERE id = 'pool_1784310621737_qryl1x79s';
+
+기대:
+
+true
+READY
+null
+null
+null
+
+Audit 건수:
+
+SELECT COUNT(*) AS cnt
+FROM audit_logs
+WHERE entity_type = 'swimming_pool_xmode'
+  AND entity_id = 'pool_1784310621737_qryl1x79s';
+
+기대:
+
+1
+
+로그인과 GET 조회로 Audit가 추가되면 안 됩니다.
+
+X 기능 데이터:
+
+SELECT COUNT(*) FROM growth_events;
+SELECT COUNT(*) FROM global_template_sets;
+SELECT COUNT(*) FROM curriculum_versions;
+SELECT COUNT(*) FROM curriculum_items;
+SELECT COUNT(*) FROM student_curriculum_assignments;
+SELECT COUNT(*) FROM curriculum_requests;
+SELECT COUNT(*) FROM curriculum_request_files;
+SELECT COUNT(*) FROM diary_templates WHERE scope = 'x_global';
+
+기대:
+
+전부 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 보안 결함 기록
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서는 수정하지 말고 다음 두 항목만 별도 SECURITY_NOTE로 기록하십시오.
+
+SECURITY_NOTE-01
+POST /auth/reset-password가 인증·OTP 없이 identifier와 new_password만으로 비밀번호 변경 가능
+SECURITY_NOTE-02
+create-sample-pool.ts에 테스트 비밀번호 평문 상수가 존재
+
+금지:
+
+보안 코드 수정
+Route 차단
+스크립트 삭제
+비밀번호 변경
+별도 Commit
+
+이 문제는 SWIMNOTE X WP와 섞지 않고 일반 앱 보안 수정 작업으로 분리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 실패 중단 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나라도 발생하면 즉시 중단하십시오.
+
+Health 200 아님
+POOL_B 상태가 true/READY 아님
+Audit 기준선이 1이 아님
+테스트 자격증명이 POOL_B 생성 정보와 일치하지 않음
+공식 로그인 HTTP 200 아님
+로그인 응답에 token 없음
+JWT role이 pool_admin 아님
+JWT poolId가 POOL_B와 다름
+JWT tv가 1이 아님
+GET /pools/x-mode HTTP 200 아님
+Mode 응답 Contract 불일치
+DB 상태 변경
+Audit 추가 생성
+X 기능 데이터 생성
+코드 변경 발생
+JWT 직접 생성 발생
+
+실패 시 임의 수정·재시도하지 말고 결과를 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 제출 보고서 목차
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 실행 전 Git 상태
+2. API Health
+3. 실행 전 POOL_B 상태
+4. 실행 전 Audit 건수
+5. 테스트 자격증명 출처 파일
+6. 알려진 테스트 자격증명 확인 결과
+7. 공식 로그인 요청 여부
+8. 공식 로그인 HTTP 상태
+9. 공식 로그인 응답 Contract
+10. 공식 JWT role·poolId·tv
+11. GET /pools/x-mode HTTP 상태
+12. GET /pools/x-mode 응답
+13. 공식 JWT 사용 증거
+14. signToken·jwt.sign 미사용 확인
+15. 사후 POOL_B DB 상태
+16. 사후 Audit 건수
+17. X 기능 데이터 건수
+18. 코드·Commit·Push·OTA 여부
+19. 실패 중단 조건 발생 여부
+20. SECURITY_NOTE 2건
+21. WP5-E 최종 완료 가능 여부
+22. 다음 단계 진입 가능 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 제출 후 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP5-E 공식 로그인 재검증 결과만 제출하고 멈추십시오.
+
+아직 금지:
+
+WP5-C teacher·parent 생성
+WP5-F 앱 UI 검증
+POOL_A 변경
+POOL_B 원복
+OTA
+WP6
+보안 결함 수정
