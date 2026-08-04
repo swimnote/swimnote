@@ -282,34 +282,55 @@ export default function MakeupsScreen() {
     setOccError(false);
     setOccErrorDetail(null);
     setOccLoading(true);
-    try {
+    const _doRequest = async () => {
       const r = await apiRequest(token, `/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`);
-      if (occSeqRef.current !== mySeq) return; // 늦게 도착한 이전 반 응답 무시
+      return r;
+    };
+    try {
+      let r = await _doRequest();
+      // 실패 시 1회 자동 재시도 (500ms 후)
+      if (!r.ok) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        r = await _doRequest();
+      }
+      if (occSeqRef.current !== mySeq) return;
       if (r.ok) {
         const data = await r.json();
         setOccurrences((data.occurrences || []) as MakeupOccurrence[]);
       } else {
-        // STEP 1: 오류 응답 원문 파싱
         const status = r.status;
         const rawText = await r.text();
         let body: any = null;
         try { body = rawText ? JSON.parse(rawText) : null; } catch { body = { raw: rawText }; }
         const errorCode: string = body?.error ?? "UNKNOWN";
-        if (__DEV__) {
-          console.error("[MAKEUP-OCCURRENCES-ERROR]", {
-            status,
-            error: body?.error ?? null,
-            message: body?.message ?? null,
-            makeupId: activeTarget.id,
-            classGroupId: classId,
-          });
-        }
+        // 서버에 오류 보고 (CRASH_REPORT 형식)
+        try {
+          apiRequest(token, `/logs/crash-report`, {
+            method: "POST",
+            body: JSON.stringify({
+              message: "ELIGIBLE_OCCURRENCES_FAILED",
+              stack: `status:${status} code:${errorCode} mkId:${activeTarget.id} cgId:${classId}`,
+              isFatal: false,
+            }),
+          }).catch(() => {});
+        } catch {}
         if (occSeqRef.current === mySeq) {
           setOccError(true);
           setOccErrorDetail({ status, code: errorCode });
         }
       }
-    } catch {
+    } catch (e: any) {
+      // 네트워크/타임아웃 오류도 서버에 보고
+      try {
+        apiRequest(token, `/logs/crash-report`, {
+          method: "POST",
+          body: JSON.stringify({
+            message: "ELIGIBLE_OCCURRENCES_NETWORK_ERROR",
+            stack: `${e?.message ?? "unknown"} mkId:${activeTarget.id} cgId:${classId}`,
+            isFatal: false,
+          }),
+        }).catch(() => {});
+      } catch {}
       if (occSeqRef.current === mySeq) setOccError(true);
     } finally {
       occPendingRef.current.delete(occKey);
