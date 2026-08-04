@@ -20,7 +20,7 @@ interface MakeupOccurrence {
   is_future: boolean;
 }
 import {
-  ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Animated, ActivityIndicator, Alert, Dimensions, FlatList, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
 import { LucideIcon } from "@/components/common/LucideIcon";
@@ -35,13 +35,15 @@ import { ChangeLogItem, StudentItem, todayDateStr } from "./utils";
 const C = Colors.light;
 
 // ── StyleSheet (컴포넌트보다 먼저 정의 — StudentAttendanceRow가 참조) ──────────
+const SCREEN_H = Dimensions.get("window").height;
+
 const cds = StyleSheet.create({
-  backdrop:        { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+  backdrop:        { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
   mainSheet:       { position: "absolute", bottom: 0, left: 0, right: 0,
                      backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
                      height: "75%" },
-  handle:          { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
-                     alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  dragHandleArea:  { minHeight: 36, alignItems: "center", justifyContent: "center" },
+  handle:          { width: 44, height: 5, borderRadius: 3, backgroundColor: "#D1D5DB" },
   sheetHeader:     { flexDirection: "row", alignItems: "flex-start", padding: 16, paddingTop: 8 },
   sheetTitle:      { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
   sheetSub:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
@@ -325,6 +327,73 @@ export default function ClassDetailSheet({
     }
     onClose();
   }
+
+  // ── sheet drag-dismiss (dragHandleArea 전용) ─────────────────────────────
+  // handleCloseRef: handleClose가 state를 capture하므로 stable-ref 패턴 사용
+  const sheetTranslateY   = useRef(new Animated.Value(SCREEN_H)).current;
+  const sheetDragY        = useRef(new Animated.Value(0)).current;
+  const sheetCombinedY    = useRef(Animated.add(sheetTranslateY, sheetDragY)).current;
+  const subSheetActiveRef = useRef(false);
+  const handleCloseRef    = useRef(handleClose);
+  useEffect(() => { handleCloseRef.current = handleClose; });
+
+  // subSheet(반이동·보충수업·미배정) 열림 여부 동기화 — panResponder에서 참조
+  useEffect(() => {
+    subSheetActiveRef.current = !!(moveStudent || showMakeupPicker || showUnassignTiming);
+  }, [moveStudent, showMakeupPicker, showUnassignTiming]);
+
+  // 마운트 시 입장 spring 애니메이션 (animationType="none" 대체)
+  useEffect(() => {
+    Animated.spring(sheetTranslateY, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // dragHandleArea 전용 PanResponder — FlatList 영역에서는 절대 활성화되지 않음
+  const sheetPanResponder = useRef(
+    PanResponder.create({
+      // tap은 처리하지 않음 — 아래로 충분히 이동할 때만 응답
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gs) =>
+        !subSheetActiveRef.current &&
+        gs.dy > 5 &&
+        Math.abs(gs.dy) > Math.abs(gs.dx),
+      onPanResponderMove: (_, gs) => {
+        if (gs.dy > 0) sheetDragY.setValue(gs.dy);
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (__DEV__) console.log("[CLASS-SHEET-GESTURE-START]", { source: "drag-handle", at: Date.now() });
+        if (gs.dy > 100 || gs.vy > 0.9) {
+          Animated.timing(sheetTranslateY, {
+            toValue: SCREEN_H,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            sheetDragY.setValue(0);
+            handleCloseRef.current();
+          });
+        } else {
+          Animated.spring(sheetDragY, { toValue: 0, useNativeDriver: true }).start();
+        }
+      },
+    }),
+  ).current;
+
+  // X 버튼 / 바깥 터치 / onRequestClose 용 dismiss (animation 포함)
+  function handleDismiss() {
+    Animated.timing(sheetTranslateY, {
+      toValue: SCREEN_H,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(() => {
+      sheetDragY.setValue(0);
+      handleCloseRef.current();
+    });
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     setStudentAttState({});
@@ -841,11 +910,15 @@ export default function ClassDetailSheet({
 
   return (
     <>
-      <Modal visible animationType="slide" transparent onRequestClose={handleClose} statusBarTranslucent>
-        {/* backdrop: 바깥 터치만 닫기 담당. mainSheet는 일반 View (responder 선점 없음) */}
-        <Pressable style={cds.backdrop} onPress={handleClose}>
-          <View style={cds.mainSheet}>
+      <Modal visible animationType="none" transparent onRequestClose={handleDismiss} statusBarTranslucent>
+        {/* backdrop: sibling Pressable — Animated.View mainSheet와 분리 */}
+        <Pressable style={cds.backdrop} onPress={handleDismiss} />
+
+        <Animated.View style={[cds.mainSheet, { transform: [{ translateY: sheetCombinedY }] }]}>
+          {/* dragHandleArea — 이 영역에서만 dismiss gesture 활성화 */}
+          <View {...sheetPanResponder.panHandlers} style={cds.dragHandleArea}>
             <View style={cds.handle} />
+          </View>
             <View style={cds.sheetHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={cds.sheetTitle}>{group.name}</Text>
@@ -855,7 +928,7 @@ export default function ClassDetailSheet({
                 onPress={() => onDeleteClass?.()}>
                 <LucideIcon name="trash-2" size={15} color="#E11D48" />
               </Pressable>
-              <Pressable onPress={handleClose} style={cds.closeBtn}>
+              <Pressable onPress={handleDismiss} style={cds.closeBtn}>
                 {colorSaving
                   ? <ActivityIndicator size="small" color={C.textSecondary} />
                   : <LucideIcon name="x" size={20} color={C.textSecondary} />}
@@ -950,8 +1023,7 @@ export default function ClassDetailSheet({
               ListEmptyComponent={listEmpty}
               ListFooterComponent={listFooter}
             />
-          </View>
-        </Pressable>
+          </Animated.View>
 
       {moveStudent && (
         <SubSheetModal

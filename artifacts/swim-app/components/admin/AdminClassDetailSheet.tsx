@@ -5,8 +5,8 @@
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, Modal,
-  Pressable, ScrollView, StyleSheet, Text,
+  Animated, ActivityIndicator, Alert, Dimensions, FlatList, Modal,
+  PanResponder, Pressable, ScrollView, StyleSheet, Text,
   TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
@@ -63,6 +63,8 @@ interface Props {
   initialStudents?: StudentItem[];
   onDeleteClass?: () => void;
 }
+
+const SCREEN_H_ADM = Dimensions.get("window").height;
 
 export default function AdminClassDetailSheet({ group, token, themeColor, onClose, onReload, onColorChange, initialStudents, onDeleteClass }: Props) {
   // initialStudents가 있으면 즉시 필터링해서 보여줌 (로딩 없음)
@@ -132,6 +134,71 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
     }
     onClose();
   }
+
+  // ── sheet drag-dismiss (dragHandleArea 전용) ─────────────────────────────
+  const admSheetTranslateY   = useRef(new Animated.Value(SCREEN_H_ADM)).current;
+  const admSheetDragY        = useRef(new Animated.Value(0)).current;
+  const admSheetCombinedY    = useRef(Animated.add(admSheetTranslateY, admSheetDragY)).current;
+  const admSubSheetActiveRef = useRef(false);
+  const admHandleCloseRef    = useRef(handleClose);
+  useEffect(() => { admHandleCloseRef.current = handleClose; });
+
+  // subView 열림 여부 동기화 — panResponder에서 참조
+  useEffect(() => {
+    admSubSheetActiveRef.current = subView !== null;
+  }, [subView]);
+
+  // 마운트 시 입장 spring 애니메이션 (animationType="none" 대체)
+  useEffect(() => {
+    Animated.spring(admSheetTranslateY, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // dragHandleArea 전용 PanResponder
+  const admSheetPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gs) =>
+        !admSubSheetActiveRef.current &&
+        gs.dy > 5 &&
+        Math.abs(gs.dy) > Math.abs(gs.dx),
+      onPanResponderMove: (_, gs) => {
+        if (gs.dy > 0) admSheetDragY.setValue(gs.dy);
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (__DEV__) console.log("[ADMIN-CLASS-SHEET-GESTURE-START]", { source: "drag-handle", at: Date.now() });
+        if (gs.dy > 100 || gs.vy > 0.9) {
+          Animated.timing(admSheetTranslateY, {
+            toValue: SCREEN_H_ADM,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            admSheetDragY.setValue(0);
+            admHandleCloseRef.current();
+          });
+        } else {
+          Animated.spring(admSheetDragY, { toValue: 0, useNativeDriver: true }).start();
+        }
+      },
+    }),
+  ).current;
+
+  // X 버튼 / 바깥 터치 / onRequestClose 용 dismiss
+  function handleDismiss() {
+    Animated.timing(admSheetTranslateY, {
+      toValue: SCREEN_H_ADM,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(() => {
+      admSheetDragY.setValue(0);
+      admHandleCloseRef.current();
+    });
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   const load = useCallback(async () => {
     try {
@@ -354,10 +421,14 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
   }
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={handleClose}>
-      <Pressable style={sh.backdrop} onPress={handleClose} />
-      <View style={sh.sheet}>
-        <View style={sh.handle} />
+    <Modal visible animationType="none" transparent onRequestClose={handleDismiss}>
+      {/* backdrop: sibling Pressable — sheet와 분리 */}
+      <Pressable style={sh.backdrop} onPress={handleDismiss} />
+      <Animated.View style={[sh.sheet, { transform: [{ translateY: admSheetCombinedY }] }]}>
+        {/* dragHandleArea — 이 영역에서만 dismiss gesture 활성화 */}
+        <View {...admSheetPanResponder.panHandlers} style={sh.dragHandleArea}>
+          <View style={sh.handle} />
+        </View>
 
         <View style={sh.header}>
           {subView ? (
@@ -383,7 +454,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
               <LucideIcon name="trash-2" size={18} color="#E11D48" />
             </Pressable>
           )}
-          <Pressable onPress={handleClose} style={sh.closeBtn}>
+          <Pressable onPress={handleDismiss} style={sh.closeBtn}>
             {colorSaving
               ? <ActivityIndicator size="small" color={C.textSecondary} />
               : <LucideIcon name="x" size={20} color={C.textSecondary} />}
@@ -717,17 +788,17 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
             />
           </View>
         )}
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
 
 const sh = StyleSheet.create({
-  backdrop:   { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" },
-  sheet:      { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
-                borderTopLeftRadius: 24, borderTopRightRadius: 24, height: "88%" },
-  handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
-                alignSelf: "center", marginTop: 10, marginBottom: 2 },
+  backdrop:        { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  sheet:           { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
+                     borderTopLeftRadius: 24, borderTopRightRadius: 24, height: "88%" },
+  dragHandleArea:  { minHeight: 36, alignItems: "center", justifyContent: "center" },
+  handle:          { width: 44, height: 5, borderRadius: 3, backgroundColor: "#D1D5DB" },
 
   header:     { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 10,
                 borderBottomWidth: 1, borderBottomColor: C.border },
