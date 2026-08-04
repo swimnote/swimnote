@@ -1709,7 +1709,14 @@ router.get("/makeups", requireAuth, requireRole("super_admin","pool_admin","teac
       `));
       const { status, student_id, teacher_id, assigned_teacher_id, class_group_id } = req.query;
       const conditions: string[] = [`swimming_pool_id = '${poolId}'`];
-      if (status) conditions.push(`status = '${status}'`);
+      // status=waiting 이면 expired(기간 지난 보강)도 함께 반환
+      if (status) {
+        if (status === "waiting") {
+          conditions.push(`status IN ('waiting', 'expired')`);
+        } else {
+          conditions.push(`status = '${status}'`);
+        }
+      }
       if (student_id) conditions.push(`student_id = '${student_id}'`);
       if (teacher_id) conditions.push(`original_teacher_id = '${teacher_id}'`);
       if (assigned_teacher_id) conditions.push(`(assigned_teacher_id = '${assigned_teacher_id}' OR transferred_to_teacher_id = '${assigned_teacher_id}')`);
@@ -1739,8 +1746,17 @@ router.get("/makeups", requireAuth, requireRole("super_admin","pool_admin","teac
         SELECT * FROM makeup_sessions
         WHERE ${conditions.join(" AND ")}
         ORDER BY created_at DESC
-      `))).rows;
-      res.json(rows);
+      `))).rows as any[];
+
+      // is_expired 필드 추가: status=expired 또는 expire_at < KST 현재
+      const nowKst = new Date(Date.now() + 9 * 3600 * 1000);
+      const result = rows.map((r: any) => ({
+        ...r,
+        is_expired:
+          r.status === "expired" ||
+          (r.expire_at != null && new Date(r.expire_at) < nowKst),
+      }));
+      res.json(result);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
@@ -1804,20 +1820,34 @@ router.patch("/makeups/:id/assign", requireAuth, requireRole("super_admin","pool
       if (!cg) { res.status(404).json({ error: "반 없음" }); return; }
       const actor = req.user as any;
 
-      // ── 낙관적 잠금: status = 'waiting' 조건부 UPDATE ──
-      const assignResult = (await db.execute(sql`
+      // expired 상태 처리: allow_expired=true 없이는 차단
+      const { allow_expired } = req.body as any;
+      const mkCheckRows = (await db.execute(sql`
+        SELECT status FROM makeup_sessions WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId} LIMIT 1
+      `)).rows as any[];
+      if (!mkCheckRows.length) { res.status(404).json({ error: "보강 없음" }); return; }
+      if (mkCheckRows[0].status === "expired" && !allow_expired) {
+        res.status(409).json({
+          code: "MAKEUP_EXPIRED_CONFIRM_REQUIRED",
+          error: "MAKEUP_EXPIRED_CONFIRM_REQUIRED",
+          message: "보강 가능 기간이 지난 항목입니다. 그래도 처리하려면 allow_expired: true 를 포함하여 다시 요청하세요.",
+        }); return;
+      }
+
+      // ── 낙관적 잠금: status = 'waiting' 또는 'expired' 조건부 UPDATE ──
+      const assignResult = (await db.execute(sql.raw(`
         UPDATE makeup_sessions SET
           status = 'assigned',
-          assigned_class_group_id = ${class_group_id},
-          assigned_class_group_name = ${cg.name},
-          assigned_teacher_id = ${cg.teacher_user_id || null},
-          assigned_teacher_name = ${cg.instructor || null},
-          assigned_date = ${assigned_date || null},
+          assigned_class_group_id = '${class_group_id}',
+          assigned_class_group_name = ${cg.name ? `'${cg.name.replace(/'/g, "''")}'` : "NULL"},
+          assigned_teacher_id = ${cg.teacher_user_id ? `'${cg.teacher_user_id}'` : "NULL"},
+          assigned_teacher_name = ${cg.instructor ? `'${cg.instructor.replace(/'/g, "''")}'` : "NULL"},
+          assigned_date = ${assigned_date ? `'${assigned_date}'` : "NULL"},
           updated_at = now()
-        WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
-          AND status = 'waiting'
+        WHERE id = '${req.params.id}' AND swimming_pool_id = '${poolId}'
+          AND status IN ('waiting', 'expired')
         RETURNING id
-      `)).rows as any[];
+      `))).rows as any[];
 
       if (assignResult.length === 0) {
         const latestRows = (await db.execute(sql`
@@ -1825,7 +1855,7 @@ router.patch("/makeups/:id/assign", requireAuth, requireRole("super_admin","pool
         `)).rows as any[];
         res.status(409).json({
           code: "MAKEUP_CONFLICT",
-          message: "다른 선생님이 먼저 보강 배정을 완료했습니다.",
+          message: "이미 처리된 보강 건입니다.",
           latest_state: latestRows[0] || null,
         });
         return;

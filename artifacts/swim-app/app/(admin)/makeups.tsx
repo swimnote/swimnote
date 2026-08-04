@@ -8,7 +8,7 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Modal, Platform, Pressable,
+  Alert, ActivityIndicator, FlatList, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
@@ -103,12 +103,24 @@ export default function MakeupsScreen() {
     if (r.ok) setTeachers(await r.json());
   };
 
-  const handleAssign = (mk: any, classGroup: any, date: string) => {
+  const handleAssign = (mk: any, classGroup: any, date: string, allowExpired = false) => {
+    // 기간 지난 보강: 최초 시도 시 확인 Alert
+    if (mk.is_expired && !allowExpired) {
+      Alert.alert(
+        "기간 지난 보강",
+        `${mk.student_name}의 보강 가능 기간이 지났습니다.\n그래도 배정 처리하시겠습니까?`,
+        [
+          { text: "취소", style: "cancel" },
+          { text: "처리하기", onPress: () => handleAssign(mk, classGroup, date, true) },
+        ]
+      );
+      return;
+    }
     setAssignModal(null);
     setPendingClass(null);
     setMakeups(prev => prev.filter(m => m.id !== mk.id));
     apiRequest(token, `/admin/makeups/${mk.id}/assign`, {
-      method: "PATCH", body: JSON.stringify({ class_group_id: classGroup.id, assigned_date: date || null }),
+      method: "PATCH", body: JSON.stringify({ class_group_id: classGroup.id, assigned_date: date || null, allow_expired: allowExpired }),
     }).then(r => {
       if (r.status === 409) { setConflictVisible(true); load(); }
       else if (!r.ok) load();

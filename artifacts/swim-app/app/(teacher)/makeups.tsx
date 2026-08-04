@@ -44,6 +44,8 @@ interface MakeupSession {
   absence_date: string | null;
   status: string;
   expire_at: string | null;
+  /** 서버가 계산한 기간 초과 여부 (status=expired 또는 expire_at < KST now) */
+  is_expired?: boolean;
   assigned_class_group_name: string | null;
   note: string | null;
   handed_to_teacher_id: string | null;
@@ -286,8 +288,20 @@ export default function MakeupsScreen() {
       if (occSeqRef.current === mySeq) setOccLoading(false);
     }
   };
-  const doAssign = async () => {
+  const doAssign = async (allowExpired = false) => {
     if (!assignTarget || !selectedClassId || !selectedOccurrence) return;
+    // 기간 지난 보강: 최초 시도 시 확인 Alert
+    if (assignTarget.is_expired && !allowExpired) {
+      Alert.alert(
+        "기간 지난 보강",
+        "보강 가능 기간이 지난 항목입니다.\n그래도 처리하시겠습니까?",
+        [
+          { text: "취소", style: "cancel" },
+          { text: "처리하기", onPress: () => doAssign(true) },
+        ]
+      );
+      return;
+    }
     // occurrence_date를 신뢰 (selectedDate는 동기화 보조값)
     const occDate = selectedOccurrence.occurrence_date;
     setAssigning(true);
@@ -298,7 +312,7 @@ export default function MakeupsScreen() {
         const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/assign`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ class_group_id: occClassId, assigned_date: occDate }),
+          body: JSON.stringify({ class_group_id: occClassId, assigned_date: occDate, allow_expired: allowExpired }),
         });
         const ct = r.headers?.get?.("content-type") ?? "";
         const isJson = ct.includes("application/json");
@@ -308,7 +322,7 @@ export default function MakeupsScreen() {
           loadWaiting(); loadAssigned(); setTab("assigned");
           setConfirmMsg(`보강이 ${occDate}에 배정되었습니다.`);
         } else if (r.status === 409) {
-          setConfirmMsg("이미 해당 날짜에 보강이 배정되어 있습니다.");
+          setConfirmMsg(body?.message || "이미 처리된 보강입니다.");
         } else {
           setConfirmMsg(body?.message || body?.error || "배정에 실패했습니다.");
         }
@@ -317,7 +331,7 @@ export default function MakeupsScreen() {
         const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/complete-direct`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ date: occDate, class_group_id: occClassId }),
+          body: JSON.stringify({ date: occDate, class_group_id: occClassId, allow_expired: allowExpired }),
         });
         const ct = r.headers?.get?.("content-type") ?? "";
         const isJson = ct.includes("application/json");
@@ -399,8 +413,20 @@ export default function MakeupsScreen() {
     setHandoverStep("menu");
   };
   /** 지난 보강 직접 완료 실행 (occ = 서버 응답 회차 기준) */
-  async function doDirectComplete(occ: MakeupOccurrence) {
+  async function doDirectComplete(occ: MakeupOccurrence, allowExpired = false) {
     if (!directCompleteTarget) return;
+    // 기간 지난 보강: 최초 시도 시 확인 Alert
+    if (directCompleteTarget.is_expired && !allowExpired) {
+      Alert.alert(
+        "기간 지난 보강",
+        "보강 가능 기간이 지난 항목입니다.\n그래도 완료 처리하시겠습니까?",
+        [
+          { text: "취소", style: "cancel" },
+          { text: "처리하기", onPress: () => doDirectComplete(occ, true) },
+        ]
+      );
+      return;
+    }
     const snapshot = { ...directCompleteTarget }; // 모달 닫기 전 캡처
     const targetId = snapshot.id;
     // 모달 즉시 닫고 목록에서 낙관적 제거
@@ -411,7 +437,7 @@ export default function MakeupsScreen() {
       const r = await apiRequest(token, `/teacher/makeups/${targetId}/complete-direct`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: occ.occurrence_date, class_group_id: occ.class_group_id }),
+        body: JSON.stringify({ date: occ.occurrence_date, class_group_id: occ.class_group_id, allow_expired: allowExpired }),
       });
       const ct = r.headers?.get?.("content-type") ?? "";
       const isJson = ct.includes("application/json");
@@ -547,10 +573,23 @@ export default function MakeupsScreen() {
                 <LucideIcon name="check-circle" size={36} color={C.textMuted} />
                 <Text style={s.emptyTxt}>처리할 결석자가 없습니다</Text>
               </View>
-            ) : waitingList.map(mk => {
+            ) : [...waitingList]
+                .sort((a, b) => {
+                  // 기간 지난 보강을 뒤로 정렬
+                  if (!!a.is_expired !== !!b.is_expired) return a.is_expired ? 1 : -1;
+                  return 0;
+                })
+                .map(mk => {
               const expireInfo = formatExpireAt(mk.expire_at);
               return (
-                <View key={mk.id} style={[s.card, { backgroundColor: C.card }]}>
+                <View
+                  key={mk.id}
+                  style={[
+                    s.card,
+                    { backgroundColor: C.card },
+                    mk.is_expired && { borderLeftWidth: 3, borderLeftColor: "#94A3B8" },
+                  ]}
+                >
                   <View style={s.cardTop}>
                     <View style={{ flex: 1, gap: 2 }}>
                       <Text style={s.studentName}>{mk.student_name || "-"}</Text>
@@ -561,7 +600,11 @@ export default function MakeupsScreen() {
                         </Text>
                       )}
                     </View>
-                    {mk.handed_to_teacher_id === adminUser?.id ? (
+                    {mk.is_expired ? (
+                      <View style={[s.statusBadge, { backgroundColor: "#F1F5F9" }]}>
+                        <Text style={[s.statusTxt, { color: "#64748B" }]}>기간 지난 보강</Text>
+                      </View>
+                    ) : mk.handed_to_teacher_id === adminUser?.id ? (
                       <View style={[s.statusBadge, { backgroundColor: "#EEF2FF" }]}>
                         <Text style={[s.statusTxt, { color: "#4F46E5" }]}>이관받음</Text>
                       </View>

@@ -329,6 +329,8 @@ async function validateMakeupOccurrence(params: {
   classGroupId: string;
   occurrenceDate: string;
   poolId: string;
+  /** true 이면 expire_at 초과 검사를 건너뜀 (기간 지난 보강 명시적 처리 허용) */
+  allowExpired?: boolean;
 }): Promise<OccurrenceValidationResult> {
   const { makeupSession: mk, classGroupId, occurrenceDate, poolId } = params;
 
@@ -348,18 +350,20 @@ async function validateMakeupOccurrence(params: {
     throw { code: "DATE_BEFORE_OR_ON_ABSENCE", message: "결석일 이후 날짜만 선택할 수 있습니다.", status: 400 };
   }
 
-  // 4. expire_at 이내여야 함 (KST 기준 변환)
-  if (mk.expire_at) {
-    const expireKst = toKstDateStr(new Date(mk.expire_at));
-    if (occurrenceDate > expireKst) {
-      throw { code: "MAKEUP_EXPIRED", message: "보강 유효기간이 지난 날짜입니다.", status: 400 };
-    }
-  } else {
-    // expire_at 없으면 결석일 기준 +56일
-    const fallbackD = new Date(mk.absence_date + "T00:00:00");
-    fallbackD.setDate(fallbackD.getDate() + 56);
-    if (occurrenceDate > fallbackD.toISOString().slice(0, 10)) {
-      throw { code: "MAKEUP_EXPIRED", message: "보강 유효기간이 지난 날짜입니다.", status: 400 };
+  // 4. expire_at 이내여야 함 (KST 기준 변환) — allowExpired=true 이면 스킵
+  if (!params.allowExpired) {
+    if (mk.expire_at) {
+      const expireKst = toKstDateStr(new Date(mk.expire_at));
+      if (occurrenceDate > expireKst) {
+        throw { code: "MAKEUP_EXPIRED", message: "보강 유효기간이 지난 날짜입니다.", status: 400 };
+      }
+    } else {
+      // expire_at 없으면 결석일 기준 +56일
+      const fallbackD = new Date(mk.absence_date + "T00:00:00");
+      fallbackD.setDate(fallbackD.getDate() + 56);
+      if (occurrenceDate > fallbackD.toISOString().slice(0, 10)) {
+        throw { code: "MAKEUP_EXPIRED", message: "보강 유효기간이 지난 날짜입니다.", status: 400 };
+      }
     }
   }
 
@@ -609,35 +613,51 @@ router.get("/teacher/makeups", requireAuth,
   async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const { status = "waiting" } = req.query as any;
-      const dbStatus = status === "pending" ? "waiting" : status;
+      const { status } = req.query as any;
+      // status=waiting(또는 미지정/pending) → waiting + expired 모두 반환
+      // 기간 지난 보강도 목록에서 계속 표시
+      const isWaitingQuery = !status || status === "waiting" || status === "pending";
+      const dbStatus = isWaitingQuery ? null : (status === "pending" ? "waiting" : status);
       const poolId = await getMyPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
-      const rows = await db.execute(sql`
+      const statusClause = isWaitingQuery
+        ? `AND ms.status IN ('waiting', 'expired')`
+        : `AND ms.status = '${dbStatus}'`;
+
+      const rows = ((await (db as any).execute(sql.raw(`
         SELECT ms.*, u.name AS student_name_from_user
         FROM makeup_sessions ms
         LEFT JOIN users u ON u.id = ms.student_id
-        WHERE ms.swimming_pool_id = ${poolId}
-          AND ms.status = ${dbStatus}
+        WHERE ms.swimming_pool_id = '${poolId}'
+          ${statusClause}
           AND ms.cancelled_at IS NULL
           AND (
-            ms.handed_to_teacher_id = ${userId}
+            ms.handed_to_teacher_id = '${userId}'
             OR (
               ms.handed_to_teacher_id IS NULL
               AND (
-                ms.original_teacher_id = ${userId}
+                ms.original_teacher_id = '${userId}'
                 OR EXISTS (
                   SELECT 1 FROM class_groups cg
                   WHERE cg.id = ms.original_class_group_id
-                    AND cg.co_teacher_ids @> to_jsonb(${userId}::text)
+                    AND cg.co_teacher_ids @> to_jsonb('${userId}'::text)
                 )
               )
             )
           )
         ORDER BY ms.absence_date ASC, ms.created_at ASC
-      `);
-      res.json(rows.rows);
+      `))) as any).rows as any[];
+
+      // is_expired 필드 추가: status=expired 또는 expire_at이 KST 현재 시각 이전
+      const kstNow = toKstDateStr(new Date());
+      const result = rows.map((r: any) => ({
+        ...r,
+        is_expired:
+          r.status === "expired" ||
+          (r.expire_at != null && toKstDateStr(new Date(r.expire_at)) < kstNow),
+      }));
+      res.json(result);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
@@ -802,7 +822,7 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
 router.patch("/teacher/makeups/:id/assign", requireAuth,
   async (req: AuthRequest, res) => {
     try {
-      const { class_group_id, assigned_date } = req.body;
+      const { class_group_id, assigned_date, allow_expired } = req.body;
       const sessionId = req.params.id;
       const userId = req.user!.userId;
 
@@ -825,8 +845,16 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
       if (prev.status === "completed") {
         res.status(409).json({ error: "MAKEUP_ALREADY_COMPLETED", message: "이미 완료된 보강 건입니다." }); return;
       }
-      if (prev.status === "cancelled" || prev.status === "expired") {
-        res.status(409).json({ error: "MAKEUP_ALREADY_CANCELLED", message: "취소 또는 만료된 보강 건입니다." }); return;
+      if (prev.status === "cancelled") {
+        res.status(409).json({ error: "MAKEUP_ALREADY_CANCELLED", message: "취소된 보강 건입니다." }); return;
+      }
+      // expired 상태는 allow_expired=true 없이는 차단
+      if (prev.status === "expired" && !allow_expired) {
+        res.status(409).json({
+          code: "MAKEUP_EXPIRED_CONFIRM_REQUIRED",
+          error: "MAKEUP_EXPIRED_CONFIRM_REQUIRED",
+          message: "보강 가능 기간이 지난 항목입니다. 그래도 처리하려면 allow_expired: true 를 포함하여 다시 요청하세요.",
+        }); return;
       }
 
       // 공통 회차 검증 (날짜형식·결석일·만료일·반·요일·휴일·정원)
@@ -837,6 +865,7 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
           classGroupId: class_group_id,
           occurrenceDate: assigned_date,
           poolId,
+          allowExpired: !!allow_expired,
         });
       } catch (e: any) {
         if (e.code && e.status) { res.status(e.status).json({ error: e.code, message: e.message }); return; }
@@ -1065,8 +1094,17 @@ router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
       if (mk.status === "completed") {
         res.status(400).json({ error: "MAKEUP_ALREADY_COMPLETED", message: "이미 완료된 보강입니다." }); return;
       }
-      if (!["waiting", "assigned"].includes(mk.status)) {
-        res.status(400).json({ error: "MAKEUP_ALREADY_CANCELLED", message: "취소 또는 만료된 보강입니다." }); return;
+      if (!["waiting", "assigned", "expired"].includes(mk.status)) {
+        res.status(400).json({ error: "MAKEUP_ALREADY_CANCELLED", message: "취소된 보강입니다." }); return;
+      }
+      // expired 상태는 allow_expired=true 없이는 차단
+      const { allow_expired } = req.body as { date?: string; class_group_id?: string; allow_expired?: boolean };
+      if (mk.status === "expired" && !allow_expired) {
+        res.status(409).json({
+          code: "MAKEUP_EXPIRED_CONFIRM_REQUIRED",
+          error: "MAKEUP_EXPIRED_CONFIRM_REQUIRED",
+          message: "보강 가능 기간이 지난 항목입니다. 그래도 처리하려면 allow_expired: true 를 포함하여 다시 요청하세요.",
+        }); return;
       }
 
       // 공통 회차 검증 (날짜형식·결석일·만료일·반·요일·휴일·정원)
@@ -1077,6 +1115,7 @@ router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
           classGroupId: class_group_id,
           occurrenceDate: date,
           poolId,
+          allowExpired: !!allow_expired,
         });
       } catch (e: any) {
         if (e.code && e.status) { res.status(e.status).json({ error: e.code, message: e.message }); return; }

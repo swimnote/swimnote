@@ -114,7 +114,10 @@ export default function MakeupPolicyScreen() {
         {/* 만료 정책 */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>보강권 만료 정책</Text>
-          <Text style={s.sectionDesc}>결석 발생 시 자동 생성되는 보강권의 만료 기준을 설정합니다.</Text>
+          <Text style={s.sectionDesc}>
+            결석 발생 시 자동 생성되는 보강권의 만료 기준을 설정합니다.{"\n"}
+            만료 기간이 지난 보강은 삭제되지 않고 '기간 지난 보강'으로 목록에 계속 표시되며 처리 가능합니다.
+          </Text>
           {EXPIRY_OPTIONS.map(opt => (
             <Pressable
               key={opt.value}
