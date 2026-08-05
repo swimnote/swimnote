@@ -985,14 +985,19 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
       const now = new Date();
       const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
       const nextMonthStr = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}`;
-      await db.update(studentsTable).set({
-        pending_status_change: new_status,
-        pending_effective_mode: "next_month",
-        pending_effective_month: nextMonthStr,
-        updated_at: new Date(),
-      } as any).where(eq(studentsTable.id, req.params.id));
+      const nextMonthFirstDay = `${nextMonthStr}-01`;
+      // pending 저장 + 다음 달 1일부터 history 종료 (수업 명단에서 자동 제외)
+      await db.transaction(async (tx) => {
+        await tx.update(studentsTable).set({
+          pending_status_change: new_status,
+          pending_effective_mode: "next_month",
+          pending_effective_month: nextMonthStr,
+          updated_at: new Date(),
+        } as any).where(eq(studentsTable.id, req.params.id));
+        await closeAllActiveClassHistory(tx, req.params.id, nextMonthFirstDay);
+      });
       const [updated] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
-      console.log(`[change-status] ✅ next_month 예약 완료 → pending: ${new_status} (${nextMonthStr})`);
+      console.log(`[change-status] ✅ next_month 예약 완료 → pending: ${new_status} (${nextMonthStr}), history 종료: ${nextMonthFirstDay}`);
       return res.json({ success: true, pending_status_change: new_status, pending_effective_mode: "next_month", pending_effective_month: nextMonthStr, student: updated });
     }
 

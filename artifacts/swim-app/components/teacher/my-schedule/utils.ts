@@ -41,6 +41,15 @@ export interface StudentItem {
   status?: string; parent_user_id?: string | null;
   updated_at?: string | null;
   class_enrolled_at?: string | null;
+  pending_status_change?: string | null;
+  pending_effective_mode?: string | null;
+  pending_effective_month?: string | null;
+}
+
+/** 현재 KST 기준 YYYY-MM 반환 */
+export function currentMonthStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 export function todayDateStr(): string {

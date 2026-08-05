@@ -1,0 +1,432 @@
+[SWIMNOTE 잔여 운영 오류 2건 — 전체 경로 조사 후 최소 수정]
+
+현재 실기기에서 다음 오류가 확인됐다.
+
+오류 A.
+보강 대기 화면에 7월 기간 지난 보강이 보이지 않는다.
+실제 화면에는 8월 결석 보강만 표시된다.
+
+오류 B.
+학생 반이동에서 “다음 달부터 이동”을 선택하면
+학생 상세에는 연기 상태로 표시되지만,
+실제 현재 달 수업 명단에는 계속 학생이 노출된다.
+즉 연기 상태와 반 명단 적용이 일치하지 않는다.
+
+이번 작업은 두 오류를 한 번에 조사하고,
+직접 원인이 코드·데이터로 확정되면 최소 수정까지 진행한다.
+
+Push / Render / OTA / 운영 DB 수동 수정은 최종 검수 후 별도 승인 전 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+PART A. 7월 기간 지난 보강 미노출
+━━━━━━━━━━━━━━━━━━━━━━
+
+목표:
+
+DB → teacher API → apiRequest → 클라이언트 state → 정렬 → FlatList 렌더
+
+전체 경로에서 7월 expired가 어느 단계에서 사라지는지 확정한다.
+
+1. 실제 제보 교사 계정 확인
+
+유지훈 교사 계정을 기준으로 조사한다.
+
+확인:
+
+- user_id
+- swimming_pool_id
+- original_teacher_id
+- handed_to_teacher_id
+- co_teacher_ids
+- 7월 expired 중 유지훈 교사가 볼 수 있어야 하는 row 수
+
+개인정보는 보고서에서 마스킹한다.
+
+2. 운영 DB 실제 대상 row 조회
+
+SELECT
+  id,
+  student_id,
+  student_name,
+  absence_date,
+  status,
+  expire_at,
+  original_teacher_id,
+  handed_to_teacher_id,
+  original_class_group_id,
+  swimming_pool_id,
+  cancelled_at
+FROM makeup_sessions
+WHERE swimming_pool_id = :poolId
+  AND absence_date >= '2026-07-01'
+  AND absence_date < '2026-08-01'
+  AND status IN ('waiting', 'expired')
+ORDER BY absence_date ASC;
+
+제출:
+
+- 전체 건수
+- expired 건수
+- waiting 건수
+- 유지훈 교사 조건에 맞는 건수
+- 가장 오래된 날짜
+- 가장 최근 날짜
+
+3. teacher API 실제 SQL 조건 검증
+
+GET /teacher/makeups?status=waiting 전체 원문 제출.
+
+다음 조건을 실제 row에 적용한다.
+
+- swimming_pool_id
+- status IN ('waiting','expired')
+- cancelled_at IS NULL
+- handed_to_teacher_id
+- original_teacher_id
+- co_teacher_ids
+- LEFT JOIN 영향
+- ORDER BY
+- LIMIT/OFFSET 존재 여부
+
+DB row는 존재하지만 교사 관계 조건 때문에 제외되는지 확인한다.
+
+4. 실제 API 응답 캡처
+
+유지훈 교사 인증 토큰으로 운영 API 호출:
+
+GET /api/teacher/makeups?status=waiting
+
+제출:
+
+- HTTP status
+- 응답 전체 건수
+- status=expired 건수
+- 7월 expired 건수
+- 가장 오래된 absence_date
+- 7월 row ID 목록
+- response body 구조
+
+토큰과 이름은 마스킹한다.
+
+5. 클라이언트 수신 직후 데이터 확인
+
+makeups.tsx에서 API 응답 직후 다음 원시값을 확인한다.
+
+- data.length
+- 7월 expired count
+- 가장 오래된 absence_date
+- 각 row의 status
+- 각 row의 is_expired
+
+운영 진단 시 console만 의존하지 않는다.
+임시 DEV 로그 또는 테스트 함수로 확인하되
+공개 endpoint는 만들지 않는다.
+
+6. 클라이언트 필터·정렬 전체 확인
+
+다음 원문 제출:
+
+- fetchMakeups()
+- setWaitingList()
+- waitingList useMemo
+- filteredMakeups
+- sortedMakeups
+- FlatList data
+- keyExtractor
+- ListEmptyComponent
+- 탭 전환 조건
+- is_expired 정렬
+
+검색:
+
+filter(
+sort(
+slice(
+status
+expired
+absence_date
+currentMonth
+selectedMonth
+created_at
+is_expired
+
+7. FlatList 렌더 개수 검증
+
+FlatList의 실제 data 기준:
+
+- 총 data.length
+- 8월 waiting 개수
+- 7월 expired 개수
+- 마지막 item의 id / absence_date
+- onEndReached 사용 여부
+- initialNumToRender
+- windowSize
+- removeClippedSubviews
+- contentContainerStyle
+- ListFooterComponent
+
+7월 expired가 data에 있는데 화면에서 못 내려가는 것인지,
+data 자체에 없는 것인지 분리한다.
+
+8. PART A 직접 원인 판정
+
+아래 중 하나로 확정한다.
+
+A. DB에는 있으나 교사 관계 SQL에서 제외
+B. API 응답에는 있으나 클라이언트 필터에서 제외
+C. FlatList data에는 있으나 스크롤 범위/가상화 문제로 접근 불가
+D. API 페이지네이션/LIMIT 때문에 잘림
+E. expired 정렬로 너무 아래 있지만 정상 접근 가능
+F. 기타
+
+“사용자가 못 본 것”이라는 추정 보고 금지.
+실제 API 건수와 FlatList data 건수로 증명한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+PART B. 다음 달부터 반이동 시 연기 미반영
+━━━━━━━━━━━━━━━━━━━━━━
+
+재현 사례:
+
+학생: 김다운
+기존 반: 수 17:00반
+이동 시점: 다음 달부터 이동
+학생 상세 상태: 연기
+현재 달 실제 수업 명단: 계속 노출
+
+목표:
+
+학생 상태, 현재 반 소속, 이동 예약, 스케줄 명단 생성 로직이
+같은 적용 시점을 사용하도록 수정한다.
+
+1. 실제 DB 상태 조회
+
+학생 row:
+
+SELECT
+  id,
+  name,
+  status,
+  class_group_id,
+  assigned_class_ids,
+  weekly_count,
+  updated_at
+FROM students
+WHERE id = :studentId;
+
+이동 예약 또는 이력 관련 테이블 전체 검색:
+
+- move-class
+- deferred
+- next_month
+- effective_date
+- effective_timing
+- pending_class
+- scheduled_move
+- class_transfer
+- postpone
+- 연기
+
+관련 row 전부 제출.
+
+2. 클라이언트 요청 body 원문
+
+학생 상세에서 반이동:
+
+- 즉시 이동
+- 다음 달부터 이동
+
+각 선택 시 실제 API URL, method, body를 제출한다.
+
+예:
+
+POST /students/:id/move-class
+{
+  class_group_id,
+  effective_timing
+}
+
+실제 필드명을 그대로 제출한다.
+
+3. 서버 move-class 원문
+
+대상:
+
+POST /students/:id/move-class
+
+전체 핸들러 제출.
+
+확인:
+
+- effective_timing 분기
+- 즉시 이동 시 class_group_id 업데이트
+- 다음 달 이동 시 어떤 컬럼을 저장하는지
+- student.status를 연기로 변경하는지
+- 기존 class_group_id를 유지하는지
+- 예약 이동 worker 존재 여부
+- 월 변경 시 실제 적용 함수 존재 여부
+- attendance/schedule 조회에 어떤 컬럼을 사용하는지
+
+4. 연기 상태 의미 확인
+
+Repository 전체에서 student.status='postponed' 또는 '연기'를 검색한다.
+
+확인:
+
+- 연기 학생을 수업 명단에서 제외해야 하는지
+- 연기 상태는 단순 표시용인지
+- 연기 시작일/종료일이 있는지
+- 현재 달 수업은 유지하고 다음 달부터 제외하는 정책인지
+- 다음 달 이동 대상 반은 언제 반영하는지
+
+정책을 임의로 만들지 않는다.
+현재 앱의 기존 상태·이동 정책 코드로 판정한다.
+
+5. 수업 명단 생성 경로 확인
+
+ClassDetailSheet 또는 해당 반 명단 API에서
+학생 목록을 만드는 전체 SQL/필터를 제출한다.
+
+확인:
+
+- students.class_group_id
+- assigned_class_ids
+- students.status
+- deleted_at
+- effective_date
+- pending move
+- postponed 상태
+- 월/날짜 기준
+- 다음 달 이동 예약 조건
+
+현재 날짜의 수업 명단과
+다음 달 수업 명단에서 각각 김다운이 포함되는지 SQL로 계산한다.
+
+6. 적용 시점 오류 판정
+
+아래 중 하나로 확정한다.
+
+A. 다음 달 이동인데 status를 즉시 연기로 바꿈
+B. 연기 상태지만 명단 API가 status를 무시
+C. 예약 이동 row는 저장되지만 worker가 없음
+D. worker는 있으나 실행되지 않음
+E. class_group_id는 유지되고 명단에서 제외 조건도 없음
+F. 날짜 비교가 UTC/KST 또는 월 경계에서 틀림
+G. 기타
+
+7. 정책에 맞는 최소 수정
+
+정책은 다음과 같이 일관되어야 한다.
+
+“다음 달부터 이동” 선택 시:
+
+- 이번 달 마지막 수업까지 기존 반에서 정상 노출
+- 다음 달 1일부터 기존 반 명단에서 제외
+- 다음 달 1일부터 새 반 명단에 포함
+- 학생 상세는 ‘이동 예정’ 또는 정확한 예약 상태로 표시
+- 단순 ‘연기’ 상태로 즉시 바꾸어 현재 상태와 모순되지 않게 함
+
+현재 제품 정책이 정말 ‘연기’ 상태를 사용해야 한다면:
+
+- 연기 시작일이 다음 달 1일로 저장되어야 함
+- 명단 API도 수업일 기준으로 연기 시작일 이후 제외해야 함
+
+둘 중 기존 설계와 맞는 하나만 사용한다.
+
+임의로 status만 바꾸는 방식 금지.
+
+8. 중복·회귀 방지
+
+다음 테스트를 반드시 통과시킨다.
+
+- 즉시 이동
+- 다음 달부터 이동
+- 이동 예약 취소
+- 같은 학생 재이동
+- 월말 30/31일
+- 2월 말
+- KST 자정 경계
+- 주 1/2/3회 학생
+- 다중 반 assigned_class_ids
+- 보강 배정 학생
+- 퇴원/연기 학생
+- 현재 달 명단
+- 다음 달 명단
+
+━━━━━━━━━━━━━━━━━━━━━━
+PART C. 기존 보강 수정 회귀 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 조사 과정에서 기존 보강 기능을 다시 망가뜨리지 않는다.
+
+확인:
+
+- 보강반 선택
+- 회차 표시
+- 배정 확정
+- onPress={() => doAssign()} 유지
+- cyclical JSON 오류 없음
+- 모달 종료 후 overlay 없음
+- 기간 지난 보강 표시
+- Android 하단 스크롤
+
+관련 코드 변경이 필요하지 않으면 건드리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+PART D. 구현 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+원인이 확정되면 최소 수정까지 진행한다.
+
+허용 예상 파일:
+
+- artifacts/swim-app/app/(teacher)/makeups.tsx
+  (PART A가 실제 클라이언트 필터/스크롤 문제일 때만)
+
+- artifacts/api-server/src/routes/teachers.ts
+  (PART A teacher API 문제일 때만)
+
+- 학생 이동 관련 클라이언트 파일
+- artifacts/api-server/src/routes/students.ts
+  또는 실제 move-class 라우트 파일
+- 수업 명단 조회 관련 서버/클라이언트 파일
+
+필요 없는 파일은 수정하지 않는다.
+
+금지:
+
+- SessionContext/AuthContext
+- 구독 코드
+- API_BASE
+- DB schema 변경
+- 수동 운영 DB UPDATE/INSERT/DELETE
+- 공개 debug endpoint
+- X모드
+- attached_assets 커밋
+
+━━━━━━━━━━━━━━━━━━━━━━
+PART E. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. PART A 실제 DB 7월 expired 건수
+2. 유지훈 교사 API 응답 7월 expired 건수
+3. FlatList data의 7월 expired 건수
+4. 7월 항목이 사라지는 정확한 단계
+5. PART A 직접 원인
+6. PART A 수정 파일과 diff
+7. 김다운 학생 DB 원문
+8. 다음 달 이동 요청 body
+9. 서버 move-class 분기 원문
+10. 현재 달/다음 달 명단 계산 결과
+11. PART B 직접 원인
+12. PART B 수정 파일과 diff
+13. 보강 회귀 테스트 결과
+14. 타입체크
+15. git status
+16. 기준 SHA
+17. 변경 파일 목록
+18. Push/Render/OTA 필요 범위
+
+구현과 정적 검수까지 진행한 후 멈춘다.
+
+Commit / Push / Render / OTA / 운영 DB 수동 수정은 별도 승인 전 금지.

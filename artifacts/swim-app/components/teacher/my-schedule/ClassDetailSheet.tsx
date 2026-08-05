@@ -31,7 +31,7 @@ import { TeacherClassGroup } from "@/components/teacher/types";
 import PastelColorPicker from "@/components/common/PastelColorPicker";
 import { SubSheetModal } from "@/components/common/SubSheetModal";
 import { WEEKLY_BADGE } from "@/utils/studentUtils";
-import { ChangeLogItem, StudentItem, todayDateStr } from "./utils";
+import { ChangeLogItem, StudentItem, todayDateStr, currentMonthStr } from "./utils";
 
 const C = Colors.light;
 
@@ -775,12 +775,17 @@ export default function ClassDetailSheet({
       return [...studentsByDate];
     }
     // current 모드 또는 미지정 (기존 호환)
+    const thisMonth = currentMonthStr();
     return studentsByDate
       ? [...studentsByDate]
       : students.filter(st =>
           ((Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(group.id))
           || st.class_group_id === group.id)
           && (!st.class_enrolled_at || st.class_enrolled_at <= todayDateStr())
+          // 다음 달 예약 상태(pending_effective_month)가 이미 도래한 학생 제외
+          && !(st.pending_effective_mode === "next_month"
+               && st.pending_effective_month
+               && st.pending_effective_month <= thisMonth)
         );
   }, [studentListMode, studentsByDateError, studentsByDate, students, group.id]);
 
