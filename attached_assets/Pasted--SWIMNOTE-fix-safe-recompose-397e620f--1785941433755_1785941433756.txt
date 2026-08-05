@@ -1,0 +1,340 @@
+[SWIMNOTE 보강 잔여 오류 — 안전 브랜치 재구성 및 배포 승인]
+
+현재 상태:
+
+- 오염 가능 로컬 브랜치: fix/safe-recompose @ 397e620f
+- 원격 정상 기준: origin/fix/safe-recompose @ f928659a
+- 로컬은 원격보다 8 commits 앞
+- 이번 승인 변경 파일:
+  1. artifacts/api-server/src/routes/teachers.ts
+  2. artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+- untracked attached_assets는 절대 포함하지 않는다.
+
+목표:
+
+원격 정상 기준 f928659a에서 새 긴급 브랜치를 만들고,
+현재 두 파일의 diff만 이식하여 배포한다.
+
+운영 DB 누락 1건 INSERT는 이번 승인 범위에서 제외한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 1. 현재 오염 상태 백업
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 브랜치와 작업 내용을 보존한다.
+
+git branch backup/makeup-remaining-contaminated-397e620f
+
+두 파일 diff만 patch로 저장한다.
+
+git diff -- \
+  artifacts/api-server/src/routes/teachers.ts \
+  "artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx" \
+  > /tmp/swimnote_makeup_remaining_fix.patch
+
+검증:
+
+git apply --check /tmp/swimnote_makeup_remaining_fix.patch
+
+patch 파일에 아래 두 파일 외 항목이 있으면 중단한다.
+
+grep '^diff --git' /tmp/swimnote_makeup_remaining_fix.patch
+
+기대:
+
+- artifacts/api-server/src/routes/teachers.ts
+- artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 2. 현재 tracked 변경 원복
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 로컬 브랜치에서 두 파일만 원복한다.
+
+git restore artifacts/api-server/src/routes/teachers.ts
+git restore "artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx"
+
+attached_assets 비추적 파일은 stage하거나 commit하지 않는다.
+
+확인:
+
+git status --short
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 3. 원격 정상 기준에서 신규 브랜치 생성
+━━━━━━━━━━━━━━━━━━━━━━
+
+원격 갱신:
+
+git fetch origin
+
+신규 브랜치:
+
+git checkout -b hotfix/makeup-expiry-scroll-f928659a origin/fix/safe-recompose
+
+확인:
+
+git rev-parse HEAD
+git rev-parse origin/fix/safe-recompose
+git status --short
+
+조건:
+
+- HEAD = f928659a
+- origin/fix/safe-recompose = f928659a
+- tracked working tree clean
+
+불일치하면 reset/rebase/merge하지 말고 중단한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 4. 두 파일 patch 적용
+━━━━━━━━━━━━━━━━━━━━━━
+
+git apply --check /tmp/swimnote_makeup_remaining_fix.patch
+git apply /tmp/swimnote_makeup_remaining_fix.patch
+
+확인:
+
+git diff --name-status
+
+허용 결과:
+
+M artifacts/api-server/src/routes/teachers.ts
+M artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+
+다른 파일이 있으면 중단한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 5. 최종 코드 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+teachers.ts 필수 조건:
+
+- sql.raw 사용 없음
+- poolId 직접 문자열 삽입 없음
+- UPDATE와 SELECT 동일 db.transaction
+- transaction 안에서 tx.execute만 사용
+- 현재 swimming_pool_id만 변경
+- waiting만 expired로 변경
+- assigned/completed/cancelled 변경 없음
+- 실패를 숨기지 않고 API 500 처리
+
+ClassDetailSheet.tsx 필수 조건:
+
+- useSafeAreaInsets 적용
+- removeClippedSubviews={false}
+- FlatList style에 flex:1, minHeight:0 유지
+- paddingBottom = Math.max(insets.bottom, 16) + 32
+- PanResponder 및 모달 구조 변경 없음
+
+전체 diff를 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 6. 타입체크
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버:
+
+pnpm --filter @workspace/api-server run typecheck
+
+앱:
+
+pnpm --filter @workspace/swim-app exec tsc --noEmit
+
+판정:
+
+- teachers.ts 신규 오류 0
+- ClassDetailSheet.tsx 신규 오류 0
+- 기존 무관 오류는 별도 구분
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 7. 커밋
+━━━━━━━━━━━━━━━━━━━━━━
+
+두 파일만 명시적으로 stage한다.
+
+git add \
+  artifacts/api-server/src/routes/teachers.ts \
+  "artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx"
+
+커밋:
+
+git commit -m "fix: sync expired makeups and restore Android footer scrolling"
+
+커밋 검증:
+
+git show --name-status --oneline HEAD
+git status --short
+git diff --name-status f928659a..HEAD
+
+최종 diff는 두 파일만 허용한다.
+
+Replit 자동 커밋으로 attached_assets 또는 다른 파일이 포함되면 Push하지 말고 중단한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 8. GitHub Push
+━━━━━━━━━━━━━━━━━━━━━━
+
+일반 push만 수행한다.
+
+git push -u origin hotfix/makeup-expiry-scroll-f928659a
+
+금지:
+
+- force push
+- rebase
+- 기존 fix/safe-recompose 원격 변경
+- clean/wp6-capability 변경
+
+제출:
+
+- 신규 commit SHA
+- parent SHA = f928659a 확인
+- origin 신규 브랜치 SHA
+- 변경 파일 두 개 확인
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 9. Render 서버 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 commit SHA를 직접 지정하여 Render 배포한다.
+
+확인:
+
+- Deployment ID
+- 배포 SHA = 신규 commit
+- live 상태
+- health check 정상
+- migration 없음
+- DB schema 변경 없음
+
+서버 배포 후 GET /teacher/makeups 호출 시:
+
+- 만료된 waiting이 expired로 변경
+- waiting 조회 응답에 waiting + expired 포함
+- 다른 수영장 변경 0건
+- assigned/completed/cancelled 변경 0건
+
+운영 DB에 별도 UPDATE 스크립트를 실행하지 않는다.
+API 동작에 따른 정책상 자동 전환만 허용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 10. iOS OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render live 확인 후 진행한다.
+
+중요:
+.env의 swimnote.kr 주소를 사용하지 않는다.
+
+명시적 환경변수:
+
+EXPO_PUBLIC_API_URL=https://swimnote-api.onrender.com/api
+EXPO_PUBLIC_DOMAIN=swimnote-api.onrender.com
+
+runtimeVersion:
+
+1.6.1 유지
+
+production → preview 순으로 배포한다.
+
+메시지:
+
+fix: show expired makeups and restore Android class list scrolling
+
+번들 발행 전 검증:
+
+- swimnote-api.onrender.com/api 포함
+- https://swimnote.kr/api 미포함
+
+제출:
+
+- bundle SHA-256
+- production Update Group ID
+- preview Update Group ID
+- 포함 commit SHA
+- runtimeVersion
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 11. 실기기 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. Android 스크롤
+
+수업 스케줄러
+→ 반 상세
+→ 학생 목록 끝까지 스크롤
+
+확인:
+
+- 보강 학생 마지막 행 완전 노출
+- 마지막 행 버튼 터치 가능
+- 빠른 스크롤 20회 정상
+- 시트가 따라 내려가거나 닫히지 않음
+
+B. 7월 기간 지난 보강
+
+교사별 보강 대기 화면 확인:
+
+- 기간 지난 보강 배지 표시
+- 7월 항목 표시
+- 일반 waiting 먼저, expired 뒤
+- 가장 아래까지 스크롤 가능
+- expired 항목 선택 가능
+
+C. 회귀
+
+- 구독취소 화면 미노출
+- 보강반 선택 및 날짜 표시 정상
+- 배정 확정 정상
+- 모달 종료 후 overlay 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 12. 누락 보강 1건은 실행 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+student_1782281865294_q75jcfm18
+absence_date = 2026-07-31
+
+이번 배포에서 INSERT하지 않는다.
+
+별도 승인 전 확인할 것:
+
+- 기존 autoCreateMakeup의 source_type 실제 기본값
+- 모든 필수 컬럼
+- 중복 방지 조건
+- 생성 함수 재사용 가능 여부
+
+수동 SQL INSERT는 아직 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 13. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 신규 브랜치
+2. 기준 SHA f928659a
+3. 신규 commit SHA
+4. 변경 파일 두 개
+5. Render Deployment ID 및 live SHA
+6. production/preview Update Group ID
+7. 번들 API_BASE
+8. Android 마지막 보강 학생 노출 여부
+9. 7월 expired 표시 여부
+10. 구독 정상 여부
+11. 보강 배정 정상 여부
+12. git status
+13. 누락 1건 미복구 확인
+
+보고 후 멈춘다.
+
+절대 금지:
+
+- clean/wp6-capability 추가 변경
+- fix/safe-recompose 기존 원격 덮어쓰기
+- force push
+- 운영 DB 수동 UPDATE
+- 운영 DB INSERT
+- 구독 코드 수정
+- X모드 작업 재개
