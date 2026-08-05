@@ -31,7 +31,7 @@ export default function AdminXGrowthScreen() {
   const insets = useSafeAreaInsets();
 
   return (
-    <XModeGuard allowedKind="admin" allowedRole="pool_admin">
+    <XModeGuard allowedKind="admin" allowedRole="pool_admin" requiredCapability="growth_tracking">
       <View style={{ flex: 1, backgroundColor: C.background }}>
         {/* 헤더 */}
         <View style={[s.header, { paddingTop: insets.top + 14 }]}>

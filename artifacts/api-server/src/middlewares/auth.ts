@@ -312,6 +312,7 @@ export function requirePlatformRole(...roles: string[]) {
 //   - 기존 일반 API에 적용 금지
 //
 import { resolvePoolMode } from "../lib/xmode.js";
+import { computeXCapabilities, type XCapabilityKey } from "../lib/x-capabilities.js";
 
 export function requireXMode(
   req: AuthRequest,
@@ -379,4 +380,102 @@ export function requireXMode(
       console.error("[requireXMode] DB 오류:", err);
       res.status(500).json({ success: false, error: "서버 오류가 발생했습니다." });
     });
+}
+
+// ── requireXCapability ────────────────────────────────────────────────────
+//
+// SWIMNOTE X 기능별 Capability Guard (WP6).
+// requireXMode보다 세밀한 판정: mode==="x"를 전제하고 기능별 Capability를 확인한다.
+//
+// 처리 순서:
+//   1. 인증된 사용자의 poolId — DB 직접 결정 (JWT 신뢰 금지)
+//   2. pool 미존재 → 404 POOL_NOT_FOUND
+//   3. resolvePoolMode(poolId)
+//   4. mode !== "x" → 403 XMODE_NOT_READY
+//   5. computeXCapabilities(result)
+//   6. capability=false → 403 X_CAPABILITY_DISABLED
+//   7. capability=true → next()
+//
+// 현재 연결할 실제 X Backend Route가 없으므로 선언 + 단위 테스트까지만 작성.
+// 기존 일반 Route에는 적용하지 않는다.
+// 클라이언트가 전달한 capability/mode 값은 신뢰하지 않는다.
+//
+export function requireXCapability(capabilityKey: XCapabilityKey) {
+  return (req: AuthRequest, res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: "인증이 필요합니다.", error: "인증이 필요합니다." });
+      return;
+    }
+
+    const role = req.user.role;
+    const userId = req.user.userId;
+
+    const resolvePoolId = async (): Promise<string | null> => {
+      if (role === "pool_admin" || role === "teacher") {
+        const row = await superAdminDb.execute(
+          sql`SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1`,
+        );
+        return (row.rows[0] as any)?.swimming_pool_id ?? null;
+      }
+      if (role === "parent_account") {
+        const row = await superAdminDb.execute(
+          sql`SELECT swimming_pool_id FROM parent_accounts WHERE id = ${userId} LIMIT 1`,
+        );
+        return (row.rows[0] as any)?.swimming_pool_id ?? null;
+      }
+      if (role === "super_admin") {
+        const qid = (req.query as any).pool_id as string | undefined;
+        const pid = (req.params as any).id as string | undefined;
+        return qid ?? pid ?? null;
+      }
+      return null;
+    };
+
+    resolvePoolId()
+      .then(async (poolId) => {
+        if (!poolId) {
+          const isUnknownRole = !["pool_admin", "teacher", "parent_account", "super_admin"].includes(role);
+          if (isUnknownRole) {
+            res.status(403).json({ success: false, message: "권한이 없습니다.", error: "권한이 없습니다." });
+          } else {
+            res.status(404).json({ success: false, error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." });
+          }
+          return;
+        }
+
+        const result = await resolvePoolMode(poolId);
+
+        if (!result) {
+          res.status(404).json({ success: false, error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." });
+          return;
+        }
+
+        if (result.mode !== "x") {
+          res.status(403).json({
+            success: false,
+            error: "XMODE_NOT_READY",
+            message: "X 모드 설정이 완료되지 않았습니다.",
+          });
+          return;
+        }
+
+        const capabilities = computeXCapabilities(result);
+
+        if (!capabilities[capabilityKey]) {
+          res.status(403).json({
+            success: false,
+            error: "X_CAPABILITY_DISABLED",
+            capability: capabilityKey,
+            message: "현재 사용할 수 없는 기능입니다.",
+          });
+          return;
+        }
+
+        next();
+      })
+      .catch((err) => {
+        console.error("[requireXCapability] DB 오류:", err);
+        res.status(500).json({ success: false, error: "서버 오류가 발생했습니다." });
+      });
+  };
 }

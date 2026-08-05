@@ -30,7 +30,7 @@ export default function TeacherXGrowthScreen() {
   const insets = useSafeAreaInsets();
 
   return (
-    <XModeGuard allowedKind="admin" allowedRole="teacher">
+    <XModeGuard allowedKind="admin" allowedRole="teacher" requiredCapability="growth_tracking">
       <View style={{ flex: 1, backgroundColor: C.background }}>
         {/* 헤더 */}
         <View style={[s.header, { paddingTop: insets.top + 14 }]}>

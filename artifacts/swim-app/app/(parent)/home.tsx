@@ -842,7 +842,7 @@ function DiaryFeedItem({
 export default function ParentHomeScreen() {
   const insets = useSafeAreaInsets();
   const { token, parentAccount, pool, parentPoolName, logout } = useAuth();
-  const { mode } = useMode();
+  const { mode, hasCapability } = useMode();
   const {
     students,
     selectedStudent,
@@ -1404,26 +1404,34 @@ export default function ParentHomeScreen() {
           style={({ pressed }) => ({
             marginHorizontal: 20, marginBottom: 6,
             flexDirection: "row", alignItems: "center", gap: 10,
-            backgroundColor: mode === "x" ? "#E6FAF8" : "#F8FAFC",
+            backgroundColor: hasCapability("growth_report") ? "#E6FAF8" : "#F8FAFC",
             borderRadius: 12, padding: 12,
-            borderWidth: 1, borderColor: mode === "x" ? "#2EC4B6" : "#E2E8F0",
-            opacity: pressed && mode === "x" ? 0.75 : 1,
+            borderWidth: 1, borderColor: hasCapability("growth_report") ? "#2EC4B6" : "#E2E8F0",
+            opacity: pressed && hasCapability("growth_report") ? 0.75 : 1,
           })}
-          onPress={() => mode === "x" && router.push("/(parent)/x-growth" as any)}
-          disabled={mode !== "x"}
+          onPress={() => hasCapability("growth_report") && router.push("/(parent)/x-growth" as any)}
+          disabled={!hasCapability("growth_report")}
         >
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: mode === "x" ? "#fff" : "#F1F5F9", alignItems: "center", justifyContent: "center" }}>
-            <LucideIcon name="activity" size={17} color={mode === "x" ? "#2EC4B6" : "#94A3B8"} />
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: hasCapability("growth_report") ? "#fff" : "#F1F5F9", alignItems: "center", justifyContent: "center" }}>
+            <LucideIcon name="activity" size={17} color={hasCapability("growth_report") ? "#2EC4B6" : "#94A3B8"} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: mode === "x" ? "#0F172A" : "#94A3B8" }}>
-              {mode === "x" ? "성장 리포트 보기" : "X 설정 완료 후 이용 가능"}
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: hasCapability("growth_report") ? "#0F172A" : "#94A3B8" }}>
+              {hasCapability("growth_report")
+                ? "성장 리포트 보기"
+                : mode === "x"
+                  ? "성장 관리 기능 준비 중"
+                  : "X 설정 완료 후 이용 가능"}
             </Text>
-            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: mode === "x" ? "#64748B" : "#94A3B8", marginTop: 1 }}>
-              {mode === "x" ? "AI가 분석한 수영 성장 현황" : "SWIMNOTE X 기능 준비중"}
+            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: hasCapability("growth_report") ? "#64748B" : "#94A3B8", marginTop: 1 }}>
+              {hasCapability("growth_report")
+                ? "AI가 분석한 수영 성장 현황"
+                : mode === "x"
+                  ? "추후 제공 예정"
+                  : "SWIMNOTE X 기능 준비중"}
             </Text>
           </View>
-          {mode === "x" && <LucideIcon name="chevron-right" size={16} color="#64748B" />}
+          {hasCapability("growth_report") && <LucideIcon name="chevron-right" size={16} color="#64748B" />}
         </Pressable>
       )}
 

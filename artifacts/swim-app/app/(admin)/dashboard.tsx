@@ -53,7 +53,7 @@ const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }>
 export default function DashboardScreen() {
   const { adminUser, pool, logout, token, switchRole, setLastUsedRole } = useAuth();
   const { themeColor } = useBrand();
-  const { mode } = useMode();
+  const { mode, hasCapability } = useMode();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("dashboard");
 
@@ -646,7 +646,16 @@ export default function DashboardScreen() {
                     </Text>
                   </View>
                 </View>
-                {mode === "x" ? (
+                {mode === "x_pending" ? (
+                  // x_pending: 설정 미완료 안내
+                  <View style={{ backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <LucideIcon name="lock" size={13} color="#94A3B8" />
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" }}>
+                      X 설정을 완료하면 이용할 수 있어요
+                    </Text>
+                  </View>
+                ) : hasCapability("growth_tracking") ? (
+                  // mode=x AND growth_tracking=true → 진입 버튼 (현재 미활성)
                   <Pressable
                     style={({ pressed }) => ({
                       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
@@ -664,10 +673,11 @@ export default function DashboardScreen() {
                     <LucideIcon name="chevron-right" size={14} color="#64748B" />
                   </Pressable>
                 ) : (
+                  // mode=x이지만 growth_tracking=false → 준비 중
                   <View style={{ backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <LucideIcon name="lock" size={13} color="#94A3B8" />
+                    <LucideIcon name="clock" size={13} color="#94A3B8" />
                     <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" }}>
-                      X 설정을 완료하면 이용할 수 있어요
+                      성장 관리 기능 준비 중
                     </Text>
                   </View>
                 )}

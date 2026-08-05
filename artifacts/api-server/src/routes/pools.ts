@@ -7,6 +7,7 @@ import { swimmingPoolsTable, usersTable, parentAccountsTable } from "@workspace/
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { resolvePoolMode } from "../lib/xmode.js";
+import { computeXCapabilities, CAPABILITY_VERSION } from "../lib/x-capabilities.js";
 import { sanitizePoolName } from "../utils/filename.js";
 import { signToken } from "../lib/auth.js";
 import { resolveSubscription } from "../lib/subscriptionService.js";
@@ -480,7 +481,12 @@ router.get("/x-mode", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
-    res.json(result);
+    // WP6: capabilities + capability_version 추가 (기존 필드 유지 — 하위 호환)
+    res.json({
+      ...result,
+      capabilities: computeXCapabilities(result),
+      capability_version: CAPABILITY_VERSION,
+    });
   } catch (err) {
     console.error("[GET /pools/x-mode]", err);
     res.status(500).json({ error: "서버 오류가 발생했습니다." });
