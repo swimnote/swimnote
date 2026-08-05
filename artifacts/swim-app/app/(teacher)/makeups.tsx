@@ -336,8 +336,15 @@ export default function MakeupsScreen() {
     }
   };
   const doAssign = async (allowExpired = false) => {
-    console.log("[ASSIGN-1] start");
+    Alert.alert("ASSIGN-1", "doAssign 시작");
+    Alert.alert("ASSIGN-GUARD", JSON.stringify({
+      hasAssignTarget: !!assignTarget,
+      hasSelectedClassId: !!selectedClassId,
+      hasSelectedOccurrence: !!selectedOccurrence,
+      selectedDate,
+    }));
     if (!assignTarget || !selectedClassId || !selectedOccurrence) return;
+    Alert.alert("ASSIGN-2", "guard 통과");
     // 기간 지난 보강: 최초 시도 시 확인 Alert
     if (assignTarget.is_expired && !allowExpired) {
       Alert.alert(
@@ -358,7 +365,7 @@ export default function MakeupsScreen() {
       // 서버 응답 occ 기준 class_group_id 사용 (selectedClassId는 화면 표시용)
       const occClassId = selectedOccurrence.class_group_id;
       if (selectedOccurrence.is_future) {
-        console.log("[ASSIGN-2] request", { makeupId, selectedOccurrence, selectedClassId });
+        Alert.alert("ASSIGN-3", "API 호출");
         const r = await apiRequest(token, `/teacher/makeups/${makeupId}/assign`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -367,7 +374,7 @@ export default function MakeupsScreen() {
         const ct = r.headers?.get?.("content-type") ?? "";
         const isJson = ct.includes("application/json");
         const body = isJson ? await r.json().catch(() => ({})) : {};
-        console.log("[ASSIGN-3] response", r.status, body);
+        Alert.alert("ASSIGN-4", `${r.status}`);
         if (r.ok && isJson) {
           resetOccState(); setAssignTarget(null);
           loadWaiting(); loadAssigned(); setTab("assigned");
@@ -379,7 +386,7 @@ export default function MakeupsScreen() {
         }
       } else {
         // 당일 또는 과거 — complete-direct
-        console.log("[ASSIGN-2] request", { makeupId, selectedOccurrence, selectedClassId });
+        Alert.alert("ASSIGN-3", "API 호출");
         const r = await apiRequest(token, `/teacher/makeups/${makeupId}/complete-direct`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -388,7 +395,7 @@ export default function MakeupsScreen() {
         const ct = r.headers?.get?.("content-type") ?? "";
         const isJson = ct.includes("application/json");
         const body = isJson ? await r.json().catch(() => ({})) : {};
-        console.log("[ASSIGN-3] response", r.status, body);
+        Alert.alert("ASSIGN-4", `${r.status}`);
         if (r.ok) {
           resetOccState(); setAssignTarget(null);
           loadWaiting(); loadAssigned();
@@ -398,10 +405,10 @@ export default function MakeupsScreen() {
         }
       }
     } catch (error) {
-      console.error("[ASSIGN-4] error", error);
+      Alert.alert("ASSIGN-ERROR", String(error));
       setConfirmMsg("네트워크 오류가 발생했습니다.");
     } finally {
-      console.log("[ASSIGN-5] finally");
+      Alert.alert("ASSIGN-FINALLY", "done");
     }
     setAssigning(false);
   };
