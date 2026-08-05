@@ -1064,7 +1064,25 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
         await tx.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
       });
     } else {
-      await db.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
+      // next_month 예약 취소 후 active 복귀 시 → 미래 left_at으로 닫힌 history 복구
+      const needsHistoryReopen = new_status === "active"
+        && (existing as any).pending_effective_mode === "next_month"
+        && (existing as any).pending_effective_month;
+      if (needsHistoryReopen) {
+        const pendingFirstDay = `${(existing as any).pending_effective_month}-01`;
+        await db.transaction(async (tx) => {
+          await tx.execute(sql`
+            UPDATE student_class_history
+            SET left_at = NULL
+            WHERE student_id = ${req.params.id}
+              AND left_at = ${pendingFirstDay}::date
+          `);
+          await tx.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
+        });
+        console.log(`[change-status] ✅ next_month 예약 취소 → active 복구, history left_at 복원 (${pendingFirstDay})`);
+      } else {
+        await db.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
+      }
     }
     const [updated] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
     console.log(`[change-status] ✅ 즉시 변경 완료 → status: ${(updated as any).status}`);
