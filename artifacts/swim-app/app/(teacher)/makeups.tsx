@@ -336,6 +336,7 @@ export default function MakeupsScreen() {
     }
   };
   const doAssign = async (allowExpired = false) => {
+    console.log("[ASSIGN-1] start");
     if (!assignTarget || !selectedClassId || !selectedOccurrence) return;
     // 기간 지난 보강: 최초 시도 시 확인 Alert
     if (assignTarget.is_expired && !allowExpired) {
@@ -351,12 +352,14 @@ export default function MakeupsScreen() {
     }
     // occurrence_date를 신뢰 (selectedDate는 동기화 보조값)
     const occDate = selectedOccurrence.occurrence_date;
+    const makeupId = assignTarget.id;
     setAssigning(true);
     try {
       // 서버 응답 occ 기준 class_group_id 사용 (selectedClassId는 화면 표시용)
       const occClassId = selectedOccurrence.class_group_id;
       if (selectedOccurrence.is_future) {
-        const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/assign`, {
+        console.log("[ASSIGN-2] request", { makeupId, selectedOccurrence, selectedClassId });
+        const r = await apiRequest(token, `/teacher/makeups/${makeupId}/assign`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ class_group_id: occClassId, assigned_date: occDate, allow_expired: allowExpired }),
@@ -364,6 +367,7 @@ export default function MakeupsScreen() {
         const ct = r.headers?.get?.("content-type") ?? "";
         const isJson = ct.includes("application/json");
         const body = isJson ? await r.json().catch(() => ({})) : {};
+        console.log("[ASSIGN-3] response", r.status, body);
         if (r.ok && isJson) {
           resetOccState(); setAssignTarget(null);
           loadWaiting(); loadAssigned(); setTab("assigned");
@@ -375,7 +379,8 @@ export default function MakeupsScreen() {
         }
       } else {
         // 당일 또는 과거 — complete-direct
-        const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/complete-direct`, {
+        console.log("[ASSIGN-2] request", { makeupId, selectedOccurrence, selectedClassId });
+        const r = await apiRequest(token, `/teacher/makeups/${makeupId}/complete-direct`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ date: occDate, class_group_id: occClassId, allow_expired: allowExpired }),
@@ -383,6 +388,7 @@ export default function MakeupsScreen() {
         const ct = r.headers?.get?.("content-type") ?? "";
         const isJson = ct.includes("application/json");
         const body = isJson ? await r.json().catch(() => ({})) : {};
+        console.log("[ASSIGN-3] response", r.status, body);
         if (r.ok) {
           resetOccState(); setAssignTarget(null);
           loadWaiting(); loadAssigned();
@@ -391,7 +397,12 @@ export default function MakeupsScreen() {
           setConfirmMsg(body?.message || body?.error || "처리에 실패했습니다.");
         }
       }
-    } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
+    } catch (error) {
+      console.error("[ASSIGN-4] error", error);
+      setConfirmMsg("네트워크 오류가 발생했습니다.");
+    } finally {
+      console.log("[ASSIGN-5] finally");
+    }
     setAssigning(false);
   };
   const openHandoverDirect = async (mk: MakeupSession) => {
