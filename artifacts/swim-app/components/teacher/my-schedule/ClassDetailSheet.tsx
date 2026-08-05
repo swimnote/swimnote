@@ -22,6 +22,7 @@ interface MakeupOccurrence {
 import {
   Animated, ActivityIndicator, Alert, Dimensions, FlatList, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { ChevronRight, CircleAlert, Users, UserX, X } from "lucide-react-native";
@@ -236,6 +237,7 @@ export default function ClassDetailSheet({
   /** 반이동/미배정 성공 후 부모가 학생 목록을 재조회하도록 호출 */
   onStudentsChanged?: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   const myLogs = useMemo(() =>
     (weekChangeLogs || []).filter(l => l.class_group_id === group.id),
     [weekChangeLogs, group.id]
@@ -1054,7 +1056,7 @@ export default function ClassDetailSheet({
               keyExtractor={(item) => item.id}
               renderItem={renderStudentRow}
               style={cds.studentList}
-              contentContainerStyle={cds.studentListContent}
+              contentContainerStyle={[cds.studentListContent, { paddingBottom: Math.max(insets.bottom, 16) + 32 }]}
               keyboardShouldPersistTaps="always"
               keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
@@ -1062,7 +1064,7 @@ export default function ClassDetailSheet({
               maxToRenderPerBatch={8}
               updateCellsBatchingPeriod={40}
               windowSize={7}
-              removeClippedSubviews={Platform.OS === "android"}
+              removeClippedSubviews={false}
               ListHeaderComponent={listHeader}
               ListEmptyComponent={listEmpty}
               ListFooterComponent={listFooter}

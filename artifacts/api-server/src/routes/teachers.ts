@@ -617,41 +617,57 @@ router.get("/teacher/makeups", requireAuth,
       // status=waiting(또는 미지정/pending) → waiting + expired 모두 반환
       // 기간 지난 보강도 목록에서 계속 표시
       const isWaitingQuery = !status || status === "waiting" || status === "pending";
-      const dbStatus = isWaitingQuery ? null : (status === "pending" ? "waiting" : status);
+      const dbStatus: string | null = isWaitingQuery ? null : (status === "pending" ? "waiting" : status);
       const poolId = await getMyPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
-      const statusClause = isWaitingQuery
-        ? `AND ms.status IN ('waiting', 'expired')`
-        : `AND ms.status = '${dbStatus}'`;
+      // ── auto-expire + SELECT: 동일 transaction 처리 ──────────────────────
+      // 1) waiting 중 expire_at이 지난 건을 expired로 전환 (이 풀만)
+      // 2) 전환 직후 목록 조회 (parameter binding 사용)
+      const statusFilter = isWaitingQuery
+        ? sql`AND ms.status IN ('waiting', 'expired')`
+        : sql`AND ms.status = ${dbStatus}`;
 
-      const rows = ((await (db as any).execute(sql.raw(`
-        SELECT ms.*, u.name AS student_name_from_user
-        FROM makeup_sessions ms
-        LEFT JOIN users u ON u.id = ms.student_id
-        WHERE ms.swimming_pool_id = '${poolId}'
-          ${statusClause}
-          AND ms.cancelled_at IS NULL
-          AND (
-            ms.handed_to_teacher_id = '${userId}'
-            OR (
-              ms.handed_to_teacher_id IS NULL
-              AND (
-                ms.original_teacher_id = '${userId}'
-                OR EXISTS (
-                  SELECT 1 FROM class_groups cg
-                  WHERE cg.id = ms.original_class_group_id
-                    AND cg.co_teacher_ids @> to_jsonb('${userId}'::text)
+      const rows = await db.transaction(async (tx) => {
+        await tx.execute(sql`
+          UPDATE makeup_sessions
+          SET
+            status = 'expired',
+            updated_at = NOW()
+          WHERE swimming_pool_id = ${poolId}
+            AND status = 'waiting'
+            AND expire_at IS NOT NULL
+            AND expire_at < NOW()
+        `);
+
+        return ((await tx.execute(sql`
+          SELECT ms.*, u.name AS student_name_from_user
+          FROM makeup_sessions ms
+          LEFT JOIN users u ON u.id = ms.student_id
+          WHERE ms.swimming_pool_id = ${poolId}
+            ${statusFilter}
+            AND ms.cancelled_at IS NULL
+            AND (
+              ms.handed_to_teacher_id = ${userId}
+              OR (
+                ms.handed_to_teacher_id IS NULL
+                AND (
+                  ms.original_teacher_id = ${userId}
+                  OR EXISTS (
+                    SELECT 1 FROM class_groups cg
+                    WHERE cg.id = ms.original_class_group_id
+                      AND cg.co_teacher_ids @> to_jsonb(${userId}::text)
+                  )
                 )
               )
             )
-          )
-        ORDER BY ms.absence_date ASC, ms.created_at ASC
-      `))) as any).rows as any[];
+          ORDER BY ms.absence_date ASC, ms.created_at ASC
+        `)) as any).rows as any[];
+      });
 
       // is_expired 필드 추가: status=expired 또는 expire_at이 KST 현재 시각 이전
       const kstNow = toKstDateStr(new Date());
-      const result = rows.map((r: any) => ({
+      const result = (rows as any[]).map((r: any) => ({
         ...r,
         is_expired:
           r.status === "expired" ||
