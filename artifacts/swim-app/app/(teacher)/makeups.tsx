@@ -237,6 +237,28 @@ export default function MakeupsScreen() {
     setOccErrorDetail(null);
   };
 
+  /** 보강반 배정 모달 공통 종료 함수 — 모든 닫기 경로에서 이 함수만 호출 */
+  const closeAssignModal = useCallback(() => {
+    occSeqRef.current += 1;
+    occPendingRef.current.clear();
+    setAssignTarget(null);
+    setSelectedClassId(null);
+    setSelectedDate(null);
+    setSelectedOccurrence(null);
+    setOccurrences([]);
+    setOccLoading(false);
+    setOccError(false);
+    setOccErrorDetail(null);
+  }, []);
+
+  // unmount 시 in-flight 요청 무효화
+  useEffect(() => {
+    return () => {
+      occSeqRef.current += 1;
+      occPendingRef.current.clear();
+    };
+  }, []);
+
   const openAssignModal = async (mk: MakeupSession) => {
     setAssignTarget(mk);
     resetOccState();
@@ -797,10 +819,10 @@ export default function MakeupsScreen() {
         )
       )}
       {/* ── 보강반 배정 모달 ──────────────────────────────────────────────── */}
-      {assignTarget && (
-        <Modal visible animationType="slide" transparent onRequestClose={() => { resetOccState(); setAssignTarget(null); }} statusBarTranslucent>
-          <Pressable style={s.backdrop} onPress={() => { resetOccState(); setAssignTarget(null); }}>
-            <View style={s.sheet} onStartShouldSetResponder={() => true}>
+      <Modal visible={!!assignTarget} animationType="slide" transparent onRequestClose={closeAssignModal} statusBarTranslucent>
+        <View style={s.modalRoot} pointerEvents={assignTarget ? "box-none" : "none"}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeAssignModal} />
+          <View style={s.sheet}>
               <View style={s.sheetHandle} />
               <View style={s.sheetHeader}>
                 <View style={{ flex: 1 }}>
@@ -814,7 +836,7 @@ export default function MakeupsScreen() {
                   ) : (
                     <>
                       <Text style={s.sheetTitle}>보강반 배정</Text>
-                      <Text style={s.sheetSub}>{assignTarget.student_name} · 결석일: {fmtDate(assignTarget.absence_date)}</Text>
+                      <Text style={s.sheetSub}>{assignTarget?.student_name} · 결석일: {fmtDate(assignTarget?.absence_date ?? "")}</Text>
                     </>
                   )}
                 </View>
@@ -823,7 +845,7 @@ export default function MakeupsScreen() {
                     <LucideIcon name="arrow-left" size={20} color={C.textSecondary} />
                   </Pressable>
                 ) : (
-                  <Pressable onPress={() => { resetOccState(); setAssignTarget(null); }} style={{ padding: 4 }}>
+                  <Pressable onPress={closeAssignModal} style={{ padding: 4 }}>
                     <LucideIcon name="x" size={20} color={C.textSecondary} />
                   </Pressable>
                 )}
@@ -988,14 +1010,13 @@ export default function MakeupsScreen() {
                 </>
               )}
             </View>
-          </Pressable>
+          </View>
         </Modal>
-      )}
       {/* ── 지난 보강 직접 완료 모달 (새 3단계 흐름) ─────────────────────── */}
-      {directCompleteTarget && (
-        <Modal visible animationType="slide" transparent onRequestClose={closeDirectCompleteModal} statusBarTranslucent>
-          <Pressable style={s.backdrop} onPress={closeDirectCompleteModal}>
-            <View style={[s.sheet, { height: "70%" }]} onStartShouldSetResponder={() => true}>
+      <Modal visible={!!directCompleteTarget} animationType="slide" transparent onRequestClose={closeDirectCompleteModal} statusBarTranslucent>
+        <View style={s.modalRoot} pointerEvents={directCompleteTarget ? "box-none" : "none"}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeDirectCompleteModal} />
+          <View style={[s.sheet, { height: "70%" }]}>
               <View style={s.sheetHandle} />
               <View style={s.sheetHeader}>
                 <View style={{ flex: 1 }}>
@@ -1009,7 +1030,7 @@ export default function MakeupsScreen() {
                   ) : (
                     <>
                       <Text style={s.sheetTitle}>지난 보강 직접 완료</Text>
-                      <Text style={s.sheetSub}>{directCompleteTarget.student_name} · 결석일: {fmtDate(directCompleteTarget.absence_date)}</Text>
+                      <Text style={s.sheetSub}>{directCompleteTarget?.student_name} · 결석일: {fmtDate(directCompleteTarget?.absence_date ?? "")}</Text>
                     </>
                   )}
                 </View>
@@ -1158,14 +1179,13 @@ export default function MakeupsScreen() {
                 );
               })()}
             </View>
-          </Pressable>
+          </View>
         </Modal>
-      )}
       {/* ── 기타 보강 모달 ──────────────────────────────────────────────── */}
-      {handoverTarget && (
-        <Modal visible animationType="slide" transparent onRequestClose={closeHandover} statusBarTranslucent>
-          <Pressable style={s.backdrop} onPress={closeHandover}>
-            <View style={s.sheet} onStartShouldSetResponder={() => true}>
+      <Modal visible={!!handoverTarget} animationType="slide" transparent onRequestClose={closeHandover} statusBarTranslucent>
+        <View style={s.modalRoot} pointerEvents={handoverTarget ? "box-none" : "none"}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeHandover} />
+          <View style={s.sheet}>
               <View style={s.sheetHandle} />
               {/* ── 선생님 선택 단계 ── */}
               {handoverStep === "teacher_select" && (
@@ -1243,9 +1263,8 @@ export default function MakeupsScreen() {
                 </View>
               )}
             </View>
-          </Pressable>
+          </View>
         </Modal>
-      )}
       {/* 보강 완료 확인 모달 */}
       <ConfirmModal
         visible={!!completeTarget}
@@ -1302,6 +1321,7 @@ const s = StyleSheet.create({
   actionTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular" },
   assignedInfo:    { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 10, marginBottom: 10 },
   assignedInfoTxt: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED", lineHeight: 18 },
+  modalRoot:       { flex: 1 },
   backdrop:        { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
   sheet:           { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, height: "65%" },
   sheetHandle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginTop: 10, marginBottom: 4 },
