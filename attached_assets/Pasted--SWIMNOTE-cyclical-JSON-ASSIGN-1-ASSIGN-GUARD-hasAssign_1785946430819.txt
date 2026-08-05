@@ -1,0 +1,225 @@
+[SWIMNOTE 배정 확정 최종 오류 — cyclical JSON 직접 원인 수정]
+
+실기기 진단 결과:
+
+ASSIGN-1 실행
+ASSIGN-GUARD:
+- hasAssignTarget=true
+- hasSelectedClassId=true
+- hasSelectedOccurrence=true
+- selectedDate 존재
+
+ASSIGN-2 guard 통과
+ASSIGN-3 API 호출
+그 직후:
+TypeError: cyclical structure in JSON object
+ASSIGN-FINALLY 실행
+
+판정:
+
+- Pressable 정상
+- doAssign 정상 진입
+- 상태값 정상
+- guard 정상 통과
+- 서버 응답 전 클라이언트 JSON 직렬화 단계에서 실패
+- 서버·DB·인증 문제 아님
+
+이번에는 추측하지 말고 해당 순환 객체를 정확히 찾아 최소 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. JSON.stringify 전체 검색
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 범위의 JSON.stringify 호출을 모두 제출한다.
+
+- makeups.tsx의 doAssign 전체
+- apiRequest 전체
+- apiRequest 내부 로그/크래시 리포트
+- ASSIGN 진단 Alert
+- request options/body 생성부
+
+검색:
+
+JSON.stringify(
+selectedOccurrence
+assignTarget
+options
+request
+response
+error
+signal
+headers
+
+파일 경로와 라인번호를 포함한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 API body 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+미래 회차 assign 요청 body는 반드시 평면 값만 포함해야 한다.
+
+정상 형태:
+
+const requestBody = {
+  class_group_id: selectedOccurrence.class_group_id,
+  assigned_date: selectedOccurrence.occurrence_date,
+};
+
+body: JSON.stringify(requestBody)
+
+금지:
+
+- selectedOccurrence 객체 전체 전송
+- assignTarget 객체 전체 전송
+- PressEvent 전송
+- Response 객체 전송
+- AbortController 또는 signal 전송
+- React state 객체 전체 전송
+- options 객체 전체 재직렬화
+
+오늘·과거 complete-direct도 동일하게 평면 값만 사용한다.
+
+const requestBody = {
+  class_group_id: selectedOccurrence.class_group_id,
+  date: selectedOccurrence.occurrence_date,
+};
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. apiRequest 검사
+━━━━━━━━━━━━━━━━━━━━━━
+
+apiRequest 내부에서 다음 코드가 있는지 확인한다.
+
+JSON.stringify(options)
+JSON.stringify(error)
+JSON.stringify(response)
+JSON.stringify(requestInit)
+JSON.stringify({ ...options, signal })
+
+AbortSignal, Response, Error, Headers 또는 순환 객체를 통째로 stringify하면 안 된다.
+
+진단이 필요하면 원시값만 기록한다.
+
+예:
+
+{
+  method: options.method,
+  path,
+  hasBody: typeof options.body === "string",
+}
+
+토큰·body 전체·signal 객체를 로그용 JSON.stringify에 넣지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 스택 확보
+━━━━━━━━━━━━━━━━━━━━━━
+
+catch의 error.stack을 코드 검토 또는 개발 로그에서 확인하여
+예외가 발생한 정확한 JSON.stringify 라인을 제출한다.
+
+최종 보고 형식:
+
+직접 원인 파일:
+함수:
+라인:
+순환 객체:
+잘못된 JSON.stringify 원문:
+수정 후 원문:
+
+스택 없이 “selectedOccurrence 때문”이라고 추측하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 진단 Alert 전부 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 다음 임시 Alert를 모두 삭제한다.
+
+- ASSIGN-1
+- ASSIGN-GUARD
+- ASSIGN-2
+- ASSIGN-3
+- ASSIGN-4
+- ASSIGN-ERROR
+- ASSIGN-FINALLY
+
+운영 앱에 진단 팝업을 남기지 않는다.
+
+정상 오류만 기존 사용자용 Alert로 처리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 날짜 다시 선택 상태 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+별도로 발견된 상태 불일치도 함께 최소 수정한다.
+
+기존:
+
+onPress={() => setSelectedDate(null)}
+
+수정:
+
+onPress={() => {
+  setSelectedDate(null);
+  setSelectedOccurrence(null);
+}}
+
+단계 렌더 조건은 기존 구조를 유지하되
+selectedDate와 selectedOccurrence가 항상 함께 설정·초기화되게 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 미래 날짜 선택
+→ PATCH /teacher/makeups/:id/assign
+→ JSON 직렬화 오류 없음
+→ HTTP 응답 수신
+→ 배정 성공
+
+2. 오늘·과거 날짜
+→ PATCH /complete-direct
+→ 정상 완료
+
+3. 날짜 다시 선택
+→ 이전 occurrence 잔존 없음
+
+4. 같은 버튼 연속 터치
+→ assigning=true 동안 중복 차단
+
+5. 성공 후
+→ 배정 모달 닫힘
+→ 보강 대기에서 제거
+→ 배정된 보강 탭에 표시
+
+6. 실패 시
+→ 서버 status/message가 정상 Alert로 표시
+→ cyclical JSON 오류 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 변경 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+우선 허용 파일:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+
+apiRequest가 직접 원인이면 해당 정의 파일 1개 추가 허용.
+
+서버 변경 금지.
+DB 변경 금지.
+Render 재배포 금지.
+구독 코드 변경 금지.
+
+수정 후 제출:
+
+1. 정확한 예외 라인
+2. 순환 객체
+3. 변경 파일
+4. 전체 diff
+5. 최종 request body
+6. 진단 Alert 제거 확인
+7. 타입체크
+8. git status
+9. HEAD SHA
+
+Commit / Push / OTA는 승인 전 금지.
