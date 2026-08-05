@@ -1,0 +1,324 @@
+[SWIMNOTE 보강 배정 모달 종료 후 전체 화면 터치 차단 오류 수정]
+
+현재 실기기 증상:
+
+보강 대기
+→ 보강반 배정
+→ 반 선택
+→ 날짜 선택 화면
+→ X 또는 뒤로가기로 모달 종료
+→ 보강 대기 화면으로 돌아옴
+→ 화면 전체가 회색 overlay 상태로 남음
+→ 모든 버튼과 스크롤이 반응하지 않음
+→ 앱 재시작 전까지 조작 불가
+
+스크린샷상 모달 내용은 사라졌지만 backdrop 또는 투명 Modal이 화면 위에 남아
+pointer event를 가로막는 증상으로 판단한다.
+
+이번에는 assign API 조사와 분리한다.
+먼저 모달 종료 후 터치 차단 오류만 수정한다.
+
+금지:
+
+- 서버 코드 수정
+- assign API 수정
+- 보강 데이터 수정
+- 구독 코드 수정
+- Render 재배포
+- DB 수정
+- 다른 화면 리팩터링
+- X모드 작업
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 남는 overlay 경로 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상 파일:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+
+추가 확인:
+
+artifacts/swim-app/components/common/SubSheetModal.tsx
+
+보강 배정 흐름에 사용되는 모든 Modal, View, Pressable을 확인한다.
+
+검색:
+
+- <Modal
+- transparent
+- visible=
+- backdrop
+- StyleSheet.absoluteFill
+- position: "absolute"
+- pointerEvents
+- assignTarget
+- selectedClassId
+- selectedOccurrence
+- directCompleteTarget
+- handoverTarget
+- occLoading
+- close
+- onRequestClose
+- onPress
+
+각 모달의 visible 조건과 backdrop 렌더 조건을 표로 제출한다.
+
+형식:
+
+Modal 이름
+visible 조건
+backdrop 조건
+닫기 함수
+닫을 때 초기화되는 state
+닫은 후 남을 수 있는 state
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 보강 배정 state 전체 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 state들의 실제 선언과 사용처를 제출한다.
+
+- assignTarget
+- selectedClassId
+- selectedDate
+- selectedOccurrence
+- occurrences
+- occLoading
+- occError
+- occErrorDetail
+- directCompleteTarget
+- handoverTarget
+- 기타 보강 모달 visible state
+
+특히 날짜 선택 화면에서 X 또는 뒤로가기를 눌렀을 때
+어떤 state만 null이 되고 어떤 state가 남는지 확인한다.
+
+정상 종료 조건:
+
+assignTarget = null
+selectedClassId = null
+selectedDate = null
+selectedOccurrence = null
+occurrences = []
+occLoading = false
+occError = false
+occErrorDetail = null
+
+모든 값을 하나의 close 함수에서 정리해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 공통 종료 함수 하나로 통일
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 형태의 공통 함수로 통일한다.
+
+예시:
+
+const closeAssignModal = useCallback(() => {
+  occSeqRef.current += 1;
+  occPendingRef.current.clear();
+
+  setAssignTarget(null);
+  setSelectedClassId(null);
+  setSelectedDate(null);
+  setSelectedOccurrence(null);
+  setOccurrences([]);
+  setOccLoading(false);
+  setOccError(false);
+  setOccErrorDetail(null);
+}, []);
+
+실제 state 이름에 맞게 적용한다.
+
+다음 경로는 전부 같은 함수만 호출하게 한다.
+
+- Modal onRequestClose
+- backdrop onPress
+- X 버튼
+- 날짜 다시 선택
+- 단계 뒤로가기 중 최종 종료
+- 배정 성공 후 닫기
+- API 실패 후 사용자가 닫기
+- 화면 unmount cleanup
+
+부분 setState 여러 개를 각 버튼마다 따로 두지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. backdrop과 sheet를 sibling으로 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+잘못된 구조가 있는지 확인한다.
+
+금지 구조:
+
+<Pressable style={backdrop} onPress={close}>
+  <View style={sheet}>
+    ...
+  </View>
+</Pressable>
+
+권장 구조:
+
+<Modal transparent visible={!!assignTarget} onRequestClose={closeAssignModal}>
+  <View style={styles.modalRoot} pointerEvents="box-none">
+    <Pressable
+      style={StyleSheet.absoluteFill}
+      onPress={closeAssignModal}
+    />
+    <View style={styles.sheet}>
+      ...
+    </View>
+  </View>
+</Modal>
+
+backdrop이 sheet의 부모가 되지 않도록 한다.
+
+Modal visible=false 또는 assignTarget=null이면
+backdrop JSX도 완전히 unmount되어야 한다.
+
+숨김 처리만 하고 mounted 상태를 유지하지 않는다.
+
+금지:
+
+opacity: 0
+display 유사 처리
+translateY로 화면 밖 이동만 하고 backdrop 유지
+pointerEvents 기본값 상태로 invisible overlay 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. animation 종료와 state 종료 분리 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Animated.Value로 sheet만 화면 밖으로 이동시키고
+Modal visible state를 null로 만들지 않는 코드가 있는지 확인한다.
+
+잘못된 흐름:
+
+Animated.timing(...).start()
+→ sheet만 내려감
+→ assignTarget 유지
+→ backdrop 유지
+
+정상 흐름:
+
+Animated.timing(...).start(({ finished }) => {
+  if (finished) closeAssignModal();
+});
+
+또는 애니메이션이 필요 없으면 즉시 closeAssignModal 실행.
+
+dismissingRef가 있다면 종료 후 반드시 false로 복구한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. pointerEvents 명시
+━━━━━━━━━━━━━━━━━━━━━━
+
+모달이 닫힌 상태에서는 overlay가 렌더되지 않는 것이 1순위다.
+
+추가 안전장치:
+
+modal root:
+pointerEvents={assignTarget ? "auto" : "none"}
+
+단, 이 방식으로 잘못된 state 종료를 숨기지 않는다.
+visible 조건 자체를 정확히 고친 후 보조 안전장치로만 사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. unmount cleanup
+━━━━━━━━━━━━━━━━━━━━━━
+
+화면 이탈 또는 컴포넌트 unmount 시 요청과 overlay state를 정리한다.
+
+useEffect(() => {
+  return () => {
+    occSeqRef.current += 1;
+    occPendingRef.current.clear();
+  };
+}, []);
+
+unmount 후 setState를 발생시키는 오래된 API 응답도 차단한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. assign 버튼과는 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 별도 증상:
+
+- 배정 확정 버튼이 동작하지 않음
+
+이 문제는 이번 수정 범위에서 건드리지 않는다.
+
+이번 범위:
+
+- 모달 닫은 뒤 backdrop 제거
+- 화면 터치 정상 복구
+- 스크롤 정상 복구
+
+assign API 조사 및 저장 오류는 다음 단계로 분리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 필수 실기기 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+iOS에서 최소 다음을 반복한다.
+
+1.
+보강반 배정 열기
+→ 반 선택
+→ 날짜 선택
+→ X 닫기
+→ 보강 대기 화면의 스크롤과 버튼 터치
+
+2.
+동일 경로
+→ 뒤로가기
+→ 다시 뒤로가기 또는 X
+→ 터치 확인
+
+3.
+날짜 다시 선택 버튼
+→ 이전 단계
+→ 닫기
+→ 터치 확인
+
+4.
+모달 열기·닫기 20회 반복
+→ 회색 overlay 잔존 0회
+
+5.
+닫기 직전 API 요청 진행 중
+→ 닫기
+→ 늦은 응답 도착
+→ overlay 재등장 없음
+
+6.
+보강 대기 탭 전환
+→ 배정된 보강 탭
+→ 보강 현황 탭
+→ 정상 터치
+
+7.
+Android에서도 backdrop 종료 확인
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 직접 원인
+2. 남아 있던 state
+3. 남아 있던 overlay JSX
+4. 수정 전 visible 조건
+5. 수정 후 visible 조건
+6. 공통 closeAssignModal 원문
+7. backdrop/sheet 최종 JSX
+8. 변경 파일
+9. 전체 diff
+10. 타입체크
+11. 실기기 테스트 결과
+12. git status
+13. HEAD SHA
+14. 배포 필요 여부
+
+코드 수정 후 Push / OTA는 승인 전 금지한다.
+서버 변경은 하지 않는다.
