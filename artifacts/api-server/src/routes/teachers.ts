@@ -704,6 +704,7 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
     try {
       const { makeupId } = req.params;
       const { class_group_id } = req.query as { class_group_id?: string };
+      console.log("[diag-1] class_group_id:", class_group_id);
       const userId = req.user!.userId;
       const poolId = await getMyPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "POOL_NOT_FOUND" }); return; }
@@ -733,6 +734,8 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
       `)).rows as any[];
       if (!cgRows.length) { res.status(404).json({ error: "CLASS_NOT_FOUND" }); return; }
       const cg = cgRows[0];
+      console.log("[diag-2] classGroup:", JSON.stringify(cg));
+      console.log("[diag-3] schedule_days raw:", cg.schedule_days);
 
       // 3. 정원 계산 (eligible-classes 표준 — class_group_id + assigned_class_ids 모두 포함)
       const memberRows = (await db.execute(sql`
@@ -774,6 +777,7 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
 
       // 6. 요일 파싱 및 occurrence 생성
       const targetDays = parseDayNums((cg.schedule_days as string) || "");
+      console.log("[diag-4] parseDayNums result:", JSON.stringify([...targetDays]));
       const occurrences: any[] = [];
       const cursor = new Date(`${absenceDate}T00:00:00`);
       cursor.setDate(cursor.getDate() + 1); // 결석일 다음 날부터
@@ -804,6 +808,9 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
         }
         cursor.setDate(cursor.getDate() + 1);
       }
+      console.log("[diag-5] occurrences after generation:", JSON.stringify(occurrences));
+      console.log("[diag-6] occurrences after holiday removal:", JSON.stringify(occurrences));
+      console.log("[diag-7] res.json occurrences:", JSON.stringify(occurrences));
 
       res.json({
         makeup_id: makeupId,
