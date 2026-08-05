@@ -724,7 +724,7 @@ export default function MakeupsScreen() {
                 </React.Fragment>
               );
             });
-              })()
+              })()}
           </ScrollView>
         )
       )}
