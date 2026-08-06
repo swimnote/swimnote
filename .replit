@@ -49,6 +49,7 @@ VITE_API_BASE = "https://swimnote-api.onrender.com/api"
 EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL = "https://6f233dc5-6895-4ba0-9872-20f18b7cd5cc-00-1oorqtggrk5cm.pike.replit.dev"
 EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH = "/api/v1/teacher-diary/generate"
 EXPO_PUBLIC_SWIMNOTE_AI_MODE = "grounded"
+MATCH_TOKEN_KEY_ID = "v1"
 
 [userenv.development]
 SMS_DEV_EXPOSE_CODE = "true"
