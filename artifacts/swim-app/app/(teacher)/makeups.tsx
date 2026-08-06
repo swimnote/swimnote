@@ -10,7 +10,9 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
-import { apiRequest, clearApiCache, useAuth } from "@/context/AuthContext";
+import { apiRequest, clearApiCache, useAuth, API_BASE } from "@/context/AuthContext";
+import * as Updates from "expo-updates";
+import Constants from "expo-constants";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
@@ -157,10 +159,38 @@ export default function MakeupsScreen() {
   // sequence ID — 늦게 도착한 이전 반 응답이 현재 반을 덮어쓰지 않도록
   const occSeqRef     = useRef(0);
   const occPendingRef = useRef<Set<string>>(new Set());
+  // ── [DIAG] 진단 패널 ──────────────────────────────────────────────────────
+  const [diagVisible, setDiagVisible] = useState(false);
+  const diagTapRef = useRef(0);
+  const diagTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [diagWaiting, setDiagWaiting] = useState<{
+    url: string; status: number | null; ct: string | null;
+    total: number; expired: number; julyExpired: number; oldestDate: string | null; fetchedAt: string;
+  } | null>(null);
+  const [diagOcc, setDiagOcc] = useState<{
+    makeupId: string; classGroupId: string | null; url: string;
+    resolved: boolean; status: number | null; ct: string | null;
+    rawText: string; occCount: number | null; errName: string | null; errMsg: string | null; fetchedAt: string;
+  } | null>(null);
+  // ── [/DIAG] ───────────────────────────────────────────────────────────────
   const loadWaiting = useCallback(async () => {
     try {
       const res = await apiRequest(token, `/teacher/makeups?status=waiting`);
-      if (res.ok) setWaitingList(await res.json());
+      const ct = res.headers?.get?.("content-type") ?? null;
+      if (res.ok) {
+        const data: MakeupSession[] = await res.json();
+        setWaitingList(data);
+        // [DIAG] setWaitingList 직전 진단 수집
+        const exp = data.filter((x: any) => x.is_expired);
+        const julyExp = exp.filter((x: any) => x.absence_date >= "2026-07-01" && x.absence_date < "2026-08-01");
+        setDiagWaiting({
+          url: `${API_BASE}/teacher/makeups?status=waiting`,
+          status: res.status, ct, total: data.length,
+          expired: exp.length, julyExpired: julyExp.length,
+          oldestDate: exp.length > 0 ? (exp[0] as any).absence_date : null,
+          fetchedAt: new Date().toISOString(),
+        });
+      }
     } catch (e) { console.error(e); }
     finally { setWaitingLoading(false); setWaitingRefresh(false); }
   }, [token]);
@@ -304,6 +334,7 @@ export default function MakeupsScreen() {
     setOccError(false);
     setOccErrorDetail(null);
     setOccLoading(true);
+    const _occUrl = `${API_BASE}/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`;
     const _doRequest = async () =>
       apiRequest(token, `/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`);
     try {
@@ -317,6 +348,11 @@ export default function MakeupsScreen() {
       if (r.ok) {
         const data = await r.json();
         setOccurrences((data.occurrences || []) as MakeupOccurrence[]);
+        // [DIAG] 성공 수집
+        setDiagOcc({ makeupId: activeTarget.id, classGroupId: classId, url: _occUrl,
+          resolved: true, status: r.status, ct: r.headers?.get?.("content-type") ?? null,
+          rawText: "", occCount: (data.occurrences || []).length,
+          errName: null, errMsg: null, fetchedAt: new Date().toISOString() });
       } else {
         const status = r.status;
         const rawText = await r.text().catch(() => "");
@@ -327,9 +363,19 @@ export default function MakeupsScreen() {
           setOccError(true);
           setOccErrorDetail({ status, code: errorCode });
         }
+        // [DIAG] 오류 수집
+        setDiagOcc({ makeupId: activeTarget.id, classGroupId: classId, url: _occUrl,
+          resolved: true, status, ct: r.headers?.get?.("content-type") ?? null,
+          rawText: rawText.slice(0, 300), occCount: null,
+          errName: null, errMsg: errorCode, fetchedAt: new Date().toISOString() });
       }
-    } catch {
+    } catch (diagE: any) {
       if (occSeqRef.current === mySeq) setOccError(true);
+      // [DIAG] 예외 수집
+      setDiagOcc({ makeupId: activeTarget.id, classGroupId: classId, url: _occUrl,
+        resolved: false, status: null, ct: null, rawText: "",
+        occCount: null, errName: diagE?.name ?? "Error", errMsg: diagE?.message ?? String(diagE),
+        fetchedAt: new Date().toISOString() });
     } finally {
       occPendingRef.current.delete(occKey);
       if (occSeqRef.current === mySeq) setOccLoading(false);
@@ -580,7 +626,20 @@ export default function MakeupsScreen() {
       <View style={{ flexDirection: "row", paddingHorizontal: 10, paddingVertical: 10, gap: 6, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border }}>
         <Pressable
           style={[s.tabBtn, { flex: 1, justifyContent: "center" }, tab === "waiting" && { backgroundColor: themeColor, borderColor: themeColor }]}
-          onPress={() => setTab("waiting")}
+          onPress={() => {
+            setTab("waiting");
+            // [DIAG] 7번 연속 탭 → 진단 패널
+            diagTapRef.current += 1;
+            if (diagTapTimerRef.current) clearTimeout(diagTapTimerRef.current);
+            if (diagTapRef.current >= 7) {
+              diagTapRef.current = 0;
+              setDiagVisible(true);
+            } else {
+              diagTapTimerRef.current = setTimeout(() => { diagTapRef.current = 0; }, 2000);
+            }
+          }}
+          onLongPress={() => setDiagVisible(true)}
+          delayLongPress={2000}
         >
           {waitingList.length > 0 && tab !== "waiting" && (
             <View style={s.tabBadge}><Text style={s.tabBadgeTxt}>{waitingList.length}</Text></View>
@@ -1310,6 +1369,106 @@ export default function MakeupsScreen() {
         onConfirm={() => setConfirmMsg(null)}
         onCancel={() => setConfirmMsg(null)}
       />
+
+      {/* ── [DIAG] 진단 패널 ─────────────────────────────────────────────── */}
+      <Modal visible={diagVisible} transparent animationType="slide" onRequestClose={() => setDiagVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}>
+          <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#0F172A", borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: "90%" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16 }}>
+              <Text style={{ color: "#94A3B8", fontSize: 11, fontFamily: "Courier", letterSpacing: 1 }}>SWIMNOTE DIAG — 화면 캡처 후 제출</Text>
+              <Pressable onPress={() => setDiagVisible(false)}>
+                <Text style={{ color: "#64748B", fontSize: 20 }}>✕</Text>
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 8 }} showsVerticalScrollIndicator={false}>
+              {/* OTA/앱 정보 */}
+              <Text style={{ color: "#F8FAFC", fontSize: 13, fontFamily: "Courier", fontWeight: "bold", marginBottom: 4 }}>① OTA / 앱</Text>
+              {([
+                ["runtimeVersion", Updates.runtimeVersion ?? "—"],
+                ["updateId", Updates.updateId ?? "—"],
+                ["channel", Updates.channel ?? "—"],
+                ["isEmbedded", String(Updates.isEmbeddedLaunch ?? "—")],
+                ["appVersion", Constants.expoConfig?.version ?? "—"],
+                ["build(iOS)", (Constants.expoConfig as any)?.ios?.buildNumber ?? "—"],
+                ["build(AOS)", String((Constants.expoConfig as any)?.android?.versionCode ?? "—")],
+                ["API_BASE", API_BASE],
+              ] as [string, string][]).map(([k, v]) => (
+                <View key={k} style={{ flexDirection: "row", gap: 8 }}>
+                  <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 120 }}>{k}</Text>
+                  <Text style={{ color: "#E2E8F0", fontSize: 11, fontFamily: "Courier", flex: 1 }} numberOfLines={2}>{v}</Text>
+                </View>
+              ))}
+
+              {/* waiting API */}
+              <Text style={{ color: "#F8FAFC", fontSize: 13, fontFamily: "Courier", fontWeight: "bold", marginTop: 12, marginBottom: 4 }}>② waiting API</Text>
+              {diagWaiting ? ([
+                ["url", diagWaiting.url],
+                ["status", String(diagWaiting.status)],
+                ["content-type", diagWaiting.ct ?? "—"],
+                ["total", String(diagWaiting.total)],
+                ["expired", String(diagWaiting.expired)],
+                ["julyExpired", String(diagWaiting.julyExpired)],
+                ["oldestExpDate", diagWaiting.oldestDate ?? "—"],
+                ["fetchedAt", diagWaiting.fetchedAt],
+              ] as [string, string][]).map(([k, v]) => (
+                <View key={k} style={{ flexDirection: "row", gap: 8 }}>
+                  <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 120 }}>{k}</Text>
+                  <Text style={{ color: "#E2E8F0", fontSize: 11, fontFamily: "Courier", flex: 1 }} numberOfLines={3}>{v}</Text>
+                </View>
+              )) : <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier" }}>아직 로드 전</Text>}
+
+              {/* sorted 진단 (렌더 직전) */}
+              {(() => {
+                const sorted = [...waitingList].sort((a, b) => {
+                  if (!!a.is_expired !== !!b.is_expired) return a.is_expired ? 1 : -1;
+                  return 0;
+                });
+                const sortedExp = sorted.filter(x => x.is_expired);
+                const sortedJulyExp = sortedExp.filter(x => (x as any).absence_date >= "2026-07-01" && (x as any).absence_date < "2026-08-01");
+                return (
+                  <View style={{ marginTop: 4 }}>
+                    <Text style={{ color: "#94A3B8", fontSize: 11, fontFamily: "Courier" }}>sorted:</Text>
+                    {([
+                      ["sortedTotal", String(sorted.length)],
+                      ["sortedExpired", String(sortedExp.length)],
+                      ["sortedJulyExpired", String(sortedJulyExp.length)],
+                    ] as [string, string][]).map(([k, v]) => (
+                      <View key={k} style={{ flexDirection: "row", gap: 8 }}>
+                        <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 120 }}>{k}</Text>
+                        <Text style={{ color: v === "0" ? "#F87171" : "#86EFAC", fontSize: 11, fontFamily: "Courier" }}>{v}</Text>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })()}
+
+              {/* eligible-occurrences */}
+              <Text style={{ color: "#F8FAFC", fontSize: 13, fontFamily: "Courier", fontWeight: "bold", marginTop: 12, marginBottom: 4 }}>③ eligible-occurrences</Text>
+              {diagOcc ? ([
+                ["makeupId", diagOcc.makeupId],
+                ["classGroupId", diagOcc.classGroupId ?? "—"],
+                ["url", diagOcc.url],
+                ["resolved", String(diagOcc.resolved)],
+                ["status", String(diagOcc.status ?? "—")],
+                ["content-type", diagOcc.ct ?? "—"],
+                ["occCount", String(diagOcc.occCount ?? "—")],
+                ["errName", diagOcc.errName ?? "—"],
+                ["errMsg", diagOcc.errMsg ?? "—"],
+                ["rawText(300)", diagOcc.rawText || "—"],
+                ["fetchedAt", diagOcc.fetchedAt],
+              ] as [string, string][]).map(([k, v]) => (
+                <View key={k} style={{ flexDirection: "row", gap: 8 }}>
+                  <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 120 }}>{k}</Text>
+                  <Text style={{ color: k === "status" && String(diagOcc?.status) !== "200" ? "#F87171" : "#E2E8F0", fontSize: 11, fontFamily: "Courier", flex: 1 }} numberOfLines={4}>{v}</Text>
+                </View>
+              )) : <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier" }}>아직 회차 조회 전 (반 선택 후 재확인)</Text>}
+
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+      {/* ── [/DIAG] ─────────────────────────────────────────────────────────── */}
     </SafeAreaView>
   );
 }
