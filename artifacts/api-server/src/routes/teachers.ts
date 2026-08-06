@@ -777,15 +777,21 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
       const kstToday = kstTodayStr();
       // expire_at은 timestamptz이므로 KST 기준 날짜로 변환
       const expireAtDate = mk.expire_at ? toKstDateStr(new Date(mk.expire_at)) : null;
-      const endDate = expireAtDate || (() => {
-        // 결석일(YYYY-MM-DD) 기준 +56일 — YYYY-MM-DD 파싱 후 로컬 Date 사용
-        const [ey, em, ed] = absenceDate.split("-").map(Number);
-        const d = new Date(ey, em - 1, ed);
-        d.setDate(d.getDate() + 56);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const dd2 = String(d.getDate()).padStart(2, "0");
-        return `${yyyy}-${mm}-${dd2}`;
+      const endDate = (() => {
+        // 기간 만료 보강 정책: expire_at이 오늘 이전이면 endDate를 오늘(KST)로 확장
+        // → 만료 보강에서도 오늘까지의 수업 회차가 모두 후보로 표시됨
+        if (expireAtDate && expireAtDate < kstToday) return kstToday;
+        // 일반 보강: expire_at 그대로 사용, 없으면 결석일+56일 fallback
+        return expireAtDate || (() => {
+          // 결석일(YYYY-MM-DD) 기준 +56일 — YYYY-MM-DD 파싱 후 로컬 Date 사용
+          const [ey, em, ed] = absenceDate.split("-").map(Number);
+          const d = new Date(ey, em - 1, ed);
+          d.setDate(d.getDate() + 56);
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, "0");
+          const dd2 = String(d.getDate()).padStart(2, "0");
+          return `${yyyy}-${mm}-${dd2}`;
+        })();
       })();
 
       // 5. 풀 휴일 조회
