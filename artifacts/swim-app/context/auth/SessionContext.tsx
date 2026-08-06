@@ -12,23 +12,82 @@ export const API_BASE =
 
 const APP_VERSION = "1.2.0-107-b2";
 
-export async function safeJson(res: Response): Promise<any> {
-  const text = await res.text();
-  try { return JSON.parse(text); }
-  catch { return { error: `Unexpected response (HTTP ${res.status})` }; }
+// ─── 로그인 진단 (임시) ────────────────────────────────────────────────────────
+let _loginDiagnostic: Record<string, any> | null = null;
+export function consumeLoginDiagnostic(): Record<string, any> | null {
+  const d = _loginDiagnostic; _loginDiagnostic = null; return d;
+}
+function storeDiag(stage: string, method: string, url: string, res: Response, rawText: string) {
+  _loginDiagnostic = {
+    stage, method, url, status: res.status,
+    contentType: res.headers.get("content-type"),
+    server: res.headers.get("server"),
+    cfRay: res.headers.get("cf-ray"),
+    renderOrigin: res.headers.get("x-render-origin-server"),
+    rawText: rawText.slice(0, 300),
+  };
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type DiagCtx = { stage: string; method: string; url: string };
+
+export async function safeJson(res: Response, ctx?: DiagCtx): Promise<any> {
+  const rawText = await res.text();
+  let parsed: any; let parseOk = false;
+  try { parsed = JSON.parse(rawText); parseOk = true; } catch {}
+
+  if (parseOk) {
+    // JSON 파싱 성공 + 403 + ctx → 진단 throw (error_code 보존)
+    if (ctx && res.status === 403) {
+      storeDiag(ctx.stage, ctx.method, ctx.url, res, rawText);
+      throw Object.assign(new Error(parsed?.message || parsed?.error || `HTTP 403`), {
+        diagnostic: { ..._loginDiagnostic, parsedError: parsed?.error, parsedErrorCode: parsed?.error_code },
+        error_code: parsed?.error_code ?? "unknown",
+        days_until_deletion: parsed?.days_until_deletion ?? null,
+        deletion_scheduled_at: parsed?.deletion_scheduled_at ?? null,
+        deactivated_at: parsed?.deactivated_at ?? null,
+      });
+    }
+    return parsed;
+  }
+
+  // JSON 파싱 실패
+  if (ctx) {
+    storeDiag(ctx.stage, ctx.method, ctx.url, res, rawText);
+    throw Object.assign(new Error(`HTTP ${res.status} 비정상 응답`), {
+      diagnostic: { ..._loginDiagnostic },
+      error_code: "unknown",
+    });
+  }
+  return { error: `Unexpected response (HTTP ${res.status})` };
 }
 
 // safeJson 타임아웃 버전: res.text() 행 방지 (바디 수신 지연 시 무한 대기 방지)
-export async function safeJsonT(res: Response, ms = 6000): Promise<any> {
+export async function safeJsonT(res: Response, ms = 6000, ctx?: DiagCtx): Promise<any> {
   let timer: ReturnType<typeof setTimeout> | null = null;
   const textPromise = res.text();
   const timeoutPromise = new Promise<string>((_, rej) => {
     timer = setTimeout(() => rej(new Error(`safeJsonT timeout ${ms}ms`)), ms);
   });
   try {
-    const text = await Promise.race([textPromise, timeoutPromise]);
-    try { return JSON.parse(text as string); }
-    catch { return { error: `Unexpected response (HTTP ${res.status})` }; }
+    const rawText = await Promise.race([textPromise, timeoutPromise]);
+    let parsed: any; let parseOk = false;
+    try { parsed = JSON.parse(rawText as string); parseOk = true; } catch {}
+    if (parseOk) {
+      if (ctx && res.status === 403) {
+        storeDiag(ctx.stage, ctx.method, ctx.url, res, rawText as string);
+        throw Object.assign(new Error(parsed?.message || parsed?.error || `HTTP 403`), {
+          diagnostic: { ..._loginDiagnostic, parsedError: parsed?.error, parsedErrorCode: parsed?.error_code },
+          error_code: parsed?.error_code ?? "unknown",
+        });
+      }
+      return parsed;
+    }
+    if (ctx) {
+      storeDiag(ctx.stage, ctx.method, ctx.url, res, rawText as string);
+      throw Object.assign(new Error(`HTTP ${res.status} 비정상 응답`), { diagnostic: { ..._loginDiagnostic }, error_code: "unknown" });
+    }
+    return { error: `Unexpected response (HTTP ${res.status})` };
   } finally {
     if (timer !== null) clearTimeout(timer);
   }
@@ -358,6 +417,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (res.status === 404) {
         return;
       }
+      // 403/기타 오류: 진단 기록 (propagate 하지 않음)
+      try {
+        const rawT = await res.text();
+        storeDiag("FETCH_POOL_MY", "GET", `${API_BASE}/pools/my`, res, rawT);
+      } catch {}
     } catch (err) { console.error(err); }
     // parent 토큰은 /parent/pool-info 로 fallback (JWT poolId 기반)
     try {
@@ -369,6 +433,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           setParentPoolName(info.pool_name);
           AsyncStorage.setItem("parent_pool_name", info.pool_name).catch(() => {});
         }
+      } else {
+        // 비정상 응답: 진단 기록
+        try {
+          const rawT2 = await res2.text();
+          if (!_loginDiagnostic) storeDiag("FETCH_POOL_PARENT_INFO", "GET", `${API_BASE}/parent/pool-info`, res2, rawT2);
+        } catch {}
       }
     } catch (err) { console.error(err); }
   }
@@ -483,6 +553,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               if (policyData.success && (!policyData.agreed || policyData.needs_reagree)) {
                 return "/(auth)/policy-agreement";
               }
+            } else if (policyRes.status === 403) {
+              // 진단 기록
+              try {
+                const rawT = await policyRes.text();
+                if (!_loginDiagnostic) storeDiag("REFUND_POLICY", "GET", `${API_BASE}/admin/refund-policy`, policyRes, rawT);
+              } catch {}
             }
           } catch {
             // 네트워크 오류 또는 5초 타임아웃 시 정책 체크 스킵 → 온보딩/홈 판단으로 계속
@@ -641,7 +717,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         { error_code: "network_error" }
       );
     }
-    const data = await safeJson(res);
+    const data = await safeJson(res, { stage: "UNIFIED_LOGIN", method: "POST", url: `${API_BASE}/auth/unified-login` });
     if (!res.ok) {
       if (data.needs_activation || data.error_code === "needs_activation") {
         throw Object.assign(new Error(data.error || "계정 활성화가 필요합니다."), {

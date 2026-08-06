@@ -14,6 +14,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
+import { consumeLoginDiagnostic } from "@/context/auth/SessionContext";
 import { toAsciiOnly } from "@/utils/koreanToQwerty";
 import { login as kakaoLogin } from "@react-native-seoul/kakao-login";
 import * as AppleAuthentication from "expo-apple-authentication";
@@ -87,6 +88,16 @@ export default function LoginScreen() {
     return () => { onShow.remove(); onHide.remove(); };
   }, []);
 
+  function showDiagAlert(d: Record<string, any>): Promise<void> {
+    return new Promise(resolve => {
+      Alert.alert(
+        "🔍 로그인 진단",
+        `stage: ${d.stage ?? "—"}\nmethod: ${d.method ?? "—"}\nurl: ${d.url ?? "—"}\nstatus: ${d.status ?? "—"}\ncontentType: ${d.contentType ?? "—"}\nserver: ${d.server ?? "—"}\ncfRay: ${d.cfRay ?? "—"}\nrenderOrigin: ${d.renderOrigin ?? "—"}\n\nrawText:\n${d.rawText ?? "—"}`,
+        [{ text: "확인", onPress: () => resolve() }],
+      );
+    });
+  }
+
   async function handleLogin() {
     const finalId = identifier.trim();
     const finalPw = password;
@@ -95,12 +106,19 @@ export default function LoginScreen() {
     try {
       await unifiedLogin(finalId, finalPw);
       setFailCount(0);
+      // 로그인 성공 후 fetchPool/refund-policy 403 진단 (임시)
+      const fpDiag = consumeLoginDiagnostic();
+      if (fpDiag) await showDiagAlert(fpDiag);
     } catch (err: unknown) {
       const e = err as Error & {
         needs_activation?: boolean; teacher_id?: string;
         error_code?: string; totp_required?: boolean; totp_session?: string;
         days_until_deletion?: number; deletion_scheduled_at?: string; deactivated_at?: string;
+        diagnostic?: Record<string, any>;
       };
+      // ── 403 진단 Alert (임시 디버그) ─────────────────────────────────────
+      if (e.diagnostic) await showDiagAlert(e.diagnostic);
+      // ────────────────────────────────────────────────────────────────────
       if (e.totp_required && e.totp_session) {
         router.push({ pathname: "/otp-verify", params: { session: e.totp_session } } as any); return;
       }
