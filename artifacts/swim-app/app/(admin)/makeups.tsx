@@ -129,7 +129,10 @@ export default function MakeupsScreen() {
           load();
         });
       }
-    }).catch(() => load());
+    }).catch(() => {
+      Alert.alert("배정 실패", "네트워크 오류로 보강을 배정하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      load();
+    });
   };
 
   const handleTransfer = (mk: any, teacher: any) => {
