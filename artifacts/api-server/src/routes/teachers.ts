@@ -11,6 +11,10 @@ import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword } from "../lib/auth.js";
 import { sendPushToUser } from "../lib/push-service.js";
+import {
+  addDateDays, dayOfWeekFromDateStr, getMakeupDateRange,
+  isValidDateFormat, isValidCalendarDate, validateMakeupDateRange,
+} from "../lib/makeup-date-range.js";
 
 const router = Router();
 
@@ -276,27 +280,7 @@ function toKstDateStr(d: Date | string): string {
   return `${y}-${mo}-${dy}`;
 }
 
-/** YYYY-MM-DD 문자열 → 요일 번호 (0=일, 서버 로컬 timezone 독립 UTC 연산) */
-function dayOfWeekFromDateStr(dateStr: string): number {
-  const [y, mo, d] = dateStr.split("-").map(Number);
-  return new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
-}
-
-/**
- * YYYY-MM-DD 문자열에 N일을 더한 날짜 문자열을 반환한다.
- * - 서버 로컬 timezone 독립: Date.UTC 기반 순수 날짜 연산
- * - 음수 days 허용 (오늘 -14일 등)
- * - 월말·연말·윤년: Date.UTC 내장 처리
- */
-function addDateDays(dateStr: string, days: number): string {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day + days));
-  return [
-    date.getUTCFullYear(),
-    String(date.getUTCMonth() + 1).padStart(2, "0"),
-    String(date.getUTCDate()).padStart(2, "0"),
-  ].join("-");
-}
+// addDateDays · dayOfWeekFromDateStr → ../lib/makeup-date-range.js 에서 import
 
 /** schedule_days("월,수,금") → 요일 번호 Set */
 function parseDayNums(scheduleDays: string): Set<number> {
@@ -350,14 +334,12 @@ async function validateMakeupOccurrence(params: {
 }): Promise<OccurrenceValidationResult> {
   const { makeupSession: mk, classGroupId, occurrenceDate, poolId } = params;
 
-  // 1. 날짜 형식 YYYY-MM-DD
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(occurrenceDate)) {
+  // 1. 날짜 형식 YYYY-MM-DD — lib/makeup-date-range.ts 공용 helper 사용
+  if (!isValidDateFormat(occurrenceDate)) {
     throw { code: "INVALID_ASSIGNED_DATE", message: "날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)", status: 400 };
   }
   // 2. 실제 존재하는 날짜인지 (UTC 기반, 서버 로컬 timezone 독립)
-  const [yy, mmo, dd] = occurrenceDate.split("-").map(Number);
-  const testD = new Date(Date.UTC(yy, mmo - 1, dd));
-  if (testD.getUTCFullYear() !== yy || testD.getUTCMonth() !== mmo - 1 || testD.getUTCDate() !== dd) {
+  if (!isValidCalendarDate(occurrenceDate)) {
     throw { code: "INVALID_ASSIGNED_DATE", message: "존재하지 않는 날짜입니다.", status: 400 };
   }
 
@@ -366,15 +348,7 @@ async function validateMakeupOccurrence(params: {
   //    - expire_at 제한 제거: 날짜 범위가 유일한 날짜 기준
   //    - expired 상태 확인 절차(allow_expired)는 라우트 수준에서 별도 유지
   const kstToday = kstTodayStr();
-  const rangeStart = addDateDays(kstToday, -14);
-  const rangeEnd   = addDateDays(kstToday, +28);
-  if (occurrenceDate < rangeStart || occurrenceDate > rangeEnd) {
-    throw {
-      code: "MAKEUP_DATE_OUT_OF_RANGE",
-      message: "보강일은 오늘 기준 2주 전부터 4주 후까지 선택할 수 있습니다.",
-      status: 400,
-    };
-  }
+  validateMakeupDateRange(occurrenceDate, kstToday);  // 범위 밖이면 throws MAKEUP_DATE_OUT_OF_RANGE
 
   // 4. 반 존재·같은 수영장·삭제 여부 (구 5~6)
   const cgRows = (await superAdminDb.execute(sql`
@@ -785,8 +759,7 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
       //    - 서버 로컬 timezone 독립 순수 UTC 날짜 연산
       const absenceDate: string = mk.absence_date; // YYYY-MM-DD (응답 포함용, 범위 계산과 무관)
       const kstToday = kstTodayStr();
-      const rangeStart = addDateDays(kstToday, -14);
-      const rangeEnd   = addDateDays(kstToday, +28);
+      const { rangeStart, rangeEnd } = getMakeupDateRange(kstToday);
 
       // 5. 풀 휴일 조회 (범위 내 전체)
       stage = "load_holidays";

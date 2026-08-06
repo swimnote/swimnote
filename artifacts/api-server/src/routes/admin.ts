@@ -10,24 +10,12 @@ import { logPoolEvent } from "../lib/pool-event-logger.js";
 import {
   kstTodayStr, closeAllActiveClassHistory,
 } from "../utils/historyUtils.js";
+import { isValidCalendarDate, validateMakeupDateRange } from "../lib/makeup-date-range.js";
 import { getPoolOperators, countPoolOperators } from "../lib/poolOperatorService.js";
 
 const router = Router();
 
-/**
- * YYYY-MM-DD 문자열에 N일을 더한 날짜 문자열을 반환한다.
- * - 서버 로컬 timezone 독립: Date.UTC 기반 순수 날짜 연산
- * - 음수 days 허용 (오늘 -14일 등)
- */
-function addDateDays(dateStr: string, days: number): string {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day + days));
-  return [
-    date.getUTCFullYear(),
-    String(date.getUTCMonth() + 1).padStart(2, "0"),
-    String(date.getUTCDate()).padStart(2, "0"),
-  ].join("-");
-}
+// addDateDays → ../lib/makeup-date-range.js 에서 import (isValidCalendarDate · validateMakeupDateRange 포함)
 
 /** 회원 수 기준 구독 단계 계산 */
 function getSubscriptionTier(approved: boolean, count: number): { tier: string; label: string; isFree: boolean } {
@@ -1832,20 +1820,13 @@ router.patch("/makeups/:id/assign", requireAuth, requireRole("super_admin","pool
       const { class_group_id, assigned_date } = req.body;
       if (!class_group_id) { res.status(400).json({ error: "class_group_id 필요" }); return; }
 
-      // KST 오늘 기준 43일 범위 검증 (오늘 -14일 ~ 오늘 +28일)
+      // KST 오늘 기준 43일 범위 검증 (오늘 -14일 ~ 오늘 +28일) — 달력 실존 날짜 검증 포함
       if (assigned_date) {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(assigned_date)) {
+        if (!isValidCalendarDate(assigned_date)) {
           res.status(400).json({ error: "INVALID_ASSIGNED_DATE", message: "날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)" }); return;
         }
-        const kstToday = kstTodayStr();
-        const rangeStart = addDateDays(kstToday, -14);
-        const rangeEnd   = addDateDays(kstToday, +28);
-        if (assigned_date < rangeStart || assigned_date > rangeEnd) {
-          res.status(400).json({
-            error: "MAKEUP_DATE_OUT_OF_RANGE",
-            message: "보강일은 오늘 기준 2주 전부터 4주 후까지 선택할 수 있습니다.",
-          }); return;
-        }
+        try { validateMakeupDateRange(assigned_date, kstTodayStr()); }
+        catch (e: any) { res.status(e.status ?? 400).json({ error: e.code, message: e.message }); return; }
       }
 
       const [cg] = await db.select().from(classGroupsTable).where(eq(classGroupsTable.id, class_group_id)).limit(1);
