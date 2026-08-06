@@ -123,7 +123,12 @@ export default function MakeupsScreen() {
       method: "PATCH", body: JSON.stringify({ class_group_id: classGroup.id, assigned_date: date || null, allow_expired: allowExpired }),
     }).then(r => {
       if (r.status === 409) { setConflictVisible(true); load(); }
-      else if (!r.ok) load();
+      else if (!r.ok) {
+        r.json().catch(() => ({})).then((body: any) => {
+          Alert.alert("배정 실패", body?.message || "보강 배정 중 오류가 발생했습니다.");
+          load();
+        });
+      }
     }).catch(() => load());
   };
 
