@@ -11,6 +11,10 @@ import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword } from "../lib/auth.js";
 import { sendPushToUser } from "../lib/push-service.js";
+import {
+  addDateDays, dayOfWeekFromDateStr, getMakeupDateRange,
+  isValidDateFormat, isValidCalendarDate, validateMakeupDateRange,
+} from "../lib/makeup-date-range.js";
 
 const router = Router();
 
@@ -276,11 +280,7 @@ function toKstDateStr(d: Date | string): string {
   return `${y}-${mo}-${dy}`;
 }
 
-/** YYYY-MM-DD 문자열 → 요일 번호 (0=일, UTC/KST 혼용 없이 로컬 파싱) */
-function dayOfWeekFromDateStr(dateStr: string): number {
-  const [y, mo, d] = dateStr.split("-").map(Number);
-  return new Date(y, mo - 1, d).getDay();
-}
+// addDateDays · dayOfWeekFromDateStr → ../lib/makeup-date-range.js 에서 import
 
 /** schedule_days("월,수,금") → 요일 번호 Set */
 function parseDayNums(scheduleDays: string): Set<number> {
@@ -334,40 +334,23 @@ async function validateMakeupOccurrence(params: {
 }): Promise<OccurrenceValidationResult> {
   const { makeupSession: mk, classGroupId, occurrenceDate, poolId } = params;
 
-  // 1. 날짜 형식 YYYY-MM-DD
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(occurrenceDate)) {
+  // 1. 날짜 형식 YYYY-MM-DD — lib/makeup-date-range.ts 공용 helper 사용
+  if (!isValidDateFormat(occurrenceDate)) {
     throw { code: "INVALID_ASSIGNED_DATE", message: "날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)", status: 400 };
   }
-  // 2. 실제 존재하는 날짜인지
-  const [yy, mmo, dd] = occurrenceDate.split("-").map(Number);
-  const testD = new Date(yy, mmo - 1, dd);
-  if (testD.getFullYear() !== yy || testD.getMonth() !== mmo - 1 || testD.getDate() !== dd) {
+  // 2. 실제 존재하는 날짜인지 (UTC 기반, 서버 로컬 timezone 독립)
+  if (!isValidCalendarDate(occurrenceDate)) {
     throw { code: "INVALID_ASSIGNED_DATE", message: "존재하지 않는 날짜입니다.", status: 400 };
   }
 
-  // 3. 결석일 이후여야 함 (결석 당일 포함 차단)
-  if (occurrenceDate <= mk.absence_date) {
-    throw { code: "DATE_BEFORE_OR_ON_ABSENCE", message: "결석일 이후 날짜만 선택할 수 있습니다.", status: 400 };
-  }
+  // 3. KST 오늘 기준 43일 범위 검증 (오늘 -14일 ~ 오늘 +28일)
+  //    - absence_date 제한 제거: 결석 이전·당일·이후 모두 허용
+  //    - expire_at 제한 제거: 날짜 범위가 유일한 날짜 기준
+  //    - expired 상태 확인 절차(allow_expired)는 라우트 수준에서 별도 유지
+  const kstToday = kstTodayStr();
+  validateMakeupDateRange(occurrenceDate, kstToday);  // 범위 밖이면 throws MAKEUP_DATE_OUT_OF_RANGE
 
-  // 4. expire_at 이내여야 함 (KST 기준 변환) — allowExpired=true 이면 스킵
-  if (!params.allowExpired) {
-    if (mk.expire_at) {
-      const expireKst = toKstDateStr(new Date(mk.expire_at));
-      if (occurrenceDate > expireKst) {
-        throw { code: "MAKEUP_EXPIRED", message: "보강 유효기간이 지난 날짜입니다.", status: 400 };
-      }
-    } else {
-      // expire_at 없으면 결석일 기준 +56일
-      const fallbackD = new Date(mk.absence_date + "T00:00:00");
-      fallbackD.setDate(fallbackD.getDate() + 56);
-      if (occurrenceDate > fallbackD.toISOString().slice(0, 10)) {
-        throw { code: "MAKEUP_EXPIRED", message: "보강 유효기간이 지난 날짜입니다.", status: 400 };
-      }
-    }
-  }
-
-  // 5~6. 반 존재·같은 수영장·삭제 여부
+  // 4. 반 존재·같은 수영장·삭제 여부 (구 5~6)
   const cgRows = (await superAdminDb.execute(sql`
     SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity,
            cg.teacher_user_id, u.name AS teacher_name, cg.swimming_pool_id
@@ -413,8 +396,7 @@ async function validateMakeupOccurrence(params: {
   const availableSlots = capacity > 0 ? Math.max(0, capacity - currentMembers) : 999;
   const isFull = capacity > 0 && availableSlots <= 0;
 
-  // 10. KST 오늘 기준 past/today/future
-  const kstToday = kstTodayStr();
+  // 10. KST 오늘 기준 past/today/future (kstToday는 조건 3에서 선언)
   return {
     classGroup: cg,
     occurrenceDate,
@@ -772,70 +754,46 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
       const availableSlots = capacity > 0 ? Math.max(0, capacity - currentMembers) : 999;
       const isFull = capacity > 0 && availableSlots <= 0;
 
-      // 4. 범위 계산 (결석일 다음 날 ~ expire_at or 결석일+56일) — KST 기준, UTC 혼용 없음
-      const absenceDate: string = mk.absence_date; // YYYY-MM-DD
+      // 4. 범위 계산: KST 오늘 기준 -14일 ~ +28일 (총 43일)
+      //    - absence_date·expire_at 기반 날짜 제한 제거
+      //    - 서버 로컬 timezone 독립 순수 UTC 날짜 연산
+      const absenceDate: string = mk.absence_date; // YYYY-MM-DD (응답 포함용, 범위 계산과 무관)
       const kstToday = kstTodayStr();
-      // expire_at은 timestamptz이므로 KST 기준 날짜로 변환
-      const expireAtDate = mk.expire_at ? toKstDateStr(new Date(mk.expire_at)) : null;
-      const endDate = (() => {
-        // 기간 만료 보강 정책: expire_at이 오늘 이전이면 endDate를 오늘(KST)로 확장
-        // → 만료 보강에서도 오늘까지의 수업 회차가 모두 후보로 표시됨
-        if (expireAtDate && expireAtDate < kstToday) return kstToday;
-        // 일반 보강: expire_at 그대로 사용, 없으면 결석일+56일 fallback
-        return expireAtDate || (() => {
-          // 결석일(YYYY-MM-DD) 기준 +56일 — YYYY-MM-DD 파싱 후 로컬 Date 사용
-          const [ey, em, ed] = absenceDate.split("-").map(Number);
-          const d = new Date(ey, em - 1, ed);
-          d.setDate(d.getDate() + 56);
-          const yyyy = d.getFullYear();
-          const mm = String(d.getMonth() + 1).padStart(2, "0");
-          const dd2 = String(d.getDate()).padStart(2, "0");
-          return `${yyyy}-${mm}-${dd2}`;
-        })();
-      })();
+      const { rangeStart, rangeEnd } = getMakeupDateRange(kstToday);
 
-      // 5. 풀 휴일 조회
+      // 5. 풀 휴일 조회 (범위 내 전체)
       stage = "load_holidays";
       const holidayRows = (await db.execute(sql`
         SELECT TO_CHAR(holiday_date, 'YYYY-MM-DD') AS hd
         FROM pool_holidays
         WHERE pool_id = ${poolId}
-          AND holiday_date >= ${absenceDate}::date
-          AND holiday_date <= ${endDate}::date
+          AND holiday_date >= ${rangeStart}::date
+          AND holiday_date <= ${rangeEnd}::date
       `)).rows as any[];
       const holidaySet = new Set(holidayRows.map((r: any) => r.hd as string));
 
-      // 6. 요일 파싱 및 occurrence 생성
+      // 6. 요일 파싱 및 occurrence 생성 (순수 YYYY-MM-DD UTC 연산, 로컬 timezone 미사용)
       const targetDays = parseDayNums((cg.schedule_days as string) || "");
       const occurrences: any[] = [];
-      const cursor = new Date(`${absenceDate}T00:00:00`);
-      cursor.setDate(cursor.getDate() + 1); // 결석일 다음 날부터
-      const endD = new Date(`${endDate}T00:00:00`);
-
-      while (cursor <= endD) {
-        if (targetDays.has(cursor.getDay())) {
-          const yyyy = cursor.getFullYear();
-          const mm = String(cursor.getMonth() + 1).padStart(2, "0");
-          const dd = String(cursor.getDate()).padStart(2, "0");
-          const dateStr = `${yyyy}-${mm}-${dd}`;
-          if (!holidaySet.has(dateStr)) {
-            occurrences.push({
-              class_group_id: cg.id,
-              class_name: cg.name,
-              occurrence_date: dateStr,
-              schedule_time: cg.schedule_time,
-              teacher_id: cg.teacher_user_id,
-              teacher_name: cg.instructor,
-              is_mine: Boolean(cg.is_mine),
-              available_slots: availableSlots,
-              is_full: isFull,
-              is_past: dateStr < kstToday,
-              is_today: dateStr === kstToday,
-              is_future: dateStr > kstToday,
-            });
-          }
+      let currentDate = rangeStart;
+      while (currentDate <= rangeEnd) {
+        if (targetDays.has(dayOfWeekFromDateStr(currentDate)) && !holidaySet.has(currentDate)) {
+          occurrences.push({
+            class_group_id: cg.id,
+            class_name: cg.name,
+            occurrence_date: currentDate,
+            schedule_time: cg.schedule_time,
+            teacher_id: cg.teacher_user_id,
+            teacher_name: cg.instructor,
+            is_mine: Boolean(cg.is_mine),
+            available_slots: availableSlots,
+            is_full: isFull,
+            is_past: currentDate < kstToday,
+            is_today: currentDate === kstToday,
+            is_future: currentDate > kstToday,
+          });
         }
-        cursor.setDate(cursor.getDate() + 1);
+        currentDate = addDateDays(currentDate, 1);
       }
 
       const elapsed = Date.now() - startedAt;

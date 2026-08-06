@@ -123,8 +123,16 @@ export default function MakeupsScreen() {
       method: "PATCH", body: JSON.stringify({ class_group_id: classGroup.id, assigned_date: date || null, allow_expired: allowExpired }),
     }).then(r => {
       if (r.status === 409) { setConflictVisible(true); load(); }
-      else if (!r.ok) load();
-    }).catch(() => load());
+      else if (!r.ok) {
+        r.json().catch(() => ({})).then((body: any) => {
+          Alert.alert("배정 실패", body?.message || "보강 배정 중 오류가 발생했습니다.");
+          load();
+        });
+      }
+    }).catch(() => {
+      Alert.alert("배정 실패", "네트워크 오류로 보강을 배정하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      load();
+    });
   };
 
   const handleTransfer = (mk: any, teacher: any) => {

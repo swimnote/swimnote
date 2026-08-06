@@ -10,9 +10,12 @@ import { logPoolEvent } from "../lib/pool-event-logger.js";
 import {
   kstTodayStr, closeAllActiveClassHistory,
 } from "../utils/historyUtils.js";
+import { isValidCalendarDate, validateMakeupDateRange } from "../lib/makeup-date-range.js";
 import { getPoolOperators, countPoolOperators } from "../lib/poolOperatorService.js";
 
 const router = Router();
+
+// addDateDays → ../lib/makeup-date-range.js 에서 import (isValidCalendarDate · validateMakeupDateRange 포함)
 
 /** 회원 수 기준 구독 단계 계산 */
 function getSubscriptionTier(approved: boolean, count: number): { tier: string; label: string; isFree: boolean } {
@@ -1816,6 +1819,16 @@ router.patch("/makeups/:id/assign", requireAuth, requireRole("super_admin","pool
       if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
       const { class_group_id, assigned_date } = req.body;
       if (!class_group_id) { res.status(400).json({ error: "class_group_id 필요" }); return; }
+
+      // KST 오늘 기준 43일 범위 검증 (오늘 -14일 ~ 오늘 +28일) — 달력 실존 날짜 검증 포함
+      if (assigned_date) {
+        if (!isValidCalendarDate(assigned_date)) {
+          res.status(400).json({ error: "INVALID_ASSIGNED_DATE", message: "날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)" }); return;
+        }
+        try { validateMakeupDateRange(assigned_date, kstTodayStr()); }
+        catch (e: any) { res.status(e.status ?? 400).json({ error: e.code, message: e.message }); return; }
+      }
+
       const [cg] = await db.select().from(classGroupsTable).where(eq(classGroupsTable.id, class_group_id)).limit(1);
       if (!cg) { res.status(404).json({ error: "반 없음" }); return; }
       const actor = req.user as any;
