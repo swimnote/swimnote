@@ -1,0 +1,133 @@
+SWIMNOTE 보강 정원초과 허용 — 최종 Production 배포 승인
+
+Gate 검증 완료.
+실제 운영 Route 직접 mount 테스트 기준 116/116 PASS 확인.
+
+이제 아래 순서대로 진행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 최종 Commit
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 변경 파일:
+
+- artifacts/api-server/src/routes/admin.ts
+- artifacts/api-server/src/routes/teachers.ts
+- artifacts/swim-app/app/(teacher)/makeups.tsx
+- artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+- artifacts/api-server/src/routes/__tests__/makeup-capacity-gate.test.ts
+
+테스트 파일도 이번 변경의 검증 근거이므로 Commit에 포함한다.
+
+attached_assets는 Commit 제외.
+
+Commit 후 제출:
+
+- commit SHA
+- git show --stat --oneline HEAD
+- git status --short
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. GitHub Push
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 release/v1.2-phase1-clean 브랜치를 origin 동일 브랜치로 Push.
+
+Push 후 제출:
+
+- local HEAD
+- origin HEAD
+- ahead/behind
+- git status --short
+
+local HEAD와 origin HEAD가 동일해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Render 서버 배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Push 후 Render 자동 배포 완료까지 대기.
+
+제출:
+
+- Render Deploy ID
+- 배포 Commit SHA
+- Status = Live
+- 시작 시각
+- 완료 시각
+
+Live 이전에는 OTA 진행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 서버 Health Check
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GET /api/health
+
+확인:
+
+- HTTP 200
+- 정상 JSON 응답
+- 서버 기동 오류 없음
+
+Health 실패 시 OTA 금지하고 즉시 중단.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Production 서버 최소 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+운영 데이터를 임의 변경하지 않는 범위에서 확인 가능한 것만 검증.
+
+필수:
+
+- 새 서버 Commit이 실제 Live인지
+- MAKEUP_DATE_OUT_OF_RANGE 코드 존재
+- CLASS_FULL 보강 차단 코드 제거 상태
+- API health 정상
+
+실제 운영 보강 배정 테스트는 사용자가 실기기에서 진행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Production OTA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Render Live + Health 200 확인 후 OTA 진행.
+
+Production 채널에 배포.
+
+제출:
+
+- Production Update Group ID
+- iOS Update ID
+- runtimeVersion
+- channel
+- bundle SHA-256
+- bundle size
+- OTA에 사용된 Commit SHA
+
+Preview도 기존 운영 정책상 함께 배포한다면 Preview Group ID도 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Commit SHA
+2. Origin SHA
+3. Render Deploy ID
+4. Render Live 여부
+5. Health 결과
+6. Production Update Group ID
+7. iOS Update ID
+8. Preview Update Group ID (배포했다면)
+9. runtimeVersion
+10. bundle SHA
+11. bundle size
+12. git status
+13. DB 변경 여부
+14. 추가 코드 수정 여부
+
+추가 코드 수정 금지.
+DB 변경 금지.
+Auth/JWT/Login/일지/X코드 수정 금지.
+
+배포 완료 후 중단.
