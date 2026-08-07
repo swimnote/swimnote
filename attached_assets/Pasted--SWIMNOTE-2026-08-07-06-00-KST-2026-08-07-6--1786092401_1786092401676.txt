@@ -1,0 +1,304 @@
+[SWIMNOTE 보강 — 2026-08-07 06:00 KST 실제 정상 실행 상태 찾기]
+
+중요:
+
+사용자는 2026-08-07 한국시간 오전 6시경
+보강 기능이 실제 정상 작동하는 것을 실기기에서 확인한 후 작업을 종료했습니다.
+
+따라서:
+
+“06시 근처 commit이 없으므로 01:14 commit이 최종 정상본이다”
+
+라는 기존 판단을 폐기합니다.
+
+Commit time과 실제 실행 상태는 동일하지 않습니다.
+
+이번 목표는:
+
+2026-08-07 06:00 KST 당시
+실제 iPhone에서 실행되고 있던
+
+APP 코드
++
+Production OTA
++
+Production 서버 코드
+
+의 정확한 상태를 복원하는 것입니다.
+
+코드 수정 금지.
+Commit/Push/Render/OTA 금지.
+DB 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 조사 시간 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+한국시간:
+
+2026-08-07 04:30 ~ 06:30 KST
+
+UTC:
+
+2026-08-06 19:30 ~ 21:30 UTC
+
+이 시간대의 실행/배포/체크포인트 상태를 조사합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Git commit만 보지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 모두 조사:
+
+- git log --all
+- git reflog
+- local branches
+- backup branches
+- Replit checkpoints
+- auto-commit
+- detached HEAD 흔적
+- 미Push local commit 흔적
+
+특히 보강 관련 파일:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+artifacts/swim-app/app/(admin)/makeups.tsx
+artifacts/api-server/src/routes/teachers.ts
+artifacts/api-server/src/routes/admin.ts
+artifacts/api-server/src/lib/makeup-date-range.ts
+
+의 06:00 직전 상태를 찾습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. EAS OTA history 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+2026-08-07 04:30~06:30 KST 사이
+production channel에 올라간 OTA를 모두 확인하십시오.
+
+각 OTA:
+
+Published time
+Update Group ID
+Commit SHA
+Message
+Runtime Version
+iOS Update ID
+Android Update ID
+
+를 제출.
+
+중요:
+
+06시 실기기에서 정상 동작했다면
+그 시점에 iOS가 받을 수 있었던 가장 최신 Production OTA가
+가장 중요한 APP 정상본 후보입니다.
+
+현재 최신 OTA가 아니라
+06시 당시 최신 OTA를 찾으십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 당시 App Commit에서 makeups.tsx 직접 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+06시 당시 Production OTA SHA가 확인되면:
+
+git show <SHA>:'artifacts/swim-app/app/(teacher)/makeups.tsx'
+
+로 직접 읽으십시오.
+
+확인:
+
+- 기간 지난 보강
+- firstExpiredIdx
+- expiredCount
+- separator
+- selectClass
+- eligible-occurrences
+- closeAssignModal
+- occSeqRef
+- cleanup
+- 날짜 목록
+- retry
+- 보강반 배정
+- 직접 완료
+
+이 파일을 현재 Production과 비교하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 서버 배포 history 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+2026-08-07 04:30~06:30 KST 당시
+
+https://swimnote.kr/api
+
+를 실제 서비스하던 backend의
+Live deployment를 확인하십시오.
+
+확인:
+
+- Deployment ID
+- Live SHA
+- deployedAt
+- service
+- branch 또는 direct commit deployment 여부
+
+현재 서버가 아니라
+06시 당시 서버 Live SHA를 찾으십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 당시 서버 SHA의 보강 코드 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+06시 서버 SHA에서 직접:
+
+teachers.ts
+admin.ts
+makeup-date-range.ts
+
+를 git show로 읽으십시오.
+
+특히:
+
+/teacher/makeups
+eligible-occurrences
+expired 처리
+date range validation
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Replit checkpoint 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+06시 당시 Git commit은 없더라도
+Replit checkpoint/auto-save 상태가 존재할 수 있습니다.
+
+확인 가능한 checkpoint에서:
+
+makeups.tsx
+teachers.ts
+
+가 Git HEAD와 달랐는지 확인.
+
+미커밋 Working Tree가
+실제 OTA/서버 배포에 사용됐을 가능성도 확인하십시오.
+
+단:
+
+현재 파일을 수정하거나 checkpoint 복원하지 마십시오.
+
+READ ONLY 조사만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 정상 실행본 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 다음을 구성:
+
+2026-08-07 06:00 KST
+
+iPhone
+→ 당시 Production Update Group
+→ App SHA
+→ makeups.tsx 상태
+
+API
+→ https://swimnote.kr/api
+→ 당시 Backend Deployment
+→ Server SHA
+→ teachers.ts 상태
+
+이 조합을:
+
+06시 정상 실행본
+
+으로 정의하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 현재와 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+06시 정상 실행본과 현재를 비교:
+
+APP:
+makeups.tsx
+
+SERVER:
+teachers.ts
+admin.ts
+makeup-date-range.ts
+
+차이를 기능 단위로 제출.
+
+특히 현재 장애:
+
+A. 지난 보강 안 보임
+B. 보강 날짜/회차 안 보임
+
+과 직접 관련된 차이를 표시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 보호 영역
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 수정 금지:
+
+학부모 요청
+학부모 알림
+선생님 요청함/메신저
+parent_student_requests
+notifications
+link-result
+notify-result
+SessionContext
+auth
+JWT
+apiRequest
+AI
+결제/구독
+
+이번 조사는 READ ONLY.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. 06:00 KST 당시 Production OTA Group
+2. 당시 App SHA
+3. 당시 makeups.tsx SHA/상태
+4. 06:00 당시 Backend Deployment
+5. 당시 Server SHA
+6. 당시 teachers.ts 상태
+7. 당시 admin.ts 상태
+8. 당시 makeup-date-range.ts 상태
+9. 당시 Replit checkpoint/working tree 존재 여부
+10. 현재 App과 차이
+11. 현재 Server와 차이
+12. 지난 보강 장애와 직접 연결되는 차이
+13. 날짜/회차 장애와 직접 연결되는 차이
+14. 06시 정상본 그대로 복원 가능한 범위
+15. 복원 예상 파일
+
+코드 수정:
+없음
+
+DB 변경:
+없음
+
+Commit:
+없음
+
+Push:
+없음
+
+Render:
+없음
+
+OTA:
+없음
+
+보고 후 멈추십시오.
