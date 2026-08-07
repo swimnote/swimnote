@@ -1,0 +1,349 @@
+[SWIMNOTE 보강 장애 — ROOT CAUSE 확인 후 최종 복구 지시]
+
+현재부터 UI 수정 및 추가 진단 금지.
+
+이번 장애의 최초 비정상 경계는 확인됐다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 CONFIRMED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production App API_BASE:
+
+https://swimnote.kr/api
+
+실제:
+
+GET /teacher/makeups?status=waiting
+→ HTTP 200 JSON
+→ total=2
+→ expired=0
+
+그러나 DB 실제 데이터:
+
+2026-07-25 expired
+2026-07-31 expired
+2026-08-01 waiting
+2026-08-07 waiting
+
+총 4건.
+
+또한:
+
+GET
+https://swimnote.kr/api/teacher/makeups/{makeupId}/eligible-occurrences
+?class_group_id={classGroupId}
+
+실제 응답:
+
+HTTP 200
+content-type: text/html
+server: Google Frontend
+
+Body:
+
+<!DOCTYPE html>
+...
+<title>SwimNote 홈페이지</title>
+
+즉 eligible-occurrences Express API가 아니라
+SPA index.html이 반환되고 있다.
+
+이것이 날짜/회차 선택 실패의 CONFIRMED 직접 원인이다.
+
+앱 UI를 더 수정하지 마라.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. Render API 최종 검증 — 수정 전에 반드시 실행
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+후보:
+
+https://swimnote-api.onrender.com/api
+
+이 URL을 정상 서버라고 추정해서 바로 적용하지 마라.
+
+실제 현재 Render Live deployment에 대해 확인한다.
+
+A.
+
+/api/health
+
+B.
+
+/api/teacher/makeups?status=waiting
+
+C.
+
+/api/teacher/makeups/{실제 makeupId}/eligible-occurrences
+?class_group_id={실제 classGroupId}
+
+인증이 필요한 API는 실제 유효한 테스트 인증 방법을 사용한다.
+JWT를 보고서나 로그에 출력하지 않는다.
+
+각각 제출:
+
+HTTP status
+content-type
+response body가 JSON인지 여부
+eligible-occurrences route 도달 여부
+
+특히 C가:
+
+application/json
+
+으로 정상 응답하는 것을 확인해야 한다.
+
+Render가 정상이라는 직접 증거가 없으면
+API_BASE 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Render 정상 확인 시 API_BASE 단일화
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Render API가 실제 정상임이 CONFIRMED 된 경우에만 진행한다.
+
+Production App의 최종 API_BASE:
+
+https://swimnote-api.onrender.com/api
+
+중요:
+
+코드 fallback 하나만 수정해서 끝내지 마라.
+
+API_BASE를 결정할 수 있는 모든 경로 조사:
+
+- EAS production environment
+- Replit environment / Secrets
+- .env
+- .env.production
+- app.config.*
+- eas.json
+- SessionContext.tsx
+- process.env.EXPO_PUBLIC_API_URL
+- EXPO_PUBLIC_DOMAIN
+- build/update command environment
+- 기타 API_BASE override
+
+우선순위를 실제 Expo 환경변수 규칙과 현재 프로젝트 구조에서 확인한다.
+
+어떤 값이 최종 bundle에 bake되는지 확인한다.
+
+.env를 임의 수정하지 않는다.
+
+Production OTA 생성 환경에서:
+
+EXPO_PUBLIC_API_URL
+=
+https://swimnote-api.onrender.com/api
+
+가 실제 사용되도록 설정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 이번 복구에서 절대 변경하지 않을 기능
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+보강 정책은 이미 확정됐다.
+
+날짜:
+
+KST today -14일 ~ +28일
+양쪽 경계 포함.
+
+선보강:
+
+결석 예정일보다 이전 회차 선택 가능.
+
+예:
+
+결석 8/20
+보강 8/17
+
+허용.
+
+기간 지난 보강:
+
+지난달 미처리 expired 보강 계속 표시.
+
+정원:
+
+정원이 꽉 찬 반에도 보강 추가 가능.
+
+이 네 정책을 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 보호 영역
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+절대 수정 금지:
+
+학부모 요청
+학부모 알림
+선생님 요청함
+선생님 메신저
+link-result
+notify-result
+로그인
+Auth/JWT
+Session 인증 로직
+AI
+일지
+결제
+구독
+DB schema
+
+API endpoint 변경에 필요한 환경설정 외에는
+관련 없는 파일 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 기존 진단/임시 패치 정리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 장애 때문에 추가했던 임시 진단 UI/로그가 남아 있다면
+정확히 목록부터 제출한다.
+
+원인 확인에 더 이상 필요 없는 것만 제거한다.
+
+기능 코드와 정상 UX를 제거하지 않는다.
+
+추측해서 원래 코드로 되돌리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 정적 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 확인:
+
+API_BASE = Render 정상 API
+
+그리고 보강 Contract:
+
+waiting
+eligible-classes
+eligible-occurrences
+assign
+direct-complete
+
+모두 동일 API_BASE를 사용해야 한다.
+
+별도의 swimnote.kr API 호출이 남아 있는지 전체 검색한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 배포 순서
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Render 서버 코드는 이번에 변경하지 않았으면
+불필요한 Render 재배포 금지.
+
+API_BASE 클라이언트 변경만 필요한 경우:
+
+1. Diff 검증
+2. 보호 영역 변경 0 확인
+3. Clean Commit
+4. Push
+5. Production OTA
+6. OTA bundle의 실제 API_BASE 검증
+7. 실기기 검증
+
+Preview OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. OTA 후 실기기 완료 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 OTA 성공을 작업 완료라고 보고하지 않는다.
+
+실기기에서 반드시 다음까지 확인한다.
+
+CASE 1
+waiting 목록에서
+7/25 expired 표시
+
+CASE 2
+7/31 expired 표시
+
+CASE 3
+"기간 지난 보강 (2건)" 표시
+
+CASE 4
+8월 waiting 보강 정상 표시
+
+CASE 5
+보강반 선택
+→ eligible-occurrences JSON 정상 수신
+→ 날짜/회차 실제 표시
+
+CASE 6
+today -14 선택 가능
+
+CASE 7
+today 선택 가능
+
+CASE 8
+today +28 선택 가능
+
+CASE 9
+today -15 / +29 선택 불가
+
+CASE 10
+8/20 결석 예정자
+→ 8/17 선보강 가능
+
+CASE 11
+정원이 꽉 찬 반
+→ 보강 회차 선택 및 배정 가능
+
+CASE 12
+기간 지난 보강
+→ 선택/배정 정상
+
+실기기에서 확인하지 못한 항목은
+CONFIRMED 표시 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 크레딧 낭비 방지 / 작업 제한
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+같은 코드 반복 조사 금지.
+이미 CONFIRMED 된 UI 구조 재조사 금지.
+separator 재작성 금지.
+makeups 화면 재설계 금지.
+새 진단 패널 추가 금지.
+임의 retry 추가 금지.
+원인과 관계없는 리팩터링 금지.
+관련 없는 파일 열어서 수정 금지.
+
+현재 핵심은 단 하나:
+
+잘못된 Production API endpoint를
+검증된 정상 API endpoint로 교정하고
+실제 보강 기능 전체를 끝까지 검증하는 것이다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Render API 검증 결과
+2. 기존 API_BASE
+3. 최종 API_BASE
+4. API_BASE를 override하던 정확한 원인
+5. 실제 OTA bundle API_BASE
+6. 수정 파일
+7. Commit SHA
+8. Origin SHA
+9. OTA Group ID
+10. runtimeVersion
+11. waiting 실제 HTTP 결과
+12. expired 실제 반환 건수
+13. eligible-occurrences HTTP status/content-type
+14. eligible-occurrences 실제 회차 수
+15. -14/+28 확인
+16. 선보강 확인
+17. 정원 초과 보강 확인
+18. 보호 영역 diff=0 확인
+19. DB 변경 여부
+20. Render 변경 여부
+21. CASE 1~12 실기기 결과
+
+CASE 1~12가 모두 실기기에서 정상 확인되기 전에는
+"완료"라고 보고하지 않는다.
