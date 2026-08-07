@@ -1110,7 +1110,7 @@ export default function MakeupsScreen() {
                   <View style={{ paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4, gap: 8 }}>
                     <Pressable
                       style={[s.confirmBtn, { backgroundColor: C.button, opacity: assigning ? 0.6 : 1 }]}
-                      onPress={doAssign}
+                      onPress={() => doAssign()}
                       disabled={assigning}
                     >
                       {assigning ? <ActivityIndicator color="#fff" /> : <Text style={s.confirmTxt}>배정 확정</Text>}
