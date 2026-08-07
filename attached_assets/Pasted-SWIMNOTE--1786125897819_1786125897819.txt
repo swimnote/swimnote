@@ -1,0 +1,219 @@
+SWIMNOTE 보강 — 최종 장애: "배정 확정" 버튼 동작 복구
+
+현재 실기기 확인 결과:
+
+✅ 선생님별 보강 대상 분리 정상
+✅ 보강반 선택 정상
+✅ 날짜 목록 정상
+✅ 날짜 선택 정상
+❌ 날짜 선택 후 "배정 확정" 버튼을 눌러도 확정되지 않음
+
+따라서 다른 보강 기능은 전부 동결한다.
+
+이번 작업 대상은 "배정 확정 → doAssign → API" 흐름 하나뿐이다.
+
+추측 수정 금지.
+먼저 실제 원인을 잡는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 배정 확정 버튼 원문 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+makeups.tsx에서 현재 "배정 확정" 버튼 전체 원문 제출:
+
+- Pressable
+- onPress
+- disabled
+- style
+- assigning
+- 렌더 조건
+
+버튼 터치 자체가 차단되는 조건이 있는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. doAssign 전체 흐름 추적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+doAssign() 함수 전체를 확인하고 다음 순서로 제출:
+
+A. 함수 진입
+
+B. early return 조건
+
+특히:
+
+assignTarget
+selectedClassId
+selectedDate
+selectedOccurrence
+
+각 값이 없을 때 silent return하는지 확인.
+
+C. occurrence에서 실제 사용하는 필드:
+
+occurrence_date
+class_group_id
+is_future
+is_today
+is_past
+
+D. 미래면 호출하는 endpoint/body
+
+E. 오늘/과거면 호출하는 endpoint/body
+
+F. 응답 non-2xx 처리
+
+G. catch 처리
+
+H. 성공 후 state/list refresh
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 실기기 상태 기준 가장 중요한 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+날짜를 선택해서 단계3 "배정 확정" 버튼이 보인 순간:
+
+assignTarget != null
+selectedClassId != null
+selectedDate != null
+
+은 렌더 구조상 사실상 확인된다.
+
+그러나 selectedOccurrence가 실제 존재하는지는 별도 확인해야 한다.
+
+현재 날짜 row onPress가 실제로:
+
+setSelectedDate(...)
+setSelectedOccurrence(...)
+
+둘 다 실행되는지 다시 확인.
+
+그리고 최근 "날짜 다시 선택" 수정:
+
+setSelectedDate(null);
+setSelectedOccurrence(null);
+
+이후 새 날짜 선택 시
+selectedOccurrence가 다시 정상 설정되는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. silent return 금지 여부 조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 doAssign에 다음과 같은 코드가 있다면:
+
+if (!assignTarget || !selectedClassId || !selectedOccurrence) return;
+
+각 조건을 개별적으로 조사한다.
+
+실기기에서 어떤 값 때문에 return되는지 잡아야 한다.
+
+필요하면 진단용으로만
+"배정 확정" 버튼 아래 또는 기존 숨김 진단 패널에:
+
+assignTarget.id
+selectedClassId
+selectedDate
+selectedOccurrence?.occurrence_date
+selectedOccurrence?.class_group_id
+selectedOccurrence?.is_future
+assigning
+
+을 표시하는 최소 진단안을 제시한다.
+
+아직 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. API 호출이 실행되는 경우
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+doAssign이 API까지 진입한다면 실제 요청을 확인:
+
+endpoint
+method
+body
+HTTP status
+response body
+error code
+message
+
+중요:
+
+현재 확정 정책 유지:
+
+미래 날짜
+→ PATCH /teacher/makeups/:id/assign
+
+오늘/과거
+→ complete-direct
+
+정확한 현재 코드 endpoint를 Repository에서 확인하여 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 정원 초과 정책 절대 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기본 반 capacity가 5명이어도
+보강은 정원을 초과해서 추가 가능해야 한다.
+
+예:
+
+current_members = 5
+capacity = 5
+
+보강 학생 추가
+→ 허용
+→ 해당 회차 6명 가능
+
+따라서 다음을 다시 넣으면 안 된다:
+
+CLASS_FULL 차단
+is_full disabled
+available_slots > 0 필터
+capacity 기반 assign 거부
+
+정원마감/정원초과 뱃지는 정보 표시로만 유지 가능.
+
+일반 회원 등록의 정원 5명 제한은 그대로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 이미 완료된 기능 절대 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- 선생님별 visibility REQ-5
+- 날짜 -14/+28
+- 선보강
+- 결석 당일
+- expired
+- eligible-classes
+- eligible-occurrences
+- 정원 FULL 보강 허용
+- API_BASE
+- Auth/JWT/Login
+- DB
+- 일지
+- AI
+- SWIMNOTE X
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 배정 확정 버튼 원문
+2. doAssign 전체 코드
+3. early return 조건
+4. 단계3 시 각 state 값의 생성 경로
+5. selectedOccurrence 정상 설정 여부
+6. 버튼 터치 차단 여부
+7. API 호출 여부
+8. 호출 endpoint/body
+9. 실패 HTTP status/body 또는 silent return 원인
+10. 정확한 장애 원인
+11. 최소 수정 diff
+12. 수정 예정 파일
+13. 날짜 정책 무변경 증거
+14. REQ-5 무변경 증거
+15. 정원초과 허용 무변경 증거
+
+조사만 하고 중단.
+코드 수정·Commit·Push·Render·OTA·DB 변경 금지.
