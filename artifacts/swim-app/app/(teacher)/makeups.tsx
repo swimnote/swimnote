@@ -959,13 +959,11 @@ export default function MakeupsScreen() {
                   return (
                     <Pressable
                       key={occ.occurrence_date}
-                      style={[s.classRow, (occ.is_full && occ.is_future) && { opacity: 0.4 }]}
+                      style={[s.classRow]}
                       onPress={() => {
-                        if (occ.is_full && occ.is_future) return;
                         setSelectedDate(occ.occurrence_date);
                         setSelectedOccurrence(occ);
                       }}
-                      disabled={occ.is_full && occ.is_future}
                     >
                       <LucideIcon name="check-circle" size={16} color="#7C3AED" />
                       <View style={{ flex: 1 }}>

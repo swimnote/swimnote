@@ -1,0 +1,236 @@
+SWIMNOTE 보강 — 정원 마감 반 보강 허용 구현 승인
+
+조사 결과 확인 완료.
+최종 설계대로 구현한다.
+
+목표:
+정원이 찬 반이어도 보강 학생은 해당 반/회차를 선택하고 배정할 수 있게 한다.
+
+중요:
+이번 작업은 보강 흐름의 정원 차단만 제거한다.
+날짜·상태·요일·휴일·인증 등 기존 검증은 절대 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 허용 수정 파일 — 정확히 4개
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1)
+artifacts/api-server/src/routes/teachers.ts
+
+수정 A:
+eligible-classes의 정원 비교용 HAVING 절 삭제.
+
+조사 결과 HAVING에는
+GREATEST(...) > 0 정원 비교 조건 하나만 존재하므로
+해당 HAVING 전체 삭제 허용.
+
+수정 B:
+teacher 보강 assign 경로의 CLASS_FULL 400 차단 블록 삭제.
+
+주의:
+validateMakeupOccurrence 및 다른 검증은 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2)
+artifacts/api-server/src/routes/admin.ts
+
+eligible class 결과의
+
+.filter(r => r.is_eligible)
+
+삭제.
+
+단:
+is_eligible 계산 자체는 유지한다.
+
+즉 관리자는 정원이 찬 반도 목록에서 볼 수 있고
+기존 capacity 정보 및 is_eligible 정보는 그대로 유지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3)
+artifacts/swim-app/app/(teacher)/makeups.tsx
+또는 조사에서 확인한 실제 makeups.tsx 경로
+
+정원 마감 미래 회차의 UI 차단 제거.
+
+현재:
+
+disabled={occ.is_full && occ.is_future}
+
+및 이에 대응하는
+onPress guard / opacity 0.4
+
+정원 조건에 의한 차단만 제거한다.
+
+is_full 표시 및 정원 마감 경고/뱃지는 유지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4)
+ClassDetailSheet.tsx
+실제 Repository 경로 그대로 사용.
+
+오늘 스케줄 → 보강 처리 경로에서:
+
+disabled={isSaving || (occ.is_full && occ.is_future)}
+
+를 정원 때문에 막지 않도록 수정한다.
+
+최종적으로:
+
+disabled={isSaving}
+
+즉:
+isSaving 차단은 반드시 유지.
+occ.is_full에 의한 차단만 제거.
+
+관련 opacity/onPress guard가 별도로 존재한다면
+정원 조건만 제거하고
+isSaving 및 기타 안전장치는 유지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 절대 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 한 줄도 의미 변경하지 않는다.
+
+- makeup-date-range.ts
+- 오늘 -14일 ~ +28일 범위
+- validateMakeupDateRange
+- getMakeupDateRange
+- MAKEUP_DATE_OUT_OF_RANGE
+- 실제 달력 날짜 검증
+- 선보강 허용
+- 결석 당일 허용
+- ASSIGN_REQUIRES_FUTURE_DATE
+- complete-direct 날짜 분기
+- MAKEUP_EXPIRED_CONFIRM_REQUIRED
+- expired 확인 흐름
+- completed/cancelled/extinguished 상태 차단
+- 반 존재 검증
+- pool 소속 검증
+- 요일 검증
+- 휴일 검증
+- Auth
+- JWT
+- 로그인
+- DB schema
+- 일지
+- AI 일지
+- SWIMNOTE X / WP6 코드
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 최종 기대 동작
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+반 정원 5명
+현재 5/5
+
+기존:
+정원 마감 → 보강 선택/배정 불가
+
+변경 후:
+정원 마감 표시 유지
+5/5 정보 유지
+보강 학생 선택 가능
+회차 선택 가능
+보강 배정 가능
+
+미래 날짜:
+기존 assign 흐름 유지
+
+오늘/과거:
+기존 complete-direct 흐름 유지
+
+정원 여부만 더 이상 보강 차단 사유가 아니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 구현 후 필수 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소 다음을 실제 운영 코드 연결 테스트로 확인한다.
+
+A. 정원 여유 반
+→ 기존처럼 보강 가능
+
+B. 정확히 정원 찬 반
+예: 5/5
+→ 목록 노출
+→ 정원 마감 표시 유지
+→ 선택 가능
+→ 미래 assign 성공
+
+C. 정원 초과 상태 반
+예: 6/5가 이미 존재하는 경우
+→ 목록 노출/선택 가능 여부 확인
+→ 보강 경로에서 capacity 때문에 차단되지 않음
+
+D. 오늘 날짜 + 정원 찬 반
+→ complete-direct 정상
+
+E. 과거 날짜 + 정원 찬 반
+→ complete-direct 정상
+
+F. 미래 날짜 + 정원 찬 반
+→ assign 정상
+
+G. 날짜 -14/+28 경계
+→ 기존 정책 그대로 PASS
+
+H. -15/+29
+→ MAKEUP_DATE_OUT_OF_RANGE 그대로 차단
+
+I. expired
+→ MAKEUP_EXPIRED_CONFIRM_REQUIRED 그대로 유지
+
+J. 휴일
+→ 기존대로 선택 불가
+
+K. 반 수업 요일 불일치
+→ 기존대로 차단
+
+L. ClassDetailSheet
+→ 정원 찬 회차 선택 가능
+→ 저장 중에는 isSaving으로 중복 터치 차단
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 구현 후 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 증거를 제출한다.
+
+1. branch
+2. 작업 전 HEAD
+3. 작업 후 HEAD
+4. git status --short
+5. git diff --name-status
+6. 실제 변경 파일
+7. 각 변경 위치 before/after diff
+8. teachers HAVING 제거 diff
+9. teacher CLASS_FULL 제거 diff
+10. admin filter 제거 diff
+11. makeups.tsx 정원 UI 차단 제거 diff
+12. ClassDetailSheet isSaving 유지 증거
+13. is_full 표시/뱃지 유지 증거
+14. 날짜 로직 무변경 grep/diff 증거
+15. expired/state gate 무변경 증거
+16. Auth/JWT/Login 무변경 증거
+17. DB schema 무변경
+18. 테스트 결과
+19. 발견된 회귀/결함
+20. 배포 가능 여부 자체 판정
+
+중요:
+복제 테스트를 새로 만들어 통과 숫자만 늘리지 않는다.
+가능하면 실제 운영 helper/route를 직접 사용하는 테스트로 검증한다.
+
+아직 Push 금지.
+Render 배포 금지.
+OTA 금지.
+
+구현 + 테스트까지만 수행하고
+diff와 증거를 제출한 뒤 중단한다.
