@@ -1,0 +1,194 @@
+SWIMNOTE 보강 회귀 — 실제 실기기 실패 대상 1건만 추적
+
+이전 조사를 중단한다.
+
+중대한 조사 오류:
+사용자가 실기기에서 실제 재현한 대상과
+지금까지 조사한 대상이 달랐다.
+
+실기기 캡처의 실제 실패 대상:
+
+학생: 서태웅
+기존 반: 목 19:00반
+결석일: 2026-08-13
+만료일: 2026-08-31
+
+사용자가 이 카드에서
+"보강반 배정"
+→ 반/날짜 선택 흐름
+→ "수업 회차를 불러오지 못했습니다"
+오류를 실제 재현했다.
+
+배서준 7/25·7/31·8/1·8/7 건은
+이번 실패 재현 대상이 아니다.
+
+앞으로 배서준 데이터로 정상 여부 판정 금지.
+
+코드 수정 금지.
+DB 변경 금지.
+Commit / Push / Render / OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 서태웅 makeup_sessions 정확히 찾기
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+운영 DB는 반드시 SUPABASE_DATABASE_URL 사용.
+
+서태웅의 다음 조건에 해당하는 makeup_session을 SELECT한다.
+
+- student = 서태웅
+- absence_date = 2026-08-13
+- 기존 반 = 목 19:00반
+- expire_at = 2026-08-31 계열
+
+제출:
+
+- makeupId
+- studentId
+- swimming_pool_id
+- original_class_group_id
+- absence_date
+- expire_at
+- status
+- is_expired 계산 결과
+- assigned_class_group_id
+- assigned_date
+
+개인 전화번호 등 불필요한 개인정보 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 실기기 화면에서 선택 가능한 반 목록 재현
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+위 서태웅 makeupId로
+현재 Production 서버의
+
+GET teacher makeup eligible-classes
+
+실제 응답을 확인한다.
+
+제출:
+
+- HTTP status
+- 전체 반 개수
+- 각 반의 최소 정보:
+  classGroupId
+  class name
+  schedule_days
+  schedule_time
+  capacity
+  current_members
+  available_slots
+  is_full/is_eligible
+
+중요:
+사용자가 화면에서 눌렀을 가능성이 있는
+목 19:00 관련 반 또는 실제 표시된 반을 특정한다.
+
+다른 makeupId 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 서태웅 makeupId × 각 eligible class를 직접 조회
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+서태웅의 실제 makeupId를 고정한다.
+
+eligible-classes에서 반환된 classGroupId 각각에 대해:
+
+GET /teacher/makeups/{서태웅_makeupId}/eligible-occurrences
+?class_group_id={classGroupId}
+
+를 읽기 전용으로 호출한다.
+
+각 반별로 제출:
+
+classGroupId
+class name
+HTTP status
+error/code
+response body 요약
+occurrences_count
+
+여기서 어느 반이 실제로 4xx/5xx를 반환하는지 찾는다.
+
+이 단계에서
+"다른 조합은 200이었다"
+는 보고 금지.
+
+서태웅 makeupId를 모든 요청에서 고정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 실패 반이 발견되면 서버 코드까지 연결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4xx/5xx가 발생한 반에 대해
+eligible-occurrences 라우트의 어느 조건에서 실패하는지 특정한다.
+
+가능한 조건을 순서대로 확인:
+
+- makeup 존재
+- pool 일치
+- class 존재
+- class pool 일치
+- is_deleted
+- schedule_days 파싱
+- holiday query
+- 날짜 범위
+- 기타 DB 예외
+
+정확한 HTTP status / error code / 발생 line 제출.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 모든 서태웅 조합이 HTTP 200이면
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+서태웅 makeupId + 모든 eligible class가
+현재 Production 서버에서 전부 200이라면
+그때 서버 로직과 실기기 요청이 다르다는 것이 확정된다.
+
+그 경우에만 다음 단계로 넘어간다.
+
+그때 필요한 것은:
+
+- 실기기 updateId
+- API_BASE
+- 실제 선택 classGroupId
+- crash-report
+
+이다.
+
+그 전에는 진단 패널 복원하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 이월/기간 지난 보강은 별도 문제로 분리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 조사에서는
+"수업 회차를 불러오지 못했습니다" 문제부터 잡는다.
+
+배서준 expired 2건과
+기간 지난 보강 separator 문제는
+별도 회귀 항목으로 유지한다.
+
+두 문제를 한 조사에 섞지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 서태웅 실제 makeupId
+2. 서태웅 makeup DB 상태
+3. eligible-classes HTTP 결과
+4. 반환된 classGroupId 전체
+5. class별 eligible-occurrences HTTP 결과
+6. 실패하는 정확한 classGroupId
+7. 정확한 HTTP status
+8. 정확한 error code/body
+9. 서버 실패 조건과 코드 line
+10. 모든 class가 200인지 여부
+11. 현재 원인 확정 가능 여부
+12. 최소 수정 후보
+
+조사만 하고 중단.
