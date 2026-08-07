@@ -1,0 +1,279 @@
+SWIMNOTE 보강 회귀 복구 — Production 배포 전 마지막 실동작 Gate
+
+현재 복구 diff 방향은 승인한다.
+
+하지만 아직 Commit/Push/Render/OTA 금지.
+
+이유:
+이번 장애는 실제 Production에서
+1) waiting/expired 누락
+2) eligible-occurrences 실패
+가 발생한 회귀다.
+
+현재 보고서는 이 두 경로를 정적 코드로만 검증했다.
+따라서 실제 운영 Route를 직접 mount한 테스트로 마지막 확인 후 배포한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 0. 로컬 HEAD 901862e4 정체 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+origin/deploy-photo-clone = da0f2523
+local HEAD                = 901862e4
+working tree              = teachers.ts + makeups.tsx 수정
+
+다음 원문 제출:
+
+git show --stat --oneline 901862e4
+git show --name-status --oneline 901862e4
+git log --oneline origin/deploy-photo-clone..HEAD
+git diff --name-status origin/deploy-photo-clone..HEAD
+git status --short
+
+확인 목적:
+
+- 901862e4가 Replit 자동커밋인지
+- 어떤 파일이 포함됐는지
+- 보강 복구와 무관한 코드가 포함됐는지
+- 현재 Push 시 da0f2523 이후 어떤 커밋들이 함께 올라가는지
+
+901862e4 또는 origin..HEAD에 예상하지 않은 운영 코드가 있으면
+즉시 중단하고 보고만 한다.
+
+reset/rebase/revert/cherry-pick 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1. 실제 waiting Route 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+teachers.ts 실제 Router를 express에 mount한다.
+
+운영 라우트 코드는 복사하지 않는다.
+DB/Auth만 mock한다.
+
+반드시 아래 시나리오를 실제 HTTP 요청으로 검증한다.
+
+CASE W1
+
+동일 pool
+status=waiting
+original_teacher_id = 로그인 teacher와 다름
+handed_to_teacher_id = null
+
+기대:
+waiting 응답에 해당 makeup 포함
+
+→ 과거 ownership filter가 남아 있으면 실패해야 하는 테스트
+
+CASE W2
+
+동일 pool
+status=expired
+original_teacher_id = 로그인 teacher와 다름
+
+기대:
+waiting/expired 조회 정책에 따라 응답에 포함
+
+CASE W3
+
+다른 swimming_pool_id
+
+기대:
+응답에 절대 포함되지 않음
+
+CASE W4
+
+cancelled_at != null
+
+기대:
+응답에서 제외
+
+각 CASE:
+
+- 호출 Route
+- HTTP status
+- 반환 makeup id 포함 여부
+
+제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2. 실제 eligible-occurrences Route 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+teachers.ts 실제 Router를 mount한다.
+
+CASE O1
+
+class_group:
+- 동일 pool
+- is_deleted=false
+- is_one_time=true
+- 정상 schedule_days
+
+GET /teacher/makeups/:id/eligible-occurrences
+class_group_id = 위 반
+
+기대:
+HTTP 200
+CLASS_NOT_FOUND 없음
+occurrences 응답 생성
+
+이 테스트가 이번 회귀 복구의 핵심이다.
+
+CASE O2
+
+is_one_time=false
+→ 기존처럼 HTTP 200
+
+CASE O3
+
+다른 pool class_group
+→ CLASS_NOT_FOUND 404 유지
+
+CASE O4
+
+is_deleted=true
+→ CLASS_NOT_FOUND 유지
+
+CASE O5
+
+요일 불일치
+→ 기존 검증 유지
+
+CASE O6
+
+pool holiday
+→ 기존 검증 유지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3. 새 날짜 기능 생존 Route 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+복구 때문에 오늘 만든 날짜 정책이 깨지지 않았는지
+실제 Route 기준 최소 확인.
+
+- 오늘 -14일 → 허용 범위
+- 오늘 +28일 → 허용 범위
+- 오늘 -15일 → MAKEUP_DATE_OUT_OF_RANGE
+- 오늘 +29일 → MAKEUP_DATE_OUT_OF_RANGE
+- 결석일 이전 → 날짜 때문에는 차단되지 않음
+
+복제 함수 테스트 금지.
+
+기존 실제 Route 테스트가 있으면 그대로 재사용 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4. 정원초과 기능 생존 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 실제 Route Gate 테스트가 현재 브랜치에 없다면
+새 복제 테스트를 만들지 않는다.
+
+코드 증거 + 기존 release 브랜치에서 확인했던 실제 Route 테스트 결과를 구분하여 제출.
+
+현재 코드에서 반드시 유지:
+
+teachers eligible-classes:
+HAVING 정원 차단 없음
+
+teachers assign:
+CLASS_FULL 차단 없음
+
+admin:
+.filter(r => r.is_eligible) 없음
+
+teacher makeups:
+is_full 미래 disabled 없음
+
+ClassDetailSheet:
+disabled={isSaving}
+
+이번 복구 diff가 이 코드에 접촉하지 않았다는 것을 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5. expired separator 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+앱 자동 테스트 환경이 없으면 TESTED라고 쓰지 않는다.
+
+코드 기준 확인:
+
+waitingList 예:
+
+[
+  waiting1,
+  waiting2,
+  expired1,
+  expired2
+]
+
+기대 렌더 구조:
+
+waiting1
+waiting2
+----------------
+기간 지난 보강 (2건)
+----------------
+expired1
+expired2
+
+구분선:
+- 첫 expired 앞에서 딱 1번
+- expired가 0건이면 없음
+- expired가 1건이면 "(1건)"
+- 카드별 기존 기간지난 표시 유지
+
+판정은 STATIC_VERIFIED로 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 6. 테스트 파일 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 회귀를 검증하는 실제 Route 테스트 파일을 신규 생성했다면
+테스트 파일도 최종 변경 파일에 포함한다.
+
+단:
+
+- 운영 코드 복사 금지
+- fake 로직 금지
+- 상수 비교 금지
+
+실제 teachers Router import/mount 방식만 인정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 7. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 901862e4 commit 내용
+2. origin..HEAD commit 목록
+3. Push 시 포함될 파일 전체
+4. waiting 실제 Route 테스트 파일
+5. W1 결과
+6. W2 결과
+7. W3 결과
+8. W4 결과
+9. eligible-occurrences 실제 Route 테스트
+10. O1 is_one_time=true 결과
+11. O2 정상 반 결과
+12. O3 다른 pool 결과
+13. O4 deleted 결과
+14. 요일/휴일 결과
+15. -14/+28 결과
+16. -15/+29 결과
+17. 정원초과 기능 생존 증거
+18. expired separator STATIC_VERIFIED 결과
+19. 전체 테스트 수 / PASS / FAIL
+20. TypeScript 신규 오류
+21. 실제 최종 변경 파일
+22. DB 변경 여부
+23. Commit 여부
+24. Push 여부
+25. Render 여부
+26. OTA 여부
+27. 최종 배포 승인 가능 여부
+
+코드 복구 자체는 더 수정하지 않는다.
+테스트에 실패하면 임의 수정하지 않고 원인만 보고한다.
+
+Commit/Push/Render/OTA 없이 결과 제출 후 중단.
