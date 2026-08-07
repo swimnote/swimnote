@@ -9,8 +9,9 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform,
+  ActivityIndicator, FlatList, Keyboard, Modal, Platform,
   Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -108,7 +109,22 @@ export default function ParentNotificationsScreen() {
   const { token } = useAuth();
   const { students, selectedStudent } = useParent();
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
   const params = useLocalSearchParams<{ tab?: string; requestId?: string }>();
+
+  // ── 키보드 높이 추적 ──────────────────────────────────────────────────────
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    const show = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      e => setKbHeight(e.endCoordinates.height),
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKbHeight(0),
+    );
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   const [activeTab, setActiveTab] = useState<"notifications" | "requests">(
     params.tab === "requests" ? "requests" : "notifications"
@@ -519,15 +535,19 @@ export default function ParentNotificationsScreen() {
         <View style={styles.modalRoot}>
           {/* Backdrop — absoluteFillObject로 전체 화면 커버 (z 하단) */}
           <Pressable style={StyleSheet.absoluteFillObject} onPress={closeCreateModal} />
-          {/* KAV + Sheet — backdrop과 hit-area 구조적 분리 (z 상단) */}
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.modalKAV}
+          {/* Sheet — KAV 없이 직접 높이 계산으로 빈 공간 제거 (z 상단) */}
+          <View
+            style={[
+              styles.modalSheet,
+              {
+                backgroundColor: C.background,
+                paddingBottom: insets.bottom + 8,
+                maxHeight: kbHeight > 0
+                  ? screenHeight - kbHeight - insets.top - 8
+                  : screenHeight * 0.88,
+              },
+            ]}
           >
-            {/* Sheet — onStartShouldSetResponder 불필요 (backdrop과 hit-area 분리됨) */}
-            <View
-              style={[styles.modalSheet, { backgroundColor: C.background, paddingBottom: insets.bottom + 8 }]}
-            >
               {/* 헤더 — 고정 */}
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: C.text }]}>새 요청 보내기</Text>
@@ -536,11 +556,12 @@ export default function ParentNotificationsScreen() {
                 </Pressable>
               </View>
 
-              {/* 스크롤 영역 */}
+              {/* 스크롤 영역 — flex:1로 sheet 내부 남은 공간 모두 차지 */}
               <ScrollView
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.modalScrollContent}
+                style={styles.modalScrollView}
                 bounces
               >
                 {/* 요청 유형 선택 */}
@@ -647,8 +668,7 @@ export default function ParentNotificationsScreen() {
                   )}
                 </Pressable>
               </ScrollView>
-            </View>
-          </KeyboardAvoidingView>
+          </View>
         </View>
       </Modal>
     </View>
@@ -699,10 +719,10 @@ const styles = StyleSheet.create({
 
   // ── 요청 작성 Modal 스타일 ─────────────────────────────────────────────────
   modalRoot:          { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
-  modalKAV:           { width: "100%" },
-  modalSheet:         { height: "88%", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 20, overflow: "hidden" },
+  modalSheet:         { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 20 },
   modalHeader:        { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   modalTitle:         { fontSize: 18, fontFamily: "Pretendard-Regular" },
+  modalScrollView:    { flex: 1 },
   modalScrollContent: { paddingBottom: 16 },
   modalLabel:         { fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 8 },
   modalHint:          { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18, marginBottom: 16 },
