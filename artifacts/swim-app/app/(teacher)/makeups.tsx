@@ -162,15 +162,7 @@ export default function MakeupsScreen() {
       const res = await apiRequest(token, `/teacher/makeups?status=waiting`);
       if (res.ok) {
         const data = await res.json();
-        console.log("[MAKEUP_DIAG] API_RESPONSE", JSON.stringify({
-          count: Array.isArray(data) ? data.length : -1,
-          items: Array.isArray(data)
-            ? data.map((d: any) => ({ id: d.id, status: d.status, absence_date: d.absence_date, is_expired: d.is_expired }))
-            : [],
-        }));
         setWaitingList(data);
-      } else {
-        console.log("[MAKEUP_DIAG] API_FAILED", res.status);
       }
     } catch (e) { console.error(e); }
     finally { setWaitingLoading(false); setWaitingRefresh(false); }
@@ -234,15 +226,6 @@ export default function MakeupsScreen() {
     loadWaiting();
     if (tab === "assigned") loadAssigned();
   }, [loadWaiting, loadAssigned, tab]));
-  // [MAKEUP_DIAG] 계측 2 — waitingList state 변경 시점 로그
-  useEffect(() => {
-    if (tab === "waiting") {
-      console.log("[MAKEUP_DIAG] WAITING_STATE", JSON.stringify({
-        count: waitingList.length,
-        ids: waitingList.map((m: any) => m.id),
-      }));
-    }
-  }, [waitingList, tab]);
   /** occurrence 관련 공유 상태 초기화 헬퍼
    *  occSeqRef를 올려 진행 중인 모든 eligible-occurrences 요청을 무효화한다. */
   const resetOccState = () => {
@@ -288,20 +271,10 @@ export default function MakeupsScreen() {
   const selectClass = async (classId: string) => {
     // 배정 모달(assignTarget) 또는 직접 완료 모달(directCompleteTarget) 어느 쪽이든 처리
     const activeTarget = assignTarget ?? directCompleteTarget;
-    // ── [LOG 1] 함수 시작 ──────────────────────────────────────────────────
-    console.log(`[selectClass] START classId=${classId} activeTarget=${activeTarget?.id ?? 'NULL'} token=${token ? 'EXISTS' : 'NULL'}`);
-    if (!activeTarget) {
-      // ── [LOG 2] return 지점: activeTarget 없음 ──────────────────────────
-      console.log('[selectClass] RETURN: activeTarget is null — assignTarget/directCompleteTarget 모두 null');
-      return;
-    }
-    // STEP 5: 동일 반+보강 조합 요청 진행 중 재호출 방지
+    if (!activeTarget) return;
+    // 동일 반+보강 조합 요청 진행 중 재호출 방지
     const occKey = `${activeTarget.id}:${classId}`;
-    if (occPendingRef.current.has(occKey)) {
-      // ── [LOG 3] return 지점: 중복 요청 차단 ────────────────────────────
-      console.log(`[selectClass] RETURN: duplicate request occKey=${occKey}`);
-      return;
-    }
+    if (occPendingRef.current.has(occKey)) return;
     occPendingRef.current.add(occKey);
     occSeqRef.current += 1;
     const mySeq = occSeqRef.current;
@@ -312,27 +285,13 @@ export default function MakeupsScreen() {
     setOccError(false);
     setOccErrorDetail(null);
     setOccLoading(true);
-    const _doRequest = async () => {
-      const reqUrl = `/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`;
-      // ── [LOG 4] apiRequest 호출 직전 ──────────────────────────────────
-      console.log(`[selectClass] apiRequest 직전 makeupId=${activeTarget.id} classGroupId=${classId} url=${reqUrl}`);
-      const r = await apiRequest(token, reqUrl);
-      // ── [LOG 5] apiRequest 응답 ────────────────────────────────────────
-      console.log(`[selectClass] apiRequest 응답 status=${r.status} ok=${r.ok}`);
-      return r;
-    };
+    const _doRequest = async () =>
+      apiRequest(token, `/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`);
     try {
       let r = await _doRequest();
-      // 실패 시 1회 자동 재시도 (500ms 후)
-      if (!r.ok) {
-        console.log(`[selectClass] 재시도 status=${r.status} — 500ms 후 재요청`);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        r = await _doRequest();
-      }
       if (occSeqRef.current !== mySeq) return;
       if (r.ok) {
         const data = await r.json();
-        console.log(`[selectClass] OK occurrences=${data.occurrences?.length ?? 0}`);
         setOccurrences((data.occurrences || []) as MakeupOccurrence[]);
       } else {
         const status = r.status;
@@ -340,8 +299,6 @@ export default function MakeupsScreen() {
         let body: any = null;
         try { body = rawText ? JSON.parse(rawText) : null; } catch { body = { raw: rawText }; }
         const errorCode: string = body?.error ?? body?.message ?? "UNKNOWN";
-        // ── [LOG 6] NOT_OK — 실제 HTTP status + response body ─────────────
-        console.log(`[selectClass] NOT_OK status=${status} errorCode=${errorCode} body=${rawText?.slice(0, 300)}`);
         // 서버에 오류 보고 (CRASH_REPORT 형식) — /crash-report 경로 수정
         try {
           apiRequest(token, `/crash-report`, {
@@ -360,8 +317,6 @@ export default function MakeupsScreen() {
         }
       }
     } catch (e: any) {
-      // ── [LOG 7] catch — 네트워크/타임아웃 오류 ────────────────────────
-      console.log(`[selectClass] CATCH e.name=${e?.name} e.message=${e?.message} mkId=${activeTarget.id} cgId=${classId}`);
       // 네트워크/타임아웃 오류도 서버에 보고
       try {
         apiRequest(token, `/crash-report`, {
@@ -674,7 +629,6 @@ export default function MakeupsScreen() {
                 const expiredCount = firstExpiredIdx >= 0 ? sorted.length - firstExpiredIdx : 0;
                 return sorted.map((mk, idx) => {
                   const showSeparator = firstExpiredIdx >= 0 && idx === firstExpiredIdx;
-              console.log("[MAKEUP_DIAG] RENDERED", mk.id, mk.status, mk.absence_date, mk.is_expired);
               const expireInfo = formatExpireAt(mk.expire_at);
               return (
                 <React.Fragment key={mk.id}>
