@@ -230,7 +230,7 @@ export default function DiaryWriteView({
                       <LucideIcon name="x-circle" size={18} color={C.textMuted} />
                     </Pressable>
                   </View>
-                  <Text style={s.noteContent} numberOfLines={2}>{note.note_content}</Text>
+                  <Text style={s.noteContent}>{note.note_content}</Text>
                   <View style={[s.mediaRow, { marginTop: 4 }]}>
                     <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={() => onOpenStudentAlbumPicker(st)}>
                       <LucideIcon name="image" size={13} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
@@ -288,7 +288,7 @@ export default function DiaryWriteView({
                 value={noteInput} onChangeText={setNoteInput}
                 onSelectionChange={e => { noteCursorRef.current = e.nativeEvent.selection.start; }}
                 placeholder="이 학생에게 전달할 추가 내용을 입력하세요"
-                placeholderTextColor={C.textMuted} multiline numberOfLines={3} textAlignVertical="top" autoFocus />
+                placeholderTextColor={C.textMuted} multiline scrollEnabled={false} textAlignVertical="top" autoFocus />
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
                 <TouchableOpacity style={[s.sentencePickBtn]} onPress={() => setShowPickerFor("note")} activeOpacity={0.7}>
                   <LucideIcon name="book-open" size={12} color="#8B5CF6" />
