@@ -1,0 +1,250 @@
+[SWIMNOTE 보강 STEP 1 — auto-commit 오염 제거 후 Clean Commit 재구성]
+
+A/B 모두 실행하지 마십시오.
+
+특히:
+
+A. attached_assets 포함 상태 Push 금지
+B. force push 금지
+
+현재 Remote:
+
+769df1aa
+
+현재 Local history에는:
+
+a2157d53  attached_assets only
+f324e040  attached_assets only
+99dbcf10  makeups.tsx + attached_assets
+
+가 존재합니다.
+
+이 3개 Commit은 Remote에 Push되지 않았습니다.
+
+따라서 Remote history를 변경할 필요가 없으며
+force push도 필요 없습니다.
+
+목표:
+
+Remote 769df1aa 기준으로 돌아간 뒤
+99dbcf10에 들어 있는 makeups.tsx의
+검증된 "기간 지난 보강 separator 복구" 내용만 다시 가져와
+새 Clean Commit 1개를 만듭니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 상태 백업
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 현재 Local HEAD를 백업 branch로 보존하십시오.
+
+git branch backup/makeup-expired-restore-before-clean-99dbcf10
+
+백업 생성 후 확인:
+
+git rev-parse backup/makeup-expired-restore-before-clean-99dbcf10
+
+이 단계에서 Push 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Remote clean 기준으로 복귀
+━━━━━━━━━━━━━━━━━━━━━━
+
+실행:
+
+git reset --hard origin/release/v1.2-phase1-clean
+
+정상 HEAD:
+
+769df1aa
+
+확인:
+
+git rev-parse HEAD
+git status --short
+
+attached_assets untracked 파일이 남아 있다면
+경로를 확인하십시오.
+
+이번 작업의 지시서 txt 파일만 있다면 제거 가능.
+
+.gitignore 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. makeups.tsx 1개만 정상본에서 복원
+━━━━━━━━━━━━━━━━━━━━━━
+
+99dbcf10 Commit 전체를 cherry-pick하지 마십시오.
+
+Commit 전체 restore 금지.
+
+오직 다음 파일만 가져옵니다:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+
+99dbcf10에 저장된 해당 파일을 현재 Working Tree에 복원하십시오.
+
+예:
+
+git restore \
+  --source=99dbcf10 \
+  --worktree \
+  -- 'artifacts/swim-app/app/(teacher)/makeups.tsx'
+
+또는 동일 효과의 안전한 Git 명령 사용.
+
+중요:
+
+attached_assets는 절대 가져오지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 복구 내용 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+git diff --name-status
+
+정상:
+
+M artifacts/swim-app/app/(teacher)/makeups.tsx
+
+1개만.
+
+다음 코드 존재 확인:
+
+firstExpiredIdx
+expiredCount
+showSeparator
+기간 지난 보강 (${expiredCount}건)
+expiredSection
+expiredSectionLine
+expiredSectionTxt
+
+그리고 기존 MAKEUP_DIAG 계측 코드는
+Remote 769df1aa에 이미 존재하므로 유지되어야 합니다.
+
+새 기능 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 허용 범위 밖 변경 검사
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 모두 0건이어야 합니다.
+
+attached_assets staged = 0
+memory = 0
+mockup = 0
+generated = 0
+
+parent/notifications.tsx = 0
+parent/requests.tsx = 0
+teacher/messages-inbox.tsx = 0
+
+서버 = 0
+DB = 0
+SessionContext = 0
+apiRequest = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Clean Commit 생성
+━━━━━━━━━━━━━━━━━━━━━━
+
+오직 makeups.tsx만 stage:
+
+git add 'artifacts/swim-app/app/(teacher)/makeups.tsx'
+
+확인:
+
+git diff --cached --name-status
+
+정상 출력:
+
+M artifacts/swim-app/app/(teacher)/makeups.tsx
+
+1개만.
+
+그 뒤:
+
+git commit -m "fix: restore expired makeup section"
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Commit 직후 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실행:
+
+git show --name-status --format=fuller HEAD
+git status --short
+git diff --name-status 769df1aa..HEAD
+
+정상 조건:
+
+Commit 포함 파일:
+makeups.tsx 1개
+
+attached_assets:
+0건
+
+학부모 요청/알림:
+0건
+
+선생님 요청함/메신저:
+0건
+
+서버:
+0건
+
+DB:
+0건
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Push
+━━━━━━━━━━━━━━━━━━━━━━
+
+위 조건이 모두 PASS한 경우에만:
+
+git push origin release/v1.2-phase1-clean
+
+일반 Push만 사용.
+
+절대 금지:
+
+--force
+--force-with-lease
+
+Push 후:
+
+git rev-parse HEAD
+git rev-parse origin/release/v1.2-phase1-clean
+
+Local = Remote 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 여기서 일단 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서는 아직 OTA 실행하지 마십시오.
+
+먼저 Clean Push 결과를 보고하십시오.
+
+보고:
+
+Backup branch:
+Clean base SHA:
+New Commit SHA:
+Commit files:
+attached_assets 포함:
+Local HEAD:
+Remote HEAD:
+Working tree:
+Force push:
+학부모 요청 변경:
+학부모 알림 변경:
+선생님 요청함/메신저 변경:
+Server 변경:
+DB 변경:
+OTA:
+
+정상 판정:
+
+“지난 보강 복구 Clean Commit/Push 완료·Production OTA 승인 대기”
