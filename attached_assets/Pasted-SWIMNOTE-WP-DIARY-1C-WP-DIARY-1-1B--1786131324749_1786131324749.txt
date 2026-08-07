@@ -1,0 +1,234 @@
+SWIMNOTE — WP-DIARY-1C
+실기기 기준 개별일지 자동높이 원인 확정
+
+중요:
+WP-DIARY-1, 1B 두 번 모두 실기기에서 실패했다.
+
+따라서 더 이상
+numberOfLines / scrollEnabled 조합을 추측해서 수정하지 않는다.
+
+현재 사실:
+
+- 전체일지는 실기기에서 내용이 길어지면 실제 높이가 늘어남
+- 개별일지는 같은 화면에서 계속 고정 높이
+- 9b1a323f 실패
+- f363fb16 실패
+
+이제 "왜 전체일지만 실제로 늘어나는지"를 런타임으로 증명한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 전체일지와 개별일지 실제 스타일 최종값 확인
+━━━━━━━━━━━━━━━━━━━━
+
+DiaryWriteView.tsx에서
+전체일지 TextInput과 개별일지 TextInput에 적용되는
+최종 style array 전체를 추적한다.
+
+특히 확인:
+
+- textarea
+- noteTextarea
+- 부모 View style
+- flex
+- flexGrow
+- alignSelf
+- height
+- minHeight
+- maxHeight
+- overflow
+- width
+- position
+
+StyleSheet 원문만 보지 말고
+JSX에서 추가로 합쳐지는 style까지 전부 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 런타임 높이 측정 진단 추가
+━━━━━━━━━━━━━━━━━━━━
+
+이번에는 진단 코드 추가 승인.
+
+전체일지와 개별일지 각각에:
+
+onLayout
+onContentSizeChange
+
+를 임시로 달아서 실기기 값 확인 가능하게 한다.
+
+기록 항목:
+
+COMMON:
+- contentSize.height
+- layout.height
+- text length
+
+STUDENT:
+- studentId
+- contentSize.height
+- layout.height
+- text length
+
+예:
+
+[DIARY_HEIGHT][COMMON]
+len=...
+contentHeight=...
+layoutHeight=...
+
+[DIARY_HEIGHT][STUDENT]
+studentId=...
+len=...
+contentHeight=...
+layoutHeight=...
+
+목표:
+전체일지는 contentHeight 증가 시 layoutHeight도 증가하는지,
+개별일지는 contentHeight만 증가하고 layoutHeight가 고정되는지
+실제 수치로 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+3. TextInput value 경로 확인
+━━━━━━━━━━━━━━━━━━━━
+
+전체일지:
+value={commonContent}
+
+개별일지:
+value={noteInput}
+
+각 state가 언제 생성/갱신되는지 확인.
+
+특히 AI 삽입 후
+개별일지 화면에서 실제 TextInput value가
+긴 note 전체 문자열인지 확인.
+
+미리보기 Text만 길고
+편집용 noteInput은 짧거나 잘린 값인지도 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 개별일지 편집 구조 확인
+━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+현재 개별일지 입력창은
+모든 studentNotes를 직접 value로 쓰는 게 아니라
+선택한 학생의 noteInput state를 사용하는 구조다.
+
+다음 흐름을 추적:
+
+학생 카드 클릭
+→ addNoteStudent 설정
+→ noteInput에 기존 note_content 복사 여부
+→ TextInput value
+→ 수정
+→ 저장/upsert
+
+여기에서
+noteInput 초기화 시 일부만 복사하는 코드,
+slice/substring,
+두 줄 미리보기 값을 가져오는 코드가 없는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 전체일지와 개별일지 wrapper 구조 비교
+━━━━━━━━━━━━━━━━━━━━
+
+전체일지 TextInput 부모:
+
+어떤 View/ScrollView 안에 있는지
+
+개별일지 TextInput 부모:
+
+학생 카드
+조건부 View
+버튼 영역
+기타 wrapper
+
+전체 hierarchy를 비교.
+
+특히 개별일지 부모 중
+높이를 제한하는 View가 있는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 실기기 진단 OTA
+━━━━━━━━━━━━━━━━━━━━
+
+이번 단계는 원인 확정용 진단이므로
+UI 기능 변경 금지.
+
+허용:
+
+- onLayout
+- onContentSizeChange
+- 최소 diagnostic text/log
+
+금지:
+
+- 높이 로직 변경
+- numberOfLines 또 변경
+- 새로운 height state
+- AI/API/DB 수정
+
+진단 코드만 Commit → OTA 가능.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 실기기에서 확인할 값
+━━━━━━━━━━━━━━━━━━━━
+
+긴 전체일지 1개
+긴 개별일지 1개
+
+각각:
+
+text length
+contentSize.height
+layout.height
+
+세 값을 확보.
+
+예상 분기:
+
+A.
+개별 contentSize도 작음
+→ TextInput value/state 문제
+
+B.
+개별 contentSize는 큰데 layout.height만 고정
+→ layout/style 문제
+
+C.
+개별 layout.height도 커지는데 화면상 잘림
+→ parent wrapper/overflow 문제
+
+이 셋 중 하나로 원인 확정.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 보호 범위
+━━━━━━━━━━━━━━━━━━━━
+
+변경 금지:
+
+- AI Engine
+- Diary API
+- DB
+- scheduler
+- photos
+- 보강 Production Baseline
+- SWIMNOTE X
+
+━━━━━━━━━━━━━━━━━━━━
+9. 제출
+
+1. 전체일지 최종 style chain
+2. 개별일지 최종 style chain
+3. 전체 wrapper hierarchy
+4. 개별 wrapper hierarchy
+5. commonContent value 경로
+6. noteInput value 경로
+7. 실기기 COMMON 진단값
+8. 실기기 STUDENT 진단값
+9. A/B/C 중 판정
+10. 정확한 원인
+11. 최소 수정안
+
+이번엔 진단값 없이는 원인 확정하지 말 것.
