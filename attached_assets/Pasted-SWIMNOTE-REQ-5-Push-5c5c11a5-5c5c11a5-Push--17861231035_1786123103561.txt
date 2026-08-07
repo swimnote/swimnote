@@ -1,0 +1,191 @@
+SWIMNOTE REQ-5 — 이미 Push된 5c5c11a5 배포 전 최종 검증
+
+중요:
+5c5c11a5가 승인 전에 이미 Push된 상태다.
+
+지금부터 추가 코드 수정 금지.
+새 Commit 금지.
+Push 금지.
+Render 배포 금지.
+OTA 금지.
+DB 변경 금지.
+
+현재 origin에 있는 5c5c11a5의 실제 코드가
+제출한 REQ-5 설계와 정확히 일치하는지만 검증한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 5c5c11a5 실제 diff 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+git show --stat --oneline 5c5c11a5
+git show --name-status 5c5c11a5
+git show 5c5c11a5 -- artifacts/api-server/src/routes/teachers.ts
+
+확인:
+
+- teachers.ts 외 운영 파일 변경 없음
+- GET /teacher/makeups의 visibility WHERE만 변경
+- 날짜/정원/eligible-occurrences/assign/complete-direct 변경 없음
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 현재반 Source of Truth 운영 데이터 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+운영 DB SUPABASE_DATABASE_URL에서 SELECT만 실행.
+
+student_class_history에서:
+
+left_at IS NULL인 학생별 active class row 개수 분포를 확인한다.
+
+제출:
+
+active class 0개 학생 수
+active class 1개 학생 수
+active class 2개 이상 학생 수
+
+개인정보/학생 이름 출력 금지.
+
+2개 이상이 존재하면:
+그 학생들이 실제 복수반 수강인지 데이터 오류인지
+코드/DB 구조상 판정 가능한 범위만 보고.
+
+임의 UPDATE 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 visibility SQL 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+운영 DB를 변경하지 않고 SELECT로 검증한다.
+
+최소 실제 샘플:
+
+CASE A
+Teacher A 현재 담당반 학생
+→ A visibility = true
+
+CASE B
+Teacher B의 학생
+→ A visibility = false
+
+CASE C
+학생이 A반에서 B반으로 이동했고
+과거 보강이 남아 있는 경우
+→ 현재 B = true
+→ 과거 A = false
+
+CASE D
+expired 보강
+→ 현재 담당 teacher에게 true
+
+CASE E
+현재 co_teacher
+→ true
+
+CASE F
+handed_to_teacher_id = Teacher C
+→ C = true
+
+CASE G
+handoff가 있어도 현재 담당 teacher
+→ 기본 current-class 조건으로 true인지 확인
+
+실제 데이터가 없는 CASE는
+임의 데이터를 만들지 말고 NOT_TESTABLE로 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. pool_admin teacher-mode 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+switch-role 후 userId가 유지된다는 코드 증거와 함께,
+
+현재 pool_admin userId가 실제 class_groups.teacher_user_id로
+등록된 반이 존재하는지 SELECT로 확인.
+
+존재하면:
+그 반 학생이 새 visibility SQL에 포함되는지 확인.
+
+존재하지 않으면:
+pool_admin teacher-mode에서 담당반 학생을 볼 수 있다는 주장을
+일반화하지 말고 NOT_APPLICABLE로 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. handoff 정책 정확성 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+새 SQL이:
+
+current class teacher/co-teacher
+OR handed_to_teacher_id
+
+구조인지 확인.
+
+즉 handoff가 있다고
+현재 담당자가 자동으로 visibility를 잃는 구조가 아님을 확인.
+
+이것이 REQ-5 정책이다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 기존 기능 무변경 증거
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 route/diff가 5c5c11a5에서 변경되지 않았음을 제출:
+
+- eligible-classes
+- eligible-occurrences
+- assign
+- complete-direct
+- MAKEUP_DATE_OUT_OF_RANGE
+- -14/+28 날짜범위
+- expired confirmation
+- capacity FULL 보강 허용
+- admin makeups
+- Auth/JWT/Login
+- DB schema
+- 일지/AI
+- SWIMNOTE X
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 실제 teachers.ts route를 mount하고
+DB/auth만 mock하여 visibility 테스트를 작성/실행하되,
+
+새 테스트 코드를 추가하려면 먼저 보고만 하고
+현재 단계에서는 Commit하지 않는다.
+
+최소 검증:
+
+A teacher A → 자기 학생만
+B teacher B → 자기 학생만
+B로 이동한 학생의 과거 보강 → B만
+expired → 현재 teacher
+co_teacher → 표시
+handoff receiver → 표시
+다른 pool 학생 → 비표시
+
+복제 SQL 테스트 금지.
+실제 route 연결 테스트만 인정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 5c5c11a5 변경 파일
+2. 실제 diff
+3. active membership 분포
+4. 현재 담당 teacher visibility 결과
+5. 반 이동 결과
+6. expired 결과
+7. co_teacher 결과
+8. handoff 결과
+9. pool_admin teacher-mode 결과
+10. admin 영향 없음
+11. eligible-classes 영향 없음
+12. 날짜/정원 수정 생존
+13. 실제 route 테스트 결과
+14. 운영 DB 변경 없음
+15. 배포 승인 가능 여부
+
+조사와 테스트만 하고 중단.
+Render 배포 절대 금지.
