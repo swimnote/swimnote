@@ -85,24 +85,9 @@ export default function DiaryWriteView({
   onAIInsert?: (result: DiaryInsertResult) => void;
 }) {
   const insets = useSafeAreaInsets();
-  // [DIAG-WP1C] 런타임 진단 — 배포 후 제거 예정
-  const [diag, setDiag] = useState<Record<string, any>>({});
-  const ud = (k: string, v: any) => setDiag(p => ({ ...p, [k]: v }));
-
   return (
     <View style={{ flex: 1 }}>
       <KeyboardAwareScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} keyboardDismissMode="interactive" bottomOffset={90}>
-
-        {/* [DIAG-WP1C] 진단 패널 */}
-        <View style={{ backgroundColor: '#111827', padding: 6, borderRadius: 6, gap: 1 }}>
-          <Text style={{ color: '#6EE7B7', fontSize: 9, fontFamily: 'monospace' }}>{'[DIAG] C.layout=' + JSON.stringify(diag.CL)}</Text>
-          <Text style={{ color: '#6EE7B7', fontSize: 9, fontFamily: 'monospace' }}>{'[DIAG] C.content=' + JSON.stringify(diag.CC)}</Text>
-          <Text style={{ color: '#6EE7B7', fontSize: 9, fontFamily: 'monospace' }}>{'[DIAG] C.parent=' + JSON.stringify(diag.CP)}</Text>
-          <Text style={{ color: '#FCD34D', fontSize: 9, fontFamily: 'monospace' }}>{'[DIAG] S.layout=' + JSON.stringify(diag.SL)}</Text>
-          <Text style={{ color: '#FCD34D', fontSize: 9, fontFamily: 'monospace' }}>{'[DIAG] S.content=' + JSON.stringify(diag.SC)}</Text>
-          <Text style={{ color: '#FCD34D', fontSize: 9, fontFamily: 'monospace' }}>{'[DIAG] S.parent=' + JSON.stringify(diag.SP)}</Text>
-          <Text style={{ color: '#94A3B8', fontSize: 9, fontFamily: 'monospace' }}>{'[DIAG] C.len=' + commonContent.length + ' S.len=' + (noteInput?.length ?? 0)}</Text>
-        </View>
 
         {myDiaryExists && (
           <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
@@ -111,7 +96,7 @@ export default function DiaryWriteView({
           </View>
         )}
 
-        <View style={[s.card, { backgroundColor: C.card }]} onLayout={e => ud('CP', e.nativeEvent.layout)}>
+        <View style={[s.card, { backgroundColor: C.card }]}>
           <View style={s.cardHeader}>
             <View style={[s.cardIcon, { backgroundColor: themeColor + "20" }]}>
               <LucideIcon name="book-open" size={15} color={themeColor} />
@@ -138,8 +123,6 @@ export default function DiaryWriteView({
           <TextInput style={[s.textarea, { borderColor: C.border, color: C.text }]}
             value={commonContent} onChangeText={setCommonContent}
             onSelectionChange={e => { commonCursorRef.current = e.nativeEvent.selection.start; }}
-            onLayout={e => ud('CL', e.nativeEvent.layout)}
-            onContentSizeChange={e => ud('CC', e.nativeEvent.contentSize)}
             placeholder="오늘 수업 내용을 입력하세요.\n(모든 학생 학부모에게 공통으로 노출됩니다)"
             placeholderTextColor={C.textMuted} multiline numberOfLines={6} textAlignVertical="top" />
           <View style={s.textareaFooter}>
@@ -299,13 +282,11 @@ export default function DiaryWriteView({
           )}
 
           {addNoteStudent && (
-            <View style={[s.noteInput, { backgroundColor: "#EEDDF5", borderColor: "#8B5CF6" }]} onLayout={e => ud('SP', e.nativeEvent.layout)}>
+            <View style={[s.noteInput, { backgroundColor: "#EEDDF5", borderColor: "#8B5CF6" }]}>
               <Text style={[s.noteName, { color: "#8B5CF6", marginBottom: 6 }]}>{addNoteStudent.name} 추가 일지</Text>
               <TextInput style={[s.noteTextarea, { borderColor: "#8B5CF6", color: C.text }]}
                 value={noteInput} onChangeText={setNoteInput}
                 onSelectionChange={e => { noteCursorRef.current = e.nativeEvent.selection.start; }}
-                onLayout={e => ud('SL', e.nativeEvent.layout)}
-                onContentSizeChange={e => ud('SC', e.nativeEvent.contentSize)}
                 placeholder="이 학생에게 전달할 추가 내용을 입력하세요"
                 placeholderTextColor={C.textMuted} multiline numberOfLines={6} textAlignVertical="top" autoFocus />
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" }}>

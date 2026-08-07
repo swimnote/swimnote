@@ -44,7 +44,7 @@
  * 수정 금지: useDiaryAIV2, DiaryAIService, API, 상태 전이, retry, requestId, AbortController
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   Modal,
   Platform,
@@ -395,13 +395,11 @@ interface StudentNoteCardProps {
 }
 
 function StudentNoteCard({ student, onChange }: StudentNoteCardProps) {
-  const [inputHeight, setInputHeight] = useState(STUDENT_NOTE_MIN_H);
-
   return (
     <View style={cardStyles.container}>
       <Text style={cardStyles.name}>{student.studentName}</Text>
       <TextInput
-        style={[cardStyles.noteInput, { height: Math.max(STUDENT_NOTE_MIN_H, inputHeight) }]}
+        style={cardStyles.noteInput}
         value={student.note}
         onChangeText={onChange}
         multiline
@@ -410,9 +408,6 @@ function StudentNoteCard({ student, onChange }: StudentNoteCardProps) {
         placeholder="학생별 일지 내용"
         placeholderTextColor={AIThemeColor.textSub}
         textAlignVertical="top"
-        onContentSizeChange={(e) =>
-          setInputHeight(e.nativeEvent.contentSize.height)
-        }
       />
     </View>
   );
@@ -437,7 +432,8 @@ const cardStyles = StyleSheet.create({
   },
   noteInput: {
     ...AIThemeTypography.result,
-    color: AIThemeColor.text,
+    color:     AIThemeColor.text,
+    minHeight: STUDENT_NOTE_MIN_H,
   },
 });
 

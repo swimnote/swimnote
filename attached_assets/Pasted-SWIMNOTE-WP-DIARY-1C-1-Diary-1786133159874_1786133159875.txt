@@ -1,0 +1,175 @@
+SWIMNOTE — WP-DIARY-1C 실제 문제 화면 수정 승인
+
+이번 조사 결과 기준으로 구현 승인한다.
+
+확정된 사실:
+
+1. 실제 문제 화면은
+   DiaryWriteView / DiaryEditView가 아니라
+
+   artifacts/swim-app/.../DiaryAIModalV2.tsx
+
+   의 "AI 일지 작성" 모달이다.
+
+2. 실제 학생별 개별일지는
+   StudentNoteCard 안의 TextInput이다.
+
+3. 같은 모달의 전체일지(COMMON)는:
+
+   - 명시적 height 없음
+   - minHeight 사용
+   - onContentSizeChange 없음
+
+   구조이고 실기기에서 긴 내용이 정상 표시된다.
+
+4. 학생별 일지(STUDENT)는:
+
+   - height: Math.max(60, inputHeight)
+   - onContentSizeChange로 inputHeight 갱신
+
+   구조다.
+
+5. 명시적 height 구조가 정확한 장애 원인이라는 실측 확정은 아직 없지만,
+   동일 모달에서 이미 정상 작동하는 COMMON 방식으로 STUDENT를 통일하는
+   최소 변경은 승인한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 실제 수정
+━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+DiaryAIModalV2.tsx
+
+StudentNoteCard에서 제거:
+
+const [inputHeight, setInputHeight] = useState(...)
+
+style={[
+  cardStyles.noteInput,
+  { height: Math.max(STUDENT_NOTE_MIN_H, inputHeight) }
+]}
+
+onContentSizeChange={...}
+
+변경:
+
+style={cardStyles.noteInput}
+
+그리고 noteInput style에:
+
+minHeight: STUDENT_NOTE_MIN_H
+
+적용.
+
+유지:
+
+multiline
+scrollEnabled={false}
+textAlignVertical="top"
+
+목표:
+
+학생별 일지도 같은 AI 결과 모달의 전체일지와 동일하게
+내용 길이에 따라 카드가 자연스럽게 늘어나도록 한다.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 잘못된 진단 코드 제거
+━━━━━━━━━━━━━━━━━━━━
+
+이전 WP-DIARY-1C에서
+DiaryWriteView.tsx 일반 일지 화면에 추가한
+
+[DIAG]
+C.layout
+C.content
+C.parent
+S.layout
+S.content
+S.parent
+
+관련 진단 코드 전체 제거.
+
+잘못된 화면에 붙은 진단이므로 Production에 남기지 않는다.
+
+단 기존 정상 일지 기능 코드는 건드리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 이전 WP-DIARY-1 / 1B 변경 처리
+━━━━━━━━━━━━━━━━━━━━
+
+9b1a323f / f363fb16을 통째로 rollback하지 않는다.
+
+기존 변경 중:
+
+학생 카드 미리보기의 numberOfLines={2} 제거
+
+등 일반 일지 화면에서 유효할 수 있는 변경은 유지.
+
+이번 작업에서는 실제 문제 화면 수정과
+잘못된 진단 제거만 한다.
+
+대규모 원복 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 목표 UX
+━━━━━━━━━━━━━━━━━━━━
+
+AI 일지 작성 모달에서:
+
+전체일지
+[긴 내용 전체 표시]
+
+학생별 일지
+
+서태웅
+[긴 내용 전체 표시/수정]
+
+학생2
+[긴 내용 전체 표시/수정]
+
+...
+
+학생20
+[긴 내용 전체 표시/수정]
+
+각 학생 카드가 자기 내용만큼 늘어나고
+모달 전체 ScrollView를 내려 끝까지 확인 가능.
+
+수정 중 입력 커서가 아래로 사라지면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 보호 범위
+
+변경 금지:
+
+- AI Engine
+- common/students Contract
+- student_ref 매핑
+- Diary API
+- DB
+- scheduler 일지완료
+- 사진
+- 보강 Production Baseline
+- SWIMNOTE X
+
+━━━━━━━━━━━━━━━━━━━━
+6. 구현 후 제출
+
+아직 Commit / Push / OTA 하지 말고 제출:
+
+1. 실제 수정 파일 목록
+2. DiaryAIModalV2 StudentNoteCard before/after diff
+3. noteInput style before/after
+4. inputHeight state 완전 제거 여부
+5. onContentSizeChange 제거 여부
+6. 잘못된 DiaryWriteView 진단 코드 제거 diff
+7. AI Engine 파일 변경 0
+8. Diary API 변경 0
+9. 보강 파일 변경 0
+10. X 파일 변경 0
+11. TypeScript 신규 오류
+12. Regression Gate 결과
+13. OTA 배포 가능 여부
+
+구현 후 검수 대기.
