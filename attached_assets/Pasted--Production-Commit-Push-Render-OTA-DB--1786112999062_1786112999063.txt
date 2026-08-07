@@ -1,0 +1,191 @@
+긴급 재조사 — Production 실기기에서 보강 회귀 계속 재현됨
+
+추가 코드 수정 금지.
+Commit / Push / Render / OTA / DB 변경 금지.
+
+실기기에서 현재 Production 기준으로 아래 두 문제가 확인됨.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+문제 1. 배서준 보강 만료일/결석일 불일치
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실기기 표시:
+
+학생: 배서준
+화면 표시:
+결석일: 8/7 (금)
+만료일: 2026-09-30
+
+사용자 확인:
+이 보강은 실제로 7월 결석 건이며
+정상 만료일은 7/31이어야 함.
+
+따라서 다음을 실제 운영 DB + waiting API 기준으로 추적한다.
+
+절대 heliumdb 사용 금지.
+운영 DB는 SUPABASE_DATABASE_URL 기준만 사용.
+
+배서준 해당 makeup row를 찾고 다음 필드 제출:
+
+- makeup_session id
+- student_id
+- absence_date
+- expire_at
+- status
+- source_type
+- original_teacher_id
+- handed_to_teacher_id
+- original_class_group_id
+- assigned_date
+- created_at
+- updated_at
+
+그리고 같은 row가
+GET teacher waiting API에서 어떤 JSON으로 반환되는지 제출.
+
+반드시 구분:
+
+A. DB 자체가 이미 8/7 + 9/30으로 잘못 저장됨
+B. DB는 7월 + 7/31인데 API 변환 과정에서 바뀜
+C. API는 정상인데 앱에서 다른 row 또는 필드를 표시함
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+문제 2. 보강 날짜 선택 시 여전히 실패
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실기기:
+
+보강반 배정
+→ 반 선택
+→ 보강 날짜 선택
+→ "수업 회차를 불러오지 못했습니다"
+
+현재 Production Server:
+f5d8e5a943183d7d85768f19bda5125f7689b73b
+
+현재 Production OTA:
+019fdc8e-0b80-7f5b-9a59-ee6f38211a1d
+
+해당 실기기 흐름에서 실제 요청을 특정한다.
+
+필수 제출:
+
+1. 호출 endpoint 전체
+2. makeup_id
+3. class_group_id
+4. request query/body
+5. JWT role
+6. pool_id
+7. HTTP status
+8. response body 전체
+9. 앱에서 error state로 들어가는 정확한 코드 위치
+
+"코드상 200이어야 함" 같은 정적 추론 금지.
+
+실제 Production 요청을 재현해서 status/body를 확보한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. selected class 실제 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+해당 보강에서 선택된 반의 운영 DB row 제출:
+
+- id
+- name
+- swimming_pool_id
+- is_deleted
+- is_one_time
+- schedule_days
+- schedule_time
+- capacity
+- teacher_user_id
+- co_teacher_ids
+
+그리고 eligible-occurrences SQL WHERE 조건과 하나씩 비교한다.
+
+현재 복구 후 남아 있는 차단 조건 중 무엇에 걸리는지 확정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. eligible-classes 응답과 실제 선택값 비교
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+해당 보강에서 앱이 받은 eligible-classes 응답을 제출.
+
+특히:
+
+- id
+- name
+- is_one_time
+- is_mine
+- capacity
+- current_members
+- available_slots
+
+그리고 사용자가 탭한 class_group_id가
+eligible-occurrences 요청에 동일하게 전달되는지 확인한다.
+
+반 목록에서 받은 ID와 회차 조회에 보낸 ID가 다르면
+클라이언트 상태 문제로 판정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 이월 처리 로직 조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Repository 전체 검색:
+
+carryover
+source_type
+expire_at
+absence_date
+month
+endOfMonth
+lastDayOfMonth
+waiting
+expired
+
+특히 "전월 이월" 처리 시
+absence_date 또는 expire_at를 UPDATE하는 코드가 있는지 확인한다.
+
+정상 정책을 사용자 기준으로 확정:
+
+- 이월 보강도 원래 결석일은 유지
+- 7월 결석 건이면 카드에 원래 7월 결석일이 보여야 함
+- 해당 7월 보강의 원래 만료 기준이 7/31이었다면
+  카드의 만료일 표시도 7/31이 맞아야 함
+- 이월 가능 여부/새 선택 가능 범위와
+  원본 결석일·원본 만료일 표시는 별개
+
+즉 이월 처리 때문에
+absence_date를 8월 날짜로 바꾸거나
+expire_at를 9/30으로 덮어쓰는 코드가 있다면
+그게 회귀 후보임.
+
+단, 실제 DB 증거와 연결해서 판정할 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. 배서준 실제 makeup DB row
+2. waiting API JSON
+3. 앱 카드가 사용하는 필드
+4. 7월 → 8/7로 바뀐 최초 지점
+5. 7/31 → 9/30로 바뀐 최초 지점
+6. eligible-classes 실제 response
+7. 선택된 class_group_id
+8. eligible-occurrences 실제 request
+9. 실제 HTTP status
+10. 실제 response body
+11. 실패 원인 서버/앱/DB 중 어디인지
+12. 두 문제의 최초 회귀 commit
+13. 최소 복구 파일
+14. 유지해야 할 날짜 -14/+28 기능
+15. 유지해야 할 정원초과 허용 기능
+16. 구현 승인 가능 여부
+
+조사만 수행.
+코드 수정 금지.
