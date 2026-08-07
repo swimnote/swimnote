@@ -288,7 +288,7 @@ export default function DiaryWriteView({
                 value={noteInput} onChangeText={setNoteInput}
                 onSelectionChange={e => { noteCursorRef.current = e.nativeEvent.selection.start; }}
                 placeholder="이 학생에게 전달할 추가 내용을 입력하세요"
-                placeholderTextColor={C.textMuted} multiline scrollEnabled={false} textAlignVertical="top" autoFocus />
+                placeholderTextColor={C.textMuted} multiline numberOfLines={6} textAlignVertical="top" autoFocus />
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
                 <TouchableOpacity style={[s.sentencePickBtn]} onPress={() => setShowPickerFor("note")} activeOpacity={0.7}>
                   <LucideIcon name="book-open" size={12} color="#8B5CF6" />

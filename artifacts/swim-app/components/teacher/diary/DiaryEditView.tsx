@@ -247,7 +247,7 @@ export default function DiaryEditView({
                 <TextInput style={[s.noteTextarea, { borderColor: "#C4B5FD", color: C.text }]}
                   value={note.note_content}
                   onChangeText={t => onUpdateNoteContent(note.id, t)}
-                  multiline scrollEnabled={false} textAlignVertical="top"
+                  multiline numberOfLines={6} textAlignVertical="top"
                   placeholder="개별 코멘트를 입력하세요" placeholderTextColor={C.textMuted} />
                 <View style={s.mediaRow}>
                   <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={() => onOpenStudentAlbumPicker(st)}>
@@ -364,7 +364,7 @@ export default function DiaryEditView({
                   <TextInput style={[s.noteTextarea, { borderColor: "#8B5CF6", color: C.text }]}
                     value={editAddInput} onChangeText={setEditAddInput}
                     placeholder="이 학생에게 전달할 추가 내용을 입력하세요"
-                    placeholderTextColor={C.textMuted} multiline scrollEnabled={false} textAlignVertical="top" autoFocus />
+                    placeholderTextColor={C.textMuted} multiline numberOfLines={6} textAlignVertical="top" autoFocus />
                   <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
                     <Pressable style={[s.noteBtn, { borderColor: C.border }]} onPress={() => { setEditAddStudent(null); setEditAddInput(""); }}>
                       <Text style={{ color: C.textSecondary, fontFamily: "Pretendard-Regular", fontSize: 13 }}>취소</Text>
