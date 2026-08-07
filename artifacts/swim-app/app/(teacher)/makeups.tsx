@@ -1117,7 +1117,7 @@ export default function MakeupsScreen() {
                     </Pressable>
                     <Pressable
                       style={[s.confirmBtn, { backgroundColor: C.card, borderWidth: 1, borderColor: C.border }]}
-                      onPress={() => setSelectedDate(null)}
+                      onPress={() => { setSelectedDate(null); setSelectedOccurrence(null); }}
                     >
                       <Text style={[s.confirmTxt, { color: C.textSecondary }]}>날짜 다시 선택</Text>
                     </Pressable>
