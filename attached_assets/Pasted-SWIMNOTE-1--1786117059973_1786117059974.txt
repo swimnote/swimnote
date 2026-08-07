@@ -1,0 +1,252 @@
+SWIMNOTE 보강 회귀 — 실기기 실패 요청 특정 단계
+
+현재 보고서의 "서버 정상" 결론은 승인하지 않는다.
+코드 수정은 아직 금지한다.
+
+이유:
+
+1. 실기기에서 실제로
+   "수업 회차를 불러오지 못했습니다"
+   오류가 재현됐다.
+
+2. 제출한 HTTP 200 증거는
+   mk_1786109813568_58r7pfjl
+   + cg_1784008818870_23undl2w7
+   조합이다.
+
+3. 이것이 실기기에서 실패한
+   makeupId + classGroupId 조합이라는 증거가 없다.
+
+따라서 다른 요청의 HTTP 200으로
+실기기 실패를 정상 판정하면 안 된다.
+
+또한 다음 두 문제를 분리해서 조사한다.
+
+A. 지난달 이월/기간만료 UI가 실기기에서 정상 표시되지 않는 문제
+B. 보강반/회차 선택 시 "수업 회차를 불러오지 못했습니다" 문제
+
+━━━━━━━━━━━━━━━━━━━━
+STEP 1. 현재 Production OTA 진단 기능 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 Production OTA에 기존 숨김 진단 패널이 살아있는지 확인한다.
+
+기존 방식:
+- "보강 대기" 탭 7회 빠르게 탭
+또는
+- 2초 long press
+
+확인할 항목:
+
+runtimeVersion
+updateId
+channel
+isEmbedded
+API_BASE
+
+waiting:
+total
+expired
+julyExpired
+oldestExpDate
+
+sorted:
+sortedTotal
+sortedExpired
+sortedJulyExpired
+
+eligible-occurrences:
+makeupId
+classGroupId
+URL
+HTTP status
+response body/error
+errMsg
+
+현재 코드에 이 진단 정보가 삭제/축소됐으면
+어느 commit에서 없어졌는지만 보고한다.
+아직 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+STEP 2. 실기기 실패 요청과 서버 성공 요청을 동일시하지 말 것
+━━━━━━━━━━━━━━━━━━━━
+
+현재 서버 성공 증거:
+
+makeupId:
+mk_1786109813568_58r7pfjl
+
+classGroupId:
+cg_1784008818870_23undl2w7
+
+HTTP:
+200
+
+이 값은 참고 증거일 뿐이다.
+
+실기기에서 오류가 발생한 순간 실제 사용된:
+
+- makeupId
+- classGroupId
+- endpoint URL
+- HTTP status
+- response body
+- errMsg
+
+를 확보하기 전까지
+eligible-occurrences 정상 판정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+STEP 3. "수업 회차를 불러오지 못했습니다" 코드 경로 추적
+━━━━━━━━━━━━━━━━━━━━
+
+해당 문자열을 repository 전체에서 검색한다.
+
+제출:
+
+1. 정확한 파일
+2. 함수
+3. 어떤 조건에서 해당 화면으로 전환되는지
+4. API non-2xx에서 발생하는지
+5. JSON parsing 실패에서도 발생하는지
+6. exception/catch에서도 발생하는지
+7. 빈 occurrences에서도 발생하는지
+8. classGroupId undefined/null에서도 발생하는지
+9. activeTarget / selectedMakeup 상태 소실에서도 발생하는지
+
+특히 최근 modal 수정 과정에서:
+
+setAssignModal(null)
+setPendingClass(null)
+activeTarget
+selectedMakeup
+selectedClass
+classGroupId
+
+상태가 API 요청 전에 사라지거나
+다른 값으로 교체될 가능성을 조사한다.
+
+━━━━━━━━━━━━━━━━━━━━
+STEP 4. 이월/기간만료 표시를 별도 조사
+━━━━━━━━━━━━━━━━━━━━
+
+서버에서 expired 2건이 존재한다는 것만으로
+UI 정상 판정하지 않는다.
+
+배서준 실제 4건:
+
+7/25 expired=true
+7/31 expired=true
+8/1 waiting
+8/7 waiting
+
+이 4건이 앱에 도달했을 때
+makeups.tsx에서 각각 어떤 JSX 경로로 렌더되는지 추적한다.
+
+확인:
+
+- is_expired
+- status
+- source_type
+- absence_date
+- expire_at
+- carryover 관련 값
+- "전월 이월" 표시 조건
+- "기간 지난 보강" separator 조건
+
+중요:
+
+"기간 지난 보강"과 "전월 이월"은 같은 개념인지
+현재 코드 기준으로 명확하게 분리해서 보고한다.
+
+서버가 source_type 또는 carryover 정보를
+실제로 반환하는지도 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━
+STEP 5. 마지막 정상 Production과 현재 Production 비교
+━━━━━━━━━━━━━━━━━━━━
+
+이전에 실기기에서 확인된 정상 상태:
+
+waiting total=3
+expired=2
+sortedExpired=2
+
+expired 항목 선택
+→ 반 선택
+→ eligible-occurrences
+→ 회차 선택
+→ 실제 배정 성공
+
+이 상태의 Production OTA/commit과
+현재 Production OTA/commit 사이의
+makeups 관련 diff를 다시 조사한다.
+
+특히:
+
+makeups.tsx
+ClassDetailSheet.tsx
+teachers.ts
+admin.ts
+makeup-date-range.ts
+
+뿐만 아니라 이 기간 동안 변경된
+보강 관련 파일 전체를 git log -- path로 조사한다.
+
+목표는
+"정원 수정 4파일만 봤는데 문제없음"
+이 아니라
+
+마지막 정상 상태 이후
+보강 흐름에 들어온 모든 변경을 찾는 것이다.
+
+━━━━━━━━━━━━━━━━━━━━
+STEP 6. teacher 동일 응답 주장 정정
+━━━━━━━━━━━━━━━━━━━━
+
+"pool_admin과 teacher가 같은 poolId이므로
+실제 응답이 동일하다"는 표현을 철회한다.
+
+정확한 판정은:
+
+- 코드상 동일 poolId 기반 query를 사용함: 확인
+- 실제 teacher 인증 HTTP: 미검증
+- 따라서 실제 teacher 런타임 동일성: 미확정
+
+으로 기록한다.
+
+━━━━━━━━━━━━━━━━━━━━
+STEP 7. 최종 제출
+━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. 진단 패널 현재 존재 여부
+2. 현재 Production OTA에 포함 여부
+3. 실기기 실패 요청을 잡을 수 있는 정보 항목
+4. "수업 회차를 불러오지 못했습니다" 정확한 발생 조건
+5. modal/state 소실 가능성
+6. 배서준 4건 각각의 UI 렌더 예상 결과
+7. 전월 이월 표시의 실제 판정 조건
+8. 기간 지난 보강 표시의 실제 판정 조건
+9. 서버 response에 필요한 필드가 모두 존재하는지
+10. 마지막 정상 Production commit/OTA
+11. 정상→현재 사이 보강 관련 commit 목록
+12. 각 commit의 보강 관련 diff
+13. 최초 회귀 가능 commit
+14. 정원초과 수정과 관계 여부
+15. 날짜 -14/+28 수정과 관계 여부
+16. 현재 가장 유력한 원인
+17. 원인 확정에 부족한 증거
+18. 최소 수정 후보 — 아직 구현 금지
+
+코드 수정
+Commit
+Push
+Render
+OTA
+DB 변경
+
+전부 금지.
+
+조사 결과만 제출하고 중단.
