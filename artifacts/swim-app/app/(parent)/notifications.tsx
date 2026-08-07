@@ -12,7 +12,6 @@ import {
   ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform,
   Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -518,13 +517,17 @@ export default function ParentNotificationsScreen() {
       >
         {/* Backdrop — 바깥 터치 시 Modal 닫기 */}
         <Pressable style={styles.modalOverlay} onPress={closeCreateModal}>
-          {/* Modal 내부 — 터치 전파 차단 */}
-          <Pressable style={styles.modalSheetWrapper} onPress={() => {}}>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : undefined}
-              style={[styles.modalSheet, { backgroundColor: C.background, paddingBottom: insets.bottom + 16 }]}
+          {/* KAV: 키보드 높이만큼 sheet를 위로 밀어줌 */}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.modalKAV}
+          >
+            {/* Sheet — onStartShouldSetResponder로 backdrop 터치 전파 차단 */}
+            <View
+              style={[styles.modalSheet, { backgroundColor: C.background, paddingBottom: insets.bottom + 8 }]}
+              onStartShouldSetResponder={() => true}
             >
-              {/* 헤더 */}
+              {/* 헤더 — 고정 */}
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: C.text }]}>새 요청 보내기</Text>
                 <Pressable onPress={closeCreateModal} hitSlop={8}>
@@ -532,40 +535,13 @@ export default function ParentNotificationsScreen() {
                 </Pressable>
               </View>
 
-              {/* 스크롤 영역 — 키보드에 눌려도 접근 가능 */}
-              <KeyboardAwareScrollView
+              {/* 스크롤 영역 */}
+              <ScrollView
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 8 }}
+                contentContainerStyle={styles.modalScrollContent}
+                bounces
               >
-                {/* 자녀 선택 (자녀 2명 이상) */}
-                {students.length > 1 && (
-                  <>
-                    <Text style={[styles.modalLabel, { color: C.textSecondary }]}>자녀 선택</Text>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      keyboardShouldPersistTaps="handled"
-                      contentContainerStyle={{ gap: 8, marginBottom: 16 }}
-                    >
-                      {students.map(st => (
-                        <Pressable
-                          key={st.id}
-                          style={[styles.studentChip, { backgroundColor: selStudentId === st.id ? C.tint : C.card, borderColor: selStudentId === st.id ? C.tint : C.border }]}
-                          onPress={() => setSelStudentId(st.id)}
-                        >
-                          <Text
-                            numberOfLines={1}
-                            style={{ fontSize: 13, color: selStudentId === st.id ? "#fff" : C.text, fontFamily: "Pretendard-Regular", maxWidth: 100 }}
-                          >
-                            {st.name}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </>
-                )}
-
                 {/* 요청 유형 선택 */}
                 <Text style={[styles.modalLabel, { color: C.textSecondary }]}>요청 유형</Text>
                 <View style={styles.typeGrid}>
@@ -594,8 +570,44 @@ export default function ParentNotificationsScreen() {
                   })}
                 </View>
 
-                {/* 내용 입력 */}
-                <Text style={[styles.modalLabel, { color: C.textSecondary }]}>내용</Text>
+                {/* 학생 선택 (자녀 0명) */}
+                {students.length === 0 && (
+                  <Text style={[styles.modalHint, { color: C.textMuted, textAlign: "center", marginBottom: 16 }]}>
+                    연결된 자녀가 없습니다. 자녀를 먼저 등록해 주세요.
+                  </Text>
+                )}
+
+                {/* 학생 선택 (자녀 2명 이상) */}
+                {students.length > 1 && (
+                  <>
+                    <Text style={[styles.modalLabel, { color: C.textSecondary }]}>학생 선택</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      keyboardShouldPersistTaps="handled"
+                      contentContainerStyle={{ gap: 8, marginBottom: 16 }}
+                      nestedScrollEnabled
+                    >
+                      {students.map(st => (
+                        <Pressable
+                          key={st.id}
+                          style={[styles.studentChip, { backgroundColor: selStudentId === st.id ? C.tint : C.card, borderColor: selStudentId === st.id ? C.tint : C.border }]}
+                          onPress={() => setSelStudentId(st.id)}
+                        >
+                          <Text
+                            numberOfLines={1}
+                            style={{ fontSize: 13, color: selStudentId === st.id ? "#fff" : C.text, fontFamily: "Pretendard-Regular", maxWidth: 120 }}
+                          >
+                            {st.name}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </>
+                )}
+
+                {/* 요청 내용 입력 */}
+                <Text style={[styles.modalLabel, { color: C.textSecondary }]}>요청 내용</Text>
                 <TextInput
                   style={[styles.modalInput, styles.modalMultiline, { borderColor: C.border, color: C.text, backgroundColor: C.card }]}
                   placeholder="요청 내용을 입력해 주세요 (선택)"
@@ -605,7 +617,13 @@ export default function ParentNotificationsScreen() {
                   multiline
                   returnKeyType="default"
                   textAlignVertical="top"
+                  maxLength={500}
                 />
+
+                {/* 안내 사항 */}
+                <Text style={[styles.modalHint, { color: C.textMuted }]}>
+                  요청은 담당 코치에게 전달됩니다. 결석·연기 신청은 수업 24시간 전까지 보내주세요.
+                </Text>
 
                 {/* 오류 메시지 */}
                 {!!errorMsg && (
@@ -614,9 +632,9 @@ export default function ParentNotificationsScreen() {
 
                 {/* 제출 버튼 */}
                 <Pressable
-                  style={[styles.submitBtn, { backgroundColor: submitting ? C.textMuted : C.tint }]}
+                  style={[styles.submitBtn, { backgroundColor: (submitting || students.length === 0) ? C.textMuted : C.tint }]}
                   onPress={handleSubmit}
-                  disabled={submitting}
+                  disabled={submitting || students.length === 0}
                 >
                   {submitting ? (
                     <ActivityIndicator size="small" color="#fff" />
@@ -627,9 +645,9 @@ export default function ParentNotificationsScreen() {
                     </>
                   )}
                 </Pressable>
-              </KeyboardAwareScrollView>
-            </KeyboardAvoidingView>
-          </Pressable>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
     </View>
@@ -679,19 +697,21 @@ const styles = StyleSheet.create({
   notifiedText:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#059669" },
 
   // ── 요청 작성 Modal 스타일 ─────────────────────────────────────────────────
-  modalOverlay:      { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
-  modalSheetWrapper: { width: "100%" },
-  modalSheet:        { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 24, maxHeight: "88%" },
-  modalHeader:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  modalTitle:        { fontSize: 18, fontFamily: "Pretendard-Regular" },
-  modalLabel:        { fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 8 },
-  studentChip:       { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  typeGrid:          { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
-  typeBtn:           { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12 },
-  typeBtnText:       { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  modalInput:        { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Pretendard-Regular", marginBottom: 14 },
-  modalMultiline:    { minHeight: 80, textAlignVertical: "top" },
-  modalError:        { color: "#EF4444", fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 8 },
-  submitBtn:         { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16, borderRadius: 16, marginTop: 4, marginBottom: 8 },
-  submitBtnText:     { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
+  modalOverlay:       { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
+  modalKAV:           { width: "100%" },
+  modalSheet:         { height: "88%", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 20, overflow: "hidden" },
+  modalHeader:        { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  modalTitle:         { fontSize: 18, fontFamily: "Pretendard-Regular" },
+  modalScrollContent: { paddingBottom: 16 },
+  modalLabel:         { fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 8 },
+  modalHint:          { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18, marginBottom: 16 },
+  studentChip:        { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  typeGrid:           { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
+  typeBtn:            { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12 },
+  typeBtnText:        { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  modalInput:         { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Pretendard-Regular", marginBottom: 10 },
+  modalMultiline:     { minHeight: 100, textAlignVertical: "top" },
+  modalError:         { color: "#EF4444", fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 8 },
+  submitBtn:          { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16, borderRadius: 16, marginTop: 4, marginBottom: 8 },
+  submitBtnText:      { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
 });
