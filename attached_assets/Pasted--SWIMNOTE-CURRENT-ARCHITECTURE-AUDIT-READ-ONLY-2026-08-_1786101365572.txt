@@ -1,0 +1,1736 @@
+[절대고정]
+SWIMNOTE 보강 기능 전면 재구축 준비
+CURRENT ARCHITECTURE AUDIT / READ-ONLY 인수인계 지시서
+
+작성 기준: 2026-08-07 KST
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 이번 작업의 목적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+지금까지의 보강 기능 수정 작업을 중단합니다.
+
+이번 단계에서는 절대 기능을 고치지 않습니다.
+
+목적은 단 하나입니다.
+
+현재 SWIMNOTE Repository와 운영 구조에서
+보강 기능이 실제로 어떻게 구성되어 있는지
+
+DB
+→ 상태
+→ 생성
+→ 조회
+→ 만료
+→ 선생님 화면
+→ 관리자 화면
+→ 보강반 선택
+→ 회차 선택
+→ 날짜 정책
+→ 정원
+→ 배정
+→ 직접 완료
+→ 인계
+→ 완료
+→ 취소
+→ 캐시
+→ 학부모 요청 연결
+
+전체를 Repository 실제 코드 기준으로 조사하여
+재설계용 인수인계 보고서를 만드는 것입니다.
+
+이번 보고서를 받은 뒤 별도로:
+
+구조 검토
+→ 최종 설계 계획서 작성
+→ 사용자 승인
+→ 구현
+
+순서로 진행합니다.
+
+이번 단계에서 해결책/수정안/리팩터링안 작성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계는 READ ONLY입니다.
+
+절대 실행 금지:
+
+코드 Write/Edit
+파일 생성
+파일 삭제
+DB UPDATE
+DB DELETE
+DB INSERT
+Migration
+Schema 변경
+Commit
+Push
+Render deploy
+OTA
+Preview OTA
+Native build
+환경변수 변경
+eas.json 변경
+package.json 변경
+git reset
+git restore
+git checkout을 이용한 상태 변경
+cherry-pick
+rebase
+merge
+force push
+lint --fix
+formatter 자동수정
+자동 import 수정
+
+Replit이 작업 중 auto-commit을 생성하면:
+
+즉시 작업 중단.
+
+다음만 보고:
+
+SHA
+Commit message
+포함 파일
+
+그 뒤 어떠한 Git 조작도 하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 이번 조사에서 확정된 최종 운영 요구사항
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 코드가 이 요구사항을 만족하는지는
+이번 단계에서 조사만 합니다.
+
+수정하지 않습니다.
+
+[REQ-1] 지난 보강 이월
+
+지난달 미처리 보강은 다음 달로 넘어가도 삭제/숨김 처리하지 않습니다.
+
+예:
+
+7월 미처리
+→ 8월에도 보강 대기 목록 유지
+
+기간이 지난 경우:
+
+“기간 지난 보강”
+
+으로 표시.
+
+일반 보강과 구분.
+
+[REQ-2] 보강 가능 날짜
+
+KST 오늘 기준:
+
+오늘 -14일
+~
+오늘 +28일
+
+경계 포함.
+
+즉:
+
+-14일 선택 가능
+오늘 선택 가능
++28일 선택 가능
+
+-15일 불가
++29일 불가
+
+[REQ-3] 선보강
+
+결석 예정일보다 먼저 보강 가능.
+
+예:
+
+결석 예정:
+8월 20일
+
+보강:
+8월 17일
+
+→ 가능해야 함.
+
+다음 제한이 있으면 요구사항 위반 후보:
+
+occurrence_date >= absence_date
+makeup_date >= absence_date
+결석일 이후만 표시
+
+[REQ-4] 정원 초과 보강
+
+보강은 선택한 반의 정원이 이미 가득 차 있어도
+추가 배정할 수 있어야 합니다.
+
+예:
+
+정원 5명
+현재 5명
+
+→ 보강 학생 추가 가능
+→ 6명 가능
+
+정원 5명
+현재 이미 6명
+
+→ 보강 학생 추가 가능.
+
+정원 정보 자체는 표시 가능.
+
+예:
+
+5/5
+정원 마감
+정원 초과
+
+하지만 보강을 차단하는 조건으로 사용하지 않습니다.
+
+정원 초과 때문에:
+
+eligible class 제외
+eligible occurrence 제외
+날짜 선택 차단
+배정 버튼 disabled
+assign API 거절
+DB update 거절
+
+하면 안 됩니다.
+
+이번 조사에서 현재 코드가 이 요구사항과
+어디서 충돌하는지 반드시 찾습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 현재 Git / Deployment 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 실행:
+
+git branch --show-current
+git rev-parse HEAD
+git rev-parse origin/release/v1.2-phase1-clean
+git status --short
+
+제출:
+
+Current Branch
+Current Local HEAD
+Remote HEAD
+Working Tree
+
+그리고 보강 관련 최근 Git history만 확인:
+
+git log --all --oneline --decorate -- \
+'artifacts/swim-app/app/(teacher)/makeups.tsx' \
+'artifacts/swim-app/app/(admin)/makeups.tsx' \
+'artifacts/api-server/src/routes/teachers.ts' \
+'artifacts/api-server/src/routes/admin.ts' \
+'artifacts/api-server/src/lib/makeup-date-range.ts'
+
+최대 최근 30개까지만.
+
+전체 repo history 무차별 조회 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 조사 대상 파일 전체 목록부터 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 실제 보강 기능과 직접 연결된 파일을 찾고
+목록을 제출합니다.
+
+최소 대상:
+
+APP Teacher:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+
+APP Admin:
+
+artifacts/swim-app/app/(admin)/makeups.tsx
+
+SERVER Teacher:
+
+artifacts/api-server/src/routes/teachers.ts
+
+SERVER Admin:
+
+artifacts/api-server/src/routes/admin.ts
+
+DATE POLICY:
+
+artifacts/api-server/src/lib/makeup-date-range.ts
+
+그리고 실제 코드상 보강에서 직접 참조하는 경우에만:
+
+DB schema/table definition
+보강 helper
+보강 constant
+수업 회차 helper
+class schedule helper
+API client
+
+추가 조사 가능.
+
+node_modules 검색 금지.
+attached_assets 분석 금지.
+memory 분석 금지.
+generated 분석 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. makeup_sessions DB Schema 전체
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Repository schema와 필요 시 READ ONLY DB metadata를 확인하여
+makeup_sessions 전체 컬럼을 제출.
+
+필수 확인 후보:
+
+id
+swimming_pool_id
+student_id
+student_name
+original_teacher_id
+handed_to_teacher_id
+original_class_group_id
+absence_date
+expire_at
+status
+assigned_class_group_id
+assigned_occurrence_date
+assigned_at
+assigned_by
+completed_at
+completed_by
+cancelled_at
+cancelled_by
+created_at
+updated_at
+
+실제 이름이 다르면 실제 컬럼명 사용.
+
+각 컬럼:
+
+name
+type
+nullable
+default
+index
+unique
+foreign key
+용도
+
+표 작성.
+
+DB 수정 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 관련 DB 관계도
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+makeup_sessions가 참조하거나
+보강 조회에 JOIN되는 테이블 전부 조사.
+
+최소:
+
+students
+users
+class_groups
+student_class_history
+
+그리고 실제 수업 회차를 만드는/저장하는 table이 있다면:
+
+class_occurrences
+lesson_occurrences
+schedule
+attendance
+class_schedule
+
+등 실제 이름 확인.
+
+텍스트 ER diagram 작성:
+
+makeup_sessions
+ ├─ student → ?
+ ├─ original class → ?
+ ├─ assigned class → ?
+ ├─ teacher → ?
+ └─ occurrence/date → ?
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Makeup Status State Machine
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+makeup_sessions.status에 실제 존재하는 값 전부 찾기.
+
+예:
+
+waiting
+expired
+assigned
+completed
+cancelled
+
+실제 값 기준.
+
+각 status별:
+
+생성 API
+생성 조건
+다음 가능한 상태
+변경 API
+DB 변경 필드
+Teacher UI 탭
+Admin UI 위치
+
+그리고 상태 전이 diagram 작성:
+
+CREATE
+↓
+waiting
+├─ expired
+├─ assigned
+├─ completed
+└─ cancelled
+
+등 실제 코드 기준으로 작성.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 보강 발생 / 생성 흐름
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+학생 결석 또는 결석 예정 등록부터
+makeup_sessions가 생성되는 정확한 경로 조사.
+
+반드시:
+
+APP 화면/버튼
+↓
+API
+↓
+route handler
+↓
+validation
+↓
+INSERT
+↓
+초기 status
+
+추적.
+
+저장되는 값:
+
+student_id
+absence_date
+expire_at
+original_teacher_id
+original_class_group_id
+swimming_pool_id
+
+등.
+
+특히 미래 결석 예정 등록 시:
+
+결석일 이전부터 makeup_session record가 생성되는지
+언제 생성되는지
+
+CONFIRMED / INFERRED / UNKNOWN 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. expire_at 생성 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+expire_at이 어디서 계산되는지 정확히 조사.
+
+확인:
+
+결석일 기준인지
+월말 기준인지
+고정 일수인지
+class 기준인지
+다른 정책인지
+
+모든 생성/변경 위치 제출.
+
+expire_at과
+
+보강 선택 가능 날짜 -14/+28
+
+은 별도 개념인지도 확인.
+
+둘이 서로 영향을 주는 코드가 있으면 위치 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. waiting → expired 동작
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+expired가 어떻게 만들어지는지 전부 확인.
+
+가능성:
+
+DB status UPDATE
+GET 호출 시 자동 UPDATE
+scheduled job
+worker
+computed field only
+is_expired boolean only
+
+실제 구조 제출.
+
+특히:
+
+/teacher/makeups
+
+/admin/makeups
+
+호출 자체가 status를 바꾸는지 확인.
+
+조회 API에 side effect가 있다면 명확히 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Teacher Waiting API 전체
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+GET /teacher/makeups?status=waiting
+
+현재 handler 전체 원문 제출.
+
+중간 생략 금지.
+
+길 경우 route 단위로 그대로 제출.
+
+설명:
+
+auth
+userId
+role
+poolId
+statusClause
+JOIN
+teacher ownership
+handoff
+co_teacher
+cancelled
+expired
+ORDER
+map
+response
+
+실제 반환 JSON example도 코드 기반으로 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Teacher Ownership 구조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+보강 목록이 어떤 teacher에게 보이는지 결정하는
+모든 조건 조사.
+
+확인:
+
+original_teacher_id
+handed_to_teacher_id
+co_teacher_ids
+현재 담당반 teacher
+student_class_history
+
+각 조건:
+
+어느 endpoint
+어느 WHERE
+어느 UI
+
+에서 사용되는지 표.
+
+특히:
+
+지난달 학생이 반/선생님 변경된 경우
+기존 보강이 누구에게 보이게 되는지
+
+현재 코드 기준으로 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. Admin Makeup API 전체
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+관리자 보강 관련 GET/POST/PATCH endpoint 목록 작성.
+
+특히:
+
+GET /admin/makeups
+
+전체 조회 구조.
+
+Teacher API와 비교:
+
+pool 조건
+teacher 조건
+expired
+status
+cancelled
+date
+pagination
+order
+
+표 작성.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. Teacher APP makeups.tsx 전체 구조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+makeups.tsx 전체를 기능 단위로 분해.
+
+State 전부:
+
+waitingList
+assignedList
+history
+loading
+refresh
+assignTarget
+directCompleteTarget
+selectedClass
+selectedOccurrence
+occurrences
+error
+handoff
+modal state
+
+등 실제 이름 기준.
+
+각 함수 표:
+
+함수명
+역할
+호출 endpoint
+읽는 state
+쓰는 state
+UI 영향
+
+반드시 포함:
+
+loadWaiting
+loadAssigned
+loadHistory
+refresh
+open assign
+selectClass
+doAssign
+direct complete
+handoff
+complete
+cancel
+
+실제 함수명 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. Teacher UI 전체 계층
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 JSX 구조를 diagram으로 제출.
+
+예:
+
+SafeAreaView
+ ├─ Header
+ ├─ Tabs
+ └─ Waiting List
+     ├─ Normal Cards
+     ├─ Expired Separator
+     └─ Expired Cards
+
+Modal:
+ ├─ Header
+ ├─ Class List
+ ├─ Occurrence List
+ └─ Action
+
+실제 코드 기준.
+
+확인:
+
+ScrollView/FlatList
+flex
+minHeight
+paddingBottom
+SafeArea
+removeClippedSubviews
+nested scroll
+
+실제 값 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 지난 보강 표시 구조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+expired 목록이 Client에서 어떻게 구분되는지 조사.
+
+확인:
+
+is_expired
+status === expired
+sorting
+filter
+firstExpiredIdx
+expiredCount
+showSeparator
+card badge
+border/style
+
+REQ-1과 현재 구조 비교.
+
+현재 expired가 서버에서 반환됐을 때
+UI에서 반드시 카드로 렌더되는지 코드상 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. Eligible Classes Endpoint
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+보강반 선택 API 전체 조사.
+
+Endpoint 실제 주소.
+
+Request params/query.
+
+Response JSON.
+
+필터 전부:
+
+swimming_pool_id
+teacher
+co_teacher
+day
+time
+level
+is_deleted
+is_one_time
+capacity
+max_capacity
+current_count
+class status
+
+등.
+
+Teacher 화면에서 어떤 반을 보여주는지 설명.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. 정원 정책 전체 조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+REQ-4:
+
+보강은 정원 초과 허용.
+
+현재 코드에서 정원을 확인하거나 차단하는 모든 위치 찾기.
+
+검색 대상 개념:
+
+capacity
+max_capacity
+current_count
+member_count
+student_count
+is_full
+full
+capacityExceeded
+available_slots
+
+등 실제 명칭.
+
+각 위치마다 제출:
+
+파일
+함수/endpoint
+조건
+정원 꽉 찼을 때 현재 동작
+
+반드시 구분:
+
+A. 표시용
+
+예:
+
+5/5
+FULL
+정원 마감
+
+B. 차단용
+
+예:
+
+목록 제외
+버튼 disabled
+API 400
+API 409
+assign 거절
+
+Teacher APP과 Admin APP 둘 다 조사.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. Eligible Occurrences Endpoint 전체
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+GET /teacher/makeups/:makeupId/eligible-occurrences
+
+handler 전체 원문 제출.
+
+중간 생략 금지.
+
+처리 단계:
+
+auth
+pool
+makeup 조회
+class_group 조회
+date range
+schedule 조회
+occurrence 생성/조회
+capacity
+count
+is_full
+is_past
+is_today
+is_future
+response
+
+전부.
+
+Request Contract:
+
+path
+query
+
+Response Contract 전체 JSON.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. 회차가 실제로 어디서 나오는지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+eligible-occurrences의 occurrences[]가
+
+DB stored occurrences인지
+class schedule에서 계산되는지
+요일 규칙으로 생성되는지
+
+정확히 조사.
+
+예:
+
+class_days
+start_time
+end_time
+holiday
+cancelled class
+
+등이 반영되는지도 확인.
+
+“실제 수업 회차”의 현재 정의를 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. Date Range Helper 전체
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/api-server/src/lib/makeup-date-range.ts
+
+전체 원문 제출.
+
+특히:
+
+addDateDays
+dayOfWeekFromDateStr
+isValidDateFormat
+isValidCalendarDate
+getMakeupDateRange
+validateMakeupDateRange
+
+전부.
+
+REQ-2 확인:
+
+KST today -14
+KST today +28
+
+경계 포함 여부까지 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. Date Validation 모든 호출 위치
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+getMakeupDateRange
+validateMakeupDateRange
+
+를 호출하는 모든 보강 관련 위치 찾기.
+
+Teacher:
+
+eligible-occurrences
+assign
+direct complete
+기타
+
+Admin:
+
+assign
+complete
+기타
+
+각 endpoint가 동일 정책을 사용하는지 확인.
+
+서로 다른 날짜 계산이 있으면 위치 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23. 선보강 전체 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+REQ-3 검증.
+
+예:
+
+Today = 2026-08-07
+absence_date = 2026-08-20
+makeup_date = 2026-08-17
+
+전체 코드 경로:
+
+makeup 생성
+↓
+waiting 조회
+↓
+반 선택
+↓
+eligible-occurrences
+↓
+assign validation
+↓
+DB update
+
+각 단계마다 8/17이 통과하는지 확인.
+
+Repository 전체에서 보강 관련:
+
+occurrence_date >= absence_date
+makeup_date >= absence_date
+date >= absence_date
+absence_date <= ...
+
+같은 의미의 제한 검색.
+
+결과 전부 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+24. Assign Endpoint 전체
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher 보강 배정 endpoint 전체 원문 제출.
+
+Request Contract.
+
+Validation:
+
+makeup status
+pool
+class
+date
+occurrence
+capacity
+duplicate
+assigned
+expired
+date range
+
+DB UPDATE:
+
+status
+assigned_class_group_id
+assigned_occurrence_date
+assigned_by
+assigned_at
+
+실제 컬럼 기준.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+25. Assign 정원 제한
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+특히 assign endpoint에서:
+
+is_full
+capacity
+max_capacity
+current_count
+
+때문에 거절하는지 확인.
+
+REQ-4:
+
+보강은 정원 초과 허용.
+
+현재 거절 코드가 있다면:
+
+HTTP status
+error code
+조건
+파일/라인
+
+제출.
+
+수정하지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+26. Client Assign UI 정원 제한
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+makeups.tsx에서:
+
+full 반 disabled
+full occurrence disabled
+is_full Pressable disabled
+정원 0자리 선택 차단
+
+등 전부 조사.
+
+표시만 하는지 실제 차단하는지 구분.
+
+REQ-4 위반 위치 목록 작성.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+27. Admin Assign 정원 제한
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+관리자 보강 배정에서도 동일 조사.
+
+Admin UI
+Admin API
+
+정원이 꽉 찼을 때:
+
+표시
+선택
+배정
+
+각각 현재 동작 제출.
+
+최종 설계에서 Teacher/Admin 정책을
+통일해야 하는지 판단할 자료로 사용.
+
+이번 단계에서는 제안하지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+28. Direct Complete
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+지난 보강 직접 완료 기능 전체.
+
+APP:
+
+어떤 버튼
+어떤 Modal
+어떤 date 입력/선택
+
+API:
+
+endpoint
+Request
+Validation
+
+DB:
+
+status
+completed_at
+completed_by
+기타
+
+배정 Modal과 독립인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+29. Handoff
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+보강 인계 전체.
+
+APP:
+누가 선택하는지
+
+API:
+endpoint
+validation
+
+DB:
+handed_to_teacher_id
+기타
+
+인계 후:
+
+원 담당자 목록
+인계받은 담당자 목록
+Admin 목록
+
+어떻게 달라지는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+30. Assigned 상태
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+assigned 보강 목록이 어디서 조회되는지.
+
+Teacher endpoint.
+APP tab.
+
+assigned 이후:
+
+수업 전
+수업 후
+complete
+
+흐름 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+31. Complete
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+보강 완료 기능 전체.
+
+자동 완료인지
+선생님 버튼인지
+관리자 버튼인지
+
+endpoint
+validation
+DB update
+UI 이동
+
+제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+32. Cancel / Extinguish / Remove
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 존재하는:
+
+cancel
+expire
+extinguish
+delete
+self-extinguish
+
+등 보강 종료/취소 계열 기능 모두 찾기.
+
+각 용어가 실제로 무엇을 의미하는지.
+
+hard delete인지
+status 변경인지
+cancelled_at인지.
+
+전부 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+33. 보강 History
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+History 탭이 어떤 status를 표시하는지.
+
+completed
+cancelled
+expired?
+
+등.
+
+API 조건과 UI 조건 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+34. API Cache
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+보강 관련 모든 GET:
+
+waiting
+assigned
+history
+eligible classes
+eligible occurrences
+
+각각:
+
+cache 대상 여부
+cache key
+TTL
+network bypass
+clear/invalidation
+
+제출.
+
+특히:
+
+Pull-to-refresh
+mutation 후 reload
+
+가 실제 최신 network data인지 확인.
+
+수정하지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+35. Mutation 후 Cache 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 동작 후:
+
+assign
+direct complete
+handoff
+complete
+cancel
+
+어떤 cache가 invalidated되는지.
+
+waiting cache가 남는지
+assigned cache가 남는지
+
+실제 helper 코드 기준으로 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+36. API 실패 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher APP에서 각 API 실패 시:
+
+기존 state 유지?
+비움?
+error UI?
+Alert?
+silent catch?
+
+확인.
+
+특히:
+
+waiting 실패
+eligible classes 실패
+eligible occurrences 실패
+assign 실패
+
+분리.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+37. 현재 진단/임시 코드
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+보강 파일에 현재 남아 있는:
+
+console.log
+MAKEUP_DIAG
+diag state
+임시 retry
+fallback
+temporary UI
+error detail
+
+전부 목록.
+
+정상 기능인지 진단용인지 구분.
+
+삭제하지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+38. Parent Request와 Makeup 경계
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최근 PHASE 1:
+
+parent_student_requests
+
+와 보강 시스템 관계 조사.
+
+확인:
+
+request_type=makeup
+processed_result_type=makeup_assignment
+processed_result_id
+
+link-result
+
+가 실제로 무엇을 하는지.
+
+중요:
+
+link-result가 makeup_sessions를 변경하는지
+아니면 이미 처리된 결과를 request와 연결만 하는지
+
+정확히 확인.
+
+보강 재설계 시 보호할 경계 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+39. Notifications와 Makeup 경계
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+보강 처리 후 학부모 결과 알림과
+실제 makeup_sessions 업무의 관계 조사.
+
+보강 배정 자체가 자동 Push를 보내는지
+parent request의 결과 알림과 별개인지
+
+현재 코드 기준 설명.
+
+수정하지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+40. 절대 동결 기능
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 구조 조사에서 아래는 보호 대상.
+
+절대 수정 금지:
+
+artifacts/swim-app/app/(parent)/notifications.tsx
+
+artifacts/swim-app/app/(parent)/requests.tsx
+
+artifacts/swim-app/app/(teacher)/messages-inbox.tsx
+
+parent_student_requests
+notifications
+parent_conversations
+parent_messages
+diary_messages
+
+link-result
+notify-result
+
+SessionContext
+auth
+JWT
+push-service
+
+AI
+billing
+subscription
+
+필요하면 READ ONLY Contract 확인만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+41. 현재 실기기 장애 경로
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기 CONFIRMED 증상:
+
+A.
+
+보강 대기에서
+지난달 보강이 보이지 않음.
+
+B.
+
+보강반 선택 후
+수업 회차를 불러오지 못함.
+
+이번 단계에서는 원인을 고치지 않습니다.
+
+각 증상이 통과하는 경로만 diagram:
+
+A:
+
+DB
+→ waiting API
+→ API client
+→ waitingList
+→ sort
+→ render
+
+B:
+
+class select
+→ eligible-occurrences
+→ response
+→ occurrences state
+→ date UI
+
+제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+42. 요구사항 GAP 분석
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구조와 확정 요구사항을 비교한 표 작성.
+
+요구사항:
+
+REQ-1 지난달 이월
+REQ-2 -14/+28
+REQ-3 선보강
+REQ-4 정원 초과 허용
+
+각각:
+
+현재 코드 충족
+부분 충족
+미충족
+UNKNOWN
+
+판정.
+
+근거 파일/함수/endpoint 포함.
+
+수정안은 쓰지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+43. 기존 기능 보존 목록
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+재설계 시 절대 잃으면 안 되는
+현재 정상 기능을 목록화.
+
+최소:
+
+보강 생성
+waiting
+expired
+assign
+direct complete
+handoff
+complete
+cancel
+history
+admin management
+teacher management
+date validation
+multi tenant
+permissions
+
+실제 존재하는 기능만 기재.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+44. 현재 구조의 기술 부채 / 위험점
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+해결책 없이 문제만 기록.
+
+예:
+
+GET side effect
+중복 날짜 validation
+캐시 stale 가능성
+teacher ownership 과거 데이터 문제
+정원 policy 중복
+client/server 조건 불일치
+silent error
+status 의미 중복
+
+실제 증거 있는 것만 작성.
+
+CONFIRMED / INFERRED / UNKNOWN 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+45. 전체 Architecture Diagram
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 전체 텍스트 diagram 작성.
+
+반드시 포함:
+
+[결석/결석예정]
+        ↓
+[makeup_sessions 생성]
+        ↓
+      waiting
+        │
+        ├────────→ expired
+        │              │
+        │              ├─ assign
+        │              └─ direct complete
+        │
+        ├─ handoff
+        │
+        ├─ eligible classes
+        │       ↓
+        ├─ eligible occurrences
+        │       ↓
+        ├─ assign
+        │       ↓
+        │    assigned
+        │       ↓
+        │    complete
+        │
+        └─ cancel
+
+실제 구조에 맞게 수정.
+
+추가로:
+
+Parent Request
+→ processed_result link
+
+연결을 별도 branch로 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+46. 정원 Architecture Diagram
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+정원 판단 경로 별도 작성:
+
+Class
+↓
+capacity/max
+↓
+eligible classes
+↓
+eligible occurrences
+↓
+client disabled?
+↓
+assign validation
+↓
+DB update
+
+각 단계에서 현재:
+
+정보 표시만 하는지
+실제 blocking 하는지
+
+명시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+47. Date Architecture Diagram
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+날짜 경로:
+
+KST Today
+↓
+getMakeupDateRange
+↓
+-14 / +28
+↓
+eligible occurrences
+↓
+client date list
+↓
+assign validation
+↓
+validateMakeupDateRange
+↓
+DB assigned date
+
+그리고:
+
+absence_date
+expire_at
+
+이 어느 지점에 영향을 주는지도 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+48. 최종 보고서 목차 — 반드시 그대로
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 제출은 아래 목차 순서를 정확히 따릅니다.
+
+01. Git / Deployment 상태
+02. 보강 관련 파일 전체 목록
+03. makeup_sessions Schema
+04. 관련 DB/ER 구조
+05. Status State Machine
+06. 보강 생성 Flow
+07. expire_at 정책
+08. waiting → expired Flow
+09. Teacher Waiting API
+10. Teacher Ownership
+11. Admin Makeup API
+12. Teacher APP State/Functions
+13. Teacher UI Layout
+14. Expired UI
+15. Eligible Classes API
+16. 정원 정책 전체
+17. Eligible Occurrences API
+18. 실제 수업 회차 생성/조회 방식
+19. Date Range Helper
+20. Date Validation 호출 위치
+21. 선보강 검증
+22. Assign API
+23. Assign 정원 제한
+24. Client 정원 제한
+25. Admin 정원 제한
+26. Direct Complete
+27. Handoff
+28. Assigned
+29. Complete
+30. Cancel/Expire/Extinguish
+31. History
+32. API Cache
+33. Mutation Cache Invalidation
+34. API Error Handling
+35. 진단/임시 코드
+36. Parent Request 경계
+37. Notification 경계
+38. 현재 실기기 장애 Flow
+39. REQ-1 GAP
+40. REQ-2 GAP
+41. REQ-3 GAP
+42. REQ-4 GAP
+43. 반드시 보존할 기존 기능
+44. 기술 부채/위험
+45. 전체 Architecture Diagram
+46. 정원 Architecture Diagram
+47. Date Architecture Diagram
+48. 재설계 시 변경하면 안 되는 영역
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+49. 각 사실의 증거 수준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+필요할 경우 반드시:
+
+CONFIRMED
+INFERRED
+UNKNOWN
+
+사용.
+
+Repository 실제 코드:
+CONFIRMED
+
+DB 실제 조회:
+CONFIRMED
+
+실행 안 한 HTTP:
+UNKNOWN
+
+실기기 미확인:
+UNKNOWN
+
+추론:
+INFERRED
+
+UNKNOWN을 정상이라고 쓰지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+50. 보고서에서 하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+금지 문구/행동:
+
+“수정했습니다”
+“고쳤습니다”
+“이렇게 구현하겠습니다”
+“V2로 만들겠습니다”
+“필터를 제거하겠습니다”
+“DB를 보정하면 됩니다”
+
+이번 단계에서는 어떠한 해결책도 제출하지 않습니다.
+
+오직:
+
+현재 구조
+현재 동작
+현재 Contract
+현재 문제
+요구사항과의 GAP
+
+만 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+51. 조사 효율 규칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+불필요한 크레딧 소모 방지.
+
+같은 사실을 다른 grep으로 반복 확인하지 않습니다.
+
+한 번 CONFIRMED된 결과 재검색 금지.
+
+전체 repository 무차별 grep 금지.
+
+먼저 route/function 위치를 찾고
+해당 범위만 읽습니다.
+
+파일 전체를 반복해서 읽지 않습니다.
+
+node_modules 검색 금지.
+
+최대 필요한 파일만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+52. 조사 전/후 Git 무결성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+시작:
+
+git status --short
+
+종료:
+
+git status --short
+
+비교.
+
+조사 중 새로운 source 변경:
+
+0건이어야 합니다.
+
+최종 보고:
+
+Source file changed: 0
+DB changed: 0
+Commit: 0
+Push: 0
+Render: 0
+OTA: 0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+53. 이번 단계 종료 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+48개 목차의 구조 보고서를 완성한 뒤
+반드시 멈춥니다.
+
+코드를 고치기 시작하지 않습니다.
+
+다음 단계는 별도입니다:
+
+CURRENT ARCHITECTURE REPORT
+↓
+ChatGPT 설계 검토
+↓
+NEW MAKEUP ARCHITECTURE PLAN
+↓
+사용자 승인
+↓
+Replit 구현
+
+사용자 승인 없이는 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+최종 고정 요구사항
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+앞으로 새 설계는 반드시 아래 네 가지를 만족해야 합니다.
+
+① 지난달 미처리 보강
+→ 다음 달에도 “기간 지난 보강”으로 유지
+
+② 보강 가능 날짜
+→ KST 오늘 -14일 ~ +28일
+
+③ 선보강
+→ 결석 예정일보다 이전 날짜 보강 가능
+
+④ 정원 초과
+→ 반 정원이 꽉 차도 보강 추가 배정 가능
+
+이 네 항목은 재설계 과정에서 변경하거나
+임의 해석하지 않습니다.
+
+이번에는 구조 조사만 수행하십시오.
+
+보고 후 멈춥니다.
