@@ -515,17 +515,18 @@ export default function ParentNotificationsScreen() {
         transparent
         onRequestClose={closeCreateModal}
       >
-        {/* Backdrop — 바깥 터치 시 Modal 닫기 */}
-        <Pressable style={styles.modalOverlay} onPress={closeCreateModal}>
-          {/* KAV: 키보드 높이만큼 sheet를 위로 밀어줌 */}
+        {/* Root — 반투명 배경 */}
+        <View style={styles.modalRoot}>
+          {/* Backdrop — absoluteFillObject로 전체 화면 커버 (z 하단) */}
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={closeCreateModal} />
+          {/* KAV + Sheet — backdrop과 hit-area 구조적 분리 (z 상단) */}
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={styles.modalKAV}
           >
-            {/* Sheet — onStartShouldSetResponder로 backdrop 터치 전파 차단 */}
+            {/* Sheet — onStartShouldSetResponder 불필요 (backdrop과 hit-area 분리됨) */}
             <View
               style={[styles.modalSheet, { backgroundColor: C.background, paddingBottom: insets.bottom + 8 }]}
-              onStartShouldSetResponder={() => true}
             >
               {/* 헤더 — 고정 */}
               <View style={styles.modalHeader}>
@@ -648,7 +649,7 @@ export default function ParentNotificationsScreen() {
               </ScrollView>
             </View>
           </KeyboardAvoidingView>
-        </Pressable>
+        </View>
       </Modal>
     </View>
   );
@@ -697,7 +698,7 @@ const styles = StyleSheet.create({
   notifiedText:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#059669" },
 
   // ── 요청 작성 Modal 스타일 ─────────────────────────────────────────────────
-  modalOverlay:       { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
+  modalRoot:          { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   modalKAV:           { width: "100%" },
   modalSheet:         { height: "88%", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 20, overflow: "hidden" },
   modalHeader:        { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
