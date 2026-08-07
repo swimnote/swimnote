@@ -645,17 +645,26 @@ export default function MakeupsScreen() {
                 <LucideIcon name="check-circle" size={36} color={C.textMuted} />
                 <Text style={s.emptyTxt}>처리할 결석자가 없습니다</Text>
               </View>
-            ) : [...waitingList]
-                .sort((a, b) => {
-                  // 기간 지난 보강을 뒤로 정렬
+            ) : (() => {
+                const sorted = [...waitingList].sort((a, b) => {
                   if (!!a.is_expired !== !!b.is_expired) return a.is_expired ? 1 : -1;
                   return 0;
-                })
-                .map(mk => {
+                });
+                const firstExpiredIdx = sorted.findIndex(mk => mk.is_expired);
+                const expiredCount = firstExpiredIdx >= 0 ? sorted.length - firstExpiredIdx : 0;
+                return sorted.map((mk, idx) => {
+                  const showSeparator = firstExpiredIdx >= 0 && idx === firstExpiredIdx;
               const expireInfo = formatExpireAt(mk.expire_at);
               return (
+                <React.Fragment key={mk.id}>
+                  {showSeparator && (
+                    <View style={s.expiredSection}>
+                      <View style={s.expiredSectionLine} />
+                      <Text style={s.expiredSectionTxt}>기간 지난 보강 ({expiredCount}건)</Text>
+                      <View style={s.expiredSectionLine} />
+                    </View>
+                  )}
                 <View
-                  key={mk.id}
                   style={[
                     s.card,
                     { backgroundColor: C.card },
@@ -733,8 +742,10 @@ export default function MakeupsScreen() {
                     <Text style={[s.actionTxt, { color: "#059669" }]}>지난 보강 직접 완료</Text>
                   </Pressable>
                 </View>
+                </React.Fragment>
               );
-            })}
+            });
+          })()}
           </ScrollView>
         )
       )}
@@ -1360,4 +1371,7 @@ const s = StyleSheet.create({
   menuIcon:        { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   menuTitle:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text, marginBottom: 3 },
   menuDesc:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 17 },
+  expiredSection:     { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 4 },
+  expiredSectionLine: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
+  expiredSectionTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
 });
