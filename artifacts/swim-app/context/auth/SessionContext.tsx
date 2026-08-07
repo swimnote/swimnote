@@ -6,9 +6,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const _DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
-export const API_BASE =
-  process.env.EXPO_PUBLIC_API_URL ||
-  "https://swimnote-api.onrender.com/api";
+// API_BASE: 항상 Render 서버. process.env는 .env(swimnote.kr)에 override됨 → hardcode
+export const API_BASE = "https://swimnote-api.onrender.com/api";
 
 const APP_VERSION = "1.2.0-107-b2";
 
