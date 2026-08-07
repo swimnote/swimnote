@@ -160,7 +160,18 @@ export default function MakeupsScreen() {
   const loadWaiting = useCallback(async () => {
     try {
       const res = await apiRequest(token, `/teacher/makeups?status=waiting`);
-      if (res.ok) setWaitingList(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        console.log("[MAKEUP_DIAG] API_RESPONSE", JSON.stringify({
+          count: Array.isArray(data) ? data.length : -1,
+          items: Array.isArray(data)
+            ? data.map((d: any) => ({ id: d.id, status: d.status, absence_date: d.absence_date, is_expired: d.is_expired }))
+            : [],
+        }));
+        setWaitingList(data);
+      } else {
+        console.log("[MAKEUP_DIAG] API_FAILED", res.status);
+      }
     } catch (e) { console.error(e); }
     finally { setWaitingLoading(false); setWaitingRefresh(false); }
   }, [token]);
@@ -223,6 +234,15 @@ export default function MakeupsScreen() {
     loadWaiting();
     if (tab === "assigned") loadAssigned();
   }, [loadWaiting, loadAssigned, tab]));
+  // [MAKEUP_DIAG] 계측 2 — waitingList state 변경 시점 로그
+  useEffect(() => {
+    if (tab === "waiting") {
+      console.log("[MAKEUP_DIAG] WAITING_STATE", JSON.stringify({
+        count: waitingList.length,
+        ids: waitingList.map((m: any) => m.id),
+      }));
+    }
+  }, [waitingList, tab]);
   /** occurrence 관련 공유 상태 초기화 헬퍼
    *  occSeqRef를 올려 진행 중인 모든 eligible-occurrences 요청을 무효화한다. */
   const resetOccState = () => {
@@ -652,6 +672,7 @@ export default function MakeupsScreen() {
                   return 0;
                 })
                 .map(mk => {
+              console.log("[MAKEUP_DIAG] RENDERED", mk.id, mk.status, mk.absence_date, mk.is_expired);
               const expireInfo = formatExpireAt(mk.expire_at);
               return (
                 <View
