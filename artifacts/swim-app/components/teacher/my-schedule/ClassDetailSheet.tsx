@@ -1330,11 +1330,11 @@ export default function ClassDetailSheet({
                           key={occ.occurrence_date}
                           style={({ pressed }) => [cds.moveClassRow, pressed && { opacity: 0.7 }]}
                           onPress={() => completeMakeupWithDate(selectedMakeupStudent, selectedMakeupClassId!, occ)}
-                          disabled={isSaving || (occ.is_full && occ.is_future)}
+                          disabled={isSaving}
                         >
-                          <LucideIcon name="calendar" size={16} color={occ.is_full && occ.is_future ? C.textMuted : "#4F46E5"} />
+                          <LucideIcon name="calendar" size={16} color="#4F46E5" />
                           <View style={{ flex: 1 }}>
-                            <Text style={[cds.moveClassName, (occ.is_full && occ.is_future) && { color: C.textMuted }]}>
+                            <Text style={[cds.moveClassName]}>
                               {fmtOcc(occ.occurrence_date)}
                             </Text>
                           </View>

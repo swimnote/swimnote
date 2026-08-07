@@ -657,7 +657,6 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
           AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
           AND (${showAll} OR cg.teacher_user_id = ${userId})
         GROUP BY cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity, cg.teacher_user_id, cg.co_teacher_ids, u.name
-        HAVING GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status IN ('active', 'pending_parent_link', 'unregistered') AND s.deleted_at IS NULL)) > 0
         ORDER BY is_mine DESC, cg.schedule_days, cg.schedule_time
       `);
       res.json(rows.rows);
@@ -899,11 +898,6 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
           error: "ASSIGN_REQUIRES_FUTURE_DATE",
           message: "배정 예약은 미래 날짜만 선택할 수 있습니다. 오늘 또는 과거 날짜는 '직접 완료'로 처리해주세요.",
         }); return;
-      }
-
-      // 미래 정원 마감은 서버에서 차단
-      if (validation.isFull) {
-        res.status(400).json({ error: "CLASS_FULL", message: "정원이 마감된 반에는 보강을 배정할 수 없습니다." }); return;
       }
 
       const isChange = prev.status === "assigned" && !!prev.assigned_class_group_id;

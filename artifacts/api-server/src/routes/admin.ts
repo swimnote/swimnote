@@ -1789,7 +1789,7 @@ router.get("/makeups/eligible-classes", requireAuth, requireRole("super_admin","
         ...r,
         available_slots: r.capacity ? Math.max(0, r.capacity - r.current_members) : 999,
         is_eligible: r.capacity ? r.current_members < r.capacity : true,
-      })).filter(r => r.is_eligible);
+      }));
       res.json(eligible);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
