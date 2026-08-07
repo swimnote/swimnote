@@ -169,8 +169,11 @@ export default function MakeupsScreen() {
   } | null>(null);
   const [diagOcc, setDiagOcc] = useState<{
     makeupId: string; classGroupId: string | null; url: string;
-    resolved: boolean; status: number | null; ct: string | null;
-    rawText: string; occCount: number | null; errName: string | null; errMsg: string | null; fetchedAt: string;
+    attempt1: { status: number; rawBody: string; code: string | null; message: string | null } | null;
+    attempt2: { status: number; rawBody: string; code: string | null; message: string | null } | null;
+    networkError: { name: string; message: string } | null;
+    finalType: "OK" | "HTTP" | "NETWORK" | null;
+    occCount: number | null; fetchedAt: string;
   } | null>(null);
   // ── [/DIAG] ───────────────────────────────────────────────────────────────
   const loadWaiting = useCallback(async () => {
@@ -323,6 +326,10 @@ export default function MakeupsScreen() {
     setOccErrorDetail(null);
     setOccLoading(true);
     const _occUrl = `${API_BASE}/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`;
+    // [DIAG] 요청 시작 즉시 저장
+    setDiagOcc({ makeupId: activeTarget.id, classGroupId: classId, url: _occUrl,
+      attempt1: null, attempt2: null, networkError: null, finalType: null,
+      occCount: null, fetchedAt: new Date().toISOString() });
     const _doRequest = async () => {
       const reqUrl = `/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`;
       console.log(`[selectClass] apiRequest 직전 makeupId=${activeTarget.id} classGroupId=${classId} url=${reqUrl}`);
@@ -330,73 +337,92 @@ export default function MakeupsScreen() {
       console.log(`[selectClass] apiRequest 응답 status=${r.status} ok=${r.ok}`);
       return r;
     };
+    const _readAttempt = async (r: Response) => {
+      const rawBody = await r.text();
+      let body: any = null;
+      try { body = rawBody ? JSON.parse(rawBody) : null; } catch {}
+      return {
+        status: r.status,
+        rawBody: rawBody.slice(0, 400),
+        code: (body?.error ?? body?.message ?? null) as string | null,
+        message: (body?.message ?? body?.error ?? null) as string | null,
+      };
+    };
     try {
       let r = await _doRequest();
-      // 실패 시 1회 자동 재시도 (500ms 후)
+      // ── 1차 실패 시 attempt1 저장 → 500ms 후 retry ──────────────────────
       if (!r.ok) {
-        console.log(`[selectClass] 재시도 status=${r.status} — 500ms 후 재요청`);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        r = await _doRequest();
-      }
-      if (occSeqRef.current !== mySeq) return;
-      if (r.ok) {
-        const data = await r.json();
-        console.log(`[selectClass] OK occurrences=${data.occurrences?.length ?? 0}`);
-        setOccurrences((data.occurrences || []) as MakeupOccurrence[]);
-        // [DIAG] 성공 수집
-        setDiagOcc({ makeupId: activeTarget.id, classGroupId: classId, url: _occUrl,
-          resolved: true, status: r.status, ct: r.headers?.get?.("content-type") ?? null,
-          rawText: "", occCount: (data.occurrences || []).length,
-          errName: null, errMsg: null, fetchedAt: new Date().toISOString() });
-      } else {
-        const status = r.status;
-        const rawText = await r.text();
-        let body: any = null;
-        try { body = rawText ? JSON.parse(rawText) : null; } catch { body = { raw: rawText }; }
-        const errorCode: string = body?.error ?? body?.message ?? "UNKNOWN";
-        console.log(`[selectClass] NOT_OK status=${status} errorCode=${errorCode} body=${rawText?.slice(0, 300)}`);
-        // 서버에 오류 보고 (CRASH_REPORT 형식)
+        const a1 = await _readAttempt(r);
+        console.log(`[selectClass] 1차 실패 status=${a1.status} code=${a1.code} — 500ms 후 재시도`);
+        setDiagOcc(prev => prev ? { ...prev, attempt1: a1 } : prev);
+        // crash-report (1차)
         try {
           apiRequest(token, `/crash-report`, {
             method: "POST",
             body: JSON.stringify({
-              message: "ELIGIBLE_OCCURRENCES_FAILED",
-              stack: `status:${status} code:${errorCode} mkId:${activeTarget.id} cgId:${classId} body:${rawText?.slice(0, 500)}`,
-              isFatal: false,
-              source: "selectClass",
+              message: "ELIGIBLE_OCCURRENCES_FAILED_1ST",
+              stack: `status:${a1.status} code:${a1.code} mkId:${activeTarget.id} cgId:${classId} body:${a1.rawBody}`,
+              isFatal: false, source: "selectClass",
             }),
           }).catch(() => {});
         } catch {}
-        if (occSeqRef.current === mySeq) {
-          setOccError(true);
-          setOccErrorDetail({ status, code: errorCode });
+        await new Promise(resolve => setTimeout(resolve, 500));
+        r = await _doRequest();
+        // ── 2차 응답 ──────────────────────────────────────────────────────
+        if (!r.ok) {
+          const a2 = await _readAttempt(r);
+          console.log(`[selectClass] 2차 실패 status=${a2.status} code=${a2.code}`);
+          setDiagOcc(prev => prev ? { ...prev, attempt2: a2, finalType: "HTTP" } : prev);
+          // crash-report (2차)
+          try {
+            apiRequest(token, `/crash-report`, {
+              method: "POST",
+              body: JSON.stringify({
+                message: "ELIGIBLE_OCCURRENCES_FAILED_2ND",
+                stack: `status:${a2.status} code:${a2.code} mkId:${activeTarget.id} cgId:${classId} body:${a2.rawBody}`,
+                isFatal: false, source: "selectClass",
+              }),
+            }).catch(() => {});
+          } catch {}
+          if (occSeqRef.current === mySeq) {
+            setOccError(true);
+            setOccErrorDetail({ status: a2.status, code: a2.code ?? "UNKNOWN" });
+          }
+          return; // finally로 이동
         }
-        // [DIAG] 오류 수집
-        setDiagOcc({ makeupId: activeTarget.id, classGroupId: classId, url: _occUrl,
-          resolved: true, status, ct: r.headers?.get?.("content-type") ?? null,
-          rawText: rawText.slice(0, 300), occCount: null,
-          errName: null, errMsg: errorCode, fetchedAt: new Date().toISOString() });
+        // 2차 성공
+        if (occSeqRef.current !== mySeq) return;
+        const data2 = await r.json();
+        console.log(`[selectClass] 2차 성공 occurrences=${data2.occurrences?.length ?? 0}`);
+        setOccurrences((data2.occurrences || []) as MakeupOccurrence[]);
+        setDiagOcc(prev => prev ? { ...prev, finalType: "OK", occCount: (data2.occurrences || []).length } : prev);
+        return;
       }
+      // ── 1차 성공 ────────────────────────────────────────────────────────
+      if (occSeqRef.current !== mySeq) return;
+      const data = await r.json();
+      console.log(`[selectClass] 1차 성공 occurrences=${data.occurrences?.length ?? 0}`);
+      setOccurrences((data.occurrences || []) as MakeupOccurrence[]);
+      setDiagOcc(prev => prev ? { ...prev, finalType: "OK", occCount: (data.occurrences || []).length } : prev);
     } catch (e: any) {
       console.log(`[selectClass] CATCH e.name=${e?.name} e.message=${e?.message} mkId=${activeTarget.id} cgId=${classId}`);
-      // 네트워크/타임아웃 오류도 서버에 보고
+      // crash-report (network)
       try {
         apiRequest(token, `/crash-report`, {
           method: "POST",
           body: JSON.stringify({
             message: "ELIGIBLE_OCCURRENCES_NETWORK_ERROR",
             stack: `${e?.name}:${e?.message ?? "unknown"} mkId:${activeTarget.id} cgId:${classId}`,
-            isFatal: false,
-            source: "selectClass",
+            isFatal: false, source: "selectClass",
           }),
         }).catch(() => {});
       } catch {}
       if (occSeqRef.current === mySeq) setOccError(true);
-      // [DIAG] 예외 수집
-      setDiagOcc({ makeupId: activeTarget.id, classGroupId: classId, url: _occUrl,
-        resolved: false, status: null, ct: null, rawText: "",
-        occCount: null, errName: (e as any)?.name ?? "Error", errMsg: (e as any)?.message ?? String(e),
-        fetchedAt: new Date().toISOString() });
+      setDiagOcc(prev => prev ? {
+        ...prev,
+        networkError: { name: (e as any)?.name ?? "Error", message: (e as any)?.message ?? String(e) },
+        finalType: "NETWORK",
+      } : prev);
     } finally {
       occPendingRef.current.delete(occKey);
       if (occSeqRef.current === mySeq) setOccLoading(false);
@@ -1462,24 +1488,67 @@ export default function MakeupsScreen() {
 
               {/* eligible-occurrences */}
               <Text style={{ color: "#F8FAFC", fontSize: 13, fontFamily: "Courier", fontWeight: "bold", marginTop: 12, marginBottom: 4 }}>③ eligible-occurrences</Text>
-              {diagOcc ? ([
-                ["makeupId", diagOcc.makeupId],
-                ["classGroupId", diagOcc.classGroupId ?? "—"],
-                ["url", diagOcc.url],
-                ["resolved", String(diagOcc.resolved)],
-                ["status", String(diagOcc.status ?? "—")],
-                ["content-type", diagOcc.ct ?? "—"],
-                ["occCount", String(diagOcc.occCount ?? "—")],
-                ["errName", diagOcc.errName ?? "—"],
-                ["errMsg", diagOcc.errMsg ?? "—"],
-                ["rawText(300)", diagOcc.rawText || "—"],
-                ["fetchedAt", diagOcc.fetchedAt],
-              ] as [string, string][]).map(([k, v]) => (
-                <View key={k} style={{ flexDirection: "row", gap: 8 }}>
-                  <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 120 }}>{k}</Text>
-                  <Text style={{ color: k === "status" && String(diagOcc?.status) !== "200" ? "#F87171" : "#E2E8F0", fontSize: 11, fontFamily: "Courier", flex: 1 }} numberOfLines={4}>{v}</Text>
+              {diagOcc ? (
+                <View style={{ gap: 2 }}>
+                  {/* 기본 정보 */}
+                  {([
+                    ["makeupId", diagOcc.makeupId],
+                    ["classGroupId", diagOcc.classGroupId ?? "—"],
+                    ["URL", diagOcc.url],
+                    ["finalType", diagOcc.finalType ?? "pending…"],
+                    ["occCount", String(diagOcc.occCount ?? "—")],
+                    ["fetchedAt", diagOcc.fetchedAt],
+                  ] as [string, string][]).map(([k, v]) => (
+                    <View key={k} style={{ flexDirection: "row", gap: 8 }}>
+                      <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 100 }}>{k}</Text>
+                      <Text style={{
+                        color: k === "finalType" && v === "HTTP" ? "#F87171"
+                             : k === "finalType" && v === "NETWORK" ? "#FB923C"
+                             : k === "finalType" && v === "OK" ? "#86EFAC"
+                             : "#E2E8F0",
+                        fontSize: 11, fontFamily: "Courier", flex: 1,
+                      }}>{v}</Text>
+                    </View>
+                  ))}
+                  {/* attempt 1 */}
+                  <Text style={{ color: "#94A3B8", fontSize: 11, fontFamily: "Courier", marginTop: 6 }}>— attempt 1 —</Text>
+                  {diagOcc.attempt1 ? ([
+                    ["status", String(diagOcc.attempt1.status)],
+                    ["code", diagOcc.attempt1.code ?? "—"],
+                    ["message", diagOcc.attempt1.message ?? "—"],
+                    ["rawBody", diagOcc.attempt1.rawBody || "—"],
+                  ] as [string, string][]).map(([k, v]) => (
+                    <View key={`a1-${k}`} style={{ flexDirection: "row", gap: 8 }}>
+                      <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 100 }}>{k}</Text>
+                      <Text style={{ color: k === "status" ? "#F87171" : "#E2E8F0", fontSize: 11, fontFamily: "Courier", flex: 1 }}>{v}</Text>
+                    </View>
+                  )) : <Text style={{ color: "#475569", fontSize: 11, fontFamily: "Courier" }}>없음 (1차 성공)</Text>}
+                  {/* attempt 2 */}
+                  <Text style={{ color: "#94A3B8", fontSize: 11, fontFamily: "Courier", marginTop: 4 }}>— attempt 2 —</Text>
+                  {diagOcc.attempt2 ? ([
+                    ["status", String(diagOcc.attempt2.status)],
+                    ["code", diagOcc.attempt2.code ?? "—"],
+                    ["message", diagOcc.attempt2.message ?? "—"],
+                    ["rawBody", diagOcc.attempt2.rawBody || "—"],
+                  ] as [string, string][]).map(([k, v]) => (
+                    <View key={`a2-${k}`} style={{ flexDirection: "row", gap: 8 }}>
+                      <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 100 }}>{k}</Text>
+                      <Text style={{ color: k === "status" ? "#F87171" : "#E2E8F0", fontSize: 11, fontFamily: "Courier", flex: 1 }}>{v}</Text>
+                    </View>
+                  )) : <Text style={{ color: "#475569", fontSize: 11, fontFamily: "Courier" }}>없음</Text>}
+                  {/* network error */}
+                  <Text style={{ color: "#94A3B8", fontSize: 11, fontFamily: "Courier", marginTop: 4 }}>— network error —</Text>
+                  {diagOcc.networkError ? ([
+                    ["name", diagOcc.networkError.name],
+                    ["message", diagOcc.networkError.message],
+                  ] as [string, string][]).map(([k, v]) => (
+                    <View key={`ne-${k}`} style={{ flexDirection: "row", gap: 8 }}>
+                      <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 100 }}>{k}</Text>
+                      <Text style={{ color: "#FB923C", fontSize: 11, fontFamily: "Courier", flex: 1 }}>{v}</Text>
+                    </View>
+                  )) : <Text style={{ color: "#475569", fontSize: 11, fontFamily: "Courier" }}>없음</Text>}
                 </View>
-              )) : <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier" }}>아직 회차 조회 전 (반 선택 후 재확인)</Text>}
+              ) : <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier" }}>아직 회차 조회 전 (반 선택 후 재확인)</Text>}
 
               <View style={{ height: 40 }} />
             </ScrollView>
