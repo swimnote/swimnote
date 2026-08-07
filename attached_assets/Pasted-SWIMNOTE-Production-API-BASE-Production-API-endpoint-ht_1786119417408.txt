@@ -1,0 +1,125 @@
+SWIMNOTE 긴급 복구 — Production API_BASE 정상화 승인
+
+원인 확정.
+
+Production 앱의 의도된 API endpoint:
+
+https://swimnote-api.onrender.com/api
+
+현재 장애 원인:
+
+EAS production server env의
+
+EXPO_PUBLIC_API_URL=https://swimnote.kr/api
+
+가 eas.json의 정상값
+
+https://swimnote-api.onrender.com/api
+
+를 override하여,
+Production OTA가 별도 GCP 서버를 호출하고 있었음.
+
+코드 수정은 하지 않는다.
+Render 재배포도 하지 않는다.
+DB 변경도 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1. EAS production env 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EAS production environment의:
+
+EXPO_PUBLIC_API_URL
+
+을 정확히 다음 값으로 변경한다.
+
+https://swimnote-api.onrender.com/api
+
+기존 다른 EAS 환경변수는 절대 변경/삭제하지 않는다.
+
+수정 후 production env를 다시 조회하여
+실제 값이 위 URL인지 증거 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2. Preview 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Preview는 현재 server env가 없고
+eas.json의 onrender.com 값을 사용하는 것으로 조사됨.
+
+Preview의 최종 export 시에도:
+
+EXPO_PUBLIC_API_URL
+=
+https://swimnote-api.onrender.com/api
+
+가 주입되는지 확인한다.
+
+불필요한 env 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3. Production OTA 재배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EAS production env 정상화 확인 후
+새 Production OTA를 배포한다.
+
+서버 코드 변경 없음.
+새 Commit 필요 없음.
+
+현재 최신 앱 코드를 그대로 export한다.
+
+반드시 export된 bundle에서:
+
+https://swimnote-api.onrender.com/api
+
+존재 확인.
+
+그리고:
+
+https://swimnote.kr/api
+
+가 API_BASE 용도로 포함되지 않는지 확인.
+
+이메일/홈페이지 문자열 등 단순 swimnote.kr 문자열은
+API endpoint와 구분한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4. Preview OTA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production 성공 후 Preview도 동일 코드 기준으로 배포한다.
+
+Preview bundle API_BASE 역시:
+
+https://swimnote-api.onrender.com/api
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5. 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. EAS production EXPO_PUBLIC_API_URL 변경 전 값
+2. 변경 후 값
+3. 다른 EAS env 변경 여부
+4. Production Update Group ID
+5. Production iOS Update ID
+6. Preview Update Group ID
+7. Preview iOS Update ID
+8. runtimeVersion
+9. bundle SHA-256
+10. Production bundle API_BASE 검증
+11. Preview bundle API_BASE 검증
+12. Commit 여부
+13. Push 여부
+14. Render 재배포 여부
+15. DB 변경 여부
+
+추가 코드 수정 금지.
+추가 Commit 금지.
+Push 금지.
+Render 재배포 금지.
+DB 변경 금지.
+
+OTA 완료 후 중단.
