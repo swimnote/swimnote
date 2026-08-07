@@ -114,6 +114,14 @@ export default function ParentNotificationsScreen() {
 
   // ── 키보드 높이 추적 ──────────────────────────────────────────────────────
   const [kbHeight, setKbHeight] = useState(0);
+
+  // ── Modal 높이 계산 ──────────────────────────────────────────────────────
+  const normalHeight = screenHeight * 0.88;
+  const availableKeyboardHeight = screenHeight - kbHeight - insets.top - 8;
+  const modalHeight = kbHeight > 0
+    ? Math.min(normalHeight, availableKeyboardHeight)
+    : normalHeight;
+
   useEffect(() => {
     const show = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
@@ -540,11 +548,9 @@ export default function ParentNotificationsScreen() {
             style={[
               styles.modalSheet,
               {
+                height: modalHeight,
                 backgroundColor: C.background,
                 paddingBottom: insets.bottom + 8,
-                maxHeight: kbHeight > 0
-                  ? screenHeight - kbHeight - insets.top - 8
-                  : screenHeight * 0.88,
               },
             ]}
           >
