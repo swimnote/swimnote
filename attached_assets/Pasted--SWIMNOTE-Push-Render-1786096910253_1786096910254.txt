@@ -1,0 +1,213 @@
+이제 배포 진행해도 됩니다. 현재 보고 기준으로 배포 차단 요소는 해소됐습니다.
+
+아래 지시문을 그대로 보내면 됩니다.
+
+[SWIMNOTE 긴급 수정 — 서버 Push·Render 배포·OTA 승인]
+
+최종 검수 완료.
+
+배포 대상에는 다음 수정이 포함되어야 한다.
+
+- 보강반 실제 수업 회차 선택
+- 오늘·과거·미래 회차 구분
+- 미래 보강 예약
+- 오늘·과거 사후 완료
+- 정원 마감 미래 회차 서버 차단
+- 오늘·과거 정원 초과 경고 후 처리
+- complete-direct 서버 회차 검증
+- occurrence_date 필드 통일
+- occurrence 요청 race condition 방지
+- 직접 완료 기능의 실제 반·실제 회차 선택 방식 통합
+- /teacher/makeups/by-class 수영장 권한 검증
+- /teacher/makeups/by-class 날짜 형식 검증
+
+현재 HEAD:
+f8cb0345
+
+현재 origin/main:
+d73d8e4f
+
+미Push 커밋:
+6건
+
+아래 순서대로 진행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 1. 배포 전 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. git status --short 확인
+2. 의도하지 않은 untracked 파일·첨부 문서 제외
+3. 현재 브랜치 확인
+4. HEAD가 f8cb0345인지 확인
+5. origin/main이 d73d8e4f인지 재확인
+6. force push 금지
+7. reset/rebase/squash 금지
+
+확인 결과를 짧게 기록한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 2. Git Push
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 작업 브랜치의 커밋을 origin에 정상 Push한다.
+
+- force push 금지
+- 기존 원격 이력 덮어쓰기 금지
+- Push 충돌 발생 시 임의 해결 금지
+- 충돌 시 즉시 중단하고 보고
+
+Push 후 제출:
+
+- push 대상 브랜치
+- push 전 HEAD
+- push 후 origin SHA
+- 포함된 커밋 목록
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 3. Render 서버 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+Push로 Render 자동 배포가 시작되는지 확인한다.
+
+확인 항목:
+
+1. 빌드 성공
+2. 서버 시작 성공
+3. migration 실행 없음
+4. 환경변수 오류 없음
+5. teachers.ts 라우트 등록 성공
+6. 기존 API 서버 health check 정상
+7. 5xx 반복 로그 없음
+
+배포 실패 시 OTA 진행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 4. 서버 API 최소 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+운영 데이터 변경을 최소화하면서 조회 API를 먼저 확인한다.
+
+필수 조회:
+
+1. GET /teacher/makeups/:makeupId/eligible-occurrences
+2. GET /teacher/makeups/by-class
+3. 정상 날짜 요청
+4. 잘못된 날짜 요청 → 400 INVALID_DATE
+5. 권한 없는 class_group_id → 반환 차단
+6. occurrence_date 필드 존재 확인
+
+쓰기 API는 실제 사용 과정에서 확인하되,
+가능하면 테스트용 보강 세션으로 검증한다.
+
+확인할 쓰기 동작:
+
+- 미래 회차 → /assign
+- 오늘·과거 → /complete-direct
+- 미래 만석 → CLASS_FULL 차단
+- 오늘·과거 만석 → 완료 허용
+- 다른 수영장 반 → 차단
+- 수업 요일 아닌 날짜 → 차단
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 5. 앱 OTA 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 배포와 API 확인이 정상일 때만 OTA 진행한다.
+
+현재 운영 앱이 사용하는 정확한 Expo/EAS channel과 branch를 먼저 확인한다.
+
+금지:
+
+- 새 빌드 생성
+- 잘못된 channel 배포
+- preview/staging channel에만 올리고 완료 처리
+- 이전 배포 branch와 다른 곳에 임의 배포
+
+OTA 메시지 예:
+
+fix: makeup class occurrence assignment and historical completion
+
+OTA 후 제출:
+
+- update ID
+- channel
+- branch
+- runtime version
+- 배포 시각
+- 포함된 commit SHA
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 6. 현재 운영 앱 실기기 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 현재 설치된 앱을 완전히 종료 후 다시 실행하면
+OTA를 받을 수 있도록 안내한다.
+
+실기기 확인 항목:
+
+1. 보강 대기 학생 선택
+2. 반 선택
+3. 실제 수업 회차 표시
+4. 지난수업 표시
+5. 오늘 표시
+6. 예정수업 표시
+7. 날짜가 undefined로 나오지 않음
+8. 원래 결석 반과 다른 반 선택 가능
+9. 오늘 보강 완료 가능
+10. 과거 보강 사후 완료 가능
+11. 미래 보강 예약 가능
+12. 미래 만석 회차 선택 차단
+13. 오늘·과거 만석 경고 후 처리 가능
+14. 직접 완료에서도 실제 반·회차 선택
+15. 다른 학생으로 재열 때 이전 회차 잔존 없음
+16. 빠르게 반을 바꿔도 이전 응답이 섞이지 않음
+17. ClassDetailSheet 기존 완료 버튼 정상
+18. 반이동·미배정·스케줄러 회귀 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 7. 문제 발생 시 롤백
+━━━━━━━━━━━━━━━━━━━━━━
+
+문제가 서버에 있으면:
+
+- 직전 정상 서버 커밋으로 revert commit 생성
+- force push 금지
+- Render 재배포
+- DB migration이 없으므로 스키마 롤백 불필요
+
+문제가 앱 OTA에 있으면:
+
+- 직전 정상 Expo update를 동일 channel에 재배포
+- 또는 직전 정상 commit 기준으로 새 OTA 발행
+- 기존 update 삭제만으로 해결하려 하지 않음
+
+롤백 전 반드시 기록:
+
+- 문제 화면
+- 발생 단계
+- 서버 응답 코드
+- OTA update ID
+- 현재 commit SHA
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 8. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+제출:
+
+1. Push 결과
+2. origin 최종 SHA
+3. Render 배포 결과
+4. 서버 health 상태
+5. API 검증 결과
+6. OTA update ID
+7. channel / branch / runtime
+8. 운영 앱 적용 여부
+9. 실기기 확인 결과
+10. 남은 문제
+11. 롤백 가능 기준점
+
+이번 작업 완료 후 X모드 작업은 자동 재개하지 말고 멈춘다.
+
+배포 순서는 반드시 서버 먼저, OTA 나중입니다. 클라이언트는 새 API와 새 검증에 의존하므로 서버가 먼저 올라가야 합니다.

@@ -1,0 +1,322 @@
+[SWIMNOTE 보강 긴급 복구 — 앱 수정 금지 / Production 서버 실제 원인 확정]
+
+실기기 증거가 확보됐다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+확정된 실기기 증거
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production OTA 적용 확인됨.
+
+실기기 화면:
+
+진단: 전체 1 · 일반 1 · 지난 보강 0
+
+따라서:
+
+App OTA 적용 = CONFIRMED
+App waiting 수신 total = 1 = CONFIRMED
+App expired 수신 = 0 = CONFIRMED
+
+그러므로 지난 보강 미표시 문제를
+
+separator
+ScrollView
+FlatList
+render
+sort
+클라이언트 filter
+
+문제로 다시 조사하지 마라.
+
+expired 데이터가 앱에 도착하지 않았다.
+
+또한 보강 날짜 선택에서는 여전히:
+
+“수업 회차를 불러오지 못했습니다”
+
+가 실제 표시되고 있으며,
+보고했던 HTTP status/error code가 화면에 보이지 않는다.
+
+따라서 날짜/회차 기능도 정상 판정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 지금부터 APP 완전 동결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수정 금지:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+
+포함 모든 앱 파일.
+
+새 OTA 금지.
+
+클라이언트 진단 코드 추가 금지.
+
+현재 계측 결과만 사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 장애 A 조사 — Production 서버가 왜 1건만 반환하는지 증명
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+GET /teacher/makeups?status=waiting
+
+Production:
+https://swimnote.kr/api
+
+반드시 실제 Production 실행 환경을 기준으로 조사.
+
+DB 전체 건수만 다시 세지 마라.
+
+현재 로그인 teacher가 실제 요청했을 때 적용되는
+userId / poolId / SQL 조건을 그대로 적용하여 단계별 COUNT를 제출.
+
+단 개인정보 원문/JWT 출력 금지.
+
+다음 순서대로 COUNT:
+
+A.
+pool_id 일치
+AND cancelled_at IS NULL
+AND status IN ('waiting','expired')
+
+→ total / waiting / expired
+
+B.
+A 조건
++ handed_to_teacher_id 조건
+
+C.
+A 조건
++ original_teacher_id = 현재 teacher userId
+
+D.
+A 조건
++ co_teacher 조건
+
+E.
+실제 최종 WHERE 전체 적용
+
+→ total / waiting / expired
+
+실기기 결과:
+
+FINAL = total 1 / expired 0
+
+와 서버 조사 결과가 일치해야 한다.
+
+일치하지 않으면
+현재 조사 DB/서버가 Production 요청 경로와 다른 것이다.
+
+그 상태에서는 코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 7월 expired 레코드가 정확히 어느 조건에서 탈락하는지 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7월 expired 각각에 대해 개인정보 없이:
+
+makeup_session id
+status
+expire_at
+original_teacher_id 일치 여부 boolean
+handed_to_teacher_id 일치 여부 boolean
+co_teacher 일치 여부 boolean
+cancelled_at null 여부
+pool 일치 여부
+FINAL INCLUDED 여부
+
+를 제출.
+
+목적은:
+
+“왜 DB에는 있는데 현재 선생님 API에는 0건인가”
+
+를 정확히 증명하는 것이다.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 정책 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+우리가 원하는 정책은:
+
+지난달 미처리 보강은
+다음 달에도 “기간 지난 보강”으로 담당 선생님에게 표시.
+
+현재 teacher ownership 필터가 이 정책을 깨뜨린다면
+그 필터가 언제/왜 추가됐는지 Git history에서 찾는다.
+
+정상 작동 시점과 현재 Production server를 비교:
+
+git log
+git blame
+git diff
+
+로 해당 WHERE 조건 도입 commit을 특정.
+
+새 정책 설계 금지.
+
+기존 정상 동작 복구가 목적.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 장애 B — eligible-occurrences 실제 서버 실패 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+앱 수정하지 말고 서버 측에서 확인.
+
+실기기에서 선택한 동일 makeup_session과
+동일 class_group_id 조합을 찾아서
+
+GET
+/teacher/makeups/:makeupId/eligible-occurrences?class_group_id=:classId
+
+handler의 실제 실행 결과를 확인.
+
+반드시 제출:
+
+makeupId
+class_group_id
+pool match boolean
+makeup exists boolean
+class exists boolean
+class is_deleted
+class is_one_time
+HTTP status
+error code
+rangeStart
+rangeEnd
+occurrences count
+
+개인정보 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 날짜 정책은 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+확정 정책:
+
+KST today -14일 ~ today +28일
+
+today 포함.
+
+미래 결석 선보강 허용.
+
+예:
+
+결석 예정 8/20
+보강 8/17
+→ 허용.
+
+따라서 다음 조건을 새로 넣지 마라:
+
+occurrence_date >= absence_date
+
+expire_at까지만 선택
+
+absence_date 이후만 선택
+
+이 정책은 절대 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 서버 오류가 확인되더라도 즉시 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 원인을 보고한다.
+
+특히 금지:
+
+DB UPDATE
+DB DELETE
+DB INSERT
+
+teacher_id 임의 변경
+
+class_group 임의 변경
+
+auth/JWT 수정
+
+SessionContext 수정
+
+앱 수정
+
+학부모 요청 수정
+
+학부모 알림 수정
+
+선생님 메신저 수정
+
+link-result 수정
+
+notify-result 수정
+
+parent_student_requests 수정
+
+notifications 수정
+
+Commit
+Push
+Render
+OTA
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 보호 기능
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 기능은 이번 조사와 무관하다.
+
+절대 수정하지 마라:
+
+학부모 요청
+학부모 알림
+선생님 요청함
+선생님 메신저
+link-result
+notify-result
+
+보강 문제를 고치기 위해
+위 기능과 DB를 건드리는 행위 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 이번 보고에서 필요한 것만 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Production 실제 server SHA
+2. 현재 teacher userId와 poolId가 실제 handler에서 해석됐는지 여부
+   (값 자체는 마스킹 가능)
+3. teacher filter 적용 전 total/waiting/expired COUNT
+4. original_teacher 조건 적용 COUNT
+5. handed_to 조건 적용 COUNT
+6. co_teacher 조건 적용 COUNT
+7. 최종 WHERE 적용 COUNT
+8. 7월 expired가 최초로 탈락하는 정확한 조건
+9. 해당 teacher filter 도입 commit/SHA
+10. eligible-occurrences 실제 HTTP status
+11. eligible-occurrences 실제 error code
+12. class lookup 성공/실패
+13. occurrences 실제 count
+14. 장애 A 직접 원인
+15. 장애 B 직접 원인
+16. 복구에 필요한 최소 파일 목록
+17. DB 변경 필요 여부
+18. 학부모 요청/알림/메신저 변경 0건 확인
+19. 코드 수정 0건 확인
+20. Commit/Push/Render/OTA 0건 확인
+
+UNKNOWN이면 UNKNOWN이라고 쓴다.
+
+원인을 CONFIRMED하기 전에는 절대 수정하지 마라.
+
+이번에는 코드가 “정상으로 보인다”는 보고가 아니라
+
+실기기:
+전체 1 / 일반 1 / 지난 보강 0
+
+이라는 실제 결과가
+서버의 어느 WHERE 조건에서 만들어지는지 증명하라.
+
+보고 후 멈춰라.

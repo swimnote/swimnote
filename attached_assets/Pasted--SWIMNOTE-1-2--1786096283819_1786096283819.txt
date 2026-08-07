@@ -1,0 +1,647 @@
+[SWIMNOTE 보강 기능 최종 복구 — 이번 작업에서 반드시 완료]
+
+이번 작업은 더 이상 조사 단계가 아닙니다.
+
+목표:
+
+1. 지난달 미처리 보강 표시
+2. 보강 날짜/회차 선택
+3. 미래 결석 예정자의 선보강
+
+세 기능을 이번 작업에서 모두 실제 동작 가능하게 복구합니다.
+
+부분 완료 보고 금지.
+
+“코드상 정상”
+“원인 UNKNOWN”
+“다음 단계에서 확인”
+
+으로 종료 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 최종 기능 사양 — 절대 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A. 지난 보강
+
+지난달 미처리 보강은
+다음 달에도 보강 대기 화면에서 계속 보여야 합니다.
+
+서버 조회:
+
+same swimming_pool_id
+AND cancelled_at IS NULL
+AND status IN ('waiting','expired')
+
+현재 teacher ownership filter 때문에
+과거 보강이 사라지는 문제가 확인되었으므로
+보강 대기 조회에서는 해당 회귀를 제거합니다.
+
+화면:
+
+일반 보강
+
+────────────
+기간 지난 보강 (N건)
+────────────
+
+지난 보강 카드들
+
+expired를 숨기거나 제거하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+B. 보강 날짜 범위
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+KST 오늘 기준:
+
+오늘 -14일
+~
+오늘 +28일
+
+정확히 사용.
+
+오늘 포함.
+
+실제 해당 반의 수업 회차만 표시.
+
+-15일 이전 제외.
++29일 이후 제외.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+C. 예정 결석 선보강
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+결석 예정일보다 이전 보강 허용.
+
+예:
+
+결석 예정:
+8/20
+
+보강:
+8/17
+
+→ 반드시 가능.
+
+다음 제한 금지:
+
+occurrence_date >= absence_date
+
+makeup_date >= absence_date
+
+absence_date 이후 회차만 표시
+
+expire_at까지만 표시
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 확정 수정 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이미 수정된 서버:
+
+GET /teacher/makeups
+
+teacher ownership filter 제거 유지.
+
+반드시:
+
+WHERE swimming_pool_id = poolId
+AND status IN ('waiting','expired')
+AND cancelled_at IS NULL
+
+유지.
+
+다시 ownership filter 넣지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 날짜/회차 기능 이번에 반드시 해결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기:
+
+보강반 선택
+→ “수업 회차를 불러오지 못했습니다”
+
+상태.
+
+이번 작업에서 이 상태를 반드시 종료합니다.
+
+기존 endpoint:
+
+GET /teacher/makeups/:makeupId/eligible-occurrences
+
+를 우선 사용.
+
+다음 Contract를 단순하고 명확하게 보장:
+
+REQUEST:
+
+makeupId
+class_group_id
+
+RESPONSE 200:
+
+{
+  "range": {
+    "start": "YYYY-MM-DD",
+    "end": "YYYY-MM-DD"
+  },
+  "occurrences": [
+    {
+      "occurrence_date": "YYYY-MM-DD",
+      "is_past": boolean,
+      "is_today": boolean,
+      "is_future": boolean,
+      "is_full": boolean
+    }
+  ]
+}
+
+range:
+
+today -14
+today +28
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 eligible-occurrences가 계속 실패하면 즉시 단순화
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 handler를 억지로 계속 패치하지 마십시오.
+
+현재 선택 가능한 class_group_id가
+eligible-occurrences에서 정상 반인데도 실패한다면
+handler를 보강 전용으로 단순화하십시오.
+
+필수 검증은 이것만:
+
+1. authenticated teacher
+2. teacher의 swimming_pool_id 존재
+3. makeup_session 존재
+4. makeup_session.swimming_pool_id = teacher pool
+5. class_group 존재
+6. class_group.swimming_pool_id = teacher pool
+7. class_group.is_deleted = false
+8. 실제 회차 조회
+
+불필요한 과거 ownership 관계나
+결석 당시 담당 교사 조건을
+eligible-occurrences에 추가하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 회차 생성/조회 방식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 저장된 수업 일정/회차 데이터를 우선 사용합니다.
+
+현재 Repository에서
+eligible-occurrences가 사용하던 기존 회차 생성 로직이
+정상 작동하면 유지.
+
+단 실패 원인이 해당 로직이면
+보강 전용 helper로 최소 단순화.
+
+결과는 반드시:
+
+today -14 ~ today +28
+
+범위의 실제 수업일만 반환.
+
+존재하지 않는 수업일을 임의 생성하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 미래 결석도 같은 endpoint 사용
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+makeup_session.absence_date가 미래여도
+eligible-occurrences 조회를 막지 않습니다.
+
+예:
+
+absence_date = 2026-08-20
+today = 2026-08-07
+occurrence_date = 2026-08-17
+
+→ 반환 및 선택 가능.
+
+absence_date는 선택 범위 startDate로 사용하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 앱 날짜 UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+makeups.tsx에서 보강반 선택 후:
+
+occurrences[]를 정상 수신하면
+날짜 목록을 반드시 렌더.
+
+빈 배열이면:
+
+“선택 가능한 수업 회차가 없습니다.”
+
+API 실패와 빈 결과를 구분.
+
+API 실패:
+
+“수업 회차를 불러오지 못했습니다.”
+
+정상 200 + occurrences=[]:
+
+“선택 가능한 수업 회차가 없습니다.”
+
+혼동 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 지난 보강도 동일 날짜 선택 가능
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+expired 보강이라고 날짜 선택을 막지 않습니다.
+
+expired 보강도:
+
+today -14 ~ today +28
+
+회차를 선택 가능.
+
+단 기존 직접 완료 기능은 그대로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. doAssign 버그 수정 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 유지:
+
+onPress={() => doAssign()}
+
+다시:
+
+onPress={doAssign}
+
+로 되돌리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 캐시 때문에 최신 결과가 막히지 않게
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+공용 apiRequest 전체 수정 금지.
+
+단 보강 화면에서 mutation 또는 pull-to-refresh 후
+오래된 waiting 결과가 표시되는 문제가 있다면
+보강 endpoint에 한정해 기존 cache invalidation 방법을 사용.
+
+전역 캐시 architecture 수정 금지.
+
+필요 없으면 건드리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 최종 진단 UI 제거
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기능 정상화 후:
+
+진단: 전체 N · 일반 N · 지난 보강 N
+
+등 임시 진단 표시 제거.
+
+MAKEUP_DIAG
+selectClass debug log
+
+전부 제거.
+
+사용자 화면에는 최종 기능만 남깁니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. UI/UX 완료 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+보강 대기 화면:
+
+일반 보강 표시
+지난 보강 separator 표시
+지난 보강 카드 표시
+끝까지 스크롤 가능
+
+보강 배정 Modal:
+
+반 선택 가능
+날짜 목록 표시
+과거 -14일까지 접근
+오늘 접근
+미래 +28일까지 접근
+선택 가능
+제출 버튼 접근 가능
+
+키보드 없는 화면이므로
+불필요한 Keyboard 구조 추가 금지.
+
+Safe Area 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 보호 영역 — 절대 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 한 줄도 수정하지 마십시오:
+
+parent/notifications.tsx
+parent/requests.tsx
+teacher/messages-inbox.tsx
+
+parent_student_requests
+notifications
+parent_conversations
+parent_messages
+diary_messages
+
+link-result
+notify-result
+deep_link
+
+SessionContext
+auth
+JWT
+push-service
+
+AI
+결제
+구독
+
+학부모 요청/알림/선생님 메신저는
+완전 동결.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. DB 보호
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 데이터 UPDATE/DELETE 금지.
+
+금지:
+
+original_teacher_id 수정
+handed_to_teacher_id 수정
+absence_date 수정
+expire_at 수정
+status 강제 변경
+
+코드가 기존 데이터를 정상적으로 읽게 만드십시오.
+
+Migration도 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 허용 수정 파일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+우선 허용:
+
+artifacts/api-server/src/routes/teachers.ts
+artifacts/swim-app/app/(teacher)/makeups.tsx
+
+필요하면:
+
+artifacts/api-server/src/lib/makeup-date-range.ts
+
+단 현재 -14/+28이 정상이라면
+makeup-date-range.ts 수정 금지.
+
+최대 3개 파일.
+
+그 이상 필요하면 중단.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 구현 후 반드시 직접 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+코드 기준 테스트:
+
+TEST 1
+waiting 일반 건 반환
+
+TEST 2
+expired 건 반환
+
+TEST 3
+cancelled 제외
+
+TEST 4
+today -14 포함
+
+TEST 5
+today -15 제외
+
+TEST 6
+today 포함
+
+TEST 7
+today +28 포함
+
+TEST 8
+today +29 제외
+
+TEST 9
+absence 8/20 + makeup 8/17 허용
+
+TEST 10
+expired 보강도 날짜 선택 가능
+
+TEST 11
+eligible-occurrences 정상 반 → HTTP 200
+
+TEST 12
+200 + occurrences 존재 → 앱 날짜 렌더
+
+TEST 13
+200 + [] → 빈 회차 안내
+
+TEST 14
+실제 API 실패만 오류 안내
+
+TEST 15
+onPress={() => doAssign()} 유지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 더 이상 부분 성공으로 완료 보고 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 완료가 아닙니다:
+
+“지난 보강만 해결”
+“날짜는 UNKNOWN”
+“코드상 정상”
+“다음 OTA에서 확인”
+“Contract 일치”
+
+이번 작업 완료 조건:
+
+A.
+지난 보강 표시 코드 완료
+
+B.
+eligible-occurrences 정상 반환 코드 완료
+
+C.
+날짜 목록 렌더 코드 완료
+
+D.
+선보강 허용 코드 완료
+
+E.
+기존 배정 흐름 유지
+
+전부 PASS.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. Clean 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+git diff --name-status
+git diff --stat
+
+허용 파일 외 변경 0.
+
+특히:
+
+학부모 요청 0
+학부모 알림 0
+선생님 메신저 0
+link-result 0
+notify-result 0
+DB 0
+
+attached_assets
+memory
+mockup
+generated
+
+Commit 포함 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. 이번 작업은 배포까지 완료
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+테스트와 diff PASS 후:
+
+Clean Commit
+→ Push
+→ Production 서버 배포
+→ Health 확인
+→ Production OTA iOS + Android
+
+까지 진행.
+
+사용자에게 다시 배포 승인 질문하지 마십시오.
+이번 지시 자체가 배포 승인입니다.
+
+금지:
+
+Preview OTA
+Preview server
+force push
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. 서버 배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+서버 파일 변경이 있으면
+실제 Production API:
+
+https://swimnote.kr/api
+
+가 사용하는 운영 서비스에 배포.
+
+배포 후:
+
+Live SHA = 새 Commit SHA
+Health HTTP 200
+ok=true
+restart loop 없음
+
+확인.
+
+DB Migration 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. Production OTA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+EXPO_PUBLIC_API_URL=https://swimnote.kr/api
+
+그 뒤:
+
+production channel
+platform all
+runtime 1.6.1
+
+OTA.
+
+Preview 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고:
+
+1. 최종 직접 원인
+2. 수정 파일
+3. waiting+expired 조회 최종 조건
+4. teacher ownership filter 상태
+5. eligible-occurrences 최종 로직
+6. -14/+28 확인
+7. 선보강 확인
+8. expired 날짜 선택 확인
+9. 날짜 빈 결과/실패 구분
+10. doAssign fix
+11. 테스트 1~15 결과
+12. Commit SHA
+13. Commit files
+14. Push 결과
+15. Server Live SHA
+16. Health
+17. OTA Group ID
+18. iOS Update ID
+19. Android Update ID
+20. Production API_BASE
+21. 보호 영역 변경 0건
+22. DB 변경 0건
+23. Preview 없음
+
+최종 문구:
+
+“SWIMNOTE 보강 기능 전체 복구 Production 배포 완료·실기기 최종 확인 가능”
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. 실패 시 fallback — 이번 작업 안에서 실행
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 eligible-occurrences를 최소 수정해도
+정상 반환을 보장할 수 없다면
+이번 작업 안에서 즉시 보강 전용 V2 조회를 구현하십시오.
+
+단 기존 DB/배정/완료/인계 구조는 유지.
+
+V2 허용 범위:
+
+GET /teacher/makeups-v2?status=waiting
+
+GET /teacher/makeups/:makeupId/eligible-occurrences-v2
+
+또는 기존 endpoint 내부 구현 교체.
+
+V2 목적:
+
+보강 목록 조회와
+보강 회차 조회만 단순하게 재구현.
+
+기존:
+
+assign
+complete
+direct-complete
+handoff
+cancel
+DB schema
+
+는 그대로 사용.
+
+V2
