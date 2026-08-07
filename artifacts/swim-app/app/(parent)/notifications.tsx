@@ -115,23 +115,33 @@ export default function ParentNotificationsScreen() {
   // ── 키보드 높이 추적 ──────────────────────────────────────────────────────
   const [kbHeight, setKbHeight] = useState(0);
 
-  // ── Modal 높이 계산 ──────────────────────────────────────────────────────
+  // ── Modal 높이·위치 계산 ─────────────────────────────────────────────────
   const normalHeight = screenHeight * 0.88;
-  const availableKeyboardHeight = screenHeight - kbHeight - insets.top - 8;
+  const availableHeight = screenHeight - kbHeight - insets.top - 8;
   const modalHeight = kbHeight > 0
-    ? Math.min(normalHeight, availableKeyboardHeight)
+    ? Math.min(normalHeight, availableHeight)
     : normalHeight;
+  // iOS: sheet를 키보드 상단으로 올림. Android: adjustResize로 자체 처리하므로 0 유지.
+  const modalBottom = Platform.OS === "ios" && kbHeight > 0 ? kbHeight : 0;
 
   useEffect(() => {
-    const show = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      e => setKbHeight(e.endCoordinates.height),
-    );
-    const hide = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => setKbHeight(0),
-    );
-    return () => { show.remove(); hide.remove(); };
+    if (Platform.OS === "ios") {
+      const change = Keyboard.addListener("keyboardWillChangeFrame",
+        e => setKbHeight(e.endCoordinates.height),
+      );
+      const hide = Keyboard.addListener("keyboardWillHide",
+        () => setKbHeight(0),
+      );
+      return () => { change.remove(); hide.remove(); };
+    } else {
+      const show = Keyboard.addListener("keyboardDidShow",
+        e => setKbHeight(e.endCoordinates.height),
+      );
+      const hide = Keyboard.addListener("keyboardDidHide",
+        () => setKbHeight(0),
+      );
+      return () => { show.remove(); hide.remove(); };
+    }
   }, []);
 
   const [activeTab, setActiveTab] = useState<"notifications" | "requests">(
@@ -549,8 +559,9 @@ export default function ParentNotificationsScreen() {
               styles.modalSheet,
               {
                 height: modalHeight,
+                bottom: modalBottom,
                 backgroundColor: C.background,
-                paddingBottom: insets.bottom + 8,
+                paddingBottom: kbHeight > 0 ? 8 : insets.bottom + 8,
               },
             ]}
           >
@@ -725,7 +736,7 @@ const styles = StyleSheet.create({
 
   // ── 요청 작성 Modal 스타일 ─────────────────────────────────────────────────
   modalRoot:          { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
-  modalSheet:         { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 20 },
+  modalSheet:         { position: "absolute", left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 20 },
   modalHeader:        { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   modalTitle:         { fontSize: 18, fontFamily: "Pretendard-Regular" },
   modalScrollView:    { flex: 1 },
