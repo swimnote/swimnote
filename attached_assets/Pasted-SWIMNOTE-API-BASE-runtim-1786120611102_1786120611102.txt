@@ -1,0 +1,221 @@
+SWIMNOTE 보강 오류 — 원인 확정 / API_BASE 즉시 수정
+
+실기기 진단으로 원인이 확정됐다.
+추가 원인 조사 금지.
+
+[실기기 최신 증거]
+
+runtimeVersion:
+1.6.1
+
+updateId:
+019fdd0e-1906-71ff-b508-7c03328268e1
+
+channel:
+production
+
+isEmbedded:
+false
+
+현재 API_BASE:
+https://swimnote.kr/api
+
+실제 실패 요청:
+https://swimnote.kr/api/teacher/makeups/
+mk_1786109813568_58r7pfjl/eligible-occurrences
+?class_group_id=cg_1784008738534_srykpop25
+
+finalType:
+NETWORK
+
+실제 exception:
+SyntaxError
+
+message:
+JSON Parse error: Unexpected character: <
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+판정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실기기는 최신 Production OTA를 정상 수신했다.
+
+그러나 최신 OTA에서도 API_BASE가:
+
+https://swimnote.kr/api
+
+로 들어가 있다.
+
+eligible-occurrences 역시 이 주소로 실제 요청됐고
+JSON 대신 '<'로 시작하는 응답을 받아 JSON parse가 실패했다.
+
+따라서 이번 보강 오류의 직접 원인은
+보강 날짜/정원/classGroupId 로직이 아니라
+Production 앱의 잘못된 API_BASE다.
+
+정상 API endpoint:
+
+https://swimnote-api.onrender.com/api
+
+이전 수정이 실제 Production bundle에 반영되지 않았다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. API_BASE 결정 경로부터 즉시 추적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 전체를 grep한다.
+
+EXPO_PUBLIC_API_URL
+API_BASE
+swimnote.kr/api
+swimnote-api.onrender.com/api
+
+조사 대상:
+
+artifacts/swim-app 전체
+app.config.*
+app.json
+eas.json
+package.json
+.env*
+Replit Secrets/environment
+EAS production environment
+OTA/update script
+
+목표:
+
+왜 OTA를 새로 배포했는데도
+실기기 API_BASE가 swimnote.kr/api인지
+정확한 override 지점을 찾는다.
+
+특히 코드 fallback만 수정하고
+EAS/Expo environment가 다시 덮어쓰는 구조인지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production과 Preview의 실제 bundle API endpoint를:
+
+https://swimnote-api.onrender.com/api
+
+로 맞춘다.
+
+단순히 소스 코드 문자열만 변경하고 끝내지 않는다.
+
+EAS Update가 실제 bundle을 생성할 때 사용되는
+EXPO_PUBLIC_API_URL까지 정상값인지 확인한다.
+
+보강 로직 수정 금지.
+
+수정 금지:
+
+teachers.ts
+admin.ts
+makeup-date-range.ts
+보강 날짜 로직
+정원 로직
+expired 로직
+Auth/JWT
+DB
+일지
+AI
+SWIMNOTE X
+
+진단 패널 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. OTA 전에 실제 bundle 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OTA 실행 전에 production 환경과 동일한 조건으로
+iOS export bundle을 생성한다.
+
+반드시 실제 생성된 bundle에서 검사한다.
+
+A.
+
+https://swimnote-api.onrender.com/api
+
+→ FOUND 필수
+
+B.
+
+https://swimnote.kr/api/teacher
+https://swimnote.kr/api/admin
+https://swimnote.kr/api/auth
+
+등 API endpoint 사용 여부
+
+→ NOT FOUND 필수
+
+주의:
+
+swimnote.kr 홈페이지 URL이나
+superadmin@swimnote.kr 이메일 문자열은 허용한다.
+
+검사 대상은 API endpoint다.
+
+그리고 제출:
+
+EXPO_PUBLIC_API_URL 실제 값
+bundle SHA-256
+bundle size
+
+이 검증을 통과하기 전 OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. OTA 배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+검증 통과 후:
+
+Production OTA
+Preview OTA
+
+둘 다 배포.
+
+runtimeVersion 1.6.1 유지.
+
+서버 코드 변경 없으면 Render 배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 배포 후 OTA 자체 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+새 Production Update ID를 제출하고
+OTA에 사용된 환경변수도 다시 제출.
+
+제출 항목:
+
+1. 잘못된 API_BASE를 만든 정확한 override 원인
+2. 수정 파일/환경설정
+3. diff
+4. Production OTA 실행 직전 EXPO_PUBLIC_API_URL
+5. bundle 정상 API FOUND
+6. 잘못된 API endpoint NOT FOUND
+7. bundle SHA-256
+8. Production Update Group ID
+9. Production iOS Update ID
+10. Preview Update Group ID
+11. Preview iOS Update ID
+12. runtimeVersion
+13. git status
+
+여기까지 하고 중단.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+중요
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는
+"수정했다"는 소스 코드 보고만으로 완료 판정하지 않는다.
+
+최종 성공 기준은 실기기 진단 패널에서:
+
+API_BASE =
+https://swimnote-api.onrender.com/api
+
+가 실제로 표시되는 것이다.
+
+그 전까지 완료 판정 금지.
