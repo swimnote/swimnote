@@ -9,9 +9,10 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Platform, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform,
+  Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -53,6 +54,7 @@ const TYPE_ICON_MAP: Record<string, { icon: "book-open" | "image" | "check-circl
   parent_request_result: { icon: "check-circle", color: "#059669", bg: "#ECFDF5" },
 };
 
+// 요청 목록 렌더링용 Record (key 기반 빠른 조회)
 const REQUEST_TYPES: Record<string, { label: string; icon: string; color: string; bg: string }> = {
   absence:    { label: "결석 신청",  icon: "x-circle",       color: "#EF4444", bg: "#FEE2E2" },
   postpone:   { label: "연기 신청",  icon: "clock",          color: "#F59E0B", bg: "#FEF3C7" },
@@ -61,6 +63,12 @@ const REQUEST_TYPES: Record<string, { label: string; icon: string; color: string
   counseling: { label: "상담 요청",  icon: "message-circle", color: "#8B5CF6", bg: "#EDE9FE" },
   inquiry:    { label: "문의",       icon: "help-circle",    color: "#0EA5E9", bg: "#E0F2FE" },
 };
+
+// 요청 작성 Modal용 순서 배열 (UI 렌더링 순서 보장)
+const REQUEST_TYPE_KEYS = [
+  "absence", "postpone", "makeup", "withdrawal", "counseling", "inquiry",
+] as const;
+type RequestType = typeof REQUEST_TYPE_KEYS[number];
 
 const STATUS_LABEL: Record<string, string> = {
   pending:   "처리 대기",
@@ -77,8 +85,12 @@ const STATUS_COLOR: Record<string, { text: string; bg: string }> = {
 
 // ── 유틸 ─────────────────────────────────────────────────────────────────────
 
-function timeAgo(iso: string): string {
-  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+function timeAgo(value?: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const diff = (Date.now() - date.getTime()) / 1000;
+  if (!Number.isFinite(diff)) return "";
   if (diff < 60)    return "방금";
   if (diff < 3600)  return `${Math.floor(diff / 60)}분 전`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
@@ -118,6 +130,13 @@ export default function ParentNotificationsScreen() {
   // 딥링크 target requestId (스크롤 하이라이트용)
   const [deepLinkRequestId, setDeepLinkRequestId] = useState<string | null>(params.requestId ?? null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── 요청 작성 Modal 상태 ─────────────────────────────────────────────────
+  const [modalVisible, setModalVisible] = useState(false);
+  const [reqType, setReqType] = useState<RequestType>("absence");
+  const [content, setContent] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   // ── 알림 fetch ────────────────────────────────────────────────────────────
   const fetchNotifications = useCallback(async () => {
@@ -203,6 +222,53 @@ export default function ParentNotificationsScreen() {
     setNotifications(prev => prev.filter(n => n.id !== id));
   }
 
+  // ── 요청 작성 핸들러 ──────────────────────────────────────────────────────
+
+  function openCreateModal() {
+    setReqType("absence");
+    setContent("");
+    setErrorMsg("");
+    setModalVisible(true);
+  }
+
+  function closeCreateModal() {
+    if (submitting) return;
+    setModalVisible(false);
+    setContent("");
+    setErrorMsg("");
+  }
+
+  async function handleSubmit() {
+    if (!selStudentId) { setErrorMsg("자녀를 선택해주세요."); return; }
+    if (submitting) return;
+    setSubmitting(true);
+    setErrorMsg("");
+    try {
+      const r = await apiRequest(token, "/parent/requests", {
+        method: "POST",
+        body: JSON.stringify({
+          student_id: selStudentId,
+          request_type: reqType,
+          content: content.trim() || null,
+        }),
+      });
+      if (r.ok) {
+        setModalVisible(false);
+        setContent("");
+        setErrorMsg("");
+        setActiveTab("requests");
+        setLoadingReqs(true);
+        fetchRequests();
+      } else {
+        const d = await r.json().catch(() => ({}));
+        setErrorMsg((d as any).message || "요청 전송 실패");
+      }
+    } catch {
+      setErrorMsg("네트워크 오류가 발생했습니다.");
+    }
+    setSubmitting(false);
+  }
+
   // ── 렌더 헬퍼 ────────────────────────────────────────────────────────────
 
   const notifConfig = (type: string) =>
@@ -222,7 +288,7 @@ export default function ParentNotificationsScreen() {
   const addBtn = activeTab === "requests" ? (
     <Pressable
       style={[styles.addBtn, { backgroundColor: C.tint }]}
-      onPress={() => router.push("/(parent)/requests" as any)}
+      onPress={openCreateModal}
     >
       <LucideIcon name="plus" size={18} color="#fff" />
     </Pressable>
@@ -392,56 +458,180 @@ export default function ParentNotificationsScreen() {
                   </View>
                 }
                 renderItem={({ item: req }) => {
-                const typeCfg = REQUEST_TYPES[req.request_type];
-                const statusCfg = STATUS_COLOR[req.status] ?? STATUS_COLOR.pending;
-                const isHighlighted = req.id === deepLinkRequestId;
+                  const typeCfg = REQUEST_TYPES[req.request_type];
+                  const statusCfg = STATUS_COLOR[req.status] ?? STATUS_COLOR.pending;
+                  const isHighlighted = req.id === deepLinkRequestId;
 
-                return (
-                  <View
-                    style={[
-                      styles.reqCard,
-                      { backgroundColor: C.card },
-                      isHighlighted && { borderColor: "#2EC4B6", borderWidth: 2, backgroundColor: "#DDF2EF30" },
-                    ]}
-                  >
-                    <View style={styles.reqCardTop}>
-                      <View style={[styles.typeBadge, { backgroundColor: typeCfg?.bg ?? "#F3F4F6" }]}>
-                        <LucideIcon name={(typeCfg?.icon ?? "help-circle") as any} size={13} color={typeCfg?.color ?? C.textMuted} />
-                        <Text style={[styles.typeText, { color: typeCfg?.color ?? C.textMuted }]}>
-                          {typeCfg?.label ?? req.request_type}
-                        </Text>
-                      </View>
-                      <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg }]}>
-                        <Text style={[styles.statusText, { color: statusCfg.text }]}>
-                          {STATUS_LABEL[req.status] ?? req.status}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {req.request_date && (
-                      <Text style={[styles.reqDate, { color: C.textSecondary }]}>신청일: {req.request_date}</Text>
-                    )}
-                    {req.content ? (
-                      <Text style={[styles.reqContent, { color: C.text }]} numberOfLines={3}>{req.content}</Text>
-                    ) : null}
-
-                    <View style={styles.reqFooter}>
-                      <Text style={[styles.reqCreatedAt, { color: C.textMuted }]}>{fmtDate(req.created_at)}</Text>
-                      {req.result_notified_at && (
-                        <View style={styles.notifiedBadge}>
-                          <LucideIcon name="check-circle" size={11} color="#059669" />
-                          <Text style={styles.notifiedText}>결과 알림 받음</Text>
+                  return (
+                    <View
+                      style={[
+                        styles.reqCard,
+                        { backgroundColor: C.card },
+                        isHighlighted && { borderColor: "#2EC4B6", borderWidth: 2, backgroundColor: "#DDF2EF30" },
+                      ]}
+                    >
+                      <View style={styles.reqCardTop}>
+                        <View style={[styles.typeBadge, { backgroundColor: typeCfg?.bg ?? "#F3F4F6" }]}>
+                          <LucideIcon name={(typeCfg?.icon ?? "help-circle") as any} size={13} color={typeCfg?.color ?? C.textMuted} />
+                          <Text style={[styles.typeText, { color: typeCfg?.color ?? C.textMuted }]}>
+                            {typeCfg?.label ?? req.request_type}
+                          </Text>
                         </View>
+                        <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg }]}>
+                          <Text style={[styles.statusText, { color: statusCfg.text }]}>
+                            {STATUS_LABEL[req.status] ?? req.status}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {req.request_date && (
+                        <Text style={[styles.reqDate, { color: C.textSecondary }]}>신청일: {req.request_date}</Text>
                       )}
+                      {req.content ? (
+                        <Text style={[styles.reqContent, { color: C.text }]} numberOfLines={3}>{req.content}</Text>
+                      ) : null}
+
+                      <View style={styles.reqFooter}>
+                        <Text style={[styles.reqCreatedAt, { color: C.textMuted }]}>{fmtDate(req.created_at)}</Text>
+                        {req.result_notified_at && (
+                          <View style={styles.notifiedBadge}>
+                            <LucideIcon name="check-circle" size={11} color="#059669" />
+                            <Text style={styles.notifiedText}>결과 알림 받음</Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
-                  </View>
-                );
-              }}
+                  );
+                }}
               />
             </View>
           )}
         </>
       )}
+
+      {/* ── 요청 작성 Modal ── */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={closeCreateModal}
+      >
+        {/* Backdrop — 바깥 터치 시 Modal 닫기 */}
+        <Pressable style={styles.modalOverlay} onPress={closeCreateModal}>
+          {/* Modal 내부 — 터치 전파 차단 */}
+          <Pressable style={styles.modalSheetWrapper} onPress={() => {}}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
+              style={[styles.modalSheet, { backgroundColor: C.background, paddingBottom: insets.bottom + 16 }]}
+            >
+              {/* 헤더 */}
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: C.text }]}>새 요청 보내기</Text>
+                <Pressable onPress={closeCreateModal} hitSlop={8}>
+                  <Text style={{ fontSize: 15, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>취소</Text>
+                </Pressable>
+              </View>
+
+              {/* 스크롤 영역 — 키보드에 눌려도 접근 가능 */}
+              <KeyboardAwareScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 8 }}
+              >
+                {/* 자녀 선택 (자녀 2명 이상) */}
+                {students.length > 1 && (
+                  <>
+                    <Text style={[styles.modalLabel, { color: C.textSecondary }]}>자녀 선택</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      keyboardShouldPersistTaps="handled"
+                      contentContainerStyle={{ gap: 8, marginBottom: 16 }}
+                    >
+                      {students.map(st => (
+                        <Pressable
+                          key={st.id}
+                          style={[styles.studentChip, { backgroundColor: selStudentId === st.id ? C.tint : C.card, borderColor: selStudentId === st.id ? C.tint : C.border }]}
+                          onPress={() => setSelStudentId(st.id)}
+                        >
+                          <Text
+                            numberOfLines={1}
+                            style={{ fontSize: 13, color: selStudentId === st.id ? "#fff" : C.text, fontFamily: "Pretendard-Regular", maxWidth: 100 }}
+                          >
+                            {st.name}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </>
+                )}
+
+                {/* 요청 유형 선택 */}
+                <Text style={[styles.modalLabel, { color: C.textSecondary }]}>요청 유형</Text>
+                <View style={styles.typeGrid}>
+                  {REQUEST_TYPE_KEYS.map(key => {
+                    const cfg = REQUEST_TYPES[key];
+                    const selected = reqType === key;
+                    return (
+                      <Pressable
+                        key={key}
+                        style={[
+                          styles.typeBtn,
+                          {
+                            backgroundColor: selected ? cfg.bg : C.card,
+                            borderWidth: selected ? 1.5 : 1,
+                            borderColor: selected ? cfg.color : C.border,
+                          },
+                        ]}
+                        onPress={() => setReqType(key)}
+                      >
+                        <LucideIcon name={cfg.icon as any} size={14} color={selected ? cfg.color : C.textSecondary} />
+                        <Text style={[styles.typeBtnText, { color: selected ? cfg.color : C.text }]}>
+                          {cfg.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {/* 내용 입력 */}
+                <Text style={[styles.modalLabel, { color: C.textSecondary }]}>내용</Text>
+                <TextInput
+                  style={[styles.modalInput, styles.modalMultiline, { borderColor: C.border, color: C.text, backgroundColor: C.card }]}
+                  placeholder="요청 내용을 입력해 주세요 (선택)"
+                  placeholderTextColor={C.textMuted}
+                  value={content}
+                  onChangeText={setContent}
+                  multiline
+                  returnKeyType="default"
+                  textAlignVertical="top"
+                />
+
+                {/* 오류 메시지 */}
+                {!!errorMsg && (
+                  <Text style={styles.modalError}>{errorMsg}</Text>
+                )}
+
+                {/* 제출 버튼 */}
+                <Pressable
+                  style={[styles.submitBtn, { backgroundColor: submitting ? C.textMuted : C.tint }]}
+                  onPress={handleSubmit}
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <LucideIcon name="send" size={16} color="#fff" />
+                      <Text style={styles.submitBtnText}>요청 보내기</Text>
+                    </>
+                  )}
+                </Pressable>
+              </KeyboardAwareScrollView>
+            </KeyboardAvoidingView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -487,4 +677,21 @@ const styles = StyleSheet.create({
   reqCreatedAt:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
   notifiedBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#ECFDF5", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   notifiedText:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#059669" },
+
+  // ── 요청 작성 Modal 스타일 ─────────────────────────────────────────────────
+  modalOverlay:      { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
+  modalSheetWrapper: { width: "100%" },
+  modalSheet:        { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 24, maxHeight: "88%" },
+  modalHeader:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  modalTitle:        { fontSize: 18, fontFamily: "Pretendard-Regular" },
+  modalLabel:        { fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 8 },
+  studentChip:       { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  typeGrid:          { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
+  typeBtn:           { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12 },
+  typeBtnText:       { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  modalInput:        { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Pretendard-Regular", marginBottom: 14 },
+  modalMultiline:    { minHeight: 80, textAlignVertical: "top" },
+  modalError:        { color: "#EF4444", fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 8 },
+  submitBtn:         { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16, borderRadius: 16, marginTop: 4, marginBottom: 8 },
+  submitBtnText:     { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
 });
