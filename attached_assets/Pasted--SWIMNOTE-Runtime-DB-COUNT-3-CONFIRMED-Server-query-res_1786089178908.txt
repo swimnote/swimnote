@@ -1,0 +1,315 @@
+[SWIMNOTE 보강 기능 회귀 — 최소 Runtime 계측 승인]
+
+현재 조사 결과:
+
+DB COUNT = 3건 CONFIRMED
+Server query result = 3건 CONFIRMED
+Server res.json 직전 = 3건 INFERRED
+HTTP JSON = UNKNOWN
+App state = UNKNOWN
+Render = UNKNOWN
+
+따라서 최초 UNKNOWN 지점은 HTTP 응답입니다.
+
+이번 단계에서는 원인 확정을 위한 최소 계측만 수행합니다.
+
+중요:
+보강 기능 외 파일 수정 금지.
+학부모 요청/알림/선생님 메시지 관련 파일 절대 수정 금지.
+서버 수정 금지.
+DB 수정 금지.
+Render 배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Production API_BASE 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 현재 Production OTA에 실제 적용된 환경을 확인하십시오.
+
+cd artifacts/swim-app
+
+eas env:exec --environment production \
+'printf "EXPO_PUBLIC_API_URL=%s\n" "$EXPO_PUBLIC_API_URL"'
+
+그리고 현재 production channel 최신 update를 확인하십시오.
+
+eas channel:view production
+
+보고:
+
+Production EXPO_PUBLIC_API_URL:
+Latest Production Update Group:
+Latest Production Commit:
+Runtime Version:
+
+정상 기대:
+
+EXPO_PUBLIC_API_URL=https://swimnote.kr/api
+
+만약:
+
+https://swimnote-api.onrender.com/api
+
+가 나온다면 즉시 중단하고 보고하십시오.
+
+API_BASE 불일치를 해결하기 전 계측 OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 수정 허용 파일
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 허용:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+
+1개만.
+
+절대 수정 금지:
+
+artifacts/swim-app/app/(parent)/notifications.tsx
+artifacts/swim-app/app/(parent)/requests.tsx
+artifacts/swim-app/app/(teacher)/messages-inbox.tsx
+
+parent_student_requests 관련 서버 파일
+notifications 관련 서버 파일
+link-result
+notify-result
+SessionContext
+apiRequest 공용 구현
+auth
+JWT
+AI
+결제
+메신저
+DB schema
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 계측 1 — 실제 API 응답
+━━━━━━━━━━━━━━━━━━━━━━
+
+loadWaiting()에서 res.ok 성공 시
+응답 JSON을 한 번 변수로 받아 다음만 로그하십시오.
+
+- count
+- id
+- status
+- absence_date
+- is_expired
+
+학생 이름, JWT, 개인정보 출력 금지.
+
+형태:
+
+const data = await res.json();
+
+console.log(
+  "[MAKEUP_DIAG] API_RESPONSE",
+  JSON.stringify({
+    count: Array.isArray(data) ? data.length : -1,
+    items: Array.isArray(data)
+      ? data.map((d: any) => ({
+          id: d.id,
+          status: d.status,
+          absence_date: d.absence_date,
+          is_expired: d.is_expired,
+        }))
+      : [],
+  })
+);
+
+setWaitingList(data);
+
+res.ok=false일 경우:
+
+console.log(
+  "[MAKEUP_DIAG] API_FAILED",
+  res.status
+);
+
+기존 동작을 바꾸지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 계측 2 — state / sort 직전
+━━━━━━━━━━━━━━━━━━━━━━
+
+렌더링 직전에 waitingList 자체를 확인하는 로그를
+한 번만 추가하십시오.
+
+filter를 억지로 끼워 넣지 마십시오.
+
+기존 배열 변환 로직을 변경하지 말고
+렌더 직전 안전한 위치에서:
+
+console.log(
+  "[MAKEUP_DIAG] WAITING_STATE",
+  JSON.stringify({
+    count: waitingList.length,
+    ids: waitingList.map(m => m.id),
+  })
+);
+
+기존 sort/filter 로직 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 계측 3 — 실제 카드 렌더 ID
+━━━━━━━━━━━━━━━━━━━━━━
+
+카드 map 내부에서 다음만 출력:
+
+console.log(
+  "[MAKEUP_DIAG] RENDERED",
+  mk.id,
+  mk.status,
+  mk.absence_date,
+  mk.is_expired
+);
+
+UI 변경 금지.
+DEV 텍스트 표시 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 캐시 영향 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 계측에서는 apiRequest를 수정하지 않습니다.
+
+다만 실기기 검증 시 다음 순서로 실행하십시오.
+
+1. 보강 화면 진입
+2. 35초 이상 대기
+3. pull-to-refresh
+4. 로그 확인
+
+30초 TTL을 넘긴 뒤에도 API_RESPONSE count가 1이면
+단순 캐시 HIT만으로는 설명되지 않습니다.
+
+refresh가 캐시 bypass가 아닌 것은 이미 CONFIRMED이므로
+공용 캐시 수정은 아직 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Commit / Push / OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+계측 코드만 makeups.tsx 1개에 들어간 것을 확인한 뒤:
+
+Clean Commit
+→ Push
+→ Production OTA
+
+까지 진행하십시오.
+
+이유:
+사용자가 Mac 없이 Production OTA 실기기에서만 확인 가능.
+
+단:
+
+Render 배포 금지.
+Preview OTA 금지.
+서버 수정 금지.
+DB 수정 금지.
+
+Commit에는 makeups.tsx 1개만 포함되어야 합니다.
+
+attached_assets
+memory
+mockup
+generated
+
+포함 시 Push 중단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 실기기 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 실제 보강 화면을 열면 로그에서 다음 3단계를 확인:
+
+[MAKEUP_DIAG] API_RESPONSE
+[MAKEUP_DIAG] WAITING_STATE
+[MAKEUP_DIAG] RENDERED
+
+그리고 각 단계의:
+
+count
+IDs
+
+를 비교하십시오.
+
+판정:
+
+A.
+API_RESPONSE = 1
+→ HTTP/서버 경로 문제
+
+B.
+API_RESPONSE = 3
+WAITING_STATE = 1
+→ 앱 state 갱신 문제
+
+C.
+API_RESPONSE = 3
+WAITING_STATE = 3
+RENDERED = 1
+→ render/sort/layout 문제
+
+D.
+API_RESPONSE = 3
+WAITING_STATE = 3
+RENDERED = 3
+실기기 화면 = 1
+→ layout/viewport 문제
+
+UNKNOWN을 추측으로 메우지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 동결 영역 무결성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+작업 후 반드시 확인:
+
+git diff --name-status
+
+정상:
+
+M artifacts/swim-app/app/(teacher)/makeups.tsx
+
+1개만.
+
+다음 변경은 모두 FAIL:
+
+parent/notifications.tsx
+parent/requests.tsx
+teacher/messages-inbox.tsx
+parent-requests 서버
+notifications 서버
+link-result
+notify-result
+SessionContext
+apiRequest
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고:
+
+Production API_BASE:
+Latest Production Update Group:
+Commit SHA:
+수정 파일:
+API_RESPONSE count/IDs:
+WAITING_STATE count/IDs:
+RENDERED IDs:
+30초 TTL 이후 결과:
+최초 CONFIRMED 장애 지점:
+직접 원인:
+추가 수정 필요 파일:
+학부모 요청/알림 변경:
+선생님 메시지/요청함 변경:
+DB 변경:
+Render:
+OTA Group ID:
+
+원인이 확정되기 전
+추가 기능 수정 금지.
+
+보고 후 멈추십시오.
