@@ -607,6 +607,10 @@ router.get("/teacher/makeups", requireAuth,
         ? `AND ms.status IN ('waiting', 'expired')`
         : `AND ms.status = '${dbStatus}'`;
 
+      // REQ-5: 현재 담당반 학생 기준 필터
+      // Source of Truth: student_class_history.left_at IS NULL (현재 재적)
+      //   + class_groups.teacher_user_id / co_teacher_ids (현재 담임/부담임)
+      // handoff 예외: handed_to_teacher_id = 나 → 인계받은 보강도 표시
       const rows = ((await (db as any).execute(sql.raw(`
         SELECT ms.*, u.name AS student_name_from_user
         FROM makeup_sessions ms
@@ -614,6 +618,21 @@ router.get("/teacher/makeups", requireAuth,
         WHERE ms.swimming_pool_id = '${poolId}'
           ${statusClause}
           AND ms.cancelled_at IS NULL
+          AND (
+            ms.student_id IN (
+              SELECT sch.student_id
+              FROM student_class_history sch
+              JOIN class_groups cg ON cg.id = sch.class_group_id
+              WHERE sch.left_at IS NULL
+                AND cg.swimming_pool_id = '${poolId}'
+                AND (cg.is_deleted IS NULL OR cg.is_deleted = false)
+                AND (
+                  cg.teacher_user_id = '${userId}'
+                  OR cg.co_teacher_ids @> to_jsonb('${userId}'::text)
+                )
+            )
+            OR ms.handed_to_teacher_id = '${userId}'
+          )
         ORDER BY ms.absence_date ASC, ms.created_at ASC
       `))) as any).rows as any[];
 
