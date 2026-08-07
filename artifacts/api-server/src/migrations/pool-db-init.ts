@@ -1353,4 +1353,50 @@ export async function initPoolDb(): Promise<void> {
   //     완전한 "서버 기동 중단" 보장이 필요하면 index.ts 호출부를 .catch() 없이 변경 필요.
   // ⚠️  프로덕션 실행 전 반드시 별도 승인 필요.
   await initXModeSchema();
+
+  // ─── V1.2 PHASE 1 Migration ───────────────────────────────────────────────
+  // parent_student_requests 신규 컬럼 5개
+  await db.execute(sql.raw(`ALTER TABLE parent_student_requests ADD COLUMN IF NOT EXISTS result_notified_at   TIMESTAMPTZ`)).catch((e:any) => console.error("[V1.2] result_notified_at:",   e));
+  await db.execute(sql.raw(`ALTER TABLE parent_student_requests ADD COLUMN IF NOT EXISTS result_notified_by   TEXT`)).catch((e:any) => console.error("[V1.2] result_notified_by:",   e));
+  await db.execute(sql.raw(`ALTER TABLE parent_student_requests ADD COLUMN IF NOT EXISTS result_notification_id TEXT`)).catch((e:any) => console.error("[V1.2] result_notification_id:", e));
+  await db.execute(sql.raw(`ALTER TABLE parent_student_requests ADD COLUMN IF NOT EXISTS processed_result_type TEXT`)).catch((e:any) => console.error("[V1.2] processed_result_type:", e));
+  await db.execute(sql.raw(`ALTER TABLE parent_student_requests ADD COLUMN IF NOT EXISTS processed_result_id   TEXT`)).catch((e:any) => console.error("[V1.2] processed_result_id:",   e));
+
+  // notifications 신규 컬럼
+  await db.execute(sql.raw(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS deep_link TEXT`)).catch((e:any) => console.error("[V1.2] notifications.deep_link:", e));
+
+  // 인덱스 3개
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_psr_pool_teacher       ON parent_student_requests(swimming_pool_id, teacher_user_id)`)).catch((e:any) => console.error("[V1.2] idx_psr_pool_teacher:", e));
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_psr_parent_created     ON parent_student_requests(parent_id, created_at DESC)`)).catch((e:any) => console.error("[V1.2] idx_psr_parent_created:", e));
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_psr_student_type_status ON parent_student_requests(student_id, request_type, status)`)).catch((e:any) => console.error("[V1.2] idx_psr_student_type_status:", e));
+
+  // Partial Unique — 생성 전 중복 사전 검증
+  // processed_result_id 컬럼이 신규이므로 실제로 NULL만 있을 가능성이 높으나,
+  // 운영 데이터 보호를 위해 반드시 검증 후 생성한다.
+  try {
+    const dupCheck = await db.execute(sql.raw(`
+      SELECT processed_result_type, processed_result_id, COUNT(*) AS cnt
+      FROM parent_student_requests
+      WHERE processed_result_id IS NOT NULL
+        AND status <> 'cancelled'
+      GROUP BY processed_result_type, processed_result_id
+      HAVING COUNT(*) > 1
+    `));
+    if ((dupCheck.rows?.length ?? 0) > 0) {
+      // 중복 발견: 임의 수정·삭제 금지, Unique Index 생성 건너뜀, 상세 보고
+      console.error(
+        "[V1.2] uq_psr_processed_result: 중복 데이터 발견 — Unique Index 생성 건너뜀. " +
+        "수동 확인 후 재배포 필요. 중복 키:", JSON.stringify(dupCheck.rows)
+      );
+      // migration 정책: 이 migration만 건너뜀, initPoolDb 전체는 계속 진행
+    } else {
+      await db.execute(sql.raw(`
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_psr_processed_result
+        ON parent_student_requests(processed_result_type, processed_result_id)
+        WHERE processed_result_id IS NOT NULL AND status <> 'cancelled'
+      `));
+    }
+  } catch (e: any) {
+    console.error("[V1.2] uq_psr_processed_result 검증 실패:", e);
+  }
 }

@@ -45,6 +45,14 @@ interface Message {
   created_at: string;
 }
 
+interface WorkResultCandidate {
+  type: "makeup_assignment";
+  resultId: string;
+  assignedDate: string | null;
+  classGroupName: string | null;
+  teacherName: string | null;
+}
+
 interface ParentRequest {
   id: string;
   student_id: string;
@@ -56,6 +64,9 @@ interface ParentRequest {
   status: string;
   created_at: string;
   is_read_by_teacher: boolean;
+  result_notified_at: string | null;
+  processed_result_id: string | null;
+  work_result_candidate: { candidateCount: number; candidate: WorkResultCandidate | null } | null;
 }
 
 const REQUEST_TYPE_LABEL: Record<string, string> = {
@@ -74,11 +85,12 @@ const REQUEST_TYPE_COLOR: Record<string, string> = {
   counseling: "#8B5CF6",
   inquiry:    "#0EA5E9",
 };
-const STATUS_LABEL: Record<string, string> = { pending: "처리 대기", done: "처리 완료", rejected: "거절됨" };
+const STATUS_LABEL: Record<string, string> = { pending: "처리 대기", done: "처리 완료", rejected: "거절됨", cancelled: "취소됨" };
 const STATUS_COLOR: Record<string, { text: string; bg: string }> = {
-  pending:  { text: "#D97706", bg: "#FFF7ED" },
-  done:     { text: "#059669", bg: "#ECFDF5" },
-  rejected: { text: "#EF4444", bg: "#FEF2F2" },
+  pending:   { text: "#D97706", bg: "#FFF7ED" },
+  done:      { text: "#059669", bg: "#ECFDF5" },
+  rejected:  { text: "#EF4444", bg: "#FEF2F2" },
+  cancelled: { text: "#9CA3AF", bg: "#F3F4F6" },
 };
 
 export default function MessagesInboxScreen() {
@@ -124,7 +136,13 @@ export default function MessagesInboxScreen() {
       const res = await apiRequest(token, "/teacher/parent-requests");
       if (res.ok) {
         const d = await res.json();
-        setParentRequests(d.data || []);
+        // 서버 Contract: 배열 직접 반환. 방어적으로 { data: [...] } 형식도 수용.
+        const rows = Array.isArray(d)
+          ? d
+          : Array.isArray(d?.data)
+            ? d.data
+            : [];
+        setParentRequests(rows);
       }
     } catch { }
     finally { setLoadingRequests(false); }
@@ -153,7 +171,7 @@ export default function MessagesInboxScreen() {
     } else if (params.diaryId) {
       const synthetic: Thread = {
         diary_id: params.diaryId, lesson_date: "", class_name: "",
-        parent_msg_count: 0, unread_count: 0, last_msg_at: "",
+        parent_msg_count: 0, unread_count: 0, unread_comment_count: 0, last_msg_at: "",
         last_content: "", last_sender_role: "parent", last_sender_name: "",
       };
       openThread(synthetic);
@@ -164,6 +182,66 @@ export default function MessagesInboxScreen() {
     // 낙관적 업데이트: 즉시 읽음으로 표시
     setParentRequests(prev => prev.map(r => r.id === id ? { ...r, is_read_by_teacher: true } : r));
     apiRequest(token, `/teacher/parent-requests/${id}/read`, { method: "PATCH" }).catch(() => {});
+  }
+
+  async function notifyResult(id: string) {
+    setUpdatingId(id);
+    try {
+      const res = await apiRequest(token, `/parent-requests/${id}/notify-result`, { method: "POST" });
+      if (res.ok) {
+        setParentRequests(prev => prev.map(r =>
+          r.id === id ? { ...r, result_notified_at: new Date().toISOString() } : r
+        ));
+      } else {
+        const d = await res.json().catch(() => ({}));
+        const code = d.code ?? "";
+        if (code === "ALREADY_NOTIFIED") {
+          setParentRequests(prev => prev.map(r =>
+            r.id === id ? { ...r, result_notified_at: new Date().toISOString() } : r
+          ));
+        } else {
+          Alert.alert("오류", d.message || "알림 전송에 실패했습니다.");
+        }
+      }
+    } catch {
+      Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+    }
+    setUpdatingId(null);
+  }
+
+  async function linkResult(id: string, candidate: WorkResultCandidate) {
+    setUpdatingId(id);
+    try {
+      const res = await apiRequest(token, `/parent-requests/${id}/link-result`, {
+        method: "POST",
+        body: JSON.stringify({
+          result_type: "makeup_assignment",
+          result_id: candidate.resultId,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        // 성공: status=done, 후보 카드 제거, 결과 알리기 버튼 표시
+        setParentRequests(prev => prev.map(r =>
+          r.id === id
+            ? { ...r, status: "done", processed_result_id: candidate.resultId, work_result_candidate: null }
+            : r
+        ));
+      } else {
+        const code = d.code ?? "";
+        if (code === "ALREADY_LINKED" || code === "STATUS_CONFLICT") {
+          // 다른 쪽에서 이미 처리됨 → 목록 재조회
+          fetchRequests();
+        } else if (code === "REQUEST_ACCESS_DENIED" || code === "TENANT_MISMATCH") {
+          Alert.alert("권한 오류", d.message || "이 요청을 처리할 권한이 없습니다.");
+        } else {
+          Alert.alert("오류", d.message || "세션 연결에 실패했습니다.");
+        }
+      }
+    } catch {
+      Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+    }
+    setUpdatingId(null);
   }
 
   async function updateRequestStatus(id: string, status: "done" | "rejected") {
@@ -516,29 +594,80 @@ export default function MessagesInboxScreen() {
                       {item.content}
                     </Text>
                   ) : null}
+                  {/* 보강 후보 카드 (pending makeup + 미연결 + 후보 1개) */}
+                  {item.request_type === "makeup" &&
+                   item.status === "pending" &&
+                   !item.processed_result_id &&
+                   item.work_result_candidate?.candidateCount === 1 &&
+                   item.work_result_candidate.candidate && (
+                    <View style={[s.candidateCard, { backgroundColor: "#EFF6FF" }]}>
+                      <LucideIcon name="refresh-cw" size={13} color="#3B82F6" style={{ marginTop: 2 }} />
+                      <View style={{ flex: 1, gap: 4 }}>
+                        <Text style={[s.candidateLabel, { color: "#3B82F6" }]}>보강 완료 후보</Text>
+                        <Text style={[s.candidateDetail, { color: "#1D4ED8" }]}>
+                          {item.work_result_candidate.candidate.assignedDate ?? "날짜 미정"}
+                          {item.work_result_candidate.candidate.classGroupName
+                            ? ` · ${item.work_result_candidate.candidate.classGroupName}`
+                            : ""}
+                        </Text>
+                        <Pressable
+                          style={[s.linkBtn, { opacity: updatingId === item.id ? 0.6 : 1 }]}
+                          disabled={updatingId === item.id}
+                          onPress={() => linkResult(item.id, item.work_result_candidate!.candidate!)}
+                        >
+                          {updatingId === item.id
+                            ? <ActivityIndicator size="small" color="#fff" />
+                            : <Text style={s.linkBtnTxt}>이 보강 배정으로 완료 처리</Text>}
+                        </Pressable>
+                      </View>
+                    </View>
+                  )}
+
                   {/* 상태 + 처리 버튼 */}
                   <View style={s.reqBottom}>
                     <View style={[s.statusBadge, { backgroundColor: statusStyle.bg }]}>
                       <Text style={[s.statusTxt, { color: statusStyle.text }]}>{STATUS_LABEL[item.status] || item.status}</Text>
                     </View>
-                    {item.status === "pending" && (
-                      <View style={s.reqActions}>
+                    <View style={s.reqActions}>
+                      {/* pending: 확인/거절 버튼 */}
+                      {item.status === "pending" && (
+                        <>
+                          <Pressable
+                            style={[s.reqBtn, { backgroundColor: "#ECFDF5", borderColor: "#059669" }]}
+                            onPress={() => updateRequestStatus(item.id, "done")}
+                            disabled={isUpdating}
+                          >
+                            {isUpdating ? <ActivityIndicator size="small" color="#059669" /> : <Text style={[s.reqBtnTxt, { color: "#059669" }]}>확인</Text>}
+                          </Pressable>
+                          <Pressable
+                            style={[s.reqBtn, { backgroundColor: "#FEF2F2", borderColor: "#EF4444" }]}
+                            onPress={() => updateRequestStatus(item.id, "rejected")}
+                            disabled={isUpdating}
+                          >
+                            <Text style={[s.reqBtnTxt, { color: "#EF4444" }]}>거절</Text>
+                          </Pressable>
+                        </>
+                      )}
+                      {/* done/rejected + 미알림: 결과 알리기 */}
+                      {["done", "rejected"].includes(item.status) && !item.result_notified_at && (
                         <Pressable
-                          style={[s.reqBtn, { backgroundColor: "#ECFDF5", borderColor: "#059669" }]}
-                          onPress={() => updateRequestStatus(item.id, "done")}
+                          style={[s.reqBtn, { backgroundColor: "#EFF6FF", borderColor: "#3B82F6" }]}
+                          onPress={() => notifyResult(item.id)}
                           disabled={isUpdating}
                         >
-                          {isUpdating ? <ActivityIndicator size="small" color="#059669" /> : <Text style={[s.reqBtnTxt, { color: "#059669" }]}>확인</Text>}
+                          {isUpdating
+                            ? <ActivityIndicator size="small" color="#3B82F6" />
+                            : <Text style={[s.reqBtnTxt, { color: "#3B82F6" }]}>결과 알리기</Text>}
                         </Pressable>
-                        <Pressable
-                          style={[s.reqBtn, { backgroundColor: "#FEF2F2", borderColor: "#EF4444" }]}
-                          onPress={() => updateRequestStatus(item.id, "rejected")}
-                          disabled={isUpdating}
-                        >
-                          <Text style={[s.reqBtnTxt, { color: "#EF4444" }]}>거절</Text>
-                        </Pressable>
-                      </View>
-                    )}
+                      )}
+                      {/* 알림 완료 표시 */}
+                      {["done", "rejected"].includes(item.status) && !!item.result_notified_at && (
+                        <View style={s.notifiedTag}>
+                          <LucideIcon name="check" size={11} color="#059669" />
+                          <Text style={[s.notifiedTagTxt, { color: "#059669" }]}>알림 전송됨</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
                 </Pressable>
               );
@@ -589,9 +718,16 @@ const s = StyleSheet.create({
   reqBottom:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
   statusBadge:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   statusTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular", fontWeight: "600" },
-  reqActions:     { flexDirection: "row", gap: 8 },
+  reqActions:     { flexDirection: "row", gap: 8, alignItems: "center", flexWrap: "wrap" },
   reqBtn:         { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
   reqBtnTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", fontWeight: "600" },
+  candidateCard:  { flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  candidateLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", fontWeight: "600" },
+  candidateDetail:{ fontSize: 12, fontFamily: "Pretendard-Regular" },
+  linkBtn:        { marginTop: 4, backgroundColor: "#3B82F6", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, alignItems: "center" },
+  linkBtnTxt:     { fontSize: 12, color: "#fff", fontFamily: "Pretendard-Regular" },
+  notifiedTag:    { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#ECFDF5", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  notifiedTagTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", fontWeight: "600" },
 
   msgRow:         { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   msgRowRight:    { flexDirection: "row-reverse" },
