@@ -614,20 +614,6 @@ router.get("/teacher/makeups", requireAuth,
         WHERE ms.swimming_pool_id = '${poolId}'
           ${statusClause}
           AND ms.cancelled_at IS NULL
-          AND (
-            ms.handed_to_teacher_id = '${userId}'
-            OR (
-              ms.handed_to_teacher_id IS NULL
-              AND (
-                ms.original_teacher_id = '${userId}'
-                OR EXISTS (
-                  SELECT 1 FROM class_groups cg
-                  WHERE cg.id = ms.original_class_group_id
-                    AND cg.co_teacher_ids @> to_jsonb('${userId}'::text)
-                )
-              )
-            )
-          )
         ORDER BY ms.absence_date ASC, ms.created_at ASC
       `))) as any).rows as any[];
 
@@ -735,7 +721,6 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
         WHERE cg.id = ${class_group_id}
           AND cg.swimming_pool_id = ${poolId}
           AND cg.is_deleted = false
-          AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
         LIMIT 1
       `)).rows as any[];
       if (!cgRows.length) { res.status(404).json({ error: "CLASS_NOT_FOUND" }); return; }

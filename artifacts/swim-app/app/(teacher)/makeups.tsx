@@ -154,9 +154,6 @@ export default function MakeupsScreen() {
   const [occError,       setOccError]       = useState(false);
   const [occErrorDetail, setOccErrorDetail] = useState<{ status: number; code: string } | null>(null);
   const [selectedOccurrence, setSelectedOccurrence] = useState<MakeupOccurrence | null>(null);
-  // 진단: loadWaiting 수신 카운트 및 API 오류 코드
-  const [diagCount, setDiagCount] = useState<{ total: number; waiting: number; expired: number } | null>(null);
-  const [waitingApiError, setWaitingApiError] = useState<number | null>(null);
   // sequence ID — 늦게 도착한 이전 반 응답이 현재 반을 덮어쓰지 않도록
   const occSeqRef     = useRef(0);
   const occPendingRef = useRef<Set<string>>(new Set());
@@ -165,16 +162,7 @@ export default function MakeupsScreen() {
       const res = await apiRequest(token, `/teacher/makeups?status=waiting`);
       if (res.ok) {
         const data = await res.json();
-        setWaitingApiError(null);
         setWaitingList(Array.isArray(data) ? data : []);
-        if (Array.isArray(data)) {
-          const total = data.length;
-          const waiting = data.filter((m: any) => m.status === "waiting" && !m.is_expired).length;
-          const expired = data.filter((m: any) => m.status === "expired" || m.is_expired === true).length;
-          setDiagCount({ total, waiting, expired });
-        }
-      } else {
-        setWaitingApiError(res.status);
       }
     } catch (e) { console.error(e); }
     finally { setWaitingLoading(false); setWaitingRefresh(false); }
@@ -627,20 +615,6 @@ export default function MakeupsScreen() {
               />
             }
           >
-            {/* ── 진단 줄 (temporary) ── */}
-            {waitingApiError !== null ? (
-              <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
-                <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#EF4444" }}>
-                  {`보강 목록 API 오류: HTTP ${waitingApiError}`}
-                </Text>
-              </View>
-            ) : diagCount !== null ? (
-              <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
-                <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
-                  {`진단: 전체 ${diagCount.total} · 일반 ${diagCount.waiting} · 지난 보강 ${diagCount.expired}`}
-                </Text>
-              </View>
-            ) : null}
             {waitingList.length === 0 ? (
               <View style={s.empty}>
                 <LucideIcon name="check-circle" size={36} color={C.textMuted} />
