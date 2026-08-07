@@ -1,0 +1,140 @@
+[SWIMNOTE 보강 STEP 1 — 지난 보강 복구 Production OTA]
+
+현재 확정 상태:
+
+Branch:
+release/v1.2-phase1-clean
+
+Commit:
+5a766f7093ebc80385dc60153393b75a5af6f244
+
+Local HEAD = Remote HEAD = 5a766f70
+
+Commit 포함 파일:
+artifacts/swim-app/app/(teacher)/makeups.tsx
+1개만
+
+Server 변경 없음
+DB 변경 없음
+학부모 요청/알림/선생님 요청함 변경 없음
+
+이번 단계 목적:
+
+지난 보강 separator 복구본을
+Production OTA로 배포하여 실기기에서 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. OTA 직전 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+실행:
+
+git branch --show-current
+git rev-parse HEAD
+git rev-parse origin/release/v1.2-phase1-clean
+git status --short
+
+정상:
+
+Branch:
+release/v1.2-phase1-clean
+
+HEAD:
+5a766f7093ebc80385dc60153393b75a5af6f244
+
+Remote:
+동일
+
+Working tree의 attached_assets untracked 파일은
+stage/commit하지 말 것.
+
+새 Commit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Production API 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+cd artifacts/swim-app
+
+eas env:exec --environment production \
+'printf "EXPO_PUBLIC_API_URL=%s\n" "$EXPO_PUBLIC_API_URL"'
+
+정상:
+
+https://swimnote.kr/api
+
+다르면 OTA 중단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Production OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+실행:
+
+eas update \
+  --channel production \
+  --platform all \
+  --environment production \
+  --message "SWIMNOTE restore expired makeup section" \
+  --non-interactive
+
+금지:
+
+Preview OTA
+Render 배포
+Server 배포
+Native build
+환경변수 변경
+eas.json 변경
+package.json 변경
+새 Commit
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. OTA 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+eas channel:view production
+
+보고:
+
+Commit SHA:
+Update Group ID:
+iOS Update ID:
+Android Update ID:
+Runtime Version:
+Channel:
+Message:
+Production API_BASE:
+Local HEAD:
+Remote HEAD:
+Preview OTA:
+Render:
+DB 변경:
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 실기기 검증 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 OTA 후 딱 아래만 확인:
+
+1. 보강 대기 화면 진입
+2. 일반 보강 카드 표시
+3. "기간 지난 보강 (N건)" separator 표시
+4. separator 아래 실제 expired 카드 표시
+5. expired 건수와 표시 카드 수 일치
+6. 마지막 expired 카드까지 접근 가능
+
+보강 날짜/회차 문제는 이번 단계에서 아직 별도 장애로 유지.
+
+이번 OTA에서 날짜가 안 보여도
+다른 코드를 임의 수정하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최종 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 문구:
+
+“지난 보강 복구 Production OTA 완료·실기기 검증 대기”
