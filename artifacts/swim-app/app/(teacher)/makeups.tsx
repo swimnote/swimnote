@@ -289,6 +289,11 @@ export default function MakeupsScreen() {
       apiRequest(token, `/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`);
     try {
       let r = await _doRequest();
+      // 실패 시 1회 자동 재시도 (500ms 후)
+      if (!r.ok) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        r = await _doRequest();
+      }
       if (occSeqRef.current !== mySeq) return;
       if (r.ok) {
         const data = await r.json();
