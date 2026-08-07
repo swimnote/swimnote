@@ -1,0 +1,222 @@
+SWIMNOTE 보강 회귀 복구 — 최종 설계 보완
+
+현재 조사 결과는 원인 특정까지는 대체로 승인한다.
+하지만 복구안에 핵심 누락이 있어 아직 구현 승인하지 않는다.
+
+중요한 모순:
+
+보고서 §10에서
+
+"eligible-classes에도 is_one_time 필터가 존재 →
+is_one_time=true 반은 eligible-classes에도 미포함"
+
+이라고 확인했다.
+
+그런데 §17~21 복구안에는
+eligible-occurrences의 is_one_time 필터 제거만 포함되어 있다.
+
+이 상태로 구현하면 is_one_time=true 반은
+보강반 선택 목록 단계에서 이미 사라질 수 있으므로
+현재 실기기 문제인 "보강반 선택이 안 나옴"이 완전히 복구되지 않는다.
+
+코드 수정 전 아래만 보완한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. is_one_time 전체 발생 위치 재확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+teachers.ts의 보강 흐름에서
+
+is_one_time
+
+검색 결과를 전부 제출한다.
+
+최소 구분:
+
+A. waiting list
+B. eligible-classes
+C. eligible-occurrences
+D. assign
+E. complete-direct
+
+각 위치마다:
+
+- 정확한 Route
+- 현재 조건 원문
+- dcc75830에서의 코드
+- 현재 da0f2523 코드
+- 삭제/유지 여부
+
+를 표로 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. eligible-classes 필터 복구 여부 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고대로 eligible-classes에
+
+AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
+
+또는 동등한 조건이 존재한다면,
+dcc75830 정상 버전에서 해당 조건이 없었는지 직접 diff로 증명한다.
+
+dcc75830에서 없었고 70ed2fd0에서 재추가됐다면
+eligible-classes에서도 반드시 제거한다.
+
+왜냐하면:
+
+보강 대상
+→ 보강반 선택
+→ eligible-classes
+→ 회차 선택
+→ eligible-occurrences
+
+순서이므로
+
+eligible-classes에서 반을 제거하면
+eligible-occurrences 수정까지 도달하지 못한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 최종 복구 대상 예상
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 증거 기준 예상 복구는 다음 4개다.
+
+SERVER
+
+A. teachers.ts waiting list
+ownership filter 전체 제거
+
+B. teachers.ts eligible-classes
+is_one_time 제한 제거
+※ dcc75830 정상 코드와 diff 확인 후 확정
+
+C. teachers.ts eligible-occurrences
+is_one_time 제한 제거
+
+APP
+
+D. teacher/makeups.tsx
+기간 지난 보강 separator 복원
+
+- firstExpiredIdx
+- expiredCount
+- showSeparator
+- expiredSection JSX
+- expiredSection / expiredSectionLine / expiredSectionTxt styles
+
+단순히 "서버 2줄 + 앱 복원"이라고 표현하지 말 것.
+실제 코드 조각 수와 정확히 일치시킬 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 절대 유지할 현재 정상 기능
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 회귀 복구 과정에서 다음은 절대 되돌리지 않는다.
+
+[날짜 정책]
+
+- KST 오늘 -14일 ~ +28일
+- MAKEUP_DATE_OUT_OF_RANGE
+- getMakeupDateRange()
+- validateMakeupDateRange()
+- 실제 달력 날짜 검증
+- 결석일 이전 선보강 허용
+- 결석 당일 허용
+- expire_at 날짜 제한 제거
+- 미래 → assign
+- 오늘/과거 → complete-direct
+
+[정원초과 보강]
+
+- teacher eligible-classes HAVING 정원 조건 제거
+- teacher assign CLASS_FULL 차단 제거
+- admin eligible-classes .filter(r => r.is_eligible) 제거
+- teacher makeups.tsx is_full disabled 제거
+- ClassDetailSheet is_full disabled 제거
+- 정원마감/정원초과 뱃지는 유지
+
+[기타]
+
+- expired + allow_expired=false 확인창 유지
+- completed/cancelled/extinguished 차단 유지
+- 요일 검증 유지
+- 휴일 검증 유지
+- pool 소속 검증 유지
+- Auth/JWT/Login 변경 금지
+- 일지 변경 금지
+- WP6/X 코드 변경 금지
+- DB schema 변경 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 정상 버전과 정확한 diff 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+dcc75830과 현재 da0f2523 사이에서
+아래 보강 관련 부분만 diff를 제출한다.
+
+- waiting list SQL
+- eligible-classes SQL
+- eligible-occurrences class lookup SQL
+- teacher makeups.tsx expired separator
+
+각각:
+
+정상 dcc75830
+현재 da0f2523
+복구 후 목표
+
+3단 비교로 제출한다.
+
+전체 파일을 dcc75830으로 checkout/revert하는 것은 금지한다.
+
+과거 파일 전체 복구를 하면
+새 날짜 정책과 정원초과 허용 기능이 다시 날아갈 수 있다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 복구 후 예상 흐름
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실기기에서 다음이 다시 가능해야 한다.
+
+1. 보강 대기 목록
+   - 일반 waiting 표시
+   - 지난달 이월/expired 표시
+
+2. 기간 지난 보강
+   - "기간 지난 보강 (N건)" 구분선 표시
+   - 카드별 기간 지난 표시 유지
+
+3. 보강반 배정
+   - eligible-classes에 정상 반 표시
+   - is_one_time=true 반도 정상 정책상 대상이면 표시
+
+4. 반 선택 후
+   - eligible-occurrences HTTP 200
+   - "수업 회차를 불러오지 못했습니다" 오류 없음
+
+5. 날짜
+   - 오늘 -14일 ~ +28일
+
+6. 정원
+   - 5/5 반도 표시·선택·배정 가능
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 구현 전 마지막 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 8개만 제출한다.
+
+1. teachers.ts is_one_time 전체 검색 결과
+2. eligible-classes 현재 원문
+3. eligible-classes dcc75830 원문
+4. eligible-occurrences 현재 원문
+5. eligible-occurrences dcc75830 원문
+6. waiting ownership filter 현재 vs dcc75830
+7. makeups.tsx expired separator 현재 vs dcc75830
+8. 최종 수정 파일/수정 지점 수
+
+코드 수정 금지.
+Commit/Push/Render/OTA/DB 변경 금지.
+
+이 결과 확인 후 구현 승인한다.
