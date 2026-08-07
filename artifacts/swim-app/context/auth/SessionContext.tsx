@@ -8,7 +8,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export const _DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
 export const API_BASE =
   process.env.EXPO_PUBLIC_API_URL ||
-  (_DOMAIN ? `https://${_DOMAIN}/api` : "/api");
+  "https://swimnote-api.onrender.com/api";
 
 const APP_VERSION = "1.2.0-107-b2";
 
