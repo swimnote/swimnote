@@ -1,0 +1,155 @@
+[SWIMNOTE 긴급 — 오늘 새벽 6시 보강 완료 커밋 기준 복원]
+
+지금까지의 보강 재설계/추측성 조사를 중단합니다.
+
+오늘 2026-08-07 새벽 약 06:00 전후에
+보강 기능을 실제 수정·검증 완료한 커밋이 존재합니다.
+
+이번 작업 목표:
+
+그 완료 커밋을 찾아
+현재 코드와 비교한 뒤
+보강 관련 변경만 그대로 복원합니다.
+
+새 설계 금지.
+보강 기능 재작성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 오늘 새벽 6시 전후 Git history 찾기
+━━━━━━━━━━━━━━━━━━━━━━
+
+시간 범위:
+
+2026-08-07 04:30 ~ 07:00
+사용자 로컬시간(KST) 기준
+
+다음만 조사:
+
+git log --all --since="2026-08-06 19:30:00 +0000" \
+              --until="2026-08-06 22:00:00 +0000" \
+              --oneline --decorate
+
+또는 같은 시간대의 reflog / backup branches.
+
+보강 관련 commit을 찾을 것.
+
+검색 키워드 후보:
+
+makeup
+expiry
+expired
+date range
+eligible occurrences
+scroll
+direct complete
+makeup date
+teacher makeups
+
+각 후보의:
+
+SHA
+commit time
+branch
+commit message
+changed files
+
+를 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 보강 완료 커밋 후보의 실제 파일 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+후보 SHA에서 다음 파일을 직접 확인:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+artifacts/swim-app/app/(admin)/makeups.tsx
+artifacts/api-server/src/routes/teachers.ts
+artifacts/api-server/src/routes/admin.ts
+artifacts/api-server/src/lib/makeup-date-range.ts
+
+보고:
+
+- 지난 보강 표시 코드
+- firstExpiredIdx / expiredCount
+- eligible-occurrences
+- 날짜 범위
+- 직접 완료
+- 보강반 배정
+- 인계
+- expired 처리
+
+오늘 새벽 실제 검증 완료 상태와 일치하는 후보를 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 현재 코드와 diff
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 release/v1.2-phase1-clean HEAD와
+완료 커밋을 보강 파일에 한정해 비교.
+
+중요:
+
+학부모 요청/알림/메신저 파일은 비교/수정 대상 아님.
+
+절대 건드리지 말 것:
+
+parent/notifications.tsx
+parent/requests.tsx
+teacher/messages-inbox.tsx
+parent_student_requests
+notifications
+link-result
+notify-result
+SessionContext
+auth
+JWT
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 복원 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료 커밋이 확정되면
+브랜치 전체 reset 금지.
+
+완료 커밋 전체 cherry-pick도 금지
+(다른 기능이 섞였을 수 있음).
+
+보강 관련 파일 또는 정확한 diff만 선택 복원.
+
+목표:
+
+오늘 새벽 6시 보강 완료 상태
++
+현재 PHASE 1 학부모 요청/알림 상태
+
+둘 다 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 수정 전 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+아직 수정하지 말고 먼저 제출:
+
+완료 후보 SHA:
+commit 시간:
+branch:
+commit message:
+changed files:
+
+보강 관련 변경 파일:
+현재와 다른 부분:
+
+지난 보강 정상 코드:
+날짜/회차 정상 코드:
+eligible-occurrences 정상 코드:
+
+현재 PHASE 1과 충돌 여부:
+
+복원 예상 파일:
+서버 배포 필요 여부:
+OTA 필요 여부:
+DB 변경 필요 여부:
+
+보고 후 멈춤.
+
+사용자 승인 후 복원 진행.
