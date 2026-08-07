@@ -1,0 +1,385 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[절대 동결] 학부모 요청 / 알림 / 선생님 메신저
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 보강 회귀 조사와 아래 기능은 완전히 별개다.
+
+최근 구현·검증 중인:
+
+1. 학부모 요청 기능
+2. 학부모 알림 기능
+3. 학부모 요청 작성 Modal
+4. 받은 알림 / 내 요청 통합 화면
+5. 선생님 메시지/요청함
+6. 요청 처리 결과 알림
+7. parent request ↔ 실제 업무 결과 연결
+8. link-result
+9. deep_link
+10. result notification
+
+영역은 이번 작업에서 절대 동결한다.
+
+보강 문제를 해결한다는 이유로
+위 기능의 코드·DB Contract·라우팅·UI·상태처리를
+수정하거나 리팩터링하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+A. 동결 데이터 영역
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 데이터 구조는 변경 금지:
+
+parent_student_requests
+
+notifications
+
+그리고 최근 PHASE 1에서 추가된:
+
+processed_result_id
+processed_result_type
+result_notification_id
+result_notified_at
+result_notified_by
+notifications.deep_link
+
+관련 컬럼/인덱스/Contract.
+
+금지:
+
+ALTER
+UPDATE
+DELETE
+INSERT
+Migration
+Schema 변경
+기존 데이터 보정
+
+이번 보강 조사에서는 READ-ONLY 확인만 허용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+B. 동결 API 영역
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+학부모 요청/알림/메시지 관련 API는 수정 금지.
+
+특히:
+
+POST /parent/requests
+
+학부모 requests 조회 API
+
+알림 조회/읽음/삭제 API
+
+link-result API
+
+선생님 요청함/메시지함 관련 API
+
+결과 알림 생성 API
+
+deep_link 처리 API
+
+의 handler, validation, response contract를 변경하지 않는다.
+
+보강 문제를 해결하기 위해
+이 API들을 수정하는 것은 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+C. 동결 APP 영역
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+특히 다음 최근 작업 영역은 수정 금지:
+
+artifacts/swim-app/app/(parent)/notifications.tsx
+
+artifacts/swim-app/app/(parent)/requests.tsx
+
+학부모 messages/inquiries 관련 화면
+
+선생님 messages-inbox / 요청함 관련 화면
+
+그리고 해당 화면에서 사용하는
+navigation / deep-link / request-result 연결 코드.
+
+현재 검증된 요청 Modal의:
+
+- [+] 버튼
+- Modal 열기/닫기
+- 요청 유형
+- 학생 선택
+- TextInput
+- POST /parent/requests
+- 제출 중복 방지
+- fetchRequests 재조회
+- 키보드 대응
+- Modal 높이/위치
+- backdrop dismiss
+- 받은 알림
+- 내 요청
+- timeAgo NaN 방어
+
+를 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+D. 보강과 요청 시스템의 경계
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 다음 경계를 유지한다.
+
+실제 보강 업무 데이터:
+
+makeup_sessions
+
+학부모 요청 데이터:
+
+parent_student_requests
+
+두 시스템은 동일한 데이터가 아니다.
+
+학부모 요청은:
+
+"보강을 해달라는 요청"
+
+이고,
+
+makeup_sessions는:
+
+"실제 보강 업무 상태"
+
+이다.
+
+이번 작업은 makeup_sessions 기반
+기존 보강 기능 회귀 조사다.
+
+parent_student_requests를 맞추기 위해
+makeup_sessions 정책을 바꾸지 않는다.
+
+반대로
+
+makeup_sessions 문제를 해결하기 위해
+parent_student_requests 구조를 바꾸지도 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+E. link-result 절대 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+link-result는 기존 보강 기능을 변경하는 기능이 아니다.
+
+목적:
+
+이미 처리된 실제 업무 결과
+↓
+학부모 요청
+↓
+연결
+
+따라서 link-result 때문에:
+
+makeup_sessions status 변경
+makeup_sessions 재배정
+makeup_sessions 날짜 변경
+makeup_sessions expire_at 변경
+makeup_sessions teacher 변경
+
+등을 수행하면 안 된다.
+
+이번 조사에서도 link-result 구현 자체를 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+F. PHASE 1 영향 조사는 READ-ONLY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 보고서의
+
+"최근 PHASE 1이 보강 코드에 미친 diff"
+
+항목은 반드시 READ-ONLY Git 비교만 한다.
+
+허용:
+
+git diff
+git show
+git log
+grep/read
+
+금지:
+
+Write
+Edit
+자동 수정
+리팩터링
+파일 이동
+import 정리
+formatting
+lint --fix
+
+PHASE 1 파일을 발견했다고 해서
+"정리할 부분이 있다"며 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+G. 공용 파일 수정도 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+보강 코드가 어떤 공용 helper/API utility를 사용하더라도
+
+그 공용 파일을 수정하면
+학부모 요청/알림/메신저에 영향을 줄 가능성이 있다.
+
+따라서 이번 조사에서는:
+
+apiRequest 공용 구현
+SessionContext
+navigation 공용 코드
+auth
+JWT
+공용 notification helper
+공용 request helper
+공용 API client
+
+등은 READ-ONLY다.
+
+캐시 문제가 의심되더라도
+apiRequest 전역 캐시를 수정하지 않는다.
+
+원인이 실제로 캐시로 CONFIRMED되더라도
+이번 단계에서는:
+
+"보강 endpoint에 한정하여 어떻게 복구할지"
+
+최소 수정안을 보고만 한다.
+
+실제 수정은 별도 승인 후 수행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+H. 수정 제안 시 영향 범위 검사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+나중에 보강 원인이 CONFIRMED되어
+수정안을 제출할 때도 반드시 먼저 확인:
+
+이 수정이
+
+학부모 요청
+학부모 알림
+요청 Modal
+선생님 메시지/요청함
+link-result
+deep_link
+결과 알림
+
+중 하나라도 영향을 받을 가능성이 있는가?
+
+YES라면:
+
+수정 실행 금지.
+
+더 좁은 보강 전용 복구 방법을 찾는다.
+
+이번 복구의 기본 원칙:
+
+"보강만 고치고 다른 기능은 0줄 변경"
+
+이다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+I. 허용 파일과 금지 파일을 구분
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 조사에서 보강 관련 READ 대상으로 허용:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+artifacts/swim-app/app/(admin)/makeups.tsx
+artifacts/api-server/src/routes/teachers.ts
+artifacts/api-server/src/routes/admin.ts
+artifacts/api-server/src/lib/makeup-date-range.ts
+
+apiRequest 구현 파일은
+캐시 조사 목적으로 READ만 허용.
+
+그 외 파일은 원칙적으로 열지 않는다.
+
+특히 학부모 요청/알림/메신저 파일은
+PHASE 1 diff 존재 여부 확인 외에는
+분석·수정 대상으로 확대하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+J. Git 변경 감시
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+조사 시작 시:
+
+git status --short
+
+조사 종료 직전 다시:
+
+git status --short
+
+실행.
+
+시작 당시 존재하지 않았던 변경이
+조사 중 하나라도 생겼으면:
+
+즉시 작업 중단.
+
+어떤 파일이 변경됐는지 보고.
+
+Commit 금지.
+reset 금지.
+checkout 금지.
+restore 금지.
+
+사용자 승인 없이
+변경을 되돌리는 Git 명령도 실행하지 않는다.
+
+특히 Replit auto-commit이 발생하면:
+
+즉시 중단.
+
+Commit SHA
+Commit message
+포함 파일
+
+만 보고한다.
+
+추가 Git 조작 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+K. 최종 무결성 검사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 보고 전에 반드시 확인:
+
+git status --short
+
+그리고 조사 시작 당시 상태와 비교.
+
+다음 항목을 별도 보고:
+
+학부모 요청 코드 변경: 0건 / 아니면 즉시 FAIL
+학부모 알림 코드 변경: 0건 / 아니면 즉시 FAIL
+선생님 메시지/요청함 변경: 0건 / 아니면 즉시 FAIL
+link-result 변경: 0건 / 아니면 즉시 FAIL
+parent_student_requests DB 변경: 0건 / 아니면 즉시 FAIL
+notifications DB 변경: 0건 / 아니면 즉시 FAIL
+makeup_sessions DB 변경: 0건 / 아니면 즉시 FAIL
+
+이번 단계에서는 정상 결과가 전부 0건이어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+L. 이번 작업의 최우선 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+보강 회귀를 찾다가
+이미 만들어 놓은 다른 기능을 건드리지 않는다.
+
+현재 목표는 단 하나:
+
+"검증 완료됐던 기존 보강 기능이
+현재 어디서 깨졌는지 증명한다."
+
+학부모 요청/알림/선생님 메신저는
+이번 조사에서 보호 대상이지
+개발 대상이 아니다.
+
+문제가 발견되어도 수정하지 말고 보고한다.
+
+보고 후 멈춘다.
