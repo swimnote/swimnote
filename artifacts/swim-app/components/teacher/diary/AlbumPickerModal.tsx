@@ -84,25 +84,18 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
 
   const renderPhoto = ({ item }: { item: AlbumPhotoInfo }) => {
     const isSel = selPhotos.has(item.id);
-    const isAttached = item.media_status === "attached";
     const uri = item.presigned_url ?? ((item.file_url?.startsWith("http")) ? item.file_url : "");
     return (
       <Pressable
-        onPress={() => { if (!isAttached) togglePhoto(item.id); }}
-        style={[s.item, isSel && s.itemSelected, isAttached && s.itemAttached]}
+        onPress={() => { togglePhoto(item.id); }}
+        style={[s.item, isSel && s.itemSelected]}
       >
         {uri ? (
-          <ExpoImage source={{ uri }} style={[s.image, isAttached && s.imageAttached]} contentFit="cover" />
+          <ExpoImage source={{ uri }} style={s.image} contentFit="cover" />
         ) : (
           <View style={[s.image, { backgroundColor: "#F1F5F9" }]} />
         )}
-        {isAttached && (
-          <View style={s.attachedOverlay}>
-            <LucideIcon name="link" size={11} color="#fff" />
-            <Text style={s.attachedText}>사용 중</Text>
-          </View>
-        )}
-        {isSel && !isAttached && (
+        {isSel && (
           <View style={s.checkOverlay}>
             <LucideIcon name="check-circle" size={22} color="#fff" fill="#2EC4B6" />
           </View>
@@ -237,12 +230,8 @@ const s = StyleSheet.create({
   grid:               { padding: 2 },
   item:               { width: ITEM_SIZE, height: ITEM_SIZE, margin: 2, borderRadius: 4, overflow: "hidden", borderWidth: 2, borderColor: "transparent" },
   itemSelected:       { borderColor: "#2EC4B6" },
-  itemAttached:       { borderColor: "#CBD5E1", opacity: 0.75 },
   image:              { width: "100%", height: "100%" },
-  imageAttached:      {},
   checkOverlay:       { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(46,196,182,0.18)", alignItems: "flex-end", justifyContent: "flex-start", padding: 4 },
-  attachedOverlay:    { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.52)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, paddingVertical: 4 },
-  attachedText:       { fontSize: 10, color: "#fff", lineHeight: 14 },
   videoPlayBadge:     { position: "absolute", bottom: 5, left: 5, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center" },
   empty:              { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 32 },
   emptyText:          { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#374151", textAlign: "center" },
