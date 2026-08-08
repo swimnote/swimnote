@@ -12,6 +12,7 @@
  */
 import { ParentPromoStrip } from "@/components/parent/ParentPromoStrip";
 import { AIFeatureModal, AIModalType } from "@/components/parent/AIFeatureModal";
+import StoryCapturePipeline, { StoryInput } from "@/components/parent/StoryCapturePipeline";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -686,6 +687,9 @@ function DiaryFeedItem({
   } | null>(null);
   const [videoCount, setVideoCount] = useState<number | null>(null);
   const loadedRef = useRef(false);
+  // ── Instagram Story 공유 ──
+  const [sharing, setSharing] = useState(false);
+  const sharingRef = useRef(false);
 
   useEffect(() => {
     if (loadedRef.current) return;
@@ -745,6 +749,25 @@ function DiaryFeedItem({
   const { year, month, day, weekday } = parseLessonDate(entry.lesson_date);
   const isCurrentYear = year === new Date().getFullYear();
   const allPhotos = [...(photos?.common ?? []), ...(photos?.individual ?? [])];
+
+  // Instagram Story 공유 입력 구성
+  const storyInput: StoryInput = {
+    entryId: entry.id,
+    lessonDate: entry.lesson_date,
+    teacherName: entry.teacher_name,
+    classGroupName: entry.class_group_name,
+    bodyText: [
+      entry.common_content?.trim(),
+      entry.student_note?.note_content?.trim(),
+    ].filter(Boolean).join("\n\n"),
+    photos: allPhotos.map(p => ({ id: p.id, uri: buildPhotoUri(p.file_url) })),
+  };
+
+  function handleInstagramShare() {
+    if (sharingRef.current) return;
+    sharingRef.current = true;
+    setSharing(true);
+  }
 
   return (
     <View style={f.item}>
@@ -833,7 +856,29 @@ function DiaryFeedItem({
           <LucideIcon name="message-circle" size={16} color={C.textSecondary} />
           <Text style={[f.reactionLabel, { color: C.textSecondary }]}>댓글</Text>
         </Pressable>
+        {/* Instagram Story 공유 버튼 */}
+        <Pressable
+          onPress={handleInstagramShare}
+          disabled={sharing}
+          style={({ pressed }) => [f.reactionBtn, f.storyBtn, { opacity: pressed || sharing ? 0.6 : 1, marginLeft: "auto" as any }]}
+        >
+          {sharing
+            ? <ActivityIndicator size="small" color="#E1306C" style={{ width: 16, height: 16 }} />
+            : <Text style={f.storyEmoji}>📸</Text>}
+          <Text style={[f.reactionLabel, { color: "#E1306C" }]}>스토리</Text>
+        </Pressable>
       </View>
+
+      {/* Instagram Story 캡처 파이프라인 */}
+      {sharing && (
+        <StoryCapturePipeline
+          input={storyInput}
+          onDone={() => {
+            setSharing(false);
+            sharingRef.current = false;
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -1871,4 +1916,10 @@ const f = StyleSheet.create({
   reactionBtnThanks: {},
   emoji: { fontSize: 15 },
   reactionLabel: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  storyBtn: {
+    borderWidth: 1,
+    borderColor: "#F9A8D4",
+    backgroundColor: "#FFF1F2",
+  },
+  storyEmoji: { fontSize: 14 },
 });

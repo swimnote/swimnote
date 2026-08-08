@@ -40,15 +40,8 @@
           "kakaonavi",
           "kakaomail",
           "kakaoopen",
-          "kakaokompassauth",
-          "storekvstore",
-          "kakaolink",
-          "kakaotalk",
-          "kakaostory",
-          "kakaoplus",
-          "kakaonavi",
-          "kakaomail",
-          "kakaoopen"
+          "instagram",
+          "instagram-stories"
         ]
       }
     },
@@ -141,7 +134,8 @@
           "microphonePermission": "SwimNote uses the microphone to record short voice memos for lesson diaries. A teacher can speak lesson notes aloud and have them transcribed automatically."
         }
       ],
-      "./plugins/withRemoveMediaPermissions"
+      "./plugins/withRemoveMediaPermissions",
+      "./plugins/withInstagramShare"
     ],
     "experiments": {
       "typedRoutes": true
