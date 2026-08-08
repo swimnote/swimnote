@@ -1,0 +1,404 @@
+[SWIMNOTE 학부모 빨간점 미표시 — Teacher 업무대화 → Parent unread 경로 즉시 복구]
+
+현재 실기기 CONFIRMED:
+
+- Teacher → Parent 업무대화 메시지 전송 정상
+- Parent 업무대화 Modal을 다시 열면 메시지 확인 가능
+- Parent notifications polling은 30초로 구현됐다고 보고됨
+- 그러나 Teacher가 메시지를 보낸 뒤 3분 이상 기다려도
+  학부모 화면의 빨간점/unread 표시가 나타나지 않음
+
+따라서 이번 문제는 polling 간격 문제가 아니다.
+
+이번 작업 목표:
+
+Teacher 업무대화 메시지
+→ Parent notification 저장
+→ unread_count 증가
+→ 학부모 앱 state 갱신
+→ 실제 빨간점 render
+
+전체 체인에서 최초 실패 지점을 찾아 즉시 복구한다.
+
+조사만 하고 멈추지 말고
+원인 확인 → 수정 → Production 배포까지 완료한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- polling 주기를 임의로 더 짧게 바꾸고 끝내기 금지
+- 전역 cache 제거 금지
+- SessionContext/Auth/JWT/API_BASE 수정 금지
+- 업무대화 POST 구조 재작성 금지
+- Teacher 쪽 정상 badge 수정 금지
+- 학부모 요청 작성 UI 수정 금지
+- 보강/출결/일지/AI 수정 금지
+
+이번 작업은 Parent unread/badge 체인만 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. Teacher → Parent 메시지 저장 직후 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+POST /parent-requests/:requestId/messages
+
+Teacher가 보낼 때 서버에서 실제로 무엇을 하는지 확인한다.
+
+반드시 제출:
+
+- message INSERT 성공
+- Parent notification INSERT 실행 여부
+- notification type
+- recipient_id
+- recipient_type
+- ref_type
+- ref_id
+- is_read
+- created_at
+
+Teacher message 1건 전송 후
+실제 notifications row가 생성되는지 DB에서 확인.
+
+없으면 여기서 직접 원인 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Parent notification type 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+업무대화 답변 notification의 실제 type을 확인한다.
+
+예상 예시:
+parent_request_message
+parent_request_reply
+parent_request_result
+
+추측 금지.
+
+서버 INSERT 실제 값을 제출.
+
+그리고 GET /notifications가
+이 type을 필터에서 제외하는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. GET /notifications 실제 응답 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher가 Parent에게 새 업무대화 메시지를 보낸 직후
+
+Parent JWT 기준:
+
+GET /notifications
+
+실제 응답 확인.
+
+반드시 제출:
+
+HTTP status
+content-type
+unread_count
+notifications 배열 내 신규 업무대화 알림 존재 여부
+신규 알림 id
+type
+is_read
+ref_type
+ref_id
+
+여기서:
+
+DB에는 row 있음
++
+GET /notifications에는 없음
+
+이면 서버 SELECT/filter 문제.
+
+GET에는 있음
++
+unread_count 증가 안 함
+
+이면 unread_count 계산 문제.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. unread_count 계산 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GET /notifications의 unread_count가
+어떤 SQL/계산으로 만들어지는지 확인.
+
+모든 unread notification:
+
+is_read = false
+
+를 포함해야 하는지,
+특정 type만 세는 구조인지 확인.
+
+Teacher 업무대화 notification이
+unread_count 계산에서 빠져 있으면 수정.
+
+단 기존 diary/photo/request_result unread 계산은 깨지지 않게 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Parent 앱 badge Source of Truth
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+notifications.tsx
+→ GET /notifications
+→ unread state
+
+라고 되어 있다.
+
+하지만 실제 빨간점이 표시되는 UI가
+정말 notifications.tsx의 unread state를 참조하는지 확인한다.
+
+확인:
+
+- 학부모 홈 알림 아이콘 component
+- bottom/tab badge
+- header badge
+- unread prop/state/context
+- notifications.tsx 내부 state와 공유되는지
+
+중요:
+
+notifications.tsx 내부 unread state가 갱신돼도
+홈 아이콘은 다른 state를 보고 있을 수 있다.
+
+실제 빨간점을 그리는 component의
+Source of Truth를 반드시 찾는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 현재 화면 밖에서도 갱신되는지 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+notifications.tsx에 넣은 30초 polling은
+notifications 화면이 mount되어 있을 때만 실행될 수 있다.
+
+사용자가 다른 Parent 화면에 있으면
+notifications.tsx가 unmount되어 polling이 멈출 수 있다.
+
+반드시 확인.
+
+현재 빨간점이 보이는 위치가 Parent Home인데
+notifications.tsx가 Home에서 mount되지 않는 구조라면
+30초 polling은 Home badge를 갱신할 수 없다.
+
+이 경우 원인은 CONFIRMED:
+
+"polling을 badge 소유 화면이 아닌 notifications 화면에 넣음"
+
+이 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 올바른 해결 위치
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Parent 빨간점은
+실제로 빨간점을 렌더하는 상위 Parent layout/home/header에서
+갱신되어야 한다.
+
+현재 프로젝트 구조에서 다음 우선순위로 구현:
+
+A. 기존 foreground push notification listener가 있으면
+   Teacher 업무대화 push 수신 시
+   Parent unread count refresh
+
+B. Parent layout/home에 기존 overview/unread fetch가 있으면
+   그 경로에 request-message unread 포함
+
+C. 위 둘이 없을 때만
+   badge를 소유한 Parent 화면에서 짧은 polling
+
+notifications.tsx 화면 내부 polling만으로
+홈 빨간점 해결했다고 보고 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. foreground push 우선 검토
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher가 메시지를 보내면 Parent push가 발송되고 있다.
+
+앱 foreground 상태에서 push를 받는 listener가 이미 존재한다면
+그 이벤트에서:
+
+refreshParentUnread()
+
+또는 기존 unread fetch
+
+를 호출하는 방식이 가장 빠르다.
+
+이 방식이면:
+
+Teacher 전송
+→ Push 수신
+→ unread fetch
+→ 빨간점 즉시 표시
+
+가능.
+
+새 Push 시스템 만들지 말고
+기존 listener 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. Parent badge 공용 state
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+필요하다면 Parent unread를
+화면 로컬 state가 아니라
+이미 존재하는 공용 context/layout state로 올린다.
+
+단 새로운 대형 Context를 만들기 전에
+현재 Parent layout/home 구조를 우선 활용.
+
+목표:
+
+Home
+Notifications
+기타 Parent 화면
+
+어디에 있어도 같은 unread badge가 보임.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 읽음 후 감소
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Parent가 업무대화 Modal을 열고
+Teacher 메시지를 읽으면:
+
+messages GET
+→ 해당 message read 처리
+
+그리고 badge도 감소해야 함.
+
+반드시 확인:
+
+message read 상태와
+notification is_read 상태가 별도라면
+어떤 이벤트에서 notification도 read 처리하는지.
+
+현재 빨간점 Source of Truth가 notifications라면
+thread open 시 해당 request notification read 처리도 필요할 수 있다.
+
+임의로 전체 알림 읽음 처리 금지.
+
+해당 request/thread 관련 unread만 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 완료 E2E
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 1
+Parent 앱 Home foreground 상태.
+
+Teacher가 업무대화 메시지 전송.
+
+→ Parent 아무 화면 이동 없음
+→ 빨간점 자동 표시.
+
+목표:
+Push 기반이면 거의 즉시.
+Polling 기반이면 설정한 주기 내.
+
+3분 기다려야 하는 상태는 FAIL.
+
+CASE 2
+GET /notifications unread_count 실제 증가.
+
+CASE 3
+신규 notification row 존재.
+
+CASE 4
+Parent가 thread open.
+
+→ 빨간점 감소/해제.
+
+CASE 5
+다른 unread 알림이 있으면
+전체 빨간점은 유지.
+
+CASE 6
+Teacher가 두 번째 새 메시지 전송.
+
+→ 다시 빨간점 표시.
+
+CASE 7
+앱 Home/내 요청/다른 Parent 화면 어디에 있어도
+새 메시지 도착 표시 가능.
+
+CASE 8
+기존 diary/photo/request_result 빨간점 회귀 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 예상 수정 파일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 원인에 따라 최소화.
+
+후보:
+
+parent-requests.ts
+→ notification INSERT/GET unread 문제가 실제 원인일 때만
+
+Parent home/layout/header 실제 파일
+→ badge Source of Truth가 여기면 수정
+
+notifications.tsx
+→ 로컬 polling이 잘못된 구조라면 정리 가능
+
+ParentRequestThreadModal.tsx
+→ thread open 시 해당 unread 처리 필요 시
+
+전역 Auth/Session 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 구현 및 배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. DB notification row 확인
+2. GET /notifications 실제 unread_count 확인
+3. 빨간점 실제 component Source of Truth 확인
+4. notifications.tsx mount 여부 확인
+5. 최초 실패 지점 확정
+6. 최소 수정
+7. targeted test
+8. TypeCheck
+9. Diff Gate
+10. Commit
+11. Push
+12. 서버 수정 시 Render Production
+13. Live SHA + Health 200
+14. 앱 수정 시 Production OTA iOS + Android
+15. Preview 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 제출:
+
+1. Teacher message notification DB row 존재 여부
+2. 실제 notification type
+3. GET /notifications 신규 row 포함 여부
+4. GET /notifications unread_count
+5. 학부모 빨간점 실제 렌더 파일
+6. 빨간점 Source of Truth
+7. notifications.tsx polling이 Home에서 실행됐는지 여부
+8. 3분 동안 안 뜬 직접 원인
+9. 최종 refresh trigger
+10. foreground push listener 사용 여부
+11. thread read 후 badge 감소 방식
+12. 수정 파일
+13. CASE 1~8
+14. Commit SHA
+15. Push SHA
+16. Render Live SHA
+17. OTA IDs
+18. 보호 영역 변경 여부
+
+완료 조건:
+
+Teacher가 업무대화 메시지를 보냈을 때
+Parent가 앱을 재시작하거나
+알림 화면에 직접 들어가지 않아도
+학부모 빨간점이 자동으로 나타나야 한다.
