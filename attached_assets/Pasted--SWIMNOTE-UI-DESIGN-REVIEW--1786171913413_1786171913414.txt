@@ -1,0 +1,670 @@
+[SWIMNOTE 학부모 요청·알림 UI — 설계 확정본 전체 구현 지시]
+
+중요:
+
+이제 조사 단계가 아니다.
+DESIGN REVIEW는 종료됐다.
+
+이번 작업의 목적은
+확정된 학부모 요청·알림 UX를 실제 앱에 완성 구현하고
+Production OTA까지 배포하는 것이다.
+
+구현 전에 또 보고서부터 작성하지 마라.
+이미 설계가 끝났다.
+
+구현
+→ 정적 검증
+→ 배포
+→ 그 다음 실기기 검증
+
+순서로 진행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 현재 확정된 서버 기능
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production Server:
+
+Live SHA:
+fa84d330
+
+이미 구현 및 배포된 서버 기능:
+
+1. Teacher Request Visibility
+   → 현재 class_groups 기준
+   → 담임 + co_teacher
+
+2. Parent Request 처리
+
+3. 처리 결과 notifications INSERT
+
+4. Push 발송
+
+5. duplicate notification guard
+
+이 서버 기능을 다시 설계하거나 수정하지 않는다.
+
+이번 작업은 Parent APP UI 완성에 집중한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 최종 Parent UX — 절대 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+학부모 알림 화면은 반드시:
+
+[ 받은 알림 ] [ 내 요청 ]
+
+두 개의 탭을 가진다.
+
+화면:
+
+(parent)/notifications.tsx
+
+구조:
+
+알림
+├─ 받은 알림
+└─ 내 요청
+
+이 구조를 최종 구조로 구현한다.
+
+별도 설정 메뉴를 통해서만 요청 화면에 들어가야 하는 구조로 만들지 않는다.
+
+학부모가 알림 화면에 들어오면
+받은 알림과 자신이 보낸 요청을
+한 곳에서 탭으로 확인할 수 있어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 받은 알림 탭
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 notifications 기능 유지:
+
+GET /notifications
+
+읽음
+전체 읽음
+삭제
+Pull-to-refresh
+
+기존 diary/photo routing 유지.
+
+요청 결과 알림:
+
+type = parent_request_result
+또는
+ref_type = request
+
+인 경우:
+
+내 요청 탭으로 이동하고
+해당 request를 강조한다.
+
+다른 별도 requests 화면으로
+불필요하게 push하여 navigation stack을 늘리지 않는다.
+
+가능하면 현재 notifications 화면 안에서
+activeTab = "requests"
+
+로 전환한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 내 요청 탭
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+내 요청 탭에서 직접:
+
+GET /parent/requests
+
+결과를 표시한다.
+
+각 카드:
+
+학생 이름
+요청 유형
+내용
+요청 날짜
+현재 상태
+
+상태:
+
+pending
+done
+rejected
+
+사용자 표시 문구는 현재 앱 한국어 규칙 사용.
+
+0건 Empty State 포함.
+
+Pull-to-refresh 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. [+] 요청 작성 버튼
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+내 요청 탭에서:
+
+[+]
+
+버튼을 누르면
+
+같은 notifications.tsx 내부에서
+요청 작성 Modal을 연다.
+
+절대 금지:
+
++ 버튼
+→ /(parent)/requests push
+→ redirect
+→ notifications
+
+같은 구조.
+
+정답:
+
+[+]
+↓
+openCreateModal()
+↓
+setModalVisible(true)
+
+이다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 요청 작성 Modal — 완성형으로 구현
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 Modal을 한 줄씩 패치하지 않는다.
+
+처음부터 정상적인 Bottom Sheet 입력 Modal 구조로 완성한다.
+
+목표 구조:
+
+Modal
+└─ View modalRoot
+   ├─ Pressable backdrop
+   │   └─ absoluteFill
+   │
+   └─ KeyboardAvoidingView / keyboard 대응 container
+       └─ View modalSheet
+           ├─ Header
+           │   ├─ "새 요청 보내기"
+           │   └─ "취소"
+           │
+           └─ ScrollView
+               ├─ 학생 선택
+               ├─ 요청 유형
+               ├─ 내용 TextInput
+               ├─ 안내 문구
+               ├─ 오류 메시지
+               └─ 요청 보내기 버튼
+
+중요:
+
+Backdrop과 sheet를
+부모/자식 Pressable 전파 방식으로 억지 차단하지 않는다.
+
+Backdrop은 별도 absolute layer.
+
+Sheet는 그 위 별도 layer.
+
+Modal 내부 터치가 backdrop dismiss와 충돌하지 않게
+구조적으로 분리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Modal 크기
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+작은 반쪽 Modal 금지.
+
+기본 목표:
+
+화면 약 85~90%까지 사용 가능한 큰 Bottom Sheet.
+
+내용에 따라 충분한 작업 공간 제공.
+
+고정 flex:0 금지.
+
+Scroll 영역 높이가 0이 되는 구조 금지.
+
+modalSheet 내부:
+
+Header
++
+Scroll Area
+
+가 실제 레이아웃 공간을 확보해야 한다.
+
+필요한 부모에:
+
+flex: 1
+minHeight: 0
+
+적용.
+
+그러나 임의 absolute/height patch를
+여러 개 쌓지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 키보드
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TextInput이 있으므로 처음부터 키보드 대응 완료한다.
+
+iOS / Android 모두 고려.
+
+필수:
+
+키보드가 올라와도
+현재 입력창 보임.
+
+키보드가 올라와도
+요청 보내기 버튼까지 스크롤 가능.
+
+내용 입력 중
+Modal 내부 스크롤 정상.
+
+keyboardShouldPersistTaps="handled"
+
+적용.
+
+필요한 구조로:
+
+KeyboardAvoidingView
++
+ScrollView
+
+사용 가능.
+
+기존에 사용한 KeyboardAwareScrollView를
+유지하는 것이 더 안정적이라면 유지 가능.
+
+단 부모 높이와 충돌하지 않게 설계.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 학생 선택
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+자녀 0명:
+
+안내 표시
+제출 disabled.
+
+자녀 1명:
+
+자동 선택.
+
+불필요한 선택 UI 생략 가능.
+
+자녀 2명 이상:
+
+가로 학생 chip 선택.
+
+학생 선택 상태는 요청마다 명확히 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 요청 유형
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 6종 유지:
+
+absence
+postpone
+makeup
+withdrawal
+counseling
+inquiry
+
+현재 한국어 표시명 유지.
+
+선택 가능한 chip/grid UI.
+
+기존 request_type Contract 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 내용 입력
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+multiline TextInput.
+
+충분한 최소 높이.
+
+긴 내용 입력 가능.
+
+현재 maxLength 정책이 있으면 유지.
+
+텍스트가 keyboard에 가려지지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+POST /parent/requests
+
+기존 Contract 그대로.
+
+성공:
+
+Modal close
+입력 state reset
+내 요청 목록 reload
+새 요청 즉시 표시
+
+실패:
+
+Modal 유지
+오류 표시
+
+중복 제출 방지:
+
+submitting=true 동안
+버튼 disabled.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 요청 결과 알림 연결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+받은 알림 탭에서:
+
+request 결과 notification tap
+
+→ 같은 notifications 화면
+→ activeTab = requests
+→ requestId 저장
+→ 해당 request 카드 강조
+
+즉 Parent UX는 한 화면에서 끝낸다.
+
+알림 탭
+↔
+내 요청 탭
+
+이 구조다.
+
+requests.tsx를 반드시 거쳐야 할 이유가 없다면
+불필요한 navigation을 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 기존 requests.tsx 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+requests.tsx를 지금 당장 삭제하지 않는다.
+
+기존 설정 메뉴나 deep link가
+/(parent)/requests를 호출할 수 있기 때문이다.
+
+따라서 requests.tsx는
+통합 notifications의 내 요청 탭으로
+안전하게 redirect하는 compatibility route로 변경 가능.
+
+예:
+
+router.replace({
+  pathname: "/(parent)/notifications",
+  params: {
+    tab: "requests",
+    requestId
+  }
+})
+
+단 redirect loop 절대 금지.
+
+notifications.tsx는 requests.tsx로 다시 보내면 안 된다.
+
+방향은 단방향:
+
+requests
+→ notifications requests tab
+
+만 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. Settings 요청사항
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+설정에서 "요청사항" 메뉴를 눌러도:
+
+최종적으로
+
+notifications
+→ 내 요청 탭
+
+으로 들어가게 한다.
+
+설정 메뉴를 삭제할 필요 없음.
+
+즉 접근 경로는 여러 개 가능:
+
+알림 화면 → 내 요청 탭
+설정 → 요청사항
+Push → 요청 결과
+
+하지만 도착 화면은 하나:
+
+notifications / requests tab
+
+이다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. Navigation 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Parent UX:
+
+HOME
+↓
+알림
+↓
+[받은 알림 | 내 요청]
+
+Settings 요청사항
+↓
+같은 내 요청 탭
+
+Push request result
+↓
+같은 내 요청 탭 + 해당 카드 강조
+
+Back:
+
+한 번에 이전 정상 화면.
+
+중복 stack 금지.
+redirect loop 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 현재 수정 허용 파일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+앱:
+
+artifacts/swim-app/app/(parent)/notifications.tsx
+
+artifacts/swim-app/app/(parent)/requests.tsx
+
+필요한 경우 parent 설정 메뉴에서
+requests route를 호출하는 부분은
+현재 requests compatibility redirect로 해결하므로
+설정 파일 수정하지 않는 것을 우선.
+
+Server 파일 수정 금지.
+
+parent-requests.ts 수정 금지.
+
+messages-inbox.tsx 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. 보호 영역
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+절대 수정 금지:
+
+보강 전체
+makeup_sessions
+
+일지
+AI Diary
+diary-comments
+
+앨범/사진
+
+회원
+출결
+
+Teacher messenger
+Teacher request inbox
+
+SessionContext
+Auth
+JWT
+API_BASE
+
+DB Schema
+
+결제
+구독
+
+현재 Production Server fa84d330 기능을
+되돌리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. 구현 완료 후에만 정적 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 중간중간 보고하면서 멈추지 않는다.
+
+먼저 전체 구현을 끝낸다.
+
+그 후:
+
+TypeScript targeted check
+
+git diff --name-status
+
+git diff --stat
+
+실행.
+
+허용 파일 외 변경 0 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. 구현 자체 완료 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+코드 기준으로 최소 다음이 실제 존재해야 한다.
+
+notifications.tsx:
+
+activeTab state
+받은 알림 탭
+내 요청 탭
+fetchNotifications
+fetchRequests
+[+] 버튼
+openCreateModal
+modalVisible
+POST /parent/requests
+request result → requests tab 전환
+requestId highlight
+Modal JSX 전체
+
+requests.tsx:
+
+compatibility redirect
+tab=requests 전달
+requestId 전달
+
+이 구조가 실제 코드에 없는데
+"완료"라고 보고 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. Commit / Push / OTA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+전체 구현 완료
++
+Diff Gate PASS
++
+Typecheck PASS
+
+후:
+
+Clean Commit
+Push origin/deploy-photo-clone
+Production OTA iOS + Android
+
+이번 변경은 앱 UI이므로
+Render 재배포 금지.
+
+Server Live SHA fa84d330 유지.
+
+Preview OTA 금지.
+Force push 금지.
+
+attached_assets Commit 포함 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. OTA 후 실기기 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이제 그때 체크한다.
+
+IMPLEMENTATION이 끝난 뒤에만 확인:
+
+1. 알림 화면 진입
+2. 받은 알림 탭 보임
+3. 내 요청 탭 보임
+4. 내 요청 목록 보임
+5. [+] 보임
+6. [+] → Modal 열림
+7. Modal 전체 내용 보임
+8. 학생 선택 가능
+9. 요청 유형 선택 가능
+10. TextInput 입력 가능
+11. 키보드 상태 스크롤 가능
+12. 요청 보내기 버튼 접근
+13. Backdrop dismiss
+14. 내부 터치 유지
+15. 요청 생성
+16. pending 표시
+17. 선생님 요청함 수신
+18. done 처리
+19. 학부모 결과 알림 목록 표시
+20. 결과 알림 tap
+21. 내 요청 탭 자동 이동
+22. 정확한 요청 강조
+23. Back 정상
+
+이 검증은 구현 완료 후 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+구현 후 제출:
+
+1. 작업 시작 Branch/HEAD/Remote
+2. 수정 파일
+3. notifications.tsx 최종 구조
+4. requests.tsx 최종 역할
+5. Modal 최종 구조
+6. request API Contract 유지 여부
+7. notification request 결과 연결 방식
+8. git diff --stat
+9. Typecheck
+10. Commit SHA
+11. Push SHA
+12. iOS OTA Group/Update ID
+13. Android OTA Group/Update ID
+14. Runtime
+15. Render 재배포 없음
+16. Server fa84d330 유지
+17. 보호 영역 변경 0
+
+마지막 문구:
+
+"학부모 알림 + 내 요청 통합 UI 및 요청작성 Modal 구현 완료·Production OTA 완료·실기기 검증 가능"
+
+구현과 OTA까지 끝낸 뒤 멈춘다.
