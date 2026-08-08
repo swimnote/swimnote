@@ -1,0 +1,444 @@
+[SWIMNOTE 학부모 요청·알림 최종 설계 확정 — IMPLEMENTATION 직전 조사]
+
+이전 DESIGN REVIEW 확인 완료.
+
+아직 구현하지 않는다.
+
+이번 단계 목적은 구현 직전 남은 2개 핵심 Contract를
+CONFIRMED 상태로 확정하는 것이다.
+
+CODE 수정 금지
+DB 수정 금지
+Commit 금지
+Push 금지
+Render 금지
+OTA 금지
+
+현재 최신 baseline:
+branch = deploy-photo-clone
+HEAD = 93db5427 기준에서 시작하되,
+실행 직전 실제 HEAD/remote를 다시 확인한다.
+
+과거 branch/SHA checkout 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 이번 구현 범위 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 구현할 기능은 아래만 대상으로 한다.
+
+A. 학부모 요청 작성/목록 기존 기능 유지
+B. 선생님 학부모 요청 수신/읽음/처리 기존 기능 유지
+C. 요청 처리 결과를 notifications에 영구 저장
+D. 학부모 알림에서 요청 결과 확인
+E. 알림 클릭 → requests 화면 이동
+F. requestId 대상 표시
+G. requests pull-to-refresh
+H. Request Modal UX 최소 보완
+I. 선생님 요청 visibility를 현재 담당 학생 기준으로 정확히 정리
+
+이번 작업에서 제외:
+
+Result Linking
+processed_result_type
+processed_result_id
+processed_by
+processed_at
+link-result
+notify-result 신규 API
+보강 자동 연결
+출결 자동 연결
+admin_note DB schema 변경
+
+위 기능은 별도 WP.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. notifications 실제 DB Schema 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 보고에서는 notifications의:
+
+ref_type
+ref_id
+
+존재 여부가 클라이언트 interface 기준이었다.
+
+이번에는 실제 서버/DB 기준으로 확정한다.
+
+확인:
+
+notifications 실제 CREATE TABLE / migration / schema
+현재 서버에서 notifications INSERT하는 모든 코드
+실제 INSERT column 목록
+실제 SELECT column 목록
+
+반드시 제출:
+
+실제 컬럼:
+id
+recipient_id
+type
+title
+body
+ref_type
+ref_id
+is_read
+created_at
+
+각각 존재/미존재 CONFIRMED.
+
+특히 기존 정상 notification INSERT 한 곳을 찾아
+그 패턴을 그대로 제시한다.
+
+추측 금지.
+
+DB 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Request Result Notification Contract 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PATCH /parent-requests/:id 처리 성공 시
+
+현재:
+
+status update
+→ sendPushToUser
+
+구조를 정확히 제출한다.
+
+notifications INSERT를 추가한다면
+기존 notifications schema와 기존 INSERT pattern에 맞춰:
+
+recipient
+type
+title
+body
+ref_type
+ref_id
+
+각 필드에 정확히 무엇을 넣을지 설계한다.
+
+목표 논리값:
+
+type = parent_request_result
+ref_type = request
+ref_id = parent_student_requests.id
+
+단 실제 schema/기존 convention과 충돌하면
+현재 코드 convention을 우선하고 차이를 보고한다.
+
+중복 INSERT 방지도 설계한다.
+
+동일 요청을 done으로 여러 번 PATCH했을 때
+알림이 무한 중복 생성되면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Push와 Notification DB 관계
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Push와 Notification DB는 별개다.
+
+요청 처리:
+
+DB request status 변경
+↓
+Notification DB 저장
+↓
+Push 발송
+
+목표.
+
+Push 실패 때문에 request status UPDATE가 rollback되어야 하는지,
+현재 코드 구조가 어떻게 되어 있는지도 제출.
+
+기존 정책을 임의 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Teacher Visibility — 가장 중요
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+parent_student_requests.teacher_user_id = userId
+
+방식은 요청 생성 시점 담당 선생님 고정이다.
+
+우리가 원하는 최종 정책:
+
+선생님 요청함에는
+“현재 그 선생님이 실제 담당하는 active 학생의 요청”
+만 표시한다.
+
+수영장 전체 학생 요청 표시 금지.
+
+과거 teacher_user_id만 믿는 것도 금지.
+
+현재 Repository에서
+“현재 선생님 담당 학생”을 판정하는
+이미 사용 중인 정상 Source of Truth를 찾는다.
+
+확인 대상:
+
+students
+class_groups
+class membership/enrollment 관련 table
+teacher_user_id
+co_teacher_ids
+학생 active 상태
+반 active/deleted 상태
+
+특히 최근 보강 기능에서 구현된
+“current class membership filter”가 있다면
+REFERENCE로만 분석한다.
+
+보강 route를 수정하지 않는다.
+
+반드시 제출:
+
+현재 학생 ↔ 반 membership 실제 table
+현재 active membership 조건
+담임 조건
+부담임 조건
+퇴원/비활성 학생 제외 조건
+삭제된 반 제외 조건
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Teacher Visibility 최종 SQL 설계
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GET /teacher/parent-requests에 적용할
+최종 visibility SQL/조건을 작성만 한다.
+
+요구사항:
+
+현재 로그인 teacher가 담임인 active class 학생
+→ 표시
+
+현재 로그인 teacher가 co_teacher인 active class 학생
+→ 현재 시스템에서 co_teacher를 담당자로 취급한다면 표시
+
+다른 teacher 반 학생
+→ 미표시
+
+다른 pool
+→ 미표시
+
+퇴원/비활성 membership
+→ 미표시
+
+과거에는 담당했지만 현재 담당하지 않는 학생
+→ 기본 요청함에서는 미표시
+
+단 요청 이력 보존 자체는 한다.
+DB row 삭제 금지.
+
+Admin
+→ 자기 pool 전체 요청 확인 가능.
+
+현재 데이터 구조상 이 정책 구현이 불가능하면
+임의 구현하지 말고 이유 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Parent Request 생성 시 teacher_user_id
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+POST /parent/requests가 현재:
+
+학생
+→ class_groups
+→ teacher_user_id
+→ parent_student_requests.teacher_user_id 저장
+
+하는 구조를 정확히 조사한다.
+
+최종적으로 teacher_user_id를:
+
+A. historical snapshot으로 계속 저장할지
+B. visibility source로 계속 사용할지
+
+분리해서 설계한다.
+
+권장 목표:
+
+teacher_user_id
+= 요청 생성 당시 담당자 기록(snapshot)
+
+GET teacher inbox visibility
+= 현재 active membership 기준
+
+즉 historical owner와 current visibility를 분리.
+
+실제 schema와 충돌 여부 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. Parent Request Deep Link
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Notification row:
+
+ref_type=request
+ref_id=requestId
+
+↓
+
+(parent)/notifications.tsx
+
+↓
+
+router.push({
+ pathname: "/(parent)/requests",
+ params: { requestId }
+})
+
+형태가 현재 expo-router에서 가능한지
+현재 프로젝트 실제 navigation pattern 기준으로 확인.
+
+requests.tsx:
+
+useLocalSearchParams
+↓
+requestId
+↓
+목록 로드
+↓
+대상 request 확인
+↓
+강조
+
+이번 1차 구현에서는
+복잡한 자동 scroll이 위험하면 제외 가능.
+
+최소 완료 조건:
+
+정확한 requests 화면 이동
++
+해당 request가 어떤 항목인지 시각적 강조.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Request Modal
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Modal을 다시 만들지 않는다.
+
+기존 구조 유지.
+
+최소 FIX만 설계:
+
+Backdrop dismiss
+작은 화면 scroll 안전성
+중복 submit 기존 유지
+
+KeyboardAwareScrollView가 이미 있으면 재사용.
+
+대규모 UI rewrite 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. Refresh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+requests.tsx에 RefreshControl 추가 설계.
+
+전역 apiRequest 수정 금지.
+
+현재 endpoint가 cache되는지 실제 apiRequest 기준 확인.
+
+만약 GET /parent/requests가 30초 cache 대상이면
+pull-to-refresh가 실제 network refresh가 되도록
+해당 화면/endpoint 범위 최소 해결책 제시.
+
+전역 cache 정책 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 이번 구현 예상 파일 재확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+예상:
+
+artifacts/api-server/src/routes/parent-requests.ts
+
+artifacts/swim-app/app/(parent)/notifications.tsx
+
+artifacts/swim-app/app/(parent)/requests.tsx
+
+최대 3개를 우선한다.
+
+Teacher visibility가 parent-requests.ts 내부에서 해결되면
+messages-inbox.tsx 수정 금지.
+
+다른 파일이 반드시 필요하면
+구현 전에 이유 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 절대 보호
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수정 금지:
+
+모든 보강 파일
+makeup_sessions
+teacher makeups
+admin makeups
+
+일지
+AI Diary
+diary-comments
+
+앨범
+사진
+
+회원
+출결
+
+SessionContext
+Auth
+JWT
+API_BASE
+
+Messenger core
+결제
+구독
+
+DB schema
+
+최근 완료 기능을 과거 코드로 덮어쓰기 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. 최신 branch/local HEAD/remote HEAD
+2. notifications 실제 DB schema
+3. 기존 정상 notifications INSERT 코드 위치
+4. request result notification 최종 INSERT Contract
+5. 중복 notification 방지 방식
+6. 현재 학생↔반 membership Source of Truth
+7. active membership 조건
+8. 담임 판정 조건
+9. co_teacher 판정 조건
+10. teacher inbox 최종 visibility SQL 설계
+11. teacher_user_id snapshot 유지 여부
+12. Parent deep-link 정확한 navigation Contract
+13. requests requestId 처리 설계
+14. pull-to-refresh cache 처리 설계
+15. Modal 최소 수정 설계
+16. 정확한 수정 예정 파일
+17. DB 변경 필요 여부
+18. Server 변경 필요 여부
+19. Regression 위험
+20. 구현 WP 순서
+
+그리고 마지막:
+
+CODE CHANGED: 0
+DB CHANGED: 0
+COMMIT: 0
+PUSH: 0
+RENDER: 0
+OTA: 0
+
+보고 후 반드시 멈춘다.
+
+이 보고를 승인받기 전 구현 금지.
