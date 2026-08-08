@@ -552,6 +552,12 @@ router.get("/parent-requests/:requestId/messages", requireAuth,
           UPDATE parent_request_messages SET is_read_by_parent = true
           WHERE request_id = ${requestId} AND sender_type IN ('teacher','system') AND is_read_by_parent = false
         `).catch(() => {});
+        // 해당 request의 parent_request_reply notification도 읽음 처리 → badge 감소
+        await db.execute(sql`
+          UPDATE notifications SET is_read = true
+          WHERE recipient_id = ${userId} AND ref_id = ${requestId}
+            AND ref_type = 'request' AND type = 'parent_request_reply' AND is_read = false
+        `).catch(() => {});
       } else if (["teacher", "pool_admin", "super_admin"].includes(role)) {
         const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
           .from(usersTable).where(eq(usersTable.id, userId)).limit(1);

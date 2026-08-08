@@ -6,6 +6,7 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
+import { useParent } from "@/context/ParentContext";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -69,6 +70,7 @@ interface Props {
 
 export function ParentRequestThreadModal({ visible, request, token, onClose, onRefreshList }: Props) {
   const insets = useSafeAreaInsets();
+  const { refreshUnread } = useParent();
   const [messages, setMessages] = useState<RequestMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -112,12 +114,15 @@ export function ParentRequestThreadModal({ visible, request, token, onClose, onR
     }
   }, [visible, request?.id]);
 
-  // 2초 polling: visible=true인 동안만, unmount/닫기 시 자동 정리
+  // 2초 polling: visible=true인 동안만, 닫힐 때 refreshUnread로 badge 즉시 갱신
   useEffect(() => {
     if (!visible || !request) return;
     const interval = setInterval(() => fetchMessages(true), 2000);
-    return () => clearInterval(interval);
-  }, [visible, request?.id, fetchMessages]);
+    return () => {
+      clearInterval(interval);
+      refreshUnread(); // thread 닫을 때 notification read 처리 후 badge 즉시 반영
+    };
+  }, [visible, request?.id, fetchMessages, refreshUnread]);
 
   async function sendMessage() {
     if (!request || !replyText.trim() || sending) return;

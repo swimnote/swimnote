@@ -162,12 +162,8 @@ export default function ParentNotificationsScreen() {
     }
   }, [token]);
 
-  // 마운트 시 1회 + 30초 polling (Teacher 메시지 도착 시 badge 자동 갱신)
-  useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30_000);
-    return () => clearInterval(interval);
-  }, [fetchNotifications]);
+  // 마운트 시 1회 (unread badge polling은 ParentContext에서 관리)
+  useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
 
   /* ── fetchRequests ── */
   const fetchRequests = useCallback(async () => {

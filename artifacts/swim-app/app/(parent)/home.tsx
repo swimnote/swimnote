@@ -849,6 +849,7 @@ export default function ParentHomeScreen() {
     setSelectedStudentId,
     loading: ctxLoading,
     refresh,
+    unreadNotifCount,
   } = useParent();
 
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
@@ -1366,7 +1367,12 @@ export default function ParentHomeScreen() {
             style={s.headerBtn}
             onPress={() => router.push("/(parent)/notifications" as any)}
           >
-            <LucideIcon name="bell" size={19} color={C.textSecondary} />
+            <View style={{ position: "relative" }}>
+              <LucideIcon name="bell" size={19} color={C.textSecondary} />
+              {unreadNotifCount > 0 && (
+                <View style={{ position: "absolute", top: -2, right: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: "#E53E3E", borderWidth: 1.5, borderColor: "#fff" }} />
+              )}
+            </View>
           </Pressable>
           <Pressable
             style={s.headerBtn}
