@@ -1,3 +1,4 @@
+- [★ 에이전트 작업 범위 헌법](agent-scope-constitution.md) — 명시된 것만 수정, 뒤로 가지 않음, 서버 무수정, 승인 후 배포 (2026-08-08 최상위 원칙)
 - [★ 작업 규칙 헌법](task-constitution.md) — 모든 작업 시작 전 branch/HEAD/status 보고, push 없으면 완료 불인정, 파일삭제·merge·reset 별도 승인 필수
 - [★ SWIMNOTE X 개발 통제 헌법](constitution.md) — PART 1·2·3 완료까지 불변. 10조 통제원칙. WP0 조사+WP1 설계서 대기중. 복사패널: docs/constitution-copier.html
 - [앱·웹 운영 헌법](app-web-constitution.md) — 앱 우선 원칙·공유 콘텐츠 단일 소스·홈페이지 업데이트 범위·테스트 환경 규칙

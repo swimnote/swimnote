@@ -1,0 +1,209 @@
+[SWIMNOTE 학부모 요청/알림·선생님 메신저 작업 재개 — 최신 Production 기준선 재확인]
+
+중요:
+
+다른 작업창에서 최근 SWIMNOTE 수정 작업이 모두 완료되었습니다.
+
+따라서 과거 메신저 작업 당시의 branch/SHA를 기준으로 작업하지 않습니다.
+
+이번 단계 목적은:
+
+현재 실제 Production 최신 상태를 새로운 기준선으로 확정하고,
+그 위에서 기존 학부모 요청/알림·선생님 메신저 작업을 이어갈 준비를 하는 것입니다.
+
+이번 단계는 READ ONLY입니다.
+
+코드 수정 금지.
+Commit / Push / Render / OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 Git 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+제출:
+
+git branch --show-current
+git rev-parse HEAD
+git status --short
+
+현재 원격 branch 목록 중
+실제 최신 작업 branch와 HEAD를 확인.
+
+과거에 사용했던 SHA를 현재 기준이라고 가정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 Production APP 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EAS production channel의 최신 OTA를 확인.
+
+제출:
+
+- Latest Update Group ID
+- Published At
+- Runtime Version
+- iOS Update ID
+- Android Update ID
+- Update message
+- Commit SHA / metadata
+- Production channel이 가리키는 branch
+
+현재 실기기에서 받을 수 있는 최신 Production OTA가 무엇인지 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 현재 Production API / Server 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 앱 bundle이 실제 사용하는 API_BASE 확인.
+
+추측 금지.
+
+제출:
+
+- 실제 Production API_BASE
+- 현재 Render/운영 Server Live SHA
+- Deployment ID
+- Health HTTP status
+- server version
+
+현재 앱과 서버가 어떤 commit 조합으로 동작하는지 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 최근 다른 작업 결과가 기준선에 포함됐는지 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 최신 HEAD / Production OTA 기준으로
+최근 완료된 다른 SWIMNOTE 수정들이 실제 포함되어 있는지 확인.
+
+특히 최근 변경된 영역을 git log/diff 기준으로 확인하되
+코드는 수정하지 않음.
+
+목적:
+
+학부모 메신저 작업을 재개하면서
+최근 완료된 기능을 과거 코드로 되돌리지 않기 위함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 과거 메신저 작업 기준은 참고용으로만 사용
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+과거 학부모 요청/알림/선생님 메신저 작업 SHA/branch는
+절대 새로운 baseline으로 checkout하지 마십시오.
+
+금지:
+
+git reset 과거 SHA
+git checkout 과거 작업 branch 후 그 상태에서 개발
+rebase로 최신 기능 제거
+과거 branch를 Production에 직접 배포
+전체 파일 덮어쓰기
+옛 파일을 현재 파일 위에 통째로 복사
+
+과거 작업은 오직 diff/reference 용도입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 현재 최신 코드에서 메신저 관련 구현 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 최신 baseline에서 다음 파일/기능만 READ ONLY 확인:
+
+학부모:
+- 요청 작성
+- 요청 목록
+- 알림
+- 결과 알림
+- deep link
+
+선생님:
+- 요청함
+- 메시지/메신저
+- 요청 처리
+- link-result
+- notify-result
+
+서버:
+- parent_student_requests
+- notifications
+- 관련 teacher/admin routes
+
+목적:
+
+현재 최신 코드에 이미 구현된 것
++
+아직 미완성인 것
+
+을 구분.
+
+이미 구현된 기능을 다시 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 과거 작업과 현재 최신본 Diff
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+과거 메신저 작업에서 만들었던 변경과
+현재 최신 baseline을 비교.
+
+다음으로 분류:
+
+A. 현재에도 그대로 존재
+B. 현재 최신 코드에 더 개선된 형태로 존재
+C. 현재 누락
+D. 현재와 충돌
+E. 이미 다른 구조로 대체됨
+
+누락된 것만 이후 구현 후보로 잡습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 최신 Production 보호 규칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production 최신본에 포함된 기능은 보호 대상입니다.
+
+학부모 메신저 작업 때문에:
+
+일지
+보강
+AI 일지
+회원
+출결
+반
+알림
+로그인
+API_BASE
+Auth/JWT
+결제/구독
+
+등 최근 완료 기능을 과거 버전으로 되돌리면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. Current branch
+2. Current local HEAD
+3. Current remote HEAD
+4. Working tree
+5. Production latest OTA Group
+6. Production app commit/SHA
+7. Production API_BASE
+8. Production server Live SHA
+9. 최근 완료 작업들이 baseline에 포함됐는지
+10. 현재 학부모 요청/알림 기능 상태
+11. 현재 선생님 요청함/메신저 기능 상태
+12. 과거 작업 대비 누락 기능
+13. 충돌 가능 기능
+14. 다음에 이어서 구현해야 할 정확한 항목
+15. 수정 예상 파일 목록
+
+그리고:
+
+CODE CHANGED: 0
+DB CHANGED: 0
+COMMIT: 0
+PUSH: 0
+RENDER: 0
+OTA: 0
+
+보고 후 멈추십시오.
