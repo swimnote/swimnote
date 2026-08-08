@@ -630,8 +630,10 @@ router.post("/parent-requests/:requestId/messages", requireAuth,
       const typeLabel = REQUEST_TYPE_NAMES[reqRow.request_type] || "요청";
 
       if (senderType === "teacher" && reqRow.parent_id) {
-        const pushTitle = `${typeLabel}에 답변이 도착했습니다`;
-        const pushBody = "선생님이 새 메시지를 보냈습니다.";
+        // Push 문구: 개인정보/내용 노출 없이 단순 도착 알림
+        const pushTitle = "새로운 소식이 도착했습니다";
+        const pushBody  = "선생님에게서 새로운 소식이 도착했습니다.";
+        // notification DB 기록 (push OFF여도 유지)
         try {
           const notifId = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
           await db.execute(sql`
@@ -640,11 +642,38 @@ router.post("/parent-requests/:requestId/messages", requireAuth,
                     ${pushTitle}, ${pushBody}, ${requestId}, 'request', ${reqRow.swimming_pool_id}, false)
           `).catch(() => {});
         } catch {}
+        // Push 발송 (학부모 news 설정 ON인 경우만)
         try {
-          const { sendPushToUser } = await import("../lib/push-service.js");
-          await sendPushToUser(reqRow.parent_id, true, "parent_request_reply",
-            pushTitle, pushBody, { requestId }, `req_reply_${msgId}`);
-        } catch {}
+          const [ps] = (await db.execute(sql`
+            SELECT is_enabled FROM push_settings
+            WHERE parent_account_id = ${reqRow.parent_id} AND notification_type = 'news' LIMIT 1
+          `).catch(() => ({ rows: [] }))).rows as any[];
+          const pushEnabled = ps ? Boolean(ps.is_enabled) : true; // 기본 ON
+          if (pushEnabled) {
+            const { sendPushToUser } = await import("../lib/push-service.js");
+            await sendPushToUser(reqRow.parent_id, true, "parent_request_reply",
+              pushTitle, pushBody, { requestId }, `req_reply_${msgId}`);
+          }
+        } catch (pushErr) { console.error("[parent-requests teacher→parent push error]", pushErr); }
+      }
+
+      if (senderType === "parent" && reqRow.teacher_user_id) {
+        // Parent→Teacher Push (개인정보 노출 없이 단순 도착 알림)
+        const pushTitle = "새로운 소식이 도착했습니다";
+        const pushBody  = "학부모에게서 새로운 소식이 도착했습니다.";
+        // Push 발송 (선생님 news 설정 ON인 경우만)
+        try {
+          const [ps] = (await db.execute(sql`
+            SELECT is_enabled FROM push_settings
+            WHERE user_id = ${reqRow.teacher_user_id} AND notification_type = 'news' LIMIT 1
+          `).catch(() => ({ rows: [] }))).rows as any[];
+          const pushEnabled = ps ? Boolean(ps.is_enabled) : true; // 기본 ON
+          if (pushEnabled) {
+            const { sendPushToUser } = await import("../lib/push-service.js");
+            await sendPushToUser(reqRow.teacher_user_id, false, "parent_request_reply",
+              pushTitle, pushBody, { requestId }, `req_parent_${msgId}`);
+          }
+        } catch (pushErr) { console.error("[parent-requests parent→teacher push error]", pushErr); }
       }
 
       res.json({ success: true, message });

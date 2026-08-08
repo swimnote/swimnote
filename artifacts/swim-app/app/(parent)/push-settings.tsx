@@ -25,6 +25,7 @@ interface PushSettings {
   class_reminder: boolean;
   diary_upload: boolean;
   photo_upload: boolean;
+  news: boolean;
 }
 
 const DEFAULT: PushSettings = {
@@ -32,13 +33,15 @@ const DEFAULT: PushSettings = {
   class_reminder: true,
   diary_upload: true,
   photo_upload: true,
+  news: true,
 };
 
 const ITEMS: { key: keyof PushSettings; label: string; desc: string; icon: string }[] = [
-  { key: "notice",        label: "공지사항 알림",    desc: "수영장 공지가 등록되면 알림",       icon: "bell" },
-  { key: "class_reminder",label: "수업 일정 알림",   desc: "전날/당일 수업 전 리마인더 알림",   icon: "calendar" },
-  { key: "diary_upload",  label: "수업 일지 알림",   desc: "선생님이 일지를 작성하면 알림",     icon: "book-open" },
-  { key: "photo_upload",  label: "사진 업로드 알림", desc: "새 사진이 업로드되면 알림",         icon: "camera" },
+  { key: "notice",        label: "공지사항 알림",    desc: "수영장 공지가 등록되면 알림",           icon: "bell" },
+  { key: "class_reminder",label: "수업 일정 알림",   desc: "전날/당일 수업 전 리마인더 알림",       icon: "calendar" },
+  { key: "diary_upload",  label: "수업 일지 알림",   desc: "선생님이 일지를 작성하면 알림",         icon: "book-open" },
+  { key: "photo_upload",  label: "사진 업로드 알림", desc: "새 사진이 업로드되면 알림",             icon: "camera" },
+  { key: "news",          label: "소식 알림",        desc: "선생님의 업무대화 메시지가 도착하면 알림", icon: "message-circle" },
 ];
 
 export default function ParentPushSettingsScreen() {

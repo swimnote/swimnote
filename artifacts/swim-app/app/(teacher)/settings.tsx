@@ -77,6 +77,7 @@ export default function TeacherSettingsScreen() {
   const [notiMessage,  setNotiMessage]  = useState(true);
   const [notiMakeup,   setNotiMakeup]   = useState(true);
   const [notiDiary,    setNotiDiary]    = useState(true);
+  const [notiNews,     setNotiNews]     = useState(true);
   /* 소식 알림 설정 */
   const [notiNewsLike,    setNotiNewsLike]    = useState(true);
   const [notiNewsThanks,  setNotiNewsThanks]  = useState(true);
@@ -115,6 +116,7 @@ export default function TeacherSettingsScreen() {
         if (settings.messenger !== undefined)       setNotiMessage(Boolean(settings.messenger));
         if (settings.makeup_request !== undefined)  setNotiMakeup(Boolean(settings.makeup_request));
         if (settings.diary_reminder !== undefined)  setNotiDiary(Boolean(settings.diary_reminder));
+        if (settings.news !== undefined)            setNotiNews(Boolean(settings.news));
         if (settings.news_like !== undefined)       setNotiNewsLike(Boolean(settings.news_like));
         if (settings.news_thanks !== undefined)     setNotiNewsThanks(Boolean(settings.news_thanks));
         if (settings.news_comment !== undefined)    setNotiNewsComment(Boolean(settings.news_comment));
@@ -274,6 +276,18 @@ export default function TeacherSettingsScreen() {
                 onValueChange={v => { setNotiDiary(v); savePushSetting("diary_reminder", v); }}
                 trackColor={{ false: C.border, true: themeColor + "80" }}
                 thumbColor={notiDiary ? themeColor : C.textMuted}
+              />
+            </View>
+            <View style={[s.switchRow, { borderTopWidth: 1, borderTopColor: C.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.switchLabel}>소식</Text>
+                <Text style={s.switchSub}>학부모 업무대화 새 메시지 알림</Text>
+              </View>
+              <Switch
+                value={notiNews}
+                onValueChange={v => { setNotiNews(v); savePushSetting("news", v); }}
+                trackColor={{ false: C.border, true: themeColor + "80" }}
+                thumbColor={notiNews ? themeColor : C.textMuted}
               />
             </View>
           </View>
