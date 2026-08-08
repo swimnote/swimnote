@@ -225,33 +225,6 @@ router.post("/parent/requests", requireAuth,
         }
       }
 
-      // 선생님 메시지함(notice 채널)에 요청 내용 삽입
-      try {
-        const msgContent = [
-          `[${typeLabel}] ${parentName}님 (${studentName})`,
-          content?.trim() ? content.trim() : null,
-          request_date ? `요청일: ${request_date}` : null,
-        ].filter(Boolean).join("\n");
-
-        const extraData = JSON.stringify({
-          type: "parent_request",
-          requestId: newReq.id,
-          requestType: request_type,
-          studentName,
-          parentName,
-        });
-
-        await db.execute(sql`
-          INSERT INTO work_messages
-            (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, extra_data)
-          VALUES
-            (${poolId}, ${req.user!.userId}, ${parentName}, 'parent_account',
-             'text', 'notice', 'parent_request', ${msgContent}, ${extraData}::jsonb)
-        `);
-      } catch (msgErr) {
-        console.error("[parent-requests work_messages error]", msgErr);
-      }
-
       res.status(201).json({ success: true, data: newReq });
     } catch (err) {
       console.error(err);
@@ -320,7 +293,7 @@ router.get("/teacher/parent-requests", requireAuth, requireRole("teacher", "pool
         ORDER BY psr.created_at DESC
         LIMIT 100
       `);
-      res.json(rows.rows);
+      res.json({ success: true, data: rows.rows });
     } catch (err) {
       console.error(err);
       res.status(500).json({ success: false, message: "서버 오류" });
