@@ -51,3 +51,20 @@ today-schedule.tsx badge 조건: `unread_messages > 0 || pending_parent_requests
 - Parent용: `artifacts/swim-app/components/parent/ParentRequestThreadModal.tsx`
 - messages-inbox.tsx: [업무 대화] 버튼 + new_message_count 배지
 - notifications.tsx: 요청 카드 Pressable → ParentRequestThreadModal
+
+## 수정 이력 (2026-08-08)
+
+### 메시지 전송 실패 원인 및 수정
+- **원인**: sendMessage()에서 `setReplyText("")`를 전송 전에 실행 + `catch {}`로 오류 무시
+- **수정**: 성공 시에만 clear + Alert로 실패 표시 (텍스트 유지)
+- **적용**: RequestThreadModal + ParentRequestThreadModal 동일
+
+### UX 수정
+- UnreadMessagesModal: absence/makeup 직행 제거 → 모든 요청 `messages-inbox?tab=requests&requestId=id`
+- messages-inbox: `requestId` param 수신 → teal 강조 + FlatList scroll (4초 후 강조 해제)
+- notifications(학부모): 카드 전체 Pressable → View, "탭하여..." 문구 제거, [대화] 버튼 추가
+- parent-requests.ts: push 문구 "답변이 도착했습니다" 개선
+
+### OTA 배포 완료
+- iOS production: update group `821b25de-d325-498c-8fd8-ee125161c748`
+- Android production: update group `c3006ca1-45cf-4a55-a988-bee5db6f6438`
