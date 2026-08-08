@@ -557,6 +557,22 @@ export default function MessagesInboxScreen() {
                         </Pressable>
                       </View>
                     )}
+                    {/* 업무 처리 — absence/makeup만 해당 업무 화면으로 이동 */}
+                    {(item.request_type === "absence" || item.request_type === "makeup") && (
+                      <Pressable
+                        style={[s.workBtn, { borderColor: themeColor + "40" }]}
+                        onPress={() => {
+                          if (item.request_type === "absence") {
+                            router.push("/(teacher)/attendance" as any);
+                          } else {
+                            router.push("/(teacher)/makeups" as any);
+                          }
+                        }}
+                      >
+                        <LucideIcon name="arrow-right" size={12} color={themeColor} />
+                        <Text style={[s.workBtnTxt, { color: themeColor }]}>업무 처리</Text>
+                      </Pressable>
+                    )}
                   </View>
                 </Pressable>
               );
@@ -610,6 +626,8 @@ const s = StyleSheet.create({
   reqActions:     { flexDirection: "row", gap: 8 },
   reqBtn:         { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
   reqBtnTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", fontWeight: "600" },
+  workBtn:        { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
+  workBtnTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular" },
 
   msgRow:         { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   msgRowRight:    { flexDirection: "row-reverse" },
