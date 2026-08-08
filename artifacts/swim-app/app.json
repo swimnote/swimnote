@@ -39,9 +39,7 @@
           "kakaoplus",
           "kakaonavi",
           "kakaomail",
-          "kakaoopen",
-          "instagram",
-          "instagram-stories"
+          "kakaoopen"
         ]
       }
     },
@@ -135,7 +133,13 @@
         }
       ],
       "./plugins/withRemoveMediaPermissions",
-      "./plugins/withInstagramShare"
+      [
+        "react-native-share",
+        {
+          "ios": ["instagram", "instagram-stories"],
+          "android": ["com.instagram.android"]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
