@@ -1,0 +1,462 @@
+[SWIMNOTE 학부모 요청 Modal 긴급 복구 — 단일 파일 최소 수정 → Production OTA → E2E 검증]
+
+현재 감사 결과 기준으로 진행한다.
+
+현재 Production App OTA:
+commit = fa84d330
+
+현재 Production Server:
+Live SHA = fa84d330
+Render Deploy ID = dep-d9rb0eqfngtc73cvghv0
+Health = HTTP 200
+
+현재 서버와 앱의 학부모 요청/알림 기능 코드는 같은 fa84d330 기준이다.
+
+현재 실기기에서 확인된 장애:
+
+학부모 요청 화면
+→ [+] 버튼
+→ Modal 열림
+→ Header "새 요청 보내기 / 취소"만 표시
+→ 학생/요청유형/TextInput/제출 버튼이 보이지 않음
+
+감사 결과 최초 비정상 지점:
+
+artifacts/swim-app/app/(parent)/requests.tsx
+
+modalSheet:
+{
+  ...
+  maxHeight: "85%",
+  flex: 0
+}
+
+그리고 내부:
+
+KeyboardAwareScrollView
+style={{ flex: 1 }}
+
+구조가 충돌하고 있다.
+
+이번 작업은 이 Modal 레이아웃만 복구한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 작업 시작 기준선 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 실행:
+
+git branch --show-current
+git rev-parse HEAD
+git rev-parse origin/deploy-photo-clone
+git status --short
+
+현재 Remote 기준:
+
+fa84d330
+
+Local에는 Replit auto-commit이 존재할 수 있다.
+
+중요:
+
+과거 branch로 checkout 금지.
+reset 금지.
+rebase 금지.
+force push 금지.
+
+현재 최신 코드에서 작업한다.
+
+auto-commit 때문에 fa84d330 이후 commit이 존재하면
+requests.tsx / notifications.tsx / parent-requests.ts
+실제 diff를 먼저 확인한다.
+
+기능 코드가 동일하면 현재 최신 HEAD에서 계속 작업한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 허용 파일 — 정확히 1개
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수정 허용:
+
+artifacts/swim-app/app/(parent)/requests.tsx
+
+이 파일 외 수정 금지.
+
+특히 절대 수정 금지:
+
+notifications.tsx
+parent-requests.ts
+messages-inbox.tsx
+
+보강
+일지
+AI
+사진
+회원
+출결
+
+SessionContext
+API_BASE
+Auth
+JWT
+
+DB Schema
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 기능 동결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+requests.tsx 안에서도 다음 기능 로직 변경 금지:
+
+요청 생성 API endpoint
+Request body
+요청 종류
+학생 선택 로직
+load()
+refresh
+requestId deep-link
+highlight
+safeDate
+timeAgo
+submitting guard
+기존 상태 관리
+
+이번 작업은 Modal layout 복구만 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 직접 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+StyleSheet.create 내 modalSheet에서:
+
+BEFORE:
+
+modalSheet: {
+  borderTopLeftRadius: 24,
+  borderTopRightRadius: 24,
+  padding: 24,
+  maxHeight: "85%",
+  flex: 0,
+},
+
+여기서:
+
+flex: 0
+
+을 제거한다.
+
+우선 이것만 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 추가 CSS 덧대기 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 1차 수정에서 임의로 다음을 추가하지 않는다:
+
+height
+minHeight
+absolute
+top
+bottom
+marginBottom
+paddingBottom
+position
+transform
+
+Modal 전체를 다시 작성하지 않는다.
+
+KeyboardAwareScrollView 교체 금지.
+
+Backdrop 구조 변경 금지.
+
+Header 구조 변경 금지.
+
+문제 하나에 여러 CSS 패치를 동시에 넣지 않는다.
+
+먼저 확인된 flex:0 충돌 하나만 제거한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 정적 구조 재확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 구조가 다음인지 확인:
+
+Modal
+→ Pressable modalOverlay
+→ Pressable modalSheet
+→ modalHeader
+→ KeyboardAwareScrollView
+   → 학생 선택
+   → 요청 유형
+   → TextInput
+   → 제출 버튼
+
+반드시 확인:
+
+modalSheet에 flex:0 없음.
+
+KeyboardAwareScrollView 내부 children 삭제/조건 변경 없음.
+
+학생 selector 조건 유지.
+
+REQUEST_TYPES.map 유지.
+
+TextInput 유지.
+
+Submit 유지.
+
+Backdrop dismiss 유지.
+
+stopPropagation 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Diff Gate
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실행:
+
+git diff --name-status
+git diff --stat
+git diff -- artifacts/swim-app/app/\(parent\)/requests.tsx
+
+판정:
+
+허용 파일 = requests.tsx 1개만.
+
+기능 코드 변경 없이
+modalSheet flex:0 제거가 핵심 변경이어야 한다.
+
+다른 소스 파일이 변경됐으면 Commit 금지.
+
+attached_assets 포함 금지.
+
+dist OTA 산출물을 수동으로 Commit에 포함하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. TypeScript 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+targeted typecheck 실시.
+
+이번 변경으로 신규 TypeScript 오류 0.
+
+기존 unrelated 오류가 있으면
+PRE-EXISTING으로 분리 보고하고 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Commit / Push
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Diff Gate 통과 후 Clean Commit.
+
+Commit에는:
+
+requests.tsx
+
+1개만 포함.
+
+Commit 후 반드시:
+
+git show --stat --oneline HEAD
+git show --name-only HEAD
+
+로 확인.
+
+attached_assets가 섞였으면 Push 중단.
+
+정상이면:
+
+origin/deploy-photo-clone
+
+으로 Push.
+
+Force push 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. Render 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 변경은 App UI 단일 파일이다.
+
+Server 변경 없음.
+
+따라서:
+
+Render Deploy 금지.
+DB 변경 금지.
+
+현재 Server Live SHA fa84d330은 그대로 둔다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Production OTA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Push 성공 후 Production OTA를 실행한다.
+
+iOS + Android 모두.
+
+Runtime Version = 1.6.1 유지.
+
+Preview OTA 금지.
+
+새 native build 금지.
+
+OTA 완료 후 제출:
+
+Commit SHA
+iOS Group ID
+iOS Update ID
+Android Group ID
+Android Update ID
+runtimeVersion
+channel
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. OTA 후 즉시 중단
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OTA 이후 추가 코드 수정 금지.
+
+Modal이 정상인지 사용자가 실기기에서 먼저 확인한다.
+
+실기기 1차 성공 기준:
+
+[ ] [+] 버튼 정상
+[ ] Modal 정상 열림
+[ ] "새 요청 보내기" 표시
+[ ] 취소 표시
+[ ] 학생 선택 표시
+[ ] 요청 유형 전체 표시
+[ ] TextInput 표시
+[ ] 제출 버튼 표시
+[ ] Modal 내부 스크롤 가능
+[ ] Backdrop 터치 닫힘
+[ ] Modal 내부 터치 시 닫히지 않음
+[ ] 키보드 표시 후 TextInput 접근 가능
+[ ] 키보드 표시 후 제출 버튼까지 접근 가능
+[ ] 작은 화면에서도 마지막 항목 접근 가능
+
+실기기에서 확인하지 않은 항목을 PASS라고 보고하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. Modal 통과 후 E2E
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Modal이 정상인 경우 새 코드 수정 없이 그대로 다음 E2E를 진행한다.
+
+FLOW:
+
+학부모 요청 생성
+→ pending 저장
+→ 현재 담당 선생님 요청함
+→ done 또는 rejected
+→ notifications DB 생성
+→ Push
+→ 학부모 알림 목록
+→ 알림 탭
+→ requests 화면
+→ 해당 request 강조
+→ Back
+
+확인:
+
+CASE 1
+학부모 요청 생성 성공
+
+CASE 2
+pending 목록 표시
+
+CASE 3
+현재 담당 선생님에게 표시
+
+CASE 4
+다른 선생님에게 미표시
+
+CASE 5
+co_teacher에게 정책대로 표시
+
+CASE 6
+done 처리 성공
+
+CASE 7
+done 결과 알림 생성
+
+CASE 8
+Push 수신
+
+CASE 9
+알림 목록 표시
+
+CASE 10
+알림 탭 → requests 이동
+
+CASE 11
+정확한 request 강조
+
+CASE 12
+Back 1회 정상
+
+CASE 13
+done→done 중복 결과 알림 없음
+
+CASE 14
+rejected 처리 정상
+
+CASE 15
+rejected 결과 알림 정상
+
+CASE 16
+Pull-to-refresh 최신 상태 반영
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 실패 시 규칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+flex:0 제거 OTA 후에도 Modal form이 보이지 않는 경우:
+
+절대 즉시 CSS를 더 추가하지 않는다.
+
+다음 실제 Runtime 구조만 다시 조사:
+
+modalOverlay measured height
+modalSheet measured height
+KeyboardAwareScrollView measured height
+contentContainer height
+
+어느 레이어가 최초로 0 또는 비정상 높이가 되는지 찾은 뒤 중단 보고한다.
+
+추측 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. 작업 시작 Branch
+2. 시작 Local HEAD
+3. 시작 Remote HEAD
+4. 수정 파일
+5. 정확한 수정 내용
+6. git diff --stat
+7. Commit SHA
+8. Push SHA
+9. Render 실행 여부 = 없음
+10. DB 변경 = 0
+11. iOS OTA Group ID
+12. iOS Update ID
+13. Android OTA Group ID
+14. Android Update ID
+15. runtimeVersion
+16. 보호 영역 변경 = 0
+17. Modal 실기기 결과 = 사용자 확인 대기
+18. E2E 결과 = 실제 확인된 것만 PASS/FAIL/UNKNOWN
+
+이번 단계의 목표는:
+
+"Modal form이 실제 화면에 정상 표시되는 상태 복구"
+
+이다.
+
+서버 기능을 다시 설계하거나
+정상화된 다른 기능을 수정하지 않는다.
