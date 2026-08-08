@@ -30,3 +30,5 @@
 - [WP4 완료 상태](wp4-done-state.md) — XModeBadge 신규+3개 화면 삽입(dashboard/today-schedule/home), WP5 격리검증으로 이어짐
 - [WP5 진행 상태](wp5-progress.md) — WP5-D/E/F 완료; 다음: WP5-C(teacher/parent 생성) 후 동적 재검증, foreground Mode 재조회 미구현(F-01) 기록
 - [WP6 감사 완료 상태](wp6-audit-done.md) — 97/97 테스트 통과, DB 쓰기 없음, GitHub push 없음; WP7 차단조건(PENDING_REVIEW 명시) 기록
+- [AlbumPicker 사진 중복사용 허용](album-picker-attached-restriction-removed.md) — isAttached 차단 제거 완료; 서버 clone 메커니즘(Case C)이 N:M 지원; OTA e6dbae54 배포됨
+- [교사 일지 히스토리 사진 조회 경로](diary-photo-strip-query-path.md) — DiaryPhotoStrip teacher모드=/photos/group/:id?date=, /photos/diary/:id 아님; 재발 시 추적 순서 기록
