@@ -1,0 +1,278 @@
+[SWIMNOTE 학부모 요청 — STOP / 실기기와 배포 코드 불일치 원인 감사]
+
+지금부터 코드 수정 절대 금지.
+
+실기기 검증 결과가 직전 완료 보고와 일치하지 않는다.
+
+실기기 CONFIRMED:
+
+1. 학부모 > 수업 요청 화면 진입 가능
+2. 요청 목록은 현재 0건
+3. + 버튼 클릭 가능
+4. "새 요청 보내기" Bottom Sheet는 열림
+5. 그러나 Bottom Sheet 내부의 실제 요청 작성 UI가 전혀 표시되지 않음
+6. 화면에는 제목 "새 요청 보내기"와 "취소"만 보이고 내용 영역은 빈 상태
+7. 따라서 직전 보고의 CASE 13~16 정상 판정은 실기기 기준 INVALID
+8. 알림 화면에도 현재 확인되는 것은 기존 수업 일지 알림이며
+   parent_request_result 알림은 아직 실기기 검증되지 않음
+
+중요:
+
+지금은 고치지 않는다.
+추측하지 않는다.
+새 Commit/Push/Render/OTA 금지.
+
+목표는 단 하나:
+
+"왜 fa84d330에서 수정했다고 보고한 requests.tsx가
+현재 Production 실기기에서 정상 렌더링되지 않는지"
+
+정확히 증명한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 기준선 다시 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 실제 값을 제출:
+
+- current branch
+- local HEAD
+- origin/deploy-photo-clone HEAD
+- working tree
+- fa84d330 존재 여부
+- fa84d330 parent commit
+- fa84d330 changed files
+
+특히 Replit auto-commit e7b51b0f가 무엇을 변경했는지:
+
+git show --stat e7b51b0f
+git diff fa84d330..e7b51b0f -- artifacts/swim-app/app/\(parent\)/requests.tsx
+git diff fa84d330..e7b51b0f -- artifacts/swim-app/app/\(parent\)/notifications.tsx
+git diff fa84d330..e7b51b0f -- artifacts/api-server/src/routes/parent-requests.ts
+
+결과 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. fa84d330의 requests.tsx 실제 코드 감사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+git show fa84d330:'artifacts/swim-app/app/(parent)/requests.tsx'
+
+기준으로 실제 Modal/Bottom Sheet 렌더 트리를 처음부터 끝까지 조사한다.
+
+확인:
+
++ 버튼
+→ 어떤 state 변경
+→ Modal/BottomSheet visible
+→ overlay
+→ sheet
+→ KeyboardAwareScrollView
+→ 요청 종류 selector
+→ 학생 selector
+→ 입력 필드
+→ submit button
+
+각 UI가 실제 JSX에 존재하는지 확인한다.
+
+"구현됨"이라고 말하지 말고
+각 요소의 실제 렌더 조건을 제출한다.
+
+예:
+
+{modalVisible && ...}
+{selectedStudent && ...}
+{requestType && ...}
+
+처럼 어떤 조건 때문에 내부가 사라질 수 있는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 빈 Bottom Sheet 직접 원인 찾기
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기 증상:
+
+Bottom Sheet 외곽 정상
+제목 정상
+취소 정상
+내부 콘텐츠만 0
+
+따라서 다음을 전부 확인:
+
+A. KeyboardAwareScrollView가 실제 children을 가지고 있는가
+B. style/flex/maxHeight 문제로 높이가 0이 되는가
+C. Pressable 중첩으로 children이 잘리는가
+D. conditional rendering 조건이 false인가
+E. 학생 목록 load 실패 때문에 전체 form을 숨기는가
+F. 요청 타입 데이터가 비어 전체 form을 숨기는가
+G. ScrollView/KeyboardAwareScrollView import 또는 사용법 오류인가
+H. Modal 구조 변경 과정에서 기존 form JSX가 삭제/이동되었는가
+
+반드시 하나의 최초 비정상 지점을 찾는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 작업 전 정상/비정상 기준과 비교
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+fa84d330 직전 commit의 requests.tsx와 비교한다.
+
+git diff fa84d330^..fa84d330 -- \
+'artifacts/swim-app/app/(parent)/requests.tsx'
+
+특히 321 insertions / 150 deletions 중
+requests.tsx에서 무엇이 삭제되고 무엇이 추가됐는지 조사한다.
+
+Modal 관련 변경만 별도로 정리:
+
+BEFORE
+→ 실제 JSX 구조
+
+AFTER
+→ 실제 JSX 구조
+
+그리고 현재 빈 Bottom Sheet를 만든 변경이
+fa84d330에서 발생했는지 증명한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. OTA 실제 bundle 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+보고서만 믿지 말고 실제 Production OTA를 확인한다.
+
+기존 보고:
+
+iOS Update ID
+019fdf94-b694-720e-9efc-5695b1c538bb
+
+Android Update ID
+019fdf95-47a3-7874-b74f-a4cba647dc7d
+
+Runtime 1.6.1
+Commit fa84d330
+
+확인:
+
+- 해당 Update가 실제 fa84d330 소스에서 export됐는지
+- requests.tsx 변경 코드가 bundle에 포함됐는지
+- 다른 checkout/working tree에서 export된 것은 아닌지
+- e7b51b0f auto-commit과 OTA 생성 시각 관계
+- Production channel 최신 Update가 위 Update인지
+
+가능하면 bundle에서
+fa84d330에 새로 추가한 requests.tsx 고유 문자열을 검색해서
+실제 포함 여부를 증명한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 실기기 화면과 소스 매칭
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기 화면:
+
+상단:
+수업 요청
++
+요청 내역이 없습니다
+
+Bottom Sheet:
+새 요청 보내기
+취소
+[이하 완전히 빈 화면]
+
+이 UI를 생성할 수 있는 현재 repository 코드를 찾는다.
+
+반드시 답한다:
+
+- 이 화면이 fa84d330 requests.tsx에서 생성 가능한가?
+YES / NO
+
+YES라면:
+정확히 어떤 렌더 조건/스타일 때문에 내부가 빈 것인가?
+
+NO라면:
+실기기가 어떤 이전 코드 또는 다른 bundle을 실행하고 있는가?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Server 문제와 UI 문제 분리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 빈 Bottom Sheet는 우선 Client Render 문제다.
+
+Render server fa84d330 배포 완료를 이유로
+Modal이 정상이라고 판정하지 않는다.
+
+Server:
+fa84d330 Live
+
+Client:
+실제 OTA bundle/실기기 렌더 별도 검증
+
+둘을 분리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 알림 기능도 아직 완료 판정 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기 알림 화면에서 확인된 것은
+기존 diary notification뿐이다.
+
+따라서 다음은 아직 UNKNOWN:
+
+- parent_request_result DB 생성
+- 학부모 결과 Push
+- 알림 목록 표시
+- 알림 tap → requests deep-link
+- requestId highlight
+
+요청 작성 Modal부터 정상화된 후
+실제 요청 하나를 생성해서 end-to-end 검증해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 이번 단계 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CODE CHANGE 금지
+DB CHANGE 금지
+COMMIT 금지
+PUSH 금지
+RENDER 금지
+OTA 금지
+
+보강 수정 금지
+일지 수정 금지
+AI 수정 금지
+사진 수정 금지
+SessionContext 수정 금지
+Auth/JWT 수정 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. Branch
+2. Local HEAD
+3. Remote HEAD
+4. fa84d330 → e7b51b0f 차이
+5. fa84d330 requests.tsx Modal 실제 구조
+6. 직전 버전 vs fa84d330 Modal diff
+7. 빈 Bottom Sheet 최초 비정상 지점
+8. Production OTA 실제 Update ID
+9. OTA bundle에 fa84d330 requests 코드 포함 여부
+10. 실기기 화면이 fa84d330에서 생성 가능한지 YES/NO
+11. 가능하다면 정확한 렌더 실패 원인
+12. 불가능하다면 실제 실행 중인 bundle/버전
+13. 수정 필요 예상 파일
+14. 최소 수정안
+15. 알림 E2E 현재 상태 = UNKNOWN 확인
+
+마지막 줄:
+
+CODE CHANGED: 0
+DB CHANGED: 0
+COMMIT: 0
+PUSH: 0
+RENDER: 0
+OTA: 0
+
+원인 보고 후 반드시 멈춘다.
