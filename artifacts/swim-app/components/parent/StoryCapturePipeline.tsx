@@ -27,6 +27,10 @@ import { captureRef } from "react-native-view-shot";
 import * as MediaLibrary from "expo-media-library";
 import * as FileSystem from "expo-file-system/legacy";
 import Share, { Social } from "react-native-share";
+
+// Meta/Facebook App ID — EXPO_PUBLIC_META_APP_ID 환경변수에서 읽음
+// 값이 없으면 Instagram Story 직접 공유 불가 (갤러리 저장 fallback)
+const META_APP_ID = process.env.EXPO_PUBLIC_META_APP_ID ?? "";
 import StoryPageRenderer, {
   STORY_W,
   STORY_H,
