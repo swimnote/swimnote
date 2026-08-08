@@ -117,8 +117,6 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
         AND is_deleted = false
     `);
     const diarySet = new Set((diaryRows.rows as any[]).map(r => r.class_group_id));
-    // [DIAG-WP2A] 진단 로그 — 확인 후 제거
-    console.log(`[DIAG-WP2A/today-schedule] userId=${user.userId} poolId=${poolId} dateParam=${dateParam} diaryGroupIds=[${[...diarySet].join(",")}] scheduleGroupIds=[${groups.map((g:any)=>g.id).join(",")}] diary_done=[${groups.map((g:any)=>diarySet.has(g.id)).join(",")}]`);
 
     // 메모 존재 여부
     const teacherId = user.userId;
