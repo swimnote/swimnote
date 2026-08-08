@@ -146,7 +146,7 @@ export default function ParentNotificationsScreen() {
   const fetchNotifications = useCallback(async () => {
     setNotifError(null);
     try {
-      const res = await apiRequest(token, "/notifications");
+      const res = await apiRequest(token, "/notifications", { _noCache: true });
       if (res.ok) {
         const data = await res.json();
         setNotifications(data.notifications || []);
@@ -162,7 +162,12 @@ export default function ParentNotificationsScreen() {
     }
   }, [token]);
 
-  useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
+  // 마운트 시 1회 + 30초 polling (Teacher 메시지 도착 시 badge 자동 갱신)
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30_000);
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
 
   /* ── fetchRequests ── */
   const fetchRequests = useCallback(async () => {

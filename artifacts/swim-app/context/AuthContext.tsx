@@ -391,16 +391,22 @@ export function useAuth() {
   };
 }
 
-export async function apiRequest(token: string | null, path: string, options: RequestInit = {}) {
+// _noCache: true를 넘기면 GET cache를 bypass하고 항상 network 요청
+export async function apiRequest(
+  token: string | null,
+  path: string,
+  options: RequestInit & { _noCache?: boolean } = {}
+) {
+  const { _noCache: noCache = false, ...fetchOpts } = options;
   const url = `${_API_BASE}${path}`;
-  const method = (options.method ?? "GET").toUpperCase();
+  const method = (fetchOpts.method ?? "GET").toUpperCase();
   const isWrite = method !== "GET";
 
   // ── 쓰기 요청: 관련 캐시 즉시 삭제 ──────────────────────────────────────
   if (isWrite) _bustRelated(path);
 
-  // ── GET: 캐시 히트 시 즉시 반환 ──────────────────────────────────────────
-  if (!isWrite) {
+  // ── GET: 캐시 히트 시 즉시 반환 (noCache=true이면 bypass) ────────────────
+  if (!isWrite && !noCache) {
     try {
       const cacheKey = _makeCacheKey(token, path);
       const cached = _getCached(cacheKey);
@@ -425,13 +431,13 @@ export async function apiRequest(token: string | null, path: string, options: Re
   try {
     res = await fetch(url, {
       cache: "no-store",
-      ...options,
+      ...fetchOpts,
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
         "Cache-Control": "no-cache",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...options.headers,
+        ...fetchOpts.headers,
       },
     });
   } catch (e: any) {
@@ -442,8 +448,8 @@ export async function apiRequest(token: string | null, path: string, options: Re
   clearTimeout(timeoutId);
   console.log(`[API←] ${res.status} ${url}`);
 
-  // ── GET 2xx 응답만 캐시 저장 ─────────────────────────────────────────────
-  if (!isWrite && res.ok) {
+  // ── GET 2xx 응답만 캐시 저장 (noCache=true이면 저장 안 함) ───────────────
+  if (!isWrite && !noCache && res.ok) {
     try {
       const cacheKey = _makeCacheKey(token, path);
       const clonedForCache = res.clone();

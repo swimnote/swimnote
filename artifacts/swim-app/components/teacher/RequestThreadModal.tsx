@@ -88,7 +88,7 @@ export function RequestThreadModal({ visible, request, token, themeColor, onClos
     fetchingRef.current = true;
     if (!silent) setLoading(true);
     try {
-      const res = await apiRequest(token, `/parent-requests/${request.id}/messages`);
+      const res = await apiRequest(token, `/parent-requests/${request.id}/messages`, { _noCache: true });
       if (res.ok) {
         const d = await res.json();
         const msgs: RequestMessage[] = d.messages || [];

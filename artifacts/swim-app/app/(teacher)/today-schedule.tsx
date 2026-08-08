@@ -117,7 +117,7 @@ export default function TodayScheduleScreen() {
   const loadOverview = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await apiRequest(token, "/teacher/overview");
+      const res = await apiRequest(token, "/teacher/overview", { _noCache: true });
       if (res.ok) setOverview(await res.json());
     } catch { /* 무시 */ }
   }, [token]);
@@ -160,7 +160,7 @@ export default function TodayScheduleScreen() {
   useFocusEffect(useCallback(() => {
     load();
     loadAllGroups();
-    overviewTimerRef.current = setInterval(loadOverview, 60_000);
+    overviewTimerRef.current = setInterval(loadOverview, 15_000);
     return () => { if (overviewTimerRef.current) clearInterval(overviewTimerRef.current); };
   }, [load, loadAllGroups, loadOverview]));
   // 일지 생성/삭제 이벤트 구독 → items diary_done 즉시 갱신 + overview 카운트 재조회
