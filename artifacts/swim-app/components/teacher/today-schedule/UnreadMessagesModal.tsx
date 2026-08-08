@@ -74,8 +74,10 @@ export default function UnreadMessagesModal({
     }).catch(() => setItems([])).finally(() => setLoading(false));
   }, [visible]);
 
-  function fmtDate(s: string) {
+  function fmtDate(s: string | null | undefined): string {
+    if (!s) return "";
     const d = new Date(s);
+    if (isNaN(d.getTime())) return "";
     return `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`;
   }
 

@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {ActivityIndicator, Alert, FlatList, Image,
-  Platform, Pressable, StyleSheet, Text,
+  Platform, Pressable, RefreshControl, StyleSheet, Text,
   TextInput, View} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -105,7 +105,9 @@ export default function MessagesInboxScreen() {
 
   const [parentRequests, setParentRequests] = useState<ParentRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
+  const [reqRefreshing, setReqRefreshing] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const scrollRef = useRef<any>(null);
 
@@ -119,7 +121,6 @@ export default function MessagesInboxScreen() {
   }, [token]);
 
   const fetchRequests = useCallback(async () => {
-    setLoadingRequests(true);
     try {
       const res = await apiRequest(token, "/teacher/parent-requests");
       if (res.ok) {
@@ -127,7 +128,7 @@ export default function MessagesInboxScreen() {
         setParentRequests(d.data || []);
       }
     } catch { }
-    finally { setLoadingRequests(false); }
+    finally { setLoadingRequests(false); setReqRefreshing(false); }
   }, [token]);
 
   const openThread = useCallback(async (thread: Thread) => {
@@ -471,12 +472,20 @@ export default function MessagesInboxScreen() {
             data={parentRequests}
             keyExtractor={item => item.id}
             contentContainerStyle={{ padding: 16, gap: 10 }}
+            refreshControl={
+              <RefreshControl
+                refreshing={reqRefreshing}
+                onRefresh={() => { setReqRefreshing(true); fetchRequests(); }}
+                tintColor={themeColor}
+              />
+            }
             renderItem={({ item }) => {
               const typeColor = REQUEST_TYPE_COLOR[item.request_type] || "#6B7280";
               const typeLabel = REQUEST_TYPE_LABEL[item.request_type] || item.request_type;
               const statusStyle = STATUS_COLOR[item.status] || STATUS_COLOR.pending;
               const isUpdating = updatingId === item.id;
               const isUnread = !item.is_read_by_teacher;
+              const isExpanded = expandedId === item.id;
               return (
                 <Pressable
                   style={({ pressed }) => [
@@ -484,7 +493,10 @@ export default function MessagesInboxScreen() {
                     isUnread && { borderColor: "#3B82F6", borderWidth: 1.5, backgroundColor: "#F0F7FF" },
                     { opacity: pressed ? 0.92 : 1 },
                   ]}
-                  onPress={() => { if (isUnread) markAsRead(item.id); }}
+                  onPress={() => {
+                    if (isUnread) markAsRead(item.id);
+                    setExpandedId(isExpanded ? null : item.id);
+                  }}
                 >
                   {/* 미읽음 표시 */}
                   {isUnread && (
@@ -510,12 +522,18 @@ export default function MessagesInboxScreen() {
                       요청일: {item.request_date.slice(0, 10)}
                     </Text>
                   )}
-                  {/* 내용 */}
+                  {/* 내용 — 탭하면 전체 펼침 */}
                   {item.content ? (
-                    <Text style={[s.reqContent, { color: C.textSecondary }]} numberOfLines={3}>
+                    <Text style={[s.reqContent, { color: C.textSecondary }]} numberOfLines={isExpanded ? undefined : 3}>
                       {item.content}
                     </Text>
                   ) : null}
+                  {/* 펼치기 힌트 */}
+                  {!isExpanded && item.content && item.content.length > 60 && (
+                    <Text style={{ fontSize: 11, color: themeColor, fontFamily: "Pretendard-Regular", marginTop: -6 }}>
+                      탭하여 전체 보기
+                    </Text>
+                  )}
                   {/* 상태 + 처리 버튼 */}
                   <View style={s.reqBottom}>
                     <View style={[s.statusBadge, { backgroundColor: statusStyle.bg }]}>

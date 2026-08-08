@@ -285,7 +285,8 @@ router.get("/teacher/parent-requests", requireAuth, requireRole("teacher", "pool
          AND cg.is_deleted = false
         WHERE psr.swimming_pool_id = ${me.swimming_pool_id}
           AND (
-            cg.teacher_user_id = ${userId}
+            psr.teacher_user_id = ${userId}
+            OR cg.teacher_user_id = ${userId}
             OR cg.co_teacher_ids @> to_jsonb(${userId}::text)
           )
           AND s.status NOT IN ('withdrawn', 'deleted', 'archived')
