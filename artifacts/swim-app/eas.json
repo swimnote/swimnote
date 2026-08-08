@@ -1,6 +1,6 @@
 {
   "cli": {
-    "version": ">= 14.0.0",
+    "version": ">= 16.0.0",
     "appVersionSource": "local"
   },
   "build": {
@@ -9,7 +9,8 @@
       "distribution": "internal"
     },
     "preview": {
-      "channel": "preview",
+      "distribution": "internal",
+      "channel": "production",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://swimnote-api.onrender.com/api",
         "EXPO_PUBLIC_DOMAIN": "swimnote-api.onrender.com",
@@ -22,12 +23,10 @@
         "EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH": "/api/v1/teacher-diary/generate"
       },
       "android": {
-        "buildType": "apk",
-        "distribution": "internal"
+        "buildType": "apk"
       },
       "ios": {
-        "simulator": false,
-        "distribution": "store"
+        "simulator": false
       }
     },
     "production": {
@@ -42,11 +41,39 @@
         "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo",
         "EXPO_PUBLIC_META_APP_ID": "2093655621362240"
       },
-      "ios": {
-        "image": "macos-sequoia-15.6-xcode-26.2"
-      },
       "android": {
         "buildType": "app-bundle"
+      }
+    },
+    "instagram-ios-test": {
+      "channel": "instagram-test",
+      "distribution": "store",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://swimnote-api.onrender.com/api",
+        "EXPO_PUBLIC_DOMAIN": "swimnote-api.onrender.com",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_iOSUEXOdIktvMemPmJEbTDelJXu",
+        "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo",
+        "EXPO_PUBLIC_META_APP_ID": "2093655621362240"
+      },
+      "ios": {
+        "distribution": "store",
+        "image": "macos-sequoia-15.6-xcode-26.2"
+      }
+    },
+    "instagram-android-test": {
+      "channel": "instagram-test",
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://swimnote-api.onrender.com/api",
+        "EXPO_PUBLIC_DOMAIN": "swimnote-api.onrender.com",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_iOSUEXOdIktvMemPmJEbTDelJXu",
+        "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo",
+        "EXPO_PUBLIC_META_APP_ID": "2093655621362240"
+      },
+      "android": {
+        "buildType": "apk"
       }
     }
   },
