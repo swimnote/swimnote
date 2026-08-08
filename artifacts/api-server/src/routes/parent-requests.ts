@@ -624,8 +624,8 @@ router.post("/parent-requests/:requestId/messages", requireAuth,
       const typeLabel = REQUEST_TYPE_NAMES[reqRow.request_type] || "요청";
 
       if (senderType === "teacher" && reqRow.parent_id) {
-        const pushTitle = `${typeLabel}에 새 답변이 있습니다`;
-        const pushBody = "선생님이 메시지를 보냈습니다.";
+        const pushTitle = `${typeLabel}에 답변이 도착했습니다`;
+        const pushBody = "선생님이 새 메시지를 보냈습니다.";
         try {
           const notifId = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
           await db.execute(sql`

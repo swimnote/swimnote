@@ -86,11 +86,22 @@ const STATUS_COLOR: Record<string, { text: string; bg: string }> = {
 export default function MessagesInboxScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
-  const params = useLocalSearchParams<{ diaryId?: string; backTo?: string; tab?: string }>();
+  const params = useLocalSearchParams<{ diaryId?: string; backTo?: string; tab?: string; requestId?: string }>();
 
   const [activeTab, setActiveTab] = useState<"messages" | "requests">(
     params.tab === "requests" ? "requests" : "messages"
   );
+  const [highlightReqId, setHighlightReqId] = useState<string | null>(params.requestId || null);
+
+  // 홈에서 특정 requestId로 진입 시 탭 전환 + 강조
+  useEffect(() => {
+    if (params.requestId) {
+      setActiveTab("requests");
+      setHighlightReqId(params.requestId);
+      const timer = setTimeout(() => setHighlightReqId(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [params.requestId]);
 
   const [view, setView] = useState<"list" | "thread">("list");
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -113,6 +124,7 @@ export default function MessagesInboxScreen() {
   const [threadModalReq, setThreadModalReq] = useState<ParentRequest | null>(null);
 
   const scrollRef = useRef<any>(null);
+  const reqFlatListRef = useRef<any>(null);
 
   const fetchThreads = useCallback(async () => {
     setLoadingThreads(true);
@@ -149,6 +161,18 @@ export default function MessagesInboxScreen() {
 
   useEffect(() => { fetchThreads(); fetchRequests(); }, [fetchThreads, fetchRequests]);
 
+  // 강조 대상 requestId가 있으면 해당 아이템으로 스크롤
+  useEffect(() => {
+    if (activeTab === "requests" && highlightReqId && parentRequests.length > 0) {
+      const idx = parentRequests.findIndex(r => r.id === highlightReqId);
+      if (idx >= 0) {
+        setTimeout(() => {
+          reqFlatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.3 });
+        }, 500);
+      }
+    }
+  }, [activeTab, highlightReqId, parentRequests]);
+
   useEffect(() => {
     if (!params.diaryId || loadingThreads) return;
     const found = threads.find(t => t.diary_id === params.diaryId);
@@ -157,7 +181,7 @@ export default function MessagesInboxScreen() {
     } else if (params.diaryId) {
       const synthetic: Thread = {
         diary_id: params.diaryId, lesson_date: "", class_name: "",
-        parent_msg_count: 0, unread_count: 0, last_msg_at: "",
+        parent_msg_count: 0, unread_count: 0, unread_comment_count: 0, last_msg_at: "",
         last_content: "", last_sender_role: "parent", last_sender_name: "",
       };
       openThread(synthetic);
@@ -472,9 +496,11 @@ export default function MessagesInboxScreen() {
           </View>
         ) : (
           <FlatList
+            ref={reqFlatListRef}
             data={parentRequests}
             keyExtractor={item => item.id}
             contentContainerStyle={{ padding: 16, gap: 10 }}
+            onScrollToIndexFailed={() => {}}
             refreshControl={
               <RefreshControl
                 refreshing={reqRefreshing}
@@ -482,18 +508,20 @@ export default function MessagesInboxScreen() {
                 tintColor={themeColor}
               />
             }
-            renderItem={({ item }) => {
+            renderItem={({ item, index }) => {
               const typeColor = REQUEST_TYPE_COLOR[item.request_type] || "#6B7280";
               const typeLabel = REQUEST_TYPE_LABEL[item.request_type] || item.request_type;
               const statusStyle = STATUS_COLOR[item.status] || STATUS_COLOR.pending;
               const isUpdating = updatingId === item.id;
               const isUnread = !item.is_read_by_teacher;
               const isExpanded = expandedId === item.id;
+              const isHighlighted = highlightReqId === item.id;
               return (
                 <Pressable
                   style={({ pressed }) => [
                     s.reqCard,
                     isUnread && { borderColor: "#3B82F6", borderWidth: 1.5, backgroundColor: "#F0F7FF" },
+                    isHighlighted && { borderColor: "#2EC4B6", borderWidth: 2, backgroundColor: "#E6FFFA" },
                     { opacity: pressed ? 0.92 : 1 },
                   ]}
                   onPress={() => {
@@ -605,7 +633,7 @@ export default function MessagesInboxScreen() {
       <RequestThreadModal
         visible={!!threadModalReq}
         request={threadModalReq}
-        token={token}
+        token={token ?? ""}
         themeColor={themeColor}
         onClose={() => setThreadModalReq(null)}
         onRefreshList={fetchRequests}

@@ -9,6 +9,7 @@ import { apiRequest } from "@/context/AuthContext";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -104,21 +105,27 @@ export function RequestThreadModal({ visible, request, token, themeColor, onClos
     if (!request || !replyText.trim() || sending) return;
     setSending(true);
     const text = replyText.trim();
-    setReplyText("");
+    // 텍스트는 전송 성공 후에만 초기화 (실패 시 유지)
     try {
       const res = await apiRequest(token, `/parent-requests/${request.id}/messages`, {
         method: "POST",
         body: JSON.stringify({ content: text }),
       });
+      const d = await res.json().catch(() => ({}));
       if (res.ok) {
-        const d = await res.json();
-        if (d.message) {
-          setMessages(prev => [...prev, d.message]);
+        const newMsg = d.message ?? d.data;
+        if (newMsg) {
+          setMessages(prev => [...prev, newMsg]);
           setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
         }
+        setReplyText(""); // 성공 시에만 초기화
         onRefreshList?.();
+      } else {
+        Alert.alert("전송 실패", d.message || `오류가 발생했습니다. (${res.status})`);
       }
-    } catch {}
+    } catch {
+      Alert.alert("전송 실패", "네트워크 오류가 발생했습니다. 다시 시도해주세요.");
+    }
     setSending(false);
   }
 

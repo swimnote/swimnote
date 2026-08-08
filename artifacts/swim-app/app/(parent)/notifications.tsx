@@ -455,12 +455,11 @@ export default function ParentNotificationsScreen() {
                 const statusCfg = STATUS_COLOR[req.status] || STATUS_COLOR.pending;
                 const isHighlighted = highlightId && req.id === highlightId;
                 return (
-                  <Pressable
+                  <View
                     key={req.id}
-                    onPress={() => setThreadRequest(req)}
-                    style={({ pressed }) => [
+                    style={[
                       st.reqCard,
-                      { backgroundColor: C.card, opacity: pressed ? 0.93 : 1 },
+                      { backgroundColor: C.card },
                       isHighlighted && { borderWidth: 2, borderColor: "#2EC4B6", backgroundColor: "#E6FFFA" },
                     ]}
                   >
@@ -494,12 +493,15 @@ export default function ParentNotificationsScreen() {
                     {safeDate(req.created_at) ? (
                       <Text style={[st.reqDate, { color: C.textMuted }]}>{safeDate(req.created_at)}</Text>
                     ) : null}
-                    {/* 대화 스레드 힌트 */}
-                    <View style={st.threadHint}>
-                      <LucideIcon name="message-circle" size={13} color={C.textMuted} />
-                      <Text style={[st.threadHintTxt, { color: C.textMuted }]}>탭하여 업무 대화 보기</Text>
-                    </View>
-                  </Pressable>
+                    {/* 대화 버튼 */}
+                    <Pressable
+                      style={({ pressed }) => [st.chatBtn, { borderColor: typeCfg?.color || C.border, opacity: pressed ? 0.8 : 1 }]}
+                      onPress={() => setThreadRequest(req)}
+                    >
+                      <LucideIcon name="message-circle" size={14} color={typeCfg?.color || C.textSecondary} />
+                      <Text style={[st.chatBtnTxt, { color: typeCfg?.color || C.textSecondary }]}>대화</Text>
+                    </Pressable>
+                  </View>
                 );
               })}
             </ScrollView>
@@ -511,7 +513,7 @@ export default function ParentNotificationsScreen() {
       <ParentRequestThreadModal
         visible={!!threadRequest}
         request={threadRequest}
-        token={token}
+        token={token ?? ""}
         onClose={() => setThreadRequest(null)}
         onRefreshList={fetchRequests}
       />
@@ -710,8 +712,8 @@ const st = StyleSheet.create({
   reqContent: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   adminNote: { padding: 10, borderRadius: 8 },
   reqDate: { fontSize: 11, fontFamily: "Pretendard-Regular", textAlign: "right" },
-  threadHint: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
-  threadHintTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  chatBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, marginTop: 4 },
+  chatBtnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", fontWeight: "600" },
 
   /* Modal */
   backdrop: { backgroundColor: "rgba(0,0,0,0.4)" },

@@ -140,13 +140,10 @@ export default function UnreadMessagesModal({
                   <Pressable key={`req-${req.id}`} style={[um.item, { borderBottomColor: C.border }]}
                     onPress={() => {
                       onClose();
-                      if (req.request_type === "absence") {
-                        router.push("/(teacher)/attendance" as any);
-                      } else if (req.request_type === "makeup") {
-                        router.push("/(teacher)/makeups" as any);
-                      } else {
-                        router.push(`/(teacher)/messages-inbox?tab=requests` as any);
-                      }
+                      router.push({
+                        pathname: "/(teacher)/messages-inbox",
+                        params: { tab: "requests", requestId: req.id },
+                      } as any);
                     }}>
                     <View style={[um.iconBox, { backgroundColor: typeColor + "18" }]}>
                       <LucideIcon name="clipboard-list" size={16} color={typeColor} />
