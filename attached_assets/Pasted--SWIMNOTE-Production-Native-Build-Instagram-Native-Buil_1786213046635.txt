@@ -1,0 +1,223 @@
+[SWIMNOTE Production 안전 백업 체크포인트 생성 — Native Build 전 필수]
+
+목적:
+
+Instagram Native Build 작업 전에
+현재 Production에서 정상 동작 중인 SWIMNOTE 상태를
+언제든 완전히 복원 가능한 기준점으로 고정한다.
+
+이번 단계에서는 기능 수정 금지.
+Native Build 금지.
+OTA 금지.
+Render 재배포 금지.
+
+백업/기준선 고정만 수행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 Production 기준선 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 제출:
+
+- Current branch
+- Local HEAD
+- Remote HEAD
+- git status --short
+- latest Production OTA Group ID
+- latest iOS Update ID
+- latest Android Update ID
+- current runtimeVersion
+- current appVersion
+- current Production channel
+- current Render Live SHA
+- current Render Deploy ID
+- current API_BASE
+- current EAS projectId
+
+Local/Remote가 다르면 중단.
+
+working tree에 기능 코드 변경이 남아 있으면
+백업 전에 임의 commit하지 말고 먼저 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. Production 코드 백업 branch 생성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production 기준 HEAD에서
+명확한 backup branch 생성.
+
+예:
+
+backup/production-before-instagram-native-20260809
+
+이 branch는
+현재 Production의 최신 기능 코드 전체를 보존해야 한다.
+
+과거 build SHA나 과거 release branch 기준으로 만들지 않는다.
+
+반드시 현재 최신 HEAD 기준.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Git Tag 생성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 branch 외에 immutable tag도 생성.
+
+예:
+
+production-pre-instagram-native-20260809
+
+Tag가 현재 최신 Production HEAD를 가리키는지 확인.
+
+tag push 여부도 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Production OTA 상태 기록
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 사용자들이 받고 있는 최신 OTA를 기록한다.
+
+반드시 저장:
+
+- Update Group ID
+- iOS Update ID
+- Android Update ID
+- runtimeVersion
+- channel
+- message
+- published time
+
+이 값들은 rollback 기준으로 사용.
+
+기존 OTA 삭제/재게시 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Render 서버 기준 기록
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production API 서버 기준:
+
+- Render service
+- Deploy ID
+- Live SHA
+- Health status
+- version
+- deployed time
+
+기록.
+
+서버 재배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Native Build 전 설정 백업
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 파일의 현재 상태를 별도 기록:
+
+- app.json
+- eas.json
+- package.json
+- pnpm-lock.yaml
+- Instagram 관련 plugin 파일
+- runtimeVersion/appVersion 설정
+
+특히 Instagram Native Build 준비 중
+eas.json이 여러 번 변경됐으므로
+현재 상태와 “정상 Production 기준 상태”를 구분해서 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 최근 완료 기능 포함 여부 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 backup HEAD에 아래 최근 완료 기능이 실제 포함됐는지 확인:
+
+- 학부모 요청/알림 통합
+- 선생님 학부모 요청함
+- 업무대화
+- 업무대화 양방향 메시지
+- unread/red dot
+- 양방향 소식 Push
+- Push 설정 news ON/OFF
+- Teacher 소식 탭
+- 좋아요/감사합니다/댓글 소식
+- 댓글 학부모별 thread 격리
+- 댓글 diary별 격리
+- 댓글 keyboard 수정
+
+코드 존재 여부만 확인.
+재수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 복구 절차도 같이 기록
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+문제가 생겼을 때 복구 방법을 문서화.
+
+예:
+
+A. 코드 복구
+→ backup branch/tag checkout
+
+B. OTA 복구
+→ 기존 runtimeVersion 1.6.1 Production update 재사용 또는 rollback 절차
+
+C. 서버 복구
+→ 현재 Render Live SHA 기준 redeploy
+
+D. Native build 실패
+→ 기존 App Store/Play Store binary 유지
+
+복구 명령을 실제 프로젝트 기준으로 정리.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 백업 단계에서:
+
+- app version 변경 금지
+- runtimeVersion 변경 금지
+- eas.json 추가 수정 금지
+- app.json 수정 금지
+- package 설치/삭제 금지
+- Native Build 금지
+- OTA 금지
+- Render 금지
+- DB 변경 금지
+- 기능 코드 변경 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. Current branch
+2. Local HEAD
+3. Remote HEAD
+4. Working tree
+5. Backup branch name
+6. Backup branch SHA
+7. Git tag
+8. Tag SHA
+9. Latest Production OTA Group ID
+10. iOS Update ID
+11. Android Update ID
+12. runtimeVersion
+13. appVersion
+14. Production channel
+15. Render Deploy ID
+16. Render Live SHA
+17. Health
+18. API_BASE
+19. EAS projectId
+20. 최근 완료 기능 포함 확인
+21. 백업된 설정 파일 목록
+22. 복구 절차
+23. CODE CHANGED = 0
+24. DB CHANGED = 0
+25. OTA = 0
+26. BUILD = 0
+27. RENDER = 0
+
+보고 후 멈춘다.
