@@ -1,0 +1,254 @@
+[SWIMNOTE Instagram Story V1 — 실기기 확인 후 UI 미세수정]
+
+현재 iOS Native Build 1.6.2에서 Instagram Story 직접 공유 실기기 테스트에 성공했습니다.
+
+현재 확인 완료:
+- SWIMNOTE → Instagram Story Composer 진입 성공
+- 일지 이미지 정상 전달
+- 사진 정상 표시
+- 날짜/선생님/반/본문 정상 표시
+- SWIMNOTE 브랜딩 표시
+- Instagram 게시 화면 정상 진입
+
+이번 작업은 Instagram 공유 기능 구조 변경이 아닙니다.
+실제 Story 이미지의 가독성 개선만 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 절대 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기에서 정상 작동한 Story 디자인과 공유 Pipeline을 기준으로 수정합니다.
+
+절대 변경 금지:
+- Instagram 공유 방식
+- react-native-share 호출 구조
+- captureRef 구조
+- pagination 로직
+- 사진 개수/사진 배열 처리
+- 사진 배치 방식
+- 일지 데이터 구조
+- Story 전체 레이아웃 구조
+- Instagram 설치 확인 로직
+- Meta App ID
+- app.json
+- eas.json
+- package.json
+- native module
+- 기존 Production 1.6.1
+- production channel
+- Render
+- DB
+
+새로운 디자인을 만들지 마십시오.
+새 장식/물결/배경/슬로건/아이콘을 추가하지 마십시오.
+
+현재 StoryPageRenderer의 디자인을 그대로 유지하면서
+아래 3가지 가독성 수정 + 상단 잘림만 수정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Pretendard 적용 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+StoryPageRenderer에서 Story 이미지 안에 렌더링되는 텍스트 전체를 조사하십시오.
+
+SWIMNOTE 앱에 이미 설치되어 실제 사용 중인 Pretendard fontFamily의 정확한 등록명을 먼저 확인하십시오.
+
+추측해서
+"Pretendard"
+"Pretendard-Regular"
+등을 임의 입력하지 마십시오.
+
+현재 프로젝트의 font loading/등록 코드를 찾아
+실제 등록된 fontFamily key를 사용하십시오.
+
+적용 대상:
+- 날짜
+- 선생님 이름
+- 반/시간
+- 일지 본문
+- 기타 Story 이미지 내부 텍스트
+
+Instagram 자체 UI는 당연히 대상이 아닙니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 글자 굵기 강화
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Story 캡처 결과는 Instagram 화면에서 글자가 다소 얇게 보입니다.
+
+현재 fontSize와 레이아웃은 최대한 유지하고
+fontWeight/fontFamily variant를 이용해 가독성만 강화하십시오.
+
+목표:
+
+날짜:
+- 현재보다 확실히 진하게
+- Pretendard Bold 계열 우선
+
+선생님/반 정보:
+- 현재보다 한 단계 진하게
+- Pretendard Medium 또는 SemiBold 계열 우선
+
+본문:
+- 현재보다 한 단계 진하게
+- 장문의 가독성을 해치지 않는 범위
+- Pretendard Medium 계열 우선
+
+중요:
+폰트를 굵게 만들어 pagination 결과가 크게 달라지지 않는지 반드시 확인하십시오.
+
+텍스트가 굵어져 line wrap이 달라질 경우
+기존 Story 영역을 넘지 않는지 검사하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. SWIMNOTE 로고 확대
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기 Story 결과에서 하단 SWIMNOTE 브랜딩이 너무 작습니다.
+
+현재:
+[작은 SWIMNOTE 아이콘] SWIMNOTE
+
+구조/위치/색상은 그대로 유지하고 크기만 키우십시오.
+
+수정:
+- SWIMNOTE 아이콘 확대
+- SWIMNOTE 텍스트 확대
+- 아이콘과 텍스트의 비율 유지
+- 가운데 정렬 구조 유지
+- 지나치게 광고처럼 커지지 않도록 함
+- 본문 영역을 침범하지 않음
+
+현재 크기를 먼저 코드에서 숫자로 보고한 뒤,
+약 1.4~1.6배 범위에서 실기기 가독성이 좋아지는 최소값을 선택하십시오.
+
+새 로고 파일을 만들거나 교체하지 마십시오.
+현재 사용 중인 SWIMNOTE asset 그대로 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 상단 Safe Area 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기 Instagram Story Composer에서
+Story 이미지 상단 날짜 영역 일부가 Instagram 상단 UI와 시각적으로 너무 가까우며 잘려 보이는 문제가 확인됐습니다.
+
+현재 Story 이미지 내부의 상단 padding/margin 값을 확인하십시오.
+
+Story의 핵심 콘텐츠 시작 위치를 조금 아래로 이동하여:
+
+- 날짜 전체가 안정적으로 보임
+- Instagram 상단 UI와 충돌하지 않음
+- 사진/본문 전체 구조는 유지
+- 하단 브랜딩 영역도 유지
+
+하도록 수정하십시오.
+
+전체 카드를 축소하는 방식은 사용하지 마십시오.
+필요한 최소 상단 여백만 조정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 사진 영역 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기에서 확인된:
+
+- 사진 2장 배치
+- 사진 4장 배치
+- 사진 비율
+- 둥근 모서리
+- 사진 사이 간격
+
+은 그대로 유지합니다.
+
+사진 디자인은 이번 작업 대상이 아닙니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 긴 일지 Pagination 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+폰트 굵기 변경으로 텍스트 측정값이 달라질 수 있으므로 반드시 확인하십시오.
+
+CASE A
+짧은 일지 → 1장
+
+CASE B
+현재 실기기에서 확인한 정도의 일반적인 일지 → 1장
+
+CASE C
+1장 영역을 실제로 초과하는 긴 일지 → 기존 pagination 규칙에 따라 N장
+
+텍스트가 영역 밖에서 잘리는 것은 금지합니다.
+
+Pagination 알고리즘 자체는 변경하지 말고,
+이번 스타일 변경 때문에 기존 계산이 깨지는지만 검사하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+우선 수정 대상:
+
+components/parent/StoryPageRenderer.tsx
+
+StoryCapturePipeline.tsx는
+스타일 변경으로 인해 반드시 필요한 경우가 아니면 수정하지 마십시오.
+
+다른 파일을 수정해야 한다면
+수정 전에 이유를 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. OTA 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 변경은 JS/UI 스타일 변경만 허용합니다.
+
+Native 설정 변경 금지.
+
+따라서 새 Native Build를 만들지 마십시오.
+
+현재 테스트 대상:
+
+appVersion: 1.6.2
+runtimeVersion: 1.6.2
+channel: instagram-test
+
+수정 및 검증 후 OTA는 반드시:
+
+runtimeVersion 1.6.2
+instagram-test channel
+
+에만 배포하십시오.
+
+production channel에 OTA 금지.
+Production runtime 1.6.1 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. OTA 전 Gate
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA 실행 전에 반드시 보고:
+
+1. Branch
+2. Local HEAD
+3. Remote HEAD
+4. Working tree
+5. 수정 파일 목록
+6. StoryPageRenderer diff 요약
+7. 실제 사용한 Pretendard fontFamily key
+8. 날짜 font 설정 Before → After
+9. 선생님/반 font 설정 Before → After
+10. 본문 font 설정 Before → After
+11. SWIMNOTE icon 크기 Before → After
+12. SWIMNOTE text 크기 Before → After
+13. 상단 여백 Before → After
+14. Pagination 로직 변경 여부 = 반드시 NO
+15. Native 파일 변경 = 0
+16. app.json 변경 = 0
+17. eas.json 변경 = 0
+18. package.json 변경 = 0
+19. Production 1.6.1 영향 = 0
+20. production channel 영향 = 0
+
+Gate 보고 후 멈추십시오.
+
+내 승인 없이 OTA하지 마십시오.
