@@ -536,6 +536,10 @@ export default function TodayScheduleScreen() {
                         {diaryDone ? "일지 완료" : "일지 미작성"}
                       </Text>
                     </View>
+                    {/* [DIAG-WP2A] 진단 패널 — 확인 후 제거 */}
+                    <Text style={{ fontSize: 8, color: "#94A3B8", fontFamily: "monospace", marginTop: 2 }}>
+                      {`[DIAG] group=${item.id.slice(-6)} done=${item.diary_done} date=${today}`}
+                    </Text>
                   </View>
                   <Pressable
                     style={h.detailBtn}

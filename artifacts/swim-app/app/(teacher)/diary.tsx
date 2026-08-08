@@ -597,6 +597,8 @@ export default function TeacherDiaryScreen() {
       setStudentAlbumPhotos({}); setStudentAlbumVideos({});
       setStudentNotes([]); setCommonContent(""); setAddNoteStudent(null); setNoteInput("");
       haptic.success();
+      // [DIAG-WP2A] 저장 직후 진단 로그 — 확인 후 제거
+      console.log(`[DIAG-WP2A] saved diary_id=${diaryId} class_group_id=${selectedGroup!.id} lesson_date=${targetDate}`);
       // 전 화면에 생성 이벤트 전파 (홈·스케줄러·어드민 즉시 갱신)
       emitDiaryChanged({ type: "created", diaryId: "", classGroupId: selectedGroup!.id, lessonDate: targetDate });
       // 즉시 history 뷰로 전환
