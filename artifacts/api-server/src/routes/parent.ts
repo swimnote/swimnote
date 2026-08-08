@@ -5,6 +5,7 @@ import { parentAccountsTable, parentStudentsTable, studentsTable, attendanceTabl
 import { eq, and, ne, or } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword, comparePassword } from "../lib/auth.js";
+import { sendPushToUser } from "../lib/push-service.js";
 import { logChange } from "../utils/change-logger.js";
 import { getParentStatusV2, upsertParentV2Pending, tryMatchStudentV2 as tryAutoLinkV2, linkParentToStudentV2 as linkParentToStudentV2Import, normalizePhone as normPhoneV2, normalizeName as normNameV2 } from "../lib/auto-link-v2.js";
 
@@ -844,6 +845,44 @@ router.post("/diary/:diaryId/reactions", requireAuth, requireParent, async (req:
         INSERT INTO diary_reactions (diary_id, parent_id, reaction_type) VALUES (${diaryId}, ${userId}, ${reaction_type})
         ON CONFLICT (diary_id, parent_id, reaction_type) DO NOTHING
       `);
+      // Teacher 소식 생성 (non-blocking side effect)
+      ;(async () => {
+        try {
+          const [diary] = (await db.execute(sql`
+            SELECT cd.teacher_id, cd.lesson_date, cg.swimming_pool_id
+            FROM class_diaries cd
+            JOIN class_groups cg ON cg.id = cd.class_group_id
+            WHERE cd.id = ${diaryId} LIMIT 1
+          `)).rows as any[];
+          if (!diary?.teacher_id) return;
+          const settingKey = reaction_type === "like" ? "news_like" : "news_thanks";
+          const [ps] = (await db.execute(sql`
+            SELECT is_enabled FROM push_settings
+            WHERE user_id = ${diary.teacher_id} AND notification_type = ${settingKey} LIMIT 1
+          `)).rows as any[];
+          const isEnabled = ps ? Boolean(ps.is_enabled) : true;
+          const [pa] = (await db.execute(sql`SELECT name FROM parent_accounts WHERE id = ${userId} LIMIT 1`)).rows as any[];
+          const parentName = pa?.name ?? "학부모";
+          const typeLabel = reaction_type === "like" ? "좋아요" : "감사합니다";
+          const dateStr = diary.lesson_date?.slice(0, 10) ?? "";
+          const bodyText = `${parentName}님이 ${dateStr} 수업피드에 ${typeLabel}를 눌렀습니다.`;
+          const notifId = `notif_news_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+          const notifType = `diary_${reaction_type}`;
+          await db.execute(sql`
+            INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
+            VALUES (${notifId}, ${diary.teacher_id}, 'user', ${notifType},
+              ${'새 ' + typeLabel}, ${bodyText}, ${diaryId}, 'diary', ${diary.swimming_pool_id ?? ''}, false)
+            ON CONFLICT DO NOTHING
+          `);
+          if (isEnabled) {
+            sendPushToUser(
+              diary.teacher_id, false, notifType as any,
+              '새 ' + typeLabel, bodyText,
+              { type: notifType, diaryId },
+            ).catch(() => {});
+          }
+        } catch (e) { console.error("[REACTION NEWS side-effect]", e); }
+      })();
       console.log(`[REACTION TOGGLE RESPONSE] diaryId=${diaryId} reactionType=${reaction_type} active=true`);
       res.json({ active: true });
     }

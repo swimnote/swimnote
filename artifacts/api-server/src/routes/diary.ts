@@ -1806,7 +1806,7 @@ router.get("/teacher/overview",
       `);
       const classIds = (myClasses.rows as any[]).map(r => r.id);
       if (classIds.length === 0) {
-        res.json({ unread_messages: 0, pending_diaries_today: 0, pending_diaries_past: 0, makeup_count: 0 });
+        res.json({ unread_messages: 0, pending_diaries_today: 0, pending_diaries_past: 0, makeup_count: 0, unread_news: 0 });
         return;
       }
 
@@ -1869,6 +1869,29 @@ router.get("/teacher/overview",
           AND prm.is_read_by_teacher = false
       `).catch(() => ({ rows: [{ cnt: 0 }] }));
 
+      // 소식 unread (push-settings enabled type만)
+      const psRows = await db.execute(sql`
+        SELECT notification_type, is_enabled FROM push_settings
+        WHERE user_id = ${userId} AND notification_type IN ('news_like', 'news_thanks', 'news_comment')
+      `).catch(() => ({ rows: [] }));
+      const newsSettings: Record<string, boolean> = {};
+      for (const r of (psRows.rows as any[])) newsSettings[r.notification_type] = Boolean(r.is_enabled);
+      // 기본값 ON
+      const enabledNewsTypes: string[] = [];
+      if (newsSettings.news_like    !== false) enabledNewsTypes.push('diary_like');
+      if (newsSettings.news_thanks  !== false) enabledNewsTypes.push('diary_thanks');
+      if (newsSettings.news_comment !== false) enabledNewsTypes.push('diary_comment');
+      let unreadNews = 0;
+      if (enabledNewsTypes.length > 0) {
+        const typeList = enabledNewsTypes.map(t => `'${t}'`).join(",");
+        const newsCount = await db.execute(sql`
+          SELECT COUNT(*) AS cnt FROM notifications
+          WHERE recipient_id = ${userId} AND recipient_type = 'user'
+            AND type IN (${sql.raw(typeList)}) AND is_read = false
+        `).catch(() => ({ rows: [{ cnt: 0 }] }));
+        unreadNews = Number((newsCount.rows[0] as any)?.cnt ?? 0);
+      }
+
       res.json({
         unread_messages: Number((unreadMsg.rows[0] as any)?.cnt ?? 0),
         pending_diaries_today: Number((pendingToday.rows[0] as any)?.cnt ?? 0),
@@ -1876,6 +1899,7 @@ router.get("/teacher/overview",
         makeup_count: Number((makeupCount.rows[0] as any)?.cnt ?? 0),
         pending_parent_requests: Number((pendingRequests.rows[0] as any)?.cnt ?? 0),
         unread_parent_request_messages: Number((unreadReqMsgs.rows[0] as any)?.cnt ?? 0),
+        unread_news: unreadNews,
       });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }

@@ -77,6 +77,10 @@ export default function TeacherSettingsScreen() {
   const [notiMessage,  setNotiMessage]  = useState(true);
   const [notiMakeup,   setNotiMakeup]   = useState(true);
   const [notiDiary,    setNotiDiary]    = useState(true);
+  /* 소식 알림 설정 */
+  const [notiNewsLike,    setNotiNewsLike]    = useState(true);
+  const [notiNewsThanks,  setNotiNewsThanks]  = useState(true);
+  const [notiNewsComment, setNotiNewsComment] = useState(true);
 
   /* 수업료 납부 관리 */
   const [feeCheckEnabled, setFeeCheckEnabled] = useState(false);
@@ -111,6 +115,9 @@ export default function TeacherSettingsScreen() {
         if (settings.messenger !== undefined)       setNotiMessage(Boolean(settings.messenger));
         if (settings.makeup_request !== undefined)  setNotiMakeup(Boolean(settings.makeup_request));
         if (settings.diary_reminder !== undefined)  setNotiDiary(Boolean(settings.diary_reminder));
+        if (settings.news_like !== undefined)       setNotiNewsLike(Boolean(settings.news_like));
+        if (settings.news_thanks !== undefined)     setNotiNewsThanks(Boolean(settings.news_thanks));
+        if (settings.news_comment !== undefined)    setNotiNewsComment(Boolean(settings.news_comment));
       }
       setFeeCheckEnabled(feeRaw === "1");
     } catch (e) { console.error(e); }
@@ -179,8 +186,8 @@ export default function TeacherSettingsScreen() {
           style={[s.actionBtn, { borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/messages-inbox" as any)}
         >
-          <LucideIcon name="mail" size={18} color="#0F172A" />
-          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>쪽지보관함</Text>
+          <LucideIcon name="inbox" size={18} color="#0F172A" />
+          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>알림함</Text>
           <LucideIcon name="chevron-right" size={16} color="#0F172A" />
         </Pressable>
 
@@ -267,6 +274,52 @@ export default function TeacherSettingsScreen() {
                 onValueChange={v => { setNotiDiary(v); savePushSetting("diary_reminder", v); }}
                 trackColor={{ false: C.border, true: themeColor + "80" }}
                 thumbColor={notiDiary ? themeColor : C.textMuted}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* ── 소식 알림 설정 ── */}
+        <View style={s.card}>
+          <View style={s.cardHeader}>
+            <LucideIcon name="heart" size={15} color={themeColor} />
+            <Text style={s.cardTitle}>소식 알림</Text>
+          </View>
+          <View style={s.switchSection}>
+            <View style={s.switchRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.switchLabel}>좋아요</Text>
+                <Text style={s.switchSub}>학부모가 수업피드에 좋아요 시 알림</Text>
+              </View>
+              <Switch
+                value={notiNewsLike}
+                onValueChange={v => { setNotiNewsLike(v); savePushSetting("news_like", v); }}
+                trackColor={{ false: C.border, true: themeColor + "80" }}
+                thumbColor={notiNewsLike ? themeColor : C.textMuted}
+              />
+            </View>
+            <View style={[s.switchRow, { borderTopWidth: 1, borderTopColor: C.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.switchLabel}>감사합니다</Text>
+                <Text style={s.switchSub}>학부모가 감사합니다 전송 시 알림</Text>
+              </View>
+              <Switch
+                value={notiNewsThanks}
+                onValueChange={v => { setNotiNewsThanks(v); savePushSetting("news_thanks", v); }}
+                trackColor={{ false: C.border, true: themeColor + "80" }}
+                thumbColor={notiNewsThanks ? themeColor : C.textMuted}
+              />
+            </View>
+            <View style={[s.switchRow, { borderTopWidth: 1, borderTopColor: C.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.switchLabel}>일지 댓글</Text>
+                <Text style={s.switchSub}>학부모가 일지 댓글 작성 시 알림</Text>
+              </View>
+              <Switch
+                value={notiNewsComment}
+                onValueChange={v => { setNotiNewsComment(v); savePushSetting("news_comment", v); }}
+                trackColor={{ false: C.border, true: themeColor + "80" }}
+                thumbColor={notiNewsComment ? themeColor : C.textMuted}
               />
             </View>
           </View>

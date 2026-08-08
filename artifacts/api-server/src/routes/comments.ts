@@ -241,18 +241,29 @@ router.post("/diaries/:diaryId/comments",
       `);
       console.log(`[COMMENT CREATE SUCCESS] diaryId=${diaryId} commentId=${id}`);
 
-      // 선생님에게 푸시 알림
+      // 선생님에게 푸시 + 소식 기록
       const [d] = (await db.execute(sql`
-        SELECT teacher_id, lesson_date FROM class_diaries WHERE id = ${diaryId} LIMIT 1
+        SELECT cd.teacher_id, cd.lesson_date, cg.swimming_pool_id
+        FROM class_diaries cd
+        JOIN class_groups cg ON cg.id = cd.class_group_id
+        WHERE cd.id = ${diaryId} LIMIT 1
       `)).rows as any[];
       if (d?.teacher_id) {
         const lessonDate = d.lesson_date?.slice(0, 10) ?? "";
+        const pushBody = `${senderName}이(가) ${lessonDate} 일지에 댓글을 남겼습니다.`;
         sendPushToUser(
           d.teacher_id, false, "diary_comment",
-          "새 댓글",
-          `${senderName}이(가) ${lessonDate} 일지에 댓글을 남겼습니다.`,
+          "새 댓글", pushBody,
           { type: "diary_comment", diaryId, commentId: id },
         ).catch(() => {});
+        // 소식 기록 (notifications 테이블)
+        const newsId = `notif_news_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        db.execute(sql`
+          INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
+          VALUES (${newsId}, ${d.teacher_id}, 'user', 'diary_comment',
+            '새 댓글', ${pushBody}, ${diaryId}, 'diary', ${d.swimming_pool_id ?? ''}, false)
+          ON CONFLICT DO NOTHING
+        `).catch(() => {});
       }
 
       res.status(201).json({

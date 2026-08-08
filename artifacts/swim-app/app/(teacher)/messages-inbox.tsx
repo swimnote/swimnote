@@ -1,8 +1,9 @@
 /**
- * (teacher)/messages-inbox.tsx — 쪽지보관함 + 학부모 요청
+ * (teacher)/messages-inbox.tsx — 알림함
  *
- * 탭1: 쪽지보관함 — 일지별 쪽지 대화
- * 탭2: 학부모 요청 — 결석/보강/퇴원 등 학부모가 보낸 요청
+ * 탭1: 소식   — 학부모의 좋아요·감사합니다·일지 댓글 활동
+ * 탭2: 쪽지함 — 일지별 쪽지 대화
+ * 탭3: 학부모 요청 — 결석/보강/퇴원 등 학부모가 보낸 요청
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {ActivityIndicator, Alert, FlatList, Image,
@@ -88,8 +89,8 @@ export default function MessagesInboxScreen() {
   const { themeColor } = useBrand();
   const params = useLocalSearchParams<{ diaryId?: string; backTo?: string; tab?: string; requestId?: string }>();
 
-  const [activeTab, setActiveTab] = useState<"messages" | "requests">(
-    params.tab === "requests" ? "requests" : "messages"
+  const [activeTab, setActiveTab] = useState<"news" | "messages" | "requests">(
+    params.tab === "requests" ? "requests" : params.tab === "news" ? "news" : "messages"
   );
   const [highlightReqId, setHighlightReqId] = useState<string | null>(params.requestId || null);
 
@@ -115,6 +116,35 @@ export default function MessagesInboxScreen() {
   const [replyImage, setReplyImage] = useState<{ uri: string; url?: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // ── 소식 탭 상태 ──
+  interface NewsItem {
+    id: string;
+    type: "diary_like" | "diary_thanks" | "diary_comment";
+    title: string;
+    body: string;
+    ref_id: string;   // diary_id
+    is_read: boolean;
+    created_at: string;
+    lesson_date?: string;
+    class_name?: string;
+  }
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [loadingNews, setLoadingNews] = useState(true);
+  const [unreadNewsCount, setUnreadNewsCount] = useState(0);
+
+  const fetchNews = useCallback(async () => {
+    setLoadingNews(true);
+    try {
+      const res = await apiRequest(token, "/teacher/news", { _noCache: true } as any);
+      if (res.ok) {
+        const d = await res.json();
+        setNews(d.news ?? []);
+        setUnreadNewsCount(d.unread_count ?? 0);
+      }
+    } catch { }
+    finally { setLoadingNews(false); }
+  }, [token]);
 
   const [parentRequests, setParentRequests] = useState<ParentRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
@@ -159,7 +189,7 @@ export default function MessagesInboxScreen() {
     finally { setLoadingMsgs(false); }
   }, [token]);
 
-  useEffect(() => { fetchThreads(); fetchRequests(); }, [fetchThreads, fetchRequests]);
+  useEffect(() => { fetchThreads(); fetchRequests(); fetchNews(); }, [fetchThreads, fetchRequests, fetchNews]);
 
   // 강조 대상 requestId가 있으면 해당 아이템으로 스크롤
   useEffect(() => {
@@ -286,6 +316,23 @@ export default function MessagesInboxScreen() {
   const unreadRequestCount = parentRequests.filter(r => !r.is_read_by_teacher).length;
   const unreadMsgCount = threads.reduce((sum, t) => sum + (t.unread_count ?? 0), 0);
 
+  /** 소식 아이콘 반환 */
+  function newsIcon(type: string) {
+    if (type === "diary_like")    return { name: "heart" as const,        color: "#EF4444" };
+    if (type === "diary_thanks")  return { name: "hand-heart" as const,   color: "#F59E0B" };
+    if (type === "diary_comment") return { name: "message-circle" as const, color: "#10B981" };
+    return { name: "bell" as const, color: "#6B7280" };
+  }
+  /** 소식 날짜 포맷 */
+  function fmtNewsDate(s: string | null | undefined): string {
+    const d = parseDateSafe(s);
+    if (!d) return "";
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    if (isToday) return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+
   // ── 대화 화면 (thread view) ──
   if (view === "thread") {
     return (
@@ -387,12 +434,22 @@ export default function MessagesInboxScreen() {
         <Pressable onPress={() => router.back()} style={s.backBtn}>
           <LucideIcon name="chevron-left" size={22} color={C.text} />
         </Pressable>
-        <Text style={s.headerTitle}>쪽지보관함</Text>
+        <Text style={s.headerTitle}>알림함</Text>
         <View style={{ width: 40 }} />
       </View>
 
       {/* 탭 */}
       <View style={s.tabRow}>
+        <Pressable style={[s.tab, activeTab === "news" && { borderBottomColor: themeColor, borderBottomWidth: 2 }]}
+          onPress={() => setActiveTab("news")}>
+          <LucideIcon name="heart" size={16} color={activeTab === "news" ? themeColor : C.textMuted} />
+          <Text style={[s.tabTxt, { color: activeTab === "news" ? themeColor : C.textMuted }]}>소식</Text>
+          {unreadNewsCount > 0 && (
+            <View style={[s.tabBadge, { backgroundColor: "#EF4444" }]}>
+              <Text style={s.tabBadgeTxt}>{unreadNewsCount}</Text>
+            </View>
+          )}
+        </Pressable>
         <Pressable style={[s.tab, activeTab === "messages" && { borderBottomColor: themeColor, borderBottomWidth: 2 }]}
           onPress={() => setActiveTab("messages")}>
           <LucideIcon name="message-square" size={16} color={activeTab === "messages" ? themeColor : C.textMuted} />
@@ -415,7 +472,75 @@ export default function MessagesInboxScreen() {
         </Pressable>
       </View>
 
-      {/* 탭1: 쪽지함 */}
+      {/* 탭1: 소식 */}
+      {activeTab === "news" && (
+        loadingNews ? (
+          <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
+        ) : news.length === 0 ? (
+          <View style={s.empty}>
+            <LucideIcon name="heart" size={48} color={C.textMuted} />
+            <Text style={[s.emptyTxt, { color: C.textMuted }]}>새 소식이 없습니다</Text>
+            <Text style={[s.emptySubTxt, { color: C.textMuted }]}>학부모가 수업피드에 반응하거나{"\n"}댓글을 남기면 여기에 표시됩니다</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={news}
+            keyExtractor={item => item.id}
+            contentContainerStyle={{ padding: 16, gap: 8 }}
+            renderItem={({ item }) => {
+              const icon = newsIcon(item.type);
+              return (
+                <Pressable
+                  style={({ pressed }) => [
+                    s.newsCard,
+                    !item.is_read && { borderColor: themeColor + "60", backgroundColor: themeColor + "06" },
+                    { opacity: pressed ? 0.85 : 1 },
+                  ]}
+                  onPress={async () => {
+                    // 읽음 처리
+                    if (!item.is_read) {
+                      setNews(prev => prev.map(n => n.id === item.id ? { ...n, is_read: true } : n));
+                      setUnreadNewsCount(prev => Math.max(0, prev - 1));
+                      apiRequest(token, `/notifications/${item.id}/read`, { method: "POST" }).catch(() => {});
+                    }
+                    // 해당 diary로 이동
+                    if (item.ref_id) {
+                      router.push({
+                        pathname: "/(teacher)/diary",
+                        params: { editDiaryId: item.ref_id, backTo: "messages-inbox" },
+                      } as any);
+                    }
+                  }}
+                >
+                  {!item.is_read && (
+                    <View style={[s.unreadDotRow, { marginBottom: 2 }]}>
+                      <View style={[s.unreadDot, { backgroundColor: themeColor }]} />
+                      <Text style={[s.unreadLabel, { color: themeColor }]}>새 소식</Text>
+                    </View>
+                  )}
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+                    <View style={[s.newsIconWrap, { backgroundColor: icon.color + "18" }]}>
+                      <LucideIcon name={icon.name} size={20} color={icon.color} />
+                    </View>
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text style={[s.newsTitle, { color: C.text }]} numberOfLines={1}>{item.title}</Text>
+                      <Text style={[s.newsBody, { color: C.textSecondary }]} numberOfLines={2}>{item.body}</Text>
+                      {item.class_name || item.lesson_date ? (
+                        <Text style={[s.newsMeta, { color: C.textMuted }]} numberOfLines={1}>
+                          {[item.class_name, item.lesson_date?.slice(0, 10)].filter(Boolean).join(" · ")}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Text style={[s.newsDate, { color: C.textMuted }]}>{fmtNewsDate(item.created_at)}</Text>
+                  </View>
+                </Pressable>
+              );
+            }}
+          />
+        )
+      )}
+
+      {/* 탭2: 쪽지함 */}
       {activeTab === "messages" && (
         loadingThreads ? (
           <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
@@ -700,6 +825,13 @@ const s = StyleSheet.create({
   msgImage:       { width: 180, height: 180, borderRadius: 8, marginBottom: 6 },
   msgText:        { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   msgTime:        { fontSize: 11, fontFamily: "Pretendard-Regular", marginHorizontal: 4 },
+
+  newsCard:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 6, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 1, borderWidth: 1, borderColor: C.border },
+  newsIconWrap:   { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  newsTitle:      { fontSize: 14, fontFamily: "Pretendard-Regular", fontWeight: "600" },
+  newsBody:       { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 18 },
+  newsMeta:       { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  newsDate:       { fontSize: 12, fontFamily: "Pretendard-Regular", flexShrink: 0 },
 
   inputWrap:      { borderTopWidth: 1, borderTopColor: C.border, padding: 10, backgroundColor: "#fff" },
   imagePreviewRow:{ flexDirection: "row", marginBottom: 8, position: "relative" },
