@@ -24,16 +24,17 @@ export const STORY_W = 360;
 export const STORY_H = 640;
 
 // Instagram UI safe area: 상단 250px, 하단 130px (Story Creator UI 가림)
-// → 실제 콘텐츠 안전 영역: 640 - (상단여유 24) - (하단여유 80) = 536px
-const SAFE_TOP = 24;
+// → 실제 콘텐츠 안전 영역: 640 - (상단여유 48) - (하단여유 80) = 512px
+// SAFE_TOP 48: Instagram 상단 UI와 날짜 잘림 방지 (실기기 검증 후 24→48)
+const SAFE_TOP = 48;
 const SAFE_BOTTOM = 80;
-const CONTENT_H = STORY_H - SAFE_TOP - SAFE_BOTTOM; // 536px
+const CONTENT_H = STORY_H - SAFE_TOP - SAFE_BOTTOM; // 512px
 
 // 사진 영역 최대 높이 (첫 페이지)
 export const MAX_PHOTO_H = 200;
 
-// 워터마크 높이
-const WATERMARK_H = 36;
+// 워터마크 높이 (로고 확대에 맞게 36→50)
+const WATERMARK_H = 50;
 
 // 텍스트 영역 최대 높이 계산 (첫 페이지: 사진 영역 제외)
 export const MAX_TEXT_H_PAGE1 = CONTENT_H - MAX_PHOTO_H - WATERMARK_H - 72; // 헤더(날짜/선생님) 72px
@@ -191,13 +192,13 @@ const styles = StyleSheet.create({
   headerLeft: { flex: 1, gap: 3 },
   dateText: {
     fontSize: 13,
-    fontFamily: "Pretendard-Regular",
+    fontFamily: "Pretendard-Bold",
     color: C.text,
     lineHeight: 18,
   },
   teacherText: {
     fontSize: 11,
-    fontFamily: "Pretendard-Regular",
+    fontFamily: "Pretendard-Medium",
     color: C.textSecondary,
     lineHeight: 16,
   },
@@ -244,7 +245,7 @@ const styles = StyleSheet.create({
   bodyWrap: { flex: 1, overflow: "hidden" },
   bodyText: {
     fontSize: TEXT_FONT_SIZE,
-    fontFamily: "Pretendard-Regular",
+    fontFamily: "Pretendard-Medium",
     color: C.text,
     lineHeight: TEXT_LINE_H,
   },
@@ -259,12 +260,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 8,
   },
-  watermarkLogo: { width: 20, height: 20, opacity: 0.8 },
+  watermarkLogo: { width: 28, height: 28, opacity: 0.8 },
   watermarkText: {
-    fontSize: 14,
-    fontFamily: "Pretendard-Regular",
+    fontSize: 20,
+    fontFamily: "Pretendard-Medium",
     color: C.textMuted,
     letterSpacing: 1,
     opacity: 0.8,
