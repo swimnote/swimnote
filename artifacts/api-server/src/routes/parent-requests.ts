@@ -307,8 +307,16 @@ router.get("/teacher/parent-requests", requireAuth, requireRole("teacher", "pool
         FROM parent_student_requests psr
         LEFT JOIN students s ON s.id = psr.student_id
         LEFT JOIN parent_accounts pa ON pa.id = psr.parent_id
+        LEFT JOIN class_groups cg
+          ON cg.id = s.class_group_id
+         AND cg.is_deleted = false
         WHERE psr.swimming_pool_id = ${me.swimming_pool_id}
-          AND psr.teacher_user_id = ${userId}
+          AND (
+            cg.teacher_user_id = ${userId}
+            OR cg.co_teacher_ids @> to_jsonb(${userId}::text)
+          )
+          AND s.status NOT IN ('withdrawn', 'deleted', 'archived')
+          AND s.deleted_at IS NULL
         ORDER BY psr.created_at DESC
         LIMIT 100
       `);
@@ -359,9 +367,9 @@ router.patch("/parent-requests/:id", requireAuth, requireRole("pool_admin", "sub
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
-      // 요청 정보 조회 (알림 발송용)
+      // 요청 정보 조회 (알림 발송용 + 이전 상태 확인)
       const [reqRow] = await db.execute(sql`
-        SELECT parent_id, request_type, student_id FROM parent_student_requests
+        SELECT parent_id, request_type, student_id, status AS prev_status FROM parent_student_requests
         WHERE id = ${req.params.id} AND swimming_pool_id = ${me.swimming_pool_id}
         LIMIT 1
       `).then(r => r.rows as any[]);
@@ -381,16 +389,50 @@ router.patch("/parent-requests/:id", requireAuth, requireRole("pool_admin", "sub
         WHERE id = ${req.params.id} AND swimming_pool_id = ${me.swimming_pool_id}
       `);
 
-      // 학부모에게 처리 결과 push 알림
-      if (reqRow?.parent_id && status !== "pending") {
+      // 상태가 실제로 변경된 경우에만 알림/push 발송 (중복 알림 방지)
+      const statusChanged = reqRow?.prev_status !== status;
+      if (reqRow?.parent_id && status !== "pending" && statusChanged) {
+        const TYPE_LABELS: Record<string, string> = {
+          absence: "결석", makeup: "보강", postpone: "연기",
+          withdrawal: "퇴원", counseling: "상담", inquiry: "문의",
+        };
+        const typeLabel = TYPE_LABELS[reqRow.request_type] || "수업";
+        const pushTitle = status === "done"
+          ? `${typeLabel} 요청이 처리됐습니다`
+          : `${typeLabel} 요청이 거절됐습니다`;
+        const pushBody = status === "done"
+          ? "선생님이 요청을 확인하고 처리했습니다."
+          : (admin_note ? `거절 사유: ${admin_note}` : "요청이 거절됐습니다. 수영장에 문의해주세요.");
+
+        // Notification DB 저장 (중복 방지: 1시간 내 동일 ref_id+recipient_id+type 차단)
+        try {
+          const notifId = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+          await db.execute(sql`
+            INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
+            SELECT ${notifId}, ${reqRow.parent_id}, 'parent_account',
+                   'parent_request_result', ${pushTitle}, ${pushBody},
+                   ${req.params.id}, 'request', ${me.swimming_pool_id}, false
+            WHERE NOT EXISTS (
+              SELECT 1 FROM notifications
+              WHERE type = 'parent_request_result'
+                AND ref_id = ${req.params.id}
+                AND recipient_id = ${reqRow.parent_id}
+                AND created_at > NOW() - INTERVAL '1 hour'
+            )
+          `);
+        } catch (notifErr) {
+          console.error("[parent-requests PATCH notification error]", notifErr);
+        }
+
+        // Push 발송
         try {
           const { sendPushToUser } = await import("../lib/push-service.js");
-          const typeLabel = reqRow.request_type === "absence" ? "결석" : reqRow.request_type === "makeup" ? "보강" : "수업";
-          const pushTitle = status === "done" ? `${typeLabel} 요청이 처리됐습니다` : `${typeLabel} 요청이 거절됐습니다`;
-          const pushBody = status === "done"
-            ? "선생님이 요청을 확인하고 처리했습니다."
-            : (admin_note ? `거절 사유: ${admin_note}` : "요청이 거절됐습니다. 수영장에 문의해주세요.");
-          await sendPushToUser(reqRow.parent_id, true, "parent_request_result", pushTitle, pushBody, { requestId: req.params.id }, `req_result_${req.params.id}`);
+          await sendPushToUser(
+            reqRow.parent_id, true, "parent_request_result",
+            pushTitle, pushBody,
+            { requestId: req.params.id },
+            `req_result_${req.params.id}`
+          );
         } catch (pushErr) { console.error("[parent-requests PATCH push error]", pushErr); }
       }
 
