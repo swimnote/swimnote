@@ -9,22 +9,19 @@
  *  3. 각 페이지를 StoryPageRenderer(off-screen Modal)에 렌더링
  *  4. 100ms 딜레이 후 captureRef → PNG URI
  *  5. 모든 페이지 capture 완료 후:
- *     - 1장 → Instagram Stories direct (react-native-share)
- *     - N장 → MediaLibrary 저장 + Alert 안내
+ *     - 1장 또는 N장 → Instagram Story Composer에 1장씩 순서대로 공유
+ *     - Instagram 미설치 / 공유 취소 → 임시 파일 정리 후 종료 (저장 fallback 없음)
  */
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Modal,
-  Platform,
   StyleSheet,
   Text,
-  ToastAndroid,
   View,
 } from "react-native";
 import { captureRef } from "react-native-view-shot";
-import * as MediaLibrary from "expo-media-library";
 import * as FileSystem from "expo-file-system/legacy";
 import Share, { Social } from "react-native-share";
 
@@ -140,7 +137,7 @@ export default function StoryCapturePipeline({ input, onDone }: Props) {
   const pages = buildPages(input);
   const [pageIdx, setPageIdx] = useState(0);
   const [capturedUris, setCapturedUris] = useState<string[]>([]);
-  const [status, setStatus] = useState<"rendering" | "capturing" | "sharing" | "saving" | "done">("rendering");
+  const [status, setStatus] = useState<"rendering" | "capturing" | "sharing" | "done">("rendering");
   const rendererRef = useRef<View>(null);
   const captureScheduled = useRef(false);
 
@@ -188,70 +185,48 @@ export default function StoryCapturePipeline({ input, onDone }: Props) {
   }
 
   async function finalize(uris: string[]) {
-    if (uris.length === 1) {
-      // ── 1장: Instagram Story 직접 공유 ──────────────────────────────
-      setStatus("sharing");
+    // META_APP_ID guard — 설정 미완료 시 즉시 종료 (저장/fallback 없음)
+    if (!META_APP_ID) {
+      Alert.alert(
+        "Instagram 공유 준비 중",
+        "Instagram Story 공유 설정이 완료되지 않았습니다.",
+      );
+      cleanup(uris);
+      onDone();
+      return;
+    }
+
+    setStatus("sharing");
+
+    // 1장 또는 N장 모두 Instagram Story Composer에 1장씩 순서대로 공유
+    for (let i = 0; i < uris.length; i++) {
       try {
         await Share.shareSingle({
           social: Social.InstagramStories,
-          backgroundImage: uris[0],
-          // Facebook App ID: Instagram 앱이 실제로 검증하지 않음
-          // react-native-share 내부 empty-check 통과용
-          appId: "swimnote",
+          backgroundImage: uris[i],
+          appId: META_APP_ID,
         });
-        cleanup(uris);
-        onDone();
       } catch (e: any) {
-        // Instagram 미설치 또는 공유 취소 → 사진첩 저장으로 fallback
-        if (e?.message?.includes("cancel") || e?.message?.includes("dismiss")) {
+        const isCancelled =
+          e?.message?.includes("cancel") ||
+          e?.message?.includes("dismiss") ||
+          e?.error?.includes("cancel");
+        if (isCancelled) {
+          // 공유 취소 → 나머지 페이지 없이 조용히 종료
           cleanup(uris);
           onDone();
           return;
         }
-        // Instagram 미설치
-        await saveToLibrary(uris);
-      }
-    } else {
-      // ── N장: 사진첩 저장 + 안내 ───────────────────────────────────
-      await saveToLibrary(uris);
-    }
-  }
-
-  async function saveToLibrary(uris: string[]) {
-    setStatus("saving");
-    try {
-      const { status: permStatus } = await MediaLibrary.requestPermissionsAsync();
-      if (permStatus !== "granted") {
-        Alert.alert("권한 필요", "사진 저장을 위해 갤러리 접근 권한이 필요합니다.");
+        // Instagram 미설치(home.tsx에서 canOpenURL 체크했음에도 실행 중 예외) → 종료
+        Alert.alert("Instagram 앱이 설치되어 있지 않습니다.");
         cleanup(uris);
         onDone();
         return;
       }
-      for (const uri of uris) {
-        await MediaLibrary.saveToLibraryAsync(uri);
-      }
-      cleanup(uris);
-      if (Platform.OS === "android") {
-        ToastAndroid.show(
-          uris.length === 1
-            ? "스토리 이미지가 저장되었습니다 📸"
-            : `${uris.length}장 스토리 이미지가 저장되었습니다 📸`,
-          ToastAndroid.LONG,
-        );
-      } else {
-        Alert.alert(
-          "저장 완료",
-          uris.length === 1
-            ? "스토리 이미지가 갤러리에 저장되었습니다.\nInstagram 앱에서 스토리 만들기 → 갤러리에서 불러와 공유하세요."
-            : `${uris.length}장의 스토리 이미지가 갤러리에 저장되었습니다.\nInstagram 앱에서 갤러리 이미지를 선택해 스토리로 공유하세요.`,
-        );
-      }
-      onDone();
-    } catch {
-      cleanup(uris);
-      Alert.alert("저장 실패", "이미지를 저장하지 못했습니다.");
-      onDone();
     }
+
+    cleanup(uris);
+    onDone();
   }
 
   function cleanup(uris: string[]) {
@@ -268,8 +243,9 @@ export default function StoryCapturePipeline({ input, onDone }: Props) {
   const statusLabel: Record<typeof status, string> = {
     rendering: "이미지 생성 중...",
     capturing: `${pageIdx + 1} / ${pages.length}장 처리 중...`,
-    sharing: "Instagram 열기...",
-    saving: "저장 중...",
+    sharing: pages.length > 1
+      ? `Instagram 스토리 열기... (${pages.length}장)`
+      : "Instagram 스토리 열기...",
     done: "완료",
   };
 

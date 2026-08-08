@@ -763,8 +763,14 @@ function DiaryFeedItem({
     photos: allPhotos.map(p => ({ id: p.id, uri: buildPhotoUri(p.file_url) })),
   };
 
-  function handleInstagramShare() {
+  async function handleInstagramShare() {
     if (sharingRef.current) return;
+    // ① Instagram 설치 여부를 이미지 생성 전에 먼저 확인
+    const canOpen = await Linking.canOpenURL("instagram://");
+    if (!canOpen) {
+      Alert.alert("Instagram 앱이 설치되어 있지 않습니다.");
+      return;
+    }
     sharingRef.current = true;
     setSharing(true);
   }
