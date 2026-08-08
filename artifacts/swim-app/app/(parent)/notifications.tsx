@@ -8,6 +8,7 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
+import { ParentRequestThreadModal } from "@/components/parent/ParentRequestThreadModal";
 import { router, useLocalSearchParams } from "expo-router";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -124,6 +125,9 @@ export default function ParentNotificationsScreen() {
     }
     return () => { if (highlightTimer.current) clearTimeout(highlightTimer.current); };
   }, [paramRequestId]);
+
+  /* ── 대화 스레드 Modal ── */
+  const [threadRequest, setThreadRequest] = useState<any | null>(null);
 
   /* ── Modal 상태 ── */
   const [modalVisible, setModalVisible] = useState(false);
@@ -451,11 +455,12 @@ export default function ParentNotificationsScreen() {
                 const statusCfg = STATUS_COLOR[req.status] || STATUS_COLOR.pending;
                 const isHighlighted = highlightId && req.id === highlightId;
                 return (
-                  <View
+                  <Pressable
                     key={req.id}
-                    style={[
+                    onPress={() => setThreadRequest(req)}
+                    style={({ pressed }) => [
                       st.reqCard,
-                      { backgroundColor: C.card },
+                      { backgroundColor: C.card, opacity: pressed ? 0.93 : 1 },
                       isHighlighted && { borderWidth: 2, borderColor: "#2EC4B6", backgroundColor: "#E6FFFA" },
                     ]}
                   >
@@ -489,13 +494,27 @@ export default function ParentNotificationsScreen() {
                     {safeDate(req.created_at) ? (
                       <Text style={[st.reqDate, { color: C.textMuted }]}>{safeDate(req.created_at)}</Text>
                     ) : null}
-                  </View>
+                    {/* 대화 스레드 힌트 */}
+                    <View style={st.threadHint}>
+                      <LucideIcon name="message-circle" size={13} color={C.textMuted} />
+                      <Text style={[st.threadHintTxt, { color: C.textMuted }]}>탭하여 업무 대화 보기</Text>
+                    </View>
+                  </Pressable>
                 );
               })}
             </ScrollView>
           )}
         </>
       )}
+
+      {/* ── 업무 대화 스레드 Modal ── */}
+      <ParentRequestThreadModal
+        visible={!!threadRequest}
+        request={threadRequest}
+        token={token}
+        onClose={() => setThreadRequest(null)}
+        onRefreshList={fetchRequests}
+      />
 
       {/* ── 요청 작성 Modal ── */}
       <Modal
@@ -691,6 +710,8 @@ const st = StyleSheet.create({
   reqContent: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   adminNote: { padding: 10, borderRadius: 8 },
   reqDate: { fontSize: 11, fontFamily: "Pretendard-Regular", textAlign: "right" },
+  threadHint: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
+  threadHintTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
 
   /* Modal */
   backdrop: { backgroundColor: "rgba(0,0,0,0.4)" },

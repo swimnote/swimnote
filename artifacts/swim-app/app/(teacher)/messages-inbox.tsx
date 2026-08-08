@@ -17,6 +17,7 @@ import Colors from "@/constants/colors";
 import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { parseDateSafe } from "@/domain/formatters";
+import { RequestThreadModal } from "@/components/teacher/RequestThreadModal";
 
 const C = Colors.light;
 
@@ -56,6 +57,7 @@ interface ParentRequest {
   status: string;
   created_at: string;
   is_read_by_teacher: boolean;
+  new_message_count?: number;
 }
 
 const REQUEST_TYPE_LABEL: Record<string, string> = {
@@ -108,6 +110,7 @@ export default function MessagesInboxScreen() {
   const [reqRefreshing, setReqRefreshing] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [threadModalReq, setThreadModalReq] = useState<ParentRequest | null>(null);
 
   const scrollRef = useRef<any>(null);
 
@@ -534,6 +537,40 @@ export default function MessagesInboxScreen() {
                       탭하여 전체 보기
                     </Text>
                   )}
+                  {/* 액션 버튼 행: [업무 대화] [업무 처리] */}
+                  <View style={s.actionRow}>
+                    <Pressable
+                      style={[s.chatBtn, { borderColor: themeColor + "70" }]}
+                      onPress={() => {
+                        if (isUnread) markAsRead(item.id);
+                        setThreadModalReq(item);
+                      }}
+                    >
+                      <LucideIcon name="message-circle" size={13} color={themeColor} />
+                      <Text style={[s.chatBtnTxt, { color: themeColor }]}>
+                        업무 대화
+                        {(item.new_message_count ?? 0) > 0
+                          ? ` (${item.new_message_count})`
+                          : ""}
+                      </Text>
+                    </Pressable>
+                    {(item.request_type === "absence" || item.request_type === "makeup") && (
+                      <Pressable
+                        style={s.workBtn}
+                        onPress={() => {
+                          if (isUnread) markAsRead(item.id);
+                          if (item.request_type === "absence") {
+                            router.push("/(teacher)/attendance" as any);
+                          } else {
+                            router.push("/(teacher)/makeups" as any);
+                          }
+                        }}
+                      >
+                        <LucideIcon name="arrow-right" size={12} color="#fff" />
+                        <Text style={s.workBtnTxt}>업무 처리</Text>
+                      </Pressable>
+                    )}
+                  </View>
                   {/* 상태 + 처리 버튼 */}
                   <View style={s.reqBottom}>
                     <View style={[s.statusBadge, { backgroundColor: statusStyle.bg }]}>
@@ -557,23 +594,6 @@ export default function MessagesInboxScreen() {
                         </Pressable>
                       </View>
                     )}
-                    {/* 업무 처리 — absence/makeup만 해당 업무 화면으로 이동 */}
-                    {(item.request_type === "absence" || item.request_type === "makeup") && (
-                      <Pressable
-                        style={s.workBtn}
-                        onPress={() => {
-                          if (isUnread) markAsRead(item.id); // 최초 확인 시 read endpoint → 확인 알림 발송
-                          if (item.request_type === "absence") {
-                            router.push("/(teacher)/attendance" as any);
-                          } else {
-                            router.push("/(teacher)/makeups" as any);
-                          }
-                        }}
-                      >
-                        <LucideIcon name="arrow-right" size={12} color="#fff" />
-                        <Text style={s.workBtnTxt}>업무 처리</Text>
-                      </Pressable>
-                    )}
                   </View>
                 </Pressable>
               );
@@ -581,6 +601,15 @@ export default function MessagesInboxScreen() {
           />
         )
       )}
+      {/* 업무 대화 스레드 Modal */}
+      <RequestThreadModal
+        visible={!!threadModalReq}
+        request={threadModalReq}
+        token={token}
+        themeColor={themeColor}
+        onClose={() => setThreadModalReq(null)}
+        onRefreshList={fetchRequests}
+      />
     </SafeAreaView>
   );
 }
@@ -627,7 +656,10 @@ const s = StyleSheet.create({
   reqActions:     { flexDirection: "row", gap: 8 },
   reqBtn:         { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
   reqBtnTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", fontWeight: "600" },
-  workBtn:        { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#0F172A" },
+  actionRow:      { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 },
+  chatBtn:        { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, borderWidth: 1 },
+  chatBtnTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", fontWeight: "600" },
+  workBtn:        { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, backgroundColor: "#0F172A" },
   workBtnTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   msgRow:         { flexDirection: "row", alignItems: "flex-end", gap: 8 },

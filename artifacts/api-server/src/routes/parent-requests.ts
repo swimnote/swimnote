@@ -26,6 +26,42 @@ function generateInviteCode(): string {
   return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
+// ─── parent_request_messages 테이블 자동 생성 ─────────────────────────────
+let _messagesTableReady = false;
+async function ensureMessagesTable() {
+  if (_messagesTableReady) return;
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS parent_request_messages (
+      id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+      request_id TEXT NOT NULL,
+      swimming_pool_id TEXT NOT NULL,
+      sender_type TEXT NOT NULL,
+      sender_id TEXT,
+      message_type TEXT NOT NULL DEFAULT 'message',
+      content TEXT NOT NULL,
+      is_read_by_teacher BOOLEAN DEFAULT false,
+      is_read_by_parent BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+  _messagesTableReady = true;
+}
+
+const REQUEST_TYPE_NAMES: Record<string, string> = {
+  absence: "결석 신청", makeup: "보강 요청", postpone: "연기 신청",
+  withdrawal: "퇴원 신청", counseling: "상담 요청", inquiry: "문의",
+};
+
+async function insertSystemMessage(requestId: string, poolId: string, content: string) {
+  await ensureMessagesTable();
+  const id = `prm_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+  await db.execute(sql`
+    INSERT INTO parent_request_messages
+    (id, request_id, swimming_pool_id, sender_type, sender_id, message_type, content, is_read_by_teacher, is_read_by_parent)
+    VALUES (${id}, ${requestId}, ${poolId}, 'system', NULL, 'system', ${content}, true, true)
+  `).catch(() => {});
+}
+
 // ─── 공개: 수영장 이름 검색 ───────────────────────────────────────────
 // 정책: 검색어 없음 → [], 이름 전방일치만 허용, phone 반환 금지, 최대 20개
 // 주소는 최소 지역 단위로 축약하여 반환 (상세 주소 노출 금지)
@@ -271,12 +307,19 @@ router.get("/teacher/parent-requests", requireAuth, requireRole("teacher", "pool
         ADD COLUMN IF NOT EXISTS is_read_by_teacher BOOLEAN DEFAULT false
       `).catch(() => {});
 
+      await ensureMessagesTable();
       const rows = await db.execute(sql`
         SELECT
           psr.*,
           COALESCE(psr.is_read_by_teacher, false) AS is_read_by_teacher,
           s.name AS student_name,
-          pa.name AS parent_name
+          pa.name AS parent_name,
+          COALESCE((
+            SELECT COUNT(*) FROM parent_request_messages prm
+            WHERE prm.request_id = psr.id
+              AND prm.sender_type = 'parent'
+              AND prm.is_read_by_teacher = false
+          ), 0) AS new_message_count
         FROM parent_student_requests psr
         LEFT JOIN students s ON s.id = psr.student_id
         LEFT JOIN parent_accounts pa ON pa.id = psr.parent_id
@@ -323,7 +366,7 @@ router.patch("/teacher/parent-requests/:id/read", requireAuth, requireRole("teac
       `).then(r => r.rows as any[]);
 
       if (reqRow && !reqRow.is_read_by_teacher) {
-        // 최초 읽음 전환: UPDATE + 확인 알림 발송
+        // 최초 읽음 전환: UPDATE + 확인 알림 발송 + system message
         await db.execute(sql`
           UPDATE parent_student_requests
           SET is_read_by_teacher = true,
@@ -331,6 +374,10 @@ router.patch("/teacher/parent-requests/:id/read", requireAuth, requireRole("teac
           WHERE id = ${req.params.id}
             AND swimming_pool_id = ${me.swimming_pool_id}
         `);
+
+        // 대화 스레드에 시스템 메시지 기록
+        const typeNameForSys = REQUEST_TYPE_NAMES[reqRow.request_type] || "요청";
+        await insertSystemMessage(req.params.id, me.swimming_pool_id, `선생님이 ${typeNameForSys}을 확인했습니다.`);
 
         if (reqRow.parent_id) {
           const ACK_LABELS: Record<string, { title: string; body: string }> = {
@@ -419,6 +466,15 @@ router.patch("/parent-requests/:id", requireAuth, requireRole("pool_admin", "sub
 
       // 상태가 실제로 변경된 경우에만 알림/push 발송 (중복 알림 방지)
       const statusChanged = reqRow?.prev_status !== status;
+      if (reqRow && status !== "pending" && statusChanged) {
+        // 대화 스레드에 상태 변경 시스템 메시지 기록
+        const typeNameSys = REQUEST_TYPE_NAMES[reqRow.request_type] || "요청";
+        const sysMsgContent = status === "done"
+          ? `${typeNameSys}이 처리됐습니다.`
+          : `${typeNameSys}을 처리하지 못했습니다.`;
+        await insertSystemMessage(req.params.id, me.swimming_pool_id, sysMsgContent);
+      }
+
       if (reqRow?.parent_id && status !== "pending" && statusChanged) {
         const TYPE_LABELS: Record<string, string> = {
           absence: "결석", makeup: "보강", postpone: "연기",
@@ -465,6 +521,127 @@ router.patch("/parent-requests/:id", requireAuth, requireRole("pool_admin", "sub
       }
 
       res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
+// ─── 업무 대화 스레드: 메시지 조회 ──────────────────────────────────────────
+// GET /parent-requests/:requestId/messages
+// teacher/parent 공통. 조회 시 상대방 메시지 읽음 처리
+router.get("/parent-requests/:requestId/messages", requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureMessagesTable();
+      const { role, userId } = req.user!;
+      const requestId = req.params.requestId;
+
+      const [reqRow] = await db.execute(sql`
+        SELECT id, parent_id, swimming_pool_id, teacher_user_id FROM parent_student_requests
+        WHERE id = ${requestId} LIMIT 1
+      `).then(r => r.rows as any[]);
+
+      if (!reqRow) { res.status(404).json({ success: false, message: "요청을 찾을 수 없습니다." }); return; }
+
+      if (role === "parent_account") {
+        if (reqRow.parent_id !== userId) { res.status(403).json({ success: false, message: "접근 권한 없음" }); return; }
+        // 선생님이 보낸 메시지를 학부모 읽음으로 처리
+        await db.execute(sql`
+          UPDATE parent_request_messages SET is_read_by_parent = true
+          WHERE request_id = ${requestId} AND sender_type IN ('teacher','system') AND is_read_by_parent = false
+        `).catch(() => {});
+      } else if (["teacher", "pool_admin", "super_admin"].includes(role)) {
+        const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+          .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+        if (reqRow.swimming_pool_id !== me?.swimming_pool_id) { res.status(403).json({ success: false, message: "접근 권한 없음" }); return; }
+        // 학부모가 보낸 메시지를 선생님 읽음으로 처리
+        await db.execute(sql`
+          UPDATE parent_request_messages SET is_read_by_teacher = true
+          WHERE request_id = ${requestId} AND sender_type = 'parent' AND is_read_by_teacher = false
+        `).catch(() => {});
+      } else {
+        res.status(403).json({ success: false, message: "접근 권한 없음" }); return;
+      }
+
+      const messages = await db.execute(sql`
+        SELECT * FROM parent_request_messages WHERE request_id = ${requestId} ORDER BY created_at ASC
+      `).then(r => r.rows);
+
+      res.json({ success: true, messages });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
+// ─── 업무 대화 스레드: 메시지 전송 ──────────────────────────────────────────
+// POST /parent-requests/:requestId/messages
+// teacher → 학부모 알림/push / parent → 선생님 new_message_count 증가
+router.post("/parent-requests/:requestId/messages", requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureMessagesTable();
+      const { role, userId } = req.user!;
+      const requestId = req.params.requestId;
+      const { content } = req.body;
+      if (!content?.trim()) { res.status(400).json({ success: false, message: "내용을 입력해주세요." }); return; }
+
+      const [reqRow] = await db.execute(sql`
+        SELECT id, parent_id, teacher_user_id, swimming_pool_id, request_type
+        FROM parent_student_requests WHERE id = ${requestId} LIMIT 1
+      `).then(r => r.rows as any[]);
+      if (!reqRow) { res.status(404).json({ success: false, message: "요청을 찾을 수 없습니다." }); return; }
+
+      let senderType: string;
+      let isReadByTeacher = false;
+      let isReadByParent = false;
+
+      if (role === "parent_account") {
+        if (reqRow.parent_id !== userId) { res.status(403).json({ success: false, message: "접근 권한 없음" }); return; }
+        senderType = "parent";
+        isReadByParent = true;
+      } else if (["teacher", "pool_admin", "super_admin"].includes(role)) {
+        const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+          .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+        if (reqRow.swimming_pool_id !== me?.swimming_pool_id) { res.status(403).json({ success: false, message: "접근 권한 없음" }); return; }
+        senderType = "teacher";
+        isReadByTeacher = true;
+      } else {
+        res.status(403).json({ success: false, message: "접근 권한 없음" }); return;
+      }
+
+      const msgId = `prm_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      await db.execute(sql`
+        INSERT INTO parent_request_messages
+        (id, request_id, swimming_pool_id, sender_type, sender_id, message_type, content, is_read_by_teacher, is_read_by_parent)
+        VALUES (${msgId}, ${requestId}, ${reqRow.swimming_pool_id}, ${senderType}, ${userId}, 'message', ${content.trim()}, ${isReadByTeacher}, ${isReadByParent})
+      `);
+      const [message] = await db.execute(sql`SELECT * FROM parent_request_messages WHERE id = ${msgId}`).then(r => r.rows as any[]);
+
+      const typeLabel = REQUEST_TYPE_NAMES[reqRow.request_type] || "요청";
+
+      if (senderType === "teacher" && reqRow.parent_id) {
+        const pushTitle = `${typeLabel}에 새 답변이 있습니다`;
+        const pushBody = "선생님이 메시지를 보냈습니다.";
+        try {
+          const notifId = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+          await db.execute(sql`
+            INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
+            VALUES (${notifId}, ${reqRow.parent_id}, 'parent_account', 'parent_request_reply',
+                    ${pushTitle}, ${pushBody}, ${requestId}, 'request', ${reqRow.swimming_pool_id}, false)
+          `).catch(() => {});
+        } catch {}
+        try {
+          const { sendPushToUser } = await import("../lib/push-service.js");
+          await sendPushToUser(reqRow.parent_id, true, "parent_request_reply",
+            pushTitle, pushBody, { requestId }, `req_reply_${msgId}`);
+        } catch {}
+      }
+
+      res.json({ success: true, message });
     } catch (err) {
       console.error(err);
       res.status(500).json({ success: false, message: "서버 오류" });

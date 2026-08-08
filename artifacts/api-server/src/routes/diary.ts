@@ -1860,12 +1860,22 @@ router.get("/teacher/overview",
         WHERE teacher_user_id = ${userId} AND status = 'pending'
       `).catch(() => ({ rows: [{ cnt: 0 }] }));
 
+      // 학부모 재회신 미읽음 (parent_request_messages — 선생님이 안 읽은 학부모 메시지)
+      const unreadReqMsgs = await db.execute(sql`
+        SELECT COUNT(*) AS cnt FROM parent_request_messages prm
+        JOIN parent_student_requests psr ON psr.id = prm.request_id
+        WHERE psr.teacher_user_id = ${userId}
+          AND prm.sender_type = 'parent'
+          AND prm.is_read_by_teacher = false
+      `).catch(() => ({ rows: [{ cnt: 0 }] }));
+
       res.json({
         unread_messages: Number((unreadMsg.rows[0] as any)?.cnt ?? 0),
         pending_diaries_today: Number((pendingToday.rows[0] as any)?.cnt ?? 0),
         pending_diaries_past: pendingPastCount,
         makeup_count: Number((makeupCount.rows[0] as any)?.cnt ?? 0),
         pending_parent_requests: Number((pendingRequests.rows[0] as any)?.cnt ?? 0),
+        unread_parent_request_messages: Number((unreadReqMsgs.rows[0] as any)?.cnt ?? 0),
       });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
