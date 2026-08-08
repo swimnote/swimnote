@@ -78,28 +78,50 @@ export function RequestThreadModal({ visible, request, token, themeColor, onClos
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const fetchingRef = useRef(false);       // 중복 GET 방지
+  const prevMsgCountRef = useRef(0);       // 메시지 수 변화 감지 (불필요 scroll 방지)
 
-  const fetchMessages = useCallback(async () => {
+  // silent=true: polling용 (로딩 UI 없음), false: 초기 로드 (로딩 UI 표시)
+  const fetchMessages = useCallback(async (silent = false) => {
     if (!request) return;
-    setLoading(true);
+    if (fetchingRef.current) return;      // 이미 요청 중이면 skip
+    fetchingRef.current = true;
+    if (!silent) setLoading(true);
     try {
       const res = await apiRequest(token, `/parent-requests/${request.id}/messages`);
       if (res.ok) {
         const d = await res.json();
-        setMessages(d.messages || []);
-        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 120);
+        const msgs: RequestMessage[] = d.messages || [];
+        setMessages(msgs);
+        // 메시지 수가 늘었을 때만 scroll
+        if (msgs.length > prevMsgCountRef.current) {
+          const wasEmpty = prevMsgCountRef.current === 0;
+          setTimeout(() => scrollRef.current?.scrollToEnd({ animated: !wasEmpty }), 120);
+        }
+        prevMsgCountRef.current = msgs.length;
       }
     } catch {}
-    setLoading(false);
+    if (!silent) setLoading(false);
+    fetchingRef.current = false;
   }, [request?.id, token]);
 
+  // 초기 로드: visible/requestId 변경 시
   useEffect(() => {
     if (visible && request) {
       setMessages([]);
       setReplyText("");
-      fetchMessages();
+      prevMsgCountRef.current = 0;
+      fetchingRef.current = false;
+      fetchMessages(false);
     }
   }, [visible, request?.id]);
+
+  // 2초 polling: visible=true인 동안만, unmount/닫기 시 자동 정리
+  useEffect(() => {
+    if (!visible || !request) return;
+    const interval = setInterval(() => fetchMessages(true), 2000);
+    return () => clearInterval(interval);
+  }, [visible, request?.id, fetchMessages]);
 
   async function sendMessage() {
     if (!request || !replyText.trim() || sending) return;
@@ -113,12 +135,8 @@ export function RequestThreadModal({ visible, request, token, themeColor, onClos
       });
       const d = await res.json().catch(() => ({}));
       if (res.ok) {
-        const newMsg = d.message ?? d.data;
-        if (newMsg) {
-          setMessages(prev => [...prev, newMsg]);
-          setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
-        }
-        setReplyText(""); // 성공 시에만 초기화
+        setReplyText("");          // 성공 시에만 초기화
+        await fetchMessages(true); // POST 성공 → 즉시 재조회 (중복 bubble 방지)
         onRefreshList?.();
       } else {
         Alert.alert("전송 실패", d.message || `오류가 발생했습니다. (${res.status})`);
