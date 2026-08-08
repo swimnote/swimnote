@@ -1,0 +1,449 @@
+[SWIMNOTE 일지 댓글 — 키보드 가림 수정 + 학부모별/일지별 대화 격리 전수감리]
+
+이번 작업은 단순 UI 수정이 아니다.
+
+반드시 먼저 현재 일지 댓글의 DB/API/조회 조건을 실제 코드로 추적하여
+댓글 thread가 아래 단위로 완전히 격리되어 있는지 확인한 후 수정한다.
+
+절대 추정하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 최우선 데이터 격리 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+일지 댓글 대화의 thread 단위는 반드시:
+
+[특정 일지 diary_id]
++
+[특정 학부모/학생 관계]
+
+이어야 한다.
+
+즉 같은 반, 같은 날짜, 같은 일지라도
+학부모 A와 선생님의 대화를
+학부모 B가 절대 볼 수 없어야 한다.
+
+또한 같은 학부모라도:
+
+8월 1일 일지 댓글
+8월 8일 일지 댓글
+
+은 서로 다른 thread다.
+
+날짜를 직접 thread key로 사용하는 것이 아니라
+각 날짜의 실제 diary_id가 다르므로
+반드시 해당 diary_id 기준으로 분리되어야 한다.
+
+최종적으로 다음 형태가 보장되어야 한다.
+
+Thread =
+diary_id + parent/student ownership
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 DB 구조부터 실제 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고상 댓글 저장은:
+
+POST /diaries/:diaryId/comments
+
+table:
+diary_messages
+
+message_type:
+diary_comment
+
+으로 되어 있다.
+
+하지만 이것만으로 격리를 보장할 수 없다.
+
+diary_messages 실제 schema를 조사하여 다음 필드를 보고하라.
+
+- id
+- diary_id 또는 diary reference
+- sender_id
+- sender_type / sender_role
+- parent_id
+- student_id
+- recipient_id
+- pool_id
+- message_type
+- created_at
+
+실제 존재하는 컬럼만 보고할 것.
+
+특히 어떤 컬럼을 이용해서
+"어느 학부모와의 댓글 대화인지"
+구분하고 있는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 댓글 GET API 전수감리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+학부모 댓글 조회 API와
+선생님 댓글 조회 API를 모두 찾는다.
+
+각 SQL WHERE 조건을 그대로 확인한다.
+
+절대 다음처럼 diary_id만으로 조회하면 안 된다.
+
+WHERE diary_id = :diaryId
+
+이 경우 같은 일지에 달린 여러 학부모의 댓글이
+서로 섞일 위험이 있다.
+
+학부모 측에서는 최소한:
+
+해당 diary
++
+현재 로그인한 parent가 접근 가능한 학생/일지
+
+조건으로 제한되어야 한다.
+
+선생님 측에서는
+특정 학부모 댓글 thread를 열었을 때:
+
+해당 diary
++
+해당 parent/student thread
+
+만 조회되어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 반드시 검증할 격리 CASE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+DIARY-A = 2026-08-27 수업일지
+
+학생 A / 학부모 A:
+"우리 아이 오늘 어땠나요?"
+
+학생 B / 학부모 B:
+"호흡은 괜찮았나요?"
+
+Teacher가 A thread를 열면:
+
+A 질문
+Teacher의 A 답변
+
+만 보여야 한다.
+
+B 질문은 절대 보여서는 안 된다.
+
+Teacher가 B thread를 열면:
+
+B 질문
+Teacher의 B 답변
+
+만 보여야 한다.
+
+A 질문/답변은 절대 보여서는 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 같은 학부모 + 다른 일지 격리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+학부모 A가
+
+DIARY-A (8/20):
+"발차기 괜찮았나요?"
+
+DIARY-B (8/27):
+"오늘 호흡은 어땠나요?"
+
+라고 작성한 경우
+
+8/20 일지 댓글창에는
+8/20 대화만 표시.
+
+8/27 일지 댓글창에는
+8/27 대화만 표시.
+
+같은 parent_id/student_id라는 이유로
+두 날짜의 댓글을 합치면 안 된다.
+
+반드시 diary_id까지 thread boundary에 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Teacher 소식 → 댓글 thread 연결 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+Parent 댓글 작성
+→ diary_comment notification
+→ Teacher 알림함 > 소식
+→ 해당 일지 이동
+
+구조가 구현되어 있다.
+
+여기서 선생님이 댓글에 답장하려 할 때
+단순히 diary 전체 댓글을 열면 안 된다.
+
+notification을 발생시킨
+정확한 parent/student thread를 식별해야 한다.
+
+필요하다면 notification의 기존 ref/extra_data 구조를 확인해서
+
+- diary_id
+- parent/student 식별값
+- comment/thread 식별값
+
+중 기존 구조에서 가장 안전한 값을 사용한다.
+
+새 DB 구조를 만들기 전에 기존 데이터로 해결 가능한지 먼저 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Teacher 댓글 화면의 목록 구조 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+하나의 일지에 댓글을 단 학부모가 여러 명이면
+선생님이 각 학부모와 독립적으로 답장할 수 있어야 한다.
+
+절대 모든 학부모 댓글을 하나의 공용 채팅창에 합치지 않는다.
+
+필요한 UX는:
+
+일지
+ ├ 학부모 A 댓글 thread
+ ├ 학부모 B 댓글 thread
+ └ 학부모 C 댓글 thread
+
+각 thread는 독립.
+
+현재 구조가 이미 이렇게 되어 있으면
+구조 변경하지 말고 실제 격리 조건만 증명할 것.
+
+안 되어 있으면 최소 변경으로 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 현재 키보드 가림 문제
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+첨부 실기기 화면에서 확인된 문제:
+
+댓글 답장 입력창 터치
+→ iOS keyboard 표시
+→ 하단 입력/전송 영역이 keyboard와 충돌
+→ 전송 버튼 또는 대화 하단 확인이 어려움
+→ 화면 자체가 keyboard 높이에 맞춰 정상적으로 scroll/resize되지 않음
+
+반드시 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. Keyboard UX 요구사항
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+iOS / Android 모두 대응.
+
+키보드가 열리면:
+
+[Header]
+[대화 Scroll 영역]
+[답장 입력창 + 전송 버튼]
+[Keyboard]
+
+순서가 되어야 한다.
+
+입력창과 전송 버튼은 항상 keyboard 바로 위에서 보여야 한다.
+
+키보드가 입력창/전송 버튼을 덮으면 안 된다.
+
+KeyboardAvoidingView 또는
+현재 프로젝트에서 이미 검증된 keyboard handling 패턴을 먼저 조사하고 재사용.
+
+새 라이브러리 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Scroll 동작
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대화가 길어져도 정상 스크롤 가능해야 한다.
+
+키보드 open 시:
+
+- 대화 viewport 높이 감소
+- 입력창은 keyboard 위 유지
+- 현재 최신 메시지 확인 가능
+- 필요 시 scrollToEnd
+- 사용자가 과거 대화로 위로 scroll 가능
+
+키보드 close 시 원래 높이 복구.
+
+화면 전체가 고정되어
+키보드 뒤로 내용이 숨어서는 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 입력창
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 UI 디자인은 최대한 유지.
+
+입력창:
+"답장을 입력하세요..."
+
+전송 버튼 유지.
+
+입력 중 multiline이 필요하면
+현재 앱의 기존 댓글 입력 정책을 확인하여 유지.
+
+키보드 때문에 Bottom Navigation과 겹치지 않도록 한다.
+
+SafeArea inset도 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 데이터 보안 CASE — 필수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 1
+Diary A + Parent A 댓글
+→ Parent A만 자기 thread 확인
+
+CASE 2
+같은 Diary A + Parent B 댓글
+→ Parent B는 A 댓글을 볼 수 없음
+
+CASE 3
+Teacher가 Parent A thread
+→ A 대화만 표시
+
+CASE 4
+Teacher가 Parent B thread
+→ B 대화만 표시
+
+CASE 5
+Teacher가 A에게 답장
+→ Parent B에게 절대 표시 안 됨
+
+CASE 6
+Teacher가 B에게 답장
+→ Parent A에게 절대 표시 안 됨
+
+CASE 7
+같은 Parent A + Diary A
+→ Diary A 대화만 표시
+
+CASE 8
+같은 Parent A + Diary B
+→ Diary B 대화만 표시
+
+CASE 9
+Diary A와 Diary B 댓글 절대 혼합 안 됨
+
+CASE 10
+Teacher 소식의 diary_comment 카드
+→ 정확한 diary + 정확한 parent/student thread 연결
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Keyboard CASE — 필수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 11
+iOS keyboard open
+→ 입력창 전체 노출
+
+CASE 12
+iOS keyboard open
+→ 전송 버튼 전체 노출
+
+CASE 13
+keyboard open 상태에서 대화 scroll 가능
+
+CASE 14
+긴 대화에서도 최신 메시지 확인 가능
+
+CASE 15
+전송 후 새 답변 즉시 표시
+
+CASE 16
+keyboard close 후 layout 정상 복원
+
+CASE 17
+Android 동일 기능 정상
+
+CASE 18
+Bottom Navigation과 입력창 겹침 없음
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 중요 — 데이터 격리 문제 발견 시
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+만약 현재 GET/POST가 diary_id만 사용해서
+학부모별 thread가 실제로 분리되지 않는다면
+
+UI만 고치고 배포하지 말 것.
+
+먼저 정확한 원인과 현재 schema를 보고하고,
+최소 수정으로:
+
+diary_id
++
+parent/student ownership
+
+을 서버에서 강제하도록 수정한다.
+
+클라이언트가 parentId를 보내는 것만 믿으면 안 된다.
+
+현재 로그인 사용자와 diary/student 관계를 서버에서 검증해야 한다.
+
+다른 parentId를 임의로 보내서
+다른 학부모 thread를 조회할 수 있는 IDOR도 반드시 검사한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 기존 기능 보호
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 기능 회귀 금지:
+
+- 일지 작성
+- 일지 저장
+- 사진/영상
+- 좋아요
+- 감사합니다
+- 댓글 최초 작성
+- Teacher 소식
+- diary_like
+- diary_thanks
+- diary_comment notification
+- 홈 badge
+- 학부모 요청
+- 업무대화
+- 쪽지함
+- 보강/출결
+- Auth/JWT/API_BASE
+
+댓글 thread와 keyboard 영역만 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 배포 전 보고 필수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 실제 코드 조사 결과를 보고한 후 구현.
+
+최종 보고에 반드시 포함:
+
+1. diary_messages 실제 schema
+2. 댓글 POST API
+3. Parent 댓글 GET API
+4. Teacher 댓글 GET API
+5. 현재 thread key가 무엇이었는지
+6. diary_id만 사용했는지 여부
+7. parent/student 격리 조건
+8. 다른 날짜 diary 격리 조건
+9. IDOR 검증 결과
+10. Teacher 소식 → 정확한 thread 연결 방식
+11. Keyboard 문제 직접 원인
+12. Keyboard 수정 방식
+13. 수정 파일
+14. CASE 1~18 결과
+15. TypeCheck
+16. git diff --stat
+17. Commit SHA
+18. Render Live SHA
+19. iOS/Android OTA ID
+20. 보호 영역 변경 여부
+
+실제 코드/SQL로 확인되지 않은 항목을
+"정상"이라고 보고하지 말 것.
