@@ -109,7 +109,7 @@ export default function UnreadMessagesModal({
           </View>
         ) : (
           <ScrollView showsVerticalScrollIndicator={false}>
-            {items.map((item, idx) => {
+            {items.map((item, _idx) => {
               if (item.kind === "message") {
                 const msg = item.data;
                 return (
@@ -172,6 +172,20 @@ export default function UnreadMessagesModal({
             })}
           </ScrollView>
         )}
+
+        {/* 쪽지보관함 전체보기 — unread 유무와 무관하게 항상 표시 */}
+        {!loading && (
+          <Pressable
+            style={um.inboxBtn}
+            onPress={() => {
+              onClose();
+              router.push("/(teacher)/messages-inbox" as any);
+            }}
+          >
+            <LucideIcon name="inbox" size={15} color={C.text} />
+            <Text style={[um.inboxBtnTxt, { color: C.text }]}>쪽지보관함 전체보기</Text>
+          </Pressable>
+        )}
       </View>
     </Modal>
   );
@@ -196,4 +210,6 @@ const um = StyleSheet.create({
   itemMeta:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
   typeBadge:  { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   typeTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  inboxBtn:   { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginHorizontal: 20, marginTop: 8, marginBottom: 4, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#F9FAFB" },
+  inboxBtnTxt:{ fontSize: 14, fontFamily: "Pretendard-Regular", fontWeight: "600" },
 });

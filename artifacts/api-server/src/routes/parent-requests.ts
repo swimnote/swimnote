@@ -304,6 +304,7 @@ router.get("/teacher/parent-requests", requireAuth, requireRole("teacher", "pool
 
 // ─── 선생님: 요청 읽음 처리 ──────────────────────────────────────────────
 // PATCH /teacher/parent-requests/:id/read
+// 최초 unread→read 전환 시에만 학부모 확인 알림 발송 (중복 알림 방지)
 router.patch("/teacher/parent-requests/:id/read", requireAuth, requireRole("teacher", "pool_admin", "super_admin"),
   async (req: AuthRequest, res) => {
     try {
@@ -312,14 +313,67 @@ router.patch("/teacher/parent-requests/:id/read", requireAuth, requireRole("teac
         .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
-      await db.execute(sql`
-        UPDATE parent_student_requests
-        SET is_read_by_teacher = true,
-            updated_at = NOW()
+      // 현재 row 조회 (is_read_by_teacher, request_type, parent_id)
+      const [reqRow] = await db.execute(sql`
+        SELECT is_read_by_teacher, request_type, parent_id
+        FROM parent_student_requests
         WHERE id = ${req.params.id}
           AND swimming_pool_id = ${me.swimming_pool_id}
-          AND teacher_user_id = ${userId}
-      `);
+        LIMIT 1
+      `).then(r => r.rows as any[]);
+
+      if (reqRow && !reqRow.is_read_by_teacher) {
+        // 최초 읽음 전환: UPDATE + 확인 알림 발송
+        await db.execute(sql`
+          UPDATE parent_student_requests
+          SET is_read_by_teacher = true,
+              updated_at = NOW()
+          WHERE id = ${req.params.id}
+            AND swimming_pool_id = ${me.swimming_pool_id}
+        `);
+
+        if (reqRow.parent_id) {
+          const ACK_LABELS: Record<string, { title: string; body: string }> = {
+            absence:    { title: "결석 신청을 확인했습니다",  body: "선생님이 결석 신청을 확인했습니다." },
+            postpone:   { title: "연기 신청을 확인했습니다",  body: "선생님이 연기 신청을 확인했습니다." },
+            makeup:     { title: "보강 요청을 확인했습니다",  body: "선생님이 보강 요청을 확인했습니다." },
+            withdrawal: { title: "퇴원 신청을 확인했습니다",  body: "선생님이 퇴원 신청을 확인했습니다." },
+            counseling: { title: "상담 요청을 확인했습니다",  body: "선생님이 상담 요청을 확인했습니다." },
+            inquiry:    { title: "문의를 확인했습니다",       body: "선생님이 문의 내용을 확인했습니다." },
+          };
+          const ack = ACK_LABELS[reqRow.request_type] ?? { title: "요청을 확인했습니다", body: "선생님이 요청을 확인했습니다." };
+
+          // Notification DB 저장 (ref_id 기준 중복 방지 — read transition은 1회만 발생하므로 시간 기반 불필요)
+          try {
+            const notifId = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+            await db.execute(sql`
+              INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
+              SELECT ${notifId}, ${reqRow.parent_id}, 'parent_account',
+                     'parent_request_acknowledged', ${ack.title}, ${ack.body},
+                     ${req.params.id}, 'request', ${me.swimming_pool_id}, false
+              WHERE NOT EXISTS (
+                SELECT 1 FROM notifications
+                WHERE type = 'parent_request_acknowledged'
+                  AND ref_id = ${req.params.id}
+                  AND recipient_id = ${reqRow.parent_id}
+              )
+            `);
+          } catch (notifErr) { console.error("[parent-requests read notification error]", notifErr); }
+
+          // Push 발송
+          try {
+            const { sendPushToUser } = await import("../lib/push-service.js");
+            await sendPushToUser(
+              reqRow.parent_id, true, "parent_request_acknowledged",
+              ack.title, ack.body,
+              { requestId: req.params.id },
+              `req_ack_${req.params.id}`
+            );
+          } catch (pushErr) { console.error("[parent-requests read push error]", pushErr); }
+        }
+      }
+      // 이미 읽음(is_read_by_teacher=true)이면 UPDATE/알림 없음 → 중복 알림 방지
+
       res.json({ success: true });
     } catch (err) {
       console.error(err);
