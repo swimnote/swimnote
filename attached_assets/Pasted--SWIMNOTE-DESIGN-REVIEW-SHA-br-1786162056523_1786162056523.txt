@@ -1,0 +1,708 @@
+[SWIMNOTE 학부모 요청·알림 / 선생님 요청함 — 최종 구현 승인]
+
+DESIGN REVIEW 승인.
+
+이번 단계부터 실제 구현한다.
+
+중요:
+과거 SHA/branch를 baseline으로 사용하지 않는다.
+작업 시작 순간의 최신 Production/Git 상태를 먼저 다시 검증하고
+그 최신본 위에서만 수정한다.
+
+보강 / 일지 / AI Diary / 사진 / 회원 / 출결은 완전 동결.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 시작 전 Baseline Gate
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 먼저 확인:
+
+git branch --show-current
+git rev-parse HEAD
+git rev-parse origin/$(git branch --show-current)
+git status --short
+
+그리고:
+
+- 최신 Production OTA commit
+- Production Server Live SHA
+- 실제 Production API_BASE
+
+확인.
+
+현재 보고 기준:
+
+branch:
+deploy-photo-clone
+
+HEAD:
+93db5427
+
+은 참고값이다.
+
+실행 시점 실제 값이 다르면
+현재 최신값을 사용한다.
+
+과거 SHA checkout/reset/rebase 금지.
+
+Working Tree가 clean이 아니면 중단.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 이번 구현 범위
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번에 구현:
+
+A. Teacher 요청 Visibility 개선
+B. 요청 처리 결과 Notification DB 저장
+C. Parent Notifications → Requests deep-link
+D. Requests requestId 강조
+E. Requests pull-to-refresh
+F. Request Modal UX 최소 수정
+G. 날짜 Invalid/NaN 방어
+H. API failure 상태 최소 처리
+
+이번에 하지 않음:
+
+Result Linking
+processed_result_type
+processed_result_id
+processed_by
+processed_at
+link-result
+notify-result 신규 API
+admin_note DB 저장
+DB Migration
+보강 자동 처리
+출결 자동 처리
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 허용 파일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최대 3개:
+
+artifacts/api-server/src/routes/parent-requests.ts
+
+artifacts/swim-app/app/(parent)/notifications.tsx
+
+artifacts/swim-app/app/(parent)/requests.tsx
+
+원칙적으로 이 3개 외 수정 금지.
+
+teacher/messages-inbox.tsx는
+현재 기능이 이미 완성되어 있으므로 수정 금지.
+
+다른 파일이 반드시 필요하면
+수정하지 말고 이유부터 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Teacher Request Visibility 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 문제:
+
+parent_student_requests.teacher_user_id
+
+가 요청 생성 당시 담당자 snapshot으로 저장되고,
+GET /teacher/parent-requests가 이것을 visibility 기준으로 사용.
+
+그 결과:
+
+학생이 현재 다른 반/다른 선생님으로 이동해도
+과거 담당 선생님에게 요청이 남을 수 있음.
+
+최종 정책:
+
+teacher_user_id
+= 요청 생성 당시 담당자 기록으로 유지.
+
+Teacher Inbox visibility
+= 현재 active class membership 기준.
+
+Source of Truth:
+
+students.class_group_id
+→ class_groups
+
+현재 로그인 선생님에게 요청 표시 조건:
+
+1. 같은 swimming_pool_id
+2. 요청의 student_id가 현재 active 학생
+3. 학생의 현재 class_group이 active
+4. class_group.teacher_user_id = current user
+
+또는 현재 시스템에서 co_teacher도 담당 선생님이면:
+
+class_group.co_teacher_ids에 current user 포함
+
+퇴원/삭제/archived 학생 제외.
+
+다른 선생님 반 학생 제외.
+
+다른 pool 제외.
+
+Admin의 pool 전체 조회는 변경하지 않는다.
+
+중요:
+
+pool 전체 요청 반환 금지.
+
+original/snapshot teacher_user_id를
+current visibility 기준으로 계속 사용하는 것도 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. POST /parent/requests 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 요청 생성 로직 유지.
+
+teacher_user_id는 historical snapshot으로 저장 가능.
+
+다음 기존 기능 유지:
+
+tenant 검증
+자기 자녀 검증
+request_type
+work_messages 생성
+담당 teacher push
+
+Contract 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Request 처리 결과 Notification DB 저장
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+PATCH /parent-requests/:id
+
+현재:
+
+status UPDATE
+→ sendPushToUser
+
+에 Notification DB INSERT를 추가한다.
+
+기존 notifications INSERT pattern을 그대로 따른다.
+
+최종 논리값:
+
+recipient_id = 해당 parent user
+recipient_type = 현재 schema convention
+pool_id = 해당 pool
+type = 'parent_request_result'
+title = 기존 push 제목과 일관
+body = 처리 결과 문구
+ref_type = 'request'
+ref_id = request id
+is_read = false
+
+실제 schema column 이름을 그대로 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 중복 Notification 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+시간 기반:
+
+"1시간 내 동일 ref_id 알림 차단"
+
+을 핵심 idempotency 규칙으로 사용하지 않는다.
+
+정상 기준:
+
+실제 request 상태가 변했을 때만 알림 생성.
+
+예:
+
+pending → done
+= 1회 알림
+
+pending → rejected
+= 1회 알림
+
+같은 상태를 다시 PATCH:
+
+done → done
+rejected → rejected
+
+= 새 알림 생성 금지.
+
+가능하면 기존 status를 UPDATE 전에 읽어서:
+
+previousStatus !== requestedStatus
+
+일 때만 notification + push를 실행한다.
+
+현재 서버 정책상 done/rejected → pending 재전환을 허용하고 있다면
+그 구조를 이번에 임의 변경하지 않는다.
+
+단 동일 상태 no-op에서 중복 결과 알림이 발생하면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Push와 Notification 관계
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+요청 처리 성공:
+
+Request status UPDATE
+↓
+Notification DB 저장
+↓
+Push
+
+기존 Push payload에 requestId가 있으면 유지.
+
+Notification DB 저장 실패를 조용히 성공으로 처리하지 말고
+현재 서버 오류 처리 패턴에 맞춰 처리.
+
+다만 Push 전송 실패 때문에
+이미 정상 처리된 request 자체가 다시 pending으로 돌아가는
+새 rollback 구조는 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. Parent Notifications Deep Link
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+(parent)/notifications.tsx
+
+기존 diary/photo routing 유지.
+
+추가:
+
+if ref_type === 'request'
+또는 현재 서버의 parent_request_result Contract와 일치하는 경우
+
+router.push({
+  pathname: "/(parent)/requests",
+  params: { requestId: notification.ref_id }
+})
+
+적용.
+
+기존 diary/photo routing 변경 금지.
+
+중복 push 방지.
+
+연속 탭으로 동일 requests 화면이 여러 장 쌓이지 않도록
+현재 navigation 구조에 맞는 최소 guard 적용.
+
+redirect loop 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Requests requestId 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+(parent)/requests.tsx
+
+useLocalSearchParams로:
+
+requestId
+
+수신.
+
+목록 load 후 해당 id가 존재하면
+시각적으로 명확히 강조.
+
+최소 요구:
+
+border/background 등의 기존 디자인에 맞는 강조.
+
+3초 정도 후 강조 해제 가능.
+
+복잡한 자동 scroll 때문에 구조가 불안정해진다면
+이번 단계에서 자동 scroll은 필수 아님.
+
+중요한 것은:
+
+알림 tap
+→ requests 화면
+→ 어떤 요청인지 바로 식별 가능
+
+이다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. Requests Pull-to-refresh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RefreshControl 추가.
+
+중요:
+
+DESIGN REVIEW에서 requests.tsx는
+현재 별도 cache 없이 load하는 것으로 확인됨.
+
+따라서 이유 없이:
+
+clearApiCache()
+
+전역 호출 금지.
+
+Pull:
+
+refreshing=true
+→ 실제 load()
+→ server response
+→ requests state 교체
+→ refreshing=false
+
+구조.
+
+만약 현재 실제 api helper를 재확인했을 때
+GET /parent/requests가 cache되는 것이 CONFIRMED되면
+해당 endpoint 범위의 최소 bypass/invalidation만 사용.
+
+전역 cache clear 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Request 작성 성공 후 목록
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 optimistic insert가 정상이라면 유지.
+
+추가로 전체 reload를 무조건 두 번 하지 않는다.
+
+목표:
+
+작성 성공 직후 새 request가 한 번만 표시.
+
+중복 카드 금지.
+
+Pull-to-refresh 시 서버와 재동기화.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Request Modal UX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Modal 전체 재작성 금지.
+
+현재 기본 구조 유지.
+
+최소 수정:
+
+A. Backdrop 터치 dismiss
+
+Modal 바깥 영역:
+→ close
+
+Modal 내부:
+→ backdrop으로 전파되지 않음.
+
+B. 작은 화면 Scroll 안전성
+
+현재 KeyboardAwareScrollView를 활용.
+
+학생 선택
+요청 유형
+TextInput
+에러
+Submit
+
+모두 작은 화면에서 접근 가능해야 함.
+
+C. Keyboard
+
+키보드가 TextInput 및 Submit을 가리면 안 됨.
+
+D. 제출
+
+기존 submitting 중복 방지 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 날짜 방어
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+notifications.tsx timeAgo 및
+requests.tsx 날짜 표시에서:
+
+null
+undefined
+빈 문자열
+Invalid Date
+NaN
+
+사용자 노출 금지.
+
+예:
+
+if (!value) return "";
+
+const d = new Date(value);
+
+if (Number.isNaN(d.getTime())) return "";
+
+NaN일 전
+Invalid Date
+
+표시 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. API Failure
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+catch {}로 완전히 삼켜서
+오래된 state를 최신 데이터처럼 보여주는 구조는 피한다.
+
+최소 화면 상태:
+
+loading
+refreshing
+error
+
+구분.
+
+대규모 Error UI 신규 디자인은 필요 없음.
+
+기존 앱 스타일의 작은 안내로 충분.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 절대 보호 영역
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+0줄 변경:
+
+모든 보강 관련 파일
+makeup_sessions
+teacher makeups
+admin makeups
+
+일지
+AI Diary
+diary-comments
+
+앨범/사진
+회원
+출결
+
+SessionContext
+Auth
+JWT
+API_BASE
+
+Messenger Core
+
+결제
+구독
+
+DB schema
+
+과거 파일을 통째로 복사해서
+최신 파일을 덮어쓰는 행위 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. Result Linking 제외 재확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 생성 금지:
+
+processed_result_type
+processed_result_id
+processed_by
+processed_at
+
+link-result endpoint
+notify-result endpoint
+
+학부모 보강 요청을
+makeup_sessions와 자동 연결하는 코드도 금지.
+
+이것은 별도 WP다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. Targeted Tests
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SERVER
+
+CASE 1
+Parent가 request 생성
+→ pending
+
+CASE 2
+현재 담당 teacher 요청함
+→ 표시
+
+CASE 3
+다른 teacher
+→ 미표시
+
+CASE 4
+co_teacher가 현재 담당자로 인정되는 구조라면
+→ 표시
+
+CASE 5
+학생이 A반→B반 이동
+→ 현재 B teacher에게 표시
+→ A teacher 기본 inbox에서 미표시
+
+CASE 6
+done 처리
+→ DB status done
+
+CASE 7
+done 처리
+→ notifications 1건 저장
+
+CASE 8
+done 처리
+→ push 발송
+
+CASE 9
+done → done 동일 PATCH
+→ 중복 notification 없음
+
+CASE 10
+rejected
+→ rejected notification 정상
+
+PARENT APP
+
+CASE 11
+requests 목록 정상
+
+CASE 12
+pull-to-refresh 정상
+
+CASE 13
+[+] Modal 정상
+
+CASE 14
+Backdrop dismiss 정상
+
+CASE 15
+Modal 내부 터치 시 닫히지 않음
+
+CASE 16
+키보드 상태에서 Submit 접근
+
+CASE 17
+알림 목록에 request result 표시
+
+CASE 18
+request result 알림 tap
+
+→ requests?requestId
+
+CASE 19
+정확한 request 강조
+
+CASE 20
+Back 1회
+
+CASE 21
+연속 알림 tap으로 stack 중복 없음
+
+CASE 22
+Invalid date/NaN 노출 없음
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. Diff Gate
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+구현 후:
+
+git diff --name-status
+
+정상 허용 최대:
+
+M artifacts/api-server/src/routes/parent-requests.ts
+M artifacts/swim-app/app/(parent)/notifications.tsx
+M artifacts/swim-app/app/(parent)/requests.tsx
+
+3개.
+
+다른 source 파일 변경 시 중단.
+
+attached_assets
+memory
+generated
+mockup
+
+Commit에 포함 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. Type / Contract 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수정 3개 파일 관련 TypeScript 오류 0.
+
+기존 오류와 신규 오류 분리 보고.
+
+Request API Contract 변경 없음 확인.
+
+Notification 신규 row가
+GET /notifications에서 실제 읽히는 Contract와 일치 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. 배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 지시는 구현 + Production 배포 승인까지 포함한다.
+
+단 모든 테스트/Diff Gate PASS 후에만 진행.
+
+순서:
+
+1. 구현
+2. Targeted test
+3. Typecheck
+4. diff 확인
+5. Clean Commit
+6. Push
+7. 서버 변경 있으므로 Production Render 배포
+8. Render Live SHA 확인
+9. Health HTTP 200
+10. 현재 Production API_BASE 재확인
+11. Production OTA iOS + Android
+12. 실기기 검증 대기
+
+Preview OTA 금지.
+Force push 금지.
+DB Migration 금지.
+
+Replit auto-commit에 attached_assets 섞이면
+Push 중단 후 clean 상태부터 복구.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. 작업 시작 실제 branch/HEAD/remote
+2. 수정 파일
+3. Teacher visibility 최종 SQL
+4. Notification INSERT Contract
+5. 중복 notification 방지 방식
+6. Deep-link Contract
+7. requestId 강조 방식
+8. Refresh 방식
+9. Modal 수정 내용
+10. 날짜 방어
+11. CASE 1~22 결과
+12. Typecheck
+13. git diff --stat
+14. Commit SHA
+15. Push 결과
+16. Render Deploy ID
+17. Render Live SHA
+18. Health
+19. Production API_BASE
+20. OTA Group ID
+21. iOS Update ID
+22. Android Update ID
+23. Runtime Version
+24. 보호 영역 변경 0건
+25. DB Schema 변경 0건
+26. Preview OTA 없음
+
+최종 문구:
+
+“SWIMNOTE 학부모 요청·결과 알림·Deep Link 및 Teacher Visibility Production 구현 완료·실기기 검증 가능”
+
+보고 후 멈춘다.
