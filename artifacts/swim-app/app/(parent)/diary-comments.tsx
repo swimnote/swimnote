@@ -156,7 +156,8 @@ export default function DiaryCommentsScreen() {
   return (
     <KeyboardAvoidingView
       style={[s.root, { backgroundColor: C.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
     >
       <ParentScreenHeader
         title="댓글"

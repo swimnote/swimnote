@@ -136,7 +136,8 @@ export default function DiaryReactionsScreen() {
   return (
     <KeyboardAvoidingView
       style={[s.root, { backgroundColor: C.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
     >
       <SubScreenHeader
         title="반응 & 댓글"
