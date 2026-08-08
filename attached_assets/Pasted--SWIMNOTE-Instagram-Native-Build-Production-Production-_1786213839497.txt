@@ -1,0 +1,584 @@
+[SWIMNOTE Instagram Native Build — Production 완전 분리 후 테스트 빌드 진행]
+
+현재 Production 백업/복구 기준선 확정 완료.
+
+Production App exact source:
+e0c60798754376962c8e200b2c23529671d652d9
+tag:
+production-app-ota-e0c60798
+
+Production Server:
+86c76188f46a
+Render Deploy:
+dep-d9rlgp942hec738pmsd0
+
+Production runtime:
+1.6.1
+
+Production channel:
+production
+
+현재 Store binary:
+iOS Build #243
+Android versionCode 234
+
+이 기준선은 절대 변경하지 않는다.
+
+이번 작업 목표:
+
+Instagram Story V1이 포함된 최신 개발 코드를
+기존 Production 1.6.1과 완전히 분리된
+새 Native Test Runtime으로 빌드한다.
+
+Production 사용자에게 영향이 가면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+- production-app-ota-e0c60798 tag 수정
+- 기존 Production OTA rollback/update
+- production channel에 OTA 게시
+- Render 재배포
+- DB 변경
+- 과거 Production SHA checkout 후 그 코드로 Instagram build
+- main 기준으로 Instagram build
+- 기존 Store binary 교체
+- App Store/Play Store Production 출시
+- force push
+
+이번 단계는 테스트 Native Build 전용이다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 최신 Instagram 개발 HEAD 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Instagram Story V1 구현이 들어간
+실제 개발 branch/HEAD를 확정한다.
+
+반드시 제출:
+
+git branch --show-current
+git rev-parse HEAD
+git rev-parse origin/deploy-photo-clone
+git status --short
+
+Local/Remote 기능 코드가 다르면
+임의로 build하지 않는다.
+
+attached_assets/build log 등 기능과 무관한 파일은
+build 기준 commit에서 제외한다.
+
+Instagram V1 관련 코드가 실제 HEAD에 모두 포함됐는지 확인:
+
+- StoryPageRenderer.tsx
+- StoryCapturePipeline.tsx
+- react-native-share
+- react-native-view-shot
+- expo-build-properties
+- app.json Instagram schemes/plugin
+- Meta App ID env
+- Parent Feed Story 버튼
+- Instagram 미설치 선확인
+- fallback 제거 정책
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. eas.json 정상 기준 복원
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 빌드 실패 대응 중 들어간 임시 workaround를 제거하고
+기존 정상 Production 설정을 기준으로 복원한다.
+
+복원 대상:
+
+cli.version:
+>= 14.0.0
+→
+>= 16.0.0
+
+기존 preview:
+distribution = internal
+channel = production
+구조로 복원.
+
+임시 추가된:
+
+preview.android.distribution
+preview.ios.distribution
+production.ios.image
+
+는 Instagram 기능에 필수가 아니면 제거.
+
+Instagram에 필요한 env만 유지:
+
+EXPO_PUBLIC_META_APP_ID=2093655621362240
+
+기존 정상 AI/env 값은
+현재 Production 기준과 비교해서 그대로 보존.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 기존 preview / production profile 동결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+정상 복원 후 기존:
+
+preview
+production
+
+profile은 더 이상 Instagram 테스트 때문에 수정하지 않는다.
+
+Instagram Native Test 전용 profile을 새로 만든다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 새 appVersion / runtime 분리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 runtimeVersion policy:
+
+{ "policy": "appVersion" }
+
+현재 Production:
+appVersion = 1.6.1
+runtimeVersion = 1.6.1
+
+Instagram Native module이 추가됐으므로
+기존 1.6.1 runtime을 재사용하지 않는다.
+
+테스트용 신규 appVersion:
+
+1.6.2
+
+로 올린다.
+
+결과:
+
+Production 사용자:
+runtime 1.6.1 유지
+
+Instagram Test Binary:
+runtime 1.6.2
+
+로 완전 분리.
+
+중요:
+
+1.6.2 runtime용 OTA를
+production channel에 게시하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. iOS 테스트 profile
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+신규 profile 예:
+
+instagram-ios-test
+
+목적:
+TestFlight 검증용 Store Distribution Build
+
+조건:
+
+- distribution: store
+- channel은 production 사용 금지
+- appVersion/runtime = 1.6.2
+- 기존 bundle identifier 유지
+  com.swimnote.app
+- 기존 Apple Team/Store credentials 재사용
+- EXPO_PUBLIC_META_APP_ID 포함
+- react-native-share/view-shot native module 포함
+
+기존 production profile을 extends할 수 있으면
+중복 정의 최소화.
+
+단 profile 이름/구조는 현재 eas.json schema에 맞게 구현.
+
+자동 submit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Android 테스트 profile
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+신규 profile 예:
+
+instagram-android-test
+
+목적:
+직접 설치 가능한 내부 테스트 APK
+
+조건:
+
+- distribution: internal
+- buildType: apk
+- appVersion/runtime = 1.6.2
+- package:
+  com.swimnote.app
+- EXPO_PUBLIC_META_APP_ID 포함
+- Instagram native plugin 포함
+- Production AAB 생성 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. buildNumber / versionCode
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Store:
+
+iOS #243
+Android 234
+
+테스트 Native Build는
+충돌하지 않는 새 값을 사용.
+
+정확한 현재 프로젝트 version source를 확인 후:
+
+iOS buildNumber > 243
+Android versionCode > 234
+
+로 설정.
+
+임의로 과거 번호 사용 금지.
+
+최종 값을 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. EAS Project Root 강제
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EAS 명령은 반드시:
+
+artifacts/swim-app
+
+에서 실행.
+
+실행 전:
+
+pwd
+
+확인.
+
+현재 directory에:
+
+app.json
+eas.json
+package.json
+
+존재 확인.
+
+그리고:
+
+eas project:info
+
+결과:
+
+owner:
+swimnote
+
+slug:
+swim-app
+
+projectId:
+7d0e0faa-32d8-4f40-88c4-2c99e0613afc
+
+정확히 일치해야 한다.
+
+workspace project로 인식되면
+BUILD 금지.
+
+새 EAS project 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. Build 전 Native Config 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Expo config 결과 확인:
+
+iOS:
+
+LSApplicationQueriesSchemes에
+instagram
+instagram-stories
+
+각 1회.
+
+Android:
+
+queries에
+com.instagram.android
+
+정확히 1회.
+
+react-native-share 공식 plugin 사용.
+
+삭제한:
+
+plugins/withInstagramShare.js
+
+재생성 금지.
+
+Autolinking:
+
+react-native-share
+react-native-view-shot
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Meta App ID 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Build env에서:
+
+EXPO_PUBLIC_META_APP_ID
+=
+2093655621362240
+
+확인.
+
+StoryCapturePipeline에
+"swimnote"
+같은 placeholder 없음 확인.
+
+실제 share option:
+
+social:
+Social.InstagramStories
+
+backgroundImage:
+실제 생성된 file URI
+
+appId:
+실제 META_APP_ID
+
+유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Instagram 미설치 정책 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 확정 정책 유지:
+
+Story 버튼
+↓
+Instagram 설치 여부 선확인
+
+미설치:
+"Instagram 앱이 설치되어 있지 않습니다."
+Alert
+↓
+종료
+
+금지:
+
+- 사진 저장
+- Share Sheet
+- 다른 SNS
+- 다운로드
+- Store 강제 이동
+
+미설치면 Story 이미지 생성도 시작하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 다중 Story 현재 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구현은 N장일 경우
+1장씩 Instagram Story Composer를 순차 호출한다고 보고됐다.
+
+이 부분은 공식 지원이 확인된 기능이 아니므로
+Native Test에서 반드시 별도 판정한다.
+
+절대 성공으로 가정하지 않는다.
+
+테스트 결과:
+
+A. 실제로 사용 가능한 수준으로 동작
+B. 첫 장만 열림
+C. 앱 복귀가 필요
+D. 순차 실행 불가능
+E. 플랫폼마다 다름
+
+중 무엇인지 그대로 보고.
+
+다중 Story 때문에 1장 공유 기능까지 망가뜨리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. Build 실행 전 최종 Gate 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Build 시작 전에 다음을 한 번 출력:
+
+- Branch
+- Local HEAD
+- Remote HEAD
+- Working tree
+- appVersion
+- runtimeVersion
+- iOS buildNumber
+- Android versionCode
+- iOS test profile
+- Android test profile
+- EAS projectId
+- Meta App ID 존재 여부
+- Instagram plugins
+- Production runtime 1.6.1 영향 = 0
+- Production OTA 영향 = 0
+- Render 영향 = 0
+
+이상이 없으면 Build 실행.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. Build 실행
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Android와 iOS를 무조건 동시에 실행하지 않아도 된다.
+
+먼저 Android 테스트 APK build를 권장.
+
+이유:
+Android는 internal APK로
+TestFlight 절차 없이 바로 설치 검증 가능.
+
+순서 권장:
+
+1. Android instagram-android-test build
+2. Build 성공
+3. APK 생성 확인
+4. 그 다음 iOS instagram-ios-test build
+
+하지만 두 플랫폼 병렬 실행이
+현재 Replit 환경에서 안정적이라고 확인되면 병렬 가능.
+
+업로드/permission 문제가 재발하면
+eas.json을 다시 뜯어고치지 말고
+실행환경 문제만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. iOS Build
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+iOS:
+
+instagram-ios-test
+
+store distribution build 생성.
+
+Build 성공 후:
+
+Build ID
+artifact 상태
+buildNumber
+runtimeVersion
+
+보고.
+
+이번 단계에서 eas submit 자동 실행 금지.
+
+TestFlight 제출도 별도 승인 전까지 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. Android Build
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Android:
+
+instagram-android-test
+
+internal APK 생성.
+
+확인:
+
+- Build ID
+- artifact URL 존재
+- APK
+- versionCode
+- runtimeVersion
+
+Production AAB 아님을 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. 기존 Production 보호 재확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Build 완료 후 반드시 확인:
+
+Production tag:
+production-app-ota-e0c60798
+그대로 존재
+
+Production runtime:
+1.6.1
+
+Production channel:
+production
+
+기존 OTA Group:
+iOS bbaa246a...
+Android 41ac3ec3...
+
+변경 없음.
+
+Render:
+86c76188
+변경 없음.
+
+Store:
+iOS #243
+Android 234
+
+변경 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. Native Build 성공 후 아직 하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+- Production OTA
+- Production EAS Update
+- App Store Production release
+- Play Store Production release
+- Render deploy
+- DB migration
+
+Build artifact 생성까지만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. 최종 Branch
+2. Build source HEAD
+3. Remote HEAD
+4. appVersion
+5. runtimeVersion
+6. iOS buildNumber
+7. Android versionCode
+8. eas.json 복원 내용
+9. 신규 iOS profile
+10. 신규 Android profile
+11. EAS projectId
+12. Android Build ID
+13. Android artifact type
+14. iOS Build ID
+15. iOS distribution
+16. Meta App ID 적용 확인
+17. Native module autolinking
+18. Instagram schemes/queries 확인
+19. Production runtime 1.6.1 변경 0
+20. Production OTA 변경 0
+21. Render 변경 0
+22. Store Production 변경 0
+23. DB 변경 0
+24. Build 과정 중 발생한 오류
+25. 다음 실기기 테스트 절차
+
+Build 성공 후 멈춘다.
+
+핵심 목표:
+
+기존 SWIMNOTE Production 1.6.1을 완전히 보존하면서
+Instagram Native 기능이 포함된
+분리된 1.6.2 테스트 바이너리만 생성한다.
