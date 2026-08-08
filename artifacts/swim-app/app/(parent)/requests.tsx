@@ -373,7 +373,7 @@ const s = StyleSheet.create({
   adminNote: { padding: 10, borderRadius: 8 },
   cardCreatedAt: { fontSize: 11, fontFamily: "Pretendard-Regular", textAlign: "right" },
   modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
-  modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: "85%", flex: 0 },
+  modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: "85%" },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   modalTitle: { fontSize: 18, fontFamily: "Pretendard-Regular" },
   label: { fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 6 },
