@@ -40,10 +40,11 @@ import StoryPageRenderer, {
 export interface StoryInput {
   entryId: string;
   lessonDate: string;
-  teacherName: string;
-  classGroupName?: string | null;
-  bodyText: string;    // common_content + student_note 합친 전체 텍스트
-  photos: StoryPhoto[]; // 이미 URI가 resolve된 사진 목록
+  teacherName: string;      // V3 Story 표시 안 함 (외부 사용자 기준 불필요)
+  classGroupName?: string | null; // V3 Story 표시 안 함
+  poolName: string;         // 수영장 이름 — footer LEFT에 표시
+  bodyText: string;         // AI 한줄평 또는 원문
+  photos: StoryPhoto[];     // 이미 URI가 resolve된 사진 목록 (최대 10장)
 }
 
 interface Props {
@@ -51,15 +52,14 @@ interface Props {
   onDone: () => void; // 완료(성공/실패 모두) 후 호출
 }
 
-// ── V2: Story 1장 완결 ──────────────────────────────────────────────────────
+// ── V3: Story 1장 완결 (Editorial Design) ──────────────────────────────────
 function buildPageV2(input: StoryInput): StoryPageData {
   return {
     lessonDate: input.lessonDate,
-    teacherName: input.teacherName,
-    classGroupName: input.classGroupName,
-    photos: input.photos.length > 0 ? input.photos.slice(0, 10) : undefined,
-    bodyText: input.bodyText.trim(),
-    pageNum: 1,
+    poolName:   input.poolName,   // footer LEFT에 표시
+    photos:     input.photos.length > 0 ? input.photos.slice(0, 10) : undefined,
+    bodyText:   input.bodyText.trim(),
+    pageNum:    1,
     totalPages: 1,
   };
 }

@@ -113,16 +113,13 @@ function buildPhotoUri(fileUrl: string): string {
 //   contentArea inner height = 434px (640-48-130-28), TEXT_LINE_H = 20px
 //   사진 행 높이: 1장=220 / 2장=160 / 3~4장=2×105+4 / 5~6장=2×92+4 /
 //                7~8장=2×80+4 / 9~10장=2×70+4
-const _STORY_CPL = 25; // Pretendard-Medium fontSize 13, 한국어 기준 chars/line
+// V3: fontSize 14, lineHeight 22, Korean Pretendard-Medium, width≈320px → ~23자/행
+const _STORY_CPL = 23;
 
-function storyMaxLines(photoCount: number): number {
-  if (photoCount === 0) return 19;
-  if (photoCount === 1) return 7;
-  if (photoCount === 2) return 10;
-  if (photoCount <= 4) return 8;
-  if (photoCount <= 6) return 9;
-  if (photoCount <= 8) return 10;
-  return 11; // 9~10장
+// V3: 50~90자 한줄평 목표 → 약 4줄 (사진 수 무관)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function storyMaxLines(_photoCount: number): number {
+  return 4;
 }
 
 function _storyEstimateLines(text: string): number {
@@ -738,7 +735,9 @@ function DiaryFeedItem({
   studentId: string;
   studentName: string;
 }) {
-  const { token } = useAuth();
+  const { token, parentAccount, parentPoolName, pool } = useAuth();
+  // 수영장 이름 — Story footer에 사용 (하드코딩 금지)
+  const poolName = parentPoolName || (parentAccount as any)?.pool_name || pool?.name || "";
   const [myReactions, setMyReactions] = useState<Set<string>>(
     new Set(entry.reactions ?? []),
   );
@@ -815,10 +814,11 @@ function DiaryFeedItem({
 
   // Instagram Story 공유 입력 구성
   const storyInput: StoryInput = {
-    entryId: entry.id,
-    lessonDate: entry.lesson_date,
-    teacherName: entry.teacher_name,
+    entryId:        entry.id,
+    lessonDate:     entry.lesson_date,
+    teacherName:    entry.teacher_name,
     classGroupName: entry.class_group_name,
+    poolName,   // useAuth()에서 확보한 수영장 이름 (footer에 표시)
     bodyText: [
       entry.common_content?.trim(),
       entry.student_note?.note_content?.trim(),
@@ -863,8 +863,8 @@ function DiaryFeedItem({
     if (!storyTextFits(bodyText, _photoCount)) {
       setPreparing(true);
       try {
-        _maxLines = storyMaxLines(_photoCount);
-        _maxChars = Math.floor(_maxLines * _STORY_CPL * 0.9);
+        _maxLines = storyMaxLines(_photoCount); // V3: 항상 4
+        _maxChars = 90; // V3: 50~90자 한줄평 목표
 
         // C: cache lookup
         _stage = "C";

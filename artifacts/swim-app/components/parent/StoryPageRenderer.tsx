@@ -1,11 +1,13 @@
 /**
- * StoryPageRenderer.tsx
+ * StoryPageRenderer.tsx  —  V3 Editorial Design
  *
- * 1080×1920 (9:16) Story 이미지를 캡처하기 위한 렌더러.
- * - 실제 화면에는 보이지 않는 off-screen View
- * - 360×640 크기 (pixelRatio 3 → 1080×1920)
- * - 실제 피드 데이터를 그대로 사용
- * - 터치 UI(좋아요/댓글/공유 버튼) 완전 제거
+ * 1080×1920 (9:16) Story 이미지 캡처용 off-screen 렌더러.
+ * - 360×640 view, captureRef pixelRatio 3 → 1080×1920
+ * - 디자인 원칙: Editorial / Minimal / Premium
+ *   사진 > 한줄평 > 브랜딩 순서
+ * - 카드 UI, 테두리, 과한 그림자, 이모지, 광고 문구 없음
+ * - 담당 선생님 / 반 이름 제거 (외부 Instagram 사용자 기준 불필요)
+ * - 수영장 이름 + SWIMNOTE footer (LEFT / RIGHT)
  */
 import React, { forwardRef } from "react";
 import {
@@ -15,249 +17,242 @@ import {
   View,
 } from "react-native";
 import { Image as ExpoImage } from "expo-image";
-import Colors from "@/constants/colors";
 
-const C = Colors.light;
-
-// Story 캔버스 크기 (pixelRatio 3 적용 → 1080×1920)
+// ── 캔버스 크기 (pixelRatio 3 → 1080×1920) ───────────────────────────────
 export const STORY_W = 360;
 export const STORY_H = 640;
 
-// Instagram UI safe area: 상단 250px, 하단 130px (Story Creator UI 가림)
-// → 실제 콘텐츠 안전 영역: 640 - (상단여유 48) - (하단여유 80) = 512px
-// SAFE_TOP 48: Instagram 상단 UI와 날짜 잘림 방지 (실기기 검증 후 24→48)
-const SAFE_TOP = 48;
+// Instagram UI 안전 여백 (실기기 검증값)
+// 상단 250px, 하단 130px 가림 → SAFE_TOP 48 / SAFE_BOTTOM 80
+const SAFE_TOP    = 48;
 const SAFE_BOTTOM = 80;
-const CONTENT_H = STORY_H - SAFE_TOP - SAFE_BOTTOM; // 512px
+const FOOTER_H    = 38; // branding footer 높이
 
-// 워터마크 높이 (로고 확대에 맞게 36→50)
-const WATERMARK_H = 50;
+// Story 브랜드 팔레트
+const NAVY  = "#1E3A5F"; // 핵심 브랜드 네이비
+const WHITE = "#FFFFFF";
 
-// ── 동적 사진 그리드 헬퍼 ────────────────────────────────────────────────────
-// 사진 개수에 따라 행별로 분할 (최대 10장, +N 없음)
-// 1장: 1행 1열 / 2장: 1행 2열 / 3~4장: 2행 / 5~6장: 2행 3열 /
-// 7~8장: 2행 4열 / 9~10장: 2행 5열
+// ── 날짜 포맷: "08.09  SAT" ──────────────────────────────────────────────
+const WEEKDAYS_EN = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr.includes("T") ? dateStr : dateStr + "T00:00:00");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${mm}.${dd}  ${WEEKDAYS_EN[d.getDay()]}`;
+}
+
+// ── 사진 그리드 분할 (최대 10장, +N 없음) ─────────────────────────────────
+// 1장: 1행1열 / 2장: 1행2열 / 3~4장: 2행(ceil/2) /
+// 5~6장: 2행3열 / 7~8장: 2행4열 / 9~10장: 2행5열
 function splitIntoRows(photos: StoryPhoto[]): StoryPhoto[][] {
-  const n = Math.min(photos.length, 10);
+  const n   = Math.min(photos.length, 10);
   const arr = photos.slice(0, n);
   if (n <= 2) return [arr];
-  if (n <= 4) { const h = Math.ceil(n / 2); return [arr.slice(0, h), arr.slice(h)]; }
+  if (n <= 4) {
+    const h = Math.ceil(n / 2);
+    return [arr.slice(0, h), arr.slice(h)];
+  }
   if (n <= 6) return [arr.slice(0, 3), arr.slice(3)];
   if (n <= 8) return [arr.slice(0, 4), arr.slice(4)];
   return [arr.slice(0, 5), arr.slice(5)]; // 9~10
 }
 
-// 사진 개수별 행 높이 — 사진 우선, 사진이 많을수록 작아짐
-function getPhotoRowHeight(n: number): number {
-  if (n === 1) return 220;
-  if (n === 2) return 160;
-  if (n <= 4) return 105;
-  if (n <= 6) return 92;
-  if (n <= 8) return 80;
-  return 70; // 9~10
-}
-
-// fontSize, lineHeight (실제 피드와 동일)
-export const TEXT_FONT_SIZE = 13;
-export const TEXT_LINE_H = 20;
-
+// ── 공개 타입 ─────────────────────────────────────────────────────────────
 export interface StoryPhoto {
-  id: string;
+  id:  string;
   uri: string; // 로컬 캐시 URI 또는 원본 URI
 }
 
 export interface StoryPageData {
-  // 헤더 정보
-  lessonDate: string;   // "2026-08-08"
-  teacherName: string;
-  classGroupName?: string | null;
-  // 사진 (첫 페이지에만)
-  photos?: StoryPhoto[];
-  // 이 페이지에 표시할 본문 텍스트
-  bodyText: string;
-  // 페이지 번호 정보 (N장일 때)
-  pageNum: number;
+  lessonDate: string; // "2026-08-09"
+  poolName:   string; // 수영장 이름 (footer LEFT, 하드코딩 금지)
+  photos?:    StoryPhoto[]; // 최대 10장
+  bodyText:   string; // AI 한줄평 (50~90자 목표)
+  pageNum:    number;
   totalPages: number;
 }
 
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr.includes("T") ? dateStr : dateStr + "T00:00:00");
-  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
-  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${weekdays[d.getDay()]})`;
-}
-
+// ── 렌더러 ────────────────────────────────────────────────────────────────
 const StoryPageRenderer = forwardRef<View, { page: StoryPageData }>(
   ({ page }, ref) => {
-    const isFirstPage = page.pageNum === 1;
-    const hasPhotos = isFirstPage && (page.photos?.length ?? 0) > 0;
-    const showPageIndicator = page.totalPages > 1;
-    const dateLabel = formatDate(page.lessonDate);
+    const hasPhotos  = (page.photos?.length ?? 0) > 0;
+    const dateLabel  = formatDate(page.lessonDate);
+    const photoRows  = hasPhotos ? splitIntoRows(page.photos ?? []) : [];
 
     return (
-      <View ref={ref} style={styles.canvas} collapsable={false}>
-        {/* 배경 */}
-        <View style={styles.bg} />
+      <View ref={ref} style={s.canvas} collapsable={false}>
 
-        {/* 안전 영역 콘텐츠 */}
-        <View style={styles.contentArea}>
+        {/* ── 안전영역 콘텐츠: date / photos / summary ──────────────────── */}
+        <View style={s.safeZone}>
 
-          {/* ── 헤더 ── */}
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <Text style={styles.dateText}>{dateLabel}</Text>
-              <Text style={styles.teacherText} numberOfLines={1}>
-                {page.teacherName} 선생님
-                {page.classGroupName ? `  ·  ${page.classGroupName}` : ""}
-              </Text>
-            </View>
-            {showPageIndicator && (
-              <View style={styles.pageBadge}>
-                <Text style={styles.pageBadgeText}>
-                  {page.pageNum} / {page.totalPages}
-                </Text>
-              </View>
-            )}
+          {/* 날짜 — 상단 좌측, 심플 텍스트 (박스/pill 없음) */}
+          <View style={s.dateRow}>
+            <Text style={s.dateText}>{dateLabel}</Text>
           </View>
 
-          {/* ── 구분선 ── */}
-          <View style={styles.divider} />
+          <View style={{ height: 10 }} />
 
-          {/* ── 사진 영역 (최대 10장, 동적 그리드, +N 없음) ── */}
-          {hasPhotos && (() => {
-            const ph = page.photos ?? [];
-            const rowH = getPhotoRowHeight(Math.min(ph.length, 10));
-            return (
-              <View style={{ gap: 4 }}>
-                {splitIntoRows(ph).map((rowPhotos, rowIdx) => (
-                  <View key={rowIdx} style={{ flexDirection: "row", gap: 4, height: rowH }}>
-                    {rowPhotos.map(photo => (
-                      <ExpoImage
-                        key={photo.id}
-                        source={{ uri: photo.uri }}
-                        style={{ flex: 1, borderRadius: 8, backgroundColor: C.border }}
-                        contentFit="cover"
-                      />
-                    ))}
-                  </View>
+          {/* 사진 블록 — full-width, flex:1 (최대한 확대) */}
+          <View style={s.photoBlock}>
+            {photoRows.map((rowPhotos, rowIdx) => (
+              <View
+                key={rowIdx}
+                style={[s.photoRow, rowIdx > 0 && { marginTop: 3 }]}
+              >
+                {rowPhotos.map((photo, colIdx) => (
+                  <ExpoImage
+                    key={photo.id}
+                    source={{ uri: photo.uri }}
+                    style={[s.photoCell, colIdx > 0 && { marginLeft: 3 }]}
+                    contentFit="cover"
+                  />
                 ))}
               </View>
-            );
-          })()}
+            ))}
+          </View>
 
-          {/* ── 본문 ── */}
+          <View style={{ height: 12 }} />
+
+          {/* AI 한줄평 — 라벨 없음, 텍스트 직접 표시 */}
           {!!page.bodyText && (
-            <View style={styles.bodyWrap}>
-              <Text style={styles.bodyText}>{page.bodyText}</Text>
+            <View style={s.summaryWrap}>
+              <Text style={s.summaryText} numberOfLines={5}>
+                {page.bodyText}
+              </Text>
             </View>
           )}
+
         </View>
 
-        {/* ── 워터마크 (FeedCard 외부 하단) ── */}
-        <View style={styles.watermark}>
-          <RNImage
-            source={require("../../assets/images/swimnote-logo.png")}
-            style={styles.watermarkLogo}
-            resizeMode="contain"
-          />
-          <Text style={styles.watermarkText}>SWIMNOTE</Text>
+        {/* ── Footer: 수영장 이름 (L) + SWIMNOTE (R) ───────────────────── */}
+        {/* 카드 박스 없음, 배경색 없음 — 여백과 typography만으로 구분 */}
+        <View style={s.footer}>
+          <Text style={s.poolNameText} numberOfLines={1}>
+            {page.poolName}
+          </Text>
+          <View style={s.swimnoteRow}>
+            <RNImage
+              source={require("../../assets/images/swimnote-logo.png")}
+              style={s.swimnoteLogo}
+              resizeMode="contain"
+            />
+            <Text style={s.swimnoteText}>SWIMNOTE</Text>
+          </View>
         </View>
+
       </View>
     );
-  }
+  },
 );
 
 StoryPageRenderer.displayName = "StoryPageRenderer";
 export default StoryPageRenderer;
 
-const styles = StyleSheet.create({
+// ── 스타일 ────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  // 캔버스 — 흰 배경, 오버플로우 숨김
   canvas: {
-    width: STORY_W,
-    height: STORY_H,
-    backgroundColor: C.background,
-    position: "relative",
-    overflow: "hidden",
+    width:           STORY_W,
+    height:          STORY_H,
+    backgroundColor: WHITE,
+    overflow:        "hidden",
   },
-  bg: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: C.background,
-  },
-  contentArea: {
+
+  // 안전영역 flex 컨테이너
+  // top=SAFE_TOP(48), bottom=SAFE_BOTTOM(80) → height=512px
+  safeZone: {
     position: "absolute",
-    top: SAFE_TOP,
-    left: 0,
-    right: 0,
-    bottom: SAFE_BOTTOM + WATERMARK_H,
-    backgroundColor: C.card,
-    marginHorizontal: 12,
-    borderRadius: 18,
-    padding: 14,
-    gap: 8,
-    shadowColor: "#00000018",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 3,
-    overflow: "hidden",
+    top:      SAFE_TOP,
+    left:     0,
+    right:    0,
+    bottom:   SAFE_BOTTOM,
+    // flex column (기본값)
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
+
+  // 날짜 행
+  dateRow: {
+    paddingHorizontal: 20,
+    paddingTop:        14,
   },
-  headerLeft: { flex: 1, gap: 3 },
   dateText: {
-    fontSize: 13,
-    fontFamily: "Pretendard-Bold",
-    color: C.text,
-    lineHeight: 18,
-  },
-  teacherText: {
-    fontSize: 11,
-    fontFamily: "Pretendard-Medium",
-    color: C.textSecondary,
-    lineHeight: 16,
-  },
-  pageBadge: {
-    backgroundColor: "#EEF2FF",
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginLeft: 8,
-  },
-  pageBadgeText: {
-    fontSize: 10,
-    fontFamily: "Pretendard-Regular",
-    color: "#6366F1",
-  },
-  divider: { height: 1, backgroundColor: C.border },
-
-  // 본문
-  bodyWrap: { flex: 1, overflow: "hidden" },
-  bodyText: {
-    fontSize: TEXT_FONT_SIZE,
-    fontFamily: "Pretendard-Medium",
-    color: C.text,
-    lineHeight: TEXT_LINE_H,
+    fontSize:      13,
+    fontFamily:    "Pretendard-SemiBold",
+    color:         NAVY,
+    lineHeight:    18,
+    letterSpacing: 0.3,
   },
 
-  // 워터마크
-  watermark: {
-    position: "absolute",
-    bottom: SAFE_BOTTOM - WATERMARK_H,
-    left: 0,
-    right: 0,
-    height: WATERMARK_H,
+  // 사진 블록 — flex:1 (나머지 공간 전부)
+  // paddingH 없음: 사진이 캔버스 전체 폭(360px) 사용
+  photoBlock: {
+    flex: 1,
+  },
+
+  // 사진 행 — 행별로 높이를 균등 분할 (flex:1)
+  photoRow: {
+    flex:          1,
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
   },
-  watermarkLogo: { width: 28, height: 28, opacity: 0.8 },
-  watermarkText: {
-    fontSize: 20,
+
+  // 사진 셀 — 열별로 폭 균등 분할 (flex:1)
+  // borderRadius 없음, 테두리 없음, 그림자 없음
+  photoCell: {
+    flex:            1,
+    backgroundColor: "#E5E7EB",
+  },
+
+  // 한줄평
+  summaryWrap: {
+    paddingHorizontal: 20,
+    paddingBottom:     8,
+  },
+  summaryText: {
+    fontSize:   14,
     fontFamily: "Pretendard-Medium",
-    color: C.textMuted,
-    letterSpacing: 1,
-    opacity: 0.8,
+    color:      "#1E293B", // near-black, 높은 가독성
+    lineHeight: 22,
+    // left alignment (기본값)
+  },
+
+  // Footer — absolute, bottom=SAFE_BOTTOM-FOOTER_H 에 위치
+  // box/배경색/버튼 형태 없음
+  footer: {
+    position:          "absolute",
+    bottom:            SAFE_BOTTOM - FOOTER_H, // 80 - 38 = 42
+    left:              0,
+    right:             0,
+    height:            FOOTER_H,
+    paddingHorizontal: 20,
+    flexDirection:     "row",
+    alignItems:        "center",
+    justifyContent:    "space-between",
+  },
+
+  // 수영장 이름 (LEFT)
+  // Pretendard SemiBold, 네이비, 너무 작거나 연하지 않게
+  poolNameText: {
+    fontSize:    12,
+    fontFamily:  "Pretendard-SemiBold",
+    color:       NAVY,
+    flex:        1,
+    marginRight: 8,
+  },
+
+  // SWIMNOTE (RIGHT)
+  swimnoteRow: {
+    flexDirection: "row",
+    alignItems:    "center",
+    gap:           4,
+  },
+  swimnoteLogo: {
+    width:   18,
+    height:  18,
+    opacity: 0.9,
+  },
+  swimnoteText: {
+    fontSize:      12,
+    fontFamily:    "Pretendard-Bold",
+    color:         NAVY,
+    letterSpacing: 0.5,
   },
 });
