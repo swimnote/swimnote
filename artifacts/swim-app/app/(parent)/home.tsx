@@ -1050,50 +1050,53 @@ function DiaryFeedItem({
       )}
 
       <View style={[f.reactions, { borderTopColor: C.border }]}>
+        {/* 좋아요 — 아이콘만 */}
         <Pressable
           onPress={() => toggleReaction("like")}
           style={({ pressed }) => [
             f.reactionBtn,
-            myReactions.has("like") && f.reactionBtnActive,
             { opacity: pressed ? 0.7 : 1 },
           ]}
         >
-          <Text style={[f.emoji, myReactions.has("like") && { transform: [{ scale: 1.15 }] }]}>
+          <Text style={[f.emoji, myReactions.has("like") && { transform: [{ scale: 1.2 }] }]}>
             👍
           </Text>
-          <Text style={[f.reactionLabel, { color: myReactions.has("like") ? TEAL : C.textSecondary }]}>
-            좋아요
-          </Text>
         </Pressable>
+
+        {/* 감사합니다 — 아이콘만 */}
         <Pressable
           onPress={() => toggleReaction("thanks")}
           style={({ pressed }) => [
             f.reactionBtn,
-            myReactions.has("thanks") && f.reactionBtnThanks,
             { opacity: pressed ? 0.7 : 1 },
           ]}
         >
-          <Text style={[f.emoji, myReactions.has("thanks") && { transform: [{ scale: 1.15 }] }]}>
+          <Text style={[f.emoji, myReactions.has("thanks") && { transform: [{ scale: 1.2 }] }]}>
             🙏
           </Text>
-          <Text style={[f.reactionLabel, { color: myReactions.has("thanks") ? "#BE185D" : C.textSecondary }]}>
-            감사합니다
-          </Text>
         </Pressable>
-        <Pressable onPress={goToComments} style={({ pressed }) => [f.reactionBtn, { opacity: pressed ? 0.7 : 1 }]}>
-          <LucideIcon name="message-circle" size={16} color={C.textSecondary} />
-          <Text style={[f.reactionLabel, { color: C.textSecondary }]}>댓글</Text>
+
+        {/* 댓글 — 아이콘만 */}
+        <Pressable
+          onPress={goToComments}
+          style={({ pressed }) => [f.reactionBtn, { opacity: pressed ? 0.7 : 1 }]}
+        >
+          <LucideIcon name="message-circle" size={18} color={C.textSecondary} />
         </Pressable>
-        {/* Instagram Story 공유 버튼 */}
+
+        {/* Instagram AI Story — 로고 + "AI" 텍스트, 버튼 박스 없음 */}
         <Pressable
           onPress={handleInstagramShare}
           disabled={sharing || preparing}
-          style={({ pressed }) => [f.reactionBtn, f.storyBtn, { opacity: pressed || sharing || preparing ? 0.6 : 1, marginLeft: "auto" as any }]}
+          style={({ pressed }) => [
+            f.reactionBtn,
+            { opacity: pressed || sharing || preparing ? 0.5 : 1, marginLeft: "auto" as any },
+          ]}
         >
           {(sharing || preparing)
-            ? <ActivityIndicator size="small" color="#E1306C" style={{ width: 16, height: 16 }} />
-            : <Text style={f.storyEmoji}>📸</Text>}
-          <Text style={[f.reactionLabel, { color: "#E1306C" }]}>스토리</Text>
+            ? <ActivityIndicator size="small" color="#E1306C" style={{ width: 18, height: 18 }} />
+            : <LucideIcon name="instagram" size={18} color="#E1306C" />}
+          <Text style={f.aiLabel}>AI</Text>
         </Pressable>
       </View>
 
@@ -2150,12 +2153,12 @@ const f = StyleSheet.create({
   },
   reactionBtnActive: {},
   reactionBtnThanks: {},
-  emoji: { fontSize: 15 },
-  reactionLabel: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  storyBtn: {
-    borderWidth: 1,
-    borderColor: "#F9A8D4",
-    backgroundColor: "#FFF1F2",
+  emoji: { fontSize: 17 },
+  // AI Story 버튼 전용 — Instagram 로고 오른쪽의 작은 브랜딩 텍스트
+  aiLabel: {
+    fontSize:      11,
+    fontFamily:    "Pretendard-SemiBold",
+    color:         NAVY,
+    letterSpacing: 0.4,
   },
-  storyEmoji: { fontSize: 14 },
 });
