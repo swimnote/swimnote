@@ -142,17 +142,29 @@ function _storyHash(s: string): string {
   for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
   return h.toString(36);
 }
-async function getStorySummaryCache(id: string, body: string): Promise<string | null> {
+// cache hit 조건: hash 일치 AND maxLines 일치 AND 현재 layout에 fit
+// → 셋 중 하나라도 불일치하면 miss → 재생성
+async function getStorySummaryCache(
+  id: string, body: string, maxLines: number, photoCount: number,
+): Promise<string | null> {
   try {
     const raw = await AsyncStorage.getItem(_STORY_CACHE + id);
     if (!raw) return null;
-    const c = JSON.parse(raw) as { hash: string; summary: string };
-    return c.hash === _storyHash(body) ? c.summary : null;
+    const c = JSON.parse(raw) as { hash: string; maxLines: number; summary: string };
+    if (c.hash !== _storyHash(body)) return null;       // 원문 변경
+    if (c.maxLines !== maxLines) return null;            // 사진 수 변경 (CASE 9)
+    if (!storyTextFits(c.summary, photoCount)) return null; // layout 변경 (CASE 10)
+    return c.summary;
   } catch { return null; }
 }
-async function setStorySummaryCache(id: string, body: string, summary: string): Promise<void> {
+async function setStorySummaryCache(
+  id: string, body: string, maxLines: number, summary: string,
+): Promise<void> {
   try {
-    await AsyncStorage.setItem(_STORY_CACHE + id, JSON.stringify({ hash: _storyHash(body), summary }));
+    await AsyncStorage.setItem(
+      _STORY_CACHE + id,
+      JSON.stringify({ hash: _storyHash(body), maxLines, summary }),
+    );
   } catch {}
 }
 
@@ -831,21 +843,41 @@ function DiaryFeedItem({
     if (!storyTextFits(bodyText, photoCount)) {
       setPreparing(true);
       try {
-        // 캐시 확인 (같은 일지 재공유 시 AI 재호출 방지)
-        const cached = await getStorySummaryCache(entry.id, bodyText);
+        const maxLines = storyMaxLines(photoCount);
+
+        // 캐시 확인: hash + maxLines + 현재 layout fit 모두 검증
+        const cached = await getStorySummaryCache(entry.id, bodyText, maxLines, photoCount);
         if (cached) {
           resolvedBodyRef.current = cached;
         } else {
-          const maxLines = storyMaxLines(photoCount);
-          const r = await apiRequest(token, `/diaries/${entry.id}/story-summary`, {
-            method: "POST",
-            body: JSON.stringify({ max_lines: maxLines }),
-          });
-          if (!r.ok) throw new Error(`summary_api:${r.status}`);
-          const data = await r.json();
-          if (!data.summary) throw new Error("empty_summary");
-          resolvedBodyRef.current = data.summary;
-          await setStorySummaryCache(entry.id, bodyText, data.summary);
+          // API 요청 헬퍼
+          const callSummaryAPI = async (ml: number): Promise<string> => {
+            const r = await apiRequest(token, `/diaries/${entry.id}/story-summary`, {
+              method: "POST",
+              body: JSON.stringify({ max_lines: ml }),
+            });
+            if (!r.ok) throw new Error(`summary_api:${r.status}`);
+            const d = await r.json();
+            if (!d.summary) throw new Error("empty_summary");
+            return d.summary as string;
+          };
+
+          // 1차 요약 요청
+          let summary = await callSummaryAPI(maxLines);
+
+          // ③ 최종 fit 검증 (CASE 8: LLM이 max_lines 초과 반환)
+          if (!storyTextFits(summary, photoCount)) {
+            // 재시도: maxLines 축소 (최소 3)
+            const retryMaxLines = Math.max(3, maxLines - 2);
+            summary = await callSummaryAPI(retryMaxLines);
+            // 재시도 후에도 fit 실패 → 절대 overflow 공유 금지
+            if (!storyTextFits(summary, photoCount)) throw new Error("summary_too_long");
+            await setStorySummaryCache(entry.id, bodyText, retryMaxLines, summary);
+          } else {
+            await setStorySummaryCache(entry.id, bodyText, maxLines, summary);
+          }
+
+          resolvedBodyRef.current = summary;
         }
       } catch {
         Alert.alert("스토리 요약을 만들지 못했습니다.", "잠시 후 다시 시도해주세요.");
@@ -854,6 +886,15 @@ function DiaryFeedItem({
         return;
       }
       setPreparing(false);
+    }
+
+    // ④ StoryCapturePipeline 진입 전 최종 fit 안전 보장
+    //    (원문 또는 요약 모두 검증 — overflow:hidden을 안전장치로 사용 금지)
+    const finalText = resolvedBodyRef.current ?? bodyText;
+    if (!storyTextFits(finalText, photoCount)) {
+      Alert.alert("스토리 요약을 만들지 못했습니다.", "잠시 후 다시 시도해주세요.");
+      sharingRef.current = false;
+      return;
     }
 
     setSharing(true);
