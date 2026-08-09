@@ -1,0 +1,344 @@
+[승인 — iOS Production Build #245 최소 재빌드]
+
+현재 상태:
+
+검증 완료 소스 기준선:
+aee7526b61f6e30f9250b6ee27b361062e54c2d8
+
+Backup:
+backup/swimnote-1.6.2-pre-production-final-20260809
+
+Tag:
+swimnote-1.6.2-pre-production-final-20260809
+
+기존 Production iOS Build:
+Build ID:
+5400b195-25ef-4758-9caa-1f47411fb410
+
+Version:
+1.6.2
+
+Build Number:
+244
+
+상태:
+Build SUCCESS
+Submit FAILED
+
+실패 원인:
+App Store Connect에 이미 동일
+bundle ID + version 1.6.2 + build 244
+조합이 업로드되어 있음.
+
+Apple/App Store Connect에서는
+이미 성공적으로 업로드된 동일 build number 조합을
+새 IPA에 재사용하지 않는다.
+
+따라서 buildNumber를 245로 증가시켜
+Production iOS만 재빌드한다.
+
+Android는 이미 정상 AAB build #235가 있으므로
+재빌드 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 동결 기준선 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 변경 금지:
+
+backup/swimnote-1.6.2-pre-production-final-20260809
+
+tag:
+swimnote-1.6.2-pre-production-final-20260809
+
+이 둘의 SHA는 계속:
+
+aee7526b61f6e30f9250b6ee27b361062e54c2d8
+
+이어야 한다.
+
+force push 금지.
+tag 이동 금지.
+backup branch commit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 별도 iOS Build Prep Branch
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production build용 branch에서 작업하되
+동결 기준선과 분리된 branch만 사용.
+
+권장:
+
+build/swimnote-1.6.2-ios245-20260810
+
+기준:
+
+aee7526b61f6e30f9250b6ee27b361062e54c2d8
+
+에서 생성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 허용 수정 — 단 하나
+━━━━━━━━━━━━━━━━━━━━━━
+
+iOS buildNumber:
+
+244
+→
+245
+
+만 변경.
+
+appVersion:
+1.6.2 유지
+
+runtimeVersion:
+1.6.2 유지
+
+Android versionCode:
+235 유지
+
+다음 변경 금지:
+
+- 기능 코드
+- home.tsx
+- StoryPageRenderer
+- StoryCapturePipeline
+- LucideIcon
+- diary.tsx
+- DiaryWriteView
+- package.json
+- pnpm-lock
+- eas.json 구조
+- production channel
+- Instagram plugin
+- META_APP_ID
+- API URL
+- Server
+- DB
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Diff Gate
+━━━━━━━━━━━━━━━━━━━━━━
+
+commit 전에 반드시:
+
+git diff aee7526b...HEAD
+
+또는 해당 기준선과 작업 tree 비교.
+
+허용되는 실질 변경:
+
+iOS buildNumber:
+244 → 245
+
+단 하나.
+
+attached_assets 문서 등
+빌드와 무관한 파일은 commit에 포함하지 않는다.
+
+보고:
+
+- changed files
+- changed lines
+- 기능 코드 diff = 0
+- Android config diff = 0
+- Server diff = 0
+
+이 조건을 만족하지 않으면 빌드 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Commit / Push
+━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+build: bump iOS buildNumber to 245 for App Store submission
+
+commit 후 build branch만 remote push.
+
+완료 후:
+
+Local HEAD == Remote HEAD
+
+확인.
+
+Backup/tag는 그대로인지 다시 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Build Gate
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 확인:
+
+appVersion:
+1.6.2
+
+runtimeVersion:
+1.6.2
+
+iOS buildNumber:
+245
+
+Android versionCode:
+235
+
+channel:
+production
+
+EAS project:
+@swimnote/swim-app
+
+projectId:
+7d0e0faa-32d8-4f40-88c4-2c99e0613afc
+
+META_APP_ID:
+production env 정상
+
+Instagram plugin:
+정상
+
+Story V3:
+현재 기능 그대로
+
+Teacher Diary:
+현재 기능 그대로
+
+Gate PASS 후 iOS만 Build.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. iOS Production Build
+━━━━━━━━━━━━━━━━━━━━━━
+
+작업 위치:
+
+/home/runner/workspace/artifacts/swim-app
+
+명령:
+
+EAS_NO_VCS=1 \
+EAS_PROJECT_ROOT="$(pwd)" \
+EXPO_TOKEN="$(printenv EXPO_TOKEN)" \
+node_modules/.bin/eas build \
+  --platform ios \
+  --profile production \
+  --non-interactive
+
+Android Build 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Build 완료 후 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- status = finished
+- version = 1.6.2
+- buildNumber = 245
+- runtimeVersion = 1.6.2
+- channel = production
+- distribution = store
+- META_APP_ID 정상
+- react-native-share 정상
+- Instagram native plugin 정상
+- IPA 생성 성공
+
+FAILED이면 수정하지 말고 멈춘다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. iOS Submit
+━━━━━━━━━━━━━━━━━━━━━━
+
+Build #245가 FINISHED인 경우에만
+해당 Build ID를 명시해서 제출한다.
+
+--latest 사용하지 않는 것을 권장.
+
+정확한 새 Build ID를 사용:
+
+eas submit \
+  --platform ios \
+  --id <NEW_BUILD_245_ID> \
+  --profile production \
+  --non-interactive
+
+이렇게 해야 이전 test build #244를
+잘못 선택할 위험이 없다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 제출 후 주의
+━━━━━━━━━━━━━━━━━━━━━━
+
+EAS Submit 성공은:
+
+App Store에 즉시 공개
+
+가 아니다.
+
+App Store Connect에 새 build가 업로드되는 단계다.
+
+업로드 후:
+
+TestFlight 처리
+→ 실기기 최종 확인
+→ App Store Connect에서 1.6.2 build #245 선택
+→ 심사 제출
+
+순서로 진행한다.
+
+이번 단계에서는 App Review 제출까지
+임의 진행하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Android 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Android Production Build:
+
+Build ID:
+45adf64c-f0eb-40f0-be4f-0359389d23bd
+
+versionCode:
+235
+
+artifact:
+AAB
+
+정상 완료 상태 유지.
+
+Android 재빌드 금지.
+
+Google Play 제출도 별도 승인 전 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. iOS build-prep branch
+2. 기준 SHA
+3. 새 commit SHA
+4. 실제 변경 파일
+5. buildNumber 244→245 외 변경 여부
+6. appVersion
+7. runtimeVersion
+8. iOS buildNumber
+9. Android versionCode
+10. iOS Build ID
+11. Build status
+12. channel
+13. distribution
+14. META_APP_ID
+15. Instagram plugin
+16. IPA artifact
+17. Submit status
+18. App Store Connect 처리 상태
+19. Android 기존 Build ID
+20. Android 변경 여부 = 0
+21. Production OTA 변경 = 0
+22. Render 변경 = 0
+23. DB 변경 = 0
+24. Backup branch/tag 변경 = 0
+
+완료 후 멈춘다.
+App Review 제출은 별도 승인 전 금지.
