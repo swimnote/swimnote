@@ -1,0 +1,210 @@
+[배포 승인 — Instagram Story V2 Summary]
+
+최종 commit:
+6ff5b98d
+
+Branch:
+deploy-photo-clone
+
+배포 승인한다.
+
+반드시 아래 순서를 지킨다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Render 배포 전 Gate
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 Production Server 현재 live SHA와
+6ff5b98d 사이 SERVER diff만 확인한다.
+
+이번 Story V2와 관련해 허용되는 서버 변경:
+
+- artifacts/api-server/src/routes/story.ts 신규
+- artifacts/api-server/src/routes/index.ts storyRouter 등록
+
+그 외 기존 서버 route/business logic 변경이
+섞여 있으면 배포 중단 후 보고한다.
+
+특히 변경 금지:
+
+- attendance
+- students
+- class-groups
+- today-schedule
+- diary 저장/수정
+- auth 기존 로직
+- parent 기존 API
+- teacher 기존 API
+- DB schema
+
+Gate 통과 후에만 Render 배포.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Render 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 endpoint:
+
+POST /diaries/:diaryId/story-summary
+
+가 포함된 서버 commit을 Render에 배포한다.
+
+DB migration:
+0
+
+기존 Production API 변경:
+0
+
+배포 완료 후 Render status = live 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 서버 endpoint 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱 OTA 전에 반드시 서버부터 확인한다.
+
+CASE A
+미인증 요청
+→ 401
+
+CASE B
+유효하지 않은 diaryId
+→ 정상적인 404 계열 응답
+→ 서버 crash 없음
+
+CASE C
+권한 없는 parent
+→ 403 또는 설계된 access_denied
+→ OpenAI 호출 없음
+
+CASE D
+권한 있는 테스트 parent + 긴 diary
+→ 200
+→ { summary: string }
+→ 빈 문자열 아님
+
+CASE E
+summary가 요청 max_lines 정책에 맞는지 확인
+
+CASE F
+기존 health endpoint 정상
+
+CASE G
+기존 핵심 API health/smoke 확인
+→ 기존 서비스 장애 없음
+
+서버 검증 실패 시:
+OTA 금지.
+원인 보고 후 멈춘다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. App OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 검증 PASS 후에만 실행.
+
+대상:
+
+runtimeVersion:
+1.6.2
+
+channel:
+instagram-test
+
+commit:
+6ff5b98d
+
+production channel에는 절대 OTA하지 않는다.
+
+Production runtimeVersion 1.6.1 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. OTA 후 실기기 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 등록해둔 테스트 일지를 그대로 사용한다.
+
+CASE 1
+사진 1장 + 짧은 일지
+→ 사진 표시
+→ AI 호출 없이 원문
+→ Story 정상
+
+CASE 2
+사진 10장
+→ 10장 전부 실제 이미지 표시
+→ +N 없음
+
+CASE 3
+사진 10장 + 긴 일지
+→ Story Summary 생성
+→ 사진 10장 전부 표시
+→ 요약문 전체 표시
+→ 텍스트 잘림 없음
+→ Story 1장
+
+CASE 4
+현재 100줄 이상 극단 테스트 일지
+→ 요약
+→ 1080×1920 한 장 완결
+→ 검은 Composer 없음
+
+CASE 5
+동일 일지 다시 공유
+→ cache hit
+→ AI 재호출 없음
+
+CASE 6
+Instagram 미설치
+→ 기존 정책 유지
+→ 이미지/summary 생성 전에 종료되는지 확인
+※ 현재 구현 순서를 실제 코드로 확인.
+미설치 확인이 summary API보다 뒤로 이동했다면 수정하지 말고 보고.
+
+CASE 7
+일반 짧은 일지
+→ 기존보다 불필요하게 AI 호출하지 않음
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 기존 수정 기능 회귀 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 배포 후 아래도 그대로 유지:
+
+- 일지 학생 loading/empty 분리
+- 서태웅 정상 표시
+- 학생 로딩 중 저장 오판 방지
+- draft 나가기 초기화
+- Instagram 버튼
+- Pretendard Story font
+- SWIMNOTE branding
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 배포 전 Server diff
+2. Render Deploy ID
+3. Render deployed SHA
+4. Render status
+5. health 결과
+6. 미인증 endpoint 결과
+7. 권한 없는 요청 결과
+8. 정상 summary 요청 결과
+9. 기존 API smoke 결과
+10. OTA Group ID
+11. iOS Update ID
+12. Android Update ID
+13. runtimeVersion
+14. channel
+15. OTA commit SHA
+16. Production 1.6.1 영향
+17. Production channel 영향
+18. DB 변경
+19. Native Build
+20. 실기기 CASE 1~7 결과
+
+서버 검증 PASS → OTA까지만 진행한다.
+Production OTA는 하지 않는다.
+추가 기능 수정은 하지 않는다.
+완료 후 멈춘다.
