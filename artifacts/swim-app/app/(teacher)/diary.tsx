@@ -62,7 +62,10 @@ export default function TeacherDiaryScreen() {
   const [templates,      setTemplates]      = useState<DiaryTemplate[]>([]);
   const [levels,         setLevels]         = useState<DiaryTemplateLevel[]>([]);
   const [commonContent,  setCommonContent]  = useState("");
-  const [classStudents,  setClassStudents]  = useState<StudentOption[]>([]);
+  const [classStudents,        setClassStudents]        = useState<StudentOption[]>([]);
+  const [classStudentsLoading, setClassStudentsLoading] = useState(false);
+  const [classStudentsLoaded,  setClassStudentsLoaded]  = useState(false);
+  const [classStudentsError,   setClassStudentsError]   = useState<string | null>(null);
   const [studentNotes,   setStudentNotes]   = useState<StudentNote[]>([]);
   const [addNoteStudent, setAddNoteStudent] = useState<StudentOption | null>(null);
   const [noteInput,      setNoteInput]      = useState("");
@@ -94,6 +97,7 @@ export default function TeacherDiaryScreen() {
   const [hasDraft,      setHasDraft]      = useState(false);
   const handledParamKey = useRef<string | undefined>(undefined);
   const diariesReqVersion = useRef(0);
+  const studentsReqRef    = useRef(0); // stale response 방어용 monotonic counter
   const draftKey = selectedGroup
     ? `@swimnote:diary_draft:${selectedGroup.id}:${targetDate}`
     : null;
@@ -229,6 +233,8 @@ export default function TeacherDiaryScreen() {
     setGroupMedia([]); setStudentMedia({}); setHasDraft(false);
     setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
     setStudentAlbumPhotos({}); setStudentAlbumVideos({});
+    // 학생 로딩 상태 초기화 — 새 그룹 진입 시 stale loaded 상태 방지
+    setClassStudentsLoading(false); setClassStudentsLoaded(false); setClassStudentsError(null);
     loadTemplates(); loadClassStudents(group.id);
     const reqVer = ++diariesReqVersion.current;
     try {
@@ -291,6 +297,11 @@ export default function TeacherDiaryScreen() {
     } catch {}
   }
   async function loadClassStudents(classId: string) {
+    // ── 요청 ID 캡처 — stale response 방어 ────────────────────────────────
+    const reqId = ++studentsReqRef.current;
+    setClassStudentsLoading(true);
+    setClassStudentsLoaded(false);
+    setClassStudentsError(null);
     try {
       const [scheduleRes, makeupRes, attRes] = await Promise.all([
         apiRequest(token, `/today-schedule?date=${targetDate}`),
@@ -299,14 +310,14 @@ export default function TeacherDiaryScreen() {
         apiRequest(token, `/attendance?class_group_id=${classId}&date=${targetDate}`),
       ]);
 
+      // stale 응답 폐기
+      if (studentsReqRef.current !== reqId) return;
+
       // 결석(absent) 학생 ID Set 구성
       const attList: any[] = attRes.ok ? (await attRes.json().catch(() => [])) : [];
       const absentIds = new Set<string>(
         attList.filter((a: any) => a.status === "absent").map((a: any) => a.student_id)
       );
-      if (__DEV__ && absentIds.size > 0) {
-        console.log(`[loadClassStudents] 결석 제외 student_count=${absentIds.size}`, [...absentIds]);
-      }
 
       let regularStudents: any[] = [];
       if (scheduleRes.ok) {
@@ -334,8 +345,20 @@ export default function TeacherDiaryScreen() {
       const makeupStudents = makeupList
         .filter((m: any) => !regularIds.has(m.id) && m.att_status !== "assigned")
         .map((m: any) => ({ ...m, is_makeup: true }));
+
+      // 최종 stale 체크 후 확정
+      if (studentsReqRef.current !== reqId) return;
       setClassStudents([...regularStudents, ...makeupStudents]);
-    } catch {}
+      setClassStudentsLoaded(true);
+    } catch (e: any) {
+      if (studentsReqRef.current !== reqId) return;
+      // 개인정보 미포함 — endpoint/status/classId 축약값만 기록
+      if (__DEV__) console.error(`[loadClassStudents] err cg=...${classId.slice(-8)} msg=${String(e?.message ?? "unknown").slice(0, 60)}`);
+      setClassStudentsError("학생 정보를 불러오지 못했습니다.");
+    } finally {
+      // reqId 일치할 때만 loading 해제 (stale 요청이 finally에서 덮어쓰지 않도록)
+      if (studentsReqRef.current === reqId) setClassStudentsLoading(false);
+    }
   }
   async function loadDiaries(classId: string) {
     setDiaryLoading(true);
@@ -540,7 +563,17 @@ export default function TeacherDiaryScreen() {
       }
     }
     if (!isRetry) {
-      // 전체 결석: 출석 학생이 없으면 일지 저장 불가
+      // 학생 로딩 미완료 — loading 중이거나 아직 응답 전
+      if (classStudentsLoading || !classStudentsLoaded) {
+        setFormError("학생 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+        return;
+      }
+      // 학생 로딩 실패
+      if (classStudentsError) {
+        setFormError("학생 정보를 불러오지 못했습니다. 화면을 새로 고침하거나 다시 시도해주세요.");
+        return;
+      }
+      // 전체 결석: 출석 학생이 없으면 일지 저장 불가 (로딩 완료 후에만 판정)
       if (classStudents.length === 0) {
         setFormError("출석한 학생이 없어 일지를 저장할 수 없습니다. 출결을 먼저 확인해주세요.");
         return;
@@ -1106,7 +1139,12 @@ export default function TeacherDiaryScreen() {
           <DiaryWriteView
             group={group} targetDate={targetDate} themeColor={themeColor} myDiaryExists={myDiaryExists}
             commonContent={commonContent} setCommonContent={setCommonContent}
-            classStudents={classStudents} studentNotes={studentNotes}
+            classStudents={classStudents}
+            classStudentsLoading={classStudentsLoading}
+            classStudentsLoaded={classStudentsLoaded}
+            classStudentsError={classStudentsError}
+            onRetryLoadStudents={() => selectedGroup && loadClassStudents(selectedGroup.id)}
+            studentNotes={studentNotes}
             addNoteStudent={addNoteStudent} setAddNoteStudent={setAddNoteStudent}
             noteInput={noteInput} setNoteInput={setNoteInput}
             saving={saving} formError={formError} saveMsg={saveMsg}

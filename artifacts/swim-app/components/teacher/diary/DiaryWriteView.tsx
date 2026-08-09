@@ -22,6 +22,10 @@ export default function DiaryWriteView({
 
   commonContent, setCommonContent,
   classStudents,
+  classStudentsLoading,
+  classStudentsLoaded,
+  classStudentsError,
+  onRetryLoadStudents,
   studentNotes,
   addNoteStudent, setAddNoteStudent,
   noteInput, setNoteInput,
@@ -45,6 +49,10 @@ export default function DiaryWriteView({
 
   commonContent: string; setCommonContent: (v: string) => void;
   classStudents: StudentOption[];
+  classStudentsLoading?: boolean;
+  classStudentsLoaded?: boolean;
+  classStudentsError?: string | null;
+  onRetryLoadStudents?: () => void;
   studentNotes: StudentNote[];
   addNoteStudent: StudentOption | null; setAddNoteStudent: (v: StudentOption | null) => void;
   noteInput: string; setNoteInput: (v: string) => void;
@@ -262,12 +270,32 @@ export default function DiaryWriteView({
             );
           })}
 
-          {classStudents.length === 0 ? (
+          {/* ── 학생 로딩 3-state 렌더 ────────────────────────────────────── */}
+          {(classStudentsLoading || (!classStudentsLoaded && !classStudentsError)) ? (
+            /* LOADING: API 응답 전 — false empty 방지 */
+            <View style={[s.emptyStudents, { backgroundColor: C.background, borderColor: C.border }]}>
+              <ActivityIndicator size="small" color={C.textMuted} />
+              <Text style={[s.emptyStudentsText, { color: C.textMuted }]}>학생 정보를 불러오는 중...</Text>
+            </View>
+          ) : classStudentsError ? (
+            /* ERROR: API 실패 — 오류 + 재시도 */
+            <View style={[s.emptyStudents, { backgroundColor: C.background, borderColor: C.border }]}>
+              <LucideIcon name="alert-circle" size={16} color="#EF4444" />
+              <Text style={[s.emptyStudentsText, { color: C.textMuted }]}>학생 정보를 불러오지 못했습니다.</Text>
+              {onRetryLoadStudents && (
+                <Pressable onPress={onRetryLoadStudents} hitSlop={8}>
+                  <Text style={{ fontSize: 12, color: "#8B5CF6", fontFamily: "Pretendard-Regular", marginTop: 2 }}>다시 시도</Text>
+                </Pressable>
+              )}
+            </View>
+          ) : classStudents.length === 0 ? (
+            /* LOADED_EMPTY: 로딩 완료 후 진짜 배정 학생 없음 */
             <View style={[s.emptyStudents, { backgroundColor: C.background, borderColor: C.border }]}>
               <LucideIcon name="users" size={16} color={C.textMuted} />
               <Text style={[s.emptyStudentsText, { color: C.textMuted }]}>이 수업에 배정된 학생이 없습니다</Text>
             </View>
           ) : (
+            /* LOADED_WITH_STUDENTS: 정상 */
             <View style={{ gap: 6 }}>
               <Text style={[s.sectionLabel, { color: C.textSecondary }]}>학생 선택</Text>
               {classStudents.filter(st => !studentNotes.some(n => n.student_id === st.id)).map(st => (
