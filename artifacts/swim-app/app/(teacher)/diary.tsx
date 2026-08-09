@@ -5,9 +5,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { compressImageIfNeeded } from "../../utils/compressImage";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, BackHandler, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
@@ -458,13 +458,72 @@ export default function TeacherDiaryScreen() {
     }
   }, []);
 
+  // ── 작성 세션 전체 초기화 (나가기 확정 시 호출) ──────────────────────────
+  const resetWriteSession = useCallback(() => {
+    setCommonContent(""); setStudentNotes([]); setNoteInput(""); setAddNoteStudent(null);
+    setGroupMedia([]); setStudentMedia({}); setMediaUploading(null);
+    setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
+    setStudentAlbumPhotos({}); setStudentAlbumVideos({});
+    setPendingDiaryId(null); setPendingNoteIds({});
+    setFormError(null); setHasDraft(false);
+    if (draftKey) AsyncStorage.removeItem(draftKey).catch(() => {});
+  }, [draftKey]);
+
+  // draft 유무 판별 — ref로 관리해 handleExitDiary 클로저 오염 방지
+  const hasWriteDraftRef = useRef(false);
+  useEffect(() => {
+    hasWriteDraftRef.current =
+      subView === "write" && !!(
+        commonContent.trim().length > 0 ||
+        studentNotes.length > 0 ||
+        noteInput.trim().length > 0 ||
+        groupMedia.length > 0 ||
+        selectedAlbumPhotos.length > 0 ||
+        selectedAlbumVideos.length > 0 ||
+        Object.values(studentAlbumPhotos).some(arr => arr.length > 0) ||
+        Object.values(studentAlbumVideos).some(arr => arr.length > 0) ||
+        Object.values(studentMedia).flat().length > 0
+      );
+  }, [subView, commonContent, studentNotes, noteInput, groupMedia,
+      selectedAlbumPhotos, selectedAlbumVideos, studentAlbumPhotos,
+      studentAlbumVideos, studentMedia]);
+
   const handleExitDiary = useCallback(() => {
-    if (params.backTo) {
-      router.replace((`/(teacher)/${params.backTo}`) as any);
+    const doExit = () => {
+      resetWriteSession();
+      if (params.backTo) {
+        router.replace((`/(teacher)/${params.backTo}`) as any);
+        return;
+      }
+      setSelectedGroup(null);
+    };
+    if (hasWriteDraftRef.current) {
+      Alert.alert(
+        "일지 작성을 종료할까요?",
+        "작성 중인 내용은 저장되지 않습니다.",
+        [
+          { text: "취소", style: "cancel" },
+          { text: "나가기", style: "destructive", onPress: doExit },
+        ],
+      );
       return;
     }
-    setSelectedGroup(null);
-  }, [params.backTo]);
+    doExit();
+  }, [params.backTo, resetWriteSession]);
+
+  // Android 하드웨어 Back — draft 있으면 확인 Alert 호출
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+        if (hasWriteDraftRef.current) {
+          handleExitDiary();
+          return true; // 기본 back 차단
+        }
+        return false;
+      });
+      return () => sub.remove();
+    }, [handleExitDiary]),
+  );
 
   async function handleSave() {
     // [WP11] Save 중복 요청 차단
