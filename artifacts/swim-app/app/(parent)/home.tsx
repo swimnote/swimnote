@@ -1084,7 +1084,7 @@ function DiaryFeedItem({
           <LucideIcon name="message-circle" size={18} color={C.textSecondary} />
         </Pressable>
 
-        {/* Instagram AI Story — 로고 + "AI" 텍스트, 버튼 박스 없음 */}
+        {/* Instagram AI Story — 로고 우측 하단에 AI 마크 overlap (lockup) */}
         <Pressable
           onPress={handleInstagramShare}
           disabled={sharing || preparing}
@@ -1094,9 +1094,14 @@ function DiaryFeedItem({
           ]}
         >
           {(sharing || preparing)
-            ? <ActivityIndicator size="small" color="#E1306C" style={{ width: 18, height: 18 }} />
-            : <LucideIcon name="instagram" size={18} color="#E1306C" />}
-          <Text style={f.aiLabel}>AI</Text>
+            ? <ActivityIndicator size="small" color="#E1306C" style={{ width: 20, height: 20 }} />
+            : (
+              <View style={f.igAiLockup}>
+                <LucideIcon name="instagram" size={20} color="#E1306C" />
+                {/* AI: 우측 하단 overlap — 로고와 하나의 마크처럼 */}
+                <Text style={f.aiMark}>AI</Text>
+              </View>
+            )}
         </Pressable>
       </View>
 
@@ -2154,11 +2159,22 @@ const f = StyleSheet.create({
   reactionBtnActive: {},
   reactionBtnThanks: {},
   emoji: { fontSize: 17 },
-  // AI Story 버튼 전용 — Instagram 로고 오른쪽의 작은 브랜딩 텍스트
-  aiLabel: {
-    fontSize:      11,
-    fontFamily:    "Pretendard-SemiBold",
-    color:         NAVY,
-    letterSpacing: 0.4,
+  // Instagram AI lockup — 로고(20px) + AI 마크 overlap 컨테이너
+  igAiLockup: {
+    width:    20,
+    height:   20,
+    // AI Text가 absolute로 약간 삐져나오므로 overflow visible (기본값)
+  },
+  // AI 마크 — 로고 우측 하단 overlap
+  // 로고와 하나의 기능 마크처럼 보이도록 붙여서 배치
+  aiMark: {
+    position:    "absolute",
+    right:       -8,
+    bottom:      -5,
+    fontSize:    8,
+    fontFamily:  "Pretendard-Bold",
+    color:       NAVY,
+    letterSpacing: 0.2,
+    lineHeight:  10,
   },
 });
