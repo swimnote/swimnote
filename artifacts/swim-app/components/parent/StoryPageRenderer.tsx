@@ -30,15 +30,32 @@ const SAFE_TOP = 48;
 const SAFE_BOTTOM = 80;
 const CONTENT_H = STORY_H - SAFE_TOP - SAFE_BOTTOM; // 512px
 
-// 사진 영역 최대 높이 (첫 페이지)
-export const MAX_PHOTO_H = 200;
-
 // 워터마크 높이 (로고 확대에 맞게 36→50)
 const WATERMARK_H = 50;
 
-// 텍스트 영역 최대 높이 계산 (첫 페이지: 사진 영역 제외)
-export const MAX_TEXT_H_PAGE1 = CONTENT_H - MAX_PHOTO_H - WATERMARK_H - 72; // 헤더(날짜/선생님) 72px
-export const MAX_TEXT_H_LATER = CONTENT_H - WATERMARK_H - 52; // 헤더(날짜만) 52px
+// ── 동적 사진 그리드 헬퍼 ────────────────────────────────────────────────────
+// 사진 개수에 따라 행별로 분할 (최대 10장, +N 없음)
+// 1장: 1행 1열 / 2장: 1행 2열 / 3~4장: 2행 / 5~6장: 2행 3열 /
+// 7~8장: 2행 4열 / 9~10장: 2행 5열
+function splitIntoRows(photos: StoryPhoto[]): StoryPhoto[][] {
+  const n = Math.min(photos.length, 10);
+  const arr = photos.slice(0, n);
+  if (n <= 2) return [arr];
+  if (n <= 4) { const h = Math.ceil(n / 2); return [arr.slice(0, h), arr.slice(h)]; }
+  if (n <= 6) return [arr.slice(0, 3), arr.slice(3)];
+  if (n <= 8) return [arr.slice(0, 4), arr.slice(4)];
+  return [arr.slice(0, 5), arr.slice(5)]; // 9~10
+}
+
+// 사진 개수별 행 높이 — 사진 우선, 사진이 많을수록 작아짐
+function getPhotoRowHeight(n: number): number {
+  if (n === 1) return 220;
+  if (n === 2) return 160;
+  if (n <= 4) return 105;
+  if (n <= 6) return 92;
+  if (n <= 8) return 80;
+  return 70; // 9~10
+}
 
 // fontSize, lineHeight (실제 피드와 동일)
 export const TEXT_FONT_SIZE = 13;
@@ -105,29 +122,27 @@ const StoryPageRenderer = forwardRef<View, { page: StoryPageData }>(
           {/* ── 구분선 ── */}
           <View style={styles.divider} />
 
-          {/* ── 사진 영역 (첫 페이지만) ── */}
-          {hasPhotos && (
-            <View style={styles.photoRow}>
-              {(page.photos ?? []).slice(0, 4).map((photo, idx) => (
-                <ExpoImage
-                  key={photo.id}
-                  source={{ uri: photo.uri }}
-                  style={[
-                    styles.photo,
-                    (page.photos ?? []).length === 1 && styles.photoFull,
-                    (page.photos ?? []).length === 2 && styles.photoHalf,
-                    (page.photos ?? []).length >= 3 && styles.photoThird,
-                  ]}
-                  contentFit="cover"
-                />
-              ))}
-              {(page.photos ?? []).length > 4 && (
-                <View style={[styles.photo, styles.photoThird, styles.moreOverlay]}>
-                  <Text style={styles.moreText}>+{(page.photos ?? []).length - 4}</Text>
-                </View>
-              )}
-            </View>
-          )}
+          {/* ── 사진 영역 (최대 10장, 동적 그리드, +N 없음) ── */}
+          {hasPhotos && (() => {
+            const ph = page.photos ?? [];
+            const rowH = getPhotoRowHeight(Math.min(ph.length, 10));
+            return (
+              <View style={{ gap: 4 }}>
+                {splitIntoRows(ph).map((rowPhotos, rowIdx) => (
+                  <View key={rowIdx} style={{ flexDirection: "row", gap: 4, height: rowH }}>
+                    {rowPhotos.map(photo => (
+                      <ExpoImage
+                        key={photo.id}
+                        source={{ uri: photo.uri }}
+                        style={{ flex: 1, borderRadius: 8, backgroundColor: C.border }}
+                        contentFit="cover"
+                      />
+                    ))}
+                  </View>
+                ))}
+              </View>
+            );
+          })()}
 
           {/* ── 본문 ── */}
           {!!page.bodyText && (
@@ -215,31 +230,6 @@ const styles = StyleSheet.create({
     color: "#6366F1",
   },
   divider: { height: 1, backgroundColor: C.border },
-
-  // 사진
-  photoRow: {
-    flexDirection: "row",
-    gap: 4,
-    height: MAX_PHOTO_H,
-  },
-  photo: {
-    height: MAX_PHOTO_H,
-    borderRadius: 10,
-    backgroundColor: C.border,
-  },
-  photoFull: { flex: 1 },
-  photoHalf: { flex: 1 },
-  photoThird: { flex: 1 },
-  moreOverlay: {
-    backgroundColor: "rgba(0,0,0,0.45)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  moreText: {
-    color: "#fff",
-    fontSize: 16,
-    fontFamily: "Pretendard-Regular",
-  },
 
   // 본문
   bodyWrap: { flex: 1, overflow: "hidden" },

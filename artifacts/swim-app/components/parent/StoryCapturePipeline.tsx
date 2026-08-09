@@ -33,8 +33,6 @@ import StoryPageRenderer, {
   STORY_H,
   StoryPageData,
   StoryPhoto,
-  TEXT_LINE_H,
-  TEXT_FONT_SIZE,
 } from "./StoryPageRenderer";
 
 // ── Story 입력 타입 ──────────────────────────────────────────────────────────
@@ -52,89 +50,25 @@ interface Props {
   onDone: () => void;   // 완료(성공/실패 모두) 후 호출
 }
 
-// ── 텍스트 → 페이지 분할 ────────────────────────────────────────────────────
-// 단락(\n\n 또는 \n) 기준으로 분할, 단락이 페이지 경계에서 잘리지 않도록 보장
-//
-// Story 캔버스(360×640), 텍스트 영역 너비 ≈ 332px
-// fontSize 13, Pretendard: 한글 1자 ≈ 13px → 1줄 ≈ 25자
-// lineHeight 20px
-//   - Page 1 (사진 있음): 사용 가능 줄 수 ≈ 10
-//   - Page 1 (사진 없음): 사용 가능 줄 수 ≈ 18
-//   - Page 2+:            사용 가능 줄 수 ≈ 20
-const CHARS_PER_LINE = 25;
-const MAX_LINES_PAGE1_PHOTO = 10;
-const MAX_LINES_PAGE1_NO_PHOTO = 18;
-const MAX_LINES_LATER = 20;
-
-function estimateLines(text: string): number {
-  if (!text.trim()) return 0;
-  return text.split("\n").reduce((acc, line) => {
-    return acc + Math.max(1, Math.ceil((line.length || 0.1) / CHARS_PER_LINE));
-  }, 0);
-}
-
-function buildPages(input: StoryInput): StoryPageData[] {
-  const hasPhotos = input.photos.length > 0;
-  const fullText = input.bodyText.trim();
-
-  if (!fullText) {
-    // 텍스트 없음 — 사진만 있는 1장
-    return [{
-      lessonDate: input.lessonDate,
-      teacherName: input.teacherName,
-      classGroupName: input.classGroupName,
-      photos: input.photos,
-      bodyText: "",
-      pageNum: 1,
-      totalPages: 1,
-    }];
-  }
-
-  // 단락 분리 (빈 줄로 구분된 블록 또는 단순 줄바꿈)
-  const rawParagraphs = fullText.split(/\n\n+/);
-  const paragraphs = rawParagraphs.flatMap(p => p.split(/\n/)).filter(Boolean);
-
-  const pageTexts: string[] = [];
-  let currentParas: string[] = [];
-  let currentLines = 0;
-  let isFirstPage = true;
-
-  const maxLines = () => {
-    if (isFirstPage) return hasPhotos ? MAX_LINES_PAGE1_PHOTO : MAX_LINES_PAGE1_NO_PHOTO;
-    return MAX_LINES_LATER;
-  };
-
-  for (const para of paragraphs) {
-    const paraLines = estimateLines(para);
-    if (currentLines + paraLines > maxLines() && currentParas.length > 0) {
-      pageTexts.push(currentParas.join("\n"));
-      isFirstPage = false;
-      currentParas = [para];
-      currentLines = paraLines;
-    } else {
-      currentParas.push(para);
-      currentLines += paraLines;
-    }
-  }
-  if (currentParas.length > 0) {
-    pageTexts.push(currentParas.join("\n"));
-  }
-
-  const totalPages = pageTexts.length;
-  return pageTexts.map((text, idx) => ({
+// ── V2: Story 1장 완결 ──────────────────────────────────────────────────────
+// - 사진 최대 10장 전달 (StoryPageRenderer에서 동적 그리드로 배치)
+// - 텍스트는 단일 페이지 — bodyText overflow는 renderer의 flex:1+overflow:hidden으로 자연 클리핑
+// - AI 요약 경로: 기존 안전한 endpoint 없음 → 이번 단계 미적용 (보고 완료)
+function buildPageV2(input: StoryInput): StoryPageData {
+  return {
     lessonDate: input.lessonDate,
     teacherName: input.teacherName,
     classGroupName: input.classGroupName,
-    photos: idx === 0 ? input.photos : undefined,
-    bodyText: text,
-    pageNum: idx + 1,
-    totalPages,
-  }));
+    photos: input.photos.length > 0 ? input.photos.slice(0, 10) : undefined,
+    bodyText: input.bodyText.trim(),
+    pageNum: 1,
+    totalPages: 1,
+  };
 }
 
 // ── StoryCapturePipeline ─────────────────────────────────────────────────────
 export default function StoryCapturePipeline({ input, onDone }: Props) {
-  const pages = buildPages(input);
+  const pages = [buildPageV2(input)]; // V2: 항상 1장 완결
   const [pageIdx, setPageIdx] = useState(0);
   const [capturedUris, setCapturedUris] = useState<string[]>([]);
   const [status, setStatus] = useState<"rendering" | "capturing" | "sharing" | "done">("rendering");
@@ -242,10 +176,8 @@ export default function StoryCapturePipeline({ input, onDone }: Props) {
 
   const statusLabel: Record<typeof status, string> = {
     rendering: "이미지 생성 중...",
-    capturing: `${pageIdx + 1} / ${pages.length}장 처리 중...`,
-    sharing: pages.length > 1
-      ? `Instagram 스토리 열기... (${pages.length}장)`
-      : "Instagram 스토리 열기...",
+    capturing: "이미지 생성 중...",
+    sharing: "Instagram 스토리 열기...",
     done: "완료",
   };
 
@@ -256,9 +188,6 @@ export default function StoryCapturePipeline({ input, onDone }: Props) {
         <View style={p.card}>
           <ActivityIndicator size="large" color="#2EC4B6" />
           <Text style={p.label}>{statusLabel[status]}</Text>
-          {pages.length > 1 && (
-            <Text style={p.sub}>{pages.length}장 분량 · 순서대로 생성합니다</Text>
-          )}
         </View>
       </View>
 
