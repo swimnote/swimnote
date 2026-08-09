@@ -1,0 +1,253 @@
+[긴급 서버 감리 — Story Summary 실제 parent 요청 HTTP 500 원인 확정]
+
+실기기 진단 Alert에서 직접 확인된 실제 값:
+
+CASE A
+stage=E
+err=summary_api:500
+photos=4
+maxL=8
+maxC=180
+cache=false
+req1=500
+s1c=0
+s1e=0
+s1f=null
+req2=0
+
+CASE B
+stage=E
+err=summary_api:500
+photos=10
+maxL=11
+maxC=247
+cache=false
+req1=500
+s1c=0
+s1e=0
+s1f=null
+req2=0
+
+중요:
+
+이전 예상값 403은 틀렸다.
+실기기 실제 캡처는 HTTP 500이다.
+
+따라서 지금부터 클라이언트 수정 금지.
+Story layout 수정 금지.
+fit 계산 수정 금지.
+AI maxChars 수정 금지.
+
+서버 500 직접 원인만 확정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실패 단계 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+클라이언트 stage=E는:
+
+POST /diaries/:diaryId/story-summary
+→ response HTTP 500
+
+단계에서 즉시 실패.
+
+따라서:
+
+- summaryChars = 0
+- client fit 미실행
+- retry 미실행
+- capture 미실행
+- Instagram 미실행
+
+으로 확정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. story.ts 500 발생 가능한 모든 경로 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 배포된 story.ts에서
+HTTP 500 또는 server_error/summary_failed가 반환될 수 있는
+모든 catch/throw 지점을 목록화한다.
+
+각 지점:
+
+- 파일 line
+- 함수
+- 발생 조건
+- 반환 HTTP
+- 반환 error code
+
+를 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 parent_account 요청 재현
+━━━━━━━━━━━━━━━━━━━━━━
+
+super_admin JWT 테스트로 대체하지 않는다.
+
+실제 TestFlight에서 사용하는 것과 동일한
+parent_account role 조건으로 재현한다.
+
+실패한 diary 2건 각각:
+
+A. 사진 4장 diary
+max_lines=8
+max_chars=180
+
+B. 사진 10장 diary
+max_lines=11
+max_chars=247
+
+POST를 실행.
+
+보고:
+
+- HTTP status
+- response JSON error
+- OpenAI 호출 전/후
+- server exception type
+- exception message
+
+JWT / 원문 / 학생 개인정보 / OPENAI_API_KEY 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 서버 내부 stage 로그 임시 추가 허용
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render 로그가 제대로 안 잡히면
+story.ts에 개인정보 없는 stage 로그만 임시 추가 가능.
+
+예:
+
+[StorySummary] stage=diary_loaded
+[StorySummary] stage=visibility_pass
+[StorySummary] stage=notes_loaded
+[StorySummary] stage=prompt_ready
+[StorySummary] stage=openai_start
+[StorySummary] stage=openai_response
+[StorySummary] stage=length_check
+[StorySummary] stage=retry_start
+[StorySummary] stage=response_200
+
+실패 catch:
+
+[StorySummary] FAILED
+stage=<...>
+role=parent_account
+diary=<last6>
+maxLines=<number>
+maxChars=<number>
+errorName=<...>
+errorMessage=<sanitized>
+
+원문 / summary 원문 / student name 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 반드시 확인할 서버 단계
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 요청에서 다음 순서 중 어디까지 성공하는지 확인:
+
+A requireAuth
+B diary 조회
+C parent visibility
+D studentIds 생성
+E student notes 조회
+F common diary content 조회/조립
+G prompt 생성
+H getOpenAI()
+I responses/chat completion 호출
+J OpenAI response parsing
+K summary.trim()
+L maxChars 검사
+M retry OpenAI 호출
+N 최종 res.status(200)
+
+마지막 성공 stage를 확정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. OpenAI 호출 부분 집중 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+500이 OpenAI 구간이면 다음 확인:
+
+- OPENAI_API_KEY 존재 여부
+- 실제 사용 model
+- OpenAI SDK method
+- API response status
+- timeout 발생 여부
+- AbortController 동작
+- max_tokens
+- response field 접근 방식
+
+API key 값 자체는 절대 출력하지 않는다.
+
+중요:
+
+이전 서버 테스트에서 200이 났다는 이유로
+현재 parent 요청도 OpenAI 정상이라고 가정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. parent 전용 데이터 조립 부분 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+super_admin은 정상이고 parent에서만 실패한다면 특히:
+
+- studentIds 배열 타입
+- ANY(${}::text[]) 전달
+- student note query 결과
+- null note_content
+- undefined/null common content
+- 배열 join
+- prompt 문자열 생성
+
+중 TypeError/SQL error가 있는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. max_chars 변경 회귀 여부 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+직전 commit 8c2f8c3f에서 추가된:
+
+- max_chars validation
+- retryMaxChars
+- conversation retry
+- response length 검사
+
+중 서버 500을 만드는 코드가 있는지
+직전 정상 배포와 diff해서 확인한다.
+
+특히:
+
+max_chars 값 180과 247 모두에서
+동일 500이므로 공통 코드 경로를 우선 본다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. 사진4 diary HTTP
+B. 사진10 diary HTTP
+C. 실제 server response error code
+D. 마지막 성공 server stage
+E. 실패 server stage
+F. OpenAI 호출 여부
+G. OpenAI 성공/실패
+H. SQL 실패 여부
+I. parent visibility PASS 여부
+J. student notes query PASS 여부
+K. max_chars validation PASS 여부
+L. exception name
+M. sanitized exception message
+N. 실패 파일/함수/line
+O. 8c2f8c3f 회귀 여부
+P. 직접 원인
+Q. 원인 확정 YES/NO
+R. 최소 수정 파일
+S. Render 재배포 필요 여부
+T. App OTA 필요 여부
+U. DB 수정 필요 여부
+V. Native Build 필요 여부
+
+원인 확정 후 멈춘다.
+기능 수정은 아직 하지 않는다.
