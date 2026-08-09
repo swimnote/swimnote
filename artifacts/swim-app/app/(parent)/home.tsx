@@ -933,24 +933,15 @@ function DiaryFeedItem({
       } catch (err: unknown) {
         const errorCode = err instanceof Error ? err.message : String(err);
         // 진단 로그 — 개인정보/본문/JWT 없음
-        console.error("[StoryShare] FAILED", {
-          stage:         _stage,
-          diaryMask:     _diaryMask,
-          errorCode,
-          photoCount:    _photoCount,
-          maxLines:      _maxLines,
-          maxChars:      _maxChars,
-          cacheHit:      _cacheHit,
-          req1Http:      _req1Http,
-          sum1Chars:     _sum1Chars,
-          sum1Est:       _sum1Est,
-          sum1Fit:       _sum1Fit,
-          req2Http:      _req2Http,
-          sum2Chars:     _sum2Chars,
-          sum2Est:       _sum2Est,
-          sum2Fit:       _sum2Fit,
-        });
-        Alert.alert("스토리 요약을 만들지 못했습니다.", "잠시 후 다시 시도해주세요.");
+        Alert.alert(
+          "[StoryShare] FAILED",
+          `stage=${_stage} err=${errorCode}\n` +
+          `diary=...${_diaryMask}\n` +
+          `photos=${_photoCount} maxL=${_maxLines} maxC=${_maxChars}\n` +
+          `cache=${_cacheHit}\n` +
+          `req1=${_req1Http} s1c=${_sum1Chars} s1e=${_sum1Est} s1f=${_sum1Fit}\n` +
+          `req2=${_req2Http} s2c=${_sum2Chars} s2e=${_sum2Est} s2f=${_sum2Fit}`,
+        );
         sharingRef.current = false;
         setPreparing(false);
         return;
@@ -964,15 +955,12 @@ function DiaryFeedItem({
     const finalEst  = _storyEstimateLines(finalText);
     const finalFit  = storyTextFits(finalText, _photoCount);
     if (!finalFit) {
-      console.error("[StoryShare] FINAL_FIT_FAIL", {
-        stage:      _stage,
-        diaryMask:  _diaryMask,
-        photoCount: _photoCount,
-        maxLines:   _maxLines,
-        finalEst,
-        finalFit,
-      });
-      Alert.alert("스토리 요약을 만들지 못했습니다.", "잠시 후 다시 시도해주세요.");
+      Alert.alert(
+        "[StoryShare] FINAL_FIT_FAIL",
+        `stage=${_stage} diary=...${_diaryMask}\n` +
+        `photos=${_photoCount} maxL=${_maxLines} maxC=${_maxChars}\n` +
+        `finalEst=${finalEst} finalFit=${finalFit}`,
+      );
       sharingRef.current = false;
       return;
     }
