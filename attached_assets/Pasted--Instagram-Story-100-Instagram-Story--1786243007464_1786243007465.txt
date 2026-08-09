@@ -1,0 +1,195 @@
+[Instagram Story 극단적 장문 테스트 오류 조사 — 수정 금지]
+
+실기기에서 일지 본문을 의도적으로 100줄 이상 작성하여
+Instagram Story 공유를 테스트했다.
+
+결과:
+
+- Instagram Story Composer 자체는 정상 실행됨
+- 하지만 Story 이미지가 표시되지 않음
+- 검은/빈 Composer 화면만 나타남
+- 짧은 일반 일지는 정상적으로 이미지가 표시됨
+
+따라서 Instagram 설치/App ID/native scheme 문제는 아니다.
+장문 → pagination → capture → share 단계 중 어디에서 실패하는지 조사한다.
+
+현재 단계에서는 코드 수정/OTA/Build 금지.
+원인만 확정한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 실제 페이지 수 확인
+━━━━━━━━━━━━━━━━━━━━
+
+100줄 이상 테스트 일지가 buildPages()를 통과한 후
+
+- 원문 글자 수
+- 원문 줄 수
+- 생성된 pages.length
+- 각 page의 text length
+- 각 page index
+
+를 확인한다.
+
+개인정보/일지 본문 원문 자체는 로그 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 모든 페이지 capture 성공 여부
+━━━━━━━━━━━━━━━━━━━━
+
+각 페이지마다 다음 상태만 로그로 확인:
+
+PAGE 1
+rendered: true/false
+capture started
+capture finished
+URI exists: true/false
+file exists: true/false
+file size
+
+PAGE 2...
+끝 페이지까지 동일하게 확인.
+
+중요:
+captureRef가 실제 페이지 렌더 완료 전에 실행되는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+3. URI 배열 검증
+━━━━━━━━━━━━━━━━━━━━
+
+Instagram 호출 직전:
+
+uris.length
+각 URI의 scheme
+각 파일 존재 여부
+각 파일 size
+
+확인.
+
+본문/사진/개인정보 로그 금지.
+
+특히:
+
+- 빈 URI
+- 0 byte
+- 이미 삭제된 temporary file
+- 동일 URI 중복
+- file:// 누락
+- capture 직후 cleanup된 파일
+
+여부 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+4. N페이지 공유 로직 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 구현된 실제 코드를 기준으로 확인한다.
+
+N페이지일 때:
+
+for (...) {
+  Share.shareSingle(...)
+}
+
+형태로 Instagram Story Composer를 연속 호출하고 있는지 확인.
+
+Instagram Story Composer가 첫 호출에서 앱 제어권을 가져간 뒤에도
+JS loop가 계속 실행되어 2번째/3번째 shareSingle 호출 또는 cleanup이
+발생하는 구조인지 반드시 확인한다.
+
+특히 이것을 집중 조사:
+
+첫 번째 shareSingle()
+→ Instagram 전환
+→ 다음 loop 실행 여부
+→ 두 번째 shareSingle() 실행 여부
+→ cleanup 실행 시점
+→ 첫 번째 이미지 temporary URI 삭제 여부
+
+이 race condition 존재 여부를 실제 코드 흐름으로 판정한다.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 1페이지 vs N페이지 비교
+━━━━━━━━━━━━━━━━━━━━
+
+정상 일지와 실패 일지를 비교:
+
+CASE A
+pages.length = 1
+
+CASE B
+pages.length = 2
+
+CASE C
+pages.length = 3~5
+
+CASE D
+100줄 이상 극단 장문
+
+각 CASE에서:
+
+capture 성공
+file 존재
+file size
+Share 호출 횟수
+Instagram 진입
+이미지 표시 여부
+
+를 비교한다.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 이미지 개수 영향 분리
+━━━━━━━━━━━━━━━━━━━━
+
+본문 길이와 사진 수를 분리해서 판단한다.
+
+A. 짧은 본문 + 사진 1장
+B. 짧은 본문 + 사진 10장
+C. 긴 본문 + 사진 1장
+D. 긴 본문 + 사진 10장
+
+현재 pagination 계산에
+사진 개수가 어떤 방식으로 높이를 차지하는지도 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 메모리/캡처 크기 확인
+━━━━━━━━━━━━━━━━━━━━
+
+각 Story는 최종 1080×1920 PNG이다.
+
+100줄 테스트에서 여러 장을 한꺼번에 capture하여
+모든 1080×1920 PNG URI를 메모리에/임시파일로 유지하는 구조인지 확인.
+
+단순히 "메모리 문제일 가능성"이라고 추정하지 말고
+
+- 생성 페이지 수
+- 파일 크기
+- capture 방식
+- 파일 생존시간
+
+근거로 판단한다.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 최종 보고
+
+다음만 제출:
+
+A. 정상 1페이지 pages.length
+B. 실패 장문 pages.length
+C. 실패 시 capture된 페이지 수
+D. 모든 capture 성공 여부
+E. 생성 파일 존재 여부
+F. 파일 크기 정상 여부
+G. Instagram에 전달된 첫 URI 정상 여부
+H. N페이지 shareSingle 호출 구조
+I. Instagram 전환 후 JS loop 계속 실행 여부
+J. cleanup 시점
+K. race condition 존재 YES/NO
+L. 메모리 문제 YES/NO/확정불가
+M. pagination 문제 YES/NO
+N. 직접 원인
+O. 최소 수정 방법
+P. OTA 수정 가능 여부
+Q. Native Build 필요 여부
+
+보고 후 멈춘다.
+수정하지 않는다.
