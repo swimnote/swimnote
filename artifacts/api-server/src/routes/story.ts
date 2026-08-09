@@ -89,14 +89,19 @@ router.post(
         const studentIds = (accessRows.rows as any[]).map(r => String(r.student_id));
 
         // 해당 학부모 자녀의 개인 일지만 조회 (다른 학생 개인정보 혼입 구조적 차단)
-        const noteRow = await db.execute(sql`
-          SELECT note_content FROM class_diary_student_notes
-          WHERE diary_id   = ${diaryId}
-            AND student_id = ANY(${studentIds}::text[])
-            AND is_deleted = false
-          LIMIT 1
-        `);
-        studentNoteContent = (noteRow.rows[0] as any)?.note_content ?? null;
+        // ANY(${array}::text[]) 대신 IN (...) 사용:
+        // Drizzle sql 태그에 JS 배열을 직접 보간하면 ($1,$2) ROW 타입으로 직렬화되어
+        // ANY()와 충돌, SQL ERROR 발생. sql.join()으로 개별 파라미터 바인딩.
+        if (studentIds.length > 0) {
+          const noteRow = await db.execute(sql`
+            SELECT note_content FROM class_diary_student_notes
+            WHERE diary_id   = ${diaryId}
+              AND student_id IN (${sql.join(studentIds.map(id => sql`${id}`), sql`, `)})
+              AND is_deleted = false
+            LIMIT 1
+          `);
+          studentNoteContent = (noteRow.rows[0] as any)?.note_content ?? null;
+        }
 
       } else if (role === 'super_admin') {
         // super_admin: pool 무관 접근 — common_content만 사용 (학생 개인정보 제외)
