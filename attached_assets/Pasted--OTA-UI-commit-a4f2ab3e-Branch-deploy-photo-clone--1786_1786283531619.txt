@@ -1,0 +1,221 @@
+[OTA 배포 승인 — 학부모 피드 액션바 최종 UI]
+
+현재 commit:
+a4f2ab3e
+
+Branch:
+deploy-photo-clone
+
+이번 변경은 학부모 피드 하단 액션바 UI 전용 수정입니다.
+
+OTA 배포 승인합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+runtimeVersion:
+1.6.2
+
+channel:
+instagram-test
+
+commit:
+a4f2ab3e
+
+Production channel에는 절대 배포하지 마십시오.
+Production runtime 1.6.1 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 최종 액션바 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종:
+
+[ 👍 ]    [ 🙏 ]    [ 💬 ]    [ Instagram+AI ]
+
+4개의 action item을
+동일한 flex 영역으로 균등 배치.
+
+각 item:
+
+flex: 1
+alignItems: "center"
+justifyContent: "center"
+
+reactions container:
+
+justifyContent: "space-around"
+
+Instagram만 marginLeft:auto로 분리하는 구조 제거 완료.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Instagram AI 최종 구조 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+Instagram:
+
+lucide-react-native Instagram 컴포넌트 사용.
+
+LucideIcon.tsx:
+
+ICON_MAP["instagram"] = Instagram
+
+정상 등록 상태 유지.
+
+CircleAlert fallback 재발 금지.
+
+Instagram icon:
+20px
+
+AI:
+8px
+Pretendard-Bold
+
+wrapper:
+28×26px
+
+AI position:
+right: 0
+bottom: -3
+
+Instagram 로고 우측 하단에
+작게 overlap되어
+
+"Instagram 아이콘 + 별도 AI 텍스트"
+
+가 아니라
+
+하나의 Instagram AI lockup처럼 보여야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 절대 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 OTA 과정에서 추가 코드 수정 금지.
+
+특히 변경 금지:
+
+- 좋아요 로직
+- 감사합니다 로직
+- 댓글 로직
+- handleInstagramShare()
+- StoryCapturePipeline
+- Story Adaptive Collage
+- AI Summary
+- META_APP_ID 처리
+- Share.shareSingle
+- 서버
+- DB
+- Native config
+- app.json
+- eas.json
+
+현재 commit 그대로 배포.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. META_APP_ID 주입
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 성공 방식 그대로 사용.
+
+EXPO_PUBLIC_META_APP_ID=2093655621362240
+
+shell env 직접 주입
+
++
+
+eas update --environment preview
+
+병행.
+
+META_APP_ID 누락 OTA 재발 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. OTA 후 실기기 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱 완전 종료 → 재실행 후 학부모 피드 확인.
+
+CASE 1
+4개 액션이 한 줄에 균등 배치
+→ PASS
+
+CASE 2
+👍 / 🙏 / 💬 중심점 간격과
+Instagram AI 중심점 간격 동일
+→ PASS
+
+CASE 3
+Instagram 아이콘이
+깨진 원형/느낌표 fallback이 아니라
+정상 Instagram glyph
+→ PASS
+
+CASE 4
+AI가 Instagram 로고 우측 하단에
+작게 붙어 하나의 lockup처럼 보임
+→ PASS
+
+CASE 5
+AI가 너무 아래로 내려가거나
+너무 오른쪽으로 떨어져 있지 않음
+
+CASE 6
+좋아요 탭 정상
+
+CASE 7
+감사합니다 탭 정상
+
+CASE 8
+댓글 진입 정상
+
+CASE 9
+Instagram AI 탭
+→ 기존 Story 생성
+→ Instagram Composer 정상 진입
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 시각적 최종 성공 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+성공:
+
+[ 👍 ] [ 🙏 ] [ 💬 ] [ IG·AI ]
+
+네 개가 하나의 정돈된 social action bar처럼 보임.
+
+Instagram AI도
+다른 액션과 같은 위치 체계를 가지면서
+AI 마크만 자연스럽게 붙어 있음.
+
+실패:
+
+- Instagram만 오른쪽으로 따로 떨어짐
+- AI가 별도 글자처럼 보임
+- AI가 알림 badge처럼 보임
+- Instagram glyph 깨짐
+- 네 버튼 중심점이 불균형
+- 액션바 높이가 불필요하게 커짐
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. OTA Group ID
+2. iOS Update ID
+3. Android Update ID
+4. runtimeVersion
+5. channel
+6. commit SHA
+7. META_APP_ID 주입 방식
+8. Production 1.6.1 영향
+9. Server 변경
+10. DB 변경
+11. Native 변경
+12. 실기기 4개 균등 배치 결과
+13. Instagram glyph 정상 여부
+14. AI overlap 결과
+15. Instagram Story 공유 결과
+
+OTA 후 추가 수정 없이 멈춥니다.
