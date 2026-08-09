@@ -68,6 +68,9 @@ router.post(
       if (role === 'parent_account') {
         // 학부모: student_class_history 기준으로 연결 학생 확인
         // (enrolled_at ≤ lesson_date < left_at 범위의 학생만 접근 허용)
+        // parent.ts의 실제 diary visibility 정책과 동일:
+        // 날짜 범위 비교 없이 해당 반 이력(ALL-TIME) 존재 여부만 확인.
+        // (반 이동 후 과거 반 일지도 접근 허용 — parent.ts line 569-576 참조)
         const accessRows = await db.execute(sql`
           SELECT ps.student_id
           FROM parent_accounts pa
@@ -75,8 +78,6 @@ router.post(
           JOIN student_class_history sch
             ON sch.student_id = ps.student_id
            AND sch.class_group_id = ${diary.class_group_id}
-           AND sch.enrolled_at::date <= ${diary.lesson_date}::date
-           AND (sch.left_at IS NULL OR sch.left_at::date > ${diary.lesson_date}::date)
           WHERE pa.id = ${userId}
           LIMIT 5
         `);
