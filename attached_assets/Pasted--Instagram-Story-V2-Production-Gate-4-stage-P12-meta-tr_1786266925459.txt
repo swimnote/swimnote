@@ -1,0 +1,237 @@
+[Instagram Story V2 최종 정리 — 진단 제거 + Production 전 최종 Gate]
+
+현재 실기기 검증 성공:
+
+사진 4장:
+stage=P12
+meta=true
+uriExists=true
+share=success
+Instagram Story Composer 정상 진입
+
+사진 10장:
+stage=P12
+meta=true
+uriExists=true
+share=success
+Instagram Story Composer 정상 진입
+
+기술 기능은 성공했다.
+
+이제 테스트용 진단 코드 제거 및 최종 정리만 수행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Story Diag 완전 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+제거 대상:
+
+- 📊 Story Diag Alert
+- P0~P12 stage trace
+- meta=true/false 진단 출력
+- uriExists 진단 출력
+- fileSize 진단 출력
+- photos 진단 출력
+- share=success 진단 출력
+- 진단용 result object
+- 진단 전용 state/ref
+- 진단 전용 console log
+
+단 실제 정상 오류 처리는 유지한다.
+
+예:
+
+Instagram 미설치
+→ 기존 안내
+
+Summary 실패
+→ 기존 정상 사용자 Alert
+
+capture 실패
+→ "이미지 생성에 실패했습니다."
+
+Instagram share 실패
+→ 정상 사용자용 안내
+
+진단 코드만 제거하고
+실제 오류 처리 로직은 삭제하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. META_APP_ID 공급 방식 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 성공 원인:
+
+OTA export 시
+
+EXPO_PUBLIC_META_APP_ID=2093655621362240
+
+shell env 직접 주입
++
+--environment preview
+
+병행.
+
+앞으로 instagram-test OTA 및
+Production 1.6.2 OTA 배포 시
+META_APP_ID 누락이 다시 발생하지 않도록
+배포 절차를 명확히 고정한다.
+
+이번 단계에서 .env에 중복 저장하지 않는다.
+
+EAS preview environment의 값 유지:
+
+2093655621362240
+
+최종 배포 보고에
+사용한 OTA 명령을 기록한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Story 기능 유지 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+진단 제거 후 반드시 유지:
+
+- Instagram 설치 선확인
+- 사진 최대 10장 모두 표시
+- +N 없음
+- 사진 개수별 grid
+- Story 1장 완결
+- 짧은 일지 원문
+- 긴 일지 AI summary
+- maxChars 제어
+- client final fit check
+- summary cache
+- shareSingle 1회
+- SWIMNOTE branding
+- Pretendard
+- 네이비 SWIMNOTE text
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 사진 10장 레이아웃 최종 검토
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기 Story를 보면
+사진 10장 + summary 이후에도
+하단 여유 공간이 상당히 남는다.
+
+사진 우선 정책이므로
+9~10장 grid의 사진 높이를
+현재 70px × 2행에서
+조금 더 키울 수 있는지 계산한다.
+
+단 임의 수정하지 말고 먼저 계산:
+
+현재:
+사진영역 높이
+summary 실제 사용 높이
+branding 안전영역
+남는 vertical space
+
+를 보고한다.
+
+안전하게 사진을 키워도
+summary 247자 최대조건에서
+잘림이 없을 경우에만
+최소 확대 제안.
+
+예:
+70 → 80/85/90 중
+안전한 최대값 계산.
+
+본문 공간을 침범하거나
+요약 길이를 다시 줄여야 한다면
+현재 70 유지.
+
+사진 확대는 별도 승인 전 적용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 최종 CASE
+━━━━━━━━━━━━━━━━━━━━━━
+
+진단 제거 후 코드 기준 확인:
+
+CASE 1
+사진 1장 + 짧은 일지
+→ 원문 / Story 정상
+
+CASE 2
+사진 4장 + 일반 일지
+→ Story 정상
+
+CASE 3
+사진 10장 + 긴 일지
+→ 10장 전부
+→ summary
+→ Story 1장
+
+CASE 4
+사진 10장 + 극단 장문
+→ summary
+→ 잘림 없음
+
+CASE 5
+Instagram 미설치
+→ 이미지 생성/summary 전에 종료
+
+CASE 6
+Summary API 실패
+→ Instagram 미실행
+→ 정상 Alert
+
+CASE 7
+capture 실패
+→ 정상 Alert
+
+CASE 8
+Instagram share 실패
+→ 정상 Alert
+
+CASE 9
+동일 일지 재공유
+→ cache hit
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 보호 영역
+━━━━━━━━━━━━━━━━━━━━━━
+
+변경 금지:
+
+- DB
+- Render Story Summary API 로직
+- 일지 원본
+- 사진 원본
+- 출결
+- 스케줄
+- 학생
+- Auth
+- Native config
+- app.json
+- eas.json
+
+이번 작업은 진단 코드 제거와
+사진 10장 레이아웃 계산 보고만 수행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 제거한 진단 코드 목록
+2. 유지한 실제 오류 처리
+3. 수정 파일
+4. Story 기능 회귀 여부
+5. 사진 10장 현재 영역 높이
+6. summary 최대 영역 높이
+7. 남는 vertical space
+8. 사진 확대 가능 최대값
+9. 확대 추천값
+10. TypeCheck
+11. DB 변경 0
+12. Render 변경 0
+13. Native 변경 0
+14. OTA 필요 여부
+15. commit SHA
+
+코드 수정 + commit까지만 진행.
+사진 확대는 적용하지 말고 계산만 보고.
+OTA는 별도 승인 전 금지.
