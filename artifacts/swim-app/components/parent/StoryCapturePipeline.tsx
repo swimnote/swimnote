@@ -15,7 +15,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   StyleSheet,
   Text,
@@ -45,9 +44,29 @@ export interface StoryInput {
   photos: StoryPhoto[];       // 이미 URI가 resolve된 사진 목록
 }
 
+// ── 진단 결과 타입 ────────────────────────────────────────────────────────────
+// stage: 마지막으로 도달한 단계 (P0~P12, PX)
+// meta: META_APP_ID 존재 여부
+// uriExists: capture URI 파일 존재 여부 (null=미확인)
+// fileSize: capture 파일 크기(byte), null=미확인
+// photoCount: input.photos.length
+// shareResult: Share 최종 결과
+// error: sanitized error message (개인정보/경로 제외)
+// reason: 실패 이유 코드
+export interface DiagResult {
+  stage: string;
+  meta: boolean;
+  uriExists: boolean | null;
+  fileSize: number | null;
+  photoCount: number;
+  shareResult: "success" | "cancelled" | "error" | "not_reached";
+  error: string | null;
+  reason?: string;
+}
+
 interface Props {
   input: StoryInput;
-  onDone: () => void;   // 완료(성공/실패 모두) 후 호출
+  onDone: (result: DiagResult) => void;   // 완료(성공/실패 모두) 후 호출
 }
 
 // ── V2: Story 1장 완결 ──────────────────────────────────────────────────────
@@ -75,9 +94,22 @@ export default function StoryCapturePipeline({ input, onDone }: Props) {
   const rendererRef = useRef<View>(null);
   const captureScheduled = useRef(false);
 
+  // ── 진단 누적 ref ─────────────────────────────────────────────────────────
+  const diagRef = useRef<DiagResult>({
+    stage: "P0",
+    meta: typeof META_APP_ID === "string" && META_APP_ID.length > 0,
+    uriExists: null,
+    fileSize: null,
+    photoCount: input.photos.length,
+    shareResult: "not_reached",
+    error: null,
+  });
+
   const currentPage = pages[pageIdx];
 
   useEffect(() => {
+    // P0: Pipeline mount / 페이지 전환
+    diagRef.current.stage = "P0";
     captureScheduled.current = false;
     setStatus("rendering");
     // 렌더링이 완료될 수 있도록 2프레임(~100ms) 대기
@@ -89,11 +121,19 @@ export default function StoryCapturePipeline({ input, onDone }: Props) {
   }, [pageIdx]);
 
   async function captureCurrent() {
+    // P1: rendererRef 확인
+    diagRef.current.stage = "P1";
     if (!rendererRef.current) {
-      finishWithError("렌더링 중 오류가 발생했습니다.");
+      diagRef.current.error = "rendererRef null";
+      diagRef.current.shareResult = "error";
+      onDone({ ...diagRef.current });
       return;
     }
+
     setStatus("capturing");
+
+    // P2: captureRef 시작
+    diagRef.current.stage = "P2";
     try {
       const uri = await captureRef(rendererRef, {
         format: "png",
@@ -104,6 +144,21 @@ export default function StoryCapturePipeline({ input, onDone }: Props) {
         height: 1920,
       });
 
+      // P3: captureRef 성공
+      diagRef.current.stage = "P3";
+
+      // P4: URI 존재 + 파일 크기 확인 (read-only, 실패해도 공유 계속)
+      diagRef.current.stage = "P4";
+      try {
+        const info = await FileSystem.getInfoAsync(uri);
+        diagRef.current.uriExists = info.exists;
+        diagRef.current.fileSize = (info as any).size ?? null;
+      } catch {
+        // getInfoAsync 실패 — URI 길이로 존재 추정
+        diagRef.current.uriExists = typeof uri === "string" && uri.length > 0;
+        diagRef.current.fileSize = null;
+      }
+
       const newUris = [...capturedUris, uri];
       if (pageIdx + 1 < pages.length) {
         setCapturedUris(newUris);
@@ -112,66 +167,92 @@ export default function StoryCapturePipeline({ input, onDone }: Props) {
         // 모든 페이지 캡처 완료
         await finalize(newUris);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn("[StoryCapture] captureRef error:", e);
-      finishWithError("이미지 생성에 실패했습니다.");
+      // PX: captureRef 예외
+      diagRef.current.stage = "PX";
+      diagRef.current.error = String(e?.message ?? "captureRef failed").slice(0, 100);
+      diagRef.current.shareResult = "error";
+      onDone({ ...diagRef.current });
     }
   }
 
   async function finalize(uris: string[]) {
-    // META_APP_ID guard — 설정 미완료 시 즉시 종료 (저장/fallback 없음)
-    if (!META_APP_ID) {
-      Alert.alert(
-        "Instagram 공유 준비 중",
-        "Instagram Story 공유 설정이 완료되지 않았습니다.",
-      );
+    // P5: finalize 진입
+    diagRef.current.stage = "P5";
+
+    // P6: META_APP_ID 검사
+    diagRef.current.stage = "P6";
+    const hasMetaAppId =
+      typeof META_APP_ID === "string" && META_APP_ID.length > 0;
+    diagRef.current.meta = hasMetaAppId;
+
+    if (!hasMetaAppId) {
+      // meta=false → parent에서 Alert 표시 (Pipeline 내부 Alert 제거)
+      diagRef.current.shareResult = "error";
+      diagRef.current.reason = "missing_meta_app_id";
       cleanup(uris);
-      onDone();
+      onDone({ ...diagRef.current });
       return;
     }
+
+    // P7: META_APP_ID 존재 확인
+    diagRef.current.stage = "P7";
 
     setStatus("sharing");
 
     // 1장 또는 N장 모두 Instagram Story Composer에 1장씩 순서대로 공유
     for (let i = 0; i < uris.length; i++) {
+      // P8: Share.shareSingle 직전
+      diagRef.current.stage = "P8";
       try {
+        // P9: Share.shareSingle 호출
+        diagRef.current.stage = "P9";
         await Share.shareSingle({
           social: Social.InstagramStories,
           backgroundImage: uris[i],
           appId: META_APP_ID,
         });
+        // P10: Promise resolve
+        diagRef.current.stage = "P10";
+        diagRef.current.shareResult = "success";
       } catch (e: any) {
+        // PX: Share 예외
+        diagRef.current.stage = "PX";
         const isCancelled =
           e?.message?.includes("cancel") ||
           e?.message?.includes("dismiss") ||
           e?.error?.includes("cancel");
         if (isCancelled) {
           // 공유 취소 → 나머지 페이지 없이 조용히 종료
+          diagRef.current.shareResult = "cancelled";
+          diagRef.current.error = String(e?.message ?? "cancelled").slice(0, 100);
           cleanup(uris);
-          onDone();
+          onDone({ ...diagRef.current });
           return;
         }
         // Instagram 미설치(home.tsx에서 canOpenURL 체크했음에도 실행 중 예외) → 종료
-        Alert.alert("Instagram 앱이 설치되어 있지 않습니다.");
+        diagRef.current.shareResult = "error";
+        diagRef.current.error = String(e?.message ?? "share error").slice(0, 100);
         cleanup(uris);
-        onDone();
+        onDone({ ...diagRef.current });
         return;
       }
     }
 
+    // P11: cleanup
+    diagRef.current.stage = "P11";
     cleanup(uris);
-    onDone();
+
+    // P12: onDone
+    diagRef.current.stage = "P12";
+    onDone({ ...diagRef.current });
   }
 
   function cleanup(uris: string[]) {
     uris.forEach(uri => {
       FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
     });
-  }
-
-  function finishWithError(msg: string) {
-    Alert.alert("오류", msg);
-    onDone();
   }
 
   const statusLabel: Record<typeof status, string> = {

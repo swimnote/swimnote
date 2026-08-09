@@ -12,7 +12,7 @@
  */
 import { ParentPromoStrip } from "@/components/parent/ParentPromoStrip";
 import { AIFeatureModal, AIModalType } from "@/components/parent/AIFeatureModal";
-import StoryCapturePipeline, { StoryInput } from "@/components/parent/StoryCapturePipeline";
+import StoryCapturePipeline, { StoryInput, DiagResult } from "@/components/parent/StoryCapturePipeline";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -1078,9 +1078,23 @@ function DiaryFeedItem({
               ? { ...storyInput, bodyText: resolvedBodyRef.current }
               : storyInput
           }
-          onDone={() => {
+          onDone={(result: DiagResult) => {
             setSharing(false);
             sharingRef.current = false;
+            // 진단 Alert — Pipeline(Modal) unmount 후 표시 (Alert-Modal race 방지)
+            setTimeout(() => {
+              const lines = [
+                `stage=${result.stage}`,
+                `meta=${result.meta}`,
+                `uriExists=${result.uriExists}`,
+                `fileSize=${result.fileSize ?? "null"}`,
+                `photos=${result.photoCount}`,
+                `share=${result.shareResult}`,
+                result.error ? `err=${result.error}` : null,
+                result.reason ? `reason=${result.reason}` : null,
+              ].filter(Boolean).join("\n");
+              Alert.alert("📊 Story Diag", lines);
+            }, 300);
           }}
         />
       )}
