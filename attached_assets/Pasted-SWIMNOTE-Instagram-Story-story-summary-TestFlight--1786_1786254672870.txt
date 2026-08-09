@@ -1,0 +1,225 @@
+SWIMNOTE Instagram Story — 실기기 story-summary 실패 긴급 진단
+
+실기기 TestFlight에서 재현 완료.
+
+화면:
+학부모 일지 상세
+→ "스토리" 버튼
+→ Alert:
+
+"스토리 요약을 만들지 못했습니다.
+잠시 후 다시 시도해주세요."
+
+따라서 이전 Render 보고서의
+
+6. 실제 parent + diaryId → 200
+
+항목은 미검증 상태였고,
+현재 실제 parent 경로는 실패하고 있다.
+
+지금 수정부터 하지 말고 정확한 실패 지점을 확정한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 방금 실제 요청 Render 로그 추적
+━━━━━━━━━━━━━━━━━━━━
+
+재현 시각:
+
+2026-08-09 약 14:46 KST
+= 약 05:46 UTC
+
+Render live service에서 해당 시각 전후
+story-summary 요청을 찾는다.
+
+확인:
+
+- 요청 URL
+- HTTP method
+- HTTP status
+- authenticated userId
+- role
+- poolId
+- diaryId
+- resolved parent studentIds 개수
+- 해당 diary의 class_group_id
+- permission 판정 결과
+- 최종 response body
+
+학생 이름/전화번호 등 개인정보 로그 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 클라이언트 실제 호출 코드 확인
+━━━━━━━━━━━━━━━━━━━━
+
+TestFlight runtimeVersion 1.6.2에서
+Story 버튼이 실제 호출하는 코드 확인.
+
+반드시 제출:
+
+- 파일 경로
+- 실제 URL
+- API_BASE
+- diaryId 전달값
+- Authorization header 사용 여부
+- request body/query
+- response parsing 코드
+- 어떤 조건에서
+  "스토리 요약을 만들지 못했습니다"
+  Alert를 띄우는지
+
+특히 확인:
+
+response.ok === false 때문인지
+
+또는
+
+HTTP 200인데
+response JSON의 key/schema가 클라이언트 기대값과 달라
+catch로 떨어지는지
+
+구분할 것.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 실제 diaryId 확인
+━━━━━━━━━━━━━━━━━━━━
+
+Story 버튼을 누른 현재 일지의 실제 diaryId를 확보.
+
+빈 문자열 / classGroupId / studentNoteId와 혼동 금지.
+
+확인:
+
+client diary.id
+→ story-summary request diaryId
+
+두 값이 동일한지 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 실제 parent 권한 경로 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 로그인한 parent가
+해당 화면에서 실제 태웅 학생 일지를 볼 수 있으므로,
+
+story-summary 권한 검증이
+기존 parent diary 조회 권한보다 더 강하거나
+다른 조건을 쓰는지 비교.
+
+비교:
+
+A. 기존 parent diary/detail API 권한 조건
+B. story-summary API 권한 조건
+
+두 조건이 다르면 정확한 차이 제출.
+
+특히:
+
+- parent ↔ student 연결
+- diary student note 연결
+- class membership
+- pool
+- current/withdrawn student
+- guardian phone/link
+
+중 어떤 조건에서 거절되는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+5. HTTP 200인데 앱 실패하는 경우
+
+서버 response 실제 JSON을 제출.
+
+예:
+
+{
+  "summary": "..."
+}
+
+인지,
+
+{
+  "data": {
+    "summary": "..."
+  }
+}
+
+인지 등 실제 구조 확인.
+
+클라이언트가 기대하는 property와 정확히 비교.
+
+summary:
+- string인지
+- null인지
+- empty인지
+- 길이 제한 검사에서 실패하는지
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━
+6. API_BASE 확인
+
+TestFlight instagram-test runtime 1.6.2가
+실제로 어느 서버를 호출하는지 확인.
+
+반드시 실제 값 제출:
+
+API_BASE=<actual>
+
+swimnote-api.onrender.com 인지
+swimnote.kr/api 인지
+다른 endpoint인지 확인.
+
+이전처럼 잘못된 environment가 bundle에 들어간 가능성을
+추측으로 배제하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 판정
+
+다음 중 하나로 반드시 확정:
+
+A. 요청 자체 미도달
+B. 401 authentication 실패
+C. 403 parent 권한 실패
+D. 404/잘못된 diaryId
+E. 5xx server error
+F. 서버 200 + summary 없음
+G. 서버 200 + client JSON schema mismatch
+H. 서버 200 + 이후 Story 생성 단계 실패
+I. 잘못된 API_BASE
+J. 기타 — 실제 증거 제출
+
+━━━━━━━━━━━━━━━━━━━━
+8. 보호 범위
+
+현재 원인 확정 전 수정 금지.
+
+특히 변경 금지:
+
+- AI Engine
+- 일지 저장
+- parent diary API
+- 사진
+- 보강
+- X mode
+- DB schema
+
+Instagram Story 경로만 조사.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 제출
+
+1. 실제 요청 시각
+2. 실제 diaryId
+3. 실제 API_BASE
+4. 실제 request URL
+5. 실제 HTTP status
+6. 실제 response body
+7. Render 해당 요청 로그
+8. parent 권한 판정
+9. client가 기대하는 response schema
+10. 실제 server response schema
+11. 실패한 정확한 line
+12. 원인 A~J 판정
+13. 최소 수정안
+
+코드 수정 / Commit / Push / Render / OTA 금지.
+원인 보고 후 중단.
