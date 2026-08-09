@@ -1,0 +1,262 @@
+[긴급 회귀 감리 — 1.6.2 TestFlight가 Production 앱 기능을 변경했는지 전수 확인]
+
+실기기 1.6.2 TestFlight에서 Instagram Story 기능 외
+기존 앱 화면의 이상 현상이 발견됐다.
+
+실제 확인 증상:
+
+1. 선생님 스케줄 화면에서
+   현재 로그인 선생님 담당 수업뿐 아니라
+   다른 선생님의 스케줄까지 보이는 것으로 확인됨.
+
+2. 일지 작성 화면도
+   현재 Production 1.6.1에서 사용하던 화면/동작과 다르게 보임.
+
+이건 Instagram Story 작업 범위와 무관하다.
+
+따라서 현재 1.6.2 build가
+실제 Production baseline에서 Instagram 기능만 추가된 상태인지
+즉시 검증한다.
+
+이번 단계:
+
+코드 수정 금지.
+OTA 금지.
+Native Build 금지.
+Render 금지.
+DB 변경 금지.
+
+원인 조사만 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 비교 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 현재 Production App baseline:
+
+production-app-ota-e0c60798
+SHA:
+e0c60798754376962c8e200b2c23529671d652d9
+
+현재 Instagram Test 코드 기준:
+
+현재 deploy-photo-clone HEAD 및
+실제 iOS Build source SHA를 정확히 확인.
+
+현재 Story OTA:
+a2e62d74
+runtimeVersion:
+1.6.2
+
+Production:
+runtimeVersion 1.6.1
+
+비교는 main이 아니라
+반드시 e0c60798과 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 전체 App Diff 조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실행:
+
+git diff --name-status e0c60798..현재_Instagram_HEAD -- artifacts/swim-app
+
+그리고 변경 파일 전체를 분류한다.
+
+A. Instagram Story 기능에 반드시 필요한 변경
+
+B. Instagram Native Build/version/env에 필요한 변경
+
+C. Instagram과 무관한 기존 앱 기능 변경
+
+C가 하나라도 있으면 전부 제출한다.
+
+파일 수가 많아도 생략 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 스케줄 회귀 집중 조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production e0c60798과 현재 HEAD 사이에서
+다음 관련 파일/로직 diff를 전부 조사:
+
+- teacher today schedule
+- schedule
+- class_groups 조회
+- teacher_user_id 필터
+- co_teacher_ids 필터
+- current teacher/userId
+- pool_id
+- today lessons
+- overview
+- teacher schedule API
+- teacher schedule client filtering
+
+확인 질문:
+
+1. Production e0c60798에서는
+   현재 로그인 teacher 기준 어떤 필터를 사용했는가?
+
+2. 현재 1.6.2 코드에서는
+   그 필터가 정확히 같은가?
+
+3. 다른 선생님 수업이 보일 수 있는 코드 경로가 존재하는가?
+
+4. API 응답 자체가 전체 수업을 반환하는가,
+   아니면 앱이 필터를 잃었는가?
+
+5. Instagram 작업 과정에서 이 파일들이 변경됐는가?
+
+6. 변경됐다면 정확한 commit과 이유는 무엇인가?
+
+"관련 없어 보인다"는 판단 금지.
+실제 diff로 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 일지 작성 화면 회귀 집중 조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production e0c60798과 현재 HEAD 사이에서:
+
+- teacher diary 작성 화면
+- diary modal
+- AI diary modal
+- diary inputs
+- student diary fields
+- common diary
+- student-specific diary
+- scrolling
+- multiline
+- save flow
+- photo/video
+- class/student selection
+
+관련 파일을 전부 비교한다.
+
+제출:
+
+Production e0c60798 화면 구조
+vs
+현재 1.6.2 화면 구조
+
+변경 파일
+변경 commit
+변경 목적
+Instagram과 관련 있는지 YES/NO
+
+Instagram과 무관한 변경이 1.6.2에 섞여 있다면 명시한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Build source 정확성 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+iOS Build:
+
+f5fb78b1-56d0-45e3-8d29-968a992997fa
+
+이 Build가 실제 어떤 source snapshot으로 생성됐는지 다시 확정.
+
+그 source에:
+
+- Production e0c60798 이후 정상 완료 작업
+- Instagram Story 작업
+- 테스트/실험 코드
+- 과거 미완성 코드
+
+가 각각 무엇이 들어갔는지 분리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Server 때문인지 App 때문인지 분리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+현재 Production Server는:
+
+86c76188f46a
+
+그대로이며 Render 변경이 없었다.
+
+따라서 스케줄 문제에서:
+
+A. 동일 Production 서버가
+1.6.1 앱과 1.6.2 앱에 동일 응답을 주는데
+1.6.2에서만 잘못 보이는지
+
+또는
+
+B. 1.6.2가 다른 endpoint/params를 호출하는지
+
+확인한다.
+
+API_BASE도 비교한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 계정/테스트 데이터 착시 가능성도 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+코드 회귀라고 바로 단정하지 않는다.
+
+현재 TestFlight에서 로그인한:
+
+- role
+- userId
+- pool
+- teacher identity
+
+가 Production에서 테스트한 계정과 동일한 조건인지 확인한다.
+
+단 개인정보 원문을 로그에 출력하지 않는다.
+
+관리자 전환 상태나
+관리자 권한으로 teacher 화면을 보고 있어서
+전체 스케줄이 보이는 경우인지도 확인한다.
+
+그러나 추정으로 PASS하지 말고 실제 session/role 조건을 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 절대 하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 원인을 모르므로:
+
+- 스케줄 필터 즉시 추가 금지
+- 일지 화면 즉시 복원 금지
+- e0c60798 전체 checkout 금지
+- Instagram 코드 삭제 금지
+- Production OTA 금지
+- 1.6.2 OTA 추가 금지
+
+먼저 차이를 확정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 형식으로 제출:
+
+1. Production baseline SHA
+2. 1.6.2 실제 Build source SHA
+3. 현재 OTA SHA
+4. 전체 changed file 수
+5. Instagram 관련 파일 목록
+6. Instagram 무관 변경 파일 목록
+7. 스케줄 관련 Production→1.6.2 diff
+8. 다른 선생님 스케줄 노출 직접 원인
+9. 원인 확정 YES/NO
+10. 일지 작성 관련 Production→1.6.2 diff
+11. 일지 화면 차이 직접 원인
+12. 원인 확정 YES/NO
+13. API_BASE 동일 여부
+14. Session/role 조건 동일 여부
+15. 기존 Production 1.6.1에도 같은 문제가 있는지
+16. 1.6.2에만 있는 회귀인지
+17. 정상 기능 중 1.6.2에서 추가로 달라진 부분 전체
+18. 최소 복구 방법
+19. Instagram Story 기능을 유지하면서 복구 가능한지 YES/NO
+20. 새 Native Build 필요 여부
+21. OTA만으로 복구 가능한지
+
+보고 후 멈춘다.
+수정하지 않는다.
