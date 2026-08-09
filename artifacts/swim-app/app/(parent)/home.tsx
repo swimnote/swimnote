@@ -13,6 +13,7 @@
 import { ParentPromoStrip } from "@/components/parent/ParentPromoStrip";
 import { AIFeatureModal, AIModalType } from "@/components/parent/AIFeatureModal";
 import StoryCapturePipeline, { StoryInput } from "@/components/parent/StoryCapturePipeline";
+import { StoryPhoto } from "@/components/parent/StoryPageRenderer";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -750,8 +751,9 @@ function DiaryFeedItem({
   // ── Instagram Story 공유 ──
   const [sharing,   setSharing]   = useState(false);
   const [preparing, setPreparing] = useState(false);
-  const sharingRef      = useRef(false);
-  const resolvedBodyRef = useRef<string | null>(null);
+  const sharingRef         = useRef(false);
+  const resolvedBodyRef    = useRef<string | null>(null);
+  const enrichedPhotosRef  = useRef<StoryPhoto[] | null>(null);
 
   useEffect(() => {
     if (loadedRef.current) return;
@@ -965,6 +967,31 @@ function DiaryFeedItem({
       return;
     }
 
+    // N: 5~10장 Adaptive Collage용 aspectRatio 사전 조회
+    //    Promise.allSettled — 한 장 실패해도 전체 공유 계속
+    _stage = "N";
+    if (allPhotos.length >= 5) {
+      const arResults = await Promise.allSettled(
+        allPhotos.slice(0, 10).map(
+          p => new Promise<StoryPhoto>(resolve => {
+            const uri = buildPhotoUri(p.file_url);
+            Image.getSize(
+              uri,
+              (w, h) => resolve({ id: p.id, uri, width: w, height: h, aspectRatio: h > 0 ? w / h : 1 }),
+              ()      => resolve({ id: p.id, uri, aspectRatio: 1 }),
+            );
+          }),
+        ),
+      );
+      enrichedPhotosRef.current = arResults.map((r, i) =>
+        r.status === "fulfilled"
+          ? r.value
+          : { id: allPhotos[i].id, uri: buildPhotoUri(allPhotos[i].file_url), aspectRatio: 1 },
+      );
+    } else {
+      enrichedPhotosRef.current = null;
+    }
+
     // M: setSharing(true)
     _stage = "M";
     setSharing(true);
@@ -1073,14 +1100,18 @@ function DiaryFeedItem({
       {/* Instagram Story 캡처 파이프라인 */}
       {sharing && (
         <StoryCapturePipeline
-          input={
-            resolvedBodyRef.current !== null
+          input={{
+            ...(resolvedBodyRef.current !== null
               ? { ...storyInput, bodyText: resolvedBodyRef.current }
-              : storyInput
-          }
+              : storyInput),
+            // 5~10장: AR 확보된 enriched photos 사용 (Adaptive Collage)
+            // 4장 이하 또는 조회 실패 시 기존 storyInput.photos 그대로
+            photos: enrichedPhotosRef.current ?? storyInput.photos,
+          }}
           onDone={() => {
             setSharing(false);
             sharingRef.current = false;
+            enrichedPhotosRef.current = null;
           }}
         />
       )}
