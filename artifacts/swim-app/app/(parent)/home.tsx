@@ -142,28 +142,29 @@ function _storyHash(s: string): string {
   for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
   return h.toString(36);
 }
-// cache hit 조건: hash 일치 AND maxLines 일치 AND 현재 layout에 fit
-// → 셋 중 하나라도 불일치하면 miss → 재생성
+// cache hit 조건: hash 일치 AND maxLines 일치 AND maxChars 일치 AND 현재 layout에 fit
+// → 넷 중 하나라도 불일치하면 miss → 재생성
 async function getStorySummaryCache(
-  id: string, body: string, maxLines: number, photoCount: number,
+  id: string, body: string, maxLines: number, maxChars: number, photoCount: number,
 ): Promise<string | null> {
   try {
     const raw = await AsyncStorage.getItem(_STORY_CACHE + id);
     if (!raw) return null;
-    const c = JSON.parse(raw) as { hash: string; maxLines: number; summary: string };
-    if (c.hash !== _storyHash(body)) return null;       // 원문 변경
-    if (c.maxLines !== maxLines) return null;            // 사진 수 변경 (CASE 9)
+    const c = JSON.parse(raw) as { hash: string; maxLines: number; maxChars: number; summary: string };
+    if (c.hash !== _storyHash(body)) return null;           // 원문 변경
+    if (c.maxLines !== maxLines) return null;               // 사진 수 변경 (CASE 9)
+    if (c.maxChars !== maxChars) return null;               // 글자 수 기준 변경
     if (!storyTextFits(c.summary, photoCount)) return null; // layout 변경 (CASE 10)
     return c.summary;
   } catch { return null; }
 }
 async function setStorySummaryCache(
-  id: string, body: string, maxLines: number, summary: string,
+  id: string, body: string, maxLines: number, maxChars: number, summary: string,
 ): Promise<void> {
   try {
     await AsyncStorage.setItem(
       _STORY_CACHE + id,
-      JSON.stringify({ hash: _storyHash(body), maxLines, summary }),
+      JSON.stringify({ hash: _storyHash(body), maxLines, maxChars, summary }),
     );
   } catch {}
 }
@@ -844,17 +845,19 @@ function DiaryFeedItem({
       setPreparing(true);
       try {
         const maxLines = storyMaxLines(photoCount);
+        // maxChars: 픽셀 기반 최대 글자 수 (90% 안전여유 적용)
+        const maxChars = Math.floor(maxLines * _STORY_CPL * 0.9);
 
-        // 캐시 확인: hash + maxLines + 현재 layout fit 모두 검증
-        const cached = await getStorySummaryCache(entry.id, bodyText, maxLines, photoCount);
+        // 캐시 확인: hash + maxLines + maxChars + 현재 layout fit 모두 검증
+        const cached = await getStorySummaryCache(entry.id, bodyText, maxLines, maxChars, photoCount);
         if (cached) {
           resolvedBodyRef.current = cached;
         } else {
-          // API 요청 헬퍼
-          const callSummaryAPI = async (ml: number): Promise<string> => {
+          // API 요청 헬퍼 — max_lines + max_chars 병행 전달
+          const callSummaryAPI = async (ml: number, mc: number): Promise<string> => {
             const r = await apiRequest(token, `/diaries/${entry.id}/story-summary`, {
               method: "POST",
-              body: JSON.stringify({ max_lines: ml }),
+              body: JSON.stringify({ max_lines: ml, max_chars: mc }),
             });
             if (!r.ok) throw new Error(`summary_api:${r.status}`);
             const d = await r.json();
@@ -863,18 +866,19 @@ function DiaryFeedItem({
           };
 
           // 1차 요약 요청
-          let summary = await callSummaryAPI(maxLines);
+          let summary = await callSummaryAPI(maxLines, maxChars);
 
-          // ③ 최종 fit 검증 (CASE 8: LLM이 max_lines 초과 반환)
+          // ③ 최종 fit 검증 (서버에서 1차 검증 완료 후 클라이언트 pixel-based 재확인)
           if (!storyTextFits(summary, photoCount)) {
-            // 재시도: maxLines 축소 (최소 3)
+            // 재시도: maxLines, maxChars 동시 축소
             const retryMaxLines = Math.max(3, maxLines - 2);
-            summary = await callSummaryAPI(retryMaxLines);
+            const retryMaxChars = Math.floor(maxChars * 0.85);
+            summary = await callSummaryAPI(retryMaxLines, retryMaxChars);
             // 재시도 후에도 fit 실패 → 절대 overflow 공유 금지
             if (!storyTextFits(summary, photoCount)) throw new Error("summary_too_long");
-            await setStorySummaryCache(entry.id, bodyText, retryMaxLines, summary);
+            await setStorySummaryCache(entry.id, bodyText, retryMaxLines, retryMaxChars, summary);
           } else {
-            await setStorySummaryCache(entry.id, bodyText, maxLines, summary);
+            await setStorySummaryCache(entry.id, bodyText, maxLines, maxChars, summary);
           }
 
           resolvedBodyRef.current = summary;

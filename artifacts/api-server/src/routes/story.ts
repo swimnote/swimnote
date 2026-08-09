@@ -51,6 +51,8 @@ router.post(
       const { userId, role } = req.user!;
       const diaryId  = req.params.diaryId;
       const maxLines = Math.max(1, Math.min(30, Number(req.body?.max_lines) || 8));
+      // max_chars: 서버 자체 상한 1000자, 클라이언트 미전송 시 maxLines×25로 fallback
+      const maxChars = Math.max(50, Math.min(1000, Number(req.body?.max_chars) || maxLines * 25));
 
       // ── 1. 일지 기본 정보 조회 ─────────────────────────────────────────────
       const diaryRow = await db.execute(sql`
@@ -121,16 +123,19 @@ router.post(
       const controller = new AbortController();
       const timer      = setTimeout(() => controller.abort(), 25_000);
 
+      // maxChars 기반 프롬프트 — 글자 수를 주요 제약으로 사용
       const prompt =
 `당신은 수영 수업 일지를 Instagram Story용으로 요약하는 도우미입니다.
 
 규칙:
+- 반드시 ${maxChars}자 이내 (공백 포함 전체 글자 수 기준)
 - 원문에 존재하는 사실만 사용한다
 - 새로운 수영 지식, 평가, 칭찬, 다음 계획을 원문에 없는 경우 절대 추가하지 않는다
 - 의미를 왜곡하지 않는다
 - 핵심 수업 내용 우선, 개인 피드백이 있으면 핵심 1~2개 유지
+- 반복 표현 제거
+- 불필요한 서론/결론 제거
 - 광고 문구 금지
-- ${maxLines}줄 이내의 짧은 문단 (한 줄 ≈ 한국어 25자)
 - 줄임표("...") 없이 완성된 문장으로 끝낼 것
 
 원문:
@@ -145,7 +150,7 @@ ${fullText}
             model:       'gpt-4o-mini',
             messages:    [{ role: 'user', content: prompt }],
             temperature: 0.3,
-            max_tokens:  300,
+            max_tokens:  400,
           },
           { signal: controller.signal },
         );
@@ -161,6 +166,57 @@ ${fullText}
           ` msg=${String(e?.message ?? 'unknown').slice(0, 80)}`
         );
         res.status(500).json({ error: 'summary_failed' }); return;
+      }
+
+      // ── 5. 서버 측 1차 길이 검증 ──────────────────────────────────────────
+      if (summary.length > maxChars) {
+        // 1차 FAIL → 더 짧은 기준으로 재요약 요청
+        const retryMaxChars = Math.floor(maxChars * 0.85);
+        console.log(
+          `[story-summary] 1차 길이 초과(${summary.length}>${maxChars})` +
+          ` → retry retryMaxChars=${retryMaxChars}` +
+          ` diaryId=...${diaryId.slice(-8)}`
+        );
+        const retryController = new AbortController();
+        const retryTimer = setTimeout(() => retryController.abort(), 25_000);
+        let retrySummary: string;
+        try {
+          const retryCompletion = await openai.chat.completions.create(
+            {
+              model:       'gpt-4o-mini',
+              messages:    [
+                { role: 'user',      content: prompt },
+                { role: 'assistant', content: summary },
+                { role: 'user',      content:
+                  `이전 결과가 길이 제한을 초과했습니다.\n` +
+                  `내용을 더 압축하여 반드시 ${retryMaxChars}자 이내로 작성하십시오.` },
+              ],
+              temperature: 0.3,
+              max_tokens:  400,
+            },
+            { signal: retryController.signal },
+          );
+          clearTimeout(retryTimer);
+          retrySummary = retryCompletion.choices[0]?.message?.content?.trim() ?? '';
+        } catch (e: any) {
+          clearTimeout(retryTimer);
+          console.error(
+            `[story-summary] retry OpenAI error` +
+            ` diaryId=...${diaryId.slice(-8)}` +
+            ` msg=${String(e?.message ?? 'unknown').slice(0, 80)}`
+          );
+          res.status(500).json({ error: 'summary_failed' }); return;
+        }
+
+        // 2차 길이 검증 — 임의 truncate 금지, FAIL 시 summary_failed
+        if (!retrySummary || retrySummary.length > retryMaxChars) {
+          console.error(
+            `[story-summary] 2차 길이 초과(${retrySummary.length}>${retryMaxChars})` +
+            ` diaryId=...${diaryId.slice(-8)}`
+          );
+          res.status(500).json({ error: 'summary_failed' }); return;
+        }
+        summary = retrySummary;
       }
 
       res.json({ summary });
