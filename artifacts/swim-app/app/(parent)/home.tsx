@@ -1090,7 +1090,7 @@ function DiaryFeedItem({
           disabled={sharing || preparing}
           style={({ pressed }) => [
             f.reactionBtn,
-            { opacity: pressed || sharing || preparing ? 0.5 : 1, marginLeft: "auto" as any },
+            { opacity: pressed || sharing || preparing ? 0.5 : 1 },
           ]}
         >
           {(sharing || preparing)
@@ -2143,38 +2143,40 @@ const f = StyleSheet.create({
     flexDirection: "row",
     borderTopWidth: 1,
     marginTop: 16,
-    paddingTop: 8,
+    paddingTop: 4,
     paddingBottom: 4,
-    paddingHorizontal: 4,
-    gap: 4,
+    paddingHorizontal: 0,
+    justifyContent: "space-around",
   },
   reactionBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: 20,
+    justifyContent: "center",
+    paddingVertical: 8,
+    borderRadius: 4,
   },
   reactionBtnActive: {},
   reactionBtnThanks: {},
   emoji: { fontSize: 17 },
   // Instagram AI lockup — 로고(20px) + AI 마크 overlap 컨테이너
+  // width/height에 여유를 두어 AI badge가 잘리지 않도록
   igAiLockup: {
-    width:    20,
-    height:   20,
-    // AI Text가 absolute로 약간 삐져나오므로 overflow visible (기본값)
+    width:           28,
+    height:          26,
+    alignItems:      "center",
+    justifyContent:  "center",
   },
-  // AI 마크 — 로고 우측 하단 overlap
-  // 로고와 하나의 기능 마크처럼 보이도록 붙여서 배치
+  // AI 마크 — Instagram 로고 우측 하단에 살짝 overlap
+  // wrapper 기준 absolute → 로고와 하나의 마크처럼 인식
   aiMark: {
-    position:    "absolute",
-    right:       -8,
-    bottom:      -5,
-    fontSize:    8,
-    fontFamily:  "Pretendard-Bold",
-    color:       NAVY,
+    position:      "absolute",
+    right:         0,
+    bottom:        -3,
+    fontSize:      8,
+    fontFamily:    "Pretendard-Bold",
+    color:         NAVY,
     letterSpacing: 0.2,
-    lineHeight:  10,
+    lineHeight:    10,
   },
 });
