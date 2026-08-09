@@ -108,6 +108,54 @@ function buildPhotoUri(fileUrl: string): string {
   return `${API_BASE}${fileUrl}`;
 }
 
+// ── Instagram Story テキスト fit 판정 ──────────────────────────────────────
+// StoryPageRenderer 레이아웃 기준:
+//   contentArea inner height = 434px (640-48-130-28), TEXT_LINE_H = 20px
+//   사진 행 높이: 1장=220 / 2장=160 / 3~4장=2×105+4 / 5~6장=2×92+4 /
+//                7~8장=2×80+4 / 9~10장=2×70+4
+const _STORY_CPL = 25; // Pretendard-Medium fontSize 13, 한국어 기준 chars/line
+
+function storyMaxLines(photoCount: number): number {
+  if (photoCount === 0) return 19;
+  if (photoCount === 1) return 7;
+  if (photoCount === 2) return 10;
+  if (photoCount <= 4) return 8;
+  if (photoCount <= 6) return 9;
+  if (photoCount <= 8) return 10;
+  return 11; // 9~10장
+}
+
+function _storyEstimateLines(text: string): number {
+  if (!text.trim()) return 0;
+  return text.split("\n").reduce((acc, line) =>
+    acc + Math.max(1, Math.ceil((line.length || 0.1) / _STORY_CPL)), 0);
+}
+
+function storyTextFits(text: string, photoCount: number): boolean {
+  return _storyEstimateLines(text) <= storyMaxLines(photoCount);
+}
+
+// AsyncStorage 캐시 (diaryId + content hash → summary)
+const _STORY_CACHE = "@sn:story_summary_";
+function _storyHash(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+async function getStorySummaryCache(id: string, body: string): Promise<string | null> {
+  try {
+    const raw = await AsyncStorage.getItem(_STORY_CACHE + id);
+    if (!raw) return null;
+    const c = JSON.parse(raw) as { hash: string; summary: string };
+    return c.hash === _storyHash(body) ? c.summary : null;
+  } catch { return null; }
+}
+async function setStorySummaryCache(id: string, body: string, summary: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(_STORY_CACHE + id, JSON.stringify({ hash: _storyHash(body), summary }));
+  } catch {}
+}
+
 // ── PoolSelectModal ────────────────────────────────────────────────────────
 function PoolSelectModal({
   visible,
@@ -688,8 +736,10 @@ function DiaryFeedItem({
   const [videoCount, setVideoCount] = useState<number | null>(null);
   const loadedRef = useRef(false);
   // ── Instagram Story 공유 ──
-  const [sharing, setSharing] = useState(false);
-  const sharingRef = useRef(false);
+  const [sharing,   setSharing]   = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const sharingRef      = useRef(false);
+  const resolvedBodyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (loadedRef.current) return;
@@ -772,6 +822,40 @@ function DiaryFeedItem({
       return;
     }
     sharingRef.current = true;
+    resolvedBodyRef.current = null;
+
+    // ② bodyText가 Story 텍스트 영역을 초과하면 AI 요약 호출
+    const photoCount = allPhotos.length;
+    const bodyText   = storyInput.bodyText;
+
+    if (!storyTextFits(bodyText, photoCount)) {
+      setPreparing(true);
+      try {
+        // 캐시 확인 (같은 일지 재공유 시 AI 재호출 방지)
+        const cached = await getStorySummaryCache(entry.id, bodyText);
+        if (cached) {
+          resolvedBodyRef.current = cached;
+        } else {
+          const maxLines = storyMaxLines(photoCount);
+          const r = await apiRequest(token, `/diaries/${entry.id}/story-summary`, {
+            method: "POST",
+            body: JSON.stringify({ max_lines: maxLines }),
+          });
+          if (!r.ok) throw new Error(`summary_api:${r.status}`);
+          const data = await r.json();
+          if (!data.summary) throw new Error("empty_summary");
+          resolvedBodyRef.current = data.summary;
+          await setStorySummaryCache(entry.id, bodyText, data.summary);
+        }
+      } catch {
+        Alert.alert("스토리 요약을 만들지 못했습니다.", "잠시 후 다시 시도해주세요.");
+        sharingRef.current = false;
+        setPreparing(false);
+        return;
+      }
+      setPreparing(false);
+    }
+
     setSharing(true);
   }
 
@@ -865,10 +949,10 @@ function DiaryFeedItem({
         {/* Instagram Story 공유 버튼 */}
         <Pressable
           onPress={handleInstagramShare}
-          disabled={sharing}
-          style={({ pressed }) => [f.reactionBtn, f.storyBtn, { opacity: pressed || sharing ? 0.6 : 1, marginLeft: "auto" as any }]}
+          disabled={sharing || preparing}
+          style={({ pressed }) => [f.reactionBtn, f.storyBtn, { opacity: pressed || sharing || preparing ? 0.6 : 1, marginLeft: "auto" as any }]}
         >
-          {sharing
+          {(sharing || preparing)
             ? <ActivityIndicator size="small" color="#E1306C" style={{ width: 16, height: 16 }} />
             : <Text style={f.storyEmoji}>📸</Text>}
           <Text style={[f.reactionLabel, { color: "#E1306C" }]}>스토리</Text>
@@ -878,7 +962,11 @@ function DiaryFeedItem({
       {/* Instagram Story 캡처 파이프라인 */}
       {sharing && (
         <StoryCapturePipeline
-          input={storyInput}
+          input={
+            resolvedBodyRef.current !== null
+              ? { ...storyInput, bodyText: resolvedBodyRef.current }
+              : storyInput
+          }
           onDone={() => {
             setSharing(false);
             sharingRef.current = false;
