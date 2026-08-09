@@ -1,0 +1,303 @@
+[SWIMNOTE 학부모 피드 액션바 UI 최종 수정 지시]
+
+현재 기능은 정상 작동하므로 이번 작업은 UI만 수정합니다.
+
+절대 Instagram Story 공유 로직, 좋아요/감사합니다/댓글 기능 로직, API, 서버, DB를 건드리지 마십시오.
+
+현재 문제:
+1. 좋아요 / 감사합니다 / 댓글 / Instagram AI 4개 아이콘의 배치가 균형이 맞지 않음
+2. Instagram 아이콘이 정상 Instagram 로고처럼 보이지 않고 깨진 형태로 표시됨
+3. Instagram AI가 우측 끝에 따로 떨어져 있어 하나의 액션바처럼 보이지 않음
+
+목표:
+Instagram 앱의 액션바처럼 최대한 단순하고 정돈된 구조로 변경합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 액션바 전체 배치
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재처럼
+
+[👍] [🙏] [💬]                         [Instagram AI]
+
+형태로 양쪽에 찢어놓지 마십시오.
+
+최종 구조:
+
+[   👍   ]   [   🙏   ]   [   💬   ]   [ Instagram+AI ]
+
+4개의 액션 영역을 하단 한 줄 전체 너비에 동일한 간격으로 배치합니다.
+
+핵심:
+- 4개 버튼이 같은 행
+- 각 버튼의 중심점 간격이 동일
+- 4개가 화면 폭 전체에 균형 있게 분포
+- 마지막 Instagram AI도 다른 3개와 동일한 하나의 액션 슬롯을 차지
+- marginLeft:"auto" 사용 금지
+- Instagram 버튼만 우측 끝으로 밀어내지 말 것
+- 텍스트 라벨은 넣지 않음
+- 별도의 테두리 박스나 배경 박스 없음
+
+권장 구조:
+
+actionBar
+  flexDirection: "row"
+  alignItems: "center"
+  justifyContent: "space-around"
+
+또는 각 action item에
+
+flex: 1
+alignItems: "center"
+justifyContent: "center"
+
+를 사용하여 4개의 동일한 영역으로 나누십시오.
+
+시각적으로 정확히 균등해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 좋아요
+━━━━━━━━━━━━━━━━━━━━━━
+
+표시:
+
+👍
+
+현재 emoji 사용 유지.
+
+"좋아요" 텍스트 제거 상태 유지.
+
+기존 toggleReaction("like") 로직 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 감사합니다
+━━━━━━━━━━━━━━━━━━━━━━
+
+표시:
+
+🙏
+
+현재 emoji 사용 유지.
+
+"감사합니다" 텍스트 제거 상태 유지.
+
+기존 toggleReaction("thanks") 로직 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 댓글
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 message-circle 아이콘 유지.
+
+텍스트 없음.
+
+기존 goToComments() 로직 변경 금지.
+
+아이콘의 시각적 크기는 👍 / 🙏와 비교했을 때 지나치게 작아 보이지 않도록 조정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Instagram AI 아이콘 — 중요
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보이는 깨진 원형 느낌의 Instagram 아이콘은 사용하지 마십시오.
+
+반드시 정상적인 Instagram glyph가 표시되어야 합니다.
+
+현재 사용 중인 icon library에서 Instagram 아이콘이 실제 Instagram camera glyph를 정상 지원하는지 먼저 확인하십시오.
+
+정상 지원된다면 해당 Instagram icon을 사용합니다.
+
+정상 렌더링되지 않는다면 임의의 circle, alert-circle, camera 대체 아이콘을 사용하지 마십시오.
+
+repository에 이미 존재하는 Instagram asset 또는 정상 표시 가능한 Instagram SVG/asset 구현 방식을 조사한 후 사용하십시오.
+
+중요:
+Instagram 로고를 비슷하게 새로 그리지 마십시오.
+
+최종 모양의 개념:
+
+      ┌─────────┐
+      │   ◎     │
+      │      AI │
+      └─────────┘
+
+단, 실제 외곽 박스는 없습니다.
+
+Instagram 로고 자체에 작은 "AI" 마크가 우측 하단에 살짝 겹쳐 붙는 구조입니다.
+
+Instagram 로고와 AI가
+
+[Instagram]   AI
+
+처럼 떨어져 보이면 실패입니다.
+
+하나의 "Instagram AI" 브랜드 마크처럼 보여야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. AI 마크 위치
+━━━━━━━━━━━━━━━━━━━━━━
+
+Instagram 로고를 약 20~22px 기준으로 두고,
+
+AI:
+- 약 7~8px
+- Pretendard-Bold
+- NAVY 계열
+- position: absolute
+- Instagram glyph 우측 하단에 overlap
+
+예시 개념:
+
+   Instagram
+       └─ AI
+
+AI가 Instagram 로고 경계에서 아주 조금 밖으로 나오는 정도는 허용합니다.
+
+하지만 너무 멀리 떨어지거나 아래에 별도 텍스트처럼 보이면 안 됩니다.
+
+Instagram icon + AI 전체를 하나의 wrapper 안에 넣으십시오.
+
+예:
+
+instagramAiLockup
+  position: "relative"
+  width: 약 26~30
+  height: 약 25~28
+  alignItems: "center"
+  justifyContent: "center"
+
+그 안에 Instagram glyph와 AI badge를 배치합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 색상
+━━━━━━━━━━━━━━━━━━━━━━
+
+Instagram glyph:
+Instagram임을 바로 인식할 수 있는 기존 브랜드 계열 색상을 사용.
+
+AI:
+SWIMNOTE NAVY.
+
+단, 복잡한 Instagram gradient를 억지로 React Native View 여러 개로 구현하지 마십시오.
+
+심플하고 선명해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 터치 영역
+━━━━━━━━━━━━━━━━━━━━━━
+
+아이콘 자체는 작아도 터치 영역은 충분히 유지하십시오.
+
+4개 action item 모두 동일한 터치 영역을 가져야 합니다.
+
+즉:
+
+시각적 아이콘 크기 ≠ 터치 영역 크기
+
+입니다.
+
+Instagram AI도 기존 handleInstagramShare()를 그대로 호출합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 디자인 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+목표는:
+
+"기능 버튼 네 개를 만들어 붙였다"
+
+가 아니라
+
+"Instagram 같은 소셜 앱의 자연스러운 하단 액션바"
+
+처럼 보이는 것입니다.
+
+금지:
+
+- 버튼별 박스
+- 핑크색 테두리 버튼
+- 배경 pill
+- "좋아요"
+- "감사합니다"
+- "댓글"
+- "스토리"
+- Instagram AI만 우측 끝으로 분리
+- AI를 Instagram 로고 옆에 독립 텍스트처럼 배치
+- 깨진 Instagram glyph
+- 느낌표/원형/카메라 등 Instagram이 아닌 대체 아이콘
+- 불필요한 장식
+- 각 버튼마다 서로 다른 padding으로 중심점이 어긋나는 구조
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 기능 회귀 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 로직은 변경하지 마십시오.
+
+- toggleReaction("like")
+- toggleReaction("thanks")
+- goToComments()
+- handleInstagramShare()
+- Story 생성
+- AI summary
+- Instagram Composer 진입
+- StoryCapturePipeline
+- 사진 layout
+- API
+- 인증
+- cache
+- 서버
+- DB
+
+home.tsx의 액션바 UI와 필요한 Instagram icon asset 처리만 최소 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 구현 후 자체 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 확인:
+
+1. 👍 정상 표시
+2. 🙏 정상 표시
+3. 댓글 아이콘 정상 표시
+4. Instagram 로고 정상 표시
+5. AI가 Instagram 로고 우측 하단에 작게 overlap
+6. Instagram + AI가 하나의 lockup처럼 보임
+7. 네 액션의 수평 중심 간격 동일
+8. 네 액션의 터치 영역 동일
+9. 액션바 높이 불필요하게 커지지 않음
+10. 좋아요 기능 정상
+11. 감사합니다 기능 정상
+12. 댓글 진입 정상
+13. Instagram AI 탭 → 기존 Story 생성 정상
+14. 기존 피드 레이아웃 변화 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 아래 형식으로 보고하십시오.
+
+1. 수정 파일
+2. 액션바 Before / After 구조
+3. 4개 action item의 배치 방식
+4. 각 item flex/width
+5. 각 아이콘 실제 크기
+6. Instagram 아이콘 구현 방식 및 source
+7. Instagram 아이콘 깨짐 해결 여부
+8. AI 크기
+9. AI absolute 위치(right/bottom)
+10. Instagram+AI wrapper 크기
+11. 4개 중심점 균등 여부
+12. touch target 크기
+13. 기능 로직 변경 여부
+14. TypeCheck
+15. DB 변경 여부
+16. Server 변경 여부
+17. Native 변경 여부
+18. OTA 필요 여부
+19. commit SHA
+
+중요:
+구현 및 commit까지만 진행하십시오.
+OTA 배포는 별도 승인 전 하지 마십시오.
