@@ -83,8 +83,6 @@ export default function SuperMoreScreen() {
   const [totpEnabled, setTotpEnabled] = useState<boolean | null>(null);
   const [unreadInquiries, setUnreadInquiries] = useState(0);
 
-  }
-
   const fetchRisk = useCallback(async () => {
     if (!token) return;
     try {
