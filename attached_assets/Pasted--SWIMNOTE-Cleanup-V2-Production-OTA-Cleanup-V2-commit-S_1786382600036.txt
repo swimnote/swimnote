@@ -1,0 +1,224 @@
+[SWIMNOTE Cleanup V2 — Production OTA 배포 + 실기기 검증 준비 지시]
+
+현재 구현 완료 기준:
+
+- Cleanup V2 commit SHA: abebbe54
+- Native 변경 없음
+- Server 변경 없음
+- DB 변경 없음
+- R2 변경 없음
+- JS/TS 변경만 존재
+- OTA 배포 가능 판정 완료
+
+이번 단계 목적은 코드 추가 수정이 아니다.
+
+목적:
+1. abebbe54가 현재 배포 Source에 정확히 포함되어 있는지 검증
+2. Cleanup V2를 SWIMNOTE 1.6.2 production OTA로 배포
+3. OTA 배포 결과만 보고
+4. 이후 실기기 검증 전 STOP
+
+절대 임의 수정하지 마라.
+
+────────────────────────
+STEP 1. 배포 전 Source 검증
+────────────────────────
+
+다음부터 확인한다.
+
+1. current branch
+2. current HEAD
+3. git status --short
+4. commit abebbe54가 현재 HEAD history에 포함되어 있는지
+5. abebbe54 이후 앱 기능 코드 변경이 있는지
+6. attached_assets / txt / 감리보고 파일 등 비기능 파일 변경은 기능 코드 변경과 구분
+
+반드시 다음 Cleanup V2 구현이 실제 Source에 존재하는지 직접 확인:
+
+A.
+utils/mediaCleanupV2.ts
+
+- runMediaCleanupV2 존재
+- @swimnote:media_cleanup_v2 flag 존재
+- Image.clearDiskCache() 호출 존재
+- ImagePicker cache cleanup 존재
+- 성공 조건 충족 시에만 completed 기록
+
+B.
+app/_layout.tsx
+
+- 앱 시작 시 Cleanup V2 실행 hook 존재
+- UI blocking 방식이 아닌지 확인
+
+C.
+context/UploadQueueContext.tsx
+
+- upload 성공 후 temp 파일 cleanup 존재
+- cacheDirectory 내부 임시파일만 삭제
+- ph://
+- assets-library://
+등 원본 MediaLibrary URI 삭제 금지
+
+D.
+이미지 표시 경로
+
+이전 감사에서 수정한 ExpoImage/Image 컴포넌트들의
+
+cachePolicy="memory"
+
+적용 여부 확인.
+
+특히 최소한 다음 계열 확인:
+
+- parent/home
+- parent/swim-diary
+- parent/photos
+- DiaryPhotoStrip
+- teacher/photos
+- DiaryEditView
+- StoryPageRenderer
+
+E. 보호 대상
+
+Cleanup V2가 다음을 삭제하지 않는지 다시 확인:
+
+- R2 원본
+- DB 데이터
+- MediaLibrary/사진앱 원본
+- scheduleAudio_*
+- AsyncStorage
+- session/JWT
+- documentDirectory의 사용자 영구 데이터
+- 현재 진행 중인 upload 파일
+
+BLOCKER가 발견되면 OTA 하지 말고 즉시 보고 후 STOP.
+
+────────────────────────
+STEP 2. Production OTA 배포
+────────────────────────
+
+STEP 1이 전부 PASS인 경우에만 진행.
+
+SWIMNOTE appVersion/runtimeVersion 1.6.2의
+실제 production channel에 iOS + Android OTA 배포.
+
+기존 검증된 SWIMNOTE production OTA 방식 그대로 사용.
+
+META_APP_ID 등 현재 production에 필요한 환경변수도 기존 정상 배포 방식 그대로 유지.
+
+preview / instagram-test 등 다른 환경과 production을 혼동하지 말 것.
+
+Native Build 금지.
+Render 배포 금지.
+DB 작업 금지.
+Migration 금지.
+
+────────────────────────
+STEP 3. OTA 결과 검증
+────────────────────────
+
+배포 후 반드시 실제 EAS 결과를 확인하여 다음을 보고:
+
+1. 배포 Source SHA
+2. current HEAD
+3. abebbe54 포함 여부
+4. abebbe54 이후 기능 코드 변경 여부
+5. 실제 OTA에 포함된 파일 목록
+6. iOS OTA Group ID
+7. iOS Update ID
+8. Android OTA Group ID
+9. Android Update ID
+10. runtimeVersion
+11. channel
+12. Cleanup V2 helper 포함 여부
+13. app startup Cleanup V2 hook 포함 여부
+14. Image.clearDiskCache 포함 여부
+15. ImagePicker cleanup 포함 여부
+16. upload temp cleanup 포함 여부
+17. cachePolicy="memory" 변경 포함 여부
+18. R2 변경 = 0인지
+19. DB 변경 = 0인지
+20. Render 변경 = 0인지
+21. Native Build = 0인지
+
+────────────────────────
+STEP 4. 실기기 검증은 사용자가 직접 수행
+────────────────────────
+
+OTA 배포 후 추가 코드 수정하지 말 것.
+
+사용자가 실기기에서 확인한다.
+
+기존 문제 기기 기준값:
+
+Documents:
+0 B / 0개
+
+Cache:
+3.26 GB / 1905개
+
+주요 구성:
+- com.hackemist.SDImageCache: 2.38 GB / 1399개
+- ImagePicker: 894.4 MB / 482개
+- com.swimnote.app: 3.5 MB
+- ExpoAudio: 664 KB
+- ImageManipulator: 378 KB
+
+cleanup v1:
+completed
+
+Cleanup V2 OTA 적용 후 사용자가:
+
+1. 앱 완전 종료
+2. 앱 실행
+3. OTA 적용에 필요한 재실행 수행
+4. Cleanup V2 startup 실행 대기
+5. 저장공간 진단 다시 실행
+6. iOS 설정의 SwimNote Documents & Data도 다시 확인
+7. 일지/앨범 사진 정상 표시 여부 확인
+
+예상 성공 조건:
+
+- SDImageCache 2.38GB가 대폭 감소 또는 제거
+- ImagePicker 894.4MB가 대폭 감소 또는 제거
+- 전체 Cache 3.26GB가 대폭 감소
+- 일지 사진 정상 조회
+- 앨범 사진 정상 조회
+- R2 데이터 정상
+- 로그인/session 정상
+- 사진앱 원본 정상
+- scheduleAudio 정상
+
+중요:
+"약 3.27GB가 반드시 정확히 삭제된다"고 결과를 미리 확정하지 마라.
+실제 삭제량은 실기기 재측정 결과로 판정한다.
+
+────────────────────────
+STEP 5. STOP
+────────────────────────
+
+OTA 배포 완료 후 반드시 STOP.
+
+실기기 결과를 받기 전에:
+
+- Cleanup V3 만들지 마라.
+- 추가 cleanup 코드 만들지 마라.
+- 진단 코드 삭제하지 마라.
+- cache 정책 추가 변경하지 마라.
+- Native Build 하지 마라.
+- Render 건드리지 마라.
+- DB 건드리지 마라.
+
+최종 보고 마지막에 반드시:
+
+CODE CHANGED = 0
+OTA CHANGED = YES
+RENDER CHANGED = 0
+DB CHANGED = 0
+NATIVE BUILD = 0
+
+그리고
+
+"실기기 Cleanup V2 검증 결과 대기"
+
+라고 명시하고 종료한다.
