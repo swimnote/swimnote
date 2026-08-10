@@ -206,21 +206,28 @@ export default function ParentAlbumScreen() {
     const { status } = await MediaLibrary.requestPermissionsAsync();
     if (status !== "granted") { Alert.alert("권한 필요", "갤러리 접근 권한이 필요합니다."); return; }
     setLbSaving(true);
+    let localUri: string | null = null;
     try {
-      const localUri = `${FileSystem.documentDirectory}swim_${item.id}.jpg`;
+      localUri = `${FileSystem.documentDirectory}swim_${item.id}.jpg`;
       await FileSystem.downloadAsync(photoFileUri(item.file_url), localUri, {
         headers: { Authorization: `Bearer ${token}` },
       });
       await MediaLibrary.saveToLibraryAsync(localUri);
       Alert.alert("저장 완료", "갤러리에 저장됐습니다.");
     } catch { Alert.alert("오류", "저장 중 오류가 발생했습니다."); }
-    finally { setLbSaving(false); }
+    finally {
+      if (localUri) {
+        FileSystem.deleteAsync(localUri, { idempotent: true }).catch(() => {});
+      }
+      setLbSaving(false);
+    }
   }
 
   async function downloadVideo(item: MediaItem) {
     const { status } = await MediaLibrary.requestPermissionsAsync();
     if (status !== "granted") { Alert.alert("권한 필요", "갤러리 접근 권한이 필요합니다."); return; }
     setVdSaving(true);
+    let localUri: string | null = null;
     try {
       const BASE_ORIGIN = API_BASE.replace(/\/api$/, "");
       const presigned = (item as any).presigned_url as string | undefined;
@@ -235,7 +242,7 @@ export default function ParentAlbumScreen() {
       const lastSeg = pathPart.split("/").pop() ?? "";
       const extCandidate = lastSeg.includes(".") ? lastSeg.split(".").pop()?.toLowerCase() : undefined;
       const ext = (extCandidate && extCandidate.length <= 4) ? extCandidate : "mp4";
-      const localUri = `${FileSystem.documentDirectory}swim_video_${item.id}.${ext}`;
+      localUri = `${FileSystem.documentDirectory}swim_video_${item.id}.${ext}`;
       const headers: Record<string, string> = presigned ? {} : { Authorization: `Bearer ${token}` };
       const dl = await FileSystem.downloadAsync(finalUrl, localUri, { headers });
       if (dl.status !== 200) throw new Error(`다운로드 실패 (${dl.status})`);
@@ -245,7 +252,12 @@ export default function ParentAlbumScreen() {
       console.warn("[ParentAlbum] video download error:", e);
       Alert.alert("오류", "저장 중 오류가 발생했습니다.");
     }
-    finally { setVdSaving(false); }
+    finally {
+      if (localUri) {
+        FileSystem.deleteAsync(localUri, { idempotent: true }).catch(() => {});
+      }
+      setVdSaving(false);
+    }
   }
 
   function goToDiary(journalId?: string | null) {

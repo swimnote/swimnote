@@ -19,6 +19,7 @@ import { AuthProvider, useAuth, apiRequest } from "@/context/AuthContext";
 import { ModeProvider, useMode } from "@/context/ModeContext";
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 import { initializeRevenueCat, loginRevenueCat, logoutRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
+import { runLegacyMediaCleanup } from "@/utils/mediaStorageCleanup";
 
 // Expo Go 환경 여부 — Expo Go SDK 53부터 Android 원격 알림 미지원
 const IS_EXPO_GO = Constants.appOwnership === "expo";
@@ -630,6 +631,10 @@ function RootNav() {
 
   // 앱 시작 시 통합 check (Native 먼저 → OTA)
   useEffect(() => { runStartupChecks(); }, []);
+
+  // Legacy media cleanup — documentDirectory 누적 파일 1회 정리
+  // UI를 막지 않도록 fire-and-forget; 내부 예외가 앱 부팅에 영향을 주지 않음
+  useEffect(() => { runLegacyMediaCleanup().catch(() => {}); }, []);
 
   // 백그라운드 복귀 처리
   // - OTA 준비됨: 재시작

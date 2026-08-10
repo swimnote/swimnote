@@ -134,6 +134,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
   async function downloadPhoto(photo: Photo) {
     if (downloading) return;
     setDownloading(true);
+    let localPath: string | null = null;
     try {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== "granted") {
@@ -141,7 +142,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
         return;
       }
       const url = photoUrl(photo);
-      const localPath = (FileSystem.documentDirectory ?? "") + `diary_${photo.id}.jpg`;
+      localPath = (FileSystem.documentDirectory ?? "") + `diary_${photo.id}.jpg`;
       const dl = await FileSystem.downloadAsync(url, localPath);
       if (dl.status !== 200) throw new Error("다운로드 실패");
       await MediaLibrary.saveToLibraryAsync(dl.uri);
@@ -153,6 +154,9 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
     } catch {
       Alert.alert("오류", "사진 저장에 실패했습니다.");
     } finally {
+      if (localPath) {
+        FileSystem.deleteAsync(localPath, { idempotent: true }).catch(() => {});
+      }
       setDownloading(false);
     }
   }
@@ -169,16 +173,22 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
     setDownloadProgress(0);
     let success = 0;
     for (let i = 0; i < photos.length; i++) {
+      let localPath: string | null = null;
       try {
         const photo = photos[i];
         const url = photoUrl(photo);
-        const localPath = (FileSystem.documentDirectory ?? "") + `diary_all_${photo.id}.jpg`;
+        localPath = (FileSystem.documentDirectory ?? "") + `diary_all_${photo.id}.jpg`;
         const dl = await FileSystem.downloadAsync(url, localPath);
         if (dl.status === 200) {
           await MediaLibrary.saveToLibraryAsync(dl.uri);
           success++;
         }
-      } catch {}
+      } catch {
+      } finally {
+        if (localPath) {
+          FileSystem.deleteAsync(localPath, { idempotent: true }).catch(() => {});
+        }
+      }
       setDownloadProgress(i + 1);
     }
     setDownloadingAll(false);
@@ -193,6 +203,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
   async function downloadVideo(video: VideoItem) {
     if (downloadingVideo) return;
     setDownloadingVideo(true);
+    let localPath: string | null = null;
     try {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== "granted") {
@@ -207,7 +218,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
       if (!finalUrl) throw new Error("URL 확인 실패");
 
       const ext = finalUrl.split("?")[0].split(".").pop()?.toLowerCase() ?? "mp4";
-      const localPath = (FileSystem.documentDirectory ?? "") + `diary_video_${video.id}.${ext}`;
+      localPath = (FileSystem.documentDirectory ?? "") + `diary_video_${video.id}.${ext}`;
 
       const headers: Record<string, string> = video.presigned_url
         ? {}
@@ -226,6 +237,9 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
       console.warn("[DiaryPhotoStrip] video download error:", e);
       Alert.alert("오류", "영상 저장에 실패했습니다.");
     } finally {
+      if (localPath) {
+        FileSystem.deleteAsync(localPath, { idempotent: true }).catch(() => {});
+      }
       setDownloadingVideo(false);
     }
   }
@@ -325,7 +339,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
         ))}
 
         {/* 영상 썸네일 */}
-        {videos.map((video) => {
+        {videos.map((video: VideoItem) => {
           const tn = videoThumbUrl(video);
           return (
             <Pressable
