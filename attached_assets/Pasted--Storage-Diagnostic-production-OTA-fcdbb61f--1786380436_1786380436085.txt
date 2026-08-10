@@ -1,0 +1,187 @@
+[긴급 수정 — Storage Diagnostic 숨김 트리거 제거 / 임시 버튼 직접 표시]
+
+현재 production OTA fcdbb61f 적용 후
+선생님 실기기에서 설정 화면 하단을
+3초 내 7회 연속 탭해도 아무 반응 없음.
+
+계속 숨김 트리거를 디버깅하지 않는다.
+
+목적은 Storage Diagnostic 숫자를 확인하는 것이므로
+가장 단순하고 확실한 임시 UI로 변경한다.
+
+이번 수정은 진단 진입 UI만 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 선생님
+━━━━━━━━━━━━━━━━━━━━━━
+
+app/(teacher)/settings.tsx
+
+기존 하단 invisible 7회 tap trigger 제거.
+
+설정 화면 가장 아래에 임시 버튼 추가:
+
+[ 저장공간 진단 ]
+
+작고 단순한 secondary button으로 만든다.
+
+onPress:
+
+runStorageDiagnostic()
+→ 결과 Alert 표시
+
+한 번 탭하면 바로 실행되어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 학부모
+━━━━━━━━━━━━━━━━━━━━━━
+
+app/(parent)/more.tsx
+
+동일하게 invisible 7회 tap trigger 제거.
+
+화면 가장 아래:
+
+[ 저장공간 진단 ]
+
+임시 버튼 추가.
+
+한 번 탭:
+
+runStorageDiagnostic()
+→ 결과 Alert
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 슈퍼관리자
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+⑦ 시스템 상태
+→ Storage Diagnostic
+
+정상이라면 그대로 유지.
+
+수정 불필요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 중요 — Diagnostic 로직 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+utils/storageDiagnostic.ts의:
+
+recursive scan
+Documents 측정
+Cache 측정
+legacy category 측정
+cleanup_v1 flag 측정
+
+로직은 건드리지 않는다.
+
+현재 문제는 진단 실행 진입점이므로
+측정 로직까지 동시에 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일 삭제 금지
+
+cache 삭제 금지
+
+Image.clearDiskCache 금지
+
+cleanup v2 금지
+
+AsyncStorage 삭제 금지
+
+R2 변경 금지
+
+DB 변경 금지
+
+Server 변경 금지
+
+Native Build 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 버튼 동작
+
+버튼 탭
+
+→ loading 필요하면
+   "측정 중..." 표시
+
+→ recursive scan 완료
+
+→ Alert:
+
+Storage Diagnostic
+
+Documents
+X MB / X files
+
+Cache
+X GB / X files
+
+Legacy diary
+X MB
+
+Legacy swim
+X MB
+
+Legacy swimnote
+X MB
+
+Schedule Audio
+X MB
+
+Other
+X MB
+
+Cleanup v1
+completed / none
+
+진단 실패 시:
+
+"저장공간 진단 실패"
+
+와 오류 종류만 표시.
+
+오류를 조용히 swallow하지 않는다.
+
+개인정보/filename/URL 표시 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 대용량 기기 대응
+
+22GB 기기처럼 파일이 많을 수 있으므로
+버튼을 눌렀는데 즉시 반응 없는 것처럼 보이지 않게:
+
+탭 즉시 loading state 표시.
+
+측정 완료까지 버튼 중복 탭 방지.
+
+진단 중 앱 freeze가 발생하지 않는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료 보고
+
+1. 수정 파일
+2. 기존 hidden trigger 제거 여부
+3. teacher 버튼 위치
+4. parent 버튼 위치
+5. onPress 연결 함수
+6. loading 처리
+7. error 표시
+8. storageDiagnostic.ts 변경 여부
+9. 삭제 코드 추가 여부 = 0
+10. TypeCheck
+11. Server = 0
+12. DB = 0
+13. Native = 0
+14. OTA 가능 여부
+15. commit SHA
+
+구현 + commit 후 STOP.
+
+OTA는 별도 승인 전 금지.
