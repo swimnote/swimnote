@@ -1,0 +1,394 @@
+[승인 — SWIMNOTE Storage Diagnostic OTA 구현
+삭제 금지 / 실기기 용량 원인 숫자로 확정]
+
+재조사 결과 확인.
+
+현재 확정 사항:
+
+1. legacy cleanup v1 matcher에
+   swimnote_YYYYMMDD_... 파일 패턴이 누락됨.
+
+2. targets.length === 0에서도
+   @swimnote:media_cleanup_v1 = completed
+   로 기록될 수 있어 재실행이 차단됨.
+
+3. documentDirectory 외에
+   cacheDirectory 사용량이 조사되지 않았음.
+
+4. ImageManipulator 결과물이 cache 영역에 생성됨.
+
+5. expo-image가 disk cache를 사용할 수 있으므로
+   사진 중심 앱에서는 cacheDirectory가
+   대용량 원인 후보임.
+
+그러나:
+
+"현재 사용자 3.62GB의 대부분이 cacheDirectory다"
+
+라는 것은 아직 실기기 측정 전이므로
+확정하지 않는다.
+
+이번 작업의 목적은 삭제가 아니라:
+
+실기기에서
+
+Documents
+Cache
+
+각각 실제 몇 byte를 차지하는지 측정해
+원인을 숫자로 확정하는 것이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 이번 단계 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+아직:
+
+cacheDirectory 삭제 금지
+Image.clearDiskCache 실행 금지
+documentDirectory 추가 삭제 금지
+AsyncStorage 삭제 금지
+cleanup v2 실행 금지
+
+이번 OTA는 진단 전용.
+
+사용자 데이터 변경 0이어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Storage Diagnostic helper 생성
+━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+utils/storageDiagnostic.ts
+
+역할:
+
+FileSystem.documentDirectory
+FileSystem.cacheDirectory
+
+각각의 실제 사용량 측정.
+
+단 top-level 파일만 합산하면 안 된다.
+
+하위 directory가 있다면
+recursive scan으로 전체 size를 계산한다.
+
+결과:
+
+{
+  document: {
+    files: number,
+    directories: number,
+    bytes: number
+  },
+  cache: {
+    files: number,
+    directories: number,
+    bytes: number
+  }
+}
+
+파일 내용을 읽지 않는다.
+
+getInfo/stat의 size만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Category별 용량도 가능한 범위에서 측정
+━━━━━━━━━━━━━━━━━━━━━━
+
+Documents는 filename을 기준으로
+개인정보 없이 category별 byte 합산:
+
+legacy_diary
+legacy_swim
+legacy_swimnote
+schedule_audio
+other
+
+예:
+
+document: {
+  totalBytes: ...,
+  legacyDiaryBytes: ...,
+  legacySwimBytes: ...,
+  legacySwimnoteBytes: ...,
+  scheduleAudioBytes: ...,
+  otherBytes: ...
+}
+
+실제 filename 출력 금지.
+
+학생 이름/사용자 이름 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Cache는 삭제하지 말고 측정만
+━━━━━━━━━━━━━━━━━━━━━━
+
+cacheDirectory:
+
+- total file count
+- total directory count
+- total bytes
+
+측정.
+
+가능하면 directory별 aggregate size를 구하되
+실제 개인정보성 filename을 출력하지 않는다.
+
+특정 library의 directory임이
+코드/구조로 확실한 경우만 category 이름 사용.
+
+추측으로:
+
+"expo-image = 3GB"
+
+라고 표시하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 cleanup v1 상태도 진단
+━━━━━━━━━━━━━━━━━━━━━━
+
+같이 읽어서 보고:
+
+@swimnote:media_cleanup_v1
+
+값:
+
+null
+completed
+기타
+
+그리고 현재 Documents에:
+
+- 기존 v1 matcher 대상 파일 개수/bytes
+- 새로 발견된 swimnote_* 파일 개수/bytes
+
+계산.
+
+삭제는 하지 않는다.
+
+이렇게 해야:
+
+cleanup이 실제로 끝났는지
+matcher 때문에 0개로 잘못 판정됐는지
+
+확정 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 실기기에서 결과를 볼 수 있어야 함
+━━━━━━━━━━━━━━━━━━━━━━
+
+console.log만 사용하면
+Production 실기기에서 결과 확인이 어려움.
+
+따라서 개발용 temporary diagnostic UI를
+관리자/선생님에게 노출시키지 말고,
+
+현재 사용자 기기에서만 확인 가능한
+안전한 진단 방법을 설계한다.
+
+권장 우선순위:
+
+A. 숨겨진 개발/관리 진단 진입점이 이미 있다면 재사용
+
+또는
+
+B. temporary Alert에
+숫자만 표시
+
+예:
+
+SWIMNOTE Storage Diagnostic
+
+Documents
+18.4 MB / 32 files
+
+Cache
+3.41 GB / 1,842 files
+
+Legacy swimnote
+420 MB / 127 files
+
+Cleanup v1 flag
+completed
+
+중요:
+
+Alert에 filename/URL/학생정보 없음.
+
+한 번 확인 후 제거할 temporary diagnostic 코드임을 명시.
+
+일반 사용자에게 무작위로 Alert가 뜨면 안 된다.
+
+기존 관리자/개발자 전용 진입 경로가 없다면
+실기기 테스트용으로 가장 안전한 방법을 먼저 보고하고
+구현한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 진단 실행은 삭제보다 우선
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기에서 먼저 다음 기기 측정:
+
+A. 현재 약 3.62GB 기기
+
+가능하면 추가로:
+
+B. 약 6GB 기기
+C. 약 22GB 기기
+
+최소 1대의 실제 숫자가 있어야 한다.
+
+각 기기에서:
+
+Documents = ?
+Cache = ?
+legacy diary/swim/swimnote = ?
+scheduleAudio = ?
+cleanup v1 flag = ?
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 결과 판정 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+예시 1:
+
+Documents = 50MB
+Cache = 3.4GB
+
+→ 주범은 Cache 계층으로 확정 가능
+
+예시 2:
+
+Documents = 3GB
+그중 swimnote_* = 2.8GB
+
+→ legacy matcher 누락이 주범
+
+예시 3:
+
+Documents = 500MB
+Cache = 2.5GB
+
+→ 복합 원인
+
+실측 결과 없이 원인을 하나로 확정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. ImageManipulator 조사 결과도 기록
+━━━━━━━━━━━━━━━━━━━━━━
+
+업로드 압축본:
+
+ImageManipulator output
+
+이 cache 영역에 생성되는 경로는
+신규 누적 원인 후보로 유지.
+
+그러나 이번 diagnostic에서는 삭제하지 않는다.
+
+실측 후 cleanup v2에서:
+
+"SWIMNOTE가 직접 생성한 압축 temp임이
+안전하게 식별 가능한 경우"
+
+에만 업로드 완료/실패 후 삭제하도록 한다.
+
+picker 원본 절대 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. VideoThumbnail도 동일
+━━━━━━━━━━━━━━━━━━━━━━
+
+thumbnail 역시 이번에는 측정/조사만.
+
+실제 생성 URI가 SWIMNOTE가 생성한 temp임이
+확정된 경우에만 다음 수정에서 cleanup.
+
+원본 영상 절대 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. expo-image cache 정책 변경도 지금 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서:
+
+모든 ExpoImage에 cachePolicy="none"
+
+같은 전역 변경 금지.
+
+사진 재로딩/트래픽/성능에 영향을 줄 수 있음.
+
+먼저 실제 cache 용량을 측정.
+
+그 다음:
+
+- cache cleanup
+- cache 정책
+- 필요 시 bounded/controlled cache 전략
+
+을 결정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 구현 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+예상:
+
+utils/storageDiagnostic.ts
+
++ 진단 결과를 현재 실기기에서
+안전하게 확인하기 위한 최소 1개 파일.
+
+기존:
+
+mediaStorageCleanup.ts
+DiaryPhotoStrip
+parent/photos
+
+로직은 이번 단계에서 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. TypeCheck
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 코드 관련 오류 0 확인.
+
+Server 0
+DB 0
+Native 0
+
+OTA 가능해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 수정 파일
+2. diagnostic helper 위치
+3. recursive scan 여부
+4. Documents 측정 방식
+5. Cache 측정 방식
+6. legacy category 측정 방식
+7. cleanup v1 flag 측정
+8. 개인정보 노출 여부
+9. 사용자 데이터 삭제 여부 = 0
+10. diagnostic 표시 방법
+11. iOS 동작
+12. Android 동작
+13. TypeCheck
+14. Server 변경 0
+15. DB 변경 0
+16. Native 변경 0
+17. OTA 가능 여부
+18. commit SHA
+
+구현 + commit 후 STOP.
+
+OTA는 별도 승인 전 금지.
+
+이번 diagnostic 결과를 실제 기기에서 확인한 후에만
+cleanup v2를 설계한다.
