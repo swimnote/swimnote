@@ -13,7 +13,7 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AppUpdateButton from "@/components/common/AppUpdateButton";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { runStorageDiagnostic, formatDiagnosticAlert } from "@/utils/storageDiagnostic";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -65,20 +65,8 @@ export default function ParentMoreScreen() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [inquiryBadge, setInquiryBadge] = useState(0);
   const [diagRunning, setDiagRunning] = useState(false);
-  const diagTapCount = useRef(0);
-  const diagTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Storage Diagnostic 숨김 트리거 (7회 탭) ─────────────────────────────
-  function handleDiagTap() {
-    diagTapCount.current += 1;
-    if (diagTapTimer.current) clearTimeout(diagTapTimer.current);
-    diagTapTimer.current = setTimeout(() => { diagTapCount.current = 0; }, 3000);
-    if (diagTapCount.current >= 7) {
-      diagTapCount.current = 0;
-      if (diagTapTimer.current) { clearTimeout(diagTapTimer.current); diagTapTimer.current = null; }
-      runDiag();
-    }
-  }
+  // ── Storage Diagnostic (임시 직접 버튼) ──────────────────────────────────
   async function runDiag() {
     if (diagRunning) return;
     setDiagRunning(true);
@@ -240,13 +228,25 @@ export default function ParentMoreScreen() {
           danger
           onPress={() => setDeleteConfirm(true)}
         />
-        {/* Storage Diagnostic 숨김 트리거 — 7회 연속 탭 → 용량 진단 Alert */}
-        {/* temporary diagnostic code — 실기기 측정 완료 후 제거 예정 */}
+        {/* ── [임시] 저장공간 진단 버튼 — 실기기 측정 완료 후 제거 예정 ── */}
         <Pressable
-          onPress={handleDiagTap}
-          style={{ height: 16, opacity: 0 }}
-          accessibilityLabel={diagRunning ? "진단 중" : ""}
-        />
+          onPress={runDiag}
+          disabled={diagRunning}
+          style={({ pressed }) => ({
+            marginTop: 8,
+            alignItems: "center",
+            paddingVertical: 12,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: "#CBD5E1",
+            backgroundColor: pressed ? "#F1F5F9" : "#F8FAFC",
+            opacity: diagRunning ? 0.6 : 1,
+          })}
+        >
+          <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular" }}>
+            {diagRunning ? "측정 중…" : "저장공간 진단"}
+          </Text>
+        </Pressable>
       </ScrollView>
 
       <ConfirmModal
