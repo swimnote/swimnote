@@ -855,7 +855,9 @@ router.post("/diary/:diaryId/reactions", requireAuth, requireParent, async (req:
             WHERE cd.id = ${diaryId} LIMIT 1
           `)).rows as any[];
           if (!diary?.teacher_id) return;
-          const settingKey = reaction_type === "like" ? "news_like" : "news_thanks";
+          // thanks 알림 신규 생성 금지 — UI에서 thanks 버튼 제거됨
+          if (reaction_type !== "like") return;
+          const settingKey = "news_like";
           const [ps] = (await db.execute(sql`
             SELECT is_enabled FROM push_settings
             WHERE user_id = ${diary.teacher_id} AND notification_type = ${settingKey} LIMIT 1

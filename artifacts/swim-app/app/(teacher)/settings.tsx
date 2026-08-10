@@ -80,7 +80,6 @@ export default function TeacherSettingsScreen() {
   const [notiNews,     setNotiNews]     = useState(true);
   /* 소식 알림 설정 */
   const [notiNewsLike,    setNotiNewsLike]    = useState(true);
-  const [notiNewsThanks,  setNotiNewsThanks]  = useState(true);
   const [notiNewsComment, setNotiNewsComment] = useState(true);
 
   /* 수업료 납부 관리 */
@@ -118,7 +117,6 @@ export default function TeacherSettingsScreen() {
         if (settings.diary_reminder !== undefined)  setNotiDiary(Boolean(settings.diary_reminder));
         if (settings.news !== undefined)            setNotiNews(Boolean(settings.news));
         if (settings.news_like !== undefined)       setNotiNewsLike(Boolean(settings.news_like));
-        if (settings.news_thanks !== undefined)     setNotiNewsThanks(Boolean(settings.news_thanks));
         if (settings.news_comment !== undefined)    setNotiNewsComment(Boolean(settings.news_comment));
       }
       setFeeCheckEnabled(feeRaw === "1");
@@ -310,18 +308,6 @@ export default function TeacherSettingsScreen() {
                 onValueChange={v => { setNotiNewsLike(v); savePushSetting("news_like", v); }}
                 trackColor={{ false: C.border, true: themeColor + "80" }}
                 thumbColor={notiNewsLike ? themeColor : C.textMuted}
-              />
-            </View>
-            <View style={[s.switchRow, { borderTopWidth: 1, borderTopColor: C.border }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={s.switchLabel}>감사합니다</Text>
-                <Text style={s.switchSub}>학부모가 감사합니다 전송 시 알림</Text>
-              </View>
-              <Switch
-                value={notiNewsThanks}
-                onValueChange={v => { setNotiNewsThanks(v); savePushSetting("news_thanks", v); }}
-                trackColor={{ false: C.border, true: themeColor + "80" }}
-                thumbColor={notiNewsThanks ? themeColor : C.textMuted}
               />
             </View>
             <View style={[s.switchRow, { borderTopWidth: 1, borderTopColor: C.border }]}>

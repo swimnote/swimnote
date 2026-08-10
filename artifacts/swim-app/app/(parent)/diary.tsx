@@ -69,7 +69,7 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
     setTimeout(() => setToastVisible(false), 1800);
   }
 
-  async function toggleReaction(type: "like" | "thanks") {
+  async function toggleReaction(type: "like") {
     const res = await apiRequest(token, `/parent/diary/${entry.id}/reactions`, {
       method: "POST", body: JSON.stringify({ reaction_type: type }),
     });
@@ -80,7 +80,7 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
         data.active ? s.add(type) : s.delete(type);
         return s;
       });
-      showToast(data.active ? (type === "like" ? "좋아요를 눌렀어요" : "감사합니다를 눌렀어요") : "취소했습니다");
+      showToast(data.active ? "좋아요를 눌렀어요" : "취소했습니다");
     }
   }
 
@@ -157,25 +157,18 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
         </View>
       )}
 
-      {/* 반응 + 쪽지달기 */}
+      {/* 반응 */}
       <View style={[ds.reactions, { borderTopColor: C.border }]}>
-        <Pressable
-          onPress={() => toggleReaction("like")}
-          style={[ds.reactionBtn, myReactions.has("like") && { backgroundColor: "#E6FFFA" }]}
-        >
-          <Text style={[ds.reactionEmoji, myReactions.has("like") && { transform: [{ scale: 1.2 }] }]}>👍</Text>
-          <Text style={[ds.reactionLabel, { color: myReactions.has("like") ? "#2EC4B6" : C.textSecondary }]}>좋아요</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => toggleReaction("thanks")}
-          style={[ds.reactionBtn, myReactions.has("thanks") && { backgroundColor: "#F6D8E1" }]}
-        >
-          <Text style={[ds.reactionEmoji, myReactions.has("thanks") && { transform: [{ scale: 1.2 }] }]}>🙏</Text>
-          <Text style={[ds.reactionLabel, { color: myReactions.has("thanks") ? "#BE185D" : C.textSecondary }]}>감사합니다</Text>
+        <Pressable onPress={() => toggleReaction("like")} style={ds.reactionBtn}>
+          <LucideIcon
+            name="heart"
+            size={20}
+            color={myReactions.has("like") ? "#E8003D" : "#6B7280"}
+            fill={myReactions.has("like") ? "#E8003D" : "none"}
+          />
         </Pressable>
         <Pressable onPress={goToComments} style={ds.reactionBtn}>
-          <LucideIcon name="message-circle" size={17} color={C.textSecondary} />
-          <Text style={[ds.reactionLabel, { color: C.textSecondary }]}>댓글</Text>
+          <LucideIcon name="message-circle" size={18} color="#6B7280" />
         </Pressable>
       </View>
 
@@ -315,9 +308,7 @@ const ds = StyleSheet.create({
   sectionLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", textTransform: "uppercase" },
   content: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22, paddingLeft: 14 },
   reactions: { flexDirection: "row", borderTopWidth: 1, paddingHorizontal: 8, paddingVertical: 6 },
-  reactionBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 10, gap: 3, flexDirection: "row", justifyContent: "center" },
-  reactionEmoji: { fontSize: 16 },
-  reactionLabel: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  reactionBtn: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 10 },
   empty: { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 10 },
   emptyTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
   emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },

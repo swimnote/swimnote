@@ -1050,7 +1050,7 @@ function DiaryFeedItem({
       )}
 
       <View style={[f.reactions, { borderTopColor: C.border }]}>
-        {/* 좋아요 — 아이콘만 */}
+        {/* 좋아요 — 하트 아이콘 */}
         <Pressable
           onPress={() => toggleReaction("like")}
           style={({ pressed }) => [
@@ -1058,22 +1058,12 @@ function DiaryFeedItem({
             { opacity: pressed ? 0.7 : 1 },
           ]}
         >
-          <Text style={[f.emoji, myReactions.has("like") && { transform: [{ scale: 1.2 }] }]}>
-            👍
-          </Text>
-        </Pressable>
-
-        {/* 감사합니다 — 아이콘만 */}
-        <Pressable
-          onPress={() => toggleReaction("thanks")}
-          style={({ pressed }) => [
-            f.reactionBtn,
-            { opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <Text style={[f.emoji, myReactions.has("thanks") && { transform: [{ scale: 1.2 }] }]}>
-            🙏
-          </Text>
+          <LucideIcon
+            name="heart"
+            size={20}
+            color={myReactions.has("like") ? "#E8003D" : "#6B7280"}
+            fill={myReactions.has("like") ? "#E8003D" : "none"}
+          />
         </Pressable>
 
         {/* 댓글 — 아이콘만 */}
@@ -2157,8 +2147,6 @@ const f = StyleSheet.create({
     borderRadius: 4,
   },
   reactionBtnActive: {},
-  reactionBtnThanks: {},
-  emoji: { fontSize: 17 },
   // Instagram AI lockup — 로고(20px) + AI 마크 overlap 컨테이너
   // width/height에 여유를 두어 AI badge가 잘리지 않도록
   igAiLockup: {
