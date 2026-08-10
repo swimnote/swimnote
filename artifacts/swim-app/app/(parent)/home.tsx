@@ -1667,6 +1667,12 @@ export default function ParentHomeScreen() {
           </Pressable>
           <Pressable
             style={s.headerBtn}
+            onPress={() => router.push("/(parent)/photos?backTo=home" as any)}
+          >
+            <LucideIcon name="images" size={19} color={C.textSecondary} />
+          </Pressable>
+          <Pressable
+            style={s.headerBtn}
             onPress={() => router.push("/(parent)/more" as any)}
           >
             <LucideIcon name="settings" size={19} color={C.textSecondary} />
@@ -1674,16 +1680,6 @@ export default function ParentHomeScreen() {
         </View>
       </View>
 
-      {/* AI 커리큘럼 버튼 (헤더 아래 우측) */}
-      <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 20, paddingBottom: 4 }}>
-        <Pressable
-          onPress={() => setAiModalType("curriculum")}
-          style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 5, opacity: pressed ? 0.6 : 1 })}
-        >
-          <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 30, height: 30 }} resizeMode="contain" />
-          <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>AI 커리큘럼</Text>
-        </Pressable>
-      </View>
 
       {/* SWIMNOTE X 성장 리포트 (mode === "x" | "x_pending" 일 때만) */}
       {(mode === "x" || mode === "x_pending") && (
@@ -1765,42 +1761,32 @@ export default function ParentHomeScreen() {
         </Pressable>
       </ScrollView>
 
-      {/* C. 학생 정보 한 줄 */}
+      {/* C. AI 기능 버튼 (AI 성장 리포트 + AI 커리큘럼 검색) */}
       {selectedStudent && (
-        <View style={s.studentRow}>
-          <Text
-            style={[s.studentName, { color: C.text }]}
-            numberOfLines={1}
-          >
-            {selectedStudent.name}
-          </Text>
-          {!!schedule && (
-            <Text
-              style={[s.studentSchedule, { color: C.textSecondary }]}
-              numberOfLines={1}
-            >
-              {"  "}
-              {schedule}
-            </Text>
-          )}
-          <View style={{ flex: 1 }} />
+        <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginTop: 6, marginBottom: 4 }}>
           <Pressable
             onPress={() => setAiModalType("report")}
-            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 6, marginRight: 10, opacity: pressed ? 0.6 : 1 })}
+            style={({ pressed }) => ({
+              flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+              gap: 6, paddingVertical: 11, borderRadius: 12,
+              borderWidth: 1.5, borderColor: NAVY,
+              backgroundColor: "#fff", opacity: pressed ? 0.7 : 1,
+            })}
           >
-            <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 30, height: 30 }} resizeMode="contain" />
-            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>AI 성장 리포트</Text>
+            <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 22, height: 22 }} resizeMode="contain" />
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: NAVY }}>AI 성장 리포트</Text>
           </Pressable>
           <Pressable
-            onPress={() =>
-              router.push("/(parent)/photos?backTo=home" as any)
-            }
-            style={({ pressed }) => [
-              s.albumBtn,
-              { opacity: pressed ? 0.7 : 1 },
-            ]}
+            onPress={() => setAiModalType("curriculum")}
+            style={({ pressed }) => ({
+              flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+              gap: 6, paddingVertical: 11, borderRadius: 12,
+              borderWidth: 1.5, borderColor: NAVY,
+              backgroundColor: "#fff", opacity: pressed ? 0.7 : 1,
+            })}
           >
-            <LucideIcon name="images" size={20} color={C.textSecondary} />
+            <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 22, height: 22 }} resizeMode="contain" />
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: NAVY }}>AI 커리큘럼 검색</Text>
           </Pressable>
         </View>
       )}
@@ -1823,9 +1809,14 @@ export default function ParentHomeScreen() {
 
       {/* E. 공지 배너 */}
       {selectedStudent && !isBlocked && (
-        <View style={{ marginTop: 8, marginBottom: 4 }}>
+        <View style={{ marginTop: 6, marginBottom: 0 }}>
           <ParentPromoStrip />
         </View>
+      )}
+
+      {/* F-divider. 상단 UI ↔ 일지 영역 구분선 */}
+      {selectedStudent && !isBlocked && (
+        <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: C.border, marginTop: 12, marginHorizontal: 0 }} />
       )}
 
       {/* F. 자녀 없음 */}
