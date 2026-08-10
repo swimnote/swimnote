@@ -102,7 +102,7 @@ const s = StyleSheet.create({
     paddingVertical: 12,
     gap: 6,
     borderWidth: 1.5,
-    borderColor: "#1B3A70",
+    borderColor: "#2EC4B6",
   },
   stripImg: {
     marginHorizontal: 20,
