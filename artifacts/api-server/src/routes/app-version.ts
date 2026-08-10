@@ -13,8 +13,8 @@ const router = Router();
 
 const IOS_MIN_VERSION     = "1.6.2";
 const IOS_LATEST_VERSION  = "1.6.2";
-const AOS_MIN_VERSION     = "1.3.12";
-const AOS_LATEST_VERSION  = "1.6.1";
+const AOS_MIN_VERSION     = "1.6.2";
+const AOS_LATEST_VERSION  = "1.6.2";
 
 router.get("/app-version", (_req, res) => {
   res.json({
