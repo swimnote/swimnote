@@ -85,30 +85,6 @@ function isFullyAssigned(stu: UnassignedStudent): boolean {
   return assigned >= weekly;
 }
 
-/* ──────── 날짜 선택 ──────── */
-function DatePicker({ value, onChange }: { value: string; onChange: (d: string) => void }) {
-  const [y, m, d] = value.split("-").map(Number);
-  function add(days: number) {
-    const dt = new Date(value + "T00:00:00");
-    dt.setDate(dt.getDate() + days);
-    onChange(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`);
-  }
-  const DOW = ["일","월","화","수","목","금","토"][new Date(value + "T00:00:00").getDay()];
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12, paddingVertical: 8 }}>
-      <TouchableOpacity onPress={() => add(-1)} style={{ padding: 8 }}>
-        <LucideIcon name="chevron-left" size={20} color={C.text} />
-      </TouchableOpacity>
-      <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }}>
-        {y}년 {m}월 {d}일 ({DOW})
-      </Text>
-      <TouchableOpacity onPress={() => add(1)} style={{ padding: 8 }}>
-        <LucideIcon name="chevron-right" size={20} color={C.text} />
-      </TouchableOpacity>
-    </View>
-  );
-}
-
 /* ──────── 메인 컴포넌트 ──────── */
 interface Props {
   visible: boolean;
@@ -523,10 +499,6 @@ export default function StudentManagementSheet({
           title={`${pickedMakeup?.student_name} — 보강반 선택`}
           onBack={() => { setView("tabs"); setTab("makeup"); }}
         />
-        <View style={{ paddingHorizontal: 16, marginBottom: 4 }}>
-          <Text style={st.pickLabel}>보강 날짜를 선택하세요</Text>
-        </View>
-        <DatePicker value={assignDate} onChange={setAssignDate} />
         <View style={{ flexDirection: "row", alignItems: "center", marginHorizontal: 16, marginBottom: 4, gap: 8 }}>
           <Text style={[st.pickLabel, { flex: 1 }]}>
             {showAllClasses ? "전체 반 선택 (다른 선생님 포함)" : "보강 가능한 반 선택 (내 반)"}
