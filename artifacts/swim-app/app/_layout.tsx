@@ -639,7 +639,7 @@ function RootNav() {
 
   // Media Cleanup V2 — image disk cache(SDWebImage) + ImagePicker temp 1회 정리
   // UploadQueueContext는 in-memory only → 앱 시작 시 항상 isActive=false → 안전
-  useEffect(() => { runMediaCleanupV2(isActive).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { runMediaCleanupV2(false).catch(() => {}); }, []);
 
   // 백그라운드 복귀 처리
   // - OTA 준비됨: 재시작
