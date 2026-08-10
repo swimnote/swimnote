@@ -130,7 +130,6 @@ export default function DiaryReactionsScreen() {
   }
 
   const likeGroup = reactions["like"];
-  const thankGroup = reactions["thanks"];
   const displayDate = lessonDate ? fmtDate(lessonDate) : "";
 
   return (
@@ -159,27 +158,15 @@ export default function DiaryReactionsScreen() {
           {/* ─── 반응 섹션 ─── */}
           <View style={[s.section, { backgroundColor: C.card }]}>
             <Text style={[s.sectionTitle, { color: C.text }]}>학부모 반응</Text>
-            <View style={s.reactionRow}>
-              {/* 좋아요 */}
-              <View style={[s.reactionCard, { borderColor: "#2EC4B620" }]}>
-                <Text style={s.reactionEmoji}>👍</Text>
-                <Text style={[s.reactionCount, { color: "#2EC4B6" }]}>{likeGroup?.count ?? 0}명</Text>
-                {(likeGroup?.users ?? []).length > 0 && (
-                  <Text style={[s.reactionNames, { color: C.textSecondary }]} numberOfLines={2}>
-                    {likeGroup!.users.map(u => u.student_name ? `${u.parent_name}(${u.student_name})` : u.parent_name).join(", ")}
-                  </Text>
-                )}
-              </View>
-              {/* 감사합니다 */}
-              <View style={[s.reactionCard, { borderColor: "#BE185D20" }]}>
-                <Text style={s.reactionEmoji}>🙏</Text>
-                <Text style={[s.reactionCount, { color: "#BE185D" }]}>{thankGroup?.count ?? 0}명</Text>
-                {(thankGroup?.users ?? []).length > 0 && (
-                  <Text style={[s.reactionNames, { color: C.textSecondary }]} numberOfLines={2}>
-                    {thankGroup!.users.map(u => u.student_name ? `${u.parent_name}(${u.student_name})` : u.parent_name).join(", ")}
-                  </Text>
-                )}
-              </View>
+            {/* 좋아요 — 단독 전체 폭 카드 */}
+            <View style={[s.reactionCard, { borderColor: "#EF444420" }]}>
+              <LucideIcon name="heart" size={22} color="#EF4444" />
+              <Text style={[s.reactionCount, { color: "#EF4444" }]}>{likeGroup?.count ?? 0}명</Text>
+              {(likeGroup?.users ?? []).length > 0 && (
+                <Text style={[s.reactionNames, { color: C.textSecondary }]} numberOfLines={2}>
+                  {likeGroup!.users.map(u => u.student_name ? `${u.parent_name}(${u.student_name})` : u.parent_name).join(", ")}
+                </Text>
+              )}
             </View>
           </View>
 
