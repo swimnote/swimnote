@@ -717,6 +717,7 @@ export default function TeacherPhotosScreen() {
                       source={{ uri }}
                       style={{ width: "100%", height: "100%" }}
                       contentFit="cover"
+                      cachePolicy="memory"
                       onError={(e) => console.warn(`[ALBUM IMAGE ERROR] mediaId=${item.id} resolvedUri=${uri} error=${JSON.stringify(e.error)}`)}
                     />
                   ) : (
@@ -783,6 +784,7 @@ export default function TeacherPhotosScreen() {
                       source={{ uri: item.thumbnail_url }}
                       style={[s.videoThumb, { borderRadius: 12 }]}
                       contentFit="cover"
+                      cachePolicy="memory"
                     />
                   ) : (
                     <View style={[s.videoThumb, { backgroundColor: cfg.bg }]}>
@@ -870,6 +872,7 @@ export default function TeacherPhotosScreen() {
                       source={{ uri: photoUri(lbItem.file_url, token) }}
                       style={s.lbImage}
                       contentFit="contain"
+                      cachePolicy="memory"
                     />
                   ) : (
                     <View style={s.lbImagePlaceholder}>

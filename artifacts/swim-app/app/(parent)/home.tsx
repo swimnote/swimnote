@@ -561,6 +561,7 @@ function PhotosGrid({
           }}
           style={{ width, height: width }}
           contentFit="contain"
+          cachePolicy="memory"
         />
       </View>
     ),
@@ -594,6 +595,7 @@ function PhotosGrid({
               style={{ width: imgSize, height: imgSize, borderRadius: 8 }}
               contentFit="cover"
               transition={200}
+              cachePolicy="memory"
             />
           </Pressable>
         ))}

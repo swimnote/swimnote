@@ -280,6 +280,7 @@ export default function ParentAlbumScreen() {
             source={{ uri, headers: { Authorization: `Bearer ${token}` } }}
             style={st.cellImg}
             contentFit="cover"
+            cachePolicy="memory"
           />
         </Pressable>
       );
@@ -289,7 +290,7 @@ export default function ParentAlbumScreen() {
     return (
       <Pressable key={item.id} onPress={() => setVideoDetail(item)} style={[st.cell, { width: CELL, height: CELL }]}>
         {thumbUri ? (
-          <ExpoImage source={{ uri: thumbUri }} style={st.cellImg} contentFit="cover" />
+          <ExpoImage source={{ uri: thumbUri }} style={st.cellImg} contentFit="cover" cachePolicy="memory" />
         ) : (
           <View style={[st.cellImg, st.videoPlaceholder]} />
         )}

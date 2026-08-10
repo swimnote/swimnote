@@ -90,6 +90,7 @@ function PhotoGrid({ photos, token }: { photos: PhotoItem[]; token: string }) {
           style={[s.photoItem, { width: photoSize, height: photoSize }]}
           contentFit="cover"
           transition={200}
+          cachePolicy="memory"
         />
       ))}
     </View>

@@ -20,6 +20,7 @@ import { ModeProvider, useMode } from "@/context/ModeContext";
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 import { initializeRevenueCat, loginRevenueCat, logoutRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
 import { runLegacyMediaCleanup } from "@/utils/mediaStorageCleanup";
+import { runMediaCleanupV2 } from "@/utils/mediaCleanupV2";
 
 // Expo Go 환경 여부 — Expo Go SDK 53부터 Android 원격 알림 미지원
 const IS_EXPO_GO = Constants.appOwnership === "expo";
@@ -635,6 +636,10 @@ function RootNav() {
   // Legacy media cleanup — documentDirectory 누적 파일 1회 정리
   // UI를 막지 않도록 fire-and-forget; 내부 예외가 앱 부팅에 영향을 주지 않음
   useEffect(() => { runLegacyMediaCleanup().catch(() => {}); }, []);
+
+  // Media Cleanup V2 — image disk cache(SDWebImage) + ImagePicker temp 1회 정리
+  // UploadQueueContext는 in-memory only → 앱 시작 시 항상 isActive=false → 안전
+  useEffect(() => { runMediaCleanupV2(isActive).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 백그라운드 복귀 처리
   // - OTA 준비됨: 재시작

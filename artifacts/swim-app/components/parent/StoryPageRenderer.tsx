@@ -316,6 +316,7 @@ const StoryPageRenderer = forwardRef<View, { page: StoryPageData }>(
                     source={{ uri: photo.uri }}
                     style={[s.photoCell, colIdx > 0 && { marginLeft: GAP }]}
                     contentFit="cover"
+                    cachePolicy="memory"
                   />
                 ))}
               </View>
@@ -346,6 +347,7 @@ const StoryPageRenderer = forwardRef<View, { page: StoryPageData }>(
                             ci > 0 && { marginLeft: GAP },
                           ]}
                           contentFit="cover"
+                          cachePolicy="memory"
                         />
                       );
                     })}

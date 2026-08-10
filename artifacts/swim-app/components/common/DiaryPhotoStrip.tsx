@@ -327,6 +327,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
               source={{ uri: photoUrl(photo) }}
               style={s.thumbImg}
               contentFit="cover"
+              cachePolicy="memory"
             />
             <Pressable
               style={s.downloadOverlay}
@@ -348,7 +349,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
               onPress={() => setViewVideo(video)}
             >
               {tn ? (
-                <Image source={{ uri: tn }} style={s.thumbImg} contentFit="cover" />
+                <Image source={{ uri: tn }} style={s.thumbImg} contentFit="cover" cachePolicy="memory" />
               ) : (
                 <View style={s.videoPlaceholder} />
               )}
@@ -408,6 +409,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
                   source={{ uri: photoUrl(photo) }}
                   style={s.viewerImg}
                   contentFit="contain"
+                  cachePolicy="memory"
                 />
               </View>
             ))}
