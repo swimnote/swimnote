@@ -1,0 +1,357 @@
+[승인 — SWIMNOTE Storage Diagnostic OTA 배포]
+
+대상 commit:
+fcdbb61f
+
+목적:
+현재 여러 실기기에서 SwimNote Documents & Data가
+수 GB~수십 GB로 유지되는 원인을
+실제 바이트 단위로 측정한다.
+
+이번 OTA는 진단 전용이다.
+
+중요:
+사용자 데이터 삭제 금지.
+cache 삭제 금지.
+cleanup v2 구현 금지.
+기존 media cleanup 로직 추가 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production Store 앱과 호환되는:
+
+runtimeVersion = 1.6.2
+channel = production
+
+기준으로
+
+iOS
+Android
+
+모두 OTA 배포.
+
+preview / instagram-test 배포 금지.
+
+기존 Production 환경변수 그대로 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 배포 전 Source 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 HEAD에 fcdbb61f 포함 확인.
+
+실제 변경 파일은 다음 4개만이어야 함:
+
+utils/storageDiagnostic.ts
+
+app/(super)/more.tsx
+
+app/(parent)/more.tsx
+
+app/(teacher)/settings.tsx
+
+다른 기능 파일이 변경되어 있으면 배포 중단 후 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 이번 OTA에서 절대 삭제 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 실행 금지:
+
+Image.clearDiskCache()
+
+FileSystem.deleteAsync(cacheDirectory)
+
+cacheDirectory 전체 삭제
+
+documentDirectory 전체 삭제
+
+AsyncStorage.clear()
+
+cleanup v2
+
+legacy matcher 추가 삭제
+
+이번 OTA는 측정만 한다.
+
+USER DATA CHANGED = 0 이어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Diagnostic 측정 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+storageDiagnostic.ts에서 최소 다음을 실제 측정:
+
+Documents:
+- total bytes
+- file count
+- directory count
+
+Cache:
+- total bytes
+- file count
+- directory count
+
+Documents category:
+- legacy diary bytes
+- legacy swim bytes
+- legacy swimnote bytes
+- scheduleAudio bytes
+- other bytes
+
+cleanup flag:
+@swimnote:media_cleanup_v1
+
+값 확인.
+
+recursive scan 유지.
+
+파일 내용은 읽지 않는다.
+size/stat만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 개인정보 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+Alert 또는 로그에 다음 표시 금지:
+
+- 학생 이름
+- 학부모 이름
+- 선생님 이름
+- 실제 filename
+- URL
+- R2 key
+- JWT/token
+
+표시 허용:
+
+- bytes
+- MB/GB
+- file count
+- directory count
+- category별 합계
+- cleanup flag 상태
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 실기기 측정 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA 수신 후 최소 다음 기기를 측정한다.
+
+A. 현재 약 3.62GB 선생님 기기
+
+B. 가능하면 약 6GB 선생님 기기
+
+C. 가능하면 약 22GB 기기
+
+D. 사진 일지를 많이 받아본 학부모 기기 1대 이상
+
+중요:
+학부모도 반드시 확인한다.
+
+이번 문제는 업로드 사용자뿐 아니라
+일지/앨범/피드 사진을 조회한 사용자에게도
+발생할 가능성이 있기 때문이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 선생님 진단 진입
+━━━━━━━━━━━━━━━━━━━━━━
+
+선생님:
+
+설정 화면
+→ 하단 숨김 영역
+→ 3초 내 7회 탭
+→ Storage Diagnostic Alert
+
+정상 작동 확인.
+
+일반 사용 중 우연히 노출되지 않는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 학부모 진단 진입
+━━━━━━━━━━━━━━━━━━━━━━
+
+학부모:
+
+설정/더보기 화면
+→ 하단 숨김 영역
+→ 3초 내 7회 탭
+→ Storage Diagnostic Alert
+
+정상 작동 확인.
+
+학부모의:
+
+Documents
+Cache
+
+각각 실제 수치를 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 슈퍼관리자 진단
+━━━━━━━━━━━━━━━━━━━━━━
+
+슈퍼관리자:
+
+더보기
+→ ⑦ 시스템 상태
+→ Storage Diagnostic
+
+버튼 정상 작동 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 실측 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 기기별로 아래 표 작성.
+
+DEVICE A
+
+role:
+teacher / parent / super
+
+iOS Settings Documents & Data:
+X.XX GB
+
+Diagnostic:
+
+Documents:
+- bytes:
+- MB/GB:
+- files:
+- directories:
+
+Cache:
+- bytes:
+- MB/GB:
+- files:
+- directories:
+
+Legacy diary:
+Legacy swim:
+Legacy swimnote:
+ScheduleAudio:
+Other Documents:
+
+cleanup_v1 flag:
+
+동일 형식으로 DEVICE B/C/D 작성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 원인 판정 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+실측 후 다음처럼 분류한다.
+
+CASE A
+
+Documents 약 수십 MB
+Cache 약 3GB+
+
+→ Cache 계층 주원인
+
+CASE B
+
+Documents 약 수GB
+Legacy swimnote 약 대부분
+
+→ legacy matcher 누락 주원인
+
+CASE C
+
+Documents 수백 MB+
+Cache 수GB
+
+→ 복합 원인
+
+CASE D
+
+iOS Settings는 수GB인데
+Documents + Cache 합계가 크게 작음
+
+→ Library/Application Support 또는
+다른 sandbox 영역 추가 조사 필요
+
+실측 없이 원인 확정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 학부모 결과 특별 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+학부모는 업로드를 거의 하지 않으므로
+
+학부모 기기에서:
+
+Documents 작음
+Cache 큼
+
+으로 나오면
+
+"일지/앨범/피드 조회 media cache 누적"
+
+가 강한 증거가 된다.
+
+반대로 학부모 Cache도 작다면
+다른 저장영역 재조사.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 배포 후 코드 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+진단 숫자를 확인하기 전:
+
+- cachePolicy 수정 금지
+- cachePolicy="none" 적용 금지
+- expo-image 전역 변경 금지
+- clearDiskCache 금지
+- ImageManipulator cleanup 추가 금지
+- thumbnail cleanup 추가 금지
+
+실측 후 cleanup v2를 별도 설계한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+배포 직후 보고:
+
+1. Current branch
+2. Current HEAD
+3. fcdbb61f 포함 여부
+4. 실제 OTA diff
+5. iOS Group ID
+6. iOS Update ID
+7. Android Group ID
+8. Android Update ID
+9. runtimeVersion
+10. channel
+11. Server 변경 0
+12. DB 변경 0
+13. Native Build 0
+14. 사용자 데이터 삭제 0
+
+그 다음 실기기 측정 후 별도 보고:
+
+15. 3.62GB 기기 Documents
+16. 3.62GB 기기 Cache
+17. 6GB 기기 Documents/Cache
+18. 22GB 기기 Documents/Cache
+19. 학부모 기기 Documents/Cache
+20. legacy category별 bytes
+21. cleanup_v1 flag
+22. 가장 큰 저장영역
+23. 원인 확정 YES/NO
+24. cleanup v2 권장 범위
+
+OTA 배포 + 실측까지만 진행.
+
+cleanup v2 구현 금지.
+추가 OTA 금지.
+Render 금지.
+DB 변경 금지.
+Native Build 금지.
+
+실측 결과 보고 후 STOP.
