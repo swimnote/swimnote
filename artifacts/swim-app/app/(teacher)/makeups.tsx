@@ -2,10 +2,10 @@
  * (teacher)/makeups.tsx — 결석자 리스트 / 배정된 보강 / 보강 현황
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView,
-  StyleSheet, Text, View,
+  ActivityIndicator, Alert, Keyboard, Modal, Platform, Pressable,
+  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
@@ -150,6 +150,8 @@ export default function MakeupsScreen() {
   const [directCompleteTarget, setDirectCompleteTarget] = useState<MakeupSession | null>(null);
   const [directCompleting,     setDirectCompleting]     = useState(false);
   const [confirmMsg, setConfirmMsg] = useState<string | null>(null);
+  // ── 검색 ─────────────────────────────────────────────────────────────────
+  const [searchText, setSearchText] = useState("");
   // eligible-occurrences 기반 날짜 선택
   const [occurrences,    setOccurrences]    = useState<MakeupOccurrence[]>([]);
   const [occLoading,     setOccLoading]     = useState(false);
@@ -176,6 +178,17 @@ export default function MakeupsScreen() {
     occCount: number | null; fetchedAt: string;
   } | null>(null);
   // ── [/DIAG] ───────────────────────────────────────────────────────────────
+  /** 정렬 + 검색 필터 적용 목록 */
+  const filteredStudents = useMemo(() => {
+    const sorted = [...waitingList].sort((a, b) => {
+      if (!!a.is_expired !== !!b.is_expired) return a.is_expired ? 1 : -1;
+      return 0;
+    });
+    const q = searchText.trim().toLowerCase();
+    if (!q) return sorted;
+    return sorted.filter(mk => (mk.student_name ?? "").toLowerCase().includes(q));
+  }, [waitingList, searchText]);
+
   const loadWaiting = useCallback(async () => {
     try {
       const res = await apiRequest(token, `/teacher/makeups?status=waiting`);
@@ -253,6 +266,7 @@ export default function MakeupsScreen() {
   useEffect(() => { if (tab === "assigned") loadAssigned(); }, [tab, loadAssigned]);
   useEffect(() => { if (tab === "history") loadHistory(); }, [tab, loadHistory]);
   useFocusEffect(useCallback(() => {
+    setSearchText(""); // 화면 재진입 시 검색어 초기화
     loadWaiting();
     if (tab === "assigned") loadAssigned();
   }, [loadWaiting, loadAssigned, tab]));
@@ -707,128 +721,151 @@ export default function MakeupsScreen() {
       </View>
       {/* ── 탭 1: 결석자 리스트 ─────────────────────────────────────────── */}
       {tab === "waiting" && (
-        waitingLoading ? (
-          <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
-        ) : (
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 60 }]}
-            refreshControl={
-              <RefreshControl
-                refreshing={waitingRefresh}
-                onRefresh={() => { setWaitingRefresh(true); loadWaiting(); }}
-                tintColor={themeColor}
-              />
-            }
-          >
-            {waitingList.length === 0 ? (
-              <View style={s.empty}>
-                <LucideIcon name="check-circle" size={36} color={C.textMuted} />
-                <Text style={s.emptyTxt}>처리할 결석자가 없습니다</Text>
-              </View>
-            ) : (() => {
-                const sorted = [...waitingList].sort((a, b) => {
-                  if (!!a.is_expired !== !!b.is_expired) return a.is_expired ? 1 : -1;
-                  return 0;
-                });
-                const firstExpiredIdx = sorted.findIndex(mk => mk.is_expired);
-                const expiredCount = firstExpiredIdx >= 0 ? sorted.length - firstExpiredIdx : 0;
-                return sorted.map((mk, idx) => {
-                  const showSeparator = firstExpiredIdx >= 0 && idx === firstExpiredIdx;
-              const expireInfo = formatExpireAt(mk.expire_at);
-              return (
-                <React.Fragment key={mk.id}>
-                  {showSeparator && (
-                    <View style={s.expiredSection}>
-                      <View style={s.expiredSectionLine} />
-                      <Text style={s.expiredSectionTxt}>기간 지난 보강 ({expiredCount}건)</Text>
-                      <View style={s.expiredSectionLine} />
-                    </View>
-                  )}
-                <View
-                  style={[
-                    s.card,
-                    { backgroundColor: C.card },
-                    mk.is_expired && { borderLeftWidth: 3, borderLeftColor: "#94A3B8" },
-                  ]}
-                >
-                  <View style={s.cardTop}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={s.studentName}>{mk.student_name || "-"}</Text>
-                      <Text style={s.className}>{mk.original_class_group_name || "미배정"}</Text>
-                      {mk.handed_to_teacher_id === adminUser?.id && mk.original_teacher_name && (
-                        <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#4F46E5" }}>
-                          인계 from {mk.original_teacher_name}
-                        </Text>
-                      )}
-                    </View>
-                    {mk.is_expired ? (
-                      <View style={[s.statusBadge, { backgroundColor: "#F1F5F9" }]}>
-                        <Text style={[s.statusTxt, { color: "#64748B" }]}>기간 지난 보강</Text>
-                      </View>
-                    ) : mk.handed_to_teacher_id === adminUser?.id ? (
-                      <View style={[s.statusBadge, { backgroundColor: "#EEF2FF" }]}>
-                        <Text style={[s.statusTxt, { color: "#4F46E5" }]}>이관받음</Text>
-                      </View>
-                    ) : (
-                      <View style={[s.statusBadge, { backgroundColor: "#FFF1BF" }]}>
-                        <Text style={[s.statusTxt, { color: "#D97706" }]}>대기</Text>
+        <>
+          {/* 검색 인덱스 — 탭 바 아래 고정 */}
+          <View style={s.searchBar}>
+            <LucideIcon name="search" size={15} color={C.textSecondary} />
+            <TextInput
+              style={s.searchInput}
+              placeholder="학생 이름 검색"
+              placeholderTextColor={C.textSecondary}
+              value={searchText}
+              onChangeText={setSearchText}
+              returnKeyType="done"
+              clearButtonMode="while-editing"
+              onSubmitEditing={() => Keyboard.dismiss()}
+            />
+            {searchText.length > 0 && Platform.OS === "android" && (
+              <Pressable onPress={() => setSearchText("")} hitSlop={8}>
+                <LucideIcon name="x" size={15} color={C.textSecondary} />
+              </Pressable>
+            )}
+          </View>
+          {waitingLoading ? (
+            <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
+          ) : (
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 60 }]}
+              keyboardDismissMode="on-drag"
+              keyboardShouldPersistTaps="handled"
+              refreshControl={
+                <RefreshControl
+                  refreshing={waitingRefresh}
+                  onRefresh={() => { setWaitingRefresh(true); loadWaiting(); }}
+                  tintColor={themeColor}
+                />
+              }
+            >
+              {waitingList.length === 0 ? (
+                <View style={s.empty}>
+                  <LucideIcon name="check-circle" size={36} color={C.textMuted} />
+                  <Text style={s.emptyTxt}>처리할 결석자가 없습니다</Text>
+                </View>
+              ) : filteredStudents.length === 0 ? (
+                <View style={s.empty}>
+                  <Text style={s.emptyTxt}>검색 결과가 없습니다.</Text>
+                </View>
+              ) : (() => {
+                  const firstExpiredIdx = filteredStudents.findIndex(mk => mk.is_expired);
+                  const expiredCount = firstExpiredIdx >= 0 ? filteredStudents.length - firstExpiredIdx : 0;
+                  return filteredStudents.map((mk, idx) => {
+                    const showSeparator = firstExpiredIdx >= 0 && idx === firstExpiredIdx;
+                const expireInfo = formatExpireAt(mk.expire_at);
+                return (
+                  <React.Fragment key={mk.id}>
+                    {showSeparator && (
+                      <View style={s.expiredSection}>
+                        <View style={s.expiredSectionLine} />
+                        <Text style={s.expiredSectionTxt}>기간 지난 보강 ({expiredCount}건)</Text>
+                        <View style={s.expiredSectionLine} />
                       </View>
                     )}
-                  </View>
-                  <View style={s.infoRow}>
-                    <LucideIcon name="calendar" size={13} color={C.textSecondary} />
-                    <Text style={s.infoTxt}>결석일: {fmtDate(mk.absence_date)}</Text>
-                  </View>
-                  {expireInfo && (
-                    <View style={s.infoRow}>
-                      <LucideIcon name="clock" size={13} color={expireInfo.color} />
-                      <Text style={[s.infoTxt, { color: expireInfo.color, fontFamily: "Pretendard-Regular" }]}>{expireInfo.text}</Text>
-                    </View>
-                  )}
-                  {mk.assigned_class_group_name && (
-                    <View style={s.infoRow}>
-                      <LucideIcon name="check-circle" size={13} color="#2EC4B6" />
-                      <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>배정반: {mk.assigned_class_group_name}</Text>
-                    </View>
-                  )}
-                  <View style={s.btnRow}>
-                    <Pressable
-                      style={[s.actionBtn, { backgroundColor: C.button }]}
-                      onPress={() => openAssignModal(mk)}
-                    >
-                      <LucideIcon name="calendar" size={14} color="#fff" />
-                      <Text style={[s.actionTxt, { color: "#fff" }]}>보강반 배정</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[s.actionBtn, { backgroundColor: "#EEF2FF", flex: undefined, paddingHorizontal: 12 }]}
-                      onPress={() => openHandoverDirect(mk)}
-                    >
-                      <LucideIcon name="user-plus" size={14} color="#4F46E5" />
-                      <Text style={[s.actionTxt, { color: "#4F46E5" }]}>인계</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[s.actionBtn, { backgroundColor: "#FEF2F2", flex: undefined, paddingHorizontal: 12 }]}
-                      onPress={() => setSelfExtTarget(mk)}
-                    >
-                      <LucideIcon name="x-circle" size={14} color="#DC2626" />
-                      <Text style={[s.actionTxt, { color: "#DC2626" }]}>소멸</Text>
-                    </Pressable>
-                  </View>
-                  <Pressable
-                    style={[s.actionBtn, { backgroundColor: "#ECFDF5", marginTop: 2 }]}
-                    onPress={() => openDirectCompleteModal(mk)}
+                  <View
+                    style={[
+                      s.card,
+                      { backgroundColor: C.card },
+                      mk.is_expired && { borderLeftWidth: 3, borderLeftColor: "#94A3B8" },
+                    ]}
                   >
-                    <LucideIcon name="check-circle" size={14} color="#059669" />
-                    <Text style={[s.actionTxt, { color: "#059669" }]}>지난 보강 직접 완료</Text>
-                  </Pressable>
-                </View>
-                </React.Fragment>
-              );
-            });
-          })()}
-          </ScrollView>
-        )
+                    <View style={s.cardTop}>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={s.studentName}>{mk.student_name || "-"}</Text>
+                        <Text style={s.className}>{mk.original_class_group_name || "미배정"}</Text>
+                        {mk.handed_to_teacher_id === adminUser?.id && mk.original_teacher_name && (
+                          <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#4F46E5" }}>
+                            인계 from {mk.original_teacher_name}
+                          </Text>
+                        )}
+                      </View>
+                      {mk.is_expired ? (
+                        <View style={[s.statusBadge, { backgroundColor: "#F1F5F9" }]}>
+                          <Text style={[s.statusTxt, { color: "#64748B" }]}>기간 지난 보강</Text>
+                        </View>
+                      ) : mk.handed_to_teacher_id === adminUser?.id ? (
+                        <View style={[s.statusBadge, { backgroundColor: "#EEF2FF" }]}>
+                          <Text style={[s.statusTxt, { color: "#4F46E5" }]}>이관받음</Text>
+                        </View>
+                      ) : (
+                        <View style={[s.statusBadge, { backgroundColor: "#FFF1BF" }]}>
+                          <Text style={[s.statusTxt, { color: "#D97706" }]}>대기</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={s.infoRow}>
+                      <LucideIcon name="calendar" size={13} color={C.textSecondary} />
+                      <Text style={s.infoTxt}>결석일: {fmtDate(mk.absence_date)}</Text>
+                    </View>
+                    {expireInfo && (
+                      <View style={s.infoRow}>
+                        <LucideIcon name="clock" size={13} color={expireInfo.color} />
+                        <Text style={[s.infoTxt, { color: expireInfo.color, fontFamily: "Pretendard-Regular" }]}>{expireInfo.text}</Text>
+                      </View>
+                    )}
+                    {mk.assigned_class_group_name && (
+                      <View style={s.infoRow}>
+                        <LucideIcon name="check-circle" size={13} color="#2EC4B6" />
+                        <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>배정반: {mk.assigned_class_group_name}</Text>
+                      </View>
+                    )}
+                    <View style={s.btnRow}>
+                      <Pressable
+                        style={[s.actionBtn, { backgroundColor: C.button }]}
+                        onPress={() => openAssignModal(mk)}
+                      >
+                        <LucideIcon name="calendar" size={14} color="#fff" />
+                        <Text style={[s.actionTxt, { color: "#fff" }]}>보강반 배정</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[s.actionBtn, { backgroundColor: "#EEF2FF", flex: undefined, paddingHorizontal: 12 }]}
+                        onPress={() => openHandoverDirect(mk)}
+                      >
+                        <LucideIcon name="user-plus" size={14} color="#4F46E5" />
+                        <Text style={[s.actionTxt, { color: "#4F46E5" }]}>인계</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[s.actionBtn, { backgroundColor: "#FEF2F2", flex: undefined, paddingHorizontal: 12 }]}
+                        onPress={() => setSelfExtTarget(mk)}
+                      >
+                        <LucideIcon name="x-circle" size={14} color="#DC2626" />
+                        <Text style={[s.actionTxt, { color: "#DC2626" }]}>소멸</Text>
+                      </Pressable>
+                    </View>
+                    <Pressable
+                      style={[s.actionBtn, { backgroundColor: "#ECFDF5", marginTop: 2 }]}
+                      onPress={() => openDirectCompleteModal(mk)}
+                    >
+                      <LucideIcon name="check-circle" size={14} color="#059669" />
+                      <Text style={[s.actionTxt, { color: "#059669" }]}>지난 보강 직접 완료</Text>
+                    </Pressable>
+                  </View>
+                  </React.Fragment>
+                );
+              });
+            })()}
+            </ScrollView>
+          )}
+        </>
       )}
       {/* ── 탭 2: 배정된 보강 ──────────────────────────────────────────────── */}
       {tab === "assigned" && (
@@ -1598,4 +1635,26 @@ const s = StyleSheet.create({
   expiredSection:     { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 4 },
   expiredSectionLine: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
   expiredSectionTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  // 검색 인덱스
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 10,
+    marginHorizontal: 14,
+    marginTop: 10,
+    marginBottom: 4,
+    paddingHorizontal: 10,
+    height: 38,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Pretendard-Regular",
+    color: C.text,
+    paddingVertical: 0,
+  },
 });
