@@ -1,0 +1,198 @@
+[SWIMNOTE Cleanup V2 — 실기기 검증 완료 / 진단 UI 제거 / 최종 고정]
+
+Cleanup V2 실기기 검증 완료.
+
+실측 결과:
+
+Before
+- Cache: 3.26 GB / 1905개
+- SDImageCache: 2.38 GB
+- ImagePicker: 894.4 MB
+
+After
+- Documents: 0 B
+- Cache: 5.3 MB / 24개
+
+앱 정상 실행 및 일지/사진 조회 정상 확인.
+
+Cleanup V2 = PASS
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 저장공간 진단 버튼 UI 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기 원인 확인이 끝났으므로
+일반 사용자 화면에 노출한 저장공간 진단 버튼을 제거한다.
+
+대상:
+
+1) 선생님
+(teacher)/settings.tsx
+
+현재 설정 화면 최하단에 노출된
+"저장공간 진단" 버튼 제거.
+
+2) 학부모
+(parent)/more.tsx
+
+현재 더보기 화면 최하단에 노출된
+"저장공간 진단" 버튼 제거.
+
+3) 슈퍼관리자
+(super)/more.tsx
+
+Storage Diagnostic 버튼이 현재 노출되어 있다면
+이 버튼도 제거.
+
+중요:
+이번 작업은 사용자에게 보이는 진단 UI 제거가 목적이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 진단 코드 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+utils/storageDiagnostic.ts는 이번 작업에서 삭제하지 않는다.
+
+향후 저장공간 문제 재확인에 사용할 수 있으므로
+진단 helper 자체는 보존한다.
+
+화면에서 호출하는 UI 및 불필요해진
+import / state / handler만 안전하게 제거한다.
+
+예:
+- runStorageDiagnostic import
+- diagRunning state
+- runDiag handler
+- Storage Diagnostic Pressable/MenuItem
+
+단, 해당 코드가 다른 기능에서도 사용되는지 먼저 grep 전수 확인 후 제거한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Cleanup V2 절대 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 UI 정리 작업에서 다음은 건드리지 않는다.
+
+- utils/mediaCleanupV2.ts
+- runMediaCleanupV2()
+- Image.clearDiskCache()
+- ImagePicker cleanup
+- @swimnote:media_cleanup_v2
+- app startup cleanup hook
+- UploadQueueContext temp cleanup
+- cachePolicy="memory"
+- DiaryPhotoStrip media cleanup
+- R2 media 처리
+- DB media 구조
+
+Cleanup V2는 현재 실기기에서 정상 작동 확인됐으므로
+리팩터링/개선/정리 명목으로 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Cleanup V1/V2 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+아직 OTA를 늦게 받는 기존 사용자가 있을 수 있으므로
+startup cleanup V1/V2는 현재 그대로 유지한다.
+
+진단 버튼 제거와
+자동 cleanup 제거를 혼동하지 말 것.
+
+사용자에게 버튼은 안 보이지만
+필요한 자동 cleanup은 기존대로 실행되어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 확정 Media Storage 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+SERVER/R2
+= 사진/영상 영구 원본
+
+DB
+= URL / storage key / metadata
+
+APP LOCAL
+= 필요한 임시파일 및 소규모 runtime 데이터만 허용
+
+금지:
+- 사진/영상 대용량 disk cache 장기 누적
+- ImagePicker temp 영구 누적
+- 업로드 완료 후 temp file 잔존
+- documentDirectory media duplicate 영구 누적
+
+정상 허용:
+- AsyncStorage
+- session
+- RevenueCat 소규모 cache
+- runtime cache
+- 필요한 metadata
+- 정상적인 소규모 앱 데이터
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 회귀 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+앞으로 신규 사진/영상 화면 추가 시에도:
+
+- expo-image disk cache 무제한 사용 금지
+- 현재 cachePolicy 정책 확인
+- 업로드 temp cleanup 확인
+- R2 원본 보호
+- MediaLibrary 원본 보호
+- DB media record 보호
+
+기존 정상 정책을 따른다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 이번 작업 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 진단 UI 제거만 수행.
+
+허용:
+- teacher settings 진단 버튼 제거
+- parent more 진단 버튼 제거
+- super more 진단 버튼 제거
+- 이에 딸린 UI 전용 import/state/handler 정리
+
+금지:
+- Cleanup V2 수정
+- media storage 로직 수정
+- Server 수정
+- DB 수정
+- R2 수정
+- Native 설정 수정
+- Native Build
+- Render 배포
+- OTA 배포
+
+수정 및 commit까지만 진행.
+OTA는 별도 승인 전 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료 후 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 형식으로 보고:
+
+1. 수정 파일 전체
+2. teacher 저장공간 진단 버튼 제거 여부
+3. parent 저장공간 진단 버튼 제거 여부
+4. super 저장공간 진단 버튼 제거 여부
+5. storageDiagnostic.ts 보존 여부
+6. Cleanup V1 변경 여부
+7. Cleanup V2 변경 여부
+8. mediaCleanupV2.ts 변경 여부
+9. _layout startup cleanup 변경 여부
+10. UploadQueueContext 변경 여부
+11. cachePolicy 변경 여부
+12. TypeCheck 결과
+13. Server 변경 = 0 확인
+14. DB 변경 = 0 확인
+15. R2 변경 = 0 확인
+16. Native 변경 = 0 확인
+17. OTA 가능 여부
+18. commit SHA
+
+완료 후 STOP.
+OTA / Render / Native Build 금지.
