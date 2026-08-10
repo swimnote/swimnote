@@ -1766,15 +1766,22 @@ export default function ParentHomeScreen() {
         <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 16, marginTop: 14, marginBottom: 14 }}>
           <Pressable
             onPress={() => setAiModalType("report")}
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+            style={({ pressed }) => ({ alignItems: "center", opacity: pressed ? 0.7 : 1 })}
           >
-            <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 33, height: 44 }} resizeMode="contain" />
+            {/* PNG 상단 아이콘 부분만 크롭 (하단 텍스트 제외) */}
+            <View style={{ width: 33, height: 33, overflow: "hidden" }}>
+              <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 33, height: 44 }} resizeMode="stretch" />
+            </View>
+            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.text, marginTop: 3, textAlign: "center" }}>AI 성장 리포트</Text>
           </Pressable>
           <Pressable
             onPress={() => setAiModalType("curriculum")}
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+            style={({ pressed }) => ({ alignItems: "center", opacity: pressed ? 0.7 : 1 })}
           >
-            <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 33, height: 44 }} resizeMode="contain" />
+            <View style={{ width: 33, height: 33, overflow: "hidden" }}>
+              <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 33, height: 44 }} resizeMode="stretch" />
+            </View>
+            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.text, marginTop: 3, textAlign: "center" }}>AI 커리큘럼 검색</Text>
           </Pressable>
         </View>
       )}
