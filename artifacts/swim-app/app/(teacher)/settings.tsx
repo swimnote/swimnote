@@ -13,11 +13,12 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import AppUpdateButton from "@/components/common/AppUpdateButton";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Pressable,
+  ActivityIndicator, Alert, Pressable,
   RefreshControl, ScrollView, StyleSheet, Switch, Text, View,
 } from "react-native";
+import { runStorageDiagnostic, formatDiagnosticAlert } from "@/utils/storageDiagnostic";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -61,6 +62,34 @@ export default function TeacherSettingsScreen() {
   const [refreshing,   setRefreshing]   = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [diagRunning, setDiagRunning] = useState(false);
+  const diagTapCount = useRef(0);
+  const diagTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Storage Diagnostic 숨김 트리거 (7회 탭) ─────────────────────────────
+  function handleDiagTap() {
+    diagTapCount.current += 1;
+    if (diagTapTimer.current) clearTimeout(diagTapTimer.current);
+    diagTapTimer.current = setTimeout(() => { diagTapCount.current = 0; }, 3000);
+    if (diagTapCount.current >= 7) {
+      diagTapCount.current = 0;
+      if (diagTapTimer.current) { clearTimeout(diagTapTimer.current); diagTapTimer.current = null; }
+      runDiag();
+    }
+  }
+  async function runDiag() {
+    if (diagRunning) return;
+    setDiagRunning(true);
+    try {
+      const result = await runStorageDiagnostic();
+      const { title, message } = formatDiagnosticAlert(result);
+      Alert.alert(title, message, [{ text: "확인" }]);
+    } catch (e: any) {
+      Alert.alert("진단 실패", e?.message ?? String(e));
+    } finally {
+      setDiagRunning(false);
+    }
+  }
 
   async function handleDeleteAccount(immediate: boolean) {
     setDeleteLoading(true);
@@ -420,6 +449,13 @@ export default function TeacherSettingsScreen() {
           <Text style={s.deleteBtnText}>회원 탈퇴</Text>
         </Pressable>
 
+        {/* Storage Diagnostic 숨김 트리거 — 7회 연속 탭 → 용량 진단 Alert */}
+        {/* temporary diagnostic code — 실기기 측정 완료 후 제거 예정 */}
+        <Pressable
+          onPress={handleDiagTap}
+          style={{ height: 16, opacity: 0 }}
+          accessibilityLabel={diagRunning ? "진단 중" : ""}
+        />
 
       </ScrollView>
 
