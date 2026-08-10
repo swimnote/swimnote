@@ -528,14 +528,17 @@ function RootNav() {
   const tokenRef = useRef(token);
   const kindRef = useRef<"parent" | "teacher" | "admin" | "super" | "pool_admin" | null>(kind);
 
-  const [showOtaModal, setShowOtaModal] = useState(false);
-  const [otaUpdating,  setOtaUpdating]  = useState(false);
+  const [showOtaModal,   setShowOtaModal]   = useState(false);
+  const [otaUpdating,    setOtaUpdating]    = useState(false);
+  const [showForceModal, setShowForceModal] = useState(false);
+  const [forceStoreUrl,  setForceStoreUrl]  = useState<string | null>(null);
+  const forcedRef = useRef(false); // Native force 판정 캐시 (foreground 복귀 중복 Modal 방지)
 
   useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
   useEffect(() => { tokenRef.current = token; }, [token]);
   useEffect(() => { kindRef.current = kind; }, [kind]);
 
-  // OTA 체크 + 다운로드 → 완료되면 즉시 자동 재시작
+  // OTA 체크 + 다운로드
   async function checkAndDownloadOta() {
     if (__DEV__ || isCheckingRef.current) return;
     isCheckingRef.current = true;
@@ -552,18 +555,81 @@ function RootNav() {
     }
   }
 
-  // 업데이트 적용 (사용자가 팝업에서 누름) — 하위 호환용
+  // OTA 적용 (사용자가 "지금 업데이트" 버튼 누름)
   async function applyOtaUpdate() {
     setOtaUpdating(true);
     try {
       await Updates.reloadAsync();
     } catch (_) {
       setOtaUpdating(false);
+      Alert.alert(
+        "재시작 실패",
+        "앱을 직접 종료 후 다시 열어주세요.",
+        [{ text: "확인" }]
+      );
     }
   }
 
-  // 앱 시작 시 OTA 체크
-  useEffect(() => { checkAndDownloadOta(); }, []);
+  // Native version check — forced이면 true 반환 (OTA skip)
+  // 네트워크 실패 → false 반환(fail-open), 서버 명시적 min_version 위반 → true(fail-closed)
+  async function checkNativeVersion(): Promise<boolean> {
+    if (__DEV__) return false;
+    if (forcedRef.current) { setShowForceModal(true); return true; } // 이미 판정된 경우
+    try {
+      const API_URL = process.env.EXPO_PUBLIC_API_URL;
+      if (!API_URL) return false;
+      const res = await fetch(`${API_URL}/app-version`, { cache: "no-store" });
+      if (!res.ok) return false;
+      const data = await res.json();
+      // Constants.expoConfig?.version = native 빌드 시 embed된 app.json version
+      // OTA 업데이트로 변경되지 않으므로 Native Store version 판정에 안전
+      const current = Constants.expoConfig?.version ?? "0.0.0";
+      const platform = Platform.OS === "ios" ? "ios" : "android";
+      const { min_version, latest_version } = data[platform] ?? {};
+      const storeUrl: string | null = data.store_urls?.[platform] ?? null;
+
+      function cmp(a: string, b: string): number {
+        const pa = a.split(".").map(Number);
+        const pb = b.split(".").map(Number);
+        for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+          const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+          if (d !== 0) return d;
+        }
+        return 0;
+      }
+
+      if (min_version && cmp(current, min_version) < 0) {
+        // 강제 차단 — Modal 표시 (취소/우회 불가)
+        setForceStoreUrl(storeUrl);
+        setShowForceModal(true);
+        forcedRef.current = true;
+        return true;
+      }
+
+      if (latest_version && cmp(current, latest_version) < 0) {
+        // 선택 업데이트 안내
+        Alert.alert(
+          "새 버전 출시",
+          "새로운 버전이 출시되었습니다.\n지금 업데이트하시겠어요?",
+          [
+            { text: "나중에" },
+            { text: "업데이트", onPress: () => storeUrl && Linking.openURL(storeUrl) },
+          ]
+        );
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  // 시작/foreground 복귀 통합 check
+  // 우선순위: Native force > OTA > 정상 진입
+  async function runStartupChecks() {
+    const forced = await checkNativeVersion();
+    if (!forced) await checkAndDownloadOta();
+  }
+
+  // 앱 시작 시 통합 check (Native 먼저 → OTA)
+  useEffect(() => { runStartupChecks(); }, []);
 
   // 백그라운드 복귀 처리
   // - OTA 준비됨: 재시작
@@ -584,8 +650,8 @@ function RootNav() {
         if (!didGoBackgroundRef.current) return;
         didGoBackgroundRef.current = false;
 
-        // OTA 체크 (있으면 자동 재시작)
-        checkAndDownloadOta();
+        // Native + OTA 통합 check (Native force 먼저, forced면 OTA skip)
+        runStartupChecks();
 
         // roles 갱신은 RolesPollingGuard의 AppState 리스너가 단독 처리.
         // 여기서 refreshSession을 동시에 호출하면 role 덮어쓰기 race condition 발생.
@@ -624,56 +690,6 @@ function RootNav() {
     return () => sub.remove();
   }, [refreshSession]);
 
-  // 앱 버전 체크 — 강제/소프트 업데이트 유도
-  useEffect(() => {
-    if (__DEV__) return;
-    (async () => {
-      try {
-        const API_URL = process.env.EXPO_PUBLIC_API_URL;
-        if (!API_URL) return;
-        const res = await fetch(`${API_URL}/app-version`, { cache: "no-store" });
-        if (!res.ok) return;
-        const data = await res.json();
-        const current = Constants.expoConfig?.version ?? "0.0.0";
-        const platform = Platform.OS === "ios" ? "ios" : "android";
-        const { min_version, latest_version } = data[platform] ?? {};
-        const storeUrl = data.store_urls?.[platform];
-
-        function cmp(a: string, b: string): number {
-          const pa = a.split(".").map(Number);
-          const pb = b.split(".").map(Number);
-          for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-            const d = (pa[i] ?? 0) - (pb[i] ?? 0);
-            if (d !== 0) return d;
-          }
-          return 0;
-        }
-
-        if (min_version && cmp(current, min_version) < 0) {
-          // 강제 업데이트
-          Alert.alert(
-            "업데이트 필요",
-            "더 나은 서비스를 위해 최신 버전으로 업데이트해주세요.\n업데이트 후 계속 이용할 수 있습니다.",
-            [{ text: "업데이트", onPress: () => storeUrl && Linking.openURL(storeUrl) }],
-            { cancelable: false }
-          );
-          return;
-        }
-
-        if (latest_version && cmp(current, latest_version) < 0) {
-          // 소프트 업데이트
-          Alert.alert(
-            "새 버전 출시",
-            "새로운 버전이 출시되었습니다.\n지금 업데이트하시겠어요?",
-            [
-              { text: "나중에" },
-              { text: "업데이트", onPress: () => storeUrl && Linking.openURL(storeUrl) },
-            ]
-          );
-        }
-      } catch (_) {}
-    })();
-  }, []);
 
   // kind가 한 번이라도 설정됐는지 추적 — 로그아웃 감지용
   // (한 번도 로그인 안 한 상태에서 kind=null은 정상: login 화면이 초기 라우트)
@@ -804,15 +820,54 @@ function RootNav() {
                   </Text>
               }
             </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Native 강제 업데이트 Modal — 취소/back button 우회 불가 ──────── */}
+      <Modal
+        visible={showForceModal}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => {}}
+      >
+        <View style={{
+          flex: 1, backgroundColor: "rgba(0,0,0,0.85)",
+          alignItems: "center", justifyContent: "center", paddingHorizontal: 32,
+        }}>
+          <View style={{
+            backgroundColor: "#fff", borderRadius: 20, padding: 28,
+            width: "100%", shadowColor: "#000", shadowOpacity: 0.15,
+            shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 10,
+          }}>
+            <View style={{ alignItems: "center", marginBottom: 16 }}>
+              <View style={{
+                width: 56, height: 56, borderRadius: 16,
+                backgroundColor: "#FEF3C7", alignItems: "center", justifyContent: "center",
+                marginBottom: 12,
+              }}>
+                <Text style={{ fontSize: 26 }}>🔔</Text>
+              </View>
+              <Text style={{ fontSize: 18, fontFamily: "Pretendard-SemiBold", color: "#0F172A" }}>
+                업데이트 필요
+              </Text>
+            </View>
+            <Text style={{
+              fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B",
+              textAlign: "center", lineHeight: 22, marginBottom: 24,
+            }}>
+              더 나은 서비스를 위해{"\n"}최신 버전으로 업데이트해주세요.{"\n"}업데이트 후 계속 이용할 수 있습니다.
+            </Text>
             <Pressable
-              onPress={() => setShowOtaModal(false)}
-              disabled={otaUpdating}
+              onPress={() => forceStoreUrl && Linking.openURL(forceStoreUrl)}
               style={{
-                height: 44, alignItems: "center", justifyContent: "center",
+                backgroundColor: "#EF4444", borderRadius: 12, height: 50,
+                alignItems: "center", justifyContent: "center",
               }}
             >
-              <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#94A3B8" }}>
-                나중에
+              <Text style={{ fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" }}>
+                업데이트
               </Text>
             </Pressable>
           </View>
