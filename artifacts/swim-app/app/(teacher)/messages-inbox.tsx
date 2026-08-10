@@ -503,14 +503,20 @@ export default function MessagesInboxScreen() {
                       setUnreadNewsCount(prev => Math.max(0, prev - 1));
                       apiRequest(token, `/notifications/${item.id}/read`, { method: "POST" }).catch(() => {});
                     }
-                    // 해당 diary로 이동 (댓글은 diary-reactions, 나머지는 diary)
+                    // 해당 diary로 이동
                     if (item.ref_id) {
-                      if (item.type === "diary_comment") {
+                      if (
+                        item.type === "diary_comment" ||
+                        item.type === "diary_like" ||
+                        item.type === "diary_thanks"
+                      ) {
+                        // 반응·댓글 알림 → 반응/댓글 확인 화면
                         router.push({
                           pathname: "/(teacher)/diary-reactions",
                           params: { diaryId: item.ref_id, lessonDate: item.lesson_date ?? "", source: "news_inbox" },
                         } as any);
                       } else {
+                        // 다른 notification type — 기존 동작 유지
                         router.push({
                           pathname: "/(teacher)/diary",
                           params: { editDiaryId: item.ref_id, backTo: "messages-inbox" },
