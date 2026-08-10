@@ -1,0 +1,261 @@
+[OTA 배포 승인 — 보강대기 검색 인덱스 + 보강배정 날짜 UI 제거]
+
+현재 완료된 관련 commit:
+
+검색 인덱스:
+bcf2de5d
+
+보강배정 날짜 UI 제거:
+d792326b
+
+목표:
+두 변경이 현재 HEAD에 모두 포함되어 있는지 먼저 확인한 뒤,
+한 번의 OTA로 같이 배포한다.
+
+중요:
+추가 코드 수정 금지.
+Render 배포 금지.
+DB 변경 금지.
+Native Build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 Commit 포함 여부 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 branch / HEAD 확인.
+
+다음 두 commit이 현재 HEAD history에 모두 포함되어 있어야 함:
+
+bcf2de5d
+- 선생님 보강대기 학생 이름 실시간 검색 인덱스
+
+d792326b
+- 수강생관리 > 보강대기리스트 > 보강배정의 기능 없는 날짜 좌우 이동 UI 제거
+
+확인 방법:
+
+git merge-base --is-ancestor bcf2de5d HEAD
+git merge-base --is-ancestor d792326b HEAD
+
+둘 다 exit code 0이어야 함.
+
+또는 git log로 두 commit 포함 여부 확인.
+
+하나라도 빠져 있으면 OTA 금지.
+임의 cherry-pick 하지 말고 먼저 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 변경 범위 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+검색 인덱스 변경 파일:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+
+날짜 UI 제거 변경 파일:
+
+components/teacher/StudentManagementSheet.tsx
+
+기능 변경 범위:
+
+A. 보강대기 상단 학생 이름 검색
+- 38px 경량 검색창
+- 실시간 local filter
+- 검색 버튼 없음
+- 부분검색
+- on-drag keyboard dismiss
+- keyboardShouldPersistTaps handled
+- clear 지원
+- 재진입 시 검색어 초기화
+
+B. 보강배정 날짜 UI 제거
+- "보강 날짜를 선택하세요" 제거
+- 좌우 날짜 이동 UI 제거
+- DatePicker 함수 제거
+- assignDate state 유지
+- assigned_date: assignDate 유지
+- assignDate는 todayDateStr() 기준 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 절대 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+변경 금지:
+
+- 보강배정 API
+- assigned_date payload
+- 보강 가능반 조회
+- 보강반 배정
+- 인계
+- 소멸
+- 직접완료
+- 학생 선택
+- 출결
+- 스케줄
+- 알림
+- Server
+- DB
+- Native config
+
+특히 날짜 UI를 없앴다고
+assignDate / assigned_date를 제거하지 말 것.
+
+현재 commit 그대로 배포.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. OTA 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Store Production 앱 기준:
+
+runtimeVersion:
+1.6.2
+
+channel:
+production
+
+iOS / Android 모두 production 대상 OTA.
+
+현재 production binary와 runtimeVersion 호환 여부 재확인 후 배포.
+
+instagram-test로 잘못 배포하지 말 것.
+
+preview는 별도 필요가 없다면 임의 배포하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 환경변수
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 앱 bundle에 필요한 Production 환경변수 정상 주입 확인.
+
+특히 기존 Instagram Story 기능이 있으므로:
+
+EXPO_PUBLIC_META_APP_ID=2093655621362240
+
+누락되지 않도록 현재 성공한 Production OTA 방식 유지.
+
+기존 Production env를 변경하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 실기기 검증 — 보강대기 검색
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 1
+선생님 모드 → 보강대기
+→ 상단 작은 검색창 표시
+
+CASE 2
+학생 이름 입력
+→ 검색 버튼 없이 즉시 목록 필터링
+
+CASE 3
+이름 중간 글자 검색
+→ 정상 검색
+
+CASE 4
+검색 중 학생 카드 첫 탭
+→ 기존 액션 바로 실행
+
+CASE 5
+키보드 열린 상태에서 리스트 드래그
+→ 키보드 내려감
+→ 스크롤 즉시 작동
+
+CASE 6
+검색어 clear
+→ 전체 목록 복원
+
+CASE 7
+화면 나갔다 재진입
+→ 검색어 초기화
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 실기기 검증 — 보강배정
+━━━━━━━━━━━━━━━━━━━━━━
+
+경로:
+
+수강생관리
+→ 보강대기리스트
+→ 학생 선택
+→ 보강배정
+
+확인:
+
+CASE 8
+기존:
+< 날짜 >
+
+좌우 이동 UI가 완전히 사라짐
+
+CASE 9
+"보강 날짜를 선택하세요" 라벨 없음
+
+CASE 10
+날짜 UI가 있던 빈 공간 없음
+→ "보강 가능한 반 선택" 영역이 자연스럽게 위로 올라옴
+
+CASE 11
+보강 가능한 반 목록 정상 표시
+
+CASE 12
+보강반 선택 정상
+
+CASE 13
+보강배정 완료 정상
+
+CASE 14
+서버로 전달되는 assigned_date 정상
+
+중요:
+날짜 UI는 없어졌지만
+실제 assigned_date는 기존 todayDateStr() 값을 유지해야 함.
+
+CASE 15
+인계 / 소멸 / 직접완료 회귀 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 배포 중 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+추가 수정 금지.
+
+특히:
+
+- 날짜 선택 기능 새로 만들지 말 것
+- 검색 디자인 재수정 금지
+- 보강 로직 리팩터링 금지
+- 관련 없는 파일 수정 금지
+- Render 배포 금지
+- DB migration 금지
+- Native Build 금지
+
+이번 작업은 이미 검증된 두 commit의 OTA 배포만 수행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Current branch
+2. Current HEAD
+3. bcf2de5d 포함 여부
+4. d792326b 포함 여부
+5. OTA Group ID
+6. iOS Update ID
+7. Android Update ID
+8. runtimeVersion
+9. channel
+10. commit SHA
+11. META_APP_ID 주입 확인
+12. 검색 인덱스 실기기 결과
+13. 실시간 필터 결과
+14. keyboard dismiss 결과
+15. 보강배정 날짜 UI 제거 결과
+16. assigned_date 유지 확인
+17. 보강배정 정상 결과
+18. 인계/소멸/직접완료 회귀 여부
+19. Server 변경 0
+20. DB 변경 0
+21. Native Build 0
+
+배포 및 검증 후 추가 수정 없이 멈춘다.
