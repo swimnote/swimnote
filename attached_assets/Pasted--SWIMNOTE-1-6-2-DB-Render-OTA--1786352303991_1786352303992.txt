@@ -1,0 +1,346 @@
+[긴급 감리 — SWIMNOTE 1.6.2 강제 업데이트 모달 미표시 원인 조사]
+
+중요:
+지금은 코드 수정 금지.
+DB 수정 금지.
+Render 배포 금지.
+OTA 배포 금지.
+원인 조사만 한다.
+
+현재 상황:
+
+- 기존 Production 앱: 1.6.1
+- 신규 앱 버전: 1.6.2
+- 앱에는 새 버전 출시 시
+  업데이트 모달 표시
+  → App Store 이동
+  → 이전 버전 사용 차단
+  기능이 이미 구현되어 있음.
+- 그런데 기존 1.6.1 앱에서 업데이트 모달이 나오지 않음.
+
+직전 확인에서:
+
+GET /api/app-version
+
+응답에 iOS:
+latest_version: "1.6.1"
+
+이 확인된 적이 있음.
+
+따라서 추측하지 말고
+현재 Production의 실제 Version Gate 전체 경로를 추적한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Production API 실제 응답
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Render Production에 직접 요청:
+
+GET /api/app-version
+
+실제 JSON 전체를 그대로 보고.
+
+반드시 확인:
+
+iOS:
+- latest_version
+- minimum_version
+- force_update
+- store_url
+- 기타 관련 필드
+
+Android:
+동일 항목
+
+현재 서버가 실제로
+1.6.2를 알고 있는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 서버 Version 설정 Source 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+/api/app-version 값을 어디서 가져오는지 실제 코드 추적.
+
+확인:
+
+- hardcoded인지
+- DB인지
+- environment variable인지
+- config 파일인지
+- app.json을 읽는지
+
+관련 파일/line 전부 보고.
+
+특히:
+
+1.6.1
+1.6.2
+
+repository 전체 검색.
+
+Version API에서
+latest_version / minimum_version 값이
+어떻게 결정되는지 정확히 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 앱 Version Check 진입점 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱 시작 시 Version Check가 실제 어디서 실행되는지 확인.
+
+확인:
+
+App root
+SessionContext
+_layout
+Splash
+Auth
+Home
+
+중 어디에서 호출되는지.
+
+다음 흐름을 실제 코드로 보고:
+
+앱 실행
+→ appVersion 획득
+→ /api/app-version 호출
+→ 현재 버전 비교
+→ 업데이트 필요 판정
+→ Modal 표시
+→ Store 이동
+→ 구버전 차단
+
+각 파일/함수/line 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 현재 앱 버전 취득 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱에서 현재 설치 버전을 무엇으로 읽는지 확인.
+
+예:
+
+Constants.expoConfig?.version
+Application.nativeApplicationVersion
+expo-application
+기타
+
+Production 1.6.1 설치본에서
+실제로 비교되는 값이 무엇인지 코드 기준으로 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Version 비교 로직
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 실제 비교 함수를 조사.
+
+예:
+
+currentVersion < latestVersion
+
+같은 문자열 비교인지,
+
+semver 비교인지,
+
+major/minor/patch를 숫자로 분리하는지 확인.
+
+다음 CASE를 코드로 검증:
+
+1.6.1 vs 1.6.2
+→ UPDATE REQUIRED
+
+1.6.2 vs 1.6.2
+→ PASS
+
+1.6.10 vs 1.6.2
+→ PASS
+
+2.0.0 vs 1.6.2
+→ PASS
+
+문자열 단순 비교라면 버그 가능성 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 강제 업데이트 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+모달이 단순 latest_version 비교인지,
+minimum_version 이하에서만 나오는지 확인.
+
+예:
+
+current < latest
+current < minimum
+force_update === true
+mandatory === true
+
+등 실제 조건 확인.
+
+사용자가 원하는 정책은:
+
+새 Production 버전이 강제 업데이트 대상으로 설정되면
+
+기존 버전:
+1.6.1
+
+새 버전:
+1.6.2
+
+일 때
+
+1.6.1 사용자는 앱 진입 차단
+→ 업데이트 모달
+→ App Store 이동
+
+이어야 한다.
+
+현재 코드가 이 정책과 일치하는지 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. App Store 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 없이 현재 설정된 Store URL 확인.
+
+iOS store URL이
+SWIMNOTE 실제 App Store 앱으로 연결되는지 확인.
+
+App Store Connect에 1.6.2가
+실제로 사용자에게 배포 가능한 상태인지도
+확인 가능한 범위에서 보고.
+
+중요:
+
+Build 업로드 완료
+≠
+App Store 공개 완료
+
+이 둘을 구분해서 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. OTA와 Native Version 구분
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Version Gate가
+
+Expo OTA runtimeVersion
+
+을 비교하는 것인지,
+
+App Store Native appVersion
+
+을 비교하는 것인지 확인.
+
+강제 Store Update는 반드시
+Native App Version 기준이어야 한다.
+
+OTA channel:
+production / instagram-test
+
+가 Version Gate 판정에 영향을 주는지도 조사.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 실기기에서 모달이 안 뜨는 직접 원인 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 중 무엇인지 증거로 판정:
+
+A. Server latest_version 아직 1.6.1
+
+B. minimum_version 아직 1.6.1
+
+C. force_update=false
+
+D. Version Check API 자체 미호출
+
+E. API 호출 실패
+
+F. Version 비교 버그
+
+G. Modal state/UI 버그
+
+H. 로그인/세션 흐름에서 Version Check 우회
+
+I. OTA와 Native version 혼동
+
+J. Store release 자체가 아직 1.6.2가 아님
+
+K. 기타
+
+복수 원인이면 각각 분리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+원인 확정 전:
+
+- version 숫자 변경 금지
+- server 코드 변경 금지
+- app 코드 변경 금지
+- DB 변경 금지
+- Render deploy 금지
+- OTA 금지
+- Native rebuild 금지
+
+특히 기존 Production 1.6.2 소스는
+절대 건드리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. 현재 Production /api/app-version 전체 응답
+
+B. iOS latest_version
+
+C. iOS minimum_version
+
+D. force_update 값
+
+E. 현재 Store URL
+
+F. Version API source 파일/line
+
+G. 앱 Version Check 파일/함수/line
+
+H. 현재 설치 version 취득 방식
+
+I. 비교 함수
+
+J. 1.6.1 → 1.6.2 판정 결과
+
+K. Modal 표시 조건
+
+L. 구버전 차단 조건
+
+M. App Store 이동 함수
+
+N. OTA 관여 여부
+
+O. App Store 1.6.2 공개 여부
+
+P. 마지막 정상 stage
+
+Q. 최초 실패 stage
+
+R. 직접 원인
+
+S. 원인 확정 YES/NO
+
+T. 최소 수정 대상
+
+U. App 수정 필요 여부
+
+V. Server 수정 필요 여부
+
+W. DB 수정 필요 여부
+
+X. Render 필요 여부
+
+Y. OTA 필요 여부
+
+Z. Native Build 필요 여부
+
+조사 완료 후 멈춘다.
+수정하지 않는다.
