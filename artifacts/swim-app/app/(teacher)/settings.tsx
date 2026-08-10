@@ -18,7 +18,6 @@ import {
   ActivityIndicator, Alert, Pressable,
   RefreshControl, ScrollView, StyleSheet, Switch, Text, View,
 } from "react-native";
-import { runStorageDiagnostic, formatDiagnosticAlert } from "@/utils/storageDiagnostic";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -62,23 +61,6 @@ export default function TeacherSettingsScreen() {
   const [refreshing,   setRefreshing]   = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [diagRunning, setDiagRunning] = useState(false);
-
-  // ── Storage Diagnostic (임시 직접 버튼) ──────────────────────────────────
-  async function runDiag() {
-    if (diagRunning) return;
-    setDiagRunning(true);
-    try {
-      const result = await runStorageDiagnostic();
-      const { title, message } = formatDiagnosticAlert(result);
-      Alert.alert(title, message, [{ text: "확인" }]);
-    } catch (e: any) {
-      Alert.alert("진단 실패", e?.message ?? String(e));
-    } finally {
-      setDiagRunning(false);
-    }
-  }
-
   async function handleDeleteAccount(immediate: boolean) {
     setDeleteLoading(true);
     try {
@@ -435,26 +417,6 @@ export default function TeacherSettingsScreen() {
           onPress={() => setDeleteConfirm(true)}
         >
           <Text style={s.deleteBtnText}>회원 탈퇴</Text>
-        </Pressable>
-
-        {/* ── [임시] 저장공간 진단 버튼 — 실기기 측정 완료 후 제거 예정 ── */}
-        <Pressable
-          onPress={runDiag}
-          disabled={diagRunning}
-          style={({ pressed }) => ({
-            marginTop: 8,
-            alignItems: "center",
-            paddingVertical: 12,
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: "#CBD5E1",
-            backgroundColor: pressed ? "#F1F5F9" : "#F8FAFC",
-            opacity: diagRunning ? 0.6 : 1,
-          })}
-        >
-          <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular" }}>
-            {diagRunning ? "측정 중…" : "저장공간 진단"}
-          </Text>
         </Pressable>
 
       </ScrollView>

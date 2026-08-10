@@ -9,7 +9,6 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { runStorageDiagnostic, formatDiagnosticAlert } from "@/utils/storageDiagnostic";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -83,21 +82,7 @@ export default function SuperMoreScreen() {
   });
   const [totpEnabled, setTotpEnabled] = useState<boolean | null>(null);
   const [unreadInquiries, setUnreadInquiries] = useState(0);
-  const [diagRunning, setDiagRunning] = useState(false);
 
-  // ── Storage Diagnostic (super admin 전용) ─────────────────────────────────
-  async function runDiag() {
-    if (diagRunning) return;
-    setDiagRunning(true);
-    try {
-      const result = await runStorageDiagnostic();
-      const { title, message } = formatDiagnosticAlert(result);
-      Alert.alert(title, message, [{ text: "확인" }]);
-    } catch (e: any) {
-      Alert.alert("진단 실패", e?.message ?? String(e));
-    } finally {
-      setDiagRunning(false);
-    }
   }
 
   const fetchRisk = useCallback(async () => {
@@ -249,11 +234,6 @@ export default function SuperMoreScreen() {
           icon: "bell", label: "공지 관리",
           sub: "전체·관리자·선생님·학부모 공지 등록",
           color: "navy", onPress: go("/(super)/notices"),
-        },
-        {
-          icon: "hard-drive", label: diagRunning ? "진단 실행 중…" : "Storage Diagnostic",
-          sub: "실기기 Documents/Cache 용량 측정 — 삭제 없음",
-          color: "slate" as any, onPress: () => runDiag(),
         },
       ],
     },
