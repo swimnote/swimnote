@@ -1763,30 +1763,18 @@ export default function ParentHomeScreen() {
 
       {/* C. AI 기능 버튼 (AI 성장 리포트 + AI 커리큘럼 검색) */}
       {selectedStudent && (
-        <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginTop: 6, marginBottom: 4 }}>
+        <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 16, marginTop: 14, marginBottom: 14 }}>
           <Pressable
             onPress={() => setAiModalType("report")}
-            style={({ pressed }) => ({
-              flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-              gap: 6, paddingVertical: 11, borderRadius: 12,
-              borderWidth: 1.5, borderColor: NAVY,
-              backgroundColor: "#fff", opacity: pressed ? 0.7 : 1,
-            })}
+            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
           >
-            <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 22, height: 22 }} resizeMode="contain" />
-            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: NAVY }}>AI 성장 리포트</Text>
+            <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 28 }} resizeMode="contain" />
           </Pressable>
           <Pressable
             onPress={() => setAiModalType("curriculum")}
-            style={({ pressed }) => ({
-              flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-              gap: 6, paddingVertical: 11, borderRadius: 12,
-              borderWidth: 1.5, borderColor: NAVY,
-              backgroundColor: "#fff", opacity: pressed ? 0.7 : 1,
-            })}
+            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
           >
-            <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 22, height: 22 }} resizeMode="contain" />
-            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: NAVY }}>AI 커리큘럼 검색</Text>
+            <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 28 }} resizeMode="contain" />
           </Pressable>
         </View>
       )}
