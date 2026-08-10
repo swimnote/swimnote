@@ -1,0 +1,287 @@
+[긴급 복구 승인 — Cleanup V2 startup crash 1줄 수정 + Production OTA 재배포]
+
+원인 확정:
+
+Cleanup V2 OTA abebbe54 이후 앱 시작 시
+
+ReferenceError:
+Can't find variable: isActive
+
+발생.
+
+정확한 위치:
+
+artifacts/swim-app/app/_layout.tsx
+
+RootNav 내부:
+
+useEffect(() => {
+  runMediaCleanupV2(isActive).catch(() => {});
+}, []);
+
+문제:
+
+isActive는 RootNav scope에 존재하지 않는다.
+
+isActive는 UploadProgressModal 내부의
+useUploadQueue() destructuring 변수일 뿐이며
+RootNav에서는 접근 불가능하다.
+
+따라서 Metro bundle은 생성되었지만
+실기기 runtime에서 ReferenceError 발생
+→ ErrorBoundary
+→ ErrorFallback
+→ "Something went wrong"
+
+현재 Cleanup V2 자체는 실행되기 전에 crash하므로
+기존 3.26GB cache나 사용자 데이터는 건드려지지 않았다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 긴급 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 파일:
+
+artifacts/swim-app/app/_layout.tsx
+
+1개만.
+
+현재:
+
+useEffect(() => {
+  runMediaCleanupV2(isActive).catch(() => {});
+}, []);
+
+변경:
+
+useEffect(() => {
+  runMediaCleanupV2(false).catch(() => {});
+}, []);
+
+이유:
+
+현재 UploadQueueContext는 in-memory only이며
+앱 startup 시점에는 active upload가 존재하지 않는다.
+
+Cleanup V2 startup 호출에 false를 전달하여
+기존 설계의 "업로드 중이면 ImagePicker cleanup skip"
+gate를 startup 상황에 맞게 처리한다.
+
+이번 긴급 복구에서
+UploadQueue 구조를 리팩터링하거나
+RootNav에 useUploadQueue를 새로 연결하지 않는다.
+
+최소 수정 1줄 원칙.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 절대 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 파일/기능 수정 금지:
+
+utils/mediaCleanupV2.ts
+utils/storageDiagnostic.ts
+UploadQueueContext.tsx
+cachePolicy="memory" 적용부
+Image.clearDiskCache()
+ImagePicker cleanup
+DiaryPhotoStrip
+parent/photos
+teacher/photos
+StoryPageRenderer
+
+그리고:
+
+Server
+DB
+R2
+Native config
+app.json
+eas.json
+
+전부 변경 금지.
+
+이번 작업 목적은 startup ReferenceError 제거뿐이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. TypeScript 검증 — 필수
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 TypeScript 에러를 절대 무시하지 않는다.
+
+수정 전 확인된 오류:
+
+app/_layout.tsx
+Cannot find name 'isActive'
+
+수정 후:
+
+_layout.tsx 관련 신규 TypeScript error = 0
+
+특히:
+
+isActive unresolved reference = 0
+
+반드시 직접 확인.
+
+기존 unrelated pre-existing 오류는 별도 구분.
+
+TypeCheck에서 _layout.tsx 오류가 하나라도 남아 있으면
+OTA 배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Diff 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+commit 전 반드시 확인:
+
+git diff
+
+기능 코드 변경:
+
+app/_layout.tsx 1줄
+
+만 존재해야 한다.
+
+attached_assets / txt 파일은
+기능 코드와 구분.
+
+다른 앱 파일 diff가 있으면
+임의 정리하지 말고 STOP 후 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Commit
+━━━━━━━━━━━━━━━━━━━━━━
+
+1줄 수정 후 commit.
+
+commit SHA 보고.
+
+commit 후 다시 확인:
+
+- abebbe54가 HEAD history에 포함
+- Cleanup V2 전체 구현 유지
+- 신규 hotfix commit이 그 위에 존재
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Production OTA 긴급 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+TypeCheck PASS 후 바로:
+
+runtimeVersion = 1.6.2
+channel = production
+
+iOS + Android 모두 OTA 배포.
+
+이번 건은 현재 production 앱 startup 장애 복구이므로
+별도 기능 추가 없이 즉시 복구 OTA 진행.
+
+preview / instagram-test 배포는 이번 긴급 복구 대상 아님.
+
+기존 정상 Production 환경변수 사용.
+
+Native Build 금지.
+Render 배포 금지.
+DB 작업 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. OTA 배포 후 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 보고:
+
+1. 수정 파일
+2. Before
+3. After
+4. TypeCheck 결과
+5. _layout.tsx error = 0 여부
+6. commit SHA
+7. Source SHA
+8. iOS Production Group ID
+9. iOS Update ID
+10. Android Production Group ID
+11. Android Update ID
+12. runtimeVersion
+13. channel
+14. abebbe54 포함 여부
+15. Cleanup V2 코드 유지 여부
+16. Server 변경 = 0
+17. DB 변경 = 0
+18. R2 변경 = 0
+19. Native Build = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 실기기 복구 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA 배포 후 사용자가 직접 확인한다.
+
+현재 오류 기기에서:
+
+1. 앱 완전 종료
+2. 앱 실행
+3. 새 OTA 다운로드 시간을 위해 잠시 대기
+4. 앱 완전 종료
+5. 재실행
+
+성공 기준:
+
+- "Something went wrong" 화면 사라짐
+- 정상 로그인/홈 진입
+- 앱 startup crash 없음
+
+그 후에만:
+
+설정
+→ 저장공간 진단
+
+실행.
+
+Cleanup V2 결과를 재측정한다.
+
+기존 기준:
+
+Documents = 0 B
+Cache = 3.26 GB
+
+SDImageCache = 2.38 GB
+ImagePicker = 894.4 MB
+
+새 진단 수치 확인 전
+Cleanup V2 성공 여부를 미리 확정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 중요 — 추가 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+긴급 복구 OTA 배포 후:
+
+Cleanup V3 금지
+추가 cache 수정 금지
+진단 UI 제거 금지
+업로드 로직 수정 금지
+
+앱 정상 부팅 + Storage Diagnostic 실측 결과를 받은 뒤
+다음 판단을 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료 보고 마지막
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시:
+
+CAUSE = RootNav scope의 미선언 isActive ReferenceError
+
+FIX = runMediaCleanupV2(false)
+
+CODE CHANGED = YES (1 line)
+OTA CHANGED = YES
+RENDER CHANGED = 0
+DB CHANGED = 0
+R2 CHANGED = 0
+NATIVE BUILD = 0
+
+라고 기록.
+
+긴급 복구 OTA 완료 후 STOP.
