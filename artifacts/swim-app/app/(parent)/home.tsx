@@ -1768,13 +1768,13 @@ export default function ParentHomeScreen() {
             onPress={() => setAiModalType("report")}
             style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
           >
-            <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 28 }} resizeMode="contain" />
+            <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 28, height: 37 }} resizeMode="contain" />
           </Pressable>
           <Pressable
             onPress={() => setAiModalType("curriculum")}
             style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
           >
-            <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 28 }} resizeMode="contain" />
+            <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 28, height: 37 }} resizeMode="contain" />
           </Pressable>
         </View>
       )}
