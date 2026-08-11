@@ -1,0 +1,360 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE — X MODE RESTART CHECKPOINT
+WP-X-RESTART-0
+
+목적:
+X모드 개발 재개 전에 현재 SWIMNOTE APP + API SERVER 상태를
+정확히 실측하고 Git 원격 저장소에 복구 가능한 기준점으로 보존한다.
+
+중요:
+이번 단계에서는 X 기능 개발 금지.
+기능 수정 금지.
+리팩터링 금지.
+코드 정리 금지.
+
+현재 상태 파악 + 안전한 Repository 체크포인트 생성만 한다.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+1. 현재 Git 상태 실측
+━━━━━━━━━━━━━━━━━━━━
+
+Repository root에서 실제 명령 결과 제출:
+
+git branch --show-current
+git rev-parse HEAD
+git log -1 --oneline
+git status --short
+git status
+git remote -v
+git rev-parse --abbrev-ref --symbolic-full-name @{u}
+
+제출:
+
+- 현재 branch
+- HEAD SHA 전체
+- HEAD short SHA
+- upstream branch
+- working tree clean 여부
+- untracked 파일
+- modified 파일
+- staged 파일
+- ahead / behind 여부
+
+추측 금지.
+
+
+2. 현재 변경사항 전수 분류
+━━━━━━━━━━━━━━━━━━━━
+
+git diff --name-only
+git diff --stat
+git diff --cached --name-only
+
+현재 HEAD 이후 변경된 모든 파일을 분류:
+
+A. 실제 SWIMNOTE 기능 변경
+B. Instagram Story 관련
+C. Diary 관련
+D. 학부모 요청 관련
+E. X mode 관련
+F. 진단 코드
+G. generated/mockup/build artifact
+H. 임시 파일
+I. attached_assets 등 Repository에 넣으면 안 되는 파일
+
+파일 하나도 생략하지 말 것.
+
+특히 자동 생성 파일이 섞여 있으면
+임의로 commit하지 않는다.
+
+
+3. 현재 APP 배포 기준 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 앱 기준을 실제 Repository/config에서 확인:
+
+- app version
+- iOS buildNumber
+- Android versionCode
+- runtimeVersion
+- Expo SDK
+- React Native version
+- production update channel/branch 설정
+- preview channel/branch 설정
+
+최근 실제 OTA 정보도 Repository/배포 기록에서 확인 가능한 범위 제출.
+
+현재 새 Instagram 공유 기능 빌드가
+어느 commit SHA를 기준으로 만들어졌는지 확인 가능하면 제출.
+
+확인 불가능하면 "확인 불가"라고 명시.
+추측 금지.
+
+
+4. 현재 API SERVER Production 기준 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 api-server HEAD와
+Render Production에 올라간 SHA를 비교.
+
+제출:
+
+- Repository server HEAD
+- Render Live SHA
+- Render Deploy ID
+- /api/health 상태
+- Repository HEAD와 Render SHA 동일/상이
+
+Instagram Story 서버 작업 포함 여부도 확인.
+
+단 Render 재배포 금지.
+
+
+5. 현재 주요 기능 보존 상태 확인
+━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 없이 현재 Repository에 다음이 존재하는지만 확인:
+
+[보강]
+- Production stable baseline 관련 보호 문서/태그
+- 현재 makeup 관련 regression test
+
+[Diary]
+- DiaryAIModalV2 StudentNoteCard 긴 입력 수정
+- AlbumPicker 사진 재사용 수정
+- 잘못된 DIAG 패널 제거 상태
+
+[Parent Request]
+- 현재 구현된 최신 요청사항 기능
+
+[Instagram]
+- Story 공유 관련 현재 앱 코드
+- story-summary 서버 route
+
+[X MODE]
+- 기존 X mode DB/API/UI 관련 코드
+- WP6 AI Diary V2 관련 코드
+
+각 항목:
+PRESENT / ABSENT / UNKNOWN
+
+으로 제출.
+
+코드 수정 금지.
+
+
+6. Regression Gate 현재 상태
+━━━━━━━━━━━━━━━━━━━━
+
+기존 테스트만 실행.
+
+새 테스트 작성 금지.
+
+제출:
+
+- 실행한 test command
+- 총 test file 수
+- pass / fail
+- 실패가 기존 오류인지 신규인지
+- TypeScript check 결과
+- build check 결과
+
+테스트 때문에 Production 데이터 변경 금지.
+
+
+7. 기존 Git Tag / X 체크포인트 조사
+━━━━━━━━━━━━━━━━━━━━
+
+git tag --list
+
+특히 다음 계열 확인:
+
+- makeup production stable tag
+- X mode 관련 tag
+- diary 관련 checkpoint
+- release/build 관련 tag
+
+기존 X 재개 지점과 관련된 commit SHA가 있으면 제출.
+
+기존 tag 이동/삭제 금지.
+
+
+8. X MODE 현재 구현 위치 확인
+━━━━━━━━━━━━━━━━━━━━
+
+기존 X 작업을 새로 시작하지 말고
+현재 Repository에서 실제 구현 상태만 확인.
+
+다음 항목별로:
+
+NOT_STARTED
+PARTIAL
+IMPLEMENTED
+TESTED
+PRODUCTION_APPLIED
+
+중 하나로 판정하고 근거 파일/테스트 제출.
+
+- WP1 DB Migration
+- WP2 RevenueCat / Entitlement Sync
+- WP3 X 설정 UI
+- WP4 Global Template
+- WP5 X 잠금/활성화
+- WP6 AI Diary V2
+- WP7 Growth Event
+- WP8 이후
+
+과거 보고서만 복사하지 말고
+현재 Repository 실제 코드 기준으로 판정.
+
+
+9. 안전 체크포인트 생성 조건
+━━━━━━━━━━━━━━━━━━━━
+
+먼저 §1~§8 조사 완료.
+
+그 다음 아래 조건을 모두 만족할 때만 체크포인트 생성:
+
+- 기능성 미커밋 코드 없음
+또는
+- 모든 미커밋 변경의 정체가 명확히 확인됨
+- 임시 진단 코드 없음
+- build/generated 불필요 파일 없음
+- 테스트에서 치명적 신규 실패 없음
+
+조건을 만족하지 않으면:
+
+CHECKPOINT 생성 금지.
+문제 파일 목록 제출 후 STOP.
+
+
+10. 체크포인트 생성
+━━━━━━━━━━━━━━━━━━━━
+
+안전 조건 충족 시:
+
+현재 정상 코드를 먼저
+현재 작업 branch의 origin에 Push하여
+remote에 HEAD가 존재하도록 확인.
+
+새 기능 변경은 하지 않는다.
+
+그 후 annotated tag 생성:
+
+swimnote-pre-xmode-stable-2026-08-12
+
+tag message:
+
+"SWIMNOTE stable repository checkpoint before X mode development restart - 2026-08-12"
+
+그리고 origin에 tag push.
+
+중요:
+
+- 기존 tag 덮어쓰기 금지
+- force push 금지
+- branch history rewrite 금지
+- rebase 금지
+- squash 금지
+- reset --hard 금지
+- 기존 makeup stable tag 변경 금지
+
+
+11. 체크포인트 검증
+━━━━━━━━━━━━━━━━━━━━
+
+생성 후 반드시 검증:
+
+git rev-parse HEAD
+git rev-list -n 1 swimnote-pre-xmode-stable-2026-08-12
+git status
+git ls-remote --tags origin | grep swimnote-pre-xmode-stable-2026-08-12
+
+검증 조건:
+
+HEAD SHA
+=
+tag SHA
+=
+origin에 push된 SHA
+
+working tree도 최종 상태 제출.
+
+
+12. 복구 명령 제출
+━━━━━━━━━━━━━━━━━━━━
+
+나중에 X 작업이 잘못되어도
+현재 상태로 복구할 수 있도록
+실제 생성된 tag 기준 복구 명령을 보고서에 작성.
+
+단 지금 실행하지 않는다.
+
+예:
+
+git fetch origin --tags
+git checkout swimnote-pre-xmode-stable-2026-08-12
+
+또는 복구용 새 branch 생성 방법을 제출.
+
+현재 branch에 reset 명령 실행 금지.
+
+
+13. 절대 금지
+━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서 금지:
+
+- X 기능 구현
+- X DB migration 실행
+- DB 데이터 변경
+- Render 재배포
+- EAS OTA
+- 새 Store Build
+- Instagram 기능 수정
+- Diary 수정
+- 학부모 요청 수정
+- 보강 수정
+- dependency update
+- package upgrade
+- formatting 전체 적용
+- 자동 코드 정리
+- 기존 tag 변경
+- force push
+
+
+14. 최종 제출 보고서
+━━━━━━━━━━━━━━━━━━━━
+
+다음 순서 그대로 제출:
+
+1. 현재 branch
+2. 현재 HEAD SHA
+3. upstream
+4. working tree 상태
+5. 미커밋 파일 전부
+6. APP version/build/runtime
+7. 현재 Store Build 기준 SHA 확인 여부
+8. Render Live SHA
+9. Render Deploy ID
+10. APP HEAD와 Render 관계
+11. 주요 기능 PRESENT/ABSENT 표
+12. Regression Gate 결과
+13. TypeScript/build 결과
+14. 기존 주요 tag 목록
+15. X WP1~WP8 현재 실제 상태
+16. 체크포인트 생성 가능 여부
+17. 생성한 checkpoint commit SHA
+18. 생성한 tag
+19. origin tag 존재 확인
+20. 최종 git status
+21. 복구 방법
+
+체크포인트 생성이 안전하지 않으면
+절대 억지로 생성하지 말고
+"CHECKPOINT BLOCKED"와 이유를 제출하고 중단.
+
+완료 후 X 개발 시작 금지.
+보고서 제출 후 STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
