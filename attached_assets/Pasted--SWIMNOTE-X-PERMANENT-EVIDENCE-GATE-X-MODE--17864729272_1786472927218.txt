@@ -1,0 +1,276 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — PERMANENT EVIDENCE GATE
+X MODE 작업 저장/적용 검증 규칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+지금부터 모든 SWIMNOTE X WP에 영구 적용.
+
+중요:
+"코드 구현 완료", "테스트 PASS"만으로
+WP 완료 보고 금지.
+
+각 WP는 실제 저장 위치와 실제 Runtime까지
+증명해야 최종 완료로 인정한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. CODE SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━
+
+Repository 변경은 작업 완료 즉시:
+
+1. git diff 확인
+2. Regression test
+3. Commit
+4. origin/deploy-photo-clone Push
+5. full Commit SHA 제출
+
+Replit local working tree에만 존재하는 코드는
+완료로 인정하지 않는다.
+
+보고 시 반드시:
+
+CODE_IMPLEMENTED
+CODE_COMMITTED
+CODE_PUSHED
+
+를 각각 표시.
+
+origin push가 확인되지 않으면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+2. DB SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE Production DB 검증은 반드시:
+
+SUPABASE_DATABASE_URL
+
+만 사용.
+
+금지:
+
+executeSql environment:"production"
+DATABASE_URL
+PGDATABASE
+Replit Neon
+heliumdb
+기타 local DB
+
+DB 관련 WP 보고에는 항상:
+
+DB_ENV=SUPABASE_DATABASE_URL
+DB_HOST=<masked supabase host>
+DB_NAME=postgres
+
+를 먼저 출력.
+
+그리고 실제 생성/변경 대상:
+
+table
+column
+row
+status
+
+를 READ BACK하여 제출.
+
+"migration 성공 메시지"만으로 완료 판정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. SERVER SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━
+
+Server/API 변경이 있는 WP:
+
+코드 commit/push 이후
+배포 승인된 경우 Render에 실제 배포.
+
+반드시 제출:
+
+- Render Deploy ID
+- Render Live SHA
+- Git Commit SHA
+- Live SHA == intended server SHA 여부
+- /api/health
+- 신규 endpoint 실제 HTTP status
+- 신규 endpoint 실제 response body
+
+Route 파일이 Repository에 있다는 이유만으로
+PRODUCTION_APPLIED 판정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. APP SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━
+
+App 변경이 있는 WP:
+
+실제 OTA 또는 Build 적용 전에는
+APP_RUNTIME_VERIFIED 판정 금지.
+
+배포 승인 후 반드시 제출:
+
+- OTA branch/channel
+- Update Group ID
+- iOS/Android Update ID
+- runtimeVersion
+- 포함 Commit SHA 확인 가능한 범위
+
+그리고 실기기에서 실제 기능 확인.
+
+실기기 확인 전 상태는:
+
+APP_IMPLEMENTED
+또는
+APP_DEPLOYED_NOT_VERIFIED
+
+로만 표시.
+
+DONE 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. X 전용 SAMPLE POOL
+━━━━━━━━━━━━━━━━━━━━
+
+X Runtime 검증은 가능한 경우 기존 sample pool 사용:
+
+pool_1784310621737_qryl1x79s
+
+현재 Production 기준:
+
+xmode_entitlement=true
+xmode_config_status=READY
+
+단 WP에 따라 NOT_CONFIGURED /
+CURRICULUM_PENDING 테스트가 필요하면
+
+기존 READY sample pool을 임의 변경하지 않는다.
+
+Production 데이터를 테스트용으로 변경해야 할 경우
+반드시 먼저 승인 요청.
+
+테스트용 상태를 임의 조작하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+6. WP별 증거표 필수
+━━━━━━━━━━━━━━━━━━━━
+
+각 WP 최종 보고서 마지막에 반드시:
+
+CODE
+[ ] implemented
+[ ] tests passed
+[ ] committed
+[ ] pushed
+SHA:
+
+DB
+[ ] not applicable
+또는
+[ ] SUPABASE_DATABASE_URL verified
+[ ] schema/row read-back verified
+
+SERVER
+[ ] not applicable
+또는
+[ ] Render deployed
+[ ] Live SHA verified
+[ ] API runtime verified
+
+APP
+[ ] not applicable
+또는
+[ ] OTA/build deployed
+[ ] real-device verified
+
+FINAL STATUS:
+IMPLEMENTED
+COMMITTED
+PUSHED
+DEPLOYED
+RUNTIME_VERIFIED
+DONE
+
+중 정확한 단계 하나를 표시.
+
+증거 없는 DONE 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 다음 WP 진행 조건
+━━━━━━━━━━━━━━━━━━━━
+
+기본 원칙:
+
+현재 WP의 코드가 최소한
+
+COMMIT + ORIGIN PUSH
+
+되기 전 다음 WP로 넘어가지 않는다.
+
+서버/앱 적용을 지금 하지 않는 경우에도
+remote Git에는 반드시 보존한다.
+
+그 경우:
+
+"IMPLEMENTED + PUSHED / DEPLOYMENT PENDING"
+
+으로 명시.
+
+나중에 배포 검증할 때
+해당 SHA에서 그대로 재개 가능해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 자료 없음 방지
+━━━━━━━━━━━━━━━━━━━━
+
+과거 보고서를 완료 증거로 사용하지 않는다.
+
+항상 현재 시점에서:
+
+- origin Git
+- Production Supabase
+- Render Live
+- Expo Runtime
+
+중 해당되는 실제 Source of Truth를 조회한다.
+
+"이전에 구현했다고 보고됨"
+"파일이 있었던 것으로 추정"
+같은 문장으로 PRESENT 판정 금지.
+
+실제 조회 불가능하면:
+
+UNKNOWN
+
+으로 판정.
+
+━━━━━━━━━━━━━━━━━━━━
+9. WP3부터 즉시 적용
+━━━━━━━━━━━━━━━━━━━━
+
+현재 진행 예정 WP3에도 이 규칙을 적용.
+
+WP3 구현 완료 후 바로 DONE이라고 보고하지 말 것.
+
+먼저:
+
+구현
+→ 테스트
+→ Commit
+→ origin Push
+→ SHA 제출
+
+까지 한다.
+
+그 후 검수 승인을 받고
+Render + OTA 적용.
+
+최종적으로 실제 앱에서:
+
+NOT_CONFIGURED
+→ 커리큘럼 요청
+→ CURRICULUM_PENDING
+
+흐름이 확인되어야 WP3 DONE.
+
+━━━━━━━━━━━━━━━━━━━━
+이 규칙은 이후 WP4, WP5, WP7... 전부 동일 적용.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
