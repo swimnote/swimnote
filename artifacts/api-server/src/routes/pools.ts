@@ -699,4 +699,245 @@ router.patch("/homepage/settings", requireAuth, requireRole("pool_admin", "super
   }
 });
 
+// ── WP3: POST /pools/x-request ────────────────────────────────────────────
+//
+// pool_admin이 X 커리큘럼 설정 요청을 제출한다.
+//
+// 사전조건 (Transaction 내):
+//   A. pool 존재 (SELECT FOR UPDATE)
+//   B. xmode_entitlement = true
+//   C. xmode_config_status = 'NOT_CONFIGURED'  (READY/CURRICULUM_PENDING이면 거부)
+//   D. pending 또는 reviewing 상태 요청이 이미 없어야 함 (중복 방지)
+//
+// 성공 시 (같은 Transaction):
+//   1. curriculum_requests INSERT (request_status='pending')
+//   2. swimming_pools.xmode_config_status = 'CURRICULUM_PENDING' UPDATE
+//   3. audit_logs INSERT
+//
+// poolId는 request body에서 받지 않음 — authenticated userId → users.swimming_pool_id
+//
+router.post(
+  "/x-request",
+  requireAuth,
+  requireRole("pool_admin"),
+  async (req: AuthRequest, res) => {
+    const userId = req.user!.userId;
+    try {
+      // poolId: DB에서 결정 (JWT 신뢰 금지)
+      const userRow = await db.execute(sql`
+        SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1
+      `);
+      const poolId: string | null = (userRow.rows[0] as any)?.swimming_pool_id ?? null;
+      if (!poolId) {
+        res.status(403).json({ error: "수영장 정보가 없습니다." });
+        return;
+      }
+
+      let resultRequest: Record<string, unknown> | null = null;
+      let resultPoolMode: Record<string, unknown> | null = null;
+
+      await db.transaction(async (tx) => {
+        // A. pool SELECT FOR UPDATE
+        const poolRows = await tx.execute(sql`
+          SELECT id, xmode_entitlement, xmode_config_status
+          FROM swimming_pools
+          WHERE id = ${poolId}
+          LIMIT 1
+          FOR UPDATE
+        `);
+        if (!poolRows.rows.length) {
+          const e: any = new Error("POOL_NOT_FOUND");
+          e.status = 404; e.code = "POOL_NOT_FOUND";
+          throw e;
+        }
+        const pool = poolRows.rows[0] as any;
+
+        // B. entitlement 확인
+        if (!pool.xmode_entitlement) {
+          const e: any = new Error("X entitlement 없음");
+          e.status = 403; e.code = "NO_ENTITLEMENT";
+          throw e;
+        }
+
+        // C. config_status 확인
+        const configStatus: string = pool.xmode_config_status;
+        if (configStatus === "READY") {
+          const e: any = new Error("이미 X 설정 완료 상태입니다.");
+          e.status = 409; e.code = "ALREADY_READY";
+          throw e;
+        }
+        if (configStatus === "CURRICULUM_PENDING") {
+          // 중복 방지: 현재 진행 중 요청 반환
+          const activeRows = await tx.execute(sql`
+            SELECT id, request_status, title, created_at, updated_at
+            FROM curriculum_requests
+            WHERE swimming_pool_id = ${poolId}
+              AND request_status IN ('pending', 'reviewing')
+            ORDER BY created_at DESC
+            LIMIT 1
+          `);
+          const e: any = new Error("커리큘럼 요청이 이미 진행 중입니다.");
+          e.status = 409; e.code = "ALREADY_PENDING";
+          e.existingRequest = activeRows.rows[0] ?? null;
+          throw e;
+        }
+
+        // D. NOT_CONFIGURED 확인 후 pending/reviewing 중복 방지
+        const dupRows = await tx.execute(sql`
+          SELECT id FROM curriculum_requests
+          WHERE swimming_pool_id = ${poolId}
+            AND request_status IN ('pending', 'reviewing')
+          LIMIT 1
+          FOR UPDATE
+        `);
+        if (dupRows.rows.length) {
+          const e: any = new Error("커리큘럼 요청이 이미 존재합니다.");
+          e.status = 409; e.code = "DUPLICATE_REQUEST";
+          throw e;
+        }
+
+        // 1. curriculum_requests INSERT
+        const title = "SWIMNOTE X 커리큘럼 설정 요청";
+        const insertedRows = await tx.execute(sql`
+          INSERT INTO curriculum_requests (
+            swimming_pool_id, request_status, title, requested_by
+          ) VALUES (
+            ${poolId}, 'pending', ${title}, ${userId}
+          )
+          RETURNING id, request_status, title, created_at
+        `);
+        const inserted = insertedRows.rows[0] as any;
+
+        // 2. swimming_pools UPDATE → CURRICULUM_PENDING
+        await tx.execute(sql`
+          UPDATE swimming_pools
+          SET xmode_config_status = 'CURRICULUM_PENDING'
+          WHERE id = ${poolId}
+            AND xmode_entitlement = true
+            AND xmode_config_status = 'NOT_CONFIGURED'
+        `);
+
+        // 3. audit_logs INSERT
+        const beforeData = {
+          xmode_entitlement: true,
+          xmode_config_status: "NOT_CONFIGURED",
+        };
+        const afterData = {
+          xmode_entitlement: true,
+          xmode_config_status: "CURRICULUM_PENDING",
+          source: "curriculum_request",
+          curriculum_request_id: inserted.id,
+        };
+        const versionRes = await tx.execute(sql`
+          SELECT next_audit_version('swimming_pool_xmode', ${poolId}) AS v
+        `);
+        const version = (versionRes.rows[0] as any)?.v ?? 1;
+        await tx.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason
+          ) VALUES (
+            'swimming_pool_xmode', ${poolId}, ${version},
+            'update', 'pool_admin', ${userId}, ${poolId},
+            ${JSON.stringify(beforeData)}::jsonb,
+            ${JSON.stringify(afterData)}::jsonb,
+            'X curriculum setup requested'
+          )
+        `);
+
+        resultRequest = {
+          id: inserted.id,
+          request_status: inserted.request_status,
+          created_at: inserted.created_at,
+        };
+        // computeMode: entitlement=true + CURRICULUM_PENDING → x_pending
+        resultPoolMode = {
+          pool_id: poolId,
+          mode: "x_pending",
+          xmode_entitlement: true,
+          xmode_config_status: "CURRICULUM_PENDING",
+        };
+      });
+
+      res.status(201).json({
+        request: resultRequest,
+        pool_mode: resultPoolMode,
+      });
+    } catch (err: any) {
+      if (err.status === 404) { res.status(404).json({ error: err.message, code: err.code }); return; }
+      if (err.status === 403) { res.status(403).json({ error: err.message, code: err.code }); return; }
+      if (err.status === 409) {
+        res.status(409).json({
+          error: err.message,
+          code: err.code,
+          ...(err.existingRequest ? { existing_request: err.existingRequest } : {}),
+        });
+        return;
+      }
+      console.error("[POST /pools/x-request]", err);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  }
+);
+
+// ── WP3: GET /pools/x-request ─────────────────────────────────────────────
+//
+// pool_admin이 자기 pool의 현재 커리큘럼 요청 상태를 조회한다.
+//
+// 반환 우선순위:
+//   1. pending 또는 reviewing 상태 요청 (진행 중)
+//   2. 없으면 가장 최근 요청 1건 (approved/rejected/cancelled)
+//   3. 없으면 { request: null }
+//
+// 자기 pool 외 데이터 노출 금지 — poolId를 DB에서 결정.
+//
+router.get(
+  "/x-request",
+  requireAuth,
+  requireRole("pool_admin"),
+  async (req: AuthRequest, res) => {
+    const userId = req.user!.userId;
+    try {
+      const userRow = await db.execute(sql`
+        SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1
+      `);
+      const poolId: string | null = (userRow.rows[0] as any)?.swimming_pool_id ?? null;
+      if (!poolId) {
+        res.status(403).json({ error: "수영장 정보가 없습니다." });
+        return;
+      }
+
+      // 진행 중 요청 우선
+      const activeRows = await db.execute(sql`
+        SELECT id, request_status, title, review_note, result_version_id,
+               created_at, updated_at, reviewed_at
+        FROM curriculum_requests
+        WHERE swimming_pool_id = ${poolId}
+          AND request_status IN ('pending', 'reviewing')
+        ORDER BY created_at DESC
+        LIMIT 1
+      `);
+      if (activeRows.rows.length) {
+        res.json({ request: activeRows.rows[0] });
+        return;
+      }
+
+      // 없으면 가장 최근 완료/반려/취소 요청
+      const latestRows = await db.execute(sql`
+        SELECT id, request_status, title, review_note, result_version_id,
+               created_at, updated_at, reviewed_at
+        FROM curriculum_requests
+        WHERE swimming_pool_id = ${poolId}
+        ORDER BY created_at DESC
+        LIMIT 1
+      `);
+      res.json({ request: latestRows.rows[0] ?? null });
+    } catch (err) {
+      console.error("[GET /pools/x-request]", err);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  }
+);
+
 export default router;

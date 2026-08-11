@@ -664,12 +664,21 @@ export default function DashboardScreen() {
                     <LucideIcon name="chevron-right" size={14} color="#64748B" />
                   </Pressable>
                 ) : (
-                  <View style={{ backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <LucideIcon name="lock" size={13} color="#94A3B8" />
-                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" }}>
+                  // WP3: x_pending → x-setup 화면으로 이동
+                  <Pressable
+                    style={({ pressed }) => ({
+                      backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12,
+                      flexDirection: "row", alignItems: "center", gap: 8,
+                      opacity: pressed ? 0.7 : 1,
+                    })}
+                    onPress={() => router.push("/(admin)/x-setup" as any)}
+                  >
+                    <LucideIcon name="settings" size={13} color="#2EC4B6" />
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#475569", flex: 1 }}>
                       X 설정을 완료하면 이용할 수 있어요
                     </Text>
-                  </View>
+                    <LucideIcon name="chevron-right" size={13} color="#94A3B8" />
+                  </Pressable>
                 )}
               </View>
             )}

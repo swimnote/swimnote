@@ -43,7 +43,9 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "catalog:",
+    "@types/supertest": "^7.2.1",
     "esbuild": "^0.27.3",
+    "supertest": "^7.2.2",
     "tsx": "catalog:",
     "vitest": "^4.1.10"
   }
