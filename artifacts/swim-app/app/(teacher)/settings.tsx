@@ -352,16 +352,16 @@ export default function TeacherSettingsScreen() {
             </View>
 
             {([
-              { icon: "image"          as const, color: "#EA580C", label: "사진",     sub: `${storageUsage?.photo_count||0}개`,   bytes: storageUsage?.photo_bytes    ?? 0 },
-              { icon: "video"          as const, color: "#7C3AED", label: "영상",     sub: `${storageUsage?.video_count||0}개`,   bytes: storageUsage?.video_bytes    ?? 0 },
-              { icon: "message-square" as const, color: "#7C3AED", label: "메신저",   sub: "텍스트 데이터",                         bytes: storageUsage?.messenger_bytes ?? 0 },
-              { icon: "book-open"      as const, color: "#16A34A", label: "수영일지", sub: "일지·메모 데이터",                       bytes: storageUsage?.diary_bytes    ?? 0 },
-              { icon: "bell"           as const, color: "#F59E0B", label: "공지",     sub: "공지 본문 데이터",                       bytes: storageUsage?.notice_bytes   ?? 0 },
-              { icon: "cpu"            as const, color: "#0369A1", label: "시스템",   sub: "기본 계정 데이터",                       bytes: storageUsage?.system_bytes   ?? 0 },
+              { icon: "image"          as const, label: "사진",     sub: `${storageUsage?.photo_count||0}개`,   bytes: storageUsage?.photo_bytes    ?? 0 },
+              { icon: "video"          as const, label: "영상",     sub: `${storageUsage?.video_count||0}개`,   bytes: storageUsage?.video_bytes    ?? 0 },
+              { icon: "message-square" as const, label: "메신저",   sub: "텍스트 데이터",                         bytes: storageUsage?.messenger_bytes ?? 0 },
+              { icon: "book-open"      as const, label: "수영일지", sub: "일지·메모 데이터",                       bytes: storageUsage?.diary_bytes    ?? 0 },
+              { icon: "bell"           as const, label: "공지",     sub: "공지 본문 데이터",                       bytes: storageUsage?.notice_bytes   ?? 0 },
+              { icon: "cpu"            as const, label: "시스템",   sub: "기본 계정 데이터",                       bytes: storageUsage?.system_bytes   ?? 0 },
             ]).map(item => (
               <View key={item.label} style={s.usageRow}>
                 <View style={s.usageIcon}>
-                  <LucideIcon name={item.icon} size={16} color={item.color} />
+                  <LucideIcon name={item.icon} size={16} color={C.textSecondary} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.usageLabel}>{item.label}</Text>
@@ -400,10 +400,10 @@ export default function TeacherSettingsScreen() {
 
         {/* ── 문의하기 — 목록 최하단 ── */}
         <Pressable
-          style={[s.actionBtn, { borderColor: "#2EC4B6" }]}
+          style={[s.actionBtn, { borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/inquiries" as any)}
         >
-          <LucideIcon name="message-circle" size={18} color="#2EC4B6" />
+          <LucideIcon name="message-circle" size={18} color="#0F172A" />
           <Text style={[s.actionBtnText, { color: "#0F172A" }]}>문의하기</Text>
           <LucideIcon name="chevron-right" size={16} color="#0F172A" />
         </Pressable>
@@ -435,7 +435,7 @@ export default function TeacherSettingsScreen() {
 const s = StyleSheet.create({
   safe:             { flex: 1, backgroundColor: "#FFFFFF" },
   card:             { backgroundColor: C.card, borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
-  cardHeader:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
+  cardHeader:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
   cardTitle:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
   storageSummary:   { padding: 14, borderRadius: 14, borderWidth: 1 },
   storageUsedLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", marginBottom: 2 },
@@ -447,7 +447,7 @@ const s = StyleSheet.create({
   gaugePct:         { fontSize: 12, fontFamily: "Pretendard-Regular" },
   gaugeRemain:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   usageRow:         { flexDirection: "row", alignItems: "center", gap: 12 },
-  usageIcon:        { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  usageIcon:        { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: C.background },
   usageLabel:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   usageSub:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
   usageBytes:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
