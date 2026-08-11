@@ -1,0 +1,389 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP2 GAP AUDIT
+RevenueCat / X Entitlement Sync 재개 검수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+목적:
+WP2를 처음부터 다시 만드는 것이 아니라,
+현재 Repository + Production 기준으로
+RevenueCat → SWIMNOTE X entitlement 자동 동기화에서
+실제로 빠진 부분만 확정한다.
+
+중요:
+이번 단계에서는 코드 수정 금지.
+DB write 금지.
+Render deploy 금지.
+OTA 금지.
+Commit/Push 금지.
+
+조사 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 현재 WP2 관련 코드 전수 위치 확인
+━━━━━━━━━━━━━━━━━━━━
+
+Repository 전체에서 다음 검색:
+
+RevenueCat
+entitlement
+xmode_entitlement
+xmode_config_status
+subscription
+webhook
+billing
+product_id
+offering
+package
+customer_info
+purchase
+restore
+
+제출:
+
+- 서버 파일
+- 앱 파일
+- 함수명
+- route
+- webhook endpoint
+- 관련 테스트
+
+파일 존재만으로 구현 판정하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+2. RevenueCat webhook 실제 흐름 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 billing/revenuecat webhook이
+어떤 event를 받고 무엇을 DB에 쓰는지
+실제 코드 기준으로 제출.
+
+확인:
+
+- webhook route
+- auth/secret 검증
+- event type
+- app_user_id
+- product_id
+- entitlement_id
+- original_app_user_id
+- expiration
+- cancellation
+- renewal
+- restore/transfer
+
+그리고 최종적으로 업데이트하는 DB 컬럼 제출.
+
+특히:
+
+xmode_entitlement
+xmode_config_status
+
+를 직접 UPDATE하는 코드가 있는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+3. X 상품/entitlement 매핑 존재 여부
+━━━━━━━━━━━━━━━━━━━━
+
+현재 RevenueCat 상품 또는 entitlement 중
+SWIMNOTE X 전용 식별자가 코드/config/env에 존재하는지 확인.
+
+예:
+
+SWIMNOTE_X
+x_mode
+xmode
+premium_x
+center_x
+기타
+
+추측 금지.
+
+확인:
+
+- product ID
+- entitlement ID
+- package/offering ID
+- iOS / Android 차이
+- env/config 위치
+
+없으면 MISSING으로 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+4. app_user_id ↔ pool 매핑 확인
+━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat webhook에서 받은 사용자를
+어떻게 swimming_pool_id로 찾는지 확인.
+
+확인:
+
+- RevenueCat app_user_id가 users.id인지
+- pool_admin id인지
+- subscription owner id인지
+- 별도 external id인지
+
+그리고:
+
+RevenueCat event
+→ user
+→ swimming_pool
+→ xmode_entitlement
+
+연결 경로가 실제로 존재하는지 확인.
+
+여기 불명확하면 WP2 자동 sync는 미완성으로 판정.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 현재 범용 구독과 X 구독 분리 여부
+━━━━━━━━━━━━━━━━━━━━
+
+현재 pool_subscriptions / 일반 앱 구독과
+X mode entitlement가 어떻게 구분되는지 확인.
+
+중요:
+
+일반 SWIMNOTE 유료 구독 결제했다고
+자동으로 X entitlement=true가 되면 안 됨.
+
+확인:
+
+- 일반 subscription plan
+- X subscription
+- RevenueCat product
+- entitlement
+- DB field
+
+사이의 분리 규칙.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 구매 성공 시 기대 상태 정의
+━━━━━━━━━━━━━━━━━━━━
+
+현재 설계/코드 기준으로
+X 상품이 활성화되면 Production DB에서
+어떤 값이 되어야 하는지 확인.
+
+예상:
+
+xmode_entitlement = true
+
+그리고 xmode_config_status는
+자동 READY인지,
+NOT_CONFIGURED 유지인지,
+별도 설정 후 READY인지
+
+현재 설계 근거로 판정.
+
+임의 결정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 해지/만료/환불 처리 확인
+━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat에서 다음 이벤트가 왔을 때
+xmode 상태를 어떻게 처리하는지 확인:
+
+- INITIAL_PURCHASE
+- RENEWAL
+- CANCELLATION
+- EXPIRATION
+- BILLING_ISSUE
+- PRODUCT_CHANGE
+- UNCANCELLATION
+- REFUND
+- TRANSFER
+
+현재 구현 여부를 각 이벤트별로 제출.
+
+특히:
+
+xmode_entitlement=false 전환 조건
+
+이 안전하게 구현되어 있는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+8. idempotency 확인
+━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat webhook은 같은 event가
+재전송될 수 있으므로
+
+동일 event 여러 번 받아도
+중복 audit / 중복 상태변경 / 오류가 없는지 확인.
+
+확인:
+
+- event id 저장 여부
+- unique constraint
+- audit dedup
+- upsert
+- transaction
+
+없는 경우 GAP으로 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+9. audit log 연동 확인
+━━━━━━━━━━━━━━━━━━━━
+
+X entitlement 변경 시
+audit_logs에 기록하는지 확인.
+
+필요한 최소 정보:
+
+- pool_id
+- before
+- after
+- source
+- reason/event
+- timestamp
+
+현재 구현 여부 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 앱의 X 상태 갱신 경로 확인
+━━━━━━━━━━━━━━━━━━━━
+
+서버 DB 상태가 변경된 후 앱에서:
+
+GET /pools/x-mode
+→ ModeContext
+→ foreground refresh
+
+로 반영되는지 확인.
+
+이미 구현된 ModeForegroundRefresh는
+재구현하지 말 것.
+
+다만 RevenueCat 구매 직후 앱에서
+refresh 호출이 필요한 별도 gap이 있는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+11. 실제 Production 상태 확인
+━━━━━━━━━━━━━━━━━━━━
+
+Production Supabase는 반드시:
+
+SUPABASE_DATABASE_URL
+
+기준 READ ONLY.
+
+executeSql production 사용 금지.
+
+샘플 pool:
+
+pool_1784310621737_qryl1x79s
+
+조회:
+
+- xmode_entitlement
+- xmode_config_status
+- 관련 subscription row
+- 관련 audit_logs
+
+DB write 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+12. 테스트 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 WP2 관련 테스트 존재 여부 확인.
+
+최소 확인 대상:
+
+- X purchase → entitlement true
+- 일반 구독 → X true 되지 않음
+- expiration → entitlement false
+- duplicate webhook
+- wrong product ignored
+- wrong pool/user mapping rejected
+- audit log
+
+현재 존재하는 것과 없는 것 구분.
+
+새 테스트 작성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+13. GAP 판정
+━━━━━━━━━━━━━━━━━━━━
+
+다음 형식으로만 정리:
+
+A. 이미 완료된 것
+B. 부분 구현
+C. 완전히 없는 것
+D. Production blocking issue
+E. Security issue
+F. 테스트 부족
+
+그리고 WP2 FINAL STATUS:
+
+IMPLEMENTED
+또는
+PARTIAL
+
+중 하나.
+
+━━━━━━━━━━━━━━━━━━━━
+14. 최소 구현 제안
+━━━━━━━━━━━━━━━━━━━━
+
+실제 GAP만 기준으로:
+
+- 수정 파일
+- 신규 파일 필요 여부
+- DB migration 필요 여부
+- env 필요 여부
+- RevenueCat dashboard 설정 필요 여부
+- Render env 변경 필요 여부
+- 앱 OTA 필요 여부
+- Store rebuild 필요 여부
+
+를 제출.
+
+아직 구현하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+15. 절대 금지
+━━━━━━━━━━━━━━━━━━━━
+
+- 이미 완료된 WP1 재작업
+- DB migration
+- Production DB write
+- XModeGuard 재구현
+- ModeContext 재구현
+- ModeForegroundRefresh 재구현
+- WP6 수정
+- WP7 시작
+- Render deploy
+- OTA
+- Store build
+- Commit/Push
+
+━━━━━━━━━━━━━━━━━━━━
+16. 최종 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. WP2 관련 실제 파일
+2. webhook route
+3. RevenueCat auth 검증 방식
+4. X product/entitlement ID 존재 여부
+5. app_user_id → pool 매핑
+6. 일반 구독/X 구독 분리
+7. purchase 처리
+8. renewal 처리
+9. cancellation 처리
+10. expiration 처리
+11. refund 처리
+12. duplicate event 처리
+13. audit log 처리
+14. 앱 상태 refresh 흐름
+15. Production sample pool 상태
+16. 현재 테스트
+17. 정확한 GAP
+18. 최소 구현안
+19. DB migration 필요 여부
+20. Render/OTA/Build 필요 여부
+21. WP2 FINAL STATUS
+
+조사 후 STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
