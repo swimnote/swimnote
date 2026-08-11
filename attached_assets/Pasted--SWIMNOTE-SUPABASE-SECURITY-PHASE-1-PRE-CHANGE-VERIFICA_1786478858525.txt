@@ -1,0 +1,312 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE SUPABASE SECURITY — PHASE 1
+PRE-CHANGE VERIFICATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+목적:
+아직 DB/RLS/Data API 설정을 변경하지 않는다.
+
+먼저 SWIMNOTE가 Supabase Data API를 정말 전혀 사용하지 않는지,
+그리고 Render direct PostgreSQL 연결 role이
+RLS 적용 후에도 안전하게 동작할 role인지 증명한다.
+
+DB WRITE 금지.
+Dashboard 설정 변경 금지.
+RLS 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. Production direct DB role 확인
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 SUPABASE_DATABASE_URL 기준.
+
+다음 READ ONLY 실행:
+
+SELECT current_user;
+SELECT session_user;
+
+SELECT
+  rolname,
+  rolsuper,
+  rolbypassrls,
+  rolcanlogin
+FROM pg_roles
+WHERE rolname IN (current_user, session_user);
+
+제출:
+
+current_user
+session_user
+rolsuper
+rolbypassrls
+
+비밀번호/connection string 출력 금지.
+
+중요:
+"postgres 이름이므로 superuser일 것"
+추측 금지.
+
+실제 pg_roles 결과로만 판정.
+
+━━━━━━━━━━━━━━━━━━━━
+2. Supabase Data API 사용 여부 재검증
+━━━━━━━━━━━━━━━━━━━━
+
+Repository 전체 재검색:
+
+createClient(
+@supabase/supabase-js
+SUPABASE_ANON
+SUPABASE_ANON_KEY
+NEXT_PUBLIC_SUPABASE
+EXPO_PUBLIC_SUPABASE
+SUPABASE_SERVICE_ROLE_KEY
+sb_publishable_
+sb_secret_
+rest/v1
+graphql/v1
+
+대상:
+
+artifacts/swim-app
+artifacts/api-server
+artifacts/swimnote-web
+packages
+lib
+scripts
+workers
+
+제출:
+
+파일
+line
+용도
+
+실제 호출 0건이면:
+DATA_API_APP_USAGE = NONE
+
+placeholder/example만 있으면 따로 구분.
+
+━━━━━━━━━━━━━━━━━━━━
+3. Realtime / Storage 의존성 확인
+━━━━━━━━━━━━━━━━━━━━
+
+Data API만 보고 끄지 않는다.
+
+검색:
+
+supabase realtime
+postgres_changes
+channel(
+storage.from(
+supabase storage
+SUPABASE_URL
+
+SWIMNOTE가 Supabase Realtime 또는
+Supabase Storage를 사용하면 제출.
+
+Cloudflare R2와 Supabase Storage를 혼동하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+4. Dashboard 현재 Data API 설정 확인
+━━━━━━━━━━━━━━━━━━━━
+
+가능하면 Supabase Project Settings를 READ ONLY 확인.
+
+두 프로젝트 각각:
+
+A. Production SUPABASE
+B. Backup POOL_DB
+
+제출:
+
+Data API enabled 여부
+Exposed schemas 목록
+
+특히 public이 exposed인지 확인.
+
+설정 변경 금지.
+
+Dashboard를 읽을 수 없으면:
+DASHBOARD_STATUS = MANUAL_CHECK_REQUIRED
+
+라고 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+5. anon/authenticated GRANT 실제 확인
+━━━━━━━━━━━━━━━━━━━━
+
+보고서에서 "100개 전부 full privileges"라고 했으므로
+실제 DB privilege로 재검증.
+
+Production SUPABASE에서 READ ONLY:
+
+information_schema.role_table_grants
+또는 has_table_privilege()
+
+사용해서:
+
+anon
+authenticated
+
+가 public 주요 테이블에 실제로:
+
+SELECT
+INSERT
+UPDATE
+DELETE
+
+권한이 있는지 확인.
+
+최소:
+
+students
+users
+parent_accounts
+members
+payment_cards
+push_tokens
+audit_logs
+global_template_sets
+
+제출.
+
+"RLS off니까 자동 full privilege"라고 추론 금지.
+GRANT와 RLS는 별개다.
+
+Supabase 공식 문서도
+Data API 접근은 GRANT + RLS 두 층으로 결정된다고 설명한다.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 실제 anon Data API smoke
+━━━━━━━━━━━━━━━━━━━━
+
+anon/publishable key를 안전하게 확인할 수 있는 경우에만.
+
+값 출력 금지.
+
+Production Data API에
+민감하지 않은 테이블 대상으로
+최소 read smoke만 수행.
+
+예:
+global_template_sets
+
+목표:
+anon 요청이 실제로 접근 가능한지 확인.
+
+민감 테이블 rows/content 출력 금지.
+
+SELECT count도 개인정보 테이블에서는 하지 말 것.
+
+테스트 결과:
+HTTP status만 제출.
+
+key를 확보할 수 없으면:
+NOT_TESTED_NO_KEY
+
+━━━━━━━━━━━━━━━━━━━━
+7. 위험도 재판정
+━━━━━━━━━━━━━━━━━━━━
+
+다음 증거로만 판정:
+
+A.
+Data API exposed public=true/false
+
+B.
+anon/authenticated GRANT
+
+C.
+RLS 상태
+
+D.
+anon key 외부 사용 여부
+
+E.
+앱/서버 Data API 의존성
+
+HIGH/MEDIUM/LOW를 다시 산정.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 차단 전략 비교
+━━━━━━━━━━━━━━━━━━━━
+
+아직 적용 금지.
+
+두 안을 실제 환경 기준으로 비교:
+
+OPTION 1
+Supabase Data API disable
+또는 public을 Exposed schemas에서 제거
+
+OPTION 2
+public 테이블 RLS enable + 정책 없음/deny
+
+각각에 대해:
+
+- Render direct Postgres 영향
+- SQL Editor 영향
+- Table Editor 영향
+- Backup/restore 영향
+- scheduled jobs 영향
+- Realtime 영향
+- 향후 Supabase Data API 사용 가능성
+
+제출.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 권장안
+━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE가 정말 Data API를 사용하지 않고,
+direct PostgreSQL 연결이 정상 독립이라면
+
+우선순위 제안:
+
+1.
+Data API 노출 차단
+
+2.
+그 후 필요하면 RLS를 defence-in-depth로 별도 적용
+
+두 작업을 한 번에 하지 않는다.
+
+왜냐하면 문제가 발생했을 때
+원인을 분리할 수 있어야 하기 때문이다.
+
+━━━━━━━━━━━━━━━━━━━━
+10. Backup DB 별도 판정
+━━━━━━━━━━━━━━━━━━━━
+
+POOL_DATABASE_URL / backup Supabase도
+Production과 별도 제출.
+
+Production 설정을 그대로 복사하지 않는다.
+
+Backup/restore code가
+PostgREST를 쓰는지 direct PostgreSQL인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+11. 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. Production current_user
+2. rolsuper
+3. rolbypassrls
+4. Data API code usage
+5. Realtime usage
+6. Supabase Storage usage
+7. Production exposed schemas
+8. Backup exposed schemas
+9. anon actual grants
+10. authenticated actual grants
+11. anon HTTP smoke 가능 여부/결과
+12. Data API 차단 영향
+13. RLS 적용 영향
+14. 권장 전략
+15. 첫 번째로 실행할 단일 변경
+16. rollback 방법
+
+변경 없이 STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
