@@ -1,0 +1,271 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — DB SOURCE EMERGENCY VERIFY
+WP-X-RESTART-1B
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STOP.
+
+WP-X-RESTART-1의 Production DB 판정은 승인하지 않는다.
+
+이유:
+
+보고서에서 사용한 DB:
+
+database name = neondb
+
+그리고
+"Supabase가 Neon 인프라를 사용하므로 neondb로 나타난다"
+라고 설명했는데 이 근거는 인정할 수 없다.
+
+현재 프로젝트에서는 과거에도
+Replit/local DB를 Production으로 오인하여
+X migration이 없다고 잘못 판정한 전례가 있었다.
+
+따라서 WP1 Migration 실행 절대 금지.
+
+이번 작업은
+"진짜 SWIMNOTE Production DB가 어디인지"
+연결 문자열 자체를 검증하는 것만 수행한다.
+
+코드 수정 / DB write / migration / deploy 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. SUPABASE_DATABASE_URL 존재 여부
+━━━━━━━━━━━━━━━━━━━━
+
+현재 Replit Secrets / Render Production env에서
+
+SUPABASE_DATABASE_URL
+
+존재 여부 확인.
+
+제출:
+
+SUPABASE_DATABASE_URL = EXISTS / MISSING
+
+값 전체 출력 금지.
+
+존재한다면 parsing해서 다음만 masked 제출:
+
+- protocol
+- host
+- port
+- database name
+- username prefix
+- SSL 설정
+
+password 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. DATABASE_URL과 별도 비교
+━━━━━━━━━━━━━━━━━━━━
+
+다음 env 각각 존재 여부 확인:
+
+DATABASE_URL
+SUPABASE_DATABASE_URL
+POSTGRES_URL
+PGDATABASE
+PGHOST
+
+각 값이 어느 DB를 가리키는지 masked 비교.
+
+특히:
+
+executeSql environment:"production"
+
+이 어떤 env를 실제로 사용하는지
+도구 설정/코드 근거를 제출.
+
+"production이라는 이름이므로 운영 DB"
+같은 추론 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 실제 host 판정
+━━━━━━━━━━━━━━━━━━━━
+
+사용 중인 DB host가:
+
+- *.supabase.co
+- *.pooler.supabase.com
+- *.neon.tech
+- Replit managed DB
+
+중 어디인지 정확히 확인.
+
+host 전체가 민감하면 앞/뒤 일부 마스킹.
+
+예:
+
+aws-0-***.pooler.supabase.com
+
+또는
+
+ep-***.neon.tech
+
+형식으로 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+4. Render Production env 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 API 서버가 Render에서 Live이므로
+Render 서비스가 DB 연결에 사용하는 env key를
+실제 서버 코드 기준으로 확인.
+
+db client 초기화 파일 찾기:
+
+예:
+db.ts
+database.ts
+drizzle config
+pool initialization
+
+그리고 Production server가 최종적으로 어떤 env를 읽는지 제출.
+
+예:
+
+process.env.SUPABASE_DATABASE_URL
+또는
+process.env.DATABASE_URL
+
+실제 코드 line 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+5. API 서버가 실제 사용하는 DB fingerprint 확보
+━━━━━━━━━━━━━━━━━━━━
+
+Render Live API와 동일한 DB 연결 설정으로
+READ ONLY 쿼리 실행.
+
+반드시 "executeSql production" 편의 도구가 아니라,
+Render 서버가 실제 사용하는 동일 env key 기준으로 연결.
+
+조회:
+
+SELECT
+  current_database(),
+  current_user,
+  inet_server_addr(),
+  version();
+
+그리고 다음 fingerprint:
+
+SELECT COUNT(*) FROM swimming_pools;
+SELECT COUNT(*) FROM users;
+SELECT COUNT(*) FROM class_diaries;
+
+가능하면 특정 운영 데이터의 ID 1개를
+기존 서버 API 결과와 대조.
+
+개인정보 출력 금지.
+
+목적:
+현재 조회 DB가 실제 앱 API가 사용하는 DB와 동일한지 증명.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 기존 X Production 증거 대조
+━━━━━━━━━━━━━━━━━━━━
+
+다음 pool:
+
+pool_1784310621737_qryl1x79s
+
+실제 Render DB 연결 기준으로 조회.
+
+먼저:
+
+SELECT *
+FROM swimming_pools
+WHERE id='pool_1784310621737_qryl1x79s';
+
+컬럼을 직접 SELECT * 해서
+xmode 계열 컬럼 존재 여부 확인.
+
+information_schema도 동일 연결에서 다시 확인.
+
+또 다음 테이블:
+
+global_template_sets
+audit_logs
+parent_ai_daily_usage
+growth_events
+growth_reports
+
+존재 여부 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+7. migration 파일 실행 여부 기록 조사
+━━━━━━━━━━━━━━━━━━━━
+
+Repository와 Production에서:
+
+pool-db-x-init.ts
+
+가 과거 언제/어떤 방식으로 실행됐는지
+migration log / script / audit / deployment 기록 확인.
+
+DB write 금지.
+
+존재하는 기록만 보고.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 판정 기준
+━━━━━━━━━━━━━━━━━━━━
+
+A.
+실제 Render DB host가 supabase 계열이고
+X 컬럼/테이블 EXISTS
+→ WP-X-RESTART-1이 잘못된 DB를 조사한 것.
+WP1 완료 상태 유지.
+
+B.
+실제 Render DB에서도 X 컬럼/테이블 MISSING
+→ 그때만 WP1 미적용 가능성 인정.
+
+C.
+Render와 executeSql production이 서로 다른 DB
+→ executeSql 결과 전부 무효.
+
+D.
+DB source를 확정하지 못함
+→ WP1 상태 UNKNOWN.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 절대 금지
+━━━━━━━━━━━━━━━━━━━━
+
+- pool-db-x-init.ts 실행
+- ALTER TABLE
+- CREATE TABLE
+- INSERT
+- UPDATE
+- DELETE
+- migration
+- Render deploy
+- OTA
+- commit
+- push
+
+READ ONLY 조사만.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 최종 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. SUPABASE_DATABASE_URL 존재 여부
+2. DATABASE_URL 존재 여부
+3. executeSql production 실제 연결 env
+4. executeSql DB masked host
+5. Render 서버 DB env key
+6. Render 실제 DB masked host
+7. 두 DB 동일/상이
+8. Render DB current_database()
+9. X swimming_pools 컬럼 존재 여부
+10. X 5개 테이블 존재 여부
+11. sample pool X row 조회 결과
+12. WP1 최종 판정
+13. WP-X-RESTART-1 결과 중 무효화해야 할 부분
+
+조사 후 STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
