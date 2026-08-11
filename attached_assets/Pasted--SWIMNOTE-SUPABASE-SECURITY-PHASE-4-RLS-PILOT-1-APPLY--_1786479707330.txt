@@ -1,0 +1,260 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE SUPABASE SECURITY — PHASE 4
+RLS PILOT 1 APPLY + RUNTIME VERIFY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+승인된 작업:
+Production SUPABASE의 저위험 5개 테이블에만
+RLS를 실제 적용한다.
+
+대상:
+
+1. global_template_sets
+2. curriculum_requests
+3. curriculum_versions
+4. curriculum_items
+5. feature_flags
+
+중요:
+POOL_DB에는 이번 단계에서 RLS 적용하지 않는다.
+Production SUPABASE만 먼저 적용한다.
+
+DB SOURCE:
+SUPABASE_DATABASE_URL
+
+executeSql production 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 적용 전 증거 저장
+━━━━━━━━━━━━━━━━━━━━
+
+READ ONLY:
+
+각 테이블에 대해 제출:
+
+- relrowsecurity
+- relforcerowsecurity
+- row count
+- existing policy count
+- owner
+- anon SELECT/INSERT/UPDATE/DELETE privileges
+- authenticated SELECT/INSERT/UPDATE/DELETE privileges
+
+기존 policy가 하나라도 있으면
+임의 변경하지 말고 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 연결 role 재확인
+━━━━━━━━━━━━━━━━━━━━
+
+같은 DB session에서:
+
+SELECT current_user;
+
+그리고:
+
+rolsuper
+rolbypassrls
+
+확인.
+
+기대:
+
+current_user = postgres
+rolbypassrls = true
+
+다르면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+3. RLS Pilot 적용
+━━━━━━━━━━━━━━━━━━━━
+
+대상 5개에만:
+
+ALTER TABLE global_template_sets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE curriculum_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE curriculum_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE curriculum_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE feature_flags ENABLE ROW LEVEL SECURITY;
+
+정책 생성하지 않는다.
+
+현재 목적:
+anon/authenticated Data API deny-by-default.
+
+FORCE ROW LEVEL SECURITY 사용 금지.
+
+다른 테이블 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 즉시 DB READ-BACK
+━━━━━━━━━━━━━━━━━━━━
+
+적용 직후 실제 Production Supabase에서:
+
+각 테이블:
+
+relrowsecurity = true
+
+인지 다시 조회.
+
+policy count도 제출.
+
+정확한 결과:
+
+RLS=true
+policy=0
+
+인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+5. direct postgres 회귀 검증
+━━━━━━━━━━━━━━━━━━━━
+
+SUPABASE_DATABASE_URL direct postgres로:
+
+global_template_sets COUNT
+curriculum_requests COUNT
+curriculum_versions COUNT
+curriculum_items COUNT
+feature_flags COUNT
+
+전부 정상 조회되어야 함.
+
+기대:
+postgres rolbypassrls=true이므로 기존과 동일.
+
+━━━━━━━━━━━━━━━━━━━━
+6. Render Runtime 회귀 검증
+━━━━━━━━━━━━━━━━━━━━
+
+Render 재배포는 하지 않는다.
+
+현재 Live 서버에서:
+
+GET /api/health → 200
+
+기존 READ ONLY API 최소 smoke.
+
+Render 로그에서:
+
+permission denied
+row-level security
+policy violation
+relation access denied
+
+신규 오류가 발생하는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+7. WP4 보호 확인
+━━━━━━━━━━━━━━━━━━━━
+
+global_template_sets 및 curriculum_*가
+RLS 적용되어도:
+
+superAdminDb direct postgres에서
+SELECT/INSERT/UPDATE 가능해야 한다.
+
+단 이번 단계에서는
+실제 WP4 row INSERT 금지.
+
+WP4 데이터 0개 상태 유지.
+
+━━━━━━━━━━━━━━━━━━━━
+8. feature_flags 보호 확인
+━━━━━━━━━━━━━━━━━━━━
+
+feature_flags는 8행 존재.
+
+현재 server가 direct postgres로
+정상 조회 가능한지 확인.
+
+관련 route/job에서 신규 RLS 오류 없는지 로그 확인.
+
+앱 직접 Data API 호출은 없음.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 실패 시 즉시 rollback
+━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나라도 발생하면:
+
+- Render DB 오류
+- permission denied
+- API 기능 장애
+- scheduler 오류 증가
+- 예상하지 못한 RLS policy 충돌
+
+즉시 대상 5개만:
+
+ALTER TABLE global_template_sets DISABLE ROW LEVEL SECURITY;
+ALTER TABLE curriculum_requests DISABLE ROW LEVEL SECURITY;
+ALTER TABLE curriculum_versions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE curriculum_items DISABLE ROW LEVEL SECURITY;
+ALTER TABLE feature_flags DISABLE ROW LEVEL SECURITY;
+
+rollback 후 다시 runtime 확인.
+
+다른 테이블 건드리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+10. Security Advisor 확인
+━━━━━━━━━━━━━━━━━━━━
+
+가능하면 Dashboard에서
+이 5개 테이블의:
+
+"RLS disabled"
+
+경고가 사라졌는지 확인.
+
+Dashboard 접근 불가하면:
+MANUAL_CHECK_REQUIRED.
+
+━━━━━━━━━━━━━━━━━━━━
+11. CODE / Git
+━━━━━━━━━━━━━━━━━━━━
+
+이번 작업은 DB security 설정만.
+
+Repository 코드 변경 금지.
+Commit/Push 불필요.
+
+SQL migration 파일도 아직 만들지 않는다.
+
+먼저 runtime 안정성만 검증한다.
+
+━━━━━━━━━━━━━━━━━━━━
+12. 제출 보고
+━━━━━━━━━━━━━━━━━━━━
+
+1. 적용 DB source
+2. 적용 전 각 테이블 RLS 상태
+3. existing policy count
+4. current_user / rolbypassrls
+5. 실제 실행 SQL
+6. 적용 후 RLS read-back
+7. policy count
+8. direct postgres count smoke
+9. /api/health
+10. Render 신규 RLS 오류 여부
+11. feature_flags 영향
+12. WP4 테이블 영향
+13. rollback 실행 여부
+14. Security Advisor 상태
+15. Pilot 최종 판정
+
+FINAL STATUS 중 하나:
+
+RLS_PILOT_1_VERIFIED
+
+또는
+
+RLS_PILOT_1_ROLLED_BACK
+
+보고 후 STOP.
+
+다른 테이블 RLS 적용 금지.
+POOL_DB RLS 적용 금지.
+WP4 작업 재개 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
