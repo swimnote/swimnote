@@ -1,0 +1,462 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP2 IMPLEMENTATION
+RevenueCat → X Entitlement Sync
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WP2 GAP AUDIT 승인.
+
+목표:
+기존 일반 SWIMNOTE 구독 로직은 유지하면서
+X 전용 RevenueCat 상품 이벤트만
+swimming_pools.xmode_entitlement와 동기화한다.
+
+기존 WP1 / WP3+ / WP6 수정 금지.
+
+이번 작업은 WP2 GAP만 구현한다.
+
+━━━━━━━━━━━━━━━━━━━━
+0. 핵심 원칙
+━━━━━━━━━━━━━━━━━━━━
+
+일반 SWIMNOTE 구독과 X 구독은 반드시 분리.
+
+일반 상품:
+center_*
+solo_*
+기존 product
+
+→ 기존 subscriptionService 흐름 그대로
+
+X 상품:
+RevenueCat X 전용 product/entitlement
+
+→ xmode entitlement 흐름
+
+일반 상품 구매 때문에
+xmode_entitlement=true가 되면 안 됨.
+
+X 상품 구매 때문에
+기존 일반 subscription tier가 변경되어도 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━
+1. X Product ID 설정 방식
+━━━━━━━━━━━━━━━━━━━━
+
+현재 RevenueCat Dashboard의 실제
+X product ID / entitlement ID가 확인되지 않았다.
+
+따라서 임의 값 하드코딩 금지.
+
+서버 env/config 기반으로 구현:
+
+예:
+
+REVENUECAT_X_PRODUCT_IDS
+
+쉼표 구분 또는 명확한 config parser 사용.
+
+예:
+ios_product_x,android_product_x
+
+실제 이름은 현재 프로젝트 env naming 규칙과 맞춰 결정.
+
+필요하면 X entitlement ID도:
+
+REVENUECAT_X_ENTITLEMENT_ID
+
+config로 정의 가능.
+
+중요:
+실제 Dashboard 값이 없으면
+placeholder를 Production 값처럼 넣지 않는다.
+
+env 미설정 상태에서는
+일반 구독 webhook은 정상 동작하고
+X product 판정만 false가 되어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━
+2. Webhook secret FAIL-CLOSED
+━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+REVENUECAT_WEBHOOK_SECRET 미설정
+→ 인증 skip
+
+구조 금지.
+
+변경:
+
+secret이 설정되지 않은 경우
+RevenueCat webhook 요청 거절.
+
+예:
+
+if (!REVENUECAT_WEBHOOK_SECRET) {
+  return 503 또는 적절한 서버 설정 오류
+}
+
+if (authorization !== expectedSecret) {
+  return 401
+}
+
+현재 RevenueCat Dashboard에서 사용하는
+Authorization 형식과 기존 운영 설정을 깨지 않도록
+raw secret/Bearer 형식은 현재 실제 설정과 맞춰 유지.
+
+형식을 임의 변경하지 않는다.
+
+테스트 포함.
+
+━━━━━━━━━━━━━━━━━━━━
+3. X 이벤트 분기
+━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat event를 받은 후:
+
+isXProduct(productId)
+
+판정.
+
+X 상품이면
+기존 일반 tier mapping으로 보내지 말고
+X 전용 handler로 분리.
+
+예:
+
+handleXEntitlementEvent(...)
+
+일반 상품은 기존 코드 그대로.
+
+━━━━━━━━━━━━━━━━━━━━
+4. X 활성 이벤트
+━━━━━━━━━━━━━━━━━━━━
+
+최소 다음 활성 이벤트 처리:
+
+INITIAL_PURCHASE
+RENEWAL
+UNCANCELLATION
+
+X product일 경우:
+
+xmode_entitlement = true
+
+그리고:
+
+INITIAL_PURCHASE 시
+xmode_purchased_at이 NULL이면
+최초 구매 시각 저장.
+
+기존 값이 있으면 덮어쓰지 않는다.
+
+xmode_subscription_end_at은
+RevenueCat expiresAt이 존재할 경우 갱신.
+
+xmode_payment_failed_at은
+정상 활성 상태 복구 시 NULL 처리 여부를
+기존 설계와 일관되게 검토 후 적용.
+
+━━━━━━━━━━━━━━━━━━━━
+5. CANCELLATION 의미 구분
+━━━━━━━━━━━━━━━━━━━━
+
+CANCELLATION은 일반적으로
+"자동갱신 취소"이지 즉시 entitlement 만료와
+동일하지 않을 수 있다.
+
+따라서 CANCELLATION 이벤트만 받고
+즉시 xmode_entitlement=false로 만들지 말 것.
+
+RevenueCat event의 expiration/expiresAt 의미를
+현재 webhook 구조 기준으로 확인.
+
+원칙:
+
+CANCELLATION
+→ 현재 paid period가 남아 있으면 entitlement 유지
+→ subscription_end_at 갱신
+
+실제 사용 종료는 EXPIRATION 기준.
+
+추측으로 즉시 false 처리 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. X 비활성 이벤트
+━━━━━━━━━━━━━━━━━━━━
+
+EXPIRATION:
+
+xmode_entitlement = false
+
+xmode_subscription_end_at 갱신
+
+REFUND:
+
+RevenueCat REFUND event payload 의미 확인 후
+X product에 대한 실제 entitlement 취소라면:
+
+xmode_entitlement = false
+
+필요 시 end_at 갱신.
+
+일반 subscription REFUND 처리와
+X REFUND 처리 분리.
+
+TRANSFER는
+현재 RevenueCat payload에서
+old/new app_user_id 의미를 정확히 확인하기 전
+임의 구현 금지.
+
+지원 근거가 충분하지 않으면
+명시적으로 unsupported/log-only 처리하고
+보고할 것.
+
+━━━━━━━━━━━━━━━━━━━━
+7. BILLING_ISSUE
+━━━━━━━━━━━━━━━━━━━━
+
+X 상품 BILLING_ISSUE 시:
+
+xmode_payment_failed_at 기록.
+
+단 RevenueCat grace period 동안
+entitlement가 유효할 수 있으므로
+BILLING_ISSUE만으로 즉시
+xmode_entitlement=false로 만들지 않는다.
+
+실제 EXPIRATION에서 false 처리.
+
+━━━━━━━━━━━━━━━━━━━━
+8. xmode_config_status 보호
+━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat 구매 성공이
+xmode_config_status를 임의 READY로 만들면 안 된다.
+
+결제 권한:
+
+xmode_entitlement
+
+과
+
+설정 완료 상태:
+
+xmode_config_status
+
+는 별도 상태.
+
+구매 성공:
+xmode_entitlement=true
+
+config 상태는 기존 값 유지.
+
+기존 READY pool은 READY 유지.
+NOT_CONFIGURED면 NOT_CONFIGURED 유지.
+
+━━━━━━━━━━━━━━━━━━━━
+9. app_user_id → pool 검증
+━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+users.id = appUserId
+→ swimming_pool_id
+
+경로 사용.
+
+단:
+
+- user 없음
+- pool 없음
+- 해당 user가 X 구매 권한이 없는 role
+
+상황을 확인.
+
+현재 X 구매 주체가 pool_admin인지
+기존 subscription 화면의 접근 권한 기준으로 검증.
+
+잘못된 parent/teacher RevenueCat event가
+pool 전체 X entitlement를 바꾸지 못하도록 보호.
+
+현재 앱 구매 UI 권한과 서버 검증을 맞출 것.
+
+━━━━━━━━━━━━━━━━━━━━
+10. Audit log
+━━━━━━━━━━━━━━━━━━━━
+
+X entitlement 상태가 실제 변경되는 경우
+audit_logs에 기록.
+
+최소:
+
+pool_id
+source = revenuecat
+event_type
+product_id
+before
+after
+timestamp
+
+가능하면 RevenueCat event id도 기록.
+
+민감한 전체 payload 저장 금지.
+
+상태가 동일한 재전송 이벤트면
+중복 audit 생성 방지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. Idempotency
+━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat webhook 재전송 대응 필수.
+
+가능하면 event.id 기반 dedup 구현.
+
+먼저 현재 DB에
+재사용 가능한 webhook/event log table 또는
+unique storage가 있는지 조사.
+
+이미 있으면 재사용.
+
+없다고 해서 이번 WP2에서
+대규모 신규 시스템 만들지 말 것.
+
+최소 안전 구현:
+
+- 동일 event.id 재처리 방지
+또는
+- 동일 상태 update는 no-op
+- 동일 INITIAL_PURCHASE가 재전송되어도
+  purchased_at 덮어쓰기 금지
+- 동일 상태일 경우 audit 중복 금지
+
+DB migration이 필요해지는 경우
+임의 migration 실행하지 말고
+설계 보고 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+12. 앱 purchase 직후 refresh
+━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/swim-app/app/(admin)/subscription.tsx
+
+X purchase/sync 성공 후:
+
+ModeContext.refreshMode()
+
+호출.
+
+중요:
+
+일반 구독 구매 성공마다 불필요하게
+X 상태를 바꾸는 코드는 금지.
+
+refresh는 서버 상태 재조회일 뿐
+앱에서 xmode=true를 직접 세팅하지 않는다.
+
+서버가 source of truth.
+
+━━━━━━━━━━━━━━━━━━━━
+13. 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+신규:
+
+wp2-billing-webhook.test.ts
+
+최소 테스트:
+
+1. secret 미설정 → webhook 거절
+2. wrong secret → 401
+3. 일반 product purchase
+   → xmode_entitlement 변경 없음
+4. X INITIAL_PURCHASE
+   → true
+5. X RENEWAL
+   → true 유지
+6. X UNCANCELLATION
+   → true
+7. X CANCELLATION
+   → 즉시 false 되지 않음
+8. X EXPIRATION
+   → false
+9. X REFUND
+   → false
+10. X BILLING_ISSUE
+    → payment_failed_at 기록
+    → entitlement 즉시 false 금지
+11. duplicate INITIAL_PURCHASE
+    → purchased_at 보존
+    → 중복 audit 없음
+12. unknown product
+    → X 상태 변경 없음
+13. invalid app_user_id
+    → pool 변경 없음
+14. 일반 center/solo regression 유지
+
+기존 206 tests도 전부 실행.
+
+━━━━━━━━━━━━━━━━━━━━
+14. Production DB
+━━━━━━━━━━━━━━━━━━━━
+
+Production DB write 금지.
+
+SUPABASE_DATABASE_URL 기준
+schema 확인만 가능.
+
+Migration 실행 금지.
+
+현재 샘플 pool 상태 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+15. 구현 후 아직 배포 금지
+━━━━━━━━━━━━━━━━━━━━
+
+구현 완료 후:
+
+Commit
+Push
+Render
+OTA
+
+아직 하지 않는다.
+
+먼저 검수 보고 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+16. 제출 보고
+━━━━━━━━━━━━━━━━━━━━
+
+1. 수정 파일
+2. 신규 파일
+3. X product ID config 방식
+4. webhook secret fail-closed diff
+5. isXProduct 구현
+6. INITIAL_PURCHASE 처리
+7. RENEWAL 처리
+8. UNCANCELLATION 처리
+9. CANCELLATION 처리
+10. EXPIRATION 처리
+11. BILLING_ISSUE 처리
+12. REFUND 처리
+13. TRANSFER 처리 여부와 근거
+14. xmode_config_status 불변 확인
+15. app_user_id/pool 권한 보호
+16. audit log 구현
+17. idempotency 구현
+18. purchase 후 refreshMode 구현
+19. DB migration 필요 여부
+20. 신규 테스트 결과
+21. 전체 regression 결과
+22. TypeScript 신규 오류
+23. 변경 파일 diff
+24. Render env 필요 목록
+25. RevenueCat Dashboard에서 사용자가 설정해야 할 항목
+26. Render/OTA 필요 여부
+
+구현 후 STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

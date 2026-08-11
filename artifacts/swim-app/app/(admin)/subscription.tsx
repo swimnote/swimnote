@@ -20,6 +20,7 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useSubscription, REVENUECAT_SOLO_ENTITLEMENT, REVENUECAT_CENTER_ENTITLEMENT } from "@/lib/revenuecat";
+import { useMode } from "@/context/ModeContext";
 
 const STORE_NAME    = Platform.OS === "ios" ? "App Store (Apple)" : "Google Play";
 const STORE_MANAGE  = Platform.OS === "ios"
@@ -61,6 +62,7 @@ function fmt(price: number) {
 export default function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
   const { token, refreshPool } = useAuth();
+  const { refreshMode } = useMode();
   const [currentTier, setCurrentTier]       = useState<string | null>(null);
   const [endsAt, setEndsAt]                 = useState<string | null>(null);
   const [pendingTier, setPendingTier]       = useState<string | null>(null);
@@ -242,6 +244,9 @@ export default function SubscriptionScreen() {
           await syncRcToServer(info, plan.rcPackageId ?? undefined);
           await refetchCustomerInfo();
           await refreshPool();
+          // X mode 서버 상태 재조회 (webhook 처리 후 반영)
+          // 서버가 source of truth; 앱에서 xmode를 직접 세팅하지 않음
+          await refreshMode().catch(() => {});
           showConfirm("구독 완료", "구독이 성공적으로 시작되었습니다!", () => {});
         } catch (e: any) {
           if (e?.userCancelled) return;

@@ -25,6 +25,7 @@ import {
   isDowngradeTier,
   isUpgradeTier,
 } from "../lib/subscriptionService.js";
+import { isXProduct, handleXEntitlementEvent } from "../lib/x-entitlement.js";
 
 const router = Router();
 
@@ -118,16 +119,20 @@ router.get("/features", requireAuth, async (req: AuthRequest, res) => {
 
 // RC_PRODUCT_TIER_MAP은 subscriptionService에서 import
 
-// ── RevenueCat Webhook (인증 불필요, billingEnabled 무관) ─────────────
+// ── RevenueCat Webhook (billingEnabled 무관) ──────────────────────────
+// 보안: REVENUECAT_WEBHOOK_SECRET 미설정 시 fail-closed (요청 거절)
 router.post("/revenuecat-webhook", async (req, res) => {
   const webhookSecret = process.env.REVENUECAT_WEBHOOK_SECRET;
-  if (webhookSecret) {
-    const authHeader = req.headers.authorization;
-    if (authHeader !== webhookSecret) {
-      console.warn("[rc-webhook] 인증 실패");
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+  if (!webhookSecret) {
+    console.warn("[rc-webhook] REVENUECAT_WEBHOOK_SECRET 미설정 — 요청 거절");
+    res.status(503).json({ error: "Webhook not configured" });
+    return;
+  }
+  const authHeader = req.headers.authorization;
+  if (authHeader !== webhookSecret) {
+    console.warn("[rc-webhook] 인증 실패");
+    res.status(401).json({ error: "Unauthorized" });
+    return;
   }
 
   const event = req.body?.event;
@@ -151,7 +156,7 @@ router.post("/revenuecat-webhook", async (req, res) => {
   try {
     // 사용자 → 수영장 찾기
     const [userRow] = (await db.execute(sql`
-      SELECT id, swimming_pool_id FROM users WHERE id = ${appUserId} LIMIT 1
+      SELECT id, swimming_pool_id, role FROM users WHERE id = ${appUserId} LIMIT 1
     `)).rows as any[];
 
     if (!userRow?.swimming_pool_id) {
@@ -161,6 +166,34 @@ router.post("/revenuecat-webhook", async (req, res) => {
     }
 
     const poolId = userRow.swimming_pool_id as string;
+
+    // ── X 상품 판정: X 전용 handler로 분리 ─────────────────────────────
+    // isXProduct()는 REVENUECAT_X_PRODUCT_IDS 미설정 시 항상 false
+    // → 일반 구독 webhook 흐름에 영향 없음
+    if (isXProduct(productId)) {
+      // pool_admin / super_admin만 X entitlement 변경 허용
+      // parent / teacher RevenueCat 이벤트가 pool X 상태를 바꾸지 못하도록 보호
+      const userRole = (userRow as any)?.role as string | undefined;
+      if (userRole !== "pool_admin" && userRole !== "super_admin") {
+        console.warn(
+          `[rc-webhook] X 상품 역할 불일치: user=${appUserId}, role=${userRole}`,
+        );
+        res.json({ received: true });
+        return;
+      }
+      await handleXEntitlementEvent({
+        eventType,
+        poolId,
+        appUserId,
+        productId,
+        eventId: (event.id as string | null) ?? null,
+        expiresAt,
+        isSandbox,
+      });
+      res.json({ received: true });
+      return;
+    }
+
     const todayStr = new Date().toISOString().split("T")[0];
 
     switch (eventType) {
