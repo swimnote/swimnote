@@ -28,6 +28,7 @@ import { Client as ObjectStorageClient } from "@replit/object-storage";
 import { runRealBackup } from "../lib/backup.js";
 import { resolveSubscription, applySubscriptionState, normalizeTier, backfillPoolSubscriptionFields } from "../lib/subscriptionService.js";
 import { getPoolOperators } from "../lib/poolOperatorService.js";
+import { listAiTraces, getAiTraceByRequestId } from "../lib/ai-trace-service.js";
 
 const router = Router();
 
@@ -3543,6 +3544,73 @@ router.delete(
       res.status(500).json({ error: err.message });
     }
   }
+);
+
+// ════════════════════════════════════════════════════════════════
+// GET  /super/ai-traces        — AI trace 목록 (super_admin 전용)
+// GET  /super/ai-traces/:reqId — AI trace 상세
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * GET /super/ai-traces
+ * Query: pool_id?, feature?, status?, from?, to?, limit?, offset?
+ * 개인정보 비포함 (pool_id, actor_id(내부ID), token count만 반환)
+ */
+router.get(
+  "/super/ai-traces",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { pool_id, feature, status, from, to, limit, offset } = req.query as Record<string, string | undefined>;
+
+      const result = await listAiTraces({
+        pool_id:  pool_id  || undefined,
+        feature:  feature  || undefined,
+        status:   (status === "SUCCESS" || status === "FAILED") ? status : undefined,
+        from:     from     || undefined,
+        to:       to       || undefined,
+        limit:    limit    ? Math.min(parseInt(limit, 10) || 50, 200) : 50,
+        offset:   offset   ? parseInt(offset, 10) || 0 : 0,
+      });
+
+      res.json({ ok: true, ...result });
+    } catch (err: any) {
+      console.error("[super/ai-traces] list error:", err?.message);
+      res.status(500).json({ ok: false, error: "AI trace 조회 실패" });
+    }
+  },
+);
+
+/**
+ * GET /super/ai-traces/:requestId
+ * request_id(외부 ID) 기준 trace 상세 조회.
+ */
+router.get(
+  "/super/ai-traces/:requestId",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { requestId } = req.params;
+      if (!requestId || requestId.length > 128) {
+        res.status(400).json({ ok: false, error: "invalid request_id" });
+        return;
+      }
+
+      const found = await getAiTraceByRequestId(requestId);
+      if (!found.found) {
+        res.status(404).json({ ok: false, error: "trace not found" });
+        return;
+      }
+
+      // 민감 원문 미포함 확인 — metadata는 ai-trace-service.ts에서 이미 필터링됨
+      res.json({ ok: true, trace: { ...found.row, metadata: found.metadata } });
+    } catch (err: any) {
+      console.error("[super/ai-traces/:requestId] error:", err?.message);
+      res.status(500).json({ ok: false, error: "AI trace 조회 실패" });
+    }
+  },
 );
 
 export default router;

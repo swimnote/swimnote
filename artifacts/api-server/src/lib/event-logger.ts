@@ -18,7 +18,8 @@ export type EventCategory =
   | "백업"
   | "킬스위치"
   | "플랜"
-  | "시스템";
+  | "시스템"
+  | "AI";   // WP10: AI 호출 trace/cost 기록
 
 export interface EventLogParams {
   pool_id:     string;

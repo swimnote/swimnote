@@ -68,6 +68,7 @@ import { resolvePoolMode, type PoolMode }                                       
 import { searchCurriculumCandidates }                                                from '../lib/curriculum-candidate-search.js';
 import { createMatchToken, newTokenId, MatchTokenError, type MatchTokenPayload }     from '../lib/match-token.js';
 import { DEFAULT_CONFIDENCE_CONFIG_V1 }                                              from '../config/growth-confidence-config.js';
+import { saveAiTrace, type AiTraceStage }                                            from '../lib/ai-trace-service.js';
 
 const router = Router();
 
@@ -108,6 +109,9 @@ router.post(
     const internalId = newInternalRequestId();
     const startMs    = Date.now();
     const raw        = req.body ?? {};
+
+    // ── WP10: trace용 usage 캡처 (try 외부에서 접근 필요) ─────────────────────
+    let _capturedUsage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null = null;
 
     // ── contract_version 조기 캡처 (에러 응답에서 echo 사용) ──────────────────
     // 유효하지 않은 contract_version이면 '1.0'을 기본값으로 사용
@@ -345,6 +349,8 @@ router.post(
         throw e;
       }
       const gpt_ms = Date.now() - t_gpt;
+      // WP10: usage 캡처 (catch 블록에서도 접근 가능하도록 외부 변수에 저장)
+      _capturedUsage = completion.usage ?? null;
 
       // ── Trace: NATURALIZER_COMPLETED ──────────────────────────────────────
       console.log(`[AI/v1:${internalId}] NATURALIZER_COMPLETED latency_ms=${gpt_ms} tokens=${completion.usage?.total_tokens ?? 0}`);
@@ -510,6 +516,26 @@ router.post(
                   errBody(contractVersion, externalRequestId, 'X_MODE_TOKEN_NOT_CONFIGURED',
                     'X mode match token service is not configured.', false),
                 );
+                // WP10: 실패 trace (GPT까지는 완료했으므로 usage 포함)
+                void saveAiTrace({
+                  status:           'FAILED',
+                  request_id:       externalRequestId,
+                  internal_id:      internalId,
+                  pool_id:          poolId,
+                  actor_id:         req.user?.id,
+                  contract_version: contractVersion,
+                  pipeline_version: PIPELINE_VERSION_V2,
+                  feature:          'teacher_diary',
+                  pool_mode:        poolMode,
+                  student_count:    normalizedStudents.length,
+                  error_stage:      'MATCH_TOKEN',
+                  error_code:       'X_MODE_TOKEN_NOT_CONFIGURED',
+                  latency_ms:       Date.now() - startMs,
+                  model:            'gpt-4o-mini',
+                  input_tokens:     _capturedUsage?.prompt_tokens     ?? 0,
+                  output_tokens:    _capturedUsage?.completion_tokens ?? 0,
+                  total_tokens:     _capturedUsage?.total_tokens      ?? 0,
+                }).catch((traceErr: unknown) => console.error(`[AI/trace] fail-trace save failed internal_id=${internalId}`, traceErr));
                 return;
               }
               // 기타 토큰 오류: 해당 candidate 제외, 계속 (전체 실패 방지)
@@ -571,6 +597,28 @@ router.post(
 
         console.log(`[AI/v1:${internalId}] RESPONSE_SENT request_id=${externalRequestId} http_status=200 generation_mode=${generation_mode} student_count=${finalResult.students.length} grounding=${groundingResult.status} total_latency_ms=${elapsedMs} contract=1.0`);
         res.status(200).json(responseBody);
+        // WP10: trace 저장 (응답 후 비동기 — 응답 지연 없음)
+        void saveAiTrace({
+          status:                   'SUCCESS',
+          request_id:               externalRequestId,
+          internal_id:              internalId,
+          pool_id:                  poolId,
+          actor_id:                 req.user?.id,
+          contract_version:         contractVersion,
+          feature:                  'teacher_diary',
+          pool_mode:                poolMode,
+          student_count:            normalizedStudents.length,
+          generation_mode,
+          model:                    'gpt-4o-mini',
+          latency_ms:               elapsedMs,
+          input_tokens:             _capturedUsage?.prompt_tokens     ?? 0,
+          output_tokens:            _capturedUsage?.completion_tokens ?? 0,
+          total_tokens:             _capturedUsage?.total_tokens      ?? 0,
+          template_candidate_count: searchResult.candidateCount,
+          selected_template_id:     searchResult.usedTemplates[0]?.id ?? undefined,
+          curriculum_match_count:   undefined,
+          knowledge_hit_count:      0,
+        }).catch((traceErr: unknown) => console.error(`[AI/trace] save failed internal_id=${internalId}`, traceErr));
         return;
       }
 
@@ -599,26 +647,75 @@ router.post(
 
       console.log(`[AI/v1:${internalId}] RESPONSE_SENT request_id=${externalRequestId} http_status=200 generation_mode=${generation_mode} student_count=${finalResult.students.length} grounding=${groundingResult.status} total_latency_ms=${elapsedMs} contract=1.3 pool_mode=${poolMode} curriculum_matches=${curriculumMatches?.length ?? 'null'}`);
       res.status(200).json(responseBody13);
+      // WP10: trace 저장 (응답 후 비동기)
+      void saveAiTrace({
+        status:                   'SUCCESS',
+        request_id:               externalRequestId,
+        internal_id:              internalId,
+        pool_id:                  poolId,
+        actor_id:                 req.user?.id,
+        contract_version:         contractVersion,
+        pipeline_version:         PIPELINE_VERSION_V2,
+        feature:                  'teacher_diary',
+        pool_mode:                poolMode,
+        student_count:            normalizedStudents.length,
+        generation_mode,
+        model:                    'gpt-4o-mini',
+        latency_ms:               elapsedMs,
+        input_tokens:             _capturedUsage?.prompt_tokens     ?? 0,
+        output_tokens:            _capturedUsage?.completion_tokens ?? 0,
+        total_tokens:             _capturedUsage?.total_tokens      ?? 0,
+        template_candidate_count: searchResult.candidateCount,
+        selected_template_id:     searchResult.usedTemplates[0]?.id ?? null,
+        ...(xTemplateStatus   != null ? { x_template_status:      xTemplateStatus  } : {}),
+        ...(xActiveSetId      != null ? { active_template_set_id: xActiveSetId     } : {}),
+        curriculum_match_count:   curriculumMatches?.length ?? undefined,
+        knowledge_hit_count:      0,
+      }).catch((traceErr: unknown) => console.error(`[AI/trace] save failed internal_id=${internalId}`, traceErr));
 
     } catch (e: any) {
       const elapsedMs = Date.now() - startMs;
 
+      // WP10: 실패 단계·코드 결정
+      let _failStage: AiTraceStage = 'UNKNOWN';
+      let _failCode  = String(e?.code ?? 'INTERNAL_ERROR');
+
       if (e instanceof ModelTimeoutError) {
         logDiaryStructured({ internal_id: internalId, external_request_id: externalRequestId, feature_flag: 'parser_v1', engine_version: ENGINE_VERSION, prompt_version: 'p_template_v2', validator_result: 'timeout', error_code: 'MODEL_TIMEOUT', latency_ms: elapsedMs, pool_id_hash: hashPoolId(poolId) });
-        res.status(504).json(errBody(contractVersion, externalRequestId, 'MODEL_TIMEOUT', 'Teacher diary generation timed out.', true)); return;
-      }
-
-      if (e instanceof OutputValidationError) {
+        _failStage = 'LLM_GENERATION'; _failCode = 'MODEL_TIMEOUT';
+        res.status(504).json(errBody(contractVersion, externalRequestId, 'MODEL_TIMEOUT', 'Teacher diary generation timed out.', true));
+      } else if (e instanceof OutputValidationError) {
         logDiaryStructured({ internal_id: internalId, external_request_id: externalRequestId, feature_flag: 'parser_v1', engine_version: ENGINE_VERSION, prompt_version: 'p_template_v2', validator_result: `fail:${e.reason}`, error_code: 'OUTPUT_VALIDATION_FAILED', latency_ms: elapsedMs, pool_id_hash: hashPoolId(poolId) });
         console.error(`[AI/v1:${internalId}] output_validation_failed reason=${e.reason}`);
-        res.status(500).json(errBody(contractVersion, externalRequestId, 'OUTPUT_VALIDATION_FAILED', 'Teacher diary output validation failed.', false)); return;
+        _failStage = 'OUTPUT_VALIDATION'; _failCode = 'OUTPUT_VALIDATION_FAILED';
+        res.status(500).json(errBody(contractVersion, externalRequestId, 'OUTPUT_VALIDATION_FAILED', 'Teacher diary output validation failed.', false));
+      } else {
+        const safeMsg = String(e?.message ?? '').replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED]');
+        logDiaryStructured({ internal_id: internalId, external_request_id: externalRequestId, feature_flag: 'parser_v1', engine_version: ENGINE_VERSION, prompt_version: 'p_template_v2', validator_result: 'error', error_code: e?.code ?? 'INTERNAL_ERROR', latency_ms: elapsedMs, pool_id_hash: hashPoolId(poolId) });
+        console.error(`[AI/v1:${internalId}] error elapsed=${elapsedMs}ms msg=${safeMsg}`);
+        const retryable = !e?.status || e.status >= 500 || e.status === 429;
+        res.status(e?.status ?? 500).json(errBody(contractVersion, externalRequestId, e?.code ?? 'INTERNAL_ERROR', 'Teacher diary generation failed.', retryable));
       }
 
-      const safeMsg = String(e?.message ?? '').replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED]');
-      logDiaryStructured({ internal_id: internalId, external_request_id: externalRequestId, feature_flag: 'parser_v1', engine_version: ENGINE_VERSION, prompt_version: 'p_template_v2', validator_result: 'error', error_code: e?.code ?? 'INTERNAL_ERROR', latency_ms: elapsedMs, pool_id_hash: hashPoolId(poolId) });
-      console.error(`[AI/v1:${internalId}] error elapsed=${elapsedMs}ms msg=${safeMsg}`);
-      const retryable = !e?.status || e.status >= 500 || e.status === 429;
-      res.status(e?.status ?? 500).json(errBody(contractVersion, externalRequestId, e?.code ?? 'INTERNAL_ERROR', 'Teacher diary generation failed.', retryable));
+      // WP10: 실패 trace 저장 (응답 후 비동기)
+      void saveAiTrace({
+        status:           'FAILED',
+        request_id:       externalRequestId,
+        internal_id:      internalId,
+        pool_id:          poolId,
+        actor_id:         req.user?.id,
+        contract_version: contractVersion,
+        feature:          'teacher_diary',
+        pool_mode:        poolMode,
+        student_count:    normalizedStudents.length,
+        error_stage:      _failStage,
+        error_code:       _failCode,
+        latency_ms:       elapsedMs,
+        model:            'gpt-4o-mini',
+        ...(_capturedUsage?.prompt_tokens     != null ? { input_tokens:  _capturedUsage.prompt_tokens     } : {}),
+        ...(_capturedUsage?.completion_tokens != null ? { output_tokens: _capturedUsage.completion_tokens } : {}),
+        ...(_capturedUsage?.total_tokens      != null ? { total_tokens:  _capturedUsage.total_tokens      } : {}),
+      }).catch((traceErr: unknown) => console.error(`[AI/trace] fail-trace save failed internal_id=${internalId}`, traceErr));
     }
   },
 );
