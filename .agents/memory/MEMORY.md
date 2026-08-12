@@ -33,6 +33,7 @@
 - [WP6 감사 완료 상태](wp6-audit-done.md) — 97/97 테스트 통과, DB 쓰기 없음, GitHub push 없음; WP7 차단조건(PENDING_REVIEW 명시) 기록
 - [WP2 X Entitlement Sync 구현 상태](wp2-x-entitlement-state.md) — IMPLEMENTED/NOT_DEPLOYED; SHA 07335f67; WEBHOOK_SECRET=EXISTS; X_PRODUCT_IDS=MISSING(정상); Render/OTA 미배포
 - [standby-sync 배열 직렬화 수정](standby-sync-serialize-fix.md) — drizzle sql`${array}` → ($1,$2) tuple 오류; serializeForPg()로 해결; LAZY_SYNC_TABLES+BACKUP_SCHEMA_MISSING 패턴
+- [standby-sync jsonb 배열 버그](standby-sync-jsonb-array-bug.md) — jsonb 컬럼(assigned_class_ids 등) JS array → serializeForPg가 PG array literal로 변환 → 22P02; 컬럼 타입 인식 후 JSON.stringify 분기 필요
 - [AlbumPicker 사진 중복사용 허용](album-picker-attached-restriction-removed.md) — isAttached 차단 제거 완료; 서버 clone 메커니즘(Case C)이 N:M 지원; OTA e6dbae54 배포됨
 - [업무 대화 스레드 구조](request-thread-structure.md) — parent_request_messages 테이블 auto-create 패턴; system message helper; teacher/parent 공통 API; OTA cb5084e2/83b14881 배포됨
 - [교사 일지 히스토리 사진 조회 경로](diary-photo-strip-query-path.md) — DiaryPhotoStrip teacher모드=/photos/group/:id?date=, /photos/diary/:id 아님; 재발 시 추적 순서 기록
