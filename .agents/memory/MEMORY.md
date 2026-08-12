@@ -32,6 +32,7 @@
 - [WP4B 완료 상태](wp4b-done-state.md) — X mode AI일지: ACTIVE global_template_set → searchXGlobalTemplates; category→level_name fallback 필수; M-E 검증도 x_global 허용 수정
 - [WP5 완료 상태](wp5-progress.md) — XModeGuard Lock UI 구현; per-state(no_entitlement/not_configured/curriculum_pending/api_error); SHA 9f87c446; OTA preview 6c13b61f
 - [WP6 감사 완료 상태](wp6-audit-done.md) — 97/97 테스트 통과, DB 쓰기 없음, GitHub push 없음; WP7 차단조건(PENDING_REVIEW 명시) 기록
+- [WP7 완료 상태](wp7-done-state.md) — SHA 16501ba7; growth-event-service.ts+diary.ts+앱 변경; 234/234; Render+OTA 배포 필요
 - [WP2 X Entitlement Sync 구현 상태](wp2-x-entitlement-state.md) — IMPLEMENTED/NOT_DEPLOYED; SHA 07335f67; WEBHOOK_SECRET=EXISTS; X_PRODUCT_IDS=MISSING(정상); Render/OTA 미배포
 - [standby-sync 배열 직렬화 수정](standby-sync-serialize-fix.md) — drizzle sql`${array}` → ($1,$2) tuple 오류; serializeForPg()로 해결; LAZY_SYNC_TABLES+BACKUP_SCHEMA_MISSING 패턴
 - [standby-sync jsonb 배열 버그](standby-sync-jsonb-array-bug.md) — FIXED in f22d6c47; serializeForPg(v, pgType) + colTypes Map; students/parent_accounts/diary_messages 복제 검증 완료
