@@ -290,6 +290,133 @@ export async function searchTemplates(
   };
 }
 
+// ── X Global Template Search (WP4B) ──────────────────────────────────────────
+
+/**
+ * X_GLOBAL 템플릿 검색 상태
+ *   FOUND              — ACTIVE set 존재 + matching template 선택
+ *   NOT_CONFIGURED     — ACTIVE set 없음 (DRAFT/ARCHIVED만 있거나 0개)
+ *   NO_MATCH           — ACTIVE set 존재하지만 score 통과 template 없음
+ *   DATA_INTEGRITY_ERROR — ACTIVE set이 2개 이상 (DB unique index 위반)
+ */
+export type XTemplateStatus =
+  | 'FOUND'
+  | 'NOT_CONFIGURED'
+  | 'NO_MATCH'
+  | 'DATA_INTEGRITY_ERROR';
+
+/** searchXGlobalTemplates 반환 타입 — TemplateSearchResult 확장 */
+export interface XGlobalTemplateSearchResult extends TemplateSearchResult {
+  xTemplateStatus: XTemplateStatus;
+  activeSetId:     string | null;
+  templateScope:   'x_global';
+}
+
+/** ACTIVE global_template_set 조회 (안전 검증 포함) */
+export async function getActiveGlobalTemplateSet(): Promise<
+  { id: string; version_name: string } | null | 'DATA_INTEGRITY_ERROR'
+> {
+  // LIMIT 3: 2개 이상 감지를 위해 2 이상이면 충분하지만 3으로 안전하게
+  const result = await db.execute(sql`
+    SELECT id, version_name
+    FROM global_template_sets
+    WHERE status = 'ACTIVE'
+    LIMIT 3
+  `);
+  const rows = result.rows as Array<{ id: string; version_name: string }>;
+  if (rows.length === 0)  return null;
+  if (rows.length >= 2)   return 'DATA_INTEGRITY_ERROR';
+  return rows[0];
+}
+
+/**
+ * X Mode 전용 글로벌 템플릿 검색.
+ *
+ * 조건:
+ *   scope = 'x_global'
+ *   global_template_set_id = ACTIVE_SET.id
+ *   swimming_pool_id IS NULL
+ *
+ * FALLBACK (일반 global template 혼입) 절대 금지.
+ */
+export async function searchXGlobalTemplates(
+  meaning: ExtractedMeaning,
+): Promise<XGlobalTemplateSearchResult> {
+  const EMPTY = (status: XTemplateStatus, activeSetId: string | null = null): XGlobalTemplateSearchResult => ({
+    usedTemplates:    [],
+    candidateCount:   0,
+    usedCount:        0,
+    topScore:         0,
+    usedFallbackPool: false,
+    candidateIds:     [],
+    topBreakdown:     null,
+    xTemplateStatus:  status,
+    activeSetId,
+    templateScope:    'x_global',
+  });
+
+  // ── 1. ACTIVE set 조회 ────────────────────────────────────────────────────
+  const activeSet = await getActiveGlobalTemplateSet();
+
+  if (activeSet === null)                return EMPTY('NOT_CONFIGURED');
+  if (activeSet === 'DATA_INTEGRITY_ERROR') return EMPTY('DATA_INTEGRITY_ERROR');
+
+  // ── 2. x_global 템플릿 로드 ───────────────────────────────────────────────
+  const rows = await loadXGlobalTemplates(activeSet.id);
+
+  if (rows.length === 0) return EMPTY('NO_MATCH', activeSet.id);
+
+  // ── 3. Scoring (기존 엔진 재사용) ─────────────────────────────────────────
+  const scored: ScoredTemplate[] = rows.map(tpl => {
+    const breakdown = scoreTemplate(tpl, meaning);
+    return {
+      id:            tpl.id,
+      level_id:      tpl.level_id,
+      level_name:    tpl.level_name ?? '',
+      template_text: tpl.template_text,
+      score:         breakdown.score,
+      breakdown,
+    };
+  });
+
+  // ── 4. 후보 필터링 (기존 로직 재사용) ────────────────────────────────────
+  const hasAnySignal = meaning.allKeywords.length > 0;
+  let candidates: ScoredTemplate[];
+  if (hasAnySignal) {
+    candidates = scored.filter(t => t.breakdown.conceptOverlap >= CANDIDATE_MIN_CONCEPT_OVERLAP);
+    if (candidates.length === 0) {
+      candidates = scored
+        .filter(t => t.breakdown.strokeMatch > 0 || t.breakdown.focusMatch > 0)
+        .slice(0, 3);
+    }
+  } else {
+    candidates = scored;
+  }
+  candidates.sort((a, b) => b.score - a.score);
+
+  // ── 5. 최종 선택 ──────────────────────────────────────────────────────────
+  const usedTemplates = candidates
+    .filter(t => t.score >= USAGE_MIN_SCORE)
+    .slice(0, TOP_K_USAGE);
+
+  const topScore     = usedTemplates[0]?.score ?? 0;
+  const topBreakdown = usedTemplates[0]?.breakdown ?? null;
+  const xTemplateStatus: XTemplateStatus = usedTemplates.length > 0 ? 'FOUND' : 'NO_MATCH';
+
+  return {
+    usedTemplates,
+    candidateCount:   candidates.length,
+    usedCount:        usedTemplates.length,
+    topScore,
+    usedFallbackPool: false,
+    candidateIds:     candidates.map(t => t.id),
+    topBreakdown,
+    xTemplateStatus,
+    activeSetId:      activeSet.id,
+    templateScope:    'x_global',
+  };
+}
+
 // ── DB 쿼리 헬퍼 ─────────────────────────────────────────────────────────────
 
 async function loadTemplates(poolId: string): Promise<RawTemplate[]> {
@@ -321,6 +448,32 @@ async function loadTemplatesAnyPool(): Promise<RawTemplate[]> {
     LEFT JOIN diary_template_levels dtl ON dtl.id = dt.level_id
     WHERE dt.scope     = 'global'
       AND dt.is_active = true
+    ORDER BY dt.sort_order ASC
+    LIMIT ${TEMPLATE_LOAD_LIMIT}
+  `);
+  return result.rows as unknown as RawTemplate[];
+}
+
+/**
+ * ACTIVE global_template_set에 속한 x_global 템플릿만 로드.
+ * 반드시 세 조건 모두 적용:
+ *   scope = 'x_global'
+ *   global_template_set_id = setId
+ *   swimming_pool_id IS NULL
+ */
+async function loadXGlobalTemplates(setId: string): Promise<RawTemplate[]> {
+  const result = await db.execute(sql`
+    SELECT
+      dt.id,
+      dt.level_id,
+      dtl.level_name,
+      dt.template_text
+    FROM diary_templates dt
+    LEFT JOIN diary_template_levels dtl ON dtl.id = dt.level_id
+    WHERE dt.scope                  = 'x_global'
+      AND dt.global_template_set_id = ${setId}
+      AND dt.swimming_pool_id       IS NULL
+      AND dt.is_active              = true
     ORDER BY dt.sort_order ASC
     LIMIT ${TEMPLATE_LOAD_LIMIT}
   `);

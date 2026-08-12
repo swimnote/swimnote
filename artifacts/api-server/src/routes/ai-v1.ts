@@ -56,9 +56,12 @@ import {
 import { extractMeaning }    from '../lib/diary-parser.js';
 import {
   searchTemplates,
+  searchXGlobalTemplates,
   CANDIDATE_MIN_CONCEPT_OVERLAP,
   USAGE_MIN_SCORE,
   TOP_K_USAGE,
+  type TemplateSearchResult,
+  type XTemplateStatus,
 } from '../lib/diary-template-search.js';
 import { validateGrounding, purgeStudentLeaksFromCommon, purgeInventedEvaluations } from '../lib/diary-grounding.js';
 import { resolvePoolMode, type PoolMode }                                            from '../lib/xmode.js';
@@ -238,16 +241,41 @@ router.post(
       console.log(`[AI/v1:${internalId}] STUDENT_MATCH_COMPLETED student_count=${normalizedStudents.length} refs=${normalizedStudents.map(s => s.ref).join(',')}`);
 
       // ── Phase 2 & 3: Template Search + Ranking ────────────────────────────
-      // diary-template-search.ts 단일 경로 사용
-      // CANDIDATE_MIN_CONCEPT_OVERLAP=0.30, USAGE_MIN_SCORE=1.40, TOP_K_USAGE=1
+      // X mode (contract 1.3 + poolMode='x'): x_global ACTIVE set 전용 검색
+      // Non-X: 기존 searchTemplates 경로 (변경 없음)
       const t_template = Date.now();
-      const searchResult = await searchTemplates(poolId, meaning);
+      let searchResult: TemplateSearchResult;
+      let xTemplateStatus: XTemplateStatus | null = null;
+      let xActiveSetId: string | null = null;
+
+      if (contractVersion === '1.3' && poolMode === 'x') {
+        const xResult = await searchXGlobalTemplates(meaning);
+        searchResult    = xResult;
+        xTemplateStatus = xResult.xTemplateStatus;
+        xActiveSetId    = xResult.activeSetId;
+        // Trace: X_TEMPLATE_SEARCH_COMPLETED
+        console.log(
+          `[AI/v1:${internalId}] X_TEMPLATE_SEARCH_COMPLETED` +
+          ` x_mode=true` +
+          ` x_template_status=${xTemplateStatus}` +
+          ` active_set_id=${xActiveSetId ?? 'NONE'}` +
+          ` template_scope=x_global` +
+          ` candidates=${xResult.candidateCount}` +
+          ` used=${xResult.usedCount}` +
+          ` top_score=${xResult.topScore.toFixed(2)}` +
+          (xResult.usedTemplates[0] ? ` selected_template_id=${xResult.usedTemplates[0].id}` : '') +
+          (xTemplateStatus !== 'FOUND' ? ` fallback_reason=${xTemplateStatus}` : ''),
+        );
+      } else {
+        searchResult = await searchTemplates(poolId, meaning);
+      }
       const template_ms = Date.now() - t_template;
 
       // ── Trace: TEMPLATE_SEARCH_COMPLETED ──────────────────────────────────
       const topBd = searchResult.topBreakdown;
       console.log(
         `[AI/v1:${internalId}] TEMPLATE_SEARCH_COMPLETED latency_ms=${template_ms}` +
+        ` x_mode=${contractVersion === '1.3' && poolMode === 'x'}` +
         ` candidates=${searchResult.candidateCount}` +
         ` used=${searchResult.usedCount}` +
         ` top_score=${searchResult.topScore.toFixed(2)}` +
@@ -255,7 +283,8 @@ router.post(
           ? ` strokeMatch=${topBd.strokeMatch} focusMatch=${topBd.focusMatch}` +
             ` conceptOverlap=${topBd.conceptOverlap.toFixed(2)} observationMatch=${topBd.observationMatch}`
           : '') +
-        (searchResult.usedFallbackPool ? ' fallback_pool=true' : ''),
+        (searchResult.usedFallbackPool ? ' fallback_pool=true' : '') +
+        (xTemplateStatus ? ` x_template_status=${xTemplateStatus}` : ''),
       );
 
       // ── Trace: KNOWLEDGE_SEARCH_COMPLETED (N/A) ───────────────────────────
@@ -531,7 +560,7 @@ router.post(
             common:   finalResult.common,
             students: finalResult.students,
           },
-          meta: buildMeta({ generation_mode, meaning, searchResult, groundingResult }),
+          meta: buildMeta({ generation_mode, meaning, searchResult, groundingResult, xTemplateStatus, xActiveSetId }),
           usage: {
             input_tokens:  usage?.prompt_tokens     ?? 0,
             output_tokens: usage?.completion_tokens ?? 0,
@@ -558,7 +587,7 @@ router.post(
           common:   finalResult.common,
           students: finalResult.students,
         },
-        meta: buildMeta({ generation_mode, meaning, searchResult, groundingResult }),
+        meta: buildMeta({ generation_mode, meaning, searchResult, groundingResult, xTemplateStatus, xActiveSetId }),
         usage: {
           input_tokens:  usage?.prompt_tokens     ?? 0,
           output_tokens: usage?.completion_tokens ?? 0,
@@ -598,10 +627,12 @@ router.post(
 function buildMeta(p: {
   generation_mode: string;
   meaning: ReturnType<typeof extractMeaning>;
-  searchResult: Awaited<ReturnType<typeof searchTemplates>>;
+  searchResult: TemplateSearchResult;
   groundingResult: ReturnType<typeof validateGrounding>;
+  xTemplateStatus?: XTemplateStatus | null;
+  xActiveSetId?: string | null;
 }): Record<string, unknown> {
-  const { generation_mode, meaning, searchResult, groundingResult } = p;
+  const { generation_mode, meaning, searchResult, groundingResult, xTemplateStatus, xActiveSetId } = p;
   const topBd = searchResult.topBreakdown;
   return {
     pipeline_mode:            PIPELINE_MODE,
@@ -638,6 +669,9 @@ function buildMeta(p: {
       ? searchResult.usedTemplates.map((t: { id: string }) => t.id)
       : [],
     fallback_used:          searchResult.usedFallbackPool,
+    // X mode 전용 메타 (non-X pool에서는 미포함)
+    ...(xTemplateStatus != null ? { x_template_status: xTemplateStatus } : {}),
+    ...(xActiveSetId    != null ? { x_active_set_id:   xActiveSetId   } : {}),
   };
 }
 

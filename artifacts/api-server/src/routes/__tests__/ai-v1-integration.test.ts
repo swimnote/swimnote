@@ -33,10 +33,12 @@ const mockOpenAICreate = vi.hoisted(() =>
     usage: { prompt_tokens: 50, completion_tokens: 100, total_tokens: 150 },
   }),
 );
-const mockResolvePoolMode          = vi.hoisted(() => vi.fn());
+const mockResolvePoolMode            = vi.hoisted(() => vi.fn());
 const mockSearchCurriculumCandidates = vi.hoisted(() => vi.fn().mockResolvedValue([]));
-const mockCreateMatchToken         = vi.hoisted(() => vi.fn().mockReturnValue('mock-match-token-abc'));
-const mockNewTokenId               = vi.hoisted(() => vi.fn().mockReturnValue('tid_mock1234567890abcdef12345678'));
+const mockCreateMatchToken           = vi.hoisted(() => vi.fn().mockReturnValue('mock-match-token-abc'));
+const mockNewTokenId                 = vi.hoisted(() => vi.fn().mockReturnValue('tid_mock1234567890abcdef12345678'));
+// WP4B: x_global template search mock
+const mockSearchXGlobalTemplates     = vi.hoisted(() => vi.fn());
 
 // ── vi.mock (자동 hoisting — import 이전 실행 보장) ──────────────────────────
 
@@ -54,6 +56,13 @@ vi.mock('openai', () => ({
   }),
 }));
 
+/** x_global 검색 기본 결과 (NOT_CONFIGURED — safe default) */
+const X_TEMPLATE_NOT_CONFIGURED = {
+  usedTemplates: [], candidateCount: 0, usedCount: 0, topScore: 0,
+  usedFallbackPool: false, candidateIds: [], topBreakdown: null,
+  xTemplateStatus: 'NOT_CONFIGURED', activeSetId: null, templateScope: 'x_global',
+} as const;
+
 vi.mock('../../lib/diary-template-search.js', () => ({
   searchTemplates: vi.fn().mockResolvedValue({
     candidateCount: 0,
@@ -64,6 +73,7 @@ vi.mock('../../lib/diary-template-search.js', () => ({
     candidateIds: [],
     usedFallbackPool: false,
   }),
+  searchXGlobalTemplates: mockSearchXGlobalTemplates,
   CANDIDATE_MIN_CONCEPT_OVERLAP: 0.30,
   USAGE_MIN_SCORE: 1.40,
   TOP_K_USAGE: 1,
@@ -139,6 +149,8 @@ beforeEach(() => {
   // match token mock 기본
   mockCreateMatchToken.mockReturnValue('mock-match-token-abc');
   mockNewTokenId.mockReturnValue('tid_mock1234567890abcdef12345678');
+  // WP4B: x_global template search 기본 → NOT_CONFIGURED (안전한 기본값)
+  mockSearchXGlobalTemplates.mockResolvedValue({ ...X_TEMPLATE_NOT_CONFIGURED });
 });
 
 // ── 헬퍼 ──────────────────────────────────────────────────────────────────────
@@ -535,5 +547,192 @@ describe('기존 Contract 1.0 회귀 검증', () => {
     mockOpenAICreate.mockClear();
     await post(makeBody({ contract_version: '1.3' }));
     expect(mockOpenAICreate).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WP4B: X_GLOBAL TEMPLATE SEARCH — TC-WP4B-A ~ TC-WP4B-I
+// ─────────────────────────────────────────────────────────────────────────────
+describe('WP4B: X_GLOBAL 템플릿 검색 분기', () => {
+  // ── TC-WP4B-A: Non-X pool → searchTemplates 호출, searchXGlobalTemplates 미호출 ──
+  it('TC-WP4B-A: Non-X pool → 기존 searchTemplates 경로, xGlobal 미호출', async () => {
+    setPoolMode('normal');
+
+    const { status, data } = await post(makeBody({ contract_version: '1.3' }));
+
+    expect(status).toBe(200);
+    // x_global search 미호출
+    expect(mockSearchXGlobalTemplates).not.toHaveBeenCalled();
+    // meta에 x_template_status 없음 (non-X)
+    expect(data.meta.x_template_status).toBeUndefined();
+    expect(data.meta.x_active_set_id).toBeUndefined();
+  });
+
+  // ── TC-WP4B-B: X pool + ACTIVE set 없음 → NOT_CONFIGURED, INPUT_ONLY, 200 (no 500) ──
+  it('TC-WP4B-B: X + ACTIVE set 없음 → NOT_CONFIGURED, generation_mode=INPUT_ONLY, 200', async () => {
+    setPoolMode('x');
+    mockSearchXGlobalTemplates.mockResolvedValue({ ...X_TEMPLATE_NOT_CONFIGURED });
+
+    const { status, data } = await post(makeBody({ contract_version: '1.3' }));
+
+    expect(status).toBe(200);
+    expect(mockSearchXGlobalTemplates).toHaveBeenCalledTimes(1);
+    expect(data.meta.x_template_status).toBe('NOT_CONFIGURED');
+    expect(data.meta.generation_mode).toBe('INPUT_ONLY');
+    // 500 없음 확인 (status=200)
+    expect(data.status).not.toBe('failed');
+    expect(data.result.common).toBeTruthy();
+  });
+
+  // ── TC-WP4B-C: X pool + ACTIVE set 존재 → searchXGlobalTemplates 호출, set id 전달 ──
+  it('TC-WP4B-C: X + ACTIVE set 존재 → searchXGlobalTemplates 호출', async () => {
+    setPoolMode('x');
+    mockSearchXGlobalTemplates.mockResolvedValue({
+      ...X_TEMPLATE_NOT_CONFIGURED,
+      xTemplateStatus: 'NO_MATCH',
+      activeSetId: 'gts_test_active_001',
+    });
+
+    const { status, data } = await post(makeBody({ contract_version: '1.3' }));
+
+    expect(status).toBe(200);
+    expect(mockSearchXGlobalTemplates).toHaveBeenCalledTimes(1);
+    expect(data.meta.x_template_status).toBe('NO_MATCH');
+    expect(data.meta.x_active_set_id).toBe('gts_test_active_001');
+  });
+
+  // ── TC-WP4B-D: X + ACTIVE set + matching template → FOUND, TEMPLATE_ASSISTED ──
+  it('TC-WP4B-D: X + ACTIVE set + matching template → FOUND, generation_mode=TEMPLATE_ASSISTED', async () => {
+    setPoolMode('x');
+    mockSearchXGlobalTemplates.mockResolvedValue({
+      usedTemplates: [{ id: 'dt_xglobal_001', level_id: '', level_name: '자유형', template_text: '발차기 연습을 진행했습니다.', score: 2.1, breakdown: { strokeMatch: 1, focusMatch: 0, conceptOverlap: 0.6, observationMatch: 0, score: 2.1 } }],
+      candidateCount: 1,
+      usedCount: 1,
+      topScore: 2.1,
+      usedFallbackPool: false,
+      candidateIds: ['dt_xglobal_001'],
+      topBreakdown: { strokeMatch: 1, focusMatch: 0, conceptOverlap: 0.6, observationMatch: 0, score: 2.1 },
+      xTemplateStatus: 'FOUND',
+      activeSetId: 'gts_test_active_001',
+      templateScope: 'x_global',
+    });
+
+    const { status, data } = await post(makeBody({ contract_version: '1.3' }));
+
+    expect(status).toBe(200);
+    expect(mockSearchXGlobalTemplates).toHaveBeenCalledTimes(1);
+    expect(data.meta.x_template_status).toBe('FOUND');
+    expect(data.meta.generation_mode).toBe('TEMPLATE_ASSISTED');
+    expect(data.meta.x_active_set_id).toBe('gts_test_active_001');
+    expect(data.meta.template_used_count).toBe(1);
+    expect(data.meta.template_ids).toContain('dt_xglobal_001');
+  });
+
+  // ── TC-WP4B-E: X + ACTIVE set + no matching template → NO_MATCH, INPUT_ONLY, 일반 global fallback 없음 ──
+  it('TC-WP4B-E: X + ACTIVE set + no match → NO_MATCH, INPUT_ONLY, 일반 fallback 없음', async () => {
+    setPoolMode('x');
+    mockSearchXGlobalTemplates.mockResolvedValue({
+      ...X_TEMPLATE_NOT_CONFIGURED,
+      xTemplateStatus: 'NO_MATCH',
+      activeSetId: 'gts_test_active_001',
+    });
+
+    const { status, data } = await post(makeBody({ contract_version: '1.3' }));
+
+    expect(status).toBe(200);
+    expect(data.meta.x_template_status).toBe('NO_MATCH');
+    expect(data.meta.generation_mode).toBe('INPUT_ONLY');
+    // 일반 searchTemplates 미호출 (global fallback 없음)
+    const { searchTemplates } = await import('../../lib/diary-template-search.js');
+    expect(searchTemplates).not.toHaveBeenCalled();
+    expect(data.meta.fallback_pool_used).toBe(false);
+    // 결과 정상 200
+    expect(data.result.common).toBeTruthy();
+  });
+
+  // ── TC-WP4B-F: ARCHIVED set → NOT_CONFIGURED (resolver가 ACTIVE만 조회하므로 자동) ──
+  it('TC-WP4B-F: ARCHIVED set → NOT_CONFIGURED (ACTIVE=0으로 처리)', async () => {
+    setPoolMode('x');
+    // resolver가 ARCHIVED를 제외하므로 NOT_CONFIGURED
+    mockSearchXGlobalTemplates.mockResolvedValue({ ...X_TEMPLATE_NOT_CONFIGURED });
+
+    const { status, data } = await post(makeBody({ contract_version: '1.3' }));
+
+    expect(status).toBe(200);
+    expect(data.meta.x_template_status).toBe('NOT_CONFIGURED');
+    expect(data.meta.generation_mode).toBe('INPUT_ONLY');
+    expect(data.meta.x_active_set_id).toBeUndefined();
+  });
+
+  // ── TC-WP4B-G: DRAFT set → NOT_CONFIGURED (동일 처리) ──
+  it('TC-WP4B-G: DRAFT set → NOT_CONFIGURED', async () => {
+    setPoolMode('x');
+    mockSearchXGlobalTemplates.mockResolvedValue({ ...X_TEMPLATE_NOT_CONFIGURED });
+
+    const { status } = await post(makeBody({ contract_version: '1.3' }));
+    expect(status).toBe(200); // 500 없음
+  });
+
+  // ── TC-WP4B-H: 다른 global_template_set_id의 x_global → searchXGlobalTemplates 내부 처리 (mock 안에서 제외) ──
+  it('TC-WP4B-H: 다른 set_id x_global → 검색 결과에서 제외 (NO_MATCH)', async () => {
+    setPoolMode('x');
+    // 올바른 set_id 조건으로 검색 시 match 없음 (다른 set 소속은 제외됨)
+    mockSearchXGlobalTemplates.mockResolvedValue({
+      ...X_TEMPLATE_NOT_CONFIGURED,
+      xTemplateStatus: 'NO_MATCH',
+      activeSetId: 'gts_correct_set',
+    });
+
+    const { status, data } = await post(makeBody({ contract_version: '1.3' }));
+    expect(status).toBe(200);
+    expect(data.meta.x_template_status).toBe('NO_MATCH');
+    expect(data.meta.generation_mode).toBe('INPUT_ONLY');
+  });
+
+  // ── TC-WP4B-I: scope='global' template → X search에서 제외 (resolver+SQL 조건으로 보장) ──
+  it('TC-WP4B-I: scope=global template → X search 제외, NOT_CONFIGURED 응답', async () => {
+    setPoolMode('x');
+    // scope='global' 템플릿은 loadXGlobalTemplates SQL 조건(scope='x_global')으로 제외됨
+    mockSearchXGlobalTemplates.mockResolvedValue({ ...X_TEMPLATE_NOT_CONFIGURED });
+
+    const { status, data } = await post(makeBody({ contract_version: '1.3' }));
+    expect(status).toBe(200);
+    expect(data.meta.generation_mode).toBe('INPUT_ONLY');
+    // 일반 searchTemplates 미호출 (global scope 혼입 없음)
+    const { searchTemplates } = await import('../../lib/diary-template-search.js');
+    expect(searchTemplates).not.toHaveBeenCalled();
+  });
+
+  // ── TC-WP4B-X1: contract 1.0 + X pool → searchXGlobalTemplates 미호출 (legacy 경로) ──
+  it('TC-WP4B-X1: contract 1.0 + X pool → searchXGlobalTemplates 미호출', async () => {
+    // contract 1.0은 Phase 0 (resolvePoolMode) 자체를 건너뜀 → poolMode='normal'
+    const { status } = await post(makeBody({ contract_version: '1.0' }));
+    expect(status).toBe(200);
+    expect(mockSearchXGlobalTemplates).not.toHaveBeenCalled();
+  });
+
+  // ── TC-WP4B-X2: x_pending pool → searchXGlobalTemplates 미호출 ──
+  it('TC-WP4B-X2: x_pending pool → searchXGlobalTemplates 미호출, 기존 searchTemplates 사용', async () => {
+    setPoolMode('x_pending');
+
+    const { status, data } = await post(makeBody({ contract_version: '1.3' }));
+    expect(status).toBe(200);
+    expect(mockSearchXGlobalTemplates).not.toHaveBeenCalled();
+    // x_template_status 없음 (non-X)
+    expect(data.meta.x_template_status).toBeUndefined();
+  });
+
+  // ── TC-WP4B-X3: DATA_INTEGRITY_ERROR → 200, INPUT_ONLY (no 500) ──
+  it('TC-WP4B-X3: DATA_INTEGRITY_ERROR (ACTIVE≥2) → 200, INPUT_ONLY, no 500', async () => {
+    setPoolMode('x');
+    mockSearchXGlobalTemplates.mockResolvedValue({
+      ...X_TEMPLATE_NOT_CONFIGURED,
+      xTemplateStatus: 'DATA_INTEGRITY_ERROR',
+    });
+
+    const { status, data } = await post(makeBody({ contract_version: '1.3' }));
+    expect(status).toBe(200);
+    expect(data.meta.x_template_status).toBe('DATA_INTEGRITY_ERROR');
+    expect(data.meta.generation_mode).toBe('INPUT_ONLY');
   });
 });
