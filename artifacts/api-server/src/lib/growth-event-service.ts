@@ -198,3 +198,189 @@ export async function insertGrowthEvents(params: {
 
   return { inserted, skipped, errors };
 }
+
+// ── READ LAYER (WP8) ──────────────────────────────────────────────────────────
+
+/**
+ * growth_events READ 결과 단건 행 타입 (response contract).
+ *
+ * 실제 schema 컬럼 기준. LEFT JOIN curriculum_items → curriculum_title(nullable).
+ */
+export interface GrowthEventRow {
+  event_id:              string;
+  student_id:            string;
+  source:                string;
+  status:                string;   // growth_match_status enum 값
+  created_at:            string;
+  diary_note_id:         string | null;
+  curriculum_item_id:    string | null;
+  curriculum_version_id: string | null;
+  match_token_id:        string | null;
+  confidence:            number | null;
+  is_invalidated:        boolean;
+  // optional linked
+  curriculum_title:      string | null;  // curriculum_items.title (LEFT JOIN)
+}
+
+export interface GrowthEventListResult {
+  events: GrowthEventRow[];
+  total:  number;
+}
+
+/**
+ * 학생별 growth_events 조회 (WP8).
+ *
+ * 보안 원칙:
+ *   - WHERE swimming_pool_id = poolId → 다른 pool 데이터 혼입 방지 (서버사이드 이중 확인)
+ *   - WHERE is_invalidated = false 기본 적용
+ *   - curriculum_items LEFT JOIN → 테이블/데이터 없어도 null 반환, 전체 조회 실패 없음
+ *
+ * @param poolId    호출자의 swimming_pool_id (authorization 검증 후 전달)
+ * @param studentId 대상 학생 ID
+ * @param limit     최대 반환 건수 (기본 30, max 100)
+ * @param offset    페이지네이션 오프셋 (기본 0)
+ * @param status    growth_match_status 필터 (optional)
+ * @param source    source 필터 (optional)
+ * @param from      created_at >= ISO date (optional)
+ * @param to        created_at <  ISO date (optional, exclusive 처리로 당일 포함)
+ */
+export async function getStudentGrowthEvents(params: {
+  db:        any;   // superAdminDb — 타입 순환 방지
+  poolId:    string;
+  studentId: string;
+  limit:     number;
+  offset:    number;
+  status?:   string;
+  source?:   string;
+  from?:     string;
+  to?:       string;
+}): Promise<GrowthEventListResult> {
+  const { db, poolId, studentId, limit, offset, status, source, from, to } = params;
+
+  // ── 동적 WHERE 절 구성 ────────────────────────────────────────────────────
+  // drizzle sql tag 내부에서 조건을 동적으로 이어붙이는 방식
+  const statusClause  = status ? sql` AND ge.growth_match_status = ${status}::growth_match_status_enum` : sql``;
+  const sourceClause  = source ? sql` AND ge.source = ${source}`                                        : sql``;
+  const fromClause    = from   ? sql` AND ge.created_at >= ${from}::timestamptz`                         : sql``;
+  const toClause      = to     ? sql` AND ge.created_at <  ${to}::timestamptz`                           : sql``;
+
+  // ── 이벤트 목록 조회 (LEFT JOIN curriculum_items) ────────────────────────
+  const listRes = await db.execute(sql`
+    SELECT
+      ge.id                    AS event_id,
+      ge.student_id,
+      ge.source,
+      ge.growth_match_status   AS status,
+      ge.created_at,
+      ge.diary_note_id,
+      ge.curriculum_item_id,
+      ge.curriculum_version_id,
+      ge.match_token_id,
+      ge.confidence,
+      ge.is_invalidated,
+      ci.title                 AS curriculum_title
+    FROM growth_events ge
+    LEFT JOIN curriculum_items ci ON ci.id = ge.curriculum_item_id
+    WHERE ge.student_id        = ${studentId}
+      AND ge.swimming_pool_id  = ${poolId}
+      AND ge.is_invalidated    = false
+      ${statusClause}
+      ${sourceClause}
+      ${fromClause}
+      ${toClause}
+    ORDER BY ge.created_at DESC
+    LIMIT  ${limit}
+    OFFSET ${offset}
+  `);
+
+  // ── 전체 건수 카운트 ──────────────────────────────────────────────────────
+  const countRes = await db.execute(sql`
+    SELECT COUNT(*) AS cnt
+    FROM growth_events ge
+    WHERE ge.student_id       = ${studentId}
+      AND ge.swimming_pool_id = ${poolId}
+      AND ge.is_invalidated   = false
+      ${statusClause}
+      ${sourceClause}
+      ${fromClause}
+      ${toClause}
+  `);
+
+  const total = Number((countRes.rows as any[])[0]?.cnt ?? 0);
+
+  const events: GrowthEventRow[] = (listRes.rows as any[]).map((r) => ({
+    event_id:              r.event_id,
+    student_id:            r.student_id,
+    source:                r.source,
+    status:                r.status,
+    created_at:            r.created_at instanceof Date
+                             ? r.created_at.toISOString()
+                             : String(r.created_at),
+    diary_note_id:         r.diary_note_id         ?? null,
+    curriculum_item_id:    r.curriculum_item_id    ?? null,
+    curriculum_version_id: r.curriculum_version_id ?? null,
+    match_token_id:        r.match_token_id        ?? null,
+    confidence:            r.confidence != null ? Number(r.confidence) : null,
+    is_invalidated:        Boolean(r.is_invalidated),
+    curriculum_title:      r.curriculum_title      ?? null,
+  }));
+
+  return { events, total };
+}
+
+/**
+ * growth_event 단건 조회 (WP8 — GET .../events/:eventId).
+ *
+ * poolId + studentId를 함께 검증하므로 다른 pool/학생 데이터 접근 불가.
+ * 반환: GrowthEventRow | null (없으면 null)
+ */
+export async function getGrowthEventById(params: {
+  db:        any;
+  poolId:    string;
+  studentId: string;
+  eventId:   string;
+}): Promise<GrowthEventRow | null> {
+  const { db, poolId, studentId, eventId } = params;
+
+  const res = await db.execute(sql`
+    SELECT
+      ge.id                    AS event_id,
+      ge.student_id,
+      ge.source,
+      ge.growth_match_status   AS status,
+      ge.created_at,
+      ge.diary_note_id,
+      ge.curriculum_item_id,
+      ge.curriculum_version_id,
+      ge.match_token_id,
+      ge.confidence,
+      ge.is_invalidated,
+      ci.title                 AS curriculum_title
+    FROM growth_events ge
+    LEFT JOIN curriculum_items ci ON ci.id = ge.curriculum_item_id
+    WHERE ge.id               = ${eventId}
+      AND ge.student_id       = ${studentId}
+      AND ge.swimming_pool_id = ${poolId}
+    LIMIT 1
+  `);
+
+  const r = (res.rows as any[])[0];
+  if (!r) return null;
+
+  return {
+    event_id:              r.event_id,
+    student_id:            r.student_id,
+    source:                r.source,
+    status:                r.status,
+    created_at:            r.created_at instanceof Date
+                             ? r.created_at.toISOString()
+                             : String(r.created_at),
+    diary_note_id:         r.diary_note_id         ?? null,
+    curriculum_item_id:    r.curriculum_item_id    ?? null,
+    curriculum_version_id: r.curriculum_version_id ?? null,
+    match_token_id:        r.match_token_id        ?? null,
+    confidence:            r.confidence != null ? Number(r.confidence) : null,
+    is_invalidated:        Boolean(r.is_invalidated),
+    curriculum_title:      r.curriculum_title      ?? null,
+  };
+}

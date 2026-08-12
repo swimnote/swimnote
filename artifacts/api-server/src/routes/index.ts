@@ -52,6 +52,7 @@ import aiEngineDocRouter from "./ai-engine-doc.js";
 import commentsRouter from "./comments.js";
 import aiRouter from "./ai.js";
 import storyRouter from "./story.js";
+import xGrowthRouter from "./x-growth.js";
 
 const router: IRouter = Router();
 
@@ -109,6 +110,7 @@ router.use("/", aiEngineDocRouter);
 router.use("/", commentsRouter);
 router.use("/", aiRouter);
 router.use("/", storyRouter);
+router.use("/", xGrowthRouter);
 router.use("/", aiV1Router);
 
 export default router;
