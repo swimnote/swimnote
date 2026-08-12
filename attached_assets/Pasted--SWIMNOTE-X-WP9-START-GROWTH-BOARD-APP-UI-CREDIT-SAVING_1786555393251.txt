@@ -1,0 +1,567 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP9 START
+GROWTH BOARD APP UI
+CREDIT SAVING MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+WP8_CLOSED ✅
+WP8 SHA:
+8a9660d9
+
+WP9만 진행.
+WP10 자동 시작 금지.
+
+전체 Repository 전수조사 금지.
+x-growth 관련 앱 파일만 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+1. WP9 목적
+━━━━━━━━━━━━━━━━━━━━
+
+WP8에서 만든 Growth Event READ API를
+앱의 X 전용 성장판 화면에 연결한다.
+
+이번 WP의 목표:
+
+- 학생별 성장 이벤트 목록 표시
+- empty/loading/error 상태 처리
+- pagination
+- status/source/date 필터 최소 지원
+- event detail 표시
+- XModeGuard 적용
+- 일반 SWIMNOTE 영향 없음
+
+이번 WP는 UI/READ ONLY.
+
+승인/거절/수정 기능 금지.
+Growth Event write 금지.
+AI 분석 금지.
+리포트 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 기존 구현 확인
+━━━━━━━━━━━━━━━━━━━━
+
+관련 파일만 확인:
+
+- 기존 x-growth.tsx 3개
+- XModeGuard
+- ModeContext
+- 현재 navigation/router
+- API client convention
+- 학생 선택 UI
+- 기존 loading/error/empty component
+- WP8 endpoint contract
+
+먼저 짧게 보고:
+
+A. 기존 화면이 어디까지 구현돼 있는지
+B. placeholder/mock 여부
+C. 실제 WP8 API와 contract mismatch
+D. 수정 파일
+
+기존 화면이 있으면 재사용.
+새 화면을 중복 생성하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+3. API SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━
+
+WP8 API:
+
+GET
+/api/x-growth/students/:studentId/events
+
+GET
+/api/x-growth/students/:studentId/events/:eventId
+
+실제 router prefix는 Repository 기준 확인.
+
+목록 지원:
+
+limit
+offset
+status
+source
+from
+to
+
+응답 contract는 실제 WP8 구현을 그대로 사용.
+
+앱에서 가짜 필드 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 학생 선택
+━━━━━━━━━━━━━━━━━━━━
+
+성장판은 학생별 화면.
+
+현재 사용자 역할과 기존 앱 구조를 따른다.
+
+teacher/pool_admin:
+→ 자신이 접근 가능한 학생만 선택
+
+앱에서 전체 DB 학생을 별도 조회하는
+새 기능 만들지 말 것.
+
+기존 학생 목록/회원관리 source 재사용.
+
+parent 접근은 이번 WP에서
+기존 contract가 없으면 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. X MODE GATE
+━━━━━━━━━━━━━━━━━━━━
+
+성장판 진입점은
+기존 XModeGuard로 보호.
+
+READY:
+→ 화면 진입
+
+NOT_CONFIGURED / PENDING / entitlement 없음 / error:
+→ WP5 Lock UI
+
+WP9에서 별도 gate 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 목록 UI
+━━━━━━━━━━━━━━━━━━━━
+
+학생 선택 후 Growth Event 목록 표시.
+
+각 row/card에
+실제 API에서 제공되는 필드만 사용.
+
+최소 표시:
+
+- 발생/생성 시각
+- status
+- source
+- curriculum_title 있으면 표시
+- factual event/content field가 실제 contract에 있으면 표시
+
+없는 데이터를 UI용으로 창작 금지.
+
+예:
+"자유형 실력이 크게 향상되었습니다"
+같은 평가 문장 임의 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. STATUS 표현
+━━━━━━━━━━━━━━━━━━━━
+
+실제 enum을 UI label로만 변환.
+
+예:
+
+PENDING_REVIEW
+→ 검토 대기
+
+TEACHER_ACCEPTED
+→ 승인
+
+TEACHER_REJECTED
+→ 제외
+
+AUTO_ACCEPTED
+→ 자동 승인
+
+DISCARDED
+→ 폐기
+
+실제 enum 기준.
+
+WP9에서는 status 변경 버튼 금지.
+표시만.
+
+━━━━━━━━━━━━━━━━━━━━
+8. EVENT DETAIL
+━━━━━━━━━━━━━━━━━━━━
+
+목록 item 탭 시
+기존 route/모달 패턴에 맞춰 상세 표시.
+
+detail endpoint 사용 가능.
+
+표시 가능한 실제 데이터:
+
+- 날짜
+- 상태
+- source
+- curriculum
+- template linkage가 사용자에게 의미 있으면 최소 표현
+- factual content
+
+내부 ID를 일반 사용자에게
+불필요하게 노출하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+9. EMPTY STATE
+━━━━━━━━━━━━━━━━━━━━
+
+현재 Production growth_events=0일 수 있다.
+
+정상 empty:
+
+HTTP 200
+events=[]
+
+→ "아직 기록된 성장 데이터가 없습니다"
+
+같은 정상 empty state.
+
+중요:
+
+API 500/네트워크 실패
+→ empty state로 보여주면 안 됨.
+
+별도 error UI:
+
+"성장 데이터를 불러오지 못했습니다."
++ 다시 시도
+
+최근 scheduler 장애에서 발생한
+"오류 → 빈 화면" 패턴 재발 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. LOADING
+━━━━━━━━━━━━━━━━━━━━
+
+API 요청 중:
+
+기존 앱 loading pattern 사용.
+
+빈 화면 방치 금지.
+
+학생 변경 시 이전 학생 데이터가
+잠깐 남지 않도록 query state 정리.
+
+━━━━━━━━━━━━━━━━━━━━
+11. PAGINATION
+━━━━━━━━━━━━━━━━━━━━
+
+초기:
+
+기존 API default limit 사용
+또는 합리적인 앱 기본값.
+
+스크롤 하단:
+→ 다음 페이지 로드
+
+중복 event 표시 금지.
+학생 변경 시 pagination 초기화.
+
+무한스크롤 라이브러리 새로 설치 금지.
+기존 FlatList/onEndReached 패턴 우선.
+
+━━━━━━━━━━━━━━━━━━━━
+12. FILTER UI
+━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 최소만.
+
+필요한 경우:
+
+- status
+- source
+
+정도.
+
+date range UI가 기존 component로
+쉽게 가능하면 연결 가능.
+
+하지만 런칭에 불필요하면
+API 지원만 유지하고 UI는 생략 가능.
+
+복잡한 필터 화면 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+13. CURRENT EMPTY PRODUCTION 대응
+━━━━━━━━━━━━━━━━━━━━
+
+현재 안전한 X student/event가 없을 가능성이 높다.
+
+Production test 데이터를 만들지 말 것.
+
+따라서:
+
+실제 앱에서는
+empty state 렌더링을 정상 경로로 확인.
+
+event card/detail은
+mock/integration fixture로 검증 가능.
+
+NO_SAFE_TEST_CONTEXT를
+실패로 취급하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+14. ERROR HANDLING
+━━━━━━━━━━━━━━━━━━━━
+
+구분:
+
+loading
+empty
+network error
+401
+403
+500
+
+401:
+기존 auth flow 사용
+
+403:
+XModeGuard/권한 메시지
+
+500/network:
+retry UI
+
+success + []:
+empty UI
+
+한 상태로 뭉개지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+15. REFRESH
+━━━━━━━━━━━━━━━━━━━━
+
+기존 pull-to-refresh 패턴이 있으면 사용.
+
+새로고침 시:
+offset reset
+첫 페이지 재조회
+
+성장 event write는 하지 않음.
+
+━━━━━━━━━━━━━━━━━━━━
+16. APP STATE / CACHE
+━━━━━━━━━━━━━━━━━━━━
+
+기존 query/cache library가 있으면 재사용.
+
+없다면 현재 API hook 스타일 사용.
+
+새 state-management library 설치 금지.
+
+학생 전환/재진입 시
+다른 학생 event 캐시가 섞이지 않도록
+studentId를 query key에 포함.
+
+━━━━━━━━━━━━━━━━━━━━
+17. DESIGN
+━━━━━━━━━━━━━━━━━━━━
+
+기존 SWIMNOTE X UI 톤 유지.
+
+새 디자인 시스템 금지.
+대규모 리디자인 금지.
+
+현재 앱:
+네이비 중심
+민트 포인트
+
+등 기존 디자인 token/component 우선.
+
+성장 이벤트를 과장된 점수/그래프로
+보여주지 말 것.
+
+WP9는 사실 기록 조회 화면.
+
+━━━━━━━━━━━━━━━━━━━━
+18. TEST CASES
+━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+A.
+X READY + student + events
+→ 목록 렌더
+
+B.
+events=[]
+→ 정상 empty UI
+
+C.
+API 500
+→ error UI
+→ empty로 위장 안 함
+
+D.
+student A → student B
+→ A 데이터 남지 않음
+
+E.
+pagination
+→ 다음 page append
+→ duplicate 없음
+
+F.
+status filter
+→ request parameter 정확
+
+G.
+event tap
+→ detail 표시
+
+H.
+X not READY
+→ XModeGuard lock
+
+I.
+Non-X
+→ X growth UI 접근 차단
+
+J.
+일반 앱 화면
+→ regression 없음
+
+━━━━━━━━━━━━━━━━━━━━
+19. PRODUCTION RUNTIME
+━━━━━━━━━━━━━━━━━━━━
+
+실제 Production 앱에서:
+
+X sample pool:
+pool_1784310621737_qryl1x79s
+
+현재 학생 0명이면
+학생 없음/empty UX가
+정상적으로 깨지지 않는지만 확인.
+
+새 test student 생성 금지.
+새 growth_event 생성 금지.
+
+가능한 fixture로 event UI 검증.
+
+━━━━━━━━━━━━━━━━━━━━
+20. CODE SCOPE
+━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+x-growth screens
+growth API client/hook
+관련 type
+관련 tests
+
+필요하면 최소 navigation 수정.
+
+금지:
+
+WP10 trace/cost
+WP11 worker
+WP12 parent AI
+WP13 review/approval
+WP16 report
+growth event write
+DB migration
+server API 변경
+Backup/RLS
+Scheduler
+Members
+Makeup
+Billing
+
+━━━━━━━━━━━━━━━━━━━━
+21. TEST / GIT
+━━━━━━━━━━━━━━━━━━━━
+
+관련 앱 테스트만 실행.
+
+WP9 신규 TS 오류 = 0.
+
+완료 후:
+
+changed files
+git diff --stat
+
+commit:
+
+feat(xmode): add growth board UI
+
+push origin.
+
+제출:
+
+HEAD
+origin
+commit SHA
+
+━━━━━━━━━━━━━━━━━━━━
+22. OTA
+━━━━━━━━━━━━━━━━━━━━
+
+앱 변경이므로 iOS OTA 필요.
+
+기존 production 기준:
+
+branch/channel:
+production / production
+
+runtimeVersion:
+1.6.2
+
+iOS only.
+
+Server 변경 없으면
+Render 재배포 금지.
+
+제출:
+
+Update group ID
+iOS update ID
+runtimeVersion
+
+━━━━━━━━━━━━━━━━━━━━
+23. RUNTIME
+━━━━━━━━━━━━━━━━━━━━
+
+OTA 적용 후:
+
+앱 완전 종료
+→ 재실행
+→ X 성장판 진입
+
+확인:
+
+- XModeGuard 정상
+- loading 정상
+- 학생 없음/이벤트 없음 empty 정상
+- error가 empty로 위장되지 않음
+- navigation/back 정상
+
+안전한 mock/fixture 환경에서
+event card/detail도 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+24. FINAL REPORT — 짧게
+━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. 기존 x-growth UI 상태
+2. 구현 내용
+3. changed files
+4. 목록/detail
+5. loading/empty/error
+6. pagination/filter
+7. XModeGuard
+8. tests
+9. commit/origin
+10. OTA
+11. Production runtime
+12. server deploy 여부
+13. regression
+14. final verdict
+
+성공 시:
+
+WP9_GROWTH_BOARD_UI_VERIFIED ✅
+
+STOP.
+
+WP10 자동 시작 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

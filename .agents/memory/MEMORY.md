@@ -34,6 +34,7 @@
 - [WP6 감사 완료 상태](wp6-audit-done.md) — 97/97 테스트 통과, DB 쓰기 없음, GitHub push 없음; WP7 차단조건(PENDING_REVIEW 명시) 기록
 - [WP7 완료 상태](wp7-done-state.md) — SHA 16501ba7→5a66e9e8; growth-event-service.ts+diary.ts+앱 변경; 234/234; Render+OTA 완료; PROD_WRITE_PENDING(NO_SAFE_TEST_CONTEXT)
 - [WP8 완료 상태](wp8-done-state.md) — SHA 8a9660d9; growth read API(x-growth route+service); 247/247; Render 완료; OTA 없음
+- [WP9 완료 상태](wp9-done-state.md) — SHA 1a5089df; Growth Board App UI; 5파일; TS오류 0; iOS OTA production+preview 배포; Render 재배포 없음
 - [WP2 X Entitlement Sync 구현 상태](wp2-x-entitlement-state.md) — IMPLEMENTED/NOT_DEPLOYED; SHA 07335f67; WEBHOOK_SECRET=EXISTS; X_PRODUCT_IDS=MISSING(정상); Render/OTA 미배포
 - [standby-sync 배열 직렬화 수정](standby-sync-serialize-fix.md) — drizzle sql`${array}` → ($1,$2) tuple 오류; serializeForPg()로 해결; LAZY_SYNC_TABLES+BACKUP_SCHEMA_MISSING 패턴
 - [standby-sync jsonb 배열 버그](standby-sync-jsonb-array-bug.md) — FIXED in f22d6c47; serializeForPg(v, pgType) + colTypes Map; students/parent_accounts/diary_messages 복제 검증 완료
