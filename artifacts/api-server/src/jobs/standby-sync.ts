@@ -15,6 +15,53 @@ import { superAdminDb, getBackupDb, isDbSeparated } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import crypto from "crypto";
 
+// ── 식별자 검증 정규식 ───────────────────────────────────────────────────────
+const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Production에서 아직 생성되지 않은 lazy-init 테이블 — relation missing 시 graceful skip */
+const LAZY_SYNC_TABLES = new Set(["pool_credits"]);
+
+/**
+ * Drizzle/pg 에러에서 "relation does not exist"(PG 42P01) 여부 확인.
+ * DrizzleQueryError는 원래 PG 에러를 e.cause에 래핑하므로 두 레이어 모두 검사.
+ */
+function isPgRelationMissing(e: any): boolean {
+  const check = (msg: string) => (msg ?? "").toLowerCase().includes("does not exist");
+  if (e.code === "42P01" || check(e.message)) return true;
+  const cause = e.cause;
+  if (!cause) return false;
+  return cause.code === "42P01" || check(cause.message);
+}
+
+/**
+ * JavaScript 값을 drizzle/pg가 안전하게 파라미터화할 수 있는 형태로 변환.
+ *
+ * 근본 원인:
+ *   sql`${['a','b']}` → drizzle이 배열을 ($1,$2) "record" 문법으로 전개 →
+ *   text[] 컬럼과 타입 불일치 (42804 오류)
+ *
+ * 해결:
+ *   Array  → PostgreSQL 배열 리터럴 문자열 {a,b} (pg가 text[]로 암묵 변환)
+ *   Date   → ISO 8601 문자열
+ *   Object → JSON 문자열 (pg가 jsonb로 암묵 변환)
+ *   나머지  → 그대로 전달 (null/boolean/number/string은 pg가 네이티브 처리)
+ */
+function serializeForPg(v: unknown): unknown {
+  if (v === null || v === undefined) return null;
+  if (Array.isArray(v)) {
+    const elems = v.map(e => {
+      if (e === null || e === undefined) return "NULL";
+      if (typeof e === "number" || typeof e === "boolean") return String(e);
+      const s = String(e);
+      return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    });
+    return `{${elems.join(",")}}`;
+  }
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v === "object") return JSON.stringify(v);
+  return v;
+}
+
 // ── 핫 스탠바이 복제 대상 (30분 주기) ───────────────────────────────────────
 // 비교적 행 수가 적고 구독·결제·인증에 핵심인 테이블
 const HOT_SYNC_TABLES = [
@@ -225,55 +272,80 @@ function recordStandbyPingResult(latency_ms: number, ok: boolean) {
 async function replicateTable(
   backupDb: any,
   tableName: string,
-): Promise<{ rows: number; error?: string }> {
+): Promise<{ rows: number; error?: string; lazy_skip?: boolean }> {
   const TABLE_TIMEOUT_MS = 30_000;
   const tableTimer = new Promise<never>((_, reject) =>
     setTimeout(() => reject(new Error(`replicateTable timeout 30s: ${tableName}`)), TABLE_TIMEOUT_MS)
   );
 
+  // 식별자 검증: 허용된 패턴만 통과
+  if (!IDENT_RE.test(tableName)) {
+    return { rows: 0, error: `Invalid table identifier: ${tableName}` };
+  }
+
   try {
-    // 소스에서 전체 읽기 (타임아웃 경쟁)
-    const rows = (await Promise.race([
-      superAdminDb.execute(sql.raw(`SELECT * FROM "${tableName}"`)),
-      tableTimer,
-    ]) as any).rows as Record<string, unknown>[];
+    // ── 1. Production SELECT (타임아웃 경쟁) ─────────────────────────────
+    let rows: Record<string, unknown>[];
+    try {
+      rows = (await Promise.race([
+        superAdminDb.execute(sql.raw(`SELECT * FROM "${tableName}"`)),
+        tableTimer,
+      ]) as any).rows as Record<string, unknown>[];
+    } catch (e: any) {
+      // Lazy-init 테이블(pool_credits 등)은 Production에서 아직 없을 수 있음 → graceful skip
+      if (LAZY_SYNC_TABLES.has(tableName) && isPgRelationMissing(e)) {
+        return { rows: 0, lazy_skip: true };
+      }
+      throw e;
+    }
 
     if (rows.length === 0) {
       // 빈 테이블은 스킵 (TRUNCATE 하지 않음 — 데이터 없으면 그대로 유지)
       return { rows: 0 };
     }
 
-    // 컬럼 목록 추출
-    const cols = Object.keys(rows[0]).map(c => `"${c}"`);
-    const colList = cols.join(", ");
+    // ── 2. 컬럼 식별자 검증 ──────────────────────────────────────────────
+    const cols = Object.keys(rows[0]);
+    for (const c of cols) {
+      if (!IDENT_RE.test(c)) {
+        return { rows: 0, error: `Invalid column identifier: ${c}` };
+      }
+    }
+    const colIdents = cols.map(c => `"${c}"`).join(", ");
 
-    // 대상 테이블에 스키마 복사 시도 (없으면 생성)
-    await backupDb.execute(
-      sql.raw(`CREATE TABLE IF NOT EXISTS "${tableName}" AS SELECT * FROM (VALUES (NULL::text)) t WHERE false`)
-    ).catch(() => { /* 이미 있으면 무시 */ });
+    // ── 3. TRUNCATE (stub 자동 생성 금지) ────────────────────────────────
+    // Backup 테이블이 없고 Production에 행이 있으면:
+    //   AUTO_CREATE_STUB 금지 — BACKUP_SCHEMA_MISSING 오류 + 알림
+    // (이전 코드의 CREATE TABLE IF NOT EXISTS column1 stub 방식 제거)
+    try {
+      await backupDb.execute(sql.raw(`TRUNCATE TABLE "${tableName}" CASCADE`));
+    } catch (truncErr: any) {
+      if (isPgRelationMissing(truncErr)) {
+        // Backup 스키마 미준비 → 알림 후 실패 반환
+        await fireAlert(
+          "critical",
+          "🔴 Backup 테이블 스키마 없음",
+          `${tableName}: Backup DB에 테이블 없음. Pool DB 수동 수리 필요 (BACKUP_SCHEMA_MISSING).`,
+        ).catch(() => {});
+        return { rows: 0, error: `BACKUP_SCHEMA_MISSING: ${tableName}` };
+      }
+      // 기타 TRUNCATE 오류 → DELETE fallback
+      await backupDb.execute(sql.raw(`DELETE FROM "${tableName}"`)).catch(() => {});
+    }
 
-    // TRUNCATE → INSERT (배치 100행)
-    await backupDb.execute(sql.raw(`TRUNCATE TABLE "${tableName}" CASCADE`)).catch(() => {
-      // TRUNCATE 실패 시 DELETE fallback
-      return backupDb.execute(sql.raw(`DELETE FROM "${tableName}"`)).catch(() => {});
-    });
-
+    // ── 4. 파라미터화된 배치 INSERT ──────────────────────────────────────
+    // serializeForPg()로 값을 사전 변환 후 drizzle sql 템플릿 파라미터로 전달.
+    // pg 드라이버가 모든 타입 직렬화를 처리하므로 SQL 인젝션 위험 없음.
     const BATCH = 100;
     for (let i = 0; i < rows.length; i += BATCH) {
       const chunk = rows.slice(i, i + BATCH);
-      const valuesClause = chunk.map(row => {
-        const vals = Object.values(row).map(v => {
-          if (v === null || v === undefined) return "NULL";
-          if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
-          if (typeof v === "number" || typeof v === "bigint") return String(v);
-          // Dates and strings: escape single quotes
-          return `'${String(v).replace(/'/g, "''")}'`;
-        });
-        return `(${vals.join(", ")})`;
-      }).join(", ");
-
+      const rowSqls = chunk.map(row => {
+        const vals = Object.values(row).map(v => serializeForPg(v));
+        return sql`(${sql.join(vals.map(v => sql`${v}`), sql.raw(", "))})`;
+      });
+      const valuesSql = sql.join(rowSqls, sql.raw(", "));
       await backupDb.execute(
-        sql.raw(`INSERT INTO "${tableName}" (${colList}) VALUES ${valuesClause} ON CONFLICT DO NOTHING`)
+        sql`INSERT INTO ${sql.raw(`"${tableName}"`)} (${sql.raw(colIdents)}) VALUES ${valuesSql} ON CONFLICT DO NOTHING`
       );
     }
 
@@ -317,7 +389,10 @@ export async function runHotStandbySync(tables: string[] = HOT_SYNC_TABLES): Pro
 
   for (const table of tables) {
     const result = await replicateTable(backupDb, table);
-    if (result.error) {
+    if (result.lazy_skip) {
+      // Lazy-init 테이블(Production에 아직 없음) — 오류로 계산하지 않음
+      console.log(`[standby-sync] ${table} → LAZY_TABLE_NOT_CREATED (graceful skip)`);
+    } else if (result.error) {
       console.warn(`[standby-sync] ${table} 복제 실패: ${result.error}`);
       errors.push(`${table}: ${result.error}`);
     } else {
