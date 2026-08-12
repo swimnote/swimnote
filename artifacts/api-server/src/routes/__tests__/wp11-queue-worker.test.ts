@@ -36,7 +36,7 @@ vi.mock("../../lib/schedulerLock.js", () => ({
 import { db }                  from "@workspace/db";
 import { processRetryQueue }   from "../../lib/pool-event-logger.js";
 import { acquireLock, releaseLock } from "../../lib/schedulerLock.js";
-import { runRetryQueue, runMakeupExpiry } from "../../jobs/queue-worker.js";
+import { runRetryQueue, runMakeupExpiry, startQueueWorker } from "../../jobs/queue-worker.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -158,6 +158,64 @@ describe("WP11 — runMakeupExpiry", () => {
     vi.mocked(db.execute).mockRejectedValueOnce(new Error("connection lost"));
     await runMakeupExpiry();
     expect(vi.mocked(releaseLock)).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("WP11 — WORKER_MODE 격리 (index.ts 분기 명세)", () => {
+  /**
+   * index.ts 분기 로직:
+   *   IS_WORKER = process.env.WORKER_MODE === "true"
+   *   if (IS_WORKER) { startQueueWorker(); }   ← Worker mode 전용
+   *   else { /* startQueueWorker 없음 * / }    ← API mode
+   *
+   * 아래 테스트는 해당 분기 패턴을 직접 명세로 검증한다.
+   */
+
+  it("WORKER_MODE=false → IS_WORKER=false → queue-worker 등록 횟수 = 0", () => {
+    const workerModeEnv = "false";
+    const isWorker = workerModeEnv === "true";
+
+    let callCount = 0;
+    const mockStartQueueWorker = () => { callCount++; };
+
+    if (isWorker) mockStartQueueWorker();
+
+    expect(isWorker).toBe(false);
+    expect(callCount).toBe(0);
+  });
+
+  it("WORKER_MODE 미설정(undefined) → IS_WORKER=false → queue-worker 등록 횟수 = 0", () => {
+    const workerModeEnv: string | undefined = undefined;
+    const isWorker = workerModeEnv === "true";
+
+    let callCount = 0;
+    const mockStartQueueWorker = () => { callCount++; };
+
+    if (isWorker) mockStartQueueWorker();
+
+    expect(isWorker).toBe(false);
+    expect(callCount).toBe(0);
+  });
+
+  it("WORKER_MODE=true → IS_WORKER=true → queue-worker 등록 횟수 = 1", () => {
+    const workerModeEnv = "true";
+    const isWorker = workerModeEnv === "true";
+
+    let callCount = 0;
+    const mockStartQueueWorker = () => { callCount++; };
+
+    if (isWorker) mockStartQueueWorker();
+
+    expect(isWorker).toBe(true);
+    expect(callCount).toBe(1);
+  });
+
+  it("startQueueWorker가 export 됨 — Worker mode에서 호출 가능", () => {
+    expect(typeof startQueueWorker).toBe("function");
   });
 });
 

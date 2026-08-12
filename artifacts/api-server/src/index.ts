@@ -90,11 +90,12 @@ if (IS_WORKER) {
   console.log("[worker] HTTP 서버 미실행 — DB 락으로 중복 실행 방지됨");
 } else {
   // ── API 서버 모드: HTTP 실행 + 비활성화 정리 스케줄러 ───────────────────
+  // queue-worker(retry-queue / makeup-expiry)는 WORKER_MODE=true 전용.
+  // API 서버는 HTTP/API 역할만 수행한다.
   startDeactivationCleanupScheduler();
   startReadonlyTriggerScheduler();
   startStandbySyncJobs();
   startVideoExpiryCleanup();
-  startQueueWorker();
 
   // ── 서버 성능 감시 + 푸시 알림 (5분마다) ───────────────────────────────────
   const SLOW_CHECK_INTERVAL = 5 * 60 * 1000;
