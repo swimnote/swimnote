@@ -26,6 +26,7 @@ import {
   createDiaryRequestId,
   generateDiary,
   processVoice as svcProcessVoice,
+  type CurriculumMatch,
   type DiaryAIStateV2,
   type DiaryGenerateParams,
   type DiaryInsertResult,
@@ -132,8 +133,9 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
   const [currentError,      setCurrentError]      = useState<DiaryServiceError | null>(null);
   const [inputText,         setInputText]         = useState('');
   const [resultText,        setResultText]        = useState('');
-  const [generatedStudents, setGeneratedStudents] = useState<StudentDiaryNote[]>([]);
-  const [insertDone,        setInsertDone]        = useState(false);
+  const [generatedStudents,          setGeneratedStudents]          = useState<StudentDiaryNote[]>([]);
+  const [generatedCurriculumMatches, setGeneratedCurriculumMatches] = useState<CurriculumMatch[]>([]);
+  const [insertDone,                 setInsertDone]                 = useState(false);
 
   // ── 안정성 refs ────────────────────────────────────────────────────────────
   /** 생성 API AbortController */
@@ -184,6 +186,7 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
     setInputText('');
     setResultText('');
     setGeneratedStudents([]);
+    setGeneratedCurriculumMatches([]);
     setInsertDone(false);
   }, []);
 
@@ -271,7 +274,7 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
       return;
     }
 
-    const { common, students } = result.result;
+    const { common, students, curriculumMatches } = result.result;
     const studentLookup = new Map((options.students ?? []).map(s => [s.id, s.name]));
 
     setResultText(common);
@@ -280,8 +283,12 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
       studentName: studentLookup.get(s.studentRef) ?? s.studentRef,
       note:        s.content,
     })));
+    setGeneratedCurriculumMatches(curriculumMatches ?? []);
     setV2State('RESULT');
-    if (__DEV__) console.log('[useDiaryAIV2] generate_succeeded', { reqId, student_count: students.length });
+    if (__DEV__) console.log('[useDiaryAIV2] generate_succeeded', {
+      reqId, student_count: students.length,
+      curriculum_match_count: (curriculumMatches ?? []).length,
+    });
   }, [options.token, options.poolId, options.classId, options.date, options.students]);
 
   // ── _runGenerate (내부 공통 실행 함수) ────────────────────────────────────
@@ -465,11 +472,15 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
     isInsertingRef.current = true;
 
     const result: DiaryInsertResult = {
-      commonDiary: resultText,
-      students:    generatedStudents,
+      commonDiary:       resultText,
+      students:          generatedStudents,
+      curriculumMatches: generatedCurriculumMatches.length > 0 ? generatedCurriculumMatches : undefined,
     };
     options.onInsert(result);
-    if (__DEV__) console.log('[useDiaryAIV2] insert_completed', { student_count: result.students.length });
+    if (__DEV__) console.log('[useDiaryAIV2] insert_completed', {
+      student_count:          result.students.length,
+      curriculum_match_count: result.curriculumMatches?.length ?? 0,
+    });
 
     // 삽입 완료 피드백 (2초 후 자동 해제)
     setInsertDone(true);
@@ -478,7 +489,7 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
     }, 2_000);
 
     options.onClose?.();
-  }, [resultText, generatedStudents, options.onInsert, options.onClose]);
+  }, [resultText, generatedStudents, generatedCurriculumMatches, options.onInsert, options.onClose]);
 
   // ── isLocked ──────────────────────────────────────────────────────────────
   const isLocked = LOCK_STATES.includes(v2State);

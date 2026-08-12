@@ -19,7 +19,8 @@ import { TeacherClassGroup, SlotStatus } from "@/components/teacher/types";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import AuditModal from "@/components/teacher/diary/AuditModal";
 import DiaryWriteView from "@/components/teacher/diary/DiaryWriteView";
-import type { DiaryInsertResult } from "@/components/ai/features/diary/useDiaryAI";
+import type { DiaryInsertResult } from "@/components/ai/features/diary/useDiaryAIV2";
+import type { CurriculumMatch } from "@/components/ai/services/DiaryAIService";
 import DiaryEditView from "@/components/teacher/diary/DiaryEditView";
 import DiaryHistoryList from "@/components/teacher/diary/DiaryHistoryList";
 import AlbumPickerModal from "@/components/teacher/diary/AlbumPickerModal";
@@ -94,7 +95,9 @@ export default function TeacherDiaryScreen() {
   const [formError,     setFormError]     = useState<string | null>(null);
   const [pendingDiaryId,  setPendingDiaryId]  = useState<string | null>(null);
   const [pendingNoteIds,  setPendingNoteIds]  = useState<Record<string, string>>({});
-  const [hasDraft,      setHasDraft]      = useState(false);
+  const [hasDraft,             setHasDraft]             = useState(false);
+  /** WP7: AI generate 결과의 curriculum matches — diary save 시 서버로 전달 */
+  const [aiCurriculumMatches, setAiCurriculumMatches] = useState<CurriculumMatch[]>([]);
   const handledParamKey = useRef<string | undefined>(undefined);
   const diariesReqVersion = useRef(0);
   const studentsReqRef    = useRef(0); // stale response 방어용 monotonic counter
@@ -479,11 +482,14 @@ export default function TeacherDiaryScreen() {
         return next;
       });
     }
+    // WP7: curriculum matches 저장 — diary save 시 서버로 전달하여 growth_events 생성
+    setAiCurriculumMatches(result.curriculumMatches ?? []);
   }, []);
 
   // ── 작성 세션 전체 초기화 (나가기 확정 시 호출) ──────────────────────────
   const resetWriteSession = useCallback(() => {
     setCommonContent(""); setStudentNotes([]); setNoteInput(""); setAddNoteStudent(null);
+    setAiCurriculumMatches([]);
     setGroupMedia([]); setStudentMedia({}); setMediaUploading(null);
     setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
     setStudentAlbumPhotos({}); setStudentAlbumVideos({});
@@ -599,7 +605,14 @@ export default function TeacherDiaryScreen() {
         if (__DEV__) console.log(`[handleSave] Step1 - POST /diaries START`);
         const r = await apiRequest(token, "/diaries", {
           method: "POST",
-          body: JSON.stringify({ class_group_id: selectedGroup!.id, lesson_date: targetDate, common_content: commonContent.trim(), student_notes: effectiveNotes.map(n => ({ student_id: n.student_id, note_content: n.note_content.trim() })) }),
+          body: JSON.stringify({
+            class_group_id: selectedGroup!.id,
+            lesson_date:    targetDate,
+            common_content: commonContent.trim(),
+            student_notes:  effectiveNotes.map(n => ({ student_id: n.student_id, note_content: n.note_content.trim() })),
+            // WP7: AI curriculum matches — 서버에서 growth_events 생성에 사용
+            ...(aiCurriculumMatches.length > 0 && { curriculum_matches: aiCurriculumMatches }),
+          }),
         });
         const data = await r.json();
         if (__DEV__) console.log(`[handleSave] Step1 - POST /diaries response ok=${r.ok} status=${r.status}`);

@@ -21,6 +21,8 @@ import { usersTable } from "@workspace/db/schema";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
 import { SWIMNOTE_DEFAULT_TEMPLATES, insertDefaultTemplates } from "../lib/defaultTemplates.js";
+import { resolvePoolMode } from "../lib/xmode.js";
+import { insertGrowthEvents, type CurriculumMatchInput } from "../lib/growth-event-service.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
@@ -459,12 +461,28 @@ router.post("/diaries",
   async (req: AuthRequest, res) => {
     try {
       const { userId, role } = req.user!;
-      const { class_group_id, lesson_date, common_content, student_notes } = req.body;
+      const {
+        class_group_id, lesson_date, common_content,
+        student_notes, curriculum_matches, ai_request_id,
+      } = req.body;
 
       const hasStudentNotes = Array.isArray(student_notes) && student_notes.some((n: any) => n.note_content?.trim());
       if (!class_group_id || (!common_content?.trim() && !hasStudentNotes)) {
         return apiErr(res, 400, "반 ID와 일지 내용은 필수입니다.");
       }
+
+      // curriculum_matches 유효성 사전 검사 (길이·타입 체크만, match_token 검증은 TX 내부)
+      const rawCurriculumMatches: CurriculumMatchInput[] = Array.isArray(curriculum_matches)
+        ? (curriculum_matches as any[]).filter(
+            (m): m is CurriculumMatchInput =>
+              m !== null &&
+              typeof m === "object" &&
+              typeof m.student_ref   === "string" && m.student_ref &&
+              typeof m.candidate_id  === "string" && m.candidate_id &&
+              typeof m.match_token   === "string" && m.match_token &&
+              typeof m.match_status  === "string",
+          )
+        : [];
 
       const [poolId, teacherName] = await Promise.all([
         getUserPoolId(userId),
@@ -487,6 +505,21 @@ router.post("/diaries",
       }
       const dateStr = lesson_date || new Date().toISOString().slice(0, 10);
       const diaryId = genId("cd");
+
+      // ── WP7: X mode 확인 (curriculum_matches 있을 때만 DB 조회) ──────────────
+      let isXMode = false;
+      if (rawCurriculumMatches.length > 0) {
+        try {
+          const pmResult = await resolvePoolMode(poolId!);
+          isXMode = pmResult?.mode === "x";
+          console.log(
+            `[diary-create] X_MODE_CHECK poolId=${poolId} mode=${pmResult?.mode} isXMode=${isXMode}`,
+          );
+        } catch (e) {
+          console.error(`[diary-create] X_MODE_CHECK_FAILED poolId=${poolId}`, e);
+          // X mode 판정 실패 → growth_event 생성 안 함, diary 저장은 계속
+        }
+      }
 
       // 중복 방지: 같은 날 같은 반에 이미 일지 있으면 오류
       const dup = await db.execute(sql`
@@ -542,6 +575,23 @@ router.post("/diaries",
           `);
           console.log(`[diary-create] student_note INSERT done id=${noteId}`);
           savedNotes.push({ id: noteId, student_id: n.student_id, note_content: n.note_content.trim() });
+        }
+
+        // ── WP7: X mode growth_events insert (TX 내부) ──────────────────────
+        if (isXMode && rawCurriculumMatches.length > 0) {
+          const geResult = await insertGrowthEvents({
+            tx,
+            poolId:            poolId!,
+            diaryId,
+            savedNotes,
+            curriculumMatches: rawCurriculumMatches,
+            requestId:         typeof ai_request_id === "string" ? ai_request_id : undefined,
+            contractVersion:   "1.3",
+          });
+          console.log(
+            `[diary-create] GROWTH_EVENTS diary=${diaryId}` +
+            ` inserted=${geResult.inserted} skipped=${geResult.skipped} errors=${geResult.errors}`,
+          );
         }
       });
       console.log(`[diary-create] TX committed. savedNotes=${JSON.stringify(savedNotes.map(n => ({ id: n.id, student_id: n.student_id })))}`);
@@ -824,6 +874,20 @@ router.delete("/diaries/:id",
             AND pool_id = ${poolId}
             AND is_clone = false
         `);
+
+        // 4. WP7: growth_events soft-invalidation (diary note와 연결된 성장 이벤트)
+        //    성장 이벤트는 hard-delete하지 않고 is_invalidated=true 로 무효화.
+        //    diary FK(diary_note_id)는 보존됨.
+        const geRes = await tx.execute(sql`
+          UPDATE growth_events
+          SET is_invalidated = true, invalidated_at = NOW()
+          WHERE diary_note_id IN (
+            SELECT id FROM class_diary_student_notes WHERE diary_id = ${diaryId}
+          )
+          AND is_invalidated = false
+        `);
+        const geRowCount = (geRes as any).rowCount ?? 0;
+        console.log(`[DELETE /diaries] TX step4: growth_events invalidated=${geRowCount}`);
 
         // 5. video_assets_meta detach — journal_id 직접 연결 영상
         console.log(`[DELETE /diaries] TX step5: UPDATE video_assets_meta SET journal_id=NULL`);

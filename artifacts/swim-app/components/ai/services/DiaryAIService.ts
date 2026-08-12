@@ -141,10 +141,27 @@ export interface StudentDiaryNote {
   note:        string;
 }
 
+/**
+ * AI Engine V1 curriculum match 결과 1건 (앱 노출용 — curriculum_item_id 미포함).
+ * match_token에 curriculum_item_id가 서명돼 있어 서버가 diary save 시 추출합니다.
+ */
+export interface CurriculumMatch {
+  student_ref:                string;
+  candidate_id:               string;
+  match_token:                string;
+  curriculum_version_id:      string;
+  confidence:                 number;
+  /** 'PENDING_REVIEW' | 기타 서버 정의 값 */
+  match_status:               string;
+  matching_algorithm_version: string;
+}
+
 /** onInsert 콜백으로 앱 화면에 전달하는 최종 결과 */
 export interface DiaryInsertResult {
-  commonDiary: string;
-  students:    StudentDiaryNote[];
+  commonDiary:        string;
+  students:           StudentDiaryNote[];
+  /** X mode + contract 1.3 일 때만 존재. 빈 배열이면 undefined로 처리. */
+  curriculumMatches?: CurriculumMatch[];
 }
 
 /** Service 오류 구조체 — Hook이 상태 전환에 사용 */
@@ -200,6 +217,8 @@ export interface NormalizedDiaryResult {
   common:    string;
   students:  NormalizedDiaryStudentResult[];
   requestId?: string;
+  /** X mode + contract 1.3 전용. AI Engine V1 curriculum match 목록. */
+  curriculumMatches?: CurriculumMatch[];
   /** AI Engine V1 pipeline 메타 정보 (로깅·POLISH_ONLY 처리·grounding 검증용) */
   meta?: {
     pipelineMode?:        string;
@@ -226,7 +245,7 @@ interface NormalizedDiaryStudentResult {
 }
 
 interface TeacherDiaryAIRequest {
-  contract_version: '1.0';    // 앱이 사용하는 Contract 버전
+  contract_version: '1.0' | '1.3';    // 앱이 사용하는 Contract 버전
   request_id:       string;
   schema_version:   '1.0';
   feature:          'teacher_diary';
@@ -273,6 +292,8 @@ interface TeacherDiaryAIResponse {
     total_tokens?:  unknown;
     latency_ms?:    unknown;   // AI Engine V1: 서버 측 생성 레이턴시
   };
+  /** X mode + contract 1.3 전용. 원소 검증은 normalizeDiaryResponse에서 수행. */
+  curriculum_matches?: unknown;
 }
 
 interface AIEngineError {
@@ -493,12 +514,42 @@ export function normalizeDiaryResponse(params: {
     };
   }
 
+  // ── curriculum_matches 파싱 (contract 1.3 + X mode only) ─────────────────
+  let curriculumMatches: CurriculumMatch[] | undefined;
+  if (Array.isArray(resp.curriculum_matches)) {
+    const parsed = (resp.curriculum_matches as unknown[])
+      .filter((m): m is Record<string, unknown> => typeof m === 'object' && m !== null)
+      .map((m): CurriculumMatch | null => {
+        const student_ref   = typeof m.student_ref   === 'string' ? m.student_ref   : '';
+        const candidate_id  = typeof m.candidate_id  === 'string' ? m.candidate_id  : '';
+        const match_token   = typeof m.match_token   === 'string' ? m.match_token   : '';
+        const cv_id         = typeof m.curriculum_version_id === 'string' ? m.curriculum_version_id : '';
+        const confidence    = typeof m.confidence    === 'number' ? m.confidence    : 0;
+        const match_status  = typeof m.match_status  === 'string' ? m.match_status  : '';
+        const algo_ver      = typeof m.matching_algorithm_version === 'string' ? m.matching_algorithm_version : '';
+        if (!student_ref || !candidate_id || !match_token) return null;
+        return {
+          student_ref,
+          candidate_id,
+          match_token,
+          curriculum_version_id:      cv_id,
+          confidence,
+          match_status,
+          matching_algorithm_version: algo_ver,
+        };
+      })
+      .filter((m): m is CurriculumMatch => m !== null);
+
+    if (parsed.length > 0) curriculumMatches = parsed;
+  }
+
   return {
     ok:     true,
     result: {
       common:    rawCommon,
       students:  normalizedStudents,
       requestId: typeof resp.request_id === 'string' ? resp.request_id : undefined,
+      curriculumMatches,
       meta,
       usage,
     },
