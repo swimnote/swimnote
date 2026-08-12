@@ -3168,4 +3168,381 @@ router.delete("/super/revenue-logs/purge-all", requireAuth, requireRole("super_a
 ensureExtraTables().catch(err => console.error("[super] ensureExtraTables 오류:", err));
 ensurePlansTables().catch(err => console.error("[super] ensurePlansTables 오류:", err));
 
+// ════════════════════════════════════════════════════════════════
+// WP4A — Global Template Set Management (super_admin only)
+// ════════════════════════════════════════════════════════════════
+// POST   /super/global-template-sets
+// GET    /super/global-template-sets
+// GET    /super/global-template-sets/:id
+// PATCH  /super/global-template-sets/:id/activate
+// PATCH  /super/global-template-sets/:id/archive
+// GET    /super/global-template-sets/:id/templates
+// POST   /super/global-template-sets/:id/templates
+// PATCH  /super/global-template-sets/:id/templates/:templateId
+// DELETE /super/global-template-sets/:id/templates/:templateId
+// ════════════════════════════════════════════════════════════════
+
+// audit helper for global_template_set events
+async function auditGlobalTemplateSet(
+  tx: typeof superAdminDb,
+  action: string,
+  entityId: string,
+  actorId: string,
+  beforeData: object | null,
+  afterData: object | null,
+  reason?: string | null,
+) {
+  try {
+    const vRes = await tx.execute(sql`
+      SELECT next_audit_version('global_template_set', ${entityId}) AS v
+    `);
+    const entityVersion = (vRes.rows[0] as any).v;
+    await tx.execute(sql`
+      INSERT INTO audit_logs (
+        entity_type, entity_id, entity_version,
+        action, actor_type, actor_id, pool_id,
+        before_data, after_data, reason,
+        request_id, correlation_id, ip_hash
+      ) VALUES (
+        'global_template_set', ${entityId}, ${entityVersion},
+        ${action}, 'super_admin', ${actorId}, NULL,
+        ${beforeData ? JSON.stringify(beforeData) : null}::jsonb,
+        ${afterData  ? JSON.stringify(afterData)  : null}::jsonb,
+        ${reason ?? null},
+        NULL, NULL, NULL
+      )
+    `);
+  } catch (e: any) {
+    // audit 실패는 메인 흐름을 차단하지 않음
+    console.error("[wp4a-audit] audit_logs 기록 실패:", e?.message);
+  }
+}
+
+// ── POST /super/global-template-sets — DRAFT 생성 ─────────────────────────
+router.post(
+  "/super/global-template-sets",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { version_name } = req.body as { version_name?: string };
+    if (!version_name?.trim()) {
+      res.status(400).json({ error: "BAD_REQUEST", message: "version_name 필수" });
+      return;
+    }
+    try {
+      const result = await superAdminDb.execute(sql`
+        INSERT INTO global_template_sets (version_name, status)
+        VALUES (${version_name.trim()}, 'DRAFT')
+        RETURNING *
+      `);
+      const row = result.rows[0] as any;
+      await auditGlobalTemplateSet(
+        superAdminDb, "GLOBAL_TEMPLATE_SET_CREATED", row.id,
+        req.user!.userId, null, { version_name: row.version_name, status: row.status },
+      );
+      res.status(201).json(row);
+    } catch (err: any) {
+      if (err?.cause?.code === "23505") {
+        res.status(409).json({ error: "DUPLICATE_VERSION_NAME", message: "이미 존재하는 버전 이름입니다." });
+        return;
+      }
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ── GET /super/global-template-sets — 목록 ────────────────────────────────
+router.get(
+  "/super/global-template-sets",
+  requireAuth,
+  requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    try {
+      const result = await superAdminDb.execute(sql`
+        SELECT
+          gts.*,
+          COUNT(dt.id)::int AS template_count
+        FROM global_template_sets gts
+        LEFT JOIN diary_templates dt
+          ON dt.global_template_set_id = gts.id AND dt.scope = 'x_global'
+        GROUP BY gts.id
+        ORDER BY gts.created_at DESC
+      `);
+      res.json(result.rows);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ── GET /super/global-template-sets/:id — 상세 ────────────────────────────
+router.get(
+  "/super/global-template-sets/:id",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id } = req.params;
+    try {
+      const result = await superAdminDb.execute(sql`
+        SELECT
+          gts.*,
+          COUNT(dt.id)::int AS template_count
+        FROM global_template_sets gts
+        LEFT JOIN diary_templates dt
+          ON dt.global_template_set_id = gts.id AND dt.scope = 'x_global'
+        WHERE gts.id = ${id}
+        GROUP BY gts.id
+      `);
+      if (!result.rows[0]) { res.status(404).json({ error: "NOT_FOUND", message: "존재하지 않는 템플릿 세트" }); return; }
+      res.json(result.rows[0]);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ── PATCH /super/global-template-sets/:id/activate ─────────────────────────
+router.patch(
+  "/super/global-template-sets/:id/activate",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id } = req.params;
+    try {
+      const result = await superAdminDb.transaction(async (tx) => {
+        // 대상 확인
+        const targetRes = await tx.execute(sql`
+          SELECT * FROM global_template_sets WHERE id = ${id}
+        `);
+        const target = targetRes.rows[0] as any;
+        if (!target) throw Object.assign(new Error("NOT_FOUND"), { status: 404 });
+        if (target.status === "ACTIVE") throw Object.assign(new Error("ALREADY_ACTIVE"), { status: 409 });
+        if (target.status === "ARCHIVED") throw Object.assign(new Error("ARCHIVED_CANNOT_ACTIVATE"), { status: 409 });
+
+        // 기존 ACTIVE → ARCHIVED
+        const prevActiveRes = await tx.execute(sql`
+          UPDATE global_template_sets
+          SET status = 'ARCHIVED', archived_at = NOW()
+          WHERE status = 'ACTIVE'
+          RETURNING id, status
+        `);
+        const prevActive = prevActiveRes.rows[0] as any;
+
+        // 대상 → ACTIVE
+        const updatedRes = await tx.execute(sql`
+          UPDATE global_template_sets
+          SET status = 'ACTIVE', activated_at = NOW()
+          WHERE id = ${id}
+          RETURNING *
+        `);
+        return { updated: updatedRes.rows[0] as any, prevActiveId: prevActive?.id ?? null };
+      });
+
+      const actorId = req.user!.userId;
+      await auditGlobalTemplateSet(
+        superAdminDb, "GLOBAL_TEMPLATE_SET_ACTIVATED", id,
+        actorId, { status: "DRAFT" }, { status: "ACTIVE" },
+      );
+      if (result.prevActiveId) {
+        await auditGlobalTemplateSet(
+          superAdminDb, "GLOBAL_TEMPLATE_SET_ARCHIVED", result.prevActiveId,
+          actorId, { status: "ACTIVE" }, { status: "ARCHIVED" },
+          "auto-archived by new activation",
+        );
+      }
+
+      // ACTIVE count 재확인 (안전성 검증)
+      const countRes = await superAdminDb.execute(sql`
+        SELECT COUNT(*)::int AS n FROM global_template_sets WHERE status = 'ACTIVE'
+      `);
+      const activeCount = Number((countRes.rows[0] as any).n);
+
+      res.json({ ok: true, set: result.updated, active_count_verified: activeCount });
+    } catch (err: any) {
+      const status = err.status ?? 500;
+      const msg = err.message;
+      if (msg === "NOT_FOUND") { res.status(404).json({ error: "NOT_FOUND", message: "존재하지 않는 템플릿 세트" }); return; }
+      if (msg === "ALREADY_ACTIVE") { res.status(409).json({ error: "ALREADY_ACTIVE", message: "이미 ACTIVE 상태입니다." }); return; }
+      if (msg === "ARCHIVED_CANNOT_ACTIVATE") { res.status(409).json({ error: "ARCHIVED_CANNOT_ACTIVATE", message: "ARCHIVED 세트는 활성화할 수 없습니다." }); return; }
+      res.status(status).json({ error: msg });
+    }
+  }
+);
+
+// ── PATCH /super/global-template-sets/:id/archive ──────────────────────────
+router.patch(
+  "/super/global-template-sets/:id/archive",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id } = req.params;
+    try {
+      const target = await superAdminDb.execute(sql`SELECT * FROM global_template_sets WHERE id = ${id}`);
+      const row = target.rows[0] as any;
+      if (!row) { res.status(404).json({ error: "NOT_FOUND", message: "존재하지 않는 템플릿 세트" }); return; }
+      if (row.status === "ARCHIVED") { res.status(409).json({ error: "ALREADY_ARCHIVED", message: "이미 ARCHIVED 상태입니다." }); return; }
+
+      const before = { status: row.status };
+      const updated = await superAdminDb.execute(sql`
+        UPDATE global_template_sets
+        SET status = 'ARCHIVED', archived_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      await auditGlobalTemplateSet(
+        superAdminDb, "GLOBAL_TEMPLATE_SET_ARCHIVED", id,
+        req.user!.userId, before, { status: "ARCHIVED" },
+      );
+      res.json({ ok: true, set: updated.rows[0] });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ── GET /super/global-template-sets/:id/templates ─────────────────────────
+router.get(
+  "/super/global-template-sets/:id/templates",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id } = req.params;
+    try {
+      const setRes = await superAdminDb.execute(sql`SELECT id FROM global_template_sets WHERE id = ${id}`);
+      if (!setRes.rows[0]) { res.status(404).json({ error: "NOT_FOUND", message: "존재하지 않는 템플릿 세트" }); return; }
+
+      const result = await superAdminDb.execute(sql`
+        SELECT id, category, level, title, template_text, is_active, sort_order, created_at, updated_at
+        FROM diary_templates
+        WHERE global_template_set_id = ${id} AND scope = 'x_global'
+        ORDER BY sort_order ASC, created_at ASC
+      `);
+      res.json(result.rows);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ── POST /super/global-template-sets/:id/templates ─────────────────────────
+router.post(
+  "/super/global-template-sets/:id/templates",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id } = req.params;
+    const { category, level, title, template_text, sort_order } = req.body as {
+      category?: string; level?: string; title?: string;
+      template_text?: string; sort_order?: number;
+    };
+    if (!category?.trim() || !template_text?.trim()) {
+      res.status(400).json({ error: "BAD_REQUEST", message: "category, template_text 필수" });
+      return;
+    }
+    try {
+      const setRes = await superAdminDb.execute(sql`SELECT id, status FROM global_template_sets WHERE id = ${id}`);
+      const setRow = setRes.rows[0] as any;
+      if (!setRow) { res.status(404).json({ error: "NOT_FOUND", message: "존재하지 않는 템플릿 세트" }); return; }
+
+      const actorId = req.user!.userId;
+      const result = await superAdminDb.execute(sql`
+        INSERT INTO diary_templates (
+          swimming_pool_id, scope, global_template_set_id,
+          category, level, title, template_text,
+          created_by, is_active, sort_order
+        ) VALUES (
+          NULL, 'x_global', ${id},
+          ${category.trim()}, ${level?.trim() ?? null}, ${title?.trim() ?? null},
+          ${template_text.trim()},
+          ${actorId}, true, ${sort_order ?? 0}
+        )
+        RETURNING *
+      `);
+      const tmpl = result.rows[0] as any;
+      await auditGlobalTemplateSet(
+        superAdminDb, "X_GLOBAL_TEMPLATE_CREATED", id,
+        actorId, null, { template_id: tmpl.id, category: tmpl.category },
+      );
+      res.status(201).json(tmpl);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ── PATCH /super/global-template-sets/:id/templates/:templateId ───────────
+router.patch(
+  "/super/global-template-sets/:id/templates/:templateId",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id, templateId } = req.params;
+    const { category, level, title, template_text, is_active, sort_order } = req.body as {
+      category?: string; level?: string; title?: string; template_text?: string;
+      is_active?: boolean; sort_order?: number;
+    };
+    try {
+      // 소속 확인
+      const existing = await superAdminDb.execute(sql`
+        SELECT * FROM diary_templates
+        WHERE id = ${templateId} AND global_template_set_id = ${id} AND scope = 'x_global'
+      `);
+      if (!existing.rows[0]) { res.status(404).json({ error: "NOT_FOUND", message: "존재하지 않는 템플릿" }); return; }
+
+      const row = existing.rows[0] as any;
+      const before = { category: row.category, template_text: row.template_text, is_active: row.is_active };
+
+      const updated = await superAdminDb.execute(sql`
+        UPDATE diary_templates SET
+          category     = COALESCE(${category?.trim() ?? null}, category),
+          level        = COALESCE(${level?.trim() ?? null}, level),
+          title        = COALESCE(${title?.trim() ?? null}, title),
+          template_text = COALESCE(${template_text?.trim() ?? null}, template_text),
+          is_active    = COALESCE(${is_active ?? null}, is_active),
+          sort_order   = COALESCE(${sort_order ?? null}, sort_order),
+          updated_at   = NOW()
+        WHERE id = ${templateId} AND global_template_set_id = ${id} AND scope = 'x_global'
+        RETURNING *
+      `);
+      await auditGlobalTemplateSet(
+        superAdminDb, "X_GLOBAL_TEMPLATE_UPDATED", id,
+        req.user!.userId, before, req.body,
+      );
+      res.json(updated.rows[0]);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ── DELETE /super/global-template-sets/:id/templates/:templateId ──────────
+router.delete(
+  "/super/global-template-sets/:id/templates/:templateId",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id, templateId } = req.params;
+    try {
+      const existing = await superAdminDb.execute(sql`
+        SELECT * FROM diary_templates
+        WHERE id = ${templateId} AND global_template_set_id = ${id} AND scope = 'x_global'
+      `);
+      if (!existing.rows[0]) { res.status(404).json({ error: "NOT_FOUND", message: "존재하지 않는 템플릿" }); return; }
+
+      const row = existing.rows[0] as any;
+      await superAdminDb.execute(sql`
+        DELETE FROM diary_templates
+        WHERE id = ${templateId} AND global_template_set_id = ${id} AND scope = 'x_global'
+      `);
+      await auditGlobalTemplateSet(
+        superAdminDb, "X_GLOBAL_TEMPLATE_DELETED", id,
+        req.user!.userId, { template_id: templateId, category: row.category }, null,
+      );
+      res.json({ ok: true, deleted: templateId });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 export default router;
