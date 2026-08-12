@@ -1,89 +1,265 @@
 /**
- * (admin)/x-growth.tsx — SWIMNOTE X 성장 추적 관리 (WP4 placeholder)
+ * (admin)/x-growth.tsx — SWIMNOTE X 성장판 (pool_admin) WP9
  *
- * XModeGuard로 보호: mode !== "x" 이면 대시보드로 redirect.
- * WP7(교사 UI) 이후 실제 기능으로 교체됩니다.
+ * XModeGuard 보호 유지.
+ * 구조:
+ *   1. 학생 선택 (수평 chip ScrollView)
+ *   2. status / source 필터 chip
+ *   3. Growth Event 목록 (FlatList + 무한스크롤 + pull-to-refresh)
+ *   4. Event 탭 → GrowthEventDetail 모달
+ *
+ * READ ONLY — 승인/거절 없음, write 없음.
  */
-
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { XModeGuard } from "@/components/common/XModeGuard";
+import { EmptyState } from "@/components/common/EmptyState";
+import { GrowthEventCard } from "@/components/x/GrowthEventCard";
+import { GrowthEventDetail } from "@/components/x/GrowthEventDetail";
+import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useGrowthEvents, type GrowthEvent } from "@/hooks/useGrowthEvents";
 import Colors from "@/constants/colors";
 
-const C = Colors.light;
-const MINT       = "#2EC4B6";
+const C    = Colors.light;
+const MINT = "#2EC4B6";
+const NAVY = "#0F172A";
 const MINT_LIGHT = "#E6FAF8";
-const NAVY       = "#0F172A";
 
-const FEATURES = [
-  { icon: "trending-up",    label: "성장 이벤트 검토",    sub: "AI 매칭 결과 승인·거절 관리" },
-  { icon: "bar-chart-2",   label: "성장판 집계",          sub: "학생별 항목 달성률 조회" },
-  { icon: "book-open",     label: "커리큘럼 배정",        sub: "수업별 커리큘럼 연결" },
-  { icon: "file-text",     label: "성장 리포트",          sub: "월별·분기별 리포트 생성·관리" },
+// ── 로컬 타입 ────────────────────────────────────────────────────────────────
+
+interface Student { id: string; name: string; class_group_id: string | null; }
+
+// ── 필터 옵션 ────────────────────────────────────────────────────────────────
+
+const STATUS_FILTER_OPTIONS = [
+  { label: "전체",     value: null },
+  { label: "검토 대기", value: "PENDING_REVIEW" },
+  { label: "승인",     value: "TEACHER_ACCEPTED" },
+  { label: "제외",     value: "TEACHER_REJECTED" },
+  { label: "자동 승인", value: "AUTO_ACCEPTED" },
+  { label: "폐기",     value: "DISCARDED" },
 ];
+
+const SOURCE_FILTER_OPTIONS = [
+  { label: "전체",      value: null },
+  { label: "AI 일지",  value: "teacher_ai" },
+  { label: "수동",      value: "teacher_manual" },
+];
+
+// ── 메인 화면 ────────────────────────────────────────────────────────────────
 
 export default function AdminXGrowthScreen() {
   const insets = useSafeAreaInsets();
+  const { token } = useAuth();
+
+  // 학생 목록
+  const [students,      setStudents]      = useState<Student[]>([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [selectedStu,   setSelectedStu]   = useState<Student | null>(null);
+
+  // 필터
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [filterSource, setFilterSource] = useState<string | null>(null);
+
+  // detail 모달
+  const [detailEventId, setDetailEventId] = useState<string | null>(null);
+
+  // Growth Event hook
+  const {
+    events, loadState, hasMore, refreshing, errorCode,
+    loadMore, refresh,
+  } = useGrowthEvents({
+    token,
+    studentId:    selectedStu?.id ?? null,
+    filterStatus,
+    filterSource,
+  });
+
+  // 학생 목록 로드
+  useEffect(() => {
+    if (!token) return;
+    setStudentsLoading(true);
+    apiRequest(token, "/students")
+      .then(res => res.ok ? res.json() : [])
+      .then((data: Student[]) => setStudents(Array.isArray(data) ? data : []))
+      .catch(() => setStudents([]))
+      .finally(() => setStudentsLoading(false));
+  }, [token]);
+
+  // 학생 변경 시 필터 초기화
+  const handleSelectStudent = useCallback((stu: Student) => {
+    setSelectedStu(s => s?.id === stu.id ? s : stu);
+    setFilterStatus(null);
+    setFilterSource(null);
+  }, []);
+
+  const handleEventPress = useCallback((ev: GrowthEvent) => {
+    setDetailEventId(ev.event_id);
+  }, []);
+
+  const renderFooter = () => {
+    if (!hasMore || loadState !== "success") return null;
+    return <ActivityIndicator color={MINT} style={{ marginVertical: 16 }} />;
+  };
+
+  const renderEmpty = () => {
+    if (loadState === "loading") {
+      return <ActivityIndicator color={MINT} style={{ marginTop: 48 }} />;
+    }
+    if (loadState === "error") {
+      // error ≠ empty (TC-C)
+      return (
+        <View style={s.errorWrap}>
+          <LucideIcon name="alert-circle" size={36} color="#EF4444" />
+          <Text style={s.errorTxt}>성장 데이터를 불러오지 못했습니다.</Text>
+          <Text style={s.errorCode}>{errorCode ?? ""}</Text>
+          <Pressable style={s.retryBtn} onPress={refresh}>
+            <Text style={s.retryTxt}>다시 시도</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    if (loadState === "success") {
+      return (
+        <EmptyState
+          icon="trending-up"
+          title="아직 기록된 성장 데이터가 없습니다"
+          subtitle="X 모드 AI 일지 작성 시 성장 이벤트가 자동으로 기록돼요."
+        />
+      );
+    }
+    return null;
+  };
 
   return (
     <XModeGuard allowedKind="admin" allowedRole="pool_admin">
       <View style={{ flex: 1, backgroundColor: C.background }}>
+
         {/* 헤더 */}
         <View style={[s.header, { paddingTop: insets.top + 14 }]}>
-          <Pressable
-            hitSlop={12}
-            onPress={() => router.back()}
-            style={s.backBtn}
-          >
+          <Pressable hitSlop={12} onPress={() => router.back()} style={s.backBtn}>
             <LucideIcon name="arrow-left" size={20} color={NAVY} />
           </Pressable>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Text style={s.title}>성장 추적</Text>
+              <Text style={s.title}>성장판</Text>
               <View style={s.xBadge}>
                 <Text style={s.xBadgeTxt}>SWIMNOTE X</Text>
               </View>
             </View>
-            <Text style={s.sub}>커리큘럼 기반 학생 성장 관리</Text>
+            <Text style={s.headerSub}>학생별 성장 이벤트 조회</Text>
           </View>
         </View>
 
-        <ScrollView
-          contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: insets.bottom + 32 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* 준비 중 배너 */}
-          <View style={s.comingSoonCard}>
-            <Text style={{ fontSize: 32, marginBottom: 8 }}>🚀</Text>
-            <Text style={s.comingSoonTitle}>기능 준비 중</Text>
-            <Text style={s.comingSoonSub}>
-              SWIMNOTE X 성장 추적 기능이 곧 출시됩니다.{"\n"}
-              아래 예정 기능을 미리 확인하세요.
-            </Text>
-          </View>
+        {/* 학생 선택 */}
+        <View style={s.sectionWrap}>
+          <Text style={s.sectionLabel}>학생 선택</Text>
+          {studentsLoading ? (
+            <ActivityIndicator color={MINT} style={{ marginVertical: 8 }} />
+          ) : students.length === 0 ? (
+            <Text style={s.noStudentTxt}>등록된 학생이 없습니다.</Text>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, paddingRight: 16 }}
+            >
+              {students.map(stu => {
+                const active = selectedStu?.id === stu.id;
+                return (
+                  <Pressable
+                    key={stu.id}
+                    style={[s.stuChip, active && s.stuChipActive]}
+                    onPress={() => handleSelectStudent(stu)}
+                  >
+                    <Text style={[s.stuChipTxt, active && s.stuChipTxtActive]}>
+                      {stu.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
 
-          {/* 예정 기능 목록 */}
-          <Text style={s.sectionLabel}>출시 예정 기능</Text>
-          {FEATURES.map(f => (
-            <View key={f.label} style={s.featureCard}>
-              <View style={s.featureIcon}>
-                <LucideIcon name={f.icon as any} size={18} color={MINT} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.featureLabel}>{f.label}</Text>
-                <Text style={s.featureSub}>{f.sub}</Text>
-              </View>
-              <View style={s.comingSoonChip}>
-                <Text style={s.comingSoonChipTxt}>준비중</Text>
-              </View>
-            </View>
-          ))}
-        </ScrollView>
+        {/* 필터 — 학생 선택 후에만 표시 */}
+        {selectedStu && (
+          <View style={s.filterBar}>
+            {/* status 필터 */}
+            <ScrollView
+              horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 6, paddingRight: 8 }}
+            >
+              {STATUS_FILTER_OPTIONS.map(opt => {
+                const active = filterStatus === opt.value;
+                return (
+                  <Pressable
+                    key={String(opt.value)}
+                    style={[s.filterChip, active && s.filterChipActive]}
+                    onPress={() => setFilterStatus(opt.value)}
+                  >
+                    <Text style={[s.filterChipTxt, active && s.filterChipTxtActive]}>
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* 이벤트 목록 */}
+        {!selectedStu ? (
+          <View style={s.noSelWrap}>
+            <LucideIcon name="user" size={40} color={C.textMuted} />
+            <Text style={s.noSelTxt}>학생을 선택하면{"\n"}성장 이벤트를 확인할 수 있어요.</Text>
+          </View>
+        ) : (
+          <FlatList<GrowthEvent>
+            data={events}
+            keyExtractor={item => item.event_id}
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingTop: 12,
+              paddingBottom: insets.bottom + 100,
+              gap: 10,
+            }}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={refresh}
+                tintColor={MINT}
+              />
+            }
+            ListEmptyComponent={renderEmpty}
+            ListFooterComponent={renderFooter}
+            onEndReached={() => { if (hasMore && loadState === "success") loadMore(); }}
+            onEndReachedThreshold={0.3}
+            renderItem={({ item }) => (
+              <GrowthEventCard event={item} onPress={handleEventPress} />
+            )}
+          />
+        )}
+
+        {/* 상세 모달 (TC-G) */}
+        <GrowthEventDetail
+          visible={detailEventId !== null}
+          eventId={detailEventId}
+          studentId={selectedStu?.id ?? null}
+          onClose={() => setDetailEventId(null)}
+        />
       </View>
     </XModeGuard>
   );
@@ -91,50 +267,73 @@ export default function AdminXGrowthScreen() {
 
 const s = StyleSheet.create({
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingBottom: 14,
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 16, paddingBottom: 14,
     backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    borderBottomWidth: 1, borderBottomColor: C.border,
   },
   backBtn: {
     width: 36, height: 36, borderRadius: 10,
     backgroundColor: C.backgroundSoft,
     alignItems: "center", justifyContent: "center",
   },
-  title:  { fontSize: 18, fontFamily: "Pretendard-SemiBold", color: NAVY },
-  sub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
+  title:     { fontSize: 18, fontFamily: "Pretendard-SemiBold", color: NAVY },
+  headerSub: { fontSize: 12, fontFamily: "Pretendard-Regular",  color: C.textSecondary, marginTop: 1 },
   xBadge: {
     backgroundColor: MINT_LIGHT, borderRadius: 8,
     paddingHorizontal: 7, paddingVertical: 2,
     borderWidth: 1, borderColor: MINT,
   },
   xBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: NAVY },
-  comingSoonCard: {
-    backgroundColor: "#fff", borderRadius: 16, padding: 24,
-    alignItems: "center",
+
+  sectionWrap: {
+    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1, borderBottomColor: C.border,
+    gap: 8,
+  },
+  sectionLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  noStudentTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted },
+
+  stuChip: {
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 20, backgroundColor: C.backgroundSoft,
     borderWidth: 1, borderColor: C.border,
   },
-  comingSoonTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: NAVY, marginBottom: 6 },
-  comingSoonSub:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 },
-  sectionLabel:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 4 },
-  featureCard: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: "#fff", borderRadius: 12, padding: 14,
+  stuChipActive: { backgroundColor: MINT_LIGHT, borderColor: MINT },
+  stuChipTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular",  color: C.textSecondary, lineHeight: 18 },
+  stuChipTxtActive: { fontFamily: "Pretendard-SemiBold", color: NAVY },
+
+  filterBar: {
+    paddingHorizontal: 16, paddingVertical: 8,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  filterChip: {
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 8, backgroundColor: C.backgroundSoft,
     borderWidth: 1, borderColor: C.border,
   },
-  featureIcon: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: MINT_LIGHT, alignItems: "center", justifyContent: "center",
+  filterChipActive:    { backgroundColor: MINT_LIGHT, borderColor: MINT },
+  filterChipTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 17 },
+  filterChipTxtActive: { fontFamily: "Pretendard-SemiBold", color: NAVY },
+
+  noSelWrap: {
+    flex: 1, alignItems: "center", justifyContent: "center", gap: 12,
   },
-  featureLabel: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: NAVY },
-  featureSub:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
-  comingSoonChip: {
-    backgroundColor: C.backgroundSoft, borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 3,
+  noSelTxt: {
+    fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted,
+    textAlign: "center", lineHeight: 22,
   },
-  comingSoonChipTxt: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
+
+  errorWrap: {
+    alignItems: "center", paddingVertical: 60, gap: 12,
+  },
+  errorTxt:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  errorCode: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  retryBtn: {
+    marginTop: 4, backgroundColor: MINT,
+    borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10,
+  },
+  retryTxt:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });
