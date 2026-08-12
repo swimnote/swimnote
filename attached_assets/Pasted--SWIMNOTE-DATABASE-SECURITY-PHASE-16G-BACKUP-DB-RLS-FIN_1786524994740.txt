@@ -1,0 +1,365 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE DATABASE SECURITY — PHASE 16G
+BACKUP DB RLS FINAL APPLY + RUNTIME VERIFY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 승인 상태:
+
+STUDENTS_BACKUP_REPLICATION_VERIFIED ✅
+PARENT_ACCOUNTS_REPLICATION_VERIFIED ✅
+DIARY_MESSAGES_REPLICATION_VERIFIED ✅
+REPLICATION_BLOCKING_MISMATCH_0 ✅
+BACKUP_RLS_READY ✅
+
+현재 Backup DB:
+
+POOL_DATABASE_URL
+RLS enabled = 0
+RLS disabled = 50
+policy count = 0
+
+목표:
+
+Backup DB 50개 public table 전체에
+RLS를 ENABLE 하고
+standby-sync / backup runtime 회귀가 없는지 검증한다.
+
+Production DB 변경 금지.
+Production RLS 변경 금지.
+코드 변경 금지.
+WP4 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. DB IDENTITY GATE
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 POOL_DATABASE_URL 접속.
+
+확인:
+
+database
+host
+current_user
+session_user
+rolsuper
+rolbypassrls
+
+기대:
+
+current_user = postgres
+rolsuper = false
+rolbypassrls = true
+
+SUPABASE_DATABASE_URL이면 즉시 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+2. TABLE INVENTORY
+━━━━━━━━━━━━━━━━━━━━
+
+Backup public tables 전체 재조회.
+
+기대:
+
+TOTAL = 50
+
+실제 table list 제출.
+
+현재 RLS 상태:
+
+enabled
+disabled
+policy count
+
+재확인.
+
+기대:
+
+enabled = 0
+disabled = 50
+policy = 0
+
+다르면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+3. PRE-STATE SAFETY
+━━━━━━━━━━━━━━━━━━━━
+
+50개 각각:
+
+relrowsecurity
+relforcerowsecurity
+policy count
+owner
+
+확인.
+
+기존 policy가 하나라도 있으면
+그 테이블은 임의 적용하지 말고 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+4. ROLE / BYPASS CONFIRM
+━━━━━━━━━━━━━━━━━━━━
+
+standby-sync가 실제 사용하는
+Backup DB client가 postgres
+rolbypassrls=true 경로인지 재확인.
+
+확인 대상 코드:
+
+standby-sync.ts
+backup-target.ts
+backup-status
+restore/backup 관련 경로
+
+Supabase Data API 직접 사용 여부도 재확인.
+
+━━━━━━━━━━━━━━━━━━━━
+5. APPLY RLS — 50 TABLES
+━━━━━━━━━━━━━━━━━━━━
+
+Backup public schema의
+실제 50개 table inventory 기준으로:
+
+ALTER TABLE "<table>"
+ENABLE ROW LEVEL SECURITY;
+
+각 테이블에 적용.
+
+중요:
+
+policy 생성 금지.
+FORCE ROW LEVEL SECURITY 금지.
+GRANT 변경 금지.
+DROP/DELETE/TRUNCATE 금지.
+
+실제 inventory에서 읽은 50개만 적용.
+
+Production 테이블에 절대 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. POST READ-BACK
+━━━━━━━━━━━━━━━━━━━━
+
+실제 Backup DB에서:
+
+TOTAL TABLES
+RLS ENABLED
+RLS DISABLED
+FORCE RLS
+POLICY COUNT
+
+재계산.
+
+기대:
+
+TOTAL = 50
+RLS ENABLED = 50
+RLS DISABLED = 0
+FORCE RLS = 0
+POLICY COUNT = 0
+
+disabled inventory:
+
+(no rows)
+
+여야 함.
+
+━━━━━━━━━━━━━━━━━━━━
+7. DIRECT POSTGRES SMOKE
+━━━━━━━━━━━━━━━━━━━━
+
+BYPASSRLS=true client로
+대표 핵심 테이블 COUNT 확인:
+
+swimming_pools
+users
+students
+parent_accounts
+diary_messages
+subscription_plans
+backup_settings
+platform_banners
+event_logs
+payment_logs
+backup_logs
+platform_backups
+ops_alerts
+
+전부 정상 조회되어야 함.
+
+민감 데이터 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+8. HOT SYNC RUNTIME
+━━━━━━━━━━━━━━━━━━━━
+
+RLS 적용 후
+기존 safe hot-sync 방식으로 1회 검증.
+
+확인:
+
+swimming_pools
+users
+subscription_plans
+backup_settings
+platform_banners
+feature_flag_overrides
+pool_credits
+
+기대:
+
+핵심 5개 정상 sync.
+
+pool_credits:
+lazy-init 미생성 상태면
+graceful skip 정상.
+
+RLS 관련 신규 오류가 없어야 함.
+
+━━━━━━━━━━━━━━━━━━━━
+9. LEGACY CORE SYNC
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 다시 확인:
+
+students
+parent_accounts
+diary_messages
+
+Production / Backup count 비교.
+
+기대:
+
+students          MATCH
+parent_accounts   MATCH
+diary_messages    MATCH
+
+RLS 적용 후에도
+replication 정상이어야 함.
+
+━━━━━━━━━━━━━━━━━━━━
+10. FULL CORE SYNC
+━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+event_logs
+payment_logs
+backup_logs
+platform_backups
+ops_alerts
+
+Production / Backup count 비교.
+
+sync timing으로 backup_logs가 순간적으로
+1행 정도 차이 날 경우
+실행 시각과 원인까지 제출.
+
+RLS error로 인한 차이는 허용 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. RENDER LOG
+━━━━━━━━━━━━━━━━━━━━
+
+RLS 적용 후 로그 검색:
+
+permission denied
+row-level security
+policy violation
+relation access denied
+violates row-level security
+standby-sync failed
+backup failed
+
+그리고 핵심 table 이름들.
+
+신규 RLS 오류 = NONE 이어야 함.
+
+━━━━━━━━━━━━━━━━━━━━
+12. ANON / AUTH SECURITY STATE
+━━━━━━━━━━━━━━━━━━━━
+
+Backup에는 policy가 0개이므로
+RLS 대상 role에 대해 deny-by-default가 적용됨.
+
+단:
+
+postgres / BYPASSRLS role은
+RLS를 우회함.
+
+정확히 이 표현으로 보고.
+
+Data API public 제거 상태는
+사용자가 Dashboard에서 이미 적용했다고 기록.
+
+하지만 실제 anon HTTP runtime이
+검증되지 않았다면:
+
+DATA_API_BLOCK_APPLIED
+RUNTIME_ANON_BLOCK_NOT_VERIFIED
+
+상태 유지.
+
+"외부 접근 완전 차단"으로 과장 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+13. FINAL SECURITY COUNT
+━━━━━━━━━━━━━━━━━━━━
+
+최종:
+
+Production:
+105 / 105 RLS ✅
+
+Backup:
+50 / 50 RLS ✅
+
+각각 actual DB COUNT로 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+14. ROLLBACK
+━━━━━━━━━━━━━━━━━━━━
+
+RLS 적용 후 standby-sync 장애가
+RLS 때문이라고 명확히 확인될 경우에만
+Backup 50개 RLS rollback 검토.
+
+자동 rollback 금지.
+
+먼저 실제 오류 보고.
+
+DB schema/column rollback 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+15. 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. Backup DB identity
+2. table inventory
+3. pre RLS count
+4. role/bypass
+5. 적용 table 50개
+6. post RLS count
+7. disabled inventory
+8. direct postgres smoke
+9. HOT sync 결과
+10. students/parent_accounts/diary_messages
+11. FULL core sync
+12. Render 신규 RLS 오류
+13. anon/auth security state
+14. Production RLS count
+15. Backup RLS count
+16. rollback 여부
+17. 최종 판정
+
+성공 시 정확히:
+
+BACKUP_RLS_50_OF_50_VERIFIED ✅
+BACKUP_REPLICATION_AFTER_RLS_VERIFIED ✅
+DATABASE_SECURITY_REPAIR_COMPLETE ✅
+
+STOP.
+
+WP4 자동 재개 금지.
+다음 단계는 별도 승인 후 진행.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
