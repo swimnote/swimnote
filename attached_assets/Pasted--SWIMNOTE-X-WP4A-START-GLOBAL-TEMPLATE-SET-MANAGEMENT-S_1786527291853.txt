@@ -1,0 +1,625 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP4A START
+GLOBAL TEMPLATE SET MANAGEMENT
+SUPER ADMIN CENTRAL CRUD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 승인:
+
+DATABASE_SECURITY_REPAIR_COMPLETE ✅
+Production RLS 105/105 ✅
+Backup RLS 50/50 ✅
+Backup replication verified ✅
+
+기존 "WP4 재개 금지"는 사용자 승인으로 해제.
+
+이제 WP4A 구현 시작.
+
+중요:
+WP4B AI search 연결은 아직 하지 않는다.
+WP5/WP6 작업 금지.
+Makeup/Diary 기존 기능 변경 금지.
+DB migration 임의 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+0. 시작 BASELINE 확인
+━━━━━━━━━━━━━━━━━━━━
+
+먼저 실제 Repository 기준으로 제출:
+
+- current branch
+- HEAD SHA
+- origin SHA
+- git status
+- Render 현재 Live SHA
+
+추측 금지.
+
+기존 stable tag 변경 금지.
+force push / rebase / reset 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. WP4A 정확한 목적
+━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE X에서 사용할
+전국 공통 중앙 수업 템플릿을
+super_admin이 관리하는 기능을 만든다.
+
+핵심 구조:
+
+global_template_sets
++
+diary_templates(scope='x_global')
+
+Pool admin / teacher가
+x_global 템플릿을 직접 수정하는 기능은 만들지 않는다.
+
+관리 주체:
+
+super_admin ONLY
+
+━━━━━━━━━━━━━━━━━━━━
+2. 기존 DB SOURCE-OF-TRUTH 확인
+━━━━━━━━━━━━━━━━━━━━
+
+Production:
+SUPABASE_DATABASE_URL
+
+실제 DB에서 아래를 READ ONLY 확인:
+
+global_template_sets
+diary_templates
+
+확인 항목:
+
+global_template_sets:
+- columns
+- PK/FK
+- status enum
+- indexes
+- row count
+- RLS
+- policy count
+
+diary_templates:
+- scope
+- global_template_set_id
+- swimming_pool_id
+- 관련 CHECK
+- x_global index
+- row count where scope='x_global'
+- RLS
+- policy count
+
+기대 기준:
+
+global_template_sets row = 현재 0
+x_global diary_templates row = 현재 0
+
+단 실제 DB 결과를 우선.
+
+━━━━━━━━━━━━━━━━━━━━
+3. MIGRATION GATE
+━━━━━━━━━━━━━━━━━━━━
+
+현재 설계상 필요한 schema는 이미 존재한다.
+
+따라서 기본 판정:
+
+DB MIGRATION NOT REQUIRED
+
+실제 catalog 확인 후
+정말 누락된 schema가 발견된 경우에만 STOP 후 보고.
+
+임의 migration 생성/실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. LIFECYCLE 규칙
+━━━━━━━━━━━━━━━━━━━━
+
+global_template_sets.status:
+
+DRAFT
+ACTIVE
+ARCHIVED
+
+규칙:
+
+- 신규 set은 DRAFT
+- ACTIVE는 전체 시스템에서 최대 1개
+- DRAFT → ACTIVE 가능
+- ACTIVE → ARCHIVED 가능
+- ARCHIVED를 임의 수정/재활성화할지는
+  기존 설계/코드 확인 후 보수적으로 처리
+- 동시에 ACTIVE 2개가 생기면 안 됨
+
+activate는 반드시 transaction 처리.
+
+새 set을 ACTIVE로 만들 때:
+
+기존 ACTIVE 존재 시
+정확한 기존 설계에 따라
+기존 ACTIVE를 ARCHIVED 처리하고
+새 set을 ACTIVE로 전환.
+
+중간 상태에서 ACTIVE 2개가
+존재하지 않도록 보장.
+
+━━━━━━━━━━━━━━━━━━━━
+5. API 구현
+━━━━━━━━━━━━━━━━━━━━
+
+기존 super route 패턴을 재사용.
+
+필요 API:
+
+POST
+/super/global-template-sets
+
+GET
+/super/global-template-sets
+
+GET
+/super/global-template-sets/:id
+
+PATCH
+/super/global-template-sets/:id/activate
+
+PATCH
+/super/global-template-sets/:id/archive
+
+Template:
+
+GET
+/super/global-template-sets/:id/templates
+
+POST
+/super/global-template-sets/:id/templates
+
+PATCH
+/super/global-template-sets/:id/templates/:templateId
+
+DELETE
+/super/global-template-sets/:id/templates/:templateId
+
+실제 server prefix가 /api라면
+기존 router registration 기준으로 최종 path 제출.
+
+route 추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. AUTHORIZATION
+━━━━━━━━━━━━━━━━━━━━
+
+전 API:
+
+super_admin ONLY
+
+pool_admin
+teacher
+parent
+
+접근 금지.
+
+기존 auth / requireRole middleware 재사용.
+
+새 인증체계 만들지 말 것.
+
+테스트:
+
+super_admin → 허용
+pool_admin/teacher/parent → 403
+
+안전한 credential이 없으면
+해당 role runtime 테스트는 코드/test로 검증하고
+임의 Production 계정 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. SET CREATE CONTRACT
+━━━━━━━━━━━━━━━━━━━━
+
+신규 set 생성 시 최소 필드:
+
+- name
+- description (schema에 존재할 경우)
+- version/metadata 등은 실제 schema 기준
+
+임의 column 생성 금지.
+
+status는:
+
+DRAFT
+
+로 생성.
+
+서버가 강제.
+
+클라이언트가 ACTIVE를 보내더라도
+create 단계에서 직접 ACTIVE 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+8. X_GLOBAL TEMPLATE CONTRACT
+━━━━━━━━━━━━━━━━━━━━
+
+Template 생성 시 반드시:
+
+scope = 'x_global'
+
+swimming_pool_id = NULL
+
+global_template_set_id = 해당 set id
+
+기존 DB CHECK와 정확히 일치해야 함.
+
+Pool-specific global template과 섞지 말 것.
+
+기존 일반 모드:
+
+scope='global'
+
+동작 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+9. TEMPLATE CRUD
+━━━━━━━━━━━━━━━━━━━━
+
+기존 diary_templates 컬럼/DTO를 재사용.
+
+새로운 템플릿 지식 구조를 창작하지 말 것.
+
+템플릿 CRUD에서:
+
+- 다른 set template 접근 차단
+- x_global 아닌 template 수정 차단
+- archived set template 수정 정책 확인
+- 없는 set/template → 404
+- validation error → 400
+
+기존 project error response 형식 유지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. DELETE 정책
+━━━━━━━━━━━━━━━━━━━━
+
+Template DELETE는
+실제 기존 diary_templates 삭제 방식 확인.
+
+hard delete / soft delete를
+새로 임의 결정하지 말 것.
+
+현재 Repository 관례를 따라라.
+
+Global Template Set 자체 DELETE API는
+이번 WP4A 범위에 넣지 않는다.
+
+Set lifecycle은
+DRAFT / ACTIVE / ARCHIVED로 관리.
+
+━━━━━━━━━━━━━━━━━━━━
+11. SUPER ADMIN UI
+━━━━━━━━━━━━━━━━━━━━
+
+기존 super_admin 관리 UI 구조를 확인.
+
+WP4A 관리 화면 추가:
+
+Global Template Sets
+
+필수 화면:
+
+A. Set 목록
+- 이름
+- 상태
+- 생성/수정 정보
+- template count
+- ACTIVE 표시
+
+B. Set 생성
+- 신규 DRAFT 생성
+
+C. Set 상세
+- 기본 정보
+- template 목록
+
+D. Template 관리
+- 추가
+- 수정
+- 삭제
+
+E. Lifecycle
+- Activate
+- Archive
+
+기존 디자인 시스템 사용.
+
+새 UI 프레임워크 도입 금지.
+앱 일반 사용자 UI 변경 금지.
+
+Pool admin UI에
+x_global 편집 메뉴 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+12. ACTIVE 1개 보장
+━━━━━━━━━━━━━━━━━━━━
+
+특히 중요.
+
+동시에 두 activate 요청이 들어와도
+ACTIVE가 2개 되지 않는지 확인.
+
+가능한 기존 DB transaction/locking 패턴 사용.
+
+최종 검증:
+
+SELECT status='ACTIVE'
+
+count <= 1
+
+반드시 실제 DB read-back.
+
+━━━━━━━━━━━━━━━━━━━━
+13. AUDIT
+━━━━━━━━━━━━━━━━━━━━
+
+기존 audit_logs 체계가
+super-admin config 변경에 사용되고 있다면 재사용.
+
+기록 권장 이벤트:
+
+GLOBAL_TEMPLATE_SET_CREATED
+GLOBAL_TEMPLATE_SET_ACTIVATED
+GLOBAL_TEMPLATE_SET_ARCHIVED
+X_GLOBAL_TEMPLATE_CREATED
+X_GLOBAL_TEMPLATE_UPDATED
+X_GLOBAL_TEMPLATE_DELETED
+
+단 기존 audit enum/형식이 따로 있으면
+그것을 따른다.
+
+audit_logs schema를 임의 변경하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+14. WP4B와 경계
+━━━━━━━━━━━━━━━━━━━━
+
+이번 WP4A에서 절대 하지 말 것:
+
+- AI Diary search 변경
+- x-mode template 검색 우선순위 변경
+- Prompt Builder 변경
+- AI Engine 변경
+- ACTIVE set 자동 검색 연결
+- template_set_id AI metadata 추가
+
+이건 WP4B.
+
+WP4A는
+"관리하고 ACTIVE set을 만들 수 있는 기능"
+까지만.
+
+━━━━━━━━━━━━━━━━━━━━
+15. TEST
+━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+CREATE DRAFT
+LIST
+DETAIL
+UPDATE TEMPLATE
+DELETE TEMPLATE
+ACTIVATE
+ARCHIVE
+
+검증:
+
+x_global:
+swimming_pool_id IS NULL
+global_template_set_id IS NOT NULL
+
+ACTIVE count <= 1
+
+일반 scope='global' template 영향 없음.
+
+권한 테스트:
+super_admin 허용
+비-super-admin 차단
+
+typecheck / 관련 tests 실행.
+
+━━━━━━━━━━━━━━━━━━━━
+16. PRODUCTION WRITE TEST
+━━━━━━━━━━━━━━━━━━━━
+
+주의:
+
+Production에서 테스트용 쓰레기 데이터를
+마구 생성하지 말 것.
+
+가능하면 transaction rollback 가능한
+검증 방식 우선.
+
+실제 runtime write 검증이 필요하다면:
+
+명확한 TEST 이름의 DRAFT set 1개만 생성
+→ template 1개
+→ read-back
+→ 삭제/정리 가능한 데이터만 사용.
+
+ACTIVE 전환은 실제 서비스 상태에
+영향이 없다는 것이 확인된 경우에만 실행.
+
+현재 ACTIVE set이 이미 존재하면
+임의 전환 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+17. GIT GATE
+━━━━━━━━━━━━━━━━━━━━
+
+구현 완료 후:
+
+git status
+git diff --stat
+변경 파일 목록
+
+제출.
+
+commit 생성.
+
+예:
+
+feat(xmode): add global template set management
+
+origin 현재 branch push.
+
+제출:
+
+HEAD SHA
+COMMIT SHA
+ORIGIN SHA
+
+일치 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+18. RENDER DEPLOY
+━━━━━━━━━━━━━━━━━━━━
+
+WP4A는 서버 기능이므로
+Render 배포 필요.
+
+제출:
+
+Deploy ID
+Live SHA
+Deploy status
+
+Live SHA != commit SHA면
+DONE 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+19. OTA / STORE
+━━━━━━━━━━━━━━━━━━━━
+
+이번 WP4A가
+super-admin web/server 관리 기능만 변경한다면:
+
+EAS OTA 불필요
+Store build 불필요
+
+실제 앱 코드가 변경된 경우에만
+별도 영향 보고.
+
+괜히 OTA/build 하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+20. RUNTIME VERIFICATION
+━━━━━━━━━━━━━━━━━━━━
+
+배포 후 실제 Production Render:
+
+super_admin login → HTTP 200
+
+Global Template API:
+
+LIST → 200
+CREATE DRAFT → 성공
+DETAIL → 200
+TEMPLATE CREATE → 성공
+TEMPLATE LIST → 200
+TEMPLATE UPDATE → 성공
+TEMPLATE DELETE → 성공
+
+Lifecycle은 안전성 확인 후:
+
+ACTIVATE
+ARCHIVE
+
+검증.
+
+DB read-back:
+
+global_template_sets
+diary_templates(scope='x_global')
+
+실제 저장 위치가
+SUPABASE_DATABASE_URL인지 증명.
+
+Replit executeSql production 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+21. EXISTING SYSTEM REGRESSION
+━━━━━━━━━━━━━━━━━━━━
+
+최소 smoke:
+
+/api/health → 200
+super dashboard → 200
+/api/pools/x-mode sample pool → 200
+
+그리고:
+
+Makeup
+Diary
+Parent Request
+Billing
+
+관련 신규 server error 없는지 Render 로그 확인.
+
+기능 코드 건드리지 않았음을 diff로 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+22. FINAL STATUS
+━━━━━━━━━━━━━━━━━━━━
+
+성공 조건:
+
+[ ] existing schema verified
+[ ] migration 없음
+[ ] super_admin CRUD 구현
+[ ] x_global contract 준수
+[ ] ACTIVE <= 1
+[ ] authorization 검증
+[ ] UI 구현
+[ ] tests pass
+[ ] commit pushed
+[ ] Render Live SHA 일치
+[ ] Production runtime 검증
+[ ] actual DB read-back
+[ ] 일반 global template 회귀 없음
+
+성공 시:
+
+WP4A_GLOBAL_TEMPLATE_MANAGEMENT_VERIFIED ✅
+
+그 후 STOP.
+
+WP4B 자동 진행 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+23. 최종 보고서
+━━━━━━━━━━━━━━━━━━━━
+
+1. baseline branch/SHA
+2. Production schema verification
+3. migration 필요 여부
+4. API 구현
+5. authorization
+6. lifecycle
+7. x_global contract
+8. UI
+9. changed files
+10. tests
+11. commit SHA
+12. origin SHA
+13. Render Deploy ID
+14. Live SHA
+15. runtime API 결과
+16. DB read-back
+17. ACTIVE count
+18. regression
+19. OTA/build 필요 여부
+20. 최종 판정
+
+STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
