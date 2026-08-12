@@ -462,11 +462,14 @@ async function loadTemplatesAnyPool(): Promise<RawTemplate[]> {
  *   swimming_pool_id IS NULL
  */
 async function loadXGlobalTemplates(setId: string): Promise<RawTemplate[]> {
+  // x_global 템플릿은 level_id가 없으므로 dtl.level_name이 항상 NULL.
+  // COALESCE(dtl.level_name, dt.category)를 사용하여 category(영법)를
+  // level_name 대체값으로 사용 → 기존 LEVEL_NAME_STROKE_SIGNALS 엔진 재활용
   const result = await db.execute(sql`
     SELECT
       dt.id,
       dt.level_id,
-      dtl.level_name,
+      COALESCE(dtl.level_name, dt.category) AS level_name,
       dt.template_text
     FROM diary_templates dt
     LEFT JOIN diary_template_levels dtl ON dtl.id = dt.level_id
