@@ -59,7 +59,12 @@ const ALLOW_LEGACY_RESPONSE_WITHOUT_REQUEST_ID = false;
 // ─── Contract 버전 관리 ───────────────────────────────────────────────────────
 //
 // 앱이 전송하는 contract_version — Request에 포함됩니다.
-export const APP_CONTRACT_VERSION = '1.0' as const;
+//
+// WP6: '1.0' → '1.3' 업그레이드
+//   contract 1.3이어야 서버에서 Phase 0(resolvePoolMode)가 실행되고
+//   X pool에서 x_global template search / curriculum candidate search가 활성화됩니다.
+//   contract 1.0은 poolMode 조회를 건너뛰므로 X mode가 미활성화됩니다.
+export const APP_CONTRACT_VERSION = '1.3' as const;
 
 /**
  * 앱이 수락하는 버전 집합.
@@ -69,7 +74,7 @@ export const APP_CONTRACT_VERSION = '1.0' as const;
  *
  * ★ 금지: 미검증 버전을 조용히 통과시키거나 강제 캐스팅하지 마십시오.
  */
-export const SUPPORTED_CONTRACT_VERSIONS = new Set<string>(['1.0']);
+export const SUPPORTED_CONTRACT_VERSIONS = new Set<string>(['1.0', '1.3']);
 export const SUPPORTED_SCHEMA_VERSIONS   = new Set<string>(['1.0']);
 /**
  * engine_version은 AI Engine 연결 후 실제 값 확인 후 추가하십시오.

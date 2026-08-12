@@ -736,3 +736,194 @@ describe('WP4B: X_GLOBAL 템플릿 검색 분기', () => {
     expect(data.meta.generation_mode).toBe('INPUT_ONLY');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WP6: AI Diary V2 — X mode 파이프라인 활성화 검증
+//
+// TC-WP6-A: NON-X + contract 1.3 → 기존 결과 유지 (TC-03에서 커버)
+// TC-WP6-B: X + template FOUND   → TEMPLATE_ASSISTED (TC-WP4B-D에서 커버)
+// TC-WP6-C: X + NO_MATCH         → INPUT_ONLY (TC-WP4B-E에서 커버)
+// TC-WP6-D: X + NOT_CONFIGURED   → INPUT_ONLY, 500 없음 (TC-WP4B-B에서 커버)
+// TC-WP6-E: student_refs=[]      → common만 생성, result.students=[]
+// TC-WP6-F: 학생 1명 지정        → result.students에 1명 분리
+// TC-WP6-G: 학생 2명 지정        → result.students에 2명 각각 분리
+// TC-WP6-H: GPT가 미등록 ref     → 서버가 무시, 다른 학생 오염 없음
+// TC-WP6-I: X + candidate 없음   → curriculum_matches=[], 200 (TC-05에서 커버; 명시적 재확인)
+// TC-WP6-K: common에 학생 내용   → purgeStudentLeaksFromCommon 동작 후 200
+// ─────────────────────────────────────────────────────────────────────────────
+describe('WP6: X mode AI Diary 파이프라인 (per-input / per-student / grounding)', () => {
+  // ── TC-WP6-E: student_refs=[] → common만 생성 ──
+  it('TC-WP6-E: student_refs=[] → common만 생성, result.students=[]', async () => {
+    setPoolMode('x');
+    mockOpenAICreate.mockResolvedValueOnce({
+      choices: [{ message: { content: JSON.stringify({ common: '오늘 전체 수업을 진행했습니다.', students: [] }) } }],
+      usage: { prompt_tokens: 40, completion_tokens: 80, total_tokens: 120 },
+    });
+
+    const { status, data } = await post(
+      makeBody({
+        contract_version: '1.3',
+        context: {
+          pool_id:      'pool-test-001',
+          class_id:     'class-test-001',
+          lesson_date:  '2026-08-06',
+          student_refs: [],
+          students:     [],
+        },
+      }),
+    );
+
+    expect(status).toBe(200);
+    expect(data.result.common).toBeTruthy();
+    expect(Array.isArray(data.result.students)).toBe(true);
+    expect(data.result.students).toHaveLength(0);
+  });
+
+  // ── TC-WP6-F: 학생 1명 → result.students 1명 ──
+  it('TC-WP6-F: 학생 1명 지정 → result.students에 1명 분리', async () => {
+    setPoolMode('x');
+    mockOpenAICreate.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              common: '오늘 자유형 수업을 진행했습니다.',
+              students: [{ student_ref: 's1', content: '김학생은 발차기를 잘 따라왔습니다.' }],
+            }),
+          },
+        },
+      ],
+      usage: { prompt_tokens: 60, completion_tokens: 120, total_tokens: 180 },
+    });
+
+    const { status, data } = await post(makeBody({ contract_version: '1.3' }));
+
+    expect(status).toBe(200);
+    expect(data.result.common).toBeTruthy();
+    expect(Array.isArray(data.result.students)).toBe(true);
+    expect(data.result.students).toHaveLength(1);
+    expect(data.result.students[0].student_ref).toBe('s1');
+    expect(data.result.students[0].content).toBeTruthy();
+  });
+
+  // ── TC-WP6-G: 학생 2명 → result.students 각각 분리 ──
+  it('TC-WP6-G: 학생 2명 지정 → result.students에 2명 각각 분리', async () => {
+    setPoolMode('x');
+    mockOpenAICreate.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              common: '오늘 자유형 수업을 진행했습니다.',
+              students: [
+                { student_ref: 's1', content: '김학생 발차기 우수.' },
+                { student_ref: 's2', content: '이학생 호흡 연습 필요.' },
+              ],
+            }),
+          },
+        },
+      ],
+      usage: { prompt_tokens: 80, completion_tokens: 150, total_tokens: 230 },
+    });
+
+    const { status, data } = await post(
+      makeBody({
+        contract_version: '1.3',
+        context: {
+          pool_id:      'pool-test-001',
+          class_id:     'class-test-001',
+          lesson_date:  '2026-08-06',
+          student_refs: ['s1', 's2'],
+          students:     [
+            { ref: 's1', name: '김학생' },
+            { ref: 's2', name: '이학생' },
+          ],
+        },
+      }),
+    );
+
+    expect(status).toBe(200);
+    expect(data.result.students).toHaveLength(2);
+    const refs = data.result.students.map((s: any) => s.student_ref);
+    expect(refs).toContain('s1');
+    expect(refs).toContain('s2');
+    // 각 content가 서로 다름 (분리 확인)
+    expect(data.result.students[0].content).not.toBe(data.result.students[1].content);
+  });
+
+  // ── TC-WP6-H: GPT가 미등록 student_ref 반환 → OUTPUT_VALIDATION_FAILED(500) ──
+  //
+  // 서버는 context.students에 없는 ref를 UNKNOWN_STUDENT_REF로 판정하고 500을 반환합니다.
+  // silent fallback 없이 오류를 전파하는 것이 올바른 동작입니다.
+  it('TC-WP6-H: GPT 미등록 ref → UNKNOWN_STUDENT_REF → 500 (silent fallback 없음)', async () => {
+    setPoolMode('x');
+    // GPT가 s1(등록)과 s_unknown(미등록) 두 개를 반환
+    mockOpenAICreate.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              common: '오늘 수업을 진행했습니다.',
+              students: [
+                { student_ref: 's1',       content: '김학생 정상 피드백.' },
+                { student_ref: 's_unknown', content: '이름 없는 누군가.' },
+              ],
+            }),
+          },
+        },
+      ],
+      usage: { prompt_tokens: 60, completion_tokens: 120, total_tokens: 180 },
+    });
+
+    const { status, data } = await post(makeBody({ contract_version: '1.3' }));
+
+    // 서버: OUTPUT_VALIDATION_FAILED → 500 반환 (명시적 실패, silent fallback 없음)
+    expect(status).toBe(500);
+    expect(data.error.code).toBe('OUTPUT_VALIDATION_FAILED');
+  });
+
+  // ── TC-WP6-I: X + candidate 없음 → curriculum_matches=[], 200 (명시적 재확인) ──
+  it('TC-WP6-I: X + curriculum candidate 없음 → curriculum_matches=[], 200', async () => {
+    setPoolMode('x');
+    mockSearchCurriculumCandidates.mockResolvedValue([]);
+
+    const { status, data } = await post(makeBody({ contract_version: '1.3' }));
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.curriculum_matches)).toBe(true);
+    expect(data.curriculum_matches).toHaveLength(0);
+    expect(data.result.common).toBeTruthy();
+  });
+
+  // ── TC-WP6-K: common에 학생 내용 포함 → purgeStudentLeaksFromCommon 동작 후 200 ──
+  it('TC-WP6-K: common에 학생 내용 포함 시 purge 후 정상 200', async () => {
+    setPoolMode('x');
+    // GPT common에 학생 언급 포함 → grounding 모듈 mock이 purge 실행
+    const { purgeStudentLeaksFromCommon } = await import('../../lib/diary-grounding.js');
+    vi.mocked(purgeStudentLeaksFromCommon).mockReturnValueOnce({
+      purged: '오늘 전체 수업을 진행했습니다.',   // 학생 언급 제거된 버전
+      removedSentenceCount: 1,
+    });
+    mockOpenAICreate.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              common: '오늘 전체 수업을 진행했습니다. 김학생은 발차기를 잘 했습니다.',
+              students: [{ student_ref: 's1', content: '발차기 우수.' }],
+            }),
+          },
+        },
+      ],
+      usage: { prompt_tokens: 60, completion_tokens: 120, total_tokens: 180 },
+    });
+
+    const { status, data } = await post(makeBody({ contract_version: '1.3' }));
+
+    expect(status).toBe(200);
+    // purge된 결과가 common에 반영됨
+    expect(data.result.common).toBe('오늘 전체 수업을 진행했습니다.');
+    // purgeStudentLeaksFromCommon 호출됨
+    expect(purgeStudentLeaksFromCommon).toHaveBeenCalled();
+  });
+});
