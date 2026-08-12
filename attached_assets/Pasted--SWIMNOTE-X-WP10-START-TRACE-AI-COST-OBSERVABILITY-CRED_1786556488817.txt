@@ -1,0 +1,582 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP10 START
+TRACE / AI COST OBSERVABILITY
+CREDIT SAVING MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+WP9_CLOSED ✅
+current functional SHA:
+1a5089df
+
+WP10만 진행.
+WP11 자동 시작 금지.
+
+전체 Repository 전수조사 금지.
+AI Diary / trace / usage / cost 관련 파일만 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+1. WP10 목적
+━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE X의 AI 호출이 실제로:
+
+- 어떤 request에서
+- 어떤 pool/student context로
+- 어떤 pipeline을 통과했고
+- 어떤 template/knowledge를 사용했으며
+- 어떤 AI 모델/API를 호출했고
+- token/usage/cost가 얼마나 발생했는지
+
+추적 가능하게 만든다.
+
+목적:
+
+장애 추적
+비용 관리
+AI 호출 감사
+향후 리포트/Worker 운영 기반
+
+이번 WP는 observability 계층이다.
+
+AI 기능 자체 변경 금지.
+리포트 생성 금지.
+Worker 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 기존 구현 확인
+━━━━━━━━━━━━━━━━━━━━
+
+관련 파일만 확인:
+
+- request_id 생성/전달
+- AI Diary endpoint
+- AI Engine 호출부
+- GPT/OpenAI 호출 wrapper
+- 기존 usage/token metadata
+- audit_logs / event_logs / trace 관련 코드
+- 비용 기록 table/schema가 이미 있는지
+- WP6 response meta
+- growth event trace linkage
+
+먼저 짧게 보고:
+
+A. 이미 존재하는 trace
+B. 이미 존재하는 token usage
+C. 이미 존재하는 cost 저장 구조
+D. WP10에서 빠진 부분
+E. 수정 파일
+
+새 추적 시스템을 중복 생성하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+3. REQUEST_ID
+━━━━━━━━━━━━━━━━━━━━
+
+AI Diary 요청마다
+request_id가 반드시 하나 존재해야 한다.
+
+기존 request_id가 있으면 재사용.
+
+APP
+→ API server
+→ AI pipeline
+→ LLM call
+→ result
+
+끝까지 동일 request_id 유지.
+
+중간 단계에서 새 request_id 생성 금지.
+
+client가 request_id를 보내지 않는 경우의
+기존 server fallback이 있으면 재사용.
+
+━━━━━━━━━━━━━━━━━━━━
+4. TRACE 범위
+━━━━━━━━━━━━━━━━━━━━
+
+최소 추적 대상:
+
+request_id
+timestamp
+
+context:
+pool_id
+pool_mode
+feature / endpoint
+contract_version
+pipeline_version
+
+template:
+x_template_status
+active_template_set_id
+selected_template_id
+template_candidate_count
+
+curriculum:
+curriculum match count
+관련 id가 이미 존재하면 최소 id
+
+knowledge:
+knowledge hit count
+
+generation:
+generation_mode
+model/provider
+latency
+
+usage:
+input_tokens
+output_tokens
+total_tokens
+
+cost:
+calculated_cost 또는 provider cost
+
+실제 획득 가능한 필드만.
+
+없는 값을 가짜로 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 개인정보 최소화
+━━━━━━━━━━━━━━━━━━━━
+
+Trace/Cost 저장에 다음 금지:
+
+- 학생 이름
+- 학부모 이름
+- 전화번호
+- teacher 원문 전체
+- diary 본문 전체
+- GPT prompt 전체
+- GPT response 전체
+
+필요하면:
+
+student_id
+teacher/user id
+
+같은 내부 ID만.
+
+목표는 비용/경로 추적이지
+수업 내용을 복제 저장하는 게 아니다.
+
+━━━━━━━━━━━━━━━━━━━━
+6. COST SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━
+
+비용을 임의 상수로 박지 말 것.
+
+먼저 현재 실제 provider/model 및
+API response usage 구조를 확인.
+
+기존 pricing/config table 또는
+cost calculator가 있으면 재사용.
+
+없다면:
+
+모델별 비용 계산 위치를
+한 곳으로 중앙화.
+
+단 실제 모델 가격을 코드에 넣어야 하는 경우
+현재 Repository에 이미 정의된 값/설계를 우선.
+
+가격 정보가 없거나 외부 확인이 필요하면
+임의 가격 작성 금지 → 보고.
+
+WP10의 핵심은
+정확한 usage 저장이고,
+cost 계산은 근거가 있을 때만.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 실패 호출도 TRACE
+━━━━━━━━━━━━━━━━━━━━
+
+성공한 호출만 기록하면 안 됨.
+
+최소 상태:
+
+SUCCESS
+FAILED
+
+실제 기존 enum/schema가 있으면 그것 사용.
+
+실패 시 기록 가능한 것:
+
+request_id
+feature
+stage
+error_code
+latency
+usage가 발생했다면 usage
+
+민감한 raw error/prompt 저장 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+8. STAGE TRACE
+━━━━━━━━━━━━━━━━━━━━
+
+복잡한 새 tracing framework는 만들지 말 것.
+
+최소한 하나의 request 기준으로:
+
+POOL_MODE
+TEMPLATE_SEARCH
+CURRICULUM_SEARCH
+KNOWLEDGE_SEARCH
+LLM_GENERATION
+
+중 어디에서 실패했는지
+확인 가능하면 충분.
+
+기존 log/trace structure가 있다면 재사용.
+
+━━━━━━━━━━━━━━━━━━━━
+9. DB SCHEMA
+━━━━━━━━━━━━━━━━━━━━
+
+기존 trace/cost table이 있으면 재사용.
+
+예전에 설계된 table/schema가 실제 존재하는지
+필요한 부분만 READ ONLY 확인.
+
+새 migration은 원칙적으로 금지.
+
+현재 schema로 WP10 구현 불가하면
+임의 migration 금지.
+STOP 후 정확한 부족 컬럼/table 보고.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 저장 시점
+━━━━━━━━━━━━━━━━━━━━
+
+AI request 시작 시:
+start timestamp/context 확보.
+
+종료 시:
+success/failure
+latency
+usage
+cost
+search metadata
+
+확정 저장.
+
+LLM call이 실제 발생하지 않은
+INPUT_ONLY 경로에서 token usage=0이면
+그대로 0/null을 명확히 구분.
+
+임의 token 수 추정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. X / NON-X
+━━━━━━━━━━━━━━━━━━━━
+
+WP10 tracing은
+가능하면 같은 AI Diary pipeline의
+X / NON-X 모두 기록 가능하게 한다.
+
+하지만 X-specific metadata는:
+
+NON-X
+→ null/absent
+
+X
+→ 실제 값
+
+일반 AI Diary 동작 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+12. 비용 집계
+━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 허용되는 집계는 최소:
+
+- request별 usage/cost
+- pool별 합계 조회를 위한 기반
+
+정도.
+
+복잡한 대시보드 UI 금지.
+
+필요하면 super/admin용
+READ endpoint 정도만 구현.
+
+예:
+
+기간별
+pool_id
+feature
+
+필터.
+
+하지만 UI는 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+13. TRACE READ API
+━━━━━━━━━━━━━━━━━━━━
+
+실제 기존 admin/audit route가 있으면 재사용.
+
+최소 필요 시:
+
+GET trace list
+GET trace detail/summary
+
+정도.
+
+super_admin 또는 적절한 관리자 권한만.
+
+teacher/parent에게 비용/trace 노출 금지.
+
+새 권한체계 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+14. GROWTH EVENT LINK
+━━━━━━━━━━━━━━━━━━━━
+
+WP7 growth_event에 request_id /
+match_token 등이 이미 존재한다면
+trace와 연결 가능한 상태를 유지.
+
+Growth Event write 구조를
+다시 수정하지 말 것.
+
+이번 WP에서 새로운 growth event 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+15. TEST CASES
+━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+A.
+AI Diary SUCCESS
+→ trace 1건
+→ request_id 일치
+
+B.
+X + NOT_CONFIGURED / INPUT_ONLY
+→ x_template_status 기록
+→ LLM 실제 사용량에 맞는 usage
+
+C.
+X + template path fixture
+→ selected template/meta 기록
+
+D.
+NON-X
+→ X-specific meta null/absent
+
+E.
+LLM failure
+→ FAILED trace
+→ error stage 확인
+
+F.
+token usage 존재
+→ input/output/total 정확
+
+G.
+retry/new request
+→ request_id별 별도 trace
+
+H.
+민감 원문이 trace에 저장되지 않음
+
+I.
+권한 없는 trace READ
+→ 차단
+
+J.
+기존 AI Diary response regression 없음
+
+━━━━━━━━━━━━━━━━━━━━
+16. COST TEST
+━━━━━━━━━━━━━━━━━━━━
+
+실제 provider usage fixture가 있으면:
+
+input_tokens
+output_tokens
+total_tokens
+
+계산 확인.
+
+실제 가격 계산기가 있다면:
+expected cost와 일치 테스트.
+
+가격 source가 없으면:
+
+COST_CALCULATION_PENDING_SOURCE
+
+로 명시하고
+usage tracking까지만 정확하게 구현.
+
+가격을 상상해서 테스트 통과시키지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+17. PRODUCTION WRITE
+━━━━━━━━━━━━━━━━━━━━
+
+Trace는 AI request 실행 시
+자연스럽게 생성되는 운영 metadata이므로
+안전한 기존 AI generate request로
+1건 runtime 검증 가능.
+
+하지만 실제 학생 diary 저장 필요 없음.
+
+X sample pool의
+NOT_CONFIGURED/INPUT_ONLY generate 같은
+안전한 경로 우선.
+
+민감 테스트 데이터 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+18. PERFORMANCE
+━━━━━━━━━━━━━━━━━━━━
+
+Trace 저장 때문에
+AI response가 눈에 띄게 느려지면 안 됨.
+
+기존 transaction/async logging pattern 확인.
+
+단 trace가 완전히 유실되는
+fire-and-forget 남발도 금지.
+
+최소 안정성 우선.
+
+대규모 queue/worker는 WP11 영역.
+이번 WP에서 새 worker 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+19. CODE SCOPE
+━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+trace/cost service
+AI Diary instrumentation
+provider usage parser
+admin read API
+관련 tests
+
+금지:
+
+WP11 worker
+WP12 Parent AI
+WP13 Review
+WP16 Report
+AI prompt 개선
+template scoring 수정
+Growth UI 수정
+DB backup/RLS
+Scheduler
+Members
+Makeup
+Billing
+
+━━━━━━━━━━━━━━━━━━━━
+20. TEST / GIT
+━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트만 실행.
+
+WP10 신규 오류 = 0.
+
+완료 후:
+
+changed files
+git diff --stat
+
+commit:
+
+feat(xmode): add AI trace and cost tracking
+
+push origin.
+
+제출:
+
+HEAD
+origin
+commit SHA
+
+━━━━━━━━━━━━━━━━━━━━
+21. DEPLOY
+━━━━━━━━━━━━━━━━━━━━
+
+서버 변경 시:
+Render deploy.
+
+AI Engine 별도 변경 시:
+실제 해당 runtime도 배포.
+
+앱 변경 없으면:
+OTA 금지.
+
+불필요한 재배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+22. PRODUCTION RUNTIME
+━━━━━━━━━━━━━━━━━━━━
+
+배포 후 안전한 AI generate 1회.
+
+확인:
+
+request_id
+trace 생성
+pool_mode
+contract/pipeline version
+x_template_status
+generation_mode
+usage
+latency
+status
+
+DB read-back 또는 실제 trace store에서 확인.
+
+그리고:
+
+/api/health 200
+/api/healthz 200
+
+신규:
+
+500
+DB error
+RLS error
+startup crash
+
+없음.
+
+━━━━━━━━━━━━━━━━━━━━
+23. FINAL REPORT — 짧게
+━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. 기존 trace/cost 상태
+2. 구현 구조
+3. 저장 필드
+4. 개인정보 제외 확인
+5. usage/cost source
+6. success/failure trace
+7. changed files
+8. tests
+9. commit/origin
+10. Render/Engine deploy
+11. Production trace 1건
+12. health/regression
+13. cost 계산 상태
+14. final verdict
+
+성공 시:
+
+WP10_TRACE_COST_VERIFIED ✅
+
+STOP.
+
+WP11 자동 시작 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
