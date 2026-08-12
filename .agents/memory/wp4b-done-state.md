@@ -42,3 +42,13 @@ M-E 1차 검증 쿼리가 x_global 템플릿(scope NOT IN ('global','teacher') �
 ## WP5 대기 조건
 
 WP4B_X_GLOBAL_TEMPLATE_SEARCH_VERIFIED ✅ 상태. WP5는 별도 승인 후 시작.
+
+## 최종 승인 (2026-08-12)
+
+**WP4B_X_GLOBAL_TEMPLATE_SEARCH_VERIFIED ✅**  
+**WP4_COMPLETE ✅**  
+**WP4_CLOSED ✅**
+
+기능 기준 SHA: b729cd5ae7bd1a675f82d019ad9e3fc21af60998 (origin = Render Live)  
+Production Runtime 전 케이스 확인 완료.  
+WP5는 별도 명시적 승인 후 시작.
