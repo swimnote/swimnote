@@ -1,0 +1,652 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE SUPABASE SECURITY — PHASE 14
+FINAL PRODUCTION RLS
+GROUP G + GROUP H — REMAINING 31 TABLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Phase 13 승인:
+
+RLS_GROUP_E_VERIFIED ✅
+RLS_GROUP_F_VERIFIED ✅
+RLS_PHASE_13_VERIFIED ✅
+
+현재 Production:
+
+TOTAL TABLES    = 105
+RLS ENABLED     = 74
+RLS DISABLED    = 31
+
+실제 remaining inventory:
+
+Group G = 7
+Group H = 24
+TOTAL   = 31
+
+이번 Phase의 목표:
+
+Production public schema의
+남은 31개 테이블에 RLS를 적용하여
+
+RLS ENABLED = 105 / 105
+
+로 완료한다.
+
+중요:
+Group G와 Group H는 같은 Phase에서 진행하지만
+검증/rollback은 각각 독립적으로 수행한다.
+
+DB SOURCE:
+SUPABASE_DATABASE_URL
+
+executeSql production 사용 금지.
+POOL_DB 변경 금지.
+standby-sync 수정 금지.
+코드 수정 금지.
+WP4 작업 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+
+1. GROUP G — BACKUP / INFRA 7개
+   ━━━━━━━━━━━━━━━━━━━━
+
+backup_logs
+backup_snapshots
+db_health_logs
+db_server_snapshots
+platform_backups
+platform_banners
+restore_logs
+
+━━━━━━━━━━━━━━━━━━━━
+2. GROUP H — X MODE / OTHER 24개
+━━━━━━━━━━━━━━━━━━━━
+
+audit_entity_versions
+curriculum_request_files
+diary_reactions
+diary_templates
+feature_flag_overrides
+growth_events
+growth_reports
+inquiries
+inquiry_replies
+member_activity_logs
+member_transfers
+misconception_candidates
+misconception_hunter_settings
+photo_assets_meta
+policy_consents
+policy_versions
+student_curriculum_assignments
+support_ticket_replies
+support_tickets
+teacher_invites
+teacher_saved_photos
+teacher_saved_videos
+temp_class_transfers
+video_assets_meta
+
+━━━━━━━━━━━━━━━━━━━━
+3. 기존 74개 보호
+━━━━━━━━━━━━━━━━━━━━
+
+먼저 Production에서 현재:
+
+relrowsecurity=true
+
+테이블 count가 정확히 74인지 확인.
+
+기존 74개 중 false로 돌아간 테이블이
+하나라도 있으면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+4. REMAINING INVENTORY 재확인
+━━━━━━━━━━━━━━━━━━━━
+
+적용 직전:
+
+SELECT public schema tables
+WHERE relrowsecurity=false
+
+실제 결과가 정확히 위 31개와
+100% 일치해야 한다.
+
+확인:
+
+COUNT = 31
+MISSING = NONE
+EXTRA = NONE
+DUPLICATE = NONE
+
+불일치 시 SQL 실행 금지 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+5. PRE-STATE
+━━━━━━━━━━━━━━━━━━━━
+
+31개 각각:
+
+* relrowsecurity
+* relforcerowsecurity
+* owner
+* row count
+* policy count
+
+그리고 anon/authenticated CRUD grant 확인.
+
+기존 policy가 하나라도 존재하는 테이블이 있으면
+해당 테이블을 임의 변경하지 말고 STOP.
+
+데이터 내용 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. ROLE 확인
+━━━━━━━━━━━━━━━━━━━━
+
+동일 Production DB session:
+
+current_user
+session_user
+rolsuper
+rolbypassrls
+
+기대:
+
+postgres
+postgres
+false
+true
+
+다르면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+7. CODE PATH AUDIT
+━━━━━━━━━━━━━━━━━━━━
+
+31개 각각 상세 소스 전체를 장황하게 제출할 필요 없음.
+
+형식:
+
+TABLE
+→ 주요 route/job
+→ DB client
+→ DIRECT_POSTGRES YES/NO
+
+로 제출.
+
+특히 아래는 반드시 상세 확인:
+
+GROUP G:
+platform_banners
+platform_backups
+backup_logs
+restore_logs
+
+GROUP H:
+diary_templates
+growth_events
+growth_reports
+student_curriculum_assignments
+curriculum_request_files
+feature_flag_overrides
+teacher_saved_photos
+teacher_saved_videos
+photo_assets_meta
+video_assets_meta
+policy_consents
+policy_versions
+
+Supabase Data API 직접 호출 발견 시 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+8. GROUP G RLS APPLY
+━━━━━━━━━━━━━━━━━━━━
+
+ALTER TABLE backup_logs
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE backup_snapshots
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE db_health_logs
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE db_server_snapshots
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE platform_backups
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE platform_banners
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE restore_logs
+ENABLE ROW LEVEL SECURITY;
+
+policy 생성 금지.
+FORCE RLS 금지.
+GRANT 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+9. GROUP G 즉시 검증
+━━━━━━━━━━━━━━━━━━━━
+
+7개 모두:
+
+relrowsecurity=true
+relforcerowsecurity=false
+policy count=0
+
+row count 전후 동일.
+
+direct postgres COUNT 정상.
+
+그리고 Render에서:
+
+permission denied
+row-level security
+policy violation
+
+신규 오류 확인.
+
+주의:
+POOL_DB platform_banners schema mismatch는
+기존 standby-sync 문제.
+
+Production RLS 오류와 혼동 금지.
+
+Group G 이상 있으면
+Group H 진행 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. GROUP H RLS APPLY
+━━━━━━━━━━━━━━━━━━━━
+
+Group G 통과 후에만 실행.
+
+ALTER TABLE audit_entity_versions
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE curriculum_request_files
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE diary_reactions
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE diary_templates
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE feature_flag_overrides
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE growth_events
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE growth_reports
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE inquiries
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE inquiry_replies
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE member_activity_logs
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE member_transfers
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE misconception_candidates
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE misconception_hunter_settings
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE photo_assets_meta
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE policy_consents
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE policy_versions
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE student_curriculum_assignments
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE support_ticket_replies
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE support_tickets
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE teacher_invites
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE teacher_saved_photos
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE teacher_saved_videos
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE temp_class_transfers
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE video_assets_meta
+ENABLE ROW LEVEL SECURITY;
+
+policy 생성 금지.
+FORCE RLS 금지.
+GRANT 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. GROUP H 즉시 검증
+━━━━━━━━━━━━━━━━━━━━
+
+24개 모두:
+
+relrowsecurity=true
+relforcerowsecurity=false
+policy count=0
+
+row count 전후 동일.
+
+direct postgres COUNT 정상.
+
+━━━━━━━━━━━━━━━━━━━━
+12. WP4 / X MODE 보호 검증
+━━━━━━━━━━━━━━━━━━━━
+
+이번 Group H에는
+WP4/WP6 관련 핵심 테이블이 포함됨.
+
+반드시 확인:
+
+diary_templates
+student_curriculum_assignments
+growth_events
+growth_reports
+curriculum_request_files
+feature_flag_overrides
+
+코드 수정 금지.
+
+확인:
+
+* 모두 direct postgres
+* 기존 global_template_sets는 RLS=true 유지
+* curriculum_requests/versions/items RLS=true 유지
+* sample X pool mode 조회 정상
+* WP4 데이터 INSERT 금지
+
+GET /api/pools/x-mode?pool_id=pool_1784310621737_qryl1x79s
+
+→ HTTP 200 필수
+
+기대:
+
+mode = x
+xmode_entitlement = true
+xmode_config_status = READY
+
+━━━━━━━━━━━━━━━━━━━━
+13. LOGIN / CORE RUNTIME
+━━━━━━━━━━━━━━━━━━━━
+
+기존 검증된 super_admin 계정으로:
+
+POST /api/auth/login
+→ HTTP 200
+
+그리고:
+
+GET /api/health
+→ HTTP 200
+
+GET /api/super/dashboard-stats
+→ HTTP 200
+
+GET /api/super/pools-summary?limit=2
+→ HTTP 200
+
+GET /api/pools/x-mode?pool_id=...
+→ HTTP 200
+
+━━━━━━━━━━━━━━━━━━━━
+14. GROUP H 실제 API
+━━━━━━━━━━━━━━━━━━━━
+
+실제 Repository에서 존재하는
+READ ONLY API만 사용.
+
+가능하면 아래 종류 중 최소 2개 HTTP 200:
+
+* diary templates 조회
+* support/inquiry 조회
+* feature flag 조회
+* policy 조회
+* teacher saved media 조회
+
+route 추측 금지.
+
+role 제한으로 403인 경우
+application-level 거부로 분리.
+
+Group H direct API HTTP 200이 가능한 endpoint가
+있으면 최소 1개 확보.
+
+━━━━━━━━━━━━━━━━━━━━
+15. RENDER LOG
+━━━━━━━━━━━━━━━━━━━━
+
+31개 적용 후 검색:
+
+permission denied
+row-level security
+policy violation
+relation access denied
+
+그리고:
+
+backup
+restore
+platform_banner
+diary_template
+growth
+curriculum
+feature_flag
+teacher_saved
+photo_assets
+video_assets
+policy
+support
+inquiry
+
+신규 오류 확인.
+
+기존 standby-sync 오류와 분리.
+
+━━━━━━━━━━━━━━━━━━━━
+16. WORKER / SCHEDULER
+━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+backup jobs
+restore infrastructure
+standby-sync
+feature flag
+growth
+media cleanup
+support/inquiry
+scheduler
+
+신규 RLS 오류 없어야 함.
+
+Production READ는
+postgres rolbypassrls=true 경로인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+17. GROUP G ROLLBACK
+━━━━━━━━━━━━━━━━━━━━
+
+Group G에서 신규 장애 발생 시
+G 7개만 rollback:
+
+ALTER TABLE backup_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE backup_snapshots DISABLE ROW LEVEL SECURITY;
+ALTER TABLE db_health_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE db_server_snapshots DISABLE ROW LEVEL SECURITY;
+ALTER TABLE platform_backups DISABLE ROW LEVEL SECURITY;
+ALTER TABLE platform_banners DISABLE ROW LEVEL SECURITY;
+ALTER TABLE restore_logs DISABLE ROW LEVEL SECURITY;
+
+Group H 진행 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+18. GROUP H ROLLBACK
+━━━━━━━━━━━━━━━━━━━━
+
+Group G 정상 + Group H 장애 시
+H 24개만 rollback.
+
+기존 81개
+(기존 74 + 성공한 Group G 7)
+변경 금지.
+
+Group H rollback SQL은
+적용한 24개 각각 DISABLE ROW LEVEL SECURITY.
+
+rollback 후 Runtime 재검증.
+
+━━━━━━━━━━━━━━━━━━━━
+19. FINAL RLS COUNT
+━━━━━━━━━━━━━━━━━━━━
+
+G/H 모두 성공하면 반드시 실제 DB에서:
+
+TOTAL TABLES
+RLS ENABLED
+RLS DISABLED
+
+재계산.
+
+기대:
+
+TOTAL        = 105
+RLS ENABLED  = 105
+RLS DISABLED = 0
+
+숫자 추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+20. FINAL DISABLED INVENTORY
+━━━━━━━━━━━━━━━━━━━━
+
+relrowsecurity=false
+
+조회 결과:
+
+(no rows)
+
+여야 함.
+
+하나라도 남아 있으면
+PRODUCTION_RLS_COMPLETE 판정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+21. FORCE / POLICY 확인
+━━━━━━━━━━━━━━━━━━━━
+
+Production 105개 전체 대상으로:
+
+RLS ENABLED = true 확인.
+
+그리고 이번 작업에서는:
+
+FORCE RLS 생성 없음
+신규 policy 생성 없음
+
+확인.
+
+기존 policy가 원래 있던 경우
+별도 표시.
+
+━━━━━━━━━━━━━━━━━━━━
+22. SECURITY ADVISOR
+━━━━━━━━━━━━━━━━━━━━
+
+가능하면 Supabase Dashboard에서
+RLS disabled 경고 상태 확인.
+
+Dashboard 접근 불가 시:
+
+MANUAL_CHECK_REQUIRED
+
+로만 기록.
+
+실제 확인하지 않고
+"warning 0"으로 추정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+23. 최종 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. DB source
+2. 기존 74개 유지
+3. remaining 31 inventory
+4. pre-state
+5. policy count
+6. role/bypass
+7. code path summary
+8. Group G SQL
+9. Group G post-state
+10. Group G runtime/log
+11. Group H SQL
+12. Group H post-state
+13. row counts
+14. direct postgres
+15. login/core runtime
+16. X mode runtime
+17. Group H API runtime
+18. Render 신규 오류
+19. worker/scheduler 영향
+20. rollback 여부
+21. final table count
+22. final RLS enabled count
+23. final RLS disabled count
+24. final disabled inventory
+25. Security Advisor
+26. 최종 판정
+
+성공 시 정확히:
+
+RLS_GROUP_G_VERIFIED ✅
+RLS_GROUP_H_VERIFIED ✅
+PRODUCTION_RLS_105_OF_105_VERIFIED ✅
+
+STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+중요 다음 단계
+━━━━━━━━━━━━━━━━━━━━
+
+Production RLS 105/105가 완료되어도
+보안/DB 정비 전체가 끝난 것은 아님.
+
+이번 Phase 성공 후:
+
+1. POOL_DB 보안/RLS 상태 정리
+2. standby-sync schema mismatch 수정
+3. backup replication 실제 검증
+4. 그 뒤 WP4 재개
+
+자동으로 다음 작업 진행 금지.
+
+POOL_DB 변경 금지.
+standby-sync 수정 금지.
+WP4 재개 금지.
+
+STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
