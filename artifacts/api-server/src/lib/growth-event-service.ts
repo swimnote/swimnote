@@ -73,12 +73,15 @@ export async function insertGrowthEvents(params: {
   let skipped  = 0;
   let errors   = 0;
 
+  // trace prefix — 전체 루프에서 공유
+  const trace = `req=${requestId ?? "-"} diary=${diaryId}`;
+
   for (const match of curriculumMatches) {
     // ── (1) match_status 필터 — PENDING_REVIEW 만 처리 ──────────────────────
     if (match.match_status !== "PENDING_REVIEW") {
       console.log(
-        `[growth-event] SKIP_STATUS diary=${diaryId} student_ref=${match.student_ref}` +
-        ` status=${match.match_status}`,
+        `[growth-event] SKIP_STATUS ${trace} student=${match.student_ref}` +
+        ` skip_reason=status:${match.match_status}`,
       );
       skipped++;
       continue;
@@ -96,8 +99,8 @@ export async function insertGrowthEvents(params: {
       if (e instanceof MatchTokenError) {
         // match_token 만료·서명 오류·pool 불일치 등 → skip, diary TX 유지
         console.error(
-          `[growth-event] TOKEN_ERROR diary=${diaryId} student_ref=${match.student_ref}` +
-          ` code=${e.code}`,
+          `[growth-event] TOKEN_ERROR ${trace} student=${match.student_ref}` +
+          ` skip_reason=${e.code}`,
         );
         errors++;
         continue;
@@ -111,7 +114,8 @@ export async function insertGrowthEvents(params: {
     if (!studentNote) {
       // 학생 note 없음 (COMMON only) — diary_note_id NOT NULL 조건 불충족, skip
       console.log(
-        `[growth-event] NO_NOTE diary=${diaryId} student_id=${tokenPayload.student_id}`,
+        `[growth-event] NO_NOTE ${trace} student=${tokenPayload.student_id}` +
+        ` skip_reason=no_student_note`,
       );
       skipped++;
       continue;
@@ -166,14 +170,14 @@ export async function insertGrowthEvents(params: {
       const rowCount = (insertRes as any).rowCount ?? 0;
       if (rowCount > 0) {
         console.log(
-          `[growth-event] INSERTED diary=${diaryId} note=${studentNote.id}` +
+          `[growth-event] INSERTED ${trace} note=${studentNote.id}` +
           ` student=${tokenPayload.student_id} curriculum=${tokenPayload.curriculum_item_id}`,
         );
         inserted++;
       } else {
         console.log(
-          `[growth-event] CONFLICT_SKIP diary=${diaryId} note=${studentNote.id}` +
-          ` student=${tokenPayload.student_id}`,
+          `[growth-event] CONFLICT_SKIP ${trace} note=${studentNote.id}` +
+          ` student=${tokenPayload.student_id} skip_reason=uq_per_note`,
         );
         skipped++;
       }
@@ -181,8 +185,8 @@ export async function insertGrowthEvents(params: {
       // match_token_id UNIQUE 위반 (동일 token 재사용 시도)
       if (e?.code === "23505") {
         console.log(
-          `[growth-event] DUPLICATE_TOKEN_SKIP diary=${diaryId}` +
-          ` student=${tokenPayload.student_id}`,
+          `[growth-event] DUPLICATE_TOKEN_SKIP ${trace}` +
+          ` student=${tokenPayload.student_id} skip_reason=uq_match_token`,
         );
         skipped++;
       } else {
