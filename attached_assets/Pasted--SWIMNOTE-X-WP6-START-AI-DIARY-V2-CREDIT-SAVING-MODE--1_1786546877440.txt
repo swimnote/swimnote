@@ -1,0 +1,395 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP6 START
+AI DIARY V2
+CREDIT SAVING MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 기준:
+
+WP5_CLOSED ✅
+
+current functional HEAD/origin:
+9f87c446d2de2bad789f0b7a950af97b5eb63c54
+
+WP6만 진행.
+WP7 자동 시작 금지.
+
+전체 Repository 전수조사 금지.
+AI Diary 관련 파일만 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+1. WP6 목적
+━━━━━━━━━━━━━━━━━━━━
+
+기존 Teacher Diary AI 흐름 위에
+X Mode 전용 AI Diary V2를 완성한다.
+
+핵심:
+
+일반 SWIMNOTE
+→ 기존 AI Diary 동작 유지
+
+X Mode
+→ ACTIVE x_global template
+→ curriculum 제한
+→ teacher input
+→ student별 context
+→ 기존 Knowledge Search
+→ Prompt Builder
+→ 구조화된 diary 결과
+
+를 연결한다.
+
+WP4B에서 구현한
+x_global template search를 그대로 재사용.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 기존 AI DIARY V1/V2 상태 확인
+━━━━━━━━━━━━━━━━━━━━
+
+관련 파일만 확인해서 먼저 정리:
+
+- 현재 teacher diary endpoint
+- request contract version
+- parser
+- common/student 분리
+- student matching
+- curriculum lookup
+- template search
+- knowledge search
+- prompt builder
+- LLM call
+- structured output
+- app insertion contract
+
+A. 이미 구현된 것
+B. WP6에서 부족한 것
+C. 수정할 파일
+
+새 파이프라인을 처음부터 다시 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 절대 유지할 헌법
+━━━━━━━━━━━━━━━━━━━━
+
+APP는 수영 전문 판단 금지.
+
+APP 역할:
+- teacher text/voice input
+- students/context 전달
+- AI Engine 호출
+- 결과 표시
+- studentId별 삽입
+- 기존 저장 flow
+
+AI Engine/server 역할:
+- 입력 해석
+- COMMON / student 분리
+- student matching
+- curriculum 제한
+- template search
+- knowledge search
+- prompt assembly
+- structured result
+
+GPT는 수영지식 창작 금지.
+
+검색 근거 범위 안에서만 문장화.
+
+━━━━━━━━━━━━━━━━━━━━
+4. REQUEST CONTRACT
+━━━━━━━━━━━━━━━━━━━━
+
+기존 contract를 우선 사용.
+
+권장/기존 기준:
+
+students: [
+  {
+    id/ref,
+    name,
+    given_name?
+  }
+]
+
+request_id 필수.
+
+teacher input 원문 전달.
+
+X Mode 여부는
+기존 Mode/X resolver 결과를 사용.
+
+앱이 x_global template id를
+직접 선택해서 보내는 구조 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. PARSER 규칙 유지
+━━━━━━━━━━━━━━━━━━━━
+
+기존 확정 parser:
+
+초기 입력 → COMMON
+
+학생 이름 호출
+→ 해당 학생으로 대상 전환
+
+"전체"
+→ COMMON 복귀
+
+같은 학생 이름 재등장
+→ 기존 학생 내용에 이어붙임
+
+미등록 이름
+→ warning
+
+LLM에게 학생 이름 판별시키는 구조 금지.
+
+Parser는 deterministic code 우선.
+
+━━━━━━━━━━━━━━━━━━━━
+6. X MODE DIARY V2 분기
+━━━━━━━━━━━━━━━━━━━━
+
+NON-X:
+
+현재 기존 AI Diary 경로
+그대로 유지.
+
+X:
+
+WP4B의:
+
+ACTIVE global_template_set
+→ scope='x_global'
+→ matching template
+
+검색 결과 사용.
+
+상태:
+
+FOUND
+NO_MATCH
+NOT_CONFIGURED
+
+를 기존 WP4B contract 그대로 사용.
+
+새 enum 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+7. CURRICULUM CONSTRAINT
+━━━━━━━━━━━━━━━━━━━━
+
+학생별 AI 생성은
+해당 학생의 curriculum 범위 안에서만 검색.
+
+학생마다:
+
+student
+→ curriculum
+→ allowed scope
+→ template/knowledge
+
+순서 유지.
+
+관련 curriculum이 없거나
+검색 근거가 부족하면:
+
+임의 확장 금지.
+
+teacher input을
+자연스럽게 정리하는 수준으로 제한.
+
+━━━━━━━━━━━━━━━━━━━━
+8. TEMPLATE SEARCH ≠ KNOWLEDGE SEARCH
+━━━━━━━━━━━━━━━━━━━━
+
+둘을 합치지 말 것.
+
+Template Search:
+수업 일지 구조/수업내용 후보
+
+Knowledge Search:
+수영 전문 근거
+
+각 결과를 Prompt Builder가 조립.
+
+WP6에서 기존 Knowledge Search engine
+대규모 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+9. COMMON + STUDENTS OUTPUT
+━━━━━━━━━━━━━━━━━━━━
+
+최종 결과는
+기존 앱 insertion 구조와 호환되는
+structured JSON 유지.
+
+형태는 실제 기존 contract 우선.
+
+개념적으로:
+
+{
+  request_id,
+  common,
+  students: [
+    {
+      studentId,
+      content
+    }
+  ],
+  warnings?,
+  meta?
+}
+
+student 결과는 반드시
+studentId/ref 기준.
+
+이름 문자열만으로 앱이 결과를
+매칭하게 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+10. X MODE META / TRACE
+━━━━━━━━━━━━━━━━━━━━
+
+기존 response를 깨지 않는 범위에서
+내부 trace/meta에:
+
+pool_mode
+x_template_status
+x_active_set_id
+selected_template_id
+curriculum_version/id
+knowledge hit count
+generation_mode
+
+확인 가능하게 한다.
+
+민감 teacher/student 원문
+로그 저장 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. NO MATCH / NOT CONFIGURED
+━━━━━━━━━━━━━━━━━━━━
+
+X + NOT_CONFIGURED:
+→ 일반 global template fallback 금지
+→ INPUT_ONLY 안전 경로
+
+X + NO_MATCH:
+→ 일반 global fallback 금지
+→ teacher input + 허용된 knowledge만 사용
+  또는 기존 INPUT_ONLY 정책
+
+WP4B 정책 변경 금지.
+
+500으로 죽으면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━
+12. 기존 DUPLICATION 문제 회귀 금지
+━━━━━━━━━━━━━━━━━━━━
+
+기존 해결된:
+
+COMMON 내용이 학생별 feedback에
+중복 삽입되는 문제
+
+재발 금지.
+
+검증:
+
+common은 common에만
+student-specific은 해당 student에만.
+
+━━━━━━━━━━━━━━━━━━━━
+13. APP 변경 최소화
+━━━━━━━━━━━━━━━━━━━━
+
+현재 앱이 이미:
+
+common
+students[{studentId,...}]
+
+결과를 정상 삽입한다면
+앱 코드 수정 금지.
+
+WP6 때문에 새로운 diary UI
+만들지 말 것.
+
+Contract mismatch가 실제 있을 때만
+최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━
+14. ERROR HANDLING
+━━━━━━━━━━━━━━━━━━━━
+
+다음은 사용자에게 빈 결과처럼
+보이면 안 됨:
+
+AI API 5xx
+DB failure
+template resolver failure
+LLM failure
+
+실패를 success + empty content로
+위장 금지.
+
+기존 error contract 사용.
+
+최근 scheduler incident처럼
+서버 오류를 empty state로 바꾸는 패턴
+새로 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+15. TEST CASES
+━━━━━━━━━━━━━━━━━━━━
+
+필수 최소 테스트:
+
+A.
+NON-X
+→ 기존 AI Diary 결과 유지
+
+B.
+X + template FOUND
+→ TEMPLATE_ASSISTED
+
+C.
+X + NO_MATCH
+→ INPUT_ONLY / no global fallback
+
+D.
+X + NOT_CONFIGURED
+→ INPUT_ONLY / 500 없음
+
+E.
+COMMON only input
+→ common만 생성
+
+F.
+학생 1명 지정
+→ 해당 studentId만 feedback
+
+G.
+학생 여러 명 지정
+→ 각 studentId 정확히 분리
+
+H.
+"전체" 전환
+→ COMMON 복귀
+
+I.
+미등록 이름
+→ warning, 다른 학생 오염 없음
+
+J.
+curriculum 없음
+→ 지식 창작 없이 input 정리
+
+K.
+COMMON duplication 없음
+
+━━━━━━━━━━━━━━━━━━━━
+16. PRODUCTION WRITE
+━━━━━━━━━━━━━━━━━━━━
+
+WP6 검증을
