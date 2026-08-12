@@ -1,0 +1,362 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE SUPABASE SECURITY — PHASE 12
+RLS GROUP D — PARENT / REQUEST / PAYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Phase 11 RLS_GROUP_C2_VERIFIED 확정.
+
+Phase 11 재실행 금지.
+
+현재 Production 기준:
+
+TOTAL TABLES    = 105
+RLS ENABLED     = 49
+RLS DISABLED    = 56
+
+이번 단계는 Parent 관련 8개만 적용한다.
+
+DB SOURCE:
+SUPABASE_DATABASE_URL
+
+executeSql production 사용 금지.
+POOL_DB 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 대상 8개
+━━━━━━━━━━━━━━━━━━━━
+
+parent_ai_daily_usage
+parent_ai_usage_reservations
+parent_content_reads
+parent_pool_requests
+parent_request_messages
+parent_student_requests
+parent_v2_pending
+payment_logs
+
+다른 테이블 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 기존 49개 보호
+━━━━━━━━━━━━━━━━━━━━
+
+현재 RLS=true 49개 전부
+relrowsecurity=true 유지 확인.
+
+하나라도 false이면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+3. PRE-STATE
+━━━━━━━━━━━━━━━━━━━━
+
+8개 각각:
+
+- relrowsecurity
+- relforcerowsecurity
+- owner
+- row count
+- policy count
+- anon SELECT/INSERT/UPDATE/DELETE
+- authenticated SELECT/INSERT/UPDATE/DELETE
+
+기존 policy가 하나라도 있으면 STOP.
+
+실제 요청 내용/전화번호/결제 상세 등
+민감 데이터 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. ROLE 확인
+━━━━━━━━━━━━━━━━━━━━
+
+current_user
+session_user
+rolsuper
+rolbypassrls
+
+기대:
+
+postgres
+postgres
+false
+true
+
+다르면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+5. CODE PATH 확인
+━━━━━━━━━━━━━━━━━━━━
+
+8개 각각 실제 Repository 사용처 확인:
+
+table
+→ route/job
+→ DB client
+
+특히:
+
+parent_ai_daily_usage
+parent_ai_usage_reservations
+→ Parent AI 사용량
+
+parent_student_requests
+parent_request_messages
+→ 학부모 요청 시스템
+
+parent_pool_requests
+parent_v2_pending
+→ 학부모 등록/연결 흐름
+
+parent_content_reads
+→ 콘텐츠 읽음 상태
+
+payment_logs
+→ 결제/운영 로그
+
+Supabase Data API 직접 호출 발견 시 STOP.
+
+모든 실제 사용 경로가
+direct postgres인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+6. RLS 적용
+━━━━━━━━━━━━━━━━━━━━
+
+ALTER TABLE parent_ai_daily_usage
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE parent_ai_usage_reservations
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE parent_content_reads
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE parent_pool_requests
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE parent_request_messages
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE parent_student_requests
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE parent_v2_pending
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE payment_logs
+ENABLE ROW LEVEL SECURITY;
+
+policy 생성 금지.
+FORCE RLS 금지.
+GRANT 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. POST READ-BACK
+━━━━━━━━━━━━━━━━━━━━
+
+8개 모두:
+
+relrowsecurity=true
+relforcerowsecurity=false
+policy count=0
+
+확인.
+
+row count 전후 동일 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+8. DIRECT POSTGRES
+━━━━━━━━━━━━━━━━━━━━
+
+SUPABASE_DATABASE_URL에서
+8개 COUNT 정상 조회.
+
+민감 데이터 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+9. LOGIN
+━━━━━━━━━━━━━━━━━━━━
+
+기존 검증된 super_admin:
+
+POST /api/auth/login
+→ HTTP 200
+
+token 값 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. AUTHENTICATED RUNTIME
+━━━━━━━━━━━━━━━━━━━━
+
+실제 존재하는 READ ONLY API만 사용.
+
+최소 3개 HTTP 200.
+
+그리고 이번 Group D 테이블을
+직접 경유하는 API 최소 1개 필수.
+
+가능하면 우선:
+
+- parent request 조회
+- parent usage 조회
+- payment/admin 조회
+
+route 추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. PARENT REQUEST SYSTEM 보호
+━━━━━━━━━━━━━━━━━━━━
+
+특히 기존 Phase 1 기능:
+
+parent_student_requests
+parent_request_messages
+
+관련 경로 확인.
+
+검증 대상:
+
+- 받은 요청
+- 내 요청
+- 요청 상태
+- 담당자 처리
+- makeup_assignment link-result
+- notification/deep-link 연결
+
+코드 수정 금지.
+Production WRITE 테스트 금지.
+
+READ / code-path / log 검증만 수행.
+
+━━━━━━━━━━━━━━━━━━━━
+12. PAYMENT LOG 영향
+━━━━━━━━━━━━━━━━━━━━
+
+payment_logs 관련:
+
+- billing
+- admin
+- super
+- standby-sync
+
+사용처 확인.
+
+실제 결제 발생 금지.
+
+Production READ는
+postgres BYPASSRLS로 정상인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+13. RENDER LOG
+━━━━━━━━━━━━━━━━━━━━
+
+검색:
+
+permission denied
+row-level security
+policy violation
+relation access denied
+
+그리고 대상 8개 테이블명.
+
+신규 오류 여부 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+14. WORKER / SCHEDULER
+━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+parent request notification
+AI usage
+billing/payment
+standby-sync
+backup
+
+기존 POOL_DB schema mismatch는
+이번 RLS 오류와 분리.
+
+━━━━━━━━━━━━━━━━━━━━
+15. 실패 시 ROLLBACK
+━━━━━━━━━━━━━━━━━━━━
+
+신규 장애 발생 시 이번 8개만:
+
+ALTER TABLE parent_ai_daily_usage DISABLE ROW LEVEL SECURITY;
+ALTER TABLE parent_ai_usage_reservations DISABLE ROW LEVEL SECURITY;
+ALTER TABLE parent_content_reads DISABLE ROW LEVEL SECURITY;
+ALTER TABLE parent_pool_requests DISABLE ROW LEVEL SECURITY;
+ALTER TABLE parent_request_messages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE parent_student_requests DISABLE ROW LEVEL SECURITY;
+ALTER TABLE parent_v2_pending DISABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_logs DISABLE ROW LEVEL SECURITY;
+
+기존 49개 변경 금지.
+
+rollback 후 동일 runtime 재확인.
+
+━━━━━━━━━━━━━━━━━━━━
+16. 총계
+━━━━━━━━━━━━━━━━━━━━
+
+성공 예상:
+
+49 + 8 = 57
+
+예상 remaining:
+
+48
+
+하지만 반드시 실제 DB에서 다시 계산.
+
+━━━━━━━━━━━━━━━━━━━━
+17. REMAINING INVENTORY
+━━━━━━━━━━━━━━━━━━━━
+
+성공 후 relrowsecurity=false
+전체 목록 다시 조회.
+
+Group E/F/G/H와
+실제 remaining unique set 100% 일치 확인.
+
+누락/중복 있으면 정정.
+
+━━━━━━━━━━━━━━━━━━━━
+18. 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. DB source
+2. 기존 49개 유지
+3. 8개 pre-state
+4. policy count
+5. role/bypass
+6. code paths
+7. 실행 SQL
+8. post-state
+9. row counts
+10. direct postgres smoke
+11. login result
+12. authenticated API
+13. Parent Request 영향
+14. payment_logs 영향
+15. Render 신규 오류
+16. worker/scheduler 영향
+17. rollback 여부
+18. RLS enabled total
+19. remaining disabled
+20. remaining inventory 정합성
+21. 최종 판정
+
+FINAL:
+
+RLS_GROUP_D_VERIFIED
+
+또는
+
+RLS_GROUP_D_ROLLED_BACK
+
+STOP.
+
+POOL_DB RLS 적용 금지.
+standby-sync 수정 금지.
+WP4 재개 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
