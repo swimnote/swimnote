@@ -165,11 +165,13 @@ async function runGroup2_GlobalTemplate(db: Db): Promise<void> {
   // global_template_set_id는 아직 없으므로 scope + swimming_pool_id만 검사.
   // 결과가 1행 이상이면 throw → Group 2 전체 실패 → 서버 기동 중단.
 
+  // 'x_global' 은 swimming_pool_id=NULL이 정상이므로 검증 대상에서 제외.
+  // 위반 조건: (알 수 없는 scope) OR (global/teacher인데 swimming_pool_id=NULL)
   const preCheck = await db.execute(sql.raw(`
     SELECT id, scope, swimming_pool_id
     FROM diary_templates
-    WHERE scope NOT IN ('global', 'teacher')
-       OR swimming_pool_id IS NULL;
+    WHERE scope NOT IN ('global', 'teacher', 'x_global')
+       OR (scope IN ('global', 'teacher') AND swimming_pool_id IS NULL);
   `));
 
   if ((preCheck.rowCount ?? 0) > 0) {
