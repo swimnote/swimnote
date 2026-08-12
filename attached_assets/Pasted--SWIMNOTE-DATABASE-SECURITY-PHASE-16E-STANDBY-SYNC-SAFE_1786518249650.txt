@@ -1,0 +1,526 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE DATABASE SECURITY — PHASE 16E
+STANDBY-SYNC SAFE VALUE SERIALIZATION
++ LAZY TABLE GRACEFUL SKIP
++ RUNTIME VERIFY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 상태:
+
+BACKUP_CORE_SCHEMA_REPAIRED ✅
+HOT_SYNC_CORE_REPLICATION_FAILED
+
+실패 원인:
+
+users.roles = text[]
+
+replicateTable()의 현재 VALUES builder가
+JavaScript Array를 String(v)로 변환하여
+
+['pool_admin','teacher']
+→ "pool_admin,teacher"
+
+형태로 PostgreSQL에 전달함.
+
+이 방식은 text[]에 유효한 값이 아니므로
+users INSERT 실패.
+
+또한 pool_credits는 lazy-init active table이며
+Production에서 아직 생성되지 않아
+relation does not exist 오류 발생.
+
+이번 Phase는 코드 수정 허용.
+
+하지만:
+
+Production DB schema 변경 금지.
+Backup DB schema 변경 금지.
+RLS 변경 금지.
+WP4 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. CURRENT CODE 정확히 확인
+━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/api-server/src/jobs/standby-sync.ts
+
+함수:
+
+replicateTable()
+
+현재 다음 부분을 실제 코드로 제출:
+
+- Production SELECT
+- row values serializer
+- INSERT SQL 생성
+- table missing 처리
+- catch / return 구조
+
+라인 번호 포함.
+
+보고서에 적힌 코드가 실제 현재 HEAD와
+일치하는지 먼저 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 단순 ARRAY 문자열 땜질 금지
+━━━━━━━━━━━━━━━━━━━━
+
+다음과 같은 방식만 추가하고 끝내지 말 것:
+
+if (Array.isArray(v)) {
+  return "'{...}'"
+}
+
+이유:
+
+replicateTable()은 앞으로 다음 값을
+모두 안전하게 처리해야 함:
+
+- null
+- string
+- boolean
+- integer
+- float/numeric
+- bigint
+- text[]
+- json/jsonb
+- timestamp
+- timestamptz
+- enum
+- 특수문자 포함 string
+- quote 포함 string
+
+직접 문자열 연결 방식으로
+SQL literal을 손으로 만드는 것은
+재발 위험이 있음.
+
+━━━━━━━━━━━━━━━━━━━━
+3. SAFE INSERT 방식 우선 검토
+━━━━━━━━━━━━━━━━━━━━
+
+가장 우선:
+
+parameterized query / bound values
+
+방식으로 바꿀 수 있는지 검토.
+
+목표:
+
+Production row 값을
+JavaScript에서 직접 PostgreSQL literal 문자열로
+조립하지 않고 DB driver가 serialize하도록 한다.
+
+예:
+
+INSERT INTO table (col1,col2,...)
+VALUES ($1,$2,...)
+
+또는 현재 Drizzle/sql API에서 지원하는
+parameter binding 방식.
+
+identifier(table/column)는
+허용된 sync table 목록과 Production row keys를
+검증한 뒤 identifier/raw 처리 가능.
+
+값(value)은 반드시 parameter binding 우선.
+
+━━━━━━━━━━━━━━━━━━━━
+4. IDENTIFIER SAFETY
+━━━━━━━━━━━━━━━━━━━━
+
+tableName은 반드시
+정의된 sync table allowlist에서만 허용.
+
+columns는 Production SELECT 결과에서 오더라도
+identifier 규칙 검증:
+
+^[A-Za-z_][A-Za-z0-9_]*$
+
+통과하지 않으면 STOP/ERROR.
+
+값과 identifier를 혼동하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+5. SERIALIZATION TEST MATRIX
+━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 전 테스트 작성.
+
+최소 케이스:
+
+A.
+roles text[]
+['pool_admin','teacher']
+
+B.
+빈 배열
+[]
+
+C.
+NULL
+
+D.
+일반 string
+
+E.
+single quote 포함 string
+O'Brien
+
+F.
+comma 포함 string
+
+G.
+JSON object
+{"a":1,"b":"x"}
+
+H.
+boolean
+
+I.
+integer
+
+J.
+timestamp/date object 또는
+현재 driver가 실제 반환하는 시간 타입
+
+각 케이스가
+parameter binding 후 정상 저장되는지 확인.
+
+실제 Production 데이터 변경 금지.
+test/local 환경 사용.
+
+━━━━━━━━━━━━━━━━━━━━
+6. pool_credits graceful skip
+━━━━━━━━━━━━━━━━━━━━
+
+pool_credits 삭제 금지.
+
+HOT_SYNC_TABLES에서도 제거 금지.
+
+Production SELECT 시
+undefined_table / relation does not exist이면:
+
+LAZY_TABLE_NOT_CREATED
+
+로 분류하고 정상 skip.
+
+중요:
+
+단순히 모든 relation does not exist를
+무조건 성공 처리하면 안 됨.
+
+해당 table이
+명시적으로 lazy-init 허용 목록에 있을 때만
+graceful skip.
+
+현재 허용:
+
+pool_credits
+
+그 외 sync 대상 table missing은
+정상 오류로 유지.
+
+즉:
+
+LAZY_SYNC_TABLES = new Set(["pool_credits"])
+
+같은 명시적 구조 권장.
+
+━━━━━━━━━━━━━━━━━━━━
+7. unsafe stub auto-create 처리
+━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+CREATE TABLE IF NOT EXISTS ...
+SELECT * FROM (VALUES (NULL::text)) ...
+
+fallback은 다시 동일 사고를 만들 수 있음.
+
+이번 Phase에서 제거 또는 fail-closed 변경 검토.
+
+권장:
+
+Backup 대상 table이 없고
+Production rows > 0이면:
+
+AUTO_CREATE_STUB 금지.
+
+대신:
+
+BACKUP_SCHEMA_MISSING
+
+오류 + ops alert + 해당 table sync 실패.
+
+이유:
+
+Backup schema는 migration/init에서
+정확하게 준비되어야 함.
+
+임의 column1 stub 생성 금지.
+
+단 현재 수리된 10개 테이블을
+다시 변경하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 최소 코드 변경 범위
+━━━━━━━━━━━━━━━━━━━━
+
+가능하면 수정 파일:
+
+artifacts/api-server/src/jobs/standby-sync.ts
+
+필요한 테스트 파일만 추가.
+
+다른 앱/서버 기능 수정 금지.
+
+특히:
+
+auth
+billing
+diary
+makeup
+X mode
+RevenueCat
+
+기능 코드 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+9. TEST
+━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+- typecheck
+- 관련 unit test
+- serializer matrix
+- users.roles text[] case
+- lazy pool_credits skip case
+- non-lazy missing table fail case
+- normal scalar row replication
+- null handling
+- json/jsonb handling
+
+전체 테스트 결과 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+10. GIT GATE
+━━━━━━━━━━━━━━━━━━━━
+
+수정 완료 후:
+
+git status
+git diff --stat
+변경 파일 목록
+
+제출.
+
+기존 stable tag 변경 금지.
+force push 금지.
+rebase/reset 금지.
+
+commit 생성.
+
+예:
+
+fix(backup): harden standby sync serialization
+
+origin 현재 branch push.
+
+제출:
+
+COMMIT SHA
+ORIGIN SHA
+HEAD SHA
+
+3개 일치 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+11. RENDER DEPLOY
+━━━━━━━━━━━━━━━━━━━━
+
+Production Render에
+해당 commit 배포.
+
+제출:
+
+Deploy ID
+Live SHA
+배포 상태
+
+Live SHA가 commit SHA와
+일치하지 않으면 runtime 검증 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+12. HOT SYNC RUNTIME
+━━━━━━━━━━━━━━━━━━━━
+
+배포 후 기존 safe hot sync 실행 방식으로
+1회 검증.
+
+확인:
+
+swimming_pools
+users
+subscription_plans
+backup_settings
+platform_banners
+feature_flag_overrides
+pool_credits
+
+기대:
+
+swimming_pools       SUCCESS
+users                SUCCESS
+subscription_plans   SUCCESS
+backup_settings      SUCCESS
+platform_banners     SUCCESS
+
+feature_flag_overrides:
+0행이면 정상 skip
+
+pool_credits:
+LAZY_TABLE_NOT_CREATED
+→ graceful skip
+→ 전체 sync 실패로 계산하지 않음
+
+━━━━━━━━━━━━━━━━━━━━
+13. ROW COUNT 검증
+━━━━━━━━━━━━━━━━━━━━
+
+sync 직후:
+
+Production / Backup
+
+swimming_pools
+users
+subscription_plans
+backup_settings
+platform_banners
+
+COUNT 비교.
+
+특히 users:
+
+Production = 19
+Backup = 19
+
+이어야 함.
+
+users roles array가 실제 삽입됐는지는
+개인정보 출력 없이:
+
+COUNT
+array_length 분포
+NULL 여부
+
+정도만 확인.
+
+내용 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+14. FULL SYNC EXTRA 검증
+━━━━━━━━━━━━━━━━━━━━
+
+현재 schema repair된:
+
+event_logs
+payment_logs
+backup_logs
+platform_backups
+ops_alerts
+
+도 같은 serializer를 사용하므로
+기존 안전한 실행 함수로 실제 복제 확인.
+
+각각:
+
+Production COUNT
+Backup COUNT
+sync success/fail
+
+제출.
+
+그리고 students는 아직 별도 schema mismatch가 있으므로
+이번 Phase에서 수정 금지.
+
+students failure는 별도 pending으로 분리.
+
+━━━━━━━━━━━━━━━━━━━━
+15. LOG CHECK
+━━━━━━━━━━━━━━━━━━━━
+
+배포 후 신규 로그:
+
+malformed array literal
+column is of type text[]
+invalid input syntax
+column does not exist
+relation does not exist
+constraint violation
+permission denied
+row-level security
+
+확인.
+
+pool_credits lazy skip 로그는
+ERROR가 아니라 명확한 SKIP 상태여야 함.
+
+━━━━━━━━━━━━━━━━━━━━
+16. ROLLBACK
+━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 후 신규 장애 발생 시:
+
+이번 commit만 revert 가능한 형태 유지.
+
+DB schema rollback 금지.
+Production DB 변경 금지.
+
+rollback 필요 여부 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+17. 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. 수정 전 replicateTable 코드
+2. root cause
+3. 선택한 safe serialization 방식
+4. parameter binding 여부
+5. identifier validation
+6. pool_credits lazy skip 방식
+7. stub auto-create 처리
+8. 변경 파일
+9. tests
+10. git status/diff
+11. commit SHA
+12. origin SHA
+13. Render Deploy ID
+14. Render Live SHA
+15. HOT sync 결과
+16. users Production/Backup count
+17. 핵심 5개 count
+18. FULL sync 5개 결과
+19. pool_credits 상태
+20. 신규 오류
+21. rollback 여부
+22. 최종 판정
+
+성공 시:
+
+STANDBY_SYNC_SERIALIZATION_FIXED ✅
+POOL_CREDITS_LAZY_SKIP_VERIFIED ✅
+HOT_SYNC_CORE_REPLICATION_VERIFIED ✅
+
+그리고 FULL 대상 5개도 성공하면:
+
+FULL_SYNC_CORE_REPLICATION_VERIFIED ✅
+
+STOP.
+
+Backup RLS 아직 금지.
+students schema 수정 아직 금지.
+WP4 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
