@@ -1,0 +1,512 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE SUPABASE SECURITY — PHASE 13
+RLS GROUP E + F
+PUSH / NOTIFICATION + SYSTEM / JOB / QUEUE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Phase 12 / 12B 최종 승인:
+
+RLS_GROUP_D_VERIFIED ✅
+
+실제 앱 pool-bound runtime:
+학부모 요청 화면 정상 조회 확인 완료.
+
+현재 Production:
+
+TOTAL TABLES    = 105
+RLS ENABLED     = 57
+RLS DISABLED    = 48
+
+이번 단계는 속도를 높이기 위해
+Group E + Group F 총 17개를 함께 처리한다.
+
+DB SOURCE:
+SUPABASE_DATABASE_URL
+
+executeSql production 사용 금지.
+POOL_DB 변경 금지.
+standby-sync 수정 금지.
+코드 수정 금지.
+WP4 작업 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 대상 — GROUP E 7개
+━━━━━━━━━━━━━━━━━━━━
+
+diary_push_queue
+notice_reads
+notices
+notifications
+push_logs
+push_scheduled_sent
+push_settings
+
+━━━━━━━━━━━━━━━━━━━━
+2. 대상 — GROUP F 10개
+━━━━━━━━━━━━━━━━━━━━
+
+data_change_logs
+dead_letter_queue
+event_logs
+event_retry_queue
+messenger_read_state
+ops_alerts
+readonly_control_logs
+scheduler_heartbeat
+scheduler_locks
+work_messages
+
+총 17개.
+
+이외 테이블 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 기존 57개 보호 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 RLS=true인 기존 57개가
+전부 relrowsecurity=true인지 확인.
+
+하나라도 false면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+4. PRE-STATE
+━━━━━━━━━━━━━━━━━━━━
+
+대상 17개 각각:
+
+- relrowsecurity
+- relforcerowsecurity
+- owner
+- row count
+- policy count
+- anon CRUD grants
+- authenticated CRUD grants
+
+기존 policy가 하나라도 존재하면
+해당 테이블 포함 전체 적용 중지 후 STOP.
+
+데이터 내용 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. ROLE 확인
+━━━━━━━━━━━━━━━━━━━━
+
+current_user
+session_user
+rolsuper
+rolbypassrls
+
+기대:
+
+postgres
+postgres
+false
+true
+
+다르면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+6. CODE PATH 빠른 감사
+━━━━━━━━━━━━━━━━━━━━
+
+17개 각각 모든 라인을 장황하게 분석할 필요 없음.
+
+각 테이블에 대해 최소:
+
+TABLE
+→ 주요 route/job
+→ DB client
+→ direct postgres YES/NO
+
+형태로 제출.
+
+특히 Group E:
+
+notifications
+diary_push_queue
+push_logs
+push_scheduled_sent
+push_settings
+notice_reads
+notices
+
+가 다음 기능과 어떻게 연결되는지 확인:
+
+- 앱 알림
+- 학부모 요청 알림
+- 일지 알림
+- 공지
+- push scheduler
+
+Group F:
+
+scheduler_heartbeat
+scheduler_locks
+dead_letter_queue
+event_retry_queue
+ops_alerts
+
+가 worker/scheduler에서
+어떤 DB client를 사용하는지 확인.
+
+Supabase Data API 직접 호출 발견 시 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+7. RLS APPLY
+━━━━━━━━━━━━━━━━━━━━
+
+GROUP E:
+
+ALTER TABLE diary_push_queue
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE notice_reads
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE notices
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE notifications
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE push_logs
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE push_scheduled_sent
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE push_settings
+ENABLE ROW LEVEL SECURITY;
+
+GROUP F:
+
+ALTER TABLE data_change_logs
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE dead_letter_queue
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE event_logs
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE event_retry_queue
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE messenger_read_state
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE ops_alerts
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE readonly_control_logs
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE scheduler_heartbeat
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE scheduler_locks
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE work_messages
+ENABLE ROW LEVEL SECURITY;
+
+policy 생성 금지.
+FORCE RLS 금지.
+GRANT 변경 금지.
+다른 테이블 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+8. POST READ-BACK
+━━━━━━━━━━━━━━━━━━━━
+
+17개 모두:
+
+relrowsecurity=true
+relforcerowsecurity=false
+policy count=0
+
+확인.
+
+각 row count 전/후 동일 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+9. DIRECT POSTGRES
+━━━━━━━━━━━━━━━━━━━━
+
+17개 전부 COUNT 정상 조회.
+
+내용 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. LOGIN / BASIC RUNTIME
+━━━━━━━━━━━━━━━━━━━━
+
+기존 super_admin 실제 login:
+
+POST /api/auth/login
+→ HTTP 200
+
+그리고:
+
+GET /api/health
+→ HTTP 200
+
+GET /api/super/dashboard-stats
+→ HTTP 200
+
+GET /api/pools/x-mode?pool_id=...
+→ HTTP 200
+
+token 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. PUSH / NOTIFICATION RUNTIME
+━━━━━━━━━━━━━━━━━━━━
+
+실제 존재하는 READ ONLY API 중
+Group E를 직접 읽는 endpoint를 찾아 실행.
+
+최소 2개 HTTP 200 목표.
+
+우선 후보:
+
+- notifications 조회
+- notices 조회
+- push settings 조회
+
+단 route 추측 금지.
+Repository에서 실제 path 확인 후 호출.
+
+super_admin role 제약으로 403이면
+application-level인지 명확히 분류.
+
+Group E 직접 API HTTP 200이
+하나라도 가능하면 반드시 확보.
+
+━━━━━━━━━━━━━━━━━━━━
+12. SYSTEM / JOB 검증
+━━━━━━━━━━━━━━━━━━━━
+
+Group F는 HTTP route보다
+worker/scheduler가 핵심.
+
+적용 이후 현재 Render 로그에서:
+
+scheduler
+retry
+dead-letter
+ops alert
+readonly
+event
+
+관련 신규 오류 확인.
+
+특히 검색:
+
+permission denied
+row-level security
+policy violation
+relation access denied
+
+신규 RLS 오류가 없어야 함.
+
+━━━━━━━━━━━━━━━━━━━━
+13. PUSH SCHEDULER 필수 확인
+━━━━━━━━━━━━━━━━━━━━
+
+다음 관련 현재 worker 상태 확인:
+
+notifications
+diary_push_queue
+push_logs
+push_scheduled_sent
+push_settings
+
+실제 push 발송을 강제로 발생시키지 않는다.
+
+기존 scheduler가 정상 실행되고
+RLS/permission 오류가 없는지만 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+14. 기존 Parent Request 보호
+━━━━━━━━━━━━━━━━━━━━
+
+Phase 1 Parent Request 시스템의:
+
+notification.deep_link
+요청 처리 결과 알림
+학부모 알림
+선생님 받은 요청
+
+관련 코드가 notifications를 사용하는 경우
+direct postgres인지 확인.
+
+WRITE 테스트 금지.
+
+기존 앱 기능 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+15. RENDER LOG
+━━━━━━━━━━━━━━━━━━━━
+
+적용 직후 검색:
+
+permission denied
+row-level security
+policy violation
+relation access denied
+
+그리고 대상 17개 테이블명.
+
+신규 오류 = 없어야 함.
+
+기존:
+
+POOL_DB schema mismatch
+node-cron warning
+
+등 기존 오류와 분리.
+
+━━━━━━━━━━━━━━━━━━━━
+16. 실패 시 GROUP별 ROLLBACK
+━━━━━━━━━━━━━━━━━━━━
+
+문제가 Group E에서 발생하면
+Group E 7개만 rollback:
+
+ALTER TABLE diary_push_queue DISABLE ROW LEVEL SECURITY;
+ALTER TABLE notice_reads DISABLE ROW LEVEL SECURITY;
+ALTER TABLE notices DISABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications DISABLE ROW LEVEL SECURITY;
+ALTER TABLE push_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE push_scheduled_sent DISABLE ROW LEVEL SECURITY;
+ALTER TABLE push_settings DISABLE ROW LEVEL SECURITY;
+
+문제가 Group F에서 발생하면
+Group F 10개만 rollback:
+
+ALTER TABLE data_change_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE dead_letter_queue DISABLE ROW LEVEL SECURITY;
+ALTER TABLE event_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE event_retry_queue DISABLE ROW LEVEL SECURITY;
+ALTER TABLE messenger_read_state DISABLE ROW LEVEL SECURITY;
+ALTER TABLE ops_alerts DISABLE ROW LEVEL SECURITY;
+ALTER TABLE readonly_control_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE scheduler_heartbeat DISABLE ROW LEVEL SECURITY;
+ALTER TABLE scheduler_locks DISABLE ROW LEVEL SECURITY;
+ALTER TABLE work_messages DISABLE ROW LEVEL SECURITY;
+
+문제 없는 그룹까지 같이 rollback 금지.
+
+기존 57개 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+17. TOTAL
+━━━━━━━━━━━━━━━━━━━━
+
+둘 다 성공 예상:
+
+57 + 17 = 74
+
+예상:
+
+RLS ENABLED  = 74
+RLS DISABLED = 31
+TOTAL        = 105
+
+단 반드시 실제 DB COUNT 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+18. REMAINING INVENTORY
+━━━━━━━━━━━━━━━━━━━━
+
+성공 후 relrowsecurity=false
+실제 전체 목록 재조회.
+
+예상 잔여:
+
+GROUP G — 7개
+
+backup_logs
+backup_snapshots
+db_health_logs
+db_server_snapshots
+platform_backups
+platform_banners
+restore_logs
+
+GROUP H — 24개
+
+audit_entity_versions
+curriculum_request_files
+diary_reactions
+diary_templates
+feature_flag_overrides
+growth_events
+growth_reports
+inquiries
+inquiry_replies
+member_activity_logs
+member_transfers
+misconception_candidates
+misconception_hunter_settings
+photo_assets_meta
+policy_consents
+policy_versions
+student_curriculum_assignments
+support_ticket_replies
+support_tickets
+teacher_invites
+teacher_saved_photos
+teacher_saved_videos
+temp_class_transfers
+video_assets_meta
+
+7 + 24 = 31
+
+실제 DB 목록과 100% 일치 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+19. 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. DB source
+2. 기존 57개 유지
+3. 17개 pre-state
+4. policy count
+5. role/bypass
+6. code path summary
+7. 실행 SQL
+8. post-state
+9. row counts
+10. direct postgres
+11. login/health
+12. Group E authenticated API
+13. push scheduler 영향
+14. Group F worker/scheduler 영향
+15. Parent Request notification 영향
+16. Render 신규 RLS 오류
+17. rollback 여부
+18. Group E 판정
+19. Group F 판정
+20. RLS total
+21. remaining disabled
+22. remaining inventory 정합성
+23. 최종 판정
+
+성공 시:
+
+RLS_GROUP_E_VERIFIED ✅
+RLS_GROUP_F_VERIFIED ✅
+RLS_PHASE_13_VERIFIED ✅
+
+부분 실패 시
+성공/rollback 그룹을 각각 구분해서 보고.
+
+STOP.
+
+POOL_DB 변경 금지.
+standby-sync 수정 금지.
+WP4 재개 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
