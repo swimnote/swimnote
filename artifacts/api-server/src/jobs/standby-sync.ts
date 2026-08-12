@@ -36,19 +36,29 @@ function isPgRelationMissing(e: any): boolean {
 /**
  * JavaScript 값을 drizzle/pg가 안전하게 파라미터화할 수 있는 형태로 변환.
  *
- * 근본 원인:
+ * 근본 원인 (42804):
  *   sql`${['a','b']}` → drizzle이 배열을 ($1,$2) "record" 문법으로 전개 →
- *   text[] 컬럼과 타입 불일치 (42804 오류)
+ *   text[] 컬럼과 타입 불일치
+ *
+ * 근본 원인 (22P02 — jsonb 배열 버그):
+ *   jsonb 컬럼의 JS 배열을 PG 배열 리터럴 {a,b}로 변환하면
+ *   invalid input syntax for type json 오류 발생.
+ *   students.assigned_class_ids / students.class_schedule 등이 해당.
  *
  * 해결:
- *   Array  → PostgreSQL 배열 리터럴 문자열 {a,b} (pg가 text[]로 암묵 변환)
- *   Date   → ISO 8601 문자열
- *   Object → JSON 문자열 (pg가 jsonb로 암묵 변환)
- *   나머지  → 그대로 전달 (null/boolean/number/string은 pg가 네이티브 처리)
+ *   pgType="jsonb"|"json"  → JSON.stringify (pg가 jsonb input function으로 파싱)
+ *   pgType=text[]|기타     → PostgreSQL 배열 리터럴 {a,b}
+ *   pgType 없이 Array      → PG 배열 리터럴 (text[] 가정, fallback)
+ *   Date                   → ISO 8601 문자열
+ *   non-Array Object       → JSON 문자열 (jsonb로 암묵 변환)
+ *   나머지                  → 그대로 전달 (null/boolean/number/string은 pg 네이티브)
  */
-function serializeForPg(v: unknown): unknown {
+function serializeForPg(v: unknown, pgType?: string): unknown {
   if (v === null || v === undefined) return null;
   if (Array.isArray(v)) {
+    // jsonb / json 컬럼: JSON 배열 문자열로 전달 (PG jsonb input이 파싱)
+    if (pgType === "jsonb" || pgType === "json") return JSON.stringify(v);
+    // text[], int4[] 등 PG 네이티브 배열: 배열 리터럴 {a,b}
     const elems = v.map(e => {
       if (e === null || e === undefined) return "NULL";
       if (typeof e === "number" || typeof e === "boolean") return String(e);
@@ -313,6 +323,17 @@ async function replicateTable(
     }
     const colIdents = cols.map(c => `"${c}"`).join(", ");
 
+    // ── 2.5 컬럼 타입 조회 (jsonb vs text[] 구분용) ──────────────────────
+    // Production information_schema에서 각 컬럼의 udt_name을 가져옴.
+    // Array.isArray() 만으로는 jsonb 배열과 text[] 배열을 구분 불가 (22P02 버그).
+    const colTypeRows = (await superAdminDb.execute(
+      sql.raw(
+        `SELECT column_name, udt_name FROM information_schema.columns ` +
+        `WHERE table_schema='public' AND table_name='${tableName}'`
+      )
+    )).rows as { column_name: string; udt_name: string }[];
+    const colTypes = new Map(colTypeRows.map(r => [r.column_name, r.udt_name]));
+
     // ── 3. TRUNCATE (stub 자동 생성 금지) ────────────────────────────────
     // Backup 테이블이 없고 Production에 행이 있으면:
     //   AUTO_CREATE_STUB 금지 — BACKUP_SCHEMA_MISSING 오류 + 알림
@@ -334,13 +355,14 @@ async function replicateTable(
     }
 
     // ── 4. 파라미터화된 배치 INSERT ──────────────────────────────────────
-    // serializeForPg()로 값을 사전 변환 후 drizzle sql 템플릿 파라미터로 전달.
+    // serializeForPg(v, pgType)로 값을 사전 변환 후 drizzle sql 파라미터로 전달.
+    // colTypes Map을 통해 jsonb/json vs text[] 등을 구분해 올바른 형식으로 직렬화.
     // pg 드라이버가 모든 타입 직렬화를 처리하므로 SQL 인젝션 위험 없음.
     const BATCH = 100;
     for (let i = 0; i < rows.length; i += BATCH) {
       const chunk = rows.slice(i, i + BATCH);
       const rowSqls = chunk.map(row => {
-        const vals = Object.values(row).map(v => serializeForPg(v));
+        const vals = cols.map(col => serializeForPg(row[col], colTypes.get(col)));
         return sql`(${sql.join(vals.map(v => sql`${v}`), sql.raw(", "))})`;
       });
       const valuesSql = sql.join(rowSqls, sql.raw(", "));
