@@ -8,6 +8,7 @@ import { startReadonlyTriggerScheduler } from "./jobs/readonly-trigger.js";
 import { startStandbySyncJobs } from "./jobs/standby-sync.js";
 import { startVideoExpiryCleanup } from "./jobs/video-expiry-cleanup.js";
 import { startQueueWorker }         from "./jobs/queue-worker.js";
+import { startGrowthReportScheduler } from "./jobs/growth-report-scheduler.js";
 import { initPoolDb } from "./migrations/pool-db-init.js";
 import { initSuperDb } from "./migrations/super-db-init.js";
 import { initV2PendingTable } from "./lib/auto-link-v2.js";
@@ -86,7 +87,8 @@ if (IS_WORKER) {
   startStandbySyncJobs();
   startVideoExpiryCleanup();
   startQueueWorker();
-  console.log("[worker] 스케줄러 8개 등록 완료 (backup / parent-link / auto-attendance / push / readonly-trigger / standby-sync / video-expiry / queue-worker)");
+  startGrowthReportScheduler();
+  console.log("[worker] 스케줄러 9개 등록 완료 (backup / parent-link / auto-attendance / push / readonly-trigger / standby-sync / video-expiry / queue-worker / growth-report)");
   console.log("[worker] HTTP 서버 미실행 — DB 락으로 중복 실행 방지됨");
 } else {
   // ── API 서버 모드: HTTP 실행 + 비활성화 정리 스케줄러 ───────────────────
