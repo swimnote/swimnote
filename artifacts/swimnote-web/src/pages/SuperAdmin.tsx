@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import GlobalTemplateSets from "@/pages/super/GlobalTemplateSets";
 import AuditLogs from "@/pages/super/AuditLogs";
+import GrowthReviewStats from "@/pages/super/GrowthReviewStats";
 
 // ─── Support Center Types ─────────────────────────────────────────────────────
 interface Ticket {
@@ -98,7 +99,7 @@ export default function SuperAdmin() {
   const [subStart, setSubStart] = useState("");
   const [subEnd, setSubEnd] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
-  const [tab, setTab] = useState<"pools" | "support" | "create-admin" | "global-templates" | "audit-logs">("pools");
+  const [tab, setTab] = useState<"pools" | "support" | "create-admin" | "global-templates" | "growth-stats" | "audit-logs">("pools");
 
   // Support center state
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -257,6 +258,7 @@ export default function SuperAdmin() {
             { id: "support", label: "지원센터" },
             { id: "create-admin", label: "관리자 계정 생성" },
             { id: "global-templates", label: "글로벌 템플릿" },
+            { id: "growth-stats", label: "검토 통계" },
             { id: "audit-logs", label: "감사 로그" },
           ].map((t) => (
             <button
@@ -521,6 +523,8 @@ export default function SuperAdmin() {
         )}
 
         {tab === "global-templates" && <GlobalTemplateSets />}
+
+        {tab === "growth-stats" && <GrowthReviewStats />}
 
         {tab === "audit-logs" && <AuditLogs />}
 

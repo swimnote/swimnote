@@ -3614,6 +3614,153 @@ router.get(
 );
 
 // ════════════════════════════════════════════════════════════════
+// WP15 — Growth Review Statistics  (READ ONLY, super_admin only)
+// GET /super/growth-review-stats
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * GET /super/growth-review-stats
+ * query: from, to (ISO date, 기준: created_at), pool_id
+ *
+ * source: growth_events WHERE is_invalidated = false
+ * audit_logs 사용 금지 (별도 역할 분리)
+ */
+router.get(
+  "/super/growth-review-stats",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const from    = (req.query.from    as string) || null;
+      const to      = (req.query.to      as string) || null;
+      const pool_id = (req.query.pool_id as string) || null;
+
+      // 날짜 형식 간단 검증
+      const ISO_RE = /^\d{4}-\d{2}-\d{2}/;
+      if (from && !ISO_RE.test(from)) { res.status(400).json({ error: "invalid from date" }); return; }
+      if (to   && !ISO_RE.test(to))   { res.status(400).json({ error: "invalid to date" });   return; }
+
+      // 동적 WHERE 조건 구성
+      const conditions: string[] = ["ge.is_invalidated = false"];
+      if (pool_id) conditions.push(`ge.swimming_pool_id = '${pool_id.replace(/'/g, "''")}'`);
+      if (from)    conditions.push(`ge.created_at >= '${from.replace(/'/g, "''")}'::timestamptz`);
+      if (to)      conditions.push(`ge.created_at <  '${to.replace(/'/g, "''")}'::timestamptz`);
+      const where = conditions.join(" AND ");
+
+      // Query 1: 전체 집계 (1 round-trip)
+      const summaryRes = await superAdminDb.execute(sql.raw(`
+        SELECT
+          COUNT(*)                                                                              AS total_valid_events,
+          COUNT(*) FILTER (WHERE ge.growth_match_status = 'PENDING_REVIEW')                   AS pending_review,
+          COUNT(*) FILTER (WHERE ge.growth_match_status = 'TEACHER_ACCEPTED')                 AS teacher_accepted,
+          COUNT(*) FILTER (WHERE ge.growth_match_status = 'TEACHER_REJECTED')                 AS teacher_rejected,
+          COUNT(*) FILTER (WHERE ge.growth_match_status = 'AUTO_ACCEPTED')                    AS auto_accepted,
+          COUNT(*) FILTER (WHERE ge.growth_match_status = 'DISCARDED')                        AS discarded,
+          COUNT(*) FILTER (
+            WHERE ge.growth_match_status = 'PENDING_REVIEW'
+              AND ge.created_at < NOW() - INTERVAL '24 hours'
+          )                                                                                    AS pending_over_24h,
+          COUNT(*) FILTER (
+            WHERE ge.growth_match_status = 'PENDING_REVIEW'
+              AND ge.created_at < NOW() - INTERVAL '48 hours'
+          )                                                                                    AS pending_over_48h,
+          ROUND(
+            AVG(
+              EXTRACT(EPOCH FROM (ge.reviewed_at - ge.created_at)) / 3600.0
+            ) FILTER (
+              WHERE ge.reviewed_at IS NOT NULL
+                AND ge.growth_match_status IN ('TEACHER_ACCEPTED','TEACHER_REJECTED')
+            )
+          , 2)                                                                                 AS average_review_time_hours
+        FROM growth_events ge
+        WHERE ${where}
+      `));
+
+      const raw = (summaryRes.rows[0] as any) ?? {};
+      const n = (k: string) => Number(raw[k] ?? 0);
+
+      const total_valid_events      = n("total_valid_events");
+      const pending_review          = n("pending_review");
+      const teacher_accepted        = n("teacher_accepted");
+      const teacher_rejected        = n("teacher_rejected");
+      const auto_accepted           = n("auto_accepted");
+      const discarded               = n("discarded");
+      const pending_over_24h        = n("pending_over_24h");
+      const pending_over_48h        = n("pending_over_48h");
+      const avg_hrs_raw             = raw.average_review_time_hours;
+      const average_review_time_hours =
+        avg_hrs_raw !== null && avg_hrs_raw !== undefined ? Number(avg_hrs_raw) : null;
+
+      // 계산: 분모 0 → 0 반환 (NaN/Infinity 금지)
+      const reviewed_total    = teacher_accepted + teacher_rejected;
+      const denom_review      = pending_review + teacher_accepted + teacher_rejected;
+      const review_rate       = denom_review    > 0 ? Math.round((reviewed_total  / denom_review)    * 10000) / 10000 : 0;
+      const accepted_rate     = reviewed_total  > 0 ? Math.round((teacher_accepted / reviewed_total) * 10000) / 10000 : 0;
+      const rejected_rate     = reviewed_total  > 0 ? Math.round((teacher_rejected / reviewed_total) * 10000) / 10000 : 0;
+
+      // Query 2: 수영장별 breakdown (N+1 금지, 1 query)
+      const poolBreakdownRes = await superAdminDb.execute(sql.raw(`
+        SELECT
+          ge.swimming_pool_id                                                                   AS pool_id,
+          sp.name                                                                               AS pool_name,
+          COUNT(*)                                                                              AS total,
+          COUNT(*) FILTER (WHERE ge.growth_match_status = 'PENDING_REVIEW')                   AS pending,
+          COUNT(*) FILTER (WHERE ge.growth_match_status = 'TEACHER_ACCEPTED')                 AS accepted,
+          COUNT(*) FILTER (WHERE ge.growth_match_status = 'TEACHER_REJECTED')                 AS rejected,
+          COUNT(*) FILTER (WHERE ge.growth_match_status = 'AUTO_ACCEPTED')                    AS auto_accepted,
+          COUNT(*) FILTER (WHERE ge.growth_match_status = 'DISCARDED')                        AS discarded
+        FROM growth_events ge
+        LEFT JOIN swimming_pools sp ON sp.id = ge.swimming_pool_id
+        WHERE ${where}
+        GROUP BY ge.swimming_pool_id, sp.name
+        ORDER BY total DESC
+      `));
+
+      const pool_breakdown = (poolBreakdownRes.rows as any[]).map(r => {
+        const t_acc = Number(r.accepted ?? 0);
+        const t_rej = Number(r.rejected ?? 0);
+        const rv    = t_acc + t_rej;
+        const d_rv  = Number(r.pending ?? 0) + rv;
+        return {
+          pool_id:     r.pool_id,
+          pool_name:   r.pool_name ?? null,
+          total:       Number(r.total ?? 0),
+          pending:     Number(r.pending ?? 0),
+          accepted:    t_acc,
+          rejected:    t_rej,
+          auto_accepted: Number(r.auto_accepted ?? 0),
+          discarded:   Number(r.discarded ?? 0),
+          review_rate: d_rv > 0 ? Math.round((rv / d_rv) * 10000) / 10000 : 0,
+        };
+      });
+
+      res.json({
+        summary: {
+          total_valid_events,
+          pending_review,
+          teacher_accepted,
+          teacher_rejected,
+          auto_accepted,
+          discarded,
+          reviewed_total,
+          review_rate,
+          accepted_rate,
+          rejected_rate,
+          pending_over_24h,
+          pending_over_48h,
+          average_review_time_hours,
+        },
+        pool_breakdown,
+        filters: { from, to, pool_id },
+      });
+    } catch (err: any) {
+      console.error("[super/growth-review-stats] error:", err?.message);
+      res.status(500).json({ error: "성장 검토 통계 조회 실패" });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════
 // WP14 — Audit Log Viewer  (READ ONLY, super_admin only)
 // GET /super/audit-logs        목록 (pagination + filters)
 // GET /super/audit-logs/:id    단건 상세
