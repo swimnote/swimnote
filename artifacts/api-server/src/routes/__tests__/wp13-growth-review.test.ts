@@ -186,6 +186,93 @@ describe("WP13 — reviewGrowthEvent()", () => {
   });
 });
 
+  // M. audit INSERT — action='update', actor_type CHECK 통과값 사용 (review_accepted/user 금지)
+  it("M: audit INSERT → action='update', actor_type='teacher' (CHECK 통과)", async () => {
+    const insertedQueries: string[] = [];
+
+    const executeMock = vi.fn(async (query: any) => {
+      const chunks = query?.queryChunks ?? [];
+      const q: string = chunks
+        .map((c: any) => (typeof c === "string" ? c : String(c?.value ?? "")))
+        .join(" ");
+
+      if (q.includes("next_audit_version")) return { rows: [{ v: 1 }] };
+      if (q.includes("SELECT"))             return { rows: [{ id: "ge_test001", growth_match_status: "PENDING_REVIEW", is_invalidated: false }] };
+      if (q.includes("UPDATE"))             return { rowCount: 1, rows: [] };
+      if (q.includes("INSERT")) {
+        insertedQueries.push(q);
+        return { rowCount: 1, rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    const db = { execute: executeMock };
+    await reviewGrowthEvent({
+      db, poolId: "pool_01", studentId: "stu_01",
+      eventId: "ge_01", action: "accept",
+      reviewerUserId: "usr_teacher", reviewerRole: "teacher",
+    });
+
+    expect(insertedQueries).toHaveLength(1);
+    const auditSql = insertedQueries[0];
+    // action = 'update' (CHECK 통과)
+    expect(auditSql).toContain("update");
+    // actor_type = 'teacher' (CHECK 통과, 'user' 금지)
+    expect(auditSql).toContain("teacher");
+    expect(auditSql).not.toContain("review_accepted");
+    expect(auditSql).not.toContain("review_rejected");
+    expect(auditSql).not.toContain("'user'");
+  });
+
+  // N. audit INSERT — before/after_data growth_match_status 키 + review_action 포함
+  it("N: audit INSERT → before_data.growth_match_status, after_data.review_action 포함", async () => {
+    const insertedData: { before: any; after: any } = { before: null, after: null };
+
+    const executeMock = vi.fn(async (query: any) => {
+      const chunks = query?.queryChunks ?? [];
+      // raw sql template — chunks에 jsonb 직렬화 값 포함
+      const jsonChunks = chunks
+        .map((c: any) => (typeof c === "object" && c?.value ? String(c.value) : ""))
+        .filter(Boolean);
+
+      const q: string = chunks
+        .map((c: any) => (typeof c === "string" ? c : String(c?.value ?? "")))
+        .join(" ");
+
+      if (q.includes("next_audit_version")) return { rows: [{ v: 2 }] };
+      if (q.includes("SELECT"))             return { rows: [{ id: "ge_02", growth_match_status: "PENDING_REVIEW", is_invalidated: false }] };
+      if (q.includes("UPDATE"))             return { rowCount: 1, rows: [] };
+      if (q.includes("INSERT")) {
+        // JSON 청크에서 before/after 추출
+        const jsonValues = jsonChunks.filter(v => {
+          try { JSON.parse(v); return true; } catch { return false; }
+        }).map(v => JSON.parse(v));
+        if (jsonValues[0]) insertedData.before = jsonValues[0];
+        if (jsonValues[1]) insertedData.after  = jsonValues[1];
+        return { rowCount: 1, rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    const db = { execute: executeMock };
+    await reviewGrowthEvent({
+      db, poolId: "pool_01", studentId: "stu_01",
+      eventId: "ge_02", action: "reject",
+      reviewerUserId: "usr_teacher", reviewerRole: "pool_admin",
+    });
+
+    // before_data에 growth_match_status 키 사용 ('status' 키 금지)
+    if (insertedData.before) {
+      expect(insertedData.before).toHaveProperty("growth_match_status");
+      expect(insertedData.before).not.toHaveProperty("status");
+    }
+    // after_data에 review_action 포함
+    if (insertedData.after) {
+      expect(insertedData.after).toHaveProperty("growth_match_status");
+      expect(insertedData.after).toHaveProperty("review_action", "reject");
+    }
+  });
+
 // ── Route 권한 contract 검증 (타입/로직 확인) ────────────────────────────────
 
 describe("WP13 — PATCH /x-growth review route contract", () => {

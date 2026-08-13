@@ -429,8 +429,10 @@ export async function reviewGrowthEvent(params: {
   eventId:        string;
   action:         "accept" | "reject";
   reviewerUserId: string;
+  /** audit_logs actor_type. CHECK 허용값: 'teacher'|'pool_admin'. 기본 'teacher' */
+  reviewerRole?:  "teacher" | "pool_admin";
 }): Promise<ReviewGrowthEventResult | null> {
-  const { db, poolId, studentId, eventId, action, reviewerUserId } = params;
+  const { db, poolId, studentId, eventId, action, reviewerUserId, reviewerRole = "teacher" } = params;
 
   const newStatus = action === "accept" ? "TEACHER_ACCEPTED" : "TEACHER_REJECTED";
 
@@ -486,6 +488,9 @@ export async function reviewGrowthEvent(params: {
     `);
     const version = (versionRes.rows[0] as any)?.v ?? 1;
 
+    // action = 'update' (CHECK constraint: 'create'|'update'|'delete')
+    // actor_type = reviewerRole (CHECK constraint: 'super_admin'|'pool_admin'|'teacher'|'parent'|'system')
+    // before/after_data는 growth_match_status 키 사용 (Audit Viewer 표시 기준)
     await db.execute(sql`
       INSERT INTO audit_logs (
         entity_type, entity_id, entity_version,
@@ -494,10 +499,10 @@ export async function reviewGrowthEvent(params: {
         request_id, correlation_id, ip_hash
       ) VALUES (
         'growth_event', ${eventId}, ${version},
-        ${action === "accept" ? "review_accepted" : "review_rejected"},
-        'user', ${reviewerUserId}, ${poolId},
-        ${JSON.stringify({ status: currentStatus, student_id: studentId })}::jsonb,
-        ${JSON.stringify({ status: newStatus, reviewed_by: reviewerUserId, reviewed_at: now })}::jsonb,
+        'update',
+        ${reviewerRole}, ${reviewerUserId}, ${poolId},
+        ${JSON.stringify({ growth_match_status: currentStatus, student_id: studentId })}::jsonb,
+        ${JSON.stringify({ growth_match_status: newStatus, review_action: action, reviewed_by: reviewerUserId, reviewed_at: now })}::jsonb,
         'teacher_review',
         NULL, NULL, NULL
       )

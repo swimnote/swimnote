@@ -248,6 +248,7 @@ router.patch(
         eventId,
         action,
         reviewerUserId: authReq.user!.userId,
+        reviewerRole:   role as "teacher" | "pool_admin",
       });
 
       if (!result) {
