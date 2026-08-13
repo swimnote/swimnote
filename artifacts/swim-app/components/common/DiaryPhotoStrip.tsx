@@ -401,7 +401,6 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
               });
             }}
             style={{ flex: 1 }}
-            contentContainerStyle={{ alignItems: "center" }}
           >
             {photos.map((photo) => (
               <View key={photo.id} style={s.viewerPage}>
@@ -531,14 +530,15 @@ const s = StyleSheet.create({
   },
   emptyText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#CBD5E1" },
   labelRow: {
-    flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 14,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingLeft: 14, paddingRight: 14,
   },
-  label: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
-  labelHint: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  label: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6", flexShrink: 0 },
+  labelHint: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#94A3B8", flexShrink: 1 },
   allDlBtn: {
     flexDirection: "row", alignItems: "center", gap: 3,
-    marginLeft: 6, paddingHorizontal: 7, paddingVertical: 3,
-    borderRadius: 8, borderWidth: 1, borderColor: "#2EC4B6",
+    marginLeft: "auto" as any, paddingHorizontal: 7, paddingVertical: 3,
+    borderRadius: 8, borderWidth: 1, borderColor: "#2EC4B6", flexShrink: 0,
   },
   allDlBtnTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
   strip: { paddingLeft: 14, paddingRight: 8, gap: 8, paddingBottom: 4 },
@@ -592,7 +592,7 @@ const s = StyleSheet.create({
   },
   viewerPage: {
     width: SCREEN_W,
-    flex: 1,
+    height: "100%",
     alignItems: "center",
     justifyContent: "center",
   },

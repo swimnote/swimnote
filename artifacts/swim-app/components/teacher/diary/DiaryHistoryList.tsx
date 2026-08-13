@@ -142,12 +142,8 @@ export default function DiaryHistoryList({
                   onPress={e => { e.stopPropagation?.(); onPressReactions?.(item); }}
                 >
                   <View style={s.countBadge}>
-                    <Text style={s.countEmoji}>👍</Text>
-                    <Text style={[s.countText, { color: "#2EC4B6" }]}>{item.like_count ?? 0}</Text>
-                  </View>
-                  <View style={s.countBadge}>
-                    <Text style={s.countEmoji}>🙏</Text>
-                    <Text style={[s.countText, { color: "#BE185D" }]}>{item.thank_count ?? 0}</Text>
+                    <LucideIcon name="heart" size={12} color="#E8003D" fill="#E8003D" />
+                    <Text style={[s.countText, { color: "#E8003D" }]}>{item.like_count ?? 0}</Text>
                   </View>
                   <View style={s.countBadge}>
                     <LucideIcon name="message-circle" size={12} color="#6366F1" />
