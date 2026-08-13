@@ -3613,4 +3613,143 @@ router.get(
   },
 );
 
+// ════════════════════════════════════════════════════════════════
+// WP14 — Audit Log Viewer  (READ ONLY, super_admin only)
+// GET /super/audit-logs        목록 (pagination + filters)
+// GET /super/audit-logs/:id    단건 상세
+// ════════════════════════════════════════════════════════════════
+
+/** 민감 필드 마스킹 — before_data/after_data JSON에서 적용 */
+const SENSITIVE_FIELD_PATTERNS = [
+  "password", "hash", "token", "secret", "api_key", "apikey",
+  "access_key", "refresh", "phone", "diary_content", "prompt", "response",
+];
+
+function maskSensitive(data: unknown): unknown {
+  if (data === null || data === undefined) return data;
+  if (typeof data !== "object") return data;
+  if (Array.isArray(data)) return (data as unknown[]).map(maskSensitive);
+  const obj = data as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    const keyLower = k.toLowerCase();
+    const isSensitive = SENSITIVE_FIELD_PATTERNS.some(p => keyLower.includes(p));
+    result[k] = isSensitive ? "[REDACTED]" : maskSensitive(v);
+  }
+  return result;
+}
+
+/**
+ * GET /super/audit-logs
+ * query: limit(1-100, default 20), offset(≥0, default 0),
+ *        action, entity_type, pool_id, actor_id, from, to (ISO date)
+ */
+router.get(
+  "/super/audit-logs",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const limit  = Math.min(Math.max(parseInt((req.query.limit  as string) ?? "20", 10), 1), 100);
+      const offset = Math.max(parseInt((req.query.offset as string) ?? "0", 10), 0);
+
+      const action      = (req.query.action      as string) || null;
+      const entity_type = (req.query.entity_type as string) || null;
+      const pool_id     = (req.query.pool_id     as string) || null;
+      const actor_id    = (req.query.actor_id    as string) || null;
+      const from        = (req.query.from        as string) || null;
+      const to          = (req.query.to          as string) || null;
+
+      // 동적 WHERE 절 — drizzle sql 템플릿 with manual injection (safe: validated types)
+      const conditions: string[] = ["TRUE"];
+      if (action)      conditions.push(`action = '${action.replace(/'/g, "''")}'`);
+      if (entity_type) conditions.push(`entity_type = '${entity_type.replace(/'/g, "''")}'`);
+      if (pool_id)     conditions.push(`pool_id = '${pool_id.replace(/'/g, "''")}'`);
+      if (actor_id)    conditions.push(`actor_id = '${actor_id.replace(/'/g, "''")}'`);
+      if (from)        conditions.push(`created_at >= '${from.replace(/'/g, "''")}'::timestamptz`);
+      if (to)          conditions.push(`created_at <= '${to.replace(/'/g, "''")}'::timestamptz`);
+      const where = conditions.join(" AND ");
+
+      const [rows, countRes] = await Promise.all([
+        superAdminDb.execute(sql.raw(`
+          SELECT
+            al.id,
+            al.entity_type,
+            al.entity_id,
+            al.entity_version,
+            al.action,
+            al.actor_type,
+            al.actor_id,
+            al.pool_id,
+            al.reason,
+            al.created_at,
+            sp.name AS pool_name
+          FROM audit_logs al
+          LEFT JOIN swimming_pools sp ON sp.id = al.pool_id
+          WHERE ${where}
+          ORDER BY al.created_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `)),
+        superAdminDb.execute(sql.raw(`
+          SELECT COUNT(*)::int AS total FROM audit_logs WHERE ${where}
+        `)),
+      ]);
+
+      const total = Number((countRes.rows[0] as any)?.total ?? 0);
+      res.json({ logs: rows.rows, total, limit, offset });
+    } catch (err: any) {
+      console.error("[super/audit-logs] list error:", err?.message);
+      res.status(500).json({ error: "감사 로그 조회 실패" });
+    }
+  },
+);
+
+/**
+ * GET /super/audit-logs/:id
+ * 단건 상세 — before_data/after_data 마스킹 포함
+ */
+router.get(
+  "/super/audit-logs/:id",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      if (!id || id.length > 64) {
+        res.status(400).json({ error: "invalid id" });
+        return;
+      }
+
+      const result = await superAdminDb.execute(sql`
+        SELECT
+          al.*,
+          sp.name AS pool_name
+        FROM audit_logs al
+        LEFT JOIN swimming_pools sp ON sp.id = al.pool_id
+        WHERE al.id = ${id}
+        LIMIT 1
+      `);
+
+      const row = (result.rows[0] as any);
+      if (!row) {
+        res.status(404).json({ error: "감사 로그를 찾을 수 없습니다." });
+        return;
+      }
+
+      // 민감 필드 마스킹
+      const safeRow = {
+        ...row,
+        before_data: maskSensitive(row.before_data),
+        after_data:  maskSensitive(row.after_data),
+        // ip_hash는 이미 해시값이므로 노출 허용 (원본 IP 아님)
+      };
+
+      res.json({ log: safeRow });
+    } catch (err: any) {
+      console.error("[super/audit-logs/:id] error:", err?.message);
+      res.status(500).json({ error: "감사 로그 상세 조회 실패" });
+    }
+  },
+);
+
 export default router;
