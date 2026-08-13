@@ -1,0 +1,396 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE — WP15.5-B/C FINAL COMPATIBILITY FIX
+MINIMUM CHANGE ONLY
+CREDIT SAVING MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구현 삭제/재작성 금지.
+
+기존 SHA:
+WP15.5-B fc864a12
+WP15.5-C 0f8899a4
+
+목적:
+현재 광고 Dashboard / Creative / Parent Banner 구조는 유지하면서
+Analytics 계약 위반만 최소 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. event_logs ANALYTICS 사용 중단
+━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+APP_SESSION
+AD_IMPRESSION
+MAU proxy
+
+가 event_logs에 의존하고 있음.
+
+이 구조는 WP15.5-A source-of-truth와 충돌.
+
+event_logs:
+운영/감사 로그
+
+analytics:
+사용자행동/광고측정
+
+분리할 것.
+
+MAU proxy:
+즉시 제거.
+
+event_logs 로그인 count를
+DAU/WAU/MAU/활성사용자 수치로 표시 금지.
+
+기존 Dashboard에서는
+실제 analytics 데이터가 쌓이기 전까지:
+
+"데이터 수집 중"
+
+또는 null/status NOT_ENOUGH_DATA
+
+표시.
+
+━━━━━━━━━━━━━━━━━━━━
+2. dedicated analytics_events
+━━━━━━━━━━━━━━━━━━━━
+
+기존에 analytics 전용 table이 실제로 없다면
+최소 dedicated table 필요.
+
+먼저 schema를 짧게 제출:
+
+analytics_events
+
+최소:
+
+id
+event_type
+user_id nullable
+swimming_pool_id nullable
+role nullable
+occurred_at
+content_type nullable
+content_id nullable
+campaign_id nullable
+creative_id nullable
+placement nullable
+metadata jsonb nullable
+
+PII 저장 금지.
+
+필요 index 최소:
+
+(event_type, occurred_at)
+(user_id, event_type, occurred_at)
+(creative_id, event_type, occurred_at)
+
+기존 migration convention 사용.
+
+ensureExtraTables에 임의 startup DDL을 추가하기보다
+Repository의 정식 migration 방식이 존재하면 그것을 우선.
+
+안전 확인 후 적용.
+
+━━━━━━━━━━━━━━━━━━━━
+3. APP_SESSION
+━━━━━━━━━━━━━━━━━━━━
+
+APP_SESSION을 analytics_events에 기록.
+
+event_logs에는 analytics용 APP_SESSION을
+새로 쓰지 말 것.
+
+중요:
+parent-login 성공 = session과 완전히 동일하지 않음.
+
+현재 앱 구조에서
+안전하게 앱 bootstrap/foreground를 잡을 수 있으면 그곳 사용.
+
+작업량이 커지면 현재 로그인 hook은 유지 가능하나
+명칭/의미를 정확히 문서화:
+
+LOGIN_SESSION_START
+
+같은 별도 event가 더 정확한지 검토.
+
+APP_SESSION이라고 부를 경우
+실제 session contract를 만족해야 함.
+
+중복 폭증 방지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. AD_IMPRESSION 의미 수정
+━━━━━━━━━━━━━━━━━━━━
+
+GET /parent/ad-slot 호출 자체를
+AD_IMPRESSION으로 기록 금지.
+
+API fetch ≠ 실제 impression.
+
+GET /parent/ad-slot:
+creative 반환만.
+
+ParentAdBanner에서 creative가
+실제로 렌더된 후
+impression endpoint/hook을 1회 호출.
+
+최소 API 예:
+
+POST /parent/ad-events/impression
+
+실제 route convention 우선.
+
+creative_id
+placement
+
+서버가 유효한 creative인지 확인.
+
+한 렌더에서 중복 impression 폭증 방지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. AD_CLICK + 링크 이동
+━━━━━━━━━━━━━━━━━━━━
+
+사용자가 요구한 핵심 기능.
+
+destination_url 존재 시:
+
+광고 클릭
+→ AD_CLICK 기록
+→ 외부 URL open
+
+destination_url 없으면:
+click navigation 없음.
+
+최소 API/hook:
+
+POST /parent/ad-events/click
+
+creative_id
+placement
+
+analytics_events에 저장.
+
+URL 안전성:
+http/https만 허용.
+javascript:, file:, custom malicious scheme 차단.
+
+━━━━━━━━━━━━━━━━━━━━
+6. CREATIVE 렌더링 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 동작을 확인하고 부족한 부분만 최소 수정.
+
+반드시 실제 지원:
+
+TEXT
+IMAGE
+IMAGE_WITH_TEXT
+
+IMAGE:
+image_url 렌더.
+
+IMAGE_WITH_TEXT:
+image + headline/body.
+
+TEXT:
+text only.
+
+광고 없으면:
+ParentAdBanner = null.
+
+여러 active creative:
+API/DB는 여러 개 저장 가능해야 함.
+
+현재 한 placement에서 한 개만 반환해도 됨.
+향후 rotation 가능 구조 유지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. EFFECT
+━━━━━━━━━━━━━━━━━━━━
+
+현재 field만 있고 실제 효과가 없다면
+가짜 지원처럼 표시하지 말 것.
+
+이번 최소 구현:
+
+NONE 필수.
+
+FADE가 React Native 기본 기능으로
+작게 구현 가능하면 FADE까지.
+
+SLIDE/CAROUSEL/ANIMATED가 미구현이면
+SuperAdmin에서:
+
+"준비중"
+
+또는 선택 불가 처리.
+
+DB 값만 저장되고 실제 효과가 없는 상태를
+지원 완료라고 표시 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+8. SUPER ADMIN DASHBOARD
+━━━━━━━━━━━━━━━━━━━━
+
+실제 숫자:
+
+전체/활성 수영장
+BASIC/X
+학생
+parent
+AI usage
+
+유지.
+
+DAU/WAU/MAU:
+
+analytics_events가 충분히 쌓인 이후 계산.
+
+초기에는:
+
+status = COLLECTING
+value = null
+
+event_logs proxy 제거.
+
+광고:
+
+Creative 등록 수 정도는 실제값 가능.
+
+Impressions/Clicks/CTR:
+analytics_events가 생긴 이후 실제 값만.
+
+데이터 없으면 0 또는 "데이터 없음"은 가능하나
+"실제 캠페인 성과 0"과 구분할 것.
+
+━━━━━━━━━━━━━━━━━━━━
+9. TEST
+━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+A.
+event_logs를 MAU source로 사용하지 않음
+
+B.
+APP_SESSION 전용 analytics storage 저장
+
+C.
+GET ad-slot만 호출
+→ impression 증가하지 않음
+
+D.
+banner render impression
+→ AD_IMPRESSION 1회
+
+E.
+중복 render 방어
+
+F.
+광고 click
+→ AD_CLICK 기록
+
+G.
+destination_url
+→ http/https open 가능
+
+H.
+위험 URL
+→ 차단
+
+I.
+TEXT 렌더
+
+J.
+IMAGE 렌더
+
+K.
+IMAGE_WITH_TEXT 렌더
+
+L.
+creative 없음
+→ banner null
+
+M.
+parent만 ad slot/event 접근 가능
+기존 auth convention 확인
+
+N.
+SuperAdmin creative CRUD regression 없음
+
+O.
+WP14/WP15 regression 없음
+
+━━━━━━━━━━━━━━━━━━━━
+10. PRODUCTION
+━━━━━━━━━━━━━━━━━━━━
+
+가짜 campaign/impression/click 생성 금지.
+
+실제 Parent 앱 사용으로만
+analytics event 생성 가능.
+
+Migration이 있으면
+Production 적용 결과 확인.
+
+Health:
+200
+
+startup crash 없음.
+
+━━━━━━━━━━━━━━━━━━━━
+11. DEPLOY
+━━━━━━━━━━━━━━━━━━━━
+
+Server 변경:
+Render.
+
+Parent app 변경:
+production OTA.
+
+Worker 변경:
+재배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+12. FINAL
+━━━━━━━━━━━━━━━━━━━━
+
+제출:
+
+1. analytics_events schema
+2. event_logs analytics 의존 제거 결과
+3. APP_SESSION 실제 trigger
+4. impression 실제 trigger
+5. click/link 실제 trigger
+6. TEXT/IMAGE/IMAGE_WITH_TEXT 지원
+7. effect 실제 지원 범위
+8. Dashboard 실제/placeholder 지표
+9. tests
+10. commit/origin
+11. Render
+12. OTA
+13. Production runtime
+
+성공 시:
+
+APP_SESSION_ANALYTICS_FOUNDATION_READY ✅
+SUPER_ADMIN_AD_DASHBOARD_SKELETON_READY ✅
+PARENT_AD_PLACEMENT_READY ✅
+AD_IMPRESSION_MEASUREMENT_READY ✅
+AD_CLICK_MEASUREMENT_READY ✅
+
+WP15.5-B_CLOSED ✅
+WP15.5-C_CLOSED ✅
+
+그리고:
+
+AD_TARGETING_ENGINE = DEFERRED
+AD_DELIVERY_ENGINE = DEFERRED
+AD_BILLING = DEFERRED
+
+STOP.
+
+커리큘럼 검색 / 성장리포트 자동 시작 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
