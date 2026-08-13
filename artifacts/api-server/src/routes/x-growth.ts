@@ -22,6 +22,8 @@ import { requireAuth, requireXMode, type AuthRequest } from "../middlewares/auth
 import {
   getStudentGrowthEvents,
   getGrowthEventById,
+  reviewGrowthEvent,
+  ReviewConflictError,
 } from "../lib/growth-event-service.js";
 
 const router = Router();
@@ -193,6 +195,79 @@ router.get(
       return res.json({ event });
     } catch (err: any) {
       console.error(`[x-growth] DETAIL_ERROR student=${studentId} event=${eventId}`, err?.message ?? err);
+      return res.status(500).json({ error: "internal_server_error" });
+    }
+  },
+);
+
+// ── PATCH /x-growth/students/:studentId/events/:eventId/review ───────────────
+//
+// 권한: teacher / pool_admin 만. parent 및 기타 역할 → 403.
+// body: { action: "accept" | "reject" }
+// transition: PENDING_REVIEW → TEACHER_ACCEPTED / TEACHER_REJECTED
+//   idempotent: 동일 결과 재요청 → 200 { updated: false }
+//   is_invalidated=true → 404
+//   PENDING_REVIEW 아닌 상태에 반대 방향 시도 → 409
+//
+router.patch(
+  "/x-growth/students/:studentId/events/:eventId/review",
+  requireAuth as any,
+  requireXMode as any,
+  async (req: Request, res: Response) => {
+    const authReq   = req as AuthRequest;
+    const studentId = String(req.params.studentId);
+    const eventId   = String(req.params.eventId);
+
+    // 권한: teacher / pool_admin 만
+    const role = authReq.user!.role;
+    if (role !== "teacher" && role !== "pool_admin") {
+      return res.status(403).json({ error: "review_not_allowed", message: "승인/거절 권한이 없습니다." });
+    }
+
+    // body.action 검증 — 클라이언트가 status 문자열을 직접 보내는 구조 금지
+    const action = (req as any).body?.action;
+    if (action !== "accept" && action !== "reject") {
+      return res.status(400).json({ error: "invalid_action", message: "action은 accept 또는 reject이어야 합니다." });
+    }
+
+    try {
+      const poolId = await getRequesterPoolId(authReq);
+      if (!poolId) {
+        return res.status(403).json({ error: "pool_not_found" });
+      }
+
+      const belongs = await verifyStudentInPool(studentId, poolId);
+      if (!belongs) {
+        return res.status(403).json({ error: "student_not_in_pool" });
+      }
+
+      const result = await reviewGrowthEvent({
+        db:             superAdminDb,
+        poolId,
+        studentId,
+        eventId,
+        action,
+        reviewerUserId: authReq.user!.userId,
+      });
+
+      if (!result) {
+        return res.status(404).json({ error: "event_not_found" });
+      }
+
+      return res.json({
+        success:         true,
+        updated:         result.updated,
+        previous_status: result.previousStatus,
+        new_status:      result.newStatus,
+      });
+    } catch (err: any) {
+      if (err instanceof ReviewConflictError) {
+        if (err.code === "invalidated") {
+          return res.status(404).json({ error: "event_invalidated", message: err.message });
+        }
+        return res.status(409).json({ error: "invalid_transition", message: err.message });
+      }
+      console.error(`[x-growth] REVIEW_ERROR event=${eventId}`, err?.message ?? err);
       return res.status(500).json({ error: "internal_server_error" });
     }
   },

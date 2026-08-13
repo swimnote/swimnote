@@ -1,5 +1,5 @@
 /**
- * (teacher)/x-growth.tsx — SWIMNOTE X 성장판 (teacher) WP9
+ * (teacher)/x-growth.tsx — SWIMNOTE X 성장판 (teacher) WP9 / WP13
  *
  * XModeGuard 보호 유지.
  * 구조:
@@ -8,7 +8,7 @@
  *   3. Growth Event 목록 (FlatList + 무한스크롤 + pull-to-refresh)
  *   4. Event 탭 → GrowthEventDetail 모달
  *
- * READ ONLY — 승인/거절 없음, write 없음.
+ * WP13: teacher 승인/거절 지원. GrowthEventCard/Detail에 review props 전달.
  */
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -60,6 +60,9 @@ export default function TeacherXGrowthScreen() {
 
   const [detailEventId, setDetailEventId] = useState<string | null>(null);
 
+  // WP13: review 처리 중인 eventId
+  const [reviewingEventId, setReviewingEventId] = useState<string | null>(null);
+
   const {
     events, loadState, hasMore, refreshing, errorCode,
     loadMore, refresh,
@@ -89,6 +92,27 @@ export default function TeacherXGrowthScreen() {
   const handleEventPress = useCallback((ev: GrowthEvent) => {
     setDetailEventId(ev.event_id);
   }, []);
+
+  // WP13: card 버튼 → PATCH API → 성공 시 목록 refresh
+  const handleReview = useCallback(async (eventId: string, action: "accept" | "reject") => {
+    if (!token || !selectedStu || reviewingEventId) return;
+    setReviewingEventId(eventId);
+    try {
+      const res = await apiRequest(
+        token,
+        `/x-growth/students/${selectedStu.id}/events/${eventId}/review`,
+        { method: "PATCH", body: JSON.stringify({ action }) },
+      );
+      if (res.ok) refresh();
+    } catch {
+      // 실패: 원래 상태 유지
+    } finally {
+      setReviewingEventId(null);
+    }
+  }, [token, selectedStu, reviewingEventId, refresh]);
+
+  // WP13: Detail 모달 review 성공 콜백
+  const handleReviewSuccess = useCallback(() => refresh(), [refresh]);
 
   const renderFooter = () => {
     if (!hasMore || loadState !== "success") return null;
@@ -227,17 +251,25 @@ export default function TeacherXGrowthScreen() {
             onEndReached={() => { if (hasMore && loadState === "success") loadMore(); }}
             onEndReachedThreshold={0.3}
             renderItem={({ item }) => (
-              <GrowthEventCard event={item} onPress={handleEventPress} />
+              <GrowthEventCard
+                event={item}
+                onPress={handleEventPress}
+                showReviewButtons
+                onReview={handleReview}
+                reviewingId={reviewingEventId}
+              />
             )}
           />
         )}
 
-        {/* 상세 모달 */}
+        {/* 상세 모달 — WP13: canReview=true (teacher) */}
         <GrowthEventDetail
           visible={detailEventId !== null}
           eventId={detailEventId}
           studentId={selectedStu?.id ?? null}
           onClose={() => setDetailEventId(null)}
+          canReview
+          onReviewSuccess={handleReviewSuccess}
         />
       </View>
     </XModeGuard>

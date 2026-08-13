@@ -384,3 +384,132 @@ export async function getGrowthEventById(params: {
     curriculum_title:      r.curriculum_title      ?? null,
   };
 }
+
+// ── REVIEW LAYER (WP13) ──────────────────────────────────────────────────────
+
+/**
+ * ReviewConflictError — review 불가 상태 오류
+ *  code "invalidated"        → is_invalidated=true event
+ *  code "invalid_transition" → PENDING_REVIEW 아닌 event에 반대 방향 변경 시도
+ */
+export class ReviewConflictError extends Error {
+  code: "invalidated" | "invalid_transition";
+  constructor(code: "invalidated" | "invalid_transition", message: string) {
+    super(message);
+    this.name  = "ReviewConflictError";
+    this.code  = code;
+  }
+}
+
+export interface ReviewGrowthEventResult {
+  updated:        boolean;
+  previousStatus: string;
+  newStatus:      string;
+}
+
+/**
+ * growth_event 승인/거절 처리 (WP13).
+ *
+ * 허용 transition:
+ *   PENDING_REVIEW → TEACHER_ACCEPTED  (action="accept")
+ *   PENDING_REVIEW → TEACHER_REJECTED  (action="reject")
+ *   idempotent: 동일 결과 재요청 → updated=false, 성공 반환
+ *
+ * 차단:
+ *   is_invalidated=true              → ReviewConflictError("invalidated")
+ *   currentStatus !== PENDING_REVIEW → ReviewConflictError("invalid_transition")
+ *
+ * audit_logs: 상태 변경 시 기록. 실패 시 warn only (review 자체는 유지).
+ * PII 금지: 학생명/일지 본문 로그 없음.
+ */
+export async function reviewGrowthEvent(params: {
+  db:             any;
+  poolId:         string;
+  studentId:      string;
+  eventId:        string;
+  action:         "accept" | "reject";
+  reviewerUserId: string;
+}): Promise<ReviewGrowthEventResult | null> {
+  const { db, poolId, studentId, eventId, action, reviewerUserId } = params;
+
+  const newStatus = action === "accept" ? "TEACHER_ACCEPTED" : "TEACHER_REJECTED";
+
+  // 1. event 조회
+  const fetchRes = await db.execute(sql`
+    SELECT id, growth_match_status, is_invalidated
+    FROM growth_events
+    WHERE id               = ${eventId}
+      AND student_id       = ${studentId}
+      AND swimming_pool_id = ${poolId}
+    LIMIT 1
+  `);
+  const row = (fetchRes.rows as any[])[0];
+  if (!row) return null;  // 404
+
+  // 2. is_invalidated 차단
+  if (Boolean(row.is_invalidated)) {
+    throw new ReviewConflictError("invalidated", "무효화된 이벤트는 검토할 수 없습니다.");
+  }
+
+  const currentStatus: string = row.growth_match_status;
+
+  // 3. idempotent — 동일 결과 재요청
+  if (currentStatus === newStatus) {
+    return { updated: false, previousStatus: currentStatus, newStatus };
+  }
+
+  // 4. transition 허용: PENDING_REVIEW 만
+  if (currentStatus !== "PENDING_REVIEW") {
+    throw new ReviewConflictError(
+      "invalid_transition",
+      `${currentStatus} 상태에서는 review 변경이 불가합니다.`,
+    );
+  }
+
+  const now = new Date().toISOString();
+
+  // 5. UPDATE
+  await db.execute(sql`
+    UPDATE growth_events
+    SET growth_match_status = ${newStatus}::growth_match_status_enum,
+        reviewed_by         = ${reviewerUserId},
+        reviewed_at         = ${now}::timestamptz,
+        updated_at          = NOW()
+    WHERE id               = ${eventId}
+      AND swimming_pool_id = ${poolId}
+  `);
+
+  // 6. audit_logs (실패해도 review 자체는 유지)
+  try {
+    const versionRes = await db.execute(sql`
+      SELECT next_audit_version('growth_event', ${eventId}) AS v
+    `);
+    const version = (versionRes.rows[0] as any)?.v ?? 1;
+
+    await db.execute(sql`
+      INSERT INTO audit_logs (
+        entity_type, entity_id, entity_version,
+        action, actor_type, actor_id, pool_id,
+        before_data, after_data, reason,
+        request_id, correlation_id, ip_hash
+      ) VALUES (
+        'growth_event', ${eventId}, ${version},
+        ${action === "accept" ? "review_accepted" : "review_rejected"},
+        'user', ${reviewerUserId}, ${poolId},
+        ${JSON.stringify({ status: currentStatus, student_id: studentId })}::jsonb,
+        ${JSON.stringify({ status: newStatus, reviewed_by: reviewerUserId, reviewed_at: now })}::jsonb,
+        'teacher_review',
+        NULL, NULL, NULL
+      )
+    `);
+  } catch (auditErr: any) {
+    console.warn("[growth-review] audit_log 기록 실패:", auditErr.message);
+  }
+
+  console.log(
+    `[growth-review] ${action.toUpperCase()}: event=${eventId}` +
+    ` pool=${poolId} status: ${currentStatus} → ${newStatus} by=${reviewerUserId}`,
+  );
+
+  return { updated: true, previousStatus: currentStatus, newStatus };
+}

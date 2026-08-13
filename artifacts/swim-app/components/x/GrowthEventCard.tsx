@@ -1,15 +1,21 @@
 /**
- * GrowthEventCard — WP9
+ * GrowthEventCard — WP9 / WP13
  *
  * Growth Event 목록 카드 컴포넌트.
  *
- * - API contract 기반 필드만 표시 (가짜 데이터 생성 금지)
- * - status badge: enum → 한국어 label 변환
- * - curriculum_title: null이면 표시 안 함
- * - confidence: null이면 표시 안 함
+ * WP13 추가:
+ *   - showReviewButtons=true + status=PENDING_REVIEW 일 때 [승인] [제외] 버튼 표시
+ *   - parent에는 showReviewButtons 전달 금지 (화면 레이어에서 제어)
+ *   - reviewingId === event_id 이면 버튼 disabled/loading
  */
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import {
@@ -19,23 +25,31 @@ import {
   STATUS_COLORS,
 } from "@/hooks/useGrowthEvents";
 
-const C = Colors.light;
+const C          = Colors.light;
 const MINT       = "#2EC4B6";
 const MINT_LIGHT = "#E6FAF8";
 const NAVY       = "#0F172A";
+const GREEN      = "#10B981";
+const RED        = "#EF4444";
 
 interface Props {
-  event:   GrowthEvent;
-  onPress: (event: GrowthEvent) => void;
+  event:              GrowthEvent;
+  onPress:            (event: GrowthEvent) => void;
+  /** teacher/admin 화면에서만 true 전달. parent는 반드시 생략(false). */
+  showReviewButtons?: boolean;
+  /** 부모 화면에서 PATCH API 처리. eventId + action 전달. */
+  onReview?:          (eventId: string, action: "accept" | "reject") => void;
+  /** 현재 처리 중인 eventId. 이 값이 event.event_id와 같으면 버튼 disabled. */
+  reviewingId?:       string | null;
 }
 
 function _formatDate(iso: string): string {
   try {
-    const d = new Date(iso);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const d   = new Date(iso);
+    const y   = d.getFullYear();
+    const m   = String(d.getMonth() + 1).padStart(2, "0");
     const day = String(d.getDate()).padStart(2, "0");
-    const h = String(d.getHours()).padStart(2, "0");
+    const h   = String(d.getHours()).padStart(2, "0");
     const min = String(d.getMinutes()).padStart(2, "0");
     return `${y}.${m}.${day} ${h}:${min}`;
   } catch {
@@ -43,10 +57,20 @@ function _formatDate(iso: string): string {
   }
 }
 
-export function GrowthEventCard({ event, onPress }: Props) {
+export function GrowthEventCard({
+  event,
+  onPress,
+  showReviewButtons = false,
+  onReview,
+  reviewingId = null,
+}: Props) {
   const statusLabel = STATUS_LABELS[event.status] ?? event.status;
   const statusColor = STATUS_COLORS[event.status] ?? { bg: "#F1F5F9", text: "#64748B" };
   const sourceLabel = SOURCE_LABELS[event.source] ?? event.source;
+
+  const isPending  = event.status === "PENDING_REVIEW";
+  const isReviewing = reviewingId === event.event_id;
+  const showBtns   = showReviewButtons && isPending && !!onReview;
 
   return (
     <Pressable
@@ -87,10 +111,38 @@ export function GrowthEventCard({ event, onPress }: Props) {
         </View>
       ) : null}
 
-      {/* 화살표 */}
-      <View style={s.arrowWrap}>
-        <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
-      </View>
+      {/* WP13: PENDING_REVIEW 검토 버튼 */}
+      {showBtns ? (
+        <View style={s.reviewRow}>
+          {isReviewing ? (
+            <ActivityIndicator size="small" color={MINT} style={{ marginVertical: 4 }} />
+          ) : (
+            <>
+              <Pressable
+                style={[s.reviewBtn, s.acceptBtn]}
+                disabled={isReviewing}
+                onPress={(e) => { e.stopPropagation?.(); onReview!(event.event_id, "accept"); }}
+              >
+                <LucideIcon name="check" size={13} color="#fff" />
+                <Text style={s.reviewBtnTxt}>승인</Text>
+              </Pressable>
+              <Pressable
+                style={[s.reviewBtn, s.rejectBtn]}
+                disabled={isReviewing}
+                onPress={(e) => { e.stopPropagation?.(); onReview!(event.event_id, "reject"); }}
+              >
+                <LucideIcon name="x" size={13} color="#fff" />
+                <Text style={s.reviewBtnTxt}>제외</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      ) : (
+        /* 화살표 (review 버튼이 없을 때만) */
+        <View style={s.arrowWrap}>
+          <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -167,6 +219,27 @@ const s = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Pretendard-SemiBold",
     color: NAVY,
+  },
+  // WP13 review buttons
+  reviewRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4,
+  },
+  reviewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  acceptBtn: { backgroundColor: GREEN },
+  rejectBtn: { backgroundColor: RED },
+  reviewBtnTxt: {
+    fontSize: 13,
+    fontFamily: "Pretendard-SemiBold",
+    color: "#fff",
   },
   arrowWrap: {
     position: "absolute",

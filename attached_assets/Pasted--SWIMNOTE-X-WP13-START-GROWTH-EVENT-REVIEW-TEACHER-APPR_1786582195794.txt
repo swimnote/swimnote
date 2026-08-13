@@ -1,0 +1,558 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP13 START
+GROWTH EVENT REVIEW / TEACHER APPROVAL
+CREDIT SAVING MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+X_MODE_CORE_RUNTIME_READY ✅
+WP12 = DEFERRED_AFTER_SKELETON ✅
+
+WP13만 진행.
+WP14 자동 시작 금지.
+
+전체 Repository 전수조사 금지.
+growth_events / x-growth / review 관련 파일만 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+1. WP13 목적
+━━━━━━━━━━━━━━━━━━━━
+
+WP7에서 생성된:
+
+growth_match_status = PENDING_REVIEW
+
+Growth Event 후보를
+선생님/관리자가 확인한 후:
+
+승인
+→ TEACHER_ACCEPTED
+
+제외
+→ TEACHER_REJECTED
+
+할 수 있게 한다.
+
+중요:
+
+AI가 최종 성장 사실을 자동 확정하는 구조 금지.
+
+PENDING_REVIEW
+→ 사람 검토
+→ ACCEPT / REJECT
+
+가 핵심.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 기존 구현 먼저 확인
+━━━━━━━━━━━━━━━━━━━━
+
+관련 파일만 확인:
+
+- growth_events schema
+- WP8 growth read API/service
+- WP9 x-growth UI
+- growth_match_status enum
+- existing PATCH/update route 여부
+- teacher/pool authorization helper
+- audit_logs
+- WP10 trace/event logging
+
+짧게 보고:
+
+A. 이미 존재하는 review 관련 코드
+B. 필요한 server API
+C. 필요한 app UI
+D. 수정 파일
+
+기존 구조 재사용.
+
+━━━━━━━━━━━━━━━━━━━━
+3. STATUS SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━
+
+실제 enum:
+
+AUTO_ACCEPTED
+PENDING_REVIEW
+TEACHER_ACCEPTED
+TEACHER_REJECTED
+DISCARDED
+
+기존 DB enum 그대로 사용.
+
+새 status 생성 금지.
+
+이번 WP의 직접 변경 대상:
+
+PENDING_REVIEW
+→ TEACHER_ACCEPTED
+
+PENDING_REVIEW
+→ TEACHER_REJECTED
+
+그 외 transition은
+기존 명시 설계가 없으면 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 승인 가능한 사람
+━━━━━━━━━━━━━━━━━━━━
+
+서버에서 권한 검증 필수.
+
+기본:
+
+teacher
+pool_admin
+
+자기 수영장 학생의 event만 검토 가능.
+
+super_admin은 기존 정책상 허용되는 경우만.
+
+parent:
+승인/거절 권한 없음.
+
+student_id/event_id를 바꿔
+다른 pool event를 수정할 수 있으면 FAIL.
+
+기존 swimming_pool_id 검증 재사용.
+
+━━━━━━━━━━━━━━━━━━━━
+5. REVIEW API
+━━━━━━━━━━━━━━━━━━━━
+
+WP8 read API를 유지하고
+최소 update endpoint만 추가.
+
+실제 route convention 우선.
+
+개념:
+
+PATCH
+/x-growth/students/:studentId/events/:eventId/review
+
+body:
+{
+  action: "accept" | "reject"
+}
+
+또는 실제 기존 API style.
+
+서버에서 변환:
+
+accept
+→ TEACHER_ACCEPTED
+
+reject
+→ TEACHER_REJECTED
+
+클라이언트가 status 문자열을
+아무 값이나 직접 보내는 구조 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. TRANSITION VALIDATION
+━━━━━━━━━━━━━━━━━━━━
+
+기본 허용:
+
+PENDING_REVIEW → ACCEPTED/REJECTED
+
+이미:
+
+TEACHER_ACCEPTED
+TEACHER_REJECTED
+DISCARDED
+
+인 이벤트를 또 임의 변경하지 않는다.
+
+재요청 시:
+
+동일 결과라면 idempotent 처리 가능.
+
+예:
+TEACHER_ACCEPTED에 accept 재요청
+→ 성공/unchanged
+
+반대 방향 재변경은
+설계가 없으면 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. INVALIDATED EVENT
+━━━━━━━━━━━━━━━━━━━━
+
+is_invalidated=true인 event:
+
+review 금지.
+
+404 또는 적절한 기존 error contract 사용.
+
+무효화된 일지 기반 성장 이벤트가
+다시 승인되면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━
+8. REVIEW METADATA
+━━━━━━━━━━━━━━━━━━━━
+
+실제 growth_events schema에
+다음 필드가 이미 있으면 사용:
+
+reviewed_by
+reviewed_at
+review_reason
+updated_at
+
+없는 컬럼을 임의 생성 금지.
+
+현재 schema에 reviewer/time 기록 필드가 없다면:
+
+audit_logs에 반드시 기록.
+
+DB migration이 정말 필요한지
+먼저 확인.
+
+리포트 신뢰성을 위해
+"누가 언제 승인했는가" 추적은 필요하다.
+
+현재 schema/audit로 해결 가능하면
+migration 없음.
+
+불가능하면 STOP 후 보고.
+
+━━━━━━━━━━━━━━━━━━━━
+9. AUDIT
+━━━━━━━━━━━━━━━━━━━━
+
+승인/거절은 감사 기록 남김.
+
+기존 audit_logs 패턴 재사용.
+
+최소:
+
+event_id
+student_id
+pool_id
+actor_user_id
+old_status
+new_status
+timestamp
+
+가능한 이벤트:
+
+GROWTH_EVENT_ACCEPTED
+GROWTH_EVENT_REJECTED
+
+기존 naming convention 있으면 그것 사용.
+
+학생 이름/일지 본문 로그 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. UI 위치
+━━━━━━━━━━━━━━━━━━━━
+
+WP9의 기존 X Growth 화면 재사용.
+
+새 성장 화면을 또 만들지 말 것.
+
+teacher/admin Growth Event card에서:
+
+PENDING_REVIEW일 때만:
+
+[승인]
+[제외]
+
+버튼 노출.
+
+ACCEPTED/REJECTED:
+상태 badge만 표시.
+
+parent x-growth:
+review 버튼 절대 노출 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. REVIEW UX
+━━━━━━━━━━━━━━━━━━━━
+
+승인:
+
+버튼 탭
+→ 최소 confirmation 또는 기존 UX convention
+→ API
+→ 성공
+→ 해당 card status 즉시 업데이트
+
+제외:
+동일.
+
+중복 탭 방지.
+
+처리 중:
+button disabled/loading.
+
+실패:
+원래 상태 유지
++ error/retry.
+
+optimistic update를 쓰더라도
+실패 시 rollback 필수.
+
+━━━━━━━━━━━━━━━━━━━━
+12. EMPTY / FILTER
+━━━━━━━━━━━━━━━━━━━━
+
+기존 WP9 status filter 활용.
+
+PENDING_REVIEW만 선택 가능해야 함.
+
+필요하면:
+
+"검토 대기"
+
+필터가 기본 review 작업에 편하도록 연결.
+
+하지만 새 복잡한 dashboard 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+13. 승인 = 분석 확정 아님
+━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+TEACHER_ACCEPTED 의미:
+
+"선생님이 이 성장 이벤트 후보를
+실제 수업 사실로 인정함."
+
+아직 의미하지 않는 것:
+
+- 성장 점수
+- 우수/미흡 판정
+- 리포트 등급
+- 심리 평가
+- 향상률
+- AI 최종 분석
+
+그건 후속 리포트 단계.
+
+WP13은 사실 검토 계층.
+
+━━━━━━━━━━━━━━━━━━━━
+14. AUTO_ACCEPTED
+━━━━━━━━━━━━━━━━━━━━
+
+현재 enum에 AUTO_ACCEPTED가 있어도
+이번 WP에서 새 자동승인 로직 만들지 말 것.
+
+WP7 신규 event는
+PENDING_REVIEW 원칙 유지.
+
+AUTO_ACCEPTED 기존 데이터가 있으면
+표시만.
+
+━━━━━━━━━━━━━━━━━━━━
+15. CURRENT PRODUCTION EMPTY STATE
+━━━━━━━━━━━━━━━━━━━━
+
+현재 Production growth_events가 0일 가능성이 있음.
+
+새 운영 데이터를 만들지 말 것.
+
+따라서:
+
+review API/화면은
+integration fixture/mock으로 검증.
+
+Production에서는:
+
+- auth
+- endpoint
+- empty state
+- app 진입
+
+정도만 확인.
+
+NO_SAFE_REVIEW_CONTEXT는
+실패로 취급하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+16. TEST CASES
+━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+A.
+PENDING_REVIEW + accept
+→ TEACHER_ACCEPTED
+
+B.
+PENDING_REVIEW + reject
+→ TEACHER_REJECTED
+
+C.
+accept 재요청
+→ duplicate side effect 없음
+
+D.
+이미 reject된 event에 accept
+→ 정책대로 차단
+
+E.
+is_invalidated=true
+→ review 차단
+
+F.
+다른 pool teacher
+→ 403
+
+G.
+parent
+→ review API 차단
+
+H.
+audit log 생성
+
+I.
+API 실패
+→ UI 원래 상태 유지
+
+J.
+teacher/admin UI
+→ pending 버튼 표시
+
+K.
+parent UI
+→ 버튼 없음
+
+L.
+기존 WP8 read / WP9 list regression 없음
+
+━━━━━━━━━━━━━━━━━━━━
+17. CODE SCOPE
+━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+growth review service
+PATCH review route
+WP9 growth card/button 수정
+audit 연결
+관련 tests
+
+금지:
+
+WP14 Audit Viewer
+WP15 통계
+WP16 Report
+Growth scoring
+AI 분석
+커리큘럼 검색
+DB 대량 작업
+Backup/RLS
+Scheduler
+Makeup
+Billing
+
+━━━━━━━━━━━━━━━━━━━━
+18. DB MIGRATION GATE
+━━━━━━━━━━━━━━━━━━━━
+
+먼저 current growth_events schema/audit 구조로
+review actor/time을 추적 가능한지 확인.
+
+가능:
+→ migration 없음.
+
+불가능:
+→ 임의 migration 금지.
+→ 정확히 부족한 필드와 이유만 보고 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+19. TEST / GIT
+━━━━━━━━━━━━━━━━━━━━
+
+관련 tests만 실행.
+
+WP13 신규 오류 = 0.
+
+commit:
+
+feat(xmode): add growth event review
+
+push origin.
+
+HEAD = origin 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+20. DEPLOY
+━━━━━━━━━━━━━━━━━━━━
+
+Server 변경:
+→ Render deploy.
+
+App 변경:
+→ iOS production OTA.
+
+runtimeVersion 기존 기준.
+
+Worker 변경 없음:
+→ worker 재배포 금지.
+
+DB migration 없음이면:
+→ DB 작업 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+21. RUNTIME
+━━━━━━━━━━━━━━━━━━━━
+
+배포 후:
+
+/api/health 200
+/api/healthz 200
+
+Growth read endpoint 정상.
+
+Production 실제 event가 없다면
+억지 review write 금지.
+
+실제 safe fixture가 없으면:
+
+NO_SAFE_REVIEW_CONTEXT
+
+기록.
+
+앱:
+
+X Growth 진입
+empty 정상
+review UI fixture 테스트 정상.
+
+━━━━━━━━━━━━━━━━━━━━
+22. FINAL REPORT
+━━━━━━━━━━━━━━━━━━━━
+
+짧게:
+
+1. 기존 review 상태
+2. review API
+3. status transition
+4. authorization
+5. reviewer/audit 추적
+6. UI
+7. changed files
+8. tests
+9. commit/origin
+10. Render
+11. OTA
+12. Production runtime
+13. Production review write 여부
+14. regression
+15. final verdict
+
+성공 시:
+
+WP13_GROWTH_REVIEW_VERIFIED ✅
+
+STOP.
+
+WP14 자동 시작 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
