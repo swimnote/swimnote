@@ -524,15 +524,17 @@ router.post("/parent-login", async (req, res) => {
     }
     const token = signToken({ userId: matched.id, role: "parent_account", poolId: matched.swimming_pool_id });
 
-    // WP15.5-B: APP_SESSION 최소 수집 — parent 로그인 성공 시 event_logs 기록
-    logEvent({
-      pool_id:    matched.swimming_pool_id ?? "system",
-      category:   "로그인",
-      actor_id:   matched.id,
-      actor_name: matched.name ?? matched.login_id,
-      description: `학부모 앱 세션 — ${matched.name ?? matched.login_id}`,
-      metadata: { event_type: "APP_SESSION", role: "parent_account" },
-    }).catch(() => {});
+    // WP15.5-B/C Fix: LOGIN_SESSION_START → analytics_events (event_logs 사용 금지)
+    // "parent-login 성공" = session proxy. 중복 방지는 rate-limit 수준 (로그인 자체가 트리거).
+    import("../lib/analytics-logger.js").then(({ logAnalyticsEvent }) =>
+      logAnalyticsEvent({
+        event_type:       "LOGIN_SESSION_START",
+        user_id:          matched.id,
+        swimming_pool_id: matched.swimming_pool_id ?? null,
+        role:             "parent_account",
+        metadata:         { source: "parent_login" },
+      }).catch(() => {})
+    ).catch(() => {});
 
     res.json({
       success: true, token,

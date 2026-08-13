@@ -7,8 +7,14 @@ import { api } from "@/lib/api";
 
 const PRIMARY = "#4f46e5";
 const PLACEMENTS = ["PARENT_HOME_BANNER", "PARENT_FEED_INLINE", "PARENT_REPORT", "PARENT_NOTICE"] as const;
+// TEXT/IMAGE/IMAGE_WITH_TEXT: 앱에서 실제 지원.
+// ANIMATED/SLIDESHOW/SHORT_VIDEO: 저장은 가능하나 앱 렌더 미지원 → "준비중" 표시.
 const CREATIVE_TYPES = ["TEXT", "IMAGE", "IMAGE_WITH_TEXT", "ANIMATED", "SLIDESHOW", "SHORT_VIDEO"] as const;
+const SUPPORTED_CREATIVE_TYPES = new Set(["TEXT", "IMAGE", "IMAGE_WITH_TEXT"]);
+
+// NONE/FADE: 앱에서 실제 지원. SLIDE/CAROUSEL: DB 저장만, 앱 효과 없음 → 선택 불가.
 const EFFECT_TYPES = ["NONE", "FADE", "SLIDE", "CAROUSEL"] as const;
+const SUPPORTED_EFFECTS = new Set(["NONE", "FADE"]);
 const AGE_BANDS = ["preschool", "elementary_lower", "elementary_upper", "middle_school_plus"] as const;
 
 interface AdCreative {
@@ -226,8 +232,15 @@ export default function AdCreativeManager() {
             <label className="block text-[12px] font-medium text-[#555] mb-1">Creative 타입</label>
             <select value={F.creative_type} onChange={e => set("creative_type", e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-[#d0d0d0] text-[13px] bg-white text-[#333]">
-              {CREATIVE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              {CREATIVE_TYPES.map(t => (
+                <option key={t} value={t} disabled={!SUPPORTED_CREATIVE_TYPES.has(t)}>
+                  {t}{!SUPPORTED_CREATIVE_TYPES.has(t) ? " (준비중)" : ""}
+                </option>
+              ))}
             </select>
+            {!SUPPORTED_CREATIVE_TYPES.has(F.creative_type) && (
+              <p className="text-[10px] text-amber-600 mt-1">이 타입은 아직 앱에서 렌더링을 지원하지 않습니다.</p>
+            )}
           </div>
 
           {/* Headline */}
@@ -267,8 +280,15 @@ export default function AdCreativeManager() {
             <label className="block text-[12px] font-medium text-[#555] mb-1">Effect</label>
             <select value={F.effect_type} onChange={e => set("effect_type", e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-[#d0d0d0] text-[13px] bg-white text-[#333]">
-              {EFFECT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              {EFFECT_TYPES.map(t => (
+                <option key={t} value={t} disabled={!SUPPORTED_EFFECTS.has(t)}>
+                  {t}{!SUPPORTED_EFFECTS.has(t) ? " (준비중)" : ""}
+                </option>
+              ))}
             </select>
+            {!SUPPORTED_EFFECTS.has(F.effect_type) && (
+              <p className="text-[10px] text-amber-600 mt-1">이 효과는 아직 앱에서 지원하지 않습니다. NONE 또는 FADE를 사용하세요.</p>
+            )}
           </div>
           <div>
             <label className="block text-[12px] font-medium text-[#555] mb-1">표시 순서</label>

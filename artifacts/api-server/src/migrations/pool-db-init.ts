@@ -1346,6 +1346,29 @@ export async function initPoolDb(): Promise<void> {
     END $$;
   `)).catch((e: any) => console.error('[backfill] student_class_history:', e));
 
+  // ─── Analytics Events Table (WP15.5-B/C Fix) ────────────────────────────
+  // event_logs(운영 감사)와 분리된 analytics 전용 테이블.
+  // PII 저장 금지. pool_id/creative_id 등 식별자만 저장.
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS analytics_events (
+      id               text        PRIMARY KEY,
+      event_type       text        NOT NULL,
+      user_id          text,
+      swimming_pool_id text,
+      role             text,
+      occurred_at      timestamptz NOT NULL DEFAULT now(),
+      content_type     text,
+      content_id       text,
+      campaign_id      text,
+      creative_id      text,
+      placement        text,
+      metadata         jsonb
+    );
+    CREATE INDEX IF NOT EXISTS idx_ae_type_time     ON analytics_events (event_type, occurred_at);
+    CREATE INDEX IF NOT EXISTS idx_ae_user_type     ON analytics_events (user_id, event_type, occurred_at);
+    CREATE INDEX IF NOT EXISTS idx_ae_creative_type ON analytics_events (creative_id, event_type, occurred_at);
+  `)).catch((e: any) => console.error('[migration] analytics_events:', e));
+
   // ─── SWIMNOTE X WP1 Migration ─────────────────────────────────────────────
   //
   // 실패 시 throw → initPoolDb 전체 실패.

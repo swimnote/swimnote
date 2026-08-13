@@ -1,12 +1,26 @@
 /**
- * WP15.5-B — SuperAdmin Analytics Dashboard
- * AVAILABLE_NOW 지표 + MAU 프록시 표시
- * 광고 슬롯은 WP15.5-C에서 구현 (현재 Skeleton placeholder)
+ * WP15.5-B/C Fix — SuperAdmin Analytics Dashboard
+ *
+ * - MAU 프록시 (event_logs) 제거
+ * - analytics_events 기반 session_stats: COLLECTING / AVAILABLE
+ * - 광고 Creative 실제 등록 수 표시
+ * - Impressions/Clicks/CTR → analytics_events 데이터 기반 (초기 0 또는 데이터 없음)
  */
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
 const PRIMARY = "#4f46e5";
+
+interface SessionStats {
+  status:         "COLLECTING" | "AVAILABLE";
+  total_sessions: number;
+  note:           string;
+}
+
+interface AdStats {
+  total_creatives:  number;
+  active_creatives: number;
+}
 
 interface AnalyticsOverview {
   platform: {
@@ -26,31 +40,16 @@ interface AnalyticsOverview {
     trial:   number;
     expired: number;
   };
-  mau_proxy: {
-    period:           { from: string; to: string };
-    parent_sessions:  number;
-    teacher_sessions: number;
-    total_sessions:   number;
-    note:             string;
-  };
-}
-
-// ── 날짜 유틸 ─────────────────────────────────────────────────────────
-function isoDate(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
-function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return isoDate(d);
+  session_stats: SessionStats;
+  ad_stats:      AdStats;
 }
 
 // ── KPI 카드 ──────────────────────────────────────────────────────────
 function KpiCard({
-  label, value, sub, color,
-}: { label: string; value: number | string; sub?: string; color?: string }) {
+  label, value, sub, color, dimmed,
+}: { label: string; value: number | string; sub?: string; color?: string; dimmed?: boolean }) {
   return (
-    <div className="bg-white rounded-xl border border-[#ebebeb] px-5 py-4 flex flex-col gap-1 min-w-[140px]">
+    <div className={`bg-white rounded-xl border border-[#ebebeb] px-5 py-4 flex flex-col gap-1 min-w-[140px] ${dimmed ? "opacity-40 select-none" : ""}`}>
       <p className="text-[12px] text-[#888] font-medium">{label}</p>
       <p className="text-[26px] font-bold" style={{ color: color ?? "#0a0a0a" }}>
         {typeof value === "number" ? value.toLocaleString() : value}
@@ -75,38 +74,30 @@ function Section({ title, badge }: { title: string; badge?: string }) {
   );
 }
 
-// ── 광고 슬롯 Skeleton (WP15.5-C 대기) ───────────────────────────────
-function AdSlotPlaceholder({ label }: { label: string }) {
+// ── COLLECTING 배지 ───────────────────────────────────────────────────
+function CollectingBadge({ note }: { note: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-[#d0d0d0] px-5 py-6 flex flex-col items-center gap-2 bg-[#fafafa]">
-      <div className="w-8 h-8 rounded-full bg-[#ebebeb] flex items-center justify-center">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
-          <rect x="3" y="3" width="18" height="18" rx="2"/>
-          <path d="M3 9h18M9 21V9"/>
-        </svg>
-      </div>
-      <p className="text-[12px] font-semibold text-[#aaa]">{label}</p>
-      <p className="text-[11px] text-[#bbb]">WP15.5-C에서 구현 예정</p>
+    <div className="mt-2 px-4 py-3 rounded-lg bg-sky-50 border border-sky-200 flex items-start gap-2">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2" className="mt-0.5 shrink-0">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <p className="text-[11px] text-sky-700">{note}</p>
     </div>
   );
 }
 
 export default function AnalyticsDashboard() {
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
-  const [data, setData]         = useState<AnalyticsOverview | null>(null);
-
-  // 기간 선택 (기본: 최근 30일)
-  const [from, setFrom] = useState(daysAgo(30));
-  const [to,   setTo]   = useState(isoDate(new Date()));
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+  const [data, setData]       = useState<AnalyticsOverview | null>(null);
 
   async function fetch_() {
     setLoading(true);
     setError(null);
     try {
-      const json = await api.get<AnalyticsOverview>(
-        `/super/analytics-overview?from=${from}&to=${to}`,
-      );
+      const json = await api.get<AnalyticsOverview>("/super/analytics-overview");
       setData(json);
     } catch (e: any) {
       setError(e?.message ?? "조회 실패");
@@ -119,7 +110,10 @@ export default function AnalyticsDashboard() {
 
   const p  = data?.platform;
   const s  = data?.subscription;
-  const m  = data?.mau_proxy;
+  const ss = data?.session_stats;
+  const ad = data?.ad_stats;
+
+  const isCollecting = ss?.status === "COLLECTING" || !ss;
 
   return (
     <div className="p-6 max-w-[960px]">
@@ -164,76 +158,49 @@ export default function AnalyticsDashboard() {
         <KpiCard label="전체 학생"     value={p?.total_students  ?? "—"} />
         <KpiCard label="재학 중 학생"  value={p?.active_students ?? "—"} color={PRIMARY} />
         <KpiCard label="전체 학부모"   value={p?.total_parents   ?? "—"} />
-        <KpiCard
-          label="활성 학부모"
-          value={p?.active_parents ?? "—"}
-          sub="is_active=true 기준"
-          color="#0891b2"
-        />
+        <KpiCard label="활성 학부모"   value={p?.active_parents  ?? "—"} sub="is_active=true 기준" color="#0891b2" />
       </div>
 
-      {/* ── MAU 프록시 ─────────────────────────────────────────── */}
-      <Section title="세션 근사값 (MAU 프록시)" badge="NEEDS_EVENT_TRACKING" />
-
-      {/* 기간 선택 */}
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-          className="px-2 py-1.5 rounded-lg border border-[#ebebeb] text-[12px] text-[#333] bg-white" />
-        <span className="text-[12px] text-[#aaa]">~</span>
-        <input type="date" value={to} onChange={e => setTo(e.target.value)}
-          className="px-2 py-1.5 rounded-lg border border-[#ebebeb] text-[12px] text-[#333] bg-white" />
-        <button onClick={fetch_} disabled={loading}
-          className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-white disabled:opacity-50"
-          style={{ background: PRIMARY }}>
-          조회
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <KpiCard
-          label="전체 세션 (근사)"
-          value={m?.total_sessions   ?? "—"}
-          sub={`${from} ~ ${to}`}
-          color={PRIMARY}
-        />
-        <KpiCard
-          label="교사/관리자 세션"
-          value={m?.teacher_sessions ?? "—"}
-          sub="event_logs 로그인 category"
-        />
-        <KpiCard
-          label="학부모 세션"
-          value={m?.parent_sessions  ?? "—"}
-          sub="event_logs 로그인 category"
-        />
-      </div>
-
-      {m && (
-        <div className="mt-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 inline-flex items-start gap-2">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" className="mt-0.5 shrink-0">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-          </svg>
-          <p className="text-[11px] text-amber-700">{m.note}</p>
+      {/* ── 세션 / MAU ─────────────────────────────────────────── */}
+      <Section
+        title={isCollecting ? "세션 지표 (데이터 수집 중)" : "세션 지표"}
+        badge={isCollecting ? "COLLECTING" : "AVAILABLE"}
+      />
+      {isCollecting ? (
+        <CollectingBadge note={ss?.note ?? "analytics_events 수집 중 — 실제 앱 사용으로만 데이터 생성됩니다."} />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <KpiCard
+            label="총 로그인 세션"
+            value={ss?.total_sessions ?? 0}
+            sub="LOGIN_SESSION_START 이벤트 기준"
+            color={PRIMARY}
+          />
         </div>
       )}
+      <p className="text-[11px] text-[#aaa] mt-2">
+        DAU/WAU/MAU는 analytics_events 데이터가 충분히 쌓인 후 계산됩니다.
+        event_logs 기반 근사값은 사용하지 않습니다.
+      </p>
 
-      {/* ── 광고 슬롯 (WP15.5-C 대기) ─────────────────────────── */}
-      <Section title="광고 슬롯 (준비 중)" badge="WP15.5-C" />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <AdSlotPlaceholder label="PARENT_HOME_BANNER" />
-        <AdSlotPlaceholder label="PARENT_FEED_INLINE" />
+      {/* ── 광고 Creative 현황 ─────────────────────────────────── */}
+      <Section title="광고 Creative 현황" badge="AVAILABLE_NOW" />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KpiCard label="전체 Creative"  value={ad?.total_creatives  ?? "—"} />
+        <KpiCard label="활성 Creative"  value={ad?.active_creatives ?? "—"} color="#059669" />
       </div>
 
-      {/* ── AD 지표 (DEFERRED) ─────────────────────────────────── */}
-      <Section title="광고 성과 지표" badge="DEFERRED_AD_SYSTEM" />
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 opacity-40 pointer-events-none select-none">
-        {["Impressions","Unique Reach","Frequency","Clicks","CTR","Conversion"].map(label => (
-          <KpiCard key={label} label={label} value="—" sub="광고 시스템 미구현" />
-        ))}
+      {/* ── 광고 성과 지표 ─────────────────────────────────────── */}
+      <Section title="광고 성과 지표" badge="NEEDS_EVENT_DATA" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <KpiCard label="Impressions" value={0}   sub="analytics_events 기준" />
+        <KpiCard label="Clicks"      value={0}   sub="analytics_events 기준" />
+        <KpiCard label="CTR"         value="—"   sub="데이터 없음" dimmed />
+        <KpiCard label="Conversions" value="—"   sub="DEFERRED" dimmed />
       </div>
       <p className="text-[11px] text-[#bbb] mt-2">
-        광고 캠페인 시스템(ad_campaigns / ad_impressions / ad_clicks) 구현 후 활성화됩니다.
+        Impressions/Clicks는 실제 앱 사용으로만 생성됩니다. 0이면 아직 데이터 없음.
+        CTR/Conversions는 광고 캠페인 시스템 구현 후 활성화됩니다.
       </p>
 
     </div>

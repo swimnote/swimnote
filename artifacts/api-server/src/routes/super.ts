@@ -4045,22 +4045,17 @@ router.post(
   },
 );
 
-// ── WP15.5-B: Analytics Overview ──────────────────────────────────────────────
+// ── WP15.5-B/C Fix: Analytics Overview ────────────────────────────────────────
 // GET /super/analytics-overview
 // AVAILABLE_NOW 지표 (수영장/학생/parent 수, X mode, 구독 breakdown)
-// + MAU 프록시 (event_logs 로그인 category COUNT, approximate)
+// MAU 프록시 제거 — analytics_events 충분히 쌓인 이후 실제값 계산 예정.
 router.get(
   "/super/analytics-overview",
   requireAuth,
   requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const from = (req.query.from as string) || (() => {
-        const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10);
-      })();
-      const to = (req.query.to as string) || new Date().toISOString().slice(0, 10);
-
-      const [poolStats, studentStats, parentStats, mauProxy] = await Promise.all([
+      const [poolStats, studentStats, parentStats, adStats, sessionStats] = await Promise.all([
         // ── 수영장 통계 ───────────────────────────────────────────────────
         superAdminDb.execute(sql`
           SELECT
@@ -4110,39 +4105,30 @@ router.get(
             COUNT(*) FILTER (WHERE COALESCE(is_active, true) = true)::int AS active_parents
           FROM parent_accounts
         `),
-        // ── MAU 프록시 (event_logs 로그인 category, 기간 기반) ────────────
-        // ⚠️  근사값. APP_SESSION 이벤트 구현 전 임시.
-        //     description LIKE '%선생%' → teacher/pool_admin 세션
-        //     description LIKE '%학부모%' → parent 세션
-        superAdminDb.execute(sql`
+        // ── 광고 Creative 수 (실제값) ─────────────────────────────────────
+        db.execute(sql`
           SELECT
-            COUNT(*) FILTER (
-              WHERE category = '로그인'
-                AND (description LIKE '%학부모%' OR description LIKE '%parent%')
-            )::int  AS parent_sessions,
-            COUNT(*) FILTER (
-              WHERE category = '로그인'
-                AND description NOT LIKE '%학부모%'
-                AND description NOT LIKE '%parent%'
-                AND description NOT LIKE '%실패%'
-                AND description NOT LIKE '%오류%'
-            )::int  AS teacher_sessions,
-            COUNT(*) FILTER (
-              WHERE category = '로그인'
-                AND description NOT LIKE '%실패%'
-                AND description NOT LIKE '%오류%'
-            )::int  AS total_sessions
-          FROM event_logs
-          WHERE category = '로그인'
-            AND created_at >= ${from}::date
-            AND created_at <  (${to}::date + INTERVAL '1 day')
+            COUNT(*)::int                                  AS total_creatives,
+            COUNT(*) FILTER (WHERE is_active = true)::int AS active_creatives
+          FROM ad_creatives
+        `),
+        // ── analytics_events 세션 수 (LOGIN_SESSION_START) ────────────────
+        db.execute(sql`
+          SELECT COUNT(*)::int AS total_sessions
+          FROM analytics_events
+          WHERE event_type = 'LOGIN_SESSION_START'
         `),
       ]);
 
       const p  = (poolStats.rows[0]    as any) ?? {};
       const st = (studentStats.rows[0] as any) ?? {};
       const pa = (parentStats.rows[0]  as any) ?? {};
-      const m  = (mauProxy.rows[0]     as any) ?? {};
+      const ad = (adStats.rows[0]      as any) ?? {};
+      const se = (sessionStats.rows[0] as any) ?? {};
+
+      const totalSessions = Number(se.total_sessions ?? 0);
+      // analytics_events가 충분히 쌓이지 않은 초기 상태: COLLECTING
+      const mauStatus = totalSessions < 10 ? "COLLECTING" : "AVAILABLE";
 
       res.json({
         platform: {
@@ -4152,22 +4138,28 @@ router.get(
           x_mode_pools:   Number(p.x_mode_pools   ?? 0),
           basic_pools:    Number(p.basic_pools    ?? 0),
           pending_pools:  Number(p.pending_pools  ?? 0),
-          total_students: Number(st.total_students ?? 0),
-          active_students:Number(st.active_students?? 0),
-          total_parents:  Number(pa.total_parents ?? 0),
-          active_parents: Number(pa.active_parents?? 0),
+          total_students: Number(st.total_students  ?? 0),
+          active_students:Number(st.active_students ?? 0),
+          total_parents:  Number(pa.total_parents  ?? 0),
+          active_parents: Number(pa.active_parents ?? 0),
         },
         subscription: {
           active:  Number(p.sub_active  ?? 0),
           trial:   Number(p.sub_trial   ?? 0),
           expired: Number(p.sub_expired ?? 0),
         },
-        mau_proxy: {
-          period: { from, to },
-          parent_sessions:  Number(m.parent_sessions  ?? 0),
-          teacher_sessions: Number(m.teacher_sessions ?? 0),
-          total_sessions:   Number(m.total_sessions   ?? 0),
-          note: "APP_SESSION 이벤트 미구현 — event_logs 로그인 category 근사값",
+        // MAU proxy 제거됨. analytics_events 기반으로 교체.
+        session_stats: {
+          status:         mauStatus,
+          total_sessions: totalSessions,
+          note:           mauStatus === "COLLECTING"
+            ? "analytics_events 수집 중 — 실제 앱 사용으로만 데이터 생성됨"
+            : "LOGIN_SESSION_START 이벤트 기준",
+        },
+        // 광고 Creative 통계 (실제값)
+        ad_stats: {
+          total_creatives:  Number(ad.total_creatives  ?? 0),
+          active_creatives: Number(ad.active_creatives ?? 0),
         },
       });
     } catch (err: any) {

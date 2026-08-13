@@ -2001,10 +2001,9 @@ router.delete("/guardians", requireAuth, requireParent, async (req: AuthRequest,
   } catch (e) { console.error("[guardians DELETE]", e); res.status(500).json({ success: false, message: "서버 오류" }); }
 });
 
-// ── WP15.5-C: Ad Slot (PARENT_HOME_BANNER) ───────────────────────────────────
+// ── WP15.5-C Fix: Ad Slot (PARENT_HOME_BANNER) ───────────────────────────────
 // GET /parent/ad-slot?placement=PARENT_HOME_BANNER
-// - 활성 Creative 1개 반환
-// - AD_IMPRESSION 기록 (logEvent)
+// - 활성 Creative 1개 반환만. impression 기록은 앱이 직접 POST /parent/ad-events/impression
 router.get("/ad-slot", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
     const placement = (req.query.placement as string) || "PARENT_HOME_BANNER";
@@ -2020,27 +2019,89 @@ router.get("/ad-slot", requireAuth, requireParent, async (req: AuthRequest, res)
     `);
 
     const creative = (result.rows[0] as any) ?? null;
-
-    // AD_IMPRESSION 기록 (fire-and-forget, 실패해도 응답 차단 없음)
-    if (creative) {
-      logEvent({
-        pool_id:    req.user!.poolId ?? "system",
-        category:   "시스템",
-        actor_id:   req.user!.userId,
-        description: `광고 노출 — ${placement}`,
-        metadata: {
-          event_type:  "AD_IMPRESSION",
-          creative_id: creative.id,
-          placement,
-          role:        "parent_account",
-        },
-      }).catch(() => {});
-    }
-
     res.json({ creative });
   } catch (err: any) {
     console.error("[parent/ad-slot] error:", err?.message);
     res.status(500).json({ error: "광고 슬롯 조회 실패" });
+  }
+});
+
+// ── WP15.5-C Fix: Ad Events ──────────────────────────────────────────────────
+// POST /parent/ad-events/impression  — banner가 실제로 렌더된 후 앱이 1회 호출
+// POST /parent/ad-events/click       — 사용자가 광고 클릭 시 앱이 호출
+// analytics_events 전용 테이블에만 기록. event_logs 사용 금지.
+
+const SAFE_URL_RE = /^https?:\/\//i;
+
+router.post("/ad-events/impression", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const { creative_id, placement } = req.body ?? {};
+    if (!creative_id || !placement) {
+      return res.status(400).json({ error: "creative_id, placement 필수" });
+    }
+
+    // creative 유효성 확인
+    const check = await db.execute(sql`
+      SELECT id FROM ad_creatives WHERE id = ${creative_id} AND is_active = true LIMIT 1
+    `);
+    if (!check.rows.length) {
+      return res.status(404).json({ error: "유효하지 않은 creative" });
+    }
+
+    const { logAnalyticsEvent } = await import("../lib/analytics-logger.js");
+    await logAnalyticsEvent({
+      event_type:       "AD_IMPRESSION",
+      user_id:          req.user!.userId,
+      swimming_pool_id: req.user!.poolId ?? null,
+      role:             "parent_account",
+      creative_id,
+      placement,
+    }).catch(() => {});
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[parent/ad-events/impression] error:", err?.message);
+    res.status(500).json({ error: "impression 기록 실패" });
+  }
+});
+
+router.post("/ad-events/click", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const { creative_id, placement } = req.body ?? {};
+    if (!creative_id || !placement) {
+      return res.status(400).json({ error: "creative_id, placement 필수" });
+    }
+
+    // creative 유효성 + destination_url 확인
+    const check = await db.execute(sql`
+      SELECT id, destination_url FROM ad_creatives WHERE id = ${creative_id} AND is_active = true LIMIT 1
+    `);
+    if (!check.rows.length) {
+      return res.status(404).json({ error: "유효하지 않은 creative" });
+    }
+
+    const dest = (check.rows[0] as any).destination_url ?? "";
+    // URL 안전성: http/https만 허용
+    if (dest && !SAFE_URL_RE.test(dest)) {
+      console.warn(`[parent/ad-events/click] 위험 URL 차단: ${dest}`);
+      return res.status(400).json({ error: "허용되지 않는 URL scheme" });
+    }
+
+    const { logAnalyticsEvent } = await import("../lib/analytics-logger.js");
+    await logAnalyticsEvent({
+      event_type:       "AD_CLICK",
+      user_id:          req.user!.userId,
+      swimming_pool_id: req.user!.poolId ?? null,
+      role:             "parent_account",
+      creative_id,
+      placement,
+      metadata:         { destination_url: dest },
+    }).catch(() => {});
+
+    res.json({ success: true, destination_url: dest });
+  } catch (err: any) {
+    console.error("[parent/ad-events/click] error:", err?.message);
+    res.status(500).json({ error: "click 기록 실패" });
   }
 });
 
