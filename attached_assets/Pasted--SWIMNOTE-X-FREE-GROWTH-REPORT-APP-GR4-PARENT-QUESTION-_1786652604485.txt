@@ -1,0 +1,867 @@
+[SWIMNOTE X FREE GROWTH REPORT]
+[APP GR4 — PARENT QUESTION UI + ANSWER SUBMISSION + SECOND-PASS REANALYSIS]
+
+MODE:
+FINAL IMPLEMENTATION
+NOT MVP
+NOT PROTOTYPE
+NOT SAMPLE
+
+현재 완료:
+
+GR1 Product Storage + Lifecycle Foundation ✅
+GR2 Monthly Cycle Scheduler ✅
+GR3 APP ↔ AI ENGINE Snapshot Integration ✅
+
+이번 GR4 목적:
+
+학부모가 Growth Report에 대해
+ENGINE이 생성한 질문을 확인하고
+
+구조화 답변을 제출하며
+
+그 답변이 APP DB에 저장되고
+다음 AI ENGINE 분석 Snapshot에 포함되어
+second-pass 재분석까지 연결되는
+
+Parent Input Flow를 완성한다.
+
+==================================================
+1. 핵심 원칙
+==================================================
+
+APP은 질문을 만들지 않는다.
+
+ENGINE이 반환한 질문만 표시한다.
+
+APP은 답변 의미를 해석하지 않는다.
+
+APP이:
+
+AGREEMENT
+CONTRADICTION
+CONTEXT_DIFFERENCE
+
+등을 판정하지 않는다.
+
+APP 역할:
+
+질문 표시
+→ 선택값 저장
+→ parent_input_status 갱신
+→ 재분석 trigger
+
+까지만.
+
+==================================================
+2. QUESTIONS ARE OPTIONAL
+==================================================
+
+질문이 0개인 Report 정상.
+
+Parent가 답하지 않아도 Report 정상.
+
+질문은 항상:
+
+is_required = false
+
+QUESTION_REQUIRED 상태 생성 금지.
+
+==================================================
+3. PARENT ACCESS
+==================================================
+
+학부모는 본인에게 연결된 자녀의
+Growth Report 질문만 조회 가능.
+
+반드시 기존 Parent ↔ Student 연결 canonical auth를 재사용.
+
+금지:
+
+report_id만 알면 다른 학생 질문 조회
+다른 parent_account의 answer 수정
+pool 간 접근
+
+==================================================
+4. X MODE ACCESS
+==================================================
+
+신규 Growth Report Parent Input은
+현재 X Mode Product 권한정책을 따른다.
+
+기존:
+
+requireReportXAccess()
+resolveReportXAccess()
+
+재사용.
+
+단 이미 PUBLISHED된 과거 Report viewing 정책과
+현재 input access 정책은 분리.
+
+==================================================
+5. QUESTION API
+==================================================
+
+최소 canonical route:
+
+GET /parent/growth-reports/:reportId/questions
+
+또는 기존 Parent API convention에 맞는 path.
+
+응답 최소:
+
+report_id
+product_status
+parent_input_status
+parent_input_open_at
+parent_input_close_at
+
+questions: [
+  {
+    question_id
+    engine_question_id
+    metric_id
+    question_text
+    answer_type
+    options
+    parent_confirmable_behavior
+    question_stage
+    sequence
+    is_required
+    existing_answer
+  }
+]
+
+APP이 metric 의미를 새로 붙이지 않는다.
+
+==================================================
+6. ANSWER SUBMISSION API
+==================================================
+
+최소:
+
+PUT 또는 POST
+/parent/growth-reports/:reportId/answers
+
+payload:
+
+{
+  answers: [
+    {
+      question_id,
+      selected_values[]
+    }
+  ]
+}
+
+Repository route convention에 맞게 결정.
+
+==================================================
+7. ANSWER VALIDATION
+==================================================
+
+반드시 서버 검증:
+
+- report exists
+- parent owns child
+- parent input window open
+- question belongs to report
+- is_required=false 여부와 관계없이 optional
+- selected_values array
+- answer_type 규칙 준수
+- SINGLE_CHOICE → 정확히 1개 또는 정책상 0개 허용 여부 명확
+- MULTI_CHOICE → allowed options 내 값만
+- option value 존재 확인
+- duplicate selected value 금지
+- 다른 report question 제출 금지
+
+==================================================
+8. UNKNOWN / NOT OBSERVED
+==================================================
+
+ENGINE Question option에:
+
+UNKNOWN
+NOT_OBSERVED
+NOT_APPLICABLE
+
+성격의 value가 있다면
+그대로 저장.
+
+APP이 이를:
+
+negative
+false
+contradiction
+
+으로 변환 금지.
+
+==================================================
+9. ANSWER UPSERT
+==================================================
+
+GR1 uniqueness:
+
+(report_id, question_id, parent_account_id)
+
+재사용.
+
+같은 input window 안에서
+학부모가 답변 수정 가능하게 upsert.
+
+updated answer가 canonical current answer.
+
+==================================================
+10. PARENT INPUT STATUS
+==================================================
+
+답변 저장 후:
+
+NONE / AVAILABLE
+→ ANSWERED
+
+가능.
+
+그러나 일부 질문만 답했다고 해서
+무조건 “모든 답변 완료” 의미로 해석하지 마라.
+
+parent_input_status=ANSWERED의 의미를:
+
+“최소 한 개 이상 parent answer 존재”
+
+로 명확히 정의 가능.
+
+별도로 answered_count / total_question_count 계산.
+
+==================================================
+11. INPUT WINDOW
+==================================================
+
+GR2 정책:
+
+25일 open
+→ 다음달 5일 00:00 Asia/Seoul close
+
+parent_input_status=CLOSED 이면
+새 answer submit 차단.
+
+HTTP 명확한 error:
+
+PARENT_INPUT_CLOSED
+
+기존 answer 조회는 허용 가능.
+
+==================================================
+12. 5일 이전에도 재분석 가능한가
+==================================================
+
+정책:
+
+학부모가 답변 제출했다고
+매번 즉시 ENGINE 재분석을 여러 번 호출하지 마라.
+
+비용/중복분석 방지 필요.
+
+권장:
+
+answer 저장
+→ parent_input_status=ANSWERED
+
+그리고:
+
+A. 명시적 "답변 완료" 버튼
+또는
+B. 5일 close 이후 Worker
+
+에서 second-pass 분석.
+
+현재 UX는 가능한 단순하게 구현.
+
+==================================================
+13. SUBMIT COMPLETE ACTION
+==================================================
+
+부모 UI에
+질문 선택 후:
+
+"답변 저장"
+
+또는
+"답변 완료"
+
+동작을 명확히 둔다.
+
+답변 완료 시:
+
+report가 QUESTION_AVAILABLE이면
+
+READY_FOR_ANALYSIS
+
+로 전환 가능.
+
+그러면 GR3 worker가
+second-pass Engine call 수행.
+
+중요:
+
+질문 일부만 선택되어도
+질문은 optional이므로 완료 가능.
+
+==================================================
+14. AUTO CLOSE SECOND PASS
+==================================================
+
+부모가 완료 버튼을 누르지 않아도
+GR2의 다음달 5일 close에서:
+
+QUESTION_AVAILABLE
+→ READY_FOR_ANALYSIS
+
+되므로
+저장된 answer가 있든 없든
+GR3 worker가 second-pass 분석 가능.
+
+즉:
+
+manual complete
+OR
+5일 auto close
+
+둘 다 지원.
+
+==================================================
+15. SECOND-PASS SNAPSHOT
+==================================================
+
+GR3 SnapshotBuilder가
+growth_report_answers에서
+current report answers를 읽도록 이미 구현되어 있음.
+
+GR4에서 이 path를 실제 flow로 연결.
+
+answer 저장
+→ READY_FOR_ANALYSIS
+→ GR3 worker
+→ new request_id
+→ parent_answers 포함 Snapshot
+→ ENGINE
+→ REVIEW_REQUIRED
+
+==================================================
+16. REQUEST ID
+==================================================
+
+second-pass는
+initial analysis request_id 재사용 금지.
+
+GR3 정책대로
+새 분석 = 새 request_id.
+
+==================================================
+17. QUESTION VERSION SAFETY
+==================================================
+
+question에는:
+
+engine_question_id
+metric_definition_version
+question_policy_version
+
+존재.
+
+answer가 오래된/교체된 질문에 제출되지 않도록
+현재 report의 활성 질문 여부 확인.
+
+필요 시 stale question reject:
+
+STALE_QUESTION
+
+==================================================
+18. ANSWER AFTER REANALYSIS
+==================================================
+
+second-pass ANALYZING 또는 REVIEW_REQUIRED 이후에는
+해당 cycle Parent Input이 아직 열려 있더라도
+답변 수정 정책을 명확히 해야 한다.
+
+추천:
+
+ANALYZING
+REVIEW_REQUIRED
+APPROVED
+PUBLISHED
+
+상태에서는 answer 수정 금지.
+
+이유:
+이미 분석 snapshot이 고정된 뒤
+answer만 바뀌면 Product result와 불일치.
+
+다시 수정 허용하려면
+새 분석까지 trigger해야 해서 복잡해짐.
+
+현재 FREE V1에서는
+READY_FOR_ANALYSIS 진입 전까지만 수정 허용.
+
+==================================================
+19. PARENT APP UI
+==================================================
+
+실제 Expo Parent 앱에서
+Growth Report 질문 UI 구현.
+
+기존 디자인 시스템을 유지.
+
+새 앱처럼 디자인하지 마라.
+
+최소:
+
+- Growth Report 안내
+- 질문 목록
+- SINGLE_CHOICE
+- MULTI_CHOICE
+- 현재 선택상태
+- 저장/완료 버튼
+- 입력 마감일 표시
+- optional 안내
+
+==================================================
+20. UI COPY
+==================================================
+
+부모에게:
+
+“평가를 위해 반드시 답하세요”
+
+금지.
+
+권장 의미:
+
+“수영장에서 확인된 성장 모습을
+가정에서의 모습과 함께 살펴보기 위한 선택 질문입니다.
+답변하지 않아도 성장리포트는 정상적으로 제공됩니다.”
+
+문구는 자연스럽게 다듬을 수 있음.
+
+==================================================
+21. QUESTION METRIC ID
+==================================================
+
+F001 같은 metric_id를
+학부모 UI에 그대로 노출할 필요 없음.
+
+APP은 internal trace로 유지.
+
+UI는:
+
+question_text
+parent_confirmable_behavior
+
+중 필요한 것만 표시.
+
+APP이 metric 의미를 새로 번역하지 않는다.
+
+==================================================
+22. OPTION UI
+==================================================
+
+SINGLE_CHOICE:
+
+radio/list selection
+
+MULTI_CHOICE:
+
+checkbox/list selection
+
+기존 component pattern 재사용.
+
+option.value는 internal.
+option.label을 UI 표시.
+
+==================================================
+23. PARTIAL SAVE
+==================================================
+
+앱 종료/네트워크 문제를 고려해
+답변을 중간 저장할 수 있게 해도 됨.
+
+단:
+
+partial save
+≠
+READY_FOR_ANALYSIS
+
+"완료" 액션과 분리.
+
+==================================================
+24. NETWORK ERROR
+==================================================
+
+답변 저장 실패를
+성공처럼 표시 금지.
+
+retry 가능 UI.
+
+기존 APP error pattern 사용.
+
+==================================================
+25. CLOSED UI
+==================================================
+
+parent_input_status=CLOSED이면:
+
+질문/기존 답변 읽기 가능
+편집 controls disabled
+
+"답변 기간이 종료되었습니다"
+
+표시.
+
+Report 자체가 종료됐다고 쓰지 마라.
+
+==================================================
+26. QUESTION_AVAILABLE DEEP LINK FOUNDATION
+==================================================
+
+실제 Push/deep link는 GR7.
+
+하지만 GR4 route는
+나중에 deep link 가능한
+stable parent screen path로 만든다.
+
+예:
+
+(parent)/growth-report-questions
+
+기존 route convention에 맞춤.
+
+==================================================
+27. NO REPORT DETAIL YET
+==================================================
+
+Native 상세 Report UI는 GR8.
+
+GR4에서는 질문 화면만.
+
+Report content 전체를 여기서 새로 렌더링하지 마라.
+
+==================================================
+28. AUDIT
+==================================================
+
+최소:
+
+PARENT_GROWTH_ANSWER_SAVED
+PARENT_GROWTH_INPUT_COMPLETED
+
+report_id
+parent_account_id 가능
+answer_count
+timestamp
+
+raw answer labels/text를 audit에 불필요하게 넣지 않는다.
+
+==================================================
+29. PRIVACY
+==================================================
+
+Parent answer는 Product DB에 저장.
+
+다른 parent에게 노출 금지.
+
+Parent question API response에
+다른 보호자의 account info 노출 금지.
+
+==================================================
+30. ANALYSIS TRIGGER
+==================================================
+
+manual complete 시:
+
+QUESTION_AVAILABLE
+→ READY_FOR_ANALYSIS
+
+transitionReportStatus 재사용.
+
+그 후 GR3 worker가 처리.
+
+Route에서 ENGINE 직접 호출하지 마라.
+
+Background analysis architecture 유지.
+
+==================================================
+31. IDEMPOTENCY
+==================================================
+
+동일 answer submit 반복:
+
+upsert로 동일 결과.
+
+complete action 반복:
+
+이미 READY_FOR_ANALYSIS이면
+안전하게 idempotent 처리 또는 명확한 already-completed response.
+
+중복 analysis job 생성 금지.
+
+==================================================
+32. COUNTS
+==================================================
+
+Parent UI/API에서 최소:
+
+total_questions
+answered_questions
+
+계산.
+
+질문은 optional이므로:
+
+answered_questions < total_questions
+
+이어도 complete 가능.
+
+==================================================
+33. TEST REQUIREMENTS
+==================================================
+
+최소:
+
+1. parent own child report 질문 조회
+
+2. other child report 접근 금지
+
+3. cross-pool 접근 금지
+
+4. X access true 허용
+
+5. X access false current input 거부
+
+6. questions 0개 정상
+
+7. question order sequence
+
+8. SINGLE_CHOICE 렌더 contract
+
+9. MULTI_CHOICE contract
+
+10. existing answer 포함
+
+11. valid single answer save
+
+12. valid multi answer save
+
+13. invalid option reject
+
+14. unknown question reject
+
+15. question from other report reject
+
+16. duplicate selected value reject
+
+17. SINGLE_CHOICE multiple values reject
+
+18. answer upsert
+
+19. partial save
+
+20. partial save는 READY_FOR_ANALYSIS 안 됨
+
+21. first answer → parent_input_status ANSWERED
+
+22. parent input CLOSED submit reject
+
+23. CLOSED read allowed
+
+24. ANSWERED read
+
+25. manual complete
+
+26. QUESTION_AVAILABLE → READY_FOR_ANALYSIS
+
+27. manual complete with unanswered optional questions allowed
+
+28. complete repeated idempotent
+
+29. ANALYZING answer modification reject
+
+30. REVIEW_REQUIRED modification reject
+
+31. APPROVED modification reject
+
+32. PUBLISHED modification reject
+
+33. second-pass worker path becomes eligible
+
+34. next Snapshot contains saved parent answers
+
+35. APP does not interpret answer
+
+36. answer UNKNOWN stays raw structured value
+
+37. audit save
+
+38. audit complete
+
+39. no other parent account data leakage
+
+40. Parent UI questions render
+
+41. UI single select interaction
+
+42. UI multi select interaction
+
+43. existing saved value hydrate
+
+44. save loading/error state
+
+45. closed disabled state
+
+46. optional copy present
+
+47. no "required evaluation" wording
+
+48. stable parent route
+
+49. GR3 regression
+
+50. GR2 regression
+
+51. GR1 regression
+
+52. Parent auth regression
+
+53. Notifications route regression
+
+54. Parent Diary regression
+
+==================================================
+34. UI TEST / TYPECHECK
+==================================================
+
+Server tests +
+Expo/TypeScript relevant compile.
+
+전체 앱 빌드까지 무의미하게 돌릴 필요 없음.
+
+수정한 Parent route/screens 기준
+type error 0.
+
+==================================================
+35. 허위 완료 방지
+==================================================
+
+COMPLETE 금지:
+
+- API만 만들고 Parent UI 없음
+- UI만 만들고 server ownership check 없음
+- 질문 APP에서 창작
+- answer meaning APP에서 분석
+- 질문 필수
+- unanswered면 report 차단
+- answer submit마다 ENGINE 즉시 호출
+- 5일 auto close flow 깨짐
+- READY_FOR_ANALYSIS 이후 answer 계속 수정 가능
+- other child 접근 가능
+- TODO
+- placeholder
+
+==================================================
+36. COMPLETE CONDITIONS
+==================================================
+
+[ ] Parent question GET API
+[ ] Parent answer save API
+[ ] ownership/auth
+[ ] X access
+[ ] structured validation
+[ ] answer upsert
+[ ] partial save
+[ ] complete action
+[ ] optional unanswered allowed
+[ ] input close enforcement
+[ ] post-analysis edit lock
+[ ] parent_input_status
+[ ] READY_FOR_ANALYSIS transition
+[ ] GR3 worker second-pass integration
+[ ] audit
+[ ] Parent Expo UI
+[ ] single choice
+[ ] multi choice
+[ ] hydrate saved answers
+[ ] loading/error
+[ ] closed state
+[ ] optional copy
+[ ] tests pass
+[ ] GR1~GR3 regression
+[ ] Parent existing regression
+[ ] TODO 0
+[ ] Production migration 미실행
+[ ] Deploy/OTA 없음
+
+==================================================
+37. CREDIT SAVING
+==================================================
+
+GR1~GR4 관련 server
++
+Parent Growth Report screen
++
+existing auth/XMode components
+
+만 검사.
+
+전체 repo 재감리 금지.
+
+GR5 이후 선행 구현 금지.
+
+==================================================
+38. FINAL REPORT
+==================================================
+
+1. GR4 RESULT
+
+2. IMPLEMENTED FILES
+
+3. PARENT QUESTION API
+
+4. ANSWER SUBMISSION API
+
+5. OWNERSHIP / X ACCESS
+
+6. ANSWER VALIDATION
+
+7. PARENT INPUT STATUS
+
+8. MANUAL COMPLETE / SECOND PASS
+
+9. 5TH AUTO CLOSE COMPATIBILITY
+
+10. PARENT UI
+
+11. AUDIT / PRIVACY
+
+12. TEST RESULTS
+
+13. GR1~GR3 / EXISTING APP REGRESSION
+
+14. TYPECHECK
+
+15. TODO SCAN
+
+16. GIT
+    branch
+    HEAD SHA
+
+17. PRODUCTION SAFETY
+
+전부 완료:
+
+GROWTH_REPORT_APP_GR4_COMPLETE ✅
+
+미완성:
+
+GROWTH_REPORT_APP_GR4_BLOCKED ❌
+
+작업을 시작하라.
