@@ -523,6 +523,17 @@ router.post("/parent-login", async (req, res) => {
       }
     }
     const token = signToken({ userId: matched.id, role: "parent_account", poolId: matched.swimming_pool_id });
+
+    // WP15.5-B: APP_SESSION 최소 수집 — parent 로그인 성공 시 event_logs 기록
+    logEvent({
+      pool_id:    matched.swimming_pool_id ?? "system",
+      category:   "로그인",
+      actor_id:   matched.id,
+      actor_name: matched.name ?? matched.login_id,
+      description: `학부모 앱 세션 — ${matched.name ?? matched.login_id}`,
+      metadata: { event_type: "APP_SESSION", role: "parent_account" },
+    }).catch(() => {});
+
     res.json({
       success: true, token,
       parent: { id: matched.id, name: matched.name, phone: matched.phone, swimming_pool_id: matched.swimming_pool_id, login_id: matched.login_id, pool_name: poolDisplayName },

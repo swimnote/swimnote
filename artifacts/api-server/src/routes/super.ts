@@ -3899,4 +3899,137 @@ router.get(
   },
 );
 
+// ── WP15.5-B: Analytics Overview ──────────────────────────────────────────────
+// GET /super/analytics-overview
+// AVAILABLE_NOW 지표 (수영장/학생/parent 수, X mode, 구독 breakdown)
+// + MAU 프록시 (event_logs 로그인 category COUNT, approximate)
+router.get(
+  "/super/analytics-overview",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const from = (req.query.from as string) || (() => {
+        const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10);
+      })();
+      const to = (req.query.to as string) || new Date().toISOString().slice(0, 10);
+
+      const [poolStats, studentStats, parentStats, mauProxy] = await Promise.all([
+        // ── 수영장 통계 ───────────────────────────────────────────────────
+        superAdminDb.execute(sql`
+          SELECT
+            COUNT(*)::int                                                    AS total_pools,
+            COUNT(*) FILTER (WHERE approval_status = 'approved')::int       AS approved_pools,
+            COUNT(*) FILTER (
+              WHERE approval_status = 'approved'
+                AND subscription_status NOT IN ('expired','suspended','cancelled')
+            )::int                                                           AS active_pools,
+            COUNT(*) FILTER (
+              WHERE approval_status = 'approved'
+                AND COALESCE(xmode_entitlement, false) = true
+            )::int                                                           AS x_mode_pools,
+            COUNT(*) FILTER (
+              WHERE approval_status = 'approved'
+                AND COALESCE(xmode_entitlement, false) = false
+                AND subscription_status NOT IN ('expired','suspended','cancelled')
+            )::int                                                           AS basic_pools,
+            COUNT(*) FILTER (WHERE approval_status = 'pending')::int        AS pending_pools,
+            COUNT(*) FILTER (
+              WHERE subscription_status = 'active'
+            )::int                                                           AS sub_active,
+            COUNT(*) FILTER (
+              WHERE subscription_status = 'trial'
+            )::int                                                           AS sub_trial,
+            COUNT(*) FILTER (
+              WHERE subscription_status IN ('expired','suspended')
+            )::int                                                           AS sub_expired
+          FROM swimming_pools
+        `),
+        // ── 학생 통계 ─────────────────────────────────────────────────────
+        superAdminDb.execute(sql`
+          SELECT
+            COUNT(*)::int  AS total_students,
+            COUNT(*) FILTER (
+              WHERE id IN (
+                SELECT DISTINCT student_id FROM student_class_history
+                WHERE left_at IS NULL
+              )
+            )::int          AS active_students
+          FROM students
+        `),
+        // ── parent 통계 ───────────────────────────────────────────────────
+        superAdminDb.execute(sql`
+          SELECT
+            COUNT(*)::int                                          AS total_parents,
+            COUNT(*) FILTER (WHERE COALESCE(is_active, true) = true)::int AS active_parents
+          FROM parent_accounts
+        `),
+        // ── MAU 프록시 (event_logs 로그인 category, 기간 기반) ────────────
+        // ⚠️  근사값. APP_SESSION 이벤트 구현 전 임시.
+        //     description LIKE '%선생%' → teacher/pool_admin 세션
+        //     description LIKE '%학부모%' → parent 세션
+        superAdminDb.execute(sql`
+          SELECT
+            COUNT(*) FILTER (
+              WHERE category = '로그인'
+                AND (description LIKE '%학부모%' OR description LIKE '%parent%')
+            )::int  AS parent_sessions,
+            COUNT(*) FILTER (
+              WHERE category = '로그인'
+                AND description NOT LIKE '%학부모%'
+                AND description NOT LIKE '%parent%'
+                AND description NOT LIKE '%실패%'
+                AND description NOT LIKE '%오류%'
+            )::int  AS teacher_sessions,
+            COUNT(*) FILTER (
+              WHERE category = '로그인'
+                AND description NOT LIKE '%실패%'
+                AND description NOT LIKE '%오류%'
+            )::int  AS total_sessions
+          FROM event_logs
+          WHERE category = '로그인'
+            AND created_at >= ${from}::date
+            AND created_at <  (${to}::date + INTERVAL '1 day')
+        `),
+      ]);
+
+      const p  = (poolStats.rows[0]    as any) ?? {};
+      const st = (studentStats.rows[0] as any) ?? {};
+      const pa = (parentStats.rows[0]  as any) ?? {};
+      const m  = (mauProxy.rows[0]     as any) ?? {};
+
+      res.json({
+        platform: {
+          total_pools:    Number(p.total_pools    ?? 0),
+          approved_pools: Number(p.approved_pools ?? 0),
+          active_pools:   Number(p.active_pools   ?? 0),
+          x_mode_pools:   Number(p.x_mode_pools   ?? 0),
+          basic_pools:    Number(p.basic_pools    ?? 0),
+          pending_pools:  Number(p.pending_pools  ?? 0),
+          total_students: Number(st.total_students ?? 0),
+          active_students:Number(st.active_students?? 0),
+          total_parents:  Number(pa.total_parents ?? 0),
+          active_parents: Number(pa.active_parents?? 0),
+        },
+        subscription: {
+          active:  Number(p.sub_active  ?? 0),
+          trial:   Number(p.sub_trial   ?? 0),
+          expired: Number(p.sub_expired ?? 0),
+        },
+        mau_proxy: {
+          period: { from, to },
+          parent_sessions:  Number(m.parent_sessions  ?? 0),
+          teacher_sessions: Number(m.teacher_sessions ?? 0),
+          total_sessions:   Number(m.total_sessions   ?? 0),
+          note: "APP_SESSION 이벤트 미구현 — event_logs 로그인 category 근사값",
+        },
+      });
+    } catch (err: any) {
+      console.error("[super/analytics-overview] error:", err?.message);
+      res.status(500).json({ error: "Analytics 조회 실패" });
+    }
+  },
+);
+
 export default router;
+
