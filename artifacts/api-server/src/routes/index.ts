@@ -53,6 +53,7 @@ import commentsRouter from "./comments.js";
 import aiRouter from "./ai.js";
 import storyRouter from "./story.js";
 import xGrowthRouter from "./x-growth.js";
+import parentGrowthReportRouter from "./parent-growth-report.js";
 
 const router: IRouter = Router();
 
@@ -68,6 +69,7 @@ router.use("/class-groups", classGroupsRouter);
 router.use("/attendance", attendanceRouter);
 router.use("/notices", noticesRouter);
 router.use("/parent", parentRouter);
+router.use("/", parentGrowthReportRouter);
 router.use("/uploads", uploadsRouter);
 router.use("/", photosRouter);
 router.use("/", diaryRouter);
