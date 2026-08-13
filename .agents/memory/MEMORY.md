@@ -45,3 +45,4 @@
 - [교사 일지 히스토리 사진 조회 경로](diary-photo-strip-query-path.md) — DiaryPhotoStrip teacher모드=/photos/group/:id?date=, /photos/diary/:id 아님; 재발 시 추적 순서 기록
 - [WP12 커리큘럼 검색 설계](wp12-curriculum-search-design.md) — DEFERRED_AFTER_SKELETON; pool별 기준/X모드 x_global/답변주체=수영장명/fallback금지; skeleton(버튼+준비중모달)만 존재
 - [WP13 완료 상태](wp13-done-state.md) — SHA 026ba809; Growth Event Review(teacher/admin); 14TC+336TC; Render live; OTA production 707e6e49+preview 64d92346
+- [WP14 완료 상태](wp14-done-state.md) — SHA ca9f0241; Audit Log Viewer(super_admin READ ONLY); maskSensitive(); 17TC+353TC; Render live; OTA 없음
