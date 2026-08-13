@@ -47,4 +47,5 @@
 - [WP13 완료 상태](wp13-done-state.md) — SHA 026ba809; Growth Event Review(teacher/admin); 14TC+336TC; Render live; OTA production 707e6e49+preview 64d92346
 - [WP14 완료 상태](wp14-done-state.md) — SHA 1ba01f57; Audit Log Viewer(super_admin READ ONLY)+audit persistence fix; maskSensitive(); 19TC+355TC; Render live; OTA 없음
 - [WP15 완료 상태](wp15-done-state.md) — SHA d196d9fa; Growth Review Stats(super_admin READ ONLY); 16TC+371TC; Render live; OTA 없음
-- [WP15.5-A 완료](wp15-5a-done.md) — SHA(문서전용); docs/AD_ANALYTICS_FOUNDATION.md; 코드변경없음; Render/OTA 금지
+- [WP15.5-A 완료](wp15-5a-done.md) — SHA cacf983e; docs/AD_ANALYTICS_FOUNDATION.md; 코드변경없음; Render/OTA 금지
+- [WP15.5-B 완료](wp15-5b-done.md) — SHA fc864a12; /super/analytics-overview+APP_SESSION hook+AnalyticsDashboard; 10TC+381TC; Render live; OTA 없음

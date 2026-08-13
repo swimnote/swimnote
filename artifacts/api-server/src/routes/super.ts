@@ -1168,6 +1168,30 @@ async function ensureExtraTables() {
     CREATE INDEX IF NOT EXISTS idx_event_logs_pool_id     ON event_logs (pool_id)
   `).catch(() => {});
 
+  // WP15.5-C: ad_creatives 테이블
+  await superAdminDb.execute(sql`
+    CREATE TABLE IF NOT EXISTS ad_creatives (
+      id              TEXT PRIMARY KEY,
+      placement       TEXT NOT NULL DEFAULT 'PARENT_HOME_BANNER',
+      creative_type   TEXT NOT NULL DEFAULT 'IMAGE_WITH_TEXT',
+      headline        TEXT,
+      body_text       TEXT,
+      image_url       TEXT,
+      destination_url TEXT,
+      effect_type     TEXT NOT NULL DEFAULT 'NONE',
+      display_order   INTEGER NOT NULL DEFAULT 0,
+      is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+      target_region   TEXT[] NOT NULL DEFAULT '{}',
+      target_age_band TEXT[] NOT NULL DEFAULT '{}',
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+  await superAdminDb.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_ad_creatives_placement_active
+    ON ad_creatives (placement, is_active, display_order)
+  `).catch(() => {});
+
   _ensureDone = true;
 }
 
@@ -3895,6 +3919,128 @@ router.get(
     } catch (err: any) {
       console.error("[super/audit-logs/:id] error:", err?.message);
       res.status(500).json({ error: "감사 로그 상세 조회 실패" });
+    }
+  },
+);
+
+// ── WP15.5-C: Ad Creative CRUD (super_admin) ──────────────────────────────────
+
+// GET /super/ad-creatives?placement=PARENT_HOME_BANNER
+router.get(
+  "/super/ad-creatives",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const placement = (req.query.placement as string) || "PARENT_HOME_BANNER";
+      const result = await superAdminDb.execute(sql`
+        SELECT * FROM ad_creatives
+        WHERE placement = ${placement}
+        ORDER BY display_order ASC, created_at DESC
+      `);
+      res.json({ creatives: result.rows });
+    } catch (err: any) {
+      console.error("[super/ad-creatives GET] error:", err?.message);
+      res.status(500).json({ error: "조회 실패" });
+    }
+  },
+);
+
+// POST /super/ad-creatives — 생성
+router.post(
+  "/super/ad-creatives",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const {
+        placement = "PARENT_HOME_BANNER",
+        creative_type = "IMAGE_WITH_TEXT",
+        headline,
+        body_text,
+        image_url,
+        destination_url,
+        effect_type = "NONE",
+        display_order = 0,
+        target_age_band = [],
+        target_region = [],
+      } = req.body;
+
+      const id = `adc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const ageBandArr = Array.isArray(target_age_band) ? target_age_band : [];
+      const regionArr  = Array.isArray(target_region)   ? target_region   : [];
+
+      await superAdminDb.execute(sql`
+        INSERT INTO ad_creatives
+          (id, placement, creative_type, headline, body_text, image_url,
+           destination_url, effect_type, display_order, is_active,
+           target_age_band, target_region)
+        VALUES
+          (${id}, ${placement}, ${creative_type},
+           ${headline ?? null}, ${body_text ?? null}, ${image_url ?? null},
+           ${destination_url ?? null}, ${effect_type}, ${Number(display_order)},
+           true,
+           ${ageBandArr}::text[], ${regionArr}::text[])
+      `);
+
+      const row = await superAdminDb.execute(sql`
+        SELECT * FROM ad_creatives WHERE id = ${id} LIMIT 1
+      `);
+      res.json({ creative: row.rows[0] });
+    } catch (err: any) {
+      console.error("[super/ad-creatives POST] error:", err?.message);
+      res.status(500).json({ error: "생성 실패" });
+    }
+  },
+);
+
+// POST /super/ad-creatives/:id/update — 수정 (PATCH 대신 POST로 통일, fetch 호환)
+// COALESCE 방식: undefined 필드는 기존 값 유지
+router.post(
+  "/super/ad-creatives/:id/update",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const { id } = req.params;
+      const {
+        headline, body_text, image_url, destination_url,
+        effect_type, display_order, is_active,
+        target_age_band, target_region, creative_type, placement,
+      } = req.body;
+
+      const ageBandArr = target_age_band != null && Array.isArray(target_age_band)
+        ? target_age_band : null;
+      const regionArr  = target_region   != null && Array.isArray(target_region)
+        ? target_region : null;
+
+      const result = await superAdminDb.execute(sql`
+        UPDATE ad_creatives SET
+          headline        = COALESCE(${headline        ?? null}, headline),
+          body_text       = COALESCE(${body_text       ?? null}, body_text),
+          image_url       = COALESCE(${image_url       ?? null}, image_url),
+          destination_url = COALESCE(${destination_url ?? null}, destination_url),
+          effect_type     = COALESCE(${effect_type     ?? null}, effect_type),
+          display_order   = COALESCE(${display_order   != null ? Number(display_order) : null}, display_order),
+          is_active       = COALESCE(${is_active       != null ? Boolean(is_active)    : null}, is_active),
+          creative_type   = COALESCE(${creative_type   ?? null}, creative_type),
+          placement       = COALESCE(${placement       ?? null}, placement),
+          target_age_band = COALESCE(${ageBandArr}::text[],  target_age_band),
+          target_region   = COALESCE(${regionArr}::text[],   target_region),
+          updated_at      = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+
+      const row = (result.rows[0] as any);
+      if (!row) { res.status(404).json({ error: "Creative를 찾을 수 없습니다." }); return; }
+      res.json({ creative: row });
+    } catch (err: any) {
+      console.error("[super/ad-creatives/:id/update] error:", err?.message);
+      res.status(500).json({ error: "수정 실패" });
     }
   },
 );

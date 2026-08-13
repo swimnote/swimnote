@@ -7,6 +7,7 @@ import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword, comparePassword } from "../lib/auth.js";
 import { sendPushToUser } from "../lib/push-service.js";
 import { logChange } from "../utils/change-logger.js";
+import { logEvent } from "../lib/event-logger.js";
 import { getParentStatusV2, upsertParentV2Pending, tryMatchStudentV2 as tryAutoLinkV2, linkParentToStudentV2 as linkParentToStudentV2Import, normalizePhone as normPhoneV2, normalizeName as normNameV2 } from "../lib/auto-link-v2.js";
 
 const router = Router();
@@ -2000,5 +2001,49 @@ router.delete("/guardians", requireAuth, requireParent, async (req: AuthRequest,
   } catch (e) { console.error("[guardians DELETE]", e); res.status(500).json({ success: false, message: "서버 오류" }); }
 });
 
+// ── WP15.5-C: Ad Slot (PARENT_HOME_BANNER) ───────────────────────────────────
+// GET /parent/ad-slot?placement=PARENT_HOME_BANNER
+// - 활성 Creative 1개 반환
+// - AD_IMPRESSION 기록 (logEvent)
+router.get("/ad-slot", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const placement = (req.query.placement as string) || "PARENT_HOME_BANNER";
+
+    const result = await db.execute(sql`
+      SELECT id, placement, creative_type, headline, body_text,
+             image_url, destination_url, effect_type
+      FROM ad_creatives
+      WHERE placement   = ${placement}
+        AND is_active   = true
+      ORDER BY display_order ASC, created_at DESC
+      LIMIT 1
+    `);
+
+    const creative = (result.rows[0] as any) ?? null;
+
+    // AD_IMPRESSION 기록 (fire-and-forget, 실패해도 응답 차단 없음)
+    if (creative) {
+      logEvent({
+        pool_id:    req.user!.poolId ?? "system",
+        category:   "시스템",
+        actor_id:   req.user!.userId,
+        description: `광고 노출 — ${placement}`,
+        metadata: {
+          event_type:  "AD_IMPRESSION",
+          creative_id: creative.id,
+          placement,
+          role:        "parent_account",
+        },
+      }).catch(() => {});
+    }
+
+    res.json({ creative });
+  } catch (err: any) {
+    console.error("[parent/ad-slot] error:", err?.message);
+    res.status(500).json({ error: "광고 슬롯 조회 실패" });
+  }
+});
+
 export default router;
+
 

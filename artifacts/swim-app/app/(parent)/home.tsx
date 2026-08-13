@@ -11,6 +11,7 @@
  *     각 일지: 날짜 · 선생님 · 본문 · 개별메모 · 사진 · 영상 · 반응
  */
 import { ParentPromoStrip } from "@/components/parent/ParentPromoStrip";
+import { ParentAdBanner } from "@/components/parent/ParentAdBanner";
 import { AIFeatureModal, AIModalType } from "@/components/parent/AIFeatureModal";
 import StoryCapturePipeline, { StoryInput } from "@/components/parent/StoryCapturePipeline";
 import { StoryPhoto } from "@/components/parent/StoryPageRenderer";
@@ -1807,6 +1808,11 @@ export default function ParentHomeScreen() {
         <View style={{ marginTop: 6, marginBottom: 0 }}>
           <ParentPromoStrip />
         </View>
+      )}
+
+      {/* E-2. 광고 배너 슬롯 (PARENT_HOME_BANNER) */}
+      {selectedStudent && !isBlocked && (
+        <ParentAdBanner token={token} />
       )}
 
       {/* F-divider. 상단 UI ↔ 일지 영역 구분선 */}
