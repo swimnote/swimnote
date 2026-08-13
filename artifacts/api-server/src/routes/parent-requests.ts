@@ -706,7 +706,10 @@ router.get("/admin/parent-v2-pending", requireAuth, requireRole("pool_admin", "s
 );
 
 // ─── 관리자: 학부모 V2 연결 승인/거절 ─────────────────────────────────────
-// PATCH /admin/parent-v2-pending/:id  { action: "approve" | "reject", reason?: string }
+// PATCH /admin/parent-v2-pending/:id
+// { action: "approve", student_id?: string }  — student_id: 관리자 직접 선택 학생
+// { action: "reject",  reason?: string }
+// 허용 status: pending → approve/reject, rejected → approve (재심사)
 router.patch("/admin/parent-v2-pending/:id", requireAuth, requireRole("pool_admin", "sub_admin", "super_admin"),
   async (req: AuthRequest, res) => {
     try {
@@ -714,16 +717,17 @@ router.patch("/admin/parent-v2-pending/:id", requireAuth, requireRole("pool_admi
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
-      const { action, reason } = req.body;
+      const { action, reason, student_id } = req.body;
       if (!["approve", "reject"].includes(action)) {
         res.status(400).json({ success: false, message: "action은 approve 또는 reject여야 합니다." }); return;
       }
 
       const { approveParentV2Pending, rejectParentV2Pending } = await import("../lib/auto-link-v2.js");
-      let result: { success: boolean; message: string };
+      let result: { success: boolean; message: string; linkedCount?: number };
 
       if (action === "approve") {
-        result = await approveParentV2Pending(req.params.id, me.swimming_pool_id);
+        // student_id: 관리자가 직접 선택한 학생 (없으면 자동 매칭 시도)
+        result = await approveParentV2Pending(req.params.id, me.swimming_pool_id, student_id || undefined);
       } else {
         result = await rejectParentV2Pending(req.params.id, me.swimming_pool_id, reason);
       }
@@ -732,11 +736,9 @@ router.patch("/admin/parent-v2-pending/:id", requireAuth, requireRole("pool_admi
         res.status(400).json({ success: false, message: result.message }); return;
       }
 
-      // 학부모에게 결과 알림
+      // 학부모에게 결과 알림 (push)
       try {
-        const { db: dbClient } = await import("@workspace/db");
-        const { sql: sqlTag } = await import("drizzle-orm");
-        const [pending] = (await dbClient.execute(sqlTag`
+        const [pending] = (await db.execute(sql`
           SELECT parent_id, child_name_raw FROM parent_v2_pending WHERE id = ${req.params.id} LIMIT 1
         `)).rows as any[];
 
@@ -755,9 +757,30 @@ router.patch("/admin/parent-v2-pending/:id", requireAuth, requireRole("pool_admi
         }
       } catch {}
 
-      res.json({ success: true, message: result.message });
+      res.json({ success: true, message: result.message, linked_count: result.linkedCount });
     } catch (e) {
       console.error("[admin/parent-v2-pending PATCH]", e);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
+// ─── 관리자: pending_reason=NULL 건 일괄 재시도 ──────────────────────────
+// POST /admin/parent-v2-retry-all
+// 기존 NULL pending 건을 안전한 자동매칭 규칙으로 재시도하고 pending_reason 업데이트
+router.post("/admin/parent-v2-retry-all", requireAuth, requireRole("pool_admin", "sub_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      const { retryNullPendingByPool } = await import("../lib/auto-link-v2.js");
+      const result = await retryNullPendingByPool(me.swimming_pool_id);
+
+      res.json({ success: true, ...result });
+    } catch (e) {
+      console.error("[admin/parent-v2-retry-all POST]", e);
       res.status(500).json({ success: false, message: "서버 오류" });
     }
   }

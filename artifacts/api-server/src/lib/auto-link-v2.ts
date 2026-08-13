@@ -3,12 +3,17 @@
  *
  * 자동 승인 조건 (2개 모두 일치):
  *   normalizeName(student.name) = normalizeName(입력 이름)
- *   AND student.parent_phone2 (또는 phone1/phone3) normalized = parent.phone normalized
+ *   AND student.parent_phone1~4 normalized 중 하나 = parent.phone normalized
  *
  * pending_reason 값:
  *   "name_mismatch"   — 해당 이름의 학생 없음
  *   "phone_mismatch"  — 이름은 일치하나 전화번호 불일치
  *   "duplicate_name"  — 동명이인이고 전화번호 불일치
+ *
+ * 수동승인 / sibling 연결:
+ *   자동승인 실패 = 관리자 승인 금지가 아님.
+ *   관리자가 student_id를 직접 지정하여 승인 가능.
+ *   승인 후 동일 보호자 전화번호로 등록된 형제자매를 동일 pool에서 자동 연결.
  */
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
@@ -94,7 +99,18 @@ export async function upsertParentV2Pending(
 }
 
 // ── pending 레코드 matched 처리 ─────────────────────────────────────────
-async function markPendingMatched(parentId: string, studentId: string): Promise<void> {
+async function markPendingMatched(pendingId: string, studentId: string): Promise<void> {
+  await db.execute(sql`
+    UPDATE parent_v2_pending SET
+      status             = 'matched',
+      matched_student_id = ${studentId},
+      matched_at         = NOW()
+    WHERE id = ${pendingId}
+  `);
+}
+
+// ── pending 레코드 matched 처리 (parent_id 기준) ────────────────────────
+async function markPendingMatchedByParent(parentId: string, studentId: string): Promise<void> {
   await db.execute(sql`
     UPDATE parent_v2_pending SET
       status             = 'matched',
@@ -187,13 +203,71 @@ export async function linkParentToStudentV2(
       WHERE id = ${studentId}
     `);
 
-    await markPendingMatched(parentId, studentId);
-
     return { success: true };
   } catch (e: any) {
     console.error(`[v2-link] ✗ 저장 실패: parent=${parentId} student=${studentId}`, e?.message);
     return { success: false };
   }
+}
+
+// ── 형제자매 자동연결 — 승인된 보호자 전화번호로 같은 pool의 전체 학생 연결 ──
+// 자동승인 / 수동승인 / rejected→approved 세 경로에서 공통 사용
+export async function linkApprovedParentToRegisteredChildren(
+  parentId: string,
+  poolId: string,
+  phoneNorm: string
+): Promise<{ linkedCount: number; newCount: number; studentIds: string[] }> {
+  if (!phoneNorm) return { linkedCount: 0, newCount: 0, studentIds: [] };
+
+  // 동일 pool에서 phone1~4에 phoneNorm이 등록된 active 학생 전부 조회
+  const students = (await db.execute(sql`
+    SELECT id, name
+    FROM students
+    WHERE swimming_pool_id = ${poolId}
+      AND status NOT IN ('withdrawn', 'archived', 'deleted')
+      AND deleted_at IS NULL
+      AND (
+        REGEXP_REPLACE(COALESCE(parent_phone,''),  '[^0-9]', '', 'g') = ${phoneNorm}
+        OR REGEXP_REPLACE(COALESCE(parent_phone2,''), '[^0-9]', '', 'g') = ${phoneNorm}
+        OR REGEXP_REPLACE(COALESCE(parent_phone3,''), '[^0-9]', '', 'g') = ${phoneNorm}
+        OR REGEXP_REPLACE(COALESCE(parent_phone4,''), '[^0-9]', '', 'g') = ${phoneNorm}
+      )
+  `)).rows as any[];
+
+  let newCount = 0;
+  const studentIds: string[] = [];
+
+  for (const s of students) {
+    const { success, alreadyLinked } = await linkParentToStudentV2(parentId, s.id, poolId);
+    if (success) {
+      studentIds.push(s.id);
+      if (!alreadyLinked) {
+        newCount++;
+        console.log(`[sibling-link] ✓ 형제자매 연결: parent=${parentId} student=${s.id} name="${s.name}"`);
+      }
+    }
+  }
+
+  // 연결된 학생에 대한 sibling pending 정리 (이름 기반 매칭이 성공한 경우만)
+  for (const sid of studentIds) {
+    await db.execute(sql`
+      UPDATE parent_v2_pending SET
+        status             = 'matched',
+        matched_student_id = ${sid},
+        matched_at         = NOW()
+      WHERE parent_id = ${parentId}
+        AND pool_id   = ${poolId}
+        AND status    = 'pending'
+        AND (matched_student_id IS NULL OR matched_student_id = ${sid})
+        AND child_name_normalized = (
+          SELECT REPLACE(LOWER(TRIM(COALESCE(name,''))), ' ', '')
+          FROM students WHERE id = ${sid} LIMIT 1
+        )
+    `).catch(() => {});
+  }
+
+  console.log(`[sibling-link] 결과: parent=${parentId} pool=${poolId} total=${studentIds.length} new=${newCount}`);
+  return { linkedCount: studentIds.length, newCount, studentIds };
 }
 
 // ── 홈 연결 학생 조회 ──────────────────────────────────────────────────
@@ -261,6 +335,11 @@ export async function getParentStatusV2(parentId: string): Promise<{
   if (matched && studentId) {
     const { success } = await linkParentToStudentV2(parentId, studentId, pending.pool_id);
     if (success) {
+      // sibling 연결
+      const phoneNorm = normalizePhone(pa.phone || "");
+      if (phoneNorm) {
+        await linkApprovedParentToRegisteredChildren(parentId, pending.pool_id, phoneNorm);
+      }
       const freshStudents = await getLinkedStudentsV2(parentId);
       console.log(`[v2-status] 재매칭 성공 → 최종 상태: linked`);
       return { status: "linked", poolId: pending.pool_id, students: freshStudents, pendingChildName: null, pendingReason: null };
@@ -333,6 +412,12 @@ export async function triggerAutoLinkOnStudentV2(studentId: string, changedField
     );
     if (success && !alreadyLinked) {
       console.log(`[v2-admin-trigger] ✓ 자동 연결 완료: parent=${pending.parent_id} → student=${studentId}`);
+      // sibling 연결
+      const [pa] = (await db.execute(sql`SELECT phone FROM parent_accounts WHERE id = ${pending.parent_id} LIMIT 1`)).rows as any[];
+      const phoneNorm = normalizePhone(pa?.phone || "");
+      if (phoneNorm) {
+        await linkApprovedParentToRegisteredChildren(pending.parent_id, student.swimming_pool_id, phoneNorm);
+      }
     } else if (!success) {
       console.error(`[v2-admin-trigger] ✗ 연결 실패: parent=${pending.parent_id}`);
     }
@@ -368,21 +453,40 @@ export async function getParentV2PendingByPool(poolId: string, statusFilter: str
 }
 
 // ── 관리자: 수동 승인 ────────────────────────────────────────────────────
+// overrideStudentId: 관리자가 직접 선택한 학생 ID (name_mismatch 등 자동 매칭 불가 시)
+// 허용 status: pending, rejected (matched = 이미 처리됨 → idempotent 반환)
 export async function approveParentV2Pending(
   pendingId: string,
-  poolId: string
-): Promise<{ success: boolean; message: string }> {
+  poolId: string,
+  overrideStudentId?: string
+): Promise<{ success: boolean; message: string; linkedCount?: number }> {
   const [pending] = (await db.execute(sql`
     SELECT * FROM parent_v2_pending WHERE id = ${pendingId} AND pool_id = ${poolId} LIMIT 1
   `)).rows as any[];
 
   if (!pending) return { success: false, message: "요청을 찾을 수 없습니다." };
-  if (pending.status !== "pending") return { success: false, message: "이미 처리된 요청입니다." };
 
-  let studentId = pending.matched_student_id;
+  // matched = 이미 성공적으로 연결됨 → idempotent 반환
+  if (pending.status === "matched") {
+    console.log(`[v2-approve] 이미 처리된 요청: pendingId=${pendingId}`);
+    return { success: true, message: "이미 승인된 요청입니다.", linkedCount: 0 };
+  }
+  // pending / rejected → 승인 허용
 
-  // matched_student_id 없으면 이름으로 검색
-  if (!studentId) {
+  let studentId: string | undefined = overrideStudentId || pending.matched_student_id || undefined;
+
+  if (studentId) {
+    // student_id가 있으면 pool 소속 검증
+    const [student] = (await db.execute(sql`
+      SELECT id FROM students
+      WHERE id = ${studentId}
+        AND swimming_pool_id = ${poolId}
+        AND status NOT IN ('withdrawn','archived','deleted')
+      LIMIT 1
+    `)).rows as any[];
+    if (!student) return { success: false, message: "선택한 학생이 이 수영장에 속하지 않거나 유효하지 않습니다." };
+  } else {
+    // student_id 없으면 이름으로 재검색 (단 1건 일치해야 함)
     const [student] = (await db.execute(sql`
       SELECT id FROM students
       WHERE swimming_pool_id = ${poolId}
@@ -390,17 +494,41 @@ export async function approveParentV2Pending(
         AND status NOT IN ('withdrawn','archived','deleted')
       LIMIT 1
     `)).rows as any[];
-    if (!student) return { success: false, message: "연결할 학생을 찾을 수 없습니다." };
+    if (!student) {
+      return { success: false, message: "연결할 학생을 찾을 수 없습니다. 학생을 직접 선택해주세요." };
+    }
     studentId = student.id;
   }
 
-  const { success } = await linkParentToStudentV2(pending.parent_id, studentId, poolId);
+  // parent 존재 + phone 조회 (sibling 연결용)
+  const [pa] = (await db.execute(sql`
+    SELECT id, phone FROM parent_accounts WHERE id = ${pending.parent_id} LIMIT 1
+  `)).rows as any[];
+  if (!pa) return { success: false, message: "학부모 계정을 찾을 수 없습니다." };
+
+  // 직접 연결
+  const { success } = await linkParentToStudentV2(pending.parent_id, studentId!, poolId);
   if (!success) return { success: false, message: "연결 저장에 실패했습니다." };
 
-  return { success: true, message: "승인 완료" };
+  // pending 상태 → matched 처리
+  await markPendingMatched(pendingId, studentId!);
+
+  // 형제자매 자동연결 (3개 경로 공통 helper)
+  const phoneNorm = normalizePhone(pa.phone || "");
+  let linkedCount = 1;
+  if (phoneNorm) {
+    const sibling = await linkApprovedParentToRegisteredChildren(pending.parent_id, poolId, phoneNorm);
+    linkedCount = sibling.studentIds.length;
+  }
+
+  console.log(`[v2-approve] ✓ 승인 완료: pendingId=${pendingId} studentId=${studentId} sibling=${linkedCount}`);
+  return { success: true, message: "승인 완료", linkedCount };
 }
 
 // ── 관리자: 수동 거절 ────────────────────────────────────────────────────
+// pending → rejected 허용
+// rejected → rejected: idempotent (오류 없음)
+// matched → reject 불가 (이미 승인됨, 연결 해제는 별도 기능)
 export async function rejectParentV2Pending(
   pendingId: string,
   poolId: string,
@@ -411,7 +539,14 @@ export async function rejectParentV2Pending(
   `)).rows as any[];
 
   if (!pending) return { success: false, message: "요청을 찾을 수 없습니다." };
-  if (pending.status !== "pending") return { success: false, message: "이미 처리된 요청입니다." };
+
+  if (pending.status === "rejected") {
+    // 이미 거절됨 — idempotent
+    return { success: true, message: "이미 거절된 요청입니다." };
+  }
+  if (pending.status === "matched") {
+    return { success: false, message: "이미 승인된 요청입니다. 학부모 연결 해제는 별도 기능을 이용해주세요." };
+  }
 
   await db.execute(sql`
     UPDATE parent_v2_pending SET
@@ -422,4 +557,51 @@ export async function rejectParentV2Pending(
   `);
 
   return { success: true, message: "거절 완료" };
+}
+
+// ── 관리자: pool의 pending_reason=NULL 건 일괄 재시도 ──────────────────
+// 기존 NULL pending을 안전한 자동매칭 규칙으로 재시도하고 pending_reason 업데이트
+export async function retryNullPendingByPool(
+  poolId: string
+): Promise<{ retried: number; linked: number; reasonUpdated: number }> {
+  const rows = (await db.execute(sql`
+    SELECT id, parent_id, child_name_normalized, parent_phone_normalized
+    FROM parent_v2_pending
+    WHERE pool_id = ${poolId}
+      AND status = 'pending'
+      AND pending_reason IS NULL
+  `)).rows as any[];
+
+  let retried = 0, linked = 0, reasonUpdated = 0;
+
+  for (const r of rows) {
+    retried++;
+    const { matched, studentId, reason } = await tryMatchStudentV2(
+      r.parent_id, poolId, r.parent_phone_normalized, r.child_name_normalized
+    );
+
+    if (matched && studentId) {
+      const { success } = await linkParentToStudentV2(r.parent_id, studentId, poolId);
+      if (success) {
+        linked++;
+        await markPendingMatchedByParent(r.parent_id, studentId);
+        // sibling 연결
+        const [pa] = (await db.execute(sql`SELECT phone FROM parent_accounts WHERE id = ${r.parent_id} LIMIT 1`)).rows as any[];
+        const phoneNorm = normalizePhone(pa?.phone || "");
+        if (phoneNorm) {
+          await linkApprovedParentToRegisteredChildren(r.parent_id, poolId, phoneNorm);
+        }
+      }
+    } else {
+      // 매칭 실패 → pending_reason 기록 (향후 관리자가 명확히 인지)
+      await db.execute(sql`
+        UPDATE parent_v2_pending SET pending_reason = ${reason ?? "name_mismatch"}
+        WHERE id = ${r.id}
+      `);
+      reasonUpdated++;
+    }
+  }
+
+  console.log(`[v2-retry-null] pool=${poolId} retried=${retried} linked=${linked} reasonUpdated=${reasonUpdated}`);
+  return { retried, linked, reasonUpdated };
 }

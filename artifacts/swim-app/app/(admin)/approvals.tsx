@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, FlatList, Modal, Pressable,
-  RefreshControl, StyleSheet, Text, View,
+  RefreshControl, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -44,8 +44,17 @@ interface ParentPending {
   pending_reason: string | null;
   rejection_reason: string | null;
   status: string;
+  matched_student_id: string | null;
   retry_count: number;
   created_at: string;
+}
+
+interface StudentSearchResult {
+  id: string;
+  name: string;
+  birth_year: number | null;
+  status: string;
+  class_name: string | null;
 }
 
 type StatusFilter = "pending" | "approved" | "rejected";
@@ -59,12 +68,13 @@ function parseRoles(roles: any): string[] {
   return [];
 }
 
+// 자동승인 실패 reason → 관리자 확인 안내 문구
 function pendingReasonLabel(reason: string | null): string {
   if (!reason) return "";
-  if (reason === "name_mismatch")  return "학생 이름 불일치";
-  if (reason === "phone_mismatch") return "보호자2 전화번호 불일치";
-  if (reason === "duplicate_name") return "동명이인 — 전화번호 확인 필요";
-  return reason;
+  if (reason === "name_mismatch")   return "학생 이름 확인 필요";
+  if (reason === "phone_mismatch")  return "전화번호 확인 필요";
+  if (reason === "duplicate_name")  return "동명이인 확인 필요";
+  return "학생 연결 확인 필요";
 }
 
 function formatDate(iso: string): string {
@@ -84,6 +94,93 @@ const FILTER_CHIPS_TEACHER: FilterChipItem<StatusFilter>[] = [
   { key: "approved", label: "승인",   icon: "check-circle", activeColor: _IC, activeBg: _IB },
   { key: "rejected", label: "거절됨", icon: "x-circle",     activeColor: _IC, activeBg: _IB },
 ];
+
+// ── 학생 선택 모달 ──────────────────────────────────────────────────────
+function StudentPickerModal({
+  visible, onClose, onSelect, processing,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSelect: (student: StudentSearchResult) => void;
+  processing: boolean;
+}) {
+  const { token } = useAuth();
+  const [query, setQuery] = useState("");
+  const [students, setStudents] = useState<StudentSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!visible) { setQuery(""); setStudents([]); }
+  }, [visible]);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      if (!query.trim()) { setStudents([]); return; }
+      setSearching(true);
+      try {
+        const res = await apiRequest(token, `/students/search?q=${encodeURIComponent(query.trim())}`);
+        if (res.ok) {
+          const d = await res.json();
+          setStudents(d.data ?? []);
+        }
+      } catch { /* ignore */ }
+      finally { setSearching(false); }
+    }, 300);
+  }, [query, token]);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={sp.overlay}>
+        <View style={[sp.sheet, { backgroundColor: C.card }]}>
+          <View style={sp.header}>
+            <Text style={[sp.title, { color: C.text }]}>학생 선택</Text>
+            <Pressable onPress={onClose} disabled={processing}>
+              <LucideIcon name="x" size={20} color={C.textMuted} />
+            </Pressable>
+          </View>
+
+          <TextInput
+            style={[sp.input, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
+            placeholder="학생 이름 검색"
+            placeholderTextColor={C.textMuted}
+            value={query}
+            onChangeText={setQuery}
+            autoFocus
+          />
+
+          {searching && <ActivityIndicator color={C.tint} style={{ marginTop: 12 }} />}
+
+          {!searching && query.trim().length > 0 && students.length === 0 && (
+            <Text style={[sp.empty, { color: C.textMuted }]}>검색 결과가 없습니다</Text>
+          )}
+
+          <FlatList
+            data={students}
+            keyExtractor={s => s.id}
+            style={sp.list}
+            renderItem={({ item: s }) => (
+              <Pressable
+                style={[sp.row, { borderBottomColor: C.border }]}
+                onPress={() => onSelect(s)}
+                disabled={processing}
+              >
+                <View style={sp.rowLeft}>
+                  <Text style={[sp.rowName, { color: C.text }]}>{s.name}</Text>
+                  {s.class_name && (
+                    <Text style={[sp.rowSub, { color: C.textMuted }]}>{s.class_name}</Text>
+                  )}
+                </View>
+                <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+              </Pressable>
+            )}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 export default function ApprovalsScreen() {
   const { token } = useAuth();
@@ -111,6 +208,8 @@ export default function ApprovalsScreen() {
   const [refreshingParent, setRefreshingParent] = useState(false);
   const [parentProcessingId, setParentProcessingId] = useState<string | null>(null);
   const [parentRejectTarget, setParentRejectTarget] = useState<ParentPending | null>(null);
+  // 학생 선택 모달
+  const [studentPickerTarget, setStudentPickerTarget] = useState<ParentPending | null>(null);
 
   const loadTeacher = useCallback(async () => {
     try {
@@ -192,16 +291,47 @@ export default function ApprovalsScreen() {
     } finally { setActionProcessing(false); }
   }
 
-  // ── 학부모 연결 승인/거절 ──
+  // ── 학부모 연결 승인 핵심 로직 ──
+  // matched_student_id가 있으면 바로 승인, 없으면 학생 선택 모달
   async function handleParentApprove(item: ParentPending) {
+    if (item.matched_student_id) {
+      // 학생이 이미 특정됨 → 바로 승인
+      await doApprove(item, item.matched_student_id);
+    } else {
+      // 학생 선택 필요
+      setStudentPickerTarget(item);
+    }
+  }
+
+  // 학생 선택 후 승인 (StudentPickerModal → onSelect)
+  async function handleStudentSelected(student: StudentSearchResult) {
+    if (!studentPickerTarget) return;
+    const item = studentPickerTarget;
+    setStudentPickerTarget(null);
+    await doApprove(item, student.id);
+  }
+
+  // 실제 승인 API 호출 (공통)
+  async function doApprove(item: ParentPending, studentId?: string) {
     setParentProcessingId(item.id);
     try {
+      const body: Record<string, any> = { action: "approve" };
+      if (studentId) body.student_id = studentId;
+
       const res = await apiRequest(token, `/admin/parent-v2-pending/${item.id}`, {
-        method: "PATCH", body: JSON.stringify({ action: "approve" }),
+        method: "PATCH",
+        body: JSON.stringify(body),
       });
       const d = await res.json();
-      if (!res.ok) { Alert.alert("오류", d.message || "처리 중 오류가 발생했습니다."); return; }
-      Alert.alert("승인 완료", `${item.parent_name}님과 ${item.child_name_raw} 연결이 완료됐습니다.`);
+      if (!res.ok) {
+        Alert.alert("오류", d.message || "처리 중 오류가 발생했습니다.");
+        return;
+      }
+      const linkedCount: number = d.linked_count ?? 1;
+      const msg = linkedCount > 1
+        ? `${item.parent_name}님과 자녀 ${linkedCount}명 연결이 완료됐습니다.`
+        : `${item.parent_name}님과 ${item.child_name_raw} 연결이 완료됐습니다.`;
+      Alert.alert("승인 완료", msg);
       setParentPending(prev => prev.filter(p => p.id !== item.id));
     } finally { setParentProcessingId(null); }
   }
@@ -456,6 +586,14 @@ export default function ApprovalsScreen() {
         onConfirm={reason => parentRejectTarget && handleParentReject(parentRejectTarget, reason)}
         loading={!!parentProcessingId}
       />
+
+      {/* 학생 선택 모달 (matched_student_id 없는 경우) */}
+      <StudentPickerModal
+        visible={!!studentPickerTarget}
+        onClose={() => setStudentPickerTarget(null)}
+        onSelect={handleStudentSelected}
+        processing={!!parentProcessingId}
+      />
     </>
   );
 }
@@ -471,9 +609,14 @@ function ParentPendingCard({
 }) {
   const reasonLabel = pendingReasonLabel(item.pending_reason);
   const isPending   = item.status === "pending";
+  const isRejected  = item.status === "rejected";
+  // 승인 버튼: pending 또는 rejected 상태에서 표시
+  const showActions = isPending || isRejected;
+  // 학생 선택 필요 여부 (matched_student_id 없으면 학생 선택 모달)
+  const needsPicker = !item.matched_student_id;
 
   return (
-    <View style={[pc.card, { backgroundColor: C.card, borderColor: C.border }]}>
+    <View style={[pc.card, { backgroundColor: C.card, borderColor: isRejected ? "#FCA5A5" : C.border }]}>
       {/* 학생 이름 + 요청 시간 */}
       <View style={pc.topRow}>
         <View style={pc.studentBadge}>
@@ -491,32 +634,54 @@ function ParentPendingCard({
         <Text style={[pc.infoTxt, { color: C.textSecondary }]}>{item.parent_phone}</Text>
       </View>
 
-      {/* 자동승인 실패 이유 */}
-      {!!reasonLabel && (
+      {/* 거절된 경우 배지 */}
+      {isRejected && (
         <View style={[pc.reasonBox, { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" }]}>
-          <LucideIcon name="alert-circle" size={13} color="#DC2626" />
-          <Text style={[pc.reasonTxt, { color: "#DC2626" }]}>자동승인 실패: {reasonLabel}</Text>
+          <LucideIcon name="x-circle" size={13} color="#DC2626" />
+          <Text style={[pc.reasonTxt, { color: "#DC2626" }]}>
+            거절됨{item.rejection_reason ? ` — ${item.rejection_reason}` : ""}
+          </Text>
         </View>
       )}
 
-      {/* 액션 버튼 (pending만) */}
-      {isPending && (
+      {/* 관리자 확인 안내 (자동승인 미완료 이유) */}
+      {!!reasonLabel && (
+        <View style={[pc.reasonBox, { backgroundColor: "#FFFBEB", borderColor: "#FCD34D" }]}>
+          <LucideIcon name="alert-circle" size={13} color="#D97706" />
+          <Text style={[pc.reasonTxt, { color: "#D97706" }]}>{reasonLabel}</Text>
+          {needsPicker && (
+            <Text style={[pc.pickerHint, { color: "#D97706" }]}>학생 선택 필요</Text>
+          )}
+        </View>
+      )}
+
+      {/* 액션 버튼: pending 또는 rejected 상태 */}
+      {showActions && (
         <View style={pc.btnRow}>
+          {isPending && (
+            <Pressable
+              style={[pc.rejectBtn, { borderColor: C.border }]}
+              onPress={onReject}
+              disabled={processing}
+            >
+              <Text style={[pc.rejectTxt, { color: C.textSecondary }]}>거절</Text>
+            </Pressable>
+          )}
           <Pressable
-            style={[pc.rejectBtn, { borderColor: C.border }]}
-            onPress={onReject}
-            disabled={processing}
-          >
-            <Text style={[pc.rejectTxt, { color: C.textSecondary }]}>거절</Text>
-          </Pressable>
-          <Pressable
-            style={[pc.approveBtn, { backgroundColor: C.tint }]}
+            style={[pc.approveBtn, { backgroundColor: C.tint, flex: isPending ? 2 : 1 }]}
             onPress={onApprove}
             disabled={processing}
           >
             {processing
               ? <ActivityIndicator size="small" color="#fff" />
-              : <Text style={pc.approveTxt}>승인</Text>
+              : (
+                <View style={pc.approveBtnInner}>
+                  <Text style={pc.approveTxt}>승인</Text>
+                  {needsPicker && (
+                    <LucideIcon name="search" size={13} color="#fff" />
+                  )}
+                </View>
+              )
             }
           </Pressable>
         </View>
@@ -551,10 +716,30 @@ const pc = StyleSheet.create({
   reasonBox:  { flexDirection: "row", alignItems: "center", gap: 6,
                 borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
   reasonTxt:  { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular" },
+  pickerHint: { fontSize: 11, fontFamily: "Pretendard-Regular", fontWeight: "600" },
   btnRow:     { flexDirection: "row", gap: 8, marginTop: 4 },
   rejectBtn:  { flex: 1, height: 40, borderRadius: 9, borderWidth: 1,
                 alignItems: "center", justifyContent: "center" },
   rejectTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  approveBtn: { flex: 2, height: 40, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  approveBtn: { height: 40, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  approveBtnInner: { flexDirection: "row", alignItems: "center", gap: 6 },
   approveTxt: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },
+});
+
+const sp = StyleSheet.create({
+  overlay:  { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  sheet:    { borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%",
+              paddingTop: 20, paddingHorizontal: 16, paddingBottom: 32 },
+  header:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+              marginBottom: 14 },
+  title:    { fontSize: 17, fontFamily: "Pretendard-Regular", fontWeight: "700" },
+  input:    { height: 44, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14,
+              fontSize: 15, fontFamily: "Pretendard-Regular", marginBottom: 8 },
+  list:     { maxHeight: 400 },
+  row:      { flexDirection: "row", alignItems: "center", paddingVertical: 14,
+              borderBottomWidth: 1 },
+  rowLeft:  { flex: 1, gap: 2 },
+  rowName:  { fontSize: 15, fontFamily: "Pretendard-Regular" },
+  rowSub:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  empty:    { textAlign: "center", marginTop: 24, fontSize: 14, fontFamily: "Pretendard-Regular" },
 });
