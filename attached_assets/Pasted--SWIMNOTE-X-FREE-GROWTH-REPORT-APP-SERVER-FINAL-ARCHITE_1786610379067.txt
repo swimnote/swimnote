@@ -1,0 +1,627 @@
+[SWIMNOTE X FREE GROWTH REPORT — APP/SERVER FINAL ARCHITECTURE FEASIBILITY & IMPLEMENTATION DESIGN AUDIT]
+
+중요:
+이번 작업은 구현이 아니다.
+
+현재 SWIMNOTE APP Repository를 기준으로
+SWIMNOTE X 무료 월간 성장리포트 완성형을
+APP + APP SERVER에서 어떻게 수용할지 감리하라.
+
+코드 수정 / DB 변경 / 배포 금지.
+READ-ONLY AUDIT + IMPLEMENTATION DESIGN ONLY.
+
+MVP나 축소판으로 임의 변경하지 마라.
+최종 완성 형태를 기준으로 감리한다.
+
+AI 평가·분석 자체는 AI ENGINE의 책임이다.
+APP은 수영 전문 판단, 인간 행동 평가, Evidence 판단,
+긍정 성장항목 선정 등을 자체 생성하면 안 된다.
+
+
+==================================================
+1. 전체 제품 흐름
+==================================================
+
+X모드 학생에게 월 1회 무료 성장리포트를 제공한다.
+
+운영주기:
+
+매월 25일
+→ 해당 회차 성장리포트 생성 가능
+→ Push Notification
+→ 서버/엔진 사전분석
+→ 추가 학부모 정보가 필요한 경우 질문 모달
+
+25일 ~ 다음달 5일
+→ Parent 질문 응답 가능
+→ 분석/검토/발행 진행
+
+다음달 5일
+→ 해당 회차 입력/생성 기간 종료
+→ 종료 알림
+
+중요:
+이미 PUBLISHED 된 리포트는 없어지지 않는다.
+계속 피드에서 열람 가능하다.
+구조화 결과는 다음 월의 분석자료로 재사용된다.
+
+
+==================================================
+2. APP의 절대 역할
+==================================================
+
+APP / APP SERVER는 다음 역할을 담당한다.
+
+- X entitlement / 접근권한
+- 학생/수영장/사용자 Context
+- Report Window 상태 표시
+- Push Notification
+- AI ENGINE 호출 orchestration에 필요한 App-side API
+- 질문 모달 표시
+- 학부모 답변 수집
+- 답변 저장/ENGINE 전달
+- Report Job 상태 표시
+- 교사 검토 UI
+- Report 결과 저장 또는 ENGINE 결과 persistence orchestration
+- 학부모 Feed 발행
+- 상세 리포트 렌더링
+- PDF download/share
+- SNS용 AI 요약 결과 표시/공유
+- 감사로그/권한/발행상태
+
+APP이 하면 안 되는 것:
+
+- Teacher Diary 의미분석
+- Observation 생성 판단
+- 70개 Metric Mapping
+- Evidence Sufficiency 판단
+- Positive Signal 선정
+- Longitudinal 평가
+- Question Priority 판단
+- Growth Opportunity 판단
+- GPT용 Fact 생성
+- 수영 전문 판단
+
+위 판단은 AI ENGINE 책임.
+
+
+==================================================
+3. AI ENGINE에 전달해야 할 입력 Context
+==================================================
+
+APP / APP SERVER가 실제 보유하고 있는 데이터 중
+무료 리포트에 제공 가능한 Source를 확인하라.
+
+후보:
+
+CURRENT:
+Teacher Diary
+class diary student notes
+Growth Events
+Curriculum
+Level / progress
+Attendance
+Teacher Review
+Record
+Video references if available
+
+LONGITUDINAL:
+Previous report structured result
+Previous metric states
+Previous parent answers
+Previous observation targets
+Previous success conditions
+Previous support levers
+
+IDENTITY:
+student_id
+pool_id
+teacher context
+report period
+
+현재 Repository 실제 schema와 route를 기준으로
+각 데이터의 실제 source table / API / service를 매핑해서 보고하라.
+
+존재하지 않는 데이터를 있다고 가정하지 마라.
+
+
+==================================================
+4. Report Lifecycle
+==================================================
+
+필요 상태 후보:
+
+NOT_OPEN
+OPEN
+PREANALYZING
+QUESTION_REQUIRED
+READY_FOR_ANALYSIS
+ANALYZING
+REVIEW_REQUIRED
+APPROVED
+PUBLISHED
+CLOSED
+PARTIAL
+FAILED
+
+현재 `growth_reports` 등의 실제 상태구조를 먼저 확인하고,
+기존 상태를 재사용할 수 있는지
+추가 상태가 필요한지 제안하라.
+
+임의 Migration 금지.
+
+
+==================================================
+5. 25일~5일 Window
+==================================================
+
+정책:
+
+25일:
+리포트 회차 OPEN
+대상 X 학생/학부모에게 알림
+
+25일 이후:
+사전분석 가능
+필요 시 질문
+
+2~3일:
+미완료 사용자에 대한 마감 임박 Reminder를
+추가 가능한 구조로 고려
+
+5일:
+회차 입력기간 종료 알림
+미완료 회차 CLOSED
+
+정확한 Push 시점/문구는 추후 정책 수정 가능하도록
+hard-code보다는 정책화 가능한 구조를 제안하라.
+
+Scheduler 책임을
+기존 worker / server / notification infrastructure 중
+어디에 둘지 실제 코드 기준으로 판단하라.
+
+
+==================================================
+6. Parent Question Modal
+==================================================
+
+중요:
+고정된 70문항 설문을 보여주는 기능이 아니다.
+
+AI ENGINE이 해당 학생의 기존 데이터를 먼저 분석하고,
+
+“현재 긍정 성장신호 후보 중
+학부모 답변이 들어오면 Evidence 가치가 크게 증가하는 항목”
+
+2~5개 정도를 선택해 APP으로 반환한다.
+
+APP은 그 질문만 표시한다.
+
+질문 Contract 후보:
+
+question_id
+report_id
+metric_id
+
+question_text
+
+answer_type
+options[]
+
+reason_code
+(optional, 내부용)
+
+sequence
+is_required
+
+APP은 metric 판단을 하지 않는다.
+
+답변 후보는 기본적으로 객관식/선택형이며
+질문 문구는 긍정적 변화 가능성이 높은 항목에서 선정될 수 있으나
+답변 선택지는 편향 없이 구성되어야 한다.
+
+답변 저장:
+
+answer_id
+question_id
+selected_option
+answered_at
+parent_account_id
+
+필요한 경우 ENGINE에 재분석 요청.
+
+
+==================================================
+7. 교사 검토
+==================================================
+
+AI 분석 완료 후 바로 Parent Publish 여부를 감리하라.
+
+현재 설계 원칙은:
+
+ANALYZING
+→ REVIEW_REQUIRED
+→ teacher / pool_admin 검토
+→ APPROVED
+→ PUBLISHED
+
+교사가 수정할 수 있는 범위도 제안하라.
+
+중요:
+교사가 Evidence/Metric 판정을 임의로 새로 만드는 것이 아니라,
+문장 검토 / 근거 제외 요청 / 재분석 요청 등의 구조를 우선 검토한다.
+
+기존 WP13 Growth Event Review,
+Audit 구조를 어느 정도 재사용 가능한지 확인하라.
+
+
+==================================================
+8. Parent Feed 발행
+==================================================
+
+성장리포트는 별도 메뉴를 찾아가야만 보는 기능을 기본으로 하지 않는다.
+
+기본 Parent UX:
+
+기존 수업 Feed 안에
+새 Feed Item Type 또는 기존 Feed 확장으로
+
+GROWTH_REPORT
+
+가 월 1회 게시된다.
+
+예:
+
+[8월 성장리포트]
+
+이번 달 핵심 성장요약
+짧은 Preview
+
+[리포트 보기]
+
+사용자가 Feed item을 누르면
+앱 안의 상세 리포트 화면/모달로 진입한다.
+
+현재 Parent Feed 구조에서
+새 타입을 넣는 가장 안전한 방식을 실제 코드 기준으로 감리하라.
+
+기존 Diary 저장/표시 Contract를 깨지 마라.
+
+
+==================================================
+9. Report Detail UX
+==================================================
+
+PDF를 기본 열람방식으로 하지 않는다.
+
+기본:
+
+앱 Native Report Detail
+
+후속 액션:
+
+- PDF 다운로드
+- SNS 공유용 요약
+- Instagram Story 공유
+
+상세 리포트 후보 구성:
+
+기본정보
+이번 달 핵심 성장
+수영교육 성장
+긍정적 행동/학습 강점
+지난 기간 비교
+좋은 행동이 나타난 성공조건
+다음 성장방향
+부모 지원 포인트
+
+정확한 콘텐츠는 ENGINE의 Structured Report Contract를 렌더링한다.
+
+APP이 내용을 재해석하지 않는다.
+
+
+==================================================
+10. PDF
+==================================================
+
+PUBLISHED 리포트는 필요 시 PDF로 다운로드 가능해야 한다.
+
+현재 Repository / infra 기준으로:
+
+- server-side HTML→PDF
+- 기존 PPT/PDF service
+- 다른 현재 자산
+
+중 무엇이 적절한지 감리하라.
+
+이번 Audit에서는 구현하지 마라.
+
+
+==================================================
+11. SNS 공유
+==================================================
+
+리포트는 학부모의 자연스러운 공유까지 연결한다.
+
+PUBLISHED Report
+↓
+AI SNS Summary
+↓
+Share Card / Story Content
+↓
+Instagram Story 등 공유
+
+중요:
+APP이 성장내용을 자체 요약하지 않는다.
+
+AI ENGINE이 제공한
+SNS-safe summary / key growth points를 사용한다.
+
+APP 역할:
+렌더링
+브랜딩
+공유 Intent
+필요한 워터마크/브랜드 카드
+
+현재 기존 공유 기능과
+어느 정도 재사용 가능한지 감리하라.
+
+
+==================================================
+12. Longitudinal Persistence
+==================================================
+
+과거 리포트를 다음 달 분석자료로 쓰기 때문에
+APP DB에는 단순 PDF URL만 저장하면 안 된다.
+
+필요 구조 후보:
+
+report_id
+student_id
+pool_id
+period
+status
+
+selected_metrics
+metric_states
+metric_confidences
+
+evidence_refs
+
+positive_growth_signals
+success_conditions
+support_levers
+
+parent_answers
+
+next_growth_targets
+next_observation_targets
+
+engine_version
+report_version
+
+published_at
+previous_report_id
+
+다만 실제 DB 소유권을
+APP DB에 둘지 ENGINE DB에 둘지는
+현재 architecture를 확인해 제안하라.
+
+Source of Truth는 반드시 하나여야 한다.
+
+APP과 ENGINE에 서로 다른 리포트 상태가 중복 저장되어
+drift가 생기는 구조를 만들지 마라.
+
+
+==================================================
+13. Report API Contract
+==================================================
+
+APP 관점에서 필요한 API 흐름을 설계하라.
+
+후보:
+
+GET current report cycle
+POST initialize/preanalyze report
+GET report questions
+POST parent answers
+POST submit answers / reanalyze
+GET report job status
+
+GET teacher review queue
+GET report review detail
+POST review/approve/reanalyze
+
+GET parent report feed item
+GET parent report detail
+GET/POST PDF generation if required
+GET share summary
+
+정확한 route는
+기존 API style을 감리한 뒤 제안하라.
+
+무조건 위 route명을 그대로 쓰지 마라.
+
+
+==================================================
+14. Notification
+==================================================
+
+필요 Notification type 후보:
+
+GROWTH_REPORT_OPEN
+GROWTH_REPORT_QUESTION_REQUIRED
+GROWTH_REPORT_DEADLINE_SOON
+GROWTH_REPORT_WINDOW_CLOSED
+GROWTH_REPORT_PUBLISHED
+
+기존 notification / deep_link 구조에
+어떻게 넣는 것이 맞는지 감리하라.
+
+Parent가 알림을 눌렀을 때
+정확한 Report/Question/Feed Detail로 이동해야 한다.
+
+
+==================================================
+15. X Mode Access
+==================================================
+
+무료 성장리포트는 X entitlement가 활성화된 수영장 회원 대상이다.
+
+현재 `XModeGuard`, entitlement,
+pool X status 및 Parent 접근구조를 확인해서
+
+어디서 server-side enforcement를 하고
+어디서 UI guard를 할지 설계하라.
+
+UI Guard만으로 접근제어하면 안 된다.
+
+
+==================================================
+16. 실패/부분결과 처리
+==================================================
+
+학부모 답변이 없거나
+수업 Evidence가 적어도
+APP에서 빈 화면처럼 보이면 안 된다.
+
+ENGINE 반환 후보:
+
+PARTIAL
+INSUFFICIENT
+QUESTION_REQUIRED
+FAILED
+
+각 상태를 UI에서 구분해야 한다.
+
+API 5xx를
+“리포트 없음”으로 표시하면 안 된다.
+
+이 원칙은 기존 Production incident의 교훈과 동일하다.
+
+
+==================================================
+17. 이번 AUDIT에서 반드시 답할 것
+==================================================
+
+코드 수정 없이 아래를 보고하라.
+
+A. 최종 판정
+- FULLY_IMPLEMENTABLE
+- IMPLEMENTABLE_WITH_ARCHITECTURE_CHANGES
+- PARTIALLY_IMPLEMENTABLE
+
+B. APP에서 그대로 재사용 가능한 화면/컴포넌트/서비스
+실제 파일명 포함.
+
+C. APP SERVER에서 재사용 가능한 route/service/schema
+
+D. 새로 필요한 APP 화면/컴포넌트
+
+E. 새로 필요한 Server API
+
+F. 기존 `growth_reports`, `growth_events`, notifications,
+feed, XModeGuard 등과의 정확한 연결점
+
+G. 25일~5일 Scheduler 구현 위치
+
+H. Parent Question Modal 구현방식
+
+I. Teacher Review 구현방식
+
+J. Feed에 GROWTH_REPORT를 넣는 가장 안전한 방식
+
+K. Native Detail / PDF / SNS share 구현방식
+
+L. Longitudinal Structured Data의 Source of Truth 제안
+
+M. ENGINE으로 전달할 Context Contract
+
+N. ENGINE에서 받을 Result Contract
+
+O. 현재 schema에서 부족한 DB 구조
+
+P. server-side X entitlement 보안 위치
+
+Q. 가장 위험한 충돌/회귀 위험 5개 이하
+
+R. 완성형 구현 WP 순서
+
+S. 각 WP의 테스트전략
+
+T. 실제 변경 예상 파일목록
+
+
+==================================================
+18. 구현 WP를 제안할 때의 원칙
+==================================================
+
+한꺼번에 구현하지 않는다.
+
+최종 완성형까지 갈 WP를
+의존성 순서대로 분해한다.
+
+예시는 참고만 하고 Repository를 보고 결정:
+
+Report Lifecycle / Storage
+→ Engine Contract
+→ Parent Questions
+→ Review
+→ Feed
+→ Detail
+→ Notification
+→ PDF
+→ SNS Share
+
+각 WP는 독립 검증 가능해야 한다.
+
+MVP라는 표현은 사용하지 마라.
+최종 설계를 순차적으로 완성하는 과정이다.
+
+
+==================================================
+19. 금지
+==================================================
+
+- 코드 수정 금지
+- Migration 금지
+- Production write 금지
+- Deploy / OTA 금지
+- UI 변경 금지
+- 광고 / curriculum search 등 타 기능 건드리기 금지
+- AI 판단을 APP으로 가져오기 금지
+- 기존 안정기능 리팩터링 금지
+- 임의 MVP 축소 금지
+- Feed 구조를 확인하지 않고 새 Feed 시스템 만들기 금지
+
+CREDIT SAVING MODE:
+Growth Report 관련 파일만 검사.
+전체 Repository 무의미한 재감리 금지.
+
+
+==================================================
+20. 최종 보고 형식
+==================================================
+
+1. IMPLEMENTABILITY VERDICT
+2. CURRENT APP/SERVER ASSETS
+3. GAP ANALYSIS
+4. FINAL APP/SERVER ARCHITECTURE
+5. ENGINE ↔ APP CONTRACT
+6. DATA OWNERSHIP / STORAGE DESIGN
+7. REPORT LIFECYCLE
+8. UI/UX FLOW
+9. WP IMPLEMENTATION ORDER
+10. TEST PLAN
+11. RISKS / CONFLICTS
+12. EXPECTED FILE CHANGES
+13. NO-CODE-CONFIRMATION
+
+마지막 줄:
+
+GROWTH_REPORT_APP_DESIGN_AUDIT_COMPLETE ✅
+
+또는
+
+GROWTH_REPORT_APP_DESIGN_BLOCKED ❌
++ 정확한 이유
