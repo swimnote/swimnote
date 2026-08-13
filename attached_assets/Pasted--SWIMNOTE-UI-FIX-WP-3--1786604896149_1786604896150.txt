@@ -1,0 +1,370 @@
+[SWIMNOTE 선생님 지난일지 UI + 사진뷰어 FIX — 수정 승인]
+
+조사 보고 승인합니다.
+
+이번 WP는 조사된 3개 문제만 최소 수정합니다.
+
+수정 대상:
+
+1.
+artifacts/swim-app/components/common/DiaryPhotoStrip.tsx
+
+2.
+artifacts/swim-app/components/teacher/diary/DiaryHistoryList.tsx
+
+Server 수정 금지.
+DB 수정 금지.
+Native 수정 금지.
+관련 없는 리팩터링 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 작은 iPhone — 전체 저장 UI 수정
+━━━━━━━━━━━━━━━━━━━━
+
+현재 문제:
+
+작은 iPhone에서
+
+수업 미디어 사진 N장
+· 탭하면 크게 볼 수 있어요
+[전체 저장]
+
+이 한 줄에 모두 들어가면서
+[전체 저장] 버튼이 화면 밖으로 밀려남.
+
+목표:
+
+작은 iPhone에서도 절대 horizontal overflow가
+발생하지 않아야 합니다.
+
+중요한 우선순위:
+
+1. "수업 미디어 사진 N장" 유지
+2. [전체 저장] 버튼 항상 완전히 표시
+3. 힌트 문구는 공간이 부족하면 축소/생략 가능
+4. 큰 화면에서도 현재 디자인 최대한 유지
+
+이번 수정에서는 억지로 모든 텍스트를
+한 줄에 밀어 넣지 마십시오.
+
+권장:
+
+- labelRow 전체 width 제약 정상화
+- labelHint에 flexShrink 적용
+- 전체 저장 버튼은 shrink되지 않도록 처리
+- 필요하면 작은 화면에서는 hint를 축소하거나 숨김
+- allDlBtn이 카드 오른쪽 경계를 절대 넘지 않게 처리
+
+단순히 fontSize만 작게 만들어 해결하지 마십시오.
+
+iPhone SE급 폭에서도 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 선생님 일지 reaction UI 통일
+━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+DiaryHistoryList.tsx
+
+현재:
+
+👍 like_count
+🙏 thank_count
+💬 comment_count
+
+변경:
+
+♥ like_count
+💬 comment_count
+
+두 개만 남깁니다.
+
+좋아요 아이콘은
+현재 학부모 일지 화면의 실제 구현을 기준으로 맞춥니다.
+
+사용:
+
+LucideIcon
+name="heart"
+
+하트 색상:
+
+#E8003D
+
+선생님 화면은 학부모가 누른 반응의
+집계값을 보는 화면이므로
+기존 like_count 값은 그대로 사용합니다.
+
+중요:
+
+👍 emoji 제거
+🙏 감사합니다 UI 완전 제거
+thank_count 표시 제거
+
+댓글 UI 및 comment_count 유지.
+
+DB의 thank_count 삭제 금지.
+API 삭제 금지.
+과거 reaction 데이터 삭제 금지.
+
+이번 WP에서는 표시 UI만 정리합니다.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 사진 크게보기 swipe crash 수정
+━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+DiaryPhotoStrip.tsx
+
+조사에서 확인된 viewer layout 충돌을
+최소 수정합니다.
+
+현재:
+
+viewerPage: {
+  width: SCREEN_W,
+  flex: 1,
+  ...
+}
+
+horizontal paging ScrollView 자식의
+flex: 1 제거.
+
+페이지는 명시적인 paging width를 유지해야 합니다.
+
+예상 구조:
+
+viewerPage: {
+  width: SCREEN_W,
+  height: "100%",
+  alignItems: "center",
+  justifyContent: "center",
+}
+
+ScrollView의
+
+contentContainerStyle={{ alignItems: "center" }}
+
+도 horizontal paging 계산에 불필요하면 제거하십시오.
+
+필요한 경우 height만 유지하십시오.
+
+중요:
+
+추측으로 다른 viewer 구조를 새로 만들지 마십시오.
+
+현재:
+
+- Modal
+- horizontal swipe
+- pagingEnabled
+- 사진 저장
+- 닫기
+- 현재 사진 표시
+- 기존 image source
+
+기능을 유지하면서
+레이아웃 충돌만 최소 수정합니다.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 사진뷰어 검증은 반드시 여러 장으로
+━━━━━━━━━━━━━━━━━━━━
+
+이번 버그는 첫 사진은 정상이고
+두 번째부터 발생합니다.
+
+따라서 "뷰어가 열렸다"만으로 PASS 금지.
+
+최소 4장 사진이 있는 일지로:
+
+썸네일 1번 클릭
+→ 사진 1 정상
+→ swipe
+→ 사진 2 정상
+→ swipe
+→ 사진 3 정상
+→ swipe
+→ 사진 4 정상
+
+확인.
+
+그리고 반대방향:
+
+4 → 3 → 2 → 1
+
+도 확인.
+
+추가로:
+
+썸네일 2번 직접 클릭
+→ viewer가 2번 사진부터 정상 시작
+
+썸네일 3번 직접 클릭
+→ viewer가 3번 사진부터 정상 시작
+
+도 확인하십시오.
+
+각 사진에서:
+
+- Something went wrong 없음
+- 빈 화면 없음
+- 잘못된 사진 없음
+- index 어긋남 없음
+- swipe paging 정상
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 공용 DiaryPhotoStrip 회귀검증
+━━━━━━━━━━━━━━━━━━━━
+
+DiaryPhotoStrip은 공용 컴포넌트이므로
+선생님만 확인하고 끝내면 안 됩니다.
+
+선생님 지난일지:
+
+- 썸네일 정상
+- 크게보기 정상
+- 전체 저장 정상
+
+학부모 일지:
+
+- 썸네일 정상
+- 크게보기 정상
+- 여러 장 swipe 정상
+
+둘 다 확인하십시오.
+
+학부모 화면 디자인을
+이번 작업에서 별도로 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 작은 화면 UI 검증
+━━━━━━━━━━━━━━━━━━━━
+
+최소 작은 iPhone 폭에서 확인:
+
+"수업 미디어 사진 N장"
+[전체 저장]
+
+버튼이 카드 안에 완전히 존재해야 합니다.
+
+금지:
+
+- 화면 우측 잘림
+- 카드 밖 overflow
+- 버튼 일부 잘림
+- 사진영역과 버튼 겹침
+- 텍스트와 버튼 겹침
+
+큰 iPhone 폭에서도 회귀 없는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 절대 건드리지 말 것
+━━━━━━━━━━━━━━━━━━━━
+
+- 일지 작성
+- 일지 수정
+- 일지 삭제
+- AI 일지
+- 사진 업로드
+- R2
+- 전체 저장 내부 다운로드 로직
+- 개별 사진 저장 로직
+- 댓글 기능
+- 학부모 reaction 기능
+- DB reaction 데이터
+- Server API
+- Cleanup
+- UploadQueue
+- Instagram AI Story
+- X 기능
+
+추가 문제를 발견하더라도
+이번 WP에서 임의 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+CASE 1
+작은 iPhone
+→ 전체 저장 버튼 카드 내부 정상
+
+CASE 2
+큰 iPhone
+→ 기존 레이아웃 회귀 없음
+
+CASE 3
+선생님 지난일지
+→ 👍 없음
+→ ❤️ 하트 표시
+→ 🙏 없음
+→ 댓글 유지
+
+CASE 4
+기존 like_count
+→ 숫자 그대로 정상 표시
+
+CASE 5
+사진 4장
+→ 1→2→3→4 swipe 정상
+
+CASE 6
+사진 4장
+→ 4→3→2→1 swipe 정상
+
+CASE 7
+2번째 썸네일 직접 클릭
+→ 2번째부터 정상 표시
+
+CASE 8
+3번째 썸네일 직접 클릭
+→ 3번째부터 정상 표시
+
+CASE 9
+학부모 사진 viewer
+→ 여러 장 swipe 정상
+
+CASE 10
+전체 저장
+→ 기존 다운로드 기능 정상
+
+CASE 11
+댓글
+→ 기존 기능 정상
+
+CASE 12
+Something went wrong
+→ 재현되지 않음
+
+━━━━━━━━━━━━━━━━━━━━
+9. 완료 보고 후 STOP
+━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고:
+
+1. 실제 수정 파일
+2. 정확한 변경 내용
+3. 전체 저장 UI 최종 처리방법
+4. reaction UI 최종 결과
+5. 사진 viewer 수정 내용
+6. CASE 1~12 결과
+7. TypeScript 결과
+8. 기존 테스트 결과
+9. Server 변경 여부
+10. DB 변경 여부
+11. Native 변경 여부
+12. commit SHA
+13. OTA 필요 여부
+
+Production OTA 배포 금지.
+Render 배포 금지.
+Native Build 금지.
+
+CODE 수정 + 검증까지만 수행하고
+보고 후 STOP.
