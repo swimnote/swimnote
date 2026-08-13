@@ -50,3 +50,4 @@
 - [WP15.5-A 완료](wp15-5a-done.md) — SHA cacf983e; docs/AD_ANALYTICS_FOUNDATION.md; 코드변경없음; Render/OTA 금지
 - [WP15.5-B 완료](wp15-5b-done.md) — SHA fc864a12; /super/analytics-overview+APP_SESSION hook+AnalyticsDashboard; 10TC+381TC; Render live; OTA 없음
 - [WP15.5-C 완료](wp15-5c-done.md) — SHA 0f8899a4; ad_creatives+CRUD+ParentAdBanner+AdCreativeManager; 10TC+391TC; Render live; OTA production 3316f6f1
+- [GR3 완료 상태](wp-gr3-done-state.md) — SHA 53db8279; ENGINE client+snapshot+result+worker+route; 69TC+604TC; 미배포

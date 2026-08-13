@@ -1,0 +1,1313 @@
+[SWIMNOTE X FREE GROWTH REPORT]
+[APP GR3 — ENGINE INTEGRATION + IMMUTABLE SNAPSHOT + RESULT PERSISTENCE]
+
+MODE:
+FINAL IMPLEMENTATION
+NOT MVP
+NOT PROTOTYPE
+NOT SAMPLE
+
+현재 완료:
+
+GR1 Product Storage + Lifecycle Foundation ✅
+GR2 Monthly Cycle Scheduler ✅
+
+AI ENGINE:
+WP1~WP13 Implementation Complete ✅
+
+이번 GR3 목적:
+
+SWIMNOTE APP SERVER가
+Growth Report 분석에 필요한 Product 데이터를 조회하고,
+
+AI ENGINE WP13 Contract에 맞는
+immutable GrowthReportAnalysisRequest Snapshot을 생성하여
+
+AI ENGINE
+POST /api/v1/growth-report/analyze
+
+를 호출하고,
+
+ENGINE의 structured response를
+APP Product Growth Report에 정확히 저장하는
+실제 통합 계층을 완성한다.
+
+중요:
+
+APP이 분석하지 않는다.
+APP이 Metric 의미를 해석하지 않는다.
+APP이 질문을 만들지 않는다.
+APP이 Report를 다시 GPT 요약하지 않는다.
+
+==================================================
+1. RESPONSIBILITY BOUNDARY
+==================================================
+
+APP SERVER:
+
+- Authorization
+- X Mode 확인
+- DB 조회
+- 분석 대상 데이터 고정
+- Snapshot 구성
+- canonical hash 생성
+- ENGINE 호출
+- ENGINE response validation
+- Product DB 저장
+- Product lifecycle 전환
+
+AI ENGINE:
+
+- Atomization
+- Metric Mapping
+- Evidence
+- Longitudinal
+- Positive Signal
+- Questions
+- Synthesis
+- Swimming Analysis
+- Fact Package
+- GPT Composition
+- Grounding
+- Growth Framing
+
+APP에서 위 분석기능 재구현 금지.
+
+==================================================
+2. CANONICAL ENGINE ROUTE
+==================================================
+
+AI ENGINE WP13 공식 Route:
+
+POST /api/v1/growth-report/analyze
+
+기존 SWIMNOTE APP → AI ENGINE
+server-to-server client/auth 패턴을 먼저 찾고 재사용한다.
+
+새 임의 인증방식 만들지 마라.
+
+기존 AI Diary가
+swimnote.ai.kr Production Engine을 호출하는
+canonical client가 있다면 우선 재사용.
+
+==================================================
+3. X SERVER-SIDE GUARD
+==================================================
+
+GR1의:
+
+requireReportXAccess()
+resolveReportXAccess()
+
+실제 canonical X 판정을 사용한다.
+
+신규 분석 시작:
+
+X access 필수.
+
+클라이언트 UI만 믿지 않는다.
+
+이미 PUBLISHED된 Report 열람 정책과
+신규 분석 권한을 혼동하지 않는다.
+
+==================================================
+4. WHEN ANALYSIS CAN START
+==================================================
+
+최소 Product status:
+
+OPEN
+→ PREANALYZING
+
+또는
+
+READY_FOR_ANALYSIS
+→ ANALYZING
+
+flow를 중앙 service로 관리.
+
+권장 Flow A — 25일 첫 분석:
+
+OPEN
+→ PREANALYZING
+→ ENGINE call
+
+ENGINE result에 따라:
+
+questions.length > 0
+AND parent input window open
+→ QUESTION_AVAILABLE
+
+questions.length === 0
+→ READY_FOR_ANALYSIS 또는 직접 최종분석 정책
+
+중요:
+ENGINE은 질문이 있어도 Report 결과를 반환할 수 있다.
+
+APP Product flow와
+ENGINE analysis result를 분리해서 설계.
+
+==================================================
+5. TWO-PASS PRODUCT FLOW
+==================================================
+
+정상 시나리오:
+
+PASS 1 — PREANALYSIS / INITIAL REPORT ANALYSIS
+
+25일 이후:
+
+APP snapshot 생성
+parent_answers 없음 또는 현재 답변만 포함
+→ ENGINE 호출
+
+ENGINE:
+questions[] + report result 반환
+
+APP:
+questions 저장
+report analysis result 저장
+
+질문이 있고 입력창 열림:
+product_status = QUESTION_AVAILABLE
+
+질문이 없으면:
+READY_FOR_ANALYSIS 또는 REVIEW_REQUIRED로 이어질 수 있는
+명확한 policy 사용.
+
+PASS 2 — AFTER PARENT INPUT CLOSE / ANSWER
+
+5일 이후 또는 Parent answer를 반영한 재분석:
+
+새 request_id
+새 immutable snapshot
+parent_answers 포함
+→ ENGINE 다시 호출
+
+ENGINE:
+parent evidence 포함 재분석
+→ final structured result
+
+APP:
+기존 Product Report row에
+최신 Engine Result 업데이트
+→ REVIEW_REQUIRED
+
+중요:
+
+같은 request_id 재사용 금지.
+
+새 분석 Snapshot은 새 request_id.
+
+==================================================
+6. ENGINE ANALYSIS STATUS → APP STATUS MAPPING
+==================================================
+
+ENGINE status:
+
+COMPLETE
+COMPLETE_WITH_QUESTIONS_AVAILABLE
+COMPLETE_WITH_PARENT_EVIDENCE
+PARTIAL
+
+APP mapping을 중앙 함수로 구현.
+
+예:
+
+PREANALYZING stage에서
+
+COMPLETE_WITH_QUESTIONS_AVAILABLE
++ parent input open
++ questions.length > 0
+→ QUESTION_AVAILABLE
+
+COMPLETE
++ no questions
+→ READY_FOR_ANALYSIS 또는 REVIEW_REQUIRED
+  현재 2-pass flow에 맞는 명확한 상태 선택
+
+FINAL ANALYSIS stage에서:
+
+COMPLETE
+COMPLETE_WITH_PARENT_EVIDENCE
+PARTIAL
+
+→ REVIEW_REQUIRED
+  단 PARTIAL도 teacher review 가능
+
+ENGINE failure:
+→ FAILED
+
+중요:
+mapping 로직을 route 여러 곳에 분산 금지.
+
+==================================================
+7. ANALYSIS SNAPSHOT BUILDER
+==================================================
+
+새 canonical:
+
+GrowthReportSnapshotBuilder
+
+또는 repository naming convention.
+
+입력:
+
+report
+cycle
+student
+pool
+
+출력:
+
+GrowthReportAnalysisRequest
+
+APP DB row/raw data를 그대로 ENGINE Contract라고 생각하지 마라.
+
+명시적 Adapter/Builder 사용.
+
+==================================================
+8. SNAPSHOT CONTEXT
+==================================================
+
+ENGINE WP5/WP13 Contract:
+
+contract_version
+
+request_id
+report_id
+
+context:
+student_id
+pool_id
+organization_id
+report_period
+analysis_from
+analysis_cutoff_at
+timezone
+
+snapshot:
+snapshot_version
+payload_hash
+created_at
+
+diaries[]
+growth_events[]
+attendance[]
+curriculum_state
+
+teacher_review optional
+
+longitudinal
+
+parent_answers optional
+
+APP이 정확히 생성해야 한다.
+
+==================================================
+9. REPORT PERIOD / CUTOFF
+==================================================
+
+GR2에서 확정된 정책:
+
+report_period
+= cycle report_period
+
+analysis_from
+= nullable
+
+analysis_cutoff_at
+= parent_input_open_at
+= 해당 report_period의 25일 00:00 Asia/Seoul
+
+GR3에서 이 값을 임의 변경하지 마라.
+
+특히:
+
+5일 close 시각을 cutoff로 사용 금지.
+
+25일 이후 수업/일지는
+해당 cycle 초기 evidence에 포함하지 않는다.
+
+==================================================
+10. DIARY SNAPSHOT
+==================================================
+
+실제 APP DB Diary 구조를 확인해서
+ENGINE Contract로 변환.
+
+최소:
+
+id
+
+observed_at / lesson_date
+
+common_content
+
+student_notes:
+[
+  {
+    student_ref,
+    content
+  }
+]
+
+stroke_code optional
+level optional
+focus_points optional
+
+중요:
+
+해당 student에게 관련된 data만
+정확히 포함.
+
+다른 학생의 private note가
+Snapshot에 섞이지 않게 한다.
+
+==================================================
+11. GROWTH EVENTS SNAPSHOT
+==================================================
+
+기존 growth_events 사용.
+
+최소:
+
+id
+student_ref
+occurred_at
+event_type
+description
+context
+result
+confidence
+growth_match_status
+
+invalidated event는
+기본 분석대상에서 제외.
+
+Teacher rejected event 등
+현재 canonical policy를 확인해서
+분석대상 여부 명확화.
+
+APP이 metric 판단하지 않는다.
+
+==================================================
+12. ATTENDANCE SNAPSHOT
+==================================================
+
+실제 출결 구조를 사용.
+
+최소:
+
+id
+student_ref
+lesson_date
+status
+duration_min optional
+
+analysis cutoff 이후 출결 포함 금지.
+
+출결이 없는 경우 [] 정상.
+
+==================================================
+13. CURRICULUM STATE SNAPSHOT
+==================================================
+
+실제 학생 Curriculum/Level/Progress 구조 재사용.
+
+최소:
+
+curriculum_id optional
+current_level optional
+stage optional
+recent_topics[]
+mastery_flags
+
+없는 데이터 창작 금지.
+
+Pool Curriculum 기준.
+
+==================================================
+14. LONGITUDINAL SNAPSHOT
+==================================================
+
+GR1:
+
+getPublishedReportHistory()
+
+를 사용.
+
+ENGINE에
+과거 자연어 report_content 전체를 다시 보내지 않는다.
+
+구조화 history만 변환.
+
+최소:
+
+metric_state_history
+
+positive_growth_signal_history
+
+success_condition_history
+
+support_lever_history
+
+parent_evidence_history
+
+observation_target_history
+
+previous_report_structured_results
+
+중요:
+
+observation_target_history에
+verified_this_period를 APP이 계산해서 넣지 않는다.
+
+ENGINE이 검증.
+
+==================================================
+15. HISTORY DEPTH
+==================================================
+
+GR1 기본 query limit 24는
+DB protection default일 뿐.
+
+GR3에서 Engine Snapshot용 history 범위를
+명확한 config로 관리.
+
+예:
+max_growth_report_history_periods
+
+magic number route 내 하드코딩 금지.
+
+현재 FREE monthly report 용도로
+합리적인 범위를 설정할 수 있으나
+정책 version/configurable하게.
+
+==================================================
+16. PARENT ANSWERS
+==================================================
+
+GR1 answers table에서
+현재 report에 저장된 answer를 가져온다.
+
+ENGINE Contract:
+
+question_id
+metric_id
+selected_values[]
+answered_at
+parent_account_ref optional
+
+APP은:
+
+AGREEMENT
+CONTRADICTION
+
+등을 판단하지 않는다.
+
+그대로 전달.
+
+==================================================
+17. QUESTIONS FROM ENGINE
+==================================================
+
+ENGINE response questions[] 저장.
+
+APP이 question text/options 수정 금지.
+
+최소:
+
+engine_question_id
+metric_id
+question_text
+answer_type
+options
+parent_confirmable_behavior
+question_stage
+reason_codes
+sequence
+is_required
+metric_definition_version
+question_policy_version
+
+upsert/uniqueness 사용.
+
+0 questions 정상.
+
+==================================================
+18. SNAPSHOT IMMUTABILITY
+==================================================
+
+ENGINE call 1건마다
+Snapshot content는 고정.
+
+호출 중 DB에서 다시 fetch해서
+일부 데이터를 섞지 않는다.
+
+권장:
+
+transactionally/read-consistent enough snapshot
+→ canonical object
+→ hash
+→ HTTP send
+
+==================================================
+19. PAYLOAD HASH
+==================================================
+
+ENGINE WP5는
+canonical serialization SHA-256을 다시 계산한다.
+
+APP도 동일 canonical hash rule을 구현해야 한다.
+
+중복 별도 알고리즘 금지 가능하면
+shared contract/package가 있으면 재사용.
+
+없으면 ENGINE의 canonical JSON rule과
+정확히 compatible한 구현.
+
+object key order 변화에도
+동일 hash.
+
+==================================================
+20. HASH CONTRACT TEST
+==================================================
+
+가능하면 ENGINE WP5의 known test vector와
+같은 object/hash fixture를 APP에도 추가.
+
+APP hash
+=
+ENGINE hash
+
+보장.
+
+이게 다르면 모든 실제 분석 call이
+PAYLOAD_HASH_MISMATCH로 실패한다.
+
+==================================================
+21. REQUEST ID
+==================================================
+
+각 Engine analysis attempt:
+
+new UUID request_id
+
+report.analysis_request_id에 저장.
+
+같은 request snapshot retry를
+어떻게 처리할지는 Engine idempotency와 맞춘다.
+
+network timeout 후 정확히 same request retry:
+same request_id + same hash 가능.
+
+새 분석:
+new request_id.
+
+==================================================
+22. ENGINE CLIENT
+==================================================
+
+최소:
+
+analyzeGrowthReport(request)
+
+typed client 구현.
+
+필요:
+
+timeout
+auth
+JSON serialization
+typed response
+typed Engine error parsing
+
+raw fetch를 route 여기저기에 넣지 않는다.
+
+==================================================
+23. TIMEOUT
+==================================================
+
+Growth Report는 GPT까지 포함해
+Diary보다 오래 걸릴 수 있다.
+
+기존 AI client timeout을 확인.
+
+Growth Report용 timeout 정책을
+configurable하게.
+
+무한 timeout 금지.
+
+==================================================
+24. ENGINE ERROR HANDLING
+==================================================
+
+최소 구분:
+
+retryable:
+COMPOSITION_PROVIDER_ERROR
+COMPOSITION_TIMEOUT
+temporary 5xx/network
+
+non-retryable:
+INVALID_CONTRACT
+PAYLOAD_HASH_MISMATCH
+UNKNOWN_METRIC_ID
+SOURCE_AFTER_ANALYSIS_CUTOFF
+IDEMPOTENCY_PAYLOAD_CONFLICT
+
+APP은 error_code를 저장/로그하고
+FAILED lifecycle로 전환 가능.
+
+error response의 stack trace를
+Parent UI로 보내지 않는다.
+
+==================================================
+25. NO EMPTY-STATE MAPPING
+==================================================
+
+매우 중요.
+
+이전 SWIMNOTE Production Incident 교훈:
+
+5xx / Engine failure를
+
+"데이터 없음"
+"Report 없음"
+
+으로 UI/API에서 변환 금지.
+
+Growth Report route/service는:
+
+NOT_FOUND
+EMPTY
+FAILED
+UPSTREAM_ERROR
+
+를 구분한다.
+
+==================================================
+26. ENGINE RESPONSE VALIDATOR
+==================================================
+
+APP이 ENGINE response를
+그냥 trust해서 DB에 넣지 않는다.
+
+최소 validate:
+
+request_id match
+report_id match
+
+analysis_status allowed
+
+questions array
+
+report_content structured object
+
+sns_summary structured object
+
+fact_package object
+
+validation.grounding status
+validation.growth_framing status
+
+trace.payload_hash match
+
+APP lifecycle status absence
+
+==================================================
+27. GROUNDING/FRAMING GATE
+==================================================
+
+ENGINE response:
+
+grounding:
+PASS / REVISED_PASS
+
+growth_framing:
+PASS / REVISED_PASS
+
+만 Product Report content 저장/REVIEW_REQUIRED 진입 허용.
+
+FAIL response가 정상 content로 저장되면 안 된다.
+
+==================================================
+28. STRUCTURED RESULT PERSISTENCE
+==================================================
+
+ENGINE response에서 APP DB에 최소 저장:
+
+analysis_status
+
+analysis_request_id
+snapshot_version
+snapshot_hash
+
+metric_evidence → metric_states / metric_confidences 등
+positive_signals
+synthesis success_conditions/support_levers
+next growth / observation targets
+
+fact_package
+
+report_content
+
+sns_summary
+
+질문 별도 table.
+
+필요한 JSON mapping은
+explicit adapter로.
+
+APP에서 새 metric logic 금지.
+
+==================================================
+29. FACT PACKAGE STORAGE
+==================================================
+
+WP11 fact_package를
+opaque structured JSON로 보존.
+
+나중에:
+
+Teacher Review
+Feed
+Native Detail
+PDF
+SNS
+
+모두 동일 source를 사용.
+
+APP이 Fact Package를 다시 생성하지 않는다.
+
+==================================================
+30. REPORT CONTENT STORAGE
+==================================================
+
+WP12 report_content를 그대로 저장.
+
+APP은 텍스트 재작성 금지.
+
+UI formatting은 가능.
+
+==================================================
+31. SNS SUMMARY STORAGE
+==================================================
+
+ENGINE sns_summary 그대로.
+
+share_safe 유지.
+
+APP이 share_safe=false를
+true로 변경 금지.
+
+==================================================
+32. TWO-PASS RESULT PERSISTENCE
+==================================================
+
+Initial Engine Result 이후에도
+최종 Parent-answer Engine Result가 올 수 있다.
+
+두 번째 결과로
+Report의 analysis fields를 업데이트 가능.
+
+하지만 audit/debug를 위해
+analysis_request_id/hash 최소 최신값 추적.
+
+가능하면 Engine request history가
+기존 audit/log에 남도록.
+
+Product canonical report는 latest accepted result.
+
+==================================================
+33. STALE RESPONSE PROTECTION
+==================================================
+
+매우 중요.
+
+Engine Call A 시작
+→ Call B 시작
+→ B가 먼저 완료
+→ A가 늦게 완료
+
+A가 최신 B 결과를 덮어쓰면 안 된다.
+
+analysis_request_id 또는
+version/updated_at 기반으로
+stale response reject.
+
+최소 compare-and-set 정책 구현.
+
+==================================================
+34. CONCURRENT ANALYSIS
+==================================================
+
+같은 report에 동시에
+여러 분석 요청이 발생하지 않도록 방어.
+
+가능:
+
+row lock
+analysis_request_id CAS
+advisory lock
+unique job
+
+기존 APP pattern 사용.
+
+==================================================
+35. ROUTES / SERVICES
+==================================================
+
+GR3에서는 Server foundation API까지 구현 가능.
+
+예:
+
+POST /growth-reports/:id/analyze
+
+또는 existing route convention.
+
+하지만 Parent Question UI는 아직 GR4.
+
+Route는:
+
+auth
+X guard
+role/ownership
+service
+
+구조 유지.
+
+==================================================
+36. ROLE
+==================================================
+
+초기 분석 trigger 권한은
+제품 운영상 적절한 role로 제한.
+
+예:
+
+system worker
+pool_admin
+teacher if permitted
+
+Parent가 임의로
+raw analyze endpoint를 반복 호출하지 못하게 한다.
+
+Parent answer submission은 GR4.
+
+==================================================
+37. SCHEDULER INTEGRATION
+==================================================
+
+GR2는
+READY_FOR_ANALYSIS까지 상태를 만든다.
+
+GR3에서
+실제 Engine 분석 자동 trigger를
+worker job으로 연결할 수 있다.
+
+하지만 구조적으로 명확히 분리:
+
+Scheduler:
+상태전환
+
+Analysis Worker:
+READY_FOR_ANALYSIS 검색
+→ Engine call
+
+기존 WP11 worker architecture/queue pattern 재사용.
+
+==================================================
+38. BACKGROUND PROCESSING
+==================================================
+
+Growth Report Engine call은
+HTTP 사용자 요청에 장시간 묶기보다
+기존 worker/queue가 적합하면 재사용.
+
+Repository 실제 구조 기준으로 결정.
+
+어떤 방식을 선택했는지 보고.
+
+중요:
+API Trigger가 있어도
+중복 worker execution 방지.
+
+==================================================
+39. RETRY POLICY
+==================================================
+
+retryable Engine error만
+worker retry 가능.
+
+최대 retry / backoff
+configurable.
+
+non-retryable error 무한 재시도 금지.
+
+==================================================
+40. AUDIT
+==================================================
+
+최소 Product Audit:
+
+ENGINE_ANALYSIS_STARTED
+ENGINE_ANALYSIS_SUCCEEDED
+ENGINE_ANALYSIS_FAILED
+ENGINE_ANALYSIS_STALE_RESPONSE_REJECTED
+
+request_id
+report_id
+analysis_status
+error_code 가능 시
+
+raw report text 저장 금지.
+
+==================================================
+41. PII
+==================================================
+
+Snapshot에 필요한 학생 식별 reference만.
+
+전화번호/주소 불필요.
+
+Engine request log에
+raw diary 전체 dump 금지.
+
+payload hash/source counts 중심.
+
+==================================================
+42. TEST REQUIREMENTS
+==================================================
+
+최소:
+
+1. APP canonical snapshot 생성
+
+2. analysis_from=null
+
+3. cutoff = 25일 00:00 KST
+
+4. cutoff 이후 diary 제외
+
+5. cutoff 이후 growth event 제외
+
+6. cutoff 이후 attendance 제외
+
+7. correct student diary notes only
+
+8. invalidated growth event 제외
+
+9. curriculum snapshot
+
+10. curriculum missing 정상
+
+11. history structured 변환
+
+12. previous natural language report를 longitudinal source로 재분석하지 않음
+
+13. multiple history reports
+
+14. observation target verified_this_period APP 생성 없음
+
+15. parent answers structured
+
+16. parent answers 없음 정상
+
+17. APP metric interpretation 없음
+
+18. APP question creation 없음
+
+19. Engine questions 저장
+
+20. questions 0개 정상
+
+21. canonical hash deterministic
+
+22. object key order independent
+
+23. known hash fixture
+
+24. request_id UUID
+
+25. same retry same request/hash
+
+26. new analysis new request_id
+
+27. Engine auth header/middleware client
+
+28. timeout
+
+29. valid Engine response
+
+30. request_id mismatch reject
+
+31. report_id mismatch reject
+
+32. payload hash mismatch reject
+
+33. APP lifecycle status in response reject
+
+34. grounding FAIL reject
+
+35. framing FAIL reject
+
+36. report_content structured save
+
+37. sns_summary structured save
+
+38. share_safe preserve
+
+39. fact_package opaque save
+
+40. metric JSON opaque save
+
+41. initial result → QUESTION_AVAILABLE when applicable
+
+42. zero questions flow
+
+43. parent-answer second pass
+
+44. second pass → REVIEW_REQUIRED
+
+45. PARTIAL Engine result → reviewable product state
+
+46. Engine failure → FAILED
+
+47. retryable classification
+
+48. non-retryable no infinite retry
+
+49. stale response rejected
+
+50. concurrent analysis prevented
+
+51. X false analysis rejected
+
+52. X true analysis allowed
+
+53. Parent raw analyze forbidden
+
+54. system/admin allowed
+
+55. Engine 5xx != empty report
+
+56. audit started
+
+57. audit succeeded
+
+58. audit failed
+
+59. privacy — phone/address not snapshot
+
+60. raw diary not dumped to log
+
+61. GR2 regression
+
+62. GR1 regression
+
+63. Diary regression
+
+64. Growth Events regression
+
+65. Worker regression
+
+==================================================
+43. ENGINE CONTRACT COMPATIBILITY TEST
+==================================================
+
+가능하면 APP에서 실제 AI ENGINE code를
+import할 수 없으므로
+
+WP13 request/response fixture를
+GR3 test fixture로 고정.
+
+최소:
+
+APP-generated request
+
+이 WP13 Contract fixture와 호환되는지 검증.
+
+특히:
+
+contract_version
+snapshot_version
+field names
+payload_hash
+
+확인.
+
+==================================================
+44. NO REAL PRODUCTION CALL YET
+==================================================
+
+이번 GR3 구현 단계에서는
+Production AI Engine endpoint에
+실제 학생 Snapshot을 보내지 않는다.
+
+Unit/integration:
+fake Engine adapter 사용.
+
+Production data 금지.
+
+안전한 synthetic 개발 endpoint/context가
+이미 있다면 별도 smoke 가능하지만
+없으면 NO_SAFE_RUNTIME_CONTEXT.
+
+==================================================
+45. MIGRATION / DEPLOY
+==================================================
+
+GR1 migration 아직 Production 미실행.
+
+GR3에서도 Production migration 실행 금지.
+
+Deploy/OTA 금지.
+
+코드/테스트 완료 후 보고.
+
+==================================================
+46. 허위 완료 방지
+==================================================
+
+COMPLETE 금지:
+
+- fetch 한 번 붙이고 Engine 연동 완료
+- snapshot 없이 DB raw row 전송
+- canonical hash 불일치
+- raw diary 전체 request
+- APP에서 metric 판단
+- APP에서 question 생성
+- Engine failure를 empty로 처리
+- stale response protection 없음
+- concurrent analysis 방어 없음
+- parent unanswered면 분석 중단
+- first pass만 구현하고 second pass 없음
+- structured result 일부만 저장
+- TODO
+- placeholder
+- Production student로 테스트
+
+==================================================
+47. COMPLETE CONDITIONS
+==================================================
+
+[ ] actual Engine client
+[ ] existing server auth reused
+[ ] X server guard
+[ ] SnapshotBuilder
+[ ] Diary adapter
+[ ] Growth Event adapter
+[ ] Attendance adapter
+[ ] Curriculum adapter
+[ ] Longitudinal adapter
+[ ] Parent Answer adapter
+[ ] cutoff 25일 정책
+[ ] canonical hash
+[ ] immutable snapshot
+[ ] typed request
+[ ] typed response
+[ ] response validator
+[ ] initial pass
+[ ] parent answer second pass
+[ ] Engine questions persistence
+[ ] analysis status mapping
+[ ] structured result persistence
+[ ] grounding/framing gate
+[ ] stale response protection
+[ ] concurrency protection
+[ ] retryable classification
+[ ] audit
+[ ] privacy
+[ ] no APP analysis
+[ ] tests pass
+[ ] GR1/GR2 regression
+[ ] existing APP regression
+[ ] TODO 0
+[ ] Production migration 미실행
+[ ] Deploy 없음
+
+==================================================
+48. CREDIT SAVING
+==================================================
+
+Growth Report GR1~GR3
++
+existing AI Engine client/auth
++
+relevant Diary/GrowthEvent/Attendance/Curriculum
++
+Worker
+
+파일만 검사.
+
+전체 repo 재감리 금지.
+
+UI 작업 금지.
+
+GR4 이후 선행 구현 금지.
+
+==================================================
+49. FINAL REPORT
+==================================================
+
+1. GR3 RESULT
+
+2. EXISTING AI ENGINE CLIENT/AUTH REUSED
+
+3. IMPLEMENTED FILES
+
+4. SNAPSHOT BUILDER
+
+5. SNAPSHOT DATA SOURCES
+
+6. CUTOFF / TIME POLICY
+
+7. CANONICAL HASH
+
+8. LONGITUDINAL ASSEMBLER
+
+9. PARENT ANSWER ROUNDTRIP
+
+10. ENGINE CLIENT
+
+11. ENGINE RESPONSE VALIDATION
+
+12. ENGINE STATUS → PRODUCT STATUS MAPPING
+
+13. RESULT PERSISTENCE
+
+14. STALE / CONCURRENT PROTECTION
+
+15. RETRY / ERROR MODEL
+
+16. AUDIT / PRIVACY
+
+17. TEST RESULTS
+
+18. GR1/GR2 + EXISTING APP REGRESSION
+
+19. ENGINE CONTRACT COMPATIBILITY
+
+20. RUNTIME SMOKE
+    PASS
+    또는 NO_SAFE_RUNTIME_CONTEXT
+
+21. TODO SCAN
+
+22. GIT
+    branch
+    actual HEAD SHA
+
+23. PRODUCTION SAFETY
+
+전부 완료:
+
+GROWTH_REPORT_APP_GR3_COMPLETE ✅
+
+미완성:
+
+GROWTH_REPORT_APP_GR3_BLOCKED ❌
+
+작업을 시작하라.
