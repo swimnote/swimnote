@@ -535,7 +535,36 @@ router.get(
       return;
     }
 
-    const messages  = await getConversationMessages(conversationId).catch(() => []);
+    const rawMessages = await getConversationMessages(conversationId).catch(() => []);
+
+    // Safe projection: strip raw metadata, expose only result?: { current_progress?, next_step? }
+    // 금지: grounding trace / raw prompt / knowledge documents / intent / curriculum_source 노출
+    const messages = rawMessages.map((msg) => {
+      if (msg.role === "ASSISTANT") {
+        const rp = (msg as any).metadata?.result_payload;
+        const result = rp
+          ? {
+              ...(rp.current_progress ? { current_progress: rp.current_progress } : {}),
+              ...(rp.next_step        ? { next_step:         rp.next_step }        : {}),
+            }
+          : undefined;
+        return {
+          id:         msg.id,
+          role:       msg.role,
+          content:    msg.content,
+          created_at: msg.created_at,
+          ...(result ? { result } : {}),
+        };
+      }
+      // USER: metadata 없음
+      return {
+        id:         msg.id,
+        role:       msg.role,
+        content:    msg.content,
+        created_at: msg.created_at,
+      };
+    });
+
     const usageInfo = await getMonthlyUsageInfo(parentId).catch(() => ({
       limit:     MONTHLY_LIMIT,
       used:      0,

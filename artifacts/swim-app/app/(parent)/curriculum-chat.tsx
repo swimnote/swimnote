@@ -44,13 +44,20 @@ interface ProgressInfo {
   summary: string;
 }
 
+/**
+ * result 구조는 서버 history 응답 및 POST 성공 응답과 동일하게 유지.
+ * - history:  서버가 result: { current_progress?, next_step? } 로 반환
+ * - 로컬추가: 성공 직후 data.result 그대로 저장
+ */
 interface CurriculumMsg {
   id: string;
   role: "USER" | "ASSISTANT";
   content: string;
   created_at: string;
-  current_progress?: ProgressInfo | null;
-  next_step?: ProgressInfo | null;
+  result?: {
+    current_progress?: ProgressInfo | null;
+    next_step?: ProgressInfo | null;
+  } | null;
 }
 
 interface UsageInfo {
@@ -243,8 +250,10 @@ export default function CurriculumChatScreen() {
           role: "ASSISTANT",
           content: data.result?.answer ?? "",
           created_at: now,
-          current_progress: data.result?.current_progress ?? null,
-          next_step: data.result?.next_step ?? null,
+          result: {
+            current_progress: data.result?.current_progress ?? null,
+            next_step:        data.result?.next_step        ?? null,
+          },
         };
 
         setPendingMsg(null);
@@ -341,18 +350,18 @@ export default function CurriculumChatScreen() {
         <View style={{ flex: 1, gap: 6 }}>
           <View style={s.assistantBubble}>
             <Text style={s.assistantText}>{msg.content}</Text>
-            {msg.current_progress ? (
+            {msg.result?.current_progress ? (
               <ProgressCard
                 label="현재 단계"
-                title={msg.current_progress.title}
-                summary={msg.current_progress.summary}
+                title={msg.result.current_progress.title}
+                summary={msg.result.current_progress.summary}
               />
             ) : null}
-            {msg.next_step ? (
+            {msg.result?.next_step ? (
               <ProgressCard
                 label="다음 단계"
-                title={msg.next_step.title}
-                summary={msg.next_step.summary}
+                title={msg.result.next_step.title}
+                summary={msg.result.next_step.summary}
               />
             ) : null}
           </View>
