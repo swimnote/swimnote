@@ -1,0 +1,368 @@
+[SWIMNOTE APP]
+[PARENT CURRICULUM SEARCH — WP3.1]
+[CHAT UI CONTRACT + RETRY + HISTORY RESTORE VERIFICATION]
+
+현재 구현:
+
+신규:
+app/(parent)/curriculum-chat.tsx
+
+수정:
+app/(parent)/home.tsx
+
+현재 UI 방향:
+- GPT형 누적 채팅
+- history 복원
+- optimistic USER bubble
+- retry
+- quota 10회 표시
+- current_progress / next_step card
+- 10/10 입력 잠금
+
+이번 단계는
+WP3 UI의 서버 계약 정합성과
+실제 재시도/복원 동작을 검증하고
+필요한 최소 수정만 한다.
+
+Production deploy 금지.
+OTA 금지.
+EAS build 금지.
+ENGINE 수정 금지.
+
+==================================================
+1. RETRY REQUEST_ID
+==================================================
+
+실패한 질문의 "다시 시도"는 반드시:
+
+동일 query
++
+동일 request_id
+
+를 재사용해야 한다.
+
+새 request_id 생성 금지.
+
+이유:
+
+서버 WP2B.2에서
+FAILED request_id:
+
+FAILED
+→ RESERVED
+→ ENGINE retry
+→ COMPLETED
+
+idempotency flow가 구현되어 있음.
+
+확인:
+
+- 최초 질문 request_id 생성 위치
+- optimistic message에 request_id 보존 여부
+- retry handler가 같은 request_id를 사용하는지
+
+새 ID를 생성하고 있다면 수정.
+
+==================================================
+2. COMPLETED DUPLICATE SAFETY
+==================================================
+
+네트워크 지연 등으로 사용자가
+동일 성공 요청을 다시 보내도
+
+동일 request_id라면 서버에서
+persisted result replay가 동작해야 한다.
+
+UI가 retry 과정에서 request_id를 바꾸지 않아야 함.
+
+==================================================
+3. HISTORY RESPONSE CONTRACT
+==================================================
+
+현재 Assistant persistence에는:
+
+metadata.result_payload = {
+  answer,
+  current_progress?,
+  next_step?
+}
+
+가 저장됨.
+
+History endpoint가 현재 무엇을 반환하는지 확인.
+
+목표:
+
+GET /parent/students/:studentId/curriculum-search/history
+
+Assistant message에서 안전하게:
+
+{
+  id,
+  request_id?,
+  role,
+  content,
+  created_at,
+  result?: {
+    current_progress?,
+    next_step?
+  }
+}
+
+또는 동일 의미의 safe projection을 반환.
+
+raw ENGINE metadata
+grounding trace
+prompt
+knowledge documents
+
+노출 금지.
+
+==================================================
+4. CARD RESTORE
+==================================================
+
+다음이 동일해야 함:
+
+A. 질문 직후 화면
+
+answer bubble
++ current_progress card
++ next_step card
+
+B. 앱 닫기
+→ 다시 curriculum-chat 진입
+→ history load
+
+동일 answer
++ 동일 optional cards 복원
+
+History에서 카드가 사라지면 수정.
+
+==================================================
+5. QUOTA UI
+==================================================
+
+서버가 반환하는 usage를 source of truth로 사용.
+
+표시:
+
+이번 달 N/10회 사용
+
+또는 동등한 명확한 표현.
+
+10/10이면:
+
+- 기존 history 정상 조회
+- 기존 messages 정상 표시
+- 스크롤 정상
+- COMPLETED replay 정상
+- 새 질문 입력만 disabled
+- 전송 버튼 disabled
+- resets_at 안내
+
+대화 화면 전체를 잠그지 않는다.
+
+==================================================
+6. MONTH CHANGE
+==================================================
+
+새 달이 되면:
+
+usage:
+0/10
+
+으로 바뀌지만
+
+conversation/messages는 그대로 보여야 한다.
+
+UI에서 month change 시
+history를 초기화하거나 clear하는 코드가 없어야 함.
+
+==================================================
+7. OPTIMISTIC USER MESSAGE
+==================================================
+
+최초 전송:
+
+optimistic USER bubble 즉시 표시.
+
+성공 후 history/result와 정합화.
+
+중복 USER bubble 금지.
+
+실패:
+
+기존 bubble 유지
++
+retry affordance
+
+retry 시 새 USER bubble 추가 금지.
+
+==================================================
+8. ASSISTANT MESSAGE
+==================================================
+
+성공 시 Assistant bubble 1개만.
+
+retry 성공 후에도 1개만.
+
+COMPLETED replay에서도
+새 Assistant bubble을 추가해서 중복시키지 않는다.
+
+request_id 기준 reconciliation 확인.
+
+==================================================
+9. LOADING / DOUBLE TAP
+==================================================
+
+ENGINE 요청 진행 중:
+
+동일 질문 전송 버튼 연타 차단.
+
+동시에 같은 optimistic message에 대해
+복수 request 발생 금지.
+
+단 다른 질문을 동시에 허용하는 구조라면
+quota concurrency가 서버에서 보호되더라도
+현재 UI 정책을 명확히 보고.
+
+출시 기준 권장:
+한 번에 1개 질문 처리.
+
+==================================================
+10. CHILD CONTEXT
+==================================================
+
+home.tsx에서 전달:
+
+studentId
+studentName
+
+확인:
+
+- 실제 선택된 자녀의 studentId인지
+- 다른 자녀 전환 후 stale studentId가 남지 않는지
+- API는 studentId만 신뢰
+- studentName은 화면 표시용일 뿐 서버 권한 판단에 사용 안 함
+
+==================================================
+11. ERROR BEHAVIOR
+==================================================
+
+401:
+재로그인/인증 오류 처리
+
+403:
+접근권한 오류
+
+422:
+eligibility/x_pending/scope 오류를
+사용자에게 의미 있는 문구로 표시
+
+429:
+서버 usage payload 기준
+10/10 상태 갱신
+
+5xx/timeout:
+현재 USER bubble 유지
+retry 가능
+quota가 사용된 것처럼 UI 증가 금지
+
+==================================================
+12. HISTORY LOADING
+==================================================
+
+history 최초 로드 시:
+
+- loading state
+- empty state
+- 기존 대화 state
+- API error state
+
+확인.
+
+empty history는 정상 신규 대화 화면이어야 함.
+
+==================================================
+13. CHAT SCROLL
+==================================================
+
+확인:
+
+- history 로드 후 최신 메시지로 이동
+- 새 USER bubble 후 최신 위치
+- Assistant 도착 후 최신 위치
+- Keyboard 표시 시 입력창 가려지지 않음
+- 긴 답변 스크롤 가능
+
+실기기 미검증이면
+NO_SAFE_DEVICE_RUNTIME_CONTEXT로 보고.
+
+허위 PASS 금지.
+
+==================================================
+14. RECENT_CONVERSATION ENGINE STATUS
+==================================================
+
+현재 APP server에는 recent_conversation 전달 코드가 존재함.
+
+AI ENGINE WP2C가 아직 Production에 배포되지 않았다면
+UI 완료와 ENGINE follow-up context 지원을 구분해서 보고.
+
+UI가 존재한다고
+후속대화 이해까지 완료라고 판정하지 않는다.
+
+==================================================
+15. TEST
+==================================================
+
+최소:
+
+A. 최초 질문 성공
+B. 실패 → 동일 request_id retry
+C. retry 성공 → USER/ASSISTANT 중복 없음
+D. COMPLETED replay
+E. history 재진입
+F. history에서 progress card 복원
+G. history에서 next_step card 복원
+H. 9/10 → 성공 → 10/10
+I. 10/10 → 입력만 잠금
+J. 10/10에서도 history 열람
+K. 다음 달 usage reset + history 유지
+L. 429 UI
+M. timeout retry
+N. 다른 자녀 전환
+O. double tap 방지
+
+가능한 UI/unit/integration 테스트 실행.
+
+==================================================
+16. REPORT
+==================================================
+
+다음만 보고:
+
+1. RETRY REQUEST_ID REUSED? YES/NO
+2. HISTORY RESULT_PAYLOAD RETURNED? YES/NO
+3. CARDS RESTORED AFTER REOPEN? YES/NO
+4. QUOTA UI SOURCE
+5. 10/10 BEHAVIOR
+6. MONTH RESET BEHAVIOR
+7. OPTIMISTIC RECONCILIATION
+8. DOUBLE TAP PROTECTION
+9. CHILD CONTEXT
+10. FILES CHANGED
+11. TEST RESULT
+12. DEVICE RUNTIME STATUS
+13. ENGINE WP2C DEPENDENCY STATUS
+14. COMMIT SHA
+15. PRODUCTION DEPLOY STATUS
+
+성공:
+
+PARENT_CURRICULUM_APP_WP3_COMPLETE ✅
+
+문제:
+
+PARENT_CURRICULUM_APP_WP3_BLOCKED ❌
