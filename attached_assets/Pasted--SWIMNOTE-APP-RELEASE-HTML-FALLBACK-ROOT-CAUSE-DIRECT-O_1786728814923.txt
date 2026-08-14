@@ -1,0 +1,246 @@
+[SWIMNOTE APP RELEASE]
+[HTML FALLBACK ROOT CAUSE — DIRECT ORIGIN TEST ONLY]
+
+현재 상태:
+
+Production APP SHA:
+4d44b589 ✅
+
+https://swimnote.kr 경유 결과:
+
+/api/parent/*  → 200 HTML
+/api/teacher/* → 200 HTML
+/api/pools/*   → 200 HTML
+
+반면:
+
+/api/healthz
+/api/super/*
+/api/students*
+
+는 정상 JSON.
+
+중요:
+
+아직 Cloudflare 원인으로 확정하지 않는다.
+
+이번 단계 목적:
+
+Cloudflare/프록시를 우회하여
+Render swimnote-api origin에 직접 요청하고
+HTML fallback이 어디서 발생하는지 확정한다.
+
+코드 수정 금지.
+Cloudflare 수정 금지.
+Render 설정 변경 금지.
+추가 deploy 금지.
+Production DB write 금지.
+
+==================================================
+1. DIRECT RENDER ORIGIN IDENTIFY
+==================================================
+
+현재 Production swimnote-api Render Web Service의
+직접 public hostname을 확인.
+
+예:
+
+https://<service-name>.onrender.com
+
+실제 Render service URL을 source of truth로 사용.
+
+URL 보고 가능.
+Secret 출력 금지.
+
+==================================================
+2. SAME REQUEST — DIRECT ORIGIN
+==================================================
+
+Render origin에 직접 다음 요청.
+
+무인증:
+
+POST /api/parent/students/test/curriculum-search
+
+GET /api/parent/students/test/curriculum-search/history
+
+GET /api/parent/growth-reports/test/questions
+
+GET /api/teacher/growth-reports/test/review
+
+그리고 비교용:
+
+GET /api/super/dashboard-stats
+
+각 요청에 대해:
+
+- HTTP status
+- Content-Type
+- JSON인지 HTML인지
+
+확인.
+
+실제 parent/student 데이터 사용 금지.
+실제 ENGINE 호출 금지.
+
+==================================================
+3. CUSTOM DOMAIN COMPARISON
+==================================================
+
+동일 요청을:
+
+https://swimnote.kr
+
+에도 실행하여 정확히 비교.
+
+표 형태로:
+
+PATH
+DIRECT RENDER
+SWIMNOTE.KR
+
+비교.
+
+==================================================
+4. DECISION
+==================================================
+
+정확히 다음 기준으로 판정:
+
+CASE A
+
+DIRECT RENDER:
+parent/teacher routes → 401/403 JSON
+
+SWIMNOTE.KR:
+same routes → 200 HTML
+
+=> FRONT_PROXY_ROUTING_BUG_CONFIRMED
+
+Cloudflare 또는 custom-domain 앞단 routing 조사 필요.
+
+--------------------------------------------------
+
+CASE B
+
+DIRECT RENDER:
+parent/teacher routes → 200 HTML
+
+SWIMNOTE.KR:
+same routes → 200 HTML
+
+=> EXPRESS_APP_ROUTING_BUG_CONFIRMED
+
+Cloudflare 수정 금지.
+
+다음 조사 대상:
+
+- app.ts middleware order
+- routes/index.ts registration order
+- SPA/static fallback 위치
+- router.use() ordering
+- parent/teacher/pools prefix mounting
+- 404 handler / index.html fallback
+
+--------------------------------------------------
+
+CASE C
+
+DIRECT RENDER:
+404 JSON
+
+=> route registration/prefix 문제.
+
+Cloudflare 수정 금지.
+
+--------------------------------------------------
+
+CASE D
+
+결과 혼재
+
+=> 정확한 path별 결과 보고 후 STOP.
+
+==================================================
+5. EXPRESS FALLBACK CODE INSPECTION
+==================================================
+
+읽기만 한다.
+
+다음 코드 위치 확인:
+
+- app.use("/api", router)
+- static web serving
+- SPA index.html fallback
+- catch-all "*"
+- 404 middleware
+- error middleware
+
+실행 순서를 파일/라인 기준으로 보고.
+
+단 이번 단계에서 수정하지 않는다.
+
+==================================================
+6. ROUTER ORDER
+==================================================
+
+routes/index.ts에서 다음 router가
+어느 순서로 등록되는지 확인:
+
+parentCurriculumRouter
+parentGrowthReportRouter
+teacherGrowthReportReviewRouter
+superRouter
+studentsRouter
+
+특히 catch-all router 또는 generic router가
+앞에서 요청을 먹을 가능성이 있는지 확인.
+
+==================================================
+7. NO ASSUMPTION
+==================================================
+
+Direct Render origin test 없이는:
+
+CLOUDFLARE_BUG_CONFIRMED
+
+판정 금지.
+
+==================================================
+8. REPORT
+==================================================
+
+다음만 보고:
+
+1. DIRECT RENDER ORIGIN
+2. DIRECT PARENT SEARCH RESULT
+3. DIRECT PARENT HISTORY RESULT
+4. DIRECT PARENT GROWTH RESULT
+5. DIRECT TEACHER GROWTH RESULT
+6. DIRECT SUPER RESULT
+7. SWIMNOTE.KR SAME-PATH RESULTS
+8. ORIGIN / CUSTOM DOMAIN DIFFER?
+9. SPA FALLBACK LOCATION
+10. API ROUTER MOUNT ORDER
+11. ROUTER ORDER ISSUE FOUND?
+12. ROOT CAUSE CLASSIFICATION
+13. CLOUDFLARE CHANGE NEEDED? YES/NO/NOT_YET
+14. CODE CHANGE
+15. DEPLOY
+16. DB WRITE
+
+최종은 정확히 하나:
+
+FRONT_PROXY_ROUTING_BUG_CONFIRMED ✅
+
+또는
+
+EXPRESS_APP_ROUTING_BUG_CONFIRMED ✅
+
+또는
+
+API_ROUTE_REGISTRATION_BUG_CONFIRMED ✅
+
+또는
+
+HTML_FALLBACK_ROOT_CAUSE_BLOCKED ❌
