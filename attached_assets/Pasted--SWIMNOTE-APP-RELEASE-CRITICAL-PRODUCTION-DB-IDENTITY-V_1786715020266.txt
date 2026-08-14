@@ -1,0 +1,176 @@
+[SWIMNOTE APP RELEASE]
+[CRITICAL — PRODUCTION DB IDENTITY VERIFICATION ONLY]
+
+현재 Migration Precheck 결과와
+이전에 확인된 SWIMNOTE Production DB 상태가 충돌한다.
+
+절대 migration 실행하지 마라.
+
+Production write 금지.
+Render deploy 금지.
+코드 수정 금지.
+
+==================================================
+1. CONFLICT
+==================================================
+
+이전 Production evidence에서는 최소 다음이 존재했음:
+
+- swimming_pools.xmode_entitlement
+- global_template_sets
+- diary_templates
+- growth_reports 기본 테이블
+- X MODE 실제 pool data
+
+그런데 이번 precheck에서는:
+
+- growth_reports 자체 없음
+- 여러 X Mode schema가 신규 생성 예정으로 판정됨
+
+같은 Production DB라면 이 결과는 설명이 필요하다.
+
+==================================================
+2. TARGET DATABASE IDENTITY
+==================================================
+
+현재 SUPABASE_DATABASE_URL이 가리키는 DB를
+secret 문자열 출력 없이 식별한다.
+
+보고:
+
+- PostgreSQL current_database()
+- current_user
+- server host fingerprint 또는 안전한 host 식별 정보
+- schema list
+- public table count
+
+비밀번호/전체 URL 출력 금지.
+
+==================================================
+3. KNOWN SWIMNOTE DATA FINGERPRINT
+==================================================
+
+read-only로 다음을 확인:
+
+A.
+SELECT COUNT(*) FROM swimming_pools;
+
+B.
+다음 known pool ID 존재 여부:
+
+pool_1784310621737_qryl1x79s
+
+이 pool이 존재하면:
+
+- name
+- xmode_entitlement
+- xmode_config_status
+
+만 확인.
+
+C.
+users / students / swimming_pools 등
+핵심 APP Production table row count를
+개인정보 없이 숫자만 보고.
+
+==================================================
+4. X MODE SCHEMA FINGERPRINT
+==================================================
+
+다음 실제 존재 여부:
+
+swimming_pools.xmode_entitlement
+swimming_pools.xmode_config_status
+
+global_template_sets
+diary_templates
+audit_logs
+growth_events
+growth_reports
+
+각각 EXISTS / NOT_EXISTS.
+
+==================================================
+5. PREVIOUS PRODUCTION BASELINE COMPARISON
+==================================================
+
+현재 DB가 우리가 이전에 사용한
+SWIMNOTE APP Production DB와 동일한지 판정.
+
+판정 기준은
+단순 env 이름이 아니라 실제 data/schema fingerprint.
+
+다음 중 하나:
+
+SAME_PRODUCTION_DB
+DIFFERENT_DB
+UNKNOWN
+
+==================================================
+6. CONNECTION SOURCE TRACE
+==================================================
+
+SWIMNOTE APP Production Render 서비스가
+실제로 어느 env를 사용해 DB에 연결하는지 코드/Render config 기준 확인.
+
+확인:
+
+swimnote-api
+swimnote-worker
+
+각각:
+
+- SUPABASE_DATABASE_URL을 사용하는가?
+- DATABASE_URL을 사용하는가?
+- 다른 production DB env가 있는가?
+
+secret 값 출력 금지.
+
+==================================================
+7. MIGRATION PRECHECK CONNECTION
+==================================================
+
+이번 read-only precheck가
+어떤 connection variable을 실제 사용했는지 확인.
+
+코드/command 기준으로 증명.
+
+"SUPABASE_DATABASE_URL이라고 생각했다" 금지.
+
+==================================================
+8. DO NOT FIX YET
+==================================================
+
+DB가 다르다고 확인되더라도
+이번 단계에서 env 수정 금지.
+
+migration 실행 금지.
+
+정확한 Production DB만 식별한다.
+
+==================================================
+9. REPORT
+==================================================
+
+다음만 보고:
+
+1. CURRENT DB IDENTITY
+2. swimming_pools COUNT
+3. KNOWN SAMPLE POOL FOUND? YES/NO
+4. SAMPLE POOL X MODE STATE
+5. X MODE SCHEMA FINGERPRINT
+6. growth_reports EXISTS? YES/NO
+7. RENDER API DB ENV SOURCE
+8. RENDER WORKER DB ENV SOURCE
+9. PRECHECK DB ENV SOURCE
+10. SAME PRODUCTION DB? YES/NO/UNKNOWN
+11. CONTRADICTION EXPLANATION
+12. PRODUCTION WRITE STATUS
+
+마지막:
+
+APP_PRODUCTION_DB_IDENTITY_VERIFIED ✅
+
+또는
+
+APP_PRODUCTION_DB_IDENTITY_BLOCKED ❌
