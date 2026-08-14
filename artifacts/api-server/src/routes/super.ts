@@ -86,7 +86,12 @@ router.get(
               WHERE subscription_end_at IS NOT NULL
                 AND subscription_end_at > NOW()
                 AND subscription_end_at <= NOW() + INTERVAL '24 hours'
-            )::int AS deletion_pending_count
+            )::int AS deletion_pending_count,
+            -- X MODE 활성 수영장: canonical rule = entitlement=TRUE AND config='READY'
+            COUNT(*) FILTER (
+              WHERE COALESCE(xmode_entitlement, FALSE) = TRUE
+                AND xmode_config_status = 'READY'
+            )::int AS xmode_operators
           FROM swimming_pools
         `),
         // 승인 대기
@@ -236,6 +241,8 @@ router.get(
       if (filter === "deletion_pending") conditions.push(`p.subscription_end_at IS NOT NULL AND p.subscription_end_at > NOW() AND p.subscription_end_at <= NOW() + INTERVAL '24 hours'`);
       if (filter === "policy_unsigned")  conditions.push(`p.approval_status = 'approved' AND NOT EXISTS (SELECT 1 FROM policy_consents pc WHERE pc.pool_id = p.id AND pc.policy_key = 'refund_policy')`);
       if (filter === "upload_spike")     conditions.push(`p.upload_blocked = TRUE`);
+      // X MODE 활성 필터: canonical rule = entitlement=TRUE AND config_status='READY'
+      if (filter === "xmode")           conditions.push(`COALESCE(p.xmode_entitlement, FALSE) = TRUE AND p.xmode_config_status = 'READY'`);
       const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
       const rows = (await db.execute(sql.raw(`
@@ -247,6 +254,9 @@ router.get(
           COALESCE(p.is_readonly, FALSE)        AS is_readonly,
           COALESCE(p.upload_blocked, FALSE)     AS upload_blocked,
           COALESCE(p.credit_balance, 0)         AS credit_balance,
+          -- X MODE 필드 (additive, canonical rule용)
+          COALESCE(p.xmode_entitlement, FALSE)             AS xmode_entitlement,
+          COALESCE(p.xmode_config_status, 'NOT_CONFIGURED') AS xmode_config_status,
           p.created_at,
           p.updated_at,
           -- 관리자 정보 (admin_user_id FK → users)
@@ -313,6 +323,8 @@ router.get(
         usage_pct:           Number(r.usage_pct ?? 0),
         used_storage_bytes:  r.used_storage_bytes ? Number(r.used_storage_bytes) : 0,
         deletion_pending:    r.deletion_pending ?? false,
+        xmode_entitlement:   Boolean(r.xmode_entitlement ?? false),
+        xmode_config_status: (r.xmode_config_status ?? 'NOT_CONFIGURED') as string,
         created_at:          r.created_at,
         updated_at:          r.updated_at,
         admin: {

@@ -33,6 +33,7 @@ const FILTER_CHIPS: { key: OperatorFilter; label: string; color: string; bg: str
   { key: "solo_coach",       label: "🧑‍🏫 1인 코치",  color: "#2EC4B6", bg: "#E6FFFA" },
   { key: "franchise",        label: "🏢 프랜차이즈", color: P,         bg: "#EEDDF5" },
   { key: "readonly",         label: "읽기전용",      color: "#7C3AED", bg: "#EEDDF5" },
+  { key: "xmode",            label: "⚡ X MODE",     color: "#2EC4B6", bg: "#E6FAF8" },
 ];
 
 const SORT_OPTS = [

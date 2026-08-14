@@ -27,6 +27,7 @@ const BG = "#F8F8FC";
 interface Stats {
   total_operators: number; active_operators: number; pending_operators: number;
   payment_issue_count: number; storage_danger_count: number; deletion_pending_count: number;
+  xmode_operators: number;
 }
 interface TodoItem {
   id: string; name: string; owner_name?: string; todo_type: string;
@@ -314,9 +315,8 @@ export default function SuperDashboard() {
               />
               <KpiCard
                 label="X MODE"
-                value={null}
-                note="API 준비중"
-                path="/(super)/pools?backTo=dashboard"
+                value={stats?.xmode_operators ?? 0}
+                path="/(super)/pools?filter=xmode&backTo=dashboard"
               />
             </View>
 
