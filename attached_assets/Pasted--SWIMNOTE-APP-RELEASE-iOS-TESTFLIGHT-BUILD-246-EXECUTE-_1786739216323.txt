@@ -1,0 +1,188 @@
+[SWIMNOTE APP RELEASE]
+[iOS TESTFLIGHT — BUILD 246 EXECUTE]
+
+현재 release source 준비 완료:
+
+branch:
+deploy-photo-clone
+
+HEAD:
+0f8874498e0d9c8a24e544d6e39e7d92ff1b9572
+
+version:
+1.6.3
+
+ios.buildNumber:
+246
+
+android.versionCode:
+236
+
+runtimeVersion:
+appVersion policy → 1.6.3
+
+이번 단계 목적:
+
+iOS production build 246을
+EAS에서 실제 생성한다.
+
+중요:
+
+이번 단계에서는
+App Store 정식 출시 금지.
+Google Play 작업 금지.
+OTA publish 금지.
+코드 수정 금지.
+version 추가 변경 금지.
+Render/Replit server deploy 금지.
+
+==================================================
+1. PRE-BUILD VERIFY
+==================================================
+
+확인:
+
+branch = deploy-photo-clone
+
+HEAD =
+0f8874498e0d9c8a24e544d6e39e7d92ff1b9572
+
+origin/deploy-photo-clone와 동일.
+
+working tree production code clean.
+
+==================================================
+2. VERSION VERIFY
+==================================================
+
+최종 확인:
+
+version = 1.6.3
+ios.buildNumber = 246
+runtimeVersion policy = appVersion
+resolved runtime = 1.6.3
+
+245 사용 금지.
+
+==================================================
+3. NATIVE DEPENDENCY VERIFY
+==================================================
+
+확인:
+
+expo-print = SDK55 compatible
+expo-build-properties = SDK55 compatible
+
+이전 정렬 결과 유지.
+
+새 dependency 변경 금지.
+
+==================================================
+4. BUILD COMMAND
+==================================================
+
+실행:
+
+cd artifacts/swim-app
+
+eas build --platform ios --profile production
+
+production profile 그대로 사용.
+
+==================================================
+5. CREDENTIAL HANDLING
+==================================================
+
+기존 EAS managed Apple credentials 사용.
+
+새 certificate/provisioning 생성이
+정말 필요한 경우가 아니면 기존 credential 유지.
+
+Apple credential 관련 선택창이 나오면
+자동으로 임의 변경하지 말고
+현재 managed credential을 우선 사용.
+
+==================================================
+6. BUILD MONITOR
+==================================================
+
+EAS build가:
+
+queued
+→ provisioning
+→ dependencies
+→ native compile
+→ archive
+→ complete
+
+순서로 진행되는지 확인.
+
+실패하면 오류 원문을 보고.
+
+임의로 dependency를 수정하여 재시도 금지.
+
+==================================================
+7. BUILD RESULT
+==================================================
+
+성공 시 확인:
+
+platform = iOS
+version = 1.6.3
+buildNumber = 246
+profile = production
+channel = production
+runtimeVersion = 1.6.3
+status = finished
+
+build ID / artifact URL은 보고 가능.
+
+credential secret 값 출력 금지.
+
+==================================================
+8. TESTFLIGHT
+==================================================
+
+중요:
+
+이번 단계에서는
+build 생성까지만.
+
+자동 submit이 profile에 포함돼 있지 않다면
+App Store Connect/TestFlight upload는
+다음 단계에서 별도로 진행.
+
+자동 submit이 실제로 설정돼 있다면
+그 사실만 보고하고
+정식 App Store release는 절대 진행하지 마라.
+
+==================================================
+9. REPORT
+==================================================
+
+다음만 보고:
+
+1. PRE-BUILD HEAD
+2. VERSION
+3. IOS BUILD NUMBER
+4. RUNTIME VERSION
+5. BUILD COMMAND
+6. EAS PROFILE
+7. CREDENTIAL STATUS
+8. BUILD ID
+9. BUILD STATUS
+10. NATIVE COMPILE STATUS
+11. ARTIFACT CREATED?
+12. TESTFLIGHT SUBMITTED?
+13. APP STORE RELEASED?
+14. CODE CHANGE
+15. VERSION CHANGE
+16. EXTRA DEPLOY
+
+성공:
+
+SWIMNOTE_IOS_1_6_3_BUILD_246_CREATED ✅
+
+실패:
+
+SWIMNOTE_IOS_BUILD_246_BLOCKED ❌
