@@ -73,16 +73,17 @@ vi.mock("../../lib/parent-curriculum-engine-client.js", () => ({
 }));
 
 vi.mock("../../lib/parent-curriculum-quota.js", () => ({
-  MONTHLY_LIMIT:             10,
-  CURRICULUM_SEARCH_FEATURE: "parent_curriculum_search",
-  getPriorReservationStatus: vi.fn(),
-  tryReserveMonthlyQuota:    vi.fn(),
-  finalizeQuotaSuccess:      vi.fn(),
-  rollbackQuotaReservation:  vi.fn(),
-  getMonthlyUsageInfo:       vi.fn(),
-  getSeoulMonthPeriod:       vi.fn(),
-  getSeoulPeriodLabel:       vi.fn(),
-  getResetsAt:               vi.fn(),
+  MONTHLY_LIMIT:                   10,
+  CURRICULUM_SEARCH_FEATURE:       "parent_curriculum_search",
+  getPriorReservationStatus:       vi.fn(),
+  tryReserveMonthlyQuota:          vi.fn(),
+  finalizeCurriculumSearchSuccess: vi.fn(), // WP2B.3
+  finalizeQuotaSuccess:            vi.fn(), // kept in module, not called from route success path
+  rollbackQuotaReservation:        vi.fn(),
+  getMonthlyUsageInfo:             vi.fn(),
+  getSeoulMonthPeriod:             vi.fn(),
+  getSeoulPeriodLabel:             vi.fn(),
+  getResetsAt:                     vi.fn(),
 }));
 
 vi.mock("../../lib/parent-curriculum-conversation.js", () => ({
@@ -104,6 +105,7 @@ import {
   CURRICULUM_SEARCH_FEATURE,
   getPriorReservationStatus,
   tryReserveMonthlyQuota,
+  finalizeCurriculumSearchSuccess,
   finalizeQuotaSuccess,
   rollbackQuotaReservation,
   getMonthlyUsageInfo,
@@ -213,6 +215,7 @@ beforeEach(() => {
 
   // Quota defaults
   (tryReserveMonthlyQuota as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, isRetry: false });
+  (finalizeCurriculumSearchSuccess as ReturnType<typeof vi.fn>).mockResolvedValue(undefined); // WP2B.3
   (finalizeQuotaSuccess as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   (rollbackQuotaReservation as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   (getMonthlyUsageInfo as ReturnType<typeof vi.fn>).mockResolvedValue(makeUsageInfo(1));
@@ -278,8 +281,8 @@ describe("WP2B.2: Quota Feature Isolation + Idempotency Fix", () => {
     expect(searchParentCurriculum).toHaveBeenCalledTimes(1);
   });
 
-  // ── E. FAILED retry 성공 → finalizeQuotaSuccess 1회 호출 ─────────────────────
-  it("E. FAILED retry 성공 → finalizeQuotaSuccess 정확히 1회", async () => {
+  // ── E. FAILED retry 성공 → finalizeCurriculumSearchSuccess 1회 호출 (WP2B.3) ──
+  it("E. FAILED retry 성공 → finalizeCurriculumSearchSuccess 정확히 1회 (atomic transaction)", async () => {
     (getPriorReservationStatus as ReturnType<typeof vi.fn>).mockResolvedValue("FAILED");
     (tryReserveMonthlyQuota as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, isRetry: false });
 
@@ -288,8 +291,12 @@ describe("WP2B.2: Quota Feature Isolation + Idempotency Fix", () => {
       .post(`/parent/students/${STUDENT_X}/curriculum-search`)
       .send({ request_id: REQUEST_ID, query: QUERY_TEXT });
 
-    expect(finalizeQuotaSuccess).toHaveBeenCalledTimes(1);
-    expect(finalizeQuotaSuccess).toHaveBeenCalledWith(PARENT_A, REQUEST_ID);
+    // WP2B.3: atomic finalization — finalizeQuotaSuccess + saveAssistantMessage 대신 하나의 transaction
+    expect(finalizeCurriculumSearchSuccess).toHaveBeenCalledTimes(1);
+    expect(finalizeCurriculumSearchSuccess).toHaveBeenCalledWith(expect.objectContaining({
+      parentId:  PARENT_A,
+      requestId: REQUEST_ID,
+    }));
     expect(rollbackQuotaReservation).not.toHaveBeenCalled();
   });
 
@@ -322,8 +329,8 @@ describe("WP2B.2: Quota Feature Isolation + Idempotency Fix", () => {
     );
   });
 
-  // ── H. FAILED retry 성공 → saveAssistantMessage 1회 ─────────────────────────
-  it("H. FAILED retry 성공 → saveAssistantMessage 정확히 1회 (기존 FAILED엔 ASSISTANT 없음)", async () => {
+  // ── H. FAILED retry 성공 → finalizeCurriculumSearchSuccess 1회 (WP2B.3) ──────
+  it("H. FAILED retry 성공 → finalizeCurriculumSearchSuccess 1회 (result_payload JSON 포함)", async () => {
     (getPriorReservationStatus as ReturnType<typeof vi.fn>).mockResolvedValue("FAILED");
 
     const app = await buildApp({ userId: PARENT_A, role: "parent_account" });
@@ -331,12 +338,13 @@ describe("WP2B.2: Quota Feature Isolation + Idempotency Fix", () => {
       .post(`/parent/students/${STUDENT_X}/curriculum-search`)
       .send({ request_id: REQUEST_ID, query: QUERY_TEXT });
 
-    expect(saveAssistantMessage).toHaveBeenCalledTimes(1);
-    // result_payload가 meta에 포함됐는지 확인
-    expect(saveAssistantMessage).toHaveBeenCalledWith(
+    // WP2B.3: ASSISTANT persistence가 finalizeCurriculumSearchSuccess 내부 transaction에서 실행
+    expect(finalizeCurriculumSearchSuccess).toHaveBeenCalledTimes(1);
+    // safeMetadataJson에 result_payload 포함 여부 (직렬화된 JSON string)
+    expect(finalizeCurriculumSearchSuccess).toHaveBeenCalledWith(
       expect.objectContaining({
-        requestId: REQUEST_ID,
-        meta:      expect.objectContaining({ result_payload: expect.any(Object) }),
+        requestId:        REQUEST_ID,
+        safeMetadataJson: expect.stringContaining("result_payload"),
       }),
     );
   });
@@ -399,8 +407,8 @@ describe("WP2B.2: Quota Feature Isolation + Idempotency Fix", () => {
     expect(res.body.result.answer).toBe(storedAnswer);
   });
 
-  // ── L. COMPLETED retry → 추가 message row 없음 ────────────────────────────────
-  it("L. COMPLETED retry → saveUserMessage / saveAssistantMessage 호출 없음", async () => {
+  // ── L. COMPLETED retry → 추가 저장 없음 (WP2B.3) ────────────────────────────
+  it("L. COMPLETED retry → saveUserMessage / finalizeCurriculumSearchSuccess 호출 없음", async () => {
     (getPriorReservationStatus as ReturnType<typeof vi.fn>).mockResolvedValue("COMPLETED");
     (findConversation as ReturnType<typeof vi.fn>).mockResolvedValue(CONV_ID_1);
     (getAssistantMessageByRequestId as ReturnType<typeof vi.fn>).mockResolvedValue(
@@ -413,7 +421,8 @@ describe("WP2B.2: Quota Feature Isolation + Idempotency Fix", () => {
       .send({ request_id: REQUEST_ID, query: QUERY_TEXT });
 
     expect(saveUserMessage).not.toHaveBeenCalled();
-    expect(saveAssistantMessage).not.toHaveBeenCalled();
+    // WP2B.3: COMPLETED replay 경로에서 finalizeCurriculumSearchSuccess 미호출 (quota 차감 금지)
+    expect(finalizeCurriculumSearchSuccess).not.toHaveBeenCalled();
   });
 
   // ── M. concurrent retry → 이중 quota 예약 없음 ───────────────────────────────
@@ -501,8 +510,8 @@ describe("WP2B.2: Quota Feature Isolation + Idempotency Fix", () => {
     expect(label).toBe("2026-08");
   });
 
-  // ── Q. conversation/messages 월 변경 후 유지 ─────────────────────────────────
-  it("Q. rollbackQuotaReservation이 saveUserMessage/saveAssistantMessage를 건드리지 않음", async () => {
+  // ── Q. ENGINE 실패 → finalization 미호출 (WP2B.3) ───────────────────────────
+  it("Q. rollbackQuotaReservation이 실행되고 finalizeCurriculumSearchSuccess는 미호출", async () => {
     // ENGINE 실패 → rollback 발생 시나리오
     (searchParentCurriculum as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error("ENGINE timeout"),
@@ -513,11 +522,11 @@ describe("WP2B.2: Quota Feature Isolation + Idempotency Fix", () => {
       .post(`/parent/students/${STUDENT_X}/curriculum-search`)
       .send({ request_id: REQUEST_ID, query: QUERY_TEXT });
 
-    // rollback 발생
+    // quota rollback 발생
     expect(rollbackQuotaReservation).toHaveBeenCalledTimes(1);
-    // message 테이블은 건드리지 않음
-    expect(saveAssistantMessage).not.toHaveBeenCalled();
-    // USER message는 ENGINE 호출 전에 저장 (정상)
+    // WP2B.3: ENGINE 실패 → finalizeCurriculumSearchSuccess 미호출 (transaction 미실행)
+    expect(finalizeCurriculumSearchSuccess).not.toHaveBeenCalled();
+    // USER message는 ENGINE 호출 전에 저장 (정상, 변경 없음)
     expect(saveUserMessage).toHaveBeenCalledTimes(1);
   });
 

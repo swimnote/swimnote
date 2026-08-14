@@ -81,16 +81,17 @@ vi.mock("../../lib/parent-curriculum-engine-client.js", () => ({
 
 // Quota + Conversation mocked at module level
 vi.mock("../../lib/parent-curriculum-quota.js", () => ({
-  MONTHLY_LIMIT:             10,
-  CURRICULUM_SEARCH_FEATURE: "parent_curriculum_search",
-  getPriorReservationStatus: vi.fn(),   // WP2B.2
-  tryReserveMonthlyQuota:    vi.fn(),
-  finalizeQuotaSuccess:      vi.fn(),
-  rollbackQuotaReservation:  vi.fn(),
-  getMonthlyUsageInfo:       vi.fn(),
-  getSeoulMonthPeriod:       vi.fn(),
-  getSeoulPeriodLabel:       vi.fn(),
-  getResetsAt:               vi.fn(),
+  MONTHLY_LIMIT:                    10,
+  CURRICULUM_SEARCH_FEATURE:        "parent_curriculum_search",
+  getPriorReservationStatus:        vi.fn(),    // WP2B.2
+  tryReserveMonthlyQuota:           vi.fn(),
+  finalizeCurriculumSearchSuccess:  vi.fn(),    // WP2B.3 (replaces finalizeQuotaSuccess + saveAssistantMessage)
+  finalizeQuotaSuccess:             vi.fn(),    // kept for reference (not called from success path)
+  rollbackQuotaReservation:         vi.fn(),
+  getMonthlyUsageInfo:              vi.fn(),
+  getSeoulMonthPeriod:              vi.fn(),
+  getSeoulPeriodLabel:              vi.fn(),
+  getResetsAt:                      vi.fn(),
 }));
 
 vi.mock("../../lib/parent-curriculum-conversation.js", () => ({
@@ -111,6 +112,7 @@ import { searchParentCurriculum, ParentCurriculumEngineError } from "../../lib/p
 import {
   getPriorReservationStatus,
   tryReserveMonthlyQuota,
+  finalizeCurriculumSearchSuccess,
   finalizeQuotaSuccess,
   rollbackQuotaReservation,
   getMonthlyUsageInfo,
@@ -218,6 +220,9 @@ beforeEach(() => {
 
   // Default: quota ok (0/10)
   (tryReserveMonthlyQuota as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, isRetry: false });
+
+  // WP2B.3: atomic finalization (replaces separate finalizeQuotaSuccess + saveAssistantMessage)
+  (finalizeCurriculumSearchSuccess as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   (finalizeQuotaSuccess as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   (rollbackQuotaReservation as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   (getMonthlyUsageInfo as ReturnType<typeof vi.fn>).mockResolvedValue(makeUsageInfo(1));
@@ -255,7 +260,11 @@ describe("WP2B: Monthly Quota + Conversation Persistence", () => {
     expect(res.body.usage.limit).toBe(10);
     expect(res.body.usage.used).toBe(1);
     expect(res.body.usage.remaining).toBe(9);
-    expect(finalizeQuotaSuccess).toHaveBeenCalledWith(PARENT_A, REQUEST_ID);
+    // WP2B.3: route calls finalizeCurriculumSearchSuccess (atomic) not finalizeQuotaSuccess
+    expect(finalizeCurriculumSearchSuccess).toHaveBeenCalledWith(expect.objectContaining({
+      parentId:  PARENT_A,
+      requestId: REQUEST_ID,
+    }));
     expect(rollbackQuotaReservation).not.toHaveBeenCalled();
   });
 
@@ -271,7 +280,8 @@ describe("WP2B: Monthly Quota + Conversation Persistence", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.usage.remaining).toBe(0);
-    expect(finalizeQuotaSuccess).toHaveBeenCalled();
+    // WP2B.3: finalizeCurriculumSearchSuccess (atomic) replaces finalizeQuotaSuccess
+    expect(finalizeCurriculumSearchSuccess).toHaveBeenCalled();
   });
 
   // WP2B-C: 10/10 → 429, ENGINE 호출 없음
@@ -377,8 +387,8 @@ describe("WP2B: Monthly Quota + Conversation Persistence", () => {
     expect(res.status).toBe(200);
     // tryReserveMonthlyQuota 1번만 호출 (중복 예약 없음)
     expect(tryReserveMonthlyQuota).toHaveBeenCalledTimes(1);
-    // 성공 시 finalize 호출
-    expect(finalizeQuotaSuccess).toHaveBeenCalledTimes(1);
+    // WP2B.3: 성공 시 atomic finalization 호출
+    expect(finalizeCurriculumSearchSuccess).toHaveBeenCalledTimes(1);
   });
 
   // WP2B-I: quota 동시 요청 보호 — 두 번째 요청이 한도 초과 시 429
@@ -546,23 +556,25 @@ describe("WP2B: Monthly Quota + Conversation Persistence", () => {
     }));
   });
 
-  // WP2B-Q: ASSISTANT message 성공 시 저장
-  it("Q. ENGINE 성공 → ASSISTANT message 저장됨", async () => {
+  // WP2B-Q: 성공 시 finalizeCurriculumSearchSuccess 호출 (WP2B.3 atomic)
+  it("Q. ENGINE 성공 → finalizeCurriculumSearchSuccess 호출됨 (ASSISTANT + quota 원자적)", async () => {
     const app = await buildApp({ userId: PARENT_A, role: "parent_account" });
     const res = await request(app)
       .post(`/parent/students/${STUDENT_X}/curriculum-search`)
       .send({ request_id: REQUEST_ID, query: QUERY_TEXT });
 
     expect(res.status).toBe(200);
-    expect(saveAssistantMessage).toHaveBeenCalledWith(expect.objectContaining({
-      conversationId: CONV_ID_1,
+    // WP2B.3: atomic finalization replaces separate finalizeQuotaSuccess + saveAssistantMessage
+    expect(finalizeCurriculumSearchSuccess).toHaveBeenCalledWith(expect.objectContaining({
+      parentId:       PARENT_A,
       requestId:      REQUEST_ID,
+      conversationId: CONV_ID_1,
       content:        expect.any(String),
     }));
   });
 
-  // WP2B-R: ENGINE 실패 시 ASSISTANT 저장 안 됨
-  it("R. ENGINE 실패 → ASSISTANT message 저장 안 됨", async () => {
+  // WP2B-R: ENGINE 실패 시 finalization 호출 안 됨
+  it("R. ENGINE 실패 → finalizeCurriculumSearchSuccess 호출 안 됨 (502)", async () => {
     (searchParentCurriculum as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error("Network error"),
     );
@@ -573,7 +585,7 @@ describe("WP2B: Monthly Quota + Conversation Persistence", () => {
       .send({ request_id: REQUEST_ID, query: QUERY_TEXT });
 
     expect(res.status).toBe(502);
-    expect(saveAssistantMessage).not.toHaveBeenCalled();
+    expect(finalizeCurriculumSearchSuccess).not.toHaveBeenCalled();
   });
 
   // WP2B-S: history 조회 — 다른 parent의 student → 403
@@ -608,7 +620,7 @@ describe("WP2B: Monthly Quota + Conversation Persistence", () => {
     expect(res.body.usage.used).toBe(3);
     // quota 예약 없음
     expect(tryReserveMonthlyQuota).not.toHaveBeenCalled();
-    expect(finalizeQuotaSuccess).not.toHaveBeenCalled();
+    expect(finalizeCurriculumSearchSuccess).not.toHaveBeenCalled(); // WP2B.3
     expect(rollbackQuotaReservation).not.toHaveBeenCalled();
   });
 

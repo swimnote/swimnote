@@ -334,3 +334,71 @@ export async function rollbackQuotaReservation(
     console.error("[curriculum-quota] rollback reservation update failed:", err?.message);
   });
 }
+
+// ─── 원자적 성공 확정 (WP2B.3) ────────────────────────────────────────────────
+
+/**
+ * finalizeCurriculumSearchSuccess — WP2B.3
+ *
+ * ENGINE 성공 후 단일 DB transaction으로 원자적 성공 확정:
+ *   1. ASSISTANT message INSERT  (ON CONFLICT DO NOTHING — 멱등)
+ *   2. reservation RESERVED → COMPLETED
+ *   3. usage reserved_count -1, completed_count +1
+ *
+ * 실패 시: drizzle transaction 자동 rollback
+ *   → reservation RESERVED 유지 → 동일 request_id retry 가능.
+ *
+ * 보장 (invariant):
+ *   COMPLETED reservation이 존재하면 반드시 ASSISTANT message도 존재한다.
+ *   "COMPLETED + no persisted result" 상태 불가능.
+ *
+ * 외부 HTTP 호출 금지 — ENGINE 호출 완료 후 DB-only 작업만.
+ *
+ * @param params.parentId         학부모 account ID
+ * @param params.requestId        요청 UUID (reservation PK)
+ * @param params.conversationId   conversation row ID
+ * @param params.content          ASSISTANT answer text
+ * @param params.safeMetadataJson 직렬화된 metadata JSON (null 허용)
+ */
+export async function finalizeCurriculumSearchSuccess(params: {
+  parentId:         string;
+  requestId:        string;
+  conversationId:   string;
+  content:          string;
+  safeMetadataJson: string | null;
+}): Promise<void> {
+  const { parentId, requestId, conversationId, content, safeMetadataJson } = params;
+  const period = getSeoulMonthPeriod();
+
+  await superAdminDb.transaction(async (tx) => {
+    // 1. ASSISTANT message — UNIQUE(request_id, role) 보장 → 재시도 시 중복 없음
+    await tx.execute(sql`
+      INSERT INTO parent_curriculum_messages
+        (conversation_id, request_id, role, content, metadata)
+      VALUES
+        (${conversationId}, ${requestId}, 'ASSISTANT', ${content}, ${safeMetadataJson}::jsonb)
+      ON CONFLICT (request_id, role) DO NOTHING
+    `);
+
+    // 2. reservation RESERVED → COMPLETED
+    //    status='RESERVED' 조건: FAILED / COMPLETED 상태에서 이 경로에 오지 않음
+    await tx.execute(sql`
+      UPDATE parent_ai_usage_reservations
+      SET status       = 'COMPLETED',
+          completed_at = NOW()
+      WHERE request_id = ${requestId}
+        AND status     = 'RESERVED'
+    `);
+
+    // 3. usage counters: atomic dec/inc
+    await tx.execute(sql`
+      UPDATE parent_ai_daily_usage
+      SET reserved_count  = GREATEST(0, reserved_count - 1),
+          completed_count = completed_count + 1,
+          updated_at      = NOW()
+      WHERE parent_account_id = ${parentId}
+        AND feature            = ${CURRICULUM_SEARCH_FEATURE}
+        AND usage_date         = ${period}::date
+    `);
+  });
+}

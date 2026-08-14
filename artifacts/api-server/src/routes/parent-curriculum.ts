@@ -1,11 +1,11 @@
 /**
- * parent-curriculum.ts — WP2 / WP2.1 / WP2B / WP2B.2
+ * parent-curriculum.ts — WP2 / WP2.1 / WP2B / WP2B.2 / WP2B.3
  *
  * Routes:
  *   POST /parent/students/:studentId/curriculum-search
  *   GET  /parent/students/:studentId/curriculum-search/history
  *
- * POST Flow (WP2B.2 canonical order):
+ * POST Flow (WP2B.3 canonical order):
  *   1. Parent JWT 인증
  *   2. Parent↔Student 소유권 확인
  *   3. request_id prior state 확인 (getPriorReservationStatus)
@@ -18,7 +18,7 @@
  *   9. USER message 저장 (idempotent — FAILED retry 시 기존 재사용)
  *   10. ENGINE 호출
  *   11. Response 검증
- *   12. 성공: quota finalize + ASSISTANT message 저장 (result_payload 포함)
+ *   12. 성공: finalizeCurriculumSearchSuccess (atomic transaction: ASSISTANT + quota 동시 확정)
  *   13. 실패: quota rollback
  *   14. 사용량 포함 안전한 응답 반환
  *
@@ -52,7 +52,7 @@ import {
 import {
   getPriorReservationStatus,
   tryReserveMonthlyQuota,
-  finalizeQuotaSuccess,
+  finalizeCurriculumSearchSuccess,
   rollbackQuotaReservation,
   getMonthlyUsageInfo,
   MONTHLY_LIMIT,
@@ -61,7 +61,6 @@ import {
   getOrCreateConversation,
   findConversation,
   saveUserMessage,
-  saveAssistantMessage,
   touchConversation,
   getConversationMessages,
   getAssistantMessageByRequestId,
@@ -398,31 +397,50 @@ router.post(
       return;
     }
 
-    // ── 14. 성공 확정: quota finalize + ASSISTANT message 저장 ───────────────
-    await finalizeQuotaSuccess(parentId, trimmedRequestId).catch((err) => {
-      console.error("[parent-curriculum] quota finalize failed:", err?.message);
-    });
+    // ── 14. 성공 확정: ASSISTANT + quota 원자적 transaction (WP2B.3) ──────────
+    //
+    // finalizeCurriculumSearchSuccess는 단일 DB transaction으로:
+    //   ① ASSISTANT message INSERT (idempotent)
+    //   ② reservation RESERVED → COMPLETED
+    //   ③ usage reserved_count -1, completed_count +1
+    // 를 원자적으로 실행한다.
+    //
+    // 실패 시: transaction 자동 rollback → reservation RESERVED 유지 → retry 가능.
+    // 보장: "COMPLETED + no persisted result" 상태 불가능.
 
     const { answer, current_progress, next_step, intent } = engineResponse.result as any;
 
-    await saveAssistantMessage({
-      conversationId,
-      requestId: trimmedRequestId,
-      content:   answer,
-      meta: {
-        intent:            intent ?? null,
-        mode:              engineMode,
-        curriculum_source: curriculumScope.source,
-        // result_payload: COMPLETED retry replay용 (raw trace 금지)
-        result_payload: {
-          answer,
-          ...(current_progress !== undefined ? { current_progress } : {}),
-          ...(next_step        !== undefined ? { next_step }        : {}),
-        },
+    const safeMetadataJson = JSON.stringify({
+      intent:            intent ?? null,
+      mode:              engineMode,
+      curriculum_source: curriculumScope.source,
+      // result_payload: COMPLETED replay용 (raw trace / prompt 금지)
+      result_payload: {
+        answer,
+        ...(current_progress !== undefined ? { current_progress } : {}),
+        ...(next_step        !== undefined ? { next_step }        : {}),
       },
-    }).catch((err) => {
-      console.error("[parent-curriculum] ASSISTANT message save failed:", err?.message);
     });
+
+    try {
+      await finalizeCurriculumSearchSuccess({
+        parentId,
+        requestId:        trimmedRequestId,
+        conversationId,
+        content:          answer,
+        safeMetadataJson,
+      });
+    } catch (err) {
+      // Transaction 실패: reservation RESERVED 유지 → 동일 request_id retry 가능.
+      // COMPLETED + no persisted result 상태 불가능 (transaction rollback 보장).
+      console.error("[parent-curriculum] success finalization failed:", (err as Error).message);
+      res.status(502).json({
+        error:     "결과 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+        code:      "FINALIZATION_FAILED",
+        retryable: true,
+      });
+      return;
+    }
 
     await touchConversation(conversationId).catch(() => undefined);
 

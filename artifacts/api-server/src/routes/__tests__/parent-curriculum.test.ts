@@ -77,14 +77,15 @@ vi.mock("../../lib/parent-curriculum-engine-client.js", () => ({
   },
 }));
 
-// WP2B / WP2B.2: quota + conversation modules — mocked so WP2 tests are unaffected
+// WP2B / WP2B.2 / WP2B.3: quota + conversation modules — mocked so WP2 tests are unaffected
 vi.mock("../../lib/parent-curriculum-quota.js", () => ({
-  MONTHLY_LIMIT:             10,
-  CURRICULUM_SEARCH_FEATURE: "parent_curriculum_search",
-  getPriorReservationStatus: vi.fn().mockResolvedValue("NONE"),  // WP2B.2: default no prior
-  tryReserveMonthlyQuota:    vi.fn().mockResolvedValue({ ok: true, isRetry: false }),
-  finalizeQuotaSuccess:      vi.fn().mockResolvedValue(undefined),
-  rollbackQuotaReservation:  vi.fn().mockResolvedValue(undefined),
+  MONTHLY_LIMIT:                   10,
+  CURRICULUM_SEARCH_FEATURE:       "parent_curriculum_search",
+  getPriorReservationStatus:       vi.fn().mockResolvedValue("NONE"),  // WP2B.2: default no prior
+  tryReserveMonthlyQuota:          vi.fn().mockResolvedValue({ ok: true, isRetry: false }),
+  finalizeCurriculumSearchSuccess: vi.fn().mockResolvedValue(undefined), // WP2B.3: atomic
+  finalizeQuotaSuccess:            vi.fn().mockResolvedValue(undefined), // kept in module
+  rollbackQuotaReservation:        vi.fn().mockResolvedValue(undefined),
   getMonthlyUsageInfo:       vi.fn().mockResolvedValue({
     limit: 10, used: 0, remaining: 10, period: "2026-08", resets_at: "2026-09-01T00:00:00.000Z",
   }),
