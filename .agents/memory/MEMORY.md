@@ -59,3 +59,5 @@
 - [GR7 완료 상태](wp-gr7-done-state.md) — SHA 45b490c4; Push+DeepLink; 55TC; 833TC; 미배포
 - [GR8 완료 상태](wp-gr8-done-state.md) — SHA cb642da2; Parent Detail Screen; 66TC; 899TC; 미배포
 - [WP1.2 완료 상태](wp1-2-done-state.md) — SHA 47831611; Recent Conversation Context; buildRecentConversationContext; +23TC=1094TC; 미배포
+- [Production DB 연결 방법](prod-db-connection-method.md) — executeSql=NeonDB(Replit내장); 실제운영DB=SUPABASE_DATABASE_URL; /tmp tsx스크립트+buildConfig+pg Pool로 직접 연결
+- [GR1 Production 적용 완료](gr1-prod-applied.md) — 2026-08-14; Supabase postgres; 5 ENUMs+3 tables+24 cols+11 indexes; rows=0; GR3/GR5 미적용 대기중
