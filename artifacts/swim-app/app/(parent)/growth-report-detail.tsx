@@ -40,6 +40,7 @@ import SnsCardView from "@/components/parent/SnsCardView";
 import {
   generateGrowthReportPdf,
   shareGrowthReportSnsCard,
+  cleanupTempFiles,
   GrowthReportExportException,
   getPdfErrorMessage,
   getSnsErrorMessage,
@@ -306,6 +307,10 @@ export default function GrowthReportDetailScreen() {
       console.warn("[GrowthReportDetail] SNS share error:", e);
       Alert.alert("공유 실패", msg);
     } finally {
+      // temp SNS card image cleanup (spec §32)
+      if (cardImageUri) {
+        await cleanupTempFiles([cardImageUri]).catch(() => {});
+      }
       if (mounted.current) setIsShareGenerating(false);
     }
   }, [detail, isShareGenerating, isPdfGenerating, poolName]);
