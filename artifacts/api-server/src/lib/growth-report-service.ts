@@ -140,6 +140,20 @@ export class CycleDuplicateError extends Error {
   }
 }
 
+export class PublishPreconditionError extends Error {
+  constructor(public readonly detail: string) {
+    super(`Publish precondition failed: ${detail}`);
+    this.name = "PublishPreconditionError";
+  }
+}
+
+export class PublishNotAllowedError extends Error {
+  constructor(public readonly currentStatus: string) {
+    super(`Report cannot be published from status=${currentStatus} (must be APPROVED)`);
+    this.name = "PublishNotAllowedError";
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Validation helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -578,4 +592,148 @@ export async function updateParentInputStatus(params: {
   `);
 
   console.log(`[growth-report] PARENT_INPUT_STATUS: report=${reportId} → ${toStatus}`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// publishGrowthReport — GR6: APPROVED → PUBLISHED
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PUBLISH_GROUNDING_PASS = new Set(["PASS", "REVISED_PASS"]);
+
+export interface PublishGrowthReportParams {
+  db: Db;
+  reportId: string;
+  actorId: string;
+  actorType: "pool_admin" | "super_admin";
+}
+
+export interface PublishGrowthReportResult {
+  alreadyPublished: boolean;
+  publishedAt?: string;
+}
+
+/**
+ * publishGrowthReport — APPROVED → PUBLISHED 공식 publication service
+ *
+ * 전제조건 (spec §4):
+ *   - product_status === APPROVED
+ *   - report_content: plain object
+ *   - report_fact_package: plain object
+ *   - sns_summary: plain object
+ *   - grounding_result: PASS | REVISED_PASS
+ *   - growth_framing_result: PASS | REVISED_PASS
+ *   - teacher_reviewed_at: 존재
+ *
+ * 멱등성 (spec §20):
+ *   - already PUBLISHED → alreadyPublished=true (성공)
+ *   - concurrent publish → ReportTerminalError → alreadyPublished=true
+ *
+ * published_at (spec §5):
+ *   - 첫 번째 호출에서만 기록 (transitionReportStatus 내부 처리)
+ *   - 재호출 시 timestamp 변경 금지
+ *
+ * ENGINE 호출 금지 (spec §31).
+ * APP GPT 호출 금지 (spec §32).
+ */
+export async function publishGrowthReport(
+  params: PublishGrowthReportParams,
+): Promise<PublishGrowthReportResult> {
+  const { db, reportId, actorId, actorType } = params;
+
+  // ── Fetch current state ──────────────────────────────────────────────────
+  const fetchRes = await db.execute(sql`
+    SELECT id, product_status, report_content, report_fact_package, sns_summary,
+           teacher_reviewed_at, swimming_pool_id, deleted_at, published_at
+    FROM growth_reports
+    WHERE id = ${reportId}
+    LIMIT 1
+  `);
+
+  if (!fetchRes.rows.length) throw new ReportNotFoundError(reportId);
+  const row = fetchRes.rows[0] as any;
+  if (row.deleted_at) throw new ReportNotFoundError(reportId);
+
+  // ── Idempotency: already PUBLISHED ───────────────────────────────────────
+  if (row.product_status === "PUBLISHED") {
+    return { alreadyPublished: true, publishedAt: row.published_at ?? undefined };
+  }
+
+  // ── Must be APPROVED ─────────────────────────────────────────────────────
+  if (row.product_status !== "APPROVED") {
+    throw new PublishNotAllowedError(row.product_status);
+  }
+
+  // ── Preconditions ─────────────────────────────────────────────────────────
+  const rc = row.report_content;
+  if (!rc || typeof rc !== "object" || Array.isArray(rc)) {
+    throw new PublishPreconditionError(
+      "report_content must exist as a plain object",
+    );
+  }
+
+  const fp = row.report_fact_package;
+  if (!fp || typeof fp !== "object" || Array.isArray(fp)) {
+    throw new PublishPreconditionError(
+      "report_fact_package must exist as a plain object",
+    );
+  }
+
+  const sns = row.sns_summary;
+  if (!sns || typeof sns !== "object" || Array.isArray(sns)) {
+    throw new PublishPreconditionError(
+      "sns_summary must exist as a plain object",
+    );
+  }
+
+  const grounding = (fp as Record<string, unknown>).grounding_result;
+  if (!PUBLISH_GROUNDING_PASS.has(grounding as string)) {
+    throw new PublishPreconditionError(
+      `grounding_result=${grounding} must be PASS or REVISED_PASS`,
+    );
+  }
+
+  const framing = (fp as Record<string, unknown>).growth_framing_result;
+  if (!PUBLISH_GROUNDING_PASS.has(framing as string)) {
+    throw new PublishPreconditionError(
+      `growth_framing_result=${framing} must be PASS or REVISED_PASS`,
+    );
+  }
+
+  if (!row.teacher_reviewed_at) {
+    throw new PublishPreconditionError(
+      "teacher_reviewed_at is required before publishing",
+    );
+  }
+
+  // ── Transition APPROVED → PUBLISHED ──────────────────────────────────────
+  // transitionReportStatus handles: SELECT FOR UPDATE, published_at, audit
+  // ReportTerminalError on concurrent publish → treat as already-published
+  try {
+    await transitionReportStatus({
+      db,
+      reportId,
+      toStatus: "PUBLISHED",
+      actorType,
+      actorId,
+      reason: "GROWTH_REPORT_PUBLISHED",
+    });
+  } catch (err) {
+    if (err instanceof ReportTerminalError) {
+      return { alreadyPublished: true };
+    }
+    throw err;
+  }
+
+  // Re-fetch published_at for caller
+  const afterRes = await db.execute(sql`
+    SELECT published_at FROM growth_reports WHERE id = ${reportId} LIMIT 1
+  `);
+  const publishedAt: string | undefined =
+    (afterRes.rows[0] as any)?.published_at ?? undefined;
+
+  console.log(
+    `[growth-report] PUBLISHED: report=${reportId} actor=${actorId} at=${publishedAt ?? "?"}`,
+  );
+
+  return { alreadyPublished: false, publishedAt };
 }

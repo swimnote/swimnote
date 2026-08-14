@@ -645,6 +645,68 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
       };
     }));
 
+    // ── GROWTH_REPORT feed items (spec §23, §6, §7) ──────────────────────
+    // Only PUBLISHED reports; projection approach (no feed table; spec §22/§7)
+    // Privacy: only summary_text / sns_summary safe portion (spec §15)
+    // No raw fact_package, no teacher_review_note, no excluded_claims
+    const grRows = await db.execute(sql`
+      SELECT gr.id,
+             gr.student_id,
+             gr.report_period,
+             gr.published_at,
+             gr.report_content,
+             gr.sns_summary
+      FROM growth_reports gr
+      WHERE gr.student_id = ${req.params.id}
+        AND gr.product_status = 'PUBLISHED'
+        AND gr.deleted_at IS NULL
+      ORDER BY gr.published_at DESC
+      LIMIT 20
+    `);
+
+    for (const gr of grRows.rows as any[]) {
+      const rc  = (gr.report_content && typeof gr.report_content === "object" && !Array.isArray(gr.report_content))
+        ? gr.report_content as Record<string, unknown>
+        : {};
+      const sns = (gr.sns_summary && typeof gr.sns_summary === "object" && !Array.isArray(gr.sns_summary))
+        ? gr.sns_summary as Record<string, unknown>
+        : {};
+
+      // Title: product UI label only — no AI generation (spec §9, §32)
+      const period: string = gr.report_period ?? "";
+      const monthNum = period.includes("-") ? Number(period.split("-")[1]) : null;
+      const title = monthNum ? `${monthNum}월 성장리포트` : "성장리포트";
+
+      // preview: ENGINE-generated content only (spec §8, §25, §26, §27, §28, §29)
+      const preview: Record<string, unknown> = {};
+      if (rc.summary_text != null) preview.summary_text = String(rc.summary_text);
+      if (sns.headline   != null) preview.headline     = String(sns.headline);
+      if (Array.isArray(sns.key_points)) {
+        preview.key_points = (sns.key_points as unknown[]).map(String);
+      }
+
+      result.push({
+        type:             "GROWTH_REPORT",
+        id:               `gr_feed_${gr.id as string}`,   // stable projection id (spec §8)
+        growth_report_id: gr.id,
+        student_id:       gr.student_id,
+        report_period:    period,
+        published_at:     gr.published_at,
+        created_at:       gr.published_at,                 // feed sort key (spec §10)
+        title,
+        preview,
+        share_safe:       sns.share_safe === true,          // preserve flag, no SNS impl (spec §16)
+      });
+    }
+
+    // Sort all items by created_at DESC (diary by lesson_date converted, GR by published_at)
+    // Diary items' created_at is the DB insert timestamp; GR items use published_at (spec §10)
+    result.sort(
+      (a, b) =>
+        new Date(b.created_at as string).getTime() -
+        new Date(a.created_at as string).getTime(),
+    );
+
     res.json(result);
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });

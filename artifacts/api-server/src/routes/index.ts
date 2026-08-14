@@ -55,6 +55,7 @@ import storyRouter from "./story.js";
 import xGrowthRouter from "./x-growth.js";
 import parentGrowthReportRouter from "./parent-growth-report.js";
 import teacherGrowthReportReviewRouter from "./teacher-growth-report-review.js";
+import publishGrowthReportRouter from "./publish-growth-report.js";
 
 const router: IRouter = Router();
 
@@ -72,6 +73,7 @@ router.use("/notices", noticesRouter);
 router.use("/parent", parentRouter);
 router.use("/", parentGrowthReportRouter);
 router.use("/", teacherGrowthReportReviewRouter);
+router.use("/", publishGrowthReportRouter);
 router.use("/uploads", uploadsRouter);
 router.use("/", photosRouter);
 router.use("/", diaryRouter);

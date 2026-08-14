@@ -68,6 +68,26 @@ interface DiaryEntry {
   reactions?: string[];
 }
 
+// GR6: PUBLISHED 성장리포트 Feed Item (spec §8)
+interface GrowthReportFeedItem {
+  type: "GROWTH_REPORT";
+  id: string;                  // stable projection id: "gr_feed_<reportId>"
+  growth_report_id: string;    // GR8에서 상세화면 연결용 (spec §17)
+  student_id: string;
+  report_period: string;       // "YYYY-MM"
+  published_at: string;
+  created_at: string;
+  title: string;               // e.g. "7월 성장리포트"
+  preview: {
+    summary_text?: string;
+    headline?: string;
+    key_points?: string[];
+  };
+  share_safe: boolean;         // SNS share metadata (spec §16, GR9에서 구현)
+}
+
+type FeedItem = DiaryEntry | GrowthReportFeedItem;
+
 interface PhotoItem {
   id: string;
   file_url: string;
@@ -730,6 +750,113 @@ function PhotosGrid({
 }
 
 // ── 개별 일지 피드 아이템 ──────────────────────────────────────────────────
+// ─── GR6: 성장리포트 피드 카드 ────────────────────────────────────────────────
+// 기존 Parent Feed에 PUBLISHED Growth Report를 하나의 카드로 자연스럽게 노출 (spec §0, §26)
+// GR8에서 상세화면 연결 예정 (현재 growth_report_id 보존, 터치 비활성)
+function GrowthReportFeedCard({ item }: { item: GrowthReportFeedItem }) {
+  const period = item.report_period ?? "";
+  const [year, month] = period.split("-");
+  const dateLabel = year && month ? `${year}년 ${Number(month)}월` : period;
+
+  return (
+    <View
+      style={{
+        marginHorizontal: 16,
+        marginBottom: 14,
+        backgroundColor: C.card,
+        borderRadius: 16,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "#E0EEF9",
+      }}
+    >
+      {/* 헤더 배지 */}
+      <View
+        style={{
+          backgroundColor: "#EAF4FF",
+          paddingHorizontal: 14,
+          paddingVertical: 10,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        <LucideIcon name="bar-chart-2" size={15} color={NAVY} />
+        <Text
+          style={{
+            fontSize: 12,
+            fontFamily: "Pretendard-SemiBold",
+            color: NAVY,
+            letterSpacing: 0.3,
+          }}
+        >
+          성장리포트
+        </Text>
+      </View>
+
+      {/* 본문 */}
+      <View style={{ padding: 14, gap: 6 }}>
+        <Text
+          style={{
+            fontSize: 15,
+            fontFamily: "Pretendard-Bold",
+            color: C.text,
+          }}
+        >
+          {item.title}
+        </Text>
+        <Text
+          style={{
+            fontSize: 12,
+            fontFamily: "Pretendard-Regular",
+            color: C.textMuted,
+          }}
+        >
+          {dateLabel}
+        </Text>
+
+        {/* ENGINE 생성 preview만 표시 (spec §8, §9, §15) */}
+        {!!(item.preview?.headline || item.preview?.summary_text) && (
+          <Text
+            style={{
+              fontSize: 13,
+              fontFamily: "Pretendard-Regular",
+              color: C.textSecondary,
+              lineHeight: 20,
+              marginTop: 4,
+            }}
+            numberOfLines={3}
+          >
+            {item.preview.headline ?? item.preview.summary_text}
+          </Text>
+        )}
+
+        {/* GR8에서 연결될 상세 affordance — growth_report_id 보존 (spec §17) */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 4,
+            marginTop: 6,
+            opacity: 0.5,           // GR8 전까지 비활성 표시
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 12,
+              fontFamily: "Pretendard-Regular",
+              color: NAVY,
+            }}
+          >
+            자세히 보기
+          </Text>
+          <LucideIcon name="chevron-right" size={13} color={NAVY} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function DiaryFeedItem({
   entry,
   studentId,
@@ -1134,7 +1261,7 @@ export default function ParentHomeScreen() {
     unreadNotifCount,
   } = useParent();
 
-  const [entries, setEntries] = useState<DiaryEntry[]>([]);
+  const [entries, setEntries] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [poolModal, setPoolModal] = useState(false);
@@ -1302,17 +1429,23 @@ export default function ParentHomeScreen() {
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: DiaryEntry }) => (
-      <DiaryFeedItem
-        entry={item}
-        studentId={selectedStudent?.id ?? ""}
-        studentName={selectedStudent?.name ?? ""}
-      />
-    ),
+    ({ item }: { item: FeedItem }) => {
+      // GR6: GROWTH_REPORT 카드 렌더링 (spec §6, §26)
+      if ((item as GrowthReportFeedItem).type === "GROWTH_REPORT") {
+        return <GrowthReportFeedCard item={item as GrowthReportFeedItem} />;
+      }
+      return (
+        <DiaryFeedItem
+          entry={item as DiaryEntry}
+          studentId={selectedStudent?.id ?? ""}
+          studentName={selectedStudent?.name ?? ""}
+        />
+      );
+    },
     [selectedStudent?.id, selectedStudent?.name],
   );
 
-  const keyExtractor = useCallback((item: DiaryEntry) => item.id, []);
+  const keyExtractor = useCallback((item: FeedItem) => item.id, []);
 
   if (ctxLoading) {
     return (
@@ -1938,7 +2071,7 @@ export default function ParentHomeScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      <FlatList<DiaryEntry>
+      <FlatList<FeedItem>
         data={showFeed ? entries : []}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
