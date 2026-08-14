@@ -102,6 +102,7 @@ vi.mock("../../lib/parent-curriculum-conversation.js", () => ({
   touchConversation:              vi.fn(),
   getConversationMessages:        vi.fn(),
   getAssistantMessageByRequestId: vi.fn(), // WP2B.2
+  buildRecentConversationContext: vi.fn().mockResolvedValue([]), // WP1.2
 }));
 
 // ─── Import mocked modules ────────────────────────────────────────────────────

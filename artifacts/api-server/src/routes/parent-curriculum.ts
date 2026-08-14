@@ -1,5 +1,5 @@
 /**
- * parent-curriculum.ts — WP2 / WP2.1 / WP2B / WP2B.2 / WP2B.3
+ * parent-curriculum.ts — WP2 / WP2.1 / WP2B / WP2B.2 / WP2B.3 / WP1.2
  *
  * Routes:
  *   POST /parent/students/:studentId/curriculum-search
@@ -64,6 +64,7 @@ import {
   touchConversation,
   getConversationMessages,
   getAssistantMessageByRequestId,
+  buildRecentConversationContext,
 } from "../lib/parent-curriculum-conversation.js";
 
 const router = Router();
@@ -328,7 +329,24 @@ router.post(
       console.error("[parent-curriculum] USER message save failed:", err?.message);
     });
 
-    // ── 11. ENGINE Request 구성 ───────────────────────────────────────────────
+    // ── 11. Recent Conversation Context 구성 (WP1.2) ─────────────────────────
+    //
+    // 최근 3 turn (최대 6 messages)을 ENGINE에 전달 — 후속 질문 이해 보조.
+    // 현재 query (trimmedRequestId) 제외. 오래된 순 → 최신 순.
+    //
+    // 원칙:
+    //   - 질문의 지시 대상, 대명사, 후속 질문 맥락 해석에만 사용
+    //   - 이전 ASSISTANT 답변을 새로운 Grounding fact로 승격 금지
+    //   - fetch 실패 시 조용히 [] 반환 → 기존 WP1 동작 유지
+    const recentConversation = await buildRecentConversationContext(
+      conversationId,
+      trimmedRequestId,
+    ).catch((err) => {
+      console.error("[parent-curriculum] recent context fetch failed:", err?.message);
+      return [] as Array<{ role: "USER" | "ASSISTANT"; content: string }>;
+    });
+
+    // ── 12. ENGINE Request 구성 ───────────────────────────────────────────────
     const engineMode: "NORMAL" | "X" = poolMode === "x" ? "X" : "NORMAL";
 
     const engineRequest: ParentCurriculumEngineRequest = {
@@ -342,7 +360,8 @@ router.post(
         student_id:       studentId,
         mode:             engineMode,
         curriculum_scope: curriculumScope,
-        ...(studentProgress ? { student_progress: studentProgress } : {}),
+        ...(studentProgress           ? { student_progress:     studentProgress   } : {}),
+        ...(recentConversation.length ? { recent_conversation:  recentConversation } : {}),
       },
     };
 
@@ -453,6 +472,13 @@ router.post(
       resets_at: "",
     }));
 
+    // WP1.2: ENGINE이 conversation_context_used를 반환하면 pass-through;
+    //         없으면 recentConversation 전송 여부로 결정.
+    const contextUsed =
+      typeof engineResponse.meta?.conversation_context_used === "boolean"
+        ? engineResponse.meta.conversation_context_used
+        : recentConversation.length > 0;
+
     res.json({
       request_id: trimmedRequestId,
       result: {
@@ -460,7 +486,7 @@ router.post(
         ...(current_progress !== undefined ? { current_progress } : {}),
         ...(next_step        !== undefined ? { next_step }        : {}),
       },
-      meta:  { mode: engineMode },
+      meta:  { mode: engineMode, conversation_context_used: contextUsed },
       usage: usageInfo,
     });
   },

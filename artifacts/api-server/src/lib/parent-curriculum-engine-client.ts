@@ -55,18 +55,35 @@ export interface PcStudentProgress {
   current_curriculum_id?: string;
 }
 
+/**
+ * WP1.2: Recent conversation context entry.
+ * ENGINE 측 질문 이해 보조용. Grounding source 아님.
+ */
+export interface PcRecentMessage {
+  role:    "USER" | "ASSISTANT";
+  content: string;
+}
+
 export interface ParentCurriculumEngineRequest {
   request_id:     string;
   schema_version: "1.0";
   feature:        "parent_curriculum_search";
   query:          string;
   context: {
-    pool_id:          string;
-    pool_name:        string;
-    student_id:       string;
-    mode:             "NORMAL" | "X";
-    curriculum_scope: PcCurriculumScope;
-    student_progress?: PcStudentProgress;
+    pool_id:              string;
+    pool_name:            string;
+    student_id:           string;
+    mode:                 "NORMAL" | "X";
+    curriculum_scope:     PcCurriculumScope;
+    student_progress?:    PcStudentProgress;
+    /**
+     * WP1.2: 최근 대화 context (optional).
+     * - 최대 6 messages (권장 3 turn = USER 3 + ASSISTANT 3)
+     * - 오래된 순 → 최신 순
+     * - 현재 query 미포함
+     * - 질문 이해용 보조 context. Grounding source 아님.
+     */
+    recent_conversation?: PcRecentMessage[];
   };
 }
 
@@ -91,12 +108,14 @@ export interface ParentCurriculumEngineResponse {
     validation:             string;
   };
   meta?: {
-    intent?:             string;
-    mode?:               string;
-    curriculum_source?:  string;
-    engine_version?:     string;
-    model?:              string;
-    latency_ms?:         number;
+    intent?:                    string;
+    mode?:                      string;
+    curriculum_source?:         string;
+    engine_version?:            string;
+    model?:                     string;
+    latency_ms?:                number;
+    /** WP1.2: ENGINE이 recent_conversation을 실제로 사용했는지 여부. */
+    conversation_context_used?: boolean;
   };
 }
 
