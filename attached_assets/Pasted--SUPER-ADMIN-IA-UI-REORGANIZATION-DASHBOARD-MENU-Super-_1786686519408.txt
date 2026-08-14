@@ -1,0 +1,423 @@
+[SUPER ADMIN IA/UI REORGANIZATION — DASHBOARD + MENU]
+
+목표:
+현재 Super Admin UI의 하단 다중 탭 구조를 제거하고,
+플랫폼 운영자가 실제 운영에 사용하는 방식에 맞춰
+
+1. Dashboard
+2. Global Menu
+
+중심 구조로 재편한다.
+
+중요:
+이번 작업은 UI/Navigation Information Architecture 재편이다.
+
+기존 기능 삭제 금지.
+기존 API contract 변경 금지.
+기존 server business logic 변경 금지.
+기존 권한/보안 로직 변경 금지.
+기존 route를 불필요하게 재작성하지 말 것.
+
+기존 기능은 모두 유지하면서 진입 구조만 정리한다.
+
+==================================================
+1. REPOSITORY FIRST
+==================================================
+
+수정 전에 현재 Super Admin APP 구조를 실제 repository에서 조사한다.
+
+확인:
+
+- Super Admin route group
+- 현재 bottom tab layout
+- dashboard/home
+- 운영관리
+- 보호통제
+- 감사리스크
+- 지원센터
+- 더보기
+- inquiries
+- 각 화면 navigation target
+- 각 화면이 사용하는 API
+- 현재 존재하는 모든 Super Admin 기능
+
+현재 존재하는 기능 inventory를 먼저 만든다.
+
+UI 변경 후 기존 기능이 하나라도 접근 불가능해지면 FAIL.
+
+==================================================
+2. REMOVE CURRENT BOTTOM TAB NAVIGATION
+==================================================
+
+현재 Super Admin 하단의:
+
+운영관리
+보호통제
+감사리스크
+지원센터
+더보기
+inquiries
+
+고정 bottom navigation을 제거한다.
+
+단:
+
+route 자체 삭제 금지.
+screen 삭제 금지.
+기능 삭제 금지.
+
+Global Menu를 통해 기존 기능에 접근하도록 재배치한다.
+
+==================================================
+3. NEW SUPER ADMIN DASHBOARD
+==================================================
+
+Super Admin 로그인 후 첫 화면을
+플랫폼 운영 Dashboard로 만든다.
+
+Dashboard 목적:
+
+"전체 수영장 상태와 지금 처리해야 할 일을
+한 화면에서 판단"
+
+Dashboard 상단 KPI:
+
+- 전체 수영장
+- 활성 수영장
+- 승인 대기
+- X MODE 수영장
+
+실제 기존 DB/API 데이터 사용.
+fake count 금지.
+
+==================================================
+4. POOL STATUS — PRIMARY SECTION
+==================================================
+
+Dashboard에서 가장 중요한 영역은 수영장 현황이다.
+
+Section:
+
+수영장 현황
+[가입 수영장 전체보기 >]
+
+가능하면 기존 API를 이용하여
+최근 가입 또는 주의가 필요한 수영장을 compact preview로 표시.
+
+전체보기 화면에서는:
+
+검색
+
+filter:
+- 전체
+- 정상/활성
+- 승인대기
+- X MODE
+- 주의/이상
+
+각 pool row/card에서 repository에 실제 존재하는 정보 범위 안에서:
+
+- 수영장명
+- 운영 상태
+- X MODE 여부
+- 최근 활동 또는 상태
+- 회원/운영자 관련 기존 제공 정보
+
+를 표시한다.
+
+존재하지 않는 데이터를 UI를 위해 새로 fabrication 하지 말 것.
+
+수영장 row 클릭:
+기존 pool management/detail route로 연결.
+
+==================================================
+5. ACTION CENTER
+==================================================
+
+Dashboard 두 번째 핵심:
+
+"오늘 처리할 일"
+
+기존 시스템에서 실제 조회 가능한 항목만 사용:
+
+- X MODE 요청
+- 일반 문의
+- 승인/운영 요청
+- 정책 미확인
+
+각 항목:
+count + navigation
+
+0이면 0으로 정상 표시.
+
+기존 문의/요청 시스템 재사용.
+새 request 시스템 만들지 말 것.
+
+==================================================
+6. OPERATION HEALTH
+==================================================
+
+Dashboard에 compact 운영상태 영역을 만든다.
+
+표시 후보:
+
+- 서버/서비스 경고
+- 중요 운영 이벤트
+- scheduler 이상
+
+기존 시스템 상태/리스크/scheduler 데이터를 재사용.
+
+정상인 경우:
+"전체 시스템 정상"
+
+이상 발생 시:
+해당 warning만 강조.
+
+raw audit log 수, 최근 로그 수 등은
+Dashboard primary KPI에서 제외한다.
+
+상세 로그는 Global Menu의 감사/리스크에서 조회.
+
+==================================================
+7. CONTENT OPERATIONS
+==================================================
+
+Dashboard에서 바로 접근:
+
+- 공지사항 관리
+- 광고 관리
+
+광고 관리는 기존:
+
+- 카드 배너 관리
+- 가로 배너 관리
+
+로 연결.
+
+==================================================
+8. GLOBAL MENU
+==================================================
+
+Dashboard header에 Global Menu 진입 버튼을 둔다.
+
+전체 메뉴는 기존 기능을 다음 기준으로 그룹화한다.
+
+A. 수영장 운영
+- 수영장 관리
+- 승인 관리
+- X MODE 관리
+- 구독 현황
+- 구독 상품 관리
+
+B. 매출·결제
+- 매출 분석
+- 결제 분석
+- 비용 분석
+
+C. 고객·문의
+- 일반 문의
+- 고객센터
+- 문의함
+
+D. 콘텐츠
+- 공지사항 관리
+- 카드 배너 관리
+- 가로 배너 관리
+
+E. 감사·리스크
+- 운영 로그·감사
+- 장애·리스크 센터
+- 보안 이벤트 로그
+- 민감 작업 로그
+
+F. 데이터·보호
+- 데이터 킬스위치
+- 백업/복구/스냅샷
+- 기능 플래그
+- 읽기전용 제어
+- DB 이원화 모니터링
+- 데이터 동기화
+
+G. 시스템
+- 시스템 상태
+- 스케줄러 상태
+
+H. 정책·지원
+- 정책·컴플라이언스
+- 지원 센터
+
+I. 설정
+- 보안·설정
+- Google OTP
+- 계정
+- 플랫폼/SwimNote 정보
+- 기타 현재 존재하는 저빈도 Super Admin 설정
+
+IMPORTANT:
+
+실제 repository 조사 결과 명칭이 다른 경우
+기존 canonical 기능명을 기준으로 매핑한다.
+
+기능을 임의 생성하지 말 것.
+
+==================================================
+9. NAVIGATION PRINCIPLE
+==================================================
+
+Super Admin navigation:
+
+Dashboard = Home/root
+
+Dashboard header:
+- Home/root affordance
+- Global Menu affordance
+
+Global Menu
+→ category
+→ existing screen
+
+detail screen
+→ back
+→ 이전 화면
+
+navigation stack 정상 유지.
+
+중복 route 생성 금지.
+
+==================================================
+10. SETTINGS PRINCIPLE
+==================================================
+
+자주 사용하지 않는 관리 기능은
+Dashboard에 노출하지 않는다.
+
+Settings/Global Menu 하위로 이동.
+
+단 기존 기능 접근 depth가 지나치게 깊어지지 않도록:
+
+Global Menu
+→ Category
+→ Screen
+
+최대 기본 2단계 진입을 목표로 한다.
+
+==================================================
+11. UI DESIGN
+==================================================
+
+현재 Super Admin visual language 유지:
+
+- purple primary
+- mint secondary
+- white cards
+- light gray background
+- existing typography/icon language
+
+새 디자인 시스템 도입 금지.
+
+Dashboard는 현재처럼 큰 관리 카드가 계속 나열되는 형태보다
+정보 밀도를 높인다.
+
+중요:
+수영장 현황과 Action Center는
+iPhone 첫 viewport에서 최대한 확인 가능하게 설계.
+
+==================================================
+12. FUNCTION PRESERVATION AUDIT
+==================================================
+
+변경 전 Super Admin 기능 inventory와
+변경 후 navigation map을 1:1 비교한다.
+
+모든 기존 기능에 대해:
+
+OLD ENTRY
+NEW ENTRY
+ROUTE
+API
+STATUS
+
+를 검증한다.
+
+STATUS는 모두 REACHABLE이어야 한다.
+
+기능 하나라도 orphan route가 되면 완료 판정 금지.
+
+==================================================
+13. REGRESSION
+==================================================
+
+반드시 검증:
+
+- Super Admin login
+- Dashboard load
+- pool list
+- pool detail
+- X MODE management
+- inquiries
+- customer support
+- subscription management
+- revenue/payment/cost analysis
+- protection controls
+- backup
+- feature flags
+- read-only
+- audit logs
+- risk center
+- security logs
+- policy/compliance
+- notice management
+- banner management
+- scheduler status
+- system status
+- OTP/security settings
+
+기존 API contract 변경 없음 확인.
+
+==================================================
+14. SCOPE GUARD
+==================================================
+
+이번 작업에서 금지:
+
+- Growth Report GR1~GR9 수정
+- Growth Report Engine 수정
+- AI Engine 수정
+- X entitlement logic 변경
+- DB migration
+- Production DB write
+- Render deploy
+- EAS OTA
+
+Super Admin UI/navigation만 수정.
+
+==================================================
+15. FINAL REPORT
+==================================================
+
+다음 형식으로 보고:
+
+1. BEFORE IA
+2. EXISTING FUNCTION INVENTORY
+3. NEW IA
+4. DASHBOARD IMPLEMENTATION
+5. POOL STATUS IMPLEMENTATION
+6. ACTION CENTER
+7. OPERATION HEALTH
+8. GLOBAL MENU MAP
+9. OLD → NEW ROUTE MAP
+10. FILES MODIFIED
+11. FUNCTION PRESERVATION RESULT
+12. TEST RESULT
+13. REGRESSION RESULT
+14. TODO SCAN
+15. DEPLOY / OTA STATUS
+
+마지막 판정:
+
+SUPER_ADMIN_DASHBOARD_REORGANIZATION_COMPLETE
+
+또는 blocker가 있으면
+
+SUPER_ADMIN_DASHBOARD_REORGANIZATION_BLOCKED
++ 정확한 blocker
