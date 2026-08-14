@@ -1,0 +1,1120 @@
+[SWIMNOTE X FREE GROWTH REPORT]
+[APP GR9 — PDF EXPORT + SNS SHARE CARD + INSTAGRAM STORY SHARE]
+
+MODE:
+FINAL IMPLEMENTATION
+NOT MVP
+NOT PROTOTYPE
+NOT SAMPLE
+
+현재 완료:
+
+GR1 Product Storage + Lifecycle Foundation ✅
+GR2 Monthly Cycle Scheduler ✅
+GR3 APP ↔ AI ENGINE Integration ✅
+GR4 Parent Question / Answer Flow ✅
+GR5 Teacher Review / Approval / Reanalysis ✅
+GR6 Publish + Parent Feed Integration ✅
+GR7 Push Notification + Deep Link ✅
+GR8 Parent Native Growth Report Detail ✅
+
+이번 GR9는 APP Growth Report의 마지막 기능 WP다.
+
+목적:
+
+PUBLISHED Growth Report를 기반으로
+
+1. 학부모용 PDF Export
+2. SNS 공유용 브랜딩 카드
+3. Instagram Story 포함 OS Share Flow
+4. share_safe 정책 적용
+5. 개인정보/내부 분석정보 차단
+
+을 완성한다.
+
+중요:
+
+APP은 ENGINE 결과를 다시 분석/요약/재작성하지 않는다.
+
+PDF와 SNS 모두
+이미 저장된:
+
+report_content
+sns_summary
+
+를 Source로 사용한다.
+
+==================================================
+0. SOURCE OF TRUTH
+==================================================
+
+Canonical source:
+
+growth_reports.product_status = PUBLISHED
+
+growth_reports.report_content
+
+growth_reports.sns_summary
+
+report_period
+published_at
+student display info
+pool branding info
+
+이다.
+
+금지:
+
+AI ENGINE 재호출
+GPT 호출
+APP 자체 summary 생성
+Fact Package 재해석
+
+==================================================
+1. GR9 기능 범위
+==================================================
+
+이번 GR9에서 구현:
+
+A. PDF Export
+B. SNS Share Card
+C. OS Native Share
+D. Instagram Story 호환 흐름
+E. share_safe enforcement
+F. branding
+G. privacy
+H. generated artifact cleanup/cache
+
+이번 GR9에서 하지 말 것:
+
+- 새로운 Report 분석
+- 새로운 Report section 생성
+- 새로운 Metric 표시
+- 새로운 score/gauge
+- 새로운 Product lifecycle
+- 새로운 Feed system
+
+==================================================
+2. PUBLISHED ONLY
+==================================================
+
+PDF / SNS Share 모두:
+
+product_status = PUBLISHED
+
+인 Report만 가능.
+
+APPROVED
+REVIEW_REQUIRED
+ANALYZING
+FAILED
+QUESTION_AVAILABLE
+
+등에서는 export/share 금지.
+
+==================================================
+3. PARENT OWNERSHIP
+==================================================
+
+현재 로그인 Parent가
+해당 student의 approved guardian인지
+server-side 또는 기존 safe detail API를 통해 보장.
+
+GR8 API contract 재사용 가능.
+
+Client가 reportId를 알고 있다는 이유만으로
+다른 학생 Report export 금지.
+
+==================================================
+4. X EXPIRATION
+==================================================
+
+기존 확정 정책 유지:
+
+이미 PUBLISHED된 Report는
+X entitlement가 만료되어도
+
+조회
+PDF export
+SNS share
+
+가능.
+
+신규 분석 entitlement와 분리.
+
+==================================================
+5. PDF SOURCE
+==================================================
+
+PDF는 GR8 Native Detail과
+동일 Product Data를 사용.
+
+최소:
+
+학생 표시이름
+report_period
+published_at
+summary_text
+존재하는 structured sections
+pool/brand name
+SWIMNOTE branding
+
+사용.
+
+ENGINE이 없는 section을
+PDF에서 새로 만들지 않는다.
+
+==================================================
+6. PDF CONTENT ORDER
+==================================================
+
+Canonical order:
+
+1. Header
+2. Report Period
+3. Summary
+4. Core Growth
+5. Swimming Progress
+6. Behavioral Strengths
+7. Longitudinal Comparison
+8. Success Conditions
+9. Parent Support
+10. Teacher Guidance
+11. Next Growth Direction
+
+없는 section은 생략.
+
+GR8 ordering과 동일.
+
+==================================================
+7. PDF DESIGN
+==================================================
+
+SWIMNOTE 브랜드 톤:
+
+네이비 중심
+민트 accent
+화이트 배경
+깔끔한 카드/section 구조
+
+를 유지.
+
+PDF가 앱 UI screenshot을 그대로 붙인 것처럼
+저품질로 보이면 안 된다.
+
+인쇄/보관 가능한
+정식 Growth Report document로 구성.
+
+==================================================
+8. PDF PAGE BREAK
+==================================================
+
+긴 한국어 문장이
+중간에서 잘리거나
+카드가 페이지 경계에서 이상하게 끊기지 않도록 한다.
+
+가능하면:
+
+section-aware page break
+
+처리.
+
+고정 1페이지에 억지로 압축 금지.
+
+Report 길이에 따라
+여러 페이지 허용.
+
+==================================================
+9. PDF TEXT
+==================================================
+
+report_content text 그대로 사용.
+
+APP이:
+
+문장 수정
+축약
+확장
+새 칭찬 추가
+
+금지.
+
+==================================================
+10. PDF INTERNAL DATA 금지
+==================================================
+
+PDF에 포함 금지:
+
+claim_id
+evidence_id
+metric confidence
+raw diary
+raw parent answer
+teacher_review_note
+excluded_claim
+provider/model
+token/cost
+audit
+debug trace
+
+==================================================
+11. PDF FILE NAME
+==================================================
+
+안전한 filename 사용.
+
+예:
+
+SWIMNOTE_GrowthReport_2026-08.pdf
+
+학생 실명 전체를 filename에
+반드시 포함할 필요 없음.
+
+기존 privacy convention 우선.
+
+==================================================
+12. PDF STORAGE POLICY
+==================================================
+
+PDF를 영구적으로 별도 canonical data로
+중복 저장하지 않는 방향 우선.
+
+가능하면:
+
+on-demand generation
++
+temporary local/cache file
+
+사용.
+
+이미 Product DB에 structured source가 있음.
+
+영구 PDF 저장이 기존 architecture상 필요하면
+R2/storage convention 재사용하고
+명확한 cleanup/version 정책 필요.
+
+새 storage system 금지.
+
+==================================================
+13. PDF DOWNLOAD / SHARE
+==================================================
+
+Parent Detail Screen에:
+
+PDF 저장/공유
+
+action 제공.
+
+Expo/React Native 기존
+FileSystem / Sharing / Print
+asset이 있으면 재사용.
+
+새 native module 추가는
+정말 필요한 경우만.
+
+==================================================
+14. SNS SUMMARY SOURCE
+==================================================
+
+SNS Card source:
+
+sns_summary = {
+  headline,
+  key_points[],
+  share_safe,
+  supporting_claim_ids[]
+}
+
+중:
+
+headline
+key_points
+share_safe
+
+사용.
+
+supporting_claim_ids는
+UI에 노출하지 않는다.
+
+==================================================
+15. share_safe HARD GATE
+==================================================
+
+매우 중요.
+
+sns_summary.share_safe === true
+
+인 경우에만
+SNS Share Card 생성/공유 허용.
+
+false인 경우:
+
+SNS 공유 금지.
+
+PDF는 별도 private document이므로
+정책상 허용 가능.
+
+share_safe=false를
+APP이 true로 변경 금지.
+
+==================================================
+16. SNS CARD CONTENT
+==================================================
+
+SNS Card 최소:
+
+SWIMNOTE branding
+pool name / logo if safe
+report period
+headline
+key_points 일부
+optional neutral label:
+"우리 아이 성장리포트"
+
+정도.
+
+카드가 너무 많은 본문을 담지 않도록 한다.
+
+==================================================
+17. NO NEW SUMMARY
+==================================================
+
+key_points가 3개면
+그 중 실제 존재하는 것만 사용.
+
+APP이 5개로 늘리거나
+새 bullet을 만들지 않는다.
+
+headline도 ENGINE 값 그대로.
+
+==================================================
+18. SNS PRIVACY
+==================================================
+
+공개 공유 가능성이 있으므로
+PDF보다 더 엄격.
+
+포함 금지:
+
+raw parent answer
+negative behavioral detail
+teacher note
+diagnosis
+internal limitation
+metric confidence
+전화번호
+주소
+생년월일
+수업시간표
+다른 아이 정보
+
+==================================================
+19. CHILD NAME POLICY
+==================================================
+
+SNS card의 학생 이름 노출은
+기존 APP privacy/product policy 확인.
+
+명확한 기존 정책이 없다면
+기본적으로:
+
+학생 실명 전체를 카드 핵심 콘텐츠로
+강제하지 않는 보수적 방향.
+
+예:
+
+"우리 아이 8월 성장리포트"
+
+가능.
+
+Parent가 직접 SNS 공유하는 기능이므로
+필요하면 표시명/이름 노출 여부를
+기존 Share UX와 맞춘다.
+
+새 복잡한 privacy setting은 이번 GR9에서 만들지 마라.
+
+==================================================
+20. POOL BRANDING
+==================================================
+
+공유의 마케팅 효과를 위해
+수영장 이름과 SWIMNOTE branding은
+공개 가능한 Product branding으로 표시 가능.
+
+예:
+
+[수영장 이름]
+with SWIMNOTE
+
+단:
+관리자 내부 정보 금지.
+
+==================================================
+21. WATERMARK / BRANDING
+==================================================
+
+SNS Card에는
+자연스러운 브랜드 표식 적용.
+
+과도한 광고 배너 금지.
+
+예:
+
+하단 작은:
+SWIMNOTE
+수영 피드백의 시대.
+
+또는 실제 앱 branding convention.
+
+==================================================
+22. INSTAGRAM STORY
+==================================================
+
+Instagram Story에 공유 가능한 이미지 비율을 고려.
+
+권장:
+
+9:16 Story Card
+
+예:
+1080 x 1920 logical output
+
+실제 React Native capture/output 해상도는
+기존 library/환경에 맞게.
+
+==================================================
+23. CARD LAYOUT
+==================================================
+
+9:16 카드 예:
+
+상단:
+수영장 이름 / SWIMNOTE
+
+중앙:
+"우리 아이 성장리포트"
+YYYY년 M월
+
+headline
+
+key_points 2~4개
+
+하단:
+SWIMNOTE branding
+
+본문을 너무 작게 줄여
+모든 Report를 한 장에 넣지 마라.
+
+SNS Card는 요약 카드다.
+
+==================================================
+24. SHARE MECHANISM
+==================================================
+
+기존 OS Share / Expo Sharing
+패턴을 확인해 재사용.
+
+기본:
+
+Generate image
+→ Native Share Sheet
+
+Instagram app이 설치되어 있으면
+사용자가 Instagram Story 선택 가능하도록
+OS share sheet 호환.
+
+기존 프로젝트에
+Instagram-specific integration이 안전하게 있다면 재사용 가능.
+
+==================================================
+25. DIRECT INSTAGRAM INTEGRATION
+==================================================
+
+Instagram 전용 SDK/URL scheme를
+무리하게 새로 넣지 마라.
+
+현재 Expo 환경에서
+native share sheet가 가장 안정적이면
+그 방식 사용.
+
+사용자가:
+Instagram Stories
+Instagram
+카카오톡
+메시지
+저장
+
+등 선택 가능하게.
+
+==================================================
+26. INSTAGRAM STORY BACKGROUND
+==================================================
+
+가능하면 SNS card 자체를
+완성된 9:16 이미지로 만들어
+Instagram Story에서 추가 편집 없이도
+보기 좋게 한다.
+
+투명 이미지 + 별도 background injection처럼
+플랫폼별 취약한 방식을 억지로 만들 필요 없음.
+
+==================================================
+27. IMAGE GENERATION TECH
+==================================================
+
+AI image generation 금지.
+
+React Native View / HTML / SVG / Canvas 등
+현재 project에서 가장 안정적인
+deterministic renderer 사용.
+
+가능한 경우 기존:
+
+react-native-view-shot
+expo-sharing
+expo-file-system
+
+등 설치 자산 확인 후 재사용.
+
+새 dependency 추가 전 기존 package 확인.
+
+==================================================
+28. BRAND LOGO ASSET
+==================================================
+
+기존 SWIMNOTE logo asset 재사용.
+
+새 임의 로고 생성 금지.
+
+==================================================
+29. SNS CARD ERROR
+==================================================
+
+다음 구분:
+
+SHARE_NOT_ALLOWED
+INVALID_SNS_SUMMARY
+CARD_RENDER_FAILED
+FILE_WRITE_FAILED
+SHARE_UNAVAILABLE
+
+모든 오류를
+"공유할 수 없습니다" 하나로 내부 처리하지 말고
+로그에서는 구분.
+
+Parent UI에는 안전한 메시지.
+
+==================================================
+30. PDF ERROR
+==================================================
+
+최소:
+
+INVALID_REPORT_CONTENT
+PDF_GENERATION_FAILED
+FILE_WRITE_FAILED
+SHARE_UNAVAILABLE
+
+구분.
+
+==================================================
+31. GENERATION STATE
+==================================================
+
+PDF/SNS 생성 중:
+
+loading/progress spinner
+
+중복 버튼 연타 방지.
+
+동시에 여러 generation job 만들지 않는다.
+
+==================================================
+32. TEMP FILE CLEANUP
+==================================================
+
+임시 PDF/image 파일이
+무한히 쌓이지 않게 한다.
+
+생성 후 공유 완료/앱 lifecycle에 맞춰
+cleanup.
+
+기존 FileSystem cacheDirectory convention 재사용.
+
+==================================================
+33. OFFLINE / CACHED REPORT
+==================================================
+
+PUBLISHED report data가 이미 client cache에 있더라도
+export source가 현재 validated report content인지 확인.
+
+Security bypass를 위해
+임의 local JSON을 export하지 않는다.
+
+기존 authenticated fetched result 사용.
+
+==================================================
+34. PDF vs SNS POLICY
+==================================================
+
+PDF:
+개인 보관/공유 문서
+→ full report content 가능
+
+SNS:
+공개 공유 가능
+→ sns_summary only
+→ share_safe=true 필수
+
+두 개를 혼동하지 마라.
+
+==================================================
+35. DETAIL SCREEN ACTIONS
+==================================================
+
+GR8 Detail Screen 하단 또는 header action:
+
+PDF
+공유
+
+추가.
+
+조건:
+
+PDF:
+PUBLISHED이면 가능
+
+SNS Share:
+share_safe=true일 때만 활성
+
+false면:
+숨김 또는 명확한 비활성 처리
+
+기존 UX convention 사용.
+
+==================================================
+36. SHARE BUTTON LABEL
+==================================================
+
+학부모가 이해하기 쉽게:
+
+"PDF 저장"
+"공유하기"
+
+정도.
+
+"AI 결과 Export"
+같은 기술용어 금지.
+
+==================================================
+37. NO SCORE / GAUGE
+==================================================
+
+PDF / SNS에서도:
+
+score
+gauge
+percentile
+radar
+rank
+
+임의 생성 금지.
+
+==================================================
+38. NO APP INFERENCE
+==================================================
+
+APP이:
+
+"가장 중요한 3개"
+"최고 강점"
+"이번 달 성장률"
+
+등을 새로 계산하지 않는다.
+
+SNS는 ENGINE key_points 순서 그대로.
+
+==================================================
+39. SERVER-SIDE PDF 여부
+==================================================
+
+기존 APP architecture가
+server PDF renderer를 이미 가진 경우 재사용 가능.
+
+없다면 Client-side deterministic PDF 생성도 가능.
+
+어느 방식을 선택했는지 보고.
+
+새 별도 PDF microservice 만들지 마라.
+
+==================================================
+40. SHARE ANALYTICS
+==================================================
+
+기존 analytics/event system이 있으면:
+
+GROWTH_REPORT_PDF_EXPORTED
+GROWTH_REPORT_SHARE_STARTED
+GROWTH_REPORT_SHARE_COMPLETED
+
+정도 기록 가능.
+
+PII/내용 전문 저장 금지.
+
+새 analytics system 만들지 않는다.
+
+==================================================
+41. DOWNLOAD / SHARE AUDIT
+==================================================
+
+Parent의 단순 PDF 저장/SNS 공유는
+Product lifecycle audit와 별개.
+
+필수 audit까지 만들 필요 없음.
+
+기존 analytics/logging 있으면 재사용.
+
+==================================================
+42. TEST REQUIREMENTS — PDF
+==================================================
+
+최소:
+
+1. PUBLISHED report PDF 생성
+
+2. unpublished report PDF 금지
+
+3. connected Parent 허용
+
+4. unauthorized Parent 금지
+
+5. X expired + PUBLISHED PDF 가능
+
+6. report period 표시
+
+7. summary 그대로 포함
+
+8. core_growth 포함
+
+9. swimming section 포함
+
+10. optional section 없으면 생략
+
+11. long Korean text clipping 없음
+
+12. multipage 가능
+
+13. section order GR8과 동일
+
+14. APP 재작성 없음
+
+15. no claim_id
+
+16. no evidence_id
+
+17. no teacher note
+
+18. no parent answer raw
+
+19. no score/gauge
+
+20. safe filename
+
+21. temp file generation
+
+22. cleanup
+
+23. PDF generation failure handled
+
+==================================================
+43. TEST REQUIREMENTS — SNS
+==================================================
+
+최소:
+
+24. share_safe=true → share 가능
+
+25. share_safe=false → share 차단
+
+26. sns_summary null → share 차단
+
+27. invalid sns_summary → typed failure
+
+28. ENGINE headline 그대로
+
+29. ENGINE key_points 그대로
+
+30. key point 새 생성 없음
+
+31. 9:16 render
+
+32. SWIMNOTE branding
+
+33. pool branding
+
+34. no raw report content
+
+35. no parent answer
+
+36. no teacher note
+
+37. no diagnostic content injection
+
+38. no internal trace
+
+39. student PII 최소화
+
+40. Native Share 호출
+
+41. share unavailable handled
+
+42. Instagram 선택 가능한 OS share contract
+
+43. no Instagram SDK hard dependency if not existing
+
+44. image temp cleanup
+
+45. duplicate button tap 방지
+
+46. rendering failure handled
+
+==================================================
+44. TEST REQUIREMENTS — APP
+==================================================
+
+최소:
+
+47. GR8 Detail에 PDF action 표시
+
+48. GR8 Detail에 Share action 조건부 표시
+
+49. share_safe=false UX
+
+50. generating state
+
+51. button double tap 방지
+
+52. Feed→Detail→PDF
+
+53. Notification→Detail→Share
+
+54. back navigation regression
+
+55. long report detail regression
+
+56. no Engine call
+
+57. no GPT
+
+58. no new analysis
+
+59. GR8 regression
+
+60. GR7 regression
+
+61. GR6 regression
+
+62. GR5 regression
+
+63. GR4 regression
+
+64. GR3 regression
+
+65. GR2 regression
+
+66. GR1 regression
+
+67. Diary regression
+
+68. Notification regression
+
+69. Parent Feed regression
+
+==================================================
+45. REAL DEVICE / RUNTIME TEST
+==================================================
+
+가능하면 development build에서
+synthetic published Growth Report로:
+
+A.
+PDF generate
+→ open/share
+
+B.
+SNS card generate
+→ share sheet open
+
+C.
+Instagram installed 환경이면
+Instagram 선택 가능 여부 확인
+
+D.
+긴 한국어 content
+→ PDF clipping 확인
+
+E.
+9:16 image output 확인
+
+Production student data 사용 금지.
+
+안전한 device/runtime context가 없으면:
+
+NO_SAFE_DEVICE_RUNTIME_CONTEXT
+
+로 보고.
+
+허위 PASS 금지.
+
+==================================================
+46. MIGRATION
+==================================================
+
+원칙적으로 GR9는 DB migration 없이
+GR1 structured data로 가능해야 한다.
+
+analytics/storage metadata 때문에
+정말 필요한 additive migration만 허용.
+
+Production migration 실행 금지.
+
+==================================================
+47. DEPLOY
+==================================================
+
+이번 GR9 구현 단계에서:
+
+Production Deploy 금지
+OTA 금지
+
+GR9 완료 후
+전체 GR1~GR9 + AI ENGINE Production rollout을
+별도 단계에서 진행한다.
+
+==================================================
+48. 허위 완료 방지
+==================================================
+
+COMPLETE 금지:
+
+- screenshot 하나 저장하고 PDF 완료 주장
+- APP이 SNS summary 새로 생성
+- share_safe=false인데 공유 가능
+- raw report 전체를 SNS card에 노출
+- 다른 학생 report export 가능
+- temporary files 무한 누적
+- Instagram 전용 취약 hack 강제
+- Engine/GPT 재호출
+- 점수/게이지 추가
+- GR8 detail 회귀
+- TODO
+- placeholder
+
+==================================================
+49. COMPLETE CONDITIONS
+==================================================
+
+[ ] PDF export
+[ ] PUBLISHED only
+[ ] Parent ownership
+[ ] X expired published export
+[ ] structured source only
+[ ] multipage/long text
+[ ] internal data excluded
+[ ] PDF temp cleanup
+[ ] sns_summary source only
+[ ] share_safe hard gate
+[ ] 9:16 SNS card
+[ ] SWIMNOTE branding
+[ ] pool branding
+[ ] privacy
+[ ] Native Share
+[ ] Instagram Story compatible flow
+[ ] no new summary
+[ ] no Engine call
+[ ] no GPT
+[ ] no analysis
+[ ] Detail screen actions
+[ ] generation state
+[ ] double tap protection
+[ ] typed errors
+[ ] tests pass
+[ ] GR1~GR8 regression
+[ ] Diary/Feed/Notification regression
+[ ] TODO 0
+[ ] Production migration 미실행
+[ ] Deploy/OTA 없음
+
+==================================================
+50. CREDIT SAVING
+==================================================
+
+GR8 Detail
++
+existing file/pdf/share libraries
++
+brand assets
++
+existing analytics/storage conventions
+
+관련 파일만 검사.
+
+전체 repo 재감리 금지.
+
+불필요한 디자인 리팩터링 금지.
+
+==================================================
+51. FINAL REPORT
+==================================================
+
+1. GR9 RESULT
+
+2. EXISTING EXPORT/SHARE ASSETS REUSED
+
+3. IMPLEMENTED FILES
+
+4. PDF ARCHITECTURE
+
+5. PDF CONTENT / PRIVACY
+
+6. PDF LONG CONTENT / PAGINATION
+
+7. SNS CARD ARCHITECTURE
+
+8. SHARE_SAFE POLICY
+
+9. SNS CARD DESIGN
+
+10. INSTAGRAM / NATIVE SHARE
+
+11. TEMP FILE / CLEANUP
+
+12. DETAIL SCREEN ACTIONS
+
+13. ERROR HANDLING
+
+14. TEST RESULTS
+
+15. REAL DEVICE / RUNTIME TEST
+    PASS
+    또는 NO_SAFE_DEVICE_RUNTIME_CONTEXT
+
+16. GR1~GR8 + EXISTING APP REGRESSION
+
+17. TODO SCAN
+
+18. GIT
+    branch
+    actual HEAD SHA
+
+19. PRODUCTION SAFETY
+
+전부 완료:
+
+GROWTH_REPORT_APP_GR9_COMPLETE ✅
+
+미완성:
+
+GROWTH_REPORT_APP_GR9_BLOCKED ❌
+
+작업을 시작하라.
