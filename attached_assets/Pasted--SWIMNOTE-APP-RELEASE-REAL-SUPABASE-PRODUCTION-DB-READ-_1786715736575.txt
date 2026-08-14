@@ -1,0 +1,221 @@
+[SWIMNOTE APP RELEASE]
+[REAL SUPABASE PRODUCTION DB READ-ONLY PRECHECK]
+
+현재 확정:
+
+- Replit executeSql(environment:"production")
+  → Replit 내장 NeonDB
+  → 실제 SWIMNOTE 운영 DB 아님
+
+- 실제 SWIMNOTE Production APP DB
+  → Render의 SUPABASE_DATABASE_URL
+  → Supabase
+
+따라서 기존 NeonDB 기준 migration precheck 결과는 폐기한다.
+
+이번 단계 목적:
+
+실제 SUPABASE_DATABASE_URL을 사용하는
+SWIMNOTE Production DB에
+read-only로 직접 연결해서
+migration 상태를 다시 확인한다.
+
+중요:
+
+Production write 금지.
+Migration 실행 금지.
+Render deploy 금지.
+코드 영구 수정 금지.
+
+==================================================
+1. CONNECTION METHOD
+==================================================
+
+executeSql 사용 금지.
+
+반드시 기존 APP 코드가 실제 사용하는:
+
+process.env.SUPABASE_DATABASE_URL
+
+을 읽어 PostgreSQL client로 직접 연결.
+
+가능한 방법:
+
+- 현재 @workspace/db의 superAdminPool 재사용
+- 또는 임시 read-only tsx script
+
+단 실제 secret 값 출력 금지.
+
+APP Repository 내에서만 실행.
+
+==================================================
+2. SAFETY
+==================================================
+
+오직 SELECT / information_schema / pg_catalog 조회만 허용.
+
+금지:
+
+INSERT
+UPDATE
+DELETE
+ALTER
+CREATE
+DROP
+TRUNCATE
+migration function 호출
+
+==================================================
+3. DB IDENTITY
+==================================================
+
+실제 연결 후 보고:
+
+- current_database()
+- current_user
+- PostgreSQL version
+- host/provider는 secret 노출 없이 Supabase 여부만
+- public table count
+
+그리고 반드시:
+
+SELECT COUNT(*) FROM swimming_pools;
+
+known pool:
+
+pool_1784310621737_qryl1x79s
+
+존재 여부 확인.
+
+==================================================
+4. X MODE BASELINE
+==================================================
+
+확인:
+
+swimming_pools.xmode_entitlement
+swimming_pools.xmode_config_status
+
+global_template_sets
+diary_templates
+audit_logs
+growth_events
+growth_reports
+
+각각 EXISTS / NOT_EXISTS.
+
+Known sample pool이 있으면:
+
+- xmode_entitlement
+- xmode_config_status
+
+만 보고.
+
+==================================================
+5. GROWTH REPORT STATUS
+==================================================
+
+실제 Supabase에서 확인:
+
+GR1:
+- growth_report_cycles
+- growth_reports.product_status
+- growth_report_questions
+- growth_report_answers
+- GR ENUMs
+
+GR3:
+- growth_reports.analysis_retry_count
+
+GR5:
+- teacher_review_action
+- teacher_review_reason_code
+- teacher_review_note
+- teacher_reanalysis_count
+
+각각 APPLIED / NOT_APPLIED.
+
+==================================================
+6. PARENT CURRICULUM STATUS
+==================================================
+
+확인:
+
+parent_curriculum_conversations
+parent_curriculum_messages
+
+parent_ai_daily_usage
+parent_ai_usage_reservations
+
+그리고 feature columns:
+
+parent_ai_daily_usage.feature
+parent_ai_usage_reservations.feature
+
+unique constraint:
+
+(parent_account_id, feature, usage_date)
+
+old unique:
+
+(parent_account_id, usage_date)
+
+존재 여부.
+
+==================================================
+7. STARTUP MIGRATION DEPENDENCY
+==================================================
+
+실제 Supabase 상태를 기준으로만
+다음 migration 필요 여부 다시 판정:
+
+- initXModePart2Schema()
+- GR1
+- GR3
+- GR5
+- Group 7
+- Group 8
+
+NeonDB 상태를 근거로 판정 금지.
+
+==================================================
+8. NO PERSISTENT CODE CHANGE
+==================================================
+
+임시 read-only script를 만들 경우:
+
+- 실행 후 삭제하거나
+- untracked 상태 유지 후 삭제
+
+Production code commit 금지.
+
+Secret 하드코딩 금지.
+
+==================================================
+9. REPORT
+==================================================
+
+다음만 보고:
+
+1. REAL SUPABASE CONNECTION VERIFIED
+2. DB IDENTITY
+3. swimming_pools COUNT
+4. KNOWN SAMPLE POOL FOUND
+5. X MODE BASELINE
+6. GR1 STATUS
+7. GR3 STATUS
+8. GR5 STATUS
+9. GROUP 7 STATUS
+10. GROUP 8 STATUS
+11. MANUAL MIGRATIONS ACTUALLY REQUIRED
+12. STARTUP AUTO MIGRATIONS ACTUALLY REQUIRED
+13. EXACT SAFE ORDER
+14. PRODUCTION WRITE STATUS
+
+성공:
+
+REAL_SUPABASE_MIGRATION_PRECHECK_READY ✅
+
+실패:
+
+REAL_SUPABASE_MIGRATION_PRECHECK_BLOCKED ❌
