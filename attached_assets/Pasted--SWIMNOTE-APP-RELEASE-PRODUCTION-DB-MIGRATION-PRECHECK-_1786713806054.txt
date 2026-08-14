@@ -1,0 +1,175 @@
+[SWIMNOTE APP RELEASE]
+[PRODUCTION DB MIGRATION PRECHECK — APP REPOSITORY ONLY]
+
+중요:
+
+방금 AI ENGINE Repository에서 잘못 실행했기 때문에
+APP migration 파일과 SUPABASE_DATABASE_URL을 찾을 수 없었다.
+
+이번 작업은 반드시
+SWIMNOTE APP Repository에서 수행한다.
+
+AI ENGINE Repository에서 실행 금지.
+
+==================================================
+1. REPOSITORY IDENTITY
+==================================================
+
+현재 Repository가 실제 SWIMNOTE APP인지 확인.
+
+최소 확인:
+
+artifacts/api-server
+artifacts/swim-app
+
+그리고 다음 migration 파일 존재 여부:
+
+artifacts/api-server/src/migrations/growth-report-gr1-init.ts
+artifacts/api-server/src/migrations/growth-report-gr3-engine-init.ts
+artifacts/api-server/src/migrations/growth-report-gr5-review-init.ts
+
+pool-db-x-init.ts 실제 경로 확인.
+
+위 파일들이 없으면 즉시 STOP.
+
+==================================================
+2. TARGET DB
+==================================================
+
+APP Production DB:
+
+SUPABASE_DATABASE_URL
+
+사용.
+
+AI ENGINE:
+PROD_DATABASE_URL
+
+절대 사용 금지.
+
+secret 값 출력 금지.
+
+==================================================
+3. PRODUCTION READ-ONLY PRECHECK
+==================================================
+
+SUPABASE_DATABASE_URL로
+Production APP DB를 read-only 조회.
+
+확인:
+
+GR1:
+- growth_report_cycles
+- growth_reports.product_status
+- growth_report_questions
+- growth_report_answers
+
+GR3:
+- growth_reports.analysis_retry_count
+
+GR5:
+- teacher_review_action
+- teacher_review_reason_code
+- teacher_review_note
+- reanalysis_count
+
+Parent Curriculum:
+
+- parent_curriculum_conversations
+- parent_curriculum_messages
+- parent_ai_daily_usage.feature
+- parent_ai_usage_reservations.feature
+- UNIQUE(parent_account_id, feature, usage_date)
+- old UNIQUE(parent_account_id, usage_date) 존재 여부
+
+==================================================
+4. MIGRATION FILE STATUS
+==================================================
+
+각 migration 파일:
+
+- 실제 존재 경로
+- 실행 방식
+- 자동 startup 실행 여부
+- 수동 실행 필요 여부
+- idempotent 여부
+
+보고.
+
+==================================================
+5. STARTUP MIGRATION
+==================================================
+
+pool-db-x-init.ts의 Group 7 / Group 8이
+Render startup 시 initXModeSchema()에서
+자동 실행되는지 실제 코드로 확인.
+
+Growth Report GR1/GR3/GR5가
+startup 자동인지 별도 수동 실행인지 구분.
+
+==================================================
+6. SAFE ORDER
+==================================================
+
+실제 코드 기준 최종 적용 순서 확정.
+
+예상:
+
+1. GR1 수동
+2. GR3 수동
+3. GR5 수동
+4. Render deploy
+   → Group 7/8 startup auto
+
+실제 구조가 다르면 repository 기준으로 수정.
+
+==================================================
+7. DEPLOY SAFETY
+==================================================
+
+Render deploy 전에
+반드시 선행 적용해야 하는 migration이 무엇인지 명확히 판정.
+
+특히 GR 관련 컬럼/테이블 없는 상태에서
+신규 server 코드 deploy 시
+startup/query 오류가 가능한지 확인.
+
+==================================================
+8. NO WRITE
+==================================================
+
+이번 단계에서는:
+
+Production migration 실행 금지.
+Production DB write 금지.
+Render deploy 금지.
+코드 수정 금지.
+OTA/build 금지.
+
+==================================================
+9. REPORT
+==================================================
+
+다음만 보고:
+
+1. APP REPOSITORY VERIFIED
+2. MIGRATION FILES FOUND
+3. TARGET DB VERIFIED
+4. GR1 STATUS
+5. GR3 STATUS
+6. GR5 STATUS
+7. GROUP 7 STATUS
+8. GROUP 8 STATUS
+9. MANUAL MIGRATIONS
+10. STARTUP AUTO MIGRATIONS
+11. EXACT SAFE ORDER
+12. RENDER DEPLOY BEFORE MIGRATION SAFE? YES/NO
+13. PRODUCTION WRITE STATUS
+
+성공:
+
+APP_PRODUCTION_MIGRATION_PLAN_READY ✅
+
+실패:
+
+APP_PRODUCTION_MIGRATION_PLAN_BLOCKED ❌
