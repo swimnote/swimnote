@@ -609,7 +609,11 @@ export interface PublishGrowthReportParams {
 
 export interface PublishGrowthReportResult {
   alreadyPublished: boolean;
-  publishedAt?: string;
+  publishedAt?:    string;
+  /** GR7: notification payload — only set on first (non-idempotent) publish */
+  studentId?:    string;
+  poolId?:       string;
+  reportPeriod?: string;
 }
 
 /**
@@ -724,16 +728,23 @@ export async function publishGrowthReport(
     throw err;
   }
 
-  // Re-fetch published_at for caller
+  // Re-fetch published_at for caller (also grab GR7 notification payload fields)
   const afterRes = await db.execute(sql`
-    SELECT published_at FROM growth_reports WHERE id = ${reportId} LIMIT 1
+    SELECT published_at, student_id, swimming_pool_id, report_period
+    FROM growth_reports WHERE id = ${reportId} LIMIT 1
   `);
-  const publishedAt: string | undefined =
-    (afterRes.rows[0] as any)?.published_at ?? undefined;
+  const afterRow = afterRes.rows[0] as any;
+  const publishedAt: string | undefined = afterRow?.published_at ?? undefined;
 
   console.log(
     `[growth-report] PUBLISHED: report=${reportId} actor=${actorId} at=${publishedAt ?? "?"}`,
   );
 
-  return { alreadyPublished: false, publishedAt };
+  return {
+    alreadyPublished: false,
+    publishedAt,
+    studentId:    afterRow?.student_id      ?? undefined,
+    poolId:       afterRow?.swimming_pool_id ?? undefined,
+    reportPeriod: afterRow?.report_period    ?? undefined,
+  };
 }

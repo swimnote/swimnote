@@ -1,30 +1,33 @@
 /**
- * publish-growth-report.ts — GR6: APPROVED → PUBLISHED Publication Route
+ * publish-growth-report.ts — GR6+GR7: APPROVED → PUBLISHED Publication Route
  *
  * Route:
  *   POST /teacher/growth-reports/:reportId/publish
  *
  * Auth:
  *   requireAuth + requireRole("pool_admin", "super_admin")
- *   teacher: APPROVE only, not PUBLISH (spec §3)
- *   parent: forbidden (spec §3)
+ *   teacher: APPROVE only, not PUBLISH (GR6 spec §3)
+ *   parent: forbidden (GR6 spec §3)
  *
  * Pool ownership:
  *   pool_admin: must own the same pool as the report
  *   super_admin: always allowed
  *
- * Idempotency (spec §20):
+ * Idempotency (GR6 spec §20):
  *   already PUBLISHED → 200 { success: true, alreadyPublished: true }
  *
- * Concurrency (spec §21):
+ * Concurrency (GR6 spec §21):
  *   transitionReportStatus uses SELECT FOR UPDATE → one published_at, one transition
  *
- * Audit (spec §19):
+ * Audit (GR6 spec §19):
  *   GROWTH_REPORT_PUBLISHED via transitionReportStatus → writeReportAudit
  *
- * No ENGINE call (spec §31).
- * No push (spec §18) — GR7.
- * No SNS share (spec §16) — GR9.
+ * Notification (GR7 spec §2):
+ *   After DB commit (alreadyPublished=false only), fire-and-forget notifyGrowthReportPublished().
+ *   Push provider failure does NOT rollback publication (GR7 spec §17).
+ *   Idempotent: alreadyPublished=true → no new notification (GR7 spec §15, §20).
+ *
+ * No ENGINE call (spec §31). No GPT (spec §32). No SNS (spec §32).
  */
 
 import { Router, type Response } from "express";
@@ -42,6 +45,7 @@ import {
   PublishPreconditionError,
   InvalidTransitionError,
 } from "../lib/growth-report-service.js";
+import { notifyGrowthReportPublished } from "../utils/notify.js";
 
 export const publishGrowthReportRouter = Router();
 export default publishGrowthReportRouter;
@@ -94,11 +98,30 @@ publishGrowthReportRouter.post(
         actorType: role as "pool_admin" | "super_admin",
       });
 
+      // Send response BEFORE notification pipeline (spec §17: isolation)
       res.status(200).json({
         success: true,
         alreadyPublished: result.alreadyPublished,
         publishedAt: result.publishedAt ?? null,
       });
+
+      // GR7: fire-and-forget after DB commit (alreadyPublished=false only)
+      // Push provider failure does NOT affect publication status.
+      // alreadyPublished=true → skip to prevent duplicate notifications (spec §15, §20).
+      if (!result.alreadyPublished && result.studentId) {
+        setImmediate(() => {
+          notifyGrowthReportPublished({
+            reportId,
+            studentId:    result.studentId!,
+            poolId:       result.poolId ?? "",
+            reportPeriod: result.reportPeriod ?? "",
+            publishedAt:  result.publishedAt ?? new Date().toISOString(),
+            actorId:      userId,
+          }).catch(err => {
+            console.error("[GR7] notification pipeline failed:", err);
+          });
+        });
+      }
     } catch (err: unknown) {
       if (err instanceof ReportNotFoundError) {
         res.status(404).json({ success: false, error: "REPORT_NOT_FOUND" });

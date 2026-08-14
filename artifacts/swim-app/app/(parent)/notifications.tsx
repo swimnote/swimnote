@@ -23,13 +23,14 @@ const C = Colors.light;
 
 /* ─── 타입 ─── */
 interface Notification {
-  id: string;
-  type: string;
-  title: string;
-  body: string;
-  ref_id: string;
-  ref_type: string;
-  is_read: boolean;
+  id:         string;
+  type:       string;
+  title:      string;
+  body:       string;
+  ref_id:     string;
+  ref_type:   string;
+  deep_link?: string;   // GR7: canonical deep link (e.g. /parent/growth-report-detail?reportId=...)
+  is_read:    boolean;
   created_at: string;
 }
 
@@ -51,10 +52,11 @@ const STATUS_COLOR: Record<string, { text: string; bg: string }> = {
   rejected: { text: "#EF4444", bg: "#FEF2F2" },
 };
 
-const NOTIF_CONFIG: Record<string, { icon: "book-open" | "image" | "bell" | "clipboard-list"; color: string; bg: string }> = {
-  diary_upload:          { icon: "book-open",      color: "#2EC4B6", bg: "#E6FFFA" },
-  photo_upload:          { icon: "image",          color: "#2EC4B6", bg: "#E6FFFA" },
-  parent_request_result: { icon: "clipboard-list", color: "#3B82F6", bg: "#DBEAFE" },
+const NOTIF_CONFIG: Record<string, { icon: "book-open" | "image" | "bell" | "clipboard-list" | "bar-chart-2"; color: string; bg: string }> = {
+  diary_upload:             { icon: "book-open",   color: "#2EC4B6", bg: "#E6FFFA" },
+  photo_upload:             { icon: "image",       color: "#2EC4B6", bg: "#E6FFFA" },
+  parent_request_result:    { icon: "clipboard-list", color: "#3B82F6", bg: "#DBEAFE" },
+  GROWTH_REPORT_PUBLISHED:  { icon: "bar-chart-2", color: "#8B5CF6", bg: "#EDE9FE" },
 };
 
 /* ─── 유틸 ─── */
@@ -209,6 +211,14 @@ export default function ParentNotificationsScreen() {
         if (highlightTimer.current) clearTimeout(highlightTimer.current);
         highlightTimer.current = setTimeout(() => setHighlightId(undefined), 3000);
       }
+    } else if (n.ref_type === "growth_report" || n.type === "GROWTH_REPORT_PUBLISHED") {
+      /* GR7: Growth Report deep link — GR8에서 상세화면 구현 예정 */
+      /* route = growth-report-detail (GR7 spec §9, §12), owner auth checked by GR8 API */
+      navigatingRef.current = true;
+      if (n.ref_id) {
+        router.push(`/(parent)/growth-report-detail?reportId=${n.ref_id}` as any);
+      }
+      setTimeout(() => { navigatingRef.current = false; }, 1000);
     } else if (n.ref_type === "diary" || n.type === "diary_upload") {
       navigatingRef.current = true;
       router.push("/(parent)/children?backTo=notifications" as any);

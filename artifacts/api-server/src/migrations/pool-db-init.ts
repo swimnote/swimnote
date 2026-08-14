@@ -945,6 +945,9 @@ export async function initPoolDb(): Promise<void> {
     );
   `)).catch(() => {});
 
+  // ─── notifications.deep_link (GR7 additive) ──────────────────────────────
+  await db.execute(sql.raw(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS deep_link text`)).catch(() => {});
+
   // ─── payment_cards ───────────────────────────────────────────────────────
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS payment_cards (

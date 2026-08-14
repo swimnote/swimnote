@@ -1,15 +1,17 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { sendPushToUser } from "../lib/push-service.js";
 
 interface NotifPayload {
-  recipientId: string;
+  recipientId:   string;
   recipientType: "parent_account" | "user";
-  poolId: string;
-  type: "diary_upload" | "photo_upload" | "photo_comment" | "diary_comment" | "storage_warning";
-  title: string;
-  body: string;
-  refId?: string;
+  poolId:        string;
+  type: "diary_upload" | "photo_upload" | "photo_comment" | "diary_comment" | "storage_warning" | "GROWTH_REPORT_PUBLISHED";
+  title:    string;
+  body:     string;
+  refId?:   string;
   refType?: string;
+  deepLink?: string;
 }
 
 /**
@@ -33,12 +35,14 @@ export async function sendNotification(payload: NotifPayload): Promise<void> {
     if (await isDuplicate(payload.type, payload.refId, payload.recipientId)) return;
     const id = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     await db.execute(sql`
-      INSERT INTO notifications (id, recipient_id, recipient_type, pool_id, type, title, body, ref_id, ref_type)
+      INSERT INTO notifications
+        (id, recipient_id, recipient_type, pool_id, type, title, body, ref_id, ref_type, deep_link)
       VALUES (
         ${id}, ${payload.recipientId}, ${payload.recipientType},
         ${payload.poolId}, ${payload.type},
         ${payload.title}, ${payload.body},
-        ${payload.refId || null}, ${payload.refType || null}
+        ${payload.refId || null}, ${payload.refType || null},
+        ${payload.deepLink || null}
       )
     `);
   } catch (err) {
@@ -167,6 +171,108 @@ export async function checkStorageUsage(poolId: string): Promise<void> {
 
     if (usagePct >= 80) await notifyStorageWarning(poolId, usagePct);
   } catch (err) { console.error("[notify] storage usage check 오류:", err); }
+}
+
+/**
+ * GR7: Growth Report PUBLISHED → 해당 student의 승인된 학부모들에게 알림 + Push 발송
+ *
+ * 원칙:
+ *   - PUBLISHED 이후에만 호출 (DB commit 완료 후 fire-and-forget)
+ *   - 멱등성: 동일 (type, ref_id=reportId, recipient_id=parentId) 존재 시 skip (영구 dedup)
+ *   - 다중 보호자: parent_students DISTINCT parent_id로 deduplicate
+ *   - Push preference: sendPushToUser가 기존 push_settings ON/OFF 확인
+ *   - PII 금지: push body에 분석 내용 없음, 정적 Product 문구만 사용
+ *   - ENGINE 호출 금지, GPT 호출 금지
+ *   - Notification center 저장 (ref_id=reportId, ref_type='growth_report')
+ */
+export async function notifyGrowthReportPublished(params: {
+  reportId:     string;
+  studentId:    string;
+  poolId:       string;
+  reportPeriod: string; // e.g. "2026-07"
+  publishedAt:  string;
+  actorId:      string;
+}): Promise<void> {
+  const { reportId, studentId, poolId, reportPeriod, actorId } = params;
+
+  // 학생 이름 조회 (PII 최소: 이름만, 진단/분석 내용 금지)
+  let studentName = "학생";
+  try {
+    const sr = (await db.execute(sql`
+      SELECT name FROM students WHERE id = ${studentId} LIMIT 1
+    `)).rows as any[];
+    if (sr.length > 0 && sr[0].name) studentName = sr[0].name;
+  } catch { /* 이름 조회 실패는 무시 — 기본값 "학생" 사용 */ }
+
+  // report_period → "M월" (e.g. "2026-07" → "7월")
+  const month = parseInt(reportPeriod.split("-")[1] ?? "1", 10);
+  const monthLabel = `${month}월`;
+
+  // Product 문구 (정적, ENGINE 해석/GPT 생성 금지)
+  const title    = "새 성장리포트가 도착했어요";
+  const body     = `${studentName}의 ${monthLabel} 성장리포트가 등록되었습니다.`;
+  const deepLink = `/parent/growth-report-detail?reportId=${reportId}`;
+
+  // 승인된 보호자 조회 (DISTINCT — 중복 relation 방어)
+  let parentIds: string[] = [];
+  try {
+    const parentRows = (await db.execute(sql`
+      SELECT DISTINCT parent_id
+      FROM parent_students
+      WHERE student_id = ${studentId}
+        AND status = 'approved'
+    `)).rows as any[];
+    parentIds = parentRows.map(r => r.parent_id).filter(Boolean);
+  } catch (err) {
+    console.error("[notify] GR7 parent_students 조회 실패:", err);
+    return;
+  }
+
+  for (const parentId of parentIds) {
+    try {
+      // 영구 멱등성: 동일 (type, ref_id, recipient_id) 이미 존재 시 skip (시간 제한 없음)
+      const dup = (await db.execute(sql`
+        SELECT 1 FROM notifications
+        WHERE type = 'GROWTH_REPORT_PUBLISHED'
+          AND ref_id = ${reportId}
+          AND recipient_id = ${parentId}
+        LIMIT 1
+      `)).rows;
+      if (dup.length > 0) continue;
+
+      // Notification Center에 저장 (GR7 §13)
+      const id = `notif_gr_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      await db.execute(sql`
+        INSERT INTO notifications
+          (id, recipient_id, recipient_type, pool_id, type, title, body,
+           ref_id, ref_type, deep_link, is_read)
+        VALUES
+          (${id}, ${parentId}, 'parent_account', ${poolId},
+           'GROWTH_REPORT_PUBLISHED', ${title}, ${body},
+           ${reportId}, 'growth_report', ${deepLink}, false)
+      `);
+
+      // Push delivery (기존 preference 정책 존중 — sendPushToUser가 ON/OFF 확인)
+      await sendPushToUser(
+        parentId, true, "GROWTH_REPORT_PUBLISHED", title, body,
+        {
+          screen:           "growth_report_detail",
+          growth_report_id: reportId,
+          report_period:    reportPeriod,
+          deep_link:        deepLink,
+        },
+        actorId,
+      ).catch(err => {
+        // Push 실패는 Notification Center 저장에 영향 없음 (spec §17)
+        console.error(`[notify] GR7 push failed parent=${parentId}:`, err);
+      });
+
+      console.log(`[notify] GR7 notification created: report=${reportId} parent=${parentId}`);
+    } catch (err) {
+      // 개별 parent 실패는 다른 parent에 영향 없음
+      console.error(`[notify] GR7 notification failed parent=${parentId}:`, err);
+    }
+  }
 }
 
 /**
