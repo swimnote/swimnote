@@ -53,3 +53,4 @@
 - [GR3 완료 상태](wp-gr3-done-state.md) — SHA 53db8279; ENGINE client+snapshot+result+worker+route; 69TC+604TC; 미배포
 - [GR4 완료 상태](wp-gr4-done-state.md) — SHA 32655242; Parent Q&A API + Expo UI + 58TC; 662TC; 미배포
 - [GR5 완료 상태](wp-gr5-done-state.md) — SHA 3f8e10d8; Teacher Review+Approval; 56TC; 718TC; 미배포
+- [GR6 완료 상태](wp-gr6-done-state.md) — SHA f707d942; Publish+Parent Feed; 60TC; 778TC; 미배포

@@ -1,0 +1,982 @@
+[SWIMNOTE X FREE GROWTH REPORT]
+[APP GR6 — PUBLISH + PARENT FEED INTEGRATION]
+
+MODE:
+FINAL IMPLEMENTATION
+NOT MVP
+NOT PROTOTYPE
+NOT SAMPLE
+
+현재 완료:
+
+GR1 Product Storage + Lifecycle Foundation ✅
+GR2 Monthly Cycle Scheduler ✅
+GR3 APP ↔ AI ENGINE Integration ✅
+GR4 Parent Question / Answer Flow ✅
+GR5 Teacher Review / Approval / Reanalysis ✅
+
+현재 GR5 확정:
+
+REVIEW_REQUIRED
+→ APPROVED
+
+REQUEST_REANALYSIS
+→ ANALYZING
+→ ENGINE 재분석
+→ REVIEW_REQUIRED
+
+이번 GR6 목적:
+
+APPROVED Growth Report를 PUBLISHED 상태로 확정하고,
+
+기존 SWIMNOTE 학부모 수업피드에
+Growth Report를 하나의 Feed Item으로 노출하는
+Product Publication Layer를 완성한다.
+
+중요:
+
+새 별도 성장리포트 피드 시스템을 만들지 않는다.
+
+기존 Parent Feed를 재사용한다.
+
+==================================================
+0. 핵심 제품 원칙
+==================================================
+
+학부모가 SWIMNOTE를 열었을 때
+
+기존:
+
+수업피드
+사진
+일지
+
+흐름 안에서
+
+“성장리포트”
+
+가 자연스럽게 하나의 Feed Item으로 보여야 한다.
+
+Growth Report는 별도의 고립된 AI 메뉴가 아니다.
+
+기존 Parent Feed가 Primary Entry Point다.
+
+GR8에서 Native Detail Screen을 추가하지만
+GR6에서는 Feed 노출과 Publication까지 완성한다.
+
+==================================================
+1. SOURCE OF TRUTH
+==================================================
+
+Growth Report Product Source:
+
+growth_reports
+
+중:
+
+product_status = PUBLISHED
+
+인 Report만
+Parent Feed에 노출한다.
+
+절대:
+
+REVIEW_REQUIRED
+APPROVED
+ANALYZING
+PARTIAL
+FAILED
+
+상태를 Parent에게 Feed Item으로 노출하지 마라.
+
+PARTIAL analysis_status라도
+Teacher Review 후 APPROVED → PUBLISHED가 된 Product라면
+노출 가능.
+
+즉 판단 기준은:
+
+analysis_status가 아니라
+product_status=PUBLISHED
+
+==================================================
+2. APPROVED → PUBLISHED
+==================================================
+
+GR1 canonical lifecycle:
+
+APPROVED
+→ PUBLISHED
+
+를 실제 Product Service로 연결한다.
+
+중앙 함수 예:
+
+publishGrowthReport(...)
+
+또는 Repository convention.
+
+Route 안에서 직접:
+
+UPDATE growth_reports SET product_status='PUBLISHED'
+
+하드코딩 금지.
+
+GR1 transitionReportStatus() 재사용.
+
+==================================================
+3. WHO CAN PUBLISH
+==================================================
+
+현재 Growth Report Review 정책과
+기존 SWIMNOTE 권한구조를 확인해서 적용.
+
+최소:
+
+pool_admin
+super_admin
+
+publish 허용.
+
+담당 teacher의 publish 권한은
+현재 Product policy를 확인.
+
+명확한 기존 정책이 없다면:
+
+teacher = APPROVE까지
+pool_admin/super_admin = PUBLISH
+
+로 역할을 분리하는 방향을 우선 검토.
+
+하지만 기존 APP에서
+teacher가 최종 게시까지 담당하는 canonical pattern이 있다면
+그 구조를 재사용.
+
+Parent publish 금지.
+
+무인 임의 publish 금지.
+
+==================================================
+4. PUBLISH PRECONDITIONS
+==================================================
+
+publishGrowthReport()는 최소 확인:
+
+product_status === APPROVED
+
+report_content 존재
+
+report_content structured object
+
+report_fact_package 존재
+
+sns_summary object 존재
+
+grounding result:
+PASS 또는 REVISED_PASS
+
+growth framing:
+PASS 또는 REVISED_PASS
+
+teacher_reviewed_at 존재
+
+필수 조건이 깨졌으면
+PUBLISHED 전환 금지.
+
+==================================================
+5. PUBLISHED TIMESTAMP
+==================================================
+
+PUBLISHED 전환 시:
+
+published_at
+
+한 번 기록.
+
+재호출 시 timestamp 변경 금지.
+
+PUBLISHED는 terminal.
+
+==================================================
+6. FEED ARCHITECTURE
+==================================================
+
+기존 Parent Feed / Diary Feed 구조를 조사해서 재사용.
+
+새 Feed 시스템 만들지 않는다.
+
+현재 Feed가:
+
+union query
+feed table
+diary list projection
+activity type
+
+중 어떤 방식인지 확인.
+
+Growth Report는 최소 논리 타입:
+
+GROWTH_REPORT
+
+로 구분 가능해야 한다.
+
+기존 enum 확장이 필요하면
+additive하게 구현.
+
+==================================================
+7. NO CONTENT DUPLICATION
+==================================================
+
+가능하면 Feed Item에
+Growth Report 전체 report_content를 복제 저장하지 않는다.
+
+권장:
+
+feed item / projection
+→ growth_report_id 참조
+
+Parent Feed 조회 시
+PUBLISHED report를 join/project.
+
+기존 Feed architecture가
+snapshot content 저장을 요구한다면
+최소 preview 데이터만 저장하고
+canonical Source는 growth_reports 유지.
+
+동일 report_content를 여러 DB row에
+대량 복제 금지.
+
+==================================================
+8. FEED ITEM CONTRACT
+==================================================
+
+최소 Parent Feed Growth Report Item:
+
+{
+  type: 'GROWTH_REPORT',
+
+  id: feed_item_id 또는 stable projection id,
+
+  growth_report_id: string,
+
+  student_id: string,
+
+  report_period: 'YYYY-MM',
+
+  published_at: string,
+
+  title: string,
+
+  preview: {
+    summary_text?: string,
+    headline?: string,
+    key_points?: string[]
+  },
+
+  share_safe?: boolean
+}
+
+실제 Feed Contract에 맞게 조정 가능.
+
+중요:
+
+APP이 새로운 summary를 생성하지 않는다.
+
+preview source:
+
+report_content.summary_text
+
+또는
+
+sns_summary.headline / key_points
+
+만 사용.
+
+==================================================
+9. TITLE
+==================================================
+
+APP Product UI label 수준의 title은 가능.
+
+예:
+
+“8월 성장리포트”
+
+이것은 분석 사실 생성이 아니다.
+
+하지만:
+
+“이번 달 놀라운 성장!”
+“집중력이 크게 향상됐어요!”
+
+같은 새로운 평가성 제목을
+APP이 임의 생성 금지.
+
+==================================================
+10. FEED SORTING
+==================================================
+
+기존 Parent Feed chronology를 유지.
+
+Growth Report:
+
+published_at
+
+기준으로 기존 Diary/Album/Notice와
+정상적인 시간순 Feed에 위치.
+
+report_period 기준으로
+과거 위치에 끼워 넣지 않는다.
+
+사용자에게 실제 게시된 시점 기준.
+
+==================================================
+11. DUPLICATE FEED PROTECTION
+==================================================
+
+같은 growth_report_id가
+Feed에 두 번 나타나면 안 된다.
+
+Repeated publish request
+scheduler retry
+API retry
+
+에서도 1개.
+
+projection 방식이면
+query-level uniqueness.
+
+feed table 방식이면
+UNIQUE(source_type, source_id)
+등 기존 convention 사용.
+
+==================================================
+12. PARENT OWNERSHIP
+==================================================
+
+Parent는 자신과 연결된 자녀의
+PUBLISHED Growth Report만 볼 수 있다.
+
+다른 학생 Report 조회 금지.
+
+기존:
+
+parent-child relation
+guardian relation
+
+canonical server authorization 재사용.
+
+클라이언트 student_id만 신뢰 금지.
+
+==================================================
+13. TEACHER / ADMIN FEED
+==================================================
+
+이번 GR6 핵심은 Parent Feed다.
+
+Teacher/Admin 별도 Feed UI를
+새로 만들 필요 없음.
+
+기존 관리 화면에서 Report를 볼 필요가 있다면
+GR5 review flow 유지.
+
+범위 확장 금지.
+
+==================================================
+14. X EXPIRATION POLICY
+==================================================
+
+GR1에서 확정:
+
+이미 PUBLISHED된 Growth Report는
+X entitlement가 나중에 만료되어도 삭제하지 않는다.
+
+Parent의 기존 Published Report viewing도
+보존 정책을 따른다.
+
+즉:
+
+신규 분석/생성
+→ X entitlement 필요
+
+기존 PUBLISHED 조회
+→ X 만료 때문에 자동 숨김/삭제 금지
+
+GR1:
+
+checkPublishedReportXPolicy()
+
+또는 canonical equivalent 재사용.
+
+==================================================
+15. REPORT CONTENT PRIVACY
+==================================================
+
+Feed preview에 금지:
+
+raw diary text
+teacher internal note
+teacher_review_note
+excluded_claims
+internal evidence trace
+metric confidence raw debug
+parent private answer 상세
+
+Feed에는 부모용으로 검증된:
+
+summary_text
+sns_summary safe portion
+
+만.
+
+==================================================
+16. SHARE_SAFE
+==================================================
+
+Feed Item에서:
+
+sns_summary.share_safe
+
+값을 그대로 보존 가능.
+
+하지만 GR6에서
+SNS 공유 기능 구현 금지.
+
+GR9 범위.
+
+GR6에서는 metadata만 전달.
+
+==================================================
+17. CLICK / NAVIGATION
+==================================================
+
+GR8에서 Native Detail Screen을 구현한다.
+
+따라서 GR6에서
+완성형 Detail UI 선행 구현 금지.
+
+하지만 Feed Item은 최소:
+
+growth_report_id
+
+를 가지고 있어야 해서
+GR8에서 상세화면으로 연결 가능해야 한다.
+
+현재 임시 navigation이 필요하면
+기존 screen/placeholder를 새로 만들지 말고
+GR8까지 안전하게 비활성 또는 기존 route convention에 맞춘다.
+
+==================================================
+18. GR7 BOUNDARY
+==================================================
+
+PUBLISHED가 됐다는 이유로
+이번 GR6에서 Push 발송 금지.
+
+Push / Deep Link는 GR7.
+
+다만 GR7이 사용할:
+
+GROWTH_REPORT_PUBLISHED
+
+같은 domain event/hook을
+기존 event architecture가 있다면 발생시킬 수 있다.
+
+실제 notification send는 하지 마라.
+
+==================================================
+19. AUDIT
+==================================================
+
+PUBLISH action audit 필수.
+
+최소:
+
+report_id
+actor
+APPROVED → PUBLISHED
+published_at
+reason/context
+
+기존 GR1 audit service 재사용.
+
+가능하면 event:
+
+GROWTH_REPORT_PUBLISHED
+
+기록.
+
+==================================================
+20. PUBLICATION IDEMPOTENCY
+==================================================
+
+publishGrowthReport(reportId):
+
+첫 호출:
+APPROVED → PUBLISHED
+
+두 번째 동일 호출:
+이미 PUBLISHED
+
+정책은:
+
+idempotent success
+또는 명확한 ALREADY_PUBLISHED
+
+둘 중 기존 APP convention.
+
+절대:
+
+500
+timestamp 재작성
+feed duplicate
+
+발생 금지.
+
+==================================================
+21. CONCURRENCY
+==================================================
+
+동시에 publish 두 요청이 들어와도:
+
+한 번만 PUBLISHED
+
+published_at 하나
+
+Feed Item 하나
+
+Audit도 의미상 한 번.
+
+GR1 SELECT FOR UPDATE / transaction pattern 재사용.
+
+==================================================
+22. PUBLISH FAILURE
+==================================================
+
+DB transaction 중:
+
+status update 성공
+feed creation 실패
+
+같은 half-published 상태 금지.
+
+Feed가 persistent table 방식이면
+같은 transaction 권장.
+
+Feed가 projection/query 방식이면
+Product PUBLISHED가 Source이므로
+별도 feed write 필요 없음.
+
+Repository architecture 보고
+가장 안전한 방식 선택.
+
+==================================================
+23. PARENT FEED SERVER ENDPOINT
+==================================================
+
+기존 Parent Feed API에
+Growth Report item을 포함시킨다.
+
+새:
+
+GET /parent/growth-report-feed
+
+같은 중복 endpoint를
+Primary Feed 용도로 만들지 마라.
+
+기존 feed endpoint 응답에
+type=GROWTH_REPORT 추가.
+
+==================================================
+24. PAGINATION
+==================================================
+
+기존 Feed pagination을 깨지 않는다.
+
+Growth Report를 union/join할 때:
+
+cursor
+created_at/published_at
+limit
+
+정렬 안정성 유지.
+
+같은 timestamp tie가 있을 경우
+기존 stable secondary key 사용.
+
+==================================================
+25. FEED FILTER
+==================================================
+
+기존 Feed에서:
+
+전체
+수업피드
+앨범
+공지
+
+등 filter가 있다면
+현재 UX를 깨지 마라.
+
+Growth Report가
+기존 “수업피드” 범주 안에 들어가야 하는지
+현재 Feed taxonomy를 확인.
+
+사용자가 별도 필터를 요구하지 않았으므로
+새 “성장리포트” 탭을 만들지 마라.
+
+==================================================
+26. PARENT UI CARD
+==================================================
+
+기존 Parent Feed Card 디자인을 최대한 재사용.
+
+Growth Report 카드에서 최소:
+
+[성장리포트]
+YYYY년 M월
+summary/headline
+“자세히 보기” affordance
+
+정도.
+
+하지만 GR8 상세 디자인 선행 금지.
+
+과도한 새 UI/애니메이션 금지.
+
+==================================================
+27. EXISTING DIARY FEED PROTECTION
+==================================================
+
+절대 깨지면 안 됨:
+
+Diary item ordering
+Diary photo/video
+likes
+comments
+parent reactions
+album
+notice
+pagination
+
+Growth Report는 additive Feed Type.
+
+==================================================
+28. REPORT DELETION
+==================================================
+
+이번 GR6에서
+Published Growth Report DELETE 기능 만들지 않는다.
+
+Teacher/Admin이 이미 승인·게시된 Report를
+임의 삭제하는 기능 금지.
+
+향후 정책 별도.
+
+==================================================
+29. REPORT REANALYSIS AFTER PUBLISH
+==================================================
+
+GR1 canonical:
+
+PUBLISHED = terminal.
+
+따라서 PUBLISHED 후:
+
+REQUEST_REANALYSIS
+ANALYZING
+
+로 되돌리지 않는다.
+
+재분석 필요 시
+향후 별도 correction/version Product policy.
+
+GR6에서 만들지 마라.
+
+==================================================
+30. TEST REQUIREMENTS
+==================================================
+
+최소:
+
+1. APPROVED report publish 성공
+
+2. REVIEW_REQUIRED publish reject
+
+3. ANALYZING publish reject
+
+4. FAILED publish reject
+
+5. PUBLISHED terminal
+
+6. published_at 기록
+
+7. repeated publish timestamp 유지
+
+8. required structured report_content 없으면 reject
+
+9. fact_package 없으면 reject
+
+10. grounding FAIL publish reject
+
+11. framing FAIL publish reject
+
+12. teacher review 미완료 reject
+
+13. authorized publisher success
+
+14. parent publish forbidden
+
+15. unauthorized teacher/pool forbidden
+
+16. PUBLISHED report Parent Feed 포함
+
+17. APPROVED report Feed 미노출
+
+18. REVIEW_REQUIRED Feed 미노출
+
+19. FAILED Feed 미노출
+
+20. same report Feed 중복 없음
+
+21. Feed type=GROWTH_REPORT
+
+22. growth_report_id 포함
+
+23. report_period 포함
+
+24. published_at 포함
+
+25. preview는 ENGINE report_content/sns_summary 사용
+
+26. APP 신규 AI summary 생성 없음
+
+27. raw diary Feed preview 없음
+
+28. teacher review note Feed 노출 없음
+
+29. excluded claims Feed 노출 없음
+
+30. Parent A가 Parent B 학생 report 접근 금지
+
+31. connected parent 접근 가능
+
+32. X expired 후 기존 PUBLISHED viewing 유지
+
+33. X expired 후 data 삭제 없음
+
+34. chronology = published_at
+
+35. pagination regression
+
+36. Diary feed 기존 item 유지
+
+37. Diary media 유지
+
+38. existing feed reactions regression
+
+39. share_safe 값 preserve
+
+40. GR6에서 SNS share 구현 없음
+
+41. GR6에서 push 발송 없음
+
+42. audit PUBLISHED transition
+
+43. concurrent publish one transition
+
+44. concurrent publish Feed duplicate 없음
+
+45. PUBLISHED 후 reanalysis transition reject
+
+46. GR5 regression
+
+47. GR4 regression
+
+48. GR3 regression
+
+49. GR2 regression
+
+50. GR1 regression
+
+51. Parent Feed regression
+
+52. Diary regression
+
+==================================================
+31. NO ENGINE CALL
+==================================================
+
+GR6 publication 과정에서
+AI ENGINE을 다시 호출하지 않는다.
+
+GR3/GR5 결과를 사용.
+
+PUBLISH는 Product operation.
+
+==================================================
+32. NO GPT
+==================================================
+
+APP GPT 호출 금지.
+
+Feed Preview 요약을 위해
+GPT 호출 금지.
+
+==================================================
+33. MIGRATION
+==================================================
+
+기존 Feed type enum/table에
+additive migration 필요하면 작성 가능.
+
+Production migration 실행 금지.
+
+기존 데이터 destructive migration 금지.
+
+==================================================
+34. 허위 완료 방지
+==================================================
+
+COMPLETE 금지:
+
+- Growth Report 전용 별도 Feed만 생성
+- 기존 Parent Feed 미연결
+- APPROVED 상태 Parent 노출
+- APP이 report 재요약
+- raw Fact Package를 Feed에 그대로 노출
+- duplicate Feed item
+- X 만료 시 published report 삭제
+- PUBLISHED 후 reanalysis 허용
+- push 선행 구현
+- SNS share 선행 구현
+- GR8 상세화면 선행 구현
+- TODO
+- placeholder
+
+==================================================
+35. COMPLETE CONDITIONS
+==================================================
+
+[ ] APPROVED → PUBLISHED service
+
+[ ] publish permission
+
+[ ] publication preconditions
+
+[ ] published_at
+
+[ ] PUBLISHED terminal
+
+[ ] idempotent publish
+
+[ ] concurrency safe
+
+[ ] audit
+
+[ ] existing Parent Feed integration
+
+[ ] GROWTH_REPORT feed type
+
+[ ] only PUBLISHED exposure
+
+[ ] ownership authorization
+
+[ ] Engine-generated preview only
+
+[ ] no raw internal data
+
+[ ] X expiry published viewing preserved
+
+[ ] stable ordering/pagination
+
+[ ] duplicate protection
+
+[ ] minimal Parent feed card
+
+[ ] growth_report_id for GR8
+
+[ ] no push
+
+[ ] no SNS share
+
+[ ] no APP GPT
+
+[ ] regression pass
+
+[ ] TODO 0
+
+[ ] Production migration 미실행
+
+[ ] Deploy/OTA 없음
+
+==================================================
+36. CREDIT SAVING
+==================================================
+
+GR1~GR6
++
+existing Parent Feed
++
+Diary Feed
++
+X published policy
++
+audit
+
+관련 파일만 검사.
+
+전체 Repo 재감리 금지.
+
+GR7~GR9 선행 구현 금지.
+
+==================================================
+37. FINAL REPORT
+==================================================
+
+1. GR6 RESULT
+
+2. EXISTING FEED ASSETS REUSED
+
+3. IMPLEMENTED FILES
+
+4. PUBLICATION SERVICE
+
+5. PUBLISH AUTHORIZATION
+
+6. PUBLICATION PRECONDITIONS
+
+7. FEED INTEGRATION ARCHITECTURE
+
+8. FEED ITEM CONTRACT
+
+9. PARENT AUTHORIZATION
+
+10. X EXPIRATION / PUBLISHED POLICY
+
+11. IDEMPOTENCY / CONCURRENCY
+
+12. AUDIT
+
+13. UI CARD
+
+14. TEST RESULTS
+
+15. GR1~GR5 / EXISTING FEED REGRESSION
+
+16. TODO SCAN
+
+17. GIT
+    branch
+    actual HEAD SHA
+
+18. PRODUCTION SAFETY
+
+전부 완료:
+
+GROWTH_REPORT_APP_GR6_COMPLETE ✅
+
+미완성:
+
+GROWTH_REPORT_APP_GR6_BLOCKED ❌
+
+작업을 시작하라.
