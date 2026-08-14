@@ -1,0 +1,330 @@
+[SWIMNOTE RELEASE]
+[FULL CURRENT BUILD / PRODUCTION ROLLOUT PREP — STEP 1 ONLY]
+
+방향 변경:
+
+Dashboard hotfix 분리 배포 계획은 취소한다.
+
+현재 deploy-photo-clone의 최신 기능들을
+다음 정식 SWIMNOTE Build에 함께 포함한다.
+
+포함 대상:
+
+- 기존 Production 이후 앱 수정
+- Super Admin Dashboard IA
+- X MODE KPI/filter
+- Growth Report APP GR1~GR9
+- 현재까지 완료된 기타 정상 수정
+
+즉 dashboard-only hotfix branch는 만들지 않는다.
+
+==================================================
+1. 이번 단계 목적
+==================================================
+
+아직 실제 배포/빌드는 하지 않는다.
+
+현재 deploy-photo-clone HEAD를 기준으로
+
+"정식 Production Rollout에 무엇이 필요한지"
+
+최종 Release Manifest만 확정한다.
+
+코드 수정 금지.
+DB migration 실행 금지.
+Render deploy 금지.
+EAS build 금지.
+OTA 금지.
+
+==================================================
+2. CURRENT HEAD
+==================================================
+
+현재:
+
+branch = deploy-photo-clone
+
+actual HEAD SHA 확인.
+
+현재 HEAD가:
+
+e78705c2 이후의 최신 상태인지
+또는 추가 commit이 존재하는지 정확히 보고.
+
+==================================================
+3. APP DB MIGRATIONS
+==================================================
+
+현재 Production baseline 이후 추가됐지만
+Production 미적용 상태인 APP DB migration을
+실제 파일 기준으로 전부 목록화.
+
+특히 Growth Report:
+
+GR1
+GR3
+GR5
+
+관련 migration 확인.
+
+각 migration에 대해:
+
+- filename
+- purpose
+- additive/destructive
+- dependency order
+- current Production applied? YES/NO
+
+보고.
+
+추측 금지.
+
+==================================================
+4. AI ENGINE DB MIGRATIONS
+==================================================
+
+AI ENGINE WP5/WP13에서 작성된
+Production 미적용 migration 목록 확인.
+
+특히:
+
+growth.engine_analysis_trace
+durable idempotency
+
+관련 schema.
+
+각 migration:
+
+- filename
+- purpose
+- dependency
+- production applied 여부
+
+보고.
+
+==================================================
+5. SERVER CHANGES
+==================================================
+
+현재 Production Render SHA:
+
+dd0ad19c42856807b7622242628f48d29680ccbb
+
+와 현재 APP server HEAD 사이에서
+실제 Production 배포에 포함될 server change를 분류.
+
+최소:
+
+A. Growth Report GR1~GR9
+B. Super Admin X MODE KPI/filter
+C. 기타 server fixes
+
+변경 파일 수와 주요 기능만 정리.
+
+==================================================
+6. WORKER CHANGES
+==================================================
+
+swimnote-worker에 필요한 변경 별도 확인.
+
+최소:
+
+- Growth Report Scheduler
+- Growth Report Analysis Worker
+- 기타 신규 worker registration
+
+API server와 worker를 구분해서 보고.
+
+==================================================
+7. AI ENGINE DEPLOYMENT
+==================================================
+
+Growth Report AI ENGINE WP1~WP13이
+현재 Production Engine에 배포됐는지 확인.
+
+미배포면:
+
+ENGINE DEPLOY REQUIRED = YES
+
+공식 Growth Report route:
+
+POST /api/v1/growth-report/analyze
+
+가 Production에 아직 없는지 확인.
+
+==================================================
+8. NATIVE DEPENDENCY DIFF
+==================================================
+
+현재 Production 앱 build(runtime 1.6.2) 이후
+package.json / native dependency 변경을 확인.
+
+특히:
+
+expo-print
+expo-sharing
+react-native-view-shot
+
+및 기타 추가/변경 native module.
+
+결론:
+
+NEW_NATIVE_BUILD_REQUIRED = YES/NO
+
+를 실제 dependency diff로 판정.
+
+==================================================
+9. VERSION PLAN
+==================================================
+
+현재 App version:
+1.6.2
+
+runtimeVersion policy:
+appVersion
+
+새 native build가 필요하면
+다음 version을 어떻게 올려야 하는지
+현재 프로젝트 convention 확인.
+
+예:
+1.6.3
+
+단 임의 수정하지 말고
+권장값만 보고.
+
+iOS build number
+Android versionCode
+
+현재값과 다음 권장값 보고.
+
+==================================================
+10. CURRENT APP BUILD CONTENT
+==================================================
+
+새 build에 포함될 주요 APP 기능 목록을 정리:
+
+- Super Admin Dashboard
+- X MODE management
+- Growth Report Parent/Teacher screens
+- PDF
+- SNS Share
+- Notifications/Deep Link
+
+등.
+
+기존 기능 삭제/회귀 여부는
+현재 test result 기준으로만 보고.
+
+==================================================
+11. REVENUECAT X MODE
+==================================================
+
+X MODE 정기구독 Product는 아직 외부 설정 미완료.
+
+현재 Build에:
+
+- 기존 RevenueCat solo/center
+- X entitlement server infrastructure
+
+는 포함될 수 있다.
+
+그러나:
+
+X Product
+X Offering
+X Entitlement
+X Purchase UI
+
+는 아직 완료되지 않았으므로
+"X MODE 결제 완료"로 간주 금지.
+
+이 상태가 새 build를 막는지 여부도 판단.
+
+X MODE 수동 entitlement/admin activation으로
+기능 자체 테스트 가능 여부와
+스토어 출시 전 결제 필수 여부를 분리해서 보고.
+
+==================================================
+12. RELEASE ORDER
+==================================================
+
+실제 의존성을 보고
+최종 Production 적용 순서를 제안.
+
+기본 예상:
+
+1. APP DB migration
+2. AI ENGINE DB migration
+3. AI ENGINE deploy
+4. SWIMNOTE API deploy
+5. SWIMNOTE Worker deploy
+6. New EAS native build
+7. Internal/TestFlight runtime test
+8. RevenueCat X product 연결
+9. Full E2E
+10. Store rollout
+
+하지만 Repository 실제 의존성에 따라
+조정 필요 시 정확히 보고.
+
+==================================================
+13. ROLLBACK POINTS
+==================================================
+
+각 단계별 rollback 기준을 짧게 보고:
+
+- DB migration
+- Engine
+- API
+- Worker
+- App build
+
+destructive rollback 필요 구조는 없는지 확인.
+
+==================================================
+14. TEST STATUS
+==================================================
+
+현재 마지막 알려진 APP regression:
+
+991/991
+
+Growth Report:
+GR1~GR9 complete
+
+실제 최신 HEAD 기준으로
+새 테스트를 이번 단계에서 다시 돌릴 필요는 없다.
+
+기존 evidence를 정리만 한다.
+
+==================================================
+15. REPORT FORMAT
+==================================================
+
+다음만 보고:
+
+1. CURRENT BRANCH / HEAD
+2. APP DB MIGRATIONS PENDING
+3. AI ENGINE DB MIGRATIONS PENDING
+4. APP SERVER DEPLOY REQUIRED
+5. WORKER DEPLOY REQUIRED
+6. AI ENGINE DEPLOY REQUIRED
+7. NATIVE DEPENDENCY CHANGES
+8. NEW BUILD REQUIRED
+9. VERSION / BUILD NUMBER PLAN
+10. FEATURES INCLUDED IN NEW BUILD
+11. REVENUECAT X MODE STATUS
+12. EXACT PRODUCTION ROLLOUT ORDER
+13. ROLLBACK CONSIDERATIONS
+14. CURRENT TEST EVIDENCE
+
+마지막:
+
+FULL_RELEASE_MANIFEST_READY ✅
+
+Critical dependency가 불명확하면:
+
+FULL_RELEASE_MANIFEST_BLOCKED ❌
+
+이번 단계에서는 절대 배포/빌드하지 마라.
