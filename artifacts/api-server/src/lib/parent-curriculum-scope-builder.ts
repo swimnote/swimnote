@@ -206,33 +206,28 @@ export async function buildXCurriculumScope(): Promise<PcCurriculumScope> {
 /**
  * 학생 progress 구성.
  *
- * student_curriculum_assignments에서 active assignment 조회.
- * 실제로 저장된 사실만 반환 — 진도 추론 금지.
- * assignment가 없으면 undefined 반환 (optional).
+ * 현재 canonical rule (WP2.1):
+ *   current_curriculum_id = curriculum_items.id (실제 item ID)만 허용.
+ *
+ * 금지:
+ *   - curriculum_version_id를 current_curriculum_id로 위장하는 것
+ *   - APP에서 진도를 추론하거나 sort_order로 임의 결정
+ *
+ * DB 구조 조사 결과:
+ *   - student_curriculum_assignments.curriculum_version_id = VERSION ID (item ID 아님)
+ *   - growth_events.curriculum_item_id = 실제 item ID이나,
+ *     현재 학생의 "현재 item"을 단일값으로 확정하는 canonical helper 없음
+ *
+ * 따라서: current_curriculum_id를 생략하고 undefined 반환.
+ * 향후 canonical current-item helper가 추가되면 여기서 재사용할 것.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function buildStudentProgress(
-  studentId: string,
-  poolId:    string,
+  _studentId: string,
+  _poolId:    string,
 ): Promise<PcStudentProgress | undefined> {
-  const result = await superAdminDb.execute(sql`
-    SELECT sca.curriculum_version_id
-    FROM student_curriculum_assignments sca
-    WHERE sca.student_id       = ${studentId}
-      AND sca.swimming_pool_id = ${poolId}
-      AND sca.is_active        = true
-    LIMIT 1
-  `);
-
-  if (!result.rows.length) {
-    return undefined; // progress 없음 — optional field 생략
-  }
-
-  const row = result.rows[0] as any;
-  const progress: PcStudentProgress = {};
-
-  if (row.curriculum_version_id) {
-    progress.current_curriculum_id = row.curriculum_version_id;
-  }
-
-  return Object.keys(progress).length > 0 ? progress : undefined;
+  // 현재 DB 구조에서 curriculum_items.id 기반 현재 진도를 확정할 수 없음.
+  // curriculum_version_id(VERSION ID)를 current_curriculum_id로 보내는 것은 금지.
+  // → student_progress 전체 생략.
+  return undefined;
 }

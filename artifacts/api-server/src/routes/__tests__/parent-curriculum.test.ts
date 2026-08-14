@@ -609,6 +609,100 @@ describe("WP2 — Parent Curriculum Search", () => {
     expect(res.body.code).toBe("INVALID_REQUEST");
   });
 
+  // ── WP2.1 Student Progress Semantic Fix ─────────────────────────────────────
+
+  // WP2.1-A: assignment(curriculum_version_id) 존재해도 current_curriculum_id 미전송
+  it("WP2.1-A. curriculum_version_id 행 있어도 current_curriculum_id 미전송", async () => {
+    // noProgress: false → student_curriculum_assignments에 version_id 행 반환되도록 설정
+    setupNormalDb({ itemCount: 500, noProgress: false });
+    (resolvePoolMode as ReturnType<typeof vi.fn>).mockResolvedValue({
+      pool_id: POOL_ID, mode: "normal", xmode_entitlement: false, xmode_config_status: "NOT_CONFIGURED",
+    });
+    (searchParentCurriculum as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeEngineSuccess({}, [ITEM_ID_1]),
+    );
+
+    const app = await buildApp({ userId: PARENT_ID, role: "parent_account" });
+    const res = await request(app)
+      .post(`/parent/students/${STUDENT_ID}/curriculum-search`)
+      .send({ request_id: REQUEST_ID, query: QUERY_TEXT });
+
+    expect(res.status).toBe(200);
+    const engineCall = (searchParentCurriculum as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    // student_progress 자체가 없거나, 있어도 current_curriculum_id 없어야 함
+    expect(engineCall.context.student_progress).toBeUndefined();
+  });
+
+  // WP2.1-B: current item 확정 불가 → omit (현재 구조상 canonical helper 없음)
+  it("WP2.1-B. canonical current item helper 없음 → student_progress 생략", async () => {
+    setupNormalDb({ itemCount: 500 });
+    (resolvePoolMode as ReturnType<typeof vi.fn>).mockResolvedValue({
+      pool_id: POOL_ID, mode: "normal", xmode_entitlement: false, xmode_config_status: "NOT_CONFIGURED",
+    });
+    (searchParentCurriculum as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeEngineSuccess({}, [ITEM_ID_1]),
+    );
+
+    const app = await buildApp({ userId: PARENT_ID, role: "parent_account" });
+    const res = await request(app)
+      .post(`/parent/students/${STUDENT_ID}/curriculum-search`)
+      .send({ request_id: REQUEST_ID, query: QUERY_TEXT });
+
+    expect(res.status).toBe(200);
+    const engineCall = (searchParentCurriculum as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(engineCall.context.student_progress).toBeUndefined();
+    // student_progress가 있어도 current_curriculum_id는 없어야 함
+    if (engineCall.context.student_progress) {
+      expect(engineCall.context.student_progress.current_curriculum_id).toBeUndefined();
+    }
+  });
+
+  // WP2.1-C: version ID 형식이 current_curriculum_id에 들어가지 않음
+  it("WP2.1-C. curriculum_version_id(cv_...) 형식이 current_curriculum_id로 전송 금지", async () => {
+    setupNormalDb({ itemCount: 500, noProgress: false });
+    (resolvePoolMode as ReturnType<typeof vi.fn>).mockResolvedValue({
+      pool_id: POOL_ID, mode: "normal", xmode_entitlement: false, xmode_config_status: "NOT_CONFIGURED",
+    });
+    (searchParentCurriculum as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeEngineSuccess({}, [ITEM_ID_1]),
+    );
+
+    const app = await buildApp({ userId: PARENT_ID, role: "parent_account" });
+    await request(app)
+      .post(`/parent/students/${STUDENT_ID}/curriculum-search`)
+      .send({ request_id: REQUEST_ID, query: QUERY_TEXT });
+
+    const engineCall = (searchParentCurriculum as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const progress = engineCall.context.student_progress;
+    // current_curriculum_id에 VERSION_ID(cv_...) 형식이 들어가면 안 됨
+    if (progress?.current_curriculum_id) {
+      expect(progress.current_curriculum_id).not.toBe(VERSION_ID);
+      expect(progress.current_curriculum_id).not.toMatch(/^cv_/);
+    }
+    // 현재 구현 상 student_progress 자체가 없는 것이 정상
+    expect(progress).toBeUndefined();
+  });
+
+  // WP2.1-D: progress 데이터 없음 → student_progress 생략 정상
+  it("WP2.1-D. progress 없음 → student_progress undefined, 200 정상 반환", async () => {
+    setupNormalDb({ itemCount: 500, noProgress: true });
+    (resolvePoolMode as ReturnType<typeof vi.fn>).mockResolvedValue({
+      pool_id: POOL_ID, mode: "normal", xmode_entitlement: false, xmode_config_status: "NOT_CONFIGURED",
+    });
+    (searchParentCurriculum as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeEngineSuccess({}, [ITEM_ID_1]),
+    );
+
+    const app = await buildApp({ userId: PARENT_ID, role: "parent_account" });
+    const res = await request(app)
+      .post(`/parent/students/${STUDENT_ID}/curriculum-search`)
+      .send({ request_id: REQUEST_ID, query: QUERY_TEXT });
+
+    expect(res.status).toBe(200);
+    const engineCall = (searchParentCurriculum as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(engineCall.context.student_progress).toBeUndefined();
+  });
+
   // TC-U: NORMAL active version 없음 → 422
   it("U. NORMAL: active curriculum_version 없음 → 422", async () => {
     (superAdminDb.execute as ReturnType<typeof vi.fn>).mockImplementation(async (query: any) => {
