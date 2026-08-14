@@ -1,0 +1,286 @@
+[SWIMNOTE APP]
+[REPLIT PUBLISHED DOMAIN API ROUTING ROOT CAUSE — INSPECTION ONLY]
+
+확인된 실제 Production 구조:
+
+Custom domain:
+swimnote.kr
+
+Replit Publish 화면에서:
+
+swimnote-8.replit.app
+swimnote.kr
+
+두 domain이 동일 Published App에 연결되어 있음.
+
+DNS:
+swimnote.kr → 34.111.179.208
+authoritative DNS = Gabia
+
+따라서 swimnote.kr traffic은
+Replit Published App front door로 들어감.
+
+현재 증상:
+
+정상 JSON:
+GET /api/healthz
+/api/auth/*
+/api/students*
+/api/super/*
+
+비정상 HTML SPA fallback:
+/api/parent/*
+/api/teacher/*
+/api/pools/*
+
+현재 latest code:
+deploy-photo-clone
+SHA 4d44b589
+
+중요:
+
+Cloudflare 수정 금지.
+Gabia DNS 수정 금지.
+Custom Domain 수정/삭제 금지.
+Republish 금지.
+Render deploy 금지.
+코드 수정 금지.
+DB write 금지.
+
+이번 단계는 ROOT CAUSE inspection only.
+
+==================================================
+1. REPLIT PUBLISHED APP ENTRYPOINT
+==================================================
+
+현재 swimnote.kr에 연결된
+Replit Published App이 실제로 어떤 command로 실행되는지 확인.
+
+보고:
+
+- deployment/publish type
+- build command
+- run/start command
+- listening port
+- entry file
+- NODE_ENV
+- WORKER_MODE
+
+현재 Published App이:
+
+A. API Express server + web SPA 통합 앱
+B. web frontend only
+C. proxy/router
+D. 기타
+
+중 무엇인지 확정.
+
+==================================================
+2. SWIMNOTE-8.REPLIT.APP SAME PATH TEST
+==================================================
+
+다음 요청을 custom domain이 아닌
+Replit 기본 domain에서 직접 테스트:
+
+https://swimnote-8.replit.app/api/healthz
+
+https://swimnote-8.replit.app/api/super/dashboard-stats
+
+https://swimnote-8.replit.app/api/parent/students/test/curriculum-search
+
+https://swimnote-8.replit.app/api/parent/students/test/curriculum-search/history
+
+https://swimnote-8.replit.app/api/parent/growth-reports/test/questions
+
+https://swimnote-8.replit.app/api/teacher/growth-reports/test/review
+
+각각:
+
+HTTP status
+Content-Type
+JSON/HTML
+
+확인.
+
+실제 user/student 데이터 사용 금지.
+
+==================================================
+3. DOMAIN COMPARISON
+==================================================
+
+동일 path를:
+
+A.
+https://swimnote-8.replit.app
+
+B.
+https://swimnote.kr
+
+에서 비교.
+
+결과가 동일하면:
+
+custom domain/DNS 문제 배제.
+
+Published App 내부 routing 문제.
+
+결과가 다르면:
+
+Replit custom-domain routing 문제 가능.
+
+==================================================
+4. EXPRESS APP ORDER
+==================================================
+
+실제 Production entrypoint에서:
+
+app.use("/api", ...)
+express.static(...)
+SPA catch-all
+sendFile(index.html)
+404
+
+의 정확한 registration order 확인.
+
+파일/라인 보고.
+
+==================================================
+5. API ROUTER ACTUAL MATCH
+==================================================
+
+다음 routes에 대해
+Express router의 실제 최종 mounted path를 계산:
+
+Parent Curriculum:
+POST /api/parent/students/:studentId/curriculum-search
+GET /api/parent/students/:studentId/curriculum-search/history
+
+Parent Growth Report
+
+Teacher Growth Report Review
+
+Pools routes
+
+Super routes
+
+단순히 source file에 존재한다고 하지 말고:
+
+app.ts mount
+→ routes/index.ts
+→ child router
+
+순서대로 추적해서
+최종 URL을 확정.
+
+==================================================
+6. ROUTER EXPORT / IMPORT CHECK
+==================================================
+
+특히 확인:
+
+parentCurriculumRouter
+parentGrowthReportRouter
+teacherGrowthReportReviewRouter
+parentRouter
+poolsRouter
+
+각 router가:
+
+- 올바르게 export
+- routes/index.ts에서 import
+- router.use()로 실제 mount
+- 조건부 feature flag 없이 실행
+
+되는지 확인.
+
+==================================================
+7. CATCH-ALL FALLTHROUGH
+==================================================
+
+왜 특정 API path만
+SPA index.html까지 fallthrough 하는지 추적.
+
+확인:
+
+- child router path typo
+- duplicate /api prefix
+- incorrect prefix
+- router middleware calling next()
+- method mismatch
+- dynamic route shadowing
+- conditional registration
+- build output에 최신 route 누락
+- published artifact가 source HEAD와 다른 build output 사용
+- 기타
+
+원인을 코드/런타임 근거로 확정.
+
+==================================================
+8. BUILD ARTIFACT CHECK
+==================================================
+
+중요:
+
+현재 Published App SHA와
+Git HEAD 4d44b589가 동일하다고 가정하지 말 것.
+
+Published App이 실제로 어떤 commit/build artifact인지 확인.
+
+가능하면:
+
+- deployed/published SHA
+- build timestamp
+- package artifact
+
+확인.
+
+최신 Git HEAD와 다르면 명확히 보고.
+
+==================================================
+9. NO CHANGE
+==================================================
+
+이번 단계에서는 원인만 찾는다.
+
+코드 수정 금지.
+Republish 금지.
+domain 변경 금지.
+DNS 변경 금지.
+
+==================================================
+10. REPORT
+==================================================
+
+다음만 보고:
+
+1. PUBLISHED APP TYPE
+2. BUILD COMMAND
+3. START COMMAND
+4. ENTRYPOINT
+5. PUBLISHED SHA
+6. SWIMNOTE-8 HEALTH RESULT
+7. SWIMNOTE-8 SUPER RESULT
+8. SWIMNOTE-8 PARENT SEARCH RESULT
+9. SWIMNOTE-8 PARENT HISTORY RESULT
+10. SWIMNOTE-8 GROWTH RESULTS
+11. SWIMNOTE.KR RESULTS
+12. BOTH DOMAINS SAME BEHAVIOR?
+13. EXPRESS API MOUNT ORDER
+14. PARENT FINAL ROUTE PATH
+15. TEACHER FINAL ROUTE PATH
+16. POOLS FINAL ROUTE PATH
+17. SPA FALLBACK REASON
+18. BUILD ARTIFACT CURRENT?
+19. ROOT CAUSE
+20. CODE CHANGE
+21. REPUBLISH
+22. DNS CHANGE
+23. DB WRITE
+
+최종:
+
+REPLIT_PUBLISHED_API_ROUTING_ROOT_CAUSE_FOUND ✅
+
+또는
+
+REPLIT_PUBLISHED_API_ROUTING_ROOT_CAUSE_BLOCKED ❌
