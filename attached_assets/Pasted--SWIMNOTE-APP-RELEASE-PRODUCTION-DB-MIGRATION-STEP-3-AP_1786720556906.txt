@@ -1,0 +1,190 @@
+[SWIMNOTE APP RELEASE]
+[PRODUCTION DB MIGRATION — STEP 3]
+[APPLY GR5 ONLY]
+
+현재 완료:
+
+GR1 Production Migration ✅
+GR3 Production Migration ✅
+
+이번 단계에서는:
+
+GR5 migration 하나만 Production에 적용한다.
+
+Group 7/8 실행 금지.
+Render deploy 금지.
+API/Worker deploy 금지.
+OTA 금지.
+EAS build 금지.
+코드 수정 금지.
+
+==================================================
+1. TARGET DB
+==================================================
+
+반드시 동일 SWIMNOTE APP Production Supabase.
+
+사용:
+SUPABASE_DATABASE_URL
++
+repository canonical buildConfig() 방식.
+
+AI ENGINE PROD_DATABASE_URL 사용 금지.
+
+실행 직전 read-only 확인:
+
+- current_database()
+- swimming_pools count
+- growth_reports.product_status EXISTS
+- growth_reports.analysis_retry_count EXISTS
+
+이전 GR1/GR3 적용 DB와 동일하지 않으면 STOP.
+
+==================================================
+2. MIGRATION TARGET
+==================================================
+
+오직:
+
+initGrowthReportGR5Schema()
+
+또는 repository의 GR5 전용 canonical entrypoint.
+
+대상 파일:
+
+src/migrations/growth-report-gr5-review-init.ts
+
+다른 migration 같이 실행 금지.
+
+==================================================
+3. EXPECTED CHANGE
+==================================================
+
+GR5 migration 실제 파일 기준으로 적용.
+
+현재 알려진 핵심 컬럼:
+
+growth_reports.teacher_review_action
+growth_reports.teacher_review_reason_code
+growth_reports.teacher_review_note
+growth_reports.teacher_reanalysis_count
+
+정확한 type/default/nullability/constraint는
+migration 파일을 source of truth로 사용.
+
+==================================================
+4. SAFETY
+==================================================
+
+migration 파일 확인:
+
+DROP TABLE 없음
+DROP COLUMN 없음
+DELETE 없음
+TRUNCATE 없음
+기존 unrelated data 변경 없음
+
+additive-only가 아니면 STOP.
+
+==================================================
+5. EXECUTION
+==================================================
+
+fail-fast 방식으로 GR5만 실행.
+
+Group 7/8 또는 다른 startup migration 실행 금지.
+
+==================================================
+6. POST CHECK
+==================================================
+
+성공 후 read-only 확인:
+
+- teacher_review_action EXISTS
+- teacher_review_reason_code EXISTS
+- teacher_review_note EXISTS
+- teacher_reanalysis_count EXISTS
+
+각각:
+
+- data_type
+- default
+- nullability
+
+migration contract와 비교.
+
+GR5가 enum/check/index/constraint를 생성한다면
+전부 실제 존재 여부 확인.
+
+==================================================
+7. DATA SAFETY
+==================================================
+
+migration 전후:
+
+growth_reports row count 비교.
+
+현재 예상:
+0 → 0
+
+신규 Growth Report row 생성 금지.
+Review row 생성 금지.
+Cycle/Question/Answer row 생성 금지.
+
+schema only.
+
+==================================================
+8. FAILURE POLICY
+==================================================
+
+오류 발생 시 즉시 STOP.
+
+Group 7/8 실행 금지.
+Render deploy 금지.
+
+임의 DROP/rollback SQL 금지.
+
+실제 적용 상태만 보고.
+
+==================================================
+9. NO DEPLOY
+==================================================
+
+GR5 성공 후에도:
+
+Render deploy 금지.
+Worker deploy 금지.
+OTA/build 금지.
+
+다음 단계에서 APP API/Worker Production deploy를 별도 진행.
+
+==================================================
+10. REPORT
+==================================================
+
+다음만 보고:
+
+1. TARGET DB VERIFIED
+2. GR5 MIGRATION ENTRYPOINT
+3. ADDITIVE ONLY? YES/NO
+4. EXECUTION RESULT
+5. teacher_review_action STATUS
+6. teacher_review_reason_code STATUS
+7. teacher_review_note STATUS
+8. teacher_reanalysis_count STATUS
+9. TYPE / DEFAULT / NULLABILITY
+10. INDEX / CONSTRAINT STATUS
+11. BEFORE growth_reports ROW COUNT
+12. AFTER growth_reports ROW COUNT
+13. DESTRUCTIVE OPERATION
+14. PRODUCTION DATA CREATED
+15. GROUP 7/8 EXECUTED? YES/NO
+16. SERVER DEPLOY STATUS
+
+성공:
+
+SWIMNOTE_APP_GR5_PRODUCTION_MIGRATION_APPLIED ✅
+
+실패:
+
+SWIMNOTE_APP_GR5_PRODUCTION_MIGRATION_BLOCKED ❌
