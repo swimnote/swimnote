@@ -1,0 +1,213 @@
+[SWIMNOTE APP]
+[PARENT CURRICULUM SEARCH — WP2B.1]
+[QUOTA STORAGE COLLISION + RETRY AUDIT ONLY]
+
+현재 WP2B 완료:
+
+commit:
+38efafab
+
+tests:
+1042 / 1042 PASS
+
+이번 작업은 코드 수정 전에
+월 10회 quota 저장 구조가
+기존 Parent AI daily usage와 충돌하지 않는지
+실제 DB schema/SQL 기준으로 확인한다.
+
+또한 FAILED request_id 재시도가
+정상적으로 다시 reservation 되는지 확인한다.
+
+Production deploy 금지.
+Production migration 금지.
+UI 작업 금지.
+
+==================================================
+1. parent_ai_daily_usage ACTUAL SCHEMA
+==================================================
+
+실제 schema를 보고:
+
+- columns
+- PK
+- UNIQUE constraints
+- indexes
+
+정확히 제출.
+
+특히 확인:
+
+parent_account_id
+usage_date
+feature 또는 usage_type
+completed_count
+reserved_count
+failed_count
+
+==================================================
+2. COLLISION CHECK
+==================================================
+
+현재 Curriculum Search monthly quota가:
+
+usage_date = 해당 월 1일
+
+을 사용하는 구조에서
+
+기존 Parent AI의
+2026-08-01 daily usage row와
+같은 DB key를 사용할 가능성이 있는지 확인.
+
+반드시 실제 UNIQUE/PK 기준으로 판정.
+
+다음 중 하나:
+
+A.
+(parent_account_id, feature, usage_date)
+등 feature가 key에 포함
+→ 충돌 없음
+
+B.
+(parent_account_id, usage_date)
+등 feature 구분 없음
+→ 충돌 있음 / BLOCK
+
+C.
+다른 canonical 구조
+→ 정확히 설명
+
+"논리적으로 다르다"가 아니라
+DB constraint로 증명.
+
+==================================================
+3. FEATURE ISOLATION
+==================================================
+
+Curriculum Search의 usage가
+기존 Parent AI / Growth Report / 기타 기능의 usage와
+
+- completed_count
+- reserved_count
+- failed_count
+
+를 공유하지 않는지 확인.
+
+같은 row를 공유하면 안 됨.
+
+월 10회는 Curriculum Search 전용 quota여야 한다.
+
+==================================================
+4. RESERVATION TABLE ACTUAL SCHEMA
+==================================================
+
+parent_ai_usage_reservations의:
+
+- PK
+- UNIQUE
+- request_id
+- feature
+- status
+- parent id
+- usage period/date
+
+실제 구조 제출.
+
+==================================================
+5. FAILED REQUEST RETRY
+==================================================
+
+현재 보고:
+
+FAILED/없음 → fresh attempt
+
+이라고 했는데,
+
+동일 request_id가 이미
+FAILED row로 존재하는 상태에서
+
+다시 요청하면 실제 SQL이:
+
+1. quota reservation을 다시 +1 하는지
+2. 기존 FAILED reservation을 RESERVED로 전환하는지
+3. INSERT ... ON CONFLICT DO NOTHING 때문에
+   FAILED 상태 그대로 남는 문제는 없는지
+4. 성공 후 COMPLETED로 정상 전환되는지
+
+실제 query/transaction 흐름으로 확인.
+
+==================================================
+6. COMPLETED REQUEST RETRY
+==================================================
+
+동일 request_id가 이미 COMPLETED라면:
+
+가능하면 ENGINE을 다시 호출하지 않는 게 정상.
+
+현재 구현이 ENGINE을 다시 호출한다면
+그 이유와 영향 보고.
+
+이번 audit에서 임의 수정 금지.
+
+확인만 한다.
+
+==================================================
+7. MONTH BOUNDARY
+==================================================
+
+Asia/Seoul 기준:
+
+2026-08-31 23:59:59
+→ 2026-09-01 00:00:00
+
+에서 새 quota row/key로 완전히 분리되는지 확인.
+
+Conversation/message history는 절대 초기화되지 않는지 함께 확인.
+
+중요:
+
+초기화 대상 = quota only
+유지 대상 = conversation + messages
+
+==================================================
+8. VERDICT
+==================================================
+
+다음 중 하나로 판정:
+
+QUOTA_STORAGE_SAFE
+
+또는
+
+QUOTA_STORAGE_COLLISION
+
+또는
+
+QUOTA_RETRY_BUG
+
+복수 문제면 모두 보고.
+
+==================================================
+9. REPORT
+==================================================
+
+다음만 보고:
+
+1. USAGE TABLE PK / UNIQUE
+2. FEATURE COLUMN EXISTS? YES/NO
+3. MONTHLY VS DAILY COLLISION? YES/NO
+4. COUNTERS ISOLATED BY FEATURE? YES/NO
+5. RESERVATION TABLE PK / UNIQUE
+6. FAILED RETRY ACTUAL FLOW
+7. COMPLETED RETRY ACTUAL FLOW
+8. MONTH BOUNDARY RESULT
+9. CONVERSATION HISTORY RESET? YES/NO
+10. CODE CHANGE
+11. PRODUCTION WRITE
+
+안전하면:
+
+PARENT_CURRICULUM_QUOTA_STORAGE_VERIFIED ✅
+
+문제 있으면:
+
+PARENT_CURRICULUM_QUOTA_STORAGE_BLOCKED ❌
