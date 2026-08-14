@@ -496,8 +496,8 @@ importers:
         specifier: ~55.0.16
         version: 55.0.16(expo@55.0.28)(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
       expo-build-properties:
-        specifier: ^57.0.9
-        version: 57.0.9(expo@55.0.28)
+        specifier: ^55.0.16
+        version: 55.0.16(expo@55.0.28)
       expo-clipboard:
         specifier: 55.0.15
         version: 55.0.15(expo@55.0.28)(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
@@ -538,8 +538,8 @@ importers:
         specifier: ~55.0.25
         version: 55.0.25(expo@55.0.28)(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
       expo-print:
-        specifier: ^57.0.1
-        version: 57.0.1(expo@55.0.28)(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))
+        specifier: ^55.0.17
+        version: 55.0.17(expo@55.0.28)(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))
       expo-router:
         specifier: ~55.0.17
         version: 55.0.17(9a7465a662fa64ca9c497d94424f4d6c)
@@ -1933,9 +1933,6 @@ packages:
 
   '@expo/schema-utils@55.0.5':
     resolution: {integrity: sha512-wdV4SzWJ/l+6y/r9vDaqPqXGyfxUD1igbX8rRbRBfkVXenAUY2qenq6HF4S0iJ0pjpVDNTANn5aQY7VV55hhsA==}
-
-  '@expo/schema-utils@57.0.2':
-    resolution: {integrity: sha512-fMu/jyN0l1Wzv7XkeWR4IYCx1M8ryui3FdBNGrWwbRgJ7EhxXxK8E2jxP2W3pbgUwUY0V3hG8+GyfCZwny+Lxw==}
 
   '@expo/sdk-runtime-versions@1.0.0':
     resolution: {integrity: sha512-Doz2bfiPndXYFPMRwPyGa1k5QaKDVpY806UJj570epIiMzWaYyCtobasyfC++qfIXVb5Ocy7r3tP9d62hAQ7IQ==}
@@ -5027,8 +5024,8 @@ packages:
       react: '*'
       react-native: '*'
 
-  expo-build-properties@57.0.9:
-    resolution: {integrity: sha512-IX8Nz85yNDZyqBK7zbLEfn4ijMGaF6TmLjCY2KE0UKltUoV78DhgN6ksPZbDbPDvqLpU2fMY/5OD4CbYB7hHwg==}
+  expo-build-properties@55.0.16:
+    resolution: {integrity: sha512-i8vRqvbGQHfNGMx9iKKtJzK3/KODD2HsOIBrzQGns3ShwMc/6+J6kHDBpph6BpDAWihi6kY7VIDMKiN7ov8PhQ==}
     peerDependencies:
       expo: '*'
 
@@ -5158,8 +5155,8 @@ packages:
       react: '*'
       react-native: '*'
 
-  expo-print@57.0.1:
-    resolution: {integrity: sha512-cEfxM+sV5suZyqbXsOmDGRHD+UmfAh2GWabbakdkl1s70L4MFiObPtC73ATXNjeUe+mlzxLhudoTxsuyJxk8Mg==}
+  expo-print@55.0.17:
+    resolution: {integrity: sha512-PZMuiaJzHNZvv+u9/EVsyDbP6NYeX4ZKEUN1SxNOIHfklFnrwOH5t3R534yKh1qHBbSvQ4Nbn965rpVTqAltdA==}
     peerDependencies:
       expo: '*'
       react-native: '*'
@@ -9976,8 +9973,6 @@ snapshots:
 
   '@expo/schema-utils@55.0.5': {}
 
-  '@expo/schema-utils@57.0.2': {}
-
   '@expo/sdk-runtime-versions@1.0.0': {}
 
   '@expo/spawn-async@1.7.2':
@@ -13748,9 +13743,9 @@ snapshots:
       react: 19.2.0
       react-native: 0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0)
 
-  expo-build-properties@57.0.9(expo@55.0.28):
+  expo-build-properties@55.0.16(expo@55.0.28):
     dependencies:
-      '@expo/schema-utils': 57.0.2
+      '@expo/schema-utils': 55.0.5
       expo: 55.0.28(@babel/core@7.29.0)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.12)(expo-router@55.0.17)(react-dom@19.1.0(react@19.2.0))(react-native-worklets@0.7.4(@babel/core@7.29.0)(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
       resolve-from: 5.0.0
       semver: 7.8.5
@@ -13885,7 +13880,7 @@ snapshots:
       - supports-color
       - typescript
 
-  expo-print@57.0.1(expo@55.0.28)(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0)):
+  expo-print@55.0.17(expo@55.0.28)(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0)):
     dependencies:
       expo: 55.0.28(@babel/core@7.29.0)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.12)(expo-router@55.0.17)(react-dom@19.1.0(react@19.2.0))(react-native-worklets@0.7.4(@babel/core@7.29.0)(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
       react-native: 0.83.10(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0)
