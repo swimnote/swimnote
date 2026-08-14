@@ -1,51 +1,55 @@
 ---
-name: WP2B + WP2B.2 완료 상태
-description: Parent Curriculum Search WP2B (Monthly Quota + Conversation) + WP2B.2 (Feature Isolation + Idempotency Fix) 구현 완료 상태
+name: WP2B + WP2B.2 + WP2B.3 완료 상태
+description: Parent Curriculum Search WP2B/WP2B.2/WP2B.3 구현 완료 상태
 ---
 
 ## WP2B 완료 상태 (SHA 38efafab)
-- Monthly quota: parent_account_id + calendar month (Asia/Seoul), 월 10회
+- Monthly quota: parent_account_id + feature + calendar month (Asia/Seoul), 월 10회
 - parent_curriculum_conversations + parent_curriculum_messages (Group 7 migration)
 - GET history endpoint
 
 ## WP2B.2 완료 상태 (SHA 12597f11)
-- **TC**: 17 TC PASS + 1059 전체 PASS (33 파일)
+- CURRICULUM_SEARCH_FEATURE = 'parent_curriculum_search' 상수
+- parent_ai_daily_usage: feature column + UNIQUE(parent_account_id, feature, usage_date)
+- parent_ai_usage_reservations: feature column
+- Group 8 migration: ALTER TABLE additive (기존 환경용) — initXModeSchema() 내 자동 실행
+- getPriorReservationStatus(): COMPLETED 체크 → quota reservation 이전 실행
+- FAILED retry: UPDATE WHERE status='FAILED' atomic + 경쟁 시 rollback
+- COMPLETED retry: persisted result replay (ENGINE 재호출 금지, quota 차감 금지)
+- AssistantMeta.result_payload: answer/current_progress/next_step 저장 및 replay 지원
+
+## WP2B.3 완료 상태 (SHA 290a1fda)
+- **TC**: 12 TC PASS + 1071 전체 PASS (34 파일)
 - **배포**: 미배포 (WP1+WP1.1 ENGINE 배포 선행 필요)
 
-### Feature Isolation
-- `CURRICULUM_SEARCH_FEATURE = 'parent_curriculum_search'` 상수
-- `parent_ai_daily_usage`: feature TEXT NOT NULL DEFAULT 'parent_curriculum_search' 컬럼 추가
-- UNIQUE 변경: `(parent_account_id, usage_date)` → `(parent_account_id, feature, usage_date)`
-- `parent_ai_usage_reservations`: feature TEXT NOT NULL DEFAULT 'parent_curriculum_search' 컬럼 추가
-- Group 4 CREATE TABLE 업데이트 (신규 환경용)
-- Group 8 migration: ALTER TABLE additive (기존 환경용) — 서버 시작 시 자동
+### 핵심 변경
+- `finalizeCurriculumSearchSuccess()` 신규 함수 (parent-curriculum-quota.ts)
+  - drizzle `.transaction()` 사용 (단일 DB connection 보장)
+  - 원자적 실행: ① ASSISTANT INSERT → ② reservation COMPLETED → ③ usage counters
+  - 실패 시: drizzle 자동 rollback → reservation RESERVED 유지 → retry 가능
+- Route step 14: `finalizeQuotaSuccess().catch()` + `saveAssistantMessage().catch()` 제거
+  → `finalizeCurriculumSearchSuccess()` try/catch로 대체
+  → 실패 시 502 FINALIZATION_FAILED retryable:true 반환
 
-### FAILED Retry Fix
-- INSERT ON CONFLICT DO NOTHING (잘못됨) → UPDATE SET status='RESERVED' WHERE status='FAILED' RETURNING
-- 경쟁 상황: UPDATE 0 rows → quota increment rollback → ok:false
-- 결과: 성공 시 reservation RESERVED → COMPLETED (finalizeQuotaSuccess 정상 작동)
+### 보장 (invariant)
+- **COMPLETED + no persisted result 상태 불가능** (transaction rollback 보장)
+- finalization 실패 → 200 반환 금지 (이전: `.catch()` 패턴이 에러 삼켜서 200 반환)
+- 동일 request_id ASSISTANT INSERT: ON CONFLICT DO NOTHING (멱등)
+- COMPLETED replay 경로: finalizeCurriculumSearchSuccess 미호출 (quota 차감 금지)
 
-### COMPLETED Retry Fix
-- `getPriorReservationStatus()` 함수 추가 — route에서 quota reservation 이전에 COMPLETED 확인
-- COMPLETED → ENGINE 재호출 금지, quota 차감 금지
-- `getAssistantMessageByRequestId()` 함수 추가 — persisted ASSISTANT message 조회
-- `AssistantMeta.result_payload` 추가 — answer/current_progress/next_step 저장
-- saveAssistantMessage 시 result_payload 포함 → 이후 replay에서 완전한 응답 복원
+### 기존 Rollback 정책 유지
+- ENGINE 실패/timeout/validation fail → rollbackQuotaReservation (reservation FAILED)
+- finalization 실패 → reservation RESERVED 유지 (별도 rollback 불필요, tx auto-rollback)
 
-### Route Flow (canonical order after WP2B.2)
-```
-auth → ownership → getPriorReservationStatus
-IF COMPLETED → findConversation → getAssistantMessageByRequestId → replay → RETURN
-ELSE → conversation upsert → tryReserveMonthlyQuota → pool/mode → scope → ENGINE → save
-```
+### Route Import 변경
+- 제거: `finalizeQuotaSuccess` (route 미사용, lib에는 유지)
+- 제거: `saveAssistantMessage` (route 미사용, finalizeCurriculumSearchSuccess 내부 처리)
+- 추가: `finalizeCurriculumSearchSuccess`
 
-### Key Rules
-- 10/10 한도 상태에서도 COMPLETED request_id는 replay 가능 (quota 체크 선행 없음)
-- FAILED retry → saveUserMessage ON CONFLICT DO NOTHING (기존 USER message 재사용, 중복 없음)
-- COMPLETED retry → saveUserMessage/saveAssistantMessage 호출 없음
-- Production migration: Group 8이 initXModeSchema()에 포함됨 — Render 배포 시 자동 실행
+### Production Claim 정정
+- "Production row = 0" 표현: 코드 grep + Production DB 미배포 확인 기반 추론.
+  실제 Production SELECT 아님. Production 데이터는 별도 확인 필요.
 
-## Why
-- 기존 테이블에 feature 컬럼 없음 → 매월 1일 daily AI/curriculum search collision 가능성
-- FAILED retry의 INSERT ON CONFLICT DO NOTHING이 FAILED row를 남겨 audit trail 불일치
-- COMPLETED retry 시 ENGINE 재호출 + completed_count 이중 차감
+## Production 배포 선행 조건
+WP1+WP1.1 ENGINE 배포 완료 후 Render.com 재배포 필요.
+Group 8 migration은 서버 시작 시 자동 실행 (initXModeSchema() 포함).

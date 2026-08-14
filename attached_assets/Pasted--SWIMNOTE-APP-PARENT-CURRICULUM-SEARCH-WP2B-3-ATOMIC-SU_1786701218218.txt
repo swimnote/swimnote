@@ -1,0 +1,295 @@
+[SWIMNOTE APP]
+[PARENT CURRICULUM SEARCH — WP2B.3]
+[ATOMIC SUCCESS FINALIZATION FIX ONLY]
+
+현재 완료:
+
+WP2B.2 commit:
+12597f11
+
+tests:
+1059 / 1059 PASS
+
+현재 확인된 마지막 서버 정합성 문제:
+
+성공 처리 순서가 보고상:
+
+ENGINE success
+→ validateEngineResponse
+→ finalizeQuotaSuccess
+→ saveAssistantMessage
+
+로 되어 있음.
+
+이 경우 quota가 COMPLETED로 확정된 뒤
+assistant message 저장이 실패하면:
+
+- quota는 차감됨
+- persisted answer 없음
+- reservation은 COMPLETED
+- 동일 request_id replay 불가능
+
+상태가 발생할 수 있음.
+
+이번 작업은 이 atomicity 문제만 수정한다.
+
+Parent UI 금지.
+ENGINE 수정 금지.
+Production migration 실행 금지.
+Production deploy 금지.
+Build/OTA 금지.
+
+==================================================
+1. ACTUAL SUCCESS PATH 확인
+==================================================
+
+실제 route/service 코드에서 정확한 순서를 확인:
+
+- ENGINE response
+- response validation
+- quota finalize
+- assistant message save
+- HTTP response
+
+보고서가 실제 코드와 다르면
+실제 코드 기준으로 판정.
+
+==================================================
+2. CANONICAL SUCCESS DEFINITION
+==================================================
+
+질문 1회가 최종 성공으로 확정되려면 반드시:
+
+A. ENGINE success
+B. APP response validation PASS
+C. Assistant result persistence 성공
+D. quota reservation COMPLETED
+
+이 네 상태가 정합해야 한다.
+
+다음 상태 금지:
+
+quota COMPLETED
++
+assistant persisted result 없음
+
+==================================================
+3. TRANSACTION / COMPENSATION
+==================================================
+
+가능하면 APP DB의:
+
+- assistant message persistence
+- quota RESERVED → COMPLETED
+- reserved_count -1
+- completed_count +1
+
+을 하나의 DB transaction으로 묶는다.
+
+가장 안전한 canonical 결과:
+
+BEGIN
+
+1. assistant message INSERT/UPSERT
+2. reservation RESERVED → COMPLETED
+3. usage reserved_count -1
+4. usage completed_count +1
+
+COMMIT
+
+하나라도 실패:
+ROLLBACK
+
+ENGINE 외부 HTTP 호출 자체는
+DB transaction 안에서 오래 잡지 않는다.
+
+즉:
+
+quota RESERVED
+→ ENGINE call
+→ validation
+→ short DB success-finalization transaction
+
+형태가 되어야 함.
+
+==================================================
+4. EXISTING HELPERS
+==================================================
+
+현재:
+
+finalizeQuotaSuccess()
+saveAssistantMessage()
+
+가 각각 별도 DB operation이면
+최소 변경으로 transactional helper를 만든다.
+
+예:
+
+finalizeCurriculumSearchSuccess(...)
+
+책임:
+
+- assistant result 저장
+- quota finalize
+
+를 동일 transaction으로 수행.
+
+기존 helper 전체 재작성 금지.
+
+==================================================
+5. MESSAGE IDEMPOTENCY
+==================================================
+
+UNIQUE(request_id, role)를 유지.
+
+transaction retry 시:
+
+- ASSISTANT 중복 row 금지
+- completed_count 중복 증가 금지
+
+이미 assistant row가 존재하면서
+reservation이 RESERVED인 비정상 복구 상황도
+안전하게 처리할 수 있는지 확인.
+
+==================================================
+6. FAILURE BEHAVIOR
+==================================================
+
+ENGINE 성공 후
+assistant persistence 또는 quota-finalization DB 작업이 실패하면:
+
+HTTP 성공 반환 금지.
+
+reservation/usage는
+transaction rollback 결과와 일치해야 함.
+
+필요 시 reservation은 RESERVED 상태로 남아서
+동일 request_id 재시도가 가능해야 한다.
+
+또는 기존 canonical recovery policy가 있으면
+그 방식 사용.
+
+절대:
+
+COMPLETED + no persisted result
+
+상태를 만들지 않는다.
+
+==================================================
+7. COMPLETED REPLAY INVARIANT
+==================================================
+
+COMPLETED reservation이라면 반드시:
+
+동일 request_id의 persisted ASSISTANT result가
+존재해야 한다.
+
+코드상 이 invariant가 보장되는지 확인.
+
+COMPLETED인데 assistant result가 없을 경우
+정상 replay 성공으로 위장하지 않는다.
+
+typed integrity error 또는 recovery path 사용.
+
+==================================================
+8. QUOTA FAILURE REFUND RULE 유지
+==================================================
+
+기존 규칙 유지:
+
+ENGINE 401/429/5xx
+timeout
+network failure
+grounding fail
+response validation fail
+
+→ 최종 quota 차감 없음.
+
+이번 수정으로 기존 rollback 정책 깨지지 않게 할 것.
+
+==================================================
+9. TEST
+==================================================
+
+최소:
+
+A. 정상 성공
+→ assistant 1건 + completed_count +1 + reservation COMPLETED
+
+B. assistant INSERT 실패
+→ completed_count 증가 없음
+→ reservation COMPLETED 아님
+→ persisted assistant 없음
+
+C. quota finalize 실패
+→ assistant INSERT도 rollback
+→ completed_count 증가 없음
+
+D. transaction 중간 오류
+→ partial state 없음
+
+E. 동일 request_id transaction retry
+→ assistant 중복 없음
+→ quota 이중 차감 없음
+
+F. COMPLETED replay
+→ persisted result 정상 반환
+→ ENGINE 0회
+→ quota 0 추가 차감
+
+G. COMPLETED인데 assistant 없음 synthetic corruption
+→ 정상 성공 replay 금지
+
+H. FAILED retry 기존 동작 유지
+
+I. 10/10 limit 기존 동작 유지
+
+J. history read quota 차감 없음
+
+기존 WP2/WP2.1/WP2B/WP2B.2 regression 포함.
+
+전체 regression 실행.
+
+==================================================
+10. PRODUCTION ROW CLAIM
+
+이전 보고의:
+
+"Production row = 0"
+
+가 실제 Production SELECT가 아니라
+code grep으로 추론한 것이라면
+그 표현을 정정한다.
+
+이번 작업에서 Production DB 조회가 필요하지 않으면
+굳이 조회하지 않는다.
+
+추측을 실제 DB evidence처럼 보고하지 않는다.
+
+==================================================
+11. REPORT
+==================================================
+
+다음만 보고:
+
+1. ACTUAL OLD SUCCESS ORDER
+2. ROOT RISK CONFIRMED? YES/NO
+3. NEW SUCCESS ORDER
+4. TRANSACTION BOUNDARY
+5. FILES CHANGED
+6. PARTIAL SUCCESS POSSIBLE AFTER FIX? YES/NO
+7. COMPLETED→PERSISTED RESULT INVARIANT
+8. TEST RESULT
+9. FULL REGRESSION
+10. COMMIT SHA
+11. PRODUCTION MIGRATION STATUS
+12. PRODUCTION DEPLOY STATUS
+
+성공:
+
+PARENT_CURRICULUM_APP_WP2B_3_COMPLETE ✅
+
+문제:
+
+PARENT_CURRICULUM_APP_WP2B_3_BLOCKED ❌
