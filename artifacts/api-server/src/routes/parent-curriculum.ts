@@ -1,18 +1,24 @@
 /**
- * parent-curriculum.ts — WP2: Parent Curriculum Search API
+ * parent-curriculum.ts — WP2 / WP2.1 / WP2B: Parent Curriculum Search API
  *
  * Routes:
  *   POST /parent/students/:studentId/curriculum-search
+ *   GET  /parent/students/:studentId/curriculum-search/history
  *
- * Flow:
+ * Flow (POST):
  *   Parent JWT 인증
  *   → Parent↔Student 소유권 확인
+ *   → Conversation 조회/생성
+ *   → Monthly quota 확인 + 예약
  *   → Student pool 확인
  *   → resolvePoolMode()
  *   → 모드별 Curriculum Scope 구성
  *   → Student Progress 구성
+ *   → USER message 저장
  *   → ENGINE 호출
  *   → Response 검증
+ *   → 성공: quota finalize, ASSISTANT message 저장
+ *   → 실패: quota rollback
  *   → 안전한 결과 반환
  *
  * 금지:
@@ -42,6 +48,21 @@ import {
   type ParentCurriculumEngineRequest,
   type ParentCurriculumEngineResponse,
 } from "../lib/parent-curriculum-engine-client.js";
+import {
+  tryReserveMonthlyQuota,
+  finalizeQuotaSuccess,
+  rollbackQuotaReservation,
+  getMonthlyUsageInfo,
+  MONTHLY_LIMIT,
+} from "../lib/parent-curriculum-quota.js";
+import {
+  getOrCreateConversation,
+  findConversation,
+  saveUserMessage,
+  saveAssistantMessage,
+  touchConversation,
+  getConversationMessages,
+} from "../lib/parent-curriculum-conversation.js";
 
 const router = Router();
 
@@ -87,7 +108,7 @@ function validateEngineResponse(
   if (response.grounding?.validation !== "PASS") {
     return { valid: false, reason: `grounding.validation=${response.grounding?.validation}` };
   }
-  // 6. curriculum_ids subset 검증 (ENGINE이 보낸 IDs가 APP이 허용한 범위 내인지)
+  // 6. curriculum_ids subset 검증
   const returnedIds: string[] = response.grounding?.curriculum_ids ?? [];
   for (const id of returnedIds) {
     if (!allowedCurriculumIds.has(id)) {
@@ -97,16 +118,12 @@ function validateEngineResponse(
   return { valid: true };
 }
 
-// ─── Route ────────────────────────────────────────────────────────────────────
+// ─── POST: Curriculum Search ───────────────────────────────────────────────────
 
 /**
  * POST /parent/students/:studentId/curriculum-search
  *
  * Body: { request_id: string, query: string }
- *
- * - studentId는 URL path에서 받음
- * - pool_id, mode, curriculum IDs는 client가 임의 전송 불가 (서버가 결정)
- * - Parent는 질문만 전달
  */
 router.post(
   "/parent/students/:studentId/curriculum-search",
@@ -128,6 +145,9 @@ router.post(
       return;
     }
 
+    const trimmedRequestId = request_id.trim();
+    const trimmedQuery     = query.trim();
+
     // ── 1. Parent↔Student 소유권 확인 ────────────────────────────────────────
     const ownershipResult = await superAdminDb.execute(sql`
       SELECT ps.swimming_pool_id
@@ -145,7 +165,42 @@ router.post(
 
     const poolId = (ownershipResult.rows[0] as any).swimming_pool_id as string;
 
-    // ── 2. Pool 이름 조회 ─────────────────────────────────────────────────────
+    // ── 2. Conversation 조회/생성 ─────────────────────────────────────────────
+    const conversationId = await getOrCreateConversation(parentId, studentId, poolId)
+      .catch((err) => {
+        console.error("[parent-curriculum] conversation upsert failed:", err?.message);
+        return null as string | null;
+      });
+
+    if (!conversationId) {
+      res.status(500).json({ error: "서버 오류가 발생했습니다.", code: "INTERNAL_ERROR" });
+      return;
+    }
+
+    // ── 3. Monthly Quota 확인 + 예약 ─────────────────────────────────────────
+    const reserveResult = await tryReserveMonthlyQuota(parentId, trimmedRequestId)
+      .catch((err) => {
+        console.error("[parent-curriculum] quota reserve failed:", err?.message);
+        return null as Awaited<ReturnType<typeof tryReserveMonthlyQuota>> | null;
+      });
+
+    if (!reserveResult) {
+      res.status(500).json({ error: "서버 오류가 발생했습니다.", code: "INTERNAL_ERROR" });
+      return;
+    }
+
+    if (!reserveResult.ok) {
+      // 한도 초과
+      const { usageInfo } = reserveResult;
+      res.status(429).json({
+        error: "이번 달 커리큘럼 검색 사용 한도에 도달했습니다.",
+        code:  "PARENT_CURRICULUM_MONTHLY_LIMIT_REACHED",
+        usage: usageInfo,
+      });
+      return;
+    }
+
+    // ── 4. Pool 이름 조회 ─────────────────────────────────────────────────────
     const poolResult = await superAdminDb.execute(sql`
       SELECT name
       FROM swimming_pools
@@ -155,18 +210,20 @@ router.post(
 
     const poolName = ((poolResult.rows[0] as any)?.name as string | null) ?? poolId;
 
-    // ── 3. Pool mode 판정 (resolvePoolMode 재사용) ────────────────────────────
+    // ── 5. Pool mode 판정 ─────────────────────────────────────────────────────
     const modeResult = await resolvePoolMode(poolId);
 
     if (!modeResult) {
+      await rollbackQuotaReservation(parentId, trimmedRequestId, "POOL_NOT_FOUND");
       res.status(404).json({ error: "수영장을 찾을 수 없습니다.", code: "POOL_NOT_FOUND" });
       return;
     }
 
-    const poolMode = modeResult.mode; // "normal" | "x_pending" | "x"
+    const poolMode = modeResult.mode;
 
-    // ── 4. x_pending → 차단 ──────────────────────────────────────────────────
+    // ── 6. x_pending → 차단 ──────────────────────────────────────────────────
     if (poolMode === "x_pending") {
+      await rollbackQuotaReservation(parentId, trimmedRequestId, "CURRICULUM_SEARCH_NOT_ELIGIBLE");
       res.status(422).json({
         error: "AI 커리큘럼 검색이 아직 준비 중입니다.",
         code:  "CURRICULUM_SEARCH_NOT_ELIGIBLE",
@@ -174,17 +231,15 @@ router.post(
       return;
     }
 
-    // ── 5. Curriculum Scope 구성 ─────────────────────────────────────────────
+    // ── 7. Curriculum Scope 구성 ─────────────────────────────────────────────
     let curriculumScope;
     try {
-      if (poolMode === "x") {
-        curriculumScope = await buildXCurriculumScope();
-      } else {
-        // normal
-        curriculumScope = await buildNormalCurriculumScope(poolId);
-      }
+      curriculumScope = poolMode === "x"
+        ? await buildXCurriculumScope()
+        : await buildNormalCurriculumScope(poolId);
     } catch (err) {
       if (err instanceof CurriculumScopeError) {
+        await rollbackQuotaReservation(parentId, trimmedRequestId, err.code);
         if (err.code === "CURRICULUM_SEARCH_NOT_ELIGIBLE") {
           res.status(422).json({
             error: "AI 커리큘럼 검색을 사용할 수 없습니다. (커리큘럼 데이터 부족)",
@@ -204,28 +259,36 @@ router.post(
         }
       }
       console.error("[parent-curriculum] scope builder error:", (err as Error).message);
+      await rollbackQuotaReservation(parentId, trimmedRequestId, "SCOPE_ERROR");
       res.status(500).json({ error: "서버 오류가 발생했습니다.", code: "INTERNAL_ERROR" });
       return;
     }
 
-    // allowed curriculum IDs (response validation용)
     const allowedCurriculumIds = new Set(
       curriculumScope.curriculum_items.map((item) => item.id),
     );
 
-    // ── 6. Student Progress 구성 ─────────────────────────────────────────────
-    const studentProgress = await buildStudentProgress(studentId, poolId).catch(
-      () => undefined,
-    );
+    // ── 8. Student Progress 구성 ─────────────────────────────────────────────
+    const studentProgress = await buildStudentProgress(studentId, poolId).catch(() => undefined);
 
-    // ── 7. ENGINE Request 구성 ────────────────────────────────────────────────
+    // ── 9. USER Message 저장 ─────────────────────────────────────────────────
+    // ENGINE 호출 전 저장 (성공/실패 무관). ON CONFLICT DO NOTHING으로 retry 안전.
+    await saveUserMessage({
+      conversationId,
+      requestId: trimmedRequestId,
+      content:   trimmedQuery,
+    }).catch((err) => {
+      console.error("[parent-curriculum] USER message save failed:", err?.message);
+    });
+
+    // ── 10. ENGINE Request 구성 ───────────────────────────────────────────────
     const engineMode: "NORMAL" | "X" = poolMode === "x" ? "X" : "NORMAL";
 
     const engineRequest: ParentCurriculumEngineRequest = {
-      request_id:     request_id.trim(),
+      request_id:     trimmedRequestId,
       schema_version: "1.0",
       feature:        "parent_curriculum_search",
-      query:          query.trim(),
+      query:          trimmedQuery,
       context: {
         pool_id:          poolId,
         pool_name:        poolName,
@@ -236,41 +299,52 @@ router.post(
       },
     };
 
-    // ── 8. ENGINE 호출 ────────────────────────────────────────────────────────
+    // ── 11. ENGINE 호출 ───────────────────────────────────────────────────────
     let engineResponse: ParentCurriculumEngineResponse;
     try {
       engineResponse = await searchParentCurriculum(engineRequest);
     } catch (err) {
+      // ENGINE 오류 → quota 롤백
+      const errorCode = err instanceof ParentCurriculumEngineError
+        ? (err.statusCode === 401 ? "ENGINE_UNAUTHORIZED"
+          : err.statusCode === 429 ? "ENGINE_RATE_LIMITED"
+          : err.errorCode)
+        : "ENGINE_UNKNOWN_ERROR";
+
+      await rollbackQuotaReservation(parentId, trimmedRequestId, errorCode);
+
       if (err instanceof ParentCurriculumEngineError) {
-        const code = err.statusCode === 401 ? "ENGINE_UNAUTHORIZED"
-                   : err.statusCode === 429 ? "ENGINE_RATE_LIMITED"
-                   : err.errorCode;
         console.error(
           `[parent-curriculum] ENGINE error code=${err.errorCode} status=${err.statusCode}`,
         );
         res.status(502).json({
-          error:    "AI 분석 서비스에 일시적인 문제가 있습니다.",
-          code,
+          error:     "AI 분석 서비스에 일시적인 문제가 있습니다.",
+          code:      errorCode,
           retryable: err.retryable,
         });
         return;
       }
       console.error("[parent-curriculum] unexpected ENGINE error:", (err as Error).message);
-      res.status(502).json({ error: "AI 분석 서비스에 일시적인 문제가 있습니다.", code: "INTERNAL_ERROR" });
+      res.status(502).json({
+        error: "AI 분석 서비스에 일시적인 문제가 있습니다.",
+        code:  "INTERNAL_ERROR",
+      });
       return;
     }
 
-    // ── 9. Response 검증 ──────────────────────────────────────────────────────
+    // ── 12. Response 검증 ─────────────────────────────────────────────────────
     const validation = validateEngineResponse(
       engineResponse,
-      request_id.trim(),
+      trimmedRequestId,
       allowedCurriculumIds,
     );
 
     if (!validation.valid) {
+      // 검증 실패 → quota 롤백
       console.error(
         `[parent-curriculum] ENGINE response validation failed: ${validation.reason}`,
       );
+      await rollbackQuotaReservation(parentId, trimmedRequestId, "RESPONSE_VALIDATION_FAILED");
       res.status(502).json({
         error: "AI 응답 검증에 실패했습니다.",
         code:  "RESPONSE_VALIDATION_FAILED",
@@ -278,9 +352,36 @@ router.post(
       return;
     }
 
-    // ── 10. Parent에게 안전한 응답 반환 ──────────────────────────────────────
-    // 금지 노출: ENGINE prompt, raw knowledge, grounding traces, JWT, stack trace
-    const { answer, current_progress, next_step } = engineResponse.result;
+    // ── 13. 성공 확정: quota finalize + ASSISTANT message 저장 ───────────────
+    await finalizeQuotaSuccess(parentId, trimmedRequestId).catch((err) => {
+      console.error("[parent-curriculum] quota finalize failed:", err?.message);
+    });
+
+    const { answer, current_progress, next_step, intent } = engineResponse.result as any;
+
+    await saveAssistantMessage({
+      conversationId,
+      requestId: trimmedRequestId,
+      content:   answer,
+      meta: {
+        intent:            intent ?? null,
+        mode:              engineMode,
+        curriculum_source: curriculumScope.source,
+      },
+    }).catch((err) => {
+      console.error("[parent-curriculum] ASSISTANT message save failed:", err?.message);
+    });
+
+    await touchConversation(conversationId).catch(() => undefined);
+
+    // ── 14. 사용량 조회 + 안전한 응답 반환 ───────────────────────────────────
+    const usageInfo = await getMonthlyUsageInfo(parentId).catch(() => ({
+      limit:     MONTHLY_LIMIT,
+      used:      -1,
+      remaining: -1,
+      period:    "",
+      resets_at: "",
+    }));
 
     res.json({
       request_id,
@@ -292,7 +393,70 @@ router.post(
       meta: {
         mode: engineMode,
       },
+      usage: usageInfo,
     });
+  },
+);
+
+// ─── GET: History ──────────────────────────────────────────────────────────────
+
+/**
+ * GET /parent/students/:studentId/curriculum-search/history
+ *
+ * Parent UI WP3를 위한 대화 이력 조회.
+ * 과거 대화 열람은 quota 차감 없음.
+ * ownership 검증 필수.
+ */
+router.get(
+  "/parent/students/:studentId/curriculum-search/history",
+  requireAuth,
+  requireParent,
+  async (req: AuthRequest, res) => {
+    const parentId  = req.user!.userId;
+    const studentId = req.params.studentId;
+
+    // ── 소유권 확인 ───────────────────────────────────────────────────────────
+    const ownershipResult = await superAdminDb.execute(sql`
+      SELECT ps.swimming_pool_id
+      FROM parent_students ps
+      WHERE ps.parent_id  = ${parentId}
+        AND ps.student_id = ${studentId}
+        AND ps.status     = 'approved'
+      LIMIT 1
+    `).catch(() => ({ rows: [] as any[] }));
+
+    if (!ownershipResult.rows.length) {
+      res.status(403).json({ error: "접근 권한이 없습니다.", code: "FORBIDDEN" });
+      return;
+    }
+
+    // ── Conversation 조회 ─────────────────────────────────────────────────────
+    const conversationId = await findConversation(parentId, studentId).catch(() => null);
+
+    // conversation 없음 → 빈 history
+    if (!conversationId) {
+      const usageInfo = await getMonthlyUsageInfo(parentId).catch(() => ({
+        limit:     MONTHLY_LIMIT,
+        used:      0,
+        remaining: MONTHLY_LIMIT,
+        period:    "",
+        resets_at: "",
+      }));
+      res.json({ conversation_id: null, messages: [], usage: usageInfo });
+      return;
+    }
+
+    // ── 메시지 조회 ──────────────────────────────────────────────────────────
+    const messages = await getConversationMessages(conversationId).catch(() => []);
+    const usageInfo = await getMonthlyUsageInfo(parentId).catch(() => ({
+      limit:     MONTHLY_LIMIT,
+      used:      0,
+      remaining: MONTHLY_LIMIT,
+      period:    "",
+      resets_at: "",
+    }));
+
+    res.json({ conversation_id: conversationId, messages, usage: usageInfo });
   },
 );
 

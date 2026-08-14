@@ -905,6 +905,61 @@ async function runGroup6_Curriculum(db: Db): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Group 7: Parent Curriculum Conversations + Messages (WP2B)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function runGroup7_CurriculumConversation(db: Db): Promise<void> {
+  // ── M-W1: parent_curriculum_conversations ────────────────────────────────
+  // parent × student = 1개 conversation (UNIQUE).
+  // 같은 parent가 같은 student를 다시 열면 기존 conversation 재사용.
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS parent_curriculum_conversations (
+      id                  text        PRIMARY KEY
+                            DEFAULT gen_random_uuid()::text,
+      parent_account_id   text        NOT NULL,
+      student_id          text        NOT NULL,
+      swimming_pool_id    text        NOT NULL,
+      status              text        NOT NULL DEFAULT 'active',
+      last_message_at     timestamptz,
+      created_at          timestamptz NOT NULL DEFAULT now(),
+      updated_at          timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (parent_account_id, student_id)
+    );
+  `));
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_pcc_parent_student
+      ON parent_curriculum_conversations (parent_account_id, student_id);
+  `));
+  console.log("[X-init] Group 7-1: parent_curriculum_conversations OK");
+
+  // ── M-W2: parent_curriculum_messages ─────────────────────────────────────
+  // UNIQUE(request_id, role): 동일 request retry 시 중복 저장 방지.
+  // metadata JSONB: intent / mode / curriculum_source (안전한 meta만).
+  // Grounding trace 전체 저장 금지.
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS parent_curriculum_messages (
+      id                text        PRIMARY KEY
+                          DEFAULT gen_random_uuid()::text,
+      conversation_id   text        NOT NULL
+                          REFERENCES parent_curriculum_conversations(id)
+                          ON DELETE CASCADE,
+      request_id        text        NOT NULL,
+      role              text        NOT NULL,
+      content           text        NOT NULL,
+      metadata          jsonb,
+      created_at        timestamptz NOT NULL DEFAULT now(),
+      CONSTRAINT chk_pcm_role CHECK (role IN ('USER', 'ASSISTANT')),
+      UNIQUE (request_id, role)
+    );
+  `));
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_pcm_conversation_created
+      ON parent_curriculum_messages (conversation_id, created_at ASC);
+  `));
+  console.log("[X-init] Group 7-2: parent_curriculum_messages OK");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 진입점: initXModeSchema
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -986,7 +1041,16 @@ export async function initXModeSchema(): Promise<void> {
     throw err;
   }
 
-  console.log("[SWIMNOTE X WP1] ✅ PART 1 Migration 완료 (Group 1·2·3·5a·6)");
+  // Group 7: parent_curriculum_conversations + parent_curriculum_messages (WP2B)
+  try {
+    await runGroup7_CurriculumConversation(db);
+    console.log("[SWIMNOTE X WP1] Group 7 완료: parent curriculum conversations + messages");
+  } catch (err) {
+    console.error("[SWIMNOTE X WP1] Group 7 실패 — 이후 Migration 중단:", err);
+    throw err;
+  }
+
+  console.log("[SWIMNOTE X WP1] ✅ PART 1 Migration 완료 (Group 1·2·3·5a·6·7)");
 }
 
 /**
