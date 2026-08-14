@@ -1,0 +1,184 @@
+[SWIMNOTE APP RELEASE]
+[REPUBLISH LATEST REPLIT APP ONLY]
+
+Root cause confirmed:
+
+STALE_BUILD_ARTIFACT
+
+Current published dist/index.mjs:
+2026-08-03 build
+→ Parent Curriculum / Growth Report routes absent
+
+Current source:
+branch deploy-photo-clone
+latest HEAD includes all required routes.
+
+이번 단계 목적:
+
+최신 source로 Replit Published App을 새로 build + republish한다.
+
+금지:
+
+코드 수정 금지.
+DNS 수정 금지.
+Cloudflare 수정 금지.
+Render 수정 금지.
+DB migration 금지.
+Production data write 금지.
+Worker 설정 금지.
+OTA/EAS build 금지.
+
+==================================================
+1. PRE-PUBLISH
+==================================================
+
+확인:
+
+branch = deploy-photo-clone
+
+현재 HEAD SHA 보고.
+
+working tree에서
+production code clean 확인.
+
+untracked attached_assets/doc는 별도 보고.
+
+==================================================
+2. BUILD CONTRACT
+==================================================
+
+artifact.toml 기준:
+
+build:
+pnpm --filter @workspace/swimnote-web run build;
+pnpm --filter @workspace/api-server run build
+
+start:
+node artifacts/api-server/dist/index.mjs
+
+그대로 사용.
+
+임의 command 변경 금지.
+
+==================================================
+3. FRESH BUILD VERIFY
+==================================================
+
+Publish 과정에서 반드시 fresh build가 실행되는지 확인.
+
+build 완료 후 generated:
+
+artifacts/api-server/dist/index.mjs
+
+내에 다음 문자열/route code가 실제 포함되는지 검증:
+
+curriculum-search
+parentCurriculumRouter 또는 equivalent compiled route
+growth report parent routes
+teacher growth report review routes
+
+0 hits면 publish 금지하고 BLOCK.
+
+==================================================
+4. REPUBLISH
+==================================================
+
+현재 Published App:
+
+swimnote-8.replit.app
+swimnote.kr
+
+두 domain 그대로 유지.
+
+Custom domain 제거/재등록 금지.
+
+최신 build artifact로 Republish 실행.
+
+==================================================
+5. NO DB WRITE
+==================================================
+
+Publish 과정 외
+Production DB에 테스트 row 생성 금지.
+
+startup migration은 이미 적용된 schema에서
+idempotent no-op/verification 수준이어야 함.
+
+==================================================
+6. POST-PUBLISH VERIFY
+==================================================
+
+두 domain 모두 확인:
+
+https://swimnote-8.replit.app
+https://swimnote.kr
+
+테스트:
+
+GET /api/healthz
+→ 200 JSON
+
+GET /api/super/dashboard-stats
+→ 401 JSON
+
+POST /api/parent/students/test/curriculum-search
+→ 401/403 JSON
+
+GET /api/parent/students/test/curriculum-search/history
+→ 401/403 JSON
+
+GET /api/parent/growth-reports/test/questions
+→ 401/403 JSON 또는 route validation JSON
+
+GET /api/teacher/growth-reports/test/review
+→ 401/403 JSON 또는 route validation JSON
+
+금지:
+
+200 HTML
+404
+500
+
+==================================================
+7. DOMAIN CONSISTENCY
+==================================================
+
+swimnote-8.replit.app
+swimnote.kr
+
+동일 route 결과가 동일한지 확인.
+
+==================================================
+8. REPORT
+==================================================
+
+다음만 보고:
+
+1. BRANCH
+2. HEAD
+3. WORKING TREE
+4. BUILD COMMAND
+5. START COMMAND
+6. FRESH BUILD SUCCESS?
+7. curriculum-search FOUND IN DIST?
+8. growth routes FOUND IN DIST?
+9. REPUBLISH RESULT
+10. swimnote-8 health
+11. swimnote.kr health
+12. parent search route
+13. parent history route
+14. parent growth route
+15. teacher growth route
+16. super route regression
+17. HTML FALLBACK STILL OCCURS?
+18. DOMAIN SETTINGS CHANGED?
+19. CODE CHANGE
+20. DB WRITE
+
+성공:
+
+SWIMNOTE_REPLIT_LATEST_APP_REPUBLISHED ✅
+
+실패:
+
+SWIMNOTE_REPLIT_LATEST_APP_REPUBLISH_BLOCKED ❌
