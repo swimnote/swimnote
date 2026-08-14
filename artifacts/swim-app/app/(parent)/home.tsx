@@ -751,16 +751,22 @@ function PhotosGrid({
 
 // ── 개별 일지 피드 아이템 ──────────────────────────────────────────────────
 // ─── GR6: 성장리포트 피드 카드 ────────────────────────────────────────────────
-// 기존 Parent Feed에 PUBLISHED Growth Report를 하나의 카드로 자연스럽게 노출 (spec §0, §26)
-// GR8에서 상세화면 연결 예정 (현재 growth_report_id 보존, 터치 비활성)
+// GR8에서 상세화면 연결 활성화 (spec §24 — Feed card tap → Detail route)
 function GrowthReportFeedCard({ item }: { item: GrowthReportFeedItem }) {
   const period = item.report_period ?? "";
   const [year, month] = period.split("-");
   const dateLabel = year && month ? `${year}년 ${Number(month)}월` : period;
 
+  function handlePress() {
+    router.push(`/(parent)/growth-report-detail?reportId=${encodeURIComponent(item.growth_report_id)}`);
+  }
+
   return (
-    <View
-      style={{
+    <Pressable
+      onPress={handlePress}
+      accessibilityRole="button"
+      accessibilityLabel={`${dateLabel} 성장리포트 보기`}
+      style={({ pressed }) => ({
         marginHorizontal: 16,
         marginBottom: 14,
         backgroundColor: C.card,
@@ -768,7 +774,8 @@ function GrowthReportFeedCard({ item }: { item: GrowthReportFeedItem }) {
         overflow: "hidden",
         borderWidth: 1,
         borderColor: "#E0EEF9",
-      }}
+        opacity: pressed ? 0.85 : 1,
+      })}
     >
       {/* 헤더 배지 */}
       <View
@@ -831,14 +838,13 @@ function GrowthReportFeedCard({ item }: { item: GrowthReportFeedItem }) {
           </Text>
         )}
 
-        {/* GR8에서 연결될 상세 affordance — growth_report_id 보존 (spec §17) */}
+        {/* GR8: 상세 affordance 활성화 (spec §24) */}
         <View
           style={{
             flexDirection: "row",
             alignItems: "center",
             gap: 4,
             marginTop: 6,
-            opacity: 0.5,           // GR8 전까지 비활성 표시
           }}
         >
           <Text
@@ -853,7 +859,7 @@ function GrowthReportFeedCard({ item }: { item: GrowthReportFeedItem }) {
           <LucideIcon name="chevron-right" size={13} color={NAVY} />
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

@@ -530,4 +530,152 @@ router.post(
   },
 );
 
+// ── GET /parent/growth-reports/:reportId — GR8 Detail ─────────────────────────
+//
+// access: requireAuth only (X 만료 후에도 PUBLISHED 조회 가능, spec §4, §23)
+// ownership: parent_students(status='approved') DB 검증 (spec §3)
+// gate: product_status = PUBLISHED only (spec §2)
+// projection: safe subset only — internal trace 제외 (spec §6)
+// error: typed errors, 5xx≠"리포트 없음" (spec §7, §10)
+
+router.get(
+  "/parent/growth-reports/:reportId",
+  requireAuth,
+  async (req: AuthRequest, res) => {
+    const parentId = req.user!.userId;
+    const { reportId } = req.params as { reportId: string };
+
+    // 기본 유효성 — 완전히 비어있는 reportId 차단
+    if (!reportId || reportId.trim().length === 0) {
+      res.status(400).json({ success: false, error: "INVALID_REPORT_ID", message: "reportId가 필요합니다." });
+      return;
+    }
+
+    try {
+      // 1. report 조회 — safe columns only (internal trace 제외)
+      const reportRes = await superAdminDb.execute(sql`
+        SELECT
+          gr.id,
+          gr.student_id,
+          gr.swimming_pool_id,
+          gr.report_period,
+          gr.published_at,
+          gr.product_status,
+          gr.report_content,
+          gr.sns_summary
+        FROM growth_reports gr
+        WHERE gr.id = ${reportId}
+          AND gr.deleted_at IS NULL
+        LIMIT 1
+      `);
+
+      const report = reportRes.rows[0] as any;
+      if (!report) {
+        res.status(404).json({ success: false, error: "NOT_FOUND", message: "리포트를 찾을 수 없습니다." });
+        return;
+      }
+
+      // 2. product_status = PUBLISHED only (spec §2)
+      if (report.product_status !== "PUBLISHED") {
+        // status별로 클라이언트에게 구분 가능한 error code 반환 (spec §10)
+        const errorCode =
+          report.product_status === "APPROVED"           ? "UNPUBLISHED" :
+          report.product_status === "REVIEW_REQUIRED"    ? "UNPUBLISHED" :
+          report.product_status === "ANALYZING"          ? "UNPUBLISHED" :
+          report.product_status === "QUESTION_AVAILABLE" ? "UNPUBLISHED" :
+          report.product_status === "FAILED"             ? "UNPUBLISHED" :
+                                                           "UNPUBLISHED";
+        res.status(403).json({ success: false, error: errorCode, message: "공개된 리포트가 아닙니다." });
+        return;
+      }
+
+      // 3. parent → student ownership (parent_students approved, spec §3)
+      const linkRes = await superAdminDb.execute(sql`
+        SELECT 1 FROM parent_students
+        WHERE parent_id = ${parentId}
+          AND student_id = ${report.student_id}
+          AND status = 'approved'
+        LIMIT 1
+      `);
+      if (linkRes.rows.length === 0) {
+        res.status(403).json({ success: false, error: "FORBIDDEN", message: "접근 권한이 없습니다." });
+        return;
+      }
+
+      // 4. report_content 유효성 (spec §7) — null/string/배열 모두 reject
+      const rc = report.report_content;
+      if (
+        rc === null ||
+        rc === undefined ||
+        typeof rc !== "object" ||
+        Array.isArray(rc)
+      ) {
+        res.status(500).json({ success: false, error: "INVALID_REPORT_CONTENT", message: "리포트 데이터가 유효하지 않습니다." });
+        return;
+      }
+
+      // 5. sns_summary — null 허용 (nullable 설계), 있으면 object 검증
+      const sns = report.sns_summary;
+      const snsSafe =
+        sns && typeof sns === "object" && !Array.isArray(sns)
+          ? {
+              headline:             sns.headline ?? "",
+              key_points:           Array.isArray(sns.key_points) ? sns.key_points : [],
+              share_safe:           sns.share_safe === true,
+              supporting_claim_ids: Array.isArray(sns.supporting_claim_ids)
+                ? sns.supporting_claim_ids
+                : undefined,
+            }
+          : null;
+
+      // 6. safe report_content projection (spec §5, §6)
+      //    sections만 전달, internal claim_ids 포함한 전체 구조는 그대로(클라이언트가 text만 표시)
+      //    Fact Package / evidence trace / engine debug 제외는 SELECT에서 이미 처리됨
+      const rcSafe: Record<string, any> = {
+        summary_text:         rc.summary_text ?? "",
+        composition_version:  rc.composition_version,
+        sections:             {} as Record<string, any>,
+      };
+
+      const KNOWN_SECTIONS = [
+        "core_growth",
+        "swimming_progress",
+        "behavioral_strengths",
+        "longitudinal_comparison",
+        "success_conditions",
+        "parent_support",
+        "teacher_guidance",
+        "next_growth_direction",
+      ] as const;
+
+      if (rc.sections && typeof rc.sections === "object" && !Array.isArray(rc.sections)) {
+        for (const key of KNOWN_SECTIONS) {
+          const sec = (rc.sections as any)[key];
+          if (sec && typeof sec === "object") {
+            // text 중심 전달, claim_ids는 클라이언트 debug용이 아니므로 제거
+            rcSafe.sections[key] = {
+              text: sec.text ?? "",
+              // internal fields 제외: supporting_evidence, confidence, debug_trace
+            };
+          }
+        }
+      }
+
+      // 7. 응답 (spec §5)
+      res.json({
+        success:       true,
+        report_id:     report.id,
+        student_id:    report.student_id,
+        report_period: report.report_period,
+        published_at:  report.published_at,
+        report_content: rcSafe,
+        sns_summary:   snsSafe,
+      });
+    } catch (e: any) {
+      console.error("[parent-growth-report] GET detail error:", e);
+      res.status(500).json({ success: false, error: "SERVER_ERROR", message: "서버 오류가 발생했습니다." });
+    }
+  },
+);
+
 export default router;
