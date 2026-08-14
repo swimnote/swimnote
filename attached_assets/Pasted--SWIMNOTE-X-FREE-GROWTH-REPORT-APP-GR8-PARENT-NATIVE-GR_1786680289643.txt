@@ -1,0 +1,1078 @@
+[SWIMNOTE X FREE GROWTH REPORT]
+[APP GR8 — PARENT NATIVE GROWTH REPORT DETAIL]
+
+MODE:
+FINAL IMPLEMENTATION
+NOT MVP
+NOT PROTOTYPE
+NOT SAMPLE
+
+현재 완료:
+
+GR1 Product Storage + Lifecycle Foundation ✅
+GR2 Monthly Cycle Scheduler ✅
+GR3 APP ↔ AI ENGINE Integration ✅
+GR4 Parent Question / Answer Flow ✅
+GR5 Teacher Review / Approval / Reanalysis ✅
+GR6 Publish + Parent Feed Integration ✅
+GR7 Push Notification + Deep Link Foundation ✅
+
+현재 GR7 canonical deep link:
+
+/parent/growth-report-detail?reportId=<id>
+
+Expo route:
+
+app/(parent)/growth-report-detail.tsx
+
+이번 GR8 목적:
+
+PUBLISHED Growth Report를
+학부모가 앱 안에서 읽을 수 있는
+
+Native Structured Growth Report Detail Screen
+
+으로 완성한다.
+
+핵심:
+
+APP은 ENGINE 결과를 렌더링만 한다.
+
+APP이:
+분석
+점수 계산
+요약 재생성
+GPT 재작성
+Metric 의미 추론
+
+하지 않는다.
+
+==================================================
+0. PRIMARY SOURCE
+==================================================
+
+Detail Screen의 canonical source:
+
+growth_reports.report_content
+growth_reports.sns_summary
+growth_reports.report_period
+growth_reports.published_at
+
+필요한 Product metadata
+
+이다.
+
+ENGINE WP12가 생성한
+structured report_content를 그대로 사용한다.
+
+==================================================
+1. SERVER DETAIL API
+==================================================
+
+구현:
+
+GET /parent/growth-reports/:reportId
+
+또는 기존 Parent route convention에 정확히 맞는 path.
+
+GR7에서 확정한:
+
+GET /parent/growth-reports/<reportId>
+
+contract를 우선 유지.
+
+반드시 server-side ownership 검증.
+
+==================================================
+2. ACCESS CONDITION
+==================================================
+
+Parent에게 반환 가능한 Report:
+
+product_status = PUBLISHED
+
+만.
+
+금지:
+
+APPROVED
+REVIEW_REQUIRED
+ANALYZING
+QUESTION_AVAILABLE
+PARTIAL product status
+FAILED
+
+주의:
+
+analysis_status=PARTIAL이라도
+teacher review 후 Product가 PUBLISHED이면
+조회 가능.
+
+판단 기준은 Product status.
+
+==================================================
+3. PARENT OWNERSHIP
+==================================================
+
+로그인 Parent가
+해당 student와 실제 approved relation인지
+DB에서 확인.
+
+기존:
+
+parent_students
+status='approved'
+
+canonical relation 재사용.
+
+request의 student_id 신뢰 금지.
+
+report_id만으로
+다른 학생 Report 조회 금지.
+
+==================================================
+4. X EXPIRATION
+==================================================
+
+기존 확정 정책:
+
+이미 PUBLISHED된 Growth Report는
+X entitlement가 나중에 만료돼도
+Parent가 계속 열람 가능.
+
+따라서 Detail API에서
+현재 X entitlement가 false라는 이유로
+PUBLISHED 조회를 차단하지 않는다.
+
+신규 분석 entitlement와
+published history viewing을 분리.
+
+GR1/GR6 policy 재사용.
+
+==================================================
+5. DETAIL API RESPONSE
+==================================================
+
+최소:
+
+{
+  report_id: string,
+  student_id: string,
+  report_period: string,
+  published_at: string,
+
+  report_content: {
+    summary_text: string,
+
+    sections: {
+      core_growth?: ReportSectionContent,
+      swimming_progress?: ReportSectionContent,
+      behavioral_strengths?: ReportSectionContent,
+      longitudinal_comparison?: ReportSectionContent,
+      success_conditions?: ReportSectionContent,
+      parent_support?: ReportSectionContent,
+      teacher_guidance?: ReportSectionContent,
+      next_growth_direction?: ReportSectionContent
+    },
+
+    composition_version?: string
+  },
+
+  sns_summary: {
+    headline: string,
+    key_points: string[],
+    share_safe: boolean,
+    supporting_claim_ids?: string[]
+  }
+}
+
+실제 Contract에 맞게 조정 가능.
+
+==================================================
+6. INTERNAL DATA MUST NOT BE RETURNED
+==================================================
+
+Parent Detail API에서 반환 금지:
+
+raw diary text
+teacher_review_note
+excluded_claims
+claim_registry 전체
+internal evidence trace
+metric confidence debug
+raw parent answers
+engine prompt
+provider/model debug
+token/cost trace
+audit log
+
+Fact Package 전체를
+Parent Detail API에 그대로 반환하지 마라.
+
+==================================================
+7. REPORT CONTENT VALIDATION
+==================================================
+
+DB의 report_content가:
+
+null
+string
+invalid object
+unsupported structure
+
+이면 조용히 빈 리포트로 변환 금지.
+
+명확한:
+
+INVALID_REPORT_CONTENT
+
+또는 기존 typed server error 처리.
+
+5xx/invalid state를
+“리포트가 없습니다”
+로 위장 금지.
+
+==================================================
+8. CLIENT DATA FETCH
+==================================================
+
+growth-report-detail.tsx에서:
+
+reportId query param
+
+검증 후 Detail API 호출.
+
+기존 authenticated API client 재사용.
+
+raw fetch 중복 생성 금지.
+
+==================================================
+9. LOADING STATE
+==================================================
+
+명확한 loading UI.
+
+중복 요청 방지.
+
+화면 unmount 후 stale state update 방지.
+
+가능하면 기존 query/fetch pattern 재사용.
+
+==================================================
+10. ERROR STATES
+==================================================
+
+최소 구분:
+
+NOT_FOUND
+FORBIDDEN
+UNPUBLISHED
+INVALID_REPORT_CONTENT
+NETWORK_ERROR
+SERVER_ERROR
+
+모든 오류를:
+
+“리포트가 없습니다”
+
+하나로 처리 금지.
+
+학부모 메시지는 친절하게,
+내부 stack/error detail은 숨긴다.
+
+==================================================
+11. NATIVE SCREEN STRUCTURE
+==================================================
+
+Growth Report는
+PDF 뷰어가 Primary가 아니다.
+
+Native Screen이 Primary.
+
+기본 화면 구성:
+
+HEADER
+↓
+REPORT PERIOD
+↓
+SUMMARY
+↓
+CORE GROWTH
+↓
+SWIMMING PROGRESS
+↓
+BEHAVIORAL STRENGTHS
+↓
+LONGITUDINAL COMPARISON
+↓
+SUCCESS CONDITIONS
+↓
+PARENT SUPPORT
+↓
+TEACHER GUIDANCE
+↓
+NEXT GROWTH DIRECTION
+
+실제 section이 없으면
+해당 영역 자체를 생략.
+
+빈 박스 표시 금지.
+
+==================================================
+12. SECTION ORDER
+==================================================
+
+Canonical ordering:
+
+1. summary
+2. core_growth
+3. swimming_progress
+4. behavioral_strengths
+5. longitudinal_comparison
+6. success_conditions
+7. parent_support
+8. teacher_guidance
+9. next_growth_direction
+
+ENGINE output에 없는 section을
+APP이 새로 만들지 않는다.
+
+==================================================
+13. SECTION TITLE
+==================================================
+
+APP UI Label은 Product presentation이므로
+친화적으로 번역 가능.
+
+예:
+
+core_growth
+→ 이번 달에 확인된 성장
+
+swimming_progress
+→ 수영에서 확인된 변화
+
+behavioral_strengths
+→ 수업에서 보인 강점
+
+longitudinal_comparison
+→ 지난 기록과 이어서 보기
+
+success_conditions
+→ 이런 상황에서 더 잘 나타났어요
+
+parent_support
+→ 가정에서 참고할 포인트
+
+teacher_guidance
+→ 수업에서 이어갈 포인트
+
+next_growth_direction
+→ 다음에 관찰할 성장 방향
+
+하지만 내용 자체는 재작성하지 않는다.
+
+==================================================
+14. SUMMARY
+==================================================
+
+summary_text 그대로 표시.
+
+APP이:
+
+요약 줄이기
+요약 늘리기
+GPT 호출
+문장 수정
+
+금지.
+
+단순 line wrapping / typography만.
+
+==================================================
+15. SECTION CONTENT
+==================================================
+
+ReportSectionContent의 실제 구조를 확인.
+
+예:
+
+text
+claim_ids
+supporting evidence metadata
+
+Parent UI에서는:
+
+text
+
+중심으로 표시.
+
+internal claim_ids는
+debug UI로 보여주지 않는다.
+
+==================================================
+16. SWIMMING SECTION
+==================================================
+
+swimming_progress는
+ENGINE WP10/WP12 결과 그대로.
+
+APP에서:
+
+영법 지식 추가
+교정법 추가
+추천 드릴 추가
+Physics 해설 추가
+
+금지.
+
+ENGINE이 준 내용만 렌더링.
+
+==================================================
+17. LONGITUDINAL SECTION
+==================================================
+
+첫 Report에
+longitudinal section이 비어 있으면
+APP이:
+
+“지난달보다 좋아졌어요”
+
+같은 placeholder 생성 금지.
+
+section 자체 생략.
+
+==================================================
+18. PARTIAL REPORT
+==================================================
+
+analysis_status가 PARTIAL이었더라도
+Product가 PUBLISHED된 Report라면
+ENGINE이 생성한 실제 section만 보여준다.
+
+APP이 빈 section을 채우지 않는다.
+
+==================================================
+19. VISUAL DESIGN
+==================================================
+
+기존 SWIMNOTE Parent UI 톤 유지.
+
+현재 브랜드 원칙:
+
+네이비 중심
+민트 accent
+화이트 배경
+깔끔하고 신뢰감 있는 카드 구조
+
+기존 디자인 시스템/spacing/font/token 재사용.
+
+Growth Report만
+완전히 다른 앱처럼 디자인 금지.
+
+==================================================
+20. INFORMATION HIERARCHY
+==================================================
+
+학부모가 스크롤하며 읽기 쉽게:
+
+큰 제목
+짧은 보조 설명
+section heading
+본문
+적절한 여백
+
+사용.
+
+모든 문장을
+각각 별도 카드에 넣어
+화면이 조각조각 찢어지게 하지 마라.
+
+Section 단위 grouping 우선.
+
+==================================================
+21. OVER-SCORING UI 금지
+==================================================
+
+다음 UI 생성 금지:
+
+점수
+별점
+퍼센트
+게이지
+백분위
+상/중/하
+A/B/C
+Radar chart
+
+ENGINE이 그런 Human Score를 만들지 않는다.
+
+특히 F069를 점수로 표현 금지.
+
+==================================================
+22. NO DIAGNOSTIC VISUALIZATION
+==================================================
+
+“집중력 78”
+“자기조절 82”
+“사회성 상위 20%”
+
+같은 화면 금지.
+
+FREE Growth Report는
+행동 근거 기반 성장 리포트다.
+
+==================================================
+23. REPORT HEADER
+==================================================
+
+최소:
+
+성장리포트
+학생 표시이름
+YYYY년 M월
+published date optional
+
+정도.
+
+학생 이름은
+현재 Parent 앱 표시 정책에 맞춤.
+
+불필요한 개인정보 금지.
+
+==================================================
+24. NAVIGATION ENTRY — FEED
+==================================================
+
+GR6 GrowthReportFeedCard:
+
+growth_report_id
+
+tap 시:
+
+router.push(
+  '/(parent)/growth-report-detail?reportId=<id>'
+)
+
+실제 연결.
+
+GR6에서 비활성 처리된 affordance를
+GR8에서 활성화.
+
+==================================================
+25. NAVIGATION ENTRY — NOTIFICATION
+==================================================
+
+GR7 Notification Center / Push:
+
+/parent/growth-report-detail?reportId=<id>
+
+tap 시 동일 화면 진입.
+
+Feed와 Push가
+동일 canonical Detail Screen 사용.
+
+==================================================
+26. BACK NAVIGATION
+==================================================
+
+Feed → Detail → Back
+정상적으로 Feed로 1회 복귀.
+
+Notification → Detail → Back
+기존 Parent navigation convention에 맞춤.
+
+중복 push/stack 버그 금지.
+
+기존 notifications에서 해결한
+중복 navigation lock 패턴이 있으면 재사용.
+
+==================================================
+27. DEEP LINK COLD START
+==================================================
+
+앱이 꺼져있다가
+Push deep link로 진입해도
+
+auth/session restore 후
+정상 Detail route로 갈 수 있는지
+기존 deep-link architecture 기준 검증.
+
+GR8 때문에 별도 startup system 만들지 않는다.
+
+==================================================
+28. REFRESH
+==================================================
+
+PUBLISHED는 terminal이므로
+Detail 내용이 빈번히 바뀌지 않는다.
+
+Pull-to-refresh는
+기존 Parent Detail UX에 필요하면 적용.
+
+필수 아님.
+
+자동 polling 금지.
+
+==================================================
+29. SHARE BUTTON BOUNDARY
+==================================================
+
+GR9에서:
+
+PDF
+SNS share
+
+구현.
+
+GR8에서 실제 Share 실행 금지.
+
+다만 Detail 화면에
+share_safe metadata를 받을 수 있음.
+
+버튼은 GR9 전까지
+노출하지 않거나 inactive placeholder 없이 생략.
+
+==================================================
+30. PDF BUTTON BOUNDARY
+==================================================
+
+PDF download/export는 GR9.
+
+GR8에서 구현 금지.
+
+==================================================
+31. SCREENSHOT/RAW EXPORT 금지
+==================================================
+
+현재 GR8에서
+Native screen screenshot을
+SNS용으로 저장하는 기능 만들지 않는다.
+
+GR9.
+
+==================================================
+32. ACCESSIBILITY
+==================================================
+
+기본 React Native accessibility 준수.
+
+최소:
+
+section heading accessibilityRole 가능 시
+touch target
+screen reader label
+dynamic text clipping 방지
+
+특히 report text가 길다고
+2줄/3줄로 잘라버리지 않는다.
+
+전체 내용 표시.
+
+==================================================
+33. LONG CONTENT / SCROLL
+==================================================
+
+Report 길이가 길어질 수 있다.
+
+전체 screen:
+
+ScrollView
+또는 적합한 virtualized structure
+
+사용.
+
+본문 길이 제한으로 잘리지 않게 한다.
+
+nested scrolling 문제 방지.
+
+==================================================
+34. TEXT SELECTION
+==================================================
+
+기존 앱 정책에 맞으면
+본문 selection 허용 가능.
+
+필수 아님.
+
+==================================================
+35. NETWORK CACHE
+==================================================
+
+기존 API/query cache가 있다면 재사용.
+
+PUBLISHED report이므로
+짧은 navigation마다 무의미하게 재호출하지 않도록
+기존 caching convention 활용 가능.
+
+하지만 stale security data를
+영구 캐시하지 않는다.
+
+==================================================
+36. API SECURITY TEST
+==================================================
+
+반드시:
+
+Parent A
+→ 자기 자녀 PUBLISHED report = 200
+
+Parent A
+→ Parent B 자녀 report = 403/404 policy
+
+Parent
+→ APPROVED report = 접근 금지
+
+unauthenticated
+→ 401
+
+확인.
+
+==================================================
+37. TEST REQUIREMENTS — SERVER
+==================================================
+
+최소:
+
+1. PUBLISHED detail 200
+
+2. APPROVED detail reject
+
+3. REVIEW_REQUIRED reject
+
+4. ANALYZING reject
+
+5. FAILED reject
+
+6. connected parent allowed
+
+7. unconnected parent forbidden
+
+8. unapproved parent relation forbidden
+
+9. unauthenticated reject
+
+10. X expired + PUBLISHED allowed
+
+11. X expired로 PUBLISHED 삭제 없음
+
+12. report_content object 반환
+
+13. sns_summary object 반환
+
+14. report_period 반환
+
+15. published_at 반환
+
+16. raw diary 미반환
+
+17. teacher_review_note 미반환
+
+18. parent answers 미반환
+
+19. excluded_claims 미반환
+
+20. claim_registry full dump 미반환
+
+21. engine debug trace 미반환
+
+22. invalid report_content typed error
+
+23. report not found 구분
+
+24. invalid reportId 안전 처리
+
+==================================================
+38. TEST REQUIREMENTS — APP UI
+==================================================
+
+최소:
+
+25. Feed card tap → Detail route
+
+26. Notification tap → same Detail route
+
+27. reportId 전달
+
+28. loading state
+
+29. valid content render
+
+30. summary render
+
+31. core_growth render
+
+32. swimming_progress render
+
+33. behavioral_strengths render
+
+34. longitudinal render when present
+
+35. longitudinal absent → section hidden
+
+36. success_conditions render
+
+37. parent_support render
+
+38. teacher_guidance render
+
+39. next_growth_direction render
+
+40. absent section hidden
+
+41. long text not truncated
+
+42. full vertical scroll
+
+43. no score UI
+
+44. no gauge UI
+
+45. no percentile UI
+
+46. no APP-generated interpretation
+
+47. no GPT call
+
+48. no PDF
+
+49. no SNS share
+
+50. share_safe metadata preserved
+
+51. network error UI
+
+52. forbidden UI
+
+53. not found UI
+
+54. malformed content UI
+
+55. back navigation Feed
+
+56. notification navigation no duplicate push
+
+57. existing Parent home/feed regression
+
+58. notifications regression
+
+59. GR7 regression
+
+60. GR6 regression
+
+61. GR5 regression
+
+62. GR4 regression
+
+63. GR3 regression
+
+64. GR2 regression
+
+65. GR1 regression
+
+66. Diary regression
+
+==================================================
+39. DESIGN TEST
+==================================================
+
+최소 실제 screen rendering으로 확인:
+
+- 1 section report
+- full section report
+- 매우 긴 한국어 text
+- swimming section 없음
+- longitudinal 없음
+- PARTIAL-derived published report
+
+내용 clipping 없어야 함.
+
+==================================================
+40. NO ENGINE CALL
+==================================================
+
+GR8 Detail 조회에서
+AI ENGINE 재호출 금지.
+
+DB에 저장된 PUBLISHED Product Result 사용.
+
+==================================================
+41. NO GPT
+==================================================
+
+APP GPT 호출 금지.
+
+==================================================
+42. NO NEW ANALYSIS
+==================================================
+
+Detail 화면을 열었다고
+새 Analysis request 발생 금지.
+
+==================================================
+43. MIGRATION
+==================================================
+
+원칙적으로 GR8은
+기존 GR1 schema로 구현 가능해야 한다.
+
+정말 필요한 경우만 additive migration.
+
+Production migration 실행 금지.
+
+==================================================
+44. 허위 완료 방지
+==================================================
+
+COMPLETE 금지:
+
+- API 없이 클라이언트 DB 가정
+- ownership server auth 없음
+- APPROVED도 detail 노출
+- raw Fact Package 전체 Parent 반환
+- APP에서 summary 재작성
+- score/gauge 임의 생성
+- section 없는데 placeholder 생성
+- text 2줄 제한
+- Feed click 미연결
+- Notification deep link 미연결
+- GR9 share 선행
+- PDF 선행
+- TODO
+- placeholder
+
+==================================================
+45. COMPLETE CONDITIONS
+==================================================
+
+[ ] Parent Detail API
+
+[ ] server ownership authorization
+
+[ ] PUBLISHED only
+
+[ ] X expired published viewing
+
+[ ] safe response projection
+
+[ ] no internal trace exposure
+
+[ ] report content validation
+
+[ ] Detail Native Screen
+
+[ ] summary
+
+[ ] all structured sections
+
+[ ] empty section omission
+
+[ ] long text auto height
+
+[ ] full scroll
+
+[ ] feed navigation
+
+[ ] notification navigation
+
+[ ] canonical reportId
+
+[ ] loading/error states
+
+[ ] no score/gauge
+
+[ ] no APP analysis
+
+[ ] no Engine call
+
+[ ] no GPT
+
+[ ] no PDF
+
+[ ] no SNS
+
+[ ] accessibility basics
+
+[ ] tests pass
+
+[ ] GR1~GR7 regression
+
+[ ] existing Parent Feed/Notification/Diary regression
+
+[ ] TODO 0
+
+[ ] Production migration 미실행
+
+[ ] Deploy/OTA 없음
+
+==================================================
+46. CREDIT SAVING
+==================================================
+
+GR6 Feed
++
+GR7 Deep Link
++
+Parent Growth Report Detail
++
+existing Parent API client/navigation/design system
+
+관련 파일만 검사.
+
+전체 repo 재감리 금지.
+
+GR9 선행 구현 금지.
+
+==================================================
+47. FINAL REPORT
+==================================================
+
+1. GR8 RESULT
+
+2. EXISTING UI/NAVIGATION ASSETS REUSED
+
+3. IMPLEMENTED FILES
+
+4. DETAIL API
+
+5. PARENT AUTHORIZATION
+
+6. DETAIL RESPONSE CONTRACT
+
+7. NATIVE SCREEN STRUCTURE
+
+8. SECTION RENDERING
+
+9. LONG CONTENT / SCROLL
+
+10. FEED NAVIGATION
+
+11. NOTIFICATION / DEEP LINK NAVIGATION
+
+12. X EXPIRATION POLICY
+
+13. ERROR STATES
+
+14. PRIVACY / INTERNAL DATA FILTER
+
+15. TEST RESULTS
+
+16. GR1~GR7 + EXISTING APP REGRESSION
+
+17. TODO SCAN
+
+18. GIT
+    branch
+    actual HEAD SHA
+
+19. PRODUCTION SAFETY
+
+전부 완료:
+
+GROWTH_REPORT_APP_GR8_COMPLETE ✅
+
+미완성:
+
+GROWTH_REPORT_APP_GR8_BLOCKED ❌
+
+작업을 시작하라.

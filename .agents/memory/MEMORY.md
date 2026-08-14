@@ -55,3 +55,4 @@
 - [GR5 완료 상태](wp-gr5-done-state.md) — SHA 3f8e10d8; Teacher Review+Approval; 56TC; 718TC; 미배포
 - [GR6 완료 상태](wp-gr6-done-state.md) — SHA f707d942; Publish+Parent Feed; 60TC; 778TC; 미배포
 - [GR7 완료 상태](wp-gr7-done-state.md) — SHA 45b490c4; Push+DeepLink; 55TC; 833TC; 미배포
+- [GR8 완료 상태](wp-gr8-done-state.md) — SHA cb642da2; Parent Detail Screen; 66TC; 899TC; 미배포
