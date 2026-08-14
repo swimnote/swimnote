@@ -1,0 +1,235 @@
+[SWIMNOTE APP RELEASE]
+[iOS TESTFLIGHT — FIX SDK55 NATIVE DEPENDENCIES ONLY]
+
+현재:
+Expo SDK = 55
+React Native = 0.83.x
+
+Preflight에서 확인된 문제:
+
+expo-print
+installed: 57.0.1
+Expo SDK55 expected: ~55.0.17
+
+expo-build-properties
+installed: 57.0.9
+Expo SDK55 expected: ~55.0.16
+
+이번 단계에서는
+SDK55 native dependency compatibility만 수정한다.
+
+금지:
+
+app version 변경 금지.
+ios.buildNumber 변경 금지.
+android.versionCode 변경 금지.
+EAS build 금지.
+OTA 금지.
+expo-sharing plugin 임의 추가 금지.
+react-native-view-shot 변경 금지.
+다른 dependency 대량 변경 금지.
+
+==================================================
+1. CURRENT STATE
+==================================================
+
+artifacts/swim-app 기준 확인:
+
+expo version
+expo-print version
+expo-build-properties version
+package manager / lockfile
+
+현재 값을 보고.
+
+==================================================
+2. TARGET VERSIONS
+==================================================
+
+Expo SDK55 compatibility 기준으로:
+
+expo-print
+→ SDK55 recommended compatible version
+
+expo-build-properties
+→ SDK55 recommended compatible version
+
+정확한 target은 현재 설치된 Expo SDK55의
+`npx expo install --check`
+또는 Expo package compatibility metadata를
+source of truth로 사용.
+
+추측 금지.
+
+==================================================
+3. TARGETED INSTALL ONLY
+==================================================
+
+전체 `expo install --fix`로
+수십 개 dependency를 자동 변경하지 마라.
+
+오직 두 package만 SDK55 호환 버전으로 정렬:
+
+expo-print
+expo-build-properties
+
+가능하면:
+
+npx expo install expo-print expo-build-properties
+
+방식으로 현재 SDK가 권장하는 versions를 설치.
+
+pnpm monorepo 구조에 맞는 canonical command 사용.
+
+==================================================
+4. LOCKFILE
+==================================================
+
+package.json과 pnpm lockfile을
+정상적으로 함께 업데이트.
+
+다른 unrelated package version 변경이
+발생했는지 diff 확인.
+
+불필요한 dependency 변경 발생 시 STOP.
+
+==================================================
+5. EXPO PRINT IMPORT/API REGRESSION
+==================================================
+
+현재 Growth Report PDF 코드가 사용하는
+expo-print APIs를 확인.
+
+SDK55 expo-print에서 동일 API가 존재하는지 확인:
+
+예:
+Print.printToFileAsync
+
+등 실제 사용 API 기준.
+
+57→55 downgrade 때문에
+현재 코드 수정이 필요한지 확인.
+
+필요하면 BLOCK하고 보고.
+이번 단계에서 기능 코드 임의 수정 금지.
+
+==================================================
+6. EXPO BUILD PROPERTIES CONFIG
+==================================================
+
+현재 app.json에서
+expo-build-properties plugin에 전달하는 옵션이 있다면
+SDK55 버전에서 동일하게 지원되는지 확인.
+
+unsupported option 있으면 BLOCK.
+
+==================================================
+7. EXPO SHARING
+==================================================
+
+expo-sharing은 이번 작업에서 변경하지 않는다.
+
+현재 앱 사용 방식이
+단순 Sharing.shareAsync 등 runtime API 사용이고
+별도 native configuration option을 요구하지 않는다면:
+
+PLUGIN_REQUIRED = NO
+
+로 판정.
+
+실제 native configuration을 사용하고 있어서
+plugin이 필요한 경우에만 별도 보고.
+
+추측으로 app.json에 plugin 추가 금지.
+
+==================================================
+8. REACT-NATIVE-VIEW-SHOT
+==================================================
+
+현재 5.1.1은 기존 build 244에 이미 포함되어
+실기기/빌드 baseline이 존재하므로
+이번 단계에서는 변경 금지.
+
+expo-doctor warning만 별도 기록.
+
+==================================================
+9. EXPO DOCTOR
+==================================================
+
+수정 후:
+
+npx expo-doctor
+
+실행.
+
+그리고:
+
+npx expo install --check
+
+가능하면 실행.
+
+목표:
+
+expo-print mismatch 제거
+expo-build-properties mismatch 제거
+
+다른 기존 warning은 정확히 분리해서 보고.
+
+==================================================
+10. SOURCE TEST
+==================================================
+
+최소:
+
+TypeScript/typecheck
+또는 repository canonical swim-app check
+
+실행.
+
+Growth Report PDF 관련 import/build 오류 없어야 함.
+
+==================================================
+11. GIT
+==================================================
+
+이번 수정만 commit.
+
+commit message 예:
+
+fix(ios): align Expo native dependencies with SDK 55
+
+아직 push는 하지 않는다.
+
+==================================================
+12. REPORT
+==================================================
+
+다음만 보고:
+
+1. BEFORE expo-print
+2. AFTER expo-print
+3. BEFORE expo-build-properties
+4. AFTER expo-build-properties
+5. EXACT INSTALL COMMAND
+6. package.json diff
+7. lockfile updated?
+8. unrelated dependency changed?
+9. expo-print API compatible?
+10. build-properties config compatible?
+11. expo-sharing plugin required?
+12. view-shot changed?
+13. expo-doctor result
+14. expo install --check result
+15. typecheck/test
+16. COMMIT SHA
+17. PUSHED?
+18. VERSION CHANGED?
+19. BUILD EXECUTED?
+
+성공:
+
+SWIMNOTE_SDK55_NATIVE_DEPENDENCIES_ALIGNED ✅
+
+문제:
+
+SWIMNOTE_SDK55_NATIVE_DEPENDENCIES_BLOCKED ❌
