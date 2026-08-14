@@ -1,0 +1,174 @@
+[SWIMNOTE APP]
+[PARENT CURRICULUM SEARCH — CORRECTION]
+[RETURN TO WP2B.3 ATOMIC FINALIZATION]
+
+방금 recent_conversation 관련 변경 보고를 받았지만,
+현재 우선순위는 잘못되었다.
+
+이번 단계에서 해야 할 것은
+대화 context 확장이 아니라
+WP2B.3 atomic success finalization이다.
+
+현재 recent_conversation 변경은
+추가 확장하지 말고 그대로 보존만 한다.
+
+ENGINE 계약에도 아직 recent_conversation이
+정식 반영되지 않았으므로
+Production 전제로 간주하지 않는다.
+
+==================================================
+1. PRIORITY
+==================================================
+
+다음 문제를 먼저 해결:
+
+현재 성공 경로가
+
+ENGINE success
+→ validate
+→ finalizeQuotaSuccess
+→ saveAssistantMessage
+
+라면
+
+quota COMPLETED 이후
+assistant persistence 실패 시
+
+COMPLETED + persisted result 없음
+
+상태가 발생할 수 있다.
+
+이 상태는 출시 금지.
+
+==================================================
+2. ACTUAL CURRENT SUCCESS ORDER
+==================================================
+
+현재 HEAD 기준 실제 route 코드를 확인.
+
+recent_conversation 변경 이후에도
+
+- ENGINE response
+- validation
+- assistant save
+- quota finalize
+
+순서와 transaction boundary를 정확히 보고.
+
+==================================================
+3. CANONICAL FINALIZATION
+==================================================
+
+ENGINE HTTP 호출은 DB transaction 밖.
+
+ENGINE success + validation PASS 이후
+짧은 DB transaction 안에서:
+
+1. assistant message/result_payload persistence
+2. reservation RESERVED → COMPLETED
+3. usage reserved_count -1
+4. usage completed_count +1
+
+을 하나의 atomic operation으로 처리.
+
+하나라도 실패:
+전체 rollback.
+
+==================================================
+4. REQUIRED INVARIANT
+==================================================
+
+reservation.status === COMPLETED
+
+이면 반드시 동일 request_id에 대해
+persisted ASSISTANT result가 존재해야 한다.
+
+반대로 assistant result 저장 실패 시
+reservation을 COMPLETED로 만들지 않는다.
+
+==================================================
+5. RETRY SAFETY
+==================================================
+
+동일 request_id 재시도 시:
+
+- assistant 중복 없음
+- quota 이중 차감 없음
+- COMPLETED이면 기존 persisted result replay
+- ENGINE 재호출 없음
+
+==================================================
+6. RECENT_CONVERSATION CHANGE
+==================================================
+
+이번 작업에서:
+
+recent_conversation 관련 코드를
+삭제하지 않아도 된다.
+
+하지만 추가 확장/ENGINE 배포 가정 금지.
+
+이번 보고에서는 별도 항목으로:
+
+RECENT_CONVERSATION_CHANGE_PRESERVED = YES/NO
+
+만 보고.
+
+==================================================
+7. TEST
+==================================================
+
+최소:
+
+A. 정상 성공
+→ assistant 1건
+→ reservation COMPLETED
+→ completed_count +1
+
+B. assistant INSERT 실패
+→ quota finalize 없음
+→ reservation COMPLETED 아님
+
+C. quota update 실패
+→ assistant INSERT rollback
+
+D. transaction 중간 실패
+→ partial state 없음
+
+E. COMPLETED replay
+→ ENGINE 0회
+→ quota 추가 차감 0
+
+F. COMPLETED + assistant missing synthetic corruption
+→ 정상 replay 금지
+
+G. FAILED retry 기존 동작 유지
+
+H. 10/10 limit 유지
+
+I. history read quota 차감 없음
+
+J. recent_conversation 변경으로 기존 테스트 깨지지 않음
+
+전체 regression 실행.
+
+==================================================
+8. REPORT
+==================================================
+
+1. ACTUAL OLD SUCCESS ORDER
+2. ROOT RISK CONFIRMED? YES/NO
+3. NEW SUCCESS ORDER
+4. TRANSACTION BOUNDARY
+5. FILES CHANGED
+6. PARTIAL SUCCESS POSSIBLE AFTER FIX? YES/NO
+7. COMPLETED→PERSISTED RESULT INVARIANT
+8. RECENT_CONVERSATION_CHANGE_PRESERVED
+9. TEST RESULT
+10. FULL REGRESSION
+11. COMMIT SHA
+12. PRODUCTION DEPLOY STATUS
+
+성공:
+
+PARENT_CURRICULUM_APP_WP2B_3_COMPLETE ✅
