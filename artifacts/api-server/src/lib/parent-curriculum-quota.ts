@@ -1,25 +1,29 @@
 /**
- * parent-curriculum-quota.ts
+ * parent-curriculum-quota.ts — WP2B / WP2B.2
  *
  * 학부모 커리큘럼 검색 월 사용량 제한.
  *
- * Quota key: parent_account_id + calendar month (Asia/Seoul)
+ * Quota key: parent_account_id + feature + calendar month (Asia/Seoul)
  * Limit:     MONTHLY_LIMIT (10) successful questions / month
  *
  * 기존 tables 재사용:
- *   parent_ai_daily_usage      — usage_date = 해당 월 첫날 (e.g. 2026-08-01)
- *   parent_ai_usage_reservations — request_id PK으로 아이디팟 처리
+ *   parent_ai_daily_usage      — feature 컬럼으로 격리 (WP2B.2 추가)
+ *   parent_ai_usage_reservations — request_id PK + feature 컬럼
  *
  * 원칙:
- *   - 서버 오류 / ENGINE 오류 / timeout → quota 차감 금지 (rollback)
- *   - 동시 요청 race condition 방지: UPDATE WHERE count < limit (atomic)
- *   - 동일 request_id retry → 이중 차감 금지
+ *   - COMPLETED 재시도 → route에서 replay 처리 (이 서비스 미호출)
+ *   - FAILED 재시도 → FAILED→RESERVED atomic 전환 + 경쟁 시 rollback
+ *   - 서버/ENGINE 오류 → rollback (reserved_count 복구)
+ *   - 동시 요청 → UPDATE WHERE count < LIMIT (atomic)
  */
 
 import { superAdminDb } from "@workspace/db";
 import { sql }          from "drizzle-orm";
 
 // ─── 상수 ─────────────────────────────────────────────────────────────────────
+
+/** Curriculum Search feature ID — 모든 DB row에서 동일 값 사용. */
+export const CURRICULUM_SEARCH_FEATURE = "parent_curriculum_search" as const;
 
 export const MONTHLY_LIMIT = 10;
 
@@ -34,14 +38,23 @@ export interface UsageInfo {
 }
 
 export type QuotaReserveResult =
-  | { ok: true;  isRetry: boolean }    // reservation created or idempotent RESERVED/FAILED retry
-  | { ok: false; usageInfo: UsageInfo }; // limit reached
+  | { ok: true;  isRetry: boolean }
+  | { ok: false; usageInfo: UsageInfo };
+
+/** reservation table에서 조회한 기존 request 상태. */
+export type PriorReservationStatus =
+  | "COMPLETED"
+  | "RESERVED"
+  | "FAILED"
+  | "BLOCKED"
+  | "EXPIRED"
+  | "NONE";
 
 // ─── Timezone 헬퍼 ────────────────────────────────────────────────────────────
 
 /**
  * Asia/Seoul 기준 현재 달의 period key (YYYY-MM-01 형식 date string).
- * 새 달이 되면 자연스럽게 0부터 시작하는 새 row가 생성됨.
+ * 새 달이 되면 새 row가 자연 생성 → 0부터 시작.
  */
 export function getSeoulMonthPeriod(): string {
   const now = new Date();
@@ -56,17 +69,12 @@ export function getSeoulMonthPeriod(): string {
   return `${year}-${month}-01`;
 }
 
-/**
- * Asia/Seoul 기준 현재 달의 period label (YYYY-MM).
- */
+/** Asia/Seoul 기준 현재 달의 period label (YYYY-MM). */
 export function getSeoulPeriodLabel(): string {
-  const period = getSeoulMonthPeriod(); // 'YYYY-MM-01'
-  return period.slice(0, 7);            // 'YYYY-MM'
+  return getSeoulMonthPeriod().slice(0, 7);
 }
 
-/**
- * 다음 달 1일 자정 (Asia/Seoul) ISO 8601 string.
- */
+/** 다음 달 1일 자정 (Asia/Seoul) ISO 8601 string. */
 export function getResetsAt(): string {
   const now = new Date();
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -79,17 +87,35 @@ export function getResetsAt(): string {
   const [year, month] = formatted.split("-").map(Number);
   const nextMonth = month === 12 ? 1 : month + 1;
   const nextYear  = month === 12 ? year + 1 : year;
-  // 다음 달 1일 Asia/Seoul 자정 = UTC +09:00
   return new Date(
     `${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+09:00`,
   ).toISOString();
 }
 
-// ─── 사용량 조회 ──────────────────────────────────────────────────────────────
+// ─── Prior State 조회 ─────────────────────────────────────────────────────────
 
 /**
- * 현재 월 사용량 조회.
+ * 동일 request_id의 기존 reservation 상태 조회.
+ *
+ * Route에서 COMPLETED 여부를 quota reservation 이전에 확인하기 위해 사용.
+ * COMPLETED → persisted result replay (ENGINE 재호출 금지, quota 차감 금지).
  */
+export async function getPriorReservationStatus(
+  requestId: string,
+): Promise<PriorReservationStatus> {
+  const result = await superAdminDb.execute(sql`
+    SELECT status
+    FROM parent_ai_usage_reservations
+    WHERE request_id = ${requestId}
+    LIMIT 1
+  `);
+  if (!result.rows.length) return "NONE";
+  return (result.rows[0] as any).status as PriorReservationStatus;
+}
+
+// ─── 사용량 조회 ──────────────────────────────────────────────────────────────
+
+/** 현재 월 Curriculum Search 사용량 조회. */
 export async function getMonthlyUsageInfo(parentId: string): Promise<UsageInfo> {
   const period = getSeoulMonthPeriod();
 
@@ -97,15 +123,15 @@ export async function getMonthlyUsageInfo(parentId: string): Promise<UsageInfo> 
     SELECT completed_count, reserved_count
     FROM parent_ai_daily_usage
     WHERE parent_account_id = ${parentId}
+      AND feature            = ${CURRICULUM_SEARCH_FEATURE}
       AND usage_date         = ${period}::date
     LIMIT 1
   `);
 
-  const row         = result.rows[0] as any;
-  const completed   = Number(row?.completed_count ?? 0);
-  const reserved    = Number(row?.reserved_count  ?? 0);
-  const used        = completed; // 성공적으로 완료된 횟수
-  const remaining   = Math.max(0, MONTHLY_LIMIT - used);
+  const row       = result.rows[0] as any;
+  const completed = Number(row?.completed_count ?? 0);
+  const used      = completed;
+  const remaining = Math.max(0, MONTHLY_LIMIT - used);
 
   return {
     limit:     MONTHLY_LIMIT,
@@ -121,16 +147,18 @@ export async function getMonthlyUsageInfo(parentId: string): Promise<UsageInfo> 
 /**
  * 월 quota 예약 시도.
  *
- * 아이디팟: 동일 request_id는 중복 예약 없음.
+ * 호출 전제: route에서 이미 getPriorReservationStatus() 로 COMPLETED 여부 확인.
+ * 이 함수는 COMPLETED가 아닌 경우(NONE / RESERVED / FAILED / BLOCKED / EXPIRED)에만 호출.
  *
- * 원자성:
- *   1. Ensure month row exists (INSERT ON CONFLICT DO NOTHING)
- *   2. Atomic check-and-increment:
- *      UPDATE ... WHERE (completed + reserved) < LIMIT RETURNING ...
- *      → 0 rows = limit reached; 1 row = reserved
- *   3. Insert reservation (ON CONFLICT DO NOTHING for idempotency)
+ * FAILED 재시도:
+ *   기존 FAILED row → RESERVED 전환 (atomic UPDATE WHERE status='FAILED').
+ *   quota increment와 상태 전환 사이 경쟁 시: 상태 전환 실패 → quota rollback → ok:false.
  *
- * @returns QuotaReserveResult
+ * RESERVED 재시도:
+ *   이미 예약됨 → isRetry:true 반환 (quota 재차감 없음).
+ *
+ * NONE / BLOCKED / EXPIRED:
+ *   새 reservation INSERT.
  */
 export async function tryReserveMonthlyQuota(
   parentId:  string,
@@ -138,59 +166,103 @@ export async function tryReserveMonthlyQuota(
 ): Promise<QuotaReserveResult> {
   const period = getSeoulMonthPeriod();
 
-  // ── Idempotency: 기존 예약 확인 ─────────────────────────────────────────────
-  const existingReservation = await superAdminDb.execute(sql`
+  // ── Idempotency: 기존 예약 확인 ──────────────────────────────────────────────
+  const existing = await superAdminDb.execute(sql`
     SELECT status
     FROM parent_ai_usage_reservations
     WHERE request_id = ${requestId}
     LIMIT 1
   `);
 
-  if (existingReservation.rows.length > 0) {
-    const status = (existingReservation.rows[0] as any).status as string;
+  let isFailed = false;
+
+  if (existing.rows.length > 0) {
+    const status = (existing.rows[0] as any).status as string;
     if (status === "RESERVED") {
-      // 이미 예약됨 → retry 허용, 재예약 불필요
+      // 이미 예약됨 → retry 허용
       return { ok: true, isRetry: true };
     }
     if (status === "COMPLETED") {
-      // 이미 완료됨 → 재차감 금지
+      // Safety net — route에서 사전 처리됐어야 함
       return { ok: true, isRetry: true };
     }
-    // FAILED / BLOCKED / EXPIRED → fresh attempt (quota was rolled back)
+    if (status === "FAILED") {
+      isFailed = true;
+    }
+    // BLOCKED / EXPIRED → fresh attempt (INSERT path)
   }
 
-  // ── Step 1: month row upsert (멱등) ──────────────────────────────────────────
+  // ── Step 1: month+feature row upsert (멱등) ──────────────────────────────────
   await superAdminDb.execute(sql`
-    INSERT INTO parent_ai_daily_usage (parent_account_id, usage_date, reserved_count, completed_count)
-    VALUES (${parentId}, ${period}::date, 0, 0)
-    ON CONFLICT (parent_account_id, usage_date) DO NOTHING
+    INSERT INTO parent_ai_daily_usage
+      (parent_account_id, feature, usage_date, reserved_count, completed_count)
+    VALUES
+      (${parentId}, ${CURRICULUM_SEARCH_FEATURE}, ${period}::date, 0, 0)
+    ON CONFLICT (parent_account_id, feature, usage_date) DO NOTHING
   `);
 
   // ── Step 2: Atomic check-and-increment ───────────────────────────────────────
-  // PostgreSQL UPDATE는 row-level lock → concurrent requests serialize correctly.
-  // completed_count + reserved_count < LIMIT 조건 실패 → 0 rows
+  // PostgreSQL UPDATE row-level lock → concurrent requests serialize correctly.
   const updateResult = await superAdminDb.execute(sql`
     UPDATE parent_ai_daily_usage
     SET reserved_count = reserved_count + 1,
         updated_at     = NOW()
     WHERE parent_account_id = ${parentId}
+      AND feature            = ${CURRICULUM_SEARCH_FEATURE}
       AND usage_date         = ${period}::date
       AND (completed_count + reserved_count) < ${MONTHLY_LIMIT}
-    RETURNING completed_count, reserved_count
+    RETURNING id
   `);
 
   if (!updateResult.rows.length) {
-    // 한도 초과
     const usageInfo = await getMonthlyUsageInfo(parentId);
     return { ok: false, usageInfo };
   }
 
-  // ── Step 3: 예약 row 삽입 (request_id PK → 중복 방지) ────────────────────────
-  await superAdminDb.execute(sql`
-    INSERT INTO parent_ai_usage_reservations (request_id, parent_account_id, usage_date)
-    VALUES (${requestId}, ${parentId}, ${period}::date)
-    ON CONFLICT (request_id) DO NOTHING
-  `);
+  // ── Step 3: Reservation row ──────────────────────────────────────────────────
+  if (isFailed) {
+    // FAILED → RESERVED atomic 전환
+    // WHERE status='FAILED' 조건: concurrent retry가 먼저 전환하면 0 rows
+    const reservationUpdate = await superAdminDb.execute(sql`
+      UPDATE parent_ai_usage_reservations
+      SET status       = 'RESERVED',
+          reserved_at  = NOW(),
+          completed_at = NULL,
+          error_code   = NULL,
+          expires_at   = NOW() + interval '10 minutes',
+          usage_date   = ${period}::date,
+          feature      = ${CURRICULUM_SEARCH_FEATURE}
+      WHERE request_id = ${requestId}
+        AND status     = 'FAILED'
+      RETURNING request_id
+    `);
+
+    if (!reservationUpdate.rows.length) {
+      // 경쟁 상황에서 패배 → quota increment 롤백
+      await superAdminDb.execute(sql`
+        UPDATE parent_ai_daily_usage
+        SET reserved_count = GREATEST(0, reserved_count - 1),
+            updated_at     = NOW()
+        WHERE parent_account_id = ${parentId}
+          AND feature            = ${CURRICULUM_SEARCH_FEATURE}
+          AND usage_date         = ${period}::date
+      `).catch((err) => {
+        console.error("[curriculum-quota] FAILED retry rollback error:", err?.message);
+      });
+
+      const usageInfo = await getMonthlyUsageInfo(parentId);
+      return { ok: false, usageInfo };
+    }
+  } else {
+    // NONE / BLOCKED / EXPIRED → 새 reservation INSERT
+    await superAdminDb.execute(sql`
+      INSERT INTO parent_ai_usage_reservations
+        (request_id, parent_account_id, feature, usage_date)
+      VALUES
+        (${requestId}, ${parentId}, ${CURRICULUM_SEARCH_FEATURE}, ${period}::date)
+      ON CONFLICT (request_id) DO NOTHING
+    `);
+  }
 
   return { ok: true, isRetry: false };
 }
@@ -198,8 +270,8 @@ export async function tryReserveMonthlyQuota(
 // ─── 완료 (Finalize) ──────────────────────────────────────────────────────────
 
 /**
- * 성공적인 ENGINE 응답 후 quota 확정.
- * completed_count +1, reserved_count -1, status → COMPLETED
+ * ENGINE 성공 후 quota 확정.
+ * completed_count +1, reserved_count -1, status → COMPLETED.
  */
 export async function finalizeQuotaSuccess(
   parentId:  string,
@@ -213,6 +285,7 @@ export async function finalizeQuotaSuccess(
         completed_count = completed_count + 1,
         updated_at      = NOW()
     WHERE parent_account_id = ${parentId}
+      AND feature            = ${CURRICULUM_SEARCH_FEATURE}
       AND usage_date         = ${period}::date
   `);
 
@@ -229,9 +302,7 @@ export async function finalizeQuotaSuccess(
 
 /**
  * ENGINE 실패 / 검증 실패 시 quota 복구.
- * reserved_count -1, failed_count +1, status → FAILED
- *
- * 이 함수는 성공한 경우에는 절대 호출하지 않는다.
+ * reserved_count -1, failed_count +1, status → FAILED.
  */
 export async function rollbackQuotaReservation(
   parentId:  string,
@@ -246,6 +317,7 @@ export async function rollbackQuotaReservation(
         failed_count   = failed_count + 1,
         updated_at     = NOW()
     WHERE parent_account_id = ${parentId}
+      AND feature            = ${CURRICULUM_SEARCH_FEATURE}
       AND usage_date         = ${period}::date
   `).catch((err) => {
     console.error("[curriculum-quota] rollback usage update failed:", err?.message);

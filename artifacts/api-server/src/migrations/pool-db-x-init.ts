@@ -411,6 +411,8 @@ async function runGroup4_ParentAiUsage(db: Db): Promise<void> {
       id                    text            PRIMARY KEY
                               DEFAULT gen_random_uuid()::text,
       parent_account_id     text            NOT NULL,
+      feature               text            NOT NULL
+                              DEFAULT 'parent_curriculum_search',
       usage_date            date            NOT NULL,
       reserved_count        integer         NOT NULL DEFAULT 0,
       completed_count       integer         NOT NULL DEFAULT 0,
@@ -421,18 +423,19 @@ async function runGroup4_ParentAiUsage(db: Db): Promise<void> {
       estimated_cost_krw    numeric(10,2)   NOT NULL DEFAULT 0,
       created_at            timestamptz     NOT NULL DEFAULT now(),
       updated_at            timestamptz     NOT NULL DEFAULT now(),
-      UNIQUE (parent_account_id, usage_date)
+      UNIQUE (parent_account_id, feature, usage_date)
     );
   `));
   await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_parent_ai_usage_date
-      ON parent_ai_daily_usage (parent_account_id, usage_date DESC);
+      ON parent_ai_daily_usage (parent_account_id, feature, usage_date DESC);
   `));
   console.log("[X-init] M-H: parent_ai_daily_usage OK");
 
   // ── M-H2: parent_ai_usage_reservations ──────────────────────────────────
   //
   // request_id PRIMARY KEY: 동일 request_id 중복 예약 원천 차단.
+  // feature: feature별 격리 (WP2B.2 추가).
   // status: RESERVED → COMPLETED / FAILED / BLOCKED / EXPIRED
   // expires_at: 기본 10분 (API P99 응답 시간 여유 고려 — NV-16 확인 후 조정).
 
@@ -440,6 +443,8 @@ async function runGroup4_ParentAiUsage(db: Db): Promise<void> {
     CREATE TABLE IF NOT EXISTS parent_ai_usage_reservations (
       request_id          text            PRIMARY KEY,
       parent_account_id   text            NOT NULL,
+      feature             text            NOT NULL
+                            DEFAULT 'parent_curriculum_search',
       usage_date          date            NOT NULL,
       status              text            NOT NULL DEFAULT 'RESERVED',
       reserved_at         timestamptz     NOT NULL DEFAULT now(),
@@ -905,6 +910,7 @@ async function runGroup6_Curriculum(db: Db): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // Group 7: Parent Curriculum Conversations + Messages (WP2B)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -957,6 +963,55 @@ async function runGroup7_CurriculumConversation(db: Db): Promise<void> {
       ON parent_curriculum_messages (conversation_id, created_at ASC);
   `));
   console.log("[X-init] Group 7-2: parent_curriculum_messages OK");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Group 8: Parent AI Usage — feature 컬럼 + UNIQUE constraint 조정 (WP2B.2)
+//
+// 기존 테이블에 feature 컬럼 추가 + old 2-col unique 제거 + new 3-col unique 추가.
+// 신규 환경: Group 4에서 이미 feature 포함하여 생성 → 이 Group은 no-op.
+// 기존 환경: ADD COLUMN IF NOT EXISTS → idempotent.
+// Production migration 실행 금지 — 별도 승인 후 진행.
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function runGroup8_ParentAiUsageFeatureIsolation(db: Db): Promise<void> {
+  // ── parent_ai_daily_usage: feature 컬럼 추가 ─────────────────────────────
+  // DEFAULT 'parent_curriculum_search' → 기존 row backfill 자동. NOT NULL 안전.
+  await db.execute(sql.raw(`
+    ALTER TABLE parent_ai_daily_usage
+      ADD COLUMN IF NOT EXISTS feature text NOT NULL DEFAULT 'parent_curriculum_search';
+  `));
+  console.log("[X-init] Group 8-1: parent_ai_daily_usage feature column OK");
+
+  // ── 기존 2-col UNIQUE 제거 ────────────────────────────────────────────────
+  // 자동 생성 이름: parent_ai_daily_usage_parent_account_id_usage_date_key
+  // IF EXISTS: 이미 제거됐으면 no-op (멱등).
+  await db.execute(sql.raw(`
+    ALTER TABLE parent_ai_daily_usage
+      DROP CONSTRAINT IF EXISTS parent_ai_daily_usage_parent_account_id_usage_date_key;
+  `));
+  console.log("[X-init] Group 8-2: old 2-col unique dropped OK");
+
+  // ── 새 3-col UNIQUE 추가 ──────────────────────────────────────────────────
+  // DO block: ADD CONSTRAINT가 이미 존재하면 예외 무시 (멱등).
+  await db.execute(sql.raw(`
+    DO $$
+    BEGIN
+      ALTER TABLE parent_ai_daily_usage
+        ADD CONSTRAINT parent_ai_daily_usage_feature_unique
+        UNIQUE (parent_account_id, feature, usage_date);
+    EXCEPTION WHEN duplicate_object THEN
+      NULL; -- 이미 존재: no-op
+    END $$;
+  `));
+  console.log("[X-init] Group 8-3: new 3-col unique (parent_account_id, feature, usage_date) OK");
+
+  // ── parent_ai_usage_reservations: feature 컬럼 추가 ─────────────────────
+  await db.execute(sql.raw(`
+    ALTER TABLE parent_ai_usage_reservations
+      ADD COLUMN IF NOT EXISTS feature text NOT NULL DEFAULT 'parent_curriculum_search';
+  `));
+  console.log("[X-init] Group 8-4: parent_ai_usage_reservations feature column OK");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1050,7 +1105,18 @@ export async function initXModeSchema(): Promise<void> {
     throw err;
   }
 
-  console.log("[SWIMNOTE X WP1] ✅ PART 1 Migration 완료 (Group 1·2·3·5a·6·7)");
+  // Group 8: parent_ai_daily_usage / reservations feature 컬럼 + UNIQUE 조정 (WP2B.2)
+  // 신규 환경: Group 4에서 이미 feature 컬럼 포함 → no-op.
+  // 기존 환경: ADD COLUMN IF NOT EXISTS + DROP CONSTRAINT IF EXISTS + DO $$ ADD CONSTRAINT.
+  try {
+    await runGroup8_ParentAiUsageFeatureIsolation(db);
+    console.log("[SWIMNOTE X WP1] Group 8 완료: parent AI usage feature isolation");
+  } catch (err) {
+    console.error("[SWIMNOTE X WP1] Group 8 실패 — 이후 Migration 중단:", err);
+    throw err;
+  }
+
+  console.log("[SWIMNOTE X WP1] ✅ PART 1 Migration 완료 (Group 1·2·3·5a·6·7·8)");
 }
 
 /**

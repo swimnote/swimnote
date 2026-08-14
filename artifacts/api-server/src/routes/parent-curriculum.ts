@@ -1,25 +1,26 @@
 /**
- * parent-curriculum.ts — WP2 / WP2.1 / WP2B: Parent Curriculum Search API
+ * parent-curriculum.ts — WP2 / WP2.1 / WP2B / WP2B.2
  *
  * Routes:
  *   POST /parent/students/:studentId/curriculum-search
  *   GET  /parent/students/:studentId/curriculum-search/history
  *
- * Flow (POST):
- *   Parent JWT 인증
- *   → Parent↔Student 소유권 확인
- *   → Conversation 조회/생성
- *   → Monthly quota 확인 + 예약
- *   → Student pool 확인
- *   → resolvePoolMode()
- *   → 모드별 Curriculum Scope 구성
- *   → Student Progress 구성
- *   → USER message 저장
- *   → ENGINE 호출
- *   → Response 검증
- *   → 성공: quota finalize, ASSISTANT message 저장
- *   → 실패: quota rollback
- *   → 안전한 결과 반환
+ * POST Flow (WP2B.2 canonical order):
+ *   1. Parent JWT 인증
+ *   2. Parent↔Student 소유권 확인
+ *   3. request_id prior state 확인 (getPriorReservationStatus)
+ *      IF COMPLETED → persisted result replay → RETURN (quota 차감 없음, ENGINE 금지)
+ *   4. Conversation 조회/생성
+ *   5. Monthly quota 확인 + 예약 (FAILED 재시도: FAILED→RESERVED atomic 전환)
+ *   6. Pool 이름 + mode 판정
+ *   7. Curriculum Scope 구성
+ *   8. Student Progress 구성
+ *   9. USER message 저장 (idempotent — FAILED retry 시 기존 재사용)
+ *   10. ENGINE 호출
+ *   11. Response 검증
+ *   12. 성공: quota finalize + ASSISTANT message 저장 (result_payload 포함)
+ *   13. 실패: quota rollback
+ *   14. 사용량 포함 안전한 응답 반환
  *
  * 금지:
  *   - GPT 직접 호출
@@ -49,6 +50,7 @@ import {
   type ParentCurriculumEngineResponse,
 } from "../lib/parent-curriculum-engine-client.js";
 import {
+  getPriorReservationStatus,
   tryReserveMonthlyQuota,
   finalizeQuotaSuccess,
   rollbackQuotaReservation,
@@ -62,6 +64,7 @@ import {
   saveAssistantMessage,
   touchConversation,
   getConversationMessages,
+  getAssistantMessageByRequestId,
 } from "../lib/parent-curriculum-conversation.js";
 
 const router = Router();
@@ -76,7 +79,7 @@ function requireParent(req: AuthRequest, res: any, next: any): void {
   next();
 }
 
-// ─── Response validation ───────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 interface ValidationResult {
   valid:   boolean;
@@ -88,27 +91,21 @@ function validateEngineResponse(
   requestId:            string,
   allowedCurriculumIds: Set<string>,
 ): ValidationResult {
-  // 1. request_id 일치
   if (response.request_id !== requestId) {
     return { valid: false, reason: "request_id mismatch" };
   }
-  // 2. schema_version
   if (response.schema_version !== PC_SCHEMA_VERSION) {
     return { valid: false, reason: `unsupported schema_version: ${response.schema_version}` };
   }
-  // 3. feature 일치
   if (response.feature !== PC_FEATURE) {
     return { valid: false, reason: `feature mismatch: ${response.feature}` };
   }
-  // 4. result.answer
   if (typeof response.result?.answer !== "string" || !response.result.answer) {
     return { valid: false, reason: "result.answer missing or empty" };
   }
-  // 5. grounding.validation === PASS
   if (response.grounding?.validation !== "PASS") {
     return { valid: false, reason: `grounding.validation=${response.grounding?.validation}` };
   }
-  // 6. curriculum_ids subset 검증
   const returnedIds: string[] = response.grounding?.curriculum_ids ?? [];
   for (const id of returnedIds) {
     if (!allowedCurriculumIds.has(id)) {
@@ -165,7 +162,55 @@ router.post(
 
     const poolId = (ownershipResult.rows[0] as any).swimming_pool_id as string;
 
-    // ── 2. Conversation 조회/생성 ─────────────────────────────────────────────
+    // ── 2. request_id prior state 확인 ───────────────────────────────────────
+    //
+    // COMPLETED: ENGINE 재호출 금지, quota 차감 금지.
+    // 기존 persisted result 반환 (10/10 한도에서도 replay 가능).
+    //
+    // FAILED / RESERVED / NONE: 아래 정상 flow 진행.
+    const priorStatus = await getPriorReservationStatus(trimmedRequestId).catch(() => "NONE" as const);
+
+    if (priorStatus === "COMPLETED") {
+      // COMPLETED replay path ────────────────────────────────────────────────
+      const convId = await findConversation(parentId, studentId).catch(() => null);
+      const assistantMsg = convId
+        ? await getAssistantMessageByRequestId(convId, trimmedRequestId).catch(() => null)
+        : null;
+
+      if (!assistantMsg) {
+        // Inconsistency — COMPLETED reservation 이 있지만 assistant message 없음
+        console.error(
+          `[parent-curriculum] COMPLETED ${trimmedRequestId} has no assistant message — internal inconsistency`,
+        );
+        res.status(500).json({ error: "서버 오류가 발생했습니다.", code: "INTERNAL_ERROR" });
+        return;
+      }
+
+      const answer    = assistantMsg.content;
+      const rp        = assistantMsg.metadata?.result_payload;
+      const mode      = (assistantMsg.metadata?.mode ?? "NORMAL") as string;
+      const usageInfo = await getMonthlyUsageInfo(parentId).catch(() => ({
+        limit:     MONTHLY_LIMIT,
+        used:      -1,
+        remaining: -1,
+        period:    "",
+        resets_at: "",
+      }));
+
+      res.json({
+        request_id: trimmedRequestId,
+        result: {
+          answer,
+          ...(rp?.current_progress ? { current_progress: rp.current_progress } : {}),
+          ...(rp?.next_step        ? { next_step: rp.next_step }               : {}),
+        },
+        meta:  { mode },
+        usage: usageInfo,
+      });
+      return;
+    }
+
+    // ── 3. Conversation 조회/생성 ─────────────────────────────────────────────
     const conversationId = await getOrCreateConversation(parentId, studentId, poolId)
       .catch((err) => {
         console.error("[parent-curriculum] conversation upsert failed:", err?.message);
@@ -177,7 +222,10 @@ router.post(
       return;
     }
 
-    // ── 3. Monthly Quota 확인 + 예약 ─────────────────────────────────────────
+    // ── 4. Monthly Quota 확인 + 예약 ─────────────────────────────────────────
+    //
+    // FAILED 재시도: 내부에서 FAILED→RESERVED atomic 전환.
+    // RESERVED 재시도: isRetry:true 반환 (quota 재차감 없음).
     const reserveResult = await tryReserveMonthlyQuota(parentId, trimmedRequestId)
       .catch((err) => {
         console.error("[parent-curriculum] quota reserve failed:", err?.message);
@@ -190,7 +238,6 @@ router.post(
     }
 
     if (!reserveResult.ok) {
-      // 한도 초과
       const { usageInfo } = reserveResult;
       res.status(429).json({
         error: "이번 달 커리큘럼 검색 사용 한도에 도달했습니다.",
@@ -200,7 +247,7 @@ router.post(
       return;
     }
 
-    // ── 4. Pool 이름 조회 ─────────────────────────────────────────────────────
+    // ── 5. Pool 이름 조회 ─────────────────────────────────────────────────────
     const poolResult = await superAdminDb.execute(sql`
       SELECT name
       FROM swimming_pools
@@ -210,7 +257,7 @@ router.post(
 
     const poolName = ((poolResult.rows[0] as any)?.name as string | null) ?? poolId;
 
-    // ── 5. Pool mode 판정 ─────────────────────────────────────────────────────
+    // ── 6. Pool mode 판정 ─────────────────────────────────────────────────────
     const modeResult = await resolvePoolMode(poolId);
 
     if (!modeResult) {
@@ -221,7 +268,7 @@ router.post(
 
     const poolMode = modeResult.mode;
 
-    // ── 6. x_pending → 차단 ──────────────────────────────────────────────────
+    // ── 7. x_pending → 차단 ──────────────────────────────────────────────────
     if (poolMode === "x_pending") {
       await rollbackQuotaReservation(parentId, trimmedRequestId, "CURRICULUM_SEARCH_NOT_ELIGIBLE");
       res.status(422).json({
@@ -231,7 +278,7 @@ router.post(
       return;
     }
 
-    // ── 7. Curriculum Scope 구성 ─────────────────────────────────────────────
+    // ── 8. Curriculum Scope 구성 ─────────────────────────────────────────────
     let curriculumScope;
     try {
       curriculumScope = poolMode === "x"
@@ -268,11 +315,12 @@ router.post(
       curriculumScope.curriculum_items.map((item) => item.id),
     );
 
-    // ── 8. Student Progress 구성 ─────────────────────────────────────────────
+    // ── 9. Student Progress 구성 ─────────────────────────────────────────────
     const studentProgress = await buildStudentProgress(studentId, poolId).catch(() => undefined);
 
-    // ── 9. USER Message 저장 ─────────────────────────────────────────────────
-    // ENGINE 호출 전 저장 (성공/실패 무관). ON CONFLICT DO NOTHING으로 retry 안전.
+    // ── 10. USER Message 저장 ─────────────────────────────────────────────────
+    // ENGINE 호출 전 저장 (성공/실패 무관).
+    // FAILED retry 시 기존 USER message 재사용 (ON CONFLICT DO NOTHING).
     await saveUserMessage({
       conversationId,
       requestId: trimmedRequestId,
@@ -281,7 +329,7 @@ router.post(
       console.error("[parent-curriculum] USER message save failed:", err?.message);
     });
 
-    // ── 10. ENGINE Request 구성 ───────────────────────────────────────────────
+    // ── 11. ENGINE Request 구성 ───────────────────────────────────────────────
     const engineMode: "NORMAL" | "X" = poolMode === "x" ? "X" : "NORMAL";
 
     const engineRequest: ParentCurriculumEngineRequest = {
@@ -299,12 +347,11 @@ router.post(
       },
     };
 
-    // ── 11. ENGINE 호출 ───────────────────────────────────────────────────────
+    // ── 12. ENGINE 호출 ───────────────────────────────────────────────────────
     let engineResponse: ParentCurriculumEngineResponse;
     try {
       engineResponse = await searchParentCurriculum(engineRequest);
     } catch (err) {
-      // ENGINE 오류 → quota 롤백
       const errorCode = err instanceof ParentCurriculumEngineError
         ? (err.statusCode === 401 ? "ENGINE_UNAUTHORIZED"
           : err.statusCode === 429 ? "ENGINE_RATE_LIMITED"
@@ -332,7 +379,7 @@ router.post(
       return;
     }
 
-    // ── 12. Response 검증 ─────────────────────────────────────────────────────
+    // ── 13. Response 검증 ─────────────────────────────────────────────────────
     const validation = validateEngineResponse(
       engineResponse,
       trimmedRequestId,
@@ -340,7 +387,6 @@ router.post(
     );
 
     if (!validation.valid) {
-      // 검증 실패 → quota 롤백
       console.error(
         `[parent-curriculum] ENGINE response validation failed: ${validation.reason}`,
       );
@@ -352,7 +398,7 @@ router.post(
       return;
     }
 
-    // ── 13. 성공 확정: quota finalize + ASSISTANT message 저장 ───────────────
+    // ── 14. 성공 확정: quota finalize + ASSISTANT message 저장 ───────────────
     await finalizeQuotaSuccess(parentId, trimmedRequestId).catch((err) => {
       console.error("[parent-curriculum] quota finalize failed:", err?.message);
     });
@@ -367,6 +413,12 @@ router.post(
         intent:            intent ?? null,
         mode:              engineMode,
         curriculum_source: curriculumScope.source,
+        // result_payload: COMPLETED retry replay용 (raw trace 금지)
+        result_payload: {
+          answer,
+          ...(current_progress !== undefined ? { current_progress } : {}),
+          ...(next_step        !== undefined ? { next_step }        : {}),
+        },
       },
     }).catch((err) => {
       console.error("[parent-curriculum] ASSISTANT message save failed:", err?.message);
@@ -374,7 +426,7 @@ router.post(
 
     await touchConversation(conversationId).catch(() => undefined);
 
-    // ── 14. 사용량 조회 + 안전한 응답 반환 ───────────────────────────────────
+    // ── 15. 사용량 조회 + 안전한 응답 반환 ───────────────────────────────────
     const usageInfo = await getMonthlyUsageInfo(parentId).catch(() => ({
       limit:     MONTHLY_LIMIT,
       used:      -1,
@@ -384,15 +436,13 @@ router.post(
     }));
 
     res.json({
-      request_id,
+      request_id: trimmedRequestId,
       result: {
         answer,
-        ...(current_progress ? { current_progress } : {}),
-        ...(next_step        ? { next_step }        : {}),
+        ...(current_progress !== undefined ? { current_progress } : {}),
+        ...(next_step        !== undefined ? { next_step }        : {}),
       },
-      meta: {
-        mode: engineMode,
-      },
+      meta:  { mode: engineMode },
       usage: usageInfo,
     });
   },
@@ -403,9 +453,7 @@ router.post(
 /**
  * GET /parent/students/:studentId/curriculum-search/history
  *
- * Parent UI WP3를 위한 대화 이력 조회.
- * 과거 대화 열람은 quota 차감 없음.
- * ownership 검증 필수.
+ * 대화 이력 조회. quota 차감 없음. ownership 검증 필수.
  */
 router.get(
   "/parent/students/:studentId/curriculum-search/history",
@@ -415,7 +463,6 @@ router.get(
     const parentId  = req.user!.userId;
     const studentId = req.params.studentId;
 
-    // ── 소유권 확인 ───────────────────────────────────────────────────────────
     const ownershipResult = await superAdminDb.execute(sql`
       SELECT ps.swimming_pool_id
       FROM parent_students ps
@@ -430,10 +477,8 @@ router.get(
       return;
     }
 
-    // ── Conversation 조회 ─────────────────────────────────────────────────────
     const conversationId = await findConversation(parentId, studentId).catch(() => null);
 
-    // conversation 없음 → 빈 history
     if (!conversationId) {
       const usageInfo = await getMonthlyUsageInfo(parentId).catch(() => ({
         limit:     MONTHLY_LIMIT,
@@ -446,8 +491,7 @@ router.get(
       return;
     }
 
-    // ── 메시지 조회 ──────────────────────────────────────────────────────────
-    const messages = await getConversationMessages(conversationId).catch(() => []);
+    const messages  = await getConversationMessages(conversationId).catch(() => []);
     const usageInfo = await getMonthlyUsageInfo(parentId).catch(() => ({
       limit:     MONTHLY_LIMIT,
       used:      0,

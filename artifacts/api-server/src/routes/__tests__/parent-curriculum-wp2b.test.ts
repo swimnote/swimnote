@@ -81,23 +81,26 @@ vi.mock("../../lib/parent-curriculum-engine-client.js", () => ({
 
 // Quota + Conversation mocked at module level
 vi.mock("../../lib/parent-curriculum-quota.js", () => ({
-  MONTHLY_LIMIT:            10,
-  tryReserveMonthlyQuota:   vi.fn(),
-  finalizeQuotaSuccess:     vi.fn(),
-  rollbackQuotaReservation: vi.fn(),
-  getMonthlyUsageInfo:      vi.fn(),
-  getSeoulMonthPeriod:      vi.fn(),
-  getSeoulPeriodLabel:      vi.fn(),
-  getResetsAt:              vi.fn(),
+  MONTHLY_LIMIT:             10,
+  CURRICULUM_SEARCH_FEATURE: "parent_curriculum_search",
+  getPriorReservationStatus: vi.fn(),   // WP2B.2
+  tryReserveMonthlyQuota:    vi.fn(),
+  finalizeQuotaSuccess:      vi.fn(),
+  rollbackQuotaReservation:  vi.fn(),
+  getMonthlyUsageInfo:       vi.fn(),
+  getSeoulMonthPeriod:       vi.fn(),
+  getSeoulPeriodLabel:       vi.fn(),
+  getResetsAt:               vi.fn(),
 }));
 
 vi.mock("../../lib/parent-curriculum-conversation.js", () => ({
-  getOrCreateConversation:  vi.fn(),
-  findConversation:         vi.fn(),
-  saveUserMessage:          vi.fn(),
-  saveAssistantMessage:     vi.fn(),
-  touchConversation:        vi.fn(),
-  getConversationMessages:  vi.fn(),
+  getOrCreateConversation:        vi.fn(),
+  findConversation:               vi.fn(),
+  saveUserMessage:                vi.fn(),
+  saveAssistantMessage:           vi.fn(),
+  touchConversation:              vi.fn(),
+  getConversationMessages:        vi.fn(),
+  getAssistantMessageByRequestId: vi.fn(), // WP2B.2
 }));
 
 // ─── Import mocked modules ────────────────────────────────────────────────────
@@ -106,6 +109,7 @@ import { superAdminDb }             from "@workspace/db";
 import { resolvePoolMode }          from "../../lib/xmode.js";
 import { searchParentCurriculum, ParentCurriculumEngineError } from "../../lib/parent-curriculum-engine-client.js";
 import {
+  getPriorReservationStatus,
   tryReserveMonthlyQuota,
   finalizeQuotaSuccess,
   rollbackQuotaReservation,
@@ -118,6 +122,7 @@ import {
   saveAssistantMessage,
   touchConversation,
   getConversationMessages,
+  getAssistantMessageByRequestId,
 } from "../../lib/parent-curriculum-conversation.js";
 
 // ─── App builder ──────────────────────────────────────────────────────────────
@@ -203,6 +208,10 @@ beforeEach(() => {
   (resolvePoolMode as ReturnType<typeof vi.fn>).mockResolvedValue({
     pool_id: POOL_ID, mode: "normal", xmode_entitlement: false, xmode_config_status: "NOT_CONFIGURED",
   });
+
+  // Default: no prior reservation (normal fresh-request path)
+  (getPriorReservationStatus as ReturnType<typeof vi.fn>).mockResolvedValue("NONE");
+  (getAssistantMessageByRequestId as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
   // Default: conversation created
   (getOrCreateConversation as ReturnType<typeof vi.fn>).mockResolvedValue(CONV_ID_1);

@@ -77,13 +77,15 @@ vi.mock("../../lib/parent-curriculum-engine-client.js", () => ({
   },
 }));
 
-// WP2B: quota + conversation modules — mocked so WP2 tests are unaffected by WP2B logic
+// WP2B / WP2B.2: quota + conversation modules — mocked so WP2 tests are unaffected
 vi.mock("../../lib/parent-curriculum-quota.js", () => ({
-  MONTHLY_LIMIT:            10,
-  tryReserveMonthlyQuota:   vi.fn().mockResolvedValue({ ok: true, isRetry: false }),
-  finalizeQuotaSuccess:     vi.fn().mockResolvedValue(undefined),
-  rollbackQuotaReservation: vi.fn().mockResolvedValue(undefined),
-  getMonthlyUsageInfo:      vi.fn().mockResolvedValue({
+  MONTHLY_LIMIT:             10,
+  CURRICULUM_SEARCH_FEATURE: "parent_curriculum_search",
+  getPriorReservationStatus: vi.fn().mockResolvedValue("NONE"),  // WP2B.2: default no prior
+  tryReserveMonthlyQuota:    vi.fn().mockResolvedValue({ ok: true, isRetry: false }),
+  finalizeQuotaSuccess:      vi.fn().mockResolvedValue(undefined),
+  rollbackQuotaReservation:  vi.fn().mockResolvedValue(undefined),
+  getMonthlyUsageInfo:       vi.fn().mockResolvedValue({
     limit: 10, used: 0, remaining: 10, period: "2026-08", resets_at: "2026-09-01T00:00:00.000Z",
   }),
   getSeoulMonthPeriod: vi.fn().mockReturnValue("2026-08-01"),
@@ -92,12 +94,13 @@ vi.mock("../../lib/parent-curriculum-quota.js", () => ({
 }));
 
 vi.mock("../../lib/parent-curriculum-conversation.js", () => ({
-  getOrCreateConversation: vi.fn().mockResolvedValue("conv_default_01"),
-  findConversation:        vi.fn().mockResolvedValue("conv_default_01"),
-  saveUserMessage:         vi.fn().mockResolvedValue(undefined),
-  saveAssistantMessage:    vi.fn().mockResolvedValue(undefined),
-  touchConversation:       vi.fn().mockResolvedValue(undefined),
-  getConversationMessages: vi.fn().mockResolvedValue([]),
+  getOrCreateConversation:        vi.fn().mockResolvedValue("conv_default_01"),
+  findConversation:               vi.fn().mockResolvedValue("conv_default_01"),
+  saveUserMessage:                vi.fn().mockResolvedValue(undefined),
+  saveAssistantMessage:           vi.fn().mockResolvedValue(undefined),
+  touchConversation:              vi.fn().mockResolvedValue(undefined),
+  getConversationMessages:        vi.fn().mockResolvedValue([]),
+  getAssistantMessageByRequestId: vi.fn().mockResolvedValue(null), // WP2B.2
 }));
 
 // ─── Import mocked modules ────────────────────────────────────────────────────
