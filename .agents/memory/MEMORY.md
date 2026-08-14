@@ -58,3 +58,4 @@
 - [GR6 완료 상태](wp-gr6-done-state.md) — SHA f707d942; Publish+Parent Feed; 60TC; 778TC; 미배포
 - [GR7 완료 상태](wp-gr7-done-state.md) — SHA 45b490c4; Push+DeepLink; 55TC; 833TC; 미배포
 - [GR8 완료 상태](wp-gr8-done-state.md) — SHA cb642da2; Parent Detail Screen; 66TC; 899TC; 미배포
+- [WP1.2 완료 상태](wp1-2-done-state.md) — SHA 47831611; Recent Conversation Context; buildRecentConversationContext; +23TC=1094TC; 미배포
