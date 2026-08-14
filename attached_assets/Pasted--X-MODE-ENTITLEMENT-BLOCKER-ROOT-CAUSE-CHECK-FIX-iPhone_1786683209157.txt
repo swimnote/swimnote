@@ -1,0 +1,177 @@
+[X MODE ENTITLEMENT BLOCKER — ROOT CAUSE CHECK & FIX]
+
+현재 실제 iPhone 앱에서 SWIMNOTE X 설정 화면 진입 확인 완료.
+
+현재 화면:
+- SWIMNOTE X 설정 화면 정상 진입
+- 오류 표시: "X entitlement 없음"
+- "커리큘럼 설정 요청하기" 화면 표시
+
+따라서 UI 진입 문제는 아니다.
+현재 blocker는 X entitlement 판정이다.
+
+목표:
+현재 로그인한 수영장에서 왜 X entitlement가 false로 판정되는지
+실제 DB → server resolver → API response 순서로 추적하고,
+기존 X Mode 설계에 맞게 활성화한다.
+
+중요:
+추측 금지.
+새 entitlement 시스템 생성 금지.
+fake/stub 금지.
+기존 canonical X Mode 자산만 사용.
+
+==================================================
+1. 현재 로그인 수영장 식별
+==================================================
+
+실제 현재 로그인한 admin 계정이 속한 swimming_pool을 DB에서 확인한다.
+
+반드시 확인:
+
+- swimming_pool id
+- swimming_pool name
+- admin/user → pool 연결 경로
+
+화면만 보고 pool을 추정하지 말 것.
+
+==================================================
+2. DB X MODE STATE 확인
+==================================================
+
+현재 pool row의 실제 X 관련 컬럼을 전부 확인한다.
+
+최소 확인:
+
+- xmode_entitlement
+- xmode_config_status
+- approval_status
+- 기타 실제 repository에 존재하는 xmode_* 컬럼
+
+각 값의 현재 DB 값을 그대로 보고한다.
+
+특히:
+
+xmode_entitlement = false/null 인지
+xmode_config_status가 READY인지
+approval_status가 approved인지
+
+확인.
+
+==================================================
+3. resolvePoolMode() TRACE
+==================================================
+
+기존 canonical:
+
+resolvePoolMode(poolId)
+
+를 현재 poolId로 실제 실행/추적한다.
+
+보고:
+
+- 입력 poolId
+- 조회된 DB 값
+- entitlement 판정
+- config 판정
+- 최종 mode
+- false/x가 결정되는 정확한 조건
+
+==================================================
+4. X SETUP API TRACE
+==================================================
+
+현재 iPhone 화면이 호출하는 실제 API endpoint를 찾는다.
+
+그 API에서 반환하는:
+
+- entitlement
+- config status
+- mode
+- setup state
+
+관련 response를 확인한다.
+
+화면의 "X entitlement 없음" 문구가
+어떤 response field/condition 때문에 출력되는지
+코드 위치까지 확인한다.
+
+==================================================
+5. FIX
+==================================================
+
+현재 pool이 개발/검증용으로 X Mode를 사용하도록 이미 지정된 대상이라면,
+기존 canonical DB 구조를 사용해서 entitlement를 활성화한다.
+
+절대 금지:
+
+- 앱에서 entitlement=true 하드코딩
+- resolver 우회
+- X guard 제거
+- fake RevenueCat result
+- 모든 pool X 활성화
+- 새로운 entitlement 컬럼 생성
+
+DB의 기존 X Mode entitlement 체계를 통해서만 활성화.
+
+필요하다면 현재 검증용 pool 1개만 대상으로 처리한다.
+
+==================================================
+6. ACTIVATION VERIFY
+==================================================
+
+수정 후 반드시 다시 확인:
+
+DB
+→ resolvePoolMode()
+→ X setup API
+→ APP gating
+
+기대 결과:
+
+xmode_entitlement = true
+resolvePoolMode(...) = X canonical mode
+X setup API entitlement = true
+현재 화면에서 "X entitlement 없음" 제거
+
+단,
+xmode_config_status가 아직 READY가 아니라면
+entitlement 활성화와 curriculum setup 상태를 구분해서 보고한다.
+
+entitlement=true가 되었다고
+config까지 READY라고 허위 보고하지 말 것.
+
+==================================================
+7. PRODUCTION SAFETY
+==================================================
+
+이번 작업은 현재 검증 대상 pool의 X entitlement 활성화만 허용.
+
+GR1~GR9 수정 금지.
+Growth Report Engine 수정 금지.
+AI Engine 수정 금지.
+전체 X Mode 구조 변경 금지.
+Deploy/OTA는 아직 금지.
+
+==================================================
+8. REPORT
+==================================================
+
+1. CURRENT POOL
+2. ROOT CAUSE
+3. BEFORE DB STATE
+4. resolvePoolMode BEFORE
+5. FIX APPLIED
+6. AFTER DB STATE
+7. resolvePoolMode AFTER
+8. X SETUP API AFTER
+9. APP EXPECTED STATE
+10. FILES MODIFIED
+11. DB ROWS MODIFIED
+12. DEPLOY/OTA STATUS
+
+X_MODE_ENTITLEMENT_ACTIVATED
+또는
+X_MODE_ENTITLEMENT_BLOCKED + 정확한 blocker
+
+로 종료.
