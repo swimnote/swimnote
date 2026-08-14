@@ -1,6 +1,6 @@
 /**
- * (super)/operator-detail.tsx — 수영장 상세 관리 콘솔
- * 기본정보 / 구독·결제 / 저장공간 / 정책·동의 / 로그 / 강제조치
+ * (super)/operator-detail.tsx — 운영처 상세 관리 콘솔
+ * 기본정보 / X모드 / 구독·결제 / 저장공간 / 정책·동의 / 로그 / 강제조치
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
@@ -17,7 +17,7 @@ const C = Colors.light;
 
 const P = "#7C3AED";
 
-const TABS = ["기본정보", "구독·결제", "저장공간", "정책·동의", "로그", "강제조치"] as const;
+const TABS = ["기본정보", "X모드", "구독·결제", "저장공간", "정책·동의", "로그", "강제조치"] as const;
 type Tab = typeof TABS[number];
 
 const TIER_LABEL: Record<string, string> = {
@@ -234,7 +234,7 @@ export default function OperatorDetailScreen() {
       if (res.ok) {
         removeOperator(id);
         setDeleteModal(false);
-        Alert.alert("삭제 완료", data.message ?? "수영장이 삭제되었습니다.", [
+        Alert.alert("삭제 완료", data.message ?? "운영처가 삭제되었습니다.", [
           { text: "확인", onPress: () => router.replace("/(super)/pools" as any) },
         ]);
       } else {
@@ -249,7 +249,7 @@ export default function OperatorDetailScreen() {
   if (loading) {
     return (
       <SafeAreaView style={d.safe} edges={[]}>
-        <SubScreenHeader title="수영장 상세" homePath="/(super)/pools" />
+        <SubScreenHeader title="운영처 상세" homePath="/(super)/pools" />
         <ActivityIndicator color={P} style={{ marginTop: 60 }} />
       </SafeAreaView>
     );
@@ -258,7 +258,7 @@ export default function OperatorDetailScreen() {
   if (!pool) {
     return (
       <SafeAreaView style={d.safe} edges={[]}>
-        <SubScreenHeader title="수영장 상세" homePath="/(super)/pools" />
+        <SubScreenHeader title="운영처 상세" homePath="/(super)/pools" />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <Text style={{ color: "#64748B", fontFamily: "Pretendard-Regular" }}>수영장 정보를 불러올 수 없습니다.</Text>
         </View>
@@ -339,12 +339,12 @@ export default function OperatorDetailScreen() {
         {tab === "기본정보" && (
           <>
             <View style={d.card}>
-              <Text style={d.cardTitle}>수영장 정보</Text>
-              <InfoRow label="수영장명"    value={pool.name ?? "—"} />
-              <InfoRow label="주소"        value={pool.address ?? "—"} />
-              <InfoRow label="전화번호"    value={pool.phone ?? "—"} />
-              <InfoRow label="수영장 유형" value={pool.pool_type ?? "swimming_pool"} />
-              <InfoRow label="영문 명칭"   value={pool.name_en ?? "—"} />
+              <Text style={d.cardTitle}>운영처 정보</Text>
+              <InfoRow label="운영처명"  value={pool.name ?? "—"} />
+              <InfoRow label="주소"      value={pool.address ?? "—"} />
+              <InfoRow label="전화번호"  value={pool.phone ?? "—"} />
+              <InfoRow label="운영 유형" value={pool.pool_type ?? "swimming_pool"} />
+              <InfoRow label="영문 명칭" value={pool.name_en ?? "—"} />
             </View>
 
             <View style={d.card}>
@@ -401,6 +401,63 @@ export default function OperatorDetailScreen() {
                   <Text style={[d.actionCardTxt, { color: "#D97706" }]}>미처리 문의 확인 →</Text>
                 </Pressable>
               )}
+            </View>
+          </>
+        )}
+
+        {/* ── X모드 탭 ── */}
+        {tab === "X모드" && (
+          <>
+            <View style={d.card}>
+              <Text style={d.cardTitle}>SWIMNOTE X 상태</Text>
+
+              {/* X 사용권 활성 여부 */}
+              <View style={[d.infoRow, { alignItems: "center" }]}>
+                <Text style={d.infoLabel}>X 사용권</Text>
+                <View style={{
+                  paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8,
+                  backgroundColor: pool.xmode_entitlement ? "#E6FAF8" : "#F1F5F9",
+                }}>
+                  <Text style={{
+                    fontSize: 12, fontFamily: "Pretendard-Regular",
+                    color: pool.xmode_entitlement ? "#2EC4B6" : "#64748B",
+                  }}>
+                    {pool.xmode_entitlement ? "X 활성" : "X 비활성"}
+                  </Text>
+                </View>
+              </View>
+
+              {/* 설정 상태 */}
+              <View style={[d.infoRow, { alignItems: "center" }]}>
+                <Text style={d.infoLabel}>설정 상태</Text>
+                {(() => {
+                  const cs: string = (pool.xmode_config_status as string) ?? "NOT_CONFIGURED";
+                  const cfgMap: Record<string, { label: string; color: string; bg: string }> = {
+                    NOT_CONFIGURED:     { label: "미설정",  color: "#64748B", bg: "#F1F5F9" },
+                    CURRICULUM_PENDING: { label: "심사 중", color: "#D97706", bg: "#FFF1BF" },
+                    READY:              { label: "READY",   color: "#2EC4B6", bg: "#E6FAF8" },
+                  };
+                  const cfg = cfgMap[cs] ?? cfgMap.NOT_CONFIGURED;
+                  return (
+                    <View style={{ paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8, backgroundColor: cfg.bg }}>
+                      <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: cfg.color }}>
+                        {cfg.label}
+                      </Text>
+                    </View>
+                  );
+                })()}
+              </View>
+
+              <InfoRow label="구독 시작일" value={fmtDate(pool.xmode_purchased_at)} />
+              <InfoRow label="구독 만료일" value={fmtDate(pool.xmode_subscription_end_at)} />
+            </View>
+
+            {/* 수동 제어 안내 — 실제 PATCH /super/operators/:id/xmode API 존재 */}
+            <View style={[d.card, { backgroundColor: "#F8FAFC", borderColor: "#E2E8F0" }]}>
+              <Text style={[d.cardTitle, { color: "#64748B" }]}>X 사용권 수동 제어</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8", lineHeight: 19 }}>
+                {"PATCH /super/operators/:id/xmode API로\n운영처별 X 사용권을 수동 활성/비활성 할 수 있습니다.\n수동 제어 UI는 다음 단계에서 추가됩니다."}
+              </Text>
             </View>
           </>
         )}
@@ -567,15 +624,15 @@ export default function OperatorDetailScreen() {
               </Pressable>
             </View>
 
-            {/* 수영장 완전 삭제 */}
+            {/* 운영처 완전 삭제 */}
             <View style={[d.card, { borderColor: "#FCA5A5", backgroundColor: "#FFF5F5" }]}>
               <Text style={[d.cardTitle, { color: "#D96C6C" }]}>위험 구역</Text>
               <Text style={{ fontSize: 12, color: "#64748B", fontFamily: "Pretendard-Regular", marginBottom: 8 }}>
-                수영장을 완전히 삭제합니다. 회원, 수업, 출결, 스태프 등 모든 데이터가 영구 삭제되며 복구할 수 없습니다.
+                운영처를 완전히 삭제합니다. 회원, 수업, 출결, 스태프 등 모든 데이터가 영구 삭제되며 복구할 수 없습니다.
               </Text>
               <Pressable style={d.deleteBtn} onPress={() => setDeleteModal(true)}>
                 <LucideIcon name="trash-2" size={16} color="#fff" />
-                <Text style={d.deleteBtnTxt}>수영장 완전 삭제</Text>
+                <Text style={d.deleteBtnTxt}>운영처 완전 삭제</Text>
               </Pressable>
             </View>
           </>
@@ -688,23 +745,23 @@ export default function OperatorDetailScreen() {
         </Pressable>
       </Modal>
 
-      {/* ─────── 수영장 삭제 확인 모달 ─────── */}
+      {/* ─────── 운영처 삭제 확인 모달 ─────── */}
       <Modal visible={deleteModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setDeleteModal(false)}>
         <Pressable style={m.backdrop} onPress={() => !deleting && setDeleteModal(false)}>
           <Pressable style={m.sheet} onPress={() => {}}>
             <View style={m.handle} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
               <LucideIcon name="trash-2" size={20} color="#D96C6C" />
-              <Text style={[m.title, { color: "#D96C6C" }]}>수영장 완전 삭제</Text>
+              <Text style={[m.title, { color: "#D96C6C" }]}>운영처 완전 삭제</Text>
             </View>
             <View style={{ backgroundColor: "#FFF5F5", borderRadius: 10, padding: 14, marginBottom: 16, gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: "#B91C1C" }}>⚠ 이 작업은 되돌릴 수 없습니다</Text>
               <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular", lineHeight: 20 }}>
-                {`· 수영장: `}<Text style={{ fontWeight: "700", color: "#0F172A" }}>{pool.name}</Text>{`\n· 회원, 수업, 출결, 선생님 등 모든 데이터 영구 삭제\n· 삭제 후 복구 불가`}
+                {`· 운영처: `}<Text style={{ fontWeight: "700", color: "#0F172A" }}>{pool.name}</Text>{`\n· 회원, 수업, 출결, 선생님 등 모든 데이터 영구 삭제\n· 삭제 후 복구 불가`}
               </Text>
             </View>
             <Text style={{ fontSize: 13, color: "#374151", fontFamily: "Pretendard-SemiBold", marginBottom: 16 }}>
-              정말로 이 수영장을 삭제하시겠습니까?
+              정말로 이 운영처를 삭제하시겠습니까?
             </Text>
             <View style={m.btnRow}>
               <Pressable style={m.cancelBtn} onPress={() => setDeleteModal(false)} disabled={deleting}>

@@ -17,11 +17,19 @@ const P = "#7C3AED";
 const MENUS = [
   {
     icon: "users" as const,
-    title: "운영자 관리",
-    sub: "운영자 목록·제한·해지·플랜 상태·로그",
+    title: "운영처 관리",
+    sub: "운영처 목록·제한·해지·플랜 상태·로그",
     path: "/(super)/pools",
     color: P,
     bg: "#EEDDF5",
+  },
+  {
+    icon: "zap" as const,
+    title: "X모드 관리",
+    sub: "운영처별 X 사용권 상태 확인 · 상세에서 수동 제어",
+    path: "/(super)/pools",
+    color: "#2EC4B6",
+    bg: "#E6FAF8",
   },
   {
     icon: "hard-drive" as const,
@@ -73,7 +81,7 @@ export default function OpGroupScreen() {
             onPress={() => router.push("/(super)/pools?backTo=op-group" as any)}
           >
             <Text style={s.summaryNum}>{operators.length}</Text>
-            <Text style={s.summaryLabel}>전체 운영자</Text>
+            <Text style={s.summaryLabel}>전체 운영처</Text>
           </Pressable>
           <Pressable
             style={[s.summaryCard, pendingCount > 0 && s.summaryAlert]}

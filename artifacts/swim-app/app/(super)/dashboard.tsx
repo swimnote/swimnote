@@ -305,8 +305,8 @@ export default function SuperDashboard() {
             {/* ── 6대 KPI ── */}
             <View style={s.statsGrid}>
               {[
-                { label: "전체 운영자",   v: stats?.total_operators ?? 0,        alert: false, path: "/(super)/pools?backTo=dashboard" },
-                { label: "활성 운영자",   v: stats?.active_operators ?? 0,       alert: false, path: "/(super)/pools?backTo=dashboard" },
+                { label: "전체 운영처",   v: stats?.total_operators ?? 0,        alert: false, path: "/(super)/pools?backTo=dashboard" },
+                { label: "활성 운영처",   v: stats?.active_operators ?? 0,       alert: false, path: "/(super)/pools?backTo=dashboard" },
                 { label: "승인 대기",     v: stats?.pending_operators ?? 0,      alert: true,  path: "/(super)/pools?filter=pending&backTo=dashboard" },
                 { label: "저장 위험",     v: stats?.storage_danger_count ?? 0,   alert: true,  path: "/(super)/storage?backTo=dashboard" },
                 { label: "24h 삭제",      v: stats?.deletion_pending_count ?? 0, alert: true,  path: "/(super)/risk-center?backTo=dashboard" },

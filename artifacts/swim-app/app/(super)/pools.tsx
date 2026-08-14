@@ -1,5 +1,5 @@
 /**
- * (super)/pools.tsx — 운영자 관리 (대규모 운영 콘솔)
+ * (super)/pools.tsx — 운영처 관리 (대규모 운영 콘솔)
  * 14개 실데이터 · 13개 필터칩 · 다중선택 · 일괄처리
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
@@ -319,14 +319,14 @@ export default function SuperPoolsScreen() {
         </Pressable>
       </Modal>
 
-      <SubScreenHeader title="운영자 관리" homePath="/(super)/op-group" />
+      <SubScreenHeader title="운영처 관리" homePath="/(super)/op-group" />
 
       {/* 검색 + 정렬 */}
       <View style={s.searchRow}>
         <View style={s.searchBox}>
           <LucideIcon name="search" size={14} color="#64748B" />
           <TextInput style={s.searchInput} value={search} onChangeText={setSearch}
-            placeholder="운영자명, 코드, 담당자 검색" placeholderTextColor="#64748B" />
+            placeholder="운영처명, 코드, 담당자 검색" placeholderTextColor="#64748B" />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch("")}>
               <LucideIcon name="x" size={14} color="#64748B" />
@@ -392,7 +392,7 @@ export default function SuperPoolsScreen() {
         ListEmptyComponent={
           <View style={s.empty}>
             <LucideIcon name="inbox" size={40} color="#D1D5DB" />
-            <Text style={s.emptyTxt}>해당 조건의 운영자가 없습니다</Text>
+            <Text style={s.emptyTxt}>해당 조건의 운영처가 없습니다</Text>
           </View>
         }
       />
