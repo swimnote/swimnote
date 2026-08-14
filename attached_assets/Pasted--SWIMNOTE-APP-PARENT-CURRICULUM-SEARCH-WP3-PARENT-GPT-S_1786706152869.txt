@@ -1,0 +1,540 @@
+[SWIMNOTE APP]
+[PARENT CURRICULUM SEARCH — WP3]
+[PARENT GPT-STYLE CHAT UI + HISTORY + QUOTA DISPLAY]
+
+현재 Backend/Engine 완료:
+
+ENGINE
+- WP1 Parent Curriculum Search
+- WP1.1 level optional contract
+- WP2C recent conversation / follow-up context
+
+APP SERVER
+- WP2 Parent endpoint / scope / mode / auth
+- WP2.1 student progress semantic fix
+- WP2B monthly quota + conversation/message persistence
+- WP2B.2 idempotency / retry / feature isolation
+- WP2B.3 atomic success finalization
+
+이번 WP 목적:
+
+기존 Parent 홈의
+“AI 커리큘럼 검색” 준비중 모달을 제거하고
+
+GPT처럼 계속 누적되는
+학부모 커리큘럼 상담 채팅 UI를 구현한다.
+
+중요:
+
+이번 WP는 UI/Client 연결 작업이다.
+
+수영 지식 판단
+Prompt
+Knowledge Search
+Mode 추론
+Curriculum 선택
+
+앱에서 구현 금지.
+
+==================================================
+1. PRODUCT BEHAVIOR
+==================================================
+
+사용자는 학생 한 명의 커리큘럼 상담방을 열면
+기존 대화가 계속 누적되어 보여야 한다.
+
+월이 바뀌어도:
+
+conversation/messages는 유지.
+
+초기화되는 것은:
+
+월 10회 질문 사용량만.
+
+과거 대화 열람:
+무료 / quota 차감 없음.
+
+==================================================
+2. HOME ENTRY
+==================================================
+
+현재:
+
+home.tsx
+→ AI 커리큘럼 검색 버튼
+→ AIFeatureModal(type="curriculum")
+→ 준비중 안내
+
+변경:
+
+AI 커리큘럼 검색 버튼
+→ 실제 Curriculum Chat 화면으로 이동.
+
+준비중 모달은 curriculum 타입에서 더 이상 사용하지 않는다.
+
+다른 AI feature의 준비중 모달은 건드리지 않는다.
+
+==================================================
+3. ROUTE
+==================================================
+
+신규 화면:
+
+app/(parent)/curriculum-chat.tsx
+
+또는 기존 routing convention에 맞는 동등 route.
+
+학생 context가 필요하므로
+studentId를 route param으로 전달.
+
+예:
+
+/parent/curriculum-chat?studentId=...
+
+==================================================
+4. CHAT UI
+==================================================
+
+GPT형 단일 채팅 화면.
+
+기본 구성:
+
+상단:
+- 학생 이름
+- “AI 커리큘럼 상담”
+- 이번 달 사용량
+
+본문:
+- ScrollView / FlatList
+- USER bubble
+- ASSISTANT bubble
+- 시간
+
+하단:
+- TextInput
+- 전송 버튼
+- remaining quota 표시
+
+대화는 oldest → newest 순서.
+
+신규 답변 도착 시
+최신 메시지로 자연스럽게 scroll.
+
+==================================================
+5. QUOTA UI
+==================================================
+
+API usage:
+
+{
+  limit: 10,
+  used: N,
+  remaining: N,
+  period: "YYYY-MM",
+  resets_at: "..."
+}
+
+화면에 간단히 표시:
+
+예:
+
+이번 달 4/10회 사용
+
+또는
+
+남은 질문 6회
+
+10/10이면:
+
+- 입력창 disabled
+- 전송 버튼 disabled
+- 기존 대화는 계속 볼 수 있음
+
+안내:
+
+“이번 달 상담 횟수를 모두 사용했습니다.
+다음 달에 다시 이용할 수 있습니다.”
+
+정확한 reset date를 보여줄 수 있으면
+resets_at 기반으로 표시.
+
+==================================================
+6. HISTORY LOAD
+==================================================
+
+화면 진입 시:
+
+GET
+/api/parent/students/:studentId/curriculum-search/history
+
+호출.
+
+response의:
+
+conversation_id
+messages
+usage
+
+사용.
+
+history가 없어도 정상 빈 화면.
+
+404를 오류 화면으로 만들지 말고
+서버 contract 기준 empty history 처리.
+
+==================================================
+7. SEND QUESTION
+==================================================
+
+POST:
+
+/api/parent/students/:studentId/curriculum-search
+
+Body:
+
+{
+  "request_id": "curriculum_<UUID>",
+  "query": "<trimmed input>"
+}
+
+앱에서 보내지 않는 것:
+
+pool_id
+mode
+curriculum IDs
+history
+student progress
+
+이 모든 것은 서버 책임.
+
+==================================================
+8. REQUEST_ID
+==================================================
+
+질문 전송 1건마다
+client에서 UUID 생성.
+
+형식:
+
+curriculum_<uuid>
+
+같은 전송 retry에서는
+동일 request_id 유지.
+
+사용자가 새로운 질문을 작성하면
+새 request_id 생성.
+
+==================================================
+9. OPTIMISTIC USER MESSAGE
+==================================================
+
+전송 직후 USER bubble은
+optimistic 표시 가능.
+
+하지만:
+
+서버 실패 시
+정상 persisted message처럼 확정하지 않는다.
+
+권장 상태:
+
+sending
+sent
+failed
+
+서버 history와 재동기화 가능해야 함.
+
+중복 USER bubble 금지.
+
+==================================================
+10. ASSISTANT RESPONSE
+==================================================
+
+서버 성공 response:
+
+result.answer
+result.current_progress?
+result.next_step?
+
+UI에서는 최소:
+
+answer
+
+를 채팅 bubble 본문으로 표시.
+
+current_progress / next_step이 있으면
+assistant bubble 내부에 보조 카드 형태로 표시 가능.
+
+단 서버가 반환하지 않으면
+빈 카드 생성 금지.
+
+==================================================
+11. FOLLOW-UP EXPERIENCE
+==================================================
+
+사용자는 자연스럽게:
+
+“그 다음은?”
+“왜 그래?”
+“그건 언제 배워요?”
+
+처럼 입력할 수 있어야 한다.
+
+앱은 이전 대화를 직접 조합해서
+ENGINE에 보내지 않는다.
+
+서버가 persisted history에서
+recent_conversation을 구성함.
+
+==================================================
+12. LOADING STATE
+==================================================
+
+응답 대기 중에는:
+
+assistant typing/loading indicator 표시.
+
+예:
+
+“커리큘럼을 확인하고 있어요…”
+
+단 실제 ENGINE 내부 단계처럼
+SEARCHING / GPT / KNOWLEDGE 등
+세부 가짜 progress 표시 금지.
+
+==================================================
+13. ERROR HANDLING
+==================================================
+
+최소:
+
+401
+→ 로그인/session 처리
+
+403
+→ 해당 학생 접근 권한 없음
+
+422 CURRICULUM_SEARCH_NOT_ELIGIBLE
+→ 현재 수영장에서는 아직 AI 커리큘럼 상담을 사용할 수 없음
+
+422 x_pending 관련
+→ X MODE 준비 중 안내
+
+429 PARENT_CURRICULUM_MONTHLY_LIMIT_REACHED
+→ 월 10회 소진 UI
+
+ENGINE 429/5xx/timeout
+→ “잠시 후 다시 시도해주세요.”
+→ quota는 서버에서 복구됨
+
+network failure
+→ retry 제공
+
+raw internal error 출력 금지.
+
+==================================================
+14. RETRY
+==================================================
+
+실패한 같은 질문의 재시도는
+동일 request_id 사용.
+
+그래야 서버 idempotency가 적용됨.
+
+새 request_id 생성 금지.
+
+성공 후 retry 버튼 제거.
+
+==================================================
+15. COMPLETED REQUEST REPLAY
+==================================================
+
+네트워크가 끊겨서
+서버는 성공했지만 앱이 응답을 못 받은 경우:
+
+동일 request_id retry
+→ 서버가 persisted result replay
+→ ENGINE 재호출 없음
+→ quota 추가 차감 없음
+
+UI가 이 흐름을 깨지 않도록 구현.
+
+==================================================
+16. CHAT HISTORY PERSISTENCE
+==================================================
+
+앱 local state가 source of truth가 아님.
+
+서버 history가 Product source of truth.
+
+화면 재진입
+앱 재시작
+다음 달
+
+모두 server history 다시 로드.
+
+대화 local wipe 금지.
+
+==================================================
+17. EMPTY STATE
+==================================================
+
+대화가 없는 경우:
+
+간단한 안내.
+
+예:
+
+“우리 아이의 수영 교육과정에 대해 물어보세요.”
+
+추천 질문은 static example 정도만 허용:
+
+- 지금 어떤 단계를 배우고 있나요?
+- 다음에는 무엇을 배우나요?
+- 이 단계는 왜 중요한가요?
+
+추천 질문 자체가
+학생 진도를 추측하면 안 됨.
+
+==================================================
+18. NORMAL / X UI
+==================================================
+
+사용자가 NORMAL/X mode를 선택하지 않는다.
+
+mode는 서버가 판정.
+
+응답 meta.mode를
+필요하면 debug/test에서만 확인.
+
+일반 Parent UI에
+복잡한 내부 mode 표시 불필요.
+
+==================================================
+19. PRIVACY
+==================================================
+
+Production console log 금지:
+
+- 학생 이름
+- 질문 전문
+- 답변 전문
+- JWT
+- 전체 history payload
+
+허용:
+
+request_id
+status
+latency
+remaining quota
+error code
+
+==================================================
+20. ACCESSIBILITY / MOBILE
+==================================================
+
+iPhone 작은 화면에서도:
+
+- 키보드가 입력창 가리지 않음
+- SafeArea 반영
+- multiline input
+- 전송 버튼 reachable
+- 긴 answer scroll 가능
+
+Android keyboard behavior도 고려.
+
+==================================================
+21. CURRENT DESIGN SYSTEM
+==================================================
+
+기존 SWIMNOTE Parent UI 디자인 유지.
+
+새로운 독립 디자인 시스템 만들지 않는다.
+
+현재 Navy / Mint 규칙,
+기존 typography,
+기존 card radius/spacing
+재사용.
+
+디자인 때문에 기존 Parent Home 구조 변경 금지.
+
+==================================================
+22. TEST
+==================================================
+
+최소:
+
+A. history empty
+B. history 10+ messages
+C. history oldest→newest
+D. 질문 전송 성공
+E. assistant answer 표시
+F. current_progress 존재
+G. next_step 존재
+H. optional section 없음
+I. 0/10
+J. 9/10
+K. 10/10 input lock
+L. 다음 달 usage 새로 시작 + history 유지
+M. follow-up 질문
+N. timeout
+O. network error
+P. 429 limit
+Q. 403
+R. 422 not eligible
+S. 동일 request_id retry
+T. completed replay
+U. duplicate bubble 방지
+V. app 재진입 history 복원
+W. keyboard
+X. long answer
+
+기존 Parent 화면 regression 확인.
+
+==================================================
+23. 이번 WP에서 하지 않는 것
+==================================================
+
+금지:
+
+- ENGINE 변경
+- DB migration
+- quota 정책 변경
+- 10회 → 다른 값 변경
+- conversation summary
+- GPT cost optimizer
+- RevenueCat
+- Production deploy
+- OTA
+- EAS build
+
+==================================================
+24. REPORT
+==================================================
+
+다음만 보고:
+
+1. ROUTE / SCREEN
+2. HOME ENTRY CHANGE
+3. HISTORY CLIENT
+4. SEND CLIENT
+5. REQUEST_ID / RETRY
+6. CHAT UI
+7. QUOTA UI
+8. ERROR UI
+9. HISTORY PERSISTENCE
+10. FILES CHANGED
+11. TEST RESULT
+12. EXISTING REGRESSION
+13. COMMIT SHA
+14. PRODUCTION DEPLOY STATUS
+15. OTA/BUILD STATUS
+
+성공:
+
+PARENT_CURRICULUM_APP_WP3_COMPLETE ✅
+
+실패:
+
+PARENT_CURRICULUM_APP_WP3_BLOCKED ❌

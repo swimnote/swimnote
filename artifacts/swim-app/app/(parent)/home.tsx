@@ -1915,7 +1915,17 @@ export default function ParentHomeScreen() {
             <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.text, marginTop: 3, textAlign: "center" }}>AI 성장 리포트</Text>
           </Pressable>
           <Pressable
-            onPress={() => setAiModalType("curriculum")}
+            onPress={() => {
+              if (selectedStudent) {
+                router.push({
+                  pathname: "/(parent)/curriculum-chat" as any,
+                  params: {
+                    studentId:   selectedStudent.id,
+                    studentName: selectedStudent.name ?? "",
+                  },
+                });
+              }
+            }}
             style={({ pressed }) => ({ alignItems: "center", opacity: pressed ? 0.7 : 1 })}
           >
             <View style={{ width: 33, height: 33, overflow: "hidden" }}>
