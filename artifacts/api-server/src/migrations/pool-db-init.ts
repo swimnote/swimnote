@@ -16,6 +16,7 @@
 import { superAdminDb, getBackupDb, isDbSeparated } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { initXModeSchema } from "./pool-db-x-init.js";
+import { initXPaymentSchema } from "./pool-db-x-payment-init.js";
 
 export async function initPoolDb(): Promise<void> {
   // 운영 DB (superAdminDb)에 모든 테이블 초기화
@@ -1379,4 +1380,11 @@ export async function initPoolDb(): Promise<void> {
   //     완전한 "서버 기동 중단" 보장이 필요하면 index.ts 호출부를 .catch() 없이 변경 필요.
   // ⚠️  프로덕션 실행 전 반드시 별도 승인 필요.
   await initXModeSchema();
+
+  // ─── SWIMNOTE X02-B1 Payment DB Foundation Migration ──────────────────────
+  //
+  // paid/manual entitlement 분리 + x_subscription_slots + swimming_pools 컬럼 4개.
+  // 멱등성 보장. 기존 xmode_entitlement 수정 금지.
+  // ⚠️  프로덕션 실행 전 반드시 별도 승인 필요.
+  await initXPaymentSchema();
 }
