@@ -22,10 +22,10 @@ interface Notification {
 }
 
 const TYPE_CONFIG: Record<string, { icon: "message-circle" | "image" | "book-open" | "bell"; color: string; bg: string }> = {
-  photo_comment:  { icon: "message-circle", color: C.tint, bg: C.tintLight },
-  diary_comment:  { icon: "message-circle", color: "#7C3AED", bg: "#E6FAF8" },
-  diary_upload:   { icon: "book-open", color: "#2EC4B6", bg: "#E6FFFA" },
-  photo_upload:   { icon: "image", color: C.warning, bg: "#FFF1BF" },
+  photo_comment:  { icon: "message-circle", color: C.tint, bg: "#F1F5F9" },
+  diary_comment:  { icon: "message-circle", color: "#7C3AED", bg: "#F1F5F9" },
+  diary_upload:   { icon: "book-open", color: C.tint, bg: "#F1F5F9" },
+  photo_upload:   { icon: "image", color: C.warning, bg: "#F1F5F9" },
 };
 
 function timeAgo(iso: string): string {

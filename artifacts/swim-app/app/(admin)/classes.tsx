@@ -335,7 +335,7 @@ const sl = StyleSheet.create({
   teacherCard:     { flexDirection: "row", alignItems: "center", gap: 12,
                      backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14,
                      borderWidth: 1, borderColor: C.border },
-  teacherIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#EFF6FF",
+  teacherIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#F1F5F9",
                      alignItems: "center", justifyContent: "center" },
   teacherCardName: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text, fontWeight: "600" },
   teacherCardSub:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
@@ -373,9 +373,9 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
               <Text style={dy.dateSub}>{classes.length > 0 ? `수업 ${classes.length}개` : "수업 없음"}</Text>
             </View>
             <View style={dy.headerActions}>
-              <Pressable style={[dy.headerBtn, { backgroundColor: "#E6FFFA" }]} onPress={onOpenMakeup}>
-                <LucideIcon name="repeat" size={13} color="#4338CA" />
-                <Text style={[dy.headerBtnTxt, { color: "#4338CA" }]}>보강</Text>
+              <Pressable style={[dy.headerBtn, { backgroundColor: "#F1F5F9" }]} onPress={onOpenMakeup}>
+                <LucideIcon name="repeat" size={13} color={C.textSecondary} />
+                <Text style={[dy.headerBtnTxt, { color: C.textSecondary }]}>보강</Text>
               </Pressable>
               <Pressable onPress={onClose} style={dy.closeBtn}>
                 <LucideIcon name="x" size={20} color={C.textSecondary} />
@@ -672,17 +672,17 @@ export default function ClassesScreen() {
             </Text>
           </View>
           <View style={s.rightBtns}>
-            <Pressable style={[s.iconBtn, { backgroundColor: "#EEDDF5" }]}
+            <Pressable style={[s.iconBtn, { backgroundColor: "#F1F5F9" }]}
               onPress={() => router.push("/(admin)/makeups?backTo=classes" as any)}>
-              <LucideIcon name="rotate-ccw" size={13} color="#7C3AED" />
-              <Text style={[s.iconBtnTxt, { color: "#7C3AED" }]}>보강</Text>
+              <LucideIcon name="rotate-ccw" size={13} color={C.textSecondary} />
+              <Text style={[s.iconBtnTxt, { color: C.textSecondary }]}>보강</Text>
             </Pressable>
             <Pressable style={[s.mgmtBtn, { borderColor: themeColor }]}
               onPress={() => setShowManagement(true)}>
               <LucideIcon name="users" size={13} color={themeColor} />
               <Text style={[s.mgmtBtnTxt, { color: themeColor }]}>수강생관리</Text>
             </Pressable>
-            <Pressable style={[s.createBtn, { backgroundColor: C.button }]}
+            <Pressable style={[s.createBtn, { backgroundColor: C.primaryAction }]}
               onPress={() => setShowCreate(true)}>
               <LucideIcon name="plus" size={14} color="#fff" />
               <Text style={s.createBtnTxt}>반 등록</Text>

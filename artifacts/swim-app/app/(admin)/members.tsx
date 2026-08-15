@@ -420,7 +420,7 @@ export default function MembersScreen() {
       <View style={ms.actionRow}>
         {!sel.selectionMode ? (
           <>
-            <Pressable style={[ms.actionBtn, { backgroundColor: isMemberLimitReached ? "#64748B" : "#2EC4B6" }]} onPress={handleAddMember}>
+            <Pressable style={[ms.actionBtn, { backgroundColor: isMemberLimitReached ? "#64748B" : C.primaryAction }]} onPress={handleAddMember}>
               <LucideIcon name={isMemberLimitReached ? "lock" : "user-plus"} size={14} color="#fff" />
               <Text style={ms.actionBtnText}>어린이 직접 등록</Text>
             </Pressable>
@@ -482,7 +482,7 @@ export default function MembersScreen() {
           ListEmptyComponent={
             (!search && filter === "all") ? (
               <View style={{ alignItems: "center", paddingTop: 80, gap: 12 }}>
-                <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" }}>
+                <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" }}>
                   <LucideIcon name="users" size={32} color={themeColor} />
                 </View>
                 <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text }}>등록된 학생이 없습니다</Text>

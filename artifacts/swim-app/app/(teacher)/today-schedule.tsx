@@ -267,8 +267,8 @@ export default function TodayScheduleScreen() {
           </Pressable>
         </View>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, gap: 20 }}>
-          <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: "#FFF8E1", alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
-            <Sun size={36} color="#F59E0B" />
+          <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
+            <Sun size={36} color={C.textMuted} />
           </View>
           <Text style={{ fontSize: 20, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center" }}>
             수영장 관리자 승인 대기 중
@@ -279,24 +279,24 @@ export default function TodayScheduleScreen() {
           <View style={{ borderRadius: 16, backgroundColor: C.card, padding: 16, width: "100%", gap: 10,
             shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#EFF4FF", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.tint }}>1</Text>
+              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>1</Text>
               </View>
               <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>
                 수영장 관리자가 가입 요청을 검토해요
               </Text>
             </View>
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#EFF4FF", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.tint }}>2</Text>
+              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>2</Text>
               </View>
               <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>
                 승인 후 담당 수업과 학생이 연결돼요
               </Text>
             </View>
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#EFF4FF", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.tint }}>3</Text>
+              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>3</Text>
               </View>
               <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>
                 출석체크·일지작성·보강관리를 시작할 수 있어요
@@ -473,8 +473,8 @@ export default function TodayScheduleScreen() {
       <View style={[h.classCardWrap, { paddingBottom: insets.bottom + 12 }]}>
         <View style={[h.sectionCard, { flex: 1, backgroundColor: C.card }]}>
           <View style={h.sectionHeaderRow}>
-            <View style={[h.sectionIconBox, { backgroundColor: C.tintLight }]}>
-              <LucideIcon name="layers" size={13} color={C.iconSchedule} />
+            <View style={[h.sectionIconBox, { backgroundColor: "#F1F5F9" }]}>
+              <LucideIcon name="layers" size={13} color={C.textSecondary} />
             </View>
             <Text style={h.sectionTitle}>오늘 수업</Text>
             <View style={h.sectionHeaderRight}>
@@ -500,8 +500,8 @@ export default function TodayScheduleScreen() {
               </View>
             ) : sortedItems.length === 0 ? (
               <View style={h.badgeEmpty}>
-                <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: "#FFF8E1", alignItems: "center", justifyContent: "center", marginBottom: 2 }}>
-                  <Sun size={26} color="#F59E0B" />
+                <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center", marginBottom: 2 }}>
+                  <Sun size={26} color={C.textMuted} />
                 </View>
                 <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }}>오늘 수업 없음</Text>
                 <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted }}>편하게 쉬어가세요</Text>

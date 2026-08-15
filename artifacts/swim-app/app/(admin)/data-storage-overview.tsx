@@ -165,7 +165,7 @@ export default function DataStorageOverviewScreen() {
             { label: "남은 용량", display: fmtBytes(free),   icon: "check-circle" as const, color: "#2EC4B6" },
           ].map(item => (
             <View key={item.label} style={[s.statCard, { backgroundColor: C.card }]}>
-              <View style={[s.statIcon, { backgroundColor: item.color + "15" }]}>
+              <View style={[s.statIcon, { backgroundColor: "#F1F5F9" }]}>
                 <LucideIcon name={item.icon} size={22} color={item.color} />
               </View>
               <View style={{ flex: 1 }}>
@@ -261,8 +261,8 @@ function CleanupCard({ label, preview, onDelete, deleting, themeColor }: Cleanup
   return (
     <View style={[s.cleanCard, { backgroundColor: C.card }]}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
-        <View style={[s.cleanIcon, { backgroundColor: themeColor + "15" }]}>
-          <LucideIcon name="image" size={20} color={themeColor} />
+        <View style={[s.cleanIcon, { backgroundColor: "#F1F5F9" }]}>
+          <LucideIcon name="image" size={20} color={C.textSecondary} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={s.cleanLabel}>{label}</Text>
