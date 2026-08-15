@@ -1,0 +1,251 @@
+[SWIMNOTE APP HOTFIX]
+[iOS TESTFLIGHT 1.6.3 — API BASE OTA FIX]
+
+현재 TestFlight:
+
+version = 1.6.3
+iOS build = 246
+runtimeVersion = 1.6.3
+channel = production
+
+실기기 로그인 실패 확인:
+
+POST
+https://swimnote-api.onrender.com/api/auth/unified-login
+
+→ HTTP 502
+→ text/html
+→ server: cloudflare
+→ renderOrigin: —
+
+기존 Production 검증에서:
+
+https://swimnote.kr/api/healthz
+→ 200 JSON
+
+https://swimnote.kr/api/super/dashboard-stats
+→ 401 JSON
+
+https://swimnote.kr/api/parent/...
+→ 최신 Replit Publish 이후 401 JSON
+
+즉 현재 canonical Production API front door는:
+
+https://swimnote.kr/api
+
+로 사용해야 한다.
+
+이번 작업 목적:
+
+TestFlight build 246의 native build는 유지하고
+JS API base URL만 수정하여
+runtimeVersion 1.6.3 production channel OTA로 배포한다.
+
+새 native build 금지.
+247 생성 금지.
+app version 변경 금지.
+buildNumber 변경 금지.
+dependency 변경 금지.
+DB 변경 금지.
+server 변경 금지.
+
+==================================================
+1. API BASE AUDIT
+==================================================
+
+swim-app 전체에서 다음 문자열을 검색:
+
+https://swimnote-api.onrender.com
+swimnote-api.onrender.com
+EXPO_PUBLIC_API_URL
+API_BASE
+
+실제 앱 runtime API 호출에 사용되는 모든 위치를 확인.
+
+특히:
+
+context/auth/SessionContext.tsx
+
+현재:
+
+https://swimnote-api.onrender.com/api
+
+하드코딩 여부 확인.
+
+==================================================
+2. CANONICAL API BASE
+==================================================
+
+Production APP API base를:
+
+https://swimnote.kr/api
+
+로 변경.
+
+로그인 포함 모든 일반 APP API는
+이 base를 사용해야 한다.
+
+AI ENGINE:
+
+https://swimnote.ai.kr
+
+로 앱이 직접 호출하도록 변경 금지.
+
+APP
+→ swimnote.kr/api
+→ APP Server
+→ AI ENGINE
+
+구조 유지.
+
+==================================================
+3. HARDCODE CONSISTENCY
+==================================================
+
+swim-app에서
+swimnote-api.onrender.com을 직접 참조하는
+runtime production code가 더 있으면
+동일 canonical API base로 정리.
+
+단:
+
+server code
+documentation
+historical release logs
+test fixture
+
+는 불필요하게 수정하지 말 것.
+
+실제 모바일 runtime 코드만 수정.
+
+==================================================
+4. LOGIN CONTRACT CHECK
+==================================================
+
+변경 후 실제 최종 로그인 URL이:
+
+https://swimnote.kr/api/auth/unified-login
+
+이 되는지 확인.
+
+method:
+POST
+
+기존 request body/header contract 변경 금지.
+
+==================================================
+5. ROUTE SMOKE
+==================================================
+
+Production 데이터 생성 없이 최소 확인:
+
+GET https://swimnote.kr/api/healthz
+→ 200 JSON
+
+무인증 route:
+
+GET https://swimnote.kr/api/super/dashboard-stats
+→ 401 JSON
+
+Parent Curriculum:
+→ 401 JSON
+
+Growth Report:
+→ 401 JSON
+
+HTML/502 없어야 함.
+
+==================================================
+6. VERSION / RUNTIME
+==================================================
+
+절대 변경 금지:
+
+version = 1.6.3
+ios.buildNumber = 246
+android.versionCode = 236
+runtimeVersion policy = appVersion
+
+resolved runtime:
+1.6.3
+
+==================================================
+7. COMMIT + PUSH
+==================================================
+
+API base hotfix만 commit.
+
+예:
+
+fix(app): route production API through swimnote.kr
+
+정상 fast-forward:
+
+git push origin deploy-photo-clone
+
+force/rebase/reset 금지.
+
+==================================================
+8. OTA PUBLISH
+==================================================
+
+이번 변경은 JS-only이고
+native dependency/config 변경이 없으므로
+새 build 없이 OTA 적용.
+
+production channel / runtimeVersion 1.6.3 대상으로
+repository canonical EAS Update command 사용.
+
+예:
+
+cd artifacts/swim-app
+
+eas update --channel production --message "fix: use swimnote.kr production API"
+
+실제 eas.json/channel 설정 기준으로 실행.
+
+==================================================
+9. OTA SAFETY
+==================================================
+
+반드시 확인:
+
+runtimeVersion = 1.6.3
+
+1.6.2 runtime에 이번 update가 적용되지 않아야 함.
+
+새 native module 없음.
+native config 변경 없음.
+
+==================================================
+10. POST-OTA REPORT
+==================================================
+
+다음만 보고:
+
+1. OLD API BASE
+2. NEW API BASE
+3. RUNTIME REFERENCES CHANGED
+4. LOGIN FINAL URL
+5. HEALTH RESULT
+6. PARENT ROUTE RESULT
+7. GROWTH ROUTE RESULT
+8. VERSION
+9. BUILD NUMBER
+10. RUNTIME VERSION
+11. NATIVE CHANGE? YES/NO
+12. COMMIT SHA
+13. PUSH RESULT
+14. EAS UPDATE ID/GROUP
+15. CHANNEL
+16. OTA PUBLISHED?
+17. NEW NATIVE BUILD CREATED?
+18. DB/SERVER CHANGE?
+
+성공:
+
+SWIMNOTE_1_6_3_API_BASE_OTA_PUBLISHED ✅
+
+실패:
+
+SWIMNOTE_1_6_3_API_BASE_OTA_BLOCKED ❌
