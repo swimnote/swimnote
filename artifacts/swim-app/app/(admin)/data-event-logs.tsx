@@ -169,7 +169,7 @@ const s = StyleSheet.create({
   evtIcon:   { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   badge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeText: { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  desc:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
+  desc:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 20 },
   target:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   date:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   time:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },

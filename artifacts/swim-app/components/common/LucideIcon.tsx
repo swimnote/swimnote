@@ -189,7 +189,7 @@ interface Props extends LucideProps {
   name: string;
 }
 
-export function LucideIcon({ name, size = 20, color = "#0F172A", strokeWidth = 2, ...rest }: Props) {
+export function LucideIcon({ name, size = 20, color = "#14283D", strokeWidth = 2, ...rest }: Props) {
   const IconComponent = ICON_MAP[name] ?? CircleAlert;
   return <IconComponent size={size} color={color} strokeWidth={strokeWidth} {...rest} />;
 }

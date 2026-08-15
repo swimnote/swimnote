@@ -47,7 +47,7 @@ const X_ACCENT_STRONG = "#23415C";
 const X_PENDING       = "#B7791F";
 const X_PENDING_LIGHT = "#F8EED8";
 // 레거시 alias (non-X 용도 — ActivityIndicator 등)
-const NAVY = "#0F172A";
+const NAVY = "#14283D";
 
 // ── 역할별 홈 경로 ─────────────────────────────────────────────────────────
 function _getRoleHome(kind: string | null, role?: string): string {

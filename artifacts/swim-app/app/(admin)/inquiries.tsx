@@ -405,7 +405,7 @@ const s = StyleSheet.create({
   detailSub: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   tabs: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 },
-  tabActive: { borderBottomWidth: 2, borderBottomColor: "#0F172A" },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: "#14283D" },
   tabText: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   tabBadge: {
     minWidth: 18, height: 18, borderRadius: 9, backgroundColor: "#D96C6C",
@@ -416,7 +416,7 @@ const s = StyleSheet.create({
   otherBubbleWrap: { alignItems: "flex-start" },
   senderName: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4, marginLeft: 4 },
   myBubble: {
-    backgroundColor: "#0F172A", borderRadius: 16, borderBottomRightRadius: 4,
+    backgroundColor: "#0F2742", borderRadius: 16, borderBottomRightRadius: 4,
     padding: 12, maxWidth: "80%",
   },
   otherBubble: {
@@ -424,7 +424,7 @@ const s = StyleSheet.create({
     padding: 12, maxWidth: "80%",
   },
   myText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff", lineHeight: 20 },
-  otherText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
+  otherText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 20 },
   bubbleTime: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.55)", marginTop: 4, textAlign: "right" },
   inputBar: {
     flexDirection: "row", alignItems: "flex-end", gap: 8,
@@ -434,7 +434,7 @@ const s = StyleSheet.create({
   textInput: {
     flex: 1, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 16,
     paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10,
-    fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A",
+    fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D",
     maxHeight: 100, minHeight: 42,
   },
   sendBtn: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
@@ -458,7 +458,7 @@ const s = StyleSheet.create({
   unreadBadgeText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#fff" },
   fab: {
     position: "absolute", right: 20, width: 52, height: 52, borderRadius: 26,
-    backgroundColor: "#0F172A", alignItems: "center", justifyContent: "center",
+    backgroundColor: "#0F2742", alignItems: "center", justifyContent: "center",
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6,
   },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },

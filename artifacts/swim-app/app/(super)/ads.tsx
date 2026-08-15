@@ -102,7 +102,7 @@ const ac = StyleSheet.create({
   card:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
   top:        { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 },
   statusDot:  { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
-  title:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  title:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   target:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   badge:      { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   badgeTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular" },
@@ -424,7 +424,7 @@ export default function AdsScreen() {
         <View style={m.overlay}>
           <View style={[m.sheet, { maxHeight: 220 }]}>
             <Text style={[m.title, { marginBottom: 12 }]}>광고 삭제</Text>
-            <Text style={{ fontSize: 14, color: "#0F172A", marginBottom: 20 }}>이 광고를 삭제하시겠습니까? 복구되지 않습니다.</Text>
+            <Text style={{ fontSize: 14, color: "#14283D", marginBottom: 20 }}>이 광고를 삭제하시겠습니까? 복구되지 않습니다.</Text>
             <View style={m.footer}>
               <Pressable style={m.cancelBtn} onPress={() => setDeleteConfirm(null)}>
                 <Text style={m.cancelTxt}>취소</Text>
@@ -463,10 +463,10 @@ const m = StyleSheet.create({
   overlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:      { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "85%" },
   header:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  title:      { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  label:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 4, marginTop: 10 },
+  title:      { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  label:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 4, marginTop: 10 },
   input:      { borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 10, padding: 10, fontSize: 14,
-                fontFamily: "Pretendard-Regular", color: "#0F172A", backgroundColor: "#F1F5F9" },
+                fontFamily: "Pretendard-Regular", color: "#14283D", backgroundColor: "#F1F5F9" },
   segRow:     { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   segBtn:     { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
   segActive:  { backgroundColor: P },
@@ -474,7 +474,7 @@ const m = StyleSheet.create({
   segActiveTxt: { color: "#fff" },
   footer:       { flexDirection: "row", gap: 8, marginTop: 20, marginBottom: 12 },
   cancelBtn:    { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center" },
-  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   saveBtn:      { flex: 2, padding: 13, borderRadius: 10, backgroundColor: P, alignItems: "center" },
   saveTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
   imgPreview:   { width: "100%", height: 120, borderRadius: 10, marginBottom: 8 },

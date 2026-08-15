@@ -257,19 +257,19 @@ export default function AdditionalGuardiansScreen() {
           <View style={{ backgroundColor: "#fff", borderRadius: 14, padding: 16, gap: 12, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <LucideIcon name="help-circle" size={16} color="#64748B" />
-              <Text style={{ fontSize: 14, color: "#0F172A", fontFamily: "Pretendard-Bold" }}>자주 묻는 질문</Text>
+              <Text style={{ fontSize: 14, color: "#14283D", fontFamily: "Pretendard-Bold" }}>자주 묻는 질문</Text>
             </View>
             <View style={{ gap: 4 }}>
               <View style={{ flexDirection: "row", gap: 6, alignItems: "flex-start" }}>
                 <Text style={{ fontSize: 13, color: TEAL, fontFamily: "Pretendard-Bold", lineHeight: 20 }}>Q.</Text>
-                <Text style={{ flex: 1, fontSize: 13, color: "#0F172A", fontFamily: "Pretendard-SemiBold", lineHeight: 20 }}>
+                <Text style={{ flex: 1, fontSize: 13, color: "#14283D", fontFamily: "Pretendard-SemiBold", lineHeight: 20 }}>
                   왜 승인 대기 상태인가요?
                 </Text>
               </View>
               <View style={{ flexDirection: "row", gap: 6, alignItems: "flex-start", paddingLeft: 2 }}>
                 <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Bold", lineHeight: 20 }}>A.</Text>
                 <Text style={{ flex: 1, fontSize: 13, color: "#475569", lineHeight: 20 }}>
-                  추가 보호자는 <Text style={{ fontFamily: "Pretendard-SemiBold", color: "#0F172A" }}>연결된 보호자가 전화번호를 등록</Text>하면 자동으로 승인됩니다.{"\n"}
+                  추가 보호자는 <Text style={{ fontFamily: "Pretendard-SemiBold", color: "#14283D" }}>연결된 보호자가 전화번호를 등록</Text>하면 자동으로 승인됩니다.{"\n"}
                   별도의 수영장 승인이나 관리자 승인은 필요하지 않습니다.
                 </Text>
               </View>
@@ -363,7 +363,7 @@ const slotRow: object = {
 };
 
 const slotLabel: object = { fontSize: 11, color: "#64748B", fontFamily: "Pretendard-Regular" };
-const slotPhone: object = { fontSize: 14, color: "#0F172A", fontFamily: "Pretendard-SemiBold", marginTop: 1 };
+const slotPhone: object = { fontSize: 14, color: "#14283D", fontFamily: "Pretendard-SemiBold", marginTop: 1 };
 
 const deleteBtn: object = {
   padding: 8, borderRadius: 8, backgroundColor: "#FEE2E2",
@@ -386,12 +386,12 @@ const sheet: object = {
   padding: 24, paddingBottom: 40, gap: 12,
 };
 
-const sheetTitle: object = { fontSize: 17, color: "#0F172A", fontFamily: "Pretendard-SemiBold" };
+const sheetTitle: object = { fontSize: 17, color: "#14283D", fontFamily: "Pretendard-SemiBold" };
 const sheetDesc: object = { fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular" };
 
 const phoneInputStyle: object = {
   borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 10,
-  padding: 14, fontSize: 16, color: "#0F172A",
+  padding: 14, fontSize: 16, color: "#14283D",
   fontFamily: "Pretendard-Regular", backgroundColor: "#F8FAFC",
 };
 

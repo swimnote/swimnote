@@ -22,7 +22,7 @@ import { useBrand } from "@/context/BrandContext";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const C = Colors.light;
-const N = "#0F172A";
+const N = "#14283D";
 const NB = "#E6FAF8";
 
 const DEFAULT_LOGIN_MODE_KEY = "@swimnote:default_login_mode";
@@ -412,7 +412,7 @@ const sc = StyleSheet.create({
 const sm = StyleSheet.create({
   overlay:         { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
   sheet:           { backgroundColor: "#fff", borderRadius: 24, padding: 24, width: "100%", gap: 12 },
-  title:           { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  title:           { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D" },
   sub:             { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
   roleRow:         { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1.5, borderRadius: 14, padding: 14 },
   roleIcon:        { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },

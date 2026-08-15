@@ -49,7 +49,7 @@ export default function CommunityScreen() {
   }
 
   const NOTICE_TYPE_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-    general:    { label: "일반",     color: "#0F172A", bg: "#FFFFFF" },
+    general:    { label: "일반",     color: "#14283D", bg: "#FFFFFF" },
     important:  { label: "중요",     color: "#D96C6C", bg: "#F9DEDA" },
     event:      { label: "이벤트",   color: "#7C3AED", bg: "#E6FAF8" },
     class_info: { label: "수업 안내", color: "#2EC4B6", bg: "#E6FFFA" },

@@ -31,7 +31,7 @@ import type { ClassGroup } from "@/components/admin/member/memberDetailTypes";
 
 const C = Colors.light;
 
-const _IC = "#0F172A"; const _IB = "#E6FAF8";
+const _IC = "#14283D"; const _IB = "#E6FAF8";
 const FILTER_CHIPS: FilterChipItem<StudentFilterKey>[] = [
   { key: "all",               label: "전체",       icon: "list" },
   { key: "normal",            label: "정상",       icon: "check-circle",  activeColor: _IC, activeBg: _IB },
@@ -716,11 +716,11 @@ const ms = StyleSheet.create({
   pendingHeader:      { flexDirection: "row", alignItems: "center", gap: 8 },
   pendingBadge:       { width: 22, height: 22, borderRadius: 11, backgroundColor: "#2EC4B6", alignItems: "center", justifyContent: "center" },
   pendingBadgeTxt:    { color: "#fff", fontSize: 11, fontFamily: "Pretendard-Regular" },
-  pendingSectionTitle:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  pendingSectionTitle:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   pendingCard:        { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#CBD5E1" },
   pendingCardLeft:    { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
   pendingAvatar:      { width: 36, height: 36, borderRadius: 10, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center" },
-  pendingAvatarTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  pendingAvatarTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   pendingName:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   pendingMeta:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   pendingActions:     { flexDirection: "row", gap: 6 },
@@ -734,6 +734,6 @@ const ms = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
   list: { paddingTop: 10 },
   suspendedBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E6FAF8", borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: "#CBD5E1" },
-  suspendedBannerTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  suspendedBannerBody: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 18 },
+  suspendedBannerTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  suspendedBannerBody: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 18 },
 });

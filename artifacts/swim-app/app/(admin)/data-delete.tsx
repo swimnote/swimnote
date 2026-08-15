@@ -373,7 +373,7 @@ const s = StyleSheet.create({
 
   previewCard:  { backgroundColor: "#FEF2F2", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#FECACA" },
   previewRow:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  previewLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  previewLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   previewValue: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
 
   pwInput:   { height: 50, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 14, paddingHorizontal: 16, fontSize: 15, fontFamily: "Pretendard-Regular", backgroundColor: "#F1F5F9" },

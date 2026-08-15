@@ -247,15 +247,15 @@ export default function DashboardScreen() {
               <Pressable
                 style={({ pressed }) => [
                   s.switchChip,
-                  { borderColor: "#0F172A30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 },
+                  { borderColor: "#14283D30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 },
                 ]}
                 onPress={handleSwitchToTeacher}
                 disabled={switching}
               >
                 {switching
-                  ? <ActivityIndicator size="small" color="#0F172A" />
+                  ? <ActivityIndicator size="small" color="#14283D" />
                   : <>
-                      <LucideIcon name="repeat" size={10} color="#0F172A" />
+                      <LucideIcon name="repeat" size={10} color="#14283D" />
                       <Text style={[s.switchChipTxt, { color: C.text }]}>선생님으로 전환</Text>
                     </>
                 }
@@ -497,7 +497,7 @@ export default function DashboardScreen() {
               <View style={s.splitStatRow}>
                 <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unassigned&backTo=dashboard" as any)}>
                   <View style={s.splitStatIcon}>
-                    <LucideIcon name="alert-circle" size={14} color="#0F172A" />
+                    <LucideIcon name="alert-circle" size={14} color="#14283D" />
                   </View>
                   <View>
                     <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unassigned ?? 0}명</Text>
@@ -507,7 +507,7 @@ export default function DashboardScreen() {
                 <View style={s.splitStatDivider} />
                 <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unlinked&backTo=dashboard" as any)}>
                   <View style={s.splitStatIcon}>
-                    <LucideIcon name="user-x" size={14} color="#0F172A" />
+                    <LucideIcon name="user-x" size={14} color="#14283D" />
                   </View>
                   <View>
                     <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unlinked_members ?? 0}명</Text>

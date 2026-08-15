@@ -552,7 +552,7 @@ const s = StyleSheet.create({
   cardActionText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   storePlatformBox: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", marginTop: 4 },
   storePlatformText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
-  storePlatformBold: { fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  storePlatformBold: { fontFamily: "Pretendard-Regular", color: "#14283D" },
   billingBtn:     { marginTop: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#2EC4B6", alignItems: "center" },
   billingBtnText: { color: "#2EC4B6", fontSize: 15, fontFamily: "Pretendard-Regular" },
   manageBtn:      { borderColor: "#64748B" },

@@ -152,52 +152,52 @@ export default function TeacherSettingsScreen() {
 
         {/* ── 공지함 ── */}
         <Pressable
-          style={[s.actionBtn, { borderColor: "#0F172A" }]}
+          style={[s.actionBtn, { borderColor: "#14283D" }]}
           onPress={() => router.push("/(teacher)/notices?backTo=settings" as any)}
         >
-          <LucideIcon name="bell" size={18} color="#0F172A" />
-          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>공지함</Text>
-          <LucideIcon name="chevron-right" size={16} color="#0F172A" />
+          <LucideIcon name="bell" size={18} color="#14283D" />
+          <Text style={[s.actionBtnText, { color: "#14283D" }]}>공지함</Text>
+          <LucideIcon name="chevron-right" size={16} color="#14283D" />
         </Pressable>
 
         {/* ── 선생님 설정 ── */}
         <Pressable
-          style={[s.actionBtn, { borderColor: "#0F172A" }]}
+          style={[s.actionBtn, { borderColor: "#14283D" }]}
           onPress={() => router.push("/(teacher)/my-info?backTo=settings" as any)}
         >
-          <LucideIcon name="user-cog" size={18} color="#0F172A" />
-          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>선생님 설정</Text>
-          <LucideIcon name="chevron-right" size={16} color="#0F172A" />
+          <LucideIcon name="user-cog" size={18} color="#14283D" />
+          <Text style={[s.actionBtnText, { color: "#14283D" }]}>선생님 설정</Text>
+          <LucideIcon name="chevron-right" size={16} color="#14283D" />
         </Pressable>
 
         {/* ── 일지 템플릿 ── */}
         <Pressable
-          style={[s.actionBtn, { borderColor: "#0F172A" }]}
+          style={[s.actionBtn, { borderColor: "#14283D" }]}
           onPress={() => router.push("/(teacher)/feedback-custom?backTo=settings" as any)}
         >
-          <LucideIcon name="edit" size={18} color="#0F172A" />
-          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>일지 템플릿</Text>
-          <LucideIcon name="chevron-right" size={16} color="#0F172A" />
+          <LucideIcon name="edit" size={18} color="#14283D" />
+          <Text style={[s.actionBtnText, { color: "#14283D" }]}>일지 템플릿</Text>
+          <LucideIcon name="chevron-right" size={16} color="#14283D" />
         </Pressable>
 
         {/* ── 쪽지보관함 ── */}
         <Pressable
-          style={[s.actionBtn, { borderColor: "#0F172A" }]}
+          style={[s.actionBtn, { borderColor: "#14283D" }]}
           onPress={() => router.push("/(teacher)/messages-inbox" as any)}
         >
-          <LucideIcon name="inbox" size={18} color="#0F172A" />
-          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>알림함</Text>
-          <LucideIcon name="chevron-right" size={16} color="#0F172A" />
+          <LucideIcon name="inbox" size={18} color="#14283D" />
+          <Text style={[s.actionBtnText, { color: "#14283D" }]}>알림함</Text>
+          <LucideIcon name="chevron-right" size={16} color="#14283D" />
         </Pressable>
 
         {/* ── 사진·영상 업로드/앨범 ── */}
         <Pressable
-          style={[s.actionBtn, { borderColor: "#0F172A" }]}
+          style={[s.actionBtn, { borderColor: "#14283D" }]}
           onPress={() => router.push("/(teacher)/photos?backTo=settings" as any)}
         >
-          <LucideIcon name="camera" size={18} color="#0F172A" />
-          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>사진·영상 업로드/앨범</Text>
-          <LucideIcon name="chevron-right" size={16} color="#0F172A" />
+          <LucideIcon name="camera" size={18} color="#14283D" />
+          <Text style={[s.actionBtnText, { color: "#14283D" }]}>사진·영상 업로드/앨범</Text>
+          <LucideIcon name="chevron-right" size={16} color="#14283D" />
         </Pressable>
 
         {/* ── 수업료 납부 관리 ── */}
@@ -400,12 +400,12 @@ export default function TeacherSettingsScreen() {
 
         {/* ── 문의하기 — 목록 최하단 ── */}
         <Pressable
-          style={[s.actionBtn, { borderColor: "#0F172A" }]}
+          style={[s.actionBtn, { borderColor: "#14283D" }]}
           onPress={() => router.push("/(teacher)/inquiries" as any)}
         >
-          <LucideIcon name="message-circle" size={18} color="#0F172A" />
-          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>문의하기</Text>
-          <LucideIcon name="chevron-right" size={16} color="#0F172A" />
+          <LucideIcon name="message-circle" size={18} color="#14283D" />
+          <Text style={[s.actionBtnText, { color: "#14283D" }]}>문의하기</Text>
+          <LucideIcon name="chevron-right" size={16} color="#14283D" />
         </Pressable>
 
         {/* 앱 업데이트 */}

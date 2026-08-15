@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
   preview: { margin: 16, borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   previewHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   previewIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  previewPoolName: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  previewPoolName: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D" },
   previewPowered: {},
   previewPoweredTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   previewNote: { flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },

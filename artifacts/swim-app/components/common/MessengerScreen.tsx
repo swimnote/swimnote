@@ -824,7 +824,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                 <X size={20} color={C.text} />
               </TouchableOpacity>
             </View>
-            <Text style={s.modalSub}>선택한 선생님을 @태그로 언급합니다. 메시지는 <Text style={{ fontFamily: "Pretendard-SemiBold", color: "#0F172A" }}>전체 공개</Text>이며, 비밀 개인톡이 아닙니다. 특정 선생님이 꼭 확인해야 할 내용을 보낼 때 사용하세요.</Text>
+            <Text style={s.modalSub}>선택한 선생님을 @태그로 언급합니다. 메시지는 <Text style={{ fontFamily: "Pretendard-SemiBold", color: "#14283D" }}>전체 공개</Text>이며, 비밀 개인톡이 아닙니다. 특정 선생님이 꼭 확인해야 할 내용을 보낼 때 사용하세요.</Text>
             <KeyboardAwareScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
               {staff.map((member) => {
                 const isMe = member.id === myUserId;

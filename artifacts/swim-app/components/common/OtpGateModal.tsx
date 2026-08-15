@@ -163,7 +163,7 @@ const s = StyleSheet.create({
   sheet:       { width: "100%", backgroundColor: "#fff", borderRadius: 20, padding: 24, gap: 14, maxWidth: 380 },
   iconRow:     { alignItems: "center", marginBottom: 2 },
   iconCircle:  { width: 52, height: 52, borderRadius: 26, backgroundColor: "#EEDDF5", alignItems: "center", justifyContent: "center" },
-  title:       { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A", textAlign: "center" },
+  title:       { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D", textAlign: "center" },
   desc:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 18 },
   otpWrap:     { alignItems: "center", position: "relative" },
   otpBoxRow:   { flexDirection: "row", gap: 8 },
@@ -178,7 +178,7 @@ const s = StyleSheet.create({
   successTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: GREEN },
   btnRow:      { flexDirection: "row", gap: 10, marginTop: 2 },
   cancelBtn:   { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center" },
-  cancelTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  cancelTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   confirmBtn:  { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: P, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
   confirmTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

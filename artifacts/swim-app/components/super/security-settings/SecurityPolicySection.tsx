@@ -60,7 +60,7 @@ export function SecurityPolicySection({
         {REAUTH_ACTIONS.map(act => (
           <View key={act} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 }}>
             <LucideIcon name="check-circle" size={12} color={P} />
-            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" }}>{act}</Text>
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" }}>{act}</Text>
           </View>
         ))}
       </View>
@@ -73,11 +73,11 @@ const s = StyleSheet.create({
                       borderWidth: 1, borderColor: "#E5E7EB" },
   policyRow:        { flexDirection: "row", alignItems: "center", paddingVertical: 8,
                       borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
-  policyLabel:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  policyLabel:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   policyBtn:        { width: 30, height: 30, borderRadius: 8, backgroundColor: "#FFFFFF",
                       alignItems: "center", justifyContent: "center" },
-  policyBtnTxt:     { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 22 },
-  policyVal:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A",
+  policyBtnTxt:     { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 22 },
+  policyVal:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D",
                       minWidth: 32, textAlign: "center" },
   policyChip:       { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#FFFFFF" },
   policyChipActive: { backgroundColor: P },

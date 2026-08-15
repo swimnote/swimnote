@@ -437,7 +437,7 @@ export default function ParentAlbumScreen() {
             </Pressable>
             {lightboxItem?.journal_id && (
               <Pressable
-                style={[st.lbBtn, { backgroundColor: "#0F172A" }]}
+                style={[st.lbBtn, { backgroundColor: "#0F2742" }]}
                 onPress={() => goToDiary(lightboxItem?.journal_id)}
               >
                 <LucideIcon name="book-open" size={16} color="#fff" />
@@ -488,7 +488,7 @@ export default function ParentAlbumScreen() {
               </Pressable>
               {videoDetail?.journal_id && (
                 <Pressable
-                  style={[st.vdBtn, { backgroundColor: "#0F172A" }]}
+                  style={[st.vdBtn, { backgroundColor: "#0F2742" }]}
                   onPress={() => goToDiary(videoDetail?.journal_id)}
                 >
                   <LucideIcon name="book-open" size={16} color="#fff" />
@@ -516,7 +516,7 @@ const st = StyleSheet.create({
   tabTxtActive: { color: "#2EC4B6" },
 
   monthHeader: { paddingHorizontal: 14, paddingTop: 18, paddingBottom: 8 },
-  monthLabel: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  monthLabel: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
 
   row: { flexDirection: "row", gap: 2, paddingHorizontal: 2 },
   cell: { borderRadius: 2, overflow: "hidden", backgroundColor: "#E2E8F0", marginBottom: 2 },

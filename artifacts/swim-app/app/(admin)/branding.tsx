@@ -24,7 +24,7 @@ const PALETTE = [
   { label: "틸",             color: "#0D9488" },
   { label: "사이언",         color: "#0284C7" },
   { label: "슬레이트",       color: "#475569" },
-  { label: "다크",           color: "#0F172A" },
+  { label: "다크",           color: "#14283D" },
 ];
 
 
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
   previewHeader:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   previewBadge:    { width: 32, height: 32, borderRadius: 8, justifyContent: "center", alignItems: "center" },
   previewBadgeText:{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },
-  previewPoolName: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  previewPoolName: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   previewPowered:  { fontSize: 10, fontFamily: "Pretendard-Regular", marginTop: 1 },
   previewTabBar:   { flexDirection: "row", backgroundColor: "#fff" },
   previewTab:      { flex: 1, alignItems: "center", paddingVertical: 10, gap: 3 },
@@ -328,12 +328,12 @@ const styles = StyleSheet.create({
   // Hex 입력
   hexRow:          { flexDirection: "row", alignItems: "center", gap: 10 },
   hexPreview:      { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: "#E5E7EB" },
-  hexInput:        { flex: 1, height: 40, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 12, fontFamily: "Pretendard-Regular", fontSize: 14, color: "#0F172A" },
+  hexInput:        { flex: 1, height: 40, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 12, fontFamily: "Pretendard-Regular", fontSize: 14, color: "#14283D" },
   hexError:        { fontSize: 12, color: "#D96C6C", fontFamily: "Pretendard-Regular" },
   hint:            { fontSize: 12, color: "#64748B", fontFamily: "Pretendard-Regular" },
 
   // URL 입력
-  urlInput:        { height: 44, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 12, fontFamily: "Pretendard-Regular", fontSize: 14, color: "#0F172A" },
+  urlInput:        { height: 44, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 12, fontFamily: "Pretendard-Regular", fontSize: 14, color: "#14283D" },
 
   // 안내 박스
   infoBox:         { flexDirection: "row", gap: 10, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12 },

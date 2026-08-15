@@ -5,7 +5,7 @@
 //   주황(#FF6F0F)  → 경고·알림    (결석, 지각, 대기, 삭제)
 
 const mint      = "#2EC4B6";
-const navy      = "#0F172A";
+const navy      = "#0F2742";   // Primary Navy (A1-3: was #0F172A)
 const mintLight = "#E6FAF8";
 const orange    = "#F97316";
 const blue      = "#2563EB";
@@ -33,36 +33,39 @@ export const palette = {
 
 const light = {
   // ── 텍스트 ─────────────────────────────────────────────────────────
-  text:           "#0F172A",
+  text:           "#14283D",   // Primary text navy (A1-3: was #0F172A)
+  textPrimary:    "#14283D",   // Alias — semantic primary text
+  textStrong:     "#0F2742",   // Strong title / heading navy
   textSecondary:  "#64748B",
   textMuted:      "#64748B",
 
   // ── 배경 ──────────────────────────────────────────────────────────
-  background:     "#F5F5F5",
-  backgroundSoft: "#EBEBEB",
+  background:     "#F7F9FB",   // Brand background (A1-3: was #F5F5F5)
+  backgroundSoft: "#F1F4F7",   // Surface secondary (A1-3: was #EBEBEB)
 
   // ── 서피스/카드 ───────────────────────────────────────────────────
   card:           "#FFFFFF",
 
   // ── 라인/경계 ─────────────────────────────────────────────────────
-  border:         "#E8E8E8",
+  border:         "#E6EAF0",   // Divider (A1-3: was #E8E8E8)
 
   // ── 메인 액센트 (민트) ────────────────────────────────────────────
   primary:        mint,
   tint:           mint,
-  tintDark:       navy,
+  tintDark:       navy,        // #0F2742
   tintLight:      mintLight,
   tabIconDefault: "#C7C7CC",
   tabIconSelected: mint,
 
-  // ── 기본 CTA (Navy) — A1-2 Design System ─────────────────────────
+  // ── 기본 CTA (Navy) — A1-2 Design System / A1-3 색상 보정 ─────────
   // Primary Action: 저장/다음/등록/확인/완료 등 모든 주요 액션
-  primaryAction:     navy,       // #0F172A — navy solid CTA
-  primaryActionSoft: "#E8EDF4",  // pressed / very soft navy bg
+  primaryAction:        navy,         // #0F2742 — navy solid CTA
+  primaryActionPressed: "#0B1F33",    // Strong Navy (pressed state)
+  primaryActionSoft:    "#E8EDF4",    // very soft navy bg
 
-  // ── 추가 토큰 — A1-2 ─────────────────────────────────────────────
-  divider:   "#F0F0F0",          // subtle list divider (C.border보다 연함)
-  textLink:  blue,               // 링크 텍스트
+  // ── 추가 토큰 — A1-2 / A1-3 ─────────────────────────────────────
+  divider:   "#E6EAF0",        // subtle list divider (A1-3: was #F0F0F0)
+  textLink:  blue,             // 링크 텍스트
 
   // ── 버튼 컬러 (레거시 — 신규 코드는 primaryAction 사용) ────────────
   // button: WARNING/PENDING 시각 표현용으로만 남김 (일반 CTA 사용 금지)
@@ -124,7 +127,7 @@ const light = {
   shadow: "rgba(0,0,0,0.06)",
 
   // ── SWIMNOTE X 전용 토큰 ──────────────────────────────────────────
-  // Blue Black / Charcoal Navy / Steel Blue — Premium Layer
+  // Steel Blue Accent — Premium X Layer (밝은 기반 위 accent)
   xBase:         "#111827",
   xSurface:      "#1B2433",
   xAccent:       "#355C7D",

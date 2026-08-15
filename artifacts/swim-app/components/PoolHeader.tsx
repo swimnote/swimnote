@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 15,
     fontFamily: "Pretendard-Regular",
-    color: "#0F172A"
+    color: "#14283D"
   },
   subtitle: {
     fontSize: 10,

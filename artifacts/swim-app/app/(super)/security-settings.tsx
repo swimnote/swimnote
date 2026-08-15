@@ -677,7 +677,7 @@ export default function SecuritySettingsScreen() {
                   <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#DCFCE7", alignItems: "center", justifyContent: "center" }}>
                     <CircleCheck size={32} color="#16A34A" />
                   </View>
-                  <Text style={{ fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A" }}>OTP 등록 완료</Text>
+                  <Text style={{ fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D" }}>OTP 등록 완료</Text>
                   <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 20 }}>
                     Google Authenticator와 연결되었습니다.{"\n"}다음 로그인부터 OTP 코드가 필요합니다.
                   </Text>
@@ -750,7 +750,7 @@ export default function SecuritySettingsScreen() {
 
                 {/* 6자리 코드 입력 */}
                 <View style={{ gap: 8 }}>
-                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" }}>스캔 후 앱의 6자리 코드 입력</Text>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" }}>스캔 후 앱의 6자리 코드 입력</Text>
                   <TextInput
                     ref={otpCodeRef}
                     style={{
@@ -838,7 +838,7 @@ export default function SecuritySettingsScreen() {
         <Pressable style={m.backdrop} onPress={() => setSmDeleteId(null)}>
           <Pressable style={m.sheet} onPress={e => e.stopPropagation()}>
             <Text style={m.sheetTitle}>슈퍼매니저 삭제</Text>
-            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 4 }}>
+            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 4 }}>
               <Text style={{ fontFamily: "Pretendard-Regular" }}>{smDeleteTarget?.name}</Text> 계정을 삭제하시겠습니까?
             </Text>
             <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 16 }}>
@@ -928,7 +928,7 @@ const s = StyleSheet.create({
 
   infoRow:          { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6,
                       borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
-  infoLabel:        { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  infoLabel:        { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   infoValue:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   actionBtn:        { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12,
                       paddingHorizontal: 14, borderRadius: 12, backgroundColor: "#EEDDF5",
@@ -940,7 +940,7 @@ const s = StyleSheet.create({
   accountAvatar:    { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   accountAvatarTxt: { fontSize: 16, fontFamily: "Pretendard-Regular" },
   accountNameRow:   { flexDirection: "row", alignItems: "center", gap: 6 },
-  accountName:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  accountName:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   accountEmail:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   accountMetaRow:   { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" },
   roleBadge:        { backgroundColor: "#EEDDF5", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
@@ -970,7 +970,7 @@ const s = StyleSheet.create({
 
   currentTwoFa:     { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8,
                       borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
-  currentTwoFaLabel:{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  currentTwoFaLabel:{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   currentTwoFaTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
   twoFaOption:      { flexDirection: "row", alignItems: "center", gap: 12, padding: 12,
                       borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB" },
@@ -979,16 +979,16 @@ const s = StyleSheet.create({
                       alignItems: "center", justifyContent: "center" },
   twoFaRadioActive: { borderColor: P },
   twoFaRadioDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: P },
-  twoFaOptLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  twoFaOptLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   twoFaOptDesc:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   triggerSection:   { borderTopWidth: 1, borderTopColor: "#FFFFFF", paddingTop: 10, gap: 8 },
   triggerHeader:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   triggerRow:       { flexDirection: "row", alignItems: "center", gap: 10 },
-  triggerLabel:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  triggerLabel:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
 
   forceRow:           { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10,
                         borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
-  forceLabel:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  forceLabel:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   forceSub:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   forceBadge:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5 },
   forceBadgeOn:       { borderColor: GREEN, backgroundColor: "#E6FFFA" },
@@ -997,11 +997,11 @@ const s = StyleSheet.create({
 
   recoveryCodesBox:   { backgroundColor: "#F1F5F9", borderRadius: 12, padding: 14, gap: 10,
                         borderWidth: 1, borderColor: "#E5E7EB" },
-  recoveryCodesTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  recoveryCodesTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D" },
   recoveryCodesGrid:  { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   recoveryCodeItem:   { backgroundColor: "#fff", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
                         borderWidth: 1, borderColor: "#E5E7EB" },
-  recoveryCode:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  recoveryCode:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   recoveryCodesHint:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   regenBtn:           { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8 },
   regenTxt:           { fontSize: 12, fontFamily: "Pretendard-Regular", color: DANGER },
@@ -1010,7 +1010,7 @@ const s = StyleSheet.create({
   failLogTitle:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   failLogRow:         { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6,
                         borderRadius: 8, backgroundColor: "#FFF5F5", paddingHorizontal: 10 },
-  failLogDevice:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  failLogDevice:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D" },
   failLogMeta:        { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   failLogBadge:       { backgroundColor: "#F9DEDA", borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
   failLogBadgeTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: DANGER },
@@ -1023,27 +1023,27 @@ const m = StyleSheet.create({
   handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
   avatar:     { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center" },
   avatarTxt:  { fontSize: 22, fontFamily: "Pretendard-Regular" },
-  modalName:  { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  modalTitle: { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  modalName:  { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  modalTitle: { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D" },
   modalEmail: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   detailGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   detailItem: { width: "47%", backgroundColor: "#F1F5F9", borderRadius: 10, padding: 10,
                 borderWidth: 1, borderColor: "#E5E7EB" },
   detailKey:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  detailVal:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", marginTop: 3 },
+  detailVal:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", marginTop: 3 },
   actBtn:     { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14,
                 paddingVertical: 10, borderRadius: 10 },
   actBtnTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
   closeBtn:   { backgroundColor: "#FFFFFF", borderRadius: 12, paddingVertical: 13, alignItems: "center" },
-  closeTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  closeTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
   input:      { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+                fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   btnRow:     { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
   cancelBtn:  { flex: 1, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center" },
-  cancelTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  cancelTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   confirmBtn: { flex: 1, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P, alignItems: "center" },
   confirmTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
-  sheetTitle:  { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  sheetTitle:  { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
   sheetSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2, marginBottom: 12 },
   fieldLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 10, marginBottom: 4 },
   infoBox:    { flexDirection: "row", gap: 6, backgroundColor: "#E6FAF8", borderRadius: 8, padding: 10, alignItems: "flex-start" },
@@ -1057,7 +1057,7 @@ const m = StyleSheet.create({
                        padding: 20, paddingBottom: 36, maxHeight: "80%" },
   svcHeader:         { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
   svcIconBig:        { width: 46, height: 46, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  svcName:           { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  svcName:           { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D" },
   svcType:           { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   svcStatusRow:      { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 10,
                        padding: 10, marginBottom: 14, flexWrap: "wrap" },
@@ -1065,7 +1065,7 @@ const m = StyleSheet.create({
   svcStatusMsg:      { fontSize: 12, fontFamily: "Pretendard-Regular", flex: 1 },
   svcDetailRow:      { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#FFFFFF", gap: 3 },
   svcDetailKey:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  svcDetailVal:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  svcDetailVal:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   svcPlaceholderBanner: { flexDirection: "row", alignItems: "flex-start", gap: 6, backgroundColor: "#F3F4F6",
                           borderRadius: 8, padding: 10, marginTop: 10 },
   svcPlaceholderTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
@@ -1074,5 +1074,5 @@ const m = StyleSheet.create({
                        gap: 6, paddingVertical: 12, borderRadius: 10, backgroundColor: P },
   svcRefreshTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
   svcCloseBtn:       { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center" },
-  svcCloseTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  svcCloseTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
 });

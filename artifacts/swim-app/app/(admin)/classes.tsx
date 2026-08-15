@@ -885,7 +885,7 @@ const s = StyleSheet.create({
   titleArea:   { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border,
                  paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
   titleRow:    { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  title:       { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  title:       { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#14283D" },
   titleSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
   rightBtns:   { flexDirection: "row", gap: 4, alignItems: "center" },

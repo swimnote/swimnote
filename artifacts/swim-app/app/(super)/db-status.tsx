@@ -658,7 +658,7 @@ const s = StyleSheet.create({
   card:      { backgroundColor: "#fff", borderRadius: 14, padding: 16, gap: 8, elevation: 1, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   dbIcon:    { width: 42, height: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  cardTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  cardTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
   cardSub:   { fontSize: 11, color: GRAY, fontFamily: "Pretendard-Regular", marginTop: 1 },
   sizeLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   barBg:     { height: 6, backgroundColor: "#F3F4F6", borderRadius: 3, overflow: "hidden" },
@@ -673,18 +673,18 @@ const s = StyleSheet.create({
 
   statsGrid: { flexDirection: "row", gap: 8 },
   statBox:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center", gap: 2, elevation: 1, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
-  statNum:   { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  statNum:   { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#14283D" },
   statLabel: { fontSize: 10, color: GRAY, fontFamily: "Pretendard-Regular" },
   checkedAt: { fontSize: 11, color: "#64748B", textAlign: "center", fontFamily: "Pretendard-Regular" },
 
   poolCard:  { backgroundColor: "#fff", borderRadius: 14, padding: 14, elevation: 1, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
-  poolName:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 10 },
+  poolName:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 10 },
   poolStats: { flexDirection: "row" },
 
   logList: { gap: 0, backgroundColor: "#fff", borderRadius: 14, overflow: "hidden", elevation: 1, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
   logRow:  { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
   logDot:  { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-  logType: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  logType: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   logMeta: { fontSize: 11, color: GRAY, fontFamily: "Pretendard-Regular" },
   logTime: { fontSize: 11, color: GRAY, fontFamily: "Pretendard-Regular" },
 

@@ -152,7 +152,7 @@ const s = StyleSheet.create({
                 shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05,
                 shadowRadius: 4, elevation: 2 },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  noticeTitle:{ fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A", flex: 1 },
+  noticeTitle:{ fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D", flex: 1 },
   content:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#4B5563", lineHeight: 22 },
   meta:       { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   indiBadge:  { flexDirection: "row", alignItems: "center", gap: 3,

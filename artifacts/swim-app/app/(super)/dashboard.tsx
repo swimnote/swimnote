@@ -96,7 +96,7 @@ const k = StyleSheet.create({
   cardAlert: { borderColor: "#FCA5A5", backgroundColor: "#FEF2F2" },
   dot:       { position: "absolute", top: 7, right: 7, width: 6, height: 6,
                borderRadius: 3, backgroundColor: "#D96C6C" },
-  num:       { fontSize: 22, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  num:       { fontSize: 22, fontFamily: "Pretendard-Regular", color: "#14283D" },
   label:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2, lineHeight: 13 },
   note:      { fontSize: 8, fontFamily: "Pretendard-Regular", color: "#CBD5E1", marginTop: 1 },
 });
@@ -126,7 +126,7 @@ const a = StyleSheet.create({
   row:      { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10,
               paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   iconBox:  { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
-  label:    { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  label:    { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   badge:    { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, minWidth: 26, alignItems: "center" },
   badgeTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
 });
@@ -158,7 +158,7 @@ const pp = StyleSheet.create({
   row:       { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10,
                paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   dot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: "#D97706" },
-  name:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  name:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   sub:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#94A3B8", marginTop: 1 },
   statusPill:{ backgroundColor: "#FFF1BF", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
   statusTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D97706" },
@@ -195,7 +195,7 @@ const c = StyleSheet.create({
               marginBottom: 12, overflow: "hidden" },
   header:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
               paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  title:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", fontWeight: "600" as const },
+  title:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", fontWeight: "600" as const },
   right:    { flexDirection: "row", alignItems: "center", gap: 3 },
   rightTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: MINT },
 });
@@ -450,7 +450,7 @@ const s = StyleSheet.create({
   header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                     paddingHorizontal: 18, paddingTop: 10, paddingBottom: 12,
                     backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  headerTitle:    { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A", fontWeight: "700" as const },
+  headerTitle:    { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D", fontWeight: "700" as const },
   headerSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8", marginTop: 1 },
   menuBtn:        { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F5F3FF",
                     alignItems: "center", justifyContent: "center" },
@@ -470,7 +470,7 @@ const s = StyleSheet.create({
   healthWarnRow:  { flexDirection: "row", alignItems: "center", gap: 8,
                     paddingHorizontal: 14, paddingVertical: 9,
                     borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  healthWarnName: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  healthWarnName: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D" },
   healthWarnTime: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
 
   contentRow:     { flexDirection: "row", padding: 14, gap: 10 },

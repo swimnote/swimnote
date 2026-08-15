@@ -337,14 +337,14 @@ export default function ParentInquiriesScreen() {
             {!newTarget ? (
               <View style={{ gap: 10, marginTop: 8 }}>
                 <Pressable style={[s.targetBtn, { backgroundColor: "#E6FAF8" }]} onPress={() => setNewTarget("super")}>
-                  <LucideIcon name="headphones" size={20} color="#0F172A" />
+                  <LucideIcon name="headphones" size={20} color="#14283D" />
                   <View style={{ flex: 1 }}>
                     <Text style={[s.targetBtnLabel, { color: C.text }]}>스윔노트에 문의</Text>
                     <Text style={[s.targetBtnSub, { color: C.textMuted }]}>앱 이용 문제, 서비스 문의</Text>
                   </View>
                 </Pressable>
                 <Pressable style={[s.targetBtn, { backgroundColor: "#FFF7ED" }]} onPress={() => setNewTarget("admin")}>
-                  <LucideIcon name="user-circle" size={20} color="#0F172A" />
+                  <LucideIcon name="user-circle" size={20} color="#14283D" />
                   <View style={{ flex: 1 }}>
                     <Text style={[s.targetBtnLabel, { color: C.text }]}>원장님에게 문의</Text>
                     <Text style={[s.targetBtnSub, { color: C.textMuted }]}>수업, 수영장 관련 문의</Text>
@@ -406,7 +406,7 @@ const s = StyleSheet.create({
   otherBubbleWrap: { alignItems: "flex-start" },
   senderName: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4, marginLeft: 4 },
   myBubble: {
-    backgroundColor: "#0F172A", borderRadius: 16, borderBottomRightRadius: 4,
+    backgroundColor: "#0F2742", borderRadius: 16, borderBottomRightRadius: 4,
     padding: 12, maxWidth: "80%", alignSelf: "flex-end",
   },
   otherBubble: {
@@ -414,7 +414,7 @@ const s = StyleSheet.create({
     padding: 12, maxWidth: "80%",
   },
   myBubbleText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff", lineHeight: 20 },
-  otherBubbleText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
+  otherBubbleText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 20 },
   bubbleTime: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.6)", marginTop: 4, textAlign: "right" },
   inputBar: {
     flexDirection: "row", alignItems: "flex-end", gap: 8,
@@ -425,7 +425,7 @@ const s = StyleSheet.create({
   textInput: {
     flex: 1, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 16,
     paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10,
-    fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A",
+    fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D",
     maxHeight: 100, minHeight: 42,
   },
   sendBtn: {
@@ -454,7 +454,7 @@ const s = StyleSheet.create({
   fab: {
     position: "absolute", right: 20,
     width: 52, height: 52, borderRadius: 26,
-    backgroundColor: "#0F172A",
+    backgroundColor: "#0F2742",
     alignItems: "center", justifyContent: "center",
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2, shadowRadius: 8, elevation: 6,

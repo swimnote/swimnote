@@ -212,7 +212,7 @@ const s = StyleSheet.create({
     alignSelf: "center", marginBottom: 16,
   },
   header: { marginBottom: 20 },
-  title: { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 6 },
+  title: { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 6 },
   subtitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18 },
 
   options: { gap: 12, marginBottom: 20 },
@@ -224,7 +224,7 @@ const s = StyleSheet.create({
   optionSelectedBlue: { borderColor: "#2EC4B6", backgroundColor: "#F0FDFB" },
   optionTop: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  optionTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A", flex: 1 },
+  optionTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D", flex: 1 },
   badge: {
     paddingHorizontal: 8, paddingVertical: 2,
     borderRadius: 8,

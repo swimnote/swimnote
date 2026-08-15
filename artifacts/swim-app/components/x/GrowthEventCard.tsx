@@ -29,7 +29,7 @@ const C                = Colors.light;
 // X 전용 토큰 — A1 Theme Polish (Steel Blue)
 const X_ACCENT         = "#355C7D";
 const X_ACCENT_LIGHT   = "#E9EEF3";
-const NAVY             = "#0F172A";
+const NAVY             = "#14283D";
 const GREEN            = "#10B981";
 const RED              = "#EF4444";
 

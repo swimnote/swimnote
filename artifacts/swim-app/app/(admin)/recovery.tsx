@@ -629,7 +629,7 @@ const s = StyleSheet.create({
 
   statusCard:   { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14 },
   statusTitle:  { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  statusSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginTop: 2 },
+  statusSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", marginTop: 2 },
   manualBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12,
                   paddingVertical: 8, borderRadius: 10 },
   manualBtnTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
@@ -639,8 +639,8 @@ const s = StyleSheet.create({
   doneTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#065F46", flex: 1 },
 
   infoBox:      { borderRadius: 12, padding: 14, gap: 4, flexDirection: "row" },
-  infoTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 4 },
-  infoLine:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 18 },
+  infoTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 4 },
+  infoLine:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 18 },
 
   section:      { gap: 8 },
   sectionTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },

@@ -16,7 +16,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 
 const PURPLE = "#7C3AED";
-const NAVY   = "#0F172A";
+const NAVY   = "#14283D";
 
 export default function PolicyAgreementScreen() {
   const { token } = useAuth() as any;

@@ -505,7 +505,7 @@ const s = StyleSheet.create({
 
   subCard:    { borderWidth: 1, borderRadius: 12, padding: 14, gap: 8 },
   planDot:    { width: 10, height: 10, borderRadius: 5 },
-  planName:   { fontSize: 16, fontWeight: "700", color: "#111827" },
+  planName:   { fontSize: 16, fontWeight: "700", color: "#14283D" },
   planMeta:   { fontSize: 12, color: "#64748B" },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: "#E5E7EB" },
   badgeGreen: { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" },
@@ -531,7 +531,7 @@ const s = StyleSheet.create({
 
   platformBanner:    { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0" },
   platformBannerText:{ fontSize: 13, color: "#475569", flex: 1, fontFamily: "Pretendard-Regular" },
-  platformBannerBold:{ color: "#0F172A", fontWeight: "600" },
+  platformBannerBold:{ color: "#14283D", fontWeight: "600" },
   platformManageBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F0FDFB", borderWidth: 1, borderColor: "#2EC4B6" },
   platformManageTxt: { fontSize: 12, color: "#2EC4B6", fontWeight: "600" },
 

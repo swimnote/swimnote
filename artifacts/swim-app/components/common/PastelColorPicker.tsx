@@ -77,7 +77,7 @@ export default function PastelColorPicker({ selected, onSelect, label = "반 색
                   onPress={() => { onSelect(col); setOpen(false); }}
                 >
                   {isSelected && (
-                    <LucideIcon name="check" size={13} color="#0F172A" />
+                    <LucideIcon name="check" size={13} color="#14283D" />
                   )}
                 </Pressable>
               );

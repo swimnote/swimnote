@@ -88,7 +88,7 @@ function formatDate(iso: string): string {
   } catch { return iso; }
 }
 
-const _IC = "#0F172A"; const _IB = "#E6FAF8";
+const _IC = "#14283D"; const _IB = "#E6FAF8";
 const FILTER_CHIPS_TEACHER: FilterChipItem<StatusFilter>[] = [
   { key: "pending",  label: "대기",   icon: "clock",        activeColor: _IC, activeBg: _IB },
   { key: "approved", label: "승인",   icon: "check-circle", activeColor: _IC, activeBg: _IB },

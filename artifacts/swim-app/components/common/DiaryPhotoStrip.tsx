@@ -486,7 +486,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
                     contentFit="contain"
                   />
                 ) : (
-                  <View style={[s.fullImg, { backgroundColor: "#0F172A", alignItems: "center", justifyContent: "center" }]}>
+                  <View style={[s.fullImg, { backgroundColor: "#0F2742", alignItems: "center", justifyContent: "center" }]}>
                     <LucideIcon name="play" size={52} color="rgba(255,255,255,0.5)" fill="rgba(255,255,255,0.5)" />
                   </View>
                 )}

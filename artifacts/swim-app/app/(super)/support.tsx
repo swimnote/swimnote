@@ -73,7 +73,7 @@ const TICKET_TYPES = Object.keys(TYPE_CFG);
 type FilterKey = "all" | "urgent" | "sla" | "payment" | "security" | "refund";
 
 const FILTER_TABS: Array<{ key: FilterKey; label: string; color: string; icon: string }> = [
-  { key: "all",      label: "전체",    color: "#0F172A",  icon: "list" },
+  { key: "all",      label: "전체",    color: "#14283D",  icon: "list" },
   { key: "urgent",   label: "긴급",    color: RED,        icon: "alert-octagon" },
   { key: "sla",      label: "SLA 초과", color: "#D97706", icon: "clock" },
   { key: "payment",  label: "결제",    color: TEAL,       icon: "credit-card" },
@@ -677,7 +677,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
   },
   statItem:    { flex: 1, alignItems: "center", justifyContent: "center" },
-  statNum:     { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  statNum:     { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#14283D" },
   statLabel:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   statDivider: { width: 1, height: 28, backgroundColor: "#E5E7EB" },
 
@@ -698,7 +698,7 @@ const s = StyleSheet.create({
   },
   tabChipTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   tabCount:    { backgroundColor: "#FFFFFF", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
-  tabCountTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  tabCountTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#14283D" },
 
   // 리스트
   list:        { flex: 1, backgroundColor: "#FFFFFF" },
@@ -726,7 +726,7 @@ const s = StyleSheet.create({
   typeIcon:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   rowMain:    { flex: 1, gap: 3 },
   rowTop:     { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  subject:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  subject:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   slaTag:     { backgroundColor: "#F9DEDA", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
   slaTxt:     { fontSize: 9, fontFamily: "Pretendard-Regular", color: RED },
   rowMeta:    { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
@@ -755,23 +755,23 @@ const m = StyleSheet.create({
     padding: 20, paddingBottom: 40, maxHeight: "88%", gap: 12,
   },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:     { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  desc:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
+  title:     { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  desc:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 20 },
   infoBox:   { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 12, gap: 6 },
   infoRow:   { flexDirection: "row", gap: 8 },
   infoLabel: { width: 60, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  infoVal:   { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  infoVal:   { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D" },
   section:   { gap: 6 },
-  label:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  label:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   input: {
     borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10,
-    padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A",
+    padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D",
   },
   optChip: {
     paddingHorizontal: 14, paddingVertical: 8,
     borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff",
   },
-  optTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  optTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   linkBtn: {
     flexDirection: "row", alignItems: "center", gap: 8,
     backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12,

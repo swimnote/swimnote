@@ -19,7 +19,7 @@ import { formatDateSafe, calcPercent } from "@/domain/formatters";
 const P = "#7C3AED";
 
 const FILTER_CHIPS: { key: OperatorFilter; label: string; color: string; bg: string }[] = [
-  { key: "all",              label: "전체",         color: "#0F172A", bg: "#FFFFFF" },
+  { key: "all",              label: "전체",         color: "#14283D", bg: "#FFFFFF" },
   { key: "pending",          label: "승인 대기",     color: "#D97706", bg: "#FFF1BF" },
   { key: "payment_failed",   label: "결제 실패",     color: "#D96C6C", bg: "#F9DEDA" },
   { key: "storage95",        label: "저장 95%↑",    color: P,         bg: "#EEDDF5" },
@@ -283,7 +283,7 @@ export default function SuperPoolsScreen() {
             {!isPending && (
               <Pressable style={[s.actBtn, { backgroundColor: "#FFFFFF" }]}
                 onPress={() => router.push(`/(super)/operator-detail?id=${item.id}&backTo=pools` as any)}>
-                <Text style={[s.actTxt, { color: "#0F172A" }]}>상세</Text>
+                <Text style={[s.actTxt, { color: "#14283D" }]}>상세</Text>
               </Pressable>
             )}
           </View>
@@ -307,11 +307,11 @@ export default function SuperPoolsScreen() {
             )}
             <View style={s.sheetBtns}>
               <Pressable style={[s.sheetBtn, { backgroundColor: "#FFFFFF" }]} onPress={() => setBulkModal(null)}>
-                <Text style={{ color: "#0F172A", fontFamily: "Pretendard-Regular" }}>취소</Text>
+                <Text style={{ color: "#14283D", fontFamily: "Pretendard-Regular" }}>취소</Text>
               </Pressable>
               <Pressable style={[s.sheetBtn, { backgroundColor: BULK_ACTIONS.find(a => a.key === bulkModal)?.bg ?? "#FFFFFF" }]}
                 disabled={processing} onPress={() => executeBulk(bulkModal!)}>
-                <Text style={{ color: BULK_ACTIONS.find(a => a.key === bulkModal)?.color ?? "#0F172A", fontFamily: "Pretendard-Regular" }}>
+                <Text style={{ color: BULK_ACTIONS.find(a => a.key === bulkModal)?.color ?? "#14283D", fontFamily: "Pretendard-Regular" }}>
                   확인
                 </Text>
               </Pressable>
@@ -405,13 +405,13 @@ const s = StyleSheet.create({
   safe:              { flex: 1, backgroundColor: "#fff" },
   overlay:           { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
   sheet:             { backgroundColor: "#fff", borderRadius: 16, padding: 20, width: "85%", gap: 12 },
-  sheetTitle:        { fontFamily: "Pretendard-Regular", fontSize: 16, color: "#0F172A" },
-  sheetInput:        { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, padding: 10, color: "#0F172A", fontFamily: "Pretendard-Regular", minHeight: 60 },
+  sheetTitle:        { fontFamily: "Pretendard-Regular", fontSize: 16, color: "#14283D" },
+  sheetInput:        { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, padding: 10, color: "#14283D", fontFamily: "Pretendard-Regular", minHeight: 60 },
   sheetBtns:         { flexDirection: "row", gap: 10 },
   sheetBtn:          { flex: 1, borderRadius: 8, paddingVertical: 10, alignItems: "center" },
   searchRow:         { paddingHorizontal: 16, paddingVertical: 8, gap: 6 },
   searchBox:         { flexDirection: "row", alignItems: "center", backgroundColor: "#F1F5F9", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 6 },
-  searchInput:       { flex: 1, fontFamily: "Pretendard-Regular", fontSize: 14, color: "#0F172A" },
+  searchInput:       { flex: 1, fontFamily: "Pretendard-Regular", fontSize: 14, color: "#14283D" },
   sortChip:          { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "#FFFFFF", marginRight: 6 },
   sortChipActive:    { backgroundColor: "#EEDDF5" },
   sortChipTxt:       { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#64748B" },
@@ -420,7 +420,7 @@ const s = StyleSheet.create({
   chip:              { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#FFFFFF" },
   chipTxt:           { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#64748B" },
   listHeader:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
-  listCount:         { fontFamily: "Pretendard-Regular", fontSize: 13, color: "#0F172A" },
+  listCount:         { fontFamily: "Pretendard-Regular", fontSize: 13, color: "#14283D" },
   listHeaderRight:   { flexDirection: "row", alignItems: "center", gap: 8 },
   bulkBtn:           { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginRight: 4 },
   bulkTxt:           { fontFamily: "Pretendard-Regular", fontSize: 11 },
@@ -435,13 +435,13 @@ const s = StyleSheet.create({
   checkboxChecked:   { backgroundColor: P, borderColor: P },
   rowMain:           { flex: 1, gap: 4 },
   rowTop:            { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  rowName:           { fontFamily: "Pretendard-Regular", fontSize: 15, color: "#0F172A", flex: 1 },
+  rowName:           { fontFamily: "Pretendard-Regular", fontSize: 15, color: "#14283D", flex: 1 },
   badge:             { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
   badgeTxt:          { fontFamily: "Pretendard-Regular", fontSize: 10 },
   rowMeta:           { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
   rowOwner:          { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#64748B" },
   rowDot:            { color: "#D1D5DB", fontSize: 10 },
-  metaTag:           { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#0F172A" },
+  metaTag:           { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#14283D" },
   storageRow:        { flexDirection: "row", alignItems: "center", gap: 6 },
   storageBarBg:      { flex: 1, height: 4, backgroundColor: "#FFFFFF", borderRadius: 2, overflow: "hidden" },
   storageBarFill:    { height: 4, borderRadius: 2 },

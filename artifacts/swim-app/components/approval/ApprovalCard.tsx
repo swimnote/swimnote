@@ -142,7 +142,7 @@ const s = StyleSheet.create({
   },
   avatarText: { fontSize: 18, fontFamily: "Pretendard-Regular" },
   info: { flex: 1, gap: 2 },
-  name: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  name: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   sub:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
   sub2: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   date: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },

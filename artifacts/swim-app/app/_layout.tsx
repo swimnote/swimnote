@@ -225,7 +225,7 @@ function UploadProgressModal() {
             }
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" }}>
+            <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#14283D" }}>
               {isComplete
                 ? (hasFailed ? `업로드 완료 (일부 실패)` : "업로드 완료 🎉")
                 : "사진 업로드 중..."}
@@ -802,7 +802,7 @@ function RootNav() {
               }}>
                 <Text style={{ fontSize: 26 }}>🆕</Text>
               </View>
-              <Text style={{ fontSize: 18, fontFamily: "Pretendard-SemiBold", color: "#0F172A" }}>
+              <Text style={{ fontSize: 18, fontFamily: "Pretendard-SemiBold", color: "#14283D" }}>
                 업데이트 준비 완료
               </Text>
             </View>
@@ -859,7 +859,7 @@ function RootNav() {
               }}>
                 <Text style={{ fontSize: 26 }}>🔔</Text>
               </View>
-              <Text style={{ fontSize: 18, fontFamily: "Pretendard-SemiBold", color: "#0F172A" }}>
+              <Text style={{ fontSize: 18, fontFamily: "Pretendard-SemiBold", color: "#14283D" }}>
                 업데이트 필요
               </Text>
             </View>

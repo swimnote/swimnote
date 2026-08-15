@@ -326,11 +326,11 @@ export default function TodayScheduleScreen() {
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
             <Text style={h.greeting} numberOfLines={1}>{adminUser?.name ?? "선생님"}선생님</Text>
             {canSwitchToAdmin && (
-              <Pressable style={({ pressed }) => [h.switchChip, { borderColor: "#0F172A30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 }]}
+              <Pressable style={({ pressed }) => [h.switchChip, { borderColor: "#14283D30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 }]}
                 onPress={handleSwitchToAdmin} disabled={switching}>
                 {switching
-                  ? <ActivityIndicator size="small" color="#0F172A" />
-                  : <><Repeat size={10} color="#0F172A" /><Text style={[h.switchChipTxt, { color: "#0F172A" }]}>관리자로 전환</Text></>}
+                  ? <ActivityIndicator size="small" color="#14283D" />
+                  : <><Repeat size={10} color="#14283D" /><Text style={[h.switchChipTxt, { color: "#14283D" }]}>관리자로 전환</Text></>}
               </Pressable>
             )}
           </View>
@@ -619,7 +619,7 @@ const h = StyleSheet.create({
   todayDate:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 6 },
   todayStatRow:   { flexDirection: "row", alignItems: "center" },
   todayStat:      { flex: 1, alignItems: "center", gap: 1, paddingVertical: 0 },
-  todayStatNum:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  todayStatNum:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
   todayStatLabel: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#64748B" },
   todayDivider:   { width: 1, height: 18, backgroundColor: C.border },
   sectionCard:    { borderRadius: 14, padding: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },

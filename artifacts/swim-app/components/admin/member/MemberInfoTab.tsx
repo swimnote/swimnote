@@ -112,7 +112,7 @@ export function MemberInfoTab({
             <>
               <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" }}>학부모 앱 연결됨</Text>
               {parentAccountName ? (
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", marginTop: 1 }}>{parentAccountName}</Text>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", marginTop: 1 }}>{parentAccountName}</Text>
               ) : null}
             </>
           ) : (

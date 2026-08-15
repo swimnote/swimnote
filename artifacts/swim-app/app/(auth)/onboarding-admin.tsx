@@ -20,7 +20,8 @@ import { useAuth } from "@/context/AuthContext";
 const { width: W } = Dimensions.get("window");
 
 const MINT   = "#2EC4B6";
-const NAVY   = "#0F172A";
+const NAVY_BG   = "#0F2742";  // fill/button/progress
+const NAVY_TEXT = "#14283D";  // text/icon
 const ORANGE = "#F97316";
 const BLUE   = "#2563EB";
 const GREEN  = "#2E9B6F";
@@ -366,13 +367,13 @@ const s = StyleSheet.create({
   safe:       { flex: 1, backgroundColor: "#FAFAFA" },
   progressRow:{ flexDirection: "row", justifyContent: "center", gap: 6, paddingVertical: 14 },
   dot:        { width: 6, height: 6, borderRadius: 3, backgroundColor: "#E5E7EB" },
-  dotActive:  { width: 20, backgroundColor: NAVY },
-  dotDone:    { backgroundColor: NAVY, opacity: 0.35 },
+  dotActive:  { width: 20, backgroundColor: NAVY_BG },
+  dotDone:    { backgroundColor: NAVY_BG, opacity: 0.35 },
   footer:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                 paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderColor: "#F0F0F0" },
   skipBtn:    { paddingHorizontal: 16, paddingVertical: 12 },
   skipTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
-  nextBtn:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: NAVY,
+  nextBtn:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: NAVY_BG,
                 paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 },
   nextTxt:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
 });
@@ -383,7 +384,7 @@ const sw = StyleSheet.create({
              alignItems: "center", justifyContent: "center", marginBottom: 8 },
   badge:   { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
              backgroundColor: "#E6FAF8", marginBottom: 4 },
-  title:   { fontSize: 26, fontFamily: "Pretendard-Regular", color: NAVY, textAlign: "center", lineHeight: 36 },
+  title:   { fontSize: 26, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, textAlign: "center", lineHeight: 36 },
   sub:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 24 },
   tagRow:  { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 8 },
   tag:     { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
@@ -393,12 +394,12 @@ const sw = StyleSheet.create({
 
 const sf = StyleSheet.create({
   root:      { padding: 24, gap: 12, paddingBottom: 80 },
-  title:     { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY },
+  title:     { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
   sub:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
   card:      { flexDirection: "row", alignItems: "flex-start", gap: 14, backgroundColor: "#fff",
                borderRadius: 16, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
   iconBox:   { width: 46, height: 46, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  cardTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 4 },
+  cardTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, marginBottom: 4 },
   cardDesc:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 19 },
 });
 
@@ -406,17 +407,17 @@ const sc = StyleSheet.create({
   root:         { padding: 20, gap: 10, paddingBottom: 80 },
   headerBox:    { backgroundColor: "#fff", borderRadius: 16, padding: 18, gap: 8,
                   borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 4 },
-  title:        { fontSize: 20, fontFamily: "Pretendard-Regular", color: NAVY },
+  title:        { fontSize: 20, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
   sub:          { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 20 },
   progressBarWrap: { height: 6, backgroundColor: "#E5E7EB", borderRadius: 3, overflow: "hidden", marginTop: 4 },
-  progressBar:  { height: 6, backgroundColor: NAVY, borderRadius: 3 },
+  progressBar:  { height: 6, backgroundColor: NAVY_BG, borderRadius: 3 },
   progressTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: MINT },
   item:         { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff",
                   borderRadius: 14, padding: 14, borderWidth: 1.5, borderColor: "#E5E7EB" },
   itemChecked:  { borderColor: "#D1FAE5", backgroundColor: "#F0FDF4" },
   itemIcon:     { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   itemTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 3 },
-  itemTitle:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY },
+  itemTitle:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
   itemDesc:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   requiredBadge:{ backgroundColor: "#FFF1BF", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   requiredTxt:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#92400E" },
@@ -427,13 +428,13 @@ const sc = StyleSheet.create({
 
 const sfl = StyleSheet.create({
   root:      { padding: 24, gap: 4, paddingBottom: 80 },
-  title:     { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 4 },
+  title:     { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, marginBottom: 4 },
   sub:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 12 },
   stepRow:   { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#fff",
                borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
   numBox:    { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   num:       { fontSize: 18, fontFamily: "Pretendard-Regular" },
-  stepTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 2 },
+  stepTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, marginBottom: 2 },
   stepDesc:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   connector: { width: 2, height: 14, backgroundColor: "#E5E7EB", marginLeft: 31 },
   tipBox:    { backgroundColor: "#F0F9FF", borderRadius: 14, padding: 16,
@@ -446,15 +447,15 @@ const sd = StyleSheet.create({
   root:        { flex: 1, alignItems: "center", justifyContent: "center", padding: 28, gap: 16 },
   iconWrap:    { width: 110, height: 110, borderRadius: 30, backgroundColor: "#E6FAF8",
                  alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  title:       { fontSize: 28, fontFamily: "Pretendard-Regular", color: NAVY },
+  title:       { fontSize: 28, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
   sub:         { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#64748B",
                  textAlign: "center", lineHeight: 26 },
   summaryBox:  { backgroundColor: "#fff", borderRadius: 16, padding: 18, gap: 10, width: "100%",
                  borderWidth: 1, borderColor: "#E5E7EB" },
-  summaryTitle:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 4 },
+  summaryTitle:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, marginBottom: 4 },
   summaryRow:  { flexDirection: "row", alignItems: "center", gap: 6 },
   summaryTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151" },
-  btn:         { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: NAVY,
+  btn:         { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: NAVY_BG,
                  paddingHorizontal: 32, paddingVertical: 16, borderRadius: 16, marginTop: 8 },
   btnTxt:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

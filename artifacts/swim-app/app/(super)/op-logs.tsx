@@ -270,7 +270,7 @@ export default function OpLogsScreen() {
 const s = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: C.background },
   countBanner:  { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
-  countTxt:     { fontFamily: "Pretendard-Regular", fontSize: 13, color: "#0F172A" },
+  countTxt:     { fontFamily: "Pretendard-Regular", fontSize: 13, color: "#14283D" },
   tabBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
   tabContent:   { paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: "row" },
   tab:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7,
@@ -284,7 +284,7 @@ const s = StyleSheet.create({
   logIcon:      { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginTop: 2, flexShrink: 0 },
   logBody:      { flex: 1, gap: 5 },
   logTop:       { flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  logDesc:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 19 },
+  logDesc:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 19 },
   logSubDesc:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   logTime:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", flexShrink: 0 },
   logMeta:      { flexDirection: "row", alignItems: "center", gap: 5 },
@@ -295,7 +295,7 @@ const s = StyleSheet.create({
   logDetail:    { backgroundColor: "#F1F5F9", borderRadius: 8, padding: 10, gap: 5 },
   detailRow:    { flexDirection: "row", gap: 8 },
   detailLabel:  { width: 48, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  detailVal:    { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  detailVal:    { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#14283D" },
   empty:        { alignItems: "center", paddingTop: 80, gap: 10 },
   emptyTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
 });

@@ -161,7 +161,7 @@ export default function WithdrawnMembersScreen() {
             퇴원자는 과금에 포함되지 않습니다. 최종 퇴원 처리 시 학부모 앱 접근이 차단됩니다. 복구 가능 기간 내에는 관리자가 복구할 수 있습니다.
           </Text>
         ) : (
-          <Text style={[styles.infoText, { color: "#0F172A" }]}>
+          <Text style={[styles.infoText, { color: "#14283D" }]}>
             아카이브는 과금 제외, 학부모 접근 차단, 기록 보존 상태입니다. 관리자만 열람 가능합니다.
           </Text>
         )}

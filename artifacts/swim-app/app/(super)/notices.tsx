@@ -89,7 +89,7 @@ const nc = StyleSheet.create({
                   paddingHorizontal: 6, paddingVertical: 3, borderRadius: 7 },
   forcedTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   date:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginLeft: "auto" },
-  title:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 4 },
+  title:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 4 },
   content:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18, marginBottom: 6 },
   by:           { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 8 },
   actions:      { flexDirection: "row", gap: 6 },
@@ -361,7 +361,7 @@ export default function NoticesScreen() {
         <View style={m.overlay}>
           <View style={[m.sheet, { maxHeight: 240 }]}>
             <Text style={[m.title, { marginBottom: 12 }]}>공지 삭제</Text>
-            <Text style={{ fontSize: 14, color: "#0F172A", marginBottom: 8 }}>
+            <Text style={{ fontSize: 14, color: "#14283D", marginBottom: 8 }}>
               이 공지를 삭제하면 앱에서 더 이상 노출되지 않습니다.
             </Text>
             <Text style={{ fontSize: 13, color: "#D96C6C", marginBottom: 20 }}>
@@ -403,10 +403,10 @@ const m = StyleSheet.create({
   overlay:      { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:        { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "90%" },
   header:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  title:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  label:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 4, marginTop: 12 },
+  title:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  label:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 4, marginTop: 12 },
   input:        { borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 10, padding: 10, fontSize: 14,
-                  fontFamily: "Pretendard-Regular", color: "#0F172A", backgroundColor: "#F1F5F9" },
+                  fontFamily: "Pretendard-Regular", color: "#14283D", backgroundColor: "#F1F5F9" },
   segRow:       { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   segBtn:       { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
   segActive:    { backgroundColor: P },
@@ -415,7 +415,7 @@ const m = StyleSheet.create({
   footer:       { flexDirection: "row", gap: 8, marginTop: 20 },
   hint:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 10, marginTop: -8 },
   cancelBtn:    { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center" },
-  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   saveBtn:      { flex: 2, padding: 13, borderRadius: 10, backgroundColor: P, alignItems: "center" },
   saveTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

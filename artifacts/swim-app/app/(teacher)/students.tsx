@@ -78,7 +78,7 @@ function toStudentMember(m: TeacherMember): StudentMember {
 type TabKey = "all" | "unassigned" | "suspend_pending" | "withdraw_pending" | "suspended" | "withdrawn";
 
 const TAB_CONFIG: { key: TabKey; label: string; color: string }[] = [
-  { key: "all",              label: "전체",    color: "#0F172A" },
+  { key: "all",              label: "전체",    color: "#14283D" },
   { key: "unassigned",       label: "미배정",  color: "#D96C6C" },
   { key: "suspend_pending",  label: "연기예정", color: "#B45309" },
   { key: "withdraw_pending", label: "퇴원예정", color: "#64748B" },

@@ -430,7 +430,7 @@ export default function BillingAnalyticsScreen() {
               <Text style={s.profitLabel}>총 지출 (추정)</Text>
               <Text style={[s.profitVal, { color: "#D96C6C" }]}>- {fmtKRW(totalCost)}</Text>
             </View>
-            <View style={[s.profitDivider, { borderStyle: "solid", borderColor: "#0F172A" }]} />
+            <View style={[s.profitDivider, { borderStyle: "solid", borderColor: "#14283D" }]} />
             <View style={s.profitRow}>
               <Text style={[s.profitLabel, { fontFamily: "Pretendard-Regular", fontSize: 15 }]}>순이익</Text>
               <Text style={[s.profitVal, { fontSize: 20, color: netProfit >= 0 ? "#2EC4B6" : "#D96C6C" }]}>
@@ -464,14 +464,14 @@ const s = StyleSheet.create({
   sectionHdr:       { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   sectionIconBox:   { width: 28, height: 28, borderRadius: 8, backgroundColor: "#EEDDF5",
                       alignItems: "center", justifyContent: "center" },
-  sectionTitle:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  sectionTitle:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
   estimateNote:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   emptyTxt:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", paddingVertical: 20 },
 
   heroCard:         { backgroundColor: "#EEDDF5", borderRadius: 14, padding: 18, gap: 6,
                       borderWidth: 1, borderColor: "#E6FAF8" },
   heroLabel:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
-  heroValue:        { fontSize: 30, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  heroValue:        { fontSize: 30, fontFamily: "Pretendard-Regular", color: "#14283D" },
   heroCompareRow:   { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
   heroCompare:      { fontSize: 13, fontFamily: "Pretendard-Regular" },
   heroPrev:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
@@ -480,16 +480,16 @@ const s = StyleSheet.create({
   kpiCard:          { width: "30%", minWidth: 95, backgroundColor: "#F1F5F9", borderRadius: 10,
                       padding: 10, gap: 3, borderWidth: 1, borderColor: "#FFFFFF" },
   kpiLabel:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  kpiValue:         { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  kpiValue:         { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D" },
   kpiSub:           { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
   planRow:          { flexDirection: "row", alignItems: "center", paddingVertical: 10,
                       borderBottomWidth: 1, borderColor: "#FFFFFF" },
   planLeft:         { flex: 1, gap: 2 },
-  planName:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  planName:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   planSub:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   planRight:        { alignItems: "flex-end", gap: 2 },
-  planAmount:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  planAmount:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
   planCount:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   planRowExtra:     { paddingTop: 6 },
   planSubNote:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
@@ -504,18 +504,18 @@ const s = StyleSheet.create({
 
   costRow:          { flexDirection: "row", alignItems: "center", paddingVertical: 8,
                       borderBottomWidth: 1, borderColor: "#FFFFFF" },
-  costLabel:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  costLabel:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   costNote:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   costAmount:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   costTotalRow:     { flexDirection: "row", alignItems: "center", paddingTop: 10,
                       borderTopWidth: 2, borderColor: "#D96C6C" },
-  costTotalLabel:   { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  costTotalLabel:   { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   costTotalAmount:  { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
 
   profitCard:       { backgroundColor: "#F1F5F9", borderRadius: 14, padding: 16, gap: 10 },
   profitRow:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  profitLabel:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  profitVal:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  profitLabel:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  profitVal:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
   profitDivider:    { borderBottomWidth: 1, borderStyle: "dashed", borderColor: "#D1D5DB" },
   marginTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "right" },
   profitNote:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 16 },
@@ -523,20 +523,20 @@ const s = StyleSheet.create({
   poolRow:          { flexDirection: "row", alignItems: "center", paddingVertical: 10,
                       borderBottomWidth: 1, borderColor: "#F1F5F9" },
   poolLeft:         { flex: 1, gap: 2 },
-  poolName:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  poolName:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   poolSub:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   poolRight:        { alignItems: "flex-end", gap: 2 },
-  poolAmount:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  poolAmount:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
   poolNet:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
   txRow:            { paddingVertical: 12, flexDirection: "row", gap: 8 },
   txRowBorder:      { borderBottomWidth: 1, borderColor: "#F1F5F9" },
   txLeft:           { flex: 1, gap: 3 },
   txRight:          { alignItems: "flex-end", gap: 3 },
-  txPool:           { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  txPool:           { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   txPlan:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
   txDate:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
-  txAmount:         { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  txAmount:         { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
   txNet:            { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   refundBadge:      { backgroundColor: "#FEE2E2", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
   refundBadgeTxt:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D96C6C" },

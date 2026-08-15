@@ -76,9 +76,9 @@ function formatWon(n: number) { return n.toLocaleString("ko-KR") + "원"; }
 ──────────────────────────────────────────────── */
 const STATUS_COLOR: Record<SettlementStatus, { bg: string; text: string }> = {
   "미정산":    { bg: "#FFFFFF", text: "#64748B" },
-  "저장됨":    { bg: "#E6FAF8", text: "#0F172A" },
-  "제출완료":  { bg: "#E6FAF8", text: "#0F172A" },
-  "관리자확인": { bg: "#E6FAF8", text: "#0F172A" },
+  "저장됨":    { bg: "#E6FAF8", text: "#14283D" },
+  "제출완료":  { bg: "#E6FAF8", text: "#14283D" },
+  "관리자확인": { bg: "#E6FAF8", text: "#14283D" },
 };
 
 export default function AdminRevenueScreen() {
@@ -203,7 +203,7 @@ export default function AdminRevenueScreen() {
           style={[s.holiBtn, { backgroundColor: "#E6FAF8", borderColor: "#CBD5E1" }]}
           onPress={() => setHoliModal(true)}
         >
-          <LucideIcon name="calendar" size={14} color="#0F172A" />
+          <LucideIcon name="calendar" size={14} color="#14283D" />
           <Text style={s.holiBtnTxt}>휴무일 지정</Text>
         </Pressable>
       </View>
@@ -221,13 +221,13 @@ export default function AdminRevenueScreen() {
           <View style={s.quickRow}>
             <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
               onPress={() => router.push("/(admin)/makeups?backTo=admin-revenue" as any)}>
-              <LucideIcon name="rotate-ccw" size={16} color="#0F172A" />
-              <Text style={[s.quickLabel, { color: "#0F172A" }]}>보강 이월</Text>
+              <LucideIcon name="rotate-ccw" size={16} color="#14283D" />
+              <Text style={[s.quickLabel, { color: "#14283D" }]}>보강 이월</Text>
             </Pressable>
             <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
               onPress={() => router.push("/(admin)/holidays?backTo=admin-revenue" as any)}>
-              <LucideIcon name="list" size={16} color="#0F172A" />
-              <Text style={[s.quickLabel, { color: "#0F172A" }]}>휴무 목록</Text>
+              <LucideIcon name="list" size={16} color="#14283D" />
+              <Text style={[s.quickLabel, { color: "#14283D" }]}>휴무 목록</Text>
             </Pressable>
           </View>
 
@@ -395,7 +395,7 @@ export default function AdminRevenueScreen() {
         <Pressable style={s.overlay} onPress={() => setNextMonthModal(false)} />
         <View style={s.modalBox}>
           <View style={[s.modalCard, { backgroundColor: C.card }]}>
-            <LucideIcon name="alert-circle" size={32} color="#0F172A" style={{ alignSelf: "center", marginBottom: 8 }} />
+            <LucideIcon name="alert-circle" size={32} color="#14283D" style={{ alignSelf: "center", marginBottom: 8 }} />
             <Text style={[s.modalTitle, { color: C.text }]}>다음 달 수업 발생</Text>
             <Text style={[s.modalDesc, { color: C.textSecondary }]}>
               현재 월 정산을 마무리하고{"\n"}다음 달 수업 일정을 새로 생성합니다.{"\n"}보강 이월도 함께 처리됩니다.
@@ -448,7 +448,7 @@ const s = StyleSheet.create({
   monthArrow: { padding: 4 },
   monthLabel: { fontSize: 16, fontFamily: "Pretendard-Regular", minWidth: 90, textAlign: "center" },
   holiBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5 },
-  holiBtnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  holiBtnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
 
   quickRow: { flexDirection: "row", gap: 8 },
   quickBtn: { flex: 1, flexDirection: "column", alignItems: "center", justifyContent: "center", borderRadius: 12, paddingVertical: 12, gap: 4 },

@@ -220,7 +220,7 @@ const s = StyleSheet.create({
   container:          { flex: 1, backgroundColor: "#fff" },
   header:             { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   closeBtn:           { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  title:              { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  title:              { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D" },
   countText:          { width: 44, textAlign: "right", fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
   filterRow:          { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   filterBtn:          { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F8FAFC" },

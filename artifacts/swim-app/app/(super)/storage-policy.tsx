@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   field:         { gap: 5 },
   fieldLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
   input:         { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14,
-                   height: 46, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A", backgroundColor: "#F1F5F9" },
+                   height: 46, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D", backgroundColor: "#F1F5F9" },
   saveBtn:       { height: 50, borderRadius: 14, backgroundColor: PURPLE, alignItems: "center", justifyContent: "center", marginTop: 4 },
   saveBtnText:   { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
 });

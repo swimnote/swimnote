@@ -825,7 +825,7 @@ const s = StyleSheet.create({
   actionRow:      { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 },
   chatBtn:        { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, borderWidth: 1 },
   chatBtnTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", fontWeight: "600" },
-  workBtn:        { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, backgroundColor: "#0F172A" },
+  workBtn:        { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, backgroundColor: "#0F2742" },
   workBtnTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   msgRow:         { flexDirection: "row", alignItems: "flex-end", gap: 8 },

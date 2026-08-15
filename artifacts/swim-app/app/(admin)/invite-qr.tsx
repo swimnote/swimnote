@@ -100,7 +100,7 @@ export default function InviteQrScreen() {
             <QRCode
               value={currentUrl}
               size={200}
-              color="#0F172A"
+              color="#14283D"
               backgroundColor="#FFFFFF"
               getRef={(ref) => { qrRef.current = ref; }}
             />
@@ -157,7 +157,7 @@ const s = StyleSheet.create({
   qrHeader: { width: "100%", alignItems: "center" },
   qrBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   qrBadgeTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  poolName: { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#0F172A", textAlign: "center" },
+  poolName: { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#14283D", textAlign: "center" },
   qrSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" },
   qrWrap: { padding: 16, backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: C.border },
   qrCorner: {},
@@ -165,7 +165,7 @@ const s = StyleSheet.create({
   scanHintTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   guideCard: { backgroundColor: "#fff", borderRadius: 18, padding: 18, gap: 14, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
-  guideTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 2 },
+  guideTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 2 },
   guideRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   guideIconBox: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   guideTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, flex: 1, lineHeight: 20 },

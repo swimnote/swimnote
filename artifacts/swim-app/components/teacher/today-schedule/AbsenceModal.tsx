@@ -112,7 +112,7 @@ export default function AbsenceModal({
               <Pressable style={[ab.choiceBtn, { backgroundColor: "#FFFFFF", flex: 1 }]} onPress={handleNoTransfer} disabled={loading}>
                 {loading ? <ActivityIndicator size="small" color="#64748B" /> : <>
                   <LucideIcon name="x-circle" size={18} color="#64748B" />
-                  <Text style={[ab.choiceBtnText, { color: "#0F172A" }]}>없음</Text>
+                  <Text style={[ab.choiceBtnText, { color: "#14283D" }]}>없음</Text>
                   <Text style={ab.choiceSub}>전원 미실시(선생님)</Text>
                 </>}
               </Pressable>

@@ -527,11 +527,11 @@ export default function TeacherPhotosScreen() {
             <View style={s.limitCardBody}>
               <View style={s.limitRow}>
                 <LucideIcon name="image" size={13} color="#E4A93A" />
-                <Text style={s.limitText}>사진: 1장 최대 <Text style={{ color: "#0F172A" }}>8MB</Text> · 최대 <Text style={{ color: "#0F172A" }}>100장</Text> 동시 업로드</Text>
+                <Text style={s.limitText}>사진: 1장 최대 <Text style={{ color: "#14283D" }}>8MB</Text> · 최대 <Text style={{ color: "#14283D" }}>100장</Text> 동시 업로드</Text>
               </View>
               <View style={s.limitRow}>
                 <LucideIcon name="video" size={13} color="#2EC4B6" />
-                <Text style={s.limitText}>영상: 1개 최대 <Text style={{ color: "#0F172A" }}>100MB</Text> · <Text style={{ color: "#7C3AED" }}>프리미어 플랜</Text> 이상만 사용 가능</Text>
+                <Text style={s.limitText}>영상: 1개 최대 <Text style={{ color: "#14283D" }}>100MB</Text> · <Text style={{ color: "#7C3AED" }}>프리미어 플랜</Text> 이상만 사용 가능</Text>
               </View>
               <View style={s.limitRow}>
                 <LucideIcon name="users" size={13} color="#94A3B8" />
@@ -919,7 +919,7 @@ export default function TeacherPhotosScreen() {
                       toggleSelect(lbItem.id ?? "");
                       if (!selectMode) setSelectMode(true);
                     }}
-                    style={[s.lbActionBtn, { backgroundColor: "#0F172A" }]}
+                    style={[s.lbActionBtn, { backgroundColor: "#0F2742" }]}
                   >
                     <LucideIcon name="trash-2" size={15} color="#fff" />
                     <Text style={s.lbActionBtnText}>삭제</Text>
@@ -1106,7 +1106,7 @@ export default function TeacherPhotosScreen() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#FFFFFF" },
   titleRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
-  title: { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  title: { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#14283D" },
   grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingVertical: 4, gap: 12 },
   gridBtn: { width: "47%", paddingVertical: 16, borderRadius: 18, borderWidth: 2, alignItems: "center", justifyContent: "center", gap: 6, position: "relative", overflow: "hidden" },
   gridIcon: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center" },
@@ -1125,8 +1125,8 @@ const s = StyleSheet.create({
   usageCardTitle: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   usageCardBody: { padding: 12, gap: 2 },
   usageItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8, paddingVertical: 10, borderRadius: 10 },
-  usageItemLabel: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  usageItemBytes: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  usageItemLabel: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  usageItemBytes: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   usageDivider: { height: 1, backgroundColor: "#F1F5F9", marginHorizontal: 8 },
   usageMonthText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", paddingTop: 6 },
   listToolbar: { height: 36, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", paddingHorizontal: 14 },
@@ -1146,7 +1146,7 @@ const s = StyleSheet.create({
   centerText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
   retryBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#4EA7D8", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
   retryBtnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
-  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A", textAlign: "center" },
+  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D", textAlign: "center" },
   emptySubText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
   photoCell: { overflow: "hidden", backgroundColor: "#FFFFFF", margin: 1 },
   photoPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center" },
@@ -1158,7 +1158,7 @@ const s = StyleSheet.create({
   savedBadge: { position: "absolute", top: 5, left: 5, width: 22, height: 22, borderRadius: 11, backgroundColor: "#2EC4B6", alignItems: "center", justifyContent: "center" },
   videoRow: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 12, gap: 12 },
   videoThumb: { width: 52, height: 52, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  videoLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  videoLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   videoMeta: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   videoUploader: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   fab: { position: "absolute", right: 20, width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 8 },
@@ -1178,7 +1178,7 @@ const s = StyleSheet.create({
   lbActionBtnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
   uploadCenter: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, padding: 40 },
   uploadIcon: { width: 100, height: 100, borderRadius: 28, alignItems: "center", justifyContent: "center" },
-  uploadTitle: { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A", textAlign: "center" },
+  uploadTitle: { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D", textAlign: "center" },
   uploadSub: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 20 },
   uploadBtn: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 28, paddingVertical: 16, borderRadius: 16 },
   uploadBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
@@ -1186,5 +1186,5 @@ const s = StyleSheet.create({
   studentRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14 },
   avatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 15, fontFamily: "Pretendard-Regular" },
-  studentName: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  studentName: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
 });

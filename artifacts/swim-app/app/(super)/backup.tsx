@@ -395,7 +395,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
 const dc = StyleSheet.create({
   wrap:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 4 },
   header:     { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
-  headerTxt:  { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  headerTxt:  { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   refreshBtn: { padding: 4 },
   loadingBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB" },
   loadingTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
@@ -405,7 +405,7 @@ const dc = StyleSheet.create({
   card:       { backgroundColor: "#FAFAF9", borderRadius: 10, padding: 10, gap: 2 },
   cardTop:    { flexDirection: "row", alignItems: "center", gap: 8 },
   iconWrap:   { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  cardLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  cardLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D" },
   cardSub:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   cardSub2:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginLeft: 40 },
   statusBadge:{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
@@ -504,7 +504,7 @@ const bc = StyleSheet.create({
   badge:    { borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
   badgeTxt: { fontSize: 10, fontFamily: "Pretendard-Regular" },
   time:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginLeft: "auto" },
-  name:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
+  name:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 8 },
   meta:     { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 10 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   metaVal:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
@@ -561,9 +561,9 @@ function CreateModal({
 
 const cr = StyleSheet.create({
   header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  label:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
-  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  title:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  label:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 8 },
+  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   confirmBtn: { backgroundColor: P, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
   confirmTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
   infoBox:    { flexDirection: "row", gap: 8, backgroundColor: "#E6FAF8", borderRadius: 8, padding: 12, alignItems: "flex-start" },
@@ -626,14 +626,14 @@ function RestoreModal({ target, onClose, onConfirm, busy }: {
 
 const rm = StyleSheet.create({
   header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  title:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D" },
   warningBox: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FFF1BF", borderRadius: 10, padding: 14 },
   warningTxt: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 20 },
   infoBox:    { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 14, gap: 4 },
   infoLabel:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  infoVal:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 6 },
-  inputLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 6 },
-  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", height: 90 },
+  infoVal:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 6 },
+  inputLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 6 },
+  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", height: 90 },
   confirmBtn: { backgroundColor: DANGER, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
   confirmTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
 });
@@ -706,11 +706,11 @@ function AutoBackupPanel({ token }: { token: string | null }) {
             <Text style={ap.label}>실행 시간</Text>
             <View style={ap.hourPicker}>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, run_hour: (draft.run_hour - 1 + 24) % 24 })}>
-                <ChevronLeft size={16} color="#0F172A" />
+                <ChevronLeft size={16} color="#14283D" />
               </Pressable>
               <Text style={ap.hourVal}>{p2(draft.run_hour)}:00</Text>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, run_hour: (draft.run_hour + 1) % 24 })}>
-                <ChevronRight size={16} color="#0F172A" />
+                <ChevronRight size={16} color="#14283D" />
               </Pressable>
             </View>
           </View>
@@ -720,11 +720,11 @@ function AutoBackupPanel({ token }: { token: string | null }) {
             <Text style={ap.label}>보관 기간</Text>
             <View style={ap.hourPicker}>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, retention_days: Math.max(1, draft.retention_days - 1) })}>
-                <ChevronLeft size={16} color="#0F172A" />
+                <ChevronLeft size={16} color="#14283D" />
               </Pressable>
               <Text style={ap.hourVal}>{draft.retention_days}일</Text>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, retention_days: Math.min(90, draft.retention_days + 1) })}>
-                <ChevronRight size={16} color="#0F172A" />
+                <ChevronRight size={16} color="#14283D" />
               </Pressable>
             </View>
           </View>
@@ -744,7 +744,7 @@ function AutoBackupPanel({ token }: { token: string | null }) {
 const ap = StyleSheet.create({
   wrap:        { backgroundColor: "#fff", borderRadius: 12, padding: 16, gap: 10, borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 10 },
   row:         { flexDirection: "row", alignItems: "center", gap: 10 },
-  label:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", flex: 1 },
+  label:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", flex: 1 },
   sub:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   divider:     { height: 1, backgroundColor: "#FFFFFF" },
   segRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
@@ -754,7 +754,7 @@ const ap = StyleSheet.create({
   segActiveTxt:{ color: "#fff" },
   hourPicker:  { flexDirection: "row", alignItems: "center", gap: 8 },
   hourBtn:     { width: 30, height: 30, borderRadius: 8, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
-  hourVal:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", minWidth: 50, textAlign: "center" },
+  hourVal:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", minWidth: 50, textAlign: "center" },
   saveBtn:     { backgroundColor: P, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, padding: 12, marginTop: 4 },
   saveTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });
@@ -930,12 +930,12 @@ function FullRestoreModal({
 
 const fr = StyleSheet.create({
   header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:          { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  stepTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  title:          { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  stepTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   backupList:     { maxHeight: 220, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10 },
   backupItem:     { padding: 12, borderBottomWidth: 1, borderBottomColor: "#FFFFFF", flexDirection: "row", alignItems: "center", gap: 10 },
   backupItemSel:  { backgroundColor: "#F3EEFF" },
-  backupItemDate: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  backupItemDate: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   backupItemMeta: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   backupItemNote: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   selectedBox:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F3EEFF", borderRadius: 8, padding: 10 },
@@ -945,8 +945,8 @@ const fr = StyleSheet.create({
   warnTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 18 },
   emptyBox:       { backgroundColor: "#FFFFFF", borderRadius: 8, padding: 16, alignItems: "center" },
   emptyTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  inputLabel:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
-  input:          { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  inputLabel:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 8 },
+  input:          { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   execBtn:        { backgroundColor: DANGER, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
   execTxt:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
   resultWrap:     { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 16 },
@@ -1209,23 +1209,23 @@ function PoolRestoreModal({
 
 const pr = StyleSheet.create({
   header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:          { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  stepTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  title:          { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  stepTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   searchBox:      { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  searchInput:    { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  searchInput:    { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   resultList:     { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, overflow: "hidden", maxHeight: 200 },
   noResult:       { padding: 16, alignItems: "center" },
   noResultTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
   poolItem:       { padding: 12, borderBottomWidth: 1, borderBottomColor: "#FFFFFF", flexDirection: "row", alignItems: "center", gap: 8 },
   poolItemSel:    { backgroundColor: "#F3EEFF" },
-  poolName:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  poolName:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   poolSub:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   selectedPoolBox:{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F3EEFF", borderRadius: 8, padding: 10 },
   selectedPoolTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: P, flex: 1 },
   backupList:     { maxHeight: 200, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10 },
   backupItem:     { padding: 12, borderBottomWidth: 1, borderBottomColor: "#FFFFFF", flexDirection: "row", alignItems: "center", gap: 10 },
   backupItemSel:  { backgroundColor: "#F3EEFF" },
-  inputLabel:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
+  inputLabel:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 8 },
 });
 
 // ── 메인 ─────────────────────────────────────────────────────────────────────
@@ -1498,7 +1498,7 @@ const s = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: "#F1F5F9" },
   summaryRow:    { flexDirection: "row", gap: 8 },
   summaryCard:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center", gap: 4, borderWidth: 1, borderColor: "#E5E7EB" },
-  summaryVal:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  summaryVal:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   summaryKey:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   btnRow:        { flexDirection: "row", gap: 8 },
   actionBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: P, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11 },

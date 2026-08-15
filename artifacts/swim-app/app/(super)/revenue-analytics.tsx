@@ -377,7 +377,7 @@ export default function RevenueAnalyticsScreen() {
             <View style={{ width: 36, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
               <LucideIcon name="trash-2" size={18} color="#D97706" />
-              <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" }}>매출 기록 정리</Text>
+              <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D" }}>매출 기록 정리</Text>
             </View>
 
             {!cleanAllConfirm ? (
@@ -443,18 +443,18 @@ const st = StyleSheet.create({
                    borderRadius: 8, padding: 10, marginTop: 4 },
   noticeTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6", flex: 1 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
-  sectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  sectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   cardGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   card:          { backgroundColor: "#fff", borderRadius: 12, padding: 14, flex: 1, minWidth: "45%",
                    borderWidth: 1, borderColor: "#E5E7EB" },
   cardLabel:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
-  cardValue:     { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  cardValue:     { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D" },
   cardSub:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   empty:         { alignItems: "center", paddingVertical: 32, gap: 8 },
   emptyTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
   recordRow:     { backgroundColor: "#fff", borderRadius: 10, padding: 12, flexDirection: "row",
                    alignItems: "flex-start", borderWidth: 1, borderColor: "#E5E7EB" },
-  recordName:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  recordName:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   recordSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   recordAmt:     { fontSize: 15, fontFamily: "Pretendard-Regular" },
   linkBtn:       { flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "center",

@@ -90,12 +90,12 @@ const sc = StyleSheet.create({
   card:       { backgroundColor: "#fff", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
   top:        { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
   iconWrap:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  name:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  name:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   category:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   metrics:    { flexDirection: "row", gap: 16, marginBottom: 6 },
   metricItem: { gap: 2 },
   metricLabel:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  metricVal:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  metricVal:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   note:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 4 },
 });
 

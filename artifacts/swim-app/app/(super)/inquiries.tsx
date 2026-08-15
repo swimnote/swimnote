@@ -340,7 +340,7 @@ const s = StyleSheet.create({
     padding: 12, maxWidth: "80%",
   },
   myText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff", lineHeight: 20 },
-  otherText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
+  otherText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 20 },
   bubbleTime: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.6)", marginTop: 4, textAlign: "right" },
   inputBar: {
     flexDirection: "row", alignItems: "flex-end", gap: 8,
@@ -350,7 +350,7 @@ const s = StyleSheet.create({
   textInput: {
     flex: 1, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 16,
     paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10,
-    fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A",
+    fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D",
     maxHeight: 100, minHeight: 42,
   },
   sendBtn: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },

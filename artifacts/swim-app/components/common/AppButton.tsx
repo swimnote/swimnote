@@ -43,8 +43,8 @@ const VARIANT_CONFIG: Record<
   { bg: string; pressedBg: string; textColor: string; borderColor?: string }
 > = {
   primary: {
-    bg:        C.primaryAction,   // #0F172A navy
-    pressedBg: "#1E293B",
+    bg:        C.primaryAction,        // #0F2742 navy
+    pressedBg: C.primaryActionPressed, // #0B1F33
     textColor: "#FFFFFF",
   },
   secondary: {

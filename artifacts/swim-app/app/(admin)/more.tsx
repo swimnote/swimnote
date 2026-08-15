@@ -42,7 +42,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 // 바로가기 (대시보드에 없는 보조 메뉴만)
-const N = "#0F172A"; const N_BG = "#E6FAF8";
+const N = "#14283D"; const N_BG = "#E6FAF8";
 
 const SHORTCUTS = [
   { label: "일지 템플릿",      icon: "file-text"  as const, color: N, bg: N_BG, route: "/(admin)/diary-template-settings"     },
@@ -332,7 +332,7 @@ export default function MoreScreen() {
 const sm = StyleSheet.create({
   overlay:         { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
   sheet:           { backgroundColor: "#fff", borderRadius: 24, padding: 24, width: "100%", gap: 12 },
-  title:           { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  title:           { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D" },
   sub:             { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
   roleRow:         { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1.5, borderRadius: 14, padding: 14 },
   roleIcon:        { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
@@ -352,7 +352,7 @@ const s = StyleSheet.create({
   profileCard:    { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 18, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   profileAvatar:  { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   profileInitial: { fontSize: 20, fontFamily: "Pretendard-Regular" },
-  profileName:    { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  profileName:    { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D" },
   profileRole:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   switchBtn:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
   switchBtnText:  { fontSize: 12, fontFamily: "Pretendard-Regular" },
@@ -365,7 +365,7 @@ const s = StyleSheet.create({
   menuRow:    { flexDirection: "row", alignItems: "center", gap: 14, padding: 16 },
   menuRowBorder: { borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   menuIcon:   { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  menuLabel:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  menuLabel:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
 
   empty:      { alignItems: "center", paddingVertical: 60, gap: 12 },
   emptyText:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B" },
@@ -373,7 +373,7 @@ const s = StyleSheet.create({
   logCard:       { borderRadius: 16, padding: 14, gap: 8, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   logHeader:     { flexDirection: "row", alignItems: "center", gap: 10 },
   logIcon:       { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  logName:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  logName:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
   logAction:     { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 1 },
   logDate:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   logTime:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },

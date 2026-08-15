@@ -436,7 +436,7 @@ const s = StyleSheet.create({
   editNoteItem:  { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
   editNoteHeader:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   noteName:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
-  noteContent:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 18 },
+  noteContent:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 18 },
   noteInput:     { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 4 },
   noteTextarea:  { borderWidth: 1.5, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20, minHeight: 80, textAlignVertical: "top", backgroundColor: "#fff" },
   noteBtn:       { flex: 1, height: 38, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },

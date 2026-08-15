@@ -140,7 +140,7 @@ const s = StyleSheet.create({
   container: { padding: 16, gap: 16 },
 
   banner: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#EFF6FF", borderRadius: 16, padding: 16 },
-  bannerTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  bannerTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D" },
   bannerSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
 
   section: { gap: 8 },
@@ -150,13 +150,13 @@ const s = StyleSheet.create({
   secCard: { backgroundColor: "#fff", borderRadius: 16, overflow: "hidden", paddingHorizontal: 16, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
 
   contactCard: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#F5F0FF", borderRadius: 16, padding: 16 },
-  contactTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  contactTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   contactSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
 });
 
 const f = StyleSheet.create({
   qRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, gap: 10 },
-  q: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", flex: 1, lineHeight: 21 },
+  q: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", flex: 1, lineHeight: 21 },
   a: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#475569", lineHeight: 21, paddingBottom: 14, paddingRight: 24 },
   divider: { height: 1, backgroundColor: C.border },
 });

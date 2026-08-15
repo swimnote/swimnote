@@ -280,7 +280,7 @@ const m = StyleSheet.create({
     flex: 1,
     fontSize: 22,
     fontFamily: "Pretendard-Bold",
-    color: "#111827",
+    color: "#14283D",
   },
   closeBtn: {
     marginLeft: 8,
@@ -315,7 +315,7 @@ const m = StyleSheet.create({
   },
   bodyFirstPara: {
     fontFamily: "Pretendard-Bold",
-    color: "#111827",
+    color: "#14283D",
   },
   emText: {
     fontFamily: "Pretendard-SemiBold",

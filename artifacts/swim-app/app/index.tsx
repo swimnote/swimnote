@@ -482,7 +482,7 @@ const s = StyleSheet.create({
     borderWidth: 1.5, borderRadius: 12,
     paddingHorizontal: 14, height: 52, backgroundColor: "#F8FAFC",
   },
-  input:     { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  input:     { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
 
   errBox:    { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10, backgroundColor: "#FEF2F2" },
   errText:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#EF4444", flex: 1 },
@@ -555,7 +555,7 @@ const s = StyleSheet.create({
     shadowOpacity: 0.15, shadowRadius: 24, elevation: 10,
   },
   modalIconWrap: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF1BF", marginBottom: 4 },
-  modalTitle:    { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A", textAlign: "center" },
+  modalTitle:    { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D", textAlign: "center" },
   modalDesc:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 20 },
   modalBtns:     { flexDirection: "row", gap: 10, marginTop: 6, width: "100%" },
   modalBtn:      { flex: 1, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center" },

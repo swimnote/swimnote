@@ -379,9 +379,9 @@ export default function OperatorDetailScreen() {
 
       {/* 핵심 통계 박스 */}
       <View style={d.statsRow}>
-        <StatBox label="활성회원" value={memberCount} color="#0F172A" />
+        <StatBox label="활성회원" value={memberCount} color="#14283D" />
         <View style={d.statDivider} />
-        <StatBox label="전체회원" value={memberTotal} color="#0F172A" />
+        <StatBox label="전체회원" value={memberTotal} color="#14283D" />
         <View style={d.statDivider} />
         <StatBox label="선생님" value={teacherCount} color={P} />
         <View style={d.statDivider} />
@@ -932,7 +932,7 @@ export default function OperatorDetailScreen() {
             <View style={{ backgroundColor: "#FFF5F5", borderRadius: 10, padding: 14, marginBottom: 16, gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: "#B91C1C" }}>⚠ 이 작업은 되돌릴 수 없습니다</Text>
               <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular", lineHeight: 20 }}>
-                {`· 운영처: `}<Text style={{ fontWeight: "700", color: "#0F172A" }}>{pool.name}</Text>{`\n· 회원, 수업, 출결, 선생님 등 모든 데이터 영구 삭제\n· 삭제 후 복구 불가`}
+                {`· 운영처: `}<Text style={{ fontWeight: "700", color: "#14283D" }}>{pool.name}</Text>{`\n· 회원, 수업, 출결, 선생님 등 모든 데이터 영구 삭제\n· 삭제 후 복구 불가`}
               </Text>
             </View>
             <Text style={{ fontSize: 13, color: "#374151", fontFamily: "Pretendard-SemiBold", marginBottom: 16 }}>
@@ -978,7 +978,7 @@ const d = StyleSheet.create({
                     paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#fff",
                     borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   bannerLeft:     { flex: 1 },
-  bannerName:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  bannerName:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
   bannerOwner:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   badge:          { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeTxt:       { fontSize: 11, fontFamily: "Pretendard-Regular" },
@@ -986,7 +986,7 @@ const d = StyleSheet.create({
                     paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "#E5E7EB",
                     alignItems: "center" },
   statBox:        { flex: 1, alignItems: "center", gap: 2 },
-  statNum:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  statNum:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
   statLabel:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   statDivider:    { width: 1, height: 28, backgroundColor: "#E5E7EB" },
   feedbackBanner: { flexDirection: "row", alignItems: "center", gap: 8,
@@ -1001,10 +1001,10 @@ const d = StyleSheet.create({
   tabActiveTxt:   { color: "#fff" },
   card:           { backgroundColor: "#fff", borderRadius: 14, padding: 16,
                     borderWidth: 1, borderColor: "#E5E7EB", gap: 8 },
-  cardTitle:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 4 },
+  cardTitle:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 4 },
   infoRow:        { flexDirection: "row", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   infoLabel:      { width: 90, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  infoVal:        { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  infoVal:        { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D" },
   empty:          { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", paddingVertical: 12 },
   alertBox:       { flexDirection: "row", alignItems: "flex-start", gap: 8,
                     backgroundColor: "#FEF2F2", borderRadius: 8, padding: 10, marginTop: 4 },
@@ -1018,7 +1018,7 @@ const d = StyleSheet.create({
   actionCard:     { flexDirection: "row", alignItems: "center", gap: 12,
                     backgroundColor: "#fff", borderRadius: 14, padding: 14,
                     borderWidth: 1, borderColor: "#E5E7EB" },
-  actionCardTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  actionCardTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
   primaryBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
                     backgroundColor: P, borderRadius: 14, padding: 14 },
   primaryBtnTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
@@ -1029,7 +1029,7 @@ const d = StyleSheet.create({
                     backgroundColor: "#fff", borderRadius: 14, padding: 16,
                     borderWidth: 1, borderColor: "#E5E7EB" },
   forceIcon:      { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  forceTxt:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  forceTxt:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   forceSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   quickLink:      { flexDirection: "row", alignItems: "center", gap: 10,
                     paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#F1F5F9" },
@@ -1038,7 +1038,7 @@ const d = StyleSheet.create({
                     paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   logCat:         { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginTop: 2 },
   logCatTxt:      { fontSize: 10, fontFamily: "Pretendard-Regular" },
-  logDesc:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  logDesc:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D" },
   logTime:        { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
 });
 
@@ -1047,19 +1047,19 @@ const m = StyleSheet.create({
   sheet:         { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                    borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, gap: 12 },
   handle:        { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:         { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  title:         { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
   fieldLabel:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 6 },
   input:         { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                   fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
+                   fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 8 },
   pickerRow:     { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
   chip:          { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
                    borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F8FAFC" },
   chipActive:    { backgroundColor: P, borderColor: P },
-  chipTxt:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  chipTxt:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#14283D" },
   chipActiveTxt: { color: "#fff" },
   btnRow:        { flexDirection: "row", gap: 10, justifyContent: "flex-end", marginTop: 4 },
   cancelBtn:     { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F1F5F9" },
-  cancelTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  cancelTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   confirmBtn:    { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   confirmTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

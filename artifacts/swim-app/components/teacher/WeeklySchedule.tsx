@@ -112,7 +112,7 @@ export function WeeklySchedule({
 
       {/* ── 날짜 + 클래스 수 헤더 ── */}
       <View style={ws.sectionHeader}>
-        <Text style={[ws.sectionDay, { color: selectedDay === today ? themeColor : "#111827" }]}>
+        <Text style={[ws.sectionDay, { color: selectedDay === today ? themeColor : "#14283D" }]}>
           {selectedDay}요일 수업
           {selectedDay === today && <Text style={[ws.todayLabel, { color: themeColor }]}> · 오늘</Text>}
         </Text>
@@ -168,7 +168,7 @@ export function WeeklySchedule({
 
                 {/* 반 이름 + 담당 선생 */}
                 <View style={{ flex: 1, justifyContent: "center" }}>
-                  <Text style={[ws.nameCol, { color: inactive ? "#9CA3AF" : "#111827" }]} numberOfLines={1}>
+                  <Text style={[ws.nameCol, { color: inactive ? "#9CA3AF" : "#14283D" }]} numberOfLines={1}>
                     {g.name}
                     {g.level ? <Text style={ws.levelInline}> {g.level}</Text> : null}
                   </Text>
@@ -292,7 +292,7 @@ const ws = StyleSheet.create({
   },
   nameCol: {
     fontSize: 13, fontFamily: "Pretendard-Regular",
-    color: "#111827",
+    color: "#14283D",
   },
   levelInline:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
   instructorCol:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 1 },

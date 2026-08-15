@@ -60,7 +60,7 @@ export const STATUS_COLORS = {
     icon:   "minus-circle" as const,
   },
   all: {
-    color:  "#111827",
+    color:  "#14283D",
     bg:     "#F1F5F9",
     border: "#E5E7EB",
     label:  "전체",

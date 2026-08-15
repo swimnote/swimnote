@@ -860,7 +860,7 @@ const s = StyleSheet.create({
   weeklyBadgeBtn: { flexDirection: "row", alignItems: "center" },
   pickerOverlay:  { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 32 },
   pickerSheet:    { width: "100%", borderRadius: 20, padding: 24, gap: 16 },
-  pickerTitle:    { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A", textAlign: "center" },
+  pickerTitle:    { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D", textAlign: "center" },
   pickerSub:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", marginTop: -8 },
   pickerOptions:  { flexDirection: "row", gap: 10 },
   pickerOption:   { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,

@@ -187,7 +187,7 @@ export default function GlobalMenuScreen() {
       {/* ── 헤더 ── */}
       <View style={s.header}>
         <Pressable style={s.backBtn} onPress={() => router.back()}>
-          <LucideIcon name="x" size={20} color="#0F172A" />
+          <LucideIcon name="x" size={20} color="#14283D" />
         </Pressable>
         <Text style={s.headerTitle}>전체 메뉴</Text>
         <View style={{ width: 36 }} />
@@ -213,7 +213,7 @@ const s = StyleSheet.create({
                   borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   backBtn:      { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F1F5F9",
                   alignItems: "center", justifyContent: "center" },
-  headerTitle:  { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A", fontWeight: "600" as const },
+  headerTitle:  { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D", fontWeight: "600" as const },
 
   section:      { marginBottom: 20 },
   sectionTitle: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8",
@@ -225,7 +225,7 @@ const s = StyleSheet.create({
   item:         { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 12, gap: 12 },
   itemIcon:     { width: 32, height: 32, borderRadius: 8, backgroundColor: "#F5F3FF",
                   alignItems: "center", justifyContent: "center" },
-  itemLabel:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  itemLabel:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
   itemSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8", marginTop: 1 },
   divider:      { height: 1, backgroundColor: "#F1F5F9", marginLeft: 58 },
 

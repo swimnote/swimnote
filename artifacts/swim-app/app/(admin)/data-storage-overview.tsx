@@ -304,12 +304,12 @@ const s = StyleSheet.create({
   statLabel:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 2 },
   statValue:   { fontSize: 22, fontFamily: "Pretendard-Regular" },
 
-  sectionTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 4 },
+  sectionTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 4 },
   sectionDesc:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
   cleanCard:   { flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 18, gap: 12, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   cleanIcon:   { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  cleanLabel:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 2 },
+  cleanLabel:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 2 },
   cleanCount:  { fontSize: 20, fontFamily: "Pretendard-Regular" },
   cleanSize:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   cleanEmpty:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8", marginTop: 2 },
@@ -320,7 +320,7 @@ const s = StyleSheet.create({
   overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
   modal:       { width: "100%", borderRadius: 24, padding: 28, alignItems: "center", gap: 6 },
   modalIconWrap:{ width: 56, height: 56, borderRadius: 16, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  modalTitle:  { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  modalTitle:  { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
   modalCount:  { fontSize: 32, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 4 },
   modalSize:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
   modalWarn:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8", textAlign: "center", marginTop: 12, lineHeight: 20 },
