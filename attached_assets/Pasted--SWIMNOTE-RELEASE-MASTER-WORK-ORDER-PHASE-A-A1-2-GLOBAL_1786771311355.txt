@@ -1,0 +1,955 @@
+[SWIMNOTE RELEASE MASTER WORK ORDER]
+[PHASE A / A1-2 — GLOBAL DESIGN SYSTEM FULL AUDIT]
+
+목적:
+
+현재 SWIMNOTE 전체 앱의 디자인을
+화면별 임시 스타일 집합이 아니라
+하나의 일관된 PRODUCT DESIGN SYSTEM으로 통합하기 위한
+전수 Repository/UI Audit을 수행한다.
+
+이번 단계는 AUDIT ONLY.
+
+코드 수정 금지.
+OTA 금지.
+Deploy 금지.
+Native 변경 금지.
+기능 로직 변경 금지.
+
+중요:
+
+이번 조사는 SWIMNOTE X만 대상이 아니다.
+
+다음 전체 영역을 포함한다.
+
+- 로그인
+- 회원가입
+- 최초 설정
+- 공통 onboarding
+- 관리자
+- 선생님
+- 학부모
+- Super Admin
+- Normal SWIMNOTE
+- SWIMNOTE X
+- 설정
+- 스케줄러
+- 회원/학생
+- 출결
+- 일지
+- 사진/앨범
+- 공지
+- 알림
+- 메신저
+- 보강
+- 리포트
+- AI 기능
+- X setup
+- modal
+- bottom sheet
+- empty state
+- form/input
+- list
+- card
+- tab
+- button
+- icon
+- badge
+- switch
+- calendar
+- scheduler
+
+전체 앱 화면을 대상으로 한다.
+
+==================================================
+0. DESIGN GOAL — FIXED
+==================================================
+
+SWIMNOTE 전체 디자인 목표:
+
+1. 고급스럽다
+2. 차분하다
+3. 묵직하다
+4. 밝고 깨끗하다
+5. 눈이 편하다
+6. 기능을 찾기 쉽다
+7. 색상이 난잡하지 않다
+8. 불필요한 테두리가 없다
+9. 화면마다 같은 UI 문법을 사용한다
+10. 초보자가 개별 화면마다 꾸민 느낌이 없어야 한다
+
+중요:
+
+"묵직하다" = Dark Theme가 아니다.
+
+전체 화면을 어둡게 만드는 방향 금지.
+
+기본은:
+
+- 밝은 surface
+- white/off-white background
+- navy text
+- 낮은 채도
+- 제한된 색상
+- 충분한 여백
+- 명확한 typography hierarchy
+
+이다.
+
+==================================================
+1. GLOBAL DESIGN PRINCIPLE
+==================================================
+
+전체 앱 공통 디자인 원칙:
+
+BORDERLESS FIRST
+LIMITED COLOR
+STRONG TYPOGRAPHY
+CLEAN SURFACE
+CONSISTENT SPACING
+SEMANTIC COLOR ONLY
+
+기본적으로:
+
+경계선이 없어도
+spacing / typography / surface 차이로
+충분히 구조가 구분된다면 border를 사용하지 않는다.
+
+==================================================
+2. BORDER RULE AUDIT
+==================================================
+
+전체 Repository에서 다음을 조사한다.
+
+borderWidth
+borderColor
+borderTopWidth
+borderBottomWidth
+borderLeftWidth
+borderRightWidth
+outline
+stroke
+
+각 사용처를 다음으로 분류:
+
+A. STRUCTURAL_REQUIRED
+
+예:
+- calendar grid
+- scheduler time/grid
+- table
+- chart boundary
+- segmented control
+- input/select
+- 실제 선택영역
+
+→ 유지 가능
+
+B. INTERACTION_REQUIRED
+
+예:
+- 선택 가능한 control
+- unchecked checkbox
+- focused input
+
+→ 필요 최소한으로 유지
+
+C. SEMANTIC_REQUIRED
+
+예:
+- error
+- warning
+- selected state
+
+→ 의미 전달에 필요하면 유지
+
+D. DECORATIVE
+
+단순히 카드처럼 보이게 하기 위한 테두리
+
+→ 제거 후보
+
+E. REDUNDANT
+
+여백/배경/타이포만으로 구분 가능한데
+추가로 border가 존재
+
+→ 제거 후보
+
+==================================================
+3. SCREENSHOT-LIKE PROBLEM PATTERN
+==================================================
+
+현재 실제 기기에서 확인된 대표 문제 유형:
+
+A. 설정 메뉴
+
+공지함
+선생님 설정
+일지 템플릿
+알림함
+사진·영상 업로드/앨범
+
+같은 진입 메뉴 각각이
+굵은 round border 박스로 둘러싸여 있음.
+
+이 형태가 앱 전체에 반복되는지 조사.
+
+단순 navigation item이라면:
+
+아이콘
+제목
+chevron
+spacing
+optional divider
+
+만으로 충분한지 판단.
+
+B. 저장공간 화면
+
+사진
+영상
+메신저
+수영일지
+공지
+시스템
+
+등 각 항목 아이콘 뒤에
+각각 작은 icon background tile이 존재.
+
+실제 기능적 의미가 없다면 제거 후보로 분류.
+
+C. Scheduler
+
+선택
+수강생관리
+반 등록
+수업일지
+월/주/일
+
+등 action별로
+mint / orange / outline / gray가 혼재.
+
+각 색상이 실제 semantic reason인지 조사.
+
+단순 CTA 구분을 위해
+다른 색을 사용한 경우
+통일 대상.
+
+==================================================
+4. COLOR FULL INVENTORY
+==================================================
+
+전체 앱의 모든 색상 사용을 조사한다.
+
+특히:
+
+green
+orange
+mint
+blue
+red
+purple
+yellow
+teal
+gray
+navy
+
+각 HEX와
+사용 파일/컴포넌트/화면 수를 집계.
+
+각 색상을 다음 기준으로 분류:
+
+A. BRAND
+B. PRIMARY ACTION
+C. SECONDARY ACTION
+D. SUCCESS
+E. WARNING
+F. ERROR/DANGER
+G. INFORMATION
+H. SELECTED
+I. DECORATIVE
+J. NO SEMANTIC REASON
+
+I/J가 가장 중요하다.
+
+"그냥 보기 좋게 하려고"
+색을 다르게 준 경우를 전부 찾아라.
+
+==================================================
+5. COLOR SEMANTIC RULE
+==================================================
+
+최종 구현 후보 규칙은 다음이다.
+
+단 이번 Audit에서 구현 금지.
+
+NORMAL SWIMNOTE:
+
+기본:
+Navy 중심
+
+Mint:
+브랜드 accent / selected / 필요한 일부 active state
+
+SWIMNOTE X:
+
+Steel Blue 중심
+
+상태색은 제품 identity와 분리.
+
+Green:
+실제 success/complete만
+
+Amber/Gold:
+실제 pending/warning만
+
+Red:
+error / destructive / danger만
+
+Gray:
+disabled / tertiary / inactive
+
+중요:
+
+다음 이유로 색을 다르게 사용하지 않는다.
+
+- 메뉴가 다르니까
+- 화면이 심심하니까
+- 아이콘이 다르니까
+- 버튼 종류가 많으니까
+
+색에는 항상 의미가 있어야 한다.
+
+==================================================
+6. GREEN AUDIT
+==================================================
+
+현재 앱 전체에서 green 계열을 전수 조사.
+
+각 green usage를:
+
+KEEP_SUCCESS
+REPLACE_BRAND
+REPLACE_NEUTRAL
+REVIEW
+
+로 분류.
+
+예:
+
+저장 완료 체크 → KEEP_SUCCESS
+일반 메뉴 아이콘 → REPLACE
+일반 버튼 → REPLACE
+단순 강조 텍스트 → REPLACE
+성공 toast → KEEP_SUCCESS
+
+==================================================
+7. ORANGE AUDIT
+==================================================
+
+orange/amber 계열도 동일하게 조사.
+
+KEEP_WARNING
+KEEP_PENDING
+REPLACE_PRIMARY
+REPLACE_NEUTRAL
+REVIEW
+
+로 분류.
+
+특히:
+
+반 등록
+신청
+추가
+생성
+
+등 단순 primary CTA가
+orange인 경우
+변경 후보.
+
+==================================================
+8. ICON BACKGROUND AUDIT
+==================================================
+
+전체 아이콘의:
+
+circle background
+rounded square
+pastel tile
+colored tile
+border tile
+
+사용을 전수 조사.
+
+각각:
+
+A. 실제 상태/선택 표현
+B. 브랜드/기능상 필요
+C. 단순 장식
+
+으로 분류.
+
+C는 제거 후보.
+
+기본 디자인 목표:
+
+아이콘 자체
++
+텍스트
++
+spacing
+
+만으로 메뉴를 구성.
+
+==================================================
+9. MENU / ENTRY POINT AUDIT
+==================================================
+
+모든 진입 메뉴를 조사.
+
+대상:
+
+Home
+Dashboard
+Settings
+Management menus
+Teacher menus
+Parent menus
+X menus
+Super Admin menus
+
+각 navigation entry의:
+
+- icon
+- icon background
+- border
+- title
+- description
+- chevron
+- padding
+- divider
+- color
+
+를 비교.
+
+현재 동일 성격의 navigation menu가
+화면마다 다른 형태인지 확인.
+
+최종적으로 하나의
+NavigationListItem
+또는 유사 shared pattern으로
+통합 가능한지 제안.
+
+==================================================
+10. BUTTON SYSTEM AUDIT
+==================================================
+
+모든 버튼을 전수 조사.
+
+다음 4종으로 mapping:
+
+PRIMARY
+SECONDARY
+TERTIARY
+DESTRUCTIVE
+
+각 기존 버튼이 어느 타입인지 정리.
+
+Primary가:
+
+green
+orange
+mint
+blue
+
+등으로 제각각 존재하면
+문제 항목으로 표시.
+
+최종 원칙 후보:
+
+PRIMARY
+→ solid brand color
+
+SECONDARY
+→ subtle surface 또는 최소 outline
+
+TERTIARY
+→ text/icon only
+
+DESTRUCTIVE
+→ red
+
+중요:
+
+"기능이 다르다"는 이유로
+버튼 색을 다르게 하지 않는다.
+
+==================================================
+11. TAB / SEGMENTED CONTROL AUDIT
+==================================================
+
+다음처럼 같은 레벨을 전환하는 UI:
+
+월 / 주 / 일
+전체 / 활성 / 비활성
+목록 / 캘린더
+normal / x 등
+
+을 조사.
+
+selected/unselected 규칙이
+화면마다 다른지 확인.
+
+탭은 실제 selection boundary가 필요하므로
+border/background 유지 가능.
+
+단 디자인 규칙 통일 필요.
+
+==================================================
+12. TYPOGRAPHY COLOR AUDIT
+==================================================
+
+중요.
+
+강조를 항상 박스/색배경으로 해결하지 않는다.
+
+폰트 색과 weight를 활용하는 방향으로
+전체 화면 조사.
+
+텍스트 역할을 최소 다음으로 분류:
+
+TEXT_PRIMARY
+TEXT_SECONDARY
+TEXT_TERTIARY
+TEXT_BRAND
+TEXT_SUCCESS
+TEXT_WARNING
+TEXT_ERROR
+TEXT_LINK
+
+각 화면에서
+임의 HEX를 쓰고 있는지 조사.
+
+"핵심내용 강조"가 필요한 곳은
+별도 배경색보다
+
+font weight
+font size
+brand text color
+
+로 해결 가능한지 분류.
+
+==================================================
+13. CARD SYSTEM AUDIT
+==================================================
+
+모든 Card를 조사.
+
+특히:
+
+card 안에 card
+border + shadow 동시 사용
+background + border + icon tile 동시 사용
+
+같이 과도한 decoration을 찾는다.
+
+각 카드:
+
+STRUCTURAL CARD
+INFORMATION CARD
+ACTION CARD
+DECORATIVE CARD
+
+분류.
+
+Decorative Card는 제거/단순화 후보.
+
+==================================================
+14. DIVIDER RULE
+==================================================
+
+border를 제거한다고
+모든 구분선을 제거하지 않는다.
+
+목록처럼 구분이 필요한 곳은:
+
+spacing 우선.
+
+그래도 구분이 어려우면:
+
+very subtle divider
+
+사용.
+
+Divider도 하나의 token으로 통일 가능 여부 조사.
+
+==================================================
+15. INPUT / FORM
+==================================================
+
+회원가입
+로그인
+수영장 생성
+학생 등록
+선생님 등록
+프로필
+설정
+검색
+각종 입력 Modal
+
+모두 조사.
+
+Input은 interaction boundary가 필요하므로
+border 유지 가능.
+
+다만:
+
+border thickness
+focus state
+error state
+radius
+padding
+label
+placeholder
+
+가 화면마다 다른지 조사.
+
+==================================================
+16. LOGIN / SIGNUP
+==================================================
+
+중요.
+
+앱 첫인상에 직접 영향을 주므로:
+
+로그인
+회원가입
+역할선택
+수영장 등록
+초기 onboarding
+
+전부 별도 high-priority audit.
+
+첫 화면부터
+본 앱과 다른 디자인 언어가 나오면 안 된다.
+
+==================================================
+17. ROLE CONSISTENCY
+==================================================
+
+다음 Role별 UI를 비교.
+
+OWNER / ADMIN
+TEACHER
+PARENT
+SUPER ADMIN
+
+같은 성격의 UI:
+
+Header
+List
+Menu
+Card
+Button
+Input
+Modal
+Empty state
+
+가 역할별로 다르게 구현됐는지 확인.
+
+business context 차이는 허용.
+
+design language 차이는 최소화.
+
+==================================================
+18. HEADER / TOP NAVIGATION
+==================================================
+
+각 화면의:
+
+back
+title
+home
+settings
+action icon
+
+크기/배경/radius/border를 조사.
+
+현재 일부 화면에서
+back/home 버튼에 별도 square background가 존재.
+
+기능적으로 필요하지 않은
+header icon background는 제거 후보.
+
+단 touch target은 유지해야 한다.
+
+중요:
+
+visual background 제거 ≠ hit area 축소.
+
+==================================================
+19. MODAL / SHEET
+==================================================
+
+전체 Modal/Sheet 조사.
+
+border
+shadow
+background
+button system
+title
+close
+spacing
+icon container
+
+규칙 비교.
+
+A4에서 실제 modal behavior를 정리할 예정이므로
+이번 A1-2에서는 visual inconsistency만 보고.
+
+==================================================
+20. SCHEDULER EXCEPTION
+==================================================
+
+Scheduler는 일반 list와 다르다.
+
+다음은 경계 유지 가능:
+
+calendar
+date cell
+selected date
+schedule block
+time grid
+month/week/day selection
+
+그러나 상단 action buttons는
+global button system을 따라야 한다.
+
+반 등록만 orange,
+다른 버튼 mint/outline
+
+처럼 제각각인 이유가 있는지 확인.
+
+==================================================
+21. STATUS VS ACTION
+==================================================
+
+아주 중요.
+
+현재 모든 색상 사용을:
+
+ACTION COLOR
+STATUS COLOR
+
+로 구분.
+
+예:
+
+"완료" green
+→ STATUS
+
+"저장" green button
+→ ACTION
+
+같은 green이라도 의미가 다르다.
+
+Action은 brand system으로 통일하고
+Status만 semantic color 사용.
+
+==================================================
+22. COUPANG-LIKE PRINCIPLE — REFERENCE ONLY
+==================================================
+
+특정 앱 디자인을 복제하지 않는다.
+
+참고해야 할 원칙만 사용:
+
+- 불필요한 테두리 최소화
+- 버튼/선택 영역만 명확한 boundary
+- 목록은 spacing/divider 중심
+- 색상은 일정한 의미를 가짐
+- CTA는 일관된 hierarchy
+- 정보량이 많아도 UI 규칙은 단순함
+
+SWIMNOTE 고유 브랜드 디자인으로 구현할 것.
+
+==================================================
+23. SHARED COMPONENT OPPORTUNITY
+==================================================
+
+전체 조사 후
+다음 공통 component 생성/통합 후보를 보고:
+
+AppHeader
+NavigationListItem
+PrimaryButton
+SecondaryButton
+TertiaryButton
+DestructiveButton
+SectionHeader
+StatusBadge
+AppCard
+FormInput
+SegmentedControl
+Divider
+EmptyState
+
+기존 shared component가 있다면
+새로 중복 생성하지 않는다.
+
+==================================================
+24. GLOBAL TOKENS
+==================================================
+
+현재 theme 시스템을 조사하고
+필요한 semantic tokens 후보 보고:
+
+surface
+surfaceSecondary
+textPrimary
+textSecondary
+textTertiary
+borderSubtle
+divider
+primary
+primaryPressed
+secondary
+success
+warning
+error
+disabled
+
+X:
+
+xPrimary
+xPrimaryPressed
+xPrimarySoft
+
+등.
+
+실제 필요한 것만 제안.
+
+==================================================
+25. HIGH PRIORITY SCREENS
+==================================================
+
+사용자가 처음 보거나 자주 보는 화면을
+P0 / P1 / P2로 분류.
+
+P0 예:
+
+- Login
+- Signup
+- Home
+- Dashboard
+- Scheduler
+- Settings
+- Main navigation
+- Teacher Today
+- Parent Home
+
+P1:
+
+- member/student
+- diary
+- attendance
+- album
+- notifications
+- X setup
+- growth
+
+P2:
+
+- secondary settings
+- rarely used detail pages
+
+실제 Repository 기준으로 확정.
+
+==================================================
+26. AUDIT OUTPUT — SCREEN MATRIX
+==================================================
+
+모든 화면을 표로 작성.
+
+필드:
+
+ROLE
+SCREEN
+FILE
+BORDER
+ICON_BACKGROUND
+BUTTON_COLOR_VARIANCE
+TEXT_COLOR_VARIANCE
+CARD_STYLE
+STATUS_COLOR
+ISSUE_SEVERITY
+RECOMMENDED_ACTION
+
+Issue Severity:
+
+P0
+P1
+P2
+NONE
+
+==================================================
+27. DO NOT IMPLEMENT YET
+==================================================
+
+이번 Audit에서:
+
+CODE CHANGE = NONE
+DB CHANGE = NONE
+API CHANGE = NONE
+NATIVE CHANGE = NONE
+OTA = NONE
+
+이어야 한다.
+
+==================================================
+28. FINAL REPORT
+==================================================
+
+다음 순서로 보고:
+
+A. TOTAL SCREENS AUDITED
+B. TOTAL UI FILES AUDITED
+C. CURRENT DESIGN SYSTEM SUMMARY
+D. BORDER INVENTORY
+E. ICON BACKGROUND INVENTORY
+F. COLOR INVENTORY
+G. GREEN USAGE CLASSIFICATION
+H. ORANGE USAGE CLASSIFICATION
+I. BUTTON STYLE INVENTORY
+J. NAVIGATION ENTRY INVENTORY
+K. CARD STYLE INVENTORY
+L. TYPOGRAPHY COLOR INVENTORY
+M. ROLE CONSISTENCY FINDINGS
+N. LOGIN/SIGNUP FINDINGS
+O. SCHEDULER FINDINGS
+P. SETTINGS FINDINGS
+Q. NORMAL SWIMNOTE FINDINGS
+R. SWIMNOTE X FINDINGS
+S. SUPER ADMIN FINDINGS
+T. SHARED COMPONENT REUSE
+U. NEW TOKEN REQUIREMENTS
+V. HIGH PRIORITY P0 SCREENS
+W. REMOVE CANDIDATES
+X. KEEP EXCEPTIONS
+Y. FILE CHANGE PLAN
+Z. RECOMMENDED IMPLEMENTATION BATCHES
+
+마지막:
+
+A1_2_GLOBAL_DESIGN_SYSTEM_AUDIT_COMPLETE ✅
+
+또는
+
+A1_2_GLOBAL_DESIGN_SYSTEM_AUDIT_BLOCKED ❌
+
+내 승인 없이
+A1-2 implementation 시작 금지.
+
+A2 시작 금지.
