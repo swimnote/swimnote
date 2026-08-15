@@ -1,0 +1,170 @@
+[SWIMNOTE APP SERVER]
+[PRODUCTION HOTFIX — /api/pools/my 500 ROOT CAUSE ONLY]
+
+현재 TestFlight 1.6.3 build 246에서:
+
+로그인 POST /api/auth/unified-login
+→ 성공
+
+로그인 직후:
+
+GET https://swimnote.kr/api/pools/my
+→ HTTP 500
+→ text/plain
+→ "Internal Server Error"
+
+stage:
+FETCH_POOL_MY
+
+즉 auth는 통과했고
+/api/pools/my route 내부에서 Production exception 발생.
+
+이번 단계 목적:
+
+/api/pools/my 500의 실제 root cause만 찾는다.
+
+코드 수정 금지.
+DB write 금지.
+deploy 금지.
+OTA 금지.
+추측 금지.
+
+==================================================
+1. ROUTE TRACE
+==================================================
+
+GET /api/pools/my
+
+실제 코드 경로 추적:
+
+app.ts
+→ /api router
+→ poolsRouter
+→ /my handler
+→ service/query/helper
+
+최종 handler 파일/함수 보고.
+
+==================================================
+2. PRODUCTION ERROR REPRO
+==================================================
+
+가능하면 안전한 인증 context에서
+동일 GET 요청을 재현.
+
+실제 운영 데이터 변경 없는 read-only GET만 허용.
+
+500이 재현되면:
+
+- exception class
+- message
+- stack trace
+- failing file/line
+- failing SQL/query
+
+확인.
+
+secret/token 값 출력 금지.
+
+==================================================
+3. RECENT SCHEMA COMPATIBILITY
+==================================================
+
+최근 Group 6/7/8 및 X MODE schema 변경 이후
+/pools/my query가 기대하는 column/table과
+Production Supabase 실제 schema가 일치하는지 확인.
+
+특히 최근 추가 필드:
+
+xmode_entitlement
+xmode_config_status
+기타 pool mode 관련 column
+
+조회/alias/type mismatch 여부 확인.
+
+==================================================
+4. QUERY AUDIT
+==================================================
+
+/pools/my handler에서 사용하는 SELECT/JOIN 전체 확인.
+
+다음 검사:
+
+- 존재하지 않는 column
+- 잘못된 alias
+- nullable 처리 오류
+- enum parsing 오류
+- JSON serialization 오류
+- Drizzle schema와 실제 DB mismatch
+- LEFT JOIN을 INNER JOIN처럼 처리
+- undefined property access
+- computeMode 입력값 오류
+
+==================================================
+5. RESPONSE CONTRACT
+==================================================
+
+정상 시 /api/pools/my가
+어떤 JSON shape을 반환해야 하는지 확인.
+
+최근 X MODE 변경 때문에
+response mapping에서 새 필드 접근이 추가됐는지 확인.
+
+==================================================
+6. PRODUCTION DB READ-ONLY CHECK
+==================================================
+
+실제 Production Supabase에서
+현재 로그인 계정이 연결된 pool row를
+read-only로 확인 가능하면 수행.
+
+row 삭제/수정 금지.
+
+확인:
+
+- pool exists
+- relation exists
+- xmode fields values
+- required joined records 존재 여부
+
+==================================================
+7. NO GENERIC ERROR GUESS
+==================================================
+
+"Google Frontend 문제"
+"네트워크 문제"
+"일시적 오류"
+
+로 추정하지 말 것.
+
+HTTP 500이 APP route 내부에서 발생했는지
+실제 stack/error 근거로 확정.
+
+==================================================
+8. REPORT
+==================================================
+
+다음만 보고:
+
+1. ROUTE FILE
+2. HANDLER FUNCTION
+3. 500 REPRODUCED?
+4. EXACT ERROR
+5. FAILING FILE/LINE
+6. FAILING QUERY
+7. PRODUCTION SCHEMA MISMATCH?
+8. DATA ISSUE?
+9. X MODE RELATED?
+10. ROOT CAUSE
+11. CODE CHANGE REQUIRED?
+12. DB MIGRATION REQUIRED?
+13. PRODUCTION WRITE
+14. DEPLOY
+
+최종:
+
+POOLS_MY_500_ROOT_CAUSE_FOUND ✅
+
+또는
+
+POOLS_MY_500_ROOT_CAUSE_BLOCKED ❌
