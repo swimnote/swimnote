@@ -993,15 +993,21 @@ async function runGroup8_ParentAiUsageFeatureIsolation(db: Db): Promise<void> {
   console.log("[X-init] Group 8-2: old 2-col unique dropped OK");
 
   // ── 새 3-col UNIQUE 추가 ──────────────────────────────────────────────────
-  // DO block: ADD CONSTRAINT가 이미 존재하면 예외 무시 (멱등).
+  // pg_constraint 사전 확인 방식: IF NOT EXISTS → 완전 멱등.
+  // 주의: DO $$ EXCEPTION WHEN duplicate_object (42710) 패턴은
+  //       PostgreSQL이 constraint 내부 index 중복 시 42P07을 발생시켜
+  //       핸들러를 우회함 → startup FATAL 원인. IF NOT EXISTS로 교체.
   await db.execute(sql.raw(`
     DO $$
     BEGIN
-      ALTER TABLE parent_ai_daily_usage
-        ADD CONSTRAINT parent_ai_daily_usage_feature_unique
-        UNIQUE (parent_account_id, feature, usage_date);
-    EXCEPTION WHEN duplicate_object THEN
-      NULL; -- 이미 존재: no-op
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'parent_ai_daily_usage_feature_unique'
+      ) THEN
+        ALTER TABLE parent_ai_daily_usage
+          ADD CONSTRAINT parent_ai_daily_usage_feature_unique
+          UNIQUE (parent_account_id, feature, usage_date);
+      END IF;
     END $$;
   `));
   console.log("[X-init] Group 8-3: new 3-col unique (parent_account_id, feature, usage_date) OK");
