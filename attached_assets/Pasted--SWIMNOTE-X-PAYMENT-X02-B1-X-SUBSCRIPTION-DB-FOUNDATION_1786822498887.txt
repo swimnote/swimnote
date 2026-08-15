@@ -1,0 +1,573 @@
+[SWIMNOTE X PAYMENT]
+[X02-B1 — X SUBSCRIPTION DB FOUNDATION]
+
+목적:
+
+X 결제를 구현하기 전에
+
+1. paid/manual entitlement source 분리 기반
+2. Super Admin force disable 기반
+3. X 가맹번호/할인 slot 이력
+4. 향후 RevenueCat transaction binding
+5. 36개월 할인기간 기록 기반
+
+만 DB에 안전하게 추가한다.
+
+이번 WP에서는 결제 로직/API/UI/webhook 동작을 변경하지 않는다.
+
+==================================================
+0. CRITICAL SAFETY
+==================================================
+
+이번 migration에서 절대 금지:
+
+기존
+swimming_pools.xmode_entitlement = true
+
+를
+
+x_paid_entitlement = true
+
+로 backfill 하지 않는다.
+
+현재까지 SWIMNOTE X RevenueCat 실제 상품 구매가 존재하지 않았으므로
+legacy xmode_entitlement는 manual/legacy entitlement로 취급한다.
+
+초기 backfill:
+
+x_paid_entitlement = false
+
+x_manual_entitlement = xmode_entitlement
+
+x_force_disabled = false
+
+기존 xmode_entitlement 값 자체는 이번 WP에서 변경하지 않는다.
+
+따라서 migration 직후 기존 mode 동작이 바뀌면 실패다.
+
+==================================================
+1. BUSINESS POLICY — FIXED
+==================================================
+
+X 가입번호:
+
+예약 시 발급.
+
+franchise_number = 예약번호.
+
+한번 발급된 번호는 재사용하지 않는다.
+
+결번 허용.
+
+예약 후:
+
+1시간 이내 결제 필요.
+
+1시간 초과 미결제:
+
+RELEASED.
+
+sequence/franchise number는 소비된 상태로 유지.
+
+==================================================
+2. EARLY-BIRD TIER
+==================================================
+
+sequence_number 기준:
+
+1~100
+tier1
+50%
+
+101~300
+tier2
+30%
+
+301~500
+tier3
+10%
+
+501+
+standard
+
+Store product:
+
+tier1
+com.swimnote.x.monthly.tier1
+
+tier2
+com.swimnote.x.monthly.tier2
+
+tier3
+com.swimnote.x.monthly.tier3
+
+standard
+com.swimnote.x.monthly.standard
+
+이번 WP에서는 실제 product selection API 구현 금지.
+
+==================================================
+3. DISCOUNT PERIOD
+==================================================
+
+기존 X 정책:
+
+선착순 할인은 36개월 고정.
+
+따라서 slot record가 향후 다음을 보관할 수 있어야 한다.
+
+discount_started_at
+discount_ends_at
+
+구매 전 RESERVED 상태에서는 NULL 가능.
+
+실제 결제 성공 시 향후 X02-C에서:
+
+discount_started_at = purchase activation time
+discount_ends_at = discount_started_at + 36 months
+
+로 기록할 수 있게 schema만 준비.
+
+standard tier는 discount 기간이 필요 없으므로 NULL 허용 가능.
+
+이번 WP에서는 계산/worker/product change 구현 금지.
+
+==================================================
+4. ENTITLEMENT SOURCE COLUMNS
+==================================================
+
+swimming_pools에 다음 추가:
+
+x_paid_entitlement
+BOOLEAN NOT NULL DEFAULT FALSE
+
+x_manual_entitlement
+BOOLEAN NOT NULL DEFAULT FALSE
+
+x_force_disabled
+BOOLEAN NOT NULL DEFAULT FALSE
+
+x_slot_id
+현재 활성/계약 slot 참조용 nullable FK
+
+중요:
+
+이번 WP에서는 mode resolver 변경 금지.
+
+기존 xmode_entitlement가 계속 현재 source of truth로 동작해야 한다.
+
+source separation 실제 전환은 X02-B2에서 한다.
+
+==================================================
+5. LEGACY BACKFILL
+==================================================
+
+migration 순서:
+
+1.
+새 컬럼 생성.
+
+2.
+x_paid_entitlement는 전 row FALSE 유지.
+
+3.
+기존:
+
+xmode_entitlement = true
+
+인 pool에 대해서만:
+
+x_manual_entitlement = true
+
+로 backfill.
+
+4.
+x_force_disabled = false.
+
+5.
+기존 xmode_entitlement 수정 금지.
+
+Migration 이후:
+
+기존 Normal
+→ 그대로 Normal
+
+기존 manual X
+→ 기존 코드 기준 그대로 X/x_pending
+
+이어야 한다.
+
+==================================================
+6. X SUBSCRIPTION SLOT TABLE
+==================================================
+
+별도 business entity:
+
+x_subscription_slots
+
+사용.
+
+최소 컬럼:
+
+id
+pool_id
+sequence_number
+franchise_number
+tier_key
+store_product_id
+status
+
+reserved_by_user_id
+
+reserved_at
+payment_deadline_at
+
+purchased_at
+released_at
+released_reason
+
+discount_started_at
+discount_ends_at
+
+RevenueCat purchase binding을 향후 저장할 nullable 컬럼:
+
+rc_app_user_id
+rc_original_app_user_id
+rc_original_transaction_id
+rc_latest_transaction_id
+rc_environment
+
+created_at
+updated_at
+
+==================================================
+7. WHY RC TRANSACTION FIELDS ARE REQUIRED
+==================================================
+
+다른 pool도 같은:
+
+com.swimnote.x.monthly.tier1
+
+등 product를 사용한다.
+
+따라서 product_id만으로
+구매 원래 pool을 식별할 수 없다.
+
+향후 INITIAL_PURCHASE/sync 성공 시:
+
+slot
+↔ pool
+↔ purchaser user
+↔ RevenueCat customer
+↔ original transaction
+
+을 고정해서 저장할 수 있어야 한다.
+
+Webhook renewal/expiration에서도
+현재 users.swimming_pool_id만 신뢰하지 않고
+기존 transaction binding으로 원래 pool을 찾을 수 있게 준비한다.
+
+이번 WP에서는 webhook code 수정 금지.
+
+==================================================
+8. SLOT STATUS
+==================================================
+
+status 허용값:
+
+RESERVED
+PURCHASED
+RELEASED
+
+이번 단계에서는 이 3개만.
+
+PAYMENT_PENDING 별도 상태 생성 금지.
+CANCELLED 별도 상태 생성 금지.
+
+released_reason으로 구분.
+
+==================================================
+9. CONSTRAINTS
+==================================================
+
+필수:
+
+sequence_number UNIQUE
+
+franchise_number UNIQUE
+
+pool_id FK 또는 현재 실제 DB PK type에 맞는 참조
+
+x_slot_id FK
+
+status CHECK constraint 또는 repository의 기존 enum/check convention 사용
+
+tier_key 허용:
+
+tier1
+tier2
+tier3
+standard
+
+DB 실제 타입/Drizzle convention을 먼저 확인하고
+기존 schema 스타일에 맞춘다.
+
+TEXT/BIGINT 타입을 임의 추측하지 말 것.
+
+==================================================
+10. SEQUENCE
+==================================================
+
+PostgreSQL sequence:
+
+x_slot_seq
+
+신규 생성.
+
+START 1
+INCREMENT 1
+NO CYCLE
+
+rollback으로 번호가 소비되어도 정상.
+
+번호 재사용 금지.
+
+franchise_number 포맷 생성은
+향후 reserve API에서 처리.
+
+이번 WP에서는 reservation 생성 API 없음.
+
+==================================================
+11. INDEX
+==================================================
+
+실제 query pattern 기준으로 최소 index:
+
+pool_id
+
+status
+
+RESERVED payment_deadline_at
+
+rc_original_transaction_id
+(값이 있는 row 기준 partial index 가능)
+
+불필요한 과다 index 금지.
+
+==================================================
+12. ONE ACTIVE RESERVATION
+==================================================
+
+향후 동일 pool이 결제 버튼을 연타해서
+여러 RESERVED slot을 확보하면 안 된다.
+
+이번 DB 단계에서 가능한 경우:
+
+pool_id 기준
+status='RESERVED'
+
+partial unique index
+
+적용 가능성 검토.
+
+예:
+
+UNIQUE(pool_id)
+WHERE status='RESERVED'
+
+단 기존 DB/Drizzle migration tooling에서
+안전하게 지원 가능한 경우에만 적용.
+
+지원되지 않으면
+X02-C API transaction에서 강제하도록 보고.
+
+==================================================
+13. PURCHASED HISTORY
+==================================================
+
+동일 pool은 과거:
+
+PURCHASED
+RELEASED
+
+이력을 여러 개 가질 수 있어야 한다.
+
+따라서:
+
+pool_id 자체 UNIQUE 금지.
+
+history 삭제 금지.
+
+현재 활성 slot만
+swimming_pools.x_slot_id에서 참조.
+
+==================================================
+14. REJOIN POLICY
+==================================================
+
+실제 subscription이 EXPIRATION된 뒤
+나중에 X를 다시 신청하면:
+
+신규 reservation
+신규 sequence
+신규 franchise number
+현재 시점 tier
+
+를 적용하는 정책.
+
+단 이번 WP에서는 구현 금지.
+
+schema가 이 이력을 지원하는지만 검증.
+
+==================================================
+15. OWNER CHANGE
+==================================================
+
+pool_admin 변경은:
+
+pool ownership
+기존 purchased slot
+franchise number
+tier
+
+를 삭제/변경하지 않는다.
+
+reserved_by_user_id는
+"누가 신청했는지" audit용이지
+X 계약의 최종 owner가 아니다.
+
+최종 owner = pool_id.
+
+==================================================
+16. FORCE DISABLE
+==================================================
+
+x_force_disabled는
+Super Admin 운영 차단용 기반.
+
+의미:
+
+Store subscription cancel 아님.
+
+paid entitlement 삭제 아님.
+
+manual entitlement 삭제 아님.
+
+향후 effective 계산에서만 override 예정.
+
+이번 WP에서는 Super Admin API 수정 금지.
+
+==================================================
+17. DO NOT IMPLEMENT
+==================================================
+
+이번 WP 금지:
+
+RevenueCat SDK 수정
+RevenueCat login 변경
+purchasePackage
+restorePurchases
+Offering load
+X reserve API
+X sync API
+webhook 변경
+Super Admin PATCH 변경
+mode resolver 변경
+worker
+1시간 expiration worker
+36개월 product transition
+UI 변경
+OTA
+native build
+
+==================================================
+18. MIGRATION VERIFICATION
+==================================================
+
+migration 전/후 비교:
+
+A.
+swimming_pools 총 row 수 동일
+
+B.
+legacy xmode_entitlement 값 완전 동일
+
+C.
+x_paid_entitlement=true row 수 = 0
+(실제 paid X 구매가 아직 없다는 현재 기준)
+
+D.
+x_manual_entitlement=true row 수
+=
+migration 전 xmode_entitlement=true row 수
+
+E.
+x_force_disabled=true row 수 = 0
+
+F.
+기존 config_status 값 완전 동일
+
+G.
+기존 X curriculum/data 삭제 0
+
+H.
+기존 subscription/payment tables 변경 0
+
+==================================================
+19. PRODUCTION SAFETY
+==================================================
+
+migration은 repository migration convention에 맞게 작성.
+
+먼저 dev/test DB validation.
+
+Production 적용 전
+실제 대상 DB 확인.
+
+AI ENGINE Neon DB에 적용 금지.
+
+APP Production DB에만 해당.
+
+위험한 destructive migration 금지.
+
+DROP/RESET/TRUNCATE 금지.
+
+==================================================
+20. REPORT
+==================================================
+
+다음 순서:
+
+1. CURRENT DB TYPES
+2. MIGRATION FILE
+3. x_slot_seq
+4. x_subscription_slots schema
+5. RC transaction binding columns
+6. swimming_pools new columns
+7. LEGACY BACKFILL RESULT
+8. PAID TRUE COUNT
+9. MANUAL TRUE COUNT
+10. LEGACY ENTITLEMENT BEFORE/AFTER
+11. FORCE DISABLED COUNT
+12. ACTIVE RESERVATION CONSTRAINT
+13. INDEXES
+14. DB TARGET
+15. PROD MIGRATION RESULT
+16. DATA LOSS?
+17. API CHANGE?
+18. SERVER LOGIC CHANGE?
+19. APP CHANGE?
+20. TEST RESULT
+21. COMMIT SHA
+22. DEPLOY/MIGRATION IDENTIFIER
+
+성공:
+
+X02_B1_DB_FOUNDATION_COMPLETE ✅
+
+실패:
+
+X02_B1_DB_FOUNDATION_BLOCKED ❌
+
+X02-B1 PASS 전
+X02-B2 시작 금지.

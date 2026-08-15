@@ -68,3 +68,4 @@
 - [A3 Onboarding Cleanup 완료](a3-onboarding-done.md) — SHA 9e67df1c; 감사+4파일(admin onboarding dead code/teacher schedule copy/parent level,diary no-child CTA); OTA production cc7689db; 다음: A4_MODAL_ALERT_SHEET_CLEANUP
 - [A4 Modal/Sheet/Alert Cleanup 완료](a4-modal-cleanup-done.md) — SHA a7c8b046; 18파일; ConfirmModal SemiBold+guard+disableBackdrop, ModalSheet border제거, WithdrawalModal bug+safearea; OTA production 524ebd4d
 - [P0 Signup HTTP500 완료](p0-signup-http500-done.md) — SHA 074e7f46; §6 클라이언트 5xx 메시지 교체+§5 원자성 롤백+apple/kakao_id 저장; Render live dep-da09qg8u01pc738mk2ag; OTA production 0119fc1b
+- [X02-B1 완료 상태](x02b1-done-state.md) — SHA 36cbb38b; x_subscription_slots+x_slot_seq+swimming_pools 4컬럼+legacy backfill; Render live; non-FATAL 패턴 적용
