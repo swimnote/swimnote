@@ -1597,7 +1597,7 @@ export default function ParentHomeScreen() {
             onPress={handleV2Retry}
             disabled={v2Retrying}
             style={({ pressed }) => ({
-              backgroundColor: pressed ? "#EA6A00" : ORANGE,
+              backgroundColor: pressed ? "#1E293B" : C.primaryAction,
               borderRadius: 14,
               paddingVertical: 16,
               alignItems: "center",

@@ -426,7 +426,7 @@ export default function ParentAlbumScreen() {
           {/* 다운로드 / 일지보기 버튼 */}
           <View style={st.lbBtnRow}>
             <Pressable
-              style={[st.lbBtn, { backgroundColor: C.tint }]}
+              style={[st.lbBtn, { backgroundColor: C.primaryAction }]}
               onPress={() => lightboxItem && downloadPhoto(lightboxItem)}
               disabled={lbSaving}
             >
@@ -477,7 +477,7 @@ export default function ParentAlbumScreen() {
 
             <View style={st.vdBtnCol}>
               <Pressable
-                style={[st.vdBtn, { backgroundColor: C.tint }]}
+                style={[st.vdBtn, { backgroundColor: C.primaryAction }]}
                 onPress={() => videoDetail && downloadVideo(videoDetail)}
                 disabled={vdSaving}
               >

@@ -254,7 +254,7 @@ export default function NoticesScreen() {
               </Text>
             </Pressable>
             {!sel.selectionMode && (
-              <Pressable style={[styles.addBtn, { backgroundColor: C.button }]} onPress={() => setShowModal(true)}>
+              <Pressable style={[styles.addBtn, { backgroundColor: C.primaryAction }]} onPress={() => setShowModal(true)}>
                 <Pencil size={16} color="#fff" />
                 <Text style={styles.addBtnText}>작성</Text>
               </Pressable>
@@ -375,7 +375,7 @@ export default function NoticesScreen() {
               </Pressable>
 
               <Pressable
-                style={({ pressed }) => [styles.saveBtn, { backgroundColor: C.button, opacity: pressed || saving || uploading ? 0.75 : 1, marginTop: 4 }]}
+                style={({ pressed }) => [styles.saveBtn, { backgroundColor: C.primaryAction, opacity: pressed || saving || uploading ? 0.75 : 1, marginTop: 4 }]}
                 onPress={handleCreate}
                 disabled={saving || uploading}
               >

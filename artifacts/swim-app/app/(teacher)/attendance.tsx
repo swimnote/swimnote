@@ -457,7 +457,7 @@ export default function TeacherAttendanceScreen() {
             )}
             {assignError ? <Text style={s.errText}>{assignError}</Text> : null}
             <Pressable
-              style={[s.confirmBtn, { backgroundColor: C.button, opacity: assigning ? 0.7 : 1, marginTop: 16 }]}
+              style={[s.confirmBtn, { backgroundColor: C.primaryAction, opacity: assigning ? 0.7 : 1, marginTop: 16 }]}
               onPress={confirmAssign}
               disabled={assigning}
             >
@@ -779,7 +779,7 @@ export default function TeacherAttendanceScreen() {
                     </View>
                     <View style={{ gap: 6 }}>
                       <TouchableOpacity
-                        style={[s.mkActionBtn, { backgroundColor: C.button }]}
+                        style={[s.mkActionBtn, { backgroundColor: C.primaryAction }]}
                         onPress={() => openAssign(mk)}
                       >
                         <Text style={s.mkActionBtnText}>보강 지정</Text>

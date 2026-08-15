@@ -44,7 +44,7 @@ export default function MessagesScreen() {
           수업일지 화면에서{"\n"}선생님께 댓글을 남길 수 있습니다
         </Text>
         <Pressable
-          style={[s.btn, { backgroundColor: C.tint }]}
+          style={[s.btn, { backgroundColor: C.primaryAction }]}
           onPress={() => router.replace("/(parent)/diary" as any)}
         >
           <LucideIcon name="book-open" size={16} color="#fff" />

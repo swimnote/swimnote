@@ -749,7 +749,7 @@ export default function AttendanceScreen() {
                   ) : (
                     <View style={a.mkActions}>
                       <Pressable
-                        style={[a.mkBtn, { backgroundColor: C.button }]}
+                        style={[a.mkBtn, { backgroundColor: C.primaryAction }]}
                         onPress={() => openAssign(mk)}
                       >
                         <LucideIcon name="calendar" size={14} color="#fff" />
@@ -810,7 +810,7 @@ export default function AttendanceScreen() {
               <Text style={[a.chipText, { color: searchDays === opt.value ? C.tint : C.textSecondary }]}>{opt.label}</Text>
             </Pressable>
           ))}
-          <Pressable style={[a.chip, { backgroundColor: C.button, borderColor: C.button }]} onPress={runSearch}>
+          <Pressable style={[a.chip, { backgroundColor: C.primaryAction, borderColor: C.primaryAction }]} onPress={runSearch}>
             <Text style={[a.chipText, { color: "#fff" }]}>검색</Text>
           </Pressable>
         </KeyboardAwareScrollView>
