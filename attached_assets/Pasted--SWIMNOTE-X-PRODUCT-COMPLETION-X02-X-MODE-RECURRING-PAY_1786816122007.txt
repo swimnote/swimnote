@@ -1,0 +1,651 @@
+[SWIMNOTE X PRODUCT COMPLETION]
+[X02 — X MODE RECURRING PAYMENT LINE AUDIT ONLY]
+
+목적:
+
+X01에서 완성한:
+
+설정
+→ SWIMNOTE X모드
+→ 정기결제 신청하기
+
+경로에 실제 SWIMNOTE X 정기결제를 연결하기 전에
+
+현재 SWIMNOTE APP / RevenueCat / APP SERVER / Store 결제 구조를
+Repository 기준으로 정확히 조사한다.
+
+이번 WP는 AUDIT ONLY.
+
+코드 수정 금지.
+DB write 금지.
+RevenueCat 설정 변경 금지.
+App Store Connect 변경 금지.
+Google Play 변경 금지.
+실제 purchase 금지.
+OTA 금지.
+Build 금지.
+Deploy 금지.
+
+==================================================
+0. PRODUCT POLICY — FIXED
+==================================================
+
+SWIMNOTE 기본 플랜과
+SWIMNOTE X는 별도 정기결제다.
+
+BASIC PLAN PAYMENT
+≠
+X MODE PAYMENT
+
+따라서:
+
+- 결제 시작일 별도 가능
+- 갱신일 별도 가능
+- 해지 별도
+- 구매 복원 별도
+- X 해지 시 기본 SWIMNOTE 플랜 유지
+- X 가격을 기본 플랜 가격에 합산하여 하나의 상품처럼 만들지 않음
+
+==================================================
+1. CURRENT PURCHASE ARCHITECTURE
+==================================================
+
+Repository 전체 검색:
+
+RevenueCat
+react-native-purchases
+Purchases
+configure
+getOfferings
+Offering
+Package
+Product
+purchasePackage
+purchaseProduct
+restorePurchases
+CustomerInfo
+Entitlement
+subscription
+x-entitlement
+webhook
+
+현재 실제 구현을 보고:
+
+FILE
+FUNCTION
+PURPOSE
+USED?
+PRODUCTION READY?
+
+표로 작성.
+
+==================================================
+2. NATIVE SDK STATUS
+==================================================
+
+현재 TestFlight build 246에
+RevenueCat native SDK가 실제 포함되어 있는지 확인.
+
+확인:
+
+package.json
+lockfile
+Expo config
+plugin
+native dependency
+EAS build configuration
+
+판정:
+
+A. build 246에 이미 포함
+→ JS 결제 UI/호출이 OTA 가능한 범위인지 검토
+
+B. 포함되지 않음
+→ 새 native build 필요
+
+추측 금지.
+
+==================================================
+3. X01 SUBSCRIPTION SCREEN
+==================================================
+
+현재:
+
+x-subscription.tsx
+
+조사.
+
+확인:
+
+- 현재 플랜 source
+- X 가격 source
+- 할인 표시 source
+- CTA 구조
+- mode 분기
+- role 분기
+
+X02에서 실제 purchase를 연결할 정확한 위치 보고.
+
+==================================================
+4. X PRODUCT CONFIG
+==================================================
+
+현재 코드/ENV가 기대하는:
+
+RevenueCat Entitlement ID
+Offering ID
+Package ID
+iOS Product ID
+Android Product ID
+
+확인.
+
+SECRET 값 출력 금지.
+
+각각:
+
+CONFIRMED
+MISSING
+EXTERNAL_CHECK_REQUIRED
+
+판정.
+
+==================================================
+5. POOL ↔ REVENUECAT CUSTOMER
+==================================================
+
+가장 중요.
+
+X 구독은 개인 사용자 상품이 아니라
+운영처(swimming_pool)의 X 사용권으로 연결되어야 한다.
+
+현재 RevenueCat appUserID/customer와
+pool을 어떻게 연결하는지 확인.
+
+조사:
+
+user_id?
+pool_id?
+operator_id?
+RevenueCat attribute?
+server mapping?
+
+다른 수영장에 entitlement가 붙을 위험이 없는지 확인.
+
+==================================================
+6. PURCHASE AUTHORITY
+==================================================
+
+현재 정책:
+
+X 정기결제 신청은
+구매 권한을 가진 pool_admin만.
+
+sub_admin:
+정보 열람 가능
+결제 신청 불가
+
+teacher:
+불가
+
+parent:
+불가
+
+현재 권한 구조로 이를 안전하게 강제 가능한지 확인.
+
+UI hide뿐 아니라
+server-side contract도 조사.
+
+==================================================
+7. PURCHASE FLOW TARGET
+==================================================
+
+최종 목표:
+
+pool_admin
+→ Settings
+→ SWIMNOTE X모드
+→ 정기결제 신청하기
+→ Store localized X 상품 확인
+→ 결제
+→ RevenueCat CustomerInfo
+→ X entitlement 확인
+→ APP SERVER sync/webhook
+→ swimming_pools.xmode_entitlement = true
+→ config READY 여부에 따라
+   x_pending 또는 x
+→ ModeContext refresh
+
+현재 구현 중 어느 단계까지 존재하는지 표시.
+
+==================================================
+8. DO NOT USE MANUAL ENTITLEMENT
+==================================================
+
+Super Admin의:
+
+PATCH /super/operators/:id/xmode
+
+수동 entitlement 기능은
+고객 결제 흐름에 절대 사용하지 않는다.
+
+수동 entitlement:
+운영/지원/테스트용
+
+RevenueCat:
+실제 고객 정기결제용
+
+완전히 분리.
+
+==================================================
+9. REVENUECAT WEBHOOK
+==================================================
+
+현재 x-entitlement 관련 서버 코드를 조사.
+
+확인:
+
+- webhook endpoint
+- authentication
+- event verification
+- customer identification
+- pool mapping
+- entitlement ON
+- entitlement OFF
+- renewal
+- cancellation
+- expiration
+- billing issue
+- product change
+- idempotency
+
+각각 IMPLEMENTED/PARTIAL/MISSING 판정.
+
+==================================================
+10. ENTITLEMENT RULE
+==================================================
+
+구매 성공했다고
+config_status를 READY로 변경하면 안 된다.
+
+구매 성공:
+
+xmode_entitlement = true
+
+그 이후:
+
+config READY
+→ x
+
+config != READY
+→ x_pending
+
+현재 canonical contract 유지.
+
+==================================================
+11. X SUBSCRIPTION CANCELLATION
+==================================================
+
+X 구독 만료/해지 시:
+
+xmode_entitlement = false
+
+그리고:
+
+mode → normal
+
+하지만 다음 데이터 삭제 금지:
+
+curriculum
+growth
+diary
+AI history
+members
+students
+classes
+attendance
+photos
+reports
+
+config_status 역시
+임의 reset 금지.
+
+==================================================
+12. RESTORE PURCHASE
+==================================================
+
+iOS 구매 복원 존재 여부 확인.
+
+없으면 MISSING.
+
+복원 시에도:
+
+CustomerInfo
+→ 실제 X entitlement
+→ 올바른 pool mapping
+
+이 되어야 함.
+
+다른 계정/다른 pool의 구매를
+잘못 복원하는 위험도 분석.
+
+==================================================
+13. PRICE SOURCE
+==================================================
+
+실제 결제 가격은
+가능하면 Store/RevenueCat localized price를 source of truth로 사용.
+
+UI에 production 가격을
+여러 파일에 hardcode 금지.
+
+현재 정책상 X 정상가격 후보가 존재하더라도
+실제 Store Product 가격과 분리되지 않도록 설계.
+
+현재 가격 source를 보고한다.
+
+==================================================
+14. FIRST-COME DISCOUNT POLICY
+==================================================
+
+현재 X 할인 정책:
+
+가입 순번 1~100
+→ 50%
+
+101~300
+→ 30%
+
+301~500
+→ 10%
+
+501+
+→ 정상가격
+
+중요:
+
+이것은 X 정기결제에만 적용.
+
+기본 SWIMNOTE 플랜에는 적용하지 않는다.
+
+==================================================
+15. DISCOUNT ARCHITECTURE
+==================================================
+
+RevenueCat/App Store/Google Play에서
+가입 순번별 서로 다른 가격을
+어떻게 안전하게 구현할 수 있을지 조사한다.
+
+가능한 구조를 실제 Store/RevenueCat 제약 기준으로 비교:
+
+- 별도 Product/Package
+- Promotional Offer
+- Offer code
+- Introductory Offer
+- RevenueCat targeting/offering
+- 기타 현재 지원 가능한 구조
+
+중요:
+
+아직 구현하지 않는다.
+
+"앱 DB에서 50% 계산하고
+Store에는 임의 금액 청구"
+
+같은 구조 금지.
+
+실제 Store transaction 가격과
+표시 가격이 일치해야 한다.
+
+==================================================
+16. DISCOUNT SLOT ASSIGNMENT
+==================================================
+
+할인율을 무엇을 기준으로 확정할지 설계 필요.
+
+조사/제안 대상:
+
+- 결제 완료 순번
+- X 신청 순번
+- 별도 X 가입번호
+
+중복/동시 결제 시
+101번째 경계가 깨지지 않는
+원자적 구조가 필요하다.
+
+현재 관련 DB가 있는지 확인.
+
+이번 Audit에서 DB 생성 금지.
+
+==================================================
+17. DISCOUNT PERSISTENCE
+==================================================
+
+한 번 확보한 할인 tier가
+향후 전체 가입자 수 증가 때문에
+자동으로 바뀌면 안 되는 구조가 필요한지 검토.
+
+예:
+
+가입 당시 50% 대상
+→ 이후 500개 운영처가 생겨도
+해당 고객의 tier 유지
+
+현재 Product Policy와
+구현 가능한 Store 구조를 연결해서 보고.
+
+임의 확정하지 말 것.
+
+==================================================
+18. UI STATES
+==================================================
+
+x-subscription 화면의 최종 상태 후보:
+
+NOT_SUBSCRIBED
+LOADING_PRODUCT
+READY_TO_PURCHASE
+PURCHASING
+USER_CANCELLED
+PURCHASE_FAILED
+PURCHASED_X_PENDING
+X_ACTIVE
+RESTORING
+EXPIRED
+
+현재 구조로 어디까지 표현 가능한지 확인.
+
+==================================================
+19. FAILURE HANDLING
+==================================================
+
+결제 실패/사용자 취소/네트워크 오류 시:
+
+entitlement를 client에서 임의 생성하면 안 됨.
+
+성공 확인 전:
+
+xmode_entitlement 변경 금지.
+
+실패 후 재시도 가능해야 함.
+
+==================================================
+20. EXTERNAL CONFIG
+==================================================
+
+Repository 밖에서 필요한 것을 분리:
+
+REVENUECAT
+
+APP STORE CONNECT
+
+GOOGLE PLAY
+
+각각 현재:
+
+CONFIRMED
+NOT_CONFIRMED
+MISSING
+
+으로 보고.
+
+==================================================
+21. iOS FIRST
+==================================================
+
+현재 출시 workflow상
+iOS를 먼저 완성한다.
+
+따라서 X02 구현 제안은:
+
+iOS purchase path
+→ sandbox/TestFlight
+→ 검증
+
+을 먼저 할 수 있게 분리.
+
+Android는 이후 같은 contract로 연결.
+
+==================================================
+22. GAP MATRIX
+==================================================
+
+다음을 전부 판정:
+
+1 RevenueCat SDK
+2 configure
+3 appUserID
+4 pool mapping
+5 X entitlement
+6 X product
+7 Offering
+8 Package
+9 localized price
+10 purchase call
+11 loading state
+12 cancel state
+13 failure state
+14 success state
+15 restore
+16 webhook
+17 webhook auth
+18 webhook idempotency
+19 entitlement ON
+20 entitlement OFF
+21 renewal
+22 expiration
+23 billing issue
+24 mode refresh
+25 subscription status
+26 first-come tier assignment
+27 first-come tier persistence
+28 discounted Store products/offers
+29 X01 subscription UI integration
+30 server-side purchase authorization
+
+각각:
+
+COMPLETE
+PARTIAL
+MISSING
+EXTERNAL_CHECK_REQUIRED
+
+==================================================
+23. REQUIRED CHANGES
+==================================================
+
+조사 후 다음으로 분리:
+
+[APP CHANGES]
+
+[SERVER CHANGES]
+
+[DB MIGRATION]
+
+[REVENUECAT SETUP]
+
+[APP STORE CONNECT SETUP]
+
+[GOOGLE PLAY SETUP]
+
+실제 필요한 것만.
+
+==================================================
+24. IMPLEMENTATION WP PROPOSAL
+==================================================
+
+X02를 한 번에 구현하지 않는다.
+
+감사 결과를 바탕으로 작은 단계로 나눈다.
+
+예:
+
+X02-A Product/Entitlement foundation
+X02-B Pool/customer identity
+X02-C iOS product + offering
+X02-D Purchase/Restore UI
+X02-E Webhook/idempotency
+X02-F Discount tier system
+X02-G TestFlight sandbox E2E
+
+실제 필요한 것만 제안.
+
+==================================================
+25. NO IMPLEMENTATION
+==================================================
+
+이번 WP:
+
+CODE CHANGE = NONE
+DB WRITE = NONE
+MIGRATION = NONE
+PURCHASE = NONE
+REVENUECAT CHANGE = NONE
+STORE CHANGE = NONE
+BUILD = NONE
+OTA = NONE
+DEPLOY = NONE
+
+==================================================
+26. FINAL REPORT
+==================================================
+
+다음 순서로 보고:
+
+A. CURRENT REVENUECAT ARCHITECTURE
+B. BUILD 246 NATIVE SDK STATUS
+C. X01 SUBSCRIPTION SCREEN
+D. PRODUCT/OFFERING/PACKAGE
+E. POOL ↔ CUSTOMER MAPPING
+F. PURCHASE AUTHORITY
+G. PURCHASE FLOW
+H. WEBHOOK FLOW
+I. ENTITLEMENT ON/OFF
+J. RENEWAL/EXPIRATION
+K. RESTORE PURCHASE
+L. PRICE SOURCE
+M. FIRST-COME DISCOUNT ARCHITECTURE
+N. DISCOUNT SLOT ASSIGNMENT
+O. DISCOUNT PERSISTENCE
+P. SECURITY
+Q. iOS READINESS
+R. ANDROID READINESS
+S. 30-ITEM GAP MATRIX
+T. APP CHANGES REQUIRED
+U. SERVER CHANGES REQUIRED
+V. DB MIGRATION REQUIRED
+W. EXTERNAL SETUP REQUIRED
+X. RECOMMENDED IMPLEMENTATION SEQUENCE
+Y. BLOCKERS
+
+마지막:
+
+X02_XMODE_PAYMENT_LINE_AUDIT_COMPLETE ✅
+
+또는
+
+X02_XMODE_PAYMENT_LINE_AUDIT_BLOCKED ❌
+
+내 승인 없이 X02 구현 시작 금지.
+X 운영자 설정센터 시작 금지.
+A6 최종 회귀 시작 금지.
