@@ -235,7 +235,7 @@ export default function PoolSettingsScreen() {
         onBack={undefined}
         rightSlot={
           <Pressable
-            style={[styles.saveBtn, { backgroundColor: C.button, opacity: saving ? 0.6 : 1 }]}
+            style={[styles.saveBtn, { backgroundColor: C.primaryAction, opacity: saving ? 0.6 : 1 }]}
             onPress={handleSave}
             disabled={saving}
           >
@@ -370,7 +370,7 @@ export default function PoolSettingsScreen() {
             </View>
           ) : null}
           <Pressable
-            style={[styles.saveBtn, { backgroundColor: C.button, opacity: savingCapacity ? 0.6 : 1, alignSelf: "flex-start", marginTop: 4 }]}
+            style={[styles.saveBtn, { backgroundColor: C.primaryAction, opacity: savingCapacity ? 0.6 : 1, alignSelf: "flex-start", marginTop: 4 }]}
             onPress={handleSaveCapacity}
             disabled={savingCapacity}
           >

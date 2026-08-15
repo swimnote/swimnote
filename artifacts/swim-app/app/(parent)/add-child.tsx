@@ -102,8 +102,8 @@ export default function AddChildScreen() {
       <View style={s.body}>
         {/* 아이콘 + 설명 */}
         <View style={s.iconWrap}>
-          <View style={[s.iconCircle, { backgroundColor: ORANGE + "20" }]}>
-            <LucideIcon name="user-plus" size={32} color={ORANGE} />
+          <View style={[s.iconCircle, { backgroundColor: "#E8EDF4" }]}>
+            <LucideIcon name="user-plus" size={32} color={C.primaryAction} />
           </View>
         </View>
 
@@ -207,7 +207,7 @@ const s = StyleSheet.create({
   },
   submitBtn: {
     width: "100%",
-    backgroundColor: ORANGE,
+    backgroundColor: C.primaryAction,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",

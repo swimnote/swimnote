@@ -164,7 +164,7 @@ export default function LevelSettingsScreen() {
           ))}
 
           {changed && (
-            <Pressable style={[s.bottomSave, { backgroundColor: C.button }]} onPress={save} disabled={saving}>
+            <Pressable style={[s.bottomSave, { backgroundColor: C.primaryAction }]} onPress={save} disabled={saving}>
               {saving
                 ? <ActivityIndicator size="small" color="#fff" />
                 : <Text style={s.bottomSaveTxt}>변경사항 저장</Text>

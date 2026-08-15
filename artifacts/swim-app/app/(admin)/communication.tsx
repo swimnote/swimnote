@@ -185,7 +185,7 @@ export default function CommunicationScreen() {
           <TextInput style={[s.input, { height: 120, textAlignVertical: "top" }]} value={newContent} onChangeText={setNewContent}
             placeholder="내용을 입력하세요" placeholderTextColor={C.textSecondary} multiline />
         </View>
-        <Pressable style={[s.submitBtn, { backgroundColor: C.button }]} onPress={createNotice} disabled={creating}>
+        <Pressable style={[s.submitBtn, { backgroundColor: C.primaryAction }]} onPress={createNotice} disabled={creating}>
           <Text style={s.submitBtnTxt}>{creating ? "등록 중..." : "공지 등록"}</Text>
         </Pressable>
       </ModalSheet>

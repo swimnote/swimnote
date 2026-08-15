@@ -206,7 +206,7 @@ function SnapshotCard({
           {/* 액션 버튼: 복구 / 비교 / 삭제 */}
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Pressable
-              style={[s.restoreBtn, { backgroundColor: C.button, flex: 1 }]}
+              style={[s.restoreBtn, { backgroundColor: C.primaryAction, flex: 1 }]}
               onPress={() => onRestore(snap)}
             >
               <LucideIcon name="rotate-ccw" size={14} color="#fff" />

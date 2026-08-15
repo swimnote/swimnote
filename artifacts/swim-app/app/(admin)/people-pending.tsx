@@ -260,7 +260,7 @@ export default function PeoplePendingScreen() {
         <View style={[s.inviteBar, { bottom: TAB_BAR_H }]}>
           <Text style={s.inviteCount}>{selectedIds.size}명 선택됨</Text>
           <Pressable
-            style={[s.inviteBtn, { backgroundColor: C.button }]}
+            style={[s.inviteBtn, { backgroundColor: C.primaryAction }]}
             onPress={() => setShowInviteConfirm(true)}
             disabled={inviting}
           >
@@ -307,7 +307,7 @@ export default function PeoplePendingScreen() {
                 </View>
               ))}
             </KeyboardAwareScrollView>
-            <Pressable style={[s.validateClose, { backgroundColor: C.button }]} onPress={() => setShowValidate(false)}>
+            <Pressable style={[s.validateClose, { backgroundColor: C.primaryAction }]} onPress={() => setShowValidate(false)}>
               <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>확인</Text>
             </Pressable>
           </View>

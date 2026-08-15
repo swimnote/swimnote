@@ -174,7 +174,7 @@ export default function PhotoUploadScreen() {
         )}
 
         {selected.size > 0 && (
-          <View style={[styles.selectionBar, { bottom: insets.bottom + 12, backgroundColor: C.button }]}>
+          <View style={[styles.selectionBar, { bottom: insets.bottom + 12, backgroundColor: C.primaryAction }]}>
             <Text style={styles.selectionText}>{selected.size}명 선택됨</Text>
             <Pressable onPress={() => setStep("photos")} style={styles.selectionBtn}>
               <Text style={styles.selectionBtnText}>사진 선택 →</Text>

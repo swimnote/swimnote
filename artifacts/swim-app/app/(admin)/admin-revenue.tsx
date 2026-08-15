@@ -371,7 +371,7 @@ export default function AdminRevenueScreen() {
           {/* ── 저장 / 다음 달 시작 ── */}
           <View style={s.actionRow}>
             <Pressable
-              style={[s.actionBtn, { backgroundColor: C.button, opacity: saving ? 0.7 : 1 }]}
+              style={[s.actionBtn, { backgroundColor: C.primaryAction, opacity: saving ? 0.7 : 1 }]}
               onPress={handleSave}
               disabled={saving}
             >
