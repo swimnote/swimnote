@@ -87,7 +87,7 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
             <Text style={[ac.btnTxt, { color: "#64748B" }]}>비활성</Text>
           </Pressable>
         )}
-        <Pressable style={[ac.btn, { backgroundColor: C.button }]} onPress={() => onEdit(ad)}>
+        <Pressable style={[ac.btn, { backgroundColor: "#7C3AED" }]} onPress={() => onEdit(ad)}>
           <Text style={[ac.btnTxt, { color: P }]}>수정</Text>
         </Pressable>
         <Pressable style={[ac.btn, { backgroundColor: "#F9DEDA" }]} onPress={() => onDelete(ad.id)}>

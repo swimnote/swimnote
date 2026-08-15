@@ -133,7 +133,7 @@ function PlatformSection({
                 <Text style={{ color: "#0F172A", fontFamily: "Pretendard-Regular" }}>취소</Text>
               </Pressable>
               <Pressable
-                style={[pm.actionBtn, { flex: 1, backgroundColor: enabled ? "#2EC4B6" : "#D96C6C" },
+                style={[pm.actionBtn, { flex: 1, backgroundColor: enabled ? "#7C3AED" : "#D96C6C" },
                   (!inputReason.trim() || saving) && { opacity: 0.4 }]}
                 onPress={async () => {
                   if (!inputReason.trim() || saving) return;

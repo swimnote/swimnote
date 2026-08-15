@@ -622,8 +622,8 @@ export default function OperatorDetailScreen() {
                   style={{
                     flexDirection: "row", alignItems: "center", justifyContent: "center",
                     paddingVertical: 10, borderRadius: 10,
-                    backgroundColor: xmodeLoading ? "#F1F5F9" : "#E6FAF8",
-                    borderWidth: 1, borderColor: xmodeLoading ? "#E2E8F0" : "#2EC4B6",
+                    backgroundColor: xmodeLoading ? "#F1F5F9" : "#7C3AED",
+                    borderWidth: 1, borderColor: xmodeLoading ? "#E2E8F0" : "#6D28D9",
                     opacity: xmodeLoading ? 0.6 : 1,
                   }}
                 >

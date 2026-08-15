@@ -365,7 +365,7 @@ export default function StorageScreen() {
                   <Text style={m.ctaOptionTitle}>추가 용량 구매</Text>
                   <Text style={m.ctaOptionDesc}>10GB 단위 추가 · 예상 ₩9,900/월 ~</Text>
                 </View>
-                <Pressable style={[m.ctaBtn, { backgroundColor: GREEN }]}
+                <Pressable style={[m.ctaBtn, { backgroundColor: "#7C3AED" }]}
                   onPress={() => { setCtaModal(null); setEditOp(ctaModal); setNewStorageGb("10"); }}>
                   <Text style={m.ctaBtnTxt}>구매</Text>
                 </Pressable>
@@ -377,7 +377,7 @@ export default function StorageScreen() {
                   <Text style={m.ctaOptionTitle}>상위 플랜 업그레이드</Text>
                   <Text style={m.ctaOptionDesc}>더 많은 저장공간 · 추가 기능 포함</Text>
                 </View>
-                <Pressable style={[m.ctaBtn, { backgroundColor: C.button }]}
+                <Pressable style={[m.ctaBtn, { backgroundColor: "#7C3AED" }]}
                   onPress={() => { setCtaModal(null); router.push("/(super)/subscriptions?backTo=storage" as any); }}>
                   <Text style={m.ctaBtnTxt}>업그레이드</Text>
                 </Pressable>
@@ -389,7 +389,7 @@ export default function StorageScreen() {
                   <Text style={m.ctaOptionTitle}>긴급 업로드 허용 24h</Text>
                   <Text style={m.ctaOptionDesc}>임시 1GB 추가 · 관리자 override</Text>
                 </View>
-                <Pressable style={[m.ctaBtn, { backgroundColor: "#2EC4B6" }]}
+                <Pressable style={[m.ctaBtn, { backgroundColor: "#7C3AED" }]}
                   onPress={() => { doEmergencyOverride(ctaModal); setCtaModal(null); }}>
                   <Text style={m.ctaBtnTxt}>허용</Text>
                 </Pressable>
@@ -473,7 +473,7 @@ const m = StyleSheet.create({
   btnRow:         { flexDirection: "row", gap: 10 },
   cancelBtn:      { flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center" },
   cancelTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  saveBtn:        { flex: 1, padding: 14, borderRadius: 12, backgroundColor: GREEN, alignItems: "center" },
+  saveBtn:        { flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#7C3AED", alignItems: "center" },
   saveTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
   ctaOption:      { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
   ctaOptionTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
