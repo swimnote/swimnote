@@ -1,0 +1,816 @@
+[SWIMNOTE RELEASE MASTER WORK ORDER]
+[PHASE A / A1-2 — GLOBAL DESIGN SYSTEM IMPLEMENTATION]
+
+A1-2 Global Design System Audit 검토 완료.
+구현 승인.
+
+중요:
+NEXT는 A2가 아니다.
+
+현재 작업은:
+
+A1-2 GLOBAL DESIGN SYSTEM IMPLEMENTATION
+
+이다.
+
+A1-2 구현/검증 PASS 이후에만
+A2_NORMAL_SWIMNOTE_AI_VISIBILITY_CLEANUP
+시작한다.
+
+==================================================
+1. FINAL DESIGN DECISIONS — FIXED
+==================================================
+
+결정 1 — PRIMARY ACTION
+
+Primary CTA:
+#0F172A NAVY
+
+적용 대상 예:
+
+저장
+다음
+등록
+확인
+완료
+생성
+적용
+계속
+
+등 화면의 핵심 action.
+
+기능이 다르다는 이유로:
+
+Orange
+Green
+Mint
+Blue
+Purple
+
+등 서로 다른 Primary 색을 사용하지 않는다.
+
+Primary Button:
+
+background:
+#0F172A
+
+text:
+#FFFFFF
+
+pressed:
+현재 theme 구조에 맞는
+한 단계 진한/약한 navy state 사용
+
+disabled:
+neutral disabled token
+
+==================================================
+2. MINT RULE
+==================================================
+
+Mint #2EC4B6는
+Primary CTA 색이 아니다.
+
+사용 범위:
+
+- SWIMNOTE brand accent
+- selected
+- active
+- 필요한 일부 highlight
+- brand identity
+
+정도로 제한한다.
+
+일반 저장/등록/다음 버튼을
+Mint로 칠하지 않는다.
+
+==================================================
+3. ORANGE RULE
+==================================================
+
+기존:
+
+C.button = #F97316
+
+을 일반 Primary Action으로 사용하는 정책 폐기.
+
+Orange/Amber는:
+
+- warning
+- pending
+- attention
+
+이라는 실제 semantic meaning이 있을 때만 사용.
+
+예:
+
+"반 등록"이라는 이유만으로 Orange 사용 금지.
+
+"등록"은 action이므로 Primary Navy.
+
+==================================================
+4. GREEN RULE
+==================================================
+
+Green은:
+
+SUCCESS
+COMPLETED
+POSITIVE STATUS
+
+일 때만 사용.
+
+예:
+
+완료 상태
+정상 처리 완료 표시
+성공 indicator
+
+는 허용.
+
+하지만:
+
+저장 버튼
+일반 메뉴 아이콘
+navigation entry
+일반 CTA
+단순 강조
+
+용 green 사용 금지.
+
+==================================================
+5. RED RULE
+==================================================
+
+Red는:
+
+ERROR
+DANGER
+DESTRUCTIVE
+
+전용.
+
+삭제
+실패
+위험
+오류
+
+외의 장식 목적 사용 금지.
+
+==================================================
+6. PASTEL SYSTEM
+==================================================
+
+기존:
+
+lavender
+sky
+butter
+peach
+pink
+mintLight
+기타 pastel tile
+
+을 일반 메뉴/진입 카드의
+장식 목적으로 사용하는 정책 폐기.
+
+기본 Surface:
+
+White
+Off-white
+Neutral light surface
+
+로 통일.
+
+단:
+
+기존 데이터 시각화
+사용자 선택 색상
+실제 category color
+기능적으로 색 구분이 필요한 영역
+
+까지 무조건 제거하지 않는다.
+
+각 usage의 semantic reason을 확인하고 처리.
+
+==================================================
+7. ICON BACKGROUND
+==================================================
+
+기본 정책:
+
+아이콘 뒤 decorative tile/background 제거.
+
+예:
+
+rounded square
+circle
+pastel tile
+colored box
+
+가 단순 장식이면 제거.
+
+아이콘 자체 + text + spacing으로 표현.
+
+중요:
+
+visual background를 제거해도
+touch target은 줄이지 않는다.
+
+==================================================
+8. HEADER ICONS
+==================================================
+
+back
+home
+settings
+more
+
+등 header action icon에서
+장식용 square/rounded background 제거.
+
+단:
+
+hitSlop / touchable area
+최소 44×44
+
+유지.
+
+Pressed state는:
+
+subtle opacity
+또는 아주 약한 neutral background
+
+정도로만 표현.
+
+==================================================
+9. BORDERLESS DEFAULT
+==================================================
+
+전체 앱 기본 원칙:
+
+NO BORDER BY DEFAULT.
+
+다음은 제거 후보:
+
+- navigation entry outline
+- card decorative border
+- icon tile border
+- card 안 card border
+- 단순 section outline
+- border + shadow 중복
+
+==================================================
+10. BORDER KEEP EXCEPTIONS
+==================================================
+
+다음은 유지 가능:
+
+- Scheduler grid
+- Calendar boundary
+- date/time selection
+- segmented control
+- form input
+- checkbox
+- 실제 selected boundary
+- table
+- chart
+- 구조상 경계가 반드시 필요한 영역
+
+즉:
+
+Borderless = 모든 선 삭제
+
+가 아니다.
+
+기능상 경계가 필요한 경우만 유지.
+
+==================================================
+11. SETTINGS / MORE — P0
+==================================================
+
+Audit에서 발견한:
+
+settings.tsx
+more.tsx
+
+의 Thick Border Navigation Pattern 우선 제거.
+
+현재:
+
+rounded rectangle
+thick border
+각 메뉴마다 독립 box
+
+형태를:
+
+icon
+title
+optional subtitle
+chevron
+spacing
+subtle divider if required
+
+형태로 정리.
+
+공지함
+선생님 설정
+일지 템플릿
+알림함
+사진·영상 업로드/앨범
+
+같은 단순 navigation entry를
+굵은 박스로 둘러싸지 않는다.
+
+==================================================
+12. PARENT HOME — P0
+==================================================
+
+학부모 홈의
+5색 icon tile 제거/통일.
+
+각 메뉴가:
+
+blue
+yellow
+purple
+green
+etc.
+
+으로 나뉘는 decorative color system 폐기.
+
+Normal SWIMNOTE에서는:
+
+Navy/Mint identity 기준
+
+X 전용 영역에서는:
+
+Steel Blue 기준
+
+으로 통일.
+
+메뉴별 색상 차이 금지.
+
+==================================================
+13. ONBOARDING — P0
+==================================================
+
+Parent = Orange
+Admin/Teacher = Mint
+
+처럼 같은 "다음" action의 색이
+role마다 다른 문제 수정.
+
+모든 role의 Primary CTA:
+
+Navy #0F172A
+
+로 통일.
+
+Role에 따라 Primary Action 색을 바꾸지 않는다.
+
+==================================================
+14. SCHEDULER — P0
+==================================================
+
+Scheduler 구조 border는 유지.
+
+하지만 상단 actions:
+
+선택
+수강생관리
+반 등록
+수업일지
+
+에서:
+
+Orange
+Mint
+Outline
+Gray
+
+등이 섞여 있는 문제 정리.
+
+각 버튼을:
+
+PRIMARY
+SECONDARY
+TERTIARY
+
+로 역할에 따라 다시 분류.
+
+예:
+
+핵심 action 1개
+→ Primary Navy
+
+보조 actions
+→ Secondary / Tertiary
+
+"반 등록"이라는 이유로 Orange 금지.
+
+월/주/일 segmented control은
+selected/unselected rule만 통일.
+
+==================================================
+15. STORAGE / SETTINGS DETAIL
+==================================================
+
+storage 등에서:
+
+Border + Shadow
+
+를 동시에 사용하는 decorative container 조사 결과 반영.
+
+둘 다 필요한 실제 이유가 없다면
+하나만 남기거나 surface/spacing으로 대체.
+
+아이콘 뒤 tile도
+semantic reason 없으면 제거.
+
+==================================================
+16. BUTTON SYSTEM
+==================================================
+
+가능하면 기존 shared component를 먼저 확인.
+
+중복 구조가 없다면
+최소 공통 Button primitive를 만든다.
+
+종류:
+
+PrimaryButton
+SecondaryButton
+TertiaryButton
+DestructiveButton
+
+또는 기존 architecture에 더 적합한
+variant 기반 Button.
+
+규칙:
+
+PRIMARY
+Navy solid
+
+SECONDARY
+neutral/light surface
+또는 필요한 경우 subtle outline
+
+TERTIARY
+text/icon only
+
+DESTRUCTIVE
+Red
+
+Button마다 임의 HEX 금지.
+
+==================================================
+17. NAVIGATION ITEM SYSTEM
+==================================================
+
+공통 진입 메뉴에:
+
+NavigationListItem
+
+또는 기존 shared component 확장 검토.
+
+기본 구조:
+
+icon
+title
+optional subtitle
+chevron
+
+기본:
+
+no decorative border
+no decorative icon tile
+
+분리는:
+
+spacing
+또는 subtle divider
+
+사용.
+
+==================================================
+18. TYPOGRAPHY HIERARCHY
+==================================================
+
+이번 구현에서
+193개 파일 전체 typography를
+대규모 리팩터링하지 않는다.
+
+하지만 수정하는 P0/P1 화면은
+다음 semantic hierarchy를 따른다.
+
+Text Primary
+→ Navy / Ink
+
+Text Secondary
+→ Slate Gray
+
+Text Tertiary
+→ lighter neutral
+
+Brand/Selected
+→ Normal SWIMNOTE Mint 또는 X Steel Blue
+
+Success
+→ Green
+
+Warning/Pending
+→ Muted Amber
+
+Error/Danger
+→ Red
+
+강조를 위해
+매번 colored box를 추가하지 않는다.
+
+우선순위:
+
+font weight
+font size
+text color
+
+로 해결.
+
+==================================================
+19. NORMAL SWIMNOTE
+==================================================
+
+Normal identity:
+
+Navy dominant
+Mint accent
+
+유지.
+
+중요:
+
+Normal SWIMNOTE를
+Mint 앱처럼 만들지 않는다.
+
+Mint는 포인트다.
+
+==================================================
+20. SWIMNOTE X
+==================================================
+
+X identity:
+
+Steel Blue
+#355C7D
+
+Deep Steel
+#294760 또는 현재 xAccentStrong
+
+Soft Steel
+#E9EEF3
+
+사용.
+
+X 역시:
+
+밝은 surface 유지
+border 최소화
+decorative color 최소화
+
+Dark theme로 만들지 않는다.
+
+==================================================
+21. AI BLUE CORRECTION
+==================================================
+
+Audit report의:
+
+"AI 모듈 파란색 #3B82F6 유지 확정"
+
+은 수정한다.
+
+AI라는 이유만으로
+별도 Blue Brand System을 유지하지 않는다.
+
+각 AI blue usage를 다시 분류:
+
+A. 실제 INFORMATION semantic
+→ 유지 가능
+
+B. AI branding/decorative
+→ 해당 mode의 brand color로 교체
+
+Normal에서 유지되는 AI UI:
+Normal design system 적용.
+
+X 전용 AI:
+Steel Blue system 적용.
+
+A2에서 Normal AI visibility를 별도로 정리하므로
+이번에 AI 기능 삭제/권한 변경은 금지.
+
+==================================================
+22. SUPER ADMIN
+==================================================
+
+Super Admin의 기존 Purple identity는 유지.
+
+하지만:
+
+borderless
+button hierarchy
+navigation item
+typography
+
+같은 GLOBAL UI RULE은
+Super Admin에도 적용 가능.
+
+단 table/admin data boundary는
+구조상 필요한 경우 유지.
+
+==================================================
+23. IMPLEMENTATION BATCH ORDER
+==================================================
+
+대규모 일괄 수정 금지.
+
+다음 순서:
+
+BATCH 1
+GLOBAL TOKENS / SHARED PRIMITIVES
+
+BATCH 2
+P0:
+Login
+Signup
+Onboarding
+Home
+Dashboard
+Scheduler
+Settings
+Main navigation
+Teacher Today
+Parent Home
+
+BATCH 3
+P1:
+Member/Student
+Attendance
+Diary
+Album
+Notifications
+X setup
+Growth
+Storage
+
+BATCH 4
+Role consistency / remaining navigation screens
+
+BATCH 5
+Super Admin visual consistency
+
+각 Batch마다
+typecheck/test 후 다음 Batch.
+
+기능 regression 발생 시 중단.
+
+==================================================
+24. DO NOT CHANGE
+==================================================
+
+금지:
+
+API
+DB
+AI ENGINE
+X entitlement
+X config state
+RevenueCat
+Diary logic
+Attendance logic
+Member logic
+Scheduler logic
+Navigation destinations
+Permission logic
+Business logic
+
+이번 작업은 visual/design system only.
+
+==================================================
+25. NATIVE / OTA
+==================================================
+
+새 native dependency 추가 금지.
+
+app.json native config 변경 금지.
+
+JS/style/component 수준으로 유지.
+
+runtime:
+1.6.3
+
+호환 유지.
+
+전체 구현/검증 전
+Production OTA publish 금지.
+
+==================================================
+26. VISUAL REGRESSION CHECK
+==================================================
+
+최소 다음을 역할별로 확인:
+
+COMMON
+- Login
+- Signup
+- Onboarding
+
+ADMIN
+- Home
+- Dashboard
+- Scheduler
+- Settings
+- Member
+- Diary
+- Album
+
+TEACHER
+- Home/Today
+- Scheduler
+- Settings
+- Diary
+
+PARENT
+- Home
+- Settings
+- Curriculum/Report entry
+- Notifications
+
+X
+- X badge
+- X setup
+- X Growth
+- X sections
+
+SUPER ADMIN
+- Main
+- Operator list/detail
+
+확인:
+
+- 불필요한 thick border 없음
+- icon tile 남용 없음
+- random Orange 없음
+- random Green 없음
+- random decorative pastel 없음
+- Primary Action 일관성
+- Status color 의미 일관성
+- touch target 손상 없음
+- navigation 기능 변화 없음
+- text clipping 없음
+
+==================================================
+27. REPORT
+==================================================
+
+각 Batch 완료 후 짧게 보고하고
+최종적으로 다음 형식:
+
+1. MODIFIED FILES
+2. SHARED COMPONENTS ADDED/REUSED
+3. TOKENS ADDED/CHANGED
+4. PRIMARY BUTTON RESULT
+5. ORANGE USAGE BEFORE/AFTER
+6. GREEN USAGE BEFORE/AFTER
+7. DECORATIVE PASTEL BEFORE/AFTER
+8. BORDER REMOVE COUNT
+9. BORDER KEEP COUNT
+10. ICON BACKGROUND REMOVE COUNT
+11. HEADER BACKGROUND RESULT
+12. SETTINGS RESULT
+13. SCHEDULER RESULT
+14. LOGIN/SIGNUP RESULT
+15. ADMIN RESULT
+16. TEACHER RESULT
+17. PARENT RESULT
+18. X RESULT
+19. SUPER ADMIN RESULT
+20. FUNCTIONAL LOGIC CHANGED?
+21. NATIVE CHANGE?
+22. TEST RESULT
+23. COMMIT SHA
+24. OTA PUBLISHED?
+
+성공:
+
+A1_2_GLOBAL_DESIGN_SYSTEM_IMPLEMENTATION_COMPLETE ✅
+
+실패:
+
+A1_2_GLOBAL_DESIGN_SYSTEM_IMPLEMENTATION_BLOCKED ❌
+
+A1-2 PASS 전:
+
+A2_NORMAL_SWIMNOTE_AI_VISIBILITY_CLEANUP
+
+시작 금지.

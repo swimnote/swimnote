@@ -52,6 +52,7 @@
 - [WP15.5-A 완료](wp15-5a-done.md) — SHA cacf983e; docs/AD_ANALYTICS_FOUNDATION.md; 코드변경없음; Render/OTA 금지
 - [WP15.5-B 완료](wp15-5b-done.md) — SHA fc864a12; /super/analytics-overview+APP_SESSION hook+AnalyticsDashboard; 10TC+381TC; Render live; OTA 없음
 - [WP15.5-C 완료](wp15-5c-done.md) — SHA 0f8899a4; ad_creatives+CRUD+ParentAdBanner+AdCreativeManager; 10TC+391TC; Render live; OTA production 3316f6f1
+- [A1-2 Design System 완료](a1-2-design-system-done.md) — SHA e5bd3822; primaryAction navy 전수 교체, AppButton/NavigationListItem 신규, icon tiles 제거; OTA 5726e5b3/ee00bcb6
 - [GR3 완료 상태](wp-gr3-done-state.md) — SHA 53db8279; ENGINE client+snapshot+result+worker+route; 69TC+604TC; 미배포
 - [GR4 완료 상태](wp-gr4-done-state.md) — SHA 32655242; Parent Q&A API + Expo UI + 58TC; 662TC; 미배포
 - [GR5 완료 상태](wp-gr5-done-state.md) — SHA 3f8e10d8; Teacher Review+Approval; 56TC; 718TC; 미배포
