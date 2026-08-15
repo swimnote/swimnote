@@ -1385,6 +1385,12 @@ export async function initPoolDb(): Promise<void> {
   //
   // paid/manual entitlement 분리 + x_subscription_slots + swimming_pools 컬럼 4개.
   // 멱등성 보장. 기존 xmode_entitlement 수정 금지.
-  // ⚠️  프로덕션 실행 전 반드시 별도 승인 필요.
-  await initXPaymentSchema();
+  // ⚠️  non-FATAL: ALTER TABLE 쿼리가 Supabase statement_timeout(30s)에 걸릴 수 있음.
+  //    실패해도 서버 기동을 중단하지 않음. 다음 재시작에서 재시도 (IF NOT EXISTS 멱등성).
+  //    X02-B2 코드에서 새 컬럼 사용 전 반드시 migration 완료 확인 필요.
+  try {
+    await initXPaymentSchema();
+  } catch (err) {
+    console.error("[SWIMNOTE X PAYMENT] X02-B1 Migration 실패 — 서버 기동 계속 (다음 재시작에서 재시도):", (err as Error).message);
+  }
 }
