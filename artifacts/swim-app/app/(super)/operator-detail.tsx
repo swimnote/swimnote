@@ -132,6 +132,9 @@ export default function OperatorDetailScreen() {
   // X 사용권 수동 제어
   const [xmodeLoading, setXmodeLoading] = useState(false);
 
+  // X 설정 심사 승인
+  const [configLoading, setConfigLoading] = useState(false);
+
   const SENSITIVE_ACTIONS = ["approve", "reject", "restrict"];
 
   const load = useCallback(async (isRefresh = false) => {
@@ -193,6 +196,42 @@ export default function OperatorDetailScreen() {
     setAction(null);
     setReason("");
     setTimeout(() => { setProcessing(false); setFeedback(""); }, 3000);
+  }
+
+  async function doConfigStatusChange(nextStatus: "READY" | "CURRICULUM_PENDING") {
+    if (configLoading) return;
+    const isApprove = nextStatus === "READY";
+    const title   = isApprove ? "X MODE 설정을 승인할까요?" : "심사 상태로 되돌릴까요?";
+    const message = isApprove
+      ? "이 운영처의 X MODE 설정 상태를 READY로 변경합니다.\nX 사용권이 활성 상태라면 즉시 X MODE가 활성화됩니다."
+      : "설정 상태를 심사 중(CURRICULUM_PENDING)으로 되돌립니다.\nX MODE는 다시 심사 대기 상태가 됩니다.";
+    Alert.alert(title, message, [
+      { text: "취소", style: "cancel" },
+      {
+        text: isApprove ? "승인" : "확인",
+        onPress: async () => {
+          setConfigLoading(true);
+          try {
+            const res = await apiRequest(token, `/super/operators/${id}/xmode`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ xmode_config_status: nextStatus }),
+            });
+            const d = await res.json();
+            if (d.ok) {
+              await load(true);
+            } else {
+              Alert.alert("오류", "설정 상태 변경에 실패했습니다.\n잠시 후 다시 시도해주세요.");
+              console.warn("[xmode config]", id, res.status, d.error);
+            }
+          } catch (e: any) {
+            Alert.alert("오류", "설정 상태 변경에 실패했습니다.\n잠시 후 다시 시도해주세요.");
+            console.warn("[xmode config]", id, e?.message);
+          }
+          setConfigLoading(false);
+        },
+      },
+    ]);
   }
 
   async function doXmodeToggle(activate: boolean) {
@@ -473,7 +512,7 @@ export default function OperatorDetailScreen() {
                   const cfgMap: Record<string, { label: string; color: string; bg: string }> = {
                     NOT_CONFIGURED:     { label: "미설정",  color: "#64748B", bg: "#F1F5F9" },
                     CURRICULUM_PENDING: { label: "심사 중", color: "#D97706", bg: "#FFF1BF" },
-                    READY:              { label: "READY",   color: "#2EC4B6", bg: "#E6FAF8" },
+                    READY:              { label: "승인 완료", color: "#2EC4B6", bg: "#E6FAF8" },
                   };
                   const cfg = cfgMap[cs] ?? cfgMap.NOT_CONFIGURED;
                   return (
@@ -488,6 +527,66 @@ export default function OperatorDetailScreen() {
 
               <InfoRow label="구독 시작일" value={fmtDate(pool.xmode_purchased_at)} />
               <InfoRow label="구독 만료일" value={fmtDate(pool.xmode_subscription_end_at)} />
+            </View>
+
+            {/* X 설정 심사 */}
+            <View style={d.card}>
+              <Text style={d.cardTitle}>X 설정 심사</Text>
+              {(() => {
+                const cs: string = (pool.xmode_config_status as string) ?? "NOT_CONFIGURED";
+                const isReady = cs === "READY";
+                const canReview = cs === "CURRICULUM_PENDING";
+                return (
+                  <>
+                    {!isReady && (
+                      <>
+                        <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18, marginBottom: 14 }}>
+                          {"설정 심사를 통과한 운영처에 승인을 부여합니다.\n승인 시 X 사용권이 활성이면 즉시 X MODE가 시작됩니다."}
+                        </Text>
+                        <Pressable
+                          disabled={configLoading}
+                          onPress={() => doConfigStatusChange("READY")}
+                          style={{
+                            flexDirection: "row", alignItems: "center", justifyContent: "center",
+                            paddingVertical: 10, borderRadius: 10,
+                            backgroundColor: configLoading ? "#F1F5F9" : "#EDE9FE",
+                            borderWidth: 1, borderColor: configLoading ? "#E2E8F0" : "#7C3AED",
+                            opacity: configLoading ? 0.6 : 1,
+                          }}
+                        >
+                          {configLoading
+                            ? <ActivityIndicator size="small" color="#94A3B8" />
+                            : <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#7C3AED" }}>X 설정 승인</Text>
+                          }
+                        </Pressable>
+                      </>
+                    )}
+                    {isReady && (
+                      <>
+                        <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18, marginBottom: 14 }}>
+                          {"현재 승인 완료 상태입니다.\n설정을 재검토가 필요한 경우 심사 상태로 되돌릴 수 있습니다."}
+                        </Text>
+                        <Pressable
+                          disabled={configLoading}
+                          onPress={() => doConfigStatusChange("CURRICULUM_PENDING")}
+                          style={{
+                            flexDirection: "row", alignItems: "center", justifyContent: "center",
+                            paddingVertical: 10, borderRadius: 10,
+                            backgroundColor: configLoading ? "#F1F5F9" : "#FFF9EC",
+                            borderWidth: 1, borderColor: configLoading ? "#E2E8F0" : "#D97706",
+                            opacity: configLoading ? 0.6 : 1,
+                          }}
+                        >
+                          {configLoading
+                            ? <ActivityIndicator size="small" color="#94A3B8" />
+                            : <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#D97706" }}>심사 상태로 되돌리기</Text>
+                          }
+                        </Pressable>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </View>
 
             {/* X 사용권 수동 제어 */}
