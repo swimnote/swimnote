@@ -25,12 +25,13 @@ import {
   STATUS_COLORS,
 } from "@/hooks/useGrowthEvents";
 
-const C          = Colors.light;
-const MINT       = "#2EC4B6";
-const MINT_LIGHT = "#E6FAF8";
-const NAVY       = "#0F172A";
-const GREEN      = "#10B981";
-const RED        = "#EF4444";
+const C                = Colors.light;
+// X 전용 토큰 — A1 Theme Polish (Steel Blue)
+const X_ACCENT         = "#355C7D";
+const X_ACCENT_LIGHT   = "#E9EEF3";
+const NAVY             = "#0F172A";
+const GREEN            = "#10B981";
+const RED              = "#EF4444";
 
 interface Props {
   event:              GrowthEvent;
@@ -86,7 +87,7 @@ export function GrowthEventCard({
         </View>
 
         <View style={s.sourceChip}>
-          <LucideIcon name="zap" size={10} color={MINT} />
+          <LucideIcon name="zap" size={10} color={X_ACCENT} />
           <Text style={s.sourceTxt}>{sourceLabel}</Text>
         </View>
 
@@ -96,7 +97,7 @@ export function GrowthEventCard({
       {/* curriculum 정보 */}
       {event.curriculum_title ? (
         <View style={s.currRow}>
-          <LucideIcon name="book-open" size={13} color={MINT} />
+          <LucideIcon name="book-open" size={13} color={X_ACCENT} />
           <Text style={s.currTxt} numberOfLines={1}>{event.curriculum_title}</Text>
         </View>
       ) : null}
@@ -115,7 +116,7 @@ export function GrowthEventCard({
       {showBtns ? (
         <View style={s.reviewRow}>
           {isReviewing ? (
-            <ActivityIndicator size="small" color={MINT} style={{ marginVertical: 4 }} />
+            <ActivityIndicator size="small" color={X_ACCENT} style={{ marginVertical: 4 }} />
           ) : (
             <>
               <Pressable
@@ -176,7 +177,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-    backgroundColor: MINT_LIGHT,
+    backgroundColor: X_ACCENT_LIGHT,
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 2,

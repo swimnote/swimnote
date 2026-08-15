@@ -631,17 +631,17 @@ export default function DashboardScreen() {
                 borderRadius: 14,
                 padding: 14,
                 borderWidth: 1,
-                borderColor: "#E6FAF8",
+                borderColor: "#E9EEF3",
               }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center" }}>
-                    <LucideIcon name="trending-up" size={15} color="#2EC4B6" />
+                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: "#E9EEF3", alignItems: "center", justifyContent: "center" }}>
+                    <LucideIcon name="trending-up" size={15} color="#355C7D" />
                   </View>
-                  <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" }}>
+                  <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#23415C" }}>
                     SWIMNOTE X
                   </Text>
-                  <View style={{ backgroundColor: "#E6FAF8", borderRadius: 7, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#2EC4B6" }}>
-                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#0F172A" }}>
+                  <View style={{ backgroundColor: "#E9EEF3", borderRadius: 7, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#355C7D" }}>
+                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#23415C" }}>
                       {mode === "x" ? "활성" : "준비중"}
                     </Text>
                   </View>
@@ -650,14 +650,14 @@ export default function DashboardScreen() {
                   <Pressable
                     style={({ pressed }) => ({
                       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                      backgroundColor: "#E6FAF8", borderRadius: 10, padding: 12,
+                      backgroundColor: "#E9EEF3", borderRadius: 10, padding: 12,
                       opacity: pressed ? 0.75 : 1,
                     })}
                     onPress={() => router.push("/(admin)/x-growth" as any)}
                   >
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <LucideIcon name="bar-chart-2" size={15} color="#0F172A" />
-                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" }}>
+                      <LucideIcon name="bar-chart-2" size={15} color="#23415C" />
+                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#23415C" }}>
                         성장 추적 관리
                       </Text>
                     </View>
@@ -673,7 +673,7 @@ export default function DashboardScreen() {
                     })}
                     onPress={() => router.push("/(admin)/x-setup" as any)}
                   >
-                    <LucideIcon name="settings" size={13} color="#2EC4B6" />
+                    <LucideIcon name="settings" size={13} color="#355C7D" />
                     <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#475569", flex: 1 }}>
                       X 설정을 완료하면 이용할 수 있어요
                     </Text>

@@ -1827,19 +1827,19 @@ export default function ParentHomeScreen() {
           style={({ pressed }) => ({
             marginHorizontal: 20, marginBottom: 6,
             flexDirection: "row", alignItems: "center", gap: 10,
-            backgroundColor: mode === "x" ? "#E6FAF8" : "#F8FAFC",
+            backgroundColor: mode === "x" ? "#E9EEF3" : "#F8FAFC",
             borderRadius: 12, padding: 12,
-            borderWidth: 1, borderColor: mode === "x" ? "#2EC4B6" : "#E2E8F0",
+            borderWidth: 1, borderColor: mode === "x" ? "#355C7D" : "#E2E8F0",
             opacity: pressed && mode === "x" ? 0.75 : 1,
           })}
           onPress={() => mode === "x" && router.push("/(parent)/x-growth" as any)}
           disabled={mode !== "x"}
         >
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: mode === "x" ? "#fff" : "#F1F5F9", alignItems: "center", justifyContent: "center" }}>
-            <LucideIcon name="activity" size={17} color={mode === "x" ? "#2EC4B6" : "#94A3B8"} />
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: mode === "x" ? "#E9EEF3" : "#F1F5F9", alignItems: "center", justifyContent: "center" }}>
+            <LucideIcon name="activity" size={17} color={mode === "x" ? "#355C7D" : "#94A3B8"} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: mode === "x" ? "#0F172A" : "#94A3B8" }}>
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: mode === "x" ? "#23415C" : "#94A3B8" }}>
               {mode === "x" ? "성장 리포트 보기" : "X 설정 완료 후 이용 가능"}
             </Text>
             <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: mode === "x" ? "#64748B" : "#94A3B8", marginTop: 1 }}>

@@ -33,9 +33,10 @@ import { useGrowthEvents, type GrowthEvent } from "@/hooks/useGrowthEvents";
 import Colors from "@/constants/colors";
 
 const C    = Colors.light;
-const MINT = "#2EC4B6";
-const NAVY = "#0F172A";
-const MINT_LIGHT = "#E6FAF8";
+// X 전용 토큰 — A1 Theme Polish (Steel Blue)
+const MINT      = "#355C7D";   // xAccent
+const NAVY      = "#23415C";   // xAccentStrong
+const MINT_LIGHT = "#E9EEF3";  // xAccentLight
 
 interface Student { id: string; name: string; class_group_id: string | null; }
 

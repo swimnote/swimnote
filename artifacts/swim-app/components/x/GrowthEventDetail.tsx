@@ -31,12 +31,13 @@ import {
   STATUS_COLORS,
 } from "@/hooks/useGrowthEvents";
 
-const C          = Colors.light;
-const MINT       = "#2EC4B6";
-const MINT_LIGHT = "#E6FAF8";
-const NAVY       = "#0F172A";
-const GREEN      = "#10B981";
-const RED        = "#EF4444";
+const C                = Colors.light;
+// X 전용 토큰 — A1 Theme Polish (Steel Blue)
+const MINT             = "#355C7D";   // xAccent
+const MINT_LIGHT       = "#E9EEF3";   // xAccentLight
+const NAVY             = "#23415C";   // xAccentStrong
+const GREEN            = "#10B981";
+const RED              = "#EF4444";
 
 interface Props {
   visible:          boolean;

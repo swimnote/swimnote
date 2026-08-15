@@ -16,9 +16,10 @@ import { XModeGuard } from "@/components/common/XModeGuard";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
-const MINT       = "#2EC4B6";
-const MINT_LIGHT = "#E6FAF8";
-const NAVY       = "#0F172A";
+// X 전용 토큰 — A1 Theme Polish (Steel Blue)
+const MINT       = "#355C7D";   // xAccent
+const MINT_LIGHT = "#E9EEF3";   // xAccentLight
+const NAVY       = "#23415C";   // xAccentStrong
 
 const FEATURES = [
   { icon: "activity",       label: "실시간 성장판",         sub: "자녀의 수영 항목별 달성 현황" },

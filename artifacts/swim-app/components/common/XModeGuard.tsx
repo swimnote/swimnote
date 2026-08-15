@@ -40,11 +40,14 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
-const MINT       = "#2EC4B6";
-const MINT_LIGHT = "#E6FAF8";
-const NAVY       = "#0F172A";
-const ORANGE     = "#F59E0B";
-const ORANGE_LIGHT = "#FEF3C7";
+// X 전용 토큰 — A1 Theme Polish (Steel Blue / Muted Gold)
+const X_ACCENT        = "#355C7D";
+const X_ACCENT_LIGHT  = "#E9EEF3";
+const X_ACCENT_STRONG = "#23415C";
+const X_PENDING       = "#B7791F";
+const X_PENDING_LIGHT = "#F8EED8";
+// 레거시 alias (non-X 용도 — ActivityIndicator 등)
+const NAVY = "#0F172A";
 
 // ── 역할별 홈 경로 ─────────────────────────────────────────────────────────
 function _getRoleHome(kind: string | null, role?: string): string {
@@ -140,8 +143,8 @@ function XModeLockUI({ reason, isPoolAdmin, errorCode, onRetry, onBack }: XModeL
       case "not_configured":
         return {
           icon: "settings",
-          iconColor: MINT,
-          iconBg: MINT_LIGHT,
+          iconColor: X_ACCENT,
+          iconBg: X_ACCENT_LIGHT,
           title: "X Mode 설정이 필요해요",
           desc: "X Mode를 시작하려면 먼저 설정을 완료해 주세요.\n커리큘럼 설정 후 이 기능을 사용할 수 있어요.",
           primaryBtn: poolAdmin
@@ -156,8 +159,8 @@ function XModeLockUI({ reason, isPoolAdmin, errorCode, onRetry, onBack }: XModeL
       case "curriculum_pending":
         return {
           icon: "clock",
-          iconColor: ORANGE,
-          iconBg: ORANGE_LIGHT,
+          iconColor: X_PENDING,
+          iconBg: X_PENDING_LIGHT,
           title: "커리큘럼 검토 중이에요",
           desc: "X Mode 커리큘럼이 검토 중입니다.\n검토 완료 후 자동으로 활성화되니 조금만 기다려 주세요.",
           primaryBtn: null,
@@ -234,7 +237,7 @@ export function XModeGuard({ children, allowedKind, allowedRole }: XModeGuardPro
   if (isLoading) {
     return (
       <View style={s.center}>
-        <ActivityIndicator size="large" color={MINT} />
+        <ActivityIndicator size="large" color={X_ACCENT} />
       </View>
     );
   }
@@ -246,7 +249,7 @@ export function XModeGuard({ children, allowedKind, allowedRole }: XModeGuardPro
   if (!modeSettled) {
     return (
       <View style={s.center}>
-        <ActivityIndicator size="large" color={MINT} />
+        <ActivityIndicator size="large" color={X_ACCENT} />
       </View>
     );
   }
@@ -334,17 +337,17 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   xBadge: {
-    backgroundColor: MINT_LIGHT,
+    backgroundColor: X_ACCENT_LIGHT,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: MINT,
+    borderColor: X_ACCENT,
   },
   xBadgeTxt: {
     fontSize: 11,
     fontFamily: "Pretendard-SemiBold",
-    color: NAVY,
+    color: X_ACCENT_STRONG,
   },
   lockTitle: {
     fontSize: 18,
@@ -361,7 +364,7 @@ const s = StyleSheet.create({
     lineHeight: 22,
   },
   primaryBtn: {
-    backgroundColor: MINT,
+    backgroundColor: X_ACCENT,
     borderRadius: 12,
     paddingVertical: 13,
     paddingHorizontal: 28,

@@ -1,16 +1,16 @@
 /**
- * XModeBadge — SWIMNOTE X 모드 상태 뱃지 (WP4)
+ * XModeBadge — SWIMNOTE X 모드 상태 뱃지 (WP4 / A1 Theme Polish)
  *
  * 사용법:
  *   <XModeBadge />                  // mode를 ModeContext에서 자동 읽음
  *   <XModeBadge size="medium" />    // 약간 더 크게
  *
  * 렌더 조건:
- *   mode === "x"         → mintLight 배경 + navy 텍스트 "SWIMNOTE X" pill
- *   mode === "x_pending" → 회색 배경 + 회색 텍스트 "X 준비중" pill
+ *   mode === "x"         → Steel Blue (xAccentLight) 배경 + xAccent 테두리 "SWIMNOTE X" pill
+ *   mode === "x_pending" → Muted Gold (xPendingLight) 배경 + xPending 테두리 "X 준비중" pill
  *   그 외 / null / 로딩   → null (기존 UI 변화 없음)
  *
- * 색상: 기존 디자인 토큰(mint #2EC4B6, mintLight #E6FAF8, navy #0F172A) 재사용
+ * A1: X 전용 Steel Blue 토큰 적용 (mint #2EC4B6와 구별)
  * 헌법 6조: 기존 일반모드 UI 변경 없음
  */
 
@@ -22,9 +22,12 @@ interface XModeBadgeProps {
   size?: "small" | "medium";
 }
 
-const MINT        = "#2EC4B6";
-const MINT_LIGHT  = "#E6FAF8";
-const NAVY        = "#0F172A";
+// X 전용 토큰 — theme/colors.ts xAccent/xPending 계열
+const X_ACCENT        = "#355C7D";
+const X_ACCENT_LIGHT  = "#E9EEF3";
+const X_ACCENT_STRONG = "#23415C";
+const X_PENDING       = "#B7791F";
+const X_PENDING_LIGHT = "#F8EED8";
 
 export function XModeBadge({ size = "small" }: XModeBadgeProps) {
   const { mode } = useMode();
@@ -35,12 +38,12 @@ export function XModeBadge({ size = "small" }: XModeBadgeProps) {
         style={{
           flexDirection: "row",
           alignItems: "center",
-          backgroundColor: MINT_LIGHT,
+          backgroundColor: X_ACCENT_LIGHT,
           borderRadius: size === "medium" ? 10 : 8,
           paddingHorizontal: size === "medium" ? 8 : 6,
           paddingVertical: size === "medium" ? 3 : 2,
           borderWidth: 1,
-          borderColor: MINT,
+          borderColor: X_ACCENT,
           flexShrink: 0,
         }}
       >
@@ -48,7 +51,7 @@ export function XModeBadge({ size = "small" }: XModeBadgeProps) {
           style={{
             fontSize: size === "medium" ? 11 : 10,
             fontFamily: "Pretendard-SemiBold",
-            color: NAVY,
+            color: X_ACCENT_STRONG,
             letterSpacing: 0.2,
           }}
         >
@@ -64,10 +67,12 @@ export function XModeBadge({ size = "small" }: XModeBadgeProps) {
         style={{
           flexDirection: "row",
           alignItems: "center",
-          backgroundColor: "#F1F5F9",
+          backgroundColor: X_PENDING_LIGHT,
           borderRadius: size === "medium" ? 10 : 8,
           paddingHorizontal: size === "medium" ? 8 : 6,
           paddingVertical: size === "medium" ? 3 : 2,
+          borderWidth: 1,
+          borderColor: X_PENDING,
           flexShrink: 0,
         }}
       >
@@ -75,7 +80,7 @@ export function XModeBadge({ size = "small" }: XModeBadgeProps) {
           style={{
             fontSize: size === "medium" ? 11 : 10,
             fontFamily: "Pretendard-Regular",
-            color: "#94A3B8",
+            color: X_PENDING,
           }}
         >
           X 준비중

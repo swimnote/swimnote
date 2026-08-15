@@ -112,6 +112,17 @@ const light = {
 
   // ── 그림자 ────────────────────────────────────────────────────────
   shadow: "rgba(0,0,0,0.06)",
+
+  // ── SWIMNOTE X 전용 토큰 ──────────────────────────────────────────
+  // Blue Black / Charcoal Navy / Steel Blue — Premium Layer
+  xBase:         "#111827",
+  xSurface:      "#1B2433",
+  xAccent:       "#355C7D",
+  xAccentStrong: "#23415C",
+  xAccentLight:  "#E9EEF3",
+  // X Pending — Muted Gold / Amber
+  xPending:      "#B7791F",
+  xPendingLight: "#F8EED8",
 } as const;
 
 const Colors = {

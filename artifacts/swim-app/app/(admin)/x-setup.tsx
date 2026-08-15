@@ -26,10 +26,11 @@ import { useMode } from "@/context/ModeContext";
 import { useAuth, API_BASE } from "@/context/AuthContext";
 import Colors from "@/constants/colors";
 
-const C       = Colors.light;
-const MINT       = "#2EC4B6";
-const MINT_LIGHT = "#E6FAF8";
-const NAVY       = "#0F172A";
+const C = Colors.light;
+// X 전용 토큰 — A1 Theme Polish (Steel Blue)
+const MINT       = "#355C7D";   // xAccent
+const MINT_LIGHT = "#E9EEF3";   // xAccentLight
+const NAVY       = "#23415C";   // xAccentStrong
 const SLATE      = "#64748B";
 const SLATE_LIGHT = "#F8FAFC";
 const BORDER     = "#E2E8F0";

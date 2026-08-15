@@ -450,20 +450,20 @@ export default function TodayScheduleScreen() {
           <Pressable
             style={({ pressed }) => ({
               flexDirection: "row", alignItems: "center", gap: 8,
-              backgroundColor: mode === "x" ? "#E6FAF8" : "#F8FAFC",
+              backgroundColor: mode === "x" ? "#E9EEF3" : "#F8FAFC",
               borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
-              borderWidth: 1, borderColor: mode === "x" ? "#2EC4B6" : "#E2E8F0",
+              borderWidth: 1, borderColor: mode === "x" ? "#355C7D" : "#E2E8F0",
               opacity: pressed && mode === "x" ? 0.75 : 1,
             })}
             onPress={() => mode === "x" && router.push("/(teacher)/x-growth" as any)}
             disabled={mode !== "x"}
           >
-            <LucideIcon name="trending-up" size={14} color={mode === "x" ? "#2EC4B6" : "#94A3B8"} />
-            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: mode === "x" ? "#0F172A" : "#94A3B8", flex: 1 }}>
+            <LucideIcon name="trending-up" size={14} color={mode === "x" ? "#355C7D" : "#94A3B8"} />
+            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: mode === "x" ? "#23415C" : "#94A3B8", flex: 1 }}>
               {mode === "x" ? "성장 추적 →" : "X 설정 완료 후 이용 가능"}
             </Text>
-            <View style={{ backgroundColor: mode === "x" ? "#fff" : "#E2E8F0", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, borderWidth: 1, borderColor: mode === "x" ? "#2EC4B6" : "#CBD5E1" }}>
-              <Text style={{ fontSize: 9, fontFamily: "Pretendard-SemiBold", color: mode === "x" ? "#0F172A" : "#94A3B8" }}>
+            <View style={{ backgroundColor: mode === "x" ? "#E9EEF3" : "#E2E8F0", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, borderWidth: 1, borderColor: mode === "x" ? "#355C7D" : "#CBD5E1" }}>
+              <Text style={{ fontSize: 9, fontFamily: "Pretendard-SemiBold", color: mode === "x" ? "#23415C" : "#94A3B8" }}>
                 SWIMNOTE X
               </Text>
             </View>
