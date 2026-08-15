@@ -1,0 +1,566 @@
+[SWIMNOTE RELEASE MASTER WORK ORDER]
+[남은 작업 순서 고정 — 임의 순서 변경 금지]
+
+목적:
+
+현재 SWIMNOTE 1.6.3 / iOS build 246 TestFlight를 기준으로
+출시 마감 작업과 OpenAI Partner 증빙 준비 작업의 순서를 고정한다.
+
+이 문서는 앞으로 남은 작업의 MASTER ORDER다.
+
+중요:
+
+- 아래 순서를 임의로 변경하지 말 것.
+- 현재 WP가 검증 완료되기 전에 다음 WP 시작 금지.
+- 이미 완료된 Production DB / AI ENGINE / APP API / Worker 구조를
+  이유 없이 재감사하거나 재구축하지 말 것.
+- 기능 수정이 OTA 가능한 경우 iOS build 246 / runtime 1.6.3을 유지한다.
+- native dependency/config 변경이 필요한 경우에만 새 native build 필요 여부를 보고한다.
+- Android는 iOS 앱 마감 완료 후 진행한다.
+- OpenAI Partner Analytics는 앱 마감 작업 이후 진행한다.
+
+==================================================
+CURRENT BASELINE
+==================================================
+
+현재 기준:
+
+APP:
+version 1.6.3
+
+iOS:
+build 246
+TestFlight
+
+Android:
+versionCode 236
+아직 신규 build 전
+
+runtimeVersion:
+appVersion policy
+→ 1.6.3
+
+Production API:
+https://swimnote.kr/api
+
+AI ENGINE:
+https://swimnote.ai.kr
+
+X MODE:
+entitlement + config READY 기반 canonical mode 유지
+
+현재 완료된 주요 Production 작업:
+
+- Growth Report DB GR1 / GR3 / GR5
+- Parent Curriculum Group 6 / 7 / 8
+- Parent Curriculum ENGINE
+- Growth Report ENGINE
+- APP → ENGINE JWT auth
+- APP API Production
+- Worker Production
+- X entitlement manual control
+- X config approval
+- iOS TestFlight build 246
+
+이 완료 영역은 필요한 regression 외 재구축 금지.
+
+==================================================
+PHASE A — APP / X MODE RELEASE POLISH
+==================================================
+
+순서 고정:
+
+A1. THEME POLISH
+A2. NORMAL SWIMNOTE AI VISIBILITY CLEANUP
+A3. ONBOARDING CLEANUP
+A4. MODAL / ALERT / SHEET CLEANUP
+A5. X MODE ADMIN CONTROL FINAL CHECK
+A6. iOS FULL DEVICE REGRESSION
+
+--------------------------------------------------
+A1. THEME POLISH
+--------------------------------------------------
+
+일반 SWIMNOTE와 SWIMNOTE X의
+visual rule을 최종 정리한다.
+
+목표:
+
+- 현재 layout/기능 구조 유지
+- 일반 SWIMNOTE 디자인 일관성
+- X MODE accent 일관성
+- 버튼/카드/탭/상태 badge 색상 규칙 통일
+- X 관련 요소만 X identity를 명확히 표현
+- 성공/정상 상태와 X accent 색상을 혼동하지 않음
+- 작은 iPhone 포함 실제 기기 기준 확인
+
+기능 로직 변경 금지.
+
+완료 후 별도 검증.
+
+A1 통과 전 A2 시작 금지.
+
+--------------------------------------------------
+A2. NORMAL SWIMNOTE AI VISIBILITY CLEANUP
+--------------------------------------------------
+
+목표:
+
+일반 SWIMNOTE에서
+X 전용 AI 기능의 사용자 노출을 제거/잠근다.
+
+중요:
+
+AI 코드/ENGINE 삭제 금지.
+
+노출 정책만 정리.
+
+canonical mode:
+
+normal
+x_pending
+x
+
+를 사용.
+
+normal:
+X 전용 AI 진입점 숨김
+
+x_pending:
+승인/설정 대기 정책에 맞는 안내만 노출
+
+x:
+정상 AI 기능 노출
+
+Teacher / Parent / Owner 각각
+실제 현재 AI entrypoint를 전수 확인한다.
+
+완료 후 별도 검증.
+
+A2 통과 전 A3 시작 금지.
+
+--------------------------------------------------
+A3. ONBOARDING CLEANUP
+--------------------------------------------------
+
+현재 onboarding / guide / empty-state를 전수 정리.
+
+대상 예:
+
+- 최초 로그인
+- 운영처 생성/초기 설정
+- 학생 등록
+- 선생님 초대
+- 학부모 연결
+- 수업 설정
+- X MODE 시작
+- X setup
+- AI 기능 첫 사용
+- 빈 목록 안내
+- 시작 가이드
+
+원칙:
+
+- 실제 해야 할 행동만 안내
+- 이미 완료된 항목은 반복 노출 최소화
+- 불필요한 개발 안내 문구 제거
+- 사용자가 닫은 안내의 재노출 정책 명확화
+- normal / x_pending / x 상태에 맞는 onboarding 제공
+
+완료 후 별도 검증.
+
+A3 통과 전 A4 시작 금지.
+
+--------------------------------------------------
+A4. MODAL / ALERT / SHEET CLEANUP
+--------------------------------------------------
+
+앱 전체 modal / alert / bottom sheet / overlay 전수 점검.
+
+검사:
+
+- 크기
+- safe area
+- keyboard avoidance
+- scroll
+- 작은 화면
+- 버튼 겹침
+- 반투명 배경
+- close 동작
+- back 동작
+- loading
+- double tap
+- confirm/cancel
+- destructive action
+- 텍스트 overflow
+
+기존 기능 contract 변경 금지.
+
+완료 후 별도 검증.
+
+A4 통과 전 A5 시작 금지.
+
+--------------------------------------------------
+A5. X MODE ADMIN CONTROL FINAL CHECK
+--------------------------------------------------
+
+Super Admin에서 최종 확인:
+
+1. X entitlement 활성/비활성
+2. X config 승인/심사
+3. entitlement/config 분리
+4. x_pending
+5. x
+6. normal 복귀
+7. 데이터 삭제 없음
+8. audit 기록
+9. RevenueCat과 수동 entitlement 혼동 없음
+
+새 기능이 필요하지 않으면
+검증만 하고 종료.
+
+--------------------------------------------------
+A6. iOS FULL DEVICE REGRESSION
+--------------------------------------------------
+
+TestFlight build 246 + 최신 runtime 1.6.3 OTA 기준.
+
+실기기에서 최소 확인:
+
+- 로그인
+- 운영자
+- 선생님
+- 학부모
+- 회원
+- 학생
+- 수업
+- 출결
+- 일지
+- 사진/앨범
+- 공지
+- 알림
+- 보강
+- X MODE
+- X setup
+- Parent Curriculum Chat
+- Growth Report
+- Teacher Review
+- Parent Report View
+- PDF
+- 공유
+- Super Admin
+
+Critical bug 0이어야 Phase A 종료.
+
+==================================================
+PHASE B — OPENAI PARTNER ANALYTICS
+==================================================
+
+앱 마감 완료 후에만 시작.
+
+순서:
+
+B0. WP-PARTNER-00 Repository Audit
+B1. Analytics Telemetry Foundation
+B2. Super Admin AI Analytics
+B3. Real Usage Verification
+B4. Partner Core Metrics Finalization
+B5. Partner Evidence Package
+
+--------------------------------------------------
+B0. WP-PARTNER-00
+--------------------------------------------------
+
+이미 제공된:
+
+[SWIMNOTE X / OPENAI PARTNER]
+[WP-PARTNER-00 — AI ANALYTICS REPOSITORY AUDIT ONLY]
+
+지시문을 그대로 수행.
+
+중요:
+
+B0에서는 구현 금지.
+
+조사 대상:
+
+audit_logs
+trace
+AI request meta
+token usage
+diary save
+generation_mode
+grounding
+validation
+Super Admin
+
+결과:
+
+[신규 생성 필요]
+[기존 구조 재사용 가능]
+[수정 파일]
+[DB migration]
+[API]
+[UI]
+[테스트]
+
+확정.
+
+--------------------------------------------------
+B1. ANALYTICS TELEMETRY FOUNDATION
+--------------------------------------------------
+
+B0 승인 후에만 상세 WP 작성.
+
+목표:
+
+실제 AI 사용을 자동 계측.
+
+후보 지표:
+
+- request
+- success/failure
+- unique actor
+- pool
+- feature
+- generation mode
+- grounding
+- knowledge search
+- latency
+- token
+- estimated cost
+- diary generation/save
+- regeneration
+- edit ratio
+
+개인정보 원문 저장 금지.
+
+request_id/trace_id 기반 중복 차단.
+
+AI 결과 자체 변경 금지.
+
+--------------------------------------------------
+B2. SUPER ADMIN AI ANALYTICS
+--------------------------------------------------
+
+상위 메뉴:
+
+AI Analytics
+
+탭:
+
+Overview
+Usage
+Grounding
+Adoption
+Performance
+Reliability
+Cost
+Pools
+Export
+
+Partner Core Metrics 18개를
+가능한 범위에서 실제 데이터로 표시.
+
+가짜/추정 KPI 금지.
+
+--------------------------------------------------
+B3. REAL USAGE VERIFICATION
+--------------------------------------------------
+
+Telemetry 구현 후:
+
+실제 AI 일지 5~10건을 사용.
+
+각 요청을:
+
+원 요청
+DB event
+Super Admin KPI
+
+와 수동 대조.
+
+검증:
+
++1 여부
+중복 없음
+save 여부
+grounding
+latency
+token/cost
+
+모두 일치해야 함.
+
+--------------------------------------------------
+B4. PARTNER CORE METRICS
+--------------------------------------------------
+
+최종 Core Metrics:
+
+1 TOTAL AI REQUESTS
+2 UNIQUE AI USERS
+3 ACTIVE AI POOLS
+4 AI SUCCESS RATE
+5 SAVED AI DIARIES
+6 AI DIARY SAVE RATE
+7 REPEAT AI USER RATE
+8 GROUNDED RATE
+9 GROUNDING VALIDATION PASS RATE
+10 KNOWLEDGE SEARCH SUCCESS RATE
+11 AVG AI RESPONSE TIME
+12 P95 AI RESPONSE TIME
+13 ERROR RATE
+14 TOTAL OPENAI TOKEN USAGE
+15 ESTIMATED OPENAI COST
+16 AI COST PER REQUEST
+17 MINIMAL EDIT ACCEPTANCE RATE
+18 AVG EDIT RATIO
+
+underlying signal이 없는 항목은
+데이터 없음으로 유지.
+
+가짜 숫자 생성 금지.
+
+--------------------------------------------------
+B5. PARTNER EVIDENCE PACKAGE
+--------------------------------------------------
+
+실제 데이터가 확보된 뒤 진행.
+
+내용:
+
+- Product architecture
+- OpenAI integration
+- SWIMNOTE AI ENGINE
+- Grounding / verification architecture
+- 실제 운영 사용 증빙
+- Partner Core Metrics
+- Safety / privacy / data flow
+- 실사용 screenshots
+- 영어 설명
+- 기술 구조도
+- Demo flow
+- Pilot/customer evidence
+
+실제 증빙만 사용.
+
+==================================================
+PHASE C — ANDROID
+==================================================
+
+Partner Analytics까지 반드시 끝내야만 Android를
+빌드한다는 의미는 아니다.
+
+단 기본 원칙:
+
+Phase A 앱 마감이 끝나기 전
+Android build 금지.
+
+Android release target:
+
+version = 1.6.3
+versionCode = 236
+
+실제 build 직전
+Google Play Console의 사용된 versionCode를 다시 확인.
+
+이미 236이 사용됐다면 자동 진행 금지하고 보고.
+
+순서:
+
+C1 Android preflight
+C2 Android production build
+C3 internal/closed test
+C4 Android device regression
+
+==================================================
+PHASE D — FINAL STORE RELEASE
+==================================================
+
+iOS + Android 둘 다 실기기 검증 후.
+
+D1. iOS final regression
+D2. Android final regression
+D3. release notes / screenshots / metadata
+D4. App Store submission
+D5. Google Play submission
+
+정식 출시 전에:
+
+critical regression = 0
+
+확인.
+
+==================================================
+GLOBAL RULES
+==================================================
+
+1. 한 번에 현재 WP 하나만 수행.
+
+2. 각 WP 종료 시:
+PASS / BLOCKED
+먼저 보고.
+
+3. PASS 전 다음 WP 시작 금지.
+
+4. Production write가 필요한 작업은
+명시적 승인 없이 실행 금지.
+
+5. destructive DB operation 금지.
+
+6. force push / rebase / reset 금지.
+
+7. 이미 검증된 영역 반복 감사 금지.
+
+8. AI Prompt / Knowledge / 판단 로직은
+Analytics 작업 때문에 변경 금지.
+
+9. 일반 SWIMNOTE AI 제외는
+AI 기능 삭제가 아니라 visibility/access policy 변경.
+
+10. iOS build 246에서 가능한 JS/UI 수정은
+runtime 1.6.3 OTA를 우선 사용.
+
+11. native dependency/config 변경 시
+새 build 필요 여부를 먼저 보고.
+
+12. TestFlight 검증이 끝나기 전
+App Store 정식 release 금지.
+
+13. Android 검증 전
+Google Play 정식 release 금지.
+
+14. OpenAI Partner용 숫자는
+실제 telemetry/DB 근거 없이 생성 금지.
+
+==================================================
+CURRENT NEXT TASK
+==================================================
+
+현재 다음 작업은:
+
+PHASE A
+A1 — THEME POLISH
+
+다른 작업 시작 금지.
+
+A1 구현 전에 먼저 현재 테마 구조를 짧게 audit하고:
+
+- theme constants
+- shared components
+- normal mode colors
+- X mode colors
+- duplicate hardcoded colors
+- 수정 대상 화면
+
+만 보고한다.
+
+내 승인 후 A1 구현 시작.
+
+최종 응답:
+
+SWIMNOTE_MASTER_WORK_ORDER_REGISTERED ✅
+
+그리고:
+
+CURRENT_TASK = A1_THEME_POLISH
