@@ -63,3 +63,4 @@
 - [Production DB 연결 방법](prod-db-connection-method.md) — executeSql=NeonDB(Replit내장); 실제운영DB=SUPABASE_DATABASE_URL; /tmp tsx스크립트+buildConfig+pg Pool로 직접 연결
 - [GR1 Production 적용 완료](gr1-prod-applied.md) — 2026-08-14; Supabase postgres; 5 ENUMs+3 tables+24 cols+11 indexes; rows=0; GR3/GR5도 같은 날 완료
 - [GR3/GR5 Production 적용 완료](gr35-prod-applied.md) — 2026-08-14; GR3: analysis_retry_count(int NOT NULL DEFAULT 0); GR5: teacher_review_action/reason_code/note(text nullable)+teacher_reanalysis_count(int NOT NULL DEFAULT 0); 다음: Render deploy
+- [A2 Normal AI Visibility Cleanup 완료](a2-visibility-done.md) — SHA 89cfde6a; 4파일(parent home/curriculum-chat/growth-report-detail/teacher diary); OTA production f90628fe; 다음: A3_ONBOARDING_CLEANUP
