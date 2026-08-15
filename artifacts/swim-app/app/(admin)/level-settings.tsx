@@ -121,7 +121,7 @@ export default function LevelSettingsScreen() {
         title="레벨 설정"
         rightSlot={
           <Pressable
-            style={[s.saveBtn, { backgroundColor: changed ? C.tint : C.border }]}
+            style={[s.saveBtn, { backgroundColor: changed ? C.primaryAction : C.border }]}
             onPress={save}
             disabled={saving || !changed}
           >

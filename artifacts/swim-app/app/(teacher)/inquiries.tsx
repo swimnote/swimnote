@@ -222,7 +222,7 @@ export default function TeacherInquiriesScreen() {
               maxLength={1000}
             />
             <TouchableOpacity
-              style={[s.sendBtn, { backgroundColor: input.trim() ? C.tint : C.border }]}
+              style={[s.sendBtn, { backgroundColor: input.trim() ? C.primaryAction : C.border }]}
               onPress={sendReply}
               disabled={!input.trim() || sending}
             >
@@ -322,7 +322,7 @@ export default function TeacherInquiriesScreen() {
                 textAlignVertical="top"
               />
               <Pressable
-                style={[s.submitBtn, { backgroundColor: newTitle.trim() && newContent.trim() ? C.tint : C.border, marginTop: 16 }]}
+                style={[s.submitBtn, { backgroundColor: newTitle.trim() && newContent.trim() ? C.primaryAction : C.border, marginTop: 16 }]}
                 onPress={submitNewInquiry}
                 disabled={!newTitle.trim() || !newContent.trim() || submitting}
               >

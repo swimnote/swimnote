@@ -130,7 +130,7 @@ export default function TeacherActivateScreen() {
         </View>
 
         <Pressable
-          style={({ pressed }) => [styles.btn, { backgroundColor: C.button, opacity: pressed || loading ? 0.85 : 1 }]}
+          style={({ pressed }) => [styles.btn, { backgroundColor: C.primaryAction, opacity: pressed || loading ? 0.85 : 1 }]}
           onPress={handleActivate} disabled={loading}
         >
           {loading ? <ActivityIndicator color="#fff" size="small" /> : (

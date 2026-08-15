@@ -567,7 +567,7 @@ const s = StyleSheet.create({
   centerBox:  { alignItems: "center", justifyContent: "center", gap: 12, paddingTop: 48 },
   emptyText:  { fontSize: 15, color: C.textSecondary, fontFamily: "Pretendard-Regular" },
   errorText:  { fontSize: 15, color: C.textSecondary, fontFamily: "Pretendard-Regular" },
-  retryBtn:   { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: C.tint },
+  retryBtn:   { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: C.primaryAction },
   retryBtnText:{ fontSize: 14, color: "#fff", fontFamily: "Pretendard-Regular" },
 
   // 하단 버튼
@@ -581,13 +581,13 @@ const s = StyleSheet.create({
   saveBtn: {
     flex: 1, height: 50, borderRadius: 14,
     alignItems: "center", justifyContent: "center",
-    borderWidth: 1.5, borderColor: C.tint, backgroundColor: C.background,
+    borderWidth: 1.5, borderColor: C.border, backgroundColor: C.background,
   },
-  saveBtnText:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.tint },
+  saveBtnText:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   completeBtn: {
     flex: 1, height: 50, borderRadius: 14,
     alignItems: "center", justifyContent: "center",
-    backgroundColor: C.tint,
+    backgroundColor: C.primaryAction,
   },
   completeBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
   btnDisabled: { opacity: 0.5 },

@@ -33,7 +33,7 @@ function DoneAutoRedirect({ linkedNames, poolName }: { linkedNames: string[]; po
       </Text>
       <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted }}>{countdown}초 후 홈으로 이동합니다</Text>
       <Pressable
-        style={[st.submitBtn, { backgroundColor: C.button, alignSelf: "stretch", marginHorizontal: 32 }]}
+        style={[st.submitBtn, { backgroundColor: C.primaryAction, alignSelf: "stretch", marginHorizontal: 32 }]}
         onPress={() => router.replace("/(parent)/home" as any)}
       >
         <Text style={st.submitTxt}>지금 홈으로 이동</Text>
@@ -212,7 +212,7 @@ export default function LinkChildScreen() {
             />
             {searching
               ? <ActivityIndicator size="small" color={C.tint} />
-              : <Pressable onPress={searchPools} style={[st.searchBtn, { backgroundColor: C.button }]}>
+              : <Pressable onPress={searchPools} style={[st.searchBtn, { backgroundColor: C.primaryAction }]}>
                   <Text style={st.searchBtnTxt}>검색</Text>
                 </Pressable>
             }
@@ -356,7 +356,7 @@ export default function LinkChildScreen() {
           </View>
 
           <Pressable
-            style={[st.submitBtn, { backgroundColor: C.button, opacity: submitting ? 0.7 : 1 }]}
+            style={[st.submitBtn, { backgroundColor: C.primaryAction, opacity: submitting ? 0.7 : 1 }]}
             onPress={handleLink}
             disabled={submitting}
           >
@@ -434,7 +434,7 @@ export default function LinkChildScreen() {
           </Pressable>
 
           <Pressable
-            style={({ pressed }) => [st.submitBtn, { backgroundColor: C.button, alignSelf: "stretch", opacity: pressed ? 0.8 : 1 }]}
+            style={({ pressed }) => [st.submitBtn, { backgroundColor: C.primaryAction, alignSelf: "stretch", opacity: pressed ? 0.8 : 1 }]}
             onPress={() => router.replace("/(parent)/home" as any)}
           >
             <Text style={st.submitTxt}>홈으로 이동</Text>

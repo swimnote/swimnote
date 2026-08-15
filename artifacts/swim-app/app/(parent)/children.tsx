@@ -99,7 +99,7 @@ export default function ChildrenScreen() {
               가입 시 입력한 전화번호로{"\n"}자동 연결됩니다
             </Text>
             <Pressable
-              style={[s.retryBtn, { backgroundColor: C.tint }]}
+              style={[s.retryBtn, { backgroundColor: C.primaryAction }]}
               onPress={onRefresh}
               disabled={linking}
             >

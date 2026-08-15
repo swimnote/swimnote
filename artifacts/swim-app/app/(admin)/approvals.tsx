@@ -668,7 +668,7 @@ function ParentPendingCard({
             </Pressable>
           )}
           <Pressable
-            style={[pc.approveBtn, { backgroundColor: C.tint, flex: isPending ? 2 : 1 }]}
+            style={[pc.approveBtn, { backgroundColor: C.primaryAction, flex: isPending ? 2 : 1 }]}
             onPress={onApprove}
             disabled={processing}
           >

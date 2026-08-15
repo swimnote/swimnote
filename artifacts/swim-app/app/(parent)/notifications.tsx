@@ -297,7 +297,7 @@ export default function ParentNotificationsScreen() {
         </Pressable>
       ) : undefined
     ) : (
-      <Pressable style={[st.addBtn, { backgroundColor: C.tint }]} onPress={openCreateModal}>
+      <Pressable style={[st.addBtn, { backgroundColor: C.primaryAction }]} onPress={openCreateModal}>
         <LucideIcon name="plus" size={18} color="#fff" />
       </Pressable>
     );

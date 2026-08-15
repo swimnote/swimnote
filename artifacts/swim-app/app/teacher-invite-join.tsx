@@ -118,7 +118,7 @@ export default function TeacherInviteJoinScreen() {
           </View>
 
           <Pressable
-            style={({ pressed }) => [styles.primaryBtn, { backgroundColor: C.button, opacity: pressed || verifying ? 0.8 : 1 }]}
+            style={({ pressed }) => [styles.primaryBtn, { backgroundColor: C.primaryAction, opacity: pressed || verifying ? 0.8 : 1 }]}
             onPress={() => handleVerifyToken()}
             disabled={verifying}
           >
@@ -217,7 +217,7 @@ export default function TeacherInviteJoinScreen() {
           </View>
 
           <Pressable
-            style={({ pressed }) => [styles.primaryBtn, { backgroundColor: C.button, opacity: pressed || submitting ? 0.8 : 1 }]}
+            style={({ pressed }) => [styles.primaryBtn, { backgroundColor: C.primaryAction, opacity: pressed || submitting ? 0.8 : 1 }]}
             onPress={handleSubmit}
             disabled={submitting}
           >

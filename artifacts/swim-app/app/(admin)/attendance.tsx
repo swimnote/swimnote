@@ -571,7 +571,7 @@ export default function AttendanceScreen() {
                 </KeyboardAwareScrollView>
               )}
               <Pressable
-                style={[a.confirmBtn, { backgroundColor: assignClassId ? C.tint : C.border, opacity: assigning ? 0.6 : 1 }]}
+                style={[a.confirmBtn, { backgroundColor: assignClassId ? C.primaryAction : C.border, opacity: assigning ? 0.6 : 1 }]}
                 onPress={doAssign}
                 disabled={!assignClassId || assigning}
               >

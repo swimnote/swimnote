@@ -70,7 +70,7 @@ export default function ParentInviteInfoScreen() {
       </View>
 
       <Pressable
-        style={({ pressed }) => [styles.backToLoginBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
+        style={({ pressed }) => [styles.backToLoginBtn, { backgroundColor: pressed ? "#1E293B" : C.primaryAction }]}
         onPress={() => router.replace("/" as any)}
       >
         <Text style={styles.backToLoginText}>로그인 화면으로</Text>

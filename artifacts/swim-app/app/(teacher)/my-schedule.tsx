@@ -508,7 +508,7 @@ export default function MyScheduleScreen() {
                   <Users size={13} color={C.tint} />
                   <Text style={[s.mgmtBtnText, { color: C.tint }]}>수강생관리</Text>
                 </Pressable>
-                <Pressable style={[s.createBtn, { backgroundColor: C.button }]} onPress={() => { setCreateInitialDays([]); setCreateInitialStep(1); setShowCreate(true); }}>
+                <Pressable style={[s.createBtn, { backgroundColor: C.primaryAction }]} onPress={() => { setCreateInitialDays([]); setCreateInitialStep(1); setShowCreate(true); }}>
                   <Plus size={14} color="#fff" />
                   <Text style={s.createBtnText}>반 등록</Text>
                 </Pressable>

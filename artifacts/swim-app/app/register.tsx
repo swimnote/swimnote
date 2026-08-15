@@ -254,7 +254,7 @@ export default function RegisterScreen() {
               </View>
               {!phoneVerified && (
                 <Pressable
-                  style={[styles.smsBtn, { backgroundColor: smsState === "sending" ? "#ccc" : C.tint }]}
+                  style={[styles.smsBtn, { backgroundColor: smsState === "sending" ? "#ccc" : C.primaryAction }]}
                   onPress={handleSendSms}
                   disabled={smsState === "sending" || smsState === "verifying"}
                 >
@@ -424,7 +424,7 @@ export default function RegisterScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.btn,
-              { backgroundColor: phoneVerified ? C.tint : "#B0B0B0", opacity: pressed ? 0.85 : 1 },
+              { backgroundColor: phoneVerified ? C.primaryAction : "#B0B0B0" },
             ]}
             onPress={handleRegister}
             disabled={loading || !phoneVerified}

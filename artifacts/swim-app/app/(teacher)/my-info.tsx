@@ -419,7 +419,7 @@ export default function MyInfoScreen() {
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: editMsg.includes("저장") ? "#2EC4B6" : "#D96C6C" }}>{editMsg}</Text>
               </View>
             ) : null}
-            <Pressable style={[s.confirmBtn, { backgroundColor: C.button, opacity: editSaving ? 0.7 : 1, marginTop: 16 }]} onPress={saveProfile} disabled={editSaving}>
+            <Pressable style={[s.confirmBtn, { backgroundColor: C.primaryAction, opacity: editSaving ? 0.7 : 1, marginTop: 16 }]} onPress={saveProfile} disabled={editSaving}>
               {editSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnText}>저장</Text>}
             </Pressable>
           </View>
@@ -471,7 +471,7 @@ export default function MyInfoScreen() {
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: pwMsg.includes("변경") ? "#2EC4B6" : "#D96C6C" }}>{pwMsg}</Text>
               </View>
             ) : null}
-            <Pressable style={[s.confirmBtn, { backgroundColor: C.button, opacity: pwSaving ? 0.7 : 1, marginTop: 16 }]} onPress={submitPasswordChange} disabled={pwSaving}>
+            <Pressable style={[s.confirmBtn, { backgroundColor: C.primaryAction, opacity: pwSaving ? 0.7 : 1, marginTop: 16 }]} onPress={submitPasswordChange} disabled={pwSaving}>
               {pwSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnText}>변경 완료</Text>}
             </Pressable>
           </View>
@@ -490,7 +490,7 @@ export default function MyInfoScreen() {
             {(adminUser?.roles || []).filter((r: string) => r !== "teacher").map((role: string) => (
               <Pressable
                 key={role}
-                style={[s.confirmBtn, { backgroundColor: C.button, opacity: switching ? 0.7 : 1, marginBottom: 8 }]}
+                style={[s.confirmBtn, { backgroundColor: C.primaryAction, opacity: switching ? 0.7 : 1, marginBottom: 8 }]}
                 onPress={() => handleSwitchRole(role)}
                 disabled={switching}
               >

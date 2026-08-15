@@ -120,7 +120,7 @@ export default function PhotoUploadScreen() {
           subtitle="사진을 받을 학생 선택"
           rightSlot={
             <Pressable
-              style={[styles.nextBtn, { backgroundColor: selected.size > 0 ? C.tint : C.border }]}
+              style={[styles.nextBtn, { backgroundColor: selected.size > 0 ? C.primaryAction : C.border }]}
               onPress={() => { if (selected.size > 0) setStep("photos"); }}
               disabled={selected.size === 0}
             >

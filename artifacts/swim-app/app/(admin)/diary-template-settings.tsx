@@ -669,7 +669,7 @@ function InputModal({
               <Pressable style={[m.btn, { borderColor: C.border }]} onPress={onClose}>
                 <Text style={m.btnCancelText}>취소</Text>
               </Pressable>
-              <Pressable style={[m.btn, { backgroundColor: C.tint }]} onPress={onConfirm} disabled={saving}>
+              <Pressable style={[m.btn, { backgroundColor: C.primaryAction }]} onPress={onConfirm} disabled={saving}>
                 {saving
                   ? <ActivityIndicator size="small" color="#fff" />
                   : <Text style={m.btnConfirmText}>확인</Text>}
@@ -764,7 +764,7 @@ function TemplateInputModal({
               <Pressable style={[m.btn, { borderColor: C.border }]} onPress={onClose}>
                 <Text style={m.btnCancelText}>취소</Text>
               </Pressable>
-              <Pressable style={[m.btn, { backgroundColor: C.tint }]} onPress={onConfirm} disabled={saving}>
+              <Pressable style={[m.btn, { backgroundColor: C.primaryAction }]} onPress={onConfirm} disabled={saving}>
                 {saving
                   ? <ActivityIndicator size="small" color="#fff" />
                   : <Text style={m.btnConfirmText}>저장</Text>}

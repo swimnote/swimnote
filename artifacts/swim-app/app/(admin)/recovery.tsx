@@ -471,7 +471,7 @@ export default function RecoveryScreen() {
             )}
           </View>
           <Pressable
-            style={[s.manualBtn, { backgroundColor: creating ? "#E6FFFA" : C.tint }]}
+            style={[s.manualBtn, { backgroundColor: creating ? "#1E293B" : C.primaryAction }]}
             onPress={handleManualSnapshot}
             disabled={creating}
           >

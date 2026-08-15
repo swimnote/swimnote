@@ -234,7 +234,7 @@ export default function ForgotPasswordScreen() {
             )}
 
             <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.button, opacity: pressed || smsState === "sending" ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.primaryAction, opacity: pressed || smsState === "sending" ? 0.85 : 1 }]}
               onPress={handleSendSms}
               disabled={smsState === "sending"}
             >
@@ -275,7 +275,7 @@ export default function ForgotPasswordScreen() {
                   {timer > 0 && <Text style={[styles.timerTxt, { color: timer <= 30 ? C.error : C.textMuted }]}>{fmtTimer(timer)}</Text>}
                 </View>
                 <Pressable
-                  style={[styles.smsBtn, { backgroundColor: C.tint }]}
+                  style={[styles.smsBtn, { backgroundColor: C.primaryAction }]}
                   onPress={handleVerifySms}
                   disabled={smsState === "verifying"}
                 >
@@ -387,7 +387,7 @@ export default function ForgotPasswordScreen() {
               <Pressable
                 style={({ pressed }) => [
                   styles.submitBtn,
-                  { backgroundColor: selectedIdx !== null ? C.button : C.border, opacity: pressed ? 0.85 : 1 }
+                  { backgroundColor: selectedIdx !== null ? C.primaryAction : C.border, opacity: pressed ? 0.85 : 1 }
                 ]}
                 onPress={() => {
                   if (selectedIdx === null) return;
@@ -427,7 +427,7 @@ export default function ForgotPasswordScreen() {
 
             {/* 선택된 계정 표시 */}
             <View style={[styles.selectedBadge, { backgroundColor: C.background, borderColor: C.border }]}>
-              <View style={[styles.accountIcon, { backgroundColor: C.tint, width: 28, height: 28, borderRadius: 8 }]}>
+              <View style={[styles.accountIcon, { backgroundColor: "#F1F5F9", width: 28, height: 28, borderRadius: 8 }]}>
                 {selectedAccount.type === "parent"
                   ? <LucideIcon name="user" size={14} color="#fff" />
                   : selectedAccount.role === "teacher"
@@ -488,7 +488,7 @@ export default function ForgotPasswordScreen() {
             )}
 
             <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.button, opacity: pressed || loading ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.primaryAction, opacity: pressed || loading ? 0.85 : 1 }]}
               onPress={resetPassword}
               disabled={loading}
             >

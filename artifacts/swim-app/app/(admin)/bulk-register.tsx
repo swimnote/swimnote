@@ -614,7 +614,7 @@ export default function BulkRegisterScreen() {
 
             {/* 파일 선택 버튼 */}
             <Pressable
-              style={[s.uploadBtn, { backgroundColor: C.tint, opacity: loadingFile ? 0.7 : 1 }]}
+              style={[s.uploadBtn, { backgroundColor: C.primaryAction, opacity: loadingFile ? 0.7 : 1 }]}
               onPress={pickFile}
               disabled={loadingFile}
             >

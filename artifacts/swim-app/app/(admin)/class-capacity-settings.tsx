@@ -178,7 +178,7 @@ const s = StyleSheet.create({
   msgText: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
 
   saveBtn: {
-    backgroundColor: C.tint, borderRadius: 12,
+    backgroundColor: C.primaryAction, borderRadius: 12,
     paddingVertical: 14, alignItems: "center",
   },
   saveBtnText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },

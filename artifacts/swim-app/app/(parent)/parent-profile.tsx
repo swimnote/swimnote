@@ -208,7 +208,7 @@ export default function ParentProfileScreen() {
           ) : null}
 
           <Pressable
-            style={[s.saveBtn, { backgroundColor: C.button, opacity: saving ? 0.7 : 1 }]}
+            style={[s.saveBtn, { backgroundColor: C.primaryAction, opacity: saving ? 0.7 : 1 }]}
             disabled={saving}
             onPress={handleSave}
           >

@@ -509,7 +509,7 @@ export default function ClassAssignScreen() {
 
         <View style={[s.doneWrap, { paddingBottom: insets.bottom + 12 }]}>
           <Pressable
-            style={[s.doneBtn, { backgroundColor: hasChanges ? C.tint : C.border }]}
+            style={[s.doneBtn, { backgroundColor: hasChanges ? C.primaryAction : C.border }]}
             onPress={goBack}
           >
             <LucideIcon name="check" size={18} color={hasChanges ? "#fff" : C.textMuted} />
@@ -871,7 +871,7 @@ const sr = StyleSheet.create({
   scheduleHintTag: { alignSelf: "flex-start", backgroundColor: "#F1F5F9", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   scheduleHintTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   btn:          { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  addBtn:       { backgroundColor: C.tint },
+  addBtn:       { backgroundColor: C.primaryAction },
   removeBtn:    { backgroundColor: C.error },
 });
 

@@ -830,7 +830,7 @@ export default function MakeupsScreen() {
                     )}
                     <View style={s.btnRow}>
                       <Pressable
-                        style={[s.actionBtn, { backgroundColor: C.button }]}
+                        style={[s.actionBtn, { backgroundColor: C.primaryAction }]}
                         onPress={() => openAssignModal(mk)}
                       >
                         <LucideIcon name="calendar" size={14} color="#fff" />
@@ -1146,7 +1146,7 @@ export default function MakeupsScreen() {
                   </View>
                   <View style={{ paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4, gap: 8 }}>
                     <Pressable
-                      style={[s.confirmBtn, { backgroundColor: C.button, opacity: assigning ? 0.6 : 1 }]}
+                      style={[s.confirmBtn, { backgroundColor: C.primaryAction, opacity: assigning ? 0.6 : 1 }]}
                       onPress={() => doAssign()}
                       disabled={assigning}
                     >

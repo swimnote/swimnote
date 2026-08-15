@@ -529,7 +529,7 @@ export default function SignupScreen() {
               />
             </View>
             <Pressable
-              style={[styles.smsBtn, { backgroundColor: verified ? C.border : C.tint, opacity: smsState === "sending" ? 0.7 : 1 }]}
+              style={[styles.smsBtn, { backgroundColor: verified ? C.border : C.primaryAction, opacity: smsState === "sending" ? 0.7 : 1 }]}
               onPress={handleSendSms}
               disabled={verified || smsState === "sending"}
             >
@@ -563,7 +563,7 @@ export default function SignupScreen() {
               </View>
               {!verified && (
                 <Pressable
-                  style={[styles.smsBtn, { backgroundColor: C.tint, opacity: smsState === "verifying" ? 0.7 : 1 }]}
+                  style={[styles.smsBtn, { backgroundColor: C.primaryAction, opacity: smsState === "verifying" ? 0.7 : 1 }]}
                   onPress={handleVerifySms}
                   disabled={smsState === "verifying"}
                 >
@@ -881,7 +881,7 @@ export default function SignupScreen() {
 
           {/* 로그인 화면으로 이동 */}
           <Pressable
-            style={({ pressed }) => ({ backgroundColor: C.tint, borderRadius: 14, height: 52, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.8 : 1 })}
+            style={({ pressed }) => ({ backgroundColor: pressed ? "#1E293B" : C.primaryAction, borderRadius: 14, height: 52, alignItems: "center", justifyContent: "center" })}
             onPress={() => router.replace("/" as any)}
           >
             <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" }}>로그인 화면으로 이동</Text>

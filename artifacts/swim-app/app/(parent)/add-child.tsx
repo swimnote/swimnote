@@ -10,7 +10,7 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { API_BASE, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
-const ORANGE = "#F97316";
+const C = Colors.light;
 
 export default function AddChildScreen() {
   const insets = useSafeAreaInsets();

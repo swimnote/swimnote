@@ -178,7 +178,7 @@ export default function DiaryIndexScreen() {
       <SubScreenHeader title="수업 일지" subtitle="학생에게 노출된 전체 이력" homePath="/(teacher)/today-schedule" />
       {/* 일지 작성 버튼 */}
       <Pressable
-        style={[di.writeBtn, { backgroundColor: C.button }]}
+        style={[di.writeBtn, { backgroundColor: C.primaryAction }]}
         onPress={() => router.push("/(teacher)/diary-unwritten?backTo=diary-index" as any)}
       >
         <LucideIcon name="edit" size={15} color="#fff" />

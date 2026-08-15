@@ -307,7 +307,7 @@ export default function ParentCodeSignupScreen() {
             )}
 
             <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.button, opacity: pressed || loading ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.primaryAction, opacity: pressed || loading ? 0.85 : 1 }]}
               onPress={joinWithCode}
               disabled={loading}
             >

@@ -266,7 +266,7 @@ export default function DiaryCommentsScreen() {
         <Pressable
           onPress={send}
           disabled={!input.trim() || sending}
-          style={[s.sendBtn, { backgroundColor: !input.trim() || sending ? C.border : C.tint }]}
+          style={[s.sendBtn, { backgroundColor: !input.trim() || sending ? C.border : C.primaryAction }]}
         >
           {sending
             ? <ActivityIndicator size="small" color="#fff" />
