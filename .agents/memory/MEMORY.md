@@ -65,3 +65,4 @@
 - [GR3/GR5 Production 적용 완료](gr35-prod-applied.md) — 2026-08-14; GR3: analysis_retry_count(int NOT NULL DEFAULT 0); GR5: teacher_review_action/reason_code/note(text nullable)+teacher_reanalysis_count(int NOT NULL DEFAULT 0); 다음: Render deploy
 - [A2 Normal AI Visibility Cleanup 완료](a2-visibility-done.md) — SHA 89cfde6a; 4파일(parent home/curriculum-chat/growth-report-detail/teacher diary); OTA production f90628fe; 다음: A3_ONBOARDING_CLEANUP
 - [A3 Onboarding Cleanup 완료](a3-onboarding-done.md) — SHA 9e67df1c; 감사+4파일(admin onboarding dead code/teacher schedule copy/parent level,diary no-child CTA); OTA production cc7689db; 다음: A4_MODAL_ALERT_SHEET_CLEANUP
+- [A4 Modal/Sheet/Alert Cleanup 완료](a4-modal-cleanup-done.md) — SHA a7c8b046; 18파일; ConfirmModal SemiBold+guard+disableBackdrop, ModalSheet border제거, WithdrawalModal bug+safearea; OTA production 524ebd4d
