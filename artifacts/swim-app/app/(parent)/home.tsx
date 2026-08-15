@@ -1901,8 +1901,8 @@ export default function ParentHomeScreen() {
         </Pressable>
       </ScrollView>
 
-      {/* C. AI 기능 버튼 (AI 성장 리포트 + AI 커리큘럼 검색) */}
-      {selectedStudent && (
+      {/* C. AI 기능 버튼 (AI 성장 리포트 + AI 커리큘럼 검색) — X mode 전용 */}
+      {selectedStudent && mode === "x" && (
         <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 16, marginTop: 14, marginBottom: 14 }}>
           <Pressable
             onPress={() => setAiModalType("report")}

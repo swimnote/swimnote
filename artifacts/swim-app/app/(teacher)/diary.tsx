@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useMode } from "@/context/ModeContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { WeeklySchedule } from "@/components/teacher/WeeklySchedule";
 import { TeacherClassGroup, SlotStatus } from "@/components/teacher/types";
@@ -37,6 +38,7 @@ const C = Colors.light;
 export default function TeacherDiaryScreen() {
   const { token, adminUser: user } = useAuth();
   const { themeColor } = useBrand();
+  const { mode } = useMode();
   const params = useLocalSearchParams<{ classGroupId?: string; className?: string; lessonDate?: string; editDiaryId?: string; backTo?: string }>();
   const [targetDate, setTargetDate] = useState<string>(() =>
     (params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/))
@@ -1168,7 +1170,7 @@ export default function TeacherDiaryScreen() {
             onBack={handleExitDiary}
             poolId={user?.swimming_pool_id ?? ""}
             teacherId={user?.id ?? ""}
-            onAIInsert={handleAIInsert}
+            onAIInsert={mode === "x" ? handleAIInsert : undefined}
             onUploadGroupMedia={uploadGroupMedia}
             onUploadStudentMedia={uploadStudentMedia}
             onAddNote={handleAddNote}

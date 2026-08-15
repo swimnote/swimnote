@@ -32,6 +32,7 @@ import Colors from "@/constants/colors";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { XModeGuard } from "@/components/common/XModeGuard";
 
 const C = Colors.light;
 const TEAL = "#2EC4B6";
@@ -444,6 +445,7 @@ export default function CurriculumChatScreen() {
   const hasMessages = serverMessages.length > 0 || pendingMsg !== null;
 
   return (
+    <XModeGuard allowedKind="parent">
     <KeyboardAvoidingView
       style={[s.root, { backgroundColor: C.background }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -559,6 +561,7 @@ export default function CurriculumChatScreen() {
         )}
       </View>
     </KeyboardAvoidingView>
+    </XModeGuard>
   );
 }
 

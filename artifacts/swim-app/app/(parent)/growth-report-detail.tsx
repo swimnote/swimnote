@@ -34,6 +34,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
+import { XModeGuard } from "@/components/common/XModeGuard";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import SnsCardView from "@/components/parent/SnsCardView";
@@ -388,6 +389,7 @@ export default function GrowthReportDetailScreen() {
   const isGenerating = isPdfGenerating || isShareGenerating;
 
   return (
+    <XModeGuard allowedKind="parent">
     <View style={s.root}>
       {header}
 
@@ -498,6 +500,7 @@ export default function GrowthReportDetailScreen() {
         </View>
       )}
     </View>
+    </XModeGuard>
   );
 }
 
