@@ -129,6 +129,9 @@ export default function OperatorDetailScreen() {
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleting,    setDeleting]    = useState(false);
 
+  // X 사용권 수동 제어
+  const [xmodeLoading, setXmodeLoading] = useState(false);
+
   const SENSITIVE_ACTIONS = ["approve", "reject", "restrict"];
 
   const load = useCallback(async (isRefresh = false) => {
@@ -190,6 +193,41 @@ export default function OperatorDetailScreen() {
     setAction(null);
     setReason("");
     setTimeout(() => { setProcessing(false); setFeedback(""); }, 3000);
+  }
+
+  async function doXmodeToggle(activate: boolean) {
+    if (xmodeLoading) return;
+    const title   = activate ? "X 사용권을 활성화할까요?" : "X 사용권을 비활성화할까요?";
+    const message = activate
+      ? "결제 없이 이 운영처에\nSWIMNOTE X 사용권이 부여됩니다."
+      : "이 운영처의 SWIMNOTE X 사용 권한이 회수됩니다.\n운영 데이터는 삭제되지 않습니다.";
+    Alert.alert(title, message, [
+      { text: "취소", style: "cancel" },
+      {
+        text: "확인",
+        onPress: async () => {
+          setXmodeLoading(true);
+          try {
+            const res = await apiRequest(token, `/super/operators/${id}/xmode`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ xmode_entitlement: activate }),
+            });
+            const d = await res.json();
+            if (d.ok) {
+              await load(true);
+            } else {
+              Alert.alert("오류", "X 사용권 변경에 실패했습니다.\n잠시 후 다시 시도해주세요.");
+              console.warn("[xmode]", id, res.status, d.error);
+            }
+          } catch (e: any) {
+            Alert.alert("오류", "X 사용권 변경에 실패했습니다.\n잠시 후 다시 시도해주세요.");
+            console.warn("[xmode]", id, e?.message);
+          }
+          setXmodeLoading(false);
+        },
+      },
+    ]);
   }
 
   async function saveSubscription() {
@@ -452,12 +490,50 @@ export default function OperatorDetailScreen() {
               <InfoRow label="구독 만료일" value={fmtDate(pool.xmode_subscription_end_at)} />
             </View>
 
-            {/* 수동 제어 안내 — 실제 PATCH /super/operators/:id/xmode API 존재 */}
-            <View style={[d.card, { backgroundColor: "#F8FAFC", borderColor: "#E2E8F0" }]}>
-              <Text style={[d.cardTitle, { color: "#64748B" }]}>X 사용권 수동 제어</Text>
-              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8", lineHeight: 19 }}>
-                {"PATCH /super/operators/:id/xmode API로\n운영처별 X 사용권을 수동 활성/비활성 할 수 있습니다.\n수동 제어 UI는 다음 단계에서 추가됩니다."}
+            {/* X 사용권 수동 제어 */}
+            <View style={d.card}>
+              <Text style={d.cardTitle}>X 사용권 수동 제어</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18, marginBottom: 6 }}>
+                {"결제 여부와 관계없이 이 운영처에\nSWIMNOTE X 사용권을 직접 부여하거나 회수합니다."}
               </Text>
+              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8", lineHeight: 17, marginBottom: 14 }}>
+                {"사용권이 활성화되어도 설정 상태가 READY가 아니면\nX모드는 심사 대기 상태로 유지됩니다."}
+              </Text>
+              {pool.xmode_entitlement ? (
+                <Pressable
+                  disabled={xmodeLoading}
+                  onPress={() => doXmodeToggle(false)}
+                  style={{
+                    flexDirection: "row", alignItems: "center", justifyContent: "center",
+                    paddingVertical: 10, borderRadius: 10,
+                    backgroundColor: xmodeLoading ? "#F1F5F9" : "#FFF5F5",
+                    borderWidth: 1, borderColor: xmodeLoading ? "#E2E8F0" : "#FCA5A5",
+                    opacity: xmodeLoading ? 0.6 : 1,
+                  }}
+                >
+                  {xmodeLoading
+                    ? <ActivityIndicator size="small" color="#94A3B8" />
+                    : <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" }}>X 사용권 비활성화</Text>
+                  }
+                </Pressable>
+              ) : (
+                <Pressable
+                  disabled={xmodeLoading}
+                  onPress={() => doXmodeToggle(true)}
+                  style={{
+                    flexDirection: "row", alignItems: "center", justifyContent: "center",
+                    paddingVertical: 10, borderRadius: 10,
+                    backgroundColor: xmodeLoading ? "#F1F5F9" : "#E6FAF8",
+                    borderWidth: 1, borderColor: xmodeLoading ? "#E2E8F0" : "#2EC4B6",
+                    opacity: xmodeLoading ? 0.6 : 1,
+                  }}
+                >
+                  {xmodeLoading
+                    ? <ActivityIndicator size="small" color="#94A3B8" />
+                    : <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#2EC4B6" }}>X 사용권 활성화</Text>
+                  }
+                </Pressable>
+              )}
             </View>
           </>
         )}
