@@ -1,0 +1,458 @@
+[SWIMNOTE RELEASE MASTER WORK ORDER]
+[PHASE A / A5 — X MODE ADMIN CONTROL FINAL CHECK]
+
+목적:
+
+현재 구현 완료된 SWIMNOTE X의
+Super Admin 수동 제어 / config 승인 / canonical mode 전환을
+최종 검증한다.
+
+이번 단계는 기본적으로 VERIFY FIRST.
+
+중요:
+
+새 기능 추가 금지.
+DB schema 변경 금지.
+RevenueCat 구조 변경 금지.
+X entitlement 구조 변경 금지.
+canonical mode 판정 로직 변경 금지.
+AI 기능 변경 금지.
+일반 SWIMNOTE 기능 변경 금지.
+
+문제가 발견되지 않으면
+코드 수정 없이 PASS 처리한다.
+
+==================================================
+1. CANONICAL MODE RULE — FIXED
+==================================================
+
+기존 기준 유지:
+
+x
+= entitlement true
+AND config READY
+
+x_pending
+= entitlement true
+AND config != READY
+
+normal
+= entitlement false
+
+approval_status 등
+별도 상태를 canonical mode 판정에
+임의로 추가하지 않는다.
+
+==================================================
+2. SUPER ADMIN CONTROL INVENTORY
+==================================================
+
+현재 존재하는 X 관련 Super Admin 기능을 확인:
+
+- operator detail
+- X entitlement activate
+- X entitlement deactivate
+- config status
+- config approval
+- review/pending
+- READY 전환
+- audit log
+- subscription 관련 표시
+- RevenueCat 관련 표시
+
+각 기능에 대해:
+
+FILE
+ROUTE
+API
+DB FIELD
+CURRENT BEHAVIOR
+EXPECTED BEHAVIOR
+
+보고.
+
+==================================================
+3. ENTITLEMENT ACTIVATE
+==================================================
+
+Super Admin에서
+X entitlement를 활성화했을 때 확인:
+
+- entitlement true 저장
+- config가 READY가 아니면 x_pending
+- 즉시 x로 잘못 열리지 않음
+- 기존 운영처 데이터 삭제 없음
+- RevenueCat 상태를 임의로 변경하지 않음
+- subscription date를 가짜로 생성하지 않음
+- audit 기록 생성
+
+==================================================
+4. CONFIG READY
+==================================================
+
+entitlement true 상태에서
+config를 READY로 승인했을 때:
+
+- canonical mode = x
+- Owner/Admin X entry 정상
+- Teacher X entry 정상
+- Parent X entry 정상
+- X setup 상태 정상
+- AI 기능 visibility 정상
+
+확인.
+
+==================================================
+5. X_PENDING
+==================================================
+
+entitlement true
+config != READY
+
+상태에서:
+
+- canonical mode = x_pending
+- 실제 X AI 실행 entry 차단
+- 필요한 setup/review UI만 노출
+- X 기능이 완전히 활성화된 것처럼 보이지 않음
+
+확인.
+
+==================================================
+6. ENTITLEMENT DEACTIVATE
+==================================================
+
+X entitlement를 비활성화했을 때:
+
+- canonical mode = normal
+- X 전용 UI 숨김
+- X 전용 AI entry 숨김
+- 일반 SWIMNOTE 기능 정상
+- 기존 X 데이터 삭제 없음
+- Growth data 삭제 없음
+- Curriculum data 삭제 없음
+- Diary data 삭제 없음
+- config 값 자체를 임의로 초기화하지 않음
+- audit 기록 생성
+
+==================================================
+7. RE-ACTIVATE
+==================================================
+
+동일 운영처를 다시 X 활성화했을 때:
+
+기존 config가 READY라면
+현재 canonical contract 기준으로
+mode가 어떻게 복귀하는지 확인.
+
+중요:
+
+기존 contract를 보고 검증.
+
+임의로 config reset 하지 않는다.
+
+==================================================
+8. MANUAL ENTITLEMENT VS REVENUECAT
+==================================================
+
+현재 수동 entitlement는
+Super Admin 운영/테스트용 기능.
+
+확인:
+
+- RevenueCat subscription을 가짜 생성하지 않음
+- purchase transaction 생성하지 않음
+- subscription 날짜 조작하지 않음
+- entitlement만 기존 API contract대로 제어
+- UI에서 수동 제어와 실제 결제를 혼동시키지 않음
+
+RevenueCat Product/Offering/Purchase를
+이번 A5에서 새로 구현하지 않는다.
+
+==================================================
+9. CONFIG APPROVAL
+==================================================
+
+현재 config review UI에서:
+
+NOT_CONFIGURED
+CURRICULUM_PENDING
+READY
+기타 실제 enum
+
+을 확인.
+
+UI label은 사용자/관리자 친화적이어야 함.
+
+내부 enum 그대로 노출되지 않는지 확인.
+
+READY 설정 시 필요한 field만 변경되는지 확인.
+
+==================================================
+10. AUDIT LOG
+==================================================
+
+다음 action마다 audit 확인:
+
+- entitlement ON
+- entitlement OFF
+- config READY
+- config 상태 변경
+
+확인 항목:
+
+actor
+pool/operator
+action
+timestamp
+reason if applicable
+
+개인정보/secret 포함 금지.
+
+==================================================
+11. DOUBLE TAP
+==================================================
+
+A4에서 정리한 UI guard 포함하여
+Super Admin X control의 연속 탭 검증.
+
+빠르게 두 번 눌러도:
+
+- 중복 PATCH 없음
+- entitlement flip-flop 없음
+- config 중복 update 없음
+- navigation 중복 없음
+
+확인.
+
+==================================================
+12. ERROR HANDLING
+==================================================
+
+API 실패 시:
+
+- UI가 성공처럼 바뀌지 않음
+- loading 해제
+- retry 가능
+- 기존 상태 refresh 가능
+- raw stack trace 노출 없음
+
+확인.
+
+==================================================
+13. REFRESH CONSISTENCY
+==================================================
+
+Super Admin에서 변경 후:
+
+- operator detail refresh
+- operator list refresh
+- app relaunch
+
+후에도 상태가 동일해야 함.
+
+local optimistic state와
+server state가 어긋나지 않는지 확인.
+
+==================================================
+14. ROLE VISIBILITY
+==================================================
+
+각 mode에서 확인:
+
+NORMAL
+
+Owner/Admin
+→ X AI 없음
+
+Teacher
+→ AI Diary 없음
+
+Parent
+→ Parent AI 없음
+
+X_PENDING
+
+→ setup/pending 관련 UI만
+
+X
+
+Owner/Admin
+Teacher
+Parent
+
+→ 각 기존 X 기능 정상 노출
+
+==================================================
+15. DIRECT ROUTE GUARD
+==================================================
+
+A2 결과 재검증만 한다.
+
+normal/x_pending 상태에서
+직접 route push/deep link로
+X 전용 화면 진입 시
+기존 XModeGuard가 정상 차단하는지 확인.
+
+새 guard 생성 금지.
+
+==================================================
+16. DATA PRESERVATION
+==================================================
+
+가장 중요.
+
+entitlement ON/OFF
+config 상태 변경
+
+때문에 다음 데이터가 삭제/초기화되면 안 됨:
+
+- members
+- students
+- classes
+- schedules
+- attendance
+- diary
+- album/photos
+- notifications
+- curriculum
+- growth events
+- growth reports
+- AI history
+
+실제 destructive query가 없는지
+코드 기준으로 확인.
+
+==================================================
+17. PRODUCTION SAFETY
+==================================================
+
+이번 검증에서
+Production에 테스트용 fake pool/user/data 생성 금지.
+
+기존 안전한 테스트 운영처가 있으면
+그 운영처만 사용.
+
+안전한 대상이 없으면:
+
+NO_SAFE_TEST_TARGET
+
+로 보고하고
+코드/DB evidence로만 검증.
+
+==================================================
+18. TEST MATRIX
+==================================================
+
+최소:
+
+CASE 1
+entitlement false
+→ normal
+
+CASE 2
+entitlement true + config not READY
+→ x_pending
+
+CASE 3
+entitlement true + config READY
+→ x
+
+CASE 4
+x → entitlement OFF
+→ normal
+
+CASE 5
+normal → entitlement ON
+→ config 상태에 따라 x_pending/x
+
+CASE 6
+double tap
+
+CASE 7
+API failure
+
+CASE 8
+refresh/relaunch
+
+CASE 9
+role visibility
+
+CASE 10
+direct route guard
+
+CASE 11
+audit log
+
+CASE 12
+data preservation
+
+==================================================
+19. CODE CHANGE POLICY
+==================================================
+
+문제 없음:
+CODE CHANGE = NONE
+
+문제 발견:
+원인/파일/영향만 먼저 보고.
+
+Critical security/data issue가 아닌 이상
+내 승인 없이 수정 금지.
+
+==================================================
+20. OTA / DEPLOY
+==================================================
+
+검증만 수행한다면:
+
+OTA = NONE
+DEPLOY = NONE
+
+수정이 필요한 경우에도
+먼저 보고 후 승인 대기.
+
+==================================================
+21. FINAL REPORT
+==================================================
+
+다음 순서로 보고:
+
+1. CURRENT X CONTROL INVENTORY
+2. CANONICAL MODE VERIFIED?
+3. ENTITLEMENT ON RESULT
+4. CONFIG READY RESULT
+5. X_PENDING RESULT
+6. ENTITLEMENT OFF RESULT
+7. RE-ACTIVATE RESULT
+8. REVENUECAT SEPARATION RESULT
+9. AUDIT LOG RESULT
+10. DOUBLE TAP RESULT
+11. ERROR HANDLING RESULT
+12. REFRESH CONSISTENCY
+13. OWNER/ADMIN RESULT
+14. TEACHER RESULT
+15. PARENT RESULT
+16. DIRECT ROUTE GUARD
+17. DATA PRESERVATION
+18. PRODUCTION WRITE PERFORMED?
+19. CODE CHANGE?
+20. DB CHANGE?
+21. API CHANGE?
+22. TEST RESULT
+23. BLOCKERS
+24. NEXT RECOMMENDATION
+
+성공:
+
+A5_X_MODE_ADMIN_CONTROL_FINAL_CHECK_COMPLETE ✅
+
+실패:
+
+A5_X_MODE_ADMIN_CONTROL_FINAL_CHECK_BLOCKED ❌
+
+A5 PASS 전:
+
+A6_IOS_FULL_DEVICE_REGRESSION
+
+시작 금지.
