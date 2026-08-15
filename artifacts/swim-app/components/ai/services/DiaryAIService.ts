@@ -45,7 +45,7 @@ import {
 // EXPO_PUBLIC_AI_ENGINE_URL 설정이 있으면 사용하고, 없으면 Render.com 직접 연결.
 const SWIMNOTE_API_SERVER_BASE: string =
   (process.env.EXPO_PUBLIC_AI_ENGINE_URL as string | undefined) ??
-  'https://swimnote-api.onrender.com';
+  'https://swimnote.kr';
 
 // ─── 타임아웃 ─────────────────────────────────────────────────────────────────
 

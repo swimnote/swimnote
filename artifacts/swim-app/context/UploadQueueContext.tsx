@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from "react";
 import { deleteTempFileAfterUpload } from "@/utils/mediaCleanupV2";
+import { API_BASE } from "@/context/auth/SessionContext";
 
 export interface PhotoUploadJob {
   uri: string;
@@ -22,7 +23,7 @@ const UploadQueueCtx = createContext<UploadQueueCtxType>({
   addJobs: () => {}, dismiss: () => {},
 });
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
+const API_BASE_URL = API_BASE;
 const CONCURRENCY = 3;
 
 async function uploadOnce(job: PhotoUploadJob): Promise<boolean> {
