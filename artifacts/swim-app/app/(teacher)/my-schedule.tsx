@@ -435,7 +435,7 @@ export default function MyScheduleScreen() {
           }}
         />
 
-        <Modal visible={showMoveSheet} transparent animationType="slide"
+        <Modal visible={showMoveSheet} transparent animationType="slide" statusBarTranslucent
           onRequestClose={() => { setShowMoveSheet(false); setMoveStudent(null); }}>
           <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)" }}
             onPress={() => { setShowMoveSheet(false); setMoveStudent(null); }} />

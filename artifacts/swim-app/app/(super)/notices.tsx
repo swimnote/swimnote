@@ -274,7 +274,7 @@ export default function NoticesScreen() {
       </KeyboardAwareScrollView>
 
       {/* 등록/수정 모달 */}
-      <Modal visible={showModal} transparent animationType="slide">
+      <Modal visible={showModal} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setShowModal(false)}>
         <View style={m.overlay}>
           <View style={m.sheet}>
             <View style={m.header}>
@@ -357,7 +357,7 @@ export default function NoticesScreen() {
       />
 
       {/* 삭제 확인 */}
-      <Modal visible={!!deleteConfirm} transparent animationType="fade">
+      <Modal visible={!!deleteConfirm} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setDeleteConfirm(null)}>
         <View style={m.overlay}>
           <View style={[m.sheet, { maxHeight: 240 }]}>
             <Text style={[m.title, { marginBottom: 12 }]}>공지 삭제</Text>

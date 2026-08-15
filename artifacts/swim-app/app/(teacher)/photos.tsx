@@ -849,6 +849,7 @@ export default function TeacherPhotosScreen() {
               visible={lightboxIdx !== null}
               transparent
               animationType="fade"
+              statusBarTranslucent
               onRequestClose={() => setLightboxIdx(null)}
             >
               <View style={s.lbBg}>

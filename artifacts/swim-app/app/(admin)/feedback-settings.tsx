@@ -235,7 +235,7 @@ export default function FeedbackSettingsScreen() {
       />
 
       {/* ════ 문장 추가 모달 ════ */}
-      <Modal visible={addVisible} transparent animationType="slide" onRequestClose={() => setAddVisible(false)}>
+      <Modal visible={addVisible} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setAddVisible(false)}>
         <Pressable style={s.modalOverlay} onPress={() => setAddVisible(false)} />
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={s.modalKV}>
           <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
@@ -266,7 +266,7 @@ export default function FeedbackSettingsScreen() {
       </Modal>
 
       {/* ════ 문장 수정 모달 ════ */}
-      <Modal visible={editItem !== null} transparent animationType="slide" onRequestClose={() => setEditItem(null)}>
+      <Modal visible={editItem !== null} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setEditItem(null)}>
         <Pressable style={s.modalOverlay} onPress={() => setEditItem(null)} />
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={s.modalKV}>
           <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
@@ -296,7 +296,7 @@ export default function FeedbackSettingsScreen() {
       </Modal>
 
       {/* ════ 카테고리 이름 수정 모달 ════ */}
-      <Modal visible={labelVisible} transparent animationType="slide" onRequestClose={() => setLabelVisible(false)}>
+      <Modal visible={labelVisible} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setLabelVisible(false)}>
         <Pressable style={s.modalOverlay} onPress={() => setLabelVisible(false)} />
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={s.modalKV}>
           <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>

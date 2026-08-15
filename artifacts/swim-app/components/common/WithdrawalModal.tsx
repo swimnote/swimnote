@@ -18,6 +18,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
@@ -34,6 +35,7 @@ type Choice = "immediate" | "retain" | null;
 
 export function WithdrawalModal({ visible, onClose, onConfirm, loading, isPaidPlan = false }: Props) {
   const [choice, setChoice] = useState<Choice>(null);
+  const insets = useSafeAreaInsets();
 
   function handleClose() {
     if (loading) return;
@@ -56,10 +58,11 @@ export function WithdrawalModal({ visible, onClose, onConfirm, loading, isPaidPl
         visible={visible}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={handleClose}
       >
         <Pressable style={s.overlay} onPress={handleClose}>
-          <Pressable style={s.sheet} onPress={e => e.stopPropagation()}>
+          <Pressable style={[s.sheet, { paddingBottom: Math.max(insets.bottom, BASE_SHEET_PADDING_BOTTOM) }]} onPress={e => e.stopPropagation()}>
             <View style={s.header}>
               <View style={s.handle} />
               <Text style={s.title}>회원 탈퇴</Text>
@@ -76,7 +79,7 @@ export function WithdrawalModal({ visible, onClose, onConfirm, loading, isPaidPl
               </Pressable>
               <Pressable
                 style={[s.confirmBtn, { backgroundColor: "#D96C6C" }, loading && { opacity: 0.7 }]}
-                onPress={() => { onClose(); onConfirm(true).catch(() => {}); }}
+                onPress={handleConfirm}
                 disabled={loading}
               >
                 {loading ? (
@@ -98,10 +101,11 @@ export function WithdrawalModal({ visible, onClose, onConfirm, loading, isPaidPl
       visible={visible}
       transparent
       animationType="fade"
+      statusBarTranslucent
       onRequestClose={handleClose}
     >
       <Pressable style={s.overlay} onPress={handleClose}>
-        <Pressable style={s.sheet} onPress={e => e.stopPropagation()}>
+        <Pressable style={[s.sheet, { paddingBottom: Math.max(insets.bottom, BASE_SHEET_PADDING_BOTTOM) }]} onPress={e => e.stopPropagation()}>
           {/* 헤더 */}
           <View style={s.header}>
             <View style={s.handle} />
@@ -186,6 +190,10 @@ export function WithdrawalModal({ visible, onClose, onConfirm, loading, isPaidPl
   );
 }
 
+// paddingBottom은 컴포넌트 내에서 insets.bottom으로 처리하므로 sheet는 상수 없이 선언
+// (실제 paddingBottom은 JSX에서 인라인으로 주입)
+const BASE_SHEET_PADDING_BOTTOM = 24;
+
 const s = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -197,7 +205,6 @@ const s = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
-    paddingBottom: 36,
     paddingTop: 12,
   },
   handle: {

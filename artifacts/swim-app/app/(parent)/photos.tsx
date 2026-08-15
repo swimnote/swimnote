@@ -370,6 +370,7 @@ export default function ParentAlbumScreen() {
         visible={lightboxIdx !== null}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={closeLightbox}
       >
         <View style={st.lbBg}>
@@ -448,7 +449,7 @@ export default function ParentAlbumScreen() {
       </Modal>
 
       {/* 영상 상세 모달 */}
-      <Modal visible={!!videoDetail} transparent animationType="slide" onRequestClose={() => setVideoDetail(null)}>
+      <Modal visible={!!videoDetail} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setVideoDetail(null)}>
         <Pressable style={st.vdOverlay} onPress={() => setVideoDetail(null)}>
           <Pressable style={[st.vdSheet, { paddingBottom: insets.bottom + 20 }]} onPress={e => e.stopPropagation()}>
             <View style={st.vdHandle} />

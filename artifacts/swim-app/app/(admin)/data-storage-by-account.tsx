@@ -116,7 +116,7 @@ export default function DataStorageByAccountScreen() {
       )}
 
       {/* 상세 모달 */}
-      <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
+      <Modal visible={!!selected} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setSelected(null)}>
         <Pressable style={sm.overlay} onPress={() => setSelected(null)}>
           <Pressable style={sm.sheet} onPress={e => e.stopPropagation()}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>

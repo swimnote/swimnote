@@ -719,6 +719,7 @@ export default function StudentDetailScreen() {
         visible={phoneEditModal.visible}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => setPhoneEditModal(m => ({ ...m, visible: false }))}
       >
         <Pressable
@@ -773,6 +774,7 @@ export default function StudentDetailScreen() {
         visible={phoneDeleteModal.visible}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => setPhoneDeleteModal(m => ({ ...m, visible: false }))}
       >
         <Pressable

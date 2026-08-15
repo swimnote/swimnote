@@ -321,7 +321,7 @@ function WaitingActionSheet({
   const hasPending = !!member.pending_status_change;
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
       <Pressable style={sh.overlay} onPress={onClose} />
       <View style={sh.sheet}>
         {/* 헤더 */}

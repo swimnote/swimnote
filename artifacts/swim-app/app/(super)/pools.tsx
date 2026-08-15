@@ -297,7 +297,7 @@ export default function SuperPoolsScreen() {
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       {/* 일괄처리 모달 */}
-      <Modal visible={!!bulkModal} transparent animationType="fade" onRequestClose={() => setBulkModal(null)}>
+      <Modal visible={!!bulkModal} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setBulkModal(null)}>
         <Pressable style={s.overlay} onPress={() => setBulkModal(null)}>
           <Pressable style={s.sheet} onPress={() => {}}>
             <Text style={s.sheetTitle}>{BULK_ACTIONS.find(a => a.key === bulkModal)?.label} ({selected.size}건)</Text>

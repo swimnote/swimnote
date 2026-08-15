@@ -1,0 +1,731 @@
+[SWIMNOTE RELEASE MASTER WORK ORDER]
+[PHASE A / A4 — MODAL / ALERT / SHEET CLEANUP]
+
+목적:
+
+SWIMNOTE 전체 앱의
+Modal / Alert / Bottom Sheet / Overlay / Dialog / Popup
+UX와 시각 규칙을 하나로 통일한다.
+
+중요:
+
+이번 작업은 Modal 계열 UX 정리다.
+
+금지:
+- 비즈니스 로직 변경
+- API contract 변경
+- DB schema 변경
+- 인증 구조 변경
+- navigation destination 변경
+- X entitlement/config 변경
+- AI ENGINE 변경
+- Diary/Attendance/Member/Scheduler 로직 변경
+- 신규 native modal library 추가
+- 전체 Design System 재설계
+
+현재 확정된 Global Design System을 그대로 사용한다.
+
+==================================================
+1. AUDIT FIRST
+==================================================
+
+코드 수정 전에 전체 Repository의 Modal 계열 UI를 전수 조사한다.
+
+검색 대상:
+
+Modal
+Alert.alert
+ActionSheet
+BottomSheet
+Sheet
+Dialog
+Popup
+Overlay
+Portal
+transparent
+presentationStyle
+KeyboardAvoidingView
+TouchableWithoutFeedback
+Pressable overlay
+absolute overlay
+
+전체 Role 포함:
+
+COMMON
+AUTH
+ADMIN / OWNER
+TEACHER
+PARENT
+SUPER ADMIN
+SWIMNOTE X
+
+각 항목을 표로 정리:
+
+ROLE
+SCREEN
+FILE
+TYPE
+TRIGGER
+CONTENT
+WIDTH/HEIGHT RULE
+SCROLL?
+KEYBOARD?
+CLOSE METHOD
+BACK HANDLING
+PRIMARY CTA
+SECONDARY CTA
+DESTRUCTIVE?
+DOUBLE TAP GUARD?
+ISSUE
+RECOMMENDED ACTION
+
+==================================================
+2. GLOBAL MODAL PRINCIPLE
+==================================================
+
+전체 앱 공통 원칙:
+
+1. 같은 목적의 Modal은 같은 구조
+2. 작은 화면에서도 잘리지 않음
+3. 내용이 길면 내부 scroll
+4. 키보드가 버튼을 가리지 않음
+5. 닫기 동작이 명확함
+6. 배경 탭 dismiss 여부를 목적별로 통일
+7. Back 동작 일관성
+8. Primary / Secondary / Destructive 버튼 문법 통일
+9. 불필요한 반투명/장식 border 제거
+10. 중복 탭으로 동일 요청이 2회 실행되지 않음
+11. Safe Area 준수
+12. Modal 안 Modal은 가능하면 제거
+
+==================================================
+3. MODAL TYPE CLASSIFICATION
+==================================================
+
+각 Modal을 다음으로 분류:
+
+A. INFORMATION
+단순 확인/안내
+
+B. FORM
+입력 필요
+
+C. SELECTION
+항목 선택
+
+D. CONFIRMATION
+행동 확인
+
+E. DESTRUCTIVE
+삭제/취소/해제
+
+F. FULL CONTENT
+내용이 길어 sheet/full-height 필요
+
+G. SYSTEM ALERT
+Alert.alert 수준이면 충분
+
+같은 목적에 서로 다른 구조를 쓰고 있는지 확인.
+
+==================================================
+4. SIZE RULE
+==================================================
+
+기본 Modal:
+
+작은 고정 높이 금지.
+
+권장:
+
+width:
+화면 좌우 여백 기준
+
+maxHeight:
+화면 높이의 안전 범위 내
+
+content가 짧으면 자연 높이
+content가 길면 내부 ScrollView
+
+사용.
+
+작은 iPhone에서:
+
+- footer button 잘림
+- title 잘림
+- content overflow
+
+없어야 함.
+
+==================================================
+5. FULL / LARGE MODAL
+==================================================
+
+내용이 많은 경우:
+
+억지로 작은 중앙 Modal 안에
+모든 내용을 넣지 않는다.
+
+다음 조건이면
+large sheet/full-height 계열을 우선 검토:
+
+- 긴 목록
+- 여러 입력
+- 상세 정보
+- 사진/영상 선택
+- 일정 편집
+- 복잡한 설정
+
+단 navigation 구조 변경 금지.
+
+기존 sheet/full modal이 있으면 재사용.
+
+==================================================
+6. OVERLAY RULE
+==================================================
+
+Modal background overlay를 통일.
+
+문제 검사:
+
+- 너무 투명해서 뒤 화면이 산만함
+- 지나치게 검음
+- Modal마다 opacity 다름
+
+하나의 shared overlay token/style로 통일 가능한지 확인.
+
+중요:
+
+디자인적으로 "반투명 박스"처럼
+content 자체가 비쳐 보이면 안 된다.
+
+Content surface는 불투명.
+
+==================================================
+7. BORDER / SHADOW
+==================================================
+
+현재 Global Design System:
+
+Borderless First
+
+유지.
+
+Modal container 기본:
+
+- white/off-white surface
+- radius
+- subtle shadow
+
+로 구분.
+
+불필요한:
+
+border + shadow 동시 사용
+colored outline
+thick border
+
+제거.
+
+단 실제 selected/input boundary는 유지 가능.
+
+==================================================
+8. HEADER RULE
+==================================================
+
+Modal header 기본 구조:
+
+Title
+Optional subtitle
+Optional close icon
+
+close icon이 있으면:
+
+visual background 기본 제거
+touch area 44×44 유지
+
+Title alignment와 spacing을 통일.
+
+단 confirmation alert는 별도 compact 구조 가능.
+
+==================================================
+9. FOOTER / ACTION BUTTON RULE
+==================================================
+
+Global Button System 적용.
+
+PRIMARY
+→ Navy
+
+SECONDARY
+→ 공통 Secondary
+
+DESTRUCTIVE
+→ Red
+
+X라고 Primary CTA를 Steel Blue로 바꾸지 않는다.
+Steel Blue는 X accent only.
+
+버튼 순서를 목적별로 통일.
+
+예:
+
+[취소] [확인]
+
+또는 vertical stack이 필요한 작은 화면은
+일관된 규칙 사용.
+
+같은 앱에서 화면마다
+확인/취소 순서가 뒤집히지 않도록 조사.
+
+==================================================
+10. DESTRUCTIVE CONFIRMATION
+==================================================
+
+삭제/탈퇴/해제/취소처럼
+복구 어려운 행동은 별도 분류.
+
+확인:
+
+- destructive action red
+- primary와 혼동되지 않음
+- 문구가 실제 결과를 명확히 설명
+- 버튼 연속탭 방지
+- 실행 중 loading
+- 완료 전 Modal 중복 닫힘 방지
+
+불필요한 2중/3중 confirmation은 피한다.
+
+==================================================
+11. KEYBOARD HANDLING
+==================================================
+
+입력 Modal 전수 검사.
+
+확인:
+
+- KeyboardAvoidingView
+- ScrollView
+- keyboardShouldPersistTaps
+- 입력 중 footer 가림
+- iOS keyboard
+- Android keyboard
+- multiline input
+
+특히:
+
+학생/회원 입력
+선생님 설정
+메신저
+공지
+일지
+보강
+검색/이름 입력
+기타 form modal
+
+검사.
+
+새 native dependency 금지.
+
+==================================================
+12. SCROLL HANDLING
+==================================================
+
+Modal content가 긴 경우:
+
+Modal 전체가 화면 밖으로 나가지 않게 한다.
+
+Header/Footer 고정 여부는
+실제 UX에 맞게 판단.
+
+목록/폼이 길 경우
+content 영역만 scroll 가능하도록 우선 검토.
+
+중첩 ScrollView 문제도 확인.
+
+==================================================
+13. SAFE AREA
+==================================================
+
+다음 환경 확인:
+
+- Dynamic Island
+- Home Indicator
+- 작은 iPhone
+- 큰 iPhone
+
+Bottom sheet/footer가
+Home Indicator와 겹치지 않도록 처리.
+
+기존 SafeAreaView / insets 구조 재사용.
+
+==================================================
+14. BACK / DISMISS
+==================================================
+
+각 Modal에서:
+
+X close button
+background tap
+Android hardware back
+swipe dismiss
+cancel button
+
+동작을 확인.
+
+목적에 따라 허용/금지하되
+동일 유형에서 규칙 통일.
+
+Form 작성 중 background tap 하나로
+내용이 날아가는 Modal이 있는지 확인.
+
+==================================================
+15. DOUBLE TAP / DUPLICATE SUBMIT
+==================================================
+
+중요.
+
+다음 action Modal 전수 검사:
+
+저장
+등록
+삭제
+확인
+보강 생성
+출결 변경
+공지 저장
+메시지 전송
+X 설정
+Super Admin control
+
+사용자가 버튼을 연속 탭했을 때:
+
+API 중복 요청
+navigation 중복 push
+중복 저장
+
+이 발생하지 않아야 함.
+
+기존 ref/state lock pattern이 있으면 재사용.
+
+새로운 business logic를 만드는 것이 아니라
+UI 중복 실행 방지만 한다.
+
+==================================================
+16. LOADING STATE
+==================================================
+
+async action Modal에서:
+
+요청 시작 후
+
+- 버튼 disabled
+- loading indicator
+- 중복 submit 차단
+
+확인.
+
+실패 시:
+
+Modal이 이유 없이 닫히지 않고
+기존 error handling 유지.
+
+==================================================
+17. ALERT.ALERT AUDIT
+==================================================
+
+Alert.alert 전수 조사.
+
+확인:
+
+- simple confirmation이면 적절
+- 복잡한 입력/긴 설명인데 Alert 사용 중인지
+- button order
+- destructive style
+- cancel style
+- duplicate wording
+
+간단한 시스템 confirmation은
+억지로 custom Modal로 전환하지 않는다.
+
+==================================================
+18. BOTTOM SHEET AUDIT
+==================================================
+
+기존 Bottom Sheet 계열을 조사.
+
+특히:
+
+- AdminClassDetailSheet
+- 기타 schedule/member/detail sheet
+
+확인:
+
+height
+drag/close
+scroll
+footer
+safe area
+overlay
+nested modal
+
+같은 Sheet끼리 구조 통일 가능 여부 확인.
+
+==================================================
+19. MENU / ACTION SHEET
+==================================================
+
+간단한 선택 메뉴가
+큰 Modal로 구현되어 있는지 확인.
+
+예:
+
+사진 선택
+정렬
+필터
+간단한 action list
+
+현재 구조를 유지하되
+과도한 container/border/icon tile을 제거.
+
+==================================================
+20. FORM MODAL
+==================================================
+
+입력 Modal 공통 규칙:
+
+Label
+Input
+Helper/Error
+Actions
+
+순서 통일.
+
+placeholder만으로 필드 의미를 전달하지 않도록
+기존 label 존재 여부 확인.
+
+단 이번 A4에서 form validation contract는 변경 금지.
+
+==================================================
+21. ERROR MODAL
+==================================================
+
+Error를:
+
+Red full-screen box
+큰 red border
+
+등으로 과장하지 않는다.
+
+실제 error message + 필요한 action 중심.
+
+Red는 semantic accent 정도로 제한.
+
+==================================================
+22. SUCCESS MODAL
+==================================================
+
+단순 성공 완료를
+매번 큰 Modal로 띄우는 패턴이 있는지 조사.
+
+기존 toast/banner/navigation feedback으로 충분한 경우
+불필요 Modal 제거 후보.
+
+단 기존 사용자 flow를 크게 변경해야 하면
+REPORT 후 보류.
+
+==================================================
+23. ROLE CONSISTENCY
+==================================================
+
+ADMIN
+TEACHER
+PARENT
+SUPER ADMIN
+
+동일한 유형의 Modal이
+Role마다 전혀 다른 모양인지 확인.
+
+business content만 다르고
+Modal grammar는 동일해야 함.
+
+==================================================
+24. X MODE
+==================================================
+
+X Modal도
+Global Modal grammar 동일.
+
+차이는 필요한 곳에서
+Steel Blue accent만.
+
+X라고:
+
+- 다른 radius
+- 다른 button grammar
+- dark overlay
+- 다른 dialog architecture
+
+사용 금지.
+
+==================================================
+25. SUPER ADMIN
+==================================================
+
+Super Admin도 동일한 Modal grammar 적용.
+
+단:
+
+destructive/admin control confirmation은
+운영 위험도를 고려해 확인 문구 유지.
+
+Super Admin purple은 identity로 유지 가능.
+
+Global Primary/Secondary/Destructive hierarchy는 유지.
+
+==================================================
+26. HIGH PRIORITY MODALS
+==================================================
+
+Audit 후 P0/P1/P2 분류.
+
+P0 후보:
+
+- 로그인/회원가입 관련
+- 회원/학생 등록
+- 반 등록/수정
+- 스케줄
+- 출결
+- 보강
+- 일지
+- 공지
+- 메시지
+- X setup
+- Super Admin X control
+
+실제 사용 빈도/영향 기준으로 확정.
+
+==================================================
+27. SHARED COMPONENT REUSE
+==================================================
+
+현재 existing shared Modal/Sheet component 확인.
+
+가능하면 확장.
+
+필요할 경우 최소 shared primitive 후보:
+
+AppModal
+AppSheet
+ModalHeader
+ModalFooter
+
+단 중복 abstraction 남발 금지.
+
+현재 구조에서 공통화 효과가 큰 경우에만 생성.
+
+==================================================
+28. VISUAL RULE
+==================================================
+
+최종 목표:
+
+- 배경은 밝고 깨끗함
+- 테두리 최소
+- 충분한 여백
+- Title hierarchy 명확
+- CTA 색상 통일
+- icon tile 최소
+- overlay 일관
+- 작은 화면에서도 안정적
+
+"묵직함"을 dark modal로 표현하지 않는다.
+
+==================================================
+29. IMPLEMENTATION ORDER
+==================================================
+
+BATCH 1
+전체 Audit / P0-P2 분류
+
+BATCH 2
+Shared Modal/Sheet visual primitives
+
+BATCH 3
+P0 Form / Confirmation Modal
+
+BATCH 4
+P0 Scheduler / Member / Diary / Makeup
+
+BATCH 5
+Teacher / Parent
+
+BATCH 6
+X / Super Admin
+
+BATCH 7
+remaining P1/P2 visual consistency
+
+각 Batch마다 테스트 후 진행.
+
+==================================================
+30. NO BUSINESS CHANGE
+==================================================
+
+이번 A4에서 다음은 그대로:
+
+API payload
+save sequence
+DB
+permissions
+role rules
+X mode rules
+AI calls
+diary behavior
+attendance behavior
+makeup behavior
+member behavior
+
+Modal UX 때문에
+business contract를 건드리지 않는다.
+
+==================================================
+31. OTA / NATIVE
+==================================================
+
+JS/UI 수준으로 유지.
+
+새 native dependency 추가 금지.
+native config 변경 금지.
+
+version:
+1.6.3
+
+runtime:
+1.6.3
+
+OTA compatible 유지.
+
+전체 검증 완료 후에만 production OTA publish.
+
+==================================================
+32. TEST CASES
+==================================================
+
+CASE 1
+작은 iPhone
+→ Modal content/button clipping 없음
+
+CASE 2
+긴 content
+→ scroll 정상
+
+CASE 3
+input + keyboard
+→ footer/input 가림 없음
+
+CASE 4
+background tap
+→ 의도한 dismiss behavior
+
+CASE 5
+close

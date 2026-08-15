@@ -357,7 +357,7 @@ export default function DiaryTeacherEntriesScreen() {
         />
       )}
 
-      <Modal visible={showModeModal} transparent animationType="fade">
+      <Modal visible={showModeModal} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShowModeModal(false)}>
         <Pressable style={s.overlay} onPress={() => setShowModeModal(false)}>
           <Pressable onPress={() => {}} style={[s.modeSheet, { backgroundColor: C.card }]}>
             <Text style={[s.modeTitle, { color: C.text }]}>삭제 방식 선택</Text>

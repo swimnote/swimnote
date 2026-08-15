@@ -1452,7 +1452,7 @@ export default function MakeupsScreen() {
       />
 
       {/* ── [DIAG] 진단 패널 ─────────────────────────────────────────────── */}
-      <Modal visible={diagVisible} transparent animationType="slide" onRequestClose={() => setDiagVisible(false)}>
+      <Modal visible={diagVisible} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setDiagVisible(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}>
           <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#0F172A", borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: "90%" }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16 }}>

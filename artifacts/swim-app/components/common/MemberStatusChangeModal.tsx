@@ -118,7 +118,7 @@ export function MemberStatusChangeModal({
   const todayStr = toYMD(todayDate);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={handleClose}>
       <Pressable style={m.overlay} onPress={handleClose} />
       <View style={m.sheet}>
         {step === "select" && (
