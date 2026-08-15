@@ -8,7 +8,7 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {ActivityIndicator, Alert, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import {ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -95,6 +95,7 @@ export default function HolidaysScreen() {
 
   async function handleAddHoliday() {
     if (!selectedDate) return;
+    Keyboard.dismiss();
     setSaving(selectedDate);
     setReasonModal(false);
     try {
@@ -290,27 +291,40 @@ export default function HolidaysScreen() {
       </KeyboardAwareScrollView>
 
       {/* 사유 입력 모달 */}
-      <Modal visible={reasonModal} transparent animationType="fade" onRequestClose={() => setReasonModal(false)}>
-        <Pressable style={s.overlay} onPress={() => setReasonModal(false)} />
-        <View style={s.modalCard}>
-          <Text style={[s.modalTitle, { color: C.text }]}>휴무 사유 입력</Text>
-          <Text style={[s.modalDate, { color: themeColor }]}>{selectedDate}</Text>
-          <TextInput
-            style={[s.reasonInput, { borderColor: C.border, color: C.text }]}
-            value={reason}
-            onChangeText={setReason}
-            placeholder="예: 수영장 정기점검, 공휴일 (선택사항)"
-            placeholderTextColor={C.textMuted}
-          />
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <Pressable style={[s.modalBtn, { backgroundColor: "#FFFFFF", flex: 1 }]} onPress={() => setReasonModal(false)}>
-              <Text style={[s.modalBtnText, { color: C.text }]}>취소</Text>
-            </Pressable>
-            <Pressable style={[s.modalBtn, { backgroundColor: "#D96C6C", flex: 1 }]} onPress={handleAddHoliday}>
-              <Text style={s.modalBtnText}>휴무일 등록</Text>
-            </Pressable>
+      <Modal
+        visible={reasonModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { Keyboard.dismiss(); setReasonModal(false); }}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <Pressable style={s.overlay} onPress={() => { Keyboard.dismiss(); setReasonModal(false); }} />
+          <View style={[s.modalCard, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+            <Text style={[s.modalTitle, { color: C.text }]}>휴무 사유 입력</Text>
+            <Text style={[s.modalDate, { color: themeColor }]}>{selectedDate}</Text>
+            <TextInput
+              style={[s.reasonInput, { borderColor: C.border, color: C.text }]}
+              value={reason}
+              onChangeText={setReason}
+              placeholder="예: 수영장 정기점검, 공휴일 (선택사항)"
+              placeholderTextColor={C.textMuted}
+            />
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <Pressable
+                style={[s.modalBtn, { backgroundColor: "#FFFFFF", flex: 1 }]}
+                onPress={() => { Keyboard.dismiss(); setReasonModal(false); }}
+              >
+                <Text style={[s.modalBtnText, { color: C.text }]}>취소</Text>
+              </Pressable>
+              <Pressable style={[s.modalBtn, { backgroundColor: "#D96C6C", flex: 1 }]} onPress={handleAddHoliday}>
+                <Text style={s.modalBtnText}>휴무일 등록</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -339,7 +353,7 @@ const s = StyleSheet.create({
   holidayReason:{ fontSize: 12, fontFamily: "Pretendard-Regular" },
   deleteBtn:    { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: "#F9DEDA" },
   overlay:      { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-  modalCard:    { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 16 },
+  modalCard:    { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 16 },
   modalTitle:   { fontSize: 18, fontFamily: "Pretendard-Regular" },
   modalDate:    { fontSize: 16, fontFamily: "Pretendard-Regular" },
   reasonInput:  { borderWidth: 1.5, borderRadius: 12, padding: 14, fontSize: 14, fontFamily: "Pretendard-Regular" },

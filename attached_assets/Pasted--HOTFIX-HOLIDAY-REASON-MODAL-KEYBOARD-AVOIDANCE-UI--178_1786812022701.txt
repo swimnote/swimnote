@@ -1,0 +1,197 @@
+[HOTFIX — HOLIDAY REASON MODAL KEYBOARD AVOIDANCE]
+
+현재 실기기에서 확인된 UI 버그를 우선 수정한다.
+
+증상:
+
+관리자
+→ 휴무일 관리
+→ 날짜 선택
+→ "휴무 사유 입력" Modal/Bottom Sheet 표시
+→ TextInput 터치
+→ iOS Keyboard 표시
+
+이때 Keyboard가 올라오면서
+휴무 사유 입력 Modal이 Keyboard 뒤로 가려진다.
+
+실기기 스크린샷에서 재현 확인됨.
+
+Normal SWIMNOTE / SWIMNOTE X 모두 동일하게 사용하는
+휴무일 관리 화면이므로 공통 수정한다.
+
+==================================================
+1. ROOT CAUSE FIRST
+==================================================
+
+먼저 Repository에서 휴무일 관리 화면과
+"휴무 사유 입력" Modal 구현을 찾는다.
+
+확인:
+
+- Modal
+- ModalSheet
+- KeyboardAvoidingView
+- ScrollView
+- SafeAreaInsets
+- keyboardVerticalOffset
+- position / absolute
+- bottom
+- justifyContent
+- statusBarTranslucent
+
+현재 구조를 조사하고
+키보드 표시 시 Modal이 이동하지 않는 정확한 원인을 확인한다.
+
+추측으로 별도 Modal을 새로 만들지 않는다.
+
+==================================================
+2. REQUIRED RESULT
+==================================================
+
+iOS에서 TextInput focus 후 Keyboard가 나타나면:
+
+[휴무 사유 입력]
+[선택 날짜]
+[TextInput]
+[취소] [휴무일 등록]
+
+전체가 Keyboard 위에서 보여야 한다.
+
+특히:
+
+- TextInput 가림 금지
+- 휴무일 등록 버튼 가림 금지
+- 취소 버튼 가림 금지
+
+==================================================
+3. PREFERRED IMPLEMENTATION
+==================================================
+
+현재 Modal 구조를 최대한 유지한다.
+
+필요하면:
+
+KeyboardAvoidingView
+
+를 적용하고 iOS에서는 적절한 behavior를 사용한다.
+
+예:
+
+Platform.OS === "ios"
+  ? "padding" 또는 현재 구조에 맞는 behavior
+  : undefined
+
+단 무조건 예제 코드를 복사하지 말고
+현재 Bottom Sheet 구조를 기준으로 실제 정상 동작하는 방식을 선택한다.
+
+Keyboard 표시 상태에서는
+Sheet가 Keyboard 위로 올라와야 한다.
+
+==================================================
+4. SMALL SCREEN SAFETY
+==================================================
+
+작은 iPhone에서도:
+
+- 제목
+- 날짜
+- TextInput
+- 버튼
+
+이 모두 접근 가능해야 한다.
+
+내용 높이가 부족하면
+내부 ScrollView 또는 적절한 keyboard-aware 구조를 사용한다.
+
+Keyboard 때문에 화면 밖으로 밀려
+버튼을 누를 수 없는 상태 금지.
+
+==================================================
+5. KEYBOARD DISMISS
+==================================================
+
+다음 동작도 확인한다.
+
+- 취소 → Keyboard dismiss + Modal close
+- 등록 성공 → Keyboard dismiss + Modal close
+- Modal backdrop dismiss가 허용된 구조라면 Keyboard도 함께 dismiss
+- 화면 이탈 → Keyboard 잔류 금지
+
+==================================================
+6. DO NOT CHANGE
+==================================================
+
+휴무일 등록 API 변경 금지
+DB 변경 금지
+휴무일 business logic 변경 금지
+휴무일 선택/취소 규칙 변경 금지
+보강 처리 규칙 변경 금지
+Normal/X mode 분기 변경 금지
+디자인 전면 수정 금지
+
+이번 작업은 Keyboard/Modal layout hotfix만 수행한다.
+
+==================================================
+7. REGRESSION CHECK
+==================================================
+
+반드시 확인:
+
+1. Modal 최초 표시 정상
+2. TextInput 터치
+3. Keyboard 표시
+4. TextInput 가리지 않음
+5. 취소 버튼 가리지 않음
+6. 휴무일 등록 버튼 가리지 않음
+7. 한글 입력 정상
+8. 여러 줄/긴 사유 입력 시 layout 정상
+9. Keyboard 내린 후 sheet 위치 정상 복귀
+10. 취소 정상
+11. 등록 정상
+12. 휴무일 해제 정상
+13. Normal SWIMNOTE 정상
+14. X mode 정상
+
+==================================================
+8. SHARED MODAL CHECK
+==================================================
+
+이번 문제의 원인이 공용 Modal/ModalSheet primitive에 있다면
+다른 TextInput Modal에도 동일 문제가 있는지 조사한다.
+
+단:
+
+다른 화면을 무조건 일괄 수정하지 않는다.
+
+공용 primitive 수정이 다른 Modal에 영향을 줄 경우
+영향 범위를 먼저 확인하고 regression test한다.
+
+==================================================
+9. REPORT
+==================================================
+
+완료 후:
+
+1. ROOT CAUSE
+2. HOLIDAY SCREEN FILE
+3. MODAL STRUCTURE BEFORE
+4. MODAL STRUCTURE AFTER
+5. KEYBOARD AVOIDANCE METHOD
+6. SMALL SCREEN RESULT
+7. KEYBOARD DISMISS RESULT
+8. NORMAL/X RESULT
+9. SHARED MODAL IMPACT
+10. MODIFIED FILES
+11. DB CHANGE?
+12. API CHANGE?
+13. BUSINESS LOGIC CHANGE?
+14. NATIVE CHANGE?
+15. TSC RESULT
+16. COMMIT SHA
+17. OTA
+
+순서로 보고.
+
+성공 코드:
+
+HOLIDAY_REASON_KEYBOARD_HOTFIX_COMPLETE ✅
