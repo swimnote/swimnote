@@ -993,21 +993,38 @@ async function runGroup8_ParentAiUsageFeatureIsolation(db: Db): Promise<void> {
   console.log("[X-init] Group 8-2: old 2-col unique dropped OK");
 
   // ── 새 3-col UNIQUE 추가 ──────────────────────────────────────────────────
-  // pg_constraint 사전 확인 방식: IF NOT EXISTS → 완전 멱등.
-  // 주의: DO $$ EXCEPTION WHEN duplicate_object (42710) 패턴은
-  //       PostgreSQL이 constraint 내부 index 중복 시 42P07을 발생시켜
-  //       핸들러를 우회함 → startup FATAL 원인. IF NOT EXISTS로 교체.
+  // pg_constraint + to_regclass 이중 precheck → 42P07 완전 방어.
+  //
+  // 문제: pg_constraint에 없어도 동일 이름의 backing index/relation이
+  //       pg_class에 이미 존재하면 ADD CONSTRAINT가 42P07을 발생시킴.
+  // 해법:
+  //   1) pg_constraint (schema-qualified) 확인
+  //   2) to_regclass('public.parent_ai_daily_usage_feature_unique') IS NULL 확인
+  //      — pg_class 내 동명 relation/index 존재 여부를 한 번에 검사
+  //   3) EXCEPTION WHEN duplicate_object OR duplicate_table: 안전망
+  //      (42710 = duplicate_object, 42P07 = duplicate_table)
+  //      WHEN OTHERS는 숨기지 않음.
   await db.execute(sql.raw(`
     DO $$
     BEGIN
       IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint
-        WHERE conname = 'parent_ai_daily_usage_feature_unique'
-      ) THEN
-        ALTER TABLE parent_ai_daily_usage
+        SELECT 1
+        FROM pg_constraint con
+        JOIN pg_class tbl ON tbl.oid = con.conrelid
+        JOIN pg_namespace ns  ON ns.oid  = tbl.relnamespace
+        WHERE con.conname   = 'parent_ai_daily_usage_feature_unique'
+          AND tbl.relname   = 'parent_ai_daily_usage'
+          AND ns.nspname    = 'public'
+      )
+      AND to_regclass('public.parent_ai_daily_usage_feature_unique') IS NULL
+      THEN
+        ALTER TABLE public.parent_ai_daily_usage
           ADD CONSTRAINT parent_ai_daily_usage_feature_unique
           UNIQUE (parent_account_id, feature, usage_date);
       END IF;
+    EXCEPTION
+      WHEN duplicate_object OR duplicate_table THEN
+        NULL; -- 이미 존재(42710/42P07): 정상 완료로 처리
     END $$;
   `));
   console.log("[X-init] Group 8-3: new 3-col unique (parent_account_id, feature, usage_date) OK");
