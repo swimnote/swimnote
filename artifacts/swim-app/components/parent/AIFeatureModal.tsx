@@ -211,7 +211,7 @@ export function AIFeatureModal({ visible, type, onClose }: Props) {
             >
               {isCurriculum ? <CurriculumContent /> : <ReportContent />}
               <Text style={m.powered}>
-                Powered by SWIMNOTE AI + OpenAI GPT
+                Powered by SWIMNOTE AI with OpenAI GPT
               </Text>
             </ScrollView>
           </View>

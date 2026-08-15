@@ -2116,7 +2116,7 @@ export default function ParentHomeScreen() {
 
       {/* 하단 고정 문구 */}
       <View style={[s.bottomBar, { paddingBottom: insets.bottom + 6 }]}>
-        <Text style={s.bottomBarTxt}>Powered by SWIMNOTE AI + OpenAI GPT</Text>
+        <Text style={s.bottomBarTxt}>Powered by SWIMNOTE AI with OpenAI GPT</Text>
       </View>
 
       {/* AI 기능 안내 모달 */}
