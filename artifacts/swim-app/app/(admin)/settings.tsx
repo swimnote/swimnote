@@ -20,6 +20,7 @@ import { ROLE_CONFIGS } from "@/constants/auth";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
+import { useMode } from "@/context/ModeContext";
 
 const C = Colors.light;
 const N = "#14283D";
@@ -63,10 +64,14 @@ const MY_SETTINGS: MenuItem[] = [
   { label: "앱 사용 도움말",     icon: "life-buoy",      color: "#0EA5E9", bg: NB, route: "/(admin)/help",                      desc: "FAQ 및 기능 사용 가이드" },
 ];
 
+const X_ACCENT = "#355C7D";
+const X_LIGHT  = "#EEF4FA";
+
 export default function SettingsScreen() {
   const { adminUser, switchRole, token, logout, pool } = useAuth();
   const isPaidPlan = adminUser?.role === "pool_admin" && !!pool?.subscription_tier && pool.subscription_tier !== "free";
   const { themeColor } = useBrand();
+  const { mode } = useMode();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("settings");
 
@@ -214,6 +219,39 @@ export default function SettingsScreen() {
             </Pressable>
           )}
         </View>
+
+        {/* SWIMNOTE X모드 진입 — pool_admin / sub_admin에게만 노출 */}
+        {adminUser?.role !== "teacher" && (
+          <Pressable
+            style={({ pressed }) => [sx.xCard, { opacity: pressed ? 0.8 : 1, backgroundColor: C.card }]}
+            onPress={() => router.push("/(admin)/x-mode-hub" as any)}
+          >
+            <View style={[sx.xIconWrap, { backgroundColor: X_LIGHT }]}>
+              <LucideIcon name="layers" size={20} color={X_ACCENT} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={sx.xLabel}>SWIMNOTE X모드</Text>
+              <Text style={sx.xDesc}>
+                {mode === "x"
+                  ? "X모드 사용 중"
+                  : mode === "x_pending"
+                  ? "X모드 설정 진행 중"
+                  : "X모드 알아보기"}
+              </Text>
+            </View>
+            {mode === "x" && (
+              <View style={[sx.modeBadge, { backgroundColor: X_LIGHT }]}>
+                <Text style={[sx.modeBadgeText, { color: X_ACCENT }]}>사용 중</Text>
+              </View>
+            )}
+            {mode === "x_pending" && (
+              <View style={[sx.modeBadge, { backgroundColor: "#FFFBEB" }]}>
+                <Text style={[sx.modeBadgeText, { color: "#D97706" }]}>설정 중</Text>
+              </View>
+            )}
+            <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+          </Pressable>
+        )}
 
         {/* I: 설정 완성도 점수 */}
         {(() => {
@@ -392,6 +430,16 @@ const s = StyleSheet.create({
   inquiryBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16 },
   inquiryBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
   inquiryBtnDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
+});
+
+// X모드 진입 카드 스타일
+const sx = StyleSheet.create({
+  xCard:         { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 18, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
+  xIconWrap:     { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  xLabel:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  xDesc:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  modeBadge:     { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  modeBadgeText: { fontSize: 11, fontFamily: "Pretendard-Regular" },
 });
 
 // I: 설정 완성도 스타일

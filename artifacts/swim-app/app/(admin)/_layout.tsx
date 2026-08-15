@@ -239,6 +239,15 @@ export default function AdminLayout() {
       <Tabs.Screen name="web-pin-settings"        options={{ href: null }} />
       {/* SWIMNOTE X — 탭 노출 없이 push로만 접근 (WP4) */}
       <Tabs.Screen name="x-growth"               options={{ href: null }} />
+      {/* SWIMNOTE X — X01 정보 허브 및 설명 화면 */}
+      <Tabs.Screen name="x-setup"                options={{ href: null }} />
+      <Tabs.Screen name="x-mode-hub"             options={{ href: null }} />
+      <Tabs.Screen name="x-info-overview"        options={{ href: null }} />
+      <Tabs.Screen name="x-info-ai"              options={{ href: null }} />
+      <Tabs.Screen name="x-info-parent-report"   options={{ href: null }} />
+      <Tabs.Screen name="x-info-diary"           options={{ href: null }} />
+      <Tabs.Screen name="x-info-curriculum"      options={{ href: null }} />
+      <Tabs.Screen name="x-subscription"         options={{ href: null }} />
     </Tabs>
     </View>
   );
