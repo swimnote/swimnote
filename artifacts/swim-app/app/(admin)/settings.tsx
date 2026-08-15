@@ -30,27 +30,27 @@ const DEFAULT_LOGIN_MODE_KEY = "@swimnote:default_login_mode";
 type MenuItem = { label: string; icon: string; color: string; bg: string; route: string; desc?: string; badge?: string; badgeColor?: string };
 
 const CLASS_SETTINGS: MenuItem[] = [
-  { label: "수영레벨/테스트기준설정", icon: "award",      color: "#CA8A04", bg: NB, route: "/(admin)/level-settings",             desc: "수영 레벨 기준 및 테스트 관리" },
-  { label: "일지 템플릿 관리",     icon: "file-text",     color: "#7C3AED", bg: NB, route: "/(admin)/diary-template-settings", desc: "레벨별 일지 템플릿 관리" },
-  { label: "반 개설 관리",        icon: "users",          color: "#0891B2", bg: NB, route: "/(admin)/class-capacity-settings",   desc: "반 정원 및 개설 기본값 설정" },
-  { label: "수업단가표",          icon: "dollar-sign",    color: "#059669", bg: NB, route: "/(admin)/unit-pricing",               desc: "주1회·주2회·주3회 수업료 단가 설정" },
-  { label: "권한 설정",          icon: "shield",         color: "#1D4ED8", bg: NB, route: "/(admin)/admin-grant",                desc: "관리자 / 선생님 권한" },
-  { label: "보강 정책",          icon: "refresh-cw",     color: "#EA580C", bg: NB, route: "/(admin)/makeup-policy",             desc: "보강 가능 기간 및 규칙" },
-  { label: "알림 설정",          icon: "bell",           color: "#F59E0B", bg: NB, route: "/(admin)/push-notification-settings", desc: "푸시 알림 수신 설정" },
+  { label: "수영레벨/테스트기준설정", icon: "award",      color: N, bg: NB, route: "/(admin)/level-settings",             desc: "수영 레벨 기준 및 테스트 관리" },
+  { label: "일지 템플릿 관리",     icon: "file-text",     color: N, bg: NB, route: "/(admin)/diary-template-settings", desc: "레벨별 일지 템플릿 관리" },
+  { label: "반 개설 관리",        icon: "users",          color: N, bg: NB, route: "/(admin)/class-capacity-settings",   desc: "반 정원 및 개설 기본값 설정" },
+  { label: "수업단가표",          icon: "dollar-sign",    color: N, bg: NB, route: "/(admin)/unit-pricing",               desc: "주1회·주2회·주3회 수업료 단가 설정" },
+  { label: "권한 설정",          icon: "shield",         color: N, bg: NB, route: "/(admin)/admin-grant",                desc: "관리자 / 선생님 권한" },
+  { label: "보강 정책",          icon: "refresh-cw",     color: N, bg: NB, route: "/(admin)/makeup-policy",             desc: "보강 가능 기간 및 규칙" },
+  { label: "알림 설정",          icon: "bell",           color: N, bg: NB, route: "/(admin)/push-notification-settings", desc: "푸시 알림 수신 설정" },
 ];
 
 const OPS_SETTINGS: MenuItem[] = [
-  { label: "공지사항 발송",      icon: "file-text",      color: "#0369A1", bg: NB, route: "/(admin)/notices",                   desc: "학부모 / 선생님 공지 관리" },
-  { label: "구독 관리",          icon: "credit-card",    color: "#7C3AED", bg: NB, route: "/(admin)/subscription",              desc: "플랜 선택 및 구독 결제" },
-  { label: "환불 정책 확인",     icon: "file-check",     color: "#059669", bg: NB, route: "/(admin)/refund-policy",             desc: "환불 정책 확인 및 동의" },
-  { label: "휴무일 관리",        icon: "x-square",       color: N,         bg: NB, route: "/(admin)/holidays",                  desc: "수영장 휴무 / 공휴일 설정" },
-  { label: "푸시 발송 설정",     icon: "send",           color: N,         bg: NB, route: "/(admin)/push-message-settings",     desc: "단체 푸시 발송 규칙" },
-  { label: "학부모 QR 초대",     icon: "qr-code",        color: "#0EA5E9", bg: NB, route: "/(admin)/invite-qr",                 desc: "QR 코드로 학부모·선생님 초대" },
-  { label: "초대 기록",          icon: "send",           color: N,         bg: NB, route: "/(admin)/invite-records",            desc: "회원 초대 발송 내역" },
-  { label: "데이터 관리",        icon: "hard-drive",     color: "#0369A1", bg: NB, route: "/(admin)/data-management",           desc: "저장공간 현황 및 정책" },
-  { label: "브랜드 설정",        icon: "sliders",        color: N,         bg: NB, route: "/(admin)/branding",                  desc: "앱 이름 / 색상 / 로고" },
-  { label: "화이트라벨",         icon: "tag",            color: "#DB2777", bg: NB, route: "/(admin)/white-label",               desc: "커스텀 브랜딩 옵션" },
-  { label: "활동 로그",          icon: "activity",       color: "#16A34A", bg: NB, route: "/(admin)/data-event-logs",           desc: "관리자 / 선생님 활동 기록" },
+  { label: "공지사항 발송",      icon: "file-text",      color: N, bg: NB, route: "/(admin)/notices",                   desc: "학부모 / 선생님 공지 관리" },
+  { label: "구독 관리",          icon: "credit-card",    color: N, bg: NB, route: "/(admin)/subscription",              desc: "플랜 선택 및 구독 결제" },
+  { label: "환불 정책 확인",     icon: "file-check",     color: N, bg: NB, route: "/(admin)/refund-policy",             desc: "환불 정책 확인 및 동의" },
+  { label: "휴무일 관리",        icon: "x-square",       color: N, bg: NB, route: "/(admin)/holidays",                  desc: "수영장 휴무 / 공휴일 설정" },
+  { label: "푸시 발송 설정",     icon: "send",           color: N, bg: NB, route: "/(admin)/push-message-settings",     desc: "단체 푸시 발송 규칙" },
+  { label: "학부모 QR 초대",     icon: "qr-code",        color: N, bg: NB, route: "/(admin)/invite-qr",                 desc: "QR 코드로 학부모·선생님 초대" },
+  { label: "초대 기록",          icon: "send",           color: N, bg: NB, route: "/(admin)/invite-records",            desc: "회원 초대 발송 내역" },
+  { label: "데이터 관리",        icon: "hard-drive",     color: N, bg: NB, route: "/(admin)/data-management",           desc: "저장공간 현황 및 정책" },
+  { label: "브랜드 설정",        icon: "sliders",        color: N, bg: NB, route: "/(admin)/branding",                  desc: "앱 이름 / 색상 / 로고" },
+  { label: "화이트라벨",         icon: "tag",            color: N, bg: NB, route: "/(admin)/white-label",               desc: "커스텀 브랜딩 옵션" },
+  { label: "활동 로그",          icon: "activity",       color: N, bg: NB, route: "/(admin)/data-event-logs",           desc: "관리자 / 선생님 활동 기록" },
 ];
 
 const POOL_SETTINGS: MenuItem[] = [
@@ -290,7 +290,7 @@ export default function SettingsScreen() {
 
         {/* 문의하기 — 목록 최하단 */}
         {renderSection("문의하기", [
-          { label: "문의하기", icon: "help-circle", color: "#2EC4B6", bg: "#E6FAF8", route: "/(admin)/inquiries", desc: "스윔노트 · 학부모 문의 관리" },
+          { label: "문의하기", icon: "help-circle", color: N, bg: NB, route: "/(admin)/inquiries", desc: "스윔노트 · 학부모 문의 관리" },
         ])}
 
         {/* 계정 삭제 */}

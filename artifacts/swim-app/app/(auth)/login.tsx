@@ -115,7 +115,7 @@ export default function LoginPasswordScreen() {
           </View>
 
           <Pressable
-            style={({ pressed }) => [styles.btn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
+            style={({ pressed }) => [styles.btn, { backgroundColor: pressed ? "#1E293B" : C.primaryAction }]}
             onPress={() => handleLogin()}
             disabled={loading}
           >

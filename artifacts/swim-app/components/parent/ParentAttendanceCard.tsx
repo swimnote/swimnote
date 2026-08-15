@@ -29,9 +29,7 @@ export function ParentAttendanceCard({ attended, total, latestStatus }: Props) {
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <View style={[styles.iconBg, { backgroundColor: "#DBEAFE" }]}>
-          <LucideIcon name="calendar-check" size={16} color="#2563EB" />
-        </View>
+        <LucideIcon name="calendar-check" size={18} color={C.textSecondary} />
         <Text style={[styles.title, { color: C.text }]}>{month} 출석</Text>
       </View>
 
@@ -76,7 +74,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   header: { flexDirection: "row", alignItems: "center", gap: 8 },
-  iconBg: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   statsRow: { flexDirection: "row", alignItems: "center" },
   stat: { flex: 1, alignItems: "center", gap: 3 },

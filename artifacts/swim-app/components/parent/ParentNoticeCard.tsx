@@ -36,9 +36,7 @@ export function ParentNoticeCard({ notices, unreadCount, onPress }: Props) {
     >
       {/* 헤더 */}
       <View style={styles.header}>
-        <View style={[styles.iconBg, { backgroundColor: "#FEF9C3" }]}>
-          <LucideIcon name="bell" size={16} color="#D97706" />
-        </View>
+        <LucideIcon name="bell" size={18} color={C.textSecondary} />
         <Text style={[styles.title, { color: C.text }]}>공지사항</Text>
         {unreadCount > 0 && (
           <View style={[styles.badge, { backgroundColor: "#D97706" }]}>
@@ -95,7 +93,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   header: { flexDirection: "row", alignItems: "center", gap: 8 },
-  iconBg: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   title: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
   badge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   badgeTxt: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#fff" },

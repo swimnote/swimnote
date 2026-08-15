@@ -234,7 +234,7 @@ export default function TeacherSignupScreen() {
                   onSubmitEditing={searchPools}
                 />
                 <Pressable
-                  style={({ pressed }) => [styles.searchBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
+                  style={({ pressed }) => [styles.searchBtn, { backgroundColor: pressed ? "#1E293B" : C.primaryAction }]}
                   onPress={searchPools}
                   disabled={searching}
                 >
@@ -310,7 +310,7 @@ export default function TeacherSignupScreen() {
             )}
 
             <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: pressed ? "#1E293B" : C.primaryAction }]}
               onPress={handleWorkspaceNext}
             >
               <Text style={styles.submitBtnText}>다음</Text>
@@ -435,7 +435,7 @@ export default function TeacherSignupScreen() {
             )}
 
             <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.button, opacity: pressed || loading ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: pressed || loading ? "#1E293B" : C.primaryAction }]}
               onPress={handleSubmit}
               disabled={loading}
             >

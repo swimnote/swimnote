@@ -937,7 +937,7 @@ export default function SignupScreen() {
         <Pressable
           style={({ pressed }) => [
             styles.primaryBtn,
-            { backgroundColor: (step === 3 && !role) ? "#CCC" : C.tint, opacity: pressed || loading ? 0.8 : 1 },
+            { backgroundColor: (step === 3 && !role) ? "#CCC" : (pressed || loading) ? "#1E293B" : C.primaryAction },
           ]}
           onPress={isLastStep ? handleSubmit : nextStep}
           disabled={loading || (step === 3 && !role)}

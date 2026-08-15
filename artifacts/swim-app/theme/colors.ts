@@ -55,7 +55,17 @@ const light = {
   tabIconDefault: "#C7C7CC",
   tabIconSelected: mint,
 
-  // ── 버튼 컬러 ─────────────────────────────────────────────────────
+  // ── 기본 CTA (Navy) — A1-2 Design System ─────────────────────────
+  // Primary Action: 저장/다음/등록/확인/완료 등 모든 주요 액션
+  primaryAction:     navy,       // #0F172A — navy solid CTA
+  primaryActionSoft: "#E8EDF4",  // pressed / very soft navy bg
+
+  // ── 추가 토큰 — A1-2 ─────────────────────────────────────────────
+  divider:   "#F0F0F0",          // subtle list divider (C.border보다 연함)
+  textLink:  blue,               // 링크 텍스트
+
+  // ── 버튼 컬러 (레거시 — 신규 코드는 primaryAction 사용) ────────────
+  // button: WARNING/PENDING 시각 표현용으로만 남김 (일반 CTA 사용 금지)
   button:          orange,
   buttonSecondary: blue,
 

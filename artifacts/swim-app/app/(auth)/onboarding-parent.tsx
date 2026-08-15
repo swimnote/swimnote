@@ -20,7 +20,7 @@ const { width: W } = Dimensions.get("window");
 
 const MINT   = "#2EC4B6";
 const NAVY   = "#0F172A";
-const ORANGE = "#F97316";
+const ORANGE = "#F97316"; // status/warning only — CTA에 사용 금지
 const GREEN  = "#2E9B6F";
 
 const SLIDES = ["welcome", "attendance", "communication", "nickname"];
@@ -103,7 +103,7 @@ function SlideWelcome() {
   return (
     <View style={[sw.root, { width: W }]}>
       <View style={sw.iconWrap}>
-        <LucideIcon name="heart" size={64} color={ORANGE} />
+        <LucideIcon name="heart" size={64} color={NAVY} />
       </View>
       <Text style={sw.badge}>학부모 모드</Text>
       <Text style={sw.title}>자녀의 수영 수업을{"\n"}한눈에 확인하세요</Text>
@@ -223,22 +223,22 @@ const s = StyleSheet.create({
   safe:       { flex: 1, backgroundColor: "#FAFAFA" },
   progressRow:{ flexDirection: "row", justifyContent: "center", gap: 6, paddingVertical: 14 },
   dot:        { width: 6, height: 6, borderRadius: 3, backgroundColor: "#E5E7EB" },
-  dotActive:  { width: 20, backgroundColor: ORANGE },
-  dotDone:    { backgroundColor: ORANGE, opacity: 0.4 },
+  dotActive:  { width: 20, backgroundColor: NAVY },
+  dotDone:    { backgroundColor: NAVY, opacity: 0.35 },
   footer:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                 paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderColor: "#F0F0F0" },
   skipBtn:    { paddingHorizontal: 16, paddingVertical: 12 },
   skipTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
-  nextBtn:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: ORANGE,
+  nextBtn:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: NAVY,
                 paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 },
   nextTxt:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
 });
 
 const sw = StyleSheet.create({
   root:    { flex: 1, alignItems: "center", justifyContent: "center", padding: 28, gap: 16 },
-  iconWrap:{ width: 100, height: 100, borderRadius: 28, backgroundColor: "#FFF3E0",
+  iconWrap:{ width: 100, height: 100, borderRadius: 28, backgroundColor: "#E8EDF4",
              alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  badge:   { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: "#FFF3E0" },
+  badge:   { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: "#F1F5F9" },
   title:   { fontSize: 26, fontFamily: "Pretendard-Regular", color: NAVY, textAlign: "center", lineHeight: 36 },
   sub:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 24 },
   tagRow:  { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 8 },
@@ -292,7 +292,7 @@ const sn = StyleSheet.create({
   previewLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: MINT, textTransform: "uppercase"},
   previewNickname: { fontSize: 28, fontFamily: "Pretendard-Regular", color: MINT },
   previewDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  btn:         { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: MINT,
+  btn:         { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: NAVY,
                  paddingHorizontal: 32, paddingVertical: 16, borderRadius: 16, marginTop: 8 },
   btnTxt:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

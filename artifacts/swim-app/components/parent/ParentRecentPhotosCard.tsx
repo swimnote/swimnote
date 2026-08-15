@@ -64,9 +64,7 @@ export function ParentRecentPhotosCard({ photos, unreadCount, token, onPress }: 
     >
       {/* 헤더 */}
       <View style={styles.header}>
-        <View style={[styles.iconBg, { backgroundColor: "#FEF3C7" }]}>
-          <LucideIcon name="image" size={16} color="#EA580C" />
-        </View>
+        <LucideIcon name="image" size={18} color={C.textSecondary} />
         <Text style={[styles.title, { color: C.text }]}>최근 사진</Text>
         {hasNew && unreadCount > 0 && (
           <View style={styles.newBadge}>
@@ -114,7 +112,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   header: { flexDirection: "row", alignItems: "center", gap: 8 },
-  iconBg: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   title: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
   newBadge: {
     backgroundColor: "#EA580C", borderRadius: 6,

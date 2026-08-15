@@ -39,9 +39,7 @@ export function ParentGrowthCard({ growth, onPress }: Props) {
     >
       {/* 헤더 */}
       <View style={styles.header}>
-        <View style={[styles.iconBg, { backgroundColor: "#DCFCE7" }]}>
-          <LucideIcon name="trending-up" size={16} color="#16A34A" />
-        </View>
+        <LucideIcon name="trending-up" size={18} color={C.textSecondary} />
         <Text style={[styles.title, { color: C.text }]}>현재 레벨</Text>
         {hasLevelUp && (
           <View style={styles.upBadge}>
@@ -119,7 +117,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   header: { flexDirection: "row", alignItems: "center", gap: 8 },
-  iconBg: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   title: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
   upBadge: {
     flexDirection: "row", alignItems: "center", gap: 3,

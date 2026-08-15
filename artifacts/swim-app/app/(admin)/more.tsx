@@ -357,8 +357,8 @@ const s = StyleSheet.create({
   switchBtn:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
   switchBtnText:  { fontSize: 12, fontFamily: "Pretendard-Regular" },
 
-  infoBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#E6FFFA", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#E6FAF8" },
-  infoBannerText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6", lineHeight: 18 },
+  infoBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#F8FAFC", borderRadius: 12, padding: 12 },
+  infoBannerText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18 },
 
   groupTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 8, paddingHorizontal: 4 },
   groupCard:  { borderRadius: 18, overflow: "hidden", shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },

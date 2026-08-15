@@ -34,9 +34,7 @@ export function ParentLatestDiaryCard({ diaries, onPress }: Props) {
     >
       {/* 헤더 */}
       <View style={styles.header}>
-        <View style={[styles.iconBg, { backgroundColor: "#EDE9FE" }]}>
-          <LucideIcon name="book-open" size={16} color="#7C3AED" />
-        </View>
+        <LucideIcon name="book-open" size={18} color={C.textSecondary} />
         <Text style={[styles.title, { color: C.text }]}>최근 수업일지</Text>
         {diary?.is_new && (
           <View style={styles.newBadge}>
@@ -95,7 +93,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   header: { flexDirection: "row", alignItems: "center", gap: 8 },
-  iconBg: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   title: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
   newBadge: {
     backgroundColor: "#7C3AED", borderRadius: 6,
