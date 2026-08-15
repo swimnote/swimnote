@@ -1,0 +1,283 @@
+[P0 HOTFIX — SIGNUP HTTP 500 ROOT CAUSE + FIX]
+
+실기기 Production 앱에서 신규 회원가입 테스트 중 서버 오류가 발생했다.
+
+재현 화면:
+
+회원가입
+→ 기본정보
+→ 휴대폰
+→ 역할선택
+→ 추가정보
+→ 학부모 정보
+→ 수영장 선택
+→ 우리 아이 이름(수영장 등록명) 입력
+→ [가입 완료]
+→ "Unexpected response (HTTP 500)"
+
+현재 확인된 사실:
+- Client가 회원가입 마지막 단계까지 정상 진행됨
+- 수영장 선택도 완료됨
+- 가입 완료 요청 후 HTTP 500 반환
+- 스크린샷만으로 서버 내부 원인은 확정할 수 없음
+
+추측 수정 금지.
+Production API 로그 + signup route + DB transaction을 추적해서 실제 원인을 먼저 확정한다.
+
+==================================================
+1. REPRODUCE / TRACE
+==================================================
+
+회원가입 최종 submit에서 호출하는 정확한 endpoint를 찾는다.
+
+확인:
+
+- request URL
+- HTTP method
+- request payload
+- role
+- pool identifier
+- parent name
+- child registered name
+- response status
+- response body
+
+Client signup submit 코드부터 Server route까지 전체 trace한다.
+
+==================================================
+2. SERVER LOG — ROOT CAUSE REQUIRED
+==================================================
+
+HTTP 500 발생 시점의 Production server log를 확인한다.
+
+반드시 실제 exception을 찾는다.
+
+가능성을 미리 정해서 수정하지 않는다.
+
+조사 대상:
+
+- DB constraint violation
+- NOT NULL violation
+- UNIQUE violation
+- FK violation
+- schema mismatch
+- migration 누락
+- parent_accounts INSERT
+- users/account INSERT
+- swimming pool membership 연결
+- child/student matching
+- phone verification data
+- transaction rollback
+- response serialization
+- undefined/null handling
+
+실제 로그와 코드 evidence로 ROOT CAUSE를 확정한다.
+
+==================================================
+3. PARENT SIGNUP FLOW AUDIT
+==================================================
+
+학부모 가입 전체 흐름을 확인한다.
+
+Expected:
+
+Account 생성
+↓
+Parent profile 생성
+↓
+선택한 Swimming Pool 연결
+↓
+입력한 "우리 아이 이름(수영장 등록명)"으로
+해당 수영장의 기존 학생과 정상 matching
+↓
+Parent ↔ Child 연결
+↓
+가입 완료
+↓
+로그인 가능
+
+현재 서비스 설계와 실제 구현이 다르면
+현재 DB/API contract를 기준으로 정확히 정리한 후 수정한다.
+
+==================================================
+4. CHILD MATCHING FAILURE HANDLING
+==================================================
+
+특히 중요.
+
+사용자가 입력한 아이 이름이
+수영장 등록 학생과 일치하지 않는 경우는
+SERVER 500이 되어서는 안 된다.
+
+정상적인 business validation error로 반환해야 한다.
+
+예:
+
+"수영장에 등록된 학생 정보를 찾을 수 없습니다.
+수영장에 등록된 이름을 확인해주세요."
+
+정확한 문구는 기존 앱 copy 규칙에 맞춰도 된다.
+
+다음도 500 금지:
+
+- 학생 없음
+- 이름 불일치
+- 이미 연결된 계정
+- 중복 가입
+- 잘못된 pool
+- 필수 사용자 입력 누락
+
+예측 가능한 사용자 오류는
+4xx + 사용자 친화적 메시지로 처리한다.
+
+==================================================
+5. ATOMICITY
+==================================================
+
+회원가입 도중 실패할 경우
+반쪽짜리 계정이 생성되면 안 된다.
+
+확인:
+
+- account만 생성
+- parent profile만 생성
+- pool relation만 생성
+- child relation 누락
+
+등 partial signup 상태가 발생할 수 있는지 검사한다.
+
+가능하면 기존 transaction 구조를 유지/보강하여
+signup 성공 = 필요한 데이터 전체 생성
+signup 실패 = rollback
+이 되도록 한다.
+
+단 기존 인증 구조를 임의 재설계하지 않는다.
+
+==================================================
+6. ERROR RESPONSE CLEANUP
+==================================================
+
+현재 앱에
+
+"Unexpected response (HTTP 500)"
+
+이라는 개발자용 메시지가 그대로 노출된다.
+
+이것도 수정한다.
+
+서버에서 안전한 사용자 메시지가 내려오면
+그 메시지를 표시한다.
+
+예측하지 못한 5xx라면 사용자에게는:
+
+"가입 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+
+정도의 서비스 메시지를 표시한다.
+
+raw HTTP/internal exception/stack trace는 사용자에게 노출하지 않는다.
+
+단 디버깅 가능한 server logging은 유지한다.
+
+==================================================
+7. ALL SIGNUP ROLE REGRESSION
+==================================================
+
+회원가입 공용 route 수정 시 반드시 확인:
+
+ADMIN/OWNER
+TEACHER
+PARENT
+
+각 역할의 가입 flow가 깨지지 않아야 한다.
+
+특히 Parent 수정 때문에
+Admin/Teacher signup contract를 변경하지 않는다.
+
+==================================================
+8. PRODUCTION SCHEMA CHECK
+==================================================
+
+매우 중요.
+
+최근 X Mode 관련 migration 작업이 많았으므로
+코드 schema와 Production DB schema가 일치하는지 확인한다.
+
+단:
+
+원인 확인 없이 migration 실행 금지.
+Production DB destructive operation 금지.
+테이블/데이터 삭제 금지.
+
+schema mismatch가 실제 원인인 경우에만
+안전한 forward migration을 작성하고 적용한다.
+
+==================================================
+9. X MODE IS OUT OF SCOPE
+==================================================
+
+이번 P0에서는:
+
+X 결제 구현 금지
+X 설정 구현 금지
+X entitlement 변경 금지
+X config_status 변경 금지
+RevenueCat 변경 금지
+디자인 수정 금지
+
+회원가입 500 해결만 한다.
+
+==================================================
+10. VERIFICATION
+==================================================
+
+수정 후 최소 검증:
+
+1. Parent 신규 가입 정상
+2. 올바른 수영장 선택 정상
+3. 등록된 아이 이름 matching 정상
+4. 잘못된 아이 이름 → 500 아닌 validation 메시지
+5. 중복 계정 → 500 아님
+6. 중복 parent-child 연결 → 안전 처리
+7. Admin signup 회귀 없음
+8. Teacher signup 회귀 없음
+9. 실패 후 partial account 없음
+10. 성공 후 로그인 가능
+11. 앱 재실행 후 로그인 유지 정상
+12. server log에 unhandled exception 없음
+
+Production에 임의 가짜 회원/학생을 만들지 않는다.
+안전한 테스트 대상이 없으면 NO_SAFE_TEST_TARGET로 보고한다.
+
+==================================================
+11. REPORT FORMAT
+==================================================
+
+완료 후 반드시 아래 순서로 보고:
+
+1. EXACT FAILING ENDPOINT
+2. HTTP 500 ROOT CAUSE
+3. SERVER LOG EVIDENCE
+4. FAILING CODE PATH
+5. DB/SCHEMA ISSUE 여부
+6. PARTIAL ACCOUNT 발생 가능 여부
+7. FIX IMPLEMENTED
+8. USER ERROR HANDLING
+9. PARENT SIGNUP RESULT
+10. ADMIN SIGNUP REGRESSION
+11. TEACHER SIGNUP REGRESSION
+12. MODIFIED FILES
+13. DB CHANGE?
+14. MIGRATION?
+15. API CONTRACT CHANGE?
+16. NATIVE CHANGE?
+17. TSC RESULT
+18. SERVER TEST RESULT
+19. COMMIT SHA
+20. RENDER DEPLOY
+21. OTA 필요 여부 / 수행 결과
+
+성공 코드:
+
+P0_SIGNUP_HTTP500_HOTFIX_COMPLETE ✅
+
+원인 확인 전 COMPLETE 처리 금지.

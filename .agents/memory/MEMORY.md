@@ -1,3 +1,4 @@
+- [★ GLOBAL COMMON-FIX RULE](global-common-fix-rule.md) — X전용 명시 없으면 Normal+X 공통 수정; ONE SOURCE FIX + BOTH MODE VERIFICATION; 중복구현 금지 (영구 원칙)
 - [★ 에이전트 작업 범위 헌법](agent-scope-constitution.md) — 명시된 것만 수정, 뒤로 가지 않음, 서버 무수정, 승인 후 배포 (2026-08-08 최상위 원칙)
 - [★ 작업 규칙 헌법](task-constitution.md) — 모든 작업 시작 전 branch/HEAD/status 보고, push 없으면 완료 불인정, 파일삭제·merge·reset 별도 승인 필수
 - [★ SWIMNOTE X 개발 통제 헌법](constitution.md) — PART 1·2·3 완료까지 불변. 10조 통제원칙. WP0 조사+WP1 설계서 대기중. 복사패널: docs/constitution-copier.html
@@ -66,3 +67,4 @@
 - [A2 Normal AI Visibility Cleanup 완료](a2-visibility-done.md) — SHA 89cfde6a; 4파일(parent home/curriculum-chat/growth-report-detail/teacher diary); OTA production f90628fe; 다음: A3_ONBOARDING_CLEANUP
 - [A3 Onboarding Cleanup 완료](a3-onboarding-done.md) — SHA 9e67df1c; 감사+4파일(admin onboarding dead code/teacher schedule copy/parent level,diary no-child CTA); OTA production cc7689db; 다음: A4_MODAL_ALERT_SHEET_CLEANUP
 - [A4 Modal/Sheet/Alert Cleanup 완료](a4-modal-cleanup-done.md) — SHA a7c8b046; 18파일; ConfirmModal SemiBold+guard+disableBackdrop, ModalSheet border제거, WithdrawalModal bug+safearea; OTA production 524ebd4d
+- [P0 Signup HTTP500 완료](p0-signup-http500-done.md) — SHA 074e7f46; §6 클라이언트 5xx 메시지 교체+§5 원자성 롤백+apple/kakao_id 저장; Render live dep-da09qg8u01pc738mk2ag; OTA production 0119fc1b
