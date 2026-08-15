@@ -1,0 +1,246 @@
+[P0 — RENDER STARTUP CRASH LOOP HOTFIX]
+[WP1 GROUP 8 parent_ai_daily_usage_feature_unique]
+
+목적:
+
+Render startup이
+WP1 Group 8의
+
+parent_ai_daily_usage_feature_unique
+
+constraint 추가 단계에서 반복 실패하여
+/api/health = 503 initializing 상태가 지속되는 문제를
+최소 범위로 수정한다.
+
+이번 작업 최우선 목표:
+
+1. startup migration을 완전 idempotent하게 만들기
+2. Render crash loop 해소
+3. /api/health → HTTP 200 + ok:true 복구
+4. X-payment init까지 정상 도달 확인
+
+==================================================
+0. SAFETY
+==================================================
+
+금지:
+
+- DROP TABLE
+- DROP COLUMN
+- TRUNCATE
+- RESET
+- 기존 데이터 삭제
+- constraint 강제 drop 후 recreate
+- AI ENGINE DB 수정
+- 불필요한 schema 변경
+- unrelated migration 수정
+- X02-B2 구현 시작
+
+현재 Production APP DB의
+기존 parent_ai_daily_usage 데이터/constraint를
+보존한다.
+
+==================================================
+1. ROOT CAUSE TRACE
+==================================================
+
+정확히 다음 위치 조사:
+
+WP1 Group 8
+parent_ai_daily_usage_feature_unique
+
+현재 SQL / helper / transaction 구조 확인.
+
+특히:
+
+EXCEPTION WHEN duplicate_object THEN NULL
+
+이 있음에도 throw되는 이유를 확인.
+
+가능성 예:
+
+- duplicate_object가 아닌 다른 SQLSTATE
+- constraint가 이미 존재하지만 다른 object conflict
+- ALTER TABLE ADD CONSTRAINT가 transaction aborted 상태
+- helper가 exception을 다시 throw
+- constraint name vs index name collision
+- DO block 범위 문제
+- schema qualification 문제
+
+추측으로 수정 금지.
+실제 error code / message / stack 확인 후 수정.
+
+==================================================
+2. CORRECT IDEMPOTENT PATTERN
+==================================================
+
+가장 안전한 방식으로
+"존재 여부를 먼저 검사하고 없을 때만 생성"하도록 수정.
+
+PostgreSQL catalog 기준으로
+해당 table의 constraint 존재 여부를 검사.
+
+예시 방향:
+
+SELECT 1
+FROM pg_constraint
+WHERE conname = 'parent_ai_daily_usage_feature_unique'
+  AND conrelid = 'parent_ai_daily_usage'::regclass
+
+존재:
+→ SKIP
+
+없음:
+→ ALTER TABLE ... ADD CONSTRAINT ...
+
+단 실제 schema-qualified table name과 repository migration helper 스타일을 사용.
+
+Exception swallowing에 의존하는 방식보다
+pre-check 방식 우선.
+
+==================================================
+3. CONSTRAINT DEFINITION VERIFY
+==================================================
+
+현재 Production DB에 이미 존재하는
+parent_ai_daily_usage_feature_unique의 실제 정의 확인.
+
+확인:
+
+- constraint type
+- columns
+- table
+- schema
+- definition
+
+기존 정의가 코드가 기대하는 정의와 동일하면:
+→ 그대로 유지
+→ startup에서 SKIP
+
+다르면:
+→ 임의 수정 금지
+→ BLOCKED 보고
+
+==================================================
+4. NO DUPLICATE INDEX
+==================================================
+
+동일 uniqueness를 위한
+unique index가 별도로 존재하는지도 확인.
+
+constraint와 index 이름 충돌 여부 확인.
+
+중복 unique object 새로 만들지 않는다.
+
+==================================================
+5. MINIMAL CODE CHANGE
+==================================================
+
+수정 범위는
+WP1 Group 8 startup migration 관련 파일/함수만.
+
+다른 Group 1~7
+X-payment schema
+billing
+RevenueCat
+mode resolver
+app
+UI
+
+수정 금지.
+
+==================================================
+6. LOCAL/DEV VALIDATION
+==================================================
+
+다음 검증:
+
+A. constraint가 이미 존재하는 DB에서 startup 실행
+→ PASS / SKIP
+
+B. constraint가 없는 깨끗한 test/dev DB에서 startup 실행 가능하면
+→ CREATE 정상
+
+C. startup 함수를 연속 2회 실행
+→ 두 번째 실행도 PASS
+
+핵심:
+RESTART-SAFE / IDEMPOTENT
+
+==================================================
+7. DEPLOY
+==================================================
+
+수정 후:
+
+commit
+push origin/deploy-photo-clone
+Render production deploy
+
+==================================================
+8. PRODUCTION STARTUP VERIFY
+==================================================
+
+새 Render 인스턴스에서 반드시 확인:
+
+1. WP1 Group 8 PASS
+2. WP1 전체 migration COMPLETE
+3. X-payment init 진입
+4. X02-B1 P1~P3 COMPLETE
+5. 서버 crash/restart 반복 없음
+6. uptime 단조 증가
+7. /api/health HTTP 200
+8. response ok:true
+
+==================================================
+9. DO NOT CLAIM PASS EARLY
+==================================================
+
+다음 중 하나라도 안 되면 PASS 금지:
+
+- Group 8 재실패
+- process restart
+- health 503
+- X-payment init 미도달
+- startup migration 미완료
+
+==================================================
+10. REPORT
+==================================================
+
+보고:
+
+1. ROOT CAUSE
+2. EXACT ERROR SQLSTATE
+3. EXISTING CONSTRAINT DEFINITION
+4. WHY duplicate_object HANDLER FAILED
+5. MODIFIED FILE
+6. IDEMPOTENT FIX
+7. FIRST START RESULT
+8. SECOND START RESULT
+9. GROUP 8 RESULT
+10. WP1 COMPLETE?
+11. X-PAYMENT INIT COMPLETE?
+12. RENDER CRASH LOOP?
+13. HTTP STATUS
+14. HEALTH RESPONSE
+15. UPTIME STABLE?
+16. DATA CHANGE?
+17. DB DESTRUCTIVE CHANGE?
+18. TEST RESULT
+19. COMMIT SHA
+20. RENDER DEPLOY ID
+
+성공:
+
+P0_WP1_GROUP8_CRASHLOOP_HOTFIX_COMPLETE ✅
+
+실패:
+
+P0_WP1_GROUP8_CRASHLOOP_HOTFIX_BLOCKED ❌
+
+이 PASS 전:
+
+X02-B2 시작 금지.
+RevenueCat purchase 구현 금지.
+추가 DB migration 금지.
