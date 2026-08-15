@@ -1,0 +1,262 @@
+[SWIMNOTE APP SERVER HOTFIX]
+[GROUP 8 STARTUP MIGRATION IDEMPOTENCY FIX + PRODUCTION DEPLOY]
+
+확정된 root cause:
+
+파일:
+artifacts/api-server/src/migrations/pool-db-x-init.ts
+
+함수:
+runGroup8_ParentAiUsageFeatureIsolation()
+
+문제 위치:
+parent_ai_daily_usage_feature_unique 생성 부분
+
+현재 문제:
+
+Production DB에는 이미 constraint가 존재함.
+
+현재 migration은:
+
+ALTER TABLE parent_ai_daily_usage
+ADD CONSTRAINT parent_ai_daily_usage_feature_unique
+UNIQUE (parent_account_id, feature, usage_date);
+
+를 DO $$ + EXCEPTION WHEN duplicate_object 로 감싸고 있음.
+
+하지만 PostgreSQL은
+constraint 내부 index relation 중복 시:
+
+SQLSTATE 42P07
+
+을 발생시킬 수 있음.
+
+duplicate_object는 42710만 포착하므로
+startup migration 재실행 시 예외가 전파되고:
+
+[FATAL] DB 초기화 실패
+→ 서버 startup 실패
+→ 모든 route 500
+
+발생.
+
+이번 작업 목적:
+
+Group 8 migration을 진짜 idempotent하게 수정하고
+Production API를 즉시 복구한다.
+
+==================================================
+1. CODE FIX
+==================================================
+
+기존 EXCEPTION 기반 duplicate handling 제거.
+
+pg_constraint 사전 존재 확인 방식으로 변경.
+
+개념:
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'parent_ai_daily_usage_feature_unique'
+  ) THEN
+    ALTER TABLE parent_ai_daily_usage
+      ADD CONSTRAINT parent_ai_daily_usage_feature_unique
+      UNIQUE (parent_account_id, feature, usage_date);
+  END IF;
+END $$;
+
+단 실제 repository SQL formatting / schema qualification 기준 사용.
+
+==================================================
+2. SCHEMA SAFETY
+==================================================
+
+확인:
+
+- 기존 constraint 삭제 금지
+- DROP 금지
+- 데이터 변경 금지
+- 기존 UNIQUE semantics 변경 금지
+
+이미 존재하면 완전 no-op.
+
+없으면 정상 생성.
+
+==================================================
+3. OTHER GROUP 8 OPERATIONS
+==================================================
+
+같은 함수 안의 다른 operations도
+startup 재실행 시 실제로 idempotent한지 빠르게 확인.
+
+특히:
+
+ADD COLUMN IF NOT EXISTS feature
+DROP old constraint IF EXISTS
+reservation feature column
+
+재실행 시 fatal 없는지 확인.
+
+이번 hotfix 범위 밖의 대규모 migration refactor 금지.
+
+==================================================
+4. LOCAL TEST
+==================================================
+
+최소 synthetic/repeated migration test 수행.
+
+CASE A:
+constraint 없음
+→ 생성 성공
+
+CASE B:
+constraint 이미 존재
+→ 재실행 성공 / no-op
+
+CASE C:
+Group 8 두 번 연속 실행
+→ 두 번째도 성공
+
+가능하면 PostgreSQL test DB 기준.
+
+==================================================
+5. STARTUP REGRESSION
+==================================================
+
+initXModeSchema() 전체 startup path에서
+Group 8 재실행이 더 이상 throw하지 않는지 확인.
+
+다른 Group 영향 없어야 함.
+
+==================================================
+6. COMMIT / PUSH
+==================================================
+
+hotfix만 commit.
+
+예:
+
+fix(db): make parent AI feature unique migration idempotent
+
+정상 fast-forward:
+
+git push origin deploy-photo-clone
+
+force/rebase/reset 금지.
+
+==================================================
+7. PRODUCTION DEPLOY
+==================================================
+
+최신 commit을
+swimnote-api Production에 배포.
+
+현재 운영 API 복구가 목적.
+
+worker는 별도 코드 경로가 같은 경우
+같은 migration startup을 실행하는지 확인.
+
+worker도 동일 startup migration으로 crash 가능하면
+동일 최신 commit으로 worker도 재배포.
+
+추측 금지.
+실제 startup path 기준 결정.
+
+==================================================
+8. POST-DEPLOY VERIFY
+==================================================
+
+Production 확인:
+
+GET https://swimnote.kr/api/healthz
+→ 200 JSON
+
+그리고 authenticated route까지 갈 필요 없이
+무인증으로:
+
+GET /api/super/dashboard-stats
+→ 401 JSON
+
+GET /api/parent/students/test/curriculum-search/history
+→ 401 JSON
+
+GET /api/pools/my
+→ 무인증이면 401/403 JSON
+→ 절대 500 아님
+
+==================================================
+9. STARTUP LOG
+==================================================
+
+확인:
+
+- DB initialization complete
+- Group 8 complete/no-op
+- FATAL 없음
+- crash loop 없음
+
+==================================================
+10. DATA SAFETY
+==================================================
+
+Production DB:
+
+parent_ai_daily_usage row count
+parent_ai_usage_reservations row count
+
+검증 중 변화 없음.
+
+constraint:
+
+parent_ai_daily_usage_feature_unique
+
+정상 유지.
+
+==================================================
+11. APP / OTA
+==================================================
+
+이번 문제는 server-side startup bug.
+
+native build 247 금지.
+OTA 필요 없음.
+
+TestFlight build 246 그대로 사용.
+
+==================================================
+12. REPORT
+==================================================
+
+다음만 보고:
+
+1. MODIFIED FILE
+2. EXACT CODE FIX
+3. GROUP 8 IDEMPOTENT?
+4. REPEATED MIGRATION TEST
+5. STARTUP TEST
+6. COMMIT SHA
+7. PUSH RESULT
+8. API DEPLOY RESULT
+9. WORKER REDEPLOY REQUIRED?
+10. WORKER DEPLOY RESULT
+11. HEALTH RESULT
+12. POOLS/MY STATUS
+13. PARENT ROUTE STATUS
+14. SUPER ROUTE STATUS
+15. STARTUP FATAL?
+16. CRASH LOOP?
+17. PRODUCTION DATA CHANGED?
+18. DB MIGRATION MANUALLY RUN?
+19. OTA?
+20. NEW NATIVE BUILD?
+
+성공:
+
+SWIMNOTE_GROUP8_STARTUP_HOTFIX_DEPLOYED ✅
+
+실패:
+
+SWIMNOTE_GROUP8_STARTUP_HOTFIX_BLOCKED ❌
