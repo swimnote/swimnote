@@ -111,7 +111,7 @@ export default function AdminLayout() {
           paddingBottom: Platform.OS === "android" ? Math.max(insets.bottom + 8, 24) : 12,
           paddingTop: 8,
         },
-        tabBarLabelStyle: { fontSize: 10, fontFamily: "Pretendard-Regular", marginTop: 2 },
+        tabBarLabelStyle: { fontSize: 10, fontFamily: "Pretendard-Regular", marginTop: 2, lineHeight: 14 },
       }}
     >
       {/* ─── 5개 메인 탭 ─── */}

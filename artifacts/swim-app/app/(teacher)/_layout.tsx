@@ -100,7 +100,7 @@ export default function TeacherLayout() {
           paddingBottom: Platform.OS === "android" ? Math.max(insets.bottom + 8, 24) : 12,
           paddingTop: 8,
         },
-        tabBarLabelStyle: { fontFamily: "Pretendard-Regular", fontSize: 10, marginTop: 2 },
+        tabBarLabelStyle: { fontFamily: "Pretendard-Regular", fontSize: 10, marginTop: 2, lineHeight: 14 },
         tabBarBackground: () =>
           isIOS ? (
             <BlurView intensity={100} tint="light" style={StyleSheet.absoluteFill} />
