@@ -2552,7 +2552,7 @@ router.delete("/account", requireAuth, async (req: AuthRequest, res) => {
 // POST /auth/v2/parent-register
 // ══════════════════════════════════════════════════════════════════════
 router.post("/v2/parent-register", async (req, res) => {
-  const { parent_name, phone, password, pool_id, child_name, loginId } = req.body;
+  const { parent_name, phone, password, pool_id, child_name, loginId, apple_id, kakao_id } = req.body;
 
   const name     = (parent_name || "").trim();
   const ph       = normPhoneV2(phone || "");
@@ -2560,9 +2560,12 @@ router.post("/v2/parent-register", async (req, res) => {
   const poolId   = (pool_id || "").trim();
   const childRaw = (child_name || "").trim();
   const lid      = (loginId || "").trim() || null;
+  // 소셜 로그인 식별자 (Apple Sign In / Kakao)
+  const appleId  = (apple_id  || "").trim() || null;
+  const kakaoId  = (kakao_id  || "").trim() || null;
 
   const phoneMaskLog = ph.length > 6 ? ph.slice(0, 3) + "****" + ph.slice(-4) : "****";
-  console.log(`[v2-register] 입력: name="${name}" phone=${phoneMaskLog} pool_id=${poolId} child_name="${childRaw}" loginId=${lid ?? "없음"}`);
+  console.log(`[v2-register] 요청 수신: name="${name}" phone=${phoneMaskLog} pool_id=${poolId} child_name="${childRaw}" loginId=${lid ?? "없음"} social=${appleId ? "apple" : kakaoId ? "kakao" : "none"}`);
 
   // 필수값 검증
   if (!name)    return err(res, 400, "학부모 이름을 입력해주세요.");
@@ -2573,6 +2576,9 @@ router.post("/v2/parent-register", async (req, res) => {
   if (!childRaw) return err(res, 400, "우리 아이 이름을 입력해주세요.");
 
   const childNorm = normNameV2(childRaw);
+
+  // 생성된 계정 ID — 오류 시 롤백에 사용
+  let createdParentId: string | null = null;
 
   try {
     // 중복 전화번호 확인
@@ -2590,6 +2596,22 @@ router.post("/v2/parent-register", async (req, res) => {
       if (existingLid) return err(res, 409, "이미 사용 중인 아이디입니다.");
     }
 
+    // 소셜 아이디 중복 확인 (Apple)
+    if (appleId) {
+      const [existingApple] = (await db.execute(sql`
+        SELECT id FROM parent_accounts WHERE apple_id = ${appleId} LIMIT 1
+      `)).rows as any[];
+      if (existingApple) return err(res, 409, "이미 Apple 계정으로 가입된 사용자입니다.");
+    }
+
+    // 소셜 아이디 중복 확인 (Kakao)
+    if (kakaoId) {
+      const [existingKakao] = (await db.execute(sql`
+        SELECT id FROM parent_accounts WHERE kakao_id = ${kakaoId} LIMIT 1
+      `)).rows as any[];
+      if (existingKakao) return err(res, 409, "이미 카카오 계정으로 가입된 사용자입니다.");
+    }
+
     // 수영장 존재 확인
     const [pool] = (await superAdminDb.execute(sql`
       SELECT id, name FROM swimming_pools WHERE id = ${poolId} LIMIT 1
@@ -2599,12 +2621,15 @@ router.post("/v2/parent-register", async (req, res) => {
     // 계정 생성
     const parentId = `pa_v2_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const pin_hash = await hashPassword(pw);
+    createdParentId = parentId;  // 롤백 대상 등록
 
     await db.execute(sql`
       INSERT INTO parent_accounts
-        (id, swimming_pool_id, phone, pin_hash, name, login_id, is_active, created_at, updated_at)
+        (id, swimming_pool_id, phone, pin_hash, name, login_id,
+         apple_id, kakao_id, is_active, created_at, updated_at)
       VALUES
-        (${parentId}, ${poolId}, ${ph}, ${pin_hash}, ${name}, ${lid}, true, NOW(), NOW())
+        (${parentId}, ${poolId}, ${ph}, ${pin_hash}, ${name}, ${lid},
+         ${appleId}, ${kakaoId}, true, NOW(), NOW())
     `);
     console.log(`[v2-register] 계정 생성 완료: parentId=${parentId}`);
 
@@ -2634,9 +2659,10 @@ router.post("/v2/parent-register", async (req, res) => {
         `);
         return nameOnlyRows.rows.length > 0 ? "phone_mismatch" : "name_mismatch";
       })());
+      // §5 원자성: pending 저장 실패 시 아래 catch에서 계정 롤백됨
       await upsertParentV2Pending(parentId, poolId, childRaw, childNorm, ph, pendingReason);
       console.log(`[v2-register] 대기 상태로 저장: child="${childRaw}" pool=${poolId} reason=${pendingReason}`);
-      // 수영장 관리자에게 push 알림
+      // 수영장 관리자에게 push 알림 (실패해도 가입은 성공)
       try {
         const { sendPushToPoolAdmins } = await import("../lib/push-service.js");
         await sendPushToPoolAdmins(
@@ -2649,6 +2675,9 @@ router.post("/v2/parent-register", async (req, res) => {
       } catch (pushErr) { console.error("[v2-register] push 오류:", pushErr); }
     }
 
+    // 계정이 성공적으로 완성됐으므로 롤백 불필요
+    createdParentId = null;
+
     const token = signToken({ userId: parentId, role: "parent_account", poolId });
     console.log(`[v2-register] 완료: status=${status} parentId=${parentId}`);
 
@@ -2660,8 +2689,20 @@ router.post("/v2/parent-register", async (req, res) => {
       parent: { id: parentId, name, phone: ph, swimming_pool_id: poolId },
     });
   } catch (e: any) {
-    console.error("[v2-register] 오류:", e?.message, e);
-    return err(res, 500, "서버 오류가 발생했습니다.");
+    console.error("[v2-register] 오류:", e?.message, e?.stack ?? e);
+
+    // §5 원자성 롤백: 계정이 생성됐으나 후속 처리(pending 저장 등)가 실패한 경우 계정 삭제
+    if (createdParentId) {
+      try {
+        await db.execute(sql`DELETE FROM parent_accounts WHERE id = ${createdParentId}`);
+        console.warn(`[v2-register] 롤백 완료: parentId=${createdParentId}`);
+      } catch (rollbackErr: any) {
+        console.error(`[v2-register] 롤백 실패 (부분 계정 존재): parentId=${createdParentId}`, rollbackErr?.message);
+      }
+      createdParentId = null;
+    }
+
+    return err(res, 500, "가입 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
   }
 });
 

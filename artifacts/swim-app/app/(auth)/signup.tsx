@@ -381,7 +381,14 @@ export default function SignupScreen() {
         });
         data = await safeJson(res);
         if (!res.ok) {
-          setError(data.error || data.message || "가입에 실패했습니다.");
+          // HTTP 5xx 또는 raw 기술 오류 메시지는 사용자 친화적 메시지로 교체
+          const rawError = data.error || data.message || "";
+          const isServerError = res.status >= 500
+            || rawError.startsWith("Unexpected response")
+            || rawError.startsWith("Internal Server Error");
+          setError(isServerError
+            ? "가입 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+            : (rawError || "가입에 실패했습니다."));
           return;
         }
         // 자녀 이름을 호칭 화면에서 자동 불러오기 위해 임시 저장
