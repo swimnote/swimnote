@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, router } from "expo-router";
 import {
-  ActivityIndicator, RefreshControl,
+  ActivityIndicator, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -74,6 +74,13 @@ export default function ParentLevelScreen() {
         <View style={s.empty}>
           <LucideIcon name="user-round" size={44} color={C.textMuted} />
           <Text style={[s.emptyTitle, { color: C.text }]}>자녀를 선택해주세요</Text>
+          <Text style={[s.emptySub, { color: C.textSecondary }]}>홈 화면에서 자녀를 선택하세요</Text>
+          <Pressable
+            onPress={() => router.push("/(parent)/home" as any)}
+            style={s.homeBtn}
+          >
+            <Text style={s.homeBtnTxt}>홈으로 가기</Text>
+          </Pressable>
         </View>
       ) : (
         <ScrollView
@@ -258,4 +265,7 @@ const s = StyleSheet.create({
   empty: { alignItems: "center", paddingTop: 60, gap: 12 },
   emptyTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
   emptySub: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
+  homeBtn:  { marginTop: 4, paddingHorizontal: 24, paddingVertical: 10,
+               backgroundColor: "#0F172A", borderRadius: 12 },
+  homeBtnTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

@@ -114,15 +114,11 @@ export default function OnboardingAdminScreen() {
     });
   }
 
-  function goToSetting(path: string) {
-    finish();
-  }
-
   const renderSlide = ({ item }: { item: string }) => {
     if (item === "welcome") return <SlideWelcome name={name} />;
     if (item === "features") return <SlideFeatures />;
     if (item === "checklist") return (
-      <SlideChecklist checkedIds={checkedIds} onToggle={toggleCheck} onNavigate={goToSetting} />
+      <SlideChecklist checkedIds={checkedIds} onToggle={toggleCheck} />
     );
     if (item === "flow") return <SlideFlow />;
     if (item === "done") return <SlideDone name={name} onStart={finish} />;
@@ -220,10 +216,9 @@ function SlideFeatures() {
 }
 
 /* ── 슬라이드 3: 필수 설정 체크리스트 ─────────────────────────────── */
-function SlideChecklist({ checkedIds, onToggle, onNavigate }: {
+function SlideChecklist({ checkedIds, onToggle }: {
   checkedIds: Set<string>;
   onToggle: (id: string) => void;
-  onNavigate: (path: string) => void;
 }) {
   const requiredCount = CHECKLIST.filter(c => c.required).length;
   const checkedRequired = CHECKLIST.filter(c => c.required && checkedIds.has(c.id)).length;

@@ -248,6 +248,12 @@ export default function ParentDiaryScreen() {
           <LucideIcon name="user-round" size={44} color={C.textMuted} />
           <Text style={[ds.emptyTitle, { color: C.text }]}>자녀를 선택해주세요</Text>
           <Text style={[ds.emptySub, { color: C.textSecondary }]}>홈 화면에서 자녀를 선택하세요</Text>
+          <Pressable
+            onPress={() => router.push("/(parent)/home" as any)}
+            style={ds.homeBtn}
+          >
+            <Text style={ds.homeBtnTxt}>홈으로 가기</Text>
+          </Pressable>
         </View>
       ) : diaryNotFound ? (
         <View style={ds.empty}>
@@ -312,6 +318,9 @@ const ds = StyleSheet.create({
   empty: { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 10 },
   emptyTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
   emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
+  homeBtn:  { marginTop: 4, paddingHorizontal: 24, paddingVertical: 10,
+               backgroundColor: "#0F172A", borderRadius: 12 },
+  homeBtnTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });
 
 const ts = StyleSheet.create({

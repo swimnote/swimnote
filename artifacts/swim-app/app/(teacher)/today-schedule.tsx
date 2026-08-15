@@ -503,8 +503,8 @@ export default function TodayScheduleScreen() {
                 <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center", marginBottom: 2 }}>
                   <Sun size={26} color={C.textMuted} />
                 </View>
-                <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }}>오늘 수업 없음</Text>
-                <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted }}>편하게 쉬어가세요</Text>
+                <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }}>오늘 배정된 수업이 없습니다</Text>
+                <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted }}>수업이 배정되면 여기에 표시됩니다</Text>
               </View>
             ) : sortedItems.map((item, idx) => {
               const students = itemStudentsMap[item.id] ?? [];
