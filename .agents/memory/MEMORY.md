@@ -77,3 +77,4 @@
 - [P0 X Pool-Wide Immediate Activation 완료](p0-x-pool-wide-done.md) — SHA fc087251; computeMode(pool) 시그니처+paid→x즉시; 1153TC; Render dep-da0mqi61egvs73942tng; OTA 652e8c3d/25ac6b25
 - [P1 FINAL 완료 상태](wp-p1final-done-state.md) — SHA d6599409; P1 FULL surface conversion 완료; OTA 01a00aff
 - [P1.1 Nautic+Yacht Blue 완료](p1-1-nautic-yacht-done.md) — SHA 5163e424; xTheme 2-tone 재정의+header 2-row pool-name fix; OTA 01a00b1c
+- [WP-X0 완료](wp-x0-done-state.md) — SHA 3149ff2e; AppButton/MainTabs X-mode aware; today-schedule header btn; OTA 01a00b38
