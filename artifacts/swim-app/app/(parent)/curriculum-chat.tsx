@@ -35,8 +35,11 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { XModeGuard } from "@/components/common/XModeGuard";
 
 const C = Colors.light;
-const TEAL = "#2EC4B6";
-const TEAL_BG = "#E6FAF8";
+// curriculum-chat는 XModeGuard 하위 (항상 X 모드) → XT 토큰 직접 사용
+import { X as XT } from "@/constants/xTheme";
+const TEAL    = XT.ai;        // #2C6FAD — AI 강조색 (steel blue)
+const TEAL_BG = XT.aiSoft;    // #E8F2FB — AI 배경 (light blue)
+const USER_BUBBLE_COLOR = XT.primary;  // #0F2742 — 유저 버블 = 네이비
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -547,7 +550,7 @@ export default function CurriculumChatScreen() {
               disabled={!canSend}
               style={[
                 s.sendBtn,
-                { backgroundColor: canSend ? TEAL : C.border },
+                { backgroundColor: canSend ? XT.primary : C.border },
               ]}
               hitSlop={4}
             >
@@ -655,7 +658,7 @@ const s = StyleSheet.create({
     paddingLeft: 40,
   },
   userBubble: {
-    backgroundColor: TEAL,
+    backgroundColor: USER_BUBBLE_COLOR,   // 네이비 — 유저 메시지 강조
     borderRadius: 18,
     borderBottomRightRadius: 4,
     paddingHorizontal: 14,

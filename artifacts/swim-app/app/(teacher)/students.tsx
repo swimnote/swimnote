@@ -16,6 +16,8 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -90,6 +92,8 @@ export default function WaitingListScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
+  const { mode } = useMode();
+  const isX = isXMode(mode);
 
   const [tab,        setTab]        = useState<TabKey>("all");
   const [list,       setList]       = useState<TeacherMember[]>([]);
@@ -181,7 +185,7 @@ export default function WaitingListScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: C.background }} edges={[]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: isX ? XT.background : C.background }} edges={[]}>
       <SubScreenHeader title="회원관리" homePath="/(teacher)/today-schedule" />
 
       {/* 탭 */}
@@ -319,6 +323,8 @@ function WaitingActionSheet({
   onStatusChange: () => void;
 }) {
   const hasPending = !!member.pending_status_change;
+  const { mode } = useMode();
+  const isX = isXMode(mode);
 
   return (
     <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
@@ -338,11 +344,11 @@ function WaitingActionSheet({
         <View style={sh.options}>
           {/* 회원 정보보기 */}
           <Pressable style={[sh.option, { borderColor: "#2EC4B620" }]} onPress={onAssign}>
-            <View style={[sh.optIcon, { backgroundColor: "#E6F9F7" }]}>
-              <LucideIcon name="user-check" size={20} color="#2EC4B6" />
+            <View style={[sh.optIcon, { backgroundColor: isX ? XT.accentSoft : "#E6F9F7" }]}>
+              <LucideIcon name="user-check" size={20} color={isX ? XT.accent : "#2EC4B6"} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[sh.optLabel, { color: "#2EC4B6" }]}>회원 정보보기</Text>
+              <Text style={[sh.optLabel, { color: isX ? XT.accent : "#2EC4B6" }]}>회원 정보보기</Text>
               <Text style={sh.optSub}>학생 상세 페이지로 이동합니다</Text>
             </View>
             <LucideIcon name="chevron-right" size={16} color="#64748B" />

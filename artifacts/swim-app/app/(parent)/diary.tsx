@@ -14,6 +14,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
@@ -180,6 +182,8 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
 export default function ParentDiaryScreen() {
   const { token } = useAuth();
   const { selectedStudent } = useParent();
+  const { mode } = useMode();
+  const isX = isXMode(mode);
   const { diary_id: highlightId } = useLocalSearchParams<{ diary_id: string }>();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -235,7 +239,7 @@ export default function ParentDiaryScreen() {
   const keyExtractor = useCallback((item: DiaryEntry) => item.id, []);
 
   return (
-    <View style={[ds.root, { backgroundColor: C.background }]}>
+    <View style={[ds.root, { backgroundColor: isX ? XT.background : C.background }]}>
       <ParentScreenHeader
         title="수업일지"
         subtitle={selectedStudent ? `${selectedStudent.name}` : undefined}

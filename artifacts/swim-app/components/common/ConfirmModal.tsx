@@ -1,6 +1,8 @@
 /**
- * ConfirmModal — 범용 확인/알림 Modal
- * Alert.alert 대체 컴포넌트
+ * ConfirmModal — 범용 확인/알림 Modal (mode-aware)
+ *
+ * X 모드: confirm 버튼 = XT.primary (네이비), 민트(C.tint) 제거
+ * Normal 모드: 기존 동일
  *
  * usage:
  *   <ConfirmModal
@@ -36,6 +38,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 
 const C = Colors.light;
 
@@ -68,6 +72,9 @@ export function ConfirmModal({
   onCancel,
 }: ConfirmModalProps) {
   const insets = useSafeAreaInsets();
+  const { mode } = useMode();
+  const isX = isXMode(mode);
+
   // 연속 탭 방지: visible 변경 시 초기화
   const tappedRef = useRef(false);
   useEffect(() => {
@@ -85,6 +92,9 @@ export function ConfirmModal({
     if (onCancel) onCancel();
     else handleConfirm();
   }
+
+  // X 모드: confirm 버튼 기본색 = XT.primary (네이비), Normal = C.tint (민트)
+  const defaultConfirmColor = destructive ? C.error : (isX ? XT.primary : C.tint);
 
   return (
     <Modal
@@ -114,7 +124,7 @@ export function ConfirmModal({
               style={({ pressed }) => [
                 s.btn,
                 {
-                  backgroundColor: confirmColor ?? (destructive ? C.error : C.tint),
+                  backgroundColor: confirmColor ?? defaultConfirmColor,
                   opacity: loading ? 0.7 : pressed ? 0.85 : 1,
                   flex: onCancel ? 1 : undefined,
                   minWidth: onCancel ? undefined : 120,

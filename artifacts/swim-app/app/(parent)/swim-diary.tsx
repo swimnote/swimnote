@@ -13,6 +13,8 @@ import {
 import { Image as ExpoImage } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
 
@@ -263,6 +265,8 @@ function WeekHeader({ label }: { label: string }) {
 export default function SwimDiaryScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
+  const { mode } = useMode();
+  const isX = isXMode(mode);
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
 
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
@@ -295,7 +299,7 @@ export default function SwimDiaryScreen() {
   }
 
   return (
-    <View style={[s.root, { backgroundColor: C.background }]}>
+    <View style={[s.root, { backgroundColor: isX ? XT.background : C.background }]}>
       <SubScreenHeader title={`${name} 수업 일지`} showHome={false} homePath="/(parent)/children" />
 
       {loading ? (

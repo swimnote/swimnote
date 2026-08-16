@@ -21,6 +21,8 @@ import {ActivityIndicator, FlatList, Modal, Pressable,
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { onDiaryChanged } from "@/utils/diaryEvents";
 import { useBrand } from "@/context/BrandContext";
@@ -97,6 +99,8 @@ export default function TeacherAttendanceScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
+  const { mode } = useMode();
+  const isX = isXMode(mode);
   const params = useLocalSearchParams<{ classGroupId?: string; defaultTab?: string }>();
   const [subTab,         setSubTab]         = useState<SubTab>((params.defaultTab as SubTab) || "attendance");
   const [groups,         setGroups]         = useState<TeacherClassGroup[]>([]);
@@ -528,7 +532,7 @@ export default function TeacherAttendanceScreen() {
   /* ════════════════════ 로딩 ════════════════════ */
   if (loading) {
     return (
-      <SafeAreaView style={s.safe} edges={[]}>
+      <SafeAreaView style={[s.safe, isX && { backgroundColor: XT.background }]} edges={[]}>
         <SubScreenHeader title="출결 관리" homePath="/(teacher)/today-schedule" />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
@@ -540,7 +544,7 @@ export default function TeacherAttendanceScreen() {
     const presentCnt = sortedStudents.filter(st => attState[st.id] === "present").length;
     const absentCnt  = sortedStudents.filter(st => attState[st.id] === "absent").length;
     return (
-      <SafeAreaView style={s.safe} edges={[]}>
+      <SafeAreaView style={[s.safe, isX && { backgroundColor: XT.background }]} edges={[]}>
         <SubScreenHeader
           title={`${group.name} 출결`}
           subtitle={`${date} · ${group.schedule_time}`}
@@ -662,7 +666,7 @@ export default function TeacherAttendanceScreen() {
   }
 
   return (
-    <SafeAreaView style={s.safe} edges={[]}>
+    <SafeAreaView style={[s.safe, isX && { backgroundColor: XT.background }]} edges={[]}>
       <SubScreenHeader title="출결 관리" homePath="/(teacher)/today-schedule" />
       <View style={s.subTabBar}>
         {(["attendance", "makeup"] as SubTab[]).map(t => (

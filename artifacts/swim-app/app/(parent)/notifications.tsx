@@ -18,6 +18,8 @@ import {
   TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 
 const C = Colors.light;
 
@@ -83,6 +85,8 @@ export default function ParentNotificationsScreen() {
   const { token } = useAuth();
   const { students, selectedStudent } = useParent();
   const insets = useSafeAreaInsets();
+  const { mode } = useMode();
+  const isX = isXMode(mode);
 
   /* URL params — requests.tsx에서 redirect 또는 Push 딥링크로 전달 */
   const { tab: paramTab, requestId: paramRequestId } =
@@ -308,10 +312,10 @@ export default function ParentNotificationsScreen() {
       {(["notifications", "requests"] as const).map(tab => (
         <Pressable
           key={tab}
-          style={[st.tabItem, activeTab === tab && st.tabItemActive]}
+          style={[st.tabItem, activeTab === tab && st.tabItemActive, activeTab === tab && isX && { borderBottomColor: XT.accent }]}
           onPress={() => setActiveTab(tab)}
         >
-          <Text style={[st.tabText, { color: activeTab === tab ? C.tint : C.textMuted }]}>
+          <Text style={[st.tabText, { color: activeTab === tab ? accentColor : C.textMuted }]}>
             {tab === "notifications" ? "받은 알림" : "내 요청"}
           </Text>
           {tab === "notifications" && unread > 0 && activeTab !== "notifications" && (
@@ -323,8 +327,10 @@ export default function ParentNotificationsScreen() {
   );
 
   /* ─────────────── 렌더 ─────────────── */
+  const accentColor = isX ? XT.accent : C.tint;
+
   return (
-    <View style={[st.root, { backgroundColor: C.background }]}>
+    <View style={[st.root, { backgroundColor: isX ? XT.background : C.background }]}>
       <SubScreenHeader
         title="알림"
         subtitle={activeTab === "notifications" && unread > 0 ? `읽지 않은 알림 ${unread}개` : undefined}
@@ -337,7 +343,7 @@ export default function ParentNotificationsScreen() {
       {activeTab === "notifications" && (
         <>
           {notifLoading ? (
-            <ActivityIndicator color="#2EC4B6" style={{ marginTop: 60 }} />
+            <ActivityIndicator color={accentColor} style={{ marginTop: 60 }} />
           ) : notifError ? (
             <View style={st.empty}>
               <LucideIcon name="wifi-off" size={40} color={C.textMuted} />
@@ -356,7 +362,7 @@ export default function ParentNotificationsScreen() {
                 <RefreshControl
                   refreshing={notifRefreshing}
                   onRefresh={() => { setNotifRefreshing(true); fetchNotifications(); }}
-                  tintColor="#2EC4B6"
+                  tintColor={accentColor}
                 />
               }
               showsVerticalScrollIndicator={false}
@@ -391,7 +397,7 @@ export default function ParentNotificationsScreen() {
                       ) : null}
                     </View>
                     <View style={st.cardRight}>
-                      {!n.is_read && <View style={[st.dot, { backgroundColor: "#2EC4B6" }]} />}
+                      {!n.is_read && <View style={[st.dot, { backgroundColor: accentColor }]} />}
                       <Pressable onPress={() => deleteNotif(n.id)} hitSlop={8}>
                         <LucideIcon name="x" size={14} color={C.textMuted} />
                       </Pressable>
@@ -417,10 +423,10 @@ export default function ParentNotificationsScreen() {
               {students.map(st2 => (
                 <Pressable
                   key={st2.id}
-                  style={[st.studentChip, { backgroundColor: selStudentId === st2.id ? C.tint : C.card }]}
+                  style={[st.studentChip, { backgroundColor: selStudentId === st2.id ? (isX ? XT.accentSoft : C.tint) : C.card }]}
                   onPress={() => setSelStudentId(st2.id)}
                 >
-                  <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: selStudentId === st2.id ? "#fff" : C.text }}>
+                  <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: selStudentId === st2.id ? (isX ? XT.accent : "#fff") : C.text }}>
                     {st2.name}
                   </Text>
                 </Pressable>
@@ -429,7 +435,7 @@ export default function ParentNotificationsScreen() {
           )}
 
           {reqLoading ? (
-            <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+            <ActivityIndicator color={accentColor} style={{ marginTop: 60 }} />
           ) : reqError ? (
             <View style={st.empty}>
               <LucideIcon name="wifi-off" size={40} color={C.textMuted} />

@@ -20,6 +20,8 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
@@ -95,6 +97,8 @@ export default function ParentAlbumScreen() {
   const { token } = useAuth();
   const { selectedStudent } = useParent();
   const insets = useSafeAreaInsets();
+  const { mode } = useMode();
+  const isX = isXMode(mode);
 
   const [photos, setPhotos]   = useState<MediaItem[]>([]);
   const [videos, setVideos]   = useState<MediaItem[]>([]);
@@ -326,7 +330,7 @@ export default function ParentAlbumScreen() {
   const hasNext = lightboxIdx !== null && lightboxIdx < photoOnlyItems.length - 1;
 
   return (
-    <View style={[st.root, { backgroundColor: C.background }]}>
+    <View style={[st.root, { backgroundColor: isX ? XT.background : C.background }]}>
       <ParentScreenHeader title="앨범" />
 
       {/* 탭 */}
@@ -334,16 +338,20 @@ export default function ParentAlbumScreen() {
         {TABS.map(t => (
           <Pressable
             key={t.key}
-            style={[st.tabBtn, tab === t.key && st.tabBtnActive]}
+            style={[
+              st.tabBtn,
+              tab === t.key && st.tabBtnActive,
+              tab === t.key && isX && { borderColor: XT.accent, backgroundColor: XT.accentSoft },
+            ]}
             onPress={() => setTab(t.key)}
           >
-            <Text style={[st.tabTxt, tab === t.key && st.tabTxtActive]}>{t.label}</Text>
+            <Text style={[st.tabTxt, tab === t.key && st.tabTxtActive, tab === t.key && isX && { color: XT.accent }]}>{t.label}</Text>
           </Pressable>
         ))}
       </View>
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={isX ? XT.accent : C.tint} style={{ marginTop: 60 }} />
       ) : rows.length === 0 ? (
         <View style={st.empty}>
           <LucideIcon name="image" size={44} color={C.textMuted} />

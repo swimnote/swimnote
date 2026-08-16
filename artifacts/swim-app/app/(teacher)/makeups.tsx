@@ -8,6 +8,8 @@ import {
   RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 import { useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
 import { apiRequest, clearApiCache, useAuth, API_BASE } from "@/context/AuthContext";
@@ -122,6 +124,8 @@ export default function MakeupsScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
+  const { mode } = useMode();
+  const isX = isXMode(mode);
   const [tab, setTab] = useState<TabKey>("waiting");
   const [waitingList,    setWaitingList]    = useState<MakeupSession[]>([]);
   const [waitingLoading, setWaitingLoading] = useState(true);
@@ -677,7 +681,7 @@ export default function MakeupsScreen() {
     );
   }
   return (
-    <SafeAreaView style={s.safe} edges={[]}>
+    <SafeAreaView style={[s.safe, isX && { backgroundColor: XT.background }]} edges={[]}>
       <SubScreenHeader title="보강 대기" homePath="/(teacher)/today-schedule" />
       {/* 탭 */}
       <View style={{ flexDirection: "row", paddingHorizontal: 10, paddingVertical: 10, gap: 6, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border }}>

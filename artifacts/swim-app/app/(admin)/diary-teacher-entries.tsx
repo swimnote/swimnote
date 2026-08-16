@@ -10,6 +10,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -58,6 +60,8 @@ function teacherColor(name: string) {
 export default function DiaryTeacherEntriesScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
+  const { mode } = useMode();
+  const isX = isXMode(mode);
 
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -246,7 +250,7 @@ export default function DiaryTeacherEntriesScreen() {
           )}
         </View>
         {isExpanded && (
-          <View style={[s.contentBox, { backgroundColor: C.background }]}>
+          <View style={[s.contentBox, { backgroundColor: isX ? XT.background : C.background }]}>
             <Text style={s.contentTxt}>{item.common_content || "(내용 없음)"}</Text>
           </View>
         )}
@@ -260,7 +264,7 @@ export default function DiaryTeacherEntriesScreen() {
     const originalCount = sections.find(s => s.title === section.title)?.data.length ?? section.data.length;
     return (
       <Pressable
-        style={[s.sectionHeader, { backgroundColor: C.background }]}
+        style={[s.sectionHeader, { backgroundColor: isX ? XT.background : C.background }]}
         onPress={() => toggleTeacherCollapse(section.title)}
         hitSlop={8}
       >
@@ -283,7 +287,7 @@ export default function DiaryTeacherEntriesScreen() {
     : `선택한 ${selected.size}건의 일지를 완전히 삭제합니다. 이 작업은 되돌릴 수 없습니다.`;
 
   return (
-    <SafeAreaView style={s.safe} edges={[]}>
+    <SafeAreaView style={[s.safe, isX && { backgroundColor: XT.background }]} edges={[]}>
       <SubScreenHeader
         title="수업 일지"
         subtitle={selectMode ? `${selected.size}개 선택됨` : `전체 ${entries.length}건`}

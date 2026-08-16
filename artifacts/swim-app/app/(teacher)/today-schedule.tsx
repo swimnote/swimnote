@@ -447,7 +447,7 @@ export default function TodayScheduleScreen() {
                   <Text style={[h.weekDate, isToday && { color: "#fff" }]}>{dateNum}</Text>
                 </View>
                 {hasClass
-                  ? <View style={[h.weekDot, { backgroundColor: isToday ? themeColor : C.tint }]} />
+                  ? <View style={[h.weekDot, { backgroundColor: isToday ? themeColor : isX ? XT.accent : C.tint }]} />
                   : <View style={h.weekDotEmpty} />
                 }
               </View>
@@ -503,7 +503,7 @@ export default function TodayScheduleScreen() {
             <Text style={h.sectionTitle}>오늘 수업</Text>
             <View style={h.sectionHeaderRight}>
               {!loading && sortedItems.length > 0 && (
-                <Text style={[h.classCnt, { color: C.tint }]}>{sortedItems.length}개</Text>
+                <Text style={[h.classCnt, { color: isX ? XT.accent : C.tint }]}>{sortedItems.length}개</Text>
               )}
               <Pressable
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
