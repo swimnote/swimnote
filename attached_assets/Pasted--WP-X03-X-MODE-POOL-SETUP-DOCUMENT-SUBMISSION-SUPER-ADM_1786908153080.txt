@@ -1,0 +1,1229 @@
+[WP-X03 — X MODE POOL SETUP / DOCUMENT SUBMISSION / SUPER ADMIN SOURCE PACKAGE]
+
+목적:
+
+SWIMNOTE X 가입 수영장이
+복잡한 앱 입력폼이 아니라
+SWIMNOTE가 제공하는 표준 문서 양식을 다운로드하고,
+작성한 파일과 브랜드 자료를 다시 업로드하여
+X모드 세팅에 필요한 원본자료를 제출할 수 있게 한다.
+
+동시에 Super Admin에서는
+각 수영장별 제출자료/원본파일/처리상태를
+한 곳에서 정확하게 확인하고 관리할 수 있게 한다.
+
+이번 WP는 향후:
+
+- 수영장별 X 커리큘럼 구축
+- 수영장별 AI 설정
+- 홈페이지 제작
+- 고객센터 AI Knowledge
+- Super Admin 운영
+
+의 입력 source를 만드는 기반 작업이다.
+
+==================================================
+0. FIRST — PREVIOUS D2 DEPLOY VERIFY
+==================================================
+
+작업 시작 전 read-only 확인:
+
+Render production이
+commit 4be61202 기준으로 실제 배포 완료됐는지 확인.
+
+신규 D2 route가 production runtime에 존재하는지
+안전한 contract 수준으로 확인.
+
+실제 구매/해지/데이터 mutation 테스트 금지.
+
+확인 실패 시 보고만 하고
+X03 작업 자체와 관련 없는 D2 수정 금지.
+
+==================================================
+1. CORE PRODUCT POLICY
+==================================================
+
+X모드 수영장 세팅자료는
+앱 안에서 긴 모달/폼을 작성시키지 않는다.
+
+원칙:
+
+SWIMNOTE 제공 DOCX 다운로드
+→ 수영장이 PC 등에서 작성
+→ 파일 업로드
+→ 원본 그대로 보관
+→ Super Admin에서 확인
+→ 이후 SWIMNOTE가 구조화/가공
+
+수영장이 제출하는 기본 자료:
+
+1. 커리큘럼 작성양식 DOCX
+2. 홈페이지 제작자료 DOCX
+3. 로고 파일 (선택)
+4. 홍보용 사진 최대 10장
+
+중요:
+
+원본파일은 절대 구조화 데이터로 대체하지 않는다.
+
+ORIGINAL과 STRUCTURED를 분리한다.
+
+==================================================
+2. X SETUP ENTRY
+==================================================
+
+Settings:
+
+SWIMNOTE X모드
+  ↓
+X모드 세팅하기
+
+paid X pool이면
+config 미완료여도 X 자체는 계속 활성.
+
+X Setup은 운영 준비상태다.
+
+X entitlement와 혼동 금지.
+
+==================================================
+3. SETUP STATUS
+==================================================
+
+수영장별 X Setup 상태 필요.
+
+권장 상태:
+
+NOT_STARTED
+IN_PROGRESS
+SUBMITTED
+UNDER_REVIEW
+REVISION_REQUESTED
+APPROVED
+PROCESSING
+READY
+
+사용자 UI에는 한국어로:
+
+세팅 전
+작성 중
+제출 완료
+검토 중
+수정 요청
+승인 완료
+세팅 중
+세팅 완료
+
+DB enum/string은 현재 프로젝트 규칙 우선.
+
+==================================================
+4. X SETUP SCREEN
+==================================================
+
+pool_admin:
+
+X모드 세팅하기
+
+화면에 크게 3개 영역.
+
+① 커리큘럼 자료
+② 홈페이지 제작자료
+③ 로고 / 홍보사진
+
+각 영역:
+
+- 작성 안내
+- 양식 다운로드
+- 현재 제출상태
+- 업로드
+- 제출일
+- 수정요청 여부
+
+UI는 단순하게.
+
+긴 textarea 기반 세팅페이지 금지.
+
+==================================================
+5. CURRICULUM TEMPLATE
+==================================================
+
+SWIMNOTE가 제공할 공식 DOCX:
+
+예:
+SWIMNOTE_X_커리큘럼_작성양식.docx
+
+중요:
+
+이번 WP에서는 실제 DOCX template file을
+repository/asset/download 구조에 포함할 수 있는지 확인하고,
+가능하면 공식 파일 배포 경로까지 구현.
+
+양식 내용의 핵심 가이드:
+
+--------------------------------
+커리큘럼 작성 안내
+
+현재 체계적인 커리큘럼이 없어도 괜찮습니다.
+
+현재 수영장에서 실제로 가르치는 순서와
+각 단계에서 배우는 내용을 기준으로 작성해주세요.
+
+최대 10단계까지 작성할 수 있습니다.
+
+10단계를 반드시 모두 채울 필요는 없습니다.
+
+현재 교육과정이 7단계라면
+1단계부터 7단계까지만 작성하면 됩니다.
+
+정확한 문장이나 전문적인 표현으로
+작성할 필요는 없습니다.
+
+현재 실제 수업에서
+"이 단계에서는 무엇을 가르치는지"
+중심으로 작성해주세요.
+
+작성 내용이 구체적이고 상세할수록
+SWIMNOTE가 해당 수영장의 실제 교육방식을
+더 체계적으로 정리할 수 있습니다.
+--------------------------------
+
+==================================================
+6. CURRICULUM LEVEL FIELDS
+==================================================
+
+1~10단계 각각 작성 가능.
+
+각 단계 최소 항목:
+
+- 단계 번호
+- 레벨명
+- 레벨 색상/모자색 등 식별체계
+- 주요 교육내용
+- 배우는 영법
+- 주요 기술
+- 교육목표
+- 승급기준 / 다음 단계 기준
+
+선택 상세항목:
+
+- 세부 기술
+- 테스트 방법
+- 거리 기준
+- 시간 기준
+- 자주 발생하는 오류
+- 교정 방법
+- 추천 드릴
+- 연령별 차이
+- 지도 시 중요하게 보는 부분
+- 기타 설명
+
+1~10 전체 강제 금지.
+
+1~5
+1~7
+1~8
+
+등 실제 수영장 구조 그대로 허용.
+
+==================================================
+7. CURRICULUM INPUT PHILOSOPHY
+==================================================
+
+커리큘럼 없는 수영장을 탈락시키는 구조 금지.
+
+입력자료가 단순해도:
+
+"현재 가르치는 순서"
+
+만 있으면 이후 SWIMNOTE에서 체계화 가능하게 한다.
+
+단:
+
+수영장이 제공하지 않은 사실을
+자동으로 그 수영장의 정책처럼 확정하면 안 된다.
+
+향후 구조화/AI 단계에서
+SOURCE / GENERATED / REVIEWED 구분 가능하도록
+원본 provenance를 보존한다.
+
+==================================================
+8. WEBSITE PROFILE TEMPLATE
+==================================================
+
+공식 DOCX:
+
+SWIMNOTE_X_홈페이지_제작자료_양식.docx
+
+이 문서는 단순 홈페이지 글쓰기 양식이 아니라
+수영장 상세 인터뷰 자료 역할을 한다.
+
+문서 첫 페이지에 명확하게 안내:
+
+--------------------------------
+모든 항목을 반드시 작성할 필요는 없습니다.
+
+빈칸이 있어도 제출할 수 있습니다.
+
+다만 입력해주신 정보가
+구체적이고 풍부할수록
+수영장의 특징과 강점이 잘 반영된
+더욱 풍성한 홈페이지를 제작할 수 있습니다.
+
+단순 키워드보다는
+실제 운영 경험과 특징이 드러나도록
+가능한 범위에서 자세히 작성해주세요.
+--------------------------------
+
+==================================================
+9. WEBSITE PROFILE — BASIC INFO
+==================================================
+
+최소 다음 항목 포함.
+
+A. 기본 정보
+
+- 수영장명
+- 지점명
+- 대표자명
+- 대표전화
+- 상담전화
+- 홈페이지 표시 연락처
+- 이메일
+- 주소
+- 상세주소
+- 위치 설명
+- 운영시간
+- 휴무일
+- SNS
+- 기타 연락처
+
+==================================================
+10. WEBSITE PROFILE — BRAND
+==================================================
+
+B. 브랜드/소개
+
+- 대표 슬로건
+- 한 줄 소개
+- 메인 Hero에 강조하고 싶은 문구
+- 수영장 상세 소개
+- 설립 배경
+- 주요 교육 대상
+- 운영 특징
+- 홈페이지에서 가장 강조하고 싶은 내용
+
+==================================================
+11. WEBSITE PROFILE — STRENGTHS
+==================================================
+
+C. 특장점
+
+복수 작성 가능.
+
+각 항목:
+
+- 특장점 제목
+- 상세 설명
+- 실제 운영 사례가 있다면 설명
+
+D. 차별화
+
+- 다른 수영장과 다른 점
+- 교육 차별점
+- 시설 차별점
+- 관리 차별점
+- 학부모 서비스 차별점
+- 가장 자신 있는 강점
+
+==================================================
+12. WEBSITE PROFILE — PHILOSOPHY
+==================================================
+
+E. 대표/원장 운영철학
+
+- 수영장을 운영하게 된 이유
+- 교육철학
+- 학생을 지도할 때 가장 중요하게 생각하는 것
+- 학부모에게 전달하고 싶은 말
+- 장기적인 교육 목표
+- 운영하면서 지키고 있는 원칙
+
+상세 작성 권장 안내 포함.
+
+==================================================
+13. WEBSITE PROFILE — PROGRAMS
+==================================================
+
+F. 프로그램
+
+복수 프로그램 지원:
+
+- 어린이
+- 성인
+- 선수
+- 마스터즈
+- 개인레슨
+- 기타
+
+각 프로그램:
+
+- 프로그램명
+- 교육대상
+- 교육내용
+- 특징
+- 추천 대상
+- 정원
+- 운영요일/시간
+- 기타
+
+==================================================
+14. WEBSITE PROFILE — LEVEL SYSTEM
+==================================================
+
+G. 레벨체계
+
+- 레벨명
+- 레벨 색상
+- 주요 학습내용
+- 교육목표
+- 승급기준
+- 테스트 방식
+- 기타
+
+앱 DB에 이미 pool-specific level 정보가 있더라도
+원본 문서 내용은 별도로 보존.
+
+나중에 자동 병합은 별도 WP.
+
+==================================================
+15. WEBSITE PROFILE — FACILITIES
+==================================================
+
+H. 시설/부대시설
+
+- 수영장 규모
+- 레인
+- 수심
+- 수온
+- 수질관리
+- 해수풀 여부
+- 샤워실
+- 탈의실
+- 드라이 공간
+- 학부모 대기공간
+- 주차
+- 차량운행
+- CCTV
+- 안전설비
+- 편의시설
+- 기타 부대시설
+
+시설명만이 아니라
+이용방식/장점도 적을 수 있게 한다.
+
+==================================================
+16. WEBSITE PROFILE — SAFETY
+==================================================
+
+I. 안전관리
+
+- 지도자 배치
+- 안전교육
+- 수질관리
+- 사고대응
+- 보험
+- 인증
+- 안전 관련 자격/수상
+- 기타
+
+==================================================
+17. WEBSITE PROFILE — VEHICLE / LOCATION
+==================================================
+
+J. 차량/위치
+
+- 차량운행 여부
+- 운행지역
+- 승하차 방식
+- 인솔 방식
+- 주차 가능 여부
+- 주차방법
+- 대중교통
+- 주변 랜드마크
+- 찾아오는 방법
+
+==================================================
+18. WEBSITE PROFILE — TUITION / CONSULTATION
+==================================================
+
+K. 이용안내
+
+- 수업 운영요일
+- 수업시간
+- 반 정원
+- 수강료 공개 여부
+- 체험수업 여부
+- 상담방식
+- 등록방법
+- 준비물
+- 기타
+
+==================================================
+19. WEBSITE PROFILE — FAQ
+==================================================
+
+L. FAQ
+
+최대 20개 정도 작성 가능.
+
+각각:
+
+질문:
+답변:
+
+향후 이 FAQ는:
+
+- 홈페이지
+- 고객센터 AI Knowledge
+
+두 곳에서 재사용 가능하게 source provenance 보존.
+
+이번 WP에서 고객센터 AI 연결은 하지 않는다.
+
+==================================================
+20. WEBSITE PROFILE — FREE DESCRIPTION
+==================================================
+
+마지막 자유작성:
+
+- 홈페이지에 꼭 넣고 싶은 내용
+- 특별히 강조하고 싶은 이야기
+- 홈페이지에 넣고 싶지 않은 정보
+- 기타 제작자에게 전달하고 싶은 내용
+
+==================================================
+21. LOGO UPLOAD
+==================================================
+
+로고는 선택.
+
+안내:
+
+PNG 권장
+투명 배경 권장
+가능하면 고해상도
+
+지원 확장자는 현재 storage/security 정책 기준.
+
+최소:
+PNG
+
+필요 시:
+JPG/JPEG/WEBP
+
+SVG는 현재 upload security 구조 확인 후
+안전하면 지원, 아니면 금지.
+
+로고 없는 수영장:
+SKIP 가능.
+
+==================================================
+22. PHOTO UPLOAD
+==================================================
+
+홍보사진:
+
+최대 10장.
+
+강제로 10장 채우게 하지 않는다.
+
+지원:
+
+JPG
+JPEG
+PNG
+WEBP
+
+현재 업로드 시스템의
+file size / R2 정책 재사용.
+
+각 사진은 가능하면 metadata:
+
+- order
+- optional title
+- optional description
+- optional category
+
+category 예:
+
+HERO
+POOL
+INTERIOR
+CLASS
+EDUCATION
+COACH
+FACILITY
+SHOWER
+VEHICLE
+OTHER
+
+하지만 사용자에게 복잡한 필수 입력 금지.
+
+사진만 업로드해도 제출 가능.
+
+==================================================
+23. PHOTO GUIDE
+==================================================
+
+화면에 권장 예시 표시:
+
+- 대표사진
+- 수영장 전경
+- 수영장 내부
+- 수업 모습
+- 교육 모습
+- 강사진
+- 탈의실/샤워실
+- 부대시설
+- 차량/주차
+- 기타 홍보사진
+
+"위 종류를 반드시 각각 한 장씩 올릴 필요는 없습니다."
+
+안내.
+
+==================================================
+24. ORIGINAL FILE STORAGE — CRITICAL
+==================================================
+
+원본파일을 반드시 그대로 보관.
+
+Concept:
+
+X_SETUP_SUBMISSION
+│
+├── ORIGINAL
+│   ├── curriculum.docx
+│   ├── website_profile.docx
+│   ├── logo
+│   └── photos[]
+│
+└── STRUCTURED
+    └── future processing
+
+이번 WP에서 STRUCTURED AI parsing을
+과도하게 구현하지 않는다.
+
+우선 원본 제출/보관/관리 source of truth 완성.
+
+==================================================
+25. VERSIONING
+==================================================
+
+수영장이 문서를 다시 제출할 수 있어야 한다.
+
+기존 파일을 물리적으로 덮어써서
+history가 사라지는 구조 금지.
+
+최소:
+
+submission_version
+uploaded_at
+uploaded_by
+current flag/status
+
+또는 현재 프로젝트 패턴에 맞는 version history.
+
+Super Admin에서:
+
+현재본
+이전 제출본
+
+추적 가능하게 설계.
+
+==================================================
+26. SUBMISSION STATUS PER SECTION
+==================================================
+
+각 영역 별 상태 필요:
+
+curriculum
+website_profile
+logo
+photos
+
+예:
+
+NOT_SUBMITTED
+SUBMITTED
+REVISION_REQUESTED
+APPROVED
+
+전체 setup status는
+각 자료 상태와 별개로 관리 가능.
+
+==================================================
+27. SUBMIT FLOW
+==================================================
+
+pool_admin:
+
+양식 다운로드
+→ 작성
+→ curriculum 업로드
+→ website profile 업로드
+→ logo optional
+→ photos 0~10
+→ 제출
+
+사용자가 일부 파일 저장 후 나갔다가
+다시 이어서 제출 가능.
+
+모든 업로드를 한 transaction으로 강제하지 않는다.
+
+==================================================
+28. SUPER ADMIN — POOL DETAIL INTEGRATION
+==================================================
+
+현재 Super Admin 구조를 감사.
+
+수영장 상세 내부에:
+
+X모드
+
+또는 기존 적절한 section 안에:
+
+- X 구독
+- X entitlement
+- X setup
+- 커리큘럼 제출자료
+- 홈페이지 제작자료
+- 로고
+- 홍보사진
+- 제출상태
+
+를 확인할 수 있게 한다.
+
+중요:
+
+이번 WP에서는 Super Admin 전체 구조를
+아직 대규모 재설계하지 않는다.
+
+WP-SA0에서 별도 개편 예정.
+
+이번에는 X 자료 접근기능만 안전하게 추가.
+
+==================================================
+29. SUPER ADMIN SOURCE VIEW
+==================================================
+
+수영장 상세 → X 세팅자료에서:
+
+커리큘럼
+- 상태
+- 제출일
+- 버전
+- 업로더
+- 원본 다운로드
+
+홈페이지 제작자료
+- 상태
+- 제출일
+- 버전
+- 업로더
+- 원본 다운로드
+
+로고
+- preview
+- download
+
+사진
+- thumbnail
+- order
+- preview
+- download
+
+전체를 정확히 확인 가능.
+
+==================================================
+30. SUPER ADMIN REVISION REQUEST
+==================================================
+
+Super Admin이 각 section에
+수정요청 가능하게 한다.
+
+예:
+
+- 커리큘럼 내용을 더 자세히 작성해주세요.
+- 대표사진을 고화질 가로사진으로 다시 올려주세요.
+- 운영철학 설명을 추가해주세요.
+
+필요 데이터:
+
+requested_at
+requested_by
+message
+resolved_at/status
+
+수영장 pool_admin이
+X Setup 화면에서 수정요청을 확인 가능.
+
+기존 notification 시스템과 안전하게 연결 가능하면 재사용.
+
+대규모 notification 변경은 금지.
+
+==================================================
+31. APPROVAL
+==================================================
+
+Super Admin:
+
+커리큘럼 자료 승인
+홈페이지 자료 승인
+
+가능.
+
+승인은:
+
+"원본 자료 확인 완료"
+
+의 의미.
+
+AI 생성 결과 승인과 혼동 금지.
+
+==================================================
+32. AUTHORIZATION
+==================================================
+
+Pool side:
+
+pool_admin
+→ 업로드 / 교체 / 제출 / 다운로드
+
+현재 X billing authority와 같은 기준 우선.
+
+sub_admin에게 허용할지는
+기존 X setup permission 정책 확인 후 적용.
+추측 금지.
+
+teacher
+parent
+→ X 세팅자료 변경 금지.
+
+Super Admin:
+전체 조회/다운로드/수정요청/승인.
+
+서버 authorization 필수.
+
+UI hide만으로 끝내지 않는다.
+
+==================================================
+33. STORAGE SECURITY
+==================================================
+
+현재 R2/storage upload system 우선 재사용.
+
+반드시 확인:
+
+- tenant/pool isolation
+- MIME validation
+- extension validation
+- max size
+- upload ownership
+- signed/private access
+- download authorization
+- file name sanitization
+
+다른 pool 파일 접근 금지.
+
+원본 public URL 노출 금지 unless current architecture explicitly safe.
+
+==================================================
+34. DOCX SECURITY
+==================================================
+
+DOCX 업로드 허용 시:
+
+MIME + extension 검사.
+
+가능하면 magic/content-type 검증이
+현재 library로 안전하게 가능하면 사용.
+
+DOC/MACRO-enabled formats:
+
+.doc
+.docm
+
+은 이번 단계에서는 기본적으로 허용하지 않는다.
+
+DOCX만.
+
+==================================================
+35. FILE SIZE POLICY
+==================================================
+
+현재 프로젝트 storage 제한 감사 후
+합리적인 제한 적용.
+
+예시를 임의 확정하지 말고
+현재 R2/app upload 정책과 맞춘다.
+
+사진 원본은 홈페이지 제작에 필요하므로
+너무 공격적인 이미지 압축 금지.
+
+필요 시 upload size 제한만.
+
+==================================================
+36. TEMPLATE DOWNLOAD SOURCE
+==================================================
+
+양식파일을 어디서 내려주는지
+source of truth 하나로 만든다.
+
+예:
+
+server-managed static/template asset
+또는 private/public controlled object storage.
+
+앱 bundle에 중복 버전 여러 개 넣지 않는다.
+
+향후 template 업데이트 가능해야 함.
+
+필요 metadata:
+
+template_type
+version
+updated_at
+
+==================================================
+37. TEMPLATE VERSION
+==================================================
+
+수영장이 어떤 양식 버전으로 작성했는지
+알 수 있게 한다.
+
+예:
+
+curriculum_template_version
+website_template_version
+
+업로드 시 함께 기록 가능하면 구현.
+
+==================================================
+38. NO AI PARSING YET
+==================================================
+
+이번 WP에서
+DOCX 내용을 GPT로 읽어서
+자동 홈페이지 생성하지 않는다.
+
+또한 커리큘럼 AI 생성도 하지 않는다.
+
+이번 WP 목적:
+
+"정확한 원본자료 수집/보관/관리"
+
+다음 WP에서:
+
+자료 구조화
+홈페이지 제작 package
+커리큘럼 processing
+
+을 진행.
+
+==================================================
+39. DATA MODEL PRINCIPLE
+==================================================
+
+DB는 홈페이지 한 기능에만 종속되게 만들지 않는다.
+
+원본 제출자료와
+향후 생성 결과를 분리.
+
+Concept example:
+
+x_setup_submissions
+x_setup_files
+x_setup_revision_requests
+
+또는 repository naming convention에 맞는 구조.
+
+website-specific generated output은
+이번 source submission table과 분리.
+
+==================================================
+40. DELETE POLICY
+==================================================
+
+X 구독 해지/만료 시:
+
+제출자료 삭제 금지.
+
+X02-D2 정책과 동일.
+
+재구독하면 그대로 다시 조회 가능.
+
+수영장이 새 버전 업로드 시에도
+기존 버전 history 보존.
+
+==================================================
+41. SUPER ADMIN FUTURE ARCHITECTURE COMPATIBILITY
+==================================================
+
+중요:
+
+향후 WP-SA0에서 Super Admin 전체를
+운영 관제 구조로 개편한다.
+
+따라서 이번 X Setup 화면은:
+
+route/data/service를
+Super Admin dashboard UI에 강하게 결합하지 않는다.
+
+재배치 가능한 modular section/component로 구현.
+
+==================================================
+42. TEST MATRIX
+==================================================
+
+X03-01
+paid X pool_admin
+→ X setup 진입
+
+X03-02
+Normal pool
+→ X setup mutation 접근 차단
+
+X03-03
+curriculum template download
+
+X03-04
+website template download
+
+X03-05
+valid DOCX curriculum upload
+
+X03-06
+invalid DOC/DOCM rejection
+
+X03-07
+website DOCX upload
+
+X03-08
+logo skip 가능
+
+X03-09
+valid logo upload
+
+X03-10
+photos 1~10 upload
+
+X03-11
+11번째 사진 차단
+
+X03-12
+wrong MIME rejection
+
+X03-13
+save partial → reopen → data preserved
+
+X03-14
+resubmit curriculum → version history preserved
+
+X03-15
+Super Admin pool detail → files visible
+
+X03-16
+Super Admin curriculum original download
+
+X03-17
+Super Admin website original download
+
+X03-18
+Super Admin photo preview/download
+
+X03-19
+Super Admin revision request
+
+X03-20
+pool_admin revision request visible
+
+X03-21
+Super Admin approval
+
+X03-22
+teacher upload attempt rejected
+
+X03-23
+parent upload attempt rejected
+
+X03-24
+cross-pool file access rejected
+
+X03-25
+X expiration → files still preserved
+
+X03-26
+X re-subscribe → previous files visible
+
+X03-27
+no AI generation triggered by upload
+
+X03-28
+no X entitlement/mode regression
+
+==================================================
+43. DO NOT TOUCH
+==================================================
+
+관련 없으면 변경 금지:
+
+ModeContext P0
+RevenueCat
+X billing lifecycle
+Normal theme
+X theme
+scheduler
+AI diary
+growth report
+parent curriculum AI
+support AI
+Partner Analytics
+homepage actual generation
+full Super Admin architecture
+
+==================================================
+44. DEPLOYMENT
+==================================================
+
+DB migration이 필요하면:
+
+production-safe
+idempotent
+existing data preservation
+
+필수.
+
+server 변경 시
+현재 deployment path 정확히 확인.
+
+client 변경:
+production OTA
+preview OTA
+
+production fake data 금지.
+
+실제 고객 제출파일 임의 생성 금지.
+
+테스트용이면 isolated test fixture 사용.
+
+==================================================
+45. FINAL REPORT
+==================================================
+
+CURRENT_X_SETUP_STRUCTURE =
+
+FILES_AUDITED =
+FILES_CHANGED =
+
+DB_TABLES_ADDED =
+DB_COLUMNS_ADDED =
+
+CURRICULUM_TEMPLATE_IMPLEMENTED =
+CURRICULUM_TEMPLATE_VERSION =
+
+WEBSITE_TEMPLATE_IMPLEMENTED =
+WEBSITE_TEMPLATE_VERSION =
+
+TEMPLATE_DOWNLOAD_SOURCE =
+
+CURRICULUM_DOCX_UPLOAD =
+WEBSITE_DOCX_UPLOAD =
+
+LOGO_UPLOAD =
+LOGO_OPTIONAL =
+
+PHOTO_UPLOAD =
+PHOTO_MAX_COUNT =
+
+ORIGINAL_FILES_PRESERVED =
+VERSION_HISTORY_IMPLEMENTED =
+
+SETUP_STATUS_IMPLEMENTED =
+SECTION_STATUS_IMPLEMENTED =
+
+REVISION_REQUEST_IMPLEMENTED =
+APPROVAL_IMPLEMENTED =
+
+POOL_ADMIN_ACCESS =
+SUB_ADMIN_ACCESS =
+TEACHER_ACCESS =
+PARENT_ACCESS =
+
+SUPER_ADMIN_VIEW =
+SUPER_ADMIN_DOWNLOAD =
+SUPER_ADMIN_PHOTO_PREVIEW =
+
+CROSS_POOL_PROTECTION =
+MIME_VALIDATION =
+DOCX_ONLY_POLICY =
+FILE_NAME_SANITIZATION =
+PRIVATE_FILE_ACCESS =
+
+X_CANCEL_FILE_PRESERVATION =
+X_EXPIRATION_FILE_PRESERVATION =
+X_RESUBSCRIBE_FILE_RESTORE =
+
+AI_PARSING_IMPLEMENTED =
+AI_GENERATION_IMPLEMENTED =
+
+SERVER_CHANGED =
+CLIENT_CHANGED =
+DB_CHANGED =
+
+UNIT_TEST =
+API_TEST =
+UPLOAD_SECURITY_TEST =
+
+PHYSICAL_TEST_STATUS =
+PHYSICAL_TEST_REMAINING =
+
+NORMAL_REGRESSION =
+X_REGRESSION =
+
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+SERVER_DEPLOYMENT =
+
+성공 조건:
+
+CURRICULUM_TEMPLATE_IMPLEMENTED = YES
+WEBSITE_TEMPLATE_IMPLEMENTED = YES
+
+CURRICULUM_DOCX_UPLOAD = YES
+WEBSITE_DOCX_UPLOAD = YES
+
+LOGO_OPTIONAL = YES
+PHOTO_MAX_COUNT = 10
+
+ORIGINAL_FILES_PRESERVED = YES
+VERSION_HISTORY_IMPLEMENTED = YES
+
+SUPER_ADMIN_VIEW = YES
+SUPER_ADMIN_DOWNLOAD = YES
+
+CROSS_POOL_PROTECTION = PASS
+DOCX_ONLY_POLICY = PASS
+PRIVATE_FILE_ACCESS = PASS
+
+X_CANCEL_FILE_PRESERVATION = YES
+X_EXPIRATION_FILE_PRESERVATION = YES
+
+AI_PARSING_IMPLEMENTED = NO
+AI_GENERATION_IMPLEMENTED = NO
+
+관련 없는 기능 regression 없음.
+
+완료 문구:
+
+WP_X03_X_MODE_POOL_SETUP_DOCUMENT_SUBMISSION_COMPLETE ✅

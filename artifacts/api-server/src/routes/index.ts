@@ -53,6 +53,7 @@ import commentsRouter from "./comments.js";
 import aiRouter from "./ai.js";
 import storyRouter from "./story.js";
 import xGrowthRouter from "./x-growth.js";
+import xSetupRouter from "./x-setup.js";
 import parentGrowthReportRouter from "./parent-growth-report.js";
 import parentCurriculumRouter    from "./parent-curriculum.js";
 import teacherGrowthReportReviewRouter from "./teacher-growth-report-review.js";
@@ -119,6 +120,7 @@ router.use("/", commentsRouter);
 router.use("/", aiRouter);
 router.use("/", storyRouter);
 router.use("/", xGrowthRouter);
+router.use("/", xSetupRouter);
 router.use("/", aiV1Router);
 
 export default router;

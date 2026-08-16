@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
-import { api } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 
 const PRIMARY = "#002F5F";
 const SECONDARY = "#01B2F1";
@@ -39,7 +39,7 @@ interface PoolDetail {
   canEdit?: boolean;
 }
 
-type TabId = "info" | "subscription" | "storage" | "policy" | "logs" | "actions" | "homepage";
+type TabId = "info" | "subscription" | "storage" | "policy" | "logs" | "actions" | "homepage" | "x-setup";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "info", label: "기본정보" },
@@ -49,6 +49,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "logs", label: "로그" },
   { id: "actions", label: "강제조치" },
   { id: "homepage", label: "🌐 홈페이지" },
+  { id: "x-setup", label: "⚡ X 세팅" },
 ];
 
 const subLabel: Record<string, string> = {
@@ -88,6 +89,256 @@ function StatBox({ label, value, color = "#0a0a0a" }: { label: string; value: nu
     <div className="bg-white rounded-2xl border border-[#ebebeb] p-5 text-center">
       <p className="text-[24px] font-bold mb-1" style={{ color }}>{value}</p>
       <p className="text-[11px] text-[#aaa]">{label}</p>
+    </div>
+  );
+}
+
+// ─── X Setup Tab (Super Admin) ────────────────────────────────────────────────
+type XSectionStatus = "NOT_SUBMITTED" | "SUBMITTED" | "REVISION_REQUESTED" | "APPROVED";
+type XSetupStatusOverall = "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "UNDER_REVIEW" | "REVISION_REQUESTED" | "APPROVED" | "PROCESSING" | "READY";
+
+const xSectionLabel: Record<XSectionStatus, string> = {
+  NOT_SUBMITTED: "미제출", SUBMITTED: "제출됨", REVISION_REQUESTED: "수정 요청", APPROVED: "승인",
+};
+const xSectionCls: Record<XSectionStatus, string> = {
+  NOT_SUBMITTED: "bg-gray-100 text-gray-500",
+  SUBMITTED:     "bg-blue-50 text-blue-700",
+  REVISION_REQUESTED: "bg-amber-50 text-amber-700",
+  APPROVED:      "bg-green-50 text-green-700",
+};
+const xOverallLabel: Record<XSetupStatusOverall, string> = {
+  NOT_STARTED: "미제출", IN_PROGRESS: "작성 중", SUBMITTED: "검토 요청", UNDER_REVIEW: "검토 중",
+  REVISION_REQUESTED: "수정 요청", APPROVED: "승인 완료", PROCESSING: "처리 중", READY: "설정 완료",
+};
+
+function XSectionBadge({ status }: { status: XSectionStatus }) {
+  return <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${xSectionCls[status]}`}>{xSectionLabel[status]}</span>;
+}
+
+function XSetupTab({ poolId, token, apiBase }: { poolId: string; token: string; apiBase: string }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [revSection, setRevSection] = useState("curriculum");
+  const [revMsg, setRevMsg] = useState("");
+  const [revSending, setRevSending] = useState(false);
+  const [revResult, setRevResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [approving, setApproving] = useState<Record<string, boolean>>({});
+
+  const authHdr = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/super/x-setup/${poolId}`, { headers: authHdr });
+      if (res.ok) setData(await res.json());
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, [poolId, token]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const downloadFile = async (fileId: string, filename: string) => {
+    try {
+      const res = await fetch(`${apiBase}/super/x-setup/${poolId}/files/${fileId}/download`, { headers: authHdr });
+      if (!res.ok) { alert("다운로드 실패"); return; }
+      const { url } = await res.json();
+      window.open(url, "_blank", "noopener");
+    } catch { alert("다운로드 오류"); }
+  };
+
+  const sendRevision = async () => {
+    if (!revMsg.trim()) { alert("수정 요청 메시지를 입력해주세요."); return; }
+    setRevSending(true); setRevResult(null);
+    try {
+      const res = await fetch(`${apiBase}/super/x-setup/${poolId}/revisions`, {
+        method: "POST", headers: authHdr,
+        body: JSON.stringify({ section: revSection, message: revMsg }),
+      });
+      const json = await res.json();
+      if (res.ok) { setRevResult({ ok: true, text: "수정 요청이 전송되었습니다." }); setRevMsg(""); fetchData(); }
+      else         { setRevResult({ ok: false, text: json.error ?? "전송 실패" }); }
+    } catch { setRevResult({ ok: false, text: "네트워크 오류" }); }
+    setRevSending(false);
+  };
+
+  const approve = async (section: string) => {
+    setApproving(p => ({ ...p, [section]: true }));
+    try {
+      const res = await fetch(`${apiBase}/super/x-setup/${poolId}/sections/${section}/approve`, { method: "PATCH", headers: authHdr });
+      if (res.ok) { fetchData(); }
+      else { const j = await res.json(); alert(j.error ?? "승인 실패"); }
+    } catch { alert("승인 오류"); }
+    setApproving(p => ({ ...p, [section]: false }));
+  };
+
+  if (loading) return <div className="py-16 flex justify-center"><span className="text-[#aaa] text-[13px]">불러오는 중...</span></div>;
+  if (!data)   return <div className="py-12 text-center text-[13px] text-[#aaa]">X Setup 데이터가 없습니다.</div>;
+
+  const { submission, files, revisions } = data;
+  const currentFiles = files?.filter((f: any) => f.is_current && !f.deleted_at) ?? [];
+  const curriculumFile = currentFiles.find((f: any) => f.file_type === "curriculum");
+  const websiteFile    = currentFiles.find((f: any) => f.file_type === "website");
+  const logoFile       = currentFiles.find((f: any) => f.file_type === "logo");
+  const photoFiles     = currentFiles.filter((f: any) => f.file_type === "photo");
+
+  const overallStatus: XSetupStatusOverall = submission?.setup_status ?? "NOT_STARTED";
+  const SECTIONS = [
+    { key: "curriculum", label: "커리큘럼 자료", file: curriculumFile, status: submission?.curriculum_status },
+    { key: "website",    label: "홈페이지 제작자료", file: websiteFile, status: submission?.website_status },
+    { key: "logo",       label: "로고",           file: logoFile, status: submission?.logo_status },
+  ] as const;
+
+  return (
+    <div className="space-y-6">
+      {/* 전체 상태 */}
+      <div className="bg-white rounded-2xl border border-[#ebebeb] p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-[12px] font-bold text-[#888] uppercase tracking-wide">X Setup 상태</span>
+          <span className="inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700">{xOverallLabel[overallStatus]}</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {["curriculum","website","logo","photos"].map(s => (
+            <div key={s} className="bg-[#f8f9fb] rounded-xl p-3 text-center">
+              <p className="text-[10px] text-[#aaa] mb-1.5">{s === "curriculum" ? "커리큘럼" : s === "website" ? "홈페이지" : s === "logo" ? "로고" : "사진"}</p>
+              <XSectionBadge status={(submission?.[`${s}_status`] ?? "NOT_SUBMITTED") as XSectionStatus} />
+            </div>
+          ))}
+        </div>
+        {submission?.submitted_at && (
+          <p className="text-[11px] text-[#aaa] mt-3">최초 제출: {submission.submitted_at.slice(0,10)}</p>
+        )}
+      </div>
+
+      {/* 섹션별 파일 */}
+      <div className="bg-white rounded-2xl border border-[#ebebeb] p-6">
+        <p className="text-[12px] font-bold text-[#888] uppercase tracking-wide mb-4">제출 파일</p>
+        <div className="space-y-3">
+          {SECTIONS.map(({ key, label, file, status }) => (
+            <div key={key} className="flex items-center gap-3 py-3 border-b border-[#f5f5f5] last:border-0">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[13px] font-semibold text-[#0a0a0a]">{label}</span>
+                  <XSectionBadge status={(status ?? "NOT_SUBMITTED") as XSectionStatus} />
+                </div>
+                {file ? (
+                  <p className="text-[11px] text-[#888]">{file.original_filename} · v{file.submission_version} · {file.uploaded_at?.slice(0,10)}</p>
+                ) : (
+                  <p className="text-[11px] text-[#ccc]">미제출</p>
+                )}
+              </div>
+              <div className="flex gap-2 shrink-0">
+                {file && (
+                  <button
+                    onClick={() => downloadFile(file.id, file.original_filename)}
+                    className="px-3 py-1.5 rounded-lg border border-[#e5e5e5] text-[11px] font-semibold text-[#555] hover:bg-[#f5f5f5]"
+                  >
+                    다운로드
+                  </button>
+                )}
+                {file && status !== "APPROVED" && (
+                  <button
+                    onClick={() => approve(key)}
+                    disabled={approving[key]}
+                    className="px-3 py-1.5 rounded-lg text-white text-[11px] font-semibold bg-green-600 hover:opacity-80 disabled:opacity-40"
+                  >
+                    {approving[key] ? "..." : "승인"}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* 사진 */}
+          <div className="py-3">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[13px] font-semibold text-[#0a0a0a]">홍보사진</span>
+              <XSectionBadge status={(submission?.photos_status ?? "NOT_SUBMITTED") as XSectionStatus} />
+              <span className="text-[11px] text-[#aaa]">{photoFiles.length}장</span>
+            </div>
+            {photoFiles.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {photoFiles.map((f: any) => (
+                  <button
+                    key={f.id}
+                    onClick={() => downloadFile(f.id, f.original_filename)}
+                    className="px-3 py-1.5 rounded-lg border border-[#e5e5e5] text-[11px] text-[#555] hover:bg-[#f5f5f5]"
+                  >
+                    📷 {f.photo_order ?? "?"} ({f.original_filename.slice(-15)})
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[11px] text-[#ccc]">미제출</p>
+            )}
+            {photoFiles.length > 0 && submission?.photos_status !== "APPROVED" && (
+              <button
+                onClick={() => approve("photos")}
+                disabled={approving["photos"]}
+                className="mt-2 px-3 py-1.5 rounded-lg text-white text-[11px] font-semibold bg-green-600 hover:opacity-80 disabled:opacity-40"
+              >
+                {approving["photos"] ? "..." : "사진 전체 승인"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 수정 요청 이력 */}
+      {revisions && revisions.length > 0 && (
+        <div className="bg-white rounded-2xl border border-[#ebebeb] p-6">
+          <p className="text-[12px] font-bold text-[#888] uppercase tracking-wide mb-4">수정 요청 이력</p>
+          <div className="space-y-3">
+            {revisions.map((r: any) => (
+              <div key={r.id} className="py-3 border-b border-[#f5f5f5] last:border-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[11px] font-bold text-[#555]">{r.section}</span>
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold ${r.status === "PENDING" ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-500"}`}>{r.status}</span>
+                  <span className="text-[10px] text-[#aaa]">{r.requested_at?.slice(0,10)}</span>
+                </div>
+                <p className="text-[12px] text-[#444]">{r.message}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 수정 요청 폼 */}
+      <div className="bg-white rounded-2xl border border-[#ebebeb] p-6">
+        <p className="text-[12px] font-bold text-[#888] uppercase tracking-wide mb-4">수정 요청 전송</p>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[11px] font-semibold text-[#555] mb-1.5">섹션</label>
+            <select value={revSection} onChange={e => setRevSection(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-[#e5e5e5] text-[13px] focus:outline-none focus:border-[#002F5F]">
+              <option value="curriculum">커리큘럼 자료</option>
+              <option value="website">홈페이지 제작자료</option>
+              <option value="logo">로고</option>
+              <option value="photos">홍보사진</option>
+              <option value="general">전체</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-[#555] mb-1.5">메시지</label>
+            <textarea
+              value={revMsg}
+              onChange={e => setRevMsg(e.target.value)}
+              rows={3}
+              placeholder="수정 요청 내용을 입력하세요"
+              className="w-full px-4 py-3 rounded-xl border border-[#e5e5e5] text-[13px] placeholder:text-[#ccc] focus:outline-none focus:border-[#002F5F] resize-none"
+            />
+          </div>
+          {revResult && (
+            <p className={`text-[12px] font-medium ${revResult.ok ? "text-green-600" : "text-red-500"}`}>{revResult.text}</p>
+          )}
+          <button
+            onClick={sendRevision}
+            disabled={revSending || !revMsg.trim()}
+            className="w-full py-3 rounded-xl text-white text-[13px] font-semibold disabled:opacity-50 hover:opacity-85 transition-opacity"
+            style={{ background: PRIMARY }}
+          >
+            {revSending ? "전송 중..." : "수정 요청 전송"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -260,7 +511,7 @@ export default function PoolAdmin() {
   const isSuperAdmin = user.role === "super_admin";
   const visibleTabs = isSuperAdmin
     ? TABS
-    : TABS.filter(t => t.id !== "actions" && t.id !== "subscription" && t.id !== "storage" && t.id !== "policy" && t.id !== "logs");
+    : TABS.filter(t => !["actions","subscription","storage","policy","logs","x-setup"].includes(t.id));
   if (!pool) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -673,6 +924,8 @@ export default function PoolAdmin() {
     </div>
   );
 
+  const renderXSetup = () => <XSetupTab poolId={poolId!} token={getToken() ?? ""} apiBase="/api" />;
+
   const renderContent = () => {
     if (tab === "info") return renderInfo();
     if (tab === "subscription") return renderSubscription();
@@ -681,6 +934,7 @@ export default function PoolAdmin() {
     if (tab === "logs") return renderLogs();
     if (tab === "actions") return renderActions();
     if (tab === "homepage") return renderHomepage();
+    if (tab === "x-setup") return renderXSetup();
     return null;
   };
 
