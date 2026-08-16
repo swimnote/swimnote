@@ -22,6 +22,10 @@ export const REVENUECAT_CENTER_ENTITLEMENT = "center";
 export const SOLO_OFFERING_ID              = "solo_monthly";
 export const CENTER_OFFERING_ID            = "center_monthly";
 
+// ── X모드 상수 ──────────────────────────────────────────────────────────────
+export const X_OFFERING_ID  = "x_monthly";
+export const X_ENTITLEMENT  = "x_mode";
+
 export interface PlanMeta {
   name: string;
   memberLimit: number;
@@ -99,6 +103,20 @@ export function initializeRevenueCat() {
   Purchases.setLogLevel(__DEV__ ? Purchases.LOG_LEVEL.DEBUG : Purchases.LOG_LEVEL.ERROR);
   Purchases.configure({ apiKey });
   console.log("[RevenueCat] 초기화 완료");
+}
+
+/**
+ * X 전용 Offering(x_monthly) 로드.
+ * 기존 solo/center offering 로직과 완전히 분리.
+ * 실패 시 throw — 호출처에서 핸들링.
+ */
+export async function getXOffering(): Promise<any | null> {
+  const all = await Purchases.getOfferings();
+  const offering = all.all[X_OFFERING_ID] ?? null;
+  if (!offering) {
+    console.warn(`[RevenueCat] X offering '${X_OFFERING_ID}' 없음 — RC 대시보드 확인 필요`);
+  }
+  return offering;
 }
 
 export async function loginRevenueCat(userId: string) {
