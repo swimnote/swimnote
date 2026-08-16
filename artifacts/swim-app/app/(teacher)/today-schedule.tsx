@@ -3,7 +3,7 @@
  * 컴포넌트: components/teacher/today-schedule/
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { XModeBadge } from "@/components/common/XModeBadge";
+import { X as XT } from "@/constants/xTheme";
 import { router, useFocusEffect } from "expo-router";
 import { Image, Linking, Platform, Pressable } from "react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -313,52 +313,75 @@ export default function TodayScheduleScreen() {
       </SafeAreaView>
     );
   }
+  const isX = mode === "x";
+
   return (
-    <SafeAreaView style={h.safe} edges={[]}>
-      <View style={[h.header, { paddingTop: topPad }]}>
+    <SafeAreaView style={[h.safe, isX && { backgroundColor: XT.background }]} edges={[]}>
+      {/* 헤더: X모드 = 네이비, Normal = 기본 */}
+      <View style={[
+        h.header,
+        { paddingTop: topPad },
+        isX && { backgroundColor: XT.surfaceNavy, borderBottomColor: XT.surfaceNavyStrong },
+      ]}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Text style={[h.poolName, { color: C.text }]} numberOfLines={1}>
+            <Text style={[h.poolName, { color: isX ? XT.textOnNavy : C.text }]} numberOfLines={1}>
               {pool?.name ?? "수영장"}
             </Text>
-            <XModeBadge />
+            {isX && (
+              <View style={{ backgroundColor: "rgba(255,255,255,0.18)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.textOnNavy, letterSpacing: 0.5 }}>
+                  SWIMNOTE X
+                </Text>
+              </View>
+            )}
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
-            <Text style={h.greeting} numberOfLines={1}>{adminUser?.name ?? "선생님"}선생님</Text>
+            <Text style={[h.greeting, isX && { color: XT.textOnNavySoft }]} numberOfLines={1}>
+              {adminUser?.name ?? "선생님"}선생님
+            </Text>
             {canSwitchToAdmin && (
-              <Pressable style={({ pressed }) => [h.switchChip, { borderColor: "#14283D30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 }]}
-                onPress={handleSwitchToAdmin} disabled={switching}>
+              <Pressable
+                style={({ pressed }) => [
+                  h.switchChip,
+                  isX
+                    ? { borderColor: "rgba(255,255,255,0.3)", backgroundColor: "rgba(255,255,255,0.12)", opacity: pressed || switching ? 0.7 : 1 }
+                    : { borderColor: "#14283D30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 },
+                ]}
+                onPress={handleSwitchToAdmin} disabled={switching}
+              >
                 {switching
-                  ? <ActivityIndicator size="small" color="#14283D" />
-                  : <><Repeat size={10} color="#14283D" /><Text style={[h.switchChipTxt, { color: "#14283D" }]}>관리자로 전환</Text></>}
+                  ? <ActivityIndicator size="small" color={isX ? "#FFFFFF" : "#14283D"} />
+                  : <>
+                      <Repeat size={10} color={isX ? XT.textOnNavy : "#14283D"} />
+                      <Text style={[h.switchChipTxt, { color: isX ? XT.textOnNavy : "#14283D" }]}>관리자로 전환</Text>
+                    </>
+                }
               </Pressable>
             )}
           </View>
         </View>
         <Pressable
           onPress={() => setNotePopupVisible(true)}
-          style={[h.logoutBtn, { marginRight: 8 }]}
+          style={[h.logoutBtn, { marginRight: 8 }, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <View>
-            <LucideIcon name="inbox" size={18} color={C.textMuted} />
+            <LucideIcon name="inbox" size={18} color={isX ? XT.textOnNavy : C.textMuted} />
             {((overview?.unread_news ?? 0) > 0 || (overview?.unread_messages ?? 0) > 0 || (overview?.pending_parent_requests ?? 0) > 0 || (overview?.unread_parent_request_messages ?? 0) > 0) && (
-              <View style={{
-                position: "absolute", top: -3, right: -3,
-                width: 8, height: 8, borderRadius: 4, backgroundColor: "#D96C6C",
-              }} />
+              <View style={{ position: "absolute", top: -3, right: -3, width: 8, height: 8, borderRadius: 4, backgroundColor: "#D96C6C" }} />
             )}
           </View>
         </Pressable>
         <Pressable
-          style={[h.logoutBtn, { marginRight: 8 }]}
+          style={[h.logoutBtn, { marginRight: 8 }, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
           onPress={() => Linking.openURL("https://swimnote.kr")}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Image source={require("@/assets/images/swimnote-logo.png")} style={{ width: 18, height: 18 }} resizeMode="contain" />
+          <Image source={require("@/assets/images/swimnote-logo.png")} style={{ width: 18, height: 18, opacity: isX ? 0.85 : 1 }} resizeMode="contain" />
         </Pressable>
-        <Pressable onPress={logout} style={h.logoutBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <LogOut size={18} color={C.textMuted} />
+        <Pressable onPress={logout} style={[h.logoutBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <LogOut size={18} color={isX ? XT.textOnNavy : C.textMuted} />
         </Pressable>
       </View>
       <View style={h.topFixed}>
