@@ -54,6 +54,7 @@ import aiRouter from "./ai.js";
 import storyRouter from "./story.js";
 import xGrowthRouter from "./x-growth.js";
 import xSetupRouter from "./x-setup.js";
+import x04StructuringRouter from "./x04-structuring.js";
 import parentGrowthReportRouter from "./parent-growth-report.js";
 import parentCurriculumRouter    from "./parent-curriculum.js";
 import teacherGrowthReportReviewRouter from "./teacher-growth-report-review.js";
@@ -121,6 +122,7 @@ router.use("/", aiRouter);
 router.use("/", storyRouter);
 router.use("/", xGrowthRouter);
 router.use("/", xSetupRouter);
+router.use("/", x04StructuringRouter);
 router.use("/", aiV1Router);
 
 export default router;

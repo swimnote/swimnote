@@ -171,6 +171,123 @@ function XSetupTab({ poolId, token, apiBase }: { poolId: string; token: string; 
     setApproving(p => ({ ...p, [section]: false }));
   };
 
+  // ── Structured data state ─────────────────────────────────────────────────
+  const [structured, setStructured] = useState<any>(null);
+  const [structuredLoading, setStructuredLoading] = useState(false);
+  const [structuring, setStructuring] = useState(false);
+  const [structureResult, setStructureResult] = useState<string | null>(null);
+  const [approvingStructured, setApprovingStructured] = useState(false);
+  const [generatingPackage, setGeneratingPackage] = useState(false);
+  const [packages, setPackages] = useState<any[]>([]);
+  const [showCurriculumEdit, setShowCurriculumEdit] = useState(false);
+  const [showWebsiteEdit, setShowWebsiteEdit] = useState(false);
+  const [editCurriculum, setEditCurriculum] = useState<any>({});
+  const [editWebsite, setEditWebsite] = useState<any>({});
+  const [editSaving, setEditSaving] = useState(false);
+
+  const fetchStructured = useCallback(async () => {
+    setStructuredLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/super/x-setup/${poolId}/structured`, { headers: authHdr });
+      if (res.ok) {
+        const d = await res.json();
+        setStructured(d);
+        setPackages(d.packages ?? []);
+      }
+    } catch { /* ignore */ }
+    setStructuredLoading(false);
+  }, [poolId, token]);
+
+  useEffect(() => { fetchStructured(); }, [fetchStructured]);
+
+  const triggerStructure = async () => {
+    setStructuring(true); setStructureResult(null);
+    try {
+      const res = await fetch(`${apiBase}/super/x-setup/${poolId}/structure`, {
+        method: "POST", headers: authHdr,
+      });
+      const j = await res.json();
+      if (res.ok) {
+        setStructureResult(`구조화 완료: ${JSON.stringify(j.results)}`);
+        fetchStructured();
+      } else {
+        setStructureResult(`오류: ${j.error}`);
+      }
+    } catch { setStructureResult("네트워크 오류"); }
+    setStructuring(false);
+  };
+
+  const approveStructured = async (type: "curriculum" | "website" | "both") => {
+    setApprovingStructured(true);
+    try {
+      const res = await fetch(`${apiBase}/super/x-setup/${poolId}/structured/approve`, {
+        method: "POST", headers: authHdr, body: JSON.stringify({ type }),
+      });
+      const j = await res.json();
+      if (res.ok) { fetchStructured(); alert(`승인 완료: ${j.approved?.join(", ")}`); }
+      else { alert(j.error ?? "승인 실패"); }
+    } catch { alert("네트워크 오류"); }
+    setApprovingStructured(false);
+  };
+
+  const saveCurriculumEdit = async () => {
+    setEditSaving(true);
+    try {
+      const res = await fetch(`${apiBase}/super/x-setup/${poolId}/curriculum/structured`, {
+        method: "PATCH", headers: authHdr, body: JSON.stringify(editCurriculum),
+      });
+      const j = await res.json();
+      if (res.ok) { setShowCurriculumEdit(false); fetchStructured(); }
+      else { alert(j.error ?? "저장 실패"); }
+    } catch { alert("네트워크 오류"); }
+    setEditSaving(false);
+  };
+
+  const saveWebsiteEdit = async () => {
+    setEditSaving(true);
+    try {
+      const res = await fetch(`${apiBase}/super/x-setup/${poolId}/website/structured`, {
+        method: "PATCH", headers: authHdr, body: JSON.stringify(editWebsite),
+      });
+      const j = await res.json();
+      if (res.ok) { setShowWebsiteEdit(false); fetchStructured(); }
+      else { alert(j.error ?? "저장 실패"); }
+    } catch { alert("네트워크 오류"); }
+    setEditSaving(false);
+  };
+
+  const generatePackage = async () => {
+    setGeneratingPackage(true);
+    try {
+      const res = await fetch(`${apiBase}/super/x-setup/${poolId}/package`, {
+        method: "POST", headers: authHdr,
+      });
+      const j = await res.json();
+      if (res.ok) {
+        alert(`패키지 생성 완료: ${j.package_name}`);
+        fetchStructured();
+      } else {
+        alert(j.error ?? "패키지 생성 실패");
+      }
+    } catch { alert("네트워크 오류"); }
+    setGeneratingPackage(false);
+  };
+
+  const downloadPackage = async (pkgId: string, pkgName: string) => {
+    try {
+      const res = await fetch(`${apiBase}/super/x-setup/${poolId}/packages/${pkgId}/download`, { headers: authHdr });
+      if (!res.ok) { alert("다운로드 실패"); return; }
+      const { url } = await res.json();
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = pkgName;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch { alert("다운로드 오류"); }
+  };
+
   if (loading) return <div className="py-16 flex justify-center"><span className="text-[#aaa] text-[13px]">불러오는 중...</span></div>;
   if (!data)   return <div className="py-12 text-center text-[13px] text-[#aaa]">X Setup 데이터가 없습니다.</div>;
 
@@ -301,6 +418,200 @@ function XSetupTab({ poolId, token, apiBase }: { poolId: string; token: string; 
           </div>
         </div>
       )}
+
+      {/* ── 구조화 데이터 ─────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-[#ebebeb] p-6">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-[12px] font-bold text-[#888] uppercase tracking-wide">구조화 데이터 (STRUCTURED Layer)</p>
+          <button
+            onClick={triggerStructure}
+            disabled={structuring}
+            className="px-3 py-1.5 rounded-lg text-white text-[11px] font-semibold bg-[#002F5F] hover:opacity-80 disabled:opacity-40"
+          >
+            {structuring ? "구조화 중..." : "구조화 실행"}
+          </button>
+        </div>
+        {structureResult && (
+          <p className="mb-3 text-[11px] text-[#555] bg-[#f8f9fb] rounded-lg p-2">{structureResult}</p>
+        )}
+        {structuredLoading ? (
+          <p className="text-[11px] text-[#aaa]">불러오는 중...</p>
+        ) : (
+          <>
+            {/* 커리큘럼 구조화 */}
+            {structured?.curriculum ? (
+              <div className="mb-4 p-4 rounded-xl bg-[#f8f9fb] border border-[#e5e5e5]">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-bold text-[#333]">커리큘럼</span>
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      structured.curriculum.status === "APPROVED" ? "bg-green-50 text-green-700" :
+                      structured.curriculum.status === "STRUCTURED" ? "bg-blue-50 text-blue-700" :
+                      structured.curriculum.status === "FAILED" ? "bg-red-50 text-red-600" :
+                      "bg-gray-100 text-gray-500"
+                    }`}>{structured.curriculum.status}</span>
+                    <span className="text-[10px] text-[#aaa]">{structured.curriculum.total_declared_levels}단계</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {structured.curriculum.status !== "APPROVED" && (
+                      <>
+                        <button
+                          onClick={() => { setEditCurriculum({ basic_info: structured.curriculum.basic_info, teaching_summary: structured.curriculum.teaching_summary }); setShowCurriculumEdit(true); }}
+                          className="px-2.5 py-1 rounded-lg border border-[#e5e5e5] text-[10px] font-semibold text-[#555] hover:bg-white"
+                        >수정</button>
+                        <button
+                          onClick={() => approveStructured("curriculum")}
+                          disabled={approvingStructured}
+                          className="px-2.5 py-1 rounded-lg text-white text-[10px] font-semibold bg-green-600 hover:opacity-80 disabled:opacity-40"
+                        >{approvingStructured ? "..." : "승인"}</button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {/* Basic Info */}
+                {structured.curriculum.basic_info && Object.keys(structured.curriculum.basic_info).length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-[10px] font-semibold text-[#888] mb-1">기본 정보</p>
+                    {Object.entries(structured.curriculum.basic_info as Record<string,string>).filter(([,v]) => v).map(([k,v]) => (
+                      <div key={k} className="flex gap-2 text-[11px] border-b border-[#f0f0f0] py-1">
+                        <span className="text-[#888] w-32 shrink-0">{k}</span>
+                        <span className="text-[#333]">{String(v)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Levels */}
+                {structured.curriculum.levels?.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-[10px] font-semibold text-[#888] mb-1">레벨 ({structured.curriculum.levels.length}단계)</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {structured.curriculum.levels.map((lv: any) => (
+                        <span key={lv.level_order} className="inline-flex px-2 py-1 rounded-lg bg-white border border-[#e5e5e5] text-[10px] font-semibold text-[#333]">
+                          {lv.level_order}단계{lv.level_name ? ` ${lv.level_name}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Parse error */}
+                {structured.curriculum.parse_error && (
+                  <p className="mt-2 text-[10px] text-red-500">파싱 오류: {structured.curriculum.parse_error}</p>
+                )}
+                {/* Inline edit */}
+                {showCurriculumEdit && (
+                  <div className="mt-3 p-3 rounded-xl bg-white border border-[#002F5F]/20">
+                    <p className="text-[11px] font-bold text-[#333] mb-2">커리큘럼 기본정보 수정</p>
+                    <textarea
+                      rows={6}
+                      value={JSON.stringify(editCurriculum, null, 2)}
+                      onChange={e => { try { setEditCurriculum(JSON.parse(e.target.value)); } catch { /* invalid JSON */ } }}
+                      className="w-full px-3 py-2 rounded-lg border border-[#e5e5e5] text-[11px] font-mono resize-y focus:outline-none focus:border-[#002F5F]"
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={saveCurriculumEdit} disabled={editSaving} className="px-3 py-1.5 rounded-lg text-white text-[11px] font-semibold bg-[#002F5F] hover:opacity-80 disabled:opacity-40">{editSaving ? "저장 중..." : "저장"}</button>
+                      <button onClick={() => setShowCurriculumEdit(false)} className="px-3 py-1.5 rounded-lg border border-[#e5e5e5] text-[11px] text-[#555] hover:bg-[#f5f5f5]">취소</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-[11px] text-[#aaa] mb-4">커리큘럼 구조화 데이터 없음 (구조화 실행 필요)</p>
+            )}
+
+            {/* 홈페이지 구조화 */}
+            {structured?.website ? (
+              <div className="mb-4 p-4 rounded-xl bg-[#f8f9fb] border border-[#e5e5e5]">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-bold text-[#333]">홈페이지</span>
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      structured.website.status === "APPROVED" ? "bg-green-50 text-green-700" :
+                      structured.website.status === "STRUCTURED" ? "bg-blue-50 text-blue-700" :
+                      structured.website.status === "FAILED" ? "bg-red-50 text-red-600" :
+                      "bg-gray-100 text-gray-500"
+                    }`}>{structured.website.status}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {structured.website.status !== "APPROVED" && (
+                      <>
+                        <button
+                          onClick={() => { setEditWebsite({ brand: structured.website.brand, basic_info: structured.website.basic_info }); setShowWebsiteEdit(true); }}
+                          className="px-2.5 py-1 rounded-lg border border-[#e5e5e5] text-[10px] font-semibold text-[#555] hover:bg-white"
+                        >수정</button>
+                        <button
+                          onClick={() => approveStructured("website")}
+                          disabled={approvingStructured}
+                          className="px-2.5 py-1 rounded-lg text-white text-[10px] font-semibold bg-green-600 hover:opacity-80 disabled:opacity-40"
+                        >{approvingStructured ? "..." : "승인"}</button>
+                      </>
+                    )}
+                    {structured.website.status === "APPROVED" && (
+                      <button
+                        onClick={generatePackage}
+                        disabled={generatingPackage}
+                        className="px-3 py-1.5 rounded-lg text-white text-[11px] font-bold bg-[#01B2F1] hover:opacity-80 disabled:opacity-40"
+                      >{generatingPackage ? "생성 중..." : "홈페이지 제작 패키지 생성"}</button>
+                    )}
+                  </div>
+                </div>
+                {/* Brand preview */}
+                {structured.website.brand && Object.keys(structured.website.brand).length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-[10px] font-semibold text-[#888] mb-1">브랜드/슬로건</p>
+                    {Object.entries(structured.website.brand as Record<string,string>).filter(([,v]) => v).slice(0,4).map(([k,v]) => (
+                      <div key={k} className="flex gap-2 text-[11px] border-b border-[#f0f0f0] py-1">
+                        <span className="text-[#888] w-32 shrink-0">{k}</span>
+                        <span className="text-[#333] truncate">{String(v)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {structured.website.parse_error && (
+                  <p className="mt-2 text-[10px] text-red-500">파싱 오류: {structured.website.parse_error}</p>
+                )}
+                {showWebsiteEdit && (
+                  <div className="mt-3 p-3 rounded-xl bg-white border border-[#002F5F]/20">
+                    <p className="text-[11px] font-bold text-[#333] mb-2">홈페이지 데이터 수정</p>
+                    <textarea
+                      rows={6}
+                      value={JSON.stringify(editWebsite, null, 2)}
+                      onChange={e => { try { setEditWebsite(JSON.parse(e.target.value)); } catch { /* invalid JSON */ } }}
+                      className="w-full px-3 py-2 rounded-lg border border-[#e5e5e5] text-[11px] font-mono resize-y focus:outline-none focus:border-[#002F5F]"
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={saveWebsiteEdit} disabled={editSaving} className="px-3 py-1.5 rounded-lg text-white text-[11px] font-semibold bg-[#002F5F] hover:opacity-80 disabled:opacity-40">{editSaving ? "저장 중..." : "저장"}</button>
+                      <button onClick={() => setShowWebsiteEdit(false)} className="px-3 py-1.5 rounded-lg border border-[#e5e5e5] text-[11px] text-[#555] hover:bg-[#f5f5f5]">취소</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-[11px] text-[#aaa] mb-4">홈페이지 구조화 데이터 없음 (구조화 실행 필요)</p>
+            )}
+
+            {/* 패키지 이력 */}
+            {packages.length > 0 && (
+              <div className="mt-2">
+                <p className="text-[11px] font-bold text-[#555] mb-2">제작 패키지 이력</p>
+                <div className="space-y-2">
+                  {packages.map((pkg: any) => (
+                    <div key={pkg.id} className="flex items-center justify-between py-2 border-b border-[#f5f5f5] last:border-0">
+                      <div>
+                        <p className="text-[11px] font-semibold text-[#333]">v{pkg.package_version} — {pkg.package_name}</p>
+                        <p className="text-[10px] text-[#aaa]">{pkg.generated_at?.slice(0,16)}</p>
+                      </div>
+                      <button
+                        onClick={() => downloadPackage(pkg.id, pkg.package_name)}
+                        className="px-3 py-1.5 rounded-lg border border-[#e5e5e5] text-[11px] font-semibold text-[#555] hover:bg-[#f5f5f5]"
+                      >다운로드</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {/* 수정 요청 폼 */}
       <div className="bg-white rounded-2xl border border-[#ebebeb] p-6">

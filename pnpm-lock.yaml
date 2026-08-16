@@ -217,6 +217,9 @@ importers:
       express:
         specifier: ^5
         version: 5.2.1
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
       jsonwebtoken:
         specifier: ^9.0.3
         version: 9.0.3
@@ -5352,6 +5355,9 @@ packages:
 
   fetch-retry@4.1.1:
     resolution: {integrity: sha512-e6eB7zN6UBSwGVwrbWVH+gdLnkW9WwHhmq2YDK1Sh30pzx1onRVGBvogTlUeWxwTa+L86NYdo4hFkh7O8ZjSnA==}
+
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
 
   figures@3.2.0:
     resolution: {integrity: sha512-yaduQFRKLXYOGgEn6AZau90j3ggSOyiqXU0F9JZfeXYhNa+Jk4X+s45A2zg5jns87GAFa34BBm2kXw4XpNcbdg==}
@@ -14174,6 +14180,8 @@ snapshots:
   fetch-nodeshim@0.4.10: {}
 
   fetch-retry@4.1.1: {}
+
+  fflate@0.8.3: {}
 
   figures@3.2.0:
     dependencies:
