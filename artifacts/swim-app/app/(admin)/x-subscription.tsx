@@ -76,6 +76,19 @@ interface SlotInfo {
   existing: boolean;
 }
 
+// ── X 한국 정책 가격 (앱 내 표시 전용) ─────────────────────────────────────────
+// Apple Purchase Sheet / purchasePackage / RC product 는 변경 없음.
+// 서버 slot.tierKey 기준으로 앱 내부 원화 안내 가격만 결정.
+const X_KRW_PRICE: Record<string, string> = {
+  tier1:    "₩75,000 / 월",
+  tier2:    "₩105,000 / 월",
+  tier3:    "₩135,000 / 월",
+  standard: "₩150,000 / 월",
+};
+function getXKrwPrice(tierKey: string): string {
+  return X_KRW_PRICE[tierKey] ?? "₩- / 월";
+}
+
 // RC 취소 오류 감지 (userCancelled deprecated → PURCHASES_ERROR_CODE 사용)
 function isUserCancelled(e: any): boolean {
   return (
@@ -514,7 +527,9 @@ function ReservationCard({
   onRetryOffering: () => void;
   onSync: () => void;
 }) {
-  const localizedPrice: string = pkg?.product?.priceString ?? "-";
+  // RC localizedPrice는 purchasePackage/package matching에만 사용 (표시 불가 — storefront 의존)
+  // 앱 내 가격 안내는 서버 slot.tierKey 기준 KRW 정책 가격으로 고정
+  const krwPrice: string = getXKrwPrice(slot.tierKey);
   const deadlineRemaining = formatDeadline(slot.paymentDeadlineAt);
 
   const isLoading = phase === "LOADING_PRODUCT" || phase === "RESERVED";
@@ -544,12 +559,12 @@ function ReservationCard({
           </View>
         )}
 
-        {/* 월 결제 가격 (RC localized) */}
+        {/* 월 결제 가격 — KRW 정책 가격 (storefront 무관, 앱 내 한국 정책 안내) */}
         <View style={s.reserveRow}>
           <Text style={s.reserveLabel}>월 정기결제</Text>
           {isLoading
             ? <ActivityIndicator size="small" color={X_ACCENT} />
-            : <Text style={[s.reserveValue, { fontSize: 16 }]}>{localizedPrice}</Text>
+            : <Text style={[s.reserveValue, { fontSize: 16 }]}>{krwPrice}</Text>
           }
         </View>
 
