@@ -98,7 +98,7 @@ function formatDeadline(deadlineAt: string): string {
 // ── 메인 화면 ─────────────────────────────────────────────────────────────────
 export default function XSubscriptionScreen() {
   const insets = useSafeAreaInsets();
-  const { token, pool, activeRole } = useAuth();
+  const { token, pool, activeRole, adminUser } = useAuth();
   const { mode, refreshMode } = useMode();
 
   const [phase, setPhase] = useState<PurchasePhase>("IDLE");
@@ -109,7 +109,8 @@ export default function XSubscriptionScreen() {
   // in-flight 잠금 (double tap defense)
   const inFlight = useRef(false);
 
-  const isPoolAdmin = activeRole === "pool_admin";
+  // activeRole이 null(초기화 전)일 때 adminUser.role로 fallback
+  const isPoolAdmin = (activeRole ?? adminUser?.role) === "pool_admin";
   const planLabel   = pool?.subscription_tier
     ? (pool.subscription_tier === "free" ? "무료 플랜" : `${pool.subscription_tier} 플랜`)
     : "현재 플랜";
@@ -433,9 +434,9 @@ function CtaSection({
   if (!isPoolAdmin) {
     return (
       <View style={[s.card, { backgroundColor: "#F8FAFC", padding: 16, alignItems: "center", gap: 8 }]}>
-        <LucideIcon name="lock" size={20} color={C.textMuted} />
         <Text style={[s.planSub, { textAlign: "center", lineHeight: 20 }]}>
-          X모드 정기결제는 수영장 관리자(pool_admin)만 신청할 수 있습니다.
+          이 계정에는 정기결제 권한이 없습니다.{"\n"}
+          수영장 소유자 또는 결제 권한이 있는 계정에서 진행해주세요.
         </Text>
       </View>
     );

@@ -1,0 +1,173 @@
+[P0 — REMOVE X SUBSCRIPTION LOCK / SHOW DIRECT PURCHASE CTA]
+
+현재 x-subscription.tsx에서
+정기결제 화면 하단에:
+
+- 자물쇠 아이콘
+- "X모드 정기결제는 수영장 관리자(pool_admin)만 신청할 수 있습니다."
+
+잠금 UX가 노출되고 있다.
+
+이 구조를 수정한다.
+
+==================================================
+1. FINAL UX
+==================================================
+
+정기결제 권한이 있는 수영장 운영계정에서는:
+
+자물쇠 화면 금지.
+
+대신 하단에 실제 CTA 표시:
+
+[정기결제 신청하기]
+
+누르면 기존 X02-D flow 실행:
+
+POST /billing/x-reserve-slot
+→ reservation 정보 표시
+→ [결제 계속하기]
+→ RevenueCat purchasePackage()
+→ sync-x-subscription
+→ X 활성화
+
+==================================================
+2. PURCHASE AUTHORITY
+==================================================
+
+기존 Basic subscription에서
+실제 결제를 수행할 수 있는 admin role을 확인하고
+동일한 권한 contract를 X에도 재사용한다.
+
+pool_admin이 실제 결제 owner라면
+현재 로그인 계정이 pool_admin일 때
+무조건 CTA가 보여야 한다.
+
+현재 화면처럼 pool_admin인데도
+lock 화면이 뜨는 원인을 찾아 수정.
+
+추측 금지.
+
+==================================================
+3. LOCK COPY
+==================================================
+
+다음 제거:
+
+"X모드 정기결제는 수영장 관리자(pool_admin)만 신청할 수 있습니다."
+
+자물쇠 아이콘도 제거.
+
+결제 권한이 없는 role에서만:
+
+"이 계정에는 정기결제 권한이 없습니다.
+수영장 소유자 또는 결제 권한이 있는 계정에서 진행해주세요."
+
+표시.
+
+==================================================
+4. ROLE CASES
+==================================================
+
+pool_admin
+→ 정기결제 CTA 표시
+→ 직접 결제 가능
+
+sub_admin
+→ 현재 실제 Basic billing 권한 contract 확인
+→ 권한 없으면 안내만
+
+teacher
+→ 결제 불가
+
+parent
+→ 결제 불가
+
+중요:
+X 사용 권한과 X 결제 권한은 별개.
+
+수영장이 X가 되면
+teacher/parent도 X 기능 사용 가능.
+
+==================================================
+5. DO NOT CHANGE
+==================================================
+
+금지:
+
+server purchase contract
+x-reserve-slot
+sync-x-subscription
+RevenueCat products
+Offering
+slot/tier
+가격
+mode resolver
+DB
+webhook
+
+이번 작업은
+잘못된 client role gate/lock UI 수정만.
+
+==================================================
+6. TEST
+==================================================
+
+CASE 1
+pool_admin
+→ lock 없음
+→ [정기결제 신청하기] 표시
+
+CASE 2
+pool_admin CTA
+→ reserve flow 진입
+
+CASE 3
+sub_admin
+→ 실제 권한 contract 기준
+
+CASE 4
+teacher
+→ 결제 CTA 없음
+
+CASE 5
+parent
+→ 결제 CTA 없음
+
+CASE 6
+기존 X02-D purchase flow regression 없음
+
+==================================================
+7. DEPLOY
+==================================================
+
+APP UI 수정만이면:
+
+production OTA
+preview OTA
+
+server deploy 불필요.
+
+==================================================
+8. REPORT
+==================================================
+
+ROOT_CAUSE =
+ACTUAL_PURCHASE_ROLE =
+POOL_ADMIN_RESULT =
+SUB_ADMIN_RESULT =
+TEACHER_RESULT =
+PARENT_RESULT =
+LOCK_REMOVED =
+PURCHASE_CTA_VISIBLE =
+RESERVE_FLOW_CONNECTED =
+SERVER_CHANGE =
+DB_CHANGE =
+TEST_RESULT =
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+
+성공:
+
+P0_X_SUBSCRIPTION_DIRECT_PURCHASE_CTA_COMPLETE ✅
