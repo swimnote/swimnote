@@ -80,3 +80,4 @@
 - [WP-X0 완료](wp-x0-done-state.md) — SHA 3149ff2e; AppButton/MainTabs X-mode aware; today-schedule header btn; OTA 01a00b38
 - [WP-N1 Sage/Ocean Token Foundation 완료](wp-n1-done-state.md) — SHA e1aded7d; theme/colors.ts Sage palette+4-tier text+bg정리; OTA 01a00b48
 - [WP-N2 Token Sweep 완료](wp-n2-done-state.md) — SHA 4346947b; 165파일 hardcoded hex→C.*; text/bg/border; protected intact; OTA 01a00b6e
+- [WP-N3 Button Role Normalization 완료](wp-n3-done-state.md) — SHA 23c4e82c; primaryAction→Sage Strong+228파일 mint sweep; OTA 01a00ba4
