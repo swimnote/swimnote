@@ -1,0 +1,573 @@
+[SWIMNOTE X PAYMENT]
+[X02-B2 — PAID / MANUAL ENTITLEMENT SOURCE SEPARATION]
+
+목적:
+
+현재 단일 컬럼:
+
+swimming_pools.xmode_entitlement
+
+을 RevenueCat paid entitlement와
+Super Admin manual entitlement가 함께 수정하는 충돌을 제거한다.
+
+이미 X02-B1에서 생성된:
+
+x_paid_entitlement
+x_manual_entitlement
+x_force_disabled
+
+를 실제 source of truth 구조에 연결한다.
+
+이번 WP에서는:
+
+- RevenueCat purchase UI 구현 금지
+- slot reserve API 구현 금지
+- sync-x-subscription 구현 금지
+- restore 구현 금지
+
+entitlement source separation만 한다.
+
+==================================================
+0. CURRENT DB CONTRACT
+==================================================
+
+현재 DB:
+
+x_paid_entitlement
+BOOLEAN DEFAULT FALSE
+
+x_manual_entitlement
+BOOLEAN DEFAULT FALSE
+
+x_force_disabled
+BOOLEAN DEFAULT FALSE
+
+legacy:
+
+xmode_entitlement
+
+존재.
+
+X02-B1 backfill 정책:
+
+x_paid_entitlement = FALSE
+
+x_manual_entitlement =
+legacy xmode_entitlement
+
+따라서 기존 manual X 상태는
+x_manual_entitlement에 보존되어 있다.
+
+==================================================
+1. FINAL EFFECTIVE ENTITLEMENT
+==================================================
+
+최종 effective entitlement:
+
+effective_x_entitlement =
+
+(x_paid_entitlement OR x_manual_entitlement)
+AND NOT x_force_disabled
+
+이 규칙을 단일 source of truth로 만든다.
+
+==================================================
+2. MODE CONTRACT
+==================================================
+
+mode resolver:
+
+effective = false
+→ normal
+
+effective = true
+AND xmode_config_status = READY
+→ x
+
+effective = true
+AND xmode_config_status != READY
+→ x_pending
+
+중요:
+
+approval_status는 mode 계산에 포함하지 않는다.
+
+config_status를 결제 로직이 수정하면 안 된다.
+
+==================================================
+3. REVENUECAT PAID SOURCE
+==================================================
+
+RevenueCat webhook X product 처리에서는
+더 이상:
+
+xmode_entitlement
+
+를 직접 true/false 하지 않는다.
+
+대신:
+
+INITIAL_PURCHASE
+RENEWAL
+UNCANCELLATION
+→ x_paid_entitlement = true
+
+CANCELLATION
+→ paid 기간 종료 전이므로 true 유지
+
+EXPIRATION
+REFUND
+→ x_paid_entitlement = false
+
+x_manual_entitlement 수정 금지.
+
+x_force_disabled 수정 금지.
+
+==================================================
+4. SUPER ADMIN MANUAL SOURCE
+==================================================
+
+Super Admin manual X entitlement endpoint:
+
+PATCH /super/operators/:id/xmode
+
+현재 xmode_entitlement를 직접 수정하고 있다면
+다음으로 변경:
+
+manual ON
+→ x_manual_entitlement = true
+
+manual OFF
+→ x_manual_entitlement = false
+
+x_paid_entitlement 수정 금지.
+
+RevenueCat subscription 상태 수정 금지.
+
+==================================================
+5. FORCE DISABLE
+==================================================
+
+이번 WP에서
+Super Admin 기존 UI/API에
+force disable 기능이 이미 없다면
+새 UI 추가 금지.
+
+단 effective resolver는
+x_force_disabled 값을 반영해야 한다.
+
+현재 default false이므로
+기존 동작에는 영향 없어야 한다.
+
+향후 별도 Super Admin control에서 사용 가능.
+
+==================================================
+6. LEGACY xmode_entitlement
+==================================================
+
+기존 xmode_entitlement 컬럼은
+이번 WP에서 DROP 금지.
+
+하위 호환성 때문에 유지.
+
+하지만 mode resolver와
+신규 RevenueCat/manual write path에서는
+legacy 컬럼을 source of truth로 사용하지 않는다.
+
+필요하면 read compatibility만 유지.
+
+이번 WP 완료 후 신규 source:
+
+paid
+manual
+force_disabled
+
+3개.
+
+==================================================
+7. EFFECTIVE HELPER
+==================================================
+
+가능하면 entitlement 계산을
+여러 route에 복제하지 않는다.
+
+예:
+
+resolveEffectiveXEntitlement(pool)
+
+또는 기존 xmode helper에 통합.
+
+반드시 한 곳에서:
+
+(paid OR manual) AND NOT force_disabled
+
+계산.
+
+중복 로직 금지.
+
+==================================================
+8. READ PATH AUDIT
+==================================================
+
+repository 전체 검색:
+
+xmode_entitlement
+
+모든 read/write 위치 조사.
+
+각 위치를 분류:
+
+LEGACY READ
+MODE READ
+PAID WRITE
+MANUAL WRITE
+AUDIT ONLY
+MIGRATION ONLY
+
+실제 runtime에서
+mode/access 판단에 legacy boolean이 남아있으면 제거/전환.
+
+단 unrelated historical migration은 수정 금지.
+
+==================================================
+9. WRITE PATH SAFETY
+==================================================
+
+반드시 보장:
+
+RevenueCat webhook:
+paid만 수정
+
+Super Admin manual:
+manual만 수정
+
+force disable:
+이번 WP에서는 신규 write path 만들지 않음
+
+서로 상대 source를 덮어쓰지 않는다.
+
+==================================================
+10. COLLISION TESTS
+==================================================
+
+CASE A
+
+paid=false
+manual=false
+force=false
+→ effective=false
+→ normal
+
+CASE B
+
+paid=true
+manual=false
+force=false
+config READY
+→ x
+
+CASE C
+
+paid=false
+manual=true
+force=false
+config READY
+→ x
+
+CASE D
+
+paid=true
+manual=true
+force=false
+→ x
+
+CASE E
+
+paid=true
+manual=false
+force=true
+→ normal
+
+CASE F
+
+paid=false
+manual=true
+force=true
+→ normal
+
+CASE G
+
+paid=true
+manual=false
+config != READY
+→ x_pending
+
+CASE H
+
+paid=false
+manual=true
+config != READY
+→ x_pending
+
+==================================================
+11. CRITICAL PAID/MANUAL COLLISION TEST
+==================================================
+
+시나리오 1:
+
+manual=true
+paid=false
+
+RevenueCat EXPIRATION 발생
+
+결과:
+
+paid=false
+manual=true
+effective=true
+
+X 유지해야 함.
+
+시나리오 2:
+
+paid=true
+manual=false
+
+Super Admin manual OFF 실행
+
+결과:
+
+manual=false
+paid=true
+effective=true
+
+X 유지해야 함.
+
+시나리오 3:
+
+paid=true
+manual=true
+
+RevenueCat REFUND
+
+결과:
+
+paid=false
+manual=true
+effective=true
+
+manual 권한 유지.
+
+==================================================
+12. AUDIT LOG
+==================================================
+
+기존 audit log 구조 유지.
+
+가능하면 source 명확히:
+
+revenuecat
+super_admin_manual
+
+기존 audit schema 변경 금지.
+
+로그에서:
+
+paid entitlement 변경
+manual entitlement 변경
+
+구분 가능해야 한다.
+
+==================================================
+13. API RESPONSE
+==================================================
+
+기존 API contract를 깨지 않는다.
+
+필요하면 내부적으로 effective entitlement를 계산해서
+기존:
+
+xmode_entitlement
+
+response 필드가 있다면
+effective 값을 반환하도록 검토.
+
+단 모바일 앱이 해당 필드를 사용 중이면
+contract 유지 우선.
+
+새 필드가 필요하면:
+
+x_paid_entitlement
+x_manual_entitlement
+x_force_disabled
+
+를 내부/admin 용으로만 제한할지 검토.
+
+과도한 API 확장 금지.
+
+==================================================
+14. SUPER ADMIN UI
+==================================================
+
+기존 Super Admin manual ON/OFF UI가 있다면
+보이는 UX는 유지.
+
+단 의미는:
+
+"manual entitlement"
+
+가 되어야 한다.
+
+현재 화면 문구가
+paid subscription을 해지하는 것처럼 오해하게 되어 있지 않은지 확인.
+
+이번 WP에서 대규모 UI 재설계 금지.
+
+필요한 문구 수정만 허용.
+
+==================================================
+15. REVENUECAT PRODUCT FILTER
+==================================================
+
+현재 외부 설정 완료:
+
+Entitlement:
+x_mode
+
+Products:
+
+com.swimnote.x.monthly.tier1
+com.swimnote.x.monthly.tier2
+com.swimnote.x.monthly.tier3
+com.swimnote.x.monthly.standard
+
+Webhook paid source separation이
+이 X product들에만 적용되어야 한다.
+
+Basic SWIMNOTE subscription webhook
+절대 영향 금지.
+
+==================================================
+16. DO NOT TOUCH
+==================================================
+
+이번 WP 금지:
+
+x_subscription_slots reserve logic
+payment deadline worker
+purchasePackage
+restorePurchases
+RevenueCat Offering load
+sync-x-subscription
+App Store Connect
+RevenueCat dashboard
+Android
+AI ENGINE
+Growth
+Parent AI
+Diary AI
+config_status 변경
+subscription price logic
+
+==================================================
+17. MIGRATION
+==================================================
+
+X02-B1 DB migration은 이미 완료.
+
+새 migration은 원칙적으로 필요 없어야 한다.
+
+추가 DB schema 변경이 필요하다고 판단되면
+임의 실행 금지하고 BLOCKED 보고.
+
+==================================================
+18. DEPLOY
+==================================================
+
+Server logic 변경이므로:
+
+1. tests
+2. commit
+3. push origin/deploy-photo-clone
+4. Render deploy
+5. Replit Published(swimnote.kr)도 source/runtime 구조에 따라
+   새 server logic이 실제 반영되도록 필요한 배포 수행
+
+중요:
+
+Render만 정상이고
+swimnote.kr가 OLD dist를 실행하는 상태 재발 금지.
+
+두 production backend 모두 확인.
+
+==================================================
+19. HEALTH
+==================================================
+
+배포 후:
+
+https://swimnote.kr/api/health
+→ HTTP 200 / ok:true
+
+https://swimnote-api.onrender.com/api/health
+→ HTTP 200 / ok:true
+
+둘 다 확인.
+
+==================================================
+20. TESTS
+==================================================
+
+최소:
+
+- mode resolver unit tests
+- paid/manual collision tests
+- webhook X paid write test
+- super admin manual write test
+- Basic subscription regression
+- x_pending regression
+- force_disabled calculation test
+
+기존 테스트 전체 가능한 범위 실행.
+
+==================================================
+21. REPORT
+==================================================
+
+보고:
+
+1. XMODE_ENTITLEMENT READ/WRITE AUDIT
+2. EFFECTIVE HELPER
+3. MODE RESOLVER CHANGE
+4. REVENUECAT WRITE CHANGE
+5. SUPER ADMIN WRITE CHANGE
+6. FORCE DISABLED SUPPORT
+7. LEGACY COLUMN STATUS
+8. API CONTRACT CHANGE?
+9. SUPER ADMIN UI CHANGE?
+10. CASE A~H RESULT
+11. COLLISION TEST 1~3 RESULT
+12. BASIC SUBSCRIPTION REGRESSION
+13. X_PENDING REGRESSION
+14. MODIFIED FILES
+15. DB CHANGE?
+16. MIGRATION?
+17. TEST RESULT
+18. COMMIT SHA
+19. RENDER DEPLOY ID
+20. REPLIT PUBLISH RESULT
+21. SWIMNOTE.KR HEALTH
+22. RENDER HEALTH
+
+성공:
+
+X02_B2_ENTITLEMENT_SOURCE_SEPARATION_COMPLETE ✅
+
+실패:
+
+X02_B2_ENTITLEMENT_SOURCE_SEPARATION_BLOCKED ❌
+
+X02-B2 PASS 전:
+
+X02-C reserve/sync API 시작 금지.
+X02-D purchase UI 시작 금지.
