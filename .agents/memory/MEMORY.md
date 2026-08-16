@@ -10,6 +10,7 @@
 - [서버 핫리로드 실패 패턴](server-hotreload.md) — tsx watch가 라우트 변경을 놓칠 때 404 발생; 재시작으로 해결
 - [영상 다운로드 302 리다이렉트 패턴](video-download-redirect.md) — FileSystem.downloadAsync는 302 불가; fetch로 URL resolve 후 다운로드
 - [OTA 배포 패턴](ota-deploy-pattern.md) — Replit RAM 부족으로 Metro OOM; 2단계(115s 번들→skip-bundler 업로드) 우회법; package.json dev 스크립트에 큰따옴표 금지(JSON 파싱 오류), 반드시 작은따옴표+escaped 큰따옴표 사용
+- [OTA 릴리즈 컨벤션](ota-release-convention.md) — 기본=iOS production+preview만; Android는 최종 검증 단계 누적 배포; 별도 지시 WP만 Android 동시 배포
 - [OTA 채널 패턴](ota-channel-pattern.md) — production+preview 브랜치 둘 다 배포 필수; 동시 실행 금지(순차), eas.json preview에 channel:production 추가됨
 - [다음 빌드 포함 변경 사항](pending-build-changes.md) — 1.3.11 빌드 이후 코드 반영됐으나 미배포 변경 목록 (엑셀 업로드 개선, capacity API)
 - [탭 텍스트 Pretendard 금지](tab-font-clipping.md) — 탭 바 Text에 fontFamily Pretendard 사용 시 iOS에서 한글 받침 세로 클리핑 발생; lineHeight 명시로 해결
@@ -89,3 +90,4 @@
 - [WP-X02-D2 완료 상태](x02d2-done-state.md) — SHA 4be61202; Restore+구독상태UI+관리deep-link+CANCELLED_BUT_ACTIVE; 1153TC; Render미배포; OTA 01a00c03
 - [WP-X03 완료 상태](wp-x03-done-state.md) — SHA 1636fbd1; X Setup 자료제출+슈퍼어드민검토; 3 tables+startup auto-migration; 1190TC; Render dep-da1175c9v7es73ac46n0; OTA iOS 01a00c25+Android 01a00c2a
 - [WP-X03-T1 완료 상태](wp-x03-t1-done-state.md) — SHA 8f0c667c+5c55f3dc; 공식DOCX binary등록+auto-generation제거; docx패키지제거; Word안내UI; Render dep-da120tgjo6nc73fm0kug; OTA iOS 01a00c49+Android 01a00c4d
+- [WP-N7S 완료 상태](wp-n7s-done-state.md) — SHA 03e34a60; Sage→Clear Pool(15파일); WeeklyTimetableV2 classColor alpha +18→+28; TS 0; iOS OTA 01a00c74/01a00c75
