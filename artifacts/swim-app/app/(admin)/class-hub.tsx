@@ -9,6 +9,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useBrand } from "@/context/BrandContext";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const C = Colors.light;
@@ -40,12 +42,18 @@ const SECTIONS: { title: string; items: MenuItem[] }[] = [
 export default function ClassHubScreen() {
   const insets = useSafeAreaInsets();
   const { themeColor } = useBrand();
+  const { mode } = useMode();
+  const isX = isXMode(mode);
   const scrollRef = useTabScrollReset("class-hub");
 
   return (
-    <View style={{ flex: 1, backgroundColor: C.background }}>
-      <View style={[s.header, { paddingTop: insets.top + 14 }]}>
-        <Text style={[s.headerTitle, { color: themeColor }]}>수업관리</Text>
+    <View style={{ flex: 1, backgroundColor: isX ? XT.background : C.background }}>
+      <View style={[
+        s.header,
+        { paddingTop: insets.top + 14 },
+        isX && { backgroundColor: XT.surfaceNavy, borderBottomColor: XT.surfaceNavyStrong },
+      ]}>
+        <Text style={[s.headerTitle, { color: isX ? XT.textOnNavy : themeColor }]}>수업관리</Text>
       </View>
 
       <ScrollView

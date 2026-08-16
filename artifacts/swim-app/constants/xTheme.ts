@@ -62,8 +62,10 @@ export const X = {
   borderCard:         '#E2EAF2',
 
   // ── 바텀 탭 ──────────────────────────────────────────────────────────────
-  tabActive:          '#0F2742',   // 액티브 탭 — 네이비
-  tabInactive:        '#8AABCC',   // 비활성 탭
+  // 탭바 배경 = surfaceNavy (#0F2742).
+  // tabActive는 배경과 충분한 contrast 필요 → 흰색
+  tabActive:          '#FFFFFF',   // 액티브 탭 — 흰색 (contrast on navy bg)
+  tabInactive:        '#5F89B0',   // 비활성 탭 — 중간 톤 (muted blue, not too dark)
 
   // ── 배지 ─────────────────────────────────────────────────────────────────
   badge:              '#0F2742',

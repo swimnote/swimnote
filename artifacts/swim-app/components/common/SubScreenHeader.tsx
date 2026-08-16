@@ -1,8 +1,11 @@
 /**
- * SubScreenHeader — 하위 화면 공통 헤더
- * - 왼쪽: 뒤로가기 버튼 (항상 표시)
- * - 가운데: 화면 제목
- * - 오른쪽: 홈 버튼 + rightSlot (동시에 표시 가능)
+ * SubScreenHeader — 하위 화면 공통 헤더 (mode-aware)
+ * - Normal: 흰색 배경 + 기본 색상
+ * - X mode: 네이비 배경 + 흰색 텍스트/아이콘
+ *
+ * 왼쪽: 뒤로가기 버튼 (항상 표시)
+ * 가운데: 화면 제목
+ * 오른쪽: 홈 버튼 + rightSlot (동시에 표시 가능)
  *
  * 홈 버튼: homePath prop 명시 시 우선. 없으면 현재 로그인 역할 자동 감지.
  * → 보안: 역할 불일치 홈 이동 방지 (슈퍼→수영장관리자 홈 접근 차단)
@@ -16,6 +19,8 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 
 const C = Colors.light;
 
@@ -54,7 +59,11 @@ export function SubScreenHeader({
 
   // ✅ useAuth() 사용 — AuthContext 직접 참조 금지 (값 미주입으로 항상 null)
   const { kind, adminUser, parentAccount } = useAuth();
+  const { mode } = useMode();
   const params = useLocalSearchParams<{ backTo?: string }>();
+
+  /** §24: x_pending도 X UI */
+  const isX = isXMode(mode);
 
   // homePath prop이 있으면 그대로 사용, 없으면 현재 로그인 역할로 자동 결정
   const resolvedHome: string = (() => {
@@ -103,22 +112,31 @@ export function SubScreenHeader({
     router.replace(resolvedHome as any);
   };
 
+  // ── X mode 색상 ──────────────────────────────────────────────────────────
+  const rootBg        = isX ? XT.surfaceNavy    : C.background;
+  const borderColor   = isX ? XT.surfaceNavyStrong : C.border;
+  const iconColor     = isX ? XT.textOnNavy     : C.text;
+  const iconColorSec  = isX ? XT.textOnNavySoft : C.textSecondary;
+  const btnBg         = isX ? "rgba(255,255,255,0.12)" : "#FFFFFF";
+  const titleColor    = isX ? XT.textOnNavy     : C.text;
+  const subtitleColor = isX ? XT.textOnNavySoft : C.textSecondary;
+
   return (
-    <View style={[s.root, { paddingTop: topPad }]}>
-      <Pressable onPress={handleBack} style={s.btn} hitSlop={10}>
-        <LucideIcon name="arrow-left" size={22} color={C.text} />
+    <View style={[s.root, { paddingTop: topPad, backgroundColor: rootBg, borderBottomColor: borderColor }]}>
+      <Pressable onPress={handleBack} style={[s.btn, { backgroundColor: btnBg }]} hitSlop={10}>
+        <LucideIcon name="arrow-left" size={22} color={iconColor} />
       </Pressable>
 
       <View style={s.titleBlock}>
-        <Text style={s.title} numberOfLines={1}>{title}</Text>
-        {subtitle ? <Text style={s.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
+        <Text style={[s.title, { color: titleColor }]} numberOfLines={1}>{title}</Text>
+        {subtitle ? <Text style={[s.subtitle, { color: subtitleColor }]} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
 
       <View style={s.right}>
         {rightSlot ?? null}
         {showHome ? (
-          <Pressable onPress={handleHome} style={s.btn} hitSlop={10}>
-            <LucideIcon name="home" size={20} color={C.textSecondary} />
+          <Pressable onPress={handleHome} style={[s.btn, { backgroundColor: btnBg }]} hitSlop={10}>
+            <LucideIcon name="home" size={20} color={iconColorSec} />
           </Pressable>
         ) : (
           !rightSlot ? <View style={s.placeholder} /> : null
@@ -134,9 +152,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingBottom: 14,
-    backgroundColor: C.background,
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
     gap: 8,
   },
   btn: {
@@ -145,7 +161,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 10,
-    backgroundColor: "#FFFFFF",
   },
   placeholder: {
     width: 38,
@@ -158,13 +173,11 @@ const s = StyleSheet.create({
   title: {
     fontSize: 17,
     fontFamily: "Pretendard-Regular",
-    color: C.text,
     textAlign: "center",
   },
   subtitle: {
     fontSize: 12,
     fontFamily: "Pretendard-Regular",
-    color: C.textSecondary,
     textAlign: "center",
     marginTop: 1,
   },
