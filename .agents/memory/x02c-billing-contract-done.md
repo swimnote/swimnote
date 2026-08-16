@@ -51,8 +51,21 @@ description: Server Purchase Contract (x-billing.ts + 신규 endpoints + 38 TC) 
 - `REVENUECAT_SECRET_API_KEY` — RevenueCat 대시보드에서 조회
 - `REVENUECAT_X_PRODUCT_IDS=com.swimnote.x.monthly.tier1,com.swimnote.x.monthly.tier2,com.swimnote.x.monthly.tier3,com.swimnote.x.monthly.standard`
 
+## HOTFIX: V1→V2 (SHA f28bf20b)
+
+`fetchRCSubscriberEntitlement` V2로 교체:
+- Old: `GET api.revenuecat.com/v1/subscribers/{appUserId}`
+- New: `GET api.revenuecat.com/v2/projects/{projectId}/customers/{id}` (customer)
+       `GET api.revenuecat.com/v2/projects/{projectId}/customers/{id}/subscriptions` (active subs)
+- REVENUECAT_PROJECT_ID 환경변수 필요 (PRESENT 확인됨)
+- gives_access=true + REVENUECAT_X_PRODUCT_IDS 기반 필터 (entitlement 직접 신뢰 금지)
+- V2 safety TC 5개 추가 (401/404/malformed/non-X/403)
+- X_NEW_SYNC_V1_ENDPOINT_REFERENCE = 0
+- Basic billing V1 사용 없음 (x-billing.ts 전용)
+- 총 TC: 1152/1152
+
 ## 배포 상태
 
 - Replit: `[x-billing-contract-migration] revenuecat_webhook_events OK` ✅
-- Render.com: GitHub push 자동 배포 진행 중 (c8ee6a32)
+- Render.com: GitHub push 자동 배포 진행 중 (f28bf20b)
 - OTA: 앱 UI 없음 → 불필요
