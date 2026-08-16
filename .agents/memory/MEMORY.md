@@ -72,4 +72,5 @@
 - [P0 Signup HTTP500 완료](p0-signup-http500-done.md) — SHA 074e7f46; §6 클라이언트 5xx 메시지 교체+§5 원자성 롤백+apple/kakao_id 저장; Render live dep-da09qg8u01pc738mk2ag; OTA production 0119fc1b
 - [X02-B1 완료 상태](x02b1-done-state.md) — SHA 36cbb38b; x_subscription_slots+x_slot_seq+swimming_pools 4컬럼+legacy backfill; Render live; non-FATAL 패턴 적용
 - [X02-B2 완료 상태](x02b2-done-state.md) — SHA b069e7b4; Paid/Manual Entitlement 출처 분리; resolveEffectiveXEntitlement; 1109TC; Render 재배포 필요
-- [X02-C Billing Contract 완료](x02c-billing-contract-done.md) — SHA c8ee6a32; x-billing.ts+migration+신규 엔드포인트; 38TC+1147TC; Render queued; OTA 없음
+- [X02-C Billing Contract 완료](x02c-billing-contract-done.md) — SHA f28bf20b(HOTFIX RC V2); x-billing.ts V2+migration+신규엔드포인트; 1152TC; Render live
+- [X02-D iOS Purchase UI 완료](x02d-done-state.md) — SHA d867dc78; 상태머신+getXOffering; 1152TC; OTA production f69df72e+preview 57be1c39; TESTFLIGHT E2E 미검증
