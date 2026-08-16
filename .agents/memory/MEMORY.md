@@ -75,4 +75,5 @@
 - [X02-C Billing Contract 완료](x02c-billing-contract-done.md) — SHA f28bf20b(HOTFIX RC V2); x-billing.ts V2+migration+신규엔드포인트; 1152TC; Render live
 - [X02-D iOS Purchase UI 완료](x02d-done-state.md) — SHA d867dc78; 상태머신+getXOffering; 1152TC; OTA production f69df72e+preview 57be1c39; TESTFLIGHT E2E 미검증
 - [P0 X Pool-Wide Immediate Activation 완료](p0-x-pool-wide-done.md) — SHA fc087251; computeMode(pool) 시그니처+paid→x즉시; 1153TC; Render dep-da0mqi61egvs73942tng; OTA 652e8c3d/25ac6b25
-- [P1 FINAL 완료 상태](wp-p1final-done-state.md) — SHA f20f852c; tab contrast fix+SubScreenHeader/ParentScreenHeader X-aware+admin hub X; OTA prod b171c938/preview 6a03d39d
+- [P1 FINAL 완료 상태](wp-p1final-done-state.md) — SHA d6599409; P1 FULL surface conversion 완료; OTA 01a00aff
+- [P1.1 Nautic+Yacht Blue 완료](p1-1-nautic-yacht-done.md) — SHA 5163e424; xTheme 2-tone 재정의+header 2-row pool-name fix; OTA 01a00b1c
